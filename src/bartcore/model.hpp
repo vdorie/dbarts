@@ -188,6 +188,399 @@ struct ConstantGaussianLeaf {
 
 static_assert(ScalarLeafModel<ConstantGaussianLeaf>);
 
+// ---- Monotone (mBART) constrained constant leaf ---------------------------
+//
+// A constant leaf whose forest is monotone in a declared subset of predictors
+// (Chipman, George, McCulloch, Shively 2022; docs/design/monotone.md). Each
+// tree is constrained so neighboring leaves along a constrained axis are
+// ordered; the leaf-parameter draw is a coupled truncated-normal Gibbs sweep
+// and the birth/death score is the constrained (truncated) conditional
+// marginal (approach B'). It DECLARES the two optional leaf seams
+// (TreeDrawLeafModel, ParamScoringLeafModel) that the constant leaf does not,
+// so it is a separate construction-time instantiation; the unconstrained path
+// is byte-identical (design section 8).
+
+inline double monotoneStandardNormalPdf(double z) {
+  return std::exp(-0.5 * z * z) / std::sqrt(2.0 * std::numbers::pi);
+}
+inline double monotoneNormalCdf(double z) {
+  return Rf_pnorm5(z, 0.0, 1.0, 1, 0);
+}
+
+/// Adaptive Simpson quadrature of a smooth integrand over [a, b]; the callers
+/// standardize so the integrand is a standard-normal density times a bounded
+/// factor, keeping the recursion shallow.
+template <typename F>
+double monotoneAdaptiveSimpson(F f, double a, double m, double b, double fa,
+                               double fm, double fb, double whole, double tol,
+                               int depth) {
+  double lm = 0.5 * (a + m), rm = 0.5 * (m + b);
+  double flm = f(lm), frm = f(rm);
+  double left = (m - a) / 6.0 * (fa + 4.0 * flm + fm);
+  double right = (b - m) / 6.0 * (fm + 4.0 * frm + fb);
+  double both = left + right;
+  if (depth <= 0 || std::abs(both - whole) <= 15.0 * tol)
+    return both + (both - whole) / 15.0;
+  return monotoneAdaptiveSimpson(f, a, lm, m, fa, flm, fm, left, 0.5 * tol,
+                                 depth - 1) +
+         monotoneAdaptiveSimpson(f, m, rm, b, fm, frm, fb, right, 0.5 * tol,
+                                 depth - 1);
+}
+template <typename F>
+double monotoneIntegrate(F f, double a, double b, double tol = 1e-12,
+                         int maxDepth = 30) {
+  if (!(b > a)) return 0.0;
+  // an initial uniform split guarantees a narrow peak anywhere in [a, b] is
+  // sampled before the adaptive convergence test can stop early on a wide,
+  // near-flat interval; each panel is then refined to tolerance.
+  const int panels = 16;
+  double h = (b - a) / panels;
+  double total = 0.0;
+  for (int panel = 0; panel < panels; ++panel) {
+    double lo = a + panel * h, hi = lo + h;
+    double m = 0.5 * (lo + hi);
+    double fa = f(lo), fm = f(m), fb = f(hi);
+    double whole = (hi - lo) / 6.0 * (fa + 4.0 * fm + fb);
+    total += monotoneAdaptiveSimpson(f, lo, m, hi, fa, fm, fb, whole,
+                                     tol / panels, maxDepth);
+  }
+  return total;
+}
+
+/// Ordinal code-box of a leaf along one predictor: codes in [lo, hi] reach it.
+/// From the ancestor-constrained cut interval (Tree::splitInterval): its left
+/// is the low code, its right + 1 the high code.
+inline void monotoneLeafBox(const Tree& tree, const ColumnStore& data,
+                            std::int32_t leaf, std::int32_t variable,
+                            std::int32_t* lo, std::int32_t* hi) {
+  std::int32_t left, right;
+  tree.splitInterval(data, leaf, variable, &left, &right);
+  *lo = left;
+  *hi = right + 1;
+}
+
+/// The distinct split variables on a leaf's ancestor path (the only axes whose
+/// boxes are narrower than the full range, so the only ones an overlap test
+/// must check).
+inline void monotonePathVariables(const Tree& tree, std::int32_t leaf,
+                                  std::vector<std::int32_t>& out) {
+  out.clear();
+  std::int32_t current = leaf;
+  while (tree.at(current).parent != invalidNode) {
+    current = tree.at(current).parent;
+    std::int32_t v = tree.at(current).rule.variableIndex;
+    if (std::find(out.begin(), out.end(), v) == out.end()) out.push_back(v);
+  }
+}
+
+/// Whether two leaves' boxes overlap on every axis in `axes` except skipAxis.
+inline bool monotoneBoxesOverlap(const Tree& tree, const ColumnStore& data,
+                                 std::int32_t leafA, std::int32_t leafB,
+                                 const std::vector<std::int32_t>& axes,
+                                 std::int32_t skipAxis) {
+  for (std::int32_t v : axes) {
+    if (v == skipAxis) continue;
+    std::int32_t loA, hiA, loB, hiB;
+    monotoneLeafBox(tree, data, leafA, v, &loA, &hiA);
+    monotoneLeafBox(tree, data, leafB, v, &loB, &hiB);
+    if (std::max(loA, loB) > std::min(hiA, hiB)) return false;
+  }
+  return true;
+}
+
+/// Scratch for the neighbor walk (per-leaf, reused across the sweep).
+struct MonotoneNeighborScratch {
+  std::vector<std::int32_t> branch, allBottoms, pathA, pathB, axes;
+};
+
+/// Bounds [a, b] on leaf k's value from its neighbors' frozen mu, plus whether
+/// k has any neighbor along a constrained axis (c-inflation). j below k along
+/// an increasing axis lower-bounds mu_k by mu_j; above upper-bounds it; a
+/// decreasing axis (direction -1) flips the roles. A neighbor whose index is
+/// in `skip` still marks k constrained but contributes no bound - the touched
+/// leaves of a move, integrated out rather than frozen.
+inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
+                                   const std::int8_t* directions,
+                                   const std::vector<std::int32_t>& bottoms,
+                                   std::int32_t k, const double* mu,
+                                   const std::int32_t* skip, std::size_t numSkip,
+                                   MonotoneNeighborScratch& s, double* aOut,
+                                   double* bOut, bool* constrained) {
+  double a = -HUGE_VAL, b = HUGE_VAL;
+  bool has = false;
+  monotonePathVariables(tree, k, s.pathA);
+  for (std::int32_t j : bottoms) {
+    if (j == k) continue;
+    monotonePathVariables(tree, j, s.pathB);
+    s.axes = s.pathA;
+    for (std::int32_t v : s.pathB)
+      if (std::find(s.axes.begin(), s.axes.end(), v) == s.axes.end())
+        s.axes.push_back(v);
+    bool jSkipped = false;
+    for (std::size_t t = 0; t < numSkip; ++t)
+      if (skip[t] == j) jSkipped = true;
+    for (std::int32_t i : s.axes) {
+      if (directions[i] == 0) continue;
+      std::int32_t loK, hiK, loJ, hiJ;
+      monotoneLeafBox(tree, data, k, i, &loK, &hiK);
+      monotoneLeafBox(tree, data, j, i, &loJ, &hiJ);
+      bool jBelowK = (hiJ + 1 == loK);
+      bool kBelowJ = (hiK + 1 == loJ);
+      if (!jBelowK && !kBelowJ) continue;
+      if (!monotoneBoxesOverlap(tree, data, k, j, s.axes, i)) continue;
+      has = true;
+      if (jSkipped) continue;
+      double muj = mu[j];
+      if (jBelowK) {
+        if (directions[i] > 0) a = std::max(a, muj);
+        else                   b = std::min(b, muj);
+      } else {
+        if (directions[i] > 0) b = std::min(b, muj);
+        else                   a = std::max(a, muj);
+      }
+    }
+  }
+  *aOut = a;
+  *bOut = b;
+  *constrained = has;
+}
+
+/// True when every leaf's value lies within its neighbor bounds - the monotone
+/// feasibility invariant (a component-test predicate).
+inline bool monotoneTreeIsFeasible(const Tree& tree, const ColumnStore& data,
+                                   const std::int8_t* directions,
+                                   const double* mu, double tol = 1e-9) {
+  MonotoneNeighborScratch s;
+  s.allBottoms.clear();
+  tree.fillBottom(0, s.allBottoms);
+  for (std::int32_t leaf : s.allBottoms) {
+    if (tree.at(leaf).numObservations() == 0) continue;
+    double a, b;
+    bool c;
+    monotoneNeighborBounds(tree, data, directions, s.allBottoms, leaf, mu,
+                           nullptr, 0, s, &a, &b, &c);
+    if (mu[leaf] < a - tol || mu[leaf] > b + tol) return false;
+  }
+  return true;
+}
+
+struct MonotoneConstantGaussianLeaf {
+  static constexpr bool hasVectorParams = false;
+  static constexpr bool hasFunctionParams = false;
+
+  double scale = 0.0;
+  const ColumnStore* data = nullptr;
+  const std::int8_t* directions = nullptr;  // per-column {-1,0,+1}, borrowed
+  // c^2 = pi / (pi - 1): a constrained leaf uses effective k / c so its post-
+  // truncation (skew-normal) marginal variance matches the unconstrained
+  // sigma_mu^2 (design section 6).
+  double cInflation = 1.0;
+  mutable MonotoneNeighborScratch scratch;
+
+  double priorSd(double k, bool constrained) const {
+    return (constrained ? cInflation : 1.0) * scale / k;
+  }
+  void posterior(double sumWeights, double sumWeightedResponse,
+                 double residualVariance, double priorStdDev, double* mean,
+                 double* stdDev) const {
+    double priorPrecision = 1.0 / (priorStdDev * priorStdDev);
+    double posteriorPrecision = sumWeights / residualVariance;
+    double variance = 1.0 / (priorPrecision + posteriorPrecision);
+    *stdDev = std::sqrt(variance);
+    *mean = (sumWeightedResponse / residualVariance) * variance;
+  }
+
+  // ---- ScalarLeafModel surface (never on the constrained hot path) ---------
+  double logIntegratedLikelihood(double k, double residualVariance,
+                                 double sumWeights,
+                                 double sumWeightedResponse) const {
+    return ConstantGaussianLeaf{scale}.logIntegratedLikelihood(
+      k, residualVariance, sumWeights, sumWeightedResponse);
+  }
+  double logIntegratedLikelihoodForNode(const Tree& tree, const double* y,
+                                        const double* w, double k,
+                                        double residualVariance,
+                                        std::int32_t nodeIndex) const {
+    return ConstantGaussianLeaf{scale}.logIntegratedLikelihoodForNode(
+      tree, y, w, k, residualVariance, nodeIndex);
+  }
+  double drawFromPosteriorForNode(ext_rng* rng, const Tree& tree, double k,
+                                  double residualVariance,
+                                  std::int32_t nodeIndex) const {
+    return ConstantGaussianLeaf{scale}.drawFromPosteriorForNode(
+      rng, tree, k, residualVariance, nodeIndex);
+  }
+  double drawFromPrior(ext_rng* rng, double k) const {
+    return ConstantGaussianLeaf{scale}.drawFromPrior(rng, k);
+  }
+
+  // ---- the constrained leaf-parameter draw (TreeDrawLeafModel) -------------
+  // Sequential single-site truncated-normal Gibbs over the tree's leaves,
+  // updating the SURVIVING mu block in place (the move phase keeps it feasible
+  // through births/deaths). Fixed k: the truncated draw carries no clean chi-k
+  // statistic (design section 6), so no kSumSquaredParams accumulation.
+  void drawParametersForTree(ext_rng* rng, const Tree& tree,
+                             const std::vector<std::int32_t>& bottoms, double k,
+                             double residualVariance, double* mu) const {
+    for (std::int32_t leaf : bottoms) {
+      const Node& node = tree.at(leaf);
+      if (node.numObservations() == 0) {
+        mu[leaf] = 0.0;
+        continue;
+      }
+      double a, b;
+      bool constrained;
+      monotoneNeighborBounds(tree, *data, directions, bottoms, leaf, mu,
+                             nullptr, 0, scratch, &a, &b, &constrained);
+      double sd = priorSd(k, constrained);
+      double m, s;
+      posterior(node.sumWeights, node.sumWeightedResponse, residualVariance, sd,
+                &m, &s);
+      double draw;
+      if (!constrained || (!std::isfinite(a) && !std::isfinite(b)))
+        draw = m + s * ext_rng_simulateStandardNormal(rng);
+      else if (!std::isfinite(a))
+        draw = ext_rng_simulateUpperTruncatedNormal(rng, m, s, b);
+      else if (!std::isfinite(b))
+        draw = ext_rng_simulateLowerTruncatedNormal(rng, m, s, a);
+      else {
+        double z =
+          ext_rng_simulateTruncatedNormalScale1(rng, m / s, a / s, b / s);
+        draw = std::isnan(z) ? std::clamp(mu[leaf], a, b) : s * z;
+      }
+      mu[leaf] = draw;
+    }
+  }
+
+  // ---- the B' constrained birth/death marginal (ParamScoringLeafModel) -----
+  double logLikelihoodForBranchWithParams(const Tree& tree,
+                                          std::int32_t branchIndex,
+                                          const double*, const double*, double k,
+                                          double residualVariance,
+                                          const double* mu) const {
+    scratch.branch.clear();
+    tree.fillBottom(branchIndex, scratch.branch);
+    for (std::int32_t leaf : scratch.branch)
+      if (tree.at(leaf).numObservations() == 0) return -HUGE_VAL;
+    scratch.allBottoms.clear();
+    tree.fillBottom(0, scratch.allBottoms);
+
+    std::size_t numLeaves = scratch.branch.size();
+    if (numLeaves == 2) {
+      std::int32_t splitVar = tree.at(branchIndex).rule.variableIndex;
+      if (directions[splitVar] != 0) {
+        std::int32_t left = tree.at(branchIndex).leftChild;
+        std::int32_t lower = directions[splitVar] > 0 ? left : left + 1;
+        std::int32_t upper = directions[splitVar] > 0 ? left + 1 : left;
+        return twoLeafCoupledLogMarginal(tree, lower, upper, mu, k,
+                                         residualVariance);
+      }
+    }
+    // one leaf (birth-old / death-new), two on an unconstrained split, or the
+    // >2 of a change/swap (outside the v1 move set): a product of independent
+    // 1-D constrained marginals over the frozen outside neighbors. Exact for
+    // the birth/death cases; for change/swap it still rejects an infeasible
+    // arrangement (any empty bound gives the sentinel).
+    double sum = 0.0;
+    for (std::int32_t leaf : scratch.branch) {
+      double term =
+        oneLeafLogMarginal(tree, leaf, mu, k, residualVariance, scratch.branch);
+      if (term == -HUGE_VAL) return -HUGE_VAL;
+      sum += term;
+    }
+    return sum;
+  }
+
+  double oneLeafLogMarginal(const Tree& tree, std::int32_t leaf,
+                            const double* mu, double k, double residualVariance,
+                            const std::vector<std::int32_t>& skip) const {
+    double a, b;
+    bool constrained;
+    monotoneNeighborBounds(tree, *data, directions, scratch.allBottoms, leaf, mu,
+                           skip.data(), skip.size(), scratch, &a, &b,
+                           &constrained);
+    if (a > b) return -HUGE_VAL;
+    const Node& node = tree.at(leaf);
+    double kEff = constrained ? k / cInflation : k;
+    double base = ConstantGaussianLeaf{scale}.logIntegratedLikelihood(
+      kEff, residualVariance, node.sumWeights, node.sumWeightedResponse);
+    if (!constrained) return base;
+    double sd = priorSd(k, true);
+    double m, s;
+    posterior(node.sumWeights, node.sumWeightedResponse, residualVariance, sd,
+              &m, &s);
+    double postMass = normalMass(a, b, m, s);
+    double priorMass = normalMass(a, b, 0.0, sd);
+    if (postMass <= 0.0 || priorMass <= 0.0) return -HUGE_VAL;
+    return base + std::log(postMass) - std::log(priorMass);
+  }
+
+  // The bivariate constrained-axis marginal: the cone is
+  // {aL <= mu_lower <= bL, aR <= mu_upper <= bR, mu_lower <= mu_upper}, so the
+  // touched-leaf integral and its prior normalizer d_* are each one 1-D
+  // quadrature (standardized on the upper leaf), not a grid (design section 4).
+  double twoLeafCoupledLogMarginal(const Tree& tree, std::int32_t lower,
+                                   std::int32_t upper, const double* mu, double k,
+                                   double residualVariance) const {
+    double aL, bL, aR, bR;
+    bool cL, cR;
+    std::int32_t skipUpper = upper, skipLower = lower;
+    monotoneNeighborBounds(tree, *data, directions, scratch.allBottoms, lower, mu,
+                           &skipUpper, 1, scratch, &aL, &bL, &cL);
+    monotoneNeighborBounds(tree, *data, directions, scratch.allBottoms, upper, mu,
+                           &skipLower, 1, scratch, &aR, &bR, &cR);
+    const Node& nodeL = tree.at(lower);
+    const Node& nodeR = tree.at(upper);
+    double kEff = k / cInflation;
+    double sd = priorSd(k, true);
+    double mL, sL, mR, sR;
+    posterior(nodeL.sumWeights, nodeL.sumWeightedResponse, residualVariance, sd,
+              &mL, &sL);
+    posterior(nodeR.sumWeights, nodeR.sumWeightedResponse, residualVariance, sd,
+              &mR, &sR);
+    double base =
+      ConstantGaussianLeaf{scale}.logIntegratedLikelihood(
+        kEff, residualVariance, nodeL.sumWeights, nodeL.sumWeightedResponse) +
+      ConstantGaussianLeaf{scale}.logIntegratedLikelihood(
+        kEff, residualVariance, nodeR.sumWeights, nodeR.sumWeightedResponse);
+    double lowR = std::max(aR, aL);
+    if (lowR > bR) return -HUGE_VAL;
+    double numer = coneProbability(lowR, bR, aL, bL, mL, sL, mR, sR);
+    double denom = coneProbability(lowR, bR, aL, bL, 0.0, sd, 0.0, sd);
+    if (numer <= 0.0 || denom <= 0.0) return -HUGE_VAL;
+    return base + std::log(numer) - std::log(denom);
+  }
+
+  // P(a? <= mu_lower <= mu_upper, mu_lower in [aL, bL], mu_upper in [lowR, hiR])
+  // for independent mu_lower ~ N(mL, sL^2), mu_upper ~ N(mR, sR^2); standardized
+  // on the upper leaf so the integrand is a standard-normal density times a
+  // bounded CDF difference.
+  double coneProbability(double lowR, double hiR, double aL, double bL,
+                         double mL, double sL, double mR, double sR) const {
+    double loU = std::max((lowR - mR) / sR, -38.0);
+    double hiU = std::isfinite(hiR) ? std::min((hiR - mR) / sR, 38.0) : 38.0;
+    double lowerL = std::isfinite(aL) ? monotoneNormalCdf((aL - mL) / sL) : 0.0;
+    return monotoneIntegrate(
+      [&](double u) {
+        double x = mR + sR * u;
+        double upper = std::isfinite(bL) ? std::min(bL, x) : x;
+        double inner = monotoneNormalCdf((upper - mL) / sL) - lowerL;
+        return (inner > 0.0 ? inner : 0.0) * monotoneStandardNormalPdf(u);
+      },
+      loU, hiU);
+  }
+
+  static double normalMass(double a, double b, double mean, double stdDev) {
+    double hi = std::isfinite(b) ? monotoneNormalCdf((b - mean) / stdDev) : 1.0;
+    double lo = std::isfinite(a) ? monotoneNormalCdf((a - mean) / stdDev) : 0.0;
+    return hi - lo;
+  }
+};
+
+static_assert(ScalarLeafModel<MonotoneConstantGaussianLeaf>);
+static_assert(TreeDrawLeafModel<MonotoneConstantGaussianLeaf>);
+static_assert(ParamScoringLeafModel<MonotoneConstantGaussianLeaf>);
+
 /// Linear Gaussian leaf: each bottom node fits an intercept plus a linear
 /// term in q designated ordinal predictor columns, standardized internally
 /// to the training mean and sample sd. All q + 1 coefficients are iid

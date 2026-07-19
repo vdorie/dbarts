@@ -1,6 +1,7 @@
 #ifndef BARTCORE_CHAIN_HPP
 #define BARTCORE_CHAIN_HPP
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -9,6 +10,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <numbers>
 #include <vector>
 
 #include <external/random.h>
@@ -81,6 +83,13 @@ struct SamplerOptions {
   // the constant leaf; the factory validates count, range, and type.
   const std::size_t* leafCovariateColumns = nullptr;
   std::size_t numLeafCovariates = 0;
+
+  // monotone (mBART) constraints: a borrowed per-predictor direction in
+  // {-1, 0, +1} (length numPredictors), consumed at construction. A nonzero
+  // entry selects the constrained constant-leaf instantiation at the factory;
+  // null - or all zero - keeps the unchanged constant-leaf path (design
+  // section 8). Not yet exposed through the R surface (C++/tests only).
+  const std::int8_t* monotoneDirections = nullptr;
 
   // GP (function-valued) leaves share the leafCovariateColumns designation;
   // gpLeaves selects them over the linear leaf at the factory (the leaf
@@ -371,6 +380,15 @@ public:
 
     forest.leaf.scale =
       options.nodeScale / std::sqrt(static_cast<double>(forest.numTrees));
+    // the constrained constant leaf reads box geometry from the store and its
+    // per-column directions from the borrowed spec; the c-inflation matches a
+    // constrained leaf's post-truncation variance to the unconstrained prior
+    if constexpr (TreeDrawLeafModel<L>) {
+      forest.leaf.data = &data_;
+      forest.leaf.directions = options.monotoneDirections;
+      forest.leaf.cInflation =
+        std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
+    }
     forest.treePrior.base = options.base;
     forest.treePrior.power = options.power;
     family_ = family;
@@ -717,11 +735,21 @@ public:
           // its repartitioned subtree, and a tree marked stale (wholesale
           // structure reset with fits left cached) rebuilds in full
           if constexpr (leafIsConstant) {
-            if (forest.leafOfStale[t] != 0) {
+            bool wasStale = forest.leafOfStale[t] != 0;
+            if (wasStale) {
               rebuildLeafOf(forest, t);
             } else if (stepTaken) {
               updateLeafOfBelow(forest, t, changedNode);
             }
+            // the constrained leaf reads muByTree through the move phase (frozen
+            // neighbors) and its draw updates the surviving block in place, so it
+            // must stay sized and feasible across an accepted birth/death rather
+            // than be zeroed and refilled. A birth seeds its two children with
+            // the parent's (feasible) value; a death seeds the merged leaf inside
+            // its neighbor bounds; the draw then redraws every leaf.
+            if constexpr (TreeDrawLeafModel<L>)
+              maintainMonotoneLeafStore(forest, t, wasStale, stepTaken, stepType,
+                                        changedNode);
           }
 
           // the draw writes this tree's new leaf values: the constant leaf's mu
@@ -2272,6 +2300,44 @@ private:
     }
   }
 
+  /// Keep the constrained leaf's mu block consistent with an accepted move so
+  /// the following draw sweeps a feasible, correctly sized state. A stale tree
+  /// resets to the all-equal (feasible) zero vector; an accepted birth grows
+  /// the block and seeds the two children with the split parent's value
+  /// (feasible for both and ordered); an accepted death seeds the merged leaf
+  /// with a point inside its neighbor bounds. Rejections leave the block, which
+  /// still matches the restored structure.
+  void maintainMonotoneLeafStore(Forest<L>& forest, size_t t, bool wasStale,
+                                 bool stepTaken, StepType stepType,
+                                 int32_t changedNode) {
+    Tree& tree(forest.trees[t]);
+    std::vector<double>& mu(forest.muByTree[t]);
+    if (wasStale) {
+      mu.assign(tree.nodes.size(), 0.0);
+      return;
+    }
+    if (!stepTaken) return;
+    if (stepType == StepType::birth) {
+      double parentValue = mu[static_cast<size_t>(changedNode)];
+      mu.resize(tree.nodes.size(), 0.0);
+      int32_t left = tree.at(changedNode).leftChild;
+      mu[static_cast<size_t>(left)] = parentValue;
+      mu[static_cast<size_t>(left + 1)] = parentValue;
+    } else if (stepType == StepType::death) {
+      mu.resize(tree.nodes.size(), 0.0);
+      std::vector<int32_t>& bottoms(forest.leaf.scratch.allBottoms);
+      bottoms.clear();
+      tree.fillBottom(0, bottoms);
+      double a, b;
+      bool constrained;
+      monotoneNeighborBounds(tree, data_, forest.leaf.directions, bottoms,
+                             changedNode, mu.data(), nullptr, 0,
+                             forest.leaf.scratch, &a, &b, &constrained);
+      mu[static_cast<size_t>(changedNode)] =
+        (a <= b) ? std::clamp(0.0, a, b) : a;
+    }
+  }
+
   void sampleParametersAndSetFits(Forest<L>& forest, size_t t, double* fits,
                                   bool updateTestFits) {
     Tree& tree(forest.trees[t]);
@@ -2306,14 +2372,17 @@ private:
       // (patched at move acceptance, or rebuilt when marked stale)
       (void) fits;
       std::vector<double>& mu(forest.muByTree[t]);
-      mu.assign(tree.nodes.size(), 0.0);
       if constexpr (TreeDrawLeafModel<L>) {
-        // one coupled draw fills the whole mu block (the monotone constrained
-        // sweep) in place of the independent per-node draws; fixed k only, the
-        // truncated draw carries no clean chi-k statistic (section 6)
+        // the surviving block carries the previous sweep's feasible draw (the
+        // move phase kept it sized and feasible); grow it for any node the tree
+        // gained without disturbing existing leaves, then the coupled Gibbs
+        // sweep updates every leaf in place. Fixed k only, the truncated draw
+        // carries no clean chi-k statistic (section 6)
+        mu.resize(tree.nodes.size(), 0.0);
         forest.leaf.drawParametersForTree(rng_, tree, bottoms, forest.k,
                                           sigma_ * sigma_, mu.data());
       } else {
+        mu.assign(tree.nodes.size(), 0.0);
         for (int32_t i : bottoms) {
           const Node& node(tree.at(i));
           double param = node.numObservations() == 0
