@@ -918,9 +918,21 @@ public:
         if constexpr (L::hasVectorParams)
           forest.paramsByTree[t].assign(
             forest.trees[t].nodes.size() * forest.leaf.numParams(), 0.0);
-        // the old (mu, leafOf) pair stays behind as the cached-fits evaluator
-        // the next sweep's residual roll needs; mark for rebuild at its draw
-        if constexpr (leafIsConstant) forest.leafOfStale[t] = 1;
+        // the old leafOf map stays behind as the cached-fits evaluator the
+        // next sweep's residual roll needs (it reads mu[leafOf], and the stale
+        // all-root map indexes only mu[0]); mark for rebuild at its draw. mu
+        // itself must be resized to the grown tree here: a ParamScoringLeafModel
+        // (monotone) reads muByTree for frozen neighbors DURING the first move,
+        // before the stale rebuild in maintainMonotoneLeafStore runs, so a
+        // block left at its size-1 root would be read out of bounds. The
+        // all-equal zero seed is monotone-feasible (every neighbor bound holds
+        // with equality) and is exactly what the first draw reassigns, so the
+        // conjugate constant leaf - which never reads mu in the move - is
+        // byte-unchanged.
+        if constexpr (leafIsConstant) {
+          forest.muByTree[t].assign(forest.trees[t].nodes.size(), 0.0);
+          forest.leafOfStale[t] = 1;
+        }
       }
   }
 
