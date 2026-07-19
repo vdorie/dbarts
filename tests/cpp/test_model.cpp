@@ -387,6 +387,194 @@ static void testSigmaPosteriorDf(ext_rng* rng) {
   printf("ok: sigma posterior positive-weight df\n");
 }
 
+// Independent numerical check of the variance leaf's reduced scale marginal:
+// log integral over x > 0 of x^{-n/2} exp(-ssr/(2x)) times the chi^-2(df,scale)
+// prior density (the (2 pi)^{-n/2} factor the leaf drops). Log-substitution
+// x = exp(t) puts the (0, inf) range on a symmetric grid; a max-shift keeps the
+// exponential stable, then composite Simpson integrates.
+static double logVarianceMarginalQuadrature(double n, double ssr, double df,
+                                            double scale) {
+  double logPriorNorm =
+    0.5 * df * std::log(0.5 * df * scale) - std::lgamma(0.5 * df);
+  auto logIntegrand = [&](double t) {
+    double x = std::exp(t);
+    // -0.5 n log x - ssr/(2x) + log prior(x) + t (the dx = e^t dt Jacobian)
+    return -0.5 * n * t - 0.5 * ssr / x + logPriorNorm -
+           (0.5 * df + 1.0) * t - 0.5 * df * scale / x + t;
+  };
+  double center = std::log((ssr + df * scale) / (n + df));
+  double lo = center - 40.0, hi = center + 40.0;
+  const int steps = 200000;  // even, for Simpson
+  double h = (hi - lo) / steps;
+  double maxLog = -HUGE_VAL;
+  for (int i = 0; i <= steps; ++i) {
+    double g = logIntegrand(lo + i * h);
+    if (g > maxLog) maxLog = g;
+  }
+  double sum = 0.0;
+  for (int i = 0; i <= steps; ++i) {
+    double weight = (i == 0 || i == steps) ? 1.0 : (i % 2 == 1 ? 4.0 : 2.0);
+    sum += weight * std::exp(logIntegrand(lo + i * h) - maxLog);
+  }
+  return maxLog + std::log(sum * h / 3.0);
+}
+
+// (a) the scale marginal matches direct quadrature over (n, ssr), and the
+// node-context own-span accumulation reproduces the direct form over a split.
+static void testVarianceLeafMarginal() {
+  struct Case { double df, scale, n, ssr; };
+  Case cases[] = {
+    {3.0, 0.5, 8.0, 3.2}, {10.0, 0.2, 25.0, 6.0}, {4.0, 1.0, 1.0, 0.7}};
+  for (const Case& c : cases) {
+    ConstantVarianceLeaf leaf{c.df, c.scale};
+    double got = leaf.logIntegratedLikelihood(c.n, c.ssr);
+    double ref = logVarianceMarginalQuadrature(c.n, c.ssr, c.df, c.scale);
+    checkNear(got, ref, 1e-6 * (std::fabs(ref) + 1.0),
+              "variance leaf marginal matches quadrature");
+  }
+  ConstantVarianceLeaf leaf{5.0, 0.3};
+  checkNear(leaf.logIntegratedLikelihood(0.0, 0.0), 0.0, 0.0,
+            "empty variance leaf contributes zero");
+
+  // the node-context path over a split's two children, with a zero weight to
+  // exercise the positive-weight count
+  const size_t n = 6;
+  double r[n] = {0.4, -0.8, 1.1, 0.2, -0.5, 0.9};
+  double w[n] = {1.0, 2.0, 0.0, 1.5, 0.7, 1.2};
+  std::vector<double> x(n);
+  for (size_t i = 0; i < n; ++i) x[i] = (double) i;
+  ColumnStore store;
+  store.build(x.data(), n, 1, 100);
+  std::vector<size_t> indexBuffer(n);
+  Tree tree;
+  tree.initialize(indexBuffer.data(), n);
+  std::vector<double> rv(r, r + n), wv(w, w + n);
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(2);
+  tree.birth(store, 0, rule, rv.data(), wv.data());
+  ConstantVarianceLeaf vleaf{4.0, 0.6};
+  auto refNode = [&](int32_t nodeIndex) {
+    const Node& node = tree.at(nodeIndex);
+    double nn = 0.0, ssr = 0.0;
+    for (size_t m = node.begin; m < node.end; ++m) {
+      size_t i = tree.indices[m];
+      if (wv[i] <= 0.0) continue;
+      nn += 1.0;
+      ssr += wv[i] * rv[i] * rv[i];
+    }
+    return vleaf.logIntegratedLikelihood(nn, ssr);
+  };
+  int32_t left = tree.at(0).leftChild;
+  checkNear(vleaf.logIntegratedLikelihoodForNode(tree, rv.data(), wv.data(),
+                                                 1.0, 1.0, left),
+            refNode(left), 1e-12, "node-context variance marginal, left child");
+  checkNear(vleaf.logIntegratedLikelihoodForNode(tree, rv.data(), wv.data(),
+                                                 1.0, 1.0, left + 1),
+            refNode(left + 1), 1e-12,
+            "node-context variance marginal, right child");
+  printf("ok: variance leaf marginal\n");
+}
+
+// (b) the scaled-inverse-chi-squared posterior draw's moments match the analytic
+// scale-inv-chi^2 moments, small-n and large-n, plus the prior draw. A local
+// generator keeps the shared stream (and every downstream test) unperturbed.
+static void testVarianceLeafDraw() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20240719u);
+  struct Case { double df, scale; size_t n; };
+  Case cases[] = {{4.0, 0.5, 5}, {3.0, 0.8, 500}};
+  for (const Case& c : cases) {
+    std::vector<double> r(c.n), w(c.n, 1.0);
+    double ssr = 0.0;
+    for (size_t i = 0; i < c.n; ++i) {
+      r[i] = 0.3 + 0.1 * std::sin((double) i);
+      ssr += w[i] * r[i] * r[i];
+    }
+    std::vector<size_t> indexBuffer(c.n);
+    Tree tree;
+    tree.initialize(indexBuffer.data(), c.n);
+    ConstantVarianceLeaf leaf{c.df, c.scale};
+
+    double posteriorScale = c.df * c.scale + ssr;
+    double posteriorDf = c.df + (double) c.n;
+    double meanExpected = posteriorScale / (posteriorDf - 2.0);
+    double varExpected = 2.0 * posteriorScale * posteriorScale /
+      ((posteriorDf - 2.0) * (posteriorDf - 2.0) * (posteriorDf - 4.0));
+
+    const int numDraws = 400000;
+    double sum = 0.0, sumOfSquares = 0.0;
+    for (int d = 0; d < numDraws; ++d) {
+      double s2 = leaf.drawFromPosteriorForNode(rng, tree, r.data(), w.data(),
+                                                1.0, 1.0, 0);
+      sum += s2;
+      sumOfSquares += s2 * s2;
+    }
+    double mean = sum / numDraws;
+    double var = sumOfSquares / numDraws - mean * mean;
+    checkNear(mean, meanExpected, 0.01 * meanExpected,
+              "variance leaf posterior draw mean");
+    checkNear(var, varExpected, 0.05 * varExpected,
+              "variance leaf posterior draw variance");
+  }
+
+  ConstantVarianceLeaf leaf{6.0, 0.4};
+  double priorMeanExpected =
+    leaf.degreesOfFreedom * leaf.scale / (leaf.degreesOfFreedom - 2.0);
+  const int numDraws = 400000;
+  double sum = 0.0;
+  for (int d = 0; d < numDraws; ++d) sum += leaf.drawFromPrior(rng);
+  checkNear(sum / numDraws, priorMeanExpected, 0.01 * priorMeanExpected,
+            "variance leaf prior draw mean");
+  ext_rng_destroy(rng);
+  printf("ok: variance leaf posterior draws\n");
+}
+
+// (c) the Section-3.4 calibration collapses to ChiSquaredScalePrior at m' = 1
+// and mean-matches the leaf product at m' > 1.
+static void testVarianceLeafCalibration() {
+  const double df = 3.0, scale = 0.7;
+  ConstantVarianceLeaf collapsed = ConstantVarianceLeaf::calibrated(df, scale, 1);
+  checkNear(collapsed.degreesOfFreedom, df, 1e-12,
+            "m'=1 calibration df collapses to nu");
+  checkNear(collapsed.scale, scale, 1e-12,
+            "m'=1 calibration scale collapses to lambda^2");
+
+  // at m' = 1 the leaf draw is bitwise ChiSquaredScalePrior's: a 5-row node
+  // makes the leaf's own scan and the weighted-SSR unroll sum identically.
+  const size_t n = 5;
+  std::vector<double> r(n), w(n, 1.0), fits(n, 0.0);
+  for (size_t i = 0; i < n; ++i) r[i] = 0.2 * (double) i - 0.3;
+  std::vector<size_t> indexBuffer(n);
+  Tree tree;
+  tree.initialize(indexBuffer.data(), n);
+  ChiSquaredScalePrior prior;
+  prior.degreesOfFreedom = df;
+  prior.scale = scale;
+
+  ext_rng* local = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(local, 20240719u);
+  double leafDraw = collapsed.drawFromPosteriorForNode(local, tree, r.data(),
+                                                       w.data(), 1.0, 1.0, 0);
+  ext_rng_setSeed(local, 20240719u);
+  double priorDraw = prior.drawSigmaSqFromPosterior(local, r.data(), fits.data(),
+                                                    w.data(), n, n);
+  ext_rng_destroy(local);
+  checkNear(leafDraw, priorDraw, 0.0,
+            "m'=1 leaf draw is ChiSquaredScalePrior's, bitwise");
+
+  // m' = 4: the product of leaf-prior means matches the homoscedastic mean.
+  const size_t mPrime = 4;
+  ConstantVarianceLeaf multi =
+    ConstantVarianceLeaf::calibrated(df, scale, mPrime);
+  double leafMean =
+    multi.degreesOfFreedom * multi.scale / (multi.degreesOfFreedom - 2.0);
+  double homoMean = df * scale / (df - 2.0);
+  checkNear(std::pow(leafMean, (double) mPrime), homoMean, 1e-10,
+            "Section 3.4 calibration mean-matches the leaf product");
+  printf("ok: variance leaf calibration\n");
+}
+
 static void testSampleFromPrior(ext_rng* rng) {
   const size_t n = 200, numTrees = 50, numReplications = 200;
   std::vector<double> x, y;
@@ -4823,6 +5011,9 @@ void runModelTests(ext_rng* rng) {
   testChiKHyperprior(rng);
   testChiKEmptyLeafAccounting(rng);
   testSigmaPosteriorDf(rng);
+  testVarianceLeafMarginal();
+  testVarianceLeafDraw();
+  testVarianceLeafCalibration();
   testPolyaGamma(rng);
   testGeneralizedInverseGaussian(rng);
   testSampleFromPrior(rng);
