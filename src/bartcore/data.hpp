@@ -563,18 +563,30 @@ struct ColumnStore {
   }
 
   /// Quantize column j's dense raw values into block against the current cuts,
-  /// recording any missingness through hasMissingOut[j] when non-null (train
-  /// tracks missingness; test tracks none and passes null).
-  void quantizeDenseInto(CodeBlock& block, size_t numRows, size_t j,
-                         const double* raw, std::uint8_t* hasMissingOut) {
+  /// recording any missingness through hasMissingOut[j] when non-null. observe
+  /// is invoked as observe(i, column, code) for each cell just before column[i]
+  /// is overwritten, giving a caller the old code without a second pass; it is a
+  /// compile-time functor, inlined away for the no-op case.
+  template <typename Observer>
+  void quantizeDenseObserved(CodeBlock& block, size_t numRows, size_t j,
+                             const double* raw, std::uint8_t* hasMissingOut,
+                             Observer observe) {
     xint_t* column = block.codes.data() + block.codeOffsets[j];
     std::uint8_t anyMissing = 0;
     for (size_t i = 0; i < numRows; ++i) {
       xint_t code = codeFor(j, raw[i]);
       if (isNA(raw[i])) anyMissing = 1;
+      observe(i, column, code);
       column[i] = code;
     }
     if (hasMissingOut != nullptr) hasMissingOut[j] = anyMissing;
+  }
+
+  /// train tracks missingness; test tracks none and passes null.
+  void quantizeDenseInto(CodeBlock& block, size_t numRows, size_t j,
+                         const double* raw, std::uint8_t* hasMissingOut) {
+    quantizeDenseObserved(block, numRows, j, raw, hasMissingOut,
+                          [](size_t, const xint_t*, xint_t) {});
   }
 
   /// Quantize a CSC-backed column j into block against its current cuts: rank
@@ -1134,12 +1146,10 @@ struct ColumnStore {
   void setColumnJournaled(size_t j, const double* newColumn, bool updateCuts,
                           size_t maxJournal, ColumnCodeRollback& rollback) {
     if (updateCuts) refreshCutsForColumn(j, newColumn);
-    xint_t* column = train.codes.data() + train.codeOffsets[j];
-    std::uint8_t anyMissing = 0;
-    for (size_t i = 0; i < numObservations; ++i) {
-      xint_t code = codeFor(j, newColumn[i]);
-      if (isNA(newColumn[i])) anyMissing = 1;
-      if (!rollback.full && code != column[i]) {
+    quantizeDenseObserved(train, numObservations, j, newColumn,
+                          hasMissing.data(),
+      [&](size_t i, const xint_t* column, xint_t code) {
+        if (rollback.full || code == column[i]) return;
         rollback.journal.push_back({static_cast<std::uint32_t>(i), column[i]});
         if (rollback.journal.size() > maxJournal) {
           // reconstruct the pre-change column (current cells with the journaled
@@ -1150,10 +1160,7 @@ struct ColumnStore {
           rollback.journal.clear();
           rollback.full = true;
         }
-      }
-      column[i] = code;
-    }
-    hasMissing[j] = anyMissing;
+      });
     std::int32_t slot = gatheredSlotForColumn(j);
     if (slot >= 0)
       std::memcpy(gatheredRawValues.data() +

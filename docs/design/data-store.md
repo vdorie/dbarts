@@ -356,9 +356,8 @@ save/load without resident raw.
 - `docs/design/pooled-masks.md`, `docs/design/mia-missingness.md` -
   categorical mask tiers and the missing-value routing the codes encode.
 - the `data-store-residuals` TODO entry - the deferred cleanups
-  (`isView` split, conditional data-handle gather, observer-parameterized
-  quantize core, linear-leaf `u_` row-major); consult before treating any
-  of them as accidental.
+  (`isView` split, conditional data-handle gather, linear-leaf `u_`
+  row-major); consult before treating any of them as accidental.
 
 Per-function truth remains the Doxygen comments in `data.hpp` and
 `sampler.hpp`; this note does not restate them.
