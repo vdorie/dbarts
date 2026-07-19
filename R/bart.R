@@ -250,6 +250,14 @@ packageBartResults <- function(
   # element stays absent) for every non-survival family
   result$status <- attr(fit$control, "bartcore.survival")
 
+  # the discrete-time hazard marker (docs/design/survival.md section 4): the
+  # ordered period grid, present only on hazard fits (parked on the control
+  # attribute by dbarts()). $family reads the binary token on both, so every
+  # link-keyed generic stays correct with zero change; survivalProbabilities
+  # dispatches its hazard branch on THIS marker instead. NULL - and so the
+  # element stays absent - for every non-hazard fit.
+  result$periods <- attr(fit$control, "bartcore.hazard.periods")
+
   if (keepSampler) {
     result$fit <- fit
   } else {
@@ -383,11 +391,16 @@ bart2 <- function(
     "aft",
     "multinomial",
     "ordinal",
-    "nbinom"
+    "nbinom",
+    "hazard",
+    "hazard.probit",
+    "hazard.logistic"
   ),
   missing = c("incorporate", "error"),
   resid.dist = gaussian,
   dispersion = NA_real_,
+  breaks = NULL,
+  max.rows = 1e7,
   ...
 ) {
   matchedCall <- match.call()
@@ -1762,6 +1775,93 @@ survivalProbabilitiesFromDraws <- function(
   result
 }
 
+# Survival-probability draws from a discrete-time hazard fit
+# (docs/design/survival.md section 4). The fit is an ordinary binary fit on
+# the person-period-expanded rows, so the per-(subject, period) hazards are
+# h(k | x) = g(f(x, k) + o) through the fit's link (probit/logistic), and
+# S(t | x) = prod_{k : periods[k] <= t} (1 - h(k | x)). This ALWAYS re-expands
+# its subjects to the full grid and predicts - the training design is ragged
+# (subject i has only its at-risk rows), so a stored per-subject fit cannot
+# supply hazards past its own event/censoring period - and therefore requires
+# keepTrees unconditionally, where aft's training path never does. Requested
+# `times` are horizons (default: the grid periods); S cumulates (1 - h)
+# through each. Returns draws per the package's three-tier convention, the
+# shape aft's method uses (draws x times x observations, a chain margin under
+# combineChains = FALSE).
+hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
+  if (is.null(object[["fit"]])) {
+    stop(
+      "survivalProbabilities on a discrete-time hazard fit requires the ",
+      "trees; refit with keepTrees = TRUE"
+    )
+  }
+  periods <- object$periods
+  K <- length(periods)
+  if (is.null(times)) {
+    times <- periods
+  }
+  times <- as.double(times)
+  if (length(times) == 0L || any(!is.finite(times)) || any(times <= 0)) {
+    stop("'times' must be finite and positive")
+  }
+
+  periodCol <- ncol(object$fit$data@x)
+  if (is.null(newdata)) {
+    # reconstruct the per-subject covariates from the coded expanded design:
+    # every subject is at risk in period 1, so the period-1 rows are the
+    # subjects in order, their covariate columns the (coded) per-subject x
+    fitX <- extract(object$fit, "predictors")
+    subjectCov <- fitX[fitX[, periodCol] == 1L, -periodCol, drop = FALSE]
+    n <- nrow(subjectCov)
+    bigX <- cbind(
+      subjectCov[rep(seq_len(n), times = K), , drop = FALSE],
+      rep(seq_len(K), each = n)
+    )
+  } else if (is.data.frame(newdata)) {
+    n <- nrow(newdata)
+    bigX <- newdata[rep(seq_len(n), times = K), , drop = FALSE]
+    bigX[["period"]] <- rep(seq_len(K), each = n)
+  } else {
+    newdata <- as.matrix(newdata)
+    n <- nrow(newdata)
+    bigX <- cbind(
+      newdata[rep(seq_len(n), times = K), , drop = FALSE],
+      rep(seq_len(K), each = n)
+    )
+  }
+
+  # hazards through the correct link (type = "ev" keys on $family, the binary
+  # token); predict codes bigX to the training columns and replays the trees
+  haz <- predict(object, bigX, type = "ev", combineChains = FALSE)
+  drawDims <- dim(haz)[-length(dim(haz))]
+  D <- prod(drawDims)
+  numTimes <- length(times)
+
+  # split the (n * K) obs margin into (n fast, K slow) - the period-major order
+  # bigX was built in - and cumulate (1 - h) across the period margin
+  surv <- 1 - haz
+  dim(surv) <- c(D, n, K)
+  if (K >= 2L) {
+    for (k in 2:K) {
+      surv[,, k] <- surv[,, k - 1L] * surv[,, k]
+    }
+  }
+  out <- array(0, c(D, numTimes, n))
+  for (j in seq_len(numTimes)) {
+    m <- sum(periods <= times[j])
+    out[, j, ] <- if (m == 0L) 1 else surv[,, m]
+  }
+
+  dim(out) <- c(drawDims, numTimes, n)
+  if (combineChains && length(drawDims) > 1L) {
+    # merge the chain and sample margins as combineChains() does, samples
+    # fastest within each chain (aft's survivalProbabilitiesFromDraws move)
+    out <- aperm(out, c(2L, 1L, 3L, 4L))
+    dim(out) <- c(D, numTimes, n)
+  }
+  out
+}
+
 # Survival-probability draws from an AFT fit (docs/design/survival.md).
 # Under the log-normal model log T = f(x) + sigma eps, S(t | x) =
 # 1 - Phi((log t - f(x)) / sigma), evaluated at every posterior draw of f
@@ -1769,6 +1869,9 @@ survivalProbabilitiesFromDraws <- function(
 # (extract = draws, fitted = mean, ci.level = interval): users take means
 # and quantiles over the draw margin themselves. newdata predicts out of
 # sample (requires a fit kept with keepTrees); NULL uses the training fits.
+#
+# A discrete-time hazard fit carries the $periods marker (never $family, which
+# reads the binary link token); it takes the hazard branch above instead.
 survivalProbabilities.bart <- function(
   object,
   times,
@@ -1776,6 +1879,14 @@ survivalProbabilities.bart <- function(
   combineChains = TRUE,
   ...
 ) {
+  if (!is.null(object[["periods"]])) {
+    return(hazardSurvivalProbabilities(
+      object,
+      if (missing(times)) NULL else times,
+      newdata,
+      combineChains
+    ))
+  }
   if (!identical(object[["family"]], "aft")) {
     stop("survivalProbabilities requires an aft (survival) fit")
   }

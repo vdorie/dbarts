@@ -1,14 +1,16 @@
 \name{survivalProbabilities}
-\title{Survival Probability Draws from an AFT Fit}
+\title{Survival Probability Draws from a Survival Fit}
 \alias{survivalProbabilities}
 \alias{survivalProbabilities.bart}
 \alias{survivalProbabilities.rbart}
 \description{
-  Posterior draws of the survival probability \eqn{S(t \mid x)} from an
-  accelerated failure time (AFT) log-normal fit produced by
-  \code{\link{bart2}} (or \code{\link{bart}}) with \code{family = "aft"}, or
-  the grouped (random-intercept) AFT fit produced by \code{\link{rbart_vi}}
-  with \code{family = "aft"}.
+  Posterior draws of the survival probability \eqn{S(t \mid x)} from a survival
+  fit: an accelerated failure time (AFT) log-normal fit produced by
+  \code{\link{bart2}} (or \code{\link{bart}}) with \code{family = "aft"}, the
+  grouped (random-intercept) AFT fit produced by \code{\link{rbart_vi}} with
+  \code{family = "aft"}, or a discrete-time hazard fit produced by
+  \code{\link{bart2}} with \code{family = "hazard"} (or
+  \code{"hazard.logistic"}).
 }
 \usage{
 survivalProbabilities(object, ...)
@@ -32,12 +34,17 @@ survivalProbabilities(object, ...)
 }
 \arguments{
   \item{object}{
-    A fitted \code{bart} or \code{rbart} object from an AFT model (its
-    \code{family} element equals \code{"aft"}).
+    A fitted \code{bart} or \code{rbart} object from a survival model: an AFT
+    model (its \code{family} element equals \code{"aft"}) or a discrete-time
+    hazard model (it carries a \code{$periods} grid; its \code{family} records
+    the binary link). A hazard fit must have been made with
+    \code{keepTrees = TRUE}.
   }
   \item{times}{
     A numeric vector of times (on the original, non-logarithmic scale) at
-    which to evaluate the survival function.
+    which to evaluate the survival function. For a discrete-time hazard fit the
+    times are horizons on the period grid, and the default (when \code{times}
+    is missing) is the training grid, \code{object$periods}.
   }
   \item{newdata}{
     Optional predictors at which to evaluate. When \code{NULL} the training
@@ -76,6 +83,17 @@ survivalProbabilities(object, ...)
   includes the drawn random intercept for the observation's group. It is
   sourced from the expected-value (\code{"ev"}) channel, so dropping the
   intercepts (which would misplace every grouped curve) is not possible.
+
+  For a discrete-time hazard fit, the survival function is the cumulative
+  product
+  \deqn{S(t \mid x) = \prod_{k \,:\, \mathrm{periods}[k] \le t} (1 - h(k \mid x)),}
+  where \eqn{h(k \mid x) = g(f(x, k) + o)} is the per-period hazard through the
+  fit's binary link \eqn{g}. Because the training design is ragged (each
+  subject carries only its at-risk rows), the method ALWAYS re-expands its
+  subjects onto the full grid and replays the trees - so it requires
+  \code{keepTrees = TRUE} even for the training data (\code{newdata = NULL}).
+  With \code{newdata}, each new subject is expanded to one row per period and
+  its curve evaluated the same way.
 }
 \value{
   An array of survival probabilities. With \code{combineChains = TRUE}

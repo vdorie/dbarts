@@ -88,6 +88,29 @@
             and \code{xbart} refuse count responses (grouped
             negative-binomial models, real dispersion, and a Poisson
             family are recorded follow-ups). See \code{?bart2}.
+      \item Discrete-time survival hazard responses:
+            \code{family = "hazard"} (probit link) and
+            \code{family = "hazard.logistic"} in \code{dbarts} and
+            \code{bart2} fit a discrete-time hazard model by
+            person-period expansion. The response is the same \code{Surv}
+            object or two-column \code{(time, status)} the \code{"aft"}
+            family takes; each subject is expanded into its at-risk rows
+            with an ordinal period column, and the discrete hazard
+            \eqn{h(k \mid x) = g(f(x, k) + o)}{h(k | x) = g(f(x, k) + o)}
+            is fit as an ordinary binary model on the expanded rows - so a
+            hazard fit is byte-identical, draw for draw, to the binary fit
+            on the hand-expanded design. The time grid defaults to the
+            distinct observed times; \code{breaks} coarsens it (an integer
+            quantile count or an explicit boundary vector) and
+            \code{max.rows} guards the expansion size. The fit is an
+            ordinary \code{"bart"} object whose \code{$family} records the
+            binary link and whose \code{$periods} carries the grid;
+            \code{\link{survivalProbabilities}} produces survival-curve
+            draws (requiring \code{keepTrees}). The matrix interface is
+            required, and weights follow the chosen binary family's
+            policy. \code{rbart_vi} and \code{xbart} refuse hazard
+            responses (grouped/frailty hazard and a cloglog link are
+            recorded follow-ups). See \code{?bart2}.
       \item Robust (Student-t) residuals: \code{resid.dist = student(df)}
             in \code{dbarts}, \code{bart}, and \code{bart2} fits a
             continuous gaussian response with outlier-robust Student-t
