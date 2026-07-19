@@ -1,56 +1,79 @@
 # monotone-bart
 
-agent: opus
-rng: posterior-changing (constrained prior)
-budget: design note + ~500 lines
+agent: opus (all three commits: MCMC-kernel, constrained numerics, and the
+  exact-posterior gate; routing is per-step below).
+rng: C1 neutral; C2 neutral for the default path, posterior-changing only on
+  the not-yet-reachable monotone leaf; C3 posterior-changing (monotone becomes
+  user-reachable).
+budget: 600-1000 engine lines across the three commits (design section 3), plus
+  the R surface and gates.
 
 ## Goal
 
-Users can declare monotone-increasing/decreasing relationships per
-predictor (mBART, Chipman et al. 2022), enforced through the
-tree-level leaf-parameter draw hook the design provisioned.
+Per-variable monotone-increasing/decreasing constraints, `monotone = c(x1 =
+"+", x3 = "-")` on dbarts()/bart2, enforced through a constrained constant-leaf
+model: mBART's exact conditional structure-move target with honest low-
+dimensional quadrature (approach B'), the default tree prior kept clean.
+Unconstrained fits stay byte-identical at every commit.
 
 ## Context
 
-- Provision: "Leaf draws are at tree granularity (vector of leaf
-  parameters given the tree), defaulting to independent per-leaf
-  draws; this is the hook for monotone/shape-constrained BART"
-  (docs/design/core-generalization.md:128-131).
-- mBART's mechanics: the constraint couples leaves that are neighbors
-  along a constrained variable's axis; the tree-level draw becomes a
-  truncated multivariate draw (sequential conditional truncated
-  normals in practice), and the branch marginal likelihood changes
-  (integration over the constrained region) - the design note must
-  decide between exact constrained marginals and mBART's approach.
-- Surface sketch: monotone = c(x1 = "+", x3 = "-") on dbarts()/bart2,
-  resolved into per-variable flags on the model spec.
+docs/design/monotone.md is the spec (all VD resolutions inline; B', monotone-
+first, base-speed a non-issue). Load-bearing anchors, re-verified 2026-07-18:
+- Draw: `sampleParametersAndSetFits` constant branch, chain.hpp:2299-2319; `mu`
+  is a reference into the persistent `forest.muByTree[t]`, zeroed+refilled AFTER
+  the moves (chain.hpp:2303-2304), so it survives the prior sweep into this
+  sweep's moves - the new work is keeping it valid THROUGH in-sweep births/deaths.
+- Move seam: `metropolisJumpForTree` chain.hpp:702; `logLikelihoodForBranch`
+  moves.hpp:47-66 reads node suffstats and ZERO leaf params; birth/death score at
+  moves.hpp:172-191, ratio shape moves.hpp:198-204/258-264.
+- Leaf concept: `ScalarLeafModel` per-node draw only, model.hpp:47-55; posterior
+  N(m_k,s_k^2) at model.hpp:127; factory/instantiation seam facade.hpp:469.
+- Neighbor bounds: `Tree::splitInterval` tree.hpp:313. Truncated-normal primitive
+  `ext_rng_simulateTruncatedNormalScale1` already exists, random.h:111 (REUSE).
 
 ## Constraints
 
-- Constant leaves only in v1 (linear/gp leaf constraints are a
-  different problem); categorical predictors refuse the constraint.
-- Exact-posterior gate: a single-tree monotone problem is enumerable
-  with truncated-normal leaf marginals via quadrature - build it, per
-  the established gate pattern.
-- Out of scope: convexity/general shape constraints; multivariate
-  monotonicity beyond per-variable.
+- Unconstrained (all-zero direction) fits BYTE-IDENTICAL at every commit: the
+  monotone leaf is a separate construction-time instantiation, if-constexpr dead-
+  branch elided; NO runtime flag on the hot path (a truncated-normal-infinite-
+  bounds path would perturb the Ziggurat stream). Equivalence trio bitwise +
+  suite at every commit; bench-sampler neutral on the default path.
+- v1 scope: constant leaves only; categorical predictors refuse; birth/death +
+  single-site leaf Gibbs moves only (no change/swap); per-variable only (no
+  convexity/multivariate shape). Out of scope: linear/gp leaf constraints.
+- No dbarts.h change (internal leaf-model + bridge args only).
 
 ## Steps
 
-1. Design note (docs/design/monotone.md): constraint representation,
-   the tree-level draw algorithm, marginal-likelihood treatment,
-   interaction with birth/death (a birth can violate feasibility -
-   how mBART handles the proposal), prior calibration under
-   truncation.
-2. Engine: leaf-draw hook implementation + constrained branch scoring
-   per the note; model spec plumbing; R surface argument.
-3. Gates: exact-posterior on the toy problem; component tests
-   (feasibility invariants under every move); recovery test
-   (monotone truth recovered, non-monotone truth shows the expected
-   bias).
+1. C1 - the seam (2a), rng-neutral, opus. A tree-granularity draw concept method
+   `drawParametersForTree` the constant leaf declares (default stays the per-node
+   loop, byte-identical); the generic MoveStrategy M-access hook (score may read
+   the current leaf vector M) that heteroscedastic later specializes; and the
+   muByTree in-sweep lifetime change gated to the new path so the constant path
+   keeps its post-move zero-and-refill. No monotone leaf yet - inert.
+   Gate: equivalence trio bitwise, suite, tests/cpp seam-inert component test.
+2. C2 - the monotone leaf (2b), opus. The constrained truncated-normal single-
+   site Gibbs draw (via the C1 hook), `ConstrainedConjugateMove` (via the M-access
+   hook) with neighbor geometry (splitInterval-derived [a,b] bounds), the B'
+   constrained birth/death marginal (1-D/2-D honest quadrature, no grid), c^chi
+   inflation (section 6), and empty-cone -> 0 feasibility. Reachable only from
+   C++ tests, not R.
+   Gate: equivalence trio STILL bitwise (default unchanged); tests/cpp - neighbor-
+   geometry brute-force oracle, feasibility invariants under fuzzed moves,
+   truncated marginal/draw vs quadrature, c-inflation variance property.
+3. C3 - R surface + gates, opus. `monotone` arg parse on dbarts()/bart2 (accepts
+   +/-, increasing/decreasing, +/-1, length-p); categorical refusal; k default ->
+   fixed 2 (explicit chi refuses); proposal.probs error on explicit non-default;
+   bridge wiring to pass directions. The two-part exact-posterior gate
+   (benchmarks/R/monotone-reference.R: (a) one-cut enumerable <= 2-D, (b) fixed
+   3-leaf double-bounded companion at 3-D); recovery test; Rd + NEWS.
+   Gate: exact-posterior both parts to MC+quadrature error; equivalence trio
+   bitwise; air format; full suite.
 
 ## Verification
 
-- Exact-posterior gate to MC error; component tests; full tinytest.
-- bench-sampler: unconstrained paths unaffected (the hook must not
-  slow the default).
+Per commit: R CMD INSTALL --preclean; tests/cpp from make clean; equivalence
+trio bitwise (equivalence-f494156, bcf-99205ee, multinomial-8c2b5fc); full
+tinytest. C3 additionally: the exact-posterior gate passes both parts; a bench-
+sampler compare confirms the default path is speed-neutral (quiet-machine grant).
