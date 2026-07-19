@@ -93,6 +93,7 @@ parsePriors <- function(
   node.prior,
   resid.prior,
   resid.dist,
+  monotone = NULL,
   parentEnv
 ) {
   matchedCall <- match.call()
@@ -154,7 +155,23 @@ parsePriors <- function(
   if (is(node.prior, "dbartsLinearPrior") || is(node.prior, "dbartsGPPrior")) {
     node.prior <- resolveLeafCovariates(node.prior, data)
   }
-  node.hyperprior <- resolveNodeHyperprior(node.prior@k, control@binary)
+
+  # `monotone` arrives already resolved to a per-column direction vector (or
+  # NULL); it only gates the leaf-model refusal and the fixed-k rule here
+  if (
+    !is.null(monotone) &&
+      (is(node.prior, "dbartsLinearPrior") || is(node.prior, "dbartsGPPrior"))
+  ) {
+    stop(
+      "monotone constraints require the constant leaf; they are not ",
+      "supported with linear or gp node priors"
+    )
+  }
+  node.hyperprior <- resolveNodeHyperprior(
+    node.prior@k,
+    control@binary,
+    monotone = !is.null(monotone)
+  )
 
   namedList(tree.prior, resid.prior, resid.dist, node.prior, node.hyperprior)
 }
@@ -363,10 +380,18 @@ resolveSplitProbabilities <- function(prior, data) {
 
 ## Turn a normal prior's raw k into the model's node hyperprior: NULL is the
 ## family default (2 for continuous responses, chi(1.5, 2) for binary),
-## a positive scalar is fixed, and a hyperprior object passes through.
-resolveNodeHyperprior <- function(k, binary) {
+## a positive scalar is fixed, and a hyperprior object passes through. Under a
+## monotone constraint k is fixed for both families (an unsupplied k resolves
+## to 2, the truncated leaf law having no clean chi-k update, monotone.md
+## section 6) and a chi hyperprior is refused.
+resolveNodeHyperprior <- function(k, binary, monotone = FALSE) {
   if (is.null(k)) {
-    k <- if (binary) chi(1.5, 2.0) else 2.0
+    k <- if (monotone || !binary) 2.0 else chi(1.5, 2.0)
+  } else if (monotone && !is.numeric(k)) {
+    stop(
+      "a 'k' hyperprior is not supported under a monotone constraint; ",
+      "supply a fixed numeric k (the truncated leaf law has no chi-k update)"
+    )
   }
   if (is.numeric(k)) {
     return(newValidated("dbartsFixedHyperprior", k = k))
@@ -375,6 +400,99 @@ resolveNodeHyperprior <- function(k, binary) {
     return(k)
   }
   stop("'k' must be a positive scalar or a hyperprior specification")
+}
+
+## Sign of a single monotone direction element: the sign glyphs, the words, or
+## an integer in {-1, 0, 1}.
+parseMonotoneSign <- function(value) {
+  if (is.character(value)) {
+    switch(
+      tolower(value),
+      "+" = 1L,
+      "increasing" = 1L,
+      "inc" = 1L,
+      "-" = -1L,
+      "decreasing" = -1L,
+      "dec" = -1L,
+      "0" = 0L,
+      stop(
+        "invalid monotone direction '",
+        value,
+        "'; use '+'/'-', 'increasing'/'decreasing', or +1/-1"
+      )
+    )
+  } else {
+    direction <- as.integer(round(as.numeric(value)))
+    if (is.na(direction) || direction < -1L || direction > 1L) {
+      stop("invalid monotone direction '", value, "'; use -1, 0, or +1")
+    }
+    direction
+  }
+}
+
+## Resolve the 'monotone' argument into a per-column direction vector in
+## {-1, 0, +1} of length ncol(data@x): a named vector assigns by column or
+## expanded-term name, an unnamed vector of length p assigns by position.
+## Categorical predictors refuse the constraint (their codes are unordered);
+## numeric and ordinal columns are eligible. NULL when no constraint is active.
+resolveMonotone <- function(monotone, data) {
+  if (is.null(monotone) || length(monotone) == 0L) {
+    return(NULL)
+  }
+  numColumns <- ncol(data@x)
+  columnNames <- colnames(data@x)
+  result <- integer(numColumns)
+
+  monotoneNames <- names(monotone)
+  if (!is.null(monotoneNames) && any(nzchar(monotoneNames))) {
+    if (is.null(columnNames)) {
+      stop(
+        "cannot assign monotone constraints: model matrix has no column names"
+      )
+    }
+    for (i in seq_along(monotone)) {
+      direction <- parseMonotoneSign(monotone[[i]])
+      name <- monotoneNames[i]
+      index <- match(name, columnNames)
+      if (!is.na(index)) {
+        result[index] <- direction
+      } else if (name %in% attr(data@x, "term.labels")) {
+        expanded <- which(startsWith(columnNames, paste0(name, ".")))
+        result[expanded] <- direction
+      } else {
+        stop(
+          "cannot assign monotone constraints: unrecognized variable name '",
+          name,
+          "'"
+        )
+      }
+    }
+  } else {
+    if (length(monotone) != numColumns) {
+      stop(
+        "unnamed 'monotone' must have length ",
+        numColumns,
+        " (the number of model matrix columns)"
+      )
+    }
+    for (i in seq_len(numColumns)) {
+      result[i] <- parseMonotoneSign(monotone[[i]])
+    }
+  }
+
+  categorical <- which(result != 0L & data@varTypes == CATEGORICAL_VARIABLE)
+  if (length(categorical) > 0L) {
+    stop(
+      "monotone constraints are undefined for categorical predictors: ",
+      paste0("'", columnNames[categorical], "'", collapse = ", "),
+      "; only numeric and ordered columns are eligible"
+    )
+  }
+
+  if (all(result == 0L)) {
+    return(NULL)
+  }
+  result
 }
 
 num.vars <- numvars <- NULL # R CMD check

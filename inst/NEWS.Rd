@@ -45,6 +45,18 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Monotone constraints: \code{monotone = c(x1 = "+", x3 = "-")}
+            in \code{dbarts} and \code{bart2} constrains the fit to be
+            monotone increasing or decreasing in named predictors
+            (monotone BART; Chipman, George, McCulloch, and Shively
+            2022). Directions accept the sign glyphs, the words
+            \code{"increasing"}/\code{"decreasing"}, or \eqn{+1}/\eqn{-1};
+            an unnamed length-p vector assigns them positionally. Only
+            numeric and ordered predictors are eligible (a direction on
+            an unordered factor is an error). A constraint forces
+            birth/death-only proposals and a fixed \code{k = 2}; linear
+            and Gaussian-process leaves are not supported under it.
+            Unconstrained fits are unchanged. See \code{?dbarts}.
       \item Ordinal (ordered categorical) responses:
             \code{family = "ordinal"} in \code{dbarts} and \code{bart2}
             fits a cumulative probit - probit's truncated-normal latents

@@ -370,7 +370,10 @@ struct MonotoneConstantGaussianLeaf {
 
   double scale = 0.0;
   const ColumnStore* data = nullptr;
-  const std::int8_t* directions = nullptr;  // per-column {-1,0,+1}, borrowed
+  // per-column {-1,0,+1}, owned: the direction spec is copied at construction
+  // (the bridge's parsed vector does not outlive the create call) and read
+  // every sweep by the geometry
+  std::vector<std::int8_t> directions;
   // c^2 = pi / (pi - 1): a constrained leaf uses effective k / c so its post-
   // truncation (skew-normal) marginal variance matches the unconstrained
   // sigma_mu^2 (design section 6).
@@ -414,6 +417,21 @@ struct MonotoneConstantGaussianLeaf {
     return ConstantGaussianLeaf{scale}.drawFromPrior(rng, k);
   }
 
+  // Draw from N(m, s^2) truncated to (a, b], using the sd-1 primitives; an
+  // unbounded side passes through, and a numerically empty interval falls back
+  // to the clamped `fallback`.
+  static double drawTruncatedNormal(ext_rng* rng, double m, double s, double a,
+                                    double b, double fallback) {
+    if (!std::isfinite(a) && !std::isfinite(b))
+      return m + s * ext_rng_simulateStandardNormal(rng);
+    if (!std::isfinite(a))
+      return ext_rng_simulateUpperTruncatedNormal(rng, m, s, b);
+    if (!std::isfinite(b))
+      return ext_rng_simulateLowerTruncatedNormal(rng, m, s, a);
+    double z = ext_rng_simulateTruncatedNormalScale1(rng, m / s, a / s, b / s);
+    return std::isnan(z) ? std::clamp(fallback, a, b) : s * z;
+  }
+
   // ---- the constrained leaf-parameter draw (TreeDrawLeafModel) -------------
   // Sequential single-site truncated-normal Gibbs over the tree's leaves,
   // updating the SURVIVING mu block in place (the move phase keeps it feasible
@@ -430,26 +448,124 @@ struct MonotoneConstantGaussianLeaf {
       }
       double a, b;
       bool constrained;
-      monotoneNeighborBounds(tree, *data, directions, bottoms, leaf, mu,
+      monotoneNeighborBounds(tree, *data, directions.data(), bottoms, leaf, mu,
                              nullptr, 0, scratch, &a, &b, &constrained);
       double sd = priorSd(k, constrained);
       double m, s;
       posterior(node.sumWeights, node.sumWeightedResponse, residualVariance, sd,
                 &m, &s);
-      double draw;
-      if (!constrained || (!std::isfinite(a) && !std::isfinite(b)))
-        draw = m + s * ext_rng_simulateStandardNormal(rng);
-      else if (!std::isfinite(a))
-        draw = ext_rng_simulateUpperTruncatedNormal(rng, m, s, b);
-      else if (!std::isfinite(b))
-        draw = ext_rng_simulateLowerTruncatedNormal(rng, m, s, a);
-      else {
-        double z =
-          ext_rng_simulateTruncatedNormalScale1(rng, m / s, a / s, b / s);
-        draw = std::isnan(z) ? std::clamp(mu[leaf], a, b) : s * z;
-      }
-      mu[leaf] = draw;
+      mu[leaf] = constrained ? drawTruncatedNormal(rng, m, s, a, b, mu[leaf])
+                             : m + s * ext_rng_simulateStandardNormal(rng);
     }
+  }
+
+  // eq.-4.17 redraw of an accepted death's merged leaf: its full conditional
+  // truncated to the frozen neighbor bounds. Writing a proper draw (not a
+  // deterministic seed) keeps the collapsed move a valid block update so the
+  // stationary tree/leaf posterior is exact.
+  void redrawAfterDeath(ext_rng* rng, const Tree& tree, std::int32_t leaf,
+                        double k, double residualVariance, double* mu) const {
+    scratch.allBottoms.clear();
+    tree.fillBottom(0, scratch.allBottoms);
+    const Node& node = tree.at(leaf);
+    if (node.numObservations() == 0) {
+      mu[leaf] = 0.0;
+      return;
+    }
+    double a, b;
+    bool constrained;
+    monotoneNeighborBounds(tree, *data, directions.data(), scratch.allBottoms,
+                           leaf, mu, nullptr, 0, scratch, &a, &b, &constrained);
+    double sd = priorSd(k, constrained);
+    double m, s;
+    posterior(node.sumWeights, node.sumWeightedResponse, residualVariance, sd,
+              &m, &s);
+    mu[leaf] = constrained ? drawTruncatedNormal(rng, m, s, a, b, mu[leaf])
+                           : m + s * ext_rng_simulateStandardNormal(rng);
+  }
+
+  // eq.-4.17 redraw of an accepted birth's two children from their EXACT
+  // constrained conditional posterior over the cone {aL<=mu_lower<=bL,
+  // aR<=mu_upper<=bR, mu_lower<=mu_upper}: draw mu_upper from its marginal by
+  // rejection off the frozen-bound truncated normal (accept in proportion to
+  // the mu_lower mass it admits), then mu_lower | mu_upper. Exact, and cheap
+  // (the acceptance averages ~1/2). A non-constrained-axis split leaves the two
+  // independent, each its own 1-D truncated draw.
+  void redrawAfterBirth(ext_rng* rng, const Tree& tree, std::int32_t parent,
+                        double k, double residualVariance, double* mu) const {
+    scratch.allBottoms.clear();
+    tree.fillBottom(0, scratch.allBottoms);
+    std::int32_t left = tree.at(parent).leftChild;
+    std::int32_t splitVar = tree.at(parent).rule.variableIndex;
+    if (directions[splitVar] == 0) {
+      redrawLeafFree(rng, tree, left, left + 1, k, residualVariance, mu);
+      redrawLeafFree(rng, tree, left + 1, left, k, residualVariance, mu);
+      return;
+    }
+    std::int32_t lower = directions[splitVar] > 0 ? left : left + 1;
+    std::int32_t upper = directions[splitVar] > 0 ? left + 1 : left;
+    const Node& nodeL = tree.at(lower);
+    const Node& nodeR = tree.at(upper);
+    if (nodeL.numObservations() == 0 || nodeR.numObservations() == 0) {
+      redrawLeafFree(rng, tree, lower, upper, k, residualVariance, mu);
+      redrawLeafFree(rng, tree, upper, lower, k, residualVariance, mu);
+      return;
+    }
+    double aL, bL, aR, bR;
+    bool cL, cR;
+    std::int32_t skipU = upper, skipL = lower;
+    monotoneNeighborBounds(tree, *data, directions.data(), scratch.allBottoms,
+                           lower, mu, &skipU, 1, scratch, &aL, &bL, &cL);
+    monotoneNeighborBounds(tree, *data, directions.data(), scratch.allBottoms,
+                           upper, mu, &skipL, 1, scratch, &aR, &bR, &cR);
+    double sd = priorSd(k, true);
+    double mL, sL, mR, sR;
+    posterior(nodeL.sumWeights, nodeL.sumWeightedResponse, residualVariance, sd,
+              &mL, &sL);
+    posterior(nodeR.sumWeights, nodeR.sumWeightedResponse, residualVariance, sd,
+              &mR, &sR);
+    double lowR = std::max(aR, aL);
+    double hiL = std::isfinite(bR) ? std::min(bL, bR) : bL;  // max reachable min(bL, muR)
+    double acceptMax = normalMass(aL, hiL, mL, sL);
+    double muUpper = mu[upper], muLower = mu[lower];
+    if (acceptMax > 0.0) {
+      for (int tries = 0; tries < 100; ++tries) {
+        double candidate = drawTruncatedNormal(rng, mR, sR, lowR, bR, muUpper);
+        double admitted =
+          normalMass(aL, std::isfinite(bL) ? std::min(bL, candidate) : candidate,
+                     mL, sL);
+        if (ext_rng_simulateContinuousUniform(rng) * acceptMax <= admitted) {
+          muUpper = candidate;
+          break;
+        }
+      }
+    }
+    double upperL = std::isfinite(bL) ? std::min(bL, muUpper) : muUpper;
+    muLower = drawTruncatedNormal(rng, mL, sL, aL, upperL, muLower);
+    mu[lower] = muLower;
+    mu[upper] = muUpper;
+  }
+
+  // one child's independent 1-D truncated conditional (unconstrained split axis)
+  void redrawLeafFree(ext_rng* rng, const Tree& tree, std::int32_t leaf,
+                      std::int32_t sibling, double k, double residualVariance,
+                      double* mu) const {
+    const Node& node = tree.at(leaf);
+    if (node.numObservations() == 0) {
+      mu[leaf] = 0.0;
+      return;
+    }
+    double a, b;
+    bool constrained;
+    std::int32_t skip = sibling;
+    monotoneNeighborBounds(tree, *data, directions.data(), scratch.allBottoms,
+                           leaf, mu, &skip, 1, scratch, &a, &b, &constrained);
+    double sd = priorSd(k, constrained);
+    double m, s;
+    posterior(node.sumWeights, node.sumWeightedResponse, residualVariance, sd,
+              &m, &s);
+    mu[leaf] = constrained ? drawTruncatedNormal(rng, m, s, a, b, mu[leaf])
+                           : m + s * ext_rng_simulateStandardNormal(rng);
   }
 
   // ---- the B' constrained birth/death marginal (ParamScoringLeafModel) -----
@@ -496,7 +612,7 @@ struct MonotoneConstantGaussianLeaf {
                             const std::vector<std::int32_t>& skip) const {
     double a, b;
     bool constrained;
-    monotoneNeighborBounds(tree, *data, directions, scratch.allBottoms, leaf, mu,
+    monotoneNeighborBounds(tree, *data, directions.data(), scratch.allBottoms, leaf, mu,
                            skip.data(), skip.size(), scratch, &a, &b,
                            &constrained);
     if (a > b) return -HUGE_VAL;
@@ -525,9 +641,9 @@ struct MonotoneConstantGaussianLeaf {
     double aL, bL, aR, bR;
     bool cL, cR;
     std::int32_t skipUpper = upper, skipLower = lower;
-    monotoneNeighborBounds(tree, *data, directions, scratch.allBottoms, lower, mu,
+    monotoneNeighborBounds(tree, *data, directions.data(), scratch.allBottoms, lower, mu,
                            &skipUpper, 1, scratch, &aL, &bL, &cL);
-    monotoneNeighborBounds(tree, *data, directions, scratch.allBottoms, upper, mu,
+    monotoneNeighborBounds(tree, *data, directions.data(), scratch.allBottoms, upper, mu,
                            &skipLower, 1, scratch, &aR, &bR, &cR);
     const Node& nodeL = tree.at(lower);
     const Node& nodeR = tree.at(upper);

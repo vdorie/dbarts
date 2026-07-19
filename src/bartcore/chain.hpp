@@ -385,7 +385,9 @@ public:
     // constrained leaf's post-truncation variance to the unconstrained prior
     if constexpr (TreeDrawLeafModel<L>) {
       forest.leaf.data = &data_;
-      forest.leaf.directions = options.monotoneDirections;
+      forest.leaf.directions.assign(
+        options.monotoneDirections,
+        options.monotoneDirections + data.numPredictors);
       forest.leaf.cInflation =
         std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
     }
@@ -2318,23 +2320,17 @@ private:
     }
     if (!stepTaken) return;
     if (stepType == StepType::birth) {
-      double parentValue = mu[static_cast<size_t>(changedNode)];
+      // grow the block to the new node count, then draw the two children from
+      // their exact constrained conditional (eq. 4.17); the sibling slots are
+      // read but not their stale mu, so growing with zeros before the draw is
+      // safe
       mu.resize(tree.nodes.size(), 0.0);
-      int32_t left = tree.at(changedNode).leftChild;
-      mu[static_cast<size_t>(left)] = parentValue;
-      mu[static_cast<size_t>(left + 1)] = parentValue;
+      forest.leaf.redrawAfterBirth(rng_, tree, changedNode, forest.k,
+                                   sigma_ * sigma_, mu.data());
     } else if (stepType == StepType::death) {
       mu.resize(tree.nodes.size(), 0.0);
-      std::vector<int32_t>& bottoms(forest.leaf.scratch.allBottoms);
-      bottoms.clear();
-      tree.fillBottom(0, bottoms);
-      double a, b;
-      bool constrained;
-      monotoneNeighborBounds(tree, data_, forest.leaf.directions, bottoms,
-                             changedNode, mu.data(), nullptr, 0,
-                             forest.leaf.scratch, &a, &b, &constrained);
-      mu[static_cast<size_t>(changedNode)] =
-        (a <= b) ? std::clamp(0.0, a, b) : a;
+      forest.leaf.redrawAfterDeath(rng_, tree, changedNode, forest.k,
+                                   sigma_ * sigma_, mu.data());
     }
   }
 

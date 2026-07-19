@@ -4631,7 +4631,7 @@ static void testMonotoneFeasibility() {
   MonotoneConstantGaussianLeaf leaf;
   leaf.scale = 0.1;
   leaf.data = &store;
-  leaf.directions = d1.data();
+  leaf.directions.assign(d1.begin(), d1.end());
   leaf.cInflation = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
   double sentinel = leaf.logLikelihoodForBranchWithParams(
     tree, midLeaf, yg.data(), nullptr, 2.0, 1.0, mu.data());
@@ -4682,7 +4682,7 @@ static void testMonotoneMarginal() {
   MonotoneConstantGaussianLeaf leaf;
   leaf.scale = 0.2;
   leaf.data = &store;
-  leaf.directions = d.data();
+  leaf.directions.assign(d.begin(), d.end());
   double c = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
   leaf.cInflation = c;
   double k = 2.0, sig2 = 0.09, kEff = k / c;
@@ -4788,7 +4788,7 @@ static void testMonotoneCInflation() {
   MonotoneConstantGaussianLeaf leaf;
   leaf.scale = 0.1;
   leaf.data = &store;
-  leaf.directions = d.data();
+  leaf.directions.assign(d.begin(), d.end());
   leaf.cInflation = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
   double k = 2.0;
   double hugeSigma2 = 1e12;  // prior-dominant: draws from the truncated prior

@@ -337,6 +337,7 @@ dbarts <- function(
   resid.prior = chisq,
   resid.dist = gaussian,
   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
+  monotone = NULL,
   control = dbarts::dbartsControl(),
   sigma = NA_real_,
   seed = NA_integer_,
@@ -679,6 +680,11 @@ dbarts <- function(
   #   sep = ""
   # )
 
+  # resolve the monotone spec here, where its argument is a forced value (a
+  # wrapper forwarding it through ... would otherwise reach parsePriors as an
+  # unevaluated ...-reference); the resolved direction vector is injected below
+  monotoneDirections <- resolveMonotone(monotone, data)
+
   parsePriorsCall <- redirectCall(matchedCall, quoteInNamespace(parsePriors))
   parsePriorsCall <- setDefaultsFromFormals(
     parsePriorsCall,
@@ -690,6 +696,7 @@ dbarts <- function(
   )
   parsePriorsCall$control <- control
   parsePriorsCall$data <- data
+  parsePriorsCall$monotone <- monotoneDirections
   parsePriorsCall$parentEnv <- evalEnv
 
   if (fixedUnitScale) {
@@ -703,6 +710,21 @@ dbarts <- function(
     }
   }
   priors <- eval(parsePriorsCall)
+
+  # A monotone constraint restricts the forest to birth/death proposals (change
+  # and swap would need a > 2-D constrained integral, monotone.md section 5): a
+  # defaulted proposal.probs is forced to birth/death-only, an explicit
+  # non-default one conflicts and errors.
+  if (!is.null(monotoneDirections)) {
+    defaultProbs <- c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)
+    if (!isTRUE(all.equal(proposal.probs[names(defaultProbs)], defaultProbs))) {
+      stop(
+        "'monotone' forces birth/death-only proposals; a non-default ",
+        "'proposal.probs' cannot be honored under the constraint"
+      )
+    }
+    proposal.probs <- c(birth_death = 1, swap = 0, change = 0, birth = 0.5)
+  }
 
   model <- newValidated(
     "dbartsModel",
@@ -744,6 +766,12 @@ dbarts <- function(
   residDf <- residDistDf(priors$resid.dist)
   if (!is.null(residDf)) {
     attr(model, "resid.df") <- residDf
+  }
+
+  # the resolved per-column monotone directions ride the model attribute the C
+  # bridge reads into SamplerOptions.monotoneDirections (the resid.df precedent)
+  if (!is.null(monotoneDirections)) {
+    attr(model, "monotone") <- monotoneDirections
   }
 
   # the AFT survival family reads its per-observation status off this control

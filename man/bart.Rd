@@ -59,6 +59,7 @@ bart2(
     keepCall = TRUE, samplerOnly = FALSE,
     seed = NA_integer_,
     proposal.probs = NULL,
+    monotone = NULL,
     keepSampler = keepTrees,
     warm.start = NULL,
     n.grow.sweeps = 0L,
@@ -220,6 +221,9 @@ extract(object, \dots)
    }
    \item{proposalprobs, proposal.probs}{
      Named numeric vector or \code{NULL}, optionally specifying the proposal rules and their probabilities. Elements should be \code{"birth_death"}, \code{"change"}, and \code{"swap"} to control tree change proposals, and \code{"birth"} to give the relative frequency of birth/death in the \code{"birth_death"} step. Defaults are 0.5, 0.1, 0.4, and 0.5 respectively.
+   }
+   \item{monotone}{
+     Optional per-predictor monotonicity constraints, passed through to \code{\link{dbarts}}; see its \code{monotone} argument. A named vector selects predictors by model-matrix column name, each direction one of \code{"+"}/\code{"increasing"}/\code{1} or \code{"-"}/\code{"decreasing"}/\code{-1}; only numeric and ordered columns are eligible. A constraint forces birth/death-only proposals and a fixed \code{k = 2}. \code{NULL} (the default) fits the unconstrained model.
    }
    \item{keepsampler, keepSampler}{
      Logical that can be used to save the underlying \code{\link{dbartsSampler-class}} object even if \code{keepTrees} is false.

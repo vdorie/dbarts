@@ -12,6 +12,7 @@ dbarts(
     resid.dist = gaussian,
     proposal.probs = c(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
+    monotone = NULL,
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal",
@@ -60,6 +61,9 @@ dbarts(
   }
   \item{proposal.probs}{
     Named numeric vector or \code{NULL}, optionally specifying the proposal rules and their probabilities. Elements should be \code{"birth_death"}, \code{"change"}, and \code{"swap"} to control tree change proposals, and \code{"birth"} to give the relative frequency of birth/death in the \code{"birth_death"} step.
+  }
+  \item{monotone}{
+    Optional per-predictor monotonicity constraints (monotone BART; Chipman, George, McCulloch, and Shively 2022). The forest is constrained so that the fitted function is monotone increasing or decreasing in each named predictor. Supply a named vector selecting predictors by model-matrix column name, each element one of \code{"+"}/\code{"increasing"}/\code{1} (increasing) or \code{"-"}/\code{"decreasing"}/\code{-1} (decreasing); an unnamed integer or character vector of length equal to the number of columns assigns directions positionally, with \code{0} for unconstrained. Only numeric and ordered columns are eligible - a direction on a categorical (unordered factor) predictor is an error. A constraint forces birth/death-only tree proposals (an explicit non-default \code{proposal.probs} is then an error) and a fixed \code{k = 2} (an explicit \code{k} hyperprior is an error); linear and Gaussian-process leaves are not supported under the constraint. \code{NULL} (the default) or an all-zero vector fits the ordinary unconstrained model.
   }
   \item{control}{
     An object inheriting from \code{dbartsControl}, created by the \code{\link{dbartsControl}} function.} \item{sigma}{A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Same concept as \code{sigest} in \code{\link{bart}}/\code{bart2} and \code{\link{rbart_vi}}; \code{\link{xbart}} uses this function's \code{sigma} name directly.
