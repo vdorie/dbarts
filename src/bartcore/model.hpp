@@ -95,6 +95,25 @@ template <typename L>
 concept IntegrableLeafModel =
   ScalarLeafModel<L> || VectorLeafModel<L> || FunctionLeafModel<L>;
 
+/// A conjugate scale leaf: one positive variance factor per leaf, scored and
+/// drawn through the weighted sum of squared residuals over the node. It
+/// shares the marginal shape of a ScalarLeafModel (LeafModelCore, one
+/// parameter) but its draw consumes (y, weights) directly - the conjugate
+/// statistic is a scale suffstat the node does not cache - rather than the
+/// cached location suffstat (sum w, sum wz) the ScalarLeafModel draw reads.
+/// The variance forest (heteroscedastic BART, docs/design/heteroscedastic.md)
+/// declares it; no location leaf does, and it is not IntegrableLeafModel, so
+/// the scale path never instantiates in an existing sampler.
+template <typename L>
+concept ScaleLeafModel = LeafModelCore<L> && !L::hasVectorParams &&
+  !L::hasFunctionParams &&
+  requires(const L leaf, ext_rng* rng, const Tree& tree, const double* v,
+           double d, std::int32_t node) {
+    { leaf.drawFromPosteriorForNode(rng, tree, v, v, d, d, node) }
+      -> std::same_as<double>;
+    { leaf.drawFromPrior(rng) } -> std::same_as<double>;
+  };
+
 /// Optional leaf-model seams the engine dispatches on at compile time; no
 /// default leaf declares either, so both compile out and the rng stream is
 /// unchanged. A TreeDrawLeafModel draws its whole leaf vector in one coupled
@@ -187,6 +206,103 @@ struct ConstantGaussianLeaf {
 };
 
 static_assert(ScalarLeafModel<ConstantGaussianLeaf>);
+
+/// Constant variance (scale) leaf for the heteroscedastic variance forest
+/// (HBART; Pratola, Chipman, George, McCulloch 2020,
+/// docs/design/heteroscedastic.md). Each leaf carries one positive variance
+/// factor s^2_k ~ chi^-2(nu', lambda'^2) - the scaled-inverse-chi-squared prior
+/// dbarts's sigma prior uses (ChiSquaredScalePrior), here calibrated per
+/// variance tree. The conjugate statistic is (n_k, sum_k w_i r_i^2) over the
+/// node's index span, where r_i is the caller-supplied scaled residual
+/// e_i / sqrt(s^2_{-j}(x_i)) and w_i the case weight; the leaf accumulates its
+/// own per call (the LinearGaussianLeaf precedent), so no shared node stat
+/// widens and the mean path stays byte-identical. `scale` is on the VARIANCE
+/// scale (= ChiSquaredScalePrior::scale = the paper's lambda'^2), so at m' = 1
+/// the calibration collapses to the homoscedastic (nu, scale) exactly.
+struct ConstantVarianceLeaf {
+  static constexpr bool hasVectorParams = false;
+  static constexpr bool hasFunctionParams = false;
+
+  double degreesOfFreedom = 3.0;  // nu'
+  double scale = 1.0;             // lambda'^2, variance scale
+
+  /// Section-3.4 per-tree calibration from the homoscedastic sigma prior
+  /// (nu, scale) over m' variance trees, mean-matching the leaf product's
+  /// prior to chi^-2(nu, scale): lambda'^2 = scale^(1/m') and
+  /// nu' = 2 / [1 - (1 - 2/nu)^(1/m')]. At m' = 1 this returns (nu, scale).
+  static ConstantVarianceLeaf calibrated(double df, double scale,
+                                         std::size_t numTrees) {
+    double m = static_cast<double>(numTrees);
+    double leafScale = std::pow(scale, 1.0 / m);
+    double leafDf = 2.0 / (1.0 - std::pow(1.0 - 2.0 / df, 1.0 / m));
+    return ConstantVarianceLeaf{leafDf, leafScale};
+  }
+
+  /// log integral of prod N(r_i; 0, s^2 / w_i) against the chi^-2(nu, scale)
+  /// prior (paper eq. 7), dropping the (2 pi)^{-n/2} (prod w_i)^{1/2} factor
+  /// additive over the node's members - conserved under any repartition, the
+  /// same reason the constant leaf drops its raw sum of squares. With n
+  /// positive-weight rows and ssr = sum w_i r_i^2:
+  ///   (nu/2) log(nu scale / 2) - lgamma(nu/2)
+  ///     + lgamma((n+nu)/2) - ((n+nu)/2) log((ssr + nu scale)/2).
+  /// Empty (n = 0) returns 0, so the empty-leaf veto (moves.hpp) is unchanged.
+  double logIntegratedLikelihood(double n, double ssr) const {
+    double priorScale = degreesOfFreedom * scale;
+    return 0.5 * degreesOfFreedom * std::log(0.5 * priorScale) -
+           std::lgamma(0.5 * degreesOfFreedom) +
+           std::lgamma(0.5 * (n + degreesOfFreedom)) -
+           0.5 * (n + degreesOfFreedom) * std::log(0.5 * (ssr + priorScale));
+  }
+
+  double logIntegratedLikelihoodForNode(const Tree& tree, const double* y,
+                                        const double* weights, double, double,
+                                        int32_t nodeIndex) const {
+    double n, ssr;
+    accumulate(tree, y, weights, nodeIndex, n, ssr);
+    return logIntegratedLikelihood(n, ssr);
+  }
+
+  /// s^2_k | r ~ chi^-2(nu + n, [nu scale + ssr] / (nu + n)) (paper eq. 6),
+  /// drawn as (nu scale + ssr) / chisq(nu + n) - ChiSquaredScalePrior's update
+  /// per leaf. An empty leaf falls through to the prior draw (no data term).
+  double drawFromPosteriorForNode(ext_rng* rng, const Tree& tree,
+                                  const double* y, const double* weights,
+                                  double, double, int32_t nodeIndex) const {
+    double n, ssr;
+    accumulate(tree, y, weights, nodeIndex, n, ssr);
+    double posteriorScale = degreesOfFreedom * scale + ssr;
+    return posteriorScale /
+           ext_rng_simulateChiSquared(rng, degreesOfFreedom + n);
+  }
+
+  double drawFromPrior(ext_rng* rng) const {
+    return degreesOfFreedom * scale /
+           ext_rng_simulateChiSquared(rng, degreesOfFreedom);
+  }
+
+private:
+  /// One pass over the node's index segment: the positive-weight count and the
+  /// weighted sum of squared (already scaled) residuals. Zero-weight rows drop
+  /// from both, as they drop from ChiSquaredScalePrior's posterior df and SSR.
+  static void accumulate(const Tree& tree, const double* y,
+                         const double* weights, int32_t nodeIndex, double& n,
+                         double& ssr) {
+    const Node& node(tree.at(nodeIndex));
+    n = 0.0;
+    ssr = 0.0;
+    for (std::size_t m = node.begin; m < node.end; ++m) {
+      std::size_t i = tree.indices[m];
+      double w = weights == nullptr ? 1.0 : weights[i];
+      if (w <= 0.0) continue;
+      n += 1.0;
+      ssr += w * y[i] * y[i];
+    }
+  }
+};
+
+static_assert(ScaleLeafModel<ConstantVarianceLeaf>);
+static_assert(!ScalarLeafModel<ConstantVarianceLeaf>);
+static_assert(!IntegrableLeafModel<ConstantVarianceLeaf>);
 
 // ---- Monotone (mBART) constrained constant leaf ---------------------------
 //
