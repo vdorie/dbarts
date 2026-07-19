@@ -107,8 +107,15 @@ items
   sparse-extensions: in-place nonzero mutation, streaming range kernel,
     mutation on dense-backed mixed columns (sparse-columns.md landing
     notes). consumer-gated.
-  survival-models: discrete-time hazard (person-period ingestion over
-    the binary families; design docs/design/survival.md).
+  survival-followups: the doors out of the survival family pair (AFT +
+    discrete-time hazard both landed; records in
+    docs/plans/survival-models.md, design docs/design/survival.md
+    section 6): cloglog link (needs a cloglog binary family first),
+    competing risks (crisk.bart's territory), left truncation, grouped
+    frailty (composes with rbart_vi grouping when wanted), time-varying
+    covariates in the auto-expander (available today via the manual
+    person-period fit), continuous-time models. Each independent;
+    demand-driven. low-ranked.
   warm-starts: the cross-grid remap over mapOldCutPointsOntoNew;
     reopen when a consumer needs new-data warm starts.
   weighted-binary: post 1.0 - integer-weight probit via replicated
