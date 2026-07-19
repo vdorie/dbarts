@@ -1,12 +1,14 @@
-# Survival Probability Draws from an AFT Fit
+# Survival Probability Draws from a Survival Fit
 
-Posterior draws of the survival probability \\S(t \mid x)\\ from an
-accelerated failure time (AFT) log-normal fit produced by
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) (or
+Posterior draws of the survival probability \\S(t \mid x)\\ from a
+survival fit: an accelerated failure time (AFT) log-normal fit produced
+by [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) (or
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) with
-`family = "aft"`, or the grouped (random-intercept) AFT fit produced by
+`family = "aft"`, the grouped (random-intercept) AFT fit produced by
 [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) with
-`family = "aft"`.
+`family = "aft"`, or a discrete-time hazard fit produced by
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) with
+`family = "hazard"` (or `"hazard.logistic"`).
 
 ## Usage
 
@@ -37,13 +39,17 @@ survivalProbabilities(
 
 - object:
 
-  A fitted `bart` or `rbart` object from an AFT model (its `family`
-  element equals `"aft"`).
+  A fitted `bart` or `rbart` object from a survival model: an AFT model
+  (its `family` element equals `"aft"`) or a discrete-time hazard model
+  (it carries a `$periods` grid; its `family` records the binary link).
+  A hazard fit must have been made with `keepTrees = TRUE`.
 
 - times:
 
   A numeric vector of times (on the original, non-logarithmic scale) at
-  which to evaluate the survival function.
+  which to evaluate the survival function. For a discrete-time hazard
+  fit the times are horizons on the period grid, and the default (when
+  `times` is missing) is the training grid, `object$periods`.
 
 - newdata:
 
@@ -91,6 +97,16 @@ f(x) + \alpha\_{g}\\ that includes the drawn random intercept for the
 observation's group. It is sourced from the expected-value (`"ev"`)
 channel, so dropping the intercepts (which would misplace every grouped
 curve) is not possible.
+
+For a discrete-time hazard fit, the survival function is the cumulative
+product \$\$S(t \mid x) = \prod\_{k \\:\\ \mathrm{periods}\[k\] \le t}
+(1 - h(k \mid x)),\$\$ where \\h(k \mid x) = g(f(x, k) + o)\\ is the
+per-period hazard through the fit's binary link \\g\\. Because the
+training design is ragged (each subject carries only its at-risk rows),
+the method ALWAYS re-expands its subjects onto the full grid and replays
+the trees - so it requires `keepTrees = TRUE` even for the training data
+(`newdata = NULL`). With `newdata`, each new subject is expanded to one
+row per period and its curve evaluated the same way.
 
 ## Value
 

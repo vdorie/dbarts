@@ -58,10 +58,12 @@ bart2(
     n.grow.sweeps = 0L,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial",
-               "ordinal", "nbinom"),
+               "ordinal", "nbinom", "hazard", "hazard.probit",
+               "hazard.logistic"),
     missing = c("incorporate", "error"),
     resid.dist = gaussian,
     dispersion = NA_real_,
+    breaks = NULL, max.rows = 1e7,
     ...)
 
 # S3 method for class 'bart'
@@ -212,6 +214,17 @@ summary(object, ...)
   fixes it and must be a positive integer (v1 ships the exact integer
   envelope, so a real fixed dispersion is refused). Larger \\r\\
   approaches the Poisson limit; smaller \\r\\ is more overdispersed.
+
+- breaks, max.rows:
+
+  Discrete-time hazard controls (`family = "hazard"` only; ignored
+  otherwise), passed through to
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
+  `breaks` sets the period grid: `NULL` (the default) uses the sorted
+  distinct observed times, a single positive integer bins at that many
+  quantiles, and a numeric boundary vector gives explicit right-closed
+  intervals. `max.rows` (default \\10^7\\) refuses an over-large
+  person-period expansion, naming the coarsening levers.
 
 - k:
 
@@ -558,6 +571,43 @@ summary(object, ...)
   not fit count responses (grouped negative-binomial models, real
   dispersion, and a Poisson family are recorded follow-ups). The fit's
   class is `"bartNegbin"`, not `"bart"`: see ‘Value’ below.
+
+  `family = "hazard"` and `family = "hazard.logistic"` fit a
+  discrete-time survival hazard model as *ingestion sugar* over the
+  binary families - the model adds no engine code (`"hazard.probit"` is
+  an accepted alias for `"hazard"`). The response is the same `Surv`
+  object or two-column `(time, status)` the `"aft"` family takes; each
+  subject observed to time \\t_i\\ is person-period-expanded into its
+  at-risk rows (one per period \\k = 1, \ldots, t_i\\), each carrying
+  the subject's covariates, an ordinal period column (appended last, so
+  trees split on contiguous periods and borrow strength across time),
+  and the binary indicator \\y\_{ik} = \mathrm{status}\_i \cdot 1\\k =
+  t_i\\\\. The discrete hazard is \\h(k \mid x) = g(f(x, k) + o)\\ for
+  the chosen binary link \\g\\ (probit for `"hazard"`, logistic for
+  `"hazard.logistic"`), and the fit is EXACTLY an ordinary
+  `"probit"`/`"logistic"` fit on the expanded rows - a hazard fit is
+  byte-identical, draw for draw, to the binary fit on the hand-expanded
+  design with the same seed. The time grid defaults to the sorted
+  distinct observed times (the BART `surv.bart` convention); `breaks`
+  coarsens it (a single integer bins at that many quantiles, a boundary
+  vector gives explicit right-closed intervals), and `max.rows` guards
+  the expansion size. Offsets are on the link scale and replicate per
+  subject; `weights` replicate and then follow the chosen binary
+  family's policy (probit refuses non-unit weights, logistic requires
+  integer counts). A `Surv` response requires the family to be requested
+  explicitly (`family = "auto"` selects `"aft"`); the matrix interface
+  is required (no formula, `subset`, or `test` - expand held-out
+  subjects with `survivalProbabilities(fit, times, newdata = )`, which
+  needs `keepTrees`). The returned object is an ordinary `"bart"` fit
+  whose `$family` records the binary link (so every prediction generic
+  transforms correctly with no special case) and whose `$periods`
+  element carries the grid; `predict`/`extract` return the per-(subject,
+  period) hazards on the expanded rows, and
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  produces survival-curve draws \\S(t \mid x) = \prod\_{k :
+  \mathrm{periods}\[k\] \le t} (1 - h(k \mid x))\\. `rbart_vi` and
+  `xbart` do not fit hazard responses (grouped/frailty hazard and a
+  `cloglog` link are recorded follow-ups).
 
 - formula:
 
@@ -909,7 +959,14 @@ numeric \\y\\ case, the list has components:
   log-scale linear predictor; neither exponentiates. The
   posterior-median survival time is `exp` of the linear predictor, and
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
-  gives survival-probability draws.
+  gives survival-probability draws. A discrete-time hazard fit
+  (`family = "hazard"`/`"hazard.logistic"`) records the binary link here
+  (`"probit"`/`"logistic"`) - the fit IS that binary fit on the expanded
+  rows - and carries a separate `$periods` element (the ordered period
+  grid); `predict`/`extract` return the per-(subject, period) hazard
+  through the link, and
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  dispatches its survival-curve branch on the `$periods` marker.
 
 In the binary \\y\\ case, the returned list has the components
 `yhat.train`, `yhat.test`, and `varcount` as above, but not
@@ -1132,7 +1189,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.231285
+#> total seconds in loop: 0.219331
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1198,7 +1255,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001385
+#> total seconds in loop: 0.001343
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

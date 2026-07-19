@@ -17,8 +17,9 @@ dbarts(
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal",
-               "nbinom"),
-    missing = c("incorporate", "error"), dispersion = NA_real_)
+               "nbinom", "hazard", "hazard.probit", "hazard.logistic"),
+    missing = c("incorporate", "error"), dispersion = NA_real_,
+    breaks = NULL, max.rows = 1e7)
 ```
 
 ## Arguments
@@ -283,6 +284,29 @@ dbarts(
   on the latent (log-odds) scale, and weights are not supported
   (exposure belongs in the offset). `bart2` reports mean counts; see
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md).
+  `"hazard"` and `"hazard.logistic"` fit a discrete-time survival hazard
+  model by person-period expansion (`"hazard.probit"` is an accepted
+  alias for `"hazard"`). The response is the same `Surv` object or
+  two-column `(time, status)` the `"aft"` family takes, but each subject
+  observed to time \\t_i\\ is expanded into its at-risk rows (one per
+  period \\k = 1, \ldots, t_i\\), each carrying the subject's
+  covariates, an ordinal period column appended last, and the binary
+  indicator \\y\_{ik} = \mathrm{status}\_i \cdot 1\\k = t_i\\\\; the
+  discrete hazard is then \\h(k \mid x) = g(f(x, k) + o)\\ for the
+  chosen binary link \\g\\ (probit for `"hazard"`, logistic for
+  `"hazard.logistic"`), and the fit IS an ordinary
+  `"probit"`/`"logistic"` fit on the expanded rows - it adds no engine
+  code. The time grid is the sorted distinct observed times by default;
+  `breaks` coarsens it. The offset is on the link scale and replicates
+  per subject; weights replicate and follow the chosen binary family's
+  policy. A `Surv` response requires the family to be requested
+  explicitly (`"auto"` selects `"aft"`). Survival curves come from
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md),
+  which requires `keepTrees`; `bart2` reports the fit with its
+  `$periods` grid, and its `$family` records the binary link. Like
+  `"aft"`, hazard fits use the matrix interface and do not support
+  `subset` or a `test` set (expand test subjects with
+  `survivalProbabilities(..., newdata = )`).
 
 - dispersion:
 
@@ -304,6 +328,25 @@ dbarts(
   `"error"` rejects predictors containing `NA`. The response, `weights`,
   and `offset` must always be complete; note that previous versions
   silently dropped incomplete rows for formula inputs.
+
+- breaks:
+
+  The discrete-time grid for a `"hazard"` fit (ignored otherwise).
+  `NULL` (the default) uses the sorted distinct observed times, one
+  period per distinct time (the BART `surv.bart` convention). A single
+  positive integer bins the times at the \\(1{:}K)/K\\ quantiles, giving
+  \\K\\ periods. A numeric vector of length two or more gives explicit
+  strictly-increasing interval boundaries \\b_0 \< \ldots \< b_K\\,
+  defining right-closed periods \\(b\_{k-1}, b_k\]\\; every time must
+  lie in \\(b_1, b_K\]\\.
+
+- max.rows:
+
+  A guard on the person-period expansion for a `"hazard"` fit (ignored
+  otherwise). If the expanded design would exceed `max.rows` rows
+  (\\\sum_i t_i\\), the fit is refused with a message naming the
+  coarsening levers. The default \\10^7\\ catches an over-fine grid on
+  heavily continuous times; coarsen with `breaks` or raise `max.rows`.
 
 ## Details
 

@@ -147,7 +147,7 @@ weights can change between draws, for use inside larger MCMC schemes.
 Accelerated failure time survival curves.
 
 - [`survivalProbabilities()`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
-  : Survival Probability Draws from an AFT Fit
+  : Survival Probability Draws from a Survival Fit
 
 ## Diagnostics
 
