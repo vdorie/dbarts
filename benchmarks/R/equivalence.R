@@ -521,6 +521,43 @@ makeScenarios <- function() {
     nbinomFit = TRUE
   )
 
+  # discrete-time hazard (person-period expansion + binary family,
+  # docs/design/survival.md, "Discrete-time hazard"): the family adds NO engine
+  # code - it remaps to probit before the sampler is built and runs an ordinary
+  # binary fit on the expanded rows - so this scenario just drives the probit
+  # path on person-period data, adding no draw to any existing family's stream.
+  # A small integer grid (K periods) keeps the expansion modest. Recorded
+  # channels: the per-draw survival probabilities on the held-out subjects at a
+  # short horizon (fhat.test), varcount over the expanded design (its trailing
+  # column is the ordinal period predictor), and the posterior-mean survival
+  # surface over several horizons (surv.test). New after equivalence-1d9388d.rds,
+  # so a compare against that baseline reports it skipped; the anchor re-records
+  # at landing. binary = TRUE skips the sigma summaries.
+  set.seed(6220L)
+  x <- matrix(runif(300L * 10L), 300L)
+  K.haz <- 6L
+  baseline <- seq(-2.0, -0.6, length.out = K.haz)
+  fHaz <- as.vector(scale(friedman(x)))
+  eventPeriod <- rep(K.haz + 1L, 300L)
+  for (i in seq_len(300L)) {
+    for (k in seq_len(K.haz)) {
+      if (runif(1L) < pnorm(baseline[k] + fHaz[i])) {
+        eventPeriod[i] <- k
+        break
+      }
+    }
+  }
+  censPeriod <- sample.int(K.haz, 300L, replace = TRUE)
+  result$hazard <- list(
+    x = x,
+    time = as.double(pmin(eventPeriod, censPeriod, K.haz)),
+    status = as.double(eventPeriod <= censPeriod & eventPeriod <= K.haz),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    hazardTimes = seq_len(K.haz),
+    binary = TRUE,
+    hazardFit = TRUE
+  )
+
   result
 }
 
@@ -660,6 +697,40 @@ fitViaNbinom <- function(scenario) {
   )
 }
 
+# runs bart2's discrete-time hazard path (docs/design/survival.md): family =
+# "hazard" (probit link) on person-period-expanded (time, status) data,
+# keepTrees so survivalProbabilities can replay the trees onto the held-out
+# subjects. yhat.test carries the SURVIVAL probability draws at the first
+# horizon (draws x n.test, the standard fhat.test channel shape); the
+# hazard-only channel - the posterior-mean survival surface over several
+# horizons - rides surv.test, summarized by fitSummaries' guarded block. Only
+# type = "ev" prediction is used (draw-neutral), so a given seed reproduces.
+fitViaHazard <- function(scenario) {
+  fit <- bart2(
+    scenario$x,
+    cbind(scenario$time, scenario$status),
+    family = "hazard",
+    n.samples = ndpost,
+    n.burn = nskip,
+    n.trees = ntree,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepTrees = TRUE,
+    combineChains = TRUE,
+    verbose = FALSE
+  )
+  sp <- survivalProbabilities(
+    fit,
+    scenario$hazardTimes,
+    newdata = scenario$x.test
+  )
+  list(
+    yhat.test = sp[, 1L, ],
+    varcount = fit$varcount,
+    surv.test = apply(sp, c(2L, 3L), mean)
+  )
+}
+
 # runs rbart_vi's in-core grouped path (built-in tau prior, no callback):
 # single chain, no thinning, the harness's global budget. Draw matrices come
 # back sample-major except varcount (predictor x sample), transposed here so
@@ -738,6 +809,8 @@ fitSummaries <- function(scenario, seed) {
     fitViaOrdinal(scenario)
   } else if (!is.null(scenario$nbinomFit)) {
     fitViaNbinom(scenario)
+  } else if (!is.null(scenario$hazardFit)) {
+    fitViaHazard(scenario)
   } else if (!is.null(scenario$samplerApi)) {
     fitViaSamplerApi(scenario, useNewEngine)
   } else if (useNewEngine) {
@@ -846,6 +919,16 @@ fitSummaries <- function(scenario, seed) {
         colMeans(fit[["means.test"]]),
         paste0("mean.test.", seq_len(n.test))
       )
+    )
+  }
+  # hazard-only channel (fitViaHazard); NULL - and so absent - for every other
+  # fitter, leaving the existing scenarios' summary vectors untouched. The
+  # posterior-mean survival surface (times x test subjects), flattened.
+  if (!is.null(fit[["surv.test"]])) {
+    st <- fit[["surv.test"]]
+    result <- c(
+      result,
+      setNames(as.vector(st), paste0("surv.test.", seq_along(st)))
     )
   }
   result

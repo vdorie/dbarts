@@ -5,16 +5,16 @@ setMethod("initialize", "dbartsControl", function(.Object, ...) {
   .Object
 })
 
-# Accelerated failure time ingestion (docs/design/survival.md): a survival
-# response is a survival::Surv object (recognized by inherits(), so survival
-# need not be imported; right-censoring only in v1) or a plain two-column
-# (time, status) matrix or data frame. Returns the log event/censoring time
-# as the working response and the 0/1 status vector, or NULL when the value
-# is not a survival response. Errors on a non-right Surv (with a factor-
-# status hint for "mright"), a non-two-column matrix, non-positive times, or
-# a status outside {0, 1}; a Surv-like object with no type attribute is
-# treated as right-censored.
-extractSurvivalResponse <- function(value) {
+# Parse a survival response (docs/design/survival.md): a survival::Surv object
+# (recognized by inherits(), so survival need not be imported; right-censoring
+# only in v1) or a plain two-column (time, status) matrix or data frame.
+# Returns the raw event/censoring time and the 0/1 status vector, or NULL when
+# the value is not a survival response. Errors on a non-right Surv (with a
+# factor-status hint for "mright"), a non-two-column matrix, non-positive
+# times, or a status outside {0, 1}; a Surv-like object with no type attribute
+# is treated as right-censored. Shared by the aft ingestion (which logs the
+# time) and the discrete-time hazard expander (which keeps the raw time).
+parseSurvivalResponse <- function(value) {
   if (inherits(value, "Surv")) {
     type <- attr(value, "type")
     if (identical(type, "mright")) {
@@ -53,7 +53,156 @@ extractSurvivalResponse <- function(value) {
   if (any(status != 0.0 & status != 1.0)) {
     stop("survival status must be 0 (censored) or 1 (event)")
   }
-  list(log.time = log(time), status = status)
+  list(time = time, status = status)
+}
+
+# Accelerated failure time ingestion: the log event/censoring time as the
+# working response and the 0/1 status vector, or NULL. Wraps
+# parseSurvivalResponse with the log() transform the AFT engine expects.
+extractSurvivalResponse <- function(value) {
+  survival <- parseSurvivalResponse(value)
+  if (is.null(survival)) {
+    return(NULL)
+  }
+  list(log.time = log(survival$time), status = survival$status)
+}
+
+# Discrete-time hazard ingestion (docs/design/survival.md, "Discrete-time
+# hazard"): the RAW time and status, the AFT sibling that skips the log()
+# transform, for the person-period expander.
+extractSurvivalTimes <- parseSurvivalResponse
+
+# Resolve the discrete-time grid and each subject's terminal period from the
+# observed times (docs/design/survival.md section 1). `breaks` NULL (the
+# default) uses the sorted distinct observed times (surv.bart's convention);
+# a length-1 integer bins at the (1:K)/K quantiles (surv.bart's K); a longer
+# numeric vector gives explicit interval boundaries b_0 < ... < b_K with
+# right-closed intervals (b_{k-1}, b_k], the discSurv convention. Returns the
+# representative period times (the right edges, sorted ascending) and each
+# subject's terminal period index (1..K). Ties within a period are automatic:
+# equal times share a period. findInterval(..., left.open = TRUE) counts grid
+# points strictly below t, so a time exactly on grid point g_k lands in period
+# k (its own interval's right edge).
+resolveHazardGrid <- function(time, breaks) {
+  if (is.null(breaks)) {
+    periods <- sort(unique(time))
+  } else {
+    breaks <- as.double(breaks)
+    if (anyNA(breaks)) {
+      stop("'breaks' must not contain missing values")
+    }
+    if (length(breaks) == 1L) {
+      K <- as.integer(breaks)
+      if (is.na(K) || K < 1L) {
+        stop(
+          "'breaks' as a single value must be a positive integer period count"
+        )
+      }
+      periods <- unique(as.double(
+        quantile(time, probs = seq_len(K) / K, names = FALSE)
+      ))
+    } else {
+      if (is.unsorted(breaks, strictly = TRUE)) {
+        stop("'breaks' boundaries must be strictly increasing")
+      }
+      if (any(time <= breaks[1L]) || any(time > breaks[length(breaks)])) {
+        stop(
+          "every survival time must lie within the 'breaks' boundaries ",
+          "(b_1, b_K]; widen the outer boundaries to cover the data"
+        )
+      }
+      periods <- breaks[-1L]
+    }
+  }
+  terminal <- findInterval(time, periods, left.open = TRUE) + 1L
+  list(periods = periods, terminalPeriod = terminal)
+}
+
+# The person-period expander (docs/design/survival.md section 1): a subject
+# i observed to time_i (event or censoring) becomes its at-risk rows, one per
+# period k = 1..t_i, each carrying x_i, the ordinal period column (appended
+# LAST), and the binary indicator y_ik = status_i * 1{k = t_i}. A censored
+# subject's rows are all zero (right-censoring is pure data shape). Offsets and
+# weights replicate per subject and follow the chosen binary family's policy
+# downstream. Returns the expanded design, the binary response, the period
+# grid (for the $periods marker), and the replicated offset/weights. The N'
+# row guard (max.rows) refuses an over-fine grid, naming the coarsening levers.
+expandDiscreteTimeHazard <- function(
+  x,
+  time,
+  status,
+  breaks = NULL,
+  max.rows = 1e7,
+  offset = NULL,
+  weights = NULL
+) {
+  n <- length(time)
+  grid <- resolveHazardGrid(time, breaks)
+  periods <- grid$periods
+  terminal <- grid$terminalPeriod
+
+  Nprime <- sum(terminal)
+  if (Nprime > max.rows) {
+    stop(
+      "person-period expansion would create ",
+      Nprime,
+      " rows, over the cap of ",
+      max.rows,
+      "; coarsen the time grid with 'breaks' (a boundary vector or an ",
+      "integer period count) or raise 'max.rows'"
+    )
+  }
+
+  # subject-major, period ascending within subject: the period-1 rows are the
+  # subjects in order (survivalProbabilities reconstructs training covariates
+  # from them), and sequence() supplies the within-subject period counter
+  subjectOf <- rep.int(seq_len(n), terminal)
+  periodOf <- sequence(terminal)
+  y <- as.double(periodOf == terminal[subjectOf] & status[subjectOf] == 1.0)
+
+  xExpanded <- if (is.data.frame(x)) {
+    x[subjectOf, , drop = FALSE]
+  } else {
+    x <- as.matrix(x)
+    x[subjectOf, , drop = FALSE]
+  }
+  xExpanded <- appendHazardPeriodColumn(xExpanded, periodOf)
+
+  result <- list(x = xExpanded, y = y, periods = periods)
+  if (!is.null(offset)) {
+    offset <- as.double(offset)
+    if (length(offset) == 1L) {
+      offset <- rep_len(offset, n)
+    }
+    result$offset <- offset[subjectOf]
+  }
+  if (!is.null(weights)) {
+    weights <- as.double(weights)
+    if (length(weights) == 1L) {
+      weights <- rep_len(weights, n)
+    }
+    result$weights <- weights[subjectOf]
+  }
+  result
+}
+
+# Append the ordinal period column (named "period") as the LAST column, the
+# fixed convention both the hazard fit and its by-hand binary reduction target
+# rely on. A named matrix keeps its names; an unnamed one stays unnamed so
+# dbartsData assigns its usual defaults (the reduction target sees the same).
+appendHazardPeriodColumn <- function(x, period) {
+  if (is.data.frame(x)) {
+    x[["period"]] <- period
+    return(x)
+  }
+  named <- !is.null(colnames(x))
+  out <- cbind(x, period)
+  if (named) {
+    colnames(out)[ncol(out)] <- "period"
+  } else {
+    colnames(out) <- NULL
+  }
+  out
 }
 
 ## every slot below is passed explicitly to newValidated, so this
@@ -199,10 +348,15 @@ dbarts <- function(
     "logistic",
     "aft",
     "ordinal",
-    "nbinom"
+    "nbinom",
+    "hazard",
+    "hazard.probit",
+    "hazard.logistic"
   ),
   missing = c("incorporate", "error"),
-  dispersion = NA_real_
+  dispersion = NA_real_,
+  breaks = NULL,
+  max.rows = 1e7
 ) {
   matchedCall <- match.call()
 
@@ -223,15 +377,80 @@ dbarts <- function(
     !inherits(formula, "dgCMatrix") &&
     !missing(data)
   responseIsSurv <- directResponse && inherits(data, "Surv")
-  # a Surv response declares the model, so it auto-dispatches to aft - but
-  # only from "auto"; an explicit conflicting family is an error, never a
-  # silent override
-  if (responseIsSurv && family %not_in% c("auto", "aft")) {
+  hazardTokens <- c("hazard", "hazard.probit", "hazard.logistic")
+  # a Surv response declares the model, so it auto-dispatches to aft from
+  # "auto"; an explicit hazard token selects the discrete-time model instead
+  # (the guard whitelist admits it, docs/design/survival.md section 2). Any
+  # other explicit family with a Surv response is a conflict, never a silent
+  # override.
+  if (responseIsSurv && family %not_in% c("auto", "aft", hazardTokens)) {
     stop(
       "a survival (Surv) response cannot be fit with family \"",
       family,
-      "\"; use family \"aft\" or \"auto\""
+      "\"; use family \"aft\", \"hazard\", or \"auto\""
     )
+  }
+
+  # discrete-time hazard ingestion (docs/design/survival.md, "Discrete-time
+  # hazard"): person-period-expand (x, time, status) into an ordinary binary
+  # (X', y') design and REMAP the hazard token to its underlying binary link
+  # BEFORE any family-keyed switch runs (node.scale, control@binary,
+  # fixedUnitScale, the weight policy). The engine, bridge, and ResponseModels
+  # then see an ordinary probit/logistic fit; the hazard provenance survives
+  # only as the period grid, parked on the control attribute the packaging
+  # reads into the $periods marker (the bartcore.survival -> $status
+  # precedent). No status vector or attribute reaches C++ - the censoring is
+  # baked into y'.
+  hazardPeriods <- NULL
+  if (family %in% hazardTokens) {
+    if (!directResponse) {
+      stop(
+        "discrete-time hazard fits currently use the matrix interface - ",
+        "dbarts(x.train, y.train) or bart2(x.train, y.train) with a ",
+        "survival::Surv or two-column (time, status) response"
+      )
+    }
+    survival <- extractSurvivalTimes(data)
+    if (is.null(survival)) {
+      stop(
+        "family \"",
+        family,
+        "\" needs a survival::Surv or two-column (time, status) response"
+      )
+    }
+    if (!missing(subset)) {
+      stop("survival responses do not support 'subset' in this version")
+    }
+    if (!missing(test)) {
+      stop(
+        "discrete-time hazard fits do not take a 'test' set; expand test ",
+        "subjects with survivalProbabilities(fit, times, newdata = )"
+      )
+    }
+    expansion <- expandDiscreteTimeHazard(
+      formula,
+      survival$time,
+      survival$status,
+      breaks = breaks,
+      max.rows = max.rows,
+      offset = if (missing(offset)) NULL else offset,
+      weights = if (missing(weights)) NULL else weights
+    )
+    matchedCall$formula <- expansion$x
+    matchedCall$data <- expansion$y
+    matchedCall$test <- NULL
+    matchedCall$offset.test <- NULL
+    if (!is.null(expansion$offset)) {
+      matchedCall$offset <- expansion$offset
+    }
+    if (!is.null(expansion$weights)) {
+      matchedCall$weights <- expansion$weights
+    }
+    hazardPeriods <- expansion$periods
+    # the remap: the engine-facing family is now an ordinary binary link
+    family <- if (identical(family, "hazard.logistic")) "logistic" else "probit"
+    # the survival response is consumed; do not let the aft block fire on it
+    responseIsSurv <- FALSE
   }
   # aft is reachable through the direct-response form, or through the internal
   # rbart channel, which pre-sets the status on control@bartcore.survival and
@@ -534,6 +753,14 @@ dbarts <- function(
       stop("survival status length does not match the response")
     }
     attr(control, "bartcore.survival") <- survivalStatus
+  }
+  # the discrete-time hazard marker (docs/design/survival.md section 4): the
+  # period grid, parked here for packageBartResults to read into $periods. The
+  # C bridge never reads this attribute (unlike bartcore.survival), so a hazard
+  # fit's draw stream is byte-identical to the by-hand binary fit's - the
+  # reduction gate (benchmarks/R/hazard-reduction.R).
+  if (!is.null(hazardPeriods)) {
+    attr(control, "bartcore.hazard.periods") <- hazardPeriods
   }
 
   result <- new("dbartsSampler", control, model, data)
