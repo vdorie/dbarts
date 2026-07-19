@@ -198,6 +198,10 @@ not against what the API merely gestures at):
   WEIGHT channel formForestResponse already returns, unused; a non-integrable
   leaf and its own MoveStrategy are out of this refactor's scope entirely, as
   is the per-observation-sigma-vs-weight-channel decision above.
+  (SUPERSEDED 2026-07-19, docs/design/heteroscedastic.md: the variance leaf is
+  CONJUGATE, not non-integrable - a scaled-inverse-chi-squared scale leaf reusing
+  the existing conjugate move, no new MoveStrategy. The WEIGHT-channel route was
+  correct. See that note for the full design.)
 - Hurdle: a binary-occupancy forest plus a positive-part forest sharing
   predictors through the data handle. Response families differing per forest
   breaks Chain's single response_ - Chain-level, not combiner-API, per above.
