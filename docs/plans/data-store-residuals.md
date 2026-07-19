@@ -85,3 +85,35 @@ constant-leaf case.
 - Landing (orchestrator): three equivalence compares bitwise
   (equivalence-f494156, bcf-99205ee, multinomial-8c2b5fc); air format
   --check . for the R touches; no bench (no tree-loop hot path).
+
+## Landing
+
+All four passes landed 2026-07-18, each a byte-identical refactor, in
+order (serialized, one implementer, orchestrator review between passes):
+
+1. afadbda - observer-parameterized quantize core: quantizeDenseObserved
+   carries the per-cell loop with a compile-time observer; quantizeColumn
+   is the no-op instantiation, setColumnJournaled supplies the journal
+   observer (quarter-column fallback and missing tracking preserved).
+2. bd7688e - isView split: isView is now pure provenance (gating only the
+   inherited standardization constants); refusal reads two capability
+   predicates, hasRequantizeSource and acceptsNewRawPredictors, and the
+   bridge helpers renamed to refusePredictorMutation /
+   refuseRequantizeWithoutSource. Every refusal fires where it did.
+3. 26d1726 - conditional handle gather: bartcore_createDataHandle takes
+   the 1-based leaf-covariate columns (default empty), owning raw for
+   those alone instead of every column (~400MB of unread raw at n=1e6
+   p=50 for a constant-leaf consumer); xbart declares its node prior's
+   columns; an undeclared designation is refused with a message naming
+   the handle declaration. New internal formal leafCovariateColumns on
+   the unexported bartcoreDataHandle (no Rd). Bridge arity 2 -> 3; flag
+   rchk on the next scheduled run. No dbarts.h change.
+4. 170be0b - linear-leaf u_ row-major: matches accumulateNodeStatistics'
+   per-observation gather; GP-leaf u_ left column-major (out of scope).
+
+Landing gates (orchestrator, final combined state): install clean;
+tests/cpp all pass from make clean; equivalence 26/26 bitwise
+(equivalence-f494156) plus BCF 6-channel and multinomial 5-channel
+bitwise; tinytest 3269/0; air format --check clean. Neutral throughout -
+no baseline re-record. The data-store-residuals TODO entry is retired;
+all four 2026-07-17 data-review residual findings are discharged.

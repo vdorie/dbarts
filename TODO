@@ -23,14 +23,6 @@ items
     parallelism candidate; an ESS-per-second experiment decides
     (protocol and the memory-wall bound:
     docs/design/within-chain-threading.md). low-ranked.
-  data-store-residuals: the findings deferred out of the 2026-07-17
-    data review after the consolidation landed in full (stages 4, 3,
-    2, 1; records in docs/plans/data-store-consolidation.md): isView
-    provenance/capability split (sequenced against the data-ownership
-    plan), conditional DataHandle raw gather (a capability change
-    needing its own gate analysis), observer-parameterized quantize
-    core for setColumnJournaled (perf-sensitive hot loop), linear-leaf
-    u_ row-major. Each is a small independent pass. low-ranked.
   forest-ranef-interweaving: the grouped-fit mixing bottleneck is
     forest-ranef confounding, not the tau draw (measurements and
     ranked remedies: docs/plans/tau-slice-review.md). Candidates: a
