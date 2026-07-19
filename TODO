@@ -45,14 +45,6 @@ items
     shared scan.
   interaction-constraints: structured sparsity and interaction limits
     on the SplitSelector seam. consumer-gated.
-  monotone-bart: shape-constrained fits via the tree-level leaf-draw
-    hook the design provisioned. Landscape (surveyed 2026-07-18): no
-    maintained R implementation exists - mBART (Chipman et al. 2022)
-    is research C++ with no CRAN package, and stochtree explicitly
-    lacks constraints; active academic follow-on through 2025 and the
-    XGBoost/LightGBM precedent set the user expectation. Naming trap:
-    BART::mbart is multinomial BART - do not surface anything named
-    mbart.
   multi-forest-models: heteroscedastic, hurdle - the BCF two-forest
     machinery is the template; one design note each when picked.
     forest-combiner (docs/design/forest-combiner.md) LANDED 2026-07-14
@@ -72,7 +64,14 @@ items
     (multiplicative-positive, non-integrable) plus the non-conjugate
     MoveStrategy the design anticipated but never built, and a
     decision on per-observation residual variance (fold into the
-    workingWeights channel vs a sigma vector). Landscape (surveyed
+    workingWeights channel vs a sigma vector). The generic
+    move-scoring-reads-M seam (ParamScoringLeafModel +
+    MoveContext::leafParams) now EXISTS - the monotone arc built it as
+    a shared hook (df1b6e0, docs/design/monotone.md section 4); the
+    non-conjugate MoveStrategy specializes it (Laplace/pseudo-marginal)
+    rather than forking a parallel scoring path, and the
+    tree-granularity draw seam (TreeDrawLeafModel) is also in place.
+    Landscape (surveyed
     2026-07-18): rbart, the reference HBART implementation, was
     archived from CRAN 2024-01; stochtree ships maintained log-linear
     variance forests for bart() and bcf(); bartMachine issue #40
