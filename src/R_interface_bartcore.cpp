@@ -215,6 +215,9 @@ struct ParsedModel {
   // is the Gaussian default, a positive value fixes nu, 0 estimates it on the
   // grid. The R surface (C3) attaches it; absent it stays NaN.
   double residualDf = NA_REAL;
+  // per-predictor monotone directions in {-1, 0, +1}, narrowed from the R
+  // integer spec; empty when no constraint is declared
+  std::vector<std::int8_t> monotoneDirections;
   // a linear or gp node prior's designated covariate columns (0-based);
   // empty for the constant leaf
   std::vector<size_t> leafCovariateColumns;
@@ -810,9 +813,10 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   PROTECT_WITH_INDEX(R_NilValue, &slotIndex);
 
   REPROTECT_SLOT(slotExpr, modelExpr, "p.birth_death", slotIndex);
+  // a monotone forest is birth/death-only (p.birth_death == 1); permit it
   model.birthOrDeathProbability = rc_getDouble(
     slotExpr, "probability of birth/death rule", RC_LENGTH | RC_EQ,
-    rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+    rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LEQ, 1.0, RC_END);
 
   REPROTECT_SLOT(slotExpr, modelExpr, "p.swap", slotIndex);
   model.swapProbability = rc_getDouble(
@@ -837,6 +841,24 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   model.nodeScale = rc_getDouble(
     slotExpr, "scale of node prior", RC_LENGTH | RC_EQ, rc_asRLength(1),
     RC_VALUE | RC_GT, 0.0, RC_END);
+
+  // monotone (mBART) directions ride the model as a per-predictor integer
+  // attribute the R surface resolves; absent or all-zero keeps the
+  // unconstrained constant leaf (docs/design/monotone.md section 8)
+  REPROTECT_SLOT(slotExpr, modelExpr, "monotone", slotIndex);
+  if (!Rf_isNull(slotExpr) && rc_getLength(slotExpr) > 0) {
+    if (static_cast<size_t>(rc_getLength(slotExpr)) != numPredictors)
+      Rf_error("length of monotone directions must equal number of predictors");
+    if (!Rf_isInteger(slotExpr))
+      Rf_error("monotone directions must be resolved integer signs");
+    const int* directions = INTEGER(slotExpr);
+    model.monotoneDirections.resize(numPredictors);
+    for (size_t j = 0; j < numPredictors; ++j) {
+      if (directions[j] < -1 || directions[j] > 1)
+        Rf_error("monotone directions must be -1, 0, or 1");
+      model.monotoneDirections[j] = static_cast<std::int8_t>(directions[j]);
+    }
+  }
 
   // linear and gp node priors designate leaf covariate columns, resolved
   // R-side to 1-based model matrix indices; every other node prior is the
@@ -1293,6 +1315,8 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
     }
   }
   options.splitProbabilities = model.splitProbabilities; // copied by ctor
+  options.monotoneDirections = model.monotoneDirections.empty()
+    ? NULL : model.monotoneDirections.data();  // consumed at construction
   options.leafCovariateColumns = model.leafCovariateColumns.empty()
     ? NULL : model.leafCovariateColumns.data();  // consumed at construction
   options.numLeafCovariates = model.leafCovariateColumns.size();

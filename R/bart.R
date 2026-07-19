@@ -379,6 +379,7 @@ bart2 <- function(
   samplerOnly = FALSE,
   seed = NA_integer_,
   proposal.probs = NULL,
+  monotone = NULL,
   keepSampler = keepTrees,
   warm.start = NULL,
   n.grow.sweeps = 0L,
