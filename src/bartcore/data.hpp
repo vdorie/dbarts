@@ -207,10 +207,10 @@ struct ColumnStore {
   size_t numObservations = 0;
   size_t numPredictors = 0;
   bool useQuantiles = false;
-  // A row-subset view (buildFromParent) owns codes gathered from a parent and
-  // holds no re-quantizable raw source, so the mutation and re-quantize surface
-  // refuses it. The discriminator the bridge reads in place of the old resident
-  // x pointer.
+  // Provenance: built from a parent store (buildFromParent). Gates only the
+  // parent-derived standardization constants (suppliedStandardization);
+  // refusal decisions read the capability predicates hasRequantizeSource and
+  // acceptsNewRawPredictors instead.
   bool isView = false;
 
   std::vector<ColumnType> types;
@@ -292,6 +292,20 @@ struct ColumnStore {
   /// a buildFromCsc store, the sparse-source columns of a mixed build).
   bool columnIsCscBacked(size_t j) const {
     return train.columnIsCscBacked(j);
+  }
+
+  /// Whether any re-quantize source survives the build: retained CSC slices,
+  /// borrowed dense slices, or a caller-supplied x. A view gathers codes from
+  /// its parent and retains none, so cut installation and state restore are
+  /// refused on it.
+  bool hasRequantizeSource() const { return !isView; }
+
+  /// Whether the raw-x mutation surface (setData, setPredictor, the
+  /// updatePredictor family) can run: a CSC/mixed build fixes the design at
+  /// creation and a view retains no raw, so only a dense-built top-level
+  /// store accepts new raw predictors.
+  bool acceptsNewRawPredictors() const {
+    return hasRequantizeSource() && !builtFromCsc;
   }
 
   /// Column j's raw values for a re-quantize, given the call-time predictor
@@ -998,8 +1012,9 @@ struct ColumnStore {
   /// parent's observations. columns, when given, selects the parent columns
   /// the view spans (view-local column j reads parent column columns[j]); null
   /// spans every parent column, the full-span view unchanged. Views hold no
-  /// re-quantizable raw (isView is set), which rules out every mutation and
-  /// re-quantize path here; callers enforce that. rawColumnsToGather names the
+  /// re-quantizable raw (hasRequantizeSource is false), which rules out every
+  /// mutation and re-quantize path here; callers enforce that; isView records
+  /// the provenance. rawColumnsToGather names the
   /// view's own columns whose raw values a leaf model reads (linear leaves):
   /// their subset values and parent-derived standardization constants are
   /// copied so rawColumn and suppliedStandardization serve them. The view is
@@ -1141,8 +1156,9 @@ struct ColumnStore {
   /// updateCuts) exactly as setColumns does, but record into rollback only what
   /// a reject must undo: each changed cell's old code, or the whole pre-change
   /// column once more than maxJournal cells change (journaling then stops).
-  /// Dense stores only: the bridge's refuseViewSampler blocks this mutation
-  /// surface on CSC-built samplers, so no CSC-backed column reaches here.
+  /// Dense stores only: the bridge's refusePredictorMutation blocks this
+  /// mutation surface on CSC-built samplers, so no CSC-backed column reaches
+  /// here.
   void setColumnJournaled(size_t j, const double* newColumn, bool updateCuts,
                           size_t maxJournal, ColumnCodeRollback& rollback) {
     if (updateCuts) refreshCutsForColumn(j, newColumn);
