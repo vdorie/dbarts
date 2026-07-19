@@ -77,3 +77,41 @@ Per commit: R CMD INSTALL --preclean; tests/cpp from make clean; equivalence
 trio bitwise (equivalence-f494156, bcf-99205ee, multinomial-8c2b5fc); full
 tinytest. C3 additionally: the exact-posterior gate passes both parts; a bench-
 sampler compare confirms the default path is speed-neutral (quiet-machine grant).
+
+## Landing
+
+All three commits landed 2026-07-19, each independently gate-verified by the
+orchestrator (equivalence trio bitwise at every commit - unconstrained fits are
+byte-identical throughout):
+
+1. df1b6e0 - the seams (C1). Two C++20 detection concepts (TreeDrawLeafModel,
+   ParamScoringLeafModel) no shipped leaf declares, so both if-constexpr branches
+   compile out; M-access threaded through MoveContext::leafParams (no move-signature
+   churn) - the generic hook heteroscedastic reuses. Byte-neutral scaffolding.
+2. 1944966 - the constrained monotone leaf (C2). Sequential single-site
+   truncated-normal Gibbs draw over the surviving mu block, B' constrained
+   birth/death marginal (closed-form + one adaptive quadrature, honest normalizer,
+   empty-cone sentinel), splitInterval neighbor geometry, c-inflation. Four
+   component-test gates (neighbor oracle, feasibility fuzz, marginal/draw vs
+   quadrature, c-inflation variance). Reachable only from tests/cpp.
+3. 3862dd0 - R surface + the exact-posterior gate (C3). monotone arg
+   (named/worded/signed/positional), categorical + linear/gp refusal, fixed-k rule,
+   birth/death-only forcing, bridge route with NO dbarts.h change. The two-part gate
+   (one-cut enumerable + fixed 3-leaf double-bounded companion). Suite 3291.
+
+Landing story, recorded because it is the methodology working: building the C3
+exact-posterior gate exposed that C2's deterministic feasible-init redraw BIASED the
+stationary posterior (the orchestrator had accepted it on an MCMC-validity argument -
+the gate proved the argument wrong). C3 replaced it with the design's exact eq-4.17
+conditional redraw (rejection cone draw on birth, truncated draw on death), which the
+gate confirms. The bias was never shipped (the monotone path was unreachable from R
+until C3). Then the gate's own part (b) reference showed E[mu2] at z=3.18: diagnosed
+(reference grid sweep + 9-seed sampler pool) as O(d) quadrature discretization in the
+COARSE reference, not sampler bias - the sampler is exact, and 90b6e41 tightened the
+reference grid (0.0015 -> 1e-4) so every part (b) quantity sits at |z| <= 2.2.
+
+Deferred: the bench-sampler default-path speed-neutrality confirmation (needs a
+quiet-machine grant; the equivalence trio already proves the draws bitwise-identical,
+so this only rules out an incidental slowdown). v2 doors: change/swap moves under the
+constraint (a >2-leaf branch marginal beyond the product form), linear/gp leaf
+constraints, convexity/multivariate shape - all out of v1 scope per the design.
