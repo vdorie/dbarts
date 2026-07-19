@@ -1995,12 +1995,33 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 // row-subset samplers: control contributes useQuantiles, data contributes
 // x, the column types, and n.cuts. Internal, with no serialization;
 // see public-surface.md section 5.
-SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr) {
-  return unwindProtect([&, control = ParsedControl{},
-                        data = ParsedData{}]() mutable -> SEXP {
+SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
+                               SEXP leafCovariateColumnsExpr) {
+  return unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
+                        gatherColumns =
+                          std::vector<size_t>{}]() mutable -> SEXP {
     parseControl(control, controlExpr);
     parseData(data, dataExpr);
     validateCategoricalPredictors(data);
+
+    // 1-based indices of the columns whose raw values a view's leaf model will
+    // read, or NULL for none. The handle serves views whose leaf specs are
+    // unknown at creation, so the caller declares the union its views need; an
+    // undeclared column is left ungathered and its view designation refused
+    // downstream (rawColumn null). Dense builds only: a mixed build's
+    // dense-backed columns already serve raw, and a sparse build serves none.
+    if (!Rf_isNull(leafCovariateColumnsExpr)) {
+      if (!Rf_isInteger(leafCovariateColumnsExpr))
+        Rf_error("leaf covariate columns must be an integer vector or NULL");
+      R_xlen_t numGather = Rf_xlength(leafCovariateColumnsExpr);
+      gatherColumns.resize(static_cast<size_t>(numGather));
+      for (R_xlen_t j = 0; j < numGather; ++j) {
+        int column = INTEGER(leafCovariateColumnsExpr)[j];
+        if (column < 1 || static_cast<size_t>(column) > data.numPredictors)
+          Rf_error("leaf covariate column out of range");
+        gatherColumns[static_cast<size_t>(j)] = static_cast<size_t>(column - 1);
+      }
+    }
 
     DataHandle* handle = new DataHandle;
     if (data.xIsMixed) {
@@ -2024,15 +2045,13 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr) {
                                  data.numPredictors, data.maxNumCuts.data(), 0,
                                  control.useQuantiles);
     } else {
-      // a handle backs row-subset view samplers whose leaf covariates are not
-      // known until the view is created, so it owns raw for every column; a
-      // view then gathers any designated column from parent.rawColumn
-      std::vector<size_t> gatherAll(data.numPredictors);
-      for (size_t j = 0; j < data.numPredictors; ++j) gatherAll[j] = j;
+      // the handle owns raw only for the declared leaf-covariate columns; a
+      // view then gathers any of those it designates from parent.rawColumn
       handle->store.build(data.x, data.numObservations, data.numPredictors,
                           data.maxNumCuts.data(), control.useQuantiles,
                           data.anyCategorical ? data.columnTypes.data() : NULL,
-                          gatherAll.data(), gatherAll.size());
+                          gatherColumns.empty() ? NULL : gatherColumns.data(),
+                          gatherColumns.size());
     }
 
     SEXP result = PROTECT(R_MakeExternalPtr(handle, R_NilValue, dataExpr));
@@ -2184,9 +2203,12 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
         data.offset != NULL ? offset.data() : NULL, family, data.sigmaEstimate,
         model.sigmaDf, model.sigmaRawScale, options, rngs.data());
     if (sampler == NULL) {
-      // R-side resolution validates first, so only an invariant breach lands
+      // R-side resolution validates column legality first, so what lands here
+      // is a covariate the handle did not gather raw for at creation
       for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
-      Rf_error("invalid leaf covariate designation");
+      Rf_error("invalid leaf covariate designation; a view's leaf covariate "
+               "columns must be among those the data handle was told to "
+               "gather raw values for at creation");
     }
 
     BartcoreHolder* holder = new BartcoreHolder{

@@ -555,7 +555,16 @@ xbartRunChunk <- function(spec, repIndices, chunkSeed) {
   hasWeights <- !is.null(data@weights)
   family <- if (spec$model@family == "auto") "" else spec$model@family
 
-  handle <- bartcoreDataHandle(spec$control, data)
+  # linear and gp node priors read raw covariate values, fixed across cells;
+  # the handle must own raw for them so each fold view can gather them
+  nodePrior <- spec$model@node.prior
+  leafCovariateColumns <-
+    if (is(nodePrior, "dbartsLinearPrior") || is(nodePrior, "dbartsGPPrior")) {
+      nodePrior@columns
+    } else {
+      NULL
+    }
+  handle <- bartcoreDataHandle(spec$control, data, leafCovariateColumns)
 
   cellModel <- function(cell) {
     result <- spec$model

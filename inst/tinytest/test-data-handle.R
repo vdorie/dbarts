@@ -186,3 +186,39 @@ bc.off <- dbarts:::bartcoreSamplerFromHandle(
 )
 r.off <- dbarts:::bartcoreRun(bc.off, 20L, 30L)
 expect_true(abs(mean(r.off$test) - mean(y[testRows] + 100)) < 1)
+
+# conditional gather: the handle owns raw only for the leaf covariate columns
+# it is told to gather. A view whose leaf model reads an undeclared column is
+# refused; declaring the column lets the same view build and run.
+sampler.linear <- dbarts(x, y, node.prior = linear(2L), control = control)
+leafColumns <- sampler.linear$model@node.prior@columns
+
+handle.bare <- dbarts:::bartcoreDataHandle(
+  sampler.linear$control,
+  sampler.linear$data
+)
+expect_error(
+  dbarts:::bartcoreSamplerFromHandle(
+    handle.bare,
+    sampler.linear$control,
+    sampler.linear$model,
+    sampler.linear$data,
+    seq_len(n)
+  ),
+  pattern = "gather raw"
+)
+
+handle.linear <- dbarts:::bartcoreDataHandle(
+  sampler.linear$control,
+  sampler.linear$data,
+  leafColumns
+)
+view.linear <- dbarts:::bartcoreSamplerFromHandle(
+  handle.linear,
+  sampler.linear$control,
+  sampler.linear$model,
+  sampler.linear$data,
+  seq_len(n)
+)
+r.linear <- dbarts:::bartcoreRun(view.linear, 20L, 30L)
+expect_true(all(is.finite(r.linear$train)))

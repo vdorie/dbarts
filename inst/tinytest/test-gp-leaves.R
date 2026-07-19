@@ -220,7 +220,11 @@ sampler.view <- dbarts(
   node.prior = gp("x1", max.leaf.size = 100L),
   control = control.view
 )
-handle <- dbarts:::bartcoreDataHandle(sampler.view$control, sampler.view$data)
+handle <- dbarts:::bartcoreDataHandle(
+  sampler.view$control,
+  sampler.view$data,
+  sampler.view$model@node.prior@columns
+)
 set.seed(7)
 view <- dbarts:::bartcoreSamplerFromHandle(
   handle,

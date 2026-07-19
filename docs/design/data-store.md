@@ -148,8 +148,9 @@ consumer that needs raw after the build borrow releases must have asked
 for an owned copy.
 
 `gatheredRawColumns` names those columns. `build`/`setData` gather a
-sampler's designated leaf covariates - or every column, for a data handle
-that does not yet know its consumers - into `gatheredRawValues`
+sampler's designated leaf covariates - or, for a data handle, the
+leaf-covariate columns declared at its creation (empty for a
+constant-leaf consumer) - into `gatheredRawValues`
 (column-major, `numObservations x q`), refreshed in the same pass as each
 column quantizes (`quantizeColumn`, `data.hpp:643`). `rawColumn` then
 serves owned memory for the store's lifetime, borrow long since released.
@@ -358,9 +359,8 @@ save/load without resident raw.
   including why there is no nested `CutGrid` type.
 - `docs/design/pooled-masks.md`, `docs/design/mia-missingness.md` -
   categorical mask tiers and the missing-value routing the codes encode.
-- the `data-store-residuals` TODO entry - the deferred cleanups
-  (conditional data-handle gather, linear-leaf `u_` row-major); consult
-  before treating either as accidental.
+- the `data-store-residuals` TODO entry - the deferred cleanup
+  (linear-leaf `u_` row-major); consult before treating it as accidental.
 
 Per-function truth remains the Doxygen comments in `data.hpp` and
 `sampler.hpp`; this note does not restate them.
