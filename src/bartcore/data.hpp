@@ -269,7 +269,7 @@ struct ColumnStore {
   const double* testOffset = nullptr;
 
   // Owned raw values of designated columns. build gathers a sampler's leaf
-  // covariates (or every column of a data handle) so rawColumn serves owned
+  // covariates (or a data handle's declared columns) so rawColumn serves owned
   // memory after the build borrow releases; buildFromParent gathers a view's
   // leaf covariates from its parent, with standardization constants from the
   // parent's full training data - the same calibration inheritance as the
@@ -320,7 +320,7 @@ struct ColumnStore {
   }
 
   /// Owned raw training values of column j: a gathered copy (leaf covariates,
-  /// or every column of a data handle), the mixed build's retained dense
+  /// or a data handle's declared columns), the mixed build's retained dense
   /// slice, null when neither serves it.
   const double* rawColumn(size_t j) const {
     std::int32_t slot = gatheredSlotForColumn(j);
@@ -702,7 +702,7 @@ struct ColumnStore {
 
   /// Designate the columns build/setData own an owned raw copy of, so
   /// rawColumn serves them after the build borrow releases. gatherColumns are
-  /// a sampler's leaf covariates, or every dense column of a data handle; the
+  /// a sampler's leaf covariates, or a data handle's declared columns; the
   /// buffers fill as each column quantizes. Cleared when nothing is gathered.
   void setupGatheredColumns(const size_t* gatherColumns,
                             size_t numGatherColumns) {
@@ -735,8 +735,8 @@ struct ColumnStore {
 
   /// columnTypes may be null for all-ordinal. Categorical columns must hold
   /// integral values 0..K-1 with K <= maxCategories; the caller validates.
-  /// gatherColumns names the columns whose raw values a leaf model reads (or
-  /// every column, for a data handle): build owns a copy so the raw source
+  /// gatherColumns names the columns whose raw values a leaf model reads (or a
+  /// data handle's declared columns): build owns a copy so the raw source
   /// borrow x_ need not outlive the call.
   void build(const double* x_, size_t n, size_t p,
              const std::uint32_t* maxNumCuts_, bool useQuantiles_,

@@ -431,10 +431,18 @@ bartcoreSampler <- function(sampler, family = "") {
 # A built predictor store (cuts + codes) shared across row-subset samplers;
 # public-surface.md section 5, internal and unserializable. control
 # contributes useQuantiles; data contributes x, the column types, and
-# n.cuts.
-bartcoreDataHandle <- function(control, data) {
+# n.cuts. leafCovariateColumns names (1-based) the columns whose raw values
+# a view's leaf model will read; the handle owns raw only for those, so a
+# constant-leaf caller passes none. A view designating an undeclared column
+# is refused when it is built.
+bartcoreDataHandle <- function(control, data, leafCovariateColumns = NULL) {
   result <- new.env(parent = emptyenv())
-  result$ptr <- .Call(C_dbarts_bartcore_createDataHandle, control, data)
+  result$ptr <- .Call(
+    C_dbarts_bartcore_createDataHandle,
+    control,
+    data,
+    if (!is.null(leafCovariateColumns)) as.integer(leafCovariateColumns)
+  )
   result
 }
 
