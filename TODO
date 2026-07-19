@@ -53,6 +53,8 @@ items
     shared scan.
   interaction-constraints: structured sparsity and interaction limits
     on the SplitSelector seam. consumer-gated.
+  monotone-bart: shape-constrained fits via the tree-level leaf-draw
+    hook the design provisioned.
   multi-forest-models: heteroscedastic, hurdle - the BCF two-forest
     machinery is the template; one design note each when picked.
     forest-combiner (docs/design/forest-combiner.md) LANDED 2026-07-14
