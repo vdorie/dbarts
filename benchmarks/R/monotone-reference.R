@@ -249,8 +249,12 @@ cat("\npart (b): 3-leaf monotone-cone leaf posterior (means and covariances)\n")
 
   # 3-D constrained posterior moments over {mu1 <= mu2 <= mu3} for independent
   # per-leaf normals, by cumulative sums (O(grid)): each leaf's unconstrained
-  # posterior times the ordering indicator.
-  d <- if (quick) 0.003 else 0.0015
+  # posterior times the ordering indicator. The interior mean's O(d) cumsum
+  # discretization must sit well below the sampler MCse (~2e-4): at d = 0.0015 it
+  # biased E[mu2] by ~3e-4 and spuriously inflated its z to ~3.2; 1e-4 converges
+  # it (E[mu2] stable past the fifth decimal), so the z reflects sampler-vs-truth
+  # agreement, not grid error.
+  d <- if (quick) 0.001 else 1e-04
   grid <- seq(-2, 2.5, by = d)
   p1 <- dnorm(grid, post[[1L]]$mean, post[[1L]]$sd)
   p2 <- dnorm(grid, post[[2L]]$mean, post[[2L]]$sd)
