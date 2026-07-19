@@ -223,9 +223,9 @@ struct LinearGaussianLeaf {
         standardizationMomentsForColumn(column, numObservations_, &mean, &sd);
       means_[j] = mean;
       sds_[j] = sd;
-      double* u = u_.data() + j * numObservations_;
       for (std::size_t i = 0; i < numObservations_; ++i)
-        u[i] = isNA(column[i]) ? 0.0 : (column[i] - mean) / sds_[j];
+        u_[i * numColumns + j] =
+          isNA(column[i]) ? 0.0 : (column[i] - mean) / sds_[j];
     }
     rebuildTestCovariates(data);
   }
@@ -240,9 +240,9 @@ struct LinearGaussianLeaf {
     clearStatisticsCache();
     for (std::size_t j = 0; j < numCovariates_; ++j) {
       const double* column = data.rawColumn(columns_[j]);
-      double* u = u_.data() + j * numObservations_;
       for (std::size_t i = 0; i < numObservations_; ++i)
-        u[i] = isNA(column[i]) ? 0.0 : (column[i] - means_[j]) / sds_[j];
+        u_[i * numCovariates_ + j] =
+          isNA(column[i]) ? 0.0 : (column[i] - means_[j]) / sds_[j];
     }
   }
 
@@ -270,7 +270,7 @@ struct LinearGaussianLeaf {
   double fitForObservation(const double* params, std::size_t i) const {
     double result = params[0];
     for (std::size_t j = 0; j < numCovariates_; ++j)
-      result += params[j + 1] * u_[i + j * numObservations_];
+      result += params[j + 1] * u_[i * numCovariates_ + j];
     return result;
   }
 
@@ -381,7 +381,7 @@ private:
         double w = weights == nullptr ? 1.0 : weights[i];
         double z = y[i];
         for (std::size_t j = 0; j < numCovariates_; ++j)
-          row[j + 1] = u_[i + j * numObservations_];
+          row[j + 1] = u_[i * numCovariates_ + j];
         for (std::size_t a = 0; a < p; ++a) {
           double scaled = w * row[a];
           projection[a] += scaled * z;
@@ -398,7 +398,7 @@ private:
       double w = weights == nullptr ? 1.0 : weights[i];
       double z = y[i];
       for (std::size_t j = 0; j < numCovariates_; ++j)
-        row[j + 1] = u_[i + j * numObservations_];
+        row[j + 1] = u_[i * numCovariates_ + j];
       for (std::size_t a = 0; a < p; ++a) {
         double scaled = w * row[a];
         projection[a] += scaled * z;
@@ -535,7 +535,7 @@ private:
   std::size_t numTestObservations_ = 0;
   std::vector<std::size_t> columns_;
   std::vector<double> means_, sds_;
-  std::vector<double> u_;      // standardized, column-major n x q
+  std::vector<double> u_;      // standardized, row-major n x q
   std::vector<double> uTest_;  // standardized, column-major numTest x q
   mutable std::vector<TreeStatisticsCache> statisticsCaches_;
   mutable std::size_t statisticsCacheUsedBytes_ = 0;
