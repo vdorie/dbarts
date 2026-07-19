@@ -4341,7 +4341,41 @@ static void testNBStateRoundTrip() {
   printf("ok: nb dispersion state round trip\n");
 }
 
+namespace {
+// Positive controls: minimal leaves declaring each optional seam method, to
+// prove the detection concepts are not vacuously false.
+struct TreeDrawMock {
+  void drawParametersForTree(ext_rng*, const Tree&,
+                             const std::vector<std::int32_t>&, double, double,
+                             double*) const {}
+};
+struct ParamScoreMock {
+  double logLikelihoodForBranchWithParams(const Tree&, std::int32_t,
+                                          const double*, const double*, double,
+                                          double, const double*) const {
+    return 0.0;
+  }
+};
+}  // namespace
+
+// The C1 seam is inert for every shipped leaf: no existing leaf declares the
+// tree-granularity draw or the M-reading branch score, so the constant leaf
+// takes the byte-identical per-node draw and its moves integrate every leaf
+// out. The mocks confirm the concepts detect the methods when present.
+static void testLeafSeamDispatch() {
+  static_assert(!TreeDrawLeafModel<ConstantGaussianLeaf>);
+  static_assert(!ParamScoringLeafModel<ConstantGaussianLeaf>);
+  static_assert(!TreeDrawLeafModel<LinearGaussianLeaf>);
+  static_assert(!ParamScoringLeafModel<LinearGaussianLeaf>);
+  static_assert(TreeDrawLeafModel<TreeDrawMock>);
+  static_assert(ParamScoringLeafModel<ParamScoreMock>);
+  static_assert(!ParamScoringLeafModel<TreeDrawMock>);
+  static_assert(!TreeDrawLeafModel<ParamScoreMock>);
+  printf("ok: leaf seam dispatch inert for shipped leaves\n");
+}
+
 void runModelTests(ext_rng* rng) {
+  testLeafSeamDispatch();
   testIntegratedLikelihood();
   testPosteriorDraw(rng);
   testConstantLeafSuffstatEquivalence();

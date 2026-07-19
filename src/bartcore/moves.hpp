@@ -41,11 +41,23 @@ struct MoveContext {
   const double* weights;
   double k;
   MoveScratch& scratch;
+  // the tree's current leaf-parameter vector M, handed to the scoring of a
+  // ParamScoringLeafModel (monotone reads frozen neighbor mu here); null and
+  // unread for the conjugate leaves, which integrate every leaf out.
+  const double* leafParams = nullptr;
 };
 
 template <IntegrableLeafModel L>
 double logLikelihoodForBranch(const MoveContext& ctx, const L& leaf, Tree& tree,
                               int32_t branchIndex, const double* y, double sigma) {
+  // a leaf whose score reads M owns the branch marginal outright (the
+  // constrained joint over the touched leaves given frozen neighbors); the
+  // conjugate leaves fall through to the per-leaf marginal sum unchanged.
+  if constexpr (ParamScoringLeafModel<L>)
+    return leaf.logLikelihoodForBranchWithParams(tree, branchIndex, y,
+                                                 ctx.weights, ctx.k,
+                                                 sigma * sigma, ctx.leafParams);
+
   std::vector<int32_t>& bottoms(tree.bottomScratch);
   bottoms.clear();
   tree.fillBottom(branchIndex, bottoms);

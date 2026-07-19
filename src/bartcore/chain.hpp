@@ -699,6 +699,11 @@ public:
           bool stepTaken;
           StepType stepType;
           int32_t changedNode = invalidNode;
+          // hand a constrained-conjugate leaf its persistent mu block so a
+          // branch score can read frozen neighbor values; compiled out for the
+          // conjugate leaves, which read no leaf parameters
+          if constexpr (leafIsConstant && ParamScoringLeafModel<L>)
+            ctx.leafParams = forest.muByTree[t].data();
           metropolisJumpForTree(ctx, forest.leaf, rng_, forest.trees[t],
                                 forest.treeY.data(), sigma_, &stepTaken,
                                 &stepType, &changedNode);
@@ -2302,19 +2307,27 @@ private:
       (void) fits;
       std::vector<double>& mu(forest.muByTree[t]);
       mu.assign(tree.nodes.size(), 0.0);
-      for (int32_t i : bottoms) {
-        const Node& node(tree.at(i));
-        double param = node.numObservations() == 0
-          ? 0.0
-          : forest.leaf.drawFromPosteriorForNode(rng_, tree, forest.k,
-                                                 sigma_ * sigma_, i);
-        mu[static_cast<size_t>(i)] = param;
+      if constexpr (TreeDrawLeafModel<L>) {
+        // one coupled draw fills the whole mu block (the monotone constrained
+        // sweep) in place of the independent per-node draws; fixed k only, the
+        // truncated draw carries no clean chi-k statistic (section 6)
+        forest.leaf.drawParametersForTree(rng_, tree, bottoms, forest.k,
+                                          sigma_ * sigma_, mu.data());
+      } else {
+        for (int32_t i : bottoms) {
+          const Node& node(tree.at(i));
+          double param = node.numObservations() == 0
+            ? 0.0
+            : forest.leaf.drawFromPosteriorForNode(rng_, tree, forest.k,
+                                                   sigma_ * sigma_, i);
+          mu[static_cast<size_t>(i)] = param;
 
-        // a forced-zero empty leaf is not a draw from the k-scaled prior, so
-        // it carries no information about k; skip it as the function path does
-        if (forest.updateK && node.numObservations() > 0) {
-          forest.kSumSquaredParams += param * param;
-          forest.kNumLeaves += 1.0;
+          // a forced-zero empty leaf is not a draw from the k-scaled prior, so
+          // it carries no information about k; skip it as the function path does
+          if (forest.updateK && node.numObservations() > 0) {
+            forest.kSumSquaredParams += param * param;
+            forest.kNumLeaves += 1.0;
+          }
         }
       }
 
