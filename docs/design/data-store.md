@@ -359,8 +359,6 @@ save/load without resident raw.
   including why there is no nested `CutGrid` type.
 - `docs/design/pooled-masks.md`, `docs/design/mia-missingness.md` -
   categorical mask tiers and the missing-value routing the codes encode.
-- the `data-store-residuals` TODO entry - the deferred cleanup
-  (linear-leaf `u_` row-major); consult before treating it as accidental.
 
 Per-function truth remains the Doxygen comments in `data.hpp` and
 `sampler.hpp`; this note does not restate them.
