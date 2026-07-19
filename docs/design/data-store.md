@@ -81,8 +81,10 @@ What stays store-level, not block-level, and why:
 - `ownedTestValues`, `ownedTestCscValues`, `ownedTestCscRows`,
   `testOffset` are store-level: the test store owns its raw (below), and
   the offset is a fit concern, not a code concern.
-- `isView`, `builtFromCsc`, `hasSparse` are store-level capability flags
-  with external readers (the bridge's `refuseViewSampler`, tests/cpp).
+- `isView` (provenance), `builtFromCsc`, `hasSparse` are store-level flags
+  with external readers; the bridge's refusal helpers read the capability
+  predicates `hasRequantizeSource` and `acceptsNewRawPredictors` derived
+  from them, not the flags directly.
 
 ## ColumnSource and its four kinds
 
@@ -178,15 +180,15 @@ a built parent store, used by xbart folds and the data-handle path. It:
 The view is self-contained: nothing references the parent after
 `buildFromParent` returns.
 
-`isView` sets the refusal boundary. A view holds no re-quantizable raw
-source, so every mutation and re-quantize path is refused on it
-(`refuseViewSampler`). But `isView` currently CONFLATES two axes -
-provenance (this store came from a parent) and capability (this store
-cannot re-quantize). The split of that conflation is deferred, not
-designed here: see the `data-store-residuals` TODO entry
-(`isView` provenance/capability split, sequenced against the
-data-ownership plan). Treat `isView == true` as "no raw, refuse mutation"
-until that lands.
+`isView` is pure provenance - this store was built from a parent - and
+gates only the parent-derived standardization constants
+(`suppliedStandardization`). Refusal reads two capability predicates on
+the store, one per granularity: `acceptsNewRawPredictors` (the raw-x
+mutation surface; false for views, which hold no raw, and for CSC-built
+stores, which fix the design at creation - the bridge's
+`refusePredictorMutation`) and `hasRequantizeSource` (cut installation
+and state restore; false only for views, which retain no re-quantize
+source at all - `refuseRequantizeWithoutSource`).
 
 ## Predictor mutation transaction
 
@@ -227,10 +229,11 @@ grids it moves; the transaction owns the gathered-raw snapshot. This is
 the whole rollback record - there is no store-resident undo log.
 
 Refusal contract: these paths run on dense-built stores only. The bridge
-refuses the raw-x mutation surface on CSC/mixed stores (`refuseViewSampler`
-- "sparse predictors fix the design at creation") and on views
-("data-handle views hold none"). CSC-built samplers DO keep `setState`
-and `setCutPoints` (`refuseViewSamplerOnly`), because those re-quantize
+refuses the raw-x mutation surface on CSC/mixed stores
+(`refusePredictorMutation` - "sparse predictors fix the design at
+creation") and on views ("data-handle views hold none"). CSC-built
+samplers DO keep `setState` and `setCutPoints`
+(`refuseRequantizeWithoutSource`), because those re-quantize
 from the retained slices. Transactional (non-force) updates are also
 refused on multi-forest samplers (`refuseMultiForestTransactionalUpdate`),
 which revalidate only the primary forest; a forced whole-matrix
@@ -356,8 +359,8 @@ save/load without resident raw.
 - `docs/design/pooled-masks.md`, `docs/design/mia-missingness.md` -
   categorical mask tiers and the missing-value routing the codes encode.
 - the `data-store-residuals` TODO entry - the deferred cleanups
-  (`isView` split, conditional data-handle gather, linear-leaf `u_`
-  row-major); consult before treating any of them as accidental.
+  (conditional data-handle gather, linear-leaf `u_` row-major); consult
+  before treating either as accidental.
 
 Per-function truth remains the Doxygen comments in `data.hpp` and
 `sampler.hpp`; this note does not restate them.

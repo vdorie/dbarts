@@ -1476,10 +1476,11 @@ void applySurvivalAttribute(SEXP controlExpr, size_t numObservations,
 // the raw-x mutation surface has nothing to work from; a CSC-built sampler
 // holds only borrowed slices and refuses the same surface by design
 // (docs/design/sparse-columns.md).
-void refuseViewSampler(const bartcore::SamplerBase& sampler,
-                       const char* caller) {
-  if (!sampler.data().isView && !sampler.data().builtFromCsc) return;
-  if (sampler.data().builtFromCsc)
+void refusePredictorMutation(const bartcore::SamplerBase& sampler,
+                             const char* caller) {
+  const bartcore::ColumnStore& data = sampler.data();
+  if (data.acceptsNewRawPredictors()) return;
+  if (data.builtFromCsc)
     Rf_error("%s: sparse predictors fix the design at creation; make a new "
              "sampler instead", caller);
   Rf_error("%s requires a sampler that owns its predictors; data-handle "
@@ -1488,9 +1489,9 @@ void refuseViewSampler(const bartcore::SamplerBase& sampler,
 
 // Unlike views, CSC-built samplers re-quantize from their retained slices,
 // so cut installation and state restore stay available on them.
-void refuseViewSamplerOnly(const bartcore::SamplerBase& sampler,
-                           const char* caller) {
-  if (sampler.data().isView)
+void refuseRequantizeWithoutSource(const bartcore::SamplerBase& sampler,
+                                   const char* caller) {
+  if (!sampler.data().hasRequantizeSource())
     Rf_error("%s requires a sampler that owns its predictors; data-handle "
              "views hold none", caller);
 }
@@ -2700,7 +2701,7 @@ SEXP bartcore_setSigma(SEXP ptrExpr, SEXP sigmaExpr) {
 SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
-  refuseViewSampler(sampler, "bartcore_setData");
+  refusePredictorMutation(sampler, "bartcore_setData");
   refuseMultiForestMutation(sampler, "bartcore_setData");
   if (sampler.numGroups() > 0)
     Rf_error("grouped random effects fix the data at creation; make a new "
@@ -3041,7 +3042,7 @@ SEXP bartcore_getSumsOfSquaredResiduals(SEXP ptrExpr) {
 SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
                            SEXP updateCutPointsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refuseViewSampler(*holder.sampler, "bartcore_setPredictor");
+  refusePredictorMutation(*holder.sampler, "bartcore_setPredictor");
   if (Rf_asLogical(forceUpdateExpr) != TRUE)
     refuseMultiForestTransactionalUpdate(*holder.sampler,
                                          "bartcore_setPredictor");
@@ -3072,7 +3073,7 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
                               SEXP forceUpdateExpr, SEXP updateCutPointsExpr) {
   return unwindProtect([&, columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
-    refuseViewSampler(*holder.sampler, "bartcore_updatePredictor");
+    refusePredictorMutation(*holder.sampler, "bartcore_updatePredictor");
     if (Rf_asLogical(forceUpdateExpr) != TRUE)
       refuseMultiForestTransactionalUpdate(*holder.sampler,
                                            "bartcore_updatePredictor");
@@ -3115,7 +3116,7 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
                         numCutPoints = std::vector<std::uint32_t>{},
                         columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
-    refuseViewSamplerOnly(*holder.sampler, "bartcore_setCutPoints");
+    refuseRequantizeWithoutSource(*holder.sampler, "bartcore_setCutPoints");
     size_t numPredictors = holder.sampler->numPredictors();
     // dense columns re-quantize from the supplied data@x; CSC/mixed columns
     // read their retained slices, so a non-matrix source is passed as null
@@ -3162,7 +3163,8 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
 SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
                                             SEXP columnExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refuseViewSampler(*holder.sampler, "bartcore_updatePredictorPerObservation");
+  refusePredictorMutation(
+    *holder.sampler, "bartcore_updatePredictorPerObservation");
   refuseMultiForestTransactionalUpdate(
     *holder.sampler, "bartcore_updatePredictorPerObservation");
   size_t numObservations = holder.sampler->numObservations();
@@ -3218,8 +3220,8 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
     for (size_t k = 0; k < numSamplers; ++k) {
       BartcoreHolder& holder(
         holderFromExpression(VECTOR_ELT(ptrsExpr, static_cast<R_xlen_t>(k))));
-      refuseViewSampler(*holder.sampler,
-                        "bartcore_updatePredictorPerObservationJointly");
+      refusePredictorMutation(
+        *holder.sampler, "bartcore_updatePredictorPerObservationJointly");
       refuseMultiForestTransactionalUpdate(
         *holder.sampler, "bartcore_updatePredictorPerObservationJointly");
       samplers[k] = holder.sampler.get();
@@ -3554,7 +3556,7 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
                        SEXP currentPredictorsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   // restoring cut points re-quantizes from raw values, which views lack
-  refuseViewSamplerOnly(*holder.sampler, "bartcore_setState");
+  refuseRequantizeWithoutSource(*holder.sampler, "bartcore_setState");
   // a cross-grid restore re-quantizes dense columns from the supplied data@x;
   // a same-spec continuation skips per column, so a null source is harmless
   const double* currentPredictors =
@@ -3566,7 +3568,7 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
 SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
                              SEXP samplesExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refuseViewSamplerOnly(*holder.sampler, "bartcore_installForests");
+  refuseRequantizeWithoutSource(*holder.sampler, "bartcore_installForests");
   bartcore_bridge::installForests(*holder.sampler, donorStateExpr, samplesExpr);
   return R_NilValue;
 }

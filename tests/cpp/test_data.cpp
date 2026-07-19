@@ -69,7 +69,11 @@ static void testColumnStoreView() {
   view.buildFromParent(parent, rows.data(), rows.size(), testRows.data(),
                        testRows.size());
 
-  check(view.isView, "a row-subset view is flagged as one");
+  check(view.isView, "a row-subset view records its provenance");
+  check(!view.hasRequantizeSource() && !view.acceptsNewRawPredictors(),
+        "a view retains no re-quantize source and refuses raw mutation");
+  check(parent.hasRequantizeSource() && parent.acceptsNewRawPredictors(),
+        "a dense-built parent keeps both capabilities");
   check(view.numObservations == rows.size() &&
         view.numTestObservations == testRows.size() &&
         view.numPredictors == p, "view dimensions");
