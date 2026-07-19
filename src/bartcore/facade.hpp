@@ -466,11 +466,34 @@ inline bool leafCovariateDesignationIsValid(const SamplerOptions& options,
 /// the bound), a column out of range, or a categorical column (category
 /// codes are unordered; interact through splits instead) - which the host
 /// turns into its own error.
+/// Whether any predictor carries a nonzero monotone direction (the constrained
+/// leaf's construction-time selector); a null spec or an all-zero vector keeps
+/// the unchanged constant-leaf path. A direction on a categorical column is
+/// refused (monotonicity is undefined on unordered codes).
+inline bool monotoneConstraintIsActive(const SamplerOptions& options,
+                                       std::size_t numPredictors) {
+  if (options.monotoneDirections == nullptr) return false;
+  bool active = false;
+  for (std::size_t j = 0; j < numPredictors; ++j) {
+    if (options.monotoneDirections[j] == 0) continue;
+    if (options.columnTypes != nullptr &&
+        options.columnTypes[j] == ColumnType::categorical)
+      return false;
+    active = true;
+  }
+  return active;
+}
+
 inline std::unique_ptr<SamplerBase> createSampler(
   const double* x, const double* y, std::size_t numObservations,
   std::size_t numPredictors, const double* weights, const double* offset,
   ResponseFamily family, double sigmaEstimate, double sigmaDf,
   double sigmaRawScale, const SamplerOptions& options, ext_rng* const* rngs) {
+  if (options.numLeafCovariates == 0 &&
+      monotoneConstraintIsActive(options, numPredictors))
+    return std::make_unique<SamplerFacade<MonotoneConstantGaussianLeaf>>(
+      x, y, numObservations, numPredictors, weights, offset, family,
+      sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
   if (options.numLeafCovariates == 0)
     return createConstantLeafSampler(x, y, numObservations, numPredictors,
                                      weights, offset, family, sigmaEstimate,

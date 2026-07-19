@@ -4374,6 +4374,447 @@ static void testLeafSeamDispatch() {
   printf("ok: leaf seam dispatch inert for shipped leaves\n");
 }
 
+namespace {
+
+// ---- monotone (mBART) constrained leaf: independent references -------------
+
+// Codes reaching a leaf along a variable, [lo, hi], by a direct ancestor walk
+// (not through splitInterval), so it independently checks the geometry.
+static void oracleLeafBox(const Tree& tree, const ColumnStore& store,
+                          std::int32_t leaf, std::int32_t var, std::int32_t& lo,
+                          std::int32_t& hi) {
+  lo = 0;
+  hi = static_cast<std::int32_t>(store.numCuts[static_cast<size_t>(var)]);
+  std::int32_t cur = leaf;
+  while (tree.at(cur).parent != invalidNode) {
+    std::int32_t parent = tree.at(cur).parent;
+    bool isRight = (cur == tree.at(parent).leftChild + 1);
+    cur = parent;
+    if (tree.at(cur).rule.variableIndex == var) {
+      std::int32_t s = tree.at(cur).rule.splitIndex();
+      if (isRight) lo = std::max(lo, s + 1);
+      else hi = std::min(hi, s);
+    }
+  }
+}
+
+// Independent bounds [a, b] and constrained flag for leaf k, from the design's
+// neighbor definition over the oracle boxes.
+static void oracleBounds(const Tree& tree, const ColumnStore& store,
+                         const std::vector<std::int8_t>& dir, std::int32_t k,
+                         const double* mu, double& a, double& b,
+                         bool& constrained) {
+  size_t p = store.numPredictors;
+  std::vector<std::int32_t> leaves;
+  tree.fillBottom(0, leaves);
+  a = -HUGE_VAL;
+  b = HUGE_VAL;
+  constrained = false;
+  for (std::int32_t j : leaves) {
+    if (j == k) continue;
+    for (size_t i = 0; i < p; ++i) {
+      if (dir[i] == 0) continue;
+      std::int32_t loK, hiK, loJ, hiJ;
+      oracleLeafBox(tree, store, k, static_cast<std::int32_t>(i), loK, hiK);
+      oracleLeafBox(tree, store, j, static_cast<std::int32_t>(i), loJ, hiJ);
+      bool jBelowK = (hiJ + 1 == loK);
+      bool kBelowJ = (hiK + 1 == loJ);
+      if (!jBelowK && !kBelowJ) continue;
+      bool overlap = true;
+      for (size_t m = 0; m < p && overlap; ++m) {
+        if (m == i) continue;
+        std::int32_t lkm, hkm, ljm, hjm;
+        oracleLeafBox(tree, store, k, static_cast<std::int32_t>(m), lkm, hkm);
+        oracleLeafBox(tree, store, j, static_cast<std::int32_t>(m), ljm, hjm);
+        if (std::max(lkm, ljm) > std::min(hkm, hjm)) overlap = false;
+      }
+      if (!overlap) continue;
+      constrained = true;
+      double muj = mu[j];
+      if (jBelowK) {
+        if (dir[i] > 0) a = std::max(a, muj);
+        else            b = std::min(b, muj);
+      } else {
+        if (dir[i] > 0) b = std::min(b, muj);
+        else            a = std::max(a, muj);
+      }
+    }
+  }
+}
+
+static void checkBound(double actual, double expected, const char* what) {
+  if (std::isinf(expected) || std::isinf(actual)) check(actual == expected, what);
+  else checkNear(actual, expected, 1e-9, what);
+}
+
+// Grow a random tree by a few random ordinal births.
+static void growRandomTree(Tree& tree, const ColumnStore& store, const double* y,
+                           int numBirths) {
+  for (int step = 0; step < numBirths; ++step) {
+    std::vector<std::int32_t> leaves;
+    tree.fillBottom(0, leaves);
+    std::int32_t leaf = leaves[static_cast<size_t>(runif01() * leaves.size())];
+    int var = static_cast<int>(runif01() * store.numPredictors);
+    std::int32_t left, right;
+    tree.splitInterval(store, leaf, var, &left, &right);
+    if (right < left) continue;
+    std::int32_t cut = left + static_cast<std::int32_t>(runif01() * (right - left + 1));
+    Rule rule;
+    rule.variableIndex = var;
+    rule.setSplitIndex(cut);
+    tree.birth(store, leaf, rule, y, nullptr);
+  }
+}
+
+static double refLogIntegratedLikelihood(double k, double sig2, double sumW,
+                                         double sumWZ, double scale) {
+  if (sumW == 0.0) return 0.0;
+  double pp = (k / scale) * (k / scale);
+  double qp = sumW / sig2;
+  double mean = sumWZ / sumW;
+  double expl = sumWZ * mean;
+  return 0.5 * std::log(pp / (pp + qp)) + 0.5 * expl / sig2 -
+         0.5 * ((pp * mean) * (qp * mean)) / (pp + qp);
+}
+
+static void refPosterior(double k, double sig2, double sumW, double sumWZ,
+                         double scale, double& m, double& s) {
+  double pp = (k / scale) * (k / scale);
+  double qp = sumW / sig2;
+  double var = 1.0 / (pp + qp);
+  s = std::sqrt(var);
+  m = (sumWZ / sig2) * var;
+}
+
+// Fine trapezoidal integral of f over [lo, hi] (infinite ends clamped by the
+// caller), as an independent quadrature reference.
+template <typename F>
+static double trapz(F f, double lo, double hi, int steps = 200000) {
+  double h = (hi - lo) / steps;
+  double total = 0.5 * (f(lo) + f(hi));
+  for (int i = 1; i < steps; ++i) total += f(lo + i * h);
+  return total * h;
+}
+
+static double normalPdf(double x, double m, double s) {
+  double z = (x - m) / s;
+  return std::exp(-0.5 * z * z) / (s * std::sqrt(2.0 * std::numbers::pi));
+}
+
+}  // namespace
+
+// (a) The neighbor geometry matches a brute-force box-adjacency oracle on
+// fuzzed trees over two and three constrained axes.
+static void testMonotoneNeighborGeometry() {
+  std::uint64_t saved = rngState;
+  rngState = 424242u;
+  const size_t n = 600, p = 3;
+  std::vector<double> x(n * p);
+  for (double& v : x) v = runif01();
+  ColumnStore store;
+  store.build(x.data(), n, p, 24);
+  std::vector<double> y(n, 0.0);
+  std::vector<std::int8_t> dir[3] = {{1, 0, 0}, {1, -1, 0}, {1, -1, 1}};
+
+  int comparisons = 0;
+  for (int trial = 0; trial < 120; ++trial) {
+    std::vector<size_t> idx(n);
+    Tree tree;
+    tree.initialize(idx.data(), n);
+    tree.computeLeafStats(0, y.data(), nullptr);
+    growRandomTree(tree, store, y.data(), 4 + static_cast<int>(runif01() * 4));
+
+    std::vector<std::int32_t> leaves;
+    tree.fillBottom(0, leaves);
+    std::vector<double> mu(tree.nodes.size(), 0.0);
+    for (std::int32_t leaf : leaves) mu[leaf] = 2.0 * runif01() - 1.0;
+
+    const std::vector<std::int8_t>& d = dir[trial % 3];
+    MonotoneNeighborScratch scratch;
+    for (std::int32_t k : leaves) {
+      double a, b;
+      bool c;
+      monotoneNeighborBounds(tree, store, d.data(), leaves, k, mu.data(), nullptr,
+                             0, scratch, &a, &b, &c);
+      double ao, bo;
+      bool co;
+      oracleBounds(tree, store, d, k, mu.data(), ao, bo, co);
+      checkBound(a, ao, "monotone geometry: lower bound matches oracle");
+      checkBound(b, bo, "monotone geometry: upper bound matches oracle");
+      check(c == co, "monotone geometry: constrained flag matches oracle");
+      ++comparisons;
+    }
+  }
+  rngState = saved;
+  printf("ok: monotone neighbor geometry vs oracle (%d leaves)\n", comparisons);
+}
+
+// (b) Feasibility invariants: an end-to-end constrained fit is monotone in its
+// single constrained predictor, an emptied cone scores the sentinel, and a
+// direct draw sweep keeps every leaf within its bounds.
+static void testMonotoneFeasibility() {
+  // a private generator keeps the shared stream (and downstream suites) intact
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 7001);
+  std::uint64_t savedRngState = rngState;
+  rngState = 987654321u;
+  // end-to-end: a monotone-increasing truth is recovered by a monotone fit
+  const size_t n = 300;
+  std::vector<double> x(n), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double z = std::sqrt(-2.0 * std::log(u1)) *
+               std::cos(6.283185307179586 * u2);
+    y[i] = 2.0 * x[i] + 0.2 * z;
+  }
+  std::vector<std::int8_t> dir = {1};
+  SamplerOptions options;
+  options.numTrees = 40;
+  options.birthOrDeathProbability = 1.0;  // v1 constrained move set
+  options.swapProbability = 0.0;
+  options.changeProbability = 0.0;
+  options.monotoneDirections = dir.data();
+  Sampler<MonotoneConstantGaussianLeaf> sampler(
+    x.data(), y.data(), n, size_t(1), nullptr, nullptr, ResponseFamily::gaussian,
+    1.0, 3.0, 0.37804942330213542, options, &rng);
+  const size_t numBurnIn = 150, numSamples = 250;
+  std::vector<double> trainingFits(n * numSamples);
+  Results results;
+  results.trainingFits = trainingFits.data();
+  sampler.run(numBurnIn, numSamples, results);
+
+  std::vector<double> mean(n, 0.0);
+  for (size_t s = 0; s < numSamples; ++s)
+    for (size_t i = 0; i < n; ++i)
+      mean[i] += trainingFits[i + s * n] / static_cast<double>(numSamples);
+  std::vector<size_t> order(n);
+  for (size_t i = 0; i < n; ++i) order[i] = i;
+  std::sort(order.begin(), order.end(),
+            [&](size_t a, size_t b) { return x[a] < x[b]; });
+  int descents = 0;
+  for (size_t i = 1; i < n; ++i)
+    if (mean[order[i]] < mean[order[i - 1]] - 1e-9) ++descents;
+  check(descents == 0, "monotone end-to-end: fitted mean is non-decreasing");
+
+  // empty cone: a leaf pinned between a high below-neighbor and a low above-
+  // neighbor scores the sentinel (the change/swap infeasibility path)
+  const size_t m = 300;
+  std::vector<double> xg(m);
+  for (size_t i = 0; i < m; ++i) xg[i] = static_cast<double>(i) / (m - 1);
+  ColumnStore store;
+  store.build(xg.data(), m, 1, 60);
+  std::vector<double> yg(m, 0.0);
+  std::vector<size_t> idx(m);
+  Tree tree;
+  tree.initialize(idx.data(), m);
+  tree.computeLeafStats(0, yg.data(), nullptr);
+  std::int32_t left, right;
+  tree.splitInterval(store, 0, 0, &left, &right);
+  Rule r0;
+  r0.variableIndex = 0;
+  r0.setSplitIndex(left + (right - left) / 3);
+  tree.birth(store, 0, r0, yg.data(), nullptr);
+  std::int32_t rightChild = tree.at(0).leftChild + 1;
+  tree.splitInterval(store, rightChild, 0, &left, &right);
+  Rule r1;
+  r1.variableIndex = 0;
+  r1.setSplitIndex(left + (right - left) / 2);
+  tree.birth(store, rightChild, r1, yg.data(), nullptr);
+  std::int32_t lowLeaf = tree.at(0).leftChild;         // A
+  std::int32_t midLeaf = tree.at(rightChild).leftChild;  // L
+  std::int32_t highLeaf = tree.at(rightChild).leftChild + 1;  // C
+  std::vector<double> mu(tree.nodes.size(), 0.0);
+  mu[lowLeaf] = 5.0;   // below-neighbor high
+  mu[highLeaf] = -5.0;  // above-neighbor low -> empty cone for L
+  std::vector<std::int8_t> d1 = {1};
+  MonotoneConstantGaussianLeaf leaf;
+  leaf.scale = 0.1;
+  leaf.data = &store;
+  leaf.directions = d1.data();
+  leaf.cInflation = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
+  double sentinel = leaf.logLikelihoodForBranchWithParams(
+    tree, midLeaf, yg.data(), nullptr, 2.0, 1.0, mu.data());
+  check(sentinel == -HUGE_VAL, "monotone empty cone scores the sentinel");
+
+  // draw sweep keeps the tree feasible from a feasible start
+  std::vector<double> mu2(tree.nodes.size(), 0.0);
+  std::vector<std::int32_t> bottoms;
+  tree.fillBottom(0, bottoms);
+  bool everFeasible = true;
+  for (int sweep = 0; sweep < 200; ++sweep) {
+    leaf.drawParametersForTree(rng, tree, bottoms, 2.0, 0.05, mu2.data());
+    if (!monotoneTreeIsFeasible(tree, store, d1.data(), mu2.data()))
+      everFeasible = false;
+  }
+  check(everFeasible, "monotone draw sweep stays feasible");
+  rngState = savedRngState;
+  ext_rng_destroy(rng);
+  printf("ok: monotone feasibility (descents %d)\n", descents);
+}
+
+// (c) The 1-D and 2-D constrained marginals match an independent quadrature,
+// and the coupled draw has support {a <= mu_lower <= mu_upper <= b}.
+static void testMonotoneMarginal() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 7002);
+  const size_t n = 400;
+  std::vector<double> x(n);
+  for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i) / (n - 1);
+  ColumnStore store;
+  store.build(x.data(), n, 1, 40);
+  std::vector<double> y(n);
+  for (size_t i = 0; i < n; ++i) y[i] = 0.5 * x[i] - 0.1;
+  std::vector<size_t> idx(n);
+  Tree tree;
+  tree.initialize(idx.data(), n);
+  tree.computeLeafStats(0, y.data(), nullptr);
+  std::int32_t left, right;
+  tree.splitInterval(store, 0, 0, &left, &right);
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(left + (right - left) / 2);
+  tree.birth(store, 0, rule, y.data(), nullptr);
+  std::int32_t lower = tree.at(0).leftChild;      // increasing: left is lower
+  std::int32_t upper = tree.at(0).leftChild + 1;
+
+  std::vector<std::int8_t> d = {1};
+  MonotoneConstantGaussianLeaf leaf;
+  leaf.scale = 0.2;
+  leaf.data = &store;
+  leaf.directions = d.data();
+  double c = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
+  leaf.cInflation = c;
+  double k = 2.0, sig2 = 0.09, kEff = k / c;
+
+  // 2-D coupled marginal: no outer neighbors, so P = Phi((mR-mL)/sqrt(sL^2+sR^2))
+  // and d_* = 1/2 in closed form
+  const Node& nL = tree.at(lower);
+  const Node& nR = tree.at(upper);
+  double got2d = leaf.logLikelihoodForBranchWithParams(tree, 0, y.data(), nullptr,
+                                                       k, sig2, nullptr);
+  double mL, sL, mR, sR;
+  refPosterior(kEff, sig2, nL.sumWeights, nL.sumWeightedResponse, leaf.scale, mL,
+               sL);
+  refPosterior(kEff, sig2, nR.sumWeights, nR.sumWeightedResponse, leaf.scale, mR,
+               sR);
+  double refBase =
+    refLogIntegratedLikelihood(kEff, sig2, nL.sumWeights, nL.sumWeightedResponse,
+                               leaf.scale) +
+    refLogIntegratedLikelihood(kEff, sig2, nR.sumWeights, nR.sumWeightedResponse,
+                               leaf.scale);
+  double refP = Rf_pnorm5((mR - mL) / std::sqrt(sL * sL + sR * sR), 0.0, 1.0, 1, 0);
+  double ref2d = refBase + std::log(refP) - std::log(0.5);
+  checkNear(got2d, ref2d, 1e-6, "monotone 2-D marginal matches closed form");
+
+  // with a finite outer lower bound the numerator becomes a 1-D quadrature:
+  // score the same branch against a pinned below-neighbor via a nested reference
+  double aL = mL - 0.5 * sL;  // an interior below bound on the lower leaf
+  double numerRef = trapz(
+    [&](double xr) {
+      double up = xr;  // no upper bound bL
+      double inner = Rf_pnorm5((up - mL) / sL, 0.0, 1.0, 1, 0) -
+                     Rf_pnorm5((aL - mL) / sL, 0.0, 1.0, 1, 0);
+      return (inner > 0.0 ? inner : 0.0) * normalPdf(xr, mR, sR);
+    },
+    aL, mR + 12.0 * sR);
+  double denomRef = trapz(
+    [&](double xr) {
+      double up = xr;
+      double sd = leaf.scale / kEff;
+      double inner = Rf_pnorm5(up / sd, 0.0, 1.0, 1, 0) -
+                     Rf_pnorm5(aL / sd, 0.0, 1.0, 1, 0);
+      return (inner > 0.0 ? inner : 0.0) * normalPdf(xr, 0.0, sd);
+    },
+    aL, 12.0 * (leaf.scale / kEff));
+  double coneNum =
+    leaf.coneProbability(aL, HUGE_VAL, aL, HUGE_VAL, mL, sL, mR, sR);
+  double coneDen = leaf.coneProbability(aL, HUGE_VAL, aL, HUGE_VAL, 0.0,
+                                        leaf.scale / kEff, 0.0, leaf.scale / kEff);
+  checkNear(coneNum, numerRef, 1e-6, "monotone cone numerator vs quadrature");
+  checkNear(coneDen, denomRef, 1e-6, "monotone cone normalizer vs quadrature");
+
+  // draw support: many coupled draws satisfy mu_lower <= mu_upper
+  std::vector<double> mu(tree.nodes.size(), 0.0);
+  std::vector<std::int32_t> bottoms;
+  tree.fillBottom(0, bottoms);
+  bool ordered = true;
+  for (int s = 0; s < 5000; ++s) {
+    leaf.drawParametersForTree(rng, tree, bottoms, k, sig2, mu.data());
+    if (mu[lower] > mu[upper] + 1e-9) ordered = false;
+  }
+  check(ordered, "monotone coupled draw supports mu_lower <= mu_upper");
+
+  // a deep-tail truncation still returns a finite draw (Robert fallback)
+  std::vector<double> muTail(tree.nodes.size(), 0.0);
+  muTail[lower] = 40.0;  // forces the upper leaf far into the tail
+  double before = muTail[upper];
+  (void) before;
+  bool finite = true;
+  for (int s = 0; s < 50; ++s) {
+    leaf.drawParametersForTree(rng, tree, bottoms, k, sig2, muTail.data());
+    if (!std::isfinite(muTail[lower]) || !std::isfinite(muTail[upper]))
+      finite = false;
+  }
+  check(finite, "monotone deep-tail draw stays finite");
+  ext_rng_destroy(rng);
+  printf("ok: monotone marginal and draw vs quadrature\n");
+}
+
+// (d) c-inflation: a singly-constrained leaf's post-truncation marginal
+// variance equals the unconstrained sigma_mu^2 (design section 6, eq 3.7-3.9).
+static void testMonotoneCInflation() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 7003);
+  const size_t n = 200;
+  std::vector<double> x(n);
+  for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i) / (n - 1);
+  ColumnStore store;
+  store.build(x.data(), n, 1, 20);
+  std::vector<double> y(n, 0.0);  // zero response -> posterior mean 0
+  std::vector<size_t> idx(n);
+  Tree tree;
+  tree.initialize(idx.data(), n);
+  tree.computeLeafStats(0, y.data(), nullptr);
+  std::int32_t left, right;
+  tree.splitInterval(store, 0, 0, &left, &right);
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(left + (right - left) / 2);
+  tree.birth(store, 0, rule, y.data(), nullptr);
+  std::int32_t lower = tree.at(0).leftChild, upper = lower + 1;
+
+  std::vector<std::int8_t> d = {1};
+  MonotoneConstantGaussianLeaf leaf;
+  leaf.scale = 0.1;
+  leaf.data = &store;
+  leaf.directions = d.data();
+  leaf.cInflation = std::sqrt(std::numbers::pi / (std::numbers::pi - 1.0));
+  double k = 2.0;
+  double hugeSigma2 = 1e12;  // prior-dominant: draws from the truncated prior
+  double sigmaMu = leaf.scale / k;  // the UNinflated target sd
+
+  std::vector<double> mu(tree.nodes.size(), 0.0);
+  std::vector<std::int32_t> bottoms;
+  tree.fillBottom(0, bottoms);
+  const int burn = 2000, draws = 400000;
+  for (int s = 0; s < burn; ++s)
+    leaf.drawParametersForTree(rng, tree, bottoms, k, hugeSigma2, mu.data());
+  double sum = 0.0, sumSq = 0.0;
+  for (int s = 0; s < draws; ++s) {
+    leaf.drawParametersForTree(rng, tree, bottoms, k, hugeSigma2, mu.data());
+    sum += mu[upper];
+    sumSq += mu[upper] * mu[upper];
+  }
+  double mean = sum / draws;
+  double var = sumSq / draws - mean * mean;
+  checkNear(var, sigmaMu * sigmaMu, 0.05 * sigmaMu * sigmaMu,
+            "monotone c-inflation: singly-constrained variance is sigma_mu^2");
+  ext_rng_destroy(rng);
+  printf("ok: monotone c-inflation (var %.6f target %.6f)\n", var,
+         sigmaMu * sigmaMu);
+}
+
 void runModelTests(ext_rng* rng) {
   testLeafSeamDispatch();
   testIntegratedLikelihood();
@@ -4427,4 +4868,8 @@ void runModelTests(ext_rng* rng) {
   testGPLeafKernelCache(rng);
   testGPLeafZeroWeights(rng);
   testSparseTestDataEndToEnd();
+  testMonotoneNeighborGeometry();
+  testMonotoneFeasibility();
+  testMonotoneMarginal();
+  testMonotoneCInflation();
 }
