@@ -76,3 +76,46 @@ Per commit: R CMD INSTALL --preclean; tests/cpp from make clean; equivalence tri
 bitwise (equivalence-f494156, bcf-99205ee, multinomial-8c2b5fc); full tinytest. C3:
 the exact/reduction gates pass (reference finer than MCse). C4: air format --check .;
 a bench-sampler compare confirms the homoscedastic path is speed-neutral (grant).
+
+## Landing
+
+All four commits landed 2026-07-19/20, each independently battery-verified and its
+CI sanitizer watched to green before the next (the sanitizer discipline the monotone
+arc taught: the plain battery does not catch heap/UB, and R-reachability is where a
+memory bug hides):
+
+1. C1 3775437 - the conjugate scale leaf (ScaleLeafModel + ConstantVarianceLeaf):
+   closed-form chi^-2 marginal, scaled-inverse-chi-squared draw, section-3.4
+   calibration collapsing to the sigma prior at one tree; component-tested vs
+   quadrature. No sampler instantiates it yet.
+2. C2 dafe96b - Chain integration: a nullable distinctly-typed VarianceForest, the
+   multiplicative residual roll (divide by s^2_{-j}, the divisor guard excluding the
+   tree's own factor), the weight-channel coupling (w_i^mean = w_i / s^2, sigma fixed
+   at 1), gaussian-only refusal, and the five move templates relaxed to
+   MoveScorableLeafModel with byte-identical existing-leaf codegen.
+3. C3 043d1ba - reporting (train/test s(x), a separately-typed channel), predict,
+   and by-name state serialization with a strictly-positive scale-leaf validation.
+4. C4 994ec7e - the R surface (variance = ~x / TRUE / selector; n.trees.variance;
+   base/power.variance; s.train/s.test; predict returns the variance surface), the
+   bridge route (control attribute -> options; append-only variance state block; NO
+   dbarts.h change), and the two-part exact-posterior gate.
+
+The conjugacy premise-correction (the TODO/forest-combiner.md "non-integrable,
+non-conjugate" framing was wrong; the variance forest is conjugate and reuses the
+existing move) was verified against HBART eq. 6-7 by two independent critiques and is
+recorded in section 0 and 12; the TODO and forest-combiner.md were corrected at the
+design landing.
+
+Correctness: the m'=2 closing exact gate (benchmarks/R/heteroscedastic-exact.R)
+matches the sampler to nested quadrature on the identified s(x) - m'=1 reduction gap
+0.0010 (tol 0.05), m'=2 s^2 gap 0.0027 (tol 0.045), f gap 0.0012 (tol 0.015), gaps
+shrinking with sample count (MC, not bias) - proving the multiplicative roll. Homo-
+scedastic fits bitwise throughout (no equivalence re-record); suite 3304/0; every
+commit's CI sanitizer (ASAN+UBSAN + valgrind) green, incl. C4's R-reachable paths.
+
+Deferred: the bench-sampler homoscedastic default-path speed check (quiet-machine
+grant; draws already bitwise, so it only rules out an incidental slowdown). v2 doors
+(design section 11): non-constant (linear/gp) variance leaves; a k.variance /
+variance-df hyper (C4 calibrates from the mean resid.prior); hurdle (the other
+multi-forest model). macOS SIP blocks local R-under-ASAN - the CI sanitizer is the
+authoritative R-reachable ASAN gate.
