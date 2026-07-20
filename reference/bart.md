@@ -641,6 +641,48 @@ summary(object, ...)
   `xbart` do not fit hazard responses (grouped/frailty hazard and a
   `cloglog` link are recorded follow-ups).
 
+  `family = "hurdle.lognormal"` (alias `"twopart"`, which resolves and
+  prints as `"hurdle.lognormal"`) fits a semicontinuous two-part
+  (hurdle) model for a non-negative response with exact zeros: an
+  OCCUPANCY probit fit of \\z = 1\\y \> 0\\\\ over all n observations,
+  glued at report time to a POSITIVE-PART gaussian fit of \\\log y\\
+  over the subset \\\\i : y_i \> 0\\\\. The two component fits share no
+  parameters and are composed entirely R-side from two ordinary `bart2`
+  fits at independently derived seeds - no engine code, and no coupling
+  between the parts - so a shared variable-selection prior across the
+  occupancy and positive parts is foreclosed by this composition (a
+  recorded limitation, alongside a Duan-smearing retransformation and a
+  heteroscedastic positive part, both follow-ups). `y.train` must be
+  non-negative and finite and must carry at least one exact zero and one
+  positive value (a response with no zeros, or none positive, is refused
+  by name). By default `predict`/`fitted`/`extract` report the NATURAL
+  (response) scale via posterior-predictive Monte Carlo,
+  heteroscedasticity-aware: \\E\[y \mid x\] = P(y \> 0 \mid
+  x)\\e^{f(x) + \sigma^2 / 2}\\ computed per posterior draw, consuming
+  the positive part's per-observation \\\sigma(x)\\ when a
+  heteroscedastic `variance = ~x` surface is enabled on it (a single
+  \\\sigma\\ per draw otherwise). `type = "prob"` returns the occupancy
+  probability \\\pi(x)\\ through the probit link;
+  `type = "link"`/`"log"` the positive part's log-scale linear predictor
+  \\f(x)\\; `type = "ppd"` draws the proper BIMODAL predictive - a
+  Bernoulli(\\\pi\\) spike at zero, else a lognormal draw - which the
+  plain gaussian ppd path cannot produce. Fits currently use the matrix
+  interface only
+  (`bart2(x.train, y.train, family = "hurdle.lognormal")`); `weights`,
+  `subset`, `offset`/`offset.test`, and `test` are all refused with an
+  error naming the limitation - the positive-part fit is instead given
+  the full training `x` as its own `x.test`, so its in-sample fitted
+  values cover the zero rows it never trained on. `predict` requires
+  `keepTrees = TRUE` and replays both saved forests at `newdata`.
+  [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md) does
+  not fit this family - it composes two samplers, which only `bart2()`
+  builds, so requesting it there is an error directing here. `rbart_vi`
+  and `xbart` do not fit it either. The fit's class is `"bartHurdle"`,
+  holding both component fits (`$occupancy`, a `"bart"` probit fit of
+  the occupancy indicator; `$positive`, a `"bart"` gaussian fit of
+  \\\log y\\ on the positive subset) under their own
+  `extract`/`fitted`/`predict`/`residuals`/`print` methods.
+
 - formula:
 
   The same as `x.train`, the name reflecting that a formula object can
@@ -1221,7 +1263,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.220597
+#> total seconds in loop: 0.220021
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1287,7 +1329,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001374
+#> total seconds in loop: 0.001387
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

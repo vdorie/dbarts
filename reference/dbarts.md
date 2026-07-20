@@ -353,7 +353,29 @@ dbarts(
   `$periods` grid, and its `$family` records the binary link. Like
   `"aft"`, hazard fits use the matrix interface and do not support
   `subset` or a `test` set (expand test subjects with
-  `survivalProbabilities(..., newdata = )`).
+  `survivalProbabilities(..., newdata = )`). `"hurdle.lognormal"` (alias
+  `"twopart"`, which resolves and prints as `"hurdle.lognormal"`) fits a
+  semicontinuous two-part (hurdle) model for a non-negative response
+  with exact zeros: an occupancy probit fit of \\z = 1\\y \> 0\\\\ over
+  all n observations, glued at report time to a lognormal positive-part
+  fit - an ordinary gaussian fit of \\\log y\\ - over the subset \\\\i :
+  y_i \> 0\\\\; the two parts share no parameters and are composed from
+  two ordinary fits at independently derived seeds, so no engine code is
+  added and a shared variable-selection prior across the parts is not
+  available (a recorded limitation). `y.train` must be non-negative and
+  finite and must carry at least one exact zero and one positive value.
+  By default, predictions report the natural (response) scale via
+  posterior-predictive Monte Carlo, \\E\[y \mid x\] = P(y \> 0 \mid
+  x)\\e^{f(x) + \sigma^2 / 2}\\, heteroscedasticity-aware when the
+  positive part carries a `variance = ~x` surface; see
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) for the
+  full `type` options (`"prob"`, `"link"`/`"log"`, the bimodal `"ppd"`)
+  and the refusal list (`weights`, `subset`, `offset`, and `test` are
+  all unsupported this arc). `dbarts()` does not fit this family: it
+  composes two samplers, which only
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) builds,
+  so requesting it here is an error directing to
+  [`bart2()`](https://vdorie.github.io/dbarts/reference/bart.md).
 
 - dispersion:
 
