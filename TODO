@@ -60,27 +60,19 @@ items
     2026-07-16 (docs/plans/multinomial-test-surface.md); the formula
     interface (a factor or cbind(...) count-matrix left-hand side)
     LANDED 2026-07-17 (docs/plans/multinomial-formula.md).
-    heteroscedastic DESIGN DONE + VD-approved 2026-07-19
-    (docs/design/heteroscedastic.md, param A; IN PROGRESS as a C1-C4
-    arc, docs/plans/heteroscedastic.md). CORRECTION: the earlier
-    "multiplicative-positive, non-integrable" leaf + "non-conjugate
-    MoveStrategy specializing the M-access seam" framing here (and at
-    forest-combiner.md sec 12) was WRONG - the variance forest is
-    CONJUGATE (scaled-inverse-chi-squared leaf, each variance tree
-    conditionally conjugate given the mean fit + the other trees' fixed
-    divisor; verified against HBART eq 6-7 by two independent critiques),
-    so it reuses the EXISTING conjugate move and does NOT specialize
-    monotone's seams (those solve dependent-leaf coupling the variance
-    forest lacks). The real work is a fourth INTEGRABLE scale leaf
-    (ScaleLeafModel) plus two-leaf-types-in-one-Chain plumbing and the
-    multiplicative residual roll (divide by s^2_{-j}); per-obs variance
-    routes through the mean weight channel (resolved, not the sigma
-    vector). Landscape (surveyed
-    2026-07-18): rbart, the reference HBART implementation, was
-    archived from CRAN 2024-01; stochtree ships maintained log-linear
-    variance forests for bart() and bcf(); bartMachine issue #40
-    (hBART merge request) has sat unresolved since 2021 - concrete
-    demand, partial coverage elsewhere.
+    heteroscedastic (HBART) LANDED 2026-07-20 (994ec7e; records
+    docs/plans/heteroscedastic.md Landing, design docs/design/
+    heteroscedastic.md): a nullable conjugate variance forest reusing
+    the existing move, the multiplicative roll, the weight-channel
+    coupling, and the variance = ~x surface; m'=2 exact gate proves the
+    roll. So the remaining multi-forest model is HURDLE (a binary-
+    occupancy forest + a positive-part forest); its two forests differ
+    in RESPONSE FAMILY per forest, which breaks Chain's single response_
+    - a Chain-level generalization (forest-combiner.md, hurdle bullet),
+    heavier than heteroscedastic's two-leaf-type change. The
+    two-leaf-types-in-one-Chain pattern (nullable distinctly-typed
+    member) heteroscedastic built is the precedent hurdle extends. One
+    design note when picked. low-ranked / demand-driven.
   negbin-real-dispersion: the recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design section 2 carries
     fork B's full spec): real-valued dispersion needs a non-integer-shape
