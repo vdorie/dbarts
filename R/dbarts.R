@@ -356,7 +356,9 @@ dbarts <- function(
     "nbinom",
     "hazard",
     "hazard.probit",
-    "hazard.logistic"
+    "hazard.logistic",
+    "hurdle.lognormal",
+    "twopart"
   ),
   missing = c("incorporate", "error"),
   dispersion = NA_real_,
@@ -368,6 +370,23 @@ dbarts <- function(
   evalEnv <- parent.frame(1L)
 
   family <- match.arg(family)
+  # hurdle.lognormal / twopart (docs/design/hurdle.md): the alias resolves to
+  # the canonical token immediately, so every downstream message and any
+  # packaged $family reads "hurdle.lognormal" regardless of which spelling
+  # was requested
+  if (identical(family, "twopart")) {
+    family <- "hurdle.lognormal"
+  }
+  if (identical(family, "hurdle.lognormal")) {
+    # a hurdle fit composes TWO independent samplers (an occupancy probit and
+    # a positive-part gaussian, docs/design/hurdle.md section 2); dbarts()
+    # returns exactly one sampler and cannot express that composition - only
+    # bart2() (bart2Hurdle) builds it
+    stop(
+      "family \"hurdle.lognormal\" fits two component samplers and is only ",
+      "available through bart2()"
+    )
+  }
 
   # survival response ingestion (docs/design/survival.md): a survival::Surv
   # object or an explicit family = "aft" with a two-column (time, status)
