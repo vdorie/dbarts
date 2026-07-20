@@ -4,9 +4,13 @@
 // #include "config.h" // should be included by file
 
 // Find and include relevant headers
-#if defined(__arm__) || defined(__aarch64__) || defined(_ARM) || defined(_M_ARM)
+#if defined(__arm__) || defined(__aarch64__) || defined(_ARM) || defined(_M_ARM) || defined(_M_ARM64)
 #  ifdef COMPILER_SUPPORTS_NEON
-#    include <arm_neon.h>
+#    if defined(_MSC_VER) && !defined(__clang__)
+#      include <arm64_neon.h> // MSVC's native ARM64 NEON intrinsics header
+#    else
+#      include <arm_neon.h> // gcc, clang, and clang-cl all use this name
+#    endif
 #  endif
 #else
 #  ifdef _MSC_VER

@@ -5,6 +5,13 @@ ifeq "$(ARCH)" "x86_64"
   AVX_FLAG=-mavx
   AVX2_FLAG=-mavx2
 endif
+# Windows on ARM64 (MSVC or an aarch64 mingw toolchain); R.version$arch is
+# expected to read "aarch64" there, but the exact string is unverified since
+# no Windows-arm64 R build is available to probe - hedge across the spellings
+# inst/tinytest/test-simd.R already hedges on (aarch64, arm64, arm).
+ifneq (,$(filter aarch64 arm64 arm,$(ARCH)))
+  NEON_FLAG=-DCOMPILER_SUPPORTS_NEON
+endif
 
 INST_DIR=../inst
 
@@ -45,6 +52,7 @@ sublibs:
 	  (cd $${d} && $(MAKE) -f "$(MkInclude)" -f Makefile library \
 	   PTHREAD_CPPFLAGS="$(PTHREAD_CPPFLAGS)" INST_DIR="$(INST_DIR)" \
            SSE2_FLAG="$(SSE2_FLAG)" SSE4_1_FLAG="$(SSE4_1_FLAG)" AVX_FLAG="$(AVX_FLAG)" AVX2_FLAG="$(AVX2_FLAG)" \
+           NEON_FLAG="$(NEON_FLAG)" \
            CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS)" \
            CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(PKG_ARFLAGS)" RANLIB="$(RANLIB)") \
            || exit 1; \

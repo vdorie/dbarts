@@ -13,6 +13,13 @@
 #  endif
 #endif
 
+// Windows on ARM64 (MSVC's _M_ARM64, or a gcc/clang aarch64 mingw toolchain);
+// NEON is a mandatory baseline feature of AArch64, so no runtime or configure
+// probe is needed, mirroring the unconditional x86_64 case above.
+#if defined(_M_ARM64) || defined(__aarch64__)
+#  define COMPILER_SUPPORTS_NEON 1
+#endif
+
 #define XINT_TYPE uint16_t
 
 #define PACKAGE_BUGREPORT "vdorie@gmail.com"
