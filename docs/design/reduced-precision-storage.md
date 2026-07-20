@@ -64,22 +64,46 @@ TRACK 1 that lands first and independently of the fp32 work.
   THE TOP LEVER: footprint n*trees*8B (the single biggest hot array; ~1.6 GB at
   n=1e6/200 trees) -> halves to 4B, and it halves the streamed-index bytes inside
   the DOMINANT gather (microbench: index narrowing alone gives ~1.21x on the
-  gather at n=1e6, g64->g32, and lifts the fp32 asymptote 1.33x->1.5x). PRESERVING:
-  indices are exact integers and n < 2^31 always holds for real BART (the
-  predictor codes alone would be terabytes first); a guard throws above UINT32_MAX.
-  This is a plain `index_t = uint32_t` typedef swap across the partition/sort
-  kernels (tree.hpp:530-706, the misc_size_t* two-pointer partitions) + the buffer
-  decls - a straight DEFAULT change, NOT the opt-in template axis (uint32 is
-  universally safe, so both precisions need not coexist). Validated by the
-  equivalence trio staying BITWISE-IDENTICAL. Verify state save/restore does not
-  serialize the index width (it should not - the index buffer is reconstructed
-  scratch, not saved state).
+  gather at n=1e6, g64->g32, and lifts the fp32 asymptote 1.33x->1.5x).
+
+  PRESERVING - VERIFIED by the blind critique: the SIMD partition (partition_body.c)
+  vectorizes the COLUMN VALUES fed to the code compare and never packs the index
+  buffer into vectors (indices are only scalar subscripts), so its swap sequence /
+  control flow is independent of index width -> a byte-identical permutation ->
+  identical gather order -> bitwise-identical fp64 sums and draws. State save/
+  restore does NOT serialize index width (ForestStateData/ChainStateData hold only
+  FlatNodes + fp64; buffers are reconstructed by repartition). n < 2^31 always
+  holds (predictor codes would be terabytes first); a guard throws above UINT32_MAX.
+
+  BLAST RADIUS (critique correction - it is NOT a one-line typedef): misc_size_t
+  is a single macro used for BOTH indices AND lengths, so there is no index typedef
+  to flip. The change introduces a NEW misc_index_t DISTINCT from the length type
+  and threads it through the whole misc.a index family: the two runtime-dispatched
+  partition fn-pointers misc_partitionRange / misc_partitionIndices compiled across
+  5 ISA TUs (avx2/sse2/sse4_1/neon + scalar body), misc_partitionIndicesSparse,
+  the 16 misc_computeIndexed* suffstat/mean/variance kernels AND their misc_mt_
+  variants, misc_sumIndexedVectorElements, misc_setIndexedVectorToConstant; plus
+  Tree::indices (tree.hpp:186), the 8 scalar C++ partition kernels, and
+  SubtreeSnapshot.indexSegment (std::vector<size_t> + a sizeof(size_t) memcpy,
+  tree.hpp:836). THE TRAP: preservation holds ONLY if each SIMD kernel is RETYPED,
+  not REWRITTEN - a fresh uint32 SIMD partition with a different swap sequence
+  changes the permutation and silently turns a "preserving" lever into a draw-
+  changing one. GUARD: static_assert(sizeof(index_t) == sizeof(misc_index_t))
+  pinning the C++ buffer type to the C kernel param (mirroring the existing
+  static_assert on misc_xint_t == uint16 at tree.hpp:618). ACCEPTANCE: the
+  cross-ISA tests/cpp gate AND the bitwise equivalence trio must both stay
+  identical - any drift means a kernel was rewritten, not retyped.
 - **leafOf uint32 -> uint16** (combiner.hpp:143, n*trees). PRESERVING (node ids
-  are exact) but CAPACITY-BOUNDED: a tree exceeding 65535 nodes overflows. Shallow
-  BART trees (base=.95/power=2 prior) essentially never approach this, but it is
-  not structurally impossible, so it needs a guard (fall back / cap). uint8 is
-  NOT safe (>255 nodes reachable). Halves another n*trees stream read every roll.
-  CONSIDER for Track 1 if the guard is cheap; the critique weighs guard-vs-reward.
+  are exact) and a GENUINE gather input (mu[leafOf[i]] streamed every roll, so the
+  reward is real), but CAPACITY-BOUNDED: a tree exceeding 65535 nodes overflows.
+  Shallow BART trees (base=.95/power=2) astronomically never approach this, but the
+  fallback must be a real TYPE spec, not a hand-wave: a uniform std::vector<uint16>
+  cannot host a per-tree fallback, so the guard is a GLOBAL refuse (throw/cap at
+  the first tree that would exceed 65535 nodes), not a per-tree type union. uint8
+  is NOT safe (>255 nodes reachable). leafOf is internal scratch (not in
+  ForestStateData) -> no state/ABI exposure. CONSIDER for Track 1 as a follow-on
+  to the index change (same PRESERVING gate); defer if the global-refuse guard
+  reads as a surprising failure mode.
 
 ### 3b. CHANGING (feeds precision-sensitive arithmetic; SBC/coverage gate + one
 re-record; OPT-IN only). The primary target.
@@ -101,20 +125,38 @@ re-record; OPT-IN only). The primary target.
   amortization, strictly worse than rolling fp32 directly. So the fp32 store
   cannot avoid the incremental fp32 roll.
 
-  THE ROLL IS INCREMENTAL (chain.hpp:894-896: "retires the previous tree's new
-  fits and admits this tree's old ones"), so fp32 rounding ACCUMULATES across
-  trees (~200 updates/sweep/element) and sweeps. This is the real SBC risk (not
-  "safe by construction"). Drift control = a periodic fp64 RE-ANCHOR:
-  recompute treeY exactly = forestY - sum_of_current_fits in fp64, store fp32,
-  resetting drift; cadence (every sweep? every K?) trades accuracy vs cost. A
-  per-sweep re-anchor is CHEAP because `finalizeTotalFits(forest, forestY)`
-  (chain.hpp:965) ALREADY runs one exact fp64 total-fits pass per sweep for the
-  latent/sigma updates - the re-anchor rides that existing pass rather than
-  adding a new O(n*trees) one, so drift can be reset every sweep at ~no extra
-  asymptotic cost. SBC decides whether the re-anchor is needed at all and how
-  often. Within-sweep drift with a once-per-sweep anchor is
-  ~sqrt(200)*1e-7 ~ 1e-6 relative, plausibly below the sampler noise floor;
-  un-anchored multi-sweep drift is the thing to measure.
+  THE ROLL IS INCREMENTAL (rollTreeResidual chain.hpp:2581: t=0 recomputes
+  resid = y - total + mu[leaf]; t>0 does resid += mu[leaf] - muPrev[leafPrev]),
+  so fp32 rounding ACCUMULATES across trees (~200 updates/sweep/element) and,
+  because it is never independently re-summed, across sweeps. This is the real
+  and ONLY safety question for Track 2 (there is no "safe by construction").
+
+  DRIFT CONTROL - corrected after the blind critique (the earlier "free
+  finalizeTotalFits re-anchor" claim was WRONG):
+  - finalizeTotalFits (chain.hpp:2613) computes total = y - resid + mu[leaf] -
+    i.e. FROM the drifted resid - so it PROPAGATES the fp32 drift into totalFits,
+    not resets it; next sweep's t=0 roll re-derives resid from that drifted
+    total. Nothing in the existing per-sweep machinery re-anchors. A genuine
+    re-anchor needs an INDEPENDENT total = sum_t mu_t[leafOf_t[i]] (a fresh
+    per-sweep O(n*trees) re-sum). That re-sum gathers into the L1-resident mu
+    tables (not the DRAM residual), so it is far cheaper per element than the
+    treeY gather (~10-15% of it), i.e. affordable - but it is NOT free and NOT
+    the existing pass. It bounds CROSS-sweep drift.
+  - The draw-relevant error is WITHIN-sweep and IRREDUCIBLE below per-tree
+    cadence: the gather at tree t (setNodeAverages) sees ~t accumulated fp32
+    roundings since the last t=0 anchor. No re-anchor coarser than per-tree
+    removes it. Magnitude ~sqrt(200)*1e-7 ~ 1e-6 relative, and it is ZERO-MEAN
+    (round-to-nearest), and it is further suppressed by fp64 leaf-sum averaging
+    (~1/sqrt(leaf size)); so the PRIOR is it sits below the MCMC noise floor -
+    but that is a hypothesis SBC must confirm, not a guarantee.
+  So Track 2's viability rests ENTIRELY on the STATISTICAL gate: prototype fp32
+  treeY with NO re-anchor and measure (a) the drift max_i|treeY_fp32 - exact|
+  growth over a long n=1e6 run, and (b) SBC / interval coverage vs fp64. If SBC
+  passes un-anchored -> ship raw fp32 (cheapest). If drift/SBC fails -> add the
+  independent per-sweep re-sum re-anchor (bounds cross-sweep; re-benchmark the
+  net win, since it eats ~10-15% of the gather) and re-test; the within-sweep
+  1e-6 is the floor either way. This falsification is the FIRST Track-2 action,
+  BEFORE the full mixed-precision templating (which is large source churn).
 - fp32 SCRATCH/FITS BUNDLE (same opt-in flag, same SBC gate as treeY, gaussian/
   continuous path only): Forest::totalFits (combiner.hpp:132, n), test-fit
   accumulators totalTestFits/currTestFits (nTest), the non-constant-leaf treeFits
@@ -168,26 +210,54 @@ independently; it de-risks and delivers the biggest footprint cut on its own:
 - leafOf uint16 CONSIDER (guarded; the critique decides if the guard earns it).
 
 TRACK 2 (CHANGING, opt-in via a coarse `storage="single"` flag, SBC-gated, one
-re-record of the opt-in path only) - land AFTER Track 1:
-- fp32 treeY (FORK A, incremental fp32 roll + finalizeTotalFits-piggybacked
-  re-anchor) + the four float-input suffstat kernels.
-- fp32 scratch/fits bundle (totalFits, test fits, dense treeFits, variance-forest
-  arrays, gaussian working response) behind the SAME flag.
+re-record of the opt-in path only) - land AFTER Track 1, and ONLY after its
+falsification passes:
+- STEP 2.0 (falsification, FIRST): prototype fp32 treeY with NO re-anchor, measure
+  drift growth at n=1e6 + SBC/coverage vs fp64. Decides go/no-go and whether the
+  independent per-sweep re-sum re-anchor is needed (sec 3b).
+- STEP 2.1 (if 2.0 passes): fp32 treeY (FORK A) + the four float-input suffstat
+  kernels, behind the flag; fp32 scratch/fits bundle (totalFits, test fits, dense
+  treeFits, variance-forest arrays, gaussian working response) on the same flag.
 
 OUT: predictor codes uint8 and fp32 cutpoints/test-raw (correctness-sensitive,
 sec 3c); bf16 (the aggressive tier; future); latent-family fp32 (low value).
 
-## 7. Open questions for the blind critique
+## 6b. Blind-critique resolutions (2026-07-20; verdict SOUND-WITH-CAVEATS T1 /
+NEEDS-REWORK-DONE T2)
 
-- Does the uint32-index change actually stay bitwise on the equivalence trio, or
-  does any code path serialize/hash the index width (state save/restore)?
-- RESOLVED (Fork B is dead; treeY rolls per-tree - see 3b). The live question is
-  the fp32-roll drift: does the incremental fp32 roll bias the posterior without
-  a re-anchor, and if so what cadence clears SBC at least cost? Is a full fp64
-  re-anchor per sweep too expensive (it is ~O(n*trees)), forcing a cheaper
-  bound (e.g. re-anchor every K sweeps, or a fp64 running-sum-of-fits maintained
-  cheaply)? This is the crux the prototype must settle.
-- Compile-time / binary-size blowup: acceptable, or does it force restricting
-  the storage axis further?
-- Is n-gating needed beyond opt-in (the x86 small-n conversion loss), or does
-  opt-in fully cover it?
+- BLOCKER (T2 drift): the "finalizeTotalFits gives a free per-sweep re-anchor"
+  claim was FALSE - it derives totalFits FROM the drifted residual, propagating
+  the error; and the draw-relevant error is within-sweep, irreducible below
+  per-tree cadence. FIXED in 3b: dropped the free-safety claim; Track 2 now rests
+  on an explicit SBC falsification (step 2.0); a real re-anchor, if needed, is an
+  independent O(n*trees) mu[leafOf] re-sum (cache-cheap but not free).
+- SERIOUS (T1 scoping): index narrowing is genuinely bitwise-preserving (verified)
+  but is NOT a one-line typedef - misc_size_t is shared with lengths; a new
+  misc_index_t must thread through the whole misc.a index family across 5 ISA TUs,
+  RETYPED-not-rewritten, with a sizeof static_assert pin and the cross-ISA +
+  equivalence gates as acceptance. FIXED in 3a.
+- CONFIRMED in the design's favor: the fp32 gather reduces in double (kernels
+  already accumulate double); no hidden runtime dispatch (Storage is an if-constexpr
+  compile-time axis, default codegen byte-identical); compile blowup bounded
+  (+1 instantiation per offered L, not the cross-product); threading safe
+  (chain-parallel, serial gather kernels); warm-start/state safe (fp64 wire);
+  stan4bart/ABI unchanged; ownership unchanged.
+- CAVEAT (T2 churn): "compile-time cost only" understates SOURCE churn - Storage
+  threads through Forest<L>/Chain<L>/Sampler<L> and every hand-written mixed-
+  precision loop (rollTreeResidual is where rounding enters). Default CODEGEN
+  stays byte-identical (enforce via the hot-loop assembly spot-check), but the
+  source around it is heavily rewritten - budget accordingly.
+
+## 7. Open questions - status after the critique
+
+- RESOLVED: index narrowing stays bitwise (SIMD partition is index-width-
+  independent; state does not serialize width). See 3a/6b.
+- RESOLVED: Fork B dead (per-tree roll); Fork A is the design. See 3b.
+- OPEN (the crux, gated by step 2.0): does un-anchored fp32 treeY drift stay
+  below the MCMC noise floor (SBC pass)? If not, does the independent per-sweep
+  re-sum re-anchor recover it at an acceptable net speed? MEASURE, do not assume.
+- RESOLVED: compile blowup bounded (+1 instantiation per offered L); no hidden
+  runtime dispatch. Source churn is the real cost (6b caveat).
+- OPEN (minor): is n-gating needed beyond opt-in (x86 small-n conversion loss)?
+  Opt-in likely covers it - large-n users opt in, small-n users do not; confirm
+  the opt-in path is never auto-selected for small n.
