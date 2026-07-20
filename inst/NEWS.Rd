@@ -45,6 +45,35 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Semicontinuous two-part (hurdle) responses:
+            \code{family = "hurdle.lognormal"} (alias \code{"twopart"}) in
+            \code{dbarts} and \code{bart2} fits a non-negative response with
+            exact zeros by composing, R-side, an occupancy probit fit of
+            \eqn{z = 1\{y > 0\}}{z = 1{y > 0}} over all n observations with a
+            lognormal positive-part fit - an ordinary gaussian fit of
+            \eqn{\log y}{log y} - over the \eqn{y > 0} subset, glued at
+            report time. The two parts share no parameters (no engine code
+            is added) and fit at independently derived seeds. Predictions
+            default to the natural scale via posterior-predictive Monte
+            Carlo, \eqn{E[y \mid x] = P(y > 0 \mid x) e^{f(x) + \sigma^2/2}}{
+            E[y | x] = Pr(y > 0 | x) * exp(f(x) + sigma^2/2)},
+            heteroscedasticity-aware when the positive part carries a
+            \code{variance = ~x} surface; \code{type = "prob"} gives the
+            occupancy probability, \code{"link"}/\code{"log"} the positive
+            part's log-scale linear predictor, and \code{"ppd"} a proper
+            bimodal predictive (a point mass at zero, else a lognormal
+            draw). \code{bart2} returns a \code{"bartHurdle"} fit carrying
+            both component fits, with \code{fitted}, \code{extract},
+            \code{predict}, and \code{residuals} methods. Fits currently use
+            the matrix interface only; \code{weights}, \code{subset},
+            \code{offset}, and \code{test} are refused (the positive part is
+            instead given the full training \code{x} as its own
+            \code{x.test}). \code{dbarts} does not fit this family - it
+            composes two samplers, which only \code{bart2} builds - and
+            \code{rbart_vi} and \code{xbart} do not fit it either (a shared
+            variable-selection prior across the two parts, Duan smearing,
+            and a heteroscedastic positive part are recorded follow-ups).
+            See \code{?bart2}.
       \item Heteroscedastic BART: \code{variance = ~ x1 + x2} (or
             \code{variance = TRUE}) in \code{dbarts} and \code{bart2}
             adds a second forest modeling the residual variance surface

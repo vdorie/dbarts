@@ -558,6 +558,37 @@ makeScenarios <- function() {
     hazardFit = TRUE
   )
 
+  # hurdle.lognormal (semicontinuous two-part, docs/design/hurdle.md): family =
+  # "hurdle.lognormal" composes a probit occupancy fit of 1{y > 0} over all n
+  # with a gaussian fit of log(y) over the y > 0 subset - NO shared engine
+  # code, so this scenario just drives the existing probit and gaussian paths
+  # verbatim on a semicontinuous response, adding no draw to any existing
+  # family's stream. A smaller n than its single-forest siblings, since each
+  # seed drives two component fits. Recorded channels: the occupancy
+  # probability pi(x.test) (occ.test), the positive-part log-scale linear
+  # predictor f(x.test) (pos.test), and the combined natural-scale predict
+  # E[y | x.test] (the standard yhat.test/fhat.test channel) - all three via
+  # predict.bartHurdle's replay, which only touches the RNG for type = "ppd"
+  # (unused here), so a given seed reproduces. New scenario (added after
+  # equivalence-f494156.rds): a compare against that baseline reports it
+  # skipped/uncovered; the anchor re-records at landing. binary = TRUE skips
+  # the sigma summaries (the fit has no single top-level sigma).
+  set.seed(6320L)
+  x <- matrix(runif(200L * 10L), 200L)
+  fHurdle <- as.vector(scale(friedman(x)))
+  pi.true <- pnorm(0.6 * fHurdle - 0.3)
+  mu.true <- 0.5 + 0.4 * fHurdle
+  occupied <- rbinom(200L, 1L, pi.true) == 1L
+  y <- numeric(200L)
+  y[occupied] <- exp(rnorm(sum(occupied), mu.true[occupied], 0.5))
+  result$hurdle <- list(
+    x = x,
+    y = y,
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE,
+    hurdleFit = TRUE
+  )
+
   result
 }
 
@@ -731,6 +762,40 @@ fitViaHazard <- function(scenario) {
   )
 }
 
+# runs bart2's hurdle.lognormal path (docs/design/hurdle.md): family =
+# "hurdle.lognormal" composes an occupancy probit fit over all n with a
+# gaussian fit of log(y) over the y > 0 subset - no shared engine code, so
+# this drives the existing probit and gaussian paths verbatim on a
+# semicontinuous response. keepTrees so predict.bartHurdle can replay both
+# saved forests onto the held-out rows. Recorded channels: the occupancy
+# probability pi(x.test) (occ.test), the positive-part log-scale linear
+# predictor f(x.test) (pos.test), and the combined natural-scale predict
+# E[y | x.test] (the standard yhat.test/fhat.test channel below); varcount
+# sums both forests' per-draw split counts (both are built from the same
+# matched call, so their p columns and draw counts agree). Only type = "ppd"
+# touches the RNG (unused here), so a given seed reproduces.
+fitViaHurdle <- function(scenario) {
+  fit <- bart2(
+    scenario$x,
+    scenario$y,
+    family = "hurdle.lognormal",
+    n.samples = ndpost,
+    n.burn = nskip,
+    n.trees = ntree,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepTrees = TRUE,
+    combineChains = TRUE,
+    verbose = FALSE
+  )
+  list(
+    yhat.test = predict(fit, scenario$x.test, type = "ev"),
+    varcount = fit$occupancy$varcount + fit$positive$varcount,
+    occ.test = predict(fit, scenario$x.test, type = "prob"),
+    pos.test = predict(fit, scenario$x.test, type = "log")
+  )
+}
+
 # runs rbart_vi's in-core grouped path (built-in tau prior, no callback):
 # single chain, no thinning, the harness's global budget. Draw matrices come
 # back sample-major except varcount (predictor x sample), transposed here so
@@ -811,6 +876,8 @@ fitSummaries <- function(scenario, seed) {
     fitViaNbinom(scenario)
   } else if (!is.null(scenario$hazardFit)) {
     fitViaHazard(scenario)
+  } else if (!is.null(scenario$hurdleFit)) {
+    fitViaHurdle(scenario)
   } else if (!is.null(scenario$samplerApi)) {
     fitViaSamplerApi(scenario, useNewEngine)
   } else if (useNewEngine) {
@@ -929,6 +996,29 @@ fitSummaries <- function(scenario, seed) {
     result <- c(
       result,
       setNames(as.vector(st), paste0("surv.test.", seq_along(st)))
+    )
+  }
+  # hurdle-only channels (fitViaHurdle); NULL - and so absent - for every
+  # other fitter, leaving the existing scenarios' summary vectors untouched.
+  # The occupancy probability pi(x.test) and the positive-part log-scale
+  # linear predictor f(x.test); the combined predict rides the standard
+  # yhat.test/fhat.test channel above.
+  if (!is.null(fit[["occ.test"]])) {
+    result <- c(
+      result,
+      setNames(
+        colMeans(fit[["occ.test"]]),
+        paste0("occ.test.", seq_len(n.test))
+      )
+    )
+  }
+  if (!is.null(fit[["pos.test"]])) {
+    result <- c(
+      result,
+      setNames(
+        colMeans(fit[["pos.test"]]),
+        paste0("pos.test.", seq_len(n.test))
+      )
     )
   }
   result
