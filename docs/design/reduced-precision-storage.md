@@ -203,21 +203,29 @@ from every track - flagged so no one bundles them as a transparent memory tier.
 
 ## 6. v1 scope: two tracks, sequenced (proposed; finalize after critique)
 
-TRACK 1 (PRESERVING, default-on, no SBC, no re-record) - land FIRST and
-independently; it de-risks and delivers the biggest footprint cut on its own:
-- index_t = uint32 (the top lever; n*trees, halves the biggest hot array + helps
-  the gather). Plain default typedef swap, gated by bitwise equivalence.
-- leafOf uint16 CONSIDER (guarded; the critique decides if the guard earns it).
+TRACK 1 (PRESERVING, default-on, no SBC, no re-record) - LANDED 2980229
+(index_t = uint32; retype-not-rewrite across the misc.a index family; gates re-run
+independently, equivalence trio BITWISE, ~400MB saved at n=5e5). leafOf uint16 is
+a deferred smaller follow-on (needs a global-refuse >65535 guard).
 
-TRACK 2 (CHANGING, opt-in via a coarse `storage="single"` flag, SBC-gated, one
-re-record of the opt-in path only) - land AFTER Track 1, and ONLY after its
-falsification passes:
-- STEP 2.0 (falsification, FIRST): prototype fp32 treeY with NO re-anchor, measure
-  drift growth at n=1e6 + SBC/coverage vs fp64. Decides go/no-go and whether the
-  independent per-sweep re-sum re-anchor is needed (sec 3b).
-- STEP 2.1 (if 2.0 passes): fp32 treeY (FORK A) + the four float-input suffstat
-  kernels, behind the flag; fp32 scratch/fits bundle (totalFits, test fits, dense
-  treeFits, variance-forest arrays, gaussian working response) on the same flag.
+TRACK 2 (CHANGING, opt-in `storage="single"`, gaussian constant-leaf path) -
+falsification PASSED (6c) -> GO to implement, UN-ANCHORED:
+- STEP 2.0 (falsification) DONE - GO. See 6c.
+- STEP 2.1 v1 (implement): real fp32 treeY (std::vector<float>, FORK A,
+  UN-ANCHORED - the re-anchor is deferred insurance, not built) + the float-input
+  suffstat kernel variants (load float, accumulate double), behind the opt-in flag
+  via the facade Storage axis (default=double byte-identical). Gaussian constant-
+  leaf only; gate to it. NO re-anchor machinery.
+- STEP 2.1 v2 (follow-on, if v1's measured win warrants): the fp32 scratch/fits
+  bundle (totalFits, test fits, dense treeFits, variance-forest arrays, gaussian
+  working response) on the same flag. The microbench says the GATHER (treeY)
+  carries the win and streaming scratch gains little, so v1 (treeY) captures most
+  of the value - measure before expanding.
+- GATES for 2.1: full SBC/coverage (landing arbiter) + same-machine A/B at n>=1e6
+  to confirm the REAL fp32 memory win (the falsification prototype used round32-on-
+  double, so it did NOT realize the speedup - that is still to be measured) + ONE
+  re-record of the opt-in path only (default path stays bitwise) + ASAN + tests/cpp
+  + tinytest.
 
 OUT: predictor codes uint8 and fp32 cutpoints/test-raw (correctness-sensitive,
 sec 3c); bf16 (the aggressive tier; future); latent-family fp32 (low value).
@@ -248,14 +256,44 @@ NEEDS-REWORK-DONE T2)
   stays byte-identical (enforce via the hot-loop assembly spot-check), but the
   source around it is heavily rewritten - budget accordingly.
 
-## 7. Open questions - status after the critique
+## 6c. Falsification result (2026-07-20; step 2.0) - GO, UN-ANCHORED
+
+Throwaway fp32-treeY prototype (isolated worktree on the 2980229 tip; round32(x)
+= (double)(float)x on every residual write, provably bit-identical to a true
+std::vector<float>+float-load/double-accumulate since float->double promotion is
+exact and every consumer already reduces in fp64). Flag-off byte-deterministic;
+snapshot suite 186/186. Confirmed genuinely fp32-storing/fp64-reducing (drift
+1e-15 off -> 1e-6 on, a 9-order gap).
+- DRIFT: a slow RANDOM WALK (log-log slope ~0.5, technically unbounded because
+  finalizeTotalFits propagates rather than re-anchors), but TINY - rms_rel ~
+  7.9e-8*sqrt(sweeps); even 1e6 sweeps -> ~7.9e-5 rms / 7.5e-4 max relative to
+  sd(y). Does NOT worsen with n (bigger leaves -> more fp64-averaging).
+- SBC/COVERAGE (arbiter; fp32-vs-fp64 paired + MC-noise control, 30 seeds,
+  n in {1e3,1e4}): fp32 INDISTINGUISHABLE from fp64 - no detectable bias in
+  test RMSE, 90% CI coverage of true f, or the sigma posterior (all p >> 0.05);
+  the fp32-vs-fp64 divergence is 3-6x SMALLER than an RNG reseed. (Absolute BART
+  under-coverage/small-n overfit are identical across arithmetic modes - orthogonal
+  to fp32.)
+- RE-ANCHOR (built + measured as insurance): the independent per-sweep mu[leafOf]
+  re-sum flattens the walk (slope -> ~0, rms ~1e-6) and makes fp32 near-bit-
+  identical to fp64 - but costs ~+20% of a sweep (naive, unfused), a large fraction
+  of the fp32 gather win. VERDICT: ship UN-ANCHORED (SBC passes, cheapest); keep
+  the re-anchor as a documented, un-built fallback for >1e5-sweep chains or a
+  stricter latent family.
+- CAVEAT: gaussian constant-leaf only; SBC = paired-comparison proxy, not full
+  rank-uniformity SBC (the full-implementation landing gate should run the fuller
+  check). The prototype measured DRAWS faithfully but not the SPEED win (double
+  storage + round op) - the real fp32 storage speedup is still to be measured.
+
+## 7. Open questions - status after the critique + falsification
 
 - RESOLVED: index narrowing stays bitwise (SIMD partition is index-width-
-  independent; state does not serialize width). See 3a/6b.
+  independent; state does not serialize width). See 3a/6b. LANDED 2980229.
 - RESOLVED: Fork B dead (per-tree roll); Fork A is the design. See 3b.
-- OPEN (the crux, gated by step 2.0): does un-anchored fp32 treeY drift stay
-  below the MCMC noise floor (SBC pass)? If not, does the independent per-sweep
-  re-sum re-anchor recover it at an acceptable net speed? MEASURE, do not assume.
+- RESOLVED (step 2.0, sec 6c): un-anchored fp32 treeY drift stays far below the
+  MCMC noise floor; SBC passes; re-anchor NOT needed (deferred insurance). GO.
+- OPEN (step 2.1 landing): confirm the REAL fp32-storage speed win (same-machine
+  A/B at n>=1e6) and pass a fuller SBC at the templated implementation.
 - RESOLVED: compile blowup bounded (+1 instantiation per offered L); no hidden
   runtime dispatch. Source churn is the real cost (6b caveat).
 - OPEN (minor): is n-gating needed beyond opt-in (x86 small-n conversion loss)?
