@@ -269,3 +269,43 @@ constant leaf.
   histogram flagship (section 1) as the recommended first build. NEXT EXPERIMENT:
   confirm the fp32-vs-fp64 bandwidth/cache-crossover upside (microbench), then
   prototype the fp32 residual store and run it through SBC/coverage.
+
+## 8. fp32 microbench: MEASURED (2026-07-20; refines section 7's prediction)
+
+Ran a throwaway two-pass memory microbench (streaming reduce + shuffled-index
+gather-reduce, fp64 store vs fp32 store with an fp64 accumulator, min-of-7,
+~3e8 elements/measurement, n from 1e4 to 3e7) on BOTH the M1 Max (arm64,
+~48 MB SLC, huge single-core BW) and the x86 bench box (Ryzen 7 3700X, 16 MB
+L3/CCX, DDR4). Both index widths measured: size_t (8 B, the current engine) and
+uint32 (4 B, a narrowing that is a SEPARATE lever). Raw numbers preserved off-
+tree. The prediction ("top lever, ~1.5-2x at large n, ship it") is REFINED on
+three points:
+
+- THE WIN IS GATHER-ONLY AND CACHE-CROSSOVER-SHAPED, not asymptotic. fp32 speeds
+  the shuffled gather by ~1.7x (M1) / ~2.0x (x86) in the band where fp32 stays
+  LLC-resident but fp64 spills (n ~= 1e6 on both), then TAPERS to ~1.1x once both
+  are deep in DRAM (n >= 1e7). It does not keep widening with n: the size_t index
+  (8 B, common to both stores) caps the gather ratio near 16/12 = 1.33x, so at
+  large n the win shrinks, not grows. Narrowing the index to uint32 lifts the
+  asymptote toward 1.5x and is worth ~a modest extra gather gain (measured), but
+  it is orthogonal engine work, not part of the fp32 store.
+
+- THE STREAMING PASS IS MACHINE-DEPENDENT AND CAN LOSE. On the M1 the sequential
+  reduce is COMPUTE-bound on the fp64-add accumulator chain (~0.19 ns/elem flat
+  from L1 to 240 MB, ~41 GB/s single-core well under the BW ceiling) - so fp32
+  buys ZERO on streaming there. On the x86 the streaming reduce IS bandwidth-bound
+  at large n (fp64 GB/s collapses 57 -> 17.6 as it spills L3), and fp32 wins
+  ~1.3-1.4x - BUT cache-resident (n <= 1e6) the x86 fp32 reduce is ~2x SLOWER than
+  fp64, because the per-element fp32->fp64 conversion (cvtss2sd) is the bottleneck
+  when the bytes are already free. So the fp32->fp64 conversion is NOT free, and
+  an UNCONDITIONAL fp32 store REGRESSES the common small/medium-n cache-resident
+  case. The store would have to be n-gated (opt-in or an auto-switch above a
+  footprint threshold), which is real design complexity the section-7 note did
+  not price in.
+
+- NET: fp32 storage is a large-n (n >~ 1e6), gather-dominated, cache-residency
+  lever worth ~1.3-2x ON THE BOUND PASSES IN THAT BAND, tapering at the very
+  largest n and inverting to a loss for small n. Whether it yields a worthwhile
+  END-TO-END sweep speedup now turns entirely on the gather's SHARE of a sweep
+  (section 6 experiment 1, the re-profile) - the number that gates the engine
+  prototype. [Share pending; verdict to follow.]
