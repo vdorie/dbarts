@@ -882,6 +882,25 @@ print.bartNegbin <- function(x, ...) {
   invisible(x)
 }
 
+# bart2(family = "hurdle.lognormal") minimal print (docs/design/hurdle.md):
+# the fit object holds the two component fits ($occupancy, $positive)
+# verbatim, so extract/fitted/predict/residuals on the combined natural scale
+# are a separate, later addition; this only reports what family was fit.
+print.bartHurdle <- function(x, ...) {
+  if (!identical(x[["call"]], call("NULL"))) {
+    cat(
+      "\nCall:\n",
+      paste(deparse(x$call), sep = "\n", collapse = "\n"),
+      "\n\n",
+      sep = ""
+    )
+  }
+  cat("family: hurdle.lognormal (probit occupancy + lognormal positive part)\n")
+  cat("occupancy n (all rows): ", length(x$occupancy$y), "\n", sep = "")
+  cat("positive-part n (y > 0): ", length(x$positive$y), "\n", sep = "")
+  invisible(x)
+}
+
 predict.rbart <- function(
   object,
   newdata,

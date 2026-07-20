@@ -420,7 +420,9 @@ bart2 <- function(
     "nbinom",
     "hazard",
     "hazard.probit",
-    "hazard.logistic"
+    "hazard.logistic",
+    "hurdle.lognormal",
+    "twopart"
   ),
   missing = c("incorporate", "error"),
   resid.dist = gaussian,
@@ -432,6 +434,12 @@ bart2 <- function(
   matchedCall <- match.call()
   callingEnv <- parent.frame()
   family <- match.arg(family)
+  # hurdle.lognormal / twopart (docs/design/hurdle.md): resolve the alias
+  # before anything reads 'family', so the token prints and dispatches as
+  # "hurdle.lognormal" regardless of which spelling was requested
+  if (identical(family, "twopart")) {
+    family <- "hurdle.lognormal"
+  }
 
   # family = "auto" with a 3+-level UNORDERED factor/character response is
   # multinomial (docs/design/multinomial.md); a 3+-level ORDERED factor is
@@ -753,6 +761,53 @@ bart2 <- function(
       dart,
       combineChains
     ))
+  }
+
+  # hurdle.lognormal / twopart (docs/design/hurdle.md): a semicontinuous two-
+  # part fit built from an occupancy probit on 1{y > 0} (all n) and a gaussian
+  # on log(y) restricted to the y > 0 subset, glued at report time. Dispatched
+  # here - not inside dbarts(), which returns a single sampler and cannot
+  # express the two-sampler composition - so its bartHurdle fit object stays
+  # distinct. family is always explicit: a semicontinuous response has no
+  # unambiguous auto class.
+  if (family == "hurdle.lognormal") {
+    if (isTRUE(samplerOnly)) {
+      stop(
+        "family = \"hurdle.lognormal\" does not support 'samplerOnly' this arc"
+      )
+    }
+    grownSweeps <- as.integer(n.grow.sweeps)[1L]
+    if (!is.null(warm.start) || (!is.na(grownSweeps) && grownSweeps > 0L)) {
+      stop(
+        "family = \"hurdle.lognormal\" does not support 'warm.start' or ",
+        "'n.grow.sweeps' this arc"
+      )
+    }
+    if (!control@keepTrainingFits) {
+      stop(
+        "family = \"hurdle.lognormal\" requires keepTrainingFits = TRUE (the ",
+        "default): the combined mean is built from the two training fits"
+      )
+    }
+    if (!missing(weights)) {
+      stop("family = \"hurdle.lognormal\" does not support 'weights' this arc")
+    }
+    if (!missing(subset)) {
+      stop("family = \"hurdle.lognormal\" does not support 'subset' this arc")
+    }
+    if (!missing(offset) || !missing(offset.test)) {
+      stop(
+        "family = \"hurdle.lognormal\" does not support 'offset'/'offset.test' ",
+        "this arc"
+      )
+    }
+    if (!missing(test)) {
+      stop(
+        "family = \"hurdle.lognormal\" does not take a 'test' set; the ",
+        "positive-part fit is given the full training x as its own x.test"
+      )
+    }
+    return(bart2Hurdle(matchedCall, callingEnv, control, formula, data, seed))
   }
 
   keepSampler <- keepSampler || control@keepTrees
@@ -1744,6 +1799,113 @@ packageNegbinResults <- function(
     )
   }
   class(result) <- "bartNegbin"
+  result
+}
+
+# Splits a hurdle response into its two ingested parts (docs/design/hurdle.md
+# sections 0-1): the occupancy indicator z = 1{y > 0} over all n, and the
+# subset mask {i : y_i > 0} with the positive part's working response
+# log(y[S]). y must be finite and non-negative (the nbinom non-negative-count
+# precedent, docs/design/negative-binomial.md section 4, extended to a
+# continuous response) and carry at least one exact zero and one positive
+# value - the two parts a hurdle needs in order to fit either part at all.
+splitHurdleResponse <- function(y) {
+  y <- as.double(y)
+  if (anyNA(y) || any(!is.finite(y)) || any(y < 0)) {
+    stop(
+      "family = \"hurdle.lognormal\" requires a non-negative, finite ",
+      "numeric response"
+    )
+  }
+  positive <- y > 0
+  if (!any(positive)) {
+    stop(
+      "family = \"hurdle.lognormal\" requires at least one positive response ",
+      "value for the positive-part fit"
+    )
+  }
+  if (all(positive)) {
+    stop(
+      "family = \"hurdle.lognormal\" requires at least one exact zero; a ",
+      "response with no zeros is an ordinary continuous fit"
+    )
+  }
+  list(
+    z = as.double(positive),
+    positive = positive,
+    logPositive = log(y[positive])
+  )
+}
+
+# The hurdle.lognormal / twopart fit path (docs/design/hurdle.md), reached
+# from bart2's family = "hurdle.lognormal" branch. Composed R-side from two
+# ordinary single-forest fits - never a coupled engine model, section 0 - so
+# this simply calls bart2() twice, once per component, at two independently
+# derived seeds (section 13 hardening b: a shared seed correlates the two
+# chains and biases the combined credible interval). The positive fit's
+# 'test' is forced to the FULL training x (hardening c) so its in-sample
+# fitted()/extract() carries E[y | y > 0, x] at the zero rows it never
+# trained on. Reusing bart2() itself - rather than building the sampler
+# directly, as bart2Negbin does - makes the reduction to two standalone
+# bart2() calls exact by construction (benchmarks/R/hurdle-reduction.R): the
+# wrapper's component fits ARE those calls. family is always explicit and the
+# matrix interface only: the response is split before any dbartsData
+# ingestion runs (the discrete-time hazard precedent, R/dbarts.R's
+# extractSurvivalTimes), which a formula LHS cannot supply.
+bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
+  if (
+    is.formula(formula) ||
+      inherits(formula, "dbartsData") ||
+      inherits(formula, "dgCMatrix") ||
+      missing(data)
+  ) {
+    stop(
+      "family = \"hurdle.lognormal\" fits currently use the matrix interface ",
+      "- bart2(x.train, y.train, family = \"hurdle.lognormal\")"
+    )
+  }
+
+  split <- splitHurdleResponse(data)
+  xPositive <- formula[split$positive, , drop = FALSE]
+
+  seeds <- c(NA_integer_, NA_integer_)
+  if (!is.na(seed)) {
+    # independent per-component seeds derived deterministically from the
+    # user's seed (the rbart_vi per-chain precedent, R/rbart.R:463-464);
+    # politely restore the caller's RNG stream afterward
+    oldSeed <- .GlobalEnv[[".Random.seed"]]
+    set.seed(seed)
+    seeds <- sample.int(.Machine$integer.max, 2L)
+    if (!is.null(oldSeed)) {
+      .GlobalEnv$.Random.seed <- oldSeed
+    }
+  }
+
+  occupancyCall <- redirectCall(matchedCall, dbarts::bart2)
+  occupancyCall$formula <- formula
+  occupancyCall$data <- split$z
+  occupancyCall$family <- "probit"
+  occupancyCall$seed <- seeds[1L]
+  occupancyCall$keepTrees <- control@keepTrees
+  occupancy <- eval(occupancyCall, callingEnv)
+
+  positiveCall <- redirectCall(matchedCall, dbarts::bart2)
+  positiveCall$formula <- xPositive
+  positiveCall$data <- split$logPositive
+  positiveCall$test <- formula
+  positiveCall$family <- "gaussian"
+  positiveCall$seed <- seeds[2L]
+  positiveCall$keepTrees <- control@keepTrees
+  positive <- eval(positiveCall, callingEnv)
+
+  result <- list(
+    call = control@call,
+    family = "hurdle.lognormal",
+    variant = "lognormal",
+    occupancy = occupancy,
+    positive = positive
+  )
+  class(result) <- "bartHurdle"
   result
 }
 
