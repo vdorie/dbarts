@@ -882,10 +882,214 @@ print.bartNegbin <- function(x, ...) {
   invisible(x)
 }
 
-# bart2(family = "hurdle.lognormal") minimal print (docs/design/hurdle.md):
-# the fit object holds the two component fits ($occupancy, $positive)
-# verbatim, so extract/fitted/predict/residuals on the combined natural scale
-# are a separate, later addition; this only reports what family was fit.
+# bart2(family = "hurdle.lognormal") generics (docs/design/hurdle.md sections
+# 6, 13). The fit object is class "bartHurdle" - never "bart" - holding the two
+# conditionally-independent component fits ($occupancy, a probit fit of
+# 1{y > 0} over all n; $positive, a gaussian fit of log(y) over the y > 0
+# subset whose x.test is the full-n x). The report-time combine glues their
+# posterior draws by sample index (any pairing is a valid joint draw, the parts
+# share no parameters) and retransforms the positive part to the natural scale.
+#
+# type = "prob" is the occupancy probability pi(x); type = "bart"/"link"/"log"
+# the positive part's log-scale linear predictor f(x); type = "ev"/"response"
+# the combined natural-scale mean via posterior-predictive Monte Carlo,
+# E[y | x]_s = pi_s exp(f_s + sigma_s^2 / 2) PER DRAW s then aggregated across
+# draws - NOT the biased plug-in of posterior means into one exponential
+# (docs/design/hurdle.md section 13). type = "ppd" is the proper bimodal
+# predictive the plain gaussian ppd cannot make: per draw a Bernoulli(pi_s)
+# spike at zero, else a lognormal exp(f_s + sigma_s z), z ~ N(0, 1).
+
+# Resolve a hurdle type argument: fold the "response"/"link"/"log" aliases onto
+# the canonical "ev"/"bart" and validate against 'allowed' (the predict.bart
+# idiom, so a mis-typed request errors rather than silently mis-reporting).
+resolveHurdleType <- function(type, allowed) {
+  if (is.character(type) && length(type) > 0L) {
+    if (type[1L] == "response") {
+      type[1L] <- "ev"
+    } else if (type[1L] == "link" || type[1L] == "log") {
+      type[1L] <- "bart"
+    }
+  }
+  if (!is.character(type) || length(type) == 0L || type[1L] %not_in% allowed) {
+    stop("type must be in '", paste0(allowed, collapse = "', '"), "'")
+  }
+  type[1L]
+}
+
+hurdleNChains <- function(object) {
+  occupancy <- object$occupancy
+  if (!is.null(occupancy[["fit"]])) {
+    occupancy$fit$control@n.chains
+  } else {
+    occupancy$n.chains
+  }
+}
+
+# The positive part's per-observation sigma as a flat vector aligned, draw for
+# draw, with the fit draws' as.vector order (chain-fastest, then sample, then
+# observation - the layout pointwiseLogLikelihood and sampleFromPPD pair sigma
+# with fits in). If variance = ~x set a heteroscedastic surface, that s(x) rides
+# a stored channel (in-sample) or a "s" attribute (out-of-sample) and enters
+# per observation; the homoscedastic default carries one sigma_s per draw, which
+# rep_len recycles across the n.obs draw-blocks so each observation reuses its
+# draw's sigma. Wired for per-observation sigma from v1 so enabling the variance
+# forest on the positive part "just works" (docs/design/hurdle.md section 13).
+hurdleSigmaVec <- function(surface, sigma, n.chains, n.total) {
+  if (!is.null(surface)) {
+    as.vector(combineOrUncombineChains(surface, n.chains, FALSE))
+  } else {
+    rep_len(as.vector(sigma), n.total)
+  }
+}
+
+# Glue the flat, draw-aligned occupancy-probability, positive-log-mean, and
+# positive-sigma vectors into the requested channel and reshape to the fit's
+# uncombined draw layout ('shape'). Only "ppd" touches the RNG (Bernoulli then
+# lognormal), so the default "ev" is draw-neutral.
+combineHurdleChannel <- function(type, piVec, fVec, sigmaVec, shape) {
+  channel <- switch(
+    type,
+    prob = piVec,
+    bart = fVec,
+    ev = piVec * exp(fVec + 0.5 * sigmaVec^2),
+    ppd = rbinom(length(piVec), 1L, piVec) *
+      exp(fVec + sigmaVec * rnorm(length(fVec)))
+  )
+  array(channel, shape)
+}
+
+# The occupancy pi(x), positive log-mean f(x), and positive per-observation
+# sigma draws for the combine, each a flat vector in the fit's uncombined
+# as.vector order, plus the uncombined 'shape' to fold back to. In-sample reads
+# the stored channels - the occupancy fit's ev over all n, and the positive
+# fit's log-scale (bart) fits at the FULL-n rows through its x.test channel (the
+# zero rows it never trained on included); out-of-sample replays both saved
+# forests at newdata.
+hurdleParts <- function(object, newdata, n.chains) {
+  if (missing(newdata)) {
+    pi <- extract(
+      object$occupancy,
+      type = "ev",
+      sample = "train",
+      combineChains = FALSE
+    )
+    f <- extract(
+      object$positive,
+      type = "bart",
+      sample = "test",
+      combineChains = FALSE
+    )
+    surface <- object$positive[["s.test"]]
+  } else {
+    pi <- predict(object$occupancy, newdata, type = "ev", combineChains = FALSE)
+    f <- predict(
+      object$positive,
+      newdata,
+      type = "bart",
+      combineChains = FALSE
+    )
+    surface <- attr(f, "s")
+  }
+  sigmaVec <- hurdleSigmaVec(
+    surface,
+    object$positive$sigma,
+    n.chains,
+    length(f)
+  )
+  list(pi = as.vector(pi), f = as.vector(f), sigma = sigmaVec, shape = dim(f))
+}
+
+finishHurdle <- function(parts, type, n.chains, combineChains, ci.level) {
+  channel <- combineHurdleChannel(
+    type,
+    parts$pi,
+    parts$f,
+    parts$sigma,
+    parts$shape
+  )
+  result <- combineOrUncombineChains(channel, n.chains, combineChains)
+  if (!is.null(ci.level)) {
+    return(posteriorInterval(result, ci.level))
+  }
+  result
+}
+
+extract.bartHurdle <- function(
+  object,
+  type = c("ev", "ppd", "prob", "bart"),
+  sample = c("train", "test"),
+  combineChains = TRUE,
+  ...
+) {
+  type <- resolveHurdleType(type, eval(formals(extract.bartHurdle)$type))
+  sample <- match.arg(sample)
+  if (sample == "test") {
+    stop(
+      "this hurdle fit carries no separate test channel; call predict on ",
+      "newdata for out-of-sample combined draws"
+    )
+  }
+  n.chains <- hurdleNChains(object)
+  finishHurdle(
+    hurdleParts(object, n.chains = n.chains),
+    type,
+    n.chains,
+    combineChains,
+    NULL
+  )
+}
+
+fitted.bartHurdle <- function(
+  object,
+  type = c("ev", "prob", "bart"),
+  sample = "train",
+  ci.level = NULL,
+  ...
+) {
+  type <- resolveHurdleType(type, eval(formals(fitted.bartHurdle)$type))
+  draws <- extract(object, type = type, sample = sample, combineChains = TRUE)
+  if (!is.null(ci.level)) {
+    return(posteriorInterval(draws, ci.level))
+  }
+  apply(draws, length(dim(draws)), mean)
+}
+
+residuals.bartHurdle <- function(object, type = "ev", ...) {
+  # natural-scale residual against the stored original response over all n;
+  # call the method by name (the residuals.bart idiom) so the package namespace
+  # need not import the stats fitted generic
+  object$y - fitted.bartHurdle(object, type = type, sample = "train", ...)
+}
+
+# Out-of-sample combined draws by replaying BOTH saved forests at newdata and
+# gluing them the same way the in-sample channels are (docs/design/hurdle.md
+# section 13). Requires a fit kept with keepTrees (both components keep trees
+# when the hurdle does).
+predict.bartHurdle <- function(
+  object,
+  newdata,
+  type = c("ev", "ppd", "prob", "bart"),
+  combineChains = TRUE,
+  ci.level = NULL,
+  ...
+) {
+  type <- resolveHurdleType(type, eval(formals(predict.bartHurdle)$type))
+  if (is.null(object$occupancy[["fit"]])) {
+    stop(
+      "predict requires bart2(family = \"hurdle.lognormal\") to be called ",
+      "with 'keepTrees' == TRUE"
+    )
+  }
+  n.chains <- hurdleNChains(object)
+  finishHurdle(
+    hurdleParts(object, newdata, n.chains),
+    type,
+    n.chains,
+    combineChains,
+    ci.level
+  )
+}
+
 print.bartHurdle <- function(x, ...) {
   if (!identical(x[["call"]], call("NULL"))) {
     cat(
