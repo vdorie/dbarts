@@ -23,13 +23,21 @@ items
     parallelism candidate; an ESS-per-second experiment decides
     (protocol and the memory-wall bound:
     docs/design/within-chain-threading.md). low-ranked.
-  forest-ranef-interweaving: the grouped-fit mixing bottleneck is
-    forest-ranef confounding, not the tau draw (measurements and
-    ranked remedies: docs/plans/tau-slice-review.md). Candidates: a
-    joint/interweaving move between the forest fit and the random
-    intercepts (design from scratch), or ASIS on (tau, b)
-    (prototype-gate: partial in the full engine). Needs a measurement
-    harness (grouped SBC or IACT grid) before any engine work.
+  forest-ranef-interweaving: RESEARCHED, NO-GO now (recorded door;
+    docs/design/forest-ranef-interweaving.md, blind critique SOUND WITH
+    CAVEATS). The weak-signal/small-K grouped-mixing bottleneck is
+    forest-ranef confounding (several-fold and estimator-unstable, not the
+    slice-era 25x; the permanent gate is benchmarks/R/grouped-mixing.R).
+    No cheap ASIS exists - the forest exposes no per-group knob; the only
+    real fix is a coupled-leaf collapse (marginalize b via per-group
+    Woodbury), which RIDES the existing ParamScoringLeafModel seam but
+    couples the constant-leaf suffstat across groups/trees on the hot path
+    (~800-1300 lines, draw-changing, grouped re-record) - not worth a
+    narrow-corner win with a trivial longer/parallel-chain workaround.
+    Reopen with VD sign-off for a concrete weak-signal/few-groups
+    application needing calibrated tau intervals. Secondary: ASIS on
+    (tau, b) is cheap (builds on the landed exact-IG) but funnel-only and
+    can WORSEN small-K - conditional-go only behind a full-engine prototype.
     decision-gated.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
