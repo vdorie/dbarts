@@ -164,8 +164,8 @@
 
   size_t lengthOfLeft;
   
-  for (size_t i = 0; i < length; ++i) indices[i] = i;
-  
+  for (size_t i = 0; i < length; ++i) indices[i] = (misc_index_t) i;
+
   size_t lh = 0, rh = length - 1;
 
 #  ifdef __USE_SIMD__
@@ -213,8 +213,8 @@
         rh_mask >>= numZeros;
         rh_sub += increment_sub_by(numZeros);
         
-        indices[rh - rh_sub] = lh + lh_sub;
-        indices[lh + lh_sub] = rh - rh_sub;
+        indices[rh - rh_sub] = (misc_index_t) (lh + lh_sub);
+        indices[lh + lh_sub] = (misc_index_t) (rh - rh_sub);
                   
         lh_mask >>= mask_move_size;
         rh_mask >>= mask_move_size;
@@ -232,16 +232,16 @@
     while (x[rh]  > cut && lh < rh) --rh;
     
     if (lh >= rh) break;
-    
-    indices[rh] = lh;
-    indices[lh] = rh;
-    
+
+    indices[rh] = (misc_index_t) lh;
+    indices[lh] = (misc_index_t) rh;
+
     ++lh;
     --rh;
   }
-  
+
   lengthOfLeft = x[indices[lh]] <= cut ? lh + 1 : lh;
-  
+
   return lengthOfLeft;
 
 #else // PARTITION_RANGE == 1 above, 0 below
@@ -295,7 +295,7 @@
         rh_mask >>= numZeros;
         rh_sub += increment_sub_by(numZeros);
         
-        size_t temp = indices[rh - rh_sub];
+        misc_index_t temp = indices[rh - rh_sub];
         indices[rh - rh_sub] = indices[lh + lh_sub];
         indices[lh + lh_sub] = temp;
         
@@ -316,7 +316,7 @@
     
     if (lh >= rh) break;
     
-    size_t temp = indices[rh];
+    misc_index_t temp = indices[rh];
     indices[rh] = indices[lh];
     indices[lh] = temp;
     

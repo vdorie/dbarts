@@ -24,7 +24,7 @@ namespace {
 // accumulation differs from the scan's per-code order, so this agrees only to a
 // tolerance; the bitwise agreement is checked separately below.
 void bruteForcePerCut(const ColumnStore& store, size_t variable,
-                      const size_t* indices, size_t numMembers, const double* y,
+                      const index_t* indices, size_t numMembers, const double* y,
                       const double* weights, const ConstantGaussianLeaf& leaf,
                       double k, double residualVariance,
                       std::vector<double>& out) {
@@ -58,7 +58,7 @@ void bruteForcePerCut(const ColumnStore& store, size_t variable,
 // From-scratch histogram (member order) then fresh per-cut collapse, the same
 // left-fold order the scan uses, so this agrees BITWISE with the scan.
 void bitwiseCollapse(const ColumnStore& store, size_t variable,
-                     const size_t* indices, size_t numMembers, const double* y,
+                     const index_t* indices, size_t numMembers, const double* y,
                      const double* weights, const ConstantGaussianLeaf& leaf,
                      double k, double residualVariance,
                      std::vector<double>& out) {
@@ -102,7 +102,7 @@ void testScanAgreement() {
   ColumnStore store;
   store.build(x.data(), n, 1, 20);
 
-  std::vector<size_t> members(n);
+  std::vector<index_t> members(n);
   for (size_t i = 0; i < n; ++i) members[i] = i;
 
   ConstantGaussianLeaf leaf{0.5};
@@ -134,7 +134,7 @@ void testScanAgreement() {
   }
 
   // scattered subset of members (a non-root leaf's gather access pattern)
-  std::vector<size_t> subset;
+  std::vector<index_t> subset;
   for (size_t i = 0; i < n; i += 3) subset.push_back((7 * i + 11) % n);
   scanOrdinalCuts(store, 0, subset.data(), subset.size(), y.data(), w.data(),
                   leaf, k, residualVariance, binScratch, scan.data());
@@ -167,7 +167,7 @@ void testHistogramTotals() {
   ColumnStore store;
   store.build(x.data(), n, 1, 100);
 
-  std::vector<size_t> members(n);
+  std::vector<index_t> members(n);
   for (size_t i = 0; i < n; ++i) members[i] = i;
 
   double swK, swzK;
@@ -207,7 +207,7 @@ void testOccupancySentinel() {
 
   // gather only the members whose code is in the interior band [3, 6], so every
   // cut below 3 leaves the left empty and every cut at or above 6 the right
-  std::vector<size_t> members;
+  std::vector<index_t> members;
   for (size_t i = 0; i < n; ++i) {
     xint_t code = store.codeAt(0, i);
     if (code >= 3 && code <= 6) members.push_back(i);
@@ -270,7 +270,7 @@ void testMissingExcluded() {
   store.build(x.data(), n, 1, 15);
   check(store.hasMissing[0] == 1, "column reports missing values");
 
-  std::vector<size_t> members(n);
+  std::vector<index_t> members(n);
   for (size_t i = 0; i < n; ++i) members[i] = i;
 
   ConstantGaussianLeaf leaf{0.5};

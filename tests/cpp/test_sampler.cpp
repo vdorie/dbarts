@@ -860,7 +860,7 @@ static void testWideCategorical(ext_rng* rng) {
         "wide categorical value validity");
 
   // partition and reachability with direction bits past 31
-  std::vector<size_t> indices(n);
+  std::vector<index_t> indices(n);
   Tree tree;
   tree.initialize(indices.data(), n);
   Rule rule;
@@ -935,7 +935,7 @@ static void testWideCategorical(ext_rng* rng) {
   check(flatTreeIsWellFormed(store, flat.data(), flat.size()),
         "all-but-one mask is well formed");
   Tree rebuilt;
-  std::vector<size_t> rebuiltIndices(n);
+  std::vector<index_t> rebuiltIndices(n);
   rebuilt.initialize(rebuiltIndices.data(), n);
   std::vector<double> rebuiltParams;
   check(rebuilt.buildFromFlat(store, flat.data(), flat.size(), rebuiltParams),

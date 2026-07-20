@@ -1116,7 +1116,7 @@ private:
   /// invalidateStatistics (weights); within a sweep the score and draw phases
   /// see identical weights, so a served value is bitwise the fresh scan's.
   struct CachedNodeStatistics {
-    std::vector<std::size_t> members;
+    std::vector<index_t> members;
     double crossproduct[maxStatisticSize];
   };
   struct TreeStatisticsCache {
@@ -1132,7 +1132,7 @@ private:
     static_cast<std::size_t>(256) << 20;
 
   static std::size_t statisticsEntryBytes(std::size_t numObs) {
-    return numObs * sizeof(std::size_t);
+    return numObs * sizeof(index_t);
   }
 
   TreeStatisticsCache& statisticsCacheForTree(const Tree& tree) const {
@@ -1159,7 +1159,7 @@ private:
     const CachedNodeStatistics& entry = cache.nodes[index];
     if (entry.members.size() == numObs &&
         std::memcmp(entry.members.data(), tree.indices + node.begin,
-                    numObs * sizeof(std::size_t)) == 0)
+                    numObs * sizeof(index_t)) == 0)
       return entry.crossproduct;
     return nullptr;
   }
@@ -1740,7 +1740,7 @@ private:
   /// build with no invalidation hooks to miss. A vacant slot has an empty
   /// member list.
   struct CachedLeafKernel {
-    std::vector<std::size_t> members;
+    std::vector<index_t> members;
     std::vector<double> kernel;
     std::vector<double> cholK;  // filled lazily by the first draw
   };
@@ -1758,7 +1758,7 @@ private:
     static_cast<std::size_t>(256) << 20;
 
   static std::size_t kernelEntryBytes(std::size_t numObs) {
-    return numObs * sizeof(std::size_t) +
+    return numObs * sizeof(index_t) +
            2 * numObs * numObs * sizeof(double);
   }
 
@@ -1790,7 +1790,7 @@ private:
     CachedLeafKernel& entry = cache.nodes[index];
     if (entry.members.size() == numObs &&
         std::memcmp(entry.members.data(), tree.indices + node.begin,
-                    numObs * sizeof(std::size_t)) == 0)
+                    numObs * sizeof(index_t)) == 0)
       return &entry;
 
     std::size_t oldBytes = kernelEntryBytes(entry.members.size());
@@ -1999,7 +1999,7 @@ private:
                  node.numObservations() == entry.members.size() &&
                  std::memcmp(entry.members.data(),
                              tree.indices + node.begin,
-                             entry.members.size() * sizeof(std::size_t)) == 0;
+                             entry.members.size() * sizeof(index_t)) == 0;
         }
         if (!live) {
           kernelCacheUsedBytes_ -= kernelEntryBytes(entry.members.size());

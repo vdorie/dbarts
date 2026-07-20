@@ -213,8 +213,8 @@ misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void)
 
 /* function pointers */
 // partition
-extern size_t (*misc_partitionRange)(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
-extern size_t (*misc_partitionIndices)(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
+extern size_t (*misc_partitionRange)(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length);
+extern size_t (*misc_partitionIndices)(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length);
 // linear algebra
 extern void (*misc_addVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
 extern void (*misc_subtractVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
@@ -230,8 +230,8 @@ extern void (*misc_transposeMatrix)(const double* restrict x, size_t numRows, si
 
 /* implementing functions */
 #ifdef COMPILER_SUPPORTS_AVX2
-extern size_t misc_partitionRange_avx2(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
-extern size_t misc_partitionIndices_avx2(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
+extern size_t misc_partitionRange_avx2(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length);
+extern size_t misc_partitionIndices_avx2(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length);
 #endif
 
 #ifdef COMPILER_SUPPORTS_AVX
@@ -249,13 +249,13 @@ extern void misc_transposeMatrix_avx(const double* restrict x, misc_size_t numRo
 #endif
 
 #ifdef COMPILER_SUPPORTS_SSE4_1
-extern size_t misc_partitionRange_sse4_1(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
-extern size_t misc_partitionIndices_sse4_1(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
+extern size_t misc_partitionRange_sse4_1(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length);
+extern size_t misc_partitionIndices_sse4_1(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length);
 #endif
 
 #ifdef COMPILER_SUPPORTS_SSE2
-extern size_t misc_partitionRange_sse2(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
-extern size_t misc_partitionIndices_sse2(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
+extern size_t misc_partitionRange_sse2(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length);
+extern size_t misc_partitionIndices_sse2(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length);
 
 extern void misc_addVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_subtractVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
@@ -270,8 +270,8 @@ extern void misc_transposeMatrix_sse2(const double* restrict x, misc_size_t numR
 #endif
 
 #ifdef COMPILER_SUPPORTS_NEON
-extern size_t misc_partitionRange_neon(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
-extern size_t misc_partitionIndices_neon(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
+extern size_t misc_partitionRange_neon(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length);
+extern size_t misc_partitionIndices_neon(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length);
 
 extern void misc_addVectorsInPlace_neon(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_subtractVectorsInPlace_neon(const double* restrict x, misc_size_t length, double* restrict y);
@@ -286,8 +286,8 @@ extern void misc_transposeMatrix_neon(const double* restrict x, misc_size_t numR
 #endif
 
 // partition
-extern size_t misc_partitionRange_c(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
-extern size_t misc_partitionIndices_c(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
+extern size_t misc_partitionRange_c(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length);
+extern size_t misc_partitionIndices_c(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length);
 // linearAlgebra
 extern void misc_addVectorsInPlace_c(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_subtractVectorsInPlace_c(const double* restrict x, misc_size_t length, double* restrict y);

@@ -183,7 +183,7 @@ constexpr size_t minMaskPoolCompactionSize = 256;
 class Tree {
 public:
   std::vector<Node> nodes;
-  size_t* indices = nullptr;  // external buffer, length numObservations
+  index_t* indices = nullptr;  // external buffer, length numObservations
   // Pooled categorical masks: rules on columns of more than 63 categories
   // store offsets into this pool. Entries are immutable once a rule
   // references them, so rule copies (snapshots, node restores) alias
@@ -191,7 +191,7 @@ public:
   // between moves (docs/design/pooled-masks.md).
   std::vector<std::uint64_t> maskPool;
 
-  void initialize(size_t* indexBuffer, size_t numObservations) {
+  void initialize(index_t* indexBuffer, size_t numObservations) {
     indices = indexBuffer;
     nodes.clear();
     freePairs.clear();
@@ -201,7 +201,8 @@ public:
     root.begin = 0;
     root.end = numObservations;
     nodes.push_back(root);
-    for (size_t i = 0; i < numObservations; ++i) indices[i] = i;
+    for (size_t i = 0; i < numObservations; ++i)
+      indices[i] = static_cast<index_t>(i);
   }
 
   size_t maskPoolMark() const { return maskPool.size(); }
@@ -529,7 +530,7 @@ public:
   /// left. The mask analogue of misc_partitionIndices, sans SIMD.
   static size_t partitionIndicesByMask(const xint_t* column,
                                        std::uint64_t directions,
-                                       size_t* indices, size_t length) {
+                                       index_t* indices, size_t length) {
     size_t lo = 0, hi = length;
     // invariant: [0, lo) is left-bound, [hi, length) is right-bound
     while (true) {
@@ -537,7 +538,7 @@ public:
       while (lo < hi && ((directions >> column[indices[hi - 1]]) & 1u) != 0)
         --hi;
       if (hi - lo < 2) break;
-      size_t temp = indices[lo];
+      index_t temp = indices[lo];
       indices[lo] = indices[hi - 1];
       indices[hi - 1] = temp;
       ++lo;
@@ -550,14 +551,14 @@ public:
   /// for a code lives in the rule's pool words.
   static size_t partitionIndicesByWideMask(const xint_t* column,
                                            const std::uint64_t* directions,
-                                           size_t* indices, size_t length) {
+                                           index_t* indices, size_t length) {
     size_t lo = 0, hi = length;
     while (true) {
       while (lo < hi && !maskTestBit(directions, column[indices[lo]])) ++lo;
       while (lo < hi && maskTestBit(directions, column[indices[hi - 1]]))
         --hi;
       if (hi - lo < 2) break;
-      size_t temp = indices[lo];
+      index_t temp = indices[lo];
       indices[lo] = indices[hi - 1];
       indices[hi - 1] = temp;
       ++lo;
@@ -571,7 +572,7 @@ public:
   /// rank-bitmap layout instead of a dense array.
   static size_t partitionIndicesSparseByMask(const SparseColumnData& column,
                                              std::uint64_t directions,
-                                             size_t* indices, size_t length) {
+                                             index_t* indices, size_t length) {
     size_t lo = 0, hi = length;
     while (true) {
       while (lo < hi && ((directions >> column.at(indices[lo])) & 1u) == 0)
@@ -579,7 +580,7 @@ public:
       while (lo < hi && ((directions >> column.at(indices[hi - 1])) & 1u) != 0)
         --hi;
       if (hi - lo < 2) break;
-      size_t temp = indices[lo];
+      index_t temp = indices[lo];
       indices[lo] = indices[hi - 1];
       indices[hi - 1] = temp;
       ++lo;
@@ -592,14 +593,14 @@ public:
   /// membership partition (more than 63 levels) over the rank-bitmap layout.
   static size_t partitionIndicesSparseByWideMask(
       const SparseColumnData& column, const std::uint64_t* directions,
-      size_t* indices, size_t length) {
+      index_t* indices, size_t length) {
     size_t lo = 0, hi = length;
     while (true) {
       while (lo < hi && !maskTestBit(directions, column.at(indices[lo]))) ++lo;
       while (lo < hi && maskTestBit(directions, column.at(indices[hi - 1])))
         --hi;
       if (hi - lo < 2) break;
-      size_t temp = indices[lo];
+      index_t temp = indices[lo];
       indices[lo] = indices[hi - 1];
       indices[hi - 1] = temp;
       ++lo;
@@ -612,7 +613,7 @@ public:
   /// the dense MIA fallback (misc_partitionIndicesSparse handles NA-free
   /// sparse columns).
   static size_t partitionIndicesSparseMIA(const SparseColumnData& column,
-                                          const Rule& rule, size_t* indices,
+                                          const Rule& rule, index_t* indices,
                                           size_t length) {
     int32_t splitIndex = rule.splitIndex();
     bool missingGoesRight = rule.missingGoesRight();
@@ -626,7 +627,7 @@ public:
       while (lo < hi && !goesRight(indices[lo])) ++lo;
       while (lo < hi && goesRight(indices[hi - 1])) --hi;
       if (hi - lo < 2) break;
-      size_t temp = indices[lo];
+      index_t temp = indices[lo];
       indices[lo] = indices[hi - 1];
       indices[hi - 1] = temp;
       ++lo;
@@ -639,7 +640,7 @@ public:
   /// codes at or below the split go left, missing codes go by the rule's
   /// direction. The scalar fallback for columns containing NAs.
   static size_t partitionIndicesMIA(const xint_t* column, const Rule& rule,
-                                    size_t* indices, size_t length) {
+                                    index_t* indices, size_t length) {
     int32_t splitIndex = rule.splitIndex();
     bool missingGoesRight = rule.missingGoesRight();
     auto goesRight = [=](xint_t code) {
@@ -651,7 +652,7 @@ public:
       while (lo < hi && !goesRight(column[indices[lo]])) ++lo;
       while (lo < hi && goesRight(column[indices[hi - 1]])) --hi;
       if (hi - lo < 2) break;
-      size_t temp = indices[lo];
+      index_t temp = indices[lo];
       indices[lo] = indices[hi - 1];
       indices[hi - 1] = temp;
       ++lo;
@@ -663,6 +664,13 @@ public:
   // pins the misc partition kernels' integer width; a mismatch would
   // silently truncate the cut-index casts below
   static_assert(std::is_same_v<misc_xint_t, std::uint16_t>);
+
+  // pins the C++ gather-index buffer element type to the C kernel index type,
+  // so passing index_t* where the retyped misc kernels expect misc_index_t*
+  // (and the sizeof memcpy/memcmp over index segments) stays byte-exact; a
+  // width mismatch would silently truncate or overread indices
+  // (docs/design/reduced-precision-storage.md sec 3a).
+  static_assert(sizeof(index_t) == sizeof(misc_index_t));
 
   /// Partition a node's observations between its children by its rule.
   void partitionChildren(const ColumnStore& data, int32_t nodeIndex) {
@@ -816,7 +824,7 @@ public:
   struct SubtreeSnapshot {
     std::vector<int32_t> nodeIds;
     std::vector<Node> nodeCopies;
-    std::vector<size_t> indexSegment;
+    std::vector<index_t> indexSegment;
     size_t begin = 0;
   };
 
@@ -834,7 +842,7 @@ public:
     for (size_t i = 0; i < snapshot.nodeIds.size(); ++i)
       at(snapshot.nodeIds[i]) = snapshot.nodeCopies[i];
     std::memcpy(indices + snapshot.begin, snapshot.indexSegment.data(),
-                snapshot.indexSegment.size() * sizeof(size_t));
+                snapshot.indexSegment.size() * sizeof(index_t));
   }
 
   /// Descend a test row through the storage-aware test accessor, reading only
@@ -894,11 +902,12 @@ public:
   /// Point the tree at a new observation buffer (whole-data replacement,
   /// possibly of a different size): identity indices under the root, all
   /// partitions stale until repartitionSubtree.
-  void resetObservations(size_t* indexBuffer, size_t numObservations) {
+  void resetObservations(index_t* indexBuffer, size_t numObservations) {
     indices = indexBuffer;
     at(0).begin = 0;
     at(0).end = numObservations;
-    for (size_t i = 0; i < numObservations; ++i) indices[i] = i;
+    for (size_t i = 0; i < numObservations; ++i)
+      indices[i] = static_cast<index_t>(i);
   }
 
   /// After a from-scratch cut rebuild, remap every rule's splitIndex onto the

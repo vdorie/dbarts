@@ -26,7 +26,7 @@ extern void (*misc_addScalarToVectorInPlace)(double* x, misc_size_t length, doub
 // x: = alpha
 bool misc_vectorIsConstant(const double* d, misc_size_t length);
 extern void (*misc_setVectorToConstant)(double* x, misc_size_t length, double alpha);
-void misc_setIndexedVectorToConstant(double* restrict x, const misc_size_t* restrict indices, misc_size_t length, double alpha);
+void misc_setIndexedVectorToConstant(double* restrict x, const misc_index_t* restrict indices, misc_size_t length, double alpha);
   
 // x := alpha * x
 void misc_scalarMultiplyVectorInPlace(double* x, misc_size_t length, double alpha);
@@ -41,7 +41,7 @@ void misc_hadamardMultiplyVectorsInPlace(double* restrict x, misc_size_t length,
 
  
 double misc_sumVectorElements(const double* x, misc_size_t length);
-double misc_sumIndexedVectorElements(const double* x, const misc_size_t* indices, misc_size_t length);
+double misc_sumIndexedVectorElements(const double* x, const misc_index_t* indices, misc_size_t length);
 
 extern void (*misc_transposeMatrix)(const double* restrict x, misc_size_t numRows, misc_size_t numCols, double* restrict xt);
 

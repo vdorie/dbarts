@@ -12,7 +12,7 @@ static void testFlattenRoundTrip() {
   ColumnStore store;
   store.build(x.data(), n, 2, 10, false, types);
 
-  std::vector<size_t> indices(n);
+  std::vector<index_t> indices(n);
   Tree tree;
   tree.initialize(indices.data(), n);
   Rule rootRule;
@@ -73,7 +73,7 @@ static void testFlattenRoundTrip() {
   check(fitsMatch, "flat prediction routes rows to their leaves");
 
   // rebuild recovers the rules exactly
-  std::vector<size_t> indices2(n);
+  std::vector<index_t> indices2(n);
   Tree tree2;
   tree2.initialize(indices2.data(), n);
   std::vector<double> params2;
@@ -135,7 +135,7 @@ static void testCategoricalFlattenBoundaries() {
     check(store.numCuts[0] == K && store.columnIsPooled(0) == (K >= 64),
           "the pooling boundary is 64 categories");
 
-    std::vector<size_t> indices(n);
+    std::vector<index_t> indices(n);
     Tree tree;
     tree.initialize(indices.data(), n);
     Rule rule;
@@ -173,7 +173,7 @@ static void testCategoricalFlattenBoundaries() {
           "boundary flat tree is well formed");
 
     Tree rebuilt;
-    std::vector<size_t> rebuiltIndices(n);
+    std::vector<index_t> rebuiltIndices(n);
     rebuilt.initialize(rebuiltIndices.data(), n);
     std::vector<double> rebuiltParams;
     check(rebuilt.buildFromFlat(store, flat.data(), flat.size(), rebuiltParams,

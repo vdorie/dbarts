@@ -87,7 +87,7 @@ static void testConstantLeafSuffstatEquivalence() {
   for (size_t i = 0; i < n; ++i) x[i] = (double) i;
   ColumnStore store;
   store.build(x.data(), n, 1, 100);
-  std::vector<size_t> indexBuffer(n);
+  std::vector<index_t> indexBuffer(n);
   Tree tree;
   tree.initialize(indexBuffer.data(), n);
   std::vector<double> zv(z, z + n), wv(w, w + n);
@@ -445,7 +445,7 @@ static void testVarianceLeafMarginal() {
   for (size_t i = 0; i < n; ++i) x[i] = (double) i;
   ColumnStore store;
   store.build(x.data(), n, 1, 100);
-  std::vector<size_t> indexBuffer(n);
+  std::vector<index_t> indexBuffer(n);
   Tree tree;
   tree.initialize(indexBuffer.data(), n);
   std::vector<double> rv(r, r + n), wv(w, w + n);
@@ -491,7 +491,7 @@ static void testVarianceLeafDraw() {
       r[i] = 0.3 + 0.1 * std::sin((double) i);
       ssr += w[i] * r[i] * r[i];
     }
-    std::vector<size_t> indexBuffer(c.n);
+    std::vector<index_t> indexBuffer(c.n);
     Tree tree;
     tree.initialize(indexBuffer.data(), c.n);
     ConstantVarianceLeaf leaf{c.df, c.scale};
@@ -545,7 +545,7 @@ static void testVarianceLeafCalibration() {
   const size_t n = 5;
   std::vector<double> r(n), w(n, 1.0), fits(n, 0.0);
   for (size_t i = 0; i < n; ++i) r[i] = 0.2 * (double) i - 0.3;
-  std::vector<size_t> indexBuffer(n);
+  std::vector<index_t> indexBuffer(n);
   Tree tree;
   tree.initialize(indexBuffer.data(), n);
   ChiSquaredScalePrior prior;
@@ -990,7 +990,7 @@ struct LinearLeafFixture {
   static constexpr size_t n = 8;
   std::vector<double> x, z, w;
   ColumnStore store;
-  std::vector<size_t> indexBuffer;
+  std::vector<index_t> indexBuffer;
   Tree tree;
   double k = 2.0, scale = 0.5 / std::sqrt(10.0), sigmaSq = 0.04;
 
@@ -1085,7 +1085,7 @@ static void testLinearLeafMarginal() {
   size_t columns2[] = {1, 2};
   leaf2.initialize(f.store, columns2, 2);
   Tree rootTree;
-  std::vector<size_t> rootIndices(LinearLeafFixture::n);
+  std::vector<index_t> rootIndices(LinearLeafFixture::n);
   rootTree.initialize(rootIndices.data(), LinearLeafFixture::n);
   checkNear(leaf2.logIntegratedLikelihoodForNode(
               rootTree, f.z.data(), f.w.data(), f.k, f.sigmaSq, 0),
@@ -1175,7 +1175,7 @@ static void testLinearLeafStatisticsCache() {
   ColumnStore storeV0, storeV1;
   storeV0.build(xV0.data(), n, p, 100, false, nullptr, columns, 1);
   storeV1.build(xV1.data(), n, p, 100, false, nullptr, columns, 1);
-  std::vector<size_t> indexBuffer(n);
+  std::vector<index_t> indexBuffer(n);
   Tree tree;
   tree.initialize(indexBuffer.data(), n);
 
@@ -2136,7 +2136,7 @@ static void testSparseKernel() {
 
   // a scrambled index segment, partitioned at several cuts against a dense
   // reference
-  std::vector<size_t> segment(n);
+  std::vector<index_t> segment(n);
   for (size_t i = 0; i < n; ++i) segment[i] = i;
   for (size_t i = n - 1; i > 0; --i) {
     size_t k = static_cast<size_t>(runif01() * static_cast<double>(i + 1));
@@ -2146,7 +2146,7 @@ static void testSparseKernel() {
   const xint_t cuts[] = { 0, 4, 5, 100, 250 };
   bool allMatch = true;
   for (xint_t cut : cuts) {
-    std::vector<size_t> indices(segment);
+    std::vector<index_t> indices(segment);
     size_t numOnLeft = misc_partitionIndicesSparse(
       bits.data(), wordRanks.data(), nzCodes.data(), zeroCode, cut,
       indices.data(), indices.size());
@@ -2156,9 +2156,9 @@ static void testSparseKernel() {
     allMatch &= numOnLeft == expected;
     for (size_t k = 0; k < indices.size(); ++k)
       allMatch &= (denseCodes[indices[k]] <= cut) == (k < numOnLeft);
-    std::vector<size_t> sorted(indices);
+    std::vector<index_t> sorted(indices);
     std::sort(sorted.begin(), sorted.end());
-    std::vector<size_t> sortedSegment(segment);
+    std::vector<index_t> sortedSegment(segment);
     std::sort(sortedSegment.begin(), sortedSegment.end());
     allMatch &= sorted == sortedSegment;
   }
@@ -2519,7 +2519,7 @@ static void testSparseCategoricalColumnStore() {
 
     // a scrambled index segment, partitioned by the sparse membership kernel
     // against the dense one over several direction masks
-    std::vector<size_t> segment(n);
+    std::vector<index_t> segment(n);
     for (size_t i = 0; i < n; ++i) segment[i] = i;
     for (size_t i = n - 1; i > 0; --i)
       std::swap(segment[i], segment[static_cast<size_t>(
@@ -2532,7 +2532,7 @@ static void testSparseCategoricalColumnStore() {
         0x5ull, 0x2Aull, 0x3Full, (1ull << fixture.reference), 0x0ull
       };
       for (std::uint64_t mask : masks) {
-        std::vector<size_t> a(segment), b(segment);
+        std::vector<index_t> a(segment), b(segment);
         size_t leftDense =
           Tree::partitionIndicesByMask(dense, mask, a.data(), a.size());
         size_t leftSparse = Tree::partitionIndicesSparseByMask(
@@ -2545,7 +2545,7 @@ static void testSparseCategoricalColumnStore() {
         std::vector<std::uint64_t> mask(numWords, 0);
         for (std::uint32_t c = 0; c < config.K; ++c)
           if ((c + static_cast<std::uint32_t>(m)) % 3 == 0) maskSetBit(mask.data(), c);
-        std::vector<size_t> a(segment), b(segment);
+        std::vector<index_t> a(segment), b(segment);
         size_t leftDense = Tree::partitionIndicesByWideMask(
           dense, mask.data(), a.data(), a.size());
         size_t leftSparse = Tree::partitionIndicesSparseByWideMask(
@@ -2951,7 +2951,7 @@ struct GPLeafFixture {
   static constexpr size_t n = 8;
   std::vector<double> x, z, w;
   ColumnStore store;
-  std::vector<size_t> indexBuffer;
+  std::vector<index_t> indexBuffer;
   Tree tree;
   double k = 2.0, scale = 0.5 / std::sqrt(10.0), sigmaSq = 0.04;
   double theta[2] = {0.7, 1.3};
@@ -3047,7 +3047,7 @@ static void testGPLeafMarginal() {
   // a constant kernel (huge lengthscale) approaches the constant leaf's
   // formula by Sherman-Morrison
   Tree rootTree;
-  std::vector<size_t> rootIndices(GPLeafFixture::n);
+  std::vector<index_t> rootIndices(GPLeafFixture::n);
   rootTree.initialize(rootIndices.data(), GPLeafFixture::n);
   rootTree.setNodeAverages(f.z.data(), f.w.data());
   ConstantGaussianLeaf constant{f.scale};
@@ -3100,7 +3100,7 @@ static void testGPLeafZeroWeights(ext_rng* rng) {
 
   // a tree whose root holds exactly the positive rows, in the same order
   Tree positiveTree;
-  std::vector<size_t> positiveIndices(6);
+  std::vector<index_t> positiveIndices(6);
   positiveTree.initialize(positiveIndices.data(), 6);
   size_t positives[] = {0, 1, 3, 4, 6, 7};
   for (size_t i = 0; i < 6; ++i) positiveIndices[i] = positives[i];
@@ -3125,7 +3125,7 @@ static void testGPLeafZeroWeights(ext_rng* rng) {
   ColumnStore dupStore;
   size_t dupGather[] = {1};
   dupStore.build(xd.data(), nd, 2, 100, false, nullptr, dupGather, 1);
-  std::vector<size_t> dupIndices(nd);
+  std::vector<index_t> dupIndices(nd);
   Tree dupTree;
   dupTree.initialize(dupIndices.data(), nd);
   GPGaussianLeaf dupLeaf;
@@ -3628,7 +3628,7 @@ static void testGPLeafKernelCache(ext_rng* rng) {
   ColumnStore leafStore;
   size_t leafGather[] = {0};
   leafStore.build(x.data(), n, p, 100, false, nullptr, leafGather, 1);
-  std::vector<size_t> leafIndices(n);
+  std::vector<index_t> leafIndices(n);
   Tree leafTree;
   leafTree.initialize(leafIndices.data(), n);
   GPGaussianLeaf leaf;
@@ -5033,7 +5033,7 @@ static void testMonotoneNeighborGeometry() {
 
   int comparisons = 0;
   for (int trial = 0; trial < 120; ++trial) {
-    std::vector<size_t> idx(n);
+    std::vector<index_t> idx(n);
     Tree tree;
     tree.initialize(idx.data(), n);
     tree.computeLeafStats(0, y.data(), nullptr);
@@ -5120,7 +5120,7 @@ static void testMonotoneFeasibility() {
   ColumnStore store;
   store.build(xg.data(), m, 1, 60);
   std::vector<double> yg(m, 0.0);
-  std::vector<size_t> idx(m);
+  std::vector<index_t> idx(m);
   Tree tree;
   tree.initialize(idx.data(), m);
   tree.computeLeafStats(0, yg.data(), nullptr);
@@ -5180,7 +5180,7 @@ static void testMonotoneMarginal() {
   store.build(x.data(), n, 1, 40);
   std::vector<double> y(n);
   for (size_t i = 0; i < n; ++i) y[i] = 0.5 * x[i] - 0.1;
-  std::vector<size_t> idx(n);
+  std::vector<index_t> idx(n);
   Tree tree;
   tree.initialize(idx.data(), n);
   tree.computeLeafStats(0, y.data(), nullptr);
@@ -5287,7 +5287,7 @@ static void testMonotoneCInflation() {
   ColumnStore store;
   store.build(x.data(), n, 1, 20);
   std::vector<double> y(n, 0.0);  // zero response -> posterior mean 0
-  std::vector<size_t> idx(n);
+  std::vector<index_t> idx(n);
   Tree tree;
   tree.initialize(idx.data(), n);
   tree.computeLeafStats(0, y.data(), nullptr);
