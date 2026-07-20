@@ -93,6 +93,10 @@ bart2 fits further response families - logistic, accelerated failure time (famil
 <span>    seed <span class="op">=</span> <span class="cn">NA_integer_</span>,</span>
 <span>    proposal.probs <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    monotone <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>    variance <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>    n.trees.variance <span class="op">=</span> <span class="fl">40L</span>,</span>
+<span>    power.variance <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>    base.variance <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    keepSampler <span class="op">=</span> <span class="va">keepTrees</span>,</span>
 <span>    warm.start <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    n.grow.sweeps <span class="op">=</span> <span class="fl">0L</span>,</span>
@@ -272,6 +276,9 @@ bart2 fits further response families - logistic, accelerated failure time (famil
 
    <dt id="arg-monotone">monotone<a class="anchor" aria-label="anchor" href="#arg-monotone"></a></dt>
 <dd><p>Optional per-predictor monotonicity constraints, passed through to <code><a href="dbarts.html">dbarts</a></code>; see its <code>monotone</code> argument. A named vector selects predictors by model-matrix column name, each direction one of <code>"+"</code>/<code>"increasing"</code>/<code>1</code> or <code>"-"</code>/<code>"decreasing"</code>/<code>-1</code>; only numeric and ordered columns are eligible. A constraint forces birth/death-only proposals and a fixed <code>k = 2</code>. <code>NULL</code> (the default) fits the unconstrained model.</p></dd>
+
+   <dt id="arg-variance-n-trees-variance-power-variance-base-variance">variance, n.trees.variance, power.variance, base.variance<a class="anchor" aria-label="anchor" href="#arg-variance-n-trees-variance-power-variance-base-variance"></a></dt>
+<dd><p>Heteroscedastic BART (Pratola et al. 2020): passed through to <code><a href="dbarts.html">dbarts</a></code>. <code>variance</code> declares a second forest modeling the residual variance surface \(s^2(x)\) as a product of scaled-inverse-chi-squared leaves, coupled to the mean forest through the per-observation precision. It is a one-sided formula or column selector naming which predictors drive the variance (<code>~ x1 + x2</code>), <code>TRUE</code> for every predictor, or <code>NULL</code> (the default) for a homoscedastic fit. <code>n.trees.variance</code> is the number of variance trees; <code>power.variance</code>/<code>base.variance</code> their tree-structure prior (defaulting to the mean forest's). Gaussian responses only. The fit gains <code>s.train</code>/<code>s.test</code> (posterior draws of \(s(x)\)), and <code>predict</code> attaches an <code>"s"</code> attribute carrying \(s(x)\) for new data.</p></dd>
 
    <dt id="arg-keepsampler-keepsampler">keepsampler, keepSampler<a class="anchor" aria-label="anchor" href="#arg-keepsampler-keepsampler"></a></dt>
 <dd><p>Logical that can be used to save the underlying <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code> object even if <code>keepTrees</code> is false.</p></dd>
@@ -526,7 +533,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.218642</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.219520</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -592,7 +599,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001418</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001413</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>

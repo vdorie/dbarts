@@ -54,6 +54,10 @@ bart2(
     seed = NA_integer_,
     proposal.probs = NULL,
     monotone = NULL,
+    variance = NULL,
+    n.trees.variance = 40L,
+    power.variance = NULL,
+    base.variance = NULL,
     keepSampler = keepTrees,
     warm.start = NULL,
     n.grow.sweeps = 0L,
@@ -427,6 +431,22 @@ summary(object, ...)
   and ordered columns are eligible. A constraint forces birth/death-only
   proposals and a fixed `k = 2`. `NULL` (the default) fits the
   unconstrained model.
+
+- variance, n.trees.variance, power.variance, base.variance:
+
+  Heteroscedastic BART (Pratola et al. 2020): passed through to
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
+  `variance` declares a second forest modeling the residual variance
+  surface \\s^2(x)\\ as a product of scaled-inverse-chi-squared leaves,
+  coupled to the mean forest through the per-observation precision. It
+  is a one-sided formula or column selector naming which predictors
+  drive the variance (`~ x1 + x2`), `TRUE` for every predictor, or
+  `NULL` (the default) for a homoscedastic fit. `n.trees.variance` is
+  the number of variance trees; `power.variance`/`base.variance` their
+  tree-structure prior (defaulting to the mean forest's). Gaussian
+  responses only. The fit gains `s.train`/`s.test` (posterior draws of
+  \\s(x)\\), and `predict` attaches an `"s"` attribute carrying \\s(x)\\
+  for new data.
 
 - keepsampler, keepSampler:
 
@@ -1201,7 +1221,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.218642
+#> total seconds in loop: 0.219520
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1267,7 +1287,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001418
+#> total seconds in loop: 0.001413
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

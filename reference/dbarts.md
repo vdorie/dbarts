@@ -15,6 +15,8 @@ dbarts(
     proposal.probs = c(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     monotone = NULL,
+    variance = NULL, n.trees.variance = 40L,
+    power.variance = NULL, base.variance = NULL,
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal",
@@ -204,6 +206,31 @@ dbarts(
   explicit `k` hyperprior is an error); linear and Gaussian-process
   leaves are not supported under the constraint. `NULL` (the default) or
   an all-zero vector fits the ordinary unconstrained model.
+
+- variance:
+
+  Optional heteroscedastic variance forest (HBART; Pratola, Chipman,
+  George, and McCulloch 2020). When supplied, a second ensemble models
+  the residual variance surface \\s^2(x)\\ as a product of
+  scaled-inverse-chi-squared (multiplicative) leaves, so \\y_i =
+  f(x_i) + s(x_i)\epsilon_i\\, coupled to the mean forest through the
+  per-observation precision. `variance` selects which predictors drive
+  the variance: a one-sided formula or character/integer column selector
+  (`~ x1 + x2`), `TRUE` for every predictor, or `NULL` (the default) for
+  the ordinary homoscedastic fit. Gaussian responses and constant leaves
+  only; monotone constraints and the latent families are not supported.
+  The per-tree leaf prior is calibrated from the residual
+  (`resid.prior`) hyperparameters so that a constant variance surface
+  reproduces the homoscedastic `sigma` posterior. The fit gains
+  posterior draws `s.train`/`s.test` of \\s(x)\\, and `predict` attaches
+  an `"s"` attribute with \\s(x)\\ at new predictors (requires
+  `keepTrees`).
+
+- n.trees.variance, power.variance, base.variance:
+
+  The number of variance trees (default `40`) and their tree-structure
+  prior. `power.variance` and `base.variance` default to the mean
+  forest's `tree.prior` values. Read only when `variance` is supplied.
 
 - control:
 
