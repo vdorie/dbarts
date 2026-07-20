@@ -11,6 +11,7 @@
 #include <limits>
 #include <memory>
 #include <numbers>
+#include <type_traits>
 #include <vector>
 
 #include <external/random.h>
@@ -133,6 +134,17 @@ struct SamplerOptions {
   // availability path is byte-for-byte unchanged.
   const std::size_t* forestColumns = nullptr;
   std::size_t numForestColumns = 0;
+
+  // heteroscedastic variance forest (HBART, docs/design/heteroscedastic.md):
+  // numVarianceTrees > 0 adds a SECOND forest modeling s^2(x) as a product of
+  // scaled-inverse-chi-squared leaves, coupled to the mean forest through the
+  // precision (weight) channel w_i^mean = user_w_i / s^2(x_i). 0 (default) is
+  // homoscedastic - byte-for-byte unchanged, no variance forest built. Gaussian
+  // family + plain constant leaf only; the factory refuses the combination
+  // otherwise. varianceBase/variancePower are the variance trees' CGM prior.
+  // Not yet exposed through the R surface (C++/tests only).
+  std::size_t numVarianceTrees = 0;
+  double varianceBase = 0.95, variancePower = 2.0;
 
   // k is fixed at .k unless updateK, in which case .k is the starting value
   bool updateK = false;
@@ -268,6 +280,79 @@ struct Results {
 using SweepCallback =
   std::function<bool(std::size_t chainIndex, std::size_t sweepIndex,
                      bool isBurnIn)>;
+
+/// The heteroscedastic variance ensemble (HBART; docs/design/heteroscedastic.md
+/// sections 5-6): a second forest of ConstantVarianceLeaf trees whose product
+/// s^2(x_i) = prod_j h_j(x_i) modulates the mean forest's precision through the
+/// weight channel (w_i^mean = user_w_i / s^2(x_i)). It is distinctly typed from
+/// the mean Forest<L> - a scale leaf, and a MULTIPLICATIVE running residual
+/// (divide by the OTHER trees' product s^2_{-j}, not the additive roll) - so a
+/// Chain holds it as a nullable member, not another Forest<L>. Gaussian only.
+struct VarianceForest {
+  std::size_t numTrees = 0;
+  double birthOrDeathProbability = 0.5, swapProbability = 0.1,
+         changeProbability = 0.4, birthProbability = 0.5;
+  ConstantVarianceLeaf leaf;
+  CGMTreePrior treePrior;
+  std::vector<Tree> trees;
+  std::vector<std::size_t> indexBuffer;
+  // per-tree multiplicative factor h_j(x_i), tree-major (numTrees x n); the
+  // combined variance s^2(x_i) = prod_j factorByTree[j * n + i]
+  std::vector<double> factorByTree;
+  std::vector<double> combinedVariance;  // s^2(x_i), length n
+  std::vector<double> meanResidual;      // scratch e_i = y_i - f(x_i), per sweep
+  std::vector<double> divisor;           // scratch s^2_{-j}(x_i), per tree
+  std::vector<double> treeResidual;      // scratch e_i / sqrt(s^2_{-j}), per tree
+  MoveScratch scratch;
+
+  std::size_t numObservations() const { return combinedVariance.size(); }
+
+  /// Build numTrees root trees over n observations and seed every leaf factor
+  /// so the product equals initialVariance (each root h = initialVariance^(1/m')).
+  void initialize(std::size_t numTrees_, std::size_t n, double initialVariance) {
+    numTrees = numTrees_;
+    indexBuffer.assign(n * numTrees, 0);
+    trees.resize(numTrees);
+    for (std::size_t t = 0; t < numTrees; ++t)
+      trees[t].initialize(indexBuffer.data() + t * n, n);
+    double rootFactor =
+      std::pow(initialVariance, 1.0 / static_cast<double>(numTrees));
+    factorByTree.assign(numTrees * n, rootFactor);
+    combinedVariance.assign(n, initialVariance);
+    meanResidual.assign(n, 0.0);
+    divisor.assign(n, 1.0);
+    treeResidual.assign(n, 0.0);
+  }
+
+  /// The multiplicative roll for tree j: divisor holds s^2_{-j}(x_i) =
+  /// s^2(x_i) / h_j(x_i), the OTHER trees' product EXCLUDING tree j, and
+  /// treeResidual holds the scaled mean residual e_i / sqrt(s^2_{-j}). Excluding
+  /// h_j is the divisor guard (design rider i): perturbing tree j's own leaf
+  /// must not move its own suffstat, only another tree's leaf may.
+  void formTreeResidual(std::size_t j, const double* meanResidualIn) {
+    std::size_t n = numObservations();
+    const double* __restrict factor = factorByTree.data() + j * n;
+    for (std::size_t i = 0; i < n; ++i) {
+      divisor[i] = combinedVariance[i] / factor[i];
+      treeResidual[i] = meanResidualIn[i] / std::sqrt(divisor[i]);
+    }
+  }
+
+  /// Scatter tree j leaf b's drawn factor h to every member observation and
+  /// fold it back into the combined variance (s^2 = s^2_{-j} * h). divisor must
+  /// hold this tree's current s^2_{-j} (from formTreeResidual).
+  void applyLeafFactor(std::size_t j, std::int32_t node, double h) {
+    std::size_t n = numObservations();
+    double* __restrict factor = factorByTree.data() + j * n;
+    const Tree& tree = trees[j];
+    const Node& b = tree.at(node);
+    for (std::size_t m = b.begin; m < b.end; ++m) {
+      std::size_t i = tree.indices[m];
+      factor[i] = h;
+      combinedVariance[i] = divisor[i] * h;
+    }
+  }
+};
 
 /// One MCMC chain of the conjugate backfitting sampler: one-or-more forests
 /// (trees, fits, per-forest prior), and its own response state and rng, over
@@ -439,6 +524,16 @@ public:
     if constexpr (L::hasVectorParams)
       forest.paramsByTree.assign(forest.numTrees,
                                  std::vector<double>(forest.leaf.numParams(), 0.0));
+
+    // heteroscedastic: a second, distinctly typed variance forest coupled to
+    // this constant-leaf gaussian mean forest through the weight channel. Built
+    // only for the plain constant leaf and gaussian family (the factory refuses
+    // every other combination); homoscedastic leaves varianceForest_ null and
+    // this whole path compiled/branched out, so the mean sweep is byte-identical.
+    if constexpr (std::is_same_v<L, ConstantGaussianLeaf>)
+      if (family == ResponseFamily::gaussian && options.numVarianceTrees > 0)
+        buildVarianceForest(options, sigmaDf, sigmaRawScale);
+
     resizeTestStorage();
   }
 
@@ -517,6 +612,11 @@ public:
   std::size_t numForests() const { return forests_.size(); }
   std::size_t numTreesInForest(std::size_t f) const {
     return forests_[f].numTrees;
+  }
+  /// The current combined variance s^2(x_i) over the training rows, or null when
+  /// homoscedastic. A test/reporting read; the full s(x) channels arrive in C3.
+  const double* varianceFits() const {
+    return varianceForest_ ? varianceForest_->combinedVariance.data() : nullptr;
   }
   /// Per-observation channels the recorded fits carry: the combiner's location
   /// count (1 for every additive combiner, BCF included), 1 off any combiner.
@@ -665,6 +765,15 @@ public:
         progress->report(line);
       }
 
+      // heteroscedastic: the mean forest backfits against precisions divided by
+      // the current variance surface, w_i^mean = user_w_i / s^2(x_i), with the
+      // global sigma fixed at 1 (the variance forest IS the residual variance).
+      // Homoscedastic skips this and the mean sweep sees the shared weights.
+      if (varianceForest_) {
+        formMeanWeights();
+        weights = meanWeights_.data();
+      }
+
       for (size_t f = 0; f < forests_.size(); ++f) {
         Forest<L>& forest = forests_[f];
         // single-forest samplers backfit against the shared working response
@@ -794,6 +903,11 @@ public:
         combiner_->drawGlue(rng_, sigma_, y, weights, forests_);
         combiner_->afterCombine(forests_, record, sampleNum, rng_);
       }
+
+      // heteroscedastic: after the mean forest settles (sigma stays fixed at 1),
+      // backfit the variance forest against the mean residual and refresh the
+      // combined s^2(x) that next sweep's mean weights divide by.
+      if (varianceForest_) sweepVarianceForest(y, combined);
 
       for (Forest<L>& forest : forests_) {
         // a zero sum of squares under an infinite prior scale would make the
@@ -2156,6 +2270,88 @@ private:
     forest.leafOfStale[t] = 0;
   }
 
+  /// Build the nullable variance forest (heteroscedastic): calibrate its scale
+  /// leaf from THIS chain's homoscedastic sigma prior on the working scale
+  /// (df = sigmaDf, scale = initialSigma^2 * rawScale, the GaussianResponse
+  /// derivation), seed s^2(x) at the initial variance, then fix the global
+  /// sigma at 1 - the variance forest carries the residual variance from here.
+  /// At numVarianceTrees == 1 the calibration reproduces the sigma prior exactly.
+  void buildVarianceForest(const SamplerOptions& options, double sigmaDf,
+                           double sigmaRawScale) {
+    std::size_t n = data_.numObservations;
+    double initialVariance = sigma_ * sigma_;  // sigma_ still holds initialSigma
+    double priorScale = initialVariance * sigmaRawScale;
+    varianceForest_ = std::make_unique<VarianceForest>();
+    VarianceForest& vf = *varianceForest_;
+    vf.birthOrDeathProbability = options.birthOrDeathProbability;
+    vf.swapProbability = options.swapProbability;
+    vf.changeProbability = options.changeProbability;
+    vf.birthProbability = options.birthProbability;
+    vf.treePrior.base = options.varianceBase;
+    vf.treePrior.power = options.variancePower;
+    vf.leaf = ConstantVarianceLeaf::calibrated(sigmaDf, priorScale,
+                                               options.numVarianceTrees);
+    vf.initialize(options.numVarianceTrees, n, initialVariance);
+    sigmaIsFixed_ = true;
+    sigma_ = 1.0;
+    meanWeights_.assign(n, 0.0);
+  }
+
+  /// Divide the user precisions by the current variance surface for the mean
+  /// forest's next sweep: meanWeights_[i] = user_w_i / s^2(x_i) (unit weight
+  /// where the user supplied none). One of the two heteroscedastic n-scratch
+  /// vectors (the other is the variance forest's per-tree divisor s^2_{-j}).
+  void formMeanWeights() {
+    const VarianceForest& vf = *varianceForest_;
+    std::size_t n = data_.numObservations;
+    const double* userWeights = response_->workingWeights();
+    for (std::size_t i = 0; i < n; ++i)
+      meanWeights_[i] =
+        (userWeights == nullptr ? 1.0 : userWeights[i]) / vf.combinedVariance[i];
+  }
+
+  /// One variance-forest sweep: backfit each variance tree against the mean
+  /// residual scaled by the OTHER trees' product s^2_{-j} (the multiplicative
+  /// roll), score/move it with the existing conjugate machinery over the scale
+  /// leaf, redraw its leaf factors, and fold them into s^2(x). The scale leaf's
+  /// suffstat carries the user case weights (sum_i w_i e_i^2 / s^2_{-j}).
+  void sweepVarianceForest(const double* y, const double* meanFits) {
+    VarianceForest& vf = *varianceForest_;
+    std::size_t n = data_.numObservations;
+    const double* userWeights = response_->workingWeights();
+    for (std::size_t i = 0; i < n; ++i) vf.meanResidual[i] = y[i] - meanFits[i];
+
+    for (std::size_t j = 0; j < vf.numTrees; ++j) {
+      vf.formTreeResidual(j, vf.meanResidual.data());
+      MoveContext ctx{data_,
+                      vf.treePrior,
+                      vf.birthOrDeathProbability,
+                      vf.swapProbability,
+                      vf.changeProbability,
+                      vf.birthProbability,
+                      userWeights,
+                      1.0,  // k: unread by the scale leaf's marginal
+                      vf.scratch};
+      bool stepTaken;
+      StepType stepType;
+      int32_t changedNode = invalidNode;
+      metropolisJumpForTree(ctx, vf.leaf, rng_, vf.trees[j],
+                            vf.treeResidual.data(), 1.0, &stepTaken, &stepType,
+                            &changedNode);
+      if (data_.hasPooledCategorical)
+        vf.trees[j].compactMaskPoolIfNeeded(data_);
+
+      std::vector<int32_t>& bottoms(vf.trees[j].bottomScratch);
+      bottoms.clear();
+      vf.trees[j].fillBottom(0, bottoms);
+      for (int32_t b : bottoms) {
+        double h = vf.leaf.drawFromPosteriorForNode(
+          rng_, vf.trees[j], vf.treeResidual.data(), userWeights, 1.0, 1.0, b);
+        vf.applyLeafFactor(j, b, h);
+      }
+    }
+  }
+
   /// treeY <- the residual tree t owns, admitting tree t's old fits and (t > 0)
   /// retiring tree t-1's new fits in observation order. The constant leaf
   /// gathers each tree's fit through mu[leafOf]; the dense slab reads it direct.
@@ -2709,6 +2905,14 @@ private:
   // sampler, so the sweep, reporting, and state paths collapse to the direct
   // forest-0 path when so and pay no virtual call
   std::unique_ptr<ForestCombiner<L>> combiner_;
+
+  // heteroscedastic variance forest (docs/design/heteroscedastic.md); null for
+  // every homoscedastic sampler, so its sweep and the weight division are
+  // branched out and the mean path is byte-identical. meanWeights_ is the mean
+  // forest's per-sweep divided precisions user_w_i / s^2(x_i), sized only when
+  // the variance forest is built.
+  std::unique_ptr<VarianceForest> varianceForest_;
+  std::vector<double> meanWeights_;
 
   // Persistent pool for parallel test-fit routing, sized to this chain's
   // share of the thread budget; created lazily, never below the cutoff. The
