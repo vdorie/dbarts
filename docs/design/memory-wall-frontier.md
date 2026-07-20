@@ -223,3 +223,49 @@ shippable CPU-AMX corner). None is committed; this doc is the record so the next
 agent does not re-derive that (a) the profiles moved, (b) the gather's access
 pattern is the unworked axis, and (c) the tensor/NPU framing is a mirage for the
 constant leaf.
+
+## 7. Post-panel corrections and measured results (2026-07-20; authoritative)
+
+- BLOCK-FUSION RE-TREAD (VD's catch; corrects section 1). The "histogram-fused
+  suffstat" flagship (1a) is NOT new: it is block-fusion Stage A, which fused the
+  three per-tree passes at b=1 and measured BENCH-NEUTRAL (every run-* metric
+  within 4% on the x86 box) before the whole project was excised WONT-DO. The
+  "fixed-order run-list" (1b) re-derives the atom map, and its "run-count census"
+  IS block-fusion's already-run E1 atom census (atoms far below n). So 1a and 1b
+  are a re-derivation of an already-measured, bench-neutral, excised approach; the
+  prior is discouraging. Caveat: Stage A predates the leafOf/muByTree refactor, so
+  it is not a strict re-run - but the burden is on a re-profile to show the
+  shifted profile changes the verdict. Do NOT re-open 1a/1b without it. The lesson
+  the panel missed: atoms == binning, and block-fusion already spent it.
+
+- METAL / UNIFIED-MEMORY GPU: MEASURED DEAD at BART sizes (corrects 4a's
+  optimism). Probe on M1 Max (throwaway, discarded): (i) fp64 is UNSUPPORTED on
+  the Apple GPU - `double` is a hard MSL compile error, not emulated; (ii)
+  per-dispatch launch+readback floor ~140 us; (iii) the isolated gather-reduce is
+  0.73x CPU at n=1e5 (LOSES - the 140 us launch dominates the 44 us of compute),
+  4-8x at n>=1e6. Two killers at the common n=1e5: fp64-unsupported (which VD's
+  fp32 tolerance dissolves), and - the structural one precision cannot fix -
+  backfitting is SEQUENTIAL (tree t+1 needs tree t's fp64 draw CPU-side), so the
+  140 us round trip is paid PER TREE PER SWEEP, un-batchable, and 140 us > the
+  entire CPU gather (148 us) at n=1e5. GPU offload wins only at n>=1e6 AND only
+  with fp32 suffstats. The ONLY escape is a restructure: batch the whole sweep's
+  residual-independent stage-1 scoring into ONE launch (delayed acceptance, 2b),
+  fp32 on GPU kept exact by the fp64 CPU survivor rescan, amortizing the 140 us
+  over the sweep - speculative, heavy. Verdict: keep the reduce on the CPU; the
+  GPU is an n>=1e6 / restructured-sweep horizon, not a near-term lever.
+
+- PRECISION RE-ELEVATED to a TOP lever (VD 2026-07-20: fp64 is R's default, not a
+  design commitment; reduced-precision STORAGE is acceptable for large gains).
+  This is the one genuinely-NEW memory-wall attack, orthogonal to block-fusion's
+  binning: store the residual/fits in fp32 (fp64-accumulated reductions) - halves
+  the bytes on the bandwidth-bound streaming/gather passes and ~doubles the
+  LLC-resident n (DRAM-bound -> cache-bound at the common n>=1e5), plausibly
+  ~1.5-2x at large n, single-core, CRAN-shippable, one re-record, cross-ISA
+  bitwise preserved (IEEE-deterministic). The gate is STATISTICAL not
+  architectural: SBC / interval coverage vs the fp64 sampler, because MCMC
+  stationarity can amplify a per-sweep bias a single-shot fp32 loss would not
+  show. fp32-with-fp64-accumulation is the safe target (~1e-7, below the sampler
+  noise floor); bf16 (~3 digits) is the aggressive version. This SUPERSEDES the
+  histogram flagship (section 1) as the recommended first build. NEXT EXPERIMENT:
+  confirm the fp32-vs-fp64 bandwidth/cache-crossover upside (microbench), then
+  prototype the fp32 residual store and run it through SBC/coverage.
