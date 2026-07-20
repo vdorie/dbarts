@@ -1,6 +1,8 @@
 # block-fusion-stage-b (b>1 fusion, the win, the one re-record)
 
-DRAFT. Stage B turns the landed b=1 atom machinery into the block-fused
+CLOSED, WONT-DO (verdict iv-b below; the default flip did not land, and the
+machinery was later excised at 5caf990). Stage B turned the landed b=1 atom
+machinery into the block-fused
 sub-sweep at b>1: build the block-static field once per block, carry S per atom,
 and regroup the constant-leaf suffstat/draw/roll to O(atoms). It is the WIN
 (design section 7, Stage B) and carries the single VD-approved re-record.

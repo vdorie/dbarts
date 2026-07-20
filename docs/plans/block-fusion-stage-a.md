@@ -1,5 +1,10 @@
 # block-fusion-stage-a (b=1 exact refactor)
 
+SUPERSEDED: the whole block-fusion project was later CLOSED WONT-DO and the
+machinery EXCISED (5caf990; see block-fusion-stage-b.md and
+docs/design/block-fusion.md), so the b=1 default recorded here was reverted.
+The original Stage A landing note (true when written) follows.
+
 COMPLETE 2026-07-11: all seven commits landed, default flipped ON. Milestone gate held with NO re-record - equivalence 22/22 IDENTICAL, tinytest 2728/0 no snapshot regen, tests/cpp + full-vocabulary fuzzer clean, and bench-sampler NEUTRAL on the x86 box (interleaved A/B, every run-* metric within 4%, none over the 5% gate) after driving the b=1 overhead down (A cache + atomOf + S carry gated off at b=1, the three per-tree passes fused). See the Stage A landing note in docs/design/block-fusion.md section 9.
 
 agent: opus

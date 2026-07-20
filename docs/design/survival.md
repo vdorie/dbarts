@@ -1,7 +1,7 @@
 # Survival models: design
 
 Status: AFT log-normal LANDED 2026-07-10 (f0efc03; grouped rbart_vi support
-ac6ec2c). Discrete-time hazard PROPOSED 2026-07-18 (the section below).
+ac6ec2c). Discrete-time hazard LANDED 2026-07-18 (4bcdccf; the section below).
 First survival families for 1.0-x. Companion to the roadmap in
 docs/plans/survival-models.md and the extensions table in
 docs/design/core-generalization.md ("Survival (AFT, discrete-time hazard),
@@ -160,10 +160,10 @@ test in stage 3.
 
 Nonparametric / heteroscedastic baseline hazards (BART-package-style),
 competing risks, and left/interval censoring. The discrete-time hazard
-family is the separate section below (proposed 2026-07-18), not part of
+family is the separate section below (landed 2026-07-18), not part of
 this AFT landing.
 
-# Discrete-time hazard (proposed 2026-07-18)
+# Discrete-time hazard (LANDED 2026-07-18, 4bcdccf)
 
 RESOLVED (VD 2026-07-19): all three forks as re-grounded by the survey.
 Time grid: default = the distinct observed times (the surv.bart and
