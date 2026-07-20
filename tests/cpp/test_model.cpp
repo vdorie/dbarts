@@ -710,6 +710,148 @@ static void testVarianceForestRefusal() {
   printf("ok: variance forest gaussian-only refusal\n");
 }
 
+// C3: the s(x) reporting channels (train/test), predict on new data, and the
+// scale-leaf state round-trip all agree with the live combined variance.
+static void testVarianceReportingStatePredict() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 424242u);
+  const size_t n = 300, p = 1, nTest = 60;
+  std::vector<double> x(n), y(n), xTest(nTest), weights(n, 1.0);
+  for (size_t i = 0; i < n; ++i) {
+    double xi = (double) i / (double) n;
+    x[i] = xi;
+    y[i] = (xi < 0.5 ? 0.3 : 1.8) * ext_rng_simulateStandardNormal(rng);
+  }
+  for (size_t i = 0; i < nTest; ++i) xTest[i] = (double) i / (double) nTest;
+
+  ColumnStore store;
+  store.build(x.data(), n, p, 100);
+  store.buildTest(xTest.data(), nTest);
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numVarianceTrees = 20;
+  Chain<ConstantGaussianLeaf> chain(store, y.data(), weights.data(), nullptr,
+                                    ResponseFamily::gaussian, 1.0, 3.0,
+                                    0.37804942330213542, options, rng);
+
+  const size_t numSamples = 5;
+  std::vector<double> varFits(n * numSamples), varTestFits(nTest * numSamples);
+  Results results;
+  results.varianceFits = varFits.data();
+  results.varianceTestFits = varTestFits.data();
+  chain.run(300, numSamples, results);
+
+  double s2scale = chain.sigmaScale() * chain.sigmaScale();
+  double tol = 1e-9 * s2scale;
+  const double* combined = chain.varianceFits();
+  const double* combinedTest = chain.varianceTestFits();
+
+  // (a) reporting: the last recorded sample equals the live combined variance
+  // (train) and the routed test product, both on the original scale
+  const double* lastTrain = varFits.data() + (numSamples - 1) * n;
+  const double* lastTest = varTestFits.data() + (numSamples - 1) * nTest;
+  bool trainMatch = true, testMatch = true;
+  for (size_t i = 0; i < n; ++i)
+    if (std::fabs(lastTrain[i] - s2scale * combined[i]) > tol) trainMatch = false;
+  for (size_t i = 0; i < nTest; ++i)
+    if (std::fabs(lastTest[i] - s2scale * combinedTest[i]) > tol)
+      testMatch = false;
+  check(trainMatch, "recorded train s^2 matches the live combined variance");
+  check(testMatch, "recorded test s^2 matches the routed test product");
+
+  // (c) predict on new data matches an in-sample recompute
+  std::vector<double> predTrain(n), predTest(nTest);
+  chain.predictVariance(x.data(), n, predTrain.data());
+  chain.predictVariance(xTest.data(), nTest, predTest.data());
+  bool predMatch = true, predTestMatch = true;
+  for (size_t i = 0; i < n; ++i)
+    if (std::fabs(predTrain[i] - s2scale * combined[i]) > tol) predMatch = false;
+  for (size_t i = 0; i < nTest; ++i)
+    if (std::fabs(predTest[i] - s2scale * combinedTest[i]) > tol)
+      predTestMatch = false;
+  check(predMatch, "predictVariance on training rows matches combined variance");
+  check(predTestMatch, "predictVariance on test rows matches the test channel");
+
+  // (b) state save/restore reproduces s(x)
+  ChainStateData state;
+  chain.getState(state);
+  ext_rng* rng2 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng2, 999u);
+  Chain<ConstantGaussianLeaf> restored(store, y.data(), weights.data(), nullptr,
+                                       ResponseFamily::gaussian, 1.0, 3.0,
+                                       0.37804942330213542, options, rng2);
+  check(restored.stateIsValid(state), "heteroscedastic state validates");
+  check(restored.setState(state), "heteroscedastic state restores");
+  const double* restoredCombined = restored.varianceFits();
+  bool restoreMatch = true;
+  for (size_t i = 0; i < n; ++i)
+    if (std::fabs(restoredCombined[i] - combined[i]) > 1e-12) restoreMatch = false;
+  check(restoreMatch, "restored combined variance reproduces the saved s^2");
+
+  // a corrupted (non-positive) leaf value fails the scale-leaf validation
+  ChainStateData bad = state;
+  for (FlatNode& node : bad.varianceTrees[0])
+    if (flatKindOf(node) == FlatKind::leaf) { node.value = -1.0; break; }
+  check(!restored.stateIsValid(bad),
+        "a non-positive variance leaf fails validation");
+
+  ext_rng_destroy(rng2);
+  ext_rng_destroy(rng);
+  printf("ok: variance reporting, state, predict\n");
+}
+
+// C3 gate (a) at the C++ level: a constant predictor stops both forests from
+// splitting, so an m'=1 variance forest is a single chi^-2 leaf whose posterior
+// is the homoscedastic sigma^2 posterior - the Section-3.4 calibration collapse.
+static void testVarianceM1Reduction() {
+  const size_t n = 300, p = 1;
+  const double muTrue = 2.0, sigmaTrue = 1.5, sigEst = 1.5;
+  std::vector<double> x(n, 0.5), y(n), weights(n, 1.0);
+
+  auto runVariance = [&](bool heteroscedastic, ext_rng* rng) {
+    ext_rng* dataRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(dataRng, 314159u);  // identical data for both samplers
+    for (size_t i = 0; i < n; ++i)
+      y[i] = muTrue + sigmaTrue * ext_rng_simulateStandardNormal(dataRng);
+    ext_rng_destroy(dataRng);
+    ColumnStore store;
+    store.build(x.data(), n, p, 100);
+    SamplerOptions options;
+    options.numTrees = 20;
+    if (heteroscedastic) options.numVarianceTrees = 1;
+    Chain<ConstantGaussianLeaf> chain(store, y.data(), weights.data(), nullptr,
+                                      ResponseFamily::gaussian, sigEst, 3.0,
+                                      0.37804942330213542, options, rng);
+    const size_t numSamples = 4000;
+    std::vector<double> sig(numSamples), varFits;
+    Results results;
+    results.sigma = sig.data();
+    if (heteroscedastic) {
+      varFits.assign(n * numSamples, 0.0);
+      results.varianceFits = varFits.data();
+    }
+    chain.run(1000, numSamples, results);
+    double mean = 0.0;
+    for (size_t s = 0; s < numSamples; ++s)
+      mean += heteroscedastic ? varFits[s * n] : sig[s] * sig[s];
+    return mean / (double) numSamples;
+  };
+
+  ext_rng* rngH = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rngH, 111u);
+  double homoMean = runVariance(false, rngH);
+  ext_rng_destroy(rngH);
+  ext_rng* rngV = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rngV, 222u);
+  double hetMean = runVariance(true, rngV);
+  ext_rng_destroy(rngV);
+
+  checkNear(hetMean, homoMean, 0.06 * homoMean,
+            "m'=1 heteroscedastic s^2 posterior matches homoscedastic sigma^2");
+  printf("ok: variance m'=1 reduction (homo %.4f het %.4f)\n", homoMean, hetMean);
+}
+
 static void testSampleFromPrior(ext_rng* rng) {
   const size_t n = 200, numTrees = 50, numReplications = 200;
   std::vector<double> x, y;
@@ -5199,9 +5341,11 @@ void runModelTests(ext_rng* rng) {
   testMonotoneFeasibility();
   testMonotoneMarginal();
   testMonotoneCInflation();
-  // the heteroscedastic end-to-end fit and refusal build full chains; they run
-  // last so their heap footprint cannot perturb an earlier allocation-sensitive
-  // test under the sanitizer's allocator.
+  // the heteroscedastic end-to-end fits build full chains; they run last so
+  // their heap footprint cannot perturb an earlier allocation-sensitive test
+  // under the sanitizer's allocator.
   testVarianceForestRecovery();
   testVarianceForestRefusal();
+  testVarianceReportingStatePredict();
+  testVarianceM1Reduction();
 }

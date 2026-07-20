@@ -256,6 +256,13 @@ struct Results {
   // the response family carriesCutpoints() (ordinal's K-1 thresholds). Every
   // other family leaves it null and allocates nothing.
   double* cutpoints = nullptr;
+  // heteroscedastic variance surface s^2(x), original response scale, or null:
+  // varianceFits is numObservations x numSamples, varianceTestFits is
+  // numTestObservations x numSamples. A SEPARATELY-typed-forest channel (not a
+  // numReportedLocations widening of the response location); filled only when a
+  // variance forest is present, left untouched otherwise.
+  double* varianceFits = nullptr;
+  double* varianceTestFits = nullptr;
   // per-observation channels the trainingFits/testFits arrays carry: 1 for
   // every additive model (the exact current layout), more for a multi-location
   // combiner. The run bridge sizes the fits buffers by it and Sampler strides
@@ -299,7 +306,8 @@ struct VarianceForest {
   // per-tree multiplicative factor h_j(x_i), tree-major (numTrees x n); the
   // combined variance s^2(x_i) = prod_j factorByTree[j * n + i]
   std::vector<double> factorByTree;
-  std::vector<double> combinedVariance;  // s^2(x_i), length n
+  std::vector<double> combinedVariance;      // s^2(x_i), length n
+  std::vector<double> combinedVarianceTest;  // s^2(x_test_i), length nTest
   std::vector<double> meanResidual;      // scratch e_i = y_i - f(x_i), per sweep
   std::vector<double> divisor;           // scratch s^2_{-j}(x_i), per tree
   std::vector<double> treeResidual;      // scratch e_i / sqrt(s^2_{-j}), per tree
@@ -613,10 +621,42 @@ public:
   std::size_t numTreesInForest(std::size_t f) const {
     return forests_[f].numTrees;
   }
-  /// The current combined variance s^2(x_i) over the training rows, or null when
-  /// homoscedastic. A test/reporting read; the full s(x) channels arrive in C3.
+  /// The current combined variance s^2(x_i), working scale, over the training
+  /// (varianceFits) or test (varianceTestFits) rows, or null when homoscedastic.
+  /// Original-scale reporting multiplies by sigmaScale^2 (storeSample, predict).
   const double* varianceFits() const {
     return varianceForest_ ? varianceForest_->combinedVariance.data() : nullptr;
+  }
+  const double* varianceTestFits() const {
+    return varianceForest_ ? varianceForest_->combinedVarianceTest.data()
+                           : nullptr;
+  }
+  /// The response's original-scale factor (range for gaussian); a variance is
+  /// reported on the original scale as the working s^2 times its square.
+  double sigmaScale() const { return response_->sigmaScale(); }
+
+  /// The variance surface s^2(x) on the ORIGINAL response scale for raw
+  /// column-major new rows, from the current variance trees; null-safe no-op
+  /// off a variance forest. Each tree is flattened and replayed like the mean
+  /// forest's predict, but the per-tree factors MULTIPLY into the product.
+  void predictVariance(const double* x_test, std::size_t numTest, double* out) {
+    if (!varianceForest_) return;
+    VarianceForest& vf = *varianceForest_;
+    for (std::size_t i = 0; i < numTest; ++i) out[i] = 1.0;
+    std::vector<std::size_t> indices(numTest);
+    std::vector<std::size_t> blockOffsets;
+    std::vector<double> leafValues, treeFit(numTest);
+    std::vector<FlatNode> flat;
+    for (std::size_t j = 0; j < vf.numTrees; ++j) {
+      recoverVarianceLeafValues(vf, j, leafValues);
+      vf.trees[j].flatten(data_, leafValues.data(), flat);
+      misc_setVectorToConstant(treeFit.data(), numTest, 0.0);
+      addFlatPredictions(flat, nullptr, nullptr, x_test, numTest, indices,
+                         blockOffsets, treeFit.data());
+      for (std::size_t i = 0; i < numTest; ++i) out[i] *= treeFit[i];
+    }
+    double s = response_->sigmaScale();
+    for (std::size_t i = 0; i < numTest; ++i) out[i] *= s * s;
   }
   /// Per-observation channels the recorded fits carry: the combiner's location
   /// count (1 for every additive combiner, BCF included), 1 off any combiner.
@@ -708,6 +748,9 @@ public:
       if constexpr (L::hasVectorParams || L::hasFunctionParams)
         forest.leaf.rebuildTestCovariates(data_);
     }
+    if (varianceForest_)
+      varianceForest_->combinedVarianceTest.assign(data_.numTestObservations,
+                                                   1.0);
   }
 
   /// One run of (numBurnIn + numSamples) * numThin sweeps, recording the
@@ -907,7 +950,10 @@ public:
       // heteroscedastic: after the mean forest settles (sigma stays fixed at 1),
       // backfit the variance forest against the mean residual and refresh the
       // combined s^2(x) that next sweep's mean weights divide by.
-      if (varianceForest_) sweepVarianceForest(y, combined);
+      if (varianceForest_) {
+        sweepVarianceForest(y, combined);
+        if (record && data_.numTestObservations > 0) refreshVarianceTestFits();
+      }
 
       for (Forest<L>& forest : forests_) {
         // a zero sum of squares under an infinite prior scale would make the
@@ -1841,6 +1887,20 @@ public:
     // single-forest chain carries no combiner and leaves it off
     state.hasBCF = false;
     if (combiner_) combiner_->serializeGlue(state);
+
+    // heteroscedastic: flatten every variance tree with its recovered positive
+    // leaf factors (working scale); empty off a variance forest
+    if (varianceForest_) {
+      VarianceForest& vf = *varianceForest_;
+      state.varianceTrees.resize(vf.numTrees);
+      std::vector<double> leafValues;
+      for (std::size_t j = 0; j < vf.numTrees; ++j) {
+        recoverVarianceLeafValues(vf, j, leafValues);
+        vf.trees[j].flatten(data_, leafValues.data(), state.varianceTrees[j]);
+      }
+    } else {
+      state.varianceTrees.clear();
+    }
   }
 
   bool stateIsValid(const ChainStateData& state) const {
@@ -1950,6 +2010,21 @@ public:
         state.dartProbabilities.size() != data_.numPredictors)
       return false;
     if (state.fitMax < state.fitMin) return false;
+    // heteroscedastic: a variance state must carry one flat tree per variance
+    // tree, each well-formed AND with every leaf a strictly positive scale (a
+    // variance, unlike a Gaussian mean leaf) - the new scale-leaf validation
+    if (varianceForest_) {
+      if (state.varianceTrees.size() != varianceForest_->numTrees) return false;
+      for (const std::vector<FlatNode>& tree : state.varianceTrees) {
+        if (!flatTreeIsWellFormed(data_, tree.data(), tree.size(), nullptr, 0))
+          return false;
+        for (const FlatNode& node : tree)
+          if (flatKindOf(node) == FlatKind::leaf && !(node.value > 0.0))
+            return false;
+      }
+    } else if (!state.varianceTrees.empty()) {
+      return false;
+    }
     return true;
   }
 
@@ -2083,6 +2158,10 @@ public:
       forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
     }
     if (combiner_) combiner_->restoreGlue(state);
+    // heteroscedastic: rebuild the variance trees and recompute s^2(x) from the
+    // restored positive factors (stateIsValid checked count, form, positivity)
+    if (varianceForest_ && !rebuildVarianceForest(state.varianceTrees))
+      return false;
     // a serialized generator of a different kind (a single-chain state
     // riding R's stream restored into a dedicated-generator chain, say)
     // cannot be installed; the destination keeps its own stream, which
@@ -2350,6 +2429,81 @@ private:
         vf.applyLeafFactor(j, b, h);
       }
     }
+    // recompute s^2(x) as the fresh product (drift reset, so it equals the
+    // reporting/predict recompute exactly); the running per-tree update above
+    // stays correct within the sweep, this only retires its accumulated rounding
+    for (std::size_t i = 0; i < n; ++i) {
+      double product = 1.0;
+      for (std::size_t j = 0; j < vf.numTrees; ++j)
+        product *= vf.factorByTree[j * n + i];
+      vf.combinedVariance[i] = product;
+    }
+  }
+
+  /// Node-indexed (arena id) leaf factors for variance tree j, recovered from
+  /// the per-observation slab (every member of a leaf carries its value): the
+  /// scale analogue of recoverParametersFromFits, for flattening and predict.
+  void recoverVarianceLeafValues(const VarianceForest& vf, std::size_t j,
+                                 std::vector<double>& out) const {
+    const Tree& tree = vf.trees[j];
+    const double* factor = vf.factorByTree.data() + j * data_.numObservations;
+    out.assign(tree.nodes.size(), 0.0);
+    for (std::size_t nd = 0; nd < tree.nodes.size(); ++nd) {
+      const Node& node = tree.at(static_cast<int32_t>(nd));
+      if (node.isBottom() && node.numObservations() > 0)
+        out[nd] = factor[tree.indices[node.begin]];
+    }
+  }
+
+  /// Route the test rows through every variance tree and multiply their leaf
+  /// factors into s^2(x_test), the test analogue of the maintained combined
+  /// variance; called only when a recorded sweep needs the test channel.
+  void refreshVarianceTestFits() {
+    VarianceForest& vf = *varianceForest_;
+    std::size_t nTest = data_.numTestObservations;
+    for (std::size_t i = 0; i < nTest; ++i) vf.combinedVarianceTest[i] = 1.0;
+    std::vector<double> leafValues;
+    for (std::size_t j = 0; j < vf.numTrees; ++j) {
+      recoverVarianceLeafValues(vf, j, leafValues);
+      const Tree& tree = vf.trees[j];
+      routeTestRows(nTest, [&](std::size_t i) {
+        int32_t leaf = tree.findBottomNodeForRow(data_, i);
+        vf.combinedVarianceTest[i] *=
+          leafValues[static_cast<std::size_t>(leaf)];
+      });
+    }
+  }
+
+  /// Rebuild the variance forest from a flat state's variance trees: rebuild
+  /// each tree, scatter its positive leaf factors to the per-observation slab
+  /// through the restored partition, then recompute s^2(x) as the product.
+  bool rebuildVarianceForest(const std::vector<std::vector<FlatNode>>& trees) {
+    VarianceForest& vf = *varianceForest_;
+    std::size_t n = data_.numObservations;
+    if (trees.size() != vf.numTrees) return false;
+    std::vector<double> leafValues;
+    for (std::size_t i = 0; i < n; ++i) vf.combinedVariance[i] = 1.0;
+    for (std::size_t j = 0; j < vf.numTrees; ++j) {
+      Tree& tree = vf.trees[j];
+      tree.initialize(vf.indexBuffer.data() + j * n, n);
+      if (!tree.buildFromFlat(data_, trees[j].data(), trees[j].size(),
+                              leafValues))
+        return false;
+      tree.repartitionSubtree(data_, 0);
+      double* factor = vf.factorByTree.data() + j * n;
+      tree.bottomScratch.clear();
+      tree.fillBottom(0, tree.bottomScratch);
+      for (int32_t b : tree.bottomScratch) {
+        double h = leafValues[static_cast<std::size_t>(b)];
+        const Node& node = tree.at(b);
+        for (std::size_t m = node.begin; m < node.end; ++m) {
+          std::size_t i = tree.indices[m];
+          factor[i] = h;
+          vf.combinedVariance[i] *= h;
+        }
+      }
+    }
+    return true;
   }
 
   /// treeY <- the residual tree t owns, admitting tree t's old fits and (t > 0)
@@ -2764,6 +2918,23 @@ private:
       results.sigma[sampleNum] = sigma_ * response_->sigmaScale();
 
     if (results.k != nullptr) results.k[sampleNum] = forest.k;
+
+    // heteroscedastic: the variance surface s^2(x) on the original scale (the
+    // working product times sigmaScale^2), train and test, its own channel
+    if (varianceForest_) {
+      double varScale = response_->sigmaScale() * response_->sigmaScale();
+      const VarianceForest& vf = *varianceForest_;
+      if (results.varianceFits != nullptr) {
+        double* out = results.varianceFits + sampleNum * n;
+        for (size_t i = 0; i < n; ++i) out[i] = varScale * vf.combinedVariance[i];
+      }
+      if (results.varianceTestFits != nullptr && data_.numTestObservations > 0) {
+        size_t nTest = data_.numTestObservations;
+        double* out = results.varianceTestFits + sampleNum * nTest;
+        for (size_t i = 0; i < nTest; ++i)
+          out[i] = varScale * vf.combinedVarianceTest[i];
+      }
+    }
 
     // the combined output carries one per-observation channel per reported
     // location (one everywhere but a multi-location combiner); the writes stride
