@@ -45,34 +45,16 @@ items
     shared scan.
   interaction-constraints: structured sparsity and interaction limits
     on the SplitSelector seam. consumer-gated.
-  multi-forest-models: heteroscedastic, hurdle - the BCF two-forest
-    machinery is the template; one design note each when picked.
-    forest-combiner (docs/design/forest-combiner.md) LANDED 2026-07-14
-    and discharges the coupling-seam prerequisite; multinomial
-    (docs/design/multinomial.md) LANDED 2026-07-15 and resolved the
-    combined-fit location re-carve (numReportedLocations) while showing
-    response_/sigma_ need not widen; the remaining re-carves are the
-    single-leaf-type forest vector (heteroscedastic needs it) and
-    whatever state each model actually carries (softmax carries none).
-    Multinomial's follow-ups are all landed: the count-matrix
-    likelihood LANDED 2026-07-17 (2bd34db + the bart2 surface 38b2482;
-    docs/plans/multinomial-counts.md); the test/predict surface LANDED
-    2026-07-16 (docs/plans/multinomial-test-surface.md); the formula
-    interface (a factor or cbind(...) count-matrix left-hand side)
-    LANDED 2026-07-17 (docs/plans/multinomial-formula.md).
-    heteroscedastic (HBART) LANDED 2026-07-20 (994ec7e; records
-    docs/plans/heteroscedastic.md Landing, design docs/design/
-    heteroscedastic.md): a nullable conjugate variance forest reusing
-    the existing move, the multiplicative roll, the weight-channel
-    coupling, and the variance = ~x surface; m'=2 exact gate proves the
-    roll. So the remaining multi-forest model is HURDLE (a binary-
-    occupancy forest + a positive-part forest); its two forests differ
-    in RESPONSE FAMILY per forest, which breaks Chain's single response_
-    - a Chain-level generalization (forest-combiner.md, hurdle bullet),
-    heavier than heteroscedastic's two-leaf-type change. The
-    two-leaf-types-in-one-Chain pattern (nullable distinctly-typed
-    member) heteroscedastic built is the precedent hurdle extends. One
-    design note when picked. low-ranked / demand-driven.
+  multi-forest-models: HURDLE is the last one - a binary-occupancy forest
+    plus a positive-part forest whose two forests differ in RESPONSE FAMILY,
+    which breaks Chain's single response_: a Chain-level generalization
+    (forest-combiner.md hurdle bullet), heavier than heteroscedastic's
+    two-leaf-type change. Prerequisites discharged and the pattern exists:
+    forest-combiner (the coupling seam), multinomial (the combined-fit
+    location re-carve; response_/sigma_ need not widen), and heteroscedastic
+    (the nullable distinctly-typed second forest in one Chain) all landed
+    (records in their docs/plans + docs/design). One design note when
+    picked. low-ranked / demand-driven.
   negbin-real-dispersion: the recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design section 2 carries
     fork B's full spec): real-valued dispersion needs a non-integer-shape

@@ -93,3 +93,7 @@ on a quiet machine (maintainer-run; never concurrent with other load).
    Reject change-log comments, restated behavior, hedging prose.
 6. At most two fix rounds by message to the same agent; after that, fix
    directly or withdraw and replan.
+7. Records at landing: append the plan's `## Landing` note AND bump the
+   matching `docs/design/<x>.md` `Status:` line to `LANDED <date> (<commit>)`.
+   The design Status is the record that repeatedly falls through - six design
+   docs once shipped still marked "proposal" while the feature had landed.

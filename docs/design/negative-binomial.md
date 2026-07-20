@@ -1,6 +1,6 @@
 # Negative-binomial count outcomes: design
 
-Status: proposal, 2026-07-18. Plan: docs/plans/negative-binomial.md (this is
+Status: LANDED 2026-07-18 (9c28b31). Plan: docs/plans/negative-binomial.md (this is
 its step 1). Non-negative integer counts fit natively by the Polya-Gamma
 negative-binomial augmentation (Polson-Scott-Windle 2013; Zhou-Li-Dunson-Carin
 2012), riding the per-observation working weights the LogisticResponse port

@@ -1,6 +1,6 @@
 # Heteroscedastic BART (HBART): design
 
-Status: proposal, 2026-07-19. Plan: docs/plans/multi-forest-models.md (the
+Status: LANDED 2026-07-20 (arc 3775437..994ec7e; records 31c0204). Plan: docs/plans/multi-forest-models.md (the
 heteroscedastic half). Users declare a second ensemble modeling the residual
 variance as a function of predictors, so y_i = f(x_i) + s(x_i) eps_i with
 eps_i ~ N(0, 1): the mean forest f is the ordinary constant-leaf ensemble, and

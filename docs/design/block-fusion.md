@@ -1,6 +1,9 @@
 # Block-fused sub-sweeps over persistent atom maps (frontier 3.4): engineering design
 
-Status: DESIGN PROPOSAL, 2026-07-11. Turns the
+Status: CLOSED, WONT-DO. Stage A (b=1 exact refactor) landed then the whole
+project was closed: Stage C measured the fused path 4-6x slower than b=1 (no
+win, section 10, tip 10c59bc), and the machinery was excised at 5caf990 (kept
+on archive/block-fusion). Original proposal (2026-07-11) follows. Turned the
 falsifier-cleared CONCEPT in docs/design/parallel-bart-frontier.md section 3.4
 into an implementable engine design. VD approved pursuing the flagship engine
 perf project and accepting its one-time re-record (2026-07-11).

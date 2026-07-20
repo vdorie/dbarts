@@ -1,6 +1,6 @@
 # Per-variable monotone constraints (mBART): design
 
-Status: proposal, 2026-07-18. Plan: docs/plans/monotone-bart.md (this is its
+Status: LANDED 2026-07-19 (ee4ca79). Plan: docs/plans/monotone-bart.md (this is its
 step 1). Users declare a monotone-increasing or -decreasing relationship for any
 subset of predictors; each tree of the forest is constrained to be monotone in
 those predictors, so the sum-of-trees fit is monotone (Chipman, George,
