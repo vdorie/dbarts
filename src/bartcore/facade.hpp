@@ -489,6 +489,14 @@ inline std::unique_ptr<SamplerBase> createSampler(
   std::size_t numPredictors, const double* weights, const double* offset,
   ResponseFamily family, double sigmaEstimate, double sigmaDf,
   double sigmaRawScale, const SamplerOptions& options, ext_rng* const* rngs) {
+  // the heteroscedastic variance forest is gaussian + plain-constant-leaf only:
+  // the latent families own the weight channel it routes through (a collision),
+  // and v1 keeps the mean leaf constant. Refuse every other combination here,
+  // before any Chain is built (docs/design/heteroscedastic.md section 5).
+  if (options.numVarianceTrees > 0 &&
+      (family != ResponseFamily::gaussian || options.numLeafCovariates != 0 ||
+       monotoneConstraintIsActive(options, numPredictors)))
+    return nullptr;
   if (options.numLeafCovariates == 0 &&
       monotoneConstraintIsActive(options, numPredictors))
     return std::make_unique<SamplerFacade<MonotoneConstantGaussianLeaf>>(

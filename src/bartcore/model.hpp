@@ -114,6 +114,14 @@ concept ScaleLeafModel = LeafModelCore<L> && !L::hasVectorParams &&
     { leaf.drawFromPrior(rng) } -> std::same_as<double>;
   };
 
+/// Leaf models whose birth/death/change/swap structure moves the conjugate
+/// machinery can score: any integrable leaf, plus the scale leaf. The scale
+/// leaf falls through the SAME per-leaf marginal sum (logLikelihoodForBranch)
+/// with a scale statistic in place of a location one; only the leaf parameter
+/// DRAW differs, and that is dispatched outside the move.
+template <typename L>
+concept MoveScorableLeafModel = IntegrableLeafModel<L> || ScaleLeafModel<L>;
+
 /// Optional leaf-model seams the engine dispatches on at compile time; no
 /// default leaf declares either, so both compile out and the rng stream is
 /// unchanged. A TreeDrawLeafModel draws its whole leaf vector in one coupled

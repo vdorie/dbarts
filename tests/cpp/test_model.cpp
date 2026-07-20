@@ -575,6 +575,141 @@ static void testVarianceLeafCalibration() {
   printf("ok: variance leaf calibration\n");
 }
 
+// The divisor guard (design rider i): tree j is scored/drawn against the OTHER
+// trees' product s^2_{-j} = s^2 / h_j, so perturbing tree j's OWN leaf must not
+// move its suffstat (only another tree's leaf may). Exercises the multiplicative
+// roll directly, the one gate the m'=1 reductions cannot reach (divisor == 1).
+static void testVarianceDivisorGuard() {
+  const size_t n = 4, m = 2;
+  VarianceForest vf;
+  vf.initialize(m, n, 1.0);
+  double f0[n] = {1.5, 0.8, 2.0, 1.1};
+  double f1[n] = {0.7, 1.3, 0.9, 1.6};
+  for (size_t i = 0; i < n; ++i) {
+    vf.factorByTree[0 * n + i] = f0[i];
+    vf.factorByTree[1 * n + i] = f1[i];
+    vf.combinedVariance[i] = f0[i] * f1[i];
+  }
+  double e[n] = {0.3, -0.5, 0.2, 0.9};
+
+  vf.formTreeResidual(0, e);
+  std::vector<double> r0(vf.treeResidual);
+  double ssr0 = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    checkNear(vf.divisor[i], f1[i], 1e-13, "s^2_{-0} excludes tree 0's factor");
+    ssr0 += r0[i] * r0[i];
+  }
+
+  // perturb tree 0's OWN factor (keep combined = f0 * f1 consistent): the
+  // scaled residual and thus the suffstat must be unchanged.
+  for (size_t i = 0; i < n; ++i) {
+    vf.factorByTree[0 * n + i] = f0[i] * 3.0;
+    vf.combinedVariance[i] = (f0[i] * 3.0) * f1[i];
+  }
+  vf.formTreeResidual(0, e);
+  double ssrOwn = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    checkNear(vf.treeResidual[i], r0[i], 1e-13,
+              "tree 0 own-leaf perturbation leaves its residual unmoved");
+    ssrOwn += vf.treeResidual[i] * vf.treeResidual[i];
+  }
+  checkNear(ssrOwn, ssr0, 1e-13,
+            "tree 0 own-leaf perturbation leaves its suffstat unmoved");
+
+  // perturb ANOTHER tree's factor: tree 0's residual MUST move.
+  for (size_t i = 0; i < n; ++i) {
+    vf.factorByTree[1 * n + i] = f1[i] * 2.0;
+    vf.combinedVariance[i] = (f0[i] * 3.0) * (f1[i] * 2.0);
+  }
+  vf.formTreeResidual(0, e);
+  bool moved = false;
+  for (size_t i = 0; i < n; ++i)
+    if (std::fabs(vf.treeResidual[i] - r0[i]) > 1e-9) moved = true;
+  check(moved, "another tree's leaf perturbation moves tree 0's suffstat");
+  printf("ok: variance divisor guard\n");
+}
+
+// End-to-end: a variance forest on a step-heteroscedastic problem recovers a
+// higher s^2 where the truth is noisier. A local generator keeps the shared
+// stream unperturbed.
+static void testVarianceForestRecovery() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 815239u);
+  const size_t n = 800, p = 1;
+  std::vector<double> x(n * p), y(n), weights(n, 1.0);
+  const double sLow = 0.3, sHigh = 2.0;  // truth ratio (sHigh/sLow)^2 ~ 44
+  for (size_t i = 0; i < n; ++i) {
+    double xi = (double) i / (double) n;
+    x[i] = xi;
+    y[i] = (xi < 0.5 ? sLow : sHigh) * ext_rng_simulateStandardNormal(rng);
+  }
+  ColumnStore store;
+  store.build(x.data(), n, p, 100);
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numVarianceTrees = 20;
+  Chain<ConstantGaussianLeaf> chain(store, y.data(), weights.data(), nullptr,
+                                    ResponseFamily::gaussian, 1.0, 3.0,
+                                    0.37804942330213542, options, rng);
+  Results results;
+  chain.run(300, 300, results);
+
+  const double* s2 = chain.varianceFits();
+  check(s2 != nullptr, "variance forest exposes s^2(x)");
+  double lowMean = 0.0, highMean = 0.0;
+  size_t nLow = 0, nHigh = 0;
+  for (size_t i = 0; i < n; ++i) {
+    if (x[i] < 0.5) { lowMean += s2[i]; ++nLow; }
+    else { highMean += s2[i]; ++nHigh; }
+  }
+  lowMean /= (double) nLow;
+  highMean /= (double) nHigh;
+  check(highMean > 2.5 * lowMean,
+        "variance forest recovers higher s^2 where the truth is noisier");
+  ext_rng_destroy(rng);
+  printf("ok: variance forest recovery (s2 ratio %.2f)\n", highMean / lowMean);
+}
+
+// Construction-time refusal (design section 5): the variance forest routes
+// through the weight channel the latent families already own, so the factory
+// accepts it only for the plain-constant-leaf gaussian family.
+static void testVarianceForestRefusal() {
+  const size_t n = 40, p = 1;
+  std::vector<double> x(n), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = (double) i / (double) n;
+    y[i] = i < n / 2 ? 0.0 : 1.0;
+  }
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 7u);
+  ext_rng* rngs[1] = {rng};
+  SamplerOptions options;
+  options.numTrees = 5;
+  options.numVarianceTrees = 4;
+
+  check(createSampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                      ResponseFamily::gaussian, 1.0, 3.0, 0.378, options, rngs)
+          != nullptr,
+        "gaussian variance forest accepted at the factory");
+  for (ResponseFamily fam : {ResponseFamily::probit, ResponseFamily::logistic,
+                             ResponseFamily::nbinom}) {
+    check(createSampler(x.data(), y.data(), n, p, nullptr, nullptr, fam, 1.0,
+                        3.0, 0.378, options, rngs) == nullptr,
+          "variance forest refused for a latent family");
+  }
+  // a linear-leaf designation is also refused (v1 keeps the mean leaf constant)
+  size_t covariate[] = {0};
+  options.leafCovariateColumns = covariate;
+  options.numLeafCovariates = 1;
+  check(createSampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                      ResponseFamily::gaussian, 1.0, 3.0, 0.378, options, rngs)
+          == nullptr,
+        "variance forest refused for a non-constant mean leaf");
+  ext_rng_destroy(rng);
+  printf("ok: variance forest gaussian-only refusal\n");
+}
+
 static void testSampleFromPrior(ext_rng* rng) {
   const size_t n = 200, numTrees = 50, numReplications = 200;
   std::vector<double> x, y;
@@ -5014,6 +5149,7 @@ void runModelTests(ext_rng* rng) {
   testVarianceLeafMarginal();
   testVarianceLeafDraw();
   testVarianceLeafCalibration();
+  testVarianceDivisorGuard();
   testPolyaGamma(rng);
   testGeneralizedInverseGaussian(rng);
   testSampleFromPrior(rng);
@@ -5063,4 +5199,9 @@ void runModelTests(ext_rng* rng) {
   testMonotoneFeasibility();
   testMonotoneMarginal();
   testMonotoneCInflation();
+  // the heteroscedastic end-to-end fit and refusal build full chains; they run
+  // last so their heap footprint cannot perturb an earlier allocation-sensitive
+  // test under the sanitizer's allocator.
+  testVarianceForestRecovery();
+  testVarianceForestRefusal();
 }
