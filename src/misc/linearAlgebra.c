@@ -165,7 +165,7 @@ bool misc_vectorIsConstant(const double* x, size_t length)
   return true;
 }
 
-void misc_setIndexedVectorToConstant(double* restrict x, const size_t* restrict indices, size_t length, double alpha)
+void misc_setIndexedVectorToConstant(double* restrict x, const misc_index_t* restrict indices, size_t length, double alpha)
 {
   if (length == 0) return;
   
@@ -274,7 +274,7 @@ double misc_sumVectorElements(const double* x, size_t length)
   return result;
 }
 
-double misc_sumIndexedVectorElements(const double* x, const size_t* indices, size_t length)
+double misc_sumIndexedVectorElements(const double* x, const misc_index_t* indices, size_t length)
 {
   if (length == 0) return 0.0;
   

@@ -35,7 +35,7 @@ size_t positiveGrowthNodeCount(const Tree& tree, const ColumnStore& store,
 
 void growOnce(const ColumnStore& store, const CGMTreePrior& prior,
               const ConstantGaussianLeaf& leaf, ext_rng* rng, Tree& tree,
-              std::vector<size_t>& indexBuffer, const double* y, size_t n) {
+              std::vector<index_t>& indexBuffer, const double* y, size_t n) {
   tree.initialize(indexBuffer.data(), n);
   tree.computeLeafStats(0, y, nullptr);
   GrowScratch scratch;
@@ -63,7 +63,7 @@ void testDeterminismAndDrawCount() {
   CGMTreePrior prior;  // base 0.95, power 2
   ConstantGaussianLeaf leaf{0.5};
 
-  std::vector<size_t> bufA(n), bufB(n), bufC(n);
+  std::vector<index_t> bufA(n), bufB(n), bufC(n);
   Tree treeA, treeB, treeC;
 
   ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
@@ -116,7 +116,7 @@ void testVetoDrawsNothing() {
   prior.base = 0.0;
   ConstantGaussianLeaf leaf{0.5};
 
-  std::vector<size_t> buf(n);
+  std::vector<index_t> buf(n);
   Tree tree;
   tree.initialize(buf.data(), n);
   tree.computeLeafStats(0, y.data(), nullptr);
@@ -148,7 +148,7 @@ void testGrownTreeWellFormed() {
 
   CGMTreePrior prior;
   ConstantGaussianLeaf leaf{0.5};
-  std::vector<size_t> buf(n);
+  std::vector<index_t> buf(n);
   Tree tree;
 
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
@@ -201,7 +201,7 @@ void testCategoricalNeverSplit() {
 
   CGMTreePrior prior;
   ConstantGaussianLeaf leaf{0.5};
-  std::vector<size_t> buf(n);
+  std::vector<index_t> buf(n);
   Tree tree;
   tree.initialize(buf.data(), n);
   tree.computeLeafStats(0, y.data(), nullptr);

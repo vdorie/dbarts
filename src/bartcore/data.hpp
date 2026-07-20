@@ -18,6 +18,15 @@ using std::size_t;
 /// real code below naCode (0xFFFF), the reserved missing marker.
 using xint_t = std::uint16_t;
 
+/// Per-observation GATHER INDEX type for the hot index buffers (Tree::indices,
+/// Forest/VarianceForest::indexBuffer): a subscript into the n-length columns,
+/// narrowed from size_t to halve the single biggest hot array
+/// (docs/design/reduced-precision-storage.md sec 3a). Must match the C kernel
+/// index type misc_index_t (pinned by a static_assert in tree.hpp); DISTINCT
+/// from length/count storage, which stays size_t. Capped by a guard that
+/// refuses numObservations > UINT32_MAX at ingestion.
+using index_t = std::uint32_t;
+
 /// Reserved code for a missing ordinal value; cut counts cap below it so
 /// real codes (which reach numCuts) never collide.
 constexpr xint_t naCode = 0xFFFFu;

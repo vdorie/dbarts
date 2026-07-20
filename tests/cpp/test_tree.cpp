@@ -23,7 +23,7 @@ static void testTreeMechanics() {
   ColumnStore store;
   store.build(x.data(), n, 1, 100);
 
-  std::vector<size_t> indexBuffer(n);
+  std::vector<index_t> indexBuffer(n);
   Tree tree;
   tree.initialize(indexBuffer.data(), n);
   tree.computeLeafStats(0, y.data(), nullptr);
@@ -78,7 +78,7 @@ static void testTreePriorMath() {
   ColumnStore store;
   store.build(x.data(), n, 1, 100);
 
-  std::vector<size_t> indexBuffer(n);
+  std::vector<index_t> indexBuffer(n);
   Tree tree;
   tree.initialize(indexBuffer.data(), n);
 
@@ -132,7 +132,7 @@ static void testCategoricalMechanics() {
         "categorical value validity");
 
   // rule sending {1, 3} right partitions by bit test
-  std::vector<size_t> indices(n);
+  std::vector<index_t> indices(n);
   Tree tree;
   tree.initialize(indices.data(), n);
   Rule rule;
@@ -203,7 +203,7 @@ static void testCategoricalPriorMath(ext_rng* rng) {
   ColumnStore store;
   store.build(x.data(), n, 1, 10, false, types);
 
-  std::vector<size_t> indices(n);
+  std::vector<index_t> indices(n);
   Tree tree;
   tree.initialize(indices.data(), n);
 
@@ -291,7 +291,7 @@ static void testPooledMaskMechanics(ext_rng* rng) {
         "a pooled column's missing code is K");
 
   // a hand-built rule whose direction bits straddle both words
-  std::vector<size_t> indices(n);
+  std::vector<index_t> indices(n);
   Tree tree;
   tree.initialize(indices.data(), n);
   size_t offset = tree.allocateMask(2);
@@ -395,7 +395,7 @@ static void testPooledMaskMechanics(ext_rng* rng) {
   check(!flatTreeIsWellFormed(store, flat.data(), flat.size()),
         "a missing mask channel is rejected");
 
-  std::vector<size_t> rebuiltIndices(n);
+  std::vector<index_t> rebuiltIndices(n);
   std::vector<double> rebuiltParams;
   Tree rebuilt;
   rebuilt.initialize(rebuiltIndices.data(), n);
@@ -455,7 +455,7 @@ static void testMissingMechanics() {
   store.build(x.data(), n, 2, 10, false, types);
 
   // an ordinal rule routes the reserved code by its missing direction
-  std::vector<size_t> indices(n);
+  std::vector<index_t> indices(n);
   Tree tree;
   tree.initialize(indices.data(), n);
   Rule rule;
@@ -477,7 +477,7 @@ static void testMissingMechanics() {
   check(missingOnRight == numMissingOrdinal && missingOnLeft == 0,
         "missing ordinal rows all route by the rule's direction");
 
-  std::vector<size_t> indices2(n);
+  std::vector<index_t> indices2(n);
   Tree treeLeft;
   treeLeft.initialize(indices2.data(), n);
   Rule ruleLeft;
@@ -493,7 +493,7 @@ static void testMissingMechanics() {
 
   // a categorical rule treats missing as one more category: the reachable
   // mask seeds it and a rule can isolate it
-  std::vector<size_t> indices3(n);
+  std::vector<index_t> indices3(n);
   Tree catTree;
   catTree.initialize(indices3.data(), n);
   check(catTree.reachableCategories(store, 0, 1) ==
@@ -531,7 +531,7 @@ static void testMissingMechanics() {
   check(flatTreeIsWellFormed(store, catFlat.data(), catFlat.size()),
         "the missing-only mask is well formed");
 
-  std::vector<size_t> indices4(n);
+  std::vector<index_t> indices4(n);
   Tree rebuilt;
   rebuilt.initialize(indices4.data(), n);
   std::vector<double> rebuiltParams;

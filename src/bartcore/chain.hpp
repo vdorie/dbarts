@@ -308,7 +308,7 @@ struct VarianceForest {
   ConstantVarianceLeaf leaf;
   CGMTreePrior treePrior;
   std::vector<Tree> trees;
-  std::vector<std::size_t> indexBuffer;
+  std::vector<index_t> indexBuffer;
   // per-tree multiplicative factor h_j(x_i), tree-major (numTrees x n); the
   // combined variance s^2(x_i) = prod_j factorByTree[j * n + i]
   std::vector<double> factorByTree;
@@ -1952,7 +1952,7 @@ public:
     if (state.forests.size() != forests_.size()) return false;
     size_t n = data_.numObservations;
     Tree scratch;
-    std::vector<size_t> scratchIndices(n);
+    std::vector<index_t> scratchIndices(n);
     std::vector<double> params;
     for (size_t f = 0; f < forests_.size(); ++f) {
       const Forest<L>& forest = forests_[f];

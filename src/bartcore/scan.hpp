@@ -73,7 +73,7 @@ struct ConstantLeafScanBin {
 /// consistent with the leaf stats tree.birth later caches.
 template <ScalarLeafModel L>
 void scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
-                     const std::size_t* indices, std::size_t numMembers,
+                     const index_t* indices, std::size_t numMembers,
                      const double* y, const double* weights, const L& leaf,
                      double k, double residualVariance,
                      std::vector<ConstantLeafScanBin>& binScratch,

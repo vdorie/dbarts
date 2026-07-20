@@ -383,7 +383,7 @@ static void testSetCutPointsOrphan() {
   store.build(x.data(), n, 1, 7, true);  // quantile cuts {1.5, ..., 7.5}
   check(store.hasMissing[0], "column carries missing values");
 
-  std::vector<size_t> indices(n);
+  std::vector<index_t> indices(n);
   Tree tree;
   tree.initialize(indices.data(), n);
   Rule rule;  rule.variableIndex = 0;  rule.setSplitIndex(6);
@@ -477,7 +477,7 @@ static void testMapOldCutPointsOntoNew() {
   std::vector<std::vector<double>> oldCuts(store.cutPoints);
 
   // root splits at index 3 (cut 4.5), its left child at index 1 (cut 2.5)
-  std::vector<size_t> indices(n);
+  std::vector<index_t> indices(n);
   Tree tree;
   tree.initialize(indices.data(), n);
   Rule rootRule;  rootRule.variableIndex = 0;  rootRule.setSplitIndex(3);
@@ -533,7 +533,7 @@ static void testMapOldCutPointsStarvedWeightedMerge() {
   store.build(x.data(), n, 1, 7, true);
   std::vector<std::vector<double>> oldCuts(store.cutPoints);
 
-  std::vector<size_t> indices(n);
+  std::vector<index_t> indices(n);
   Tree tree;
   tree.initialize(indices.data(), n);
   Rule rootRule;  rootRule.variableIndex = 0;  rootRule.setSplitIndex(5);
@@ -730,7 +730,7 @@ static void testSparseTestColumnStore() {
 
   // grow a tree over the training grid, splitting on a dense-backed column and
   // both CSC-backed columns so the descent visits every test storage kind
-  std::vector<size_t> indices(nTrain);
+  std::vector<index_t> indices(nTrain);
   std::vector<double> yTrain(nTrain, 0.0);
   Tree tree;
   tree.initialize(indices.data(), nTrain);

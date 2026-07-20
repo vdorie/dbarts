@@ -125,7 +125,7 @@ struct Forest {
   double kNumLeaves = 0.0;
 
   std::vector<Tree> trees;
-  std::vector<size_t> indexBuffer;
+  std::vector<index_t> indexBuffer;
   // dense per-tree fit slab (numObservations x numTrees, tree-major); empty for
   // the constant leaf, which carries muByTree + leafOf instead
   std::vector<double> treeFits;

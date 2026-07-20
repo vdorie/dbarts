@@ -606,6 +606,12 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     Rf_error("length of y must be greater than 0");
   data.y = REAL(slotExpr);
   data.numObservations = rc_getLength(slotExpr);
+  // The hot gather index is stored as bartcore::index_t (uint32); a subscript
+  // n - 1 must fit. Unreachable in practice (predictor codes would be terabytes
+  // first, docs/design/reduced-precision-storage.md sec 3a), but must not
+  // silently truncate.
+  if (data.numObservations > static_cast<size_t>(UINT32_MAX))
+    Rf_error("number of observations exceeds the %u index limit", UINT32_MAX);
 
   REPROTECT_SLOT(slotExpr, dataExpr, "x", slotIndex);
   if (Rf_inherits(slotExpr, "dgCMatrix")) {

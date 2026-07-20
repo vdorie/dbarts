@@ -5,11 +5,11 @@
 
 #include <misc/stddef.h>
 
-misc_size_t (*misc_partitionRange)(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length) = 0;
-misc_size_t (*misc_partitionIndices)(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length) = 0;
+misc_size_t (*misc_partitionRange)(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length) = 0;
+misc_size_t (*misc_partitionIndices)(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, misc_size_t length) = 0;
 
 #define PARTITION_RANGE 1
-size_t misc_partitionRange_c(const misc_xint_t* restrict x, misc_xint_t cut, size_t* restrict indices, size_t length)
+size_t misc_partitionRange_c(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, size_t length)
 {
 #include "partition_body.c"
 }
@@ -17,7 +17,7 @@ size_t misc_partitionRange_c(const misc_xint_t* restrict x, misc_xint_t cut, siz
 #undef PARTITION_RANGE
 #define PARTITION_RANGE 0
 
-size_t misc_partitionIndices_c(const misc_xint_t* restrict x, misc_xint_t cut, size_t* restrict indices, size_t length)
+size_t misc_partitionIndices_c(const misc_xint_t* restrict x, misc_xint_t cut, misc_index_t* restrict indices, size_t length)
 {
 #include "partition_body.c"
 }
@@ -44,7 +44,7 @@ static inline misc_xint_t sparseCodeAt(const uint64_t* restrict bits, const uint
 }
 
 // the scalar two-pointer loop of partition_body.c over rank-bitmap access
-size_t misc_partitionIndicesSparse(const uint64_t* restrict bits, const uint32_t* restrict wordRanks, const misc_xint_t* restrict nzCodes, misc_xint_t zeroCode, misc_xint_t cut, size_t* restrict indices, size_t length)
+size_t misc_partitionIndicesSparse(const uint64_t* restrict bits, const uint32_t* restrict wordRanks, const misc_xint_t* restrict nzCodes, misc_xint_t zeroCode, misc_xint_t cut, misc_index_t* restrict indices, size_t length)
 {
   if (length == 0) return 0;
 
@@ -56,7 +56,7 @@ size_t misc_partitionIndicesSparse(const uint64_t* restrict bits, const uint32_t
 
     if (lh >= rh) break;
 
-    size_t temp = indices[rh];
+    misc_index_t temp = indices[rh];
     indices[rh] = indices[lh];
     indices[lh] = temp;
 
