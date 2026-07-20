@@ -44,7 +44,7 @@ unsigned int misc_simd_alignment = 0;
 // if not on any x86 descendent, use pure C no matter what
 #if !defined(__i386) && !defined(_X86_) && !defined(__x86_64__) && !defined(_M_AMD64) && !defined (_M_X64)
 
-#  if defined(__arm__) || defined(__aarch64__) || defined(_ARM) || defined(_M_ARM)
+#  if defined(__arm__) || defined(__aarch64__) || defined(_ARM) || defined(_M_ARM) || defined(_M_ARM64)
 misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void) {
   // NOTE THAT THIS IS OBVIOUSLY NOT IMPLEMENTED YET. OS specific calls
   // are likely required, and it appears that SVE can be supported
