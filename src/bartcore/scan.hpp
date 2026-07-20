@@ -71,10 +71,10 @@ struct ConstantLeafScanBin {
 /// RNG-free and residual-only: the scan reads y (the current tree residual)
 /// and weights exactly as computeLeafStats does, so a builder's cut scores are
 /// consistent with the leaf stats tree.birth later caches.
-template <ScalarLeafModel L>
+template <ScalarLeafModel L, typename ResidT = double>
 void scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
                      const index_t* indices, std::size_t numMembers,
-                     const double* y, const double* weights, const L& leaf,
+                     const ResidT* y, const double* weights, const L& leaf,
                      double k, double residualVariance,
                      std::vector<ConstantLeafScanBin>& binScratch,
                      double* logLikelihood) {

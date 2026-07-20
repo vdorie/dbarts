@@ -118,6 +118,10 @@ struct ParsedControl {
   bool keepTrainingFits = true;
   bool useQuantiles = false;
   bool keepTrees = false;
+  // opt-in fp32 running residual (control@storage == "single",
+  // docs/design/reduced-precision-storage.md sec 3b); the createSampler gate
+  // refuses it for anything but a gaussian constant-leaf model
+  bool fp32Residual = false;
   size_t defaultNumSamples = 0;
   size_t numTrees = 75;
   size_t numChains = 1;
@@ -283,6 +287,15 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
   REPROTECT_SLOT(slotExpr, controlExpr, "keepTrees", slotIndex);
   control.keepTrees = rc_getBool(slotExpr, "keep trees", RC_LENGTH | RC_EQ,
                                  rc_asRLength(1), RC_END);
+
+  // storage precision: "single" opts the running residual into fp32
+  // (reduced-precision-storage.md sec 3b); anything else (default "double",
+  // or an old control lacking the slot) keeps the fp64 engine
+  REPROTECT_SLOT(slotExpr, controlExpr, "storage", slotIndex);
+  control.fp32Residual =
+    Rf_isString(slotExpr) && rc_getLength(slotExpr) >= 1 &&
+    STRING_ELT(slotExpr, 0) != NA_STRING &&
+    std::strcmp(CHAR(STRING_ELT(slotExpr, 0)), "single") == 0;
 
   REPROTECT_SLOT(slotExpr, controlExpr, "n.samples", slotIndex);
   control.defaultNumSamples = static_cast<size_t>(
@@ -1366,6 +1379,10 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.numSamplesToStore = control.defaultNumSamples;
   options.verbose = control.verbose;
   options.printEvery = control.printEvery;
+  // the gaussian constant-leaf gate is enforced at each sampler-construction
+  // site (this parse cannot see the family/leaf); the factory mints the fp32
+  // instantiation only when this flag survives that gate
+  options.fp32Residual = control.fp32Residual;
 
   return options;
 }
@@ -1755,6 +1772,25 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     applyVarianceAttributes(controlExpr, data.numPredictors, options,
                             varianceColumns);
 
+    // opt-in fp32 residual (storage = "single") is v1-scoped to the gaussian
+    // PLAIN constant-leaf path (reduced-precision-storage.md sec 6); refuse
+    // every other model rather than silently ignore the request. The monotone
+    // constrained leaf is a distinct (double-only) instantiation the factory
+    // dispatches ahead of the fp32 branch, so refuse it here too (it is not yet
+    // R-exposed, but this keeps the flag from being silently dropped).
+    if (options.fp32Residual) {
+      bool monotoneActive = false;
+      for (std::int8_t d : model.monotoneDirections)
+        if (d != 0) { monotoneActive = true; break; }
+      if (family != bartcore::ResponseFamily::gaussian ||
+          options.numLeafCovariates != 0 || options.gpLeaves || monotoneActive)
+        Rf_error("storage = \"single\" is currently supported only for "
+                 "gaussian models with constant leaves");
+      if (options.numVarianceTrees > 0)
+        Rf_error("storage = \"single\" is not supported with a "
+                 "heteroscedastic variance forest");
+    }
+
     rngs = createChainRngs(control, options.numChains);
 
     // dispatches on the leaf model: a linear node prior's designated columns
@@ -1828,6 +1864,9 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
 
     bartcore::SamplerOptions options =
       optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
+    if (options.fp32Residual)
+      Rf_error("storage = \"single\" is currently supported only for "
+               "gaussian models with constant leaves");
     rngs = createChainRngs(control, options.numChains);
 
     const double* p = REAL(bcfParamsExpr);
@@ -1918,6 +1957,9 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
     std::vector<ext_rng*>& rngs) {
   bartcore::SamplerOptions options =
     optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
+  if (options.fp32Residual)
+    Rf_error("storage = \"single\" is currently supported only for "
+             "gaussian models with constant leaves");
   rngs = createChainRngs(control, options.numChains);
 
   bartcore::MultinomialSpec spec;
@@ -2277,6 +2319,11 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
       options.leafCovariateColumns = viewLeafCovariates.data();
       options.numLeafCovariates = viewLeafCovariates.size();
     }
+    // the store-view factory keeps the fp64 residual (fp32 is minted only by
+    // createSampler's gaussian constant-leaf branch, reduced-precision-storage.md
+    // sec 6); refuse rather than silently ignore a "single" request
+    if (options.fp32Residual)
+      Rf_error("storage = \"single\" is not supported for this sampler");
     rngs = createChainRngs(control, options.numChains);
 
     std::unique_ptr<bartcore::SamplerBase> sampler =

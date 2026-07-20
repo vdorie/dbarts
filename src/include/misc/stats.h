@@ -44,6 +44,15 @@ void misc_computeIndexedSufficientStatisticsFast(const double* restrict x, const
 void misc_computeWeightedSufficientStatisticsFast(const double* restrict x, misc_size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX);
 void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict x, const misc_index_t* restrict indices, misc_size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX);
 
+// fp32-residual (opt-in) variants: identical reduction, but the running
+// residual x is stored fp32 - each element is loaded as float and promoted to
+// double before accumulating, so the reduction stays fp64
+// (docs/design/reduced-precision-storage.md sec 3b)
+void misc_computeFloatSufficientStatisticsFast(const float* x, misc_size_t length, double* restrict sumW, double* restrict sumWX);
+void misc_computeIndexedFloatSufficientStatisticsFast(const float* restrict x, const misc_index_t* restrict indices, misc_size_t length, double* restrict sumW, double* restrict sumWX);
+void misc_computeWeightedFloatSufficientStatisticsFast(const float* restrict x, misc_size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX);
+void misc_computeIndexedWeightedFloatSufficientStatisticsFast(const float* restrict x, const misc_index_t* restrict indices, misc_size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX);
+
 // multithreaded functions below
 
 double misc_mt_computeMean               (misc_mt_manager_t restrict tm, const double* restrict x, misc_size_t length);

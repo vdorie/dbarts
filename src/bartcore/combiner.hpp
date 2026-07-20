@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 #include <vector>
 
 #include <external/random.h>
@@ -16,7 +17,7 @@
 #include "moves.hpp"
 #include "tree.hpp"
 
-// The multi-forest coupling: the per-forest ensemble Forest<L>, the (response,
+// The multi-forest coupling: the per-forest ensemble Forest<L, ResidT>, the (response,
 // precision) pair a combiner forms per forest (ForestResponse), the
 // ForestCombiner<L> base a multi-forest Chain delegates to, and its first
 // instance BCFForestCombiner<L>. The serializable per-forest and per-chain
@@ -95,8 +96,10 @@ struct ChainStateData {
 /// treatment forest); everything a Forest omits - the rng, the response model,
 /// sigma, and the shared store - is chain-level and passed in by the methods
 /// that drive it.
-template <IntegrableLeafModel L>
+template <IntegrableLeafModel L, typename ResidT = double>
 struct Forest {
+  static_assert(std::is_same_v<ResidT, double> || std::is_same_v<ResidT, float>,
+                "the residual storage type is fp64 (default) or opt-in fp32");
   // per-forest options: tree count, tree-move probabilities, the k
   // hyperprior, and whether the split selector is DART
   size_t numTrees = 200;
@@ -130,7 +133,10 @@ struct Forest {
   // the constant leaf, which carries muByTree + leafOf instead
   std::vector<double> treeFits;
   std::vector<double> totalFits, totalTestFits;
-  std::vector<double> treeY, currTestFits;
+  // the running per-tree residual; fp64 by default, fp32 under the opt-in
+  // storage axis (docs/design/reduced-precision-storage.md sec 3b)
+  std::vector<ResidT> treeY;
+  std::vector<double> currTestFits;
   std::vector<double> paramByNode;
   // constant leaf only: each live tree's node-indexed leaf values, and the
   // per-observation bottom-node map (tree-major, numObservations x numTrees),
@@ -257,25 +263,25 @@ struct ForestResponse {
 /// location the response model and sigma draw read. A Chain builds a combiner
 /// only in a multi-forest mode (BCF today); a single-forest chain leaves
 /// combiner_ null and never pays a virtual call. Templated on the leaf because
-/// a combiner's post-combine move reaches Forest<L>'s buffers and saved-tree
+/// a combiner's post-combine move reaches Forest<L, ResidT>'s buffers and saved-tree
 /// nodes.
 ///
 /// The coupling draw (drawGlue), its post-combine move (afterCombine), the
 /// reporting-channel map, and glue (de)serialization are declared here so a
 /// subclass owns them without reshaping the base; the base leaves them inert so
 /// a combiner that only forms an additive combination need not override them.
-template <IntegrableLeafModel L>
+template <IntegrableLeafModel L, typename ResidT = double>
 struct ForestCombiner {
   virtual ~ForestCombiner() = default;
 
   /// Forest f's (response, weights) against the residual; forests carries every
   /// forest's current fits, y/w the chain's working response and precisions.
   virtual ForestResponse formForestResponse(std::size_t f,
-      const std::vector<Forest<L>>& forests, const double* y,
+      const std::vector<Forest<L, ResidT>>& forests, const double* y,
       const double* w) = 0;
   /// The combined per-observation location over all forests; the pointer aliases
   /// combiner scratch, valid only until the next call.
-  virtual const double* combinedFits(const std::vector<Forest<L>>& forests) = 0;
+  virtual const double* combinedFits(const std::vector<Forest<L, ResidT>>& forests) = 0;
 
   /// combinedFits' out-of-sample analog: the combined per-observation TEST
   /// location(s), formed from the forests' totalTestFits, aliasing combiner
@@ -284,7 +290,7 @@ struct ForestCombiner {
   /// numReportedLocations() > 1 (the multinomial softmax blend). BCF leaves
   /// testFitsAreDefined false, and a single-forest chain carries no combiner, so
   /// neither ever calls this - hence the base need not form anything.
-  virtual const double* combinedTestFits(const std::vector<Forest<L>>&) {
+  virtual const double* combinedTestFits(const std::vector<Forest<L, ResidT>>&) {
     return nullptr;
   }
 
@@ -303,8 +309,8 @@ struct ForestCombiner {
   /// afterCombine returns the scale its move applied (1.0 when it makes none) -
   /// the sweep discards it; the component tests read it through the chain.
   virtual void drawGlue(ext_rng*, double, const double*, const double*,
-                        const std::vector<Forest<L>>&) {}
-  virtual double afterCombine(std::vector<Forest<L>>&, bool, std::size_t,
+                        const std::vector<Forest<L, ResidT>>&) {}
+  virtual double afterCombine(std::vector<Forest<L, ResidT>>&, bool, std::size_t,
                               ext_rng*) { return 1.0; }
 
   /// A per-forest pre-update hook, fired inside the sweep just before forest f's
@@ -314,7 +320,7 @@ struct ForestCombiner {
   /// the base no-op consumes no rng, so every additive combiner (BCF included)
   /// stays bitwise unchanged. Fired in both sweep loops (run and grow-from-root).
   virtual void drawForestGlue(std::size_t, ext_rng*,
-                              const std::vector<Forest<L>>&) {}
+                              const std::vector<Forest<L, ResidT>>&) {}
 
   /// The reporting map: which forest the scalar channels (variable counts, k,
   /// split probabilities) address, and whether the test-fit and log-likelihood
@@ -360,8 +366,8 @@ struct ForestCombiner {
 /// scale mixture aVariance, and the treatment scales b0/b1 over control/treated)
 /// and the sweep's per-forest scratch. Constant leaf only, as the whole BCF
 /// chain is.
-template <IntegrableLeafModel L>
-struct BCFForestCombiner : ForestCombiner<L> {
+template <IntegrableLeafModel L, typename ResidT = double>
+struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   static_assert(!L::hasVectorParams && !L::hasFunctionParams,
                 "BCF is a constant-leaf model");
 
@@ -387,7 +393,7 @@ struct BCFForestCombiner : ForestCombiner<L> {
   /// leaf's node sums without touching the leaf math. |m_f| is floored to keep
   /// the division finite in the pathological near-zero-scale case.
   ForestResponse formForestResponse(std::size_t f,
-      const std::vector<Forest<L>>& forests, const double* y,
+      const std::vector<Forest<L, ResidT>>& forests, const double* y,
       const double* w) override {
     std::size_t n = data_.numObservations;
     glue_.forestResponse.resize(n);
@@ -404,7 +410,7 @@ struct BCFForestCombiner : ForestCombiner<L> {
     return {glue_.forestResponse.data(), glue_.forestWeights.data()};
   }
 
-  const double* combinedFits(const std::vector<Forest<L>>& forests) override {
+  const double* combinedFits(const std::vector<Forest<L, ResidT>>& forests) override {
     std::size_t n = data_.numObservations;
     glue_.combined.resize(n);
     const double* mu = forests[0].totalFits.data();
@@ -420,7 +426,7 @@ struct BCFForestCombiner : ForestCombiner<L> {
   /// refreshed after via an inverse-gamma auxiliary), b0/b1 as the tau
   /// coefficients over control/treated (prior N(0, bPriorVariance)).
   void drawGlue(ext_rng* rng, double sigma, const double* y, const double* w,
-                const std::vector<Forest<L>>& forests) override {
+                const std::vector<Forest<L, ResidT>>& forests) override {
     std::size_t n = data_.numObservations;
     const double* mu = forests[0].totalFits.data();
     const double* tau = forests[1].totalFits.data();
@@ -475,10 +481,10 @@ struct BCFForestCombiner : ForestCombiner<L> {
   /// when skipped). record/sampleNum locate the keepTrees saved slot whose mu
   /// leaves, flattened before this move, need the same c so a stored * mu_saved
   /// keeps the identified product.
-  double afterCombine(std::vector<Forest<L>>& forests, bool record,
+  double afterCombine(std::vector<Forest<L, ResidT>>& forests, bool record,
                       std::size_t sampleNum, ext_rng* rng) override {
     if (!glue_.updateA) return 1.0;
-    Forest<L>& forest = forests[0];
+    Forest<L, ResidT>& forest = forests[0];
     std::size_t n = data_.numObservations;
 
     // L, M over the occupied prognostic leaves. Recomputed unconditionally:
@@ -624,8 +630,8 @@ inline void softmaxLocationMajor(const double* raw, std::size_t n,
 /// immediately before forest k's tree update, cycling the categories (Held and
 /// Holmes 2006; Polson, Scott and Windle 2013 sec 4). A single post-loop all-K
 /// draw would be an invalid Jacobi-style update.
-template <IntegrableLeafModel L>
-struct MultinomialForestCombiner : ForestCombiner<L> {
+template <IntegrableLeafModel L, typename ResidT = double>
+struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   static_assert(!L::hasVectorParams && !L::hasFunctionParams,
                 "multinomial is a constant-leaf model");
 
@@ -666,7 +672,7 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
   /// sampler); at n_i = 1 the loop is empty, so exactly one PG draw with the
   /// identical psi - the byte-identical single-trial reduction of the label path.
   void drawForestGlue(std::size_t f, ext_rng* rng,
-                      const std::vector<Forest<L>>& forests) override {
+                      const std::vector<Forest<L, ResidT>>& forests) override {
     std::size_t n = data_.numObservations;
     std::size_t K = numCategories_;
     if (f == 0 || f != lastF_ + 1) {
@@ -720,7 +726,7 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
   /// n_i = 1 the one-hot y_if is in {0, 1} and trials * 0.5 is exactly 0.5, so
   /// this is the byte-identical single-trial reduction.
   ForestResponse formForestResponse(std::size_t f,
-      const std::vector<Forest<L>>& forests, const double* /*y*/,
+      const std::vector<Forest<L, ResidT>>& forests, const double* /*y*/,
       const double* /*w*/) override {
     (void) forests;
     std::size_t n = data_.numObservations;
@@ -735,7 +741,7 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
 
   /// The K softmax probabilities per observation, location-major (channel k at
   /// combined_[k*n + i]); the reported training output. Log-sum-exp-safe.
-  const double* combinedFits(const std::vector<Forest<L>>& forests) override {
+  const double* combinedFits(const std::vector<Forest<L, ResidT>>& forests) override {
     std::size_t n = data_.numObservations;
     // plain copy to location-major, then the shared softmax in place, exactly as
     // combinedTestFits does (byte-identical to the direct per-forest loop)
@@ -756,7 +762,7 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
   /// sized here, not at construction, because numTestObservations may be set
   /// after the combiner is built (setTestPredictors); off the sweep hot path.
   const double* combinedTestFits(
-      const std::vector<Forest<L>>& forests) override {
+      const std::vector<Forest<L, ResidT>>& forests) override {
     std::size_t nTest = data_.numTestObservations;
     combinedTest_.resize(nTest * numCategories_);
     // gather the K forests' totalTestFits into location-major order, then
@@ -789,7 +795,7 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
   /// residual roll's total = sum-of-tree-fits invariant; keepTrees is out of
   /// scope this arc, so the saved (flattened) tree leaves are not touched.
   /// Returns 1.0 (no multiplicative scale; the return feeds only BCF's test).
-  double afterCombine(std::vector<Forest<L>>& forests, bool /*record*/,
+  double afterCombine(std::vector<Forest<L, ResidT>>& forests, bool /*record*/,
                       std::size_t /*sampleNum*/, ext_rng* rng) override {
     std::size_t n = data_.numObservations;
     // grand-shift conditional: precision sums each fit's prior precision
@@ -799,7 +805,7 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
     // correction the exact per-forest-level conditional would add.
     double prec = 0.0, num = 0.0;
     for (std::size_t k = 0; k < numCategories_; ++k) {
-      const Forest<L>& forest = forests[k];
+      const Forest<L, ResidT>& forest = forests[k];
       double sd = std::sqrt(static_cast<double>(forest.numTrees)) *
                   (forest.leaf.scale / forest.k);
       double invV = sd > 0.0 ? 1.0 / (sd * sd) : 0.0;
@@ -813,7 +819,7 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
                ext_rng_simulateStandardNormal(rng) / std::sqrt(prec);
 
     for (std::size_t k = 0; k < numCategories_; ++k) {
-      Forest<L>& forest = forests[k];
+      Forest<L, ResidT>& forest = forests[k];
       for (std::size_t i = 0; i < n; ++i) forest.totalFits[i] += c;
       // tree 0 absorbs the shift so totalFits stays the sum of the tree fits the
       // residual roll reconstructs from; +c on every leaf value is +c on every

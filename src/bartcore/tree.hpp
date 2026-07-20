@@ -495,32 +495,59 @@ public:
 
   /// Leaf sufficient statistic (sum w, sum wz) in one pass. The root
   /// intentionally uses the non-indexed kernels (identical values, cheaper
-  /// access).
-  void computeLeafStats(int32_t nodeIndex, const double* y, const double* weights) {
+  /// access). Templated on the residual element type: the default double path
+  /// selects the fp64 kernels (byte-identical to before), the opt-in fp32
+  /// residual (ResidT = float) selects the float-input kernels that load float
+  /// and accumulate double (docs/design/reduced-precision-storage.md sec 3b).
+  template <typename ResidT>
+  void computeLeafStats(int32_t nodeIndex, const ResidT* y, const double* weights) {
     Node& node(at(nodeIndex));
     bool isRoot = node.parent == invalidNode;
     if (weights == nullptr) {
-      if (isRoot)
-        misc_computeSufficientStatisticsFast(
-          y, node.numObservations(), &node.sumWeights,
-          &node.sumWeightedResponse);
-      else
-        misc_computeIndexedSufficientStatisticsFast(
-          y, indices + node.begin, node.numObservations(), &node.sumWeights,
-          &node.sumWeightedResponse);
+      if (isRoot) {
+        if constexpr (std::is_same_v<ResidT, float>)
+          misc_computeFloatSufficientStatisticsFast(
+            y, node.numObservations(), &node.sumWeights,
+            &node.sumWeightedResponse);
+        else
+          misc_computeSufficientStatisticsFast(
+            y, node.numObservations(), &node.sumWeights,
+            &node.sumWeightedResponse);
+      } else {
+        if constexpr (std::is_same_v<ResidT, float>)
+          misc_computeIndexedFloatSufficientStatisticsFast(
+            y, indices + node.begin, node.numObservations(), &node.sumWeights,
+            &node.sumWeightedResponse);
+        else
+          misc_computeIndexedSufficientStatisticsFast(
+            y, indices + node.begin, node.numObservations(), &node.sumWeights,
+            &node.sumWeightedResponse);
+      }
     } else {
-      if (isRoot)
-        misc_computeWeightedSufficientStatisticsFast(
-          y, node.numObservations(), weights, &node.sumWeights,
-          &node.sumWeightedResponse);
-      else
-        misc_computeIndexedWeightedSufficientStatisticsFast(
-          y, indices + node.begin, node.numObservations(), weights,
-          &node.sumWeights, &node.sumWeightedResponse);
+      if (isRoot) {
+        if constexpr (std::is_same_v<ResidT, float>)
+          misc_computeWeightedFloatSufficientStatisticsFast(
+            y, node.numObservations(), weights, &node.sumWeights,
+            &node.sumWeightedResponse);
+        else
+          misc_computeWeightedSufficientStatisticsFast(
+            y, node.numObservations(), weights, &node.sumWeights,
+            &node.sumWeightedResponse);
+      } else {
+        if constexpr (std::is_same_v<ResidT, float>)
+          misc_computeIndexedWeightedFloatSufficientStatisticsFast(
+            y, indices + node.begin, node.numObservations(), weights,
+            &node.sumWeights, &node.sumWeightedResponse);
+        else
+          misc_computeIndexedWeightedSufficientStatisticsFast(
+            y, indices + node.begin, node.numObservations(), weights,
+            &node.sumWeights, &node.sumWeightedResponse);
+      }
     }
   }
 
-  void setNodeAverages(const double* y, const double* weights) {
+  template <typename ResidT>
+  void setNodeAverages(const ResidT* y, const double* weights) {
     bottomScratch.clear();
     fillBottom(0, bottomScratch);
     for (int32_t i : bottomScratch) computeLeafStats(i, y, weights);
@@ -760,7 +787,8 @@ public:
   }
 
   /// Repartition a subtree after its rule changed, recomputing leaf stats.
-  void refreshSubtree(const ColumnStore& data, int32_t nodeIndex, const double* y,
+  template <typename ResidT>
+  void refreshSubtree(const ColumnStore& data, int32_t nodeIndex, const ResidT* y,
                       const double* weights) {
     if (at(nodeIndex).isBottom()) {
       computeLeafStats(nodeIndex, y, weights);
@@ -772,8 +800,9 @@ public:
   }
 
   /// Split a leaf: acquire a child pair, partition, and compute child stats.
+  template <typename ResidT>
   void birth(const ColumnStore& data, int32_t nodeIndex, const Rule& rule,
-             const double* y, const double* weights) {
+             const ResidT* y, const double* weights) {
     int32_t pair = acquirePair();
     Node& node(at(nodeIndex));  // acquirePair may reallocate; reference after
     node.rule = rule;

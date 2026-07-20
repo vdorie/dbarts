@@ -194,8 +194,11 @@ struct ConstantGaussianLeaf {
 
   // The node-context interface the engine drives; delegates to the scalar
   // math above against the node's cached sufficient statistic. y and weights
-  // are unused now that the node caches both sums.
-  double logIntegratedLikelihoodForNode(const Tree& tree, const double*,
+  // are unused now that the node caches both sums; the residual pointer is
+  // templated so the fp32-residual path (const float*) resolves here without a
+  // conversion (docs/design/reduced-precision-storage.md sec 3b).
+  template <typename ResidT>
+  double logIntegratedLikelihoodForNode(const Tree& tree, const ResidT*,
                                         const double*, double k,
                                         double residualVariance,
                                         int32_t nodeIndex) const {

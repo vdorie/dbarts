@@ -59,10 +59,10 @@ struct GrowScratch {
 /// ancestor cut have codes confined to the interval, so out-of-interval cuts
 /// have an empty side and are already zeroed - and keeps both children
 /// non-empty, so the built tree satisfies MH's structural invariants.
-template <ScalarLeafModel L>
+template <ScalarLeafModel L, typename ResidT = double>
 void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
                       const L& leaf, ext_rng* rng, Tree& tree,
-                      std::int32_t nodeIndex, const double* y,
+                      std::int32_t nodeIndex, const ResidT* y,
                       const double* weights, double k, double sigma,
                       GrowScratch& scratch) {
   double growth = treePrior.growthProbability(tree, data, nodeIndex);

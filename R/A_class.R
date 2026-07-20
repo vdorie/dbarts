@@ -216,6 +216,7 @@ methods::setClass(
     keepTrainingFits = "logical",
     useQuantiles = "logical",
     keepTrees = "logical",
+    storage = "character",
     n.samples = "integer",
     n.cuts = "integer",
     n.burn = "integer",
@@ -235,6 +236,7 @@ methods::setClass(
     keepTrainingFits = TRUE,
     useQuantiles = FALSE,
     keepTrees = FALSE,
+    storage = "double",
     n.samples = NA_integer_,
     n.cuts = 100L,
     n.burn = 200L,
@@ -305,6 +307,11 @@ methods::setValidity("dbartsControl", function(object) {
   }
   if (is.na(object@keepTrees)) {
     return("'keepTrees' must be TRUE/FALSE")
+  }
+
+  if (length(object@storage) != 1L || is.na(object@storage) ||
+      !(object@storage %in% c("double", "single"))) {
+    return("'storage' must be \"double\" or \"single\"")
   }
 
   if (is.na(object@n.burn) || object@n.burn < 0L) {

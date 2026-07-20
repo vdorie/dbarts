@@ -185,7 +185,7 @@ public:
   virtual std::size_t numTestObservations() const = 0;
 };
 
-template <IntegrableLeafModel L>
+template <IntegrableLeafModel L, typename ResidT = double>
 class SamplerFacade final : public SamplerBase {
 public:
   template <typename... Args>
@@ -399,10 +399,10 @@ public:
     return impl_.numTestObservations();
   }
 
-  Sampler<L>& impl() { return impl_; }
+  Sampler<L, ResidT>& impl() { return impl_; }
 
 private:
-  Sampler<L> impl_;
+  Sampler<L, ResidT> impl_;
 };
 
 /// One sequential sweep over samplers sharing an index-aligned predictor
@@ -444,11 +444,22 @@ inline bool updatePredictorPerObservationJointly(
 
 /// The constant-leaf instantiation over the response families. rngs supplies
 /// one generator per chain (options.numChains of them).
+///
+/// The opt-in fp32 running residual (options.fp32Residual,
+/// docs/design/reduced-precision-storage.md sec 3b) mints ONE extra
+/// instantiation - the gaussian constant leaf with ResidT = float - and only
+/// on that branch; every other family/leaf keeps the byte-identical fp64
+/// engine. The host (R bridge) validates the gaussian-constant-leaf gate before
+/// setting the flag; a non-gaussian request never reaches the float branch.
 inline std::unique_ptr<SamplerBase> createConstantLeafSampler(
   const double* x, const double* y, std::size_t numObservations,
   std::size_t numPredictors, const double* weights, const double* offset,
   ResponseFamily family, double sigmaEstimate, double sigmaDf,
   double sigmaRawScale, const SamplerOptions& options, ext_rng* const* rngs) {
+  if (options.fp32Residual && family == ResponseFamily::gaussian)
+    return std::make_unique<SamplerFacade<ConstantGaussianLeaf, float>>(
+      x, y, numObservations, numPredictors, weights, offset, family,
+      sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
   return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
     x, y, numObservations, numPredictors, weights, offset, family,
     sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
