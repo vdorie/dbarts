@@ -47,9 +47,9 @@ struct MoveContext {
   const double* leafParams = nullptr;
 };
 
-template <MoveScorableLeafModel L>
+template <MoveScorableLeafModel L, typename ResidT = double>
 double logLikelihoodForBranch(const MoveContext& ctx, const L& leaf, Tree& tree,
-                              int32_t branchIndex, const double* y, double sigma) {
+                              int32_t branchIndex, const ResidT* y, double sigma) {
   // a leaf whose score reads M owns the branch marginal outright (the
   // constrained joint over the touched leaves given frozen neighbors); the
   // conjugate leaves fall through to the per-leaf marginal sum unchanged.
@@ -151,9 +151,9 @@ inline int32_t drawBirthableNode(const MoveContext& ctx, ext_rng* rng, Tree& tre
   return bottoms[index];
 }
 
-template <MoveScorableLeafModel L>
+template <MoveScorableLeafModel L, typename ResidT = double>
 double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
-                        Tree& tree, const double* y, double sigma,
+                        Tree& tree, const ResidT* y, double sigma,
                         bool* stepTaken, bool* stepWasBirth,
                         int32_t* changedNode = nullptr) {
   // A root-only tree whose lone leaf admits no split variable can neither birth
@@ -419,9 +419,9 @@ inline bool drawCategoricalRuleFromPrior(const MoveContext& ctx, ext_rng* rng,
 /// (>= 1, never zero); a same-variable redraw gives correction 1. Omitting the
 /// correction is the CGM-lineage defect this repairs
 /// (docs/design/change-move-balance.md).
-template <MoveScorableLeafModel L>
+template <MoveScorableLeafModel L, typename ResidT = double>
 double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
-                  const double* y, double sigma, bool* stepTaken,
+                  const ResidT* y, double sigma, bool* stepTaken,
                   int32_t* changedNode = nullptr) {
   *stepTaken = false;
 
@@ -654,9 +654,9 @@ inline bool ruleIsValid(const MoveContext& ctx, const Tree& tree, int32_t nodeIn
   return ordinalRuleIsValid(tree, nodeIndex, variableIndex, leftIndex, rightIndex);
 }
 
-template <MoveScorableLeafModel L>
+template <MoveScorableLeafModel L, typename ResidT = double>
 double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
-                const double* y, double sigma, bool* stepTaken,
+                const ResidT* y, double sigma, bool* stepTaken,
                 int32_t* changedNode = nullptr) {
   *stepTaken = false;
 
@@ -773,9 +773,9 @@ enum class StepType { birth, death, swap, change };
 /// changedNode, when non-null, receives the index of the node whose subtree an
 /// ACCEPTED move repartitioned (the birthed/died node, or the changed/swapped
 /// subtree root); untouched on rejection or no-op, so gate reads on stepTaken.
-template <MoveScorableLeafModel L>
+template <MoveScorableLeafModel L, typename ResidT = double>
 double metropolisJumpForTree(const MoveContext& ctx, const L& leaf, ext_rng* rng,
-                             Tree& tree, const double* y, double sigma,
+                             Tree& tree, const ResidT* y, double sigma,
                              bool* stepTaken, StepType* stepType,
                              int32_t* changedNode = nullptr) {
   double alpha;

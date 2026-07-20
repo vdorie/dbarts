@@ -91,7 +91,7 @@ public:
 /// Chains run independently (optionally on worker threads) and hold all
 /// per-chain state; the sampler owns the data and orchestrates transactions,
 /// which are all-or-none across every tree of every chain.
-template <IntegrableLeafModel L>
+template <IntegrableLeafModel L, typename ResidT = double>
 class Sampler {
 public:
   /// rngs supplies one generator per chain (options.numChains of them). With
@@ -185,7 +185,7 @@ public:
 
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)
-      chains_.push_back(std::make_unique<Chain<L>>(
+      chains_.push_back(std::make_unique<Chain<L, ResidT>>(
         data_, y, weights, offset, sigmaEstimate, sigmaDf, sigmaRawScale,
         options_, spec, rngs[c]));
     if (options_.keepTrees) {
@@ -218,7 +218,7 @@ public:
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)
       chains_.push_back(
-        std::make_unique<Chain<L>>(data_, options_, spec, rngs[c]));
+        std::make_unique<Chain<L, ResidT>>(data_, options_, spec, rngs[c]));
 
     // saved-tree storage under keepTrees, as initializeChains does for the
     // other constructors (this multinomial path builds its chains directly and
@@ -876,7 +876,7 @@ public:
                const double* testOffset = nullptr) {
     // recover parameters against the old fits and partitions before anything
     // moves; the old cut values drive the split remap
-    std::vector<typename Chain<L>::TreeParameters> params(chains_.size());
+    std::vector<typename Chain<L, ResidT>::TreeParameters> params(chains_.size());
     for (size_t c = 0; c < chains_.size(); ++c)
       chains_[c]->recoverTreeParameters(params[c]);
 
@@ -983,8 +983,8 @@ public:
   bool kIsSampled() const { return options_.updateK; }
   bool usesDart() const { return options_.useDart; }
   const ColumnStore& data() const { return data_; }
-  const Chain<L>& chain(size_t chainNum) const { return *chains_[chainNum]; }
-  Chain<L>& chain(size_t chainNum) { return *chains_[chainNum]; }
+  const Chain<L, ResidT>& chain(size_t chainNum) const { return *chains_[chainNum]; }
+  Chain<L, ResidT>& chain(size_t chainNum) { return *chains_[chainNum]; }
   size_t numChains() const { return chains_.size(); }
   size_t numThreads() const { return options_.numThreads; }
 
@@ -1031,7 +1031,7 @@ private:
                         ext_rng* const* rngs) {
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)
-      chains_.push_back(std::make_unique<Chain<L>>(
+      chains_.push_back(std::make_unique<Chain<L, ResidT>>(
         data_, y, weights, offset, family_, sigmaEstimate, sigmaDf,
         sigmaRawScale, options_, rngs[c]));
     options_.groupIndices = nullptr;    // borrowed; consumed by the chains
@@ -1049,7 +1049,7 @@ private:
   /// in a late chain never leaves an early chain's fits overwritten.
   bool revalidateAllChains() {
     size_t numChains = chains_.size();
-    std::vector<typename Chain<L>::TreeParameters> params(numChains);
+    std::vector<typename Chain<L, ResidT>::TreeParameters> params(numChains);
 
     bool allValid = true;
     for (size_t c = 0; c < numChains && allValid; ++c)
@@ -1265,7 +1265,7 @@ private:
   SamplerOptions options_;
   ResponseFamily family_;
   ColumnStore data_;
-  std::vector<std::unique_ptr<Chain<L>>> chains_;
+  std::vector<std::unique_ptr<Chain<L, ResidT>>> chains_;
   size_t currentSampleNum_ = 0;  // next saved-tree slot, wrapping circularly
   double runningTime_ = 0.0;     // seconds accumulated across runs
 };

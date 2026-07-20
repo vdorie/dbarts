@@ -108,6 +108,67 @@ static void testEndToEndGaussian(ext_rng* rng) {
          sigmaPosteriorMean, sseFit / sseMean);
 }
 
+// The opt-in fp32 running-residual instantiation (Sampler<..., float>,
+// docs/design/reduced-precision-storage.md sec 3b): the fp32 treeY roll and the
+// float-input suffstat kernels must run cleanly (this is the ASAN-covered path
+// for that new reachable code) and, since the divergence from fp64 sits far
+// below the MCMC noise floor, must pass the same recovery bar as the fp64 run.
+static void testEndToEndGaussianFp32(ext_rng* rng) {
+  const size_t n = 500, p = 5;
+  std::vector<double> x(n * p), f(n), y(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    f[i] = std::sin(3.0 * x[i]) + 2.0 * x[i + n] * x[i + 2 * n];
+    double u1 = runif01(), u2 = runif01();
+    double normal = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y[i] = f[i] + 0.3 * normal;
+  }
+
+  double yMean = 0.0, ySd = 0.0;
+  for (size_t i = 0; i < n; ++i) yMean += y[i];
+  yMean /= (double) n;
+  for (size_t i = 0; i < n; ++i) ySd += (y[i] - yMean) * (y[i] - yMean);
+  ySd = std::sqrt(ySd / (double) (n - 1));
+
+  SamplerOptions options;
+  options.numTrees = 75;
+  options.fp32Residual = true;
+  Sampler<ConstantGaussianLeaf, float> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    ySd, 3.0, 0.37804942330213542, options, &rng);
+
+  const size_t numBurnIn = 200, numSamples = 300;
+  std::vector<double> sigmaDraws(numSamples);
+  std::vector<double> trainingFits(n * numSamples);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  results.trainingFits = trainingFits.data();
+  sampler.run(numBurnIn, numSamples, results);
+
+  std::vector<double> posteriorMean(n, 0.0);
+  for (size_t s = 0; s < numSamples; ++s)
+    for (size_t i = 0; i < n; ++i)
+      posteriorMean[i] += trainingFits[i + s * n] / (double) numSamples;
+
+  double sseFit = 0.0, sseMean = 0.0;
+  bool allFinite = true;
+  for (size_t i = 0; i < n; ++i) {
+    allFinite = allFinite && std::isfinite(posteriorMean[i]);
+    sseFit += (posteriorMean[i] - f[i]) * (posteriorMean[i] - f[i]);
+    sseMean += (yMean - f[i]) * (yMean - f[i]);
+  }
+  check(allFinite, "fp32 end-to-end: fits are finite");
+  check(sseFit < 0.2 * sseMean, "fp32 end-to-end: fit explains most signal");
+
+  double sigmaPosteriorMean = 0.0;
+  for (double s : sigmaDraws) sigmaPosteriorMean += s / (double) numSamples;
+  check(sigmaPosteriorMean > 0.2 && sigmaPosteriorMean < 0.45,
+        "fp32 end-to-end: sigma near truth (0.3)");
+
+  printf("ok: end-to-end gaussian fp32 residual (sigma posterior mean %.3f, "
+         "sse ratio %.3f)\n", sigmaPosteriorMean, sseFit / sseMean);
+}
+
 // The cooperative cancellation the R interrupt handler drives: run() polls the
 // supplied predicate and returns true when it stops early, on both the
 // single-chain (inline poll) and multi-chain (worker cancel flag) paths.
@@ -2769,6 +2830,7 @@ void runSamplerTests(ext_rng* rng) {
   testMultinomialCountGrowForestFromRoot();
   testViewSamplerMatchesFull();
   testEndToEndGaussian(rng);
+  testEndToEndGaussianFp32(rng);
   testRunCancellation(rng);
   testEndToEndProbit(rng);
   testMultiChain();

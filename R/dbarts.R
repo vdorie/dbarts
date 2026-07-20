@@ -216,6 +216,7 @@ dbartsControl <- function(
   keepTrainingFits = TRUE,
   useQuantiles = FALSE,
   keepTrees = FALSE,
+  storage = c("double", "single"),
   n.samples = NA_integer_,
   n.cuts = 100L,
   n.burn = 200L,
@@ -228,12 +229,14 @@ dbartsControl <- function(
   rngSeed = NA_integer_,
   updateState = TRUE
 ) {
+  storage <- match.arg(storage)
   newValidated(
     "dbartsControl",
     verbose = as.logical(verbose),
     keepTrainingFits = as.logical(keepTrainingFits),
     useQuantiles = as.logical(useQuantiles),
     keepTrees = as.logical(keepTrees),
+    storage = storage,
     n.samples = coerceOrError(n.samples, "integer"),
     n.cuts = coerceOrError(n.cuts, "integer"),
     n.burn = coerceOrError(n.burn, "integer"),

@@ -404,6 +404,109 @@ void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict 
   *sumWX = swx;
 }
 
+// fp32-residual variants of the four suffstat kernels above (docs/design/
+// reduced-precision-storage.md sec 3b, Track 2): the running residual x is
+// stored fp32, so these load float and PROMOTE each element to double before
+// accumulating - the reduction stays fp64 and, because float->double promotion
+// is exact and the summation order mirrors the double kernels byte-for-byte,
+// the sums equal round-to-fp32-then-sum-in-fp64 exactly. Only the opt-in
+// gaussian constant-leaf path (tree.hpp computeLeafStats) selects them.
+void misc_computeFloatSufficientStatisticsFast(const float* x, size_t length, double* restrict sumW, double* restrict sumWX)
+{
+  *sumW = (double) length;
+
+  size_t i = 0;
+  size_t lengthMod5 = length % 5;
+
+  double swx = 0.0;
+  if (lengthMod5 != 0) {
+    for ( ; i < lengthMod5; ++i) { swx += x[i]; }
+    if (length < 5) { *sumWX = swx; return; }
+  }
+
+  for ( ; i < length; i += 5) {
+    swx += x[i] + x[i + 1] + x[i + 2] + x[i + 3] + x[i + 4];
+  }
+
+  *sumWX = swx;
+}
+
+void misc_computeIndexedFloatSufficientStatisticsFast(const float* restrict x, const misc_index_t* restrict indices, size_t length, double* restrict sumW, double* restrict sumWX)
+{
+  *sumW = (double) length;
+
+  size_t i = 0;
+  size_t lengthMod5 = length % 5;
+
+  double swx = 0.0;
+  if (lengthMod5 != 0) {
+    for ( ; i < lengthMod5; ++i) { swx += x[indices[i]]; }
+    if (length < 5) { *sumWX = swx; return; }
+  }
+
+  for ( ; i < length; i += 5) {
+    double v0 = x[indices[i]], v1 = x[indices[i + 1]], v2 = x[indices[i + 2]],
+           v3 = x[indices[i + 3]], v4 = x[indices[i + 4]];
+    swx += v0 + v1 + v2 + v3 + v4;
+  }
+
+  *sumWX = swx;
+}
+
+void misc_computeWeightedFloatSufficientStatisticsFast(const float* restrict x, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
+{
+  size_t i = 0;
+  size_t lengthMod5 = length % 5;
+
+  double sw = 0.0, swx = 0.0;
+  if (lengthMod5 != 0) {
+    for ( ; i < lengthMod5; ++i) {
+      double wi = w[i], v = x[i];
+      sw += wi; swx += wi * v;
+    }
+    if (length < 5) { *sumW = sw; *sumWX = swx; return; }
+  }
+
+  for ( ; i < length; i += 5) {
+    double wv0 = w[i] * x[i], wv1 = w[i + 1] * x[i + 1],
+           wv2 = w[i + 2] * x[i + 2], wv3 = w[i + 3] * x[i + 3],
+           wv4 = w[i + 4] * x[i + 4];
+    sw += w[i] + w[i + 1] + w[i + 2] + w[i + 3] + w[i + 4];
+    swx += wv0 + wv1 + wv2 + wv3 + wv4;
+  }
+
+  *sumW = sw;
+  *sumWX = swx;
+}
+
+void misc_computeIndexedWeightedFloatSufficientStatisticsFast(const float* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX)
+{
+  size_t i = 0;
+  size_t lengthMod5 = length % 5;
+
+  double sw = 0.0, swx = 0.0;
+  if (lengthMod5 != 0) {
+    for ( ; i < lengthMod5; ++i) {
+      size_t j = indices[i];
+      double wi = w[j], v = x[j];
+      sw += wi; swx += wi * v;
+    }
+    if (length < 5) { *sumW = sw; *sumWX = swx; return; }
+  }
+
+  for ( ; i < length; i += 5) {
+    size_t j0 = indices[i], j1 = indices[i + 1], j2 = indices[i + 2],
+           j3 = indices[i + 3], j4 = indices[i + 4];
+    double wv0 = w[j0] * x[j0], wv1 = w[j1] * x[j1], wv2 = w[j2] * x[j2],
+           wv3 = w[j3] * x[j3], wv4 = w[j4] * x[j4];
+    sw += w[j0] + w[j1] + w[j2] + w[j3] + w[j4];
+    swx += wv0 + wv1 + wv2 + wv3 + wv4;
+  }
+
+  *sumW = sw;
+  *sumWX = swx;
+}
+
 // if the data for any thread would, by itself, trigger a fall-back to single threaded
 // and that single-threaded function equiv would prefer the non-online version, do that instead
 double misc_mt_computeMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length)
