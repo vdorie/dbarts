@@ -70,7 +70,7 @@ bart2(
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial",
                "ordinal", "nbinom", "hazard", "hazard.probit",
-               "hazard.logistic"),
+               "hazard.logistic", "hurdle.lognormal", "twopart"),
     missing = c("incorporate", "error"),
     resid.dist = gaussian,
     dispersion = NA_real_,
