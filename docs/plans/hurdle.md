@@ -116,5 +116,45 @@ format.
 
 ## Landing
 
-(stub - fill at landing: commit SHAs, gate transcripts, any design-vs-code
-deviations, and the section-11 reconciliation edits the orchestrator owns.)
+Landed 2026-07-20 as three R-only commits; the engine binary is untouched and
+every pre-existing equivalence scenario draws identically.
+
+1. C1 901581e - the family token (hurdle.lognormal, "twopart" resolving to it)
+   and the bart2Hurdle wrapper: an occupancy probit on 1{y>0} over all n plus a
+   gaussian on log(y) over the y>0 subset, at two independently derived seeds,
+   the positive fit given the full-n x as its x.test. dbarts() refuses the token
+   (one sampler cannot compose two). bartHurdle class + minimal print. Gate:
+   benchmarks/R/hurdle-reduction.R (each component reduces bitwise to a
+   standalone fit - the sanity floor).
+   Follow-up a70fec6: the token was added to the formals but not the Rd usage,
+   so R CMD check flagged a codoc mismatch (CI runs error_on=warning); fixed in
+   bart.Rd/dbarts.Rd. LESSON: R-touching commits need R CMD check locally, not
+   just INSTALL + tinytest.
+2. C2 6b11487 - extract/fitted/predict/residuals.bartHurdle: the per-draw,
+   natural-scale, heteroscedasticity-aware retransformation
+   E[y|x] = pi*exp(f + sigma^2/2) by posterior-predictive Monte Carlo (not a
+   plug-in), draw-aligned across the two independent fits, reading per-obs sigma
+   so a variance=~x positive part works unchanged; prob/link/log types and the
+   bimodal ppd; predict replays both forests. Gate: an analytic combine/
+   retransform oracle (hand-set pi/f/sigma in closed form) + predict-on-newdata
+   + save/load + a recovery smoke.
+3. C3 7903855 - the equivalence hurdle scenario, surface tinytest (routing, the
+   twopart alias, the non-negative / require-a-zero / require-a-positive
+   validation, the dbarts and xbart/rbart_vi refusals), the hurdle.lognormal
+   family Rd paragraph in bart.Rd/dbarts.Rd, and a NEWS 1.0-0 bullet.
+
+Gates: R CMD check 0 errors / 0 warnings (only the two pre-existing show/rnbinom
+NOTES); the equivalence trio bitwise (all 26 pre-existing scenarios identical,
+hurdle new); suite 3359/0; air clean. The equivalence baseline re-recorded to
+equivalence-7903855.rds (27 scenarios; self-reproduces 27/27 under
+--strict-coverage; f494156 demoted), MANIFEST and equivalence.yaml re-pinned.
+
+Design-vs-code reconciliation (section 11): forest-combiner.md's hurdle bullet
+framed hurdle as the engine model that breaks Chain's single response_ - correct
+about what an ENGINE hurdle would need, but hurdle landed R-side so that
+invariant break stays unbuilt (noted there). The "second two-leaf-type consumer"
+heteroscedastic deferred to hurdle does not arrive via hurdle; the engine
+two-response generalization waits for a genuinely coupled model (zero-inflation
+or Heckman selection, section 9). Doors: count hurdle (needs a zero-truncated
+count family first), gamma positive part, logistic occupancy, grouped hurdle,
+Duan smearing, and the coupled cousins.

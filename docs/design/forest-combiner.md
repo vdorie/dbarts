@@ -205,6 +205,10 @@ not against what the API merely gestures at):
 - Hurdle: a binary-occupancy forest plus a positive-part forest sharing
   predictors through the data handle. Response families differing per forest
   breaks Chain's single response_ - Chain-level, not combiner-API, per above.
+  (LANDED 2026-07-20 R-SIDE, docs/design/hurdle.md: the two parts are
+  conditionally independent, so hurdle composes two ordinary fits glued at
+  report time and this Chain break stays UNBUILT; the engine two-response route
+  awaits a genuinely coupled model - zero-inflation or Heckman selection.)
 - Grouped-x-multi-forest: GroupedResponse decorates the response chain BELOW
   combining - the sweep feeds the combiner `y = response_->workingResponse()`,
   already group-adjusted if response_ is a GroupedResponse - so a grouped
