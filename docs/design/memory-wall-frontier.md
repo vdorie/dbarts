@@ -308,4 +308,50 @@ three points:
   largest n and inverting to a loss for small n. Whether it yields a worthwhile
   END-TO-END sweep speedup now turns entirely on the gather's SHARE of a sweep
   (section 6 experiment 1, the re-profile) - the number that gates the engine
-  prototype. [Share pending; verdict to follow.]
+  prototype.
+
+### 8a. Gather sweep-share re-profile: MEASURED (2026-07-20, x86 bench box)
+rdtsc-bracketed computeLeafStats (the constant-leaf node-average gather) vs a
+full sample sweep, single-threaded, gaussian, 200 trees, 30 burn + 30 sample,
+commit 2941808. rdtsc overhead <0.1% at these leaf sizes (tight, not an upper
+bound):
+
+    n=50k   gather share 35.4%   (reference)
+    n=1e6   gather share 37.8%
+    n=2e6   gather share 44.2%   (large AND growing with n)
+
+The numerator is ONLY the node-average gather; the Metropolis proposal-time
+candidate-suffstat scans also stream the data and would also benefit from an
+fp32 store but are NOT counted - so the fp32-accelerable fraction is a LOWER
+BOUND at ~38-44% for n>=1e6.
+
+### 8b. Verdict: GREEN for n>=1e6, but n-conditional -> a real fork
+Applying end_to_end = 1/(1 - share*(1 - 1/gather_speedup)) with the measured
+per-n gather speedups (M1 1.67x / x86 2.02x at n=1e6; ~1.7x at n=2e6):
+
+    n=1e6   ~1.21x end-to-end   (lower bound; proposal scans lift it)
+    n=2e6   ~1.22x end-to-end
+    n=1e5   ~neutral            (gather still cache-resident; ~1.0-1.16x)
+
+So the lever is REAL and above the +/-2% bench floor for the n>=1e6 single-chain
+workloads (TODO's standing "n>=1e5 common" fact; the win concentrates at the
+n>=1e6 end), and ~neutral-to-slightly-negative below. The value proposition is
+MORE CONDITIONAL than the section-7 greenlight assumed: ~1.2-1.3x at large n
+(not the ~1.5-2x headline, which was the isolated-gather kernel number, not
+end-to-end), n-gated to protect small n, one re-record, an SBC/coverage gate,
+and permanent opt-in surface area. That is a genuine fork for VD, not a default
+next step, because the next move is a multi-day draw-changing engine arc.
+
+Recommended prototype shape IF greenlit: an OPT-IN control flag (e.g.
+residual.precision = "single"), NOT an automatic n-switch (keeps the repro/
+re-record story clean; small-n users simply do not opt in). Prototype FORK B
+first (fp64 MASTER residual + fp32 SHADOW read by every tree's gather, shadow
+refreshed by a once-per-sweep downcast): SBC-safe by construction (master is
+exact, no accumulated roll bias), the gather reads the small resident fp32
+shadow, and the downcast is ~1 streaming pass amortized over ~200 tree-gathers
+(<1% overhead). Fall back to FORK A (sole fp32 store, fp32 roll - max footprint
+win but accumulated-bias SBC risk) only if the shadow erodes the speedup. Add
+fp32-input variants of the four misc_compute*SufficientStatisticsFast kernels
+(load float, accumulate double). Gates: SBC/interval coverage (the arbiter) +
+same-machine A/B at n>=1e6 + the equivalence-trio re-record; design-first +
+independent blind critique (draw-changing).
