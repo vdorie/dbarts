@@ -113,8 +113,14 @@ shrinking with sample count (MC, not bias) - proving the multiplicative roll. Ho
 scedastic fits bitwise throughout (no equivalence re-record); suite 3304/0; every
 commit's CI sanitizer (ASAN+UBSAN + valgrind) green, incl. C4's R-reachable paths.
 
-Deferred: the bench-sampler homoscedastic default-path speed check (quiet-machine
-grant; draws already bitwise, so it only rules out an incidental slowdown). v2 doors
+Bench-sampler homoscedastic default-path speed-neutrality CONFIRMED 2026-07-20 (record
+docs/plans/monotone-bart.md, one shared same-machine A/B: HEAD carries monotone +
+heteroscedastic + the residuals batch, all post-b9d53c7). A naive compare against the
+cold b9d53c7 CSV flagged four arms, but the identical b9d53c7 binary re-measured under
+the same conditions drifted +7.4% geomean too (zero code change) - pure cross-session
+machine drift. Apples-to-apples, HEAD vs a fresh b9d53c7 baseline was geomean 0.981,
+every arm within the +/- 6% same-code noise. Draws already bitwise; no incidental
+slowdown. v2 doors
 (design section 11): non-constant (linear/gp) variance leaves; a k.variance /
 variance-df hyper (C4 calibrates from the mean resid.prior); hurdle (the other
 multi-forest model). macOS SIP blocks local R-under-ASAN - the CI sanitizer is the
