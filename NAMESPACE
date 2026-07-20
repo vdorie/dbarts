@@ -72,14 +72,14 @@ S3method(dimnames, dbartsMixedMatrix)
 S3method("[", dbartsMixedMatrix)
 S3method(as.matrix, dbartsMixedMatrix)
 
-importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, new, setValidity, setMethod, is)
+importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, new, setValidity, setMethod, is, show)
 
 importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms, na.omit, complete.cases)
 importFrom(stats, lm, pnorm, plogis, quantile)
 importFrom(stats, as.formula, setNames)
 
 importFrom(parallel, makeCluster, clusterExport, clusterEvalQ, clusterMap, stopCluster, splitIndices)
-importFrom(stats, sd, rnorm, rexp, runif, rbinom, optim, optimHess, dnorm, dbinom)
+importFrom(stats, sd, rnorm, rexp, runif, rbinom, rnbinom, optim, optimHess, dnorm, dbinom)
 importFrom(stats, qchisq, rchisq)
 
 importFrom(graphics, abline, contour, image, legend, lines, par, plot, title, strheight, text)
