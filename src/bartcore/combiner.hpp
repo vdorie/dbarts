@@ -81,6 +81,12 @@ struct ChainStateData {
   // BCF combining response's glue (docs/design/bcf.md); false off BCF
   bool hasBCF = false;
   double a = 1.0, aVariance = 1.0, b0 = 0.0, b1 = 1.0;
+  // heteroscedastic variance forest (docs/design/heteroscedastic.md): the
+  // variance trees' flattened structure, each leaf a POSITIVE scale value on
+  // the working scale. Empty for every homoscedastic state; a NEW branch of
+  // the flat format (the value semantics and validation differ from a Gaussian
+  // leaf - it must be positive). Rebuild recomputes s^2(x) from the product.
+  std::vector<std::vector<FlatNode>> varianceTrees;
 };
 
 /// One ensemble of the backfitting sampler: its trees, their fits and working
