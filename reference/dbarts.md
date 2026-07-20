@@ -20,7 +20,8 @@ dbarts(
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal",
-               "nbinom", "hazard", "hazard.probit", "hazard.logistic"),
+               "nbinom", "hazard", "hazard.probit", "hazard.logistic",
+               "hurdle.lognormal", "twopart"),
     missing = c("incorporate", "error"), dispersion = NA_real_,
     breaks = NULL, max.rows = 1e7)
 ```
