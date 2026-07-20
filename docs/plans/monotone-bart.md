@@ -110,8 +110,16 @@ until C3). Then the gate's own part (b) reference showed E[mu2] at z=3.18: diagn
 COARSE reference, not sampler bias - the sampler is exact, and 90b6e41 tightened the
 reference grid (0.0015 -> 1e-4) so every part (b) quantity sits at |z| <= 2.2.
 
-Deferred: the bench-sampler default-path speed-neutrality confirmation (needs a
-quiet-machine grant; the equivalence trio already proves the draws bitwise-identical,
-so this only rules out an incidental slowdown). v2 doors: change/swap moves under the
+Bench-sampler default-path speed-neutrality CONFIRMED 2026-07-20 (same-machine A/B,
+since a naive compare against the cold b9d53c7 CSV was swamped by ~7% cross-session
+machine drift). Method: rebuild b9d53c7 and HEAD (which carries monotone +
+heteroscedastic + the data-store-residuals batch, all landed after b9d53c7) under
+identical conditions; HEAD vs a freshly-recorded b9d53c7 baseline geomean 0.981 (HEAD
+marginally faster), every arm inside the +/- 6% same-code noise floor. The control
+that proves it was drift, not code: the IDENTICAL b9d53c7 binary re-measured now ran
++7.4% geomean (up to +18% on the tiny setPredictor-reject arm) versus its own 07-17
+cold CSV. The equivalence trio already proved the draws bitwise-identical; this rules
+out an incidental (layout/branch) slowdown, and none appeared. v2 doors: change/swap
+moves under the
 constraint (a >2-leaf branch marginal beyond the product form), linear/gp leaf
 constraints, convexity/multivariate shape - all out of v1 scope per the design.
