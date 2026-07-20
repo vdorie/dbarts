@@ -495,6 +495,58 @@ resolveMonotone <- function(monotone, data) {
   result
 }
 
+# Resolve the `variance` heteroscedastic selector to 1-based model-matrix
+# column indices for the variance forest, or NULL for a homoscedastic fit.
+# NULL/FALSE -> no variance forest; TRUE or ~. -> every column; a one-sided
+# formula, character names, or numeric indices -> that subset (factor terms
+# expand to their indicator columns, the resolveMonotone precedent). Returns
+# an integer vector; a full-set selection returns every index (the caller may
+# elide the mask, which is equivalent).
+resolveVarianceColumns <- function(variance, data) {
+  if (is.null(variance) || isFALSE(variance)) {
+    return(NULL)
+  }
+  numColumns <- ncol(data@x)
+  columnNames <- colnames(data@x)
+  if (isTRUE(variance)) {
+    return(seq_len(numColumns))
+  }
+  names <- if (inherits(variance, "formula")) {
+    all.vars(variance)
+  } else if (is.character(variance)) {
+    variance
+  } else {
+    NULL
+  }
+  if (!is.null(names)) {
+    if (length(names) == 0L) {
+      return(seq_len(numColumns))
+    }
+    result <- integer(0)
+    for (name in names) {
+      index <- match(name, columnNames)
+      if (!is.na(index)) {
+        result <- c(result, index)
+      } else if (name %in% attr(data@x, "term.labels")) {
+        result <- c(result, which(startsWith(columnNames, paste0(name, "."))))
+      } else {
+        stop(
+          "cannot resolve variance predictor: unrecognized variable name '",
+          name,
+          "'"
+        )
+      }
+    }
+    return(sort(unique(result)))
+  }
+  # numeric indices
+  index <- as.integer(variance)
+  if (anyNA(index) || any(index < 1L) || any(index > numColumns)) {
+    stop("variance column indices must be in [1, number of columns]")
+  }
+  sort(unique(index))
+}
+
 num.vars <- numvars <- NULL # R CMD check
 cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
   result <- newValidated(

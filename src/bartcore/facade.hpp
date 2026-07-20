@@ -93,6 +93,13 @@ public:
                            std::size_t forestIndex = 0) = 0;
   virtual void predict(const double* x_test,
                        std::size_t numTestObservations, double* out) = 0;
+  /// Heteroscedastic variance surface s^2(x) on new rows (original scale);
+  /// hasVarianceForest gates it, numVarianceTrees sizes the varcount channel.
+  virtual bool hasVarianceForest() const = 0;
+  virtual std::size_t numVarianceTrees() const = 0;
+  virtual void predictVariance(const double* x_test,
+                               std::size_t numTestObservations,
+                               double* out) = 0;
   virtual void getState(SamplerStateData& state) = 0;
   /// currentPredictors supplies raw for a cross-grid restore's re-quantization
   /// (null for a same-spec continuation, which re-quantizes nothing).
@@ -286,6 +293,14 @@ public:
   void predict(const double* x_test, std::size_t numTestObservations,
                double* out) override {
     impl_.predict(x_test, numTestObservations, out);
+  }
+  bool hasVarianceForest() const override { return impl_.hasVarianceForest(); }
+  std::size_t numVarianceTrees() const override {
+    return impl_.numVarianceTrees();
+  }
+  void predictVariance(const double* x_test, std::size_t numTestObservations,
+                       double* out) override {
+    impl_.predictVariance(x_test, numTestObservations, out);
   }
   void getState(SamplerStateData& state) override { impl_.getState(state); }
   bool setState(const SamplerStateData& state,

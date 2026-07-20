@@ -1496,6 +1496,54 @@ void applySurvivalAttribute(SEXP controlExpr, size_t numObservations,
   options.survivalStatus = status.data();
 }
 
+// The heteroscedastic variance forest (docs/design/heteroscedastic.md) arrives
+// on an internal control attribute `bartcore.variance`: a list carrying the
+// tree count, the tree-structure prior (base/power), and optional 1-based
+// column indices (the `variance = ~ subset` selector; null spans all mean
+// predictors). Absent leaves the fit homoscedastic. The factory refuses the
+// combination for non-gaussian or non-constant-leaf models; the R surface
+// mirrors that refusal. columns outlives the options borrow (captured by value
+// in createHolder's lambda).
+void applyVarianceAttributes(SEXP controlExpr, size_t numPredictors,
+                             bartcore::SamplerOptions& options,
+                             std::vector<std::size_t>& columns) {
+  SEXP varExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.variance"));
+  if (Rf_isNull(varExpr)) return;
+
+  SEXP nTreesExpr = getListElement(varExpr, "n.trees");
+  SEXP baseExpr = getListElement(varExpr, "base");
+  SEXP powerExpr = getListElement(varExpr, "power");
+  SEXP columnsExpr = getListElement(varExpr, "columns");
+  if (!Rf_isInteger(nTreesExpr) || Rf_xlength(nTreesExpr) != 1 ||
+      !Rf_isReal(baseExpr) || Rf_xlength(baseExpr) != 1 ||
+      !Rf_isReal(powerExpr) || Rf_xlength(powerExpr) != 1)
+    Rf_error("malformed variance forest specification");
+
+  int numTrees = INTEGER(nTreesExpr)[0];
+  if (numTrees < 1) Rf_error("n.trees.variance must be a positive integer");
+  double base = REAL(baseExpr)[0], power = REAL(powerExpr)[0];
+  if (!(base > 0.0 && base < 1.0)) Rf_error("base.variance must be in (0, 1)");
+  if (!(power > 0.0)) Rf_error("power.variance must be positive");
+  options.numVarianceTrees = static_cast<size_t>(numTrees);
+  options.varianceBase = base;
+  options.variancePower = power;
+
+  if (!Rf_isNull(columnsExpr)) {
+    if (!Rf_isInteger(columnsExpr))
+      Rf_error("variance columns must be resolved integer indices");
+    R_xlen_t numColumns = Rf_xlength(columnsExpr);
+    columns.resize(static_cast<size_t>(numColumns));
+    for (R_xlen_t j = 0; j < numColumns; ++j) {
+      int column = INTEGER(columnsExpr)[j];
+      if (column < 1 || static_cast<size_t>(column) > numPredictors)
+        Rf_error("variance column index out of range");
+      columns[static_cast<size_t>(j)] = static_cast<size_t>(column - 1);
+    }
+    options.varianceForestColumns = columns.data();
+    options.numVarianceForestColumns = columns.size();
+  }
+}
+
 // A sampler created over a data handle holds no raw predictor values, so
 // the raw-x mutation surface has nothing to work from; a CSC-built sampler
 // holds only borrowed slices and refuses the same surface by design
@@ -1667,6 +1715,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                  model = ParsedModel{},
                  groupIndices = std::vector<std::uint32_t>{},
                  survivalStatus = std::vector<double>{},
+                 varianceColumns = std::vector<std::size_t>{},
                  rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
@@ -1695,6 +1744,10 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // AFT survival status arrives the same way; the response copies it
     applySurvivalAttribute(controlExpr, data.numObservations, family, options,
                            survivalStatus);
+    // the heteroscedastic variance forest arrives on a control attribute; the
+    // factory refuses it for non-gaussian or non-constant-leaf models
+    applyVarianceAttributes(controlExpr, data.numPredictors, options,
+                            varianceColumns);
 
     rngs = createChainRngs(control, options.numChains);
 
@@ -2459,7 +2512,13 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // byte layout. numCutpoints == 0 off ordinal.
   size_t numCutpoints = sampler.numCutpoints();
   bool hasCutpoints = numCutpoints > 0;
-  int numResultSlots = hasCutpoints ? 9 : 8;
+  // heteroscedastic samplers append s.train (+ s.test when test rows exist) as
+  // a separately-typed variance channel; gaussian-only, so mutually exclusive
+  // with the ordinal cutpoint slot
+  bool hasVariance = sampler.hasVarianceForest();
+  int numResultSlots = 8 + (hasCutpoints ? 1 : 0) + (hasVariance ? 2 : 0);
+  int varianceTrainSlot = hasVariance ? 8 + (hasCutpoints ? 1 : 0) : -1;
+  int varianceTestSlot = hasVariance ? varianceTrainSlot + 1 : -1;
 
   // several chains add a trailing chain dimension, as the classic engine's
   // results do. Every column roots in the protected container the moment it
@@ -2542,6 +2601,24 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
                            numSamplesInt)
           : Rf_alloc3DArray(REALSXP, static_cast<int>(numCutpoints),
                             numSamplesInt, numChainsInt));
+  SEXP varianceTrainExpr = !hasVariance
+    ? R_NilValue
+    : installResult(
+        resultExpr, varianceTrainSlot,
+        numChains == 1
+          ? Rf_allocMatrix(REALSXP, static_cast<int>(numObservations),
+                           numSamplesInt)
+          : Rf_alloc3DArray(REALSXP, static_cast<int>(numObservations),
+                            numSamplesInt, numChainsInt));
+  SEXP varianceTestExpr = (!hasVariance || numTestObservations == 0)
+    ? R_NilValue
+    : installResult(
+        resultExpr, varianceTestSlot,
+        numChains == 1
+          ? Rf_allocMatrix(REALSXP, static_cast<int>(numTestObservations),
+                           numSamplesInt)
+          : Rf_alloc3DArray(REALSXP, static_cast<int>(numTestObservations),
+                            numSamplesInt, numChainsInt));
 
   std::vector<std::uint32_t> variableCounts(numPredictors * numVCForests *
                                             numSamples * numChains);
@@ -2566,6 +2643,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // cutpoint stride
   results.cutpoints = hasCutpoints ? REAL(cutpointsExpr) : NULL;
   results.numCutpoints = numCutpoints;
+  results.varianceFits = hasVariance ? REAL(varianceTrainExpr) : NULL;
+  results.varianceTestFits =
+    (hasVariance && numTestObservations > 0) ? REAL(varianceTestExpr) : NULL;
 
   GetRNGstate();
   bool cancelled = sampler.run(numBurnIn, numSamples, results,
@@ -2598,6 +2678,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SET_STRING_ELT(namesExpr, 6, Rf_mkChar("tau"));
   SET_STRING_ELT(namesExpr, 7, Rf_mkChar("ranef"));
   if (hasCutpoints) SET_STRING_ELT(namesExpr, 8, Rf_mkChar("cutpoints"));
+  if (hasVariance) {
+    SET_STRING_ELT(namesExpr, varianceTrainSlot, Rf_mkChar("variance"));
+    SET_STRING_ELT(namesExpr, varianceTestSlot, Rf_mkChar("varianceTest"));
+  }
 
   UNPROTECT(1);
   return resultExpr;
@@ -3700,6 +3784,25 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
                              REAL(resultExpr) + slab * numTestObservations);
   }
 
+  // heteroscedastic: the variance surface s^2(x) rides alongside f(x) as a
+  // named list (mean, variance), same shape (gaussian, single location). Off a
+  // variance forest the bare mean array returns, backward-compatible. Predict
+  // needs saved trees, so a null-capacity variance forest has nothing to replay.
+  if (sampler.hasVarianceForest() && capacity > 0) {
+    SEXP varianceExpr = PROTECT(Rf_duplicate(resultExpr));  // clone the shape
+    sampler.predictVariance(REAL(xTestExpr), numTestObservations,
+                            REAL(varianceExpr));
+    SEXP listExpr = PROTECT(Rf_allocVector(VECSXP, 2));
+    SET_VECTOR_ELT(listExpr, 0, resultExpr);
+    SET_VECTOR_ELT(listExpr, 1, varianceExpr);
+    SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 2));
+    SET_STRING_ELT(namesExpr, 0, Rf_mkChar("mean"));
+    SET_STRING_ELT(namesExpr, 1, Rf_mkChar("variance"));
+    Rf_setAttrib(listExpr, R_NamesSymbol, namesExpr);
+    UNPROTECT(4);  // resultExpr, varianceExpr, listExpr, namesExpr
+    return listExpr;
+  }
+
   UNPROTECT(1);
   return resultExpr;
 }
@@ -3918,18 +4021,25 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     "k"
   };
 
+  // append-only slot registry: new blocks go before SLOT_COUNT and do NOT bump
+  // the format version (an old state simply lacks the name and decodes as
+  // empty). The variance.* block is the heteroscedastic variance forest's
+  // flattened trees (docs/design/heteroscedastic.md).
   enum {
     SLOT_FORESTS = 0, SLOT_SIGMA, SLOT_FIT_SCALE, SLOT_LATENTS,
     SLOT_RANEF, SLOT_TAU,
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
     SLOT_RNG_STATE, SLOT_BCF, SLOT_RESID_DF, SLOT_CUTPOINTS, SLOT_DISPERSION,
+    SLOT_VARIANCE_VARS, SLOT_VARIANCE_VALUES, SLOT_VARIANCE_SIZES,
+    SLOT_VARIANCE_FLAGS,
     SLOT_COUNT
   };
   static const char* slotNames[SLOT_COUNT] = {
     "forests", "sigma", "fit.scale",
     "latents", "ranef", "tau",
     "dart.probabilities", "dart.alpha", "dart.updates.skipped",
-    "rng.state", "bcf", "resid.df", "cutpoints", "dispersion"
+    "rng.state", "bcf", "resid.df", "cutpoints", "dispersion",
+    "variance.vars", "variance.values", "variance.sizes", "variance.flags"
   };
 
   SEXP resultExpr =
@@ -3974,6 +4084,14 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     }
     SET_VECTOR_ELT(chainExpr, SLOT_FORESTS, forestsExpr);
     UNPROTECT(1);
+
+    // heteroscedastic variance forest: its flattened trees ride four chain-level
+    // slots (no param/mask side channels - scale leaves and ordinal/inline
+    // splits only). Empty off a variance forest, so the slots stay R_NilValue.
+    if (!chainState.varianceTrees.empty())
+      storeFlatTrees(chainExpr, SLOT_VARIANCE_VARS, SLOT_VARIANCE_VALUES,
+                     SLOT_VARIANCE_SIZES, SLOT_VARIANCE_FLAGS,
+                     chainState.varianceTrees);
 
     SET_VECTOR_ELT(chainExpr, SLOT_SIGMA, Rf_ScalarReal(chainState.sigma));
 
@@ -4276,6 +4394,18 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
       break;
     }
     chainState.sigma = REAL(sigmaExpr)[0];
+
+    // heteroscedastic variance forest: an optional block, absent (empty) off a
+    // variance state. stateIsValid refuses a variance sampler lacking it and a
+    // homoscedastic sampler carrying it (the additive-block contract).
+    SEXP varianceVarsExpr = getListElement(chainExpr, "variance.vars");
+    if (!Rf_isNull(varianceVarsExpr) &&
+        !readFlatTrees(varianceVarsExpr,
+                       getListElement(chainExpr, "variance.values"),
+                       getListElement(chainExpr, "variance.sizes"),
+                       getListElement(chainExpr, "variance.flags"),
+                       sampler.data(), chainState.varianceTrees, &errorMessage))
+      break;
 
     SEXP fitScaleExpr = getListElement(chainExpr, "fit.scale");
     if (Rf_isNull(fitScaleExpr)) {

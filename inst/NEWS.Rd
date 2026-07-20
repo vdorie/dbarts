@@ -45,6 +45,16 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Heteroscedastic BART: \code{variance = ~ x1 + x2} (or
+            \code{variance = TRUE}) in \code{dbarts} and \code{bart2}
+            adds a second forest modeling the residual variance surface
+            \eqn{s^2(x)} as a product of scaled-inverse-chi-squared
+            leaves (HBART; Pratola, Chipman, George, and McCulloch 2020),
+            with \code{n.trees.variance}, \code{power.variance}, and
+            \code{base.variance} controlling it. The fit gains
+            \code{s.train}/\code{s.test} draws of \eqn{s(x)}, and
+            \code{predict} returns \eqn{s(x)} on new data. Gaussian
+            responses only.
       \item Monotone constraints: \code{monotone = c(x1 = "+", x3 = "-")}
             in \code{dbarts} and \code{bart2} constrains the fit to be
             monotone increasing or decreasing in named predictors

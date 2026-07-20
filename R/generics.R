@@ -178,9 +178,20 @@ predict.bart <- function(
 
   n.threads <- as.integer(n.threads)[1L]
 
-  result <- object$fit$predict(newdata, offset, n.threads)
-  # result is n.obs x n.samples x n.chains
   n.chains <- object$fit$control@n.chains
+  result <- object$fit$predict(newdata, offset, n.threads)
+  # a heteroscedastic fit returns list(mean, variance); s(x) rides back as an
+  # attribute on the returned yhat so plain predict callers are unaffected
+  s <- NULL
+  if (is.list(result)) {
+    s <- sqrt(convertSamplesFromDbartsToBart(
+      result$variance,
+      n.chains,
+      combineChains
+    ))
+    result <- result$mean
+  }
+  # result is n.obs x n.samples x n.chains
   result <- convertSamplesFromDbartsToBart(result, n.chains, combineChains)
 
   if (type != "bart") {
@@ -196,9 +207,16 @@ predict.bart <- function(
 
   # ci.level opts into a per-observation est + credible band (kind follows type)
   if (!is.null(ci.level)) {
-    return(posteriorInterval(result, ci.level))
+    interval <- posteriorInterval(result, ci.level)
+    if (!is.null(s)) {
+      attr(interval, "s") <- s
+    }
+    return(interval)
   }
 
+  if (!is.null(s)) {
+    attr(result, "s") <- s
+  }
   result
 }
 
