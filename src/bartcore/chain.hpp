@@ -145,6 +145,12 @@ struct SamplerOptions {
   // Not yet exposed through the R surface (C++/tests only).
   std::size_t numVarianceTrees = 0;
   double varianceBase = 0.95, variancePower = 2.0;
+  // optional split-variable restriction for the variance forest (borrowed
+  // 0-based column indices, consumed at construction): the columns s^2(x) may
+  // split on. Null or count 0 leaves every column available (all mean
+  // predictors), the `variance = ~ x1 + x2` selector's default.
+  const std::size_t* varianceForestColumns = nullptr;
+  std::size_t numVarianceForestColumns = 0;
 
   // k is fixed at .k unless updateK, in which case .k is the starting value
   bool updateK = false;
@@ -311,6 +317,13 @@ struct VarianceForest {
   std::vector<double> meanResidual;      // scratch e_i = y_i - f(x_i), per sweep
   std::vector<double> divisor;           // scratch s^2_{-j}(x_i), per tree
   std::vector<double> treeResidual;      // scratch e_i / sqrt(s^2_{-j}), per tree
+  // per-forest split-variable restriction (0/1 byte per predictor, 1 =
+  // splittable); empty leaves every column available - the default path
+  std::vector<std::uint8_t> columnMask;
+  // saved-sample flattened variance trees (keepTrees), a circular buffer of
+  // capacity slots x numTrees, slot-major, for posterior predict on new data
+  std::vector<std::vector<FlatNode>> savedTrees;
+  std::size_t savedTreeCapacity = 0, savedSlotBase = 0;
   MoveScratch scratch;
 
   std::size_t numObservations() const { return combinedVariance.size(); }
@@ -630,6 +643,30 @@ public:
   const double* varianceTestFits() const {
     return varianceForest_ ? varianceForest_->combinedVarianceTest.data()
                            : nullptr;
+  }
+  bool hasVarianceForest() const { return varianceForest_ != nullptr; }
+  std::size_t numVarianceTrees() const {
+    return varianceForest_ ? varianceForest_->numTrees : 0;
+  }
+
+  /// s^2(x) on the ORIGINAL scale for raw new rows from one saved sample's
+  /// variance trees; the per-tree factors MULTIPLY into the product.
+  void predictVarianceFromSavedSample(std::size_t slot, const double* x_test,
+                                      std::size_t numTest, double* out) {
+    VarianceForest& vf = *varianceForest_;
+    for (std::size_t i = 0; i < numTest; ++i) out[i] = 1.0;
+    std::vector<std::size_t> indices(numTest);
+    std::vector<std::size_t> blockOffsets;
+    std::vector<double> treeFit(numTest);
+    for (std::size_t j = 0; j < vf.numTrees; ++j) {
+      misc_setVectorToConstant(treeFit.data(), numTest, 0.0);
+      addFlatPredictions(vf.savedTrees[slot * vf.numTrees + j], nullptr,
+                         nullptr, x_test, numTest, indices, blockOffsets,
+                         treeFit.data());
+      for (std::size_t i = 0; i < numTest; ++i) out[i] *= treeFit[i];
+    }
+    double s = response_->sigmaScale();
+    for (std::size_t i = 0; i < numTest; ++i) out[i] *= s * s;
   }
   /// The response's original-scale factor (range for gaussian); a variance is
   /// reported on the original scale as the working s^2 times its square.
@@ -953,6 +990,8 @@ public:
       if (varianceForest_) {
         sweepVarianceForest(y, combined);
         if (record && data_.numTestObservations > 0) refreshVarianceTestFits();
+        if (record && varianceForest_->savedTreeCapacity > 0)
+          storeVarianceSavedTrees(sampleNum);
       }
 
       for (Forest<L>& forest : forests_) {
@@ -1477,6 +1516,11 @@ public:
   // sharing mutable state.
 
   void initializeSavedTrees(size_t capacity) {
+    if (varianceForest_) {
+      varianceForest_->savedTreeCapacity = capacity;
+      varianceForest_->savedTrees.assign(
+        capacity * varianceForest_->numTrees, std::vector<FlatNode>(1));
+    }
     for (Forest<L>& forest : forests_) {
       forest.savedTreeCapacity = capacity;
       forest.savedTrees.assign(capacity * forest.numTrees,
@@ -1497,6 +1541,7 @@ public:
   }
   void setSavedSlotBase(size_t base) {
     for (Forest<L>& forest : forests_) forest.savedSlotBase = base;
+    if (varianceForest_) varianceForest_->savedSlotBase = base;
   }
   size_t savedTreeCapacity() const { return forests_[0].savedTreeCapacity; }
   const std::vector<FlatNode>& savedTree(size_t slot, size_t t,
@@ -2371,6 +2416,16 @@ private:
     vf.leaf = ConstantVarianceLeaf::calibrated(sigmaDf, priorScale,
                                                options.numVarianceTrees);
     vf.initialize(options.numVarianceTrees, n, initialVariance);
+    // restrict the variance trees to the `variance = ~ subset` columns; empty
+    // leaves every column available, byte-for-byte the unrestricted path
+    if (options.varianceForestColumns != nullptr &&
+        options.numVarianceForestColumns > 0) {
+      vf.columnMask.assign(data_.numPredictors, 0);
+      for (std::size_t c = 0; c < options.numVarianceForestColumns; ++c)
+        vf.columnMask[options.varianceForestColumns[c]] = 1;
+      for (std::size_t t = 0; t < vf.numTrees; ++t)
+        vf.trees[t].setColumnMask(vf.columnMask.data());
+    }
     sigmaIsFixed_ = true;
     sigma_ = 1.0;
     meanWeights_.assign(n, 0.0);
@@ -2452,6 +2507,20 @@ private:
       const Node& node = tree.at(static_cast<int32_t>(nd));
       if (node.isBottom() && node.numObservations() > 0)
         out[nd] = factor[tree.indices[node.begin]];
+    }
+  }
+
+  /// Flatten every variance tree into saved slot `slot` for this kept sample,
+  /// so predict can replay the posterior variance surface on new data.
+  void storeVarianceSavedTrees(std::size_t sampleNum) {
+    VarianceForest& vf = *varianceForest_;
+    std::size_t slot =
+      (vf.savedSlotBase + sampleNum) % vf.savedTreeCapacity;
+    std::vector<double> leafValues;
+    for (std::size_t j = 0; j < vf.numTrees; ++j) {
+      recoverVarianceLeafValues(vf, j, leafValues);
+      vf.trees[j].flatten(data_, leafValues.data(),
+                          vf.savedTrees[slot * vf.numTrees + j]);
     }
   }
 

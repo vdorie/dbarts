@@ -13,6 +13,8 @@ dbarts(
     proposal.probs = c(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     monotone = NULL,
+    variance = NULL, n.trees.variance = 40L,
+    power.variance = NULL, base.variance = NULL,
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal",
@@ -64,6 +66,12 @@ dbarts(
   }
   \item{monotone}{
     Optional per-predictor monotonicity constraints (monotone BART; Chipman, George, McCulloch, and Shively 2022). The forest is constrained so that the fitted function is monotone increasing or decreasing in each named predictor. Supply a named vector selecting predictors by model-matrix column name, each element one of \code{"+"}/\code{"increasing"}/\code{1} (increasing) or \code{"-"}/\code{"decreasing"}/\code{-1} (decreasing); an unnamed integer or character vector of length equal to the number of columns assigns directions positionally, with \code{0} for unconstrained. Only numeric and ordered columns are eligible - a direction on a categorical (unordered factor) predictor is an error. A constraint forces birth/death-only tree proposals (an explicit non-default \code{proposal.probs} is then an error) and a fixed \code{k = 2} (an explicit \code{k} hyperprior is an error); linear and Gaussian-process leaves are not supported under the constraint. \code{NULL} (the default) or an all-zero vector fits the ordinary unconstrained model.
+  }
+  \item{variance}{
+    Optional heteroscedastic variance forest (HBART; Pratola, Chipman, George, and McCulloch 2020). When supplied, a second ensemble models the residual variance surface \eqn{s^2(x)} as a product of scaled-inverse-chi-squared (multiplicative) leaves, so \eqn{y_i = f(x_i) + s(x_i)\epsilon_i}, coupled to the mean forest through the per-observation precision. \code{variance} selects which predictors drive the variance: a one-sided formula or character/integer column selector (\code{~ x1 + x2}), \code{TRUE} for every predictor, or \code{NULL} (the default) for the ordinary homoscedastic fit. Gaussian responses and constant leaves only; monotone constraints and the latent families are not supported. The per-tree leaf prior is calibrated from the residual (\code{resid.prior}) hyperparameters so that a constant variance surface reproduces the homoscedastic \code{sigma} posterior. The fit gains posterior draws \code{s.train}/\code{s.test} of \eqn{s(x)}, and \code{predict} attaches an \code{"s"} attribute with \eqn{s(x)} at new predictors (requires \code{keepTrees}).
+  }
+  \item{n.trees.variance, power.variance, base.variance}{
+    The number of variance trees (default \code{40}) and their tree-structure prior. \code{power.variance} and \code{base.variance} default to the mean forest's \code{tree.prior} values. Read only when \code{variance} is supplied.
   }
   \item{control}{
     An object inheriting from \code{dbartsControl}, created by the \code{\link{dbartsControl}} function.} \item{sigma}{A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Same concept as \code{sigest} in \code{\link{bart}}/\code{bart2} and \code{\link{rbart_vi}}; \code{\link{xbart}} uses this function's \code{sigma} name directly.

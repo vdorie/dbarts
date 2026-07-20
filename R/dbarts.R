@@ -338,6 +338,10 @@ dbarts <- function(
   resid.dist = gaussian,
   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
   monotone = NULL,
+  variance = NULL,
+  n.trees.variance = 40L,
+  power.variance = NULL,
+  base.variance = NULL,
   control = dbarts::dbartsControl(),
   sigma = NA_real_,
   seed = NA_integer_,
@@ -789,6 +793,38 @@ dbarts <- function(
   # reduction gate (benchmarks/R/hazard-reduction.R).
   if (!is.null(hazardPeriods)) {
     attr(control, "bartcore.hazard.periods") <- hazardPeriods
+  }
+
+  # the heteroscedastic variance forest (docs/design/heteroscedastic.md): a
+  # `variance` selector installs a second forest modeling s^2(x); its config
+  # rides the control attribute the C bridge reads. Gaussian + constant leaf
+  # only (the C factory refuses otherwise; a friendly R check for the family).
+  varianceColumns <- resolveVarianceColumns(variance, data)
+  if (!is.null(varianceColumns)) {
+    if (family != "gaussian") {
+      stop(
+        "a variance forest requires family = \"gaussian\"; the latent families ",
+        "own the precision channel it routes through"
+      )
+    }
+    if (!is.null(monotoneDirections)) {
+      stop("a variance forest is not supported with monotone constraints")
+    }
+    allColumns <- setequal(varianceColumns, seq_len(ncol(data@x)))
+    attr(control, "bartcore.variance") <- list(
+      n.trees = coerceOrError(n.trees.variance, "integer"),
+      base = if (is.null(base.variance)) {
+        model@tree.prior@base
+      } else {
+        as.double(base.variance)
+      },
+      power = if (is.null(power.variance)) {
+        model@tree.prior@power
+      } else {
+        as.double(power.variance)
+      },
+      columns = if (allColumns) NULL else as.integer(varianceColumns)
+    )
   }
 
   result <- new("dbartsSampler", control, model, data)

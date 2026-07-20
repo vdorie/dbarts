@@ -335,6 +335,12 @@ public:
           results.logLikelihood + c * numSamples * data_.numObservations;
       if (results.cutpoints != nullptr)
         r.cutpoints = results.cutpoints + c * numSamples * numCutpoints;
+      if (results.varianceFits != nullptr)
+        r.varianceFits =
+          results.varianceFits + c * numSamples * data_.numObservations;
+      if (results.varianceTestFits != nullptr)
+        r.varianceTestFits = results.varianceTestFits +
+          c * numSamples * data_.numTestObservations;
     }
 
     if (options_.verbose) ext_printf("Running mcmc loop:\n");
@@ -535,6 +541,24 @@ public:
                                             out + c * slab);
       }
     }
+  }
+
+  /// Whether this sampler carries a heteroscedastic variance forest, and its
+  /// tree count; the run/predict bridges gate the s(x) channels on this.
+  bool hasVarianceForest() const { return chains_[0]->hasVarianceForest(); }
+  size_t numVarianceTrees() const { return chains_[0]->numVarianceTrees(); }
+
+  /// The variance surface s^2(x) for raw column-major new rows, original scale,
+  /// mirroring predict: out is numTestObservations x savedTreeCapacity x
+  /// numChains, chain-major. Requires saved trees (keepTrees).
+  void predictVariance(const double* x_test, size_t numTestObservations,
+                       double* out) {
+    size_t capacity = savedTreeCapacity();
+    for (size_t c = 0; c < chains_.size(); ++c)
+      for (size_t slot = 0; slot < capacity; ++slot)
+        chains_[c]->predictVarianceFromSavedSample(
+          slot, x_test, numTestObservations,
+          out + (c * capacity + slot) * numTestObservations);
   }
 
   // State serialization: getState captures everything needed to reconstruct

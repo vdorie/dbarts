@@ -189,6 +189,25 @@ packageBartResults <- function(
     }
   }
 
+  # heteroscedastic variance surface s(x) = sqrt(s^2(x)), train and test, on the
+  # original scale (docs/design/heteroscedastic.md); NULL for a homoscedastic fit
+  s.train <- NULL
+  s.test <- NULL
+  if (!is.null(samples[["variance"]])) {
+    s.train <- sqrt(convertSamplesFromDbartsToBart(
+      samples$variance,
+      n.chains,
+      combineChains
+    ))
+    if (!is.null(samples[["varianceTest"]])) {
+      s.test <- sqrt(convertSamplesFromDbartsToBart(
+        samples$varianceTest,
+        n.chains,
+        combineChains
+      ))
+    }
+  }
+
   varprobs <- NULL
   if (!is.null(samples[["varprobs"]])) {
     varprobs <- convertSamplesFromDbartsToBart(
@@ -235,6 +254,8 @@ packageBartResults <- function(
       yhat.train.mean = yhat.train.mean,
       yhat.test = yhat.test,
       yhat.test.mean = yhat.test.mean,
+      s.train = s.train,
+      s.test = s.test,
       varcount = varcount,
       y = fit$data@y
     )
@@ -380,6 +401,10 @@ bart2 <- function(
   seed = NA_integer_,
   proposal.probs = NULL,
   monotone = NULL,
+  variance = NULL,
+  n.trees.variance = 40L,
+  power.variance = NULL,
+  base.variance = NULL,
   keepSampler = keepTrees,
   warm.start = NULL,
   n.grow.sweeps = 0L,

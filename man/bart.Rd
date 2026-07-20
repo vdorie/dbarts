@@ -60,6 +60,10 @@ bart2(
     seed = NA_integer_,
     proposal.probs = NULL,
     monotone = NULL,
+    variance = NULL,
+    n.trees.variance = 40L,
+    power.variance = NULL,
+    base.variance = NULL,
     keepSampler = keepTrees,
     warm.start = NULL,
     n.grow.sweeps = 0L,
@@ -224,6 +228,9 @@ extract(object, \dots)
    }
    \item{monotone}{
      Optional per-predictor monotonicity constraints, passed through to \code{\link{dbarts}}; see its \code{monotone} argument. A named vector selects predictors by model-matrix column name, each direction one of \code{"+"}/\code{"increasing"}/\code{1} or \code{"-"}/\code{"decreasing"}/\code{-1}; only numeric and ordered columns are eligible. A constraint forces birth/death-only proposals and a fixed \code{k = 2}. \code{NULL} (the default) fits the unconstrained model.
+   }
+   \item{variance, n.trees.variance, power.variance, base.variance}{
+     Heteroscedastic BART (Pratola et al. 2020): passed through to \code{\link{dbarts}}. \code{variance} declares a second forest modeling the residual variance surface \eqn{s^2(x)} as a product of scaled-inverse-chi-squared leaves, coupled to the mean forest through the per-observation precision. It is a one-sided formula or column selector naming which predictors drive the variance (\code{~ x1 + x2}), \code{TRUE} for every predictor, or \code{NULL} (the default) for a homoscedastic fit. \code{n.trees.variance} is the number of variance trees; \code{power.variance}/\code{base.variance} their tree-structure prior (defaulting to the mean forest's). Gaussian responses only. The fit gains \code{s.train}/\code{s.test} (posterior draws of \eqn{s(x)}), and \code{predict} attaches an \code{"s"} attribute carrying \eqn{s(x)} for new data.
    }
    \item{keepsampler, keepSampler}{
      Logical that can be used to save the underlying \code{\link{dbartsSampler-class}} object even if \code{keepTrees} is false.

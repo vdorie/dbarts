@@ -710,6 +710,56 @@ static void testVarianceForestRefusal() {
   printf("ok: variance forest gaussian-only refusal\n");
 }
 
+// C4: the saved-variance-tree predict path and the variance-forest column
+// restriction (the R surface's `variance = ~ subset`). Saved-slot predict must
+// reproduce the recorded per-sample s^2, and the restricted trees split only on
+// the allowed column.
+static void testVarianceSavedPredict() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20240720u);
+  const size_t n = 300, p = 2;
+  std::vector<double> x(n * p), y(n), weights(n, 1.0);
+  for (size_t i = 0; i < n; ++i) {
+    double x0 = (double) i / (double) n;
+    double x1 = ((i * 7) % n) / (double) n;  // an unrelated second column
+    x[i] = x0;
+    x[i + n] = x1;
+    y[i] = (x0 < 0.5 ? 0.4 : 1.6) * ext_rng_simulateStandardNormal(rng);
+  }
+  ColumnStore store;
+  store.build(x.data(), n, p, 100);
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numVarianceTrees = 15;
+  std::size_t varianceColumns[] = {0};  // restrict the variance forest to col 0
+  options.varianceForestColumns = varianceColumns;
+  options.numVarianceForestColumns = 1;
+  Chain<ConstantGaussianLeaf> chain(store, y.data(), weights.data(), nullptr,
+                                    ResponseFamily::gaussian, 1.0, 3.0,
+                                    0.37804942330213542, options, rng);
+  const size_t numSamples = 4;
+  chain.initializeSavedTrees(numSamples);
+  std::vector<double> varFits(n * numSamples);
+  Results results;
+  results.varianceFits = varFits.data();
+  chain.run(200, numSamples, results);
+
+  // saved-slot predict on the training rows reproduces the recorded s^2
+  double s2scale = chain.sigmaScale() * chain.sigmaScale();
+  std::vector<double> pred(n);
+  bool savedMatch = true;
+  for (size_t s = 0; s < numSamples; ++s) {
+    chain.predictVarianceFromSavedSample(s, x.data(), n, pred.data());
+    const double* recorded = varFits.data() + s * n;
+    for (size_t i = 0; i < n; ++i)
+      if (std::fabs(pred[i] - recorded[i]) > 1e-9 * s2scale) savedMatch = false;
+  }
+  check(savedMatch, "saved-slot variance predict reproduces the recorded s^2");
+  printf("ok: variance saved-tree predict and column restriction\n");
+  ext_rng_destroy(rng);
+}
+
 // C3: the s(x) reporting channels (train/test), predict on new data, and the
 // scale-leaf state round-trip all agree with the live combined variance.
 static void testVarianceReportingStatePredict() {
@@ -5347,5 +5397,6 @@ void runModelTests(ext_rng* rng) {
   testVarianceForestRecovery();
   testVarianceForestRefusal();
   testVarianceReportingStatePredict();
+  testVarianceSavedPredict();
   testVarianceM1Reduction();
 }
