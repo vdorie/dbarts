@@ -54,6 +54,7 @@ bart2(
     seed = NA_integer_,
     proposal.probs = NULL,
     monotone = NULL,
+    interactions = NULL,
     variance = NULL,
     n.trees.variance = 40L,
     power.variance = NULL,
@@ -431,6 +432,17 @@ summary(object, ...)
   and ordered columns are eligible. A constraint forces birth/death-only
   proposals and a fixed `k = 2`. `NULL` (the default) fits the
   unconstrained model.
+
+- interactions:
+
+  Optional interaction constraints, passed through to
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md); see
+  its `interactions` argument and
+  [`interactions`](https://vdorie.github.io/dbarts/reference/interactions.md).
+  Built with `interactions(max.order = , groups = , forbid = )`: cap the
+  distinct predictors per root-to-leaf path, confine interactions to
+  declared groups, and/or forbid named predictors from co-occurring.
+  `NULL` (the default) fits the unconstrained model.
 
 - variance, n.trees.variance, power.variance, base.variance:
 
@@ -1263,7 +1275,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.225893
+#> total seconds in loop: 0.229176
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1329,7 +1341,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001560
+#> total seconds in loop: 0.001336
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

@@ -15,6 +15,7 @@ dbarts(
     proposal.probs = c(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     monotone = NULL,
+    interactions = NULL,
     variance = NULL, n.trees.variance = 40L,
     power.variance = NULL, base.variance = NULL,
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
@@ -207,6 +208,22 @@ dbarts(
   explicit `k` hyperprior is an error); linear and Gaussian-process
   leaves are not supported under the constraint. `NULL` (the default) or
   an all-zero vector fits the ordinary unconstrained model.
+
+- interactions:
+
+  Optional interaction constraints, built with
+  [`interactions`](https://vdorie.github.io/dbarts/reference/interactions.md):
+  `interactions(max.order = 2)` caps the number of distinct predictors
+  that may appear together on any single root-to-leaf path,
+  `interactions(forbid = list(c("a", "b")))` bars named predictors from
+  ever sharing a path, and
+  `interactions(groups = list(c("a", "b"), "c"))` confines interactions
+  to declared groups (named predictors may co-occur only with their
+  group-mates). The three may be combined. Named or indexed predictors
+  resolve against the model matrix at fit time, where an unknown name,
+  an empty group, a `max.order` below 1, or a reference to a dropped
+  column is an error. `NULL` (the default) fits the ordinary
+  unconstrained model.
 
 - variance:
 

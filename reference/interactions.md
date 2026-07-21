@@ -1,0 +1,97 @@
+# Interaction Constraints for BART
+
+Build an interaction-constraint specification restricting which
+predictors may jointly shape a BART fit. Pass the result as the
+`interactions` argument of
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md). The
+constraint is applied per forest, so with a two-forest causal model the
+treatment forest can be held additive-or-low-order while the prognostic
+forest stays free.
+
+## Usage
+
+``` r
+interactions(max.order = NULL, groups = NULL, forbid = NULL)
+```
+
+## Arguments
+
+- max.order:
+
+  Optional cap on the number of *distinct* predictors that may appear
+  together on any single root-to-leaf path. `max.order = 1` makes the
+  forest additive (each tree splits on one predictor); `max.order = 2`
+  allows bounded pairwise interactions; and so on. A single integer of
+  at least 1, or `NULL` for no cap.
+
+- groups:
+
+  Optional co-occurrence allow-list: a list of predictor sets. Two named
+  predictors may share a root-to-leaf path only if some group contains
+  both; every other pair of named predictors is forbidden. Predictors
+  named in no group are unconstrained. Each set is a character vector of
+  model-matrix column names (a bare factor term name expands to its
+  indicator columns) or a numeric vector of column indices.
+
+- forbid:
+
+  Optional co-occurrence deny-list: a list whose entries each name two
+  or more predictors barred from ever sharing a root-to-leaf path (an
+  entry of more than two forbids every pair within it). Columns are
+  named or indexed as for `groups`.
+
+## Details
+
+All three restrictions lower to a single per-node admissibility rule
+over the set of predictors already used by a node's ancestors:
+`max.order` bars a new predictor once the path's distinct count reaches
+the cap, while `groups` and `forbid` bar a predictor whose forbidden
+partner sits above it. The constraint is hard (an availability ban),
+applied inside the tree proposals and enforced on any warm start, so a
+constrained fit never visits a path that violates it; an unconstrained
+fit is unaffected.
+
+Names and indices resolve against the model matrix at fit time, where
+every value is validated: an unrecognized name, an empty group, a
+`max.order` below 1, and a reference to a column dropped from the design
+are each an error. Supplying none of the three arguments is an error.
+
+Monotone constraints (see
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+`monotone`) and interaction constraints are orthogonal and may be
+combined.
+
+## Value
+
+A `dbartsInteractions` specification object, resolved when a sampler is
+built.
+
+## See also
+
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)
+
+## Examples
+
+``` r
+set.seed(0)
+n <- 100L
+x <- matrix(runif(n * 3), n, 3, dimnames = list(NULL, c("x1", "x2", "x3")))
+y <- 2 * x[, 1] + ifelse(x[, 2] > 0.5, 1, -1) + rnorm(n, 0, 0.2)
+df <- data.frame(y, x)
+
+## additive fit: no tree splits on more than one predictor on any path
+fit.additive <- bart2(y ~ x1 + x2 + x3, df,
+                      interactions = interactions(max.order = 1),
+                      n.trees = 25L, n.samples = 20L, n.burn = 20L,
+                      n.chains = 1L, verbose = FALSE)
+
+## forbid x1 and x2 from ever interacting, but allow order-2 interactions
+## among the rest
+fit.forbid <- bart2(y ~ x1 + x2 + x3, df,
+                    interactions = interactions(max.order = 2,
+                                                forbid = list(c("x1", "x2"))),
+                    n.trees = 25L, n.samples = 20L, n.burn = 20L,
+                    n.chains = 1L, verbose = FALSE)
+```
