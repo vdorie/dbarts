@@ -362,3 +362,27 @@ cores for this footprint (large unified LLC, materially higher bandwidth
 per core), or routine workloads at n >> 1e6, or a sweep profile reshaped by
 other layers; re-run the barrier microbench and the full section-7 protocol
 on the actual target before believing anything.
+
+## 9. fp32 re-check (2026-07-20): still NO-GO - fp32 does NOT revive it
+
+The reduced-precision storage arc (uint32 index + opt-in fp32 residual, both
+landed) is exactly the "sweep profile reshaped by other layers" precondition
+section 8 flagged. Re-checked with a multi-threaded ISOLATED gather microbench
+(fp32 vs fp64 storage, s_par at T=1,2,4,8, n in {1e5,1e6,1e7}, M1 + x86 box).
+Two decisive findings:
+- The isolated gather ALREADY parallelizes fine for BOTH precisions: s_par(4T)
+  ~3.8x at n=1e5, ~2.3-3.8x at n=1e6, ~2x at n=1e7. So the gather was NEVER the
+  parallelism bottleneck - the section-8 in-situ 1.67x came from BARRIER overhead
+  + the net-negative fit-scatter + the serial fraction, none of which fp32 or the
+  index narrowing touch.
+- fp32 LOWERS s_par, it does not raise it (e.g. M1 n=1e7: fp64 s_par 2.54x vs
+  fp32 1.92x). A faster, more-cache-resident single core has LESS memory latency
+  to hide across threads, so reduced-precision storage makes within-chain
+  parallelism LESS attractive, not more - the opposite of the revival hypothesis.
+  (fp32's absolute throughput is still best at every thread count; only the
+  parallel headroom shrinks.)
+Verdict: fp32 does not flip the NO-GO. The revival preconditions that remain are
+the ORIGINAL ones (a memory system that scales with cores for this footprint, or
+n >> 1e6 routine single-chain), NOT the storage reductions. Blocked-jacobi
+(the exact noise-split kernel) remains separately unevaluated on its ESS/sec
+merits (section 7), unaffected by this.
