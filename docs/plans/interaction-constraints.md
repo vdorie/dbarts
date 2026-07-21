@@ -4,6 +4,13 @@ agent: opus
 rng: posterior-changing (prior change)
 budget: memo on demand; consumer-gated
 
+note (2026-07-21): the memo step is DONE - see docs/design/interaction-
+constraints.md (blind three-lens research panel + adversarial code-verified
+critique; SOUND-WITH-CAVEATS). It splits into deliverable A (cheap per-tree
+grouped block-additive, static mask) and deliverable B (per-path max-order +
+co-occurrence, the differentiated capability). Awaiting VD go/no-go and the
+A-vs-B target choice before an implementation plan is written.
+
 ## Goal
 
 Structured split-variable control on the SplitSelector seam when a
