@@ -135,6 +135,17 @@ struct SamplerOptions {
   const std::size_t* forestColumns = nullptr;
   std::size_t numForestColumns = 0;
 
+  // per-forest interaction constraint (docs/design/interaction-constraints.md,
+  // deliverable B): interactionMaxOrder caps the DISTINCT split variables on
+  // any root-to-leaf path (0 = uncapped); interactionForbiddenPairs lists
+  // forbidden co-occurrence pairs as 2 * interactionNumForbiddenPairs column
+  // indices (borrowed, consumed at construction). Both defaults leave every
+  // path unconstrained - the availability path is byte-for-byte unchanged. Not
+  // yet exposed through the R surface (C++/tests only; single-forest path).
+  std::size_t interactionMaxOrder = 0;
+  const std::size_t* interactionForbiddenPairs = nullptr;
+  std::size_t interactionNumForbiddenPairs = 0;
+
   // heteroscedastic variance forest (HBART, docs/design/heteroscedastic.md):
   // numVarianceTrees > 0 adds a SECOND forest modeling s^2(x) as a product of
   // scaled-inverse-chi-squared leaves, coupled to the mean forest through the
@@ -550,6 +561,19 @@ public:
         forest.trees[t].setColumnMask(forest.columnMask.data());
     }
     options_.forestColumns = nullptr;  // consumed above
+
+    // Per-forest interaction constraint, installed like the column mask: an
+    // unset (or inactive) constraint leaves every tree's pointer null and the
+    // availability path byte-for-byte unchanged.
+    if (options.interactionMaxOrder > 0 || options.interactionNumForbiddenPairs > 0) {
+      forest.interaction.build(data.numPredictors, options.interactionMaxOrder,
+                               options.interactionForbiddenPairs,
+                               options.interactionNumForbiddenPairs);
+      if (forest.interaction.active())
+        for (size_t t = 0; t < forest.numTrees; ++t)
+          forest.trees[t].setInteractionConstraint(&forest.interaction);
+    }
+    options_.interactionForbiddenPairs = nullptr;  // consumed above
 
     initForestFitStorage(forest, numObservations);
     forest.totalFits.assign(numObservations, 0.0);

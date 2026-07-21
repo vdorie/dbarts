@@ -33,6 +33,9 @@ inline bool maskTestBit(const std::uint64_t* words, std::uint32_t bit) {
 inline void maskSetBit(std::uint64_t* words, std::uint32_t bit) {
   words[bit >> 6] |= 1ull << (bit & 63u);
 }
+inline void maskClearBit(std::uint64_t* words, std::uint32_t bit) {
+  words[bit >> 6] &= ~(1ull << (bit & 63u));
+}
 inline size_t maskPopcount(const std::uint64_t* words, size_t numWords) {
   size_t result = 0;
   for (size_t w = 0; w < numWords; ++w)
@@ -61,6 +64,53 @@ inline void maskAndNot(const std::uint64_t* a, const std::uint64_t* b,
                        std::uint64_t* out, size_t numWords) {
   for (size_t w = 0; w < numWords; ++w) out[w] = a[w] & ~b[w];
 }
+
+/// Per-forest interaction constraint (docs/design/interaction-constraints.md,
+/// deliverable B): a cap on the number of DISTINCT split variables along any
+/// root-to-leaf path (maxOrder) and/or a symmetric forbidden co-occurrence
+/// adjacency (variable pairs that may not share a path). Borrowed by the trees
+/// of a single forest through Tree::setInteractionConstraint; a null pointer -
+/// or an inactive constraint - leaves the availability path byte-for-byte
+/// unchanged. The predicate collapses to one admissibility test p(j | A) over
+/// the ancestor split-variable set A: max-order is |distinct(A u {j})| <= K,
+/// co-occurrence is "no forbidden (j, a) for a in A".
+struct InteractionConstraint {
+  size_t numPredictors = 0;
+  size_t maxOrder = 0;   // 0 leaves the order uncapped
+  size_t numWords = 0;   // 64-bit words per p-bitset row: (numPredictors + 63) / 64
+  // numPredictors rows of numWords words; bit a of row j is set iff the pair
+  // (j, a) may not co-occur. Empty leaves co-occurrence unrestricted.
+  std::vector<std::uint64_t> forbidden;
+
+  /// Materialize from a max-order K and a flat list of forbidden pairs (2 *
+  /// numPairs column indices, each pair symmetric). Borrowed inputs; the
+  /// forbidden adjacency is copied here.
+  void build(size_t numPredictors_, size_t maxOrder_,
+             const size_t* forbiddenPairs, size_t numPairs) {
+    numPredictors = numPredictors_;
+    maxOrder = maxOrder_;
+    numWords = (numPredictors + 63) / 64;
+    forbidden.clear();
+    if (numPairs > 0) {
+      forbidden.assign(numPredictors * numWords, 0);
+      for (size_t k = 0; k < numPairs; ++k) {
+        std::uint32_t a = static_cast<std::uint32_t>(forbiddenPairs[2 * k]);
+        std::uint32_t b = static_cast<std::uint32_t>(forbiddenPairs[2 * k + 1]);
+        maskSetBit(forbidden.data() + a * numWords, b);
+        maskSetBit(forbidden.data() + b * numWords, a);
+      }
+    }
+  }
+
+  bool hasOrderCap() const {
+    return maxOrder > 0 && maxOrder < numPredictors;
+  }
+  bool hasForbidden() const { return !forbidden.empty(); }
+  bool active() const { return hasOrderCap() || hasForbidden(); }
+  const std::uint64_t* forbiddenRow(size_t j) const {
+    return forbidden.data() + j * numWords;
+  }
+};
 
 /// A split rule: ordinal columns split by cut-point threshold (code >
 /// splitIndex goes right), categorical columns by category subset (bit c of
@@ -397,9 +447,36 @@ public:
   /// runs the default path unchanged.
   void setColumnMask(const std::uint8_t* columnMask) { columnMask_ = columnMask; }
 
+  /// Install a per-forest interaction constraint (or null to lift it). Only an
+  /// ACTIVE constraint is retained, so an inactive one leaves the availability
+  /// path byte-for-byte unchanged; the queries short-circuit on the null.
+  void setInteractionConstraint(const InteractionConstraint* interaction) {
+    interaction_ =
+      (interaction != nullptr && interaction->active()) ? interaction : nullptr;
+  }
+  bool hasInteractionConstraint() const { return interaction_ != nullptr; }
+
+  /// Whole-subtree, all-variables interaction feasibility (design
+  /// "structure-move exactness"): walk the subtree rooted at subtreeRoot
+  /// carrying the running distinct-ancestor bitset (seeded from subtreeRoot's
+  /// own ancestors) and reject if ANY node's split variable violates the order
+  /// cap or a forbidden co-occurrence. Unlike the per-variable
+  /// categoricalSubtreeIsValid / ordinalRuleIsValid, this couples DIFFERENT
+  /// variables, so it must test every node, not just a swapped pair - the swap
+  /// sibling-strand break the memo warns of. Trivially true when the
+  /// constraint is inactive, so the change/swap moves may call it
+  /// unconditionally.
+  bool interactionSubtreeIsValid(int32_t subtreeRoot) const {
+    if (interaction_ == nullptr) return true;
+    interactionWalkScratch_.resize(interaction_->numWords);
+    collectAncestorVariables(subtreeRoot, interactionWalkScratch_.data());
+    return interactionSubtreeWalk(subtreeRoot, interactionWalkScratch_.data());
+  }
+
   bool variableAvailable(const ColumnStore& data, int32_t nodeIndex,
                          int32_t variableIndex) const {
     if (!columnAllowed(static_cast<size_t>(variableIndex))) return false;
+    bool cutAvailable;
     if (data.types[static_cast<size_t>(variableIndex)] ==
         ColumnType::categorical) {
       size_t j = static_cast<size_t>(variableIndex);
@@ -408,14 +485,22 @@ public:
         reachableScratch_.resize(numWords);
         reachableCategoriesWide(data, nodeIndex, variableIndex,
                                 reachableScratch_.data());
-        return maskPopcount(reachableScratch_.data(), numWords) >= 2;
+        cutAvailable = maskPopcount(reachableScratch_.data(), numWords) >= 2;
+      } else {
+        cutAvailable = std::popcount(reachableCategories(data, nodeIndex,
+                                                         variableIndex)) >= 2;
       }
-      return std::popcount(reachableCategories(data, nodeIndex,
-                                               variableIndex)) >= 2;
+    } else {
+      int32_t left, right;
+      splitInterval(data, nodeIndex, variableIndex, &left, &right);
+      cutAvailable = right >= left;
     }
-    int32_t left, right;
-    splitInterval(data, nodeIndex, variableIndex, &left, &right);
-    return right >= left;
+    if (!cutAvailable) return false;
+    if (interaction_ != nullptr &&
+        !interactionVariableAvailable(nodeIndex,
+                                      static_cast<size_t>(variableIndex)))
+      return false;
+    return true;
   }
 
   /// Whether at least one predictor can still split at nodeIndex. Early-exits
@@ -443,6 +528,15 @@ public:
     availLeftScratch_.resize(p);
     availRightScratch_.resize(p);
     availMaskScratch_.resize(p);
+    // interaction constraint: accumulate the distinct ancestor split-variable
+    // set along the SAME walk, O(p) added (design "Why this is cheap"). Guarded
+    // so the unconstrained path never touches the scratch.
+    const size_t interactionWords =
+      interaction_ != nullptr ? interaction_->numWords : 0;
+    if (interaction_ != nullptr) {
+      availAncestorScratch_.resize(interactionWords);
+      for (size_t w = 0; w < interactionWords; ++w) availAncestorScratch_[w] = 0;
+    }
     for (size_t j = 0; j < p; ++j) {
       if (data.types[j] == ColumnType::categorical) {
         if (data.columnIsPooled(j)) continue;  // resolved after the walk
@@ -462,6 +556,8 @@ public:
       bool isRightChild = current == at(at(current).parent).leftChild + 1;
       current = at(current).parent;
       size_t j = static_cast<size_t>(at(current).rule.variableIndex);
+      if (interaction_ != nullptr)
+        maskSetBit(availAncestorScratch_.data(), static_cast<std::uint32_t>(j));
       if (data.types[j] == ColumnType::categorical) {
         if (data.columnIsPooled(j)) continue;
         availMaskScratch_[j] &= isRightChild
@@ -477,6 +573,8 @@ public:
       }
     }
 
+    const size_t order = interaction_ != nullptr
+      ? maskPopcount(availAncestorScratch_.data(), interactionWords) : 0;
     size_t count = 0;
     for (size_t j = 0; j < p; ++j) {
       bool avail;
@@ -487,6 +585,10 @@ public:
       else
         avail = availRightScratch_[j] >= availLeftScratch_[j];
       if (!columnAllowed(j)) avail = false;  // no-op when unrestricted
+      // interaction: drop a variable the ancestor set forbids by order or
+      // co-occurrence (idempotent for the pooled fallback above)
+      if (avail && interaction_ != nullptr)
+        avail = interactionAllows(j, availAncestorScratch_.data(), order);
       available[j] = avail ? 1 : 0;
       count += avail ? 1 : 0;
     }
@@ -1447,6 +1549,74 @@ private:
   const std::uint8_t* columnMask_ = nullptr;
   bool columnAllowed(size_t j) const {
     return columnMask_ == nullptr || columnMask_[j] != 0;
+  }
+
+  // per-forest interaction constraint (chain.hpp installs it, only when
+  // active); null on the default path. availAncestorScratch_ carries the
+  // ancestor variable-set along collectAvailableVariables' single walk;
+  // interactionWalkScratch_ is the running bitset of the subtree-validity walk.
+  const InteractionConstraint* interaction_ = nullptr;
+  mutable std::vector<std::uint64_t> availAncestorScratch_;
+  mutable std::vector<std::uint64_t> interactionWalkScratch_;
+
+  /// The admissibility test p(j | A): a NEW variable j is barred once the
+  /// distinct-ancestor order reaches K (max-order), and any variable is barred
+  /// when a forbidden partner sits in the ancestor set (co-occurrence).
+  bool interactionAllows(size_t j, const std::uint64_t* ancestors,
+                         size_t order) const {
+    if (interaction_->hasOrderCap()) {
+      bool alreadyUsed = maskTestBit(ancestors, static_cast<std::uint32_t>(j));
+      if (!alreadyUsed && order >= interaction_->maxOrder) return false;
+    }
+    if (interaction_->hasForbidden()) {
+      const std::uint64_t* row = interaction_->forbiddenRow(j);
+      for (size_t w = 0; w < interaction_->numWords; ++w)
+        if ((row[w] & ancestors[w]) != 0) return false;
+    }
+    return true;
+  }
+
+  /// Distinct split variables STRICTLY above nodeIndex, written into ancestors
+  /// (interaction_->numWords words); returns the count (the node's order).
+  size_t collectAncestorVariables(int32_t nodeIndex,
+                                  std::uint64_t* ancestors) const {
+    size_t numWords = interaction_->numWords;
+    for (size_t w = 0; w < numWords; ++w) ancestors[w] = 0;
+    int32_t current = nodeIndex;
+    while (at(current).parent != invalidNode) {
+      current = at(current).parent;
+      maskSetBit(ancestors,
+                 static_cast<std::uint32_t>(at(current).rule.variableIndex));
+    }
+    return maskPopcount(ancestors, numWords);
+  }
+
+  /// Single-variable interaction feasibility at nodeIndex, computing the
+  /// ancestor set on the fly (the per-call path variableAvailable /
+  /// hasAnyAvailableVariable take).
+  bool interactionVariableAvailable(int32_t nodeIndex, size_t j) const {
+    interactionWalkScratch_.resize(interaction_->numWords);
+    size_t order =
+      collectAncestorVariables(nodeIndex, interactionWalkScratch_.data());
+    return interactionAllows(j, interactionWalkScratch_.data(), order);
+  }
+
+  /// DFS of interactionSubtreeIsValid: test each internal node's variable
+  /// against the running ancestor bitset, then recurse with the variable
+  /// added, backtracking on the way out.
+  bool interactionSubtreeWalk(int32_t nodeIndex,
+                              std::uint64_t* ancestors) const {
+    const Node& node(at(nodeIndex));
+    if (node.isBottom()) return true;
+    std::uint32_t j = static_cast<std::uint32_t>(node.rule.variableIndex);
+    size_t order = maskPopcount(ancestors, interaction_->numWords);
+    if (!interactionAllows(j, ancestors, order)) return false;
+    bool wasSet = maskTestBit(ancestors, j);
+    if (!wasSet) maskSetBit(ancestors, j);
+    bool ok = interactionSubtreeWalk(node.leftChild, ancestors) &&
+              interactionSubtreeWalk(node.leftChild + 1, ancestors);
+    if (!wasSet) maskClearBit(ancestors, j);
+    return ok;
   }
 };
 
