@@ -68,7 +68,9 @@ struct SamplerStateData {
 
 /// Why a warm start (installForests) refused; ok on success. A single donor
 /// forest can seed several chains, so the donor's chain count need not match.
-enum class WarmStartResult { ok, shapeMismatch, gridMismatch, dartMismatch };
+enum class WarmStartResult {
+  ok, shapeMismatch, gridMismatch, dartMismatch, interactionMismatch
+};
 
 /// A sequential per-observation predictor update: stage one observation's
 /// leaf moves, test that no leaf empties, then commit or skip, with a single
@@ -706,6 +708,14 @@ public:
       dst.b0 = src.b0;
       dst.b1 = src.b1;
     }
+
+    // containment (design "Containment"): a donor grown under a different (or
+    // no) interaction constraint may hold a tree this sampler's constraint
+    // forbids; refuse before touching live state rather than install a tree
+    // treeLogProbability mis-scores. A no-op when no chain is constrained.
+    for (size_t c = 0; c < chains_.size(); ++c)
+      if (!chains_[c]->interactionStateFeasible(install[c]))
+        return WarmStartResult::interactionMismatch;
 
     for (size_t c = 0; c < chains_.size(); ++c)
       if (!chains_[c]->installForest(install[c]))

@@ -4810,6 +4810,10 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
     case bartcore::WarmStartResult::dartMismatch:
       Rf_error("DART state transfers only between two DART fits; the donor and "
                "destination disagree on dart");
+    case bartcore::WarmStartResult::interactionMismatch:
+      Rf_error("warm-start donor holds a tree that violates this sampler's "
+               "interaction constraint; the donor's fit is incompatible with "
+               "the interactions() prior in force here");
     case bartcore::WarmStartResult::shapeMismatch:
       Rf_error("warm-start donor is not shape-compatible with this sampler "
                "(number of trees, forests, or predictors differ)");
