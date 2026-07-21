@@ -197,3 +197,28 @@ this finding; reopen only if (a) a concrete high-bandwidth-target or embedded-Gi
 consumer needs single-chain speedup, or (b) the fused no-scratch design is built and
 measured to clear the bar on x86 first. Probe scripts + wcpool(-spin) in
 $CLAUDE_JOB_DIR/tmp (job b073bb28).
+
+## HEAD-TO-HEAD vs straight threading (2026-07-21): blocked-jacobi is DOMINATED -> KILL
+Prompted by VD questioning the straight-threading "1.67x" NO-GO: re-reading
+within-chain-threading.md sec 8 shows that number was the ISOLATED GATHER s_par at
+4T (below its own >=2 go-gate), and the straight mechanism's actual END-TO-END result
+was 0.91x - a LOSS - on x86 (Ryzen, split-L3). So nothing real was turned down. The
+doc named its revival condition: "hardware whose memory system actually scales with
+cores - large unified LLC, materially higher bandwidth per core" = Apple Silicon,
+NEVER RE-TESTED there. The microbench now runs the head-to-head (same kernels, spin
+barrier, M1), BLOCKED (task-parallel across trees, +noise split) vs STRAIGHT
+(data-parallel gather+scatter within a tree, EXACT/bitwise, no noise split), ESS/sec:
+    T=8, n=1e5: STRAIGHT 3.04x  vs BLOCKED 1.62x (wall 1.88x x 0.86 tax)
+    T=8, n=1e6: STRAIGHT 3.08x  vs BLOCKED 1.56x
+    (STRAIGHT scales 1.48/2.25/3.04x at T=2/4/8; it is EXACT so wall = ESS/sec, no
+    tax discount, no RNG cost, no O(n*b) scratch.)
+STRAIGHT threading nearly DOUBLES blocked-jacobi on the ONLY hardware where either
+wins (high-bandwidth M1), and on x86 both lose but straight loses LESS (0.91x vs
+0.65x - blocked adds scratch traffic to a bandwidth-bound machine). There is NO
+platform where blocked-jacobi is the best choice: it is strictly dominated by the
+simpler, exact, ALREADY-BUILT straight prototype. FINAL VERDICT: KILL blocked-jacobi
+as a build target (Phase 0 exactness knowledge stays banked). The real opportunity
+the arc surfaced is REOPENING straight within-chain threading for high-bandwidth
+hardware (Apple Silicon), prematurely closed on x86-only evidence - see
+within-chain-threading.md. Confirm the microbench with the archived real prototype
+(archive/within-chain-threading) built on M1 + bench-sampler before landing anything.
