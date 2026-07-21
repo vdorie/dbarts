@@ -309,8 +309,11 @@ methods::setValidity("dbartsControl", function(object) {
     return("'keepTrees' must be TRUE/FALSE")
   }
 
-  if (length(object@storage) != 1L || is.na(object@storage) ||
-      !(object@storage %in% c("double", "single"))) {
+  if (
+    length(object@storage) != 1L ||
+      is.na(object@storage) ||
+      !(object@storage %in% c("double", "single"))
+  ) {
     return("'storage' must be \"double\" or \"single\"")
   }
 
