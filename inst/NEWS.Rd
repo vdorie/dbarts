@@ -45,6 +45,23 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Reduced-precision residual storage for large problems:
+            \code{storage = "single"} in \code{dbartsControl} (and
+            \code{bart2}) stores the running residual in single precision
+            (fp32) while accumulating every reduction in double, roughly
+            halving the memory traffic of the dominant per-sweep sufficient
+            statistic pass. It is opt-in and currently supported only for
+            gaussian responses with constant leaves (an error is raised
+            otherwise); the leaf draws stay double precision, so posteriors
+            are statistically indistinguishable from the default
+            double-precision fit. The speedup is largest where memory
+            bandwidth binds - large \eqn{n}{n} and multi-chain runs -
+            roughly 10-30\% at \eqn{n = 10^6}{n = 1e6} in testing, growing
+            with the number of chains. The default \code{storage = "double"}
+            is bit-for-bit identical to previous builds. Separately, the
+            internal per-observation index storage was narrowed, lowering
+            sampler memory use with no change to results. See
+            \code{?dbartsControl}.
       \item Semicontinuous two-part (hurdle) responses:
             \code{family = "hurdle.lognormal"} (alias \code{"twopart"}) in
             \code{dbarts} and \code{bart2} fits a non-negative response with
