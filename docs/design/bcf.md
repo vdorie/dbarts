@@ -12,7 +12,7 @@ treatment forest tau(x), combined as
     y_i = mu(x_i, pihat_i) + b_{z_i} tau(x_i) + eps_i,   eps ~ N(0, sigma^2),
 
 with z_i binary treatment. It is the concrete case the multi-forest provision
-(core-generalization.md:138-144) was designed for, and bartCause is the intended
+(core-generalization.md, the multi-forest provision) was designed for, and bartCause is the intended
 consumer, driving from R over the sampler mutation API. Scope: binary z and a
 Gaussian response. Continuous treatment is out of scope (it needs a coefficient
 function b(z), not a two-level scalar).
@@ -37,7 +37,7 @@ options (tree count, base/power, move probabilities, node scale).
 sigma, latents, the y-scaling, the working response/weights, the sigma draw),
 `sigmaIsFixed_` / `family_`, and chain-level orchestration (chain count,
 thinning, verbose). This is the design's division of labor
-(core-generalization.md:107-116): a Forest carries its own working response and
+(core-generalization.md, the Forest/ResponseModel division of labor): a Forest carries its own working response and
 backfitting state, the ResponseModel the global variance draw. BCF's glue
 scalars (b0, b1, the optional prognostic scale a) live on the combining response
 model, not any Forest.

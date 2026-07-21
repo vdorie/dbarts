@@ -8,6 +8,16 @@ different axis from plan-1's predictor CODES. It is the write-up of the
 as the highest-value structural direction by the two SIMD investigations
 (docs/plans/x86-simd-plan.md, docs/plans/simd-survey.md).
 
+POST-MORTEM (2026-07-21): the block-fused atom map this note points to as
+the payoff (section 6; parallel-bart-frontier.md 3.4) is CLOSED, WONT-DO
+(docs/design/block-fusion.md) - Stage B measured the fused path 4-6x
+SLOWER than b=1, and the machinery was excised. So the "this layout is
+the substrate for block-fusion" framing below no longer has a downstream
+win to feed. What remains is the ~10% standalone single-tree reorder
+(section 3): either it gets re-evaluated on its own merits (weighed
+against its re-record and complexity costs, section 8), or this note is
+shelved.
+
 The headline of this note, stated up front because it corrects the
 premise: the naive per-tree reorder is NOT a clean ~2.6x-on-32% win. The
 "2.6x" is the per-element reduce ratio between contiguous and gather

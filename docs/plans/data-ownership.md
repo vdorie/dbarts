@@ -1,5 +1,12 @@
 # data-ownership
 
+Status: COMPLETE, 2026-07-14. All five plans landed; plan-5's landing note
+records "the data-ownership program (plans 1-5) is COMPLETE"
+(docs/plans/data-ownership-5-sparse.md). The design note
+(docs/design/data-ownership.md) froze 2026-07-11 - that FROZEN refers to
+the design converging, not to the implementation being unfinished; the
+program itself is done.
+
 agent: fable (design); implementation plans follow from the design note
 rng: neutral (design phase)
 budget: design note + fresh implementation plans

@@ -5,6 +5,29 @@ rng: neutral for the split (bitwise-gated refactor);
      posterior-changing for BCF (new model)
 budget: split ~600 lines; BCF ~800 lines + design note; separable PRs
 
+## Status
+
+LANDED, in two phases. Phase 1 - the Forest split plus the two-forest BCF
+sampler (steps 1-5) - closed at c9fd2fe on 2026-07-07. Phase 2 - a
+user-facing `moderators` restriction on the tau forest, sequenced after the
+later data-ownership-4 refactor (C1-C4) - closed at f6804f1.
+
+## Summary
+
+This arc gave dbarts a composable Forest unit (trees + leaf model + split
+selector + working response + backfitting state) with Sampler orchestrating
+one or more of them, and landed BCF - a prognostic forest mu(x) plus a
+treatment forest tau(x), y = mu + z * tau + eps - as the first two-forest
+sampler, consumed by bartCause. Phase 1 did the split, the BCF response
+model, the state/flat-format work, and the exact-posterior gate and
+calibration map. Phase 2, picked up after data-ownership-4 built the
+underlying per-forest column mask, added the `moderators` argument that lets
+callers restrict tau to a covariate subset, plus its own exact-posterior
+validation for the restricted case. Both phases gate on bitwise equivalence
+for every single-forest and default-path run, and on exact-posterior
+quadrature wherever a run actually samples a different posterior (BCF itself
+in Phase 1, a restricted tau in Phase 2).
+
 ## Goal
 
 Forest becomes the composable unit the design promised (trees + leaf
@@ -19,7 +42,7 @@ lands as the first two-forest sampler. bartCause consumes it.
   (do this when the facade lands in phase 2)" -
   docs/design/core-generalization.md:265-266; it never happened.
 - Multi-forest was the designed provision for BCF/multinomial/
-  heteroscedastic/hurdle (core-generalization.md:138-144).
+  heteroscedastic/hurdle (core-generalization.md, the multi-forest provision).
 - Chain currently owns trees/fits/response state directly
   (src/bartcore/chain.hpp); the split moves the per-forest members
   into a Forest struct Chain holds one-or-more of.
@@ -45,7 +68,9 @@ lands as the first two-forest sampler. bartCause consumes it.
 - Out of scope: multinomial/heteroscedastic/hurdle
   (multi-forest-models); continuous treatment.
 
-## Steps
+## Phase 1 - Forest split and the BCF sampler
+
+### Steps
 
 1. Design note (docs/design/bcf.md): the decisions above + the Forest
    member split, reviewed by VD before code.
@@ -59,15 +84,16 @@ lands as the first two-forest sampler. bartCause consumes it.
 5. bcf exact-posterior gate + component tests + a bartCause smoke
    driver in inst/tinytest.
 
-## Verification
+### Verification
 
 - Step 2: equivalence compare reports exact; full tinytest unchanged.
 - Steps 3-5: the new exact-posterior gate to MC error; component
   tests; bench-sampler no regression on single-forest paths.
 
-## Status (2026-07-07; continuation landed through f6804f1 - see Continuation
-landing notes at the end of this file, which discharges the step-3 full-store
-interim below)
+### Landing
+
+(Recorded 2026-07-07. The step-3 full-store interim noted below is
+discharged once Phase 2 landed through f6804f1 - see Phase 2's Landing.)
 
 Step 1 landed: docs/design/bcf.md reviewed by VD; resolutions recorded
 there (range-anchoring kept with the approximate sd(y) map onto
@@ -133,9 +159,8 @@ re-run locally 2026-07-07 over the step-4 serialization code (tarball
 at db96254): zero dbarts findings, same tool-noise-only output as the
 c2d591a baseline run.
 
-## Step 5 spec (2026-07-07)
-
-Budget ~550 lines. Three deliverables plus tests:
+Step 5 spec (2026-07-07). Budget ~550 lines. Three deliverables plus
+tests:
 
 1. Calibration map, replacing step 3's placeholder scales. At BCF
    creation compute s = sd of the range-scaled response (y mapped to
@@ -210,26 +235,36 @@ equivalence exact 18/18 identical draws vs 235bebc, bcf-exact.R
 quick (max gap 0.0009) and full (max gap 0.017 vs 0.035 on the
 2b E[mu], all others <= 0.0003), air/lintr clean.
 
-## Continuation (post data-ownership-4)
+## Phase 2 - moderator-restricted tau forests (post data-ownership-4)
 
-agent: opus (one owner keeps the R surface, the exact gate, and the
-  landing note coherent; the engine mechanism already exists).
-rng: the default path stays NEUTRAL (moderators absent = the shipped
-  BCF draw, byte-for-byte). A run that PASSES moderators samples a
-  different, restricted posterior BY DESIGN and cannot be
-  equivalence-gated; it is gated by the exact-posterior protocol
-  instead (step C2). Gate: equivalence 22/22 IDENTICAL vs
-  equivalence-ac6ec2c.rds; full tinytest 2771 + the C3 additions, no
-  regen of existing snapshots.
-budget: ~350-550 lines. C1 ~60 R; C2 ~200-300 (the restricted gate);
-  C3 ~80 tinytest (+ ~120 C/C++/R if the forest-addressed query in Q-C
-  is taken); C4 small. Separable PRs; C1+C3 can land before C2.
-bench: NO bench-sampler run is needed for the R-argument step. The
-  restriction is the same nullptr-guarded per-forest mask
-  data-ownership-4 already bench-confirmed neutral (bench-sampler
-  compare vs bench-sampler-32fc7c8.csv, 0.96-1.0x; baseline re-recorded
-  as bench-sampler-4008675.csv); C1-C3 add no hot-path code, only R
-  index resolution and a benchmark/test consumer. Skip the compare.
+Phase 1 shipped BCF with both forests reading the full covariate store,
+noting the moderator subset as an interim waiting on the data-ownership
+work's views. This second phase, sequenced once data-ownership-4 had landed
+that mechanism, closes the interim: a `moderators` argument restricts the
+tau forest to a column subset, with its own exact-posterior validation for
+the restricted posterior (which a run using it samples, and which therefore
+cannot ride the bitwise equivalence gate).
+
+One implementer session owns the whole phase (the R surface, the exact
+gate, and the landing note stay coherent with one owner; the engine
+mechanism already exists from data-ownership-4). Budget ~350-550 lines: C1
+~60 lines of R; C2 ~200-300 (the restricted exact-posterior gate); C3 ~80
+tinytest lines (+ ~120 C/C++/R if the forest-addressed query in Q-C is
+taken); C4 small. The steps are separable PRs; C1+C3 can land before C2.
+
+RNG posture: the default path stays NEUTRAL - moderators absent reproduces
+the shipped BCF draw, byte-for-byte. A run that PASSES moderators samples a
+different, restricted posterior BY DESIGN and cannot be equivalence-gated;
+it is gated by the exact-posterior protocol instead (step C2). Gate for the
+phase as a whole: equivalence 22/22 IDENTICAL vs equivalence-ac6ec2c.rds;
+full tinytest 2771 + the C3 additions, no regen of existing snapshots.
+
+Bench posture: no bench-sampler run is needed for the R-argument step. The
+restriction reuses the same nullptr-guarded per-forest mask
+data-ownership-4 already bench-confirmed neutral (bench-sampler compare vs
+bench-sampler-32fc7c8.csv, 0.96-1.0x; baseline re-recorded as
+bench-sampler-4008675.csv); C1-C3 add no hot-path code, only R index
+resolution and a benchmark/test consumer. Skip the compare.
 
 ### Context (what data-ownership-4 discharged, what remains)
 
@@ -252,7 +287,7 @@ bench: NO bench-sampler run is needed for the R-argument step. The
   NAMESPACE) and undocumented (no man/ topic). Consumers reach it via
   dbarts::: - inst/tinytest/test-bcf.R and bartCause. Public
   dbarts-level BCF exposure stays a deferred decision
-  (public-surface.md section 5), so this continuation lands the
+  (public-surface.md section 5), so this phase lands the
   argument on the internal function, not on an exported wrapper.
 - Forest-addressed queries are partial. bartcore_getForestFits
   (R_interface_bartcore.cpp:1653, R helper bartcoreForestFits) reads
@@ -355,13 +390,12 @@ C4. Docs + landing note. No NEW man/ topic and no _pkgdown.yml change:
     public getTrees/varcount methods (not an internal helper), their
     EXISTING Rd topic gains the argument line - still no new topic, so
     still no _pkgdown.yml work, but the Rd edit and R CMD check man do
-    apply. Append a Continuation landing note recording the resolved
-    open questions, the restricted-gate scenario, and (if Q-C deferred)
-    that R-side tau containment leans on tests/cpp. Gate: R CMD check
-    man (unaffected unless the Q-C Rd caveat applies); full tinytest
-    2771 + C3.
+    apply. Append a landing note recording the resolved open questions,
+    the restricted-gate scenario, and (if Q-C deferred) that R-side tau
+    containment leans on tests/cpp. Gate: R CMD check man (unaffected
+    unless the Q-C Rd caveat applies); full tinytest 2771 + C3.
 
-### Verification (continuation)
+### Verification
 
 - equivalence 22/22 IDENTICAL vs equivalence-ac6ec2c.rds at every
   commit - the default BCF and every single-forest path are untouched;
@@ -374,12 +408,13 @@ C4. Docs + landing note. No NEW man/ topic and no _pkgdown.yml change:
   the new bcf-exact-restricted.R quick + full pass to MC error.
 - tests/cpp: the existing tau-containment test still passes; if Q-C is
   taken, delete stale binaries after the header edit.
-- No bench-sampler run (see bench note above); dbarts.h unchanged, no
-  stan4bart lockstep (the growth is R + internal .Call only).
+- No bench-sampler run (see the bench posture note above); dbarts.h
+  unchanged, no stan4bart lockstep (the growth is R + internal .Call
+  only).
 - air format + lintr on touched R files; rchk on the next scheduled
   run only if Q-C touches the bridge.
 
-### Open questions for VD
+### Open questions
 
 - Q-A (moderators as names, indices, or both). RECOMMEND BOTH: accept
   a character vector resolved against colnames(sampler$data@x) OR a
@@ -414,23 +449,22 @@ C4. Docs + landing note. No NEW man/ topic and no _pkgdown.yml change:
   is deemed sufficient and VD wants zero new bridge surface, defer the
   selector and let C3 lean on tests/cpp + the C2 gate for containment.
 
-### Drift between the existing plan text and the current code
+### Drift between the plan text and the code
 
 - The step-3 interim "both forests read the full store (the moderator
-  subset waits on data-ownership's views)" (this doc's Status,
-  chain.hpp:471) is DISCHARGED: data-ownership-4 step 2 (4e1fb5b)
-  landed the mask and the moderatorsExpr slot. This continuation
-  consumes it; the plan's earlier deferral no longer holds.
+  subset waits on data-ownership's views)" (recorded in Phase 1's
+  Landing above, chain.hpp:471) is DISCHARGED: data-ownership-4 step 2
+  (4e1fb5b) landed the mask and the moderatorsExpr slot. This phase
+  consumes it; the earlier deferral no longer holds.
 - Gate baselines moved since step 5: the exactness/neutrality gates
   now read equivalence-ac6ec2c.rds (22/22) not equivalence-235bebc
   (18/18), tinytest 2771 not 2497, and bench-sampler-4008675.csv not a
-  235bebc baseline. The continuation uses the current baselines
-  throughout.
+  235bebc baseline. This phase uses the current baselines throughout.
 - bcf-ridge-interweaving.md and bcf-exact-weak.R landed after step 5
   and are not named in this plan's original body; they are recorded in
   the Context above as inherited, not reopened.
 
-### Continuation landing notes
+### Landing
 
 C1 landed (8552b68): `moderators` on the internal bartcoreBCFSampler.
 Q-A resolved BOTH names and 1-based indices, resolved R-side (match()
@@ -478,7 +512,6 @@ cuts on x2 (data.hpp numCuts behavior for ordinal columns without
 quantiles) and corrupt the enumerator's prior weights. bcf-exact.R
 itself untouched (full-store gate unmoved).
 
-Close: no bench-sampler run owed (per the continuation's bench note);
+Close: no bench-sampler run owed (per the bench posture note above);
 no Rd/_pkgdown.yml change anywhere (all surface internal; public
-getTrees unchanged); dbarts.h frozen throughout; the continuation is
-COMPLETE.
+getTrees unchanged); dbarts.h frozen throughout; Phase 2 is COMPLETE.

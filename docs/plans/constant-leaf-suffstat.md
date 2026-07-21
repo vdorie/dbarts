@@ -19,8 +19,8 @@ buffers.
   (src/bartcore/model.hpp:102-145) fed by computeNodeStatistics /
   computeVariance (src/bartcore/tree.hpp:471-513) via
   misc_htm_computeMean / computeVarianceForKnownMean.
-- Design target: docs/design/core-generalization.md:120 "(sum w,
-  sum wz, sum wz^2), delegating to existing moment kernels".
+- Design target: docs/design/core-generalization.md, the constant-leaf
+  suffstat "(sum w, sum wz, sum wz^2), delegating to existing moment kernels".
   LinearGaussianLeaf already uses the crossproduct moment form
   (model.hpp:348-377).
 - The two forms are algebraically equivalent for the marginal

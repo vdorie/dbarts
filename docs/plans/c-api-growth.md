@@ -13,16 +13,54 @@ budget: dbarts.h ~35 lines (struct + macro + one prototype + version bump);
   inst/tinytest/capi/consumer.c ~70 lines (capi_run2 + guard canary);
   inst/tinytest/test-capi.R ~40 lines; one new state tinytest ~50 lines.
 
+## Status: LANDED (bartcore, 2026-07-10)
+
+**Summary.** This plan makes dbarts's two 1.0-0-bound compatibility surfaces
+extensible without future ABI breaks.
+
+Output channels: `dbarts_results` (inst/include/dbarts/dbarts.h) gained a
+caller-set leading `structSize` field, and `dbarts_sampler_run` now fills
+each output pointer only when it is both present-by-size (its offset+size
+falls within the caller's declared `structSize`) and non-null - so fields
+can append monotonically across releases and the library never writes past
+an older caller's stack allocation. `DBARTS_C_API_VERSION` stays 1: the
+struct is born size-first before its first release, so there is no prior
+layout to version against. (A same-day initial proposal instead kept
+`dbarts_results` byte-frozen forever and added parallel
+`dbarts_sampler_run2`/`dbarts_results2` symbols; VD superseded it once it
+was clear nothing on CRAN yet links the unreleased header, so the frozen
+struct could simply be redesigned directly instead of shimmed - full record
+and rationale in Design, Part 1.)
+
+State format: `setState`/`installForests` were already reading per-chain
+blocks by name; this plan demotes the `formatVersion` stamp from a strict-
+equality gate to a `minReadableStateFormatVersion` encoding floor plus
+provenance, and makes REQUIRED-block refusals name the missing or malformed
+block. Additive block additions no longer orphan every state saved by a
+prior release.
+
+Both halves landed on bartcore 2026-07-10 as two independent commits. A
+deferred first real append to the output channel - `logLikelihood`, feeding
+the pointwise-loglik consumer - landed the same day as a follow-up, once
+its engine-side scope was cut to fit budget (the initial landing shipped
+mechanism-only). Full chronology, gate results, and the exact deviation
+rationale are in the Landing log at the end of this document.
+
 ## Goal
 
 Make the two frozen dbarts.h surfaces extensible without ABI breaks, per
 the DECIDED design (VD, 2026-07-10, TODO c-api-growth, window pre-release):
 
-1. Output channels: a new-named `dbarts_sampler_run2` taking an extended
-   results struct whose FIRST member is a caller-set size, so fields can
-   append monotonically across releases while the library never writes past
-   the caller's declared size. The frozen `dbarts_results` / `dbarts_sampler_run`
-   stay bit-identical (a thin shim over the shared core).
+1. Output channels: `dbarts_results` becomes size-first - a caller-set
+   `structSize` as its leading member - so fields can append monotonically
+   across releases while the library never writes past the caller's
+   declared size. `dbarts_sampler_run` absorbs the guarded write core
+   directly; there is no second entry point or second struct. (Originally
+   proposed as a separate `dbarts_sampler_run2`/`dbarts_results2` pair that
+   left `dbarts_results`/`dbarts_sampler_run` untouched behind a shim;
+   changed the same day once it was clear the unreleased header has no
+   installed base to protect - see Design, Part 1, for the full original
+   design and the rationale for dropping it.)
 2. State format: additive by-name blocks. Stop the every-encoding-change-
    orphans-all-states behavior by having the reader look up blocks by name,
    default absent OPTIONAL blocks, and refuse - naming the block - only when
@@ -155,45 +193,40 @@ engine can produce it now":
   BCF per-forest fits already ship via SEPARATE R-level entry points
   `bartcore_getForestFits`/`bartcore_getBCFGlue` (R_interface.cpp:229-230),
   not through `dbarts_results`. forest-combiner landed 2026-07-14
-  (docs/design/forest-combiner.md), so folding them into run2 is
+  (docs/design/forest-combiner.md), so folding them into `dbarts_results` is
   unblocked; do it when a consumer pulls. Future append.
 
-JUDGMENT CALL (named): whether run2 ships with the loglik channel at
-introduction or is mechanism-only (size + the v1 eight, first real append
-lands with its model). Recommendation: mechanism-only + loglik as the FIRST
-append IN THE SAME PR, so the write-guard is exercised end-to-end by a real
-channel in the consumer test rather than only by a canary. Rationale: adding
-a channel the engine cannot yet fill (NB r, cutpoints) would be dead surface
-(violates "only what has a consumer"); loglik is the one channel with both a
-decided item and a live producer, so it doubles as the guard's live test.
-VD to confirm loglik-now vs mechanism-only.
+JUDGMENT CALL (named): whether the growable `dbarts_results` ships with the
+loglik channel at introduction or is mechanism-only (size + the frozen
+eight, first real append lands with its model). Recommendation:
+mechanism-only + loglik as the FIRST append IN THE SAME PR, so the
+write-guard is exercised end-to-end by a real channel in the consumer test
+rather than only by a canary. Rationale: adding a channel the engine cannot
+yet fill (NB r, cutpoints) would be dead surface (violates "only what has a
+consumer"); loglik is the one channel with both a decided item and a live
+producer, so it doubles as the guard's live test. VD to confirm loglik-now
+vs mechanism-only.
 
 ## Design
 
-### Part 1: dbarts_sampler_run2 and dbarts_results2
+### Part 1: dbarts_results and dbarts_sampler_run (the growable output channel)
 
-[SUPERSEDED by the 2026-07-10 design change in Status: no run2/results2
-duality ships. dbarts_results itself became size-first (structSize as its
-first member) and dbarts_sampler_run absorbed the guarded core directly;
-the macro is DBARTS_RESULTS_HAS and DBARTS_C_API_VERSION stays 1. The
-write-guard idiom, static_asserts, boundary comment, and append rules
-below carry over unchanged - read "dbarts_results2" as "dbarts_results"
-and ignore the shim. The text below is kept as drafted for the record.]
-
-Header additions (inst/include/dbarts/dbarts.h), after the `dbarts_results`
-block, leaving `dbarts_results` and `dbarts_sampler_run` UNTOUCHED:
+**Adopted design.** Header additions (inst/include/dbarts/dbarts.h): give
+`dbarts_results` a leading caller-set `structSize`, ahead of the existing
+eight output pointers, with a boundary comment marking where the 1.0-0
+layout ends and future appends go. The library fills a field only when it
+is both present-by-size and non-null:
 
 ```c
-/// Extended, growable results for dbarts_sampler_run2. structSize MUST be
-/// set by the caller to sizeof(dbarts_results2) as the caller compiled it;
-/// the library fills only fields whose end offset is within structSize, so
-/// a caller built against an older header (smaller struct) is never written
-/// past. Fields append monotonically and never reorder across releases; a
-/// field is filled only when both present-by-size and non-null. The leading
-/// eight pointers match dbarts_results one-for-one. Value-initialize and set
-/// the size: dbarts_results2 r = {0}; r.structSize = sizeof r;
-typedef struct dbarts_results2_t {
-  size_t structSize;    ///< caller sets = sizeof(dbarts_results2)
+/// Caller-owned, growable results. structSize MUST be set by the caller to
+/// sizeof(dbarts_results) as the caller compiled it; the library fills only
+/// fields whose end offset is within structSize, so a caller built against
+/// an older header (smaller struct) is never written past. Fields append
+/// monotonically and never reorder across releases; a field is filled only
+/// when both present-by-size and non-null. Value-initialize and set the
+/// size: dbarts_results r = {0}; r.structSize = sizeof r;
+typedef struct dbarts_results_t {
+  size_t structSize;    ///< caller sets = sizeof(dbarts_results)
   double* sigma;        ///< numSamples x numChains
   double* train;        ///< numObservations x numSamples x numChains
   double* test;         ///< numTestObservations x numSamples x numChains
@@ -202,83 +235,124 @@ typedef struct dbarts_results2_t {
   double* varprobs;     ///< numPredictors x numSamples x numChains
   double* tau;          ///< numSamples x numChains
   double* groupEffects; ///< numGroups x numSamples x numChains
-  /* --- v1 field boundary; every future append goes below, never above --- */
-  double* logLikelihood; ///< numObservations x numSamples x numChains (opt.)
-} dbarts_results2;
+  /* --- 1.0-0 field boundary; appends after this release bump
+     DBARTS_C_API_VERSION --- */
+  double* logLikelihood; ///< numObservations x numSamples x numChains (opt.;
+                         ///< landed as the first real append - see the
+                         ///< Landing log)
+} dbarts_results;
 
 /// True when the caller's struct (per structSize) actually carries `field`.
 /// sizeof is unevaluated, so this never dereferences past the caller buffer.
-#define DBARTS_RESULTS2_HAS(r, field) \
-  ((r)->structSize >= offsetof(dbarts_results2, field) + sizeof((r)->field))
-
-/// As dbarts_sampler_run, into a growable results struct. Set structSize.
-void dbarts_sampler_run2(dbarts_sampler* sampler, size_t numBurnIn,
-                         size_t numSamples, dbarts_results2* results);
+#define DBARTS_RESULTS_HAS(r, field) \
+  ((r)->structSize >= offsetof(dbarts_results, field) + sizeof((r)->field))
 ```
 
-Bump `#define DBARTS_C_API_VERSION 1` -> `2` (dbarts.h:48) so a consumer can
-gate `dbarts_apiVersion() >= 2` before resolving run2 (the header already
-mandates the apiVersion check, :9-13). Adding a new CCallable name does not
-by itself require the bump, but the bump is the sanctioned "these fields/
-entry points exist" signal.
+Because nothing on CRAN links the unreleased 1.0-0 header yet,
+`dbarts_results` had no installed base to protect: it could be redesigned in
+place rather than frozen-and-shimmed. `DBARTS_C_API_VERSION` stays 1 - the
+struct is BORN size-first, so there is no prior layout to distinguish;
+future appends (after the 1.0-0 release ships) bump it from here. Adding a
+new CCallable name would not by itself require the bump, but the bump is
+the sanctioned "these fields/entry points exist" signal. `dbarts_sampler_run`
+absorbs the guarded write core directly: there is no second entry point and
+no second struct.
 
-The write-guard idiom (library side, C_interface.cpp). A field is filled
-iff present-by-size AND non-null:
+The write-guard idiom (library side, C_interface.cpp). A field is filled iff
+present-by-size AND non-null:
 
 ```c
 #define FILL(field, engineMember) \
   engineResults.engineMember = \
-    (DBARTS_RESULTS2_HAS(results, field) ? results->field : NULL)
+    (DBARTS_RESULTS_HAS(results, field) ? results->field : NULL)
 ```
 
 `offsetof` is against the LIBRARY's (newest) layout; because fields only
 append and never reorder, that offset equals the offset the caller would
 compute for the same field, and `structSize` bounds the caller's buffer. A
-smaller (older) caller struct makes `DBARTS_RESULTS2_HAS` false for every
+smaller (older) caller struct makes `DBARTS_RESULTS_HAS` false for every
 field past its end, so the library never reads the (absent) pointer slot nor
 writes through it. A larger (newer-than-lib) caller struct is also safe: the
 library only references fields it has code for (all within its own sizeof,
 hence <= structSize), and value-init leaves the caller's newer fields NULL/0.
 
-run2 core and run as a shim (C_interface.cpp): factor the eight-pointer map +
-callback wiring + RNG bracket out of today's `dbarts_sampler_run` into a
-shared static `runCore(sampler, burnIn, numSamples, dbarts_results2*)`.
-- run2 calls runCore directly.
-- run builds a local `dbarts_results2 view = {0}; view.structSize =
-  offsetof(dbarts_results2, logLikelihood);` (i.e. pinned to the v1
-  boundary - the size an all-v1 caller would declare), copies the eight
-  frozen pointers field-by-field, and calls runCore. The guard then makes
-  every post-v1 field skip, reproducing run's exact behavior. Field-by-field
-  copy (not reinterpret_cast) keeps `dbarts_results` and `dbarts_results2`
-  layout-DECOUPLED, so v1 stays genuinely frozen and independent.
+`dbarts_sampler_run` (C_interface.cpp) now runs the eight/nine-pointer map +
+callback wiring + RNG bracket through this guarded fill for every field, old
+and new alike - a caller that still declares only the frozen eight
+(structSize ending at `logLikelihood`) gets exactly the historical behavior,
+because every field past its declared size guards off.
 
 Compile-time layout locks (C_interface.cpp, C++ side, NOT the shipped header
 - the header must stay C99-clean for C consumers like consumer.c):
 ```cpp
-static_assert(offsetof(dbarts_results2, structSize) == 0);
-static_assert(offsetof(dbarts_results2, sigma)  == sizeof(size_t) /*+pad*/);
-static_assert(offsetof(dbarts_results2, sigma) < offsetof(dbarts_results2, train));
+static_assert(offsetof(dbarts_results, structSize) == 0);
+static_assert(offsetof(dbarts_results, sigma)  == sizeof(size_t) /*+pad*/);
+static_assert(offsetof(dbarts_results, sigma) < offsetof(dbarts_results, train));
 // ... one monotonic-order assert per field pair ...
-static_assert(offsetof(dbarts_results2, groupEffects) <
-              offsetof(dbarts_results2, logLikelihood));
-static_assert(sizeof(dbarts_results2) == EXPECTED); // bump deliberately on append
+static_assert(offsetof(dbarts_results, groupEffects) <
+              offsetof(dbarts_results, logLikelihood));
+static_assert(sizeof(dbarts_results) == EXPECTED); // bump deliberately on append
 ```
 The per-field-offset and final-sizeof asserts are the layout lock: any
 reorder or mid-struct insertion fails the build, and appending forces the
 author to update EXPECTED (an explicit acknowledgement that the ABI grew).
+
 JUDGMENT CALL (named): pin exact literal offsets vs only-monotonic asserts.
 Recommendation: monotonic-order asserts + one exact `sizeof` assert - exact
 per-field offsets are padding/ABI-dependent and add churn without extra
 safety once order + total size are pinned.
 
-Thread-safety / ABI notes for the plan body: run2 shares run's contract
-verbatim - main R thread only (RNG bracket internal), callback refused while
-chains run on worker threads (C_interface.cpp:74-87). No new global state.
-The struct is caller-owned and single-threaded per call.
+Thread-safety / ABI notes: main R thread only (RNG bracket internal),
+callback refused while chains run on worker threads (C_interface.cpp:74-87).
+No new global state. The struct is caller-owned and single-threaded per
+call.
 
-Registration: add `DEF_FUNC("dbarts_sampler_run2", dbarts_sampler_run2)` to
-the CCallable table (R_interface.cpp near :301). No `.Call` entry (run2 is
-consumer-facing only, like every dbarts_sampler_* symbol).
+Registration: `dbarts_sampler_run`'s existing CCallable entry
+(R_interface.cpp near :301) needs no new registration line - only its
+signature (the now size-first `dbarts_results*`) changed.
+
+**Originally proposed, and superseded: a parallel dbarts_sampler_run2 /
+dbarts_results2.** Drafted 2026-07-10 as the initial plan, and landed as
+Commit A's initial content (see Landing log), before VD's same-day design
+change superseded it. The idea: leave `dbarts_results` and
+`dbarts_sampler_run` byte-frozen forever, and add new-named siblings
+`dbarts_results2` (`structSize` as its first member, the same eight
+pointers, one appended field) and `dbarts_sampler_run2` (taking
+`dbarts_results2*`). `dbarts_sampler_run` would become a thin shim: both
+`run2` and the shim would call a shared static
+`runCore(sampler, burnIn, numSamples, dbarts_results2*)` holding the
+eight-pointer map, callback wiring, and RNG bracket. `run2` would call
+`runCore` directly; `run` would build a local
+`dbarts_results2 view = {0}; view.structSize = offsetof(dbarts_results2,
+logLikelihood);` (pinned to the v1 boundary - the size an all-v1 caller
+would declare), copy the eight frozen pointers field-by-field (not
+`reinterpret_cast`, to keep `dbarts_results` and `dbarts_results2`
+layout-DECOUPLED so v1 stays genuinely frozen and independent), and call
+`runCore` - reproducing `run`'s exact behavior because every post-v1 field
+then guards off. `run2` would share `run`'s contract verbatim: main R
+thread only, callback refused on worker threads, no new global state.
+`DBARTS_C_API_VERSION` would bump 1 -> 2 so a consumer could gate
+`dbarts_apiVersion() >= 2` before resolving `run2` (the header already
+mandates the apiVersion check, dbarts.h:9-13); `run2` would need its own
+CCallable registration line (`DEF_FUNC("dbarts_sampler_run2",
+dbarts_sampler_run2)`, R_interface.cpp near :301).
+
+Changed because: nothing on CRAN links the unreleased 1.0-0 header, so
+`dbarts_results` had no installed base to protect with a shim - it could
+simply become size-first itself, and the one stan4bart lockstep rebuild
+already planned for the 1.0-0 cutover absorbs the layout change for free.
+Carrying `run2`/`results2` forward as a permanent parallel surface would
+have meant a shim and a second registered symbol forever, for a
+pre-vs-post-growable distinction that only matters before the struct ships
+at all. VD made the call 2026-07-10 - the same day as the initial landing.
+Commit B (state blocks, independent of this surface) was unaffected and
+cherry-picked onto bartcore verbatim; Commit A was reworked in place to the
+adopted design above before landing. The write-guard idiom, the
+static_asserts (structSize at offset 0, monotonic order, one exact sizeof),
+the boundary comment, and the mechanism-only adjudication (Landing log)
+all carried over unchanged into the reworked `dbarts_sampler_run` - only
+the duality itself (separate name, separate struct, version bump, second
+registration) was dropped.
 
 ### Part 2: additive by-name state blocks
 
@@ -356,24 +430,25 @@ state-format design note):
 
 ### Worked example: a future negative-binomial block (both surfaces)
 
-Output channel (run2). NB adds an `r` shape trace. It appends BELOW
-logLikelihood:
+Output channel (`dbarts_results`). NB adds an `r` shape trace. It appends
+BELOW logLikelihood:
 ```c
   double* logLikelihood; // (already shipped)
   double* rTrace;        // numSamples x numChains; filled only under NB
 ```
-Writer (C_interface.cpp runCore): `FILL(rTrace, rTrace);` maps to a new
+Writer (C_interface.cpp): `FILL(rTrace, rTrace);` maps to a new
 `bartcore::Results::rTrace` the NB response model fills at storeSample.
 Reader behavior across versions:
-- Old consumer (structSize ends at logLikelihood): `DBARTS_RESULTS2_HAS(r,
+- Old consumer (structSize ends at logLikelihood): `DBARTS_RESULTS_HAS(r,
   rTrace)` is false -> library never touches it. Old consumer keeps working
   against the NB-aware library, just without the trace.
 - New consumer, non-NB sampler: `rTrace` non-null but the engine's NB
   producer is inactive -> the channel is simply never written (existing
   null-skip-by-model convention, dbarts.h:59-62). Consumer value-init leaves
   it 0; it must gate on `dbarts_sampler_...` model queries as with k/varprobs.
-- New consumer, NB sampler: filled. `sizeof(dbarts_results2)` EXPECTED assert
-  bumped; `DBARTS_C_API_VERSION` bumped to 3.
+- New consumer, NB sampler: filled. `sizeof(dbarts_results)` EXPECTED assert
+  bumped; `DBARTS_C_API_VERSION` bumped to 2 (the first bump after the
+  1.0-0 release ships - logLikelihood's pre-release append did not bump it).
 
 State block (save/load of the NB shape, which is chain state). Writer adds an
 optional per-chain slot:
@@ -413,27 +488,32 @@ gotcha: `R CMD INSTALL --preclean -l <lib>` after touching dbarts.h and the
 bridge; delete tests/cpp + capi binaries so no stale-header link).
 
 1. tests/cpp: rebuild clean, `./test_bartcore` green. No new engine case is
-   strictly required (run2 is bridge-level), but if the loglik channel ships,
-   add nothing here - the engine `Results` growth is covered by the C
-   consumer round trip. (If VD wants an engine-level assert, a test_state.cpp
-   case that the state round-trips an added optional block belongs there.)
+   strictly required (the growable-results mechanism is bridge-level), but
+   if the loglik channel ships, add nothing here - the engine `Results`
+   growth is covered by the C consumer round trip. (If VD wants an
+   engine-level assert, a test_state.cpp case that the state round-trips an
+   added optional block belongs there.)
 
 2. C-consumer round trip (the load-bearing gate, mirrors the real ABI).
    Extend inst/tinytest/capi/consumer.c + test-capi.R:
-   - `capi_run2` that stack-allocates `dbarts_results2 r = {0}; r.structSize =
-     sizeof r;`, fills sigma/train/varcount (+ logLikelihood if shipped),
-     runs, and returns them. Assert against a `capi_run` result: sigma/train/
-     varcount IDENTICAL (run and run2 share runCore), proving the shim.
+   - a legacy-sized call: stack-allocate `dbarts_results r = {0};`, set
+     `r.structSize` to the pre-append boundary (the offset of
+     `logLikelihood` - what an all-v1 caller would have declared), fill
+     sigma/train/varcount, run, and assert against a full-sized call
+     (`structSize = sizeof r`, same fields plus logLikelihood if shipped)
+     that the shared fields are IDENTICAL - proving the size guard is
+     transparent to an older-sized caller.
    - The write-guard canary: allocate a struct region larger than
-     `dbarts_results2`, set `structSize = offsetof(dbarts_results2,
-     logLikelihood)` (simulate an OLD, v1-sized caller), write a sentinel
-     into the bytes past that offset, run2, assert the sentinel is intact AND
-     the post-boundary pointer slot was never dereferenced (leave it pointing
-     at a poisoned address so a stray write would segfault). This exercises
-     the ABI-safety claim from a genuinely-compiled consumer - the one test
-     that would actually catch a guard regression.
-   - `dbarts_apiVersion()` now 2 (update the existing `expect_equal(...,1L)`
-     at test-capi.R:43 to 2L).
+     `dbarts_results`, set `structSize` to a boundary below `test`/`varcount`
+     (simulate an OLD, undersized caller), write a sentinel into the bytes
+     past that offset, run, assert the sentinel is intact AND the guarded
+     field was never dereferenced (leave it pointing at a poisoned address so
+     a stray write would segfault). This exercises the ABI-safety claim from
+     a genuinely-compiled consumer - the one test that would actually catch a
+     guard regression.
+   - `dbarts_apiVersion()` stays 1 (the struct is born size-first
+     pre-release, so there is nothing to bump here - unlike the
+     originally-proposed run2 duality, which would have moved this to 2).
    - Self-gates on toolchain availability exactly as today (test-capi.R:13-38).
 
 3. State additive-load tinytest (new file, e.g.
@@ -451,13 +531,13 @@ bridge; delete tests/cpp + capi binaries so no stale-header link).
    surgery (no C needed); test-sampler-saveLoad.R is the sibling for style.
 
 4. tinytest suite: `tinytest::test_package("dbarts")` - baseline + the new
-   checks, 0 failures. No existing snapshot moves (no RNG path touched); the
-   only pre-existing edit is the apiVersion 1L->2L assertion.
+   checks, 0 failures. No existing snapshot moves (no RNG path touched).
 
 5. Equivalence: `benchmarks/R/equivalence.R compare
    benchmarks/baselines/equivalence-<current>.rds` - all scenarios IDENTICAL
-   (same RNG stream). run2 adds no draw; run is byte-identical via the shim;
-   the state gate change only affects load-time refusal, not sampling.
+   (same RNG stream). The growable `dbarts_sampler_run` adds no draw; a
+   legacy-sized caller gets byte-identical output via the size guard; the
+   state gate change only affects load-time refusal, not sampling.
 
 6. air format + lintr on any touched R/tinytest files; dbarts.h ASCII-clean
    (grep for non-ASCII); the header still compiles as C99 (consumer.c is C -
@@ -466,23 +546,42 @@ bridge; delete tests/cpp + capi binaries so no stale-header link).
 
 ### stan4bart lockstep
 
-NOTHING until stan4bart opts into run2. `dbarts_sampler_run` and
-`dbarts_results` are byte-frozen (shim), so stan4bart 0.0-13's compiled
-`dbarts_results results = {0}` + `dbarts_sampler_run` calls are unaffected.
-The state gate relaxation is backward-compatible: states stan4bart writes
-today (format 3) still load (>= floor), and a stan4bart that never touches
-run2 needs no rebuild. When stan4bart eventually wants the loglik/NB channels
-it switches to run2 with `structSize = sizeof(dbarts_results2)` and gates on
-`dbarts_apiVersion() >= 2` - additive, at its own pace, in a later lockstep
-window. Record this in the release note (TODO L445-449 area).
+Adopted design: stan4bart's port adds `r.structSize = sizeof r` at its
+`dbarts_results` allocations and gates on `dbarts_apiVersion() >= 1` as
+before - the one lockstep rebuild for 1.0-0 that stan4bart already needs (it
+is not yet released against the current header) absorbs this size-first
+layout change for free. Record this in the release note (TODO L445-449
+area).
+
+Under the originally-proposed run2/results2 duality (Design, Part 1), this
+would instead have been fully optional: `dbarts_sampler_run` and
+`dbarts_results` would stay byte-frozen (via the shim), so stan4bart
+0.0-13's compiled `dbarts_results results = {0}` + `dbarts_sampler_run`
+calls would be unaffected, and a stan4bart that never touched `run2` would
+need no rebuild at all. When stan4bart eventually wanted the loglik/NB
+channels it would switch to `run2` with `structSize = sizeof(
+dbarts_results2)` and gate on `dbarts_apiVersion() >= 2` - additive, at its
+own pace, in a later lockstep window. That optionality was the tradeoff
+given up when the duality was dropped: because stan4bart's 1.0-0 rebuild
+was happening anyway, requiring it to also set `structSize` cost nothing
+extra in practice.
+
+The state gate relaxation (Part 2) is backward-compatible independent of
+either design: states stan4bart writes today (format 3) still load (>=
+floor), and this half needs no stan4bart change regardless of which
+output-channel design shipped.
 
 ## Risks and sequencing
 
 - Smallest-diff split (recommended): two independent landings under this one
   plan, since the two surfaces share nothing.
-  - Landing A (output channels): dbarts.h struct/macro/prototype + version
-    bump; C_interface.cpp runCore/run-shim/run2/static_asserts;
-    R_interface.cpp registration; consumer.c + test-capi.R. Self-contained.
+  - Landing A (output channels): dbarts.h struct/macro additions to
+    `dbarts_results` (no version bump - the struct is born size-first
+    pre-release); C_interface.cpp folds the write guard directly into
+    `dbarts_sampler_run` plus the static_asserts; no new R_interface.cpp
+    registration (`dbarts_sampler_run`'s existing CCallable entry carries the
+    new signature); consumer.c + test-capi.R updated to size-set the struct
+    at each call site. Self-contained.
   - Landing B (state blocks): R_interface_bartcore.cpp gate swap + block-name
     refusal helper + registry comment; docs note; state-format tinytest.
     Self-contained.
@@ -494,7 +593,7 @@ window. Record this in the release note (TODO L445-449 area).
   the correct idiom. Considered and rejected: a "0 means full" sentinel -
   it re-introduces exactly the size-blind write the design exists to prevent.
 - Risk: appending a field later without bumping the `sizeof` static_assert or
-  `DBARTS_C_API_VERSION`. Mitigation: the `sizeof(dbarts_results2) ==
+  `DBARTS_C_API_VERSION`. Mitigation: the `sizeof(dbarts_results) ==
   EXPECTED` assert fails the build until EXPECTED is updated, forcing the
   author to notice the ABI grew (and, by convention, bump the version).
 - Risk: someone bumps `stateFormatVersion` for a purely additive block out of
@@ -509,14 +608,15 @@ window. Record this in the release note (TODO L445-449 area).
   eight v1 fields and the canary alone proves the guard, with logLikelihood
   deferred to pointwise-loglik's engine-side follow-up.
 
-## Status
+## Landing log
 
 - 2026-07-10: plan drafted (read-only). Not yet implemented. Open judgment
   calls for the implementer/VD, all named inline: (1) ship the loglik channel
-  at run2 introduction vs mechanism-only; (2) monotonic-order static_asserts
+  at run introduction vs mechanism-only; (2) monotonic-order static_asserts
   vs exact per-field offsets; (3) encoding floor vs pure-provenance (no gate).
   Recommendations recorded above: (1) loglik as first append in the same PR,
   (2) monotonic + one sizeof assert, (3) keep the floor.
+
 - 2026-07-10: judgment calls adjudicated by the orchestrator (VD
   delegated sequencing; the design itself was decided 2026-07-10):
   (1) loglik ships as the first append in the same landing - it is
@@ -527,15 +627,19 @@ window. Record this in the release note (TODO L445-449 area).
   plus the one exact sizeof assert. (3) keep the encoding floor.
   Two-landing split (A: output channels; B: state blocks) accepted;
   land as separate commits under this plan.
+
 - 2026-07-10: LANDED as two commits on wt/c-api-growth.
-  Commit A "Add a growable results struct and run2 entry point":
-  dbarts.h (dbarts_results2 + DBARTS_RESULTS2_HAS + run2 prototype +
+  Commit A, "Add a growable results struct and run2 entry point" - its
+  initial content shipped the then-current run2/results2 design (see
+  Design, Part 1, "Originally proposed" for what this became a few hours
+  later): dbarts.h (dbarts_results2 + DBARTS_RESULTS2_HAS + run2 prototype +
   DBARTS_C_API_VERSION 2); C_interface.cpp (runCore factoring, run
   as a v1-boundary shim, run2, and the monotonic-order + exact-sizeof
   static_asserts); R_interface.cpp registration; consumer.c capi_run2
   + capi_run2_guard canary; test-capi.R (apiVersion 1L->2L, run2==run
   bit-identity, guard).
-  Commit B "Read sampler state blocks by name behind an encoding floor":
+  Commit B, "Read sampler state blocks by name behind an encoding floor" -
+  landed as designed and unaffected by the later design change:
   minReadableStateFormatVersion floor replacing the two equality gates
   in setState/installForests; missing-vs-malformed block-name refusals
   on forests/tree.vars/tree.params/tree.masks/k/sigma/fit.scale; the
@@ -551,29 +655,31 @@ window. Record this in the release note (TODO L445-449 area).
   the just-landed R-side pointwiseLogLikelihood, plus per-observation
   group-index plumbing into storeSample for rbart (trainingFits omit the
   intercepts) and BCF NaN handling, with no gate verifying the numeric
-  values. Per the adjudication, dbarts_results2 ships size + the eight v1
-  fields; logLikelihood is deferred to pointwise-loglik's engine-side
-  follow-up. The write guard is still proven end-to-end: capi_run2_guard
-  pins structSize below `test`/`varcount` (fields the gaussian sampler
-  DOES produce) and poisons those slots, so a size-blind write would
-  crash - a stronger canary than a null field. Judgment calls 2
-  (monotonic + one sizeof) and 3 (keep the floor) landed as recommended.
+  values. Per the adjudication, the results struct ships size + the eight
+  v1 fields; logLikelihood is deferred to pointwise-loglik's engine-side
+  follow-up (it landed the same day - see below). The write guard is still
+  proven end-to-end: capi_run2_guard pins structSize below `test`/`varcount`
+  (fields the gaussian sampler DOES produce) and poisons those slots, so a
+  size-blind write would crash - a stronger canary than a null field.
+  Judgment calls 2 (monotonic + one sizeof) and 3 (keep the floor) landed as
+  recommended.
   Gates: preclean install clean; tests/cpp all green; test-capi 58/58
   (run2==run sigma/train/varcount, guard TRUE); tinytest 2602/0;
   equivalence 21/21 identical draws; air + lintr clean; dbarts.h ASCII
   and C99-clean (consumer compiles+runs as C).
-- 2026-07-10: DESIGN CHANGE (VD), superseding Part 1's run2/results2
-  duality. Nothing on CRAN links against the unreleased 1.0-0 header, so
-  dbarts_results is still editable: it becomes size-first ITSELF (a
-  leading size_t structSize, shifting the eight pointers), and the one
-  lockstep stan4bart rebuild already planned for 1.0-0 absorbs the layout
-  change. dbarts_results2, dbarts_sampler_run2, and the run shim are
-  dropped; the macro is DBARTS_RESULTS_HAS; DBARTS_C_API_VERSION stays 1
-  (the struct is BORN size-first at 1.0-0 - there is no prior layout to
-  distinguish; appends bump it from here). The write-guard idiom, the
-  static_asserts (structSize at 0, monotonic order, one exact sizeof), the
-  boundary comment, and the mechanism-only adjudication (logLikelihood
-  deferred to the engine-side follow-up) all carry over verbatim into
+
+- 2026-07-10: DESIGN CHANGE (VD), superseding Commit A's run2/results2
+  duality (full adopted design and rationale in Design, Part 1). Nothing
+  on CRAN links against the unreleased 1.0-0 header, so dbarts_results is
+  still editable: it becomes size-first ITSELF (a leading size_t
+  structSize, shifting the eight pointers), and the one lockstep stan4bart
+  rebuild already planned for 1.0-0 absorbs the layout change. dbarts_results2,
+  dbarts_sampler_run2, and the run shim are dropped; the macro is
+  DBARTS_RESULTS_HAS; DBARTS_C_API_VERSION stays 1 (the struct is BORN
+  size-first at 1.0-0 - there is no prior layout to distinguish; appends bump
+  it from here). The write-guard idiom, the static_asserts (structSize at 0,
+  monotonic order, one exact sizeof), the boundary comment, and the
+  mechanism-only adjudication (above) all carry over verbatim into
   dbarts_sampler_run, which absorbs runCore's body directly. A zero
   structSize is an all-skip no-op (documented in the header).
   stan4bart lockstep action: its port adds r.structSize = sizeof r at its
@@ -585,6 +691,7 @@ window. Record this in the release note (TODO L445-449 area).
   (structSize pinned to offsetof(test) with poisoned slots past it) and
   every consumer.c run call site sets structSize - the in-repo lockstep
   rebuild. Gates re-run after the rework; results recorded below.
+
 - 2026-07-10: DEFERRED CHANNEL LANDED (the logLikelihood follow-up this
   plan named). dbarts_results gains a ninth pointer, logLikelihood
   (numObservations x numSamples x numChains), appended INSIDE the born v1

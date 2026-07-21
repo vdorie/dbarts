@@ -1,36 +1,44 @@
 # Within-chain threading for large-n single-chain sweeps: engineering design
 
-Status: CLOSED - NO-GO, 2026-07-13 (section 8). Grounded in the current engine
-(bartcore HEAD, block-fusion excised: the legacy setNodeAverages /
-computeLeafStats suffstat path is again the only one). The section-7 prototype
-was built and measured the same day; both pre-registered no-go gates triggered.
-Prototype archived on archive/within-chain-threading.
+Status: CLOSED - NO-GO on every tested hardware (x86 and Apple Silicon), 2026-07-21.
 
-The estimates here are against the CURRENT u16 hot layer. The per-column-width
-(u8) layer is parked -- it is not in the tree (a standalone width retrofit
-measured a regression, and per-column widths instead fold structurally into the
-owned container, docs/design/data-ownership.md), so there is no "on top of u8"
-variant to model. All numbers below assume u16 codes.
+Summary: Single-chain large-n sweeps (n >= 1e5) are DRAM/latency-bound over a
+handful of O(n) passes per tree. This note parallelizes those passes (suffstat
+gather, fit scatter, residual roll, totalFits rebuild, SSR reduction) across a
+persistent std::barrier worker pool, with a fixed-block reduction scheme that
+makes every draw bitwise-identical across n.threads in {1, 2, 8} by
+construction (section 3). An a-priori Amdahl model (section 6) projected a
+modest ceiling of ~1.5-1.7x at n=1e5 and ~1.8-2.1x at n=1e6 for 4-8 threads.
+The mechanism was built and measured on the real engine on two different
+memory systems and came in below even that modest projection both times:
+0.91x at the target size on an x86 Ryzen/DDR4 box (section 8), and 1.10x best
+case with an 8-thread SLOWDOWN on Apple Silicon (section 10). A same-session
+representative-kernel microbench had suggested ~3x scaling on M1 and proposed
+reopening the question (section 10); that reversal was refuted once the
+actual prototype was built and run on the real engine. The binding constraint
+is not memory bandwidth but the PARALLEL FRACTION: only ~47% of the sweep is
+the O(n) passes above, the rest (structure-move scans, per-leaf RNG draws,
+bookkeeping) is inherently serial, and Amdahl's law over that fraction caps
+any within-chain scheme at ~1.1-1.2x regardless of cores or bandwidth
+(sections 6 and 10). The correctness half of the design works without
+qualification: draws are byte-identical across n.threads in {1, 2, 8} on both
+architectures. The reusable LESSON (section 11): a kernel microbench that
+omits the serial fraction overestimates threading speedup by roughly
+1/parallel-fraction; only an in-situ, real-engine measurement is trustworthy
+for a threading claim. Multi-chain parallelism remains the effective way to
+use additional cores. Companion document: docs/plans/blocked-jacobi-trees.md,
+the competing noise-split mechanism for the same regime - independently
+KILLED, and strictly dominated by this one wherever either shows a nonzero
+gain.
 
-## 0. TL;DR
-
-Single-chain large-n sweeps (n >= 1e5) are DRAM/latency-bound over a handful of
-O(n) passes per tree. This note parallelizes those passes across a persistent
-std::barrier worker pool, with a fixed-size block reduction that makes every
-draw bitwise-identical across n.threads in {1, 2, 8} by construction. The
-expected ceiling is MODEST -- ~1.5-1.7x at n=1e5 and ~1.8-2.1x at n=1e6 for
-threads in {4, 8} -- because the same wall that killed block fusion
-(docs/design/block-fusion.md section 10: single-core already ~8 GB/s, hot passes
-latency-bound and LLC-resident) caps the headroom here too. Unlike block fusion,
-threading adds no algorithmic bookkeeping, so its downside is bounded at
-"neutral below a size cutoff," and it directly attacks the latency-bound gather
-via memory-level parallelism, which bandwidth amortization could not. Substrate:
-a new C++20 std::barrier pool, NOT a revival of the dormant condvar managers -- a
-microbench (section 2) shows the condvar fork-join costs 5-10x more per sync,
-which ~300 syncs/sweep cannot absorb. Whether the win clears the complexity is a
-measurement question the prototype (section 7) answers, head-to-head against the
-noise-splitting blocked-jacobi mechanism (parallel-bart-frontier.md section 3.5)
-on the same hardware.
+Grounded in the current engine (bartcore HEAD, block-fusion excised: the
+legacy setNodeAverages / computeLeafStats suffstat path is again the only
+one). The estimates below are against the CURRENT u16 hot layer only. The
+per-column-width (u8) layer is parked -- it is not in the tree (a standalone
+width retrofit measured a regression, and per-column widths instead fold
+structurally into the owned container, docs/design/data-ownership.md), so
+there is no "on top of u8" variant to model. All numbers below assume u16
+codes.
 
 ## 1. Which passes parallelize, which stay serial
 
@@ -107,7 +115,7 @@ present, so these are RELATIVE comparisons only, not absolute ceilings:
   threads   std::barrier   condvar(misc_mt model)   atomic spin
   2         ~0.55-0.6 us    ~4.7-5.8 us              ~0.22-0.28 us
   4         ~1.7 us         ~11-13 us                ~0.53-0.62 us
-  8         ~4.8-7.3 us     ~27.5-27.9 us            ~1.45-2.0 us
+  8         ~4.8-7.3 us     ~27.5-27.9 us              ~1.45-2.0 us
   (us/round-trip; one round-trip = one parallel region)
 
 The condvar fork-join is 5-10x more expensive per sync than std::barrier, which
@@ -277,6 +285,10 @@ toggles). The cutoff sits somewhere between n=3e4 and n=1e5; its precise value
 is a measurement output. A conservative default of engage-at-n >= 1e5 matches
 the target regime and is safe to ship pending the measured crossover.
 
+(As it turned out, section 8 measured the prototype below this cutoff too, and
+found it byte-identical to a threads=1 run and cost-neutral -- see section 8's
+n=1e4 row.)
+
 ## 7. Prototype gates and the head-to-head
 
 PROTOTYPE. Thread the suffstat gather and the fit scatter only (the two
@@ -318,6 +330,12 @@ parallelization with a one-time RNG shift, whereas blocked-jacobi is a new exact
 kernel needing exact-posterior gates at b in {2, 8}; a tie on ESS/sec breaks
 toward the lower-risk mechanism.
 
+(How this played out: sections 8-10 below record this mechanism's own measured
+outcome on x86 and Apple Silicon. It no-goed on its own gates before the
+head-to-head could run under this protocol. blocked-jacobi-trees.md records
+that mechanism's independent Phase 0/Phase 1 evaluation and an eventual
+head-to-head against this one's results -- see section 10 and section 11.)
+
 ## 8. Measured outcome: NO-GO (2026-07-13)
 
 The section-7 prototype was built (persistent std::barrier pool in
@@ -352,9 +370,11 @@ per round-trip at 2/4/8 threads on real cores (condvar 3-8x worse, spin
 ~0.2-1.1 us), ~1% of a n = 1e5 sweep. The wall is memory, as it was for
 block fusion (block-fusion.md section 10).
 
-The head-to-head never ran: this mechanism no-goed on its own gates first.
-blocked-jacobi remains unevaluated, open on its own merits, with the
-section-7 ESS/sec protocol still the right yardstick if it is ever tried.
+The head-to-head never ran under the section-7 protocol: this mechanism
+no-goed on its own gates first. At the time, blocked-jacobi remained
+unevaluated, open on its own merits, with the section-7 ESS/sec protocol
+still the right yardstick if it were ever tried -- it subsequently was; see
+blocked-jacobi-trees.md and section 11 below.
 
 The prototype is archived, buildable, on archive/within-chain-threading.
 Revival preconditions: hardware whose memory system actually scales with
@@ -381,56 +401,111 @@ Two decisive findings:
   parallelism LESS attractive, not more - the opposite of the revival hypothesis.
   (fp32's absolute throughput is still best at every thread count; only the
   parallel headroom shrinks.)
+
 Verdict: fp32 does not flip the NO-GO. The revival preconditions that remain are
 the ORIGINAL ones (a memory system that scales with cores for this footprint, or
-n >> 1e6 routine single-chain), NOT the storage reductions. Blocked-jacobi
-(the exact noise-split kernel) remains separately unevaluated on its ESS/sec
-merits (section 7), unaffected by this.
+n >> 1e6 routine single-chain), NOT the storage reductions. blocked-jacobi
+(the exact noise-split kernel) remained, at this point, separately unevaluated
+on its ESS/sec merits (section 7) -- see section 11 for how that concluded.
 
-## 10. Revival candidate: the memory-scaling precondition is MET on Apple Silicon (2026-07-21)
-The section-8 NO-GO was measured ONLY on the x86 bench box (Ryzen 3700X, dual-channel
-DDR4, split L3 across CCXs) - a bandwidth-bound, cross-CCX-penalized machine. Section
-8 named the revival precondition precisely: "hardware whose memory system actually
-scales with cores - large unified LLC, materially higher bandwidth per core." That is
-Apple Silicon, and it was NEVER RE-TESTED there. A representative microbench (spin
-barrier, m=200 friedman, gather+scatter field kernels; bj-wallclock-probe.cpp in job
-b073bb28) run ON M1 shows straight within-chain threading (data-parallel gather with a
-per-worker bucket reduction + data-parallel scatter, EXACT/bitwise) SCALES:
+## 10. Apple Silicon: a microbench suggested revival; the real engine refuted it (2026-07-21)
+
+Section 8's NO-GO was measured ONLY on the x86 bench box (Ryzen 3700X,
+dual-channel DDR4, split L3 across CCXs) -- a bandwidth-bound,
+cross-CCX-penalized machine, and section 8 named the revival precondition
+precisely: "hardware whose memory system actually scales with cores -- large
+unified LLC, materially higher bandwidth per core." That describes Apple
+Silicon, which had never been tested.
+
+A representative-kernel microbench (spin barrier, m=200 friedman, gather+scatter
+field kernels; bj-wallclock-probe.cpp, job b073bb28) run ON an M1 showed
+straight within-chain threading (data-parallel gather with a per-worker bucket
+reduction, plus data-parallel scatter; EXACT/bitwise) SCALING:
+
     n=1e5:  T=2 1.48x  T=4 2.25x  T=8 3.04x
     n=1e6:  T=2 1.19x  T=4 2.02x  T=8 3.08x
-i.e. ~3x ESS/sec at 8T on M1 (exact, so wall-clock IS ESS/sec - no tax), versus the
-0.91x LOSS on the Ryzen. It also BEATS blocked-jacobi head-to-head on the same M1
-(blocked 1.56-1.62x ESS/sec at 8T - see blocked-jacobi-trees.md), because straight is
-exact and adds no noise-split RNG/scratch traffic. The revival is a MICROBENCH result
-(representative kernels, not the real engine); the section-7 protocol still governs.
-NEXT: build the archived prototype (this branch: chain.hpp + wcpool.hpp, +306 lines)
-on M1, run bench-sampler at n.threads in {1,4,8} on a QUIET Mac (n in {1e5,1e6},
-single chain), confirm ~2-3x, and re-check the correctness gate (byte-identical across
-thread count). A spin barrier (wcpool-spin.hpp) beat std::barrier even on M1 in the
-probe and should be part of the revival substrate. If confirmed on the real engine,
-this is a simpler, exact single-chain speedup than blocked-jacobi for the growing
-Apple-Silicon user base and the embedded-Gibbs use case; x86 stays a NO-GO
-(bandwidth) until a machine with real per-core bandwidth scaling.
 
-### 10a. REAL-ENGINE TEST (2026-07-21): the microbench was WRONG - NO revival, NO-GO STANDS
-The section-10 "next" was done: the archived prototype (54a60aa, the real engine, byte-
-identical draws confirmed) was built to a temp lib and benched on a QUIET M1, single
-chain, timing ONLY the sampling loop (sampler$run, ingestion excluded):
+i.e. ~3x ESS/sec at 8 threads on M1 (exact, so wall-clock IS ESS/sec, no tax),
+versus the 0.91x LOSS measured on the Ryzen. On the same M1 this microbench also
+beat blocked-jacobi head-to-head (blocked-jacobi-trees.md: 1.56-1.62x ESS/sec at
+8T), because the straight mechanism is exact and carries none of noise-splitting's
+extra RNG/scratch traffic. This looked like a genuine reopening: the revival
+precondition section 8 had named appeared to be met, so the obvious next step
+was to build the archived real-engine prototype (this branch: chain.hpp +
+wcpool.hpp, +306 lines) on M1, run bench-sampler at n.threads in {1, 4, 8} on a
+quiet Mac (n in {1e5, 1e6}, single chain), confirm the ~2-3x, and re-check the
+correctness gate (byte-identical across thread count). A spin barrier
+(wcpool-spin.hpp), which beat std::barrier even on M1 in the probe, was flagged
+as part of any revival substrate.
+
+That test was run, and it refuted the microbench. The archived prototype
+(commit 54a60aa, the real engine, byte-identical draws reconfirmed) was built
+to a temporary lib and benched on a QUIET M1, single chain, timing ONLY the
+sampling loop (sampler$run, ingestion excluded):
+
     n=1e5:  1T 64.2 ms/iter   4T 1.10x   8T 0.53x
     n=1e6:  1T 691  ms/iter   4T 0.98x   8T 0.67x
-BEST anywhere 1.10x; 8T is SLOWER (M1's 4 perf + 4 efficiency cores - the barrier
-waits on an efficiency core). This is ~the same as the x86 result (best 1.12x). The
-section-10 microbench (~3x on M1) OVERESTIMATED BY ~3x and its revival claim is
-RETRACTED. Why the microbench lied: it modeled the sweep as ~2 clean parallel gather+
-scatter passes (parallel fraction ~1.0), but the REAL sweep is only ~47% parallel
-(section 6) - the structure-move scans, residual/totalFits/SSR bookkeeping, sigma and
-leaf draws are SERIAL and were NOT threaded. Amdahl on p=0.47 caps within-chain at
-~1/(0.53) = 1.9x with INFINITE s_par, and at the real s_par (~1.67, memory-bound) at
-~1.2x - exactly what both machines deliver. LESSON: a representative-kernel microbench
-that omits the serial fraction overestimates threading speedup by the reciprocal of
-the parallel fraction; trust the IN-SITU measurement (this doc's section 8 was right
-all along). VERDICT: high-bandwidth memory does NOT revive within-chain threading -
-the binding wall is the SERIAL FRACTION plus s_par, not bandwidth alone. The section-8
-NO-GO stands on M1 too. The ONLY revival path left is threading the serial passes as
-well (lifting p toward ~0.6, section 8 already modeled this -> still ~1.2-1.3x ceiling,
-under the complexity bar). Multi-chain parallelism remains the answer for using cores.
+
+BEST anywhere was 1.10x (4T, n=1e5); 8T is SLOWER than 1T at both sizes (M1's 4
+performance + 4 efficiency cores mean the barrier ends up waiting on an
+efficiency core once threads spill past the performance cluster). This is
+essentially the same ceiling as the x86 result (best 1.12x, section 8). The
+section-10 microbench's ~3x reading OVERESTIMATED BY ~3x because it modeled the
+sweep as two clean, fully parallel gather+scatter passes (parallel fraction
+~1.0); the REAL sweep is only ~47% parallel (section 6) -- the structure-move
+scans, the residual/totalFits/SSR bookkeeping, and the sigma and leaf draws are
+all SERIAL and were not threaded in the microbench's model. Amdahl on p=0.47
+caps within-chain threading at 1/(1-0.47) = 1.9x even with INFINITE s_par, and
+at the actually-measured s_par (~1.67, memory-bound, section 8) the ceiling
+comes out to ~1.2x -- exactly what both machines deliver in the real-engine
+test.
+
+VERDICT: high-bandwidth memory does NOT revive within-chain threading. The
+binding wall is the SERIAL FRACTION combined with s_par, not bandwidth alone.
+Section 8's NO-GO stands on Apple Silicon as well as x86 -- there is no
+revival. LESSON: a representative-kernel microbench that omits the serial
+fraction overestimates threading speedup by the reciprocal of the parallel
+fraction; trust the IN-SITU measurement (section 8 was right all along). The
+one theoretical path left is threading the remaining serial passes too, which
+section 8 already modeled (lifting p toward ~0.6): even then the ceiling is
+only ~1.2-1.3x, under the bar the complexity was priced at. Multi-chain
+parallelism remains the answer for using cores.
+
+## 11. Lesson and final state
+
+A representative-kernel microbench that omits a workload's serial fraction
+overestimates threading speedup by roughly the reciprocal of the parallel
+fraction -- here, omitting the ~53% serial remainder inflated the apparent M1
+win by about 3x. This is not specific to this mechanism: the same flaw
+independently inflated the blocked-jacobi-trees.md wall-clock probe numbers
+(see that document's final verdict). The methodological lesson to carry
+forward: gate any threading claim on an in-situ, real-engine measurement (the
+actual sampler loop, actual sweep, actual bookkeeping), never on a microbench
+of the hot kernels alone, however representative the kernels look in
+isolation.
+
+Final state:
+- VERDICT: NO-GO on every tested hardware (x86 Ryzen/DDR4, Apple Silicon M1).
+  Both revival preconditions section 8 named (a memory system that scales with
+  cores, or n >> 1e6 routine single-chain) were retested where feasible
+  (Apple Silicon) and did not change the outcome.
+- BANKED: the correctness mechanism (fixed-block reduction, section 3) works
+  exactly as designed -- draws are byte-identical across n.threads in {1, 2,
+  8} on both architectures, and the below-cutoff serial path is byte-identical
+  to a threads=1 run. This substrate (wcpool.hpp / wcpool-spin.hpp) is
+  archived and buildable on archive/within-chain-threading, and was reused
+  as-is for the blocked-jacobi-trees.md prototype.
+- The head-to-head against blocked-jacobi under the section-7 protocol never
+  ran on this mechanism's own numbers, because this mechanism no-goed on its
+  own gates first (section 8). A later, informal comparison using the
+  section-10 microbench's M1 numbers (this mechanism at ~3x vs blocked-jacobi
+  at 1.56-1.62x) is superseded by the same refutation and carries no standing;
+  the comparison that matters is both mechanisms' real-engine results, which
+  are both NO-GO.
+- blocked-jacobi-trees.md is independently KILLED (memory-bandwidth-bound on
+  typical x86, and in any case dominated by whatever this mechanism delivers,
+  which is itself NO-GO); see that document for its own banked result (the
+  noise-split augmentation is proven exact with ~no per-sweep ESS tax --
+  reusable knowledge, not a shippable win).
+- Multi-chain parallelism remains the effective way to use additional cores
+  for this workload.

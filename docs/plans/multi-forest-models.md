@@ -13,7 +13,8 @@ at a time, each with its own design note: multinomial, heteroscedastic
 ## Context
 
 - All three were the design's motivating cases for multi-forest
-  Samplers (docs/design/core-generalization.md:138-144); none could
+  Samplers (docs/design/core-generalization.md, the multi-forest Sampler
+  provision); none could
   start before forest-split-bcf's refactor, and none could compose
   with a polymorphic coupling seam before forest-combiner's (below).
 - Sketches the notes will expand:
@@ -21,11 +22,17 @@ at a time, each with its own design note: multinomial, heteroscedastic
   docs/design/multinomial.md): K symmetric forests coupled through a
   softmax likelihood with an interleaved one-vs-rest Polya-Gamma
   augmentation and a level-centering move;
-  heteroscedastic - mean forest + variance forest with multiplicative
-  positive leaves (Pratola et al.; needs a non-Gaussian leaf prior on
-  the variance forest, exercising the leaf-model seam);
-  hurdle - binary-occupancy forest + positive-part forest, sharing
-  predictors through the data handle.
+  heteroscedastic - LANDED 2026-07-20 (docs/design/heteroscedastic.md):
+  mean forest + variance forest with multiplicative positive leaves
+  (Pratola et al.), a conjugate scale leaf, and a nullable Chain-level
+  variance-forest member routed through the weight channel;
+  hurdle - LANDED 2026-07-20 (docs/design/hurdle.md): binary-occupancy
+  forest + lognormal positive-part forest, composed R-side as two
+  independent ordinary fits (no engine change) since the parts are
+  conditionally independent and never needed a Chain-level coupling.
+
+All three queued models are now landed; this tracker's remaining value
+is historical (the queue and blockers that got them there).
 
 ## Constraints
 

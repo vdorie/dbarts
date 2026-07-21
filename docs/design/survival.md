@@ -163,7 +163,7 @@ competing risks, and left/interval censoring. The discrete-time hazard
 family is the separate section below (landed 2026-07-18), not part of
 this AFT landing.
 
-# Discrete-time hazard (LANDED 2026-07-18, 4bcdccf)
+## Discrete-time hazard (LANDED 2026-07-18, 4bcdccf)
 
 RESOLVED (VD 2026-07-19): all three forks as re-grounded by the survey.
 Time grid: default = the distinct observed times (the surv.bart and
@@ -194,7 +194,7 @@ decisions below reuse what AFT and the binary families already ship, and
 the genuine forks (the time grid, section 1; naming, section 2; the
 default link, section 3) are surface taste, not sampler design.
 
-## 1. Model
+### 1. Model
 
 K ordered discrete periods 1..K. The discrete hazard is the conditional
 probability of failing in period t given survival through t-1,
@@ -303,7 +303,7 @@ explicit-breaks requirement forces the user to own that choice; and the
 N' guard catches only the memory pathology, not a
 statistically-too-fine grid that fits but mixes badly. VD to confirm.
 
-## Survey: surv.bart and the expansion ecosystem (added 2026-07-18)
+### Survey: surv.bart and the expansion ecosystem (added 2026-07-18)
 
 What a user arriving at a discrete-time-hazard BART would expect, per
 VD's ask, surveyed before the forks were settled. Package behavior
@@ -369,7 +369,7 @@ discrete-time BART. Each candidate default has a real constituency -
 logit (applied survival analysts), cloglog (grouped-PH), probit (BART
 users via surv.bart, plus the dbarts house default).
 
-## 2. Ingestion surface
+### 2. Ingestion surface
 
 **What the user passes (reuse AFT's response shapes).** The response is the
 SAME (time, status) AFT takes - a survival::Surv object or a two-column
@@ -509,7 +509,7 @@ their remap, the Surv-guard extension, the `breaks`/grid argument, the N'
 guard, the packaged $periods marker, and the survival-curve reporting
 branch (section 4).
 
-## 3. Link (probit vs logistic; cloglog)
+### 3. Link (probit vs logistic; cloglog)
 
 **DECISION (open for VD) - default link.** Both binary links give a valid,
 standard discrete-time hazard model; the choice is convention, not
@@ -554,7 +554,7 @@ family = "hazard.cloglog" for one remap-table entry plus its link's
 probability transform (section 2's naming recommendation is what keeps it
 this cheap).
 
-## 4. Prediction and reporting
+### 4. Prediction and reporting
 
 **The marker, and why the link transforms stay correct (settled).** The
 packaged fit's $family element records the BINARY token ("probit" or
@@ -620,7 +620,7 @@ period column binned against the shared training cut grid (identical bins
 by construction, data-store.md). survivalProbabilities' `times` argument
 sets the horizon; the default is the training grid's periods.
 
-## 5. The reduction gate (primary correctness gate)
+### 5. The reduction gate (primary correctness gate)
 
 **Bitwise equality with the by-hand binary fit.** The single load-bearing
 gate, and it is free: a hazard fit must equal, draw for draw, the ordinary
@@ -670,7 +670,7 @@ survival data from a known baseline hazard and covariate effect, fit, and
 check the recovered hazards / S(t | x) against truth - the family-level
 smoke beyond the reduction gate.
 
-## 6. Scope and doors
+### 6. Scope and doors
 
 - **Time-varying covariates (OUT of the auto-expander; IN by construction).**
   The person-period form makes them natural: each (subject, period) row can
