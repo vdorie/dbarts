@@ -45,6 +45,19 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Interaction constraints: the new \code{interactions} argument of
+            \code{dbarts} and \code{bart2}, built with \code{\link{interactions}},
+            restricts which predictors may jointly shape the fit.
+            \code{interactions(max.order = K)} caps the distinct predictors on
+            any root-to-leaf path (\code{K = 1} is additive),
+            \code{interactions(forbid = list(c("a", "b")))} bars named
+            predictors from co-occurring, and \code{interactions(groups = )}
+            confines interactions to declared groups; the three combine. The
+            constraint is hard and applied per forest, so a two-forest causal
+            model (\code{bcf}) can hold the treatment forest additive-or-low-
+            order (\code{tau.interactions}) while the prognostic forest stays
+            free (\code{mu.interactions}). An unconstrained fit is bit-for-bit
+            identical to previous builds. See \code{?interactions}.
       \item Reduced-precision residual storage for large problems:
             \code{storage = "single"} in \code{dbartsControl} (and
             \code{bart2}) stores the running residual in single precision
