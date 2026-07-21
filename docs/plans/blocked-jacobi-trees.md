@@ -222,3 +222,21 @@ the arc surfaced is REOPENING straight within-chain threading for high-bandwidth
 hardware (Apple Silicon), prematurely closed on x86-only evidence - see
 within-chain-threading.md. Confirm the microbench with the archived real prototype
 (archive/within-chain-threading) built on M1 + bench-sampler before landing anything.
+
+## CORRECTION (2026-07-21): the microbench overestimated BOTH; both are NO-GO
+The "reopen straight threading" above rested on the microbench's ~3x M1 number. The
+REAL archived prototype, built + benched on a quiet M1 (within-chain-threading.md sec
+10a), delivers 1.10x at best (4T, n=1e5) and is SLOWER at 8T - NOT 3x. The microbench
+overestimated ~3x by modeling the sweep as fully parallel; the real parallel fraction
+is ~47%, and Amdahl caps within-chain threading at ~1.1-1.2x. The SAME flaw inflates
+the blocked-jacobi microbench numbers here (they too omit the ~53% serial fraction),
+so real blocked-jacobi would also be ~1x-ish AND carries the ESS tax + noise-split
+cost on top - strictly worse. NET: BOTH within-chain-parallelism mechanisms are NO-GO
+on the real engine (the binding wall is the serial fraction + s_par, not just
+bandwidth). blocked-jacobi stays KILLED; straight within-chain threading's original
+NO-GO STANDS (no revival). Multi-chain parallelism remains the way to use cores. The
+banked, still-valid outcome of this whole arc: the noise-split augmentation is proven
+EXACT with ~no per-sweep ESS tax (Phase 0) - reusable knowledge, not a shippable win.
+LESSON recorded: representative-kernel microbenches that omit the serial fraction
+overestimate parallel speedup by ~1/parallel-fraction; gate threading claims on the
+in-situ real-engine measurement, never a kernel microbench.

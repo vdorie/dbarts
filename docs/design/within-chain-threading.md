@@ -411,3 +411,26 @@ probe and should be part of the revival substrate. If confirmed on the real engi
 this is a simpler, exact single-chain speedup than blocked-jacobi for the growing
 Apple-Silicon user base and the embedded-Gibbs use case; x86 stays a NO-GO
 (bandwidth) until a machine with real per-core bandwidth scaling.
+
+### 10a. REAL-ENGINE TEST (2026-07-21): the microbench was WRONG - NO revival, NO-GO STANDS
+The section-10 "next" was done: the archived prototype (54a60aa, the real engine, byte-
+identical draws confirmed) was built to a temp lib and benched on a QUIET M1, single
+chain, timing ONLY the sampling loop (sampler$run, ingestion excluded):
+    n=1e5:  1T 64.2 ms/iter   4T 1.10x   8T 0.53x
+    n=1e6:  1T 691  ms/iter   4T 0.98x   8T 0.67x
+BEST anywhere 1.10x; 8T is SLOWER (M1's 4 perf + 4 efficiency cores - the barrier
+waits on an efficiency core). This is ~the same as the x86 result (best 1.12x). The
+section-10 microbench (~3x on M1) OVERESTIMATED BY ~3x and its revival claim is
+RETRACTED. Why the microbench lied: it modeled the sweep as ~2 clean parallel gather+
+scatter passes (parallel fraction ~1.0), but the REAL sweep is only ~47% parallel
+(section 6) - the structure-move scans, residual/totalFits/SSR bookkeeping, sigma and
+leaf draws are SERIAL and were NOT threaded. Amdahl on p=0.47 caps within-chain at
+~1/(0.53) = 1.9x with INFINITE s_par, and at the real s_par (~1.67, memory-bound) at
+~1.2x - exactly what both machines deliver. LESSON: a representative-kernel microbench
+that omits the serial fraction overestimates threading speedup by the reciprocal of
+the parallel fraction; trust the IN-SITU measurement (this doc's section 8 was right
+all along). VERDICT: high-bandwidth memory does NOT revive within-chain threading -
+the binding wall is the SERIAL FRACTION plus s_par, not bandwidth alone. The section-8
+NO-GO stands on M1 too. The ONLY revival path left is threading the serial passes as
+well (lifting p toward ~0.6, section 8 already modeled this -> still ~1.2-1.3x ceiling,
+under the complexity bar). Multi-chain parallelism remains the answer for using cores.
