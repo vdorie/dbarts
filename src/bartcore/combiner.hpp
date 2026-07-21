@@ -120,6 +120,11 @@ struct Forest {
   // predictor (1 = splittable); empty leaves every column available and the
   // trees carry a null mask, so the default availability path is unchanged.
   std::vector<std::uint8_t> columnMask;
+  // per-forest interaction constraint (max-order + forbidden co-occurrence);
+  // inactive by default (build not called), leaving the trees' constraint null
+  // and the availability path byte-for-byte unchanged
+  // (docs/design/interaction-constraints.md, deliverable B)
+  InteractionConstraint interaction;
 
   // k is fixed unless updateK; the two accumulators gather the leaf sum of
   // squares and count over a sweep, feeding the k hyperprior draw
