@@ -222,6 +222,12 @@ struct ParsedModel {
   // per-predictor monotone directions in {-1, 0, +1}, narrowed from the R
   // integer spec; empty when no constraint is declared
   std::vector<std::int8_t> monotoneDirections;
+  // per-forest interaction constraint (docs/design/interaction-constraints.md):
+  // interactionMaxOrder caps the distinct split variables on any path (0 =
+  // uncapped); interactionForbiddenPairs is a flat 0-based (a, b) stream (two
+  // indices per forbidden co-occurrence). Both defaults leave the path free.
+  size_t interactionMaxOrder = 0;
+  std::vector<size_t> interactionForbiddenPairs;
   // a linear or gp node prior's designated covariate columns (0-based);
   // empty for the constant leaf
   std::vector<size_t> leafCovariateColumns;
@@ -879,6 +885,34 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     }
   }
 
+  // interaction constraint: two model attributes the R surface resolves - a
+  // scalar max order and a 2 x k integer matrix of 0-based forbidden pairs
+  // (column-major, so INTEGER() is the flat (a, b) pair stream the engine
+  // reads). Absent leaves the availability path byte-for-byte unchanged.
+  REPROTECT_SLOT(slotExpr, modelExpr, "interaction.max.order", slotIndex);
+  if (!Rf_isNull(slotExpr) && rc_getLength(slotExpr) > 0)
+    model.interactionMaxOrder = static_cast<size_t>(rc_getInt(
+      slotExpr, "interaction max order", RC_LENGTH | RC_EQ, rc_asRLength(1),
+      RC_VALUE | RC_GEQ, 0, RC_END));
+
+  REPROTECT_SLOT(slotExpr, modelExpr, "interaction.forbidden", slotIndex);
+  if (!Rf_isNull(slotExpr) && rc_getLength(slotExpr) > 0) {
+    if (!Rf_isInteger(slotExpr))
+      Rf_error("interaction forbidden pairs must be resolved integer indices");
+    R_xlen_t numEntries = rc_getLength(slotExpr);
+    if (numEntries % 2 != 0)
+      Rf_error("interaction forbidden pairs must come in (a, b) pairs");
+    const int* forbidden = INTEGER(slotExpr);
+    model.interactionForbiddenPairs.resize(static_cast<size_t>(numEntries));
+    for (R_xlen_t j = 0; j < numEntries; ++j) {
+      if (forbidden[j] < 0 ||
+          static_cast<size_t>(forbidden[j]) >= numPredictors)
+        Rf_error("interaction forbidden pair column out of range");
+      model.interactionForbiddenPairs[static_cast<size_t>(j)] =
+        static_cast<size_t>(forbidden[j]);
+    }
+  }
+
   // linear and gp node priors designate leaf covariate columns, resolved
   // R-side to 1-based model matrix indices; every other node prior is the
   // constant leaf and carries nothing beyond node.scale/node.hyperprior.
@@ -1343,6 +1377,14 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.gpLengthscales = model.gpLengthscales.empty()
     ? NULL : model.gpLengthscales.data();  // consumed at construction
   options.gpMaxLeafSize = model.gpMaxLeafSize;
+
+  // per-forest interaction constraint (single-forest path): the resolved max
+  // order and flat 0-based forbidden-pair stream, consumed at construction
+  options.interactionMaxOrder = model.interactionMaxOrder;
+  options.interactionForbiddenPairs = model.interactionForbiddenPairs.empty()
+    ? NULL : model.interactionForbiddenPairs.data();
+  options.interactionNumForbiddenPairs =
+    model.interactionForbiddenPairs.size() / 2;
 
   // the generic slot parse above reads the CGM structure a DART prior
   // contains; the Dirichlet configuration comes off the R object directly

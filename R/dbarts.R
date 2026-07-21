@@ -341,6 +341,7 @@ dbarts <- function(
   resid.dist = gaussian,
   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
   monotone = NULL,
+  interactions = NULL,
   variance = NULL,
   n.trees.variance = 40L,
   power.variance = NULL,
@@ -798,6 +799,17 @@ dbarts <- function(
   # bridge reads into SamplerOptions.monotoneDirections (the resid.df precedent)
   if (!is.null(monotoneDirections)) {
     attr(model, "monotone") <- monotoneDirections
+  }
+
+  # the resolved per-forest interaction constraint (max-order cap + forbidden
+  # co-occurrence pairs, docs/design/interaction-constraints.md) rides two model
+  # attributes the C bridge reads into SamplerOptions (the monotone precedent).
+  # Absent when no interactions() prior is supplied, so the availability path is
+  # byte-for-byte unchanged.
+  interactionSpec <- resolveInteractions(interactions, data)
+  if (!is.null(interactionSpec)) {
+    attr(model, "interaction.max.order") <- interactionSpec$max.order
+    attr(model, "interaction.forbidden") <- interactionSpec$forbidden
   }
 
   # the AFT survival family reads its per-observation status off this control
