@@ -401,6 +401,7 @@ bart2 <- function(
   seed = NA_integer_,
   proposal.probs = NULL,
   monotone = NULL,
+  interactions = NULL,
   variance = NULL,
   n.trees.variance = 40L,
   power.variance = NULL,

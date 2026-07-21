@@ -547,6 +547,142 @@ resolveVarianceColumns <- function(variance, data) {
   sort(unique(index))
 }
 
+## Resolve an interactions() specification against the fitted model matrix into
+## the engine's per-forest constraint (docs/design/interaction-constraints.md):
+## a max-order cap (0 = uncapped) and a de-duplicated 2 x k integer matrix of
+## 0-based forbidden co-occurrence pairs. Every validation happens here, at fit
+## time, where the column set is known: unknown names, empty groups, a
+## max.order below 1, and a forbid/group entry naming a dropped column all
+## error. Returns NULL when nothing constrains anything (or no spec is given),
+## leaving the availability path byte-for-byte unchanged.
+resolveInteractions <- function(interactions, data) {
+  if (is.null(interactions)) {
+    return(NULL)
+  }
+  if (!inherits(interactions, "dbartsInteractions")) {
+    stop("'interactions' must be an interactions() specification")
+  }
+  numColumns <- ncol(data@x)
+  columnNames <- colnames(data@x)
+  termLabels <- attr(data@x, "term.labels")
+
+  # a name or index vector -> 1-based model-matrix columns; a bare term name
+  # expands to its indicator columns (the resolveMonotone precedent)
+  resolveColumns <- function(cols, what) {
+    if (is.character(cols)) {
+      if (is.null(columnNames)) {
+        stop("cannot resolve ", what, ": model matrix has no column names")
+      }
+      result <- integer(0)
+      for (name in cols) {
+        index <- match(name, columnNames)
+        if (!is.na(index)) {
+          result <- c(result, index)
+        } else if (name %in% termLabels) {
+          result <- c(result, which(startsWith(columnNames, paste0(name, "."))))
+        } else {
+          stop(
+            "cannot resolve ",
+            what,
+            ": unrecognized variable name '",
+            name,
+            "'"
+          )
+        }
+      }
+      result
+    } else if (is.numeric(cols)) {
+      index <- as.integer(cols)
+      if (anyNA(index) || any(index < 1L) || any(index > numColumns)) {
+        stop("cannot resolve ", what, ": column indices out of range")
+      }
+      index
+    } else {
+      stop("cannot resolve ", what, ": expected column names or indices")
+    }
+  }
+
+  maxOrder <- 0L
+  if (!is.null(interactions$max.order)) {
+    order <- suppressWarnings(as.integer(interactions$max.order))
+    if (length(order) != 1L || is.na(order) || order < 1L) {
+      stop("interactions 'max.order' must be a single integer >= 1")
+    }
+    maxOrder <- order
+  }
+
+  # forbidden pairs accumulate (1-based, unordered) from both forbid and groups
+  pairs <- list()
+
+  # forbid: each entry names >= 2 columns barred from sharing any path; a
+  # >2-column entry forbids every pair within it
+  if (!is.null(interactions$forbid)) {
+    forbidList <- interactions$forbid
+    if (!is.list(forbidList)) {
+      forbidList <- list(forbidList) # a single vector shorthand
+    }
+    for (entry in forbidList) {
+      cols <- unique(resolveColumns(entry, "forbidden interaction"))
+      if (length(cols) < 2L) {
+        stop("each interactions 'forbid' entry must name two or more columns")
+      }
+      for (i in seq_along(cols)) {
+        for (j in seq_len(i - 1L)) {
+          pairs[[length(pairs) + 1L]] <- c(cols[i], cols[j])
+        }
+      }
+    }
+  }
+
+  # groups: an allow-list. Two NAMED columns may co-occur on a path only if some
+  # group holds both; every other pair of named columns is forbidden. Columns
+  # named in no group are unconstrained.
+  if (!is.null(interactions$groups)) {
+    groupList <- interactions$groups
+    if (!is.list(groupList)) {
+      groupList <- list(groupList)
+    }
+    resolved <- lapply(groupList, function(group) {
+      cols <- unique(resolveColumns(group, "interaction group"))
+      if (length(cols) == 0L) {
+        stop("interactions 'groups' entries must each name at least one column")
+      }
+      cols
+    })
+    named <- sort(unique(unlist(resolved)))
+    for (i in seq_along(named)) {
+      for (j in seq_len(i - 1L)) {
+        a <- named[i]
+        b <- named[j]
+        shareGroup <- any(vapply(
+          resolved,
+          function(group) a %in% group && b %in% group,
+          logical(1)
+        ))
+        if (!shareGroup) {
+          pairs[[length(pairs) + 1L]] <- c(a, b)
+        }
+      }
+    }
+  }
+
+  if (maxOrder == 0L && length(pairs) == 0L) {
+    return(NULL) # nothing constrains anything
+  }
+
+  # 0-based, low-index-first, de-duplicated 2 x k matrix (column-major = the
+  # flat pair stream the C bridge reads)
+  forbidden <- matrix(0L, nrow = 2L, ncol = 0L)
+  if (length(pairs) > 0L) {
+    columns <- lapply(pairs, function(pair) as.integer(sort(pair) - 1L))
+    forbidden <- do.call(cbind, columns)
+    forbidden <- forbidden[, !duplicated(t(forbidden)), drop = FALSE]
+    storage.mode(forbidden) <- "integer"
+  }
+
+  list(max.order = maxOrder, forbidden = forbidden)
+}
+
 num.vars <- numvars <- NULL # R CMD check
 cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
   result <- newValidated(
@@ -704,6 +840,24 @@ dart <- function(
     } else {
       as.numeric(update.delay)
     }
+  )
+}
+
+## Per-forest interaction constraint (docs/design/interaction-constraints.md),
+## passed as interactions = to dbarts()/bart2() (and mu.interactions /
+## tau.interactions to bcf()). Packages the raw specification; groups and forbid
+## resolve against the model matrix, and every value is validated, at fit time
+## in resolveInteractions. max.order caps the number of DISTINCT split variables
+## on any root-to-leaf path; groups is a co-occurrence allow-list (named columns
+## may share a path only with group-mates); forbid names column sets barred from
+## sharing a path. Exported (a distinctive top-level name), unlike the priors.
+interactions <- function(max.order = NULL, groups = NULL, forbid = NULL) {
+  if (is.null(max.order) && is.null(groups) && is.null(forbid)) {
+    stop("interactions() needs at least one of 'max.order', 'groups', 'forbid'")
+  }
+  structure(
+    list(max.order = max.order, groups = groups, forbid = forbid),
+    class = "dbartsInteractions"
   )
 }
 
