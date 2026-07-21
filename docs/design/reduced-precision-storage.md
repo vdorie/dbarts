@@ -285,6 +285,42 @@ snapshot suite 186/186. Confirmed genuinely fp32-storing/fp64-reducing (drift
   check). The prototype measured DRAWS faithfully but not the SPEED win (double
   storage + round op) - the real fp32 storage speedup is still to be measured.
 
+## 6d. Track 2 v1 LANDED + validated (2026-07-20, d384211)
+
+Opt-in `storage="single"` on dbartsControl/bart2 -> real fp32 treeY
+(std::vector<ResidT>, ResidT=double default; +1 instantiation SamplerFacade<
+ConstantGaussianLeaf,float> minted only at the gaussian-constant-leaf branch) +
+four float-input suffstat kernels (load float, accumulate double). Un-anchored.
+Errors clearly on probit/hetero/monotone/BCF/multinomial. Independently verified:
+- INVARIANT (flag-off) BITWISE: equivalence 27/27 + bcf + multinomial -> default
+  path provably byte-unchanged (the Storage axis defaulted to double).
+- Genuine fp32 (not a silent double fallback): fp32-vs-fp64 posterior-mean
+  divergence 1.9e-6, matching the ~1e-6 prediction.
+- Statistically indistinguishable (real templated build, 10 seeds, n=1e4,
+  200 trees): test-f RMSE Delta 5.7e-8 (p=.12), 90% coverage Delta 1e-5 (p=.34).
+- codoc complete; ABI header untouched (no stan4bart lockstep).
+
+SPEED A/B (n=1e6, single-thread, min-of-3, storage=single vs double):
+  M1 Max (arm64):        1.17x (17% faster)  - matches the gather-share projection.
+  x86 Ryzen 3700X (AVX2): 1.10x (10% faster)  - clean build, 0 warnings.
+The x86 UNDERSHOOTS the ~1.24x projection because x86 pays a cvtss2sd conversion
+tax on the CACHE-RESIDENT streaming roll (microbench sec 8: x86 fp32 streaming is
+~2x slower cache-resident) that partly offsets the gather win; M1 (compute-bound
+streaming) does not, so M1 matches projection. Both POSITIVE and above the
++/-2% floor. The win should GROW at n>1e6 on x86 (residual spills the 16MB L3 ->
+streaming goes DRAM-bound, where fp32 helps streaming too - microbench sec 8).
+
+## 6e. v2 (fp32 scratch/fits bundle): MEASURED NO-GO
+The v1 A/B settles v2 against itself. The bundle (totalFits, test fits, dense
+treeFits, variance-forest arrays, gaussian working response) is STREAMING, not
+gathered - and the microbench + the x86 v1 undershoot show fp32 STREAMING gains
+~nothing (M1 compute-bound) to NEGATIVE (x86 cache-resident conversion tax). So
+fp32-ing the streaming scratch adds conversion overhead with no gather benefit ->
+neutral-to-regressive. The gather (treeY, v1) carries the entire win. DO NOT build
+v2 unless a re-profile at n>>1e6 shows a streaming pass that is both DRAM-bound AND
+a large sweep share. leafOf uint16 (the deferred PRESERVING Track-1 follow-on)
+remains the only other live lever, and it is small.
+
 ## 7. Open questions - status after the critique + falsification
 
 - RESOLVED: index narrowing stays bitwise (SIMD partition is index-width-
