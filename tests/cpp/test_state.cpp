@@ -616,6 +616,121 @@ static void testStateValidation(ext_rng* rng) {
   printf("ok: state validation\n");
 }
 
+// ---------------------------------------------------------------------------
+// Interaction containment (docs/design/interaction-constraints.md,
+// "Containment"): a state install or warm start must not admit a tree that
+// violates a forest's interaction constraint - the availability predicate is
+// not self-checking (splitVariableLogProbability never re-tests the node's own
+// variable), so treeLogProbability would silently mis-score a donor grown
+// unconstrained. Grow an UNCONSTRAINED donor whose pure-interaction signal
+// forces order-2 paths, prove by hand that at least one of its trees violates
+// max.order = 1, then assert both setState and installForests refuse it -
+// while a same-constraint donor is accepted, so the gate is specific.
+// ---------------------------------------------------------------------------
+static void testInteractionContainment() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 20260721);
+  std::uint64_t savedRngState = rngState;
+  rngState = 424242u;
+
+  const size_t n = 300, p = 2, numTrees = 30;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();          // x0
+    x[i + n] = runif01();      // x1
+    // a pure AND-interaction: large only where BOTH exceed 0.5, unrepresentable
+    // by a sum of single-variable steps, so a fitting tree MUST split on x0 and
+    // x1 on one path (order 2) - impossible under max.order = 1 or forbid(x0,x1)
+    double u1 = runif01(), u2 = runif01();
+    double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y[i] = ((x[i] > 0.5 && x[i + n] > 0.5) ? 4.0 : -1.0) + 0.1 * z;
+  }
+
+  // borrow-lifetime bookkeeping: each Sampler holds its rng pointer, so the
+  // rng objects must outlive their samplers
+  std::vector<ext_rng*> rngs;
+  auto newRng = [&](std::uint32_t seed) {
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return r;
+  };
+  auto makeSampler = [&](std::uint32_t seed, size_t maxOrder,
+                         const size_t* pair) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.interactionMaxOrder = maxOrder;
+    if (pair != nullptr) {
+      options.interactionForbiddenPairs = pair;
+      options.interactionNumForbiddenPairs = 1;
+    }
+    ext_rng* r = newRng(seed);
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+      3.0, 0.37804942330213542, options, &r);
+  };
+
+  // (1) the unconstrained donor, grown until its interaction is captured
+  auto donor = makeSampler(555, 0, nullptr);
+  Results empty;
+  donor->run(200, 0, empty);
+  SamplerStateData donorState;
+  donor->getState(donorState);
+
+  // by-hand proof the donor really is infeasible under max.order = 1: build
+  // each donor tree against an independent store carrying a K = 1 constraint
+  ColumnStore store;
+  store.build(x.data(), n, p, 100);  // the sampler's default cut grid
+  InteractionConstraint k1;
+  k1.build(p, 1, nullptr, 0);
+  std::vector<index_t> idx(n);
+  std::vector<double> params;
+  Tree scratch;
+  size_t violators = 0;
+  for (const std::vector<FlatNode>& flat : donorState.chains[0].forests[0].trees) {
+    scratch.initialize(idx.data(), n);
+    scratch.setInteractionConstraint(&k1);
+    if (scratch.buildFromFlat(store, flat.data(), flat.size(), params) &&
+        !scratch.interactionSubtreeIsValid(0))
+      ++violators;
+  }
+  scratch.setInteractionConstraint(nullptr);
+  check(violators > 0,
+        "containment: the unconstrained donor holds an order-2 (infeasible) tree");
+
+  // (2) a max.order = 1 target refuses the donor on both install paths
+  auto k1Target = makeSampler(777, 1, nullptr);
+  check(!k1Target->setState(donorState, nullptr),
+        "containment: setState refuses an interaction-violating donor");
+  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  check(k1Target->installForests(donorState, liveMap) ==
+          WarmStartResult::interactionMismatch,
+        "containment: warm start refuses an interaction-violating donor");
+
+  // (3) a forbid(x0, x1) target refuses it likewise (a distinct predicate)
+  size_t pair[] = {0, 1};
+  auto forbidTarget = makeSampler(888, 0, pair);
+  check(!forbidTarget->setState(donorState, nullptr),
+        "containment: setState refuses a forbidden-pair violation");
+  check(forbidTarget->installForests(donorState, liveMap) ==
+          WarmStartResult::interactionMismatch,
+        "containment: warm start refuses a forbidden-pair violation");
+
+  // (4) specificity: a same-constraint donor's trees are feasible and install
+  auto k1Donor = makeSampler(999, 1, nullptr);
+  k1Donor->run(200, 0, empty);
+  SamplerStateData k1DonorState;
+  k1Donor->getState(k1DonorState);
+  auto k1Target2 = makeSampler(111, 1, nullptr);
+  check(k1Target2->installForests(k1DonorState, liveMap) == WarmStartResult::ok,
+        "containment: a same-constraint donor warm-starts cleanly");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  ext_rng_destroy(rng);
+  rngState = savedRngState;
+  printf("ok: interaction containment (%zu donor violators)\n", violators);
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -626,4 +741,5 @@ void runStateTests(ext_rng* rng) {
   testStateRoundTripLatents(rng);
   testStateRoundTripStudentT(rng);
   testStateValidation(rng);
+  testInteractionContainment();
 }

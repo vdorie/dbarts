@@ -2051,6 +2051,9 @@ public:
       }
       for (size_t t = 0; t < forest.numTrees; ++t) {
         scratch.initialize(scratchIndices.data(), n);
+        // carry this forest's interaction constraint (null when unconstrained,
+        // so the walk short-circuits and the default path is unchanged)
+        scratch.setInteractionConstraint(&forest.interaction);
         const std::uint64_t* masks =
           fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
         size_t numMaskWords =
@@ -2061,6 +2064,11 @@ public:
           return false;
         scratch.repartitionSubtree(data_, 0);
         if (!scratch.bottomNodesAreOccupied()) return false;
+        // a state install must not admit a tree that violates the constraint
+        // (design "Containment"): the availability predicate is not self-
+        // checking, so treeLogProbability would mis-score a donor grown
+        // unconstrained. Trivially passes for an unconstrained forest.
+        if (!scratch.interactionSubtreeIsValid(0)) return false;
       }
     }
     if (!state.latents.empty() &&
@@ -2110,6 +2118,44 @@ public:
     return true;
   }
 
+  /// Whether every live tree in `state` satisfies its forest's interaction
+  /// constraint - the warm-start containment gate (design "Containment"): a
+  /// donor grown under a different (or no) constraint may hold a tree this
+  /// sampler's constraint forbids, which treeLogProbability would mis-score.
+  /// installForests calls this before touching live state so it can report a
+  /// clear refusal; setState reaches the same guarantee through stateIsValid.
+  /// Trivially true for an unconstrained forest, so the default warm start is
+  /// byte-for-byte unchanged. Mirrors stateIsValid's structural scratch build
+  /// (paramStride 1: only the rule structure, not leaf params, is examined).
+  bool interactionStateFeasible(const ChainStateData& state) const {
+    if (state.forests.size() != forests_.size()) return true;  // shape gate elsewhere
+    size_t n = data_.numObservations;
+    Tree scratch;
+    std::vector<index_t> scratchIndices(n);
+    std::vector<double> params;
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      const Forest<L, ResidT>& forest = forests_[f];
+      if (!forest.interaction.active()) continue;  // unconstrained: nothing to check
+      const ForestStateData& fs = state.forests[f];
+      if (fs.trees.size() != forest.numTrees) return true;  // shape gate elsewhere
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        scratch.initialize(scratchIndices.data(), n);
+        scratch.setInteractionConstraint(&forest.interaction);
+        const std::uint64_t* masks =
+          fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
+        size_t numMaskWords =
+          fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
+        // a malformed tree is the caller's shape concern (installForest fails
+        // it); here we only judge the interaction feasibility of a buildable one
+        if (!scratch.buildFromFlat(data_, fs.trees[t].data(), fs.trees[t].size(),
+                                   params, 1, nullptr, masks, numMaskWords))
+          continue;
+        if (!scratch.interactionSubtreeIsValid(0)) return false;
+      }
+    }
+    return true;
+  }
+
   /// Rebuilds forest f's live trees, partitions, and fits from a flat state's
   /// live channel against the current cut grid, zeroing and re-accumulating
   /// totalFits. False if a flat tree fails to rebuild. Shared by setState and
@@ -2139,6 +2185,12 @@ public:
           return false;
       }
       forest.trees[t].repartitionSubtree(data_, 0);
+      // containment backstop (design): the live tree carries this forest's
+      // constraint, so a warm-start donor grown unconstrained is caught before
+      // treeLogProbability can mis-score it. installForests pre-checks for the
+      // clear error; this guarantees the invariant on any live-install path.
+      // Trivially passes for an unconstrained forest (null short-circuit).
+      if (!forest.trees[t].interactionSubtreeIsValid(0)) return false;
       if constexpr (L::hasFunctionParams) {
         // the recorded slab IS the tree's parameters; copy restores bitwise
         std::memcpy(forest.treeFits.data() + t * n, fs.treeParams[t].data(),
