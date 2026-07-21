@@ -321,6 +321,44 @@ v2 unless a re-profile at n>>1e6 shows a streaming pass that is both DRAM-bound 
 a large sweep share. leafOf uint16 (the deferred PRESERVING Track-1 follow-on)
 remains the only other live lever, and it is small.
 
+## 6f. Post-landing re-profile + multi-chain scaling (2026-07-20) - and why no ruled-out lever revives
+
+x86 rdtsc re-profile at n=1e6 (single-thread, 200 trees), buckets = gather
+(computeLeafStats) / roll (rollTreeResidual) / other (moves/scans/draws):
+  historical (2941808, pre-cuts):  gather 37.8%
+  storage=double (uint32 idx, fp64 resid):  39.2 / 29.9 / 30.9   sweep 42.4s
+  storage=single (uint32 idx, fp32 resid):  33.4 / 32.0 / 34.7   sweep 37.1s
+- The uint32 INDEX narrowing did NOT move the gather's share (39.2% vs 37.8%): the
+  gather is fp64-RESIDUAL-bandwidth-bound, not index-bound (the 4B index is minor
+  next to the 8B value), so it sped up the gather AND the other index-touching
+  passes ~proportionally, holding the ratio. Track 1's value is the ~400MB saving +
+  a proportional modest speedup, NOT a gather-concentrated win (corrects the
+  earlier microbench framing).
+- The fp32 RESIDUAL is what attacks the gather: -28% gather cycles, share 39->33%.
+  Under fp32 the sweep FLATTENS to near-even thirds (33/32/35), "other" (moves/
+  scans/draws - heterogeneous, no single lever) the largest slice.
+
+MULTI-CHAIN A/B (n=1e6, fp32/fp64 speedup): the win GROWS with chains because
+parallel BART shares memory bandwidth -
+  x86 Ryzen (dual-channel DDR4):  1 thread 1.10x -> 4 chains/4 threads 1.30x
+  M1 Max (huge BW):               1 thread 1.17x -> 4 chains/4 threads 1.19x
+So fp32 pays MOST in the DEFAULT multi-chain config on commodity/bandwidth-limited
+hardware (~30%), not the single-thread corner the first A/B measured. Document this
+(NEWS/Rd): "storage='single' is most valuable for multi-chain runs and large n."
+
+WHY NO RULED-OUT LEVER REVIVES: the reductions FLATTENED the profile (fp32) or held
+it (index) rather than exposing a new fat target - no single pass to attack, and
+the incumbent got faster + smaller/more-cache-resident, RAISING the bar for offload
+(GPU: fp64-blocker dissolved but the sequential-backfit + launch killer stands and
+the CPU baseline it must beat got faster) and SHRINKING the payoff of traffic-cutting
+tricks (binning/atoms/block-fusion/NT-stores). The one shifted item - within-chain
+parallelism (blocked-jacobi-trees) - has its memory-wall bound LOOSENED ~30% by
+fp32, and the 4-chain A/B PROVES parallel BART is bandwidth-bound on commodity HW
+(that IS why fp32 gives 30% there), so fp32 is a prerequisite MITIGATION for it -
+but its go/no-go still rests on the statistical ESS/sec experiment, unchanged by
+storage. Net: no revival; fp32 is itself the memory-wall answer, and it is
+broader-value than first reported (the multi-chain default).
+
 ## 7. Open questions - status after the critique + falsification
 
 - RESOLVED: index narrowing stays bitwise (SIMD partition is index-width-
