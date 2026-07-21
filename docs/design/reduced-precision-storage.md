@@ -3,7 +3,7 @@
 Status: LANDED / COMPLETE (2026-07-20/21). Both tracks below shipped and were
 independently validated; the storage arc is closed and no further lever is
 queued. Motivation and the measured upside live in memory-wall-frontier.md
-section 8; this doc is the concrete build design plus its full implementation
+section 8 (the fp32-precision lever writeup); this doc is the concrete build design plus its full implementation
 and measurement record. Directive (VD 2026-07-20): "Build it, keep it
 optional, think about other ways to optionally decrease storage sizes at the
 same time."
@@ -19,7 +19,8 @@ pressure (the default multi-chain configuration on commodity hardware benefits
 most). A follow-on fp32 scratch/fits bundle and a leafOf uint16 narrowing were
 both designed and then declined by measurement - the residual gather carries
 the entire win; streaming scratch does not. Bottom line: fp32 storage is the
-memory-wall answer for this engine (see memory-wall-frontier.md section 9);
+memory-wall answer for this engine (see memory-wall-frontier.md section 9,
+the landed-outcome umbrella verdict);
 nothing further in the storage space remains open.
 
 ## 1. What and why

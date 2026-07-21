@@ -142,7 +142,7 @@ items
     NO-GO (kernel <=1.6x only L1-resident, bandwidth-bound at scale; SSR is
     ~0.1% of a sweep so end-to-end <=0.05%, unmeasurable, vs a re-record + a
     permanent cross-ISA fixed-lane/no-FMA obligation; docs/design/memory-wall-
-    frontier.md sec 5). Windows-arm64 NEON config LANDED dcee743 (inspection-
+    frontier.md sec 6, the SSR SIMD leaf NO-GO). Windows-arm64 NEON config LANDED dcee743 (inspection-
     only; close on a windows-11-arm runner). The live perf frontier past SIMD
     (the MEMORY WALL) is the three-lens ideation in docs/design/memory-wall-
     frontier.md - flagship the histogram-fused suffstat; first action is to
