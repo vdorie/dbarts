@@ -16,6 +16,19 @@ Standing fact (VD, 2026-07-06): single-chain n >= 1e5 workloads are
 common. The large-n performance items are live, not consumer-gated.
 
 items
+  bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
+    residual.md sec 4 item 2; no separate plan doc). The BCF sigma SBC flag
+    was diagnosed as a slow forest-mixing burn transient in the strong-|a0|
+    minority (Cauchy(0,2) tail) and fixed for acceptance by pinning absolute
+    burn sweeps + a burn-scaling note (no engine or draw-law change). What
+    remains open: the EXTREME tail (|a0| >= ~40, ~3% of the prior) is
+    frozen-structure mixing that no amount of burn fixes - a principled
+    engine remedy would target tree-structure mixing at high SNR (tempered
+    early sweeps or restart-style grow proposals). Decoupled from the
+    shelved b-ridge move. Low priority: the regime only arises with a stale
+    build scale swapped against a new response inside a larger Gibbs loop
+    (setResponse updateScale=FALSE); normal single-fit use keeps |a| ~ O(1)
+    and the transient mild. research-open, decision-gated.
   blocked-jacobi-trees: RESEARCHED, KILLED 2026-07-21 (recorded door;
     docs/plans/blocked-jacobi-trees.md). Exact parallel tree updates via
     noise-splitting augmentation (per-tree pseudo-responses y_k ~
