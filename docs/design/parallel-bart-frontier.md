@@ -1,13 +1,26 @@
 # Parallel BART: the frontier
 
-Status: research note, 2026-07-07. Companion to gpu-bart.md, which surveys
-what exists; this note works out what does not exist yet, from BART's
-mathematical shape, and ranks it. Everything here is grounded in this
-engine's actual kernels (src/bartcore/{chain,model,moves,tree}.hpp) and is
-stated with an exactness class, a cost model, and the cheapest falsifying
-experiment. Observation-axis parallelism inside one tree update is treated
-as settled (bartz; gpu-bart.md section 2g) - the question is every OTHER
-axis, plus what a CRAN package can conditionally ship.
+Status: research survey, 2026-07-07; instrumentation measured 2026-07-08
+(section 5, items 1-3). Three of the candidates this survey identifies were
+since carried past this note into a real build and closed: block fusion
+(3.4, the note's original flagship CPU candidate) is CLOSED WONT-DO
+(block-fusion.md - the fused sweep measured 4-6x slower than the b=1
+baseline, no win); within-chain threading (3.4's composability partner) is
+NO-GO on both x86 and Apple Silicon (within-chain-threading.md);
+blocked-jacobi-trees (3.5's noise-split kernel) is exact but KILLED,
+dominated by within-chain threading (blocked-jacobi-trees.md). Section 5
+carries the verdicts and numbers; the conservation-law analysis (sections
+1-2) and the constructions not yet attempted (3.1, 3.2, 3.6, 3.7) stand
+unaffected by these outcomes.
+
+Summary: companion to gpu-bart.md, which surveys what exists; this note
+works out what does not exist yet, from BART's mathematical shape, and
+ranks it. Everything here is grounded in this engine's actual kernels
+(src/bartcore/{chain,model,moves,tree}.hpp) and is stated with an
+exactness class, a cost model, and the cheapest falsifying experiment.
+Observation-axis parallelism inside one tree update is treated as settled
+(bartz; gpu-bart.md section 2g) - the question is every OTHER axis, plus
+what a CRAN package can conditionally ship.
 
 ## 1. Three structural facts everything else builds on
 
@@ -168,7 +181,9 @@ threading (fewer barriers AND cheaper passes) and with a GPU backend
 (fewer resident-to-DRAM round trips). Falsifiers BEFORE any engine work:
 E1 atom census on real fitted forests (correlated trees, not simulated
 ones) at b in {4, 8, 16}; E2 field-fraction profile confirming the
-~90/10 maintenance/scan split.
+~90/10 maintenance/scan split. Downstream: this concept was built out in
+full and CLOSED WONT-DO after real measurement (block-fusion.md); section
+5 carries the verdict and the numbers.
 
 3.5 Unequal noise splitting as a movement-budget schedule (new-kernel,
 exact). Within the conservation law (section 2), the allocation {v_k},
@@ -179,7 +194,9 @@ tax becomes a schedule that spends exploration where movement is wanted.
 Falsifier: b = 2 released/pinned vs uniform on a signal-concentrated
 synthetic, ESS/sec at equal width. This is the surviving core of the
 blocked-jacobi question: not "can the tax be avoided" (no) but "can it
-be aimed" (yes, exactly).
+be aimed" (yes, exactly). Downstream: this construction was built out
+through blocked-jacobi-trees.md and ultimately KILLED, dominated by
+within-chain threading; section 5 carries the verdict and the numbers.
 
 3.6 Unbiased BART via couplings (exact/unbiased; width for length). Two
 lagged chains sharing proposal randomness meet exactly - discreteness
@@ -231,8 +248,10 @@ scan/atom workspaces, with the host driving tree logic through a command
 stream. Ranked by fit to that shape: the full-cut scan trio (3.1 + 3.2a
 + 3.3) is the natural first resident object - one scan services the
 informed proposal, the batched stale scoring, and the recycled readout;
-block fusion (3.4) reduces command traffic for whatever backend exists;
-the CG leaf solve (3.7) is matvec-shaped. The seam should be DEFINED
+block fusion (3.4 - CPU build later CLOSED WONT-DO, block-fusion.md;
+whether the same reformulation would help a GPU command stream was never
+tested) reduces command traffic for whatever backend exists; the CG leaf
+solve (3.7) is matvec-shaped. The seam should be DEFINED
 only after the CPU-side experiments pick winners - freezing a kernel ABI
 before knowing which kernels matter is how the wrong interface ships.
 
@@ -299,23 +318,67 @@ Instrumentation before prototypes; each item names its kill condition.
    substrate and 3.2b's affordability).
 6. Coupling meeting-time census at m in {1, 5} (day; decides 3.6).
 7. b = 2 released/pinned noise-splitting ESS/sec (days; decides 3.5 and
-   with it the remaining value of blocked-jacobi-trees).
+   with it the remaining value of blocked-jacobi-trees). DONE - carried to
+   a full build; see the update below and blocked-jacobi-trees.md.
 If 3.4 survives E1/E2, it is the flagship engine item (CPU-first, exact
 sweep, DRAM-bound workload) and proceeds independently of any GPU
-decision. The backend seam is designed after items 1-5 report.
+decision. The backend seam is designed after items 4-5 report.
 
-Verdict (2026-07-08, items 1-3 measured; drivers under benchmarks/R and
-raw records in docs/plans/parallel-falsifiers.md). 3.4 needed BOTH E1 and
-E2: both cleared, so 3.4 SURVIVES and is the flagship engine candidate,
-with one correction to the cost model - measured field share is ~85% not
-~93%, so the realized DRAM drop is ~6x (7-10x low end) rather than the top
-of that range; the gap is shallow-tree change/swap moves re-partitioning
-near the root, which enlarges the surviving scan term. 3.2a needed the
+Verdict at the time (2026-07-08, items 1-3 measured; drivers under
+benchmarks/R, raw records in docs/plans/parallel-falsifiers.md): 3.4
+needed BOTH E1 and E2, both cleared, so 3.4 SURVIVED and became the
+flagship engine candidate, with one correction to the cost model -
+measured field share is ~85% not ~93%, so the realized DRAM drop is ~6x
+(7-10x low end) rather than the top of that range (item 1 above has the
+full breakdown; the gap is shallow-tree change/swap moves re-partitioning
+near the root, enlarging the surviving scan term). 3.2a needed the
 stale-residual logging to clear (high agreement AND sub-universal
-survivors): it did, comfortably, so 3.2a SURVIVES and the batched-scoring
-delayed-acceptance path earns a prototype. Both flagship CPU candidates
-live; neither was killed. Next: items 4-5 (informed-kernel and CG-leaf
-prototypes) before the backend seam.
+survivors): it did, comfortably, earning the batched-scoring
+delayed-acceptance path a prototype. Both flagship CPU candidates were
+live at that point; this instrumentation killed neither.
+
+Both verdicts have since moved, on real builds rather than on these
+falsifiers. Block fusion (3.4) was built out in full and CLOSED WONT-DO
+(block-fusion.md): Stage A (the b=1 exact atom refactor) landed
+bit-identical; Stage B built the b>1 fused sweep; Stage C measured it
+end to end (x86 AVX2, friedman p=10, m=75) at 7.8-9.7x slower than b=1 at
+n=1e5 and 6.9-7.3x at n=1e6 (b in {4,8}), and even the theoretical best
+case - deleting the per-block atom-map rebuild entirely, i.e. assuming
+for-free cross-sweep persistence - still projects 4.4-6.0x slower at
+n=1e5 and 4.2-4.7x at n=1e6: not a win at any feasible n or b. Root
+cause: the DRAM-amortization premise had over-counted the amortizable
+traffic by ~3x (the real bandwidth ceiling attributable to blocking was
+~1.3-2x, not the modeled ~6x), and the b>1 move and block-exit-scatter
+phases add their own DRAM-bound cost that persistence would not remove.
+This does not undo E1/E2 above - the census question (atoms stay sparse)
+was answered correctly; the fused reformulation's own bookkeeping cost is
+what lost. Machinery excised 2026-07-13 (commit 5caf990, bitwise-verified
+against the legacy suffstat path), preserved on archive/block-fusion.
+
+Blocked-jacobi-trees (item 7, 3.5's construction) reached Phase 0 (exact,
+by four independent lines of evidence, with ~no per-sweep ESS tax at
+realistic m: m=75-200, b in {2,4,8}, fmin ESS/sweep ratio 0.86-1.13,
+global-fit ratio often > 1 since noise injection decouples trees - GO to
+Phase 1) and Phase 1 (a wall-clock probe that WON on Apple Silicon, b=8
+with a spin barrier: 1.92x, but PLATEAUED/regressed on typical x86 DDR4,
+b in {4,8}: 0.63x/0.65x, bandwidth-bound - the noise split's O(n*b)
+scratch traffic is the wrong trade when bandwidth is the wall). A
+head-to-head against within-chain threading then found blocked-jacobi
+strictly DOMINATED on the one platform where either wins (M1, T=8,
+n=1e5: straight 3.04x vs blocked 1.62x). FINAL VERDICT: KILL as a build
+target (blocked-jacobi-trees.md); the exactness finding is banked as
+reusable knowledge, not a shippable win.
+
+Within-chain threading itself - 3.4's composability partner above - is a
+separate NO-GO, measured independently of blocked-jacobi. It NO-GO'd on
+x86 (net 0.91x at n=1e5, 4 threads, against a >= 1.4x go-gate); an
+apparent revival on Apple Silicon from a representative-kernel microbench
+(~3x) was then RETRACTED once the real archived prototype was built and
+benched on a quiet M1 (best case 1.10x, slower at 8 threads) - the
+microbench had modeled the sweep as fully parallel where the real
+parallel fraction is only ~47%, overestimating speedup by ~1/(parallel
+fraction). The NO-GO stands on both architectures
+(within-chain-threading.md); items 4-6 above remain unattempted.
 
 ## References
 
@@ -327,4 +390,6 @@ Science. Papandreou and Yuille (2010); Parker and Fox (2012) -
 perturbation-optimization / CG Gaussian sampling. Frenkel (2004), waste
 recycling. Entezari, Craiu, Rosenthal (2018), LISA. Petrillo (2024),
 bartz, arXiv:2410.23244. See gpu-bart.md for the surveyed landscape
-these build on.
+these build on, and block-fusion.md, within-chain-threading.md, and
+blocked-jacobi-trees.md for the engineering arcs 3.4 and 3.5 were carried
+into (section 5 has the verdicts).

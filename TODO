@@ -16,17 +16,25 @@ Standing fact (VD, 2026-07-06): single-chain n >= 1e5 workloads are
 common. The large-n performance items are live, not consumer-gated.
 
 items
-  blocked-jacobi-trees: exact parallel tree updates via noise-splitting
-    augmentation (per-tree pseudo-responses y_k ~ N(g_k, sigma^2/b),
-    sum-constrained): b trees update independently per barrier at the
-    cost of b-fold precision on structure moves. The single-chain
-    parallelism candidate; an ESS-per-second experiment decides.
-    GREENLIT to try 2026-07-20. Falsify-first plan (Phase 0 serial
-    exactness + ESS/sweep tax, then Phase 1 parallel ESS/sec):
-    docs/plans/blocked-jacobi-trees.md; mechanism in
-    docs/design/parallel-bart-frontier.md sec 3.5; ESS/sec protocol +
-    reusable wcpool substrate (origin/archive/within-chain-threading) in
-    docs/design/within-chain-threading.md sec 7-9.
+  blocked-jacobi-trees: RESEARCHED, KILLED 2026-07-21 (recorded door;
+    docs/plans/blocked-jacobi-trees.md). Exact parallel tree updates via
+    noise-splitting augmentation (per-tree pseudo-responses y_k ~
+    N(g_k, sigma^2/b), sum-constrained). Phase 0 PROVED the mechanism EXACT
+    (four independent lines incl. an independent blind derivation of the
+    conservation law) with only a MILD per-sweep ESS tax - a clean GO on
+    statistics, now BANKED as reusable knowledge. But Phase 1 showed the
+    wall-clock does not deliver: it is memory-bandwidth-bound (materializes
+    ~2x serial's traffic in pseudo-response scratch), so it LOSES on typical
+    x86/DDR4 and wins only on high-bandwidth Apple Silicon - and there it is
+    strictly DOMINATED by the simpler, exact, already-built straight
+    within-chain threading, which is ITSELF NO-GO on the real engine
+    (docs/design/within-chain-threading.md: ~1.1x best, capped by the ~47%
+    parallel fraction, not bandwidth). Both single-chain-parallelism
+    mechanisms are dead; multi-chain remains the way to use cores. Lesson
+    recorded: gate threading claims on in-situ real-engine timing, never a
+    kernel microbench. Reopen only for a concrete embedded-Gibbs consumer on
+    high-bandwidth hardware, or if a fused no-scratch kernel is measured to
+    clear the bar on x86 first.
   forest-ranef-interweaving: RESEARCHED, NO-GO now (recorded door;
     docs/design/forest-ranef-interweaving.md, blind critique SOUND WITH
     CAVEATS). The weak-signal/small-K grouped-mixing bottleneck is

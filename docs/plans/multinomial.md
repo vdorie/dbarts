@@ -32,6 +32,31 @@ budget: ~1400-1800 lines. Phase A ~450 (combiner.hpp motion + co-movers + the
   baseline, tests/cpp/test_sampler.cpp. Header edits -> --preclean; delete stale
   tests/cpp binaries.
 
+## Status
+
+LANDED. All seven steps closed: C1-C3 (Phase A, RNG-neutral) on 2026-07-14,
+C4-C7 (Phase B, the model itself plus its public surface) on 2026-07-15, final
+commit bb29d00. Two follow-up arcs grew directly out of scope narrowings
+recorded at close: docs/plans/multinomial-test-surface.md and
+docs/plans/multinomial-varcounts.md.
+
+## Summary
+
+This arc built dbarts' first K-forest sampler: a K-category multinomial
+classifier where every category gets its own forest, the K forests are
+coupled through a softmax likelihood via an interleaved one-vs-rest
+Polya-Gamma augmentation, and a likelihood-invariant level-centering move pins
+the resulting non-identified flat direction. It rides the forest combiner BCF
+introduced, extracting Forest<L>/ForestCombiner<L> into their own header
+(combiner.hpp) as the second combiner instance was always meant to
+(docs/design/forest-combiner.md). The work split into RNG-neutral
+seam-widening (Phase A, C1-C3) that touches every existing single-forest and
+BCF code path but changes no draw, and the posterior-changing model itself
+(Phase B, C4-C7), landed as one gated commit plus a public bart2 surface.
+Every phase gates on two bitwise-equivalence anchors (single-forest, BCF) plus
+an exact-posterior benchmark with three arms; design forks opened while
+drafting the plan (Q1-Q5) were resolved by VD before Phase B began.
+
 ## Goal
 
 An internal K-category multinomial sampler: K forests coupled through a softmax
@@ -44,11 +69,20 @@ existing model, K for multinomial) so the widening is bitwise-neutral on the
 single-forest and BCF paths. Creation mirrors BCF's internal .Call surface;
 dbarts.h stays frozen.
 
+Five forks were opened while drafting this plan. VD resolved Q1 (augmentation),
+Q2 (identification), Q3 (output widening), and Q5 (public surface) together on
+2026-07-14 by an "expectations rule" - two independent ecosystem surveys (BART
+packages; general R multinomial tooling), with expectations winning absent a
+performance issue. Q4 (state wire format) was resolved separately that same
+day, on pre-release-compatibility grounds rather than the survey. Each fork is
+discussed where it arises below: Q1 and Q2 under Model choice, Q3 under Key
+finding, Q4 at step C5, Q5 at step C7.
+
 ## Model choice (the settled literature; defer to it per VD's standing guidance)
 
-- AUGMENTATION: log-linear / softmax with Polya-Gamma, one forest per category.
-  Given the K forest fits f_ik, P(y_i = k) = softmax(f_i)_k. Category k's
-  ONE-VS-REST conditional is a binomial logistic with linear predictor
+- Q1 - AUGMENTATION: log-linear / softmax with Polya-Gamma, one forest per
+  category. Given the K forest fits f_ik, P(y_i = k) = softmax(f_i)_k. Category
+  k's ONE-VS-REST conditional is a binomial logistic with linear predictor
   eta_ik = f_ik - C_ik, where C_ik = log sum_{j != k} exp(f_ij) is the
   log-sum-exp margin; so omega_ik ~ PG(n_i, eta_ik) and forest k sees working
   response (y_ik - n_i/2)/omega_ik + C_ik under precision omega_ik - the EXACT
@@ -62,37 +96,71 @@ dbarts.h stays frozen.
   all K omegas in a single post-loop draw (as an earlier draft proposed, in the
   combiner's drawGlue) is a Jacobi-style simultaneous update that does NOT target
   the posterior: forest k>0 would get a working-response MEAN from fresh C_ik but
-  a PRECISION drawn against stale margins. RECOMMEND this over multinomial probit
-  (Kindo et al. 2016): probit needs truncated-MVN latent utilities and a
-  covariance sampler, a whole new latent-draw + move machinery, and reuses none of
-  the PG code; the log-linear route reuses ext_rng_simulatePolyaGamma and the
-  weighted-conjugate kernels untouched. ATTRIBUTION: the algorithm is the
-  Held-Holmes / PSW interleaved one-vs-rest conditional cycle; Murray 2021
-  ("Log-Linear Bayesian Additive Regression Trees", JASA) is RELATED WORK, not the
-  source - its construction uses a per-observation normalizer latent, a different
-  device. Q1 records the fork.
-- IDENTIFICATION: K SYMMETRIC forests (softmax is invariant to a per-observation
-  constant shift of all f_ik, so the raw f_ik are non-identified - exactly BCF's
-  a-sign situation). RECOMMEND K over K-1-with-reference: K gives every category
-  its own forest and its own variable-count channel (symmetric reporting), and the
+  a PRECISION drawn against stale margins.
+
+  The fork: PG log-linear softmax reuses the shipped PG(1, psi) sampler
+  (ext_rng_simulatePolyaGamma) and the weighted-conjugate kernels verbatim - one
+  binomial-logistic per category, drawn INTERLEAVED via the per-forest hook -
+  costing no new numerical code beyond that hook; its price is the softmax
+  non-identification (handled like BCF's a-sign, comparing probabilities) plus
+  the interleaving discipline. Multinomial probit (Kindo et al. 2016) is
+  identified via a reference category but needs truncated multivariate-normal
+  latent utilities and a covariance sampler - a whole new latent + move
+  machinery reusing none of the PG code, and a heavier exact gate.
+
+  ATTRIBUTION: the algorithm is the Held-Holmes / PSW interleaved one-vs-rest
+  conditional cycle; Murray 2021 ("Log-Linear Bayesian Additive Regression
+  Trees", JASA) is RELATED WORK, not the source - its construction uses a
+  per-observation normalizer latent, a different device.
+
+  RESOLVED 2026-07-14 (VD): PG softmax, interleaved. The ecosystem does surface
+  probit-vs-logit as a user choice (mbart's pbart/lbart), but multinomial
+  probit needs truncated-MVN latents plus a covariance sampler - real new
+  machinery - and the modern many-category precedent (mbart2) defaults to
+  logit. The design note states plainly that no probit path exists: a one-way
+  door versus the mbart convention, taken deliberately.
+
+- Q2 - IDENTIFICATION: K SYMMETRIC forests (softmax is invariant to a
+  per-observation constant shift of all f_ik, so the raw f_ik are
+  non-identified - exactly BCF's a-sign situation). K gives every category its
+  own forest and its own variable-count channel (symmetric reporting), and the
   non-identification is handled the way BCF's is - the gate and the reporting
-  compare IDENTIFIED functionals (softmax probabilities), never the raw f_ik. K-1
-  removes the invariance but makes the reference category's reporting implicit and
-  the varcount asymmetric. THE FLAT DIRECTION NEEDS AN EXPLICIT MOVE: the
-  likelihood is invariant to a per-observation common shift of all f_ik, a flat
-  additive direction pinned ONLY by the prior, which mixes as a slow random walk.
-  ADD a likelihood-invariant LEVEL-CENTERING Gibbs move (the BCF-ridge-interweave
-  analog) in afterCombine: draw the per-observation common shift from its Gaussian
-  full conditional under the forest priors and recenter f_ik. Q2 records the fork.
-- SINGLE-TRIAL this arc (n_i = 1 classification). The one-vs-rest binomial for
-  category k needs the SUCCESS COUNT y_ik, not just a category label; borrowed
-  integer labels support only n_i = 1. Scope this arc to single-trial
-  classification and record the grouped-count generalization (store the n x K
-  count matrix, n_i > 1) as a follow-up - PG(n_i, .) is the sum of n_i PG(1, .)
-  draws (weighted-logistic.md), so grouped counts add no numerical code, only the
-  count-matrix data model, and the exact gate below is single-trial anyway.
-  Real-shape (non-integer) counts stay out of scope (the deferral
-  weighted-binary/negative-binomial carry).
+  compare IDENTIFIED functionals (softmax probabilities), never the raw f_ik.
+  K-1 with a reference category removes the invariance (and the need for a
+  centering move) but makes the reference category's reporting implicit and
+  the varcount asymmetric.
+
+  THE FLAT DIRECTION NEEDS AN EXPLICIT MOVE: the likelihood is invariant to a
+  per-observation common shift of all f_ik, a flat additive direction pinned
+  ONLY by the prior, which mixes as a slow random walk under K symmetric
+  forests. ADD a likelihood-invariant LEVEL-CENTERING Gibbs move (the
+  BCF-ridge-interweave analog) in afterCombine: draw the per-observation
+  common shift from its Gaussian full conditional under the forest priors and
+  recenter f_ik.
+
+  RESOLVED 2026-07-14 (VD): K symmetric forests, with the centering move.
+  mbart2, the closest precedent, is fully symmetric with K-length
+  varcount/treedraws; mpbart's user-facing base= reference argument is the
+  recorded counterexample wart; BART has no coefficient table for a reference
+  category to hide in, and the user-visible K-shaped objects (probabilities,
+  per-category variable counts) are symmetric in every surveyed package. The
+  reporting symmetry is worth the one added centering move, which the gate and
+  R surface already sidestep by reporting probabilities.
+
+  AS BUILT (see the C4 landing note below): the centering move ended up being
+  a GLOBAL scalar shift, not the per-observation shift described above - an
+  adversarial review caught that a per-observation shift is not representable
+  by shared-leaf trees, so it would bias the identified probabilities.
+
+- SCOPE (M5) - SINGLE-TRIAL this arc (n_i = 1 classification). The one-vs-rest
+  binomial for category k needs the SUCCESS COUNT y_ik, not just a category
+  label; borrowed integer labels support only n_i = 1. Scope this arc to
+  single-trial classification and record the grouped-count generalization
+  (store the n x K count matrix, n_i > 1) as a follow-up - PG(n_i, .) is the
+  sum of n_i PG(1, .) draws (weighted-logistic.md), so grouped counts add no
+  numerical code, only the count-matrix data model, and the exact gate below
+  is single-trial anyway. Real-shape (non-integer) counts stay out of scope
+  (the deferral weighted-binary/negative-binomial carry).
 
 ## Context (seams, read in code)
 
@@ -127,7 +195,7 @@ dbarts.h stays frozen.
   (model.hpp:2231-2244). MultinomialForestCombiner's per-category draw is this,
   with the log-sum-exp margin C_ik as the per-category "offset" - but drawn
   INTERLEAVED, one category at a time against the current margins immediately
-  before that category's forest update (M1 above), never batched post-loop.
+  before that category's forest update (M1; Q1 above), never batched post-loop.
 - Creation mirrors BCF: R/bartcore.R:482 bartcoreBCFSampler packs a params vector
   + moderators, calls C_dbarts_bartcore_createBCF (R_interface_bartcore.cpp:1879),
   which builds a BCFSpec (chain.hpp:348) and calls createBCFSampler
@@ -136,9 +204,9 @@ dbarts.h stays frozen.
   MultinomialSpec + createMultinomialSampler.
 - ResponseModel is per-observation-single-location (model.hpp:1788); multinomial
   has no sigma (fixed, like the binary families) and K latent channels, so its
-  response family is thin (Q3): a MultinomialResponse whose single-location seams
-  are vestigial (no-op refreshLatents/drawSigma) and whose log-likelihood channel
-  is NaN-flagged - storeSample scores one forest's fits via
+  response family is thin (Q3, discussed below): a MultinomialResponse whose
+  single-location seams are vestigial (no-op refreshLatents/drawSigma) and whose
+  log-likelihood channel is NaN-flagged - storeSample scores one forest's fits via
   computeLogLikelihood (chain.hpp:2586-2593) and cannot see the K-blend, so
   logLikelihoodIsDefined() = false is BCF's exact choice (chain.hpp:638). The
   combiner owns the K interleaved PG draws, the per-forest working responses, and
@@ -146,37 +214,54 @@ dbarts.h stays frozen.
 - State: the by-name block reader (R_interface_bartcore.cpp:3317
   stateFormatVersion = 3, minReadable = 3) already serializes a per-forest tree
   list of any length (SLOT_FORESTS), so K forests serialize with no format work;
-  only combiner-specific scalar/latent state would need a block (Q4).
+  only combiner-specific scalar/latent state would need a block (Q4, resolved
+  at step C5 below).
 
-## Key finding (contradicts the design note's re-carve framing; grounds Q3)
+## Key finding (contradicts the design note's re-carve framing; resolves Q3)
 
-docs/design/forest-combiner.md lumps three seams as forced to widen for a non-BCF
-combiner: combinedFits -> const double*, refreshLatents/drawSigma take one
-location, results.trainingFits is one channel. Read in code, only the
+docs/design/forest-combiner.md lumps three seams as forced to widen for a
+non-BCF combiner: combinedFits -> const double*, refreshLatents/drawSigma take
+one location, results.trainingFits is one channel. Read in code, only the
 REPORTING/combined-OUTPUT seam genuinely widens, and only if we want the engine
 to report probabilities:
 
 - refreshLatents/drawSigma do NOT widen. The K-category PG augmentation lives in
-  the combiner's INTERLEAVED per-forest hook (M1) - each omega_k drawn against the
-  current margins just before forest k's update - and multinomial has no sigma. So
-  MultinomialResponse's refreshLatents/drawSigma are no-ops and the single-location
-  `combined` they are handed is ignored - no signature change, and every existing
-  family is untouched. GUARD (M6): the K x n combinedFits buffer is handed to the
-  no-op refreshLatents as a single-location pointer; carry a guard note (assert /
-  comment) so a future non-no-op MultinomialResponse::refreshLatents cannot
-  silently misread a K-channel buffer as one channel.
+  the combiner's INTERLEAVED per-forest hook (M1; Q1 above) - each omega_k drawn
+  against the current margins just before forest k's update - and multinomial
+  has no sigma. So MultinomialResponse's refreshLatents/drawSigma are no-ops
+  and the single-location `combined` they are handed is ignored - no signature
+  change, and every existing family is untouched. GUARD (M6): the K x n
+  combinedFits buffer is handed to the no-op refreshLatents as a single-location
+  pointer; carry a guard note (assert / comment) so a future non-no-op
+  MultinomialResponse::refreshLatents cannot silently misread a K-channel
+  buffer as one channel.
 - combinedFits + trainingFits/testFits widen to K ONLY under the
-  engine-reports-probabilities choice. The minimal alternative (Q3) keeps them at
-  one location, NaN-flags the scalar channels exactly as BCF does, exposes the K
-  forests via getForestFits (already K-capable), and lets the R surface compute
-  softmax probabilities. That path needs NO combined-output widening at all - the
-  n x K softmax object stays internal to MultinomialForestCombiner (it reads
-  forests_ directly for the margins).
+  engine-reports-probabilities choice. The minimal alternative keeps them at
+  one location, NaN-flags the scalar channels exactly as BCF does, exposes the
+  K forests via getForestFits (already K-capable), and lets the R surface
+  compute softmax probabilities. That path needs NO combined-output widening
+  at all - the n x K softmax object stays internal to
+  MultinomialForestCombiner (it reads forests_ directly for the margins) - and
+  under it Phase A would shrink to just C1 and C3.
 
-The plan's PRIMARY line takes the widening (engine reports identified
-probabilities - see Q3 rationale: for a classification model probabilities are
-the deliverable and the raw per-category fits are non-identified nuisance). Q3
-carries the minimal alternative with its full tradeoff.
+This is Q3: where the K-location generalization stops. PRIMARY: widen the
+combined-output seam to a location count (C2) so the engine reports the K
+softmax PROBABILITIES directly in trainingFits/testFits - identified, and the
+natural deliverable for a classification model, where the raw per-category
+fits are non-identified nuisance a user should not have to softmax by hand;
+the widening is also the reusable multi-location channel
+heteroscedastic/hurdle will want later, and it stays fully bitwise on both
+anchors because L = 1 everywhere today. MINIMAL: the alternative just above -
+NaN-flag the scalar train/test channels, compute softmax R-side, and skip the
+combined-output widening entirely.
+
+RESOLVED 2026-07-14 (VD): PRIMARY - the engine reports the K softmax
+probabilities directly. Unanimous across the survey: BART::mbart2 returns
+prob.train/prob.test directly (upgraded from user-side softmax in its own
+history), every surveyed general package returns a labeled n x K probability
+object, and dbarts' binary generics already default to probability scale
+(type = "ev"). No performance issue: the L = 1 widening is byte-neutral and
+the softmax is O(nK) per stored sample.
 
 ## Constraints
 
@@ -185,7 +270,7 @@ carries the minimal alternative with its full tradeoff.
   dbarts_results the LinkingTo consumers (stan4bart) call - no header change, no
   lockstep, no rchk.
 - Single-forest AND BCF hot paths pay nothing new. The location-count is 1 for
-  every existing model; combiner_ stays null off multi-forest; every Phase-A
+  every existing model, combiner_ stays null off multi-forest; every Phase-A
   touchpoint keeps its `if (combiner_)` shape, and Chain::combinedFits()'s
   single-forest arm (chain.hpp:2498-2501) stays the bare forests_[0].totalFits
   pointer (no scratch write, no memcpy - the widening is the combiner VIRTUAL
@@ -314,7 +399,7 @@ C4. The multinomial model, one gated commit. Sub-parts:
    static_assert as BCF): holds the borrowed single-trial category labels
    (n_i = 1 this arc; the count matrix is the M5 follow-up), the n x K PG omega
    scratch (cold-started at 1/4 per category, the logistic seed), and the
-   K-channel combined scratch. THE INTERLEAVED PG DRAW (M1): omega_k is drawn
+   K-channel combined scratch. THE INTERLEAVED PG DRAW (M1; Q1): omega_k is drawn
    against the CURRENT margins C_ik = log sum_{j != k} exp(f_ij) immediately BEFORE
    forest k's tree update - via a per-forest pre-update hook (either add ext_rng*
    to formForestResponse, called at forest k's turn chain.hpp:963 with the
@@ -326,12 +411,11 @@ C4. The multinomial model, one gated commit. Sub-parts:
    omega_ik, IGNORING the passed y (the combiner owns the labels). The hook
    addition is BITWISE-NEUTRAL (both anchors prove it - default no-op). drawGlue's
    post-loop role for multinomial shrinks or empties. THE LEVEL-CENTERING MOVE
-   (M3) lives in afterCombine: draw the per-observation common shift from its
+   (M3; Q2) lives in afterCombine: draw the per-observation common shift from its
    Gaussian full conditional under the forest priors and recenter f_ik (the
-   BCF-ridge-interweave analog), pinning the flat additive direction the softmax
-   likelihood is invariant to. combinedFits writes the K softmax probabilities per
-   observation (numReportedLocations() = K); reportedForest addresses per category
-   via the C3 query.
+   BCF-ridge-interweave analog). combinedFits writes the K softmax probabilities
+   per observation (numReportedLocations() = K); reportedForest addresses per
+   category via the C3 query.
 
    (b) RESPONSE - a thin MultinomialResponse (model.hpp): no sigma
    (sigmaIsFixed), no-op refreshLatents/drawSigma (its single-location seams are
@@ -434,15 +518,16 @@ An adversarial Opus review confirmed the interleaved draw, the exact-gate
 construction, the bridge lifetimes, and BOTH deviations from the plan text
 as correctness-forced; C6's design note must record them:
 
-- The LEVEL-CENTERING move is a GLOBAL scalar shift, not the per-observation
-  shift written above. A per-observation shift is not representable by
-  shared-leaf trees, so the next backfit projects the mismatch and biases the
-  identified probabilities (~2-4 percent Jensen bias, measured against the
-  exact gate). The global shift is the one flat direction a forest carries
-  exactly (absorbed into totalFits plus tree 0's fit slab, keeping the
-  residual roll consistent), moves only the non-identified level, and is
-  drawn from its exact Gaussian conditional under the symmetric per-forest
-  priors - valid Gibbs, mixing-only in the level direction.
+- The LEVEL-CENTERING move (M3; Q2) is a GLOBAL scalar shift, not the
+  per-observation shift the plan described. A per-observation shift is not
+  representable by shared-leaf trees, so the next backfit projects the
+  mismatch and biases the identified probabilities (~2-4 percent Jensen bias,
+  measured against the exact gate). The global shift is the one flat
+  direction a forest carries exactly (absorbed into totalFits plus tree 0's
+  fit slab, keeping the residual roll consistent), moves only the
+  non-identified level, and is drawn from its exact Gaussian conditional
+  under the symmetric per-forest priors - valid Gibbs, mixing-only in the
+  level direction.
 - The K = 2 == logistic exact-gate arm is INTERCEPT-ONLY. A covariate K = 2
   multinomial log-odds is a difference of two m-tree ensembles, logistic a
   single m-tree ensemble: equal prior covariance at the sqrt(2) calibration
@@ -450,23 +535,40 @@ as correctness-forced; C6's design note must record them:
   intercept. Covariate tree growth under softmax is gated by arm 3's
   per-cell quadrature.
 
-C5. State round-trip (separable under Q4-primary). The K forests already serialize
-   through SLOT_FORESTS (the per-forest list, any length). Under Q4-primary (redraw
-   the PG latents on restore, matching the "restore is structural" contract
-   test-bcf.R/state-format-policy.md), NO wire-format bump is needed: serializeGlue/
-   restoreGlue stay no-ops for the multinomial combiner (it carries no
-   un-recoverable scalar glue - softmax has no a/b coefficients), omega is
-   cold-restarted and redrawn on the first restored sweep, and re-creation is
-   driven by the stored R-side creation call as BCF's is. THE INTERLEAVED DRAW
-   (M1) also resolves the restore wrinkle: the first restored sweep seeds omega_k
-   against the RESTORED forests correctly, because omega_k is drawn just before
-   forest k's update against whatever margins the restored forests present. If Q4
-   resolves to serialize the n x K omega, add ONE append-only by-name block, bump
-   stateFormatVersion to 4, hold minReadableStateFormatVersion at 3 (additive, per
-   c-api-growth.md's registry rule). Files: chain.hpp (serializeGlue/restoreGlue if
-   Q4-serialize), R_interface_bartcore.cpp (a new SLOT only if Q4-serialize). Gate:
-   a state round-trip component test (structural, NOT bitwise - the BCF fixture's
-   rule) + both anchors + tinytest. Size: S (Q4-primary) or M (Q4-serialize).
+C5. State round-trip.
+
+The K forests already serialize through the existing per-forest SLOT_FORESTS
+list (any length), so no format work is needed there. The remaining question
+(Q4) is whether the combiner's own latents need a wire format at all.
+
+PRIMARY: redraw the PG latents on restore, matching the "restore is
+structural" contract (test-bcf.R, state-format-policy.md). serializeGlue/
+restoreGlue stay no-ops for the multinomial combiner (it carries no
+un-recoverable scalar glue - softmax has no a/b coefficients), omega is
+cold-restarted and redrawn on the first restored sweep, and re-creation is
+driven by the stored R-side creation call as BCF's is. THE INTERLEAVED DRAW
+(M1; Q1) resolves the restore wrinkle for free: the first restored sweep seeds
+omega_k against the RESTORED forests correctly, because omega_k is drawn just
+before forest k's update against whatever margins the restored forests
+present. ALTERNATIVE: serialize the n x K omega in one append-only by-name
+block, bumping stateFormatVersion 3 -> 4 and holding
+minReadableStateFormatVersion at 3 (additive, per c-api-growth.md's registry
+rule), for a tighter restore. This CONTRADICTS the design note's blanket claim
+that "a non-BCF combiner needs a format bump": softmax has nothing of its own
+shape to write.
+
+RESOLVED 2026-07-14 (VD): PRIMARY, no bump - and further, the BCF-era format
+increment can be UNDONE outright: none of the bartcore work is released, so
+there is no reader of any earlier version to protect. C5 therefore flattens
+the state format numbering: stateFormatVersion and
+minReadableStateFormatVersion collapse to one pre-release version, with the
+hasBCF glue block absorbed into the base format (no versioned append history
+until a release creates a compat obligation).
+
+Files: chain.hpp (serializeGlue/restoreGlue - untouched, already no-ops),
+R_interface_bartcore.cpp (no new SLOT needed). Gate: a state round-trip
+component test (structural, NOT bitwise - the BCF fixture's rule) + both
+anchors + tinytest. Size: S.
 
 ### C5 landing (2026-07-15)
 
@@ -508,25 +610,47 @@ the drawForestGlue hook on the surface, the re-carve list corrected -
 refreshLatents/drawSigma did not widen and the softmax combiner serializes
 no glue). Docs-only.
 
-C7. Public surface (the resolved Q5; lands only after C4-C6 prove the engine).
-   bart2 gains family = "multinomial" (the existing family seam; the slot lands
-   on dbartsModel per family-on-model.md - the engaged pre-release window). Shape
-   per the ecosystem surveys: the response is a FACTOR, K inferred from
-   levels(y), no explicit K argument (mbart2's convention); levels(y) is captured
-   at fit time and threaded onto every K-shaped output for the object's lifetime
-   (probability array dimnames, per-category variable counts, class predictions);
-   fitted/predict/extract return PROBABILITY-scale K-column output under the
-   existing type = "ev" default with the latent scale as the escape hatch
-   (dbarts' binary two-tier convention); a class-prediction convenience (argmax
-   as a factor over the original levels); per-category variable counts through
-   the C3 query. Ingestion: factor-response validation, single-trial this arc
-   (the M5 scope). Files: R/dbarts.R, R/A_class.R (family slot), R/generics.R,
-   R/bartcore.R, man/*.Rd, inst/tinytest. NEW EXPORTED Rd TOPICS (if any beyond
-   existing-topic edits) need _pkgdown.yml entries + check_pkgdown. Gate: full
-   tinytest (grows; a public-surface fit reproduces the internal fixture's
-   probabilities identically) + R CMD check man + both bitwise anchors + the
-   multinomial fixture identical. Size: L. Abort: any public-path fit diverges
-   from the internal path on the same seed.
+C7. Public surface.
+
+Q5 - internal-only this arc, matching BCF, or a public surface now? BCF ships
+internal-only (bartcoreBCFSampler, an unexported .Call path; no
+family = "bcf"). Multinomial could do the same - internal creation, exercised
+by the exact gate and by future consumers via the bartcore surface - or grow a
+public bart2(family = "multinomial") / a multinomial front-end this arc.
+Internal-only keeps the arc focused on the engine + the coupling correctness
+and takes no pre-release window; a public surface adds argument design,
+factor-response ingestion, a prediction/probability front-end, and Rd +
+tinytest coverage, and (per family-on-model.md) the family slot lives on
+dbartsModel. The original recommendation, matching BCF's own staging, was
+internal-only this arc, filing the public surface as its own follow-up once
+the coupling is proven.
+
+RESOLVED 2026-07-14 (VD): the public surface ships, staged as this step (C7),
+landing only after C4-C6 prove the engine. BART users expect a callable
+top-level fitting function; internal-only departs from the ecosystem's notion
+of "shipped," and only staging (not a performance issue) argued for
+deferral - staging survives, just in a different form: C7 lands after the
+engine is proven (C4), rather than the public surface being deferred to a
+separate arc entirely. This ENGAGES family-on-model's pre-release window (the
+family slot lands on dbartsModel).
+
+Surface shape per the ecosystem surveys: bart2 gains family = "multinomial"
+(the existing family seam). The response is a FACTOR, K inferred from
+levels(y), no explicit K argument (mbart2's convention); levels(y) is captured
+at fit time and threaded onto every K-shaped output for the object's lifetime
+(probability array dimnames, per-category variable counts, class predictions);
+fitted/predict/extract return PROBABILITY-scale K-column output under the
+existing type = "ev" default with the latent scale as the escape hatch
+(dbarts' binary two-tier convention); a class-prediction convenience (argmax
+as a factor over the original levels); per-category variable counts through
+the C3 query. Ingestion: factor-response validation, single-trial this arc
+(the M5 scope). Files: R/dbarts.R, R/A_class.R (family slot), R/generics.R,
+R/bartcore.R, man/*.Rd, inst/tinytest. NEW EXPORTED Rd TOPICS (if any beyond
+existing-topic edits) need _pkgdown.yml entries + check_pkgdown. Gate: full
+tinytest (grows; a public-surface fit reproduces the internal fixture's
+probabilities identically) + R CMD check man + both bitwise anchors + the
+multinomial fixture identical. Size: L. Abort: any public-path fit diverges
+from the internal path on the same seed.
 
 ### C7 landing (2026-07-15) - ARC CLOSED
 
@@ -574,110 +698,3 @@ mislabel it) landed as its own arc too, docs/plans/multinomial-varcounts.md
   asserted. dbarts.h unchanged (internal model) -> no stan4bart lockstep; the
   bridge's new .Call entry points earn a "rchk on next scheduled run" note (README
   review step 2).
-
-## Open questions for VD
-
-Q4 RESOLVED (VD, 2026-07-14): NO bump - and further, the BCF-era format
-increment can be UNDONE outright: none of the bartcore work is released,
-so there is no reader of any earlier version to protect. C5 therefore
-flattens the state format numbering - stateFormatVersion and
-minReadableStateFormatVersion collapse to one pre-release version with the
-hasBCF glue block absorbed into the base format (no versioned append
-history until a release creates a compat obligation).
-
-Q1/Q2/Q3/Q5 RESOLVED (2026-07-14) by VD's expectations rule - two
-independent ecosystem surveys (BART packages; general R multinomial
-tooling), expectations win absent performance issues:
-- Q3 = PRIMARY (engine reports the K softmax probabilities). Unanimous:
-  BART::mbart2 returns prob.train/prob.test directly (upgraded from
-  user-side softmax in its own history), every surveyed general package
-  returns a labeled n x K probability object, and dbarts' binary generics
-  already default to probability scale (type = "ev"). No performance
-  issue: the L = 1 widening is byte-neutral and the softmax is O(nK) per
-  stored sample.
-- Q2 = K SYMMETRIC forests (with the M3 centering move). mbart2, the
-  closest precedent, is fully symmetric with K-length varcount/treedraws;
-  mpbart's user-facing base= reference argument is the recorded
-  counterexample wart; BART has no coefficient table for a reference
-  category to hide in, and the user-visible K-shaped objects
-  (probabilities, per-category variable counts) are symmetric in every
-  surveyed package.
-- Q1 = PG SOFTMAX (interleaved), the performance carve-out: the ecosystem
-  does surface probit-vs-logit as a user choice (mbart pbart/lbart), but
-  multinomial probit needs truncated-MVN latents plus a covariance
-  sampler - real new machinery - and the modern many-category precedent
-  (mbart2) defaults to logit. The design note states plainly that no
-  probit path exists (a one-way door vs the mbart convention, taken
-  deliberately).
-- Q5 = the PUBLIC SURFACE SHIPS (C7): BART users expect a callable
-  top-level fitting function - internal-only departs from the ecosystem's
-  notion of shipped, and only staging (no performance issue) argued for
-  deferral. Staging survives: C7 lands after the engine is proven (C4).
-  Surface shape per the surveys: factor response with K inferred from
-  levels(y) (mbart2 infers K; no explicit K argument), level names
-  threaded onto every K-shaped output for the object's lifetime,
-  probability-scale generics matching the existing type = "ev"
-  convention (latent scale as the escape hatch), a class-prediction
-  convenience (argmax as a factor over the original levels), per-category
-  variable counts. Extending bart2's existing family seam is the
-  least-surprise entry for dbarts users; this ENGAGES family-on-model's
-  pre-release window (the family slot lands on dbartsModel).
-
-- Q1 (augmentation: interleaved PG softmax vs multinomial probit). PG log-linear
-  softmax reuses the shipped PG(1, psi) sampler and the weighted-conjugate kernels
-  verbatim - one binomial-logistic per category, drawn INTERLEAVED (omega_k against
-  the current margins just before forest k's update, via the per-forest hook) -
-  and costs no new numerical code beyond that hook; its price is the softmax
-  non-identification (handled like BCF's a-sign, comparing probabilities) plus the
-  interleaving discipline. Multinomial probit (Kindo 2016) is identified via a
-  reference category but needs truncated multivariate-normal latent utilities and a
-  covariance sampler - a whole new latent + move machinery reusing none of the PG
-  code, and a heavier exact gate. The algorithm is Held-Holmes 2006 / PSW 2013
-  (Murray 2021 is related work). RECOMMEND PG softmax: it reuses everything and the
-  non-identification is a solved problem here.
-- Q2 (K vs K-1 forests). K symmetric forests give every category its own forest
-  and variable-count channel, at the cost of a per-observation additive
-  non-identification of the raw f_ik (the probabilities are identified) that
-  requires the explicit level-centering Gibbs move in afterCombine (M3). K-1 with a
-  reference category removes the invariance (and the centering move) but makes the
-  reference category's effect implicit, its reporting asymmetric, and the
-  combiner's per-category symmetry uneven. RECOMMEND K symmetric: the reporting
-  symmetry is worth the one added centering move the gate and R surface already
-  sidestep by reporting probabilities.
-- Q3 (where the K-location generalization stops). PRIMARY: widen the combined-
-  OUTPUT seam to a location count (C2) so the engine reports the K softmax
-  PROBABILITIES directly in trainingFits/testFits - identified, and the natural
-  deliverable for a classification model, where the raw per-category fits are
-  non-identified nuisance a user should not have to softmax by hand. MINIMAL: keep
-  every seam at one location, NaN-flag the scalar train/test channels exactly as
-  BCF does, expose the K forests via getForestFits (already K-capable), and compute
-  softmax R-side - the n x K object stays internal to the combiner and Phase A
-  shrinks to C1 and C3. RECOMMEND PRIMARY: multinomial's deliverable is
-  probabilities, unlike BCF where the per-forest fits ARE the estimands; the
-  widening is the reusable multi-location channel heteroscedastic/hurdle will also
-  want, and it stays fully bitwise on both anchors because L = 1 everywhere today.
-- Q4 (state wire format). PRIMARY: NO bump. The K forests serialize through the
-  existing per-forest SLOT_FORESTS list, the softmax combiner carries no
-  un-recoverable scalar glue (no a/b), and the PG omega latents are redrawn on
-  restore - the interleaved draw (M1) seeds them against the restored forests
-  correctly on the first restored sweep - a structural (not bitwise) continuation,
-  already the contract (test-bcf.R, state-format-policy.md). This CONTRADICTS the
-  design note's blanket "a non-BCF combiner needs a format bump": softmax has
-  nothing of its own shape to write. ALTERNATIVE: serialize the n x K omega in one
-  append-only by-name block (stateFormatVersion 3 -> 4, minReadable held at 3) for
-  a tighter restore. RECOMMEND PRIMARY: no bump, redraw omega; it is the cheapest,
-  matches the structural-restore contract, and the finding that the softmax
-  combiner needs no wire state should be recorded in the design note as a
-  correction.
-- Q5 (public R surface this arc, or internal like BCF). BCF ships internal-only
-  (bartcoreBCFSampler, an unexported .Call path; no family = "bcf"). Multinomial
-  could do the same - internal creation, exercised by the exact gate and by future
-  consumers via the bartcore surface - or grow a public bart2(family =
-  "multinomial") / a multinomial front-end this arc. Internal-only keeps the arc
-  focused on the engine + the coupling correctness and takes no pre-release window;
-  a public surface adds argument design, factor-response ingestion, a
-  prediction/probability front-end, and Rd + tinytest coverage, and (per
-  family-on-model.md) the family slot lives on dbartsModel. RECOMMEND
-  INTERNAL-ONLY this arc, matching BCF: land the engine + the gate now, file the
-  public surface as its own follow-up once the coupling is proven - the same
-  staging forest-split-bcf/BCF used.

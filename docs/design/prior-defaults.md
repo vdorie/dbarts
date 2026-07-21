@@ -1,5 +1,9 @@
 # Prior defaults
 
+Status: reference, current. Documents shipped defaults as-is; not a design
+proposal and carries no landing date - update in place whenever a default
+changes.
+
 Every default on the current surface, its source, and what it interacts
 with. Values are unchanged from BayesTree/BART/dbarts history; this is a
 record, not a re-derivation.

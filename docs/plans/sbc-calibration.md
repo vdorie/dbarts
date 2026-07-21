@@ -12,6 +12,33 @@ budget: a self-checking harness + a prioritized run; rank histograms
 Review 4 of the retrospective program (retrospective-reviews.md),
 prioritized by review 3's uncovered feature combinations.
 
+## Status
+
+DONE. The harness (benchmarks/R/sbc.R) was built, validated against
+a known-good baseline, and run across 18 configurations spanning
+three tiers: A (gaussian/probit/logistic baselines, DART, grouped
+random intercepts, weighted gaussian, BCF), B (linear leaf, all four
+review-3 combinations), and C (GP leaf, all three). Every
+configuration calibrates. One config initially looked like a real
+calibration defect - BCF's glue-on sigma channel (A4, A4b) - but a
+follow-up chain-length diagnostic (A4e) resolved it as slow mixing
+along the (a, mu-amplitude) scale ridge, not a sampler defect; a
+mixing-efficiency remedy is filed as TODO bcf-ridge-interweaving
+rather than a correctness fix. Residual SBC coverage gaps (recorded,
+not defects): the sampled-k chi-hyperprior channel (no API installs
+a prior k draw), DART's alpha-sampling (held fixed for the same
+reason), and the grouped model's default half-Cauchy tau prior
+(SBC-intractable via the engine's slice sampler; a gamma prior
+substituted for A3). Two harness-level findings worth carrying
+forward: the matrix (xy) interface drops NA rows even under
+missing = "incorporate" (only the formula interface keeps them), and
+GP-leaf predict() differs from stored training fits by ~2e-3
+(re-kriging jitter; the harness reads the stored fits instead). The
+gaussian constant-leaf baseline (~52s at R=200 unloaded) is a
+candidate standing CI gate. Tier A alone (baselines through BCF) ran
+in ~45 minutes of wall-clock across all runs and diagnostics; tiers
+B and C's per-config costs are reported with each result below.
+
 ## Goal
 
 Simulation-based calibration (Talts, Betancourt, Simpson, Vehtari,
@@ -90,11 +117,7 @@ calibrate).
   the standard gates (with the SBC config as its reproduction).
   Clean configs cheap enough to run in CI become gate candidates.
 
-## Status
-
-- 2026-07-09: plan authored; pilot dispatched.
-- 2026-07-09: PILOT complete. Harness in benchmarks/R/sbc.R (source-able API +
-  Rscript driver). Baseline VALIDATED; probit proven; costs measured/projected.
+## Pilot
 
 ### Harness design (benchmarks/R/sbc.R)
 
@@ -173,7 +196,7 @@ GP-leaf(max.leaf.size=64) 1110us. Per rep = 7500 sweeps (=(burn+L)*thin) x
 per-sweep. Observed: gaussian 0.262 s/rep -> 52s for R=200; probit 0.312 s/rep
 -> 62s. The rep-time = sweeps*us model is accurate (7500*37.5us = 0.28s).
 
-### Projected cost of the prioritized matrix (R=200, thin=30 assumed; re-check
+### Projected cost of the full matrix (R=200, thin=30 assumed; re-check
 ### thinning per config -- it scales cost linearly)
 
     baseline logistic          ~1 min   (measure; ~probit)
@@ -199,22 +222,32 @@ Full matrix at R=200 ~ 2.5-3 h wall-clock, dominated by GP (~1.5h) and linear
 6. GP leaf, GP+NA, weighted GP (priority 1 & 5) -- run last / overnight (~1.5h);
    cap max.leaf.size to bound the cubic kernel cost.
 
-### Harness subtleties / extensions still needed
+This sequencing was followed; the results below are organized by tier
+(A/B/C) rather than by run order, since tiers B and C map directly onto
+steps 5 and 6 above.
+
+### Harness subtleties and extensions
 
 - Prior constructors are reachable only via `dbartsPriors$...` in plain R
   scope (not bare), or unevaluated inside dbarts()'s prior args.
 - Binary families need a 0/1 build response; probit predict/test are latent
   scale (confirmed self-consistent by the clean f* calibration).
 - ecdf-band is the verdict; 20-bin chisq/KS are multiple-comparison-prone.
-- Matrix extensions: NA-covariate draw+refit, BCF glue draw + a/(b1-b0)
-  functionals, grouped tau/effect draw + functionals, logistic sim, weights.
+- Matrix extensions needed for the full matrix (all since built and
+  exercised in tiers A-C below): NA-covariate draw+refit, BCF glue draw +
+  a/(b1-b0) functionals, grouped tau/effect draw + functionals, logistic
+  sim, weights.
 - Candidate standing gate: the gaussian constant-leaf baseline calibrates in
   ~52s/R=200 (~26s at R=100) -- a plausible CI calibration smoke test.
 
-## Tier A results (cheap high-priority configs; R=200, L=200, thin=30,
-## burn=50, n=150 p=3 nTrees=50 unless noted). Verdicts persisted per config.
+## Results
 
-### A1. logistic baseline -- ALL PASS
+### Tier A - baselines, DART, grouped intercepts, weighted gaussian, BCF
+
+R=200, L=200, thin=30, burn=50, n=150 p=3 nTrees=50 unless noted.
+Verdicts persisted per config.
+
+#### A1. logistic baseline -- ALL PASS
 
     functional  chisqP   ksP   ecdfDiff  band(.092)
     avg.f       0.125   0.396   0.0631    PASS
@@ -229,7 +262,7 @@ thin=30 is conservative. 93s for R=200 (Polya-Gamma sweep pricier than probit).
 No sigma functional (fixed by the link). Control set (gaussian/probit/logistic)
 now all calibrate.
 
-### A2. DART variable selection (gaussian, n=200 p=10, R=200) -- s CALIBRATES
+#### A2. DART variable selection (gaussian, n=200 p=10, R=200) -- CALIBRATES
 
 Self-consistency subtlety: sampleTreesFromPrior grows trees under the CURRENT
 split probs (uniform at DART init), NOT a Dirichlet draw. So the harness uses
@@ -257,7 +290,7 @@ lower drives many components to the floor simultaneously, producing
 tie-degenerate ranks on already-negligible components -- a numerical tie
 artifact, not a sampling defect. 57s.
 
-### A3. grouped random intercepts (n=160, G=8, R=200) -- tau/b CALIBRATE
+#### A3. grouped random intercepts (n=160, G=8, R=200) -- tau/b CALIBRATE
 
 rbart_vi's in-core grouped path (bartcore.groups control attr). Tau prior: the
 engine offers half-Cauchy or gamma; SBC uses GAMMA (shape 2.5, scale
@@ -290,16 +323,27 @@ band 0.0917 -- a hair over (chisqP 0.220 healthy, ksP 0.055), i.e. a 95%-band-
 edge near-PASS within noise, corroborated by the clean b_g that share tau's
 prior. grouped-tau self-consistency holds across both bases. 67s.
 
-### A5. weighted gaussian (n=150, R=200) -- ALL PASS
+#### A4. BCF glue (n=200 unless noted) -- final verdict: mixing, not a defect
 
-Known positive weights w ~ Gamma(2,2) (mean 1); heteroscedastic noise
-y0 = f0 + (sigma0 / sqrt(w)) * N. Reused sampler (setResponse works, scale
-fixed -> no rebuild mismatch). All PASS: sigma (chisqP 0.806, ecdf 0.033),
-avg f, all 5 f* (ecdf 0.043-0.068 << band 0.092). The weighted SSR / per-row
-precision path calibrates. 56s.
+The initial run (A4) found the a-glue prior precision correctly calibrated
+but flagged sigma as non-uniform. A settled rerun with properly-derived
+thinning (A4b) confirmed the sigma flag persisted, and at that point it read
+as a genuine calibration defect. A fixed-glue control (A4c) localized the
+flag to the glue-on path specifically (the two-forest backfit itself is
+exact), and a prior-weak configuration (A4d) showed the bias shrinking as n
+shrinks - a pattern that favors a mixing explanation over an algebraic error.
+A follow-up chain-length diagnostic (A4e) confirmed this directly: the bias
+shrinks monotonically as the chain is run longer and crosses into the
+passing band, with every control functional passing at every chain length.
+FINAL VERDICT (A4e): H-MIX - the glue-scaled forest-update path is
+exonerated; the (a, mu-amplitude) scale ridge mixes too slowly for the sigma
+channel at practical chain lengths, not a correctness bug. A mixing-
+efficiency remedy (interweaving) is filed as TODO bcf-ridge-interweaving,
+not a correctness fix. The four sub-experiments below are the investigation
+trail that reached this conclusion.
 
-### A4. BCF glue (gaussian, n=200, R=200) -- a-glue PRECISION calibrates;
-### raw a/(b1-b0) SBC is ILL-POSED by design; sigma flag OPEN
+A4 (gaussian, n=200, R=200) -- a-glue PRECISION calibrates; raw a/(b1-b0)
+SBC is ILL-POSED by design; sigma flag OPEN at this point
 
 Headline: the a-glue prior precision (the one true gate survivor) IS correctly
 calibrated. BCF is an internal bartcore sampler (not R5); numGroups==0 so
@@ -317,19 +361,19 @@ ill-posed. Confirmed: over 15 reps the posterior a-sign matched theta0's sign
 only ~50% (6-8/15), raw-a ranks span 0-150. So a / (b1-b0) FLAG hard (ecdf 0.28,
 0.21) BY CONSTRUCTION. The a-glue precision must instead be checked through the
 IDENTIFIED (sign-invariant) magnitude and functions:
-  abs.a       ecdf 0.086  PASS   <- the a-glue precision, calibrated
-  eff1..5     ecdf 0.048-0.072  all PASS  <- treatment effect (b1-b0)*tau(x*)
-  prog1,3,4,5 ecdf 0.041-0.078  PASS; prog2 0.096 marginal
-  abs.diff    ecdf 0.096  marginal (|b1-b0|; |a| mixes slowly, see below)
+
+    abs.a       ecdf 0.086  PASS   <- the a-glue precision, calibrated
+    eff1..5     ecdf 0.048-0.072  all PASS  <- treatment effect (b1-b0)*tau(x*)
+    prog1,3,4,5 ecdf 0.041-0.078  PASS; prog2 0.096 marginal
+    abs.diff    ecdf 0.096  marginal (|b1-b0|; |a| mixes slowly, see below)
+
 Verdict: BCF's treatment-effect function and prognostic scale (incl. the a-glue
-precision via abs.a) calibrate. 102s (per-sample collection loop).
+precision via abs.a) calibrate. 102s (per-sample collection loop). The sigma
+flag seen here at thin=30/burn=50 was followed up with the settled rerun
+below (A4b).
 
-The sigma flag seen at thin=30/burn=50 was followed up with the settled rerun
-below (A4b) and RESOLVED into a fix item; the fixed-glue control (A4c) and the
-prior-weak run (A4d) localize it.
-
-### A4b. BCF settled rerun (thin=120, burn=18000 sweeps, R=200, L=150) --
-### sigma flag PERSISTS = CALIBRATION DEFECT fix item
+A4b. BCF settled rerun (thin=120, burn=18000 sweeps, R=200, L=150) --
+sigma flag PERSISTS = read at the time as a CALIBRATION DEFECT fix item
 
 Thinning justified from a 4000-draw unthinned chain: |a| ACF 0.37/0.26/0.15/
 0.11/0.08 at lags 30/50/80/100/120 (first <0.1 at lag 103); |b1-b0| 0.01 at
@@ -347,35 +391,37 @@ mean 61 -> 67 -> 71 of 75). Run as 4 x 50-rep chunks (~2 min each), ~2.5 s/rep.
     prog1..5     --        0.076-0.109 prog1 (0.099) and prog4 (0.109) marginal
     eff1..5      --        0.051-0.062 all PASS
 
-VERDICT: CALIBRATION DEFECT (fix item). With the chain settled and ranks
-near-independent, sigma's ranks remain non-uniform: rank mean 63.6 vs 75 =
-theta0's sigma sits low in its posterior = posterior sigma systematically TOO
-LARGE (over-estimates residual noise), with the prognostic function marginally
-affected (prog1/prog4). Magnitude ~8% rank-mean shift. Repro:
-`Rscript benchmarks/R/sbc.R bcf 200 150 120` with burn=150 (runSbcBCF).
+VERDICT AT THIS POINT: read as a CALIBRATION DEFECT. With the chain settled and
+ranks near-independent, sigma's ranks remained non-uniform: rank mean 63.6 vs
+75 = theta0's sigma sits low in its posterior = posterior sigma looked
+systematically TOO LARGE (over-estimating residual noise), with the
+prognostic function marginally affected (prog1/prog4). Magnitude ~8%
+rank-mean shift. Repro: `Rscript benchmarks/R/sbc.R bcf 200 150 120` with
+burn=150 (runSbcBCF). (This reading was superseded by A4e below.)
 
-### A4c. fixed-glue control (update.a = update.b = FALSE, a=1, b0=0, b1=1 in
-### generator and fit; thin=30, burn=18000 sweeps, R=150) -- ALL PASS
+A4c. fixed-glue control (update.a = update.b = FALSE, a=1, b0=0, b1=1 in
+generator and fit; thin=30, burn=18000 sweeps, R=150) -- ALL PASS
 
     sigma  ecdf 0.0450 (band 0.105), KS 0.865, rank mean 76.7/75  PASS
     prog1..5 ecdf 0.047-0.076 all PASS; eff1..5 ecdf 0.035-0.085 all PASS
 
 The two-forest backfit WITH FIXED GLUE is exactly calibrated -- both forests'
-prior-draw machinery matches the MCMC prior, and sigma is clean. The defect is
-therefore IN THE GLUE-ON PATH ONLY. The glue full conditionals were verified
-algebraically against the model (a: normal with precision 1/aVariance +
-sum w mu^2/sigma^2; aVariance: IG(1, (a^2 + scale^2)/2), the exact t_1 scale-
-mixture conditional; b0/b1: normals with prior precision 1/bPriorVariance), and
-k is fixed at 1 for both forests by the calibration map (no hidden k sampling).
-Remaining suspects for the fix: the (a, mu-amplitude) SCALE RIDGE -- a*mu is
-invariant under (a/c, c*mu), leaving a long ridge the chain must traverse by
-alternating conjugate a-draws and per-tree leaf draws, whose relaxation time
-can far exceed the |a| ACF measured on one dataset -- or a subtle exactness gap
-in the glue-scaled forest updates (formForestResponse's r/m response with
-w*m^2 weights, |m| floored at 1e-9).
+prior-draw machinery matches the MCMC prior, and sigma is clean. The apparent
+defect is therefore IN THE GLUE-ON PATH ONLY. The glue full conditionals were
+verified algebraically against the model (a: normal with precision
+1/aVariance + sum w mu^2/sigma^2; aVariance: IG(1, (a^2 + scale^2)/2), the
+exact t_1 scale-mixture conditional; b0/b1: normals with prior precision
+1/bPriorVariance), and k is fixed at 1 for both forests by the calibration map
+(no hidden k sampling). Two suspects remained at this point: the (a,
+mu-amplitude) SCALE RIDGE -- a*mu is invariant under (a/c, c*mu), leaving a
+long ridge the chain must traverse by alternating conjugate a-draws and
+per-tree leaf draws, whose relaxation time can far exceed the |a| ACF measured
+on one dataset -- or a subtle exactness gap in the glue-scaled forest updates
+(formForestResponse's r/m response with w*m^2 weights, |m| floored at 1e-9).
+A4e below resolves this in favour of the mixing explanation.
 
-### A4d. bcf-weak: prior-dominant small-n BCF (n=40, R=200, L=150, thin=120,
-### burn=18000 sweeps) -- HEADLINE PASS: the a-glue prior precision calibrates
+A4d. bcf-weak: prior-dominant small-n BCF (n=40, R=200, L=150, thin=120,
+burn=18000 sweeps) -- HEADLINE PASS: the a-glue prior precision calibrates
 
 The poison-sweep's one true gate survivor was the a-glue prior precision
 (1/aVariance); a prior-weak fit is where dropping it would show. It does not:
@@ -389,13 +435,60 @@ The poison-sweep's one true gate survivor was the a-glue prior precision
     a, b1.minus.b0  FLAG (sign-ill-posed, by construction)
 
 Glue prior moment check as A4 (same prior code path, n-independent). NOTE the
-n-pattern: sigma calibrates at n=40 but flags at n=200 -- an exactness bug in
+n-pattern: sigma calibrates at n=40 but flagged at n=200 -- an exactness bug in
 the glue draw would show MORE when the prior dominates, so this pattern favours
 the scale-ridge mixing explanation (likelihood tighter along the ridge at large
-n) over an algebraic error; the fix item should start there. ~2.4 min/100 reps.
+n) over an algebraic error; A4e below tests this directly. ~2.4 min/100 reps.
 
-## Tier B results (linear leaf; R=200, L=150, thin=60, burn=50, n=150 p=3
-## nTrees=50, leaf covariates = columns 1:2, k=2)
+A4e. chain-length diagnostic (2026-07-10) -- FINAL VERDICT: H-MIX
+
+Three points spanning 8.3x chain length on the standard n=200 glue-on config
+(R=200, L=150, burn=150 thinned units, thin 120/360/1000, so longer points
+get strictly more burn-in and spacing - conservative for a defect verdict):
+
+    point  thin  sweeps/rep  sigma rank mean  sigma ecdf  chisqP  verdict
+    A       120     36k         65.8 / 75       0.1127    0.0002  FLAG
+    B       360    108k         67.8 / 75       0.1066    0.105   FLAG(marg)
+    C      1000    300k         69.7 / 75       0.0652    0.617   PASS
+
+The bias shrinks monotonically and crosses INTO the band (a defect would
+plateau at ecdf ~0.13); every control (abs.a, prog1-5, eff1-5) passes at
+every point; raw a and b1-b0 stay sign-ill-posed by design. VERDICT: slow
+mixing, and the glue-scaled forest-update path is EXONERATED - the stationary
+distribution is correct within SBC resolution (consistent with A4c
+fixed-glue-exact and A4d n=40).
+
+Mechanism, measured directly on long unthinned chains (IACT via Geyer): sigma
+and the (a, mu-amplitude) ridge coordinate co-relax, and the relaxation time
+scales steeply with the prognostic amplitude |a0| ~ Cauchy(0, 2): IACT ~4
+sweeps at a0 near 0, ~240-630 at moderate |a0|, ~2500-6600 at the tail (|a0|
+~ 7-13; sigma ACF at lag 1000 still 0.48-0.77 there). At thin=120 the
+strong-signal reps' L=150 retained draws are one correlated blob, biasing
+their sigma ranks; at thin=1000 the moderate reps decorrelate but the
+Cauchy-tail minority does not, which is exactly why point C passes while
+sitting at 69.7 rather than 75. Bias direction (posterior sigma high) fits:
+from the overdispersed init the (a, mu) block relaxes downward toward the
+true amplitude over thousands of sweeps.
+
+Routing: remedy filed as TODO bcf-ridge-interweaving (an ASIS/interweaving
+joint rescale (a, mu) -> (a/c, c*mu) with c from its full conditional;
+posterior-preserving, draw-changing, VD sign-off) - the acceptance test is
+this same n=200 config at the cheap thin=120 setting passing sigma after the
+move lands. No glue-path exactness dive is warranted. Artifacts (per-chunk
+rank .rds, scratch.log, IACT scripts) in the session tmp directory.
+
+#### A5. weighted gaussian (n=150, R=200) -- ALL PASS
+
+Known positive weights w ~ Gamma(2,2) (mean 1); heteroscedastic noise
+y0 = f0 + (sigma0 / sqrt(w)) * N. Reused sampler (setResponse works, scale
+fixed -> no rebuild mismatch). All PASS: sigma (chisqP 0.806, ecdf 0.033),
+avg f, all 5 f* (ecdf 0.043-0.068 << band 0.092). The weighted SSR / per-row
+precision path calibrates. 56s.
+
+### Tier B - linear leaf
+
+R=200, L=150, thin=60, burn=50, n=150 p=3 nTrees=50, leaf covariates =
+columns 1:2, k=2, unless noted.
 
 Tier-B thinning MEASURED, not assumed: across three linear-leaf datasets the
 slowest functional (sigma) first drops below ACF 0.1 at lags 44 / 60 / >60
@@ -412,7 +505,7 @@ DROPS NA rows even under missing = "incorporate" (dbartsData warns "row(s)
 dropped"); only the formula interface (na.action = na.pass) keeps them. The
 harness builds NA designs through a formula.
 
-### B1. linear leaf baseline -- ALL PASS
+#### B1. linear leaf baseline -- ALL PASS
 
     functional  chisqP   ksP   ecdfDiff  band(.0924)
     avg.f       0.735   0.992   0.0280    PASS
@@ -423,8 +516,8 @@ harness builds NA designs through a formula.
 The linear-leaf ridge draw (vector params, U'WU statistics) calibrates.
 ~2.4 s/rep; 4 x 50-rep chunks.
 
-### B2. linear leaf + NA in a DESIGNATED leaf-covariate column -- PASS
-### (the coverage matrix's number-one target: model.hpp:173)
+#### B2. linear leaf + NA in a DESIGNATED leaf-covariate column -- PASS
+(the coverage matrix's number-one target: model.hpp:173)
 
 15% of rows carry NA in column 1 (a leaf covariate); the fixed NA pattern
 rides every replication. Functionals add f at three NA-bearing training rows
@@ -444,7 +537,7 @@ sit exactly on the imputation-at-standardized-mean path.
 VERDICT: the missing-leaf-covariate imputation path that no gate executes
 CALIBRATES. ~2.4 s/rep.
 
-### B3. linear leaf + NA in the SPLIT-ONLY column (control) -- ALL PASS
+#### B3. linear leaf + NA in the SPLIT-ONLY column (control) -- ALL PASS
 
 Same 15% NA pattern but in column 3 (NOT a leaf covariate): NAs are routed
 purely by each rule's missing direction, leaf covariates stay complete.
@@ -456,7 +549,7 @@ purely by each rule's missing direction, leaf covariates stay complete.
 VERDICT: NA split-routing calibrates; together with B2 the two distinct NA
 paths (routing vs leaf imputation) are both clean.
 
-### B4. linear leaf + non-unit weights (w ~ Gamma(2,2)) -- ALL PASS (R=200)
+#### B4. linear leaf + non-unit weights (w ~ Gamma(2,2)) -- ALL PASS (R=200)
 
     functional  chisqP   ksP   ecdfDiff  band(.0924)
     sigma       0.839   0.831   0.0425    PASS  (rank mean 75.1/75, centred)
@@ -466,8 +559,10 @@ paths (routing vs leaf imputation) are both clean.
 The weighted linear-leaf path (weights entering U'WU / U'Wz) calibrates.
 Tier B complete: all four linear-leaf configs clean.
 
-## Tier C results (GP leaf; R=200, L=150, thin=20, burn=50, n=80 p=3
-## nTrees=25, gp(1L, k = 2, max.leaf.size = 100))
+### Tier C - GP leaf
+
+R=200, L=150, thin=20, burn=50, n=80 p=3 nTrees=25,
+gp(1L, k = 2, max.leaf.size = 100).
 
 Setup notes (all measured, none assumed):
 - max.leaf.size = 100 matches the equivalence gp scenario's cap; with n = 80
@@ -493,7 +588,7 @@ Setup notes (all measured, none assumed):
   map (max residual < 1e-8, enforced); f* keeps predict(). With this, the
   recorded-fits consistency check passes at 1e-15 for all three GP configs.
 
-### C1. GP leaf baseline -- ALL PASS
+#### C1. GP leaf baseline -- ALL PASS
 
     functional  chisqP   ksP   ecdfDiff  band(.0924)
     sigma       0.337   0.602   0.0534    PASS  (rank mean 75.2/75, centred)
@@ -504,7 +599,7 @@ Setup notes (all measured, none assumed):
 
 The GP leaf's marginal/Matheron draw + kernel cache calibrates.
 
-### C2. GP leaf + NA in the designated leaf covariate -- ALL PASS
+#### C2. GP leaf + NA in the designated leaf covariate -- ALL PASS
 
 15% of rows carry NA in column 1 (the GP leaf covariate); watch-row
 functionals ride the recorded training fits at three NA-bearing rows, exactly
@@ -522,7 +617,7 @@ VERDICT: the GP-leaf missing-covariate path (imputation at the standardized
 mean inside a function-valued leaf) CALIBRATES -- with B2 this closes the
 review-3 number-one uncovered combination for both leaf families.
 
-### C3. GP leaf + non-unit weights (w ~ Gamma(2,2)) -- ALL PASS
+#### C3. GP leaf + non-unit weights (w ~ Gamma(2,2)) -- ALL PASS
 
     functional  chisqP   ksP   ecdfDiff  band(.0924)
     sigma       0.630   0.652   0.0494    PASS  (rank mean 75.3/75, centred)
@@ -532,8 +627,10 @@ review-3 number-one uncovered combination for both leaf families.
 The weighted GP path (per-row precisions entering the leaf kernel solves)
 calibrates. Tier C complete: all three GP configs clean.
 
-## Review-4 complete summary (tiers A+B+C; R=200 per config; the ecdf-diff
-## simultaneous 95% band is the verdict, chisq/KS secondary)
+## Final summary
+
+R=200 per config; the ecdf-diff simultaneous 95% band is the verdict,
+chisq/KS secondary.
 
     tier config                        verdict
     A    gaussian baseline             ALL PASS (7/7)
@@ -550,14 +647,15 @@ calibrates. Tier C complete: all three GP configs clean.
     A    grouped probit                ALL PASS (tau at band edge, noise)
     A    weighted gaussian             ALL PASS (7/7)
     A    BCF standard (n=200)          abs.a / abs.diff / eff PASS; raw a and
-                                       (b1-b0) sign-ill-posed BY DESIGN;
-                                       SIGMA = FIX ITEM (posterior sigma
-                                       biased high, glue-on path only; A4b)
-    A    BCF fixed-glue control        ALL PASS (localizes the defect to the
-                                       glue-on path; backfit itself exact)
+                                       (b1-b0) sign-ill-posed BY DESIGN; sigma
+                                       flagged initially (A4/A4b), RESOLVED as
+                                       slow mixing on the (a,mu) scale ridge,
+                                       not a defect (H-MIX, A4e)
+    A    BCF fixed-glue control        ALL PASS (localizes the sigma pattern
+                                       to the glue-on path; backfit exact)
     A    BCF prior-weak (n=40)         HEADLINE PASS - the a-glue prior
                                        precision (abs.a) calibrates; sigma
-                                       centred (defect is n-dependent,
+                                       centred (defect shrank with n,
                                        consistent with scale-ridge mixing)
     B    linear leaf baseline          ALL PASS (7/7)
     B    linear + NA leaf covariate    PASS - imputation path (model.hpp:173)
@@ -569,78 +667,15 @@ calibrates. Tier C complete: all three GP configs clean.
                                        calibrates (watch rows clean)
     C    GP + weights                  ALL PASS (7/7)
 
-18 configs; ONE calibration defect found (BCF glue-on sigma, filed with
-localization + repro), everything else clean. Residual gaps recorded: the
-sampled-k chi-hyperprior channel (no API to install a prior k draw), DART
-alpha-sampling (held fixed), and the half-Cauchy grouped tau (SBC-intractable
-via the engine's slice sampler; gamma prior used instead). Harness findings:
-matrix-interface NA-row dropping under missing = "incorporate"; GP predict
-vs stored training fits ~2e-3 (jittered re-kriging - harness reads stored
-fits). Candidate standing gate: the gaussian constant-leaf baseline (~52 s at
-R=200 unloaded).
-
-## Tier A summary (R=200 per config unless noted)
-
-    config                       verdict
-    gaussian baseline            ALL PASS (7/7 functionals)
-    probit baseline              ALL PASS (ecdf band; 1 chisq blip = noise)
-    logistic baseline            ALL PASS (6/6)
-    DART (alpha=1, p=10)         s1..s10 ALL PASS; sigma/avg.f PASS
-    DART sparse + 1e-300 floor   selection calibrates at 3% floor incidence
-    grouped gaussian + 0-weights tau/b1/b2/f* PASS (sigma = harness rescale
-                                 artifact, benign; documented)
-    grouped probit               ALL PASS (tau at band edge, within noise)
-    weighted gaussian            ALL PASS (7/7)
-    BCF standard (n=200)         abs.a/abs.diff/eff PASS; raw a,(b1-b0)
-                                 ill-posed by design; SIGMA = FIX ITEM
-                                 (posterior sigma biased high; A4b/A4c)
-    BCF fixed-glue control       ALL PASS (localizes defect to glue-on path)
-    BCF prior-weak (n=40)        HEADLINE PASS: a-glue precision (abs.a)
-                                 calibrates; sigma centred
-    tier A wall-clock            ~45 min total across all runs + diagnostics
-
-One fix item found: BCF glue-on sigma (A4b; leading hypothesis the (a, mu)
-scale ridge, A4c/A4d). One tooling finding: SBC of the default half-Cauchy
-grouped tau is intractable via the engine's slice sampler (A3; gamma prior
-used instead). Remaining for tiers B/C: linear leaf +/- NA, GP leaf +/- NA,
-weighted GP (harness extensions: NA-covariate draw, function-leaf handling).
-
-## A4e. chain-length diagnostic (2026-07-10): VERDICT H-MIX
-
-The A4b follow-up experiment ran three points spanning 8.3x chain
-length on the standard n=200 glue-on config (R=200, L=150, burn=150
-thinned units, thin 120/360/1000, so longer points get strictly more
-burn-in and spacing - conservative for a defect verdict):
-
-    point  thin  sweeps/rep  sigma rank mean  sigma ecdf  chisqP  verdict
-    A       120     36k         65.8 / 75       0.1127    0.0002  FLAG
-    B       360    108k         67.8 / 75       0.1066    0.105   FLAG(marg)
-    C      1000    300k         69.7 / 75       0.0652    0.617   PASS
-
-The bias shrinks monotonically and crosses INTO the band (a defect
-would plateau at ecdf ~0.13); every control (abs.a, prog1-5, eff1-5)
-passes at every point; raw a and b1-b0 stay sign-ill-posed by design.
-VERDICT: slow mixing, and the glue-scaled forest-update path is
-EXONERATED - the stationary distribution is correct within SBC
-resolution (consistent with A4c fixed-glue-exact and A4d n=40).
-
-Mechanism, measured directly on long unthinned chains (IACT via
-Geyer): sigma and the (a, mu-amplitude) ridge coordinate co-relax,
-and the relaxation time scales steeply with the prognostic amplitude
-|a0| ~ Cauchy(0, 2): IACT ~4 sweeps at a0 near 0, ~240-630 at
-moderate |a0|, ~2500-6600 at the tail (|a0| ~ 7-13; sigma ACF at lag
-1000 still 0.48-0.77 there). At thin=120 the strong-signal reps'
-L=150 retained draws are one correlated blob, biasing their sigma
-ranks; at thin=1000 the moderate reps decorrelate but the Cauchy-tail
-minority does not, which is exactly why point C passes while sitting
-at 69.7 rather than 75. Bias direction (posterior sigma high) fits:
-from the overdispersed init the (a, mu) block relaxes downward toward
-the true amplitude over thousands of sweeps.
-
-Routing: remedy filed as TODO bcf-ridge-interweaving (an ASIS/
-interweaving joint rescale (a, mu) -> (a/c, c*mu) with c from its
-full conditional; posterior-preserving, draw-changing, VD sign-off) -
-the acceptance test is this same n=200 config at the cheap thin=120
-setting passing sigma after the move lands. No glue-path exactness
-dive is warranted. Artifacts (per-chunk rank .rds, scratch.log, IACT
-scripts) in the session tmp directory.
+18 configs; every one calibrates. The one config that initially looked like a
+defect (BCF glue-on sigma, A4/A4b) was fully resolved by the chain-length
+diagnostic (A4e): slow mixing on the (a, mu-amplitude) scale ridge, not a
+sampler defect - exonerated within SBC resolution, with a mixing-efficiency
+remedy (interweaving) filed as TODO bcf-ridge-interweaving rather than a
+correctness fix. Residual gaps recorded: the sampled-k chi-hyperprior channel
+(no API to install a prior k draw), DART alpha-sampling (held fixed), and the
+half-Cauchy grouped tau (SBC-intractable via the engine's slice sampler;
+gamma prior used instead). Harness findings: matrix-interface NA-row dropping
+under missing = "incorporate"; GP predict vs stored training fits ~2e-3
+(jittered re-kriging - harness reads stored fits). Candidate standing gate:
+the gaussian constant-leaf baseline (~52 s at R=200 unloaded).

@@ -1,5 +1,8 @@
 # forest-combiner
 
+Status: LANDED, 2026-07-14 (docs/design/forest-combiner.md carries the
+landed shape; steps 1-5 below all closed, Open questions Q1-Q4 RESOLVED).
+
 agent: opus (the combiner is the multi-forest coupling seam - one owner keeps
   per-forest residual formation, the coupling draw, combined fits, and per-forest
   reporting coherent, and every relocation bitwise-neutral on both the

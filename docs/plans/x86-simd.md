@@ -1,5 +1,13 @@
 # x86-simd
 
+Status: CLOSED/SUPERSEDED. All four goal items were settled by later work
+(see TODO's x86-simd entry): the three commented-out linalg intrinsics
+bodies were measured and DELETED, not restored (review-perf-followups.md
+C6, 2026-07-17); the SSR SIMD-leaf gap is a MEASURED NO-GO and
+misc_setIndexedVectorToConstant's dispatch-completeness item is RETIRED
+(2026-07-17, its hot caller removed by the fits compaction); Windows-arm64
+NEON LANDED (dcee743, 2026-07-20). No open work remains under this plan.
+
 agent: sonnet (bench runs are maintainer-assisted on x86 hardware)
 rng: neutral (kernel outputs identical to scalar by contract)
 budget: ~250 lines

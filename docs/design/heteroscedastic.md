@@ -548,8 +548,12 @@ the widest review; C3/C4 are additive on top.
   cannot express. It is the one path that would specialize the monotone move seam.
 - **Heteroscedastic composed with BCF / grouped effects / multinomial**: the
   weight-channel routing composes in principle (a GroupedResponse decorates below the
-  variance weighting), but building any cross-product is out of scope; hurdle is the
-  other two-leaf-type model that will sharpen section 6's structural choice.
+  variance weighting), but building any cross-product is out of scope. CORRECTION
+  (docs/design/hurdle.md, landed 2026-07-20): hurdle did NOT end up sharpening
+  section 6's structural choice - it composed R-side as two independent ordinary
+  fits (occupancy + lognormal positive part), no engine change, so section 6's
+  Chain-level two-leaf-type integration remains a single-consumer design with no
+  second consumer to generalize against.
 - **dbarts.h exposure:** none in v1 (the ordinal/monotone precedent); heteroscedastic
   is reachable only through the R surface and internal bridge.
 

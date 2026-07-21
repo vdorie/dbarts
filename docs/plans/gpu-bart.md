@@ -1,5 +1,10 @@
 # gpu-bart
 
+Status: DONE - memo complete (docs/design/gpu-bart.md, 2026-07-07): no
+direction earns a dbarts GPU prototype yet, a documented no per that memo's
+section 4; revisit only if the landscape changes (section 4 lists what
+would).
+
 agent: opus
 rng: n/a (survey memo; any mechanism it endorses gets its own plan)
 budget: memo only
