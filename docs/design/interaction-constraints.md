@@ -1,10 +1,12 @@
 # Interaction constraints for BART
 
-Status: PROPOSAL (design memo, 2026-07-21). Synthesized from a blind
+Status: LANDED f455d7c (2026-07-21). Deliverable B shipped in two verified
+phases; see the plan's Landing note. Design synthesized from a blind
 three-lens research panel (user-value, engine-feasibility, prior-art) and
-hardened by an adversarial code-verified critique (SOUND-WITH-CAVEATS; the
-two must-fix findings are folded in below). Awaiting VD go/no-go on the
-build. Plan stub: docs/plans/interaction-constraints.md "Goal".
+hardened by an adversarial code-verified critique (SOUND-WITH-CAVEATS); the
+two must-fix findings - the cross-variable swap walk and the state-install
+containment gate - were folded in and both shipped. Plan:
+docs/plans/interaction-constraints.md.
 
 ## The capability
 
