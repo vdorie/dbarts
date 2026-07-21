@@ -140,3 +140,41 @@ DGP); sigma mixing mildly degraded (non-binding). Recommended de-risk before the
 full engine kernel: a cheap wall-clock probe of the barrier + noise-split overhead
 vs the b-fold speedup, since that overhead is exactly what killed straight
 threading.
+
+## Phase 1 wall-clock de-risk probe (2026-07-21): PROMISING, barrier-bound, INCONCLUSIVE on x86
+A C++ probe (bj-wallclock-probe.cpp, uses the archived wcpool substrate) times a
+representative blocked sweep (b released trees gathered in parallel per barrier +
+the noise split + the batch combine) vs a serial backfitting sweep, on memory-bound
+field kernels. Since Phase 0 showed ~no ESS/sweep tax, ESS/sec ~ this wall-clock
+speedup. Bar to beat: 1.67x (straight within-chain threading NO-GO). Findings, in
+the order they were learned:
+1. The noise split's n*m normal draws/sweep (a cost serial has none of) initially
+   DOMINATED - naive Box-Muller made blocked 2-4x SLOWER. Real, compute-bound,
+   ~2x the serial sweep.
+2. A COUNTER-BASED (stateless, splitmix-keyed on obs/tree/sweep) normal fixes both
+   the cost AND a parallel-correctness trap: sharing per-tree RNG state across the
+   observation-partitioned noise split is a data race + cache-line contention that
+   crushed x86. Counter-based RNG is stateless, embarrassingly parallel, and gives
+   THREAD-COUNT-INDEPENDENT reproducibility - the design dbarts' within-host bitwise
+   reproducibility needs anyway. A positive side finding.
+3. With the fix, M1 (8 cores, libc++) scales: b=2 0.51x, b=4 1.09x, b=8 1.60x
+   (n=1e5 and 1e6 identical - the RNG/gather ratio is n-INDEPENDENT, so large-n
+   neither rescues nor dooms it). b=8 approaches the 1.67x bar; barrier-minimization
+   + b=16 on a real 16-core box would likely clear it.
+4. x86 (16 cores, libstdc++) with the SAME fixed code was 3-5x SLOWER, barrier-count-
+   limited (b=2 0.18x, b=8 0.34x). TWO confounds: (a) the box was NOT quiet (load
+   avg 6.42 - threading benches are invalid under co-scheduled load; a barrier
+   stalls on any descheduled thread); (b) the probe does 6 barriers/group (3 forRange
+   x 2), wasteful - a fused design is ~2/group, and libstdc++'s std::barrier looks
+   far costlier than libc++'s, so the wcpool substrate may need a spin-barrier on
+   Linux. The x86 number is UNTRUSTWORTHY as-is.
+VERDICT: INCONCLUSIVE but PROMISING. Wall-clock is achievable in principle (M1
+1.60x at b=8; RNG concern resolved via counter-based draws), but the production
+(x86/Linux) number is gated on (i) a barrier-minimized probe (~2 barriers/group)
+and (ii) a QUIET 16-core box. Strategic value is NOT merely a niche single-chain
+speedup vs parallel chains: it directly serves the EMBEDDED-GIBBS / conditional-
+model use case (BART as a Gibbs step inside a larger sampler - dbarts' distinguishing
+feature; stan4bart/bairrtt), where chains cannot be parallelized and single-chain
+speedup is the only lever. Next decision: refine the probe (fuse barriers) + a clean
+x86 number on a quiet box decides GO/NO-GO on the full exact engine kernel. Probe
+scripts + wcpool in $CLAUDE_JOB_DIR/tmp (job b073bb28).
