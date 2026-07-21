@@ -77,3 +77,66 @@ parallel chains; XBART: different grow-from-root algorithm). The noise-split
 movement-budget tree kernel appears novel to this program; lineage is general
 auxiliary-variable / augmented parallel-Gibbs. A literature/code sweep before
 committing is optional insurance, not done.
+
+## Phase 0 results (2026-07-21): EXACT, no per-sweep tax at realistic m -> GO Phase 1
+Method: an ORACLE HARNESS - m single-tree dbarts bartcore handles (the real tested
+tree kernel: grow/prune/change/swap + leaf Gibbs), backfit from R; the only novel
+code is the R-level noise split + schedule + sigma draw. Serial-oracle validated
+against bart2 (posterior-mean fit corr 0.996, recovers f as well, sensible sigma).
+Throwaway scripts: $CLAUDE_JOB_DIR/tmp/bj-*.R (job b073bb28). Not landed; a
+measurement of ESS-PER-SWEEP, not wall-clock.
+
+EXACTNESS: PASS, by four INDEPENDENT lines (not one derivation):
+1. Closed-form MVN match, constant stumps (0a) and fixed multi-leaf structure
+   (0a-plus), b=1,2,4: posterior mean/var/cov within ~1.5 MCSE of the analytic
+   posterior; b=1 noise-split reduces to serial exactly (max|z-R|~1e-15).
+2. Closed-form match b=1,2,4,8 fixed-structure (isolates BIAS from mixing - no
+   structure moves, converges fast even at b=8): every b within ~2.4 MCSE, var
+   ratios ~1 -> NO b-growing bias, even at b=8.
+3. An INDEPENDENT blind derivation (Opus agent, given only the model + mechanism,
+   not my algebra): verdict EXACT via the conservation law sum_{k in B} v_k =
+   sigma^2 (v_k = sigma^2/|B| meets it); structure moves provably safe (the
+   marginalization over z_B uses g_k(theta_k) only as a value, agnostic to
+   constant-leaf vs full tree); the standard sigma full-conditional is correct
+   (z's are auxiliary, discarded, not in the Markov state); and it enumerated the
+   off-spec bias hazards (b not dividing m with a rigid sigma^2/b; state-dependent
+   schedule; pinned trees written inside a barrier; leaf prior recalibrated to the
+   reduced noise) - ALL of which the harness avoids (v = sigma^2/|B| by actual
+   batch size, fixed round-robin, pinned frozen, leaf prior fixed and empirically
+   sigma-independent).
+4. Real-tree b=2 vs serial within the serial-vs-serial MC-noise control (drawn
+   sigma, m=30).
+
+TAX: the per-sweep MIXING tax at realistic m is MILD (fit retains ~85-100% of
+serial's per-sweep mixing). Warm-start gold-standard (all methods from an identical
+converged state via storeState, so neither non-convergence nor the stuck-chain-
+inflates-ESS artifact can bias it), m=75 n=1e4: fmin (worst pointwise-f coord)
+ESS/sweep ratio 0.94-1.13 across b=2,4,8; global-fit ratio 1.06-1.47 (blocked mixes
+BETTER - noise-injection DECOUPLES the trees, offsetting the precision penalty).
+Consistent across cold seed30, warm seed30, and an independent replication (data +
+tree seed) seed77 (fmin 0.93-0.99). CONFIRMED at m=200 n=4000 (the realistic BART
+size): fmin ratio 0.86-0.95, gmean 0.80-0.89, break-even (ESSratio*b) 1.8-6.9; and
+b=8 CONVERGES FROM COLD at m=200 (sigma windows flat ~1.006 vs serial 0.998) - the
+dilution is stronger at larger m, so the tax and the burn-in both ease as m grows.
+Across m=75/200 x b=2/4/8, break-even (ESSratio * b) = 1.8-8.5, always well above 1.
+sigma ESS ratio is noisier (0.49-2.22 across runs) but non-binding (sigma mixes
+fast, ESS ~1e3-3e3; the fit governs BART). The conservation-law precision tax is
+REAL but manifests as a BURN-IN/transient cost (theorist: learning rate down 1/b,
+structure SNR down sqrt(b)), NOT a stationary per-sweep cost: a COLD b=8 chain at
+SMALL m (30) climbs out of underfit only over ~40k+ sweeps (sigma 1.22 -> 0.94),
+while WARM b=8, or cold b=8 at m=200, mixes fine. Practical: b=2-4 fine from cold at
+any m; b>=8 wants a warm start only at small m.
+
+VERDICT: GO to Phase 1. Neither kill condition tripped (exactness holds; the
+ESS/sweep tax does not block - it is ~zero at realistic m). Phase 1 decides the
+REMAINING and decisive question, which Phase 0 cannot: does the b-fold parallel
+WALL-CLOCK speedup survive the overheads - m/b barriers per sweep (the wcpool
+substrate; amortizes only when per-tree work is large, i.e. large n) AND the noise
+split's own O(n*m)/sweep cost (roughly doubles per-sweep field work, but
+parallelizes)? The straight-threading NO-GO (net 1.67x, docs/design/within-chain-
+threading.md) is the bar to beat. Caveats to carry into Phase 1: ESS/sweep is not
+ESS/sec; only Friedman/n=1e4 tested (ratio is n-robust statistically; add a second
+DGP); sigma mixing mildly degraded (non-binding). Recommended de-risk before the
+full engine kernel: a cheap wall-clock probe of the barrier + noise-split overhead
+vs the b-fold speedup, since that overhead is exactly what killed straight
+threading.
