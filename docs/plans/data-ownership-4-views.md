@@ -83,19 +83,19 @@ after construction), GC-anchored by the handle's data object via PROT_DATA.
   there is NO per-forest column axis. Per-forest fixedSplitProbabilities
   already exist and install into treePrior.splitProbabilities
   (chain.hpp:272,442-446), so a per-forest column axis is a natural sibling.
-- Design sources: Sharing (data-ownership.md:147-156), open consideration 2
-  (:58-71); standalone handle (core-generalization.md:188-192);
-  public-surface.md:288 section 5 (DECIDED internal-first; serialization +
+- Design sources: Sharing (data-ownership.md), open consideration 2;
+  standalone handle (core-generalization.md);
+  public-surface.md section 5 (DECIDED internal-first; serialization +
   exposure explicitly still open).
 
 ## Scope drift to reconcile in the landing note
 
 1. The design's Sharing section says "codes are shared ... one update
    visible to every model." Landed reality: views are self-contained code
-   COPIES (buildFromParent, public-surface.md:319 "self-contained copies,
+   COPIES (buildFromParent, public-surface.md "self-contained copies,
    no lifetime coupling") and REFUSE mutation. This plan reconciles to
    READ-ONLY single-writer sharing (design's own fallback,
-   public-surface.md:306-308); shared MUTABLE codes across samplers is the
+   public-surface.md); shared MUTABLE codes across samplers is the
    open Q3, not built here.
 2. The design frames the column subset as a "view" (an index list). Within
    ONE BCF sampler the two forests share ONE store, so the faithful
@@ -104,7 +104,7 @@ after construction), GC-anchored by the handle's data object via PROT_DATA.
    second store would duplicate codes and defeat the sharing intent). The
    handle path (separate samplers) keeps the copy-view mechanic.
 3. The standalone handle is listed under the design's plan-4 line but
-   landed earlier (public-surface.md:314). This plan EXTENDS it (a column
+   landed earlier (public-surface.md). This plan EXTENDS it (a column
    axis), it does not introduce it.
 
 ## Constraints
@@ -203,7 +203,7 @@ after construction), GC-anchored by the handle's data object via PROT_DATA.
   update already works per-sampler. What would change it: a measured
   workload where the per-sampler re-quantize is the bottleneck.
 - Q4 (handle serialization + public exposure). RECOMMEND defer both, per
-  the design's DECIDED internal-first (public-surface.md:310-312,328); keep
+  the design's DECIDED internal-first (public-surface.md); keep
   the handle unserialized and unexported. What would change it: a scheduled
   consumer (hurdle, or a bairrtt migration) that needs a persisted or
   user-visible handle.
@@ -275,7 +275,7 @@ confirmed as-built:
    sharing intent the design asked for. The handle path (separate
    samplers) keeps the copy-view mechanic (buildFromParent), unchanged in
    kind by this plan.
-3. The standalone handle predated this plan (public-surface.md:314); step
+3. The standalone handle predated this plan (public-surface.md); step
    3 only extends it with a column axis. Confirmed as-built - no new
    handle construction path was added.
 

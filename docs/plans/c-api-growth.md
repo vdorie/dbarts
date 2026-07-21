@@ -160,15 +160,15 @@ orphans states across releases is the strict-equality gate at the top of
 bumped `stateFormatVersion` (now 3; history at :2773-2785:
 v2 = flat-node tagging + dropped-slots ENCODING change, v3 = trees-into-
 forests + bcf slot STRUCTURAL change) and thereby invalidated every state a
-prior release wrote. public-surface.md:150-158 records this gate as the "one
+prior release wrote. public-surface.md records this gate as the "one
 version scheme flat-format-v2, state-continuation, and forest-split-bcf all
 bump" - c-api-growth is the item that ends the bump-orphans-everything half
 of it while keeping the never-silently-misinterpret half.
 
 ### Why pre-1.0 states are not a compat target
 
-The 1.0-0 cutover reset the compat contract (chi-k-runaway.md:46,
-public-surface.md:10-16, MEMORY no-backwards-compat-constraint). Every state
+The 1.0-0 cutover reset the compat contract (chi-k-runaway.md,
+public-surface.md, MEMORY no-backwards-compat-constraint). Every state
 in the wild after release is format 3 (the 1.0-0 encoding). v1/v2 states
 cannot even structurally reach the v3 reader (they lack the `forests` slot,
 so the REQUIRED-block check refuses them anyway). This is what makes it safe

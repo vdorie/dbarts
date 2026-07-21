@@ -7,7 +7,7 @@ those predictors, so the sum-of-trees fit is monotone (Chipman, George,
 McCulloch, Shively 2022, Bayesian Analysis 17(2):515-544; arXiv:1612.01619 -
 "mBART"). The constraint rides as a per-column sign flag on the model spec,
 enforced through the tree-granularity leaf-parameter draw the core provisioned
-(docs/design/core-generalization.md:141) plus a constrained branch score for the
+(docs/design/core-generalization.md) plus a constrained branch score for the
 birth/death moves. Constant leaves only in v1; categorical predictors refuse the
 constraint. rng class: posterior-changing when any constraint is declared, and
 BYTE-neutral (no rng-stream perturbation, no hot-path cost) when none is
@@ -92,7 +92,7 @@ model-matrix column names after expansion; a name that does not resolve, or a
 sign on a categorical column, is a hard error at spec time (see below). The
 argument also rides `dbartsData`/`dbartsSampler` and `setModel` refuses to change
 it after construction (the constraint is structural, like the tree/chain counts
-setControl freezes, core-generalization.md:739).
+setControl freezes, core-generalization.md).
 
 Naming rationale (fork 6, a collision trap): NEVER `mbart`. CRAN's BART package
 exports `mbart`/`mbart2` for MULTINOMIAL BART; a `dbarts::mbart` or a
@@ -108,11 +108,11 @@ places to keep consistent and verbose for many columns) - rejected as less dense
 not matching dbarts's `lower.case.dotted` R style.
 
 **Categorical predictors refuse.** Monotonicity is undefined on an unordered
-factor (category codes 0..K-1 carry no order; core-generalization.md:621). A
+factor (category codes 0..K-1 carry no order; core-generalization.md). A
 nonzero direction on a categorical column is refused at spec time in R and,
 defensively, at the factory (the categorical-refusal already guarding leaf
 covariates, facade.hpp:456). ORDERED factors and numeric columns are stored as
-ordinal `ColumnType` (core-generalization.md:473) and DO accept the constraint -
+ordinal `ColumnType` (core-generalization.md) and DO accept the constraint -
 their codes are ordered, so `splitInterval` and the neighbor test are meaningful.
 So "categorical refuses" is precisely "unordered factors refuse; ordinal columns
 and numerics are eligible," the clean `is.ordered()`-adjacent split.
@@ -138,7 +138,7 @@ the truncated stationary law; a random scan is the documented alternative if the
 fixed order mixes poorly.
 
 **Seam - what actually has to change (the "hook" is aspirational).** The
-provision (core-generalization.md:141) reads as though a tree-granularity leaf
+provision (core-generalization.md) reads as though a tree-granularity leaf
 draw seam already exists; it does NOT. Today the draw is a hardcoded per-node
 loop that rebuilds mu from zero every sweep (`mu.assign(tree.nodes.size(), 0.0)`,
 chain.hpp:2304, then an independent `drawFromPosteriorForNode` per bottom node,
@@ -275,7 +275,7 @@ options, and what mBART actually does:
 - **C. Fully non-conjugate MH (propose-and-draw).** Draw the touched leaves from
   the constrained prior as part of the proposal and accept on the joint
   likelihood without integrating them out - the reversible-jump / prior-grown
-  machinery gp-leaves.md and the open Phase 6 (core-generalization.md:780) build
+  machinery gp-leaves.md and the open Phase 6 (core-generalization.md) build
   for non-integrable leaves. Correct, and it needs no truncated marginal, but it
   gives up the Rao-Blackwellization B/B' keep (the touched leaves are integrated,
   not sampled, in the accept decision), so it mixes worse - the standard argument
@@ -302,7 +302,7 @@ option C need a MoveStrategy that (i) reads the current leaf-parameter vector M
 during scoring and (ii) computes a bespoke local marginal rather than the
 closed-form sum. That "score reads M + custom local marginal" seam is ALSO what
 the queued heteroscedastic arc's non-conjugate MoveStrategy needs
-(core-generalization.md:780, gp-leaves.md). Consideration: monotone does NOT have
+(core-generalization.md, gp-leaves.md). Consideration: monotone does NOT have
 to wait for the full non-conjugate arc - B' still integrates conjugately, just
 over a truncated region, so it is a distinct, simpler MoveStrategy
 (`ConstrainedConjugateMove`, compile-time-selected for the monotone leaf like the
@@ -441,7 +441,7 @@ flag inside one leaf type would perturb draws - construction-time type selection
 avoids that entirely). No per-observation cost is added anywhere: the neighbor
 walk, truncation, and constrained marginal live only in the monotone
 instantiation. Binary size grows by one instantiation (constant x monotone),
-bounded like the existing leaf-model matrix (core-generalization.md:118).
+bounded like the existing leaf-model matrix (core-generalization.md).
 
 Gates that prove neutrality (section 9): the equivalence baselines reproduce
 byte-identically with NO re-record (monotone adds no draw to any existing family
@@ -578,7 +578,7 @@ the posterior-changing baseline for this arc.
 
 ## Plan-vs-code note
 
-The plan stub (docs/plans/monotone-bart.md:22-25) frames fork 3 as "exact
+The plan stub (docs/plans/monotone-bart.md) frames fork 3 as "exact
 constrained marginals vs mBART's approach," implying mBART's approach is not
 exact. Finding: mBART's TARGET is exact (the conditional-on-mu_same marginal,
 eq. 4.11, hits the true constrained posterior); only its IMPLEMENTATION

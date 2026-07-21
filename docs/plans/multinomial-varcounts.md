@@ -48,7 +48,7 @@ the follow-up the multinomial C7 landing note filed as omitted (multinomial.md
   (chain.hpp:2211), which is 0 for both BCF and multinomial (combiner.hpp:287,
   not overridden). So a multinomial run's per-sample varcount channel is
   CATEGORY 0's forest only - the "addresses category 0 only" the design note
-  cites (multinomial.md:184-185). Unlike trainingFits/testFits, the varcount
+  cites (multinomial.md). Unlike trainingFits/testFits, the varcount
   channel was NOT widened by the C2 location seam.
 - Where per-category counts live TODAY: forestVariableCounts(f, out)
   (chain.hpp:469-474) -> SamplerBase (facade.hpp:160,359) ->

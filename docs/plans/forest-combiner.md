@@ -91,7 +91,7 @@ lands without touching Chain.
   the combiner y = response_->workingResponse() (group-adjusted already), so a
   combiner and a grouped decorator compose without either knowing the other -
   the composition the architecture review flagged as blocked (architecture-
-  numerical-review.md:130-133) becomes expressible. This refactor makes it
+  numerical-review.md) becomes expressible. This refactor makes it
   expressible; it does NOT build grouped-BCF.
 
 ## Constraints
@@ -108,7 +108,7 @@ lands without touching Chain.
   virtual dispatch the single-forest chain must not pay). One confirmatory
   bench-sampler compare vs bench-sampler-4008675.csv at close (quiet window).
 - Combiner methods are per-SWEEP granularity, never per-observation - the design's
-  "never per-observation virtual dispatch" (core-generalization.md:225) holds; the
+  "never per-observation virtual dispatch" (core-generalization.md) holds; the
   combiner's O(n) loops run inside one virtual call per sweep, as ResponseModel's
   refreshLatents/drawSigma already do.
 - fast over safe in C/C++; header-only C++20; Doxygen/LLVM/ASCII; comment/code
@@ -310,7 +310,7 @@ Construction detail from review: the combiner needs the observation count
 (and the ridge move data_) - hold a ColumnStore reference or receive n at
 construction. One reading VD CONFIRMED (2026-07-14): the combiner is a standalone
 ForestCombiner<L> hierarchy, not a ResponseModel subclass -
-architecture-numerical-review.md:130-133's "ResponseModel side" is read
+architecture-numerical-review.md's "ResponseModel side" is read
 as a responsibility statement (combining belongs to a dedicated
 response-side object), since ResponseModel's per-observation-location
 interface does not fit per-forest residual formation, folding combining

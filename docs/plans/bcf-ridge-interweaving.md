@@ -53,7 +53,7 @@ recompute L and M unconditionally (see section 4).
 
 ### 1.2 The a prior via the inverse-gamma auxiliary
 
-drawGlue, chain.hpp:2042-2066; audit block 6, correctness-audit.md:345-350.
+drawGlue, chain.hpp:2042-2066; audit block 6, correctness-audit.md.
 Scale-mixture representation of the half-Cauchy:
 
     aVariance ~ IG(1/2, aPriorScale^2/2)      (prior on the auxiliary)
@@ -72,7 +72,7 @@ The conjugate a-draw itself (mu held fixed, chain.hpp:2048-2058):
 
     y_i = a*mu(x_i) + b_{z_i}*tau(x_i) + eps_i,  eps ~ N(0, sigma^2/w_i)
 
-(chain.hpp:2026-2036 combined fit; bcf.md:11). `b0,b1 ~ N(0, bPriorVariance)`
+(chain.hpp:2026-2036 combined fit; bcf.md). `b0,b1 ~ N(0, bPriorVariance)`
 (default 1/2, chain.hpp:2068-2080). The tau forest and b0/b1 are NOT
 touched by the move.
 
@@ -343,7 +343,7 @@ the memo's adversarial self-check and it PASSES.
 ### 5c. Acceptance test (the fix target)
 
 sbc-calibration.md A4e, the n=200 glue-on config at the CHEAP thin=120
-setting. Currently (A4e point A, sbc-calibration.md:615-618):
+setting. Currently (A4e point A, sbc-calibration.md):
 
     thin=120: sigma rank mean 65.8/75, ecdf 0.1127 (band ~0.092), chisqP 0.0002  FLAG
 

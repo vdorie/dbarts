@@ -24,13 +24,25 @@ One file per TODO item, `<item>.md`, hard cap 80 lines. Front block:
 Sections:
 
 - Goal: two or three sentences; what is true after the item lands.
-- Context: file:line anchors and design-doc pointers; no narrative a
-  pointer can replace.
+- Context: durable references (a code symbol name, a doc section title
+  or item label) and design-doc pointers; no narrative a pointer can
+  replace. Never a bare line number - see Cross-references.
 - Decision (decision-gated items only): the question, a recommendation,
   and what evidence would change it. VD signs off before implementation.
 - Constraints: gates, contract freezes, explicit out-of-scope list.
 - Steps: numbered; each independently verifiable.
 - Verification: exact commands and expected outcomes.
+
+## Cross-references
+
+Cite a durable landmark, never a bare line number: line numbers shift on
+every insertion above them, while the thing cited did not move. For code,
+name the symbol - `rollTreeResidual (chain.hpp)`, not `chain.hpp:2581`.
+For a doc, name the section title or item label - `data-ownership.md
+"Implementation record" item 5`, not `data-ownership.md:180`. A line may
+trail a symbol as a convenience, never stand as the anchor. State each
+fact in one home doc; elsewhere link to it by title, do not restate it
+(a copied fact is a second thing to keep in sync, and the one that rots).
 
 ## RNG classes and their gates
 
