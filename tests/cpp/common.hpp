@@ -100,6 +100,7 @@ void runTreeTests(ext_rng* rng);
 void runScanTests();
 void runGrowTests(ext_rng* rng);
 void runMovesTests(ext_rng* rng);
+void runInteractionTests(ext_rng* rng);
 void runModelTests(ext_rng* rng);
 void runSamplerTests(ext_rng* rng);
 void runStateTests(ext_rng* rng);
