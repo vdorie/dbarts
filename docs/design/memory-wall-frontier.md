@@ -355,3 +355,20 @@ fp32-input variants of the four misc_compute*SufficientStatisticsFast kernels
 (load float, accumulate double). Gates: SBC/interval coverage (the arbiter) +
 same-machine A/B at n>=1e6 + the equivalence-trio re-record; design-first +
 independent blind critique (draw-changing).
+
+## 9. LANDED + re-profiled (2026-07-20): both storage cuts shipped; no lever revives
+
+Section 7's precision lever is BUILT and validated (full record: reduced-precision-
+storage.md). Landed: uint32 gather index (lossless, default-on, ~400MB at n=5e5;
+2980229) + opt-in fp32 residual storage="single" (d384211). The experiment-1
+RE-PROFILE this doc kept asking for is DONE (x86, n=1e6): the shipped default gather
+share is 39% (unmoved from the historical 37.8% - the gather is fp64-RESIDUAL-
+bandwidth-bound, so the index narrowing held its ratio); fp32 residual drops it to
+33% and FLATTENS the sweep to near-even thirds (gather 33 / roll 32 / other 35).
+fp32 pays 1.10x single-thread -> 1.30x at 4 chains on the box (parallel BART is
+DDR4-bandwidth-bound). VERDICT on reviving ruled-out levers: NONE. The cuts made the
+CPU faster + data more cache-resident, RAISING the offload bar (GPU still dead) and
+SHRINKING traffic-trick payoff (binning/NT-store deader); fp32 loosens the memory
+bound on within-chain parallelism (blocked-jacobi) ~30% but that verdict is
+statistical (ESS/sec), not memory. fp32 IS the memory-wall answer. Details:
+reduced-precision-storage.md sec 6f.
