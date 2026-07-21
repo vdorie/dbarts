@@ -168,13 +168,32 @@ the order they were learned:
    x 2), wasteful - a fused design is ~2/group, and libstdc++'s std::barrier looks
    far costlier than libc++'s, so the wcpool substrate may need a spin-barrier on
    Linux. The x86 number is UNTRUSTWORTHY as-is.
-VERDICT: INCONCLUSIVE but PROMISING. Wall-clock is achievable in principle (M1
-1.60x at b=8; RNG concern resolved via counter-based draws), but the production
-(x86/Linux) number is gated on (i) a barrier-minimized probe (~2 barriers/group)
-and (ii) a QUIET 16-core box. Strategic value is NOT merely a niche single-chain
-speedup vs parallel chains: it directly serves the EMBEDDED-GIBBS / conditional-
-model use case (BART as a Gibbs step inside a larger sampler - dbarts' distinguishing
-feature; stan4bart/bairrtt), where chains cannot be parallelized and single-chain
-speedup is the only lever. Next decision: refine the probe (fuse barriers) + a clean
-x86 number on a quiet box decides GO/NO-GO on the full exact engine kernel. Probe
-scripts + wcpool in $CLAUDE_JOB_DIR/tmp (job b073bb28).
+5. THE DECIDING FINDING - it is MEMORY-BANDWIDTH-BOUND on x86. A SPIN-barrier
+   (bj-wallclock-probe-spin.cpp / wcpool-spin.hpp - no futex parking, right for
+   dedicated within-chain workers) lifts M1 b=8 to 1.92x (clears the bar). But on
+   the bench box (AMD Ryzen 7 3700X, 8 physical cores + SMT, dual-channel DDR4),
+   quiet-ish + spin, blocked PLATEAUS at b=4/8 = 0.63x/0.65x and b=16 REGRESSES to
+   0.42x (SMT contention). The b=4->8 plateau is the bandwidth-saturation
+   signature: adding cores stops helping because BANDWIDTH, not cores, is the
+   limit. Root cause: blocked materializes O(n*b) scratch (z pseudo-responses,
+   noise, newfit) = ~2x serial's memory traffic; on DDR4 that is ~0.5x throughput
+   and cores cannot compensate (bandwidth is shared/fixed). M1's high-bandwidth
+   unified memory has headroom, so it is core-bound (wins); typical x86 DDR4 is
+   bandwidth-bound (loses). This is the MEMORY WALL - the program's central finding
+   - biting: blocked trades MORE memory traffic for core parallelism, the wrong
+   trade exactly when bandwidth is the wall (the large-n target regime).
+VERDICT: naive blocked-jacobi is a wall-clock NO-GO on typical x86 (0.65x at b=8 on
+Ryzen DDR4, the majority CRAN platform), a WIN only on high-bandwidth architectures
+(M1 1.92x). Phase 0 (exact, ~no ESS/sweep tax) stands and is banked. The ONLY path
+to x86 viability is a FUSED, NO-SCRATCH kernel: consume the pseudo-response z in the
+gather without materializing it, and recompute the cross-tree noise sum per-thread
+via the counter-based RNG (trading REDUNDANT COMPUTE, which is free when bandwidth-
+bound, for the O(n*b) scratch traffic). Unproven, non-trivial (the batch-combine
+still needs a cross-tree reduction), multi-day. Strategic value that keeps it from a
+flat kill: the EMBEDDED-GIBBS / conditional-model use case (BART as a Gibbs step
+inside a larger sampler - dbarts' distinguishing feature; stan4bart/bairrtt) where
+chains cannot be parallelized. RECOMMENDATION: DEFER the full kernel. Bank Phase 0 +
+this finding; reopen only if (a) a concrete high-bandwidth-target or embedded-Gibbs
+consumer needs single-chain speedup, or (b) the fused no-scratch design is built and
+measured to clear the bar on x86 first. Probe scripts + wcpool(-spin) in
+$CLAUDE_JOB_DIR/tmp (job b073bb28).
