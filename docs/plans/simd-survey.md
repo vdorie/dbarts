@@ -32,7 +32,7 @@ kernel is elementwise or a permutation** - never a reduction:
   the draw inner loop (see hotness table); they serve standalone/mt callers.
 
 CONSEQUENCE: SIMD-izing + dispatching any draw-path reduction makes draws
-**ISA-dependent** (kernel-vocabulary.md:154 explicitly waives cross-variant
+**ISA-dependent** (kernel-vocabulary.md explicitly waives cross-variant
 bitwise equality for the moment family). That is strictly bigger than a one-time
 re-record: it ends machine-independent bitwise reproducibility unless the kernel
 uses a FIXED cross-ISA accumulator layout (same lane count / combine tree on
@@ -206,7 +206,7 @@ win**, and it currently carries a partition REGRESSION:
 - No hot SIMD kernel makes u8 a throughput win. The residual roll / suff-stat /
   fit scatter all operate on doubles + size_t indices (u8-invariant). The scan
   is scatter-bound (u8 barely helps) and cold anyway. Predict/partition is u8's
-  only consumer, and phase-1 (hot-layer-u8.md:64-92) found NO arm64 partition
+  only consumer, and phase-1 (hot-layer-u8.md) found NO arm64 partition
   win for u8.
 - REGRESSION as shipped: misc has NO u8 SIMD partition kernel, so u8 dense
   ordinal columns take the SCALAR partition (tree.hpp:713-722), while u16 columns

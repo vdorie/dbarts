@@ -8,7 +8,7 @@ subset {i : y_i > 0}. The load-bearing finding (section 0): because the parts sh
 no parameters and the split is OBSERVED (not latent), the two forests are
 conditionally independent given the data - a hurdle fit is two ordinary dbarts fits
 glued at prediction time, not a coupled multi-forest engine model. This inverts the
-framing forest-combiner.md:205 and multi-forest-models.md:27 carried (hurdle as the
+framing forest-combiner.md and multi-forest-models.md carried (hurdle as the
 model that breaks Chain's single response_) and lands hurdle R-side, the discrete-
 time hazard precedent (docs/design/survival.md section 5), NOT the heteroscedastic
 engine precedent. rng class: BYTE-neutral in the engine unconditionally (no C++
@@ -23,8 +23,8 @@ zero-TRUNCATED count. Distinct from ZERO-INFLATION (Lambert 1992), which mixes a
 structural-zero mass with a count that can also emit zeros - a LATENT split that
 does couple (section 0). No maintained BART package ships a hurdle/two-part family:
 BART, bartMachine, and stochtree have none; Murray (2021, Log-Linear BART) fits
-zero-inflated counts by a coupled augmentation, not a hurdle. negative-binomial.md:
-627 recorded the count-hurdle door. So there is a real gap and no shipped BART
+zero-inflated counts by a coupled augmentation, not a hurdle. negative-binomial.md
+recorded the count-hurdle door. So there is a real gap and no shipped BART
 convention to imitate - the choice is grounded in the applied two-part / hurdle
 literature, not in a BART precedent.
 
@@ -49,7 +49,7 @@ architectural fact, and it separates hurdle from every landed multi-forest model
   interleaved PG cycle, and a level-centering move (multinomial.md).
 - Heteroscedastic couples through the precision channel: the variance forest sets
   the mean forest's per-observation weight w_i / s^2(x_i) EVERY sweep, and vice
-  versa (heteroscedastic.md:236-249). That within-sweep coupling is exactly what
+  versa (heteroscedastic.md). That within-sweep coupling is exactly what
   forced the Chain-level integration, the multiplicative roll, and the m'=2 closing
   gate.
 
@@ -64,7 +64,7 @@ zeros), so there is no latent class-membership to draw. In zero-inflation the ze
 are a MIXTURE of structural and sampling zeros, so each zero carries a latent
 indicator drawn each sweep against both components - a genuine coupling that a
 factored R composition CANNOT express (it is the coupled cousin, a recorded door,
-section 9). negative-binomial.md:627 filed "zero-inflation / hurdle NB" as one item;
+section 9). negative-binomial.md filed "zero-inflation / hurdle NB" as one item;
 they are different models and only the hurdle is conditionally independent. This
 note is the hurdle; zero-inflation stays out of scope precisely because it couples.
 
@@ -80,7 +80,7 @@ S = {i : y_i > 0}:
 - Semicontinuous (v1 recommend): lognormal, i.e. an ordinary GAUSSIAN fit on
   log(y_i) for i in S. E[y_i | y_i > 0] = exp(f(x_i) + o_i + sigma^2 / 2) (the
   lognormal mean; the retransformation, section 6). Nearly free - it is the AFT
-  reduction verbatim (uncensored AFT on log-times == gaussian, survival.md:56-61):
+  reduction verbatim (uncensored AFT on log-times == gaussian, survival.md):
   R logs the positive values at ingest and hands the engine an ordinary gaussian
   problem over |S| rows.
 - Count (door): a zero-TRUNCATED Poisson or negative binomial over S. dbarts has an
@@ -98,7 +98,7 @@ The decision this note turns on. Two routes:
 - **Compose in R (recommend).** A wrapper fits two ordinary samplers - an occupancy
   binary fit over all n and a positive-part fit over the y > 0 subset - and combines
   their posterior draws at prediction time. Zero engine code. The discrete-time
-  hazard shape exactly (survival.md:178-195): a family token, an R ingestion split,
+  hazard shape exactly (survival.md): a family token, an R ingestion split,
   a packaged fit that reuses every existing generic.
 - **Build in the engine.** A Chain-level two-response generalization: two independent
   (response, forest-group, sigma) tuples, the positive forest scoring only the y > 0
@@ -110,7 +110,7 @@ Honest weighing of what the engine route BUYS, candidate by candidate:
   DIFFERENT observation sets, so their natural cut grids differ anyway (the positive
   part's cuts are quantiles of the subset's x). Forcing a shared grid is a modeling
   choice, expressible R-side by passing explicit cutpoints to both fits - not an
-  engine necessity. The handle-view mechanism data-ownership-4-views.md:208,296
+  engine necessity. The handle-view mechanism data-ownership-4-views.md
   names hurdle as a future consumer of is real, but it serves a subset VIEW the
   engine route would need; R composition sidesteps it entirely (two separate stores).
 - One RNG stream. No statistical requirement - the parts are independent, so any
@@ -123,7 +123,7 @@ Honest weighing of what the engine route BUYS, candidate by candidate:
   R/bart.R:1269,1746). The engine route would instead DOUBLE the state wire format
   (two response latent/sigma blocks, two forest lists) - a format bump, not a saving.
 - LinkingTo / dbarts.h reach. None in v1: nbinom, ordinal, hazard, and heteroscedastic
-  all ship with zero dbarts.h exposure (negative-binomial.md:662). No gain.
+  all ship with zero dbarts.h exposure (negative-binomial.md). No gain.
 
 Against the engine route: it is the WIDEST Chain surgery in the queue - two response_,
 two sigma_, and a subset view threaded through the positive forest's per-observation
@@ -153,7 +153,7 @@ sketched (section 4) so VD can fork on it with the cost asymmetry explicit.
 
 - **(a) Semicontinuous two-part, lognormal positive part (recommend).** Occupancy
   binary + gaussian on log(y) over S. The positive part is NEARLY FREE - an existing
-  family on a log-transformed subset, the AFT reduction (survival.md:56). It is the
+  family on a log-transformed subset, the AFT reduction (survival.md). It is the
   Duan et al. healthcare-cost model, the canonical two-part model with the largest
   applied audience (costs, insurance claims, semicontinuous rainfall/consumption).
 - **(b) Count hurdle, zero-truncated Poisson / NB positive part.** The zero-inflated-
@@ -181,7 +181,7 @@ Chain, and it must be distinguished sharply from the ForestCombiner:
 - **NOT a ForestCombiner.** A combiner assumes shared-response coupling: formForestResponse
   forms each forest's residual against a SHARED response, and combinedFits blends the
   forests into ONE per-observation location that ONE response_ scores
-  (combiner.hpp; forest-combiner.md:42-60). Hurdle has no shared response and no
+  (combiner.hpp; forest-combiner.md). Hurdle has no shared response and no
   combined location - two forests feed two DIFFERENT responses over two DIFFERENT
   observation sets. The combiner's whole virtual surface is inert. Hurdle is a second,
   orthogonal Chain-level axis, not a combiner instance.
@@ -196,7 +196,7 @@ Chain, and it must be distinguished sharply from the ForestCombiner:
   y > 0 subset, requiring a subset mask or compacted view threaded through every
   per-observation kernel of that forest (a genuinely new plumbing item; the
   data-ownership-4-views.md handle-view is the mechanism); (ii) has its OWN response_
-  of a DIFFERENT family (the single-response_ break forest-combiner.md:167 flagged);
+  of a DIFFERENT family (the single-response_ break forest-combiner.md flagged);
   and (iii) has its OWN sigma_ (the single-sigma_ break). So hurdle breaks BOTH Chain
   invariants heteroscedastic kept, plus adds the subset view. This is why it is the
   widest surgery: two response_, two sigma_, a subset-restricted forest, doubled state.
@@ -205,7 +205,7 @@ Chain, and it must be distinguished sharply from the ForestCombiner:
   at ALL x, though trained on S); combined E[y] = pi * E[y | y > 0]. Predict replays
   both forests' saved trees at newdata and combines. State serializes two forest lists
   plus two responses' latent/sigma blocks - a wire-format widening (a non-BCF glue bump,
-  forest-combiner.md:175-183, but here it is a second full response block, not glue).
+  forest-combiner.md, but here it is a second full response block, not glue).
 - **dbarts.h:** no change in v1 either way (universal precedent).
 
 The engine route thus costs the queue's largest Chain change for a model with zero
@@ -226,7 +226,7 @@ hurdle fit must reduce BITWISE to its two independently-fit components:
   markerOnly assertion, hazard-reduction.R:85). The wrapper's two internal fits ARE
   the two standalone fits at their seeds, so the equality is bitwise by construction -
   the "hurdle is two glued fits" thesis made testable, exactly hazard's "hurdle is
-  sugar" gate (survival.md:623-639).
+  sugar" gate (survival.md).
 
 **Why NO separate joint exact-posterior gate is needed.** Because the parts are
 conditionally independent (section 0), the joint posterior IS the product of the two
@@ -248,7 +248,7 @@ recovered pi(x), E[y | y > 0, x], and combined E[y | x] against truth. (ii) A NE
 hurdle scenario in benchmarks/R/equivalence.R recording the two component channels plus
 the combined predict; every existing anchor stays IDENTICAL with NO re-record, since
 hurdle adds no draw to any engine family's stream (the ordinal/nbinom/hazard neutrality
-trail, survival.md:653-659). (iii) tinytest surface tests: family routing, the y >= 0
+trail, survival.md). (iii) tinytest surface tests: family routing, the y >= 0
 validation and zero handling, the retransformation of E[y | y > 0], draw alignment
 across the two fits, and predict on new data.
 
@@ -257,7 +257,7 @@ across the two fits, and predict on new data.
 - **How the user asks.** family = "hurdle" (v1: probit occupancy + lognormal positive
   part), added to the dbarts and bart2 family vectors (R/dbarts.R:349-360, R/bart.R
   around :413). Following the dbarts token convention (families are tokens, not
-  arguments - aft, ordinal, nbinom, hazard all extended the vector, survival.md:447),
+  arguments - aft, ordinal, nbinom, hazard all extended the vector, survival.md),
   future variants are further tokens: "hurdle.logistic" (logistic occupancy),
   "hurdle.nbinom" (count positive part once a truncated-count family ships). The
   surv.bart-flavored alternative - a single "hurdle" token plus a
@@ -269,7 +269,7 @@ across the two fits, and predict on new data.
   0 plus a continuous positive part). The wrapper splits it R-side at ingest: the
   occupancy response is z = 1{y > 0} over all n; the positive response is log(y[S]) over
   S. Validate y >= 0 (refuse negatives by name, the nbinom validation precedent,
-  negative-binomial.md:423). No latent split is drawn - the zeros are observed.
+  negative-binomial.md). No latent split is drawn - the zeros are observed.
 - **The fit object + generics.** A dedicated class `bartHurdle` (the bartMultinomial /
   bartNegbin idiom, R/bart.R:1269,1746) holding the two component fits (or their packaged
   draws) plus a marker recording the variant. Generics combine the two components' draws
@@ -278,7 +278,7 @@ across the two fits, and predict on new data.
     pi(x) * E[y | y > 0, x]. For the lognormal part, E[y | y > 0, x] =
     exp(f(x) + o + sigma^2 / 2) per draw - which REQUIRES the positive part's sigma
     draws, so those are a first-class output (the AFT survival-curve-needs-sigma shape,
-    survival.md:113-116). Flag the retransformation honestly: the parametric lognormal
+    survival.md). Flag the retransformation honestly: the parametric lognormal
     mean assumes normal log-residuals; Duan's smearing estimator is the classic
     distribution-free alternative, a documented option/door.
   - type = "prob": the occupancy probability pi(x) (through the correct link).
@@ -315,7 +315,7 @@ member perturb the single-forest hot path" risk that heteroscedastic's equivalen
 
 - **Count hurdle (zero-truncated Poisson / NB positive part).** Needs a zero-truncated
   count single-forest family first (its own arc, section 3); then the composition wrapper
-  accepts it family-agnostically as "hurdle.nbinom". negative-binomial.md:627 filed it.
+  accepts it family-agnostically as "hurdle.nbinom". negative-binomial.md filed it.
 - **Gamma positive part.** A new continuous positive family; token door.
 - **Logistic occupancy link.** "hurdle.logistic", one token away (section 6).
 - **Grouped hurdle (random effects on either part).** Each part is a shipped family that
@@ -349,24 +349,24 @@ concrete form of fork 1's recommendation.
 
 ## 11. Plan-vs-note reconciliation
 
-forest-combiner.md:171-174,205 and multi-forest-models.md:27,43 frame hurdle as the model
+forest-combiner.md and multi-forest-models.md frame hurdle as the model
 whose "per-forest response families break Chain's single response_" - i.e. as an engine
-model requiring the two-response Chain break, and (heteroscedastic.md:347) as "the other
+model requiring the two-response Chain break, and (heteroscedastic.md) as "the other
 two-leaf-type model" that would sharpen heteroscedastic's combiner-vs-Chain-integration
 sub-fork. FINDING: the break is REAL but AVOIDABLE - hurdle's conditional independence
 (section 0) means it should be composed R-side, not built in the engine, so the invariant
 break stays unbuilt. Consequences to record at landing (the orchestrator owns the edits):
 
-- forest-combiner.md:205's hurdle bullet ("Response families differing per forest breaks
+- forest-combiner.md's hurdle bullet ("Response families differing per forest breaks
   Chain's single response_ - Chain-level, not combiner-API") is CORRECT about what an
   engine hurdle would need, but this note supersedes its implicit assumption that hurdle
   WILL be an engine model: v1 hurdle adds no Chain code. Cite this note.
-- The "second consumer that shapes the two-leaf-type split" heteroscedastic.md:347 deferred
+- The "second consumer that shapes the two-leaf-type split" heteroscedastic.md deferred
   to hurdle DOES NOT ARRIVE via hurdle. Heteroscedastic's dedicated Chain-level integration
   therefore stays a single-consumer design; the engine two-leaf-type generalization waits
   for a model with genuine coupling AND two leaf types (the sample-selection cousin,
   section 9), not hurdle.
-- core-generalization.md:160,214 lists hurdle under "multi-forest Sampler"; accurate as a
+- core-generalization.md lists hurdle under "multi-forest Sampler"; accurate as a
   statistical description (two forests) but the IMPLEMENTATION is R composition of two
   single-forest samplers, not a multi-forest Chain. Note the distinction at landing.
 

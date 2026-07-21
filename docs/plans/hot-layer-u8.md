@@ -11,7 +11,7 @@ Columns whose cut count fits eight bits store u8 codes: half the hot-
 layer memory and double the SIMD lanes in partition, targeted at the
 DRAM-bound n >= 1e5 regime (confirmed common, VD 2026-07-06). The
 design doc's own per-column-width hot layer
-(docs/design/core-generalization.md:155-156), unblocked.
+(docs/design/core-generalization.md), unblocked.
 
 ## Context
 

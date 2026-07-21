@@ -21,7 +21,7 @@ concrete demand, partial coverage elsewhere.
 
 ## 0. The load-bearing finding: the variance forest is CONJUGATE
 
-The TODO and the forest-combiner note (docs/design/forest-combiner.md:198) both
+The TODO and the forest-combiner note (docs/design/forest-combiner.md) both
 frame the variance forest's leaf as "multiplicative-positive, NON-integrable,"
 requiring "the non-conjugate MoveStrategy the design anticipated but never built"
 and specializing the monotone M-access seams (ParamScoringLeafModel,
@@ -55,7 +55,7 @@ consequences, developed below:
   scale suffstat and a scale marginal (section 3), the MULTIPLICATIVE within-forest
   residual roll (section 6), and - the real structural blocker - a Chain that holds
   TWO different leaf types (section 6), the "single-leaf-type forest vector" re-carve
-  forest-combiner.md:171 named as heteroscedastic's remaining work.
+  forest-combiner.md named as heteroscedastic's remaining work.
 
 ## 1. The HBART model and its reduction to our engine
 
@@ -121,7 +121,7 @@ The load-bearing fork. Three parameterizations:
   the log scale). This is the ONLY parameterization that is non-integrable and would
   specialize the monotone M-access seam with a Laplace / pseudo-marginal move - i.e.
   the one the TODO's framing describes. Rejected: it is strictly harder (a
-  non-conjugate move dbarts has never built, gp-leaves.md:177 part 2), mixes worse
+  non-conjugate move dbarts has never built, gp-leaves.md "Part 2: the non-conjugate MoveStrategy"), mixes worse
   (structure moves lose the Rao-Blackwellization the conjugate marginal buys), and
   neither live package uses it. There is no reason to pay for a non-conjugate move
   when the conjugate form is available, exact, and precedented.
@@ -231,7 +231,7 @@ does. This is a direct conflict with the TODO's framing, recorded in section 12.
 ## 5. Decision (fork 4) - per-observation residual variance channel
 
 RESOLVE: fold s^2(x_i) into the WEIGHT channel for the mean forest, the route
-forest-combiner.md:171,199 explicitly reserved ("a future variance forest can route
+forest-combiner.md explicitly reserved ("a future variance forest can route
 into the WEIGHT channel rather than the additive location - the seam exists,
 unused"). The mean forest sees effective weight
 
@@ -280,7 +280,7 @@ through every leaf marginal/draw):
   (no global sigma draw): it avoids the sigma_0-vs-variance-forest-level
   identification that B must pin, and the calibration (Section 3.4) already anchors
   the product's overall level. If B is chosen, a level-centering move on the
-  variance forest (the multinomial precedent, multinomial.md:77) pins sigma_0 against
+  variance forest (the multinomial precedent, multinomial.md) pins sigma_0 against
   the product's geometric mean.
 - Prediction: the mean fit f(x) is unperturbed; s(x) is the variance forest's own
   combined fit, reported on its own channel (section 6). Both replay from saved
@@ -310,7 +310,7 @@ Three ways to hold both:
 - **(c) Type-erased** `std::unique_ptr<VarianceForestBase>`: (b) behind a small
   virtual surface (score-and-move a tree, draw leaves, form combined variance). Its
   O(n_leaf) work lives inside its own methods, so the per-tree/per-node virtual call
-  is amortized within the dispatch tiers (core-generalization.md:98-102, "per node
+  is amortized within the dispatch tiers (core-generalization.md, "per node
   op: virtual or switch"). Cleanest for keeping the variance leaf's translation unit
   and move instantiation self-contained.
 
@@ -346,7 +346,7 @@ integration for v1: the combiner's L-templated vector is the wrong container for
 second leaf type, and forcing heteroscedastic through it would generalize the
 hierarchy for one consumer before hurdle (the other two-leaf-type model) sharpens
 the shape - the same "let the second consumer shape the split" discipline the
-combiner extraction followed (forest-combiner.md:249-257).
+combiner extraction followed (forest-combiner.md).
 
 ## 7. Decision (fork 5) - the R surface
 
@@ -385,7 +385,7 @@ power, base, R/dbarts.R).
   (or s^2(x)) channel - train and test - and per-variance-tree variable counts. This
   is a NEW reporting channel, NOT the multinomial numReportedLocations widening
   (combiner.hpp:328): that seam widens the SAME-typed response location K-fold through
-  combinedFits/refreshLatents (multinomial.md:207), whereas the variance surface is a
+  combinedFits/refreshLatents (multinomial.md), whereas the variance surface is a
   SEPARATELY-typed forest routed through the weight channel, never through response_,
   so it is reported from the variance forest's own combined fit directly. predict
   returns both f and s.
@@ -394,7 +394,7 @@ power, base, R/dbarts.R).
 
 Binding requirement (rng class: neutral when no variance forest is declared). A
 homoscedastic fit MUST be byte-identical to today. Construction-time mechanism,
-mirroring monotone (monotone.md:432) and BCF (combiner.hpp:87):
+mirroring monotone (monotone.md) and BCF (combiner.hpp:87):
 
 - No `variance` / `n.trees.variance` -> the factory (facade.hpp:487 createSampler)
   builds the UNCHANGED single-forest ConstantGaussianLeaf Chain with
@@ -407,7 +407,7 @@ mirroring monotone (monotone.md:432) and BCF (combiner.hpp:87):
   homoscedastic weights (user weights or null) flow exactly as today.
 - Binary size grows by the variance-leaf instantiation and (option a) any second
   template parameter - bounded like the existing leaf matrix
-  (core-generalization.md:118); option (b)/(c) add one concrete type, not a matrix
+  (core-generalization.md); option (b)/(c) add one concrete type, not a matrix
   row.
 
 Gates that prove neutrality (section 9): the equivalence trio (equivalence.R vs
@@ -444,10 +444,10 @@ variance tree a root or a two-cell split; the mean tree likewise); for each, int
 the variance leaves (v1 for tree 1, v2 for tree 2) by per-cell quadrature over their
 product, with the mean leaves - Gaussian-conjugate given the per-observation variance
 = the covering product - integrated ANALYTICALLY (closed form), the
-multinomial-exact.R nested-quadrature precedent (multinomial.md:135). Match the
+multinomial-exact.R nested-quadrature precedent (multinomial.md). Match the
 sampler's posterior mean of f(x) AND s(x) to MC + quadrature error, never widened.
 This is the repo's bar - a CLOSING exact gate for the top risk, the class of gate that
-caught the stationary-bias in the monotone arc (monotone.md:453). A self-consistently
+caught the stationary-bias in the monotone arc (monotone.md). A self-consistently
 wrong divisor (using s^2 or s^2_{-j'} for the wrong j') fails here, where it passes
 (a) and (c).
 
@@ -513,7 +513,7 @@ two-leaf-type change dominates):
   plumbing - the multiplicative roll (no rollTreeResidual reuse, that is additive),
   scale-leaf draw dispatch, saved-tree flattening, test-fit routing, and the
   mutation/rebuild paths (revalidateTrees/applyNewData are forest-0-only today,
-  forest-combiner.md:214) - because that surrounding chain.hpp plumbing is templated
+  forest-combiner.md) - because that surrounding chain.hpp plumbing is templated
   on the mean L and does not transfer to a differently-typed forest. Homoscedastic
   byte-neutral. Gate: equivalence 22/22 IDENTICAL (no re-record) + a new
   heteroscedastic fixture identical to itself + tests/cpp (incl. the divisor guard).
@@ -559,7 +559,7 @@ the widest review; C3/C4 are additive on top.
 
 ## 12. Plan-vs-code note (the TODO conflict)
 
-The TODO's multi-forest-models entry and forest-combiner.md:198 state heteroscedastic
+The TODO's multi-forest-models entry and forest-combiner.md state heteroscedastic
 needs "a fourth leaf kind (multiplicative-positive, non-integrable) plus the
 non-conjugate MoveStrategy the design anticipated but never built," and that "the
 generic move-scoring-reads-M seam ... now EXISTS ... the non-conjugate MoveStrategy
@@ -580,12 +580,12 @@ so:
 
 The real, under-anticipated work is the Chain-level two-leaf-type change and the
 multiplicative residual roll (section 6), which the TODO/forest-combiner note DID
-flag as heteroscedastic's remaining re-carve (forest-combiner.md:171) but did not
+flag as heteroscedastic's remaining re-carve (forest-combiner.md) but did not
 connect to the (mistaken) non-conjugacy framing. Net: the arc is simpler in its
 statistics (no new MoveStrategy) and harder in its plumbing (two leaf types, a
 multiplicative sweep) than the TODO reads.
 
-This note SUPERSEDES forest-combiner.md:198 ("a non-integrable leaf and its own
+This note SUPERSEDES forest-combiner.md ("a non-integrable leaf and its own
 MoveStrategy") and the TODO's matching clause on the non-conjugacy point; those are
 corrected at landing (the orchestrator owns the edit to forest-combiner.md and the
 TODO). Cite this note, not them, for the variance-forest's conjugacy.
@@ -602,7 +602,7 @@ TODO). Cite this note, not them, for the variance-forest's conjugacy.
   self-consistent divisor bug. The GUARDS are the m'=2 closing exact gate (section 9
   gate b, an INDEPENDENT quadrature) and the component divisor test that asserts the
   draw actually reads s^2_{-j}; both must run with m' >= 2. This gate must exist and
-  close before C2 lands, matching the repo bar the monotone arc met (monotone.md:453).
+  close before C2 lands, matching the repo bar the monotone arc met (monotone.md).
 - **Second risk: the two-leaf-type Chain change** perturbing the homoscedastic path.
   The equivalence 22/22 bitwise gate is the guard; option (b)/(c) over (a) keeps the
   blast radius off Chain<L>.
@@ -612,7 +612,7 @@ TODO). Cite this note, not them, for the variance-forest's conjugacy.
   adequately at m' >= 2 without a centering move is ASSERTED, not confirmed here -
   the HBART paper's mixing evidence at its own m' was not verified for this note.
   Measure IACT/ESS of s(x) on the recovery data at landing; if the level random-walks,
-  the multinomial-style level-centering move (multinomial.md:77) or param B's explicit
+  the multinomial-style level-centering move (multinomial.md) or param B's explicit
   sigma_0 draw is the reserved remedy. Cheap to add later; flagged now so C2/C3 leave
   room for it.
 - **Confidence in the variance-forest DRAW as specified: HIGH.** The scaled-inverse-

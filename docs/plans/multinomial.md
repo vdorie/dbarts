@@ -437,7 +437,7 @@ C4. The multinomial model, one gated commit. Sub-parts:
    refuse the single-forest test surface as refuseBCFTestSurface does.
    LEAF-SCALE CALIBRATION (M2): the logistic precedent is node.scale =
    pi*sqrt(3) ~ 5.44 (dbarts.R:401, xbart.R:262; pi/sqrt(3) ~ 1.81 is the WIDENING
-   FACTOR over probit's 3.0, dbarts.R:394-395; negative-binomial.md:39 confirms
+   FACTOR over probit's 3.0, dbarts.R:394-395; negative-binomial.md confirms
    "the logistic pi*sqrt(3) precedent"). The IDENTIFIED quantity is a DIFFERENCE of
    forests (a pairwise log-odds f_ik - f_ij has SD s*sqrt(2) for per-forest SD s),
    so the K = 2 anchor is s = pi*sqrt(3)/sqrt(2) ~ 3.85, and C_ik's variance is

@@ -202,7 +202,7 @@ machine-independent because every dispatched draw-path kernel is elementwise
 or a permutation (width-invariant), and the hot reductions
 (SufficientStatisticsFast, SSR) are scalar. A flag-built AVX2 reduction only
 vectorizes with -ffast-math reassociation, whose lane-order summation differs
-per width -> ISA-dependent draws. The waiver in kernel-vocabulary.md:154-156
+per width -> ISA-dependent draws. The waiver in kernel-vocabulary.md
 ("reduction order may differ between ISA variants ... exact cross-variant
 equality is not part of the contract") is CONFIRMED still present in the tree
 and applies ONLY to the standalone Mean/Variance moment family, which is off

@@ -19,7 +19,7 @@ parameterization, so slice must stay for it (or the prior is reconsidered - VD).
 
 ## 0. What is being sampled (parameterization, established precisely)
 
-Model (design/grouped-random-effects.md:14-18, confirmed in code):
+Model (design/grouped-random-effects.md, confirmed in code):
 
     y_i = f(x_i) + b_{g(i)} + offset_i + eps_i
     b_j ~ N(0, tau^2),  j = 1..J          (tau is the SD, NOT the variance)
@@ -83,7 +83,7 @@ Edge cases:
   in drawGroupEffects (weightScratch[j]=0 => precision=1/tau^2, mean=0;
   model.hpp:2591-2595) - a legitimate latent, but it has NO mean reversion, so a
   mostly-empty grouping lets tau random-walk upward. This is the documented
-  driver of the step-out hang (tau-slice-stepout-cap.md:19-25). It is a property
+  driver of the step-out hang (tau-slice-stepout-cap.md). It is a property
   of the *model/Gibbs kernel*, NOT a bug in the sampler; but it is exactly the
   regime a conjugate replacement (section 4) handles gracefully (a bounded IG
   draw cannot hang).
@@ -126,7 +126,7 @@ Step-out cap correctness (the 7c1c7c9 landing, tau-slice-stepout-cap.md):
     practice this is a non-issue: the cap only binds in the runaway regime
     (mode ~ 9e11, tau > ~1e8) where any finite sample is already meaningless and
     the alternative is an indefinite hang; healthy runs measure <100 expansions
-    (tau-slice-stepout-cap.md:33-35). So the cap is the right safety valve, but
+    (tau-slice-stepout-cap.md). So the cap is the right safety valve, but
     if one wanted strict Neal correctness the fix is a single randomized budget,
     not two per-side counters. (A conjugate replacement moots this entirely.)
 

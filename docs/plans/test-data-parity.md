@@ -12,7 +12,7 @@ rng: neutral, EVERY step. Test data never enters a draw: tree proposals and
   draws) + the test-fit BITWISE oracle below (guards test values) + full
   tinytest 2803 from a preclean install, new tests ADD, no snapshot regen.
 window: supersedes data-ownership-5-sparse.md decision 2 / Q4 (test-side
-  densification interim) and data-ownership.md:193 item 5's "test-side sparse
+  densification interim) and data-ownership.md "Implementation record" item 5's "test-side sparse
   by densification"; builds on the plans-1..5 container (5461f41). Closes the
   test half of the owned data model. No plan follows it.
 budget: ~800-1300 lines across ~15 files (src/bartcore/data.hpp, chain.hpp,
@@ -205,7 +205,7 @@ test sides share ONE data model.
    RNG-neutral - tinytest. Size: S.
 6. Docs + landing. sparseFactor.Rd / dbartsData.Rd (sparse/frame x.test now
    resident, densification retired); the design landing note (this plan
-   supersedes plan-5 decision 2 / Q4 and data-ownership.md:193 item 5's
+   supersedes plan-5 decision 2 / Q4 and data-ownership.md "Implementation record" item 5's
    densification reading); mark the "sparse x.test" bullet REMOVED from
    docs/plans/sparse-extensions.md scope (the other three extensions stay - do
    not edit that file's steps beyond the scope note). Files: man/*.Rd,
@@ -288,7 +288,7 @@ to preserve). Step 4 records the amendment.
   the other three (in-place nonzero mutation, streaming range kernel,
   dense-column mixed mutation) closed and consumer-gated. Do not edit
   sparse-extensions.md beyond the scope note.
-- data-ownership.md:193 (item 5) reads "test-side sparse ... satisfied by
+- data-ownership.md "Implementation record" (item 5) reads "test-side sparse ... satisfied by
   densification, not resident sparse testCodes (the test-data-parity backlog
   item supersedes that interim)"; the landing note records that this plan IS
   that item and that resident sparse testCodes now ship, superseding plan-5

@@ -42,7 +42,7 @@ because after the freeze the same slip would ship.
 Registration (src/R_interface.cpp:299-361): ~33 entry points in a
 C_callMethods table, each R_RegisterCCallable'd under its own name in
 R_init_dbarts. Append-only-by-name discipline; a signature change is an ABI
-event (docs/plans/README.md:80-86, the a73ca50 review-checklist step).
+event (docs/plans/README.md, the a73ca50 review-checklist step).
 The current version constant is a single integer (dbarts.h:54;
 dbarts_apiVersion, C_interface.cpp:76, returns one int) - an unpublished
 dev convention with zero compatibility weight, replaceable at will until

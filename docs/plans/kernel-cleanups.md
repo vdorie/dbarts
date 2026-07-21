@@ -16,7 +16,7 @@ kernel-vocabulary.md records.
 - bartcore calls misc_htm_compute* with (nullptr, 0) everywhere
   (src/bartcore/tree.hpp:471-513, chain.hpp:548, model.hpp:1622-1624):
   the htm entry points with a null manager ARE the fast path
-  (docs/design/kernel-vocabulary.md:92-98); the plain misc_compute*
+  (docs/design/kernel-vocabulary.md); the plain misc_compute*
   variants are several times slower.
 - misc.a prints via Rprintf (htm), which benchmarks stub; the doc
   flags an injectable output hook as the fix.

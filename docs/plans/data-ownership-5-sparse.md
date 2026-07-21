@@ -17,7 +17,7 @@ rng: neutral - a sparse-categorical column carries the SAME level-order codes
 window: plan 5 of docs/design/data-ownership.md (FROZEN 2026-07-11); builds on
   plan-1 container, plan-2 ingestion (6c90507), plan-3 mutation (a141338),
   plan-4 views (49bb1d4). Closes the container's fourth kind (categorical x
-  CSC, data-ownership.md:73-87). No plan follows it.
+  CSC, data-ownership.md). No plan follows it.
 budget: ~700-1100 lines across ~14 files (src/bartcore/tree.hpp, data.hpp,
   src/R_interface_bartcore.cpp, R/mixedMatrix.R, R/data.R, R/utility.R,
   R/A_class.R already carries the class, tests/cpp/test_model.cpp, tinytest
@@ -67,14 +67,14 @@ columns (plan-4 precedent, R_interface_bartcore.cpp:463).
 - dbarts.h is UNCHANGED: the CSC-categorical path is internal (engine .hpp +
   SamplerOptions, freely extensible + R surface). No stan4bart lockstep (the
   plan-1/2/4 precedent). PROT_DATA stays the creation contract and GC anchor.
-- S-CAT (data-ownership-2-ingestion.md:63-70): plan 2 landed sparseFactor as
+- S-CAT (data-ownership-2-ingestion.md): plan 2 landed sparseFactor as
   R surface only and refused it before the engine. This plan lifts exactly that
   refusal and supplies the storage + kernel it was deferred against.
 
 ## Context (what already holds, read in code)
 
 - The container crosses {ordinal, categorical} x {dense, CSC}; 3 of 4 cells
-  ship, sparse categorical is the gap (data-ownership.md:73-87). ColumnType is
+  ship, sparse categorical is the gap (data-ownership.md). ColumnType is
   the kind (data.hpp:83); a rank column lives in a SparseColumnData slot
   (data.hpp:95-108: bits, wordRanks, nzCodes, zeroCode, at(i)), keyed by
   sparseSlot (data.hpp:142); columnIsSparse/sparseColumn (data.hpp:917-922)
@@ -131,7 +131,7 @@ draws BITWISE-IDENTICALLY to the same data ingested dense. Why it holds:
   landing's testSparseColumnStore / testSparseEndToEnd device (test_model.cpp)
   extended to the categorical kind.
 
-Refinement forced on the design: data-ownership.md:82-85 reads "the implicit
+Refinement forced on the design: data-ownership.md reads "the implicit
 zero as the reference level," which suggests code 0; the bitwise gate requires
 the reference's ACTUAL level-order code as zeroCode. The store carries it per
 CSC-categorical column (bridge metadata); zeroCode is set from it, not from
@@ -151,7 +151,7 @@ codeFor(j, 0.0).
    gated per sparse-extensions.md; sparse-categorical x.test DENSIFIES (the
    container's as.matrix -> dense categorical test codes over training levels),
    which reuses the whole existing dense test-code path and predicts correctly.
-   data-ownership.md:180 item 5 says "test-side sparse (with sparse-extensions)":
+   data-ownership.md "Implementation record" item 5 says "test-side sparse (with sparse-extensions)":
    read as "sparse categorical must WORK on the test side," satisfied by
    densification; resident sparse testCodes waits for a named memory-bound test
    workload (matching sparse-columns.md "x.test stays a dense matrix" for the
@@ -292,10 +292,10 @@ consumer-gated.
   Mask/ByWideMask), and this plan's sparse-categorical membership follows suit -
   no misc.a entry lands. Update addition 2 to record the engine-side
   realization.
-- data-ownership.md:82-85 "the implicit zero as the reference level" reads as
+- data-ownership.md "the implicit zero as the reference level" reads as
   code 0; the bitwise gate forces zeroCode = the reference level's actual
   level-order code. The landing note records the refinement.
-- data-ownership.md:180 item 5 bundles "test-side sparse (with
+- data-ownership.md "Implementation record" item 5 bundles "test-side sparse (with
   sparse-extensions)"; this plan satisfies it by densification and leaves
   resident sparse x.test deferred in sparse-extensions.md (decision 2) - not a
   contradiction, but the wording could be read as requiring resident sparse

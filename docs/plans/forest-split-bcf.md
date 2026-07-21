@@ -40,7 +40,7 @@ lands as the first two-forest sampler. bartCause consumes it.
 
 - The deferral is recorded: "Forest is not yet split out of Sampler
   (do this when the facade lands in phase 2)" -
-  docs/design/core-generalization.md:265-266; it never happened.
+  docs/design/core-generalization.md; it never happened.
 - Multi-forest was the designed provision for BCF/multinomial/
   heteroscedastic/hurdle (core-generalization.md, the multi-forest provision).
 - Chain currently owns trees/fits/response state directly

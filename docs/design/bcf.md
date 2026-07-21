@@ -51,7 +51,7 @@ mode gates it - and the refactor lands before any BCF math.
 State serialization. `ChainStateData`'s tree channels (`trees`, `savedTrees`,
 `treeParams`, `treeMasks`, per-forest k) gain a forest dimension, and BCF adds
 b0/b1/a to the glue. One format-version bump, on the single version scheme
-storeState already stamps (public-surface.md:142-150) - shared with
+storeState already stamps (public-surface.md) - shared with
 flat-format-v2 and state-continuation, so a reader checks one version and refuses
 a mismatch by name. A single-forest state is a length-1 forest vector; no
 cross-version migration.

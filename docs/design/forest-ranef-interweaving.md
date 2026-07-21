@@ -172,7 +172,7 @@ residual sum (which spans OTHER leaves). Two honest implementation shapes:
   coupled leaf model (a `GroupCollapsedGaussianLeaf`) plus per-sweep per-group
   reductions maintained across the tree loop. It is EXACT and it changes the
   hottest path (every birth/death score, every leaf draw) -- the widest grouped
-  engine change, comparable to heteroscedastic's C2 (heteroscedastic.md:510) but
+  engine change, comparable to heteroscedastic's C2 (heteroscedastic.md) but
   ON the constant-leaf path rather than a nullable second forest. It cannot live
   in the GroupedResponse decorator, which only sees `(z, w)`; it must reach into
   the leaf model, so grouping stops being a pure response decorator.
@@ -223,7 +223,7 @@ f-b ridge untouched. The prototype (section 5) shows it can even WORSEN mixing
 at small K, where the confounding dominates and the extra ancillary randomization
 of the ridge coordinate is counterproductive -- exactly the failure the
 bcf-ridge landing saw when it tried refreshing the conditioned auxiliary
-(bcf-ridge-interweaving.md:488-492). So ASIS is a genuine but PARTIAL win whose
+(bcf-ridge-interweaving.md). So ASIS is a genuine but PARTIAL win whose
 sign is regime-dependent; it is not a substitute for the collapse.
 
 ## 5. Isolation prototype and measured gain (benchmarks/R/forest-ranef-collapse-proto.R)
@@ -315,12 +315,12 @@ Per review section 5 (the migration battery), unchanged in shape:
   quadrature and vs the current draw on fixed rng); a poison check (perturb the
   Woodbury correction, watch the quadrature gate fail, restore).
 - Full tinytest; regenerate the grouped hardcoded snapshots by WHOLE-FILE replay
-  (last-ulp depends on process history, grouped-random-effects.md:225-229).
+  (last-ulp depends on process history, grouped-random-effects.md).
 - equivalence.R compare: ungrouped scenarios IDENTICAL (bitwise); the grouped /
   grouped_aft scenarios re-record as a STATISTICAL verdict (z-tests on tau /
   ranef / fit posterior means+intervals vs the current baseline), the grouped
-  landing's shape (grouped-random-effects.md:210-219). NOTE the grouped
-  equivalence scenarios use the GAMMA prior (tau-cauchy-exact-ig.md:106-113);
+  landing's shape (grouped-random-effects.md). NOTE the grouped
+  equivalence scenarios use the GAMMA prior (tau-cauchy-exact-ig.md);
   a cauchy-branch collapse would need a cauchy-grouped z-summary added, or the
   scenarios re-recorded under cauchy.
 - The custom-prior R loop (rbart.R:531-696) stays untouched and must keep
@@ -393,6 +393,6 @@ forest exposes no per-group knob - workingResponse = z - b_g, fbar_j is emergent
 leaf-space, not a parameter; contrast BCF's explicit a-scalar), and ASIS's
 small-K worsening (56->115) is a real mixing effect, not a bug (median tau agrees
 across arms), with in-repo precedent (the reverted BCF aVariance-refresh,
-bcf-ridge-interweaving.md:488-492). The exact-IG landing did NOT absorb the
+bcf-ridge-interweaving.md). The exact-IG landing did NOT absorb the
 slice-era 25x (the review's 3b showed slice ~ exactIG mixing), so the 25x->3x gap
 is a DGP/estimator difference, as stated.

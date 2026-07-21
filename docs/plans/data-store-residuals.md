@@ -30,8 +30,8 @@ docs/design/data-store.md is the spec. Anchors re-verified 2026-07-18:
   refuseViewSampler (R_interface_bartcore.cpp:1479-1487, ORs
   builtFromCsc, 5 mutation entry points) and refuseViewSamplerOnly
   (:1491-1496; setCutPoints/setState/installForests);
-  tests/cpp/test_data.cpp:72. Doc language: data-store.md:84-85,
-  :181-189.
+  tests/cpp/test_data.cpp:72. Doc language: data-store.md "CodeBlock (train
+  and test)" and "View semantics (buildFromParent)".
 - Handle gather-all: R_interface_bartcore.cpp:2026-2034 in
   bartcore_createDataHandle (:1997). The sampler ctor
   (sampler.hpp:100-127) and per-fold views (createFromHandle :2145-2169
