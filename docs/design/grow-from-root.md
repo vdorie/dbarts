@@ -68,7 +68,8 @@ percent). Secondary findings from the full sweep (n_leaf in {1e3, 1e4} and
 scan is O(p n_leaf) with no size-dependent per-element cost; 100 vs 255 cuts
 is within noise (the histogram bins fit in L1 either way); accumulating
 sum-wz^2 adds ~20% (an extra multiply and an extra in-cache bin write), so it
-is real dead weight in the constant-leaf path (frontier 3.7 flags the same);
+is real dead weight in the constant-leaf path (the sumWZ2 dead-weight finding,
+frontier 3.7, flags the same);
 and gather at n_leaf <= 1e4 is optimistic because the member set fits in L2,
 so the 1e5/1e6 rows are the honest DRAM figures.
 
@@ -87,7 +88,8 @@ DRAM-bound verdict, the two regimes differ:
   a row-major or fused layout is the obvious ceiling-raiser if this ever
   matters.
 
-Cost multiplier scan-vs-single-cut (the number frontier item 4 needs): on a
+Cost multiplier scan-vs-single-cut (the number the informed-kernel prototype
+(frontier next-action 4) needs): on a
 scattered leaf, scan/single-move ~= p - 10x at p=10, ~53x at p=50 - because one
 classic move touches one column's data and the scan touches all p. On
 root-order members the multiplier is ~p/4 (the sequential scan is ~4x cheaper
@@ -167,7 +169,8 @@ with a full rebuild, and needs:
   cache of linear-leaf-reuse.md. Constant leaf first; non-constant leaves are
   a later generalization, not a blocker.
 
-The scan primitive is shared with frontier 3.1 and 3.3 and is the natural
+The scan primitive is shared with frontier 3.1 and the Rao-Blackwellized readout
+(frontier 3.3) and is the natural
 first resident object for any future device backend (frontier section 4), so
 it earns promotion independently of which consumer lands first.
 
@@ -218,7 +221,8 @@ left/right suffstats and scored by the leaf's marginal. It is occupancy-aware
 ever built and the MH veto never runs on this path) and omits sum wz^2 by
 evaluating the marginal with a zero sumWeightedResponseSq - the dead-weight
 term's per-node total cancels between the no-split term and every cut. The
-header is leaf-templated so frontier item 4 includes it unchanged and a
+header is leaf-templated so the informed-kernel prototype (frontier next-action 4)
+includes it unchanged and a
 matrix-valued leaf substitutes its (U'WU, U'Wz) block without an interface
 change.
 

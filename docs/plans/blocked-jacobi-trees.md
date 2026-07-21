@@ -41,7 +41,8 @@ residual, so b trees become conditionally independent and update in PARALLEL
 (m/b barriers/sweep instead of ~3m; each worker a cache-coherent single-tree
 update). The precision budget is CONSERVED (a law, sec 2): the b released trees
 share sigma^2, so their structure moves see precision b/sigma^2 -> mixing
-DEGRADES with b (the tax). Sec 3.5's refinement: the variance ALLOCATION is free,
+DEGRADES with b (the tax). The movement-budget allocation refinement (frontier
+3.5): the variance ALLOCATION is free,
 so RELEASE a rotating handful at near-full variance and PIN the rest - exact for
 any STATE-INDEPENDENT rotation schedule; the uniform tax becomes an aimable
 movement-budget. Arbiter is ESS-PER-SECOND (ESS/sweep falls from the tax, sweep
