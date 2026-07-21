@@ -1,51 +1,88 @@
 # interaction-constraints
 
 agent: opus
-rng: posterior-changing (prior change)
-budget: memo on demand; consumer-gated
-
-note (2026-07-21): the memo step is DONE - see docs/design/interaction-
-constraints.md (blind three-lens research panel + adversarial code-verified
-critique; SOUND-WITH-CAVEATS). It splits into deliverable A (cheap per-tree
-grouped block-additive, static mask) and deliverable B (per-path max-order +
-co-occurrence, the differentiated capability). Awaiting VD go/no-go and the
-A-vs-B target choice before an implementation plan is written.
+rng: posterior-changing WHEN a constraint is set; the DEFAULT path (no
+     interactions() prior) stays BITWISE-identical.
+window: none (VD-approved build 2026-07-21; deliverable B).
+budget: ~500-700 engine LOC + R surface + tests, staged into commit-sized
+        steps. Full design: docs/design/interaction-constraints.md.
 
 ## Goal
 
-Structured split-variable control on the SplitSelector seam when a
-consumer needs it: grouped sparsity (DART over variable groups) and
-interaction limits (variables that may not co-occur on a path, or
-max-interaction-depth constraints a la BART-based causal-inference and
-tabular-ML practice).
+Opt-in per-path interaction constraints: interactions(max.order = K,
+groups = , forbid = ), per-forest for BCF (mu / tau). A constrained fit
+forbids any root-to-leaf path from using more than K distinct variables
+and / or from co-occurring a forbidden pair; an unconstrained fit is
+byte-for-byte unchanged.
 
-## Context
+## Decision (RESOLVED, VD 2026-07-21)
 
-- The seam was designed for exactly this: "Grouped/structured DART,
-  interaction constraints: SplitSelector"
-  (docs/design/core-generalization.md, extensions table); SplitSelector
-  log-probabilities already enter acceptance ratios and have a
-  per-iteration hyper-update hook.
-- Path-dependent constraints (no-co-occurrence) touch move validity,
-  not just selection weights - the change/swap good-rule flows would
-  need the constraint in their satisfiability walks; the memo must
-  scope that honestly.
+Build deliverable B (per-path max-order + co-occurrence), not the cheaper
+per-tree grouped variant A. Rationale and the A/B split: the design memo
+"The open design call for VD".
+
+## Context (read in code first)
+
+- Availability primitive: collectAvailableVariables / variableAvailable /
+  hasAnyAvailableVariable (tree.hpp), already ancestor-dependent via
+  splitInterval (cut exhaustion). The predicate extends HERE.
+- Selection + moves: CGMTreePrior::splitProbabilities /
+  splitVariableLogProbability / drawSplitVariable (model.hpp);
+  drawBirthableNode, the change and swap moves (moves.hpp); growTreeFromRoot
+  (grow.hpp) is a FIFTH split consumer.
+- Install precedent: columnMask_ / columnAllowed (tree.hpp) via setColumnMask,
+  per-forest at the BCF sites (chain.hpp). The constraint installs the same.
+- Subtree-validity precedent: categoricalSubtreeIsValid / findGoodOrdinalRules
+  (moves.hpp) - but PER-VARIABLE; interaction needs a whole-subtree,
+  all-variables walk (Step 3).
 
 ## Constraints
 
-- Consumer-gated: no code without a named workload (candidates:
-  causal setups wanting treatment-effect additivity, grouped
-  genomics-style predictors).
-- Out of scope: monotone constraints (monotone-bart), soft splits.
+- DEFAULT path bitwise-identical: no interactions() prior => equivalence trio
+  unchanged, NO re-record. Guard with the flag-off invariant.
+- Exactness is the arbiter: the constrained posterior gates against an
+  ENUMERABLE exact posterior, never a plausibility argument.
+- No dbarts.h ABI change expected (interactions ride SamplerOptions + the
+  bridge like DART / splitProbabilities). If a field must cross dbarts.h,
+  STOP and flag (ABI checklist + stan4bart lockstep + MINOR bump).
+- Out of scope (deferred in the memo): soft path-dependent penalties, formal
+  heredity, the per-tree grouped variant A.
 
 ## Steps
 
-1. On demand: memo covering the constraint vocabulary, which seam each
-   piece lands on (selection prior vs move validity), and prior
-   math for the acceptance ratios; exact-posterior gate design for a
-   constrained toy problem.
-2. Fresh implementation plan on approval.
+1. Representation + install: a per-forest InteractionConstraint (max.order K;
+   forbidden pairs as a p-bitset adjacency) in SamplerOptions, installed per
+   forest mirroring setColumnMask; bridge wiring; NO behavior when unset.
+   Gate: equivalence trio BITWISE (constraint off).
+2. Predicate: extend collectAvailableVariables / variableAvailable /
+   hasAnyAvailableVariable to read the node's ancestor variable-set (a bitset
+   carried down the path) for max-order and co-occurrence. Birth / death /
+   grow route through it (correct-by-construction). Component test:
+   brute-force availability oracle.
+3. Change / swap: interactionSubtreeIsValid - a whole-subtree walk carrying a
+   running ancestor bitset, testing EVERY node's variable; a violation scores
+   the -1.0 no-op (pi(T') = 0 auto-reject). DE-RISK FIRST: land the swap
+   sibling-strand toy (forbid (x2, x3); root x1, children x2 / x3; swap root
+   and left) in tests/cpp BEFORE the rest of the move work. Swap DB rests on
+   proposal symmetry + treeLogProbability(parent) carrying the constrained
+   prior - argue it in the commit.
+4. Containment: an interaction-feasibility gate in buildFromFlat /
+   stateIsValid; REFUSE a warm start whose constraint differs from the
+   target; assert grow-from-root honors the predicate; assert monotone +
+   interactions compose (orthogonal seams).
+5. R surface: an interactions() prior object through parsePriors, bart2 +
+   bcf(mu.interactions = , tau.interactions = ), Rd + NEWS; safe-over-fast
+   validation (unknown names, empty groups, K < 1 error at fit time).
 
 ## Verification
 
-- Memo reviewed; TODO updated with the outcome.
+- tests/cpp: brute-force availability oracle; feasibility invariant after
+  every accepted move; the swap-strand toy scores 0; grow-from-root and
+  monotone-coexistence.
+- Exact-posterior gate: an enumerable constrained toy (small p, one forbidden
+  pair / low K) - structure-visit frequencies + fitted means within Monte
+  Carlo error.
+- Equivalence trio BITWISE with constraints OFF (default unchanged, no
+  re-record); full tinytest; ASAN tests/cpp for the new reachable engine code
+  + watch the CI sanitizer green; air format --check on any R.
+- R CMD check before push (codoc: interactions() in the Rd \usage).
