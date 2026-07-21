@@ -93,7 +93,7 @@ The constant-leaf math that makes atoms work (model.hpp:97-163):
   additive across any partition of a fixed observation set, so it CANCELS in
   every move ratio exp(newLogL - oldLogL) (fact 1.2; birth splits a leaf, the
   raw sumWZSq of parent = sum over children). It is dead weight for the decision
-  (the 3.7 side finding); b>1 drops it.
+  (the sumWZ2 dead-weight finding, frontier 3.7); b>1 drops it.
 
 ## 2. Atom representation and the map
 

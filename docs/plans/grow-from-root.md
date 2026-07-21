@@ -82,4 +82,4 @@ preserves MH. Cut-scan on M1 Max: seq root scan histogram-update-bound
 (10x p=10, 53x p=50), ~p/4 root-order; column-parallel threading 2.9x at
 4 threads. Awaiting VD approval of the follow-up implementation item
 "grow-from-root warm-start producer" (shares its one new primitive with
-frontier item 4).
+the informed-kernel prototype, frontier next-action 4).

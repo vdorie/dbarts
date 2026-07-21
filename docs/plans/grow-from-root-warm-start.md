@@ -9,7 +9,8 @@ budget: ~700-900 lines across ~10-12 files, staged into four
   the session scratch gfr-warm-start-plan-draft.md (this file is the
   trimmed shipped form).
 window: the cut-scan is the shared primitive of
-  parallel-bart-frontier.md items 3.1/4; it lands ONCE here (step 1)
+  the informed-proposal kernel and its prototype (parallel-bart-frontier.md
+  3.1 / next-action 4); it lands ONCE here (step 1)
   as a self-contained header that frontier work includes unchanged.
 
 ## Goal
@@ -80,7 +81,8 @@ never a standalone posterior sampler (memo NO-GO stands).
    warm.start together with n.grow.sweeps > 0 is an ERROR
    (ambiguous initialization, the survival family-conflict
    precedent); this item owns the one-time scan landing that
-   parallel-bart-frontier item 4 later includes.
+   the informed-kernel prototype (parallel-bart-frontier next-action 4) later
+   includes.
 
 ## Verification
 

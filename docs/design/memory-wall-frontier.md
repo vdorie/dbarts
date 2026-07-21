@@ -148,7 +148,8 @@ distorts varcounts.
 
 ### 3b. Delayed acceptance with a compressed stage-1 surrogate
 
-Twist on parallel-bart-frontier.md 3.2a (already falsifier-cleared: 0.97
+Twist on the batched cross-tree stale-residual scoring of
+parallel-bart-frontier.md 3.2a (already falsifier-cleared: 0.97
 frozen-vs-true, ~7-12% survivors). Score all moves' stage 1 against a
 COMPRESSED frozen residual (subsample, block-average, count-sketch, or fp32);
 stage 2 pays the exact full-resolution gather only on the ~10% survivors.

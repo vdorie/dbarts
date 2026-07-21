@@ -228,7 +228,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | gp-followups.md | RESEARCH-OPEN | Placeholder for two deferred GP-leaf extensions (sampled lengthscales, low-rank kernels); blocked on a named consumer. |
-| gpu-bart.md | RESEARCH-OPEN (memo DONE) | Survey memo written (docs/design/gpu-bart.md): GO on cut-scan-as-warm-start (delivered), broader GPU experiment left open behind parallel-bart-frontier items 4-5. |
+| gpu-bart.md | RESEARCH-OPEN (memo DONE) | Survey memo written (docs/design/gpu-bart.md): GO on cut-scan-as-warm-start (delivered), broader GPU experiment left open behind the informed-kernel and CG-leaf prototypes (parallel-bart-frontier next-actions 4-5). |
 | interaction-constraints.md | RESEARCH-OPEN | Consumer-gated memo placeholder for structured split-variable control (grouped DART, interaction limits). |
 | python-bindings.md | ACTIVE (no Status/Landing section) | Feasibility spike memo for a Python binding over bartcore; unclear if the spike ever ran. |
 | sparse-extensions.md | ACTIVE (open, consumer-gated) | Backlog of deferred sparse-column extensions (in-place mutation, streaming range kernel, mixed-column mutation). |
