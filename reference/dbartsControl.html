@@ -45,7 +45,8 @@
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">dbartsControl</span><span class="op">(</span></span>
 <span>    verbose <span class="op">=</span> <span class="cn">FALSE</span>, keepTrainingFits <span class="op">=</span> <span class="cn">TRUE</span>, useQuantiles <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>    keepTrees <span class="op">=</span> <span class="cn">FALSE</span>, n.samples <span class="op">=</span> <span class="cn">NA_integer_</span>,</span>
+<span>    keepTrees <span class="op">=</span> <span class="cn">FALSE</span>, storage <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"double"</span>, <span class="st">"single"</span><span class="op">)</span>,</span>
+<span>    n.samples <span class="op">=</span> <span class="cn">NA_integer_</span>,</span>
 <span>    n.cuts <span class="op">=</span> <span class="fl">100L</span>, n.burn <span class="op">=</span> <span class="fl">200L</span>, n.trees <span class="op">=</span> <span class="fl">75L</span>, n.chains <span class="op">=</span> <span class="fl">4L</span>,</span>
 <span>    n.threads <span class="op">=</span> <span class="fu">dbarts</span><span class="fu">::</span><span class="fu"><a href="guessNumCores.html">guessNumCores</a></span><span class="op">(</span><span class="op">)</span>, n.thin <span class="op">=</span> <span class="fl">1L</span>, printEvery <span class="op">=</span> <span class="fl">100L</span>,</span>
 <span>    printCutoffs <span class="op">=</span> <span class="fl">0L</span>, rngSeed <span class="op">=</span> <span class="cn">NA_integer_</span>, updateState <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
@@ -65,6 +66,9 @@
 
    <dt id="arg-keeptrees">keepTrees<a class="anchor" aria-label="anchor" href="#arg-keeptrees"></a></dt>
 <dd><p>A logical that determines whether or not trees are cached as they are sampled. In all cases, the current state of the sampler is stored as a single set of <code>n.trees</code>. When <code>keepTrees</code> is <code>TRUE</code>, a set of <code>n.trees * n.samples</code> trees are set aside and populated as the sampler runs. If the sampler is stopped and restarted, samples proceed from the previously stored tree, looping over if necessary.</p></dd>
+
+   <dt id="arg-storage">storage<a class="anchor" aria-label="anchor" href="#arg-storage"></a></dt>
+<dd><p>A character string selecting the precision of the internal running residual. The default <code>"double"</code> stores it in double precision and produces bitwise-identical draws to previous versions. <code>"single"</code> opts the running residual into single (32-bit) precision, halving the memory traffic of the dominant per-sweep gather for a modest speedup at very large <code>n</code> (leaf draws and reductions remain in double precision). Currently supported only for continuous (gaussian) responses with the default constant leaves; other models signal an error. The reduced-precision path changes the sampled values slightly and so is opt-in.</p></dd>
 
    <dt id="arg-n-samples">n.samples<a class="anchor" aria-label="anchor" href="#arg-n-samples"></a></dt>
 <dd><p>A non-negative integer giving the default number of samples to return each time the sampler is run. Generally specified by <code><a href="dbarts.html">dbarts</a></code> instead, and can be overridden on a per-use basis whenever the sampler is <code><a href="dbartsSampler-class.html">run</a></code>.</p></dd>

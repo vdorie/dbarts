@@ -8,7 +8,8 @@ Convenience function to create a control object for use with a
 ``` r
 dbartsControl(
     verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
-    keepTrees = FALSE, n.samples = NA_integer_,
+    keepTrees = FALSE, storage = c("double", "single"),
+    n.samples = NA_integer_,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
     n.threads = dbarts::guessNumCores(), n.thin = 1L, printEvery = 100L,
     printCutoffs = 0L, rngSeed = NA_integer_, updateState = TRUE)
@@ -41,6 +42,19 @@ dbartsControl(
   `n.trees * n.samples` trees are set aside and populated as the sampler
   runs. If the sampler is stopped and restarted, samples proceed from
   the previously stored tree, looping over if necessary.
+
+- storage:
+
+  A character string selecting the precision of the internal running
+  residual. The default `"double"` stores it in double precision and
+  produces bitwise-identical draws to previous versions. `"single"` opts
+  the running residual into single (32-bit) precision, halving the
+  memory traffic of the dominant per-sweep gather for a modest speedup
+  at very large `n` (leaf draws and reductions remain in double
+  precision). Currently supported only for continuous (gaussian)
+  responses with the default constant leaves; other models signal an
+  error. The reduced-precision path changes the sampled values slightly
+  and so is opt-in.
 
 - n.samples:
 
