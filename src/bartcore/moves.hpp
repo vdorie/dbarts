@@ -494,6 +494,23 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
     reverseInterval = oldRight - oldLeft + 1;
   }
 
+  // interaction constraint: the variable was drawn feasibly against
+  // nodeToChange's ANCESTORS, but the unchanged subtree below may now strand a
+  // descendant (a co-occurrence or order break the drawn variable introduces).
+  // treeLogProbability delegates to the availability primitives, which cannot
+  // self-detect a node whose OWN variable is barred, so score the -1.0 no-op
+  // (pi(T') = 0) directly, exactly as the unsatisfiable categorical draw does.
+  if (tree.hasInteractionConstraint()) {
+    Rule savedRule = tree.at(nodeToChange).rule;
+    tree.at(nodeToChange).rule = newRule;
+    bool valid = tree.interactionSubtreeIsValid(nodeToChange);
+    tree.at(nodeToChange).rule = savedRule;
+    if (!valid) {
+      tree.truncateMaskPool(maskPoolMark);
+      return -1.0;
+    }
+  }
+
   double logProposalCorrection = 0.0;
   if (!newIsCategorical && !oldIsCategorical) {
     logProposalCorrection =
@@ -696,6 +713,11 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
     bool swapIsSensible = ruleIsValid(ctx, tree, parent, childRule.variableIndex);
     if (childRule.variableIndex != parentRule.variableIndex && swapIsSensible)
       swapIsSensible = ruleIsValid(ctx, tree, parent, parentRule.variableIndex);
+    // interaction is a WHOLE-subtree, all-variables property the per-variable
+    // ruleIsValid checks above cannot see (the swap sibling-strand break): a
+    // swap that lifts x2 above x3 co-occurs a forbidden pair with neither
+    // swapped variable equal to x3. Score it the -1.0 no-op (pi(T') = 0).
+    if (swapIsSensible) swapIsSensible = tree.interactionSubtreeIsValid(parent);
     tree.at(parent).rule = parentRule;
     tree.at(child).rule = childRule;
 
@@ -734,6 +756,8 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
     bool swapIsSensible = ruleIsValid(ctx, tree, parent, childRule.variableIndex);
     if (childRule.variableIndex != parentRule.variableIndex && swapIsSensible)
       swapIsSensible = ruleIsValid(ctx, tree, parent, parentRule.variableIndex);
+    // whole-subtree interaction feasibility, as in the single-child branch
+    if (swapIsSensible) swapIsSensible = tree.interactionSubtreeIsValid(parent);
     tree.at(parent).rule = parentRule;
     tree.at(leftChild).rule = childRule;
     tree.at(rightChild).rule = childRule;
