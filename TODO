@@ -76,8 +76,14 @@ items
     only if a grouped refactor is planned.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared scan.
-  interaction-constraints: structured sparsity and interaction limits
-    on the SplitSelector seam. consumer-gated.
+  interaction-constraints: deliverable B (per-path max-order + hard
+    co-occurrence, per-forest, native, un-rJava) LANDED f455d7c 2026-07-21
+    (docs/design/interaction-constraints.md, plan Landing note): the
+    interactions(max.order, groups, forbid) prior on the availability seam,
+    exact-posterior gated. Remaining doors (design P4): soft path-dependent
+    penalties, formal heredity (ensemble lattice prior), the per-tree
+    block-additive variant A (cleaner functional-ANOVA for grouped-GAMI).
+    decision/consumer-gated.
   negbin-real-dispersion: the recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design section 2 carries
     fork B's full spec): real-valued dispersion needs a non-integer-shape

@@ -75,3 +75,29 @@ per-tree grouped variant A. Rationale: the design memo "open design call".
 - Equivalence trio BITWISE with constraints OFF; full tinytest; ASAN
   tests/cpp + watch CI sanitizer green; air format --check on any R; R CMD
   check before push (codoc: interactions() in the Rd \usage).
+
+## Landing
+
+LANDED f455d7c (2026-07-21), two phases. Phase 1 (0141054..9bb4432, engine):
+the InteractionConstraint representation + per-forest install, the ancestor-
+set availability predicate (max-order + co-occurrence), and the whole-subtree
+change/swap interactionSubtreeIsValid walk (the per-variable precedent could
+not see the swap sibling-strand break). Phase 2 (ac43ac9..f455d7c, surface):
+the interactions(max.order, groups, forbid) R prior through parsePriors, the
+.Call bridge, per-forest BCF (mu.interactions / tau.interactions), the
+buildFromFlat / stateIsValid / warm-start containment gate, and the Rd + NEWS.
+groups is a co-occurrence ALLOW-list lowered to the forbidden-pair primitive.
+NO dbarts.h change (rides SamplerOptions + the bridge). ~1.1k LOC.
+
+Gates (orchestrator re-ran independently): equivalence BITWISE with
+constraints off 27/27 identical (no re-record); the exact-posterior
+enumeration matches pi*m/Z with no illegal structure; the swap sibling-strand
+and containment (9-donor) tests/cpp pass; grow-from-root + monotone
+coexistence pass; ASAN clean (local, instrumented) and the Phase 1 sanitizer
+CI is green; R feature tests 15/15; R CMD check 0/0/0. Phase 2 sanitizer CI
+watched to green post-landing.
+
+Deferred doors (design P4): soft path-dependent penalties, formal heredity,
+the per-tree block-additive variant A. The blind critique that caught the two
+must-fixes is docs/design/interaction-constraints.md "structure-move
+exactness" and "Containment".
