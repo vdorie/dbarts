@@ -49,12 +49,12 @@ dbartsControl(
   residual. The default `"double"` stores it in double precision and
   produces bitwise-identical draws to previous versions. `"single"` opts
   the running residual into single (32-bit) precision, halving the
-  memory traffic of the dominant per-sweep gather for a modest speedup
-  at very large `n` (leaf draws and reductions remain in double
-  precision). Currently supported only for continuous (gaussian)
-  responses with the default constant leaves; other models signal an
-  error. The reduced-precision path changes the sampled values slightly
-  and so is opt-in.
+  memory traffic of the dominant per-sweep gather for a speedup that is
+  largest where memory bandwidth binds - very large `n` and multi-chain
+  runs (leaf draws and reductions remain in double precision). Currently
+  supported only for continuous (gaussian) responses with the default
+  constant leaves; other models signal an error. The reduced-precision
+  path changes the sampled values slightly and so is opt-in.
 
 - n.samples:
 
