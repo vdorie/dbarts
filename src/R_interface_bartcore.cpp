@@ -1878,9 +1878,45 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   return holder;
 }
 
+// Read a resolved interactions() list (the resolveInteractions output: a
+// max.order scalar and a 2 x k integer matrix of 0-based forbidden pairs) into
+// one BCF forest's spec. A NULL list leaves the forest unconstrained. The pair
+// stream is appended to `storage` (which must outlive the sampler build and be
+// distinct per forest, so the borrowed pointer stays stable) and borrowed by
+// the spec.
+void applyBCFInteractions(SEXP listExpr, size_t numPredictors,
+                          bartcore::BCFForestSpec& spec,
+                          std::vector<size_t>& storage) {
+  if (Rf_isNull(listExpr)) return;
+  SEXP maxOrderExpr = getListElement(listExpr, "max.order");
+  if (!Rf_isNull(maxOrderExpr) && Rf_xlength(maxOrderExpr) == 1) {
+    int order = Rf_asInteger(maxOrderExpr);
+    if (order > 0) spec.interactionMaxOrder = static_cast<size_t>(order);
+  }
+  SEXP forbiddenExpr = getListElement(listExpr, "forbidden");
+  if (!Rf_isNull(forbiddenExpr) && Rf_xlength(forbiddenExpr) > 0) {
+    if (!Rf_isInteger(forbiddenExpr))
+      Rf_error("bcf interaction forbidden pairs must be resolved integers");
+    R_xlen_t numEntries = Rf_xlength(forbiddenExpr);
+    if (numEntries % 2 != 0)
+      Rf_error("bcf interaction forbidden pairs must come in (a, b) pairs");
+    const int* forbidden = INTEGER(forbiddenExpr);
+    storage.resize(static_cast<size_t>(numEntries));
+    for (R_xlen_t j = 0; j < numEntries; ++j) {
+      if (forbidden[j] < 0 || static_cast<size_t>(forbidden[j]) >= numPredictors)
+        Rf_error("bcf interaction forbidden pair column out of range");
+      storage[static_cast<size_t>(j)] = static_cast<size_t>(forbidden[j]);
+    }
+    spec.interactionForbiddenPairs = storage.data();
+    spec.interactionNumForbiddenPairs = storage.size() / 2;
+  }
+}
+
 BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
                                 SEXP dataExpr, SEXP zExpr,
-                                SEXP bcfParamsExpr, SEXP moderatorsExpr) {
+                                SEXP bcfParamsExpr, SEXP moderatorsExpr,
+                                SEXP muInteractionsExpr,
+                                SEXP tauInteractionsExpr) {
   if (!Rf_isReal(bcfParamsExpr) || Rf_xlength(bcfParamsExpr) != 8)
     Rf_error("bcf parameters must be a length-8 numeric vector");
 
@@ -1888,7 +1924,9 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
                  z = std::vector<double>{},
-                 moderators = std::vector<size_t>{}]() mutable -> SEXP {
+                 moderators = std::vector<size_t>{},
+                 muPairs = std::vector<size_t>{},
+                 tauPairs = std::vector<size_t>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
       controlExpr, modelExpr, dataExpr, "", control, model, data, sigmaIsFixed);
@@ -1945,6 +1983,12 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
       spec.tau.columns = moderators.data();
       spec.tau.numColumns = moderators.size();
     }
+
+    // independent per-forest interaction constraints (the calibrated-additivity
+    // causal use): mu and tau each resolve their own interactions() prior R-side
+    applyBCFInteractions(muInteractionsExpr, data.numPredictors, spec.mu, muPairs);
+    applyBCFInteractions(tauInteractionsExpr, data.numPredictors, spec.tau,
+                         tauPairs);
 
     std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createBCFSampler(
       data.x, data.y, data.numObservations, data.numPredictors, data.weights,
@@ -2410,7 +2454,8 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
 // The model spec is the prognostic forest, bcfParams the treatment forest and
 // glue, z the 0/1 treatment.
 SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-                        SEXP zExpr, SEXP bcfParamsExpr, SEXP moderatorsExpr) {
+                        SEXP zExpr, SEXP bcfParamsExpr, SEXP moderatorsExpr,
+                        SEXP muInteractionsExpr, SEXP tauInteractionsExpr) {
   // null-address first, then install; see bartcore_create
   SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
   SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
@@ -2418,7 +2463,8 @@ SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
 
   BartcoreHolder* holder = bartcore_bridge::createBCFHolder(
-    controlExpr, modelExpr, dataExpr, zExpr, bcfParamsExpr, moderatorsExpr);
+    controlExpr, modelExpr, dataExpr, zExpr, bcfParamsExpr, moderatorsExpr,
+    muInteractionsExpr, tauInteractionsExpr);
   R_SetExternalPtrAddr(result, holder);
 
   UNPROTECT(2);

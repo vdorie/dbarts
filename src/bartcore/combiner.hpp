@@ -192,6 +192,15 @@ struct BCFForestSpec {
   // prognostic forest leaves it empty and reads the full store.
   const std::size_t* columns = nullptr;
   std::size_t numColumns = 0;
+  // optional per-forest interaction constraint (docs/design/interaction-
+  // constraints.md): a max-order cap (0 = uncapped) and a flat 0-based (a, b)
+  // forbidden co-occurrence pair stream (2 per pair; borrowed, consumed at
+  // construction). BCF's mu / tau forests carry independent constraints - the
+  // calibrated-additivity causal use (an additive-or-low-order tau, a free mu).
+  // Both defaults leave the availability path byte-for-byte unchanged.
+  std::size_t interactionMaxOrder = 0;
+  const std::size_t* interactionForbiddenPairs = nullptr;
+  std::size_t interactionNumForbiddenPairs = 0;
 };
 
 /// The two model specs plus the treatment vector a BCF chain is built from.

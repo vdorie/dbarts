@@ -3027,6 +3027,18 @@ private:
         forest.trees[t].setColumnMask(forest.columnMask.data());
     }
 
+    // this forest's optional interaction constraint (installed like the single-
+    // forest ctor): mu and tau carry independent caps. An unset (or inactive)
+    // constraint leaves every tree's pointer null and the path unchanged.
+    if (spec.interactionMaxOrder > 0 || spec.interactionNumForbiddenPairs > 0) {
+      forest.interaction.build(data_.numPredictors, spec.interactionMaxOrder,
+                               spec.interactionForbiddenPairs,
+                               spec.interactionNumForbiddenPairs);
+      if (forest.interaction.active())
+        for (std::size_t t = 0; t < spec.numTrees; ++t)
+          forest.trees[t].setInteractionConstraint(&forest.interaction);
+    }
+
     initForestFitStorage(forest, n);
     forest.totalFits.assign(n, 0.0);
     forest.treeY.resize(n);

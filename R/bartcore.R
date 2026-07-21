@@ -507,7 +507,9 @@ bartcoreBCFSampler <- function(
   b.prior.variance = 0.5,
   update.a = TRUE,
   update.b = TRUE,
-  moderators = NULL
+  moderators = NULL,
+  mu.interactions = NULL,
+  tau.interactions = NULL
 ) {
   if (!is.null(moderators)) {
     if (length(moderators) == 0L) {
@@ -543,6 +545,13 @@ bartcoreBCFSampler <- function(
     update.a,
     update.b
   ))
+  # per-forest interaction constraints (docs/design/interaction-constraints.md):
+  # mu and tau each resolve their own interactions() prior against the shared
+  # design, so the treatment forest can be capped additive-or-low-order while
+  # the prognostic forest stays free (the calibrated-additivity causal use)
+  muInteractions <- resolveInteractions(mu.interactions, sampler$data)
+  tauInteractions <- resolveInteractions(tau.interactions, sampler$data)
+
   result <- new.env(parent = emptyenv())
   result$ptr <- .Call(
     C_dbarts_bartcore_createBCF,
@@ -552,7 +561,11 @@ bartcoreBCFSampler <- function(
     as.double(z),
     bcfParams,
     # resolved 1-based moderator indices, or NULL for an unrestricted forest
-    moderators
+    moderators,
+    # resolved interactions() lists (max.order + 0-based forbidden pairs), or
+    # NULL; mu is forest 0 (prognostic), tau is forest 1 (treatment)
+    muInteractions,
+    tauInteractions
   )
   # BCF requires dense predictors; track them R-side for the re-quantize surface
   result$x <- rawPredictorMatrix(sampler$data@x)

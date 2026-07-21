@@ -5168,6 +5168,80 @@ static void testMonotoneFeasibility() {
   printf("ok: monotone feasibility (descents %d)\n", descents);
 }
 
+// (b2) Monotone + interactions compose (design "Exact-posterior gate": they are
+// orthogonal seams - a leaf-model draw vs split-selection - and must coexist).
+// Run an end-to-end fit with BOTH a monotone-increasing constraint on x0 and an
+// interaction constraint (forbid(x1, x2), max.order 2) whose data WANTS the
+// forbidden interaction, then rebuild every drawn tree and assert it satisfies
+// the interaction predicate AND the monotone leaf geometry at once.
+static void testMonotoneInteractionCoexistence() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 7003);
+  std::uint64_t savedRngState = rngState;
+  rngState = 13579u;
+
+  const size_t n = 400, p = 3;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();          // x0: the monotone driver
+    x[i + n] = runif01();      // x1
+    x[i + 2 * n] = runif01();  // x2
+    double u1 = runif01(), u2 = runif01();
+    double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    // increasing in x0, plus a pure x1*x2 corner the forbid() bars the fit from
+    // representing - so the free grow would reach for the forbidden pair
+    y[i] = 3.0 * x[i] + ((x[i + n] > 0.5 && x[i + 2 * n] > 0.5) ? 1.5 : 0.0) +
+           0.2 * z;
+  }
+
+  std::vector<std::int8_t> dir = {1, 0, 0};  // monotone increasing in x0 only
+  size_t forbiddenPair[] = {1, 2};           // x1 and x2 may not co-occur
+  SamplerOptions options;
+  options.numTrees = 40;
+  options.birthOrDeathProbability = 1.0;  // the monotone constrained move set
+  options.swapProbability = 0.0;
+  options.changeProbability = 0.0;
+  options.monotoneDirections = dir.data();
+  options.interactionMaxOrder = 2;
+  options.interactionForbiddenPairs = forbiddenPair;
+  options.interactionNumForbiddenPairs = 1;
+
+  Sampler<MonotoneConstantGaussianLeaf> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+    3.0, 0.37804942330213542, options, &rng);
+  Results empty;
+  sampler.run(150, 100, empty);
+
+  // rebuild every live tree and gate it against BOTH seams simultaneously
+  SamplerStateData state;
+  sampler.getState(state);
+  ColumnStore store;
+  store.build(x.data(), n, p, 100);
+  InteractionConstraint constraint;
+  constraint.build(p, 2, forbiddenPair, 1);
+  std::vector<index_t> idx(n);
+  std::vector<double> params;
+  Tree scratch;
+  bool interactionOk = true, monotoneOk = true;
+  for (const std::vector<FlatNode>& flat : state.chains[0].forests[0].trees) {
+    scratch.initialize(idx.data(), n);
+    scratch.setInteractionConstraint(&constraint);
+    if (!scratch.buildFromFlat(store, flat.data(), flat.size(), params)) continue;
+    if (!scratch.interactionSubtreeIsValid(0)) interactionOk = false;
+    if (!monotoneTreeIsFeasible(scratch, store, dir.data(), params.data()))
+      monotoneOk = false;
+  }
+  scratch.setInteractionConstraint(nullptr);
+  check(interactionOk,
+        "monotone + interactions: every drawn tree honors the interaction cap");
+  check(monotoneOk,
+        "monotone + interactions: every drawn tree honors the monotone geometry");
+
+  ext_rng_destroy(rng);
+  rngState = savedRngState;
+  printf("ok: monotone and interactions coexist\n");
+}
+
 // (c) The 1-D and 2-D constrained marginals match an independent quadrature,
 // and the coupled draw has support {a <= mu_lower <= mu_upper <= b}.
 static void testMonotoneMarginal() {
@@ -5389,6 +5463,7 @@ void runModelTests(ext_rng* rng) {
   testSparseTestDataEndToEnd();
   testMonotoneNeighborGeometry();
   testMonotoneFeasibility();
+  testMonotoneInteractionCoexistence();
   testMonotoneMarginal();
   testMonotoneCInflation();
   // the heteroscedastic end-to-end fits build full chains; they run last so
