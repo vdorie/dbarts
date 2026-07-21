@@ -386,3 +386,28 @@ the ORIGINAL ones (a memory system that scales with cores for this footprint, or
 n >> 1e6 routine single-chain), NOT the storage reductions. Blocked-jacobi
 (the exact noise-split kernel) remains separately unevaluated on its ESS/sec
 merits (section 7), unaffected by this.
+
+## 10. Revival candidate: the memory-scaling precondition is MET on Apple Silicon (2026-07-21)
+The section-8 NO-GO was measured ONLY on the x86 bench box (Ryzen 3700X, dual-channel
+DDR4, split L3 across CCXs) - a bandwidth-bound, cross-CCX-penalized machine. Section
+8 named the revival precondition precisely: "hardware whose memory system actually
+scales with cores - large unified LLC, materially higher bandwidth per core." That is
+Apple Silicon, and it was NEVER RE-TESTED there. A representative microbench (spin
+barrier, m=200 friedman, gather+scatter field kernels; bj-wallclock-probe.cpp in job
+b073bb28) run ON M1 shows straight within-chain threading (data-parallel gather with a
+per-worker bucket reduction + data-parallel scatter, EXACT/bitwise) SCALES:
+    n=1e5:  T=2 1.48x  T=4 2.25x  T=8 3.04x
+    n=1e6:  T=2 1.19x  T=4 2.02x  T=8 3.08x
+i.e. ~3x ESS/sec at 8T on M1 (exact, so wall-clock IS ESS/sec - no tax), versus the
+0.91x LOSS on the Ryzen. It also BEATS blocked-jacobi head-to-head on the same M1
+(blocked 1.56-1.62x ESS/sec at 8T - see blocked-jacobi-trees.md), because straight is
+exact and adds no noise-split RNG/scratch traffic. The revival is a MICROBENCH result
+(representative kernels, not the real engine); the section-7 protocol still governs.
+NEXT: build the archived prototype (this branch: chain.hpp + wcpool.hpp, +306 lines)
+on M1, run bench-sampler at n.threads in {1,4,8} on a QUIET Mac (n in {1e5,1e6},
+single chain), confirm ~2-3x, and re-check the correctness gate (byte-identical across
+thread count). A spin barrier (wcpool-spin.hpp) beat std::barrier even on M1 in the
+probe and should be part of the revival substrate. If confirmed on the real engine,
+this is a simpler, exact single-chain speedup than blocked-jacobi for the growing
+Apple-Silicon user base and the embedded-Gibbs use case; x86 stays a NO-GO
+(bandwidth) until a machine with real per-core bandwidth scaling.
