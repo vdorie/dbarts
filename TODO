@@ -188,12 +188,6 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     engine behavior spot-checked, dbartsSampler-class.Rd documents the
     default, NEWS 1.0-0 UPGRADING carries the bullet. Point the
     reporter at the Rd and NEWS entries.
-  write cran-comments.md at submission time. Content it needs: major
-    release, engine rewritten, seeded results change; the C++ interface
-    is removed and dbarts.h replaces it, so stan4bart 0.0-12 cannot
-    build against 1.0-0 and 0.0-13 is submitted alongside (same
-    maintainer); revdep summary as above; test environments; goal
-    0 errors / 0 warnings / 0 notes.
   stan4bart adopted categorical splits 2026-07-16 (its 0.0-14 branch;
     docs/plans/factors-categorical.md there) - no lockstep follow-up
     remains on that front.
