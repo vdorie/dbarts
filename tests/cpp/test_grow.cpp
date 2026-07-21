@@ -272,6 +272,62 @@ void testGrowThenContinue(ext_rng* rng) {
   printf("ok: grow then continue\n");
 }
 
+// grow-from-root is a FIFTH split generator (design "Containment"); it routes
+// availability through collectAvailableVariables, so it is correct-by-
+// construction ONCE the predicate carries the constraint - but that must be
+// named and tested. Under a max-order cap + a forbidden pair, every grown tree
+// must satisfy the whole-subtree feasibility walk and honor the order cap.
+void testGrowHonorsInteraction() {
+  // a private generator and a saved global-rng snapshot keep the shared stream
+  // (and the seed-pinned suites that follow) bitwise intact
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 4242);
+  std::uint64_t savedRngState = rngState;
+  rngState = 271828u;
+  const size_t n = 400, p = 4;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = 0; j < p; ++j)
+      x[i + j * n] = static_cast<double>((i * (2 * j + 1) + j) % 13) / 13.0;
+    // a multi-way signal so the free grow would reach for several variables
+    y[i] = (x[i] > 0.5 ? 1.0 : -1.0) + (x[i + n] > 0.5 ? 0.7 : -0.7) +
+           (x[i + 2 * n] > 0.5 ? 0.5 : -0.5) + 0.1 * (runif01() - 0.5);
+  }
+  ColumnStore store;
+  store.build(x.data(), n, p, 12);
+
+  size_t forbiddenPair[] = {0, 1};       // x0 and x1 may not co-occur
+  InteractionConstraint constraint;
+  constraint.build(p, 2, forbiddenPair, 1);  // max.order 2 AND forbid(x0, x1)
+
+  CGMTreePrior prior;
+  prior.base = 0.95;
+  prior.power = 1.5;  // encourage deeper trees so the cap actually bites
+  ConstantGaussianLeaf leaf{0.5};
+
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  bool allFeasible = true, everSplit = false, everDeep = false;
+  for (int iter = 0; iter < 400; ++iter) {
+    tree.initialize(indexBuffer.data(), n);
+    tree.setInteractionConstraint(&constraint);
+    tree.computeLeafStats(0, y.data(), nullptr);
+    GrowScratch scratch;
+    growTreeFromRoot(store, prior, leaf, rng, tree, 0, y.data(), nullptr, 2.0,
+                     0.5, scratch);
+    allFeasible &= tree.interactionSubtreeIsValid(0);
+    everSplit |= !tree.at(0).isBottom();
+    if (tree.nodes.size() > 3) everDeep = true;
+  }
+  tree.setInteractionConstraint(nullptr);
+  check(allFeasible, "grow-from-root: every grown tree is interaction-feasible");
+  check(everSplit && everDeep,
+        "grow-from-root: the constrained grow still builds non-trivial trees");
+  ext_rng_destroy(rng);
+  rngState = savedRngState;
+  printf("ok: grow-from-root honors the interaction predicate\n");
+}
+
 }  // namespace
 
 void runGrowTests(ext_rng* rng) {
@@ -280,4 +336,5 @@ void runGrowTests(ext_rng* rng) {
   testGrownTreeWellFormed();
   testCategoricalNeverSplit();
   testGrowThenContinue(rng);
+  testGrowHonorsInteraction();
 }
