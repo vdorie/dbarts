@@ -319,7 +319,15 @@ fp32-ing the streaming scratch adds conversion overhead with no gather benefit -
 neutral-to-regressive. The gather (treeY, v1) carries the entire win. DO NOT build
 v2 unless a re-profile at n>>1e6 shows a streaming pass that is both DRAM-bound AND
 a large sweep share. leafOf uint16 (the deferred PRESERVING Track-1 follow-on)
-remains the only other live lever, and it is small.
+is DECLINED 2026-07-20: leafOf is only a minor input to the STREAMING roll
+(dominated by the treeY read/write it sits beside, and the re-profile puts roll
+at ~30% with treeY the bulk of it), so the speed gain is negligible; and it
+cannot be done safely without a GLOBAL-REFUSE guard that makes the sampler ERROR
+if any tree ever exceeds 65535 nodes (a uniform vector<uint16> cannot host a
+per-tree fallback) - a surprising new failure mode for deep-tree priors, not
+worth ~400MB. Reopen only if a concrete memory-constrained large-n user needs
+the last halving AND accepts the node cap. No other live storage lever remains;
+the arc is complete.
 
 ## 6f. Post-landing re-profile + multi-chain scaling (2026-07-20) - and why no ruled-out lever revives
 
