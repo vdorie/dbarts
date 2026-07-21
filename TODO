@@ -20,9 +20,13 @@ items
     augmentation (per-tree pseudo-responses y_k ~ N(g_k, sigma^2/b),
     sum-constrained): b trees update independently per barrier at the
     cost of b-fold precision on structure moves. The single-chain
-    parallelism candidate; an ESS-per-second experiment decides
-    (protocol and the memory-wall bound:
-    docs/design/within-chain-threading.md). low-ranked.
+    parallelism candidate; an ESS-per-second experiment decides.
+    GREENLIT to try 2026-07-20. Falsify-first plan (Phase 0 serial
+    exactness + ESS/sweep tax, then Phase 1 parallel ESS/sec):
+    docs/plans/blocked-jacobi-trees.md; mechanism in
+    docs/design/parallel-bart-frontier.md sec 3.5; ESS/sec protocol +
+    reusable wcpool substrate (origin/archive/within-chain-threading) in
+    docs/design/within-chain-threading.md sec 7-9.
   forest-ranef-interweaving: RESEARCHED, NO-GO now (recorded door;
     docs/design/forest-ranef-interweaving.md, blind critique SOUND WITH
     CAVEATS). The weak-signal/small-K grouped-mixing bottleneck is
