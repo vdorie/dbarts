@@ -4902,6 +4902,11 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
       Rf_error("warm-start donor holds a tree that violates this sampler's "
                "interaction constraint; the donor's fit is incompatible with "
                "the interactions() prior in force here");
+    case bartcore::WarmStartResult::columnMaskMismatch:
+      Rf_error("warm-start donor holds a tree that splits on a variable outside "
+               "this forest's allowed column set; the donor's fit is "
+               "incompatible with the column restriction (BCF moderators or a "
+               "restricted variance forest) in force here");
     case bartcore::WarmStartResult::shapeMismatch:
       Rf_error("warm-start donor is not shape-compatible with this sampler "
                "(number of trees, forests, or predictors differ)");

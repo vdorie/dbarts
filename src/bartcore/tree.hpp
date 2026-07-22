@@ -473,6 +473,18 @@ public:
     return interactionSubtreeWalk(subtreeRoot, interactionWalkScratch_.data());
   }
 
+  /// Whole-subtree column-mask feasibility: reject if ANY decision node in the
+  /// subtree rooted at subtreeRoot splits on a variable this tree's column mask
+  /// forbids. Unlike interactionSubtreeIsValid the test is per-node independent
+  /// - no ancestor set, no order - so a flat scan of the decision nodes decides
+  /// it. Trivially true for an unrestricted tree (columnMask_ null short-circuit),
+  /// so the default availability path is byte-for-byte unchanged and a warm start
+  /// may call it unconditionally.
+  bool columnMaskSubtreeIsValid(int32_t subtreeRoot) const {
+    if (columnMask_ == nullptr) return true;
+    return columnMaskSubtreeWalk(subtreeRoot);
+  }
+
   bool variableAvailable(const ColumnStore& data, int32_t nodeIndex,
                          int32_t variableIndex) const {
     if (!columnAllowed(static_cast<size_t>(variableIndex))) return false;
@@ -1617,6 +1629,18 @@ private:
               interactionSubtreeWalk(node.leftChild + 1, ancestors);
     if (!wasSet) maskClearBit(ancestors, j);
     return ok;
+  }
+
+  /// DFS of columnMaskSubtreeIsValid: a decision node fails when its split
+  /// variable lies outside the tree's column mask; leaves always pass. No
+  /// ancestor bookkeeping - each node is judged on its own variable alone.
+  bool columnMaskSubtreeWalk(int32_t nodeIndex) const {
+    const Node& node(at(nodeIndex));
+    if (node.isBottom()) return true;
+    if (!columnAllowed(static_cast<size_t>(node.rule.variableIndex)))
+      return false;
+    return columnMaskSubtreeWalk(node.leftChild) &&
+           columnMaskSubtreeWalk(node.leftChild + 1);
   }
 };
 

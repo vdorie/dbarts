@@ -2054,9 +2054,12 @@ public:
       }
       for (size_t t = 0; t < forest.numTrees; ++t) {
         scratch.initialize(scratchIndices.data(), n);
-        // carry this forest's interaction constraint (null when unconstrained,
-        // so the walk short-circuits and the default path is unchanged)
+        // carry this forest's interaction constraint and column mask (both null
+        // when unrestricted, so the walks short-circuit and the default path is
+        // unchanged)
         scratch.setInteractionConstraint(forest.interaction.get());
+        scratch.setColumnMask(forest.columnMask.empty()
+                                ? nullptr : forest.columnMask.data());
         const std::uint64_t* masks =
           fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
         size_t numMaskWords =
@@ -2072,6 +2075,11 @@ public:
         // checking, so treeLogProbability would mis-score a donor grown
         // unconstrained. Trivially passes for an unconstrained forest.
         if (!scratch.interactionSubtreeIsValid(0)) return false;
+        // the same containment reasoning for the split-variable restriction (BCF
+        // moderators, a column-restricted variance forest): a donor splitting on
+        // a forbidden column would be mis-scored against an availability menu
+        // that excludes it. Trivially passes for an unrestricted forest.
+        if (!scratch.columnMaskSubtreeIsValid(0)) return false;
       }
     }
     if (!state.latents.empty() &&
@@ -2159,6 +2167,46 @@ public:
     return true;
   }
 
+  /// Whether every live tree in `state` respects its forest's column mask - the
+  /// warm-start containment gate for the split-variable restriction (BCF
+  /// moderators, a column-restricted variance forest): a donor grown under a
+  /// different (or no) restriction may hold a tree that splits on a column this
+  /// sampler's forest forbids, which splitVariableLogProbability would mis-score
+  /// against an availability menu (collectAvailableVariables) that excludes it.
+  /// installForests calls this before touching live state so it can report a
+  /// clear refusal; setState reaches the same guarantee through stateIsValid.
+  /// Trivially true for an unrestricted forest, so the default warm start is
+  /// byte-for-byte unchanged. Mirrors interactionStateFeasible's scratch build
+  /// (paramStride 1: only the rule structure, not leaf params, is examined).
+  bool columnMaskStateFeasible(const ChainStateData& state) const {
+    if (state.forests.size() != forests_.size()) return true;  // shape gate elsewhere
+    size_t n = data_.numObservations;
+    Tree scratch;
+    std::vector<index_t> scratchIndices(n);
+    std::vector<double> params;
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      const Forest<L, ResidT>& forest = forests_[f];
+      if (forest.columnMask.empty()) continue;  // unrestricted: nothing to check
+      const ForestStateData& fs = state.forests[f];
+      if (fs.trees.size() != forest.numTrees) return true;  // shape gate elsewhere
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        scratch.initialize(scratchIndices.data(), n);
+        scratch.setColumnMask(forest.columnMask.data());
+        const std::uint64_t* masks =
+          fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
+        size_t numMaskWords =
+          fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
+        // a malformed tree is the caller's shape concern (installForest fails
+        // it); here we only judge the column feasibility of a buildable one
+        if (!scratch.buildFromFlat(data_, fs.trees[t].data(), fs.trees[t].size(),
+                                   params, 1, nullptr, masks, numMaskWords))
+          continue;
+        if (!scratch.columnMaskSubtreeIsValid(0)) return false;
+      }
+    }
+    return true;
+  }
+
   /// Rebuilds forest f's live trees, partitions, and fits from a flat state's
   /// live channel against the current cut grid, zeroing and re-accumulating
   /// totalFits. False if a flat tree fails to rebuild. Shared by setState and
@@ -2189,11 +2237,13 @@ public:
       }
       forest.trees[t].repartitionSubtree(data_, 0);
       // containment backstop (design): the live tree carries this forest's
-      // constraint, so a warm-start donor grown unconstrained is caught before
-      // treeLogProbability can mis-score it. installForests pre-checks for the
-      // clear error; this guarantees the invariant on any live-install path.
-      // Trivially passes for an unconstrained forest (null short-circuit).
+      // constraint and column mask, so a warm-start donor grown unconstrained is
+      // caught before treeLogProbability can mis-score it. installForests
+      // pre-checks for the clear error; this guarantees the invariant on any
+      // live-install path. Trivially passes for an unrestricted forest (null
+      // short-circuit).
       if (!forest.trees[t].interactionSubtreeIsValid(0)) return false;
+      if (!forest.trees[t].columnMaskSubtreeIsValid(0)) return false;
       if constexpr (L::hasFunctionParams) {
         // the recorded slab IS the tree's parameters; copy restores bitwise
         std::memcpy(forest.treeFits.data() + t * n, fs.treeParams[t].data(),

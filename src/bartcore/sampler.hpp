@@ -69,7 +69,8 @@ struct SamplerStateData {
 /// Why a warm start (installForests) refused; ok on success. A single donor
 /// forest can seed several chains, so the donor's chain count need not match.
 enum class WarmStartResult {
-  ok, shapeMismatch, gridMismatch, dartMismatch, interactionMismatch
+  ok, shapeMismatch, gridMismatch, dartMismatch, interactionMismatch,
+  columnMaskMismatch
 };
 
 /// A sequential per-observation predictor update: stage one observation's
@@ -716,6 +717,15 @@ public:
     for (size_t c = 0; c < chains_.size(); ++c)
       if (!chains_[c]->interactionStateFeasible(install[c]))
         return WarmStartResult::interactionMismatch;
+
+    // containment for the split-variable restriction (BCF moderators, a
+    // column-restricted variance forest): a donor whose forest splits on a
+    // column this sampler's mask forbids would be mis-scored by
+    // splitVariableLogProbability against an availability menu that excludes it;
+    // refuse before touching live state. A no-op when no forest is restricted.
+    for (size_t c = 0; c < chains_.size(); ++c)
+      if (!chains_[c]->columnMaskStateFeasible(install[c]))
+        return WarmStartResult::columnMaskMismatch;
 
     for (size_t c = 0; c < chains_.size(); ++c)
       if (!chains_[c]->installForest(install[c]))

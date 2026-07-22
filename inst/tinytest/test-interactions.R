@@ -187,3 +187,30 @@ muTrees <- dbarts:::bartcoreGetTrees(
 )
 expect_equal(worstOrder(tauTrees), 1L) # tau forest honors max.order = 1
 expect_true(worstOrder(muTrees) >= 2L) # mu forest is unrestricted and uses more
+
+# ---- warm-start refusal: a BCF donor whose treatment forest splits on a non-
+#      moderator cannot seed a target whose moderators forbid that column (F1) ---
+# The tau signal above forces splits on both x1 and x2, so an unrestricted donor
+# tau splits on x2; a target restricting tau to x1 must refuse the transplant (a
+# moderator forest would otherwise silently score an out-of-mask split).
+donorSampler <- dbarts(xb, yb, control = control)
+donorBC <- dbarts:::bartcoreBCFSampler(donorSampler, z, n.trees.treatment = 30L)
+invisible(dbarts:::bartcoreRun(donorBC, 150L, 0L))
+donorState <- dbarts:::bartcoreStoreState(donorBC)
+
+targetSampler <- dbarts(xb, yb, control = control)
+targetBC <- dbarts:::bartcoreBCFSampler(
+  targetSampler,
+  z,
+  n.trees.treatment = 30L,
+  moderators = 1L
+)
+expect_error(
+  .Call(
+    dbarts:::C_dbarts_bartcore_installForests,
+    targetBC$ptr,
+    donorState,
+    NULL
+  ),
+  "column restriction"
+)
