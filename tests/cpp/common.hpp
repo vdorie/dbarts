@@ -28,6 +28,17 @@
 
 using namespace bartcore;
 
+// A bare-Tree probe feeds its index_t buffer straight into the misc.a suffstat
+// kernels, which take misc_index_t*. If the two widths ever diverge, a probe
+// that declares its indices as the wider type silently mis-strides the array
+// and returns garbage (observed once with a size_t index buffer on small n).
+// Guard the invariant here. Related gotcha for any new bare-kernel probe: call
+// misc_simd_init() first (main.cpp does at startup) - misc_partition* are null
+// function pointers until then.
+static_assert(sizeof(index_t) == sizeof(misc_index_t),
+              "tests/cpp index buffers feed the misc.a kernels; index_t and "
+              "misc_index_t must be the same width");
+
 // Structural round-trip gate for the state tests. With bitwise continuation
 // dropped, a restored sampler must reconstruct the model - trees, leaf
 // parameters, saved trees, latents, dart, rng - exactly, sigma to within the
