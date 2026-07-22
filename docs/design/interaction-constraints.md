@@ -6,7 +6,10 @@ three-lens research panel (user-value, engine-feasibility, prior-art) and
 hardened by an adversarial code-verified critique (SOUND-WITH-CAVEATS); the
 two must-fix findings - the cross-variable swap walk and the state-install
 containment gate - were folded in and both shipped. Plan:
-docs/plans/interaction-constraints.md.
+docs/plans/interaction-constraints.md. P4 follow-on (variant A / blocks(),
+the columnMask warm-start bug fix) LANDED aadbbc8/103dbe2/073d3db
+(2026-07-21); see "P4 landing" below and plan
+docs/plans/interaction-constraints-p4.md.
 
 ## The capability
 
@@ -199,3 +202,94 @@ the headline is max-order / causal additivity / deny, that is B and the real
 build. Recommendation: B is the differentiated, most-requested capability, so
 target B - but if a concrete grouped-module consumer exists, A is a
 low-risk down-payment that shares the R surface.
+
+## P4 landing (2026-07-21)
+
+VD reviewed a design memo and an adversarial critique (both grounded in this
+worktree; not checked in - referenced by the plan) and directed building all
+three P4 deliverables, overriding the critique's recommendation to defer the
+consumerless engine. Plan: docs/plans/interaction-constraints-p4.md.
+
+Variant A landed as blocks(groups, trees.per.group) (commit aadbbc8),
+confining each WHOLE tree to one declared group via a static per-tree column
+mask (Forest::blockMasks / blockOfTree, installed in chain.hpp's
+installBlockMasks) - a fixed, deterministic, zero-RNG tree->group
+assignment, distinct from the ADAPTIVE per-path allow-list
+interactions(groups=) already gives (see "Two distinct deliverables" A
+above, and the confirmed idiom below). The partition contract is
+REQUIRE-TOTAL: unlike interactions(groups=), which leaves an un-named
+predictor unconstrained, a static mask would silently kill an un-named
+predictor (masked out of every tree), so resolveBlocks errors on an
+un-named predictor, an overlapping name, or a trees.per.group that is the
+wrong length, non-positive, or does not sum to n.trees. Applied per forest
+(mu.blocks/tau.blocks on the BCF sampler). F3 (the critique's must-fix):
+columnMask_ is one pointer per tree and a BCF tau forest's moderator
+restriction already owns it, so a tau.blocks row is INTERSECTED with the
+existing moderator mask at install rather than overwriting it - tau.blocks
+therefore partitions exactly the moderator set, not the full predictor set
+(naming a non-moderator errors).
+
+F1 (columnMaskStateFeasible, commit 103dbe2, follow-up 073d3db): the
+EXISTING columnMask (BCF moderators, a column-restricted variance forest)
+had no warm-start/setState containment gate - buildFromFlatBelow validates
+cut/mask gauge, not columnAllowed - so a donor tree splitting outside the
+mask installed silently, and splitVariableLogProbability then mis-scored it
+against an availability menu that excluded the very column it used (for
+BCF, a corrupted causal decomposition). installForests and stateIsValid now
+refuse such a donor before touching any live state (a columnMaskMismatch
+warm-start result); the same scan covers blocks()'s blockMasks for free,
+since a blocks() forest's effective per-tree mask (its block row,
+intersected with any base moderator/variance mask) routes through the
+identical check.
+
+Idiom confirmed and documented (man/interactions.Rd): interactions(groups =
+<a disjoint TOTAL partition of all predictors>) already yields ADAPTIVE
+block-additivity - the root's group propagates down every path via
+interactionAllows, so f = sum_G f_G holds at every MCMC state, with each
+tree's group chosen per sweep rather than fixed. blocks() adds only (a) a
+FIXED per-group tree budget and (b) a static, ancestor-independent mask (a
+micro-perf save and a stronger "each tree lives in one block forever"
+guarantee) - real but narrow value over the free adaptive idiom, built
+because VD wanted the fixed-capacity guarantee, not because the adaptive
+path was insufficient.
+
+Doors 2 and 3 ("Cost, phasing, deferred" above) are recorded as SHARPENED
+DEFER, per the critique:
+
+- Soft path-dependent penalties DEFER: the hard ban is exact because the
+  forbidden variable is simply ABSENT from collectAvailableVariables, so the
+  forward draw and the reverse density share a normalizer and cancel
+  (pi(T') = 0, the same -1.0 no-op cut-exhaustion already uses). A soft
+  penalty keeps the variable in the proposal support, breaking that
+  cancellation - change/swap would have to compute and carry a real
+  penalized-prior ratio, with swap's no-selection-density problem in play
+  again. Worse, it entangles DART: forest.treePrior.splitProbabilities IS
+  forest.dart.probabilities, and dart.update redraws that Dirichlet from raw
+  post-move split counts, so a penalty would bias the very counts the
+  update targets - the two mechanisms would fight over one selection
+  density. A path-INDEPENDENT penalty is already expressible as a DART/fixed
+  weight with no new door; it is specifically the path-DEPENDENT case that
+  cannot fold into DART's ancestor-independent count statistic, so no clean
+  factorization rescues it.
+- Formal heredity DEFER: a BART "main effect" is an emergent marginal of the
+  whole ensemble sum (integrating out the other predictors), not a node, a
+  path, or a per-tree property; interactionAllows sees only the current
+  path's ancestor set, and trees are swept independently (one at a time,
+  chain.hpp), so the per-node predicate has no access to the cross-tree
+  marginal heredity conditions on - a category mismatch, not an
+  implementation gap. A real fix needs a global lattice prior over the
+  variable-subset inclusion lattice, coupling every tree and breaking the
+  conditional independence per-tree backfitting relies on - effectively a
+  different sampler (new global state, prior, moves, exactness gate), with
+  severe mixing risk. The two-stage protocol - fit max.order = 1, then
+  groups/max.order = 2 (or a BCF mu-additive/tau-restricted split) on the
+  screened set - already delivers the practical content of heredity with
+  ZERO new engine, and is the recommended substitute.
+
+Gates re-run at landing: default-off equivalence trio BITWISE (27/27 + bcf +
+multinomial, no re-record - blocks() only perturbs the stream when active);
+tests/cpp incl. block-additive confinement, ASAN clean; full tinytest incl.
+the expanded inst/tinytest/test-blocks.R (block-additivity invariant with
+the C3 empty-tree special case, fixed per-block tree counts, same-seed
+reproducibility, monotone coexistence, and a warm-start refusal that also
+checks the target sampler stays usable afterward).

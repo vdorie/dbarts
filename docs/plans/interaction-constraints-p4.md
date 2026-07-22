@@ -10,16 +10,13 @@ budget: F1 ~60-100 LOC; variant A ~150-220 engine + R + tests (~450-600 total).
 
 ## Goal (three deliverables from the P4 review)
 
-1. F1 (bug fix, independent): a columnMaskStateFeasible warm-start / setState
-   gate for the EXISTING columnMask (BCF moderators + restricted variance
-   forest). Reachable via $installTrees across BCF fits with different
-   moderators, and cross-sampler $setState: installs a tree splitting on a
-   masked column -> splitVariableLogProbability mis-scores over a menu that
-   excludes it -> silent wrong posterior (for BCF, a corrupted causal decomp).
+1. F1 (bug fix, independent): a columnMaskStateFeasible warm-start/setState
+   gate for the EXISTING columnMask (BCF moderators + variance forest).
+   Reachable via $installTrees/$setState across configs; an out-of-mask tree
+   otherwise mis-scores silently (for BCF, a corrupted causal decomp).
 2. Variant A (engine): blocks(groups, trees.per.group) per-tree block-additive
-   f = sum_G f_G via the static per-tree columnMask; per-forest (mu.blocks /
-   tau.blocks). Adds FIXED per-group tree capacity + a "each tree in one block
-   forever" guarantee over the already-adaptive interactions(groups=<partition>).
+   f = sum_G f_G via a static per-tree columnMask, per-forest (mu.blocks /
+   tau.blocks); FIXED per-group capacity over the adaptive interactions(groups=).
 3. Idiom docs: interactions(groups=<disjoint total partition>) already yields
    ADAPTIVE block-additivity; document it, cross-reference blocks().
 
@@ -27,23 +24,20 @@ DEFER (sharpened doors): soft path-dependent penalties, formal heredity.
 
 ## Decision (RESOLVED, VD 2026-07-21)
 
-Build all three. VD chose to build the engine over the critique's
-defer-the-consumerless-engine call; the no-fixed-capacity-consumer caveat is
-noted, overridden.
+Build all three, overriding the critique's defer-the-consumerless-engine
+call; the no-fixed-capacity-consumer caveat is noted.
 
 ## Context (read in code first)
 
-- Static mask: setColumnMask / columnMask_ / columnAllowed (tree.hpp);
-  columnAllowed already gates variableAvailable AND collectAvailableVariables.
-  Installed per-tree in the single-forest ctor and buildBCFForest (chain.hpp).
-- Warm-start containment: interactionStateFeasible / stateIsValid /
-  rebuildLiveForest (chain.hpp), installForests (sampler.hpp) check interaction_
-  but NOT columnAllowed; buildFromFlatBelow (tree.hpp) validates gauge, not mask.
+- Static mask: setColumnMask / columnMask_ / columnAllowed (tree.hpp) already
+  gates variableAvailable / collectAvailableVariables; installed per-tree in
+  the single-forest ctor and buildBCFForest (chain.hpp).
+- Warm-start containment: interactionStateFeasible / stateIsValid (chain.hpp)
+  checked interaction_ but not columnAllowed; buildFromFlatBelow (tree.hpp)
+  validates gauge, not mask.
 - Forest-move safety: blockMasks / blockOfTree are POD vector members (heap
-  data() survives a move) - NOT unique_ptr; the interaction_ UAF (04ca425) was a
+  data() survives a move), NOT unique_ptr - interaction_'s UAF (04ca425) was a
   borrowed OBJECT address, a vector buffer is not.
-- R precedents: resolveInteractions, resolveColumns (dummy expansion via
-  startsWith), the mu/tau split (R/bartcore.R), parsePriors, model attributes.
 
 ## Refinements from the critique (MUST fold in)
 
@@ -51,36 +45,36 @@ noted, overridden.
   it for moderators. blocks() ANDs the block row with any existing columnMask
   (group INTERSECT moderators / variance cols) - never overwrite. Effective
   per-tree mask = block-row & base-columnMask.
-- C1/C2: blocks() REQUIRES a disjoint partition (validated at fit time, factor
-  dummies expanded); un-named predictors default to singleton blocks (additive
-  main effect) so no variable goes dead.
+- C1/C2: blocks() REQUIRES a TOTAL, disjoint partition, validated at fit time
+  (factor dummies expanded). Unlike interactions(groups=)'s per-path allow-list
+  (un-named = free), a static per-tree MASK makes an un-named predictor DEAD
+  (masked out of every tree), so blocks() ERRORS on un-named predictors AND on
+  overlap - the coherent contract for a fixed-capacity partition.
 - C3: the block-additivity invariant test special-cases a never-split tree
   (empty variable set = subset of all blocks; the intercept).
 
-## Steps (SERIALIZED; orchestrator gates + commits between)
+## Steps (landed; see Landing)
 
-1. F1 gate (Opus): columnMaskStateFeasible (O(nodes) columnAllowed scan,
-   mirror interactionStateFeasible) into installForests + stateIsValid, over the
-   shipped columnMask. tests/cpp regression (mask-violating install -> refused)
-   + R warm-start-refusal test (mirror interactionMismatch).
-2. Variant A engine + bridge + R (Opus): blocks() + resolveBlocks (disjoint
-   validation, dummy expansion, even default capacity, deterministic contiguous
-   NO-RNG assignment); bridge into SamplerOptions / BCFForestSpec (NO dbarts.h
-   change); Forest blockMasks (G*p) + blockOfTree; chain.hpp install at both
-   sites with the F3 intersection; the F1 gate now covers block masks.
-3. Docs + gates (Sonnet): blocks() Rd + NAMESPACE + _pkgdown.yml;
-   interactions.Rd idiom cross-ref; NEWS; block-additivity invariant test
-   (C3-aware, reuse test-interactions.R helpers) + reproducibility snapshot +
-   monotone coexistence; update docs/design P4 + this Landing.
+1. F1 gate (Opus): columnMaskStateFeasible in installForests + stateIsValid.
+2. Variant A engine (Opus): blocks()/resolveBlocks, Forest blockMasks /
+   blockOfTree, chain.hpp install with the F3 intersection.
+3. Docs + gates (Sonnet): Rd, NEWS, test-blocks.R, docs/design P4 landing.
 
 ## Verification (orchestrator re-runs independently before push)
 
-Default-off equivalence trio BITWISE (27/27 + bcf + multinomial, NO re-record);
-tests/cpp cross-ISA from make clean; full tinytest; block-additivity invariant;
-warm-start refusal (F1 + blocks); monotone coexistence; ASAN tests/cpp + watch
-the CI sanitizer to green (F1 is R-reachable BCF, the 04ca425 class); air format
---check; full R CMD check (codoc: blocks() \usage).
+Default-off equivalence trio BITWISE (no re-record); tests/cpp + ASAN clean;
+full tinytest incl. the expanded test-blocks.R; air format --check; R CMD
+check (codoc: blocks() usage).
 
 ## Landing
 
-(to fill)
+blocks(groups, trees.per.group) LANDED aadbbc8 (2026-07-21); F1
+(columnMaskStateFeasible warm-start/setState gate) LANDED 103dbe2, follow-up
+073d3db. Full narrative, the F3 tau-moderator intersection, the C1/C2
+total-partition contract, and doors 2/3 as sharpened DEFER:
+docs/design/interaction-constraints.md "P4 landing".
+
+Gates: equivalence trio bitwise (no re-record); tests/cpp incl.
+testBlockAdditiveConfinement, ASAN clean; full tinytest incl. test-blocks.R
+(C3, fixed capacity, reproducibility, monotone, warm-start refusal); air
+format clean; R CMD check 0/0/0 incl. check_pkgdown.
