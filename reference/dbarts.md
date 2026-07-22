@@ -16,6 +16,7 @@ dbarts(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     monotone = NULL,
     interactions = NULL,
+    blocks = NULL,
     variance = NULL, n.trees.variance = 40L,
     power.variance = NULL, base.variance = NULL,
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
@@ -224,6 +225,24 @@ dbarts(
   an empty group, a `max.order` below 1, or a reference to a dropped
   column is an error. `NULL` (the default) fits the ordinary
   unconstrained model.
+
+- blocks:
+
+  Optional block-additive constraint, built with
+  [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md):
+  `blocks(groups = list(c("a", "b"), "c"))` confines each whole tree to
+  one declared group of predictors, so the ensemble is exactly a sum of
+  per-group functions (a functional-ANOVA / grouped-GAMI decomposition).
+  Unlike `interactions(groups = )`, which is a per-path allow-list, this
+  is a static per-tree mask, so the groups must form a total, disjoint
+  partition of the predictors - every predictor named exactly once.
+  `trees.per.group` optionally fixes how many trees each group gets;
+  otherwise the trees are spread as evenly as possible. Validated at fit
+  time (an unpartitioned or doubly-named predictor, or a
+  `trees.per.group` that does not sum to `n.trees`, is an error). `NULL`
+  (the default) fits the ordinary model. May be combined with
+  `interactions`. See
+  [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md).
 
 - variance:
 

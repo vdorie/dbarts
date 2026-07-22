@@ -55,6 +55,7 @@ bart2(
     proposal.probs = NULL,
     monotone = NULL,
     interactions = NULL,
+    blocks = NULL,
     variance = NULL,
     n.trees.variance = 40L,
     power.variance = NULL,
@@ -443,6 +444,18 @@ summary(object, ...)
   distinct predictors per root-to-leaf path, confine interactions to
   declared groups, and/or forbid named predictors from co-occurring.
   `NULL` (the default) fits the unconstrained model.
+
+- blocks:
+
+  Optional block-additive constraint, passed through to
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md); see
+  its `blocks` argument and
+  [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md). Built
+  with `blocks(groups = , trees.per.group = )`: confine each whole tree
+  to one declared group of predictors so the ensemble is exactly a sum
+  of per-group functions. The groups must form a total, disjoint
+  partition of the predictors, validated at fit time. `NULL` (the
+  default) fits the ordinary model.
 
 - variance, n.trees.variance, power.variance, base.variance:
 
@@ -1275,7 +1288,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.223244
+#> total seconds in loop: 0.222621
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1341,7 +1354,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001368
+#> total seconds in loop: 0.001430
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

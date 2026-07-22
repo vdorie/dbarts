@@ -135,6 +135,8 @@ weights can change between draws, for use inside larger MCMC schemes.
   : Prior Specification Constructors
 - [`interactions()`](https://vdorie.github.io/dbarts/reference/interactions.md)
   : Interaction Constraints for BART
+- [`blocks()`](https://vdorie.github.io/dbarts/reference/blocks.md) :
+  Block-Additive Constraints for BART
 - [`extract(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/extract.dbartsSampler.md)
   : Extract the Predictor Matrix From a Sampler
 - [`samplePriorPredictive()`](https://vdorie.github.io/dbarts/reference/samplePriorPredictive.md)
