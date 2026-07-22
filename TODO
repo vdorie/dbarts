@@ -48,6 +48,30 @@ items
     kernel microbench. Reopen only for a concrete embedded-Gibbs consumer on
     high-bandwidth hardware, or if a fused no-scratch kernel is measured to
     clear the bar on x86 first.
+  correlated-outcomes: richer error/outcome covariance around a BART mean,
+    delivered via the outer-sampler composition (stan4bart = WALNUTS + dbarts,
+    dbarts the conditional mean; the same pattern bairrtt uses). Two motivating
+    forms, both causal: (a) AR-1 / serially-correlated errors for longitudinal,
+    panel, interrupted-time-series, and difference-in-differences designs (the
+    Bertrand-Duflo-Mullainathan serial-correlation problem gives wrong effect
+    SEs when ignored); (b) multivariate / multiple correlated outcomes (joint
+    treatment effects, causal mediation's outcome+mediator system,
+    surrogate/principal outcomes). Both put the covariance in the WALNUTS outer
+    sampler with dbarts supplying each outcome's conditional BART mean. SCOPED
+    2026-07-22 (docs/design/correlated-outcomes.md; Fable investigation +
+    orchestrator API re-verify): (b) multivariate is EXACT PURE COMPOSITION
+    today - SUR chained conditionals reduce each outcome's step to a
+    per-observation offset + scalar sd, so q samplers with resid.prior=fixed()
+    plus an outer inverse-Wishart is exact with NO new dbarts code (mediation is
+    the triangular case, rho the sensitivity knob); (a) AR-1 composes via a
+    latent AR-state + nugget (the rbart_vi pattern, AR replacing the intercept)
+    as a stan4bart/WALNUTS outer-sampler feature with dbarts unchanged - a
+    nonparametric mean cannot be whitened, so EXACT pure-AR-1 errors are a
+    deferred ENGINE door (banded residual precision + cross-leaf GLS leaf
+    updates, which break per-leaf independence). Smallest dbarts enabler: export
+    the per-sweep callback rbart_vi uses (C_dbarts_bartcore_runWithCallback; the
+    shipped C analogue dbarts_sampler_setCallback) on dbartsSampler$run.
+    causal-motivated, decision-gated.
   forest-ranef-interweaving: RESEARCHED, NO-GO now (recorded door;
     docs/design/forest-ranef-interweaving.md, blind critique SOUND WITH
     CAVEATS). The weak-signal/small-K grouped-mixing bottleneck is
