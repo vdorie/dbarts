@@ -62,6 +62,20 @@ Monotone constraints (see
 `monotone`) and interaction constraints are orthogonal and may be
 combined.
 
+A `groups` partition that is both *disjoint* and *total* (every
+predictor named in exactly one group) already makes the fit
+block-additive: the root split fixes each tree's group, and the
+co-occurrence rule confines every descendant to that same group, so the
+ensemble is exactly a sum of per-group functions \\f = \sum_G f_G\\ - a
+functional-ANOVA / grouped-GAMI decomposition that holds at every MCMC
+state. Under this idiom each tree's group is chosen adaptively (by its
+root draw each sweep), so the number of trees devoted to a group floats
+with the data.
+[`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md) gives
+the same decomposition with a *fixed* per-group tree count and a static
+per-tree mask instead of an adaptive per-path allow-list; use it when a
+group needs guaranteed representation or a deterministic layout.
+
 ## Value
 
 A `dbartsInteractions` specification object, resolved when a sampler is
@@ -70,7 +84,8 @@ built.
 ## See also
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md),
+[`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md)
 
 ## Examples
 

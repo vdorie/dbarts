@@ -98,6 +98,18 @@
   error. Supplying none of the three arguments is an error.</p>
 <p>Monotone constraints (see <code><a href="dbarts.html">dbarts</a></code>'s <code>monotone</code>) and
   interaction constraints are orthogonal and may be combined.</p>
+<p>A <code>groups</code> partition that is both <em>disjoint</em> and <em>total</em>
+  (every predictor named in exactly one group) already makes the fit
+  block-additive: the root split fixes each tree's group, and the
+  co-occurrence rule confines every descendant to that same group, so the
+  ensemble is exactly a sum of per-group functions
+  \(f = \sum_G f_G\) - a functional-ANOVA / grouped-GAMI
+  decomposition that holds at every MCMC state. Under this idiom each tree's
+  group is chosen adaptively (by its root draw each sweep), so the number of
+  trees devoted to a group floats with the data. <code><a href="blocks.html">blocks</a></code> gives
+  the same decomposition with a <em>fixed</em> per-group tree count and a
+  static per-tree mask instead of an adaptive per-path allow-list; use it
+  when a group needs guaranteed representation or a deterministic layout.</p>
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -106,7 +118,7 @@
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart2</a></code></p></div>
+    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart2</a></code>, <code><a href="blocks.html">blocks</a></code></p></div>
     </div>
 
     <div class="section level2">
