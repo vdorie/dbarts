@@ -97,6 +97,19 @@ coexistence pass; ASAN clean (local, instrumented) and the Phase 1 sanitizer
 CI is green; R feature tests 15/15; R CMD check 0/0/0. Phase 2 sanitizer CI
 watched to green post-landing.
 
+Post-landing fix 04ca425 (heap-use-after-free): the per-forest constraint was
+a VALUE member of Forest, and each tree borrowed its address; the tau forest's
+emplace_back reallocated the forests_ vector, relocated the mu Forest, and
+dangled every mu tree's interaction_. The CI R-reachable ASAN caught it; the
+local battery missed it because tests/cpp exercised only the single-forest
+path. Fixed by heap-allocating the constraint (unique_ptr) so the pointee's
+address survives the move, as columnMask's vector buffer already did. A new
+RNG-neutral BCF-multi-forest interaction test reproduces the UAF under
+-fsanitize=address, closing the local gap. Lesson: a new-reachable-code commit
+needs a tests/cpp case on EVERY reachable construction path (single- AND
+multi-forest), not just the simplest, before the local ASAN gate can stand in
+for the CI R-reachable one.
+
 Deferred doors (design P4): soft path-dependent penalties, formal heredity,
 the per-tree block-additive variant A. The blind critique that caught the two
 must-fixes is docs/design/interaction-constraints.md "structure-move
