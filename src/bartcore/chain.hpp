@@ -2078,8 +2078,12 @@ public:
         // when unrestricted, so the walks short-circuit and the default path is
         // unchanged)
         scratch.setInteractionConstraint(forest.interaction.get());
-        scratch.setColumnMask(forest.columnMask.empty()
-                                ? nullptr : forest.columnMask.data());
+        // the effective per-tree mask: a block row (already intersected with any
+        // base mask at install) when blocks() is active, else the shared columnMask
+        scratch.setColumnMask(
+          !forest.blockMasks.empty()
+            ? forest.blockMasks.data() + forest.blockOfTree[t] * data_.numPredictors
+            : (forest.columnMask.empty() ? nullptr : forest.columnMask.data()));
         const std::uint64_t* masks =
           fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
         size_t numMaskWords =
@@ -2206,12 +2210,19 @@ public:
     std::vector<double> params;
     for (size_t f = 0; f < forests_.size(); ++f) {
       const Forest<L, ResidT>& forest = forests_[f];
-      if (forest.columnMask.empty()) continue;  // unrestricted: nothing to check
+      // a blocks() forest carries its per-tree restriction in blockMasks, not the
+      // shared columnMask; either (or an intersected tau block row) must be gated
+      if (forest.columnMask.empty() && forest.blockMasks.empty()) continue;  // unrestricted
       const ForestStateData& fs = state.forests[f];
       if (fs.trees.size() != forest.numTrees) return true;  // shape gate elsewhere
       for (size_t t = 0; t < forest.numTrees; ++t) {
         scratch.initialize(scratchIndices.data(), n);
-        scratch.setColumnMask(forest.columnMask.data());
+        // the effective per-tree mask: a block row (already intersected with any
+        // base moderator/variance mask at install) when blocks() is active, else
+        // the shared forest columnMask
+        scratch.setColumnMask(forest.blockMasks.empty()
+          ? forest.columnMask.data()
+          : forest.blockMasks.data() + forest.blockOfTree[t] * data_.numPredictors);
         const std::uint64_t* masks =
           fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
         size_t numMaskWords =
