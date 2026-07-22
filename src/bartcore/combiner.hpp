@@ -130,6 +130,18 @@ struct Forest {
   // every tree's pointer (the BCF multi-forest heap-use-after-free), whereas a
   // heap pointee stays put across the move, exactly as columnMask's data() does.
   std::unique_ptr<InteractionConstraint> interaction;
+  // per-tree block-additive constraint (docs/design/interaction-constraints.md,
+  // variant A): confine each WHOLE tree to one declared group of predictors so the
+  // ensemble is exactly f = sum_G f_G. blockMasks holds numBlocks group-membership
+  // rows of numPredictors 0/1 bytes, group-major (row g intersected with any base
+  // columnMask - the F3 BCF-tau case); blockOfTree[t] is tree t's 0-based group.
+  // Each tree's columnMask_ points at its group's row. Both are PLAIN VALUE
+  // vectors, NOT unique_ptr: a std::vector's data() heap pointer survives a Forest
+  // move (exactly like columnMask above), so the trees' borrowed pointers stay
+  // valid - unlike the interaction OBJECT address, which relocates with the Forest.
+  // Empty leaves every tree unrestricted, byte-for-byte the default path.
+  std::vector<std::uint8_t> blockMasks;
+  std::vector<std::size_t> blockOfTree;
 
   // k is fixed unless updateK; the two accumulators gather the leaf sum of
   // squares and count over a sweep, feeding the k hyperprior draw
@@ -206,6 +218,15 @@ struct BCFForestSpec {
   std::size_t interactionMaxOrder = 0;
   const std::size_t* interactionForbiddenPairs = nullptr;
   std::size_t interactionNumForbiddenPairs = 0;
+  // optional per-forest block-additive constraint (variant A): mu / tau carry
+  // independent partitions. blockOfColumn (length numPredictors, borrowed) gives
+  // each column's 0-based group (negative = in no block); blockTreeCounts (length
+  // numBlocks, borrowed) is the deterministic contiguous per-group tree capacity,
+  // summing to numTrees. numBlocks 0 leaves the forest unrestricted; tau's block
+  // rows intersect its moderator columnMask at install (F3).
+  std::size_t numBlocks = 0;
+  const std::int32_t* blockOfColumn = nullptr;
+  const std::size_t* blockTreeCounts = nullptr;
 };
 
 /// The two model specs plus the treatment vector a BCF chain is built from.

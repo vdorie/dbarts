@@ -16,7 +16,8 @@ SEXP bartcore_createFromHandle(SEXP control, SEXP model, SEXP data,
                                SEXP family, SEXP columns);
 SEXP bartcore_createBCF(SEXP control, SEXP model, SEXP data, SEXP z,
                         SEXP bcfParams, SEXP moderators,
-                        SEXP muInteractions, SEXP tauInteractions);
+                        SEXP muInteractions, SEXP tauInteractions,
+                        SEXP muBlocks, SEXP tauBlocks);
 SEXP bartcore_createMultinomial(SEXP control, SEXP model, SEXP data,
                                 SEXP labels, SEXP numCategories);
 SEXP bartcore_createMultinomialCounts(SEXP control, SEXP model, SEXP data,

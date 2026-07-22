@@ -14,6 +14,7 @@ dbarts(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     monotone = NULL,
     interactions = NULL,
+    blocks = NULL,
     variance = NULL, n.trees.variance = 40L,
     power.variance = NULL, base.variance = NULL,
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
@@ -71,6 +72,9 @@ dbarts(
   }
   \item{interactions}{
     Optional interaction constraints, built with \code{\link{interactions}}: \code{interactions(max.order = 2)} caps the number of distinct predictors that may appear together on any single root-to-leaf path, \code{interactions(forbid = list(c("a", "b")))} bars named predictors from ever sharing a path, and \code{interactions(groups = list(c("a", "b"), "c"))} confines interactions to declared groups (named predictors may co-occur only with their group-mates). The three may be combined. Named or indexed predictors resolve against the model matrix at fit time, where an unknown name, an empty group, a \code{max.order} below 1, or a reference to a dropped column is an error. \code{NULL} (the default) fits the ordinary unconstrained model.
+  }
+  \item{blocks}{
+    Optional block-additive constraint, built with \code{\link{blocks}}: \code{blocks(groups = list(c("a", "b"), "c"))} confines each whole tree to one declared group of predictors, so the ensemble is exactly a sum of per-group functions (a functional-ANOVA / grouped-GAMI decomposition). Unlike \code{interactions(groups = )}, which is a per-path allow-list, this is a static per-tree mask, so the groups must form a total, disjoint partition of the predictors - every predictor named exactly once. \code{trees.per.group} optionally fixes how many trees each group gets; otherwise the trees are spread as evenly as possible. Validated at fit time (an unpartitioned or doubly-named predictor, or a \code{trees.per.group} that does not sum to \code{n.trees}, is an error). \code{NULL} (the default) fits the ordinary model. May be combined with \code{interactions}. See \code{\link{blocks}}.
   }
   \item{variance}{
     Optional heteroscedastic variance forest (HBART; Pratola, Chipman, George, and McCulloch 2020). When supplied, a second ensemble models the residual variance surface \eqn{s^2(x)} as a product of scaled-inverse-chi-squared (multiplicative) leaves, so \eqn{y_i = f(x_i) + s(x_i)\epsilon_i}, coupled to the mean forest through the per-observation precision. \code{variance} selects which predictors drive the variance: a one-sided formula or character/integer column selector (\code{~ x1 + x2}), \code{TRUE} for every predictor, or \code{NULL} (the default) for the ordinary homoscedastic fit. Gaussian responses and constant leaves only; monotone constraints and the latent families are not supported. The per-tree leaf prior is calibrated from the residual (\code{resid.prior}) hyperparameters so that a constant variance surface reproduces the homoscedastic \code{sigma} posterior. The fit gains posterior draws \code{s.train}/\code{s.test} of \eqn{s(x)}, and \code{predict} attaches an \code{"s"} attribute with \eqn{s(x)} at new predictors (requires \code{keepTrees}).

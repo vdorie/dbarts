@@ -509,7 +509,9 @@ bartcoreBCFSampler <- function(
   update.b = TRUE,
   moderators = NULL,
   mu.interactions = NULL,
-  tau.interactions = NULL
+  tau.interactions = NULL,
+  mu.blocks = NULL,
+  tau.blocks = NULL
 ) {
   if (!is.null(moderators)) {
     if (length(moderators) == 0L) {
@@ -552,6 +554,19 @@ bartcoreBCFSampler <- function(
   muInteractions <- resolveInteractions(mu.interactions, sampler$data)
   tauInteractions <- resolveInteractions(tau.interactions, sampler$data)
 
+  # per-forest block-additive constraints (variant A): mu partitions the full
+  # design over its own tree count; tau partitions its available columns (the
+  # moderator subset if restricted, else the full design) over the treatment
+  # tree count, and the engine intersects tau's block rows with the moderator
+  # mask at install. The deterministic capacity consumes no rng.
+  muBlocks <- resolveBlocks(mu.blocks, sampler$data, sampler$control@n.trees)
+  tauBlocks <- resolveBlocks(
+    tau.blocks,
+    sampler$data,
+    as.integer(n.trees.treatment),
+    availableColumns = moderators
+  )
+
   result <- new.env(parent = emptyenv())
   result$ptr <- .Call(
     C_dbarts_bartcore_createBCF,
@@ -565,7 +580,11 @@ bartcoreBCFSampler <- function(
     # resolved interactions() lists (max.order + 0-based forbidden pairs), or
     # NULL; mu is forest 0 (prognostic), tau is forest 1 (treatment)
     muInteractions,
-    tauInteractions
+    tauInteractions,
+    # resolved blocks() lists (0-based per-column group + per-group tree
+    # capacity), or NULL; per-forest as with the interactions above
+    muBlocks,
+    tauBlocks
   )
   # BCF requires dense predictors; track them R-side for the re-quantize surface
   result$x <- rawPredictorMatrix(sampler$data@x)

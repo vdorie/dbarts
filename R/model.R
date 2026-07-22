@@ -683,6 +683,181 @@ resolveInteractions <- function(interactions, data) {
   list(max.order = maxOrder, forbidden = forbidden)
 }
 
+## Resolve a blocks() specification against the fitted model matrix into the
+## engine's per-tree block-additive constraint (variant A,
+## docs/design/interaction-constraints.md): each whole tree is confined to one
+## declared group of predictors, so the ensemble is exactly f = sum_G f_G
+## (functional ANOVA / grouped GAMI). Unlike interactions(groups=)'s per-path
+## allow-list, blocks() lowers to a STATIC per-tree column MASK, so a predictor
+## named in no block would be masked out of every tree and go dead; the
+## partition must therefore be TOTAL and DISJOINT over the forest's available
+## columns, validated here at fit time. Returns a list carrying a 0-based group
+## index per predictor (block.of.column; -1 for a column in no block, only when
+## availableColumns restricts the forest) and the deterministic per-group tree
+## capacity (block.tree.counts, summing to nTrees). NULL when no spec is given.
+## availableColumns (1-based) restricts the partitioned set for a moderator or
+## variance forest; NULL partitions the full design.
+resolveBlocks <- function(blocks, data, nTrees, availableColumns = NULL) {
+  if (is.null(blocks)) {
+    return(NULL)
+  }
+  if (!inherits(blocks, "dbartsBlocks")) {
+    stop("'blocks' must be a blocks() specification")
+  }
+  numColumns <- ncol(data@x)
+  columnNames <- colnames(data@x)
+  termLabels <- attr(data@x, "term.labels")
+
+  # a name or index vector -> 1-based model-matrix columns; a bare term name
+  # expands to its indicator columns (the resolveInteractions precedent)
+  resolveColumns <- function(cols, what) {
+    if (is.character(cols)) {
+      if (is.null(columnNames)) {
+        stop("cannot resolve ", what, ": model matrix has no column names")
+      }
+      result <- integer(0)
+      for (name in cols) {
+        index <- match(name, columnNames)
+        if (!is.na(index)) {
+          result <- c(result, index)
+        } else if (name %in% termLabels) {
+          result <- c(result, which(startsWith(columnNames, paste0(name, "."))))
+        } else {
+          stop(
+            "cannot resolve ",
+            what,
+            ": unrecognized variable name '",
+            name,
+            "'"
+          )
+        }
+      }
+      result
+    } else if (is.numeric(cols)) {
+      index <- as.integer(cols)
+      if (anyNA(index) || any(index < 1L) || any(index > numColumns)) {
+        stop("cannot resolve ", what, ": column indices out of range")
+      }
+      index
+    } else {
+      stop("cannot resolve ", what, ": expected column names or indices")
+    }
+  }
+
+  available <- if (is.null(availableColumns)) {
+    seq_len(numColumns)
+  } else {
+    sort(unique(as.integer(availableColumns)))
+  }
+
+  groupList <- blocks$groups
+  if (!is.list(groupList)) {
+    groupList <- list(groupList) # a single vector shorthand: one block
+  }
+  if (length(groupList) == 0L) {
+    stop("blocks() 'groups' must name at least one group")
+  }
+  numGroups <- length(groupList)
+
+  # assign each declared column to its group, detecting overlap and columns
+  # named outside the forest's available set as we go
+  blockOfColumn <- rep(NA_integer_, numColumns)
+  for (g in seq_len(numGroups)) {
+    cols <- unique(resolveColumns(groupList[[g]], "block group"))
+    if (length(cols) == 0L) {
+      stop("blocks() 'groups' entries must each name at least one column")
+    }
+    outside <- cols[cols %not_in% available]
+    if (length(outside) > 0L) {
+      stop(
+        "blocks() group ",
+        g,
+        " names column(s) not among the forest's available predictors: ",
+        paste(columnLabels(columnNames, outside), collapse = ", ")
+      )
+    }
+    overlap <- cols[!is.na(blockOfColumn[cols])]
+    if (length(overlap) > 0L) {
+      stop(
+        "blocks() groups must be disjoint; column(s) named in more than one ",
+        "group: ",
+        paste(columnLabels(columnNames, overlap), collapse = ", ")
+      )
+    }
+    blockOfColumn[cols] <- g
+  }
+
+  # totality: every available predictor must be named, else it would be masked
+  # out of every tree and go dead
+  unnamed <- available[is.na(blockOfColumn[available])]
+  if (length(unnamed) > 0L) {
+    stop(
+      "blocks() must name every predictor exactly once; unassigned column(s): ",
+      paste(columnLabels(columnNames, unnamed), collapse = ", ")
+    )
+  }
+  # columns outside the available set carry the -1 (no-block) sentinel
+  blockOfColumn[is.na(blockOfColumn)] <- 0L # placeholder; shift below
+  blockOfColumn <- blockOfColumn - 1L # 0-based; unavailable columns become -1
+
+  # deterministic per-group tree capacity (consumes NO rng): explicit
+  # trees.per.group, or an even split with the first (nTrees mod G) groups
+  # getting one extra
+  treesPerGroup <- blocks$trees.per.group
+  if (is.null(treesPerGroup)) {
+    if (nTrees < numGroups) {
+      stop(
+        "blocks(): the forest has ",
+        nTrees,
+        " tree(s) but ",
+        numGroups,
+        " group(s); every block needs at least one tree - use fewer groups, ",
+        "more trees, or an explicit 'trees.per.group'"
+      )
+    }
+    baseCount <- nTrees %/% numGroups
+    remainder <- nTrees %% numGroups
+    counts <- rep.int(baseCount, numGroups)
+    if (remainder > 0L) {
+      counts[seq_len(remainder)] <- baseCount + 1L
+    }
+  } else {
+    counts <- suppressWarnings(as.integer(treesPerGroup))
+    if (length(counts) != numGroups || anyNA(counts)) {
+      stop(
+        "blocks() 'trees.per.group' must be an integer vector with one entry ",
+        "per group (",
+        numGroups,
+        ")"
+      )
+    }
+    if (any(counts < 1L)) {
+      stop("blocks() 'trees.per.group' entries must be positive")
+    }
+    if (sum(counts) != nTrees) {
+      stop(
+        "blocks() 'trees.per.group' must sum to the forest's tree count (",
+        nTrees,
+        "); got ",
+        sum(counts)
+      )
+    }
+  }
+
+  list(
+    block.of.column = as.integer(blockOfColumn),
+    block.tree.counts = as.integer(counts)
+  )
+}
+
+# name-or-index a column set for an error message
+columnLabels <- function(columnNames, cols) {
+  if (is.null(columnNames)) {
+    return(as.character(cols))
+  }
+  columnNames[cols]
+}
+
 num.vars <- numvars <- NULL # R CMD check
 cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
   result <- newValidated(
@@ -858,6 +1033,29 @@ interactions <- function(max.order = NULL, groups = NULL, forbid = NULL) {
   structure(
     list(max.order = max.order, groups = groups, forbid = forbid),
     class = "dbartsInteractions"
+  )
+}
+
+## Per-forest block-additive constraint (variant A,
+## docs/design/interaction-constraints.md), passed as blocks = to dbarts() /
+## bart2() (and mu.blocks / tau.blocks to bcf()). Confines each WHOLE tree to one
+## declared group of predictors, so the ensemble is exactly f = sum_G f_G (a
+## clean functional-ANOVA / grouped-GAMI decomposition). groups is a list
+## partitioning the forest's predictors into disjoint blocks (by model-matrix
+## column name - a bare factor term name expands to its indicator columns - or
+## index); the partition must be TOTAL, so every predictor is named exactly once
+## (a predictor named in no block would be masked out of every tree and go dead).
+## trees.per.group optionally fixes how many of the n.trees trees each block
+## gets; NULL distributes them as evenly as possible. Everything is validated at
+## fit time in resolveBlocks. Exported (a distinctive top-level name), like
+## interactions().
+blocks <- function(groups, trees.per.group = NULL) {
+  if (missing(groups) || is.null(groups)) {
+    stop("blocks() requires 'groups', a list partitioning the predictors")
+  }
+  structure(
+    list(groups = groups, trees.per.group = trees.per.group),
+    class = "dbartsBlocks"
   )
 }
 

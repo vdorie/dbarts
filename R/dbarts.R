@@ -342,6 +342,7 @@ dbarts <- function(
   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
   monotone = NULL,
   interactions = NULL,
+  blocks = NULL,
   variance = NULL,
   n.trees.variance = 40L,
   power.variance = NULL,
@@ -810,6 +811,17 @@ dbarts <- function(
   if (!is.null(interactionSpec)) {
     attr(model, "interaction.max.order") <- interactionSpec$max.order
     attr(model, "interaction.forbidden") <- interactionSpec$forbidden
+  }
+
+  # the resolved per-forest block-additive constraint (variant A): each whole
+  # tree is confined to one declared group, so the ensemble is exactly
+  # f = sum_G f_G. Rides two model attributes the C bridge reads (the
+  # interactions precedent); absent when no blocks() prior is supplied, so the
+  # path is byte-for-byte unchanged. The partition covers the full design.
+  blockSpec <- resolveBlocks(blocks, data, control@n.trees)
+  if (!is.null(blockSpec)) {
+    attr(model, "block.of.column") <- blockSpec$block.of.column
+    attr(model, "block.tree.counts") <- blockSpec$block.tree.counts
   }
 
   # the AFT survival family reads its per-observation status off this control
