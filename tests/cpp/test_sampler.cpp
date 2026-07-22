@@ -1601,6 +1601,62 @@ static void testBCFTwoForest(ext_rng* rng) {
   printf("ok: BCF two-forest sampler\n");
 }
 
+// Regression (heap-use-after-free): a BCF mu-forest interaction constraint must
+// not dangle. mu's trees borrow the address of forest.interaction; building the
+// tau forest reallocates forests_ and relocates mu, so a value-member constraint
+// would leave every mu tree's interaction_ pointing at freed memory - a UAF that
+// only ASAN (and non-macOS allocators) expose, which shipped past the single-
+// forest tests/cpp gate. The heap-allocated constraint keeps its address across
+// the move. Build with a mu order cap, run, and require clean finite fits; under
+// -fsanitize=address this aborts on the old bug.
+static void testBCFInteractionLifetime() {
+  uint64_t savedRngState = rngState;  // RNG-neutral: no downstream snapshot shift
+  const size_t n = 300, p = 4;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    double mu = std::sin(3.0 * x[i]) + x[i + n];
+    double tau = 1.0 + 2.0 * x[i + 2 * n];
+    y[i] = mu + z[i] * tau + 0.2 * (runif01() - 0.5);
+  }
+
+  SamplerOptions options;
+  BCFSpec spec;
+  spec.mu.numTrees = 40; spec.mu.base = 0.95; spec.mu.power = 2.0;
+  spec.mu.interactionMaxOrder = 1;  // constrains the FIRST-built (mu) forest
+  spec.tau.numTrees = 20; spec.tau.base = 0.25; spec.tau.power = 3.0;
+  spec.z = z.data();
+
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 90210u);
+  Sampler<ConstantGaussianLeaf> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+    0.37804942330213542, options, spec, &localRng);
+
+  const size_t numBurnIn = 100, numSamples = 100;
+  std::vector<double> sigma(numSamples), fits(n * numSamples);
+  Results results;
+  results.sigma = sigma.data();
+  results.trainingFits = fits.data();
+  sampler.run(numBurnIn, numSamples, results);
+
+  std::vector<double> muFits(n);
+  sampler.forestTotalFits(0, 0, muFits.data());
+  bool clean = true;
+  double muSS = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    clean &= std::isfinite(muFits[i]);
+    muSS += muFits[i] * muFits[i];
+  }
+  check(clean && muSS > 0.0,
+        "BCF mu-interaction constraint survives the tau-forest realloc");
+
+  ext_rng_destroy(localRng);
+  rngState = savedRngState;
+  printf("ok: BCF mu-interaction constraint lifetime (tau-forest realloc)\n");
+}
+
 // updateA/updateB false hold the glue fixed at (a, b0, b1) = (1, 0, 1)
 // across a run, so the forests fit the a = 1, b_z = z model unchanged.
 static void testBCFFixedGlue(ext_rng* rng) {
@@ -2821,6 +2877,7 @@ void runSamplerTests(ext_rng* rng) {
   testForestColumnRestrictionAllNeutral();
   testBCFTauModeratorRestriction(rng);
   testBCFTwoForest(rng);
+  testBCFInteractionLifetime();
   testBCFFixedGlue(rng);
   testBCFInterweave(rng);
   testBCFInterweaveKeepTrees(rng);

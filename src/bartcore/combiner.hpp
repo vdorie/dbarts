@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <type_traits>
 #include <vector>
 
@@ -123,8 +124,12 @@ struct Forest {
   // per-forest interaction constraint (max-order + forbidden co-occurrence);
   // inactive by default (build not called), leaving the trees' constraint null
   // and the availability path byte-for-byte unchanged
-  // (docs/design/interaction-constraints.md, deliverable B)
-  InteractionConstraint interaction;
+  // (docs/design/interaction-constraints.md, deliverable B). HEAP-allocated so
+  // the address a tree's interaction_ borrows survives a forests_ vector
+  // reallocation/move; a value member relocates with the Forest and dangles
+  // every tree's pointer (the BCF multi-forest heap-use-after-free), whereas a
+  // heap pointee stays put across the move, exactly as columnMask's data() does.
+  std::unique_ptr<InteractionConstraint> interaction;
 
   // k is fixed unless updateK; the two accumulators gather the leaf sum of
   // squares and count over a sweep, feeding the k hyperprior draw
