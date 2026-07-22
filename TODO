@@ -80,10 +80,13 @@ items
     co-occurrence, per-forest, native, un-rJava) LANDED f455d7c 2026-07-21
     (docs/design/interaction-constraints.md, plan Landing note): the
     interactions(max.order, groups, forbid) prior on the availability seam,
-    exact-posterior gated. Remaining doors (design P4): soft path-dependent
-    penalties, formal heredity (ensemble lattice prior), the per-tree
-    block-additive variant A (cleaner functional-ANOVA for grouped-GAMI).
-    decision/consumer-gated.
+    exact-posterior gated. P4 also LANDED 2026-07-21 (aadbbc8/103dbe2/
+    073d3db, design doc "P4 landing", plan interaction-constraints-p4.md):
+    variant A (per-tree block-additive blocks(), require-total-partition
+    contract, per-forest mu.blocks/tau.blocks) and F1 (a columnMask
+    warm-start/setState feasibility bug fix, independent of blocks()).
+    Remaining doors: soft path-dependent penalties, formal heredity
+    (ensemble lattice prior) - both decision/consumer-gated.
   negbin-real-dispersion: the recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design section 2 carries
     fork B's full spec): real-valued dispersion needs a non-integer-shape

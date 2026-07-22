@@ -50,13 +50,26 @@ interactions(max.order = NULL, groups = NULL, forbid = NULL)
 
   Monotone constraints (see \code{\link{dbarts}}'s \code{monotone}) and
   interaction constraints are orthogonal and may be combined.
+
+  A \code{groups} partition that is both \emph{disjoint} and \emph{total}
+  (every predictor named in exactly one group) already makes the fit
+  block-additive: the root split fixes each tree's group, and the
+  co-occurrence rule confines every descendant to that same group, so the
+  ensemble is exactly a sum of per-group functions
+  \eqn{f = \sum_G f_G}{f = sum_G f_G} - a functional-ANOVA / grouped-GAMI
+  decomposition that holds at every MCMC state. Under this idiom each tree's
+  group is chosen adaptively (by its root draw each sweep), so the number of
+  trees devoted to a group floats with the data. \code{\link{blocks}} gives
+  the same decomposition with a \emph{fixed} per-group tree count and a
+  static per-tree mask instead of an adaptive per-path allow-list; use it
+  when a group needs guaranteed representation or a deterministic layout.
 }
 \value{
   A \code{dbartsInteractions} specification object, resolved when a sampler is
   built.
 }
 \seealso{
-  \code{\link{dbarts}}, \code{\link{bart2}}
+  \code{\link{dbarts}}, \code{\link{bart2}}, \code{\link{blocks}}
 }
 \examples{
 set.seed(0)

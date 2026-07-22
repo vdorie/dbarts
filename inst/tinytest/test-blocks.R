@@ -78,6 +78,74 @@ expect_true(allConfined(extract(fitSplit, type = "trees"), groups))
 fitIdx <- doFit(blocks(groups = list(1L, c(2L, 3L))))
 expect_true(allConfined(extract(fitIdx, type = "trees"), groups))
 
+# ---- a never-split tree (C3) is a subset of all blocks, not a violation -------
+
+# x4 carries no signal, so at least one tree confined to its own block stays a
+# stump (root leaf, no split) after burn-in; allConfined must accept the empty
+# variable set rather than reject it
+x4 <- runif(n)
+dfC3 <- data.frame(y, x1, x2, x3, x4)
+groupsC3 <- list(1L, c(2L, 3L), 4L)
+fitC3 <- do.call(
+  bart2,
+  c(
+    list(
+      y ~ x1 + x2 + x3 + x4,
+      dfC3,
+      blocks = blocks(
+        groups = list("x1", c("x2", "x3"), "x4"),
+        trees.per.group = c(7L, 7L, 7L)
+      )
+    ),
+    modifyList(fitArgs, list(n.trees = 21L))
+  )
+)
+treesC3 <- extract(fitC3, type = "trees")
+byTreeC3 <- splitTrees(treesC3)
+x4TreeIdx <- vapply(byTreeC3, function(k) k$tree[1], integer(1)) %in% 15:21
+expect_true(any(vapply(
+  byTreeC3[x4TreeIdx],
+  function(k) length(usedVars(k)) == 0L,
+  logical(1)
+)))
+expect_true(allConfined(treesC3, groupsC3))
+
+# ---- per-block tree counts match trees.per.group -------------------------------
+
+# the deterministic contiguous assignment (docs/design/interaction-constraints.md
+# "P4 landing"): the first counts[1] trees belong to group 1, the next
+# counts[2] to group 2, and so on. A tree that splits must stay within ITS OWN
+# assigned block - a stronger check than allConfined's "any block" test.
+blockOfTreeIndex <- function(idx, counts) {
+  findInterval(idx - 1L, cumsum(counts)) + 1L
+}
+checkFixedCapacity <- function(trees, groups, counts) {
+  byTree <- splitTrees(trees)
+  idx <- vapply(byTree, function(k) k$tree[1], integer(1))
+  blk <- blockOfTreeIndex(idx, counts)
+  all(mapply(
+    function(k, b) {
+      used <- usedVars(k)
+      length(used) == 0L || all(used %in% groups[[b]])
+    },
+    byTree,
+    blk
+  ))
+}
+
+# default even split of 20 trees over 2 groups: 10 and 10
+expect_true(checkFixedCapacity(
+  extract(fit, type = "trees"),
+  groups,
+  c(10L, 10L)
+))
+# the explicit trees.per.group from above: 5 and 15
+expect_true(checkFixedCapacity(
+  extract(fitSplit, type = "trees"),
+  groups,
+  c(5L, 15L)
+))
+
 # ---- fit-time validation (safe over fast) -------------------------------------
 
 expect_error(blocks(), "requires 'groups'")
@@ -150,6 +218,38 @@ fitBoth <- do.call(
 )
 expect_true(allConfined(extract(fitBoth, type = "trees"), groups))
 
+# ---- blocks() and monotone() compose on one forest -----------------------------
+
+# monotone constrains leaf-value direction, blocks() constrains split
+# selection - orthogonal seams (docs/design/interaction-constraints.md "P4
+# landing"); the fit must run and confinement must still hold
+fitMono <- do.call(
+  bart2,
+  c(
+    list(
+      y ~ x1 + x2 + x3,
+      df,
+      blocks = blocks(groups = list("x1", c("x2", "x3"))),
+      monotone = c(x1 = "+", x3 = "+")
+    ),
+    fitArgs
+  )
+)
+expect_true(allConfined(extract(fitMono, type = "trees"), groups))
+
+# ---- a fixed blocks() config + seed reproduces draws ---------------------------
+
+set.seed(77L)
+fitRepA <- doFit(blocks(groups = list("x1", c("x2", "x3"))))
+set.seed(77L)
+fitRepB <- doFit(blocks(groups = list("x1", c("x2", "x3"))))
+expect_identical(
+  extract(fitRepA, type = "trees"),
+  extract(fitRepB, type = "trees")
+)
+expect_identical(fitRepA$sigma, fitRepB$sigma)
+expect_identical(fitRepA$yhat.train, fitRepB$yhat.train)
+
 # ---- per-forest BCF: tau confined to a moderator block ------------------------
 
 p <- 4L
@@ -194,3 +294,39 @@ expect_error(
   ),
   "available predictors"
 )
+
+# ---- warm-start refusal + pre-mutation integrity -------------------------------
+
+# an unconstrained donor is free to mix x1 with x2/x3 in any tree; a target
+# whose block 0 confines 15 of its 20 trees to {x1} alone almost certainly
+# receives a donor tree that splits outside that mask, and
+# columnMaskStateFeasible (chain.hpp) must refuse the whole install before
+# touching any live state (F1, commit 103dbe2 + 073d3db) - the same mechanism
+# and error text as the BCF columnMask refusal test in test-interactions.R.
+wsControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.burn = 40L,
+  n.samples = 15L,
+  updateState = TRUE,
+  keepTrees = FALSE
+)
+wsDonor <- dbarts(y ~ x1 + x2 + x3, df, control = wsControl)
+invisible(wsDonor$run())
+
+wsTarget <- dbarts(
+  y ~ x1 + x2 + x3,
+  df,
+  control = wsControl,
+  blocks = blocks(
+    groups = list("x1", c("x2", "x3")),
+    trees.per.group = c(15L, 5L)
+  )
+)
+expect_error(wsTarget$installTrees(wsDonor), "column restriction")
+
+# the refusal happened before any live state mutation: the target sampler is
+# still usable afterwards
+wsSamples <- wsTarget$run()
+expect_equal(dim(wsSamples$train), c(n, 15L))

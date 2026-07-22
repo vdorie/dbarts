@@ -58,6 +58,21 @@
             order (\code{tau.interactions}) while the prognostic forest stays
             free (\code{mu.interactions}). An unconstrained fit is bit-for-bit
             identical to previous builds. See \code{?interactions}.
+      \item Block-additive constraints: the new \code{blocks} argument of
+            \code{dbarts} and \code{bart2}, built with \code{\link{blocks}},
+            confines each whole tree to one declared group of predictors, so
+            the ensemble is exactly a sum of per-group functions
+            \eqn{f = \sum_G f_G}{f = sum_G f_G} (a functional-ANOVA /
+            grouped-GAMI decomposition). The partition must be total and
+            disjoint; \code{trees.per.group} optionally fixes each group's
+            tree count (an even split by default). Applied per forest
+            (\code{mu.blocks}/\code{tau.blocks} on \code{bcf}), and composes
+            with \code{interactions} and \code{monotone}. A related idiom is
+            already available: \code{interactions(groups = )} over a total
+            disjoint partition gives the same block-additive property
+            adaptively, with each tree's group chosen by the sampler rather
+            than fixed; see \code{?interactions}. An unconstrained fit is
+            bit-for-bit identical to previous builds. See \code{?blocks}.
       \item Reduced-precision residual storage for large problems:
             \code{storage = "single"} in \code{dbartsControl} (and
             \code{bart2}) stores the running residual in single precision
@@ -602,6 +617,17 @@
             builtin function is now named in the error instead of reported as
             "invalid type (builtin)". An unnamed-matrix `newdata` with
             swapped columns now warns naming the assumed column mapping.
+      \item A warm start (`$installTrees`) or `$setState` into a
+            column-restricted forest (`bcf` moderators, a column-restricted
+            variance forest, or a `blocks`-constrained forest) is now
+            refused if the donor holds a tree that splits outside the
+            destination's allowed columns, instead of installing it
+            silently; such a tree previously scored its splits against an
+            availability menu that excluded the very column it used,
+            corrupting the tree-prior density (and, for `bcf`, the causal
+            decomposition) with no visible symptom. The refusal happens
+            before any live state is touched, so the destination sampler is
+            unaffected and usable afterward.
     }
   }
 }
