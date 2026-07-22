@@ -1,0 +1,66 @@
+# valgrind memcheck over the compiled engine, the .Call bridge, and the
+# support libraries under an instrumented R-devel build (r-hub valgrind
+# container). Split out of sanitizers.yaml because memcheck runs 20-50x
+# slower than native (~an hour, and rising with the tinytest suite), so it no
+# longer gates every push - the fast clang/gcc ASAN legs in sanitizers.yaml
+# are the per-push memory-safety gate; valgrind adds uninitialized-read
+# (--track-origins) coverage on a nightly cadence plus on demand.
+#
+# NOTE: GitHub binds `schedule` to the repository DEFAULT branch, so the
+# nightly run does not fire until this workflow lands on main. On bartcore it
+# is workflow_dispatch (manual) only - run it before landing a large engine
+# change (as 04ca425's BCF interaction UAF showed, the R-reachable path needs
+# a memcheck/ASAN pass). Validate the schedule when bartcore merges to main,
+# alongside the other schedule/dispatch-only workflows.
+name: valgrind
+
+on:
+  schedule:
+    - cron: '0 7 * * *'   # ~nightly; fires from the default branch only
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  valgrind:
+    runs-on: ubuntu-latest
+    name: valgrind
+    # memcheck's instruction-level emulation runs 20-50x slower than native;
+    # a generous explicit timeout keeps a genuine hang from just riding out
+    # the default job timeout unexplained
+    timeout-minutes: 180
+
+    container:
+      image: ghcr.io/r-hub/containers/valgrind:latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install test dependencies
+        shell: Rscript {0}
+        run: |
+          need <- setdiff(c("tinytest", "Matrix"), rownames(installed.packages()))
+          if (length(need)) install.packages(need, repos = "https://cloud.r-project.org")
+
+      - name: Install dbarts
+        run: R CMD INSTALL --preclean .
+
+      # VALGRIND_OPTS (--track-origins=yes --leak-check=full) is set in the
+      # container image; -d valgrind wraps the R binary itself, not the
+      # package under test
+      - name: Unit tests under valgrind
+        shell: bash
+        run: |
+          set -eo pipefail
+          R -d valgrind --vanilla -e '
+            res <- tinytest::test_package("dbarts")
+            print(res)
+            ok <- vapply(res, function(t) isTRUE(as.logical(t)[1]), logical(1))
+            if (length(ok) == 0L || !all(ok)) quit(status = 1L, save = "no")
+          ' 2>&1 | tee valgrind-tests.log
+          # --leak-check=full folds definitely/indirectly-lost blocks into
+          # the error count, so a nonzero ERROR SUMMARY covers both
+          # memory-access errors and leaks
+          if grep -Eq "ERROR SUMMARY: [1-9]" valgrind-tests.log; then
+            echo "::error::valgrind reported a finding"; exit 1
+          fi
