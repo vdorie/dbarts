@@ -566,12 +566,15 @@ public:
     // unset (or inactive) constraint leaves every tree's pointer null and the
     // availability path byte-for-byte unchanged.
     if (options.interactionMaxOrder > 0 || options.interactionNumForbiddenPairs > 0) {
-      forest.interaction.build(data.numPredictors, options.interactionMaxOrder,
-                               options.interactionForbiddenPairs,
-                               options.interactionNumForbiddenPairs);
-      if (forest.interaction.active())
+      forest.interaction = std::make_unique<InteractionConstraint>();
+      forest.interaction->build(data.numPredictors, options.interactionMaxOrder,
+                                options.interactionForbiddenPairs,
+                                options.interactionNumForbiddenPairs);
+      if (forest.interaction->active())
         for (size_t t = 0; t < forest.numTrees; ++t)
-          forest.trees[t].setInteractionConstraint(&forest.interaction);
+          forest.trees[t].setInteractionConstraint(forest.interaction.get());
+      else
+        forest.interaction.reset();
     }
     options_.interactionForbiddenPairs = nullptr;  // consumed above
 
@@ -2053,7 +2056,7 @@ public:
         scratch.initialize(scratchIndices.data(), n);
         // carry this forest's interaction constraint (null when unconstrained,
         // so the walk short-circuits and the default path is unchanged)
-        scratch.setInteractionConstraint(&forest.interaction);
+        scratch.setInteractionConstraint(forest.interaction.get());
         const std::uint64_t* masks =
           fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
         size_t numMaskWords =
@@ -2135,12 +2138,12 @@ public:
     std::vector<double> params;
     for (size_t f = 0; f < forests_.size(); ++f) {
       const Forest<L, ResidT>& forest = forests_[f];
-      if (!forest.interaction.active()) continue;  // unconstrained: nothing to check
+      if (!forest.interaction || !forest.interaction->active()) continue;  // unconstrained: nothing to check
       const ForestStateData& fs = state.forests[f];
       if (fs.trees.size() != forest.numTrees) return true;  // shape gate elsewhere
       for (size_t t = 0; t < forest.numTrees; ++t) {
         scratch.initialize(scratchIndices.data(), n);
-        scratch.setInteractionConstraint(&forest.interaction);
+        scratch.setInteractionConstraint(forest.interaction.get());
         const std::uint64_t* masks =
           fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
         size_t numMaskWords =
@@ -3031,12 +3034,15 @@ private:
     // forest ctor): mu and tau carry independent caps. An unset (or inactive)
     // constraint leaves every tree's pointer null and the path unchanged.
     if (spec.interactionMaxOrder > 0 || spec.interactionNumForbiddenPairs > 0) {
-      forest.interaction.build(data_.numPredictors, spec.interactionMaxOrder,
-                               spec.interactionForbiddenPairs,
-                               spec.interactionNumForbiddenPairs);
-      if (forest.interaction.active())
+      forest.interaction = std::make_unique<InteractionConstraint>();
+      forest.interaction->build(data_.numPredictors, spec.interactionMaxOrder,
+                                spec.interactionForbiddenPairs,
+                                spec.interactionNumForbiddenPairs);
+      if (forest.interaction->active())
         for (std::size_t t = 0; t < spec.numTrees; ++t)
-          forest.trees[t].setInteractionConstraint(&forest.interaction);
+          forest.trees[t].setInteractionConstraint(forest.interaction.get());
+      else
+        forest.interaction.reset();
     }
 
     initForestFitStorage(forest, n);
