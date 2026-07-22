@@ -831,6 +831,133 @@ static void testColumnMaskContainment() {
   printf("ok: column-mask containment (%zu donor violators)\n", violators);
 }
 
+// Block-additive constraint (variant A, docs/design/interaction-constraints.md):
+// each whole tree is confined to one declared group of predictors via the static
+// per-tree column mask, so the ensemble is exactly f = sum_G f_G. Two groups
+// {x0} / {x1} split the 30 trees evenly (15 each, deterministic contiguous
+// assignment). Assert (a) every tree of a block-built forest splits only within
+// its group, and (b) the shipped columnMask containment gate (F1) refuses a
+// warm-start / setState donor whose trees split outside their block - the block
+// masks lower onto the same per-tree columnMask_, so no second gate is needed.
+// RNG-neutral (saves/restores rngState + a local seeded ext_rng).
+// ---------------------------------------------------------------------------
+static void testBlockAdditiveConfinement() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 606060u;
+
+  const size_t n = 300, p = 2, numTrees = 30, half = numTrees / 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();          // x0
+    x[i + n] = runif01();      // x1
+    // both columns carry signal, so group-0 trees split on x0 and group-1 trees
+    // on x1 - confinement is then non-trivially exercised on both blocks
+    double u1 = runif01(), u2 = runif01();
+    double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y[i] = 2.0 * x[i] + 3.0 * x[i + n] + 0.1 * z;
+  }
+
+  // group 0 = {col 0}, group 1 = {col 1}; the trees split evenly and
+  // contiguously, so tree t belongs to group (t < half ? 0 : 1)
+  const std::vector<std::int32_t> blockOfColumn = {0, 1};
+  const std::vector<size_t> blockTreeCounts = {half, numTrees - half};
+  auto groupOfTree = [&](size_t t) { return t < half ? 0u : 1u; };
+  // a one-column allow mask per group, for the by-hand feasibility checks
+  std::vector<std::uint8_t> maskGroup[2] = {{1, 0}, {0, 1}};
+
+  std::vector<ext_rng*> rngs;
+  auto newRng = [&](std::uint32_t seed) {
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return r;
+  };
+  auto makeSampler = [&](std::uint32_t seed, bool blocked) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    if (blocked) {
+      options.numBlocks = blockTreeCounts.size();
+      options.blockOfColumn = blockOfColumn.data();
+      options.blockTreeCounts = blockTreeCounts.data();
+    }
+    ext_rng* r = newRng(seed);
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+      3.0, 0.37804942330213542, options, &r);
+  };
+
+  ColumnStore store;
+  store.build(x.data(), n, p, 100);  // the sampler's default cut grid
+  std::vector<index_t> idx(n);
+  std::vector<double> params;
+  Tree scratch;
+
+  // (a) a block-built forest confines every tree to its group's columns
+  auto blocked = makeSampler(555, true);
+  Results empty;
+  blocked->run(200, 0, empty);
+  SamplerStateData blockedState;
+  blocked->getState(blockedState);
+  const auto& blockedTrees = blockedState.chains[0].forests[0].trees;
+  bool allConfined = true;
+  size_t splitters = 0;
+  for (size_t t = 0; t < blockedTrees.size(); ++t) {
+    scratch.initialize(idx.data(), n);
+    scratch.setColumnMask(maskGroup[groupOfTree(t)].data());
+    if (!scratch.buildFromFlat(store, blockedTrees[t].data(),
+                               blockedTrees[t].size(), params))
+      continue;
+    if (!scratch.at(0).isBottom()) ++splitters;  // a tree that actually split
+    if (!scratch.columnMaskSubtreeIsValid(0)) allConfined = false;
+  }
+  scratch.setColumnMask(nullptr);
+  check(allConfined, "blocks: every tree splits only within its group");
+  check(splitters > 0, "blocks: some trees actually split (non-trivial)");
+
+  // (b) an UNRESTRICTED donor's trees split on both columns, so a donor tree in
+  // a group-0 slot that split on x1 (or vice versa) violates its block
+  auto donor = makeSampler(777, false);
+  donor->run(200, 0, empty);
+  SamplerStateData donorState;
+  donor->getState(donorState);
+  const auto& donorTrees = donorState.chains[0].forests[0].trees;
+  size_t violators = 0;
+  for (size_t t = 0; t < donorTrees.size(); ++t) {
+    scratch.initialize(idx.data(), n);
+    scratch.setColumnMask(maskGroup[groupOfTree(t)].data());
+    if (scratch.buildFromFlat(store, donorTrees[t].data(), donorTrees[t].size(),
+                              params) &&
+        !scratch.columnMaskSubtreeIsValid(0))
+      ++violators;
+  }
+  scratch.setColumnMask(nullptr);
+  check(violators > 0, "blocks: the unrestricted donor holds out-of-block trees");
+
+  // the shipped gate (F1) refuses the out-of-block donor on both install paths:
+  // each live tree's columnMask_ is its block row, so rebuildLiveForest's
+  // columnMaskSubtreeIsValid catches the violation. No second gate added.
+  auto target = makeSampler(999, true);
+  check(!target->setState(donorState, nullptr),
+        "blocks: setState refuses an out-of-block donor");
+  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  check(target->installForests(donorState, liveMap) != WarmStartResult::ok,
+        "blocks: warm start refuses an out-of-block donor");
+
+  // (c) specificity: a same-blocks donor's trees are feasible and install cleanly
+  auto compliantDonor = makeSampler(1234, true);
+  compliantDonor->run(200, 0, empty);
+  SamplerStateData compliantState;
+  compliantDonor->getState(compliantState);
+  auto target2 = makeSampler(4321, true);
+  check(target2->installForests(compliantState, liveMap) == WarmStartResult::ok,
+        "blocks: a same-blocks donor warm-starts cleanly");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: block-additive confinement (%zu splitters, %zu donor violators)\n",
+         splitters, violators);
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -843,4 +970,5 @@ void runStateTests(ext_rng* rng) {
   testStateValidation(rng);
   testInteractionContainment();
   testColumnMaskContainment();
+  testBlockAdditiveConfinement();
 }

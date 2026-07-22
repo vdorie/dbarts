@@ -402,6 +402,7 @@ bart2 <- function(
   proposal.probs = NULL,
   monotone = NULL,
   interactions = NULL,
+  blocks = NULL,
   variance = NULL,
   n.trees.variance = 40L,
   power.variance = NULL,

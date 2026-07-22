@@ -13,6 +13,7 @@ export(guessNumCores)
 export(makeind, makeModelMatrixFromDataFrame, makeTestModelMatrix)
 export(dbartsPriors)
 export(interactions)
+export(blocks)
 export(sparseFactor)
 
 exportClasses(dbartsSampler)

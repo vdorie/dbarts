@@ -228,6 +228,12 @@ struct ParsedModel {
   // indices per forbidden co-occurrence). Both defaults leave the path free.
   size_t interactionMaxOrder = 0;
   std::vector<size_t> interactionForbiddenPairs;
+  // per-forest block-additive constraint (variant A): blockOfColumn is the 0-based
+  // group index per predictor (negative = in no block), blockTreeCounts the
+  // per-group tree capacity summing to numTrees. Empty leaves every tree
+  // unrestricted, byte-for-byte the default path.
+  std::vector<std::int32_t> blockOfColumn;
+  std::vector<size_t> blockTreeCounts;
   // a linear or gp node prior's designated covariate columns (0-based);
   // empty for the constant leaf
   std::vector<size_t> leafCovariateColumns;
@@ -913,6 +919,38 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     }
   }
 
+  // block-additive constraint (variant A): two resolved model attributes - a
+  // per-column 0-based group index (length numPredictors; negative = no block)
+  // and a per-group tree capacity. Absent leaves every tree unrestricted,
+  // byte-for-byte unchanged. The R surface validates the total disjoint partition
+  // and the capacity sum; here we range-check defensively.
+  REPROTECT_SLOT(slotExpr, modelExpr, "block.of.column", slotIndex);
+  if (!Rf_isNull(slotExpr) && rc_getLength(slotExpr) > 0) {
+    if (!Rf_isInteger(slotExpr))
+      Rf_error("block column groups must be resolved integer indices");
+    if (static_cast<size_t>(rc_getLength(slotExpr)) != numPredictors)
+      Rf_error("block column groups must have one entry per predictor");
+    const int* groups = INTEGER(slotExpr);
+    model.blockOfColumn.assign(groups, groups + numPredictors);
+  }
+
+  REPROTECT_SLOT(slotExpr, modelExpr, "block.tree.counts", slotIndex);
+  if (!Rf_isNull(slotExpr) && rc_getLength(slotExpr) > 0) {
+    if (!Rf_isInteger(slotExpr))
+      Rf_error("block tree counts must be resolved integers");
+    R_xlen_t numBlocks = rc_getLength(slotExpr);
+    const int* counts = INTEGER(slotExpr);
+    model.blockTreeCounts.resize(static_cast<size_t>(numBlocks));
+    for (R_xlen_t g = 0; g < numBlocks; ++g) {
+      if (counts[g] <= 0) Rf_error("block tree counts must be positive");
+      model.blockTreeCounts[static_cast<size_t>(g)] =
+        static_cast<size_t>(counts[g]);
+    }
+    for (int32_t group : model.blockOfColumn)
+      if (group >= static_cast<int32_t>(numBlocks))
+        Rf_error("block column group index out of range");
+  }
+
   // linear and gp node priors designate leaf covariate columns, resolved
   // R-side to 1-based model matrix indices; every other node prior is the
   // constant leaf and carries nothing beyond node.scale/node.hyperprior.
@@ -1385,6 +1423,20 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
     ? NULL : model.interactionForbiddenPairs.data();
   options.interactionNumForbiddenPairs =
     model.interactionForbiddenPairs.size() / 2;
+
+  // per-forest block-additive constraint (variant A, single-forest path): the
+  // per-column group and per-group tree capacity, consumed at construction. The
+  // capacity must sum to the tree count (the R surface guarantees it; a defensive
+  // backstop here since a mismatch would misassign trees to groups).
+  if (!model.blockTreeCounts.empty()) {
+    size_t sum = 0;
+    for (size_t c : model.blockTreeCounts) sum += c;
+    if (sum != options.numTrees)
+      Rf_error("block tree counts must sum to the number of trees");
+    options.numBlocks = model.blockTreeCounts.size();
+    options.blockOfColumn = model.blockOfColumn.data();
+    options.blockTreeCounts = model.blockTreeCounts.data();
+  }
 
   // the generic slot parse above reads the CGM structure a DART prior
   // contains; the Dirichlet configuration comes off the R object directly
@@ -1912,11 +1964,51 @@ void applyBCFInteractions(SEXP listExpr, size_t numPredictors,
   }
 }
 
+// Read a resolved blocks() list (the resolveBlocks output: a per-column 0-based
+// group index and a per-group tree capacity) into one BCF forest's spec. A NULL
+// list leaves the forest unrestricted. The group and capacity buffers are stored
+// in `groupStore` / `countStore` (distinct per forest, outliving the sampler
+// build) and borrowed by the spec. The capacity must sum to the forest's tree
+// count (the R surface guarantees it; a defensive backstop here).
+void applyBCFBlocks(SEXP listExpr, size_t numPredictors, size_t numTrees,
+                    bartcore::BCFForestSpec& spec,
+                    std::vector<std::int32_t>& groupStore,
+                    std::vector<size_t>& countStore) {
+  if (Rf_isNull(listExpr)) return;
+  SEXP groupExpr = getListElement(listExpr, "block.of.column");
+  SEXP countExpr = getListElement(listExpr, "block.tree.counts");
+  if (Rf_isNull(groupExpr) || Rf_isNull(countExpr)) return;
+  if (!Rf_isInteger(groupExpr) || !Rf_isInteger(countExpr))
+    Rf_error("bcf block spec must hold resolved integers");
+  if (static_cast<size_t>(Rf_xlength(groupExpr)) != numPredictors)
+    Rf_error("bcf block column groups must have one entry per predictor");
+  R_xlen_t numBlocks = Rf_xlength(countExpr);
+  const int* counts = INTEGER(countExpr);
+  size_t sum = 0;
+  countStore.resize(static_cast<size_t>(numBlocks));
+  for (R_xlen_t g = 0; g < numBlocks; ++g) {
+    if (counts[g] <= 0) Rf_error("bcf block tree counts must be positive");
+    countStore[static_cast<size_t>(g)] = static_cast<size_t>(counts[g]);
+    sum += static_cast<size_t>(counts[g]);
+  }
+  if (sum != numTrees)
+    Rf_error("bcf block tree counts must sum to the forest's tree count");
+  const int* groups = INTEGER(groupExpr);
+  groupStore.assign(groups, groups + numPredictors);
+  for (int32_t group : groupStore)
+    if (group >= static_cast<int32_t>(numBlocks))
+      Rf_error("bcf block column group index out of range");
+  spec.numBlocks = static_cast<size_t>(numBlocks);
+  spec.blockOfColumn = groupStore.data();
+  spec.blockTreeCounts = countStore.data();
+}
+
 BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
                                 SEXP dataExpr, SEXP zExpr,
                                 SEXP bcfParamsExpr, SEXP moderatorsExpr,
                                 SEXP muInteractionsExpr,
-                                SEXP tauInteractionsExpr) {
+                                SEXP tauInteractionsExpr,
+                                SEXP muBlocksExpr, SEXP tauBlocksExpr) {
   if (!Rf_isReal(bcfParamsExpr) || Rf_xlength(bcfParamsExpr) != 8)
     Rf_error("bcf parameters must be a length-8 numeric vector");
 
@@ -1926,7 +2018,11 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
                  z = std::vector<double>{},
                  moderators = std::vector<size_t>{},
                  muPairs = std::vector<size_t>{},
-                 tauPairs = std::vector<size_t>{}]() mutable -> SEXP {
+                 tauPairs = std::vector<size_t>{},
+                 muBlockGroups = std::vector<std::int32_t>{},
+                 muBlockCounts = std::vector<size_t>{},
+                 tauBlockGroups = std::vector<std::int32_t>{},
+                 tauBlockCounts = std::vector<size_t>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
       controlExpr, modelExpr, dataExpr, "", control, model, data, sigmaIsFixed);
@@ -1989,6 +2085,15 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
     applyBCFInteractions(muInteractionsExpr, data.numPredictors, spec.mu, muPairs);
     applyBCFInteractions(tauInteractionsExpr, data.numPredictors, spec.tau,
                          tauPairs);
+
+    // independent per-forest block-additive constraints (variant A): mu's
+    // partition is over the full design (mu's tree count), tau's over its
+    // available columns (moderators if restricted) with the tau tree count; the
+    // engine intersects tau's block rows with its moderator mask at install (F3).
+    applyBCFBlocks(muBlocksExpr, data.numPredictors, spec.mu.numTrees, spec.mu,
+                   muBlockGroups, muBlockCounts);
+    applyBCFBlocks(tauBlocksExpr, data.numPredictors, spec.tau.numTrees, spec.tau,
+                   tauBlockGroups, tauBlockCounts);
 
     std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createBCFSampler(
       data.x, data.y, data.numObservations, data.numPredictors, data.weights,
@@ -2455,7 +2560,8 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
 // glue, z the 0/1 treatment.
 SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                         SEXP zExpr, SEXP bcfParamsExpr, SEXP moderatorsExpr,
-                        SEXP muInteractionsExpr, SEXP tauInteractionsExpr) {
+                        SEXP muInteractionsExpr, SEXP tauInteractionsExpr,
+                        SEXP muBlocksExpr, SEXP tauBlocksExpr) {
   // null-address first, then install; see bartcore_create
   SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
   SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
@@ -2464,7 +2570,7 @@ SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 
   BartcoreHolder* holder = bartcore_bridge::createBCFHolder(
     controlExpr, modelExpr, dataExpr, zExpr, bcfParamsExpr, moderatorsExpr,
-    muInteractionsExpr, tauInteractionsExpr);
+    muInteractionsExpr, tauInteractionsExpr, muBlocksExpr, tauBlocksExpr);
   R_SetExternalPtrAddr(result, holder);
 
   UNPROTECT(2);

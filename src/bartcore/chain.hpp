@@ -146,6 +146,18 @@ struct SamplerOptions {
   const std::size_t* interactionForbiddenPairs = nullptr;
   std::size_t interactionNumForbiddenPairs = 0;
 
+  // per-forest block-additive constraint (docs/design/interaction-constraints.md,
+  // variant A): confine each WHOLE tree to one declared group of predictors so the
+  // ensemble is exactly f = sum_G f_G. blockOfColumn (length numPredictors,
+  // borrowed) gives each column's 0-based group (negative = in no block, only for a
+  // restricted forest); blockTreeCounts (length numBlocks, borrowed) is the
+  // deterministic contiguous per-group tree capacity, summing to numTrees. numBlocks
+  // 0 (default) leaves every tree unrestricted - byte-for-byte unchanged. Consumed
+  // at construction.
+  std::size_t numBlocks = 0;
+  const std::int32_t* blockOfColumn = nullptr;
+  const std::size_t* blockTreeCounts = nullptr;
+
   // heteroscedastic variance forest (HBART, docs/design/heteroscedastic.md):
   // numVarianceTrees > 0 adds a SECOND forest modeling s^2(x) as a product of
   // scaled-inverse-chi-squared leaves, coupled to the mean forest through the
@@ -577,6 +589,14 @@ public:
         forest.interaction.reset();
     }
     options_.interactionForbiddenPairs = nullptr;  // consumed above
+
+    // Variant A block-additive constraint: confine each tree to one group. The
+    // single-forest path carries no base columnMask, so the block row is the
+    // group membership directly; numBlocks 0 leaves every tree unrestricted.
+    installBlockMasks(forest, data.numPredictors, options.numBlocks,
+                      options.blockOfColumn, options.blockTreeCounts);
+    options_.blockOfColumn = nullptr;    // consumed above
+    options_.blockTreeCounts = nullptr;  // consumed above
 
     initForestFitStorage(forest, numObservations);
     forest.totalFits.assign(numObservations, 0.0);
@@ -3046,6 +3066,40 @@ private:
   /// (covered by the draw-for-draw equivalence benchmark) is untouched:
   /// constant leaf, fixed k = 1 (the map's convention), no DART. nodeScale is
   /// the map-derived total.
+  /// Variant A block-additive install (docs/design/interaction-constraints.md):
+  /// confine each whole tree to one declared group of predictors so the ensemble
+  /// is exactly f = sum_G f_G. Build the numBlocks group-membership rows (each
+  /// intersected with any base columnMask already on the forest - the F3 BCF-tau
+  /// case, so the moderator restriction is never lost), assign trees to groups by
+  /// the deterministic contiguous capacity (trees [0, c0) -> group 0, [c0, c0+c1)
+  /// -> group 1, ...; NO rng), and point every tree's column mask at its group's
+  /// row. A no-op when numBlocks is 0, so the default path is byte-for-byte
+  /// unchanged. blockOfColumn[j] < 0 marks a column in no block (masked out).
+  static void installBlockMasks(Forest<L, ResidT>& forest,
+                                std::size_t numPredictors, std::size_t numBlocks,
+                                const std::int32_t* blockOfColumn,
+                                const std::size_t* blockTreeCounts) {
+    if (numBlocks == 0) return;
+    const bool haveBase = !forest.columnMask.empty();
+    forest.blockMasks.assign(numBlocks * numPredictors, 0);
+    for (std::size_t g = 0; g < numBlocks; ++g)
+      for (std::size_t j = 0; j < numPredictors; ++j) {
+        const bool inGroup = blockOfColumn[j] >= 0 &&
+          static_cast<std::size_t>(blockOfColumn[j]) == g;
+        const bool baseAllows = !haveBase || forest.columnMask[j] != 0;
+        forest.blockMasks[g * numPredictors + j] =
+          (inGroup && baseAllows) ? 1 : 0;
+      }
+    forest.blockOfTree.assign(forest.numTrees, 0);
+    std::size_t t = 0;
+    for (std::size_t g = 0; g < numBlocks && t < forest.numTrees; ++g)
+      for (std::size_t c = 0; c < blockTreeCounts[g] && t < forest.numTrees; ++c)
+        forest.blockOfTree[t++] = g;
+    for (std::size_t tt = 0; tt < forest.numTrees; ++tt)
+      forest.trees[tt].setColumnMask(
+        forest.blockMasks.data() + forest.blockOfTree[tt] * numPredictors);
+  }
+
   void buildBCFForest(const BCFForestSpec& spec, double nodeScale) {
     std::size_t n = data_.numObservations;
     forests_.emplace_back();
@@ -3094,6 +3148,12 @@ private:
       else
         forest.interaction.reset();
     }
+
+    // Variant A block-additive constraint (mu / tau independent): the block rows
+    // intersect tau's moderator columnMask installed above (F3), so a restricted
+    // tau's per-tree mask is group AND moderators. numBlocks 0 leaves it unchanged.
+    installBlockMasks(forest, data_.numPredictors, spec.numBlocks,
+                      spec.blockOfColumn, spec.blockTreeCounts);
 
     initForestFitStorage(forest, n);
     forest.totalFits.assign(n, 0.0);

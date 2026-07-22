@@ -25,6 +25,7 @@ reference:
   - dbartsData
   - dbartsPriors
   - interactions
+  - blocks
   - extract.dbartsSampler
   - samplePriorPredictive
   - sparseFactor

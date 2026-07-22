@@ -61,6 +61,7 @@ bart2(
     proposal.probs = NULL,
     monotone = NULL,
     interactions = NULL,
+    blocks = NULL,
     variance = NULL,
     n.trees.variance = 40L,
     power.variance = NULL,
@@ -232,6 +233,9 @@ extract(object, \dots)
    }
    \item{interactions}{
      Optional interaction constraints, passed through to \code{\link{dbarts}}; see its \code{interactions} argument and \code{\link{interactions}}. Built with \code{interactions(max.order = , groups = , forbid = )}: cap the distinct predictors per root-to-leaf path, confine interactions to declared groups, and/or forbid named predictors from co-occurring. \code{NULL} (the default) fits the unconstrained model.
+   }
+   \item{blocks}{
+     Optional block-additive constraint, passed through to \code{\link{dbarts}}; see its \code{blocks} argument and \code{\link{blocks}}. Built with \code{blocks(groups = , trees.per.group = )}: confine each whole tree to one declared group of predictors so the ensemble is exactly a sum of per-group functions. The groups must form a total, disjoint partition of the predictors, validated at fit time. \code{NULL} (the default) fits the ordinary model.
    }
    \item{variance, n.trees.variance, power.variance, base.variance}{
      Heteroscedastic BART (Pratola et al. 2020): passed through to \code{\link{dbarts}}. \code{variance} declares a second forest modeling the residual variance surface \eqn{s^2(x)} as a product of scaled-inverse-chi-squared leaves, coupled to the mean forest through the per-observation precision. It is a one-sided formula or column selector naming which predictors drive the variance (\code{~ x1 + x2}), \code{TRUE} for every predictor, or \code{NULL} (the default) for a homoscedastic fit. \code{n.trees.variance} is the number of variance trees; \code{power.variance}/\code{base.variance} their tree-structure prior (defaulting to the mean forest's). Gaussian responses only. The fit gains \code{s.train}/\code{s.test} (posterior draws of \eqn{s(x)}), and \code{predict} attaches an \code{"s"} attribute carrying \eqn{s(x)} for new data.
