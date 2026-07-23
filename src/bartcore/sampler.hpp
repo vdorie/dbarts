@@ -1126,6 +1126,16 @@ private:
     std::vector<xint_t> oldCodes;
     std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
+    // CSC/mixed rollback: a sparse column's storage lives outside train.codes
+    // (rank bitmaps in sparseColumns, the borrowed/owned slice in sources, the
+    // mutation-owned nonzero buffers), so snapshot it alongside the codes when
+    // the store carries CSC-backed columns
+    bool csc = false;
+    std::vector<SparseColumnData> oldSparseColumns;
+    std::vector<ColumnSource> oldSources;
+    std::vector<std::vector<int>> oldOwnedRows;
+    std::vector<std::vector<double>> oldOwnedValues;
+    std::vector<std::uint8_t> oldCscOwned;
 
     size_t numColumns() const { return data.numPredictors; }
     void applyForced(bool updateCuts) { data.setPredictors(values, updateCuts); }
@@ -1136,12 +1146,32 @@ private:
       data.train.codes.assign(oldCodes.size(), 0);
       oldHasMissing = data.hasMissing;
       if (updateCuts) oldCuts = data.cutPoints;
+      csc = data.builtFromCsc;
+      if (csc) {
+        oldSparseColumns = data.train.sparseColumns;
+        oldSources = data.train.sources;
+        oldOwnedRows = data.ownedCscRows;
+        oldOwnedValues = data.ownedCscValues;
+        oldCscOwned = data.cscColumnOwned;
+      }
       data.setPredictors(values, updateCuts);
     }
     void restore(bool updateCuts) {
       data.train.codes = std::move(oldCodes);
       data.hasMissing = std::move(oldHasMissing);
       if (updateCuts) data.cutPoints = std::move(oldCuts);
+      if (csc) {
+        data.train.sparseColumns = std::move(oldSparseColumns);
+        data.train.sources = std::move(oldSources);
+        data.ownedCscRows = std::move(oldOwnedRows);
+        data.ownedCscValues = std::move(oldOwnedValues);
+        data.cscColumnOwned = std::move(oldCscOwned);
+        // the restored source slices still point at the pre-change buffers,
+        // which the moves relocated; repoint the owned ones (borrowed slices
+        // keep their valid R pointer)
+        for (size_t j = 0; j < data.numPredictors; ++j)
+          if (data.cscColumnOwned[j]) data.repointOwnedSlice(j);
+      }
     }
   };
 
@@ -1153,6 +1183,10 @@ private:
     std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
     std::vector<ColumnStore::ColumnCodeRollback> records;
+    // CSC-backed columns of the subset snapshot their sparse storage here
+    // instead of the dense per-cell journal (which has no codes[] to journal
+    // for a rank column)
+    std::vector<ColumnStore::CscColumnRollback> cscRecords;
 
     size_t numColumns() const { return count; }
     void applyForced(bool updateCuts) {
@@ -1161,23 +1195,34 @@ private:
     void snapshotApply(bool updateCuts) {
       // journal each touched column's changed cells (past a quarter changed the
       // record falls back to a whole pre-change copy); the small hasMissing and
-      // cut pieces snapshot per column
+      // cut pieces snapshot per column. A CSC-backed column instead snapshots
+      // its rank/densified storage and owned slice and rebuilds from the dense
+      // column.
       size_t n = data.numObservations;
       oldHasMissing.resize(count);
       oldCuts.resize(updateCuts ? count : 0);
       records.resize(count);
+      cscRecords.resize(count);
       for (size_t k = 0; k < count; ++k) {
         size_t j = columns[k];
         oldHasMissing[k] = data.hasMissing[j];
         if (updateCuts) oldCuts[k] = data.cutPoints[j];
-        data.setColumnJournaled(j, values + k * n, updateCuts, n / 4,
-                                records[k]);
+        if (data.columnIsCscBacked(j)) {
+          data.snapshotCscColumn(j, cscRecords[k]);
+          data.mutateCscColumnFromDense(j, values + k * n, updateCuts);
+        } else {
+          data.setColumnJournaled(j, values + k * n, updateCuts, n / 4,
+                                  records[k]);
+        }
       }
     }
     void restore(bool updateCuts) {
       for (size_t k = 0; k < count; ++k) {
         size_t j = columns[k];
-        data.restoreColumn(j, records[k]);
+        if (data.columnIsCscBacked(j))
+          data.restoreCscColumn(j, cscRecords[k]);
+        else
+          data.restoreColumn(j, records[k]);
         data.hasMissing[j] = oldHasMissing[k];
         if (updateCuts) data.cutPoints[j] = std::move(oldCuts[k]);
       }

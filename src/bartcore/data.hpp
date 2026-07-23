@@ -289,6 +289,18 @@ struct ColumnStore {
   std::vector<double> gatheredMeans;
   std::vector<double> gatheredSds;
 
+  // Owned re-quantize sources for CSC-backed columns after mutation. A column
+  // keeps its build-time borrowed slice (R's dgCMatrix i/x slots) until first
+  // mutated; setPredictor/updatePredictor writes the new nonzeros here and
+  // repoints train.sources[j].slice at them, since the borrow no longer
+  // reflects the live values (setCutPoints and state restore re-quantize from
+  // the slice). Sized numPredictors on a CSC/mixed build, empty on dense
+  // builds and views; ownedCsc*[j] stay empty and cscColumnOwned[j] false
+  // until column j is first mutated (docs/design/sparse-columns.md ext (i)).
+  std::vector<std::vector<int>> ownedCscRows;
+  std::vector<std::vector<double>> ownedCscValues;
+  std::vector<std::uint8_t> cscColumnOwned;
+
   /// The slot column j occupies in the gathered-raw buffers, or -1 when it is
   /// not gathered. Few columns are gathered (leaf covariates), so a scan.
   std::int32_t gatheredSlotForColumn(size_t j) const {
@@ -740,6 +752,11 @@ struct ColumnStore {
     gatheredRawTestValues.clear();
     gatheredMeans.clear();
     gatheredSds.clear();
+    // no CSC-backed columns until a CSC/mixed build re-sizes these; a dense
+    // build leaves them empty and never reaches the mutation-owned path
+    ownedCscRows.clear();
+    ownedCscValues.clear();
+    cscColumnOwned.clear();
   }
 
   /// columnTypes may be null for all-ordinal. Categorical columns must hold
@@ -824,6 +841,10 @@ struct ColumnStore {
     // densified/rank backing, and per-column level counts and reference codes
     // for categoricals
     builtFromCsc = true;
+    // per-column owned-mutation storage, empty until a column is first mutated
+    ownedCscRows.assign(p, {});
+    ownedCscValues.assign(p, {});
+    cscColumnOwned.assign(p, 0);
     train.codeOffsets.assign(p, 0);
     size_t numDenseCodes = 0;
     for (size_t j = 0; j < p; ++j) {
@@ -1130,25 +1151,137 @@ struct ColumnStore {
   // bridge refuses mutation on CSC/mixed and view stores).
 
   /// Replace the whole predictor matrix; newX is column-major and read for
-  /// the call only, quantized into the owned codes.
+  /// the call only, quantized into the owned codes. CSC-backed columns route
+  /// through the sparse mutation path (their new dense column rebuilds the
+  /// owned slice and rank/densified storage).
   void setPredictors(const double* newX, bool updateCuts) {
     for (size_t j = 0; j < numPredictors; ++j) {
       const double* column = newX + j * numObservations;
+      if (columnIsCscBacked(j)) {
+        mutateCscColumnFromDense(j, column, updateCuts);
+        continue;
+      }
       if (updateCuts) refreshCutsForColumn(j, column);
       quantizeColumn(j, column);
     }
   }
 
   /// Overwrite a subset of columns; newColumns is column-major,
-  /// numObservations x numColumns, read for the call only.
+  /// numObservations x numColumns, read for the call only. CSC-backed columns
+  /// route through the sparse mutation path.
   void setColumns(const double* newColumns, const size_t* columns,
                   size_t numColumns, bool updateCuts) {
     for (size_t k = 0; k < numColumns; ++k) {
       size_t j = columns[k];
       const double* column = newColumns + k * numObservations;
+      if (columnIsCscBacked(j)) {
+        mutateCscColumnFromDense(j, column, updateCuts);
+        continue;
+      }
       if (updateCuts) refreshCutsForColumn(j, column);
       quantizeColumn(j, column);
     }
+  }
+
+  /// Repoint CSC-backed column j's slice at its owned nonzero buffers, so
+  /// re-quantization no longer reads the build-time borrow (R's dgCMatrix).
+  void repointOwnedSlice(size_t j) {
+    train.sources[j].slice = { ownedCscValues[j].data(),
+                               ownedCscRows[j].data(),
+                               ownedCscValues[j].size() };
+  }
+
+  /// Mutate CSC-backed column j from a new dense column of numObservations
+  /// values (the mutation surface hands a dense column even for sparse
+  /// storage). The nonzero pattern is {i : value != 0}, so a stored NaN
+  /// (missing) stays stored and the minimal pattern a dense equivalent would
+  /// carry is produced - codes stay bitwise identical to a dense build of the
+  /// same values. When the pattern is unchanged the nonzero values re-quantize
+  /// IN PLACE (rank: nzCodes and zeroCode; densified: the codes segment); when
+  /// it changes the rank bitmap and index REBUILD (O(n / 64 + nnz)). The owned
+  /// slice repoints at the new nonzeros so later re-quantizes (setCutPoints,
+  /// state restore) read them. The storage tier (rank vs densified) is fixed
+  /// at build and never flips. updateCuts refreshes the ordinal cut grid from
+  /// the dense column exactly as the dense path does (the CSC cut builders fold
+  /// the same implicit zeros the dense column carries explicitly, so the grids
+  /// match). Ordinal columns only (R never builds a sparse categorical); the
+  /// caller snapshots for rollback first.
+  void mutateCscColumnFromDense(size_t j, const double* column,
+                                bool updateCuts) {
+    if (updateCuts && types[j] != ColumnType::categorical)
+      refreshCutsForColumn(j, column);
+
+    std::vector<int> newRows;
+    std::vector<double> newValues;
+    for (size_t i = 0; i < numObservations; ++i)
+      if (column[i] != 0.0) {
+        newRows.push_back(static_cast<int>(i));
+        newValues.push_back(column[i]);
+      }
+
+    const CscColumnSlice& oldSlice = train.sources[j].slice;
+    bool patternChanged = newRows.size() != oldSlice.numNonzero;
+    for (size_t k = 0; !patternChanged && k < newRows.size(); ++k)
+      if (newRows[k] != oldSlice.rows[k]) patternChanged = true;
+
+    ownedCscRows[j] = std::move(newRows);
+    ownedCscValues[j] = std::move(newValues);
+    cscColumnOwned[j] = 1;
+    repointOwnedSlice(j);
+
+    if (train.columnIsSparse(j) && patternChanged)
+      buildRankStorageInto(train, numObservations, j);
+    quantizeCscColumnInto(train, numObservations, j, hasMissing.data());
+  }
+
+  /// A CSC-backed column's rollback record for a transactional mutation: the
+  /// pre-change source descriptor (slice pointers, kind, rank slot), the
+  /// pre-change rank storage (rank tier) or codes segment (densified tier),
+  /// the pre-change owned nonzero buffers, and whether the slice was already
+  /// owned. Drives the subset (updatePredictor) transaction; the whole-matrix
+  /// transaction snapshots the same state in bulk.
+  struct CscColumnRollback {
+    ColumnSource source;
+    SparseColumnData sparse;
+    std::vector<xint_t> denseCodes;
+    std::vector<int> ownedRows;
+    std::vector<double> ownedValues;
+    bool wasOwned = false;
+  };
+
+  /// Snapshot CSC-backed column j before a mutation, into rollback.
+  void snapshotCscColumn(size_t j, CscColumnRollback& rollback) {
+    rollback.source = train.sources[j];
+    rollback.wasOwned = cscColumnOwned[j] != 0;
+    rollback.ownedRows = ownedCscRows[j];
+    rollback.ownedValues = ownedCscValues[j];
+    if (train.columnIsSparse(j)) {
+      rollback.sparse = train.sparseColumns[
+        static_cast<size_t>(train.sources[j].rankSlot)];
+    } else {
+      const xint_t* col = train.codes.data() + train.codeOffsets[j];
+      rollback.denseCodes.assign(col, col + numObservations);
+    }
+  }
+
+  /// Undo a CSC-backed column's mutation from its rollback record, restoring
+  /// the store byte-for-byte (owned slices repoint at the restored buffers,
+  /// since a moved-then-restored buffer need not sit at the pre-change
+  /// address; a slice that was borrowed keeps the restored R pointer).
+  void restoreCscColumn(size_t j, const CscColumnRollback& rollback) {
+    train.sources[j] = rollback.source;
+    cscColumnOwned[j] = rollback.wasOwned ? 1 : 0;
+    ownedCscRows[j] = rollback.ownedRows;
+    ownedCscValues[j] = rollback.ownedValues;
+    if (train.columnIsSparse(j)) {
+      train.sparseColumns[static_cast<size_t>(train.sources[j].rankSlot)] =
+        rollback.sparse;
+    } else {
+      std::memcpy(train.codes.data() + train.codeOffsets[j],
+                  rollback.denseCodes.data(),
+                  numObservations * sizeof(xint_t));
+    }
+    if (cscColumnOwned[j]) repointOwnedSlice(j);
   }
 
   /// A column's rollback record for a journaled re-quantize: either the

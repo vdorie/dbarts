@@ -1676,6 +1676,20 @@ void refusePredictorMutation(const bartcore::SamplerBase& sampler,
            "views hold none", caller);
 }
 
+// The predictor-MUTATION surface (setPredictor, updatePredictor, and the
+// per-observation sessions) re-quantizes columns from a new dense column, so
+// unlike whole-data setData it runs on CSC/mixed stores too (they retain their
+// slices; a mutated column repoints at engine-owned nonzeros -
+// docs/design/sparse-columns.md extension (i)). Only a data-handle view, which
+// keeps no raw source at all, is refused here; a per-observation caller
+// additionally refuses a CSC-backed target column by name below.
+void refuseMutationOnView(const bartcore::SamplerBase& sampler,
+                          const char* caller) {
+  if (!sampler.data().hasRequantizeSource())
+    Rf_error("%s requires a sampler that owns its predictors; data-handle "
+             "views hold none", caller);
+}
+
 // Unlike views, CSC-built samplers re-quantize from their retained slices,
 // so cut installation and state restore stay available on them.
 void refuseRequantizeWithoutSource(const bartcore::SamplerBase& sampler,
@@ -3419,7 +3433,7 @@ SEXP bartcore_getSumsOfSquaredResiduals(SEXP ptrExpr) {
 SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
                            SEXP updateCutPointsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refusePredictorMutation(*holder.sampler, "bartcore_setPredictor");
+  refuseMutationOnView(*holder.sampler, "bartcore_setPredictor");
   if (Rf_asLogical(forceUpdateExpr) != TRUE)
     refuseMultiForestTransactionalUpdate(*holder.sampler,
                                          "bartcore_setPredictor");
@@ -3450,7 +3464,7 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
                               SEXP forceUpdateExpr, SEXP updateCutPointsExpr) {
   return unwindProtect([&, columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
-    refusePredictorMutation(*holder.sampler, "bartcore_updatePredictor");
+    refuseMutationOnView(*holder.sampler, "bartcore_updatePredictor");
     if (Rf_asLogical(forceUpdateExpr) != TRUE)
       refuseMultiForestTransactionalUpdate(*holder.sampler,
                                            "bartcore_updatePredictor");
@@ -3540,7 +3554,7 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
 SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
                                             SEXP columnExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refusePredictorMutation(
+  refuseMutationOnView(
     *holder.sampler, "bartcore_updatePredictorPerObservation");
   refuseMultiForestTransactionalUpdate(
     *holder.sampler, "bartcore_updatePredictorPerObservation");
@@ -3553,6 +3567,15 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
   if (column < 1 ||
       static_cast<size_t>(column) > holder.sampler->numPredictors())
     Rf_error("bartcore_updatePredictorPerObservation column out of range");
+  // per-observation replacement writes one cell at a time, which a sparse
+  // column's rank storage cannot take without an O(nnz) shift per cell; the
+  // sparse mutation path is whole-column, so a CSC-backed target is refused by
+  // name (replace it wholesale with updatePredictor). Dense-backed columns of
+  // a mixed store - the IRT latent-in-a-sparse-design case - stay open.
+  if (holder.sampler->data().columnIsCscBacked(static_cast<size_t>(column - 1)))
+    Rf_error("bartcore_updatePredictorPerObservation: per-observation updates "
+             "require a dense-backed column; a sparse column fixes its nonzero "
+             "pattern per cell - replace the whole column with updatePredictor");
   validateColumnValues(holder.sampler->data(),
                        static_cast<size_t>(column - 1), REAL(xExpr),
                        numObservations);
@@ -3597,7 +3620,7 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
     for (size_t k = 0; k < numSamplers; ++k) {
       BartcoreHolder& holder(
         holderFromExpression(VECTOR_ELT(ptrsExpr, static_cast<R_xlen_t>(k))));
-      refusePredictorMutation(
+      refuseMutationOnView(
         *holder.sampler, "bartcore_updatePredictorPerObservationJointly");
       refuseMultiForestTransactionalUpdate(
         *holder.sampler, "bartcore_updatePredictorPerObservationJointly");
@@ -3607,6 +3630,12 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
           static_cast<size_t>(column) > samplers[k]->numPredictors())
         Rf_error("bartcore_updatePredictorPerObservationJointly column out of "
                  "range");
+      // per-observation cell writes need a dense-backed target (see the
+      // single-sampler entry point)
+      if (samplers[k]->data().columnIsCscBacked(static_cast<size_t>(column - 1)))
+        Rf_error("bartcore_updatePredictorPerObservationJointly: per-"
+                 "observation updates require a dense-backed column; replace a "
+                 "sparse column wholesale with updatePredictor");
       columns[k] = static_cast<size_t>(column - 1);
     }
 

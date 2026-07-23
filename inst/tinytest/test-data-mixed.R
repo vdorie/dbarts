@@ -167,14 +167,16 @@ expect_error(
   pattern = "sparse-backed"
 )
 
-# the raw-x surface and whole-data replacement are fixed at creation;
-# grouped rbart_vi is reserved
+# a mixed dense/sparse container is not yet maintained R-side for mutation, so
+# the raw-x surface and whole-data replacement stay fixed at creation; grouped
+# rbart_vi is reserved (the engine and flat C API do accept column mutation on
+# a mixed store - only the R5 container book-keeping is deferred)
 sampler <- dbarts(x.frame, y, control = control)
 invisible(sampler$run())
 expect_silent(sampler$setResponse(y))
 expect_error(
   sampler$setPredictor(x.dense.equiv),
-  pattern = "sparse predictors fix the design"
+  pattern = "mixed dense/sparse design is fixed at creation"
 )
 expect_error(sampler$setData(dbartsData(x.frame, y)), pattern = "sparse")
 expect_error(
