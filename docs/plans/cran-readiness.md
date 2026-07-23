@@ -191,3 +191,38 @@ Remaining warnings are NOT our code and are left untouched:
    proven.
 5. air/lintr/pkgdown: no .R or .Rd files were touched (only NAMESPACE
    and two compiled files), so these are out of scope / N-A.
+
+## Revdep sweep (2026-07-22)
+
+CLEAN: a fresh CRAN reverse-dependency query returned 24 packages, zero
+dbarts-caused breaks. stan4bart in particular was verified GENUINELY
+green via a real compile this time, not the earlier structSize-masked
+pass (a stale build had been reusing an old dbarts_results layout and
+so never exercised the current ABI).
+
+METHOD (no revdep script is checked into the repo): a fresh
+tools::package_dependencies("dbarts", reverse = TRUE, which =
+c("Depends", "Imports", "LinkingTo", "Suggests")) call enumerates the
+set; a fault-tolerant per-package loop then does
+download.packages(..., type = "source") -> remotes::install_deps into
+a throwaway temp library -> R CMD check, catching and recording
+failures per package rather than aborting the sweep; a guard asserts
+dbarts itself stays at 1.0-0 for the whole run (a stray reinstall
+mid-sweep would silently change what is being tested). The three
+MAINTAINED reverse deps - stan4bart, bartCause, treatSens - are pulled
+from their COMPAT BRANCH, not the stale CRAN tarball, since that branch
+is what will actually ship lockstep.
+
+CAVEAT: remotes::install_deps(dependencies = NA) installs hard
+dependencies only, NOT Suggests. A CRAN-grade sweep needs Suggests
+installed too - 6 packages in this run ERRORed solely on a missing
+Suggests package, none on a dbarts issue; treat those 6 as unresolved
+by this method, not as dbarts breakage.
+
+EQUIVALENCE-TRIO RESIDUAL: the 2026-07-22 engine commits (warm-starts
+0a27207, sparse 343dd4c) were gated on the tinytest reproducibility
+snapshots (passed) but not an explicit benchmarks/R/equivalence.R
+baseline compare - that gate runs on the weekly cron, not push-gated.
+Both changes are draw-neutral by construction, so the weekly run is
+expected to confirm; recorded here so the gap is visible until it
+does.

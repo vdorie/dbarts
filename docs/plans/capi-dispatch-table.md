@@ -448,3 +448,19 @@ to DBARTS_C_API_LIST - the getTrees class is closed. DESCRIPTION
 already carries the dbarts (>= 1.0-0) floor in Depends and LinkingTo.
 ARC COMPLETE; the recorded additive escalations (signature-tagged
 names, consumer-visible hash) remain future options.
+
+Pre-release clarification (2026-07-22, 876a339): a hash re-bake before
+the 1.0-0 submission DEFINES DBARTS_C_API_HASH; it does not consume a
+MINOR bump. MAJOR/MINOR/VERSION stay 1/0/1000 across such a re-bake.
+The MINOR-bump discipline (a signature-affecting change moves the hash
+AND bumps MINOR, DESCRIPTION floor moved in lockstep) applies
+POST-release, once some MINOR value has actually shipped to CRAN and a
+consumer could be pinned against it. Before that there is nothing to
+protect: stan4bart is the sole LinkingTo consumer and already
+recompiles against dbarts in lockstep, every commit. Worked instance:
+876a339 renamed setTestPredictors/setTestOffset/predict's x_test/
+offset_test parameters to xTest/offsetTest - not an ABI change
+(parameter names are not part of the call contract) but they feed the
+stringized-signature FNV-1a, so DBARTS_C_API_HASH re-baked
+0xc82cf27acefa5b81 -> 0xf760898d116cb3a3 with MAJOR/MINOR/VERSION held
+at 1/0/1000.
