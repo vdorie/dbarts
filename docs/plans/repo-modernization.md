@@ -16,7 +16,12 @@ migrations decided when someone wants them.
    latest major); bump when GitHub deprecates a runtime.
 2. Sanitizers: add a gcc-asan/valgrind variant beside the existing
    workflow; gate the sanitizers workflow on pull_request once it has
-   proven stable on pushes.
+   proven stable on pushes. DROPPED (2026-07-22): this is a push-based,
+   no-PR repo (main is protected by the bartcore integration-branch-
+   then-merge pattern), so a pull_request-only trigger would silence
+   the sanitizer instead of gating it. Replaced by concurrency
+   cancel-in-progress + push paths-ignore, which answers the cost
+   concern that motivated this item without losing coverage.
 3. codecov: optional; wire only if a public badge is wanted (coverage
    measured locally on demand; 88 percent at last run).
 4. roxygen2 / NEWS.md migrations: optional, taste-dependent, huge
@@ -51,3 +56,24 @@ design.
 
 Sub-item 3 resolved (VD, 2026-07-07): no codecov badge; coverage
 stays local-on-demand. Closed as a documented no.
+
+## Landing note (2026-07-22): CI cost/hygiene pass
+
+Added top-level concurrency (group ${{ github.workflow }}-
+${{ github.ref }}, cancel-in-progress) to check-standard.yaml,
+cpp-tests.yaml, lint.yaml, and sanitizers.yaml - the push/pull_request
+workflows that lacked one. pkgdown.yaml already serializes deploys via
+a job-level concurrency group; left as-is. equivalence.yaml, rchk.yaml,
+sbc.yaml, revdep-smoke.yaml, and valgrind.yaml are schedule/dispatch-
+only (no push or pull_request trigger), so cancel-in-progress does not
+apply to them.
+
+push paths-ignore (docs/**, **.md, TODO, benchmarks/baselines/**) was
+already present, as an equal-or-broader benchmarks/** ignore, on
+check-standard.yaml, cpp-tests.yaml, sanitizers.yaml, and lint.yaml;
+verified and left as-is, no duplicate narrower entry added.
+
+Sub-item 2 (pull_request gate for sanitizers) is DROPPED, not
+deferred - see Context / Steps above. The cost concern that motivated
+it is now addressed by cancel-in-progress + paths-ignore instead,
+without silencing the gate on a no-PR repo.
