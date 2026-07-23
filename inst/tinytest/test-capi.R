@@ -98,6 +98,14 @@ ptrGuard <- CALL("capi_create", spec$control, spec$model, spec$data, "")
 CALL("capi_sample_trees_from_prior", ptrGuard)
 expect_true(CALL("capi_run_guard", ptrGuard, 5L, nSamples))
 
+# the zero-structSize guard: a caller that forgets to set results.structSize
+# (leaves it 0) is rejected outright, not silently given an all-skip no-op that
+# leaves its buffers uninitialized - the flat-API footgun that garbaged a
+# consumer's Gibbs loop
+ptrZero <- CALL("capi_create", spec$control, spec$model, spec$data, "")
+CALL("capi_sample_trees_from_prior", ptrZero)
+expect_error(CALL("capi_run_zero_structsize", ptrZero, 5L, nSamples), "structSize")
+
 # the per-observation log-likelihood channel: for a gaussian sampler it must
 # equal dnorm(y, train, sigma, log = TRUE) recomputed on the same draws (train
 # is n x nSamples, sigma constant within a draw), pairing observation-fastest

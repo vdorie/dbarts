@@ -120,9 +120,16 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
   // 1 for every dbarts.h-created sampler, since the flat C API builds no
   // multi-location model, so the caller's n x numSamples train/test hold
   engineResults.numReportedLocations = samplerOf(sampler).numReportedLocations();
+  // A zero structSize means the caller forgot to set it (see DBARTS_RESULTS_INIT):
+  // reject loudly instead of silently skipping every field and handing back an
+  // uninitialized buffer - the flat-API footgun that fed garbage draws to a
+  // consumer's Gibbs loop. A nonzero older/smaller structSize stays valid.
+  if (results != NULL && results->structSize == 0)
+    Rf_error("dbarts_sampler_run: results.structSize is 0 - set it to "
+             "sizeof(dbarts_results) (e.g. dbarts_results r = DBARTS_RESULTS_INIT)");
+
   if (results != NULL && numSamples > 0) {
-    // A field is filled only when present-by-size AND non-null; a zero
-    // structSize (caller forgot to set it) is an all-skip no-op. offsetof is
+    // A field is filled only when present-by-size AND non-null. offsetof is
     // against the library's (newest) layout; fields only append, so it
     // equals the caller's offset and structSize bounds the buffer.
 #define FILL(field, member) \
