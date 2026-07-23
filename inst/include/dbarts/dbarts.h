@@ -79,7 +79,7 @@
 /// signature change in the list fails dbarts's compile until this literal is
 /// re-baked; that re-bake is the mechanical acknowledgment of an ABI change.
 /// Plain hex literal, usable from C.
-#define DBARTS_C_API_HASH 0xc82cf27acefa5b81ULL
+#define DBARTS_C_API_HASH 0xf760898d116cb3a3ULL
 
 #ifdef __cplusplus
 extern "C" {
@@ -207,16 +207,16 @@ typedef int (*dbarts_sampler_callback)(void* userData, dbarts_sampler* sampler,
      size_t numColumns, int forceUpdate, int updateCutPoints), \
     (sampler, x, columns, numColumns, forceUpdate, updateCutPoints)) \
   X(void, dbarts_sampler_setTestPredictors, \
-    (dbarts_sampler* sampler, const double* x_test, \
+    (dbarts_sampler* sampler, const double* xTest, \
      size_t numTestObservations), \
-    (sampler, x_test, numTestObservations)) \
+    (sampler, xTest, numTestObservations)) \
   X(void, dbarts_sampler_setTestOffset, \
-    (dbarts_sampler* sampler, const double* offset_test), \
-    (sampler, offset_test)) \
+    (dbarts_sampler* sampler, const double* offsetTest), \
+    (sampler, offsetTest)) \
   X(void, dbarts_sampler_predict, \
-    (dbarts_sampler* sampler, const double* x_test, \
-     size_t numTestObservations, const double* offset_test, double* out), \
-    (sampler, x_test, numTestObservations, offset_test, out)) \
+    (dbarts_sampler* sampler, const double* xTest, \
+     size_t numTestObservations, const double* offsetTest, double* out), \
+    (sampler, xTest, numTestObservations, offsetTest, out)) \
   X(void, dbarts_sampler_setTreeStorage, \
     (dbarts_sampler* sampler, int keepTrees, size_t numSamplesToStore), \
     (sampler, keepTrees, numSamplesToStore)) \
@@ -388,23 +388,23 @@ int dbarts_sampler_updatePredictor(dbarts_sampler* sampler, const double* x,
                                    const size_t* columns, size_t numColumns,
                                    int forceUpdate, int updateCutPoints);
 
-/// x_test is numTestObservations x numPredictors, or null with 0 rows to
+/// xTest is numTestObservations x numPredictors, or null with 0 rows to
 /// remove test data (clearing any test offset).
 void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
-                                      const double* x_test,
+                                      const double* xTest,
                                       size_t numTestObservations);
-/// offset_test has numTestObservations values or is null to remove.
+/// offsetTest has numTestObservations values or is null to remove.
 void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
-                                  const double* offset_test);
+                                  const double* offsetTest);
 
 /// Fits for new data on the original response scale (binary families give
 /// the latent scale). With tree storage out is numTestObservations x
 /// numSavedSamples x numChains from the saved trees; without, one set per
-/// chain from the live trees. offset_test, when non-null, is added to
+/// chain from the live trees. offsetTest, when non-null, is added to
 /// every sample's fits.
-void dbarts_sampler_predict(dbarts_sampler* sampler, const double* x_test,
+void dbarts_sampler_predict(dbarts_sampler* sampler, const double* xTest,
                             size_t numTestObservations,
-                            const double* offset_test, double* out);
+                            const double* offsetTest, double* out);
 
 /// Turns saved-tree storage on or off; numSamplesToStore sizes the buffer
 /// when on. Turn on for recorded iterations to predict from them later.
