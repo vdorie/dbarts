@@ -532,6 +532,12 @@
             initializer in `dbarts/dbarts.h` sets `structSize` and zeroes the
             field pointers, so the size cannot be forgotten:
             `dbarts_results r = DBARTS_RESULTS_INIT;`.
+      \item The `x_test` and `offset_test` parameters of
+            `dbarts_sampler_setTestPredictors`, `dbarts_sampler_setTestOffset`,
+            and `dbarts_sampler_predict` are renamed `xTest` and `offsetTest`
+            for the header's camelCase convention. Parameter names are not part
+            of the ABI, so callers are unaffected; the rename is baked into the
+            1.0-0 signature hash and does not change the version.
     }
   }
   \subsection{BUG FIXES}{

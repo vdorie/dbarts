@@ -258,39 +258,39 @@ int dbarts_sampler_updatePredictor(dbarts_sampler* sampler, const double* x,
 }
 
 void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
-                                      const double* x_test,
+                                      const double* xTest,
                                       size_t numTestObservations) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
-  if (x_test == NULL) {
+  if (xTest == NULL) {
     engine.setTestPredictors(NULL, 0);
     return;
   }
   for (size_t j = 0; j < engine.numPredictors(); ++j)
-    validateColumnValues(engine.data(), j, x_test + j * numTestObservations,
+    validateColumnValues(engine.data(), j, xTest + j * numTestObservations,
                          numTestObservations);
-  engine.setTestPredictors(x_test, numTestObservations);
+  engine.setTestPredictors(xTest, numTestObservations);
 }
 
 void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
-                                  const double* offset_test) {
-  samplerOf(sampler).setTestOffset(offset_test);
+                                  const double* offsetTest) {
+  samplerOf(sampler).setTestOffset(offsetTest);
 }
 
-void dbarts_sampler_predict(dbarts_sampler* sampler, const double* x_test,
+void dbarts_sampler_predict(dbarts_sampler* sampler, const double* xTest,
                             size_t numTestObservations,
-                            const double* offset_test, double* out) {
+                            const double* offsetTest, double* out) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
   for (size_t j = 0; j < engine.numPredictors(); ++j)
-    validateColumnValues(engine.data(), j, x_test + j * numTestObservations,
+    validateColumnValues(engine.data(), j, xTest + j * numTestObservations,
                          numTestObservations);
 
-  engine.predict(x_test, numTestObservations, out);
+  engine.predict(xTest, numTestObservations, out);
 
-  if (offset_test != NULL) {
+  if (offsetTest != NULL) {
     size_t capacity = engine.savedTreeCapacity();
     size_t numSamples = capacity > 0 ? capacity : 1;
     for (size_t slab = 0; slab < numSamples * engine.numChains(); ++slab)
-      misc_addVectorsInPlace(offset_test, numTestObservations,
+      misc_addVectorsInPlace(offsetTest, numTestObservations,
                              out + slab * numTestObservations);
   }
 }
