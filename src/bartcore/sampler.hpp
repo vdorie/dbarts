@@ -648,15 +648,35 @@ public:
   /// the donor chain's live trees, else its saved slot (slot-major, one forest
   /// per slot). Only trees, sigma, k, and DART transfer - rng and auxiliary
   /// state stay fresh, so each chain evolves independently from its own
-  /// stream. The donor must share this sampler's cut grid, per-forest tree
-  /// counts, and DART mode; on any mismatch nothing is touched.
+  /// stream. A donor on a different cut grid has its splits remapped onto this
+  /// sampler's grid (starved splits collapse), as setData remaps a data
+  /// replacement; the donor must still share this sampler's per-forest tree
+  /// counts and DART mode. On any mismatch nothing is touched.
   WarmStartResult installForests(
       const SamplerStateData& donor,
       const std::vector<std::pair<size_t, int>>& sampleMap) {
     if (sampleMap.size() != chains_.size())
       return WarmStartResult::shapeMismatch;
-    if (donor.cutPoints != data_.cutPoints)
-      return WarmStartResult::gridMismatch;
+
+    // A donor grown on a different cut grid is remapped onto this sampler's
+    // grid at install (as setData remaps a data replacement's old splits onto
+    // the freshly rebuilt cuts), collapsing splits the new grid starves; a
+    // same-grid donor installs verbatim. Only a structural predictor mismatch
+    // the remap cannot bridge - a categorical/continuous disagreement, or a
+    // malformed donor grid - is refused here as gridMismatch.
+    bool crossGrid = donor.cutPoints != data_.cutPoints;
+    if (crossGrid) {
+      if (donor.cutPoints.size() != data_.numPredictors)
+        return WarmStartResult::gridMismatch;
+      for (size_t j = 0; j < data_.numPredictors; ++j) {
+        bool categorical = data_.types[j] == ColumnType::categorical;
+        if (categorical != donor.cutPoints[j].empty())
+          return WarmStartResult::gridMismatch;
+        for (size_t k = 1; k < donor.cutPoints[j].size(); ++k)
+          if (donor.cutPoints[j][k] <= donor.cutPoints[j][k - 1])
+            return WarmStartResult::gridMismatch;
+      }
+    }
 
     std::vector<ChainStateData> install(chains_.size());
     for (size_t c = 0; c < chains_.size(); ++c) {
@@ -712,23 +732,36 @@ public:
 
     // containment (design "Containment"): a donor grown under a different (or
     // no) interaction constraint may hold a tree this sampler's constraint
-    // forbids; refuse before touching live state rather than install a tree
-    // treeLogProbability mis-scores. A no-op when no chain is constrained.
-    for (size_t c = 0; c < chains_.size(); ++c)
-      if (!chains_[c]->interactionStateFeasible(install[c]))
-        return WarmStartResult::interactionMismatch;
+    // forbids, and one under a split-variable restriction (BCF moderators, a
+    // column-restricted variance forest) may split on a forbidden column;
+    // either would be mis-scored, so refuse before touching live state. A no-op
+    // when no chain is constrained. On the cross-grid path the donor's flat
+    // trees resolve only against the donor grid, so install it over the store
+    // for the scratch builds these feasibility checks make (ScopedCutGrid
+    // restores the live grid on scope exit); the remap only ever collapses
+    // splits, so a donor feasible pre-remap stays feasible after.
+    auto checkContainment = [&]() -> WarmStartResult {
+      for (size_t c = 0; c < chains_.size(); ++c)
+        if (!chains_[c]->interactionStateFeasible(install[c]))
+          return WarmStartResult::interactionMismatch;
+      for (size_t c = 0; c < chains_.size(); ++c)
+        if (!chains_[c]->columnMaskStateFeasible(install[c]))
+          return WarmStartResult::columnMaskMismatch;
+      return WarmStartResult::ok;
+    };
+    WarmStartResult containment;
+    if (crossGrid) {
+      ScopedCutGrid donorGrid(data_, donor.cutPoints);
+      containment = checkContainment();
+    } else {
+      containment = checkContainment();
+    }
+    if (containment != WarmStartResult::ok) return containment;
 
-    // containment for the split-variable restriction (BCF moderators, a
-    // column-restricted variance forest): a donor whose forest splits on a
-    // column this sampler's mask forbids would be mis-scored by
-    // splitVariableLogProbability against an availability menu that excludes it;
-    // refuse before touching live state. A no-op when no forest is restricted.
+    const std::vector<std::vector<double>>* donorGridPtr =
+      crossGrid ? &donor.cutPoints : nullptr;
     for (size_t c = 0; c < chains_.size(); ++c)
-      if (!chains_[c]->columnMaskStateFeasible(install[c]))
-        return WarmStartResult::columnMaskMismatch;
-
-    for (size_t c = 0; c < chains_.size(); ++c)
-      if (!chains_[c]->installForest(install[c]))
+      if (!chains_[c]->installForest(install[c], donorGridPtr, &data_))
         return WarmStartResult::shapeMismatch;
     currentSampleNum_ = 0;
     return WarmStartResult::ok;

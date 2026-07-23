@@ -89,3 +89,35 @@ on every refusal path - the code freed the donor state before the
 Rf_error longjmp but not the mapping vectors; they now live in a scope
 that closes first (rchk could not see this: it checks PROTECT balance,
 not C++ heap lifetimes).
+
+Cross-grid landed (2026-07-22). The refusal is lifted: a donor fit on a
+different cut grid (different n.cuts, useQuantiles, or predictor values)
+now warm-starts by remapping. Sampler::installForests detects the grid
+difference and routes each chain through Chain::installForestRemapped,
+which builds every donor tree against the donor grid (recovering its
+split indices) under a scoped ScopedCutGrid swap of the shared store's
+cutPoints/numCuts - structural only, the live observation codes are
+never touched - then reverts and applies Tree::mapOldCutPointsOntoNew
+onto the live grid, collapsing starved splits, repartitioning, and
+rebuilding fits, exactly the applyNewData body setData uses. The
+interaction/column-mask containment pre-checks run under the same donor
+grid (the remap only collapses, so a donor feasible pre-remap stays
+feasible), keeping the refusal transactional. numTrees, DART, and
+BCF-glue mismatches still refuse by name; a structural predictor
+mismatch (categorical/continuous disagreement, or a malformed donor
+grid) still refuses as gridMismatch, with a reworded message. Heap
+lifetime on the error paths: the grid swap is a stack RAII guard
+(ScopedCutGrid) whose destructor restores the live grid on every return,
+including the buildFromFlat-failure early return, so no swapped store
+ever escapes; the existing bridge free-before-longjmp scoping is
+untouched. rng-neutral: the same-grid path still calls rebuildLiveForest
+verbatim (installForest's donorCutPoints defaults to null), so a default
+fit and a same-grid warm start stay byte-identical. Gates: component
+tests pass (new testCrossGridWarmStart: a single-tree box donor on a
+9-cut grid installs onto a 1-cut grid, collapsing 10 leaves to 2 with no
+empty leaf and a finite run); full tinytest green (test-warm-start's
+former cut-grid refusal is now a success assertion). Deviation from the
+plan's "setData remap applied at install": the remap needed the donor
+grid installed for the structural build, which only the sampler-owned
+store can do - hence ScopedCutGrid and the mutable-store hand-off to the
+chain, rather than the chain swapping its own const data_ reference.

@@ -1267,6 +1267,41 @@ struct ColumnStore {
   }
 };
 
+/// Temporarily install a donor cut grid over a store's ordinal columns for a
+/// structural tree rebuild, restoring the live grid on scope exit. Only
+/// cutPoints and the per-column cut counts move; the quantized observation
+/// codes are the live data's and are never touched, so buildFromFlat resolves a
+/// donor tree's split values against the donor grid while a later repartition
+/// still routes the live observations. Categorical columns (empty donor cuts,
+/// fixed category counts) pass through unchanged. Cross-grid warm start's
+/// build-then-remap uses this (Chain::rebuildLiveForestRemapped); the caller
+/// guarantees donorCutPoints has one entry per predictor, matching the store's
+/// categorical/ordinal split column for column.
+class ScopedCutGrid {
+public:
+  ScopedCutGrid(ColumnStore& store,
+                const std::vector<std::vector<double>>& donorCutPoints)
+      : store_(store), savedCutPoints_(store.cutPoints),
+        savedNumCuts_(store.numCuts) {
+    store_.cutPoints = donorCutPoints;
+    for (size_t j = 0; j < store_.numPredictors; ++j)
+      if (store_.types[j] != ColumnType::categorical)
+        store_.numCuts[j] =
+          static_cast<std::uint32_t>(donorCutPoints[j].size());
+  }
+  ~ScopedCutGrid() {
+    store_.cutPoints = std::move(savedCutPoints_);
+    store_.numCuts = std::move(savedNumCuts_);
+  }
+  ScopedCutGrid(const ScopedCutGrid&) = delete;
+  ScopedCutGrid& operator=(const ScopedCutGrid&) = delete;
+
+private:
+  ColumnStore& store_;
+  std::vector<std::vector<double>> savedCutPoints_;
+  std::vector<std::uint32_t> savedNumCuts_;
+};
+
 }  // namespace bartcore
 
 #endif  // BARTCORE_DATA_HPP
