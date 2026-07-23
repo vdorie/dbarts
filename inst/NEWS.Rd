@@ -485,6 +485,14 @@
       \item `getTrees` and `extract(., "trees")` accept a `newdata` matrix, routing
             those observations through each tree so the `n` column counts them
             instead of the training data.
+      \item A warm start (`bart2`'s `warm.start`, or a sampler's
+            `installTrees`) accepts a donor fit on a different cut grid
+            (differing in `n.cuts`, `useQuantiles`, or its predictor
+            values): the donor's splits are remapped onto the
+            destination's grid, collapsing any the grid starves, the same
+            way replacing a sampler's data remaps its existing splits. A
+            donor with a different tree count or DART setting is still
+            refused.
       \item `dbarts`, `bart2`, and `rbart_vi` accept `family = "aft"`: an
             accelerated failure time, log-normal survival model (the forest
             models the conditional mean of log survival time, with `sigma` the

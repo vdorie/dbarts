@@ -2288,12 +2288,106 @@ public:
     return true;
   }
 
+  /// Cross-grid warm start's per-forest rebuild: the donor's flat trees were
+  /// grown on donorCutPoints, a grid this sampler no longer carries, so build
+  /// each tree's structure against that grid - where its ordinal split values
+  /// resolve exactly - then remap the recovered split indices onto the live
+  /// grid, collapsing splits the coarser or shifted grid starves, exactly as
+  /// setData's applyNewData does. The donor grid is installed over the shared
+  /// store only for the structural buildFromFlat (ScopedCutGrid; the live
+  /// observation codes are never touched) and reverts before the remap and
+  /// repartition. Standardization constants and, for vector or function leaves,
+  /// per-observation leaf state re-anchor to the live data the same way
+  /// applyNewData's do (node parameters carry through the remap; function fits,
+  /// being per-donor-observation, cold-start). False if a flat tree fails to
+  /// rebuild or the remapped tree violates this forest's constraint. store is
+  /// this chain's own shared data (the const data_ aliases it), handed in
+  /// mutably because only the sampler owns it: the donor grid is swapped over it
+  /// for the structural build alone.
+  bool rebuildLiveForestRemapped(
+      size_t f, const ForestStateData& fs,
+      const std::vector<std::vector<double>>& donorCutPoints,
+      std::vector<double>& params, ColumnStore& store) {
+    Forest<L, ResidT>& forest = forests_[f];
+    size_t n = data_.numObservations;
+    misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+
+    // fresh standardization / per-observation leaf state over the live data,
+    // the same re-anchoring applyNewData performs after a data replacement
+    if constexpr (L::hasVectorParams || L::hasFunctionParams)
+      forest.leaf.reinitialize(data_);
+
+    size_t paramStride = 1;
+    if constexpr (L::hasVectorParams) paramStride = forest.leaf.numParams();
+
+    for (size_t t = 0; t < forest.numTrees; ++t) {
+      forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
+      const std::uint64_t* masks =
+        fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
+      size_t numMaskWords =
+        fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
+
+      // recover the donor split indices by building against the donor grid; the
+      // swap is structural (codes untouched) and reverts before the remap even
+      // on the failure return (ScopedCutGrid's destructor)
+      {
+        ScopedCutGrid donorGrid(store, donorCutPoints);
+        if constexpr (!L::hasVectorParams) {
+          if (!forest.trees[t].buildFromFlat(store, fs.trees[t].data(),
+                                             fs.trees[t].size(), params, 1,
+                                             nullptr, masks, numMaskWords))
+            return false;
+        } else {
+          if (!forest.trees[t].buildFromFlat(store, fs.trees[t].data(),
+                                             fs.trees[t].size(), params,
+                                             forest.leaf.numParams(),
+                                             fs.treeParams[t].data(), masks,
+                                             numMaskWords))
+            return false;
+        }
+      }
+
+      // function-valued fits are per-donor-observation; cold-start them, as
+      // applyNewData does (the next sweep's draws replace them)
+      if constexpr (L::hasFunctionParams)
+        params.assign(forest.trees[t].nodes.size(), 0.0);
+
+      // remap onto the live grid, then re-route and collapse starved or emptied
+      // subtrees - the applyNewData body, without the response/store rebuild
+      forest.trees[t].mapOldCutPointsOntoNew(data_, donorCutPoints, params,
+                                             paramStride);
+      forest.trees[t].repartitionSubtree(data_, 0);
+      forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
+                                         params, paramStride);
+      // containment backstop (as rebuildLiveForest): a donor grown unconstrained
+      // cannot leave an infeasible live tree, even after the remap collapses
+      if (!forest.trees[t].interactionSubtreeIsValid(0)) return false;
+      if (!forest.trees[t].columnMaskSubtreeIsValid(0)) return false;
+      if constexpr (!L::hasVectorParams) {
+        setTreeFitsFromParameters(forest, t, params);
+      } else {
+        forest.paramsByTree[t] = params;
+        setTreeFitsFromParameterBlocks(forest, t, params);
+      }
+      if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
+      addTreeFitsToTotal(forest, t);
+    }
+    return true;
+  }
+
   /// Warm start: seed the live forest(s), sigma, and k from a donor's flat
   /// trees, leaving this chain's rng, latents, group effects, and saved-tree
   /// buffer untouched - the donor supplies a starting position, not a
-  /// continuation. Callers guarantee shape and cut-grid compatibility; false
-  /// signals only a flat tree that failed to rebuild.
-  bool installForest(const ChainStateData& state) {
+  /// continuation. Callers guarantee shape compatibility; false signals only a
+  /// flat tree that failed to rebuild. donorCutPoints null installs the donor's
+  /// splits verbatim (the donor shares this sampler's grid); non-null remaps
+  /// them onto the live grid, collapsing starved splits (a cross-grid start),
+  /// and requires store - this chain's shared data, mutable so the donor grid
+  /// can be swapped in for the structural build.
+  bool installForest(const ChainStateData& state,
+                     const std::vector<std::vector<double>>* donorCutPoints =
+                       nullptr,
+                     ColumnStore* store = nullptr) {
     if (state.forests.size() != forests_.size()) return false;
     if (state.fitMax > state.fitMin)
       response_->restoreScale(state.fitMin, state.fitMax);
@@ -2301,7 +2395,10 @@ public:
     for (size_t f = 0; f < forests_.size(); ++f) {
       const ForestStateData& fs = state.forests[f];
       if (fs.trees.size() != forests_[f].numTrees) return false;
-      if (!rebuildLiveForest(f, fs, params)) return false;
+      bool rebuilt = donorCutPoints == nullptr
+        ? rebuildLiveForest(f, fs, params)
+        : rebuildLiveForestRemapped(f, fs, *donorCutPoints, params, *store);
+      if (!rebuilt) return false;
       forests_[f].k = fs.k;
     }
     setSigma(state.sigma);

@@ -958,6 +958,112 @@ static void testBlockAdditiveConfinement() {
          splitters, violators);
 }
 
+// Cross-grid warm start (docs/plans/warm-starts.md): a donor grown on a fine
+// cut grid seeds a destination on a coarser one. The refusal is lifted; the
+// donor's split indices remap onto the live grid and any the coarser grid
+// starves collapse - setData's contract - so every installed tree stays
+// occupied (no empty leaf a naive remap would leave), the install reports ok,
+// and the sampler runs. Mirrors testSetDataQuantileShrink's collapse gate.
+static void testCrossGridWarmStart() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 909090u;
+
+  // a single tree is forced to be deep: it must fit the whole box signal
+  // below alone, splitting column 0 twice on one path (a sum of shallow trees
+  // would spread the two thresholds across trees and never starve)
+  const size_t n = 200, p = 2, numTrees = 1;
+
+  // borrow-lifetime bookkeeping: each Sampler holds its rng pointer, so the
+  // rng objects must outlive their samplers
+  std::vector<ext_rng*> rngs;
+  auto newRng = [&](std::uint32_t seed) {
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return r;
+  };
+
+  // donor: column 0 takes 10 discrete levels -> 9 quantile cuts. A box signal
+  // (large only for x0 in [3, 6]) needs TWO column-0 thresholds on one path, so
+  // the donor's trees split column 0 twice along a branch - splits a coarse
+  // destination grid cannot both keep
+  std::vector<double> xDonor(n * p), yDonor(n);
+  for (size_t i = 0; i < n; ++i) {
+    xDonor[i] = static_cast<double>(i % 10);
+    xDonor[i + n] = runif01();
+    yDonor[i] = 4.0 * ((xDonor[i] >= 3.0 && xDonor[i] <= 6.0) ? 1.0 : 0.0) +
+                0.5 * xDonor[i + n] + 0.2 * (runif01() - 0.5);
+  }
+  SamplerOptions donorOptions;
+  donorOptions.numTrees = numTrees;
+  donorOptions.useQuantiles = true;
+  ext_rng* donorRng = newRng(313);
+  ConstantLeafSampler donor(xDonor.data(), yDonor.data(), n, p, nullptr,
+                            nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                            0.37804942330213542, donorOptions, &donorRng);
+  Results empty;
+  donor.run(200, 0, empty);
+  check(donor.data().numCuts[0] == 9, "cross-grid: donor holds a 9-cut grid");
+  SamplerStateData donorState;
+  donor.getState(donorState);
+
+  // destination: column 0 takes just 2 levels -> a single cut, so any donor
+  // path that split column 0 more than once starves and must collapse
+  std::vector<double> xDest(n * p), yDest(n);
+  for (size_t i = 0; i < n; ++i) {
+    xDest[i] = static_cast<double>(i % 2);
+    xDest[i + n] = runif01();
+    yDest[i] = 2.0 * xDest[i] + 0.5 * xDest[i + n] + 0.2 * (runif01() - 0.5);
+  }
+  SamplerOptions destOptions;
+  destOptions.numTrees = numTrees;
+  destOptions.useQuantiles = true;
+  ext_rng* destRng = newRng(717);
+  ConstantLeafSampler dest(xDest.data(), yDest.data(), n, p, nullptr, nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, destOptions, &destRng);
+  check(dest.data().numCuts[0] == 1,
+        "cross-grid: destination holds a single-cut column-0 grid");
+
+  // the refusal is lifted: a genuinely different grid now installs
+  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  check(dest.installForests(donorState, liveMap) == WarmStartResult::ok,
+        "cross-grid: a different-grid donor warm-starts by remapping");
+
+  // no starved split left an empty leaf; the remap only ever merges leaves, so
+  // the live leaf count is below the donor's (a genuine collapse fired) and yet
+  // real structure survived (more than one leaf remains)
+  bool occupied = true;
+  size_t donorLeaves = 0, liveLeaves = 0;
+  std::vector<int32_t> bottoms;
+  for (size_t t = 0; t < numTrees; ++t) {
+    occupied &= dest.chain(0).tree(t).bottomNodesAreOccupied();
+    for (const FlatNode& node : donorState.chains[0].forests[0].trees[t])
+      if (node.variable == invalidVariable) ++donorLeaves;
+    dest.chain(0).tree(t).fillBottom(0, bottoms);
+    liveLeaves += bottoms.size();
+  }
+  check(occupied, "cross-grid: remap collapses starved splits, no empty leaves");
+  check(liveLeaves < donorLeaves,
+        "cross-grid: a starved split collapsed (fewer live leaves than donor)");
+  check(liveLeaves > numTrees,
+        "cross-grid: the donor's structure survived the remap");
+
+  // the sampler runs from the warm-started state
+  std::vector<double> sigmaDraws(5);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  dest.run(0, 5, results);
+  bool sigmaFinite = true;
+  for (double s : sigmaDraws) sigmaFinite &= std::isfinite(s) && s > 0.0;
+  check(sigmaFinite, "cross-grid: sampler runs after a cross-grid warm start");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: cross-grid warm start (%zu donor -> %zu live leaves)\n",
+         donorLeaves, liveLeaves);
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -971,4 +1077,5 @@ void runStateTests(ext_rng* rng) {
   testInteractionContainment();
   testColumnMaskContainment();
   testBlockAdditiveConfinement();
+  testCrossGridWarmStart();
 }

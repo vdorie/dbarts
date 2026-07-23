@@ -4998,9 +4998,10 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
     case bartcore::WarmStartResult::ok:
       break;
     case bartcore::WarmStartResult::gridMismatch:
-      Rf_error("warm-start donor was fit on a different cut grid (predictors, "
-               "n.cuts, or useQuantiles differ); cross-grid warm starts are "
-               "not supported");
+      Rf_error("warm-start donor's predictor structure is incompatible with "
+               "this sampler (a categorical/continuous column mismatch, or a "
+               "malformed donor cut grid); its trees cannot be remapped onto "
+               "this cut grid");
     case bartcore::WarmStartResult::dartMismatch:
       Rf_error("DART state transfers only between two DART fits; the donor and "
                "destination disagree on dart");

@@ -55,20 +55,22 @@ expect_error(
   ),
   "shape-compatible"
 )
-expect_error(
-  dbarts::bart2(
-    x,
-    y,
-    n.trees = 8L,
-    n.cuts = 20L,
-    n.samples = 4L,
-    n.burn = 0L,
-    n.chains = 1L,
-    verbose = FALSE,
-    warm.start = donor
-  ),
-  "cut grid"
+# a donor on a different cut grid is no longer refused: its splits remap onto
+# the destination grid (collapsing any the coarser grid starves) and the fit
+# runs to a well-formed, finite result
+crossGrid <- dbarts::bart2(
+  x,
+  y,
+  n.trees = 8L,
+  n.cuts = 20L,
+  n.samples = 4L,
+  n.burn = 0L,
+  n.chains = 1L,
+  verbose = FALSE,
+  seed = 5L,
+  warm.start = donor
 )
+expect_true(all(is.finite(as.vector(crossGrid$yhat.train))))
 expect_error(
   dbarts::bart2(
     x,
