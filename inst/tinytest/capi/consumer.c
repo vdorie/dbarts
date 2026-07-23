@@ -119,8 +119,7 @@ SEXP capi_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   uint32_t* varcount =
     (uint32_t*) R_alloc(p * numSamples * chains, sizeof(uint32_t));
 
-  dbarts_results results = {0};
-  results.structSize = sizeof results;
+  dbarts_results results = DBARTS_RESULTS_INIT;
   results.sigma = REAL(sigmaExpr);
   results.train = keepTrain ? REAL(trainExpr) : NULL;
   results.test = keepTest && nTest > 0 ? REAL(testExpr) : NULL;
@@ -187,6 +186,29 @@ SEXP capi_run_guard(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   return Rf_ScalarLogical(ok);
 }
 
+/* the zero-structSize guard: a caller that value-inits dbarts_results but
+ * forgets to set structSize (rather than using DBARTS_RESULTS_INIT) must be
+ * rejected outright - never silently handed an all-skip no-op with an
+ * uninitialized buffer. This run must Rf_error, so from R it surfaces as an
+ * error; reaching the return would mean the guard failed to fire. */
+SEXP capi_run_zero_structsize(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
+  size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
+  size_t n = dbarts_sampler_numObservations(sampler);
+  size_t chains = dbarts_sampler_numChains(sampler);
+
+  double* sigma = (double*) R_alloc(numSamples * chains, sizeof(double));
+  double* train = (double*) R_alloc(n * numSamples * chains, sizeof(double));
+
+  dbarts_results results = {0}; /* structSize deliberately left 0 */
+  results.sigma = sigma;
+  results.train = train;
+
+  dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
+  return Rf_ScalarLogical(1); /* unreachable: the guard must have errored */
+}
+
 /* per-sweep callback state: sets sigma[sweepIndex] when sigmas is non-null,
  * counts invocations, and returns 0 (stop) once the count reaches stopAt */
 typedef struct {
@@ -235,8 +257,7 @@ SEXP capi_run_with_callback(SEXP ptrExpr, SEXP numBurnInExpr,
   uint32_t* varcount =
     (uint32_t*) R_alloc(p * numSamples * chains, sizeof(uint32_t));
 
-  dbarts_results results = {0};
-  results.structSize = sizeof results;
+  dbarts_results results = DBARTS_RESULTS_INIT;
   results.sigma = REAL(sigmaExpr);
   results.train = REAL(trainExpr);
   results.test = NULL;
@@ -289,8 +310,7 @@ SEXP capi_run_grouped(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   SEXP ranefExpr = PROTECT(
     Rf_allocVector(REALSXP, (R_xlen_t) (numGroups * numSamples * chains)));
 
-  dbarts_results results = {0};
-  results.structSize = sizeof results;
+  dbarts_results results = DBARTS_RESULTS_INIT;
   results.sigma = REAL(sigmaExpr);
   results.train = NULL;
   results.test = NULL;
@@ -333,8 +353,7 @@ SEXP capi_run_loglik(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SEXP loglikExpr = PROTECT(
     Rf_allocVector(REALSXP, (R_xlen_t) (n * numSamples * chains)));
 
-  dbarts_results results = {0};
-  results.structSize = sizeof results;
+  dbarts_results results = DBARTS_RESULTS_INIT;
   results.sigma = REAL(sigmaExpr);
   results.train = REAL(trainExpr);
   results.logLikelihood = REAL(loglikExpr);

@@ -525,6 +525,13 @@
       \item The C++ interface in `dbarts/R_C_interface.hpp` is removed with
             the pre-1.0 engine it exposed; packages compiling against
             dbarts use the flat C interface in `dbarts/dbarts.h` instead.
+      \item `dbarts_sampler_run` now errors when a non-null `dbarts_results`
+            has a zero `structSize` (the caller allocated the results struct
+            but forgot to set its size) rather than silently filling no fields
+            and returning an uninitialized buffer. A new `DBARTS_RESULTS_INIT`
+            initializer in `dbarts/dbarts.h` sets `structSize` and zeroes the
+            field pointers, so the size cannot be forgotten:
+            `dbarts_results r = DBARTS_RESULTS_INIT;`.
     }
   }
   \subsection{BUG FIXES}{

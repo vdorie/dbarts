@@ -102,7 +102,8 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// past. Fields append monotonically below the marked boundary and never
 /// reorder across releases; an append bumps DBARTS_C_API_MINOR. A field is
 /// filled only when both present-by-size and non-null: a null member skips
-/// that quantity, and a zero structSize skips everything. k requires a k
+/// that quantity, and a zero or unset structSize makes dbarts_sampler_run error
+/// rather than silently produce no output. k requires a k
 /// hyperprior (dbarts_sampler_kIsSampled), varprobs a DART tree prior
 /// (dbarts_sampler_usesDart), and tau/groupEffects a grouped
 /// random-intercept sampler; each is left untouched otherwise. logLikelihood
@@ -113,8 +114,8 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// NaN-filled where the per-observation location is not fully recorded (a BCF
 /// two-forest fit), and skipping it (null or absent-by-size) elides all of
 /// its computation.
-/// Value-initialize and set the size:
-///   dbarts_results results = {0}; results.structSize = sizeof results;
+/// Value-initialize with DBARTS_RESULTS_INIT (sets structSize, zeroes the rest):
+///   dbarts_results results = DBARTS_RESULTS_INIT;
 typedef struct dbarts_results_t {
   size_t structSize;  ///< caller sets to sizeof(dbarts_results)
   double* sigma;      ///< numSamples x numChains
@@ -135,6 +136,12 @@ typedef struct dbarts_results_t {
 /// caller's buffer.
 #define DBARTS_RESULTS_HAS(r, field) \
   ((r)->structSize >= offsetof(dbarts_results, field) + sizeof((r)->field))
+
+/// Value-initializer: sets structSize (the leading member, offset 0) and zeroes
+/// the field pointers. Prefer it to hand-setting structSize - dbarts_sampler_run
+/// rejects a zero structSize rather than silently producing no output.
+///   dbarts_results results = DBARTS_RESULTS_INIT;
+#define DBARTS_RESULTS_INIT { sizeof(dbarts_results) }
 
 /// Per-sweep conditioning callback. dbarts_sampler_run invokes it on the
 /// calling thread before every sweep - each of the (numBurnIn + numSamples) x
