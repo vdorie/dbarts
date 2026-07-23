@@ -485,12 +485,14 @@ summary(object, ...)
   instead of drawing trees from the prior: either a `bart` object fit
   with `keepSampler = TRUE` or a
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
-  The donor must share this fit's predictors, tree count, cut grid, and
-  DART setting; only its trees, `sigma`, and `k` carry over, and each
-  chain starts from a different donor sample so multiple chains stay
-  overdispersed. A warm start biases early draws toward the donor, so it
-  shortens burn-in rather than removing it; keep a non-zero `n.burn`.
-  See
+  The donor must share this fit's predictors, tree count, and DART
+  setting; a donor fit on a different cut grid is supported, its splits
+  remapped onto this fit's grid (collapsing any the grid starves), the
+  same way a data replacement remaps existing splits. Only its trees,
+  `sigma`, and `k` carry over, and each chain starts from a different
+  donor sample so multiple chains stay overdispersed. A warm start
+  biases early draws toward the donor, so it shortens burn-in rather
+  than removing it; keep a non-zero `n.burn`. See
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
   `installTrees` method for finer control.
 
@@ -1288,7 +1290,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.221949
+#> total seconds in loop: 0.220929
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1354,7 +1356,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001373
+#> total seconds in loop: 0.001374
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

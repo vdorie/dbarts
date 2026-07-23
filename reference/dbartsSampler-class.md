@@ -306,8 +306,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   For `installTrees`, the fit whose forests seed this sampler: another
   `dbartsSampler`, or a `bart` object fit with `keepSampler = TRUE`. The
-  donor must share this sampler's predictors, tree count, cut grid, and
-  DART setting.
+  donor must share this sampler's predictors, tree count, and DART
+  setting; a different cut grid is allowed, its splits remapped onto
+  this sampler's grid.
 
 - samples:
 
@@ -393,11 +394,13 @@ drawing trees from the prior, for scaling to more chains or embedding a
 fit in a larger sampler. Only the donor's trees, `sigma`, and `k`
 transfer; each chain keeps its own random-number stream and redraws
 everything else, so several chains seeded from one donor stay
-overdispersed. A donor with a different tree count, cut grid, or DART
-setting is refused rather than silently reshaped. A warm start biases
-the early draws toward the donor, so it shortens burn-in rather than
-removing it; keep drawing a non-zero number of burn-in samples before
-treating the chain as converged.
+overdispersed. A donor with a different tree count or DART setting is
+refused rather than silently reshaped; a donor fit on a different cut
+grid is instead remapped onto this sampler's grid, collapsing any splits
+the grid starves, the same way a data replacement remaps existing
+splits. A warm start biases the early draws toward the donor, so it
+shortens burn-in rather than removing it; keep drawing a non-zero number
+of burn-in samples before treating the chain as converged.
 
 `growFromRoot` instead builds the sampler's initial forest by
 XBART-style root-down stochastic tree construction (He, Yalov and Hahn

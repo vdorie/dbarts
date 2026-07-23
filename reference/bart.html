@@ -292,7 +292,7 @@ bart2 fits further response families - logistic, accelerated failure time (famil
 <dd><p>Logical that can be used to save the underlying <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code> object even if <code>keepTrees</code> is false.</p></dd>
 
    <dt id="arg-warm-start">warm.start<a class="anchor" aria-label="anchor" href="#arg-warm-start"></a></dt>
-<dd><p><code>bart2</code> only. A previous fit whose forests seed the initial state instead of drawing trees from the prior: either a <code>bart</code> object fit with <code>keepSampler = TRUE</code> or a <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>. The donor must share this fit's predictors, tree count, cut grid, and DART setting; only its trees, <code>sigma</code>, and <code>k</code> carry over, and each chain starts from a different donor sample so multiple chains stay overdispersed. A warm start biases early draws toward the donor, so it shortens burn-in rather than removing it; keep a non-zero <code>n.burn</code>. See <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>'s <code>installTrees</code> method for finer control.</p></dd>
+<dd><p><code>bart2</code> only. A previous fit whose forests seed the initial state instead of drawing trees from the prior: either a <code>bart</code> object fit with <code>keepSampler = TRUE</code> or a <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>. The donor must share this fit's predictors, tree count, and DART setting; a donor fit on a different cut grid is supported, its splits remapped onto this fit's grid (collapsing any the grid starves), the same way a data replacement remaps existing splits. Only its trees, <code>sigma</code>, and <code>k</code> carry over, and each chain starts from a different donor sample so multiple chains stay overdispersed. A warm start biases early draws toward the donor, so it shortens burn-in rather than removing it; keep a non-zero <code>n.burn</code>. See <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>'s <code>installTrees</code> method for finer control.</p></dd>
 
    <dt id="arg-n-grow-sweeps">n.grow.sweeps<a class="anchor" aria-label="anchor" href="#arg-n-grow-sweeps"></a></dt>
 <dd><p><code>bart2</code> only. A non-negative integer; when positive, the initial forest is built by <code>n.grow.sweeps</code> sweeps of XBART-style grow-from-root (He, Yalov and Hahn 2019) instead of a draw from the prior, an init-then-refine workflow that reaches a good fit in far fewer sweeps before the exact sampler takes over. The default <code>0L</code> draws trees from the prior, exactly as before. Like <code>warm.start</code>, a grow-from-root start biases the early draws toward the grown fit, so it shortens burn-in rather than removing it; keep a non-zero (if smaller) <code>n.burn</code>. The posterior the sampler targets is unchanged - only the starting point moves. Constant-leaf models only, and mutually exclusive with <code>warm.start</code> (both request an initialization). See <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>'s <code>growFromRoot</code> method.</p></dd>
@@ -542,7 +542,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.221949</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.220929</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -608,7 +608,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001373</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001374</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>
