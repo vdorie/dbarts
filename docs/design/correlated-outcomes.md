@@ -1,8 +1,11 @@
 # Correlated errors and correlated outcomes around a BART mean
 
-Status: SCOPED 2026-07-22 (decision-gated door, TODO correlated-outcomes; not
-built). Fable scoping investigation, load-bearing API claims re-verified against
-the code by the orchestrator; the covariance-structure hypothesis is confirmed.
+Status: RESOLVED 2026-07-22 (decision-gated door, TODO correlated-outcomes).
+Fable scoping investigation, load-bearing API claims re-verified against
+the code by the orchestrator; the covariance-structure hypothesis confirmed
+and since VALIDATED empirically. (B) multivariate/SUR shipped as mvbart()
+in stan4bart (commit e27a7c3, branch bartcore) - ZERO dbarts engine change.
+(A) AR-1 stays deferred; see the landing note below.
 
 ## The capability and its causal motivation
 
@@ -133,3 +136,35 @@ covariance belongs in the WALNUTS outer sampler.
   seemingly-unrelated / multivariate-Gaussian BART, AR-error tree models,
   tsBART (mean-side dependence). BDM 2004 is the standard DiD reference.
 - The latent-AR mixing claim is by analogy to forest-ranef, not measured.
+
+## Landing note (2026-07-22): (B) validated and productized
+
+mvbart() in stan4bart (commit e27a7c3, branch bartcore) implements the
+Priority section's (B) recipe exactly: q dbartsSampler objects with
+resid.prior = fixed(), a pure-R outer Gibbs doing per-sweep setOffset
+(conditional mean) + setSigma (conditional sd) + run(0,1), and a
+conjugate inverse-Wishart draw of Sigma over the residual cross-products.
+ZERO dbarts engine change - the conditional-mean conduit this doc
+verified is complete and stable as specified.
+
+VALIDATED against the conjugate MNIW / SUR oracle across rho in
+{0, 0.5, 0.9}: recovers it, with a small explainable positive bias at
+high rho. Beats independent per-outcome BART fits on held-out joint
+log-score, by a margin that grows with rho - the coupling the recipe
+exists to capture.
+
+FOOTGUN recorded: dbartsFixedPrior's fixed(v) takes a VARIANCE, but
+setSigma (R method and dbarts_sampler_setSigma alike) takes an SD.
+Silently mixing the two fits the wrong residual scale with no error.
+mvbart's outer loop passes sqrt(v_k) at the setSigma call site; any
+other composition built on this recipe must do the same.
+
+The per-sweep run callback (dbarts_sampler_setCallback /
+C_dbarts_bartcore_runWithCallback, the "smallest dbarts-side enabler"
+noted above) stays a PERF-ONLY optimization - it only removes the
+run(0,1) round-trip cost - and is not freeze-gated: it may land any
+time relative to 1.0-0 without an ABI change, since
+dbarts_sampler_setCallback already exists in the shipped header.
+
+(A) AR-1 stays deferred per the Priority section: its latent-state
+recipe is destined for stan4bart/WALNUTS's outer loop, not dbarts.
