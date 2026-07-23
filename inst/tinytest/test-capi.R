@@ -104,7 +104,10 @@ expect_true(CALL("capi_run_guard", ptrGuard, 5L, nSamples))
 # consumer's Gibbs loop
 ptrZero <- CALL("capi_create", spec$control, spec$model, spec$data, "")
 CALL("capi_sample_trees_from_prior", ptrZero)
-expect_error(CALL("capi_run_zero_structsize", ptrZero, 5L, nSamples), "structSize")
+expect_error(
+  CALL("capi_run_zero_structsize", ptrZero, 5L, nSamples),
+  "structSize"
+)
 
 # the per-observation log-likelihood channel: for a gaussian sampler it must
 # equal dnorm(y, train, sigma, log = TRUE) recomputed on the same draws (train
