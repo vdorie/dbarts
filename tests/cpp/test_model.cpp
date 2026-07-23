@@ -2419,6 +2419,250 @@ static void testSparseStateRoundTrip() {
   printf("ok: sparse state round trip\n");
 }
 
+// Between-sweep mutation on a sparse design (docs/design/sparse-columns.md
+// extension (i)): setPredictor/updatePredictor on a CSC-backed column must
+// re-quantize IDENTICALLY to the same mutation on the dense equivalent, taking
+// the in-place path when the nonzero pattern is unchanged and the rebuild path
+// when it changes, and rolling back a rejected update byte-for-byte.
+static void testSparseMutation() {
+  uint64_t savedRngState = rngState;  // leave the shared draw stream in place
+  // Part 1 - store codes bitwise match the dense builder after a mutation, on
+  // both the pattern-preserving and the pattern-changing case, across both
+  // storage tiers. Column 0 rank, 1 densified, 2 rank, 3 densified.
+  {
+    const size_t n = 300, p = 4;
+    CscFixture fixture;
+    fixture.build(n, {0.05, 0.6, 0.08, 0.9});
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i)
+      y[i] = 2.0 * fixture.dense[i] - 1.5 * fixture.dense[i + 2 * n] +
+             0.4 * runif01();
+
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 707);
+    SamplerOptions options;
+    options.numTrees = 20;
+    options.cscColumnPointers = fixture.pointers.data();
+    options.cscRowIndices = fixture.rows.data();
+    options.cscValues = fixture.values.data();
+    ConstantLeafSampler sparse(nullptr, y.data(), n, p, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, &rng);
+
+    ext_rng* rngDense = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngDense, 707);
+    SamplerOptions denseOptions;
+    denseOptions.numTrees = 20;
+    ConstantLeafSampler dense(fixture.dense.data(), y.data(), n, p, nullptr,
+                          nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, denseOptions, &rngDense);
+
+    check(sparse.data().columnIsSparse(0) && sparse.data().columnIsSparse(2) &&
+          !sparse.data().columnIsSparse(1) && !sparse.data().columnIsSparse(3),
+          "sparse mutation fixture spans both storage tiers");
+
+    // build the mutated dense matrix: column 0 (rank) pattern-PRESERVING (same
+    // nonzero rows, new magnitudes); column 2 (rank) pattern-CHANGING (drop
+    // every other stored nonzero, plant new nonzeros at former zeros); columns
+    // 1 and 3 (densified) also perturbed
+    std::vector<double> xMut(fixture.dense);
+    for (size_t i = 0; i < n; ++i) {
+      if (xMut[i] != 0.0) xMut[i] = xMut[i] * 1.3 + 0.1;  // col 0: preserve
+      xMut[i + n] = xMut[i + n] * 0.9;                    // col 1 densified
+      xMut[i + 3 * n] = xMut[i + 3 * n] + 0.2;            // col 3 densified
+    }
+    // col 2: change the pattern
+    size_t dropped = 0, planted = 0;
+    for (size_t i = 0; i < n; ++i) {
+      double& v = xMut[i + 2 * n];
+      if (v != 0.0 && (i % 2 == 0)) { v = 0.0; ++dropped; }
+      else if (v == 0.0 && (i % 7 == 0) && planted < 10) {
+        v = 0.75; ++planted;
+      }
+    }
+    check(dropped > 0 && planted > 0, "pattern-changing mutation is non-trivial");
+
+    // capture the rank columns' bitmaps to prove the in-place vs rebuild split
+    std::vector<std::uint64_t> col0BitsBefore(sparse.data().sparseColumn(0).bits);
+    std::vector<std::uint64_t> col2BitsBefore(sparse.data().sparseColumn(2).bits);
+
+    size_t cols[] = {0, 1, 2, 3};
+    check(sparse.updatePredictor(xMut.data(), cols, 4, true, true) ==
+            PredictorUpdateResult::accepted &&
+          dense.updatePredictor(xMut.data(), cols, 4, true, true) ==
+            PredictorUpdateResult::accepted,
+          "forced sparse and dense updatePredictor both accept");
+
+    bool codesMatch = true, cutsMatch = true;
+    for (size_t j = 0; j < p; ++j) {
+      cutsMatch &= sparse.data().numCuts[j] == dense.data().numCuts[j];
+      cutsMatch &= sparse.data().cutPoints[j] == dense.data().cutPoints[j];
+      for (size_t i = 0; i < n; ++i)
+        codesMatch &= sparse.data().codeAt(j, i) == dense.data().codeAt(j, i);
+    }
+    check(cutsMatch, "post-mutation CSC cuts bitwise-match the dense builder's");
+    check(codesMatch,
+          "post-mutation CSC codes bitwise-match the dense builder at every cell");
+
+    check(sparse.data().sparseColumn(0).bits == col0BitsBefore,
+          "pattern-preserving mutation keeps the rank bitmap (in-place path)");
+    check(sparse.data().sparseColumn(2).bits != col2BitsBefore,
+          "pattern-changing mutation rebuilds the rank bitmap");
+
+    ext_rng_destroy(rngDense);
+    ext_rng_destroy(rng);
+    printf("ok: sparse mutation store codes (dropped %zu, planted %zu)\n",
+           dropped, planted);
+  }
+
+  // Part 2 - subsequent draws are bitwise identical on the densified tier,
+  // where the CSC columns run the dense partition kernel. Burn in a densified
+  // CSC sampler bitwise alongside a dense one, mutate identically, and continue.
+  {
+    const size_t n = 260, p = 3;
+    CscFixture fixture;
+    fixture.build(n, {1.0, 0.6, 0.9});  // all densify
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i)
+      y[i] = std::sin(3.0 * fixture.dense[i]) + fixture.dense[i + n] +
+             0.5 * runif01();
+
+    ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngA, 4321);
+    ext_rng_setSeed(rngB, 4321);
+
+    SamplerOptions denseOptions;
+    denseOptions.numTrees = 25;
+    ConstantLeafSampler dense(fixture.dense.data(), y.data(), n, p, nullptr,
+                          nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, denseOptions, &rngA);
+    SamplerOptions cscOptions(denseOptions);
+    cscOptions.cscColumnPointers = fixture.pointers.data();
+    cscOptions.cscRowIndices = fixture.rows.data();
+    cscOptions.cscValues = fixture.values.data();
+    ConstantLeafSampler sparse(nullptr, y.data(), n, p, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, cscOptions, &rngB);
+    check(!sparse.data().hasSparse && sparse.data().builtFromCsc,
+          "densified-tier mutation sampler holds no rank columns");
+
+    Results burn;
+    dense.run(30, 0, burn);
+    sparse.run(30, 0, burn);
+
+    // an accepted transactional whole-column update, then a forced whole-matrix
+    // update, applied identically to both
+    std::vector<double> newCol(n);
+    for (size_t i = 0; i < n; ++i) newCol[i] = fixture.dense[i + n] * 1.05 + 0.02;
+    size_t col1[] = {1};
+    bool bothAccept =
+      sparse.updatePredictor(newCol.data(), col1, 1, false, false) ==
+        PredictorUpdateResult::accepted &&
+      dense.updatePredictor(newCol.data(), col1, 1, false, false) ==
+        PredictorUpdateResult::accepted;
+    check(bothAccept, "densified transactional updatePredictor accepts on both");
+
+    std::vector<double> xMut(fixture.dense);
+    for (size_t i = 0; i < n * p; ++i) xMut[i] = xMut[i] * 1.1 + 0.05;
+    check(sparse.setPredictor(xMut.data(), true, true) ==
+            PredictorUpdateResult::accepted &&
+          dense.setPredictor(xMut.data(), true, true) ==
+            PredictorUpdateResult::accepted,
+          "densified forced setPredictor accepts on both");
+
+    const size_t numSamples = 40;
+    std::vector<double> sigmaA(numSamples), sigmaB(numSamples);
+    std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
+    Results ra, rb;
+    ra.sigma = sigmaA.data(); ra.trainingFits = fitsA.data();
+    rb.sigma = sigmaB.data(); rb.trainingFits = fitsB.data();
+    dense.run(0, numSamples, ra);
+    sparse.run(0, numSamples, rb);
+    check(sigmaA == sigmaB && fitsA == fitsB,
+          "densified CSC sampler draws bitwise-match dense after mutation");
+
+    ext_rng_destroy(rngB);
+    ext_rng_destroy(rngA);
+    printf("ok: sparse mutation draws (densified tier bitwise)\n");
+  }
+
+  // Part 3 - a rejected transactional update rolls the CSC store back
+  // byte-for-byte (codes, cuts, rank storage, and tree fits all restored).
+  {
+    const size_t n = 240, p = 3;
+    CscFixture fixture;
+    fixture.build(n, {0.05, 0.1, 0.6});  // two rank tiers, one densified
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i)
+      y[i] = 1.5 * fixture.dense[i] - fixture.dense[i + n] + 0.4 * runif01();
+
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 909);
+    SamplerOptions options;
+    options.numTrees = 25;
+    options.cscColumnPointers = fixture.pointers.data();
+    options.cscRowIndices = fixture.rows.data();
+    options.cscValues = fixture.values.data();
+    ConstantLeafSampler sparse(nullptr, y.data(), n, p, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, &rng);
+    Results burn;
+    sparse.run(30, 0, burn);
+
+    auto snapshotCodes = [&]() {
+      std::vector<xint_t> codes(n * p);
+      for (size_t j = 0; j < p; ++j)
+        for (size_t i = 0; i < n; ++i)
+          codes[i + j * n] = sparse.data().codeAt(j, i);
+      return codes;
+    };
+    std::vector<xint_t> codesBefore(snapshotCodes());
+    std::vector<std::vector<double>> cutsBefore(sparse.data().cutPoints);
+    std::vector<std::uint64_t> col0Bits(sparse.data().sparseColumn(0).bits);
+    std::vector<xint_t> col0Codes(sparse.data().sparseColumn(0).nzCodes);
+    std::vector<double> treeFitsBefore(sparse.chain(0).treeFits());
+
+    // a whole-matrix constant swap empties one side of every split -> reject
+    std::vector<double> xConstant(n * p, 0.5);
+    check(sparse.setPredictor(xConstant.data(), false, false) ==
+            PredictorUpdateResult::rolledBack,
+          "degenerate sparse setPredictor rejected");
+    check(snapshotCodes() == codesBefore, "rollback restores CSC codes");
+    check(sparse.data().cutPoints == cutsBefore, "rollback restores CSC cuts");
+    check(sparse.data().sparseColumn(0).bits == col0Bits &&
+          sparse.data().sparseColumn(0).nzCodes == col0Codes,
+          "rollback restores the rank bitmap and codes");
+    check(sparse.chain(0).treeFits() == treeFitsBefore,
+          "rollback leaves the tree fits untouched");
+
+    // a rejected single-column (rank) update rolls back the same way
+    std::vector<double> col0Constant(n, 0.5);
+    size_t col0[] = {0};
+    check(sparse.updatePredictor(col0Constant.data(), col0, 1, false, false) ==
+            PredictorUpdateResult::rolledBack,
+          "degenerate sparse updatePredictor rejected");
+    check(snapshotCodes() == codesBefore,
+          "single-column rollback restores CSC codes");
+    check(sparse.data().sparseColumn(0).nzCodes == col0Codes,
+          "single-column rollback restores the rank codes");
+
+    // the sampler stays usable, and setCutPoints re-quantizes from the
+    // restored owned slice without corruption
+    std::vector<double> sigmaDraws(10);
+    Results results;
+    results.sigma = sigmaDraws.data();
+    sparse.run(0, 10, results);
+    bool ok = true;
+    for (double s : sigmaDraws) ok &= std::isfinite(s) && s > 0.0;
+    check(ok, "sparse sampler runs after rollback");
+
+    ext_rng_destroy(rng);
+    printf("ok: sparse mutation rollback (byte-identical restore)\n");
+  }
+  rngState = savedRngState;
+}
+
 // A single high-cardinality unordered factor held both as a dense column-major
 // code matrix (codes as doubles, level order 0..K-1) and as CSC arrays over the
 // non-reference entries, the reference level implicit. probReference tunes the
@@ -5448,6 +5692,7 @@ void runModelTests(ext_rng* rng) {
   testSparseColumnStore();
   testSparseEndToEnd();
   testSparseStateRoundTrip();
+  testSparseMutation();
   testSparseCategoricalColumnStore();
   testSparseCategoricalEndToEnd();
   testMixedColumnStore();

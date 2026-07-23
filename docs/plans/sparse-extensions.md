@@ -38,3 +38,14 @@ builds of the same values exactly.
 ## Verification
 
 - The landing gates from sparse-columns.md, per extension.
+
+## Status
+
+- Extension (i), sparse-column in-place mutation, LANDED 2026-07-22
+  (sparse-columns.md "Extension (i)" section): setPredictor/updatePredictor
+  mutate CSC-backed columns, in-place when the nonzero pattern holds and
+  rebuilding the layout otherwise, with dense-identical codes/draws and
+  transactional roll-back. Remaining deferred extensions (sparse x.test, a
+  streaming range kernel, dense-backed mixed-column mutation at the R5
+  level, rbart_vi/linear-leaf on sparse, per-column u8 widths) stay
+  consumer-gated.

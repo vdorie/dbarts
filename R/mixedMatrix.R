@@ -384,6 +384,18 @@ installPredictorColumns <- function(x, rows, columns, values) {
     }
     return(x)
   }
+  # a pure dgCMatrix design (sparse-columns.md ext (i)): column-granular
+  # mutation stays sparse under Matrix's [<-; per-observation (rows) mutation
+  # of a sparse column is refused upstream, so only the whole-column path lands
+  if (inherits(x, "dgCMatrix")) {
+    values <- as.double(values)
+    if (is.null(rows)) {
+      x[, columns] <- values
+    } else {
+      x[rows, columns] <- values
+    }
+    return(x)
+  }
   if (is.null(rows)) {
     values <- as.double(values)
     n <- x$numObservations

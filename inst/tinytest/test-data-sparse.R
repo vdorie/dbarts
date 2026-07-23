@@ -93,9 +93,10 @@ fit.test <- bart(
 )
 expect_equal(ncol(fit.test$yhat.test), 20L)
 
-# the sampler surface: response-side mutation stays open, the raw-x
-# surface and whole-data replacement are fixed at creation, and grouped
-# rbart_vi is reserved
+# the sampler surface: response-side mutation stays open; a sparse column
+# accepts column-granular between-sweep mutation (sparse-columns.md ext (i));
+# whole-matrix, per-observation, and whole-data replacement stay fixed at
+# creation, and grouped rbart_vi is reserved
 control <- dbartsControl(
   n.samples = 10L,
   n.burn = 0L,
@@ -105,9 +106,39 @@ control <- dbartsControl(
 sampler <- dbarts(x.sparse, y, control = control)
 invisible(sampler$run())
 expect_silent(sampler$setResponse(y))
+
+# column-granular mutation of a sparse column: pattern-preserving (rescale the
+# stored nonzeros) then pattern-changing (plant a nonzero at a former zero),
+# forced so it always installs; data@x is maintained and stays a dgCMatrix
+newCol1 <- x.dense[, 1L]
+newCol1[newCol1 != 0] <- newCol1[newCol1 != 0] * 1.5
+expect_silent(
+  sampler$setPredictor(newCol1, column = 1L, forceUpdate = TRUE)
+)
+expect_inherits(sampler$data@x, "dgCMatrix")
+expect_equal(as.numeric(sampler$data@x[, 1L]), unname(newCol1))
+
+newCol2 <- newCol1
+newCol2[which(newCol2 == 0)[1:3]] <- c(0.6, 0.7, 0.8)
+expect_silent(
+  sampler$setPredictor(newCol2, column = 1L, forceUpdate = TRUE)
+)
+expect_equal(as.numeric(sampler$data@x[, 1L]), unname(newCol2))
+# a transactional (non-forced) column update returns a logical accept flag and
+# leaves the sampler runnable
+accepted <- sampler$setPredictor(newCol1, column = 1L)
+expect_true(is.logical(accepted) && length(accepted) == 1L)
+expect_silent(invisible(sampler$run()))
+
+# out of scope, refused by name: whole-matrix and per-observation replacement
+# of a sparse design, and whole-data replacement
 expect_error(
   sampler$setPredictor(x.dense),
-  pattern = "sparse predictors fix the design"
+  pattern = "whole-matrix setPredictor requires a dense design"
+)
+expect_error(
+  sampler$setPredictor(newCol1, column = 1L, forceUpdate = "partial"),
+  pattern = "per-observation updates require a dense-backed column"
 )
 expect_error(sampler$setData(dbartsData(x.sparse, y)), pattern = "sparse")
 expect_error(

@@ -44,11 +44,17 @@ bartcoreSamplerSetPredictor <- function(
   forceUpdate,
   updateCutPoints
 ) {
-  # guard before data@x is swapped: the C entry point refuses too, but the
-  # R5 object must not be left holding a half-installed dense matrix
-  if (predictorSourceIsSparse(sampler$data@x)) {
+  # guard before data@x is swapped: the C entry point refuses a view too, but
+  # the R5 object must not be left holding a half-installed matrix. A pure
+  # dgCMatrix design accepts column-granular mutation (docs/design/
+  # sparse-columns.md extension (i)), maintained R-side by installPredictorColumns;
+  # a mixed dense/sparse container is not yet maintained R-side, and whole-matrix
+  # and per-observation replacement of a sparse column stay fixed at creation.
+  sparseSource <- predictorSourceIsSparse(sampler$data@x)
+  if (sparseSource && !inherits(sampler$data@x, "dgCMatrix")) {
     stop(
-      "sparse predictors fix the design at creation; make a new sampler instead"
+      "mutation of a mixed dense/sparse design is fixed at creation; ",
+      "make a new sampler instead"
     )
   }
 
@@ -72,6 +78,12 @@ bartcoreSamplerSetPredictor <- function(
   ptr <- sampler$getPointer()
 
   if (partialUpdate) {
+    if (sparseSource) {
+      stop(
+        "per-observation updates require a dense-backed column; replace a ",
+        "sparse column wholesale with a non-partial update"
+      )
+    }
     if (is.null(column)) {
       stop("partial updates require a single 'column' to be specified")
     }
@@ -109,6 +121,12 @@ bartcoreSamplerSetPredictor <- function(
   updateCutPoints <- coerceOrError(updateCutPoints, "logical")
 
   if (is.null(column)) {
+    if (sparseSource) {
+      stop(
+        "whole-matrix setPredictor requires a dense design; replace sparse ",
+        "columns individually with 'column ='"
+      )
+    }
     if (is.matrix(x)) {
       if (ncol(x) != ncol(sampler$data@x)) {
         stop("dimension of x must be equal to ", ncol(sampler$data@x))

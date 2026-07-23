@@ -231,12 +231,17 @@
             nonzero (roughly a tenth of dense memory at real sparsity)
             and densifies otherwise, so the sparse object is never
             expanded. Missing values enter as stored \code{NA} entries.
-            Test matrices stay dense, and the predictor-mutation surface
-            (\code{setPredictor} and relatives, \code{setData}) is fixed
-            at creation - make a new sampler instead; state
-            serialization and \code{predict} work as usual.
-            \code{rbart_vi} and \code{node.prior = linear()} do not yet
-            support sparse inputs.
+            Test matrices stay dense. A \code{dgCMatrix} design accepts
+            between-sweep column mutation: \code{sampler$setPredictor(x,
+            column = j)} (and the flat C API's \code{setPredictor} /
+            \code{updatePredictor}) re-quantize a sparse column in place
+            when its nonzero pattern is unchanged and rebuild its layout
+            when the set of nonzeros changes, with the transactional
+            roll-back a dense column has. Whole-matrix and per-observation
+            replacement of a sparse column, and \code{setData}, stay fixed
+            at creation. State serialization and \code{predict} work as
+            usual. \code{rbart_vi} and \code{node.prior = linear()} do not
+            yet support sparse inputs.
       \item Mixed dense and sparse predictors: a data frame passed to
             the x/y interfaces may hold \code{Matrix::sparseVector} and
             \code{dgCMatrix} columns (assign them into the frame; they
@@ -246,9 +251,10 @@
             all-sparse design does, while dense-backed columns keep the
             full feature set: factors still split categorically and
             \code{node.prior = linear()} may designate dense-backed
-            columns. Test data frames expand to dense matrices;
-            predictor mutation remains fixed at creation and
-            \code{rbart_vi} still requires dense inputs.
+            columns. Test data frames expand to dense matrices. Column
+            mutation of a mixed container is deferred at the R level (the
+            engine and flat C API accept it); \code{rbart_vi} still
+            requires dense inputs.
       \item Categorical predictors support up to 65535 levels, up from
             53: rules on wider factors pool their direction masks per
             tree. In `getTrees` such a rule's `value` is `NA` (its mask

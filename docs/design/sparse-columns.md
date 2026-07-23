@@ -250,10 +250,11 @@ Landed per the plan; deltas and specifics:
   paths are layout-refactored only); speed at baseline; R CMD check
   --as-cran Status OK.
 
-Still open, by design: in-place nonzero-value mutation and pattern
-rebuilds (needs a consumer), sparse x.test, rbart_vi and linear-leaf
+Still open, by design: sparse x.test, rbart_vi and linear-leaf
 support, per-column u8 code widths, a streaming range kernel for
 root-sized segments, and any public exposure of the density threshold.
+(In-place nonzero-value mutation and pattern rebuilds LANDED as extension
+(i), 2026-07-22 - see the section below.)
 
 ## Planned: mixed dense and sparse predictors (Vincent, 2026-07-04)
 
@@ -378,7 +379,65 @@ Implemented per the plan above; deltas and specifics:
   sampler state. Sampler-level save/load (storeState + saveRDS) works
   and is what the tests cover.
 
+## Extension (i): sparse-column in-place mutation (landed)
+
+The deferred in-place mutation from the integration sketch, made concrete.
+Scope: setPredictor and updatePredictor (the whole-matrix and subset-column
+surfaces, transactional and forced) now mutate CSC-backed columns, lifting the
+store-wide refusal the v1 landing imposed. The motivating consumer is IRT-style
+between-sweep mutation on a sparse design (a dense latent covariate mutated
+while sparse item indicators sit in the store, and mutation of the sparse
+columns themselves).
+
+- The mutation surface hands the engine a DENSE column even for sparse storage
+  (the bridge/flat C API re-quantize from a dense matrix). The nonzero pattern
+  is {i : value != 0}, so a stored NaN (missing) stays stored and the minimal
+  pattern a dense equivalent carries is produced - codes stay bitwise identical
+  to a dense build of the same values. When the pattern is unchanged the
+  nonzero values re-quantize IN PLACE (rank tier: nzCodes + zeroCode over the
+  fixed bitmap; densified tier: the codes segment); when it changes the rank
+  bitmap and index REBUILD, O(n/64 + nnz). ColumnStore::mutateCscColumnFromDense
+  dispatches; setPredictors/setColumns route CSC-backed columns to it.
+- The storage tier (rank vs densified) is FIXED at build and never flips on
+  mutation, keeping the codeOffsets/codes layout and rank-slot assignment
+  stable (a rank column whose nnz grows past the threshold stays rank -
+  correct, just less memory-efficient; codes match dense regardless of tier).
+- Owned re-quantize sources: a CSC column borrows R's dgCMatrix i/x slices at
+  build; the first mutation copies the new nonzeros into engine-owned
+  ownedCscRows/Values[j] and repoints the column's slice, since the borrow no
+  longer reflects the live values (setCutPoints and state restore re-quantize
+  from the slice). cscColumnOwned[j] tracks the borrowed-vs-owned split.
+- Transactional roll-back mirrors the dense paths column-granularly: the subset
+  path (updatePredictor) snapshots a CscColumnRollback per touched CSC column
+  (source descriptor, rank storage or codes segment, owned buffers, ownership
+  flag) alongside the dense journal for dense columns; the whole-matrix path
+  (setPredictor) bulk-snapshots sparseColumns/sources/owned buffers when
+  builtFromCsc, beside the moved codes. On reject both restore byte-for-byte
+  and repoint owned slices (a moved-then-restored buffer need not sit at the
+  pre-change address; a borrowed slice keeps its valid R pointer).
+- Out of scope, refused by name: per-observation replacement of a CSC-backed
+  column (updatePredictorPerObservation writes cells one at a time, which rank
+  storage cannot take without an O(nnz) shift per cell - replace the whole
+  column with updatePredictor; dense-backed columns of a mixed store, the IRT
+  latent case, stay open); whole-matrix and per-observation replacement of a
+  sparse design at the R5 level (data@x maintenance); mixed-container mutation
+  at the R5 level (the container's sparse block is not yet rebuilt R-side - the
+  engine and flat C API accept it); setData whole-data replacement of a CSC
+  store; and CSC-backed categorical mutation (R never builds one). Save/load
+  after a mutation still re-creates from the stored dgCMatrix, so data@x must
+  reflect the mutation R-side (the dgCMatrix path maintains it via
+  installPredictorColumns; the container path is deferred).
+
+Gates: tests/cpp testSparseMutation (store codes bitwise-match the dense
+builder after pattern-preserving and pattern-changing mutation across both
+tiers; densified-tier draws bitwise-match dense after mutation; a rejected
+transactional update restores codes/cuts/rank-storage/tree-fits
+byte-for-byte). tinytest test-data-sparse.R covers the dgCMatrix column
+mutation and the remaining refusals; test-data-mixed.R the mixed-container
+refusal. Full suite green, all pre-existing snapshots intact (rng-neutral).
+
 ## Status
 
 LANDED 2026-07-04 (plan and landing notes above); mixed dense/sparse
-input LANDED 2026-07-04 (plan and landing notes above).
+input LANDED 2026-07-04 (plan and landing notes above); extension (i)
+sparse-column in-place mutation LANDED 2026-07-22 (section above).
