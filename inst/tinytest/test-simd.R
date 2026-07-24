@@ -36,7 +36,7 @@ if (maxSIMDLevel > 0L) {
         verbose = FALSE
       )
 
-      expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
+      expect_equal(bartFit.0$yhat.train, bartFit$yhat.train, tolerance = 0)
     }
   } else {
     if (maxSIMDLevel >= 2L) {
@@ -51,7 +51,7 @@ if (maxSIMDLevel > 0L) {
         verbose = FALSE
       )
 
-      expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
+      expect_equal(bartFit.0$yhat.train, bartFit$yhat.train, tolerance = 0)
     }
     if (maxSIMDLevel >= 5L) {
       .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 5L) # SSE4_1
@@ -65,7 +65,7 @@ if (maxSIMDLevel > 0L) {
         verbose = FALSE
       )
 
-      expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
+      expect_equal(bartFit.0$yhat.train, bartFit$yhat.train, tolerance = 0)
     }
     if (maxSIMDLevel >= 7L) {
       .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 7L) # AVX
@@ -79,9 +79,9 @@ if (maxSIMDLevel > 0L) {
         verbose = FALSE
       )
 
-      expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
+      expect_equal(bartFit.0$yhat.train, bartFit$yhat.train, tolerance = 0)
     }
-    if (FALSE && maxSIMDLevel >= 8L) {
+    if (maxSIMDLevel >= 8L) {
       .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 8L) # AVX2
       set.seed(99L)
       bartFit <- dbarts::bart(
@@ -93,7 +93,7 @@ if (maxSIMDLevel > 0L) {
         verbose = FALSE
       )
 
-      expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
+      expect_equal(bartFit.0$yhat.train, bartFit$yhat.train, tolerance = 0)
     }
   }
   .Call(dbarts:::C_dbarts_setSIMDInstructionSet, maxSIMDLevel)
@@ -143,7 +143,7 @@ if (maxSIMDLevel > 0L) {
         verbose = FALSE
       )
 
-      expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
+      expect_equal(bartFit.0$yhat.train, bartFit$yhat.train, tolerance = 0)
     }
   } else {
     if (maxSIMDLevel >= 2L) {
@@ -158,7 +158,7 @@ if (maxSIMDLevel > 0L) {
         verbose = FALSE
       )
 
-      expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
+      expect_equal(bartFit.0$yhat.train, bartFit$yhat.train, tolerance = 0)
     }
     if (maxSIMDLevel >= 5L) {
       .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 5L) # SSE4_1
@@ -172,7 +172,7 @@ if (maxSIMDLevel > 0L) {
         verbose = FALSE
       )
 
-      expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
+      expect_equal(bartFit.0$yhat.train, bartFit$yhat.train, tolerance = 0)
     }
     if (maxSIMDLevel >= 7L) {
       .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 7L) # AVX
@@ -186,7 +186,7 @@ if (maxSIMDLevel > 0L) {
         verbose = FALSE
       )
 
-      expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
+      expect_equal(bartFit.0$yhat.train, bartFit$yhat.train, tolerance = 0)
     }
     if (maxSIMDLevel >= 8L) {
       .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 8L) # AVX2
@@ -200,7 +200,7 @@ if (maxSIMDLevel > 0L) {
         verbose = FALSE
       )
 
-      expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
+      expect_equal(bartFit.0$yhat.train, bartFit$yhat.train, tolerance = 0)
     }
   }
   .Call(dbarts:::C_dbarts_setSIMDInstructionSet, maxSIMDLevel)
