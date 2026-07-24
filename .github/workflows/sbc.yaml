@@ -8,6 +8,10 @@
 # Known defect: the BCF glue-on sigma config (benchmarks/R/sbc.R bcf /
 # bcf-weak) is under investigation and is NOT part of this workflow;
 # gaussian only.
+#
+# NOTE: GitHub binds `schedule` to the repository DEFAULT branch, so this run
+# does not fire until the workflow lands on main; on bartcore it is
+# workflow_dispatch (manual) only. See valgrind.yaml's header.
 on:
   schedule:
     - cron: '0 3 * * 3'
