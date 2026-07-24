@@ -1,6 +1,6 @@
 # Design doc index
 
-Manifest of every `docs/design/*.md` (34 files), grouped by theme. STATUS is
+Manifest of every `docs/design/*.md` (36 files), grouped by theme. STATUS is
 read from each doc's live `Status:` line or `## Status` section as of
 2026-07-21; a few standing-reference docs carry no status line by design
 (noted as REFERENCE). See `docs/README.md` for how this index relates to the
@@ -29,6 +29,7 @@ Columns: `file | STATUS | one-liner`.
 | weighted-logistic.md | LANDED, 2026-07-05 | Extends observation weights to logistic responses (previously refused) via PG(w,psi) "multiple copies"; positive-integer weights only. Plans: weighted-binary.md (declined follow-ups), weighted-binary-ppd.md. |
 | grouped-random-effects.md | LANDED, 2026-07-04 | Moves rbart_vi's random-intercept Gibbs loop into the engine as a `GroupedResponse` decorator composable with any response family; R loop kept as custom-prior fallback. |
 | forest-ranef-interweaving.md | NO-GO (recorded door, reconfirmed 2026-07-20) | Investigates a joint/interweave move for forest-ranef confounding; no cheap ASIS move exists (forest exposes no per-group scalar), only fix is a full marginal collapse - not worth it for a narrow weak-signal payoff. |
+| correlated-outcomes.md | RESOLVED, 2026-07-22 (decision-gated door) | Richer error/outcome covariance around a BART mean, for causal DiD/panel and multi-outcome designs: (B) multivariate/SUR shipped as mvbart() in stan4bart with ZERO dbarts engine change (commit e27a7c3); (A) AR-1 serially-correlated errors deferred. TODO: correlated-outcomes. |
 
 ## Performance & parallelism frontier
 
@@ -71,7 +72,6 @@ Columns: `file | STATUS | one-liner`.
 | change-move-balance.md | LANDED, 2026-07-08 | Fixes a since-origin detailed-balance defect in the tree change move (missing proposal-density correction, biased toward low-cardinality variables); hybrid ordinal/categorical fix. Plan: change-move-fix.md. |
 | empty-leaf-veto.md | LANDED (keep-and-document) | Investigates occupancy-aware tree proposals vs. the existing finite-penalty empty-leaf veto; keeps the veto, corrected 2026-07-15 to -HUGE_VAL (was a beatable finite -1e7). Plan: empty-leaf-veto.md. |
 | grow-from-root.md | MIXED (GO on cut-scan/warm-start; NO-GO on standalone sampler) | XBART-style root-down stochastic tree construction; ships only as a validity-free warm-start producer, rejected as a standalone approximate posterior sampler (not MH-exact). Plans: grow-from-root.md, grow-from-root-warm-start.md. |
-
-## Known drift / flags (see docs/README.md reconciliation notes for detail)
+| interaction-constraints.md | LANDED, 2026-07-21 (f455d7c; P4 073d3db) | Per-forest limits on which predictors may jointly shape the fit: cap interaction ORDER (1 = additive/GAM, 2 = pairwise) and/or DENY named co-occurrences or ALLOW declared groups; motivates calibrated-additivity causal use (additive tau, free mu). Plans: interaction-constraints.md, interaction-constraints-p4.md. |
 
 - data-layout.md: its "substrate for block-fusion" recommendation was orphaned when block-fusion closed WONT-DO; the doc now carries a dated post-mortem noting the standalone ~10% win needs its own re-evaluation.

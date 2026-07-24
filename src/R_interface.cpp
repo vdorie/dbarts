@@ -309,8 +309,6 @@ static R_CallMethodDef R_callMethods[] = {
            bartcore_getSumsOfSquaredResiduals, 1),
   DEF_FUNC("dbarts_finalize", finalize, 0),
   DEF_FUNC("dbarts_deepCopy", deepCopy, 1),
-  // DEF_FUNC("dbarts_getPointerAddress", getPointerAddress, 1),
-  // DEF_FUNC("dbarts_getXAddress", getXAddress, 1),
   DEF_FUNC(
     "dbarts_makeModelMatrixFromDataFrame",
     dbarts_makeModelMatrixFromDataFrame,

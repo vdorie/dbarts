@@ -320,8 +320,6 @@ extract.bart <- function(
 
   result <- if (sample == "train") object$yhat.train else object$yhat.test
   weights <- if (sample == "train") object$weights else object$weights.test
-  #n.samples <- if (length(dim(result)) > 2L) dim(result)[2L] else dim(result)[1L] %/% n.chains
-  #n.obs     <- if (length(dim(result)) > 2L) dim(result)[3L] else dim(result)[2L]
 
   result <- combineOrUncombineChains(result, n.chains, combineChains)
 
@@ -1504,9 +1502,6 @@ extract.rbart <- function(
       result <- uncombineChains(result, n.chains)
     }
   }
-
-  #n.samples <- if (length(dim(result)) > 2L) dim(result)[2L] else dim(result)[1L] %/% n.chains
-  #n.obs     <- dim(result)[length(dim(result))]
 
   if (type == "bart") {
     return(result)
