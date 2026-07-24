@@ -846,7 +846,7 @@ bart2 <- function(
   samplerCall$sigma <- as.numeric(sigest)
 
   sampler <- eval(samplerCall, envir = callingEnv)
-  if (samplerOnly == TRUE) {
+  if (isTRUE(samplerOnly)) {
     return(sampler)
   }
 

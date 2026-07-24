@@ -535,12 +535,6 @@ dbarts <- function(
 
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
   data <- eval(dataCall, evalEnv)
-  # cat(
-  #   "x address after dbartsData call: ",
-  #   .Call("dbarts_getPointerAddress", data@x),
-  #   "\n",
-  #   sep = ""
-  # )
 
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigma
@@ -701,12 +695,6 @@ dbarts <- function(
   ) {
     data@offset.test <- NULL
   }
-  # cat(
-  #   "x address after updating data: ",
-  #   .Call("dbarts_getPointerAddress", data@x),
-  #   "\n",
-  #   sep = ""
-  # )
 
   # resolve the monotone spec here, where its argument is a forced value (a
   # wrapper forwarding it through ... would otherwise reach parsePriors as an
@@ -874,18 +862,6 @@ dbarts <- function(
   }
 
   result <- new("dbartsSampler", control, model, data)
-  # cat(
-  #   "x address after creating sampler: ",
-  #   .Call("dbarts_getPointerAddress", data@x),
-  #   "\n",
-  #   sep = ""
-  # )
-  # cat(
-  #   "x address in sampler$data: ",
-  #   .Call("dbarts_getPointerAddress", result$data@x),
-  #   "\n",
-  #   sep = ""
-  # )
   result
 }
 
@@ -1787,7 +1763,6 @@ dbartsSampler <- setRefClass(
       )
       tree <- fillPlotCoordinatesForNode(tree, maxDepth, 1L, 1L)
       numEndNodes <- tree$index[1L] - 1L
-      #tree$index <- NULL
 
       plotHeight <- treePlotPars[["nodeHeight"]] *
         maxDepth +
