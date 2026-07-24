@@ -36,7 +36,6 @@ struct MoveContext {
   const CGMTreePrior& treePrior;
   double birthOrDeathProbability;
   double swapProbability;
-  double changeProbability;
   double birthProbability;
   const double* weights;
   double k;
@@ -696,6 +695,15 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 
   double alpha;
 
+  // The swap gives the parent a child's rule and each swapped child the
+  // parent's. When the two children share a rule both are swapped; otherwise
+  // one is picked (a fair coin when both carry a rule, else the only one that
+  // does). Either way every swapped child's original rule is childRule, so the
+  // two cases differ only in which children move - captured in swapChildren.
+  Rule parentRule = tree.at(parent).rule;
+  Rule childRule;
+  int32_t swapChildren[2];
+  int numSwapChildren;
   if (!childrenHaveSameRule) {
     int32_t child;
     if (leftHasRule && rightHasRule) {
@@ -703,90 +711,60 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
     } else {
       child = leftHasRule ? leftChild : rightChild;
     }
-
-    Rule parentRule = tree.at(parent).rule;
-    Rule childRule = tree.at(child).rule;
-
-    // test the swap for logical consistency before scoring it
-    tree.at(parent).rule = childRule;
-    tree.at(child).rule = parentRule;
-    bool swapIsSensible = ruleIsValid(ctx, tree, parent, childRule.variableIndex);
-    if (childRule.variableIndex != parentRule.variableIndex && swapIsSensible)
-      swapIsSensible = ruleIsValid(ctx, tree, parent, parentRule.variableIndex);
-    // interaction is a WHOLE-subtree, all-variables property the per-variable
-    // ruleIsValid checks above cannot see (the swap sibling-strand break): a
-    // swap that lifts x2 above x3 co-occurs a forbidden pair with neither
-    // swapped variable equal to x3. Score it the -1.0 no-op (pi(T') = 0).
-    if (swapIsSensible) swapIsSensible = tree.interactionSubtreeIsValid(parent);
-    tree.at(parent).rule = parentRule;
-    tree.at(child).rule = childRule;
-
-    if (!swapIsSensible) return -1.0;
-
-    // as in changeMove, prior terms outside the swapped subtree cancel
-    double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
-    double xLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
-
-    tree.snapshotSubtree(parent, ctx.scratch.snapshot);
-
-    tree.at(parent).rule = childRule;
-    tree.at(child).rule = parentRule;
-    tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
-
-    double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
-    double yLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
-
-    alpha = std::exp(yLogPi + yLogL - xLogPi - xLogL);
-    alpha = alpha > 1.0 ? 1.0 : alpha;
-
-    if (ext_rng_simulateBernoulli(rng, alpha) == 1) {
-      *stepTaken = true;
-      if (changedNode != nullptr) *changedNode = parent;
-    } else {
-      tree.restoreSubtree(ctx.scratch.snapshot);
-    }
+    childRule = tree.at(child).rule;
+    swapChildren[0] = child;
+    numSwapChildren = 1;
   } else {
-    // both children share a rule: swap it with the parent's in both
-    Rule parentRule = tree.at(parent).rule;
-    Rule childRule = tree.at(leftChild).rule;
+    childRule = tree.at(leftChild).rule;
+    swapChildren[0] = leftChild;
+    swapChildren[1] = rightChild;
+    numSwapChildren = 2;
+  }
 
+  auto applySwap = [&]() {
     tree.at(parent).rule = childRule;
-    tree.at(leftChild).rule = parentRule;
-    tree.at(rightChild).rule = parentRule;
-    bool swapIsSensible = ruleIsValid(ctx, tree, parent, childRule.variableIndex);
-    if (childRule.variableIndex != parentRule.variableIndex && swapIsSensible)
-      swapIsSensible = ruleIsValid(ctx, tree, parent, parentRule.variableIndex);
-    // whole-subtree interaction feasibility, as in the single-child branch
-    if (swapIsSensible) swapIsSensible = tree.interactionSubtreeIsValid(parent);
+    for (int i = 0; i < numSwapChildren; ++i)
+      tree.at(swapChildren[i]).rule = parentRule;
+  };
+  auto undoSwap = [&]() {
     tree.at(parent).rule = parentRule;
-    tree.at(leftChild).rule = childRule;
-    tree.at(rightChild).rule = childRule;
+    for (int i = 0; i < numSwapChildren; ++i)
+      tree.at(swapChildren[i]).rule = childRule;
+  };
 
-    if (!swapIsSensible) return -1.0;
+  // test the swap for logical consistency before scoring it
+  applySwap();
+  bool swapIsSensible = ruleIsValid(ctx, tree, parent, childRule.variableIndex);
+  if (childRule.variableIndex != parentRule.variableIndex && swapIsSensible)
+    swapIsSensible = ruleIsValid(ctx, tree, parent, parentRule.variableIndex);
+  // interaction is a WHOLE-subtree, all-variables property the per-variable
+  // ruleIsValid checks above cannot see (the swap sibling-strand break): a
+  // swap that lifts x2 above x3 co-occurs a forbidden pair with neither
+  // swapped variable equal to x3. Score it the -1.0 no-op (pi(T') = 0).
+  if (swapIsSensible) swapIsSensible = tree.interactionSubtreeIsValid(parent);
+  undoSwap();
 
-    // as in changeMove, prior terms outside the swapped subtree cancel
-    double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
-    double xLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
+  if (!swapIsSensible) return -1.0;
 
-    tree.snapshotSubtree(parent, ctx.scratch.snapshot);
+  // as in changeMove, prior terms outside the swapped subtree cancel
+  double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
+  double xLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
 
-    tree.at(parent).rule = childRule;
-    tree.at(leftChild).rule = parentRule;
-    tree.at(rightChild).rule = parentRule;
-    tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
+  tree.snapshotSubtree(parent, ctx.scratch.snapshot);
+  applySwap();
+  tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
 
-    double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
-    double yLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
+  double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
+  double yLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
 
-    alpha = std::exp(yLogPi + yLogL - xLogPi - xLogL);
-    alpha = alpha > 1.0 ? 1.0 : alpha;
+  alpha = std::exp(yLogPi + yLogL - xLogPi - xLogL);
+  alpha = alpha > 1.0 ? 1.0 : alpha;
 
-    if (ext_rng_simulateBernoulli(rng, alpha) == 1) {
-      *stepTaken = true;
-      if (changedNode != nullptr) *changedNode = parent;
-    } else {
-      tree.restoreSubtree(ctx.scratch.snapshot);
-    }
+  if (ext_rng_simulateBernoulli(rng, alpha) == 1) {
+    *stepTaken = true;
+    if (changedNode != nullptr) *changedNode = parent;
+  } else {
+    tree.restoreSubtree(ctx.scratch.snapshot);
   }
 
   return alpha;

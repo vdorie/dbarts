@@ -935,7 +935,6 @@ public:
                         forest.treePrior,
                         forest.birthOrDeathProbability,
                         forest.swapProbability,
-                        forest.changeProbability,
                         forest.birthProbability,
                         forestWeights,
                         forest.k,
@@ -2731,7 +2730,6 @@ private:
                       vf.treePrior,
                       vf.birthOrDeathProbability,
                       vf.swapProbability,
-                      vf.changeProbability,
                       vf.birthProbability,
                       userWeights,
                       1.0,  // k: unread by the scale leaf's marginal

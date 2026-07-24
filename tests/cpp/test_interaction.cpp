@@ -202,7 +202,7 @@ void testSwapSiblingStrand(ext_rng* rng) {
   prior.power = 2.0;
   ConstantGaussianLeaf leaf{0.5};
   MoveScratch scratch;
-  MoveContext ctx{store, prior, 0.5, 1.0, 0.0, 0.5, weights.data(), 2.0, scratch};
+  MoveContext ctx{store, prior, 0.5, 1.0, 0.5, weights.data(), 2.0, scratch};
 
   bool everTaken = false, stayedValid = true;
   for (int iter = 0; iter < 500; ++iter) {
@@ -272,7 +272,7 @@ void testChangeStrandInvariant(ext_rng* rng) {
   prior.power = 2.0;
   ConstantGaussianLeaf leaf{0.5};
   MoveScratch scratch;
-  MoveContext ctx{store, prior, 0.5, 0.1, 0.4, 0.5, weights.data(), 2.0, scratch};
+  MoveContext ctx{store, prior, 0.5, 0.1, 0.5, weights.data(), 2.0, scratch};
 
   bool alwaysValid = true;
   for (int iter = 0; iter < 20000; ++iter) {
@@ -376,7 +376,7 @@ void testExactPosterior(ext_rng* rng) {
   prior.base = base;
   prior.power = power;
   MoveScratch scratch;
-  MoveContext ctx{store, prior, 0.5, 0.1, 0.4, 0.5, nullptr, k, scratch};
+  MoveContext ctx{store, prior, 0.5, 0.1, 0.5, nullptr, k, scratch};
 
   const int numBurn = 5000, numDraws = 1500000;
   for (int iter = 0; iter < numBurn; ++iter) {
