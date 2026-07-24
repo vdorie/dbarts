@@ -366,6 +366,30 @@ buildSamplerPriors <- function(
   )
 }
 
+# The alternate-family bart2 arcs (multinomial/ordinal/nbinom/hurdle.lognormal)
+# all refuse samplerOnly, warm.start/n.grow.sweeps, and keepTrainingFits = FALSE,
+# differing only in the family name and the keepTrainingFits reason (which
+# completes "requires keepTrainingFits = TRUE (the default): ").
+checkFamilyUnsupportedArgs <- function(family, samplerOnly, warm.start,
+                                       n.grow.sweeps, control, reason) {
+  if (isTRUE(samplerOnly)) {
+    stop("family = \"", family, "\" does not support 'samplerOnly' this arc")
+  }
+  grownSweeps <- as.integer(n.grow.sweeps)[1L]
+  if (!is.null(warm.start) || (!is.na(grownSweeps) && grownSweeps > 0L)) {
+    stop(
+      "family = \"", family, "\" does not support 'warm.start' or ",
+      "'n.grow.sweeps' this arc"
+    )
+  }
+  if (!control@keepTrainingFits) {
+    stop(
+      "family = \"", family,
+      "\" requires keepTrainingFits = TRUE (the default): ", reason
+    )
+  }
+}
+
 bart2 <- function(
   formula,
   data,
@@ -547,24 +571,10 @@ bart2 <- function(
         "family = \"multinomial\" does not support 'subset' this arc"
       )
     }
-    if (isTRUE(samplerOnly)) {
-      stop(
-        "family = \"multinomial\" does not support 'samplerOnly' this arc"
-      )
-    }
-    grownSweeps <- as.integer(n.grow.sweeps)[1L]
-    if (!is.null(warm.start) || (!is.na(grownSweeps) && grownSweeps > 0L)) {
-      stop(
-        "family = \"multinomial\" does not support 'warm.start' or ",
-        "'n.grow.sweeps' this arc"
-      )
-    }
-    if (!control@keepTrainingFits) {
-      stop(
-        "family = \"multinomial\" requires keepTrainingFits = TRUE (the ",
-        "default): there is no test surface to fall back on"
-      )
-    }
+    checkFamilyUnsupportedArgs(
+      "multinomial", samplerOnly, warm.start, n.grow.sweeps, control,
+      "there is no test surface to fall back on"
+    )
     if (control@n.samples <= 0L) {
       stop("family = \"multinomial\" requires a positive 'n.samples'")
     }
@@ -700,22 +710,10 @@ bart2 <- function(
   # here rather than threaded through the standard single-forest path so its
   # K-widened fit object (class "bartOrdinal", never "bart") stays distinct.
   if (family == "ordinal") {
-    if (isTRUE(samplerOnly)) {
-      stop("family = \"ordinal\" does not support 'samplerOnly' this arc")
-    }
-    grownSweeps <- as.integer(n.grow.sweeps)[1L]
-    if (!is.null(warm.start) || (!is.na(grownSweeps) && grownSweeps > 0L)) {
-      stop(
-        "family = \"ordinal\" does not support 'warm.start' or ",
-        "'n.grow.sweeps' this arc"
-      )
-    }
-    if (!control@keepTrainingFits) {
-      stop(
-        "family = \"ordinal\" requires keepTrainingFits = TRUE (the default): ",
-        "the category probabilities are built from the training latent fits"
-      )
-    }
+    checkFamilyUnsupportedArgs(
+      "ordinal", samplerOnly, warm.start, n.grow.sweeps, control,
+      "the category probabilities are built from the training latent fits"
+    )
     return(bart2Ordinal(
       matchedCall,
       callingEnv,
@@ -736,22 +734,10 @@ bart2 <- function(
   # object (never "bart") stays distinct. family = "nbinom" is always explicit -
   # a count response has no unambiguous class to auto-detect.
   if (family == "nbinom") {
-    if (isTRUE(samplerOnly)) {
-      stop("family = \"nbinom\" does not support 'samplerOnly' this arc")
-    }
-    grownSweeps <- as.integer(n.grow.sweeps)[1L]
-    if (!is.null(warm.start) || (!is.na(grownSweeps) && grownSweeps > 0L)) {
-      stop(
-        "family = \"nbinom\" does not support 'warm.start' or ",
-        "'n.grow.sweeps' this arc"
-      )
-    }
-    if (!control@keepTrainingFits) {
-      stop(
-        "family = \"nbinom\" requires keepTrainingFits = TRUE (the default): ",
-        "the mean counts are built from the training latent fits"
-      )
-    }
+    checkFamilyUnsupportedArgs(
+      "nbinom", samplerOnly, warm.start, n.grow.sweeps, control,
+      "the mean counts are built from the training latent fits"
+    )
     return(bart2Negbin(
       matchedCall,
       callingEnv,
@@ -773,24 +759,10 @@ bart2 <- function(
   # distinct. family is always explicit: a semicontinuous response has no
   # unambiguous auto class.
   if (family == "hurdle.lognormal") {
-    if (isTRUE(samplerOnly)) {
-      stop(
-        "family = \"hurdle.lognormal\" does not support 'samplerOnly' this arc"
-      )
-    }
-    grownSweeps <- as.integer(n.grow.sweeps)[1L]
-    if (!is.null(warm.start) || (!is.na(grownSweeps) && grownSweeps > 0L)) {
-      stop(
-        "family = \"hurdle.lognormal\" does not support 'warm.start' or ",
-        "'n.grow.sweeps' this arc"
-      )
-    }
-    if (!control@keepTrainingFits) {
-      stop(
-        "family = \"hurdle.lognormal\" requires keepTrainingFits = TRUE (the ",
-        "default): the combined mean is built from the two training fits"
-      )
-    }
+    checkFamilyUnsupportedArgs(
+      "hurdle.lognormal", samplerOnly, warm.start, n.grow.sweeps, control,
+      "the combined mean is built from the two training fits"
+    )
     if (!missing(weights)) {
       stop("family = \"hurdle.lognormal\" does not support 'weights' this arc")
     }
