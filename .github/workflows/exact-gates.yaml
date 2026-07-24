@@ -1,0 +1,100 @@
+# Deterministic correctness gates for the bartcore MCMC engine: the balance
+# gates (birth/death, change, swap detailed balance) and the exact-posterior /
+# reference gates (aft, bcf, categorical, heteroscedastic, linear, multinomial,
+# negbin, ordinal, t, logistic, monotone). Each script drives a long MCMC run
+# with a fixed rngSeed and compares the engine's draws to an analytic or
+# brute-force-enumerated target with a z-score / tolerance bound it computes
+# IN-SCRIPT (no recorded baseline), then quit(status=1L) on deviation. That
+# makes them deterministic regression detectors that catch engine-math
+# breakage without false-alarming, so they gate push / pull_request -- unlike
+# the STATISTICAL gates (sbc.yaml, equivalence.yaml) whose rank-uniformity /
+# z-mode tests occasionally false-alarm at the nominal level and stay
+# schedule / workflow_dispatch only.
+#
+# Because the target is derived in-script (not a machine-specific recorded
+# draw), the gates are host-portable, so this runs on the cheaper
+# ubuntu-latest -- the arch-pinned macos-latest of cpp-tests.yaml is only
+# needed where bitwise baselines are compared.
+#
+# One job installs the package once, then runs every gate in `quick` mode
+# (reduced draws/seeds) so the whole suite shares a single ~4-minute C++20
+# compile instead of recompiling per gate. Every gate runs even if an earlier
+# one fails (so all failures surface in one run); a failing gate is emitted as
+# an ::error:: annotation and the job exits nonzero. Dispatch with mode=full
+# for the long (non-quick) grid, or run `Rscript benchmarks/R/<gate>.R`
+# locally. benchmarks/ is .Rbuildignore'd and does not ship, so the gates run
+# against the installed build.
+on:
+  push:
+    branches: [main, master, bartcore]
+    # docs- and TODO-only pushes cannot change engine math or the gates
+    paths-ignore:
+      - 'docs/**'
+      - 'TODO'
+      - '**.md'
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'gate mode: quick (fast, per-push) or full (long)'
+        default: quick
+        type: choice
+        options: [quick, full]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+name: exact-gates
+
+permissions: read-all
+
+jobs:
+  exact-gates:
+    runs-on: ubuntu-latest
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          needs: check
+
+      - name: Install the package
+        run: R CMD INSTALL .
+
+      - name: Run the gates
+        # quick on every push / PR; mode=full only when dispatched with it set.
+        # GHA ternary: the truthy branch must be 'quick' (the empty full-mode
+        # arg is the || fallback), so test for NOT-full rather than full.
+        env:
+          GATE_ARG: ${{ !(github.event_name == 'workflow_dispatch' && inputs.mode == 'full') && 'quick' || '' }}
+        run: |
+          gates="
+            bd-balance.R change-balance.R swap-balance.R
+            aft-exact.R bcf-exact.R bcf-exact-weak.R bcf-exact-restricted.R
+            categorical-exact.R heteroscedastic-exact.R linear-exact.R
+            multinomial-exact.R negbin-exact.R ordinal-exact.R t-exact.R
+            logistic-reference.R monotone-reference.R
+          "
+          fail=0
+          for g in $gates; do
+            echo "::group::$g"
+            if Rscript "benchmarks/R/$g" ${GATE_ARG}; then
+              echo "PASS $g"
+            else
+              echo "::error::gate $g FAILED"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $fail
