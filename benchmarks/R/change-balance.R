@@ -905,3 +905,8 @@ cat(sprintf(
   if (ctrlOk) "yes" else "NO",
   if (mixOk) "yes" else "NO"
 ))
+
+# Exit nonzero on failure so a runner/CI can catch it (matches bd-balance.R).
+if (!(mainOk && ctrlOk && mixOk)) {
+  quit(status = 1L, save = "no")
+}

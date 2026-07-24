@@ -1340,6 +1340,7 @@ if (sys.nframe() == 0L) {
     chk$medianTheory,
     if (chk$pass) "PASS" else "FAIL"
   ))
+  selfCheckPass <- c(sigma = isTRUE(chk$pass))
   if (isDart) {
     d <- sbcCheckDirichlet(config$dartAlpha, config$p)
     cat(sprintf(
@@ -1363,6 +1364,7 @@ if (sys.nframe() == 0L) {
       tc$varTheory,
       if (tc$pass) "PASS" else "FAIL"
     ))
+    selfCheckPass["tau"] <- isTRUE(tc$pass)
   }
   if (isBCF) {
     gc <- sbcCheckBCFGlue(config$sdControl, config$bPriorVariance)
@@ -1374,6 +1376,7 @@ if (sys.nframe() == 0L) {
       gc$bSdTheory,
       if (gc$pass) "PASS" else "FAIL"
     ))
+    selfCheckPass["glue"] <- isTRUE(gc$pass)
   }
   if (isLinear || isGP) {
     fc <- sbcCheckFitConsistency(config)
@@ -1383,6 +1386,19 @@ if (sys.nframe() == 0L) {
       fc$maxDiffTest,
       if (fc$pass) "PASS" else "FAIL"
     ))
+    selfCheckPass["fit"] <- isTRUE(fc$pass)
+  }
+
+  # Harness integrity: a failed self-check means the prior/fit reference is
+  # miscalibrated, so the SBC result would be meaningless (or falsely clean).
+  # Abort unconditionally - unlike the functional FLAG gate below, this is not
+  # opt-in behind SBC_FAIL_ON_FLAG.
+  if (any(!selfCheckPass)) {
+    stop(
+      "SBC harness self-check failed (",
+      paste(names(selfCheckPass)[!selfCheckPass], collapse = ", "),
+      "): reference is miscalibrated; SBC results are invalid."
+    )
   }
 
   cat(sprintf("\n== SBC run (%s R=%d L=%d thin=%d) ==\n", which, R, L, thin))
