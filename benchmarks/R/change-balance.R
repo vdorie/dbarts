@@ -851,7 +851,9 @@ resMix <- runMixedScenario(
 # ================= verdict =================
 # Gate: the engine must MATCH the exact posterior (|z| < 4) on MAIN and MIXED
 # and sit far from the wrong (squared-rule-prior) target on MAIN; CONTROL
-# (equal cut counts) must match up to the honest deep-node residual (|z| < 30).
+# (equal cut counts) must match the exact posterior too (|z| < 4) - the depth-6
+# DP-truncation residual is ~1e-7 (see truncationCheck), far below what a z = 4
+# gate demands, so the equal-cut arm is held to the same bound as MAIN/MIXED.
 
 cat("\n================ VERDICT ================\n")
 cat(sprintf(
@@ -876,7 +878,7 @@ cat(sprintf(
 ))
 cat(sprintf("  (engine z vs wrong target %+.1f)\n", resMain$condZwr))
 ctrlZ <- resCtrl$condZex
-ctrlOk <- abs(ctrlZ) < 30
+ctrlOk <- abs(ctrlZ) < 4
 cat(sprintf(
   "%-26s %10.4f %10.4f %10.4f %+10.1f %8s\n",
   "CONTROL (equal 19 vs 19)",
