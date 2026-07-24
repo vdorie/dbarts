@@ -370,22 +370,32 @@ buildSamplerPriors <- function(
 # all refuse samplerOnly, warm.start/n.grow.sweeps, and keepTrainingFits = FALSE,
 # differing only in the family name and the keepTrainingFits reason (which
 # completes "requires keepTrainingFits = TRUE (the default): ").
-checkFamilyUnsupportedArgs <- function(family, samplerOnly, warm.start,
-                                       n.grow.sweeps, control, reason) {
+checkFamilyUnsupportedArgs <- function(
+  family,
+  samplerOnly,
+  warm.start,
+  n.grow.sweeps,
+  control,
+  reason
+) {
   if (isTRUE(samplerOnly)) {
     stop("family = \"", family, "\" does not support 'samplerOnly' this arc")
   }
   grownSweeps <- as.integer(n.grow.sweeps)[1L]
   if (!is.null(warm.start) || (!is.na(grownSweeps) && grownSweeps > 0L)) {
     stop(
-      "family = \"", family, "\" does not support 'warm.start' or ",
+      "family = \"",
+      family,
+      "\" does not support 'warm.start' or ",
       "'n.grow.sweeps' this arc"
     )
   }
   if (!control@keepTrainingFits) {
     stop(
-      "family = \"", family,
-      "\" requires keepTrainingFits = TRUE (the default): ", reason
+      "family = \"",
+      family,
+      "\" requires keepTrainingFits = TRUE (the default): ",
+      reason
     )
   }
 }
@@ -572,7 +582,11 @@ bart2 <- function(
       )
     }
     checkFamilyUnsupportedArgs(
-      "multinomial", samplerOnly, warm.start, n.grow.sweeps, control,
+      "multinomial",
+      samplerOnly,
+      warm.start,
+      n.grow.sweeps,
+      control,
       "there is no test surface to fall back on"
     )
     if (control@n.samples <= 0L) {
@@ -711,7 +725,11 @@ bart2 <- function(
   # K-widened fit object (class "bartOrdinal", never "bart") stays distinct.
   if (family == "ordinal") {
     checkFamilyUnsupportedArgs(
-      "ordinal", samplerOnly, warm.start, n.grow.sweeps, control,
+      "ordinal",
+      samplerOnly,
+      warm.start,
+      n.grow.sweeps,
+      control,
       "the category probabilities are built from the training latent fits"
     )
     return(bart2Ordinal(
@@ -735,7 +753,11 @@ bart2 <- function(
   # a count response has no unambiguous class to auto-detect.
   if (family == "nbinom") {
     checkFamilyUnsupportedArgs(
-      "nbinom", samplerOnly, warm.start, n.grow.sweeps, control,
+      "nbinom",
+      samplerOnly,
+      warm.start,
+      n.grow.sweeps,
+      control,
       "the mean counts are built from the training latent fits"
     )
     return(bart2Negbin(
@@ -760,7 +782,11 @@ bart2 <- function(
   # unambiguous auto class.
   if (family == "hurdle.lognormal") {
     checkFamilyUnsupportedArgs(
-      "hurdle.lognormal", samplerOnly, warm.start, n.grow.sweeps, control,
+      "hurdle.lognormal",
+      samplerOnly,
+      warm.start,
+      n.grow.sweeps,
+      control,
       "the combined mean is built from the two training fits"
     )
     if (!missing(weights)) {
