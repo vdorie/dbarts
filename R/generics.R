@@ -156,13 +156,7 @@ predict.bart <- function(
     }
   }
 
-  if (is.character(type)) {
-    if (type[1L] == "response") {
-      type[1L] <- "ev"
-    } else if (type[1L] == "link") {
-      type[1L] <- "bart"
-    }
-  }
+  type <- foldTypeAliases(type)
   if (
     !is.character(type) ||
       length(type) == 0L ||
@@ -227,13 +221,7 @@ extract.bart <- function(
   combineChains = TRUE,
   ...
 ) {
-  if (is.character(type)) {
-    if (type[1L] == "response") {
-      type[1L] <- "ev"
-    } else if (type[1L] == "link") {
-      type[1L] <- "bart"
-    }
-  }
+  type <- foldTypeAliases(type)
   if (
     !is.character(type) || type[1L] %not_in% eval(formals(extract.bart)$type)
   ) {
@@ -346,13 +334,7 @@ fitted.bart <- function(
   ci.level = NULL,
   ...
 ) {
-  if (is.character(type)) {
-    if (type[1L] == "response") {
-      type[1L] <- "ev"
-    } else if (type[1L] == "link") {
-      type[1L] <- "bart"
-    }
-  }
+  type <- foldTypeAliases(type)
   if (
     !is.character(type) || type[1L] %not_in% eval(formals(fitted.bart)$type)
   ) {
@@ -897,6 +879,21 @@ print.bartNegbin <- function(x, ...) {
 # predictive the plain gaussian ppd cannot make: per draw a Bernoulli(pi_s)
 # spike at zero, else a lognormal exp(f_s + sigma_s z), z ~ N(0, 1).
 
+# Fold the "response"/"link" type aliases onto the canonical "ev"/"bart" (the
+# non-hurdle predict/extract/fitted idiom). Validation of the folded value
+# against each method's allowed set stays at the call site, since those vary
+# (some also reject length-0 input; predict.rbart interposes a post-mean alias).
+foldTypeAliases <- function(type) {
+  if (is.character(type)) {
+    if (type[1L] == "response") {
+      type[1L] <- "ev"
+    } else if (type[1L] == "link") {
+      type[1L] <- "bart"
+    }
+  }
+  type
+}
+
 # Resolve a hurdle type argument: fold the "response"/"link"/"log" aliases onto
 # the canonical "ev"/"bart" and validate against 'allowed' (the predict.bart
 # idiom, so a mis-typed request errors rather than silently mis-reporting).
@@ -1125,13 +1122,7 @@ predict.rbart <- function(
     dotsList[["value"]] <- NULL
   }
 
-  if (is.character(type)) {
-    if (type[1L] == "response") {
-      type[1L] <- "ev"
-    } else if (type[1L] == "link") {
-      type[1L] <- "bart"
-    }
-  }
+  type <- foldTypeAliases(type)
   if (is.character(type) && length(type) > 0L && type[1L] == "post-mean") {
     warning("type of 'post-mean' for predict deprecated; use 'ev' instead")
     type[1L] <- "ev"
@@ -1356,13 +1347,7 @@ extract.rbart <- function(
   combineChains = TRUE,
   ...
 ) {
-  if (is.character(type)) {
-    if (type[1L] == "response") {
-      type[1L] <- "ev"
-    } else if (type[1L] == "link") {
-      type[1L] <- "bart"
-    }
-  }
+  type <- foldTypeAliases(type)
   if (
     !is.character(type) || type[1L] %not_in% eval(formals(extract.rbart)$type)
   ) {
@@ -1561,13 +1546,7 @@ fitted.rbart <- function(
   ci.level = NULL,
   ...
 ) {
-  if (is.character(type)) {
-    if (type[1L] == "response") {
-      type[1L] <- "ev"
-    } else if (type[1L] == "link") {
-      type[1L] <- "bart"
-    }
-  }
+  type <- foldTypeAliases(type)
   if (
     !is.character(type) || type[1L] %not_in% eval(formals(fitted.rbart)$type)
   ) {
