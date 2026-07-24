@@ -272,6 +272,9 @@ methods::setValidity("dbartsControl", function(object) {
   if (length(object@n.trees) != 1L) {
     return("'n.trees' must be of length 1")
   }
+  if (length(object@n.chains) != 1L) {
+    return("'n.chains' must be of length 1")
+  }
   if (length(object@n.threads) != 1L) {
     return("'n.threads' must be of length 1")
   }
