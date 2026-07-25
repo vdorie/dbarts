@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (120 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (121 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -182,6 +182,7 @@ Columns: `file | STATUS | one-liner`.
 | c-api-growth.md | LANDED | Grows the C API with a size-first results struct, additive by-name state blocks, and a per-family loglik channel. |
 | capi-callbacks.md | LANDED | Adds a per-sweep conditioning callback and observer hook to the C API. |
 | capi-dispatch-table.md | LANDED (arc complete) | ABI-compatibility mechanism for LinkingTo consumers (X-macro single-source stubs + version/hash handshake); both dbarts and stan4bart landed. |
+| consumer-spec-surface.md | LANDED, 2026-07-25 | Exports `dbartsSpec()` over a shared internal resolution, so an embedding package builds a sampler specification without reaching into `dbarts:::parsePriors`. |
 | interface-review.md | LANDED | Review-2 retrospective auditing the exported R surface; 11 code fixes + 6 doc fixes + 11 taste calls, all landed same day. |
 | pre-release-surface-fixes.md | LANDED | Fixes aft-loglik defect + freeze-regret paper-cuts from a pre-release surface audit. |
 | r-ingestion-cleanups.md | LANDED | Unifies duplicated classification-family routing, sparse test-matrix handling, missing-policy guards. |
