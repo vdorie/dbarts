@@ -532,6 +532,17 @@
             Previously such a response was either rejected outright or,
             for three or more levels given through the x/y interface,
             silently fit as a continuous response on the integer level codes.
+      \item New `dbartsSpec` resolves the `control`/`model`/`data` triple and
+            family token that describe a sampler, without constructing one,
+            for packages that embed dbarts and supply their own design
+            matrix. It shares its resolution with `dbarts`, so a sampler
+            built from its output draws identically to the equivalent
+            `dbarts` call, and its returned family token is the one
+            `dbarts_sampler_create` takes. Together with `dbartsData` it
+            makes the whole single-forest feature set - response families,
+            monotonicity, interaction and block constraints, a variance
+            forest, robust residuals - reachable from a `LinkingTo: dbarts`
+            package without reaching into an unexported function.
     }
   }
   \subsection{C API}{
