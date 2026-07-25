@@ -90,30 +90,20 @@ evalx.recurse <- function(x, e) {
   e
 }
 
-ifelse_3 <- function(a, b, c, d, e) {
+ifelse_3 <- function(cond1, cond2, then1, then2, else_) {
   mc <- match.call()
   env <- parent.frame()
-  if (eval(mc[["a"]], env)) {
-    c
-  } else if (eval(mc[["b"]], env)) {
-    d
+  if (eval(mc[["cond1"]], env)) {
+    then1
+  } else if (eval(mc[["cond2"]], env)) {
+    then2
   } else {
-    e
+    else_
   }
 }
 
-ifelse_n <- function(n, ...) {
-  mc <- match.call()
-  env <- parent.frame()
-
-  for (i in seq_len(n - 1L)) {
-    if (eval(mc[[i + 2L]], env)) return(eval(mc[[n + 1L + i]], env))
-  }
-  eval(mc[[2L * n - 1L]], env)
-}
-
-## evaluates the expression 'e' by after first replacing all instances of 'x' with the expression x
-#x <- NULL
+## evaluates the expression 'e' after first replacing all instances of 'x' with
+## the expression passed as x
 evalx <- function(x, e) {
   mc <- match.call()
   callingEnv <- parent.frame()

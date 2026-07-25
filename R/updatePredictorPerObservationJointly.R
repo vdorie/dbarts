@@ -37,30 +37,30 @@ updatePredictorPerObservationJointly <- function(
   if (is.character(column)) {
     columnName <- column
   } else {
-    columNames <- colnames(samplers[[1L]]$data@x)
-    if (is.null(columNames)) {
+    columnNames <- colnames(samplers[[1L]]$data@x)
+    if (is.null(columnNames)) {
       stop(
         "column names not specified at initialization, so a numeric column ",
         "cannot be matched across samplers"
       )
     }
     column <- as.integer(column)
-    if (is.na(column) || column < 1L || column > length(columNames)) {
+    if (is.na(column) || column < 1L || column > length(columnNames)) {
       stop("column is out of range")
     }
-    columnName <- columNames[column]
+    columnName <- columnNames[column]
   }
 
   columnIndices <- integer(length(samplers))
   for (i in seq_along(samplers)) {
-    columNames <- colnames(samplers[[i]]$data@x)
-    if (is.null(columNames)) {
+    columnNames <- colnames(samplers[[i]]$data@x)
+    if (is.null(columnNames)) {
       stop(
         "column names not specified at initialization, so cannot be replaced ",
         "by name"
       )
     }
-    columnIndex <- match(columnName, columNames)
+    columnIndex <- match(columnName, columnNames)
     if (is.na(columnIndex)) {
       stop(sprintf(
         "column name '%s' not found in names of X for sampler %d",

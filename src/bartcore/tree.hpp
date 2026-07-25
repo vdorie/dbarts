@@ -65,8 +65,8 @@ inline void maskAndNot(const std::uint64_t* a, const std::uint64_t* b,
   for (size_t w = 0; w < numWords; ++w) out[w] = a[w] & ~b[w];
 }
 
-/// Per-forest interaction constraint (docs/design/interaction-constraints.md,
-/// deliverable B): a cap on the number of DISTINCT split variables along any
+/// Per-forest interaction constraint (docs/design/interaction-constraints.md):
+/// a cap on the number of DISTINCT split variables along any
 /// root-to-leaf path (maxOrder) and/or a symmetric forbidden co-occurrence
 /// adjacency (variable pairs that may not share a path). Borrowed by the trees
 /// of a single forest through Tree::setInteractionConstraint; a null pointer -
@@ -456,16 +456,15 @@ public:
   }
   bool hasInteractionConstraint() const { return interaction_ != nullptr; }
 
-  /// Whole-subtree, all-variables interaction feasibility (design
-  /// "structure-move exactness"): walk the subtree rooted at subtreeRoot
-  /// carrying the running distinct-ancestor bitset (seeded from subtreeRoot's
-  /// own ancestors) and reject if ANY node's split variable violates the order
-  /// cap or a forbidden co-occurrence. Unlike the per-variable
-  /// categoricalSubtreeIsValid / ordinalRuleIsValid, this couples DIFFERENT
-  /// variables, so it must test every node, not just a swapped pair - the swap
-  /// sibling-strand break the memo warns of. Trivially true when the
-  /// constraint is inactive, so the change/swap moves may call it
-  /// unconditionally.
+  /// Whole-subtree, all-variables interaction feasibility: walk the subtree
+  /// rooted at subtreeRoot carrying the running distinct-ancestor bitset
+  /// (seeded from subtreeRoot's own ancestors) and reject if ANY node's split
+  /// variable violates the order cap or a forbidden co-occurrence. Unlike the
+  /// per-variable categoricalSubtreeIsValid / ordinalRuleIsValid, this couples
+  /// DIFFERENT variables: a swap that re-checked only the swapped pair could
+  /// miss a sibling-path violation, so every node must be tested. Trivially
+  /// true when the constraint is inactive, so the change/swap moves may call
+  /// it unconditionally.
   bool interactionSubtreeIsValid(int32_t subtreeRoot) const {
     if (interaction_ == nullptr) return true;
     interactionWalkScratch_.resize(interaction_->numWords);
@@ -541,8 +540,8 @@ public:
     availRightScratch_.resize(p);
     availMaskScratch_.resize(p);
     // interaction constraint: accumulate the distinct ancestor split-variable
-    // set along the SAME walk, O(p) added (design "Why this is cheap"). Guarded
-    // so the unconstrained path never touches the scratch.
+    // set along the SAME walk, adding only O(p) rather than a separate pass.
+    // Guarded so the unconstrained path never touches the scratch.
     const size_t interactionWords =
       interaction_ != nullptr ? interaction_->numWords : 0;
     if (interaction_ != nullptr) {
@@ -784,7 +783,7 @@ public:
                                     index_t* indices, size_t length) {
     int32_t splitIndex = rule.splitIndex();
     bool missingGoesRight = rule.missingGoesRight();
-    auto goesRight = [=](xint_t code) {
+    auto goesRight = [&](xint_t code) {
       return code == naCode ? missingGoesRight
                             : static_cast<int32_t>(code) > splitIndex;
     };

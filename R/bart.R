@@ -379,7 +379,7 @@ checkFamilyUnsupportedArgs <- function(
   reason
 ) {
   if (isTRUE(samplerOnly)) {
-    stop("family = \"", family, "\" does not support 'samplerOnly' this arc")
+    stop("family = \"", family, "\" does not support 'samplerOnly'")
   }
   grownSweeps <- as.integer(n.grow.sweeps)[1L]
   if (!is.null(warm.start) || (!is.na(grownSweeps) && grownSweeps > 0L)) {
@@ -387,7 +387,7 @@ checkFamilyUnsupportedArgs <- function(
       "family = \"",
       family,
       "\" does not support 'warm.start' or ",
-      "'n.grow.sweeps' this arc"
+      "'n.grow.sweeps'"
     )
   }
   if (!control@keepTrainingFits) {
@@ -568,17 +568,17 @@ bart2 <- function(
   if (family == "multinomial") {
     if (!missing(weights)) {
       stop(
-        "family = \"multinomial\" does not support 'weights' this arc"
+        "family = \"multinomial\" does not support 'weights'"
       )
     }
     if (!missing(offset)) {
       stop(
-        "family = \"multinomial\" does not support 'offset' this arc"
+        "family = \"multinomial\" does not support 'offset'"
       )
     }
     if (!missing(subset)) {
       stop(
-        "family = \"multinomial\" does not support 'subset' this arc"
+        "family = \"multinomial\" does not support 'subset'"
       )
     }
     checkFamilyUnsupportedArgs(
@@ -595,7 +595,7 @@ bart2 <- function(
     if (inherits(formula, "dbartsData")) {
       stop(
         "family = \"multinomial\" does not support a pre-built dbartsData ",
-        "object this arc; use the formula interface or the matrix ",
+        "object; use the formula interface or the matrix ",
         "interface: bart2(x.train, y.train, family = \"multinomial\")"
       )
     }
@@ -790,15 +790,14 @@ bart2 <- function(
       "the combined mean is built from the two training fits"
     )
     if (!missing(weights)) {
-      stop("family = \"hurdle.lognormal\" does not support 'weights' this arc")
+      stop("family = \"hurdle.lognormal\" does not support 'weights'")
     }
     if (!missing(subset)) {
-      stop("family = \"hurdle.lognormal\" does not support 'subset' this arc")
+      stop("family = \"hurdle.lognormal\" does not support 'subset'")
     }
     if (!missing(offset) || !missing(offset.test)) {
       stop(
-        "family = \"hurdle.lognormal\" does not support 'offset'/'offset.test' ",
-        "this arc"
+        "family = \"hurdle.lognormal\" does not support 'offset'/'offset.test'"
       )
     }
     if (!missing(test)) {
@@ -1263,7 +1262,8 @@ shapeMultinomialChannel <- function(
 
 # Reshapes one bartcoreRun() result into a bart2(family = "multinomial") fit.
 # samples$train is n.obs x K x n.samples (x n.chains); the K-carrying softmax
-# probabilities are already the identified quantity the engine reports (Q3 of
+# probabilities are already the identified quantity the engine reports (the
+# run's train channel is the identified deliverable; see
 # docs/design/multinomial.md), so no probabilityFromLatents-style transform
 # applies here, unlike the binary families. Reshaped to the package's
 # draws-first convention (n.chains x) n.samples x n.obs x K - matching
@@ -1277,8 +1277,7 @@ shapeMultinomialChannel <- function(
 # varcount is the per-sample per-category split-usage channel: each category
 # forest's per-draw variable counts, reshaped like yhat.train to (n.chains x)
 # n.samples x p x K with levels on the K margin and predictorNames on the p
-# margin. Symmetric to mbart2's per-category varcount, as an array where every
-# other K-output is one.
+# margin, one K-margin array like every other K-shaped output here.
 packageMultinomialResults <- function(
   control,
   y,
@@ -1601,7 +1600,7 @@ negbinPpd <- function(mu, r) {
 # are synthesized here. The engine has no per-sample dispersion output channel -
 # r lives only in its state block - so the run is driven one kept sample at a
 # time (through the low-level bc) and r read from the state after each sweep,
-# aligned with that sweep's latent draw (the ordinal-original C3 driving;
+# aligned with that sweep's latent draw (a per-sample state-read driving pattern;
 # draw-neutral). dbarts(family = "nbinom") does the count validation, the fixed
 # unit scale, and attaches the dispersion spec, so this reuses the standard
 # bart2 host-build machinery. The fit is class "bartNegbin", never "bart".
@@ -1662,8 +1661,8 @@ bart2Negbin <- function(
 
   # one chain's channel column for a single-sample run (the engine drops the
   # trailing chain margin when n.chains == 1)
-  etaOf <- function(channel, chain) {
-    if (n.chains == 1L) channel[, 1L] else channel[, 1L, chain]
+  colOf <- function(channel, s, chain) {
+    if (n.chains == 1L) channel[, s] else channel[, s, chain]
   }
 
   for (s in seq_len(n.samples)) {
@@ -1681,15 +1680,15 @@ bart2Negbin <- function(
     for (chain in seq_len(n.chains)) {
       rDraw <- state[[chain]]$dispersion
       dispersionRaw[s, chain] <- rDraw
-      psiTrain <- etaOf(r$train, chain)
+      psiTrain <- colOf(r$train, 1L, chain)
       latentTrain[, s, chain] <- psiTrain
       meanTrain[, s, chain] <- negbinMeanCounts(psiTrain, rDraw)
       if (n.test > 0L) {
-        psiTest <- etaOf(r$test, chain)
+        psiTest <- colOf(r$test, 1L, chain)
         latentTest[, s, chain] <- psiTest
         meanTest[, s, chain] <- negbinMeanCounts(psiTest, rDraw)
       }
-      varcountRaw[, s, chain] <- etaOf(r$varcount, chain)
+      varcountRaw[, s, chain] <- colOf(r$varcount, 1L, chain)
     }
   }
 
@@ -1871,8 +1870,8 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   seeds <- c(NA_integer_, NA_integer_)
   if (!is.na(seed)) {
     # independent per-component seeds derived deterministically from the
-    # user's seed (the rbart_vi per-chain precedent, R/rbart.R:463-464);
-    # politely restore the caller's RNG stream afterward
+    # user's seed (the per-chain seed derivation rbart_vi uses); politely
+    # restore the caller's RNG stream afterward
     oldSeed <- .GlobalEnv[[".Random.seed"]]
     set.seed(seed)
     seeds <- sample.int(.Machine$integer.max, 2L)

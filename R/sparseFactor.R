@@ -1,9 +1,10 @@
 # Constructor and methods for the sparseFactor class (defined in
 # R/A_class.R): an unordered factor stored sparsely, entries at the given
 # positions carrying x's levels and every other row the implicit reference
-# level. Per decision S-CAT the class is recognized by ingestion but
-# refused at data construction until the CSC-categorical engine path
-# lands; it exists so data sets can be assembled ahead of engine support.
+# level. The class is recognized by ingestion but refused at data
+# construction until sparse-categorical (CSC over level codes) engine
+# support lands (docs/plans/data-ownership-5-sparse.md); it exists so data
+# sets can be assembled ahead of engine support.
 #
 # The 'length' argument shadows base::length inside the constructor, so
 # every internal length is written base::length (the Matrix::sparseVector

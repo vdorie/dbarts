@@ -4,7 +4,7 @@
 #include <cstdint>
 
 namespace dbarts {
-  void guessNumCores(std::uint32_t* numPhyiscalProcessors, std::uint32_t* numLogicalProcessors);
+  void guessNumCores(std::uint32_t* numPhysicalProcessors, std::uint32_t* numLogicalProcessors);
 }
 
 #endif

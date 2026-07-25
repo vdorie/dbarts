@@ -88,8 +88,9 @@ struct SamplerOptions {
   // monotone (mBART) constraints: a borrowed per-predictor direction in
   // {-1, 0, +1} (length numPredictors), consumed at construction. A nonzero
   // entry selects the constrained constant-leaf instantiation at the factory;
-  // null - or all zero - keeps the unchanged constant-leaf path (design
-  // section 8). Not yet exposed through the R surface (C++/tests only).
+  // null - or all zero - keeps the unchanged constant-leaf path
+  // (docs/design/monotone.md). Not yet exposed through the R surface (C++/tests
+  // only).
   const std::int8_t* monotoneDirections = nullptr;
 
   // GP (function-valued) leaves share the leafCovariateColumns designation;
@@ -135,8 +136,8 @@ struct SamplerOptions {
   const std::size_t* forestColumns = nullptr;
   std::size_t numForestColumns = 0;
 
-  // per-forest interaction constraint (docs/design/interaction-constraints.md,
-  // deliverable B): interactionMaxOrder caps the DISTINCT split variables on
+  // per-forest interaction constraint (docs/design/interaction-constraints.md):
+  // interactionMaxOrder caps the DISTINCT split variables on
   // any root-to-leaf path (0 = uncapped); interactionForbiddenPairs lists
   // forbidden co-occurrence pairs as 2 * interactionNumForbiddenPairs column
   // indices (borrowed, consumed at construction). Both defaults leave every
@@ -146,8 +147,9 @@ struct SamplerOptions {
   const std::size_t* interactionForbiddenPairs = nullptr;
   std::size_t interactionNumForbiddenPairs = 0;
 
-  // per-forest block-additive constraint (docs/design/interaction-constraints.md,
-  // variant A): confine each WHOLE tree to one declared group of predictors so the
+  // per-forest block-additive constraint
+  // (docs/design/interaction-constraints.md): confine each WHOLE tree to one
+  // declared group of predictors so the
   // ensemble is exactly f = sum_G f_G. blockOfColumn (length numPredictors,
   // borrowed) gives each column's 0-based group (negative = in no block, only for a
   // restricted forest); blockTreeCounts (length numBlocks, borrowed) is the
@@ -215,17 +217,17 @@ struct SamplerOptions {
   bool verbose = false;
   std::uint32_t printEvery = 100;
 
-  // opt-in fp32 running residual (docs/design/reduced-precision-storage.md sec
-  // 3b, Track 2): stores Forest::treeY in fp32 with fp64-accumulated reductions,
+  // opt-in fp32 running residual (docs/design/reduced-precision-storage.md):
+  // stores Forest::treeY in fp32 with fp64-accumulated reductions,
   // halving the dominant suffstat gather's memory traffic at large n. The
   // factory mints the fp32 instantiation ONLY for the gaussian constant-leaf
   // path; the default (false) instantiation is byte-for-byte the fp64 engine.
   bool fp32Residual = false;
 };
 
-/// Receives chains' formatted progress lines during a run. Runs on worker
-/// threads hand lines to a queue the main thread flushes (workers must never
-/// call into R); inline runs print directly.
+/// Receives chains' formatted progress lines during a run. Worker-thread runs
+/// hand lines to a queue the main thread flushes (workers must never call into
+/// R); inline runs print directly.
 struct ProgressSink {
   virtual ~ProgressSink() = default;
   virtual void report(const char* line) = 0;
@@ -378,7 +380,7 @@ struct VarianceForest {
   /// The multiplicative roll for tree j: divisor holds s^2_{-j}(x_i) =
   /// s^2(x_i) / h_j(x_i), the OTHER trees' product EXCLUDING tree j, and
   /// treeResidual holds the scaled mean residual e_i / sqrt(s^2_{-j}). Excluding
-  /// h_j is the divisor guard (design rider i): perturbing tree j's own leaf
+  /// h_j is the divisor guard: perturbing tree j's own leaf
   /// must not move its own suffstat, only another tree's leaf may.
   void formTreeResidual(std::size_t j, const double* meanResidualIn) {
     std::size_t n = numObservations();
@@ -590,7 +592,7 @@ public:
     }
     options_.interactionForbiddenPairs = nullptr;  // consumed above
 
-    // Variant A block-additive constraint: confine each tree to one group. The
+    // Block-additive constraint: confine each tree to one group. The
     // single-forest path carries no base columnMask, so the block row is the
     // group membership directly; numBlocks 0 leaves every tree unrestricted.
     installBlockMasks(forest, data.numPredictors, options.numBlocks,
@@ -3028,7 +3030,8 @@ private:
     if (!stepTaken) return;
     if (stepType == StepType::birth) {
       // grow the block to the new node count, then draw the two children from
-      // their exact constrained conditional (eq. 4.17); the sibling slots are
+      // their exact constrained conditional (docs/design/monotone.md eq. 4.17);
+      // the sibling slots are
       // read but not their stale mu, so growing with zeros before the draw is
       // safe
       mu.resize(tree.nodes.size(), 0.0);
@@ -3080,7 +3083,7 @@ private:
         // move phase kept it sized and feasible); grow it for any node the tree
         // gained without disturbing existing leaves, then the coupled Gibbs
         // sweep updates every leaf in place. Fixed k only, the truncated draw
-        // carries no clean chi-k statistic (section 6)
+        // carries no clean chi-k statistic (docs/design/monotone.md section 6)
         mu.resize(tree.nodes.size(), 0.0);
         forest.leaf.drawParametersForTree(rng_, tree, bottoms, forest.k,
                                           sigma_ * sigma_, mu.data());
@@ -3153,7 +3156,8 @@ private:
   }
 
   /// Sample sd of the range-scaled working response, the anchor the BCF
-  /// calibration map states its per-forest leaf scales against.
+  /// calibration map (docs/design/bcf.md) states its per-forest leaf scales
+  /// against.
   double scaledResponseSd() const {
     std::size_t n = data_.numObservations;
     const double* yScaled = response_->workingResponse();
@@ -3168,10 +3172,6 @@ private:
     return std::sqrt(sumSquares / static_cast<double>(n - 1));
   }
 
-  /// A BCF forest, built self-contained so the single-forest constructor
-  /// (covered by the draw-for-draw equivalence benchmark) is untouched:
-  /// constant leaf, fixed k = 1 (the map's convention), no DART. nodeScale is
-  /// the map-derived total.
   /// Variant A block-additive install (docs/design/interaction-constraints.md):
   /// confine each whole tree to one declared group of predictors so the ensemble
   /// is exactly f = sum_G f_G. Build the numBlocks group-membership rows (each
@@ -3206,6 +3206,10 @@ private:
         forest.blockMasks.data() + forest.blockOfTree[tt] * numPredictors);
   }
 
+  /// A BCF forest, built self-contained so the single-forest constructor
+  /// (covered by the draw-for-draw equivalence benchmark) is untouched:
+  /// constant leaf, fixed k = 1 (the map's convention), no DART. nodeScale is
+  /// the map-derived total.
   void buildBCFForest(const BCFForestSpec& spec, double nodeScale) {
     std::size_t n = data_.numObservations;
     forests_.emplace_back();
@@ -3268,7 +3272,8 @@ private:
 
   /// One symmetric category forest for a multinomial chain: constant leaf, no
   /// DART, no split restriction, fixed k, leaf scale nodeScale/sqrt(numTrees)
-  /// (the pi*sqrt(3)/sqrt(2) anchor). Every category forest is identical.
+  /// (the pi*sqrt(3)/sqrt(2) anchor, docs/design/multinomial.md). Every category
+  /// forest is identical.
   void buildMultinomialForest(const MultinomialForestSpec& spec,
                               double nodeScale, double k) {
     std::size_t n = data_.numObservations;

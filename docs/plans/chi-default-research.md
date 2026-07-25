@@ -131,7 +131,7 @@ loaded 48 cells, 7680 rows
         strong      0.5 2000    1.025 1.42e+00    0.00
           weak      0.5 2000    6.367 1.12e+01    0.00
 
-wrote /Users/vdorie/.claude/jobs/7fe13675/tmp/chi-default/all_results.rds
+wrote all_results.rds (run out-of-repo, not preserved)
 
 ## Status (2026-07-10)
 

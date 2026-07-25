@@ -2,8 +2,8 @@
 
 Read-only design memo for TODO item `bcf-sigma-residual`. Repo dbarts @ bartcore
 6944811 (a-move / interweaveGlueRidge LANDED). All numbers measured against the
-installed shared library via benchmarks/R/sbc.R. Scratch + scripts + rds under
-/Users/vdorie/.claude/jobs/7fe13675/tmp/bcf-init/.
+installed shared library via benchmarks/R/sbc.R. Scratch, scripts, and rds
+output were run out-of-repo and are not preserved.
 
 ## 0. TL;DR
 

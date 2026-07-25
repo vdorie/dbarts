@@ -23,54 +23,34 @@
 
 
 // around these values, multithreaded starts to beat single threaded
-// #define                 MEAN_MIN_NUM_VALUES_PER_THREAD 100000
 #define        UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD 200000
-// #define          ONLINE_MEAN_MIN_NUM_VALUES_PER_THREAD 7500
 #define ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD 25000
 
-// #define                 VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 75000
 #define        UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 75000
-// #define          ONLINE_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 7500
 #define ONLINE_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 25000
 
-// #define                 VAR_MIN_NUM_VALUES_PER_THREAD 75000
 #define        UNROLLED_VAR_MIN_NUM_VALUES_PER_THREAD 75000
-// #define          ONLINE_VAR_MIN_NUM_VALUES_PER_THREAD 5000
 #define ONLINE_UNROLLED_VAR_MIN_NUM_VALUES_PER_THREAD 12000
 
-// #define                 WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 150000
 #define        UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 125000
-// #define          ONLINE_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 7500
 #define ONLINE_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 35000
 
-// #define                 WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 150000
 #define        UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 125000
-// #define          ONLINE_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 7500
 #define ONLINE_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 35000
 
-// #define                 INDEXED_MEAN_MIN_NUM_VALUES_PER_THREAD 100000
 #define        INDEXED_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD 100000
-// #define          INDEXED_ONLINE_MEAN_MIN_NUM_VALUES_PER_THREAD 7500
 #define INDEXED_ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD 25000
 
-// #define                 INDEXED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 75000
 #define        INDEXED_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 75000
-// #define          INDEXED_ONLINE_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 7500
 #define INDEXED_ONLINE_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 25000
 
-// #define                 INDEXED_VAR_MIN_NUM_VALUES_PER_THREAD 75000
 #define        INDEXED_UNROLLED_VAR_MIN_NUM_VALUES_PER_THREAD 75000
-// #define          INDEXED_ONLINE_VAR_MIN_NUM_VALUES_PER_THREAD 5000
 #define INDEXED_ONLINE_UNROLLED_VAR_MIN_NUM_VALUES_PER_THREAD 12000
 
-// #define                 INDEXED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 60000
 #define        INDEXED_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 35000
-// #define          INDEXED_ONLINE_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 7500
 #define INDEXED_ONLINE_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 30000
 
-// #define                 INDEXED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 60000
 #define        INDEXED_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 35000
-// #define          INDEXED_ONLINE_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 7500
 #define INDEXED_ONLINE_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 25000
 
 #define          SSR_MIN_NUM_VALUES_PER_THREAD 75000
@@ -84,97 +64,57 @@
 
 // various implementations
 // mean
-UNUSED static double computeMean                     (const double* restrict x, size_t length);
-UNUSED static double computeIndexedMean              (const double* restrict x, const misc_index_t* restrict indices, size_t length);
 static double (*computeUnrolledMean)(const double* x, size_t length) = 0;
 static double (*computeIndexedUnrolledMean)(const double* restrict x, const misc_index_t* restrict indices, size_t length) = 0;
-UNUSED static double computeOnlineMean               (const double* restrict x, size_t length);
-UNUSED static double computeIndexedOnlineMean        (const double* restrict x, const misc_index_t* restrict indices, size_t length);
 static double (*computeOnlineUnrolledMean)(const double* restrict x, size_t length) = 0;
 static double (*computeIndexedOnlineUnrolledMean)(const double* restrict x, const misc_index_t* restrict indices, size_t length) = 0;
 
 // var for known mean
-UNUSED static double computeVarianceForKnownMean                     (const double* x, size_t length, double mean);
-UNUSED static double computeIndexedVarianceForKnownMean              (const double* restrict x, const misc_index_t* restrict indices, size_t length, double mean);
 static double (*computeUnrolledVarianceForKnownMean)(const double* x, size_t length, double mean) = 0;
 static double (*computeIndexedUnrolledVarianceForKnownMean)(const double* restrict x, const misc_index_t* restrict indices, size_t length, double mean) = 0;
-UNUSED static double computeOnlineVarianceForKnownMean               (const double* restrict x, size_t length, double mean);
-UNUSED static double computeIndexedOnlineVarianceForKnownMean        (const double* restrict x, const misc_index_t* restrict indices, size_t length, double mean);
 static double (*computeOnlineUnrolledVarianceForKnownMean)(const double* restrict x, size_t length, double mean) = 0;
 static double (*computeIndexedOnlineUnrolledVarianceForKnownMean)(const double* restrict x, const misc_index_t* restrict indices, size_t length, double mean) = 0;
 
 // variance and mean together
-UNUSED static double computeVariance                     (const double* restrict x, size_t length, double* restrict meanPtr);
-UNUSED static double computeIndexedVariance              (const double* restrict x, const misc_index_t* restrict indices, size_t length, double* restrict meanPtr);
 static double computeUnrolledVariance             (const double* restrict x, size_t length, double* restrict meanPtr);
 static double computeIndexedUnrolledVariance      (const double* restrict x, const misc_index_t* restrict indices, size_t length, double* restrict meanPtr);
-UNUSED static double computeOnlineVariance               (const double* restrict x, size_t length, double* restrict meanPtr);
-UNUSED static double computeIndexedOnlineVariance        (const double* restrict x, const misc_index_t* restrict indices, size_t length, double* restrict meanPtr);
 static double computeOnlineUnrolledVariance       (const double* restrict x, size_t length, double* restrict meanPtr);
 static double computeIndexedOnlineUnrolledVariance(const double* restrict x, const misc_index_t* restrict indices, size_t length, double* restrict meanPtr);
 
 // weighted mean
-UNUSED static double computeWeightedMean                     (const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
-UNUSED static double computeIndexedWeightedMean              (const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
 static double (*computeUnrolledWeightedMean)(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr) = 0;
 static double (*computeIndexedUnrolledWeightedMean)(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr) = 0;
-UNUSED static double computeOnlineWeightedMean               (const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
-UNUSED static double computeIndexedOnlineWeightedMean        (const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
 static double (*computeOnlineUnrolledWeightedMean)(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr) = 0;
 static double (*computeIndexedOnlineUnrolledWeightedMean)(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr) = 0;
 
 // weighted variance for known mean
-UNUSED static double computeWeightedVarianceForKnownMean                     (const double* restrict x, size_t length, const double* restrict w, double mean);
-UNUSED static double computeIndexedWeightedVarianceForKnownMean              (const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean);
 static double (*computeUnrolledWeightedVarianceForKnownMean)(const double* restrict x, size_t length, const double* restrict w, double mean) = 0;
 static double (*computeIndexedUnrolledWeightedVarianceForKnownMean)(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean) = 0;
-UNUSED static double computeOnlineWeightedVarianceForKnownMean               (const double* restrict x, size_t length, const double* restrict w, double mean);
-UNUSED static double computeIndexedOnlineWeightedVarianceForKnownMean        (const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean);
 static double (*computeOnlineUnrolledWeightedVarianceForKnownMean)(const double* restrict x, size_t length, const double* restrict w, double mean) = 0;
 static double (*computeIndexedOnlineUnrolledWeightedVarianceForKnownMean)(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean) = 0;
 
-// static double mt_computeMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length);
-// static double mt_computeIndexedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* indices, size_t length);
 static double mt_computeUnrolledMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length);
 static double mt_computeIndexedUnrolledMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* indices, size_t length);
-// static double mt_computeOnlineMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length);
-// static double mt_computeIndexedOnlineMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* indices, size_t length);
 static double mt_computeOnlineUnrolledMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length);
 static double mt_computeIndexedOnlineUnrolledMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* indices, size_t length);
 
-// static double mt_computeVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, double mean);
-// static double mt_computeIndexedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, double mean);
 static double mt_computeUnrolledVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, double mean);
 static double mt_computeIndexedUnrolledVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, double mean);
-// static double mt_computeOnlineVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, double mean);
-// static double mt_computeIndexedOnlineVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, double mean);
 static double mt_computeOnlineUnrolledVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, double mean);
 static double mt_computeIndexedOnlineUnrolledVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, double mean);
 
-// static double mt_computeVariance(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, double* restrict meanPtr);
-// static double mt_computeIndexedVariance(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, double* restrict mean);
 static double mt_computeUnrolledVariance(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, double* restrict meanPtr);
 static double mt_computeIndexedUnrolledVariance(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, double* restrict mean);
-// static double mt_computeOnlineVariance(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, double* restrict meanPtr);
-// static double mt_computeIndexedOnlineVariance(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, double* restrict mean);
 static double mt_computeOnlineUnrolledVariance(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, double* restrict meanPtr);
 static double mt_computeIndexedOnlineUnrolledVariance(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, double* restrict mean);
 
-// static double mt_computeWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
-// static double mt_computeIndexedWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
 static double mt_computeUnrolledWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
 static double mt_computeIndexedUnrolledWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
-// static double mt_computeOnlineWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
-// static double mt_computeIndexedOnlineWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
 static double mt_computeOnlineUnrolledWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
 static double mt_computeIndexedOnlineUnrolledWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
 
-// static double mt_computeWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double mean);
-// static double mt_computeIndexedWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean);
 static double mt_computeUnrolledWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double mean);
 static double mt_computeIndexedUnrolledWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean);
-// static double mt_computeOnlineWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double mean);
-// static double mt_computeIndexedOnlineWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean);
 static double mt_computeOnlineUnrolledWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double mean);
 static double mt_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean);
 
@@ -405,7 +345,7 @@ void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict 
 }
 
 // fp32-residual variants of the four suffstat kernels above (docs/design/
-// reduced-precision-storage.md sec 3b, Track 2): the running residual x is
+// reduced-precision-storage.md sec 3b): the running residual x is
 // stored fp32, so these load float and PROMOTE each element to double before
 // accumulating - the reduction stays fp64 and, because float->double promotion
 // is exact and the summation order mirrors the double kernels byte-for-byte,
@@ -581,7 +521,7 @@ double misc_mt_computeIndexedWeightedMean(misc_mt_manager_t restrict threadManag
   return mt_computeIndexedUnrolledWeightedMean(threadManager, x, indices, length, w, nPtr);
 }
 
-double misc_mt_computeWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, misc_size_t length, const double* restrict w, double mean)
+double misc_mt_computeWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double mean)
 {
   size_t numThreads = misc_mt_getNumThreads(threadManager);
   size_t onlineCutoff = minimum(UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
@@ -600,24 +540,6 @@ double misc_mt_computeIndexedWeightedVarianceForKnownMean(misc_mt_manager_t rest
 }
 
 // work-horse implementations; indexed versions follow regular b/c implementations are highly similar
-
-static double computeMean(const double* x, size_t length)
-{
-  if (length == 0) return 0.0;
-  
-  double result = 0.0;
-  for (size_t i = 0; i < length; ++i) result += x[i];
-  return result / (double) length;
-}
-
-static double computeIndexedMean(const double* restrict x, const misc_index_t* restrict indices, size_t length)
-{
-  if (length == 0) return 0.0;
-  
-  double result = 0.0;
-  for (size_t i = 0; i < length; ++i) result += x[indices[i]];
-  return result / (double) length;
-}
 
 static double computeUnrolledMean_c(const double* x, size_t length)
 {
@@ -659,24 +581,6 @@ static double computeIndexedUnrolledMean_c(const double* restrict x, const misc_
   return result / (double) length;
 }
 
-static double computeOnlineMean(const double* x, size_t length)
-{
-  if (length == 0) return 0.0;
-  
-  double result = x[0];
-  for (size_t i = 0; i < length; ++i) result += (x[i] - result) / (double) (i + 1);
-  return result;
-}
-
-static double computeIndexedOnlineMean(const double* restrict x, const misc_index_t* restrict indices, size_t length)
-{
-  if (length == 0) return 0.0;
-  
-  double result = x[indices[0]];
-  for (size_t i = 0; i < length; ++i) result += (x[indices[i]] - result) / (double) (i + 1);
-  return result;
-}
-
 static double computeOnlineUnrolledMean_c(const double* x, size_t length)
 {
   if (length == 0) return 0.0;
@@ -715,26 +619,6 @@ static double computeIndexedOnlineUnrolledMean_c(const double* restrict x, const
   }
   
   return result;
-}
-
-static double computeVarianceForKnownMean(const double* x, size_t length, double mean)
-{
-  if (length == 0 || isnan(mean)) return nan("");
-  if (length == 1) return 0.0;
-  
-  double result = 0.0;
-  for (size_t i = 0; i < length; ++i) result += (x[i] - mean) * (x[i] - mean);
-  return result / (double) (length - 1);
-}
-
-static double computeIndexedVarianceForKnownMean(const double* restrict x, const misc_index_t* restrict indices, size_t length, double mean)
-{
-  if (length == 0 || isnan(mean)) return nan("");
-  if (length == 1) return 0.0;
-  
-  double result = 0.0;
-  for (size_t i = 0; i < length; ++i) result += (x[indices[i]] - mean) * (x[indices[i]] - mean);
-  return result / (double) (length - 1);
 }
 
 static double computeUnrolledVarianceForKnownMean_c(const double* x, size_t length, double mean)
@@ -787,28 +671,6 @@ static double computeIndexedUnrolledVarianceForKnownMean_c(const double* restric
   return result / (double) (length - 1);
 }
 
-static double computeOnlineVarianceForKnownMean(const double* x, size_t length, double mean)
-{
-  if (length == 0 || isnan(mean)) return nan("");
-  if (length == 1) return 0.0;
-  
-  double result = (x[0] - mean) * (x[0] - mean) + (x[1] - mean) * (x[1] - mean);
-  for (size_t i = 2; i < length; ++i) result += ((x[i] - mean) * (x[i] - mean) - result) / (double) i;
-  
-  return result;
-}
-
-static double computeIndexedOnlineVarianceForKnownMean(const double* restrict x, const misc_index_t* restrict indices, size_t length, double mean)
-{
-  if (length == 0 || isnan(mean)) return nan("");
-  if (length == 1) return 0.0;
-  
-  double result = (x[indices[0]] - mean) * (x[indices[0]] - mean) + (x[indices[1]] - mean) * (x[indices[1]] - mean);
-  for (size_t i = 2; i < length; ++i) result += ((x[indices[i]] - mean) * (x[indices[i]] - mean) - result) / (double) i;
-  
-  return result;
-}
-
 static double computeOnlineUnrolledVarianceForKnownMean_c(const double* x, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
@@ -857,42 +719,6 @@ static double computeIndexedOnlineUnrolledVarianceForKnownMean_c(const double* r
   }
   
   return result;
-}
-
-static double computeVariance(const double* restrict x, size_t length, double* restrict meanPtr)
-{
-  if (length == 0) { if (meanPtr != NULL) *meanPtr = 0.0; return nan(""); }
-  if (length == 1) { if (meanPtr != NULL) *meanPtr = x[0]; return 0.0; }
-  
-  double mean = 0.0;
-  double s_sq = 0.0;
-  
-  for (size_t i = 0; i < length; ++i) {
-    mean += x[i];
-    s_sq += x[i] * x[i];
-  }
-  mean /= (double) length;
-  
-  if (meanPtr != NULL) *meanPtr = mean;
-  return (s_sq - mean * mean * (double) length) / (double) (length - 1);
-}
-
-static double computeIndexedVariance(const double* restrict x, const misc_index_t* restrict indices, size_t length, double* restrict meanPtr)
-{
-  if (length == 0) { if (meanPtr != NULL) *meanPtr = 0.0; return nan(""); }
-  if (length == 1) { if (meanPtr != NULL) *meanPtr = x[indices[0]]; return 0.0; }
-  
-  double mean = 0.0;
-  double s_sq = 0.0;
-  
-  for (size_t i = 0; i < length; ++i) {
-    mean += x[indices[i]];
-    s_sq += x[indices[i]] * x[indices[i]];
-  }
-  mean /= (double) length;
-  
-  if (meanPtr != NULL)  *meanPtr = mean;
-  return (s_sq - mean * mean * (double) length) / (double) (length - 1);
 }
 
 static double computeUnrolledVariance(const double* restrict x, size_t length, double* restrict meanPtr)
@@ -961,46 +787,6 @@ static double computeIndexedUnrolledVariance(const double* restrict x, const mis
   return (x_sq - mean * mean * (double) length) / (double) (length - 1);
 }
 
-// sigsq_np1 = sigsq_n - sig_sq_n / n + (x_np1 - xbar_n)^2 / np1
-//           = sigsq_n - sig_sq_n / n + (x_np1 - xbar_n)(xbar_np1 - xbar_n)
-//           = sigsq_n - sig_sq_n / n + (x_np1 - xbar_n)(x_np1 - xbar_np1) / n
-//           = sigsq_n + ((x_np1 - xbar_n)(x_np1 - xbar_np1) - sig_sq_n) / n
-static double computeOnlineVariance(const double* restrict x, size_t length, double* restrict meanPtr)
-{
-  if (length == 0) { if (meanPtr != NULL) *meanPtr = 0.0; return nan(""); }
-  if (length == 1) { if (meanPtr != NULL) *meanPtr = x[0]; return 0.0; }
-  
-  double mean = x[0];
-  double var  = 0.0;
-  
-  for (size_t i = 1; i < length; ++i) {
-    double dev = x[i] - mean;
-    mean += dev / (double) (i + 1);
-    var  += (dev * (x[i] - mean) - var) / (double) i;
-  }
-  
-  if (meanPtr != NULL) *meanPtr = mean;
-  return var;
-}
-
-static double computeIndexedOnlineVariance(const double* restrict x, const misc_index_t* restrict indices, size_t length, double* restrict meanPtr)
-{
-  if (length == 0) { if (meanPtr != NULL) *meanPtr = 0.0; return nan(""); }
-  if (length == 1) { if (meanPtr != NULL) *meanPtr = x[indices[0]]; return 0.0; }
-  
-  double mean = x[indices[0]];
-  double var  = 0.0;
-  
-  for (size_t i = 1; i < length; ++i) {
-    double dev = x[indices[i]] - mean;
-    mean += dev / (double) (i + 1);
-    var  += (dev * (x[indices[i]] - mean) - var) / (double) i;
-  }
-  
-  if (meanPtr != NULL) *meanPtr = mean;
-  return var;
-}
-
 // for this and this alone, "variance" is divided by n
 // we rescale before returning, however
 static double computeOnlineUnrolledVariance(const double* restrict x, size_t length, double* restrict meanPtr)
@@ -1025,9 +811,9 @@ static double computeOnlineUnrolledVariance(const double* restrict x, size_t len
   }
   
   for ( ; i < length; i += 5) {
-#define n1 ((double) i)
-#define n2 5.0
-#define n  ((double) (i + 5))
+    const double n1 = (double) i;
+    const double n2 = 5.0;
+    const double n  = (double) (i + 5);
     
     double meanNext5 = (x[i] + x[i + 1] + x[i + 2] + x[i + 3] + x[i + 4]) / n2;
     double varNext5  = ((x[i] - meanNext5) * (x[i] - meanNext5) + (x[i + 1] - meanNext5) * (x[i + 1] - meanNext5) +
@@ -1035,9 +821,6 @@ static double computeOnlineUnrolledVariance(const double* restrict x, size_t len
     
     var  += (n2 / n) * (varNext5 - var) + ((meanNext5 - mean) * (n1 / n)) * ((meanNext5 - mean) * (n2 / n));
     mean += (n2 / n) * (meanNext5 - mean);
-#undef n1
-#undef n2
-#undef n
   }
   
   if (meanPtr != NULL) *meanPtr = mean;
@@ -1066,9 +849,9 @@ static double computeIndexedOnlineUnrolledVariance(const double* restrict x, con
   }
   
   for ( ; i < length; i += 5) {
-#define n1 ((double) i)
-#define n2 5.0
-#define n  ((double) (i + 5))
+    const double n1 = (double) i;
+    const double n2 = 5.0;
+    const double n  = (double) (i + 5);
     
     double meanNext5 = (x[indices[i]] + x[indices[i + 1]] + x[indices[i + 2]] + x[indices[i + 3]] + x[indices[i + 4]]) / n2;
     double varNext5  = ((x[indices[i]] - meanNext5) * (x[indices[i]] - meanNext5) +
@@ -1079,37 +862,10 @@ static double computeIndexedOnlineUnrolledVariance(const double* restrict x, con
     
     var  += (n2 / n) * (varNext5 - var) + ((meanNext5 - mean) * (n1 / n)) * ((meanNext5 - mean) * (n2 / n));
     mean += (n2 / n) * (meanNext5 - mean);
-#undef n1
-#undef n2
-#undef n
   }
   
   if (meanPtr != NULL) *meanPtr = mean;
   return nScale * var;
-}
-
-static double computeWeightedMean(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
-{
-  double n = 0.0;
-  double result = 0.0;
-  for (size_t i = 0; i < length; ++i) {
-    result += x[i] * w[i];
-    n += w[i];
-  }
-  if (nPtr != NULL) *nPtr = n;
-  return result / n;
-}
-
-static double computeIndexedWeightedMean(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr)
-{
-  double n = 0.0;
-  double result = 0.0;
-  for (size_t i = 0; i < length; ++i) {
-    result += x[indices[i]] * w[indices[i]];
-    n += w[indices[i]];
-  }
-  if (nPtr != NULL) *nPtr = n;
-  return result / n;
 }
 
 static double computeUnrolledWeightedMean_c(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
@@ -1157,36 +913,6 @@ static double computeIndexedUnrolledWeightedMean_c(const double* restrict x, con
   
   if (nPtr != NULL) *nPtr = n;
   return result / n;
-}
-
-static double computeOnlineWeightedMean(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
-{
-  if (length == 0) { if (nPtr != NULL) *nPtr = 0.0; return 0.0; }
-  
-  double n = w[0];
-  double result = x[0];
-  for (size_t i = 1; i < length; ++i) {
-    n += w[i];
-    result += (x[i] * w[i] - w[i] * result) / n;
-  }
-  
-  if (nPtr != NULL) *nPtr = n;
-  return result;
-}
-
-static double computeIndexedOnlineWeightedMean(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr)
-{
-  if (length == 0) { if (nPtr != NULL) *nPtr = 0.0; return 0.0; }
-  
-  double n = w[indices[0]];
-  double result = x[indices[0]];
-  for (size_t i = 1; i < length; ++i) {
-    n += w[indices[i]];
-    result += (x[indices[i]] * w[indices[i]] - w[indices[i]] * result) / n;
-  }
-  
-  if (nPtr != NULL) *nPtr = n;
-  return result;
 }
 
 static double computeOnlineUnrolledWeightedMean_c(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
@@ -1252,26 +978,6 @@ static double computeIndexedOnlineUnrolledWeightedMean_c(const double* restrict 
   return result;
 }
 
-static double computeWeightedVarianceForKnownMean(const double* restrict x, size_t length, const double* restrict w, double mean)
-{
-  if (length == 0 || isnan(mean)) return nan("");
-  if (length == 1) return 0.0;
-  
-  double result = 0.0;
-  for (size_t i = 0; i < length; ++i) result += w[i] * (x[i] - mean) * (x[i] - mean);
-  return result / (double) (length - 1);
-}
-
-static double computeIndexedWeightedVarianceForKnownMean(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean)
-{
-  if (length == 0 || isnan(mean)) return nan("");
-  if (length == 1) return 0.0;
-  
-  double result = 0.0;
-  for (size_t i = 0; i < length; ++i) result += w[indices[i]] * (x[indices[i]] - mean) * (x[indices[i]] - mean);
-  return result / (double) (length - 1);
-}
-
 static double computeUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
@@ -1320,32 +1026,6 @@ static double computeIndexedUnrolledWeightedVarianceForKnownMean_c(const double*
   }
   
   return result / (double) (length - 1);
-}
-
-static double computeOnlineWeightedVarianceForKnownMean(const double* restrict x, size_t length, const double* restrict w, double mean)
-{
-  if (length == 0 || isnan(mean)) return nan("");
-  if (length == 1) return 0.0;
-  
-  double result = w[0] * (x[0] - mean) * (x[0] - mean) + w[1] * (x[1] - mean) * (x[1] - mean);
-  for (size_t i = 2; i < length; ++i) {
-    result += (w[i] * (x[i] - mean) * (x[i] - mean) - result) / (double) i;
-  }
-  
-  return result;
-}
-
-static double computeIndexedOnlineWeightedVarianceForKnownMean(const double* restrict x, const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean)
-{
-  if (length == 0 || isnan(mean)) return nan("");
-  if (length == 1) return 0.0;
-  
-  double result = w[indices[0]] * (x[indices[0]] - mean) * (x[indices[0]] - mean) + w[indices[1]] * (x[indices[1]] - mean) * (x[indices[1]] - mean);
-  for (size_t i = 2; i < length; ++i) {
-    result += (w[indices[i]] * (x[indices[i]] - mean) * (x[indices[i]] - mean) - result) / (double) i;
-  }
-  
-  return result;
 }
 
 static double computeOnlineUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, size_t length, const double* restrict w, double mean)
@@ -1465,7 +1145,9 @@ void misc_stat_setSIMDInstructionSet(misc_simd_instructionSet i)
 
 }
 
-// below this, multithreaded madness
+// Multithreaded (misc_mt_*) and hierarchical-threaded (misc_htm_*) dispatch:
+// split the data into per-thread chunks, run the kernels above on each, then
+// recombine with the pairwise aggregate* helpers.
 
 typedef double (*meanFunction)(const double* restrict x, size_t length);
 typedef double (*indexedMeanFunction)(const double* restrict x, const misc_index_t* restrict indices, size_t length);
@@ -1498,27 +1180,28 @@ static void computeIndexedMeanTask(void* v_data)
 }
 
 static void setupMeanData(MeanData* restrict threadData, size_t numThreads, const double* restrict x,
-                          size_t numValuesPerThread, size_t offByOneIndex, meanFunction function)
+                          size_t numValuesPerThread, size_t numFullChunks, meanFunction function)
 {
+  // the first numFullChunks threads take numValuesPerThread values; the rest take one fewer
   size_t i = 0;
-  for ( ; i < offByOneIndex; ++i) {
+  for ( ; i < numFullChunks; ++i) {
     threadData[i].x = x + i * numValuesPerThread;
     threadData[i].length = numValuesPerThread;
     threadData[i].function = function;
   }
   for ( ; i < numThreads; ++i) {
-    threadData[i].x = x + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].x = x + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].length = numValuesPerThread - 1;
     threadData[i].function = function;
   }
 }
 
 static void setupIndexedMeanData(IndexedMeanData* restrict threadData, size_t numThreads, const double* restrict x,
-                                 const misc_index_t* restrict indices, size_t numValuesPerThread, size_t offByOneIndex,
+                                 const misc_index_t* restrict indices, size_t numValuesPerThread, size_t numFullChunks,
                                  indexedMeanFunction function)
 {
   size_t i = 0;
-  for ( ; i < offByOneIndex; ++i) {
+  for ( ; i < numFullChunks; ++i) {
     threadData[i].x = x;
     threadData[i].indices = indices + i * numValuesPerThread;
     threadData[i].length = numValuesPerThread;
@@ -1526,7 +1209,7 @@ static void setupIndexedMeanData(IndexedMeanData* restrict threadData, size_t nu
   }
   for ( ; i < numThreads; ++i) {
     threadData[i].x = x;
-    threadData[i].indices = indices + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].indices = indices + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].length = numValuesPerThread - 1;
     threadData[i].function = function;
   }
@@ -1554,62 +1237,17 @@ static double aggregateIndexedMeanResults(const IndexedMeanData* threadData, siz
   return result;
 }
 
-/* static double mt_computeMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeMean(x, length);
-  
-  MeanData threadData[numThreads];
-  setupMeanData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, computeMean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  
-  misc_mt_runTasks(threadManager, &computeMeanTask, threadDataPtrs, numThreads);
-  
-  
-  
-  return aggregateMeanResults(threadData, numThreads);
-}
-
-static double mt_computeIndexedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeIndexedMean(x, indices, length);
-  
-  IndexedMeanData threadData[numThreads];
-  setupIndexedMeanData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, computeIndexedMean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  
-  misc_mt_runTasks(threadManager, &computeIndexedMeanTask, threadDataPtrs, numThreads);
-  
-  
-  
-  return aggregateIndexedMeanResults(threadData, numThreads);
-} */
 
 static double mt_computeUnrolledMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                           &numThreads, &numValuesPerThread, &offByOneIndex);
+                           &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeUnrolledMean(x, length);
   
   MeanData threadData[numThreads];
-  setupMeanData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, computeUnrolledMean);
+  setupMeanData(threadData, numThreads, x, numValuesPerThread, numFullChunks, computeUnrolledMean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -1625,14 +1263,14 @@ static double mt_computeUnrolledMean(misc_mt_manager_t restrict threadManager, c
 
 static double mt_computeIndexedUnrolledMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeIndexedUnrolledMean(x, indices, length);
   
   IndexedMeanData threadData[numThreads];
-  setupIndexedMeanData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, computeIndexedUnrolledMean);
+  setupIndexedMeanData(threadData, numThreads, x, indices, numValuesPerThread, numFullChunks, computeIndexedUnrolledMean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -1646,62 +1284,17 @@ static double mt_computeIndexedUnrolledMean(misc_mt_manager_t restrict threadMan
   return aggregateIndexedMeanResults(threadData, numThreads);
 }
 
-/* static double mt_computeOnlineMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, ONLINE_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                           &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeOnlineMean(x, length);
-  
-  MeanData threadData[numThreads];
-  setupMeanData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, computeOnlineMean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  
-  misc_mt_runTasks(threadManager, &computeMeanTask, threadDataPtrs, numThreads);
-  
-  
-  
-  return aggregateMeanResults(threadData, numThreads);
-}
-
-static double mt_computeIndexedOnlineMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_ONLINE_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeIndexedOnlineMean(x, indices, length);
-  
-  IndexedMeanData threadData[numThreads];
-  setupIndexedMeanData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, computeIndexedOnlineMean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  
-  misc_mt_runTasks(threadManager, &computeIndexedMeanTask, threadDataPtrs, numThreads);
-  
-  
-  
-  return aggregateIndexedMeanResults(threadData, numThreads);
-} */
 
 static double mt_computeOnlineUnrolledMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeOnlineUnrolledMean(x, length);
   
   MeanData threadData[numThreads];
-  setupMeanData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, computeOnlineUnrolledMean);
+  setupMeanData(threadData, numThreads, x, numValuesPerThread, numFullChunks, computeOnlineUnrolledMean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -1717,14 +1310,14 @@ static double mt_computeOnlineUnrolledMean(misc_mt_manager_t restrict threadMana
 
 static double mt_computeIndexedOnlineUnrolledMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeIndexedOnlineUnrolledMean(x, indices, length);
   
   IndexedMeanData threadData[numThreads];
-  setupIndexedMeanData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, computeIndexedOnlineUnrolledMean);
+  setupIndexedMeanData(threadData, numThreads, x, indices, numValuesPerThread, numFullChunks, computeIndexedOnlineUnrolledMean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -1773,17 +1366,17 @@ static void computeIndexedVarianceForKnownMeanTask(void* v_data)
 }
 
 static void setupVarianceForKnownMeanData(VarianceForKnownMeanData* restrict threadData, size_t numThreads, const double* restrict x,
-                                         size_t numValuesPerThread, size_t offByOneIndex, varianceForKnownMeanFunction function, double mean)
+                                         size_t numValuesPerThread, size_t numFullChunks, varianceForKnownMeanFunction function, double mean)
 {
   size_t i = 0;
-  for ( ; i < offByOneIndex; ++i) {
+  for ( ; i < numFullChunks; ++i) {
     threadData[i].x = x + i * numValuesPerThread;
     threadData[i].length = numValuesPerThread;
     threadData[i].function = function;
     threadData[i].mean = mean;
   }
   for ( ; i < numThreads; ++i) {
-    threadData[i].x = x + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].x = x + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].length = numValuesPerThread - 1;
     threadData[i].function = function;
     threadData[i].mean = mean;
@@ -1791,10 +1384,10 @@ static void setupVarianceForKnownMeanData(VarianceForKnownMeanData* restrict thr
 }
 
 static void setupIndexedVarianceForKnownMeanData(IndexedVarianceForKnownMeanData* restrict threadData, size_t numThreads, const double* restrict x,
-                                                 const misc_index_t* restrict indices, size_t numValuesPerThread, size_t offByOneIndex, indexedVarianceForKnownMeanFunction function, double mean)
+                                                 const misc_index_t* restrict indices, size_t numValuesPerThread, size_t numFullChunks, indexedVarianceForKnownMeanFunction function, double mean)
 {
   size_t i = 0;
-  for ( ; i < offByOneIndex; ++i) {
+  for ( ; i < numFullChunks; ++i) {
     threadData[i].x = x;
     threadData[i].indices = indices + i * numValuesPerThread;
     threadData[i].length = numValuesPerThread;
@@ -1803,7 +1396,7 @@ static void setupIndexedVarianceForKnownMeanData(IndexedVarianceForKnownMeanData
   }
   for ( ; i < numThreads; ++i) {
     threadData[i].x = x;
-    threadData[i].indices = indices + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].indices = indices + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].length = numValuesPerThread - 1;
     threadData[i].function = function;
     threadData[i].mean = mean;
@@ -1838,60 +1431,18 @@ static double aggregateIndexedVarianceForKnownMeanData(const IndexedVarianceForK
   return result;
 }
 
-/*
-static double mt_computeVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
-                                      size_t length, double mean)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                           &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeVarianceForKnownMean(x, length, mean);
-  
-  VarianceForKnownMeanData threadData[numThreads];
-  setupVarianceForKnownMeanData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, &computeVarianceForKnownMean, mean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-    
-  misc_mt_runTasks(threadManager, &computeVarianceForKnownMeanTask, threadDataPtrs, numThreads);
-  
-  return aggregateVarianceForKnownMeanData(threadData, numThreads);
-}
-
-static double mt_computeIndexedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
-                                                    const misc_index_t* restrict indices, size_t length, double mean)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeIndexedVarianceForKnownMean(x, indices, length, mean);
-  
-  IndexedVarianceForKnownMeanData threadData[numThreads];
-  setupIndexedVarianceForKnownMeanData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, &computeIndexedVarianceForKnownMean, mean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  misc_mt_runTasks(threadManager, &computeIndexedVarianceForKnownMeanTask, threadDataPtrs, numThreads);
-  
-  return aggregateIndexedVarianceForKnownMeanData(threadData, numThreads);
-}*/
 
 static double mt_computeUnrolledVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
                                               size_t length, double mean)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                           &numThreads, &numValuesPerThread, &offByOneIndex);
+                           &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeUnrolledVarianceForKnownMean(x, length, mean);
   
   VarianceForKnownMeanData threadData[numThreads];
-  setupVarianceForKnownMeanData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, computeUnrolledVarianceForKnownMean, mean);
+  setupVarianceForKnownMeanData(threadData, numThreads, x, numValuesPerThread, numFullChunks, computeUnrolledVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -1905,14 +1456,14 @@ static double mt_computeUnrolledVarianceForKnownMean(misc_mt_manager_t restrict 
 static double mt_computeIndexedUnrolledVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
                                                             const misc_index_t* restrict indices, size_t length, double mean)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeIndexedUnrolledVarianceForKnownMean(x, indices, length, mean);
   
   IndexedVarianceForKnownMeanData threadData[numThreads];
-  setupIndexedVarianceForKnownMeanData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, computeIndexedUnrolledVarianceForKnownMean, mean);
+  setupIndexedVarianceForKnownMeanData(threadData, numThreads, x, indices, numValuesPerThread, numFullChunks, computeIndexedUnrolledVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -1923,60 +1474,18 @@ static double mt_computeIndexedUnrolledVarianceForKnownMean(misc_mt_manager_t re
   return aggregateIndexedVarianceForKnownMeanData(threadData, numThreads);
 }
 
-/*
-static double mt_computeOnlineVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
-                                                 size_t length, double mean)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, ONLINE_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                           &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeOnlineVarianceForKnownMean(x, length, mean);
-  
-  VarianceForKnownMeanData threadData[numThreads];
-  setupVarianceForKnownMeanData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, &computeOnlineVarianceForKnownMean, mean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  misc_mt_runTasks(threadManager, &computeVarianceForKnownMeanTask, threadDataPtrs, numThreads);
-  
-  return aggregateVarianceForKnownMeanData(threadData, numThreads);
-}
-
-static double mt_computeIndexedOnlineVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
-                                                          const misc_index_t* restrict indices, size_t length, double mean)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_ONLINE_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeIndexedOnlineVarianceForKnownMean(x, indices, length, mean);
-  
-  IndexedVarianceForKnownMeanData threadData[numThreads];
-  setupIndexedVarianceForKnownMeanData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, &computeIndexedOnlineVarianceForKnownMean, mean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  misc_mt_runTasks(threadManager, &computeIndexedVarianceForKnownMeanTask, threadDataPtrs, numThreads);
-  
-  return aggregateIndexedVarianceForKnownMeanData(threadData, numThreads);
-} */
 
 static double mt_computeOnlineUnrolledVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
                                                     size_t length, double mean)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, ONLINE_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeOnlineUnrolledVarianceForKnownMean(x, length, mean);
   
   VarianceForKnownMeanData threadData[numThreads];
-  setupVarianceForKnownMeanData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, computeOnlineUnrolledVarianceForKnownMean, mean);
+  setupVarianceForKnownMeanData(threadData, numThreads, x, numValuesPerThread, numFullChunks, computeOnlineUnrolledVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -1990,14 +1499,14 @@ static double mt_computeOnlineUnrolledVarianceForKnownMean(misc_mt_manager_t res
 static double mt_computeIndexedOnlineUnrolledVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
                                                            const misc_index_t* restrict indices, size_t length, double mean)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_ONLINE_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeIndexedOnlineUnrolledVarianceForKnownMean(x, indices, length, mean);
   
   IndexedVarianceForKnownMeanData threadData[numThreads];
-  setupIndexedVarianceForKnownMeanData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, computeIndexedOnlineUnrolledVarianceForKnownMean, mean);
+  setupIndexedVarianceForKnownMeanData(threadData, numThreads, x, indices, numValuesPerThread, numFullChunks, computeIndexedOnlineUnrolledVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2039,16 +1548,16 @@ static void computeIndexedVarianceTask(void* v_data) {
 }
 
 static void setupVarianceData(VarianceData* restrict threadData, size_t numThreads, const double* restrict x,
-                              size_t numValuesPerThread, size_t offByOneIndex, varianceFunction function)
+                              size_t numValuesPerThread, size_t numFullChunks, varianceFunction function)
 {
   size_t i = 0;
-  for ( ; i < offByOneIndex; ++i) {
+  for ( ; i < numFullChunks; ++i) {
     threadData[i].x = x + i * numValuesPerThread;
     threadData[i].length = numValuesPerThread;
     threadData[i].function = function;
   }
   for ( ; i < numThreads; ++i) {
-    threadData[i].x = x + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].x = x + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].length = numValuesPerThread - 1;
     threadData[i].function = function;
   }
@@ -2056,10 +1565,10 @@ static void setupVarianceData(VarianceData* restrict threadData, size_t numThrea
 
 static void setupIndexedVarianceData(IndexedVarianceData* restrict threadData, size_t numThreads, const double* restrict x,
                                      const misc_index_t* restrict indices,
-                                     size_t numValuesPerThread, size_t offByOneIndex, indexedVarianceFunction function)
+                                     size_t numValuesPerThread, size_t numFullChunks, indexedVarianceFunction function)
 {
   size_t i = 0;
-  for ( ; i < offByOneIndex; ++i) {
+  for ( ; i < numFullChunks; ++i) {
     threadData[i].x = x;
     threadData[i].indices = indices + i * numValuesPerThread;
     threadData[i].length = numValuesPerThread;
@@ -2067,7 +1576,7 @@ static void setupIndexedVarianceData(IndexedVarianceData* restrict threadData, s
   }
   for ( ; i < numThreads; ++i) {
     threadData[i].x = x;
-    threadData[i].indices = indices + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].indices = indices + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].length = numValuesPerThread - 1;
     threadData[i].function = function;
   }
@@ -2111,63 +1620,19 @@ static double aggregateIndexedVarianceData(const IndexedVarianceData* restrict t
   return var;
 }
 
-/*
-static double mt_computeVariance(misc_mt_manager_t restrict threadManager, const double* restrict x,
-                          size_t length, double* restrict meanPtr)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, VAR_MIN_NUM_VALUES_PER_THREAD,
-                           &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeVariance(x, length, meanPtr);
-  
-  VarianceData threadData[numThreads];
-  setupVarianceData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, &computeVariance);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  misc_mt_runTasks(threadManager, &computeVarianceTask, threadDataPtrs, numThreads);
-  
-  
-  return aggregateVarianceData(threadData, numThreads, meanPtr);
-}
-
-static double mt_computeIndexedVariance(misc_mt_manager_t restrict threadManager, const double* restrict x,
-                                        const misc_index_t* restrict indices, size_t length, double* restrict meanPtr)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_VAR_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeIndexedVariance(x, indices, length, meanPtr);
-  
-  IndexedVarianceData threadData[numThreads];
-  setupIndexedVarianceData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, &computeIndexedVariance);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  misc_mt_runTasks(threadManager, &computeIndexedVarianceTask, threadDataPtrs, numThreads);
-  
-  
-  return aggregateIndexedVarianceData(threadData, numThreads, meanPtr);
-} */
 
 
 static double mt_computeUnrolledVariance(misc_mt_manager_t restrict threadManager, const double* restrict x,
                                   size_t length, double* restrict meanPtr)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, UNROLLED_VAR_MIN_NUM_VALUES_PER_THREAD,
-                           &numThreads, &numValuesPerThread, &offByOneIndex);
+                           &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeUnrolledVariance(x, length, meanPtr);
   
   VarianceData threadData[numThreads];
-  setupVarianceData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, &computeUnrolledVariance);
+  setupVarianceData(threadData, numThreads, x, numValuesPerThread, numFullChunks, &computeUnrolledVariance);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2182,14 +1647,14 @@ static double mt_computeUnrolledVariance(misc_mt_manager_t restrict threadManage
 static double mt_computeIndexedUnrolledVariance(misc_mt_manager_t restrict threadManager, const double* restrict x,
                                                 const misc_index_t* restrict indices, size_t length, double* restrict meanPtr)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_UNROLLED_VAR_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeIndexedUnrolledVariance(x,  indices, length, meanPtr);
   
   IndexedVarianceData threadData[numThreads];
-  setupIndexedVarianceData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, &computeIndexedUnrolledVariance);
+  setupIndexedVarianceData(threadData, numThreads, x, indices, numValuesPerThread, numFullChunks, &computeIndexedUnrolledVariance);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2201,62 +1666,18 @@ static double mt_computeIndexedUnrolledVariance(misc_mt_manager_t restrict threa
   return aggregateIndexedVarianceData(threadData, numThreads, meanPtr);
 }
 
-/*
-static double mt_computeOnlineVariance(misc_mt_manager_t restrict threadManager, const double* restrict x,
-                                size_t length, double* restrict meanPtr)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, ONLINE_VAR_MIN_NUM_VALUES_PER_THREAD,
-                           &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeOnlineVariance(x, length, meanPtr);
-  
-  VarianceData threadData[numThreads];
-  setupVarianceData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, &computeOnlineVariance);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  misc_mt_runTasks(threadManager, &computeVarianceTask, threadDataPtrs, numThreads);
-  
-  
-  return aggregateVarianceData(threadData, numThreads, meanPtr);
-}
-
-static double mt_computeIndexedOnlineVariance(misc_mt_manager_t restrict threadManager, const double* restrict x,
-                                              const misc_index_t* restrict indices, size_t length, double* restrict meanPtr)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_ONLINE_VAR_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeIndexedOnlineVariance(x, indices, length, meanPtr);
-  
-  IndexedVarianceData threadData[numThreads];
-  setupIndexedVarianceData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, &computeIndexedOnlineVariance);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  misc_mt_runTasks(threadManager, &computeIndexedVarianceTask, threadDataPtrs, numThreads);
-  
-  
-  return aggregateIndexedVarianceData(threadData, numThreads, meanPtr);
-} */
 
 static double mt_computeOnlineUnrolledVariance(misc_mt_manager_t restrict threadManager, const double* restrict x,
                                         size_t length, double* restrict meanPtr)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, ONLINE_UNROLLED_VAR_MIN_NUM_VALUES_PER_THREAD,
-                           &numThreads, &numValuesPerThread, &offByOneIndex);
+                           &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeOnlineUnrolledVariance(x, length, meanPtr);
   
   VarianceData threadData[numThreads];
-  setupVarianceData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, &computeOnlineUnrolledVariance);
+  setupVarianceData(threadData, numThreads, x, numValuesPerThread, numFullChunks, &computeOnlineUnrolledVariance);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2271,14 +1692,14 @@ static double mt_computeOnlineUnrolledVariance(misc_mt_manager_t restrict thread
 static double mt_computeIndexedOnlineUnrolledVariance(misc_mt_manager_t restrict threadManager, const double* restrict x,
                                                const misc_index_t* restrict indices, size_t length, double* restrict meanPtr)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_ONLINE_UNROLLED_VAR_MIN_NUM_VALUES_PER_THREAD,
-                           &numThreads, &numValuesPerThread, &offByOneIndex);
+                           &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeIndexedOnlineUnrolledVariance(x, indices, length, meanPtr);
   
   IndexedVarianceData threadData[numThreads];
-  setupIndexedVarianceData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, &computeIndexedOnlineUnrolledVariance);
+  setupIndexedVarianceData(threadData, numThreads, x, indices, numValuesPerThread, numFullChunks, &computeIndexedOnlineUnrolledVariance);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2325,29 +1746,29 @@ static void computeIndexedWeightedMeanTask(void* v_data)
 }
 
 static void setupWeightedMeanData(WeightedMeanData* restrict threadData, size_t numThreads, const double* restrict x, const double* restrict w,
-                                  size_t numValuesPerThread, size_t offByOneIndex, weightedMeanFunction function)
+                                  size_t numValuesPerThread, size_t numFullChunks, weightedMeanFunction function)
 {
   size_t i = 0;
-  for ( ; i < offByOneIndex; ++i) {
+  for ( ; i < numFullChunks; ++i) {
     threadData[i].x = x + i * numValuesPerThread;
     threadData[i].length = numValuesPerThread;
     threadData[i].w = w + i * numValuesPerThread;
     threadData[i].function = function;
   }
   for ( ; i < numThreads; ++i) {
-    threadData[i].x = x + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].x = x + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].length = numValuesPerThread - 1;
-    threadData[i].w = w + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].w = w + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].function = function;
   }
 }
 
 static void setupIndexedWeightedMeanData(IndexedWeightedMeanData* restrict threadData, size_t numThreads, const double* restrict x,
                                          const misc_index_t* restrict indices, const double* restrict w,
-                                         size_t numValuesPerThread, size_t offByOneIndex, indexedWeightedMeanFunction function)
+                                         size_t numValuesPerThread, size_t numFullChunks, indexedWeightedMeanFunction function)
 {
   size_t i = 0;
-  for ( ; i < offByOneIndex; ++i) {
+  for ( ; i < numFullChunks; ++i) {
     threadData[i].x = x;
     threadData[i].indices = indices + i * numValuesPerThread;
     threadData[i].length = numValuesPerThread;
@@ -2356,7 +1777,7 @@ static void setupIndexedWeightedMeanData(IndexedWeightedMeanData* restrict threa
   }
   for ( ; i < numThreads; ++i) {
     threadData[i].x = x;
-    threadData[i].indices = indices + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].indices = indices + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].length = numValuesPerThread - 1;
     threadData[i].w = w;
     threadData[i].function = function;
@@ -2387,64 +1808,17 @@ static double aggregateIndexedWeightedMeanResults(const IndexedWeightedMeanData*
   return result;
 }
 
-/* 
-static double mt_computeWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeWeightedMean(x, length, w, nPtr);
-  
-  WeightedMeanData threadData[numThreads];
-  setupWeightedMeanData(threadData, numThreads, x, w, numValuesPerThread, offByOneIndex, computeWeightedMean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  
-  misc_mt_runTasks(threadManager, &computeWeightedMeanTask, threadDataPtrs, numThreads);
-  
-  
-  
-  return aggregateWeightedMeanResults(threadData, numThreads, nPtr);
-}
-
-static double mt_computeIndexedWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length,
-                                            const double* restrict w, double* restrict nPtr)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeIndexedWeightedMean(x, indices, length, w, nPtr);
-  
-  IndexedWeightedMeanData threadData[numThreads];
-  setupIndexedWeightedMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, offByOneIndex, computeIndexedWeightedMean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  
-  misc_mt_runTasks(threadManager, &computeIndexedWeightedMeanTask, threadDataPtrs, numThreads);
-  
-  
-  
-  return aggregateIndexedWeightedMeanResults(threadData, numThreads, nPtr);
-} */
 
 static double mt_computeUnrolledWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeUnrolledWeightedMean(x, length, w, nPtr);
   
   WeightedMeanData threadData[numThreads];
-  setupWeightedMeanData(threadData, numThreads, x, w, numValuesPerThread, offByOneIndex, computeUnrolledWeightedMean);
+  setupWeightedMeanData(threadData, numThreads, x, w, numValuesPerThread, numFullChunks, computeUnrolledWeightedMean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2461,14 +1835,14 @@ static double mt_computeUnrolledWeightedMean(misc_mt_manager_t restrict threadMa
 static double mt_computeIndexedUnrolledWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length,
                                                     const double* restrict w, double* restrict nPtr)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeIndexedUnrolledWeightedMean(x, indices, length, w, nPtr);
   
   IndexedWeightedMeanData threadData[numThreads];
-  setupIndexedWeightedMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, offByOneIndex, computeIndexedUnrolledWeightedMean);
+  setupIndexedWeightedMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, numFullChunks, computeIndexedUnrolledWeightedMean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2482,64 +1856,17 @@ static double mt_computeIndexedUnrolledWeightedMean(misc_mt_manager_t restrict t
   return aggregateIndexedWeightedMeanResults(threadData, numThreads, nPtr);
 }
 
-/* 
-static double mt_computeOnlineWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, ONLINE_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeOnlineWeightedMean(x, length, w, nPtr);
-  
-  WeightedMeanData threadData[numThreads];
-  setupWeightedMeanData(threadData, numThreads, x, w, numValuesPerThread, offByOneIndex, computeOnlineWeightedMean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  
-  misc_mt_runTasks(threadManager, &computeWeightedMeanTask, threadDataPtrs, numThreads);
-  
-  
-  
-  return aggregateWeightedMeanResults(threadData, numThreads, nPtr);
-}
-
-static double mt_computeIndexedOnlineWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length,
-                                                  const double* restrict w, double* restrict nPtr)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_ONLINE_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeIndexedOnlineWeightedMean(x, indices, length, w, nPtr);
-  
-  IndexedWeightedMeanData threadData[numThreads];
-  setupIndexedWeightedMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, offByOneIndex, computeIndexedOnlineWeightedMean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  
-  misc_mt_runTasks(threadManager, &computeIndexedWeightedMeanTask, threadDataPtrs, numThreads);
-  
-  
-  
-  return aggregateIndexedWeightedMeanResults(threadData, numThreads, nPtr);
-} */
 
 static double mt_computeOnlineUnrolledWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, ONLINE_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeOnlineUnrolledWeightedMean(x, length, w, nPtr);
   
   WeightedMeanData threadData[numThreads];
-  setupWeightedMeanData(threadData, numThreads, x, w, numValuesPerThread, offByOneIndex, computeOnlineUnrolledWeightedMean);
+  setupWeightedMeanData(threadData, numThreads, x, w, numValuesPerThread, numFullChunks, computeOnlineUnrolledWeightedMean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2556,14 +1883,14 @@ static double mt_computeOnlineUnrolledWeightedMean(misc_mt_manager_t restrict th
 static double mt_computeIndexedOnlineUnrolledWeightedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const misc_index_t* restrict indices, size_t length,
                                                           const double* restrict w, double* restrict nPtr)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_ONLINE_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeIndexedOnlineUnrolledWeightedMean(x, indices, length, w, nPtr);
   
   IndexedWeightedMeanData threadData[numThreads];
-  setupIndexedWeightedMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, offByOneIndex, computeIndexedOnlineUnrolledWeightedMean);
+  setupIndexedWeightedMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, numFullChunks, computeIndexedOnlineUnrolledWeightedMean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2614,10 +1941,10 @@ static void computeIndexedWeightedVarianceForKnownMeanTask(void* v_data)
 
 static void setupWeightedVarianceForKnownMeanData(WeightedVarianceForKnownMeanData* restrict threadData, size_t numThreads,
                                                   const double* restrict x, const double* restrict w,
-                                                  size_t numValuesPerThread, size_t offByOneIndex, weightedVarianceForKnownMeanFunction function, double mean)
+                                                  size_t numValuesPerThread, size_t numFullChunks, weightedVarianceForKnownMeanFunction function, double mean)
 {
   size_t i = 0;
-  for ( ; i < offByOneIndex; ++i) {
+  for ( ; i < numFullChunks; ++i) {
     threadData[i].x = x + i * numValuesPerThread;
     threadData[i].length = numValuesPerThread;
     threadData[i].w = w + i * numValuesPerThread;
@@ -2625,9 +1952,9 @@ static void setupWeightedVarianceForKnownMeanData(WeightedVarianceForKnownMeanDa
     threadData[i].mean = mean;
   }
   for ( ; i < numThreads; ++i) {
-    threadData[i].x = x + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].x = x + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].length = numValuesPerThread - 1;
-    threadData[i].w = w + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].w = w + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].function = function;
     threadData[i].mean = mean;
   }
@@ -2635,10 +1962,10 @@ static void setupWeightedVarianceForKnownMeanData(WeightedVarianceForKnownMeanDa
 
 static void setupIndexedWeightedVarianceForKnownMeanData(IndexedWeightedVarianceForKnownMeanData* restrict threadData, size_t numThreads, const double* restrict x,
                                                          const misc_index_t* restrict indices, const double* restrict w,
-                                                         size_t numValuesPerThread, size_t offByOneIndex, indexedWeightedVarianceForKnownMeanFunction function, double mean)
+                                                         size_t numValuesPerThread, size_t numFullChunks, indexedWeightedVarianceForKnownMeanFunction function, double mean)
 {
   size_t i = 0;
-  for ( ; i < offByOneIndex; ++i) {
+  for ( ; i < numFullChunks; ++i) {
     threadData[i].x = x;
     threadData[i].indices = indices + i * numValuesPerThread;
     threadData[i].length = numValuesPerThread;
@@ -2648,7 +1975,7 @@ static void setupIndexedWeightedVarianceForKnownMeanData(IndexedWeightedVariance
   }
   for (; i < numThreads; ++i) {
     threadData[i].x = x;
-    threadData[i].indices = indices + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].indices = indices + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].length = numValuesPerThread - 1;
     threadData[i].w = w;
     threadData[i].function = function;
@@ -2684,60 +2011,18 @@ static double aggregateIndexedWeightedVarianceForKnownMeanData(const IndexedWeig
   return result;
 }
 
-/* 
-static double mt_computeWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
-                                              size_t length, const double* restrict w, double mean)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeWeightedVarianceForKnownMean(x, length, w, mean);
-  
-  WeightedVarianceForKnownMeanData threadData[numThreads];
-  setupWeightedVarianceForKnownMeanData(threadData, numThreads, x, w, numValuesPerThread, offByOneIndex, &computeWeightedVarianceForKnownMean, mean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  misc_mt_runTasks(threadManager, &computeWeightedVarianceForKnownMeanTask, threadDataPtrs, numThreads);
-  
-  return aggregateWeightedVarianceForKnownMeanData(threadData, numThreads);
-}
-
-static double mt_computeIndexedWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
-                                                     const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeIndexedWeightedVarianceForKnownMean(x, indices, length, w, mean);
-  
-  IndexedWeightedVarianceForKnownMeanData threadData[numThreads];
-  setupIndexedWeightedVarianceForKnownMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, offByOneIndex, &computeIndexedWeightedVarianceForKnownMean, mean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  misc_mt_runTasks(threadManager, &computeIndexedWeightedVarianceForKnownMeanTask, threadDataPtrs, numThreads);
-  
-  return aggregateIndexedWeightedVarianceForKnownMeanData(threadData, numThreads);
-} */
 
 static double mt_computeUnrolledWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
                                               size_t length, const double* restrict w, double mean)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeUnrolledWeightedVarianceForKnownMean(x, length, w, mean);
   
   WeightedVarianceForKnownMeanData threadData[numThreads];
-  setupWeightedVarianceForKnownMeanData(threadData, numThreads, x, w, numValuesPerThread, offByOneIndex, computeUnrolledWeightedVarianceForKnownMean, mean);
+  setupWeightedVarianceForKnownMeanData(threadData, numThreads, x, w, numValuesPerThread, numFullChunks, computeUnrolledWeightedVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2751,14 +2036,14 @@ static double mt_computeUnrolledWeightedVarianceForKnownMean(misc_mt_manager_t r
 static double mt_computeIndexedUnrolledWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
                                                              const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeIndexedUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
   
   IndexedWeightedVarianceForKnownMeanData threadData[numThreads];
-  setupIndexedWeightedVarianceForKnownMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, offByOneIndex, computeIndexedUnrolledWeightedVarianceForKnownMean, mean);
+  setupIndexedWeightedVarianceForKnownMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, numFullChunks, computeIndexedUnrolledWeightedVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2769,60 +2054,18 @@ static double mt_computeIndexedUnrolledWeightedVarianceForKnownMean(misc_mt_mana
   return aggregateIndexedWeightedVarianceForKnownMeanData(threadData, numThreads);
 }
 
-/*
-static double mt_computeOnlineWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
-                                                      size_t length, const double* restrict w, double mean)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, ONLINE_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeOnlineWeightedVarianceForKnownMean(x, length, w, mean);
-  
-  WeightedVarianceForKnownMeanData threadData[numThreads];
-  setupWeightedVarianceForKnownMeanData(threadData, numThreads, x, w, numValuesPerThread, offByOneIndex, &computeOnlineWeightedVarianceForKnownMean, mean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  misc_mt_runTasks(threadManager, &computeWeightedVarianceForKnownMeanTask, threadDataPtrs, numThreads);
-  
-  return aggregateWeightedVarianceForKnownMeanData(threadData, numThreads);
-}
-
-static double mt_computeIndexedOnlineWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
-                                                           const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean)
-{
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_ONLINE_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
-  
-  if (numThreads <= 1) return computeIndexedOnlineWeightedVarianceForKnownMean(x, indices, length, w, mean);
-  
-  IndexedWeightedVarianceForKnownMeanData threadData[numThreads];
-  setupIndexedWeightedVarianceForKnownMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, offByOneIndex, &computeIndexedOnlineWeightedVarianceForKnownMean, mean);
-  
-  void* threadDataPtrs[numThreads];
-  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
-  
-  
-  misc_mt_runTasks(threadManager, &computeIndexedWeightedVarianceForKnownMeanTask, threadDataPtrs, numThreads);
-  
-  return aggregateIndexedWeightedVarianceForKnownMeanData(threadData, numThreads);
-} */
 
 static double mt_computeOnlineUnrolledWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
                                                                    size_t length, const double* restrict w, double mean)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, ONLINE_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeOnlineUnrolledWeightedVarianceForKnownMean(x, length, w, mean);
   
   WeightedVarianceForKnownMeanData threadData[numThreads];
-  setupWeightedVarianceForKnownMeanData(threadData, numThreads, x, w, numValuesPerThread, offByOneIndex, computeOnlineUnrolledWeightedVarianceForKnownMean, mean);
+  setupWeightedVarianceForKnownMeanData(threadData, numThreads, x, w, numValuesPerThread, numFullChunks, computeOnlineUnrolledWeightedVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2836,14 +2079,14 @@ static double mt_computeOnlineUnrolledWeightedVarianceForKnownMean(misc_mt_manag
 static double mt_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(misc_mt_manager_t restrict threadManager, const double* restrict x,
                                                                          const misc_index_t* restrict indices, size_t length, const double* restrict w, double mean)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
+  size_t numThreads, numValuesPerThread, numFullChunks;
   misc_mt_getNumThreadsForJob(threadManager, length, INDEXED_ONLINE_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                             &numThreads, &numValuesPerThread, &offByOneIndex);
+                             &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
   
   IndexedWeightedVarianceForKnownMeanData threadData[numThreads];
-  setupIndexedWeightedVarianceForKnownMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, offByOneIndex, computeIndexedOnlineUnrolledWeightedVarianceForKnownMean, mean);
+  setupIndexedWeightedVarianceForKnownMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, numFullChunks, computeIndexedOnlineUnrolledWeightedVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2865,9 +2108,9 @@ double misc_computeSumOfSquaredResiduals(const double* restrict x, size_t length
   size_t lengthMod5 = length % 5;
   
   size_t i = 0;
-  for ( /* */ ; i < lengthMod5; ++i) result += (x[i] - x_hat[i]) * (x[i] - x_hat[i]);
+  for ( ; i < lengthMod5; ++i) result += (x[i] - x_hat[i]) * (x[i] - x_hat[i]);
   
-  for ( /* */ ; i < length; i += 5) {
+  for ( ; i < length; i += 5) {
     result += (x[i] - x_hat[i]) * (x[i] - x_hat[i]) + 
               (x[i + 1] - x_hat[i + 1]) * (x[i + 1] - x_hat[i + 1]) + 
               (x[i + 2] - x_hat[i + 2]) * (x[i + 2] - x_hat[i + 2]) +
@@ -2886,9 +2129,9 @@ double misc_computeWeightedSumOfSquaredResiduals(const double* restrict x, size_
   size_t lengthMod5 = length % 5;
   
   size_t i = 0;
-  for ( /* */ ; i < lengthMod5; ++i) result += w[i] * (x[i] - x_hat[i]) * (x[i] - x_hat[i]);
+  for ( ; i < lengthMod5; ++i) result += w[i] * (x[i] - x_hat[i]) * (x[i] - x_hat[i]);
   
-  for ( /* */ ; i < length; i += 5) {
+  for ( ; i < length; i += 5) {
     result += w[i] * (x[i] - x_hat[i]) * (x[i] - x_hat[i]) + 
               w[i + 1] * (x[i + 1] - x_hat[i + 1]) * (x[i + 1] - x_hat[i + 1]) + 
               w[i + 2] * (x[i + 2] - x_hat[i + 2]) * (x[i + 2] - x_hat[i + 2]) +
@@ -2934,19 +2177,19 @@ static void computeWeightedSumOfSquaredResidualsTask(void* v_data)
 
 static void setupSumOfSquaredResidualsData(SumOfSquaredResidualsData* restrict threadData, size_t numThreads,
                                            const double* restrict x, const double* restrict x_hat,
-                                           size_t numValuesPerThread, size_t offByOneIndex, sumOfSquaredResidualsFunction function)
+                                           size_t numValuesPerThread, size_t numFullChunks, sumOfSquaredResidualsFunction function)
 {
   size_t i = 0;
-  for ( ; i < offByOneIndex; ++i) {
+  for ( ; i < numFullChunks; ++i) {
     threadData[i].x = x + i * numValuesPerThread;
     threadData[i].length = numValuesPerThread;
     threadData[i].x_hat = x_hat + i * numValuesPerThread;
     threadData[i].function = function;
   }
   for ( ; i < numThreads; ++i) {
-    threadData[i].x = x + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].x = x + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].length = numValuesPerThread - 1;
-    threadData[i].x_hat = x_hat + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].x_hat = x_hat + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].function = function;
   }
 }
@@ -2954,10 +2197,10 @@ static void setupSumOfSquaredResidualsData(SumOfSquaredResidualsData* restrict t
 static void setupWeightedSumOfSquaredResidualsData(WeightedSumOfSquaredResidualsData* restrict threadData, size_t numThreads,
                                                    const double* restrict x,
                                                    const double* restrict w, const double* restrict x_hat,
-                                                   size_t numValuesPerThread, size_t offByOneIndex, weightedSumOfSquaredResidualsFunction function)
+                                                   size_t numValuesPerThread, size_t numFullChunks, weightedSumOfSquaredResidualsFunction function)
 {
   size_t i = 0;
-  for ( ; i < offByOneIndex; ++i) {
+  for ( ; i < numFullChunks; ++i) {
     threadData[i].x = x + i * numValuesPerThread;
     threadData[i].length = numValuesPerThread;
     threadData[i].w = w + i * numValuesPerThread;
@@ -2965,10 +2208,10 @@ static void setupWeightedSumOfSquaredResidualsData(WeightedSumOfSquaredResiduals
     threadData[i].function = function;
   }
   for ( ; i < numThreads; ++i) {
-    threadData[i].x = x + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].x = x + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].length = numValuesPerThread - 1;
-    threadData[i].w = w + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
-    threadData[i].x_hat = x_hat + offByOneIndex * numValuesPerThread + (i - offByOneIndex) * (numValuesPerThread - 1);
+    threadData[i].w = w + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
+    threadData[i].x_hat = x_hat + numFullChunks * numValuesPerThread + (i - numFullChunks) * (numValuesPerThread - 1);
     threadData[i].function = function;
   }
 }
@@ -2991,13 +2234,13 @@ static double aggregateWeightedSumOfSquaredResidualsData(const WeightedSumOfSqua
 double misc_mt_computeSumOfSquaredResiduals(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length,
                                            const double* restrict x_hat)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, SSR_MIN_NUM_VALUES_PER_THREAD, &numThreads, &numValuesPerThread, &offByOneIndex);
+  size_t numThreads, numValuesPerThread, numFullChunks;
+  misc_mt_getNumThreadsForJob(threadManager, length, SSR_MIN_NUM_VALUES_PER_THREAD, &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return misc_computeSumOfSquaredResiduals(x, length, x_hat);
   
   SumOfSquaredResidualsData threadData[numThreads];
-  setupSumOfSquaredResidualsData(threadData, numThreads, x, x_hat, numValuesPerThread, offByOneIndex, &misc_computeSumOfSquaredResiduals);
+  setupSumOfSquaredResidualsData(threadData, numThreads, x, x_hat, numValuesPerThread, numFullChunks, &misc_computeSumOfSquaredResiduals);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -3011,13 +2254,13 @@ double misc_mt_computeSumOfSquaredResiduals(misc_mt_manager_t restrict threadMan
 double misc_mt_computeWeightedSumOfSquaredResiduals(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length,
                                                    const double* restrict w, const double* restrict x_hat)
 {
-  size_t numThreads, numValuesPerThread, offByOneIndex;
-  misc_mt_getNumThreadsForJob(threadManager, length, WEIGHTED_SSR_MIN_NUM_VALUES_PER_THREAD, &numThreads, &numValuesPerThread, &offByOneIndex);
+  size_t numThreads, numValuesPerThread, numFullChunks;
+  misc_mt_getNumThreadsForJob(threadManager, length, WEIGHTED_SSR_MIN_NUM_VALUES_PER_THREAD, &numThreads, &numValuesPerThread, &numFullChunks);
   
   if (numThreads <= 1) return misc_computeWeightedSumOfSquaredResiduals(x, length, w, x_hat);
   
   WeightedSumOfSquaredResidualsData threadData[numThreads];
-  setupWeightedSumOfSquaredResidualsData(threadData, numThreads, x, w, x_hat, numValuesPerThread, offByOneIndex, &misc_computeWeightedSumOfSquaredResiduals);
+  setupWeightedSumOfSquaredResidualsData(threadData, numThreads, x, w, x_hat, numValuesPerThread, numFullChunks, &misc_computeWeightedSumOfSquaredResiduals);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -3031,15 +2274,15 @@ double misc_mt_computeWeightedSumOfSquaredResiduals(misc_mt_manager_t restrict t
 double misc_htm_computeSumOfSquaredResiduals(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length,
                                             const double* restrict x_hat)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, SSR_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return misc_computeSumOfSquaredResiduals(x, length, x_hat);
   
   SumOfSquaredResidualsData data[numPieces];
-  setupSumOfSquaredResidualsData(data, numPieces, x, x_hat, numValuesPerPiece, offByOneIndex, &misc_computeSumOfSquaredResiduals);
+  setupSumOfSquaredResidualsData(data, numPieces, x, x_hat, numValuesPerPiece, numFullChunks, &misc_computeSumOfSquaredResiduals);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3053,14 +2296,14 @@ double misc_htm_computeWeightedSumOfSquaredResiduals(misc_htm_manager_t restrict
                                                     const double* restrict x, size_t length,
                                                     const double* restrict w, const double* restrict x_hat)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, WEIGHTED_SSR_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return misc_computeWeightedSumOfSquaredResiduals(x, length, w, x_hat);
   
   WeightedSumOfSquaredResidualsData data[numPieces];
-  setupWeightedSumOfSquaredResidualsData(data, numPieces, x, w, x_hat, numValuesPerPiece, offByOneIndex, &misc_computeWeightedSumOfSquaredResiduals);
+  setupWeightedSumOfSquaredResidualsData(data, numPieces, x, w, x_hat, numValuesPerPiece, numFullChunks, &misc_computeWeightedSumOfSquaredResiduals);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3101,14 +2344,14 @@ double misc_htm_computeIndexedMean(misc_htm_manager_t restrict threadManager, si
 
 static double htm_computeUnrolledMean(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeUnrolledMean(x, length);
   
   MeanData data[numPieces];
-  setupMeanData(data, numPieces, x, numValuesPerPiece, offByOneIndex, computeUnrolledMean);
+  setupMeanData(data, numPieces, x, numValuesPerPiece, numFullChunks, computeUnrolledMean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3120,14 +2363,14 @@ static double htm_computeUnrolledMean(misc_htm_manager_t restrict threadManager,
 
 static double htm_computeIndexedUnrolledMean(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, const misc_index_t* restrict indices, size_t length)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeIndexedUnrolledMean(x, indices, length);
   
   IndexedMeanData data[numPieces];
-  setupIndexedMeanData(data, numPieces, x, indices, numValuesPerPiece, offByOneIndex, computeIndexedUnrolledMean);
+  setupIndexedMeanData(data, numPieces, x, indices, numValuesPerPiece, numFullChunks, computeIndexedUnrolledMean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3139,14 +2382,14 @@ static double htm_computeIndexedUnrolledMean(misc_htm_manager_t restrict threadM
 
 static double htm_computeOnlineUnrolledMean(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeOnlineUnrolledMean(x, length);
   
   MeanData data[numPieces];
-  setupMeanData(data, numPieces, x, numValuesPerPiece, offByOneIndex, computeOnlineUnrolledMean);
+  setupMeanData(data, numPieces, x, numValuesPerPiece, numFullChunks, computeOnlineUnrolledMean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3158,14 +2401,14 @@ static double htm_computeOnlineUnrolledMean(misc_htm_manager_t restrict threadMa
 
 static double htm_computeIndexedOnlineUnrolledMean(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, const misc_index_t* restrict indices, size_t length)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeIndexedOnlineUnrolledMean(x, indices, length);
   
   IndexedMeanData data[numPieces];
-  setupIndexedMeanData(data, numPieces, x, indices, numValuesPerPiece, offByOneIndex, computeIndexedOnlineUnrolledMean);
+  setupIndexedMeanData(data, numPieces, x, indices, numValuesPerPiece, numFullChunks, computeIndexedOnlineUnrolledMean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3208,14 +2451,14 @@ double misc_htm_computeIndexedWeightedMean(misc_htm_manager_t restrict threadMan
 static double htm_computeUnrolledWeightedMean(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
                                               size_t length, const double* restrict w, double* restrict nPtr)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeUnrolledWeightedMean(x, length, w, nPtr);
   
   WeightedMeanData data[numPieces];
-  setupWeightedMeanData(data, numPieces, x, w, numValuesPerPiece, offByOneIndex, computeUnrolledWeightedMean);
+  setupWeightedMeanData(data, numPieces, x, w, numValuesPerPiece, numFullChunks, computeUnrolledWeightedMean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3229,14 +2472,14 @@ static double htm_computeIndexedUnrolledWeightedMean(misc_htm_manager_t restrict
                                                      const misc_index_t* restrict indices, size_t length,
                                                      const double* restrict w, double* restrict nPtr)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeIndexedUnrolledWeightedMean(x, indices, length, w, nPtr);
   
   IndexedWeightedMeanData data[numPieces];
-  setupIndexedWeightedMeanData(data, numPieces, x, indices, w, numValuesPerPiece, offByOneIndex, computeIndexedUnrolledWeightedMean);
+  setupIndexedWeightedMeanData(data, numPieces, x, indices, w, numValuesPerPiece, numFullChunks, computeIndexedUnrolledWeightedMean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3249,14 +2492,14 @@ static double htm_computeIndexedUnrolledWeightedMean(misc_htm_manager_t restrict
 static double htm_computeOnlineUnrolledWeightedMean(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
                                                    size_t length, const double* restrict w, double* restrict nPtr)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, ONLINE_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeOnlineUnrolledWeightedMean(x, length, w, nPtr);
   
   WeightedMeanData data[numPieces];
-  setupWeightedMeanData(data, numPieces, x, w, numValuesPerPiece, offByOneIndex, computeOnlineUnrolledWeightedMean);
+  setupWeightedMeanData(data, numPieces, x, w, numValuesPerPiece, numFullChunks, computeOnlineUnrolledWeightedMean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3270,14 +2513,14 @@ static double htm_computeIndexedOnlineUnrolledWeightedMean(misc_htm_manager_t re
                                                            const misc_index_t* restrict indices, size_t length,
                                                            const double* restrict w, double* restrict nPtr)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_ONLINE_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeIndexedOnlineUnrolledWeightedMean(x, indices, length, w, nPtr);
   
   IndexedWeightedMeanData data[numPieces];
-  setupIndexedWeightedMeanData(data, numPieces, x, indices, w, numValuesPerPiece, offByOneIndex, computeIndexedOnlineUnrolledWeightedMean);
+  setupIndexedWeightedMeanData(data, numPieces, x, indices, w, numValuesPerPiece, numFullChunks, computeIndexedOnlineUnrolledWeightedMean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3320,14 +2563,14 @@ double misc_htm_computeIndexedVarianceForKnownMean(misc_htm_manager_t restrict t
 static double htm_computeUnrolledVarianceForKnownMean(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
                                                       size_t length, double mean)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeUnrolledVarianceForKnownMean(x, length, mean);
   
   VarianceForKnownMeanData data[numPieces];
-  setupVarianceForKnownMeanData(data, numPieces, x, numValuesPerPiece, offByOneIndex, computeUnrolledVarianceForKnownMean, mean);
+  setupVarianceForKnownMeanData(data, numPieces, x, numValuesPerPiece, numFullChunks, computeUnrolledVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3341,14 +2584,14 @@ static double htm_computeUnrolledVarianceForKnownMean(misc_htm_manager_t restric
 static double htm_computeOnlineUnrolledVarianceForKnownMean(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
                                                             size_t length, double mean)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, ONLINE_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeOnlineUnrolledVarianceForKnownMean(x, length, mean);
   
   VarianceForKnownMeanData data[numPieces];
-  setupVarianceForKnownMeanData(data, numPieces, x, numValuesPerPiece, offByOneIndex, computeOnlineUnrolledVarianceForKnownMean, mean);
+  setupVarianceForKnownMeanData(data, numPieces, x, numValuesPerPiece, numFullChunks, computeOnlineUnrolledVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3361,14 +2604,14 @@ static double htm_computeOnlineUnrolledVarianceForKnownMean(misc_htm_manager_t r
 static double htm_computeIndexedUnrolledVarianceForKnownMean(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
                                                              const misc_index_t* restrict indices, size_t length, double mean)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeIndexedUnrolledVarianceForKnownMean(x, indices, length, mean);
   
   IndexedVarianceForKnownMeanData data[numPieces];
-  setupIndexedVarianceForKnownMeanData(data, numPieces, x, indices, numValuesPerPiece, offByOneIndex, computeIndexedUnrolledVarianceForKnownMean, mean);
+  setupIndexedVarianceForKnownMeanData(data, numPieces, x, indices, numValuesPerPiece, numFullChunks, computeIndexedUnrolledVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3381,14 +2624,14 @@ static double htm_computeIndexedUnrolledVarianceForKnownMean(misc_htm_manager_t 
 static double htm_computeIndexedOnlineUnrolledVarianceForKnownMean(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
                                                                    const misc_index_t* restrict indices, size_t length, double mean)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_ONLINE_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeIndexedOnlineUnrolledVarianceForKnownMean(x, indices, length, mean);
   
   IndexedVarianceForKnownMeanData data[numPieces];
-  setupIndexedVarianceForKnownMeanData(data, numPieces, x, indices, numValuesPerPiece, offByOneIndex, computeIndexedOnlineUnrolledVarianceForKnownMean, mean);
+  setupIndexedVarianceForKnownMeanData(data, numPieces, x, indices, numValuesPerPiece, numFullChunks, computeIndexedOnlineUnrolledVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3446,14 +2689,14 @@ static double htm_computeUnrolledWeightedVarianceForKnownMean(
   misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length,
   const double* restrict w, double mean)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeUnrolledWeightedVarianceForKnownMean(x, length, w, mean);
   
   WeightedVarianceForKnownMeanData data[numPieces];
-  setupWeightedVarianceForKnownMeanData(data, numPieces, x, w, numValuesPerPiece, offByOneIndex, computeUnrolledWeightedVarianceForKnownMean, mean);
+  setupWeightedVarianceForKnownMeanData(data, numPieces, x, w, numValuesPerPiece, numFullChunks, computeUnrolledWeightedVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3467,14 +2710,14 @@ static double htm_computeOnlineUnrolledWeightedVarianceForKnownMean(
   misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length,
   const double* restrict w, double mean)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, ONLINE_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeOnlineUnrolledWeightedVarianceForKnownMean(x, length, w, mean);
   
   WeightedVarianceForKnownMeanData data[numPieces];
-  setupWeightedVarianceForKnownMeanData(data, numPieces, x, w, numValuesPerPiece, offByOneIndex, computeOnlineUnrolledWeightedVarianceForKnownMean, mean);
+  setupWeightedVarianceForKnownMeanData(data, numPieces, x, w, numValuesPerPiece, numFullChunks, computeOnlineUnrolledWeightedVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3490,14 +2733,14 @@ static double htm_computeIndexedUnrolledWeightedVarianceForKnownMean(
   const misc_index_t* restrict indices, size_t length,
   const double* restrict w, double mean)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeIndexedUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
   
   IndexedWeightedVarianceForKnownMeanData data[numPieces];
-  setupIndexedWeightedVarianceForKnownMeanData(data, numPieces, x, indices, w, numValuesPerPiece, offByOneIndex, computeIndexedUnrolledWeightedVarianceForKnownMean, mean);
+  setupIndexedWeightedVarianceForKnownMeanData(data, numPieces, x, indices, w, numValuesPerPiece, numFullChunks, computeIndexedUnrolledWeightedVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3512,14 +2755,14 @@ static double htm_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(
   const misc_index_t* restrict indices, size_t length,
   const double* restrict w, double mean)
 {
-  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  size_t numPieces, numValuesPerPiece, numFullChunks;
   misc_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_ONLINE_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
-                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+                                 &numPieces, &numValuesPerPiece, &numFullChunks);
   
   if (numPieces <= 1) return computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
   
   IndexedWeightedVarianceForKnownMeanData data[numPieces];
-  setupIndexedWeightedVarianceForKnownMeanData(data, numPieces, x, indices, w, numValuesPerPiece, offByOneIndex, computeIndexedOnlineUnrolledWeightedVarianceForKnownMean, mean);
+  setupIndexedWeightedVarianceForKnownMeanData(data, numPieces, x, indices, w, numValuesPerPiece, numFullChunks, computeIndexedOnlineUnrolledWeightedVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];

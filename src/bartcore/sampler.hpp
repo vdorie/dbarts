@@ -305,7 +305,7 @@ public:
     // the per-sample varcount slab carries numVariableCountForests forests
     // (1 everywhere but multinomial), so the per-chain varcount stride folds it
     // in; count 1 leaves the exact current chain-major stride
-    size_t numVCForests = results.numVariableCountForests;
+    size_t numVarCountForests = results.numVariableCountForests;
     // the per-sample cutpoint slab carries numCutpoints thresholds (0 off
     // ordinal), so the per-chain cutpoint stride folds it in
     size_t numCutpoints = results.numCutpoints;
@@ -313,7 +313,7 @@ public:
     for (size_t c = 0; c < numChains; ++c) {
       Results& r(chainResults[c]);
       r.numReportedLocations = numLocations;
-      r.numVariableCountForests = numVCForests;
+      r.numVariableCountForests = numVarCountForests;
       r.numCutpoints = numCutpoints;
       if (results.sigma != nullptr) r.sigma = results.sigma + c * numSamples;
       if (results.k != nullptr) r.k = results.k + c * numSamples;
@@ -325,7 +325,7 @@ public:
           c * numSamples * data_.numTestObservations * numLocations;
       if (results.variableCounts != nullptr)
         r.variableCounts = results.variableCounts +
-          c * numSamples * data_.numPredictors * numVCForests;
+          c * numSamples * data_.numPredictors * numVarCountForests;
       if (results.splitProbabilities != nullptr)
         r.splitProbabilities =
           results.splitProbabilities + c * numSamples * data_.numPredictors;
@@ -450,8 +450,8 @@ public:
     std::vector<int32_t> bottoms;
     for (size_t c = 0; c < chains_.size(); ++c) {
       size_t linePrintCount = 0;
-      // prefix every chain's line unconditionally
       ext_printf("[%lu] ", static_cast<unsigned long>(c + 1));
+      // the "[c] " prefix counts as two slots toward the 20-per-line wrap
       linePrintCount += 2;
       for (size_t t = 0; t < options_.numTrees; ++t) {
         bottoms.clear();

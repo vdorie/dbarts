@@ -214,7 +214,7 @@ sliceSample <- function(
         f <- function(x) exp(target(x) - normalizingConstant)
         environment(f) <- evalEnv
         optimResult$value <- 1
-        ## optimResult$hessian is this is theoretically unchanged by the transformation, since f'(x_0) = 0 && (h(x_0) - normConst) = 0, however it can be inaccurate numerically
+        ## optimResult$hessian is theoretically unchanged by the transformation, since f'(x_0) = 0 and (h(x_0) - normConst) = 0, however it can be inaccurate numerically
         optimResult$hessian <- optimHess(
           optimResult$par,
           f,
@@ -223,7 +223,6 @@ sliceSample <- function(
       }
       # width is derived from a normal approximation at the mode based on the equality of second derivatives
       # going out two standard deviations
-      #width <- 2 * abs(sqrt(2 * pi) * optimResult$value / optimResult$hessian[1L])^(1/3)
       width <- 2 * abs(optimResult$hessian[1L] * sqrt(2 * pi))^(-1 / 3)
       if (is.nan(width) || is.infinite(width)) width <- 1000
     } else {

@@ -363,7 +363,6 @@ pd2bart <- function(
         }
     }
   }
-  numLevels <- sapply(levs, length) # nolint: object_usage_linter.
   numSamples <- sampler$control@n.samples * sampler$control@n.chains
 
   xValues <- as.matrix(expand.grid(levs[[1L]], levs[[2L]]))

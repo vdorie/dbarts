@@ -505,7 +505,7 @@ bool rc_getBool(SEXP x, const char* name, ...) {
   return result;
 }
 
-bool vgetBool(SEXP x, const char* name, va_list argsPointer)
+static inline bool vgetBool(SEXP x, const char* name, va_list argsPointer)
 {
   R_xlen_t length = 0;
   rc_constraintType constraintType;

@@ -133,8 +133,6 @@ int misc_htm_runTopLevelTasks(misc_htm_manager_t restrict manager, misc_htm_topL
     return result;
   }
   
-  // ext_printf("running top %zu level tasks without output\n", numTasks);
-  
   for (taskId = 0; taskId < numTasks; ++taskId) {
     while (stackIsEmpty(&manager->availableThreadStack))
       waitOnCondition(manager->taskDone, manager->mutex);
@@ -155,22 +153,17 @@ int misc_htm_runTopLevelTasks(misc_htm_manager_t restrict manager, misc_htm_topL
     signalCondition(thread->taskAvailable);
   }
   
-  // ext_printf("waiting for top level tasks to finish\n");
-  // printManagerStatus(manager);
-  
   while (manager->numTopLevelTasksInProgress > 0)
     waitOnCondition(manager->taskDone, manager->mutex);
-  
-  // ext_printf("cleaning up top level tasks\n");
-  
+
   for ( /* */ ; taskId > 0; --taskId)
     result |= invalidateTopLevelTaskStatus(&manager->topLevelTaskStatus[taskId - 1]);
   free(manager->topLevelTaskStatus);
   manager->topLevelTaskStatus = NULL;
   manager->numTopLevelTasks = 0;
-  
+
   unlockMutex(manager->mutex);
-  
+
   return result;
 }
 
@@ -218,18 +211,12 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
   }
   
   getTime(&wakeTime);
-  // ext_printf("wake time: %ld.%.9ld", (long long int) wakeTime.tv_sec, (long long int) wakeTime.tv_nsec);
   wakeTime.tv_sec  += outputDelay->tv_sec;
   wakeTime.tv_nsec += outputDelay->tv_nsec;
-  // ext_printf(", added time: %ld.%.9ld", (long long int) wakeTime.tv_sec, (long long int) wakeTime.tv_nsec);
   wakeTime.tv_sec  += wakeTime.tv_nsec / 1000000000;
   wakeTime.tv_nsec %= 1000000000;
-  // ext_printf(", mod time: %ld.%.9ld\n", (long long int) wakeTime.tv_sec, (long long int) wakeTime.tv_nsec);
-  
-  // ext_printf("running top %zu level tasks with output\n", numTasks);
-  
+
   for (taskId = 0; taskId < numTasks; ++taskId) {
-    // while (stackIsEmpty(&manager->availableThreadStack)) waitOnCondition(manager->taskDone, manager->mutex);
     while (stackIsEmpty(&manager->availableThreadStack)) {
       int waitStatus = waitOnConditionForTime(manager->taskDone, manager->mutex, wakeTime);
       if (waitStatus == ETIMEDOUT) {
@@ -263,9 +250,6 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
     signalCondition(thread->taskAvailable);
   }
   
-  // ext_printf("waiting for top level tasks to finish\n");
-  // printManagerStatus(manager);
-  
   while (manager->numTopLevelTasksInProgress > 0) {
     int waitStatus = waitOnConditionForTime(manager->taskDone, manager->mutex, wakeTime);
     if (waitStatus == ETIMEDOUT) {
@@ -283,14 +267,12 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
     }
   }
   
-  // ext_printf("cleaning up top level tasks\n");
-  
   for ( /* */ ; taskId > 0; --taskId)
     result |= invalidateTopLevelTaskStatus(&manager->topLevelTaskStatus[taskId - 1]);
   free(manager->topLevelTaskStatus);
   manager->topLevelTaskStatus = NULL;
   manager->numTopLevelTasks = 0;
-  
+
   if (manager->bufferPos != 0) {
     misc_printf("%s", manager->buffer);
     misc_flushOutput();
@@ -413,10 +395,7 @@ static void* threadLoop(void* _thread)
       manager->numTopLevelTasksInProgress--;
       taskStatus->progress = TASK_COMPLETE;
       taskStatus->thread = NULL;
-      
-      // ext_printf("task %zu complete, popping %zu threads\n", thread->topLevelTaskId, taskStatus->numThreads - 1);
-      // printManagerStatus(manager);
-      
+
       signalCondition(manager->taskDone);
     } else {
       taskStatus->numSubTaskPiecesInProgress--;
@@ -455,13 +434,10 @@ misc_size_t misc_htm_reserveThreadsForSubTask(misc_htm_manager_t manager, size_t
   TopLevelTaskStatus* taskStatus = &manager->topLevelTaskStatus[taskId];
   
   if (newNumThreads == taskStatus->numThreads) {
-    // ext_printf("task id %zu: no change\n", taskId);
     unlockMutex(manager->mutex);
     return newNumThreads;
   }
-  
-  // ext_printf("task id %zu: %zu -> %zu threads\n", taskId, taskStatus->numThreads, newNumThreads);
-  
+
   if (newNumThreads > taskStatus->numThreads) {
     
     ThreadData* threads = popN(&manager->availableThreadStack, newNumThreads - taskStatus->numThreads);
@@ -480,11 +456,9 @@ misc_size_t misc_htm_reserveThreadsForSubTask(misc_htm_manager_t manager, size_t
     manager->numThreadsAvailable += taskStatus->numThreads - newNumThreads;
     taskStatus->numThreads = newNumThreads;
   }
-  
-  // printManagerStatus(manager);
-  
+
   unlockMutex(manager->mutex);
-  
+
   return newNumThreads;
 }
 
@@ -606,7 +580,8 @@ int misc_htm_destroy(misc_htm_manager_t manager)
   int result = 0;
   
   if (manager->topLevelTaskStatus != NULL && manager->numTopLevelTasks > 0) {
-    // this really shouldn't be happening
+    // destroy was called while top-level tasks are still registered; drain any
+    // still in progress and clean up their status before tearing down
     lockMutex(manager->mutex);
     while (manager->numTopLevelTasksInProgress > 0) waitOnCondition(manager->taskDone, manager->mutex);
   

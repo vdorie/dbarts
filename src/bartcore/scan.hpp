@@ -14,7 +14,7 @@
 // prefix-scan the histogram into every candidate cut's collapsed left/right
 // statistics, and score each cut by the leaf's integrated log-likelihood. The
 // shared building block of grow-from-root (grow.hpp) and the informed-proposal
-// birth/death of docs/design/parallel-bart-frontier.md 3.1; landed once here
+// birth/death of docs/design/parallel-bart-frontier.md; landed once here
 // so both consumers include it unchanged (docs/design/grow-from-root.md).
 //
 // Occupancy-aware: a cut with a zero-count side gets the never-selected

@@ -360,7 +360,9 @@ as.matrix.dbartsMixedMatrix <- function(x, ...) {
 }
 
 ## Install a block of predictor columns into a sampler's stored source BY
-## REFERENCE (design/data-ownership.md plan 3) - keeps data@x current under
+## REFERENCE (the reference-install mutation semantics,
+## docs/design/data-ownership.md, "Mutation: reference-install") - keeps
+## data@x current under
 ## mutation without adding an R-side copy on top of R's own copy-on-write.
 ## rows = NULL replaces columns whole: slot j is repointed straight at the
 ## supplied vector (or, for a multi-column call, the caller's per-column
@@ -384,7 +386,8 @@ installPredictorColumns <- function(x, rows, columns, values) {
     }
     return(x)
   }
-  # a pure dgCMatrix design (sparse-columns.md ext (i)): column-granular
+  # a pure dgCMatrix design (the sparse-column in-place mutation extension,
+  # docs/design/sparse-columns.md): column-granular
   # mutation stays sparse under Matrix's [<-; per-observation (rows) mutation
   # of a sparse column is refused upstream, so only the whole-column path lands
   if (inherits(x, "dgCMatrix")) {

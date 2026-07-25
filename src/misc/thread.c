@@ -2,14 +2,12 @@
 #include <misc/thread.h>
 #include "pthread.h"
 
-#include "config.h"
-
 #include <stdlib.h>
 #include <errno.h>
 #include <stdbool.h>
 
 // clock_gettime + CLOCK_REALTIME are in time.h, gettimeofday is in sys/time.h; plain time() is in time.h too
-// time.h imported from <external/thread.h>
+// time.h imported from <misc/thread.h>
 #if (!defined(HAVE_CLOCK_GETTIME) || !defined(CLOCK_REALTIME)) && defined(HAVE_GETTIMEOFDAY)
 #  include <sys/time.h>
 #endif
@@ -23,7 +21,7 @@
 struct ThreadData;
 
 static int initializeManager(misc_mt_manager_t manager, size_t numThreads);
-static int initializeThreadData(misc_mt_manager_t manager, struct ThreadData* data, size_t index);
+static int initializeThreadData(misc_mt_manager_t manager, struct ThreadData* data, size_t threadId);
 static int destroyThreadData(struct ThreadData* data);
 
 static void* threadLoop(void* _data);
@@ -31,7 +29,7 @@ static void* threadLoop(void* _data);
 typedef struct ThreadData {
   misc_mt_manager_t manager;
   Condition taskAvailable;
-  size_t index;
+  size_t threadId;
   
   misc_mt_taskFunction_t task;
   void* taskData;
@@ -44,8 +42,6 @@ typedef struct {
   size_t popIndex;
 } IndexArrayQueue;
 
-UNUSED static IndexArrayQueue* createIndexArrayQueue(size_t queueSize); // returns NULL if an error occurs
-UNUSED static void destroyIndexArrayQueue(IndexArrayQueue* queue);
 static int initializeIndexArrayQueue(IndexArrayQueue* queue, size_t queueSize);
 static void invalidateIndexArrayQueue(IndexArrayQueue* queue);
 
@@ -113,15 +109,6 @@ int misc_mt_create(misc_mt_manager_t* managerPtr, size_t numThreads)
   
   return result;
 }
-
-/* size_t misc_mt_getThreadId(const misc_mt_manager_t manager)
-{
-  Thread nativeThreadId = pthread_self();
-  size_t i;
-  for (i = 0; i < manager->numThreads; ++i) if (nativeThreadId == manager->threads[i]) break;
-  
-  return i;
-} */
 
 size_t misc_mt_getNumThreads(const misc_mt_manager_t manager)
 {
@@ -219,8 +206,6 @@ int misc_mt_runTasksWithInfo(misc_mt_manager_t restrict manager, misc_mt_taskFun
     
   wakeTime.tv_sec += sleepSeconds;
   for (size_t i = 0; i < numTasks; ++i) {
-    // while (getNumElementsInQueue(&manager->threadQueue) == 0) waitOnCondition(manager->taskDone, manager->mutex);
-    
     while (getNumElementsInQueue(&manager->threadQueue) == 0) {
       int waitStatus = waitOnConditionForTime(manager->taskDone, manager->mutex, wakeTime);
       if (waitStatus == ETIMEDOUT) {
@@ -279,7 +264,7 @@ static void* threadLoop(void* _data)
     data->task = NULL;
     data->taskData = NULL;
     signalCondition(manager->taskDone);
-    push(&manager->threadQueue, data->index);
+    push(&manager->threadQueue, data->threadId);
   }
   
   manager->numThreadsActive--;
@@ -390,10 +375,10 @@ misc_mt_initialization_failed:
   return result;
 }
 
-static int initializeThreadData(misc_mt_manager_t manager, ThreadData* data, size_t index)
+static int initializeThreadData(misc_mt_manager_t manager, ThreadData* data, size_t threadId)
 {
   data->manager = manager;
-  data->index = index;
+  data->threadId = threadId;
   
   data->task = NULL;
   data->taskData = NULL;
@@ -411,19 +396,6 @@ static int destroyThreadData(ThreadData* data)
   return destroyCondition(data->taskAvailable);
 }
 
-static IndexArrayQueue* createIndexArrayQueue(size_t queueSize)
-{
-  IndexArrayQueue* result = (IndexArrayQueue*) malloc(sizeof(IndexArrayQueue));
-  if (result == NULL) return result;
-  
-  if (initializeIndexArrayQueue(result, queueSize) != 0) {
-    free(result);
-    return NULL;
-  }
-  
-  return result;
-}
-
 static int initializeIndexArrayQueue(IndexArrayQueue* queue, size_t queueSize)
 {
   queue->elements = (size_t*) malloc(queueSize * sizeof(size_t));
@@ -436,12 +408,6 @@ static int initializeIndexArrayQueue(IndexArrayQueue* queue, size_t queueSize)
   queue->popIndex = 0;
   
   return 0;
-}
-
-static void destroyIndexArrayQueue(IndexArrayQueue* queue)
-{
-  invalidateIndexArrayQueue(queue);
-  if (queue != NULL) free(queue);
 }
 
 static void invalidateIndexArrayQueue(IndexArrayQueue* queue)

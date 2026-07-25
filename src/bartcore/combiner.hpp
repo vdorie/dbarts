@@ -124,7 +124,8 @@ struct Forest {
   // per-forest interaction constraint (max-order + forbidden co-occurrence);
   // inactive by default (build not called), leaving the trees' constraint null
   // and the availability path byte-for-byte unchanged
-  // (docs/design/interaction-constraints.md, deliverable B). HEAP-allocated so
+  // (docs/design/interaction-constraints.md, the per-path max-order +
+  // co-occurrence mechanism). HEAP-allocated so
   // the address a tree's interaction_ borrows survives a forests_ vector
   // reallocation/move; a value member relocates with the Forest and dangles
   // every tree's pointer (the BCF multi-forest heap-use-after-free), whereas a
@@ -134,7 +135,8 @@ struct Forest {
   // variant A): confine each WHOLE tree to one declared group of predictors so the
   // ensemble is exactly f = sum_G f_G. blockMasks holds numBlocks group-membership
   // rows of numPredictors 0/1 bytes, group-major (row g intersected with any base
-  // columnMask - the F3 BCF-tau case); blockOfTree[t] is tree t's 0-based group.
+  // columnMask - the BCF tau case, where each tree's block row is ANDed with its
+  // moderator restriction); blockOfTree[t] is tree t's 0-based group.
   // Each tree's columnMask_ points at its group's row. Both are PLAIN VALUE
   // vectors, NOT unique_ptr: a std::vector's data() heap pointer survives a Forest
   // move (exactly like columnMask above), so the trees' borrowed pointers stay
@@ -223,7 +225,7 @@ struct BCFForestSpec {
   // each column's 0-based group (negative = in no block); blockTreeCounts (length
   // numBlocks, borrowed) is the deterministic contiguous per-group tree capacity,
   // summing to numTrees. numBlocks 0 leaves the forest unrestricted; tau's block
-  // rows intersect its moderator columnMask at install (F3).
+  // rows intersect its moderator columnMask at install.
   std::size_t numBlocks = 0;
   const std::int32_t* blockOfColumn = nullptr;
   const std::size_t* blockTreeCounts = nullptr;
@@ -547,7 +549,7 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
     }
     if (numLeaves < 2 || !(M > 0.0)) return 1.0;
 
-    // GIG parameters (memo section 2.3): A = M (k/scale)^2, B = a0^2/aVariance
+    // GIG parameters (docs/design/bcf.md): A = M (k/scale)^2, B = a0^2/aVariance
     double a0 = glue_.a;
     double leafPrecision = (forest.k / forest.leaf.scale) *
                            (forest.k / forest.leaf.scale);  // 1 / leafVar

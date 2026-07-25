@@ -222,8 +222,9 @@ rbart_vi <- function(
   # group.by is. dbartsData's formula-path Surv refusal stays intact for every
   # other family; here the response is rewritten to the log event/censoring
   # time before dbartsData sees it, and the per-observation status rides the
-  # control's bartcore.survival attribute (the applyGroupAttribute pattern the
-  # AFT engine reads). A Surv left-hand side auto-selects aft from "auto"; a
+  # control's bartcore.survival attribute, which the C bridge reads at ingestion
+  # (the same attr-on-control convention applyGroupAttribute uses for
+  # bartcore.groups). A Surv left-hand side auto-selects aft from "auto"; a
   # bare two-column response needs family = "aft" explicitly. rbart_vi's
   # matrix interface has no survival form; aft enters only through the formula.
   survivalStatus <- NULL
@@ -346,8 +347,9 @@ rbart_vi <- function(
     callback
   )
 
-  # the AFT engine reads its per-observation status off this control attribute
-  # (the bartcore.groups precedent); both sampler paths carry the control, and
+  # the C bridge reads the per-observation status off the control's
+  # bartcore.survival attribute at ingestion (the same attr-on-control
+  # convention as bartcore.groups); both sampler paths carry the control, and
   # dbarts() permits the indirect aft path once the attribute is present
   if (!is.null(survivalStatus)) {
     attr(control, "bartcore.survival") <- survivalStatus
@@ -685,7 +687,7 @@ rbart_vi_run <- function(
     }
     if (!isWarmup && !is.null(rbartArgs$callback)) {
       names(ranef) <- data$g.levels
-      callback_i <- rbartArgs$callback(
+      callbackValue <- rbartArgs$callback(
         state$treeFit.train,
         raw$test[, i],
         ranef,
@@ -695,12 +697,12 @@ rbart_vi_run <- function(
       if (is.null(samples$callback)) {
         samples$callback <<- matrix(
           NA_real_,
-          length(callback_i),
+          length(callbackValue),
           control@n.samples,
-          dimnames = list(names(callback_i), NULL)
+          dimnames = list(names(callbackValue), NULL)
         )
       }
-      .Call(C_dbarts_assignInPlace, samples$callback, i, callback_i)
+      .Call(C_dbarts_assignInPlace, samples$callback, i, callbackValue)
     }
 
     if (verbose && i %% control@printEvery == 0L) {
@@ -819,7 +821,7 @@ rbart_vi_fit_bartcore <- function(samplerArgs, rbartArgs, groupLevels, seed) {
   for (i in seq_len(n.chains)) {
     ranef <- chainMatrix(samples$ranef, i)
     rownames(ranef) <- groupLevels
-    result_i <- list(
+    chainResult <- list(
       sampler = sampler,
       ranef = ranef,
       firstTau = chainVector(firstTau, i),
@@ -834,20 +836,21 @@ rbart_vi_fit_bartcore <- function(samplerArgs, rbartArgs, groupLevels, seed) {
       varcount = chainMatrix(samples$varcount, i)
     )
     if (!is.null(samples$varprobs)) {
-      result_i$varprobs <- chainMatrix(samples$varprobs, i)
+      chainResult$varprobs <- chainMatrix(samples$varprobs, i)
     }
     if (kIsModeled) {
-      result_i$firstK <- chainVector(firstK, i)
-      result_i$k <- chainVector(samples$k, i)
+      chainResult$firstK <- chainVector(firstK, i)
+      chainResult$k <- chainVector(samples$k, i)
     }
-    chainResults[[i]] <- result_i
+    chainResults[[i]] <- chainResult
   }
 
   namedList(sampler, chainResults)
 }
 
-rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
-  chain.num <- "ignored"
+rbart_vi_fit <- function(.chain.num.ignored, seed, samplerArgs, rbartArgs) {
+  # clusterMap passes a chain index positionally as the first argument, but this
+  # fit uses it only to occupy the slot; the value is never read.
 
   if (!is.na(seed)) {
     set.seed(seed)
@@ -926,7 +929,7 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
     # skewed response that offset would otherwise leak into the intercepts
     state$treeFit.train <- as.vector(sampler$run(0L, 1L)$train) - ranef.vec
 
-    run_result <- rbart_vi_run(
+    runResult <- rbart_vi_run(
       sampler,
       data,
       state,
@@ -936,11 +939,11 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
       TRUE,
       rbartArgs
     )
-    state <- run_result$state
+    state <- runResult$state
 
-    firstTau <- run_result$samples$tau
-    firstSigma <- run_result$samples$sigma
-    firstK <- run_result$samples$k
+    firstTau <- runResult$samples$tau
+    firstSigma <- runResult$samples$sigma
+    firstK <- runResult$samples$k
 
     if (control@keepTrees != oldKeepTrees) {
       control@keepTrees <- TRUE
@@ -970,7 +973,7 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
     firstK <- NULL
   }
 
-  run_result <- rbart_vi_run(
+  runResult <- rbart_vi_run(
     sampler,
     data,
     state,
@@ -980,17 +983,17 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
     FALSE,
     rbartArgs
   )
-  # state <- run_result$state
+  # the returned state is intentionally discarded; only the samples are kept
 
-  tau <- run_result$samples$tau
-  sigma <- run_result$samples$sigma
-  ranef <- run_result$samples$ranef
-  yhat.train <- run_result$samples$yhat.train
-  yhat.test <- run_result$samples$yhat.test
-  k <- run_result$samples$k
-  callback <- run_result$samples$callback
-  varcount <- run_result$samples$varcount
-  varprobs <- run_result$samples$varprobs
+  tau <- runResult$samples$tau
+  sigma <- runResult$samples$sigma
+  ranef <- runResult$samples$ranef
+  yhat.train <- runResult$samples$yhat.train
+  yhat.test <- runResult$samples$yhat.test
+  k <- runResult$samples$k
+  callback <- runResult$samples$callback
+  varcount <- runResult$samples$varcount
+  varprobs <- runResult$samples$varprobs
 
   sampler$setOffset(if (!is.null(offset.orig)) offset.orig else NULL, FALSE)
 
@@ -1108,7 +1111,6 @@ packageRbartResults <- function(
         n.chains,
         combineChains
       )
-      # undo collapse: temp <- aperm(array(result$ranef, c(dim(chainResults[[1L]]$ranef)[2L], n.chains, dim(chainResults[[1L]]$ranef)[1L]), dimnames = list(NULL, NULL, colnames(result$ranef))), c(3L, 1L, 2L))
     }
     result$first.tau <- convertSamplesFromDbartsToBart(
       sapply(chainResults, function(x) x$firstTau),

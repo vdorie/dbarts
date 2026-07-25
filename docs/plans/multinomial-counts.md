@@ -44,7 +44,7 @@ label path (n_i = 1, one-hot rows) is the exact reduction and stays bitwise. The
 capability is reachable via the matrix interface bart2(x.train, Y, family =
 "multinomial") with Y an n x K count matrix. Closes the count-matrix follow-up
 the C7 landing filed (docs/plans/multinomial.md C7 scope-narrowings;
-docs/design/multi-forest-models.md; TODO).
+docs/plans/multi-forest-models.md; TODO).
 
 ## Ordering (this arc lands BEFORE multinomial-formula; Q1)
 
@@ -226,7 +226,7 @@ C3. Docs. docs/design/multinomial.md "The surface": the count-matrix data
    contract (n x K, trials n_i, the PG(n_i) = sum-of-PG(1) additivity, the n_i = 1
    reduction as the neutrality anchor, n_i = 0 refused, K = 2 == binomial, the
    NO-r-update-analog fact). Mark the item landed in
-   docs/design/multi-forest-models.md and the TODO; this plan's landing notes.
+   docs/plans/multi-forest-models.md and the TODO; this plan's landing notes.
    Files: docs/design/*, docs/plans/*, TODO. Gate: full tinytest; R CMD check man
    unaffected (no man/ topic added - the count matrix is a documented response
    form of the existing bart2 topic). Size: S.

@@ -211,9 +211,12 @@ xbart <- function(
   if (is.null(node.spec)) {
     node.prior <- quote(normal(k))
     node.prior[[1L]] <- quoteInNamespace(normal)
+    # take the first grid element: k[1L] for a numeric grid, k[[1L]] for a
+    # list grid, otherwise k itself (a scalar or hyperprior spec)
     node.prior[[2L]] <- ifelse_3(is.numeric(k), is.list(k), k[1L], k[[1L]], k)
     node.prior <- eval(node.prior)
   } else {
+    # first grid element, as above: k[1L] numeric, k[[1L]] list, else k
     kValue <- ifelse_3(is.numeric(k), is.list(k), k[1L], k[[1L]], k)
     if (is.call(kValue)) {
       kValue <- eval(kValue)
@@ -329,10 +332,10 @@ xbart <- function(
   # it. Chains warm-start only across cells - the training data is
   # identical there, so carrying trees is sound - and never across folds
   # or splits, whose held-out rows the previous training set contained.
-  # (The retired implementation warm-started across splits; slow-mixing
-  # cells never forgot the previous fold and scored optimistically.)
-  # Tree counts are fixed at a sampler's creation, so they vary slowest
-  # and each count gets a fresh fit per split.
+  # Restarting each split from a fresh forest keeps a slow-mixing cell from
+  # remembering the previous fold and scoring optimistically on its own
+  # held-out rows. Tree counts are fixed at a sampler's creation, so they
+  # vary slowest and each count gets a fresh fit per split.
   kLength <- if (kIsGrid) length(k) else 1L
   cells <- expand.grid(
     iBase = seq_along(base),
@@ -584,7 +587,8 @@ xbartRunChunk <- function(spec, repIndices, chunkSeed) {
   # fit every cell against one split, fresh per tree count, warm across the
   # rest; cells are grouped by iTrees, so a single pass reuses each sampler
   # maximally. The view slices y/weights/offset by row and takes its test
-  # offset from offset[testRows], as the retired data-slicing path did.
+  # offset from offset[testRows], so each fold trains and scores on exactly
+  # its own rows.
   sweepCells <- function(testRows) {
     trainRows <- seq_len(numObservations)[-testRows]
     y.test <- data@y[testRows]

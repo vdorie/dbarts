@@ -66,9 +66,10 @@ concept VectorLeafModel = LeafModelCore<L> && L::hasVectorParams &&
     { leaf.fitForTestObservation(v, i) } -> std::same_as<double>;
   };
 
-/// Chi-k accumulation from one function-valued leaf draw: the standardized
-/// sum of squares (f' C^-1 f for a GP draw, the squared value for a
-/// constant-fallback draw) and its parameter count.
+/// Sufficient statistics from one function-valued leaf draw, feeding the
+/// leaf-scale chi-squared update: the standardized sum of squares
+/// (f' C^-1 f for a GP draw, the squared value for a constant-fallback draw)
+/// in sumSquaredParams, and the draw's parameter count in numParams.
 struct FunctionLeafDrawStats {
   double sumSquaredParams = 0.0;
   double numParams = 0.0;
@@ -228,7 +229,8 @@ static_assert(ScalarLeafModel<ConstantGaussianLeaf>);
 /// e_i / sqrt(s^2_{-j}(x_i)) and w_i the case weight; the leaf accumulates its
 /// own per call (the LinearGaussianLeaf precedent), so no shared node stat
 /// widens and the mean path stays byte-identical. `scale` is on the VARIANCE
-/// scale (= ChiSquaredScalePrior::scale = the paper's lambda'^2), so at m' = 1
+/// scale (= ChiSquaredScalePrior::scale = Pratola et al. (2020)'s lambda'^2),
+/// so at m' = 1
 /// the calibration collapses to the homoscedastic (nu, scale) exactly.
 struct ConstantVarianceLeaf {
   static constexpr bool hasVectorParams = false;
@@ -322,15 +324,17 @@ static_assert(!IntegrableLeafModel<ConstantVarianceLeaf>);
 // tree is constrained so neighboring leaves along a constrained axis are
 // ordered; the leaf-parameter draw is a coupled truncated-normal Gibbs sweep
 // and the birth/death score is the constrained (truncated) conditional
-// marginal (approach B'). It DECLARES the two optional leaf seams
+// marginal (scored under the truncation, not the naive unconstrained marginal
+// nor a full integrate-out of the neighbors). It DECLARES the two optional
+// leaf seams
 // (TreeDrawLeafModel, ParamScoringLeafModel) that the constant leaf does not,
 // so it is a separate construction-time instantiation; the unconstrained path
 // is byte-identical (design section 8).
 
-inline double monotoneStandardNormalPdf(double z) {
+inline double gaussianPdf(double z) {
   return std::exp(-0.5 * z * z) / std::sqrt(2.0 * std::numbers::pi);
 }
-inline double monotoneNormalCdf(double z) {
+inline double gaussianCdf(double z) {
   return Rf_pnorm5(z, 0.0, 1.0, 1, 0);
 }
 
@@ -431,22 +435,23 @@ inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
                                    const std::vector<std::int32_t>& bottoms,
                                    std::int32_t k, const double* mu,
                                    const std::int32_t* skip, std::size_t numSkip,
-                                   MonotoneNeighborScratch& s, double* aOut,
+                                   MonotoneNeighborScratch& scratch, double* aOut,
                                    double* bOut, bool* constrained) {
   double a = -HUGE_VAL, b = HUGE_VAL;
-  bool has = false;
-  monotonePathVariables(tree, k, s.pathA);
+  bool hasConstrainedNeighbor = false;
+  monotonePathVariables(tree, k, scratch.pathA);
   for (std::int32_t j : bottoms) {
     if (j == k) continue;
-    monotonePathVariables(tree, j, s.pathB);
-    s.axes = s.pathA;
-    for (std::int32_t v : s.pathB)
-      if (std::find(s.axes.begin(), s.axes.end(), v) == s.axes.end())
-        s.axes.push_back(v);
+    monotonePathVariables(tree, j, scratch.pathB);
+    scratch.axes = scratch.pathA;
+    for (std::int32_t v : scratch.pathB)
+      if (std::find(scratch.axes.begin(), scratch.axes.end(), v) ==
+          scratch.axes.end())
+        scratch.axes.push_back(v);
     bool jSkipped = false;
     for (std::size_t t = 0; t < numSkip; ++t)
       if (skip[t] == j) jSkipped = true;
-    for (std::int32_t i : s.axes) {
+    for (std::int32_t i : scratch.axes) {
       if (directions[i] == 0) continue;
       std::int32_t loK, hiK, loJ, hiJ;
       monotoneLeafBox(tree, data, k, i, &loK, &hiK);
@@ -454,8 +459,8 @@ inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
       bool jBelowK = (hiJ + 1 == loK);
       bool kBelowJ = (hiK + 1 == loJ);
       if (!jBelowK && !kBelowJ) continue;
-      if (!monotoneBoxesOverlap(tree, data, k, j, s.axes, i)) continue;
-      has = true;
+      if (!monotoneBoxesOverlap(tree, data, k, j, scratch.axes, i)) continue;
+      hasConstrainedNeighbor = true;
       if (jSkipped) continue;
       double muj = mu[j];
       if (jBelowK) {
@@ -469,7 +474,7 @@ inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
   }
   *aOut = a;
   *bOut = b;
-  *constrained = has;
+  *constrained = hasConstrainedNeighbor;
 }
 
 /// True when every leaf's value lies within its neighbor bounds - the monotone
@@ -483,9 +488,9 @@ inline bool monotoneTreeIsFeasible(const Tree& tree, const ColumnStore& data,
   for (std::int32_t leaf : s.allBottoms) {
     if (tree.at(leaf).numObservations() == 0) continue;
     double a, b;
-    bool c;
+    bool constrained;
     monotoneNeighborBounds(tree, data, directions, s.allBottoms, leaf, mu,
-                           nullptr, 0, s, &a, &b, &c);
+                           nullptr, 0, s, &a, &b, &constrained);
     if (mu[leaf] < a - tol || mu[leaf] > b + tol) return false;
   }
   return true;
@@ -563,8 +568,8 @@ struct MonotoneConstantGaussianLeaf {
   // One leaf's truncated-normal full conditional, shared by the tree-wide sweep
   // and the birth/death redraws. Empty leaves get mu = 0. `bottoms` is the leaf
   // set monotoneNeighborBounds walks for frozen neighbors; skip/numSkip exclude
-  // co-drawn siblings. Fixed k: the truncated draw carries no clean chi-k
-  // statistic (design section 6), so no kSumSquaredParams accumulation.
+  // co-drawn siblings. Fixed k: the truncated draw carries no clean chi-squared
+  // statistic (design section 6), so no sumSquaredParams accumulation.
   void drawOneLeaf(ext_rng* rng, const Tree& tree, std::int32_t leaf,
                    const std::vector<std::int32_t>& bottoms,
                    const std::int32_t* skip, std::size_t numSkip, double k,
@@ -596,7 +601,7 @@ struct MonotoneConstantGaussianLeaf {
       drawOneLeaf(rng, tree, leaf, bottoms, nullptr, 0, k, residualVariance, mu);
   }
 
-  // eq.-4.17 redraw of an accepted death's merged leaf: its full conditional
+  // Redraw of an accepted death's merged leaf: its full conditional
   // truncated to the frozen neighbor bounds. Writing a proper draw (not a
   // deterministic seed) keeps the collapsed move a valid block update so the
   // stationary tree/leaf posterior is exact.
@@ -608,7 +613,7 @@ struct MonotoneConstantGaussianLeaf {
                 residualVariance, mu);
   }
 
-  // eq.-4.17 redraw of an accepted birth's two children from their EXACT
+  // Redraw of an accepted birth's two children from their EXACT
   // constrained conditional posterior over the cone {aL<=mu_lower<=bL,
   // aR<=mu_upper<=bR, mu_lower<=mu_upper}: draw mu_upper from its marginal by
   // rejection off the frozen-bound truncated normal (accept in proportion to
@@ -678,7 +683,7 @@ struct MonotoneConstantGaussianLeaf {
                 residualVariance, mu);
   }
 
-  // ---- the B' constrained birth/death marginal (ParamScoringLeafModel) -----
+  // ---- the constrained (truncated) birth/death marginal (ParamScoringLeafModel)
   double logLikelihoodForBranchWithParams(const Tree& tree,
                                           std::int32_t branchIndex,
                                           const double*, const double*, double k,
@@ -785,20 +790,20 @@ struct MonotoneConstantGaussianLeaf {
                          double mL, double sL, double mR, double sR) const {
     double loU = std::max((lowR - mR) / sR, -38.0);
     double hiU = std::isfinite(hiR) ? std::min((hiR - mR) / sR, 38.0) : 38.0;
-    double lowerL = std::isfinite(aL) ? monotoneNormalCdf((aL - mL) / sL) : 0.0;
+    double lowerL = std::isfinite(aL) ? gaussianCdf((aL - mL) / sL) : 0.0;
     return monotoneIntegrate(
       [&](double u) {
         double x = mR + sR * u;
         double upper = std::isfinite(bL) ? std::min(bL, x) : x;
-        double inner = monotoneNormalCdf((upper - mL) / sL) - lowerL;
-        return (inner > 0.0 ? inner : 0.0) * monotoneStandardNormalPdf(u);
+        double inner = gaussianCdf((upper - mL) / sL) - lowerL;
+        return (inner > 0.0 ? inner : 0.0) * gaussianPdf(u);
       },
       loU, hiU);
   }
 
   static double normalMass(double a, double b, double mean, double stdDev) {
-    double hi = std::isfinite(b) ? monotoneNormalCdf((b - mean) / stdDev) : 1.0;
-    double lo = std::isfinite(a) ? monotoneNormalCdf((a - mean) / stdDev) : 0.0;
+    double hi = std::isfinite(b) ? gaussianCdf((b - mean) / stdDev) : 1.0;
+    double lo = std::isfinite(a) ? gaussianCdf((a - mean) / stdDev) : 0.0;
     return hi - lo;
   }
 };
@@ -824,7 +829,9 @@ static_assert(ParamScoringLeafModel<MonotoneConstantGaussianLeaf>);
 struct LinearGaussianLeaf {
   static constexpr bool hasVectorParams = true;
   static constexpr bool hasFunctionParams = false;
-  /// Sufficient-statistic scratch lives on the stack; the factory validates.
+  /// Sufficient-statistic scratch lives on the stack, sized for
+  /// maxNumCovariates; the factory rejects any designation with
+  /// numCovariates > maxNumCovariates.
   static constexpr std::size_t maxNumCovariates = 8;
 
   double scale = 1.0;  // nodeScale / sqrt(numTrees)
@@ -1205,11 +1212,13 @@ static_assert(VectorLeafModel<LinearGaussianLeaf>);
 /// through per-draw cached weights.
 ///
 /// Leaves larger than maxLeafSize score and draw as constant leaves instead
-/// (delegating to ConstantGaussianLeaf's exact math). The proposal's veto
-/// guardrail would deadlock: every tree starts as a single root leaf holding
-/// all observations, and a birth splitting one over-cap leaf into two
-/// over-cap children can never be accepted against a vetoed-vs-doubly-vetoed
-/// comparison. The fallback instead makes oversized regions behave exactly
+/// (delegating to ConstantGaussianLeaf's exact math). The alternative -
+/// vetoing (scoring -infinity) any leaf over the cap - would deadlock: every
+/// tree starts as a single root leaf holding all observations, and a birth
+/// splitting one over-cap leaf into two over-cap children can never be
+/// accepted when both the current single over-cap leaf and the proposed pair
+/// of over-cap children score -infinity. The fallback instead makes oversized
+/// regions behave exactly
 /// like constant-leaf BART - data-informed splits throughout - with the GP
 /// refinement switching on once a leaf falls under the cap; the scoring rule
 /// is a deterministic function of leaf membership, so the MH comparisons
@@ -1217,7 +1226,8 @@ static_assert(VectorLeafModel<LinearGaussianLeaf>);
 struct GPGaussianLeaf {
   static constexpr bool hasVectorParams = false;
   static constexpr bool hasFunctionParams = true;
-  /// The replay predictor's stack scratch bound; the factory validates.
+  /// Bounds the replay predictor's stack scratch; the factory rejects any
+  /// designation with numCovariates > maxNumCovariates.
   static constexpr std::size_t maxNumCovariates = maxFunctionLeafCovariates;
   /// Conditioning jitter on the correlation diagonal; not a modeling knob.
   static constexpr double nugget = 1.0e-6;
@@ -2007,7 +2017,8 @@ private:
   std::vector<double> uTest_;  // standardized, column-major numTest x q
   // per-call scratch and the per-tree-draw prediction cache; mutable because
   // scoring and drawing are logically const, and safe because a leaf model
-  // instance belongs to a single chain (the CGMTreePrior precedent)
+  // instance belongs to a single chain (one instance per chain, never shared
+  // across threads)
   mutable std::vector<double> leafU_;    // row-major numObs x q, / theta
   mutable std::vector<double> kernel_, cholK_, cholV_;
   mutable std::vector<double> epsScratch_, fScratch_, vectorScratch_;
@@ -3314,8 +3325,9 @@ private:
 /// latents. refreshLatents and drawSigma are no-ops, and the log-likelihood
 /// channel is left NaN-flagged (the default computeLogLikelihood): storeSample
 /// scores one forest's fits, which cannot see the K-blend, so
-/// logLikelihoodIsDefined() = false is the reporting map's answer (BCF's exact
-/// choice). fitScale/fitShift are identity so storeSample passes the softmax
+/// logLikelihoodIsDefined() = false is the reporting map's answer (the same
+/// choice the Bayesian causal forest (BCF) family makes). fitScale/fitShift
+/// are identity so storeSample passes the softmax
 /// probabilities the combiner writes through unchanged.
 class MultinomialResponse final : public ResponseModel {
 public:
@@ -3330,9 +3342,10 @@ public:
   const double* workingWeights() const override { return nullptr; }
   const double* offset() const override { return nullptr; }
 
-  // M6 guard: the sweep hands combinedFits' K x n softmax buffer here as a
-  // single-location pointer. This no-op ignores it; a future non-no-op
-  // refreshLatents must NOT read it as one channel (it is K per observation).
+  // Layout guard - combinedFits is K per observation, not one channel: the
+  // sweep hands combinedFits' K x n softmax buffer here as a single-location
+  // pointer. This no-op ignores it; a future non-no-op refreshLatents must NOT
+  // read it as one channel (it is K per observation).
   void refreshLatents(ext_rng*, const double* combinedFits, double) override {
     (void) combinedFits;
   }
@@ -3589,7 +3602,7 @@ private:
 /// (docs/design/robust-errors.md): sqrt(w_i) r_i / sigma ~ t_nu comes from
 ///   r_i | lambda_i ~ N(0, sigma^2 / (w_i lambda_i)), lambda_i ~ Gamma(nu/2, nu/2),
 /// so a contained GaussianResponse over the same rescaled response sees the
-/// composite precision c_i = w_i lambda_i through setWeights (model.hpp:1968),
+/// composite precision c_i = w_i lambda_i through setWeights,
 /// and both its node statistics and its conjugate sigma draw are exact under
 /// the mixture with no GaussianResponse edit. refreshLatents redraws lambda
 /// each sweep (workingWeightsVaryPerSweep() true, as logistic's omega does) and
@@ -3772,7 +3785,8 @@ private:
 /// Sampled negative-binomial dispersion r on a capped positive-integer grid
 /// under a normalized gamma(2, 0.1) prior (docs/design/negative-binomial.md
 /// sections 2A, 3). This is the r-update seam: a grid full conditional today, a
-/// CRT-or-real strategy later, with integrality assumed only inside it. Under
+/// Chinese-restaurant-table (CRT) or real-valued-r strategy later, with
+/// integrality assumed only inside it. Under
 /// the logit-p parameterization p_i is r-free, so the log full conditional at
 /// grid point r_k separates (dropping the r-free normalizer) into
 ///   L_k + r_k * S + log p(r_k),
@@ -3857,11 +3871,13 @@ private:
 /// psi_i = f(x_i) + offset_i, the count law is y_i ~ NB(r, plogis(psi_i)) with
 /// dispersion r, and E[y_i] = r exp(psi_i) so the offset is a log-exposure. The
 /// augmentation generalizes LogisticResponse: omega_i ~ PG(y_i + r, psi_i) (a
-/// real shape, integer under fork (A)), kappa_i = (y_i - r)/2, working response
+/// real shape in general, integer while r is integer-valued), kappa_i =
+/// (y_i - r)/2, working response
 /// z_i = kappa_i/omega_i - offset_i under per-sweep precisions omega_i, sigma
 /// fixed at 1. r is a positive integer, fixed (user-supplied) or estimated on
 /// the capped grid by the closed-form discrete full conditional
-/// (NBDispersionPrior); real r stays behind a recorded door (section 2). Counts
+/// (NBDispersionPrior); real-valued r stays deferred to a future extension
+/// (docs/design/negative-binomial.md section 2). Counts
 /// enter kappa directly, so like the binary families it does not rescale the
 /// response. Weights are unsupported (exposure belongs in the offset).
 /// latents() exposes the omega draws.
