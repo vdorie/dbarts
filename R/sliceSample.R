@@ -287,6 +287,7 @@ sliceSample <- function(
   for (i in seq_len(numSamples)) {
     u.p <- runif(1L, 0, f.x)
     int <- getInterval(f, x, width, u.p, boundary)
+    accepted <- FALSE
     for (j in seq_len(maxIter)) {
       x.p <- runif(1, int[1L], int[2L])
       f.x <- f(x.p)
@@ -294,11 +295,15 @@ sliceSample <- function(
         stop("slice sampler failed: likely due to underflow")
       }
       if (f.x > u.p) {
+        accepted <- TRUE
         break
       }
       int <- shrinkInterval(x, x.p, int)
     }
-    if (j == maxIter) {
+    # test acceptance, not the counter: a draw accepted on the maxIter'th pass
+    # leaves j == maxIter and used to raise the exhaustion error over a good
+    # sample
+    if (!accepted) {
       stop("slice sampler failed: maxIter reached")
     }
     x <- x.p
