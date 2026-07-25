@@ -150,7 +150,7 @@ predict.bart <- function(
   }
 
   if (is.null(object[["fit"]])) {
-    if (as.character(object$call[[1L]]) == "bart2") {
+    if (callName(object$call) == "bart2") {
       stop("predict requires bart2 to be called with 'keepTrees' == TRUE")
     } else {
       stop("predict requires bart to be called with 'keeptrees' == TRUE")
@@ -214,7 +214,7 @@ extract.bart <- function(
 
   if (type == "trees") {
     if (is.null(object$fit)) {
-      if (as.character(object$call[[1L]]) == "bart2") {
+      if (callName(object$call) == "bart2") {
         stop(
           "extracting trees requires bart2 to be called with 'keepTrees' == TRUE"
         )
@@ -257,7 +257,7 @@ extract.bart <- function(
     )
   }
   if (sample == "train" && is.null(object[["yhat.train"]])) {
-    if (as.character(object$call[[1L]]) == "bart2") {
+    if (callName(object$call) == "bart2") {
       stop(
         "cannot extract train sample predictions; bart2 must be called with 'keepTrainingFits' == TRUE"
       )
