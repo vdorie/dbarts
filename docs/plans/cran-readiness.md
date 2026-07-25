@@ -372,9 +372,10 @@ pass. Three results need a decision:
    through (R/data.R:766, deliberate, comment records the change) and
    then errors "response contains missing values".
 3. `bartCause` - 1 NOTE, not a dbarts issue: the tarball built from the
-   local working copy carries `.claude/`, which its `.Rbuildignore` does
-   not exclude (dbarts excludes it via `^\.claude$`). Worth fixing there
-   before it is submitted, since CRAN NOTEs hidden directories.
+   local working copy carried `.claude/`, which its `.Rbuildignore` did
+   not exclude (dbarts excludes it via `^\.claude$`). RESOLVED the same
+   day by VD (bartCause 695c603); re-checked against that commit,
+   Status OK.
 
 Both breaks are the same class - 1.0-0 refuses input that 0.9-x silently
 mishandled - and both are consistent with the NEWS UPGRADING section. VD
@@ -423,6 +424,15 @@ fixed in this pass:
   pinned to their messages for both qualified `bart` and `bart2` fits.
 - `inst/tinytest/test-makeModelMatrix.R` 65 -> 75: `makeind` and
   `makeTestModelMatrix`.
+
+Measured after the fact, same covr configuration: TOTAL 87.09% ->
+88.23%, sliceSample.R 57.0 -> 80.5, plot.R 75.8 -> 83.8, generics.R 88.0
+-> 88.9, bartcore.R 89.0 -> 91.2 (the dead wrappers leaving). Fully
+uncovered functions 11 -> 5, the survivors being the two covr artifacts
+(`.onLoad`, `.onUnload`), the `dart` misattribution, and the two real
+but low-value ones (`dbarts.R::show`,
+`mixedMatrix.R::dimnames.dbartsMixedMatrix`). Suite runtime 3402 -> 3438
+assertions, no meaningful change in wall clock.
 
 Not covered, deliberately: the slice sampler's underflow guard
 (`getInterval` evaluates the target first and dies with R's own
