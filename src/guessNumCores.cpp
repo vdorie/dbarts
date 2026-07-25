@@ -70,7 +70,8 @@ namespace dbarts {
   }
 }
 
-#elif (defined(__APPLE__) || defined(__FreeBSD__) || defined (__NetBSD__))
+#elif (defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || \
+       defined(__OpenBSD__) || defined(__DragonFly__))
 #  include <sys/types.h>
 #  include <sys/sysctl.h>
 
