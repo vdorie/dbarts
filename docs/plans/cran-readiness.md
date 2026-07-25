@@ -226,3 +226,207 @@ baseline compare - that gate runs on the weekly cron, not push-gated.
 Both changes are draw-neutral by construction, so the weekly run is
 expected to confirm; recorded here so the gap is visible until it
 does.
+
+## Pre-submission gate run (2026-07-25)
+
+Env: macOS Tahoe 26.5.2, aarch64-apple-darwin23, R 4.6.1, Apple clang.
+Base commit 51edbf6 plus the fixes below. The 2026-07-11 memo above
+covers the previous pass; this is the re-run on the finished branch.
+
+### Fixes landed in this pass
+
+1. `inst/CITATION` built `textVersion` from base R's `version` object
+   instead of `meta$Version`, so `citation("dbarts")` printed FOURTEEN
+   entries - one per element of `R.version` ("... Sampler. 6.1.",
+   "... Sampler. Happy Hop."). Now a single correct entry.
+2. `DESCRIPTION` `Depends: R (>= 3.5.0)` -> `R (>= 4.0.0)`. `CXX_STD =
+   CXX20` is only recognised from R 4.0.0 (R 4.0.0 NEWS, PACKAGE
+   INSTALLATION: "the beginnings of support for the recently approved
+   C++20 standard"); the old floor promised installs on releases that
+   cannot parse the standard the engine requires.
+3. `DESCRIPTION` `Date` refreshed to the run date (CITATION derives its
+   year from it).
+4. `TODO` added to `.Rbuildignore` - the dev notes no longer ship in the
+   tarball. `configure~` (a tracked autoconf backup) deleted, and `*~`
+   added to `.gitignore` so it cannot come back. R CMD build already
+   excluded both via its own `~$` and `config.(log|status)` rules, so
+   neither had ever shipped.
+5. Four unreachable functions deleted from `R/bartcore.R`:
+   `bartcoreSetSigma`, `bartcoreSampleTreesFromPrior`,
+   `bartcoreSampleNodeParametersFromPrior`, `bartcorePrintTrees`. The
+   dbartsSampler R5 methods `.Call` the C entry points directly
+   (R/dbarts.R), nothing in R/, src/, NAMESPACE, man/, tests, vignettes
+   or benchmarks names them, and the package uses no dynamic dispatch
+   (`do.call(paste0(...))`, `match.fun`, `get(paste0(...))`) that could
+   reach them. Surfaced by the covr audit below.
+6. Tests added for `makeind` and `makeTestModelMatrix` - both exported
+   and documented on `makeind.Rd`, both with zero test coverage before
+   this pass (appended to inst/tinytest/test-makeModelMatrix.R, which
+   goes 65 -> 75 assertions).
+
+### R CMD check --as-cran
+
+Status: OK, ZERO NOTEs - run twice, once on a `git archive` of 51edbf6
+and once on the tree with the fixes. Both clean, including the checks
+the 2026-07-11 pass could not clear:
+
+```
+* checking compiled code ... OK          <- the ___stderrp NOTE is gone
+* checking examples ... OK
+* checking examples with --run-donttest ... OK
+* checking tests ... OK
+  Running 'tinytest.R' [36s/47s]
+* checking re-building of vignette outputs ... OK
+* checking PDF version of manual ... OK
+* checking HTML version of manual ... OK
+Status: OK
+```
+
+Tarball 1.2 MB, no stray files. tinytest under check: 3402 results, all
+pass. The 50+ R warnings the test suite emits are the intentional
+"'test' is unnamed but 'x' had named predictors" warning (51 of them);
+verified it does NOT fire on the plain `bart(x, y, x.test)` unnamed-matrix
+idiom, only when the training data is genuinely named - correct, not noise.
+
+### Equivalence
+
+`equivalence.R compare baselines/equivalence-7903855.rds
+--strict-coverage`: 27 compared / 0 skipped, EVERY scenario "identical
+draws (same RNG stream)". This closes the EQUIVALENCE-TRIO RESIDUAL
+recorded above: the 07-21..07-24 work (interaction-constraints P4,
+warm-starts, sparse, the audit fixes, and the phase-B copy-paste dedup)
+is draw-neutral, not merely statistically indistinguishable.
+
+### SBC
+
+`sbc.R gaussian 100 200 30`: prior moment check PASS; all seven
+functionals (avg.f, f.star1-5, sigma) PASS on both chi-square and KS,
+max ecdfDiff 0.079 against a 0.132 band. 351s.
+
+### Coverage audit (the one-shot covr item)
+
+R-level only (`options(covr.flags = list())` - gcov attribution over the
+header-only C++ engine is the noise the item says to ignore), driven by
+the tinytest suite. TOTAL 87.1%.
+
+Lowest files: hooks.R 0%, guessNumCores.R 14.7%, sliceSample.R 57.0%,
+plot.R 75.8%, partialDependence.R 77.0%,
+updatePredictorPerObservationJointly.R 78.1%, model.R 80.9%,
+rbart.R 85.5%. Everything else >= 87%.
+
+11 of 283 functions are fully uncovered. Triaged:
+
+- GENUINE GAPS, now fixed: `makeind`, `makeTestModelMatrix` (exported,
+  documented, no test) - see fix 6.
+- DEAD CODE, now deleted: the four R/bartcore.R wrappers - see fix 5.
+- ATTRIBUTION NOISE, no action: `hooks.R::.onLoad`/`.onUnload` (run
+  before instrumentation, so covr can never see them); `model.R::dart`
+  (tests DO exercise it, via `tree.prior = dart()` in
+  test-dart-mixed-columns.R and `dbartsPriors$dart(...)` in
+  test-model-priors.R - the prior list holds an uninstrumented copy);
+  `guessNumCores.R`'s 14.7% is the per-platform branch set, of which one
+  host can only ever run one.
+- LEFT AS REAL BUT LOW-VALUE GAPS: `dbarts.R::show` (S4 show method) and
+  `mixedMatrix.R::dimnames.dbartsMixedMatrix`. Both are display/accessor
+  surface, untested; flagged rather than fixed.
+
+sliceSample.R at 57% is the largest remaining genuine R-level gap (it is
+exercised only through the hyperprior paths that use it); worth a look if
+a later pass wants the number up, not a release blocker.
+
+### Not run, and why
+
+rchk and valgrind still have never run: macOS arm64 supports neither, and
+the workflows carrying them (plus equivalence, sbc, revdep-smoke) 404 on
+GitHub because both `schedule` and `workflow_dispatch` bind to the default
+branch and these files exist only on bartcore. VD held the merge on
+2026-07-25 pending their own review of the branch; revisit the checks
+then. win-builder was deliberately skipped this pass.
+
+### Revdep sweep WITH Suggests (2026-07-25)
+
+Closes the caveat on the 07-22 pass (which installed hard dependencies
+only, leaving 6 packages ERRORing on a missing Suggests). Method as
+before, plus each package's own Suggests installed into the sweep
+library first; dbarts pinned at 1.0-0 and asserted between packages;
+stan4bart and bartCause built from their local compat branches. 24
+reverse dependencies (up from 23 - `lorax` is new, `treatSens` no longer
+declares dbarts).
+
+21 OK. Notably stan4bart OK on a real compile, tidytreatment OK, and
+bartXViz OK - the last was "not checkable locally" in every previous
+pass. Three results need a decision:
+
+1. `lorax` - 2 ERRORs, GENUINE 1.0-0 BREAK. It calls
+   `dbarts::bart()` with a 3-level factor response. 0.9-x coerced any
+   factor response with `as.double(as.integer(data) - 1L)` (old
+   R/data.R:255), i.e. silently fit levels as the numbers 0/1/2; 1.0-0's
+   `resolveClassificationFamily` refuses and points at
+   `bart2(family = "multinomial")`. The refusal is right - the old
+   behavior was a silent miscoding - but lorax's examples and tests fail
+   against this release.
+2. `insight` - 1 ERROR, GENUINE 1.0-0 BREAK. Its tests call
+   `dbartsData(bill_len ~ ., penguins)`, and palmerpenguins has NA
+   responses. 0.9-x set `na.action = stats::na.omit` on the model frame
+   (old R/data.R:202) and silently dropped those rows; 1.0-0 passes NAs
+   through (R/data.R:766, deliberate, comment records the change) and
+   then errors "response contains missing values".
+3. `bartCause` - 1 NOTE, not a dbarts issue: the tarball built from the
+   local working copy carries `.claude/`, which its `.Rbuildignore` does
+   not exclude (dbarts excludes it via `^\.claude$`). Worth fixing there
+   before it is submitted, since CRAN NOTEs hidden directories.
+
+Both breaks are the same class - 1.0-0 refuses input that 0.9-x silently
+mishandled - and both are consistent with the NEWS UPGRADING section. VD
+decides whether to let them break or soften; softening (2) is the more
+arguable of the two, since dropping NA-response rows was at least a
+defined behavior. Neither is a defect in dbarts.
+
+### Defects found by the coverage work
+
+Writing tests for the uncovered branches turned up two real bugs, both
+fixed in this pass:
+
+1. `R/sliceSample.R` - the slice loop's exhaustion check tested the loop
+   counter (`if (j == maxIter) stop(...)`) rather than whether a draw was
+   accepted, so a draw accepted on the maxIter'th shrink pass raised
+   "slice sampler failed: maxIter reached" over a perfectly good sample.
+   Now tracks acceptance. RNG-neutral: the draws inside the loop are
+   unchanged, only the post-loop test differs. Reachable from
+   rbart_vi's custom-prior tau updates, the sampler's only caller.
+2. `R/plot.R` and `R/generics.R` (three sites) - the guards that name a
+   missing `keeptrees` / `keeptrainfits` compared
+   `as.character(call[[1L]])` against "bart2". For a namespace-qualified
+   fit (`dbarts::bart(...)`, the idiomatic form inside other packages)
+   that expression is `c("::", "dbarts", "bart")`, so the comparison is a
+   length-3 condition - an error since R 4.2. Users who forgot
+   `keeptrees` got "the condition has length > 1" from `predict`,
+   `extract`, or `plot` instead of the message telling them what to do.
+   Now routed through a `callName()` helper in R/utility.R that strips
+   the qualifier. The existing test missed it because it asserted
+   `expect_error()` with no pattern; that assertion is now pinned to the
+   message.
+
+### Coverage added
+
+- `inst/tinytest/test-slice-sample.R` 11 -> 22: the maxIter-acceptance
+  regression, two finite boundaries, the low-density rejection restart
+  and the natural-scale branch that cannot do it, the non-finite-start
+  mode-finding failure, boundary rejection in `rejectionSample`, and
+  envelope exhaustion on both scales.
+- `inst/tinytest/test-plot-generics.R` 19 -> 24: multi-chain
+  `plot.bart` and `plot.rbart` (the matrix-shaped sigma trace, 28 lines
+  that had never executed), the binary grouped fit's
+  probability-interval branch, and the two namespace-qualified error
+  paths.
+- `inst/tinytest/test-generics-errors.R`: `predict` and `extract` guards
+  pinned to their messages for both qualified `bart` and `bart2` fits.
+- `inst/tinytest/test-makeModelMatrix.R` 65 -> 75: `makeind` and
+  `makeTestModelMatrix`.
+
+Not covered, deliberately: the slice sampler's underflow guard
+(`getInterval` evaluates the target first and dies with R's own
+"missing value where TRUE/FALSE needed", so the guard is unreachable by
+a NaN target - a defensive-path robustness gap, not worth contorting a
+test around at release time), and the hand-rolled gradient-ascent
+fallback in `findMode`, which is exercised only up to its own failure.

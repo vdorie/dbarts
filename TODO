@@ -6,9 +6,6 @@ Items are listed alphabetically by plan name; the order carries no
 meaning. Every item has an implementation plan in docs/plans/<name>.md,
 and the planning/implementation/review process (who plans, who
 implements, who reviews, which gates run) is docs/plans/README.md.
-"window: pre-release" marks items whose cheap form expires when 1.0-0
-freezes the R and dbarts.h compatibility contracts: they need a
-go/no-go decision before submission, not necessarily the work itself.
 No item is deferred to post-release, and gate labels (decision-gated,
 consumer-gated) rank priority rather than block work (VD 2026-07-17).
 
@@ -17,76 +14,63 @@ common. The large-n performance items are live, not consumer-gated.
 
 items
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
-    residual.md sec 4 item 2; no separate plan doc). The BCF sigma SBC flag
-    was diagnosed as a slow forest-mixing burn transient in the strong-|a0|
-    minority (Cauchy(0,2) tail) and fixed for acceptance by pinning absolute
-    burn sweeps + a burn-scaling note (no engine or draw-law change). What
-    remains open: the EXTREME tail (|a0| >= ~40, ~3% of the prior) is
-    frozen-structure mixing that no amount of burn fixes - a principled
-    engine remedy would target tree-structure mixing at high SNR (tempered
-    early sweeps or restart-style grow proposals). Decoupled from the
-    shelved b-ridge move. Low priority: the regime only arises with a stale
-    build scale swapped against a new response inside a larger Gibbs loop
-    (setResponse updateScale=FALSE); normal single-fit use keeps |a| ~ O(1)
-    and the transient mild. research-open, decision-gated.
+    residual.md sec 4 item 2; no separate plan doc). The BCF sigma SBC
+    flag was diagnosed as a slow forest-mixing burn transient and fixed
+    for acceptance by pinning absolute burn sweeps (no engine or
+    draw-law change). Open: the EXTREME tail (|a0| >= ~40, ~3% of the
+    prior) is frozen-structure mixing that no amount of burn fixes; a
+    principled remedy would target tree-structure mixing at high SNR
+    (tempered early sweeps, restart-style grow proposals). Low priority
+    - the regime only arises with a stale build scale swapped against a
+    new response inside a larger Gibbs loop (setResponse
+    updateScale=FALSE). research-open, decision-gated.
   blocked-jacobi-trees: RESEARCHED, KILLED 2026-07-21 (recorded door;
-    docs/plans/blocked-jacobi-trees.md). Exact parallel tree updates via
-    noise-splitting augmentation (per-tree pseudo-responses y_k ~
-    N(g_k, sigma^2/b), sum-constrained). Phase 0 PROVED the mechanism EXACT
-    (four independent lines incl. an independent blind derivation of the
-    conservation law) with only a MILD per-sweep ESS tax - a clean GO on
-    statistics, now BANKED as reusable knowledge. But Phase 1 showed the
-    wall-clock does not deliver: it is memory-bandwidth-bound (materializes
-    ~2x serial's traffic in pseudo-response scratch), so it LOSES on typical
-    x86/DDR4 and wins only on high-bandwidth Apple Silicon - and there it is
-    strictly DOMINATED by the simpler, exact, already-built straight
-    within-chain threading, which is ITSELF NO-GO on the real engine
-    (docs/design/within-chain-threading.md: ~1.1x best, capped by the ~47%
-    parallel fraction, not bandwidth). Both single-chain-parallelism
-    mechanisms are dead; multi-chain remains the way to use cores. Lesson
-    recorded: gate threading claims on in-situ real-engine timing, never a
-    kernel microbench. Reopen only for a concrete embedded-Gibbs consumer on
-    high-bandwidth hardware, or if a fused no-scratch kernel is measured to
-    clear the bar on x86 first.
-  correlated-outcomes: richer error/outcome covariance around a BART mean,
-    delivered via the outer-sampler composition (stan4bart = WALNUTS + dbarts,
-    dbarts the conditional mean; the same pattern bairrtt uses). Two motivating
-    forms, both causal: (a) AR-1 / serially-correlated errors for longitudinal,
-    panel, interrupted-time-series, and difference-in-differences designs (the
-    Bertrand-Duflo-Mullainathan serial-correlation problem gives wrong effect
-    SEs when ignored); (b) multivariate / multiple correlated outcomes (joint
-    treatment effects, causal mediation's outcome+mediator system,
-    surrogate/principal outcomes). Both put the covariance in the WALNUTS outer
-    sampler with dbarts supplying each outcome's conditional BART mean. SCOPED
-    2026-07-22 (docs/design/correlated-outcomes.md; Fable investigation +
-    orchestrator API re-verify): (b) multivariate is EXACT PURE COMPOSITION
-    today - SUR chained conditionals reduce each outcome's step to a
-    per-observation offset + scalar sd, so q samplers with resid.prior=fixed()
-    plus an outer inverse-Wishart is exact with NO new dbarts code (mediation is
-    the triangular case, rho the sensitivity knob); (a) AR-1 composes via a
-    latent AR-state + nugget (the rbart_vi pattern, AR replacing the intercept)
-    as a stan4bart/WALNUTS outer-sampler feature with dbarts unchanged - a
-    nonparametric mean cannot be whitened, so EXACT pure-AR-1 errors are a
-    deferred ENGINE door (banded residual precision + cross-leaf GLS leaf
-    updates, which break per-leaf independence). Smallest dbarts enabler: export
-    the per-sweep callback rbart_vi uses (C_dbarts_bartcore_runWithCallback; the
-    shipped C analogue dbarts_sampler_setCallback) on dbartsSampler$run.
+    docs/plans/blocked-jacobi-trees.md). Noise-splitting augmentation
+    for exact parallel tree updates is PROVEN EXACT with only a mild
+    per-sweep ESS tax - banked as reusable knowledge - but it is
+    memory-bandwidth-bound (~2x serial's traffic in pseudo-response
+    scratch), so it loses on x86/DDR4 and, where it wins, is dominated
+    by plain within-chain threading, itself NO-GO on the real engine
+    (~1.1x, capped by the ~47% parallel fraction; docs/design/within-
+    chain-threading.md). Both single-chain-parallelism mechanisms are
+    dead; multi-chain remains the way to use cores. Lesson: gate
+    threading claims on in-situ real-engine timing, never a kernel
+    microbench. Reopen only for a concrete embedded-Gibbs consumer on
+    high-bandwidth hardware, or if a fused no-scratch kernel is
+    measured to clear the bar on x86 first.
+  correlated-outcomes: richer error/outcome covariance around a BART
+    mean, delivered via outer-sampler composition (stan4bart = WALNUTS
+    + dbarts supplying each outcome's conditional mean; the pattern
+    bairrtt uses). SCOPED 2026-07-22 (docs/design/correlated-
+    outcomes.md): (b) multivariate / multiple correlated outcomes
+    (joint effects, mediation's outcome+mediator system, surrogate
+    outcomes) is EXACT PURE COMPOSITION today - SUR chained
+    conditionals reduce each outcome's step to a per-observation offset
+    + scalar sd, so q samplers with resid.prior=fixed() plus an outer
+    inverse-Wishart needs NO new dbarts code (mediation is the
+    triangular case, rho the sensitivity knob); (a) AR-1 / serially-
+    correlated errors (longitudinal, panel, ITS, DiD - the Bertrand-
+    Duflo-Mullainathan SE problem) composes via a latent AR-state +
+    nugget in the outer sampler (the rbart_vi pattern, AR replacing the
+    intercept), with EXACT pure-AR-1 errors a deferred ENGINE door
+    (banded residual precision + cross-leaf GLS leaf updates break
+    per-leaf independence). Smallest dbarts enabler: expose the
+    per-sweep callback rbart_vi uses (C_dbarts_bartcore_runWithCallback;
+    shipped analogue dbarts_sampler_setCallback) on dbartsSampler$run.
     causal-motivated, decision-gated.
   forest-ranef-interweaving: RESEARCHED, NO-GO now (recorded door;
-    docs/design/forest-ranef-interweaving.md, blind critique SOUND WITH
-    CAVEATS). The weak-signal/small-K grouped-mixing bottleneck is
-    forest-ranef confounding (several-fold and estimator-unstable, not the
-    slice-era 25x; the permanent gate is benchmarks/R/grouped-mixing.R).
-    No cheap ASIS exists - the forest exposes no per-group knob; the only
-    real fix is a coupled-leaf collapse (marginalize b via per-group
-    Woodbury), which RIDES the existing ParamScoringLeafModel seam but
-    couples the constant-leaf suffstat across groups/trees on the hot path
-    (~800-1300 lines, draw-changing, grouped re-record) - not worth a
-    narrow-corner win with a trivial longer/parallel-chain workaround.
-    Reopen with VD sign-off for a concrete weak-signal/few-groups
-    application needing calibrated tau intervals. Secondary: ASIS on
-    (tau, b) is cheap (builds on the landed exact-IG) but funnel-only and
-    can WORSEN small-K - conditional-go only behind a full-engine prototype.
+    docs/design/forest-ranef-interweaving.md). The weak-signal/small-K
+    grouped-mixing bottleneck is forest-ranef confounding (several-fold
+    and estimator-unstable; permanent gate benchmarks/R/grouped-
+    mixing.R). No cheap ASIS exists - the forest exposes no per-group
+    knob - and the only real fix, a coupled-leaf collapse
+    (marginalize b via per-group Woodbury), couples the constant-leaf
+    suffstat across groups/trees on the hot path (~800-1300 lines,
+    draw-changing) for a narrow-corner win with a trivial
+    longer/parallel-chain workaround. Reopen with VD sign-off for a
+    concrete weak-signal/few-groups application needing calibrated tau
+    intervals. Secondary: ASIS on (tau, b) is cheap but funnel-only and
+    can WORSEN small-K - conditional-go behind a full-engine prototype.
     decision-gated.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
@@ -101,56 +85,46 @@ items
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared scan.
   interaction-constraints: deliverable B (per-path max-order + hard
-    co-occurrence, per-forest, native, un-rJava) LANDED f455d7c 2026-07-21
-    (docs/design/interaction-constraints.md, plan Landing note): the
-    interactions(max.order, groups, forbid) prior on the availability seam,
-    exact-posterior gated. P4 also LANDED 2026-07-21 (aadbbc8/103dbe2/
-    073d3db, design doc "P4 landing", plan interaction-constraints-p4.md):
-    variant A (per-tree block-additive blocks(), require-total-partition
-    contract, per-forest mu.blocks/tau.blocks) and F1 (a columnMask
-    warm-start/setState feasibility bug fix, independent of blocks()).
-    Remaining doors: soft path-dependent penalties, formal heredity
-    (ensemble lattice prior) - both decision/consumer-gated.
-  negbin-real-dispersion: the recorded door out of the negative-binomial
-    landing (docs/plans/negative-binomial.md; design section 2 carries
-    fork B's full spec): real-valued dispersion needs a non-integer-shape
-    Polya-Gamma draw, for which no exact sampler exists - shipping it
+    co-occurrence) and P4 (per-tree block-additive blocks(), plus the
+    F1 columnMask warm-start fix) both LANDED 2026-07-21 - f455d7c,
+    aadbbc8/103dbe2/073d3db; records in docs/design/interaction-
+    constraints.md and the two plan docs. Remaining doors: soft
+    path-dependent penalties, formal heredity (ensemble lattice prior)
+    - both decision/consumer-gated.
+  negbin-real-dispersion: recorded door out of the negative-binomial
+    landing (docs/plans/negative-binomial.md; design sec 2 carries fork
+    B's spec). Real-valued dispersion needs a non-integer-shape
+    Polya-Gamma draw, for which no exact sampler exists, so shipping it
     means dbarts' first documented-approximate family (truncated
-    gamma-sum, bias bounded ~1e-3 at K = 200) behind an explicit opt-in.
-    The same decision gates weighted-binary's fractional weights. The
-    engine seams (shape-parameterized PG helper, r-update strategy) are
-    already in place; VD decides if user demand appears. Poisson family
-    and grouped NB are companion doors in the design's section 7.
+    gamma-sum, bias bounded ~1e-3 at K = 200) behind an explicit
+    opt-in; the same decision gates weighted-binary's fractional
+    weights. The engine seams (shape-parameterized PG helper, r-update
+    strategy) are already in place. Poisson family and grouped NB are
+    companion doors (design sec 7). decision-gated.
   python-bindings: post kernel-cleanups the engine is R-free below the
-    bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
-    likely out-of-repo. decision-gated. The 2026-07-17 data review
-    adds: host-side ingestion validation (CSC structure, categorical
-    bounds, sparse metadata assembly) lives in the R bridge and would
-    need reimplementing - move it into an R-free bartcore ingest
-    helper when this item opens; mixed/CSC stores also hold lifetime
-    borrows anchored by R protection, an undocumented contract for
-    any other host.
-  repo-modernization: standing hygiene bundle. Sanitizers PR-gated
-    2026-07-17 (nine consecutive green push runs met the stability
-    condition). Coverage resolved (VD 2026-07-17): one-shot covr audit
-    at pre-release (see the release section), no CI workflow or badge.
-    Remaining: optional roxygen2 and NEWS.md migrations (do not start
-    unasked);
-    dbarts.h's x_test/offset_test -> xTest/offsetTest cosmetic rename,
-    deferred because DBARTS_API_STRINGIZE stringizes each parameter's
-    full declaration, name included, so the rename alone moves
+    bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
+    likely out-of-repo. Two contracts a non-R host would have to take
+    over (2026-07-17 data review): host-side ingestion validation (CSC
+    structure, categorical bounds, sparse metadata assembly) lives in
+    the R bridge and would need an R-free bartcore ingest helper, and
+    mixed/CSC stores hold lifetime borrows anchored by R protection.
+    decision-gated.
+  repo-modernization: standing hygiene bundle. Open: optional roxygen2
+    and NEWS.md migrations (do not start unasked); dbarts.h's
+    x_test/offset_test -> xTest/offsetTest cosmetic rename, deferred
+    because DBARTS_API_STRINGIZE stringizes each parameter's full
+    declaration, name included, so the rename alone moves
     DBARTS_C_API_HASH and forces a MINOR bump with the stan4bart floor
     in lockstep - ride it on the next hash-moving dbarts.h change
     instead.
   sparse-extensions: in-place nonzero mutation, streaming range kernel,
     mutation on dense-backed mixed columns (sparse-columns.md landing
     notes). consumer-gated.
-  survival-followups: the doors out of the survival family pair (AFT +
-    discrete-time hazard both landed; records in
-    docs/plans/survival-models.md, design docs/design/survival.md
-    section 6): cloglog link (needs a cloglog binary family first),
-    competing risks (crisk.bart's territory), left truncation, grouped
-    frailty (composes with rbart_vi grouping when wanted), time-varying
+  survival-followups: doors out of the survival family pair (AFT +
+    discrete-time hazard both landed; records in docs/plans/survival-
+    models.md and docs/design/survival.md sec 6): cloglog link (needs a
+    cloglog binary family first), competing risks (crisk.bart's
+    territory), left truncation, grouped frailty, time-varying
     covariates in the auto-expander (available today via the manual
     person-period fit), continuous-time models. Each independent;
     demand-driven. low-ranked.
@@ -159,61 +133,37 @@ items
   weighted-binary: post 1.0 - integer-weight probit via replicated
     latents; arbitrary real weights need a real-shape PG sampler (IPW
     is a pseudo-likelihood trap).
-  x86-simd: the commented-out linalg intrinsics bodies are NOT needed
-    for compute width - the manual unroll plus the per-file -m flag
-    already emits 256-bit at -O2 (measured on the bench box,
-    docs/plans/simd-flag-multiversioning.md); the sole unrealized win
-    is non-temporal stores at DRAM-bound n (setVectorToConstant 1.6x,
-    addv 1.24x at n=1e7; they lose cache-resident, so a restore needs
-    a size threshold). NT-store call RESOLVED DELETE 2026-07-17 at the
-    review-perf-followups close (C6 landing note there): the fits
-    compaction removed every per-sweep store-bound elementwise caller
-    on the constant-leaf path, the survivors are RMW or cold, so the
-    ops NT stores accelerate are no longer hot; the commented bodies
-    are deleted (git history keeps them).
-    Independent remainder RESOLVED 2026-07-20: SSR SIMD leaf is a MEASURED
-    NO-GO (kernel <=1.6x only L1-resident, bandwidth-bound at scale; SSR is
-    ~0.1% of a sweep so end-to-end <=0.05%, unmeasurable, vs a re-record + a
-    permanent cross-ISA fixed-lane/no-FMA obligation; docs/design/memory-wall-
-    frontier.md sec 6, the SSR SIMD leaf NO-GO). Windows-arm64 NEON config LANDED dcee743 (inspection-
-    only; close on a windows-11-arm runner). The live perf frontier past SIMD
-    (the MEMORY WALL) is the three-lens ideation in docs/design/memory-wall-
-    frontier.md - flagship the histogram-fused suffstat; first action is to
-    re-profile HEAD on dbarts-bench + the Z-order run-count census. The setIndexedVectorToConstant
-    dispatch-completeness sub-item is RETIRED 2026-07-17: the fits
-    compaction removed its hot caller (the ~18.5% scatter share the
-    stan4bart profile measured); the sole survivor is the
-    function-leaf cold-start, not worth a dispatch slot.
+  x86-simd: SIMD is closed as a perf lever - compute width is already
+    there (the manual unroll plus the per-file -m flag emits 256-bit at
+    -O2, measured on the bench box, docs/plans/simd-flag-
+    multiversioning.md), and both remaining candidates measured NO-GO:
+    NT stores (the fits compaction left no hot store-bound elementwise
+    caller, so the commented bodies were deleted; git history keeps
+    them) and the SSR SIMD leaf (~0.1% of a sweep, so <=0.05%
+    end-to-end, against a permanent cross-ISA fixed-lane/no-FMA
+    obligation; docs/design/memory-wall-frontier.md sec 6). Open: the
+    windows-arm64 NEON config LANDED dcee743 inspection-only - close it
+    on a windows-11-arm runner. The live perf frontier past SIMD is the
+    MEMORY WALL: the three-lens ideation in docs/design/memory-wall-
+    frontier.md, flagship the histogram-fused suffstat; first action is
+    to re-profile HEAD on dbarts-bench plus the Z-order run-count
+    census.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   note: the schedule/dispatch-only workflows (equivalence, rchk,
-    revdep-smoke) cannot register or run until they exist on the
-    default branch - GitHub binds schedules and dispatch to it. Their
-    first live runs happen when bartcore merges to main; validate them
-    then.
+    revdep-smoke, sbc, valgrind) cannot register or run until they
+    exist on the default branch - GitHub binds BOTH schedule and
+    workflow_dispatch to it, so today they 404 even for a manual run.
+    Their first live runs happen when bartcore merges to main;
+    validate them then. rchk and valgrind have never run anywhere:
+    macOS arm64 supports neither, so the merge is what buys the
+    PROTECT-balance and memcheck passes CRAN itself runs. HELD
+    2026-07-25 (VD): main stays as it is until VD's own review of the
+    branch; revisit these checks then.
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-13; submit both
     to CRAN together. bartCause is ready on branch dbarts-1.0 in
     ~/Repositories/bartCause (two commits, unpushed, checks Status OK):
     push and submit it after dbarts is accepted.
-  the window: pre-release decisions are ALL RESOLVED and landed (VD
-    sign-offs 2026-07-06; verified in-tree 2026-07-16): family moved to
-    dbartsModel (3c02121), getTrees categorical reporting unified
-    (cb25c09), range scaling kept with the setResponse updateScale
-    switch (cf70fd5), state format versioned (d3f992a) and superseded
-    by the by-name block reader (2d09768). The capi-dispatch-table
-    window closed 2026-07-16. No open pre-release decisions remain.
-  run covr once for a coverage audit before submission (VD 2026-07-17:
-    one-shot, no CI workflow or badge; flag genuine test gaps, ignore
-    header-only template attribution noise).
-  re-run the revdep sweep near submission (manual; the revdepcheck
-    package is GitHub-only). 23 CRAN reverse dependencies; the last
-    full pass was clean or explained everywhere (stan4bart 0.0-13 dev
-    OK; bartMan/EBcoBART/funcml/glossa/nlfh/riAFTBART/voi OK with
-    _R_CHECK_FORCE_SUGGESTS_=false; bartCause handled by its update;
-    tidytreatment's WARNING is the documented ABI break, resolved by
-    stan4bart 0.0-13; bartXViz not checkable locally - own gfortran
-    runtime, R-level dbarts use only; the 12 Suggests-level packages
-    not individually checked).
   close GitHub issue #80 at release: fully resolved by the setResponse
     updateScale switch (cf70fd5; default FALSE locks the creation-time
     prior scale - the safe embedded-Gibbs behavior the issue asks for;
@@ -221,9 +171,6 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     engine behavior spot-checked, dbartsSampler-class.Rd documents the
     default, NEWS 1.0-0 UPGRADING carries the bullet. Point the
     reporter at the Rd and NEWS entries.
-  stan4bart adopted categorical splits 2026-07-16 (its 0.0-14 branch;
-    docs/plans/factors-categorical.md there) - no lockstep follow-up
-    remains on that front.
   on any post-release dbarts.h change: bump DBARTS_C_API_MINOR (or MAJOR
     if incompatible) alongside the hash re-bake, and bump stan4bart's
     Depends/LinkingTo dbarts floor in the same lockstep release - the
@@ -235,3 +182,17 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     genuinely weighted binomial analyses lose the dbarts learners by
     design, and family routing on their side would need the matching
     inverse link.
+
+  pre-submission gate run 2026-07-25 (macOS arm64, R 4.6.1, HEAD
+  51edbf6 + the DESCRIPTION/CITATION fixes):
+    R CMD check --as-cran on the built tarball: Status OK, zero NOTEs
+      (the old ___stderrp compiled-code NOTE is gone). tinytest 3402
+      results, examples + --run-donttest + vignette rebuild + PDF and
+      HTML manual all OK.
+    equivalence vs baselines/equivalence-7903855.rds: 27 compared / 0
+      skipped, ALL identical draws (same RNG stream) - closes the
+      equivalence-trio residual recorded in cran-readiness.md, i.e. the
+      07-21..07-24 audit and dedup refactors are draw-neutral.
+    sbc gaussian R=100: see cran-readiness.md.
+    covr audit and the with-Suggests revdep sweep: see
+      cran-readiness.md.
