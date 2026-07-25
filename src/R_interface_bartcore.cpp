@@ -1962,7 +1962,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     if (control.verbose) printInitialSummary(control, model, data, *sampler);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}, {}};
+                                control.keepTrainingFits};
     // the mixed store borrows dense slices of the transiently assembled block;
     // the holder owns it so they outlive this call (a vector move preserves
     // the buffer address the store cached)
@@ -2143,7 +2143,7 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
       options, spec, rngs.data());
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}, {}};
+                                control.keepTrainingFits};
     // moving z keeps its buffer, so the chains' borrowed z stays valid
     holder->ownedTreatment = std::move(z);
     return R_NilValue;
@@ -2262,7 +2262,7 @@ BartcoreHolder* createMultinomialHolder(SEXP controlExpr, SEXP modelExpr,
       counts.data(), trials.data(), rngs);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}, {}};
+                                control.keepTrainingFits};
     // moving keeps the buffers, so the combiner's borrowed counts/trials stay valid
     holder->ownedCounts = std::move(counts);
     holder->ownedTrials = std::move(trials);
@@ -2312,7 +2312,7 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
       counts.data(), trials.data(), rngs);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}, {}};
+                                control.keepTrainingFits};
     // moving keeps the buffers, so the combiner's borrowed counts/trials stay valid
     holder->ownedCounts = std::move(counts);
     holder->ownedTrials = std::move(trials);
@@ -2563,8 +2563,7 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
     }
 
     BartcoreHolder* holder = new BartcoreHolder{
-      std::move(sampler), std::move(rngs), control.keepTrainingFits,
-      {}, {}, {}, {}, {}, {}, {}};
+      std::move(sampler), std::move(rngs), control.keepTrainingFits};
     // moving the vectors keeps their buffers, so the chains' borrowed
     // pointers stay valid for the holder's lifetime
     holder->ownedResponse = std::move(response);
