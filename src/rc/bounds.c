@@ -7,33 +7,33 @@
 #include <rc/util.h>
 
 #if R_XLEN_T_MAX < INT_MAX
-#  define va_arg_xlen_t(_ARGS_) (R_xlen_t) va_arg(_ARGS_, int)
-#else 
-#  define va_arg_xlen_t(_ARGS_)            va_arg(_ARGS_, R_xlen_t)
+#  define va_arg_xlen_t(args_) (R_xlen_t) va_arg(args_, int)
+#else
+#  define va_arg_xlen_t(args_)            va_arg(args_, R_xlen_t)
 #endif
 
-#define TYPE(_ARG_) (_ARG_ & 0x03)
-#define BOUND(_ARG_) ((_ARG_ & 0x1C) >> 2)
+#define TYPE(arg_) (arg_ & 0x03)
+#define BOUND(arg_) ((arg_ & 0x1C) >> 2)
 
 typedef enum {
-  _RC_GT  = 0x01,
-  _RC_LT  = 0x02,
-  _RC_GEQ = 0x03,
-  _RC_LEQ = 0x04,
-  _RC_EQ  = 0x05,
-  _RC_NE  = 0x06,
-  _RC_DEFAULT = 0x07
-} _rc_boundType;
+  RC_BOUND_GT  = 0x01,
+  RC_BOUND_LT  = 0x02,
+  RC_BOUND_GEQ = 0x03,
+  RC_BOUND_LEQ = 0x04,
+  RC_BOUND_EQ  = 0x05,
+  RC_BOUND_NE  = 0x06,
+  RC_BOUND_DEFAULT = 0x07
+} rc_boundType_;
 
 typedef enum {
-  _RC_YES = 0x01,
-  _RC_NO  = 0x02
-} _rc_naAllowableType;
+  RC_NAOK_YES = 0x01,
+  RC_NAOK_NO  = 0x02
+} rc_naAllowableType_;
 
-static void assertLengthConstraint(const char* name, _rc_boundType boundType, R_xlen_t length, R_xlen_t bound);
-static void assertIntConstraint(const char* name, _rc_boundType boundType, int value, int bound);
-static void assertDoubleConstraint(const char* name, _rc_boundType boundType, double value, double bound);
-static void assertBoolConstraint(const char* name, _rc_boundType boundType, bool value, bool bound);
+static void assertLengthConstraint(const char* name, rc_boundType_ boundType, R_xlen_t length, R_xlen_t bound);
+static void assertIntConstraint(const char* name, rc_boundType_ boundType, int value, int bound);
+static void assertDoubleConstraint(const char* name, rc_boundType_ boundType, double value, double bound);
+static void assertBoolConstraint(const char* name, rc_boundType_ boundType, bool value, bool bound);
 
 int rc_getInt0(SEXP x, const char* name)
 {
@@ -78,7 +78,7 @@ static inline int vgetInt(SEXP x, const char* name, va_list argsPointer)
   R_xlen_t length = 0;
   rc_constraintType constraintType;
   int arg;
-  _rc_naAllowableType naOK = _RC_NO;
+  rc_naAllowableType_ naOK = RC_NAOK_NO;
   int defaultValue = R_NaInt;
   bool defaultSpecified = false;
   
@@ -96,7 +96,7 @@ static inline int vgetInt(SEXP x, const char* name, va_list argsPointer)
         case RC_VALUE:
         {
           int value = va_arg(argsPointer, int);
-          if (BOUND(arg) == _RC_DEFAULT) {
+          if (BOUND(arg) == RC_BOUND_DEFAULT) {
             defaultValue = value;
             defaultSpecified = true;
           }
@@ -112,7 +112,7 @@ static inline int vgetInt(SEXP x, const char* name, va_list argsPointer)
       constraintType = TYPE(arg);
     }
     
-    if (naOK == _RC_NO && !defaultSpecified) {
+    if (naOK == RC_NAOK_NO && !defaultSpecified) {
       if (length == 0)
         Rf_error("%s cannot be of length 0 if NA is not allowable and no default is specified", name);
       else
@@ -137,8 +137,8 @@ static inline int vgetInt(SEXP x, const char* name, va_list argsPointer)
       case RC_VALUE:
       {
         int value = va_arg(argsPointer, int);
-        _rc_boundType boundType = BOUND(arg);
-        if (boundType == _RC_DEFAULT) {
+        rc_boundType_ boundType = BOUND(arg);
+        if (boundType == RC_BOUND_DEFAULT) {
           defaultValue = value;
           defaultSpecified = true;
         } else {
@@ -156,7 +156,7 @@ static inline int vgetInt(SEXP x, const char* name, va_list argsPointer)
   }
   
   if (result == R_NaInt) {
-    if (naOK == _RC_NO && !defaultSpecified)
+    if (naOK == RC_NAOK_NO && !defaultSpecified)
       Rf_error("%s cannot be NA if no default specified", name);
     if (defaultSpecified)
       result = defaultValue;
@@ -173,7 +173,7 @@ void rc_assertIntConstraints(SEXP x, const char* name, ...)
   va_list argsPointer;
   rc_constraintType constraintType;
   int arg;
-  _rc_naAllowableType naOK = _RC_NO;
+  rc_naAllowableType_ naOK = RC_NAOK_NO;
   
   if (length == 0) {
     va_start(argsPointer, name);
@@ -194,7 +194,7 @@ void rc_assertIntConstraints(SEXP x, const char* name, ...)
         case RC_NA:
         {
           naOK = BOUND(arg);
-          if (naOK == _RC_NO) { va_end(argsPointer); Rf_error("%s cannot be of length 0 if NA is not allowable", name); }
+          if (naOK == RC_NAOK_NO) { va_end(argsPointer); Rf_error("%s cannot be of length 0 if NA is not allowable", name); }
         }
         break;
         default:
@@ -205,7 +205,7 @@ void rc_assertIntConstraints(SEXP x, const char* name, ...)
     }
     va_end(argsPointer);
     
-    if (naOK == _RC_NO) Rf_error("%s cannot be of length 0 if NA is not allowable", name);
+    if (naOK == RC_NAOK_NO) Rf_error("%s cannot be of length 0 if NA is not allowable", name);
     
     return;
   }
@@ -226,7 +226,7 @@ void rc_assertIntConstraints(SEXP x, const char* name, ...)
       break;
       case RC_VALUE:
       {
-        _rc_boundType boundType = BOUND(arg);
+        rc_boundType_ boundType = BOUND(arg);
         int valueBound = va_arg(argsPointer, int);
         for (size_t i = 0; i < (size_t) length; ++i) assertIntConstraint(name, boundType, results[i], valueBound);
       }
@@ -235,7 +235,7 @@ void rc_assertIntConstraints(SEXP x, const char* name, ...)
       {
         naOK = BOUND(arg);
         for (size_t i = 0; i < (size_t) length; ++i)
-          if (results[i] == R_NaInt && naOK == _RC_NO) { va_end(argsPointer); Rf_error("%s cannot be NA", name); }
+          if (results[i] == R_NaInt && naOK == RC_NAOK_NO) { va_end(argsPointer); Rf_error("%s cannot be NA", name); }
       }
       default:
       break;
@@ -245,7 +245,7 @@ void rc_assertIntConstraints(SEXP x, const char* name, ...)
   }
   va_end(argsPointer);
   
-  if (naOK == _RC_NO) {
+  if (naOK == RC_NAOK_NO) {
     for (size_t i = 0; i < (size_t) length; ++i)
       if (results[i] == R_NaInt) Rf_error("%s cannot be NA", name);
   }
@@ -294,7 +294,7 @@ static inline double vgetDouble(SEXP x, const char* name, va_list argsPointer)
   R_xlen_t length = 0;
   rc_constraintType constraintType;
   int arg;
-  _rc_naAllowableType naOK = _RC_NO;
+  rc_naAllowableType_ naOK = RC_NAOK_NO;
   double defaultValue = R_NaReal;
   bool defaultSpecified = false;
   
@@ -312,7 +312,7 @@ static inline double vgetDouble(SEXP x, const char* name, va_list argsPointer)
         case RC_VALUE:
         {
           double value = va_arg(argsPointer, double);
-          if (BOUND(arg) == _RC_DEFAULT) {
+          if (BOUND(arg) == RC_BOUND_DEFAULT) {
             defaultValue = value;
             defaultSpecified = true;
           }
@@ -328,7 +328,7 @@ static inline double vgetDouble(SEXP x, const char* name, va_list argsPointer)
       constraintType = TYPE(arg);
     }
     
-    if (naOK == _RC_NO && !defaultSpecified) {
+    if (naOK == RC_NAOK_NO && !defaultSpecified) {
       if (length == 0)
         Rf_error("%s cannot be of length 0 if NA is not allowable and no default is specified", name);
       else
@@ -353,8 +353,8 @@ static inline double vgetDouble(SEXP x, const char* name, va_list argsPointer)
       case RC_VALUE:
       {
         double value = va_arg(argsPointer, double);
-        _rc_boundType boundType = BOUND(arg);
-        if (boundType == _RC_DEFAULT) {
+        rc_boundType_ boundType = BOUND(arg);
+        if (boundType == RC_BOUND_DEFAULT) {
           defaultValue = value;
           defaultSpecified = true;
         } else {
@@ -372,7 +372,7 @@ static inline double vgetDouble(SEXP x, const char* name, va_list argsPointer)
   }
   
   if (R_IsNA(result)) {
-    if (naOK == _RC_NO && !defaultSpecified)
+    if (naOK == RC_NAOK_NO && !defaultSpecified)
       Rf_error("%s cannot be NA if no default specified", name);
     if (defaultSpecified)
       result = defaultValue;
@@ -389,7 +389,7 @@ void rc_assertDoubleConstraints(SEXP x, const char* name, ...)
   va_list argsPointer;
   rc_constraintType constraintType;
   int arg;
-  _rc_naAllowableType naOK = _RC_NO;
+  rc_naAllowableType_ naOK = RC_NAOK_NO;
   
   if (length == 0) {
     va_start(argsPointer, name);
@@ -410,7 +410,7 @@ void rc_assertDoubleConstraints(SEXP x, const char* name, ...)
         case RC_NA:
         {
           naOK = BOUND(arg);
-          if (naOK == _RC_NO) { va_end(argsPointer); Rf_error("%s cannot be of length 0 if NA is not allowable", name); }
+          if (naOK == RC_NAOK_NO) { va_end(argsPointer); Rf_error("%s cannot be of length 0 if NA is not allowable", name); }
         }
         break;
         default:
@@ -421,7 +421,7 @@ void rc_assertDoubleConstraints(SEXP x, const char* name, ...)
     }
     va_end(argsPointer);
     
-    if (naOK == _RC_NO) Rf_error("%s cannot be of length 0 if NA is not allowable", name);
+    if (naOK == RC_NAOK_NO) Rf_error("%s cannot be of length 0 if NA is not allowable", name);
     
     return;
   }
@@ -442,7 +442,7 @@ void rc_assertDoubleConstraints(SEXP x, const char* name, ...)
       break;
       case RC_VALUE:
       {
-        _rc_boundType boundType = BOUND(arg);
+        rc_boundType_ boundType = BOUND(arg);
         double valueBound = va_arg(argsPointer, double);
         for (size_t i = 0; i < (size_t) length; ++i) assertDoubleConstraint(name, boundType, results[i], valueBound);
       }
@@ -451,7 +451,7 @@ void rc_assertDoubleConstraints(SEXP x, const char* name, ...)
       {
         naOK = BOUND(arg);
         for (size_t i = 0; i < (size_t) length; ++i)
-          if (R_IsNA(results[i]) && naOK == _RC_NO) { va_end(argsPointer); Rf_error("%s cannot be NA", name); }
+          if (R_IsNA(results[i]) && naOK == RC_NAOK_NO) { va_end(argsPointer); Rf_error("%s cannot be NA", name); }
       }
       default:
       break;
@@ -461,7 +461,7 @@ void rc_assertDoubleConstraints(SEXP x, const char* name, ...)
   }
   va_end(argsPointer);
   
-  if (naOK == _RC_NO) {
+  if (naOK == RC_NAOK_NO) {
     for (size_t i = 0; i < (size_t) length; ++i)
       if (R_IsNA(results[i])) Rf_error("%s cannot be NA", name);
   }
@@ -510,7 +510,7 @@ static inline bool vgetBool(SEXP x, const char* name, va_list argsPointer)
   R_xlen_t length = 0;
   rc_constraintType constraintType;
   int arg;
-  _rc_naAllowableType naOK = _RC_NO;
+  rc_naAllowableType_ naOK = RC_NAOK_NO;
   int defaultValue = NA_LOGICAL;
   bool defaultSpecified = false;
   
@@ -528,7 +528,7 @@ static inline bool vgetBool(SEXP x, const char* name, va_list argsPointer)
         case RC_VALUE:
         {
           int value = va_arg(argsPointer, int);
-          if (BOUND(arg) == _RC_DEFAULT) {
+          if (BOUND(arg) == RC_BOUND_DEFAULT) {
             defaultValue = value;
             defaultSpecified = true;
           }
@@ -544,7 +544,7 @@ static inline bool vgetBool(SEXP x, const char* name, va_list argsPointer)
       constraintType = TYPE(arg);
     }
     
-    if (naOK == _RC_NO && !defaultSpecified) {
+    if (naOK == RC_NAOK_NO && !defaultSpecified) {
       if (length == 0)
         Rf_error("%s cannot be of length 0 if NA is not allowable and no default is specified", name);
       else
@@ -569,8 +569,8 @@ static inline bool vgetBool(SEXP x, const char* name, va_list argsPointer)
       case RC_VALUE:
       {
         int value = va_arg(argsPointer, int);
-        _rc_boundType boundType = BOUND(arg);
-        if (boundType == _RC_DEFAULT) {
+        rc_boundType_ boundType = BOUND(arg);
+        if (boundType == RC_BOUND_DEFAULT) {
           defaultValue = value;
           defaultSpecified = true;
         } else {
@@ -588,7 +588,7 @@ static inline bool vgetBool(SEXP x, const char* name, va_list argsPointer)
   }
   
   if (result == NA_LOGICAL) {
-    if (naOK == _RC_NO && !defaultSpecified)
+    if (naOK == RC_NAOK_NO && !defaultSpecified)
       Rf_error("%s cannot be NA if no default specified", name);
     if (defaultSpecified)
       result = defaultValue;
@@ -604,7 +604,7 @@ void rc_assertBoolConstraints(SEXP x, const char* name, ...)
   va_list argsPointer;
   rc_constraintType constraintType;
   int arg;
-  _rc_naAllowableType naOK = _RC_NO;
+  rc_naAllowableType_ naOK = RC_NAOK_NO;
   
   
   if (length == 0) {
@@ -626,7 +626,7 @@ void rc_assertBoolConstraints(SEXP x, const char* name, ...)
         case RC_NA:
         {
           naOK = BOUND(arg);
-          if (naOK == _RC_NO) { va_end(argsPointer); Rf_error("%s cannot be of length 0 if NA is not allowable", name); }
+          if (naOK == RC_NAOK_NO) { va_end(argsPointer); Rf_error("%s cannot be of length 0 if NA is not allowable", name); }
         }
         break;
         default:
@@ -637,7 +637,7 @@ void rc_assertBoolConstraints(SEXP x, const char* name, ...)
     }
     va_end(argsPointer);
     
-    if (naOK == _RC_NO) Rf_error("%s cannot be of length 0 if NA is not allowable", name);
+    if (naOK == RC_NAOK_NO) Rf_error("%s cannot be of length 0 if NA is not allowable", name);
     
     return;
   }
@@ -658,7 +658,7 @@ void rc_assertBoolConstraints(SEXP x, const char* name, ...)
       break;
       case RC_VALUE:
       {
-        _rc_boundType boundType = BOUND(arg);
+        rc_boundType_ boundType = BOUND(arg);
         int valueBound = va_arg(argsPointer, int);
         for (size_t i = 0; i < (size_t) length; ++i) assertBoolConstraint(name, boundType, results[i], valueBound);
       }
@@ -667,7 +667,7 @@ void rc_assertBoolConstraints(SEXP x, const char* name, ...)
       {
         naOK = BOUND(arg);
         for (size_t i = 0; i < (size_t) length; ++i)
-          if (results[i] == R_NaInt && naOK == _RC_NO) { va_end(argsPointer); Rf_error("%s cannot be NA", name); }
+          if (results[i] == R_NaInt && naOK == RC_NAOK_NO) { va_end(argsPointer); Rf_error("%s cannot be NA", name); }
       }
       default:
       break;
@@ -677,7 +677,7 @@ void rc_assertBoolConstraints(SEXP x, const char* name, ...)
   }
   va_end(argsPointer);
   
-  if (naOK == _RC_NO) {
+  if (naOK == RC_NAOK_NO) {
     for (size_t i = 0; i < (size_t) length; ++i)
       if (results[i] == R_NaInt) Rf_error("%s cannot be NA", name);
   }
@@ -795,27 +795,27 @@ void rc_assertDimConstraints(SEXP x, const char* name, ...)
   va_end(argsPointer);
 }
 
-static void assertLengthConstraint(const char* name, _rc_boundType boundType, R_xlen_t length, R_xlen_t bound)
+static void assertLengthConstraint(const char* name, rc_boundType_ boundType, R_xlen_t length, R_xlen_t bound)
 {
   if (bound < 0) Rf_error("internal error: %s cannot have a negative length", name);
   
   switch (boundType) {
-    case _RC_GT:
+    case RC_BOUND_GT:
     if (length <= bound) Rf_error("%s must be of length greater than %zu", name, bound);
     break;
-    case _RC_GEQ:
+    case RC_BOUND_GEQ:
     if (length < bound) Rf_error("%s must be of length greater than or equal to %zu", name, bound);
     break;
-    case _RC_LT:
+    case RC_BOUND_LT:
     if (length >= bound) Rf_error("%s must be of length less than %zu", name, bound);
     break;
-    case _RC_LEQ:
+    case RC_BOUND_LEQ:
     if (length > bound) Rf_error("%s must be of length less than or equal to %zu", name, bound);
     break;
-    case _RC_EQ:
+    case RC_BOUND_EQ:
     if (length != bound) Rf_error("%s must be of length equal to %zu", name, bound);
     break;
-    case _RC_NE:
+    case RC_BOUND_NE:
     if (length == bound) Rf_error("%s cannot be of length equal to %zu", name, bound);
     break;
     default:
@@ -823,38 +823,38 @@ static void assertLengthConstraint(const char* name, _rc_boundType boundType, R_
   }
 }
 
-static void assertIntConstraint(const char* name, _rc_boundType boundType, int value, int bound)
+static void assertIntConstraint(const char* name, rc_boundType_ boundType, int value, int bound)
 {
   if (bound == R_NaInt) Rf_error("bound for %s cannot be NA", name);
   if (value == R_NaInt) return;
   
   switch (boundType) {
-    case _RC_GT:
+    case RC_BOUND_GT:
     if (value <= bound) Rf_error("%s must be greater than %d", name, bound);
     break;
-    case _RC_LT:
+    case RC_BOUND_LT:
     if (value >= bound) Rf_error("%s must be less than %d", name, bound);
     break;
-    case _RC_GEQ:
+    case RC_BOUND_GEQ:
     if (value < bound) Rf_error("%s must be greater than or equal to %d", name, bound);
     break;
-    case _RC_LEQ:
+    case RC_BOUND_LEQ:
     if (value > bound) Rf_error("%s must be less than or equal to %d", name, bound);
     break;
-    case _RC_EQ:
+    case RC_BOUND_EQ:
     if (value != bound) Rf_error("%s must be equal to %d", name, bound);
     break;
-    case _RC_NE:
+    case RC_BOUND_NE:
     if (value == bound) Rf_error("%s cannot equal %d", name, bound);
     break;
-    case _RC_DEFAULT:
+    case RC_BOUND_DEFAULT:
     Rf_error("cannot assert a default as a constraint for %s", name);
     default:
     break;
   }
 }
 
-static void assertDoubleConstraint(const char* name, _rc_boundType boundType, double value, double bound)
+static void assertDoubleConstraint(const char* name, rc_boundType_ boundType, double value, double bound)
 {
   if (isnan(bound)) Rf_error("bound for %s cannot be NaN", name);
   if (bound == R_NaReal) Rf_error("bound for %s cannot be NA", name);
@@ -862,56 +862,56 @@ static void assertDoubleConstraint(const char* name, _rc_boundType boundType, do
   if (R_IsNA(value)) return;
   
   switch (boundType) {
-    case _RC_GT:
+    case RC_BOUND_GT:
     if (bound == R_PosInf) Rf_error("%s cannot be greater than positive infinity", name);
     if (bound == R_NegInf && value == R_NegInf) Rf_error("for %s, cannot compare negative infinities", name);
     if (bound != R_NegInf && value <= bound) Rf_error("%s must be greater than %f", name, bound);
     break;
-    case _RC_GEQ:
+    case RC_BOUND_GEQ:
     if (bound == R_PosInf && value != R_PosInf) Rf_error("%s must be equal to positive infinity", name);
     if (bound != R_NegInf && value < bound) Rf_error("%s must be greater than or equal to %f", name, bound);
     break;
-    case _RC_LT:
+    case RC_BOUND_LT:
     if (bound == R_NegInf) Rf_error("%s cannot be less than negative infinity", name);
     if (bound == R_PosInf && value == R_PosInf) Rf_error("for %s, cannot compare positive infinites", name);
     if (bound != R_PosInf && value >= bound) Rf_error("%s must be less than %f", name, bound);
     break;
-    case _RC_LEQ:
+    case RC_BOUND_LEQ:
     if (bound == R_NegInf && value != R_NegInf) Rf_error("%s must be equal to negative infinity", name);
     if (bound == R_PosInf && value > bound) Rf_error("%s must be less than or equal to %f", name, bound);
     break;
-    case _RC_EQ:
+    case RC_BOUND_EQ:
     if (value != bound) Rf_error("%s must be equal to %f", name, bound);
     break;
-    case _RC_NE:
+    case RC_BOUND_NE:
     if (value == bound) Rf_error("%s cannot equal %f", name, bound);
     break;
-    case _RC_DEFAULT:
+    case RC_BOUND_DEFAULT:
     Rf_error("cannot assert a default as a constraint for %s", name);
     default:
     break;
   }
 }
 
-static void assertBoolConstraint(const char* name, _rc_boundType boundType, bool value, bool bound)
+static void assertBoolConstraint(const char* name, rc_boundType_ boundType, bool value, bool bound)
 {
   if (bound == R_NaInt) Rf_error("bound for %s cannot be NA", name);
   if (value == R_NaInt) return;
   
   switch (boundType) {
-    case _RC_GT:
-    case _RC_GEQ:
-    case _RC_LT:
-    case _RC_LEQ:
+    case RC_BOUND_GT:
+    case RC_BOUND_GEQ:
+    case RC_BOUND_LT:
+    case RC_BOUND_LEQ:
     Rf_error("for %s, logicals cannot be ordered", name);
     break;
-    case _RC_EQ:
+    case RC_BOUND_EQ:
     if (value != bound) Rf_error("%s must be equal to %s", name, bound ? "true" : "false");
     break;
-    case _RC_NE:
+    case RC_BOUND_NE:
     if (value == bound) Rf_error("%s cannot equal %s", name, bound ? "true" : "false");
     break;
-    case _RC_DEFAULT:
+    case RC_BOUND_DEFAULT:
     Rf_error("cannot assert a default as a constraint for %s", name);
     default:
     break;

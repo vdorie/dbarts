@@ -812,6 +812,50 @@ static_assert(ScalarLeafModel<MonotoneConstantGaussianLeaf>);
 static_assert(TreeDrawLeafModel<MonotoneConstantGaussianLeaf>);
 static_assert(ParamScoringLeafModel<MonotoneConstantGaussianLeaf>);
 
+// ---- Dense linear-algebra primitives shared by the conjugate leaf models ---
+//
+// LinearGaussianLeaf's ridge normal equations and GPGaussianLeaf's kernel
+// solves run the identical dense factorization and triangular solves over
+// row-major p x p storage; they live here so both leaves share one copy.
+
+/// In-place lower Cholesky of a symmetric positive-definite matrix; callers
+/// guarantee definiteness (a ridge, or a nugget/noise diagonal), so there is
+/// no failure path.
+inline void choleskyDecompose(double* m, std::size_t p) {
+  for (std::size_t j = 0; j < p; ++j) {
+    double diagonal = m[j * p + j];
+    for (std::size_t a = 0; a < j; ++a)
+      diagonal -= m[j * p + a] * m[j * p + a];
+    diagonal = std::sqrt(diagonal);
+    m[j * p + j] = diagonal;
+    for (std::size_t i = j + 1; i < p; ++i) {
+      double value = m[i * p + j];
+      for (std::size_t a = 0; a < j; ++a)
+        value -= m[i * p + a] * m[j * p + a];
+      m[i * p + j] = value / diagonal;
+    }
+  }
+}
+
+/// Forward solve L x = b in place, b supplied in x.
+inline void solveLowerTriangular(const double* l, std::size_t p, double* x) {
+  for (std::size_t i = 0; i < p; ++i) {
+    double value = x[i];
+    for (std::size_t a = 0; a < i; ++a) value -= l[i * p + a] * x[a];
+    x[i] = value / l[i * p + i];
+  }
+}
+
+/// Back solve L' x = b in place, b supplied in x.
+inline void solveLowerTriangularTransposed(const double* l, std::size_t p,
+                                           double* x) {
+  for (std::size_t i = p; i > 0; --i) {
+    double value = x[i - 1];
+    for (std::size_t a = i; a < p; ++a) value -= l[a * p + (i - 1)] * x[a];
+    x[i - 1] = value / l[(i - 1) * p + (i - 1)];
+  }
+}
+
 /// Linear Gaussian leaf: each bottom node fits an intercept plus a linear
 /// term in q designated ordinal predictor columns, standardized internally
 /// to the training mean and sample sd. All q + 1 coefficients are iid
@@ -1062,41 +1106,6 @@ private:
       for (std::size_t b = a + 1; b < p; ++b)
         crossproduct[b * p + a] = crossproduct[a * p + b];
     storeCrossproduct(tree, node, nodeIndex, crossproduct);
-  }
-
-  /// In-place lower Cholesky of a symmetric positive-definite matrix; the
-  /// ridge guarantees definiteness, so there is no failure path.
-  static void choleskyDecompose(double* m, std::size_t p) {
-    for (std::size_t j = 0; j < p; ++j) {
-      double diagonal = m[j * p + j];
-      for (std::size_t a = 0; a < j; ++a)
-        diagonal -= m[j * p + a] * m[j * p + a];
-      diagonal = std::sqrt(diagonal);
-      m[j * p + j] = diagonal;
-      for (std::size_t i = j + 1; i < p; ++i) {
-        double value = m[i * p + j];
-        for (std::size_t a = 0; a < j; ++a)
-          value -= m[i * p + a] * m[j * p + a];
-        m[i * p + j] = value / diagonal;
-      }
-    }
-  }
-
-  static void solveLowerTriangular(const double* l, std::size_t p, double* x) {
-    for (std::size_t i = 0; i < p; ++i) {
-      double value = x[i];
-      for (std::size_t a = 0; a < i; ++a) value -= l[i * p + a] * x[a];
-      x[i] = value / l[i * p + i];
-    }
-  }
-
-  static void solveLowerTriangularTransposed(const double* l, std::size_t p,
-                                             double* x) {
-    for (std::size_t i = p; i > 0; --i) {
-      double value = x[i - 1];
-      for (std::size_t a = i; a < p; ++a) value -= l[a * p + (i - 1)] * x[a];
-      x[i - 1] = value / l[(i - 1) * p + (i - 1)];
-    }
   }
 
   /// One leaf's cached U'WU (row-major p x p), tagged with the exact ordered
@@ -1374,7 +1383,7 @@ struct GPGaussianLeaf {
       cholV_[r * numObs + r] += noise;
       responseSumOfSquares += w * y[i] * y[i];
     }
-    choleskyDecomposeLeaf(cholV_.data(), numObs);
+    choleskyDecompose(cholV_.data(), numObs);
 
     double halfLogDetV = 0.0;
     for (std::size_t r = 0; r < numObs; ++r)
@@ -1383,7 +1392,7 @@ struct GPGaussianLeaf {
     vectorScratch_.resize(numObs);
     for (std::size_t r = 0; r < numObs; ++r)
       vectorScratch_[r] = y[tree.indices[node.begin + r]];
-    solveLowerLeaf(cholV_.data(), numObs, vectorScratch_.data());
+    solveLowerTriangular(cholV_.data(), numObs, vectorScratch_.data());
     double quadraticForm = 0.0;
     for (std::size_t r = 0; r < numObs; ++r)
       quadraticForm += vectorScratch_[r] * vectorScratch_[r];
@@ -1437,7 +1446,7 @@ struct GPGaussianLeaf {
         weights == nullptr ? 1.0 : weights[tree.indices[node.begin + r]];
       cholV_[r * numObs + r] += residualVariance / w;
     }
-    choleskyDecomposeLeaf(cholV_.data(), numObs);
+    choleskyDecompose(cholV_.data(), numObs);
 
     // f0 = s L_C eps, drawn first in row order, then e0 row by row
     epsScratch_.resize(numObs);
@@ -1458,8 +1467,8 @@ struct GPGaussianLeaf {
                           std::sqrt(residualVariance / w) *
                             ext_rng_simulateStandardNormal(rng);
     }
-    solveLowerLeaf(cholV_.data(), numObs, vectorScratch_.data());
-    solveLowerTransposedLeaf(cholV_.data(), numObs, vectorScratch_.data());
+    solveLowerTriangular(cholV_.data(), numObs, vectorScratch_.data());
+    solveLowerTriangularTransposed(cholV_.data(), numObs, vectorScratch_.data());
     for (std::size_t r = 0; r < numObs; ++r) {
       double value = 0.0;
       for (std::size_t a = 0; a < numObs; ++a)
@@ -1561,14 +1570,14 @@ struct GPGaussianLeaf {
     cholK_.assign(kernel_.begin(),
                   kernel_.begin() +
                     static_cast<std::ptrdiff_t>(numObs * numObs));
-    choleskyDecomposeLeaf(cholK_.data(), numObs);
+    choleskyDecompose(cholK_.data(), numObs);
 
     blocks.push_back(static_cast<double>(numObs));
     std::size_t alphaStart = blocks.size();
     for (std::size_t r = 0; r < numObs; ++r)
       blocks.push_back(fits[tree.indices[node.begin + r]]);
-    solveLowerLeaf(cholK_.data(), numObs, blocks.data() + alphaStart);
-    solveLowerTransposedLeaf(cholK_.data(), numObs,
+    solveLowerTriangular(cholK_.data(), numObs, blocks.data() + alphaStart);
+    solveLowerTriangularTransposed(cholK_.data(), numObs,
                              blocks.data() + alphaStart);
     appendLeafRows(tree, node, numObs, blocks);
   }
@@ -1681,8 +1690,8 @@ private:
                         fScratch_.begin() +
                           static_cast<std::ptrdiff_t>(numObs));
     double* alpha = alphaBuffer_.data() + offset;
-    solveLowerLeaf(cholK, numObs, alpha);
-    solveLowerTransposedLeaf(cholK, numObs, alpha);
+    solveLowerTriangular(cholK, numObs, alpha);
+    solveLowerTriangularTransposed(cholK, numObs, alpha);
     nodeAlphaOffset_[static_cast<std::size_t>(nodeIndex)] =
       static_cast<std::ptrdiff_t>(offset);
     double sumSquared = 0.0;
@@ -1690,41 +1699,6 @@ private:
       sumSquared += fScratch_[r] * alpha[r];
     return FunctionLeafDrawStats{sumSquared,
                                  static_cast<double>(numObs)};
-  }
-
-  /// In-place lower Cholesky; the nugget and noise diagonals guarantee
-  /// definiteness, so there is no failure path.
-  static void choleskyDecomposeLeaf(double* m, std::size_t p) {
-    for (std::size_t j = 0; j < p; ++j) {
-      double diagonal = m[j * p + j];
-      for (std::size_t a = 0; a < j; ++a)
-        diagonal -= m[j * p + a] * m[j * p + a];
-      diagonal = std::sqrt(diagonal);
-      m[j * p + j] = diagonal;
-      for (std::size_t i = j + 1; i < p; ++i) {
-        double value = m[i * p + j];
-        for (std::size_t a = 0; a < j; ++a)
-          value -= m[i * p + a] * m[j * p + a];
-        m[i * p + j] = value / diagonal;
-      }
-    }
-  }
-
-  static void solveLowerLeaf(const double* l, std::size_t p, double* x) {
-    for (std::size_t i = 0; i < p; ++i) {
-      double value = x[i];
-      for (std::size_t a = 0; a < i; ++a) value -= l[i * p + a] * x[a];
-      x[i] = value / l[i * p + i];
-    }
-  }
-
-  static void solveLowerTransposedLeaf(const double* l, std::size_t p,
-                                       double* x) {
-    for (std::size_t i = p; i > 0; --i) {
-      double value = x[i - 1];
-      for (std::size_t a = i; a < p; ++a) value -= l[a * p + (i - 1)] * x[a];
-      x[i - 1] = value / l[(i - 1) * p + (i - 1)];
-    }
   }
 
   /// One leaf's cached correlation kernel (nugget included) and its lower
@@ -1819,7 +1793,7 @@ private:
     if (entry != nullptr) {
       if (entry->cholK.empty()) {
         entry->cholK.assign(entry->kernel.begin(), entry->kernel.end());
-        choleskyDecomposeLeaf(entry->cholK.data(), numObs);
+        choleskyDecompose(entry->cholK.data(), numObs);
       }
       *kernel = entry->kernel.data();
       *cholK = entry->cholK.data();
@@ -1830,7 +1804,7 @@ private:
     cholK_.assign(kernel_.begin(),
                   kernel_.begin() +
                     static_cast<std::ptrdiff_t>(numObs * numObs));
-    choleskyDecomposeLeaf(cholK_.data(), numObs);
+    choleskyDecompose(cholK_.data(), numObs);
     *kernel = kernel_.data();
     *cholK = cholK_.data();
   }
@@ -1890,7 +1864,7 @@ private:
       cholV_[a * numPos + a] += noise;
       responseSumOfSquares += w * y[i] * y[i];
     }
-    choleskyDecomposeLeaf(cholV_.data(), numPos);
+    choleskyDecompose(cholV_.data(), numPos);
 
     double halfLogDetV = 0.0;
     for (std::size_t a = 0; a < numPos; ++a)
@@ -1899,7 +1873,7 @@ private:
     vectorScratch_.resize(numPos);
     for (std::size_t a = 0; a < numPos; ++a)
       vectorScratch_[a] = y[tree.indices[node.begin + positiveScratch_[a]]];
-    solveLowerLeaf(cholV_.data(), numPos, vectorScratch_.data());
+    solveLowerTriangular(cholV_.data(), numPos, vectorScratch_.data());
     double quadraticForm = 0.0;
     for (std::size_t a = 0; a < numPos; ++a)
       quadraticForm += vectorScratch_[a] * vectorScratch_[a];
@@ -1952,7 +1926,7 @@ private:
         double w = weights[tree.indices[node.begin + positiveScratch_[a]]];
         cholV_[a * numPos + a] += residualVariance / w;
       }
-      choleskyDecomposeLeaf(cholV_.data(), numPos);
+      choleskyDecompose(cholV_.data(), numPos);
 
       vectorScratch_.resize(numPos);
       for (std::size_t a = 0; a < numPos; ++a) {
@@ -1962,8 +1936,8 @@ private:
                             std::sqrt(residualVariance / w) *
                               ext_rng_simulateStandardNormal(rng);
       }
-      solveLowerLeaf(cholV_.data(), numPos, vectorScratch_.data());
-      solveLowerTransposedLeaf(cholV_.data(), numPos,
+      solveLowerTriangular(cholV_.data(), numPos, vectorScratch_.data());
+      solveLowerTriangularTransposed(cholV_.data(), numPos,
                                vectorScratch_.data());
       for (std::size_t r = 0; r < numObs; ++r) {
         double value = 0.0;
@@ -2288,6 +2262,26 @@ struct CGMTreePrior {
   }
 };
 
+/// Stabilized-softmax draw over a grid of log-weights: normalize by the log-
+/// sum-exp (subtract the max, exponentiate, sum, divide), then draw a discrete
+/// index. `logWeights` is overwritten in place with the normalized
+/// probabilities. Shared by the grid full conditionals (DartPrior's alpha,
+/// ResidualDfPrior's nu, NBDispersionPrior's r), each of which fills the array
+/// with its own log-posterior first.
+inline std::size_t drawFromLogWeights(ext_rng* rng, double* logWeights,
+                                      std::size_t n) {
+  double maxLog = -HUGE_VAL;
+  for (std::size_t k = 0; k < n; ++k)
+    if (logWeights[k] > maxLog) maxLog = logWeights[k];
+  double total = 0.0;
+  for (std::size_t k = 0; k < n; ++k) {
+    logWeights[k] = std::exp(logWeights[k] - maxLog);
+    total += logWeights[k];
+  }
+  for (std::size_t k = 0; k < n; ++k) logWeights[k] /= total;
+  return ext_rng_drawFromDiscreteDistribution(rng, logWeights, n);
+}
+
 /// DART (Linero 2018): Dirichlet prior over split-variable probabilities.
 /// s | counts ~ Dirichlet(alpha/p + m_1, ..., alpha/p + m_p), sampled via
 /// normalized gammas. The concentration alpha is optionally sampled on a
@@ -2348,20 +2342,9 @@ struct DartPrior {
     for (std::size_t j = 0; j < numPredictors; ++j)
       sumLogProbabilities += std::log(probabilities[j]);
 
-    double maxLogPosterior = -HUGE_VAL;
-    for (std::size_t k = 0; k < gridSize; ++k) {
+    for (std::size_t k = 0; k < gridSize; ++k)
       gridWeight_[k] = gridConstant_[k] + (gridAlpha_[k] / p) * sumLogProbabilities;
-      if (gridWeight_[k] > maxLogPosterior) maxLogPosterior = gridWeight_[k];
-    }
-    double totalWeight = 0.0;
-    for (std::size_t k = 0; k < gridSize; ++k) {
-      gridWeight_[k] = std::exp(gridWeight_[k] - maxLogPosterior);
-      totalWeight += gridWeight_[k];
-    }
-    for (std::size_t k = 0; k < gridSize; ++k) gridWeight_[k] /= totalWeight;
-
-    alpha = gridAlpha_[ext_rng_drawFromDiscreteDistribution(rng, gridWeight_.data(),
-                                                            gridSize)];
+    alpha = gridAlpha_[drawFromLogWeights(rng, gridWeight_.data(), gridSize)];
   }
 
   static constexpr std::size_t gridSize = 1000;
@@ -2454,6 +2437,18 @@ inline double simulatePolyaGammaShape(ext_rng* rng, double b, double z) {
   for (long c = 0; c < reps; ++c)
     omega += ext_rng_simulatePolyaGamma(rng, z);
   return omega;
+}
+
+/// Reshift a Polya-Gamma latent family's working response when only the offset
+/// changes: the omega draws and the kappa / omega term stand, so each entry
+/// trades the old offset for the new. A null pointer is a zero offset. Shared
+/// by LogisticResponse::setOffset and NBResponse::setOffset.
+inline void reshiftWorkingForOffset(double* working, const double* oldOffset,
+                                    const double* newOffset, std::size_t n) {
+  for (std::size_t i = 0; i < n; ++i) {
+    double unshifted = working[i] + (oldOffset != nullptr ? oldOffset[i] : 0.0);
+    working[i] = unshifted - (newOffset != nullptr ? newOffset[i] : 0.0);
+  }
 }
 
 /// Response models own the working response the backfitting engine sees and
@@ -3248,10 +3243,7 @@ public:
   void setOffset(const double* offset, bool, double*) override {
     // omega and kappa / omega stand; only the shift into the working
     // response moves
-    for (std::size_t i = 0; i < numObservations_; ++i) {
-      double unshifted = working_[i] + (offset_ != nullptr ? offset_[i] : 0.0);
-      working_[i] = unshifted - (offset != nullptr ? offset[i] : 0.0);
-    }
+    reshiftWorkingForOffset(working_.data(), offset_, offset, numObservations_);
     offset_ = offset;
   }
 
@@ -3577,19 +3569,10 @@ struct ResidualDfPrior {
   /// count and the two lambda sufficient statistics.
   std::size_t drawIndex(ext_rng* rng, double numObservations,
                         double sumLogLambda, double sumLambda) {
-    double maxLogPosterior = -HUGE_VAL;
-    for (std::size_t k = 0; k < gridSize; ++k) {
+    for (std::size_t k = 0; k < gridSize; ++k)
       weight_[k] = numObservations * kernel_[k] +
                    0.5 * grid[k] * (sumLogLambda - sumLambda) + logPrior_[k];
-      if (weight_[k] > maxLogPosterior) maxLogPosterior = weight_[k];
-    }
-    double total = 0.0;
-    for (std::size_t k = 0; k < gridSize; ++k) {
-      weight_[k] = std::exp(weight_[k] - maxLogPosterior);
-      total += weight_[k];
-    }
-    for (std::size_t k = 0; k < gridSize; ++k) weight_[k] /= total;
-    return ext_rng_drawFromDiscreteDistribution(rng, weight_.data(), gridSize);
+    return drawFromLogWeights(rng, weight_.data(), gridSize);
   }
 
 private:
@@ -3841,18 +3824,9 @@ struct NBDispersionPrior {
   /// Draw a grid index from the discrete full conditional given the collapsed
   /// statistic S = sum_i log(1 - p_i).
   std::size_t drawIndex(ext_rng* rng, double sumLog1mP) {
-    double maxLogPosterior = -HUGE_VAL;
-    for (std::size_t k = 0; k < gridSize; ++k) {
+    for (std::size_t k = 0; k < gridSize; ++k)
       weight_[k] = kernel_[k] + grid[k] * sumLog1mP + logPrior_[k];
-      if (weight_[k] > maxLogPosterior) maxLogPosterior = weight_[k];
-    }
-    double total = 0.0;
-    for (std::size_t k = 0; k < gridSize; ++k) {
-      weight_[k] = std::exp(weight_[k] - maxLogPosterior);
-      total += weight_[k];
-    }
-    for (std::size_t k = 0; k < gridSize; ++k) weight_[k] /= total;
-    return ext_rng_drawFromDiscreteDistribution(rng, weight_.data(), gridSize);
+    return drawFromLogWeights(rng, weight_.data(), gridSize);
   }
 
   /// The precomputed L_k, exposed so a component test can check the kernel
@@ -3940,10 +3914,7 @@ public:
   void setOffset(const double* offset, bool, double*) override {
     // omega and kappa / omega stand; only the shift into the working response
     // moves (the LogisticResponse setOffset)
-    for (std::size_t i = 0; i < numObservations_; ++i) {
-      double unshifted = working_[i] + (offset_ != nullptr ? offset_[i] : 0.0);
-      working_[i] = unshifted - (offset != nullptr ? offset[i] : 0.0);
-    }
+    reshiftWorkingForOffset(working_.data(), offset_, offset, numObservations_);
     offset_ = offset;
   }
 

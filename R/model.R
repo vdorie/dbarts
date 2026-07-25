@@ -1,3 +1,14 @@
+## The default tree-proposal mixture: P(birth/death), P(swap), P(change) select
+## the structure move, and P(birth) splits birth vs. death within a birth/death
+## move. One source for the formal default, the is.null reset, and the all-NA
+## fallbacks below.
+defaultProposalProbs <- c(
+  birth_death = 0.5,
+  swap = 0.1,
+  change = 0.4,
+  birth = 0.5
+)
+
 setMethod(
   "initialize",
   "dbartsModel",
@@ -7,12 +18,7 @@ setMethod(
     node.prior,
     node.hyperprior,
     resid.prior,
-    proposal.probs = c(
-      birth_death = 0.5,
-      swap = 0.1,
-      change = 0.4,
-      birth = 0.5
-    ),
+    proposal.probs = defaultProposalProbs,
     node.scale = 0.5,
     family = "auto"
   ) {
@@ -51,12 +57,7 @@ setMethod(
     }
 
     if (is.null(proposal.probs)) {
-      proposal.probs <- c(
-        birth_death = 0.5,
-        swap = 0.1,
-        change = 0.4,
-        birth = 0.5
-      )
+      proposal.probs <- defaultProposalProbs
     }
 
     probs <- proposal.probs[c("birth_death", "swap", "change")]
@@ -64,7 +65,7 @@ setMethod(
       probs[is.na(probs)] <- 1 - sum(probs[!is.na(probs)])
       names(probs) <- c("birth_death", "swap", "change")
     } else if (all(is.na(probs))) {
-      probs <- c(birth_death = 0.5, swap = 0.1, change = 0.4)
+      probs <- defaultProposalProbs[c("birth_death", "swap", "change")]
     }
 
     .Object@p.birth_death <- probs[["birth_death"]]
@@ -73,7 +74,7 @@ setMethod(
 
     probs <- proposal.probs["birth"]
     if (is.na(probs)) {
-      probs <- c(birth = 0.5)
+      probs <- defaultProposalProbs["birth"]
     }
 
     .Object@p.birth <- probs[["birth"]]
@@ -107,8 +108,9 @@ parsePriors <- function(
   }
   # the residual-distribution vocabulary rides the same environment, so a bare
   # gaussian()/student() in resid.dist resolves without shadowing stats::gaussian
-  evalEnv$gaussian <- gaussian
-  evalEnv$student <- student
+  for (name in names(dbartsResidDists)) {
+    assign(name, dbartsResidDists[[name]], envir = evalEnv)
+  }
   evalEnv$control <- control
   evalEnv$data <- data
   # both spellings are exposed for the split.probs vocabulary: num.vars is the
@@ -433,6 +435,65 @@ parseMonotoneSign <- function(value) {
   }
 }
 
+## Resolve one predictor selector name to its 1-based model-matrix column
+## indices: an exact column-name match returns that single index; otherwise a
+## bare term label expands to its indicator columns
+## (startsWith(columnNames, "<name>.")). Returns NULL when the name is neither a
+## column nor a term, so each caller can raise its own diagnostic; a recognized
+## term with no indicator columns yields integer(0), not NULL. columnNames may
+## be NULL (no match, and expansion yields none).
+resolveTermColumns <- function(name, columnNames, termLabels) {
+  index <- match(name, columnNames)
+  if (!is.na(index)) {
+    return(index)
+  }
+  if (name %in% termLabels) {
+    return(which(startsWith(columnNames, paste0(name, "."))))
+  }
+  NULL
+}
+
+## Resolve an interactions()/blocks() column selector -- a character vector of
+## names (each an exact column or a bare term expanding to its indicator
+## columns, via resolveTermColumns) or a numeric index vector -- to 1-based
+## model-matrix indices. `what` names the selector in error messages.
+resolveColumnVector <- function(
+  cols,
+  what,
+  columnNames,
+  termLabels,
+  numColumns
+) {
+  if (is.character(cols)) {
+    if (is.null(columnNames)) {
+      stop("cannot resolve ", what, ": model matrix has no column names")
+    }
+    result <- integer(0)
+    for (name in cols) {
+      columns <- resolveTermColumns(name, columnNames, termLabels)
+      if (is.null(columns)) {
+        stop(
+          "cannot resolve ",
+          what,
+          ": unrecognized variable name '",
+          name,
+          "'"
+        )
+      }
+      result <- c(result, columns)
+    }
+    result
+  } else if (is.numeric(cols)) {
+    index <- as.integer(cols)
+    if (anyNA(index) || any(index < 1L) || any(index > numColumns)) {
+      stop("cannot resolve ", what, ": column indices out of range")
+    }
+    index
+  } else {
+    stop("cannot resolve ", what, ": expected column names or indices")
+  }
+}
+
 ## Resolve the 'monotone' argument into a per-column direction vector in
 ## {-1, 0, +1} of length ncol(data@x): a named vector assigns by column or
 ## expanded-term name, an unnamed vector of length p assigns by position.
@@ -456,19 +517,19 @@ resolveMonotone <- function(monotone, data) {
     for (i in seq_along(monotone)) {
       direction <- parseMonotoneSign(monotone[[i]])
       name <- monotoneNames[i]
-      index <- match(name, columnNames)
-      if (!is.na(index)) {
-        result[index] <- direction
-      } else if (name %in% attr(data@x, "term.labels")) {
-        expanded <- which(startsWith(columnNames, paste0(name, ".")))
-        result[expanded] <- direction
-      } else {
+      columns <- resolveTermColumns(
+        name,
+        columnNames,
+        attr(data@x, "term.labels")
+      )
+      if (is.null(columns)) {
         stop(
           "cannot assign monotone constraints: unrecognized variable name '",
           name,
           "'"
         )
       }
+      result[columns] <- direction
     }
   } else {
     if (length(monotone) != numColumns) {
@@ -527,18 +588,19 @@ resolveVarianceColumns <- function(variance, data) {
     }
     result <- integer(0)
     for (name in requestedNames) {
-      index <- match(name, columnNames)
-      if (!is.na(index)) {
-        result <- c(result, index)
-      } else if (name %in% attr(data@x, "term.labels")) {
-        result <- c(result, which(startsWith(columnNames, paste0(name, "."))))
-      } else {
+      columns <- resolveTermColumns(
+        name,
+        columnNames,
+        attr(data@x, "term.labels")
+      )
+      if (is.null(columns)) {
         stop(
           "cannot resolve variance predictor: unrecognized variable name '",
           name,
           "'"
         )
       }
+      result <- c(result, columns)
     }
     return(sort(unique(result)))
   }
@@ -569,42 +631,6 @@ resolveInteractions <- function(interactions, data) {
   columnNames <- colnames(data@x)
   termLabels <- attr(data@x, "term.labels")
 
-  # a name or index vector -> 1-based model-matrix columns; a bare term name
-  # expands to its indicator columns (the resolveMonotone precedent)
-  resolveColumns <- function(cols, what) {
-    if (is.character(cols)) {
-      if (is.null(columnNames)) {
-        stop("cannot resolve ", what, ": model matrix has no column names")
-      }
-      result <- integer(0)
-      for (name in cols) {
-        index <- match(name, columnNames)
-        if (!is.na(index)) {
-          result <- c(result, index)
-        } else if (name %in% termLabels) {
-          result <- c(result, which(startsWith(columnNames, paste0(name, "."))))
-        } else {
-          stop(
-            "cannot resolve ",
-            what,
-            ": unrecognized variable name '",
-            name,
-            "'"
-          )
-        }
-      }
-      result
-    } else if (is.numeric(cols)) {
-      index <- as.integer(cols)
-      if (anyNA(index) || any(index < 1L) || any(index > numColumns)) {
-        stop("cannot resolve ", what, ": column indices out of range")
-      }
-      index
-    } else {
-      stop("cannot resolve ", what, ": expected column names or indices")
-    }
-  }
-
   maxOrder <- 0L
   if (!is.null(interactions$max.order)) {
     order <- suppressWarnings(as.integer(interactions$max.order))
@@ -625,7 +651,13 @@ resolveInteractions <- function(interactions, data) {
       forbidList <- list(forbidList) # a single vector shorthand
     }
     for (entry in forbidList) {
-      cols <- unique(resolveColumns(entry, "forbidden interaction"))
+      cols <- unique(resolveColumnVector(
+        entry,
+        "forbidden interaction",
+        columnNames,
+        termLabels,
+        numColumns
+      ))
       if (length(cols) < 2L) {
         stop("each interactions 'forbid' entry must name two or more columns")
       }
@@ -646,7 +678,13 @@ resolveInteractions <- function(interactions, data) {
       groupList <- list(groupList)
     }
     resolved <- lapply(groupList, function(group) {
-      cols <- unique(resolveColumns(group, "interaction group"))
+      cols <- unique(resolveColumnVector(
+        group,
+        "interaction group",
+        columnNames,
+        termLabels,
+        numColumns
+      ))
       if (length(cols) == 0L) {
         stop("interactions 'groups' entries must each name at least one column")
       }
@@ -711,42 +749,6 @@ resolveBlocks <- function(blocks, data, nTrees, availableColumns = NULL) {
   columnNames <- colnames(data@x)
   termLabels <- attr(data@x, "term.labels")
 
-  # a name or index vector -> 1-based model-matrix columns; a bare term name
-  # expands to its indicator columns (the resolveInteractions precedent)
-  resolveColumns <- function(cols, what) {
-    if (is.character(cols)) {
-      if (is.null(columnNames)) {
-        stop("cannot resolve ", what, ": model matrix has no column names")
-      }
-      result <- integer(0)
-      for (name in cols) {
-        index <- match(name, columnNames)
-        if (!is.na(index)) {
-          result <- c(result, index)
-        } else if (name %in% termLabels) {
-          result <- c(result, which(startsWith(columnNames, paste0(name, "."))))
-        } else {
-          stop(
-            "cannot resolve ",
-            what,
-            ": unrecognized variable name '",
-            name,
-            "'"
-          )
-        }
-      }
-      result
-    } else if (is.numeric(cols)) {
-      index <- as.integer(cols)
-      if (anyNA(index) || any(index < 1L) || any(index > numColumns)) {
-        stop("cannot resolve ", what, ": column indices out of range")
-      }
-      index
-    } else {
-      stop("cannot resolve ", what, ": expected column names or indices")
-    }
-  }
-
   available <- if (is.null(availableColumns)) {
     seq_len(numColumns)
   } else {
@@ -766,7 +768,13 @@ resolveBlocks <- function(blocks, data, nTrees, availableColumns = NULL) {
   # named outside the forest's available set as we go
   blockOfColumn <- rep(NA_integer_, numColumns)
   for (g in seq_len(numGroups)) {
-    cols <- unique(resolveColumns(groupList[[g]], "block group"))
+    cols <- unique(resolveColumnVector(
+      groupList[[g]],
+      "block group",
+      columnNames,
+      termLabels,
+      numColumns
+    ))
     if (length(cols) == 0L) {
       stop("blocks() 'groups' entries must each name at least one column")
     }
@@ -1076,4 +1084,11 @@ dbartsPriors <- list(
   chisq = chisq,
   fixed = fixed,
   chi = chi
+)
+
+## The residual-distribution vocabulary, resolved by bare name inside the
+## resid.dist argument the same way dbartsPriors handles the prior names.
+dbartsResidDists <- list(
+  gaussian = gaussian,
+  student = student
 )

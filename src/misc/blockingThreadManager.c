@@ -3,6 +3,9 @@
 #include <misc/thread.h>
 #include "pthread.h"
 
+#include "indexArrayQueue.h"     // IndexArrayQueue and its push/pop/etc.
+#include "threadManagerCommon.h" // misc_partitionThreadJob
+
 #include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -14,22 +17,6 @@ static int initializeThreadData(misc_btm_manager_t manager, struct ThreadData* d
 static int destroyThreadData(struct ThreadData* data);
 
 static void* threadLoop(void* _data);
-
-typedef struct {
-  size_t* elements;
-  size_t queueSize;
-  size_t pushIndex;
-  size_t popIndex;
-} IndexArrayQueue;
-
-
-static size_t IAQ_INVALID = ((size_t) -1);
-static int initializeIndexArrayQueue(IndexArrayQueue* queue, size_t queueSize);
-static void invalidateIndexArrayQueue(IndexArrayQueue* queue);
-
-static int push(IndexArrayQueue* queue, size_t element); // can return ENOBUFS if full
-static size_t pop(IndexArrayQueue* queue); // returns IAQ_INVALID if buffer is empty
-static size_t getNumElementsInQueue(const IndexArrayQueue* queue);
 
 typedef struct ThreadData {
   misc_btm_manager_t manager;
@@ -133,18 +120,9 @@ void misc_btm_getNumThreadsForJob(const misc_btm_manager_t restrict threadManage
     *offByOneIndexPtr = 1;
     return;
   }
-  
-  size_t numThreads = minNumElementsPerThread == 0 ? numElements : numElements / minNumElementsPerThread;
-  if (numThreads > numThreadsManaged) numThreads = numThreadsManaged;
-  
-  size_t numElementsPerThread = numElements / numThreads;
-  size_t offByOneIndex = numElements % numThreads;
-  if (offByOneIndex != 0) numElementsPerThread += 1;
-  else offByOneIndex = numThreads;
-  
-  if (numThreadsPtr != NULL) *numThreadsPtr = numThreads;
-  *numElementsPerThreadPtr = numElementsPerThread;
-  *offByOneIndexPtr = offByOneIndex;
+
+  misc_partitionThreadJob(numElements, minNumElementsPerThread, numThreadsManaged,
+                          numThreadsPtr, numElementsPerThreadPtr, offByOneIndexPtr);
 }
 
 int misc_btm_runTasks(misc_btm_manager_t restrict manager, misc_btm_taskFunction_t function,
@@ -413,69 +391,5 @@ misc_btm_thread_initialization_failed:
 static int destroyThreadData(ThreadData* data)
 {
   return destroyCondition(data->taskAvailable);
-}
-
-static int initializeIndexArrayQueue(IndexArrayQueue* queue, size_t queueSize)
-{
-  queue->elements = (size_t*) malloc(queueSize * sizeof(size_t));
-  if (queue->elements == NULL) return ENOMEM;
-
-  for (size_t i = 0; i < queueSize; ++i) queue->elements[i] = IAQ_INVALID;
-  
-  queue->queueSize = queueSize;
-  queue->pushIndex = 0;
-  queue->popIndex = 0;
-  
-  return 0;
-}
-
-static void invalidateIndexArrayQueue(IndexArrayQueue* queue)
-{
-  if (queue == NULL || queue->elements == NULL) return;
-  
-  free(queue->elements);
-  queue->elements = NULL;
-}
-
-#ifndef ENOBUFS
-#ifdef __WIN32
-#include <error.h>
-#define ENOBUFS ERROR_INSUFFICIENT_BUFFER
-#else
-#define ENOBUFS 105
-#endif
-#endif
-
-static int push(IndexArrayQueue* queue, size_t element)
-{
-  if (queue->pushIndex == queue->popIndex && queue->elements[queue->pushIndex] != IAQ_INVALID) return ENOBUFS;
-                                                             
-  queue->elements[queue->pushIndex++] = element;
-  if (queue->pushIndex == queue->queueSize) queue->pushIndex = 0;
-  
-  return 0;
-}
-
-static size_t pop(IndexArrayQueue* queue)
-{
-  if (queue->popIndex == queue->pushIndex && queue->elements[queue->popIndex] == IAQ_INVALID) return IAQ_INVALID;
-  
-  size_t result = queue->elements[queue->popIndex];
-  queue->elements[queue->popIndex++] = IAQ_INVALID;
-  if (queue->popIndex == queue->queueSize) queue->popIndex = 0;
-  
-  return result;
-}
-
-static size_t getNumElementsInQueue(const IndexArrayQueue* queue)
-{
-  if (queue->popIndex == queue->pushIndex) {
-    if (queue->elements[queue->popIndex] == IAQ_INVALID) return 0;
-    return queue->queueSize;
-  }
-  
-  size_t pushIndex = queue->pushIndex < queue->popIndex ? queue->pushIndex + queue->queueSize  : queue->pushIndex;
-  
-  return pushIndex - queue->popIndex;
 }
 

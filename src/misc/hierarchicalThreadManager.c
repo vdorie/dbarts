@@ -3,6 +3,8 @@
 #include <misc/thread.h>
 #include "pthread.h"
 
+#include "threadManagerCommon.h" // misc_partitionThreadJob
+
 #include <errno.h>
 #include <stdarg.h> // varargs for buffered printf
 #include <stdio.h>  // vsnprintf
@@ -340,18 +342,9 @@ void misc_htm_getNumPiecesForSubTask(const misc_htm_manager_t restrict threadMan
     *offByOneIndexPtr = 1;
     return;
   }
-  
-  size_t numPieces = minNumElementsPerPiece == 0 ? numElements : numElements / minNumElementsPerPiece;
-  if (numPieces > numThreadsManaged) numPieces = numThreadsManaged;
-  
-  size_t numElementsPerPiece = numElements / numPieces;
-  size_t offByOneIndex = numElements % numPieces;
-  if (offByOneIndex != 0) numElementsPerPiece += 1;
-  else offByOneIndex = numPieces;
-  
-  if (numPiecesPtr != NULL) *numPiecesPtr = numPieces;
-  *numElementsPerPiecePtr = numElementsPerPiece;
-  *offByOneIndexPtr = offByOneIndex;
+
+  misc_partitionThreadJob(numElements, minNumElementsPerPiece, numThreadsManaged,
+                          numPiecesPtr, numElementsPerPiecePtr, offByOneIndexPtr);
 }
 
 static void* threadLoop(void* _thread)

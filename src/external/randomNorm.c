@@ -26,15 +26,7 @@
 #include <external/io.h>
 #include <external/stats.h> // qnorm
 
-// this is duplicated in randomBase.c, randomNorm.c, and random.c
-struct ext_rng {
-  ext_rng_algorithm_t algorithm;
-  ext_rng_standardNormal_t standardNormalAlgorithm;
-  void* state;
-
-  ext_rng_userFunction normalState;
-  double gammaState[9];
-};
+#include "rng_internal.h" // struct ext_rng layout
 
 
 double ext_rng_simulateStandardNormal(ext_rng* generator)

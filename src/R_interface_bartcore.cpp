@@ -65,6 +65,27 @@ void holderFinalizer(SEXP ptrExpr) {
   R_ClearExternalPtr(ptrExpr);
 }
 
+// The bartcore_create* entry points share this holder-installation boilerplate:
+// register the finalizer on a null-address external pointer first
+// (R_SetExternalPtrAddr does not allocate, so no OOM longjmp can strand the
+// holder between its construction and its finalizer), build the holder, then
+// install its address. \p buildHolder returns the holder; its own parse errors
+// longjmp past this before any address is installed. The protection vector pins
+// dataExpr (PROT_DATA); the setters fill the remaining slots later.
+template <typename BuildHolder>
+SEXP createExternalHolder(SEXP dataExpr, BuildHolder buildHolder) {
+  SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
+  SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
+  SEXP result = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, protExpr));
+  R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
+
+  BartcoreHolder* holder = buildHolder();
+  R_SetExternalPtrAddr(result, holder);
+
+  UNPROTECT(2);
+  return result;
+}
+
 BartcoreHolder& holderFromExpression(SEXP ptrExpr) {
   BartcoreHolder* holder =
     static_cast<BartcoreHolder*>(R_ExternalPtrAddr(ptrExpr));
@@ -1699,12 +1720,13 @@ void refuseMutationOnView(const bartcore::SamplerBase& sampler,
 }
 
 // Unlike views, CSC-built samplers re-quantize from their retained slices,
-// so cut installation and state restore stay available on them.
+// so cut installation and state restore stay available on them. The executable
+// guard (identical predicate and message) is the one refuseMutationOnView
+// carries; delegate to it so the two call families keep their distinct names
+// without duplicating the check.
 void refuseRequantizeWithoutSource(const bartcore::SamplerBase& sampler,
                                    const char* caller) {
-  if (!sampler.data().hasRequantizeSource())
-    Rf_error("%s requires a sampler that owns its predictors; data-handle "
-             "views hold none", caller);
+  refuseMutationOnView(sampler, caller);
 }
 
 // The single-forest test-fit and prediction surface has no meaning under BCF:
@@ -2310,20 +2332,10 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                      SEXP familyExpr) {
   const char* familyName =
     Rf_isNull(familyExpr) ? "" : CHAR(STRING_ELT(familyExpr, 0));
-  // Register the finalizer on a null-address pointer, then build and install:
-  // R_SetExternalPtrAddr does not allocate, so an OOM longjmp cannot strand the
-  // holder between its construction and its finalizer.
-  SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
-  SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
-  SEXP result = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, protExpr));
-  R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
-
-  BartcoreHolder* holder = bartcore_bridge::createHolder(
-    controlExpr, modelExpr, dataExpr, familyName);
-  R_SetExternalPtrAddr(result, holder);
-
-  UNPROTECT(2);
-  return result;
+  return createExternalHolder(dataExpr, [&]() {
+    return bartcore_bridge::createHolder(controlExpr, modelExpr, dataExpr,
+                                         familyName);
+  });
 }
 
 // Builds the two-layer store (cuts + codes) once for sharing across
@@ -2580,37 +2592,21 @@ SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                         SEXP zExpr, SEXP bcfParamsExpr, SEXP moderatorsExpr,
                         SEXP muInteractionsExpr, SEXP tauInteractionsExpr,
                         SEXP muBlocksExpr, SEXP tauBlocksExpr) {
-  // null-address first, then install; see bartcore_create
-  SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
-  SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
-  SEXP result = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, protExpr));
-  R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
-
-  BartcoreHolder* holder = bartcore_bridge::createBCFHolder(
-    controlExpr, modelExpr, dataExpr, zExpr, bcfParamsExpr, moderatorsExpr,
-    muInteractionsExpr, tauInteractionsExpr, muBlocksExpr, tauBlocksExpr);
-  R_SetExternalPtrAddr(result, holder);
-
-  UNPROTECT(2);
-  return result;
+  return createExternalHolder(dataExpr, [&]() {
+    return bartcore_bridge::createBCFHolder(
+      controlExpr, modelExpr, dataExpr, zExpr, bcfParamsExpr, moderatorsExpr,
+      muInteractionsExpr, tauInteractionsExpr, muBlocksExpr, tauBlocksExpr);
+  });
 }
 
 // A K-forest multinomial (softmax) sampler; internal, constant-leaf only
 // (docs/design/multinomial.md). labels are the 0..K-1 category codes.
 SEXP bartcore_createMultinomial(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                                 SEXP labelsExpr, SEXP numCategoriesExpr) {
-  // null-address first, then install; see bartcore_create
-  SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
-  SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
-  SEXP result = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, protExpr));
-  R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
-
-  BartcoreHolder* holder = bartcore_bridge::createMultinomialHolder(
-    controlExpr, modelExpr, dataExpr, labelsExpr, numCategoriesExpr);
-  R_SetExternalPtrAddr(result, holder);
-
-  UNPROTECT(2);
-  return result;
+  return createExternalHolder(dataExpr, [&]() {
+    return bartcore_bridge::createMultinomialHolder(
+      controlExpr, modelExpr, dataExpr, labelsExpr, numCategoriesExpr);
+  });
 }
 
 // The grouped-count entry: counts is an n x K nonnegative integer matrix, the
@@ -2618,18 +2614,10 @@ SEXP bartcore_createMultinomial(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 SEXP bartcore_createMultinomialCounts(SEXP controlExpr, SEXP modelExpr,
                                       SEXP dataExpr, SEXP countsExpr,
                                       SEXP numCategoriesExpr) {
-  // null-address first, then install; see bartcore_create
-  SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
-  SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
-  SEXP result = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, protExpr));
-  R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
-
-  BartcoreHolder* holder = bartcore_bridge::createMultinomialCountsHolder(
-    controlExpr, modelExpr, dataExpr, countsExpr, numCategoriesExpr);
-  R_SetExternalPtrAddr(result, holder);
-
-  UNPROTECT(2);
-  return result;
+  return createExternalHolder(dataExpr, [&]() {
+    return bartcore_bridge::createMultinomialCountsHolder(
+      controlExpr, modelExpr, dataExpr, countsExpr, numCategoriesExpr);
+  });
 }
 
 SEXP bartcore_setTreatment(SEXP ptrExpr, SEXP zExpr) {

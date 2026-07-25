@@ -666,103 +666,18 @@ public:
     for (int32_t i : bottomScratch) computeLeafStats(i, y, weights);
   }
 
-  /// Two-pointer in-place partition by category mask: bit-clear codes go
-  /// left. The mask analogue of misc_partitionIndices, sans SIMD.
-  static size_t partitionIndicesByMask(const xint_t* column,
-                                       std::uint64_t directions,
-                                       index_t* indices, size_t length) {
+  /// Shared two-pointer in-place partition kernel for the scalar fallbacks:
+  /// observations for which goesRight is false are gathered into [0, result),
+  /// the rest into [result, length). goesRight receives the observation index;
+  /// each typed wrapper below supplies the storage- and rule-specific
+  /// predicate. The swap sequence is identical to the previously inlined form,
+  /// so every wrapper's index permutation - and thus the downstream
+  /// sufficient-statistic summation order - is byte-for-byte unchanged.
+  template <typename GoesRight>
+  static size_t partitionByPredicate(index_t* indices, size_t length,
+                                     GoesRight goesRight) {
     size_t lo = 0, hi = length;
     // invariant: [0, lo) is left-bound, [hi, length) is right-bound
-    while (true) {
-      while (lo < hi && ((directions >> column[indices[lo]]) & 1u) == 0) ++lo;
-      while (lo < hi && ((directions >> column[indices[hi - 1]]) & 1u) != 0)
-        --hi;
-      if (hi - lo < 2) break;
-      index_t temp = indices[lo];
-      indices[lo] = indices[hi - 1];
-      indices[hi - 1] = temp;
-      ++lo;
-      --hi;
-    }
-    return lo;
-  }
-
-  /// The pooled-mask sibling of partitionIndicesByMask: the direction bit
-  /// for a code lives in the rule's pool words.
-  static size_t partitionIndicesByWideMask(const xint_t* column,
-                                           const std::uint64_t* directions,
-                                           index_t* indices, size_t length) {
-    size_t lo = 0, hi = length;
-    while (true) {
-      while (lo < hi && !maskTestBit(directions, column[indices[lo]])) ++lo;
-      while (lo < hi && maskTestBit(directions, column[indices[hi - 1]]))
-        --hi;
-      if (hi - lo < 2) break;
-      index_t temp = indices[lo];
-      indices[lo] = indices[hi - 1];
-      indices[hi - 1] = temp;
-      ++lo;
-      --hi;
-    }
-    return lo;
-  }
-
-  /// The sparse sibling of partitionIndicesByMask: an inline categorical
-  /// membership partition (up to 63 levels) reading codes through the
-  /// rank-bitmap layout instead of a dense array.
-  static size_t partitionIndicesSparseByMask(const SparseColumnData& column,
-                                             std::uint64_t directions,
-                                             index_t* indices, size_t length) {
-    size_t lo = 0, hi = length;
-    while (true) {
-      while (lo < hi && ((directions >> column.at(indices[lo])) & 1u) == 0)
-        ++lo;
-      while (lo < hi && ((directions >> column.at(indices[hi - 1])) & 1u) != 0)
-        --hi;
-      if (hi - lo < 2) break;
-      index_t temp = indices[lo];
-      indices[lo] = indices[hi - 1];
-      indices[hi - 1] = temp;
-      ++lo;
-      --hi;
-    }
-    return lo;
-  }
-
-  /// The sparse sibling of partitionIndicesByWideMask: a pooled categorical
-  /// membership partition (more than 63 levels) over the rank-bitmap layout.
-  static size_t partitionIndicesSparseByWideMask(
-      const SparseColumnData& column, const std::uint64_t* directions,
-      index_t* indices, size_t length) {
-    size_t lo = 0, hi = length;
-    while (true) {
-      while (lo < hi && !maskTestBit(directions, column.at(indices[lo]))) ++lo;
-      while (lo < hi && maskTestBit(directions, column.at(indices[hi - 1])))
-        --hi;
-      if (hi - lo < 2) break;
-      index_t temp = indices[lo];
-      indices[lo] = indices[hi - 1];
-      indices[hi - 1] = temp;
-      ++lo;
-      --hi;
-    }
-    return lo;
-  }
-
-  /// partitionIndicesMIA over rank-bitmap storage: the sparse sibling of
-  /// the dense MIA fallback (misc_partitionIndicesSparse handles NA-free
-  /// sparse columns).
-  static size_t partitionIndicesSparseMIA(const SparseColumnData& column,
-                                          const Rule& rule, index_t* indices,
-                                          size_t length) {
-    int32_t splitIndex = rule.splitIndex();
-    bool missingGoesRight = rule.missingGoesRight();
-    auto goesRight = [&](size_t i) {
-      xint_t code = column.at(i);
-      return code == naCode ? missingGoesRight
-                            : static_cast<int32_t>(code) > splitIndex;
-    };
-    size_t lo = 0, hi = length;
     while (true) {
       while (lo < hi && !goesRight(indices[lo])) ++lo;
       while (lo < hi && goesRight(indices[hi - 1])) --hi;
@@ -776,6 +691,62 @@ public:
     return lo;
   }
 
+  /// Two-pointer in-place partition by category mask: bit-clear codes go
+  /// left. The mask analogue of misc_partitionIndices, sans SIMD.
+  static size_t partitionIndicesByMask(const xint_t* column,
+                                       std::uint64_t directions,
+                                       index_t* indices, size_t length) {
+    return partitionByPredicate(indices, length, [&](index_t i) {
+      return ((directions >> column[i]) & 1u) != 0;
+    });
+  }
+
+  /// The pooled-mask sibling of partitionIndicesByMask: the direction bit
+  /// for a code lives in the rule's pool words.
+  static size_t partitionIndicesByWideMask(const xint_t* column,
+                                           const std::uint64_t* directions,
+                                           index_t* indices, size_t length) {
+    return partitionByPredicate(indices, length, [&](index_t i) {
+      return maskTestBit(directions, column[i]);
+    });
+  }
+
+  /// The sparse sibling of partitionIndicesByMask: an inline categorical
+  /// membership partition (up to 63 levels) reading codes through the
+  /// rank-bitmap layout instead of a dense array.
+  static size_t partitionIndicesSparseByMask(const SparseColumnData& column,
+                                             std::uint64_t directions,
+                                             index_t* indices, size_t length) {
+    return partitionByPredicate(indices, length, [&](index_t i) {
+      return ((directions >> column.at(i)) & 1u) != 0;
+    });
+  }
+
+  /// The sparse sibling of partitionIndicesByWideMask: a pooled categorical
+  /// membership partition (more than 63 levels) over the rank-bitmap layout.
+  static size_t partitionIndicesSparseByWideMask(
+      const SparseColumnData& column, const std::uint64_t* directions,
+      index_t* indices, size_t length) {
+    return partitionByPredicate(indices, length, [&](index_t i) {
+      return maskTestBit(directions, column.at(i));
+    });
+  }
+
+  /// partitionIndicesMIA over rank-bitmap storage: the sparse sibling of
+  /// the dense MIA fallback (misc_partitionIndicesSparse handles NA-free
+  /// sparse columns).
+  static size_t partitionIndicesSparseMIA(const SparseColumnData& column,
+                                          const Rule& rule, index_t* indices,
+                                          size_t length) {
+    int32_t splitIndex = rule.splitIndex();
+    bool missingGoesRight = rule.missingGoesRight();
+    return partitionByPredicate(indices, length, [&](index_t i) {
+      xint_t code = column.at(i);
+      return code == naCode ? missingGoesRight
+                            : static_cast<int32_t>(code) > splitIndex;
+    });
+  }
+
   /// Two-pointer ordinal partition aware of the reserved missing code:
   /// codes at or below the split go left, missing codes go by the rule's
   /// direction. The scalar fallback for columns containing NAs.
@@ -783,22 +754,11 @@ public:
                                     index_t* indices, size_t length) {
     int32_t splitIndex = rule.splitIndex();
     bool missingGoesRight = rule.missingGoesRight();
-    auto goesRight = [&](xint_t code) {
+    return partitionByPredicate(indices, length, [&](index_t i) {
+      xint_t code = column[i];
       return code == naCode ? missingGoesRight
                             : static_cast<int32_t>(code) > splitIndex;
-    };
-    size_t lo = 0, hi = length;
-    while (true) {
-      while (lo < hi && !goesRight(column[indices[lo]])) ++lo;
-      while (lo < hi && goesRight(column[indices[hi - 1]])) --hi;
-      if (hi - lo < 2) break;
-      index_t temp = indices[lo];
-      indices[lo] = indices[hi - 1];
-      indices[hi - 1] = temp;
-      ++lo;
-      --hi;
-    }
-    return lo;
+    });
   }
 
   // pins the misc partition kernels' integer width; a mismatch would

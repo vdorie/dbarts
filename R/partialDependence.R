@@ -27,23 +27,10 @@ pdbart.getAndInitializeSampler <- function(bartCall, evalEnv) {
   namedList(sampler, fit)
 }
 
-## create the contents to be used in partial dependence plots
-pdbart <- function(
-  x.train,
-  y.train,
-  xind = NULL,
-  levs = NULL,
-  levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
-  pl = TRUE,
-  plquants = c(0.05, 0.95),
-  ...
-) {
-  matchedCall <- match.call()
-
-  callingEnv <- parent.frame()
-
-  # get a sampler object that we can use to either predict or run with total
-  # prediction matrix
+# Shared preamble for pdbart/pd2bart: obtain a sampler (and any accompanying
+# bart fit) from whatever form of 'x.train' was supplied. 'name' is the caller
+# name ("pdbart"/"pd2bart") used only in the diagnostic messages.
+pdbart.getSampler <- function(x.train, matchedCall, callingEnv, name) {
   sampler <- fit <- NULL
   if (is.matrix(x.train) || is.data.frame(x.train) || is.formula(x.train)) {
     bartCall <- redirectCall(matchedCall, dbarts::bart)
@@ -56,7 +43,9 @@ pdbart <- function(
     fit <- list()
     if (!sampler$control@keepTrees) {
       warning(
-        "calling pdbart with a sampler that does not have keepTrees set to TRUE will cause new samples to be generated and the state to be changed"
+        "calling ",
+        name,
+        " with a sampler that does not have keepTrees set to TRUE will cause new samples to be generated and the state to be changed"
       )
     }
   } else if (inherits(x.train, "bart")) {
@@ -66,11 +55,15 @@ pdbart <- function(
       bartCall <- fit$call
       if (bartCall == call("NA") || bartCall == call("NULL")) {
         stop(
-          "calling pdbart with a bart fit object requires model to be fit with keepSampler == TRUE"
+          "calling ",
+          name,
+          " with a bart fit object requires model to be fit with keepSampler == TRUE"
         )
       }
       warning(
-        "calling pdbart with a bart fit object requires model to be fit with keepSampler == TRUE; refitting using saved call"
+        "calling ",
+        name,
+        " with a bart fit object requires model to be fit with keepSampler == TRUE; refitting using saved call"
       )
       massign[sampler, fit] <- pdbart.getAndInitializeSampler(
         bartCall,
@@ -82,7 +75,14 @@ pdbart <- function(
       "x.train must be a matrix, data.frame, formula, fitted bart model, or dbartsSampler"
     )
   }
+  namedList(sampler, fit)
+}
 
+# Resolve the 'xind' argument (a formula-style expression, character column
+# names, numeric indices, or NULL) down to integer column indices into the
+# sampler's predictor matrix. 'xind' is forwarded as a promise so that the
+# non-standard formula evaluation in the error branch behaves as if inlined.
+pdbart.resolveXind <- function(xind, matchedCall, sampler) {
   tryResult <- tryCatch(xind, error = I)
 
   if (inherits(tryResult, "error")) {
@@ -121,6 +121,92 @@ pdbart <- function(
     xind <- match(xind, colnames(sampler$data@x))
   }
 
+  xind
+}
+
+# Default the 'levs' list: for each of the first 'numVariables' selected
+# predictors, either the sorted unique values (when there are too few to bin)
+# or the unique quantiles at 'levquants'. 'cmp' is the comparison deciding
+# "too few": pdbart uses `<`, pd2bart uses `<=` (a long-standing difference in
+# the two entry points, preserved here rather than reconciled).
+pdbart.defaultLevs <- function(x, xind, levquants, numVariables, cmp) {
+  levs <- vector("list", numVariables)
+  for (j in seq_len(numVariables)) {
+    uniqueValues <- unique(x[, xind[j]])
+    levs[[j]] <-
+      if (cmp(length(uniqueValues), length(levquants))) {
+        sort(uniqueValues)
+      } else {
+        unique(quantile(x[, xind[j]], probs = levquants))
+      }
+  }
+  levs
+}
+
+# Assemble the returned pdbart/pd2bart result list. Identical between the two
+# entry points except for the S3 class stamped on it ('className').
+pdbart.buildResult <- function(sampler, fit, fdr, levs, xind, className) {
+  if (is.null(colnames(sampler$data@x))) {
+    xLabels <- paste0("x", xind)
+  } else {
+    xLabels <- colnames(sampler$data@x)[xind]
+  }
+
+  if (sampler$control@binary == FALSE) {
+    result <- list(
+      fd = fdr,
+      levs = levs,
+      xlbs = xLabels,
+      bartcall = sampler$control@call,
+      yhat.train = fit$yhat.train,
+      first.sigma = fit$first.sigma,
+      sigma = fit$sigma,
+      yhat.train.mean = fit$yhat.train.mean,
+      sigest = sampler$data@sigma,
+      y = sampler$data@y,
+      fit = sampler
+    )
+  } else {
+    result <- list(
+      fd = fdr,
+      levs = levs,
+      xlbs = xLabels,
+      bartcall = fit$call,
+      yhat.train = fit$yhat.train,
+      y = sampler$data@y,
+      fit = sampler
+    )
+  }
+  class(result) <- className
+  result
+}
+
+## create the contents to be used in partial dependence plots
+pdbart <- function(
+  x.train,
+  y.train,
+  xind = NULL,
+  levs = NULL,
+  levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
+  pl = TRUE,
+  plquants = c(0.05, 0.95),
+  ...
+) {
+  matchedCall <- match.call()
+
+  callingEnv <- parent.frame()
+
+  # get a sampler object that we can use to either predict or run with total
+  # prediction matrix
+  massign[sampler, fit] <- pdbart.getSampler(
+    x.train,
+    matchedCall,
+    callingEnv,
+    "pdbart"
+  )
+
+  xind <- pdbart.resolveXind(xind, matchedCall, sampler)
+
   numVariables <- length(xind)
 
   # materialize the predictor codes once: a dense-frame/mixed container serves
@@ -128,20 +214,9 @@ pdbart <- function(
   x <- extract(sampler, "predictors")
 
   if (is.null(levs)) {
-    levs <- vector("list", numVariables)
-    for (j in seq_len(numVariables)) {
-      uniqueValues <- unique(x[, xind[j]])
-      levs[[j]] <-
-        if (length(uniqueValues) < length(levquants)) {
-          sort(uniqueValues)
-        } else {
-          unique(quantile(x[, xind[j]], probs = levquants))
-        }
-    }
-  } else {
-    if (length(levs) != numVariables) {
-      stop("length of 'levs' must equal that of 'xind'")
-    }
+    levs <- pdbart.defaultLevs(x, xind, levquants, numVariables, `<`)
+  } else if (length(levs) != numVariables) {
+    stop("length of 'levs' must equal that of 'xind'")
   }
 
   numLevels <- sapply(levs, length)
@@ -213,38 +288,7 @@ pdbart <- function(
     }
   }
 
-  if (is.null(colnames(sampler$data@x))) {
-    xLabels <- paste0("x", xind)
-  } else {
-    xLabels <- colnames(sampler$data@x)[xind]
-  }
-
-  if (sampler$control@binary == FALSE) {
-    result <- list(
-      fd = fdr,
-      levs = levs,
-      xlbs = xLabels,
-      bartcall = sampler$control@call,
-      yhat.train = fit$yhat.train,
-      first.sigma = fit$first.sigma,
-      sigma = fit$sigma,
-      yhat.train.mean = fit$yhat.train.mean,
-      sigest = sampler$data@sigma,
-      y = sampler$data@y,
-      fit = sampler
-    )
-  } else {
-    result <- list(
-      fd = fdr,
-      levs = levs,
-      xlbs = xLabels,
-      bartcall = fit$call,
-      yhat.train = fit$yhat.train,
-      y = sampler$data@y,
-      fit = sampler
-    )
-  }
-  class(result) <- "pdbart"
+  result <- pdbart.buildResult(sampler, fit, fdr, levs, xind, "pdbart")
 
   if (pl) {
     plot(result, plquants = plquants)
@@ -269,99 +313,21 @@ pd2bart <- function(
 
   # get a sampler object that we can use to either predict or run with total
   # prediction matrix
-  sampler <- fit <- NULL
-  if (is.matrix(x.train) || is.data.frame(x.train) || is.formula(x.train)) {
-    bartCall <- redirectCall(matchedCall, dbarts::bart)
-    massign[sampler, fit] <- pdbart.getAndInitializeSampler(
-      bartCall,
-      callingEnv
-    )
-  } else if (inherits(x.train, "dbartsSampler")) {
-    sampler <- x.train
-    fit <- list()
-    if (!sampler$control@keepTrees) {
-      warning(
-        "calling pd2bart with a sampler that does not have keepTrees set to TRUE will cause new samples to be generated and the state to be changed"
-      )
-    }
-  } else if (inherits(x.train, "bart")) {
-    fit <- x.train
-    sampler <- fit$fit
-    if (is.null(sampler)) {
-      bartCall <- fit$call
-      if (bartCall == call("NA") || bartCall == call("NULL")) {
-        stop(
-          "calling pd2bart with a bart fit object requires model to be fit with keepSampler == TRUE"
-        )
-      }
-      warning(
-        "calling pd2bart with a bart fit object requires model to be fit with keepSampler == TRUE; refitting using saved call"
-      )
-      massign[sampler, fit] <- pdbart.getAndInitializeSampler(
-        bartCall,
-        callingEnv
-      )
-    }
-  } else {
-    stop(
-      "x.train must be a matrix, data.frame, formula, fitted bart model, or dbartsSampler"
-    )
-  }
+  massign[sampler, fit] <- pdbart.getSampler(
+    x.train,
+    matchedCall,
+    callingEnv,
+    "pd2bart"
+  )
 
-  tryResult <- tryCatch(xind, error = I)
-  if (inherits(tryResult, "error")) {
-    formula <- ~a
-    formula[[2L]] <- matchedCall[["xind"]]
-    terms <- terms(formula)
-
-    xind <- attr(terms, "term.labels")
-  } else if (
-    !inherits(tryResult, "error") &&
-      is.character(xind) &&
-      length(xind) == 1L &&
-      xind %not_in% colnames(sampler$data@x)
-  ) {
-    formula <- ~a
-    formula[[2L]] <- parse(text = xind)[[1L]]
-    terms <- terms(formula)
-
-    xind <- attr(terms, "term.labels")
-  } else if (is.null(xind)) {
-    xind <- seq_len(ncol(sampler$data@x))
-  }
-
-  if (is.character(xind)) {
-    if (is.null(colnames(sampler$data@x))) {
-      stop("passing 'xind' by name requires 'x.train' to have column names")
-    }
-    unknownColumns <- xind %not_in% colnames(sampler$data@x)
-    if (any(unknownColumns)) {
-      stop(
-        "unrecognized columns '",
-        paste0(xind[unknownColumns], collapse = "', '"),
-        "'"
-      )
-    }
-    xind <- match(xind, colnames(sampler$data@x))
-  } else if (is.null(xind)) {
-    xind <- c(1L, 2L)
-  }
+  xind <- pdbart.resolveXind(xind, matchedCall, sampler)
 
   # materialize the predictor codes once: a dense-frame/mixed container serves
   # them through as.matrix, a plain matrix (or dgCMatrix) is itself
   x <- extract(sampler, "predictors")
 
   if (is.null(levs)) {
-    levs <- vector("list", 2L)
-    for (j in seq_len(2L)) {
-      uniqueValues <- unique(x[, xind[j]])
-      levs[[j]] <-
-        if (length(uniqueValues) <= length(levquants)) {
-          sort(uniqueValues)
-        } else {
-          unique(quantile(x[, xind[j]], probs = levquants))
-        }
-    }
+    levs <- pdbart.defaultLevs(x, xind, levquants, 2L, `<=`)
   }
   numSamples <- sampler$control@n.samples * sampler$control@n.chains
 
@@ -446,38 +412,7 @@ pd2bart <- function(
     }
   }
 
-  if (is.null(colnames(sampler$data@x))) {
-    xLabels <- paste0("x", xind)
-  } else {
-    xLabels <- colnames(sampler$data@x)[xind]
-  }
-
-  if (sampler$control@binary == FALSE) {
-    result <- list(
-      fd = fdr,
-      levs = levs,
-      xlbs = xLabels,
-      bartcall = sampler$control@call,
-      yhat.train = fit$yhat.train,
-      first.sigma = fit$first.sigma,
-      sigma = fit$sigma,
-      yhat.train.mean = fit$yhat.train.mean,
-      sigest = sampler$data@sigma,
-      y = sampler$data@y,
-      fit = sampler
-    )
-  } else {
-    result <- list(
-      fd = fdr,
-      levs = levs,
-      xlbs = xLabels,
-      bartcall = fit$call,
-      yhat.train = fit$yhat.train,
-      y = sampler$data@y,
-      fit = sampler
-    )
-  }
-  class(result) <- "pd2bart"
+  result <- pdbart.buildResult(sampler, fit, fdr, levs, xind, "pd2bart")
 
   if (pl) {
     plot(result, plquants = plquants)
