@@ -198,6 +198,7 @@ pdbart <- function(
 
   # get a sampler object that we can use to either predict or run with total
   # prediction matrix
+  sampler <- fit <- NULL ## for R CMD check (massign assigns these below)
   massign[sampler, fit] <- pdbart.getSampler(
     x.train,
     matchedCall,
@@ -313,6 +314,7 @@ pd2bart <- function(
 
   # get a sampler object that we can use to either predict or run with total
   # prediction matrix
+  sampler <- fit <- NULL ## for R CMD check (massign assigns these below)
   massign[sampler, fit] <- pdbart.getSampler(
     x.train,
     matchedCall,
