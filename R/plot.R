@@ -52,7 +52,7 @@ plot.bart <- function(
   ...
 ) {
   if (is.null(x[["yhat.train"]])) {
-    if (as.character(x$call[[1L]]) == "bart2") {
+    if (callName(x$call) == "bart2") {
       stop("plot requires bart2 to be called with 'keepTrainingFits' == TRUE")
     } else {
       stop("plot requires bart to be called with 'keeptrainfits' == TRUE")

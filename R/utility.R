@@ -74,6 +74,14 @@ coerceOrError <- function(x, type) {
 
 "%not_in%" <- function(x, table) match(x, table, nomatch = 0L) <= 0L
 
+## Bare name of the function a stored call invoked. A namespace-qualified call
+## (dbarts::bart2) carries a `::` call in slot 1, which as.character() splits
+## into c("::", "dbarts", "bart2") - comparing that to a name is a
+## length-3 condition, an error since R 4.2.
+callName <- function(call) {
+  sub("^.*::", "", deparse(call[[1L]])[1L])
+}
+
 evalx.recurse <- function(x, e) {
   if (length(e) == 0L || typeof(e) == "symbol") {
     return(e)
