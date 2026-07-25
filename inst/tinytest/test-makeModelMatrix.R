@@ -285,3 +285,61 @@ for (col in factorCols) {
 
 rm(col.nvals, col.name, col.table, col)
 rm(factorCols, drop, mm, mf, n)
+
+# makeind is the BayesTree-compatible spelling of makeModelMatrixFromDataFrame
+# with drop = TRUE; 'all' is documented as not implemented and ignored
+df <- data.frame(
+  a = c(1.5, 2.5, 3.5, 4.5),
+  f = factor(c("x", "y", "z", "x"))
+)
+expect_identical(
+  dbarts::makeind(df),
+  dbarts::makeModelMatrixFromDataFrame(df, TRUE)
+)
+expect_identical(dbarts::makeind(df, all = FALSE), dbarts::makeind(df))
+
+rm(df)
+
+
+# makeTestModelMatrix aligns a test frame to an existing dbartsData design
+set.seed(42)
+df <- data.frame(
+  a = rnorm(20L),
+  f = factor(sample(c("x", "y", "z"), 20L, TRUE)),
+  y = rnorm(20L)
+)
+data <- dbarts::dbartsData(y ~ a + f, df)
+
+newdata <- data.frame(
+  a = c(0, 0, 0),
+  f = factor(c("z", "y", "x"), levels = levels(df$f))
+)
+mm <- dbarts::makeTestModelMatrix(data, newdata)
+
+expect_equal(dim(mm), c(3L, ncol(data@x)))
+expect_equal(colnames(mm), colnames(data@x))
+expect_equal(mm[, "a"], newdata$a)
+# categorical predictors carry the training level coding, not the test frame's
+expect_equal(mm[, "f"], c(2, 1, 0))
+
+# a test frame in a different column order is matched by name
+expect_equal(
+  dbarts::makeTestModelMatrix(data, newdata[, c("f", "a")]),
+  mm
+)
+
+expect_null(dbarts::makeTestModelMatrix(data, NULL))
+
+expect_error(
+  dbarts::makeTestModelMatrix(data, data.frame(a = rnorm(3L))),
+  pattern = "missing variable required by the model"
+)
+expect_error(
+  dbarts::makeTestModelMatrix(
+    data,
+    data.frame(a = rnorm(3L), f = factor(c("x", "y", "w")))
+  ),
+  pattern = "levels not present in the training data"
+)
+
+rm(mm, newdata, data, df)

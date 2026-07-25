@@ -154,4 +154,90 @@ expect_error(residuals(fit.rbart.noTrainFits), pattern = "keepTrainingFits")
 
 rm(fit.noTrainFits, fit.rbart.noTrainFits)
 
-rm(fit.bart, fit.bart2, fit.rbart, pt.bart2, pt.rbart, x, y.cont, z.bin, g, n)
+rm(fit.bart, fit.bart2, fit.rbart, pt.bart2, pt.rbart)
+
+
+# multi-chain fits carry a matrix-shaped 'sigma', so the trace panel draws one
+# bridged line per chain rather than a single scatter
+fit.chains <- bart(
+  x,
+  y.cont,
+  ntree = 10L,
+  nskip = 10L,
+  ndpost = 20L,
+  nchain = 2L,
+  nthread = 1L,
+  verbose = FALSE
+)
+pdf(NULL)
+expect_silent(plot(fit.chains))
+dev.off()
+
+fit.rbart.chains <- rbart_vi(
+  y.cont ~ x,
+  group.by = g,
+  n.samples = 20L,
+  n.burn = 5L,
+  n.thin = 1L,
+  n.chains = 2L,
+  n.trees = 10L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+pdf(NULL)
+expect_silent(plot(fit.rbart.chains))
+dev.off()
+
+# a binary grouped fit has no residual scale, so plot.rbart takes its
+# probability-interval branch instead of the E(Y | x) one
+fit.rbart.bin <- rbart_vi(
+  z.bin ~ x,
+  group.by = g,
+  n.samples = 20L,
+  n.burn = 5L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 10L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+pdf(NULL)
+expect_silent(plot(fit.rbart.bin))
+dev.off()
+
+rm(fit.chains, fit.rbart.chains, fit.rbart.bin)
+
+
+# a namespace-qualified call stores the `dbarts::bart` call in call[[1L]],
+# which as.character() splits into c("::", "dbarts", "bart"); the guards that
+# name the missing argument used to compare against that and die with "the
+# condition has length > 1" instead
+fit.qualified <- dbarts::bart(
+  x,
+  y.cont,
+  ntree = 10L,
+  nskip = 5L,
+  ndpost = 5L,
+  nchain = 1L,
+  nthread = 1L,
+  verbose = FALSE,
+  keeptrainfits = FALSE
+)
+expect_error(plot(fit.qualified), pattern = "keeptrainfits")
+
+fit2.qualified <- dbarts::bart2(
+  x,
+  y.cont,
+  n.trees = 10L,
+  n.burn = 5L,
+  n.samples = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrainingFits = FALSE
+)
+expect_error(plot(fit2.qualified), pattern = "keepTrainingFits")
+
+rm(fit.qualified, fit2.qualified)
+
+rm(x, y.cont, z.bin, g, n)
