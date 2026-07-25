@@ -13,7 +13,7 @@ bibentry(
   note   = paste("R package version", meta$Version),
   url    = url,
   textVersion = paste0(paste(authors, collapse = ", "), " (", year, "). ",
-                       title, ". ", version, ". ", url),
+                       title, ". R package version ", meta$Version, ". ", url),
   header = "To cite the 'dbarts' in publications use:",
 )
 
