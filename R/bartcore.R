@@ -788,10 +788,6 @@ bartcoreSetTestOffset <- function(bcSampler, offset.test) {
   invisible(.Call(C_dbarts_bartcore_setTestOffset, bcSampler$ptr, offset.test))
 }
 
-bartcoreSetSigma <- function(bcSampler, sigma) {
-  invisible(.Call(C_dbarts_bartcore_setSigma, bcSampler$ptr, as.double(sigma)))
-}
-
 bartcoreSetData <- function(bcSampler, data) {
   invisible(.Call(C_dbarts_bartcore_setData, bcSampler$ptr, data))
 }
@@ -950,31 +946,5 @@ bartcoreSetState <- function(bcSampler, state) {
     bcSampler$ptr,
     state,
     bcSampler$x
-  ))
-}
-
-bartcoreSampleTreesFromPrior <- function(bcSampler) {
-  invisible(.Call(C_dbarts_bartcore_sampleTreesFromPrior, bcSampler$ptr))
-}
-
-bartcoreSampleNodeParametersFromPrior <- function(bcSampler) {
-  invisible(.Call(
-    C_dbarts_bartcore_sampleNodeParametersFromPrior,
-    bcSampler$ptr
-  ))
-}
-
-bartcorePrintTrees <- function(
-  bcSampler,
-  chainNums = NULL,
-  sampleNums = NULL,
-  treeNums = NULL
-) {
-  invisible(.Call(
-    C_dbarts_bartcore_printTrees,
-    bcSampler$ptr,
-    if (is.null(chainNums)) NULL else as.integer(chainNums),
-    if (is.null(sampleNums)) NULL else as.integer(sampleNums),
-    if (is.null(treeNums)) NULL else as.integer(treeNums)
   ))
 }
