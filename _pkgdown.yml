@@ -23,6 +23,7 @@ reference:
   - dbartsSampler-class
   - dbartsControl
   - dbartsData
+  - dbartsSpec
   - dbartsPriors
   - interactions
   - blocks
