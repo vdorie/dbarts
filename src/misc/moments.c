@@ -139,8 +139,8 @@ double misc_computeVarianceForKnownMean(const double* x, size_t length, double m
 
 double misc_computeIndexedVarianceForKnownMean(const double* restrict x, const misc_index_t* restrict indices, size_t length, double mean)
 {
-  if (length > ONLINE_CUTOFF) computeIndexedUnrolledVarianceForKnownMean(x, indices, length, mean);
-  return computeIndexedOnlineUnrolledVarianceForKnownMean(x, indices, length, mean);
+  if (length > ONLINE_CUTOFF) return computeIndexedOnlineUnrolledVarianceForKnownMean(x, indices, length, mean);
+  return computeIndexedUnrolledVarianceForKnownMean(x, indices, length, mean);
 }
 
 // The two-pass is faster when using online algorithms, one-pass when not
