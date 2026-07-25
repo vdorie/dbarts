@@ -9,7 +9,6 @@ massign <- structure(NA, class = "lval")
   argNames <- names(args)
 
   valueNames <- names(value)
-  # length(value) <- length(args)
   if (isS4(value) && !is.list(value)) {
     value <- list(value)
   }
@@ -92,7 +91,6 @@ massign <- structure(NA, class = "lval")
       i == length(argNames) ||
         !any(valueName %in% args[seq.int(i + 1L, length(args))])
     ) {
-      ## tail(args, -i))) {
       value <- value[!sel]
       valueNames <- valueNames[!sel]
     }

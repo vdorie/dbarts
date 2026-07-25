@@ -37,7 +37,7 @@ split usage per draw, the symmetric per-category counts mbart2 exposes (its
 varcount is a length-K list of ndpost x p matrices). RNG-neutral: the counts
 read existing tree state, so single-forest and BCF stay byte-identical. Closes
 the follow-up the multinomial C7 landing note filed as omitted (multinomial.md
-"The surface"; docs/design/multi-forest-models.md).
+"The surface"; docs/plans/multi-forest-models.md).
 
 ## Context (ground truth, read in code)
 
@@ -124,7 +124,7 @@ C1. The per-sample per-category varcount channel, one gated commit (RNG-neutral;
 
 C2. Docs. Correct multinomial.md "The surface" (varcount now DEFINED per-sample
    per-category) and the C7 landing follow-up list; mark the item landed in
-   docs/design/multi-forest-models.md and the TODO; this plan's landing notes.
+   docs/plans/multi-forest-models.md and the TODO; this plan's landing notes.
    Files: docs/design/*, docs/plans/*, TODO. Gate: full tinytest; R CMD check man
    unaffected (no man/ topic added - varcount is a documented bartMultinomial
    field). Size: S.

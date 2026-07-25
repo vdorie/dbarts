@@ -30,7 +30,7 @@ using index_t = std::uint32_t;
 /// Reserved code for a missing ordinal value; cut counts cap below it so
 /// real codes (which reach numCuts) never collide.
 constexpr xint_t naCode = 0xFFFFu;
-constexpr std::uint32_t maxNumCutsRepresentable = 0xFFFEu - 1u;
+constexpr std::uint32_t maxNumCutsRepresentable = 0xFFFDu;
 
 /// Missing categorical values take a category position above the real ones
 /// so the reachable-mask machinery routes them like any other category: the
@@ -296,7 +296,7 @@ struct ColumnStore {
   // reflects the live values (setCutPoints and state restore re-quantize from
   // the slice). Sized numPredictors on a CSC/mixed build, empty on dense
   // builds and views; ownedCsc*[j] stay empty and cscColumnOwned[j] false
-  // until column j is first mutated (docs/design/sparse-columns.md ext (i)).
+  // until column j is first mutated (docs/design/sparse-columns.md).
   std::vector<std::vector<int>> ownedCscRows;
   std::vector<std::vector<double>> ownedCscValues;
   std::vector<std::uint8_t> cscColumnOwned;

@@ -211,7 +211,6 @@ validateXTest <- function(x.test, x.train) {
 }
 
 findTermInFormulaData <- function(formula, data, term) {
-  formulaIsMissing <- missing(formula) # nolint: object_usage_linter.
   dataIsMissing <- missing(data)
   matchedCall <- match.call()
 
@@ -225,12 +224,10 @@ findTermInFormulaData <- function(formula, data, term) {
         return(data[[as.character(matchedCall$term)]])
       }
     } else if (is.language(matchedCall$term)) {
-      #attach(data, warn.conflicts = FALSE, name = ".dbartsData_data")
       tryResult <- with(
         data,
         tryCatch(eval(matchedCall$term), error = function(e) e)
       )
-      #detach(data)
       if (!inherits(tryResult, "error")) return(tryResult)
     }
   }
@@ -262,7 +259,7 @@ findTermInFormulaData <- function(formula, data, term) {
 ## that causes warnings in R check so now it is just a block of code
 getTestOffset <- quote({
   if (is.numeric(matchedCall$offset.test)) {
-    return(namedList(offset.test, testUsesRegularOffset = FALSE))
+    return(list(offset.test = offset.test, testUsesRegularOffset = FALSE))
   }
   if (is.null(matchedCall$offset.test)) {
     return(list(offset.test = NULL, testUsesRegularOffset = FALSE))
@@ -299,7 +296,7 @@ getTestOffset <- quote({
 
     stop("cannot find test offset '", testOffsetName, "'")
   } else if (is.language(matchedCall$offset.test)) {
-    ## test.offset could have been something like (offset + 0.5), or (offset + variable)
+    ## offset.test could have been something like (offset + 0.5), or (offset + variable)
     baseOffset <- if (is.null(offset)) {
       NA_real_
     } else {
@@ -318,12 +315,10 @@ getTestOffset <- quote({
 
     if (is.formula(formula)) {
       if (!dataIsMissing) {
-        #attach(data)
         tryResult <- with(
           data,
           tryCatch(eval(testOffset), error = function(e) e)
         )
-        #detach(data)
         if (!inherits(tryResult, "error")) {
           return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
         }
@@ -664,7 +659,6 @@ dbartsData <- function(
           modelFrameArgs <- c("formula", "data", "subset", "weights")
         }
       }
-      originalOffset <- offset # nolint: object_usage_linter.
     }
 
     # pre-validate lengths against a known y/data length so a mismatch reads
@@ -883,7 +877,6 @@ dbartsData <- function(
       if (length(offset) != initialNumObservations) {
         stop("length of 'offset' must equal length of 'y'")
       }
-      originalOffset <- offset
       offset <- offset[subset]
     }
   } else if (
@@ -968,7 +961,6 @@ dbartsData <- function(
       if (length(offset) != initialNumObservations) {
         stop("length of 'offset' must equal length of 'y'")
       }
-      originalOffset <- offset
       offset <- offset[subset]
     }
 
@@ -1061,8 +1053,6 @@ dbartsData <- function(
         testUsesRegularOffset <- TRUE
       }
     } else {
-      #environment(getTestOffset) <- sys.frame(sys.nframe())
-      #testOffsetInfo <- getTestOffset()
       testOffsetInfo <- eval(getTestOffset)
 
       offset.test <- testOffsetInfo$offset.test
@@ -1091,11 +1081,11 @@ dbartsData <- function(
       environment(testFormula) <- environment(formula)
       modelFrameCall$formula <- testFormula
       modelFrameCall$data <- test
-      try_result <- tryCatch(
+      tryResult <- tryCatch(
         testFrame <- eval(modelFrameCall, parent.frame()),
         error = function(e) e
       )
-      if (inherits(try_result, "error")) {
+      if (inherits(tryResult, "error")) {
         warning("weights specified but not found in test data - ignoring")
       } else {
         weights.test <- testFrame[["(weights)"]]

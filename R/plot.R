@@ -90,7 +90,7 @@ plot.bart <- function(
       qm,
       qm,
       ylim = range(ql, qu),
-      xlab = "meadian of p",
+      xlab = "median of p",
       ylab = "posterior interval for P(Y=1|x)",
       ...
     )
@@ -264,13 +264,6 @@ plot.pdbart <- function(
     lines(x$levs[[i]], tsum[1, ], col = cols[2], type = "b")
     lines(x$levs[[i]], tsum[3, ], col = cols[2], type = "b")
   }
-}
-
-if (FALSE) {
-  plot.pdrbart <- plot.pdbart
-}
-if (FALSE) {
-  plot.pd2rbart <- plot.pd2bart
 }
 
 plot.pd2bart <- function(

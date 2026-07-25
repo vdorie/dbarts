@@ -111,6 +111,9 @@ parsePriors <- function(
   evalEnv$student <- student
   evalEnv$control <- control
   evalEnv$data <- data
+  # both spellings are exposed for the split.probs vocabulary: num.vars is the
+  # current name, numvars the backward-compatible alias, so a bare 1 / num.vars
+  # or 1 / numvars in a split.probs expression resolves either way
   evalEnv$num.vars <- evalEnv$numvars <- ncol(data@x)
 
   # a bare constructor name (tree.prior = cgm) means its defaults; a value
@@ -288,7 +291,7 @@ resolveSplitProbabilities <- function(prior, data) {
   }
 
   if (length(split.probs) == 1L) {
-    # if length 1, we can ignore it
+    # a length-1 spec is a uniform scalar: drop it, uniform is the default
     split.probs <- numeric()
   } else if (!is.null(names(split.probs))) {
     default <- NA_real_
@@ -382,8 +385,8 @@ resolveSplitProbabilities <- function(prior, data) {
 ## family default (2 for continuous responses, chi(1.5, 2) for binary),
 ## a positive scalar is fixed, and a hyperprior object passes through. Under a
 ## monotone constraint k is fixed for both families (an unsupplied k resolves
-## to 2, the truncated leaf law having no clean chi-k update, monotone.md
-## section 6) and a chi hyperprior is refused.
+## to 2, the truncated leaf law having no clean chi-k update; see
+## docs/design/monotone.md) and a chi hyperprior is refused.
 resolveNodeHyperprior <- function(k, binary, monotone = FALSE) {
   if (is.null(k)) {
     k <- if (monotone || !binary) 2.0 else chi(1.5, 2.0)
@@ -511,19 +514,19 @@ resolveVarianceColumns <- function(variance, data) {
   if (isTRUE(variance)) {
     return(seq_len(numColumns))
   }
-  names <- if (inherits(variance, "formula")) {
+  requestedNames <- if (inherits(variance, "formula")) {
     all.vars(variance)
   } else if (is.character(variance)) {
     variance
   } else {
     NULL
   }
-  if (!is.null(names)) {
-    if (length(names) == 0L) {
+  if (!is.null(requestedNames)) {
+    if (length(requestedNames) == 0L) {
       return(seq_len(numColumns))
     }
     result <- integer(0)
-    for (name in names) {
+    for (name in requestedNames) {
       index <- match(name, columnNames)
       if (!is.na(index)) {
         result <- c(result, index)

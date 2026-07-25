@@ -15,7 +15,7 @@
 #include "tree.hpp"
 
 // XBART-style root-down stochastic tree construction (He, Yalov and Hahn 2019),
-// the WARM-START producer of docs/design/grow-from-root.md role (a). Parallel to
+// the warm-start forest builder of docs/design/grow-from-root.md. Parallel to
 // moves.hpp's metropolisJumpForTree, but a builder rather than a reversible MH
 // kernel: at each node it scans every ordinal cut of every available variable
 // (scan.hpp) and draws one outcome from the weighted set {no-split} U {(var,

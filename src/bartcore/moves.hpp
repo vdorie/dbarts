@@ -258,7 +258,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
       logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
     double transitionProbabilityOfBirthStepReverse =
       probabilityOfBirthStep(ctx, tree, true);
-    double transitionProbabilityOfSelectingNodeForBirth =
+    double reverseTransitionProbabilityOfSelectingNodeForBirth =
       probabilityOfSelectingNodeForBirth(ctx, tree);
 
     double oldPriorProbability = parentPriorGrowthProbability *
@@ -268,7 +268,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 
     double priorRatio = newPriorProbability / oldPriorProbability;
     double transitionRatio =
-      (transitionProbabilityOfBirthStepReverse * transitionProbabilityOfSelectingNodeForBirth) /
+      (transitionProbabilityOfBirthStepReverse * reverseTransitionProbabilityOfSelectingNodeForBirth) /
       (transitionProbabilityOfDeathStep * transitionProbabilityOfSelectingNodeForDeath);
     double likelihoodRatio = std::exp(newLogLikelihood - oldLogLikelihood);
 
@@ -295,9 +295,6 @@ inline void findGoodOrdinalRules(const MoveContext& ctx, const Tree& tree,
   int32_t leftIndex, rightIndex;
   tree.splitInterval(ctx.data, nodeIndex, variableIndex, &leftIndex, &rightIndex);
 
-  int32_t leftMax = leftIndex - 1;
-  int32_t rightMin = rightIndex + 1;
-
   // min/max split index used for the variable in each child's subtree
   struct Walker {
     static void minMax(const Tree& tree, int32_t i, int32_t variableIndex,
@@ -319,8 +316,8 @@ inline void findGoodOrdinalRules(const MoveContext& ctx, const Tree& tree,
                  &leftMaxOut);
   Walker::minMax(tree, tree.at(nodeIndex).leftChild + 1, variableIndex,
                  &rightMinOut, &rightMax);
-  leftMax = leftMaxOut;
-  rightMin = rightMinOut;
+  int32_t leftMax = leftMaxOut;
+  int32_t rightMin = rightMinOut;
 
   *lower = std::max(leftIndex, leftMax + 1);
   *upper = std::min(rightIndex, rightMin - 1);
@@ -335,8 +332,9 @@ inline bool categoricalSubtreeIsValidWide(const Tree& tree, int32_t nodeIndex,
                                           size_t numWords,
                                           std::uint64_t* arena, size_t depth);
 
-/// Draw a categorical assignment straight from the node prior (mechanism (a)
-/// of change-move-fix): a single unrestricted gauge-pattern draw over the
+/// Draw a categorical assignment straight from the node prior (the
+/// propose-from-prior mechanism; see docs/design/change-move-balance.md): a
+/// single unrestricted gauge-pattern draw over the
 /// reachable set, with no descendant-validity rejection loop. Returns true and
 /// fills newRule when the draw leaves every same-variable descendant
 /// satisfiable; returns false (pi(T') = 0, an automatic no-op) otherwise. The

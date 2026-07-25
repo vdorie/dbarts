@@ -268,8 +268,7 @@ log-r on synthetic NB data, psi held fixed (the logit-p isolation where both
 target the same 1-D posterior), n in {200, 2000}, r in {0.5, 2, 10}, shared
 Gamma(2, 0.1) prior, 6000 iterations / 1500 burn-in, seed 20260718, ESS by the
 Geyer initial-positive-sequence estimator on 4500 kept draws. Script:
-/Users/vdorie/.claude/jobs/b073bb28/tmp/negbin-r-update-mixing.R (promote to
-benchmarks/R/negbin-r-update-mixing.R if kept).
+benchmarks/R/negbin-r-update-mixing.R.
 
     n     r    | ESS_CRT  ESS_MH  MHacc | post_CRT  post_MH  grid   grid_sd
     200   0.5  |   3339     754   0.43  |  0.607    0.607   0.607   0.079

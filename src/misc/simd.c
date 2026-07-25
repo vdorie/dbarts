@@ -1,6 +1,6 @@
-/* This is taken from bits and pieces all over the internet. The strongest inspiriation is
+/* This is taken from bits and pieces all over the internet. The strongest inspiration is
  * Agner Fog's C++ vector class library (https://www.agner.org/optimize/#vectorclass)
- * which is vailable under the GPL. The cross-platform cpuid is from Wikipedia 
+ * which is available under the GPL. The cross-platform cpuid is from Wikipedia
  * (https://en.wikipedia.org/wiki/CPUID#CPUID_usage_from_high-level_languages) and is 
  * available under a creative-commons license. I've mostly tried to use built-ins
  * when possible, and probably done more testing on Solaris-x86 than most.
@@ -16,30 +16,6 @@
 #include <misc/intrinsic.h>
 
 unsigned int misc_simd_alignment = 0;
-
-/* static const char* const simdNames[] = { // for x86
-  "none",
-  "SSE",
-  "SSE2",
-  "SSE3",
-  "SSSE3",
-  "SSE4.1",
-  "SSE4.2",
-  "AVX",
-  "AVX2",
-  "AVX512F",
-  "AVX512VL",
-  "AVX512BW",
-  "invalid"
-}; */
-
-/* static const char* const simdNames[] = { // for arm
-  "none",
-  "neon",
-  "sve",
-  "sve2",
-  "invalid"
-}; */
 
 // if not on any x86 descendent, use pure C no matter what
 #if !defined(__i386) && !defined(_X86_) && !defined(__x86_64__) && !defined(_M_AMD64) && !defined (_M_X64)
@@ -223,9 +199,9 @@ extern void (*misc_addVectorsInPlaceWithMultiplier)(const double* restrict x, mi
 extern void (*misc_addAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
 extern void (*misc_subtractAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
 
-extern void (*misc_addScalarToVectorInPlace)(double* x, size_t length, double alpha);
+extern void (*misc_addScalarToVectorInPlace)(double* x, misc_size_t length, double alpha);
 extern void (*misc_setVectorToConstant)(double* x, misc_size_t length, double alpha);
-extern void (*misc_transposeMatrix)(const double* restrict x, size_t numRows, size_t numCols, double* restrict y);
+extern void (*misc_transposeMatrix)(const double* restrict x, misc_size_t numRows, misc_size_t numCols, double* restrict y);
 
 
 /* implementing functions */
@@ -239,13 +215,9 @@ extern void misc_addVectorsInPlace_avx(const double* restrict x, misc_size_t len
 extern void misc_subtractVectorsInPlace_avx(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_addVectorsInPlaceWithMultiplier_avx(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
 
-// extern void misc_addAlignedVectorsInPlace_avx(const double* restrict x, misc_size_t length, double* restrict y);
-// extern void misc_subtractAlignedVectorsInPlace_avx(const double* restrict x, misc_size_t length, double* restrict y);
-// extern void misc_addAlignedVectorsInPlaceWithMultiplier_avx(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
-
 extern void misc_addScalarToVectorInPlace_avx(double* x, misc_size_t length, double alpha);
 extern void misc_setVectorToConstant_avx(double* x, misc_size_t length, double alpha);
-extern void misc_transposeMatrix_avx(const double* restrict x, misc_size_t numRows, size_t numCols, double* restrict y);
+extern void misc_transposeMatrix_avx(const double* restrict x, misc_size_t numRows, misc_size_t numCols, double* restrict y);
 #endif
 
 #ifdef COMPILER_SUPPORTS_SSE4_1
@@ -260,9 +232,6 @@ extern size_t misc_partitionIndices_sse2(const misc_xint_t* restrict x, misc_xin
 extern void misc_addVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_subtractVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_addVectorsInPlaceWithMultiplier_sse2(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
-
-// extern void misc_addAlignedVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
-// extern void misc_subtractAlignedVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
 
 extern void misc_addScalarToVectorInPlace_sse2(double* x, misc_size_t length, double alpha);
 extern void misc_setVectorToConstant_sse2(double* x, misc_size_t length, double alpha);

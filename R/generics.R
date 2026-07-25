@@ -1,4 +1,5 @@
-# predict, extract, fitted and for bart and rbart objects
+# predict, extract, fitted, and residuals methods for bart, rbart, and the
+# multinomial, ordinal, nbinom, and hurdle fit objects
 
 extract <- function(object, ...) UseMethod("extract")
 
@@ -119,11 +120,11 @@ posteriorInterval <- function(draws, ci.level) {
   result
 }
 
-combineOrUncombineChains <- function(x, n.chains, combineChains) {
+combineOrUncombineChains <- function(x, n.chains, combine) {
   if (n.chains > 1L) {
-    if (length(dim(x)) > 2L && combineChains) {
+    if (length(dim(x)) > 2L && combine) {
       x <- combineChains(x)
-    } else if (length(dim(x)) == 2L && !combineChains) {
+    } else if (length(dim(x)) == 2L && !combine) {
       x <- uncombineChains(x, n.chains)
     }
   }
@@ -734,7 +735,7 @@ print.bartOrdinal <- function(x, ...) {
 # never fall through to the single-forest "bart" methods. A single forest fits
 # the log-odds latent psi = f(x) + o, so type = "bart" returns that latent (like
 # probit/logistic), while type = "ev" returns the mean counts mu = r exp(psi)
-# (the reported deliverable) and type = "ppd" draws one count per posterior draw
+# (the reported posterior mean count) and type = "ppd" draws one count per posterior draw
 # from NB(r, plogis(psi)). The per-draw dispersion r rides the fit's $dispersion
 # field, the count analog of gaussian's sigma.
 extract.bartNegbin <- function(
@@ -764,7 +765,8 @@ extract.bartNegbin <- function(
 
 # The posterior-mean count per observation (type = "ev"), or the posterior-mean
 # log-odds latent per observation (type = "bart"). The observation margin is the
-# array's last dimension in every chain layout, gaussian's yhat.train.mean move.
+# array's last dimension in every chain layout, so we take the mean over that
+# observation margin.
 fitted.bartNegbin <- function(object, type = c("ev", "bart"), ...) {
   type <- match.arg(type)
   channel <- if (type == "bart") object$latent.train else object$yhat.train
@@ -1163,8 +1165,8 @@ predict.rbart <- function(
   # collects results in an array of n.obs x n.samples x n.chains, default for
   # internal sampler
   #
-  # utilize bart stuff to get n.obs, since we would otherwise have to build
-  # the test matrix
+  # read n.obs off the sampler's prediction output (its first dimension),
+  # since we would otherwise have to build the test matrix ourselves
   if (type != "ranef") {
     if (n.chains > 1L) {
       if (length(object$fit) == 1L) {

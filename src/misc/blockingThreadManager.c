@@ -10,17 +10,10 @@
 struct ThreadData;
 
 static int initializeManager(misc_btm_manager_t manager, size_t numThreads);
-static int initializeThreadData(misc_btm_manager_t manager, struct ThreadData* data, size_t index);
+static int initializeThreadData(misc_btm_manager_t manager, struct ThreadData* data, size_t threadId);
 static int destroyThreadData(struct ThreadData* data);
 
 static void* threadLoop(void* _data);
-
-typedef struct {
-  void** elements;
-  size_t queueSize;
-  size_t pushIndex;
-  size_t popIndex;
-} ArrayQueue;
 
 typedef struct {
   size_t* elements;
@@ -42,7 +35,7 @@ typedef struct ThreadData {
   misc_btm_manager_t manager;
   Condition taskAvailable;
   Condition parentTaskComplete;
-  size_t id;
+  size_t threadId;
   
   misc_btm_taskFunction_t task;
   void* taskData;
@@ -256,7 +249,7 @@ static void* threadLoop(void* v_data)
     data->task = NULL;
     data->taskData = NULL;
     signalCondition(manager->threadIsWaiting);
-    push(&manager->threadQueue, data->id);
+    push(&manager->threadQueue, data->threadId);
   }
   
   manager->numThreadsActive--;
@@ -381,10 +374,10 @@ misc_btm_manager_initialization_failed:
   return result;
 }
 
-static int initializeThreadData(misc_btm_manager_t manager, ThreadData* data, size_t id)
+static int initializeThreadData(misc_btm_manager_t manager, ThreadData* data, size_t threadId)
 {
   data->manager = manager;
-  data->id = id;
+  data->threadId = threadId;
   
   data->task = NULL;
   data->taskData = NULL;
@@ -422,19 +415,6 @@ static int destroyThreadData(ThreadData* data)
   return destroyCondition(data->taskAvailable);
 }
 
-/* static IndexArrayQueue* createIndexArrayQueue(size_t queueSize)
-{
-  IndexArrayQueue* result = (IndexArrayQueue*) malloc(sizeof(IndexArrayQueue));
-  if (result == NULL) return result;
-  
-  if (initializeIndexArrayQueue(result, queueSize) != 0) {
-    free(result);
-    return NULL;
-  }
-  
-  return result;
-} */
-
 static int initializeIndexArrayQueue(IndexArrayQueue* queue, size_t queueSize)
 {
   queue->elements = (size_t*) malloc(queueSize * sizeof(size_t));
@@ -448,13 +428,6 @@ static int initializeIndexArrayQueue(IndexArrayQueue* queue, size_t queueSize)
   
   return 0;
 }
-
-/* static void destroyIndexArrayQueue(IndexArrayQueue* queue)
-{
-  invalidateIndexArrayQueue(queue);
-  if (queue != NULL) free(queue);
-} */
-
 
 static void invalidateIndexArrayQueue(IndexArrayQueue* queue)
 {

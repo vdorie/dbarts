@@ -119,8 +119,7 @@ namespace dbarts {
 #elif defined(__linux__)
 #  include <fcntl.h>    // open
 #  include <unistd.h>   // close, lseek
-#  include <sys/mman.h> // mmap
-#  include <cstring>   // srtncmp, strerror_r
+#  include <cstring>   // strncmp, strerror_r
 #  include <errno.h>
 #  include <sys/stat.h> // stat
 
@@ -218,8 +217,9 @@ namespace {
       return false;
     }
     
-    // Ideally, this would simply read as it goes but I wrote it on a system w/o
-    // procfs and didn't know that I can't mmap the sucker.
+    // Ideally, this would process the file as it reads instead of slurping the
+    // whole thing into a growing buffer, but /proc/cpuinfo has no known length
+    // up front so we read into a buffer that we reallocate as needed.
     
     ssize_t numBytesRead = 0;
     size_t fileLength = 0, numBytesInBuffer = 0;
@@ -346,15 +346,15 @@ namespace {
 }
 
 namespace dbarts {
-  void guessNumCores(uint32_t* numPhyiscalProcessorsPtr, uint32_t* numLogicalProcessorsPtr) {
-    *numPhyiscalProcessorsPtr = 0;
+  void guessNumCores(uint32_t* numPhysicalProcessorsPtr, uint32_t* numLogicalProcessorsPtr) {
+    *numPhysicalProcessorsPtr = 0;
     *numLogicalProcessorsPtr  = 0;
-    
+
     std::vector<Processor*> cpuInfo;
     if (parseProcCPUInfo(cpuInfo) == true) {
       for (size_t i = 0; i < cpuInfo.size(); ++i) {
         Processor* processor = cpuInfo[i];
-        *numPhyiscalProcessorsPtr += static_cast<uint32_t>(processor->coreIdThreadMap.size());
+        *numPhysicalProcessorsPtr += static_cast<uint32_t>(processor->coreIdThreadMap.size());
         for (CoreMap::iterator it = processor->coreIdThreadMap.begin(); it != processor->coreIdThreadMap.end(); ++it) {
           *numLogicalProcessorsPtr += it->second;
         }

@@ -79,15 +79,16 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale) {
   static const double a6 = -0.1367177;
   static const double a7 = 0.1233795;
 
-#define oldShape (generator->gammaState[0])
-#define oldShape2 (generator->gammaState[1])
-#define s (generator->gammaState[2])  // no. 1 (step 1)
-#define s2 (generator->gammaState[3]) //
-#define d (generator->gammaState[4])  //
-#define q0 (generator->gammaState[5]) // no. 2 (step 4) */
-#define b (generator->gammaState[6])  //
-#define si (generator->gammaState[7]) //
-#define c (generator->gammaState[8])  //
+// Cached GD-algorithm constants, recomputed only when the shape changes.
+#define oldShape (generator->gammaState[0])  // shape at last step-1 recompute
+#define oldShape2 (generator->gammaState[1]) // shape at last step-4 recompute
+#define s (generator->gammaState[2])         // step 1: s = sqrt(s2)
+#define s2 (generator->gammaState[3])         // step 1: s2 = shape - 0.5
+#define d (generator->gammaState[4])         // step 1: d = sqrt(32) - 12 s
+#define q0 (generator->gammaState[5])        // step 4: series sum q0(1/shape)
+#define b (generator->gammaState[6])         // step 4: squeeze constant b
+#define si (generator->gammaState[7])        // step 4: squeeze constant si
+#define c (generator->gammaState[8])         // step 4: squeeze constant c
 
   double e, p, q, r, t, u, v, w, x, ret_val;
 
@@ -259,7 +260,7 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale) {
 //
 // Ratio-of-uniforms without a mode shift (Dagpunar 1988, the noshift branch of
 // the GIGrvg reference and its efficient choice for large p or large
-// sqrt(a b) - the BCF glue-ridge regime). Standardizing x = sqrt(b / a) * t
+// sqrt(a b)). Standardizing x = sqrt(b / a) * t
 // leaves t with the one-parameter density t^(p - 1) exp(-(omega / 2)(t + 1/t)),
 // omega = sqrt(a b); a single ROU region samples t for every p. The region is
 // built against the density normalized to 1 at its mode, so the acceptance

@@ -170,16 +170,16 @@ static SEXP assignInPlace(SEXP targetExpr, SEXP indexExpr, SEXP sourceExpr) {
 }
 
 static SEXP guessNumCores() {
-  uint32_t numPhyiscalProcessors, numLogicalProcessors;
-  dbarts::guessNumCores(&numPhyiscalProcessors, &numLogicalProcessors);
+  uint32_t numPhysicalProcessors, numLogicalProcessors;
+  dbarts::guessNumCores(&numPhysicalProcessors, &numLogicalProcessors);
 
   SEXP resultExpr = Rf_allocVector(INTSXP, 2);
   PROTECT(resultExpr);
   int* result = INTEGER(resultExpr);
 
-  result[0] = numPhyiscalProcessors <= 0
+  result[0] = numPhysicalProcessors <= 0
                 ? NA_INTEGER
-                : static_cast<int>(numPhyiscalProcessors);
+                : static_cast<int>(numPhysicalProcessors);
   result[1] = numLogicalProcessors <= 0
                 ? NA_INTEGER
                 : static_cast<int>(numLogicalProcessors);
@@ -209,6 +209,8 @@ static SEXP getMaxSIMDInstructionSet() {
 }
 
 }
+
+#include <bit>
 
 extern "C" {
 #define DEF_FUNC(_N_, _F_, _A_) {_N_, (DL_FUNC) &(_F_), _A_}

@@ -40,7 +40,7 @@ static int createMatrix(SEXP x, size_t numRows, SEXP result, const column_type* 
 static int setFactorColumnName(SEXP dfNames, size_t dfIndex, SEXP levelNames, size_t levelIndex, SEXP resultNames, size_t resultIndex);
 
 
-char* concatenateStrings(const char* s1, const char* s2);
+static char* concatenateStrings(const char* s1, const char* s2);
 
 SEXP dbarts_makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
 {
@@ -442,8 +442,8 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
       default:
       break;
     }
-  } // close for loop over columns
-  
+  }
+
   UNPROTECT(protectCount);
   
   return 0;
@@ -467,14 +467,14 @@ static int setFactorColumnName(SEXP dfNames, size_t dfIndex, SEXP levelNames, si
 
 static size_t getNumRowsForDataFrame(SEXP x)
 {
-  SEXP x_0 = VECTOR_ELT(x, 0);
-  SEXP dims = rc_getDims(x_0);
-  if (dims == R_NilValue) return rc_getLength(x_0);
+  SEXP firstColumn = VECTOR_ELT(x, 0);
+  SEXP dims = rc_getDims(firstColumn);
+  if (dims == R_NilValue) return rc_getLength(firstColumn);
   
   return (size_t) INTEGER(dims)[0];
 }
 
-char* concatenateStrings(const char* s1, const char* s2)
+static char* concatenateStrings(const char* s1, const char* s2)
 {
   size_t l1 = strlen(s1);
   size_t l2 = strlen(s2);

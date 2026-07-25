@@ -70,13 +70,6 @@ static const char* const rngNames[] = {
   "invalid"
 };
 
-/* static const char* const standardNormalNames[] = {
-  "user-supplied",
-  "Inversion",
-  "invalid"
-}; */
-
-
 typedef ext_rng_mersenneTwisterState MersenneTwisterState;
 typedef ext_rng_userFunction UserFunction;
 
@@ -611,7 +604,6 @@ static void validateSeed(ext_rng* generator, bool isFirstRun)
   }
 }
 
-// #define THIRTY_TWO_BIT_MAX     4294967296.0
 #define THIRTY_TWO_BIT_INVERSE 2.328306437080797e-10 /* = 1/(2^32 - 1) */
 
 #ifdef SUPPRESS_DIAGNOSTIC
@@ -637,7 +629,7 @@ static double mersenneTwister_getNext(MersenneTwisterState* mt);
 
 double ext_rng_simulateContinuousUniform(ext_rng* generator)
 {
-  double result; // for some reason GCC thinks this might get used unitialized, but the switch is exhaustive
+  double result; // the switch below is exhaustive; the -Wuninitialized pragma above silences a false positive on this path
 
   switch (generator->algorithm) {
     case EXT_RNG_ALGORITHM_MERSENNE_TWISTER:

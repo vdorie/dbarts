@@ -33,7 +33,7 @@ idiom). The predictor matrix is built from the RHS via the standard model-matrix
 machinery; the fit retains its terms so predict codes a data.frame newdata. This
 matches every other bart2 family's formula surface and closes the formula
 follow-up the C7 landing filed (docs/plans/multinomial.md C7 scope-narrowings;
-docs/design/multi-forest-models.md; TODO).
+docs/plans/multi-forest-models.md; TODO).
 
 ## Ordering
 
@@ -126,7 +126,7 @@ C1. Formula ingestion, one gated commit (RNG-neutral). Sub-parts: lift the
 C2. Docs + Rd. Update man/bart2.Rd (the formula interface now supports family =
    "multinomial"; a factor-LHS example, and a count-matrix cbind example if
    counts landed); docs/design/multinomial.md "The surface" (formula ingestion
-   defined); mark landed in docs/design/multi-forest-models.md and the TODO; this
+   defined); mark landed in docs/plans/multi-forest-models.md and the TODO; this
    plan's landing notes. If a NEW exported topic is added (none expected - bart2
    is an existing topic), add the _pkgdown.yml entry + check_pkgdown; otherwise
    note pkgdown untouched. Files: man/bart2.Rd, docs/design/*, docs/plans/*, TODO,

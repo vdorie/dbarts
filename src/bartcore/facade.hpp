@@ -64,7 +64,6 @@ public:
                                              bool* installed) = 0;
   virtual std::unique_ptr<PredictorUpdateSession> beginPredictorUpdate(
     const double* newColumn, std::size_t column) = 0;
-  // Saved trees, prediction, and state serialization.
   virtual std::size_t savedTreeCapacity() const = 0;
   virtual std::size_t currentSampleNum() const = 0;
   /// forestIndex selects the forest to read (0 for every non-BCF sampler,
@@ -485,13 +484,6 @@ inline bool leafCovariateDesignationIsValid(const SamplerOptions& options,
   return true;
 }
 
-/// Dispatch on the leaf model: designated leaf covariates select the
-/// linear-leaf instantiation - or the GP one under options.gpLeaves -
-/// anything else the constant leaf. Returns null on an invalid
-/// designation - more than maxNumCovariates columns (both leaf models share
-/// the bound), a column out of range, or a categorical column (category
-/// codes are unordered; interact through splits instead) - which the host
-/// turns into its own error.
 /// Whether any predictor carries a nonzero monotone direction (the constrained
 /// leaf's construction-time selector); a null spec or an all-zero vector keeps
 /// the unchanged constant-leaf path. A direction on a categorical column is
@@ -510,6 +502,13 @@ inline bool monotoneConstraintIsActive(const SamplerOptions& options,
   return active;
 }
 
+/// Dispatch on the leaf model: designated leaf covariates select the
+/// linear-leaf instantiation - or the GP one under options.gpLeaves -
+/// anything else the constant leaf. Returns null on an invalid
+/// designation - more than maxNumCovariates columns (both leaf models share
+/// the bound), a column out of range, or a categorical column (category
+/// codes are unordered; interact through splits instead) - which the host
+/// turns into its own error.
 inline std::unique_ptr<SamplerBase> createSampler(
   const double* x, const double* y, std::size_t numObservations,
   std::size_t numPredictors, const double* weights, const double* offset,

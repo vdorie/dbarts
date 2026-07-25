@@ -359,13 +359,13 @@ further commits queued here.
 
 ## C3 - Docs
 
-Update docs/design/multinomial.md "The surface": the test-fits/predict paragraph
-(199-212) now DEFINES test fits (combinedTestFits) and (if C2 lands)
+Update docs/design/multinomial.md "The surface", the "Test fits are DEFINED"
+bullet: it now DEFINES test fits (combinedTestFits) and (if C2 lands)
 out-of-sample predict; correct the "No probit path" section's neighbor claims
 only if touched. Record the level-shift invariance as the correctness fact
 licensing the untouched totalTestFits. Update docs/plans/multinomial.md C7
 landing follow-up list (predict/test now landed off it). Update
-docs/design/multi-forest-models.md. This plan's own landing notes per commit.
+docs/plans/multi-forest-models.md. This plan's own landing notes per commit.
 Files: docs/design/multinomial.md, docs/plans/*. Gate: full tinytest; R CMD
 check man unaffected (no man/ topic added - predict/extract/fitted are existing
 topics). Size: S.

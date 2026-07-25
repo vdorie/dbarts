@@ -47,6 +47,12 @@ enum {
   PROT_COUNT
 };
 
+// Refusal shared by every storage = "single" gate: fp32 residual storage is
+// v1-scoped to the gaussian constant-leaf path.
+static const char storageSingleUnsupportedMessage[] =
+  "storage = \"single\" is currently supported only for gaussian models "
+  "with constant leaves";
+
 void retain(SEXP ptrExpr, int slot, SEXP value) {
   SET_VECTOR_ELT(R_ExternalPtrProtected(ptrExpr), slot, value);
 }
@@ -102,15 +108,16 @@ struct ParsedControl {
   // ordered category count K, the third response shape beside the binary and
   // continuous ones. K >= 2 selects the ordinal family; 0 (absent) is a
   // non-ordinal response, so every existing family parses unchanged. The R
-  // surface (C3) attaches the count; parseControl reads it here.
+  // surface attaches the count (the bartcore.n.categories control
+  // attribute); parseControl reads it here.
   size_t numOrdinalCategories = 0;
   // negative-binomial count response shape (docs/design/negative-binomial.md
   // section 4): the fourth response shape beside the binary, ordinal, and
   // continuous ones. countResponse marks it (a count is none of the others);
   // dispersion is the r spec, the residualDf sign convention - a positive value
   // fixes r there (an integer), a non-positive value estimates r on the grid.
-  // The R surface (C3) attaches both through one control attribute; parseControl
-  // reads them here. Absent (the default) leaves a non-count response, so every
+  // The dbarts()/bart2 surface attaches both through one control attribute
+  // (bartcore.dispersion); parseControl reads them here. Absent (the default) leaves a non-count response, so every
   // existing family parses byte-for-byte unchanged.
   bool countResponse = false;
   double dispersion = NA_REAL;
@@ -217,7 +224,8 @@ struct ParsedModel {
   double sigmaRawScale = 1.0;
   // Student-t residual degrees of freedom (docs/design/robust-errors.md): NaN
   // is the Gaussian default, a positive value fixes nu, 0 estimates it on the
-  // grid. The R surface (C3) attaches it; absent it stays NaN.
+  // grid. The dbarts()/bart2 surface attaches it (the model's resid.df
+  // attribute); absent it stays NaN.
   double residualDf = NA_REAL;
   // per-predictor monotone directions in {-1, 0, +1}, narrowed from the R
   // integer spec; empty when no constraint is declared
@@ -228,7 +236,7 @@ struct ParsedModel {
   // indices per forbidden co-occurrence). Both defaults leave the path free.
   size_t interactionMaxOrder = 0;
   std::vector<size_t> interactionForbiddenPairs;
-  // per-forest block-additive constraint (variant A): blockOfColumn is the 0-based
+  // per-forest block-additive constraint (per-tree column grouping): blockOfColumn is the 0-based
   // group index per predictor (negative = in no block), blockTreeCounts the
   // per-group tree capacity summing to numTrees. Empty leaves every tree
   // unrestricted, byte-for-byte the default path.
@@ -335,20 +343,21 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
               rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END));
 
   REPROTECT_SLOT(slotExpr, controlExpr, "printEvery", slotIndex);
-  int i_temp = rc_getInt(slotExpr, "print every", RC_LENGTH | RC_EQ,
-                         rc_asRLength(1), RC_VALUE | RC_GEQ, 1,
-                         RC_NA | RC_YES, RC_END);
-  if (i_temp != NA_INTEGER) control.printEvery = static_cast<uint32_t>(i_temp);
+  int printValue = rc_getInt(slotExpr, "print every", RC_LENGTH | RC_EQ,
+                             rc_asRLength(1), RC_VALUE | RC_GEQ, 1,
+                             RC_NA | RC_YES, RC_END);
+  if (printValue != NA_INTEGER)
+    control.printEvery = static_cast<uint32_t>(printValue);
 
   REPROTECT_SLOT(slotExpr, controlExpr, "printCutoffs", slotIndex);
-  i_temp = rc_getInt(slotExpr, "print cutoffs", RC_LENGTH | RC_EQ,
-                     rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES,
-                     RC_END);
-  if (i_temp == NA_INTEGER) i_temp = 0;
-  control.printCutoffs = static_cast<uint32_t>(i_temp);
+  printValue = rc_getInt(slotExpr, "print cutoffs", RC_LENGTH | RC_EQ,
+                         rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES,
+                         RC_END);
+  if (printValue == NA_INTEGER) printValue = 0;
+  control.printCutoffs = static_cast<uint32_t>(printValue);
 
-  // rngKind and rngNormalKind are classic-only; the R side refuses them
-  // before creation, so they are not read here
+  // rngKind and rngNormalKind are not consumed by this engine; the R side
+  // refuses them before creation, so they are not read here
   REPROTECT_SLOT(slotExpr, controlExpr, "rngSeed", slotIndex);
   if (rc_getLength(slotExpr) != 1)
     Rf_error("slot 'rngSeed' must be of length 1");
@@ -357,7 +366,7 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
     control.rngSeed = static_cast<std::uint_least32_t>(INTEGER(slotExpr)[0]);
 
   // optional ordinal shape (docs/design/ordinal.md): an integer K >= 2 the R
-  // surface (C3) attaches for an ordered-factor response, read raw and guarded
+  // surface attaches for an ordered-factor response, read raw and guarded
   // like resid.df. Absent (the default) leaves a non-ordinal response, so every
   // existing family parses byte-for-byte unchanged.
   SEXP ordinalExpr =
@@ -368,7 +377,7 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
       static_cast<size_t>(INTEGER(ordinalExpr)[0]);
 
   // optional count shape (docs/design/negative-binomial.md section 4): a length-1
-  // real the R surface (C3) attaches for a count response, guarded like
+  // real the R surface attaches for a count response, guarded like
   // bartcore.n.categories. Its presence marks the count shape; its value is the
   // dispersion spec (positive fixes r, non-positive estimates on the grid).
   // Absent (the default) leaves a non-count response, so every existing family
@@ -732,10 +741,10 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   REPROTECT_SLOT(slotExpr, dataExpr, "varTypes", slotIndex);
   rc_assertIntConstraints(slotExpr, "variable types", RC_LENGTH | RC_EQ,
                           rc_asRLength(data.numPredictors), RC_END);
-  int* i_variableTypes = INTEGER(slotExpr);
+  int* variableTypes = INTEGER(slotExpr);
   data.columnTypes.assign(data.numPredictors, bartcore::ColumnType::ordinal);
   for (size_t j = 0; j < data.numPredictors; ++j) {
-    if (i_variableTypes[j] == 0) continue; // 0 encodes ordinal
+    if (variableTypes[j] == 0) continue; // 0 encodes ordinal
     data.columnTypes[j] = bartcore::ColumnType::categorical;
     data.anyCategorical = true;
   }
@@ -830,10 +839,10 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   rc_assertIntConstraints(slotExpr, "maximum number of cuts",
                           RC_LENGTH | RC_EQ,
                           rc_asRLength(data.numPredictors), RC_END);
-  int* i_maxNumCuts = INTEGER(slotExpr);
+  int* maxNumCuts = INTEGER(slotExpr);
   data.maxNumCuts.resize(data.numPredictors);
   for (size_t j = 0; j < data.numPredictors; ++j)
-    data.maxNumCuts[j] = static_cast<uint32_t>(i_maxNumCuts[j]);
+    data.maxNumCuts[j] = static_cast<uint32_t>(maxNumCuts[j]);
 
   UNPROTECT(1);
 }
@@ -919,7 +928,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     }
   }
 
-  // block-additive constraint (variant A): two resolved model attributes - a
+  // block-additive constraint (per-tree column grouping): two resolved model attributes - a
   // per-column 0-based group index (length numPredictors; negative = no block)
   // and a per-group tree capacity. Absent leaves every tree unrestricted,
   // byte-for-byte unchanged. The R surface validates the total disjoint partition
@@ -1080,7 +1089,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   }
 
   // Student-t residual df (docs/design/robust-errors.md): an optional numeric
-  // model attribute the R surface (C3) attaches; absent it stays NaN, the
+  // model attribute (resid.df) the R surface attaches; absent it stays NaN, the
   // Gaussian law. Read raw here - the family cross-check and sign policy live
   // in parseSamplerSpecification, once the family is known.
   SEXP residDfExpr = Rf_getAttrib(modelExpr, Rf_install("resid.df"));
@@ -1090,10 +1099,9 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   UNPROTECT(3);
 }
 
-// The classic engine's BARTFit::printInitialSummary, line for line, printed
-// at creation under verbose; the classic version's quantile and scale lines
-// reduce at creation to expressions over the raw prior scale and the
-// response range, used here directly.
+// The creation-time verbose summary printed under control.verbose; the
+// quantile and scale lines reduce at creation to expressions over the raw
+// prior scale and the response range, used here directly.
 void printInitialSummary(const ParsedControl& control,
                          const ParsedModel& model, const ParsedData& data,
                          const bartcore::SamplerBase& sampler) {
@@ -1118,7 +1126,7 @@ void printInitialSummary(const ParsedControl& control,
   }
   if (!control.responseIsBinary) {
     if (model.sigmaIsFixed) {
-      // the classic engine's FixedPrior::print
+      // the fixed residual variance prior's summary line
       ext_printf("\tresidual variance prior fixed to %f\n",
                  model.fixedSigmaSq);
     } else {
@@ -1214,7 +1222,7 @@ void printInitialSummary(const ParsedControl& control,
 }
 
 // family selects the response model, keyed on the response shape. For a binary
-// response: "" or "probit" give the classic probit latents, "logistic" the
+// response: "" or "probit" give the standard probit latents, "logistic" the
 // Polya-Gamma sampler. For a K-level ordinal response (control's category
 // count): "" or "ordinal" give the cumulative probit. For a continuous
 // response: "" or "gaussian" fits ordinary BART, "aft" the log-normal survival
@@ -1424,7 +1432,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.interactionNumForbiddenPairs =
     model.interactionForbiddenPairs.size() / 2;
 
-  // per-forest block-additive constraint (variant A, single-forest path): the
+  // per-forest block-additive constraint (per-tree column grouping, single-forest path): the
   // per-column group and per-group tree capacity, consumed at construction. The
   // capacity must sum to the tree count (the R surface guarantees it; a defensive
   // backstop here since a mismatch would misassign trees to groups).
@@ -1864,12 +1872,12 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // grouped ordinal is a recorded but unbuilt door (docs/design/ordinal.md
     // section 8): the cutpoint block and the group block are not yet shown to
     // interleave, so refuse the composition here, the host backstop the R
-    // surface (rbart_vi, C3) mirrors
+    // surface (rbart_vi) mirrors
     if (family == bartcore::ResponseFamily::ordinal && options.numGroups > 0)
       Rf_error("grouped random effects are not supported for ordinal responses");
     // grouped nbinom is a recorded but unbuilt door (docs/design/negative-binomial.md
     // section 7): the dispersion block and the group block are not yet shown to
-    // interleave, so refuse the composition here, the backstop rbart_vi (C3) mirrors
+    // interleave, so refuse the composition here, the backstop rbart_vi mirrors
     if (family == bartcore::ResponseFamily::nbinom && options.numGroups > 0)
       Rf_error("grouped random effects are not supported for count (nbinom) responses");
     // AFT survival status arrives the same way; the response copies it
@@ -1892,8 +1900,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
         if (d != 0) { monotoneActive = true; break; }
       if (family != bartcore::ResponseFamily::gaussian ||
           options.numLeafCovariates != 0 || options.gpLeaves || monotoneActive)
-        Rf_error("storage = \"single\" is currently supported only for "
-                 "gaussian models with constant leaves");
+        Rf_error("%s", storageSingleUnsupportedMessage);
       if (options.numVarianceTrees > 0)
         Rf_error("storage = \"single\" is not supported with a "
                  "heteroscedastic variance forest");
@@ -2055,24 +2062,23 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
     bartcore::SamplerOptions options =
       optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
     if (options.fp32Residual)
-      Rf_error("storage = \"single\" is currently supported only for "
-               "gaussian models with constant leaves");
+      Rf_error("%s", storageSingleUnsupportedMessage);
     rngs = createChainRngs(control, options.numChains);
 
-    const double* p = REAL(bcfParamsExpr);
+    const double* bcfParams = REAL(bcfParamsExpr);
     bartcore::BCFSpec spec;
     // node scales come from the calibration map, not the host model
     spec.mu.numTrees = options.numTrees;
     spec.mu.base = model.base;
     spec.mu.power = model.power;
-    spec.tau.numTrees = static_cast<size_t>(p[0]);
-    spec.tau.base = p[1];
-    spec.tau.power = p[2];
-    spec.aPriorScale = p[3];
-    spec.sdModerate = p[4];
-    spec.bPriorVariance = p[5];
-    spec.updateA = p[6] != 0.0;
-    spec.updateB = p[7] != 0.0;
+    spec.tau.numTrees = static_cast<size_t>(bcfParams[0]);
+    spec.tau.base = bcfParams[1];
+    spec.tau.power = bcfParams[2];
+    spec.aPriorScale = bcfParams[3];
+    spec.sdModerate = bcfParams[4];
+    spec.bPriorVariance = bcfParams[5];
+    spec.updateA = bcfParams[6] != 0.0;
+    spec.updateB = bcfParams[7] != 0.0;
     spec.z = z.data();
 
     // the treatment forest's optional moderator restriction: 1-based column
@@ -2100,10 +2106,10 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
     applyBCFInteractions(tauInteractionsExpr, data.numPredictors, spec.tau,
                          tauPairs);
 
-    // independent per-forest block-additive constraints (variant A): mu's
+    // independent per-forest block-additive constraints (per-tree column grouping): mu's
     // partition is over the full design (mu's tree count), tau's over its
     // available columns (moderators if restricted) with the tau tree count; the
-    // engine intersects tau's block rows with its moderator mask at install (F3).
+    // engine intersects tau's block rows with its moderator mask at install.
     applyBCFBlocks(muBlocksExpr, data.numPredictors, spec.mu.numTrees, spec.mu,
                    muBlockGroups, muBlockCounts);
     applyBCFBlocks(tauBlocksExpr, data.numPredictors, spec.tau.numTrees, spec.tau,
@@ -2163,8 +2169,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   bartcore::SamplerOptions options =
     optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
   if (options.fp32Residual)
-    Rf_error("storage = \"single\" is currently supported only for "
-             "gaussian models with constant leaves");
+    Rf_error("%s", storageSingleUnsupportedMessage);
   rngs = createChainRngs(control, options.numChains);
 
   bartcore::MultinomialSpec spec;
@@ -2440,12 +2445,11 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
 
     trainRows.resize(numTrainRows);
     testRows.resize(numTestRows);
-    const int* i_trainRows = INTEGER(trainRowsExpr);
     for (size_t i = 0; i < numTrainRows; ++i) {
-      if (i_trainRows[i] < 1 ||
-          static_cast<size_t>(i_trainRows[i]) > parent.numObservations)
+      int row = INTEGER(trainRowsExpr)[i];
+      if (row < 1 || static_cast<size_t>(row) > parent.numObservations)
         Rf_error("train row out of range");
-      trainRows[i] = static_cast<size_t>(i_trainRows[i] - 1);
+      trainRows[i] = static_cast<size_t>(row - 1);
     }
     for (size_t i = 0; i < numTestRows; ++i) {
       int row = INTEGER(testRowsExpr)[i];
@@ -2966,7 +2970,7 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   if (sampler.numChains() != 1)
-    Rf_error("dbarts_bartcore_runWithCallback requires a single chain");
+    Rf_error("bartcore_runWithCallback requires a single chain");
   if (!Rf_isFunction(callbackExpr)) Rf_error("callback must be a function");
 
   size_t numBurnIn = static_cast<size_t>(Rf_asInteger(numBurnInExpr));
@@ -3873,6 +3877,8 @@ static bool readFunctionSavedParams(
         return false;
       }
       double count = values[cursor];
+      // 1.0e8 is a defensive sanity cap so a corrupt count cannot drive the
+      // width computation below into an absurd allocation
       if (!(count >= 0.0) || count != std::floor(count) || count > 1.0e8) {
         *errorMessage = "malformed leaf parameters in bartcore state";
         return false;
@@ -4240,17 +4246,18 @@ SEXP bartcore_getLatents(SEXP ptrExpr, SEXP resultExpr) {
 
 namespace bartcore_bridge {
 
-// Provenance stamp for the on-disk layout storeState/setState exchange.
-// Version 2 tags each flat node and stores its payload as a raw word - an
-// inline categorical mask no longer bit-casts through a double - so the side
-// channel holds only pooled masks (past 63 categories). It also drops the
-// accumulation-history slots (total.fits, indices) and the variance prior's
-// internal scale (the third fit.scale element): restore rebuilds them from the
-// trees, and sigma rides on the original response scale. Version 3 gives each
-// chain's tree channels a forest dimension (docs/design/bcf.md): the
-// tree/saved/param/mask/k slots move into a per-chain "forests" list, and BCF
-// adds a "bcf" glue slot (a, aVariance, b0, b1). A single-forest state is a
-// length-1 forest list.
+// Provenance stamp for the on-disk layout storeState/setState exchange. The
+// shipped format (version 1) folds in two pre-release iterations that never
+// shipped on their own. An early step tagged each flat node and stored its
+// payload as a raw word - an inline categorical mask no longer bit-casts
+// through a double - so the side channel holds only pooled masks (past 63
+// categories); it also dropped the accumulation-history slots (total.fits,
+// indices) and the variance prior's internal scale (the third fit.scale
+// element): restore rebuilds them from the trees, and sigma rides on the
+// original response scale. A later step gave each chain's tree channels a
+// forest dimension (docs/design/bcf.md): the tree/saved/param/mask/k slots
+// move into a per-chain "forests" list, and BCF adds a "bcf" glue slot
+// (a, aVariance, b0, b1). A single-forest state is a length-1 forest list.
 //
 // Registry rule for evolving the format (docs/design/public-surface.md 2):
 // block names are APPEND-ONLY and a shipped name's on-disk encoding is FROZEN.

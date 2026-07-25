@@ -89,7 +89,6 @@ plotNode <- function(node, sampler, plotPars) {
   nodeHeight <- plotPars[["nodeHeight"]]
   nodeWidth <- plotPars[["nodeWidth"]]
   nodeGap <- plotPars[["nodeGap"]]
-  compress <- FALSE
   if (node$var[1L] != -1) {
     directions <- if (!is.null(node$directions)) {
       node$directions[1L]
@@ -184,7 +183,7 @@ plotNode <- function(node, sampler, plotPars) {
     y - verticalOffset,
     expr2,
     adj = c(0.5, 0.5),
-    cex = cex * if (compress) 0.8 else 1
+    cex = cex
   )
 
   if (node$var[1L] != -1) {

@@ -13,6 +13,9 @@
 # the transparent re-creation getPointer performs after save/load - continues
 # the chains bitwise identically.
 
+# Drives a dbartsSampler (the R5 sampler layer), reading its control defaults
+# and delegating through its external pointer; cf. bartcoreRun, which drives a
+# low-level bartcore handle directly.
 bartcoreSamplerRun <- function(sampler, numBurnIn, numSamples) {
   control <- sampler$control
   if (is.na(numBurnIn)) {
@@ -47,7 +50,7 @@ bartcoreSamplerSetPredictor <- function(
   # guard before data@x is swapped: the C entry point refuses a view too, but
   # the R5 object must not be left holding a half-installed matrix. A pure
   # dgCMatrix design accepts column-granular mutation (docs/design/
-  # sparse-columns.md extension (i)), maintained R-side by installPredictorColumns;
+  # sparse-columns.md), maintained R-side by installPredictorColumns;
   # a mixed dense/sparse container is not yet maintained R-side, and whole-matrix
   # and per-observation replacement of a sparse column stay fixed at creation.
   sparseSource <- predictorSourceIsSparse(sampler$data@x)
@@ -144,7 +147,7 @@ bartcoreSamplerSetPredictor <- function(
     } else {
       matrix(as.double(x), nrow(sampler$data@x))
     }
-    x.old <- sampler$data@x
+    oldX <- sampler$data@x
     sampler$data@x <- x
     tryResult <- tryCatch(
       updateSuccessful <- .Call(
@@ -155,14 +158,14 @@ bartcoreSamplerSetPredictor <- function(
         updateCutPoints
       ),
       error = function(e) {
-        sampler$data@x <- x.old
+        sampler$data@x <- oldX
         e
       }
     )
     if (inherits(tryResult, "error")) {
       stop(tryResult)
     }
-    if (!forceUpdate && !updateSuccessful) sampler$data@x <- x.old
+    if (!forceUpdate && !updateSuccessful) sampler$data@x <- oldX
   } else {
     column <- as.integer(column)
     if (any(column < 1L | column > ncol(sampler$data@x))) {
@@ -447,7 +450,8 @@ bartcoreSampler <- function(sampler, family = "") {
 }
 
 # A built predictor store (cuts + codes) shared across row-subset samplers;
-# public-surface.md section 5, internal and unserializable. control
+# the shared-handle design (public-surface.md section 5), internal and
+# unserializable. control
 # contributes useQuantiles; data contributes x, the column types, and
 # n.cuts. leafCovariateColumns names (1-based) the columns whose raw values
 # a view's leaf model will read; the handle owns raw only for those, so a
@@ -572,7 +576,8 @@ bartcoreBCFSampler <- function(
   muInteractions <- resolveInteractions(mu.interactions, sampler$data)
   tauInteractions <- resolveInteractions(tau.interactions, sampler$data)
 
-  # per-forest block-additive constraints (variant A): mu partitions the full
+  # per-forest block-additive constraints (each whole tree confined to one
+  # declared column group): mu partitions the full
   # design over its own tree count; tau partitions its available columns (the
   # moderator subset if restricted, else the full design) over the treatment
   # tree count, and the engine intersects tau's block rows with the moderator
@@ -736,6 +741,8 @@ bartcoreSetModel <- function(bcSampler, model, control, data) {
   ))
 }
 
+# Drives a low-level bartcore handle (a bcSampler env holding $ptr) directly,
+# not a dbartsSampler; cf. bartcoreSamplerRun, the R5 sampler-layer entry.
 bartcoreRun <- function(bcSampler, numBurnIn = 0L, numSamples = 1L) {
   .Call(
     C_dbarts_bartcore_run,
