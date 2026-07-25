@@ -41,7 +41,6 @@ h <- structure(
   list(
     call = call("NULL"),
     family = "hurdle.lognormal",
-    variant = "lognormal",
     y = numeric(m),
     occupancy = occ,
     positive = pos

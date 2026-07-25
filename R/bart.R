@@ -1932,7 +1932,6 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   result <- list(
     call = control@call,
     family = "hurdle.lognormal",
-    variant = "lognormal",
     # the original non-negative response over all n, so residuals() can take
     # y - E[y | x] on the natural scale (neither component stores it: the
     # occupancy fit keeps the 1{y > 0} indicator, the positive fit log(y[S]))

@@ -22,23 +22,25 @@ struct BartcoreHolder {
   bool keepTrainingFits;
 
   // a sampler created over a data handle owns its row-sliced vectors; the
-  // usual creation path leaves these empty and borrows from R instead
-  std::vector<double> ownedResponse, ownedWeights, ownedOffset,
-                      ownedTestOffset;
+  // usual creation path leaves these empty and borrows from R instead.
+  // Default-initialized so a creation site lists only the three fields above
+  // and every owned buffer defaults to empty (no partial-aggregate hazard).
+  std::vector<double> ownedResponse{}, ownedWeights{}, ownedOffset{},
+                      ownedTestOffset{};
 
   // BCF holds an owned copy of the 0/1 treatment the chains borrow, so
   // setTreatment installs a replacement without a protection slot
-  std::vector<double> ownedTreatment;
+  std::vector<double> ownedTreatment{};
 
   // multinomial holds an owned copy of the category-major n x K count matrix
   // and the per-observation trials the combiner borrows for the sampler's
   // lifetime (the single-trial label entry builds a one-hot counts matrix)
-  std::vector<int> ownedCounts, ownedTrials;
+  std::vector<int> ownedCounts{}, ownedTrials{};
 
   // a mixed (sparse-bearing) container assembles its dense block transiently;
   // the holder owns it for the sampler's lifetime so the store's borrowed
   // dense slices never dangle (the R container keeps only a per-column list)
-  std::vector<double> ownedMixedDense;
+  std::vector<double> ownedMixedDense{};
 
   ~BartcoreHolder() {
     for (std::size_t c = rngs.size(); c > 0; --c)
