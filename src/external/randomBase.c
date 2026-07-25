@@ -78,15 +78,7 @@ static const size_t stateLengths[] = {
   sizeof(UserFunction)
 };
 
-// this is duplicated in randomBase.c, randomNorm.c, and random.c
-struct ext_rng {
-  ext_rng_algorithm_t algorithm;
-  ext_rng_standardNormal_t standardNormalAlgorithm;
-  void* state;
-
-  ext_rng_userFunction normalState;
-  double gammaState[9];
-};
+#include "rng_internal.h" // struct ext_rng layout
 
 ext_rng* ext_rng_create(ext_rng_algorithm_t algorithm, const void* v_state)
 {
@@ -143,6 +135,53 @@ bool ext_rng_usesNativeRNG(const ext_rng* generator) {
     && generator->normalState.f.stateless == &norm_rand;
 }
 
+
+// Reads seed0 (the first element of .Random.seed), the packed byte that encodes
+// the uniform algorithm and standard-normal type. Syncs from the native RNG if
+// .Random.seed is unbound. Returns false (leaving *seed0 untouched) when no
+// valid integer seed is available. PROTECT/UNPROTECT are balanced internally.
+static bool getSeed0FromRandomSeed(uint_least32_t* seed0)
+{
+  SEXP seedsExpr = rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol);
+  if (seedsExpr == R_UnboundValue) {
+    GetRNGstate();
+    PutRNGstate();
+    seedsExpr = rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol);
+  }
+  if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = Rf_eval(R_SeedsSymbol, R_GlobalEnv);
+
+  if (seedsExpr == R_UnboundValue) return false;
+  PROTECT(seedsExpr);
+  if (!Rf_isInteger(seedsExpr)) {
+    UNPROTECT(1);
+    return false;
+  }
+
+  *seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+  UNPROTECT(1);
+  return true;
+}
+
+// The standard-normal type packed into seed0. The bit layout changed in R 3.6.0
+// (sample.kind), so decode against the runtime R version, falling back to the
+// compile-time R_VERSION when the runtime version is unavailable.
+static ext_rng_standardNormal_t stdNormalTypeFromSeed0(uint_least32_t seed0)
+{
+  int major, minor, revision;
+  if (rc_getRuntimeVersion(&major, &minor, &revision) != 0) {
+#if R_VERSION < R_Version(3,6,0)
+    return (ext_rng_standardNormal_t) (seed0 / 100);
+#else
+    return (ext_rng_standardNormal_t) (seed0 % 10000 / 100);
+#endif
+  } else {
+    if (major < 3 || (major == 3 && minor < 6)) {
+      return (ext_rng_standardNormal_t) (seed0 / 100);
+    } else {
+      return (ext_rng_standardNormal_t) (seed0 % 10000 / 100);
+    }
+  }
+}
 
 ext_rng* ext_rng_createDefault(bool useNative)
 {
@@ -206,24 +245,9 @@ ext_rng* ext_rng_createDefault(bool useNative)
   }
   
   ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
-  
-  int major, minor, revision;
-  
-  ext_rng_standardNormal_t stdNormalType;
-  if (rc_getRuntimeVersion(&major, &minor, &revision) != 0) {
-#if R_VERSION < R_Version(3,6,0)
-    stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
-#else
-    stdNormalType = (ext_rng_standardNormal_t) (seed0 % 10000 / 100);
-#endif
-  } else {
-    if (major < 3 || (major == 3 && minor < 6)) {
-      stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
-    } else {
-      stdNormalType = (ext_rng_standardNormal_t) (seed0 % 10000 / 100);
-    }
-  }
-  
+
+  ext_rng_standardNormal_t stdNormalType = stdNormalTypeFromSeed0(seed0);
+
   void* state = (void*) (1 + INTEGER(seedsExpr));
   UNPROTECT(1);
   
@@ -325,61 +349,18 @@ bool ext_rng_seedsAreEqual(const ext_rng* rng1, const ext_rng* rng2){
 
 ext_rng_algorithm_t ext_rng_getDefaultAlgorithmType(void)
 {
-  SEXP seedsExpr = rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol);
-  if (seedsExpr == R_UnboundValue) {
-    GetRNGstate();
-    PutRNGstate();
-    seedsExpr = rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol);
-  }
-  if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = Rf_eval(R_SeedsSymbol, R_GlobalEnv);
-
-  if (seedsExpr == R_UnboundValue) return EXT_RNG_ALGORITHM_MERSENNE_TWISTER;
-  PROTECT(seedsExpr);
-  if (!Rf_isInteger(seedsExpr)) {
-    UNPROTECT(1);
-    return EXT_RNG_ALGORITHM_MERSENNE_TWISTER;
-  }
-
-  uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
-  UNPROTECT(1);
+  uint_least32_t seed0;
+  if (!getSeed0FromRandomSeed(&seed0)) return EXT_RNG_ALGORITHM_MERSENNE_TWISTER;
 
   return (ext_rng_algorithm_t) (seed0 % 100);
 }
 
 ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType(void)
 {
-  SEXP seedsExpr = rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol);
-  if (seedsExpr == R_UnboundValue) {
-    GetRNGstate();
-    PutRNGstate();
-    seedsExpr = rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol);
-  }
-  if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = Rf_eval(R_SeedsSymbol, R_GlobalEnv);
+  uint_least32_t seed0;
+  if (!getSeed0FromRandomSeed(&seed0)) return EXT_RNG_STANDARD_NORMAL_INVERSION;
 
-  if (seedsExpr == R_UnboundValue) return EXT_RNG_STANDARD_NORMAL_INVERSION;
-  PROTECT(seedsExpr);
-  if (!Rf_isInteger(seedsExpr)) {
-    UNPROTECT(1);
-    return EXT_RNG_STANDARD_NORMAL_INVERSION;
-  }
-
-  uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
-  UNPROTECT(1);
-
-  int major, minor, revision;
-  if (rc_getRuntimeVersion(&major, &minor, &revision) != 0) {
-#if R_VERSION < R_Version(3,6,0)
-    return (ext_rng_standardNormal_t) (seed0 / 100);
-#else
-    return (ext_rng_standardNormal_t) (seed0 % 10000 / 100);
-#endif
-  } else {
-    if (major < 3 || (major == 3 && minor < 6)) {
-      return (ext_rng_standardNormal_t) (seed0 / 100);
-    } else {
-      return (ext_rng_standardNormal_t) (seed0 % 10000 / 100);
-    }
-  }
+  return stdNormalTypeFromSeed0(seed0);
 }
 
 const char* ext_rng_getAlgorithmName(ext_rng_algorithm_t algorithm)

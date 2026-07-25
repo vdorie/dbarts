@@ -157,19 +157,7 @@ predict.bart <- function(
     }
   }
 
-  type <- foldTypeAliases(type)
-  if (
-    !is.character(type) ||
-      length(type) == 0L ||
-      type[1L] %not_in% eval(formals(predict.bart)$type)
-  ) {
-    stop(
-      "type must be in '",
-      paste0(eval(formals(predict.bart)$type), collapse = "', '"),
-      "'"
-    )
-  }
-  type <- type[1L]
+  type <- validateType(type, eval(formals(predict.bart)$type))
 
   n.threads <- as.integer(n.threads)[1L]
 
@@ -222,17 +210,7 @@ extract.bart <- function(
   combineChains = TRUE,
   ...
 ) {
-  type <- foldTypeAliases(type)
-  if (
-    !is.character(type) || type[1L] %not_in% eval(formals(extract.bart)$type)
-  ) {
-    stop(
-      "type must be in '",
-      paste0(eval(formals(extract.bart)$type), collapse = "', '"),
-      "'"
-    )
-  }
-  type <- type[1L]
+  type <- validateType(type, eval(formals(extract.bart)$type))
 
   if (type == "trees") {
     if (is.null(object$fit)) {
@@ -335,17 +313,7 @@ fitted.bart <- function(
   ci.level = NULL,
   ...
 ) {
-  type <- foldTypeAliases(type)
-  if (
-    !is.character(type) || type[1L] %not_in% eval(formals(fitted.bart)$type)
-  ) {
-    stop(
-      "type must be in '",
-      paste0(eval(formals(fitted.bart)$type), collapse = "', '"),
-      "'"
-    )
-  }
-  type <- type[1L]
+  type <- validateType(type, eval(formals(fitted.bart)$type))
 
   if (
     !is.character(sample) ||
@@ -532,7 +500,9 @@ predict.bartMultinomial <- function(
   probs
 }
 
-print.bartMultinomial <- function(x, ...) {
+# Shared "Call:" preamble for the print methods. A fit kept with
+# keepCall = FALSE stores call("NULL") as a placeholder, which is suppressed.
+printCall <- function(x) {
   if (!identical(x[["call"]], call("NULL"))) {
     cat(
       "\nCall:\n",
@@ -541,6 +511,11 @@ print.bartMultinomial <- function(x, ...) {
       sep = ""
     )
   }
+  invisible(NULL)
+}
+
+print.bartMultinomial <- function(x, ...) {
+  printCall(x)
   cat("family: multinomial\n")
   cat("levels: ", paste(x$levels, collapse = ", "), "\n", sep = "")
   cat("n.chains: ", x$n.chains, "\n", sep = "")
@@ -707,14 +682,7 @@ predict.bartOrdinal <- function(
 }
 
 print.bartOrdinal <- function(x, ...) {
-  if (!identical(x[["call"]], call("NULL"))) {
-    cat(
-      "\nCall:\n",
-      paste(deparse(x$call), sep = "\n", collapse = "\n"),
-      "\n\n",
-      sep = ""
-    )
-  }
+  printCall(x)
   cat("family: ordinal (cumulative probit)\n")
   cat("levels: ", paste(x$levels, collapse = " < "), "\n", sep = "")
   cat("n.chains: ", x$n.chains, "\n", sep = "")
@@ -836,14 +804,7 @@ predict.bartNegbin <- function(
 }
 
 print.bartNegbin <- function(x, ...) {
-  if (!identical(x[["call"]], call("NULL"))) {
-    cat(
-      "\nCall:\n",
-      paste(deparse(x$call), sep = "\n", collapse = "\n"),
-      "\n\n",
-      sep = ""
-    )
-  }
+  printCall(x)
   cat("family: negative binomial (log-odds latent)\n")
   cat(
     "posterior mean dispersion (r): ",
@@ -896,14 +857,25 @@ foldTypeAliases <- function(type) {
   type
 }
 
+# Fold the response/link aliases, then validate the requested type against the
+# method's allowed set (its own 'type' formal, evaluated once at the call site
+# and passed in) and return the canonical scalar. Centralizes the fold +
+# %not_in% + stop shared by the bart/rbart predict/extract/fitted methods.
+validateType <- function(type, allowed) {
+  type <- foldTypeAliases(type)
+  if (!is.character(type) || length(type) == 0L || type[1L] %not_in% allowed) {
+    stop("type must be in '", paste0(allowed, collapse = "', '"), "'")
+  }
+  type[1L]
+}
+
 # Resolve a hurdle type argument: fold the "response"/"link"/"log" aliases onto
 # the canonical "ev"/"bart" and validate against 'allowed' (the predict.bart
 # idiom, so a mis-typed request errors rather than silently mis-reporting).
 resolveHurdleType <- function(type, allowed) {
   if (is.character(type) && length(type) > 0L) {
-    if (type[1L] == "response") {
-      type[1L] <- "ev"
-    } else if (type[1L] == "link" || type[1L] == "log") {
+    type <- foldTypeAliases(type)
+    if (type[1L] == "log") {
       type[1L] <- "bart"
     }
   }
@@ -925,18 +897,13 @@ hurdleNChains <- function(object) {
 # The positive part's per-observation sigma as a flat vector aligned, draw for
 # draw, with the fit draws' as.vector order (chain-fastest, then sample, then
 # observation - the layout pointwiseLogLikelihood and sampleFromPPD pair sigma
-# with fits in). If variance = ~x set a heteroscedastic surface, that s(x) rides
-# a stored channel (in-sample) or a "s" attribute (out-of-sample) and enters
-# per observation; the homoscedastic default carries one sigma_s per draw, which
-# rep_len recycles across the n.obs draw-blocks so each observation reuses its
-# draw's sigma. Wired for per-observation sigma from v1 so enabling the variance
-# forest on the positive part "just works" (docs/design/hurdle.md section 13).
-hurdleSigmaVec <- function(surface, sigma, n.chains, n.total) {
-  if (!is.null(surface)) {
-    as.vector(combineOrUncombineChains(surface, n.chains, FALSE))
-  } else {
-    rep_len(as.vector(sigma), n.total)
-  }
+# with fits in). The positive fit is always homoscedastic (a variance forest
+# requires family = "gaussian", so the probit occupancy fit rejects it and the
+# hurdle never builds a heteroscedastic component), carrying one sigma_s per
+# draw, which rep_len recycles across the n.obs draw-blocks so each observation
+# reuses its draw's sigma.
+hurdleSigmaVec <- function(sigma, n.total) {
+  rep_len(as.vector(sigma), n.total)
 }
 
 # Glue the flat, draw-aligned occupancy-probability, positive-log-mean, and
@@ -962,7 +929,7 @@ combineHurdleChannel <- function(type, piVec, fVec, sigmaVec, shape) {
 # fit's log-scale (bart) fits at the FULL-n rows through its x.test channel (the
 # zero rows it never trained on included); out-of-sample replays both saved
 # forests at newdata.
-hurdleParts <- function(object, newdata, n.chains) {
+hurdleParts <- function(object, newdata) {
   if (missing(newdata)) {
     pi <- extract(
       object$occupancy,
@@ -976,7 +943,6 @@ hurdleParts <- function(object, newdata, n.chains) {
       sample = "test",
       combineChains = FALSE
     )
-    surface <- object$positive[["s.test"]]
   } else {
     pi <- predict(object$occupancy, newdata, type = "ev", combineChains = FALSE)
     f <- predict(
@@ -985,14 +951,8 @@ hurdleParts <- function(object, newdata, n.chains) {
       type = "bart",
       combineChains = FALSE
     )
-    surface <- attr(f, "s")
   }
-  sigmaVec <- hurdleSigmaVec(
-    surface,
-    object$positive$sigma,
-    n.chains,
-    length(f)
-  )
+  sigmaVec <- hurdleSigmaVec(object$positive$sigma, length(f))
   list(pi = as.vector(pi), f = as.vector(f), sigma = sigmaVec, shape = dim(f))
 }
 
@@ -1028,7 +988,7 @@ extract.bartHurdle <- function(
   }
   n.chains <- hurdleNChains(object)
   finishHurdle(
-    hurdleParts(object, n.chains = n.chains),
+    hurdleParts(object),
     type,
     n.chains,
     combineChains,
@@ -1079,7 +1039,7 @@ predict.bartHurdle <- function(
   }
   n.chains <- hurdleNChains(object)
   finishHurdle(
-    hurdleParts(object, newdata, n.chains),
+    hurdleParts(object, newdata),
     type,
     n.chains,
     combineChains,
@@ -1088,14 +1048,7 @@ predict.bartHurdle <- function(
 }
 
 print.bartHurdle <- function(x, ...) {
-  if (!identical(x[["call"]], call("NULL"))) {
-    cat(
-      "\nCall:\n",
-      paste(deparse(x$call), sep = "\n", collapse = "\n"),
-      "\n\n",
-      sep = ""
-    )
-  }
+  printCall(x)
   cat("family: hurdle.lognormal (probit occupancy + lognormal positive part)\n")
   cat("occupancy n (all rows): ", length(x$occupancy$y), "\n", sep = "")
   cat("positive-part n (y > 0): ", length(x$positive$y), "\n", sep = "")
@@ -1129,18 +1082,7 @@ predict.rbart <- function(
     warning("type of 'post-mean' for predict deprecated; use 'ev' instead")
     type[1L] <- "ev"
   }
-  if (
-    !is.character(type) ||
-      length(type) == 0L ||
-      type[1L] %not_in% eval(formals(predict.rbart)$type)
-  ) {
-    stop(
-      "type must be in '",
-      paste0(eval(formals(predict.rbart)$type), collapse = "', '"),
-      "'"
-    )
-  }
-  type <- type[1L]
+  type <- validateType(type, eval(formals(predict.rbart)$type))
 
   if (missing(offset)) {
     offset <- NULL
@@ -1219,13 +1161,7 @@ predict.rbart <- function(
     }
 
     ranef <- object$ranef
-    if (n.chains > 1L) {
-      if (length(dim(ranef)) > 2L && combineChains) {
-        ranef <- combineChains(ranef)
-      } else if (length(dim(ranef)) == 2L && !combineChains && n.chains > 1L) {
-        ranef <- uncombineChains(ranef, n.chains)
-      }
-    }
+    ranef <- combineOrUncombineChains(ranef, n.chains, combineChains)
 
     if (!all(measuredLevels <- ranefNames.test %in% ranefNames.train)) {
       warning(
@@ -1349,17 +1285,7 @@ extract.rbart <- function(
   combineChains = TRUE,
   ...
 ) {
-  type <- foldTypeAliases(type)
-  if (
-    !is.character(type) || type[1L] %not_in% eval(formals(extract.rbart)$type)
-  ) {
-    stop(
-      "type must be in '",
-      paste0(eval(formals(extract.rbart)$type), collapse = "', '"),
-      "'"
-    )
-  }
-  type <- type[1L]
+  type <- validateType(type, eval(formals(extract.rbart)$type))
 
   n.chains <- if (is.null(object$n.chains)) {
     length(object$fit)
@@ -1449,13 +1375,7 @@ extract.rbart <- function(
     } else {
       object$ranef[, ranefNames, drop = FALSE]
     }
-    if (n.chains > 1L) {
-      if (length(dim(ranef)) > 2L && combineChains) {
-        ranef <- combineChains(ranef)
-      } else if (length(dim(ranef)) == 2L && !combineChains && n.chains > 1L) {
-        ranef <- uncombineChains(ranef, n.chains)
-      }
-    }
+    ranef <- combineOrUncombineChains(ranef, n.chains, combineChains)
 
     return(ranef)
   }
@@ -1482,13 +1402,7 @@ extract.rbart <- function(
   result <- if (sample == "train") object$yhat.train else object$yhat.test
   weights <- if (sample == "train") object$weights else object$weights.test
   # if necessary, recover chain information or throw it away
-  if (n.chains > 1L) {
-    if (length(dim(result)) > 2L && combineChains) {
-      result <- combineChains(result)
-    } else if (length(dim(result)) == 2L && !combineChains && n.chains > 1L) {
-      result <- uncombineChains(result, n.chains)
-    }
-  }
+  result <- combineOrUncombineChains(result, n.chains, combineChains)
 
   if (type == "bart") {
     return(result)
@@ -1507,13 +1421,7 @@ extract.rbart <- function(
     }
   )
 
-  if (n.chains > 1L) {
-    if (length(dim(ranef)) > 2L && combineChains) {
-      ranef <- combineChains(ranef)
-    } else if (length(dim(ranef)) == 2L && !combineChains && n.chains > 1L) {
-      ranef <- uncombineChains(ranef, n.chains)
-    }
-  }
+  ranef <- combineOrUncombineChains(ranef, n.chains, combineChains)
 
   result <- result + ranef
 
@@ -1548,17 +1456,7 @@ fitted.rbart <- function(
   ci.level = NULL,
   ...
 ) {
-  type <- foldTypeAliases(type)
-  if (
-    !is.character(type) || type[1L] %not_in% eval(formals(fitted.rbart)$type)
-  ) {
-    stop(
-      "type must be in '",
-      paste0(eval(formals(fitted.rbart)$type), collapse = "', '"),
-      "'"
-    )
-  }
-  type <- type[1L]
+  type <- validateType(type, eval(formals(fitted.rbart)$type))
 
   if (
     !is.character(sample) ||
@@ -1866,27 +1764,13 @@ fitSynopsis <- function(x) {
 }
 
 print.bart <- function(x, ...) {
-  if (!identical(x[["call"]], call("NULL"))) {
-    cat(
-      "\nCall:\n",
-      paste(deparse(x$call), sep = "\n", collapse = "\n"),
-      "\n\n",
-      sep = ""
-    )
-  }
+  printCall(x)
   fitSynopsis(x)
   invisible(x)
 }
 
 print.rbart <- function(x, ...) {
-  if (!identical(x[["call"]], call("NULL"))) {
-    cat(
-      "\nCall:\n",
-      paste(deparse(x$call), sep = "\n", collapse = "\n"),
-      "\n\n",
-      sep = ""
-    )
-  }
+  printCall(x)
   fitSynopsis(x)
   invisible(x)
 }

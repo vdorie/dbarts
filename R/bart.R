@@ -131,6 +131,30 @@ uncombineChains <- function(samples, n.chains) {
   }
 }
 
+# One chain's sample-s column of a run channel; the engine drops the trailing
+# chain margin when n.chains == 1. Shared by the ordinal and nbinom fit loops
+# that read a bartcoreRun() channel column by column.
+channelColumn <- function(channel, s, chain, n.chains) {
+  if (n.chains == 1L) channel[, s] else channel[, s, chain]
+}
+
+# Reshapes a raw varcount channel to bart2's draws-first convention and, when
+# the coded design carries column names, threads them onto the trailing
+# predictor margin (2-D combined or 3-D by-chain). Pure reshape of an
+# already-computed count channel; shared by the gaussian/binary, ordinal, and
+# nbinom packagers.
+nameVarcount <- function(raw, predictorNames, n.chains, combineChains) {
+  varcount <- convertSamplesFromDbartsToBart(raw, n.chains, combineChains)
+  if (!is.null(predictorNames) && !is.null(dim(varcount))) {
+    dimnames(varcount) <- if (length(dim(varcount)) > 2L) {
+      list(NULL, NULL, predictorNames)
+    } else {
+      list(NULL, predictorNames)
+    }
+  }
+  varcount
+}
+
 packageBartResults <- function(
   fit,
   samples,
@@ -176,18 +200,12 @@ packageBartResults <- function(
     )
   }
 
-  varcount <- convertSamplesFromDbartsToBart(
+  varcount <- nameVarcount(
     samples$varcount,
+    colnames(fit$data@x),
     n.chains,
     combineChains
   )
-  if (!is.null(colnames(fit$data@x)) && !is.null(dim(varcount))) {
-    dimnames(varcount) <- if (length(dim(varcount)) > 2L) {
-      list(NULL, NULL, colnames(fit$data@x))
-    } else {
-      list(NULL, colnames(fit$data@x))
-    }
-  }
 
   # heteroscedastic variance surface s(x) = sqrt(s^2(x)), train and test, on the
   # original scale (docs/design/heteroscedastic.md); NULL for a homoscedastic fit
@@ -364,6 +382,88 @@ buildSamplerPriors <- function(
     node.prior = node.prior,
     resid.prior = resid.prior
   )
+}
+
+# Builds the dbarts() host-sampler call shared by bart2's standard path and its
+# alternate-family arcs (multinomial/ordinal/nbinom): redirect the matched call
+# to dbarts(), install the resolved control, drop n.samples (the sampler is
+# driven by run() rather than sampled at construction), and thread the prebuilt
+# tree/node/resid priors. 'family', when supplied, overrides the forwarded
+# family token - NULL removes it (the multinomial host, which dbarts() does not
+# know), a string sets it (ordinal/nbinom); left missing it keeps the user's
+# forwarded family (the normal path). 'sigest', when supplied, sets the
+# sampler's sigma; left missing it is not touched (ordinal/nbinom read no
+# sigma). The multinomial data override (the placeholder response) is applied
+# by the caller afterward.
+buildHostSamplerCall <- function(
+  matchedCall,
+  control,
+  priors,
+  family,
+  sigest
+) {
+  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
+  samplerCall$control <- control
+  samplerCall$n.samples <- NULL
+  samplerCall$tree.prior <- priors$tree.prior
+  samplerCall$node.prior <- priors$node.prior
+  samplerCall$resid.prior <- priors$resid.prior
+  if (!missing(family)) {
+    samplerCall$family <- family
+  }
+  if (!missing(sigest)) {
+    samplerCall$sigma <- as.numeric(sigest)
+  }
+  samplerCall
+}
+
+# The two-phase burn-in/sample split shared by bart and bart2's standard path.
+# When burn-in is requested the test set is dropped and keepTrainingFits/verbose
+# forced FALSE for the burn run (a draw-neutral speedup - test fits do not feed
+# the MCMC), then restored for the kept-sample run, with keepTrees re-enabled
+# after burn when requested. The sequence of sampler$run() calls - and thus the
+# draw stream - is identical to the inline form it replaces. Returns the kept
+# samples plus the burn-in sigma/k channels.
+runWithBurnIn <- function(sampler, control, keepTrees, n.burn) {
+  burnInSigma <- NULL
+  burnInK <- NULL
+  if (n.burn > 0L) {
+    oldX.test <- sampler$data@x.test
+    oldOffset.test <- sampler$data@offset.test
+
+    oldKeepTrainingFits <- control@keepTrainingFits
+    oldVerbose <- control@verbose
+
+    if (length(oldX.test) > 0L) {
+      sampler$setTestPredictorAndOffset(NULL, NULL)
+    }
+    control@keepTrainingFits <- FALSE
+    control@verbose <- FALSE
+    sampler$setControl(control)
+
+    samples <- sampler$run(0L, control@n.burn, updateState = FALSE)
+    if (!is.null(samples$sigma)) {
+      burnInSigma <- samples$sigma
+    }
+    if (!is.null(samples[["k"]])) {
+      burnInK <- samples[["k"]]
+    }
+
+    if (length(oldX.test) > 0L) {
+      sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test)
+    }
+    control@keepTrainingFits <- oldKeepTrainingFits
+    control@verbose <- oldVerbose
+    if (keepTrees == TRUE) {
+      control@keepTrees <- TRUE
+    }
+    sampler$setControl(control)
+
+    samples <- sampler$run(0L, control@n.samples, updateState = FALSE)
+  } else {
+    samples <- sampler$run(updateState = FALSE)
+  }
+  list(samples = samples, burnInSigma = burnInSigma, burnInK = burnInK)
 }
 
 # The alternate-family bart2 arcs (multinomial/ordinal/nbinom/hurdle.lognormal)
@@ -830,17 +930,13 @@ bart2 <- function(
     dart = dart,
     splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
   )
-  tree.prior <- priors$tree.prior
-  node.prior <- priors$node.prior
-  resid.prior <- priors$resid.prior
 
-  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
-  samplerCall$control <- control
-  samplerCall$n.samples <- NULL
-  samplerCall$tree.prior <- tree.prior
-  samplerCall$node.prior <- node.prior
-  samplerCall$resid.prior <- resid.prior
-  samplerCall$sigma <- as.numeric(sigest)
+  samplerCall <- buildHostSamplerCall(
+    matchedCall,
+    control,
+    priors,
+    sigest = sigest
+  )
 
   sampler <- eval(samplerCall, envir = callingEnv)
   if (isTRUE(samplerOnly)) {
@@ -870,44 +966,10 @@ bart2 <- function(
     sampler$sampleTreesFromPrior(updateState = FALSE)
   }
 
-  burnInSigma <- NULL
-  burnInK <- NULL
-  if (n.burn > 0L) {
-    oldX.test <- sampler$data@x.test
-    oldOffset.test <- sampler$data@offset.test
-
-    oldKeepTrainingFits <- control@keepTrainingFits
-    oldVerbose <- control@verbose
-
-    if (length(oldX.test) > 0L) {
-      sampler$setTestPredictorAndOffset(NULL, NULL)
-    }
-    control@keepTrainingFits <- FALSE
-    control@verbose <- FALSE
-    sampler$setControl(control)
-
-    samples <- sampler$run(0L, control@n.burn, updateState = FALSE)
-    if (!is.null(samples$sigma)) {
-      burnInSigma <- samples$sigma
-    }
-    if (!is.null(samples[["k"]])) {
-      burnInK <- samples[["k"]]
-    }
-
-    if (length(oldX.test) > 0L) {
-      sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test)
-    }
-    control@keepTrainingFits <- oldKeepTrainingFits
-    control@verbose <- oldVerbose
-    if (keepTrees == TRUE) {
-      control@keepTrees <- TRUE
-    }
-    sampler$setControl(control)
-
-    samples <- sampler$run(0L, control@n.samples, updateState = FALSE)
-  } else {
-    samples <- sampler$run(updateState = FALSE)
-  }
+  burn <- runWithBurnIn(sampler, control, keepTrees, n.burn)
+  samples <- burn$samples
+  burnInSigma <- burn$burnInSigma
+  burnInK <- burn$burnInK
 
   result <- packageBartResults(
     sampler,
@@ -1120,15 +1182,14 @@ bart2Multinomial <- function(
   # multinomial engine never reads, since the category labels ride
   # separately) and no 'family' is forwarded (dbarts() does not know
   # "multinomial"; whatever "auto" resolves the placeholder to is immaterial)
-  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
-  samplerCall$control <- control
-  samplerCall$n.samples <- NULL
+  samplerCall <- buildHostSamplerCall(
+    matchedCall,
+    control,
+    priors,
+    family = NULL,
+    sigest = sigest
+  )
   samplerCall$data <- as.double(labels)
-  samplerCall$family <- NULL
-  samplerCall$tree.prior <- priors$tree.prior
-  samplerCall$node.prior <- priors$node.prior
-  samplerCall$resid.prior <- priors$resid.prior
-  samplerCall$sigma <- as.numeric(sigest)
 
   sampler <- eval(samplerCall, envir = callingEnv)
 
@@ -1193,15 +1254,14 @@ bart2MultinomialCounts <- function(
     splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
   )
 
-  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
-  samplerCall$control <- control
-  samplerCall$n.samples <- NULL
+  samplerCall <- buildHostSamplerCall(
+    matchedCall,
+    control,
+    priors,
+    family = NULL,
+    sigest = sigest
+  )
   samplerCall$data <- as.double(y[, 1L])
-  samplerCall$family <- NULL
-  samplerCall$tree.prior <- priors$tree.prior
-  samplerCall$node.prior <- priors$node.prior
-  samplerCall$resid.prior <- priors$resid.prior
-  samplerCall$sigma <- as.numeric(sigest)
 
   sampler <- eval(samplerCall, envir = callingEnv)
 
@@ -1374,13 +1434,12 @@ bart2Ordinal <- function(
     splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
   )
 
-  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
-  samplerCall$control <- control
-  samplerCall$n.samples <- NULL
-  samplerCall$family <- "ordinal"
-  samplerCall$tree.prior <- priors$tree.prior
-  samplerCall$node.prior <- priors$node.prior
-  samplerCall$resid.prior <- priors$resid.prior
+  samplerCall <- buildHostSamplerCall(
+    matchedCall,
+    control,
+    priors,
+    family = "ordinal"
+  )
 
   sampler <- eval(samplerCall, envir = callingEnv)
 
@@ -1412,12 +1471,6 @@ bart2Ordinal <- function(
   # each kept sweep's latent draw, so no per-sample state read is needed
   r <- bartcoreRun(bc, control@n.burn, n.samples)
 
-  # one chain's sample-s column of a run channel; the engine drops the trailing
-  # chain margin when n.chains == 1
-  colOf <- function(channel, s, chain) {
-    if (n.chains == 1L) channel[, s] else channel[, s, chain]
-  }
-
   varWidth <- if (n.chains == 1L) {
     nrow(as.matrix(r$varcount))
   } else {
@@ -1427,18 +1480,18 @@ bart2Ordinal <- function(
 
   for (chain in seq_len(n.chains)) {
     for (s in seq_len(n.samples)) {
-      gamma <- colOf(r$cutpoints, s, chain)
+      gamma <- channelColumn(r$cutpoints, s, chain, n.chains)
       cutpointsRaw[, s, chain] <- gamma
-      etaTrain <- colOf(r$train, s, chain)
+      etaTrain <- channelColumn(r$train, s, chain, n.chains)
       latentTrain[, s, chain] <- etaTrain
       probsTrain[,, s, chain] <-
         ordinalCategoryProbabilities(etaTrain, gamma)
       if (n.test > 0L) {
-        etaTest <- colOf(r$test, s, chain)
+        etaTest <- channelColumn(r$test, s, chain, n.chains)
         latentTest[, s, chain] <- etaTest
         probsTest[,, s, chain] <- ordinalCategoryProbabilities(etaTest, gamma)
       }
-      varcountRaw[, s, chain] <- colOf(r$varcount, s, chain)
+      varcountRaw[, s, chain] <- channelColumn(r$varcount, s, chain, n.chains)
     }
   }
 
@@ -1506,19 +1559,12 @@ packageOrdinalResults <- function(
 ) {
   n.chains <- control@n.chains
 
-  varcount <- convertSamplesFromDbartsToBart(
+  varcount <- nameVarcount(
     varcountRaw,
+    colnames(sampler$data@x),
     n.chains,
     combineChains
   )
-  predictorNames <- colnames(sampler$data@x)
-  if (!is.null(predictorNames) && !is.null(dim(varcount))) {
-    dimnames(varcount) <- if (length(dim(varcount)) > 2L) {
-      list(NULL, NULL, predictorNames)
-    } else {
-      list(NULL, predictorNames)
-    }
-  }
 
   result <- list(
     call = control@call,
@@ -1626,13 +1672,12 @@ bart2Negbin <- function(
     splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
   )
 
-  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
-  samplerCall$control <- control
-  samplerCall$n.samples <- NULL
-  samplerCall$family <- "nbinom"
-  samplerCall$tree.prior <- priors$tree.prior
-  samplerCall$node.prior <- priors$node.prior
-  samplerCall$resid.prior <- priors$resid.prior
+  samplerCall <- buildHostSamplerCall(
+    matchedCall,
+    control,
+    priors,
+    family = "nbinom"
+  )
 
   sampler <- eval(samplerCall, envir = callingEnv)
 
@@ -1659,12 +1704,6 @@ bart2Negbin <- function(
   dispersionRaw <- matrix(0, n.samples, n.chains)
   varcountRaw <- NULL
 
-  # one chain's channel column for a single-sample run (the engine drops the
-  # trailing chain margin when n.chains == 1)
-  colOf <- function(channel, s, chain) {
-    if (n.chains == 1L) channel[, s] else channel[, s, chain]
-  }
-
   for (s in seq_len(n.samples)) {
     # the first kept sample absorbs the burn-in, so every run keeps one sample
     r <- bartcoreRun(bc, if (s == 1L) control@n.burn else 0L, 1L)
@@ -1680,15 +1719,15 @@ bart2Negbin <- function(
     for (chain in seq_len(n.chains)) {
       rDraw <- state[[chain]]$dispersion
       dispersionRaw[s, chain] <- rDraw
-      psiTrain <- colOf(r$train, 1L, chain)
+      psiTrain <- channelColumn(r$train, 1L, chain, n.chains)
       latentTrain[, s, chain] <- psiTrain
       meanTrain[, s, chain] <- negbinMeanCounts(psiTrain, rDraw)
       if (n.test > 0L) {
-        psiTest <- colOf(r$test, 1L, chain)
+        psiTest <- channelColumn(r$test, 1L, chain, n.chains)
         latentTest[, s, chain] <- psiTest
         meanTest[, s, chain] <- negbinMeanCounts(psiTest, rDraw)
       }
-      varcountRaw[, s, chain] <- colOf(r$varcount, 1L, chain)
+      varcountRaw[, s, chain] <- channelColumn(r$varcount, 1L, chain, n.chains)
     }
   }
 
@@ -1745,19 +1784,12 @@ packageNegbinResults <- function(
 ) {
   n.chains <- control@n.chains
 
-  varcount <- convertSamplesFromDbartsToBart(
+  varcount <- nameVarcount(
     varcountRaw,
+    colnames(sampler$data@x),
     n.chains,
     combineChains
   )
-  predictorNames <- colnames(sampler$data@x)
-  if (!is.null(predictorNames) && !is.null(dim(varcount))) {
-    dimnames(varcount) <- if (length(dim(varcount)) > 2L) {
-      list(NULL, NULL, predictorNames)
-    } else {
-      list(NULL, predictorNames)
-    }
-  }
 
   result <- list(
     call = control@call,
@@ -2307,44 +2339,10 @@ bart <- function(
 
   control <- sampler$control
 
-  burnInSigma <- NULL
-  burnInK <- NULL
-  if (nskip > 0L) {
-    oldX.test <- sampler$data@x.test
-    oldOffset.test <- sampler$data@offset.test
-
-    oldKeepTrainingFits <- control@keepTrainingFits
-    oldVerbose <- control@verbose
-
-    if (length(x.test) > 0) {
-      sampler$setTestPredictorAndOffset(NULL, NULL)
-    }
-    control@keepTrainingFits <- FALSE
-    control@verbose <- FALSE
-    sampler$setControl(control)
-
-    samples <- sampler$run(0L, control@n.burn, updateState = FALSE)
-    if (!is.null(samples$sigma)) {
-      burnInSigma <- samples$sigma
-    }
-    if (!is.null(samples[["k"]])) {
-      burnInK <- samples[["k"]]
-    }
-
-    if (length(x.test) > 0) {
-      sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test)
-    }
-    control@keepTrainingFits <- oldKeepTrainingFits
-    control@verbose <- oldVerbose
-    if (keeptrees == TRUE) {
-      control@keepTrees <- TRUE
-    }
-    sampler$setControl(control)
-
-    samples <- sampler$run(0L, control@n.samples, updateState = FALSE)
-  } else {
-    samples <- sampler$run(updateState = FALSE)
-  }
+  burn <- runWithBurnIn(sampler, control, keeptrees, nskip)
+  samples <- burn$samples
+  burnInSigma <- burn$burnInSigma
+  burnInK <- burn$burnInK
 
   result <- packageBartResults(
     sampler,

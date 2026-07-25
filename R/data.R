@@ -572,6 +572,61 @@ resolveDispersion <- function(dispersion) {
   as.double(dispersion)
 }
 
+# Validate and subset a user-supplied weights vector for the x/y interfaces
+# (the sparse dgCMatrix branch and the numeric/data.frame/factor branch carry
+# byte-identical validation): a NULL passes through, otherwise the vector is
+# numeric-checked, length-1 recycled to the observation count, length-validated
+# against 'y', and finally restricted to 'subset'. The missing(weights) guard
+# that produces the NULL stays inline at each call site, since missing() must
+# reference the dbartsData formal.
+validateXYWeights <- function(weights, initialNumObservations, subset) {
+  if (is.null(weights)) {
+    return(NULL)
+  }
+  if (!is.numeric(weights)) {
+    stop("'weights' must be a numeric vector")
+  }
+  weights <- as.double(weights)
+  if (length(weights) == 1L) {
+    weights <- rep_len(weights, initialNumObservations)
+  }
+  if (length(weights) != initialNumObservations) {
+    stop("length of 'weights' must equal length of 'y'")
+  }
+  weights[subset]
+}
+
+# Validate and subset a user-supplied offset vector for the x/y interfaces
+# (shared by both x/y branches, formerly byte-identical): a NULL passes through
+# unchanged, otherwise the vector is numeric-checked, length-1 recycled (which
+# sets offsetGivenAsScalar = TRUE, a longer vector FALSE), length-validated
+# against 'y', and restricted to 'subset'. offsetGivenAsScalar is threaded in
+# and back out so a NULL offset leaves it untouched. The offsetIsMissing guard
+# that produces the NULL stays inline at each call site.
+validateXYOffset <- function(
+  offset,
+  initialNumObservations,
+  subset,
+  offsetGivenAsScalar
+) {
+  if (!is.null(offset)) {
+    if (!is.numeric(offset)) {
+      stop("'offset' must be numeric")
+    }
+    if (length(offset) == 1L) {
+      offset <- rep_len(offset, initialNumObservations)
+      offsetGivenAsScalar <- TRUE
+    } else {
+      offsetGivenAsScalar <- FALSE
+    }
+    if (length(offset) != initialNumObservations) {
+      stop("length of 'offset' must equal length of 'y'")
+    }
+    offset <- offset[subset]
+  }
+  list(offset = offset, offsetGivenAsScalar = offsetGivenAsScalar)
+}
+
 dbartsData <- function(
   formula,
   data,
@@ -847,38 +902,19 @@ dbartsData <- function(
     if (missing(weights)) {
       weights <- NULL
     }
-    if (!is.null(weights)) {
-      if (!is.numeric(weights)) {
-        stop("'weights' must be a numeric vector")
-      }
-      weights <- as.double(weights)
-      if (length(weights) == 1L) {
-        weights <- rep_len(weights, initialNumObservations)
-      }
-      if (length(weights) != initialNumObservations) {
-        stop("length of 'weights' must equal length of 'y'")
-      }
-      weights <- weights[subset]
-    }
+    weights <- validateXYWeights(weights, initialNumObservations, subset)
 
     if (offsetIsMissing) {
       offset <- NULL
     }
-    if (!is.null(offset)) {
-      if (!is.numeric(offset)) {
-        stop("'offset' must be numeric")
-      }
-      if (length(offset) == 1L) {
-        offset <- rep_len(offset, initialNumObservations)
-        offsetGivenAsScalar <- TRUE
-      } else {
-        offsetGivenAsScalar <- FALSE
-      }
-      if (length(offset) != initialNumObservations) {
-        stop("length of 'offset' must equal length of 'y'")
-      }
-      offset <- offset[subset]
-    }
+    offsetResult <- validateXYOffset(
+      offset,
+      initialNumObservations,
+      subset,
+      offsetGivenAsScalar
+    )
+    offset <- offsetResult$offset
+    offsetGivenAsScalar <- offsetResult$offsetGivenAsScalar
   } else if (
     is.numeric(formula) || is.data.frame(formula) || is.factor(formula)
   ) {
@@ -931,38 +967,19 @@ dbartsData <- function(
     if (missing(weights)) {
       weights <- NULL
     }
-    if (!is.null(weights)) {
-      if (!is.numeric(weights)) {
-        stop("'weights' must be a numeric vector")
-      }
-      weights <- as.double(weights)
-      if (length(weights) == 1L) {
-        weights <- rep_len(weights, initialNumObservations)
-      }
-      if (length(weights) != initialNumObservations) {
-        stop("length of 'weights' must equal length of 'y'")
-      }
-      weights <- weights[subset]
-    }
+    weights <- validateXYWeights(weights, initialNumObservations, subset)
 
     if (offsetIsMissing) {
       offset <- NULL
     }
-    if (!is.null(offset)) {
-      if (!is.numeric(offset)) {
-        stop("'offset' must be numeric")
-      }
-      if (length(offset) == 1L) {
-        offset <- rep_len(offset, initialNumObservations)
-        offsetGivenAsScalar <- TRUE
-      } else {
-        offsetGivenAsScalar <- FALSE
-      }
-      if (length(offset) != initialNumObservations) {
-        stop("length of 'offset' must equal length of 'y'")
-      }
-      offset <- offset[subset]
-    }
+    offsetResult <- validateXYOffset(
+      offset,
+      initialNumObservations,
+      subset,
+      offsetGivenAsScalar
+    )
+    offset <- offsetResult$offset
+    offsetGivenAsScalar <- offsetResult$offsetGivenAsScalar
 
     # a mixed container keeps its rows and attributes: missing predictor
     # values are validated below, like the sparse-matrix branch above

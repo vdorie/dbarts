@@ -784,14 +784,9 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// The K softmax probabilities per observation, location-major (channel k at
   /// combined_[k*n + i]); the reported training output. Log-sum-exp-safe.
   const double* combinedFits(const std::vector<Forest<L, ResidT>>& forests) override {
-    std::size_t n = data_.numObservations;
-    // plain copy to location-major, then the shared softmax in place, exactly as
-    // combinedTestFits does (byte-identical to the direct per-forest loop)
-    for (std::size_t k = 0; k < numCategories_; ++k)
-      for (std::size_t i = 0; i < n; ++i)
-        combined_[k * n + i] = forests[k].totalFits[i];
-    softmaxLocationMajor(combined_.data(), n, numCategories_, combined_.data());
-    return combined_.data();
+    return blendSoftmax(data_.numObservations,
+        [&](std::size_t k) { return forests[k].totalFits.data(); },
+        combined_.data());
   }
 
   /// The K softmax TEST probabilities per test observation, location-major
@@ -807,15 +802,9 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
       const std::vector<Forest<L, ResidT>>& forests) override {
     std::size_t nTest = data_.numTestObservations;
     combinedTest_.resize(nTest * numCategories_);
-    // gather the K forests' totalTestFits into location-major order, then
-    // softmax in place through the shared map (byte-identical to the direct
-    // per-forest loop this replaced: the gather is a plain copy)
-    for (std::size_t k = 0; k < numCategories_; ++k)
-      for (std::size_t i = 0; i < nTest; ++i)
-        combinedTest_[k * nTest + i] = forests[k].totalTestFits[i];
-    softmaxLocationMajor(combinedTest_.data(), nTest, numCategories_,
-                         combinedTest_.data());
-    return combinedTest_.data();
+    return blendSoftmax(nTest,
+        [&](std::size_t k) { return forests[k].totalTestFits.data(); },
+        combinedTest_.data());
   }
 
   /// The likelihood-invariant LEVEL-CENTERING move (docs/design/multinomial.md):
@@ -874,6 +863,24 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   }
 
 private:
+  /// The shared train/test blend: gather the K forests' per-observation fits
+  /// (forest k's supplied by fitsOf(k)) into out in location-major order
+  /// (channel k at out[k*count + i]), then softmax in place. combinedFits and
+  /// combinedTestFits are this same map; only the source vector (totalFits vs
+  /// totalTestFits) and length (n vs nTest) differ. The gather is a plain copy
+  /// in the same k-outer, i-inner order the two direct loops used, and the
+  /// in-place softmax is unchanged, so both callers stay byte-identical.
+  template <typename FitsOf>
+  const double* blendSoftmax(std::size_t count, FitsOf fitsOf, double* out) {
+    for (std::size_t k = 0; k < numCategories_; ++k) {
+      const double* fits = fitsOf(k);
+      for (std::size_t i = 0; i < count; ++i)
+        out[k * count + i] = fits[i];
+    }
+    softmaxLocationMajor(out, count, numCategories_, out);
+    return out;
+  }
+
   /// Stable two-term log-sum-exp. An empty LSE is passed as -HUGE_VAL and
   /// returned through exactly (no exp(-inf)), so the empty-set margins are
   /// bit-exact: C_if for K == 2 is the other category's raw fit.

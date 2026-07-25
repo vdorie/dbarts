@@ -1,3 +1,50 @@
+# Shared left-hand sigma-trace panel for plot.bart and plot.rbart: splits the
+# device into a 1x2 layout and draws the residual-scale trace. A matrix-shaped
+# 'sigma' (multiple chains) is drawn as one line per chain bridging the burn-in
+# ('first.sigma', red) into the sampling run; a vector is a single scatter. The
+# posterior-interval panel is drawn by each caller afterward.
+plotSigmaTrace <- function(first.sigma, sigma, ...) {
+  par(mfrow = c(1L, 2L))
+  if (!is.null(dim(sigma))) {
+    plot(
+      NULL,
+      type = "n",
+      ylab = "sigma",
+      xlim = c(1, ncol(first.sigma) + ncol(sigma)),
+      ylim = range(first.sigma, sigma)
+    )
+    for (i in seq_len(nrow(sigma))) {
+      lines(
+        c(seq_len(ncol(first.sigma)), ncol(first.sigma) + 0.5),
+        c(
+          first.sigma[i, ],
+          0.5 * (first.sigma[i, ncol(first.sigma)] + sigma[i, 1L])
+        ),
+        col = "red",
+        lty = i
+      )
+      lines(
+        c(
+          ncol(first.sigma) + 0.5,
+          seq.int(ncol(first.sigma) + 1, length.out = ncol(sigma))
+        ),
+        c(
+          0.5 * (first.sigma[i, ncol(first.sigma)] + sigma[i, 1L]),
+          sigma[i, ]
+        ),
+        lty = i
+      )
+    }
+  } else {
+    plot(
+      c(first.sigma, sigma),
+      col = rep(c("red", "black"), c(length(first.sigma), length(sigma))),
+      ylab = "sigma",
+      ...
+    )
+  }
+}
+
 plot.bart <- function(
   x,
   plquants = c(0.05, 0.95),
@@ -13,45 +60,7 @@ plot.bart <- function(
   }
 
   if ("sigma" %in% names(x)) {
-    par(mfrow = c(1L, 2L))
-    if (!is.null(dim(x$sigma))) {
-      plot(
-        NULL,
-        type = "n",
-        ylab = "sigma",
-        xlim = c(1, ncol(x$first.sigma) + ncol(x$sigma)),
-        ylim = range(x$first.sigma, x$sigma)
-      )
-      for (i in seq_len(nrow(x$sigma))) {
-        lines(
-          c(seq_len(ncol(x$first.sigma)), ncol(x$first.sigma) + 0.5),
-          c(
-            x$first.sigma[i, ],
-            0.5 * (x$first.sigma[i, ncol(x$first.sigma)] + x$sigma[i, 1L])
-          ),
-          col = "red",
-          lty = i
-        )
-        lines(
-          c(
-            ncol(x$first.sigma) + 0.5,
-            seq.int(ncol(x$first.sigma) + 1, length.out = ncol(x$sigma))
-          ),
-          c(
-            0.5 * (x$first.sigma[i, ncol(x$first.sigma)] + x$sigma[i, 1L]),
-            x$sigma[i, ]
-          ),
-          lty = i
-        )
-      }
-    } else {
-      plot(
-        c(x$first.sigma, x$sigma),
-        col = rep(c("red", "black"), c(length(x$first.sigma), length(x$sigma))),
-        ylab = "sigma",
-        ...
-      )
-    }
+    plotSigmaTrace(x$first.sigma, x$sigma, ...)
   }
 
   if ("sigma" %in% names(x)) {
@@ -113,45 +122,7 @@ plot.rbart <- function(
   }
 
   if ("sigma" %in% names(x)) {
-    par(mfrow = c(1L, 2L))
-    if (!is.null(dim(x$sigma))) {
-      plot(
-        NULL,
-        type = "n",
-        ylab = "sigma",
-        xlim = c(1, ncol(x$first.sigma) + ncol(x$sigma)),
-        ylim = range(x$first.sigma, x$sigma)
-      )
-      for (i in seq_len(nrow(x$sigma))) {
-        lines(
-          c(seq_len(ncol(x$first.sigma)), ncol(x$first.sigma) + 0.5),
-          c(
-            x$first.sigma[i, ],
-            0.5 * (x$first.sigma[i, ncol(x$first.sigma)] + x$sigma[i, 1L])
-          ),
-          col = "red",
-          lty = i
-        )
-        lines(
-          c(
-            ncol(x$first.sigma) + 0.5,
-            seq.int(ncol(x$first.sigma) + 1, length.out = ncol(x$sigma))
-          ),
-          c(
-            0.5 * (x$first.sigma[i, ncol(x$first.sigma)] + x$sigma[i, 1L]),
-            x$sigma[i, ]
-          ),
-          lty = i
-        )
-      }
-    } else {
-      plot(
-        c(x$first.sigma, x$sigma),
-        col = rep(c("red", "black"), c(length(x$first.sigma), length(x$sigma))),
-        ylab = "sigma",
-        ...
-      )
-    }
+    plotSigmaTrace(x$first.sigma, x$sigma, ...)
   }
 
   if (length(dim(x$ranef)) > 2L) {
