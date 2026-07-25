@@ -379,10 +379,6 @@ namespace dbarts {
 #  include <unistd.h>
 #  ifdef _SC_NPROCESSORS_ONLN
 #    define USE_SYSCONF
-#  elif defined(HAVE_SYS_SYSCTL_H)
-#    include <sys/param.h>
-#    include <sys/sysctl.h>
-#    define USE_SYSCTL
 #  endif
 
 
@@ -393,30 +389,13 @@ namespace dbarts {
     
     
 #  if defined(USE_SYSCONF)
-    *numLogicalProcessorsPtr = sysconf(_SC_NPROCESSORS_ONLN);
-    if (*numLogicalProcessorsPtr < 1) {
+    long numLogical = sysconf(_SC_NPROCESSORS_ONLN);
 #    ifdef _SC_NPROCESSORS_CONF
-      *numLogicalProcessorsPtr = sysconf(_SC_NPROCESSORS_CONF);
-      if (*numLogicalProcessorsPtr < 1) *numLogicalProcessorsPtr = -1;
-#    else
-      *numLogicalProcessorsPtr = -1;
+    if (numLogical < 1) numLogical = sysconf(_SC_NPROCESSORS_CONF);
 #    endif
-    }
-    
-#  elif defined(USE_SYSCTL)
-    int query[2];
-    size_t bufferLength = sizeof(uint32_t);
-    
-    query[0] = CTL_HW;
-#    ifdef HW_AVAILCPU
-    query[1] = HW_AVAILCPU;
-    if (sysctl(query, 2, numLogicalProcessorsPtr, &bufferLength, NULL, 0) == -1 ||  numCores < 1) {
-#    endif
-      key[1] = HW_NCPU;
-      sysctl(query, 2, numLogicalProcessorsPtr, &bufferLength, NULL, 0);
-#    ifdef HW_AVAILCPU
-    }
-#    endif
+    // 0 is the "could not determine" sentinel the R interface maps to NA; a
+    // failed sysconf returns -1, which must not truncate to a huge uint32.
+    *numLogicalProcessorsPtr = numLogical > 0 ? (uint32_t) numLogical : 0;
 #  endif
   }
 }
