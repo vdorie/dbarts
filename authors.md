@@ -72,7 +72,7 @@ Additive Regression Trees Sampler*. R package version 1.0-0,
     }
 
 Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. x86_64-pc-linux-gnu.
+Trees Sampler. R package version 1.0-0.
 https://CRAN.R-project.org/package=dbarts
 
     @Manual{,
@@ -82,44 +82,3 @@ https://CRAN.R-project.org/package=dbarts
       note = {R package version 1.0-0},
       url = {https://CRAN.R-project.org/package=dbarts},
     }
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. x86_64. https://CRAN.R-project.org/package=dbarts
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. linux-gnu. https://CRAN.R-project.org/package=dbarts
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. x86_64, linux-gnu.
-https://CRAN.R-project.org/package=dbarts
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. . https://CRAN.R-project.org/package=dbarts
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. 4. https://CRAN.R-project.org/package=dbarts
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. 6.1. https://CRAN.R-project.org/package=dbarts
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. 2026. https://CRAN.R-project.org/package=dbarts
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. 06. https://CRAN.R-project.org/package=dbarts
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. 24. https://CRAN.R-project.org/package=dbarts
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. 90187. https://CRAN.R-project.org/package=dbarts
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. R. https://CRAN.R-project.org/package=dbarts
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. R version 4.6.1 (2026-06-24).
-https://CRAN.R-project.org/package=dbarts
-
-Vincent Dorie (2026). dbarts: Discrete Bayesian Additive Regression
-Trees Sampler. Happy Hop. https://CRAN.R-project.org/package=dbarts
