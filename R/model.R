@@ -111,8 +111,6 @@ parsePriors <- function(
   for (name in names(dbartsResidDists)) {
     assign(name, dbartsResidDists[[name]], envir = evalEnv)
   }
-  evalEnv$control <- control
-  evalEnv$data <- data
   # both spellings are exposed for the split.probs vocabulary: num.vars is the
   # current name, numvars the backward-compatible alias, so a bare 1 / num.vars
   # or 1 / numvars in a split.probs expression resolves either way
