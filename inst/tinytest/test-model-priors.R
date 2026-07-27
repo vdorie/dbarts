@@ -74,6 +74,18 @@ sampler.nv <- dbarts(
 )
 expect_equal(length(sampler.nv$model@tree.prior@splitProbabilities), 0L)
 
+# the vocabulary is the constructors plus num.vars/numvars, and nothing else:
+# a caller's own 'data' or 'control' inside a prior argument is the caller's
+data <- c(a = 3, .default = 1)
+sampler.caller <- dbarts(
+  y ~ a + b,
+  df,
+  tree.prior = cgm(2, 0.95, data),
+  control = control
+)
+expect_equal(unname(sampler.caller$model@tree.prior@splitProbabilities), c(0.75, 0.25))
+rm(data)
+
 # named split probabilities resolve against the data at fit time
 prior.split <- dbartsPriors$cgm(split.probs = c(a = 3, .default = 1))
 sampler.split <- dbarts(
