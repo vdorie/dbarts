@@ -1,9 +1,10 @@
 # runsbcbcf-repair
 
-status: DESIGNED 2026-08-05 (VD picked FIX-B; design + independent
-        blind critique below, counterfactual-validated on a patched
-        scratch clone; implementation pending with the order AMENDED:
-        the setModel guard is a precondition of FIX-B, not a follow-on)
+status: LANDED 62caed0 2026-08-05 (FIX-B implemented per the Design +
+        critique with all three blocking amendments; the setModel
+        guard precondition landed first at 6744aca; see the FIX-B
+        landing note. The R=200 acceptance arm verdict lands as an
+        addendum when its run completes)
 agent: sonnet diagnosed; opus if an engine capability ships
 rng: neutral - a creation-time calibration override defaults to the
      current derivation, so existing draws are bitwise-unchanged
@@ -226,3 +227,35 @@ bitwise identical (27/27, BCF 5 scenarios x 6 channels, multinomial
 3 x 5 vs the ec2a3d0 baseline); air format clean; R CMD check
 Status: OK with a zero pre/post delta. FIX-B's leaf-scale pin
 argument now holds at HEAD.
+
+## FIX-B landing (2026-08-05, 62caed0)
+
+Implemented per the Design + critique with the three blocking
+amendments: the flat C API holes and helper promotion had landed with
+the guard precondition (6744aca); the chain forwarder carries the
+structural gaussian conjunct (combiner opt-in AND family == gaussian);
+NA updateScale refuses (the bridge permits only an explicit FALSE).
+supportsResponseMutation defaults false on the ForestCombiner base
+(future couplings refused until audited), BCF overrides true with its
+two conditions stated; the bridge's two refusal messages both carry
+"multi-forest" and describe the opt-in era accurately; the stale
+multinomial comment at model.hpp ~3383 rewritten. Nine files,
++276/-18 (engine/bridge 84, tests 210).
+
+Gates, implementer + independent re-run from a fresh --preclean
+install: tests/cpp from clean 175 checks all pass, including the new
+BCF block whose strongest arm reproduces setOffset(yBuild - yNew,
+FALSE) bitwise (sigma, both forests' totalFits, glue; exact-delta
+construction) and whose totals-vs-tree-sums check documents a
+pre-existing swap-independent ~2.2e-8 tau-forest gap (the b_z 1e-9
+multiplier floor in the residual cancellation, measured identical
+with and without the swap); ASAN/UBSAN tests/cpp leg clean
+(implementer); tinytest 3484/0 (+8: seam refusal flipped to success,
+TRUE/NA/multinomial refusals added, BCF round-trip retargets with the
+reported/internal map identical across the swap); equivalence trio
+bitwise identical (27/27, BCF 5x6, multinomial 3x5 vs ec2a3d0); smoke
+`sbc.R bcf 3 10 1` RUNS 15/15 PASS (5.6 s/rep); air clean; R CMD
+check Status: OK, zero delta (implementer). runSbcBCF needed zero
+edits. rchk workflow dispatched post-push per the design's note; the
+R=200 recorded-config acceptance arm runs post-landing, verdict to be
+recorded below as an addendum.
