@@ -2,83 +2,93 @@
 
 agent: opus
 rng: neutral
-budget: ~250 lines (two bridge validators + tinytest; no engine touch)
+budget: ~400 lines (creation validator rewrite, one new container
+  validator, mutation guards, tinytest)
 
 ## Goal
 
-Every categorical test-ingestion entrance bounds category codes against
-the column's K (store numCuts), CSC-backed training columns included.
-The typed-ingestion probe (typed-ingestion.md Survey) verified three
-silent-acceptance consequences on the declared-K path: deterministic
-mis-bin (inline, K <= 63), shift UB at code >= 64 (maskTestBit,
-tree.hpp), and a heap-buffer-overflow read (pooled, K > 63; ASAN,
-standalone). All become the same refusal dense columns already get.
+Every categorical ingestion entrance - training and test, dense
+slice, CSC slice, reference code - bounds codes against the
+TRAINING-side K: declared (cscCategoryCounts) for CSC-trained,
+inferred max+1 for dense-trained, store numCuts once a store exists.
+Closes the verified mis-bin/shift-UB/heap-overread class
+(typed-ingestion.md Survey); refusals match the dense error texts.
 
 ## Context
 
-- validateCategoricalPredictors (src/R_interface_bartcore.cpp,
-  creation-time x.test): skips any categorical column whose TRAINING
-  source is CSC; the skip is keyed on the training column, so it also
-  drops validation of a DENSE x.test matrix against that column.
-- parseTestContainer (same file): bounds only cscReferenceCodes into
-  [0, K); the stored values themselves are never bounded.
-- validateColumnValues (same file; the mutation/test/predict entries):
-  already bounds against store numCuts - the model to unify on. For a
-  CSC column numCuts IS the declared K, so in-range
-  declared-but-unobserved codes (probe G2) stay accepted.
-- Existing out-of-range coverage is dense-only
-  (inst/tinytest/test-bartcore.R, "existing category codes" block).
-
-## Decision
-
-Bridge-only, or also an engine-side refusal inside
-quantizeCscColumnInto (cold ingestion path)? Recommend bridge-only:
-validation lives at the boundary by design (the rc.a pattern), the
-engine assumes valid codes everywhere else, and the typed-ingestion
-view will centralize entrance validation anyway - a second engine
-check would be a third place to keep in sync. Evidence that would
-change it: the step 1 enumeration finding an entrance that cannot see
-numCuts, or a non-bridge host (tests/cpp shim, future pybind) feeding
-codes the bridge never sees.
+The hole is SPECIFICALLY creation-time validation plus the container
+parse; predict, getTrees(newdata), setData, setPredictor value
+bounds, setCutPoints (categorical refused), and setState/
+installForests (buildFromFlatBelow bounds masks) are verified safe.
+- validateCategoricalPredictors (R_interface_bartcore.cpp) is broken
+  four ways: skips CSC-trained columns; bails on CSC-backed TEST
+  columns whatever the training source (rawParsedTestColumn NULL);
+  rawTrainingColumn is NULL for CSC-trained (naive skip-removal
+  derefs it - scan the CSC slice instead); and it runs pre-store, so
+  the bound must be reconstructed, not read off numCuts.
+- resolveCscCategoricalReferences bounds the reference code against
+  the CONTAINER's declared count, not the training K (test-side call
+  passes categoryCountsOut null) - and refCode is what every implicit
+  row reads, the higher-volume variant.
+- Training side: a container whose stored codes reach its own
+  declared K is accepted (numCuts = cscCategoryCount; codeFor is a
+  bare cast) - the same class lands on the training store.
+- Critique record (2026-08-05, refuting): BLOCKER x5, all folded in
+  here; its counterfactual validators passed full tinytest 3484,
+  bitwise-identical draws on 4 designs, zero false refusals across
+  the valid battery (in-range declared-unobserved, larger-K and
+  smaller-K containers, NA, xbart). Its baseline alarm was moot
+  (equivalence-fbd2168 is historical-classic, not a gate).
 
 ## Constraints
 
-- Refuse, never clamp: clamping reproduces the mis-bin class.
-- The bound is numCuts (declared K for CSC, inferred max+1 for dense);
-  do not tighten to observed support - probe G2/I1-in-range acceptance
-  is correct behavior and must survive.
-- Error text matches the existing dense refusals.
-- rng neutral: previously-valid inputs take identical paths; only
-  silently-accepted invalid inputs turn into errors.
-- Out of scope: the dense declared-K asymmetry (typed-ingestion slice
-  1), factors="indicators" collapse, engine defense in depth (per the
-  Decision).
+- Refuse, never clamp; validation keyed on the VIEW being ingested
+  (dense slice | CSC slice | reference code), bound from the training
+  side. In-range declared-but-unobserved stays accepted.
+- Residual, recorded not fixed: a level-order-permuted foreign
+  container with in-range codes passes (semantic alignment is
+  typed-ingestion's job); tests/cpp builds CSC stores directly
+  (in-tree, ours - not a counterexample to bridge validation).
+- rng neutral; no engine code change (one stale doc comment fix at
+  mutateCscColumnFromDense allowed).
+- Out of scope: dense declared-K asymmetry (typed-ingestion slice 1),
+  factors="indicators" collapse, the mutation-shape lift.
 
 ## Steps
 
-1. Enumerate every entrance that installs categorical test/predictor
-   codes (callers of parseTestContainer, validateCategoricalPredictors,
-   validateColumnValues; the predict/setTestPredictor/setTestData/
-   setData/setPredictor entries) and record which validator covers
-   each; the fix must leave none uncovered.
-2. validateCategoricalPredictors: remove the CSC-training skip; bound
-   against the column's numCuts.
-3. parseTestContainer: bound every stored categorical value into
-   [0, K) beside the existing reference-code check; NA handling
-   mirrors the dense validator.
-4. tinytest: out-of-range refused at creation (dense x.test vs CSC
-   train), via container setTestPredictor (inline and pooled K > 63),
-   and via a foreign container with larger declared K; in-range
-   declared-but-unobserved stays accepted (G2, I1 in-range).
-5. Re-run the probe's silent-acceptance scripts (scratchpad
-   typed-ingestion-probe/ 03, 04, 06, I1/K1 probes) and confirm each
-   invalid case now refuses and each valid case still fits.
+1. Creation: rewrite validateCategoricalPredictors - per-column
+   training bound (declared K via data.cscCategoryCounts, else
+   inferred max+1); validate the training CSC slice against its
+   declared K; validate the test view whatever its backing (dense
+   matrix, dense slice, CSC slice, reference code) against the bound.
+2. Mutation: new validateTestContainerAgainstStore(const ColumnStore&,
+   const ParsedTestContainer&) bounding stored values, dense-backed
+   container columns, and the reference code against store numCuts;
+   call it after parseTestContainer at BOTH entrances
+   (setTestPredictor and setTestPredictorAndOffset).
+3. Guard the corrupting mutation entrance: bridge setPredictor/
+   updatePredictor entries and dbarts_sampler_setPredictor
+   (C_interface.cpp) refuse on a design with any CSC-backed column,
+   mirroring the R5 refusal - mutateCscColumnFromDense rebuilds the
+   nonzero pattern from value != 0, silently merging the reference
+   level (verified by direct .Call); the real fix is the sparse
+   mutation-shape lift. Fix its stale "ordinal only" comment.
+4. tinytest: out-of-range refused at creation and both container
+   entrances x {stored codes, reference code} x {CSC-trained,
+   dense-trained} x {inline, pooled}; training-side codes >= declared
+   K; lock-ins that predict/getTrees still refuse; valid battery
+   stays accepted (expect_error targets the sampler constructor, not
+   dbartsData).
+5. Acceptance: rerun the probe and critique scripts (scratchpad
+   typed-ingestion-probe/ and critic/) - every invalid case refuses,
+   every valid case fits identically.
 
 ## Verification
 
-- R CMD INSTALL .; full tinytest (3484 + new); air format --check .
-  and local R CMD check (tinytest files are R).
-- Equivalence trio bitwise via the dedicated harnesses (neutral
-  commit).
-- tests/cpp make && ./test_bartcore unchanged-green (no engine touch).
-- CI including sanitizers to green before landing more on top.
+- R CMD INSTALL .; full tinytest (3484 + new); air format --check .;
+  local R CMD check (tinytest is R code).
+- Equivalence trio bitwise via the dedicated harnesses (MANIFEST
+  current: equivalence-7903855, bcf-equivalence-99205ee,
+  multinomial-equivalence-ec2a3d0).
+- tests/cpp make && ./test_bartcore unchanged-green; CI incl.
+  sanitizers to green before landing more on top.
