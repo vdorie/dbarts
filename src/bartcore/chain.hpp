@@ -785,6 +785,15 @@ public:
   void setTreatment(const double* z) {
     if (combiner_) combiner_->setTreatment(z);
   }
+  /// Whether this chain's forest coupling permits a whole-response swap
+  /// (setResponse at updateScale = false); false off any combiner, since a
+  /// single-forest chain never consults it. The gaussian conjunct is
+  /// structural, not advisory: a latent family reads forests_[0].totalFits as
+  /// though it were the combined location, which is false on a coupling.
+  bool supportsResponseMutation() const {
+    return combiner_ && combiner_->supportsResponseMutation() &&
+           family_ == ResponseFamily::gaussian;
+  }
   /// BCF glue on the combining response; false for a non-BCF chain.
   bool bcfGlue(double& a, double& b0, double& b1) const {
     return combiner_ ? combiner_->bcfGlue(a, b0, b1) : false;

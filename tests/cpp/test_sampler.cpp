@@ -1601,6 +1601,133 @@ static void testBCFTwoForest(ext_rng* rng) {
   printf("ok: BCF two-forest sampler\n");
 }
 
+// A BCF sampler admits a whole-response swap at updateScale = false: the
+// gaussian response re-maps y through the pinned (min_, range_) and touches no
+// forest, and the combiner re-derives every per-forest residual from y each
+// sweep, so nothing per-forest is stale afterwards. Two arms - the pins hold
+// and both forests stay self-consistent, and the swap is bitwise the same
+// chain as the already-permitted setOffset(yBuild - yNew), which re-maps to
+// the same working response through the same transform.
+static void testBCFResponseSwap() {
+  const size_t n = 300, p = 3, muTrees = 30, tauTrees = 15;
+  std::vector<double> x(n * p), z(n), yBuild(n), yNew(n), delta(n);
+  // A local stream, so adding this test does not shift the shared runif01()
+  // state the hardcoded characteristic values downstream depend on.
+  std::uint64_t state = 20260805u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = unif() < 0.5 ? 1.0 : 0.0;
+    double mu = std::sin(3.0 * x[i]) + x[i + n];
+    double tau = 1.0 + 2.0 * x[i + 2 * n];
+    yBuild[i] = mu + z[i] * tau + 0.2 * (unif() - 0.5);
+    // The offset arm reaches its working response by subtraction, so yNew must
+    // be exactly what that subtraction produces; without this round trip the
+    // two arms differ in the last ulp and the comparison measures fp rounding.
+    delta[i] = yBuild[i] - (0.5 * mu - z[i] * tau + 0.3 * (unif() - 0.5));
+    yNew[i] = yBuild[i] - delta[i];
+  }
+
+  SamplerOptions options;
+  BCFSpec spec;
+  spec.mu.numTrees = muTrees; spec.mu.base = 0.95; spec.mu.power = 2.0;
+  spec.tau.numTrees = tauTrees; spec.tau.base = 0.25; spec.tau.power = 3.0;
+  spec.z = z.data();
+
+  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rngA, 20260805u);
+  ext_rng_setSeed(rngB, 20260805u);
+  Sampler<ConstantGaussianLeaf> samplerA(
+    x.data(), yBuild.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+    0.37804942330213542, options, spec, &rngA);
+  Sampler<ConstantGaussianLeaf> samplerB(
+    x.data(), yBuild.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+    0.37804942330213542, options, spec, &rngB);
+  check(samplerA.supportsResponseMutation(),
+        "a BCF sampler opts into multi-forest response mutation");
+
+  const size_t numWarm = 60, numAfter = 40;
+  std::vector<double> warmSigma(numWarm), warmFits(n * numWarm);
+  Results warm;
+  warm.sigma = warmSigma.data();
+  warm.trainingFits = warmFits.data();
+  samplerA.run(0, numWarm, warm);
+  samplerB.run(0, numWarm, warm);
+
+  double fitScale = samplerA.fitScale(),
+         leafScale = samplerA.chain(0).leaf().scale, sigma = samplerA.sigma(0);
+  samplerA.setResponse(yNew.data(), false);
+  samplerB.setOffset(delta.data(), false);
+  check(samplerA.fitScale() == fitScale &&
+          samplerA.chain(0).leaf().scale == leafScale,
+        "BCF response swap pins the response transform and the leaf scale");
+  check(samplerA.sigma(0) == sigma,
+        "BCF response swap leaves sigma continuous");
+
+  std::vector<double> sigmaA(numAfter), fitsA(n * numAfter), sigmaB(numAfter),
+    fitsB(n * numAfter);
+  Results rA, rB;
+  rA.sigma = sigmaA.data();
+  rA.trainingFits = fitsA.data();
+  rB.sigma = sigmaB.data();
+  rB.trainingFits = fitsB.data();
+  samplerA.run(0, numAfter, rA);
+  samplerB.run(0, numAfter, rB);
+
+  // Every forest's cached total still sums its own trees' fits, and both
+  // forests are still moving off zero. The tolerance is relative rather than
+  // ulp-level because finalizeTotalFits reaches the total by cancelling the
+  // running residual against the forest response, which BCF divides by b_z:
+  // with b0 near its 1e-9 multiplier floor that division carries ~1e-8 of
+  // absolute slop into the tau total (present in an unswapped chain too, and
+  // unchanged by the swap). A forest left stale would be off by O(1).
+  std::vector<double> totals(n), treeFits(n * muTrees), totalsB(n);
+  bool consistent = true, moves = true;
+  for (size_t f = 0; f < 2; ++f) {
+    size_t numTrees = f == 0 ? muTrees : tauTrees;
+    samplerA.chain(0).forestTotalFits(f, totals.data());
+    samplerA.chain(0).forestTreeFits(f, treeFits.data());
+    double worst = 0.0, largest = 0.0, ss = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      double sum = 0.0;
+      for (size_t t = 0; t < numTrees; ++t) sum += treeFits[i + t * n];
+      worst = std::max(worst, std::fabs(totals[i] - sum));
+      largest = std::max(largest, std::fabs(totals[i]));
+      ss += totals[i] * totals[i];
+    }
+    consistent &= worst <= 1.0e-5 * std::max(1.0, largest);
+    moves &= ss > 0.0;
+  }
+  check(consistent, "BCF forest totals still sum their trees after the swap");
+  check(moves, "both BCF forests still move after the response swap");
+
+  // The strongest assertion: the swap is the already-permitted offset re-map
+  // with a different pointer. Draws, both forests and the glue must agree to
+  // the bit. Reported fits are excluded on purpose - storeSample adds the
+  // offset back, so the offset arm reports fit + delta by design.
+  bool identical = true;
+  for (size_t s = 0; s < numAfter; ++s) identical &= sigmaA[s] == sigmaB[s];
+  for (size_t f = 0; f < 2; ++f) {
+    samplerA.chain(0).forestTotalFits(f, totals.data());
+    samplerB.chain(0).forestTotalFits(f, totalsB.data());
+    for (size_t i = 0; i < n; ++i) identical &= totals[i] == totalsB[i];
+  }
+  double a, b0, b1, a2, b02, b12;
+  samplerA.chain(0).bcfGlue(a, b0, b1);
+  samplerB.chain(0).bcfGlue(a2, b02, b12);
+  identical &= a == a2 && b0 == b02 && b1 == b12;
+  check(identical, "BCF setResponse(yNew, false) is bitwise the "
+                   "setOffset(yBuild - yNew) chain");
+
+  ext_rng_destroy(rngA);
+  ext_rng_destroy(rngB);
+  printf("ok: BCF scale-pinned response swap\n");
+}
+
 // Regression (heap-use-after-free): a BCF mu-forest interaction constraint must
 // not dangle. mu's trees borrow the address of forest.interaction; building the
 // tau forest reallocates forests_ and relocates mu, so a value-member constraint
@@ -2897,6 +3024,7 @@ void runSamplerTests(ext_rng* rng) {
   testForestColumnRestrictionAllNeutral();
   testBCFTauModeratorRestriction(rng);
   testBCFTwoForest(rng);
+  testBCFResponseSwap();
   testBCFInteractionLifetime();
   testBCFFixedGlue(rng);
   testBCFInterweave(rng);

@@ -396,6 +396,13 @@ struct ForestCombiner {
     return reportedForest();
   }
 
+  /// Whether a whole-response swap (Chain::setResponse at updateScale = false)
+  /// is safe on this coupling: true only for a combiner that caches NOTHING
+  /// per-forest across sweeps and re-derives every per-forest residual from the
+  /// chain's working response on every sweep. Defaults false so a future
+  /// multi-forest model stays refused at the bridge until it is audited.
+  virtual bool supportsResponseMutation() const { return false; }
+
   /// Glue (de)serialization into the BCF-shaped state fields; inert unless the
   /// combiner carries glue.
   virtual void serializeGlue(ChainStateData&) const {}
@@ -602,6 +609,14 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// per-observation location is not visible to the response model to score.
   bool testFitsAreDefined() const override { return false; }
   bool logLikelihoodIsDefined() const override { return false; }
+
+  /// BCF admits the scale-pinned response swap, relying on two conditions: the
+  /// gaussian response re-maps y through the pinned (min_, range_) and touches
+  /// no forest, so both leaf calibrations and the sigma prior stay put; and
+  /// this combiner caches nothing per-forest across sweeps - formForestResponse
+  /// re-derives every per-forest residual and precision from y each sweep, and
+  /// the glue lives here rather than in the response, so it carries over.
+  bool supportsResponseMutation() const override { return true; }
 
   /// The glue scalars into and out of the BCF-shaped wire format. serializeGlue
   /// owns the hasBCF flag (the "carries glue" marker); restoreGlue is a no-op on

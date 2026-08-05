@@ -299,3 +299,49 @@ expect_true(all(vcTauMod[c(2L, 4L), 1L] == 0L))
 expect_true(sum(vcTauMod[c(1L, 3L), 1L]) > 0L)
 vcMuMod <- dbarts:::bartcoreForestVariableCounts(bcMod, 0L)
 expect_true(sum(vcMuMod[c(2L, 4L), 1L]) > 0L)
+
+# --- the scale-pinned response swap. A BCF sampler is the one multi-forest
+# coupling that admits setResponse (updateScale = FALSE only): the gaussian
+# response re-maps y through the transform pinned at build, and the combiner
+# re-derives both per-forest residuals from y every sweep, so the swap refits
+# the same calibrated model against a new target. Two arms from one seed, one
+# swapping and one not: the affine reported/internal map (recovered the way
+# benchmarks/R/sbc.R does) must be identical across the swap, while the
+# posterior must actually retarget. ---
+yNew <- mu - z * tau + rnorm(n, sd = 0.2)
+
+bcfMap <- function(bc) {
+  reported <- dbarts:::bartcoreRun(bc, 0L, 1L)$train[, 1L]
+  glue <- dbarts:::bartcoreBCFGlue(bc)
+  internal <- glue[1L, 1L] *
+    dbarts:::bartcoreForestFits(bc, 0L)[, 1L] +
+    ifelse(z != 0, glue[3L, 1L], glue[2L, 1L]) *
+      dbarts:::bartcoreForestFits(bc, 1L)[, 1L]
+  fitScale <- stats::cov(reported, internal) / stats::var(internal)
+  c(mean(reported) - fitScale * mean(internal), fitScale)
+}
+
+bcfSwapArm <- function(swap) {
+  set.seed(101)
+  host <- dbarts(x, y, control = control)
+  bc <- dbarts:::bartcoreBCFSampler(host, z, n.trees.treatment = 25L)
+  dbarts:::bartcoreRun(bc, 50L, 1L)
+  before <- bcfMap(bc)
+  if (swap) {
+    dbarts:::bartcoreSetResponse(bc, yNew)
+  }
+  res <- dbarts:::bartcoreRun(bc, 50L, 20L)
+  list(before = before, after = bcfMap(bc), fits = rowMeans(res$train))
+}
+
+arm.swap <- bcfSwapArm(TRUE)
+arm.keep <- bcfSwapArm(FALSE)
+
+expect_true(all(is.finite(arm.swap$fits)))
+expect_equal(arm.swap$after, arm.swap$before, tolerance = 1e-6)
+# the swapped chain tracks the new response, not the build one, and its
+# posterior is nowhere near the arm that never swapped
+expect_true(
+  mean((arm.swap$fits - yNew)^2) < mean((arm.swap$fits - y)^2)
+)
+expect_true(mean(abs(arm.swap$fits - arm.keep$fits)) > 0.5)

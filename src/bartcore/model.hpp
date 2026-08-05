@@ -3380,8 +3380,11 @@ public:
     return sigma;
   }
 
-  // Whole-data mutation is refused for a multi-forest sampler at the R bridge,
-  // so these are unreachable; kept minimal to satisfy the interface.
+  // The multinomial response is the borrowed n x K count matrix on the spec,
+  // which a flat double* cannot express: setResponse and setOffset are
+  // intentional no-ops that only satisfy the interface. The bridge refuses a
+  // multi-forest setResponse for any coupling that does not opt in, and this
+  // one does not, so the silent no-op is unreachable rather than surprising.
   void setResponse(const double*, ext_rng*, const double*, bool,
                    double*) override {}
   void setOffset(const double*, bool, double*) override {}
