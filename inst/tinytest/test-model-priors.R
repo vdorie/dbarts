@@ -83,7 +83,10 @@ sampler.caller <- dbarts(
   tree.prior = cgm(2, 0.95, data),
   control = control
 )
-expect_equal(unname(sampler.caller$model@tree.prior@splitProbabilities), c(0.75, 0.25))
+expect_equal(
+  unname(sampler.caller$model@tree.prior@splitProbabilities),
+  c(0.75, 0.25)
+)
 rm(data)
 
 # named split probabilities resolve against the data at fit time
