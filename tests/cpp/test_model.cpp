@@ -5472,6 +5472,9 @@ static void testMonotoneInteractionCoexistence() {
     scratch.setInteractionConstraint(&constraint);
     if (!scratch.buildFromFlat(store, flat.data(), flat.size(), params)) continue;
     if (!scratch.interactionSubtreeIsValid(0)) interactionOk = false;
+    // buildFromFlat leaves partitions stale, and the feasibility predicate
+    // walks them; without this the monotone check passes vacuously
+    scratch.repartitionSubtree(store, 0);
     if (!monotoneTreeIsFeasible(scratch, store, dir.data(), params.data()))
       monotoneOk = false;
   }
