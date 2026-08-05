@@ -127,7 +127,11 @@ items
     H-MIX (ESS a few dozen at thin=30; full-R ladder commands recorded
     in the plan). Open doors: raw-f_ik (own item above), the monotone
     follow-on arm (enabler 173a710), the heteroscedastic setState
-    lift, full-R ladder re-runs, runSbcBCF repair (small, separate).
+    lift, full-R ladder re-runs, runSbcBCF repair (diagnosed
+    2026-08-05: engine-side, decision-gated - the 9030d93 multi-forest
+    mutation guard refuses its anchor-reuse pattern and BCF's
+    y-derived leaf-scale calibration blocks rebuild-per-rep;
+    docs/plans/runsbcbcf-repair.md).
   setpredictor-leafof-rebuild: the constant-leaf-fits bench discharge
     (2026-08-04, x86) found setPredictor-accept +22-28%, attributed to
     the refactor's full O(n*trees) leafOf rebuild on accepted
