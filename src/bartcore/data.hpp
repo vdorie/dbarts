@@ -1204,7 +1204,10 @@ struct ColumnStore {
   /// at build and never flips. updateCuts refreshes the ordinal cut grid from
   /// the dense column exactly as the dense path does (the CSC cut builders fold
   /// the same implicit zeros the dense column carries explicitly, so the grids
-  /// match). Ordinal columns only (R never builds a sparse categorical); the
+  /// match). Ordinal columns only: a sparse CATEGORICAL column's implicit rows
+  /// read its reference code rather than a structural zero, so this pattern
+  /// rule would merge the reference level's rows with every cell holding code
+  /// 0 - the bridge refuses predictor mutation on a design carrying one. The
   /// caller snapshots for rollback first.
   void mutateCscColumnFromDense(size_t j, const double* column,
                                 bool updateCuts) {

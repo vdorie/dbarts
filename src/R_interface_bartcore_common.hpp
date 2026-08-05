@@ -103,6 +103,13 @@ void validateColumnValues(const bartcore::ColumnStore& store,
                           std::size_t column, const double* values,
                           std::size_t numValues);
 
+/// Errors when the design carries a CSC-backed categorical column: the
+/// whole-matrix and whole-column mutation paths rebuild a sparse column's
+/// nonzero pattern from the replacement's nonzeros, which merges the levels a
+/// categorical column stores implicitly. caller labels the error.
+void refuseCscCategoricalMutation(const bartcore::SamplerBase& sampler,
+                                  const char* caller);
+
 /// Errors on a multi-forest sampler (BCF, numForests >= 2): a whole-data or
 /// whole-model mutation (setData, setResponse, setWeights, setModel)
 /// rebuilds or reprices only forest 0, leaving the rest against stale data
