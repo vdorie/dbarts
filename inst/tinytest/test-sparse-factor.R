@@ -519,3 +519,232 @@ expect_error(
 expect_true(is.matrix(sampler.leaf.mut$data@x.test))
 result.leaf.mut <- sampler.leaf.mut$run(10L, 20L)
 expect_false(anyNA(result.leaf.mut$test))
+
+# CODE BOUNDS: every categorical ingestion entrance bounds codes against the
+# TRAINING-side category count - a CSC-trained column's declared K, a
+# dense-trained one's inferred max + 1 - whatever view carries them: a dense
+# x.test matrix, a container's dense or CSC slice, or the reference code the
+# container's implicit rows read. A code at or past that count mis-bins inline,
+# shifts past a tree's category mask, or over-reads the pooled bitmap, so it is
+# refused rather than clamped. The refusal lands at the sampler constructor;
+# dbartsData never sees the training grid.
+boundControl <- dbartsControl(
+  n.trees = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  updateState = FALSE
+)
+sparseFrame <- function(labels, levels, reference) {
+  frame <- data.frame(x1 = rnorm(length(labels)))
+  frame$f <- sparseFactor(labels, levels = levels, reference = reference)
+  frame
+}
+
+set.seed(70L)
+levels.small <- c("a", "b", "c")
+levels.big <- c("a", "b", "c", "d", "e")
+n.bound <- 60L
+labels.bound <- sample(levels.small, n.bound, replace = TRUE)
+y.bound <- rnorm(n.bound) + match(labels.bound, levels.small)
+train.bound <- sparseFrame(labels.bound, levels.small, "a")
+sampler.bound <- dbarts(train.bound, y.bound, control = boundControl)
+
+# two foreign containers: one whose STORED codes run past the training K = 3,
+# one whose stored codes are in range but whose REFERENCE code - what every
+# implicit row reads - is not
+over.codes <- dbartsData(
+  sparseFrame(c("a", "d", "e", "b"), levels.big, "a"),
+  rnorm(4L)
+)@x
+over.reference <- dbartsData(
+  sparseFrame(c("a", "b", "a", "b"), levels.big, "e"),
+  rnorm(4L)
+)@x
+expect_equal(sort(over.codes$sparse@x), c(1, 3, 4))
+expect_equal(over.reference$sparseReference, 4L)
+expect_true(all(over.reference$sparse@x < 3))
+
+codeMessage <- "categorical test predictors must hold existing category codes"
+expect_error(
+  dbarts(
+    dbartsData(train.bound, y.bound, test = over.codes),
+    control = boundControl
+  ),
+  pattern = codeMessage
+)
+expect_error(
+  dbarts(
+    dbartsData(train.bound, y.bound, test = over.reference),
+    control = boundControl
+  ),
+  pattern = codeMessage
+)
+expect_error(sampler.bound$setTestPredictor(over.codes), pattern = codeMessage)
+expect_error(
+  sampler.bound$setTestPredictor(over.reference),
+  pattern = codeMessage
+)
+expect_error(
+  sampler.bound$setTestPredictorAndOffset(over.codes, rep(0, 4L)),
+  pattern = codeMessage
+)
+expect_error(
+  sampler.bound$setTestPredictorAndOffset(over.reference, rep(0, 4L)),
+  pattern = codeMessage
+)
+# the refusals are inert: no test store was installed
+expect_null(sampler.bound$data@x.test)
+
+# a DENSE x.test view of the same CSC-trained column takes the declared K too
+test.dense.over <- cbind(rnorm(3L), c(0, 1, 7))
+colnames(test.dense.over) <- c("x1", "f")
+expect_error(
+  dbarts(
+    dbartsData(train.bound, y.bound, test = test.dense.over),
+    control = boundControl
+  ),
+  pattern = codeMessage
+)
+
+# a DENSE-trained categorical column bounds a CSC test container the same way
+train.bound.dense <- data.frame(
+  x1 = train.bound$x1,
+  f = factor(labels.bound, levels = levels.small)
+)
+sampler.bound.dense <- dbarts(
+  train.bound.dense,
+  y.bound,
+  control = boundControl
+)
+expect_error(
+  sampler.bound.dense$setTestPredictor(over.codes),
+  pattern = codeMessage
+)
+expect_error(
+  dbarts(
+    dbartsData(train.bound.dense, y.bound, test = over.reference),
+    control = boundControl
+  ),
+  pattern = codeMessage
+)
+
+# POOLED (more than 63 levels, the wide-mask kernel): the same bound, where an
+# unbounded code over-reads the membership bitmap rather than mis-binning
+set.seed(71L)
+levels.pooled <- sprintf("P%03d", 1:70)
+prob.pooled <- rep(1, 70L)
+prob.pooled[1L] <- 400
+labels.pooled <- sample(levels.pooled, 200L, replace = TRUE, prob = prob.pooled)
+y.pooled <- rnorm(200L)
+train.pooled <- sparseFrame(labels.pooled, levels.pooled, "P001")
+sampler.pooled <- dbarts(train.pooled, y.pooled, control = boundControl)
+over.pooled <- dbartsData(
+  sparseFrame(c("P002", "P150", "P200"), sprintf("P%03d", 1:220), "P001"),
+  rnorm(3L)
+)@x
+expect_error(
+  sampler.pooled$setTestPredictor(over.pooled),
+  pattern = codeMessage
+)
+expect_error(
+  dbarts(
+    dbartsData(train.pooled, y.pooled, test = over.pooled),
+    control = boundControl
+  ),
+  pattern = codeMessage
+)
+
+# TRAINING side: a container whose stored codes reach its own declared K is
+# refused - that K becomes the store's category count
+data.over.k <- dbartsData(train.bound, y.bound)
+data.over.k@x$sparseCategoryCount <- 2L
+expect_error(
+  dbarts(data.over.k, control = boundControl),
+  pattern = "categorical predictors must hold integer category codes"
+)
+
+# LOCK-IN: the entrances that already bounded against the store keep doing so
+sampler.saved <- dbarts(
+  train.bound,
+  y.bound,
+  control = dbartsControl(
+    n.trees = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.samples = 5L,
+    n.burn = 0L,
+    updateState = FALSE,
+    keepTrees = TRUE
+  )
+)
+invisible(sampler.saved$run(20L, 5L))
+expect_error(
+  sampler.saved$predict(over.codes),
+  pattern = "categorical predictor values must be existing category codes"
+)
+expect_error(
+  sampler.saved$getTrees(newdata = test.dense.over),
+  pattern = "categorical predictor values must be existing category codes"
+)
+
+# NO FALSE REFUSALS: a container is judged on its codes, not on the K it
+# declares, so both a larger-K and a smaller-K foreign table are accepted while
+# every code stays inside the training count; NA is the reserved missing code
+in.range.big <- dbartsData(
+  sparseFrame(c("b", "c", "b", "c"), levels.big, "a"),
+  rnorm(4L)
+)@x
+sampler.bound$setTestPredictor(in.range.big)
+expect_true(all(is.finite(sampler.bound$run(10L, 10L)$test)))
+in.range.small <- dbartsData(
+  sparseFrame(c("a", "b", "b"), c("a", "b"), "a"),
+  rnorm(3L)
+)@x
+sampler.bound$setTestPredictorAndOffset(in.range.small, rep(0, 3L))
+expect_true(all(is.finite(sampler.bound$run(10L, 10L)$test)))
+test.dense.na <- cbind(rnorm(3L), c(0, NA, 2))
+colnames(test.dense.na) <- c("x1", "f")
+expect_inherits(
+  dbarts(
+    dbartsData(train.bound, y.bound, test = test.dense.na),
+    control = boundControl
+  ),
+  "dbartsSampler"
+)
+
+# MUTATION GUARD: a predictor swap on a design carrying a sparse CATEGORICAL
+# column is refused at the bridge, not only in the R5 method - the dense-column
+# mutation path rebuilds the nonzero pattern from the replacement's nonzeros,
+# which would fold every cell holding code 0 into the reference level
+expect_error(
+  sampler.bound$setPredictor(
+    as.matrix(sampler.bound$data@x)[, 1L],
+    column = 1L
+  ),
+  pattern = "mutation of a mixed dense/sparse design is fixed at creation"
+)
+predictors.bound <- as.matrix(sampler.bound$data@x)
+storage.mode(predictors.bound) <- "double"
+expect_error(
+  .Call(
+    dbarts:::C_dbarts_bartcore_setPredictor,
+    sampler.bound$getPointer(),
+    predictors.bound,
+    TRUE,
+    FALSE
+  ),
+  pattern = "bartcore_setPredictor: mutation of a mixed dense/sparse design"
+)
+expect_error(
+  .Call(
+    dbarts:::C_dbarts_bartcore_updatePredictor,
+    sampler.bound$getPointer(),
+    predictors.bound[, 2L],
+    2L,
+    TRUE,
+    FALSE
+  ),
+  pattern = "bartcore_updatePredictor: mutation of a mixed dense/sparse design"
+)
+# the refusals are inert: the sampler still fits over its original design
+expect_true(all(is.finite(sampler.bound$run(10L, 10L)$train)))

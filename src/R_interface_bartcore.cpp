@@ -28,6 +28,7 @@
 using std::size_t;
 using std::uint32_t;
 using bartcore_bridge::BartcoreHolder;
+using bartcore_bridge::refuseCscCategoricalMutation;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::validateColumnValues;
 
@@ -1347,49 +1348,139 @@ const double* rawParsedTestColumn(const ParsedData& data, size_t j) {
                              : NULL;
 }
 
+// The two refusal texts the categorical entrances share - the training side
+// reporting representability, the test side membership in the training levels.
+// The dense entrances have always spelled them this way and the CSC views
+// reuse them, so a refusal reads the same wherever it fires.
+const char* const categoricalTrainingMessage =
+  "categorical predictors must hold integer category codes in [0, 65535)";
+const char* const categoricalTestMessage =
+  "categorical test predictors must hold existing category codes";
+
+// The stored codes of a CSC-backed column of a parsed container, found through
+// its engine-convention source (the complement of a sparse column's position).
+struct ParsedCscCodes {
+  const double* values = NULL;
+  size_t numValues = 0;
+};
+
+ParsedCscCodes parsedCscCodes(const int* columnPointers, const double* values,
+                              std::int32_t source) {
+  size_t k = static_cast<size_t>(~source);
+  size_t begin = static_cast<size_t>(columnPointers[k]);
+  return { values + begin,
+           static_cast<size_t>(columnPointers[k + 1]) - begin };
+}
+
+// Refuse any code outside [0, bound): a code must be integral, and only the
+// reserved missing value is exempt. Cold path shared by every categorical
+// entrance, so it takes the caller's refusal text rather than deciding one.
+void refuseInvalidCategoryCodes(const double* values, size_t numValues,
+                                double bound, const char* message) {
+  for (size_t i = 0; i < numValues; ++i) {
+    double value = values[i];
+    if (bartcore::isNA(value)) continue;  // the reserved missing category
+    if (value < 0.0 || value >= bound || value != std::floor(value))
+      Rf_error("%s", message);
+  }
+}
+
+// The category count column j's test codes must fall under, keyed on the view
+// the TRAINING side presents rather than on its storage kind: a CSC-backed
+// column carries the K its container declared, a dense one the max + 1 that
+// buildCutsForColumn (data.hpp) infers. Mirrors that inference exactly, so the
+// bound is the numCuts the store is about to hold.
+double trainingCategoryBound(const ParsedData& data, size_t j) {
+  if (data.xIsMixed && data.columnSources[j] < 0)
+    return static_cast<double>(data.cscCategoryCounts[j]);
+  const double* column = rawTrainingColumn(data, j);
+  double maxValue = -1.0;
+  for (size_t i = 0; i < data.numObservations; ++i) {
+    double value = column[i];
+    if (!bartcore::isNA(value) && value > maxValue) maxValue = value;
+  }
+  return maxValue < 0.0 ? 0.0 : maxValue + 1.0;
+}
+
+// Bound every categorical code the creation parse is about to ingest. Runs
+// before the store exists, so the training-side count is reconstructed rather
+// than read off numCuts: a CSC-backed training column's stored codes must lie
+// in its declared K, a dense one's need only be representable (the count is
+// inferred from them). Each test view is then bounded by that count, whatever
+// backs it - the x.test matrix, a container's dense slice, a container's CSC
+// slice, or the reference code its implicit rows read. An unbounded code would
+// mis-bin, shift past a tree's category mask, or over-read a pooled bitmap
+// (docs/plans/typed-ingestion.md Survey).
 void validateCategoricalPredictors(const ParsedData& data) {
   if (data.xIsSparse) return;  // parseData enforced all-ordinal
   for (size_t j = 0; j < data.numPredictors; ++j) {
     if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
-    // a CSC-backed categorical column has no dense slice to scan; its codes
-    // came from the R surface's level table and parseData carried its K and
-    // reference code
-    if (data.xIsMixed && data.columnSources[j] < 0) continue;
-    const double* column = rawTrainingColumn(data, j);
-    for (size_t i = 0; i < data.numObservations; ++i) {
-      double value = column[i];
-      if (bartcore::isNA(value)) continue;  // the reserved missing category
-      if (value < 0.0 ||
-          value >= static_cast<double>(bartcore::maxCategories) ||
-          value != std::floor(value))
-        Rf_error("categorical predictors must hold integer category codes "
-                 "in [0, 65535)");
+    if (data.xIsMixed && data.columnSources[j] < 0) {
+      // a CSC-backed column stores only its non-reference codes; those must lie
+      // in the K its container declared - the count the store will take - as
+      // parseData already required of its reference code
+      ParsedCscCodes stored = parsedCscCodes(
+        data.cscColumnPointers, data.cscValues, data.columnSources[j]);
+      refuseInvalidCategoryCodes(
+        stored.values, stored.numValues,
+        static_cast<double>(data.cscCategoryCounts[j]),
+        categoricalTrainingMessage);
+      continue;
     }
+    refuseInvalidCategoryCodes(rawTrainingColumn(data, j),
+                               data.numObservations,
+                               static_cast<double>(bartcore::maxCategories),
+                               categoricalTrainingMessage);
   }
-  if (data.anyCategorical && data.numTestObservations > 0) {
-    // test codes must also be representable; category counts come from the
-    // training columns
-    for (size_t j = 0; j < data.numPredictors; ++j) {
-      if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
-      // a CSC-backed categorical column has no dense slice to bound the codes
-      // against; both its training and test codes came from the R level table
-      if (data.xIsMixed && data.columnSources[j] < 0) continue;
-      const double* testColumn = rawParsedTestColumn(data, j);
-      if (testColumn == NULL) continue;  // CSC-backed test column: R-side coded
-      const double* column = rawTrainingColumn(data, j);
-      double maxValue = 0.0;
-      for (size_t i = 0; i < data.numObservations; ++i) {
-        double value = column[i];
-        if (!bartcore::isNA(value) && value > maxValue) maxValue = value;
-      }
-      for (size_t i = 0; i < data.numTestObservations; ++i) {
-        double value = testColumn[i];
-        if (bartcore::isNA(value)) continue;
-        if (value < 0.0 || value > maxValue || value != std::floor(value))
-          Rf_error("categorical test predictors must hold existing category "
-                   "codes");
-      }
+  if (!data.anyCategorical || data.numTestObservations == 0) return;
+  for (size_t j = 0; j < data.numPredictors; ++j) {
+    if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
+    double bound = trainingCategoryBound(data, j);
+    if (data.testIsMixed && data.testContainer.columnSources[j] < 0) {
+      ParsedCscCodes stored = parsedCscCodes(
+        data.testContainer.cscColumnPointers, data.testContainer.cscValues,
+        data.testContainer.columnSources[j]);
+      refuseInvalidCategoryCodes(stored.values, stored.numValues, bound,
+                                 categoricalTestMessage);
+      double reference =
+        static_cast<double>(data.testContainer.cscReferenceCodes[j]);
+      refuseInvalidCategoryCodes(&reference, 1, bound, categoricalTestMessage);
+      continue;
     }
+    const double* testColumn = rawParsedTestColumn(data, j);
+    if (testColumn == NULL) continue;  // no test view of this column
+    refuseInvalidCategoryCodes(testColumn, data.numTestObservations, bound,
+                               categoricalTestMessage);
+  }
+}
+
+// Bound a parsed test container's categorical codes against the STORE's fixed
+// category counts - the training-side bound the container itself cannot see,
+// since its own declared K is its author's, not the sampler's. Covers a
+// dense-backed column's slice, a CSC-backed column's stored codes, and the
+// reference code its implicit rows read. The container mutation entrances run
+// this after parseTestContainer and before any store change: creation-time
+// validation is long past there, and setTestData would otherwise quantize an
+// unbounded code straight into the test store.
+void validateTestContainerAgainstStore(const bartcore::ColumnStore& store,
+                                       const ParsedTestContainer& parsed) {
+  for (size_t j = 0; j < store.numPredictors; ++j) {
+    if (store.types[j] != bartcore::ColumnType::categorical) continue;
+    double bound = static_cast<double>(store.numCuts[j]);
+    if (parsed.columnSources[j] >= 0) {
+      refuseInvalidCategoryCodes(
+        parsed.mixedDenseValues +
+          static_cast<size_t>(parsed.columnSources[j]) *
+            parsed.numTestObservations,
+        parsed.numTestObservations, bound, categoricalTestMessage);
+      continue;
+    }
+    ParsedCscCodes stored = parsedCscCodes(
+      parsed.cscColumnPointers, parsed.cscValues, parsed.columnSources[j]);
+    refuseInvalidCategoryCodes(stored.values, stored.numValues, bound,
+                               categoricalTestMessage);
+    double reference = static_cast<double>(parsed.cscReferenceCodes[j]);
+    refuseInvalidCategoryCodes(&reference, 1, bound, categoricalTestMessage);
   }
 }
 
@@ -1863,6 +1954,28 @@ void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
   if (sampler.numForests() >= 2)
     Rf_error("%s: a multi-forest sampler fixes its data at creation; make a "
              "new sampler instead", caller);
+}
+
+// mutateCscColumnFromDense (data.hpp) rebuilds a CSC-backed column's nonzero
+// pattern as {i : value != 0}, which is the minimal pattern for an ORDINAL
+// column but not for a categorical one: a categorical column's implicit rows
+// read its reference code, so every cell holding code 0 would become implicit
+// and re-read as that reference - an identity re-install silently merges two
+// levels. R/bartcore.R refuses predictor mutation of a sparse-bearing design
+// already; a direct .Call or a LinkingTo consumer reaches the engine without
+// it, so the same refusal has to stand here. Sparse ORDINAL columns keep their
+// column-granular mutation (docs/design/sparse-columns.md extension (i)); the
+// general fix is the sparse mutation-shape lift
+// (docs/plans/sparse-extensions.md). External linkage: the flat C API
+// (C_interface.cpp) reuses this guard on its own predictor entries.
+void refuseCscCategoricalMutation(const bartcore::SamplerBase& sampler,
+                                  const char* caller) {
+  const bartcore::ColumnStore& data = sampler.data();
+  for (size_t j = 0; j < data.numPredictors; ++j)
+    if (data.types[j] == bartcore::ColumnType::categorical &&
+        data.columnIsCscBacked(j))
+      Rf_error("%s: mutation of a mixed dense/sparse design is fixed at "
+               "creation; make a new sampler instead", caller);
 }
 
 void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
@@ -3184,6 +3297,7 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
     return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
       parseTestContainer(parsed, xTestExpr, holder.sampler->numPredictors(),
                          holder.sampler->data().types.data());
+      validateTestContainerAgainstStore(holder.sampler->data(), parsed);
       if (holder.sampler->data().testOffset != NULL &&
           parsed.numTestObservations != holder.sampler->numTestObservations())
         Rf_error("test offset length would no longer match; set the predictors "
@@ -3253,6 +3367,7 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
     return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
       parseTestContainer(parsed, xTestExpr, holder.sampler->numPredictors(),
                          holder.sampler->data().types.data());
+      validateTestContainerAgainstStore(holder.sampler->data(), parsed);
       if (!Rf_isNull(offsetExpr) &&
           (!Rf_isReal(offsetExpr) ||
            static_cast<size_t>(Rf_xlength(offsetExpr)) !=
@@ -3448,6 +3563,7 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
                            SEXP updateCutPointsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   refuseMutationOnView(*holder.sampler, "bartcore_setPredictor");
+  refuseCscCategoricalMutation(*holder.sampler, "bartcore_setPredictor");
   if (Rf_asLogical(forceUpdateExpr) != TRUE)
     refuseMultiForestTransactionalUpdate(*holder.sampler,
                                          "bartcore_setPredictor");
@@ -3479,6 +3595,7 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
   return unwindProtect([&, columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     refuseMutationOnView(*holder.sampler, "bartcore_updatePredictor");
+    refuseCscCategoricalMutation(*holder.sampler, "bartcore_updatePredictor");
     if (Rf_asLogical(forceUpdateExpr) != TRUE)
       refuseMultiForestTransactionalUpdate(*holder.sampler,
                                            "bartcore_updatePredictor");

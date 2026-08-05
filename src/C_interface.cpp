@@ -19,6 +19,7 @@
 
 using std::size_t;
 using bartcore_bridge::BartcoreHolder;
+using bartcore_bridge::refuseCscCategoricalMutation;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::validateColumnValues;
 
@@ -230,6 +231,7 @@ int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out) {
 int dbarts_sampler_setPredictor(dbarts_sampler* sampler, const double* x,
                                 int forceUpdate, int updateCutPoints) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
+  refuseCscCategoricalMutation(engine, "dbarts_sampler_setPredictor");
   size_t numObservations = engine.numObservations();
   for (size_t j = 0; j < engine.numPredictors(); ++j)
     validateColumnValues(engine.data(), j, x + j * numObservations,
@@ -247,6 +249,7 @@ int dbarts_sampler_updatePredictor(dbarts_sampler* sampler, const double* x,
                                    const size_t* columns, size_t numColumns,
                                    int forceUpdate, int updateCutPoints) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
+  refuseCscCategoricalMutation(engine, "dbarts_sampler_updatePredictor");
   size_t numObservations = engine.numObservations();
   for (size_t k = 0; k < numColumns; ++k) {
     if (columns[k] >= engine.numPredictors())
