@@ -32,11 +32,13 @@ depends on the chain state).
 
 `compare` exits nonzero if any metric is more than 5% slower. Record and
 compare on the same quiet machine; append `quick` only for smoke tests.
-Passing `engine=new` runs the timed side on the bartcore engine, so
-recording under classic and comparing under `engine=new` measures the
-cross-engine gap on one build. Sub-millisecond metrics drift a few percent
-between invocations on a laptop; confirm a marginal flag by re-running or
-by interleaving the engines by hand before chasing it.
+An `engine=` flag is accepted for compatibility with old invocations and
+ignored: the installed package always runs the bartcore engine, and the
+classic baselines in baselines/ are marked historical-classic in the
+MANIFEST - the engine that recorded them is deleted, so they can never be
+re-recorded. Sub-millisecond metrics drift a few percent between
+invocations on a laptop; confirm a marginal flag by re-running before
+chasing it.
 
 ## R/equivalence.R - statistical equivalence
 
@@ -63,10 +65,19 @@ machine, and scenario list. The scheduled workflow
 mode against the current baseline; bitwise exactness stays a local,
 same-machine check.
 
-Passing `engine=new` runs the comparison side against the bartcore engine
-(src/bartcore/) through a standalone shim (tests/cpp/rshim.cpp, built on
-demand by benchmarks/R/bartcore-shim.R); this is the phase-1 correctness
-gate. A recorded old-engine baseline lives in baselines/.
+R/bcf-equivalence.R and R/multinomial-equivalence.R are sibling harnesses
+for the two multi-forest samplers, with their own current baselines
+(bcf-equivalence-99205ee.rds, multinomial-equivalence-8c2b5fc.rds) in the
+MANIFEST; the three together are the "equivalence trio" the plan docs
+gate on.
+
+Passing `engine=new` routes the comparison side through a standalone shim
+build of the in-tree engine (tests/cpp/rshim.cpp, built on demand by
+benchmarks/R/bartcore-shim.R) instead of the installed package. This was
+the phase-1 classic-vs-bartcore correctness gate; it remains usable to
+compare a working-tree engine against an installed build. The recorded
+classic baselines in baselines/ are historical-classic: the engine that
+produced them is deleted.
 
 ## R/*-exact.R, *-balance.R - deterministic exact-posterior gates
 

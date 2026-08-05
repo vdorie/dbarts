@@ -10,7 +10,7 @@ decision - it explains where decisions live and how to find one.
   does the engine work today."
 - `docs/design/` - design proposals, rationale, and landing/decision
   records. One doc per feature or investigation: the problem, the forks
-  considered, the decision, and (for landed work) the landing notes. ~34
+  considered, the decision, and (for landed work) the landing notes. ~37
   files. Manifest: `docs/design/INDEX.md`.
 - `docs/plans/` - implementation plans: one file per TODO backlog item or
   landed feature, with Goal/Context/Steps/Verification and a closing
@@ -52,9 +52,10 @@ a doc, start at the two INDEX files.
   - `## Status` as a section heading, with the verdict in the prose below
     it (common in `docs/plans/`).
   A few standing-reference docs (not proposals - e.g. `docs/design/data-store.md`,
-  `docs/design/kernel-vocabulary.md`, `docs/design/prior-defaults.md`)
-  carry no status line by design; their purpose is self-evident from the
-  opening paragraph. Where a doc has neither form and isn't a standing
+  `docs/design/kernel-vocabulary.md`) carry no status line by design; their
+  purpose is self-evident from the opening paragraph
+  (`docs/design/prior-defaults.md` instead carries `Status: reference,
+  current`, updated in place when a default changes). Where a doc has neither form and isn't a standing
   reference, that's a real wayfinding gap - the two INDEX files flag it.
 - **Authoritative resolutions / dated supersedes.** The best docs in this
   corpus close with a dated, explicitly-"authoritative" section that
@@ -76,8 +77,9 @@ These are real, intentional, and not to be renamed - just navigate them:
 
 - `docs/plans/c-api-growth.md` vs. `docs/plans/capi-callbacks.md` /
   `docs/plans/capi-dispatch-table.md` - same ABI-growth subsystem, two
-  spellings of the same prefix (`c-api` vs `capi`). All three cross-
-  reference each other; not redundant.
+  spellings of the same prefix (`c-api` vs `capi`). Three distinct
+  stages of one arc, not redundant (only capi-dispatch-table.md
+  explicitly cites c-api-growth.md).
 - `docs/plans/x86-simd.md` vs. `docs/plans/x86-simd-plan.md` - NOT
   duplicates. `x86-simd-plan.md` is a READ-ONLY measurement memo (the
   x86-measured follow-up to `simd-survey.md`); `x86-simd.md` is the
@@ -86,14 +88,15 @@ These are real, intentional, and not to be renamed - just navigate them:
   and plan file do not share a basename.
 - `docs/design/ordinal.md` <-> `docs/plans/ordinal-outcomes.md` - same
   mismatch pattern.
-- `docs/plans/within-chain-threading.md` is a thin pointer file only
-  ("status: CLOSED - NO-GO ... see docs/design/within-chain-threading.md
-  section 8"); the full record lives entirely in the design doc.
+- `docs/plans/within-chain-threading.md` is a full plan file (goal,
+  steps, Landing notes summarizing the NO-GO), but the deep analysis
+  lives in `docs/design/within-chain-threading.md` section 8, which its
+  status line points at.
 - Multi-part programs, three different suffix conventions for "part N of a
   bigger arc": `data-ownership-{1-container,2-ingestion,3-mutation,
   4-views,5-sparse}.md` (numbered-slug), `block-fusion-stage-{a,b}.md`
   (lettered-stage), and `forest-split-bcf.md` (no suffix at all - a second
-  "Continuation" phase is bolted onto the same file instead of getting its
+  "Phase 2" is bolted onto the same file instead of getting its
   own name).
 
 ## Index files

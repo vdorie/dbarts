@@ -24,7 +24,7 @@ including abandoned alternatives and the landing record, is in docs/design/
                                the type-erased boundary
                                |
                                v  one vtable hop per call thereafter
-    src/bartcore/{sampler,chain,model,moves,tree,data}.hpp
+    src/bartcore/{sampler,chain,combiner,model,moves,grow,scan,tree,data}.hpp
                                the header-only C++20 engine (bartcore.hpp
                                is the umbrella include)
                                |
@@ -41,6 +41,14 @@ reached through `R_GetCCallable`) that `LinkingTo: dbarts` consumers (e.g.
 stan4bart) build against without seeing any C++ types. Its implementation
 (`src/C_interface.cpp`) shares the same bridge core as the R-facing
 `.Call` entry points (`R_interface_bartcore_common.hpp`).
+
+Above the reference class, sampler creation has one resolution step:
+`resolveSamplerSpec` (`R/spec.R`) turns the user-facing arguments into the
+`(control, model, data)` triple plus resolved family token that
+construction consumes. `dbarts()` delegates to it, and it is exported as
+`dbartsSpec()` so a `LinkingTo` consumer holding its sampler C-side can
+produce the same triple through supported surface
+(docs/design/consumer-spec-surface.md).
 
 Non-obvious conventions: `useDynLib(dbarts, .fixes = "C_")` (NAMESPACE)
 means every `.Call` bridge entry point is reached from R as
@@ -64,8 +72,10 @@ Four tiers, chosen by how much work each dispatch decision amortizes over:
 | Per node op   | template instantiation selected at compile time; switch over a closed set | move type (moves.hpp), kernel table lookup |
 | Per observation | monomorphic loops and kernel calls, no dispatch | partition compare, suffstat accumulation |
 
-The leaf model (`ConstantGaussianLeaf`, `LinearGaussianLeaf`,
-`GPGaussianLeaf` in `src/bartcore/model.hpp`) is a compile-time template
+The leaf model (`ConstantGaussianLeaf` and its constrained variant
+`MonotoneConstantGaussianLeaf`, `LinearGaussianLeaf`, `GPGaussianLeaf`,
+plus the variance forest's `ConstantVarianceLeaf`, all in
+`src/bartcore/model.hpp`) is a compile-time template
 parameter `L` threaded through `Sampler<L>` -> `Chain<L>` -> `Forest<L>` and
 the free functions in `src/bartcore/moves.hpp`, because it sits inside the
 per-observation and per-node-op tiers (`accumulate`, `logIntegratedLikelihoodForNode`
@@ -89,9 +99,13 @@ Selection of `L` happens exactly once, in the free factory functions at the
 bottom of facade.hpp - `createSampler`, `createSamplerOverStore`,
 `createConstantLeafSampler`, `createBCFSampler` - called from the bridge at
 sampler creation (`src/R_interface_bartcore.cpp`, `bartcore::createSampler(...)`
-and siblings). `createSampler` picks `ConstantGaussianLeaf` when no leaf
-covariates are designated, `GPGaussianLeaf` when covariates are designated
-and `options.gpLeaves` is set, otherwise `LinearGaussianLeaf`. Every call
+and siblings). `createSampler` refuses a variance-forest request
+(`options.numVarianceTrees > 0`) for anything but a gaussian response with
+a plain constant leaf, picks `MonotoneConstantGaussianLeaf` when a
+monotone constraint is active without leaf covariates,
+`ConstantGaussianLeaf` when no leaf covariates are designated,
+`GPGaussianLeaf` when covariates are designated and `options.gpLeaves` is
+set, otherwise `LinearGaussianLeaf`. Every call
 after construction goes through the chosen `SamplerFacade<L>` and pays one
 virtual hop; nothing re-dispatches on `L` per call, per iteration, or per
 observation.
@@ -107,9 +121,13 @@ refines into `ScalarLeafModel` (one parameter per leaf: `ConstantGaussianLeaf`),
 `VectorLeafModel` (`numParams()` doubles per leaf, fits evaluated per
 observation: `LinearGaussianLeaf`), and `FunctionLeafModel` (one drawn value
 per member observation, no per-leaf parameter storage: `GPGaussianLeaf`).
-`IntegrableLeafModel` is the union of the three, and it is what every
-template in `moves.hpp`, `chain.hpp`, and `sampler.hpp` is constrained on.
-All three shipped leaf models require a closed-form marginal; there is
+`IntegrableLeafModel` is the union of the three, and it is what the
+templates in `chain.hpp` and `sampler.hpp` are constrained on; the free
+functions in `moves.hpp` take the wider `MoveScorableLeafModel`
+(`IntegrableLeafModel` or `ScaleLeafModel` - the latter admits the
+heteroscedastic variance forest's `ConstantVarianceLeaf`, which scores
+moves without satisfying the mean-model concepts).
+Every shipped leaf model requires a closed-form marginal; there is
 exactly one tree-structure sampling strategy today, the conjugate
 Metropolis-Hastings moves in `moves.hpp` (see "Tree moves" below). A
 non-conjugate strategy for leaf models without a working-Gaussian marginal
@@ -122,9 +140,12 @@ itself integrable.
 reads, latent refresh, sigma draws, and the embedded-Gibbs mutation
 entry points (setResponse, setOffset, setData, ...). The concrete class is
 chosen with a `switch` on `ResponseFamily` (`enum class ResponseFamily
-{ gaussian, probit, logistic }`) inside `Chain`'s constructor
-(`src/bartcore/chain.hpp`): `GaussianResponse`, `ProbitResponse`, or
-`LogisticResponse`. When `options.numGroups > 0` the chosen response is
+{ gaussian, probit, logistic, aft, ordinal, nbinom }`) inside `Chain`'s
+constructor (`src/bartcore/chain.hpp`); the gaussian arm yields
+`TResponse` instead of `GaussianResponse` when Student-t residuals are
+requested (`resid.dist`), and the K-forest multinomial model installs
+`MultinomialResponse` through its own construction path rather than the
+enum. When `options.numGroups > 0` the chosen response is
 wrapped in `GroupedResponse`, a decorator that Gibbs-samples per-group
 intercepts into the offset between tree sweeps (the in-core replacement for
 `rbart_vi`'s R-level loop) and forwards everything else to the wrapped
@@ -146,11 +167,13 @@ changes after construction.
 
 `src/bartcore/moves.hpp` holds birth/death, change, and swap: the conjugate
 Metropolis-Hastings proposals and their acceptance ratios, as free functions
-templated on `IntegrableLeafModel`. `Chain::metropolisJumpForTree`
-(chain.hpp) is the per-iteration, per-tree caller: it draws a step type
+templated on `MoveScorableLeafModel`. `metropolisJumpForTree` (a free
+function in moves.hpp, called from `Chain`) is the per-iteration, per-tree
+entry: it draws a step type
 (`StepType::birth/death/swap/change`) and dispatches to the corresponding
 move function. Every branch score vetoes any branch containing an empty
-leaf (a large finite penalty, not a hard error - docs/design/empty-leaf-veto.md);
+leaf (`-HUGE_VAL`, an unconditional rejection, not a hard error -
+docs/design/empty-leaf-veto.md);
 this keeps empty leaves out of the chain state entirely rather than
 tolerating and later collapsing them.
 
@@ -336,8 +359,9 @@ otherwise idle machine.
 
 Commands:
 
-- Component tests: `cd tests/cpp && make && ./test_bartcore` (delete
-  binaries after header edits - no dependency tracking).
+- Component tests: `cd tests/cpp && make && ./test_bartcore` (the
+  Makefile tracks engine-header dependencies via `-MMD`, so incremental
+  rebuilds are safe).
 - tinytest: `tinytest::test_package("dbarts")` or
   `tinytest::run_test_file("inst/tinytest/test-bartcore.R")`, against an
   *installed* package (`R CMD INSTALL .` first; `--preclean` after editing
@@ -356,6 +380,9 @@ Commands:
   (`misc.a`) the generic engine dispatches into.
 - docs/design/public-surface.md - what the R and C surfaces expose, and the
   cutover sequencing that retired the classic engine.
+- docs/design/consumer-spec-surface.md - the exported `dbartsSpec()`
+  resolution surface for embedding packages.
 - docs/design/pooled-masks.md, sparse-columns.md, mia-missingness.md,
-  linear-leaves.md, gp-leaves.md, grouped-random-effects.md, bcf.md -
+  linear-leaves.md, gp-leaves.md, grouped-random-effects.md, bcf.md,
+  monotone.md, heteroscedastic.md -
   design and landing notes for each extension mentioned above.

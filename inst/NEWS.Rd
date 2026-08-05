@@ -608,6 +608,14 @@
       \item \code{rbart_vi} accepts a custom prior function passed by name;
             any symbol-valued \code{prior} used to enter the built-in lookup
             and fail.
+      \item Prior arguments no longer evaluate against internal
+            \code{control} and \code{data} bindings, which silently
+            shadowed a caller's own variables of those names: in
+            \code{tree.prior = cgm(2, 0.95, data)}, \code{data} now
+            resolves to the caller's object rather than the sampler's
+            data under construction. Only \code{num.vars} and
+            \code{numvars} remain bound alongside the prior
+            constructors.
       \item The \code{chi(degreesOfFreedom = nu)} hyperprior on \code{k} now samples
             a chi distribution with \code{nu} degrees of freedom as documented;
             its Gibbs update used a shape corresponding to \code{chi(2 * nu - 1)},

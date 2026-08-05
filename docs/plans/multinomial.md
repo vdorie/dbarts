@@ -308,9 +308,8 @@ C1. Extract combiner.hpp (pure motion; NEUTRAL). Move Forest<L>, ForestResponse,
    motion, caught at compile time. This is the second-consumer extraction
    docs/design/forest-combiner.md deferred - do it FIRST so C4 adds
    MultinomialForestCombiner beside BCFForestCombiner in the new home. Note:
-   tests/cpp's Makefile HAS -MMD/-MP dependency tracking (tests/cpp/Makefile:8;
-   the CLAUDE.md "no dependency tracking" note is outdated for tests/cpp) - binary
-   deletion is belt-and-suspenders. Files: src/bartcore/combiner.hpp (new),
+   tests/cpp's Makefile HAS -MMD/-MP dependency tracking (tests/cpp/Makefile:8) -
+   binary deletion is belt-and-suspenders. Files: src/bartcore/combiner.hpp (new),
    chain.hpp. Gate: NEUTRAL - both anchors identical + tinytest + tests/cpp. Size:
    M. --preclean; delete tests/cpp binaries.
 
