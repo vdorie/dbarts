@@ -65,3 +65,39 @@ jobs:
           upload-snapshots: true
           build_args: 'c("--no-manual","--no-build-vignettes")'
           args: 'c("--no-manual","--ignore-vignettes")'
+
+  # Native arm64 validation of the NEON config (dcee743): compile the
+  # _neon kernels under Rtools-aarch64 and prove scalar-vs-NEON bitwise
+  # agreement. Scoped to install + the SIMD test rather than a full check:
+  # the win-aarch64 toolchain is experimental and Suggests must build from
+  # source, so a full check would let unrelated flakiness mask the signal.
+  windows-arm64-neon:
+    runs-on: windows-11-arm
+
+    name: windows-11-arm (release, NEON)
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Configure git
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v7
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - name: Install tinytest
+        run: Rscript -e 'install.packages("tinytest", repos = "https://cloud.r-project.org")'
+
+      - name: Build and install dbarts
+        run: R CMD INSTALL --preclean .
+
+      - name: Assert native arm64 with NEON available
+        run: Rscript -e 'stopifnot(R.version$arch %in% c("aarch64", "arm64", "arm"), .Call(dbarts:::C_dbarts_getMaxSIMDInstructionSet) >= 1L)'
+
+      - name: Run the SIMD reproducibility test
+        run: Rscript -e 'res <- tinytest::run_test_file(system.file("tinytest", "test-simd.R", package = "dbarts")); print(res); stopifnot(length(res) > 0L, all(sapply(res, isTRUE)))'
