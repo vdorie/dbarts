@@ -133,8 +133,17 @@ items
     lift, full-R ladder re-runs, runSbcBCF repair (diagnosed
     2026-08-05: engine-side, decision-gated - the 9030d93 multi-forest
     mutation guard refuses its anchor-reuse pattern and BCF's
-    y-derived leaf-scale calibration blocks rebuild-per-rep;
+    y-derived leaf-scale calibration blocks rebuild-per-rep; the
+    2026-08-05 survey addendum revises the fork: FIX-A needs the
+    whole calibration pinned, FIX-B is cheaper than first read and
+    has a verified consumer constituency;
     docs/plans/runsbcbcf-repair.md).
+  multiforest-mutation-gaps: found by the 2026-08-05 survey -
+    setModel unguarded at numForests >= 2 rewrites forest 0 only,
+    silently discarding BCF's calibrated mu leaf scale (correctness
+    gap, wants a guard or a real path); setOffset/setTreatment are
+    silent no-ops on multinomial (should refuse or work)
+    (docs/plans/runsbcbcf-repair.md Survey addendum).
   setpredictor-leafof-rebuild: memo recorded 2026-08-05 - the leafOf
     rebuild is only ~21% of the regression (79% is the mu[leafOf]
     gather that replaced contiguous SIMD passes) and the measured
