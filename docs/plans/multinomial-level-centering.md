@@ -1,9 +1,9 @@
 # multinomial-level-centering
 
-status: MEMO RECORDED 2026-08-05 (see Memo below; two independent
-        blind derivations agree, adversarial critique with a
-        counterfactual SBC run could not refute) - unanimous verdict
-        FIX; VD signs off fix vs document
+status: LANDED ec2a3d0 2026-08-05 (see Landing below; fix implemented
+        under VD's proceed-at-discretion grant per the Memo's unanimous
+        verdict - two blind derivations + adversarial critique with a
+        counterfactual SBC run)
         (found 2026-08-04 by sbc-family-tiers' raw-f_ik arm,
         docs/plans/sbc-family-tiers.md Results)
 agent: opus
@@ -159,3 +159,34 @@ multinomial chains are ConstantGaussianLeaf-only.
 
 Full memos, critique, and scripts: session scratchpad (disposable);
 this section is the durable record.
+
+## Landing (2026-08-05, ec2a3d0)
+
+Implemented per the Memo with all five blocking corrections honored:
+uniform absorption (+c/m_k on every occupied leaf of every tree, the
+fillBottom pattern), exact leaf-space conditional, one normal draw with
+the pre-draw early return; non-const Forest& with the tree loop bounded
+by min(numTrees, trees.size(), muByTree.size()) (numTreesOf helper);
+the tests/cpp K=3 combiner fixture gained real single-node trees plus a
+non-vacuity check (the shift demonstrably moves every fit and leaf by
+the same c); the invariant comment says "to rounding"; the design doc's
+level-centering passage rewritten in leaf space, including the second
+stale sentence (the calibration section's claim that the centering
+conditional reads tau - it reads the per-leaf sd).
+
+Gates, run by the implementer and re-run independently from a fresh
+--preclean install before landing: tests/cpp from clean all pass; ASAN/
+UBSAN tests/cpp leg clean (implementer); tinytest 3474/0 (no snapshot
+regeneration needed - the multinomial suites assert invariants, not
+draws); equivalence-7903855 27/27 identical draws; bcf-equivalence-
+99205ee bitwise on every channel; multinomial-equivalence-8c2b5fc
+MISMATCHES on all 3 scenarios x all 5 channels (tree structure moved
+too - expected for a draw change feeding the centered fits), re-recorded
+as multinomial-equivalence-ec2a3d0.rds, self-reproducible;
+multinomial-exact.R full PASS (max gaps 0.0003-0.0008 vs tols
+0.008-0.015); SBC acceptance `sbc.R multinom 200 150 30` (549 s) every
+functional PASS at band 0.1282 - the three raw f cells at
+0.0688/0.0824/0.0675 (chisqP 0.657/0.031/0.066) against the recorded
+failures 0.111/0.114/0.117 (chisqP 0.000); softmax probabilities PASS
+unchanged. CI sanitizer watched to green post-push per the sanitizer
+discipline.

@@ -111,19 +111,6 @@ items
     decision-gated.
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
-  multinomial-level-centering: engine-correctness door out of the SBC
-    arc - all three raw per-forest f_ik cells rank U-shaped (chisqP
-    0.000) at both chain-length points with lag-9-clean ACF, so mixing
-    does not explain it; identified softmax probabilities PASS at both
-    points. Memo recorded 2026-08-05: the defect is the draw's MEAN
-    (it wipes the whole level every sweep, pinning it ~10x too tight;
-    the precision error nearly cancels at the SBC config), it is not
-    inert but leaks only second order, and the uniform-absorption
-    exact conditional fixes it - validated by a counterfactual SBC
-    run (raw f cells clear the band, softmax unchanged). Unanimous
-    FIX recommendation across two blind derivations + adversarial
-    critique; VD signs off fix vs document
-    (docs/plans/multinomial-level-centering.md Memo).
   sbc-family-tiers: BUILT d094675 (2026-08-04) - t and multinomial
     softmax ALL PASS, ordinal 9/10 with gamma3 resolved as ridge
     mixing by the 3x ladder, nbinom identified mu PASS with r/agg.psi
