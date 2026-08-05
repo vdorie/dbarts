@@ -125,12 +125,14 @@ items
     whole calibration pinned, FIX-B is cheaper than first read and
     has a verified consumer constituency;
     docs/plans/runsbcbcf-repair.md).
-  multiforest-mutation-gaps: found by the 2026-08-05 survey -
-    setModel unguarded at numForests >= 2 rewrites forest 0 only,
-    silently discarding BCF's calibrated mu leaf scale (correctness
-    gap, wants a guard or a real path); setOffset/setTreatment are
-    silent no-ops on multinomial (should refuse or work)
-    (docs/plans/runsbcbcf-repair.md Survey addendum).
+  multiforest-mutation-gaps: the setModel guard LANDED 6744aca
+    2026-08-05, with the two flat-C-API defensive guards (the FIX-B
+    precondition per the design + critique). Remaining doors:
+    setOffset/setTreatment are silent no-ops on multinomial (should
+    refuse or work); setWeights is vacuously guarded for BCF (same
+    argument as setResponse, not taken); setState/installForests
+    restore fitMin/fitMax with leaf.scale pinned (sibling door)
+    (docs/plans/runsbcbcf-repair.md Survey addendum + Design).
   setpredictor-leafof-rebuild: CLOSED 2026-08-05 (memo executed under
     the proceed-at-discretion grant) - the leafOf rebuild is only ~21%
     of the regression and every leafOf-scoped mechanism's measured
