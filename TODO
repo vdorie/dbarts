@@ -134,9 +134,12 @@ items
     caller, so the commented bodies were deleted; git history keeps
     them) and the SSR SIMD leaf (~0.1% of a sweep, so <=0.05%
     end-to-end, against a permanent cross-ISA fixed-lane/no-FMA
-    obligation; docs/design/memory-wall-frontier.md sec 6). Open: the
-    windows-arm64 NEON config LANDED dcee743 inspection-only - close it
-    on a windows-11-arm runner. The live perf frontier past SIMD is the
+    obligation; docs/design/memory-wall-frontier.md sec 6). The
+    windows-arm64 NEON config is validated end-to-end by the
+    windows-11-arm CI job in check-standard.yaml (native compile +
+    bitwise scalar-vs-NEON; the MSVC intrinsic branch stays unexercised
+    by design - R packages build with the Rtools toolchain). The live
+    perf frontier past SIMD is the
     MEMORY WALL: the three-lens ideation in docs/design/memory-wall-
     frontier.md, flagship the histogram-fused suffstat; first action is
     to re-profile HEAD on dbarts-bench plus the Z-order run-count
