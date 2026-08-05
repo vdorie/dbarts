@@ -111,17 +111,23 @@ items
     decision-gated.
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
-  sbc-family-tiers: extend the SBC harness beyond gaussian Tier A to
-    the shipped families - IN: ordinal, nbinom (at a tightened k=8;
-    default-k is runtime-unbounded under prior draws), robust-t,
-    multinomial (incl. raw f_ik, testing afterCombine's centering
-    draw); OUT with recorded reasons: aft, hazard, hurdle,
-    heteroscedastic, monotone (last two liftable). Bonferroni'd
-    non-blocking CI matrix. Plan docs/plans/sbc-family-tiers.md
-    (design-first + blind critique done 2026-08-04; critique also
-    surfaced the runSbcBCF-errors-at-HEAD harness regression, fixed
-    separately, and the monotone-prior-draw defect, fixed 173a710).
-    in-flight.
+  multinomial-level-centering: engine-correctness door out of the SBC
+    arc - all three raw per-forest f_ik cells rank U-shaped (chisqP
+    0.000) at both chain-length points with lag-9-clean ACF, so mixing
+    does not explain it; identified softmax probabilities PASS at both
+    points. Suspect (pre-registered and now evidenced):
+    MultinomialForestCombiner::afterCombine's level-centering
+    precision sums invV*n where the exact per-forest-level conditional
+    would count leaves. Memo first (exact conditional + inertness
+    analysis), then fix vs document
+    (docs/plans/multinomial-level-centering.md).
+  sbc-family-tiers: BUILT d094675 (2026-08-04) - t and multinomial
+    softmax ALL PASS, ordinal 9/10 with gamma3 resolved as ridge
+    mixing by the 3x ladder, nbinom identified mu PASS with r/agg.psi
+    H-MIX (ESS a few dozen at thin=30; full-R ladder commands recorded
+    in the plan). Open doors: raw-f_ik (own item above), the monotone
+    follow-on arm (enabler 173a710), the heteroscedastic setState
+    lift, full-R ladder re-runs, runSbcBCF repair (small, separate).
   setpredictor-leafof-rebuild: the constant-leaf-fits bench discharge
     (2026-08-04, x86) found setPredictor-accept +22-28%, attributed to
     the refactor's full O(n*trees) leafOf rebuild on accepted
