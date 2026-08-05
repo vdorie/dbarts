@@ -21,7 +21,7 @@ dbartsControl(
      Logical controlling whether or not training fits are returned when the sampler runs. These are always computed as part of the fitting procedure, so disabling will not substantially impact running time.
    }
    \item{useQuantiles}{
-     Logical to determine if the empirical quantiles of a columns of predictors should be used to determine the tree decision rules. If \code{FALSE}, the rules are spaced uniformly throughout the range of covariate values.
+     Logical to determine if the empirical quantiles of the columns of predictors should be used to determine the tree decision rules. If \code{FALSE}, the rules are spaced uniformly throughout the range of covariate values.
    }
    \item{keepTrees}{
      A logical that determines whether or not trees are cached as they are sampled. In all cases, the current state of the sampler is stored as a single set of \code{n.trees}. When \code{keepTrees} is \code{TRUE}, a set of \code{n.trees * n.samples} trees are set aside and populated as the sampler runs. If the sampler is stopped and restarted, samples proceed from the previously stored tree, looping over if necessary.
@@ -33,7 +33,7 @@ dbartsControl(
      A non-negative integer giving the default number of samples to return each time the sampler is run. Generally specified by \code{\link{dbarts}} instead, and can be overridden on a per-use basis whenever the sampler is \code{\link[=dbartsSampler-class]{run}}.
    }
    \item{n.cuts}{
-     A positive integer or integer vector giving the number of decision rules to be used for each given predictor. If of length less than the number of predictors, earlier values are recycled. If for any predictor more values are specified than are coherent, fewer may be used. See details for more information.
+     A positive integer or integer vector giving the number of decision rules to be used for each given predictor. If of length less than the number of predictors, earlier values are recycled. If for any predictor more values are specified than are coherent, fewer may be used. See the \sQuote{Decision Rules} section of \code{\link{bart}} for how the rules themselves are placed.
    }
    \item{n.burn}{
      A non-negative integer determining how many samples, if any, are thrown away at the beginning of a run of the sampler.

@@ -15,7 +15,7 @@ makeTestModelMatrix(data, newdata)
   \item{x}{
     Data frame of explanatory variables.
   }
-  \item{drop}{Logical or list controling whether or not columns that are constants or factor levels with no instances are omitted from the result. When a list, must be of length equal to \code{x}. Elements correspond to \code{x} according to:
+  \item{drop}{Logical or list controlling whether or not columns that are constants or factor levels with no instances are omitted from the result. When a list, must be of length equal to \code{x}. Elements correspond to \code{x} according to:
     \itemize{
       \item vector - single logical
       \item matrix - vector of logicals, one per column

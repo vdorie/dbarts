@@ -2,7 +2,7 @@
 \alias{xbart}
 \title{Crossvalidation For Bayesian Additive Regression Trees}
 \description{
-  Fits the BART model against varying \code{k}, \code{power}, \code{base}, and \code{ntree} parameters using \eqn{K}-fold or repeated random subsampling crossvalidation, sharing burn-in between parameter settings. Results are given an array of evaluations of a loss function on the held-out sets.
+  Fits the BART model against varying \code{k}, \code{power}, \code{base}, and \code{n.trees} parameters using \eqn{K}-fold or repeated random subsampling crossvalidation, sharing burn-in between parameter settings. Results are returned as an array of evaluations of a loss function on the held-out sets.
 }
 \usage{
 xbart(
@@ -54,7 +54,7 @@ xbart(
     Unlike the single-scalar \code{n.burn} of \code{\link{dbarts}}, \code{bart2}, and \code{rbart_vi}, here it is between one and three non-negative integers, specifying 1) the burn-in when a chain is freshly started against a data split and 2) the burn-in when moving from one parameter setting to another over the same split. Chains are never carried between data splits or folds - the held-out observations of one were training observations of the previous, so continuing a chain lets slowly-mixing settings score against data they have effectively seen. A third element is accepted for backwards compatibility and ignored.
   }
   \item{loss}{
-    Either a one of the pre-set loss functions as character-strings (\code{mcr} - misclassification rate for binary responses, \code{rmse} - root-mean-squared-error for continuous response), \code{log} - negative log-loss for binary response (\code{rmse} serves this purpose for continuous responses), a function, or a function-evaluation environment list-pair. Functions should have prototypes of the form \code{function(y.test, y.test.hat, weights)}, where \code{y.test} is the held out test subsample, \code{y.test.hat} is a matrix of dimension \code{length(y.test) * n.samples}, and \code{weights} are an optional vector of user-supplied weights. See examples.
+    Either one of the pre-set loss functions as character-strings (\code{mcr} - misclassification rate for binary responses, \code{rmse} - root-mean-squared-error for continuous response), \code{log} - negative log-loss for binary response (\code{rmse} serves this purpose for continuous responses), a function, or a function-evaluation environment list-pair. Functions should have prototypes of the form \code{function(y.test, y.test.hat, weights)}, where \code{y.test} is the held out test subsample, \code{y.test.hat} is a matrix of dimension \code{length(y.test)} \eqn{\times}{*} \code{n.samples}, and \code{weights} are an optional vector of user-supplied weights. See examples.
   }
   \item{n.threads}{
     Replications are independent, and for \code{n.threads > 1} they are divided into approximately equal chunks and executed on that many parallel workers (a \code{\link[parallel]{makeCluster}} cluster). The default uses \code{\link{guessNumCores}}, which should work across the most common operating system/hardware pairs.
