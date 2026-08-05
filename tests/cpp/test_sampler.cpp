@@ -2067,12 +2067,20 @@ static void testMultinomial(ext_rng* rng) {
     std::vector<Forest<ConstantGaussianLeaf>> forests(3);
     std::vector<std::vector<double>> f = {
       {0.2, -0.5, 1.0, 0.1}, {-0.3, 0.8, -0.2, 0.4}, {0.5, 0.0, 0.6, -0.7}};
+    // real single-node trees with sized leaf tables: level-centering accumulates
+    // its conditional over OCCUPIED leaves, so a fixture with no trees would make
+    // the move a no-op that consumes no draw
+    std::vector<double> leafValue = {0.3, -0.4, 0.7};
     for (size_t k = 0; k < 3; ++k) {
       forests[k].numTrees = 1;
       forests[k].leaf.scale = 3.0;
       forests[k].k = 2.0;
       forests[k].treeFits.assign(n, 0.0);
       forests[k].totalFits = f[k];
+      forests[k].indexBuffer.assign(n, 0);
+      forests[k].trees.resize(1);
+      forests[k].trees[0].initialize(forests[k].indexBuffer.data(), n);
+      forests[k].muByTree.assign(1, std::vector<double>(1, leafValue[k]));
     }
 
     combiner.drawForestGlue(1, rng, forests);
@@ -2111,6 +2119,18 @@ static void testMultinomial(ext_rng* rng) {
       invariant &= std::fabs(after[i] - before[i]) < 1e-10;
     check(invariant,
           "level-centering leaves the softmax probabilities invariant");
+
+    // and the invariance is not vacuous: one shift c really moved every fit, and
+    // the single tree of each forest absorbed all of it (c/m at m = 1)
+    double shift = forests[0].totalFits[0] - f[0][0];
+    bool shifted = std::fabs(shift) > 1e-8;
+    for (size_t k = 0; k < 3; ++k) {
+      for (size_t i = 0; i < n; ++i)
+        shifted &= std::fabs(forests[k].totalFits[i] - f[k][i] - shift) < 1e-12;
+      shifted &=
+        std::fabs(forests[k].muByTree[0][0] - leafValue[k] - shift) < 1e-12;
+    }
+    check(shifted, "level-centering shifts every fit and leaf by the same c");
 
     // combinedTestFits is combinedFits' totalTestFits analog: with the test
     // rows' totalTestFits set to the pre-shift train totalFits `f`, it must be a
