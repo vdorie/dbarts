@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (125 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (126 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -109,7 +109,8 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | sbc-calibration.md | MIXED (Tier A complete; B/C outstanding) | Simulation-based-calibration harness; found the BCF glue-on sigma mixing issue and the cauchy-tau SBC-intractable tooling gap. 646-line running log, heaviest rewrite-signal doc in the corpus. |
 | sbc-ci-gate.md | LANDED | Weekly/manual non-blocking CI run of the gaussian SBC baseline. |
-| sbc-family-tiers.md | OPEN (in-flight 2026-08-04) | Extends SBC to ordinal, nbinom (tightened k=8), robust-t, and multinomial (incl. raw f_ik); aft/hazard/hurdle excluded as ill-posed (design depends on y0), heteroscedastic/monotone liftable; Bonferroni'd non-blocking CI matrix. |
+| sbc-family-tiers.md | BUILT d094675 (2026-08-04) | Extends SBC to ordinal, nbinom (tightened k=8), robust-t, and multinomial: t + softmax ALL PASS, ordinal 9/10 (ridge mixing), nbinom identified-mu PASS with r/psi H-MIX; the raw-f_ik finding spun out to multinomial-level-centering.md. aft/hazard/hurdle excluded as ill-posed; heteroscedastic/monotone liftable. |
+| multinomial-level-centering.md | OPEN (memo first) | The SBC raw-f_ik arm implicates afterCombine's level-centering precision (counts observations where the exact per-forest-level conditional counts leaves); derive, quantify, then fix or prove inert. |
 
 ## Data-ownership program (pairs with docs/design/data-ownership.md)
 
