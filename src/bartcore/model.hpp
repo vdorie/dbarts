@@ -601,6 +601,40 @@ struct MonotoneConstantGaussianLeaf {
       drawOneLeaf(rng, tree, leaf, bottoms, nullptr, 0, k, residualVariance, mu);
   }
 
+  // Exact draw of a tree's leaf vector from the CONSTRAINED prior, by
+  // rejection: the leaves' independent (c-inflated) prior marginals, accepted
+  // only when the whole vector lands in the monotone cone. A sequential sweep
+  // of the truncated full conditionals is NOT the joint truncated law, so
+  // rejection is the exact route. Acceptance runs ~1/L! over L leaves chained
+  // on a constrained axis - measured 6.5% per try with every axis constrained,
+  // 63% with one of five - and prior-drawn trees average 2.5 leaves, so the
+  // cap only catches a pathologically deep structure. Empty leaves take mu = 0
+  // as everywhere else, flagged by a zero prior sd.
+  static constexpr int priorDrawMaxAttempts = 1000000;
+  bool drawFromPriorForTree(ext_rng* rng, const Tree& tree,
+                            const std::vector<std::int32_t>& bottoms, double k,
+                            double* mu) const {
+    std::vector<double> priorSds(bottoms.size(), 0.0);
+    for (std::size_t i = 0; i < bottoms.size(); ++i) {
+      if (tree.at(bottoms[i]).numObservations() == 0) continue;
+      double a, b;
+      bool constrained;
+      monotoneNeighborBounds(tree, *data, directions.data(), bottoms,
+                             bottoms[i], mu, nullptr, 0, scratch, &a, &b,
+                             &constrained);
+      priorSds[i] = priorSd(k, constrained);
+    }
+    for (int attempt = 0; attempt < priorDrawMaxAttempts; ++attempt) {
+      for (std::size_t i = 0; i < bottoms.size(); ++i)
+        mu[bottoms[i]] = priorSds[i] == 0.0
+          ? 0.0
+          : priorSds[i] * ext_rng_simulateStandardNormal(rng);
+      if (monotoneTreeIsFeasible(tree, *data, directions.data(), mu))
+        return true;
+    }
+    return false;
+  }
+
   // Redraw of an accepted death's merged leaf: its full conditional
   // truncated to the frozen neighbor bounds. Writing a proper draw (not a
   // deterministic seed) keeps the collapsed move a valid block update so the
