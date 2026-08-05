@@ -111,6 +111,23 @@ items
     decision-gated.
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
+  sbc-family-tiers: extend the SBC harness beyond gaussian Tier A to
+    the shipped families - IN: ordinal, nbinom (at a tightened k=8;
+    default-k is runtime-unbounded under prior draws), robust-t,
+    multinomial (incl. raw f_ik, testing afterCombine's centering
+    draw); OUT with recorded reasons: aft, hazard, hurdle,
+    heteroscedastic, monotone (last two liftable). Bonferroni'd
+    non-blocking CI matrix. Plan docs/plans/sbc-family-tiers.md
+    (design-first + blind critique done 2026-08-04; critique also
+    surfaced the runSbcBCF-errors-at-HEAD harness regression, fixed
+    separately, and the monotone-prior-draw defect, fixed 173a710).
+    in-flight.
+  setpredictor-leafof-rebuild: the constant-leaf-fits bench discharge
+    (2026-08-04, x86) found setPredictor-accept +22-28%, attributed to
+    the refactor's full O(n*trees) leafOf rebuild on accepted
+    mutations; restore via lazy/partial leafOf maintenance
+    (docs/plans/setpredictor-leafof-rebuild.md, memo first). The
+    embedded-Gibbs hot path, so ranked above its size.
   sparse-extensions: streaming range kernel, mutation on dense-backed
     mixed columns, and the smaller deferred extensions in
     docs/plans/sparse-extensions.md's Status list (sparse x.test,
@@ -139,11 +156,15 @@ items
     windows-11-arm CI job in check-standard.yaml (native compile +
     bitwise scalar-vs-NEON; the MSVC intrinsic branch stays unexercised
     by design - R packages build with the Rtools toolchain). The live
-    perf frontier past SIMD is the
-    MEMORY WALL: the three-lens ideation in docs/design/memory-wall-
-    frontier.md, flagship the histogram-fused suffstat; first action is
-    to re-profile HEAD on dbarts-bench plus the Z-order run-count
-    census.
+    perf frontier past SIMD is the MEMORY WALL: re-profile + census run
+    2026-08-04 on dbarts-bench (memory-wall-frontier.md sec 10) - the
+    suffstat gather is 46-49% of a sweep, the flagship histogram-fused
+    suffstat's premise SURVIVES (ceiling ~1.67x; block-fusion Stage A's
+    bench-neutral result is the standing counter-evidence), Z-order /
+    locality reordering measured DEAD, data-layout.md re-evaluated and
+    closed shelved. Next action: VD fork on building the fused-kernel
+    falsifier (measured in situ, never a microbench alone).
+    decision-gated.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   note: the schedule/dispatch-only workflows (equivalence, rchk,
