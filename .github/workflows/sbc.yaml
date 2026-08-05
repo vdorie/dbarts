@@ -1,13 +1,29 @@
-# Simulation-based calibration gate (benchmarks/R/sbc.R), gaussian config
-# only, at R=100: a statistical rank-uniformity test that will occasionally
-# false-alarm at its nominal level, so this deliberately does NOT gate pull
-# requests -- only a scheduled, workflow_dispatch-triggered run that turns
-# visibly red on a FLAG. Runs on the cheaper ubuntu-latest, same as
-# equivalence.yaml.
+# Simulation-based calibration gate (benchmarks/R/sbc.R): a matrix over the
+# families with a recorded SBC verdict -- the gaussian constant-leaf baseline
+# plus the four family tiers (docs/plans/sbc-family-tiers.md). Rank uniformity
+# is a statistical test that will occasionally false-alarm at its nominal level,
+# so this deliberately does NOT gate pull requests: only a scheduled,
+# workflow_dispatch-triggered run that turns visibly red on a FLAG.
 #
-# Known defect: the BCF glue-on sigma config (benchmarks/R/sbc.R bcf /
-# bcf-weak) is under investigation and is NOT part of this workflow;
-# gaussian only.
+# Admission: sbc.R Bonferroni's the ecdf band's alpha to 0.05/M over the
+# matrix's TOTAL functional count (M = 30), so a full matrix passes with
+# probability ~0.95 on a fresh stream rather than each of the five arms alarming
+# independently at 5%. fail-fast is off so one arm's FLAG never hides another's.
+#
+# The seeds are pinned constants (sbcConfig's configSeed, the runners' seed), so
+# a healthy matrix replays identically; a draw-shifting commit or a re-rolled
+# runner image reshuffles the same fixed-seed stream, which is the other reason
+# the gate stays non-blocking.
+#
+# Timeouts are ~3x the measured single-thread wall-clock on the maintainer's
+# laptop (ordinal 6.6 min, nbinom 46 min, t 2.6 min, multinomial 7.3 min at
+# R=200; gaussian 27 s at R=100). nbinom is the expensive arm: its Polya-Gamma
+# draw loops sum(y_i + r) times per sweep.
+#
+# Not in the matrix: BCF (bcf / bcf-weak), whose glue-on sigma channel is a
+# recorded slow-mixing finding rather than a defect (sbc-calibration.md A4e),
+# and the aft / hazard / hurdle / heteroscedastic / monotone families, which are
+# ill-posed or not yet liftable for SBC (sbc-family-tiers.md).
 #
 # NOTE: GitHub binds `schedule` to the repository DEFAULT branch, so this run
 # does not fire until the workflow lands on main; on bartcore it is
@@ -24,6 +40,48 @@ permissions: read-all
 jobs:
   sbc:
     runs-on: ubuntu-latest
+
+    name: sbc (${{ matrix.config }})
+
+    timeout-minutes: ${{ matrix.timeout }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # the discrete-rank tie-breaker against a closed-form conjugate
+          # posterior: no engine, seconds, and it gates the two grid
+          # functionals (nbinom r, Student-t nu) the matrix ranks
+          - config: discrete-selfcheck
+            reps: 400
+            samples: 200
+            thin: 30
+            timeout: 10
+          - config: gaussian
+            reps: 100
+            samples: 200
+            thin: 30
+            timeout: 15
+          - config: ordinal
+            reps: 200
+            samples: 150
+            thin: 30
+            timeout: 40
+          - config: nbinom
+            reps: 200
+            samples: 150
+            thin: 30
+            timeout: 180
+          - config: t
+            reps: 200
+            samples: 150
+            thin: 30
+            timeout: 20
+          - config: multinom
+            reps: 200
+            samples: 150
+            thin: 30
+            timeout: 40
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -44,5 +102,8 @@ jobs:
       - name: Install the package
         run: R CMD INSTALL .
 
-      - name: Run the SBC calibration check (gaussian, R=100)
-        run: Rscript benchmarks/R/sbc.R gaussian 100 200 30
+      - name: Run the SBC calibration check
+        run: >
+          Rscript benchmarks/R/sbc.R
+          ${{ matrix.config }} ${{ matrix.reps }}
+          ${{ matrix.samples }} ${{ matrix.thin }}
