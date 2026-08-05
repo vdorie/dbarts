@@ -1,7 +1,9 @@
 # runsbcbcf-repair
 
-status: OPEN (diagnosed 2026-08-05: engine-side, decision-gated; the
-        TODO's "small, separate" reading is rescoped by the diagnosis)
+status: DESIGNED 2026-08-05 (VD picked FIX-B; design + independent
+        blind critique below, counterfactual-validated on a patched
+        scratch clone; implementation pending with the order AMENDED:
+        the setModel guard is a precondition of FIX-B, not a follow-on)
 agent: sonnet diagnosed; opus if an engine capability ships
 rng: neutral - a creation-time calibration override defaults to the
      current derivation, so existing draws are bitwise-unchanged
@@ -127,3 +129,83 @@ section above:
   surface wanting a guard (or a real multi-forest path); setOffset
   and setTreatment are silent no-ops on multinomial and should refuse
   or work.
+
+## Design + critique (2026-08-05)
+
+Process: design (opus, working probes built out-of-tree against
+src/*.a) then an independent blind critique (opus) instructed to
+refute, which rebuilt the probe from scratch, re-derived the state
+walk, and ran the counterfactual (+43/-3 patch on a scratch clone).
+Full documents lived in the session scratchpad (disposable); this
+section is the durable record.
+
+VERDICT on the cost discrepancy: both prior readings wrong, in
+opposite directions. There is NOTHING to rebuild: at
+updateScale=FALSE, GaussianResponse::setResponse (model.hpp ~2670)
+re-maps yRescaled_ through the pinned (min_, range_) and touches no
+forest, and BCFForestCombiner re-derives every per-forest residual
+from y each sweep, caching nothing per-forest. Chain::setResponse is
+ALREADY correct for BCF; FIX-B is ~40 lines of opt-in predicate
+plumbing (combiner virtual supportsResponseMutation(), default FALSE
+on the base so future multi-forest models stay refused until audited,
+BCF override true; the bridge refuses at numForests >= 2 &&
+(updateScale || !supports)). Decisive probe, independently reproduced
+by the critique: setResponse(yNew, false) is BITWISE identical
+(sigma, both forests' totalFits, glue a/b0/b1, 270 sweeps) to the
+already-unguarded setOffset(yBuild - yNew, false) - the same re-map
+with a different pointer, so the guard forbids on one entry what it
+permits on another. fitScale/fitShift are pinned by construction on
+the FALSE branch (rescale() is never called), the whole-calibration
+pin FIX-A lacked; sigma, sigmaSqPrior, the per-forest leaf
+calibration and the glue all carry over (the one-prior-across-reps
+SBC precondition). runSbcBCF runs VERBATIM; zero harness edits; no
+man/*.Rd change (the documented R5 surface cannot reach a multi-forest
+sampler); rchk risk nil.
+
+Critique BLOCKING amendments (all bind the implementation):
+1. The flat C API hole is TWO holes, not one (dbarts_sampler_
+   setResponse at C_interface.cpp ~194 AND dbarts_sampler_setWeights
+   at ~204; both unreachable today - ResponseFamily has no
+   multi-forest member), and refuseMultiForestMutation has internal
+   linkage (anonymous namespace), so closing them needs the helper
+   promoted into bartcore_bridge + declared in
+   R_interface_bartcore_common.hpp, not a one-liner.
+2. ORDER INVERSION: the setModel guard is a PRECONDITION of FIX-B.
+   "No mutation path writes forest.leaf.scale" is false at HEAD -
+   Chain::setModel (chain.hpp ~1122) writes it and is reachable from
+   the unguarded bartcore_setModel. The guard ships FIRST; FIX-B's
+   pin argument holds only once it exists.
+3. The gaussian-response conjunct must be structural, not a comment:
+   the chain-level permission is combiner_->supportsResponseMutation()
+   && family == gaussian (a latent family would read
+   forests_[0].totalFits as the combined location).
+Non-blocking, for the implementer: the reused refusal message says
+"fixes its data" - reword for the prior/opt-in case; stale comment at
+model.hpp ~3383-3384; NA updateScale must refuse (asLogical NA would
+take the permitted branch); multinomial setOffset is the same silent
+no-op the design refuses for setResponse (door, not taken); setState/
+installForests restore fitMin/fitMax with leaf.scale pinned (sibling
+door, not taken); spec.sdModerate is discarded at construction, which
+makes updateScale=TRUE unimplementable as specified - a stronger
+refusal argument than decalibration alone; the tau-forest leaf scale
+is untestable from tests/cpp without a new accessor (Chain::leaf() is
+forest-0-only).
+
+COUNTERFACTUAL (critique, patched scratch clone): the smoke
+`Rscript benchmarks/R/sbc.R bcf 3 10 1` RUNS, 15/15 PASS; equivalence
+27/27, bcf-equivalence 5/5, multinomial-equivalence 3/3 all identical
+(default draws bitwise-neutral); tinytest 1 fail of 3474, exactly the
+predicted refusal assertion at test-multi-forest-seam.R:75-78 (flips
+to expect_silent in the implementation); tests/cpp pass; a short arm
+`bcf 25 100 10` gave 13/15 with both flags explained (the harness's
+documented sign-symmetric `a` functional, abs.a PASS; prog3 at ~1
+bin-sd on R=25), so the R=200 recorded-config arm is the real
+acceptance gate.
+
+Confirmed refusals, each with evidence: updateScale=TRUE decalibrates
+(fitScale 6.42 -> 64.16 with leaf.scale unmoved) and stays refused;
+multinomial setResponse is an empty override (silent no-op) and stays
+refused at both updateScale values; setData stays refused
+(applyNewData hard-codes forest 0). setWeights is vacuously guarded
+for BCF by the same argument as setResponse - a door recorded, not
+taken.
