@@ -132,12 +132,13 @@ items
     mutation guard refuses its anchor-reuse pattern and BCF's
     y-derived leaf-scale calibration blocks rebuild-per-rep;
     docs/plans/runsbcbcf-repair.md).
-  setpredictor-leafof-rebuild: the constant-leaf-fits bench discharge
-    (2026-08-04, x86) found setPredictor-accept +22-28%, attributed to
-    the refactor's full O(n*trees) leafOf rebuild on accepted
-    mutations; restore via lazy/partial leafOf maintenance
-    (docs/plans/setpredictor-leafof-rebuild.md, memo first). The
-    embedded-Gibbs hot path, so ranked above its size.
+  setpredictor-leafof-rebuild: memo recorded 2026-08-05 - the leafOf
+    rebuild is only ~21% of the regression (79% is the mu[leafOf]
+    gather that replaced contiguous SIMD passes) and the measured
+    ceiling of every leafOf-scoped mechanism is +9.7%, still outside
+    the gate; decision pending VD: close, or scope a bitwise-safe
+    mu[leafOf] gather SIMD item instead
+    (docs/plans/setpredictor-leafof-rebuild.md Memo).
   sparse-extensions: streaming range kernel, mutation on dense-backed
     mixed columns, and the smaller deferred extensions in
     docs/plans/sparse-extensions.md's Status list (sparse x.test,
