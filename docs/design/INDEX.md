@@ -2,7 +2,8 @@
 
 Manifest of every `docs/design/*.md` (37 files), grouped by theme. STATUS is
 read from each doc's live `Status:` line or `## Status` section as of
-2026-07-21; a few standing-reference docs carry no status line by design
+2026-08-04, when a consistency pass re-verified every row against its doc;
+a few standing-reference docs carry no status line by design
 (noted as REFERENCE). See `docs/README.md` for how this index relates to the
 root TODO and `docs/plans/README.md`.
 
@@ -37,7 +38,7 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | memory-wall-frontier.md | CLOSED as idea map; recommended lever LANDED | Three-lens (algorithms/hardware/systems) ranked ideation map of the per-sweep memory-wall bottleneck; lands on fp32 residual storage as the answer, GPU and block-fusion re-tread both ruled dead. |
 | parallel-bart-frontier.md | MIXED (research survey; 3 falsifiers measured 07-08) | Ranks every axis of BART parallelism beyond the settled observation-axis; structural facts, conservation laws, surviving constructions (block-fused atoms, delayed acceptance, coupled chains), CRAN GPU axis. Plan: parallel-falsifiers.md. |
-| within-chain-threading.md | CLOSED, NO-GO on x86 and Apple Silicon, 2026-07-21 | std::barrier worker pool parallelizing single-chain large-n sweeps; ~1.5-2.1x ceiling, missed both pre-registered gates; reconfirmed under fp32 storage and after a real-engine test refuted an optimistic microbench revival. Plan: within-chain-threading.md (thin pointer). |
+| within-chain-threading.md | CLOSED, NO-GO on x86 and Apple Silicon, 2026-07-21 | std::barrier worker pool parallelizing single-chain large-n sweeps; ~1.5-2.1x ceiling, missed both pre-registered gates; reconfirmed under fp32 storage and after a real-engine test refuted an optimistic microbench revival. Plan: within-chain-threading.md. |
 | reduced-precision-storage.md | LANDED / COMPLETE, 2026-07-20/21 | Optional compile-time narrowed hot-path storage: Track 1 (uint32 indices, bitwise-preserving) LANDED; Track 2 (opt-in fp32 residual, gaussian constant leaf) v1 LANDED (1.10-1.30x), v2 (fp32 scratch/fits bundle) MEASURED NO-GO. |
 | block-fusion.md | CLOSED, WONT-DO | Block-fused sub-sweeps over a persistent atom map meant to amortize O(n) DRAM passes across b trees (~6x target). Stage A (b=1 refactor) landed; Stage B (b>1) benchmarked 4-9x SLOWER (cost model over-counted amortizable traffic ~3x); machinery excised to archive/block-fusion. Plans: block-fusion-stage-a.md, -b.md. |
 | gpu-bart.md | NO-GO (survey; no direction earns a prototype yet) | Surveys 7 GPU-acceleration directions rated by ceiling/engine-fit/cost; recommends no GPU prototype now, ranks grow-from-root's cut-scan kernel as best future candidate. Plan: gpu-bart.md. |
@@ -56,7 +57,7 @@ Columns: `file | STATUS | one-liner`.
 | data-ownership.md | COMPLETE | Owned/quantized predictor container design (never-retain-raw-by-default, call-time raw supply, shared-handle views); all 5 sub-plans landed. Plans: data-ownership.md (hub) + data-ownership-1..5-*.md. |
 | data-layout.md | DESIGN PROPOSAL, 2026-07-11 (orphaned recommendation, unresolved) | Contiguous per-node response-axis (y/fits/weights/residual) reorder; ~10% standalone win, recommended NOT to ship standalone but as substrate for block-fusion's larger win - now orphaned since block-fusion was later killed outright, not deferred. No plan pairing; flagged for a checkpoint decision. |
 | data-store.md | REFERENCE | Standing technical reference for ColumnStore/CodeBlock/ColumnSource, the predictor mutation transaction, and ownership/borrow rules; required reading before data-adjacent engine work. Plans: data-review-remediation.md, data-store-consolidation.md, data-store-residuals.md. |
-| sparse-columns.md | LANDED, 2026-07-04 | Rank-bitmap CSC sparse predictor-column representation for wide mostly-zero designs; pure-sparse and mixed dense/sparse both landed, densifies above 20% density. |
+| sparse-columns.md | LANDED, 2026-07-04 | Rank-bitmap CSC sparse predictor-column representation for wide mostly-zero designs; pure-sparse and mixed dense/sparse both landed, densifies above 20% density; in-place nonzero mutation (extension (i)) landed 2026-07-22. Plan: sparse-extensions.md (remaining deferred extensions). |
 | pooled-masks.md | LANDED, 2026-07-04 | Lifts the categorical-predictor cap from 53 to 65535 levels via pooled masks; no change to columns of <=53 levels. |
 | mia-missingness.md | LANDED, 2026-07-04 | Missing Incorporated in Attributes (Twala 2008): every split gains a learned missing-direction so predictor NAs route through splits. |
 
@@ -65,7 +66,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | core-generalization.md | LANDED (mostly; phase 6 open) | Founding design for the bartcore C++20 rewrite: layering, concept decomposition (ResponseModel/LeafModel/MoveStrategy/SplitSelector/Forest), phase-by-phase log. Cutover complete 2026-07-03; phase 6 (GP leaves/non-conjugate moves) tracked via gp-leaves.md. Self-identifies as historical reference; docs/architecture.md is authoritative for current state. |
-| consumer-spec-surface.md | LANDED, 2026-07-25 | Exports `dbartsSpec()`, which resolves the (control, model, data) triple and family token without constructing a sampler, so a LinkingTo consumer reaches the whole single-forest feature set through supported surface instead of an unexported internal. Plan: consumer-spec-surface.md. |
+| consumer-spec-surface.md | LANDED, 2026-07-25 | Exports `dbartsSpec()`, which resolves the (control, model, data) triple and family token without constructing a sampler, so a LinkingTo consumer reaches the whole single-forest feature set through supported surface instead of an unexported internal; prior evaluation environment narrowed 2026-07-27 (b96d3bb, section 7). Plan: consumer-spec-surface.md. |
 | public-surface.md | MIXED (reviewed 07-03, updated through 07-06; decisions recorded inline) | The major-version public R surface: engine cutover sequencing, factor/categorical ingestion, response-family exposure, DART, standalone data handle, C API/callbacks; section 7 catalogs features deferred here that have since landed elsewhere. |
 | kernel-vocabulary.md | REFERENCE | Normative contract between the generic BART core and the compiled `misc.a` kernel library: dispatch mechanism, current vocabulary, planned additions. Plan: kernel-cleanups.md. |
 | robust-errors.md | LANDED, 2026-07-17 | Student-t residuals for continuous responses via scale-mixture augmentation (resid.dist), riding the existing workingWeights hook. Plan: robust-errors.md. |
@@ -73,6 +74,4 @@ Columns: `file | STATUS | one-liner`.
 | change-move-balance.md | LANDED, 2026-07-08 | Fixes a since-origin detailed-balance defect in the tree change move (missing proposal-density correction, biased toward low-cardinality variables); hybrid ordinal/categorical fix. Plan: change-move-fix.md. |
 | empty-leaf-veto.md | LANDED (keep-and-document) | Investigates occupancy-aware tree proposals vs. the existing finite-penalty empty-leaf veto; keeps the veto, corrected 2026-07-15 to -HUGE_VAL (was a beatable finite -1e7). Plan: empty-leaf-veto.md. |
 | grow-from-root.md | MIXED (GO on cut-scan/warm-start; NO-GO on standalone sampler) | XBART-style root-down stochastic tree construction; ships only as a validity-free warm-start producer, rejected as a standalone approximate posterior sampler (not MH-exact). Plans: grow-from-root.md, grow-from-root-warm-start.md. |
-| interaction-constraints.md | LANDED, 2026-07-21 (f455d7c; P4 073d3db) | Per-forest limits on which predictors may jointly shape the fit: cap interaction ORDER (1 = additive/GAM, 2 = pairwise) and/or DENY named co-occurrences or ALLOW declared groups; motivates calibrated-additivity causal use (additive tau, free mu). Plans: interaction-constraints.md, interaction-constraints-p4.md. |
-
-- data-layout.md: its "substrate for block-fusion" recommendation was orphaned when block-fusion closed WONT-DO; the doc now carries a dated post-mortem noting the standalone ~10% win needs its own re-evaluation.
+| interaction-constraints.md | LANDED, 2026-07-21 (f455d7c; P4 aadbbc8/103dbe2/073d3db) | Per-forest limits on which predictors may jointly shape the fit: cap interaction ORDER (1 = additive/GAM, 2 = pairwise) and/or DENY named co-occurrences or ALLOW declared groups; motivates calibrated-additivity causal use (additive tau, free mu). Plans: interaction-constraints.md, interaction-constraints-p4.md. |

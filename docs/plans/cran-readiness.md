@@ -375,7 +375,8 @@ pass. Three results need a decision:
    local working copy carried `.claude/`, which its `.Rbuildignore` did
    not exclude (dbarts excludes it via `^\.claude$`). RESOLVED the same
    day by VD (bartCause 695c603); re-checked against that commit,
-   Status OK.
+   Status OK. With bartCause resolved the sweep stands at 22 of 24 OK;
+   lorax and insight are the only non-OK results.
 
 Both breaks are the same class - 1.0-0 refuses input that 0.9-x silently
 mishandled - and both are consistent with the NEWS UPGRADING section. VD

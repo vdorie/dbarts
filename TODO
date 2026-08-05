@@ -3,9 +3,11 @@ live in the git history of this file, docs/plans/, docs/design/, and
 NEWS.
 
 Items are listed alphabetically by plan name; the order carries no
-meaning. Every item has an implementation plan in docs/plans/<name>.md,
-and the planning/implementation/review process (who plans, who
-implements, who reviews, which gates run) is docs/plans/README.md.
+meaning. Most items have an implementation plan in docs/plans/<name>.md
+(a few record instead in a design doc or a differently-named plan,
+named in the item), and the planning/implementation/review process (who
+plans, who implements, who reviews, which gates run) is
+docs/plans/README.md.
 No item is deferred to post-release, and gate labels (decision-gated,
 consumer-gated) rank priority rather than block work (VD 2026-07-17).
 
@@ -41,22 +43,20 @@ items
   correlated-outcomes: richer error/outcome covariance around a BART
     mean, delivered via outer-sampler composition (stan4bart = WALNUTS
     + dbarts supplying each outcome's conditional mean; the pattern
-    bairrtt uses). SCOPED 2026-07-22 (docs/design/correlated-
+    bairrtt uses). RESOLVED 2026-07-22 (docs/design/correlated-
     outcomes.md): (b) multivariate / multiple correlated outcomes
-    (joint effects, mediation's outcome+mediator system, surrogate
-    outcomes) is EXACT PURE COMPOSITION today - SUR chained
-    conditionals reduce each outcome's step to a per-observation offset
-    + scalar sd, so q samplers with resid.prior=fixed() plus an outer
-    inverse-Wishart needs NO new dbarts code (mediation is the
-    triangular case, rho the sensitivity knob); (a) AR-1 / serially-
-    correlated errors (longitudinal, panel, ITS, DiD - the Bertrand-
-    Duflo-Mullainathan SE problem) composes via a latent AR-state +
-    nugget in the outer sampler (the rbart_vi pattern, AR replacing the
-    intercept), with EXACT pure-AR-1 errors a deferred ENGINE door
-    (banded residual precision + cross-leaf GLS leaf updates break
-    per-leaf independence). Smallest dbarts enabler: expose the
-    per-sweep callback rbart_vi uses (C_dbarts_bartcore_runWithCallback;
-    shipped analogue dbarts_sampler_setCallback) on dbartsSampler$run.
+    SHIPPED as mvbart() in stan4bart (e27a7c3) with zero dbarts code -
+    SUR chained conditionals reduce each outcome's step to a
+    per-observation offset + scalar sd against resid.prior=fixed()
+    (mediation is the triangular case, rho the sensitivity knob). What
+    remains open: (a) AR-1 / serially-correlated errors (longitudinal,
+    panel, ITS, DiD - the Bertrand-Duflo-Mullainathan SE problem)
+    compose today via a latent AR-state + nugget in the outer sampler
+    (the rbart_vi pattern, AR replacing the intercept), with EXACT
+    pure-AR-1 errors a deferred ENGINE door (banded residual precision
+    + cross-leaf GLS leaf updates break per-leaf independence).
+    Exposing the per-sweep callback on dbartsSampler$run is a perf-only
+    convenience, not a gate (demoted in the design doc).
     causal-motivated, decision-gated.
   forest-ranef-interweaving: RESEARCHED, NO-GO now (recorded door;
     docs/design/forest-ranef-interweaving.md). The weak-signal/small-K
@@ -110,16 +110,11 @@ items
     mixed/CSC stores hold lifetime borrows anchored by R protection.
     decision-gated.
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
-    and NEWS.md migrations (do not start unasked); dbarts.h's
-    x_test/offset_test -> xTest/offsetTest cosmetic rename, deferred
-    because DBARTS_API_STRINGIZE stringizes each parameter's full
-    declaration, name included, so the rename alone moves
-    DBARTS_C_API_HASH and forces a MINOR bump with the stan4bart floor
-    in lockstep - ride it on the next hash-moving dbarts.h change
-    instead.
-  sparse-extensions: in-place nonzero mutation, streaming range kernel,
-    mutation on dense-backed mixed columns (sparse-columns.md landing
-    notes). consumer-gated.
+    and NEWS.md migrations (do not start unasked).
+  sparse-extensions: streaming range kernel, mutation on dense-backed
+    mixed columns, and the smaller deferred extensions in
+    docs/plans/sparse-extensions.md's Status list (sparse x.test,
+    setData on a CSC store, ...). consumer-gated.
   survival-followups: doors out of the survival family pair (AFT +
     discrete-time hazard both landed; records in docs/plans/survival-
     models.md and docs/design/survival.md sec 6): cloglog link (needs a
@@ -128,8 +123,6 @@ items
     covariates in the auto-expander (available today via the manual
     person-period fit), continuous-time models. Each independent;
     demand-driven. low-ranked.
-  warm-starts: the cross-grid remap over mapOldCutPointsOntoNew;
-    reopen when a consumer needs new-data warm starts.
   weighted-binary: post 1.0 - integer-weight probit via replicated
     latents; arbitrary real weights need a real-shape PG sampler (IPW
     is a pseudo-likelihood trap).
@@ -196,3 +189,9 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     sbc gaussian R=100: see cran-readiness.md.
     covr audit and the with-Suggests revdep sweep: see
       cran-readiness.md.
+    note 2026-08-04: this record pins HEAD 51edbf6 + same-day fixes;
+      b96d3bb (prior evaluation environment; suite now 3469) and the
+      2026-08-04 shipped-doc commits (9cf074e, 47149bc - NEWS/Rd/
+      vignette rewrites, new example blocks) postdate it. R-surface
+      and doc only, but re-run check --as-cran + the suite at
+      submission.

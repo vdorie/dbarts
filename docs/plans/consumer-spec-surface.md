@@ -66,6 +66,11 @@ The motivating consumer is stan4bart, which hand-built a `dbartsModel` and calle
 LANDED 2026-07-25. Full suite 3468 (30 new), equivalence 27/27 bitwise,
 findGlobals clean, check 0 errors / 0 warnings / 1 standard maintainer NOTE.
 
+Follow-up 2026-07-27 (b96d3bb): `control` and `data` dropped from the prior
+evaluation environment - they shadowed a caller's own variables inside prior
+arguments and no default referenced them (design doc section 7). Regression
+test in test-model-priors.R; suite 3469, equivalence 27/27 identical.
+
 Follow-on, NOT part of this item: the per-observation working-weights/variance
 field on `dbarts_results` (unblocks robust-t and heteroscedastic BART for an
 embedded-Gibbs consumer) and a flat-API entry point for the BCF two-forest

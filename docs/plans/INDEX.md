@@ -1,12 +1,12 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (121 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (122 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
-2026-07-21, corrected against a handful of docs whose status header was
-missing or stale when an earlier inventory pass read them - see
-`docs/README.md` for the reconciliation notes. See `docs/design/INDEX.md`
+2026-08-04, when a consistency pass re-verified every row against its doc -
+see `docs/README.md` for how this index relates to the other navigation
+surfaces. See `docs/design/INDEX.md`
 for the paired design docs.
 
 Columns: `file | STATUS | one-liner`.
@@ -25,7 +25,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | forest-combiner.md | LANDED, 2026-07-14 | Extracts BCF's hardcoded glue into a polymorphic `ForestCombiner<L>` so multinomial (and future models) can plug in without re-forking Chain. |
-| forest-split-bcf.md | LANDED (two phases) | Splits `Forest<L>` out of Chain and lands BCF as the first two-forest sampler (steps 1-5); a later "Continuation (post data-ownership-4)" phase wires BCF's moderators restriction - both phases complete, one file. |
+| forest-split-bcf.md | LANDED (two phases) | Splits `Forest<L>` out of Chain and lands BCF as the first two-forest sampler (steps 1-5); a later "Phase 2 (post data-ownership-4)" wires BCF's moderators restriction - both phases complete, one file. |
 | multi-forest-models.md | LANDED (tracker; historical value only) | Queue/tracker for the multi-forest family (multinomial, heteroscedastic, hurdle); all three now correctly marked landed in-file. |
 
 ## Multinomial cluster (pairs with docs/design/multinomial.md)
@@ -46,7 +46,7 @@ Columns: `file | STATUS | one-liner`.
 | block-fusion-stage-a.md | SUPERSEDED (historical) | Stage A (b=1 atom-vocabulary refactor) landed and shipped as default, then the whole block-fusion project was later reverted/excised. |
 | block-fusion-stage-b.md | NO-GO (historical) | Stage B (b>1 fusion, the intended win); CLOSED WONT-DO, never landed, machinery later excised entirely. |
 | blocked-jacobi-trees.md | NO-GO (KILLED as a build target, 2026-07-21) | Noise-split single-chain tree parallelism (b trees update independently per barrier). Phase 0 exact/GO, Phase 1 promising, then a head-to-head reversed the call and a real-engine test refuted an optimistic revival attempt - strictly dominated by straight within-chain threading, also NO-GO. |
-| within-chain-threading.md | NO-GO (CLOSED 2026-07-13) | Thin pointer: "see Landing notes and docs/design/within-chain-threading.md section 8" for the full record. Within-chain parallelism for large-n single-chain workloads; step 2 prototype passed bitwise-invariance but missed both speed thresholds. |
+| within-chain-threading.md | NO-GO (CLOSED 2026-07-13) | Within-chain parallelism for large-n single-chain workloads; step 2 prototype passed bitwise-invariance but missed both speed thresholds. Full plan file with Landing notes; the deep analysis lives in docs/design/within-chain-threading.md section 8. |
 
 ## Chi hyperprior cluster
 
@@ -192,7 +192,7 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
-| cran-readiness.md | MIXED (1 NOTE) | R CMD check --as-cran plus ASAN/UBSAN sweep; clean except one persisting compiled-code NOTE. |
+| cran-readiness.md | CLEAN (2026-07-25) | R CMD check --as-cran plus ASAN/UBSAN sweep; the 2026-07-25 pre-submission gate run closes it at Status OK with zero NOTEs (the earlier 1-NOTE ___stderrp pass is superseded). |
 | equivalence-ci.md | LANDED | Scheduled CI run of the equivalence gate in statistical mode with baseline provenance (a MANIFEST). |
 | gp-cache-test-flake.md | LANDED | Fixed a build-layout-dependent flaky GP-leaf kernel-cache test. |
 | post-mutation-assertions.md | LANDED | Replaces near-tautological mutation-test asserts with statistical from-scratch-agreement checks. |
@@ -209,7 +209,7 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | autoconf-dead-code.md | LANDED | Strips dead configure knobs (--with-xint-size, Solaris probes, orphaned m4); ~3700 net lines deleted. |
 | bridge-error-path-leaks.md | LANDED | Wraps bridge entry points so Rf_error longjmps don't leak C++ heap; confirmed zero-leak by valgrind CI. |
-| repo-modernization.md | MIXED (recurring/standing item) | CI/tooling hygiene bundle (action pins, sanitizers, optional codecov); sub-items 1-2 landed. |
+| repo-modernization.md | MIXED (recurring/standing item) | CI/tooling hygiene bundle; sub-items 1-2 landed (widened 2026-07-22: concurrency + paths-ignore, the sanitizer PR gate DROPPED not deferred), codecov closed as a documented no. |
 
 ## Review / retrospective programs
 
@@ -230,9 +230,8 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | gp-followups.md | RESEARCH-OPEN | Placeholder for two deferred GP-leaf extensions (sampled lengthscales, low-rank kernels); blocked on a named consumer. |
 | gpu-bart.md | RESEARCH-OPEN (memo DONE) | Survey memo written (docs/design/gpu-bart.md): GO on cut-scan-as-warm-start (delivered), broader GPU experiment left open behind the informed-kernel and CG-leaf prototypes (parallel-bart-frontier next-actions 4-5). |
-| interaction-constraints.md | RESEARCH-OPEN | Consumer-gated memo placeholder for structured split-variable control (grouped DART, interaction limits). |
 | python-bindings.md | ACTIVE (no Status/Landing section) | Feasibility spike memo for a Python binding over bartcore; unclear if the spike ever ran. |
-| sparse-extensions.md | ACTIVE (open, consumer-gated) | Backlog of deferred sparse-column extensions (in-place mutation, streaming range kernel, mixed-column mutation). |
+| sparse-extensions.md | MIXED (ext (i) LANDED 2026-07-22; rest consumer-gated) | In-place nonzero mutation on sparse columns landed 343dd4c; sparse x.test, streaming range kernel, dense-backed mixed-column mutation and the smaller extensions stay deferred. |
 
 ## Misc feature / fix singletons
 
@@ -243,6 +242,8 @@ Columns: `file | STATUS | one-liner`.
 | empty-leaf-veto.md | LANDED (NO-GO on full removal) | Investigates replacing the -1e7 empty-leaf veto with occupancy-aware proposals; keep-and-document decision. |
 | grow-from-root.md | LANDED (memo phase) | XBART-style root-down tree sampling; GO on cut-scan-as-shared-primitive and warm-start use, NO-GO as a standalone posterior sampler. |
 | grow-from-root-warm-start.md | LANDED | Promotes the cut-scan kernel into an XBART-style root-down warm-start producer (n.grow.sweeps); byte-identical default path. |
+| interaction-constraints.md | LANDED f455d7c (2026-07-21) | Per-forest interaction constraints (max-order cap + hard co-occurrence deny/allow groups) via interactions(); post-landing BCF use-after-free fix 04ca425. |
+| interaction-constraints-p4.md | LANDED aadbbc8/103dbe2 (2026-07-21) | P4 follow-on: blocks() fixed-capacity per-tree block-additive prior plus the columnMask warm-start/setState feasibility gate (F1; follow-up 073d3db); soft path penalties and formal heredity stay deferred. |
 | moves-degenerate-root-guard.md | LANDED | Fixes a segfault when a root-only tree has no available split variable. |
 | pointwise-loglik.md | LANDED | R-side per-observation/per-draw log-likelihood extract for loo/waic. |
 | ppd-sigma-pairing.md | LANDED | Fixes multi-chain sampleFromPPD sigma pairing (chain-interleaved vs chain-blocked). |
@@ -250,7 +251,7 @@ Columns: `file | STATUS | one-liner`.
 | prior-predictive.md | LANDED | R-level samplePriorPredictive verb (issue #31). |
 | sigma-df-zero-weights.md | LANDED | Gaussian sigma posterior df counts only positive-weight rows. |
 | vignette-refresh.md | LANDED | Vignettes updated for the 1.0-0 surface (family selection, DART, sparse, missingness, non-constant leaves). |
-| warm-starts.md | LANDED | R-level verb installs a saved fit's forest as another sampler's starting state; post-landing valgrind leak fix. |
+| warm-starts.md | LANDED | R-level verb installs a saved fit's forest as another sampler's starting state; post-landing valgrind leak fix; cross-grid remap landed 2026-07-22, lifting the different-grid refusal. |
 
 ## Process doc (not a plan)
 

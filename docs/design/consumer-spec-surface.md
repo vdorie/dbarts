@@ -1,6 +1,7 @@
 # Consumer specification surface (dbartsSpec): design
 
-Status: PROPOSED 2026-07-25. Plan: docs/plans/consumer-spec-surface.md. Adds one
+Status: LANDED 2026-07-25 (6b6fed1); evaluation-environment follow-up 2026-07-27
+(b96d3bb, section 7). Plan: docs/plans/consumer-spec-surface.md. Adds one
 exported function, `dbartsSpec()`, that resolves a `(control, model, data)` triple
 plus its family token exactly as `dbarts()` does, without constructing a sampler.
 It closes the last gap in the public path to the flat C API: a `LinkingTo: dbarts`
@@ -105,3 +106,15 @@ The export is the only piece of this that is time-sensitive. Appending a
 ABI's own rules and cost a lockstep release whenever they happen. An export that
 consumers should be coding against, by contrast, wants to exist BEFORE those
 consumers ship against a frozen 1.0 surface with the `:::` workaround baked in.
+
+## 7. Follow-up: the prior evaluation environment narrowed (2026-07-27, b96d3bb)
+
+Section 3 makes the evaluation environment part of the exported contract, which
+is what surfaced its one defect: `parsePriors` bound `control` and `data` into
+that environment alongside the prior vocabulary, so a caller's own variable of
+either name inside a prior argument was silently shadowed
+(`tree.prior = cgm(2, 0.95, data)` reached the split probabilities as the
+`dbartsData` under construction, not the caller's numeric vector). Neither name
+was load-bearing - no prior default references them - so both are dropped; the
+vocabulary is now the constructors plus `num.vars`/`numvars` only. Regression
+test in inst/tinytest/test-model-priors.R pins the caller's binding winning.
