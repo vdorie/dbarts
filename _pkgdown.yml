@@ -7,6 +7,9 @@ template:
   bootstrap: 5
 
 reference:
+- title: Overview
+  contents:
+  - dbarts-package
 - title: Model fitting
   desc: Fit BART models to fixed data.
   contents:

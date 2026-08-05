@@ -28,6 +28,7 @@
 \alias{\S4method{getLatents}{dbartsSampler}}
 \alias{\S4method{getSumsOfSquaredResiduals}{dbartsSampler}}
 \alias{\S4method{installTrees}{dbartsSampler}}
+\alias{\S4method{storeState}{dbartsSampler}}
 \alias{\S4method{setState}{dbartsSampler}}
 \alias{\S4method{plotTree}{dbartsSampler}}
 \description{
@@ -66,6 +67,7 @@
 \S4method{getLatents}{dbartsSampler}(result)
 \S4method{getSumsOfSquaredResiduals}{dbartsSampler}(result)
 \S4method{installTrees}{dbartsSampler}(donor, samples = NULL)
+\S4method{storeState}{dbartsSampler}()
 \S4method{setState}{dbartsSampler}(newState)
 \S4method{plotTree}{dbartsSampler}(
   treeNum, chainNum, sampleNum, treePlotPars = c(
@@ -220,6 +222,27 @@
     Extra arguments to \code{\link{plot}}.
   }
 }
+\section{Fields}{
+  Read with \code{$}, as the methods are called. Treat them as read-only: assigning to a field changes only the R-side copy and leaves the underlying engine untouched, so the sampler's behavior does not follow. Route changes through the \code{set*} methods instead.
+
+  \describe{
+    \item{\code{control}}{
+      The sampler's \code{\link{dbartsControl}}, carrying \code{n.chains}, \code{n.threads}, \code{n.trees}, \code{keepTrees}, \code{updateState}, and the rest. Replace with \code{setControl}.
+    }
+    \item{\code{model}}{
+      A \code{dbartsModel} holding the parsed tree, node, and residual priors, together with any monotonicity, interaction, and block constraints. Replace with \code{setModel}.
+    }
+    \item{\code{data}}{
+      A \code{\link{dbartsData}} holding the current predictors, response, test data, weights, and offset. Its \code{x} slot is stored columnar for data-frame input and so need not be a plain matrix; use \code{\link[=extract.dbartsSampler]{extract}(sampler, "predictors")} for the numeric predictor matrix, which is what tree replay and \code{getTrees} count against. Replace with \code{setData}, or a piece at a time with the other \code{set*} methods.
+    }
+    \item{\code{state}}{
+      The cached, serializable engine state, or \code{NULL} until one is materialized. Reading it forces the sampler's \emph{current} state; \code{storeState} refreshes it on demand and \code{updateState} governs when the methods do so themselves. It is the only field \code{\link{save}} needs, and restoring one requires \code{setState} - see \sQuote{Saving}.
+    }
+    \item{\code{pointer}}{
+      The external pointer to the C++ engine. Internal; never manipulate it directly.
+    }
+  }
+}
 \details{
   A \code{dbartsSampler} is a mutable object which contains information pertaining to fitting a Bayesian additive regression tree model. The sampler is first created and then, in a separate instruction, run or modified. In this way, MCMC samplers can be constructed with BART components filling arbitrary roles.
 
@@ -255,6 +278,8 @@
   For \code{getSumsOfSquaredResiduals}, a numeric vector of length equal to the number of chains, giving each chain's residual sum of squares \eqn{\sum (y - \hat{y})^2}{sum((y - yhat)^2)} on the original response scale; a binary-response sampler reports on the latent scale instead.
 
   For \code{getLatents}, \code{NULL} when the model has no latent-variable representation (e.g. a gaussian response); otherwise the sampler's current latent values - a plain vector of length equal to the number of observations when there is a single chain, or an observations-by-chains matrix otherwise - written into \code{result} when one was supplied.
+
+  For \code{storeState}, \code{NULL} invisibly; it is called for its side effect of capturing the sampler's current engine state into the serializable \code{state} field, which \code{\link{save}} then writes out. See \sQuote{Saving}.
 }
 \seealso{
   \code{\link{updatePredictorPerObservationJointly}} for applying a shared per-observation predictor update across several samplers at once.
