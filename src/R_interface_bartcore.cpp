@@ -1846,15 +1846,16 @@ bartcore::ResponseFamily parseSamplerSpecification(
 
 namespace bartcore_bridge {
 
-// A whole-data or whole-model mutation (setData, setResponse, setWeights,
-// setModel) rebuilds or reprices only forest 0: applyNewData, the
-// response/latent refresh, and Chain::setModel's prior installation all
-// touch forests_[0] alone, so on a multi-forest sampler (BCF, and any future
-// multi-forest model) the other forests would keep fits - or, for setModel,
-// a leaf scale - against the old data or an uncalibrated prior. Refuse it; a
-// multi-forest sampler fixes its data and prior at creation, as
-// grouped/sparse/aft samplers do. setTreatment, the one supported
-// multi-forest data swap, routes through the combiner and stays allowed.
+// A whole-data or whole-model mutation (setData, setWeights, setModel)
+// rebuilds or reprices only forest 0: applyNewData, the response/latent
+// refresh, and Chain::setModel's prior installation all touch forests_[0]
+// alone, so on a multi-forest sampler (BCF, and any future multi-forest model)
+// the other forests would keep fits - or, for setModel, a leaf scale - against
+// the old data or an uncalibrated prior. Refuse it; a multi-forest sampler
+// fixes its data and prior at creation, as grouped/sparse/aft samplers do.
+// setTreatment, the one supported multi-forest data swap, routes through the
+// combiner and stays allowed; setResponse is opt-in and scale-pinned rather
+// than refused, and carries its own condition at bartcore_setResponse.
 // External linkage: the flat C API (C_interface.cpp) reuses this guard on
 // its own setResponse/setWeights entries.
 void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
@@ -3062,7 +3063,24 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
 
 SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refuseMultiForestMutation(*holder.sampler, "bartcore_setResponse");
+  int updateScale = Rf_asLogical(updateScaleExpr);
+  // The one multi-forest whole-data mutation that is opt-in rather than
+  // refused, and only scale-pinned. The coupling must re-derive every
+  // per-forest residual from y each sweep and cache nothing across sweeps
+  // (supportsResponseMutation); updateScale = TRUE would re-anchor the response
+  // transform while both forests keep leaf calibrations stated against the old
+  // one, silently decalibrating them. NA is not FALSE here - only an explicit
+  // FALSE takes the permitted branch.
+  if (holder.sampler->numForests() >= 2) {
+    if (!holder.sampler->supportsResponseMutation())
+      Rf_error("bartcore_setResponse: this multi-forest sampler fixes its "
+               "response at creation; make a new sampler instead");
+    if (updateScale != FALSE)
+      Rf_error("bartcore_setResponse: a multi-forest sampler supports a "
+               "response swap only with updateScale = FALSE, which pins the "
+               "response transform its per-forest leaf calibrations are stated "
+               "against");
+  }
   if (holder.sampler->numGroups() > 0)
     Rf_error("grouped random effects fix the response at creation; make a "
              "new sampler instead");
@@ -3072,8 +3090,7 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
     Rf_error("y must be of length equal to %lu",
              static_cast<unsigned long>(holder.sampler->numObservations()));
   GetRNGstate(); // probit latent redraw
-  holder.sampler->setResponse(REAL(yExpr),
-                              Rf_asLogical(updateScaleExpr) == TRUE);
+  holder.sampler->setResponse(REAL(yExpr), updateScale == TRUE);
   PutRNGstate();
   retain(ptrExpr, PROT_RESPONSE, yExpr);
   return R_NilValue;

@@ -1044,6 +1044,11 @@ public:
   // BCF surface, fanned to every chain (docs/design/bcf.md); benign on
   // single-forest samplers, where numForests() is 1 and bcfGlue reports none.
   size_t numForests() const { return chains_[0]->numForests(); }
+  /// Whether the forest coupling permits a whole-response swap; chain 0
+  /// answers for all, as every chain carries the same combiner and family.
+  bool supportsResponseMutation() const {
+    return chains_[0]->supportsResponseMutation();
+  }
   size_t numReportedLocations() const {
     return chains_[0]->numReportedLocations();
   }

@@ -145,6 +145,10 @@ public:
   /// Forest count: 1 for every non-BCF sampler, 2 for BCF (prognostic +
   /// treatment).
   virtual std::size_t numForests() const = 0;
+  /// Whether the forest coupling permits a whole-response swap (setResponse at
+  /// updateScale = false); false off any combiner, and false for a non-gaussian
+  /// response. The bridge gates its multi-forest refusal on it.
+  virtual bool supportsResponseMutation() const = 0;
   /// Per-observation channels the recorded fits carry: 1 for every additive
   /// model (BCF included), more for a multi-location combiner. The run bridge
   /// reads it to size trainingFits/testFits; internal, invisible to dbarts.h.
@@ -366,6 +370,9 @@ public:
   std::size_t numChains() const override { return impl_.numChains(); }
   std::size_t numThreads() const override { return impl_.numThreads(); }
   std::size_t numForests() const override { return impl_.numForests(); }
+  bool supportsResponseMutation() const override {
+    return impl_.supportsResponseMutation();
+  }
   std::size_t numReportedLocations() const override {
     return impl_.numReportedLocations();
   }

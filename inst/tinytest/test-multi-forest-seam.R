@@ -50,9 +50,16 @@ expect_equal(dim(result.many$test), c(nTest, numSamples, numChains))
 expect_null(dimnames(result.many$train))
 expect_null(dimnames(result.many$test))
 
-# --- multi-forest mutation guard. setData, setResponse, and setWeights rebuild
-# forest 0 only (applyNewData and the response refresh), so they are refused
-# outright on a BCF (two-forest) sampler. The TRANSACTIONAL predictor paths
+# --- multi-forest mutation guard. setData and setWeights rebuild forest 0 only
+# (applyNewData and the weight refresh), so they are refused outright on a BCF
+# (two-forest) sampler, as is setModel. setResponse is the one whole-data
+# mutation that is opt-in rather than refused: BCF's combiner re-derives every
+# per-forest residual from y each sweep and the gaussian response re-maps y
+# through the pinned transform, so at updateScale = FALSE the swap leaves
+# nothing stale. updateScale = TRUE would move the transform while both leaf
+# calibrations stayed stated against the old one, and NA is not FALSE, so both
+# are still refused; so is a coupling that does not opt in (multinomial, whose
+# setResponse is an empty override). The TRANSACTIONAL predictor paths
 # (setPredictor / updatePredictor without forceUpdate, and the per-observation
 # sessions, which have no force variant) validate through revalidateAllChains -
 # also forest 0 only - and are refused; the FORCE paths refresh every forest
@@ -72,8 +79,13 @@ expect_error(
   dbarts:::bartcoreSetData(bc.bcf, sampler.bcf.host$data),
   "multi-forest"
 )
+expect_silent(dbarts:::bartcoreSetResponse(bc.bcf, y.bcf + 1))
 expect_error(
-  dbarts:::bartcoreSetResponse(bc.bcf, y.bcf + 1),
+  dbarts:::bartcoreSetResponse(bc.bcf, y.bcf + 1, updateScale = TRUE),
+  "multi-forest"
+)
+expect_error(
+  dbarts:::bartcoreSetResponse(bc.bcf, y.bcf + 1, updateScale = NA),
   "multi-forest"
 )
 expect_error(
@@ -114,6 +126,22 @@ dbarts:::bartcoreSetTreatment(bc.bcf, rbinom(n, 1L, 0.5))
 result.bcf <- dbarts:::bartcoreRun(bc.bcf, 0L, 5L)
 expect_equal(dim(result.bcf$train), c(n, 5L))
 expect_true(all(is.finite(result.bcf$train)))
+
+# a multi-forest coupling that does not opt in stays refused at every
+# updateScale: multinomial's setResponse is an empty override, and its response
+# is the borrowed count matrix a flat double vector cannot express
+set.seed(23)
+labels <- sample(0L:2L, n, replace = TRUE)
+sampler.mn.host <- dbarts(x, as.double(labels), control = control.one)
+bc.mn <- dbarts:::bartcoreMultinomialSampler(sampler.mn.host, labels, K = 3L)
+expect_error(
+  dbarts:::bartcoreSetResponse(bc.mn, as.double(labels)),
+  "multi-forest"
+)
+expect_error(
+  dbarts:::bartcoreSetResponse(bc.mn, as.double(labels), updateScale = TRUE),
+  "multi-forest"
+)
 
 # the same guard is inert on a single-forest sampler: these mutations still work
 expect_silent(dbarts:::bartcoreSetResponse(bc.one, y + 1))
