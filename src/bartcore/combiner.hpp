@@ -811,39 +811,62 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// the softmax is invariant to a common shift of all f_ik, a flat additive
   /// direction the prior pins only weakly, so it mixes as a slow random walk.
   /// This move is a single DATASET-WIDE shift c added to every f_ik at once,
-  /// drawn from its Gaussian full conditional under the K forest priors. A
-  /// dataset-wide shift is the one flat direction a piecewise-constant forest
-  /// can represent EXACTLY (add c to every observation's fit uniformly): it
-  /// moves only the grand level and leaves every identified log-odds
-  /// f_ij - f_ik untouched. A per-observation shift, by contrast, is not
-  /// representable by coarse (shared-leaf) trees - the next backfit projects it,
-  /// leaking spurious variance into the identified log-odds and biasing the
-  /// softmax probabilities (a Jensen bias, confirmed against the exact gate) -
-  /// so it is deliberately NOT used. Prior: f_ik ~ N(0, v_k), v_k the per-forest
-  /// total-fit prior variance; the grand shift's conditional precision sums the
-  /// per-fit precisions over all n*K fits. The shift enters totalFits (which the
-  /// next sweep's margins read) and, uniformly, tree 0's fit slab, keeping the
-  /// residual roll's total = sum-of-tree-fits invariant; keepTrees is out of
+  /// absorbed UNIFORMLY: c/m_k lands on every occupied leaf of every one of
+  /// forest k's m_k trees. A dataset-wide shift is the one flat direction a
+  /// piecewise-constant forest can represent EXACTLY (add c to every
+  /// observation's fit uniformly): it moves only the grand level and leaves
+  /// every identified log-odds f_ij - f_ik untouched. A per-observation shift,
+  /// by contrast, is not representable by coarse (shared-leaf) trees - the next
+  /// backfit projects it, leaking spurious variance into the identified log-odds
+  /// and biasing the softmax probabilities (a Jensen bias, confirmed against the
+  /// exact gate) - so it is deliberately NOT used.
+  ///
+  /// The prior lives on LEAF VALUES (per-leaf sd
+  /// s_k = leaf.scale_k / (k_k sqrt(m_k))), not on the total fits, so with L_k
+  /// and S_k the count and value sum of forest k's OCCUPIED leaves over ALL its
+  /// trees, the exact conditional of the uniformly absorbed shift is
+  ///   prec = sum_k L_k / (m_k^2 s_k^2),  num = sum_k S_k / (m_k s_k^2),
+  ///   c = -num/prec + N(0, 1)/sqrt(prec).
+  /// Empty leaves are skipped: they carry no fit (sampleNodeParametersFromPrior
+  /// does draw values for them, inert here). Uniform absorption is also the
+  /// better mixing device than loading the whole shift onto one tree, whose
+  /// constant-leaf conditional then fights it; at the intercept-only
+  /// configuration it reduces to an exact independence sampler drawing the level
+  /// from its marginal N(0, tau^2/K).
+  ///
+  /// The shift enters totalFits (which the next sweep's margins read) and the
+  /// leaf tables, keeping the residual roll's total = sum-of-tree-fits invariant
+  /// TO ROUNDING (m_k * fl(c/m_k) is not exactly c). Shifting muByTree wholesale
+  /// is well defined only because a multinomial chain is ConstantGaussianLeaf-
+  /// only (a leaf value IS the fit). totalTestFits is deliberately untouched -
+  /// the softmax blend is invariant to the common shift. keepTrees is out of
   /// scope this arc, so the saved (flattened) tree leaves are not touched.
   /// Returns 1.0 (no multiplicative scale; the return feeds only BCF's test).
   double afterCombine(std::vector<Forest<L, ResidT>>& forests, bool /*record*/,
                       std::size_t /*sampleNum*/, ext_rng* rng) override {
     std::size_t n = data_.numObservations;
-    // grand-shift conditional: precision sums each fit's prior precision
-    // 1/v_k = (k_k/leaf.scale_k)^2 / numTrees_k, numerator its precision-weighted
-    // fit; a common shift leaves the identified log-odds fixed at any variance,
-    // so the reported probabilities are unbiased regardless of the leaf-count
-    // correction the exact per-forest-level conditional would add.
     double prec = 0.0, num = 0.0;
     for (std::size_t k = 0; k < numCategories_; ++k) {
-      const Forest<L, ResidT>& forest = forests[k];
-      double sd = std::sqrt(static_cast<double>(forest.numTrees)) *
-                  (forest.leaf.scale / forest.k);
-      double invV = sd > 0.0 ? 1.0 / (sd * sd) : 0.0;
-      double sumFits = 0.0;
-      for (std::size_t i = 0; i < n; ++i) sumFits += forest.totalFits[i];
-      prec += invV * static_cast<double>(n);
-      num += invV * sumFits;
+      Forest<L, ResidT>& forest = forests[k];
+      double m = static_cast<double>(forest.numTrees);
+      if (!(m > 0.0)) continue;
+      double s = forest.leaf.scale / (forest.k * std::sqrt(m));
+      double invV = s > 0.0 ? 1.0 / (s * s) : 0.0;
+      double leafCount = 0.0, leafSum = 0.0;
+      // the bottom lists are left in each tree's scratch for the apply pass
+      for (std::size_t t = 0; t < numTreesOf(forest); ++t) {
+        Tree& tree = forest.trees[t];
+        const std::vector<double>& mu = forest.muByTree[t];
+        tree.bottomScratch.clear();
+        tree.fillBottom(0, tree.bottomScratch);
+        for (int32_t nodeIndex : tree.bottomScratch) {
+          if (tree.at(nodeIndex).numObservations() == 0) continue;
+          leafCount += 1.0;
+          leafSum += mu[static_cast<std::size_t>(nodeIndex)];
+        }
+      }
+      prec += leafCount * invV / (m * m);
+      num += leafSum * invV / m;
     }
     if (!(prec > 0.0)) return 1.0;
     double c = -num / prec +
@@ -852,17 +875,31 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
     for (std::size_t k = 0; k < numCategories_; ++k) {
       Forest<L, ResidT>& forest = forests[k];
       for (std::size_t i = 0; i < n; ++i) forest.totalFits[i] += c;
-      // tree 0 absorbs the shift so totalFits stays the sum of the tree fits the
-      // residual roll reconstructs from; +c on every leaf value is +c on every
-      // gathered fit (unreachable internal slots never gather). The next sweep
-      // overwrites tree 0's table.
-      if (forest.numTrees > 0 && !forest.muByTree.empty())
-        for (double& v : forest.muByTree[0]) v += c;
+      if (forest.numTrees == 0) continue;
+      double perTree = c / static_cast<double>(forest.numTrees);
+      for (std::size_t t = 0; t < numTreesOf(forest); ++t) {
+        Tree& tree = forest.trees[t];
+        std::vector<double>& mu = forest.muByTree[t];
+        for (int32_t nodeIndex : tree.bottomScratch) {
+          if (tree.at(nodeIndex).numObservations() == 0) continue;
+          mu[static_cast<std::size_t>(nodeIndex)] += perTree;
+        }
+      }
     }
     return 1.0;
   }
 
 private:
+  /// The live tree count the level-centering passes may touch: numTrees clamped
+  /// to the tree and leaf-table lengths, so a partially built forest (a
+  /// component-test fixture, a forest mid-resize) walks only what exists.
+  static std::size_t numTreesOf(const Forest<L, ResidT>& forest) {
+    std::size_t count = forest.numTrees;
+    if (count > forest.trees.size()) count = forest.trees.size();
+    if (count > forest.muByTree.size()) count = forest.muByTree.size();
+    return count;
+  }
+
   /// The shared train/test blend: gather the K forests' per-observation fits
   /// (forest k's supplied by fitsOf(k)) into out in location-major order
   /// (channel k at out[k*count + i]), then softmax in place. combinedFits and

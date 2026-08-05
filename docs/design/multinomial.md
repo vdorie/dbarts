@@ -80,13 +80,29 @@ same constant to every category's fit at observation i and the probabilities do
 not move), so the raw f_ik are non-identified along a flat additive direction
 the prior pins only weakly; left alone it mixes as a slow random walk. The
 landed move pins ONLY the global, dataset-wide flat direction: a single scalar
-shift c drawn from its exact Gaussian full conditional under the K symmetric
-per-forest priors (f_ik ~ N(0, tau^2)), added to every f_ik at once - into
-totalFits, which the next sweep's margins read, and uniformly into tree 0's fit
-slab so the residual roll's total = sum-of-tree-fits invariant stays consistent.
-It lives in afterCombine (MultinomialForestCombiner<L>,
-src/bartcore/combiner.hpp), the post-loop combiner move, the BCF-ridge-
-interweave analog for the softmax's flat direction.
+shift c added to every f_ik at once, and ABSORBED UNIFORMLY - c/m_k onto every
+occupied leaf of every one of forest k's m_k trees, plus c onto every totalFits
+entry, which the next sweep's margins read. The residual roll's total =
+sum-of-tree-fits invariant is therefore preserved to rounding
+(m_k * fl(c/m_k) is not exactly c).
+
+The conditional is exact in LEAF space, which is where the prior lives: each
+leaf value is a priori N(0, s_k^2) with per-leaf sd s_k = nodeScale/(k sqrt(m_k))
+(NOT N(0, tau^2) on the total fit - that would treat the n*K fits as independent
+prior draws and both over-count the precision and, worse, hand the move a mean
+that subtracts the whole level every sweep). With L_k and S_k the count and value
+sum of forest k's occupied leaves over all its trees,
+
+  prec = sum_k L_k / (m_k^2 s_k^2),   num = sum_k S_k / (m_k s_k^2),
+  c    = -num/prec + N(0, 1)/sqrt(prec).
+
+Empty leaves are skipped (they carry no fit). Uniform absorption is also the
+better mixing device than loading c onto a single tree, whose own constant-leaf
+conditional is not shift-equivariant and pulls back against the move; at the
+intercept-only configuration the draw reduces to an exact independence sampler
+from the level's marginal N(0, tau^2/K). The move lives in afterCombine
+(MultinomialForestCombiner<L>, src/bartcore/combiner.hpp), the post-loop
+combiner move, the BCF-ridge-interweave analog for the softmax's flat direction.
 
 The shift is GLOBAL, not per-observation, by necessity. A per-observation shift
 - the naive reading of the invariance - is not representable by shared-leaf
@@ -111,8 +127,9 @@ src/bartcore/chain.hpp): the per-forest node scale is
 nodeScale = pi*sqrt(3)/sqrt(2) ~ 3.8476 (MultinomialSpec::nodeScale), the
 per-leaf scale is nodeScale/sqrt(numTrees) (buildMultinomialForest), and the
 per-forest total-fit prior sd is tau = nodeScale/k, with k = 2 the default, so
-tau = pi*sqrt(3)/sqrt(2)/2 ~ 1.9238 - the sd the centering conditional and the
-exact gate both read.
+tau = pi*sqrt(3)/sqrt(2)/2 ~ 1.9238 - the sd the exact gate reads. The centering
+conditional reads the per-LEAF sd s = nodeScale/(k sqrt(numTrees)) = tau/sqrt(m)
+instead, since that is the scale its prior term is written on.
 
 The margin C_ik makes the effective prior K-DEPENDENT: the softmax is a coupled
 nonlinear map of the K forests, so no single per-forest scale matches the binary
