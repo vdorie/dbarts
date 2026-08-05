@@ -81,3 +81,49 @@ cannot is recorded and the arm is retired from the harness surface.
   guard, the calibration path, and the recorded updateScale=FALSE
   rationale; worktree left clean (no code change shipped with this
   record).
+
+## Survey addendum (2026-08-05, multi-forest setResponse as a feature)
+
+An independent survey (opus, read-only, working probes) of whether
+FIX-B has value beyond the harness. Findings that AMEND the Decision
+section above:
+
+- Guard surface, verified: refuseMultiForestMutation has exactly
+  three sites - setResponse (~3060), setData (~3087), setWeights
+  (~3276) in R_interface_bartcore.cpp. setOffset (~3045) is UNGUARDED
+  and, on BCF, CORRECT: Chain::setOffset touches no forest and
+  BCFForestCombiner::formForestResponse re-derives every per-forest
+  residual from y each sweep, caching nothing. Proven by a working
+  two-outcome SUR-BCF probe (setOffset + setSigma + run(0,1) +
+  inverse-Wishart), which answers the open question at
+  docs/design/correlated-outcomes.md ~132-134: residual-conditioning
+  embeddings (multilevel/SUR) ALREADY work through offset; only
+  latent-RESPONSE schemes need the guarded path.
+- FIX-A as stated above is INSUFFICIENT: sbcMakeBCF recovers
+  fitScale/fitShift once, so pinning the leaf scale s alone leaves
+  the response range map unpinned; a correct override must pin the
+  whole calibration (scale AND shift).
+- FIX-B cost, revised downward with a caveat: the "rebuild ALL
+  forests' fit state" premise is vacuous for BCF (nothing per-forest
+  is cached across sweeps), estimated ~35 engine lines / 60-120
+  total, no ABI change, and it fixes runSbcBCF verbatim. This
+  contradicts the diagnosis's "strictly larger and riskier" reading;
+  if FIX-B is picked the arc still runs design + blind critique,
+  which must resolve what Chain::setResponse itself must touch per
+  chain (residual/totalFits bookkeeping, scale handling at
+  updateScale=FALSE) before trusting the low estimate.
+- Constituency, verified on-package: TobitBART (Imports: dbarts)
+  hand-wires per-sweep setResponse/setSigma/setWeights across two
+  dbarts samplers; Chen et al.'s AoAS replication builds five dbarts
+  samplers 6000 times over for want of a response swap. Binary BCF
+  demand is real in the literature but served on CRAN since 2026
+  (stochtree outcome_model, flexBART). Censored, robust-t,
+  missing-data, measurement-error and multinomial demand are
+  UNASSESSED (the survey retracted a fabricated citation batch rather
+  than launder it; only tool-verified claims kept).
+- New doors, outside this item: setModel is UNGUARDED at
+  numForests >= 2 and rewrites forest 0 only, silently discarding
+  BCF's calibrated mu leaf scale - a correctness gap on the shipped
+  surface wanting a guard (or a real multi-forest path); setOffset
+  and setTreatment are silent no-ops on multinomial and should refuse
+  or work.
