@@ -94,6 +94,8 @@ jobs:
         run: Rscript -e 'install.packages("tinytest", repos = "https://cloud.r-project.org")'
 
       - name: Build and install dbarts
+        # bash, not the default pwsh: PowerShell aliases R to Invoke-History
+        shell: bash
         run: R CMD INSTALL --preclean .
 
       - name: Assert native arm64 with NEON available
