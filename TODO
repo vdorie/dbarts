@@ -144,12 +144,15 @@ items
     gap, wants a guard or a real path); setOffset/setTreatment are
     silent no-ops on multinomial (should refuse or work)
     (docs/plans/runsbcbcf-repair.md Survey addendum).
-  setpredictor-leafof-rebuild: memo recorded 2026-08-05 - the leafOf
-    rebuild is only ~21% of the regression (79% is the mu[leafOf]
-    gather that replaced contiguous SIMD passes) and the measured
-    ceiling of every leafOf-scoped mechanism is +9.7%, still outside
-    the gate; decision pending VD: close, or scope a bitwise-safe
-    mu[leafOf] gather SIMD item instead
+  setpredictor-leafof-rebuild: CLOSED 2026-08-05 (memo executed under
+    the proceed-at-discretion grant) - the leafOf rebuild is only ~21%
+    of the regression and every leafOf-scoped mechanism's measured
+    ceiling is +9.7%, still outside the gate, so the item is not worth
+    its complexity. Remaining door, decision-gated and NOT built:
+    vectorize the mu[leafOf] gather in subtractTreeFitsFromTotal /
+    addTreeFitsToTotal (bitwise-safe elementwise map, attacks the 79%,
+    same kernel serves rollTreeResidual; a misc/SIMD item with the
+    cross-ISA tests/cpp gate)
     (docs/plans/setpredictor-leafof-rebuild.md Memo).
   sparse-extensions: streaming range kernel, mutation on dense-backed
     mixed columns, and the smaller deferred extensions in

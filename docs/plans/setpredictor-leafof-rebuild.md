@@ -1,8 +1,10 @@
 # setpredictor-leafof-rebuild
 
-status: MEMO RECORDED 2026-08-05 (see Memo below) - the plan's three
-        mechanisms are all declined by measurement; decision pending
-        VD: close, or scope the mu[leafOf] gather SIMD item instead
+status: CLOSED 2026-08-05 (memo executed under VD's proceed-at-
+        discretion grant: all three leafOf-scoped mechanisms declined
+        by measurement, ceiling +9.7%; the mu[leafOf]-gather SIMD door
+        in the Memo's RECOMMENDATION stays recorded, decision-gated,
+        NOT built)
         (found 2026-08-04 by the constant-leaf-fits bench discharge,
         docs/plans/constant-leaf-fits.md compare record)
 agent: opus
