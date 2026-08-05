@@ -177,3 +177,40 @@ rm(
   fitBump,
   fitBumpFree
 )
+
+# ---- the prior draw is constrained too ----
+
+# samplePriorPredictive installs its draws as the sampler's live leaf values,
+# so under a constraint they must come from the truncated prior; an
+# unconstrained draw would both misstate the prior and strand the sampler in an
+# infeasible state.
+
+set.seed(303L)
+nPri <- 80L
+xPri <- matrix(sort(runif(nPri)), nPri, 1L, dimnames = list(NULL, "x1"))
+samplerPri <- dbarts::dbarts(
+  xPri,
+  xPri[, 1L] + rnorm(nPri, 0, 0.3),
+  monotone = c(x1 = "+"),
+  control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L)
+)
+
+priorEv <- samplePriorPredictive(samplerPri, n.samples = 100L, type = "ev")
+expect_equal(dim(priorEv), c(100L, nPri))
+expect_true(all(is.finite(priorEv)))
+
+# x is sorted, so each individual draw - not merely their average - is
+# non-decreasing across the constrained column
+expect_true(all(apply(priorEv, 1L, function(f) all(diff(f) > -1e-8))))
+
+# the prior draw is not the constant zero forest it would collapse to if the
+# rejection simply gave up
+expect_true(mean(apply(priorEv, 1L, function(f) diff(range(f)))) > 0.1)
+
+# and a sampler left in that state runs on
+samplerPri$sampleTreesFromPrior()
+samplerPri$sampleNodeParametersFromPrior()
+samplesPri <- samplerPri$run(10L, 10L)
+expect_true(all(is.finite(samplesPri$train)))
+
+rm(nPri, xPri, samplerPri, priorEv, samplesPri)

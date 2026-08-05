@@ -14,6 +14,7 @@
 #include <type_traits>
 #include <vector>
 
+#include <external/io.h> // ext_throwError
 #include <external/random.h>
 #include <misc/linearAlgebra.h>
 #include <misc/thread.h>
@@ -1300,9 +1301,20 @@ public:
         tree.fillBottom(0, tree.bottomScratch);
         if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
           forest.paramByNode.assign(tree.nodes.size(), 0.0);
-          for (int32_t i : tree.bottomScratch)
-            forest.paramByNode[static_cast<size_t>(i)] =
-              forest.leaf.drawFromPrior(rng_, forest.k);
+          // the draws become the live leaf block, so under a constraint they
+          // must come from the prior truncated to the monotone cone - drawn
+          // per tree, since the cone couples a tree's leaves
+          if constexpr (TreeDrawLeafModel<L>) {
+            if (!forest.leaf.drawFromPriorForTree(rng_, tree, tree.bottomScratch,
+                                                  forest.k,
+                                                  forest.paramByNode.data()))
+              ext_throwError("monotone prior draw: no feasible leaf vector in "
+                             "%d attempts", L::priorDrawMaxAttempts);
+          } else {
+            for (int32_t i : tree.bottomScratch)
+              forest.paramByNode[static_cast<size_t>(i)] =
+                forest.leaf.drawFromPrior(rng_, forest.k);
+          }
 
           setTreeFitsFromParameters(forest, t, forest.paramByNode);
           if (forest.leafOfStale[t] != 0) rebuildLeafOf(forest, t);

@@ -5486,6 +5486,108 @@ static void testMonotoneInteractionCoexistence() {
   printf("ok: monotone and interactions coexist\n");
 }
 
+// (b3) The node-parameter prior draw. sampleNodeParametersFromPrior installs
+// its draws as the live leaf block, so under a constraint they must come from
+// the truncated prior and leave the sampler in a state run() can continue
+// from. The unconstrained leaf takes the same code with the constrained
+// branch compiled out, so its draw is pinned to a value recorded before the
+// constrained branch existed.
+static void testMonotonePriorDraw() {
+  std::uint64_t savedRngState = rngState;
+  std::vector<FlatNode> flat;
+  std::vector<std::uint32_t> counts;
+
+  // unconstrained: the recorded draw
+  ext_rng* plainRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(plainRng, 7007);
+  rngState = 112233u;
+  const size_t np = 150, pp = 2;
+  std::vector<double> xp(np * pp), yp(np);
+  for (size_t i = 0; i < np; ++i) {
+    xp[i] = runif01();
+    xp[i + np] = runif01();
+    yp[i] = xp[i] - xp[i + np];
+  }
+  SamplerOptions plainOptions;
+  plainOptions.numTrees = 20;
+  ConstantLeafSampler plainSampler(xp.data(), yp.data(), np, pp, nullptr,
+                                   nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                                   0.37804942330213542, plainOptions,
+                                   &plainRng);
+  plainSampler.sampleTreesFromPrior();
+  plainSampler.sampleNodeParametersFromPrior();
+  double plainSum = 0.0;
+  for (size_t t = 0; t < plainOptions.numTrees; ++t) {
+    plainSampler.flattenTree(0, t, flat, counts);
+    for (const FlatNode& node : flat)
+      if (node.variable == invalidVariable) plainSum += node.value;
+  }
+  check(plainSum == -0.22546950821777259,
+        "unconstrained prior draw is bitwise unchanged");
+  ext_rng_destroy(plainRng);
+
+  // constrained: every prior-drawn tree lands in the monotone cone, and the
+  // sampler continues from that state
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 7005);
+  rngState = 24680u;
+  const size_t n = 250, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    y[i] = 2.0 * x[i] - x[i + n];
+  }
+  std::vector<std::int8_t> dir = {1, -1};
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.birthOrDeathProbability = 1.0;
+  options.swapProbability = 0.0;
+  options.changeProbability = 0.0;
+  options.monotoneDirections = dir.data();
+  Sampler<MonotoneConstantGaussianLeaf> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+    3.0, 0.37804942330213542, options, &rng);
+
+  const ColumnStore& store(sampler.data());
+  std::vector<index_t> idx(n);
+  std::vector<double> params;
+  Tree scratch;
+  bool feasible = true;
+  int numTreesChecked = 0;
+  for (int rep = 0; rep < 25; ++rep) {
+    sampler.sampleTreesFromPrior();
+    sampler.sampleNodeParametersFromPrior();
+    for (size_t t = 0; t < options.numTrees; ++t) {
+      sampler.flattenTree(0, t, flat, counts);
+      scratch.initialize(idx.data(), n);
+      if (!scratch.buildFromFlat(store, flat.data(), flat.size(), params))
+        continue;
+      // buildFromFlat leaves partitions stale, and the feasibility predicate
+      // skips unoccupied leaves - without this the check is vacuous
+      scratch.repartitionSubtree(store, 0);
+      ++numTreesChecked;
+      if (!monotoneTreeIsFeasible(scratch, store, dir.data(), params.data()))
+        feasible = false;
+    }
+  }
+  check(numTreesChecked > 0, "monotone prior draw: trees rebuilt");
+  check(feasible, "monotone prior draw leaves every tree feasible");
+
+  std::vector<double> trainingFits(n * 10);
+  Results results;
+  results.trainingFits = trainingFits.data();
+  sampler.run(10, 10, results);
+  bool allFinite = true;
+  for (double fit : trainingFits)
+    if (!std::isfinite(fit)) allFinite = false;
+  check(allFinite, "monotone sampler resumes from a prior draw");
+
+  ext_rng_destroy(rng);
+  rngState = savedRngState;
+  printf("ok: monotone prior draw (%d trees)\n", numTreesChecked);
+}
+
 // (c) The 1-D and 2-D constrained marginals match an independent quadrature,
 // and the coupled draw has support {a <= mu_lower <= mu_upper <= b}.
 static void testMonotoneMarginal() {
@@ -5709,6 +5811,7 @@ void runModelTests(ext_rng* rng) {
   testMonotoneNeighborGeometry();
   testMonotoneFeasibility();
   testMonotoneInteractionCoexistence();
+  testMonotonePriorDraw();
   testMonotoneMarginal();
   testMonotoneCInflation();
   // the heteroscedastic end-to-end fits build full chains; they run last so
