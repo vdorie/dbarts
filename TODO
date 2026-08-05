@@ -115,15 +115,13 @@ items
     softmax ALL PASS, ordinal 9/10 with gamma3 resolved as ridge
     mixing by the 3x ladder, nbinom identified mu PASS with r/agg.psi
     H-MIX (ESS a few dozen at thin=30; full-R ladder commands recorded
-    in the plan). Open doors: raw-f_ik (own item above), the monotone
-    follow-on arm (enabler 173a710), the heteroscedastic setState
-    lift, full-R ladder re-runs, runSbcBCF repair (diagnosed
-    2026-08-05: engine-side, decision-gated - the 9030d93 multi-forest
-    mutation guard refuses its anchor-reuse pattern and BCF's
-    y-derived leaf-scale calibration blocks rebuild-per-rep; the
-    2026-08-05 survey addendum revises the fork: FIX-A needs the
-    whole calibration pinned, FIX-B is cheaper than first read and
-    has a verified consumer constituency;
+    in the plan). Open doors: the monotone follow-on arm (enabler
+    173a710), the heteroscedastic setState lift, full-R ladder
+    re-runs. Closed 2026-08-05: raw-f_ik FIXED at ec2a3d0 (the
+    level-centering exact conditional; all cells PASS at the matrix
+    band) and runSbcBCF REPAIRED at 62caed0 (FIX-B scale-pinned
+    multi-forest setResponse, zero harness edits; the R=200 bcf
+    acceptance-arm verdict records as an addendum in
     docs/plans/runsbcbcf-repair.md).
   multiforest-mutation-gaps: the setModel guard LANDED 6744aca
     2026-08-05, with the two flat-C-API defensive guards (the FIX-B
