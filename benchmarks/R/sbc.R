@@ -11,6 +11,10 @@
 #   Rscript benchmarks/R/sbc.R                 # baseline gaussian, R=200
 #   Rscript benchmarks/R/sbc.R gaussian 200 200 30
 #   Rscript benchmarks/R/sbc.R probit  200 200 30
+#   Rscript benchmarks/R/sbc.R ordinal 200 150 30   # family tiers, plan
+#   Rscript benchmarks/R/sbc.R nbinom|t|multinom 200 150 30
+#   Rscript benchmarks/R/sbc.R discrete-selfcheck   # the discrete-rank gate
+#   Rscript benchmarks/R/sbc.R burn-ordinal 20000 3 # the burn/cost ladder
 # Positional args: config R L thin. Or source() the file to reuse the API:
 #   source("benchmarks/R/sbc.R"); res <- runSbc(sbcConfig("gaussian"), R = 200)
 # SBC_FAIL_ON_FLAG=1 (env var, opt-in) makes the CLI exit status 1 if any
@@ -61,6 +65,116 @@ sbcCheckSigmaPrior <- function(sigest, df, quant, nDraws = 2e5L) {
   )
 }
 
+# --- discrete (grid) parameters --------------------------------------------
+
+# Rank of theta0 among L posterior draws WHEN THE LAW HAS ATOMS. #{draws <
+# theta0} is uniform only for an atomless law: an atom parks all its mass on one
+# rank. Attach an iid Uniform(0, 1) tag to every draw AND to theta0 itself and
+# rank the pairs lexicographically: theta0's tag is exchangeable with the tags
+# of the tied draws, so the atom contributes a Uniform{0, ..., #ties} increment
+# and the total rank is uniform on {0, ..., L} under calibration - exactly
+# rankUniformity's null, unchanged.
+#
+# TWO kinds of atom need it, which is why the family driver applies it to every
+# functional rather than only the declared-discrete ones (with no ties it is
+# #{draws < theta0} exactly, and it consumes no rng, so an atomless functional
+# is untouched). The obvious kind is a genuinely DISCRETE parameter - nbinom's
+# grid dispersion r, the Student-t grid nu. The second is NUMERICAL: an ordinal
+# top-category probability is mean_i (1 - Phi(gamma_K-1 - eta_i)), which
+# UNDERFLOWS to exactly 0 whenever the prior draws the top cutpoint far out (a
+# quarter of replications at K = 4, the empty-cell case ordinal.md section 9
+# names), so theta0 and most of its posterior draws are all exactly 0. Without
+# the tie-break those replications pile up at rank 0 and the functional flags -
+# the same tie-degenerate artifact the DART 1e-300 floor probe recorded, not a
+# calibration defect.
+sbcDiscreteRank <- function(draws, theta0) {
+  below <- sum(draws < theta0)
+  ties <- sum(draws == theta0)
+  if (ties == 0L) {
+    return(below)
+  }
+  tag0 <- runif(1L)
+  below + sum(runif(ties) < tag0)
+}
+
+# The engine's two DISCRETE grid priors, transcribed from src/bartcore/model.hpp
+# (NBDispersionPrior, ResidualDfPrior): both normalize the same gamma(2, 0.1)
+# kernel w_k propto grid_k * exp(-0.1 * grid_k) over a fixed capped grid, so a
+# self-consistent prior draw must use the identical grid AND weights.
+sbcNbGrid <- c(1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30, 50)
+sbcTGrid <- c(3, 4, 5, 6, 8, 10, 12, 15, 20)
+
+sbcGridWeights <- function(grid) {
+  w <- grid * exp(-0.1 * grid)
+  w / sum(w)
+}
+
+sbcGridDraw <- function(grid) {
+  w <- sbcGridWeights(grid)
+  function(nDraws = 1L) sample(grid, nDraws, replace = TRUE, prob = w)
+}
+
+# Moment/calibration check for a grid prior: the empirical cell frequencies and
+# the mean must match the normalized kernel.
+sbcCheckGridPrior <- function(grid, nDraws = 2e5L) {
+  w <- sbcGridWeights(grid)
+  draws <- sbcGridDraw(grid)(nDraws)
+  emp <- as.numeric(table(factor(draws, levels = grid))) / nDraws
+  meanTheory <- sum(grid * w)
+  list(
+    maxCellDiff = max(abs(emp - w)),
+    meanEmpirical = mean(draws),
+    meanTheory = meanTheory,
+    pass = max(abs(emp - w)) < 0.005 &&
+      abs(mean(draws) / meanTheory - 1) < 0.02
+  )
+}
+
+# Step-1 self-check for sbcDiscreteRank: a synthetic conjugate case whose
+# posterior is available in CLOSED FORM, so the L "posterior draws" are exact
+# and iid and any non-uniformity is the ranking rule's fault rather than a
+# sampler's. The case mirrors the engine's own dispersion update - r0 from the
+# nbinom grid prior, counts y_i ~ NB(r0, p) at a KNOWN p, posterior propto
+# prior_k * prod_i dnbinom(y_i, r_k, p) over the same grid - so it also
+# exercises the grid prior the nbinom arm draws from. n is small on purpose:
+# the posterior must stay diffuse enough to tie often, which is the case the
+# tie-breaker exists for.
+sbcDiscreteSelfCheck <- function(
+  R = 400L,
+  L = 150L,
+  n = 25L,
+  prob = 0.5,
+  seed = 20260804L
+) {
+  set.seed(seed)
+  grid <- sbcNbGrid
+  logPrior <- log(sbcGridWeights(grid))
+  drawR <- sbcGridDraw(grid)
+  ranks <- integer(R)
+  tieFrac <- numeric(R)
+  for (rep in seq_len(R)) {
+    r0 <- drawR(1L)
+    y <- rnbinom(n, size = r0, prob = prob)
+    logPost <- logPrior +
+      vapply(
+        grid,
+        function(rk) sum(dnbinom(y, size = rk, prob = prob, log = TRUE)),
+        numeric(1)
+      )
+    post <- exp(logPost - max(logPost))
+    draws <- sample(grid, L, replace = TRUE, prob = post)
+    ranks[rep] <- sbcDiscreteRank(draws, r0)
+    tieFrac[rep] <- mean(draws == r0)
+  }
+  uniformity <- rankUniformity(ranks, L)
+  list(
+    ranks = ranks,
+    uniformity = uniformity,
+    tieFrac = mean(tieFrac),
+    pass = isTRUE(uniformity$pass)
+  )
+}
+
 # --- likelihood ------------------------------------------------------------
 
 # Simulate y0 | theta0 through the family's assumed likelihood. The latent
@@ -97,8 +211,18 @@ sbcSimulate <- function(config, f0Train, sig0) {
 # priors, and family-specific prior draw / likelihood / functional logic. New
 # configurations (linear/gp leaf, grouped, BCF, DART, weighted) extend the same
 # shape; this tier exercises gaussian, probit, logistic, DART, weighted.
+# numCategories is K for the two categorical families (ordinal's ordered levels,
+# multinomial's softmax categories) and is ignored elsewhere.
 sbcConfig <- function(
-  family = c("gaussian", "probit", "logistic"),
+  family = c(
+    "gaussian",
+    "probit",
+    "logistic",
+    "ordinal",
+    "nbinom",
+    "t",
+    "multinomial"
+  ),
   n = 150L,
   p = 3L,
   nTrees = 50L,
@@ -109,6 +233,7 @@ sbcConfig <- function(
   nodePrior = NULL,
   dartAlpha = 1.0,
   weights = NULL,
+  numCategories = 4L,
   configSeed = 1L
 ) {
   family <- match.arg(family)
@@ -122,8 +247,21 @@ sbcConfig <- function(
   # replications so the prior draw and the posterior share one scale. Binary
   # families need a 0/1 build vector; the probit latent scale is fixed by the
   # link, so no continuous range is involved.
-  yBuild <- if (family == "gaussian") {
+  # ordinal builds from an ordered factor over ALL K levels (its level set is
+  # what fixes K, and a rebuilt fit must never re-derive a smaller K from a
+  # replication whose simulated y happens to miss a category); nbinom builds
+  # from a small count vector; t and multinomial build like their host family
+  # (continuous gaussian).
+  yBuild <- if (family %in% c("gaussian", "t", "multinomial")) {
     seq(-2.5, 2.5, length.out = n)
+  } else if (family == "ordinal") {
+    factor(
+      rep_len(seq_len(numCategories), n),
+      levels = seq_len(numCategories),
+      ordered = TRUE
+    )
+  } else if (family == "nbinom") {
+    as.double(rep_len(c(0L, 1L, 2L, 4L), n))
   } else {
     as.double(rep_len(c(0L, 1L), n))
   }
@@ -151,8 +289,16 @@ sbcConfig <- function(
     nodePrior = nodePrior,
     dartAlpha = dartAlpha,
     weights = weights,
-    hasSigma = family == "gaussian"
+    K = as.integer(numCategories),
+    hasSigma = family %in% c("gaussian", "t")
   )
+}
+
+# The dbarts() family token for a configuration: the Student-t and multinomial
+# arms build a GAUSSIAN host (t adds resid.dist = student(); multinomial wraps
+# the host in the K-forest softmax sampler), everything else names itself.
+sbcSamplerFamily <- function(config) {
+  switch(config$family, t = "gaussian", multinomial = "gaussian", config$family)
 }
 
 # Add grouped random intercepts to a base config: a fixed grouping assigned
@@ -213,8 +359,12 @@ sbcAddBCF <- function(
 
 # Build the reusable sampler for a configuration. One sampler serves all
 # replications: the prior draw advances its internal RNG, setResponse swaps y
-# in place, and the fixed build scale is never disturbed.
-sbcMakeSampler <- function(config, L, thin, seed) {
+# in place, and the fixed build scale is never disturbed. `y` overrides the
+# build response for the families whose fit is REBUILT per replication (ordinal
+# and nbinom keep a slow-moving global - the cutpoints, the dispersion - across
+# setResponse, which would break rank iid-ness); those families run at a fixed
+# unit scale, so a rebuild re-anchors nothing.
+sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
   ctrl <- dbartsControl(
     n.trees = config$nTrees,
     n.chains = 1L,
@@ -225,13 +375,16 @@ sbcMakeSampler <- function(config, L, thin, seed) {
     verbose = FALSE,
     keepTrainingFits = TRUE
   )
-  family <- if (config$family == "gaussian") "gaussian" else config$family
+  family <- sbcSamplerFamily(config)
+  if (is.null(y)) {
+    y <- config$yBuild
+  }
   # The matrix (xy) interface DROPS NA rows even under missing = "incorporate"
   # (dbartsData warns "row(s) dropped"); only the formula interface keeps them
   # (na.action = na.pass). NA designs therefore build through a formula.
   if (anyNA(config$x)) {
     df <- as.data.frame(config$x)
-    df$.sbc.y <- config$yBuild
+    df$.sbc.y <- y
     args <- list(
       formula = as.formula(paste(
         ".sbc.y ~",
@@ -249,7 +402,7 @@ sbcMakeSampler <- function(config, L, thin, seed) {
   } else {
     args <- list(
       config$x,
-      config$yBuild,
+      y,
       test = config$xTest,
       resid.prior = dbartsPriors$chisq(config$sigDf, config$sigQuant),
       node.prior = config$nodePrior,
@@ -257,6 +410,12 @@ sbcMakeSampler <- function(config, L, thin, seed) {
       control = ctrl,
       family = family
     )
+  }
+  # Student-t errors are a residual DISTRIBUTION on a gaussian response, not a
+  # family; the constructor vocabulary is unexported, so reach it by namespace
+  # exactly as the harness reaches the internal bartcore entry points.
+  if (config$family == "t") {
+    args$resid.dist <- getFromNamespace("dbartsResidDists", "dbarts")$student()
   }
   if (!is.null(config$weights)) {
     args$weights <- config$weights
@@ -1056,6 +1215,542 @@ runSbcBCF <- function(
   )
 }
 
+# --- family tiers: ordinal, nbinom, Student-t, multinomial -----------------
+
+# The four remaining shipped families that admit a well-posed SBC
+# (docs/plans/sbc-family-tiers.md). Each supplies the same four operations, so
+# ONE driver ranks them and ONE diagnostic measures their burn ladder:
+#
+#   draw()        theta0 from the family's prior + the y it implies, as a named
+#                 vector of scalar FUNCTIONALS plus the simulated response
+#   fit(y)        the posterior sampler for that y, already re-initialised from
+#                 an independent prior draw (never from theta0)
+#   burnRun(f, b) b thinned units of burn-in, no samples kept
+#   sample(f)     one retained draw's functionals, same names as theta
+#
+# sample() collects ONE draw at a time because the two grid parameters (nbinom's
+# r, the Student-t nu) ride the STATE, not a run channel, so they are only
+# readable between samples; the extra .Call per draw is microseconds against a
+# thinned sweep block. Every functional is ranked by sbcDiscreteRank.
+#
+# Rebuild policy (plan step 3): ordinal, nbinom and multinomial REBUILD the fit
+# per replication. Each keeps a slow-moving global across a response swap
+# (OrdinalResponse::setResponse keeps gamma, NBResponse::setResponse keeps r,
+# and a multinomial response refuses whole-data mutation outright), which would
+# correlate consecutive replications and break rank iid-ness; all three run at a
+# fixed unit scale, so a rebuild re-anchors nothing. Only the Student-t arm
+# reuses one pinned sampler: setResponse cold-inits nu and lambda, and
+# updateScale = FALSE keeps the build scale the prior draw shares.
+
+# The category draw for a row-stochastic n x K probability matrix: category
+# 1..K per row by inverse CDF.
+sbcCategoricalDraw <- function(probs) {
+  u <- runif(nrow(probs))
+  1L + rowSums(t(apply(probs, 1L, cumsum)) < u)
+}
+
+sbcSoftmax <- function(f) {
+  e <- exp(f - apply(f, 1L, max))
+  e / rowSums(e)
+}
+
+# The cutpoint prior the ordinal engine assumes (docs/design/ordinal.md section
+# 3, OrdinalResponse::logGapTarget): gamma_1 = 0 is pinned and the K-2 free
+# interior cutpoints ride iid normal LOG-GAPS delta_j ~ N(0, 1.5^2), so
+# gamma_{j+1} = gamma_j + exp(delta_j). The shipped constants are
+# priorLogGapMean_ = 0 and priorLogGapSd_ = 1.5 (src/bartcore/model.hpp); a
+# mismatch here would make ordinal SBC lie.
+sbcOrdinalLogGapSd <- 1.5
+
+sbcOrdinalGapDraw <- function(nDraws) {
+  exp(rnorm(nDraws, 0, sbcOrdinalLogGapSd))
+}
+
+sbcOrdinalCutpointDraw <- function(K) {
+  function() c(0, cumsum(sbcOrdinalGapDraw(K - 2L)))
+}
+
+# Moment check: the log-gaps are N(0, 1.5^2), so a gap has median exp(0) = 1.
+sbcCheckOrdinalCutpointPrior <- function(nDraws = 2e5L) {
+  gaps <- sbcOrdinalGapDraw(nDraws)
+  logGaps <- log(gaps)
+  list(
+    sdEmpirical = sd(logGaps),
+    sdTheory = sbcOrdinalLogGapSd,
+    medianEmpirical = median(gaps),
+    medianTheory = 1,
+    pass = abs(sd(logGaps) / sbcOrdinalLogGapSd - 1) < 0.02 &&
+      abs(median(gaps) - 1) < 0.03
+  )
+}
+
+# The cumulative-probit category probabilities, P(y = k) = Phi(gamma_k - eta) -
+# Phi(gamma_{k-1} - eta) with gamma_0 = -Inf and gamma_K = +Inf (the harness's
+# own copy of the package's ordinalCategoryProbabilities).
+sbcOrdinalProbs <- function(eta, gamma) {
+  n <- length(eta)
+  K <- length(gamma) + 1L
+  bounds <- matrix(0, n, K + 1L)
+  bounds[, K + 1L] <- 1
+  for (j in seq_len(K - 1L)) {
+    bounds[, j + 1L] <- pnorm(gamma[j] - eta)
+  }
+  bounds[, 2L:(K + 1L), drop = FALSE] - bounds[, 1L:K, drop = FALSE]
+}
+
+# A K-forest multinomial sampler over the configuration's design. The host
+# gaussian sampler owns the data the wrapper borrows, so both are returned.
+sbcMakeMultinomial <- function(config, labels, thin, seed) {
+  host <- sbcMakeSampler(config, 1L, thin, seed)
+  make <- getFromNamespace("bartcoreMultinomialSampler", "dbarts")
+  list(host = host, mn = make(host, labels, config$K))
+}
+
+# The per-family operations the driver and the burn ladder share. `thin` is
+# baked into the samplers the spec builds (the retained-draw spacing is a
+# control setting, and the Student-t arm's pinned sampler is built once), so a
+# spec is specific to one thinning.
+sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
+  storeState <- getFromNamespace("C_dbarts_bartcore_storeState", "dbarts")
+  priorTrees <- getFromNamespace(
+    "C_dbarts_bartcore_sampleTreesFromPrior",
+    "dbarts"
+  )
+  priorNodes <- getFromNamespace(
+    "C_dbarts_bartcore_sampleNodeParametersFromPrior",
+    "dbarts"
+  )
+  bcRun <- getFromNamespace("bartcoreRun", "dbarts")
+  bcFits <- getFromNamespace("bartcoreForestFits", "dbarts")
+  K <- config$K
+
+  if (config$family == "ordinal") {
+    gen <- sbcMakeSampler(config, 1L, 1L, seed)
+    drawGamma <- sbcOrdinalCutpointDraw(K)
+    freeCuts <- seq_len(K - 2L) + 1L
+    spec <- list(
+      draw = function() {
+        gen$sampleTreesFromPrior()
+        gen$sampleNodeParametersFromPrior()
+        eta0 <- as.numeric(gen$predict(config$x))
+        eta0Test <- as.numeric(gen$predict(config$xTest))
+        gamma0 <- drawGamma()
+        p0 <- sbcOrdinalProbs(eta0, gamma0)
+        y0 <- sbcCategoricalDraw(p0)
+        theta <- c(
+          setNames(gamma0[freeCuts], paste0("gamma", freeCuts)),
+          avg.eta = mean(eta0),
+          setNames(eta0Test, paste0("eta.star", seq_along(eta0Test))),
+          setNames(colMeans(p0), paste0("p", seq_len(K)))
+        )
+        list(
+          y = factor(y0, levels = seq_len(K), ordered = TRUE),
+          theta = theta
+        )
+      },
+      fit = function(y) {
+        f <- sbcMakeSampler(config, 1L, thin, seed, y = y)
+        f$sampleTreesFromPrior()
+        f$sampleNodeParametersFromPrior()
+        f
+      },
+      burnRun = function(f, burn) f$run(burn, 0L),
+      sample = function(f) {
+        res <- f$run(0L, 1L)
+        gamma <- as.numeric(res$cutpoints)
+        eta <- res$train[, 1]
+        p <- colMeans(sbcOrdinalProbs(eta, gamma))
+        c(
+          gamma[freeCuts],
+          mean(eta),
+          res$test[, 1],
+          p
+        )
+      }
+    )
+  } else if (config$family == "nbinom") {
+    gen <- sbcMakeSampler(config, 1L, 1L, seed)
+    drawR <- sbcGridDraw(sbcNbGrid)
+    spec <- list(
+      draw = function() {
+        gen$sampleTreesFromPrior()
+        gen$sampleNodeParametersFromPrior()
+        psi0 <- as.numeric(gen$predict(config$x))
+        psi0Test <- as.numeric(gen$predict(config$xTest))
+        r0 <- drawR(1L)
+        # E[y | psi] = r exp(psi) under the engine's logit-p parameterization
+        y0 <- rnbinom(config$n, size = r0, mu = r0 * exp(psi0))
+        list(
+          y = as.double(y0),
+          theta = c(
+            r = r0,
+            avg.mu = mean(r0 * exp(psi0)),
+            agg.psi = mean(psi0Test)
+          )
+        )
+      },
+      fit = function(y) {
+        f <- sbcMakeSampler(config, 1L, thin, seed, y = y)
+        f$sampleTreesFromPrior()
+        f$sampleNodeParametersFromPrior()
+        f
+      },
+      burnRun = function(f, burn) f$run(burn, 0L),
+      sample = function(f) {
+        res <- f$run(0L, 1L)
+        r <- .Call(storeState, f$getPointer())[[1L]]$dispersion
+        c(r, mean(r * exp(res$train[, 1])), mean(res$test[, 1]))
+      }
+    )
+  } else if (config$family == "t") {
+    sampler <- sbcMakeSampler(config, 1L, thin, seed)
+    drawSigma <- sbcSigmaDraw(config$sigest, config$sigDf, config$sigQuant)
+    drawNu <- sbcGridDraw(sbcTGrid)
+    spec <- list(
+      draw = function() {
+        sampler$sampleTreesFromPrior()
+        sampler$sampleNodeParametersFromPrior()
+        f0 <- as.numeric(sampler$predict(config$x))
+        f0Test <- as.numeric(sampler$predict(config$xTest))
+        sig0 <- drawSigma(1L)
+        nu0 <- drawNu(1L)
+        # r_i | lambda_i ~ N(0, sigma^2 / lambda_i), lambda_i ~ Gamma(nu/2,
+        # nu/2) is exactly r_i = sigma * t_nu, so the mixture never needs
+        # drawing: sigma is the CONDITIONAL scale the engine reports.
+        list(
+          y = f0 + sig0 * rt(config$n, nu0),
+          theta = c(
+            sigma = sig0,
+            nu = nu0,
+            avg.f = mean(f0),
+            agg.f.star = mean(f0Test)
+          )
+        )
+      },
+      # ONE pinned sampler serves as generator and fit: rebuilding would
+      # re-anchor the response scale the prior draw shares, and setResponse
+      # (updateScale = FALSE) cold-inits nu and lambda, so the fresh prior draw
+      # before it is a fully independent overdispersed start
+      fit = function(y) {
+        sampler$sampleTreesFromPrior()
+        sampler$sampleNodeParametersFromPrior()
+        sampler$setSigma(config$sigest)
+        sampler$setResponse(y)
+        sampler
+      },
+      burnRun = function(f, burn) f$run(burn, 0L),
+      sample = function(f) {
+        res <- f$run(0L, 1L)
+        nu <- .Call(storeState, f$getPointer())[[1L]]$resid.df
+        c(
+          as.numeric(res$sigma)[1L],
+          nu,
+          mean(res$train[, 1]),
+          mean(res$test[, 1])
+        )
+      }
+    )
+  } else if (config$family == "multinomial") {
+    # eval points are the first nTest TRAINING rows: per-forest fits are exposed
+    # for the training design only (bartcoreForestFits), and theta0's f_ik must
+    # come from the SAME accessor the posterior draws do. The BCF arm's idx
+    # convention exactly.
+    idx <- seq_len(config$nTest)
+    cells <- cbind(
+      row = seq_len(min(3L, config$n)),
+      cat = seq_len(min(3L, K))
+    )
+    cellNames <- paste0("f.", cells[, 1L], ".", cells[, 2L])
+    buildLabels <- as.integer(rep_len(seq_len(K), config$n) - 1L)
+    gen <- sbcMakeMultinomial(config, buildLabels, 1L, seed)
+    forestFits <- function(handle) {
+      vapply(
+        seq_len(K),
+        function(k) bcFits(handle$mn, k - 1L)[, 1],
+        numeric(config$n)
+      )
+    }
+    spec <- list(
+      draw = function() {
+        .Call(priorTrees, gen$mn$ptr)
+        .Call(priorNodes, gen$mn$ptr)
+        f0 <- forestFits(gen)
+        p0 <- sbcSoftmax(f0)
+        y0 <- sbcCategoricalDraw(p0)
+        list(
+          y = as.integer(y0 - 1L),
+          theta = c(
+            setNames(
+              colMeans(p0[idx, , drop = FALSE]),
+              paste0("p", seq_len(K))
+            ),
+            setNames(f0[cells], cellNames)
+          )
+        )
+      },
+      fit = function(y) {
+        f <- sbcMakeMultinomial(config, y, thin, seed)
+        .Call(priorTrees, f$mn$ptr)
+        .Call(priorNodes, f$mn$ptr)
+        f
+      },
+      burnRun = function(f, burn) bcRun(f$mn, burn, 0L),
+      sample = function(f) {
+        res <- bcRun(f$mn, 0L, 1L)
+        probs <- array(res$train, c(config$n, K))
+        c(colMeans(probs[idx, , drop = FALSE]), forestFits(f)[cells])
+      }
+    )
+  } else {
+    stop("no family spec for \"", config$family, "\"")
+  }
+  spec
+}
+
+# The configuration each family arm runs at, in one place so the burn ladder,
+# the R=200 verdict run and the CI matrix cannot drift apart. Sizing notes:
+# ordinal takes K = 4 because gamma_1 is pinned at 0 and only gamma_2..gamma_K-1
+# are free, so K >= 4 is what makes the cutpoint block a real (multi-cutpoint)
+# target; nbinom takes a TIGHTENED k = 8 (psi sd = node.scale/k = pi sqrt(3)/8
+# ~ 0.68 rather than 2.7) because the Polya-Gamma draw loops sum(y_i + r) times
+# per sweep and default-k psi draws are lognormal-tailed and unbudgetable - a
+# tightened prior still validates NB; multinomial takes K = 3 forests.
+sbcFamilyConfig <- function(family) {
+  switch(
+    family,
+    ordinal = sbcConfig(family = "ordinal", numCategories = 4L, nTest = 3L),
+    nbinom = sbcConfig(family = "nbinom", k = 8),
+    t = sbcConfig(family = "t"),
+    multinom = ,
+    multinomial = sbcConfig(family = "multinomial", numCategories = 3L),
+    stop("no family config for \"", family, "\"")
+  )
+}
+
+# predict() vs the recorded latent channel at ONE state: theta0's latent (the
+# ordinal eta, the nbinom psi, the Student-t f) is read with predict() while its
+# posterior draws come from the run's train/test channels, so the two maps must
+# agree exactly or the ranks compare different quantities.
+sbcCheckLatentConsistency <- function(config, seed = 99L) {
+  set.seed(seed)
+  spec <- sbcFamilySpec(config, 1L, seed)
+  drawn <- spec$draw()
+  fit <- spec$fit(drawn$y)
+  res <- fit$run(0L, 1L)
+  maxDiff <- max(abs(res$train[, 1] - as.numeric(fit$predict(config$x))))
+  maxDiffTest <- max(abs(res$test[, 1] - as.numeric(fit$predict(config$xTest))))
+  list(
+    maxDiff = maxDiff,
+    maxDiffTest = maxDiffTest,
+    pass = maxDiff < 1e-8 && maxDiffTest < 1e-8
+  )
+}
+
+# The multinomial analogue: theta0's p_ik is the harness's softmax of the
+# per-forest fits, while the posterior's p_ik rides the run's train channel, so
+# those two maps must agree at one state (the GP/BCF fit-map precedent).
+sbcCheckMultinomialProbs <- function(config, seed = 99L) {
+  set.seed(seed)
+  bcRun <- getFromNamespace("bartcoreRun", "dbarts")
+  bcFits <- getFromNamespace("bartcoreForestFits", "dbarts")
+  spec <- sbcFamilySpec(config, 1L, seed)
+  drawn <- spec$draw()
+  fit <- spec$fit(drawn$y)
+  res <- bcRun(fit$mn, 0L, 1L)
+  probs <- array(res$train, c(config$n, config$K))
+  f <- vapply(
+    seq_len(config$K),
+    function(k) bcFits(fit$mn, k - 1L)[, 1],
+    numeric(config$n)
+  )
+  maxDiff <- max(abs(sbcSoftmax(f) - probs))
+  list(maxDiff = maxDiff, pass = maxDiff < 1e-10)
+}
+
+# The measured per-family burn floor, in absolute SWEEPS (plan step 2: 72000 was
+# a BCF-specific number, so every arm re-measures). Read off sbcBurnLadder at
+# 40000 sweeps x 3 datasets; the numbers recorded in
+# docs/plans/sbc-family-tiers.md. The two categorical/count arms are set by a
+# LIKELIHOOD RIDGE, not by a transient: ordinal's free cutpoints trade against
+# the mean level (docs/design/ordinal.md section 9's f-vs-cutpoint-shift ridge -
+# gamma2/gamma3 and the p2 that reads them stay autocorrelated past lag 200,
+# while every eta functional clears 0.1 by lag ~16), and nbinom's r trades
+# against the psi level because only mu = r exp(psi) is identified (r and
+# agg.psi mirror each other block for block; avg.mu clears 0.1 at LAG 1). The
+# Student-t settles in a couple of thousand sweeps with sigma/nu at lag ~40-60,
+# and multinomial mixes fastest of all (every functional under lag 10).
+sbcBurnSweeps <- c(
+  ordinal = 36000,
+  nbinom = 24000,
+  t = 12000,
+  multinomial = 6000
+)
+
+# Rank R replications of a family-spec configuration. The generic sibling of
+# runSbc: same result shape, with every functional routed through the
+# tie-breaking rank (these families' functionals carry atoms - see
+# sbcDiscreteRank - while runSbc's gaussian/binary ones do not).
+runSbcFamily <- function(
+  config,
+  R = 200L,
+  L = 150L,
+  thin = 30L,
+  burnSweeps = sbcBurnSweeps[[config$family]],
+  seed = 20260709L,
+  report = 25L
+) {
+  burn <- as.integer(ceiling(burnSweeps / thin))
+  set.seed(seed)
+  spec <- sbcFamilySpec(config, thin, seed)
+  ranks <- NULL
+  started <- proc.time()[["elapsed"]]
+  for (r in seq_len(R)) {
+    drawn <- spec$draw()
+    theta <- drawn$theta
+    fit <- spec$fit(drawn$y)
+    invisible(spec$burnRun(fit, burn))
+    draws <- matrix(NA_real_, length(theta), L)
+    for (l in seq_len(L)) {
+      draws[, l] <- spec$sample(fit)
+    }
+    row <- integer(length(theta))
+    names(row) <- names(theta)
+    for (j in seq_along(theta)) {
+      # every functional is ranked with the tie-break: it reduces to
+      # #{draws < theta0} (and consumes no rng) unless the law has an atom, and
+      # both a grid parameter and an underflowed tail probability do
+      row[j] <- sbcDiscreteRank(draws[j, ], theta[[j]])
+    }
+    if (is.null(ranks)) {
+      ranks <- matrix(
+        NA_integer_,
+        R,
+        length(row),
+        dimnames = list(NULL, names(row))
+      )
+    }
+    ranks[r, ] <- row
+    if (report > 0L && (r %% report == 0L || r == R)) {
+      elapsed <- proc.time()[["elapsed"]] - started
+      cat(sprintf(
+        "  [%s] rep %d/%d  %.1fs elapsed  %.2fs/rep\n",
+        config$family,
+        r,
+        R,
+        elapsed,
+        elapsed / r
+      ))
+    }
+  }
+  elapsed <- proc.time()[["elapsed"]] - started
+  list(
+    ranks = ranks,
+    L = L,
+    thin = thin,
+    burn = burn,
+    burnSweeps = burnSweeps,
+    R = R,
+    config = config,
+    elapsed = elapsed,
+    perRep = elapsed / R
+  )
+}
+
+# --- burn ladder (plan step 2) ---------------------------------------------
+
+# Measure, per family, how long the chain takes to forget an overdispersed
+# start and how fast it then mixes - the two numbers that set burn and thin.
+# For each of nDataset prior-drawn datasets it runs nSweep UNTHINNED sweeps from
+# an independent prior init and records every functional's trace, then reports
+# (a) each block's mean as a z-score against the final block (the transient: the
+# block where |z| stops exceeding ~1 is where the chain has settled), and (b)
+# the first ACF lag under 0.1 on the trailing half (the thinning floor). It also
+# times the sweeps, which is the per-sweep cost measurement the budget needs.
+sbcBurnLadder <- function(
+  config,
+  nSweep = 20000L,
+  nDataset = 3L,
+  nBlock = 10L,
+  seed = 20260804L
+) {
+  set.seed(seed)
+  spec <- sbcFamilySpec(config, 1L, seed)
+  blockSize <- nSweep %/% nBlock
+  results <- vector("list", nDataset)
+  totalElapsed <- 0
+  for (d in seq_len(nDataset)) {
+    drawn <- spec$draw()
+    fit <- spec$fit(drawn$y)
+    trace <- matrix(NA_real_, length(drawn$theta), nSweep)
+    started <- proc.time()[["elapsed"]]
+    for (s in seq_len(nSweep)) {
+      trace[, s] <- spec$sample(fit)
+    }
+    totalElapsed <- totalElapsed + proc.time()[["elapsed"]] - started
+    settled <- trace[, (nSweep %/% 2L + 1L):nSweep, drop = FALSE]
+    z <- matrix(NA_real_, length(drawn$theta), nBlock)
+    firstUnder <- integer(length(drawn$theta))
+    for (j in seq_along(drawn$theta)) {
+      scale <- sd(settled[j, ])
+      if (!is.finite(scale) || scale <= 0) {
+        scale <- 1
+      }
+      for (b in seq_len(nBlock)) {
+        block <- trace[j, ((b - 1L) * blockSize + 1L):(b * blockSize)]
+        z[j, b] <- (mean(block) - mean(settled[j, ])) /
+          (scale / sqrt(blockSize))
+      }
+      a <- acf(settled[j, ], lag.max = 200L, plot = FALSE)$acf[,, 1]
+      hit <- which(a < 0.1)[1L]
+      firstUnder[j] <- if (is.na(hit)) NA_integer_ else hit - 1L
+    }
+    rownames(z) <- names(drawn$theta)
+    names(firstUnder) <- names(drawn$theta)
+    results[[d]] <- list(z = z, firstUnder = firstUnder, blockSize = blockSize)
+  }
+  list(
+    family = config$family,
+    nSweep = nSweep,
+    nBlock = nBlock,
+    datasets = results,
+    elapsed = totalElapsed,
+    perSweep = totalElapsed / (nDataset * nSweep)
+  )
+}
+
+sbcReportBurnLadder <- function(ladder) {
+  cat(sprintf(
+    "\nburn ladder: family=%s  %d sweeps x %d datasets  %.1fs  %.1f us/sweep\n",
+    ladder$family,
+    ladder$nSweep,
+    length(ladder$datasets),
+    ladder$elapsed,
+    1e6 * ladder$perSweep
+  ))
+  for (d in seq_along(ladder$datasets)) {
+    res <- ladder$datasets[[d]]
+    cat(sprintf(
+      "\n dataset %d: block-mean z vs the final half (block = %d sweeps)\n",
+      d,
+      res$blockSize
+    ))
+    cat(sprintf(
+      "  %-12s %s  acf<0.1\n",
+      "functional",
+      paste(sprintf("%6d", seq_len(ncol(res$z))), collapse = "")
+    ))
+    for (j in seq_len(nrow(res$z))) {
+      cat(sprintf(
+        "  %-12s %s  %6s\n",
+        rownames(res$z)[j],
+        paste(sprintf("%6.1f", res$z[j, ]), collapse = ""),
+        format(res$firstUnder[j])
+      ))
+    }
+  }
+  invisible(NULL)
+}
+
 # --- diagnostics -----------------------------------------------------------
 
 # Autocorrelation of a long unthinned chain, to justify the thinning choice.
@@ -1141,13 +1836,17 @@ rankUniformity <- function(
   u <- (ranks + runif(R)) / (L + 1)
   ksP <- suppressWarnings(ks.test(u, "punif")$p.value)
 
-  # ecdf-difference simultaneous band via simulation of the null
-  grid <- 0:L
+  # ecdf-difference simultaneous band via simulation of the null. The ecdf of
+  # integer ranks is a cumulated tabulation, which is what makes a Bonferroni'd
+  # alpha affordable: the band is a 1 - alpha quantile, so a small alpha needs
+  # many more null draws to place stably (>= 20 in the tail), and the same RNG
+  # calls in the same order keep every previously recorded band bit-identical.
+  target <- seq_len(L + 1L) / (L + 1)
   ecdfDiff <- function(rk) {
-    ec <- vapply(grid, function(g) mean(rk <= g), numeric(1))
-    ec - (grid + 1) / (L + 1)
+    cumsum(tabulate(rk + 1L, L + 1L)) / length(rk) - target
   }
   observed <- max(abs(ecdfDiff(ranks)))
+  nSim <- max(nSim, ceiling(20 / alpha))
   nullMax <- numeric(nSim)
   for (s in seq_len(nSim)) {
     nullMax[s] <- max(abs(ecdfDiff(sample.int(L + 1L, R, replace = TRUE) - 1L)))
@@ -1166,6 +1865,22 @@ rankUniformity <- function(
     meanTarget = L / 2
   )
 }
+
+# The CI matrix's admission level (plan step 4, replacing sbc-ci-gate's step 4):
+# the ecdf band's alpha Bonferroni'd over the matrix's TOTAL functional count,
+# so a full-matrix pass has probability ~0.95 on a fresh stream rather than each
+# arm alarming independently at its own nominal 5%. M is
+# gaussian 7 + ordinal 10 + nbinom 3 + t 4 + multinomial 6.
+sbcMatrixConfigs <- c(
+  "gaussian",
+  "ordinal",
+  "nbinom",
+  "t",
+  "multinom",
+  "multinomial"
+)
+sbcMatrixFunctionals <- 7L + 10L + 3L + 4L + 6L
+sbcMatrixAlpha <- 0.05 / sbcMatrixFunctionals
 
 # A compact ASCII rank histogram with the +/- band around the uniform mean.
 sbcAsciiHistogram <- function(ranks, L, nBins = 20L, width = 40L) {
@@ -1197,7 +1912,10 @@ sbcAsciiHistogram <- function(ranks, L, nBins = 20L, width = 40L) {
 }
 
 # Full report for a runSbc result: per-functional verdict table + histograms.
-sbcReport <- function(fit, nBins = 20L) {
+# alpha is the ecdf band's level; the CI matrix Bonferroni's it (see
+# sbcMatrixAlpha) so that a whole matrix of arms passes with probability ~0.95
+# rather than each arm alarming at its own nominal 5%.
+sbcReport <- function(fit, nBins = 20L, alpha = 0.05) {
   cat(sprintf(
     "\nSBC report: family=%s n=%d p=%d nTrees=%d | R=%d L=%d thin=%d burn=%d\n",
     fit$config$family,
@@ -1210,9 +1928,10 @@ sbcReport <- function(fit, nBins = 20L) {
     fit$burn
   ))
   cat(sprintf(
-    "wall-clock: %.1fs total, %.3fs/rep\n\n",
+    "wall-clock: %.1fs total, %.3fs/rep; band alpha = %.5f\n\n",
     fit$elapsed,
-    fit$perRep
+    fit$perRep,
+    alpha
   ))
   funcs <- colnames(fit$ranks)
   cat(sprintf(
@@ -1226,7 +1945,12 @@ sbcReport <- function(fit, nBins = 20L) {
   ))
   verdicts <- character(length(funcs))
   for (i in seq_along(funcs)) {
-    u <- rankUniformity(fit$ranks[, funcs[i]], fit$L, nBins = nBins)
+    u <- rankUniformity(
+      fit$ranks[, funcs[i]],
+      fit$L,
+      nBins = nBins,
+      alpha = alpha
+    )
     verdicts[i] <- if (u$pass) "PASS" else "FLAG"
     cat(sprintf(
       "%-10s %8.3f %8.3f %9.4f %8.4f %6s\n",
@@ -1254,6 +1978,69 @@ if (sys.nframe() == 0L) {
   R <- if (length(args) >= 2L) as.integer(args[2]) else 200L
   L <- if (length(args) >= 3L) as.integer(args[3]) else 200L
   thin <- if (length(args) >= 4L) as.integer(args[4]) else 30L
+  # optional 5th arg, family tiers only: the burn in absolute SWEEPS, which
+  # otherwise comes from the measured sbcBurnSweeps. It exists so the
+  # chain-length diagnostic ladder (the A4e protocol: re-run a flagged arm at
+  # several thin/burn points and see whether the bias SHRINKS into the band or
+  # plateaus) is a recordable command rather than a scratch script.
+  burnSweeps <- if (length(args) >= 5L) as.numeric(args[5]) else NULL
+
+  # Step-1 self-check mode: the discrete rank against a closed-form conjugate
+  # posterior. No engine involved, so it runs in seconds and gates the two grid
+  # functionals (nbinom r, Student-t nu) before either arm is trusted.
+  if (which == "discrete-selfcheck") {
+    cat("== discrete-rank self-check (closed-form conjugate posterior) ==\n")
+    for (grid in list(sbcNbGrid, sbcTGrid)) {
+      g <- sbcCheckGridPrior(grid)
+      cat(sprintf(
+        "  grid prior (%d cells, max %g): max cell diff %.5f; mean %.4f vs %.4f -> %s\n",
+        length(grid),
+        max(grid),
+        g$maxCellDiff,
+        g$meanEmpirical,
+        g$meanTheory,
+        if (g$pass) "PASS" else "FAIL"
+      ))
+      if (!isTRUE(g$pass)) {
+        stop("grid prior moment check failed")
+      }
+    }
+    chk <- sbcDiscreteSelfCheck(R = if (length(args) >= 2L) R else 400L, L = L)
+    u <- chk$uniformity
+    cat(sprintf(
+      "\n  ranks: mean %.1f (target %.1f); tied draws %.3f of L\n",
+      u$mean,
+      u$meanTarget,
+      chk$tieFrac
+    ))
+    cat(sprintf(
+      "  chisqP %.3f  ksP %.3f  ecdfDiff %.4f  band %.4f -> %s\n",
+      u$chisqP,
+      u$ksP,
+      u$ecdfDiff,
+      u$ecdfBand,
+      if (chk$pass) "PASS" else "FLAG"
+    ))
+    cat("\n", sbcAsciiHistogram(chk$ranks, L), "\n", sep = "")
+    if (nzchar(Sys.getenv("SBC_FAIL_ON_FLAG", "")) && !chk$pass) {
+      quit(status = 1L, save = "no")
+    }
+    quit(status = 0L, save = "no")
+  }
+
+  # Step-2 burn-ladder mode: "burn-<family>" measures the transient and the
+  # per-sweep cost instead of ranking. Positional args become nSweep, nDataset.
+  if (startsWith(which, "burn-")) {
+    family <- sub("^burn-", "", which)
+    nSweep <- if (length(args) >= 2L) as.integer(args[2]) else 20000L
+    nDataset <- if (length(args) >= 3L) as.integer(args[3]) else 3L
+    sbcReportBurnLadder(sbcBurnLadder(
+      sbcFamilyConfig(family),
+      nSweep = nSweep,
+      nDataset = nDataset
+    ))
+    quit(status = 0L, save = "no")
+  }
 
   isDart <- which %in% c("dart", "dart-sparse")
   isWeighted <- which == "weighted"
@@ -1262,8 +2049,12 @@ if (sys.nframe() == 0L) {
   isLinear <- which %in%
     c("linear", "linear-na-leaf", "linear-na-split", "linear-weighted")
   isGP <- which %in% c("gp", "gp-na-leaf", "gp-weighted")
+  isFamilyTier <- which %in%
+    c("ordinal", "nbinom", "t", "multinom", "multinomial")
 
-  config <- if (isDart) {
+  config <- if (isFamilyTier) {
+    sbcFamilyConfig(which)
+  } else if (isDart) {
     sbcConfig(
       family = "gaussian",
       n = 200L,
@@ -1378,6 +2169,50 @@ if (sys.nframe() == 0L) {
     ))
     selfCheckPass["glue"] <- isTRUE(gc$pass)
   }
+  if (isFamilyTier) {
+    if (config$family == "ordinal") {
+      oc <- sbcCheckOrdinalCutpointPrior()
+      cat(sprintf(
+        "  log-gap: sd %.4f vs %.4f; gap median %.4f vs %.4f -> %s\n",
+        oc$sdEmpirical,
+        oc$sdTheory,
+        oc$medianEmpirical,
+        oc$medianTheory,
+        if (oc$pass) "PASS" else "FAIL"
+      ))
+      selfCheckPass["cutpoints"] <- isTRUE(oc$pass)
+    }
+    if (config$family %in% c("nbinom", "t")) {
+      grid <- if (config$family == "nbinom") sbcNbGrid else sbcTGrid
+      gp <- sbcCheckGridPrior(grid)
+      cat(sprintf(
+        "  grid prior: max cell diff %.5f; mean %.4f vs %.4f -> %s\n",
+        gp$maxCellDiff,
+        gp$meanEmpirical,
+        gp$meanTheory,
+        if (gp$pass) "PASS" else "FAIL"
+      ))
+      selfCheckPass["grid"] <- isTRUE(gp$pass)
+    }
+    if (config$family == "multinomial") {
+      mc <- sbcCheckMultinomialProbs(config)
+      cat(sprintf(
+        "  softmax(forest fits) vs reported probabilities: %.2e -> %s\n",
+        mc$maxDiff,
+        if (mc$pass) "PASS" else "FAIL"
+      ))
+      selfCheckPass["softmax"] <- isTRUE(mc$pass)
+    } else {
+      lc <- sbcCheckLatentConsistency(config)
+      cat(sprintf(
+        "  predict vs recorded latent: train %.2e, test %.2e -> %s\n",
+        lc$maxDiff,
+        lc$maxDiffTest,
+        if (lc$pass) "PASS" else "FAIL"
+      ))
+      selfCheckPass["latent"] <- isTRUE(lc$pass)
+    }
+  }
   if (isLinear || isGP) {
     fc <- sbcCheckFitConsistency(config)
     cat(sprintf(
@@ -1402,7 +2237,13 @@ if (sys.nframe() == 0L) {
   }
 
   cat(sprintf("\n== SBC run (%s R=%d L=%d thin=%d) ==\n", which, R, L, thin))
-  fit <- if (isDart) {
+  fit <- if (isFamilyTier) {
+    if (is.null(burnSweeps)) {
+      runSbcFamily(config, R = R, L = L, thin = thin)
+    } else {
+      runSbcFamily(config, R = R, L = L, thin = thin, burnSweeps = burnSweeps)
+    }
+  } else if (isDart) {
     runSbcDart(config, R = R, L = L, thin = thin)
   } else if (isGrouped) {
     runSbcGrouped(config, R = R, L = L, thin = thin)
@@ -1417,7 +2258,12 @@ if (sys.nframe() == 0L) {
       fit$floorFrac
     ))
   }
-  verdicts <- sbcReport(fit)
+  # matrix arms are admitted at the Bonferroni'd level; every other config keeps
+  # the per-functional 5% band its recorded result was read at
+  verdicts <- sbcReport(
+    fit,
+    alpha = if (which %in% sbcMatrixConfigs) sbcMatrixAlpha else 0.05
+  )
   if (nzchar(Sys.getenv("SBC_FAIL_ON_FLAG", "")) && any(verdicts == "FLAG")) {
     quit(status = 1L, save = "no")
   }
