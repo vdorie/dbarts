@@ -5,8 +5,8 @@
   Build an interaction-constraint specification restricting which predictors
   may jointly shape a BART fit. Pass the result as the \code{interactions}
   argument of \code{\link{dbarts}} or \code{\link{bart2}}. The constraint is
-  applied per forest, so with a two-forest causal model the treatment forest
-  can be held additive-or-low-order while the prognostic forest stays free.
+  applied per forest, so in a multi-forest model one forest can be held
+  additive-or-low-order while another stays free.
 }
 \usage{
 interactions(max.order = NULL, groups = NULL, forbid = NULL)

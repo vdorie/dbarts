@@ -21,7 +21,7 @@ BART is a Bayesian \dQuote{sum-of-trees} model in which each tree is constrained
 \itemize{
   \item For numeric response \eqn{y = f(x) + \epsilon}{y = f(x) + \epsilon}, where \eqn{\epsilon \sim N(0, \sigma^2)}{\epsilon ~ N(0, \sigma^2)}.
   \item For binary response \eqn{y}, \eqn{P(Y = 1 \mid x) = \Phi(f(x))}{P(Y = 1 | x) = \Phi(f(x))}, where \eqn{\Phi} denotes the standard normal cdf (probit link).
-  \item \code{bart2} fits further response families - logistic, accelerated failure time (\code{family = "aft"}), K-category multinomial (\code{family = "multinomial"}), ordered categorical (\code{family = "ordinal"}, a cumulative probit), and negative-binomial counts (\code{family = "nbinom"}) - through its \code{family} argument, described below.
+  \item \code{bart2} fits further response families through its \code{family} argument, described below: logistic, accelerated failure time (\code{family = "aft"}), discrete-time survival hazard (\code{family = "hazard"}, \code{"hazard.logistic"}), K-category multinomial (\code{family = "multinomial"}), ordered categorical (\code{family = "ordinal"}, a cumulative probit), negative-binomial counts (\code{family = "nbinom"}), and semicontinuous two-part responses (\code{family = "hurdle.lognormal"}).
 }
 }
 \usage{
@@ -157,7 +157,7 @@ extract(object, \dots)
      Discrete-time hazard controls (\code{family = "hazard"} only; ignored otherwise), passed through to \code{\link{dbarts}}. \code{breaks} sets the period grid: \code{NULL} (the default) uses the sorted distinct observed times, a single positive integer bins at that many quantiles, and a numeric boundary vector gives explicit right-closed intervals. \code{max.rows} (default \eqn{10^7}) refuses an over-large person-period expansion, naming the coarsening levers.
    }
    \item{k}{
-     For numeric \eqn{y}, \code{k} is the number of prior standard deviations \eqn{E(Y|x) = f(x)} is away from \eqn{\pm 0.5}{+/- 0.5}. The response (\code{y.train}) is internally scaled to range from \eqn{-0.5} to \eqn{0.5}. For binary \eqn{y} fit with the default probit link, \code{k} is the number of prior standard deviations \eqn{f(x)} is away from \eqn{\pm 3}{+/- 3}, the probit reference scale; \code{family = "logistic"} (\code{bart2} only) widens this to \eqn{\pm \pi \sqrt{3}}{+/- pi*sqrt(3)}, the standard deviation of the standard logistic latent variable. In both cases, the bigger \eqn{k} is, the more conservative the fitting will be. The value can be either a fixed number, or a \emph{hyperprior} of the form \code{chi(degreesOfFreedom = 1.5, scale = 2)}. For \code{bart2}, the default of \code{NULL} uses the value 2 for continuous responses and the \code{chi(1.5, 2)} hyperprior for binary ones, which centers the sampled \code{k} near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass \code{k = 2} for the fixed BART-package default, or \code{chi(1.5, Inf)} for the old improper prior. The default of 2 for continuous responses follows Chipman, George, and McCulloch's argument (see References) that with node prior standard deviation \eqn{\sigma_\mu = 0.5 / (k \sqrt{m})}{sigma_mu = 0.5 / (k * sqrt(m))} for \eqn{m} trees, \eqn{k} prior standard deviations of \eqn{f(x)} span the whole coded response range regardless of \eqn{m} -- so \eqn{k = 2} places that range at roughly a 95\% prior interval. The range scaling itself is an outlier-sensitive convention shared with BayesTree/bartMachine: extreme \eqn{y} values compress the effective prior on everything else, for which the published workaround is to log-transform or winsorize such values before fitting, or to let \code{k} adapt via the \code{chi} hyperprior.
+     For numeric \eqn{y}, \code{k} is the number of prior standard deviations \eqn{E(Y|x) = f(x)} is away from \eqn{\pm 0.5}{+/- 0.5}. The response (\code{y.train}) is internally scaled to range from \eqn{-0.5} to \eqn{0.5}. For binary \eqn{y} fit with the default probit link, \code{k} is the number of prior standard deviations \eqn{f(x)} is away from \eqn{\pm 3}{+/- 3}, the probit reference scale; \code{family = "logistic"} (\code{bart2} only) widens this to \eqn{\pm \pi \sqrt{3}}{+/- pi*sqrt(3)}, which is three standard deviations of the standard logistic latent variable (\eqn{\pi / \sqrt{3}}{pi/sqrt(3)} each), the same three-sd span probit's \eqn{\pm 3}{+/- 3} covers. In both cases, the bigger \eqn{k} is, the more conservative the fitting will be. The value can be either a fixed number, or a \emph{hyperprior} of the form \code{chi(degreesOfFreedom = 1.5, scale = 2)}. For \code{bart2}, the default of \code{NULL} uses the value 2 for continuous responses and the \code{chi(1.5, 2)} hyperprior for binary ones, which centers the sampled \code{k} near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass \code{k = 2} for the fixed BART-package default, or \code{chi(1.5, Inf)} for the old improper prior. The default of 2 for continuous responses follows Chipman, George, and McCulloch's argument (see References) that with node prior standard deviation \eqn{\sigma_\mu = 0.5 / (k \sqrt{m})}{sigma_mu = 0.5 / (k * sqrt(m))} for \eqn{m} trees, \eqn{k} prior standard deviations of \eqn{f(x)} span the whole coded response range regardless of \eqn{m} -- so \eqn{k = 2} places that range at roughly a 95\% prior interval. The range scaling itself is an outlier-sensitive convention shared with BayesTree/bartMachine: extreme \eqn{y} values compress the effective prior on everything else, for which the published workaround is to log-transform or winsorize such values before fitting, or to let \code{k} adapt via the \code{chi} hyperprior.
    }
    \item{power}{
      Power parameter for tree prior. Default 2, Chipman, George, and McCulloch's empirical recommendation (see References) for the split-probability decay \eqn{base (1 + depth)^{-power}}{base * (1 + depth)^(-power)}, not derived from a formula.
@@ -322,7 +322,7 @@ extract(object, \dots)
     The number of possible values of \eqn{c} is determined by \code{numcut}. If \code{usequants} is \code{FALSE}, \code{numcut} equally spaced cutoffs are used covering the range of values in the corresponding column of \code{x.train}. If \code{usequants} is \code{TRUE}, then for a variable the minimum of \code{numcut} and one less than the number of unique elements for that variable are used.
   }
   \subsection{End-node prior parameter \code{k}}{
-    The amount of shrinkage of the node parameters is controlled by \code{k}. \code{k} can be given as either a fixed, positive number, or as any value that can be used to build a supported hyperprior. At present, only \eqn{\chi_\nu s} priors are supported, where \eqn{\nu} is a degrees of freedom and \eqn{s} is a scale. Both values must be positive, however the scale can be infinite which yields an improper prior, which is interpreted as just the polynomial part of the distribution. If \eqn{nu} is 1 and \eqn{s} is \eqn{\infty}, the prior is \dQuote{flat}.
+    The amount of shrinkage of the node parameters is controlled by \code{k}. \code{k} can be given as either a fixed, positive number, or as any value that can be used to build a supported hyperprior. At present, only \eqn{\chi_\nu s} priors are supported, where \eqn{\nu} is a degrees of freedom and \eqn{s} is a scale. Both values must be positive, however the scale can be infinite which yields an improper prior, which is interpreted as just the polynomial part of the distribution. If \eqn{\nu} is 1 and \eqn{s} is \eqn{\infty}, the prior is \dQuote{flat}.
 
     For BART on binary outcomes, the degree of overfitting can be highly sensitive to \code{k} so it is encouraged to consider a number of values. The default hyperprior for binary \code{bart2}/\code{dbarts} fits, \code{chi(1.5, 2)}, centers the sampled \code{k} near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass \code{k = 2} for the fixed BART-package default. Crossvalidation may still be helpful, and running for a short time with a flat prior (\code{scale = Inf}) can show the range of \code{k} values the data are consistent with.
   }
@@ -363,7 +363,7 @@ extract(object, \dots)
   \code{bart} and \code{bart2} return lists assigned the class \code{bart}. For applicable quantities, \code{ndpost / keepevery} samples are returned. In the numeric \eqn{y} case, the list has components:
 
   \item{\code{yhat.train}}{
-    A array/matrix of posterior samples. The \eqn{(i, j, k)} value is the \eqn{j}th draw of the posterior of \eqn{f} evaluated at the \eqn{k}th row of \code{x.train} (i.e. \eqn{f^*(x_k)}{f(x_k)}) corresponding to chain \eqn{i}. When \code{nchain} is one or \code{combinechains} is \code{TRUE}, the result is a collapsed down to a matrix.
+    A array/matrix of posterior samples. The \eqn{(i, j, k)} value is the \eqn{j}th draw of the posterior of \eqn{f} evaluated at the \eqn{k}th row of \code{x.train} (i.e. \eqn{f^*(x_k)}{f(x_k)}) corresponding to chain \eqn{i}. When \code{nchain} is one or \code{combinechains} is \code{TRUE}, the result is collapsed down to a matrix.
   }
   \item{\code{yhat.test}}{
     Same as \code{yhat.train} but now the \eqn{x}s are the rows of the test data.
@@ -375,7 +375,7 @@ extract(object, \dots)
     Vector of means of \code{yhat.test} across columns and chains.
   }
   \item{\code{sigma}}{
-    Matrix of posterior samples of \code{sigma}, the residual/error standard deviation. Dimensions are equal to the number of chains times the numbers of samples unless \code{nchain} is one or \code{combinechains} is \code{TRUE}.
+    Matrix of posterior samples of \code{sigma}, the residual/error standard deviation. Dimensions are equal to the number of chains times the number of samples unless \code{nchain} is one or \code{combinechains} is \code{TRUE}.
   }
   \item{\code{first.sigma}}{
     Burn-in draws of \code{sigma}.
@@ -427,24 +427,33 @@ extract(object, \dots)
   For continuous response fits, the \code{plot} method sets \code{mfrow} to \code{c(1, 2)} and makes two plots. The first plot is the sequence of kept draws of \eqn{\sigma} including the burn-in draws. Initially these draws will decline as BART finds a good fit and then level off when the MCMC has burnt in. The second plot has \eqn{y} on the horizontal axis and posterior intervals for the corresponding \eqn{f(x)} on the vertical axis. For binary response fits, only this second kind of plot is drawn, with the posterior median of \eqn{P(Y = 1 \mid x)} on the horizontal axis and its posterior interval on the vertical axis.
 }
 \references{
-Chipman, H., George, E., and McCulloch, R. (2009)
-   BART: Bayesian Additive Regression Trees.
+Chipman, H., George, E., and McCulloch, R. (2010)
+   BART: Bayesian additive regression trees.
+        \emph{The Annals of Applied Statistics}, \bold{4}(1), 266--298.
+        \doi{10.1214/09-AOAS285}.
 
 Chipman, H., George, E., and McCulloch R. (2006)
-   Bayesian Ensemble Learning. 
+   Bayesian Ensemble Learning.
    Advances in Neural Information Processing Systems 19,
    Scholkopf, Platt and Hoffman, Eds., MIT Press, Cambridge, MA, 265-272.
-
-both of the above at:
-\url{https://www.rob-mcculloch.org}
+   \url{https://www.rob-mcculloch.org}
 
 Friedman, J.H. (1991)
    Multivariate adaptive regression splines.
         \emph{The Annals of Statistics}, \bold{19}, 1--67.
 
+He, J., Yalov, S., and Hahn, P.R. (2019)
+   XBART: accelerated Bayesian additive regression trees.
+        \emph{Proceedings of the 22nd International Conference on Artificial
+        Intelligence and Statistics (AISTATS)}, PMLR \bold{89}, 1130--1138.
+
 Linero, A.R. (2018)
    Bayesian regression trees for high-dimensional prediction and variable selection.
         \emph{Journal of the American Statistical Association}, \bold{113}(522), 626--636.
+
+Pratola, M.T., Chipman, H.A., George, E.I., and McCulloch, R.E. (2020)
+   Heteroscedastic BART via multiplicative regression trees.
+        \emph{Journal of Computational and Graphical Statistics}, \bold{29}(2), 405--417.
 }
 \author{
 Hugh Chipman: \email{hugh.chipman@gmail.com},

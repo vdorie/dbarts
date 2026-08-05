@@ -100,7 +100,7 @@ rbart_vi(
     One of \code{"ev"}, \code{"ppd"}, \code{"bart"}, \code{"loglik"}, \code{"ranef"}, or \code{"trees"} for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, training log-likelihood (\code{extract} only), random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. \code{"loglik"} evaluates the log-likelihood of each training observation at each posterior draw, conditioning on the drawn random intercepts as well as \eqn{\sigma}{sigma} (gaussian) or the fitted probability (binary); when chains are combined the result is a samples-by-observations matrix directly consumable by WAIC/PSIS-LOO implementations such as those in the \pkg{loo} package; the chains-first convention is kept, so a per-chain array (\code{combineChains = FALSE}, dimension chains-by-samples-by-observations) is reordered to the draws-by-chains-by-observations that \code{loo::relative_eff} expects with \code{aperm(x, c(2, 1, 3))}. To synergize with \code{\link{predict.glm}}, \code{"response"} can be used as a synonym for \code{"ev"} and \code{"link"} can be used as a synonym for \code{"bart"}. For additional details on tree extraction, see the corresponding subsection in \code{\link{bart}}.
   }
   \item{sample}{
-    One of \code{"train"} or \code{"test"}, referring to the training or tests samples respectively.
+    One of \code{"train"} or \code{"test"}, referring to the training or test samples respectively.
   }
   \item{ci.level}{
     For \code{fitted} and \code{predict}, an optional single number in \eqn{(0, 1)}. As in \code{\link{bart}}: \code{NULL} (the default) returns the posterior mean, while a level returns a matrix of \code{est}, \code{ci.lower}, and \code{ci.upper}, with the interval kind following \code{type}.
@@ -117,10 +117,10 @@ rbart_vi(
   \item \eqn{\alpha_j \sim N(0, \tau^2)}{\alpha_j ~ N(0, \tau^2)}.
 }
 
-For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})}. \eqn{i} indexes observations, \eqn{g[i]} is the group index of observation \eqn{i}, \eqn{f(x)} and \eqn{\sigma_y} come from a BART model, and \eqn{\alpha_j} are the independent and identically distributed random intercepts. Draws from the posterior of \eqn{tau} use an exact conjugate update for the built-in \code{cauchy} prior (a Makalic-Schmidt inverse-gamma scale mixture, two fixed inverse-gamma draws per sweep) and a slice sampler otherwise; the in-engine slice sampler for the built-in \code{gamma} prior steps out with a width tied to the prior's scale, while the R implementation used with custom priors determines its width from the curvature of the posterior at its mode.
+For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})}. \eqn{i} indexes observations, \eqn{g[i]} is the group index of observation \eqn{i}, \eqn{f(x)} and \eqn{\sigma_y} come from a BART model, and \eqn{\alpha_j} are the independent and identically distributed random intercepts. Draws from the posterior of \eqn{\tau} use an exact conjugate update for the built-in \code{cauchy} prior (a Makalic-Schmidt inverse-gamma scale mixture, two fixed inverse-gamma draws per sweep) and a slice sampler otherwise; the in-engine slice sampler for the built-in \code{gamma} prior steps out with a width tied to the prior's scale, while the R implementation used with custom priors determines its width from the curvature of the posterior at its mode.
 
 \subsection{Out Of Sample Groups}{
-  Predicting random effects for groups not in the training sample is supported by sampling from their posterior predictive distribution, that is a draw is taken from \eqn{p(\alpha \mid y) = \int p(\alpha \mid \tau)p(\tau \mid y)d\alpha}. For out-of-sample groups in the test data, these random effect draws can be kept with the saved object. For those supplied to \code{predict}, they cannot and may change for subsequent calls.
+  Predicting random effects for groups not in the training sample is supported by sampling from their posterior predictive distribution, that is a draw is taken from \eqn{p(\alpha \mid y) = \int p(\alpha \mid \tau)p(\tau \mid y)d\tau}. For out-of-sample groups in the test data, these random effect draws can be kept with the saved object. For those supplied to \code{predict}, they cannot and may change for subsequent calls.
 }
 
 \subsection{Generics}{
@@ -131,13 +131,13 @@ For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_
   An object of class \code{rbart}. Contains all of the same elements of an object of class \code{\link{bart}}, as well as the elements:
 
   \item{ranef}{
-    Samples from the posterior of the random effects. A array/matrix of posterior samples. The \eqn{(k, l, j)} value is the \eqn{l}th draw of the posterior of the random effect for group \eqn{j} (i.e. \eqn{\alpha^*_j}{\alpha*_j}) corresponding to chain \eqn{k}. When \code{n.chains} is one or \code{combineChains} is \code{TRUE}, the result is a collapsed down to a matrix.
+    Samples from the posterior of the random effects. A array/matrix of posterior samples. The \eqn{(k, l, j)} value is the \eqn{l}th draw of the posterior of the random effect for group \eqn{j} (i.e. \eqn{\alpha^*_j}{\alpha*_j}) corresponding to chain \eqn{k}. When \code{n.chains} is one or \code{combineChains} is \code{TRUE}, the result is collapsed down to a matrix.
   }
   \item{ranef.mean}{
     Posterior mean of random effects, derived by taking mean across group index of samples.
   }
   \item{tau}{
-    Matrix of posterior samples of \code{tau}, the standard deviation of the random effects. Dimensions are equal to the number of chains times the numbers of samples unless \code{n.chains} is one or \code{combineChains} is \code{TRUE}.
+    Matrix of posterior samples of \code{tau}, the standard deviation of the random effects. Dimensions are equal to the number of chains times the number of samples unless \code{n.chains} is one or \code{combineChains} is \code{TRUE}.
   }
   \item{\code{first.tau}}{
     Burn-in draws of \code{tau}.

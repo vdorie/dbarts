@@ -7,8 +7,7 @@
   per-group functions \eqn{f = \sum_G f_G} (a functional-ANOVA / grouped-GAMI
   decomposition). Pass the result as the \code{blocks} argument of
   \code{\link{dbarts}} or \code{\link{bart2}}. The constraint is applied per
-  forest, so with a two-forest causal model the treatment and prognostic
-  forests can carry independent partitions.
+  forest, so in a multi-forest model each forest can carry its own partition.
 }
 \usage{
 blocks(groups, trees.per.group = NULL)
@@ -46,8 +45,8 @@ blocks(groups, trees.per.group = NULL)
   model matrix at fit time - an unpartitioned predictor, a predictor named in
   more than one group, an unrecognized name, or a \code{trees.per.group} of the
   wrong length, with a non-positive entry, or not summing to \code{n.trees} is
-  an error. For a column-restricted forest (a \code{bcf} treatment forest over
-  moderators), the partition is over that forest's available columns.
+  an error. For a forest that is already restricted to a subset of the columns,
+  the partition is over that forest's available columns.
 
   \code{blocks} and \code{\link{interactions}} act on independent seams (which
   columns a tree may use versus which may co-occur on a path) and may be
