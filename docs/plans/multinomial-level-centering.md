@@ -1,7 +1,11 @@
 # multinomial-level-centering
 
-status: OPEN (memo first; found 2026-08-04 by sbc-family-tiers'
-        raw-f_ik arm, docs/plans/sbc-family-tiers.md Results)
+status: MEMO RECORDED 2026-08-05 (see Memo below; two independent
+        blind derivations agree, adversarial critique with a
+        counterfactual SBC run could not refute) - unanimous verdict
+        FIX; VD signs off fix vs document
+        (found 2026-08-04 by sbc-family-tiers' raw-f_ik arm,
+        docs/plans/sbc-family-tiers.md Results)
 agent: opus
 rng: posterior-changing IF the fix ships (multinomial channels only;
      every other family untouched)
@@ -68,3 +72,90 @@ the design doc.
   derivation; if fix ships: full gate battery + the SBC arm
   `Rscript benchmarks/R/sbc.R multinom 200 150 30` with every
   functional PASS.
+
+## Memo (2026-08-05)
+
+Process: two independent blind derivations (opus), reconciled by the
+orchestrator; then an adversarial critique (opus) instructed to
+refute, which instead validated the fix end to end on a patched
+scratch build. The repo was untouched throughout.
+
+THE DEFECT. The prior lives on LEAF VALUES (per-leaf sd
+s = nodeScale/(k sqrt(m)), 0.272 at the SBC config), not on total
+fits (tau = 1.924). The implemented draw treats the n*K total fits as
+independent N(0, tau^2) prior draws. For the tree-0 absorption the
+code actually performs, the exact conditional is
+prec = sum_k L_k0/s_k^2, mean = -(sum_k S_k0/s_k^2)/prec (L_k0, S_k0
+tree-0 occupied-leaf count and value sum). At the SBC config the
+PRECISION error nearly cancels (1.21-1.23x, a coincidence: n/m = 3 vs
+mean occupied leaves/tree 2.46). The real defect is the MEAN:
+-num/prec is the precision-weighted grand fit mean, so the move
+deterministically subtracts the WHOLE level every sweep, leaving it
+pinned at N(0, tau^2/(nK)) - sd 0.091 (predicted 0.0907, measured
+0.089-0.097) against a correct stationary spread 0.874-0.917. That
+mean belongs to no valid absorption, and the critique closed the
+loopholes: it is not rescued as MH, overrelaxation, PX-DA, or by the
+composite sweep (stationary sd(level) 0.091 vs 0.879/0.910 under two
+independent exact schemes on the same build).
+
+EVIDENCE FIT. Per-cell posterior shrinkage rho = 0.690-0.701 predicts
+ecdfDiff 0.118 +/- 0.022 against the recorded 0.111/0.114/0.117; the
+level is redrawn iid every sweep (ACF ~ 0), which is why 3x spacing
+cannot shrink the U; identified content moves < 0.4%, which is why
+the softmax arm passes at both chain lengths. The 20-first/29-last
+bin asymmetry is 1-2 bin-sd at R=200 - no second defect. (memoA's
+pooled-rho underprediction of 0.098 was its estimator, refuted by the
+critique's per-cell measurement.)
+
+INERTNESS: not provable, leak second order. The PG psi = f - C and
+every tree t != 0 are exactly shift-equivariant; the one leak is tree
+0's constant-leaf conditional, non-equivariant under the leaf prior
+(the birth log-ratio picks up -4.90 c^2 at the SBC config; tree-0
+mean leaf value fluctuates sd 0.26 vs 0.02 for trees 1..49). Effect
+on identified functionals: < 0.4%, zero-mean in the level.
+
+THE FIX (unanimous): uniform absorption - add c/m_k to every occupied
+leaf of every tree - with its exact conditional
+prec = sum_k L_k/(m_k^2 s_k^2), num = sum_k S_k/(m_k s_k^2) (L_k, S_k
+over ALL trees' occupied leaves, the fillBottom pattern BCF's
+afterCombine already uses), c = -num/prec + N(0,1)/sqrt(prec). One
+normal draw as today, so no stream reshuffle beyond the changed
+values. ~25-30 lines in afterCombine. Besides exactness it is the
+better mixing device: level ACF 0.325/0.035 (lag 1/5) vs 0.965/0.849
+for the exact-tree-0 variant, and at the intercept-only exact-gate
+configuration it reduces to an exact independence sampler drawing the
+level from its true marginal N(0, tau^2/K).
+
+COUNTERFACTUAL VALIDATION (critique, patched build, real SBC arm,
+same seeds): the implemented-draw build reproduces the recorded run
+to the last digit (f cells 0.1107/0.1144/0.1170, chisqP 0.000, the
+f.1.1 histogram 20...29); the fixed build clears all three raw cells
+at even the per-functional 5% band (0.0635/0.0733/0.0356, chisqP
+0.735/0.229/0.383) with softmax p unchanged-PASS both ways;
+multinomial-exact.R passes both ways with identical gaps.
+
+BLOCKING CORRECTIONS for the implementer (critique):
+1. tests/cpp/test_sampler.cpp ~2052-2113 must gain real single-node
+   trees and a sized muByTree - a bounds guard alone makes the move a
+   no-op, the softmax-invariance check vacuous, and shifts the shared
+   rng stream for every later testMultinomial block.
+2. The accumulation loop needs a non-const Forest& (it writes
+   tree.bottomScratch); bound the tree loop by
+   min(numTrees, trees.size(), muByTree.size()).
+3. Draw-changing beyond the sweep: bartcore_createMultinomialCounts
+   shares the combiner (grouped-count channels change) and
+   growForestFromRoot (chain.hpp ~1268) calls afterCombine (XBART
+   warm start changes) - re-record ALL multinomial equivalence paths;
+   every other family stays bitwise.
+4. The total = sum-of-tree-fits invariant is preserved TO ROUNDING
+   (m * fl(c/m) != c), as today - the comment must not claim exact.
+5. docs/design/multinomial.md's "exact Gaussian full conditional ...
+   (f_ik ~ N(0, tau^2))" sentence is the defect in prose; rewrite as
+   the leaf-space statement whichever way VD forks.
+Non-blocking, worth a comment: sampleNodeParametersFromPrior draws
+empty bottom nodes too (inert today, contradicts the support argument
+in spirit); the blanket muByTree shift is safe only because
+multinomial chains are ConstantGaussianLeaf-only.
+
+Full memos, critique, and scripts: session scratchpad (disposable);
+this section is the durable record.
