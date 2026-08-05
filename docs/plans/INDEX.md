@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (122 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (123 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -244,6 +244,7 @@ Columns: `file | STATUS | one-liner`.
 | grow-from-root-warm-start.md | LANDED | Promotes the cut-scan kernel into an XBART-style root-down warm-start producer (n.grow.sweeps); byte-identical default path. |
 | interaction-constraints.md | LANDED f455d7c (2026-07-21) | Per-forest interaction constraints (max-order cap + hard co-occurrence deny/allow groups) via interactions(); post-landing BCF use-after-free fix 04ca425. |
 | interaction-constraints-p4.md | LANDED aadbbc8/103dbe2 (2026-07-21) | P4 follow-on: blocks() fixed-capacity per-tree block-additive prior plus the columnMask warm-start/setState feasibility gate (F1; follow-up 073d3db); soft path penalties and formal heredity stay deferred. |
+| monotone-prior-draw.md | LANDED 173a710 (2026-08-04) | samplePriorPredictive on a monotone fit drew unconstrained leaf values and left the chain monotone-infeasible; fixed by exact per-tree rejection from the constrained prior. Found by the SBC-extension blind critique. |
 | moves-degenerate-root-guard.md | LANDED | Fixes a segfault when a root-only tree has no available split variable. |
 | pointwise-loglik.md | LANDED | R-side per-observation/per-draw log-likelihood extract for loo/waic. |
 | ppd-sigma-pairing.md | LANDED | Fixes multi-chain sampleFromPPD sigma pairing (chain-interleaved vs chain-blocked). |
