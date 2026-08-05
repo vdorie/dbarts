@@ -256,6 +256,10 @@ reported/internal map identical across the swap); equivalence trio
 bitwise identical (27/27, BCF 5x6, multinomial 3x5 vs ec2a3d0); smoke
 `sbc.R bcf 3 10 1` RUNS 15/15 PASS (5.6 s/rep); air clean; R CMD
 check Status: OK, zero delta (implementer). runSbcBCF needed zero
-edits. rchk workflow dispatched post-push per the design's note; the
-R=200 recorded-config acceptance arm runs post-landing, verdict to be
-recorded below as an addendum.
+edits. rchk: NOT dispatchable pre-merge (rchk.yaml is unregistered
+until it lands on the default branch, the known limitation in its
+header); the design assessed the entry's rchk risk as nil (no SEXP
+allocation or PROTECT change, retain unmoved) and the release
+procedure's as-cran rchk run covers it. The R=200 recorded-config
+acceptance arm runs post-landing, verdict recorded below as an
+addendum.
