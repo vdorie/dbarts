@@ -58,6 +58,22 @@ items
     Exposing the per-sweep callback on dbartsSampler$run is a perf-only
     convenience, not a gate (demoted in the design doc).
     causal-motivated, decision-gated.
+  facade-shape: surfaced by the 2026-08-05 facade review. SamplerBase
+    carries ~25 count/capability virtuals (numForests,
+    testFitsAreDefined, usesDart, supportsResponseMutation, ...) that
+    exist to size bridge buffers and gate refusals, each costing
+    declaration + facade forward + impl override per feature. Collapse
+    into one SamplerShape POD FILLED ON DEMAND by a single virtual -
+    not cached-and-refreshed: a forgotten cache refresh after a future
+    mutator is a silent runtime bug where a forgotten forward is a
+    compile error today, and the callers size buffers, they are not
+    hot. Bitwise-neutral; tests/cpp asserts the filled struct matches
+    the live accessors it replaces. Does NOT remove the stale-object
+    --preclean hazard (struct-layout changes corrupt stale .o like
+    vtable changes do). X-macro forwarding generation considered and
+    DECLINED: the facade is src-internal, and the macro costs
+    grep/clangd/debugger legibility with no drift-policing need.
+    decision-gated.
   forest-ranef-interweaving: RESEARCHED, NO-GO now (recorded door;
     docs/design/forest-ranef-interweaving.md). The weak-signal/small-K
     grouped-mixing bottleneck is forest-ranef confounding (several-fold
@@ -144,7 +160,34 @@ items
   sparse-extensions: streaming range kernel, mutation on dense-backed
     mixed columns, and the smaller deferred extensions in
     docs/plans/sparse-extensions.md's Status list (sparse x.test,
-    setData on a CSC store, ...). consumer-gated.
+    setData on a CSC store, ...). consumer-gated. VD 2026-08-05:
+    dense-only mutation is a conservative gate, not a design fact -
+    the transaction is shape-agnostic past quantizeColumn (codes in,
+    same repartition), mixed-dense columns already retain raw
+    (data.hpp ~725), and CSC-backed mutation needs only an ownership
+    policy for the borrowed triple plus a slice resize; scope it with
+    typed-ingestion below.
+  typed-ingestion: surfaced by the 2026-08-05 facade review; premise
+    reset by VD - there are NO frozen contracts (consumers sweep in
+    lockstep; a dbarts.h change costs the ABI checklist + sweep, not
+    a compat break), and R already receives integer matrices, factors
+    with DECLARED levels, and dgCMatrix, then flattens them to double
+    + scattered metadata at the bridge (as.double throughout
+    R/bartcore.R; the levels slot in A_class.R is kept but never
+    passed as K). One borrowed typed PredictorSource view (per
+    column: dense-double | dense-integer | CSC; ordinal | categorical
+    with declared K) taken by creation, test ingestion, and mutation:
+    collapses SamplerOptions' 8 ingestion fields, the 7-arg
+    setTestData, and the dense-only mutation entries into one
+    spelling, and makes dense/CSC categoricals symmetric. PROBE
+    FIRST, correctness: a dense categorical's K is inferred
+    max(x[,j])+1 (data.hpp buildCutsForColumn) while CSC declares
+    cscCategoryCount - determine whether a factor with an unobserved
+    top level is R-reachable end-to-end (test rows carrying the
+    missing level are the risk); if reachable, declare K ahead of the
+    full view. Typing stops at the boundary: the hot layer stays
+    quantized codes + double cuts; response/offset/weights stay
+    double*. decision-gated.
   survival-followups: doors out of the survival family pair (AFT +
     discrete-time hazard both landed; records in docs/plans/survival-
     models.md and docs/design/survival.md sec 6): cloglog link (needs a
