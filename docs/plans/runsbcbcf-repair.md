@@ -209,3 +209,20 @@ refused at both updateScale values; setData stays refused
 (applyNewData hard-codes forest 0). setWeights is vacuously guarded
 for BCF by the same argument as setResponse - a door recorded, not
 taken.
+
+## Guard landing (2026-08-05, 6744aca)
+
+The FIX-B precondition shipped: refuseMultiForestMutation at
+bartcore_setModel (after the SamplerBase binding, before the class
+check, so the refusal fires regardless of the argument's class); the
+helper promoted into bartcore_bridge with a declaration in
+R_interface_bartcore_common.hpp (critique amendment 1); both flat
+C API holes (dbarts_sampler_setResponse / _setWeights, unreachable
+today) guarded defensively; shipped header unchanged. Two new seam
+tests (BCF setModel refusal, single-forest setModel inert). Gates,
+implementer + independent re-run from a fresh --preclean install:
+tests/cpp from clean all pass; tinytest 3476/0 (+2); equivalence trio
+bitwise identical (27/27, BCF 5 scenarios x 6 channels, multinomial
+3 x 5 vs the ec2a3d0 baseline); air format clean; R CMD check
+Status: OK with a zero pre/post delta. FIX-B's leaf-scale pin
+argument now holds at HEAD.
