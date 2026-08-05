@@ -1,7 +1,10 @@
 # setpredictor-leafof-rebuild
 
-status: OPEN (found 2026-08-04 by the constant-leaf-fits bench
-        discharge, docs/plans/constant-leaf-fits.md compare record)
+status: MEMO RECORDED 2026-08-05 (see Memo below) - the plan's three
+        mechanisms are all declined by measurement; decision pending
+        VD: close, or scope the mu[leafOf] gather SIMD item instead
+        (found 2026-08-04 by the constant-leaf-fits bench discharge,
+        docs/plans/constant-leaf-fits.md compare record)
 agent: opus
 rng: neutral expected (leafOf is a derived cache; draws must not change)
 budget: memo first, then ~100-200 engine lines
@@ -63,3 +66,64 @@ complexity.
 - Gate battery per CLAUDE.local.md (install --preclean, tests/cpp from
   clean, full tinytest, equivalence trio bitwise).
 - bench-sampler same-machine A/B as step 3; report the three-run table.
+
+## Memo (2026-08-05, step 1 executed on dbarts-bench)
+
+Method: isolated driver (the setPredictor-accept-n1000-t75 scenario
+lifted verbatim from bench-sampler.R), pinned taskset -c 2, box idle
+(loadavg 0.62-1.31 checked per round), min of 7 reps x 3 rounds;
+rdtsc-instrumented builds for composition; md5-over-draws oracle
+(20 accepts then run(0,50), train fits + sigma). base = 9047e05,
+tip = a34fdff. The isolated driver reproduces +12.2%, not the suite's
++22-28%; the COMPOSITION is measured directly and is what the decision
+rests on (if the true suite regression is ~28%, the shares hold).
+
+Attribution of the +0.039 ms/update:
+
+    (a)  leafOf rebuild proper (all 75 trees, every accept)   21%
+    (a') mu[leafOf] gather replacing contiguous SIMD passes   79%
+    (b)  eager-vs-amortized                                    0
+    (c)  double work                                           0
+
+(b): base ran the same two revalidate phases equally eagerly - nothing
+was amortized before. (c): installLeafOfAndAddToTotal clears
+leafOfStale (chain.hpp ~2677); only sampleTreesFromPrior sets it.
+Census: 19/75 trees carry a rule on the mutated column. Cycle-level,
+the whole regression is the per-tree fits-rebuild trio: base
+subtract 37k + scatter 110k + SIMD add 26k = 173k cycles vs tip
+subtract 140k + mu copy 3k + fused install 247k = 390k; of tip's 390k,
+~128k is the leafOf write and ~262k is reading tree fits through
+mu[leafOf] twice instead of streaming a contiguous row.
+
+Bitwise findings (md5): base == tip (compaction draw-neutral, driver a
+valid oracle). tip-noleaf (every leafOf rebuild removed, unfused adds)
+== tip - the core move of (ii)/(iii) is bitwise-safe, and its measured
+CEILING is +9.7% vs base, still outside the 5% gate. tip-aggr
+(subtract/add pair elided for untouched trees) != tip - sigma differs
+in the last bits, so (x - v) + v is not identity here and no mechanism
+may elide the pair; this kills the only variant that beat base.
+Structural constraint: repartitionSubtree(data_, 0) cannot be skipped
+even for unaffected trees - misc_partitionRange re-canonicalizes the
+index order that leaf-stat sums run over, so skipping changes draws;
+only the leafOf write and the fits passes are skippable.
+
+Ranking: (ii) rebuild-only-repartitioned is the best and still
+declined - realizable ~+10.3% vs the +9.7% ceiling, recovering ~2 of
+the 12 points for ~90-130 lines. (iii) is bounded by (ii)'s ceiling
+and applies only to the 19/75 trees (ii) cannot skip; its premise
+("most trees change") is false here. (i) mark-stale is invalid before
+the economics: deferring forces totalFits to stay on the old map
+through the roll - a different fp accumulation of exactly the pair
+tip-aggr shows changes draws - and for the mutate-then-run consumer
+the deferred rebuild is paid in the very next run() anyway.
+
+RECOMMENDATION: close the item as not worth its complexity. What
+would actually close the gap, if funded separately: vectorize the
+mu[leafOf] gather in subtractTreeFitsFromTotal / addTreeFitsToTotal
+(chain.hpp ~2921-2947) - elementwise and order-preserving, so
+bitwise-safe by construction; it attacks the 79%, and the same kernel
+serves rollTreeResidual (~2863-2884), the hot sweep path. A misc/SIMD
+item with the cross-ISA tests/cpp gate, not this plan's engine lines.
+Standing trade either way: at n=1000, t=75 an accepted single-column
+mutation costs 0.358 ms against a 0.17 ms sweep; the compaction bought
+14-18% on run at n=10000 and gave back 12% here.
