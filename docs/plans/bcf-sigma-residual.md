@@ -1,5 +1,10 @@
 # BCF sigma burn transient: anatomy, candidate remedies, recommendation
 
+Status: RESOLVED (section 4 adopted) - the burn routing shipped in
+benchmarks/R/sbc.R (burn = ceiling(72000/thin)); the optional extreme-tail
+engine remedy is the TODO door bcf-sigma-tail-mixing. The memo below is
+the diagnosis record.
+
 Read-only design memo for TODO item `bcf-sigma-residual`. Repo dbarts @ bartcore
 6944811 (a-move / interweaveGlueRidge LANDED). All numbers measured against the
 installed shared library via benchmarks/R/sbc.R. Scratch, scripts, and rds

@@ -17,7 +17,7 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | bcf-b-ridge.md | NO-GO | Treatment-scale (b) ridge interweaving move, the named suspect for the sigma residual; both controls clear it - shelved as an unimplemented future mixing win. |
 | bcf-ridge-interweaving.md | LANDED | Prognostic (a) ridge interweaving move, landed 9617c94; confirmed mixing win, sigma SBC flag persists and routes to bcf-sigma-residual. |
-| bcf-sigma-residual.md | MIXED (no Status header) | Diagnoses the BCF sigma burn-in transient as slow forest-structure mixing, not a glue-scale defect; recommends `burn = ceiling(72000/thin)`, now live in benchmarks/R/sbc.R, but the doc itself never closes with a Status/Landing note. |
+| bcf-sigma-residual.md | RESOLVED (burn routing adopted) | Diagnoses the BCF sigma burn-in transient as slow forest-structure mixing, not a glue-scale defect; its recommended `burn = ceiling(72000/thin)` is live in benchmarks/R/sbc.R, and the extreme-tail engine remedy is the TODO door bcf-sigma-tail-mixing. |
 | bcf-testfits-guard.md | LANDED | Guards BCF test-fit/predict entry points that silently reported the bare prognostic forest instead of the combined a*mu+b*tau surface. |
 
 ## Forest / multi-forest infrastructure
@@ -230,7 +230,7 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | gp-followups.md | RESEARCH-OPEN | Placeholder for two deferred GP-leaf extensions (sampled lengthscales, low-rank kernels); blocked on a named consumer. |
 | gpu-bart.md | RESEARCH-OPEN (memo DONE) | Survey memo written (docs/design/gpu-bart.md): GO on cut-scan-as-warm-start (delivered), broader GPU experiment left open behind the informed-kernel and CG-leaf prototypes (parallel-bart-frontier next-actions 4-5). |
-| python-bindings.md | ACTIVE (no Status/Landing section) | Feasibility spike memo for a Python binding over bartcore; unclear if the spike ever ran. |
+| python-bindings.md | RESEARCH-OPEN (no spike run recorded) | Feasibility spike memo for a Python binding over bartcore; decision-gated, likely out-of-repo. |
 | sparse-extensions.md | MIXED (ext (i) LANDED 2026-07-22; rest consumer-gated) | In-place nonzero mutation on sparse columns landed 343dd4c; sparse x.test, streaming range kernel, dense-backed mixed-column mutation and the smaller extensions stay deferred. |
 
 ## Misc feature / fix singletons
