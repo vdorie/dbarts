@@ -58,6 +58,16 @@ items
     Exposing the per-sweep callback on dbartsSampler$run is a perf-only
     convenience, not a gate (demoted in the design doc).
     causal-motivated, decision-gated.
+  csc-code-validation: URGENT guard out of the 2026-08-05 typed-
+    ingestion probe (docs/plans/csc-code-validation.md; probe record
+    in typed-ingestion.md Survey). The CSC declared-K path never
+    bounds stored category codes - validateCategoricalPredictors
+    skips CSC-trained columns (dense x.test against them included)
+    and parseTestContainer bounds only the reference code - giving a
+    verified silent mis-bin (inline), shift UB at code >= 64, and a
+    heap-overread (pooled K > 63), all R-reachable. Fix: bound every
+    entrance against numCuts, refusals matching dense; bridge-only,
+    rng neutral. typed-ingestion slice 0.
   facade-shape: surfaced by the 2026-08-05 facade review. SamplerBase
     carries ~25 count/capability virtuals (numForests,
     testFitsAreDefined, usesDart, supportsResponseMutation, ...) that
@@ -180,14 +190,17 @@ items
     collapses SamplerOptions' 8 ingestion fields, the 7-arg
     setTestData, and the dense-only mutation entries into one
     spelling, and makes dense/CSC categoricals symmetric. PROBE
-    FIRST, correctness: a dense categorical's K is inferred
-    max(x[,j])+1 (data.hpp buildCutsForColumn) while CSC declares
-    cscCategoryCount - determine whether a factor with an unobserved
-    top level is R-reachable end-to-end (test rows carrying the
-    missing level are the risk); if reachable, declare K ahead of the
-    full view. Typing stops at the boundary: the hot layer stays
-    quantized codes + double cuts; response/offset/weights stay
-    double*. decision-gated.
+    EXECUTED 2026-08-05 (docs/plans/typed-ingestion.md Survey):
+    REACHABLE - the default surface keeps factors unexpanded, dense
+    entrances REFUSE a declared-but-unobserved top level (inferred
+    max+1 vs the R layer's declared mapping; refusal defect, not
+    mis-bin), and the mirror CSC hole is severe (spun out URGENT as
+    csc-code-validation above). Per the pre-registered rule, declared
+    K goes ahead of the full view: slice 1 is the dense declared-K
+    plumb-through, slice 2 the view + the sparse mutation-shape lift.
+    Typing stops at the boundary: the hot layer stays quantized codes
+    + double cuts; response/offset/weights stay double*.
+    decision-gated.
   survival-followups: doors out of the survival family pair (AFT +
     discrete-time hazard both landed; records in docs/plans/survival-
     models.md and docs/design/survival.md sec 6): cloglog link (needs a
