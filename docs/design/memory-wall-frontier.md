@@ -454,3 +454,41 @@ blocked-jacobi-trees are NO-GO on the real engine (the binding wall there is
 the serial fraction, not just bandwidth) - see within-chain-threading.md and
 docs/plans/blocked-jacobi-trees.md for the full argument; it is not re-derived
 here. fp32 storage IS the memory-wall answer for this engine.
+
+## 10. Re-profile and census at 06f73b0 (2026-08-04, dbarts-bench)
+
+The re-profile this doc gated its flagship on has run (x86 Ryzen 3700X;
+perf blocked at paranoid=4, so a 1 kHz SIGPROF PC+stack sampler loaded
+into R, symbolized offline - the 39.0% node-average share at n=1e6
+reproduces section 2's rdtsc figure exactly, cross-validating the
+method). Fresh split, gaussian Friedman p=10, 200 trees, single chain:
+
+  pass                                       n=1e5   n=1e6
+  random suffstat gather (total)             46.4%   48.8%
+    node-average only (computeLeafStats)     40.2%   39.0%
+    move/refresh child suffstats              6.1%    9.8%
+  residual roll + totalFits (streaming)      27.9%   24.5%
+  partition/compare on codes (avx2)          22.0%   20.8%
+  bookkeeping / RNG / rest                    3.7%    5.9%
+
+Three verdicts:
+
+- HISTOGRAM-FUSED SUFFSTAT (sec 2a, the flagship): premise SURVIVES.
+  The node-average gather is 39-40% of the sweep at both sizes and is
+  exactly the pass 2a folds into the residual roll, which already loads
+  leafOf[i]; ceiling ~1.67x on the sweep. Block-fusion Stage A's
+  bench-neutral result stands as the counter-evidence, but its premise
+  objection is removed: the gather grew, not shrank, since the fits
+  compaction. Next artifact, behind a VD fork: a throwaway fused-kernel
+  falsifier measured in situ (never a microbench alone;
+  within-chain-threading.md sec 10a).
+- Z-ORDER / LOCALITY REORDERING (secs 2b/2c): measured DEAD. Census on
+  live post-burn trees (R-side replay validated against every node's
+  reported n): best case (Z-order over the 5 relevant predictors) is
+  2617 runs/leaf at n=1e5 against the recorded win threshold of ~50,
+  and 15207 at n=1e6 - essentially the n_leaf/2 "dead" mark. With 3-5
+  leaves per tree the identity gather already fetches 17-22 B/element
+  against a contiguous floor of 8, capping ANY reordering at 2.1-2.8x
+  on the residual stream alone before its own costs. Closed.
+- DATA-LAYOUT REORDER (data-layout.md): re-evaluated and kept shelved;
+  the dated close-out lives in that doc's post-mortem.

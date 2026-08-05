@@ -1,6 +1,7 @@
 # Structural contiguous-per-node data layout
 
-Status: DESIGN PROPOSAL, 2026-07-11. Co-designed with the data-ownership program (docs/design/
+Status: CLOSED - SHELVED after re-evaluation, 2026-08-04 (see the
+post-mortem below; was DESIGN PROPOSAL 2026-07-11). Co-designed with the data-ownership program (docs/design/
 data-ownership.md; plan-1 landed the owned predictor ColumnStore). This
 note covers the RESPONSE-axis arrays (y/fits/weights/residual), a
 different axis from plan-1's predictor CODES. It is the write-up of the
@@ -17,6 +18,20 @@ win to feed. What remains is the ~10% standalone single-tree reorder
 (section 3): either it gets re-evaluated on its own merits (weighed
 against its re-record and complexity costs, section 8), or this note is
 shelved.
+
+RE-EVALUATED 2026-08-04 (dbarts-bench re-profile at 06f73b0;
+memory-wall-frontier.md section 10): SHELVED, CLOSED. The reorder's
+touchable share is the residual-permutation-bound gathers, 46-49% of a
+sweep - but the ~15% fit scatter this note planned to amortize the
+reorder over is gone (the leafOf/muByTree compaction deleted it), the
+21-22% partition/compare work is on predictor codes and does not
+compound (section 5's own point), and the reorder still pays a gather
+of the same magnitude as the one it removes. With one consumer fewer,
+the realistic win falls below the already-marginal ~10% of section 3
+against unchanged re-record and complexity costs. If the
+histogram-fused suffstat (memory-wall-frontier.md sec 2a) ever ships,
+its fused pass reads the residual in place and removes this note's
+remaining premise entirely.
 
 The headline of this note, stated up front because it corrects the
 premise: the naive per-tree reorder is NOT a clean ~2.6x-on-32% win. The

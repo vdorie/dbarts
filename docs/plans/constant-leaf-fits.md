@@ -117,3 +117,16 @@ Gates all bitwise (suite 3050/0, 22/22 + bcf 5x6 + multinomial 3x5),
 run twice: by the implementer and end-to-end by the reviewer (install
 --preclean, component tests from clean, suite, all three compares).
 bench-sampler compare PENDING the batched quiet window (with C1/C3).
+
+Compare DISCHARGED 2026-08-04 on dbarts-bench (x86 Ryzen 3700X, full
+mode, same-machine A/B vs 9047e05, the parent of the first commit;
+attribution run against 252c625 isolates the refactor; arm64 remains
+unquantified). Reproducible across all three runs: the intended win,
+run-n10000-p10-t75 14-18% FASTER; and one real REGRESSION,
+setPredictor-accept-n1000-t75 +22-28%, present at 252c625 - consistent
+with the note above that data mutation keeps the full O(n*m) leafOf
+rebuild. Follow-up item: docs/plans/setpredictor-leafof-rebuild.md.
+The other flagged metrics are noise: sub-millisecond metrics on that
+box drift +-10% between identical invocations (embedded-offset spanned
+0.99-1.10 across three runs of the same comparison), above the 5%
+gate.
