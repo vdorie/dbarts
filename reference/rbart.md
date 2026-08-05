@@ -191,7 +191,7 @@ residuals(object, type = "ev", ...)
 
 - sample:
 
-  One of `"train"` or `"test"`, referring to the training or tests
+  One of `"train"` or `"test"`, referring to the training or test
   samples respectively.
 
 - ci.level:
@@ -221,7 +221,7 @@ For binary outcomes the response model is changed to \\P(Y_i = 1) =
 \\g\[i\]\\ is the group index of observation \\i\\, \\f(x)\\ and
 \\\sigma_y\\ come from a BART model, and \\\alpha_j\\ are the
 independent and identically distributed random intercepts. Draws from
-the posterior of \\tau\\ use an exact conjugate update for the built-in
+the posterior of \\\tau\\ use an exact conjugate update for the built-in
 `cauchy` prior (a Makalic-Schmidt inverse-gamma scale mixture, two fixed
 inverse-gamma draws per sweep) and a slice sampler otherwise; the
 in-engine slice sampler for the built-in `gamma` prior steps out with a
@@ -234,7 +234,7 @@ at its mode.
 Predicting random effects for groups not in the training sample is
 supported by sampling from their posterior predictive distribution, that
 is a draw is taken from \\p(\alpha \mid y) = \int p(\alpha \mid
-\tau)p(\tau \mid y)d\alpha\\. For out-of-sample groups in the test data,
+\tau)p(\tau \mid y)d\tau\\. For out-of-sample groups in the test data,
 these random effect draws can be kept with the saved object. For those
 supplied to `predict`, they cannot and may change for subsequent calls.
 
@@ -256,7 +256,7 @@ the elements:
   posterior samples. The \\(k, l, j)\\ value is the \\l\\th draw of the
   posterior of the random effect for group \\j\\ (i.e. \\\alpha^\*\_j\\)
   corresponding to chain \\k\\. When `n.chains` is one or
-  `combineChains` is `TRUE`, the result is a collapsed down to a matrix.
+  `combineChains` is `TRUE`, the result is collapsed down to a matrix.
 
 - ranef.mean:
 
@@ -267,7 +267,7 @@ the elements:
 
   Matrix of posterior samples of `tau`, the standard deviation of the
   random effects. Dimensions are equal to the number of chains times the
-  numbers of samples unless `n.chains` is one or `combineChains` is
+  number of samples unless `n.chains` is one or `combineChains` is
   `TRUE`.
 
 - `first.tau`:
@@ -277,6 +277,11 @@ the elements:
 - `callback`:
 
   Optional results of `callback` function.
+
+## References
+
+Makalic, E. and Schmidt, D.F. (2016) A simple sampler for the horseshoe
+estimator. *IEEE Signal Processing Letters*, **23**(1), 179–182.
 
 ## Author
 
@@ -346,7 +351,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000313
+#> total seconds in loop: 0.000312
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 1 2 2 2 3 5 1 3 5 2 2 2 3 2 2 3 
@@ -359,7 +364,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001554
+#> total seconds in loop: 0.001594
 #> 
 #> Tree sizes, last iteration:
 #> [1] 5 3 4 2 2 3 2 2 4 3 3 2 3 2 2 3 1 4 
@@ -404,7 +409,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000416
+#> total seconds in loop: 0.000403
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 
@@ -417,7 +422,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002009
+#> total seconds in loop: 0.001960
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 

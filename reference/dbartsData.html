@@ -81,6 +81,135 @@
     <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="extract.dbartsSampler.html">extract.dbartsSampler</a></code>, <code><a href="sparseFactor.html">sparseFactor</a></code></p></div>
     </div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">60L</span></span></span>
+<span class="r-in"><span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  g <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"a"</span>, <span class="st">"b"</span>, <span class="st">"c"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">df</span><span class="op">$</span><span class="va">y</span> <span class="op">&lt;-</span> <span class="va">df</span><span class="op">$</span><span class="va">x</span> <span class="op">+</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">g</span> <span class="op">==</span> <span class="st">"b"</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">0</span>, <span class="fl">0.1</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">## the formula interface; 'g' enters as one categorical predictor</span></span></span>
+<span class="r-in"><span><span class="va">data</span> <span class="op">&lt;-</span> <span class="fu">dbartsData</span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x</span> <span class="op">+</span> <span class="va">g</span>, <span class="va">df</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">data</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> An object of class "dbartsData"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "y":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [1]  0.177577428  0.760531131  0.993684793  0.265626355  0.697894896</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [6]  0.519816750  0.009659326  0.244830643  1.014011813  1.005901046</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [11]  0.335204293  0.506964701  0.651273625  1.127721920  1.276516351</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [16]  0.841611818 -0.011854548  1.330332559  0.905008414  0.857943974</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [21]  0.244923711 -0.034990768  0.499862880  0.052575161  0.621328776</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [26]  0.745552247  0.703889559  1.424777615  1.032684790  1.387674186</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [31]  0.320629695  0.481533368  0.168516403  0.924658735  0.806339550</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [36]  0.152153052  0.883719720  0.120276483  1.272290346  0.589972076</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [41]  0.344054654  0.874243472  0.697341157  0.628454551  0.279732169</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [46]  0.232456352  0.026730705  0.133342322  0.441749469  1.251978519</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [51]  0.253527651  0.275760383  0.727522408  1.454490179  1.054661032</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [56]  0.964278766  0.405456058  0.254249106  0.132526675  0.272371030</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "x":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $dense</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $dense[[1]]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [1] 0.16804153 0.80751640 0.38494235 0.32773432 0.60210067 0.60439405</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [7] 0.12463344 0.29460092 0.57760992 0.63097927 0.51201590 0.50502391</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [13] 0.53403535 0.55724944 0.86791949 0.82970869 0.11144915 0.70368836</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [19] 0.89748826 0.27973255 0.22820188 0.01532989 0.12898156 0.09338193</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [25] 0.23688501 0.79114741 0.59973157 0.91014771 0.56042455 0.75570477</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [31] 0.37917189 0.37328098 0.17029064 0.45330732 0.25841396 0.33626595</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [37] 0.88958303 0.20194630 0.57918604 0.20763203 0.28146879 0.78628120</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [43] 0.17301935 0.57074752 0.41928296 0.26762217 0.04780944 0.10349305</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [49] 0.31403146 0.80064106 0.22932470 0.21299844 0.87710091 0.99322196</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [55] 0.84424702 0.91043655 0.47126973 0.22441841 0.12781466 0.27968351</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $dense[[2]]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [1] a c b a a a a a b b a c c b b a c b a b a a b a b c c b b b c c a b b a c c</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [39] b b a a b c c c c a a b c a c b a c c a c a</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Levels: a b c</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $sparse</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $map</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1 2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $numObservations</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 60</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> $columnNames</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "x" "g"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"class")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "dbartsMixedMatrix"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"term.labels")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "x" "g"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"varTypes")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"factor.levels")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"factor.levels")[[1]]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> attr(,"factor.levels")[[2]]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "a" "b" "c"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "varTypes":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "x.test":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "weights":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "weights.test":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "offset":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "offset.test":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "n.cuts":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "sigma":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "missing":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "incorporate"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.type":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "numeric"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.n.levels":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.levels":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "testUsesRegularOffset":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">## the same data through the backwards-compatible x/y interface, with a</span></span></span>
+<span class="r-in"><span><span class="co">## test set that is coded against the training level table</span></span></span>
+<span class="r-in"><span><span class="va">train</span> <span class="op">&lt;-</span> <span class="va">df</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">40</span>, <span class="op">]</span></span></span>
+<span class="r-in"><span><span class="va">test</span>  <span class="op">&lt;-</span> <span class="va">df</span><span class="op">[</span><span class="fl">41</span><span class="op">:</span><span class="fl">60</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"x"</span>, <span class="st">"g"</span><span class="op">)</span><span class="op">]</span></span></span>
+<span class="r-in"><span><span class="va">data</span> <span class="op">&lt;-</span> <span class="fu">dbartsData</span><span class="op">(</span><span class="va">train</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"x"</span>, <span class="st">"g"</span><span class="op">)</span><span class="op">]</span>, <span class="va">train</span><span class="op">$</span><span class="va">y</span>, <span class="va">test</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">## build a sampler on it, rather than letting dbarts() ingest again</span></span></span>
+<span class="r-in"><span><span class="va">sampler</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">data</span>, control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  n.chains <span class="op">=</span> <span class="fl">1L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>, n.samples <span class="op">=</span> <span class="fl">10L</span>, n.burn <span class="op">=</span> <span class="fl">10L</span>,</span></span>
+<span class="r-in"><span>  n.trees <span class="op">=</span> <span class="fl">25L</span>, updateState <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">samples</span> <span class="op">&lt;-</span> <span class="va">sampler</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">samples</span><span class="op">$</span><span class="va">test</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  num [1:20, 1:10] 0.347 0.933 0.469 0.612 0.39 ...</span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 

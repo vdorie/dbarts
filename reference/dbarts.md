@@ -321,10 +321,11 @@ dbarts(
   `"gaussian"` forces a continuous fit even for a 0/1 numeric response;
   `"probit"` and `"logistic"` require a 0/1 response and fit
   latent-variable models, with fits and predictions on the latent scale.
-  `"logistic"` uses Polya-Gamma augmentation. `"aft"` fits an
-  accelerated failure time (log-normal) survival model: the response is
-  a `Surv` object (from the survival package) or a two-column
-  `(time, status)` matrix or data frame (status 1 an event, 0
+  `"logistic"` uses Polya-Gamma augmentation.
+
+  `"aft"` fits an accelerated failure time (log-normal) survival model:
+  the response is a `Surv` object (from the survival package) or a
+  two-column `(time, status)` matrix or data frame (status 1 an event, 0
   right-censored; logical status also works, factor status does not),
   and
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
@@ -337,12 +338,14 @@ dbarts(
   are rejected. Survival fits currently use the matrix
   (`x.train`/`y.train`) interface and do not support `subset` or case
   weights. See `weights` for how the families differ in their support
-  for weights. `"ordinal"` fits an ordered categorical response by a
-  cumulative probit: a latent \\z = f(x) + \epsilon\\, \\\epsilon \sim
-  N(0, 1)\\, is cut at ordered thresholds \\\gamma_1 = 0 \< \gamma_2 \<
-  \ldots \< \gamma\_{K-1}\\ into the \\K\\ ordered categories, the free
-  cutpoints sampled by a marginal Metropolis update with the latents
-  integrated out. The response should be an ordered factor
+  for weights.
+
+  `"ordinal"` fits an ordered categorical response by a cumulative
+  probit: a latent \\z = f(x) + \epsilon\\, \\\epsilon \sim N(0, 1)\\,
+  is cut at ordered thresholds \\\gamma_1 = 0 \< \gamma_2 \< \ldots \<
+  \gamma\_{K-1}\\ into the \\K\\ ordered categories, the free cutpoints
+  sampled by a marginal Metropolis update with the latents integrated
+  out. The response should be an ordered factor
   ([`is.ordered`](https://rdrr.io/r/base/factor.html)), whose level
   order defines the category order; under `family = "auto"` an ordered
   factor with three or more levels is detected and fit as ordinal,
@@ -355,6 +358,7 @@ dbarts(
   scale, and weights are not supported. `bart2` reports ordinal fits as
   \\n \times K\\ category probabilities; see
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md).
+
   `"nbinom"` fits a non-negative integer (count) response by a
   negative-binomial model with the Polya-Gamma augmentation: the forest
   fits a log-odds latent \\\psi = f(x) + o\\ and \\y \sim \mathrm{NB}(r,
@@ -367,6 +371,7 @@ dbarts(
   on the latent (log-odds) scale, and weights are not supported
   (exposure belongs in the offset). `bart2` reports mean counts; see
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md).
+
   `"hazard"` and `"hazard.logistic"` fit a discrete-time survival hazard
   model by person-period expansion (`"hazard.probit"` is an accepted
   alias for `"hazard"`). The response is the same `Surv` object or
@@ -389,18 +394,20 @@ dbarts(
   `$periods` grid, and its `$family` records the binary link. Like
   `"aft"`, hazard fits use the matrix interface and do not support
   `subset` or a `test` set (expand test subjects with
-  `survivalProbabilities(..., newdata = )`). `"hurdle.lognormal"` (alias
-  `"twopart"`, which resolves and prints as `"hurdle.lognormal"`) fits a
-  semicontinuous two-part (hurdle) model for a non-negative response
-  with exact zeros: an occupancy probit fit of \\z = 1\\y \> 0\\\\ over
-  all n observations, glued at report time to a lognormal positive-part
-  fit - an ordinary gaussian fit of \\\log y\\ - over the subset \\\\i :
-  y_i \> 0\\\\; the two parts share no parameters and are composed from
-  two ordinary fits at independently derived seeds, so no engine code is
-  added and a shared variable-selection prior across the parts is not
-  available (a recorded limitation). `y.train` must be non-negative and
-  finite and must carry at least one exact zero and one positive value.
-  By default, predictions report the natural (response) scale via
+  `survivalProbabilities(..., newdata = )`).
+
+  `"hurdle.lognormal"` (alias `"twopart"`, which resolves and prints as
+  `"hurdle.lognormal"`) fits a semicontinuous two-part (hurdle) model
+  for a non-negative response with exact zeros: an occupancy probit fit
+  of \\z = 1\\y \> 0\\\\ over all n observations, glued at report time
+  to a lognormal positive-part fit - an ordinary gaussian fit of \\\log
+  y\\ - over the subset \\\\i : y_i \> 0\\\\; the two parts share no
+  parameters and are composed from two ordinary fits at independently
+  derived seeds, so no engine code is added and a shared
+  variable-selection prior across the parts is not available (a recorded
+  limitation). `y.train` must be non-negative and finite and must carry
+  at least one exact zero and one positive value. By default,
+  predictions report the natural (response) scale via
   posterior-predictive Monte Carlo, \\E\[y \mid x\] = P(y \> 0 \mid
   x)\\e^{f(x) + \sigma^2 / 2}\\, heteroscedasticity-aware when the
   positive part carries a `variance = ~x` surface; see
@@ -514,6 +521,56 @@ A reference object of
 
 ## References
 
+Chipman, H.A., George, E.I., McCulloch, R.E., and Shively, T.S. (2022)
+mBART: multidimensional monotone BART. *Bayesian Analysis*, **17**(2),
+515–544.
+
+Pratola, M.T., Chipman, H.A., George, E.I., and McCulloch, R.E. (2020)
+Heteroscedastic BART via multiplicative regression trees. *Journal of
+Computational and Graphical Statistics*, **29**(2), 405–417.
+
 Twala, B.E.T.H., Jones, M.C., and Hand, D.J. (2008) Good methods for
 coping with missing data in decision trees. *Pattern Recognition
 Letters*, **29**(7), 950–956.
+
+## Examples
+
+``` r
+set.seed(8)
+n <- 100L
+x <- matrix(runif(n * 3L), n, 3L)
+y <- 2 * x[, 1L] - x[, 2L] + rnorm(n, 0, 0.2)
+
+control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.burn = 0L,
+                         n.samples = 1L, n.trees = 25L, updateState = FALSE)
+
+## The sampler is created once and then run repeatedly, so that BART can act
+## as a conditional model inside a larger Gibbs/Metropolis-Hastings sampler.
+sampler <- dbarts(y ~ x, control = control)
+samples <- sampler$run(numBurnIn = 50L, numSamples = 1L)
+str(samples$train)
+#>  num [1:100, 1] 0.107 0.148 1.545 0.975 -0.282 ...
+
+## an outer step revises the response; the sampler picks it up on the next
+## run() without being rebuilt. The prior scale set at creation stays locked
+## unless updateScale = TRUE is passed (burn-in only).
+sampler$setResponse(y + rnorm(n, 0, 0.05))
+samples <- sampler$run()
+
+## priors are given as expressions in dbarts's own vocabulary
+sampler <- dbarts(y ~ x, control = control,
+                  tree.prior = cgm(power = 1.5),
+                  node.prior = normal(k = chi(1.5, 2)),
+                  resid.prior = chisq(df = 5))
+
+## an additive fit that is monotone increasing in the first predictor
+sampler <- dbarts(y ~ x, control = control,
+                  interactions = interactions(max.order = 1L),
+                  monotone = c(1, 0, 0))
+samples <- sampler$run(numBurnIn = 20L, numSamples = 5L)
+
+## a non-gaussian family: counts by negative binomial, offset a log-exposure
+counts <- rnbinom(n, size = 4, mu = exp(0.5 * x[, 1L]) * 4)
+sampler <- dbarts(x, counts, family = "nbinom", control = control)
+samples <- sampler$run(numBurnIn = 20L, numSamples = 5L)
+```

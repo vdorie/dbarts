@@ -13,7 +13,7 @@ guessNumCores(logical = FALSE)
 - logical:
 
   A logical value. When `FALSE`, an estimate of the number of physical
-  cores is returned. When `TRUE`, so-called “logical” cores as also
+  cores is returned. When `TRUE`, so-called “logical” cores are also
   included.
 
 ## Details
@@ -26,8 +26,20 @@ itself.
 
 ## Value
 
-An integer, or NA if no clear answer was obtained.
+An integer, or `NA` if no clear answer was obtained.
 
 ## Author
 
 Vincent Dorie: <vdorie@gmail.com>.
+
+## Examples
+
+``` r
+## physical cores, the default used by dbartsControl(n.threads = )
+guessNumCores()
+#> [1] 2
+
+## including hyperthreads
+guessNumCores(logical = TRUE)
+#> [1] 4
+```

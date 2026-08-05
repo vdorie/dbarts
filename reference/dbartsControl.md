@@ -29,7 +29,7 @@ dbartsControl(
 
 - useQuantiles:
 
-  Logical to determine if the empirical quantiles of a columns of
+  Logical to determine if the empirical quantiles of the columns of
   predictors should be used to determine the tree decision rules. If
   `FALSE`, the rules are spaced uniformly throughout the range of
   covariate values.
@@ -71,7 +71,9 @@ dbartsControl(
   rules to be used for each given predictor. If of length less than the
   number of predictors, earlier values are recycled. If for any
   predictor more values are specified than are coherent, fewer may be
-  used. See details for more information.
+  used. See the ‘Decision Rules’ section of
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) for how
+  the rules themselves are placed.
 
 - n.burn:
 
@@ -144,3 +146,78 @@ An object of class `dbartsControl`.
 ## See also
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+
+## Examples
+
+``` r
+## a small, single-chain, reproducible control for embedding a sampler in a
+## larger Gibbs loop: one sample per run(), no burn-in, state cached on demand
+control <- dbartsControl(n.chains = 1L, n.threads = 1L,
+                         n.burn = 0L, n.samples = 1L,
+                         n.trees = 25L, rngSeed = 7L,
+                         updateState = FALSE)
+control
+#> An object of class "dbartsControl"
+#> Slot "binary":
+#> [1] FALSE
+#> 
+#> Slot "verbose":
+#> [1] FALSE
+#> 
+#> Slot "keepTrainingFits":
+#> [1] TRUE
+#> 
+#> Slot "useQuantiles":
+#> [1] FALSE
+#> 
+#> Slot "keepTrees":
+#> [1] FALSE
+#> 
+#> Slot "storage":
+#> [1] "double"
+#> 
+#> Slot "n.samples":
+#> [1] 1
+#> 
+#> Slot "n.cuts":
+#> [1] 100
+#> 
+#> Slot "n.burn":
+#> [1] 0
+#> 
+#> Slot "n.trees":
+#> [1] 25
+#> 
+#> Slot "n.chains":
+#> [1] 1
+#> 
+#> Slot "n.threads":
+#> [1] 1
+#> 
+#> Slot "n.thin":
+#> [1] 1
+#> 
+#> Slot "printEvery":
+#> [1] 100
+#> 
+#> Slot "printCutoffs":
+#> [1] 0
+#> 
+#> Slot "rngSeed":
+#> [1] 7
+#> 
+#> Slot "updateState":
+#> [1] FALSE
+#> 
+#> Slot "call":
+#> `NA`()
+#> 
+
+n <- 50L
+x <- matrix(runif(n * 2L), n, 2L)
+y <- x[, 1L] - x[, 2L] + rnorm(n, 0, 0.2)
+sampler <- dbarts(y ~ x, control = control)
+samples <- sampler$run()
+str(samples$train)
+#>  num [1:50, 1] -0.722 -0.251 0.633 -0.722 0.621 ...
+```

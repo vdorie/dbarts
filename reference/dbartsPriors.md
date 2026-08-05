@@ -111,6 +111,14 @@ the number of predictor columns. A prior object built ahead of time with
 
 ## References
 
+Chipman, H., George, E., and McCulloch, R. (2010) BART: Bayesian
+additive regression trees. *The Annals of Applied Statistics*, **4**(1),
+266–298. [doi:10.1214/09-AOAS285](https://doi.org/10.1214/09-AOAS285) .
+
+Linero, A.R. (2018) Bayesian regression trees for high-dimensional
+prediction and variable selection. *Journal of the American Statistical
+Association*, **113**(522), 626–636.
+
 Gramacy, R.B. and Lee, H.K.H. (2008) Bayesian Treed Gaussian Process
 Models With an Application to Computer Modeling. *Journal of the
 American Statistical Association*, **103**(483), 1119–1130.

@@ -14,16 +14,29 @@ mechanism.
 
 ## Features
 
-- Gaussian, probit, logistic, accelerated-failure-time survival, and
-  multinomial response families
-  (`family = "gaussian"/"probit"/"logistic"/"aft"/"multinomial"`)
+- Response families, via `family =`: `"gaussian"`, `"probit"`,
+  `"logistic"`, accelerated-failure-time survival (`"aft"`),
+  discrete-time survival hazard (`"hazard"`, `"hazard.logistic"`),
+  multinomial (`"multinomial"`), ordered categorical (`"ordinal"`),
+  negative-binomial counts (`"nbinom"`), and semicontinuous two-part
+  (`"hurdle.lognormal"`)
+- Outlier-robust Student-t residuals (`resid.dist = student(...)`)
+- Heteroscedastic variance forest (`variance = ~ x1 + x2`)
+- Monotonicity (`monotone`), interaction (`interactions`), and
+  block-additive (`blocks`) constraints
 - Missing predictor values handled in place via MIA
   (`missing = "incorporate"`)
 - DART variable selection prior (`dart = TRUE` or `tree.prior = dart()`)
 - Linear and Gaussian-process leaf models (`node.prior = linear(...)` or
   `gp(...)`)
-- Sparse `Matrix::dgCMatrix` predictor input
+- Categorical predictors split on level subsets
+  (`factors = "categorical"`); sparse `Matrix::dgCMatrix` and mixed
+  dense/sparse predictor input
 - Grouped random effects (`rbart_vi`)
+- Warm starts from a previous fit (`warm.start`) or XBART-style
+  grow-from-root (`n.grow.sweeps`)
+- Reduced-precision residual storage for large problems
+  (`storage = "single"`)
 
 See `inst/NEWS.Rd` for release notes.
 

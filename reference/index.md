@@ -1,5 +1,10 @@
 # Package index
 
+## Overview
+
+- [`dbarts-package`](https://vdorie.github.io/dbarts/reference/dbarts-package.md)
+  : Discrete Bayesian Additive Regression Trees Sampler
+
 ## Model fitting
 
 Fit BART models to fixed data.
@@ -65,6 +70,7 @@ weights can change between draws, for use inside larger MCMC schemes.
   [`getLatents(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`getSumsOfSquaredResiduals(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`installTrees(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`storeState(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setState(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`plotTree(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   : Class "dbartsSampler" of Discrete Bayesian Additive Regression Trees

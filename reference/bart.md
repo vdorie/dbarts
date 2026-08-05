@@ -9,12 +9,13 @@ constrained by a prior to be a weak learner.
 - For binary response \\y\\, \\P(Y = 1 \mid x) = \Phi(f(x))\\, where
   \\\Phi\\ denotes the standard normal cdf (probit link).
 
-- `bart2` fits further response families - logistic, accelerated failure
-  time (`family = "aft"`), K-category multinomial
+- `bart2` fits further response families through its `family` argument,
+  described below: logistic, accelerated failure time
+  (`family = "aft"`), discrete-time survival hazard
+  (`family = "hazard"`, `"hazard.logistic"`), K-category multinomial
   (`family = "multinomial"`), ordered categorical (`family = "ordinal"`,
-  a cumulative probit), and negative-binomial counts
-  (`family = "nbinom"`) - through its `family` argument, described
-  below.
+  a cumulative probit), negative-binomial counts (`family = "nbinom"`),
+  and semicontinuous two-part responses (`family = "hurdle.lognormal"`).
 
 ## Usage
 
@@ -241,10 +242,11 @@ summary(object, ...)
   \\y\\ fit with the default probit link, `k` is the number of prior
   standard deviations \\f(x)\\ is away from \\\pm 3\\, the probit
   reference scale; `family = "logistic"` (`bart2` only) widens this to
-  \\\pm \pi \sqrt{3}\\, the standard deviation of the standard logistic
-  latent variable. In both cases, the bigger \\k\\ is, the more
-  conservative the fitting will be. The value can be either a fixed
-  number, or a *hyperprior* of the form
+  \\\pm \pi \sqrt{3}\\, which is three standard deviations of the
+  standard logistic latent variable (\\\pi / \sqrt{3}\\ each), the same
+  three-sd span probit's \\\pm 3\\ covers. In both cases, the bigger
+  \\k\\ is, the more conservative the fitting will be. The value can be
+  either a fixed number, or a *hyperprior* of the form
   `chi(degreesOfFreedom = 1.5, scale = 2)`. For `bart2`, the default of
   `NULL` uses the value 2 for continuous responses and the `chi(1.5, 2)`
   hyperprior for binary ones, which centers the sampled `k` near the
@@ -864,7 +866,7 @@ can be used to build a supported hyperprior. At present, only
 \\\chi\_\nu s\\ priors are supported, where \\\nu\\ is a degrees of
 freedom and \\s\\ is a scale. Both values must be positive, however the
 scale can be infinite which yields an improper prior, which is
-interpreted as just the polynomial part of the distribution. If \\nu\\
+interpreted as just the polynomial part of the distribution. If \\\nu\\
 is 1 and \\s\\ is \\\infty\\, the prior is “flat”.
 
 For BART on binary outcomes, the degree of overfitting can be highly
@@ -973,13 +975,18 @@ element of a fitted `bart` or `bart2` model. See the package vignette
 applicable quantities, `ndpost / keepevery` samples are returned. In the
 numeric \\y\\ case, the list has components:
 
+- `call`:
+
+  The matched call, or `call("NULL")` when the fit was made with
+  `keepcall`/`keepCall` equal to `FALSE`.
+
 - `yhat.train`:
 
   A array/matrix of posterior samples. The \\(i, j, k)\\ value is the
   \\j\\th draw of the posterior of \\f\\ evaluated at the \\k\\th row of
   `x.train` (i.e. \\f^\*(x_k)\\) corresponding to chain \\i\\. When
-  `nchain` is one or `combinechains` is `TRUE`, the result is a
-  collapsed down to a matrix.
+  `nchain` is one or `combinechains` is `TRUE`, the result is collapsed
+  down to a matrix.
 
 - `yhat.test`:
 
@@ -998,8 +1005,7 @@ numeric \\y\\ case, the list has components:
 
   Matrix of posterior samples of `sigma`, the residual/error standard
   deviation. Dimensions are equal to the number of chains times the
-  numbers of samples unless `nchain` is one or `combinechains` is
-  `TRUE`.
+  number of samples unless `nchain` is one or `combinechains` is `TRUE`.
 
 - `first.sigma`:
 
@@ -1046,6 +1052,24 @@ numeric \\y\\ case, the list has components:
 - `first.k`:
 
   Burn-in draws of `k`, if modeled.
+
+- `s.train`, `s.test`:
+
+  Present only under a heteroscedastic fit (`variance` supplied):
+  posterior draws of the residual scale \\s(x)\\, laid out as
+  `yhat.train`/`yhat.test`. See the `variance` argument.
+
+- `binaryOffset`:
+
+  Present only for a binary fit: the offset value used.
+
+- `periods`:
+
+  Present only for a discrete-time hazard fit
+  (`family = "hazard"`/`"hazard.logistic"`): the ordered period grid the
+  person-period expansion used.
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  dispatches its survival-curve branch on this element.
 
 - `family`:
 
@@ -1206,21 +1230,30 @@ its posterior interval on the vertical axis.
 
 ## References
 
-Chipman, H., George, E., and McCulloch, R. (2009) BART: Bayesian
-Additive Regression Trees.
+Chipman, H., George, E., and McCulloch, R. (2010) BART: Bayesian
+additive regression trees. *The Annals of Applied Statistics*, **4**(1),
+266–298. [doi:10.1214/09-AOAS285](https://doi.org/10.1214/09-AOAS285) .
 
 Chipman, H., George, E., and McCulloch R. (2006) Bayesian Ensemble
 Learning. Advances in Neural Information Processing Systems 19,
 Scholkopf, Platt and Hoffman, Eds., MIT Press, Cambridge, MA, 265-272.
-
-both of the above at: <https://www.rob-mcculloch.org>
+<https://www.rob-mcculloch.org>
 
 Friedman, J.H. (1991) Multivariate adaptive regression splines. *The
 Annals of Statistics*, **19**, 1–67.
 
+He, J., Yalov, S., and Hahn, P.R. (2019) XBART: accelerated Bayesian
+additive regression trees. *Proceedings of the 22nd International
+Conference on Artificial Intelligence and Statistics (AISTATS)*, PMLR
+**89**, 1130–1138.
+
 Linero, A.R. (2018) Bayesian regression trees for high-dimensional
 prediction and variable selection. *Journal of the American Statistical
 Association*, **113**(522), 626–636.
+
+Pratola, M.T., Chipman, H.A., George, E.I., and McCulloch, R.E. (2020)
+Heteroscedastic BART via multiplicative regression trees. *Journal of
+Computational and Graphical Statistics*, **29**(2), 405–417.
 
 ## Author
 
@@ -1290,7 +1323,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.223053
+#> total seconds in loop: 0.224788
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1356,7 +1389,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001366
+#> total seconds in loop: 0.001341
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

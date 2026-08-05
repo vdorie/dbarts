@@ -50,7 +50,7 @@
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <p></p>
 <dl><dt id="arg-logical">logical<a class="anchor" aria-label="anchor" href="#arg-logical"></a></dt>
-<dd><p>A logical value. When <code>FALSE</code>, an estimate of the number of physical cores is returned. When <code>TRUE</code>, so-called “logical” cores as also included.</p></dd>
+<dd><p>A logical value. When <code>FALSE</code>, an estimate of the number of physical cores is returned. When <code>TRUE</code>, so-called “logical” cores are also included.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -59,13 +59,24 @@
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>An integer, or NA if no clear answer was obtained.</p>
+    <p>An integer, or <code>NA</code> if no clear answer was obtained.</p>
     </div>
     <div class="section level2">
     <h2 id="author">Author<a class="anchor" aria-label="anchor" href="#author"></a></h2>
     <p>Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
     </div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co">## physical cores, the default used by dbartsControl(n.threads = )</span></span></span>
+<span class="r-in"><span><span class="fu">guessNumCores</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">## including hyperthreads</span></span></span>
+<span class="r-in"><span><span class="fu">guessNumCores</span><span class="op">(</span>logical <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 4</span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 

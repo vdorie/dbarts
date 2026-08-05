@@ -1,9 +1,10 @@
 # Crossvalidation For Bayesian Additive Regression Trees
 
-Fits the BART model against varying `k`, `power`, `base`, and `ntree`
+Fits the BART model against varying `k`, `power`, `base`, and `n.trees`
 parameters using \\K\\-fold or repeated random subsampling
 crossvalidation, sharing burn-in between parameter settings. Results are
-given an array of evaluations of a loss function on the held-out sets.
+returned as an array of evaluations of a loss function on the held-out
+sets.
 
 ## Usage
 
@@ -116,16 +117,16 @@ xbart(
 
 - loss:
 
-  Either a one of the pre-set loss functions as character-strings
-  (`mcr` - misclassification rate for binary responses, `rmse` -
+  Either one of the pre-set loss functions as character-strings (`mcr` -
+  misclassification rate for binary responses, `rmse` -
   root-mean-squared-error for continuous response), `log` - negative
   log-loss for binary response (`rmse` serves this purpose for
   continuous responses), a function, or a function-evaluation
   environment list-pair. Functions should have prototypes of the form
   `function(y.test, y.test.hat, weights)`, where `y.test` is the held
   out test subsample, `y.test.hat` is a matrix of dimension
-  `length(y.test) * n.samples`, and `weights` are an optional vector of
-  user-supplied weights. See examples.
+  `length(y.test)` \\\times\\ `n.samples`, and `weights` are an optional
+  vector of user-supplied weights. See examples.
 
 - n.threads:
 

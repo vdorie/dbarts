@@ -60,7 +60,7 @@
                         <h4 data-toc-skip class="author">Vincent
 Dorie</h4>
             
-            <h4 data-toc-skip class="date">01/23/2022</h4>
+            <h4 data-toc-skip class="date">2026-07-25</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/bartcore/vignettes/working_with_saved_trees.Rmd" class="external-link"><code>vignettes/working_with_saved_trees.Rmd</code></a></small>
       <div class="d-none name"><code>working_with_saved_trees.Rmd</code></div>
@@ -75,8 +75,8 @@ Dorie</h4>
 <p>When a <code>dbarts</code> model is fit with the
 <code>keepTrees</code> option set to <code>TRUE</code>, the sampler will
 return those trees in a “flat” format that corresponds to a depth-first,
-left-hand traversal. Recursion can be used to map functions the nodes in
-this structure, aggregating statistics of interest.</p>
+left-hand traversal. Recursion can be used to map functions over the
+nodes in this structure, aggregating statistics of interest.</p>
 <div class="section level2">
 <h2 id="simulation">Simulation<a class="anchor" aria-label="anchor" href="#simulation"></a>
 </h2>
@@ -131,7 +131,7 @@ illustrative purposes, a model can be fit thusly:</p>
 </h2>
 <p>The extract function accepts as a <code>type</code> the value
 <code>"trees"</code>. If present, the arguments <code>chainNums</code>,
-<code>sampleNums</code>, and/or <code>treeNum</code>s can be used to
+<code>sampleNums</code>, and/or <code>treeNums</code> can be used to
 extract only a subset of trees.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">trees</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bart.html">extract</a></span><span class="op">(</span><span class="va">bartFit</span>, <span class="st">"trees"</span><span class="op">)</span></span></code></pre></div>
@@ -233,7 +233,7 @@ By having the function return the number of nodes it has processed, it
 is possible to advance from the left-hand-side to the right by skipping
 ahead the appropriate number of rows. For example:</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Turns a flatted tree data frame into a list of lists, or a "natural" tree</span></span>
+<code class="sourceCode R"><span><span class="co"># Turns a flattened tree data frame into a list of lists, or a "natural" tree</span></span>
 <span><span class="co"># structure.</span></span>
 <span><span class="va">rebuildTree</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">tree</span>, <span class="va">object</span><span class="op">)</span> <span class="op">{</span></span>
 <span>    <span class="co"># A linear leaf's beta.&lt;column&gt; columns ride along automatically; a</span></span>
@@ -395,10 +395,10 @@ method that can be used to visualize single trees:</p>
 <h2 id="getting-tree-predictions">Getting Tree Predictions<a class="anchor" aria-label="anchor" href="#getting-tree-predictions"></a>
 </h2>
 <p>The following function traverses a flattened tree, splits
-observations while going the branches, and populates a vector giving the
-predicted value of that tree on input data. It requires a data in the
-same format as the fitted bart model so that it can evaluate the splits.
-As written it assumes an ordinal split and a constant leaf; a
+observations while going down the branches, and populates a vector
+giving the predicted value of that tree on input data. It requires data
+in the same format as the fitted bart model so that it can evaluate the
+splits. As written it assumes an ordinal split and a constant leaf; a
 categorical split’s condition instead reads <code>directions</code>, and
 a linear or gp leaf’s fitted value depends on the leaf’s covariates
 rather than being a single number - use <code>predict</code> for

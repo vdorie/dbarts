@@ -3,7 +3,7 @@
 When a `dbarts` model is fit with the `keepTrees` option set to `TRUE`,
 the sampler will return those trees in a “flat” format that corresponds
 to a depth-first, left-hand traversal. Recursion can be used to map
-functions the nodes in this structure, aggregating statistics of
+functions over the nodes in this structure, aggregating statistics of
 interest.
 
 ## Simulation
@@ -59,7 +59,7 @@ bartFit <- bart(
 ## Extracting Trees
 
 The extract function accepts as a `type` the value `"trees"`. If
-present, the arguments `chainNums`, `sampleNums`, and/or `treeNum`s can
+present, the arguments `chainNums`, `sampleNums`, and/or `treeNums` can
 be used to extract only a subset of trees.
 
 ``` r
@@ -159,7 +159,7 @@ ahead the appropriate number of rows. For example:
 
 ``` r
 
-# Turns a flatted tree data frame into a list of lists, or a "natural" tree
+# Turns a flattened tree data frame into a list of lists, or a "natural" tree
 # structure.
 rebuildTree <- function(tree, object) {
     # A linear leaf's beta.<column> columns ride along automatically; a
@@ -333,12 +333,12 @@ bartFit$fit$plotTree(chainNum = 1, sampleNum = 3, treeNum = 1)
 ## Getting Tree Predictions
 
 The following function traverses a flattened tree, splits observations
-while going the branches, and populates a vector giving the predicted
-value of that tree on input data. It requires a data in the same format
-as the fitted bart model so that it can evaluate the splits. As written
-it assumes an ordinal split and a constant leaf; a categorical split’s
-condition instead reads `directions`, and a linear or gp leaf’s fitted
-value depends on the leaf’s covariates rather than being a single
+while going down the branches, and populates a vector giving the
+predicted value of that tree on input data. It requires data in the same
+format as the fitted bart model so that it can evaluate the splits. As
+written it assumes an ordinal split and a constant leaf; a categorical
+split’s condition instead reads `directions`, and a linear or gp leaf’s
+fitted value depends on the leaf’s covariates rather than being a single
 number - use `predict` for those.
 
 ``` r

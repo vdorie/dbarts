@@ -98,6 +98,8 @@
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">installTrees</span><span class="op">(</span><span class="va">donor</span>, samples <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
+<span><span class="fu">storeState</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">setState</span><span class="op">(</span><span class="va">newState</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu"><a href="plotTree.html">plotTree</a></span><span class="op">(</span></span>
@@ -261,6 +263,26 @@
 
 </dl></div>
     <div class="section level2">
+    <h2 id="fields">Fields<a class="anchor" aria-label="anchor" href="#fields"></a></h2>
+    <p>Read with <code>$</code>, as the methods are called. Treat them as read-only: assigning to a field changes only the R-side copy and leaves the underlying engine untouched, so the sampler's behavior does not follow. Route changes through the <code>set*</code> methods instead.</p>
+<p></p><dl><dt><code>control</code></dt>
+<dd><p>The sampler's <code><a href="dbartsControl.html">dbartsControl</a></code>, carrying <code>n.chains</code>, <code>n.threads</code>, <code>n.trees</code>, <code>keepTrees</code>, <code>updateState</code>, and the rest. Replace with <code>setControl</code>.</p></dd>
+
+    <dt><code>model</code></dt>
+<dd><p>A <code>dbartsModel</code> holding the parsed tree, node, and residual priors, together with any monotonicity, interaction, and block constraints. Replace with <code>setModel</code>.</p></dd>
+
+    <dt><code>data</code></dt>
+<dd><p>A <code><a href="dbartsData.html">dbartsData</a></code> holding the current predictors, response, test data, weights, and offset. Its <code>x</code> slot is stored columnar for data-frame input and so need not be a plain matrix; use <code><a href="extract.dbartsSampler.html">extract</a>(sampler, "predictors")</code> for the numeric predictor matrix, which is what tree replay and <code>getTrees</code> count against. Replace with <code>setData</code>, or a piece at a time with the other <code>set*</code> methods.</p></dd>
+
+    <dt><code>state</code></dt>
+<dd><p>The cached, serializable engine state, or <code>NULL</code> until one is materialized. Reading it forces the sampler's <em>current</em> state; <code>storeState</code> refreshes it on demand and <code>updateState</code> governs when the methods do so themselves. It is the only field <code><a href="https://rdrr.io/r/base/save.html" class="external-link">save</a></code> needs, and restoring one requires <code>setState</code> - see ‘Saving’.</p></dd>
+
+    <dt><code>pointer</code></dt>
+<dd><p>The external pointer to the C++ engine. Internal; never manipulate it directly.</p></dd>
+
+
+</dl></div>
+    <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>A <code>dbartsSampler</code> is a mutable object which contains information pertaining to fitting a Bayesian additive regression tree model. The sampler is first created and then, in a separate instruction, run or modified. In this way, MCMC samplers can be constructed with BART components filling arbitrary roles.</p>
 <p></p><div class="section">
@@ -291,6 +313,7 @@
 <p>For <code>getSigmas</code>, a numeric vector of length equal to the number of chains, giving each chain's current residual standard deviation on the original response scale.</p>
 <p>For <code>getSumsOfSquaredResiduals</code>, a numeric vector of length equal to the number of chains, giving each chain's residual sum of squares \(\sum (y - \hat{y})^2\) on the original response scale; a binary-response sampler reports on the latent scale instead.</p>
 <p>For <code>getLatents</code>, <code>NULL</code> when the model has no latent-variable representation (e.g. a gaussian response); otherwise the sampler's current latent values - a plain vector of length equal to the number of observations when there is a single chain, or an observations-by-chains matrix otherwise - written into <code>result</code> when one was supplied.</p>
+<p>For <code>storeState</code>, <code>NULL</code> invisibly; it is called for its side effect of capturing the sampler's current engine state into the serializable <code>state</code> field, which <code><a href="https://rdrr.io/r/base/save.html" class="external-link">save</a></code> then writes out. See ‘Saving’.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

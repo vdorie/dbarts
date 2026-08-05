@@ -21,7 +21,7 @@ and that $`Z`$ is unobserved. To make the model fully Bayesian, we
 impose a $`\mathrm{Beta}(1, 1)`$ prior on $`p`$. $`f`$ and $`\sigma^2`$
 have implicit priors defined by BART.
 
-## Conditonal Posteriors
+## Conditional Posteriors
 
 To implement a Gibbs sampler, we will have to produce updates for $`Z`$
 and $`p`$. After writing down the joint distribution of $`Z`$, $`Y`$,
@@ -88,11 +88,10 @@ response variable can use the `sampler$setResponse` or
 
 One complication in updating the predictor matrix while the sampler runs
 is that new values of $`z`$ must leave the sampler in an internally
-consistent state. During warmup this constraint is ignored, however,
-after warmup is complete rejection sampling is used to guarantee that no
-leaf nodes are empty. This is accomplished by using the `forceUpdate`
-argument to `setPredictor` and checking that the logical response is
-`TRUE`.
+consistent state. During warmup this constraint is ignored; after warmup
+is complete, rejection sampling is used to guarantee that no leaf nodes
+are empty. This is accomplished by using the `forceUpdate` argument to
+`setPredictor` and checking that the logical response is `TRUE`.
 
 ``` r
 
@@ -147,7 +146,7 @@ for (i in seq_len(n_total)) {
   sampler$setTestPredictor(x = 1 - z, column = 2)
   
   n1 <- sum(z); n0 <- n - n1
-  p <- rbeta(1, 1 + n0, 1 + n1)
+  p <- rbeta(1, 1 + n1, 1 + n0)
 
   # Store samples if no longer warming up.
   if (i > n_warmup) {
@@ -162,9 +161,8 @@ for (i in seq_len(n_total)) {
 
 ## `Save`ing the sampler
 
-If it desired to use `save` and `load` on the sampler, it is required to
-instruct sampler stored using the reference class to write its state out
-as an `R` object:
+To use `save` and `load` on the sampler, it must first be told to write
+its state out as an `R` object:
 
 ``` r
 
@@ -325,10 +323,10 @@ incorporated rather than dropped.
 ## Multiple Threading
 
 When implementing a Gibbs sampler using `dbarts` in R, it is most often
-the case that multiple threads will need to handled by creating separate
-copies of the sampler and data. While `dbartsSampler`s are natively
-multithreaded, few of their slots are stored independently across
-chains. For an example of this approach and a more complete
+the case that multiple threads will need to be handled by creating
+separate copies of the sampler and data. While `dbartsSampler`s are
+natively multithreaded, few of their slots are stored independently
+across chains. For an example of this approach and a more complete
 implementation of the principles in this document, consult the
 implementation of
 [rbart_vi](https://github.com/vdorie/dbarts/blob/master/R/rbart.R).

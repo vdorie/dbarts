@@ -4,14 +4,12 @@
   per-group functions \(f = \sum_G f_G\) (a functional-ANOVA / grouped-GAMI
   decomposition). Pass the result as the blocks argument of
   dbarts or bart2. The constraint is applied per
-  forest, so with a two-forest causal model the treatment and prognostic
-  forests can carry independent partitions."><meta property="og:description" content="Build a block-additive constraint confining each whole tree in a BART fit to
+  forest, so in a multi-forest model each forest can carry its own partition."><meta property="og:description" content="Build a block-additive constraint confining each whole tree in a BART fit to
   one declared group of predictors, so the ensemble is exactly a sum of
   per-group functions \(f = \sum_G f_G\) (a functional-ANOVA / grouped-GAMI
   decomposition). Pass the result as the blocks argument of
   dbarts or bart2. The constraint is applied per
-  forest, so with a two-forest causal model the treatment and prognostic
-  forests can carry independent partitions."></head><body>
+  forest, so in a multi-forest model each forest can carry its own partition."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -55,8 +53,7 @@
   per-group functions \(f = \sum_G f_G\) (a functional-ANOVA / grouped-GAMI
   decomposition). Pass the result as the <code>blocks</code> argument of
   <code><a href="dbarts.html">dbarts</a></code> or <code><a href="bart.html">bart2</a></code>. The constraint is applied per
-  forest, so with a two-forest causal model the treatment and prognostic
-  forests can carry independent partitions.</p>
+  forest, so in a multi-forest model each forest can carry its own partition.</p>
     </div>
 
     <div class="section level2">
@@ -99,8 +96,8 @@
   model matrix at fit time - an unpartitioned predictor, a predictor named in
   more than one group, an unrecognized name, or a <code>trees.per.group</code> of the
   wrong length, with a non-positive entry, or not summing to <code>n.trees</code> is
-  an error. For a column-restricted forest (a <code>bcf</code> treatment forest over
-  moderators), the partition is over that forest's available columns.</p>
+  an error. For a forest that is already restricted to a subset of the columns,
+  the partition is over that forest's available columns.</p>
 <p><code>blocks</code> and <code><a href="interactions.html">interactions</a></code> act on independent seams (which
   columns a tree may use versus which may co-occur on a path) and may be
   combined on one forest. Block-additivity is also orthogonal to monotone

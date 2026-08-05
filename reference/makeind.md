@@ -22,7 +22,7 @@ makeTestModelMatrix(data, newdata)
 
 - drop:
 
-  Logical or list controling whether or not columns that are constants
+  Logical or list controlling whether or not columns that are constants
   or factor levels with no instances are omitted from the result. When a
   list, must be of length equal to `x`. Elements correspond to `x`
   according to:

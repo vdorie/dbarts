@@ -141,7 +141,7 @@
 <dd><p>One of <code>"ev"</code>, <code>"ppd"</code>, <code>"bart"</code>, <code>"loglik"</code>, <code>"ranef"</code>, or <code>"trees"</code> for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, training log-likelihood (<code>extract</code> only), random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. <code>"loglik"</code> evaluates the log-likelihood of each training observation at each posterior draw, conditioning on the drawn random intercepts as well as \(\sigma\) (gaussian) or the fitted probability (binary); when chains are combined the result is a samples-by-observations matrix directly consumable by WAIC/PSIS-LOO implementations such as those in the <span class="pkg">loo</span> package; the chains-first convention is kept, so a per-chain array (<code>combineChains = FALSE</code>, dimension chains-by-samples-by-observations) is reordered to the draws-by-chains-by-observations that <code>loo::relative_eff</code> expects with <code>aperm(x, c(2, 1, 3))</code>. To synergize with <code><a href="https://rdrr.io/r/stats/predict.glm.html" class="external-link">predict.glm</a></code>, <code>"response"</code> can be used as a synonym for <code>"ev"</code> and <code>"link"</code> can be used as a synonym for <code>"bart"</code>. For additional details on tree extraction, see the corresponding subsection in <code><a href="bart.html">bart</a></code>.</p></dd>
 
   <dt id="arg-sample">sample<a class="anchor" aria-label="anchor" href="#arg-sample"></a></dt>
-<dd><p>One of <code>"train"</code> or <code>"test"</code>, referring to the training or tests samples respectively.</p></dd>
+<dd><p>One of <code>"train"</code> or <code>"test"</code>, referring to the training or test samples respectively.</p></dd>
 
   <dt id="arg-ci-level">ci.level<a class="anchor" aria-label="anchor" href="#arg-ci-level"></a></dt>
 <dd><p>For <code>fitted</code> and <code>predict</code>, an optional single number in \((0, 1)\). As in <code><a href="bart.html">bart</a></code>: <code>NULL</code> (the default) returns the posterior mean, while a level returns a matrix of <code>est</code>, <code>ci.lower</code>, and <code>ci.upper</code>, with the interval kind following <code>type</code>.</p></dd>
@@ -155,10 +155,10 @@
     <p>Fits a BART model with additive random intercepts, one for each factor level of <code>group.by</code>. For continuous responses:</p>
 <ul><li><p>\(y_i \sim N(f(x_i) + \alpha_{g[i]}, \sigma^2)\)</p></li>
 <li><p>\(\alpha_j \sim N(0, \tau^2)\).</p></li>
-</ul><p>For binary outcomes the response model is changed to \(P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})\). \(i\) indexes observations, \(g[i]\) is the group index of observation \(i\), \(f(x)\) and \(\sigma_y\) come from a BART model, and \(\alpha_j\) are the independent and identically distributed random intercepts. Draws from the posterior of \(tau\) use an exact conjugate update for the built-in <code>cauchy</code> prior (a Makalic-Schmidt inverse-gamma scale mixture, two fixed inverse-gamma draws per sweep) and a slice sampler otherwise; the in-engine slice sampler for the built-in <code>gamma</code> prior steps out with a width tied to the prior's scale, while the R implementation used with custom priors determines its width from the curvature of the posterior at its mode.</p>
+</ul><p>For binary outcomes the response model is changed to \(P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})\). \(i\) indexes observations, \(g[i]\) is the group index of observation \(i\), \(f(x)\) and \(\sigma_y\) come from a BART model, and \(\alpha_j\) are the independent and identically distributed random intercepts. Draws from the posterior of \(\tau\) use an exact conjugate update for the built-in <code>cauchy</code> prior (a Makalic-Schmidt inverse-gamma scale mixture, two fixed inverse-gamma draws per sweep) and a slice sampler otherwise; the in-engine slice sampler for the built-in <code>gamma</code> prior steps out with a width tied to the prior's scale, while the R implementation used with custom priors determines its width from the curvature of the posterior at its mode.</p>
 <div class="section">
 <h3 id="out-of-sample-groups">Out Of Sample Groups<a class="anchor" aria-label="anchor" href="#out-of-sample-groups"></a></h3>
-<p>Predicting random effects for groups not in the training sample is supported by sampling from their posterior predictive distribution, that is a draw is taken from \(p(\alpha \mid y) = \int p(\alpha \mid \tau)p(\tau \mid y)d\alpha\). For out-of-sample groups in the test data, these random effect draws can be kept with the saved object. For those supplied to <code>predict</code>, they cannot and may change for subsequent calls.</p>
+<p>Predicting random effects for groups not in the training sample is supported by sampling from their posterior predictive distribution, that is a draw is taken from \(p(\alpha \mid y) = \int p(\alpha \mid \tau)p(\tau \mid y)d\tau\). For out-of-sample groups in the test data, these random effect draws can be kept with the saved object. For those supplied to <code>predict</code>, they cannot and may change for subsequent calls.</p>
 </div>
 
 <div class="section">
@@ -172,13 +172,13 @@
     <p>An object of class <code>rbart</code>. Contains all of the same elements of an object of class <code><a href="bart.html">bart</a></code>, as well as the elements:</p>
 <p></p>
 <dl><dt>ranef</dt>
-<dd><p>Samples from the posterior of the random effects. A array/matrix of posterior samples. The \((k, l, j)\) value is the \(l\)th draw of the posterior of the random effect for group \(j\) (i.e. \(\alpha^*_j\)) corresponding to chain \(k\). When <code>n.chains</code> is one or <code>combineChains</code> is <code>TRUE</code>, the result is a collapsed down to a matrix.</p></dd>
+<dd><p>Samples from the posterior of the random effects. A array/matrix of posterior samples. The \((k, l, j)\) value is the \(l\)th draw of the posterior of the random effect for group \(j\) (i.e. \(\alpha^*_j\)) corresponding to chain \(k\). When <code>n.chains</code> is one or <code>combineChains</code> is <code>TRUE</code>, the result is collapsed down to a matrix.</p></dd>
 
   <dt>ranef.mean</dt>
 <dd><p>Posterior mean of random effects, derived by taking mean across group index of samples.</p></dd>
 
   <dt>tau</dt>
-<dd><p>Matrix of posterior samples of <code>tau</code>, the standard deviation of the random effects. Dimensions are equal to the number of chains times the numbers of samples unless <code>n.chains</code> is one or <code>combineChains</code> is <code>TRUE</code>.</p></dd>
+<dd><p>Matrix of posterior samples of <code>tau</code>, the standard deviation of the random effects. Dimensions are equal to the number of chains times the number of samples unless <code>n.chains</code> is one or <code>combineChains</code> is <code>TRUE</code>.</p></dd>
 
   <dt><code>first.tau</code></dt>
 <dd><p>Burn-in draws of <code>tau</code>.</p></dd>
@@ -187,6 +187,12 @@
 <dd><p>Optional results of <code>callback</code> function.</p></dd>
 
 </dl></div>
+    <div class="section level2">
+    <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
+    <p>Makalic, E. and Schmidt, D.F. (2016)
+   A simple sampler for the horseshoe estimator.
+        <em>IEEE Signal Processing Letters</em>, <b>23</b>(1), 179–182.</p>
+    </div>
     <div class="section level2">
     <h2 id="author">Author<a class="anchor" aria-label="anchor" href="#author"></a></h2>
     <p>Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a></p>
@@ -254,7 +260,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000313</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000312</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 1 2 2 2 3 5 1 3 5 2 2 2 3 2 2 3 </span>
@@ -267,7 +273,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001554</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001594</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 5 3 4 2 2 3 2 2 4 3 3 2 3 2 2 3 1 4 </span>
@@ -312,7 +318,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000416</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000403</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 </span>
@@ -325,7 +331,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002009</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001960</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 </span>

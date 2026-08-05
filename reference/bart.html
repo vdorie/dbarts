@@ -3,13 +3,13 @@
 
 For numeric response \(y = f(x) + \epsilon\), where \(\epsilon \sim N(0, \sigma^2)\).
 For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) denotes the standard normal cdf (probit link).
-bart2 fits further response families - logistic, accelerated failure time (family = "aft"), K-category multinomial (family = "multinomial"), ordered categorical (family = "ordinal", a cumulative probit), and negative-binomial counts (family = "nbinom") - through its family argument, described below.
+bart2 fits further response families through its family argument, described below: logistic, accelerated failure time (family = "aft"), discrete-time survival hazard (family = "hazard", "hazard.logistic"), K-category multinomial (family = "multinomial"), ordered categorical (family = "ordinal", a cumulative probit), negative-binomial counts (family = "nbinom"), and semicontinuous two-part responses (family = "hurdle.lognormal").
 
 '><meta property="og:description" content='BART is a Bayesian &amp;#8220;sum-of-trees&amp;#8221; model in which each tree is constrained by a prior to be a weak learner.
 
 For numeric response \(y = f(x) + \epsilon\), where \(\epsilon \sim N(0, \sigma^2)\).
 For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) denotes the standard normal cdf (probit link).
-bart2 fits further response families - logistic, accelerated failure time (family = "aft"), K-category multinomial (family = "multinomial"), ordered categorical (family = "ordinal", a cumulative probit), and negative-binomial counts (family = "nbinom") - through its family argument, described below.
+bart2 fits further response families through its family argument, described below: logistic, accelerated failure time (family = "aft"), discrete-time survival hazard (family = "hazard", "hazard.logistic"), K-category multinomial (family = "multinomial"), ordered categorical (family = "ordinal", a cumulative probit), negative-binomial counts (family = "nbinom"), and semicontinuous two-part responses (family = "hurdle.lognormal").
 
 '></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -53,7 +53,7 @@ bart2 fits further response families - logistic, accelerated failure time (famil
     <p>BART is a Bayesian “sum-of-trees” model in which each tree is constrained by a prior to be a weak learner.</p>
 <ul><li><p>For numeric response \(y = f(x) + \epsilon\), where \(\epsilon \sim N(0, \sigma^2)\).</p></li>
 <li><p>For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) denotes the standard normal cdf (probit link).</p></li>
-<li><p><code>bart2</code> fits further response families - logistic, accelerated failure time (<code>family = "aft"</code>), K-category multinomial (<code>family = "multinomial"</code>), ordered categorical (<code>family = "ordinal"</code>, a cumulative probit), and negative-binomial counts (<code>family = "nbinom"</code>) - through its <code>family</code> argument, described below.</p></li>
+<li><p><code>bart2</code> fits further response families through its <code>family</code> argument, described below: logistic, accelerated failure time (<code>family = "aft"</code>), discrete-time survival hazard (<code>family = "hazard"</code>, <code>"hazard.logistic"</code>), K-category multinomial (<code>family = "multinomial"</code>), ordered categorical (<code>family = "ordinal"</code>, a cumulative probit), negative-binomial counts (<code>family = "nbinom"</code>), and semicontinuous two-part responses (<code>family = "hurdle.lognormal"</code>).</p></li>
 </ul></div>
 
     <div class="section level2">
@@ -205,7 +205,7 @@ bart2 fits further response families - logistic, accelerated failure time (famil
 <dd><p>Discrete-time hazard controls (<code>family = "hazard"</code> only; ignored otherwise), passed through to <code><a href="dbarts.html">dbarts</a></code>. <code>breaks</code> sets the period grid: <code>NULL</code> (the default) uses the sorted distinct observed times, a single positive integer bins at that many quantiles, and a numeric boundary vector gives explicit right-closed intervals. <code>max.rows</code> (default \(10^7\)) refuses an over-large person-period expansion, naming the coarsening levers.</p></dd>
 
    <dt id="arg-k">k<a class="anchor" aria-label="anchor" href="#arg-k"></a></dt>
-<dd><p>For numeric \(y\), <code>k</code> is the number of prior standard deviations \(E(Y|x) = f(x)\) is away from \(\pm 0.5\). The response (<code>y.train</code>) is internally scaled to range from \(-0.5\) to \(0.5\). For binary \(y\) fit with the default probit link, <code>k</code> is the number of prior standard deviations \(f(x)\) is away from \(\pm 3\), the probit reference scale; <code>family = "logistic"</code> (<code>bart2</code> only) widens this to \(\pm \pi \sqrt{3}\), the standard deviation of the standard logistic latent variable. In both cases, the bigger \(k\) is, the more conservative the fitting will be. The value can be either a fixed number, or a <em>hyperprior</em> of the form <code>chi(degreesOfFreedom = 1.5, scale = 2)</code>. For <code>bart2</code>, the default of <code>NULL</code> uses the value 2 for continuous responses and the <code>chi(1.5, 2)</code> hyperprior for binary ones, which centers the sampled <code>k</code> near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass <code>k = 2</code> for the fixed BART-package default, or <code>chi(1.5, Inf)</code> for the old improper prior. The default of 2 for continuous responses follows Chipman, George, and McCulloch's argument (see References) that with node prior standard deviation \(\sigma_\mu = 0.5 / (k \sqrt{m})\) for \(m\) trees, \(k\) prior standard deviations of \(f(x)\) span the whole coded response range regardless of \(m\) – so \(k = 2\) places that range at roughly a 95% prior interval. The range scaling itself is an outlier-sensitive convention shared with BayesTree/bartMachine: extreme \(y\) values compress the effective prior on everything else, for which the published workaround is to log-transform or winsorize such values before fitting, or to let <code>k</code> adapt via the <code>chi</code> hyperprior.</p></dd>
+<dd><p>For numeric \(y\), <code>k</code> is the number of prior standard deviations \(E(Y|x) = f(x)\) is away from \(\pm 0.5\). The response (<code>y.train</code>) is internally scaled to range from \(-0.5\) to \(0.5\). For binary \(y\) fit with the default probit link, <code>k</code> is the number of prior standard deviations \(f(x)\) is away from \(\pm 3\), the probit reference scale; <code>family = "logistic"</code> (<code>bart2</code> only) widens this to \(\pm \pi \sqrt{3}\), which is three standard deviations of the standard logistic latent variable (\(\pi / \sqrt{3}\) each), the same three-sd span probit's \(\pm 3\) covers. In both cases, the bigger \(k\) is, the more conservative the fitting will be. The value can be either a fixed number, or a <em>hyperprior</em> of the form <code>chi(degreesOfFreedom = 1.5, scale = 2)</code>. For <code>bart2</code>, the default of <code>NULL</code> uses the value 2 for continuous responses and the <code>chi(1.5, 2)</code> hyperprior for binary ones, which centers the sampled <code>k</code> near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass <code>k = 2</code> for the fixed BART-package default, or <code>chi(1.5, Inf)</code> for the old improper prior. The default of 2 for continuous responses follows Chipman, George, and McCulloch's argument (see References) that with node prior standard deviation \(\sigma_\mu = 0.5 / (k \sqrt{m})\) for \(m\) trees, \(k\) prior standard deviations of \(f(x)\) span the whole coded response range regardless of \(m\) – so \(k = 2\) places that range at roughly a 95% prior interval. The range scaling itself is an outlier-sensitive convention shared with BayesTree/bartMachine: extreme \(y\) values compress the effective prior on everything else, for which the published workaround is to log-transform or winsorize such values before fitting, or to let <code>k</code> adapt via the <code>chi</code> hyperprior.</p></dd>
 
    <dt id="arg-power">power<a class="anchor" aria-label="anchor" href="#arg-power"></a></dt>
 <dd><p>Power parameter for tree prior. Default 2, Chipman, George, and McCulloch's empirical recommendation (see References) for the split-probability decay \(base (1 + depth)^{-power}\), not derived from a formula.</p></dd>
@@ -364,7 +364,7 @@ bart2 fits further response families - logistic, accelerated failure time (famil
 <p>The number of possible values of \(c\) is determined by <code>numcut</code>. If <code>usequants</code> is <code>FALSE</code>, <code>numcut</code> equally spaced cutoffs are used covering the range of values in the corresponding column of <code>x.train</code>. If <code>usequants</code> is <code>TRUE</code>, then for a variable the minimum of <code>numcut</code> and one less than the number of unique elements for that variable are used.</p>
 </div><p></p><div class="section">
 <h3 id="end-node-prior-parameter-k">End-node prior parameter <code>k</code><a class="anchor" aria-label="anchor" href="#end-node-prior-parameter-k"></a></h3>
-<p>The amount of shrinkage of the node parameters is controlled by <code>k</code>. <code>k</code> can be given as either a fixed, positive number, or as any value that can be used to build a supported hyperprior. At present, only \(\chi_\nu s\) priors are supported, where \(\nu\) is a degrees of freedom and \(s\) is a scale. Both values must be positive, however the scale can be infinite which yields an improper prior, which is interpreted as just the polynomial part of the distribution. If \(nu\) is 1 and \(s\) is \(\infty\), the prior is “flat”.</p>
+<p>The amount of shrinkage of the node parameters is controlled by <code>k</code>. <code>k</code> can be given as either a fixed, positive number, or as any value that can be used to build a supported hyperprior. At present, only \(\chi_\nu s\) priors are supported, where \(\nu\) is a degrees of freedom and \(s\) is a scale. Both values must be positive, however the scale can be infinite which yields an improper prior, which is interpreted as just the polynomial part of the distribution. If \(\nu\) is 1 and \(s\) is \(\infty\), the prior is “flat”.</p>
 <p>For BART on binary outcomes, the degree of overfitting can be highly sensitive to <code>k</code> so it is encouraged to consider a number of values. The default hyperprior for binary <code>bart2</code>/<code>dbarts</code> fits, <code>chi(1.5, 2)</code>, centers the sampled <code>k</code> near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass <code>k = 2</code> for the fixed BART-package default. Crossvalidation may still be helpful, and running for a short time with a flat prior (<code>scale = Inf</code>) can show the range of <code>k</code> values the data are consistent with.</p>
 </div><p></p><div class="section">
 <h3 id="generics">Generics<a class="anchor" aria-label="anchor" href="#generics"></a></h3>
@@ -400,8 +400,11 @@ bart2 fits further response families - logistic, accelerated failure time (famil
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p><code>bart</code> and <code>bart2</code> return lists assigned the class <code>bart</code>. For applicable quantities, <code>ndpost / keepevery</code> samples are returned. In the numeric \(y\) case, the list has components:</p>
 <p></p>
-<dl><dt><code>yhat.train</code></dt>
-<dd><p>A array/matrix of posterior samples. The \((i, j, k)\) value is the \(j\)th draw of the posterior of \(f\) evaluated at the \(k\)th row of <code>x.train</code> (i.e. \(f^*(x_k)\)) corresponding to chain \(i\). When <code>nchain</code> is one or <code>combinechains</code> is <code>TRUE</code>, the result is a collapsed down to a matrix.</p></dd>
+<dl><dt><code>call</code></dt>
+<dd><p>The matched call, or <code>call("NULL")</code> when the fit was made with <code>keepcall</code>/<code>keepCall</code> equal to <code>FALSE</code>.</p></dd>
+
+  <dt><code>yhat.train</code></dt>
+<dd><p>A array/matrix of posterior samples. The \((i, j, k)\) value is the \(j\)th draw of the posterior of \(f\) evaluated at the \(k\)th row of <code>x.train</code> (i.e. \(f^*(x_k)\)) corresponding to chain \(i\). When <code>nchain</code> is one or <code>combinechains</code> is <code>TRUE</code>, the result is collapsed down to a matrix.</p></dd>
 
   <dt><code>yhat.test</code></dt>
 <dd><p>Same as <code>yhat.train</code> but now the \(x\)s are the rows of the test data.</p></dd>
@@ -413,7 +416,7 @@ bart2 fits further response families - logistic, accelerated failure time (famil
 <dd><p>Vector of means of <code>yhat.test</code> across columns and chains.</p></dd>
 
   <dt><code>sigma</code></dt>
-<dd><p>Matrix of posterior samples of <code>sigma</code>, the residual/error standard deviation. Dimensions are equal to the number of chains times the numbers of samples unless <code>nchain</code> is one or <code>combinechains</code> is <code>TRUE</code>.</p></dd>
+<dd><p>Matrix of posterior samples of <code>sigma</code>, the residual/error standard deviation. Dimensions are equal to the number of chains times the number of samples unless <code>nchain</code> is one or <code>combinechains</code> is <code>TRUE</code>.</p></dd>
 
   <dt><code>first.sigma</code></dt>
 <dd><p>Burn-in draws of <code>sigma</code>.</p></dd>
@@ -442,6 +445,15 @@ bart2 fits further response families - logistic, accelerated failure time (famil
   <dt><code>first.k</code></dt>
 <dd><p>Burn-in draws of <code>k</code>, if modeled.</p></dd>
 
+  <dt><code>s.train</code>, <code>s.test</code></dt>
+<dd><p>Present only under a heteroscedastic fit (<code>variance</code> supplied): posterior draws of the residual scale \(s(x)\), laid out as <code>yhat.train</code>/<code>yhat.test</code>. See the <code>variance</code> argument.</p></dd>
+
+  <dt><code>binaryOffset</code></dt>
+<dd><p>Present only for a binary fit: the offset value used.</p></dd>
+
+  <dt><code>periods</code></dt>
+<dd><p>Present only for a discrete-time hazard fit (<code>family = "hazard"</code>/<code>"hazard.logistic"</code>): the ordered period grid the person-period expansion used. <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> dispatches its survival-curve branch on this element.</p></dd>
+
   <dt><code>family</code></dt>
 <dd><p>The resolved response family (<code>"gaussian"</code>, <code>"probit"</code>, <code>"logistic"</code>, or <code>"aft"</code>). <code>predict</code>, <code>extract</code>, <code>fitted</code>, and <code>plot</code> use it to transform latent draws to probabilities. For an <code>"aft"</code> fit, predictions and fitted values are on the LOG-TIME scale: these functions return the linear predictor \(E[\log T \mid x]\), exactly as for a gaussian fit of \(\log T\), and never the time scale that <code>survreg</code> or <code>flexsurv</code> users might expect. The <code>type</code> aliases <code>"response"</code> and <code>"link"</code> are inert for <code>"aft"</code> - both return the same log-scale linear predictor; neither exponentiates. The posterior-median survival time is <code>exp</code> of the linear predictor, and <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> gives survival-probability draws. A discrete-time hazard fit (<code>family = "hazard"</code>/<code>"hazard.logistic"</code>) records the binary link here (<code>"probit"</code>/<code>"logistic"</code>) - the fit IS that binary fit on the expanded rows - and carries a separate <code>$periods</code> element (the ordered period grid); <code>predict</code>/<code>extract</code> return the per-(subject, period) hazard through the link, and <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> dispatches its survival-curve branch on the <code>$periods</code> marker.</p></dd>
 
@@ -458,20 +470,29 @@ bart2 fits further response families - logistic, accelerated failure time (famil
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
-    <p>Chipman, H., George, E., and McCulloch, R. (2009)
-   BART: Bayesian Additive Regression Trees.</p>
+    <p>Chipman, H., George, E., and McCulloch, R. (2010)
+   BART: Bayesian additive regression trees.
+        <em>The Annals of Applied Statistics</em>, <b>4</b>(1), 266–298.
+        <a href="https://doi.org/10.1214/09-AOAS285" class="external-link">doi:10.1214/09-AOAS285</a>
+.</p>
 <p>Chipman, H., George, E., and McCulloch R. (2006)
    Bayesian Ensemble Learning.
    Advances in Neural Information Processing Systems 19,
-   Scholkopf, Platt and Hoffman, Eds., MIT Press, Cambridge, MA, 265-272.</p>
-<p>both of the above at:
-<a href="https://www.rob-mcculloch.org" class="external-link">https://www.rob-mcculloch.org</a></p>
+   Scholkopf, Platt and Hoffman, Eds., MIT Press, Cambridge, MA, 265-272.
+   <a href="https://www.rob-mcculloch.org" class="external-link">https://www.rob-mcculloch.org</a></p>
 <p>Friedman, J.H. (1991)
    Multivariate adaptive regression splines.
         <em>The Annals of Statistics</em>, <b>19</b>, 1–67.</p>
+<p>He, J., Yalov, S., and Hahn, P.R. (2019)
+   XBART: accelerated Bayesian additive regression trees.
+        <em>Proceedings of the 22nd International Conference on Artificial
+        Intelligence and Statistics (AISTATS)</em>, PMLR <b>89</b>, 1130–1138.</p>
 <p>Linero, A.R. (2018)
    Bayesian regression trees for high-dimensional prediction and variable selection.
         <em>Journal of the American Statistical Association</em>, <b>113</b>(522), 626–636.</p>
+<p>Pratola, M.T., Chipman, H.A., George, E.I., and McCulloch, R.E. (2020)
+   Heteroscedastic BART via multiplicative regression trees.
+        <em>Journal of Computational and Graphical Statistics</em>, <b>29</b>(2), 405–417.</p>
     </div>
     <div class="section level2">
     <h2 id="author">Author<a class="anchor" aria-label="anchor" href="#author"></a></h2>
@@ -542,7 +563,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.223053</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.224788</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -608,7 +629,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001366</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001341</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>

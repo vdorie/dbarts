@@ -3,7 +3,7 @@
 Run [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) at test
 observations constructed so that a plot can be created displaying the
 effect of a single variable (`pdbart`) or pair of variables (`pd2bart`).
-Note that if \\y\\ is a binary with \\P(Y=1 \| x) = F(f(x))\\, \\F\\ the
+Note that if \\y\\ is binary with \\P(Y=1 \| x) = F(f(x))\\, \\F\\ the
 standard normal cdf, then the plots are all on the \\f\\ scale.
 
 ## Usage
@@ -76,7 +76,7 @@ plot(
 
 - levquants:
 
-  If `levs` in `NULL`, the values of each variable used in the plot is
+  If `levs` is `NULL`, the values of each variable used in the plot are
   set to the quantiles (in `x.train`) indicated by levquants. Must be a
   vector of numeric type.
 
@@ -196,13 +196,14 @@ BART run.
 
 ## References
 
-Chipman, H., George, E., and McCulloch, R. (2006) BART: Bayesian
-Additive Regression Trees.
+Chipman, H., George, E., and McCulloch, R. (2010) BART: Bayesian
+additive regression trees. *The Annals of Applied Statistics*, **4**(1),
+266–298. [doi:10.1214/09-AOAS285](https://doi.org/10.1214/09-AOAS285) .
 
 Chipman, H., George, E., and McCulloch R. (2006) Bayesian Ensemble
-Learning.
-
-both of the above at: <https://www.rob-mcculloch.org/>
+Learning. Advances in Neural Information Processing Systems 19,
+Scholkopf, Platt and Hoffman, Eds., MIT Press, Cambridge, MA, 265-272.
+<https://www.rob-mcculloch.org/>
 
 Friedman, J.H. (2001) Greedy function approximation: A gradient boosting
 machine. *The Annals of Statistics*, **29**, 1189–1232.
@@ -215,9 +216,8 @@ Robert McCulloch: <robert.mcculloch1@gmail.com>.
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
-## simulate data 
-f <- function(x) 
+## simulate data
+f <- function(x)
     return(0.5 * x[,1] + 2 * x[,2] * x[,3])
 
 sigma <- 0.2
@@ -230,17 +230,13 @@ colnames(x) <- c('rob', 'hugh', 'ed')
 Ey <- f(x)
 y  <- rnorm(n, Ey, sigma)
 
-## first two plot regions are for pdbart, third for pd2bart
-par(mfrow = c(1, 3))
-
 ## pdbart: one dimensional partial dependence plot
 set.seed(99)
 pdb1 <- pdbart(
     x, y, xind = c(1, 2),
     levs = list(seq(-1, 1, 0.2), seq(-1, 1, 0.2)),
-    pl = FALSE, keepevery = 10, ntree = 100
+    pl = FALSE, keepevery = 10, ntree = 100, verbose = FALSE
 )
-plot(pdb1, ylim = c(-0.6, 0.6))
 
 ## pd2bart: two dimensional partial dependence plot
 set.seed(99)
@@ -248,20 +244,35 @@ pdb2 <- pd2bart(
     x, y, xind = c(2, 3),
     levquants = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
     pl = FALSE, ntree = 100, keepevery = 10, verbose = FALSE)
+
+## the plot methods draw into the current device, so set up the layout and
+## put the caller's graphical parameters back afterwards. The first two plot
+## regions are for pdbart, the third for pd2bart.
+oldpar <- par(no.readonly = TRUE)
+par(mfrow = c(1, 3))
+plot(pdb1, ylim = c(-0.6, 0.6))
 plot(pdb2)
+
+par(oldpar)
 
 ## compare BART fit to linear model and truth = Ey
 lmFit  <- lm(y ~ ., data.frame(x, y))
 fitmat <- cbind(y, Ey, lmFit$fitted, pdb1$yhat.train.mean)
 colnames(fitmat) <- c('y', 'Ey', 'lm', 'bart')
 print(cor(fitmat))
+#>              y        Ey        lm      bart
+#> y    1.0000000 0.9603886 0.4052732 0.9900234
+#> Ey   0.9603886 1.0000000 0.4457354 0.9813192
+#> lm   0.4052732 0.4457354 1.0000000 0.4375004
+#> bart 0.9900234 0.9813192 0.4375004 1.0000000
 
+# \donttest{
 ## example showing the use of a pre-fitted model
 df <- data.frame(y, x)
 set.seed(99)
 bartFit <- bart(
     y ~ rob + hugh + ed, df,
-    keepevery = 10, ntree = 100, keeptrees = TRUE)
-pdb1 <- pdbart(bartFit, xind = rob + ed, pl = FALSE)
-} # }
+    keepevery = 10, ntree = 100, keeptrees = TRUE, verbose = FALSE)
+pdb3 <- pdbart(bartFit, xind = rob + ed, pl = FALSE)
+# }
 ```

@@ -14,16 +14,29 @@ mechanism.
 
 ## Features
 
-- Gaussian, probit, logistic, accelerated-failure-time survival, and
-  multinomial response families
-  (`family = "gaussian"/"probit"/"logistic"/"aft"/"multinomial"`)
+- Response families, via `family =`: `"gaussian"`, `"probit"`,
+  `"logistic"`, accelerated-failure-time survival (`"aft"`),
+  discrete-time survival hazard (`"hazard"`, `"hazard.logistic"`),
+  multinomial (`"multinomial"`), ordered categorical (`"ordinal"`),
+  negative-binomial counts (`"nbinom"`), and semicontinuous two-part
+  (`"hurdle.lognormal"`)
+- Outlier-robust Student-t residuals (`resid.dist = student(...)`)
+- Heteroscedastic variance forest (`variance = ~ x1 + x2`)
+- Monotonicity (`monotone`), interaction (`interactions`), and
+  block-additive (`blocks`) constraints
 - Missing predictor values handled in place via MIA
   (`missing = "incorporate"`)
 - DART variable selection prior (`dart = TRUE` or `tree.prior = dart()`)
 - Linear and Gaussian-process leaf models (`node.prior = linear(...)` or
   `gp(...)`)
-- Sparse `Matrix::dgCMatrix` predictor input
+- Categorical predictors split on level subsets
+  (`factors = "categorical"`); sparse `Matrix::dgCMatrix` and mixed
+  dense/sparse predictor input
 - Grouped random effects (`rbart_vi`)
+- Warm starts from a previous fit (`warm.start`) or XBART-style
+  grow-from-root (`n.grow.sweeps`)
+- Reduced-precision residual storage for large problems
+  (`storage = "single"`)
 
 See `inst/NEWS.Rd` for release notes.
 
@@ -57,6 +70,11 @@ dbarts at the C level should link against the flat C API in
 was removed in 1.0-0.
 
 # Package index
+
+## Overview
+
+- [`dbarts-package`](https://vdorie.github.io/dbarts/reference/dbarts-package.md)
+  : Discrete Bayesian Additive Regression Trees Sampler
 
 ## Model fitting
 
@@ -123,6 +141,7 @@ weights can change between draws, for use inside larger MCMC schemes.
   [`getLatents(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`getSumsOfSquaredResiduals(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`installTrees(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`storeState(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setState(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`plotTree(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   : Class "dbartsSampler" of Discrete Bayesian Additive Regression Trees

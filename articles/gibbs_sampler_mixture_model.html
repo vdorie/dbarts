@@ -60,7 +60,7 @@
                         <h4 data-toc-skip class="author">Vincent
 Dorie</h4>
             
-            <h4 data-toc-skip class="date">12/21/2020</h4>
+            <h4 data-toc-skip class="date">2026-07-25</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/bartcore/vignettes/gibbs_sampler_mixture_model.Rmd" class="external-link"><code>vignettes/gibbs_sampler_mixture_model.Rmd</code></a></small>
       <div class="d-none name"><code>gibbs_sampler_mixture_model.Rmd</code></div>
@@ -96,7 +96,7 @@ and
 have implicit priors defined by BART.</p>
 </div>
 <div class="section level2">
-<h2 id="conditonal-posteriors">Conditonal Posteriors<a class="anchor" aria-label="anchor" href="#conditonal-posteriors"></a>
+<h2 id="conditional-posteriors">Conditional Posteriors<a class="anchor" aria-label="anchor" href="#conditional-posteriors"></a>
 </h2>
 <p>To implement a Gibbs sampler, we will have to produce updates for
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Z</mi><annotation encoding="application/x-tex">Z</annotation></semantics></math>
@@ -199,9 +199,9 @@ functions.</p>
 runs is that new values of
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>z</mi><annotation encoding="application/x-tex">z</annotation></semantics></math>
 must leave the sampler in an internally consistent state. During warmup
-this constraint is ignored, however, after warmup is complete rejection
-sampling is used to guarantee that no leaf nodes are empty. This is
-accomplished by using the <code>forceUpdate</code> argument to
+this constraint is ignored; after warmup is complete, rejection sampling
+is used to guarantee that no leaf nodes are empty. This is accomplished
+by using the <code>forceUpdate</code> argument to
 <code>setPredictor</code> and checking that the logical response is
 <code>TRUE</code>.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
@@ -256,7 +256,7 @@ accomplished by using the <code>forceUpdate</code> argument to
 <span>  <span class="va">sampler</span><span class="op">$</span><span class="fu">setTestPredictor</span><span class="op">(</span>x <span class="op">=</span> <span class="fl">1</span> <span class="op">-</span> <span class="va">z</span>, column <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
 <span>  </span>
 <span>  <span class="va">n1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">z</span><span class="op">)</span>; <span class="va">n0</span> <span class="op">&lt;-</span> <span class="va">n</span> <span class="op">-</span> <span class="va">n1</span></span>
-<span>  <span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Beta.html" class="external-link">rbeta</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span> <span class="op">+</span> <span class="va">n0</span>, <span class="fl">1</span> <span class="op">+</span> <span class="va">n1</span><span class="op">)</span></span>
+<span>  <span class="va">p</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Beta.html" class="external-link">rbeta</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span> <span class="op">+</span> <span class="va">n1</span>, <span class="fl">1</span> <span class="op">+</span> <span class="va">n0</span><span class="op">)</span></span>
 <span></span>
 <span>  <span class="co"># Store samples if no longer warming up.</span></span>
 <span>  <span class="kw">if</span> <span class="op">(</span><span class="va">i</span> <span class="op">&gt;</span> <span class="va">n_warmup</span><span class="op">)</span> <span class="op">{</span></span>
@@ -272,9 +272,9 @@ accomplished by using the <code>forceUpdate</code> argument to
 <h2 id="saveing-the-sampler">
 <code>Save</code>ing the sampler<a class="anchor" aria-label="anchor" href="#saveing-the-sampler"></a>
 </h2>
-<p>If it desired to use <code>save</code> and <code>load</code> on the
-sampler, it is required to instruct sampler stored using the reference
-class to write its state out as an <code>R</code> object:</p>
+<p>To use <code>save</code> and <code>load</code> on the sampler, it
+must first be told to write its state out as an <code>R</code>
+object:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sampler</span><span class="op">$</span><span class="fu">storeState</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -435,7 +435,7 @@ levels rather than two indicator columns, and the ten missing values of
 <h2 id="multiple-threading">Multiple Threading<a class="anchor" aria-label="anchor" href="#multiple-threading"></a>
 </h2>
 <p>When implementing a Gibbs sampler using <code>dbarts</code> in R, it
-is most often the case that multiple threads will need to handled by
+is most often the case that multiple threads will need to be handled by
 creating separate copies of the sampler and data. While
 <code>dbartsSampler</code>s are natively multithreaded, few of their
 slots are stored independently across chains. For an example of this

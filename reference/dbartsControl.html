@@ -62,7 +62,7 @@
 <dd><p>Logical controlling whether or not training fits are returned when the sampler runs. These are always computed as part of the fitting procedure, so disabling will not substantially impact running time.</p></dd>
 
    <dt id="arg-usequantiles">useQuantiles<a class="anchor" aria-label="anchor" href="#arg-usequantiles"></a></dt>
-<dd><p>Logical to determine if the empirical quantiles of a columns of predictors should be used to determine the tree decision rules. If <code>FALSE</code>, the rules are spaced uniformly throughout the range of covariate values.</p></dd>
+<dd><p>Logical to determine if the empirical quantiles of the columns of predictors should be used to determine the tree decision rules. If <code>FALSE</code>, the rules are spaced uniformly throughout the range of covariate values.</p></dd>
 
    <dt id="arg-keeptrees">keepTrees<a class="anchor" aria-label="anchor" href="#arg-keeptrees"></a></dt>
 <dd><p>A logical that determines whether or not trees are cached as they are sampled. In all cases, the current state of the sampler is stored as a single set of <code>n.trees</code>. When <code>keepTrees</code> is <code>TRUE</code>, a set of <code>n.trees * n.samples</code> trees are set aside and populated as the sampler runs. If the sampler is stopped and restarted, samples proceed from the previously stored tree, looping over if necessary.</p></dd>
@@ -74,7 +74,7 @@
 <dd><p>A non-negative integer giving the default number of samples to return each time the sampler is run. Generally specified by <code><a href="dbarts.html">dbarts</a></code> instead, and can be overridden on a per-use basis whenever the sampler is <code><a href="dbartsSampler-class.html">run</a></code>.</p></dd>
 
    <dt id="arg-n-cuts">n.cuts<a class="anchor" aria-label="anchor" href="#arg-n-cuts"></a></dt>
-<dd><p>A positive integer or integer vector giving the number of decision rules to be used for each given predictor. If of length less than the number of predictors, earlier values are recycled. If for any predictor more values are specified than are coherent, fewer may be used. See details for more information.</p></dd>
+<dd><p>A positive integer or integer vector giving the number of decision rules to be used for each given predictor. If of length less than the number of predictors, earlier values are recycled. If for any predictor more values are specified than are coherent, fewer may be used. See the ‘Decision Rules’ section of <code><a href="bart.html">bart</a></code> for how the rules themselves are placed.</p></dd>
 
    <dt id="arg-n-burn">n.burn<a class="anchor" aria-label="anchor" href="#arg-n-burn"></a></dt>
 <dd><p>A non-negative integer determining how many samples, if any, are thrown away at the beginning of a run of the sampler.</p></dd>
@@ -113,6 +113,80 @@
     <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code></p></div>
     </div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co">## a small, single-chain, reproducible control for embedding a sampler in a</span></span></span>
+<span class="r-in"><span><span class="co">## larger Gibbs loop: one sample per run(), no burn-in, state cached on demand</span></span></span>
+<span class="r-in"><span><span class="va">control</span> <span class="op">&lt;-</span> <span class="fu">dbartsControl</span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>,</span></span>
+<span class="r-in"><span>                         n.burn <span class="op">=</span> <span class="fl">0L</span>, n.samples <span class="op">=</span> <span class="fl">1L</span>,</span></span>
+<span class="r-in"><span>                         n.trees <span class="op">=</span> <span class="fl">25L</span>, rngSeed <span class="op">=</span> <span class="fl">7L</span>,</span></span>
+<span class="r-in"><span>                         updateState <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">control</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> An object of class "dbartsControl"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "binary":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "verbose":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "keepTrainingFits":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "useQuantiles":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "keepTrees":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "storage":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "double"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "n.samples":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "n.cuts":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 100</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "n.burn":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "n.trees":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 25</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "n.chains":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "n.threads":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "n.thin":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "printEvery":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 100</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "printCutoffs":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "rngSeed":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 7</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "updateState":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "call":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> `NA`()</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">50L</span></span></span>
+<span class="r-in"><span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span> <span class="op">*</span> <span class="fl">2L</span><span class="op">)</span>, <span class="va">n</span>, <span class="fl">2L</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">1L</span><span class="op">]</span> <span class="op">-</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">2L</span><span class="op">]</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">0</span>, <span class="fl">0.2</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">sampler</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x</span>, control <span class="op">=</span> <span class="va">control</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">samples</span> <span class="op">&lt;-</span> <span class="va">sampler</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">samples</span><span class="op">$</span><span class="va">train</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  num [1:50, 1] -0.722 -0.251 0.633 -0.722 0.621 ...</span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 

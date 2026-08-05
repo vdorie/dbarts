@@ -62,6 +62,8 @@ getSumsOfSquaredResiduals(result)
 # S4 method for class 'dbartsSampler'
 installTrees(donor, samples = NULL)
 # S4 method for class 'dbartsSampler'
+storeState()
+# S4 method for class 'dbartsSampler'
 setState(newState)
 # S4 method for class 'dbartsSampler'
 plotTree(
@@ -335,6 +337,52 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   Extra arguments to
   [`plot`](https://rdrr.io/r/graphics/plot.default.html).
 
+## Fields
+
+Read with `$`, as the methods are called. Treat them as read-only:
+assigning to a field changes only the R-side copy and leaves the
+underlying engine untouched, so the sampler's behavior does not follow.
+Route changes through the `set*` methods instead.
+
+- `control`:
+
+  The sampler's
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md),
+  carrying `n.chains`, `n.threads`, `n.trees`, `keepTrees`,
+  `updateState`, and the rest. Replace with `setControl`.
+
+- `model`:
+
+  A `dbartsModel` holding the parsed tree, node, and residual priors,
+  together with any monotonicity, interaction, and block constraints.
+  Replace with `setModel`.
+
+- `data`:
+
+  A
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
+  holding the current predictors, response, test data, weights, and
+  offset. Its `x` slot is stored columnar for data-frame input and so
+  need not be a plain matrix; use
+  [`extract`](https://vdorie.github.io/dbarts/reference/extract.dbartsSampler.md)`(sampler, "predictors")`
+  for the numeric predictor matrix, which is what tree replay and
+  `getTrees` count against. Replace with `setData`, or a piece at a time
+  with the other `set*` methods.
+
+- `state`:
+
+  The cached, serializable engine state, or `NULL` until one is
+  materialized. Reading it forces the sampler's *current* state;
+  `storeState` refreshes it on demand and `updateState` governs when the
+  methods do so themselves. It is the only field
+  [`save`](https://rdrr.io/r/base/save.html) needs, and restoring one
+  requires `setState` - see ‘Saving’.
+
+- `pointer`:
+
+  The external pointer to the C++ engine. Internal; never manipulate it
+  directly.
+
 ## Details
 
 A `dbartsSampler` is a mutable object which contains information
@@ -487,6 +535,11 @@ representation (e.g. a gaussian response); otherwise the sampler's
 current latent values - a plain vector of length equal to the number of
 observations when there is a single chain, or an observations-by-chains
 matrix otherwise - written into `result` when one was supplied.
+
+For `storeState`, `NULL` invisibly; it is called for its side effect of
+capturing the sampler's current engine state into the serializable
+`state` field, which [`save`](https://rdrr.io/r/base/save.html) then
+writes out. See ‘Saving’.
 
 ## See also
 

@@ -5,9 +5,8 @@ predictors may jointly shape a BART fit. Pass the result as the
 `interactions` argument of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
 [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md). The
-constraint is applied per forest, so with a two-forest causal model the
-treatment forest can be held additive-or-low-order while the prognostic
-forest stays free.
+constraint is applied per forest, so in a multi-forest model one forest
+can be held additive-or-low-order while another stays free.
 
 ## Usage
 

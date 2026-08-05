@@ -6,8 +6,8 @@ sum of per-group functions \\f = \sum_G f_G\\ (a functional-ANOVA /
 grouped-GAMI decomposition). Pass the result as the `blocks` argument of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
 [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md). The
-constraint is applied per forest, so with a two-forest causal model the
-treatment and prognostic forests can carry independent partitions.
+constraint is applied per forest, so in a multi-forest model each forest
+can carry its own partition.
 
 ## Usage
 
@@ -53,7 +53,7 @@ every value is validated against the model matrix at fit time - an
 unpartitioned predictor, a predictor named in more than one group, an
 unrecognized name, or a `trees.per.group` of the wrong length, with a
 non-positive entry, or not summing to `n.trees` is an error. For a
-column-restricted forest (a `bcf` treatment forest over moderators), the
+forest that is already restricted to a subset of the columns, the
 partition is over that forest's available columns.
 
 `blocks` and

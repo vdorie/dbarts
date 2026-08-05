@@ -11,8 +11,8 @@
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Discrete Bayesian Additive Regression Trees Sampler">
-<meta name="description" content="Fits Bayesian additive regression trees (BART; Chipman, George, and McCulloch (2010) &lt;doi:10.1214/09-AOAS285&gt;) while allowing the updating of predictors or response so that BART can be incorporated as a conditional model in a Gibbs/Metropolis-Hastings sampler. Supports continuous, probit, and logistic responses, variable selection through DART priors, missing-value incorporation, categorical and sparse predictors, grouped random intercepts, and linear or Gaussian-process leaf models. Also serves as a drop-in replacement for package BayesTree.">
-<meta property="og:description" content="Fits Bayesian additive regression trees (BART; Chipman, George, and McCulloch (2010) &lt;doi:10.1214/09-AOAS285&gt;) while allowing the updating of predictors or response so that BART can be incorporated as a conditional model in a Gibbs/Metropolis-Hastings sampler. Supports continuous, probit, and logistic responses, variable selection through DART priors, missing-value incorporation, categorical and sparse predictors, grouped random intercepts, and linear or Gaussian-process leaf models. Also serves as a drop-in replacement for package BayesTree.">
+<meta name="description" content="Fits Bayesian additive regression trees (BART; Chipman, George, and McCulloch (2010) &lt;doi:10.1214/09-AOAS285&gt;) while allowing the updating of predictors or response so that BART can be incorporated as a conditional model in a Gibbs/Metropolis-Hastings sampler. Supports continuous, probit, logistic, multinomial, ordinal, negative-binomial, semicontinuous two-part, and survival (accelerated failure time and discrete-time hazard) responses, robust Student-t errors, heteroscedastic variance forests, monotonicity and interaction constraints, variable selection through DART priors, missing-value incorporation, categorical and sparse predictors, grouped random intercepts, and linear or Gaussian-process leaf models. Also serves as a drop-in replacement for package BayesTree.">
+<meta property="og:description" content="Fits Bayesian additive regression trees (BART; Chipman, George, and McCulloch (2010) &lt;doi:10.1214/09-AOAS285&gt;) while allowing the updating of predictors or response so that BART can be incorporated as a conditional model in a Gibbs/Metropolis-Hastings sampler. Supports continuous, probit, logistic, multinomial, ordinal, negative-binomial, semicontinuous two-part, and survival (accelerated failure time and discrete-time hazard) responses, robust Student-t errors, heteroscedastic variance forests, monotonicity and interaction constraints, variable selection through DART priors, missing-value incorporation, categorical and sparse predictors, grouped random intercepts, and linear or Gaussian-process leaf models. Also serves as a drop-in replacement for package BayesTree.">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -63,12 +63,17 @@
 <h2 id="features">Features<a class="anchor" aria-label="anchor" href="#features"></a>
 </h2>
 <ul>
-<li>Gaussian, probit, logistic, accelerated-failure-time survival, and multinomial response families (<code>family = "gaussian"/"probit"/"logistic"/"aft"/"multinomial"</code>)</li>
+<li>Response families, via <code>family =</code>: <code>"gaussian"</code>, <code>"probit"</code>, <code>"logistic"</code>, accelerated-failure-time survival (<code>"aft"</code>), discrete-time survival hazard (<code>"hazard"</code>, <code>"hazard.logistic"</code>), multinomial (<code>"multinomial"</code>), ordered categorical (<code>"ordinal"</code>), negative-binomial counts (<code>"nbinom"</code>), and semicontinuous two-part (<code>"hurdle.lognormal"</code>)</li>
+<li>Outlier-robust Student-t residuals (<code>resid.dist = student(...)</code>)</li>
+<li>Heteroscedastic variance forest (<code>variance = ~ x1 + x2</code>)</li>
+<li>Monotonicity (<code>monotone</code>), interaction (<code>interactions</code>), and block-additive (<code>blocks</code>) constraints</li>
 <li>Missing predictor values handled in place via MIA (<code>missing = "incorporate"</code>)</li>
 <li>DART variable selection prior (<code>dart = TRUE</code> or <code>tree.prior = dart()</code>)</li>
 <li>Linear and Gaussian-process leaf models (<code>node.prior = linear(...)</code> or <code>gp(...)</code>)</li>
-<li>Sparse <code>Matrix::dgCMatrix</code> predictor input</li>
+<li>Categorical predictors split on level subsets (<code>factors = "categorical"</code>); sparse <code>Matrix::dgCMatrix</code> and mixed dense/sparse predictor input</li>
 <li>Grouped random effects (<code>rbart_vi</code>)</li>
+<li>Warm starts from a previous fit (<code>warm.start</code>) or XBART-style grow-from-root (<code>n.grow.sweeps</code>)</li>
+<li>Reduced-precision residual storage for large problems (<code>storage = "single"</code>)</li>
 </ul>
 <p>See <code>inst/NEWS.Rd</code> for release notes.</p>
 <p>Steps to install from source:</p>

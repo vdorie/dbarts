@@ -100,6 +100,38 @@
     <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="dbartsSampler-class.html">dbartsSampler</a></code></p></div>
     </div>
 
+    <div class="section level2">
+    <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co">## two BART components conditioning on a common latent predictor 'theta',</span></span></span>
+<span class="r-in"><span><span class="co">## as an item-response model would: both must accept an observation's new</span></span></span>
+<span class="r-in"><span><span class="co">## value, or neither does</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">5</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">80L</span></span></span>
+<span class="r-in"><span><span class="va">theta</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">w</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">df1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>theta <span class="op">=</span> <span class="va">theta</span>, w <span class="op">=</span> <span class="va">w</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">df1</span><span class="op">$</span><span class="va">y</span> <span class="op">&lt;-</span> <span class="va">theta</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">0</span>, <span class="fl">0.2</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">df2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>v <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span>, theta <span class="op">=</span> <span class="va">theta</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">df2</span><span class="op">$</span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="va">theta</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">0</span>, <span class="fl">0.2</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">control</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>, n.burn <span class="op">=</span> <span class="fl">0L</span>,</span></span>
+<span class="r-in"><span>                         n.samples <span class="op">=</span> <span class="fl">1L</span>, n.trees <span class="op">=</span> <span class="fl">25L</span>, updateState <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">s1</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">theta</span> <span class="op">+</span> <span class="va">w</span>, <span class="va">df1</span>, control <span class="op">=</span> <span class="va">control</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">s2</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">v</span> <span class="op">+</span> <span class="va">theta</span>, <span class="va">df2</span>, control <span class="op">=</span> <span class="va">control</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="va">s1</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="va">s2</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">## 'theta' sits in a different column of each sampler; it is matched by name</span></span></span>
+<span class="r-in"><span><span class="va">proposal</span> <span class="op">&lt;-</span> <span class="va">theta</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">0</span>, <span class="fl">0.1</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">installed</span> <span class="op">&lt;-</span> <span class="fu">updatePredictorPerObservationJointly</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">s1</span>, <span class="va">s2</span><span class="op">)</span>, <span class="va">proposal</span>, column <span class="op">=</span> <span class="st">"theta"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">installed</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> installed</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> TRUE </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   80 </span>
+</code></pre></div>
+    </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 
