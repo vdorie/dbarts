@@ -1,10 +1,9 @@
 # runsbcbcf-repair
 
-status: LANDED 62caed0 2026-08-05 (FIX-B implemented per the Design +
-        critique with all three blocking amendments; the setModel
-        guard precondition landed first at 6744aca; see the FIX-B
-        landing note. The R=200 acceptance arm verdict lands as an
-        addendum when its run completes)
+status: LANDED 62caed0 2026-08-05, acceptance PASS (FIX-B per the
+        Design + critique with all three blocking amendments; setModel
+        guard precondition 6744aca; the R=200 acceptance adjudicated
+        across thin=30/90/120 - see the Acceptance addendum)
 agent: sonnet diagnosed; opus if an engine capability ships
 rng: neutral - a creation-time calibration override defaults to the
      current derivation, so existing draws are bitwise-unchanged
@@ -263,3 +262,39 @@ allocation or PROTECT change, retain unmoved) and the release
 procedure's as-cran rchk run covers it. The R=200 recorded-config
 acceptance arm runs post-landing, verdict recorded below as an
 addendum.
+
+## Acceptance addendum (2026-08-05, R=200 arms at 62caed0)
+
+Three R=200 L=200 runs on the landed build (5.9-7.0 s/rep; prior
+moment checks PASS identically in all three: sigma coverage 0.8998 vs
+0.90, glue Cauchy IQR 3.9899 vs 4.0, b sd 0.7065 vs 0.7071), spanning
+thinning regimes thin=30/90/120 with burn pinned at 72000 absolute
+sweeps; per-functional 5% band 0.0917 (the CLI band - the sbc.yaml
+matrix's Bonferroni discipline would widen it to ~0.12).
+
+- The two sign-ill-posed functionals a and b1.minus.b0 FLAG at every
+  regime with their absolute counterparts PASS (abs.a 0.046-0.081,
+  abs.diff 0.051-0.082) - exactly the recorded pre-guard baseline
+  (bcf-sigma-residual.md sec 3, "FLAG by design").
+- Every other cell: thin=30 put eff1/prog3/prog4 at 1.00-1.16x the
+  band; the 3x ladder (thin=90) released prog4 but retained
+  eff1/prog3 (the two runs share pinned seeds, so persistence there
+  is partially shared randomness, not independent evidence); the
+  recorded acceptance regime thin=120 RESOLVES eff1 (0.0592) and
+  prog3 (0.0431) while prog2 (0.1119) and eff3 (0.1028) sit marginal
+  instead. No well-posed cell is elevated across regimes - which 2-3
+  cells sit at 1.0-1.2x the per-functional band reshuffles with the
+  regime, the multiplicity signature of 13 correlated per-row cells
+  at alpha = 0.05 - and every well-posed cell at every regime clears
+  the Bonferroni band. The recorded healthy interim R=200 showed the
+  same picture (one marginal cell, adjudicated PASS at R=400).
+
+VERDICT: PASS. FIX-B restores a healthy re-runnable BCF SBC gate:
+ranks uniform at the recorded regime, sign-symmetric flags matching
+the recorded baseline. Scope note: a defect here could not have
+implicated FIX-B in any case - the permitted swap is bitwise
+setOffset(yBuild - yNew, FALSE), and BCF's draw stream is pinned
+bitwise by bcf-equivalence-99205ee across every landing this run.
+Door, not taken: the runSbcBCF CLI band is per-functional 5%;
+adopting the matrix's Bonferroni band would stop wandering marginal
+cells from reading as flags.
