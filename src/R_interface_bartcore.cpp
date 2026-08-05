@@ -28,6 +28,7 @@
 using std::size_t;
 using std::uint32_t;
 using bartcore_bridge::BartcoreHolder;
+using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::validateColumnValues;
 
 namespace {
@@ -1746,20 +1747,6 @@ void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
              "the BCF glue instead", caller);
 }
 
-// A whole-data mutation (setData, setResponse, setWeights) rebuilds only
-// forest 0: applyNewData and the response/latent refresh touch forests_[0], so
-// on a multi-forest sampler (BCF, and any future multi-forest model) the other
-// forests would keep fits against the old data. Refuse it; a multi-forest
-// sampler fixes its data at creation, as grouped/sparse/aft samplers do.
-// setTreatment, the one supported multi-forest data swap, routes through the
-// combiner and stays allowed.
-void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
-                               const char* caller) {
-  if (sampler.numForests() >= 2)
-    Rf_error("%s: a multi-forest sampler fixes its data at creation; make a "
-             "new sampler instead", caller);
-}
-
 // The transactional predictor paths (setPredictor and updatePredictor without
 // forceUpdate, and the per-observation sessions, which have no force variant)
 // validate and rebuild through revalidateAllChains, which revalidates only the
@@ -1858,6 +1845,24 @@ bartcore::ResponseFamily parseSamplerSpecification(
 } // namespace
 
 namespace bartcore_bridge {
+
+// A whole-data or whole-model mutation (setData, setResponse, setWeights,
+// setModel) rebuilds or reprices only forest 0: applyNewData, the
+// response/latent refresh, and Chain::setModel's prior installation all
+// touch forests_[0] alone, so on a multi-forest sampler (BCF, and any future
+// multi-forest model) the other forests would keep fits - or, for setModel,
+// a leaf scale - against the old data or an uncalibrated prior. Refuse it; a
+// multi-forest sampler fixes its data and prior at creation, as
+// grouped/sparse/aft samplers do. setTreatment, the one supported
+// multi-forest data swap, routes through the combiner and stays allowed.
+// External linkage: the flat C API (C_interface.cpp) reuses this guard on
+// its own setResponse/setWeights entries.
+void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
+                               const char* caller) {
+  if (sampler.numForests() >= 2)
+    Rf_error("%s: a multi-forest sampler fixes its data at creation; make a "
+             "new sampler instead", caller);
+}
 
 void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
                           const double* values, size_t numValues) {
@@ -3324,6 +3329,7 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
                        SEXP dataExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
+  refuseMultiForestMutation(sampler, "bartcore_setModel");
 
   if (!Rf_inherits(modelExpr, "dbartsModel"))
     Rf_error("'model' argument to bartcore_setModel not of class "

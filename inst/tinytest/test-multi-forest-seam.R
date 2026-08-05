@@ -80,6 +80,18 @@ expect_error(
   dbarts:::bartcoreSetWeights(bc.bcf, runif(n, 0.5, 1.5)),
   "multi-forest"
 )
+# setModel writes forest 0's leaf scale from the prior alone (Chain::
+# setModel), which would silently discard BCF's calibrated mu leaf scale;
+# refused regardless of the argument's class
+expect_error(
+  dbarts:::bartcoreSetModel(
+    bc.bcf,
+    sampler.bcf.host$model,
+    sampler.bcf.host$control,
+    sampler.bcf.host$data
+  ),
+  "multi-forest"
+)
 
 # transactional (non-force) predictor updates refuse ...
 expect_error(
@@ -105,6 +117,14 @@ expect_true(all(is.finite(result.bcf$train)))
 
 # the same guard is inert on a single-forest sampler: these mutations still work
 expect_silent(dbarts:::bartcoreSetResponse(bc.one, y + 1))
+expect_silent(
+  dbarts:::bartcoreSetModel(
+    bc.one,
+    sampler.one$model,
+    sampler.one$control,
+    sampler.one$data
+  )
+)
 expect_true(dbarts:::bartcoreSetPredictor(bc.one, x + 0))
 
 # --- the per-forest variable-count query (C3). On a single-forest sampler the

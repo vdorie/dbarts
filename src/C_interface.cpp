@@ -19,6 +19,7 @@
 
 using std::size_t;
 using bartcore_bridge::BartcoreHolder;
+using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::validateColumnValues;
 
 struct dbarts_sampler_t {
@@ -192,6 +193,9 @@ void dbarts_sampler_sampleNodeParametersFromPrior(dbarts_sampler* sampler) {
 }
 
 void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y) {
+  // unreachable today (ResponseFamily has no multi-forest member on the flat
+  // C API's creation path) but guarded defensively, matching the bridge entry
+  refuseMultiForestMutation(samplerOf(sampler), "dbarts_sampler_setResponse");
   // the probit latent redraw draws from the chain RNG, not R's stream
   samplerOf(sampler).setResponse(y, true); // flat ABI keeps re-anchoring
 }
@@ -203,6 +207,8 @@ void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
 
 void dbarts_sampler_setWeights(dbarts_sampler* sampler,
                                const double* weights) {
+  // unreachable today, guarded defensively; see dbarts_sampler_setResponse
+  refuseMultiForestMutation(samplerOf(sampler), "dbarts_sampler_setWeights");
   samplerOf(sampler).setWeights(weights);
 }
 
