@@ -146,6 +146,11 @@ For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_
     Optional results of \code{callback} function.
   }
 }
+\references{
+Makalic, E. and Schmidt, D.F. (2016)
+   A simple sampler for the horseshoe estimator.
+        \emph{IEEE Signal Processing Letters}, \bold{23}(1), 179--182.
+}
 \author{
   Vincent Dorie: \email{vdorie@gmail.com}
 }

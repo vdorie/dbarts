@@ -69,3 +69,19 @@ dbartsControl(
 \seealso{
   \code{\link{dbarts}}
 }
+\examples{
+## a small, single-chain, reproducible control for embedding a sampler in a
+## larger Gibbs loop: one sample per run(), no burn-in, state cached on demand
+control <- dbartsControl(n.chains = 1L, n.threads = 1L,
+                         n.burn = 0L, n.samples = 1L,
+                         n.trees = 25L, rngSeed = 7L,
+                         updateState = FALSE)
+control
+
+n <- 50L
+x <- matrix(runif(n * 2L), n, 2L)
+y <- x[, 1L] - x[, 2L] + rnorm(n, 0, 0.2)
+sampler <- dbarts(y ~ x, control = control)
+samples <- sampler$run()
+str(samples$train)
+}

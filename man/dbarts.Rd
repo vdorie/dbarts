@@ -142,7 +142,53 @@ dbarts(
   \code{\link{dbartsData}}, \code{\link{extract.dbartsSampler}}, \code{\link{sparseFactor}}
 }
 \references{
+Chipman, H.A., George, E.I., McCulloch, R.E., and Shively, T.S. (2022)
+   mBART: multidimensional monotone BART.
+        \emph{Bayesian Analysis}, \bold{17}(2), 515--544.
+
+Pratola, M.T., Chipman, H.A., George, E.I., and McCulloch, R.E. (2020)
+   Heteroscedastic BART via multiplicative regression trees.
+        \emph{Journal of Computational and Graphical Statistics}, \bold{29}(2), 405--417.
+
 Twala, B.E.T.H., Jones, M.C., and Hand, D.J. (2008)
    Good methods for coping with missing data in decision trees.
         \emph{Pattern Recognition Letters}, \bold{29}(7), 950--956.
+}
+\examples{
+set.seed(8)
+n <- 100L
+x <- matrix(runif(n * 3L), n, 3L)
+y <- 2 * x[, 1L] - x[, 2L] + rnorm(n, 0, 0.2)
+
+control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.burn = 0L,
+                         n.samples = 1L, n.trees = 25L, updateState = FALSE)
+
+## The sampler is created once and then run repeatedly, so that BART can act
+## as a conditional model inside a larger Gibbs/Metropolis-Hastings sampler.
+sampler <- dbarts(y ~ x, control = control)
+samples <- sampler$run(numBurnIn = 50L, numSamples = 1L)
+str(samples$train)
+
+## an outer step revises the response; the sampler picks it up on the next
+## run() without being rebuilt. The prior scale set at creation stays locked
+## unless updateScale = TRUE is passed (burn-in only).
+sampler$setResponse(y + rnorm(n, 0, 0.05))
+samples <- sampler$run()
+
+## priors are given as expressions in dbarts's own vocabulary
+sampler <- dbarts(y ~ x, control = control,
+                  tree.prior = cgm(power = 1.5),
+                  node.prior = normal(k = chi(1.5, 2)),
+                  resid.prior = chisq(df = 5))
+
+## an additive fit that is monotone increasing in the first predictor
+sampler <- dbarts(y ~ x, control = control,
+                  interactions = interactions(max.order = 1L),
+                  monotone = c(1, 0, 0))
+samples <- sampler$run(numBurnIn = 20L, numSamples = 5L)
+
+## a non-gaussian family: counts by negative binomial, offset a log-exposure
+counts <- rnbinom(n, size = 4, mu = exp(0.5 * x[, 1L]) * 4)
+sampler <- dbarts(x, counts, family = "nbinom", control = control)
+samples <- sampler$run(numBurnIn = 20L, numSamples = 5L)
 }

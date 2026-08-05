@@ -153,6 +153,15 @@ fit.gp <- dbarts(y.gp ~ x1 + x2, df.gp,
 samples.gp <- fit.gp$run(20L, 20L)
 }
 \references{
+Chipman, H., George, E., and McCulloch, R. (2010)
+   BART: Bayesian additive regression trees.
+        \emph{The Annals of Applied Statistics}, \bold{4}(1), 266--298.
+        \doi{10.1214/09-AOAS285}.
+
+Linero, A.R. (2018)
+   Bayesian regression trees for high-dimensional prediction and variable selection.
+        \emph{Journal of the American Statistical Association}, \bold{113}(522), 626--636.
+
 Gramacy, R.B. and Lee, H.K.H. (2008)
    Bayesian Treed Gaussian Process Models With an Application to Computer Modeling.
         \emph{Journal of the American Statistical Association}, \bold{103}(483), 1119--1130.

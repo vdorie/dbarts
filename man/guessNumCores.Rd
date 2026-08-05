@@ -21,4 +21,11 @@ guessNumCores(logical = FALSE)
 \author{
   Vincent Dorie: \email{vdorie@gmail.com}.
 }
+\examples{
+## physical cores, the default used by dbartsControl(n.threads = )
+guessNumCores()
+
+## including hyperthreads
+guessNumCores(logical = TRUE)
+}
 \keyword{parallel}

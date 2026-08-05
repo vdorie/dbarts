@@ -14,6 +14,21 @@
 \alias{residuals.bartMultinomial}
 \alias{plot.bartMultinomial}
 \alias{summary.bartMultinomial}
+\alias{extract.bartOrdinal}
+\alias{fitted.bartOrdinal}
+\alias{predict.bartOrdinal}
+\alias{print.bartOrdinal}
+\alias{residuals.bartOrdinal}
+\alias{extract.bartNegbin}
+\alias{fitted.bartNegbin}
+\alias{predict.bartNegbin}
+\alias{print.bartNegbin}
+\alias{residuals.bartNegbin}
+\alias{extract.bartHurdle}
+\alias{fitted.bartHurdle}
+\alias{predict.bartHurdle}
+\alias{print.bartHurdle}
+\alias{residuals.bartHurdle}
 \title{Bayesian Additive Regression Trees}
 \description{
 BART is a Bayesian \dQuote{sum-of-trees} model in which each tree is constrained by a prior to be a weak learner.
@@ -362,6 +377,9 @@ extract(object, \dots)
 \value{
   \code{bart} and \code{bart2} return lists assigned the class \code{bart}. For applicable quantities, \code{ndpost / keepevery} samples are returned. In the numeric \eqn{y} case, the list has components:
 
+  \item{\code{call}}{
+    The matched call, or \code{call("NULL")} when the fit was made with \code{keepcall}/\code{keepCall} equal to \code{FALSE}.
+  }
   \item{\code{yhat.train}}{
     A array/matrix of posterior samples. The \eqn{(i, j, k)} value is the \eqn{j}th draw of the posterior of \eqn{f} evaluated at the \eqn{k}th row of \code{x.train} (i.e. \eqn{f^*(x_k)}{f(x_k)}) corresponding to chain \eqn{i}. When \code{nchain} is one or \code{combinechains} is \code{TRUE}, the result is collapsed down to a matrix.
   }
@@ -403,6 +421,15 @@ extract(object, \dots)
   }
   \item{\code{first.k}}{
     Burn-in draws of \code{k}, if modeled.
+  }
+  \item{\code{s.train}, \code{s.test}}{
+    Present only under a heteroscedastic fit (\code{variance} supplied): posterior draws of the residual scale \eqn{s(x)}, laid out as \code{yhat.train}/\code{yhat.test}. See the \code{variance} argument.
+  }
+  \item{\code{binaryOffset}}{
+    Present only for a binary fit: the offset value used.
+  }
+  \item{\code{periods}}{
+    Present only for a discrete-time hazard fit (\code{family = "hazard"}/\code{"hazard.logistic"}): the ordered period grid the person-period expansion used. \code{\link{survivalProbabilities}} dispatches its survival-curve branch on this element.
   }
   \item{\code{family}}{
     The resolved response family (\code{"gaussian"}, \code{"probit"}, \code{"logistic"}, or \code{"aft"}). \code{predict}, \code{extract}, \code{fitted}, and \code{plot} use it to transform latent draws to probabilities. For an \code{"aft"} fit, predictions and fitted values are on the LOG-TIME scale: these functions return the linear predictor \eqn{E[\log T \mid x]}, exactly as for a gaussian fit of \eqn{\log T}, and never the time scale that \code{survreg} or \code{flexsurv} users might expect. The \code{type} aliases \code{"response"} and \code{"link"} are inert for \code{"aft"} - both return the same log-scale linear predictor; neither exponentiates. The posterior-median survival time is \code{exp} of the linear predictor, and \code{\link{survivalProbabilities}} gives survival-probability draws. A discrete-time hazard fit (\code{family = "hazard"}/\code{"hazard.logistic"}) records the binary link here (\code{"probit"}/\code{"logistic"}) - the fit IS that binary fit on the expanded rows - and carries a separate \code{$periods} element (the ordered period grid); \code{predict}/\code{extract} return the per-(subject, period) hazard through the link, and \code{\link{survivalProbabilities}} dispatches its survival-curve branch on the \code{$periods} marker.

@@ -38,3 +38,29 @@ dbartsData(
 \seealso{
   \code{\link{dbarts}}, \code{\link{extract.dbartsSampler}}, \code{\link{sparseFactor}}
 }
+\examples{
+set.seed(3)
+n <- 60L
+df <- data.frame(
+  x = runif(n),
+  g = factor(sample(c("a", "b", "c"), n, replace = TRUE))
+)
+df$y <- df$x + 0.5 * (df$g == "b") + rnorm(n, 0, 0.1)
+
+## the formula interface; 'g' enters as one categorical predictor
+data <- dbartsData(y ~ x + g, df)
+data
+
+## the same data through the backwards-compatible x/y interface, with a
+## test set that is coded against the training level table
+train <- df[1:40, ]
+test  <- df[41:60, c("x", "g")]
+data <- dbartsData(train[, c("x", "g")], train$y, test)
+
+## build a sampler on it, rather than letting dbarts() ingest again
+sampler <- dbarts(data, control = dbartsControl(
+  n.chains = 1L, n.threads = 1L, n.samples = 10L, n.burn = 10L,
+  n.trees = 25L, updateState = FALSE))
+samples <- sampler$run()
+str(samples$test)
+}

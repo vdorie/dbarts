@@ -52,3 +52,30 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NA)
 \seealso{
   \code{\link{dbarts}}, \code{\linkS4class{dbartsSampler}}
 }
+\examples{
+## two BART components conditioning on a common latent predictor 'theta',
+## as an item-response model would: both must accept an observation's new
+## value, or neither does
+set.seed(5)
+n <- 80L
+theta <- rnorm(n)
+w <- runif(n)
+
+df1 <- data.frame(theta = theta, w = w)
+df1$y <- theta + rnorm(n, 0, 0.2)
+df2 <- data.frame(v = runif(n), theta = theta)
+df2$y <- 0.5 * theta + rnorm(n, 0, 0.2)
+
+control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.burn = 0L,
+                         n.samples = 1L, n.trees = 25L, updateState = FALSE)
+s1 <- dbarts(y ~ theta + w, df1, control = control)
+s2 <- dbarts(y ~ v + theta, df2, control = control)
+invisible(s1$run())
+invisible(s2$run())
+
+## 'theta' sits in a different column of each sampler; it is matched by name
+proposal <- theta + rnorm(n, 0, 0.1)
+installed <- updatePredictorPerObservationJointly(
+  list(s1, s2), proposal, column = "theta")
+table(installed)
+}
