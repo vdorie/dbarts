@@ -40,11 +40,12 @@ dbarts(
   `x.train`, including a sparse `Matrix::dgCMatrix`: its columns enter
   as ordinal predictors, sufficiently sparse columns are stored in a
   compact rank-bitmap layout instead of being expanded, and the
-  predictor-mutation surface is column-granular:
-  `setPredictor(x, column = j)` replaces a sparse column whole, while
-  whole-matrix and per-observation replacement of a sparse-backed
-  column, and `setData`, are fixed at creation. Sparse inputs are not
-  supported by
+  predictor-mutation surface accepts both whole-matrix replacement,
+  `setPredictor(x)`, and the column-granular
+  `setPredictor(x, column = j)`, which replaces a sparse column whole;
+  replacing a sparse-backed column densifies its storage permanently.
+  Per-observation replacement of a sparse-backed column, and `setData`,
+  are fixed at creation. Sparse inputs are not supported by
   [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) or
   the `node.prior = linear()` and `gp()` leaf models (a sparse-backed
   test column cannot serve a designated leaf covariate either). A sparse

@@ -218,13 +218,18 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   An integer or character string vector specifying which column/columns
   of the predictor matrix is to be replaced or for which cuts should be
   used. When updating predictors, it can be missing and the entire
-  matrix will be substituted, which requires a dense design: a sparse or
-  mixed dense/sparse design is mutated one column at a time, naming
+  matrix will be substituted; a sparse or mixed dense/sparse design
+  accepts that too, and keeps its storage (the replacement is spliced
+  into the container rather than replacing it with a plain matrix). Such
+  a design may equally be mutated one column at a time by naming
   `column` (dense-backed and sparse-backed columns alike, and a single
-  call may name both kinds). For `setTestPredictor`, a per-column update
-  is refused when the current test set is a data frame or sparse
-  container rather than a plain matrix; replace the whole test set
-  instead.
+  call may name both kinds), which is the cheaper spelling when only a
+  few columns move. Note that replacing a sparse-backed column densifies
+  its storage permanently: every row then differs from the column's
+  implicit value, so it stores `n` entries from that point on. For
+  `setTestPredictor`, a per-column update is refused when the current
+  test set is a data frame or sparse container rather than a plain
+  matrix; replace the whole test set instead.
 
 - forceUpdate:
 
