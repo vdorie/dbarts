@@ -437,6 +437,33 @@ is value-identical; mutation is outside the trio); air format
 --check . on any R touch; full local R CMD check; CI incl.
 sanitizers green BEFORE 2b lands on top.
 
+## Slice 2b-pre landing (FIX-0)
+
+LANDED 8872dd2 2026-08-06, all CI green incl. sanitizers. 502+/48-:
+buildMixed copies its dense block into ColumnStore::ownedDenseValues
+and points denseRaw (now double*) there;
+BartcoreHolder::ownedMixedDense and DataHandle::ownedMixedDense
+deleted; all four writers (setPredictors, setColumns,
+setColumnJournaled, setCell) write the new raw through the owned
+block; runPredictorTransaction snapshots the touched columns' raw
+per column (OwnedDenseRollback) beside oldGatheredRaw and restores
+by memcpy on the reject leg; ColumnStore move-only (a copy would
+alias the self-referential denseRaw). tests/cpp 182
+(+testMixedDenseOwnership: grid re-install code-inert, linear-leaf
+mixed/dense bitwise after covariate mutation, rollback restores raw
+byte-for-byte on both whole-matrix and single-column granularity,
+refused values never reach codes; the address-identity assert
+flipped to value equality) - the new cases verified to FAIL on the
+pre-fix engine and again with restoreOwnedDenseColumns removed.
+tinytest 3590 (+9, test-data-mixed-mutation.R: cut-point
+regression, rollback, setState replay, linear-leaf regather, with
+dense controls; 4 verified to FAIL on the pre-fix build). Trio
+bitwise 27/27 + every BCF and multinomial channel; R CMD check
+--as-cran OK. Deviations accepted at review: denseRaw const
+double* -> double* (the store owns both sides; removes writer
+const_casts); two adjacent stale comments corrected (the mutation
+section's dense-only claim, buildMixed's all-borrowed claim).
+
 ## Slice 2b steps (PredictorSource view consolidation)
 
 Design decisions carried in (forks decided under the grant,
