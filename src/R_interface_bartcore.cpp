@@ -1891,6 +1891,20 @@ void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
              "the BCF glue instead", caller);
 }
 
+// storeSample adds the test offset to every reported channel AFTER the forests
+// are blended, so on the one multi-forest model whose test blend IS defined
+// (the multinomial softmax) it would shift the reported probabilities off the
+// simplex rather than shift any latent. parseMultinomialData refuses a test
+// offset at creation; refuse the post-creation install to match. Ordered after
+// refuseBCFTestSurface at every call site, so BCF keeps its own message.
+void refuseMultiForestTestOffset(const bartcore::SamplerBase& sampler,
+                                 const char* caller) {
+  if (sampler.shape().numForests >= 2)
+    Rf_error("%s: a multi-forest sampler adds a test offset after its forests "
+             "are blended, which would move the reported values off the "
+             "softmax scale; it carries no test offset", caller);
+}
+
 // The transactional predictor paths (setPredictor and updatePredictor without
 // forceUpdate, and the per-observation sessions, which have no force variant)
 // validate and rebuild through revalidateAllChains, which revalidates only the
@@ -2297,10 +2311,10 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
 
 // The parse and validation both multinomial entries share: parse the sampler
 // spec, refuse the response combinations the single-trial softmax cannot carry
-// (case weights, a test offset, a mixed test store), and require dense
-// predictors and K >= 2. Runs before any rng is created, so a refusal needs no
-// cleanup. The predictors ride the data object; the data's response is ignored
-// (the counts are the response, borrowed separately).
+// (case weights, an offset, a test offset, a mixed test store), and require
+// dense predictors and K >= 2. Runs before any rng is created, so a refusal
+// needs no cleanup. The predictors ride the data object; the data's response
+// is ignored (the counts are the response, borrowed separately).
 static void parseMultinomialData(SEXP controlExpr, SEXP modelExpr,
                                  SEXP dataExpr, ParsedControl& control,
                                  ParsedModel& model, ParsedData& data,
@@ -2312,6 +2326,10 @@ static void parseMultinomialData(SEXP controlExpr, SEXP modelExpr,
     Rf_error("multinomial requires dense predictors");
   if (data.weights != NULL)
     Rf_error("multinomial (softmax) models do not support case weights");
+  // the softmax is invariant to a common per-observation shift, so a flat
+  // offset points exactly along the null direction; a meaningful one is n x K
+  if (data.offset != NULL)
+    Rf_error("multinomial (softmax) models do not support an offset");
   if (data.testOffset != NULL)
     Rf_error("multinomial (softmax) models do not support a test offset");
   if (data.numTestObservations > 0 && data.testIsMixed)
@@ -2748,7 +2766,13 @@ SEXP bartcore_setTreatment(SEXP ptrExpr, SEXP zExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   size_t n = shape.numObservations;
-  if (shape.numForests < 2)
+  // A capability probe, not a forest count: z is defined only as the contrast
+  // the BCF glue forms b_{z_i} against, and a K-forest multinomial (K >= 2)
+  // defeats a numForests test. Chain::bcfGlue is false off a combiner and
+  // false for the multinomial combiner, so the single-forest case this already
+  // covered keeps its message.
+  double glue[3];
+  if (!holder.sampler->bcfGlue(0, glue))
     Rf_error("bartcore_setTreatment requires a BCF sampler");
   if (static_cast<size_t>(Rf_xlength(zExpr)) != n)
     Rf_error("treatment length must match the number of observations");
@@ -3174,13 +3198,33 @@ SEXP bartcore_growFromRoot(SEXP ptrExpr, SEXP numSweepsExpr) {
 
 SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  int updateScale = Rf_asLogical(updateScaleExpr);
+  // The offset conduit is the response-side swap under a different pointer -
+  // for a gaussian response setOffset(yBuild - yNew, FALSE) re-maps through the
+  // pinned transform exactly as setResponse(yNew, FALSE) does - so it carries
+  // the same two conditions bartcore_setResponse states. A coupling that does
+  // not opt in has no offset semantics at all: the K-forest softmax is
+  // invariant to a common per-observation shift, so a flat offset is
+  // identically inert and a meaningful one would be n x K. updateScale = TRUE
+  // re-anchors the response transform while both forests keep leaf
+  // calibrations stated against the old one, silently decalibrating them; NA
+  // is not FALSE here.
+  if (shape.numForests >= 2) {
+    if (!shape.supportsResponseMutation)
+      Rf_error("bartcore_setOffset: this multi-forest sampler carries no "
+               "offset; make a new sampler instead");
+    if (updateScale != FALSE)
+      Rf_error("bartcore_setOffset: a multi-forest sampler supports an offset "
+               "swap only with updateScale = FALSE, which pins the response "
+               "transform its per-forest leaf calibrations are stated against");
+  }
   if (!Rf_isNull(offsetExpr) &&
       (!Rf_isReal(offsetExpr) ||
-       static_cast<size_t>(Rf_xlength(offsetExpr)) !=
-         holder.sampler->shape().numObservations))
+       static_cast<size_t>(Rf_xlength(offsetExpr)) != shape.numObservations))
     Rf_error("length of replacement offset is not equal to number of observations");
   const double* offset = Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr);
-  holder.sampler->setOffset(offset, Rf_asLogical(updateScaleExpr) == TRUE);
+  holder.sampler->setOffset(offset, updateScale == TRUE);
   retain(ptrExpr, PROT_OFFSET, offsetExpr);
   return R_NilValue;
 }
@@ -3350,6 +3394,7 @@ SEXP bartcore_setTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
     return R_NilValue;
   }
   refuseBCFTestSurface(*holder.sampler, "bartcore_setTestOffset");
+  refuseMultiForestTestOffset(*holder.sampler, "bartcore_setTestOffset");
   size_t numTestObservations = holder.sampler->shape().numTestObservations;
   if (numTestObservations == 0)
     Rf_error("cannot set a test offset without test predictors");
@@ -3377,6 +3422,9 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
     return R_NilValue;
   }
   refuseBCFTestSurface(*holder.sampler, "bartcore_setTestPredictorAndOffset");
+  if (!Rf_isNull(offsetExpr))
+    refuseMultiForestTestOffset(*holder.sampler,
+                                "bartcore_setTestPredictorAndOffset");
   if (Rf_inherits(xTestExpr, "dbartsMixedMatrix"))
     // whole-object container replacement plus its offset; parse and the
     // leaf-covariate refusal precede the store change, so a rejected container

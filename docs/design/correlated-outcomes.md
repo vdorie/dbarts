@@ -129,6 +129,11 @@ covariance belongs in the WALNUTS outer sampler.
   creation-time min/max; a latent u or offset m_k growing beyond that range
   could compress the working scale. rbart_vi uses updateScale during warmup only
   - the recipes should adopt that convention; the failure mode is untested.
+  COST (2026-08-06): a BCF host cannot adopt it. setOffset(updateScale = TRUE)
+  is now refused on any multi-forest sampler, because both forests' leaf scales
+  are calibrated against the creation-time transform and do not ride a rescale.
+  The alternative - recomputing s and both leaf scales on every rescale - is
+  rejected as a data-dependent prior refresh mid-run.
 - BCF-mode mutability: whether a two-forest BCF sampler is driveable through the
   same per-sweep mutation conduit for multivariate-BCF (dbarts_results.logLikelihood
   is NaN for BCF, which matters for joint WAIC reporting).

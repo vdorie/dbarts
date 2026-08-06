@@ -669,6 +669,24 @@ expect_error(
   ),
   "offset"
 )
+# the internal constructor refuses a host offset for the same reason bart2
+# does, rather than silently dropping it: the softmax is invariant to a common
+# per-observation shift, so a flat offset is inert and a meaningful one is n x K
+samplerOffset <- dbarts(
+  x2,
+  as.double(labels2),
+  offset = rep(0.5, n2),
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 5L,
+    updateState = FALSE
+  )
+)
+expect_error(
+  dbarts:::bartcoreMultinomialSampler(samplerOffset, labels2, K = 2L),
+  "do not support an offset"
+)
 expect_error(extract(fit3, type = "bart"), "non-identified")
 expect_error(fitted(fit3, type = "bart"), "'arg' should be one of")
 # fit3 was built WITHOUT keepTrees, so it has no saved trees to replay
