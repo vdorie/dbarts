@@ -128,7 +128,8 @@ struct CscColumnSlice {
 enum class ColumnSourceKind : std::uint8_t {
   denseOwned,     // dense codes in codes[]; re-quantize from the side's owned
                   // dense source (train: the call-time x; test: ownedTestValues)
-  denseBorrowed,  // dense codes in codes[]; re-quantize from denseRaw
+  denseBorrowed,  // dense codes in codes[]; re-quantize from denseRaw, a slice
+                  // of the side's owned dense block
   cscRank,        // rank-bitmap in the side's sparseColumns[rankSlot]; from slice
   cscDensified    // dense codes in codes[]; re-quantize from slice
 };
@@ -143,7 +144,9 @@ enum class ColumnSourceKind : std::uint8_t {
 struct ColumnSource {
   ColumnSourceKind kind = ColumnSourceKind::denseOwned;
   std::int32_t rankSlot = -1;          // cscRank: slot into the side's sparseColumns
-  const double* denseRaw = nullptr;    // denseBorrowed: borrowed/owned dense column
+  // denseBorrowed: the store's own dense column (train: ownedDenseValues,
+  // test: ownedTestValues), writable so a mutation keeps the raw current
+  double* denseRaw = nullptr;
   CscColumnSlice slice;                // cscRank/cscDensified: retained nonzeros
   std::uint32_t declaredCategoryCount = 0;  // categorical: host's level count K (train only)
   xint_t refCode = 0;                  // CSC categorical: reference-level code
@@ -168,7 +171,7 @@ struct CodeBlock {
   std::vector<size_t> codeOffsets;
   std::vector<SparseColumnData> sparseColumns;
   // per column, where its codes live and what re-quantization reads: the
-  // storage kind, the rank slot into sparseColumns, the borrowed dense raw of a
+  // storage kind, the rank slot into sparseColumns, the owned dense raw of a
   // mixed build, the retained CSC slice, a categorical column's host-declared
   // level count K, and a CSC-backed categorical column's reference-level code.
   // The declared count carries the levels no training row happens to observe,
@@ -214,6 +217,17 @@ struct CodeBlock {
 /// categorical columns numCuts holds the (fixed) category count, cutPoints
 /// stays empty, and codes are the values themselves.
 struct ColumnStore {
+  // Move-only: a denseBorrowed source points into this store's own
+  // ownedDenseValues/ownedTestValues, so a copy would leave the duplicate's
+  // sources aliasing the original's buffers. Moves keep the heap buffers at
+  // their addresses, which is all a cached slice needs, and are all production
+  // performs (the builders hand a finished store to the sampler).
+  ColumnStore() = default;
+  ColumnStore(const ColumnStore&) = delete;
+  ColumnStore& operator=(const ColumnStore&) = delete;
+  ColumnStore(ColumnStore&&) = default;
+  ColumnStore& operator=(ColumnStore&&) = default;
+
   size_t numObservations = 0;
   size_t numPredictors = 0;
   bool useQuantiles = false;
@@ -290,6 +304,16 @@ struct ColumnStore {
   std::vector<double> gatheredMeans;
   std::vector<double> gatheredSds;
 
+  // Owned dense block of a mixed build, in the host's dense-source layout
+  // (numObservations x the number of dense sources the map indexes), which
+  // every denseBorrowed train source points into. The store owns its raw on
+  // both sides: the host assembles the block transiently and buildMixed copies
+  // it, so a mutation writes the new values through denseRaw and every later
+  // reader - setCutPoints, state restore, a linear/GP leaf's regather - sees
+  // the live column rather than the creation-time one. Empty on dense builds
+  // and views (docs/design/sparse-columns.md).
+  std::vector<double> ownedDenseValues;
+
   // Owned re-quantize sources for CSC-backed columns after mutation. A column
   // keeps its build-time borrowed slice (R's dgCMatrix i/x slots) until first
   // mutated; setPredictor/updatePredictor writes the new nonzeros here and
@@ -317,7 +341,7 @@ struct ColumnStore {
   }
 
   /// Whether any re-quantize source survives the build: retained CSC slices,
-  /// borrowed dense slices, or a caller-supplied x. A view gathers codes from
+  /// the owned dense block, or a caller-supplied x. A view gathers codes from
   /// its parent and retains none, so cut installation and state restore are
   /// refused on it.
   bool hasRequantizeSource() const { return !isView; }
@@ -332,7 +356,7 @@ struct ColumnStore {
 
   /// Column j's raw values for a re-quantize, given the call-time predictor
   /// matrix x (which the caller supplies for the build's duration): the mixed
-  /// build's retained dense slice, x's column for a dense build, null for
+  /// build's owned dense slice, x's column for a dense build, null for
   /// CSC-backed columns (which re-quantize from their retained slices instead).
   const double* rawColumnForRequantize(size_t j, const double* x) const {
     if (train.sources[j].isCscBacked()) return nullptr;
@@ -342,7 +366,7 @@ struct ColumnStore {
   }
 
   /// Owned raw training values of column j: a gathered copy (leaf covariates,
-  /// or a data handle's declared columns), the mixed build's retained dense
+  /// or a data handle's declared columns), the mixed build's owned dense
   /// slice, null when neither serves it.
   const double* rawColumn(size_t j) const {
     std::int32_t slot = gatheredSlotForColumn(j);
@@ -776,6 +800,8 @@ struct ColumnStore {
     ownedCscRows.clear();
     ownedCscValues.clear();
     cscColumnOwned.clear();
+    // likewise no owned dense block until buildMixed copies one
+    ownedDenseValues.clear();
   }
 
   /// columnTypes may be null for all-ordinal. Categorical columns must hold
@@ -833,8 +859,10 @@ struct ColumnStore {
   /// sparseDensityThreshold nonzero fraction, densified codes above, the
   /// borrowed slices serving re-quantization either way. The host validates
   /// structure (row indices unique and in range per column) and that
-  /// categorical columns are dense-backed. All pointers are borrowed for
-  /// the store's lifetime.
+  /// categorical columns are dense-backed. The dense block is COPIED, so it
+  /// need not outlive the call and a mutation writes the new values into the
+  /// store's own copy; the CSC triple is borrowed for the store's lifetime
+  /// (until a column's first mutation repoints it at owned nonzeros).
   void buildMixed(const double* denseValues, const int* columnPointers,
                   const int* rowIndices, const double* values,
                   const std::int32_t* columnSources, size_t n, size_t p,
@@ -872,6 +900,16 @@ struct ColumnStore {
     ownedCscValues.assign(p, {});
     cscColumnOwned.assign(p, 0);
     train.codeOffsets.assign(p, 0);
+    // own the dense block, sized by the largest dense source it is indexed by
+    // (the buildTestMixed treatment); creation peaks at two copies of it, the
+    // host's transient assembly and this one, and steady state holds only this
+    std::int32_t maxDenseSource = -1;
+    for (size_t j = 0; j < p; ++j)
+      if (columnSources[j] > maxDenseSource) maxDenseSource = columnSources[j];
+    if (maxDenseSource >= 0)
+      ownedDenseValues.assign(
+        denseValues,
+        denseValues + (static_cast<size_t>(maxDenseSource) + 1) * n);
     size_t numDenseCodes = 0;
     for (size_t j = 0; j < p; ++j) {
       ColumnSource& desc = train.sources[j];
@@ -881,7 +919,8 @@ struct ColumnStore {
         desc.declaredCategoryCount = categoryCounts_[j];
       if (columnSources[j] >= 0) {
         desc.kind = ColumnSourceKind::denseBorrowed;
-        desc.denseRaw = denseValues + static_cast<size_t>(columnSources[j]) * n;
+        desc.denseRaw =
+          ownedDenseValues.data() + static_cast<size_t>(columnSources[j]) * n;
         train.codeOffsets[j] = numDenseCodes;
         numDenseCodes += n;
         continue;
@@ -1172,12 +1211,37 @@ struct ColumnStore {
     testOffset = nullptr;
   }
 
-  // Mutation. The new raw values arrive as call arguments (the engine keeps no
-  // predictor matrix to write through); snapshot/rollback of cutPoints, codes,
-  // and the gathered leaf raw is the caller's (the sampler's) responsibility.
-  // Cut refreshes assume the caller pre-checked quantile feasibility with
-  // cutsWouldRemainValid. These paths run only on dense-built stores (the
-  // bridge refuses mutation on CSC/mixed and view stores).
+  // Mutation. The new raw values arrive as call arguments (a dense build keeps
+  // no predictor matrix to write through; a mixed one writes them into its own
+  // dense block and a CSC-backed column into its own nonzeros);
+  // snapshot/rollback of cutPoints, codes, the gathered leaf raw, and the owned
+  // dense raw is the caller's (the sampler's) responsibility. Cut refreshes
+  // assume the caller pre-checked quantile feasibility with
+  // cutsWouldRemainValid. Views hold no raw source and are refused upstream;
+  // dense, CSC, and mixed builds all reach here.
+
+  /// Keep a dense-backed column's owned raw current with the values a mutation
+  /// installs, so the re-quantize sources (setCutPoints, state restore) and the
+  /// leaf-covariate regather read the live column. Only a mixed build owns a
+  /// dense block; a dense build re-reads the caller's matrix, so nothing to do.
+  /// The self-write guard covers the builders and re-quantizes that pass the
+  /// owned column back in.
+  void writeOwnedDenseColumn(size_t j, const double* column) {
+    double* raw = train.sources[j].denseRaw;
+    if (train.sources[j].kind != ColumnSourceKind::denseBorrowed ||
+        raw == nullptr || raw == column)
+      return;
+    std::memcpy(raw, column, numObservations * sizeof(double));
+  }
+
+  /// The one-cell analogue, for the per-observation update session.
+  void writeOwnedDenseCell(size_t i, size_t j, double value) {
+    double* raw = train.sources[j].denseRaw;
+    if (train.sources[j].kind != ColumnSourceKind::denseBorrowed ||
+        raw == nullptr)
+      return;
+    raw[i] = value;
+  }
 
   /// Replace the whole predictor matrix; newX is column-major and read for
   /// the call only, quantized into the owned codes. CSC-backed columns route
@@ -1191,6 +1255,7 @@ struct ColumnStore {
         continue;
       }
       if (updateCuts) refreshCutsForColumn(j, column);
+      writeOwnedDenseColumn(j, column);
       quantizeColumn(j, column);
     }
   }
@@ -1208,6 +1273,7 @@ struct ColumnStore {
         continue;
       }
       if (updateCuts) refreshCutsForColumn(j, column);
+      writeOwnedDenseColumn(j, column);
       quantizeColumn(j, column);
     }
   }
@@ -1320,6 +1386,46 @@ struct ColumnStore {
     if (cscColumnOwned[j]) repointOwnedSlice(j);
   }
 
+  /// A transaction's snapshot of the owned dense raw of the columns it touches:
+  /// the dense-backed ones among them and their pre-change values, packed
+  /// column-major. Per column rather than per block so a per-sweep single-column
+  /// update stays O(numObservations) rather than O(numObservations * p).
+  struct OwnedDenseRollback {
+    std::vector<size_t> columns;
+    std::vector<double> values;
+  };
+
+  /// Snapshot the owned dense raw of the columns a transaction is about to
+  /// write. columns names them (null means every predictor in order, the
+  /// whole-matrix convention); non-dense-backed entries and stores with no
+  /// owned block record nothing.
+  void snapshotOwnedDenseColumns(const size_t* columns, size_t numColumns,
+                                 OwnedDenseRollback& rollback) const {
+    rollback.columns.clear();
+    rollback.values.clear();
+    if (ownedDenseValues.empty()) return;
+    for (size_t k = 0; k < numColumns; ++k) {
+      size_t j = columns != nullptr ? columns[k] : k;
+      const double* raw = train.sources[j].denseRaw;
+      if (train.sources[j].kind != ColumnSourceKind::denseBorrowed ||
+          raw == nullptr)
+        continue;
+      rollback.columns.push_back(j);
+      rollback.values.insert(rollback.values.end(), raw, raw + numObservations);
+    }
+  }
+
+  /// Undo the raw writes of a rejected transaction, restoring each snapshotted
+  /// column in place. The copy is a memcpy, never a buffer swap: every
+  /// denseBorrowed source caches a pointer into ownedDenseValues, so relocating
+  /// it would dangle them all.
+  void restoreOwnedDenseColumns(const OwnedDenseRollback& rollback) {
+    for (size_t k = 0; k < rollback.columns.size(); ++k)
+      std::memcpy(train.sources[rollback.columns[k]].denseRaw,
+                  rollback.values.data() + k * numObservations,
+                  numObservations * sizeof(double));
+  }
+
   /// A column's rollback record for a journaled re-quantize: either the
   /// changed cells' pre-change codes, or, once too many cells change, the whole
   /// pre-change column. Exactly one is populated.
@@ -1334,12 +1440,13 @@ struct ColumnStore {
   /// updateCuts) exactly as setColumns does, but record into rollback only what
   /// a reject must undo: each changed cell's old code, or the whole pre-change
   /// column once more than maxJournal cells change (journaling then stops).
-  /// Dense stores only: the bridge's refusePredictorMutation blocks this
-  /// mutation surface on CSC-built samplers, so no CSC-backed column reaches
-  /// here.
+  /// Dense-STORED columns only - the subset transaction routes a CSC-backed one
+  /// to the sparse mutation path instead - which includes the dense-backed
+  /// columns of a mixed store, whose owned raw this writes through.
   void setColumnJournaled(size_t j, const double* newColumn, bool updateCuts,
                           size_t maxJournal, ColumnCodeRollback& rollback) {
     if (updateCuts) refreshCutsForColumn(j, newColumn);
+    writeOwnedDenseColumn(j, newColumn);
     quantizeDenseObserved(train, numObservations, j, newColumn,
                           hasMissing.data(),
       [&](size_t i, const xint_t* column, xint_t code) {
@@ -1373,11 +1480,13 @@ struct ColumnStore {
         column[cell.index] = cell.oldCode;
   }
 
-  /// Overwrite a single cell's code against existing cuts, refreshing the
-  /// gathered raw copy of a leaf-covariate column. A missing value marks the
-  /// column; the flag only clears on a full column re-quantize (conservative
-  /// but never wrong - the NA-aware partition handles NA-free columns too).
+  /// Overwrite a single cell's code against existing cuts, refreshing the owned
+  /// dense raw and the gathered raw copy of a leaf-covariate column. A missing
+  /// value marks the column; the flag only clears on a full column re-quantize
+  /// (conservative but never wrong - the NA-aware partition handles NA-free
+  /// columns too).
   void setCell(size_t i, size_t j, double value) {
+    writeOwnedDenseCell(i, j, value);
     train.codes[train.codeOffsets[j] + i] = codeFor(j, value);
     if (isNA(value)) hasMissing[j] = 1;
     std::int32_t slot = gatheredSlotForColumn(j);

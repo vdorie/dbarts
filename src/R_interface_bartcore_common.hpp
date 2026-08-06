@@ -37,11 +37,6 @@ struct BartcoreHolder {
   // lifetime (the single-trial label entry builds a one-hot counts matrix)
   std::vector<int> ownedCounts{}, ownedTrials{};
 
-  // a mixed (sparse-bearing) container assembles its dense block transiently;
-  // the holder owns it for the sampler's lifetime so the store's borrowed
-  // dense slices never dangle (the R container keeps only a per-column list)
-  std::vector<double> ownedMixedDense{};
-
   ~BartcoreHolder() {
     for (std::size_t c = rngs.size(); c > 0; --c)
       if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);

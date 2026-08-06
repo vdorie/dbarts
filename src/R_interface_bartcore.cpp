@@ -213,8 +213,10 @@ struct ParsedData {
   // model-matrix builders attach. Empty when nothing declares one.
   std::vector<std::uint32_t> categoryCounts;
   std::vector<bartcore::xint_t> cscReferenceCodes;
-  // the dense columnar container's transiently assembled block (x points
-  // into it); owned here so it lives exactly as long as the parse result
+  // a columnar container's transiently assembled dense block (x points into it
+  // for the dense flavor, mixedDenseValues for the mixed one); owned here so it
+  // lives exactly as long as the parse result, which is all either build needs
+  // - a dense build quantizes into owned codes and a mixed one copies the block
   std::vector<double> denseAssembly;
   const double* x_test = NULL;
   size_t numTestObservations = 0;
@@ -755,8 +757,8 @@ void parseData(ParsedData& data, SEXP dataExpr) {
       // integer codes, or NULL for no dense columns), a dgCMatrix, and a
       // 1-based map - positive k names dense column k, negative -k sparse
       // column k, the engine's ~(k - 1). Assemble the transient block - the
-      // exact doubles the retained cbind held - which the holder/handle owns
-      // for the store's lifetime; the store borrows dense slices of it.
+      // exact doubles the retained cbind held - which buildMixed copies into
+      // the store, so it need only outlive the ensuing build call.
       if (!Rf_inherits(sparseExpr, "dgCMatrix"))
         Rf_error("malformed mixed predictor container");
       if (!Rf_isNull(denseExpr) && TYPEOF(denseExpr) != VECSXP)
@@ -1921,9 +1923,6 @@ void refuseMultiForestTransactionalUpdate(const bartcore::SamplerBase& sampler,
 // protection slot pins the data expression whose x the store borrows.
 struct DataHandle {
   bartcore::ColumnStore store;
-  // a mixed store borrows dense slices of a transiently assembled block; the
-  // handle owns it so views can gather from the parent after creation returns
-  std::vector<double> ownedMixedDense;
 };
 
 void dataHandleFinalizer(SEXP ptrExpr) {
@@ -2122,11 +2121,6 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
                                 control.keepTrainingFits};
-    // the mixed store borrows dense slices of the transiently assembled block;
-    // the holder owns it so they outlive this call (a vector move preserves
-    // the buffer address the store cached)
-    if (data.xIsMixed)
-      holder->ownedMixedDense = std::move(data.denseAssembly);
     return R_NilValue;
   });
   return holder;
@@ -2542,9 +2536,6 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
                                  ? NULL : data.categoryCounts.data(),
                                data.cscReferenceCodes.empty()
                                  ? NULL : data.cscReferenceCodes.data());
-      // the store borrows dense slices of the transiently assembled block;
-      // the handle owns it so views can gather from the parent afterwards
-      handle->ownedMixedDense = std::move(data.denseAssembly);
     } else if (data.xIsSparse) {
       handle->store.buildFromCsc(data.cscColumnPointers, data.cscRowIndices,
                                  data.cscValues, data.numObservations,
