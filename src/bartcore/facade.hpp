@@ -4,11 +4,79 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <type_traits>
 #include <vector>
 
 #include "sampler.hpp"
 
 namespace bartcore {
+
+/// Every nullary count and capability of a sampler in one by-value POD, so a
+/// new one costs a field and a fill line rather than a declaration, a forward,
+/// and an override. Read through SamplerBase::shape(), which fills it on
+/// demand: a cached copy would go stale behind any mutator.
+///
+/// Live state (the rng, the data store, sigma, the latents, the current sample
+/// number, the fit scale) stays on its own accessor; only quantities fixed
+/// between mutations belong here.
+struct SamplerShape {
+  std::size_t numObservations;
+  std::size_t numPredictors;
+  std::size_t numTestObservations;
+  std::size_t numChains;
+  std::size_t numThreads;
+  std::size_t numTrees;
+  /// Forest count: 1 for every non-BCF sampler, 2 for BCF (prognostic +
+  /// treatment).
+  std::size_t numForests;
+  /// Grouped random intercepts: the group count, 0 when ungrouped.
+  std::size_t numGroups;
+  /// The leaf covariate designation (linear and GP leaves); 0/null for
+  /// scalar leaf models. The columns are borrowed from the leaf model and
+  /// stay valid for the sampler's lifetime.
+  std::size_t numLeafCovariates;
+  const std::size_t* leafCovariateColumns;
+  /// Per-observation channels the recorded fits carry: 1 for every additive
+  /// model (BCF included), more for a multi-location combiner. The run bridge
+  /// reads it to size trainingFits/testFits; internal, invisible to dbarts.h.
+  std::size_t numReportedLocations;
+  /// Per-sample forests the recorded variable-count channel carries: 1 for
+  /// every additive model (BCF included), numCategories for multinomial. The
+  /// run bridge reads it to size the varcount array; internal, invisible to
+  /// dbarts.h.
+  std::size_t numVariableCountForests;
+  /// Per-sample cutpoints the recorded cutpoint channel carries: 0 for every
+  /// family but ordinal (K-1). The run bridge reads it to size and name the
+  /// cutpoints channel, present only when nonzero; internal, invisible to
+  /// dbarts.h.
+  std::size_t numCutpoints;
+  /// Saved samples the tree store holds, 0 when keepTrees is off.
+  std::size_t savedTreeCapacity;
+  ResponseFamily family;
+  /// Whether a heteroscedastic variance forest is present; the s^2(x)
+  /// channels of run and predictVariance gate on it.
+  bool hasVarianceForest;
+  /// True for function-valued (GP) leaf models, whose state and reporting
+  /// layouts differ from the vector-parameter ones.
+  bool usesFunctionLeaves;
+  bool kIsSampled;
+  bool usesDart;
+  /// Whether the forest coupling permits a whole-response swap (setResponse at
+  /// updateScale = false); false off any combiner, and false for a non-gaussian
+  /// response. The bridge gates its multi-forest refusal on it.
+  bool supportsResponseMutation;
+  /// Whether the recorded test-fit channel carries a defined value: false only
+  /// for BCF (no test treatment vector to blend off-sample). The bridge's
+  /// test-surface refusal gates on it, so multinomial and single-forest
+  /// samplers are allowed while BCF stays refused. Internal, invisible to
+  /// dbarts.h.
+  bool testFitsAreDefined;
+};
+
+// Bridge entry points longjmp out of Rf_error past every destructor, so no
+// shape field may own storage.
+static_assert(std::is_trivially_destructible_v<SamplerShape>,
+              "SamplerShape must not own storage: Rf_error skips its dtor");
 
 /// Type-erased boundary for hosts (the R bridge): all type information is
 /// resolved once, in the factory; every later call is one virtual hop into
@@ -16,6 +84,10 @@ namespace bartcore {
 class SamplerBase {
 public:
   virtual ~SamplerBase() = default;
+
+  /// The sampler's counts and capabilities, assembled on every call. Fetch it
+  /// once at the top of an entry point rather than per use.
+  virtual SamplerShape shape() const = 0;
 
   virtual bool run(std::size_t numBurnIn, std::size_t numSamples,
                    Results& results,
@@ -64,7 +136,6 @@ public:
                                              bool* installed) = 0;
   virtual std::unique_ptr<PredictorUpdateSession> beginPredictorUpdate(
     const double* newColumn, std::size_t column) = 0;
-  virtual std::size_t savedTreeCapacity() const = 0;
   virtual std::size_t currentSampleNum() const = 0;
   /// forestIndex selects the forest to read (0 for every non-BCF sampler,
   /// 1 for the BCF treatment forest).
@@ -93,9 +164,7 @@ public:
   virtual void predict(const double* x_test,
                        std::size_t numTestObservations, double* out) = 0;
   /// Heteroscedastic variance surface s^2(x) on new rows (original scale);
-  /// hasVarianceForest gates it, numVarianceTrees sizes the varcount channel.
-  virtual bool hasVarianceForest() const = 0;
-  virtual std::size_t numVarianceTrees() const = 0;
+  /// SamplerShape::hasVarianceForest gates it.
   virtual void predictVariance(const double* x_test,
                                std::size_t numTestObservations,
                                double* out) = 0;
@@ -125,50 +194,9 @@ public:
                           std::size_t numTreeIndices) = 0;
 
   virtual ext_rng* rng() const = 0;
-  /// The leaf covariate designation (linear and GP leaves); 0/null for
-  /// scalar leaf models.
-  virtual std::size_t numLeafCovariates() const = 0;
-  virtual const std::size_t* leafCovariateColumns() const = 0;
-  /// True for function-valued (GP) leaf models, whose state and reporting
-  /// layouts differ from the vector-parameter ones.
-  virtual bool usesFunctionLeaves() const = 0;
-  virtual ResponseFamily family() const = 0;
-  /// Grouped random intercepts: the group count, 0 when ungrouped.
-  virtual std::size_t numGroups() const = 0;
   virtual const ColumnStore& data() const = 0;
   virtual const double* latents(std::size_t chainNum) const = 0;
   virtual double sigma(std::size_t chainNum) const = 0;
-  virtual bool kIsSampled() const = 0;
-  virtual bool usesDart() const = 0;
-  virtual std::size_t numChains() const = 0;
-  virtual std::size_t numThreads() const = 0;
-  /// Forest count: 1 for every non-BCF sampler, 2 for BCF (prognostic +
-  /// treatment).
-  virtual std::size_t numForests() const = 0;
-  /// Whether the forest coupling permits a whole-response swap (setResponse at
-  /// updateScale = false); false off any combiner, and false for a non-gaussian
-  /// response. The bridge gates its multi-forest refusal on it.
-  virtual bool supportsResponseMutation() const = 0;
-  /// Per-observation channels the recorded fits carry: 1 for every additive
-  /// model (BCF included), more for a multi-location combiner. The run bridge
-  /// reads it to size trainingFits/testFits; internal, invisible to dbarts.h.
-  virtual std::size_t numReportedLocations() const = 0;
-  /// Per-sample forests the recorded variable-count channel carries: 1 for
-  /// every additive model (BCF included), numCategories for multinomial. The
-  /// run bridge reads it to size the varcount array; internal, invisible to
-  /// dbarts.h.
-  virtual std::size_t numVariableCountForests() const = 0;
-  /// Per-sample cutpoints the recorded cutpoint channel carries: 0 for every
-  /// family but ordinal (K-1). The run bridge reads it to size and name the
-  /// cutpoints channel, present only when nonzero; internal, invisible to
-  /// dbarts.h.
-  virtual std::size_t numCutpoints() const = 0;
-  /// Whether the recorded test-fit channel carries a defined value: false only
-  /// for BCF (no test treatment vector to blend off-sample). The bridge's
-  /// test-surface refusal gates on it, so multinomial and single-forest
-  /// samplers are allowed while BCF stays refused. Internal, invisible to
-  /// dbarts.h.
-  virtual bool testFitsAreDefined() const = 0;
   /// BCF surface (docs/design/bcf.md); no-op/false off BCF. out receives
   /// {a, b0, b1}; forestTotalFits writes numObservations internal-scale fits.
   virtual void setTreatment(const double* z) = 0;
@@ -180,12 +208,9 @@ public:
   virtual void forestVariableCounts(std::size_t chainNum,
                                     std::size_t forestIndex,
                                     std::uint32_t* out) const = 0;
-  virtual std::size_t numTrees() const = 0;
-  /// Tree count of forest forestIndex; equals numTrees for forest 0.
+  /// Tree count of forest forestIndex; equals SamplerShape::numTrees for
+  /// forest 0.
   virtual std::size_t numTreesInForest(std::size_t forestIndex) const = 0;
-  virtual std::size_t numObservations() const = 0;
-  virtual std::size_t numPredictors() const = 0;
-  virtual std::size_t numTestObservations() const = 0;
 };
 
 template <IntegrableLeafModel L, typename ResidT = double>
@@ -193,6 +218,32 @@ class SamplerFacade final : public SamplerBase {
 public:
   template <typename... Args>
   explicit SamplerFacade(Args&&... args) : impl_(std::forward<Args>(args)...) {}
+
+  SamplerShape shape() const override {
+    SamplerShape s;
+    s.numObservations = impl_.numObservations();
+    s.numPredictors = impl_.numPredictors();
+    s.numTestObservations = impl_.numTestObservations();
+    s.numChains = impl_.numChains();
+    s.numThreads = impl_.numThreads();
+    s.numTrees = impl_.numTrees();
+    s.numForests = impl_.numForests();
+    s.numGroups = impl_.numGroups();
+    s.numLeafCovariates = impl_.numLeafCovariates();
+    s.leafCovariateColumns = impl_.leafCovariateColumns();
+    s.numReportedLocations = impl_.numReportedLocations();
+    s.numVariableCountForests = impl_.numVariableCountForests();
+    s.numCutpoints = impl_.numCutpoints();
+    s.savedTreeCapacity = impl_.savedTreeCapacity();
+    s.family = impl_.family();
+    s.hasVarianceForest = impl_.hasVarianceForest();
+    s.usesFunctionLeaves = Sampler<L, ResidT>::usesFunctionLeaves();
+    s.kIsSampled = impl_.kIsSampled();
+    s.usesDart = impl_.usesDart();
+    s.supportsResponseMutation = impl_.supportsResponseMutation();
+    s.testFitsAreDefined = impl_.testFitsAreDefined();
+    return s;
+  }
 
   bool run(std::size_t numBurnIn, std::size_t numSamples, Results& results,
            const std::function<bool()>& pollInterrupt = {},
@@ -263,9 +314,6 @@ public:
     const double* newColumn, std::size_t column) override {
     return impl_.beginPredictorUpdate(newColumn, column);
   }
-  std::size_t savedTreeCapacity() const override {
-    return impl_.savedTreeCapacity();
-  }
   std::size_t currentSampleNum() const override {
     return impl_.currentSampleNum();
   }
@@ -296,10 +344,6 @@ public:
   void predict(const double* x_test, std::size_t numTestObservations,
                double* out) override {
     impl_.predict(x_test, numTestObservations, out);
-  }
-  bool hasVarianceForest() const override { return impl_.hasVarianceForest(); }
-  std::size_t numVarianceTrees() const override {
-    return impl_.numVarianceTrees();
   }
   void predictVariance(const double* x_test, std::size_t numTestObservations,
                        double* out) override {
@@ -349,39 +393,12 @@ public:
   }
 
   ext_rng* rng() const override { return impl_.rng(); }
-  std::size_t numLeafCovariates() const override {
-    return impl_.numLeafCovariates();
-  }
-  const std::size_t* leafCovariateColumns() const override {
-    return impl_.leafCovariateColumns();
-  }
-  bool usesFunctionLeaves() const override { return L::hasFunctionParams; }
-  ResponseFamily family() const override { return impl_.family(); }
-  std::size_t numGroups() const override { return impl_.numGroups(); }
   const ColumnStore& data() const override { return impl_.data(); }
   const double* latents(std::size_t chainNum) const override {
     return impl_.latents(chainNum);
   }
   double sigma(std::size_t chainNum) const override {
     return impl_.sigma(chainNum);
-  }
-  bool kIsSampled() const override { return impl_.kIsSampled(); }
-  bool usesDart() const override { return impl_.usesDart(); }
-  std::size_t numChains() const override { return impl_.numChains(); }
-  std::size_t numThreads() const override { return impl_.numThreads(); }
-  std::size_t numForests() const override { return impl_.numForests(); }
-  bool supportsResponseMutation() const override {
-    return impl_.supportsResponseMutation();
-  }
-  std::size_t numReportedLocations() const override {
-    return impl_.numReportedLocations();
-  }
-  std::size_t numVariableCountForests() const override {
-    return impl_.numVariableCountForests();
-  }
-  std::size_t numCutpoints() const override { return impl_.numCutpoints(); }
-  bool testFitsAreDefined() const override {
-    return impl_.testFitsAreDefined();
   }
   void setTreatment(const double* z) override { impl_.setTreatment(z); }
   bool bcfGlue(std::size_t chainNum, double* out) const override {
@@ -395,17 +412,12 @@ public:
                             std::uint32_t* out) const override {
     impl_.forestVariableCounts(chainNum, forestIndex, out);
   }
-  std::size_t numTrees() const override { return impl_.numTrees(); }
   std::size_t numTreesInForest(std::size_t forestIndex) const override {
     return impl_.numTreesInForest(forestIndex);
   }
-  std::size_t numObservations() const override { return impl_.numObservations(); }
-  std::size_t numPredictors() const override { return impl_.numPredictors(); }
-  std::size_t numTestObservations() const override {
-    return impl_.numTestObservations();
-  }
 
   Sampler<L, ResidT>& impl() { return impl_; }
+  const Sampler<L, ResidT>& impl() const { return impl_; }
 
 private:
   Sampler<L, ResidT> impl_;
@@ -421,7 +433,7 @@ inline bool updatePredictorPerObservationJointly(
   const double* newColumn, const std::size_t* columns, bool* installed) {
   if (numSamplers == 0) return true;
 
-  std::size_t numObservations = samplers[0]->numObservations();
+  std::size_t numObservations = samplers[0]->shape().numObservations;
 
   std::vector<std::unique_ptr<PredictorUpdateSession>> sessions;
   sessions.reserve(numSamplers);

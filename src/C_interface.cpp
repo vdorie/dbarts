@@ -117,11 +117,12 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler) {
 
 void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results) {
+  bartcore::SamplerShape shape = samplerOf(sampler).shape();
   bartcore::Results engineResults;
   // the internal location stride (invisible to the frozen dbarts_results ABI):
   // 1 for every dbarts.h-created sampler, since the flat C API builds no
   // multi-location model, so the caller's n x numSamples train/test hold
-  engineResults.numReportedLocations = samplerOf(sampler).numReportedLocations();
+  engineResults.numReportedLocations = shape.numReportedLocations;
   // A zero structSize means the caller forgot to set it (see DBARTS_RESULTS_INIT):
   // reject loudly instead of silently skipping every field and handing back an
   // uninitialized buffer - the flat-API footgun that fed garbage draws to a
@@ -150,8 +151,7 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
 
   bartcore::SweepCallback onSweep;
   if (sampler->callback != NULL) {
-    bartcore::SamplerBase& engine(samplerOf(sampler));
-    if (engine.numThreads() > 1 && engine.numChains() > 1)
+    if (shape.numThreads > 1 && shape.numChains > 1)
       Rf_error("dbarts_sampler_run: a per-sweep callback cannot run while "
                "chains execute on worker threads");
     dbarts_sampler_callback fn = sampler->callback;
@@ -174,8 +174,8 @@ void dbarts_sampler_setCallback(dbarts_sampler* sampler,
                                 dbarts_sampler_callback callback,
                                 void* userData) {
   if (callback != NULL) {
-    const bartcore::SamplerBase& engine(samplerOf(sampler));
-    if (engine.numThreads() > 1 && engine.numChains() > 1)
+    bartcore::SamplerShape shape = samplerOf(sampler).shape();
+    if (shape.numThreads > 1 && shape.numChains > 1)
       Rf_error("dbarts_sampler_setCallback: a per-sweep callback requires "
                "chains to run inline (numThreads == 1 or numChains == 1)");
   }
@@ -221,8 +221,9 @@ int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out) {
   const bartcore::SamplerBase& engine(samplerOf(sampler));
   if (engine.latents(0) == NULL) return 0;
 
-  size_t numObservations = engine.numObservations();
-  for (size_t c = 0; c < engine.numChains(); ++c)
+  bartcore::SamplerShape shape = engine.shape();
+  size_t numObservations = shape.numObservations;
+  for (size_t c = 0; c < shape.numChains; ++c)
     std::memcpy(out + c * numObservations, engine.latents(c),
                 numObservations * sizeof(double));
   return 1;
@@ -231,9 +232,10 @@ int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out) {
 int dbarts_sampler_setPredictor(dbarts_sampler* sampler, const double* x,
                                 int forceUpdate, int updateCutPoints) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
+  bartcore::SamplerShape shape = engine.shape();
   refuseCscCategoricalMutation(engine, "dbarts_sampler_setPredictor");
-  size_t numObservations = engine.numObservations();
-  for (size_t j = 0; j < engine.numPredictors(); ++j)
+  size_t numObservations = shape.numObservations;
+  for (size_t j = 0; j < shape.numPredictors; ++j)
     validateColumnValues(engine.data(), j, x + j * numObservations,
                          numObservations);
 
@@ -249,10 +251,11 @@ int dbarts_sampler_updatePredictor(dbarts_sampler* sampler, const double* x,
                                    const size_t* columns, size_t numColumns,
                                    int forceUpdate, int updateCutPoints) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
+  bartcore::SamplerShape shape = engine.shape();
   refuseCscCategoricalMutation(engine, "dbarts_sampler_updatePredictor");
-  size_t numObservations = engine.numObservations();
+  size_t numObservations = shape.numObservations;
   for (size_t k = 0; k < numColumns; ++k) {
-    if (columns[k] >= engine.numPredictors())
+    if (columns[k] >= shape.numPredictors)
       Rf_error("dbarts_sampler_updatePredictor column out of range");
     validateColumnValues(engine.data(), columns[k], x + k * numObservations,
                          numObservations);
@@ -274,7 +277,7 @@ void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
     engine.setTestPredictors(NULL, 0);
     return;
   }
-  for (size_t j = 0; j < engine.numPredictors(); ++j)
+  for (size_t j = 0; j < engine.shape().numPredictors; ++j)
     validateColumnValues(engine.data(), j, xTest + j * numTestObservations,
                          numTestObservations);
   engine.setTestPredictors(xTest, numTestObservations);
@@ -289,16 +292,17 @@ void dbarts_sampler_predict(dbarts_sampler* sampler, const double* xTest,
                             size_t numTestObservations,
                             const double* offsetTest, double* out) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
-  for (size_t j = 0; j < engine.numPredictors(); ++j)
+  bartcore::SamplerShape shape = engine.shape();
+  for (size_t j = 0; j < shape.numPredictors; ++j)
     validateColumnValues(engine.data(), j, xTest + j * numTestObservations,
                          numTestObservations);
 
   engine.predict(xTest, numTestObservations, out);
 
   if (offsetTest != NULL) {
-    size_t capacity = engine.savedTreeCapacity();
+    size_t capacity = shape.savedTreeCapacity;
     size_t numSamples = capacity > 0 ? capacity : 1;
-    for (size_t slab = 0; slab < numSamples * engine.numChains(); ++slab)
+    for (size_t slab = 0; slab < numSamples * shape.numChains; ++slab)
       misc_addVectorsInPlace(offsetTest, numTestObservations,
                              out + slab * numTestObservations);
   }
@@ -323,7 +327,8 @@ SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler,
   return bartcore_bridge::getTrees(
     samplerOf(sampler), chainIndices, numChainIndices, sampleIndices,
     numSampleIndices, treeIndices, numTreeIndices, useLiveTrees != 0, NULL, 0,
-    replay, samplerOf(sampler).numObservations(), 0, "dbarts_sampler_getTrees");
+    replay, samplerOf(sampler).shape().numObservations, 0,
+    "dbarts_sampler_getTrees");
 }
 
 void dbarts_sampler_printTrees(dbarts_sampler* sampler,
@@ -334,16 +339,17 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
                                const size_t* treeIndices,
                                size_t numTreeIndices) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
+  bartcore::SamplerShape shape = engine.shape();
   for (size_t i = 0; i < numChainIndices; ++i) {
-    if (chainIndices[i] >= engine.numChains())
+    if (chainIndices[i] >= shape.numChains)
       Rf_error("dbarts_sampler_printTrees chain number out of range");
   }
   for (size_t i = 0; i < numSampleIndices; ++i) {
-    if (sampleIndices[i] >= engine.savedTreeCapacity())
+    if (sampleIndices[i] >= shape.savedTreeCapacity)
       Rf_error("dbarts_sampler_printTrees sample number out of range");
   }
   for (size_t i = 0; i < numTreeIndices; ++i) {
-    if (treeIndices[i] >= engine.numTrees())
+    if (treeIndices[i] >= shape.numTrees)
       Rf_error("dbarts_sampler_printTrees tree number out of range");
   }
   engine.printTrees(chainIndices, numChainIndices, sampleIndices,
@@ -377,35 +383,35 @@ void dbarts_sampler_setVerbose(dbarts_sampler* sampler, int verbose,
 }
 
 size_t dbarts_sampler_numObservations(const dbarts_sampler* sampler) {
-  return samplerOf(sampler).numObservations();
+  return samplerOf(sampler).shape().numObservations;
 }
 
 size_t dbarts_sampler_numPredictors(const dbarts_sampler* sampler) {
-  return samplerOf(sampler).numPredictors();
+  return samplerOf(sampler).shape().numPredictors;
 }
 
 size_t dbarts_sampler_numTestObservations(const dbarts_sampler* sampler) {
-  return samplerOf(sampler).numTestObservations();
+  return samplerOf(sampler).shape().numTestObservations;
 }
 
 size_t dbarts_sampler_numChains(const dbarts_sampler* sampler) {
-  return samplerOf(sampler).numChains();
+  return samplerOf(sampler).shape().numChains;
 }
 
 size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler) {
-  return samplerOf(sampler).numTrees();
+  return samplerOf(sampler).shape().numTrees;
 }
 
 size_t dbarts_sampler_numSavedSamples(const dbarts_sampler* sampler) {
-  return samplerOf(sampler).savedTreeCapacity();
+  return samplerOf(sampler).shape().savedTreeCapacity;
 }
 
 int dbarts_sampler_kIsSampled(const dbarts_sampler* sampler) {
-  return samplerOf(sampler).kIsSampled() ? 1 : 0;
+  return samplerOf(sampler).shape().kIsSampled ? 1 : 0;
 }
 
 int dbarts_sampler_usesDart(const dbarts_sampler* sampler) {
-  return samplerOf(sampler).usesDart() ? 1 : 0;
+  return samplerOf(sampler).shape().usesDart ? 1 : 0;
 }
 
 // Provider-side binding: each real function's address must

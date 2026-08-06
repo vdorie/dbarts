@@ -1027,6 +1027,10 @@ public:
     else
       return nullptr;
   }
+  /// True for function-valued (GP) leaf models, whose state and reporting
+  /// layouts differ from the vector-parameter ones. A property of the leaf
+  /// model alone, so constexpr.
+  static constexpr bool usesFunctionLeaves() { return L::hasFunctionParams; }
 
   ResponseFamily family() const { return family_; }
   /// Grouped random intercepts: the group count, 0 when ungrouped.
