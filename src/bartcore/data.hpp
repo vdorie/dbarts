@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <type_traits>
 #include <vector>
 
 namespace bartcore {
@@ -158,6 +159,139 @@ struct ColumnSource {
   bool isRank() const { return kind == ColumnSourceKind::cscRank; }
 };
 
+/// One borrowed view of a host's predictor values, taken by creation, test
+/// ingestion, and mutation alike: the storage (a column-major dense block, a
+/// CSC triple, or any mix of the two) plus the per-column typing channel the
+/// grid needs. The single spelling every entrance reads, so a validation or
+/// ownership rule is stated once rather than per storage kind.
+///
+/// Per column: columnSources == nullptr means column j is dense column j of
+/// denseValues, the call's transient block; a nonnegative entry names a dense
+/// column of a host-pinned denseValues; a negative one names CSC column
+/// ~columnSources[j] of the triple. sourceOf(j) answers uniformly, so no
+/// consumer dereferences an absent map.
+///
+/// Ownership: everything here is borrowed for the consuming call only. A train
+/// build over a MAPPED source retains what it must - the CSC slices stay
+/// borrowed until a column is first mutated, and the dense block is copied
+/// into the store (ColumnStore::ownedDenseValues), so no host pins a mixed
+/// build's block. A train build over an UNMAPPED source retains nothing: the
+/// store re-quantizes from whatever matrix a later call hands it. A test build
+/// copies everything.
+///
+/// The grid spec (cut counts, quantile mode) is deliberately absent: it is a
+/// prior, not data, and a view built from a parent store carries the parent's.
+struct PredictorSource {
+  size_t numRows = 0;
+  size_t numColumns = 0;
+
+  const double* denseValues = nullptr;  // column-major, numRows x its columns
+  const int* cscColumnPointers = nullptr;  // length of the CSC source + 1
+  const int* cscRowIndices = nullptr;
+  const double* cscValues = nullptr;
+  const std::int32_t* columnSources = nullptr;  // length numColumns
+
+  // the typing channel: per-column types (null for all-ordinal), the level
+  // count K each categorical column's host declares (null or 0 leaves it
+  // inferred from the observed codes), and the reference-level code of each
+  // CSC-backed categorical column (null when none is categorical)
+  const ColumnType* columnTypes = nullptr;
+  const std::uint32_t* categoryCounts = nullptr;
+  const xint_t* referenceCodes = nullptr;
+
+  /// Whether the host supplied a per-column source map; without one the
+  /// columns are dense column for column.
+  bool isMapped() const { return columnSources != nullptr; }
+
+  /// Column j's source in engine convention: a nonnegative dense column, or
+  /// the complement of a CSC column. An absent map is the identity.
+  std::int32_t sourceOf(size_t j) const {
+    return columnSources != nullptr ? columnSources[j]
+                                    : static_cast<std::int32_t>(j);
+  }
+
+  ColumnType typeOf(size_t j) const {
+    return columnTypes != nullptr ? columnTypes[j] : ColumnType::ordinal;
+  }
+
+  std::uint32_t categoryCountOf(size_t j) const {
+    return categoryCounts != nullptr ? categoryCounts[j] : 0u;
+  }
+
+  xint_t referenceCodeOf(size_t j) const {
+    return referenceCodes != nullptr ? referenceCodes[j] : xint_t{0};
+  }
+
+  /// Whether the view is a plain column-major dense block every consumer can
+  /// index as denseValues + j * numRows: values present, no CSC storage, and
+  /// either no map or the identity one. A MAPPED dense view fails this - its
+  /// columns need not sit at their own index - which is exactly why the
+  /// mutation entrances test the block rather than merely the absence of CSC
+  /// values.
+  bool isDenseBlock() const {
+    if (denseValues == nullptr || cscColumnPointers != nullptr ||
+        cscRowIndices != nullptr || cscValues != nullptr)
+      return false;
+    for (size_t j = 0; columnSources != nullptr && j < numColumns; ++j)
+      if (columnSources[j] != static_cast<std::int32_t>(j)) return false;
+    return true;
+  }
+};
+
+// Bridge entry points longjmp out of Rf_error past every destructor, so no
+// view field may own storage.
+static_assert(std::is_trivially_destructible_v<PredictorSource>,
+              "PredictorSource must not own storage: Rf_error skips its dtor");
+
+/// The dense spelling of a view: a plain column-major block, no map.
+inline PredictorSource densePredictorSource(
+    const double* values, size_t numRows, size_t numColumns,
+    const ColumnType* columnTypes = nullptr,
+    const std::uint32_t* categoryCounts = nullptr) {
+  PredictorSource source;
+  source.numRows = numRows;
+  source.numColumns = numColumns;
+  source.denseValues = values;
+  source.columnTypes = columnTypes;
+  source.categoryCounts = categoryCounts;
+  return source;
+}
+
+/// The view a sampler constructor builds from: the host's borrowed source
+/// carrying the constructor's own row and column counts, plus - when the host
+/// supplied no map - the constructor's transient dense block as the values a
+/// null map reads.
+inline PredictorSource creationPredictorSource(const PredictorSource& source,
+                                               const double* x, size_t numRows,
+                                               size_t numColumns) {
+  PredictorSource view = source;
+  view.numRows = numRows;
+  view.numColumns = numColumns;
+  if (!view.isMapped()) view.denseValues = x;
+  return view;
+}
+
+/// The dense-only creation view: the host's typing channel over the
+/// constructor's dense block, any mapped or CSC storage dropped. The BCF and
+/// multinomial samplers offer no sparse ingestion path.
+inline PredictorSource denseCreationPredictorSource(
+    const PredictorSource& source, const double* x, size_t numRows,
+    size_t numColumns) {
+  return densePredictorSource(x, numRows, numColumns, source.columnTypes,
+                              source.categoryCounts);
+}
+
+/// Whether every column of a source is CSC-backed - the bare-dgCMatrix design,
+/// which serves no column's contiguous raw values and so admits no leaf
+/// covariate at all. An unmapped source is dense column for column.
+inline bool predictorSourceIsAllCsc(const PredictorSource& source,
+                                    size_t numColumns) {
+  if (!source.isMapped() || numColumns == 0) return false;
+  for (size_t j = 0; j < numColumns; ++j)
+    if (source.sourceOf(j) >= 0) return false;
+  return true;
+}
+
 /// One row set's code storage over the store's shared cut grid: the packed
 /// dense codes and their per-column starts, the rank storage of the sparse
 /// columns, and the per-column source descriptors. Instantiated train and test
@@ -180,8 +314,8 @@ struct CodeBlock {
   // level's own level-order index, not the storage's structural zero.
   std::vector<ColumnSource> sources;
 
-  /// Whether column j quantizes from a borrowed CSC slice (every column of a
-  /// buildFromCsc store, the sparse-source columns of a mixed build).
+  /// Whether column j quantizes from a borrowed CSC slice (every column of an
+  /// all-CSC build, the sparse-source columns of a mixed one).
   bool columnIsCscBacked(size_t j) const { return sources[j].isCscBacked(); }
 
   bool columnIsSparse(size_t j) const { return sources[j].isRank(); }
@@ -307,7 +441,7 @@ struct ColumnStore {
   // Owned dense block of a mixed build, in the host's dense-source layout
   // (numObservations x the number of dense sources the map indexes), which
   // every denseBorrowed train source points into. The store owns its raw on
-  // both sides: the host assembles the block transiently and buildMixed copies
+  // both sides: the host assembles the block transiently and the build copies
   // it, so a mutation writes the new values through denseRaw and every later
   // reader - setCutPoints, state restore, a linear/GP leaf's regather - sees
   // the live column rather than the creation-time one. Empty on dense builds
@@ -335,7 +469,7 @@ struct ColumnStore {
   }
 
   /// Whether column j quantizes from a borrowed CSC slice (every column of
-  /// a buildFromCsc store, the sparse-source columns of a mixed build).
+  /// an all-CSC build, the sparse-source columns of a mixed one).
   bool columnIsCscBacked(size_t j) const {
     return train.columnIsCscBacked(j);
   }
@@ -780,9 +914,10 @@ struct ColumnStore {
   /// Reset the per-column source storage to the dense-empty baseline: every
   /// column denseOwned, no CSC or rank backing, no gathered raw, no recorded
   /// missingness. Every train builder resets through here, then overwrites the
-  /// per-column source descriptors its storage kind owns (buildMixed the CSC
-  /// slices, counts, and reference codes; build the gathered raw via
-  /// setupGatheredColumns). numPredictors must already hold the new column
+  /// per-column source descriptors the view's storage kinds own (a mapped
+  /// build the CSC slices, counts, and reference codes; an unmapped one the
+  /// gathered raw via setupGatheredColumns). numPredictors must already hold
+  /// the new column
   /// count; codes/codeOffsets and the cut grid are sized by each builder.
   void resetTrainStorage() {
     train.sources.assign(numPredictors, ColumnSource{});
@@ -800,83 +935,47 @@ struct ColumnStore {
     ownedCscRows.clear();
     ownedCscValues.clear();
     cscColumnOwned.clear();
-    // likewise no owned dense block until buildMixed copies one
+    // likewise no owned dense block until a mapped build copies one
     ownedDenseValues.clear();
   }
 
-  /// columnTypes may be null for all-ordinal. Categorical columns must hold
-  /// integral values 0..K-1 with K <= maxCategories; the caller validates.
-  /// gatherColumns names the columns whose raw values a leaf model reads (or a
-  /// data handle's declared columns): build owns a copy so the raw source
-  /// borrow x_ need not outlive the call. categoryCounts_, when supplied, is
-  /// the host's declared level count per column (0 = infer from the codes).
-  void build(const double* x_, size_t n, size_t p,
-             const std::uint32_t* maxNumCuts_, bool useQuantiles_,
-             const ColumnType* columnTypes = nullptr,
+  /// Build the training store from a borrowed predictor view (PredictorSource)
+  /// against a fresh cut grid. maxNumCutsPerColumn, when non-null, overrides
+  /// maxNumCutsScalar per column. The host validates structure - CSC row
+  /// indices unique and in range per column, categorical codes integral and
+  /// within their declared count - since the quantize trusts both.
+  ///
+  /// An UNMAPPED view is the dense build: column j quantizes from dense column
+  /// j of source.denseValues, read for the call only, and the store retains no
+  /// raw - a later re-quantize reads whatever matrix its caller hands over.
+  /// gatherColumns then names the columns whose raw values a leaf model (or a
+  /// data handle's declared designation) must still see after the borrow
+  /// releases, and the build owns a copy of each.
+  ///
+  /// A MAPPED view mixes storage. A nonnegative source names a dense column of
+  /// source.denseValues - quantized with the same dense arithmetic, categorical
+  /// allowed, rawColumn served - and a negative one CSC column ~sourceOf(j) of
+  /// the triple, which takes rank-bitmap storage at or below
+  /// sparseDensityThreshold nonzero fraction and densified codes above, its
+  /// borrowed slice serving re-quantization either way. The dense block is
+  /// COPIED into ownedDenseValues, so it need not outlive the call and a
+  /// mutation writes the new values through the store's own copy; the CSC
+  /// triple stays borrowed for the store's lifetime (until a column's first
+  /// mutation repoints it at owned nonzeros). Its dense-backed columns serve
+  /// raw from that block already, so gatherColumns does not apply.
+  void build(const PredictorSource& source,
+             const std::uint32_t* maxNumCutsPerColumn,
+             std::uint32_t maxNumCutsScalar, bool useQuantiles_,
              const size_t* gatherColumns = nullptr,
-             size_t numGatherColumns = 0,
-             const std::uint32_t* categoryCounts_ = nullptr) {
+             size_t numGatherColumns = 0) {
+    size_t n = source.numRows, p = source.numColumns;
+    bool mapped = source.isMapped();
     isView = false;
     numObservations = n;
     numPredictors = p;
     useQuantiles = useQuantiles_;
-    if (columnTypes != nullptr) {
-      types.assign(columnTypes, columnTypes + p);
-    } else {
-      types.assign(p, ColumnType::ordinal);
-    }
-    cutPoints.resize(p);
-    numCuts.resize(p);
-    maxNumCuts.assign(maxNumCuts_, maxNumCuts_ + p);
-    // keep the reserved missing code out of the real code range
-    for (size_t j = 0; j < p; ++j)
-      if (maxNumCuts[j] > maxNumCutsRepresentable)
-        maxNumCuts[j] = maxNumCutsRepresentable;
-    train.codes.resize(n * p);
-    train.codeOffsets.resize(p);
-    for (size_t j = 0; j < p; ++j) train.codeOffsets[j] = j * n;
-    resetTrainStorage();
-    setupGatheredColumns(gatherColumns, numGatherColumns);
-    // the declared level tables, consumed here by buildCutsForColumn; a null
-    // array leaves every count inferred
-    if (categoryCounts_ != nullptr)
-      for (size_t j = 0; j < p; ++j)
-        train.sources[j].declaredCategoryCount = categoryCounts_[j];
-
-    for (size_t j = 0; j < p; ++j) {
-      const double* column = x_ + j * n;
-      buildCutsForColumn(j, column);
-      quantizeColumn(j, column);
-    }
-    refreshCategoricalTiers();
-  }
-
-  /// Build from mixed dense and CSC sources: column j reads dense column
-  /// columnSources[j] of denseValues (column-major) when the source is
-  /// nonnegative - quantized with the dense arithmetic exactly as build(),
-  /// categorical allowed, rawColumn served - or CSC column ~columnSources[j]
-  /// of the triple otherwise: ordinal only, rank-bitmap storage at or below
-  /// sparseDensityThreshold nonzero fraction, densified codes above, the
-  /// borrowed slices serving re-quantization either way. The host validates
-  /// structure (row indices unique and in range per column) and that
-  /// categorical columns are dense-backed. The dense block is COPIED, so it
-  /// need not outlive the call and a mutation writes the new values into the
-  /// store's own copy; the CSC triple is borrowed for the store's lifetime
-  /// (until a column's first mutation repoints it at owned nonzeros).
-  void buildMixed(const double* denseValues, const int* columnPointers,
-                  const int* rowIndices, const double* values,
-                  const std::int32_t* columnSources, size_t n, size_t p,
-                  const std::uint32_t* maxNumCutsPerColumn,
-                  std::uint32_t maxNumCutsScalar, bool useQuantiles_,
-                  const ColumnType* columnTypes = nullptr,
-                  const std::uint32_t* categoryCounts_ = nullptr,
-                  const xint_t* cscReferenceCodes_ = nullptr) {
-    isView = false;
-    numObservations = n;
-    numPredictors = p;
-    useQuantiles = useQuantiles_;
-    if (columnTypes != nullptr) {
-      types.assign(columnTypes, columnTypes + p);
+    if (source.columnTypes != nullptr) {
+      types.assign(source.columnTypes, source.columnTypes + p);
     } else {
       types.assign(p, ColumnType::ordinal);
     }
@@ -887,50 +986,66 @@ struct ColumnStore {
     } else {
       maxNumCuts.assign(p, maxNumCutsScalar);
     }
+    // keep the reserved missing code out of the real code range
     for (size_t j = 0; j < p; ++j)
       if (maxNumCuts[j] > maxNumCutsRepresentable)
         maxNumCuts[j] = maxNumCutsRepresentable;
-    resetTrainStorage();
-    // this builder owns the per-column CSC sources: borrowed slices,
-    // densified/rank backing, and the reference codes of CSC-backed
-    // categoricals (declared level counts ride both storage kinds, below)
-    builtFromCsc = true;
-    // per-column owned-mutation storage, empty until a column is first mutated
-    ownedCscRows.assign(p, {});
-    ownedCscValues.assign(p, {});
-    cscColumnOwned.assign(p, 0);
     train.codeOffsets.assign(p, 0);
-    // own the dense block, sized by the largest dense source it is indexed by
-    // (the buildTestMixed treatment); creation peaks at two copies of it, the
-    // host's transient assembly and this one, and steady state holds only this
-    std::int32_t maxDenseSource = -1;
-    for (size_t j = 0; j < p; ++j)
-      if (columnSources[j] > maxDenseSource) maxDenseSource = columnSources[j];
-    if (maxDenseSource >= 0)
-      ownedDenseValues.assign(
-        denseValues,
-        denseValues + (static_cast<size_t>(maxDenseSource) + 1) * n);
+    resetTrainStorage();
+    if (mapped) {
+      // this branch owns the per-column CSC sources: borrowed slices,
+      // densified/rank backing, and the reference codes of CSC-backed
+      // categoricals (declared level counts ride both storage kinds, below)
+      builtFromCsc = true;
+      // per-column owned-mutation storage, empty until a column is first
+      // mutated
+      ownedCscRows.assign(p, {});
+      ownedCscValues.assign(p, {});
+      cscColumnOwned.assign(p, 0);
+      // own the dense block, sized by the largest dense source it is indexed
+      // by (the buildTest treatment); creation peaks at two copies of it, the
+      // host's transient assembly and this one, and steady state holds only
+      // this
+      std::int32_t maxDenseSource = -1;
+      for (size_t j = 0; j < p; ++j)
+        if (source.sourceOf(j) > maxDenseSource)
+          maxDenseSource = source.sourceOf(j);
+      if (maxDenseSource >= 0)
+        ownedDenseValues.assign(
+          source.denseValues,
+          source.denseValues + (static_cast<size_t>(maxDenseSource) + 1) * n);
+    } else {
+      setupGatheredColumns(gatherColumns, numGatherColumns);
+    }
+
     size_t numDenseCodes = 0;
     for (size_t j = 0; j < p; ++j) {
       ColumnSource& desc = train.sources[j];
-      // the declared level table rides either storage kind: a dense-backed
-      // factor inside the container declares one exactly as a CSC-backed one
-      if (categoryCounts_ != nullptr)
-        desc.declaredCategoryCount = categoryCounts_[j];
-      if (columnSources[j] >= 0) {
-        desc.kind = ColumnSourceKind::denseBorrowed;
-        desc.denseRaw =
-          ownedDenseValues.data() + static_cast<size_t>(columnSources[j]) * n;
+      // the declared level table rides every storage kind: a dense-backed
+      // factor inside a container declares one exactly as a CSC-backed one
+      desc.declaredCategoryCount = source.categoryCountOf(j);
+      std::int32_t columnSource = source.sourceOf(j);
+      if (!mapped) {
+        // dense build: codes packed column for column, re-quantized from
+        // whatever matrix a later caller supplies
         train.codeOffsets[j] = numDenseCodes;
         numDenseCodes += n;
         continue;
       }
-      std::int32_t sourceIndex = ~columnSources[j];
-      size_t source = static_cast<size_t>(sourceIndex);
-      size_t begin = static_cast<size_t>(columnPointers[source]);
-      size_t end = static_cast<size_t>(columnPointers[source + 1]);
-      desc.slice = { values + begin, rowIndices + begin, end - begin };
-      if (cscReferenceCodes_ != nullptr) desc.refCode = cscReferenceCodes_[j];
+      if (columnSource >= 0) {
+        desc.kind = ColumnSourceKind::denseBorrowed;
+        desc.denseRaw =
+          ownedDenseValues.data() + static_cast<size_t>(columnSource) * n;
+        train.codeOffsets[j] = numDenseCodes;
+        numDenseCodes += n;
+        continue;
+      }
+      size_t cscColumn = static_cast<size_t>(~columnSource);
+      size_t begin = static_cast<size_t>(source.cscColumnPointers[cscColumn]);
+      size_t end = static_cast<size_t>(source.cscColumnPointers[cscColumn + 1]);
+      desc.slice = { source.cscValues + begin, source.cscRowIndices + begin,
+                     end - begin };
+      desc.refCode = source.referenceCodeOf(j);
       bool sparse = static_cast<double>(end - begin) <=
         sparseDensityThreshold * static_cast<double>(n);
       if (sparse) {
@@ -948,27 +1063,30 @@ struct ColumnStore {
 
     for (size_t j = 0; j < p; ++j) {
       buildRankStorageInto(train, n, j);
-      // train.sources[j].denseRaw is the dense slice for a dense-backed column
-      // and null for a CSC-backed one (which quantizes from its retained slice)
-      buildCutsForColumn(j, train.sources[j].denseRaw);
-      quantizeColumn(j, train.sources[j].denseRaw);
+      // the raw a column quantizes from: the store's own dense slice for a
+      // mapped dense-backed column, the call's block for an unmapped one, and
+      // null for a CSC-backed column (which reads its retained slice)
+      const double* column = mapped ? train.sources[j].denseRaw
+                                    : source.denseValues + j * n;
+      buildCutsForColumn(j, column);
+      quantizeColumn(j, column);
     }
     refreshCategoricalTiers();
 
     resetTestStorage();
   }
 
-  /// Build from a CSC (dgCMatrix-layout) predictor matrix: buildMixed with
-  /// every column CSC-backed, so all columns ordinal and no raw dense
-  /// matrix (x stays null).
-  void buildFromCsc(const int* columnPointers, const int* rowIndices,
-                    const double* values, size_t n, size_t p,
-                    const std::uint32_t* maxNumCutsPerColumn,
-                    std::uint32_t maxNumCutsScalar, bool useQuantiles_) {
-    std::vector<std::int32_t> allCsc(p);
-    for (size_t j = 0; j < p; ++j) allCsc[j] = ~static_cast<std::int32_t>(j);
-    buildMixed(nullptr, columnPointers, rowIndices, values, allCsc.data(),
-               n, p, maxNumCutsPerColumn, maxNumCutsScalar, useQuantiles_);
+  /// Dense convenience spelling: a plain column-major matrix, no map.
+  /// columnTypes may be null for all-ordinal; categoryCounts_, when supplied,
+  /// is the host's declared level count per column (0 = infer from the codes).
+  void build(const double* x_, size_t n, size_t p,
+             const std::uint32_t* maxNumCuts_, bool useQuantiles_,
+             const ColumnType* columnTypes = nullptr,
+             const size_t* gatherColumns = nullptr,
+             size_t numGatherColumns = 0,
+             const std::uint32_t* categoryCounts_ = nullptr) {
+    build(densePredictorSource(x_, n, p, columnTypes, categoryCounts_),
+          maxNumCuts_, 0, useQuantiles_, gatherColumns, numGatherColumns);
   }
 
   void build(const double* x_, size_t n, size_t p, std::uint32_t maxNumCuts_,
@@ -977,9 +1095,8 @@ struct ColumnStore {
              const size_t* gatherColumns = nullptr,
              size_t numGatherColumns = 0,
              const std::uint32_t* categoryCounts_ = nullptr) {
-    std::vector<std::uint32_t> maxPerColumn(p, maxNumCuts_);
-    build(x_, n, p, maxPerColumn.data(), useQuantiles_, columnTypes,
-          gatherColumns, numGatherColumns, categoryCounts_);
+    build(densePredictorSource(x_, n, p, columnTypes, categoryCounts_), nullptr,
+          maxNumCuts_, useQuantiles_, gatherColumns, numGatherColumns);
   }
 
   /// Clear the owned-CSC test payload (the packed nonzeros); the per-column CSC
@@ -1004,46 +1121,33 @@ struct ColumnStore {
     testOffset = nullptr;
   }
 
-  /// Own a copy of the test predictors and quantize them against the current
-  /// cuts; the raw borrow x_test_ need not outlive the call. Re-quantization
-  /// on a later cut change reads the owned copy.
-  void buildTest(const double* x_test_, size_t numTest) {
-    numTestObservations = numTest;
-    ownedTestValues.assign(x_test_, x_test_ + numTest * numPredictors);
-    test.codes.resize(numTest * numPredictors);
-    test.codeOffsets.resize(numPredictors);
-    for (size_t j = 0; j < numPredictors; ++j) test.codeOffsets[j] = j * numTest;
-    test.sources.assign(numPredictors, ColumnSource{});
-    test.sparseColumns.clear();
-    clearTestCscSources();
-    for (size_t j = 0; j < numPredictors; ++j) quantizeTestColumn(j);
-  }
-
-  /// Build the test store from mixed dense and CSC sources against the training
-  /// cut grid (already built, shared by identity): column j reads dense column
-  /// columnSources[j] of denseValues when nonnegative - quantized like the dense
-  /// buildTest, raw served through rawTestColumn - or CSC column
-  /// ~columnSources[j] of the triple otherwise, rank-bitmap storage at or below
-  /// sparseDensityThreshold nonzero fraction and densified codes above, the
-  /// training tier rule per column. cscReferenceCodes gives each CSC-backed
-  /// categorical test column its reference level code (the code the implicit
-  /// rows take), null when none is categorical. The test store owns its raw:
-  /// the dense block and the CSC nonzero values+rows are copied, so no borrowed
-  /// pointer survives the call. numCuts and cutPoints are not rebuilt.
-  void buildTestMixed(const double* denseValues, const int* columnPointers,
-                      const int* rowIndices, const double* values,
-                      const std::int32_t* columnSources, size_t numTest,
-                      const xint_t* cscReferenceCodes = nullptr) {
-    size_t p = numPredictors;
+  /// Build the test store from a borrowed predictor view against the training
+  /// cut grid (already built, shared by identity; numCuts and cutPoints are not
+  /// rebuilt). Column j reads dense column sourceOf(j) of source.denseValues
+  /// when nonnegative - quantized with the dense arithmetic, raw served through
+  /// rawTestColumn - or CSC column ~sourceOf(j) of the triple otherwise, which
+  /// takes rank-bitmap storage at or below sparseDensityThreshold nonzero
+  /// fraction and densified codes above, the training tier rule per column. An
+  /// unmapped view is the plain test matrix, dense column for dense column.
+  /// source.referenceCodes gives each CSC-backed categorical test column its
+  /// reference level code (the code the implicit rows take).
+  ///
+  /// The test store owns ALL its raw whatever the view's shape: the dense block
+  /// and the CSC nonzero values+rows are copied, so no borrowed pointer
+  /// survives the call and a later cut change re-quantizes from the copies.
+  void buildTest(const PredictorSource& source) {
+    size_t p = numPredictors, numTest = source.numRows;
     numTestObservations = numTest;
 
     // own the dense block, sized by the largest dense source it is indexed by
     std::int32_t maxDenseSource = -1;
     for (size_t j = 0; j < p; ++j)
-      if (columnSources[j] > maxDenseSource) maxDenseSource = columnSources[j];
+      if (source.sourceOf(j) > maxDenseSource)
+        maxDenseSource = source.sourceOf(j);
     size_t numDenseColumns =
       maxDenseSource >= 0 ? static_cast<size_t>(maxDenseSource) + 1 : 0;
-    ownedTestValues.assign(denseValues, denseValues + numDenseColumns * numTest);
+    ownedTestValues.assign(source.denseValues,
+                           source.denseValues + numDenseColumns * numTest);
 
     test.sources.assign(p, ColumnSource{});
     test.sparseColumns.clear();
@@ -1053,10 +1157,11 @@ struct ColumnStore {
     // storage that never reallocates for the store's lifetime
     size_t totalNonzero = 0;
     for (size_t j = 0; j < p; ++j)
-      if (columnSources[j] < 0) {
-        size_t source = static_cast<size_t>(~columnSources[j]);
-        totalNonzero += static_cast<size_t>(columnPointers[source + 1] -
-                                            columnPointers[source]);
+      if (source.sourceOf(j) < 0) {
+        size_t cscColumn = static_cast<size_t>(~source.sourceOf(j));
+        totalNonzero +=
+          static_cast<size_t>(source.cscColumnPointers[cscColumn + 1] -
+                              source.cscColumnPointers[cscColumn]);
       }
     ownedTestCscValues.resize(totalNonzero);
     ownedTestCscRows.resize(totalNonzero);
@@ -1064,25 +1169,26 @@ struct ColumnStore {
     size_t numDenseCodes = 0, cursor = 0;
     for (size_t j = 0; j < p; ++j) {
       ColumnSource& desc = test.sources[j];
-      if (columnSources[j] >= 0) {
+      std::int32_t columnSource = source.sourceOf(j);
+      if (columnSource >= 0) {
         desc.kind = ColumnSourceKind::denseBorrowed;
         desc.denseRaw = ownedTestValues.data() +
-          static_cast<size_t>(columnSources[j]) * numTest;
+          static_cast<size_t>(columnSource) * numTest;
         test.codeOffsets[j] = numDenseCodes;
         numDenseCodes += numTest;
         continue;
       }
-      size_t source = static_cast<size_t>(~columnSources[j]);
-      size_t begin = static_cast<size_t>(columnPointers[source]);
-      size_t end = static_cast<size_t>(columnPointers[source + 1]);
+      size_t cscColumn = static_cast<size_t>(~columnSource);
+      size_t begin = static_cast<size_t>(source.cscColumnPointers[cscColumn]);
+      size_t end = static_cast<size_t>(source.cscColumnPointers[cscColumn + 1]);
       size_t numNonzero = end - begin;
-      std::memcpy(ownedTestCscValues.data() + cursor, values + begin,
-                  numNonzero * sizeof(double));
-      std::memcpy(ownedTestCscRows.data() + cursor, rowIndices + begin,
-                  numNonzero * sizeof(int));
+      std::memcpy(ownedTestCscValues.data() + cursor,
+                  source.cscValues + begin, numNonzero * sizeof(double));
+      std::memcpy(ownedTestCscRows.data() + cursor,
+                  source.cscRowIndices + begin, numNonzero * sizeof(int));
       desc.slice = { ownedTestCscValues.data() + cursor,
                      ownedTestCscRows.data() + cursor, numNonzero };
-      if (cscReferenceCodes != nullptr) desc.refCode = cscReferenceCodes[j];
+      desc.refCode = source.referenceCodeOf(j);
       cursor += numNonzero;
       bool sparse = static_cast<double>(numNonzero) <=
         sparseDensityThreshold * static_cast<double>(numTest);
@@ -1102,6 +1208,12 @@ struct ColumnStore {
       buildRankStorageInto(test, numTest, j);
       quantizeTestColumn(j);
     }
+  }
+
+  /// Dense convenience spelling: own a copy of a plain column-major test
+  /// matrix and quantize it against the current cuts.
+  void buildTest(const double* x_test_, size_t numTest) {
+    buildTest(densePredictorSource(x_test_, numTest, numPredictors));
   }
 
   /// A row- and column-subset view of a built parent store: copies the

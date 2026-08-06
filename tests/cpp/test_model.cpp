@@ -1282,7 +1282,7 @@ static void testLinearLeafEndToEnd(ext_rng* rng) {
           "out-of-range leaf covariate refused");
     ColumnType types[] = {ColumnType::ordinal, ColumnType::categorical};
     bad = options;
-    bad.columnTypes = types;
+    bad.predictors.columnTypes = types;
     check(createSampler(x.data(), y.data(), n, p, nullptr, nullptr,
                         ResponseFamily::gaussian, ySd, 3.0,
                         0.37804942330213542, bad, &rng) == nullptr,
@@ -2187,9 +2187,12 @@ static void testSparseColumnStore() {
 
   for (bool useQuantiles : { false, true }) {
     ColumnStore fromCsc;
-    fromCsc.buildFromCsc(fixture.pointers.data(), fixture.rows.data(),
-                         fixture.values.data(), n, fixture.p, nullptr, 100,
-                         useQuantiles);
+    fromCsc.build(mixedPredictorSource(n, fixture.p, nullptr,
+                                       fixture.pointers.data(),
+                                       fixture.rows.data(),
+                                       fixture.values.data(),
+                                       fixture.allCscSources.data()),
+                  nullptr, 100, useQuantiles);
     ColumnStore fromDense;
     fromDense.build(fixture.dense.data(), n, fixture.p, 100, useQuantiles);
 
@@ -2266,9 +2269,10 @@ static void testSparseEndToEnd() {
                          0.37804942330213542, options, &rngA);
 
     SamplerOptions cscOptions(options);
-    cscOptions.cscColumnPointers = fixture.pointers.data();
-    cscOptions.cscRowIndices = fixture.rows.data();
-    cscOptions.cscValues = fixture.values.data();
+    cscOptions.predictors.cscColumnPointers = fixture.pointers.data();
+    cscOptions.predictors.cscRowIndices = fixture.rows.data();
+    cscOptions.predictors.cscValues = fixture.values.data();
+    cscOptions.predictors.columnSources = fixture.allCscSources.data();
     ConstantLeafSampler sparse(nullptr, y.data(), n, p, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, cscOptions, &rngB);
@@ -2327,9 +2331,10 @@ static void testSparseEndToEnd() {
     }
     SamplerOptions options;
     options.numTrees = 75;
-    options.cscColumnPointers = fixture.pointers.data();
-    options.cscRowIndices = fixture.rows.data();
-    options.cscValues = fixture.values.data();
+    options.predictors.cscColumnPointers = fixture.pointers.data();
+    options.predictors.cscRowIndices = fixture.rows.data();
+    options.predictors.cscValues = fixture.values.data();
+    options.predictors.columnSources = fixture.allCscSources.data();
     ConstantLeafSampler sampler(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
                            ResponseFamily::gaussian, ySd, 3.0,
                            0.37804942330213542, options, &rng);
@@ -2382,9 +2387,10 @@ static void testSparseStateRoundTrip() {
   SamplerOptions options;
   options.numTrees = 15;
   options.numChains = numChains;
-  options.cscColumnPointers = fixture.pointers.data();
-  options.cscRowIndices = fixture.rows.data();
-  options.cscValues = fixture.values.data();
+  options.predictors.cscColumnPointers = fixture.pointers.data();
+  options.predictors.cscRowIndices = fixture.rows.data();
+  options.predictors.cscValues = fixture.values.data();
+  options.predictors.columnSources = fixture.allCscSources.data();
 
   auto makeRngs = [](std::vector<ext_rng*>& rngs, std::uint32_t seed) {
     for (size_t c = 0; c < rngs.size(); ++c) {
@@ -2444,9 +2450,10 @@ static void testSparseMutation() {
     ext_rng_setSeed(rng, 707);
     SamplerOptions options;
     options.numTrees = 20;
-    options.cscColumnPointers = fixture.pointers.data();
-    options.cscRowIndices = fixture.rows.data();
-    options.cscValues = fixture.values.data();
+    options.predictors.cscColumnPointers = fixture.pointers.data();
+    options.predictors.cscRowIndices = fixture.rows.data();
+    options.predictors.cscValues = fixture.values.data();
+    options.predictors.columnSources = fixture.allCscSources.data();
     ConstantLeafSampler sparse(nullptr, y.data(), n, p, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rng);
@@ -2540,9 +2547,10 @@ static void testSparseMutation() {
                           nullptr, ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, denseOptions, &rngA);
     SamplerOptions cscOptions(denseOptions);
-    cscOptions.cscColumnPointers = fixture.pointers.data();
-    cscOptions.cscRowIndices = fixture.rows.data();
-    cscOptions.cscValues = fixture.values.data();
+    cscOptions.predictors.cscColumnPointers = fixture.pointers.data();
+    cscOptions.predictors.cscRowIndices = fixture.rows.data();
+    cscOptions.predictors.cscValues = fixture.values.data();
+    cscOptions.predictors.columnSources = fixture.allCscSources.data();
     ConstantLeafSampler sparse(nullptr, y.data(), n, p, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, cscOptions, &rngB);
@@ -2603,9 +2611,10 @@ static void testSparseMutation() {
     ext_rng_setSeed(rng, 909);
     SamplerOptions options;
     options.numTrees = 25;
-    options.cscColumnPointers = fixture.pointers.data();
-    options.cscRowIndices = fixture.rows.data();
-    options.cscValues = fixture.values.data();
+    options.predictors.cscColumnPointers = fixture.pointers.data();
+    options.predictors.cscRowIndices = fixture.rows.data();
+    options.predictors.cscValues = fixture.values.data();
+    options.predictors.columnSources = fixture.allCscSources.data();
     ConstantLeafSampler sparse(nullptr, y.data(), n, p, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rng);
@@ -2714,20 +2723,21 @@ struct CscCategoricalFixture {
   std::int32_t sources = ~0;  // the one column reads CSC source 0
 
   void applyOptions(SamplerOptions& options) {
-    options.cscColumnPointers = pointers.data();
-    options.cscRowIndices = rows.data();
-    options.cscValues = values.data();
-    options.columnSources = &sources;
-    options.columnTypes = types.data();
-    options.categoryCounts = &K;
-    options.cscReferenceCodes = &reference;
+    options.predictors.cscColumnPointers = pointers.data();
+    options.predictors.cscRowIndices = rows.data();
+    options.predictors.cscValues = values.data();
+    options.predictors.columnSources = &sources;
+    options.predictors.columnTypes = types.data();
+    options.predictors.categoryCounts = &K;
+    options.predictors.referenceCodes = &reference;
   }
 
   ColumnStore buildStore(bool useQuantiles) {
     ColumnStore store;
-    store.buildMixed(nullptr, pointers.data(), rows.data(), values.data(),
-                     &sources, n, 1, nullptr, 100, useQuantiles, types.data(),
-                     &K, &reference);
+    store.build(mixedPredictorSource(n, 1, nullptr, pointers.data(),
+                                     rows.data(), values.data(), &sources,
+                                     types.data(), &K, &reference),
+                nullptr, 100, useQuantiles);
     return store;
   }
 };
@@ -2834,7 +2844,7 @@ static void testSparseCategoricalEndToEnd() {
 
     SamplerOptions options;
     options.numTrees = 40;
-    options.columnTypes = fixture.types.data();
+    options.predictors.columnTypes = fixture.types.data();
     ConstantLeafSampler dense(fixture.dense.data(), y.data(), n, 1, nullptr,
                               nullptr, ResponseFamily::gaussian, 1.0, 3.0,
                               0.37804942330213542, options, &rngA);
@@ -2939,9 +2949,11 @@ static void testSparseCategoricalMutation() {
     int pointers[2] = { 0, static_cast<int>(rows.size()) };
     std::int32_t sources = ~0;
     ColumnStore store;
-    store.buildMixed(nullptr, pointers, rows.data(), values.data(), &sources,
-                     n, 1, nullptr, 100u, false, fixture.types.data(),
-                     &fixture.K, &fixture.reference);
+    store.build(mixedPredictorSource(n, 1, nullptr, pointers, rows.data(),
+                                     values.data(), &sources,
+                                     fixture.types.data(), &fixture.K,
+                                     &fixture.reference),
+                nullptr, 100u, false);
     check(store.columnIsSparse(0), "non-canonical fixture stays on the rank tier");
 
     std::vector<xint_t> before(n);
@@ -3003,12 +3015,12 @@ struct MixedFixture {
   }
 
   void applyOptions(SamplerOptions& options) {
-    options.cscColumnPointers = csc.pointers.data();
-    options.cscRowIndices = csc.rows.data();
-    options.cscValues = csc.values.data();
-    options.mixedDenseValues = denseSource.data();
-    options.columnSources = sources.data();
-    options.columnTypes = types.data();
+    options.predictors.cscColumnPointers = csc.pointers.data();
+    options.predictors.cscRowIndices = csc.rows.data();
+    options.predictors.cscValues = csc.values.data();
+    options.predictors.denseValues = denseSource.data();
+    options.predictors.columnSources = sources.data();
+    options.predictors.columnTypes = types.data();
   }
 };
 
@@ -3020,10 +3032,12 @@ static void testMixedColumnStore() {
 
   for (bool useQuantiles : { false, true }) {
     ColumnStore mixed;
-    mixed.buildMixed(fixture.denseSource.data(), fixture.csc.pointers.data(),
-                     fixture.csc.rows.data(), fixture.csc.values.data(),
-                     fixture.sources.data(), n, fixture.p, nullptr, 100,
-                     useQuantiles, fixture.types.data());
+    mixed.build(mixedPredictorSource(
+                  n, fixture.p, fixture.denseSource.data(),
+                  fixture.csc.pointers.data(), fixture.csc.rows.data(),
+                  fixture.csc.values.data(), fixture.sources.data(),
+                  fixture.types.data()),
+                nullptr, 100, useQuantiles);
     ColumnStore reference;
     reference.build(fixture.full.data(), n, fixture.p, 100, useQuantiles,
                     fixture.types.data());
@@ -3130,7 +3144,7 @@ static void testMixedEndToEnd() {
 
   SamplerOptions options;
   options.numTrees = 25;
-  options.columnTypes = fixture.types.data();
+  options.predictors.columnTypes = fixture.types.data();
   ConstantLeafSampler dense(fixture.full.data(), y.data(), n, fixture.p, nullptr,
                        nullptr, ResponseFamily::gaussian, 1.0, 3.0,
                        0.37804942330213542, options, &rngA);
@@ -3256,10 +3270,12 @@ static void testMixedDenseOwnership() {
     MixedFixture fixture;
     fixture.build(n, {0.05, 0.5, 0.6}, false);
     ColumnStore mixed;
-    mixed.buildMixed(fixture.denseSource.data(), fixture.csc.pointers.data(),
-                     fixture.csc.rows.data(), fixture.csc.values.data(),
-                     fixture.sources.data(), n, fixture.p, nullptr, 100, false,
-                     fixture.types.data());
+    mixed.build(mixedPredictorSource(
+                  n, fixture.p, fixture.denseSource.data(),
+                  fixture.csc.pointers.data(), fixture.csc.rows.data(),
+                  fixture.csc.values.data(), fixture.sources.data(),
+                  fixture.types.data()),
+                nullptr, 100, false);
 
     std::vector<double> newColumn(n);
     for (size_t i = 0; i < n; ++i)
@@ -4959,9 +4975,9 @@ static void testSparseTestDataEndToEnd() {
                        nullptr, ResponseFamily::gaussian, 1.0, 3.0,
                        0.37804942330213542, options, &rngB);
   denseSampler.setTestPredictors(denseTest.data(), numTest);
-  bool built = sparseSampler.setTestData(denseBlock.data(), pointers.data(),
-                                         rows.data(), values.data(),
-                                         columnSources.data(), nullptr, numTest);
+  bool built = sparseSampler.setTestData(
+    mixedPredictorSource(numTest, p, denseBlock.data(), pointers.data(),
+                         rows.data(), values.data(), columnSources.data()));
   check(built && sparseSampler.data().testColumnIsSparse(1) &&
         !sparseSampler.data().testColumnIsSparse(2),
         "the test container builds with the expected storage tiers");
@@ -4995,14 +5011,14 @@ static void testSparseTestDataEndToEnd() {
       &rngC);
     check(linear != nullptr, "dense-backed leaf covariate sampler creates");
     if (linear != nullptr) {
-      check(linear->setTestData(denseBlock.data(), pointers.data(), rows.data(),
-                                values.data(), columnSources.data(), nullptr,
-                                numTest),
+      check(linear->setTestData(mixedPredictorSource(
+              numTest, p, denseBlock.data(), pointers.data(), rows.data(),
+              values.data(), columnSources.data())),
             "a dense-backed leaf covariate accepts the test container");
       std::vector<std::int32_t> refuse = {~0, 0, ~1, 1};  // column 0 now CSC
-      check(!linear->setTestData(denseBlock.data(), pointers.data(),
-                                 rows.data(), values.data(), refuse.data(),
-                                 nullptr, numTest),
+      check(!linear->setTestData(mixedPredictorSource(
+              numTest, p, denseBlock.data(), pointers.data(), rows.data(),
+              values.data(), refuse.data())),
             "a CSC-backed leaf covariate refuses the test container");
     }
     ext_rng_destroy(rngC);

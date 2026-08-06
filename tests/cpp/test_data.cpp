@@ -680,8 +680,8 @@ static void testTransientBlockAssembly() {
 }
 
 // The bitwise device on the test side: a mixed dense + CSC test set, built
-// against a training cut grid through buildTestMixed, bins IDENTICALLY to a
-// dense test matrix of the same values. Both storage tiers appear - a rank
+// against a training cut grid through a mapped test view, bins IDENTICALLY to
+// a dense test matrix of the same values. Both storage tiers appear - a rank
 // column (nonzero fraction at or below the threshold) and a densified one - so
 // the check covers testCodeAt on each, the storage-aware test descent through a
 // grown tree, and one recorded test fit (the leaf parameter each row lands on).
@@ -765,8 +765,15 @@ static void testSparseTestColumnStore() {
   std::memcpy(denseBlock.data() + numTest, dense3.data(),
               numTest * sizeof(double));
   std::vector<std::int32_t> columnSources = {0, ~0, ~1, 1};
-  store.buildTestMixed(denseBlock.data(), pointers.data(), rows.data(),
-                       values.data(), columnSources.data(), numTest);
+  bartcore::PredictorSource testSource;
+  testSource.numRows = numTest;
+  testSource.numColumns = p;
+  testSource.denseValues = denseBlock.data();
+  testSource.cscColumnPointers = pointers.data();
+  testSource.cscRowIndices = rows.data();
+  testSource.cscValues = values.data();
+  testSource.columnSources = columnSources.data();
+  store.buildTest(testSource);
 
   check(store.testColumnIsSparse(1) && !store.testColumnIsSparse(0) &&
         !store.testColumnIsSparse(2) && !store.testColumnIsSparse(3),
@@ -837,8 +844,15 @@ static void testSparseCategoricalTestColumnStore() {
   for (size_t i = 0; i < numTest; ++i) denseCodes[i] = store.testCodeAt(0, i);
 
   std::int32_t source = ~0;
-  store.buildTestMixed(nullptr, pointers.data(), rows.data(), values.data(),
-                       &source, numTest, &reference);
+  bartcore::PredictorSource testSource;
+  testSource.numRows = numTest;
+  testSource.numColumns = 1;
+  testSource.cscColumnPointers = pointers.data();
+  testSource.cscRowIndices = rows.data();
+  testSource.cscValues = values.data();
+  testSource.columnSources = &source;
+  testSource.referenceCodes = &reference;
+  store.buildTest(testSource);
 
   check(store.testColumnIsSparse(0), "the sparse categorical test column is rank-tier");
   check(reference != 0, "the reference level's code is not a numeric zero");
@@ -852,6 +866,170 @@ static void testSparseCategoricalTestColumnStore() {
 
   rngState = savedRngState;
   printf("ok: sparse categorical test column store\n");
+}
+
+// One predictor view drives every builder, so the collapsed
+// ColumnStore::build/buildTest must produce the SAME store from any equivalent
+// spelling of a source. Four equivalences over identical values: a dense build
+// through an explicit null-map view; a dense build through an identity-MAPPED
+// view (which additionally copies and owns its block); a dense TEST build
+// through an identity-mapped view (the buildTest/buildTestMixed collapse); and
+// an all-negative-map (bare CSC) build against the DENSE-EQUIVALENT build on
+// both storage tiers. A categorical column carries a declared level count
+// wider than its observed codes throughout, so the declared-K channel rides
+// each spelling too.
+static void testPredictorViewEquivalence() {
+  uint64_t savedRngState = rngState;
+  const size_t n = 260, numTest = 90, p = 4;
+  const std::uint32_t declaredK = 5;  // the observed codes reach 2
+
+  std::vector<double> x(n * p), xTest(numTest * p);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = 3.0 * runif01() - 1.0;
+    x[i + 2 * n] = static_cast<double>(i % 3);
+    x[i + 3 * n] = runif01() < 0.3 ? 0.0 : runif01();
+  }
+  for (size_t i = 0; i < numTest; ++i) {
+    xTest[i] = runif01();
+    xTest[i + numTest] = 3.0 * runif01() - 1.0;
+    xTest[i + 2 * numTest] = static_cast<double>(i % 3);
+    xTest[i + 3 * numTest] = runif01();
+  }
+  const ColumnType types[p] = { ColumnType::ordinal, ColumnType::ordinal,
+                                ColumnType::categorical, ColumnType::ordinal };
+  const std::uint32_t counts[p] = { 0, 0, declaredK, 0 };
+  std::vector<std::uint32_t> maxCuts(p, 20);
+  std::vector<std::int32_t> identity(p);
+  for (size_t j = 0; j < p; ++j) identity[j] = static_cast<std::int32_t>(j);
+
+  auto gridsAgree = [](const ColumnStore& a, const ColumnStore& b) {
+    return a.types == b.types && a.numCuts == b.numCuts &&
+           a.cutPoints == b.cutPoints && a.maxNumCuts == b.maxNumCuts &&
+           a.hasMissing == b.hasMissing;
+  };
+  auto trainCodesAgree = [](const ColumnStore& a, const ColumnStore& b) {
+    for (size_t j = 0; j < a.numPredictors; ++j)
+      for (size_t i = 0; i < a.numObservations; ++i)
+        if (a.codeAt(j, i) != b.codeAt(j, i)) return false;
+    return true;
+  };
+  auto testCodesAgree = [](const ColumnStore& a, const ColumnStore& b) {
+    for (size_t j = 0; j < a.numPredictors; ++j)
+      for (size_t i = 0; i < a.numTestObservations; ++i)
+        if (a.testCodeAt(j, i) != b.testCodeAt(j, i)) return false;
+    return true;
+  };
+
+  for (bool useQuantiles : { false, true }) {
+    ColumnStore dense;
+    dense.build(x.data(), n, p, maxCuts.data(), useQuantiles, types, nullptr, 0,
+                counts);
+    check(dense.numCuts[2] == declaredK,
+          "the declared level count reaches the dense build");
+
+    PredictorSource nullMap;
+    nullMap.numRows = n;
+    nullMap.numColumns = p;
+    nullMap.denseValues = x.data();
+    nullMap.columnTypes = types;
+    nullMap.categoryCounts = counts;
+    ColumnStore viaView;
+    viaView.build(nullMap, maxCuts.data(), 0, useQuantiles);
+    check(gridsAgree(dense, viaView) && trainCodesAgree(dense, viaView) &&
+          !viaView.builtFromCsc && viaView.ownedDenseValues.empty(),
+          "a null-map view builds the dense store, retaining no raw");
+
+    PredictorSource mapped = nullMap;
+    mapped.columnSources = identity.data();
+    ColumnStore viaMap;
+    viaMap.build(mapped, maxCuts.data(), 0, useQuantiles);
+    check(gridsAgree(dense, viaMap) && trainCodesAgree(dense, viaMap),
+          "an identity-mapped view bins exactly as the dense build");
+    check(viaMap.ownedDenseValues.size() == n * p &&
+          viaMap.rawColumn(1) == viaMap.ownedDenseValues.data() + n,
+          "an identity-mapped build owns its dense block");
+
+    dense.buildTest(xTest.data(), numTest);
+    PredictorSource testMap;
+    testMap.numRows = numTest;
+    testMap.numColumns = p;
+    testMap.denseValues = xTest.data();
+    testMap.columnSources = identity.data();
+    ColumnStore denseTestViaMap;
+    denseTestViaMap.build(nullMap, maxCuts.data(), 0, useQuantiles);
+    denseTestViaMap.buildTest(testMap);
+    check(testCodesAgree(dense, denseTestViaMap),
+          "an identity-mapped test view bins exactly as the dense test build");
+    bool rawAgrees = true;
+    for (size_t j = 0; j < p && rawAgrees; ++j)
+      for (size_t i = 0; i < numTest; ++i)
+        rawAgrees &= dense.rawTestColumn(j)[i] ==
+                     denseTestViaMap.rawTestColumn(j)[i];
+    check(rawAgrees, "both test spellings serve the same owned raw");
+  }
+
+  // the all-negative map: two CSC columns, one per storage tier, the densified
+  // one categorical with a reference level past zero and a declared count
+  // wider than its observed codes
+  const size_t q = 2;
+  const std::uint32_t cscDeclaredK = 7;  // the observed codes reach 4
+  const xint_t reference = 2;
+  std::vector<double> cscDense(n * q, 0.0);
+  std::vector<int> pointers(q + 1, 0), rows;
+  std::vector<double> values;
+  for (size_t i = 0; i < n; ++i)
+    if (runif01() < 0.08) {
+      cscDense[i] = 0.5 + runif01();
+      rows.push_back(static_cast<int>(i));
+      values.push_back(cscDense[i]);
+    }
+  pointers[1] = static_cast<int>(rows.size());
+  for (size_t i = 0; i < n; ++i) {
+    xint_t code = reference;
+    if (runif01() < 0.6) {
+      code = static_cast<xint_t>(runif01() * 4.0);
+      if (code >= reference) ++code;  // uniform over the non-reference levels
+      rows.push_back(static_cast<int>(i));
+      values.push_back(static_cast<double>(code));
+    }
+    cscDense[i + n] = static_cast<double>(code);
+  }
+  pointers[2] = static_cast<int>(rows.size());
+
+  const ColumnType cscTypes[q] = { ColumnType::ordinal,
+                                   ColumnType::categorical };
+  const std::uint32_t cscCounts[q] = { 0, cscDeclaredK };
+  const xint_t cscReferences[q] = { 0, reference };
+  std::vector<std::int32_t> allCsc(q);
+  for (size_t j = 0; j < q; ++j) allCsc[j] = ~static_cast<std::int32_t>(j);
+
+  for (bool useQuantiles : { false, true }) {
+    PredictorSource cscView;
+    cscView.numRows = n;
+    cscView.numColumns = q;
+    cscView.cscColumnPointers = pointers.data();
+    cscView.cscRowIndices = rows.data();
+    cscView.cscValues = values.data();
+    cscView.columnSources = allCsc.data();
+    cscView.columnTypes = cscTypes;
+    cscView.categoryCounts = cscCounts;
+    cscView.referenceCodes = cscReferences;
+    ColumnStore fromCsc;
+    fromCsc.build(cscView, nullptr, 20, useQuantiles);
+    ColumnStore fromDense;
+    fromDense.build(cscDense.data(), n, q, 20, useQuantiles, cscTypes, nullptr,
+                    0, cscCounts);
+    check(fromCsc.columnIsSparse(0) && !fromCsc.columnIsSparse(1),
+          "the all-negative map splits the two storage tiers");
+    check(fromCsc.numCuts[1] == cscDeclaredK,
+          "the declared level count reaches the CSC-backed categorical column");
+    check(gridsAgree(fromDense, fromCsc) && trainCodesAgree(fromDense, fromCsc),
+          "an all-negative-map view bins as the dense-equivalent build");
+  }
+
+  rngState = savedRngState;
+  printf("ok: predictor view builder equivalence\n");
 }
 
 void runDataTests() {
@@ -869,4 +1047,5 @@ void runDataTests() {
   testTransientBlockAssembly();
   testSparseTestColumnStore();
   testSparseCategoricalTestColumnStore();
+  testPredictorViewEquivalence();
 }

@@ -115,8 +115,8 @@ Two descriptor fields are CSC-categorical only. `cscCategoryCount` (the
 fixed level count K, unrecoverable from a slice that stores only
 non-reference entries) is train-side only - the test side reuses the
 store's fixed `numCuts[j]` for K. `refCode` is read on BOTH sides: its
-test-side value comes from `buildTestMixed`'s `cscReferenceCodes`
-(`data.hpp:960`), and `quantizeCscColumnInto` reads it
+test-side value comes from the test view's `referenceCodes`
+(`PredictorSource`, `data.hpp`), and `quantizeCscColumnInto` reads it
 block-parametrically for the implicit rows (`data.hpp:590`). It holds the
 reference level's level-order code - not the sparse storage's structural
 zero; it may be any valid code, including 0. A dense factor codes its

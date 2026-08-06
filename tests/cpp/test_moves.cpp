@@ -298,7 +298,7 @@ static void testCategoricalMissingRoundTrips(ext_rng* rng) {
                                    ColumnType::ordinal};
   SamplerOptions options;
   options.numTrees = 50;
-  options.columnTypes = types.data();
+  options.predictors.columnTypes = types.data();
   ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rng);
@@ -778,7 +778,7 @@ static void testCategoricalMutation(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 25;
   ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
-  options.columnTypes = types;
+  options.predictors.columnTypes = types;
   ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rng);

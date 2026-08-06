@@ -49,44 +49,16 @@ struct SamplerOptions {
   // borrowed per-column override of maxNumCuts; copied during construction
   const std::uint32_t* maxNumCutsPerVariable = nullptr;
   bool useQuantiles = false;
-  // borrowed per-column types, null for all-ordinal; copied during
-  // construction. Categorical columns must hold integer codes 0..K-1 with
-  // K <= maxCategories; the caller validates.
-  const ColumnType* columnTypes = nullptr;
 
-  // sparse (CSC / dgCMatrix-layout) predictor ingestion: when
-  // cscColumnPointers is non-null the x creation argument is ignored and
-  // columns build from the triple (all ordinal; borrowed for the sampler's
-  // lifetime; the host validates row indices unique and in range). See
-  // docs/design/sparse-columns.md.
-  const int* cscColumnPointers = nullptr;  // length of the CSC source + 1
-  const int* cscRowIndices = nullptr;
-  const double* cscValues = nullptr;
-
-  // mixed dense/sparse ingestion: when columnSources is non-null, column j
-  // builds from column columnSources[j] of mixedDenseValues (column-major)
-  // when nonnegative - categorical allowed, rawColumn served - or from CSC
-  // column ~columnSources[j] of the triple above otherwise (ordinal only).
-  // Both borrowed for the sampler's lifetime; the host validates. See
-  // docs/design/sparse-columns.md.
-  const double* mixedDenseValues = nullptr;
-  const std::int32_t* columnSources = nullptr;  // length numPredictors
-
-  // per categorical column, the level count K its host declares, whatever
-  // storage backs the column (length numPredictors; 0 leaves the count to be
-  // inferred from the observed codes, and non-categorical entries are
-  // ignored). The store takes max(declared, inferred), so a declared level
-  // table whose top level no training row carries still gets its own bin, and
-  // a declared count short of an observed code cannot strand it off the grid.
-  // Borrowed, consumed during construction; null infers everywhere, which is
-  // byte-for-byte the pre-declaration path.
-  const std::uint32_t* categoryCounts = nullptr;
-  // per CSC-backed categorical column, the reference level's level-order code
-  // (the code the implicit rows carry); borrowed, consumed during
-  // construction. Null when no CSC-backed column is categorical, so the
-  // ordinal-sparse and dense paths are byte-for-byte unchanged. See
-  // docs/design/sparse-columns.md.
-  const xint_t* cscReferenceCodes = nullptr;
+  // Every predictor value the store ingests, in one borrowed view: the dense
+  // block and/or the CSC (dgCMatrix-layout) triple, the per-column source map
+  // that mixes them, and the typing channel (column types, declared level
+  // counts, CSC reference codes). Unmapped, the x creation argument supplies
+  // the dense block and the build retains nothing; mapped, the view's own
+  // block is copied into the store and its CSC slices stay borrowed for the
+  // store's lifetime. Consumed during construction, which clears it. See
+  // PredictorSource (data.hpp) and docs/design/sparse-columns.md.
+  PredictorSource predictors;
 
   // linear leaves: the ordinal predictor columns entering every leaf's
   // regression (borrowed; consumed during construction). Empty designates
@@ -457,7 +429,7 @@ public:
     : options_(options), data_(data), weights_(weights), rng_(rng) {
     size_t numObservations = data.numObservations;
     options_.maxNumCutsPerVariable = nullptr;  // consumed by the store build
-    options_.columnTypes = nullptr;
+    options_.predictors = {};
 
     forests_.emplace_back();
     Forest<L, ResidT>& forest = forests_.back();
@@ -642,7 +614,7 @@ public:
     static_assert(!L::hasVectorParams && !L::hasFunctionParams,
                   "BCF is a constant-leaf model");
     options_.maxNumCutsPerVariable = nullptr;
-    options_.columnTypes = nullptr;
+    options_.predictors = {};
     options_.forestColumns = nullptr;  // BCF restriction arrives via BCFForestSpec
     response_ = std::make_unique<GaussianResponse>(
       y, offset, weights, data.numObservations, sigmaEstimate, sigmaDf,
@@ -680,7 +652,7 @@ public:
     static_assert(!L::hasVectorParams && !L::hasFunctionParams,
                   "multinomial is a constant-leaf model");
     options_.maxNumCutsPerVariable = nullptr;
-    options_.columnTypes = nullptr;
+    options_.predictors = {};
     options_.forestColumns = nullptr;
     response_ = std::make_unique<MultinomialResponse>(data.numObservations);
     // logistic marks the binary-family sigma semantics (fixed at 1); the

@@ -419,8 +419,7 @@ columns themselves).
   column (updatePredictorPerObservation writes cells one at a time, which rank
   storage cannot take without an O(nnz) shift per cell - replace the whole
   column with updatePredictor; dense-backed columns of a mixed store, the IRT
-  latent case, stay open); whole-matrix replacement of a sparse design at the
-  R5 level (data@x maintenance); mixed-container mutation at the R5 level (the
+  latent case, stay open); mixed-container mutation at the R5 level (the
   container's sparse block is not yet rebuilt R-side - the engine and flat C
   API accept it); setData whole-data replacement of a CSC store; and CSC-backed
   categorical mutation (R never builds one). Save/load after a mutation still
@@ -435,8 +434,16 @@ columns themselves).
   by direct slot surgery on @i/@p/@x (Matrix's [<- is disqualified: its drop0
   is matrix-wide and strips every other column's explicit zeros, which a
   reference level past levels[1] requires). The reference code and declared
-  level count stay creation-pinned. Whole-matrix replacement of a sparse design
-  and per-observation replacement of a sparse-backed column remain refused.
+  level count stay creation-pinned. Per-observation replacement of a
+  sparse-backed column remains refused.
+- SUPERSEDED 2026-08-06 by typed-ingestion.md slice 2b (the predictor-view
+  consolidation): whole-matrix replacement of a sparse design is accepted at
+  the R5 level too. installPredictorColumns splices every named column into
+  @i/@p/@x in ONE pass (replaceSparseColumns), so data@x stays a dgCMatrix or a
+  container rather than being replaced by a bare matrix, and the whole-matrix
+  branch installs only on acceptance (the engine borrows the argument, not
+  data@x). Replacing a sparse column densifies its storage permanently: every
+  row then differs from the implicit value, so nnz grows to n.
 
 Gates: tests/cpp testSparseMutation (store codes bitwise-match the dense
 builder after pattern-preserving and pattern-changing mutation across both
@@ -444,7 +451,8 @@ tiers; densified-tier draws bitwise-match dense after mutation; a rejected
 transactional update restores codes/cuts/rank-storage/tree-fits
 byte-for-byte). tinytest test-data-sparse.R covers the dgCMatrix column
 mutation and the remaining refusals; test-data-mixed.R the mixed-container
-refusal. Full suite green, all pre-existing snapshots intact (rng-neutral).
+mutation, the whole-matrix door, and the save/re-create mirror gate. Full
+suite green, all pre-existing snapshots intact (rng-neutral).
 
 ## Status
 

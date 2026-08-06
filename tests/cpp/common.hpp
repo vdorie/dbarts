@@ -67,6 +67,29 @@ std::unique_ptr<ConstantLeafSampler> makeBurnedInSampler(
 void makeMutationData(std::vector<double>& x, std::vector<double>& y,
                        size_t n);
 
+// A mixed dense + CSC predictor view for the engine builders: the fields a
+// container-shaped fixture fills, gathered in one call.
+inline PredictorSource mixedPredictorSource(
+    size_t numRows, size_t numColumns, const double* denseValues,
+    const int* pointers, const int* rows, const double* values,
+    const std::int32_t* columnSources,
+    const ColumnType* columnTypes = nullptr,
+    const std::uint32_t* categoryCounts = nullptr,
+    const xint_t* referenceCodes = nullptr) {
+  PredictorSource source;
+  source.numRows = numRows;
+  source.numColumns = numColumns;
+  source.denseValues = denseValues;
+  source.cscColumnPointers = pointers;
+  source.cscRowIndices = rows;
+  source.cscValues = values;
+  source.columnSources = columnSources;
+  source.columnTypes = columnTypes;
+  source.categoryCounts = categoryCounts;
+  source.referenceCodes = referenceCodes;
+  return source;
+}
+
 // A logical matrix held both densely and as CSC arrays, for comparing the
 // two build paths over identical values.
 struct CscFixture {
@@ -75,6 +98,9 @@ struct CscFixture {
   std::vector<int> pointers;   // p + 1
   std::vector<int> rows;
   std::vector<double> values;
+  // the all-CSC column map (column j is CSC column j, the engine's ~j): the
+  // spelling a bare sparse design takes through the one predictor view
+  std::vector<std::int32_t> allCscSources;
 
   // fraction of rows stored per column; stored NaNs count as entries, the
   // Matrix convention for missing values
@@ -101,6 +127,9 @@ struct CscFixture {
       }
       pointers[j + 1] = static_cast<int>(rows.size());
     }
+    allCscSources.resize(p);
+    for (size_t j = 0; j < p; ++j)
+      allCscSources[j] = ~static_cast<std::int32_t>(j);
   }
 };
 

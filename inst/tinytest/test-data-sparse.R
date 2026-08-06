@@ -94,9 +94,9 @@ fit.test <- bart(
 expect_equal(ncol(fit.test$yhat.test), 20L)
 
 # the sampler surface: response-side mutation stays open; a sparse column
-# accepts column-granular between-sweep mutation (sparse-columns.md ext (i));
-# whole-matrix, per-observation, and whole-data replacement stay fixed at
-# creation, and grouped rbart_vi is reserved
+# accepts column-granular and whole-matrix between-sweep mutation
+# (sparse-columns.md ext (i)); per-observation and whole-data replacement stay
+# fixed at creation, and grouped rbart_vi is reserved
 control <- dbartsControl(
   n.samples = 10L,
   n.burn = 0L,
@@ -130,12 +130,23 @@ accepted <- sampler$setPredictor(newCol1, column = 1L)
 expect_true(is.logical(accepted) && length(accepted) == 1L)
 expect_silent(invisible(sampler$run()))
 
-# out of scope, refused by name: whole-matrix and per-observation replacement
-# of a sparse design, and whole-data replacement
-expect_error(
-  sampler$setPredictor(x.dense),
-  pattern = "whole-matrix setPredictor requires a dense design"
-)
+# whole-matrix replacement of a sparse design: the container is spliced R-side
+# and stays a dgCMatrix, with the replaced columns densifying their storage
+# (every row now differs from the implicit zero)
+x.whole <- x.dense
+x.whole[, 2L] <- x.whole[, 2L] + 0.5
+expect_silent(sampler$setPredictor(x.whole, forceUpdate = TRUE))
+expect_inherits(sampler$data@x, "dgCMatrix")
+expect_equal(unname(as.matrix(sampler$data@x)), unname(x.whole))
+expect_equal(diff(sampler$data@x@p)[2L], n)
+# a rejected transactional whole-matrix replacement leaves data@x untouched
+x.before <- as.matrix(sampler$data@x)
+accepted.whole <- sampler$setPredictor(matrix(0, n, p), forceUpdate = FALSE)
+expect_false(isTRUE(accepted.whole))
+expect_equal(as.matrix(sampler$data@x), x.before)
+
+# out of scope, refused by name: per-observation replacement of a sparse
+# column, and whole-data replacement
 expect_error(
   sampler$setPredictor(newCol1, column = 1L, forceUpdate = "partial"),
   pattern = "per-observation updates require a dense-backed column"

@@ -47,13 +47,12 @@ bartcoreSamplerSetPredictor <- function(
   forceUpdate,
   updateCutPoints
 ) {
-  # guard before data@x is swapped: the C entry point refuses a view too, but
-  # the R5 object must not be left holding a half-installed matrix. A sparse
-  # design - a pure dgCMatrix or a mixed dense/sparse container - accepts
-  # column-granular mutation (docs/design/sparse-columns.md), maintained R-side
-  # by installPredictorColumns; whole-matrix replacement of a sparse design and
-  # per-observation replacement of a sparse-backed column stay fixed at
-  # creation.
+  # A sparse design - a pure dgCMatrix or a mixed dense/sparse container -
+  # accepts column-granular and whole-matrix mutation
+  # (docs/design/sparse-columns.md), maintained R-side by
+  # installPredictorColumns rather than by the dense branch's pointer swap;
+  # only per-observation replacement of a sparse-backed column stays fixed at
+  # creation. Read before data@x is swapped.
   sparseSource <- predictorSourceIsSparse(sampler$data@x)
 
   partialUpdate <- !is.null(forceUpdate) &&
@@ -124,12 +123,6 @@ bartcoreSamplerSetPredictor <- function(
   updateCutPoints <- coerceOrError(updateCutPoints, "logical")
 
   if (is.null(column)) {
-    if (sparseSource) {
-      stop(
-        "whole-matrix setPredictor requires a dense design; replace sparse ",
-        "columns individually with 'column ='"
-      )
-    }
     if (is.matrix(x)) {
       if (ncol(x) != ncol(sampler$data@x)) {
         stop("dimension of x must be equal to ", ncol(sampler$data@x))
@@ -140,32 +133,55 @@ bartcoreSamplerSetPredictor <- function(
     } else if (length(x) != prod(dim(sampler$data@x))) {
       stop("length of new x does not match old")
     }
-    # a pointer swap: the engine borrows data@x, so install there first and
-    # revert if the transaction rolls back
     x <- if (is.matrix(x)) {
       matrix(as.double(x), nrow(x))
     } else {
       matrix(as.double(x), nrow(sampler$data@x))
     }
-    oldX <- sampler$data@x
-    sampler$data@x <- x
-    tryResult <- tryCatch(
+    if (!sparseSource) {
+      # a pointer swap: the engine borrows data@x, so install there first and
+      # revert if the transaction rolls back
+      oldX <- sampler$data@x
+      sampler$data@x <- x
+      tryResult <- tryCatch(
+        updateSuccessful <- .Call(
+          C_dbarts_bartcore_setPredictor,
+          ptr,
+          sampler$data@x,
+          forceUpdate,
+          updateCutPoints
+        ),
+        error = function(e) {
+          sampler$data@x <- oldX
+          e
+        }
+      )
+      if (inherits(tryResult, "error")) {
+        stop(tryResult)
+      }
+      if (!forceUpdate && !updateSuccessful) sampler$data@x <- oldX
+    } else {
+      # a sparse-bearing source: the engine borrows the argument matrix rather
+      # than data@x, so nothing needs installing until it accepts. Splice the
+      # replacement columns into the container BEFORE the call, so a throw
+      # there cannot leave data@x describing the old design (sampler
+      # re-creation after save/load reads it). Replacing a sparse column
+      # densifies its storage - every row now differs from the implicit value.
+      newX <- installPredictorColumns(
+        sampler$data@x,
+        NULL,
+        seq_len(ncol(sampler$data@x)),
+        x
+      )
       updateSuccessful <- .Call(
         C_dbarts_bartcore_setPredictor,
         ptr,
-        sampler$data@x,
+        x,
         forceUpdate,
         updateCutPoints
-      ),
-      error = function(e) {
-        sampler$data@x <- oldX
-        e
-      }
-    )
-    if (inherits(tryResult, "error")) {
-      stop(tryResult)
+      )
+      if (isTRUE(updateSuccessful)) sampler$data@x <- newX
     }
-    if (!forceUpdate && !updateSuccessful) sampler$data@x <- oldX
   } else {
     column <- as.integer(column)
     if (any(column < 1L | column > ncol(sampler$data@x))) {
