@@ -344,9 +344,11 @@ regatherTrainingCovariates/reinitialize (model.hpp) regress on the
 old covariate for the rest of the run - the IRT case; R/model.R
 permits mixed containers and refuses only sparse-backed covariates.
 Reachable through setPredictor(column=), updatePredictor, and
-updatePredictorPerObservation on dense-backed columns; NOT reachable
-before 2a. Pure dgCMatrix (ownedCsc*) and dense columnar containers
-unaffected.
+updatePredictorPerObservation on dense-backed columns; a THIRD
+entrance (critique): setState replays cut points through the same
+NULL-currentPredictors funnel (R/dbarts.R:1241/1399 -> bridge
+:4146). NOT reachable before 2a. Pure dgCMatrix (ownedCsc*) and
+dense columnar containers unaffected.
 
 Decision (orchestrator, under the grant; slice-0 precedent): fix
 FIRST in its own commit (FIX-0 below) - the fix IS 2b's ownership
@@ -354,29 +356,78 @@ rule for the mapped-dense case, and a correctness fix must not ride
 a large hygiene diff. Folding it into 2b step 1 recorded and
 declined.
 
+Critique record (2026-08-06, refuting, with a counterfactual FIX-0
+build): BLOCKER x4 + 7 weaknesses, folded in below. Verified sound:
+the defect record, both legs re-derived independently (max|mutated -
+never-mutated| = 0 on the mixed container against a moving dense
+control; the linear-leaf leg isolated by zeroing the covariate's
+split probability) plus the setState third entrance above; NO
+restore leg needed (saved state carries no raw; re-create rebuilds
+from data@x); no test-side staleness (no in-place test writer
+exists - container column updates refuse, matrix updates reinstall
+wholesale); the buildTest/buildTestMixed collapse bitwise (codes,
+offsets, owned buffers, NaN, declared-K, both quantile modes);
+buildFromCsc deletion bitwise engine-side; the xIsSparse early exit
+dead (parseData:816 refuses categorical + dgCMatrix on every
+entrance); the door already accepted below the R layer (whole-matrix
+on mixed, bare dgCMatrix, and dense-backed-factor containers return
+TRUE, re-create OK, out-of-range codes still refused; one-pass
+splice is speed only); the options/ParsedData collapse neutral
+(chain.hpp copies null only already-null fields; nothing reads the
+8 fields post-construction); dbarts.h names no internal type.
+Counterfactual: full tinytest 3581/0 under the probe FIX-0;
+tests/cpp green except the address-identity assert
+(test_model.cpp:3040, an expected test change, folded in). The
+blockers: the dense-backed rollback carries no raw
+(ColumnCodeRollback/WholeMatrixUpdate - a rolled-back transaction
+left the owned block holding the REJECTED values, and the next
+setCutPoints installed them); setCell and setColumnJournaled were
+unnamed as writers; the mutation-refusal predicate admitted a
+mapped dense view (every kernel indexes values + k * n); the step-6
+gate named the function step 1 deletes.
+
 ## Slice 2b-pre steps (FIX-0: the store owns its mixed dense block)
 
 1. Engine: buildMixed copies its dense block into a new
    ColumnStore::ownedDenseValues and points denseRaw there - the
    buildTestMixed treatment (ownedTestValues), which is already
    correct. Delete BartcoreHolder::ownedMixedDense and
-   DataHandle::ownedMixedDense: the host stops pinning anything for
-   a mixed build, zero net memory. Mutation paths memcpy the new raw
-   column into the owned block beside the quantize; rollback records
-   carry the pre-change raw (the CscColumnRollback::ownedValues
-   shape) and restore it.
+   DataHandle::ownedMixedDense (no readers; unshipped types).
+   Memory shape stated honestly: steady-state zero net, but
+   creation PEAKS at 2x the dense block (the copy overlaps the
+   parse-local assembly that today is moved). ALL FOUR writers
+   write through the owned block beside the quantize:
+   setPredictors, setColumns, setColumnJournaled (whose stale
+   "Dense stores only" comment goes), and setCell (the
+   per-observation IRT path, sampler.hpp:1352 - one cell, not a
+   column memcpy). Transactional rollback: the dense-backed legs
+   (ColumnCodeRollback/WholeMatrixUpdate) carry NO raw, so
+   runPredictorTransaction snapshots and restores the owned raw
+   PER TOUCHED COLUMN beside oldGatheredRaw (a whole-block
+   snapshot would make the IRT per-sweep transactional update
+   O(n * p_dense)); restore by memcpy, NEVER move-assign, which
+   relocates the buffer and dangles every denseRaw. Add
+   ColumnStore(const ColumnStore&) = delete: denseRaw is now
+   self-referential and a copy would silently alias (production
+   only moves, which keep the heap buffer stable).
 2. tests/cpp: mutate a dense-backed column of a mixed store, then
    setCutPointsForColumn with the identical grid - codes unchanged;
    a linear-leaf covariate over a mutated dense-backed mixed column
-   matches the dense-equivalent build after regather.
+   matches the dense-equivalent build after regather; a ROLLED-BACK
+   transactional update leaves the owned raw byte-unchanged (the
+   B1 regression). Update the address-identity assert
+   (test_model.cpp:3040-3043, rawColumn(0) == denseSource.data())
+   to value equality - the expected test change under ownership.
 3. tinytest: the probe regression (mutate with updateCutPoints =
-   TRUE, hand the store back its own grid, fits unchanged) and a
-   linear-leaf mixed-covariate mutation case, both verified to FAIL
-   against the pre-fix build.
+   TRUE, hand the store back its own grid, fits unchanged), a
+   linear-leaf mixed-covariate mutation case, a refused/rolled-back
+   updatePredictor followed by setCutPoints (fits unchanged), and
+   the setState entrance (mutate, save, setState - fits unchanged);
+   the first two verified to FAIL against the pre-fix build.
 4. Docs in the SAME commit: NEWS bullet (mutating a dense-backed
    column of a mixed container no longer leaves cut-point
-   requantization and linear/GP leaf covariates reading
-   creation-time values).
+   requantization, setState cut-point replay, and linear/GP leaf
+   covariates reading creation-time values).
 
 ## Slice 2b-pre verification
 
@@ -426,7 +477,10 @@ step 5) cannot perturb an accepted path.
    dereferences a null map. ColumnStore::build takes (const
    PredictorSource&, grid spec, gatherColumns), keeping its two fill
    loops selected by columnSources == nullptr; buildMixed folds in;
-   buildFromCsc is deleted. buildTest and buildTestMixed collapse to
+   buildFromCsc is deleted, and BOTH its remaining call sites move
+   to the view (createDataHandle, R_interface_bartcore.cpp:2549,
+   and Sampler::setData, sampler.hpp:947). buildTest and
+   buildTestMixed collapse to
    one buildTest(const PredictorSource&) - by inspection an identity
    map reproduces ownedTestValues, codeOffsets, empty
    sparseColumns/ownedTestCsc*, and the same quantize addresses, so
@@ -443,8 +497,12 @@ step 5) cannot perturb an accepted path.
    site moves, the virtual surface shrinks by one.
    setPredictor/updatePredictor virtuals take the view too, dense
    convenience spellings kept as non-virtual inlines, and one shared
-   predicate refuses a CSC-valued replacement (no kernel takes one;
-   sparse-VALUED mutation stays recorded out of scope). The
+   predicate ACCEPTS only a null/identity map with NO CSC triple -
+   refusing "CSC-valued" alone is a hole: a mapped dense view would
+   be silently mis-consumed, every mutation kernel indexes
+   values + k * n (sampler.hpp:1157/1209/1228/1265). Facade
+   overrides of the view virtuals add using SamplerBase::setPredictor
+   (etc.) so the dense inlines stay visible past name hiding. The
    alternative - mutation stays const double*, 2b scopes to
    creation + test - costs a second facade-virtual change later, and
    every such change forces --preclean rebuilds downstream;
@@ -466,27 +524,42 @@ step 5) cannot perturb an accepted path.
    readDeclaredCategoryCounts, rawTrainingColumn,
    rawParsedTestColumn key on the same accessor.
    validateTestContainerAgainstStore and validateColumnValues are
-   store-keyed already and do not move.
+   store-keyed already and do not move. Two spellings are
+   load-bearing and stay keyed on the parse-time booleans, NEVER
+   the map: parseData:816's categorical + dgCMatrix refusal and
+   bartcore_setData:3284 (slice-0 memory safety). facade.hpp:556's
+   pure-CSC predicate is RE-DERIVED, not renamed - a bare dgCMatrix
+   now carries a ~j map, so the old spelling goes false (the
+   per-column check at :565 happens to preserve the outcome, but
+   the predicate must not silently flip).
 5. R, the whole-matrix-on-mixed door: OPEN it. Refused today
    (R/bartcore.R ~127) only because the whole-matrix branch installs
    data@x <- x, replacing the container with a bare matrix; the
    engine and flat C API accept the mutation since extension (i).
-   The branch computes newX <- installPredictorColumns(data@x, NULL,
-   seq_len(p), x) BEFORE the .Call (the 2a discipline) and assigns
-   on acceptance; the engine borrows the argument, so no
-   pre-install/revert dance. Add a plural replaceSparseColumns
-   splicing every named column into @i/@p/@x in ONE pass and route
-   the multi-column case through it (the per-column loop would make
-   whole-matrix O(p * nnz)). DEPENDS ON FIX-0. The keep-shut
-   alternative leaves a documented C API capability unreachable from
-   R with no engine reason; the open cost is the caller materializes
-   an n x p dense matrix, which column-granular mutation avoids;
-   opened.
+   CONTAINER designs only: compute newX <-
+   installPredictorColumns(data@x, NULL, seq_len(p), x) BEFORE the
+   .Call (the 2a discipline) and assign on acceptance; the engine
+   borrows the argument, so no pre-install/revert dance. The DENSE
+   whole-matrix branch keeps its existing spelling untouched -
+   installPredictorColumns drops dimnames where x[, columns] <-
+   values preserves them, and by-name setPredictor/setCutPoints
+   depend on that. Add a plural replaceSparseColumns splicing every
+   named column into @i/@p/@x in ONE pass and route the
+   multi-column case through it (the per-column loop would make
+   whole-matrix O(p * nnz); one-pass is speed only, verified). Note
+   in the docs step: replacing a sparse column densifies that
+   column's storage permanently (nnz grows to n). DEPENDS ON FIX-0.
+   The keep-shut alternative leaves a documented C API capability
+   unreachable from R with no engine reason; the open cost is the
+   caller materializes an n x p dense matrix, which column-granular
+   mutation avoids; opened.
 6. tests/cpp: collapsed builders bit-identical to the ones replaced -
    dense build via null-map view vs. pre-change build (codes, cuts,
-   numCuts), dense TEST build via null-map view, all-negative-map
-   view vs. buildFromCsc - on both storage tiers, with a categorical
-   column carrying declared K.
+   numCuts), dense TEST build via null-map view, and an
+   all-negative-map view vs. the DENSE-EQUIVALENT build (the
+   test_model.cpp:2189 fixture shape; buildFromCsc is deleted in
+   step 1 and cannot be the oracle) - on both storage tiers, with a
+   categorical column carrying declared K.
 7. tinytest: the door's acceptance (whole-matrix setPredictor over a
    mixed container and a bare dgCMatrix, with 2a's save/re-create
    mirror gate), rollback leaving data@x untouched, the refusals in
@@ -497,7 +570,8 @@ step 5) cannot perturb an accepted path.
    the whole-matrix clause (SUPERSEDED note gains the door's
    landing); man/dbarts.Rd drops "fixed at creation" for
    whole-matrix replacement; man/dbartsSampler-class.Rd mutation
-   prose; NEWS bullet for the door.
+   prose, including the sparse-column densification note (step 5);
+   NEWS bullet for the door.
 9. Out of scope, recorded: sparse-VALUED mutation (the view is its
    spelling; kernels not written); typed flat C API entries (the
    hash re-bake door); setData on a CSC/mixed store and container
