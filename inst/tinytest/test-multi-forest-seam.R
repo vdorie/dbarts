@@ -50,9 +50,9 @@ expect_equal(dim(result.many$test), c(nTest, numSamples, numChains))
 expect_null(dimnames(result.many$train))
 expect_null(dimnames(result.many$test))
 
-# --- multi-forest mutation guard. setData and setWeights rebuild forest 0 only
-# (applyNewData and the weight refresh), so they are refused outright on a BCF
-# (two-forest) sampler, as is setModel. setResponse is the one whole-data
+# --- multi-forest mutation guard. setData rebuilds forest 0 only
+# (applyNewData), so it is refused outright on a BCF (two-forest) sampler, as
+# is setModel. setResponse is a whole-data
 # mutation that is opt-in rather than refused: BCF's combiner re-derives every
 # per-forest residual from y each sweep and the gaussian response re-maps y
 # through the pinned transform, so at updateScale = FALSE the swap leaves
@@ -88,10 +88,20 @@ expect_error(
   dbarts:::bartcoreSetResponse(bc.bcf, y.bcf + 1, updateScale = NA),
   "multi-forest"
 )
-expect_error(
-  dbarts:::bartcoreSetWeights(bc.bcf, runif(n, 0.5, 1.5)),
-  "multi-forest"
-)
+# the case weights ride the same opt-in: Chain::setWeights is a pointer swap
+# plus a positive-weight recount, BCF re-derives every per-forest response and
+# precision from y and w each sweep, and the leaf calibration both forests are
+# stated against is unweighted - so there is nothing stale and no scale to pin
+expect_silent(dbarts:::bartcoreSetWeights(bc.bcf, runif(n, 0.5, 1.5)))
+result.weights <- dbarts:::bartcoreRun(bc.bcf, 0L, 5L)
+expect_true(all(is.finite(result.weights$train)))
+# zero weights drop rows from the likelihood, so the swap must re-count the
+# positive ones rather than carry the build count over
+w.zero <- runif(n, 0.5, 1.5)
+w.zero[seq_len(10L)] <- 0
+expect_silent(dbarts:::bartcoreSetWeights(bc.bcf, w.zero))
+expect_true(all(is.finite(dbarts:::bartcoreRun(bc.bcf, 0L, 5L)$train)))
+dbarts:::bartcoreSetWeights(bc.bcf, rep(1, n))
 # setModel writes forest 0's leaf scale from the prior alone (Chain::
 # setModel), which would silently discard BCF's calibrated mu leaf scale;
 # refused regardless of the argument's class
@@ -143,6 +153,54 @@ result.bcf <- dbarts:::bartcoreRun(bc.bcf, 0L, 5L)
 expect_equal(dim(result.bcf$train), c(n, 5L))
 expect_true(all(is.finite(result.bcf$train)))
 
+# the weight swap is not merely permitted, it lands the same sampler: under
+# resid.prior = fixed() (which removes the creation-time sigest, the one
+# quantity a post-creation swap cannot reproduce - and cannot on a
+# single-forest sampler either), building with w2 and building with w1 then
+# swapping in w2 agree BITWISE on every channel the coupling exposes
+w1 <- runif(n, 0.5, 1.5)
+w2 <- runif(n, 0.5, 1.5)
+
+bcfWeightArm <- function(build, swap) {
+  set.seed(505)
+  host <- dbarts(
+    x,
+    y.bcf,
+    weights = build,
+    resid.prior = fixed(1),
+    control = control.one
+  )
+  bc <- dbarts:::bartcoreBCFSampler(host, z, n.trees.treatment = 20L)
+  if (!is.null(swap)) {
+    dbarts:::bartcoreSetWeights(bc, swap)
+  }
+  res <- dbarts:::bartcoreRun(bc, 20L, 10L)
+  list(
+    train = res$train,
+    varcount = res$varcount,
+    glue = dbarts:::bartcoreBCFGlue(bc),
+    mu = dbarts:::bartcoreForestFits(bc, 0L),
+    tau = dbarts:::bartcoreForestFits(bc, 1L),
+    fit.scale = dbarts:::bartcoreStoreState(bc)[[1L]]$fit.scale
+  )
+}
+
+arm.build <- bcfWeightArm(w2, NULL)
+arm.swap <- bcfWeightArm(w1, w2)
+arm.keep <- bcfWeightArm(w1, NULL)
+
+expect_identical(arm.swap$train, arm.build$train)
+expect_identical(arm.swap$varcount, arm.build$varcount)
+expect_identical(arm.swap$glue, arm.build$glue)
+expect_identical(arm.swap$mu, arm.build$mu)
+expect_identical(arm.swap$tau, arm.build$tau)
+# sanity: the two weightings are not the same posterior, so the arms above are
+# not agreeing because the weights are inert
+expect_false(isTRUE(all.equal(arm.keep$train, arm.build$train)))
+# and the swap never moves the response transform - rescale() is unweighted, so
+# there is no scale for setWeights to pin
+expect_identical(arm.swap$fit.scale, arm.keep$fit.scale)
+
 # a multi-forest coupling that does not opt in stays refused at every
 # updateScale: multinomial's setResponse is an empty override, and its response
 # is the borrowed count matrix a flat double vector cannot express
@@ -176,6 +234,13 @@ expect_error(
   dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = NA),
   "multi-forest"
 )
+# case weights are refused at multinomial creation and stay refused after it:
+# the opt-in that opens them for BCF is the combiner's, and this one does not
+# take it
+expect_error(
+  dbarts:::bartcoreSetWeights(bc.mn, runif(n, 0.5, 1.5)),
+  "multi-forest"
+)
 # z is defined only as the contrast the BCF glue forms b_{z_i} against; the
 # capability probe catches a K-forest multinomial that a forest count would not
 expect_error(
@@ -193,6 +258,7 @@ expect_error(
 # the same guard is inert on a single-forest sampler: these mutations still
 # work, including setOffset at updateScale = TRUE (rbart_vi's warmup rescale)
 expect_silent(dbarts:::bartcoreSetResponse(bc.one, y + 1))
+expect_silent(dbarts:::bartcoreSetWeights(bc.one, runif(n, 0.5, 1.5)))
 expect_silent(dbarts:::bartcoreSetOffset(bc.one, rep(0.2, n)))
 expect_silent(
   dbarts:::bartcoreSetOffset(bc.one, rep(0.2, n), updateScale = TRUE)

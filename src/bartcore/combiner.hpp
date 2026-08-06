@@ -396,11 +396,15 @@ struct ForestCombiner {
     return reportedForest();
   }
 
-  /// Whether a whole-response swap (Chain::setResponse at updateScale = false)
-  /// is safe on this coupling: true only for a combiner that caches NOTHING
-  /// per-forest across sweeps and re-derives every per-forest residual from the
-  /// chain's working response on every sweep. Defaults false so a future
-  /// multi-forest model stays refused at the bridge until it is audited.
+  /// Whether the response-side conduit is safe on this coupling: the bridge
+  /// gates the whole response swap, the offset swap (both at
+  /// updateScale = false) and the case-weight swap on this one predicate, not
+  /// setResponse alone. True only for a combiner that caches NOTHING per-forest
+  /// across sweeps and re-derives every per-forest residual and precision from
+  /// the chain's working response and weights on every sweep. Defaults false so
+  /// a future multi-forest model stays refused at the bridge until it is
+  /// audited. Named for the swap it was introduced for; the name does not
+  /// narrow it.
   virtual bool supportsResponseMutation() const { return false; }
 
   /// Glue (de)serialization into the BCF-shaped state fields; inert unless the
@@ -610,12 +614,16 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   bool testFitsAreDefined() const override { return false; }
   bool logLikelihoodIsDefined() const override { return false; }
 
-  /// BCF admits the scale-pinned response swap, relying on two conditions: the
-  /// gaussian response re-maps y through the pinned (min_, range_) and touches
-  /// no forest, so both leaf calibrations and the sigma prior stay put; and
-  /// this combiner caches nothing per-forest across sweeps - formForestResponse
-  /// re-derives every per-forest residual and precision from y each sweep, and
-  /// the glue lives here rather than in the response, so it carries over.
+  /// BCF admits the scale-pinned response and offset swaps, relying on two
+  /// conditions: the gaussian response re-maps y through the pinned
+  /// (min_, range_) and touches no forest, so both leaf calibrations and the
+  /// sigma prior stay put; and this combiner caches nothing per-forest across
+  /// sweeps - formForestResponse re-derives every per-forest residual and
+  /// precision from y and w each sweep, and the glue lives here rather than in
+  /// the response, so it carries over. The same two conditions open the
+  /// case-weight swap, which needs no pinned scale of its own: setWeights does
+  /// not move the transform, and scaledResponseSd - the anchor both leaf
+  /// calibrations are stated against - is unweighted.
   bool supportsResponseMutation() const override { return true; }
 
   /// The glue scalars into and out of the BCF-shaped wire format. serializeGlue

@@ -765,9 +765,10 @@ public:
   void setTreatment(const double* z) {
     if (combiner_) combiner_->setTreatment(z);
   }
-  /// Whether this chain's forest coupling permits a whole-response swap
-  /// (setResponse at updateScale = false); false off any combiner, since a
-  /// single-forest chain never consults it. The gaussian conjunct is
+  /// Whether this chain's forest coupling permits the response-side conduit -
+  /// setResponse and setOffset at updateScale = false, and setWeights, which
+  /// has no scale to pin at all; false off any combiner, since a single-forest
+  /// chain never consults it. The gaussian conjunct is
   /// structural, not advisory: a latent family reads forests_[0].totalFits as
   /// though it were the combined location, which is false on a coupling.
   bool supportsResponseMutation() const {
