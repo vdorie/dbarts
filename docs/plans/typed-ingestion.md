@@ -148,3 +148,31 @@ R CMD INSTALL --preclean (engine headers move); tests/cpp clean-build
 (cut-grid cases); full tinytest; equivalence trio bitwise;
 categorical-exact.R; air format --check .; full local R CMD check (R
 and Rd move); CI incl. sanitizers green.
+
+## Slice 1 landing
+
+LANDED 0d3914c 2026-08-06, all CI green incl. sanitizers. 421+/78-:
+SamplerOptions.cscCategoryCounts generalized to categoryCounts
+(0 = infer, creation-time only); ColumnSource.declaredCategoryCount;
+buildCutsForColumn takes max(declared, inferred) on BOTH storage
+kinds (a slice-0-validated container has inferred <= declared, so the
+CSC extension is bitwise-neutral - trio confirmed); parseData reads
+attr(x, "factor.levels") lengths gated on CATEGORICAL varTypes with
+CSC-backed columns skipped (their container stays authoritative),
+factorLevelsExpr PROTECTed outright (rchk-friendly, gctorture-checked);
+trainingCategoryBound and the dense training bound tighten to the
+declared count. No R/ change (the attribute reaches .Call intact on
+all three container flavors). Docs: Rd notes + NEWS bullet covering
+the acceptance change and the 63/64 tier-crossing restore refusal.
+Tests: test-data-categorical-declared.R (22 assertions, suite 3531);
+the planted-code gate re-pointed at a genuine gap; both files verified
+to FAIL against the pre-slice-1 build. RNG-shift inventory: none -
+categorical-exact.R byte-identical (hand-typed matrix carries no
+factor.levels), no RNG-locked test carries a gap factor (verified by
+seed replay). Deviations accepted at review: declared counts wider
+than maxCategories are ignored (inferred governs; R caps at 65535
+anyway); the tier-crossing restore test constructs the pre-slice-1
+state shape rather than replaying a literal old state.
+
+Slice 2 (the PredictorSource view + sparse mutation-shape lift)
+remains: step list + critique before implementation.
