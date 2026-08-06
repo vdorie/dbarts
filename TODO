@@ -182,18 +182,20 @@ items
     with declared K) taken by creation, test ingestion, and mutation:
     collapses SamplerOptions' 8 ingestion fields, the 7-arg
     setTestData, and the dense-only mutation entries into one
-    spelling, and makes dense/CSC categoricals symmetric. PROBE
-    EXECUTED 2026-08-05 (docs/plans/typed-ingestion.md Survey):
-    REACHABLE - the default surface keeps factors unexpanded, dense
-    entrances REFUSE a declared-but-unobserved top level (inferred
-    max+1 vs the R layer's declared mapping; refusal defect, not
-    mis-bin), and the mirror CSC hole is severe (spun out URGENT as
-    csc-code-validation above). Per the pre-registered rule, declared
-    K goes ahead of the full view: slice 1 is the dense declared-K
-    plumb-through, slice 2 the view + the sparse mutation-shape lift.
-    Typing stops at the boundary: the hot layer stays quantized codes
-    + double cuts; response/offset/weights stay double*.
-    decision-gated.
+    spelling, and makes dense/CSC categoricals symmetric. Probe
+    executed and slices 0-1 LANDED (docs/plans/typed-ingestion.md
+    carries the probe record, critiques, and landings): slice 0
+    csc-code-validation df79f17 closed the CSC bounding holes; slice
+    1 0d3914c 2026-08-06 honors declared factor levels in the dense
+    grid (categoryCounts general channel, max(declared, inferred),
+    gap levels accepted at every entrance; suite 3531). REMAINING:
+    slice 2, the PredictorSource view proper + the sparse
+    mutation-shape lift (ownership policy for the borrowed CSC triple
+    + slice resize; also collects the slice-0 residual, level-order
+    alignment of foreign containers). Step list + critique before
+    implementation. Typing stops at the boundary: the hot layer stays
+    quantized codes + double cuts; response/offset/weights stay
+    double*. decision-gated.
   survival-followups: doors out of the survival family pair (AFT +
     discrete-time hazard both landed; records in docs/plans/survival-
     models.md and docs/design/survival.md sec 6): cloglog link (needs a
