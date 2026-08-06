@@ -283,3 +283,33 @@ Slice-1 battery minus categorical-exact (no grid change): R CMD
 INSTALL --preclean; tests/cpp clean-build + ASAN; full tinytest; trio
 bitwise; air format --check .; full local R CMD check (R, Rd, and
 tests move); CI incl. sanitizers green.
+
+## Slice 2a landing
+
+LANDED 95db5d7 2026-08-06, all CI green incl. sanitizers. 793+/162-:
+mutateCscColumnFromDense keys the pattern on column kind (categorical
+implicit = refCode); the slice-0 refuseCscCategoricalMutation guards
+deleted (bridge + C API); installPredictorColumns dispatches per
+column with the sparse branch as direct @i/@p/@x slot surgery
+(replaceSparseColumn; Matrix [<- disqualified, its drop0 is
+matrix-wide), computed before the .Call; the wholesale mixed refusal
+lifted for column-granular paths, whole-matrix stays refused (2b
+door), per-observation narrowed to sparse-backed columns (the
+dense-backed IRT case opens); foreign containers align at the
+validateXTest funnel (alignContainerFactorLevels lifts codes,
+reference, and declared K together; new levels refuse). Suite 3531 ->
+3581 (0 deleted; 3 refusals flipped to acceptance with
+dense-equivalence bitwise gates, 11 container code-bound refusals now
+refuse at the alignment funnel with the levels message - an
+out-of-range code in a container IS an unseen level - with two new
+container cases keeping the slice-0 code-bound lock-in alive, 1
+whole-matrix text change). tests/cpp 181 incl. sparse categorical
+mutation on both tiers asserted on CODES. Trio bitwise; R CMD check
+OK; probe battery: the B1 cross-column corruption case clean through
+the R5 path, p4b raw foreign container accepts and fits identical to
+its data.frame equivalent, p5b dense-backed container factor
+re-coded to truth. Deviation accepted at review: the critique's
+p4(iii)/(iv) hand-remapped objects are self-inconsistent (codes
+remapped, level table not) and correctly refuse; the specified case
+is the raw container, which accepts. Save/load reproduces to
+tolerance, pre-existing (verified against the pre-change build).
