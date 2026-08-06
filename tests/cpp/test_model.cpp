@@ -1362,7 +1362,8 @@ static void testLinearLeafEndToEnd(ext_rng* rng) {
   SamplerStateData state;
   sampler->getState(state);
   check(sampler->setState(state, nullptr), "a state restores into its own sampler");
-  check(sampler->savedTreeCapacity() == 0, "keepTrees stays off by default");
+  check(sampler->shape().savedTreeCapacity == 0,
+        "keepTrees stays off by default");
 
   // a short run with the k hyperprior exercises the all-coordinate
   // accumulation
@@ -1426,7 +1427,8 @@ static void testLinearLeafFormats(ext_rng* rng) {
   sampler->run(numBurnIn, numSamples, results);
 
   // saved-tree replay reproduces the test fits recorded during the run
-  check(sampler->savedTreeCapacity() == numSamples, "saved-tree capacity");
+  check(sampler->shape().savedTreeCapacity == numSamples,
+        "saved-tree capacity");
   std::vector<double> predictions(numTest * numSamples);
   sampler->predict(xTest.data(), numTest, predictions.data());
   bool replayMatches = true;

@@ -100,12 +100,13 @@ BartcoreHolder& holderFromExpression(SEXP ptrExpr) {
 // column count and representable categorical codes; returns the row count
 size_t validatePredictorMatrix(const bartcore::SamplerBase& sampler,
                                SEXP xExpr, const char* caller) {
+  size_t numPredictors = sampler.shape().numPredictors;
   SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
   if (!Rf_isReal(xExpr) || Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
-      static_cast<size_t>(INTEGER(dims)[1]) != sampler.numPredictors())
+      static_cast<size_t>(INTEGER(dims)[1]) != numPredictors)
     Rf_error("%s requires a numeric matrix with matching columns", caller);
   size_t numRows = static_cast<size_t>(INTEGER(dims)[0]);
-  for (size_t j = 0; j < sampler.numPredictors(); ++j)
+  for (size_t j = 0; j < numPredictors; ++j)
     validateColumnValues(sampler.data(), j, REAL(xExpr) + j * numRows,
                          numRows);
   return numRows;
@@ -1317,7 +1318,7 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
 // samplers are refused outright, since probit never supports weights and
 // logistic weights enter the latent construction at creation.
 void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
-  if (sampler.family() != bartcore::ResponseFamily::gaussian)
+  if (sampler.shape().family != bartcore::ResponseFamily::gaussian)
     Rf_error("weights on a binary response cannot be set after creation: "
              "probit does not support weights, and logistic weights "
              "(observation counts) are fixed when the sampler is created");
@@ -1826,13 +1827,14 @@ void refuseRequantizeWithoutSource(const bartcore::SamplerBase& sampler,
 // ill-defined, so the engine would fall back to the bare prognostic forest and
 // silently misreport. Reject test data and out-of-sample prediction on a BCF
 // sampler; consumers recombine per forest via getForestFits + the BCF glue
-// (docs/design/bcf.md). Gated on testFitsAreDefined() rather than the forest
+// (docs/design/bcf.md). Gated on testFitsAreDefined rather than the forest
 // count so a multi-forest model whose test blend IS defined (multinomial
 // softmax over the K forests' totalTestFits) is allowed through; only BCF, the
 // one multi-forest model that leaves the channel undefined, is refused.
 void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
                           const char* caller) {
-  if (sampler.numForests() >= 2 && !sampler.testFitsAreDefined())
+  bartcore::SamplerShape shape = sampler.shape();
+  if (shape.numForests >= 2 && !shape.testFitsAreDefined)
     Rf_error("%s: a BCF sampler carries no test treatment vector, so its test "
              "fits are undefined; predict per forest with getForestFits and "
              "the BCF glue instead", caller);
@@ -1848,7 +1850,7 @@ void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
 // propensity pattern).
 void refuseMultiForestTransactionalUpdate(const bartcore::SamplerBase& sampler,
                                           const char* caller) {
-  if (sampler.numForests() >= 2)
+  if (sampler.shape().numForests >= 2)
     Rf_error("%s: a transactional predictor update validates only the primary "
              "forest of a multi-forest sampler; use setPredictor with "
              "forceUpdate = TRUE or make a new sampler instead", caller);
@@ -1951,7 +1953,7 @@ namespace bartcore_bridge {
 // its own setResponse/setWeights entries.
 void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
                                const char* caller) {
-  if (sampler.numForests() >= 2)
+  if (sampler.shape().numForests >= 2)
     Rf_error("%s: a multi-forest sampler fixes its data at creation; make a "
              "new sampler instead", caller);
 }
@@ -2740,8 +2742,9 @@ SEXP bartcore_createMultinomialCounts(SEXP controlExpr, SEXP modelExpr,
 
 SEXP bartcore_setTreatment(SEXP ptrExpr, SEXP zExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  size_t n = holder.sampler->numObservations();
-  if (holder.sampler->numForests() < 2)
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  size_t n = shape.numObservations;
+  if (shape.numForests < 2)
     Rf_error("bartcore_setTreatment requires a BCF sampler");
   if (static_cast<size_t>(Rf_xlength(zExpr)) != n)
     Rf_error("treatment length must match the number of observations");
@@ -2755,7 +2758,7 @@ SEXP bartcore_setTreatment(SEXP ptrExpr, SEXP zExpr) {
 // The glue on the combining response, one column {a, b0, b1} per chain.
 SEXP bartcore_getBCFGlue(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  size_t numChains = holder.sampler->numChains();
+  size_t numChains = holder.sampler->shape().numChains;
   SEXP result =
     PROTECT(Rf_allocMatrix(REALSXP, 3, static_cast<int>(numChains)));
   for (size_t c = 0; c < numChains; ++c)
@@ -2771,11 +2774,12 @@ SEXP bartcore_getBCFGlue(SEXP ptrExpr) {
 // (forest 0 prognostic, 1 treatment).
 SEXP bartcore_getForestFits(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
   size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
-  if (forestIndex >= holder.sampler->numForests())
+  if (forestIndex >= shape.numForests)
     Rf_error("forest index out of range");
-  size_t n = holder.sampler->numObservations();
-  size_t numChains = holder.sampler->numChains();
+  size_t n = shape.numObservations;
+  size_t numChains = shape.numChains;
   SEXP result = PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(n),
                                        static_cast<int>(numChains)));
   for (size_t c = 0; c < numChains; ++c)
@@ -2786,11 +2790,12 @@ SEXP bartcore_getForestFits(SEXP ptrExpr, SEXP forestExpr) {
 
 SEXP bartcore_getForestVariableCounts(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
   size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
-  if (forestIndex >= holder.sampler->numForests())
+  if (forestIndex >= shape.numForests)
     Rf_error("forest index out of range");
-  size_t numPredictors = holder.sampler->numPredictors();
-  size_t numChains = holder.sampler->numChains();
+  size_t numPredictors = shape.numPredictors;
+  size_t numChains = shape.numChains;
   // counts alias R integers: variable-use counts never approach 2^31
   SEXP result = PROTECT(Rf_allocMatrix(INTSXP, static_cast<int>(numPredictors),
                                        static_cast<int>(numChains)));
@@ -2819,17 +2824,18 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   size_t numBurnIn = static_cast<size_t>(Rf_asInteger(numBurnInExpr));
   size_t numSamples = static_cast<size_t>(Rf_asInteger(numSamplesExpr));
 
-  size_t numObservations = sampler.numObservations();
-  size_t numPredictors = sampler.numPredictors();
-  size_t numTestObservations = sampler.numTestObservations();
-  size_t numChains = sampler.numChains();
+  bartcore::SamplerShape shape = sampler.shape();
+  size_t numObservations = shape.numObservations;
+  size_t numPredictors = shape.numPredictors;
+  size_t numTestObservations = shape.numTestObservations;
+  size_t numChains = shape.numChains;
   int numSamplesInt = static_cast<int>(numSamples);
   int numChainsInt = static_cast<int>(numChains);
   // a multi-location combiner (multinomial: K softmax channels) inserts a
   // location dimension between the observations and the samples; L = 1 keeps
   // the exact n x numSamples (x numChains) shape and byte layout every other
   // model relies on.
-  size_t numLocations = sampler.numReportedLocations();
+  size_t numLocations = shape.numReportedLocations;
   auto allocFitsArray = [&](size_t leadingDim) -> SEXP {
     int dims[4];
     int numDims = 0;
@@ -2851,7 +2857,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // samples exactly as the fits seam inserts locations; count 1 keeps the exact
   // numPredictors x numSamples (x numChains) INTSXP shape and byte layout every
   // other model relies on.
-  size_t numVCForests = sampler.numVariableCountForests();
+  size_t numVCForests = shape.numVariableCountForests;
   auto allocVarcountArray = [&]() -> SEXP {
     int dims[4];
     int numDims = 0;
@@ -2881,12 +2887,12 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // ordinal reports its K-1 cutpoints in an extra channel appended after ranef;
   // every other family carries none, so the list keeps its 8 slots and byte-for-
   // byte layout. numCutpoints == 0 off ordinal.
-  size_t numCutpoints = sampler.numCutpoints();
+  size_t numCutpoints = shape.numCutpoints;
   bool hasCutpoints = numCutpoints > 0;
   // heteroscedastic samplers append s.train (+ s.test when test rows exist) as
   // a separately-typed variance channel; gaussian-only, so mutually exclusive
   // with the ordinal cutpoint slot
-  bool hasVariance = sampler.hasVarianceForest();
+  bool hasVariance = shape.hasVarianceForest;
   int numResultSlots = 8 + (hasCutpoints ? 1 : 0) + (hasVariance ? 2 : 0);
   int varianceTrainSlot = hasVariance ? 8 + (hasCutpoints ? 1 : 0) : -1;
   int varianceTestSlot = hasVariance ? varianceTrainSlot + 1 : -1;
@@ -2933,21 +2939,21 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
                           numSamplesInt, numChainsInt));
   SEXP kExpr = installResult(
     resultExpr, 4,
-    !sampler.kIsSampled()
+    !shape.kIsSampled
       ? R_NilValue
       : numChains == 1
         ? Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples))
         : Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
   SEXP varprobsExpr = installResult(
     resultExpr, 5,
-    !sampler.usesDart()
+    !shape.usesDart
       ? R_NilValue
       : numChains == 1
         ? Rf_allocMatrix(REALSXP, static_cast<int>(numPredictors),
                          numSamplesInt)
         : Rf_alloc3DArray(REALSXP, static_cast<int>(numPredictors),
                           numSamplesInt, numChainsInt));
-  size_t numGroups = sampler.numGroups();
+  size_t numGroups = shape.numGroups;
   SEXP tauExpr = installResult(
     resultExpr, 6,
     numGroups == 0
@@ -2999,8 +3005,8 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   results.trainingFits = holder.keepTrainingFits ? REAL(trainExpr) : NULL;
   results.testFits = numTestObservations > 0 ? REAL(testExpr) : NULL;
   results.variableCounts = variableCounts.data();
-  results.k = sampler.kIsSampled() ? REAL(kExpr) : NULL;
-  results.splitProbabilities = sampler.usesDart() ? REAL(varprobsExpr) : NULL;
+  results.k = shape.kIsSampled ? REAL(kExpr) : NULL;
+  results.splitProbabilities = shape.usesDart ? REAL(varprobsExpr) : NULL;
   results.tau = numGroups > 0 ? REAL(tauExpr) : NULL;
   results.groupEffects = numGroups > 0 ? REAL(ranefExpr) : NULL;
   // one per-observation fits channel per reported location; 1 for every
@@ -3075,7 +3081,8 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
                               SEXP callbackExpr, SEXP rhoExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
-  if (sampler.numChains() != 1)
+  bartcore::SamplerShape shape = sampler.shape();
+  if (shape.numChains != 1)
     Rf_error("bartcore_runWithCallback requires a single chain");
   if (!Rf_isFunction(callbackExpr)) Rf_error("callback must be a function");
 
@@ -3099,10 +3106,10 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   results.splitProbabilities = Rf_isNull(varprobsExpr) ? NULL : REAL(varprobsExpr);
   // single chain here, so the location stride only shapes the fits buffers the
   // caller allocated; 1 for every model today (n x numSamples)
-  results.numReportedLocations = sampler.numReportedLocations();
+  results.numReportedLocations = shape.numReportedLocations;
   // rbart_vi's caller-owned varcount buffer is single-forest (rbart is never
   // multinomial); 1 keeps the aliased numPredictors-per-sweep layout
-  results.numVariableCountForests = sampler.numVariableCountForests();
+  results.numVariableCountForests = shape.numVariableCountForests;
 
   bool callbackErrored = false;  // an error escaped the closure (R_tryEval)
   bool closureStopped = false;   // the closure returned TRUE (self-caught stop)
@@ -3146,10 +3153,10 @@ SEXP bartcore_sampleNodeParametersFromPrior(SEXP ptrExpr) {
 
 SEXP bartcore_growFromRoot(SEXP ptrExpr, SEXP numSweepsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
   // constant leaf only in v1 (the scan's closed-form marginal); the R5 method
   // refuses first, this is the engine-side backstop
-  if (holder.sampler->numLeafCovariates() != 0 ||
-      holder.sampler->usesFunctionLeaves())
+  if (shape.numLeafCovariates != 0 || shape.usesFunctionLeaves)
     Rf_error("grow-from-root warm start is only available for the "
              "constant-leaf model");
   int numSweeps = Rf_asInteger(numSweepsExpr);
@@ -3166,7 +3173,7 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   if (!Rf_isNull(offsetExpr) &&
       (!Rf_isReal(offsetExpr) ||
        static_cast<size_t>(Rf_xlength(offsetExpr)) !=
-         holder.sampler->numObservations()))
+         holder.sampler->shape().numObservations))
     Rf_error("length of replacement offset is not equal to number of observations");
   const double* offset = Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr);
   holder.sampler->setOffset(offset, Rf_asLogical(updateScaleExpr) == TRUE);
@@ -3176,6 +3183,7 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
 
 SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
   int updateScale = Rf_asLogical(updateScaleExpr);
   // The one multi-forest whole-data mutation that is opt-in rather than
   // refused, and only scale-pinned. The coupling must re-derive every
@@ -3184,8 +3192,8 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
   // transform while both forests keep leaf calibrations stated against the old
   // one, silently decalibrating them. NA is not FALSE here - only an explicit
   // FALSE takes the permitted branch.
-  if (holder.sampler->numForests() >= 2) {
-    if (!holder.sampler->supportsResponseMutation())
+  if (shape.numForests >= 2) {
+    if (!shape.supportsResponseMutation)
       Rf_error("bartcore_setResponse: this multi-forest sampler fixes its "
                "response at creation; make a new sampler instead");
     if (updateScale != FALSE)
@@ -3194,14 +3202,13 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
                "response transform its per-forest leaf calibrations are stated "
                "against");
   }
-  if (holder.sampler->numGroups() > 0)
+  if (shape.numGroups > 0)
     Rf_error("grouped random effects fix the response at creation; make a "
              "new sampler instead");
   if (!Rf_isReal(yExpr) ||
-      static_cast<size_t>(Rf_xlength(yExpr)) !=
-        holder.sampler->numObservations())
+      static_cast<size_t>(Rf_xlength(yExpr)) != shape.numObservations)
     Rf_error("y must be of length equal to %lu",
-             static_cast<unsigned long>(holder.sampler->numObservations()));
+             static_cast<unsigned long>(shape.numObservations));
   GetRNGstate(); // probit latent redraw
   holder.sampler->setResponse(REAL(yExpr), updateScale == TRUE);
   PutRNGstate();
@@ -3218,12 +3225,13 @@ SEXP bartcore_setSigma(SEXP ptrExpr, SEXP sigmaExpr) {
 SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
+  bartcore::SamplerShape shape = sampler.shape();
   refusePredictorMutation(sampler, "bartcore_setData");
   refuseMultiForestMutation(sampler, "bartcore_setData");
-  if (sampler.numGroups() > 0)
+  if (shape.numGroups > 0)
     Rf_error("grouped random effects fix the data at creation; make a new "
              "sampler instead");
-  if (sampler.family() == bartcore::ResponseFamily::aft)
+  if (shape.family == bartcore::ResponseFamily::aft)
     Rf_error("aft (survival) models fix the censoring structure at creation; "
              "make a new sampler instead");
 
@@ -3239,7 +3247,7 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
       Rf_error("bartcore setData requires a dense test matrix; a sparse test "
                "set fixes the design at creation");
 
-    if (data.numPredictors != sampler.numPredictors())
+    if (data.numPredictors != shape.numPredictors)
       Rf_error("bartcore setData requires the same predictors");
     if (data.weights != NULL) refuseBinaryWeightChange(sampler);
     for (size_t j = 0; j < data.numPredictors; ++j) {
@@ -3280,6 +3288,7 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
 
 SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
   if (Rf_isNull(xTestExpr)) {
     // removal: back to the no-test-data state, offset included
     holder.sampler->setTestPredictors(NULL, 0);
@@ -3295,11 +3304,11 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
     // container leaves the sampler in its prior state. The parsed sources own
     // buffers, so the unwind-protected scope frees them on the error jump.
     return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
-      parseTestContainer(parsed, xTestExpr, holder.sampler->numPredictors(),
+      parseTestContainer(parsed, xTestExpr, shape.numPredictors,
                          holder.sampler->data().types.data());
       validateTestContainerAgainstStore(holder.sampler->data(), parsed);
       if (holder.sampler->data().testOffset != NULL &&
-          parsed.numTestObservations != holder.sampler->numTestObservations())
+          parsed.numTestObservations != shape.numTestObservations)
         Rf_error("test offset length would no longer match; set the predictors "
                  "and offset together");
       if (!installTestContainer(*holder.sampler, parsed))
@@ -3309,14 +3318,14 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
     });
   SEXP dims = Rf_getAttrib(xTestExpr, R_DimSymbol);
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
-      static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
+      static_cast<size_t>(INTEGER(dims)[1]) != shape.numPredictors)
     Rf_error("bartcore_setTestPredictor requires a matrix with matching columns");
   size_t numTestObservations = static_cast<size_t>(INTEGER(dims)[0]);
   if (holder.sampler->data().testOffset != NULL &&
-      numTestObservations != holder.sampler->numTestObservations())
+      numTestObservations != shape.numTestObservations)
     Rf_error("test offset length would no longer match; set the predictors "
              "and offset together");
-  for (size_t j = 0; j < holder.sampler->numPredictors(); ++j)
+  for (size_t j = 0; j < shape.numPredictors; ++j)
     validateColumnValues(holder.sampler->data(), j,
                          REAL(xTestExpr) + j * numTestObservations,
                          numTestObservations);
@@ -3334,11 +3343,11 @@ SEXP bartcore_setTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
     return R_NilValue;
   }
   refuseBCFTestSurface(*holder.sampler, "bartcore_setTestOffset");
-  if (holder.sampler->numTestObservations() == 0)
+  size_t numTestObservations = holder.sampler->shape().numTestObservations;
+  if (numTestObservations == 0)
     Rf_error("cannot set a test offset without test predictors");
   if (!Rf_isReal(offsetExpr) ||
-      static_cast<size_t>(Rf_xlength(offsetExpr)) !=
-        holder.sampler->numTestObservations())
+      static_cast<size_t>(Rf_xlength(offsetExpr)) != numTestObservations)
     Rf_error("length of test offset must equal number of test observations");
   holder.sampler->setTestOffset(REAL(offsetExpr));
   retain(ptrExpr, PROT_TEST_OFFSET, offsetExpr);
@@ -3351,6 +3360,7 @@ SEXP bartcore_setTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
 SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
                                         SEXP offsetExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  size_t numPredictors = holder.sampler->shape().numPredictors;
   if (Rf_isNull(xTestExpr)) {
     if (!Rf_isNull(offsetExpr))
       Rf_error("when test matrix is NULL, test offset must be as well");
@@ -3365,7 +3375,7 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
     // leaf-covariate refusal precede the store change, so a rejected container
     // leaves the sampler untouched
     return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
-      parseTestContainer(parsed, xTestExpr, holder.sampler->numPredictors(),
+      parseTestContainer(parsed, xTestExpr, numPredictors,
                          holder.sampler->data().types.data());
       validateTestContainerAgainstStore(holder.sampler->data(), parsed);
       if (!Rf_isNull(offsetExpr) &&
@@ -3384,7 +3394,7 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
     });
   SEXP dims = Rf_getAttrib(xTestExpr, R_DimSymbol);
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
-      static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
+      static_cast<size_t>(INTEGER(dims)[1]) != numPredictors)
     Rf_error("bartcore_setTestPredictorAndOffset requires a matrix with "
              "matching columns");
   size_t numTestObservations = static_cast<size_t>(INTEGER(dims)[0]);
@@ -3392,7 +3402,7 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
       (!Rf_isReal(offsetExpr) ||
        static_cast<size_t>(Rf_xlength(offsetExpr)) != numTestObservations))
     Rf_error("length of test offset must equal number of rows in test matrix");
-  for (size_t j = 0; j < holder.sampler->numPredictors(); ++j)
+  for (size_t j = 0; j < numPredictors; ++j)
     validateColumnValues(holder.sampler->data(), j,
                          REAL(xTestExpr) + j * numTestObservations,
                          numTestObservations);
@@ -3410,14 +3420,14 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
 // weighting was incorrect and was stripped rather than ported.
 SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  size_t numObservations = holder.sampler->shape().numObservations;
   refuseMultiForestMutation(*holder.sampler, "bartcore_setWeights");
   refuseBinaryWeightChange(*holder.sampler);
   if (!Rf_isReal(weightsExpr) ||
-      static_cast<size_t>(Rf_xlength(weightsExpr)) !=
-        holder.sampler->numObservations())
+      static_cast<size_t>(Rf_xlength(weightsExpr)) != numObservations)
     Rf_error("length of weights must equal number of observations");
   const double* weights = REAL(weightsExpr);
-  for (size_t i = 0; i < holder.sampler->numObservations(); ++i)
+  for (size_t i = 0; i < numObservations; ++i)
     if (!(weights[i] >= 0.0))
       Rf_error("weights must be non-negative");
   holder.sampler->setWeights(weights);
@@ -3431,6 +3441,7 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
 SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
+  bartcore::SamplerShape shape = sampler.shape();
 
   if (!Rf_inherits(controlExpr, "dbartsControl"))
     Rf_error("'control' argument to bartcore_setControl not of class "
@@ -3439,10 +3450,10 @@ SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
   ParsedControl control;
   parseControl(control, controlExpr);
 
-  if (control.numChains != sampler.numChains())
+  if (control.numChains != shape.numChains)
     Rf_error("the bartcore engine cannot change the number of chains of an "
              "existing sampler");
-  if (control.numTrees != sampler.numTrees())
+  if (control.numTrees != shape.numTrees)
     Rf_error("the bartcore engine cannot change the number of trees of an "
              "existing sampler");
 
@@ -3461,6 +3472,7 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
                        SEXP dataExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
+  bartcore::SamplerShape shape = sampler.shape();
   refuseMultiForestMutation(sampler, "bartcore_setModel");
 
   if (!Rf_inherits(modelExpr, "dbartsModel"))
@@ -3470,25 +3482,25 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
   (void) controlExpr; // arity fixed by the call table; nothing read from it
 
   return unwindProtect([&, model = ParsedModel{}]() mutable -> SEXP {
-    parseModel(model, modelExpr, sampler.numPredictors());
+    parseModel(model, modelExpr, shape.numPredictors);
 
     // the leaf model is a template instantiation: the designation and its
     // kind are fixed at creation, so a replacement prior must carry the same
     bool designationMatches =
-      model.leafCovariateColumns.size() == sampler.numLeafCovariates() &&
-      model.gpLeaves == sampler.usesFunctionLeaves();
+      model.leafCovariateColumns.size() == shape.numLeafCovariates &&
+      model.gpLeaves == shape.usesFunctionLeaves;
     for (size_t j = 0; designationMatches &&
          j < model.leafCovariateColumns.size(); ++j)
       designationMatches =
-        model.leafCovariateColumns[j] == sampler.leafCovariateColumns()[j];
+        model.leafCovariateColumns[j] == shape.leafCovariateColumns[j];
     if (!designationMatches)
       Rf_error("the leaf covariate designation is fixed when a sampler is "
                "created; make a new sampler instead");
 
     // gaussian and aft both draw sigma from a variance prior; the binary
     // families fix it, so setModel leaves their sigma alone
-    bool drawsSigma = sampler.family() == bartcore::ResponseFamily::gaussian ||
-                      sampler.family() == bartcore::ResponseFamily::aft;
+    bool drawsSigma = shape.family == bartcore::ResponseFamily::gaussian ||
+                      shape.family == bartcore::ResponseFamily::aft;
 
     bartcore::ModelParameters parameters;
     parameters.base = model.base;
@@ -3534,7 +3546,7 @@ SEXP bartcore_isValidPointer(SEXP ptrExpr) {
 
 SEXP bartcore_getSigmas(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  size_t numChains = holder.sampler->numChains();
+  size_t numChains = holder.sampler->shape().numChains;
   SEXP result =
     PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numChains)));
   for (size_t c = 0; c < numChains; ++c)
@@ -3545,7 +3557,7 @@ SEXP bartcore_getSigmas(SEXP ptrExpr) {
 
 SEXP bartcore_getSumsOfSquaredResiduals(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  size_t numChains = holder.sampler->numChains();
+  size_t numChains = holder.sampler->shape().numChains;
   SEXP result =
     PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numChains)));
   for (size_t c = 0; c < numChains; ++c)
@@ -3562,6 +3574,7 @@ SEXP bartcore_getSumsOfSquaredResiduals(SEXP ptrExpr) {
 SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
                            SEXP updateCutPointsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
   refuseMutationOnView(*holder.sampler, "bartcore_setPredictor");
   refuseCscCategoricalMutation(*holder.sampler, "bartcore_setPredictor");
   if (Rf_asLogical(forceUpdateExpr) != TRUE)
@@ -3569,14 +3582,14 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
                                          "bartcore_setPredictor");
   SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
-      static_cast<size_t>(INTEGER(dims)[0]) != holder.sampler->numObservations() ||
-      static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
+      static_cast<size_t>(INTEGER(dims)[0]) != shape.numObservations ||
+      static_cast<size_t>(INTEGER(dims)[1]) != shape.numPredictors)
     Rf_error("bartcore_setPredictor requires a matrix with matching dimensions");
 
-  for (size_t j = 0; j < holder.sampler->numPredictors(); ++j)
+  for (size_t j = 0; j < shape.numPredictors; ++j)
     validateColumnValues(holder.sampler->data(), j,
-                         REAL(xExpr) + j * holder.sampler->numObservations(),
-                         holder.sampler->numObservations());
+                         REAL(xExpr) + j * shape.numObservations,
+                         shape.numObservations);
 
   bartcore::PredictorUpdateResult result = holder.sampler->setPredictor(
     REAL(xExpr), Rf_asLogical(forceUpdateExpr) == TRUE,
@@ -3599,8 +3612,9 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
     if (Rf_asLogical(forceUpdateExpr) != TRUE)
       refuseMultiForestTransactionalUpdate(*holder.sampler,
                                            "bartcore_updatePredictor");
-    size_t numObservations = holder.sampler->numObservations();
-    size_t numPredictors = holder.sampler->numPredictors();
+    bartcore::SamplerShape shape = holder.sampler->shape();
+    size_t numObservations = shape.numObservations;
+    size_t numPredictors = shape.numPredictors;
 
     size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
     if (numColumns == 0 ||
@@ -3639,7 +3653,7 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
                         columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     refuseRequantizeWithoutSource(*holder.sampler, "bartcore_setCutPoints");
-    size_t numPredictors = holder.sampler->numPredictors();
+    size_t numPredictors = holder.sampler->shape().numPredictors;
     // dense columns re-quantize from the supplied data@x; CSC/mixed columns
     // read their retained slices, so a non-matrix source is passed as null
     const double* currentPredictors =
@@ -3685,18 +3699,18 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
 SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
                                             SEXP columnExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
   refuseMutationOnView(
     *holder.sampler, "bartcore_updatePredictorPerObservation");
   refuseMultiForestTransactionalUpdate(
     *holder.sampler, "bartcore_updatePredictorPerObservation");
-  size_t numObservations = holder.sampler->numObservations();
+  size_t numObservations = shape.numObservations;
 
   if (static_cast<size_t>(Rf_xlength(xExpr)) != numObservations)
     Rf_error("bartcore_updatePredictorPerObservation requires one value per "
              "observation");
   int column = Rf_asInteger(columnExpr);
-  if (column < 1 ||
-      static_cast<size_t>(column) > holder.sampler->numPredictors())
+  if (column < 1 || static_cast<size_t>(column) > shape.numPredictors)
     Rf_error("bartcore_updatePredictorPerObservation column out of range");
   // per-observation replacement writes one cell at a time, which a sparse
   // column's rank storage cannot take without an O(nnz) shift per cell; the
@@ -3758,7 +3772,7 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
       samplers[k] = holder.sampler.get();
       int column = INTEGER(columnsExpr)[k];
       if (column < 1 ||
-          static_cast<size_t>(column) > samplers[k]->numPredictors())
+          static_cast<size_t>(column) > samplers[k]->shape().numPredictors)
         Rf_error("bartcore_updatePredictorPerObservationJointly column out of "
                  "range");
       // per-observation cell writes need a dense-backed target (see the
@@ -3770,9 +3784,9 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
       columns[k] = static_cast<size_t>(column - 1);
     }
 
-    size_t numObservations = samplers[0]->numObservations();
+    size_t numObservations = samplers[0]->shape().numObservations;
     for (size_t k = 1; k < numSamplers; ++k)
-      if (samplers[k]->numObservations() != numObservations)
+      if (samplers[k]->shape().numObservations != numObservations)
         Rf_error("bartcore_updatePredictorPerObservationJointly requires "
                  "index-aligned samplers");
     if (static_cast<size_t>(Rf_xlength(xExpr)) != numObservations)
@@ -4123,6 +4137,7 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
 SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
+  bartcore::SamplerShape shape = sampler.shape();
 
   // predict() sums only the prognostic forest, so a BCF prediction would drop
   // the treatment forest and the glue; refuse it for the same reason recorded
@@ -4141,10 +4156,10 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
     offset = REAL(offsetExpr);
   }
 
-  size_t capacity = sampler.savedTreeCapacity();
-  size_t numChains = sampler.numChains();
+  size_t capacity = shape.savedTreeCapacity;
+  size_t numChains = shape.numChains;
   size_t numSamples = capacity > 0 ? capacity : 1;
-  size_t numLocations = sampler.numReportedLocations();
+  size_t numLocations = shape.numReportedLocations;
 
   // a multi-location (multinomial softmax) surface reports probabilities, not
   // an additive latent scale, so an offset has no meaning there
@@ -4197,7 +4212,7 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   // named list (mean, variance), same shape (gaussian, single location). Off a
   // variance forest the bare mean array returns, backward-compatible. Predict
   // needs saved trees, so a null-capacity variance forest has nothing to replay.
-  if (sampler.hasVarianceForest() && capacity > 0) {
+  if (shape.hasVarianceForest && capacity > 0) {
     SEXP varianceExpr = PROTECT(Rf_duplicate(resultExpr));  // clone the shape
     sampler.predictVariance(REAL(xTestExpr), numTestObservations,
                             REAL(varianceExpr));
@@ -4226,14 +4241,15 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
                         treeIndices = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     bartcore::SamplerBase& sampler(*holder.sampler);
+    bartcore::SamplerShape shape = sampler.shape();
 
     // forest addressing follows getForestFits: 0-based, unconverted
     size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
-    if (forestIndex >= sampler.numForests())
+    if (forestIndex >= shape.numForests)
       Rf_error("bartcore_getTrees forest index out of range");
 
     bool useLiveTrees = Rf_asLogical(currentExpr) == TRUE;
-    bool useSaved = sampler.savedTreeCapacity() > 0 && !useLiveTrees;
+    bool useSaved = shape.savedTreeCapacity > 0 && !useLiveTrees;
 
     chainIndices.resize(static_cast<size_t>(Rf_xlength(chainNumsExpr)));
     for (size_t i = 0; i < chainIndices.size(); ++i) {
@@ -4273,7 +4289,7 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
     if (useSaved && newdata == NULL && Rf_isReal(trainingDataExpr)) {
       SEXP dims = Rf_getAttrib(trainingDataExpr, R_DimSymbol);
       if (!Rf_isNull(dims) && Rf_xlength(dims) == 2 &&
-          static_cast<size_t>(INTEGER(dims)[1]) == sampler.numPredictors()) {
+          static_cast<size_t>(INTEGER(dims)[1]) == shape.numPredictors) {
         trainingReplay = REAL(trainingDataExpr);
         trainingReplayNumRows = static_cast<size_t>(INTEGER(dims)[0]);
       }
@@ -4294,15 +4310,16 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
                         treeIndices = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     bartcore::SamplerBase& sampler(*holder.sampler);
+    bartcore::SamplerShape shape = sampler.shape();
 
-    size_t capacity = sampler.savedTreeCapacity();
+    size_t capacity = shape.savedTreeCapacity;
 
     if (Rf_isNull(chainNumsExpr)) {
-      for (size_t i = 0; i < sampler.numChains(); ++i) chainIndices.push_back(i);
+      for (size_t i = 0; i < shape.numChains; ++i) chainIndices.push_back(i);
     } else {
       for (R_xlen_t i = 0; i < Rf_xlength(chainNumsExpr); ++i) {
         int chainNum = INTEGER(chainNumsExpr)[i];
-        if (chainNum < 1 || static_cast<size_t>(chainNum) > sampler.numChains())
+        if (chainNum < 1 || static_cast<size_t>(chainNum) > shape.numChains)
           Rf_error("bartcore_printTrees chain number out of range");
         chainIndices.push_back(static_cast<size_t>(chainNum - 1));
       }
@@ -4320,11 +4337,11 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
       }
     }
     if (Rf_isNull(treeNumsExpr)) {
-      for (size_t i = 0; i < sampler.numTrees(); ++i) treeIndices.push_back(i);
+      for (size_t i = 0; i < shape.numTrees; ++i) treeIndices.push_back(i);
     } else {
       for (R_xlen_t i = 0; i < Rf_xlength(treeNumsExpr); ++i) {
         int treeNum = INTEGER(treeNumsExpr)[i];
-        if (treeNum < 1 || static_cast<size_t>(treeNum) > sampler.numTrees())
+        if (treeNum < 1 || static_cast<size_t>(treeNum) > shape.numTrees)
           Rf_error("bartcore_printTrees tree number out of range");
         treeIndices.push_back(static_cast<size_t>(treeNum - 1));
       }
@@ -4344,8 +4361,9 @@ SEXP bartcore_getLatents(SEXP ptrExpr, SEXP resultExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   if (holder.sampler->latents(0) == NULL) return R_NilValue;
 
-  size_t numObservations = holder.sampler->numObservations();
-  size_t numChains = holder.sampler->numChains();
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  size_t numObservations = shape.numObservations;
+  size_t numChains = shape.numChains;
 
   SEXP result;
   if (!Rf_isNull(resultExpr)) {
@@ -4413,7 +4431,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   sampler.getState(state);
 
   size_t numChains = state.chains.size();
-  size_t numObservations = sampler.numObservations();
+  size_t numObservations = sampler.shape().numObservations;
 
   // per-forest tree channels (a length-1 list off BCF); the k rides here too
   enum {
@@ -4614,6 +4632,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
 
 void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
               const double* currentPredictors) {
+  bartcore::SamplerShape shape = sampler.shape();
   if (!Rf_inherits(stateExpr, "bartcoreState"))
     Rf_error("'state' must be a bartcore state object");
 
@@ -4637,7 +4656,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
              formatVersion, packageVersion, minReadableStateFormatVersion);
   }
 
-  if (static_cast<size_t>(Rf_xlength(stateExpr)) != sampler.numChains())
+  if (static_cast<size_t>(Rf_xlength(stateExpr)) != shape.numChains)
     Rf_error("'state' length must equal number of chains");
 
   // Rf_error longjmps past destructors, so parse with an error accumulator,
@@ -4660,16 +4679,15 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   };
 
   bartcore::SamplerStateData state;
-  state.chains.resize(sampler.numChains());
+  state.chains.resize(shape.numChains);
 
   SEXP cutPointsExpr = Rf_getAttrib(stateExpr, Rf_install("cutPoints"));
   if (Rf_isNull(cutPointsExpr) ||
-      static_cast<size_t>(Rf_xlength(cutPointsExpr)) !=
-        sampler.numPredictors()) {
+      static_cast<size_t>(Rf_xlength(cutPointsExpr)) != shape.numPredictors) {
     errorMessage = "malformed cut points in bartcore state";
   } else {
-    state.cutPoints.resize(sampler.numPredictors());
-    for (size_t j = 0; j < sampler.numPredictors(); ++j) {
+    state.cutPoints.resize(shape.numPredictors);
+    for (size_t j = 0; j < shape.numPredictors; ++j) {
       SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(j));
       if (Rf_isNull(cutsExpr)) continue;
       if (!Rf_isReal(cutsExpr)) {
@@ -4692,7 +4710,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   }
   UNPROTECT(1);
 
-  for (size_t c = 0; c < sampler.numChains() && errorMessage == NULL; ++c) {
+  for (size_t c = 0; c < shape.numChains && errorMessage == NULL; ++c) {
     SEXP chainExpr = VECTOR_ELT(stateExpr, static_cast<R_xlen_t>(c));
     bartcore::ChainStateData& chainState(state.chains[c]);
 
@@ -4709,7 +4727,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     chainState.forests.resize(numForests);
     // every forest of a chain shares the leaf shape, so these dispatch flags
     // are chain-level
-    size_t numLeafCovariates = sampler.numLeafCovariates();
+    size_t numLeafCovariates = shape.numLeafCovariates;
     for (size_t f = 0; f < numForests && errorMessage == NULL; ++f) {
       SEXP forestExpr = VECTOR_ELT(forestsExpr, static_cast<R_xlen_t>(f));
       bartcore::ForestStateData& fs(chainState.forests[f]);
@@ -4735,13 +4753,13 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
       // linear-leaf states must carry their slope arrays; function-valued
       // states carry fits slabs and variable-length saved blocks instead
-      if (sampler.usesFunctionLeaves()) {
+      if (shape.usesFunctionLeaves) {
         if (Rf_isNull(getListElement(forestExpr, "tree.params"))) {
           errorMessage = missingBlock("tree.params");
           break;
         }
         if (!readFunctionTreeParams(getListElement(forestExpr, "tree.params"),
-                                    fs.trees.size(), sampler.numObservations(),
+                                    fs.trees.size(), shape.numObservations,
                                     fs.treeParams, &errorMessage))
           break;
         if (!fs.savedTrees.empty() &&
@@ -4954,15 +4972,16 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 static const char* readWarmStartState(SEXP stateExpr,
                                       bartcore::SamplerBase& sampler,
                                       bartcore::SamplerStateData& state) {
+  bartcore::SamplerShape shape = sampler.shape();
   size_t numChains = static_cast<size_t>(Rf_xlength(stateExpr));
   if (numChains == 0) return "warm-start donor holds no chains";
 
   SEXP cutPointsExpr = Rf_getAttrib(stateExpr, Rf_install("cutPoints"));
   if (Rf_isNull(cutPointsExpr) ||
-      static_cast<size_t>(Rf_xlength(cutPointsExpr)) != sampler.numPredictors())
+      static_cast<size_t>(Rf_xlength(cutPointsExpr)) != shape.numPredictors)
     return "malformed cut points in warm-start donor";
-  state.cutPoints.resize(sampler.numPredictors());
-  for (size_t j = 0; j < sampler.numPredictors(); ++j) {
+  state.cutPoints.resize(shape.numPredictors);
+  for (size_t j = 0; j < shape.numPredictors; ++j) {
     SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(j));
     if (Rf_isNull(cutsExpr)) continue;
     if (!Rf_isReal(cutsExpr)) return "malformed cut points in warm-start donor";
@@ -4972,8 +4991,8 @@ static const char* readWarmStartState(SEXP stateExpr,
 
   const char* errorMessage = NULL;
   state.chains.resize(numChains);
-  size_t numLeafCovariates = sampler.numLeafCovariates();
-  bool functionLeaves = sampler.usesFunctionLeaves();
+  size_t numLeafCovariates = shape.numLeafCovariates;
+  bool functionLeaves = shape.usesFunctionLeaves;
   for (size_t c = 0; c < numChains && errorMessage == NULL; ++c) {
     SEXP chainExpr = VECTOR_ELT(stateExpr, static_cast<R_xlen_t>(c));
     bartcore::ChainStateData& chainState(state.chains[c]);
@@ -5006,7 +5025,7 @@ static const char* readWarmStartState(SEXP stateExpr,
 
       if (functionLeaves) {
         if (!readFunctionTreeParams(getListElement(forestExpr, "tree.params"),
-                                    fs.trees.size(), sampler.numObservations(),
+                                    fs.trees.size(), shape.numObservations,
                                     fs.treeParams, &errorMessage))
           break;
       } else if (numLeafCovariates > 0) {
@@ -5126,7 +5145,7 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
       if (pool.empty()) errorMessage = "warm-start donor holds no samples";
     }
 
-    size_t numChains = sampler.numChains();
+    size_t numChains = sampler.shape().numChains;
     std::vector<std::pair<size_t, int>> sampleMap;
     if (errorMessage == NULL) {
       sampleMap.resize(numChains);
@@ -5214,7 +5233,7 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
   std::vector<std::uint32_t> counts;
   std::vector<size_t> replayIndices(replayNumRows);
   std::string directionsScratch;
-  bool functionLeaves = sampler.usesFunctionLeaves();
+  bool functionLeaves = sampler.shape().usesFunctionLeaves;
   // the mask side channel exists only for pooled columns (past 63 levels)
   bool anyPooled = false;
   for (size_t j = 0; j < store.numPredictors; ++j)
@@ -5420,17 +5439,18 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
               size_t trainingReplayNumRows, size_t forestIndex,
               const char* caller) {
   const bartcore::ColumnStore& store(sampler.data());
+  bartcore::SamplerShape shape = sampler.shape();
 
-  bool useSaved = sampler.savedTreeCapacity() > 0 && !useLiveTrees;
+  bool useSaved = shape.savedTreeCapacity > 0 && !useLiveTrees;
   if (!useSaved) numSampleIndices = 1;
 
   for (size_t i = 0; i < numChainIndices; ++i) {
-    if (chainIndices[i] >= sampler.numChains())
+    if (chainIndices[i] >= shape.numChains)
       Rf_error("%s chain number out of range", caller);
   }
   if (useSaved) {
     for (size_t i = 0; i < numSampleIndices; ++i) {
-      if (sampleIndices[i] >= sampler.savedTreeCapacity())
+      if (sampleIndices[i] >= shape.savedTreeCapacity)
         Rf_error("%s sample number out of range", caller);
     }
   }
@@ -5462,10 +5482,9 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
   // function-valued (gp) leaves report no per-leaf coefficients - the
   // function rides prediction only - and their leaves' values print NA
   // (a whole function per row does not fit a data frame)
-  size_t numSlopes =
-    sampler.usesFunctionLeaves() ? 0 : sampler.numLeafCovariates();
+  size_t numSlopes = shape.usesFunctionLeaves ? 0 : shape.numLeafCovariates;
 
-  GatheredTrees gathered{sampler.numChains() > 1, useSaved,
+  GatheredTrees gathered{shape.numChains > 1, useSaved,
                          anyCategorical, anyMissing, numSlopes,
                          {}, {}, {}, {}, {}, {}, {}, {}, {}};
   gathered.slopes.resize(numSlopes);
