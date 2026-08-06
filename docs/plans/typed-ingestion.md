@@ -614,3 +614,45 @@ tinytest; equivalence trio bitwise via the dedicated harnesses
 (MANIFEST-current baselines) - the gate for the whole slice; air
 format --check .; full local R CMD check (R, Rd, tests move); CI
 incl. sanitizers green. No categorical-exact.R (no grid change).
+
+## Slice 2b landing
+
+LANDED d4e80e3 2026-08-06, all CI green incl. sanitizers. 1089+/661-
+over 20 files: PredictorSource POD (data.hpp; static_assert
+trivially destructible; sourceOf/typeOf/isDenseBlock, null map =
+identity) with densePredictorSource/creationPredictorSource
+helpers; ColumnStore::build and buildTest each collapse to one
+view-taking primary, buildFromCsc/buildMixed/buildTestMixed deleted
+(a bare dgCMatrix arrives as an all-negative map); SamplerOptions'
+8 typed ingestion fields -> one predictors view, ctor nulling =
+options_.predictors = {}; SamplerBase keeps one virtual
+setTestData(view) with setTestPredictors a dense non-virtual
+inline, and setPredictor/updatePredictor take the view with dense
+inlines re-exposed by using declarations; the shared refusal is
+isDenseBlock, a mapped dense view refusing as
+PredictorUpdateResult::unsupportedSource (deviation accepted: the
+plan named the predicate, not its outcome; unreachable from R and
+the C API, which build dense views). Bridge: ParsedData carries one
+train + one test view, parseData fills the ~j map,
+validateCategoricalPredictors loses its storage-keyed early exit,
+the pure-CSC leaf-covariate predicate re-derived as
+predictorSourceIsAllCsc, the slice-0 refusals stay boolean-keyed.
+The whole-matrix-on-mixed door OPEN: the sparse-bearing branch of
+bartcoreSamplerSetPredictor splices via installPredictorColumns
+computed before the .Call and assigns on acceptance (one-pass
+replaceSparseColumns; replaceSparseColumn retained for the single-
+column case); the dense branch keeps its pointer swap (deviation
+accepted: the branch keys on predictorSourceIsSparse - a dense
+columnar container's whole-matrix swap already installs a bare
+matrix and test-sampler-predictors.R asserts it, the plan's
+"existing spelling untouched"). dbarts.h UNCHANGED, no new .Call
+entries, no new Rd topics. tests/cpp 183 (+ builder equivalence:
+null-map view vs pre-change dense build, all-negative-map vs the
+dense-equivalent, identity-map test build). tinytest 3604 (+14; the
+two whole-matrix refusals flipped to acceptance with container-
+maintenance, densification, rollback, and save/re-create mirror
+gates). Trio bitwise 27/27 + every BCF and multinomial channel;
+R CMD check --as-cran OK; door pre/post demonstrated against the
+pre-2b build. Doors recorded, unchanged: sparse-VALUED mutation
+(the view is its spelling), typed flat C API entries, setData on
+CSC/mixed stores, per-observation CSC-backed mutation.
