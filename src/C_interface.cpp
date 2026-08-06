@@ -202,6 +202,9 @@ void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y) {
 
 void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
                               int updateScale) {
+  // the offset is the response-side swap under a different pointer; unreachable
+  // today, guarded defensively, see dbarts_sampler_setResponse
+  refuseMultiForestMutation(samplerOf(sampler), "dbarts_sampler_setOffset");
   samplerOf(sampler).setOffset(offset, updateScale != 0);
 }
 
@@ -282,6 +285,9 @@ void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
 
 void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
                                   const double* offsetTest) {
+  // a multi-forest test offset lands after the forests are blended; unreachable
+  // today, guarded defensively, see dbarts_sampler_setResponse
+  refuseMultiForestMutation(samplerOf(sampler), "dbarts_sampler_setTestOffset");
   samplerOf(sampler).setTestOffset(offsetTest);
 }
 

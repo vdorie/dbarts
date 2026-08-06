@@ -121,6 +121,22 @@ expect_error(
 # ... while the force path refreshes every forest and stays supported
 expect_true(dbarts:::bartcoreSetPredictor(bc.bcf, x + 0, forceUpdate = TRUE))
 
+# setOffset rides the same conduit as setResponse under a different pointer
+# (setOffset(yBuild - yNew, FALSE) re-maps through the pinned transform exactly
+# as setResponse(yNew, FALSE) does), so it carries the same two conditions:
+# permitted at FALSE, refused at TRUE and at NA. NULL clears the offset, which
+# never moves the transform
+expect_silent(dbarts:::bartcoreSetOffset(bc.bcf, rep(0.1, n)))
+expect_error(
+  dbarts:::bartcoreSetOffset(bc.bcf, rep(0.1, n), updateScale = TRUE),
+  "multi-forest"
+)
+expect_error(
+  dbarts:::bartcoreSetOffset(bc.bcf, rep(0.1, n), updateScale = NA),
+  "multi-forest"
+)
+expect_silent(dbarts:::bartcoreSetOffset(bc.bcf, NULL))
+
 # setTreatment is still allowed and a subsequent run stays sane
 dbarts:::bartcoreSetTreatment(bc.bcf, rbinom(n, 1L, 0.5))
 result.bcf <- dbarts:::bartcoreRun(bc.bcf, 0L, 5L)
@@ -132,7 +148,14 @@ expect_true(all(is.finite(result.bcf$train)))
 # is the borrowed count matrix a flat double vector cannot express
 set.seed(23)
 labels <- sample(0L:2L, n, replace = TRUE)
-sampler.mn.host <- dbarts(x, as.double(labels), control = control.one)
+# the host carries test data so the test-offset refusal below is reached on a
+# sampler that HAS a test channel to corrupt
+sampler.mn.host <- dbarts(
+  x,
+  as.double(labels),
+  test = x.test,
+  control = control.one
+)
 bc.mn <- dbarts:::bartcoreMultinomialSampler(sampler.mn.host, labels, K = 3L)
 expect_error(
   dbarts:::bartcoreSetResponse(bc.mn, as.double(labels)),
@@ -142,9 +165,38 @@ expect_error(
   dbarts:::bartcoreSetResponse(bc.mn, as.double(labels), updateScale = TRUE),
   "multi-forest"
 )
+# a flat offset points exactly along the softmax's null direction (a common
+# per-observation shift), so it has no semantics here at any updateScale
+expect_error(dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n)), "multi-forest")
+expect_error(
+  dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = TRUE),
+  "multi-forest"
+)
+expect_error(
+  dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = NA),
+  "multi-forest"
+)
+# z is defined only as the contrast the BCF glue forms b_{z_i} against; the
+# capability probe catches a K-forest multinomial that a forest count would not
+expect_error(
+  dbarts:::bartcoreSetTreatment(bc.mn, rbinom(n, 1L, 0.5)),
+  "requires a BCF sampler"
+)
+# a test offset is added AFTER the K forests are blended, so it would move the
+# reported probabilities off the simplex; refused post-creation exactly as the
+# multinomial constructor refuses one
+expect_error(
+  dbarts:::bartcoreSetTestOffset(bc.mn, rep(0.5, nTest)),
+  "multi-forest"
+)
 
-# the same guard is inert on a single-forest sampler: these mutations still work
+# the same guard is inert on a single-forest sampler: these mutations still
+# work, including setOffset at updateScale = TRUE (rbart_vi's warmup rescale)
 expect_silent(dbarts:::bartcoreSetResponse(bc.one, y + 1))
+expect_silent(dbarts:::bartcoreSetOffset(bc.one, rep(0.2, n)))
+expect_silent(
+  dbarts:::bartcoreSetOffset(bc.one, rep(0.2, n), updateScale = TRUE)
+)
 expect_silent(
   dbarts:::bartcoreSetModel(
     bc.one,
