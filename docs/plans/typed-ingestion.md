@@ -79,3 +79,44 @@ Per slice; slice 0's lives in csc-code-validation.md. Slice 1 adds:
 equivalence trio bitwise (after verifying baseline data observes all
 levels), a gap-data tinytest (train with unobserved top level, test
 row carrying it accepted, fits finite), R CMD check (R surface moves).
+
+## Slice 1 steps (dense declared-K plumb-through)
+
+Baseline check (2026-08-05): every dense factor in the equivalence
+scenarios is factor(sample(...)) - levels computed from the observed
+data, declared K == max+1 by construction - and the BCF/multinomial
+harnesses carry no factors, so the trio must stay bitwise. Gap
+datasets (declared > observed) shift, and are the point.
+
+1. Engine: generalize the declared-count channel - SamplerOptions
+   carries per-column category counts for ANY categorical column (the
+   CSC-only cscCategoryCounts becomes the general spelling);
+   buildCutsForColumn takes declared over inferred when present.
+   Audit every categorical cut-grid (re)build path (setPredictor with
+   updateCutPoints, setData, setState cross-grid restore) to carry
+   the declared K or verify categorical grids never rebuild there.
+2. Bridge: parseData reads an optional dense category-count vector
+   (absent = infer, the compatibility spelling); optionsFromParsed
+   publishes it; trainingCategoryBound (the csc-code-validation seam)
+   prefers the declared count for dense columns.
+3. R: makeCategoricalModelMatrix already collects the level tables
+   (attr factor.levels) - emit per-column counts beside varTypes;
+   assembleDenseColumnMatrix carries them on the mixed dense flavor;
+   dbartsData initialize lifts them; run codetools::findGlobals on
+   any moved function.
+4. Docs in the SAME commit: dbartsData.Rd/dbarts.Rd note that
+   declared factor levels are honored end-to-end; NEWS bullet (the
+   dense refusal of a declared-but-unobserved level becomes
+   acceptance, matching CSC).
+5. tinytest: gap factor train + test row carrying the missing level
+   accepted with finite fits at creation, setTestData, predict, and
+   setPredictor; the G2/G4 asymmetry test flips to symmetric; an
+   all-levels-observed fit is bitwise-unchanged against a
+   pre-slice-1 draw (snapshot in-file).
+
+## Slice 1 verification
+
+R CMD INSTALL --preclean (engine headers move); tests/cpp clean-build
+(cut-grid cases); full tinytest; equivalence trio bitwise; air format
+--check .; full local R CMD check (R and Rd move); CI incl.
+sanitizers green.
