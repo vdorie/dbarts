@@ -1943,6 +1943,10 @@ public:
       }
       fs.savedTrees = forest.savedTrees;
       fs.k = forest.k;
+      // written for EVERY forest, not just the response-derived ones (BCF's):
+      // the block is self-describing, and a data-independent scale simply
+      // records the value a same-spec destination already constructed
+      fs.leafScale = forest.leaf.scale;
     }
     Forest<L, ResidT>& forest = forests_[0];
     state.sigma = sigma();
@@ -2403,6 +2407,12 @@ public:
         : rebuildLiveForestRemapped(f, fs, *donorCutPoints, params, *store);
       if (!rebuilt) return false;
       forests_[f].k = fs.k;
+      // the leaf prior's other half, adopted like k, sigma, the transform, DART
+      // and the glue already are: a donor's trees were drawn under its scale, so
+      // installing the trees without it leaves a hybrid (donor units,
+      // destination calibration). An absent block (0.0, or any non-positive or
+      // non-finite value - k's posture, no new refusal) leaves construction's.
+      if (fs.leafScale > 0.0) forests_[f].leaf.scale = fs.leafScale;
     }
     setSigma(state.sigma);
     Forest<L, ResidT>& forest = forests_[0];
@@ -2444,6 +2454,11 @@ public:
         }
       }
       forest.k = fs.k;
+      // as in installForest above. CONSEQUENCE: a setModel(node.scale) issued
+      // AFTER the last storeState no longer survives a save/load re-creation,
+      // since the state's scale now wins - exactly the wart k already had,
+      // applied consistently to both halves of the leaf prior.
+      if (fs.leafScale > 0.0) forest.leaf.scale = fs.leafScale;
     }
     setSigma(state.sigma);
     // RESTORE CONTRACT (docs/design/negative-binomial.md section 5): an NB

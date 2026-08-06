@@ -684,6 +684,10 @@ public:
                                  sfs.savedTreeMasks.begin() + base + nt);
         }
         dfs.k = sfs.k;
+        // the per-forest leaf scale rides the warm start with k; this
+        // reassembled ForestStateData is the ONLY thing installForest sees, so
+        // dropping it here would leave that path's install arm dead
+        dfs.leafScale = sfs.leafScale;
       }
       dst.sigma = src.sigma;
       dst.fitMin = src.fitMin;

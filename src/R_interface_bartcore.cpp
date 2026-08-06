@@ -4501,14 +4501,17 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     FSLOT_TREE_PARAMS, FSLOT_TREE_MASKS,
     FSLOT_SAVED_VARS, FSLOT_SAVED_VALUES, FSLOT_SAVED_SIZES, FSLOT_SAVED_FLAGS,
     FSLOT_SAVED_PARAMS, FSLOT_SAVED_MASKS,
-    FSLOT_K, FSLOT_COUNT
+    FSLOT_K, FSLOT_LEAF_SCALE, FSLOT_COUNT
   };
+  // append-only here too: leaf.scale is the leaf prior's scale factor, k's
+  // other half (mu ~ N(0, (scale / k)^2)), added AFTER k and read as OPTIONAL,
+  // so a state written before it existed decodes as absent.
   static const char* forestSlotNames[FSLOT_COUNT] = {
     "tree.vars", "tree.values", "tree.sizes", "tree.flags", "tree.params",
     "tree.masks",
     "saved.vars", "saved.values", "saved.sizes", "saved.flags",
     "saved.params", "saved.masks",
-    "k"
+    "k", "leaf.scale"
   };
 
   // append-only slot registry: new blocks go before SLOT_COUNT and do NOT bump
@@ -4569,6 +4572,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
           storeTreeMasks(forestExpr, FSLOT_SAVED_MASKS, fs.savedTreeMasks);
       }
       SET_VECTOR_ELT(forestExpr, FSLOT_K, Rf_ScalarReal(fs.k));
+      SET_VECTOR_ELT(forestExpr, FSLOT_LEAF_SCALE, Rf_ScalarReal(fs.leafScale));
       SET_VECTOR_ELT(forestsExpr, static_cast<R_xlen_t>(f), forestExpr);
       UNPROTECT(1);
     }
@@ -4871,6 +4875,22 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
         break;
       }
       fs.k = REAL(kExpr)[0];
+
+      // OPTIONAL, append-only: a state written before the block existed lacks
+      // the name and keeps the 0.0 ABSENT sentinel, restoring exactly as it
+      // did then. Presence need not be uniform across a chain's forests. The
+      // type/length check names the block; a present but non-finite or
+      // non-positive VALUE is NOT refused - it falls through the restore
+      // paths' > 0.0 guard as absent, matching k's permissive posture rather
+      // than inventing a stricter one.
+      SEXP leafScaleExpr = getListElement(forestExpr, "leaf.scale");
+      if (!Rf_isNull(leafScaleExpr)) {
+        if (!Rf_isReal(leafScaleExpr) || Rf_xlength(leafScaleExpr) != 1) {
+          errorMessage = malformedBlock("leaf.scale");
+          break;
+        }
+        fs.leafScale = REAL(leafScaleExpr)[0];
+      }
     }
     if (errorMessage != NULL) break;
 
@@ -5119,6 +5139,17 @@ static const char* readWarmStartState(SEXP stateExpr,
         break;
       }
       fs.k = REAL(kExpr)[0];
+
+      // optional as in the setState parser above; installForest adopts it
+      // alongside k, so a donor's leaf calibration seeds the warm start
+      SEXP leafScaleExpr = getListElement(forestExpr, "leaf.scale");
+      if (!Rf_isNull(leafScaleExpr)) {
+        if (!Rf_isReal(leafScaleExpr) || Rf_xlength(leafScaleExpr) != 1) {
+          errorMessage = "malformed parameters in warm-start donor";
+          break;
+        }
+        fs.leafScale = REAL(leafScaleExpr)[0];
+      }
     }
     if (errorMessage != NULL) break;
 

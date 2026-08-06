@@ -44,6 +44,15 @@ struct ForestStateData {
   std::vector<std::vector<std::uint64_t>> treeMasks;
   std::vector<std::vector<std::uint64_t>> savedTreeMasks;
   double k = 2.0;
+  /// The leaf prior's other half - the constant leaf is mu ~ N(0, (scale / k)^2)
+  /// (model.hpp) - so a continuation that restores k without it would pair a
+  /// donor's trees with the destination's calibration. OPTIONAL and append-only:
+  /// a live leaf scale is strictly positive, so 0.0 is an unambiguous ABSENT
+  /// sentinel and a state written before this block existed restores exactly as
+  /// it did then. Both restore paths guard with > 0.0, which also swallows a
+  /// non-finite or non-positive value - deliberately the same permissive
+  /// posture k has, rather than a new refusal.
+  double leafScale = 0.0;
 };
 
 /// Everything a chain's posterior state comprises, in host-exchangeable form:

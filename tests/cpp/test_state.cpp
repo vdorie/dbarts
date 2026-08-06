@@ -1064,6 +1064,100 @@ static void testCrossGridWarmStart() {
          donorLeaves, liveLeaves);
 }
 
+// The per-forest leaf scale rides the state (docs/plans/multiforest-mutation-
+// gaps.md item 3). BCF derives both forests' scales from the response's SHAPE,
+// so a destination built on a differently shaped response constructs different
+// ones and a restore must install the donor's. Forest 1's scale is unreadable
+// through Chain::leaf() (forest 0 only), so gate both through a re-captured
+// state; statesAgree compares the field, which is what keeps the fuzzer's
+// OP_STATE round trip covering it.
+static void testStateLeafScale(ext_rng* rng) {
+  const size_t n = 300, p = 2;
+  std::vector<double> x(n * p), z(n), y1(n), y2(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    y1[i] = std::sin(3.0 * x[i]) + x[i + n] + z[i] * (1.0 + x[i + n]);
+  }
+  // y2 keeps y1's RANGE and squeezes its interior: the BCF anchor is the sd of
+  // the range-scaled response, so an affine rescaling would leave it identical
+  // and only a shape change moves it
+  double lo = *std::min_element(y1.begin(), y1.end());
+  double hi = *std::max_element(y1.begin(), y1.end());
+  double mid = 0.5 * (lo + hi);
+  for (size_t i = 0; i < n; ++i) y2[i] = mid + 0.2 * (y1[i] - mid);
+  y2[0] = lo;
+  y2[n - 1] = hi;
+
+  SamplerOptions options;
+  BCFSpec spec;
+  spec.mu.numTrees = 20;
+  spec.tau.numTrees = 10;
+  spec.z = z.data();
+  auto make = [&](const double* y) {
+    return std::make_unique<Sampler<ConstantGaussianLeaf>>(
+      x.data(), y, n, p, nullptr, nullptr, 1.0, 3.0, 0.37804942330213542,
+      options, spec, &rng);
+  };
+
+  auto donor = make(y1.data());
+  Results empty;
+  donor->run(10, 2, empty);
+  SamplerStateData donorState;
+  donor->getState(donorState);
+  const ForestStateData& d0 = donorState.chains[0].forests[0];
+  const ForestStateData& d1 = donorState.chains[0].forests[1];
+  check(d0.leafScale > 0.0 && d1.leafScale > 0.0,
+        "leaf scale: every forest's scale is stored");
+  check(d0.leafScale != d1.leafScale,
+        "leaf scale: BCF's two forests calibrate differently");
+
+  auto dest = make(y2.data());
+  SamplerStateData destState;
+  dest->getState(destState);
+  // not a vacuous arm: the destination constructed its own, different scales
+  check(destState.chains[0].forests[0].leafScale != d0.leafScale &&
+          destState.chains[0].forests[1].leafScale != d1.leafScale,
+        "leaf scale: a different-shape response constructs different scales");
+
+  check(dest->setState(donorState, nullptr), "leaf scale: the donor restores");
+  SamplerStateData reState;
+  dest->getState(reState);
+  check(reState.chains[0].forests[0].leafScale == d0.leafScale &&
+          reState.chains[0].forests[1].leafScale == d1.leafScale,
+        "leaf scale: both forests install the donor's scale");
+
+  // a state stripped of the block (every pre-block state) restores exactly as
+  // it did before: the destination keeps the scales it constructed
+  SamplerStateData stripped = donorState;
+  for (ForestStateData& fs : stripped.chains[0].forests) fs.leafScale = 0.0;
+  auto old = make(y2.data());
+  check(old->setState(stripped, nullptr),
+        "leaf scale: a state without the block restores");
+  SamplerStateData oldState;
+  old->getState(oldState);
+  check(oldState.chains[0].forests[0].leafScale ==
+          destState.chains[0].forests[0].leafScale &&
+          oldState.chains[0].forests[1].leafScale ==
+          destState.chains[0].forests[1].leafScale,
+        "leaf scale: an absent block leaves construction's scales");
+
+  // installForests is the OTHER restore path, and it reassembles its own
+  // ForestStateData from the donor's - so it needs the field copied through
+  // (sampler.hpp) or its install arm would be dead
+  auto warm = make(y2.data());
+  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  check(warm->installForests(donorState, liveMap) == WarmStartResult::ok,
+        "leaf scale: the donor warm-starts");
+  SamplerStateData warmState;
+  warm->getState(warmState);
+  check(warmState.chains[0].forests[0].leafScale == d0.leafScale &&
+          warmState.chains[0].forests[1].leafScale == d1.leafScale,
+        "leaf scale: a warm start adopts the donor's scale too");
+
+  printf("ok: per-forest leaf scale rides the state\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -1078,4 +1172,5 @@ void runStateTests(ext_rng* rng) {
   testColumnMaskContainment();
   testBlockAdditiveConfinement();
   testCrossGridWarmStart();
+  testStateLeafScale(rng);
 }

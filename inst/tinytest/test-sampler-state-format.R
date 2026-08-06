@@ -73,3 +73,108 @@ noRng <- state
 noRng[[1L]][["rng.state"]] <- NULL
 bartFit$fit$setState(noRng)
 expect_equal(predict(bartFit, testData$x), preds)
+
+# leaf.scale: the newest OPTIONAL per-forest block (multiforest-mutation-gaps
+# item 3). Pin its name, that an absent block still loads - the append-only
+# contract, and what it now installs.
+forest1 <- state[[1L]][["forests"]][[1L]]
+expect_true("leaf.scale" %in% names(forest1))
+expect_true(is.numeric(forest1[["leaf.scale"]]))
+expect_equal(length(forest1[["leaf.scale"]]), 1L)
+
+noLeafScale <- state
+noLeafScale[[1L]][["forests"]][[1L]][["leaf.scale"]] <- NULL
+bartFit$fit$setState(noLeafScale)
+expect_equal(predict(bartFit, testData$x), preds)
+
+# a present block is type/length checked and named when malformed
+badLeafScale <- state
+badLeafScale[[1L]][["forests"]][[1L]][["leaf.scale"]] <- c(1, 2)
+expect_error(
+  bartFit$fit$setState(badLeafScale),
+  pattern = "block 'leaf.scale' is malformed"
+)
+
+# the leaf prior is mu ~ N(0, (scale / k)^2) and the state already restored k;
+# it now restores the scale too, so a donor's node.scale survives a restore the
+# way its k always has. CONSEQUENCE: a setModel(node.scale) issued after the
+# last storeState() no longer survives a save/load re-creation.
+control.ls <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 25L,
+  updateState = FALSE
+)
+makeSF <- function() {
+  set.seed(5L)
+  dbarts::dbarts(
+    testData$x,
+    testData$y,
+    control = control.ls,
+    resid.prior = dbarts::dbartsPriors$fixed(0.3)
+  )
+}
+grabState <- function(s) {
+  s$storeState()
+  s$state
+}
+
+donor.sf <- makeSF()
+donor.sf$model@node.scale <- 1.5
+donor.sf$setModel(donor.sf$model)
+invisible(donor.sf$run(25L, 5L))
+state.sf <- grabState(donor.sf)
+# nodeScale / sqrt(numTrees)
+expect_equal(state.sf[[1L]][["forests"]][[1L]][["leaf.scale"]], 1.5 / 5)
+
+dest.sf <- makeSF()
+expect_equal(
+  grabState(dest.sf)[[1L]][["forests"]][[1L]][["leaf.scale"]],
+  0.5 / 5
+)
+dest.sf$setState(state.sf)
+expect_equal(
+  grabState(dest.sf)[[1L]][["forests"]][[1L]][["leaf.scale"]],
+  1.5 / 5
+)
+
+# stripped, the destination keeps what it constructed
+state.stripped <- state.sf
+state.stripped[[1L]][["forests"]][[1L]][["leaf.scale"]] <- NULL
+old.sf <- makeSF()
+old.sf$setState(state.stripped)
+expect_equal(
+  grabState(old.sf)[[1L]][["forests"]][[1L]][["leaf.scale"]],
+  0.5 / 5
+)
+
+# hostile VALUES match k's posture exactly - no new refusal class. A leaf scale
+# is strictly positive, so non-finite and non-positive fall closed to the
+# construction value; anything else flows through as k's does.
+for (badValue in list(NaN, 0, -1)) {
+  hostile <- state.sf
+  hostile[[1L]][["forests"]][[1L]][["leaf.scale"]] <- badValue
+  hostile.sf <- makeSF()
+  hostile.sf$setState(hostile)
+  expect_equal(
+    grabState(hostile.sf)[[1L]][["forests"]][[1L]][["leaf.scale"]],
+    0.5 / 5
+  )
+}
+
+rm(
+  forest1,
+  noLeafScale,
+  badLeafScale,
+  control.ls,
+  makeSF,
+  grabState,
+  donor.sf,
+  state.sf,
+  dest.sf,
+  state.stripped,
+  old.sf,
+  badValue,
+  hostile,
+  hostile.sf
+)
