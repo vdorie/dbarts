@@ -37,7 +37,8 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
       if (xf.treeParams != yf.treeParams ||
           xf.savedTreeParams != yf.savedTreeParams ||
           xf.treeMasks != yf.treeMasks ||
-          xf.savedTreeMasks != yf.savedTreeMasks || xf.k != yf.k)
+          xf.savedTreeMasks != yf.savedTreeMasks || xf.k != yf.k ||
+          xf.leafScale != yf.leafScale)
         return false;
     }
     if (x.latents != y.latents || x.groupEffects != y.groupEffects ||

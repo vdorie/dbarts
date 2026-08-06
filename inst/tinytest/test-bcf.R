@@ -345,3 +345,128 @@ expect_true(
   mean((arm.swap$fits - yNew)^2) < mean((arm.swap$fits - y)^2)
 )
 expect_true(mean(abs(arm.swap$fits - arm.keep$fits)) > 0.5)
+
+# --- the per-forest leaf scale rides the state (docs/plans/multiforest-
+# mutation-gaps.md item 3). BCF derives both forests' leaf scales from the
+# response's SHAPE (the sd of the range-scaled y), so a destination built on a
+# differently shaped response calibrates differently; the state now carries the
+# scale like it already carried k, and both restore paths install it. ---
+set.seed(11)
+n.ls <- 200L
+x.ls <- matrix(runif(n.ls * 3L), n.ls, 3L)
+z.ls <- rbinom(n.ls, 1L, 0.5)
+base.ls <- runif(n.ls)
+# identical endpoints, different interior: the transform is the SAME on both
+# (so a fit.scale guard would admit the divergent case) and only the shape,
+# hence the leaf scale, moves
+y.a <- base.ls
+y.a[1L] <- 0
+y.a[n.ls] <- 1
+y.b <- 0.5 + 0.15 * (base.ls - 0.5)
+y.b[1L] <- 0
+y.b[n.ls] <- 1
+
+control.ls <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 30L,
+  updateState = FALSE
+)
+makeBC <- function(y) {
+  host <- dbarts(x.ls, y, control = control.ls, resid.prior = fixed(0.2))
+  dbarts:::bartcoreBCFSampler(host, z.ls, n.trees.treatment = 15L)
+}
+
+set.seed(101)
+donor.ls <- makeBC(y.a)
+dbarts:::bartcoreRun(donor.ls, 30L, 10L)
+state.ls <- dbarts:::bartcoreStoreState(donor.ls)
+
+# stored for every forest, positive, and in the calibration map's ratio:
+# mu's is s / sqrt(m.mu) and tau's sdModerate s / (0.674 sqrt(m.tau)), so with
+# sdModerate = 1 the ratio is sqrt(m.mu / m.tau) / 0.674
+scale.mu <- state.ls[[1L]]$forests[[1L]]$leaf.scale
+scale.tau <- state.ls[[1L]]$forests[[2L]]$leaf.scale
+expect_true(is.numeric(scale.mu) && length(scale.mu) == 1L)
+expect_true(scale.mu > 0 && scale.tau > 0)
+expect_equal(scale.tau / scale.mu, sqrt(30 / 15) / 0.674, tolerance = 1e-8)
+
+set.seed(101)
+dest.same <- makeBC(y.a)
+set.seed(101)
+dest.shape <- makeBC(y.b)
+# the arm is not vacuous: the two destinations calibrate differently, while the
+# transform - what a fit.scale guard would compare - is identical
+expect_true(
+  dbarts:::bartcoreStoreState(dest.shape)[[1L]]$forests[[1L]]$leaf.scale !=
+    scale.mu
+)
+expect_identical(
+  dbarts:::bartcoreStoreState(dest.shape)[[1L]]$fit.scale,
+  state.ls[[1L]]$fit.scale
+)
+
+# THE closure: one donor state into both destinations, responses then equalized
+# (the conditioning-conduit pattern), and identical sweeps agree BITWISE
+restoreArm <- function(bc, state) {
+  dbarts:::bartcoreSetState(bc, state)
+  dbarts:::bartcoreSetResponse(bc, y.a, FALSE)
+  dbarts:::bartcoreRun(bc, 0L, 30L)$train
+}
+fits.same <- restoreArm(dest.same, state.ls)
+fits.shape <- restoreArm(dest.shape, state.ls)
+expect_identical(fits.shape, fits.same)
+
+# cross-range: the anchor is invariant to an affine rescaling of y, so a 10*y
+# destination was never miscalibrated - it stays admitted and consistent
+set.seed(101)
+dest.range <- makeBC(10 * y.a)
+expect_equal(
+  dbarts:::bartcoreStoreState(dest.range)[[1L]]$forests[[1L]]$leaf.scale,
+  scale.mu
+)
+expect_identical(restoreArm(dest.range, state.ls), fits.same)
+
+# an old state (the block stripped) restores with no error and reproduces
+# PRE-change behavior exactly: the same-shape arm is untouched, and the
+# different-shape arm diverges again, which is the defect this closes
+state.old <- state.ls
+for (f.ls in seq_along(state.old[[1L]]$forests)) {
+  state.old[[1L]]$forests[[f.ls]]$leaf.scale <- NULL
+}
+set.seed(101)
+old.same <- makeBC(y.a)
+set.seed(101)
+old.shape <- makeBC(y.b)
+old.fits.same <- restoreArm(old.same, state.old)
+old.fits.shape <- restoreArm(old.shape, state.old)
+expect_identical(old.fits.same, fits.same)
+expect_false(identical(old.fits.shape, old.fits.same))
+expect_true(max(abs(old.fits.shape - old.fits.same)) > 0.1)
+
+rm(
+  n.ls,
+  x.ls,
+  z.ls,
+  base.ls,
+  y.a,
+  y.b,
+  control.ls,
+  makeBC,
+  donor.ls,
+  state.ls,
+  scale.mu,
+  scale.tau,
+  dest.same,
+  dest.shape,
+  restoreArm,
+  fits.same,
+  fits.shape,
+  dest.range,
+  state.old,
+  f.ls,
+  old.same,
+  old.shape,
+  old.fits.same,
+  old.fits.shape
+)
