@@ -1,8 +1,9 @@
 # multiforest-mutation-gaps
 
-status: IN PROGRESS (commit 1 of 4 LANDED d489986 2026-08-06; items 2/3
-        verified ready, H2 ready with its blocking clause bound; see the
-        queue below)
+status: LANDED (all four commits, 2026-08-06: d489986 offset/treatment
+        guards, ae7da51 setWeights opt-in, a7eb03d leaf.scale state
+        block, ef61b39 setSigma guard; merged-tree battery green - see
+        the landing notes)
 agent: opus design + independent refuting critique with counterfactual
        power (two verification rounds), serialized opus implementers
 rng: neutral throughout (refusals and opt-ins only; every landing gated
@@ -84,54 +85,87 @@ sbc.R bcf 3 10 1 15/15 PASS; air clean; R CMD check Status: OK. No
 dbarts.h change. Single-forest regression pins added, including
 setOffset(TRUE) (rbart_vi's conduit).
 
-## Queue (verified, not yet implemented)
+## Commit 2: setWeights opt-in - LANDED ae7da51 2026-08-06
 
-2. Open BCF setWeights under the existing opt-in (design CONFIRMED by
-   critique end to end): the guard is provably vacuous - swap-to-w2
-   is bitwise create-with-w2 under resid.prior = fixed(); the
-   default-prior sigest difference is identical to the shipped
-   single-forest semantics (measured both). ~10 bridge lines reusing
-   shape.supportsResponseMutation (no rename), comment extensions on
-   the predicate, dbarts_sampler_setWeights stays refusing. Tests:
-   flip the seam refusal, bitwise create-vs-swap arm under fixed(),
-   fit.scale non-movement pin, zero-weight swap (numPositiveWeights_
-   recount), multinomial still refused, single-forest untouched.
-3. leaf.scale rides the state (INSTALL, the revised design, verified
-   READY): append-only optional per-forest block (registry rule
-   permits it, no stateFormatVersion bump), installed at BOTH
-   setState and installForests - the state already restores k, the
-   other half of the same leaf prior, and installForest already
-   adopts the donor's transform/sigma/k/DART/glue. Verified: the
-   divergent same-endpoints/different-sd case closes bitwise; the
-   cross-range restore stays admitted; old states without the block
-   reproduce today's behavior; downgrade (stock build reads a
-   leaf.scale state) and upgrade both accepted through RDS; the
-   single-forest change (donor node.scale now survives restore like k
-   already does) completes an existing asymmetry and is correct.
-   Consequence to record in the landing: a post-storeState
-   setModel(node.scale) no longer survives save/load re-creation.
-   Amendments bound: tests/cpp statesAgree must compare leafScale
-   (WEAK-GATE otherwise); hostile-value posture matches k (non-finite
-   /nonpositive read as absent or flow through; do not claim refusal).
-4. H2, setSigma on models whose sigma is not free (found by the
-   critique; higher severity than the three items - reachable through
-   the SUPPORTED R5 sampler$setSigma): Chain::setSigma writes sigma_
-   unconditionally and the constant-leaf draws divide by sigma_^2,
-   but probit/logistic/multinomial pin sigma_ = 1 by the model
-   definition (measured divergence 0.90-5.34) and the heteroscedastic
-   variance forest owns the noise scale (measured 1.591). Guard at
-   the bridge beside refuseBinaryWeightChange with the predicate
-   family != gaussian && family != aft || shape.hasVarianceForest
-   (the heteroscedastic clause is the verification round's BLOCKING
-   amendment: buildVarianceForest sets sigmaIsFixed_ = true with
-   family still gaussian). sigmaIsFixed_ alone is WRONG: gaussian +
-   resid.prior = fixed() is the documented outer-Gibbs conduit
-   (stan4bart mvbart drives it; breaking-with-lockstep was offered
-   and declined - the family predicate wins on semantics, the
-   gaussian-fixed path is intended behavior, not a grandfathered
-   bug). Chain::setSigma itself must stay unguarded (setState
-   restores through it). Includes the \item{sigma} .Rd correction
-   (the length-1 broadcast, not one-per-chain).
+The multi-forest setWeights refusal was provably vacuous for BCF
+(critique-confirmed end to end, both probes rebuilt independently):
+Chain::setWeights is a pointer swap plus the numPositiveWeights_
+recount, the combiner re-derives every per-forest response and
+precision from y and w each sweep, and scaledResponseSd is unweighted,
+so under resid.prior = fixed() swap-to-w2 is bitwise create-with-w2;
+the default-prior sigest difference is identical to the shipped
+single-forest semantics (measured both). The weight conduit now rides
+shape.supportsResponseMutation (no rename; predicate comments on the
+combiner/chain/shape now name the whole response-side conduit);
+dbarts_sampler_setWeights stays refusing (flat-API precedent). Tests:
+the seam refusal flipped, bitwise create-vs-swap arm under fixed()
+with expect_identical on train/varcount/glue/both forests' fits plus
+a not-inert sanity arm, fit.scale non-movement pin, zero-weight swap,
+multinomial still refused, single-forest pinned. +112/-26; tinytest
+3628 on its base.
+
+## Commit 3: leaf.scale rides the state - LANDED a7eb03d 2026-08-06
+
+INSTALL design (the critique refuted the original (fitMin, fitMax)
+guard: scaledResponseSd runs after rescale(), so BCF's calibration is
+affine-invariant in y and orthogonal to the transform - the guard
+admitted the divergent same-endpoints/different-sd case, 0.335 on
+fits of 0.82, and refused a harmless 10*y restore that agrees to
+5.3e-15). The scale is an append-only optional per-forest block,
+leaf.scale, after k in the registry (no stateFormatVersion bump),
+written for every forest, installed by setState AND installForest
+when positive; absent/non-positive/non-finite leaves construction's
+scale (k's posture), so old states restore exactly as before, both
+directions through RDS. The implementer found BOTH prior probe builds
+had left the installForest arm dead: Sampler::installForests hands
+installForest a reassembled ForestStateData, so the field must be
+copied there (sampler.hpp) - the covering warm-start test was
+falsified (commenting the copy fails it). statesAgree now compares
+the field (the WEAK-GATE amendment). Consequences recorded in code
+comments: a post-storeState setModel(node.scale) no longer survives
+save/load re-creation (k's existing wart, applied to both halves of
+the leaf prior); single-forest donors now carry node.scale through
+setState as k already carried. The divergence closure is pinned
+bitwise in test-bcf.R with a non-vacuity arm showing the refuted
+transform guard would have admitted the case. +388/-3; tinytest 3639
+on its base; ASAN tests/cpp clean.
+
+## Commit 4: setSigma guard - LANDED ef61b39 2026-08-06
+
+H2 (found by the critique; reachable through the SUPPORTED R5
+sampler$setSigma): Chain::setSigma installs unconditionally and the
+constant-leaf draws divide by sigma^2, but probit/logistic/
+multinomial/ordinal/nbinom pin sigma at 1 by the model definition
+(measured divergences 0.90-5.34) and the heteroscedastic variance
+forest owns the residual scale (1.591) - the verification round's
+BLOCKING clause, since buildVarianceForest leaves family_ gaussian
+and would slip a family-only predicate. refusePinnedSigmaChange
+(bartcore_bridge, external linkage) refuses on hasVarianceForest or
+family not in {gaussian, aft}, with a separate accurate message per
+branch; NEVER on sigmaIsFixed_ - gaussian + resid.prior = fixed() is
+the documented outer-Gibbs conduit (stan4bart mvbart), pinned
+positively by test. Chain::setSigma stays unguarded (both restore
+paths reinstall the donor's sigma through it; commented in place).
+The flat C API entry carries the same guard and it is LOAD-BEARING
+there, not defensive: probit/logistic/ordinal/nbinom are flat-
+creatable by family name and dbartsSpec(variance =) is an exported
+consumer surface that reaches createHolder's variance control
+(multinomial alone has no flat creation path). The \item{sigma} Rd
+text now describes the length-1 broadcast and the refusal. All 16
+in-tree setSigma callers verified gaussian; no assertion flipped.
++154/-2; tinytest 3624 on its base.
+
+## Merged-tree battery (orchestrator, independent, at ef61b39)
+
+install --preclean; tests/cpp from clean all pass; ASAN/UBSAN
+tests/cpp leg all pass; tinytest 3659/3659 (exactly 3616 + 12 + 23 +
+8); equivalence trio bitwise (27/27, BCF 5x6, multinomial 3x5); air
+clean; R CMD check from a clean-copy tarball Status: OK. Commits 2-4
+were each additionally gated by their implementers on their own bases
+with the same battery (commit 2 also independently re-run by the
+orchestrator pre-merge). sbc.R bcf smoke ran at commit 1; commits
+2-4 do not touch the sbc paths (verified by reading in the critique's
+gate check).
 
 ## Related, recorded elsewhere
 
