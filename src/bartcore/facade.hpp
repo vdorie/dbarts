@@ -97,35 +97,51 @@ public:
   virtual void setResponse(const double* y, bool updateScale) = 0;
   virtual void setWeights(const double* weights) = 0;
   virtual void setSigma(double sigmaOriginalScale) = 0;
-  virtual void setTestPredictors(const double* x_test,
-                                 std::size_t numTestObservations) = 0;
-  /// Internal test-container entry (dbarts.h stays dense): build the typed test
-  /// store from a mixed dense plus CSC test set against the training cut grid,
-  /// owning its raw. columnSources maps each predictor to a dense column of
-  /// denseValues (nonnegative) or a CSC column of the triple (~index);
-  /// cscReferenceCodes carries the reference code per CSC-backed categorical
-  /// column. Returns false without touching the test store when a designated
-  /// leaf covariate column would be CSC-backed.
-  virtual bool setTestData(const double* denseValues,
-                           const int* cscColumnPointers,
-                           const int* cscRowIndices, const double* cscValues,
-                           const std::int32_t* columnSources,
-                           const xint_t* cscReferenceCodes,
-                           std::size_t numTestObservations) = 0;
+  /// Build the typed test store from a borrowed predictor view against the
+  /// training cut grid, owning its raw. Returns false without touching the
+  /// test store when a designated leaf covariate column would be CSC-backed.
+  virtual bool setTestData(const PredictorSource& source) = 0;
+  /// Dense convenience spelling (the dbarts.h shape): a plain column-major
+  /// test matrix. Every column is dense, so the CSC-backed leaf-covariate
+  /// refusal cannot fire.
+  void setTestPredictors(const double* x_test,
+                         std::size_t numTestObservations) {
+    setTestData(densePredictorSource(x_test, numTestObservations,
+                                     data().numPredictors));
+  }
   virtual void setTestOffset(const double* testOffset) = 0;
   virtual void setData(const double* x, const double* y,
                        std::size_t numObservations, const double* weights,
                        const double* offset, const double* x_test,
                        std::size_t numTestObservations,
                        const double* testOffset) = 0;
-  virtual PredictorUpdateResult setPredictor(const double* newX,
+  /// Replace the predictors from a borrowed view; only a dense block is
+  /// consumable (PredictorSource::isDenseBlock), since every mutation kernel
+  /// indexes the values column-major.
+  virtual PredictorUpdateResult setPredictor(const PredictorSource& newX,
                                              bool forceUpdate,
                                              bool updateCutPoints) = 0;
-  virtual PredictorUpdateResult updatePredictor(const double* newColumns,
-                                                const std::size_t* columns,
-                                                std::size_t numColumns,
-                                                bool forceUpdate,
-                                                bool updateCutPoints) = 0;
+  virtual PredictorUpdateResult updatePredictor(
+    const PredictorSource& newColumns, const std::size_t* columns,
+    std::size_t numColumns, bool forceUpdate, bool updateCutPoints) = 0;
+  /// Dense convenience spellings (the dbarts.h shape): plain column-major
+  /// blocks over the store's own row count.
+  PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
+                                     bool updateCutPoints) {
+    const ColumnStore& store = data();
+    return setPredictor(densePredictorSource(newX, store.numObservations,
+                                             store.numPredictors),
+                        forceUpdate, updateCutPoints);
+  }
+  PredictorUpdateResult updatePredictor(const double* newColumns,
+                                        const std::size_t* columns,
+                                        std::size_t numColumns,
+                                        bool forceUpdate,
+                                        bool updateCutPoints) {
+    return updatePredictor(
+      densePredictorSource(newColumns, data().numObservations, numColumns),
+      columns, numColumns, forceUpdate, updateCutPoints);
+  }
   virtual void setCutPoints(const double* const* newCutPoints,
                             const std::uint32_t* numCutPoints,
                             const std::size_t* columns,
@@ -262,18 +278,8 @@ public:
   void setSigma(double sigmaOriginalScale) override {
     impl_.setSigma(sigmaOriginalScale);
   }
-  void setTestPredictors(const double* x_test,
-                         std::size_t numTestObservations) override {
-    impl_.setTestPredictors(x_test, numTestObservations);
-  }
-  bool setTestData(const double* denseValues, const int* cscColumnPointers,
-                   const int* cscRowIndices, const double* cscValues,
-                   const std::int32_t* columnSources,
-                   const xint_t* cscReferenceCodes,
-                   std::size_t numTestObservations) override {
-    return impl_.setTestData(denseValues, cscColumnPointers, cscRowIndices,
-                             cscValues, columnSources, cscReferenceCodes,
-                             numTestObservations);
+  bool setTestData(const PredictorSource& source) override {
+    return impl_.setTestData(source);
   }
   void setTestOffset(const double* testOffset) override {
     impl_.setTestOffset(testOffset);
@@ -285,15 +291,19 @@ public:
     impl_.setData(x, y, numObservations, weights, offset, x_test,
                   numTestObservations, testOffset);
   }
-  PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
+  // the view-taking overrides hide the base's dense convenience spellings;
+  // re-expose them so a dense caller still resolves
+  using SamplerBase::setPredictor;
+  using SamplerBase::updatePredictor;
+  PredictorUpdateResult setPredictor(const PredictorSource& newX,
+                                     bool forceUpdate,
                                      bool updateCutPoints) override {
     return impl_.setPredictor(newX, forceUpdate, updateCutPoints);
   }
-  PredictorUpdateResult updatePredictor(const double* newColumns,
-                                        const std::size_t* columns,
-                                        std::size_t numColumns,
-                                        bool forceUpdate,
-                                        bool updateCutPoints) override {
+  PredictorUpdateResult updatePredictor(
+    const PredictorSource& newColumns, const std::size_t* columns,
+    std::size_t numColumns, bool forceUpdate,
+    bool updateCutPoints) override {
     return impl_.updatePredictor(newColumns, columns, numColumns, forceUpdate,
                                  updateCutPoints);
   }
@@ -513,9 +523,7 @@ inline bool monotoneConstraintIsActive(const SamplerOptions& options,
   bool active = false;
   for (std::size_t j = 0; j < numPredictors; ++j) {
     if (options.monotoneDirections[j] == 0) continue;
-    if (options.columnTypes != nullptr &&
-        options.columnTypes[j] == ColumnType::categorical)
-      return false;
+    if (options.predictors.typeOf(j) == ColumnType::categorical) return false;
     active = true;
   }
   return active;
@@ -551,20 +559,17 @@ inline std::unique_ptr<SamplerBase> createSampler(
                                      weights, offset, family, sigmaEstimate,
                                      sigmaDf, sigmaRawScale, options, rngs);
 
-  // CSC-backed columns hold no contiguous raw values for a leaf model:
-  // pure-CSC stores are refused outright, mixed builds per designated column
-  if (options.cscColumnPointers != nullptr && options.columnSources == nullptr)
+  // CSC-backed columns hold no contiguous raw values for a leaf model: a
+  // design whose every column is CSC-backed is refused outright, a mixed one
+  // per designated column
+  if (predictorSourceIsAllCsc(options.predictors, numPredictors))
     return nullptr;
   if (!leafCovariateDesignationIsValid(
         options, numPredictors,
         [&](std::size_t j) {
-          return options.columnTypes != nullptr &&
-                 options.columnTypes[j] == ColumnType::categorical;
+          return options.predictors.typeOf(j) == ColumnType::categorical;
         },
-        [&](std::size_t j) {
-          return options.columnSources == nullptr ||
-                 options.columnSources[j] >= 0;
-        }))
+        [&](std::size_t j) { return options.predictors.sourceOf(j) >= 0; }))
     return nullptr;
   if (options.gpLeaves)
     return std::make_unique<SamplerFacade<GPGaussianLeaf>>(

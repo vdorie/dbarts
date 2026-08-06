@@ -467,7 +467,7 @@ static void fuzzRunConstant(const ConfigSpec& spec, std::uint32_t seed,
   SamplerOptions options;
   options.numTrees = 15;
   options.numChains = spec.numChains;
-  options.columnTypes = types.data();
+  options.predictors.columnTypes = types.data();
   if (spec.family != ResponseFamily::gaussian) options.nodeScale = 3.0;
   std::vector<ext_rng*> rngs(spec.numChains);
   for (size_t c = 0; c < spec.numChains; ++c) {
@@ -540,9 +540,10 @@ static void fuzzRunSparse(std::uint32_t seed, int numOps) {
 
   SamplerOptions options;
   options.numTrees = 15;
-  options.cscColumnPointers = fixture.pointers.data();
-  options.cscRowIndices = fixture.rows.data();
-  options.cscValues = fixture.values.data();
+  options.predictors.cscColumnPointers = fixture.pointers.data();
+  options.predictors.cscRowIndices = fixture.rows.data();
+  options.predictors.cscValues = fixture.values.data();
+  options.predictors.columnSources = fixture.allCscSources.data();
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rng, seed * 2u + 1u);
   Sampler<ConstantGaussianLeaf> s(nullptr, yb, n0, fixture.p, nullptr, nullptr,

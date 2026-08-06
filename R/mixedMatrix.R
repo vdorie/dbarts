@@ -405,6 +405,44 @@ replaceSparseColumn <- function(sparse, rank, implicit, values) {
   sparse
 }
 
+## Replace SEVERAL columns of a dgCMatrix in ONE pass over @i/@p/@x, the plural
+## form of replaceSparseColumn: splicing them one at a time would rebuild the
+## whole entry vector per column, so a whole-matrix replacement would cost
+## O(p * nnz) rather than O(nnz). ranks are the 1-based column indices within
+## the sparse block, implicits the value each one's unstored rows read, and
+## values a list of replacement vectors parallel to ranks. Matrix's `[<-` is
+## disqualified here for the same matrix-wide drop0 reason the singular form
+## records.
+replaceSparseColumns <- function(sparse, ranks, implicits, values) {
+  numColumns <- length(sparse@p) - 1L
+  entryRows <- vector("list", numColumns)
+  entryValues <- vector("list", numColumns)
+  counts <- integer(numColumns)
+  for (k in seq_len(numColumns)) {
+    index <- match(k, ranks)
+    if (is.na(index)) {
+      # untouched: carry the column's stored entries across verbatim
+      start <- sparse@p[k]
+      end <- sparse@p[k + 1L]
+      keep <- if (end > start) seq.int(start + 1L, end) else integer(0)
+      entryRows[[k]] <- sparse@i[keep]
+      entryValues[[k]] <- sparse@x[keep]
+    } else {
+      column <- values[[index]]
+      stored <- is.na(column) | column != implicits[index]
+      entryRows[[k]] <- as.integer(which(stored) - 1L)
+      entryValues[[k]] <- as.double(column[stored])
+    }
+    counts[k] <- length(entryRows[[k]])
+  }
+  sparse@i <- as.integer(unlist(entryRows, use.names = FALSE))
+  sparse@x <- as.double(unlist(entryValues, use.names = FALSE))
+  sparse@p <- as.integer(c(0L, cumsum(counts)))
+  # any cached factorization describes the pre-change values
+  sparse@factors <- list()
+  sparse
+}
+
 ## Install a block of predictor columns into a sampler's stored source BY
 ## REFERENCE (the reference-install mutation semantics,
 ## docs/design/data-ownership.md, "Mutation: reference-install") - keeps
@@ -425,7 +463,9 @@ replaceSparseColumn <- function(sparse, rank, implicit, values) {
 ## already-merged vector reinstalled in place. A matrix source has no
 ## columnar spine to share, so it keeps copy-modify. Per-observation mutation
 ## of a CSC-backed column is refused upstream, so the partial merge below only
-## ever addresses dense-backed columns.
+## ever addresses dense-backed columns. Naming several sparse-backed columns -
+## a whole-matrix replacement of a sparse design does - splices them in one
+## pass (replaceSparseColumns).
 installPredictorColumns <- function(x, rows, columns, values) {
   if (is.matrix(x)) {
     if (is.null(rows)) {
@@ -441,18 +481,27 @@ installPredictorColumns <- function(x, rows, columns, values) {
   # the implicit rows read numeric zero
   if (inherits(x, "dgCMatrix")) {
     numObservations <- nrow(x)
-    for (k in seq_along(columns)) {
-      x <- replaceSparseColumn(
-        x,
-        columns[k],
-        0,
-        predictorColumnSlice(values, k, length(columns), numObservations)
-      )
+    if (length(columns) == 1L) {
+      return(replaceSparseColumn(x, columns, 0, values))
     }
-    return(x)
+    columnValues <- lapply(
+      seq_along(columns),
+      function(k) {
+        predictorColumnSlice(values, k, length(columns), numObservations)
+      }
+    )
+    return(replaceSparseColumns(
+      x,
+      columns,
+      rep(0, length(columns)),
+      columnValues
+    ))
   }
   numObservations <- x$numObservations
   if (is.null(rows)) {
+    sparseRanks <- integer(0)
+    sparseImplicits <- numeric(0)
+    sparseValues <- list()
     for (k in seq_along(columns)) {
       column <-
         predictorColumnSlice(values, k, length(columns), numObservations)
@@ -461,13 +510,28 @@ installPredictorColumns <- function(x, rows, columns, values) {
         x$dense[[source]] <- column
       } else {
         rank <- -source
-        implicit <- if (!is.na(x$sparseReference[rank])) {
-          x$sparseReference[rank]
-        } else {
-          0
-        }
-        x$sparse <- replaceSparseColumn(x$sparse, rank, implicit, column)
+        sparseRanks <- c(sparseRanks, rank)
+        sparseImplicits <- c(
+          sparseImplicits,
+          if (!is.na(x$sparseReference[rank])) x$sparseReference[rank] else 0
+        )
+        sparseValues[[length(sparseValues) + 1L]] <- column
       }
+    }
+    if (length(sparseRanks) == 1L) {
+      x$sparse <- replaceSparseColumn(
+        x$sparse,
+        sparseRanks,
+        sparseImplicits,
+        sparseValues[[1L]]
+      )
+    } else if (length(sparseRanks) > 1L) {
+      x$sparse <- replaceSparseColumns(
+        x$sparse,
+        sparseRanks,
+        sparseImplicits,
+        sparseValues
+      )
     }
     return(x)
   }

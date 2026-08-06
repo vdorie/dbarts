@@ -167,17 +167,12 @@ expect_error(
   pattern = "sparse-backed"
 )
 
-# a mixed dense/sparse container takes column-granular mutation, maintained
-# R-side (docs/plans/typed-ingestion.md slice 2a); whole-matrix replacement of a
-# sparse design and whole-data replacement stay fixed at creation, and grouped
-# rbart_vi is reserved
+# a mixed dense/sparse container takes column-granular AND whole-matrix
+# mutation, maintained R-side; whole-data replacement stays fixed at creation,
+# and grouped rbart_vi is reserved
 sampler <- dbarts(x.frame, y, control = control)
 invisible(sampler$run())
 expect_silent(sampler$setResponse(y))
-expect_error(
-  sampler$setPredictor(x.dense.equiv),
-  pattern = "whole-matrix setPredictor requires a dense design"
-)
 expect_error(sampler$setData(dbartsData(x.frame, y)), pattern = "sparse")
 
 # a dense-backed column, then a CSC-backed one (pattern-changing), then both
@@ -217,6 +212,56 @@ expect_error(
   sampler$setPredictor(sv.new, column = 3L, forceUpdate = "partial"),
   pattern = "per-observation updates require a dense-backed column"
 )
+
+# whole-matrix replacement of a mixed design: the container is spliced R-side
+# and STAYS a container, dense-backed and CSC-backed columns alike, with a
+# replaced sparse column densifying its storage
+x.whole <- x.dense.equiv
+x.whole[, 1L] <- x.whole[, 1L] * 0.9 + 0.02
+x.whole[, 3L] <- x.whole[, 3L] + 0.25
+expect_silent(sampler$setPredictor(x.whole, forceUpdate = TRUE))
+expect_inherits(sampler$data@x, "dbartsMixedMatrix")
+expect_equal(unname(as.matrix(sampler$data@x)), unname(x.whole))
+expect_equal(diff(sampler$data@x$sparse@p)[1L], n)
+# the categorical column keeps its declared levels through the splice
+expect_equal(attr(sampler$data@x, "factor.levels")[[2L]], levels(f))
+# a rejected transactional whole-matrix replacement leaves data@x untouched
+x.before <- as.matrix(sampler$data@x)
+accepted.whole <- sampler$setPredictor(
+  matrix(0, n, ncol(x.dense.equiv)),
+  forceUpdate = FALSE
+)
+expect_false(isTRUE(accepted.whole))
+expect_equal(as.matrix(sampler$data@x), x.before)
+
+# the mirror gate: re-creating the sampler from the mutated container (the
+# transparent rebuild after save/load) continues the chains from the same
+# state, so the R-side splice describes the design the engine now holds
+sampler.mirror <- dbarts(
+  x.frame,
+  y,
+  control = dbartsControl(
+    n.samples = 10L,
+    n.burn = 0L,
+    n.trees = 25L,
+    n.chains = 1L,
+    n.threads = 1L,
+    updateState = TRUE
+  )
+)
+invisible(sampler.mirror$run(numBurnIn = 20L, numSamples = 5L))
+expect_silent(sampler.mirror$setPredictor(x.whole, forceUpdate = TRUE))
+sampler.mirror$storeState()
+mirrorFile <- tempfile(fileext = ".rds")
+saveRDS(sampler.mirror, mirrorFile)
+sampler.recreated <- readRDS(mirrorFile)
+file.remove(mirrorFile)
+set.seed(313)
+run.mutated <- sampler.mirror$run(numBurnIn = 0L, numSamples = 10L)
+set.seed(313)
+run.recreated <- sampler.recreated$run(numBurnIn = 0L, numSamples = 10L)
+expect_equal(run.mutated$sigma, run.recreated$sigma)
+expect_equal(run.mutated$train, run.recreated$train)
 
 # ALIGNMENT: a container assembled from another data set carries that set's
 # level order, so its DENSE-backed factor column is re-coded against the

@@ -54,8 +54,12 @@ private:
 /// Outcome of a transactional predictor change. invalidCutPoints reports a
 /// quantile-mode cut refresh whose new column would induce fewer cuts than
 /// existing splits require; unlike the pre-1.0 engine, which errored midway
-/// through installation, nothing has been modified.
-enum class PredictorUpdateResult { accepted, rolledBack, invalidCutPoints };
+/// through installation, nothing has been modified. unsupportedSource reports
+/// a replacement view the dense mutation kernels cannot index (a mapped or
+/// CSC-valued one); nothing has been modified there either.
+enum class PredictorUpdateResult {
+  accepted, rolledBack, invalidCutPoints, unsupportedSource
+};
 
 /// A whole sampler's serializable state: per-chain states, the store's cut
 /// points (setCutPoints may have replaced the ones creation induces), and
@@ -106,39 +110,15 @@ public:
           double sigmaRawScale, const SamplerOptions& options,
           ext_rng* const* rngs)
     : options_(options), family_(family) {
-    if (options.columnSources != nullptr) {
-      data_.buildMixed(options.mixedDenseValues, options.cscColumnPointers,
-                       options.cscRowIndices, options.cscValues,
-                       options.columnSources, numObservations, numPredictors,
-                       options.maxNumCutsPerVariable, options.maxNumCuts,
-                       options.useQuantiles, options.columnTypes,
-                       options.categoryCounts, options.cscReferenceCodes);
-    } else if (options.cscColumnPointers != nullptr) {
-      data_.buildFromCsc(options.cscColumnPointers, options.cscRowIndices,
-                         options.cscValues, numObservations, numPredictors,
-                         options.maxNumCutsPerVariable, options.maxNumCuts,
-                         options.useQuantiles);
-    } else if (options.maxNumCutsPerVariable != nullptr) {
-      data_.build(x, numObservations, numPredictors,
-                  options.maxNumCutsPerVariable, options.useQuantiles,
-                  options.columnTypes, options.leafCovariateColumns,
-                  options.numLeafCovariates, options.categoryCounts);
-    } else {
-      data_.build(x, numObservations, numPredictors, options.maxNumCuts,
-                  options.useQuantiles, options.columnTypes,
-                  options.leafCovariateColumns, options.numLeafCovariates,
-                  options.categoryCounts);
-    }
+    data_.build(creationPredictorSource(options.predictors, x,
+                                        numObservations, numPredictors),
+                options.maxNumCutsPerVariable, options.maxNumCuts,
+                options.useQuantiles, options.leafCovariateColumns,
+                options.numLeafCovariates);
     options_.maxNumCutsPerVariable = nullptr;  // borrowed; consumed by build
-    options_.columnTypes = nullptr;
-    // the CSC slices and dense-source pointers live on in the store
-    options_.cscColumnPointers = nullptr;
-    options_.cscRowIndices = nullptr;
-    options_.cscValues = nullptr;
-    options_.mixedDenseValues = nullptr;
-    options_.columnSources = nullptr;
-    options_.categoryCounts = nullptr;
-    options_.cscReferenceCodes = nullptr;
+    // borrowed; consumed by build, which retains what the store needs (a
+    // mapped build's CSC slices, its own copy of the dense block)
+    options_.predictors = {};
 
     initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
                      sigmaRawScale, rngs);
@@ -158,9 +138,8 @@ public:
     : options_(options), family_(family) {
     data_ = std::move(store);
     options_.maxNumCutsPerVariable = nullptr;
-    options_.columnTypes = nullptr;
-    // the view carries the parent's grid, so its counts are already fixed
-    options_.categoryCounts = nullptr;
+    // the view carries the parent's grid, so its types and counts are fixed
+    options_.predictors = {};
     options_.useQuantiles = data_.useQuantiles;
 
     initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
@@ -176,17 +155,12 @@ public:
           const SamplerOptions& options, const BCFSpec& spec,
           ext_rng* const* rngs)
     : options_(options), family_(ResponseFamily::gaussian) {
-    if (options.maxNumCutsPerVariable != nullptr)
-      data_.build(x, numObservations, numPredictors,
-                  options.maxNumCutsPerVariable, options.useQuantiles,
-                  options.columnTypes, nullptr, 0, options.categoryCounts);
-    else
-      data_.build(x, numObservations, numPredictors, options.maxNumCuts,
-                  options.useQuantiles, options.columnTypes, nullptr, 0,
-                  options.categoryCounts);
+    data_.build(denseCreationPredictorSource(options.predictors, x,
+                                             numObservations, numPredictors),
+                options.maxNumCutsPerVariable, options.maxNumCuts,
+                options.useQuantiles);
     options_.maxNumCutsPerVariable = nullptr;
-    options_.columnTypes = nullptr;
-    options_.categoryCounts = nullptr;
+    options_.predictors = {};
     // single-forest queries (numTrees, savedTree, printTrees) address the
     // prognostic forest
     options_.numTrees = spec.mu.numTrees;
@@ -211,17 +185,12 @@ public:
           const SamplerOptions& options, const MultinomialSpec& spec,
           ext_rng* const* rngs)
     : options_(options), family_(ResponseFamily::logistic) {
-    if (options.maxNumCutsPerVariable != nullptr)
-      data_.build(x, numObservations, numPredictors,
-                  options.maxNumCutsPerVariable, options.useQuantiles,
-                  options.columnTypes, nullptr, 0, options.categoryCounts);
-    else
-      data_.build(x, numObservations, numPredictors, options.maxNumCuts,
-                  options.useQuantiles, options.columnTypes, nullptr, 0,
-                  options.categoryCounts);
+    data_.build(denseCreationPredictorSource(options.predictors, x,
+                                             numObservations, numPredictors),
+                options.maxNumCutsPerVariable, options.maxNumCuts,
+                options.useQuantiles);
     options_.maxNumCutsPerVariable = nullptr;
-    options_.columnTypes = nullptr;
-    options_.categoryCounts = nullptr;
+    options_.predictors = {};
     // single-forest queries (numTrees, savedTree, printTrees) address forest 0
     options_.numTrees = spec.forest.numTrees;
 
@@ -245,38 +214,30 @@ public:
   Sampler(const Sampler&) = delete;
   Sampler& operator=(const Sampler&) = delete;
 
-  /// Replace the test predictors, keeping any test offset: the caller
-  /// guarantees the row count still matches it (the bridge refuses
-  /// otherwise). Passing a new offset too goes through setTestOffset.
-  void setTestPredictors(const double* x_test, size_t numTestObservations) {
-    const double* testOffset = data_.testOffset;
-    data_.buildTest(x_test, numTestObservations);
-    data_.testOffset = testOffset;
-    for (auto& chain : chains_) chain->resizeTestStorage();
-  }
-
-  /// Internal test-container build (dbarts.h stays dense): route a mixed dense
-  /// plus CSC test set to the typed test store, which shares the training cut
-  /// grid and owns its raw. columnSources maps each predictor to a dense column
-  /// of denseValues (nonnegative) or a CSC column of the triple (~index);
-  /// cscReferenceCodes carries the reference code per CSC-backed categorical
-  /// column. Refuses (returns false, test store untouched) a designated leaf
-  /// covariate that would be CSC-backed, since leaf models gather dense raw test
-  /// covariates that sparse storage does not serve. Keeps any test offset.
-  bool setTestData(const double* denseValues, const int* cscColumnPointers,
-                   const int* cscRowIndices, const double* cscValues,
-                   const std::int32_t* columnSources,
-                   const xint_t* cscReferenceCodes, size_t numTest) {
+  /// Replace the test predictors from a borrowed view, keeping any test offset:
+  /// the caller guarantees the row count still matches it (the bridge refuses
+  /// otherwise). Passing a new offset too goes through setTestOffset. The test
+  /// store shares the training cut grid and owns its raw, so the view need not
+  /// outlive the call. Refuses (returns false, test store untouched) a
+  /// designated leaf covariate that would be CSC-backed, since leaf models
+  /// gather dense raw test covariates that sparse storage does not serve.
+  bool setTestData(const PredictorSource& source) {
     size_t numCovariates = numLeafCovariates();
     const size_t* covariateColumns = leafCovariateColumns();
     for (size_t k = 0; k < numCovariates; ++k)
-      if (columnSources[covariateColumns[k]] < 0) return false;
+      if (source.sourceOf(covariateColumns[k]) < 0) return false;
     const double* testOffset = data_.testOffset;
-    data_.buildTestMixed(denseValues, cscColumnPointers, cscRowIndices,
-                         cscValues, columnSources, numTest, cscReferenceCodes);
+    data_.buildTest(source);
     data_.testOffset = testOffset;
     for (auto& chain : chains_) chain->resizeTestStorage();
     return true;
+  }
+
+  /// Dense convenience spelling: a plain column-major test matrix. Every
+  /// column is dense, so the CSC-backed leaf-covariate refusal cannot fire.
+  void setTestPredictors(const double* x_test, size_t numTestObservations) {
+    setTestData(densePredictorSource(x_test, numTestObservations,
+                                     data_.numPredictors));
   }
 
   /// Borrowed, length numTestObservations (the caller validates); null
@@ -954,25 +915,49 @@ public:
       chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c]);
   }
 
-  /// Replace the predictor matrix (borrowed, column-major; the old pointer is
-  /// kept on failure). Unless forceUpdate, a leaf that would empty in any
-  /// tree of any chain rolls the whole change back; forceUpdate instead
-  /// collapses emptied leaves into their parents.
-  PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
-                                     bool updateCutPoints) {
-    WholeMatrixUpdate strategy{data_, newX};
+  /// Replace the predictor matrix from a borrowed view (the store keeps its
+  /// old values on failure). Unless forceUpdate, a leaf that would empty in
+  /// any tree of any chain rolls the whole change back; forceUpdate instead
+  /// collapses emptied leaves into their parents. The mutation kernels index
+  /// the values as one column-major block, so only a dense view is consumable
+  /// (unsupportedSource otherwise) - a CSC-valued replacement has no kernel
+  /// yet (docs/design/sparse-columns.md).
+  PredictorUpdateResult setPredictor(const PredictorSource& newX,
+                                     bool forceUpdate, bool updateCutPoints) {
+    if (!newX.isDenseBlock()) return PredictorUpdateResult::unsupportedSource;
+    WholeMatrixUpdate strategy{data_, newX.denseValues};
     return runPredictorTransaction(strategy, forceUpdate, updateCutPoints);
   }
 
-  /// Overwrite a subset of columns in place; newColumns is column-major,
-  /// numObservations x numColumns. Same transaction semantics as
+  /// Overwrite a subset of columns in place; the view holds the replacement
+  /// block, column-major numObservations x numColumns, and columns names the
+  /// store columns it fills. Same transaction and dense-view semantics as
   /// setPredictor.
+  PredictorUpdateResult updatePredictor(const PredictorSource& newColumns,
+                                        const size_t* columns,
+                                        size_t numColumns, bool forceUpdate,
+                                        bool updateCutPoints) {
+    if (!newColumns.isDenseBlock())
+      return PredictorUpdateResult::unsupportedSource;
+    SubsetUpdate strategy{data_, newColumns.denseValues, columns, numColumns};
+    return runPredictorTransaction(strategy, forceUpdate, updateCutPoints);
+  }
+
+  /// Dense convenience spellings: plain column-major blocks over the store's
+  /// own row count.
+  PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
+                                     bool updateCutPoints) {
+    return setPredictor(densePredictorSource(newX, data_.numObservations,
+                                             data_.numPredictors),
+                        forceUpdate, updateCutPoints);
+  }
   PredictorUpdateResult updatePredictor(const double* newColumns,
                                         const size_t* columns,
                                         size_t numColumns, bool forceUpdate,
                                         bool updateCutPoints) {
-    SubsetUpdate strategy{data_, newColumns, columns, numColumns};
-    return runPredictorTransaction(strategy, forceUpdate, updateCutPoints);
+    return updatePredictor(
+      densePredictorSource(newColumns, data_.numObservations, numColumns),
+      columns, numColumns, forceUpdate, updateCutPoints);
   }
 
   /// Install externally chosen cut points (ascending) for a subset of

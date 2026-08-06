@@ -869,9 +869,9 @@ static void testEndToEndCategorical(ext_rng* rng) {
 
   SamplerOptions options;
   options.numTrees = 50;
-  options.columnTypes = nullptr;  // set via ctor path below
+  options.predictors.columnTypes = nullptr;  // set via ctor path below
   ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
-  options.columnTypes = types;
+  options.predictors.columnTypes = types;
   ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rng);
@@ -1011,7 +1011,7 @@ static void testWideCategorical(ext_rng* rng) {
   // groups requires subset splits over high codes
   SamplerOptions options;
   options.numTrees = 50;
-  options.columnTypes = types;
+  options.predictors.columnTypes = types;
   ConstantLeafSampler sampler(x.data(), y.data(), n, 1, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rng);
@@ -1067,7 +1067,7 @@ static void testPooledMaskSampler(ext_rng* rng) {
 
   SamplerOptions options;
   options.numTrees = 50;
-  options.columnTypes = types;
+  options.predictors.columnTypes = types;
   options.keepTrees = true;
   options.numSamplesToStore = numSamples;
   ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,

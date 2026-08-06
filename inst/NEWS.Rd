@@ -237,9 +237,12 @@
             \code{updatePredictor}) re-quantize a sparse column in place
             when its nonzero pattern is unchanged and rebuild its layout
             when the set of nonzeros changes, with the transactional
-            roll-back a dense column has. Whole-matrix replacement of a
-            sparse design, per-observation replacement of a sparse-backed
-            column, and \code{setData} stay fixed
+            roll-back a dense column has. Whole-matrix replacement
+            (\code{sampler$setPredictor(x)}) is accepted as well, and
+            leaves the design a \code{dgCMatrix}; a replaced column's
+            storage densifies permanently, since every row then differs
+            from the implicit zero. Per-observation replacement of a
+            sparse-backed column and \code{setData} stay fixed
             at creation. State serialization and \code{predict} work as
             usual. \code{rbart_vi} and \code{node.prior = linear()} do not
             yet support sparse inputs.
@@ -258,8 +261,10 @@
             sparse \code{sparseFactor} column, and one call may name both
             kinds - with per-observation updates
             (\code{forceUpdate = "partial"}) open on dense-backed columns.
-            Whole-matrix replacement stays fixed at creation; replace
-            columns individually instead. A test data frame expands to a
+            Whole-matrix replacement (\code{sampler$setPredictor(x)}) is
+            accepted too and leaves \code{data@x} a container; a replaced
+            sparse column's storage densifies permanently, since every row
+            then differs from the implicit value. A test data frame expands to a
             dense matrix, and a predictor container built from other data
             is re-coded against the training factor levels before it is
             used, so its codes mean what the training design's mean.
