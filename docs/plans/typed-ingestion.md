@@ -88,35 +88,63 @@ data, declared K == max+1 by construction - and the BCF/multinomial
 harnesses carry no factors, so the trio must stay bitwise. Gap
 datasets (declared > observed) shift, and are the point.
 
+Critique record (2026-08-05, refuting): NO BLOCKER, six amendments
+folded in below. Its counterfactual (buildCutsForColumn probe-patched
+to take a declared K): neutrality bitwise by SHA-1 at equal K; gap
+declared-4/observed-3 accepted end-to-end at every entrance; declared
+70/observed 60 genuinely enters the pooled tier with store and trees
+agreeing. Empty categories are ALREADY engine-native - the CSC path
+fits them today, empty-leaf-veto.md documents the state, both scoring
+paths veto, and every xbart fold view holds them (buildFromParent
+copies numCuts verbatim). K reaches every consumer solely through
+numCuts; categorical grids never rebuild (setData/refreshCuts/
+ScopedCutGrid/setState all skip, setCutPoints refuses).
+
 1. Engine: generalize the declared-count channel - SamplerOptions
    carries per-column category counts for ANY categorical column (the
-   CSC-only cscCategoryCounts becomes the general spelling);
-   buildCutsForColumn takes declared over inferred when present.
-   Audit every categorical cut-grid (re)build path (setPredictor with
-   updateCutPoints, setData, setState cross-grid restore) to carry
-   the declared K or verify categorical grids never rebuild there.
-2. Bridge: parseData reads an optional dense category-count vector
-   (absent = infer, the compatibility spelling); optionsFromParsed
-   publishes it; trainingCategoryBound (the csc-code-validation seam)
-   prefers the declared count for dense columns.
-3. R: makeCategoricalModelMatrix already collects the level tables
-   (attr factor.levels) - emit per-column counts beside varTypes;
-   assembleDenseColumnMatrix carries them on the mixed dense flavor;
-   dbartsData initialize lifts them; run codetools::findGlobals on
-   any moved function.
-4. Docs in the SAME commit: dbartsData.Rd/dbarts.Rd note that
-   declared factor levels are honored end-to-end; NEWS bullet (the
-   dense refusal of a declared-but-unobserved level becomes
-   acceptance, matching CSC).
-5. tinytest: gap factor train + test row carrying the missing level
-   accepted with finite fits at creation, setTestData, predict, and
-   setPredictor; the G2/G4 asymmetry test flips to symmetric; an
-   all-levels-observed fit is bitwise-unchanged against a
-   pre-slice-1 draw (snapshot in-file).
+   CSC-only cscCategoryCounts becomes the general spelling; the
+   storage-keyed SCAN selection in the slice-0 validators stays -
+   only the bound generalizes; the channel is creation-time only, the
+   ctor nulls it). buildCutsForColumn takes max(declared, inferred) -
+   never a declared K below observed, which would reopen the slice-0
+   class via hand-flipped varTypes.
+2. Bridge: parseData reads the declared counts off attr factor.levels
+   lengths, gated on varTypes[j] == CATEGORICAL (ordered factors
+   carry a level table but are ordinal); absent = infer (0 is the
+   existing absent spelling). optionsFromParsed publishes;
+   trainingCategoryBound prefers the declared count for dense
+   columns, and the dense TRAINING bound tightens to it (today it
+   bounds only by maxCategories).
+3. R: NO new dbartsData slot and no initialize change - attr(x,
+   "factor.levels") already carries the complete per-column level
+   table in creation order on BOTH container flavors
+   (assembleDenseColumnMatrix AND assembleMixedMatrix), preserved by
+   subsetting and already consumed by decodeCategoricalSplits. The
+   bridge reads it directly.
+4. Docs in the SAME commit: dbartsData.Rd/dbarts.Rd note declared
+   factor levels are honored end-to-end; NEWS bullet covers the
+   acceptance change AND the restore break: a state saved pre-slice-1
+   for a factor whose declared K crosses the 63/64 tier (>= 64
+   declared, fewer observed) refuses to restore ("missing required
+   block 'tree.masks'"); same-tier states restore silently and
+   correctly.
+5. tinytest: gap factor accepted with finite fits at creation,
+   setTestData, predict, and setPredictor - INCLUDING a dense factor
+   inside a MIXED container (the assembleMixedMatrix flavor, which a
+   dense-only test would miss); the G2/G4 asymmetry test flips to
+   symmetric; re-point the planted-code gate (test-sparse-factor.R
+   dense-count matching) at a genuine gap; the tier-crossing restore
+   refusal and a same-tier restore. NO in-file bitwise snapshot (the
+   trio is the neutrality gate; in-file snapshots are the fragile
+   spelling per CLAUDE.md).
+6. RNG-shift inventory before landing: run benchmarks/R/
+   categorical-exact.R (exact-posterior categorical gate - expected
+   to shift only for gap designs, verify) and enumerate any RNG-locked
+   tinytest whose data carries a gap factor (expected none; verify).
 
 ## Slice 1 verification
 
 R CMD INSTALL --preclean (engine headers move); tests/cpp clean-build
-(cut-grid cases); full tinytest; equivalence trio bitwise; air format
---check .; full local R CMD check (R and Rd move); CI incl.
-sanitizers green.
+(cut-grid cases); full tinytest; equivalence trio bitwise;
+categorical-exact.R; air format --check .; full local R CMD check (R
+and Rd move); CI incl. sanitizers green.
