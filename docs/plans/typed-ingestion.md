@@ -189,3 +189,55 @@ consolidation proper (the 9 SamplerOptions ingestion fields, the
 7-arg setTestData, the mutation entries -> one spelling). Each
 sub-slice: step list here + refuting critique before implementation,
 2a first (user-facing; 2b is hygiene).
+
+## Slice 2a steps (mutation-shape lift + alignment)
+
+Design decisions carried in: the R5 value spelling for mutating a
+sparse CATEGORICAL column is the dense one - a whole-column vector of
+codes in the column's FIXED level table (declared K and reference are
+creation-pinned, the setResponse scale-pinning analog); factor-typed
+inputs re-coded by the wrapper wait for the view (2b). Neutrality:
+every currently-accepted path stays bitwise (trio); currently-refused
+paths become capability.
+
+1. Engine: mutateCscColumnFromDense keys the nonzero pattern on the
+   column's kind - ordinal {i : value != 0} unchanged, categorical
+   {i : code != refCode} with NA stored - so codes stay bitwise
+   identical to a dense build of the same values; updateCuts
+   continues to skip categorical grids. tests/cpp: identity
+   re-install on a categorical CSC column is a bitwise no-op; a
+   genuine change repartitions identically to the dense-equivalent
+   store.
+2. R5: installPredictorColumns gains the sparse-backed branch of a
+   mixed container (whole-column: write through the container's
+   sparse slot at the column's rank; sparseReference and
+   sparseCategoryCount are creation-pinned, untouched); the wholesale
+   mixed refusal in setPredictor/updatePredictor (R/bartcore.R)
+   lifts, keeping today's upstream refusals for per-observation and
+   partial mutation of sparse-backed columns. data@x is maintained
+   only on acceptance (the installPredictorColumns-after-.Call
+   pattern).
+3. Bridge/C API: refuseCscCategoricalMutation (slice 0) deletes from
+   bartcore_setPredictor/updatePredictor and both dbarts_sampler_*
+   entries once 1-2 hold; its refusal tests flip to acceptance cases
+   with fits equal to the dense-equivalent design.
+4. Alignment (the slice-0 residual): container test inputs at the
+   R/data.R seams get the mapFactorColumnsToTrainingLevels treatment
+   - factor columns of a foreign container re-code against the
+   training factor.levels tables; genuinely-new levels refuse with
+   the existing message; the level-permuted in-range case then fits
+   IDENTICALLY to its aligned equivalent.
+5. tinytest: mutation over mixed designs x {dense-backed, sparse
+   ordinal, sparse categorical} x {whole-matrix, single-column};
+   rollback on a refused update leaves data@x untouched; alignment
+   acceptance and refusal; the flat C API mirror.
+6. Out of scope, unchanged: sparse x.test as bare dgCMatrix, the
+   streaming range kernel, per-column u8 widths (sparse-extensions.md
+   Status), the 2b view consolidation.
+
+## Slice 2a verification
+
+Slice-1 battery minus categorical-exact (no grid change): R CMD
+INSTALL --preclean; tests/cpp clean-build + ASAN; full tinytest; trio
+bitwise; air format --check .; full local R CMD check (R and tests
+move); CI incl. sanitizers green.
