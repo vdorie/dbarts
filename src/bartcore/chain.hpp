@@ -72,12 +72,20 @@ struct SamplerOptions {
   const double* mixedDenseValues = nullptr;
   const std::int32_t* columnSources = nullptr;  // length numPredictors
 
-  // per CSC-backed categorical column, its fixed level count K and the
-  // reference level's level-order code (the code the implicit rows carry);
-  // borrowed, consumed during construction. Null when no CSC-backed column is
-  // categorical, so the ordinal-sparse and dense paths are byte-for-byte
-  // unchanged. See docs/design/sparse-columns.md.
-  const std::uint32_t* cscCategoryCounts = nullptr;
+  // per categorical column, the level count K its host declares, whatever
+  // storage backs the column (length numPredictors; 0 leaves the count to be
+  // inferred from the observed codes, and non-categorical entries are
+  // ignored). The store takes max(declared, inferred), so a declared level
+  // table whose top level no training row carries still gets its own bin, and
+  // a declared count short of an observed code cannot strand it off the grid.
+  // Borrowed, consumed during construction; null infers everywhere, which is
+  // byte-for-byte the pre-declaration path.
+  const std::uint32_t* categoryCounts = nullptr;
+  // per CSC-backed categorical column, the reference level's level-order code
+  // (the code the implicit rows carry); borrowed, consumed during
+  // construction. Null when no CSC-backed column is categorical, so the
+  // ordinal-sparse and dense paths are byte-for-byte unchanged. See
+  // docs/design/sparse-columns.md.
   const xint_t* cscReferenceCodes = nullptr;
 
   // linear leaves: the ordinal predictor columns entering every leaf's

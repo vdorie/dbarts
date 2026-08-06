@@ -204,11 +204,15 @@ struct ParsedData {
   // per sparse column of a mixed container: the reference level's 0-based
   // code and the level count K, borrowed from the container (null unless it
   // carries the metadata). Resolved per predictor into cscReferenceCodes /
-  // cscCategoryCounts once varTypes marks the CSC-backed categorical columns.
+  // categoryCounts once varTypes marks the CSC-backed categorical columns.
   const int* cscReferenceMeta = NULL;
   const int* cscCategoryCountMeta = NULL;
   size_t numSparseColumns = 0;
-  std::vector<std::uint32_t> cscCategoryCounts;
+  // per predictor, the level count its host declares (0 = infer from the
+  // codes): a CSC-backed categorical column's from the container metadata
+  // above, a dense-backed one's from the attr(x, "factor.levels") table the
+  // model-matrix builders attach. Empty when nothing declares one.
+  std::vector<std::uint32_t> categoryCounts;
   std::vector<bartcore::xint_t> cscReferenceCodes;
   // the dense columnar container's transiently assembled block (x points
   // into it); owned here so it lives exactly as long as the parse result
@@ -653,6 +657,34 @@ bool installTestContainer(bartcore::SamplerBase& sampler,
     parsed.numTestObservations);
 }
 
+// Take each dense-backed categorical column's declared level count from the
+// per-column level tables attr(x, "factor.levels") carries (one list element
+// per predictor, NULL where the column is not a factor). The gate is
+// varTypes: an ordered factor carries a level table too, but enters as an
+// ordinal column, whose grid is cut points rather than categories. Absent -
+// no attribute, a wrong-length one, or a NULL entry - leaves the count 0, the
+// spelling resolveCscCategoricalReferences already uses for "infer from the
+// observed codes". CSC-backed columns are skipped: their container declares
+// its own K, which the caller has already resolved.
+void readDeclaredCategoryCounts(ParsedData& data, SEXP factorLevelsExpr) {
+  if (data.categoryCounts.empty())
+    data.categoryCounts.assign(data.numPredictors, 0);
+  if (TYPEOF(factorLevelsExpr) != VECSXP ||
+      static_cast<size_t>(rc_getLength(factorLevelsExpr)) != data.numPredictors)
+    return;
+  for (size_t j = 0; j < data.numPredictors; ++j) {
+    if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
+    if (data.xIsMixed && data.columnSources[j] < 0) continue;
+    R_xlen_t numLevels =
+      Rf_xlength(VECTOR_ELT(factorLevelsExpr, static_cast<R_xlen_t>(j)));
+    // a table wider than the code type can hold declares nothing usable; the
+    // inferred count then applies and the training bound stays maxCategories
+    if (numLevels > 0 &&
+        static_cast<size_t>(numLevels) <= bartcore::maxCategories)
+      data.categoryCounts[j] = static_cast<std::uint32_t>(numLevels);
+  }
+}
+
 void parseData(ParsedData& data, SEXP dataExpr) {
   SEXP slotExpr;
   PROTECT_INDEX slotIndex;
@@ -672,6 +704,16 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     Rf_error("number of observations exceeds the %u index limit", UINT32_MAX);
 
   REPROTECT_SLOT(slotExpr, dataExpr, "x", slotIndex);
+  // the per-column level tables the model-matrix builders attach (attr
+  // "factor.levels", R/utility.R): one list element per predictor, NULL where
+  // the column is not a factor, and present on a plain matrix, the dense
+  // columnar container, and the mixed container alike. Read once here, while
+  // slotExpr is still x, and resolved into declared category counts below,
+  // where varTypes says which columns are categorical. Protected outright
+  // rather than leaned on dataExpr's own protection, since the slot is
+  // re-pointed at every field parsed after it.
+  SEXP factorLevelsExpr =
+    PROTECT(Rf_getAttrib(slotExpr, Rf_install("factor.levels")));
   if (Rf_inherits(slotExpr, "dgCMatrix")) {
     CscSlots csc = parseCscMatrix(slotExpr, data.numObservations);
     data.numPredictors = csc.numColumns;
@@ -793,11 +835,16 @@ void parseData(ParsedData& data, SEXP dataExpr) {
         data.columnTypes.data(), data.columnSources.data(),
         data.numPredictors, data.cscReferenceMeta, data.cscCategoryCountMeta,
         data.numSparseColumns, data.cscReferenceCodes,
-        &data.cscCategoryCounts, "malformed mixed predictor container",
+        &data.categoryCounts, "malformed mixed predictor container",
         "sparse categorical predictor columns require reference "
         "metadata");
     }
   }
+  // the dense-backed categorical columns' declared counts, on top of whatever
+  // the CSC resolution above settled (which stays authoritative for the
+  // columns it owns - a container declares its own K)
+  if (data.anyCategorical)
+    readDeclaredCategoryCounts(data, factorLevelsExpr);
 
   REPROTECT_SLOT(slotExpr, dataExpr, "x.test", slotIndex);
   if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) ||
@@ -868,7 +915,7 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   for (size_t j = 0; j < data.numPredictors; ++j)
     data.maxNumCuts[j] = static_cast<uint32_t>(maxNumCuts[j]);
 
-  UNPROTECT(1);
+  UNPROTECT(2);  // the slot index and the factor level tables
 }
 
 void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
@@ -1386,27 +1433,36 @@ void refuseInvalidCategoryCodes(const double* values, size_t numValues,
   }
 }
 
+// Column j's host-declared level count, or 0 where nothing declares one.
+double declaredCategoryCount(const ParsedData& data, size_t j) {
+  return data.categoryCounts.empty()
+    ? 0.0 : static_cast<double>(data.categoryCounts[j]);
+}
+
 // The category count column j's test codes must fall under, keyed on the view
-// the TRAINING side presents rather than on its storage kind: a CSC-backed
-// column carries the K its container declared, a dense one the max + 1 that
-// buildCutsForColumn (data.hpp) infers. Mirrors that inference exactly, so the
-// bound is the numCuts the store is about to hold.
+// the TRAINING side presents rather than on its storage kind: the K its host
+// declared - the container's for a CSC-backed column, the factor.levels table's
+// for a dense one - but never below the max + 1 its own codes reach. Mirrors
+// buildCutsForColumn (data.hpp) exactly, so the bound is the numCuts the store
+// is about to hold.
 double trainingCategoryBound(const ParsedData& data, size_t j) {
-  if (data.xIsMixed && data.columnSources[j] < 0)
-    return static_cast<double>(data.cscCategoryCounts[j]);
+  double declared = declaredCategoryCount(data, j);
+  if (data.xIsMixed && data.columnSources[j] < 0) return declared;
   const double* column = rawTrainingColumn(data, j);
   double maxValue = -1.0;
   for (size_t i = 0; i < data.numObservations; ++i) {
     double value = column[i];
     if (!bartcore::isNA(value) && value > maxValue) maxValue = value;
   }
-  return maxValue < 0.0 ? 0.0 : maxValue + 1.0;
+  double inferred = maxValue < 0.0 ? 0.0 : maxValue + 1.0;
+  return declared > inferred ? declared : inferred;
 }
 
 // Bound every categorical code the creation parse is about to ingest. Runs
 // before the store exists, so the training-side count is reconstructed rather
 // than read off numCuts: a CSC-backed training column's stored codes must lie
-// in its declared K, a dense one's need only be representable (the count is
+// in its declared K, and a dense one's in its own declared K where its host
+// supplied a level table, else need only be representable (the count is then
 // inferred from them). Each test view is then bounded by that count, whatever
 // backs it - the x.test matrix, a container's dense slice, a container's CSC
 // slice, or the reference code its implicit rows read. An unbounded code would
@@ -1422,16 +1478,19 @@ void validateCategoricalPredictors(const ParsedData& data) {
       // parseData already required of its reference code
       ParsedCscCodes stored = parsedCscCodes(
         data.cscColumnPointers, data.cscValues, data.columnSources[j]);
-      refuseInvalidCategoryCodes(
-        stored.values, stored.numValues,
-        static_cast<double>(data.cscCategoryCounts[j]),
-        categoricalTrainingMessage);
+      refuseInvalidCategoryCodes(stored.values, stored.numValues,
+                                 declaredCategoryCount(data, j),
+                                 categoricalTrainingMessage);
       continue;
     }
-    refuseInvalidCategoryCodes(rawTrainingColumn(data, j),
-                               data.numObservations,
-                               static_cast<double>(bartcore::maxCategories),
-                               categoricalTrainingMessage);
+    // a declared level table bounds a dense training column outright; without
+    // one the column's own codes fix the count, so they need only be
+    // representable
+    double declared = declaredCategoryCount(data, j);
+    refuseInvalidCategoryCodes(
+      rawTrainingColumn(data, j), data.numObservations,
+      declared > 0.0 ? declared : static_cast<double>(bartcore::maxCategories),
+      categoricalTrainingMessage);
   }
   if (!data.anyCategorical || data.numTestObservations == 0) return;
   for (size_t j = 0; j < data.numPredictors; ++j) {
@@ -1514,6 +1573,10 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.useQuantiles = control.useQuantiles;
   options.columnTypes =
     data.anyCategorical ? data.columnTypes.data() : NULL;
+  // the declared level counts ride every ingestion path, dense included;
+  // consumed at build
+  options.categoryCounts =
+    data.categoryCounts.empty() ? NULL : data.categoryCounts.data();
   if (data.xIsSparse || data.xIsMixed) {
     options.cscColumnPointers = data.cscColumnPointers;
     options.cscRowIndices = data.cscRowIndices;
@@ -1522,10 +1585,8 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   if (data.xIsMixed) {
     options.mixedDenseValues = data.mixedDenseValues;
     options.columnSources = data.columnSources.data();  // consumed at build
-    if (!data.cscCategoryCounts.empty()) {
-      options.cscCategoryCounts = data.cscCategoryCounts.data();
+    if (!data.cscReferenceCodes.empty())
       options.cscReferenceCodes = data.cscReferenceCodes.data();
-    }
   }
   options.splitProbabilities = model.splitProbabilities; // copied by ctor
   options.monotoneDirections = model.monotoneDirections.empty()
@@ -2500,8 +2561,8 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
                                control.useQuantiles,
                                data.anyCategorical ? data.columnTypes.data()
                                                    : NULL,
-                               data.cscCategoryCounts.empty()
-                                 ? NULL : data.cscCategoryCounts.data(),
+                               data.categoryCounts.empty()
+                                 ? NULL : data.categoryCounts.data(),
                                data.cscReferenceCodes.empty()
                                  ? NULL : data.cscReferenceCodes.data());
       // the store borrows dense slices of the transiently assembled block;
@@ -2519,7 +2580,9 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
                           data.maxNumCuts.data(), control.useQuantiles,
                           data.anyCategorical ? data.columnTypes.data() : NULL,
                           gatherColumns.empty() ? NULL : gatherColumns.data(),
-                          gatherColumns.size());
+                          gatherColumns.size(),
+                          data.categoryCounts.empty()
+                            ? NULL : data.categoryCounts.data());
     }
 
     SEXP result = PROTECT(R_MakeExternalPtr(handle, R_NilValue, dataExpr));

@@ -567,6 +567,25 @@
   }
   \subsection{BUG FIXES}{
     \itemize{
+      \item Under \code{factors = "categorical"}, a categorical predictor's
+            category count is now the declared level table rather than the
+            largest code the training rows happen to carry. A level declared
+            but unobserved in training keeps its own bin, so test or
+            replacement data carrying it are accepted at every entrance -
+            creation, \code{setTestPredictor}, \code{predict}, and
+            \code{setPredictor} - instead of being rejected as an existing
+            category code. Dense factors, \code{sparseFactor} columns, and
+            dense factors inside a mixed dense/sparse frame now agree; only
+            \code{sparseFactor} columns previously honored their declared
+            table. Designs whose factors observe every level are unaffected
+            and draw identically. Call \code{\link{droplevels}} before
+            fitting to model only the observed levels. One consequence for
+            states saved by an earlier development build: a factor whose
+            declared level count crosses the 63/64 inline/pooled rule-mask
+            boundary (64 or more declared, fewer observed) now pools its
+            masks, and restoring such a state reports a missing
+            \code{'tree.masks'} block; states whose tier is unchanged
+            restore correctly.
       \item \code{copy} now works for samplers with a stored state.
       \item Seeded parallel \code{rbart_vi} now restores R's stream after
             drawing its chain seeds; the restore assigned a local
