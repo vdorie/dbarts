@@ -142,14 +142,23 @@ items
     multi-forest setResponse, zero harness edits; the R=200 bcf
     acceptance-arm verdict records as an addendum in
     docs/plans/runsbcbcf-repair.md).
-  multiforest-mutation-gaps: the setModel guard LANDED 6744aca
-    2026-08-05, with the two flat-C-API defensive guards (the FIX-B
-    precondition per the design + critique). Remaining doors:
-    setOffset/setTreatment are silent no-ops on multinomial (should
-    refuse or work); setWeights is vacuously guarded for BCF (same
-    argument as setResponse, not taken); setState/installForests
-    restore fitMin/fitMax with leaf.scale pinned (sibling door)
-    (docs/plans/runsbcbcf-repair.md Survey addendum + Design).
+  multiforest-mutation-gaps: IN PROGRESS, own plan file now the
+    record (docs/plans/multiforest-mutation-gaps.md). Commit 1 LANDED
+    d489986 2026-08-06: multinomial setOffset/setTreatment refuse
+    (softmax null direction), BCF setOffset(TRUE/NA) refuses (a
+    fourth, unrecorded decalibration hole), the multinomial train
+    offset refused at creation and the TEST offset refused
+    post-creation (H1: it was added to the K channels after the
+    softmax blend - probabilities left the simplex), flat-C-API
+    defensive symmetry. Queue, all design+critique verified: open
+    BCF setWeights under the existing opt-in; leaf.scale rides the
+    state as an append-only block (INSTALL - the critique refuted
+    the original (fitMin,fitMax) guard as orthogonal to the leaf
+    calibration); H2 setSigma guard on models whose sigma is not
+    free (probit/logistic/multinomial/heteroscedastic; the
+    supported R5 setSigma reaches it; family predicate + the
+    hasVarianceForest blocking clause; sigmaIsFixed_ alone would
+    break the documented gaussian-fixed Gibbs conduit).
   setpredictor-leafof-rebuild: CLOSED 2026-08-05 (memo executed under
     the proceed-at-discretion grant) - the leafOf rebuild is only ~21%
     of the regression and every leafOf-scoped mechanism's measured
