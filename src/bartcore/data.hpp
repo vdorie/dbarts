@@ -137,15 +137,15 @@ enum class ColumnSourceKind : std::uint8_t {
 /// carried in a vector sized to numPredictors on every built store. The
 /// discriminated fields are read only for the kinds that own them (rankSlot for
 /// cscRank; denseRaw for denseBorrowed; slice for the two CSC kinds;
-/// cscCategoryCount and refCode for CSC-backed categorical columns -
-/// cscCategoryCount train-side only, refCode on both sides). denseOwned has a
-/// side-specific raw source the accessor supplies.
+/// declaredCategoryCount for any categorical column whose host declared a level
+/// table, train-side only, and refCode for CSC-backed categorical columns on
+/// both sides). denseOwned has a side-specific raw source the accessor supplies.
 struct ColumnSource {
   ColumnSourceKind kind = ColumnSourceKind::denseOwned;
   std::int32_t rankSlot = -1;          // cscRank: slot into the side's sparseColumns
   const double* denseRaw = nullptr;    // denseBorrowed: borrowed/owned dense column
   CscColumnSlice slice;                // cscRank/cscDensified: retained nonzeros
-  std::uint32_t cscCategoryCount = 0;  // CSC categorical: fixed level count K (train only)
+  std::uint32_t declaredCategoryCount = 0;  // categorical: host's level count K (train only)
   xint_t refCode = 0;                  // CSC categorical: reference-level code
 
   bool isCscBacked() const {
@@ -169,11 +169,12 @@ struct CodeBlock {
   std::vector<SparseColumnData> sparseColumns;
   // per column, where its codes live and what re-quantization reads: the
   // storage kind, the rank slot into sparseColumns, the borrowed dense raw of a
-  // mixed build, the retained CSC slice, and a CSC-backed categorical column's
-  // fixed level count K and reference-level code. A CSC categorical column
-  // stores only its non-reference entries, so K cannot be recovered from the
-  // slice and the implicit rows' code is the reference level's own level-order
-  // index, not the storage's structural zero.
+  // mixed build, the retained CSC slice, a categorical column's host-declared
+  // level count K, and a CSC-backed categorical column's reference-level code.
+  // The declared count carries the levels no training row happens to observe,
+  // which no scan of the codes can recover; a CSC categorical column stores
+  // only its non-reference entries, so its implicit rows' code is the reference
+  // level's own level-order index, not the storage's structural zero.
   std::vector<ColumnSource> sources;
 
   /// Whether column j quantizes from a borrowed CSC slice (every column of a
@@ -508,21 +509,39 @@ struct ColumnStore {
     fillCutsOverRange(j, xMin, xMax);
   }
 
+  /// The category count a dense column's own codes imply: the largest observed
+  /// code plus one, and 0 when every value is missing.
+  std::uint32_t inferredCategoryCount(const double* column) const {
+    double maxValue = -1.0;
+    for (size_t i = 0; i < numObservations; ++i)
+      if (!isNA(column[i]) && column[i] > maxValue) maxValue = column[i];
+    return maxValue < 0.0 ? 0u : static_cast<std::uint32_t>(maxValue) + 1u;
+  }
+
+  /// The same over a CSC-backed column's logical values: its retained
+  /// nonzeros, plus the reference code the implicit rows read when it has any.
+  std::uint32_t inferredCategoryCountCsc(size_t j) const {
+    const ColumnSource& source = train.sources[j];
+    double maxValue = source.slice.numNonzero < numObservations
+      ? static_cast<double>(source.refCode) : -1.0;
+    for (size_t k = 0; k < source.slice.numNonzero; ++k)
+      if (!isNA(source.slice.values[k]) && source.slice.values[k] > maxValue)
+        maxValue = source.slice.values[k];
+    return maxValue < 0.0 ? 0u : static_cast<std::uint32_t>(maxValue) + 1u;
+  }
+
   /// Initial cut construction; sets numCuts[j]. column supplies the dense raw
   /// values (null for CSC-backed columns, which read their retained slice). A
-  /// categorical column takes its (fixed) category count from its largest
-  /// value and keeps no cuts. CSC columns are always ordinal.
+  /// categorical column keeps no cuts and takes its (fixed) category count from
+  /// the host's declared level table when it supplied one, but never below what
+  /// its own codes reach - a declared count short of an observed code would
+  /// strand that code past its own grid.
   void buildCutsForColumn(size_t j, const double* column) {
     if (types[j] == ColumnType::categorical) {
-      if (columnIsCscBacked(j)) {
-        numCuts[j] = train.sources[j].cscCategoryCount;
-      } else {
-        double maxValue = -1.0;
-        for (size_t i = 0; i < numObservations; ++i)
-          if (!isNA(column[i]) && column[i] > maxValue) maxValue = column[i];
-        numCuts[j] = maxValue < 0.0
-          ? 0 : static_cast<std::uint32_t>(maxValue) + 1;
-      }
+      std::uint32_t inferred = columnIsCscBacked(j)
+        ? inferredCategoryCountCsc(j) : inferredCategoryCount(column);
+      std::uint32_t declared = train.sources[j].declaredCategoryCount;
+      numCuts[j] = declared > inferred ? declared : inferred;
       cutPoints[j].clear();
     } else if (useQuantiles) {
       QuantileGrid grid = columnIsCscBacked(j)
@@ -763,12 +782,14 @@ struct ColumnStore {
   /// integral values 0..K-1 with K <= maxCategories; the caller validates.
   /// gatherColumns names the columns whose raw values a leaf model reads (or a
   /// data handle's declared columns): build owns a copy so the raw source
-  /// borrow x_ need not outlive the call.
+  /// borrow x_ need not outlive the call. categoryCounts_, when supplied, is
+  /// the host's declared level count per column (0 = infer from the codes).
   void build(const double* x_, size_t n, size_t p,
              const std::uint32_t* maxNumCuts_, bool useQuantiles_,
              const ColumnType* columnTypes = nullptr,
              const size_t* gatherColumns = nullptr,
-             size_t numGatherColumns = 0) {
+             size_t numGatherColumns = 0,
+             const std::uint32_t* categoryCounts_ = nullptr) {
     isView = false;
     numObservations = n;
     numPredictors = p;
@@ -790,6 +811,11 @@ struct ColumnStore {
     for (size_t j = 0; j < p; ++j) train.codeOffsets[j] = j * n;
     resetTrainStorage();
     setupGatheredColumns(gatherColumns, numGatherColumns);
+    // the declared level tables, consumed here by buildCutsForColumn; a null
+    // array leaves every count inferred
+    if (categoryCounts_ != nullptr)
+      for (size_t j = 0; j < p; ++j)
+        train.sources[j].declaredCategoryCount = categoryCounts_[j];
 
     for (size_t j = 0; j < p; ++j) {
       const double* column = x_ + j * n;
@@ -815,7 +841,7 @@ struct ColumnStore {
                   const std::uint32_t* maxNumCutsPerColumn,
                   std::uint32_t maxNumCutsScalar, bool useQuantiles_,
                   const ColumnType* columnTypes = nullptr,
-                  const std::uint32_t* cscCategoryCounts_ = nullptr,
+                  const std::uint32_t* categoryCounts_ = nullptr,
                   const xint_t* cscReferenceCodes_ = nullptr) {
     isView = false;
     numObservations = n;
@@ -838,8 +864,8 @@ struct ColumnStore {
         maxNumCuts[j] = maxNumCutsRepresentable;
     resetTrainStorage();
     // this builder owns the per-column CSC sources: borrowed slices,
-    // densified/rank backing, and per-column level counts and reference codes
-    // for categoricals
+    // densified/rank backing, and the reference codes of CSC-backed
+    // categoricals (declared level counts ride both storage kinds, below)
     builtFromCsc = true;
     // per-column owned-mutation storage, empty until a column is first mutated
     ownedCscRows.assign(p, {});
@@ -849,6 +875,10 @@ struct ColumnStore {
     size_t numDenseCodes = 0;
     for (size_t j = 0; j < p; ++j) {
       ColumnSource& desc = train.sources[j];
+      // the declared level table rides either storage kind: a dense-backed
+      // factor inside the container declares one exactly as a CSC-backed one
+      if (categoryCounts_ != nullptr)
+        desc.declaredCategoryCount = categoryCounts_[j];
       if (columnSources[j] >= 0) {
         desc.kind = ColumnSourceKind::denseBorrowed;
         desc.denseRaw = denseValues + static_cast<size_t>(columnSources[j]) * n;
@@ -861,8 +891,6 @@ struct ColumnStore {
       size_t begin = static_cast<size_t>(columnPointers[source]);
       size_t end = static_cast<size_t>(columnPointers[source + 1]);
       desc.slice = { values + begin, rowIndices + begin, end - begin };
-      if (cscCategoryCounts_ != nullptr)
-        desc.cscCategoryCount = cscCategoryCounts_[j];
       if (cscReferenceCodes_ != nullptr) desc.refCode = cscReferenceCodes_[j];
       bool sparse = static_cast<double>(end - begin) <=
         sparseDensityThreshold * static_cast<double>(n);
@@ -908,10 +936,11 @@ struct ColumnStore {
              bool useQuantiles_ = false,
              const ColumnType* columnTypes = nullptr,
              const size_t* gatherColumns = nullptr,
-             size_t numGatherColumns = 0) {
+             size_t numGatherColumns = 0,
+             const std::uint32_t* categoryCounts_ = nullptr) {
     std::vector<std::uint32_t> maxPerColumn(p, maxNumCuts_);
     build(x_, n, p, maxPerColumn.data(), useQuantiles_, columnTypes,
-          gatherColumns, numGatherColumns);
+          gatherColumns, numGatherColumns, categoryCounts_);
   }
 
   /// Clear the owned-CSC test payload (the packed nonzeros); the per-column CSC

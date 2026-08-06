@@ -171,9 +171,11 @@ fit <- bart2(
 expect_true(all(is.finite(fitted(fit))))
 
 # THE BITWISE GATE: a sparseFactor column's draws are byte-identical to the
-# same values given as a dense factor. Both storage kinds see K categories,
-# so the top level is planted; the reference is a middle level (never first
-# alphabetically), whose own level-order code the implicit rows carry.
+# same values given as a dense factor. Both storage kinds take their category
+# count from the DECLARED level table, so the top level is deliberately left
+# unobserved - a genuine gap, which only a declared count can bin. The
+# reference is a middle level (never first alphabetically), whose own
+# level-order code the implicit rows carry.
 runGateFit <- function(frame, y) {
   set.seed(2718L)
   sampler <- dbarts(
@@ -191,7 +193,7 @@ runGateFit <- function(frame, y) {
 }
 bitwiseGate <- function(codes, levels, reference, seed) {
   set.seed(seed)
-  codes[1L] <- length(levels) # a dense factor's count is max(code) + 1
+  codes[codes == length(levels)] <- length(levels) - 1L # the top level is a gap
   g <- factor(levels[codes], levels = levels)
   sf <- sparseFactor(g, reference = reference)
   m <- length(codes)
@@ -521,8 +523,9 @@ result.leaf.mut <- sampler.leaf.mut$run(10L, 20L)
 expect_false(anyNA(result.leaf.mut$test))
 
 # CODE BOUNDS: every categorical ingestion entrance bounds codes against the
-# TRAINING-side category count - a CSC-trained column's declared K, a
-# dense-trained one's inferred max + 1 - whatever view carries them: a dense
+# TRAINING-side category count - the K its host declares whatever backs it,
+# and the inferred max + 1 only where nothing declares one - whatever view
+# carries them: a dense
 # x.test matrix, a container's dense or CSC slice, or the reference code the
 # container's implicit rows read. A code at or past that count mis-bins inline,
 # shifts past a tree's category mask, or over-reads the pooled bitmap, so it is

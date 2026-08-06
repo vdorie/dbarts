@@ -2719,7 +2719,7 @@ struct CscCategoricalFixture {
     options.cscValues = values.data();
     options.columnSources = &sources;
     options.columnTypes = types.data();
-    options.cscCategoryCounts = &K;
+    options.categoryCounts = &K;
     options.cscReferenceCodes = &reference;
   }
 

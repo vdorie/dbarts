@@ -112,7 +112,7 @@ public:
                        options.columnSources, numObservations, numPredictors,
                        options.maxNumCutsPerVariable, options.maxNumCuts,
                        options.useQuantiles, options.columnTypes,
-                       options.cscCategoryCounts, options.cscReferenceCodes);
+                       options.categoryCounts, options.cscReferenceCodes);
     } else if (options.cscColumnPointers != nullptr) {
       data_.buildFromCsc(options.cscColumnPointers, options.cscRowIndices,
                          options.cscValues, numObservations, numPredictors,
@@ -122,11 +122,12 @@ public:
       data_.build(x, numObservations, numPredictors,
                   options.maxNumCutsPerVariable, options.useQuantiles,
                   options.columnTypes, options.leafCovariateColumns,
-                  options.numLeafCovariates);
+                  options.numLeafCovariates, options.categoryCounts);
     } else {
       data_.build(x, numObservations, numPredictors, options.maxNumCuts,
                   options.useQuantiles, options.columnTypes,
-                  options.leafCovariateColumns, options.numLeafCovariates);
+                  options.leafCovariateColumns, options.numLeafCovariates,
+                  options.categoryCounts);
     }
     options_.maxNumCutsPerVariable = nullptr;  // borrowed; consumed by build
     options_.columnTypes = nullptr;
@@ -136,7 +137,7 @@ public:
     options_.cscValues = nullptr;
     options_.mixedDenseValues = nullptr;
     options_.columnSources = nullptr;
-    options_.cscCategoryCounts = nullptr;
+    options_.categoryCounts = nullptr;
     options_.cscReferenceCodes = nullptr;
 
     initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
@@ -158,6 +159,8 @@ public:
     data_ = std::move(store);
     options_.maxNumCutsPerVariable = nullptr;
     options_.columnTypes = nullptr;
+    // the view carries the parent's grid, so its counts are already fixed
+    options_.categoryCounts = nullptr;
     options_.useQuantiles = data_.useQuantiles;
 
     initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
@@ -176,12 +179,14 @@ public:
     if (options.maxNumCutsPerVariable != nullptr)
       data_.build(x, numObservations, numPredictors,
                   options.maxNumCutsPerVariable, options.useQuantiles,
-                  options.columnTypes);
+                  options.columnTypes, nullptr, 0, options.categoryCounts);
     else
       data_.build(x, numObservations, numPredictors, options.maxNumCuts,
-                  options.useQuantiles, options.columnTypes);
+                  options.useQuantiles, options.columnTypes, nullptr, 0,
+                  options.categoryCounts);
     options_.maxNumCutsPerVariable = nullptr;
     options_.columnTypes = nullptr;
+    options_.categoryCounts = nullptr;
     // single-forest queries (numTrees, savedTree, printTrees) address the
     // prognostic forest
     options_.numTrees = spec.mu.numTrees;
@@ -209,12 +214,14 @@ public:
     if (options.maxNumCutsPerVariable != nullptr)
       data_.build(x, numObservations, numPredictors,
                   options.maxNumCutsPerVariable, options.useQuantiles,
-                  options.columnTypes);
+                  options.columnTypes, nullptr, 0, options.categoryCounts);
     else
       data_.build(x, numObservations, numPredictors, options.maxNumCuts,
-                  options.useQuantiles, options.columnTypes);
+                  options.useQuantiles, options.columnTypes, nullptr, 0,
+                  options.categoryCounts);
     options_.maxNumCutsPerVariable = nullptr;
     options_.columnTypes = nullptr;
+    options_.categoryCounts = nullptr;
     // single-forest queries (numTrees, savedTree, printTrees) address forest 0
     options_.numTrees = spec.forest.numTrees;
 
