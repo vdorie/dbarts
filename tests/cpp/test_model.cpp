@@ -2868,6 +2868,99 @@ static void testSparseCategoricalEndToEnd() {
   printf("ok: sparse categorical end-to-end\n");
 }
 
+// The mutation-shape lift (docs/plans/typed-ingestion.md slice 2a): a
+// CSC-backed CATEGORICAL column takes a whole-column replacement, its stored
+// pattern keyed on the column's kind - {i : code != refCode} rather than the
+// ordinal {i : value != 0}. Every assertion is on the CODES the store serves,
+// never on the stored pattern: a hand-built NON-CANONICAL column (rows holding
+// the reference level stored explicitly) makes an identity re-install a
+// pattern change while leaving every code alone, which is exactly the
+// distinction the rule has to keep.
+static void testSparseCategoricalMutation() {
+  uint64_t savedRngState = rngState;
+  const size_t n = 400;
+  struct Config { std::uint32_t K; double probReference; bool expectSparse; };
+  const Config configs[] = { { 6, 0.92, true }, { 6, 0.4, false } };
+
+  for (const Config& config : configs) {
+    CscCategoricalFixture fixture;
+    fixture.build(n, config.K, config.probReference);
+
+    ColumnStore store = fixture.buildStore(false);
+    check(store.columnIsSparse(0) == config.expectSparse,
+          "sparse-categorical mutation fixture lands on the expected tier");
+    std::vector<xint_t> before(n);
+    for (size_t i = 0; i < n; ++i) before[i] = store.codeAt(0, i);
+    store.mutateCscColumnFromDense(0, fixture.dense.data(), false);
+    bool inert = true;
+    for (size_t i = 0; i < n; ++i) inert &= store.codeAt(0, i) == before[i];
+    check(inert,
+          "identity re-install of a sparse-categorical column is code-inert");
+
+    // a genuine change - every code rotated one level on, plus one missing
+    // value - against a dense build of exactly those values
+    std::vector<double> newCodes(n);
+    for (size_t i = 0; i < n; ++i)
+      newCodes[i] = static_cast<double>(
+        (static_cast<std::uint32_t>(fixture.dense[i]) + 1u) % config.K);
+    newCodes[3] = std::nan("");
+    ColumnStore mutated = fixture.buildStore(false);
+    mutated.mutateCscColumnFromDense(0, newCodes.data(), false);
+    ColumnStore denseStore;
+    denseStore.build(newCodes.data(), n, 1, 100u, false, fixture.types.data(),
+                     nullptr, 0, &fixture.K);
+    bool matches = mutated.numCuts[0] == denseStore.numCuts[0] &&
+                   mutated.hasMissing[0] == denseStore.hasMissing[0];
+    for (size_t i = 0; i < n; ++i)
+      matches &= mutated.codeAt(0, i) == denseStore.train.codes[i];
+    check(matches,
+          "mutated sparse-categorical codes match the dense-equivalent build");
+  }
+
+  // a NON-CANONICAL container on the rank tier: some reference-coded rows are
+  // stored explicitly, so an identity re-install necessarily shrinks the
+  // stored pattern (and rebuilds the rank bitmap) while every served code
+  // stays put
+  {
+    CscCategoricalFixture fixture;
+    fixture.build(n, 6, 0.92);
+    std::vector<int> rows;
+    std::vector<double> values;
+    size_t extra = 0;
+    for (size_t i = 0; i < n; ++i) {
+      bool isReference =
+        static_cast<xint_t>(fixture.dense[i]) == fixture.reference;
+      if (isReference && (extra >= 10 || i % 37 != 0)) continue;
+      if (isReference) ++extra;
+      rows.push_back(static_cast<int>(i));
+      values.push_back(fixture.dense[i]);
+    }
+    check(extra > 0, "non-canonical fixture stores reference-coded rows");
+    int pointers[2] = { 0, static_cast<int>(rows.size()) };
+    std::int32_t sources = ~0;
+    ColumnStore store;
+    store.buildMixed(nullptr, pointers, rows.data(), values.data(), &sources,
+                     n, 1, nullptr, 100u, false, fixture.types.data(),
+                     &fixture.K, &fixture.reference);
+    check(store.columnIsSparse(0), "non-canonical fixture stays on the rank tier");
+
+    std::vector<xint_t> before(n);
+    for (size_t i = 0; i < n; ++i) before[i] = store.codeAt(0, i);
+    size_t nonzeroBefore = store.train.sources[0].slice.numNonzero;
+    store.mutateCscColumnFromDense(0, fixture.dense.data(), false);
+    size_t nonzeroAfter = store.train.sources[0].slice.numNonzero;
+    bool inert = true;
+    for (size_t i = 0; i < n; ++i) inert &= store.codeAt(0, i) == before[i];
+    check(inert,
+          "identity re-install of a non-canonical column changes no code");
+    check(nonzeroAfter + extra == nonzeroBefore,
+          "identity re-install canonicalizes the stored pattern");
+  }
+
+  rngState = savedRngState;
+  printf("ok: sparse categorical mutation\n");
+}
+
 // A mixed dense/CSC predictor set in the overall layout
 // [dense0, csc0, dense1, csc1, csc2], dense1 optionally 4-category
 // categorical; full is the equivalent all-dense matrix for reference builds.
@@ -5802,6 +5895,7 @@ void runModelTests(ext_rng* rng) {
   testSparseMutation();
   testSparseCategoricalColumnStore();
   testSparseCategoricalEndToEnd();
+  testSparseCategoricalMutation();
   testMixedColumnStore();
   testMixedEndToEnd();
   testMixedLinearLeaves();

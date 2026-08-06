@@ -359,24 +359,73 @@ as.matrix.dbartsMixedMatrix <- function(x, ...) {
   result
 }
 
+## The k-th column of a column-major replacement block of numColumns columns
+## over numObservations rows. A single-column call hands back the supplied
+## vector itself, so the reference install below stays a pointer swap.
+predictorColumnSlice <- function(values, k, numColumns, numObservations) {
+  if (numColumns == 1L) {
+    values
+  } else {
+    values[seq.int(
+      (k - 1L) * numObservations + 1L,
+      length.out = numObservations
+    )]
+  }
+}
+
+## Replace one column of a dgCMatrix in place by DIRECT SLOT SURGERY on
+## @i/@p/@x: splice the column's entries out and the replacement's in, shifting
+## the pointers of every column after it. Matrix's `[<-` is disqualified here -
+## it runs drop0 MATRIX-WIDE, so writing one column strips the explicit zeros
+## every OTHER column holds, and a categorical column whose reference level is
+## not levels[1] stores code 0 explicitly. rank is the 1-based column index
+## within the sparse block; implicit is the value the column's unstored rows
+## read (numeric zero for an ordinal column, the reference level's code for a
+## categorical one), so the stored entries are the cells that differ from it,
+## missing values included - the engine's own pattern rule
+## (mutateCscColumnFromDense, src/bartcore/data.hpp), mirrored.
+replaceSparseColumn <- function(sparse, rank, implicit, values) {
+  stored <- is.na(values) | values != implicit
+  newRows <- as.integer(which(stored) - 1L)
+  newValues <- as.double(values[stored])
+
+  numEntries <- length(sparse@i)
+  start <- sparse@p[rank]
+  end <- sparse@p[rank + 1L]
+  prefix <- seq_len(start)
+  suffix <- if (end < numEntries) seq.int(end + 1L, numEntries) else integer(0)
+
+  sparse@i <- c(sparse@i[prefix], newRows, sparse@i[suffix])
+  sparse@x <- c(sparse@x[prefix], newValues, sparse@x[suffix])
+  shifted <- seq.int(rank + 1L, length(sparse@p))
+  sparse@p[shifted] <-
+    sparse@p[shifted] + (length(newRows) - (end - start))
+  # any cached factorization describes the pre-change values
+  sparse@factors <- list()
+  sparse
+}
+
 ## Install a block of predictor columns into a sampler's stored source BY
 ## REFERENCE (the reference-install mutation semantics,
 ## docs/design/data-ownership.md, "Mutation: reference-install") - keeps
 ## data@x current under
 ## mutation without adding an R-side copy on top of R's own copy-on-write.
-## rows = NULL replaces columns whole: slot j is repointed straight at the
-## supplied vector (or, for a multi-column call, the caller's per-column
-## slice of it), so an unmutated column stays shared with the prior
+## rows = NULL replaces columns whole: a dense-backed slot j is repointed
+## straight at the supplied vector (or, for a multi-column call, the caller's
+## per-column slice of it), so an unmutated column stays shared with the prior
 ## container and only the O(p) list spine is duplicated; a factor source
 ## column decays to a plain code vector automatically, since the old column
-## is discarded rather than mutated in place. rows given (a partial merge)
+## is discarded rather than mutated in place. A CSC-backed column instead has
+## its entries spliced into the container's sparse block (replaceSparseColumn),
+## which is O(nnz); a mixed call naming both kinds dispatches per column on the
+## sign of the map. rows given (a partial merge)
 ## starts from the old column and overwrites only the addressed rows - the
 ## merge is inherent for a freshly supplied vector (O(n) for one column, no
 ## worse than before); the O(spine) win there needs the caller's own
 ## already-merged vector reinstalled in place. A matrix source has no
-## columnar spine to share, so it keeps copy-modify. Mutation is refused for
-## sparse sources before this runs, so a container here is the dense
-## flavor.
+## columnar spine to share, so it keeps copy-modify. Per-observation mutation
+## of a CSC-backed column is refused upstream, so the partial merge below only
+## ever addresses dense-backed columns.
 installPredictorColumns <- function(x, rows, columns, values) {
   if (is.matrix(x)) {
     if (is.null(rows)) {
@@ -386,32 +435,43 @@ installPredictorColumns <- function(x, rows, columns, values) {
     }
     return(x)
   }
+  values <- as.double(values)
   # a pure dgCMatrix design (the sparse-column in-place mutation extension,
-  # docs/design/sparse-columns.md): column-granular
-  # mutation stays sparse under Matrix's [<-; per-observation (rows) mutation
-  # of a sparse column is refused upstream, so only the whole-column path lands
+  # docs/design/sparse-columns.md): every column is CSC-backed and ordinal, so
+  # the implicit rows read numeric zero
   if (inherits(x, "dgCMatrix")) {
-    values <- as.double(values)
-    if (is.null(rows)) {
-      x[, columns] <- values
-    } else {
-      x[rows, columns] <- values
+    numObservations <- nrow(x)
+    for (k in seq_along(columns)) {
+      x <- replaceSparseColumn(
+        x,
+        columns[k],
+        0,
+        predictorColumnSlice(values, k, length(columns), numObservations)
+      )
     }
     return(x)
   }
+  numObservations <- x$numObservations
   if (is.null(rows)) {
-    values <- as.double(values)
-    n <- x$numObservations
     for (k in seq_along(columns)) {
-      x$dense[[x$map[columns[k]]]] <- if (length(columns) == 1L) {
-        values
+      column <-
+        predictorColumnSlice(values, k, length(columns), numObservations)
+      source <- x$map[columns[k]]
+      if (source > 0L) {
+        x$dense[[source]] <- column
       } else {
-        values[seq.int((k - 1L) * n + 1L, length.out = n)]
+        rank <- -source
+        implicit <- if (!is.na(x$sparseReference[rank])) {
+          x$sparseReference[rank]
+        } else {
+          0
+        }
+        x$sparse <- replaceSparseColumn(x$sparse, rank, implicit, column)
       }
     }
     return(x)
   }
-  values <- matrix(as.double(values), ncol = length(columns))
+  values <- matrix(values, ncol = length(columns))
   for (k in seq_along(columns)) {
     sourceIndex <- x$map[columns[k]]
     column <- x$dense[[sourceIndex]]

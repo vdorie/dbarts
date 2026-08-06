@@ -48,18 +48,13 @@ bartcoreSamplerSetPredictor <- function(
   updateCutPoints
 ) {
   # guard before data@x is swapped: the C entry point refuses a view too, but
-  # the R5 object must not be left holding a half-installed matrix. A pure
-  # dgCMatrix design accepts column-granular mutation (docs/design/
-  # sparse-columns.md), maintained R-side by installPredictorColumns;
-  # a mixed dense/sparse container is not yet maintained R-side, and whole-matrix
-  # and per-observation replacement of a sparse column stay fixed at creation.
+  # the R5 object must not be left holding a half-installed matrix. A sparse
+  # design - a pure dgCMatrix or a mixed dense/sparse container - accepts
+  # column-granular mutation (docs/design/sparse-columns.md), maintained R-side
+  # by installPredictorColumns; whole-matrix replacement of a sparse design and
+  # per-observation replacement of a sparse-backed column stay fixed at
+  # creation.
   sparseSource <- predictorSourceIsSparse(sampler$data@x)
-  if (sparseSource && !inherits(sampler$data@x, "dgCMatrix")) {
-    stop(
-      "mutation of a mixed dense/sparse design is fixed at creation; ",
-      "make a new sampler instead"
-    )
-  }
 
   partialUpdate <- !is.null(forceUpdate) &&
     is.character(forceUpdate) &&
@@ -81,17 +76,22 @@ bartcoreSamplerSetPredictor <- function(
   ptr <- sampler$getPointer()
 
   if (partialUpdate) {
-    if (sparseSource) {
-      stop(
-        "per-observation updates require a dense-backed column; replace a ",
-        "sparse column wholesale with a non-partial update"
-      )
-    }
     if (is.null(column)) {
       stop("partial updates require a single 'column' to be specified")
     }
     if (length(column) != 1L) {
       stop("partial updates can only be applied to a single column")
+    }
+    column <- as.integer(column)
+    # a CSC-backed column's rank storage cannot take a cell-at-a-time write
+    # without an O(nnz) shift per cell; a DENSE-backed column of a mixed design
+    # can, and is the motivating IRT latent case (docs/design/sparse-columns.md
+    # extension (i)), so the refusal is per column rather than per design
+    if (predictorColumnIsSparseBacked(sampler$data@x, column)) {
+      stop(
+        "per-observation updates require a dense-backed column; replace a ",
+        "sparse column wholesale with a non-partial update"
+      )
     }
     if (isTRUE(coerceOrError(updateCutPoints, "logical"))) {
       stop("partial updates cannot also update cut points")
@@ -184,6 +184,14 @@ bartcoreSamplerSetPredictor <- function(
       stop("length of new x does not match y")
     }
     x <- as.double(x)
+    # the engine keeps no predictor matrix, so maintain data@x R-side when the
+    # update is applied (forceUpdate, or a non-rolled-back transaction);
+    # install by reference - only the addressed columns change, the rest of the
+    # container is shared. Build the replacement BEFORE the engine commits: a
+    # CSC-backed column's install rewrites the container's sparse slots, and a
+    # throw there after acceptance would leave data@x describing the old design
+    # (sampler re-creation after save/load reads it).
+    newX <- installPredictorColumns(sampler$data@x, NULL, column, x)
     updateSuccessful <- .Call(
       C_dbarts_bartcore_updatePredictor,
       ptr,
@@ -192,17 +200,8 @@ bartcoreSamplerSetPredictor <- function(
       forceUpdate,
       updateCutPoints
     )
-    # the engine keeps no predictor matrix, so maintain data@x R-side when the
-    # update is applied (forceUpdate, or a non-rolled-back transaction);
-    # install by reference - only the addressed columns' vectors change, the
-    # rest of the container is shared
     if (isTRUE(updateSuccessful)) {
-      sampler$data@x <- installPredictorColumns(
-        sampler$data@x,
-        NULL,
-        column,
-        x
-      )
+      sampler$data@x <- newX
     }
   }
 

@@ -373,6 +373,57 @@ expect_true(all(is.finite(rG$tau)) && all(rG$tau > 0))
 expect_equal(length(rG$ranef), numGroups * 4L)
 expect_true(all(is.finite(rG$ranef)))
 
+# the predictor entries take a design carrying a CSC-backed CATEGORICAL column
+# (docs/plans/typed-ingestion.md slice 2a): the engine keys the replacement's
+# nonzero pattern on {i : code != refCode}, so a whole-column swap through the
+# flat API lands the same codes a dense factor of those values would
+if (requireNamespace("Matrix", quietly = TRUE)) {
+  set.seed(808L)
+  nSparse <- 120L
+  levelsSparse <- c("a", "b", "c")
+  labelsSparse <- sample(levelsSparse, nSparse, replace = TRUE)
+  frameSparse <- data.frame(x1 = rnorm(nSparse))
+  frameSparse$f <- dbarts::sparseFactor(
+    labelsSparse,
+    levels = levelsSparse,
+    reference = "b"
+  )
+  ySparse <- rnorm(nSparse) + match(labelsSparse, levelsSparse)
+  specSparse <- dbarts(
+    frameSparse,
+    ySparse,
+    control = dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 10L,
+      updateState = FALSE,
+      rngSeed = 11L
+    )
+  )
+  ptrSparse <- CALL(
+    "capi_create",
+    specSparse$control,
+    specSparse$model,
+    specSparse$data,
+    ""
+  )
+  invisible(CALL("capi_run", ptrSparse, 5L, 3L, FALSE, FALSE))
+  codesSparse <- as.matrix(specSparse$data@x)
+  storage.mode(codesSparse) <- "double"
+  newCodesSparse <- codesSparse
+  newCodesSparse[, 2L] <- (codesSparse[, 2L] + 1) %% 3
+  expect_true(CALL(
+    "capi_update_predictor",
+    ptrSparse,
+    matrix(newCodesSparse[, 2L], nSparse),
+    1L
+  ))
+  rSparse <- CALL("capi_run", ptrSparse, 0L, 3L, FALSE, FALSE)
+  expect_true(all(is.finite(rSparse$sigma)))
+  expect_true(CALL("capi_set_predictor", ptrSparse, newCodesSparse))
+  rm(ptrSparse)
+}
+
 # destruction runs through the finalizer
 rm(ptr1, ptr2, ptr3, ptrBinary, ptrFixed, ptrLL)
 rm(ptrCbA, ptrCbB, ptrStop, ptrMT, ptrG)

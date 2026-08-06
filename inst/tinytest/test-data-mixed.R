@@ -167,18 +167,116 @@ expect_error(
   pattern = "sparse-backed"
 )
 
-# a mixed dense/sparse container is not yet maintained R-side for mutation, so
-# the raw-x surface and whole-data replacement stay fixed at creation; grouped
-# rbart_vi is reserved (the engine and flat C API do accept column mutation on
-# a mixed store - only the R5 container book-keeping is deferred)
+# a mixed dense/sparse container takes column-granular mutation, maintained
+# R-side (docs/plans/typed-ingestion.md slice 2a); whole-matrix replacement of a
+# sparse design and whole-data replacement stay fixed at creation, and grouped
+# rbart_vi is reserved
 sampler <- dbarts(x.frame, y, control = control)
 invisible(sampler$run())
 expect_silent(sampler$setResponse(y))
 expect_error(
   sampler$setPredictor(x.dense.equiv),
-  pattern = "mixed dense/sparse design is fixed at creation"
+  pattern = "whole-matrix setPredictor requires a dense design"
 )
 expect_error(sampler$setData(dbartsData(x.frame, y)), pattern = "sparse")
+
+# a dense-backed column, then a CSC-backed one (pattern-changing), then both
+# kinds named in the SAME call; data@x stays a container throughout
+x1.new <- x1 * 1.1 + 0.05
+expect_silent(sampler$setPredictor(x1.new, column = 1L, forceUpdate = TRUE))
+expect_inherits(sampler$data@x, "dbartsMixedMatrix")
+expect_equal(as.matrix(sampler$data@x)[, 1L], x1.new)
+
+sv.new <- as.double(sv)
+sv.new[sv.new != 0] <- sv.new[sv.new != 0] * 1.5
+sv.new[c(1L, 2L)] <- c(0.9, 1.1)
+expect_silent(sampler$setPredictor(sv.new, column = 3L, forceUpdate = TRUE))
+expect_equal(as.matrix(sampler$data@x)[, 3L], sv.new)
+expect_equal(diff(sampler$data@x$sparse@p)[1L], sum(sv.new != 0))
+
+sm1.new <- sm.dense[, 1L] * 2
+expect_silent(
+  sampler$setPredictor(
+    cbind(x1, sm1.new),
+    column = c(1L, 4L),
+    forceUpdate = TRUE
+  )
+)
+expect_equal(as.matrix(sampler$data@x)[, 1L], x1)
+expect_equal(as.matrix(sampler$data@x)[, 4L], sm1.new)
+expect_equal(diff(sampler$data@x$sparse@p)[2L], sum(sm1.new != 0))
+# the untouched CSC column is bit-identical
+expect_equal(as.matrix(sampler$data@x)[, 5L], sm.dense[, 2L])
+
+# per-observation updates run on a DENSE-backed column of a mixed design (the
+# IRT latent case) and stay refused on a CSC-backed one
+installed <- sampler$setPredictor(x1.new, column = 1L, forceUpdate = "partial")
+expect_true(is.logical(installed) && length(installed) == n)
+expect_equal(as.matrix(sampler$data@x)[installed, 1L], x1.new[installed])
+expect_error(
+  sampler$setPredictor(sv.new, column = 3L, forceUpdate = "partial"),
+  pattern = "per-observation updates require a dense-backed column"
+)
+
+# ALIGNMENT: a container assembled from another data set carries that set's
+# level order, so its DENSE-backed factor column is re-coded against the
+# training table at the validateXTest funnel - it then predicts exactly as the
+# equivalent data frame does, and a genuinely new level refuses by name
+alignControl <- dbartsControl(
+  n.samples = 10L,
+  n.burn = 0L,
+  n.trees = 25L,
+  n.chains = 1L,
+  n.threads = 1L,
+  updateState = FALSE
+)
+set.seed(515L)
+n.align <- 15L
+f.align <- factor(
+  sample(c("a", "b", "c"), n.align, replace = TRUE),
+  levels = c("c", "a", "b")
+)
+sm.align.dense <- matrix(0, n.align, 2L)
+sm.align.dense[c(1L, 5L), 1L] <- c(0.7, 0.3)
+sm.align.dense[3L, 2L] <- 0.4
+x1.align <- rnorm(n.align)
+sv.align <- numeric(n.align)
+sv.align[2L] <- 0.6
+
+frame.align <- data.frame(x1 = x1.align, f = f.align)
+frame.align$sv <- Matrix::sparseVector(x = 0.6, i = 2L, length = n.align)
+frame.align$sm <- methods::as(sm.align.dense, "CsparseMatrix")
+container.align <- dbartsData(frame.align, rnorm(n.align))@x
+expect_equal(levels(container.align$dense[[2L]]), c("c", "a", "b"))
+
+data.align <- dbartsData(x.frame, y, test = container.align)
+expect_equal(
+  as.matrix(data.align@x.test)[, 2L],
+  as.double(match(as.character(f.align), levels(f)) - 1L)
+)
+
+frame.align.dense <- data.frame(x1 = x1.align, f = f.align)
+frame.align.dense$sv <- sv.align
+frame.align.dense$sm <- sm.align.dense
+alignmentGate <- function(test, seed) {
+  set.seed(seed)
+  dbarts(x.frame, y, test = test, control = alignControl)$run()
+}
+expect_identical(
+  alignmentGate(container.align, 616L)$test,
+  alignmentGate(frame.align.dense, 616L)$test
+)
+
+frame.align.new <- frame.align
+frame.align.new$f <- factor(c("z", rep("a", n.align - 1L)))
+expect_error(
+  dbartsData(
+    x.frame,
+    y,
+    test = dbartsData(frame.align.new, rnorm(n.align))@x
+  ),
+  pattern = "has levels not present in the"
+)
 expect_error(
   rbart_vi(
     x.frame,

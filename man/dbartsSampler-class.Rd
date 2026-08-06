@@ -135,7 +135,10 @@
     An integer or character string vector specifying which column/columns of
     the predictor matrix is to be replaced or for which cuts should be used.
     When updating predictors, it can be missing and the entire matrix will be
-    substituted. For \code{setTestPredictor}, a per-column update is refused
+    substituted, which requires a dense design: a sparse or mixed
+    dense/sparse design is mutated one column at a time, naming \code{column}
+    (dense-backed and sparse-backed columns alike, and a single call may name
+    both kinds). For \code{setTestPredictor}, a per-column update is refused
     when the current test set is a data frame or sparse container rather
     than a plain matrix; replace the whole test set instead.
   }
@@ -147,7 +150,9 @@
     installs each observation's new value individually and rolls back only those
     observations whose value would empty a leaf, returning a per-observation
     logical of what was installed. \code{"partial"} requires a single \code{column}
-    and cannot be combined with \code{updateCutPoints}. When missing, defaults to
+    and cannot be combined with \code{updateCutPoints}; it also requires a
+    dense-backed column, since a sparse column's storage fixes its nonzero
+    pattern per cell - replace such a column whole instead. When missing, defaults to
     \code{TRUE} when the whole predictor matrix is being replaced (\code{column}
     is missing) and \code{FALSE} when a single column is being replaced.
   }

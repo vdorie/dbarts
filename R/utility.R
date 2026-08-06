@@ -396,6 +396,22 @@ predictorSourceIsSparse <- function(x) {
     (inherits(x, "dbartsMixedMatrix") && any(x$map < 0L))
 }
 
+## Whether predictor column 'column' (1-based) of a predictor source is
+## CSC-backed - the columns whose values live in the sparse block rather than a
+## dense vector, and so the ones whose mutation is whole-column only. Every
+## column of a dgCMatrix is; a container reads the sign of its map; a plain
+## matrix has none. An out-of-range column reports FALSE, leaving the range
+## error to the caller that knows the bound.
+predictorColumnIsSparseBacked <- function(x, column) {
+  if (inherits(x, "dgCMatrix")) {
+    return(TRUE)
+  }
+  if (!inherits(x, "dbartsMixedMatrix")) {
+    return(FALSE)
+  }
+  isTRUE(x$map[column] < 0L)
+}
+
 ## The dense predictor matrix the re-quantize/replay bridges consume from the
 ## R side (setCutPoints, setState, saved-tree getTrees, and the low-level
 ## handle's tracked source). A plain matrix passes through; a dense-backed
@@ -523,6 +539,94 @@ mapFactorColumnsToTrainingLevels <- function(
     }
     x.test[[name]] <- refactored
   }
+  x.test
+}
+
+## Re-code an assembled predictor container's factor columns against the
+## training level tables, so a container built elsewhere - carrying whatever
+## level order its own data implied - means by each code what the training
+## design means. remapSparseFactorToTrainingLevels' treatment generalized from
+## a loose sparseFactor to a container: a CSC-backed column's stored codes, its
+## reference code, and its declared level count all lift together, and the
+## stored pattern is left alone (re-coding is a bijection on levels, so a
+## non-reference entry stays non-reference); a dense-backed column is a real
+## factor in $dense and re-levels directly. Columns are matched to the training
+## design the way validateXTest's reorder matches them: by name when both sides
+## carry unique names, by position otherwise. A level the training data never
+## saw has no code and errors, exactly as the dense factor path does.
+alignContainerFactorLevels <- function(x.test, predictorNames, factorLevels) {
+  containerLevels <- attr(x.test, "factor.levels")
+  if (is.null(containerLevels)) {
+    return(x.test)
+  }
+  containerNames <- x.test$columnNames
+  positions <- if (
+    !is.null(predictorNames) &&
+      !is.null(containerNames) &&
+      anyDuplicated(predictorNames) == 0L
+  ) {
+    match(predictorNames, containerNames)
+  } else {
+    seq_along(factorLevels)
+  }
+
+  for (j in seq_along(factorLevels)) {
+    trainingLevels <- factorLevels[[j]]
+    position <- positions[j]
+    if (
+      is.null(trainingLevels) ||
+        is.na(position) ||
+        position > length(x.test$map)
+    ) {
+      next
+    }
+    oldLevels <- containerLevels[[position]]
+    if (is.null(oldLevels) || identical(oldLevels, trainingLevels)) {
+      next
+    }
+    name <- if (!is.null(predictorNames)) predictorNames[j] else as.character(j)
+    source <- x.test$map[position]
+    if (source > 0L) {
+      column <- x.test$dense[[source]]
+      if (!is.factor(column)) {
+        next
+      }
+      refactored <- factor(as.character(column), levels = trainingLevels)
+      if (anyNA(refactored) && !anyNA(column)) {
+        stop(
+          "test data factor '",
+          name,
+          "' has levels not present in the training data"
+        )
+      }
+      x.test$dense[[source]] <- refactored
+    } else {
+      rank <- -source
+      pointers <- x.test$sparse@p
+      entries <- seq.int(
+        pointers[rank] + 1L,
+        length.out = pointers[rank + 1L] - pointers[rank]
+      )
+      codes <-
+        match(oldLevels[x.test$sparse@x[entries] + 1], trainingLevels) - 1L
+      reference <-
+        match(oldLevels[x.test$sparseReference[rank] + 1L], trainingLevels) - 1L
+      if (anyNA(codes) || is.na(reference)) {
+        stop(
+          "test data factor '",
+          name,
+          "' has levels not present in the training data"
+        )
+      }
+      # slot surgery, never Matrix's `[<-`: its drop0 is matrix-wide and would
+      # strip the explicit zeros the container's other columns hold
+      x.test$sparse@x[entries] <- as.double(codes)
+      x.test$sparseReference[rank] <- as.integer(reference)
+      x.test$sparseCategoryCount[rank] <- length(trainingLevels)
+    }
+    containerLevels[[position]] <- trainingLevels
+  }
+  attr(x.test, "factor.levels") <- containerLevels
   x.test
 }
 
