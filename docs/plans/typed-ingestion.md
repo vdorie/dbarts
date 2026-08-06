@@ -200,44 +200,86 @@ inputs re-coded by the wrapper wait for the view (2b). Neutrality:
 every currently-accepted path stays bitwise (trio); currently-refused
 paths become capability.
 
+Critique record (2026-08-06, refuting): BLOCKER x2 + 7 weaknesses,
+folded in below. Verified sound: the refCode-keyed engine rule on
+both storage tiers (16/16 probe assertions incl. NaN; identity
+bitwise inert; dense-equivalent exact since codeFor(refCode) ==
+refCode); rollback (snapshotCscColumn restores byte-for-byte);
+the transaction is all-or-nothing (runPredictorTransaction prechecks
+then applies-or-restores all - no partial state); per-observation and
+setData refusals survive the lift independently (bridge
+columnIsCscBacked guards); a LEVEL-PERMUTED container needs NO
+pattern rebuild - re-coding is a bijection on levels, so
+non-reference cells stay non-reference (the orchestrator's rebuild
+premise refuted; C1/C4 do not regress). The blockers: Matrix [<-
+runs drop0 MATRIX-WIDE (writing one column corrupts every explicit
+zero in the container mirror, untouched categorical columns
+included), and a remapped container also needs its declared K lifted
+or resolveCscCategoricalReferences falsely refuses.
+
 1. Engine: mutateCscColumnFromDense keys the nonzero pattern on the
    column's kind - ordinal {i : value != 0} unchanged, categorical
-   {i : code != refCode} with NA stored - so codes stay bitwise
-   identical to a dense build of the same values; updateCuts
-   continues to skip categorical grids. tests/cpp: identity
-   re-install on a categorical CSC column is a bitwise no-op; a
-   genuine change repartitions identically to the dense-equivalent
-   store.
-2. R5: installPredictorColumns gains the sparse-backed branch of a
-   mixed container (whole-column: write through the container's
-   sparse slot at the column's rank; sparseReference and
-   sparseCategoryCount are creation-pinned, untouched); the wholesale
-   mixed refusal in setPredictor/updatePredictor (R/bartcore.R)
-   lifts, keeping today's upstream refusals for per-observation and
-   partial mutation of sparse-backed columns. data@x is maintained
-   only on acceptance (the installPredictorColumns-after-.Call
-   pattern).
+   {i : code != refCode} with NA stored (NaN != refCode). tests/cpp
+   asserts on CODES, not the stored pattern (a hand-built
+   non-canonical sparseFactor makes an identity re-install a
+   pattern change while staying code-inert): identity bitwise
+   no-op; genuine change matches the dense-equivalent build.
+2. R5: installPredictorColumns dispatches PER COLUMN on
+   sign(x$map[columns[k]]) (a mixed updatePredictor can name both
+   kinds in one call); the sparse-backed branch is DIRECT SLOT
+   SURGERY on x$sparse@i/@p/@x - splice the column's entries out and
+   the new {i : code != sparseReference[k]} entries in, shifting @p -
+   NEVER Matrix [<- (its drop0 is matrix-wide and strips the
+   explicit zeros a non-first-level reference requires; disqualified
+   for the ordinal branch too). sparseReference/sparseCategoryCount
+   stay creation-pinned. Compute the new slots BEFORE the .Call so
+   the post-acceptance install cannot throw and leave data@x stale.
+   The wholesale mixed refusal (R/bartcore.R ~57) lifts for
+   column-granular setPredictor/updatePredictor; the WHOLE-MATRIX
+   refusal (~127) STAYS - its install path would replace the
+   container with a bare matrix (recorded door, 2b); its test in
+   test-data-mixed.R changes text only. The per-observation refusal
+   NARROWS to sparse-backed columns (x$map[column] < 0): the
+   engine deliberately keeps dense-backed per-observation mutation
+   open (the IRT latent case, sparse-columns.md Extension (i)).
 3. Bridge/C API: refuseCscCategoricalMutation (slice 0) deletes from
    bartcore_setPredictor/updatePredictor and both dbarts_sampler_*
    entries once 1-2 hold; its refusal tests flip to acceptance cases
    with fits equal to the dense-equivalent design.
-4. Alignment (the slice-0 residual): container test inputs at the
-   R/data.R seams get the mapFactorColumnsToTrainingLevels treatment
-   - factor columns of a foreign container re-code against the
-   training factor.levels tables; genuinely-new levels refuse with
-   the existing message; the level-permuted in-range case then fits
-   IDENTICALLY to its aligned equivalent.
-5. tinytest: mutation over mixed designs x {dense-backed, sparse
-   ordinal, sparse categorical} x {whole-matrix, single-column};
-   rollback on a refused update leaves data@x untouched; alignment
-   acceptance and refusal; the flat C API mirror.
-6. Out of scope, unchanged: sparse x.test as bare dgCMatrix, the
-   streaming range kernel, per-column u8 widths (sparse-extensions.md
-   Status), the 2b view consolidation.
+4. Alignment (the slice-0 residual): one container branch at the
+   validateXTest funnel (R/data.R) covers every entrance (creation,
+   setTestPredictor, predict, getTrees) by construction. Re-code a
+   foreign container's factor columns - sparse AND dense-backed, the
+   latter stored as real factors in $dense - against the training
+   factor.levels tables via the remapSparseFactorToTrainingLevels
+   treatment (rebuild with levels = trainingLevels), which lifts
+   codes, reference, AND sparseCategoryCount together; genuinely-new
+   levels refuse with the existing message; the level-permuted case
+   then fits IDENTICALLY to its aligned equivalent (critique p4
+   verified end-to-end). Sparse @x remaps by slot surgery, not [<-.
+5. tinytest: column-granular mutation over mixed designs x
+   {dense-backed, sparse ordinal, sparse categorical} x
+   {setPredictor(column), multi-column updatePredictor incl. mixed
+   kinds in one call}; a sparseFactor with reference != levels[1]
+   (the only shape with explicit zeros - no existing test has one);
+   mutate a sparse ordinal column beside a sparse categorical one
+   and assert the categorical data@x slice bit-unchanged; a
+   save/re-create round trip (fresh sampler from mutated data@x
+   matches the mutated sampler - the only real mirror gate);
+   rollback leaves data@x untouched; alignment acceptance + refusal;
+   the flat C API mirror.
+6. Docs in the SAME commit: NEWS bullet (mixed-container column
+   mutation now supported; the stale "deferred at the R level"
+   bullet corrected); man/dbartsSampler-class.Rd mutation prose;
+   fix man/dbarts.Rd's stale claim that the dgCMatrix mutation
+   surface is fixed at creation (extension (i) falsified it).
+7. Out of scope, unchanged: whole-matrix setPredictor on mixed
+   designs (door above), sparse x.test as bare dgCMatrix, the
+   streaming range kernel, per-column u8 widths, the 2b view.
 
 ## Slice 2a verification
 
 Slice-1 battery minus categorical-exact (no grid change): R CMD
 INSTALL --preclean; tests/cpp clean-build + ASAN; full tinytest; trio
-bitwise; air format --check .; full local R CMD check (R and tests
-move); CI incl. sanitizers green.
+bitwise; air format --check .; full local R CMD check (R, Rd, and
+tests move); CI incl. sanitizers green.
