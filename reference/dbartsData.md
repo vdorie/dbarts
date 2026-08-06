@@ -58,14 +58,23 @@ Data frame columns - through the formula interface or a frame passed as
   formula path refuses one explicitly).
 
 Factor level tables are retained so that test data are coded
-identically; `test` accepts the same column types as `x.train`,
-including `sparseFactor` and sparse ordinal columns. A `sparseFactor` or
-sparse ordinal test column recodes over the training level table and
-stays resident - through creation and `setTestPredictor` - rather than
-densifying at ingestion, the same storage tier rule as training.
-`predict` and `getTrees(newdata = )` code a test set the same way and
-then materialize it to a dense matrix at the call boundary, since those
-entry points evaluate already-built trees on resolved values.
+identically, and a categorical predictor's category count is the
+*declared* level table rather than the levels the training rows happen
+to take. A level declared but unobserved in training therefore keeps its
+own bin, and test or replacement data carrying it are accepted at every
+entrance (creation, `setTestPredictor`, `predict`, `setPredictor`); this
+holds equally for dense factors, `sparseFactor` columns, and dense
+factors inside a mixed dense/sparse frame. Drop unused levels before
+fitting ([`droplevels`](https://rdrr.io/r/base/droplevels.html)) if you
+would rather they not be modeled. `test` accepts the same column types
+as `x.train`, including `sparseFactor` and sparse ordinal columns. A
+`sparseFactor` or sparse ordinal test column recodes over the training
+level table and stays resident - through creation and
+`setTestPredictor` - rather than densifying at ingestion, the same
+storage tier rule as training. `predict` and `getTrees(newdata = )` code
+a test set the same way and then materialize it to a dense matrix at the
+call boundary, since those entry points evaluate already-built trees on
+resolved values.
 
 Data frame input is stored columnar: no \\n \times p\\ double matrix is
 retained. Code that previously reached into the data object's `x` slot

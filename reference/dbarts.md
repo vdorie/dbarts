@@ -300,9 +300,13 @@ dbarts(
   `"categorical"` keeps each unordered factor as a single predictor
   whose splits send a subset of its levels (at most 65535) down each
   branch, and codes ordered factors as ordinal; level tables are
-  retained so that test data are coded identically. `"indicators"`
-  expands each factor into binary indicator columns, as previous
-  versions always did and as
+  retained so that test data are coded identically. The number of
+  categories is the declared level table, not the levels the training
+  rows happen to take, so a declared but unobserved level keeps its own
+  bin and test or replacement data carrying it are accepted
+  ([`droplevels`](https://rdrr.io/r/base/droplevels.html) beforehand to
+  model only the observed levels). `"indicators"` expands each factor
+  into binary indicator columns, as previous versions always did and as
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) still
   does.
 
