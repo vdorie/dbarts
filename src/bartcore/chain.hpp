@@ -1086,6 +1086,12 @@ public:
       if (response_->workingWeightsVaryPerSweep())
         forests_[0].leaf.invalidateStatistics();
   }
+  /// Deliberately unguarded, even for a model whose sigma is structurally
+  /// pinned: both restore paths (setState and installForest) reinstall
+  /// state.sigma through it - the donor's own pinned value, so the write is
+  /// benign - and a chain-level refusal would break every binary and
+  /// heteroscedastic state restore. The user-facing change is refused at the
+  /// bridge instead (refusePinnedSigmaChange).
   void setSigma(double sigmaOriginalScale) {
     sigma_ = sigmaOriginalScale / response_->sigmaScale();
   }

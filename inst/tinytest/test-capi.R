@@ -247,6 +247,16 @@ twinLL <- dbinom(yRep, 1L, pnorm(etaBin), log = TRUE)
 finite <- is.finite(twinLL)
 expect_equal(rBinLL$loglik[finite], twinLL[finite], tolerance = 1e-9)
 
+# dbarts_sampler_setSigma carries the same family rule as the R bridge entry:
+# a probit sampler's sigma is pinned at 1 by the model definition, so a write
+# would persist (no redraw corrects it) and rescale every leaf posterior
+# precision. ptrFixed above is the permitted case - gaussian with
+# resid.prior = fixed(), the outer-Gibbs conduit
+expect_error(
+  CALL("capi_set_sigma", ptrBinary, 0.5),
+  "response family fixes the residual standard deviation"
+)
+
 # tree storage, prediction, and the state round trip stan4bart's
 # predict-after-reload uses
 CALL("capi_set_tree_storage", ptr1, TRUE, nSamples)

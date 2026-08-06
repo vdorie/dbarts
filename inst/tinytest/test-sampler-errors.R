@@ -108,6 +108,75 @@ expect_identical(sampler$getSigmas(), sigmasBefore)
 expect_error(sampler$setSigma(-1), "'sigma' must be positive")
 expect_identical(sampler$getSigmas(), sigmasBefore)
 
+# a well-formed value is installed on the gaussian sampler the rejections above
+# left untouched
+sampler$setSigma(2)
+expect_equal(sampler$getSigmas(), 2)
+
+# setSigma is refused where the residual standard deviation is not a free
+# parameter: the binary/latent families pin it at 1 by the model definition,
+# and a heteroscedastic sampler's variance forest owns the residual scale. In
+# both cases the value would be installed with the redraw that corrects it
+# gated off, silently rescaling every leaf posterior precision. The predicate
+# is the FAMILY, not "sigma is fixed": a gaussian resid.prior = fixed()
+# sampler pins sigma too, and driving it per sweep is the supported outer-Gibbs
+# conditioning idiom, asserted positively below.
+xErr <- cbind(x = testData$x)
+yBinary <- as.double(testData$z.0)
+sampler.probit <- dbarts::dbarts(
+  xErr,
+  yBinary,
+  family = "probit",
+  control = control
+)
+expect_error(
+  sampler.probit$setSigma(2),
+  "response family fixes the residual standard deviation"
+)
+sampler.logistic <- dbarts::dbarts(
+  xErr,
+  yBinary,
+  family = "logistic",
+  control = control
+)
+expect_error(
+  sampler.logistic$setSigma(2),
+  "response family fixes the residual standard deviation"
+)
+
+sampler.variance <- dbarts::dbarts(
+  y ~ x + z,
+  train,
+  control = control,
+  variance = TRUE,
+  n.trees.variance = 10L
+)
+expect_error(
+  sampler.variance$setSigma(2),
+  "variance forest owns the residual scale"
+)
+
+# the two permitted fixed-sigma cases: gaussian + resid.prior = fixed() (the
+# outer-Gibbs conduit stan4bart's mvbart drives) and aft, whose sigma is drawn
+# conjugately like gaussian's
+sampler.fixed <- dbarts::dbarts(
+  y ~ x + z,
+  train,
+  resid.prior = fixed(1),
+  control = control
+)
+sampler.fixed$setSigma(0.4)
+expect_equal(sampler.fixed$getSigmas(), 0.4)
+
+sampler.aft <- dbarts::dbarts(
+  xErr,
+  cbind(time = exp(scale(testData$y)[, 1L]), status = testData$z.0),
+  family = "aft",
+  control = control
+)
+sampler.aft$setSigma(0.7)
+expect_equal(sampler.aft$getSigmas(), 0.7)
+
 rm(
   n,
   sampler,
@@ -120,7 +189,14 @@ rm(
   weightsBad,
   offsetBad,
   offsetBefore,
-  sigmasBefore
+  sigmasBefore,
+  xErr,
+  yBinary,
+  sampler.probit,
+  sampler.logistic,
+  sampler.variance,
+  sampler.fixed,
+  sampler.aft
 )
 
 rm(testData)
