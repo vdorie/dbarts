@@ -142,23 +142,17 @@ items
     multi-forest setResponse, zero harness edits; the R=200 bcf
     acceptance-arm verdict records as an addendum in
     docs/plans/runsbcbcf-repair.md).
-  multiforest-mutation-gaps: IN PROGRESS, own plan file now the
-    record (docs/plans/multiforest-mutation-gaps.md). Commit 1 LANDED
-    d489986 2026-08-06: multinomial setOffset/setTreatment refuse
-    (softmax null direction), BCF setOffset(TRUE/NA) refuses (a
-    fourth, unrecorded decalibration hole), the multinomial train
-    offset refused at creation and the TEST offset refused
-    post-creation (H1: it was added to the K channels after the
-    softmax blend - probabilities left the simplex), flat-C-API
-    defensive symmetry. Queue, all design+critique verified: open
-    BCF setWeights under the existing opt-in; leaf.scale rides the
-    state as an append-only block (INSTALL - the critique refuted
-    the original (fitMin,fitMax) guard as orthogonal to the leaf
-    calibration); H2 setSigma guard on models whose sigma is not
-    free (probit/logistic/multinomial/heteroscedastic; the
-    supported R5 setSigma reaches it; family predicate + the
-    hasVarianceForest blocking clause; sigmaIsFixed_ alone would
-    break the documented gaussian-fixed Gibbs conduit).
+  multiforest-mutation-gaps: LANDED, all four commits 2026-08-06
+    (d489986 offset/treatment guards incl. the BCF setOffset(TRUE)
+    decalibration hole and the multinomial test-offset simplex
+    corruption; ae7da51 BCF setWeights under the existing opt-in;
+    a7eb03d leaf.scale rides the state as an append-only per-forest
+    block, installed at setState AND installForests; ef61b39
+    refusePinnedSigmaChange on fixed-sigma families + heteroscedastic,
+    gaussian-fixed() Gibbs conduit stays open). Record:
+    docs/plans/multiforest-mutation-gaps.md. Doors left open there:
+    n x K multinomial offset (no demand); BCF whole-data setData
+    (applyNewData is still forest-0-only).
   setpredictor-leafof-rebuild: CLOSED 2026-08-05 (memo executed under
     the proceed-at-discretion grant) - the leafOf rebuild is only ~21%
     of the regression and every leafOf-scoped mechanism's measured
