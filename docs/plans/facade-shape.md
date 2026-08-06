@@ -77,5 +77,5 @@ bitwise. Six amendments folded in here.
 - cd tests/cpp && make clean && make && ./test_bartcore: all pass.
   Local ASAN build (detect_container_overflow=0) clean; CI sanitizer
   watched to green before landing more on top.
-- R CMD INSTALL --preclean .; full tinytest (3484, test-capi.R
+- R CMD INSTALL --preclean .; full tinytest (3509, test-capi.R
   included); equivalence trio bitwise via the dedicated harnesses.
