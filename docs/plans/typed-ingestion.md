@@ -174,5 +174,18 @@ than maxCategories are ignored (inferred governs; R caps at 65535
 anyway); the tier-crossing restore test constructs the pre-slice-1
 state shape rather than replaying a literal old state.
 
-Slice 2 (the PredictorSource view + sparse mutation-shape lift)
-remains: step list + critique before implementation.
+Slice 2 remains, SUB-SLICED 2026-08-06 (orchestrator, under the
+grant): 2a the mutation-shape lift + the alignment residual - R5-side
+maintenance of mixed containers under mutation (installPredictorColumns
+maintains only pure dgCMatrix today; R/bartcore.R refuses mixed
+wholesale), the engine pattern rule keyed on refCode for categorical
+CSC columns (mutateCscColumnFromDense's {i : value != 0} is the
+ordinal rule; categorical is {i : code != refCode}), the slice-0
+refusals lifted once both hold, and foreign-container level-order
+alignment via the training factor.levels tables (the R-side
+mapFactorColumnsToTrainingLevels treatment, today applied only to
+data.frame test inputs at R/data.R). 2b the PredictorSource view
+consolidation proper (the 9 SamplerOptions ingestion fields, the
+7-arg setTestData, the mutation entries -> one spelling). Each
+sub-slice: step list here + refuting critique before implementation,
+2a first (user-facing; 2b is hygiene).
