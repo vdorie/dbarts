@@ -1,5 +1,6 @@
 # csc-code-validation
 
+status: LANDED df79f17 2026-08-05, all CI green incl. sanitizers
 agent: opus
 rng: neutral
 budget: ~400 lines (creation validator rewrite, one new container
@@ -92,3 +93,25 @@ installForests (buildFromFlatBelow bounds masks) are verified safe.
   multinomial-equivalence-ec2a3d0).
 - tests/cpp make && ./test_bartcore unchanged-green; CI incl.
   sanitizers to green before landing more on top.
+
+## Landing
+
+- df79f17 (396+/37-): validateCategoricalPredictors rewritten per
+  step 1; validateTestContainerAgainstStore at both container
+  entrances; refuseCscCategoricalMutation at bartcore_setPredictor/
+  updatePredictor and both flat C API predictor entries;
+  mutateCscColumnFromDense comment corrected; 25 tinytest assertions
+  (suite total 3509).
+- Two deviations, both accepted at review: the mutation guard keys on
+  CSC-backed CATEGORICAL columns only (the literal any-CSC predicate
+  would break the documented dgCMatrix ordinal per-column mutation
+  path, test-data-sparse.R); dbarts_sampler_updatePredictor is
+  guarded too (identical hazard, unnamed in the plan).
+- Gates run independently at review on top of the implementer's own
+  battery: INSTALL --preclean; tests/cpp clean-build all pass;
+  tinytest 3509/0; trio bitwise (27/27, 5 BCF scenarios x 6 channels,
+  3 multinomial x 5); air clean; R CMD check Status OK; all six CI
+  legs green incl. sanitizers.
+- Residual as recorded in Constraints: a level-order-permuted
+  in-range container is still accepted; semantic alignment belongs to
+  typed-ingestion.

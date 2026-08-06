@@ -58,21 +58,16 @@ items
     Exposing the per-sweep callback on dbartsSampler$run is a perf-only
     convenience, not a gate (demoted in the design doc).
     causal-motivated, decision-gated.
-  csc-code-validation: URGENT guard out of the 2026-08-05 typed-
-    ingestion probe (docs/plans/csc-code-validation.md; probe record
-    in typed-ingestion.md Survey). The CSC declared-K path never
-    bounds stored category codes - validateCategoricalPredictors
-    skips CSC-trained columns (dense x.test against them included)
-    and parseTestContainer bounds only the reference code (against
-    the container's OWN K, itself wrong) - giving a verified silent
-    mis-bin (inline), shift UB at code >= 64, and a heap-overread
-    (pooled K > 63), all R-reachable; the training-side slice and
-    CSC-test-vs-dense-train are equally exposed, and CSC-backed
-    setPredictor silently merges the reference level. Fix per the
-    refuting critique: validate the ingested VIEW against the
-    training-side K at creation and both container entrances, guard
-    the mutation entrance; bridge-only, rng neutral. typed-ingestion
-    slice 0.
+  csc-code-validation: LANDED df79f17 2026-08-05 (typed-ingestion
+    slice 0; docs/plans/csc-code-validation.md carries the critique
+    and landing records). Every categorical ingestion entrance now
+    bounds codes against the training-side K - the verified silent
+    mis-bin/shift-UB/heap-overread class is closed, and CSC-backed
+    categorical setPredictor/updatePredictor refuse at the bridge and
+    flat C API (the pattern rebuild silently merged the reference
+    level). Residual door: a level-order-permuted in-range foreign
+    container is still accepted (semantic alignment belongs to
+    typed-ingestion). Suite total 3509.
   facade-shape: surfaced by the 2026-08-05 facade review. SamplerBase
     carries ~25 count/capability virtuals (numForests,
     testFitsAreDefined, usesDart, supportsResponseMutation, ...) that
