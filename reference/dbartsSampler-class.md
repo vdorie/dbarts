@@ -218,8 +218,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   An integer or character string vector specifying which column/columns
   of the predictor matrix is to be replaced or for which cuts should be
   used. When updating predictors, it can be missing and the entire
-  matrix will be substituted. For `setTestPredictor`, a per-column
-  update is refused when the current test set is a data frame or sparse
+  matrix will be substituted, which requires a dense design: a sparse or
+  mixed dense/sparse design is mutated one column at a time, naming
+  `column` (dense-backed and sparse-backed columns alike, and a single
+  call may name both kinds). For `setTestPredictor`, a per-column update
+  is refused when the current test set is a data frame or sparse
   container rather than a plain matrix; replace the whole test set
   instead.
 
@@ -233,9 +236,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   and rolls back only those observations whose value would empty a leaf,
   returning a per-observation logical of what was installed. `"partial"`
   requires a single `column` and cannot be combined with
-  `updateCutPoints`. When missing, defaults to `TRUE` when the whole
-  predictor matrix is being replaced (`column` is missing) and `FALSE`
-  when a single column is being replaced.
+  `updateCutPoints`; it also requires a dense-backed column, since a
+  sparse column's storage fixes its nonzero pattern per cell - replace
+  such a column whole instead. When missing, defaults to `TRUE` when the
+  whole predictor matrix is being replaced (`column` is missing) and
+  `FALSE` when a single column is being replaced.
 
 - updateCutPoints:
 
