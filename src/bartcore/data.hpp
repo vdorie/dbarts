@@ -1222,31 +1222,35 @@ struct ColumnStore {
 
   /// Mutate CSC-backed column j from a new dense column of numObservations
   /// values (the mutation surface hands a dense column even for sparse
-  /// storage). The nonzero pattern is {i : value != 0}, so a stored NaN
-  /// (missing) stays stored and the minimal pattern a dense equivalent would
-  /// carry is produced - codes stay bitwise identical to a dense build of the
-  /// same values. When the pattern is unchanged the nonzero values re-quantize
-  /// IN PLACE (rank: nzCodes and zeroCode; densified: the codes segment); when
-  /// it changes the rank bitmap and index REBUILD (O(n / 64 + nnz)). The owned
-  /// slice repoints at the new nonzeros so later re-quantizes (setCutPoints,
-  /// state restore) read them. The storage tier (rank vs densified) is fixed
-  /// at build and never flips. updateCuts refreshes the ordinal cut grid from
-  /// the dense column exactly as the dense path does (the CSC cut builders fold
-  /// the same implicit zeros the dense column carries explicitly, so the grids
-  /// match). Ordinal columns only: a sparse CATEGORICAL column's implicit rows
-  /// read its reference code rather than a structural zero, so this pattern
-  /// rule would merge the reference level's rows with every cell holding code
-  /// 0 - the bridge refuses predictor mutation on a design carrying one. The
+  /// storage). The nonzero pattern is keyed on the column's KIND, since that
+  /// fixes what an implicit row reads: an ordinal column's implicit rows read a
+  /// structural zero, so the pattern is {i : value != 0}; a categorical
+  /// column's read the reference level's own level-order code, so the pattern
+  /// is {i : code != refCode}. Either way a stored NaN (missing) stays stored
+  /// (NaN compares unequal to both) and the minimal pattern a dense equivalent
+  /// would carry is produced - codes stay bitwise identical to a dense build of
+  /// the same values. When the pattern is unchanged the nonzero values
+  /// re-quantize IN PLACE (rank: nzCodes and zeroCode; densified: the codes
+  /// segment); when it changes the rank bitmap and index REBUILD
+  /// (O(n / 64 + nnz)). The owned slice repoints at the new nonzeros so later
+  /// re-quantizes (setCutPoints, state restore) read them. The storage tier
+  /// (rank vs densified) is fixed at build and never flips. updateCuts
+  /// refreshes the ordinal cut grid from the dense column exactly as the dense
+  /// path does (the CSC cut builders fold the same implicit zeros the dense
+  /// column carries explicitly, so the grids match); a categorical column has
+  /// no grid to refresh and keeps its creation-pinned category count. The
   /// caller snapshots for rollback first.
   void mutateCscColumnFromDense(size_t j, const double* column,
                                 bool updateCuts) {
     if (updateCuts && types[j] != ColumnType::categorical)
       refreshCutsForColumn(j, column);
 
+    const double implicitValue = types[j] == ColumnType::categorical
+      ? static_cast<double>(train.sources[j].refCode) : 0.0;
     std::vector<int> newRows;
     std::vector<double> newValues;
     for (size_t i = 0; i < numObservations; ++i)
-      if (column[i] != 0.0) {
+      if (column[i] != implicitValue) {
         newRows.push_back(static_cast<int>(i));
         newValues.push_back(column[i]);
       }

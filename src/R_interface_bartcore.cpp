@@ -28,7 +28,6 @@
 using std::size_t;
 using std::uint32_t;
 using bartcore_bridge::BartcoreHolder;
-using bartcore_bridge::refuseCscCategoricalMutation;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::validateColumnValues;
 
@@ -2019,28 +2018,6 @@ void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
              "new sampler instead", caller);
 }
 
-// mutateCscColumnFromDense (data.hpp) rebuilds a CSC-backed column's nonzero
-// pattern as {i : value != 0}, which is the minimal pattern for an ORDINAL
-// column but not for a categorical one: a categorical column's implicit rows
-// read its reference code, so every cell holding code 0 would become implicit
-// and re-read as that reference - an identity re-install silently merges two
-// levels. R/bartcore.R refuses predictor mutation of a sparse-bearing design
-// already; a direct .Call or a LinkingTo consumer reaches the engine without
-// it, so the same refusal has to stand here. Sparse ORDINAL columns keep their
-// column-granular mutation (docs/design/sparse-columns.md extension (i)); the
-// general fix is the sparse mutation-shape lift
-// (docs/plans/sparse-extensions.md). External linkage: the flat C API
-// (C_interface.cpp) reuses this guard on its own predictor entries.
-void refuseCscCategoricalMutation(const bartcore::SamplerBase& sampler,
-                                  const char* caller) {
-  const bartcore::ColumnStore& data = sampler.data();
-  for (size_t j = 0; j < data.numPredictors; ++j)
-    if (data.types[j] == bartcore::ColumnType::categorical &&
-        data.columnIsCscBacked(j))
-      Rf_error("%s: mutation of a mixed dense/sparse design is fixed at "
-               "creation; make a new sampler instead", caller);
-}
-
 void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
                           const double* values, size_t numValues) {
   if (store.types[column] != bartcore::ColumnType::categorical) return;
@@ -3639,7 +3616,6 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   refuseMutationOnView(*holder.sampler, "bartcore_setPredictor");
-  refuseCscCategoricalMutation(*holder.sampler, "bartcore_setPredictor");
   if (Rf_asLogical(forceUpdateExpr) != TRUE)
     refuseMultiForestTransactionalUpdate(*holder.sampler,
                                          "bartcore_setPredictor");
@@ -3671,7 +3647,6 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
   return unwindProtect([&, columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     refuseMutationOnView(*holder.sampler, "bartcore_updatePredictor");
-    refuseCscCategoricalMutation(*holder.sampler, "bartcore_updatePredictor");
     if (Rf_asLogical(forceUpdateExpr) != TRUE)
       refuseMultiForestTransactionalUpdate(*holder.sampler,
                                            "bartcore_updatePredictor");

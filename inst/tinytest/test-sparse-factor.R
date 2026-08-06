@@ -568,32 +568,40 @@ expect_equal(over.reference$sparseReference, 4L)
 expect_true(all(over.reference$sparse@x < 3))
 
 codeMessage <- "categorical test predictors must hold existing category codes"
+# A CONTAINER carries its own level table, so a code past the training count is
+# a level the training data never saw: the alignment funnel (validateXTest)
+# re-codes a foreign container against the training levels and refuses by name
+# before the code bound ever sees it. The code bound stays the backstop for
+# every view that carries no level table - a dense x.test matrix, and a
+# container whose levels DO line up but whose codes were planted past them
+# (below) - and for the training side.
+levelMessage <- "has levels not present in the training data"
 expect_error(
   dbarts(
     dbartsData(train.bound, y.bound, test = over.codes),
     control = boundControl
   ),
-  pattern = codeMessage
+  pattern = levelMessage
 )
 expect_error(
   dbarts(
     dbartsData(train.bound, y.bound, test = over.reference),
     control = boundControl
   ),
-  pattern = codeMessage
+  pattern = levelMessage
 )
-expect_error(sampler.bound$setTestPredictor(over.codes), pattern = codeMessage)
+expect_error(sampler.bound$setTestPredictor(over.codes), pattern = levelMessage)
 expect_error(
   sampler.bound$setTestPredictor(over.reference),
-  pattern = codeMessage
+  pattern = levelMessage
 )
 expect_error(
   sampler.bound$setTestPredictorAndOffset(over.codes, rep(0, 4L)),
-  pattern = codeMessage
+  pattern = levelMessage
 )
 expect_error(
   sampler.bound$setTestPredictorAndOffset(over.reference, rep(0, 4L)),
-  pattern = codeMessage
+  pattern = levelMessage
 )
 # the refusals are inert: no test store was installed
 expect_null(sampler.bound$data@x.test)
@@ -621,14 +629,14 @@ sampler.bound.dense <- dbarts(
 )
 expect_error(
   sampler.bound.dense$setTestPredictor(over.codes),
-  pattern = codeMessage
+  pattern = levelMessage
 )
 expect_error(
   dbarts(
     dbartsData(train.bound.dense, y.bound, test = over.reference),
     control = boundControl
   ),
-  pattern = codeMessage
+  pattern = levelMessage
 )
 
 # POOLED (more than 63 levels, the wide-mask kernel): the same bound, where an
@@ -647,14 +655,14 @@ over.pooled <- dbartsData(
 )@x
 expect_error(
   sampler.pooled$setTestPredictor(over.pooled),
-  pattern = codeMessage
+  pattern = levelMessage
 )
 expect_error(
   dbarts(
     dbartsData(train.pooled, y.pooled, test = over.pooled),
     control = boundControl
   ),
-  pattern = codeMessage
+  pattern = levelMessage
 )
 
 # TRAINING side: a container whose stored codes reach its own declared K is
@@ -681,13 +689,31 @@ sampler.saved <- dbarts(
   )
 )
 invisible(sampler.saved$run(20L, 5L))
-expect_error(
-  sampler.saved$predict(over.codes),
-  pattern = "categorical predictor values must be existing category codes"
-)
+expect_error(sampler.saved$predict(over.codes), pattern = levelMessage)
 expect_error(
   sampler.saved$getTrees(newdata = test.dense.over),
   pattern = "categorical predictor values must be existing category codes"
+)
+
+# the code bound is untouched where no level table can speak for the codes: a
+# container whose levels match training exactly leaves the alignment nothing to
+# do, so a planted code - stored or reference - goes straight to the bridge
+aligned.container <- dbartsData(
+  sparseFrame(c("b", "c", "b"), levels.small, "a"),
+  rnorm(3L)
+)@x
+planted.codes <- aligned.container
+planted.codes$sparse@x[1L] <- 7
+expect_error(
+  sampler.bound$setTestPredictor(planted.codes),
+  pattern = codeMessage
+)
+planted.reference <- aligned.container
+planted.reference$sparseReference[1L] <- 7L
+planted.reference$sparseCategoryCount[1L] <- 8L
+expect_error(
+  sampler.bound$setTestPredictor(planted.reference),
+  pattern = codeMessage
 )
 
 # NO FALSE REFUSALS: a container is judged on its codes, not on the K it
@@ -715,39 +741,236 @@ expect_inherits(
   "dbartsSampler"
 )
 
-# MUTATION GUARD: a predictor swap on a design carrying a sparse CATEGORICAL
-# column is refused at the bridge, not only in the R5 method - the dense-column
-# mutation path rebuilds the nonzero pattern from the replacement's nonzeros,
-# which would fold every cell holding code 0 into the reference level
-expect_error(
-  sampler.bound$setPredictor(
-    as.matrix(sampler.bound$data@x)[, 1L],
-    column = 1L
-  ),
-  pattern = "mutation of a mixed dense/sparse design is fixed at creation"
+# MUTATION LIFT: a design carrying a sparse CATEGORICAL column takes
+# column-granular mutation (docs/plans/typed-ingestion.md slice 2a). The engine
+# keys the replacement's nonzero pattern on the column's kind - {i : code !=
+# refCode} for a categorical column, not the ordinal {i : value != 0} - and the
+# R5 layer mirrors it into data@x, leaving the reference and the declared level
+# count creation-pinned.
+codes.bound <- as.matrix(sampler.bound$data@x)[, 2L]
+new.codes <- (codes.bound + 1) %% 3
+expect_silent(
+  sampler.bound$setPredictor(new.codes, column = 2L, forceUpdate = TRUE)
 )
+expect_equal(as.matrix(sampler.bound$data@x)[, 2L], new.codes)
+expect_equal(sampler.bound$data@x$sparseReference, 0L)
+expect_equal(sampler.bound$data@x$sparseCategoryCount, 3L)
+# the mirrored block stores exactly the non-reference cells
+expect_equal(diff(sampler.bound$data@x$sparse@p), sum(new.codes != 0))
+# a dense-backed column of the same design mutates alongside it
+expect_silent(
+  sampler.bound$setPredictor(
+    train.bound$x1 * 2,
+    column = 1L,
+    forceUpdate = TRUE
+  )
+)
+expect_equal(as.matrix(sampler.bound$data@x)[, 1L], train.bound$x1 * 2)
+
+# the flat entries the bridge exposes accept it too (an identity re-install, so
+# the data@x these bypass stays current), and the sampler still fits
 predictors.bound <- as.matrix(sampler.bound$data@x)
 storage.mode(predictors.bound) <- "double"
-expect_error(
-  .Call(
-    dbarts:::C_dbarts_bartcore_setPredictor,
-    sampler.bound$getPointer(),
-    predictors.bound,
-    TRUE,
-    FALSE
-  ),
-  pattern = "bartcore_setPredictor: mutation of a mixed dense/sparse design"
-)
-expect_error(
-  .Call(
-    dbarts:::C_dbarts_bartcore_updatePredictor,
-    sampler.bound$getPointer(),
-    predictors.bound[, 2L],
-    2L,
-    TRUE,
-    FALSE
-  ),
-  pattern = "bartcore_updatePredictor: mutation of a mixed dense/sparse design"
-)
-# the refusals are inert: the sampler still fits over its original design
+expect_true(.Call(
+  dbarts:::C_dbarts_bartcore_setPredictor,
+  sampler.bound$getPointer(),
+  predictors.bound,
+  TRUE,
+  FALSE
+))
+expect_true(.Call(
+  dbarts:::C_dbarts_bartcore_updatePredictor,
+  sampler.bound$getPointer(),
+  predictors.bound[, 2L],
+  2L,
+  TRUE,
+  FALSE
+))
 expect_true(all(is.finite(sampler.bound$run(10L, 10L)$train)))
+
+# the mutated sparse design draws exactly as the dense-equivalent design does
+dense.bound <- data.frame(
+  x1 = train.bound$x1,
+  f = factor(labels.bound, levels = levels.small)
+)
+mutationGate <- function(frame, seed) {
+  set.seed(seed)
+  sampler <- dbarts(frame, y.bound, sigma = 1.0, control = boundControl)
+  invisible(sampler$run(5L, 5L))
+  invisible(sampler$setPredictor(new.codes, column = 2L, forceUpdate = TRUE))
+  sampler$run(0L, 10L)
+}
+result.mutated.sparse <- mutationGate(train.bound, 4242L)
+result.mutated.dense <- mutationGate(dense.bound, 4242L)
+expect_identical(result.mutated.sparse$train, result.mutated.dense$train)
+expect_identical(result.mutated.sparse$sigma, result.mutated.dense$sigma)
+
+# EXPLICIT ZEROS: a reference level that is not levels[1] is the only shape
+# whose sparse block stores code 0 explicitly, so it is the shape a matrix-wide
+# drop0 would silently corrupt. Mutating a sparse ORDINAL column beside it must
+# leave the categorical column's cells bit-identical.
+set.seed(84L)
+n.zero <- 120L
+labels.zero <- sample(levels.small, n.zero, replace = TRUE)
+frame.zero <- data.frame(x1 = rnorm(n.zero))
+frame.zero$g <- sparseFactor(
+  labels.zero,
+  levels = levels.small,
+  reference = "b"
+)
+frame.zero$s <- Matrix::sparseVector(
+  x = 0.5 + runif(10L),
+  i = sort(sample.int(n.zero, 10L)),
+  length = n.zero
+)
+y.zero <- rnorm(n.zero) + match(labels.zero, levels.small)
+sampler.zero <- dbarts(frame.zero, y.zero, control = boundControl)
+invisible(sampler.zero$run(5L, 5L))
+categorical.rank <- -sampler.zero$data@x$map[2L]
+entriesFor <- function(container, rank) {
+  pointers <- container$sparse@p
+  seq.int(
+    pointers[rank] + 1L,
+    length.out = pointers[rank + 1L] - pointers[rank]
+  )
+}
+zeros.before <- sum(
+  sampler.zero$data@x$sparse@x[entriesFor(
+    sampler.zero$data@x,
+    categorical.rank
+  )] ==
+    0
+)
+expect_true(zeros.before > 0L)
+categorical.before <- as.matrix(sampler.zero$data@x)[, 2L]
+
+new.ordinal <- numeric(n.zero)
+new.ordinal[c(3L, 40L, 99L)] <- c(1.5, 2.5, 3.5)
+expect_silent(
+  sampler.zero$setPredictor(new.ordinal, column = 3L, forceUpdate = TRUE)
+)
+expect_equal(as.matrix(sampler.zero$data@x)[, 3L], new.ordinal)
+expect_equal(as.matrix(sampler.zero$data@x)[, 2L], categorical.before)
+expect_equal(
+  sum(
+    sampler.zero$data@x$sparse@x[
+      entriesFor(sampler.zero$data@x, categorical.rank)
+    ] ==
+      0
+  ),
+  zeros.before
+)
+
+# and mutating the categorical column keeps the ordinal one bit-identical
+ordinal.before <- as.matrix(sampler.zero$data@x)[, 3L]
+new.zero.codes <- (as.matrix(sampler.zero$data@x)[, 2L] + 2) %% 3
+expect_silent(
+  sampler.zero$setPredictor(new.zero.codes, column = 2L, forceUpdate = TRUE)
+)
+expect_equal(as.matrix(sampler.zero$data@x)[, 2L], new.zero.codes)
+expect_equal(as.matrix(sampler.zero$data@x)[, 3L], ordinal.before)
+# the reference level is code 1 here, so the stored entries are the other two
+expect_equal(
+  diff(sampler.zero$data@x$sparse@p)[categorical.rank],
+  sum(new.zero.codes != 1)
+)
+
+# a rejected transactional update leaves data@x exactly as it was
+before.transaction <- as.matrix(sampler.zero$data@x)
+candidate <- rep(0.25, n.zero)
+accepted <- sampler.zero$setPredictor(candidate, column = 1L)
+after.transaction <- as.matrix(sampler.zero$data@x)
+expect_equal(
+  after.transaction[, 1L],
+  if (isTRUE(accepted)) candidate else before.transaction[, 1L]
+)
+expect_equal(after.transaction[, -1L], before.transaction[, -1L])
+
+# SAVE/RE-CREATE: the C sampler is rebuilt from data@x after a mutation, so a
+# restored continuation has to reproduce the mutated one
+stateControl <- dbartsControl(
+  n.trees = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.samples = 5L,
+  n.burn = 0L,
+  updateState = TRUE
+)
+sampler.state <- dbarts(frame.zero, y.zero, control = stateControl)
+invisible(sampler.state$run(5L, 5L))
+invisible(sampler.state$setPredictor(
+  new.ordinal,
+  column = 3L,
+  forceUpdate = TRUE
+))
+invisible(
+  sampler.state$setPredictor(new.zero.codes, column = 2L, forceUpdate = TRUE)
+)
+sampler.state$storeState()
+stateFile <- tempfile(fileext = ".rds")
+saveRDS(sampler.state, stateFile)
+sampler.restored <- readRDS(stateFile)
+invisible(file.remove(stateFile))
+set.seed(313L)
+run.mutated <- sampler.state$run(0L, 5L)
+set.seed(313L)
+run.recreated <- sampler.restored$run(0L, 5L)
+expect_equal(run.mutated$train, run.recreated$train)
+expect_equal(run.mutated$sigma, run.recreated$sigma)
+
+# ALIGNMENT: a foreign container - one assembled from another data set, so
+# carrying its own level order - is re-coded against the training level table
+# at the validateXTest funnel, and then predicts exactly as the equivalent
+# data frame does
+set.seed(85L)
+n.align <- 20L
+labels.align <- sample(levels.small, n.align, replace = TRUE)
+frame.align <- data.frame(x1 = rnorm(n.align))
+frame.align$f <- sparseFactor(
+  labels.align,
+  levels = rev(levels.small),
+  reference = "c"
+)
+container.align <- dbartsData(frame.align, rnorm(n.align))@x
+expect_equal(attr(container.align, "factor.levels")[[2L]], rev(levels.small))
+
+sampler.align <- dbarts(train.bound, y.bound, control = boundControl)
+sampler.align$setTestPredictor(container.align)
+aligned <- sampler.align$data@x.test
+expect_equal(
+  as.matrix(aligned)[, 2L],
+  as.double(match(labels.align, levels.small) - 1L)
+)
+expect_equal(aligned$sparseReference, 2L)
+expect_equal(aligned$sparseCategoryCount, 3L)
+
+frame.align.dense <- data.frame(
+  x1 = frame.align$x1,
+  f = factor(labels.align, levels = rev(levels.small))
+)
+alignmentGate <- function(test, seed) {
+  set.seed(seed)
+  dbarts(
+    train.bound,
+    y.bound,
+    sigma = 1.0,
+    test = test,
+    control = boundControl
+  )$run(5L, 10L)
+}
+expect_identical(
+  alignmentGate(container.align, 606L)$test,
+  alignmentGate(frame.align.dense, 606L)$test
+)
+
+# a level the training design never saw still refuses, by name
+frame.align.new <- data.frame(x1 = rnorm(3L))
+frame.align.new$f <- sparseFactor(
+  c("a", "z", "b"),
+  levels = c(levels.small, "z"),
+  reference = "a"
+)
+expect_error(
+  sampler.align$setTestPredictor(dbartsData(frame.align.new, rnorm(3L))@x),
+  pattern = levelMessage
+)

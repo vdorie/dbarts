@@ -237,8 +237,9 @@
             \code{updatePredictor}) re-quantize a sparse column in place
             when its nonzero pattern is unchanged and rebuild its layout
             when the set of nonzeros changes, with the transactional
-            roll-back a dense column has. Whole-matrix and per-observation
-            replacement of a sparse column, and \code{setData}, stay fixed
+            roll-back a dense column has. Whole-matrix replacement of a
+            sparse design, per-observation replacement of a sparse-backed
+            column, and \code{setData} stay fixed
             at creation. State serialization and \code{predict} work as
             usual. \code{rbart_vi} and \code{node.prior = linear()} do not
             yet support sparse inputs.
@@ -251,10 +252,18 @@
             all-sparse design does, while dense-backed columns keep the
             full feature set: factors still split categorically and
             \code{node.prior = linear()} may designate dense-backed
-            columns. Test data frames expand to dense matrices. Column
-            mutation of a mixed container is deferred at the R level (the
-            engine and flat C API accept it); \code{rbart_vi} still
-            requires dense inputs.
+            columns. A mixed design accepts between-sweep column
+            mutation - \code{sampler$setPredictor(x, column = j)} over
+            dense-backed and sparse-backed columns alike, including a
+            sparse \code{sparseFactor} column, and one call may name both
+            kinds - with per-observation updates
+            (\code{forceUpdate = "partial"}) open on dense-backed columns.
+            Whole-matrix replacement stays fixed at creation; replace
+            columns individually instead. A test data frame expands to a
+            dense matrix, and a predictor container built from other data
+            is re-coded against the training factor levels before it is
+            used, so its codes mean what the training design's mean.
+            \code{rbart_vi} still requires dense inputs.
       \item Categorical predictors support up to 65535 levels, up from
             53: rules on wider factors pool their direction masks per
             tree. In \code{getTrees} such a rule's \code{value} is \code{NA} (its mask

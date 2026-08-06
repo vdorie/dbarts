@@ -419,14 +419,24 @@ columns themselves).
   column (updatePredictorPerObservation writes cells one at a time, which rank
   storage cannot take without an O(nnz) shift per cell - replace the whole
   column with updatePredictor; dense-backed columns of a mixed store, the IRT
-  latent case, stay open); whole-matrix and per-observation replacement of a
-  sparse design at the R5 level (data@x maintenance); mixed-container mutation
-  at the R5 level (the container's sparse block is not yet rebuilt R-side - the
-  engine and flat C API accept it); setData whole-data replacement of a CSC
-  store; and CSC-backed categorical mutation (R never builds one). Save/load
-  after a mutation still re-creates from the stored dgCMatrix, so data@x must
-  reflect the mutation R-side (the dgCMatrix path maintains it via
-  installPredictorColumns; the container path is deferred).
+  latent case, stay open); whole-matrix replacement of a sparse design at the
+  R5 level (data@x maintenance); mixed-container mutation at the R5 level (the
+  container's sparse block is not yet rebuilt R-side - the engine and flat C
+  API accept it); setData whole-data replacement of a CSC store; and CSC-backed
+  categorical mutation (R never builds one). Save/load after a mutation still
+  re-creates from the stored dgCMatrix, so data@x must reflect the mutation
+  R-side (the dgCMatrix path maintains it via installPredictorColumns; the
+  container path is deferred).
+- SUPERSEDED 2026-08-06 by typed-ingestion.md slice 2a (mutation-shape lift):
+  mixed-container mutation and CSC-backed CATEGORICAL mutation are now
+  supported at every level. The engine keys a replacement's nonzero pattern on
+  the column's KIND - ordinal {i : value != 0}, categorical {i : code !=
+  refCode} - and installPredictorColumns maintains the container's sparse block
+  by direct slot surgery on @i/@p/@x (Matrix's [<- is disqualified: its drop0
+  is matrix-wide and strips every other column's explicit zeros, which a
+  reference level past levels[1] requires). The reference code and declared
+  level count stay creation-pinned. Whole-matrix replacement of a sparse design
+  and per-observation replacement of a sparse-backed column remain refused.
 
 Gates: tests/cpp testSparseMutation (store codes bitwise-match the dense
 builder after pattern-preserving and pattern-changing mutation across both

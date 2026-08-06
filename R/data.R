@@ -125,6 +125,15 @@ validateXTest <- function(x.test, x.train) {
     }
     x.test <- wrapSparseTestMatrix(x.test)
   }
+  # a container assembled elsewhere carries its own level order, so its factor
+  # columns - CSC-backed and dense-backed alike - are re-coded against the
+  # training tables before anything reads their codes. One branch at this
+  # funnel aligns every entrance (creation, setTestPredictor, predict,
+  # getTrees) by construction; a container this call built from a data frame
+  # was already coded against those tables, so it passes through untouched.
+  if (inherits(x.test, "dbartsMixedMatrix") && !is.null(factorLevels)) {
+    x.test <- alignContainerFactorLevels(x.test, predictorNames, factorLevels)
+  }
   # a sparse-backed container stays resident (the engine codes it against the
   # training cuts); everything else densifies as before
   xTestIsSparseContainer <-
