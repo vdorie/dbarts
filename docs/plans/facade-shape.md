@@ -1,5 +1,6 @@
 # facade-shape
 
+status: LANDED 40082c7 2026-08-06, all CI green incl. sanitizers
 agent: opus
 rng: neutral
 budget: ~800 lines (facade.hpp, ~143 call sites, new tests/cpp TU)
@@ -79,3 +80,23 @@ bitwise. Six amendments folded in here.
   watched to green before landing more on top.
 - R CMD INSTALL --preclean .; full tinytest (3509, test-capi.R
   included); equivalence trio bitwise via the dedicated harnesses.
+
+## Landing
+
+- 40082c7 (609+/245-): SamplerShape (21 fields) + shape() in
+  facade.hpp; the 21 virtuals, their forwards, and dead
+  numVarianceTrees deleted; 116 sites swept in
+  R_interface_bartcore.cpp, 27 in C_interface.cpp; registered
+  tests/cpp/test_shape.cpp oracles all 21 fields against a new const
+  impl() overload over SEVEN construction paths (constant gaussian,
+  linear, GP, ordinal, heteroscedastic, BCF, multinomial - beyond the
+  plan's minimum so every non-default field value is exercised).
+- Gates independently re-run at review on top of the implementer's
+  battery: tests/cpp clean-build 180 ok incl. the shape suite; local
+  ASAN/UBSAN run clean; INSTALL --preclean zero compiler warnings;
+  tinytest 3509/0; equivalence trio bitwise; all six CI legs green
+  incl. sanitizers.
+- Notes: the joint per-observation entry fetches one shape per
+  sampler (inherent to its multi-sampler loop, cold); the ASAN -O1
+  leg caught a non-inline static const in the new test that -O2 hid -
+  keep the ASAN build in the tests/cpp gate list.
