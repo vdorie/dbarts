@@ -123,7 +123,7 @@
     for a future per-call override.
   }
   \item{sigma}{
-    Numeric vector of residual standard deviations, one for each chain.
+    A single positive residual standard deviation, on the original response scale; it is assigned to every chain. \code{setSigma} only applies to a sampler whose residual standard deviation is a free parameter: it is refused on a probit-, logistic-, multinomial-, ordinal-, or count-family sampler, which fix it at 1 by the model definition, and on a heteroscedastic (\code{variance}) sampler, whose variance forest owns the residual scale. A gaussian sampler with \code{resid.prior = fixed()} is not fixed in this sense and is still accepted: suppressing the internal draw so an outer sampler owns \code{sigma} is what that prior is for.
   }
   \item{weights}{
     A numeric vector of non-negative case weights, of length equal to that with which the sampler was created. Weights of zero exclude an observation from the likelihood while keeping its fitted values. \code{setWeights} only applies to a gaussian-family sampler; calling it on a probit- or logistic-family sampler is refused, since a weighted probit has no tractable latent-variable form and logistic weights (observation counts) are fixed when the sampler is created. See \code{\link{dbarts}} for the family-specific weight rules that apply at creation time.

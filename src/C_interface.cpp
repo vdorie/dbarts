@@ -20,6 +20,7 @@
 using std::size_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseMultiForestMutation;
+using bartcore_bridge::refusePinnedSigmaChange;
 using bartcore_bridge::validateColumnValues;
 
 struct dbarts_sampler_t {
@@ -216,6 +217,10 @@ void dbarts_sampler_setWeights(dbarts_sampler* sampler,
 }
 
 void dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma) {
+  // reachable here: this entry creates probit/logistic/ordinal/nbinom samplers
+  // by family name, and dbartsSpec(variance = ) hands a consumer a
+  // heteroscedastic control (multinomial has no flat creation path)
+  refusePinnedSigmaChange(samplerOf(sampler), "dbarts_sampler_setSigma");
   samplerOf(sampler).setSigma(sigma);
 }
 

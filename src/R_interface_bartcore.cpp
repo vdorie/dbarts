@@ -29,6 +29,7 @@ using std::size_t;
 using std::uint32_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseMultiForestMutation;
+using bartcore_bridge::refusePinnedSigmaChange;
 using bartcore_bridge::validateColumnValues;
 
 namespace {
@@ -2020,6 +2021,32 @@ void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
              "new sampler instead", caller);
 }
 
+// A sampler whose residual sd is not a free parameter has none to set:
+// Chain::setSigma installs the value unconditionally and the constant-leaf
+// draws divide by sigma_ * sigma_, but sigmaIsFixed_ gates off the redraw that
+// would correct it, so the value silently rescales every leaf posterior
+// precision for the sampler's life. Two structurally pinned cases: a family
+// whose sigmaScale() is 1 by the model definition (probit and logistic - the
+// mark multinomial gives itself - and the latent-augmented ordinal/nbinom),
+// and a heteroscedastic variance forest, which IS the residual variance
+// (buildVarianceForest leaves family_ gaussian, so the family test alone would
+// miss it). Keyed on the family, NOT on sigmaIsFixed_: a gaussian sampler with
+// resid.prior = fixed() pins sigma too, and driving it per sweep is the
+// supported outer-Gibbs conditioning idiom (docs/design/correlated-outcomes.md).
+// External linkage: the flat C API reuses this on dbarts_sampler_setSigma.
+void refusePinnedSigmaChange(const bartcore::SamplerBase& sampler,
+                             const char* caller) {
+  bartcore::SamplerShape shape = sampler.shape();
+  if (shape.hasVarianceForest)
+    Rf_error("%s: this sampler's variance forest owns the residual scale; "
+             "there is no single sigma to set", caller);
+  if (shape.family != bartcore::ResponseFamily::gaussian &&
+      shape.family != bartcore::ResponseFamily::aft)
+    Rf_error("%s: this response family fixes the residual standard deviation "
+             "by definition; only gaussian and aft samplers carry a sigma to "
+             "set", caller);
+}
+
 void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
                           const double* values, size_t numValues) {
   if (store.types[column] != bartcore::ColumnType::categorical) return;
@@ -3266,6 +3293,7 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
 
 SEXP bartcore_setSigma(SEXP ptrExpr, SEXP sigmaExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  refusePinnedSigmaChange(*holder.sampler, "bartcore_setSigma");
   holder.sampler->setSigma(Rf_asReal(sigmaExpr));
   return R_NilValue;
 }

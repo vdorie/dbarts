@@ -105,6 +105,13 @@ void validateColumnValues(const bartcore::ColumnStore& store,
 void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
                                const char* caller);
 
+/// Errors on a sampler whose residual sd is structurally pinned - a family
+/// that fixes it by definition (probit, logistic, multinomial, ordinal,
+/// nbinom) or a heteroscedastic variance forest - where a change would
+/// silently rescale every leaf posterior precision. caller labels the error.
+void refusePinnedSigmaChange(const bartcore::SamplerBase& sampler,
+                             const char* caller);
+
 } // namespace bartcore_bridge
 
 #endif // R_INTERFACE_BARTCORE_COMMON_HPP

@@ -687,6 +687,26 @@ expect_error(
   dbarts:::bartcoreMultinomialSampler(samplerOffset, labels2, K = 2L),
   "do not support an offset"
 )
+# setSigma is refused for the same class of reason: the softmax chain marks
+# itself binary-sigma (sigmaScale() is 1 and the redraw is gated off), so a
+# value written here would persist and silently rescale every category
+# forest's leaf posterior precision
+samplerSigma <- dbarts(
+  x2,
+  as.double(labels2),
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 5L,
+    updateState = FALSE
+  )
+)
+bcSigma <- dbarts:::bartcoreMultinomialSampler(samplerSigma, labels2, K = 2L)
+expect_error(
+  .Call(dbarts:::C_dbarts_bartcore_setSigma, bcSigma$ptr, 5),
+  "response family fixes the residual standard deviation"
+)
+rm(samplerSigma, bcSigma)
 expect_error(extract(fit3, type = "bart"), "non-identified")
 expect_error(fitted(fit3, type = "bart"), "'arg' should be one of")
 # fit3 was built WITHOUT keepTrees, so it has no saved trees to replay
