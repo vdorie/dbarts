@@ -1249,9 +1249,11 @@ private:
   /// precheck that the cuts stay representable, then either collapse emptied
   /// leaves under forceUpdate or snapshot-apply and keep the change when
   /// revalidateAllChains holds, else restore the snapshot and repartition. The
-  /// engine keeps no predictor matrix, so the gathered leaf-covariate raw the
-  /// leaf models re-read is snapshotted here; the strategy owns the codes,
-  /// missing flags, and cut grids it moves.
+  /// engine keeps no predictor matrix, so the raw a reject must put back is
+  /// snapshotted here: the gathered leaf-covariate copies and, for a mixed
+  /// store, the owned dense block of the columns the strategy touches (the
+  /// strategy's own records carry no raw). The strategy owns the codes, missing
+  /// flags, and cut grids it moves.
   template <typename Strategy>
   PredictorUpdateResult runPredictorTransaction(Strategy& strategy,
                                                 bool forceUpdate,
@@ -1274,9 +1276,13 @@ private:
     }
 
     std::vector<double> oldGatheredRaw = data_.gatheredRawValues;
+    ColumnStore::OwnedDenseRollback oldOwnedDense;
+    data_.snapshotOwnedDenseColumns(strategy.columns, strategy.numColumns(),
+                                    oldOwnedDense);
     strategy.snapshotApply(updateCutPoints);
     if (!revalidateAllChains()) {
       data_.gatheredRawValues = std::move(oldGatheredRaw);
+      data_.restoreOwnedDenseColumns(oldOwnedDense);
       strategy.restore(updateCutPoints);
       for (auto& chain : chains_) chain->repartitionTrees();
       return PredictorUpdateResult::rolledBack;

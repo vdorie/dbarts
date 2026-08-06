@@ -576,6 +576,16 @@
   }
   \subsection{BUG FIXES}{
     \itemize{
+      \item Mutating a dense-backed column of a mixed dense/sparse predictor
+            container now updates the values the sampler re-reads, not only
+            its bins. Cut point installation (\code{setCutPoints}), a state
+            replay that reinstalls cut points (\code{setState}), and
+            \code{linear} and \code{gp} leaf covariates all see the mutated
+            column; each previously read the values the container was built
+            from, so the next requantization silently reverted the column's
+            bins and a leaf kept regressing on the original covariate. A
+            rejected transactional update leaves the values as they were.
+            Dense designs and pure \code{dgCMatrix} designs were unaffected.
       \item Under \code{factors = "categorical"}, a categorical predictor's
             category count is now the declared level table rather than the
             largest code the training rows happen to carry. A level declared

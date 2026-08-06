@@ -3037,9 +3037,16 @@ static void testMixedColumnStore() {
           !mixed.columnIsSparse(2) && !mixed.columnIsSparse(3) &&
           mixed.columnIsSparse(4),
           "the density threshold tiers the CSC-backed columns");
-    check(mixed.rawColumn(0) == fixture.denseSource.data() &&
-          mixed.rawColumn(2) == fixture.denseSource.data() + n &&
-          mixed.rawColumn(1) == nullptr && mixed.rawColumn(3) == nullptr,
+    // the store OWNS its dense block, so the served raw equals the host's by
+    // value rather than by address
+    bool rawServed = mixed.rawColumn(0) != nullptr &&
+      mixed.rawColumn(2) != nullptr &&
+      mixed.rawColumn(0) != fixture.denseSource.data();
+    for (size_t i = 0; i < n && rawServed; ++i)
+      rawServed = mixed.rawColumn(0)[i] == fixture.denseSource[i] &&
+        mixed.rawColumn(2)[i] == fixture.denseSource[i + n];
+    check(rawServed && mixed.rawColumn(1) == nullptr &&
+          mixed.rawColumn(3) == nullptr,
           "raw values are served exactly for dense-backed columns");
     check(mixed.hasMissing[0] == 0 && mixed.hasMissing[1] == 0 &&
           mixed.hasMissing[2] == 0 && mixed.hasMissing[3] == 0 &&
@@ -3233,6 +3240,195 @@ static void testMixedLinearLeaves() {
   ext_rng_destroy(rngB);
   ext_rng_destroy(rngA);
   printf("ok: mixed linear leaves\n");
+}
+
+// The store owns a mixed build's dense block, so a mutation writes the new
+// values through it and every later raw reader - a re-quantize against a
+// re-installed grid, a linear leaf's regather - sees the live column. A
+// rejected transaction puts the pre-change raw back.
+static void testMixedDenseOwnership() {
+  uint64_t savedRngState = rngState;  // leave the shared draw stream in place
+
+  // Part 1 - re-installing a column's own grid after a mutation changes no
+  // code: the re-quantize reads the mutated values.
+  {
+    const size_t n = 300;
+    MixedFixture fixture;
+    fixture.build(n, {0.05, 0.5, 0.6}, false);
+    ColumnStore mixed;
+    mixed.buildMixed(fixture.denseSource.data(), fixture.csc.pointers.data(),
+                     fixture.csc.rows.data(), fixture.csc.values.data(),
+                     fixture.sources.data(), n, fixture.p, nullptr, 100, false,
+                     fixture.types.data());
+
+    std::vector<double> newColumn(n);
+    for (size_t i = 0; i < n; ++i)
+      newColumn[i] = fixture.denseSource[i] * 1.3 + 0.2;
+    size_t columns[] = { 0 };
+    mixed.setColumns(newColumn.data(), columns, 1, true);
+
+    bool rawIsLive = true;
+    for (size_t i = 0; i < n; ++i)
+      rawIsLive &= mixed.rawColumn(0)[i] == newColumn[i];
+    check(rawIsLive, "a mutation writes the owned dense block");
+
+    std::vector<xint_t> codesBefore(n);
+    for (size_t i = 0; i < n; ++i) codesBefore[i] = mixed.codeAt(0, i);
+    std::vector<double> grid(mixed.cutPoints[0]);
+    mixed.setCutPointsForColumn(0, grid.data(),
+                                static_cast<std::uint32_t>(grid.size()),
+                                nullptr);
+    bool codesHeld = true;
+    for (size_t i = 0; i < n; ++i)
+      codesHeld &= mixed.codeAt(0, i) == codesBefore[i];
+    check(codesHeld,
+          "re-installing a mutated column's own grid changes no code");
+  }
+
+  // Part 2 - a linear leaf over a mutated dense-backed column regathers the
+  // mutated values, so the mixed sampler keeps matching its dense equivalent.
+  {
+    const size_t n = 300;
+    MixedFixture fixture;
+    fixture.build(n, {0.6, 0.9, 1.0}, false);  // all CSC sources densify
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i)
+      y[i] = (fixture.denseSource[i] > 0.0 ? fixture.denseSource[i + n] : 0.0) +
+             0.4 * runif01();
+
+    ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 771) != 0 ||
+        ext_rng_setSeed(rngB, 771) != 0) {
+      check(false, "mixed dense ownership: rng creation");
+      return;
+    }
+
+    size_t covariates[] = { 2 };  // dense-backed, so it serves raw
+    SamplerOptions denseOptions;
+    denseOptions.numTrees = 25;
+    denseOptions.leafCovariateColumns = covariates;
+    denseOptions.numLeafCovariates = 1;
+    SamplerOptions mixedOptions(denseOptions);
+    fixture.applyOptions(mixedOptions);
+
+    std::unique_ptr<SamplerBase> dense = createSampler(
+      fixture.full.data(), y.data(), n, fixture.p, nullptr, nullptr,
+      ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, denseOptions,
+      &rngA);
+    std::unique_ptr<SamplerBase> mixed = createSampler(
+      nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+      ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, mixedOptions,
+      &rngB);
+    check(dense != nullptr && mixed != nullptr,
+          "linear-leaf ownership samplers create");
+    if (dense == nullptr || mixed == nullptr) {
+      ext_rng_destroy(rngB);
+      ext_rng_destroy(rngA);
+      return;
+    }
+
+    Results burn;
+    dense->run(30, 0, burn);
+    mixed->run(30, 0, burn);
+
+    std::vector<double> newColumn(n);
+    for (size_t i = 0; i < n; ++i)
+      newColumn[i] = fixture.denseSource[i + n] * 1.4 - 0.3;
+    check(dense->updatePredictor(newColumn.data(), covariates, 1, true,
+                                 false) == PredictorUpdateResult::accepted &&
+          mixed->updatePredictor(newColumn.data(), covariates, 1, true,
+                                 false) == PredictorUpdateResult::accepted,
+          "forced leaf-covariate update accepts on both");
+
+    const size_t numSamples = 40;
+    std::vector<double> sigmaA(numSamples), sigmaB(numSamples);
+    std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
+    Results ra, rb;
+    ra.sigma = sigmaA.data(); ra.trainingFits = fitsA.data();
+    rb.sigma = sigmaB.data(); rb.trainingFits = fitsB.data();
+    dense->run(0, numSamples, ra);
+    mixed->run(0, numSamples, rb);
+    check(sigmaA == sigmaB && fitsA == fitsB,
+          "mutated linear-leaf covariate keeps the mixed and dense draws "
+          "bitwise identical");
+
+    ext_rng_destroy(rngB);
+    ext_rng_destroy(rngA);
+  }
+
+  // Part 3 - a rejected transaction restores the owned raw byte for byte, so
+  // the next re-quantize does not install the values it refused.
+  {
+    const size_t n = 260;
+    MixedFixture fixture;
+    fixture.build(n, {0.05, 0.5, 0.6}, false);
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i)
+      y[i] = 2.0 * fixture.denseSource[i] + fixture.csc.dense[i] +
+             0.3 * runif01();
+
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 1213);
+    SamplerOptions options;
+    options.numTrees = 25;
+    fixture.applyOptions(options);
+    ConstantLeafSampler mixed(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+    Results burn;
+    mixed.run(30, 0, burn);
+
+    // move the raw off its creation-time values first, so a rollback that
+    // reverted too far would show up as well as one that reverted too little
+    std::vector<double> mutated(n);
+    for (size_t i = 0; i < n; ++i)
+      mutated[i] = fixture.denseSource[i] * 1.2 + 0.15;
+    size_t column0[] = { 0 };
+    check(mixed.updatePredictor(mutated.data(), column0, 1, true, false) ==
+            PredictorUpdateResult::accepted,
+          "forced dense-backed update accepts");
+
+    auto rawSnapshot = [&](size_t j) {
+      const double* raw = mixed.data().rawColumn(j);
+      return std::vector<double>(raw, raw + n);
+    };
+    std::vector<double> raw0(rawSnapshot(0)), raw2(rawSnapshot(2));
+
+    // a whole-matrix constant swap empties one side of every split -> reject
+    std::vector<double> xConstant(n * fixture.p, 0.5);
+    check(mixed.setPredictor(xConstant.data(), false, false) ==
+            PredictorUpdateResult::rolledBack,
+          "degenerate mixed setPredictor rejected");
+    check(rawSnapshot(0) == raw0 && rawSnapshot(2) == raw2,
+          "whole-matrix rollback restores the owned dense raw");
+
+    std::vector<double> constantColumn(n, 0.5);
+    check(mixed.updatePredictor(constantColumn.data(), column0, 1, false,
+                                false) == PredictorUpdateResult::rolledBack,
+          "degenerate mixed updatePredictor rejected");
+    check(rawSnapshot(0) == raw0,
+          "single-column rollback restores the owned dense raw");
+
+    // the refused values must not reach the codes through a later re-quantize
+    std::vector<xint_t> codesBefore(n);
+    for (size_t i = 0; i < n; ++i) codesBefore[i] = mixed.data().codeAt(0, i);
+    std::vector<double> grid(mixed.data().cutPoints[0]);
+    const double* gridPointer = grid.data();
+    std::uint32_t numCutPoints = static_cast<std::uint32_t>(grid.size());
+    size_t requantized = 0;
+    mixed.setCutPoints(&gridPointer, &numCutPoints, column0, 1, nullptr);
+    for (size_t i = 0; i < n; ++i)
+      if (mixed.data().codeAt(0, i) != codesBefore[i]) ++requantized;
+    check(requantized == 0,
+          "a rolled-back transaction leaves nothing for setCutPoints to "
+          "install");
+
+    ext_rng_destroy(rng);
+  }
+
+  rngState = savedRngState;
+  printf("ok: mixed dense ownership\n");
 }
 
 static void testMixedStateRoundTrip() {
@@ -5899,6 +6095,7 @@ void runModelTests(ext_rng* rng) {
   testMixedColumnStore();
   testMixedEndToEnd();
   testMixedLinearLeaves();
+  testMixedDenseOwnership();
   testMixedStateRoundTrip();
   testGPLeafMarginal();
   testGPLeafDraw(rng);
