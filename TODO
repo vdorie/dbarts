@@ -68,22 +68,15 @@ items
     level). Residual door: a level-order-permuted in-range foreign
     container is still accepted (semantic alignment belongs to
     typed-ingestion). Suite total 3509.
-  facade-shape: surfaced by the 2026-08-05 facade review. SamplerBase
-    carries ~25 count/capability virtuals (numForests,
-    testFitsAreDefined, usesDart, supportsResponseMutation, ...) that
-    exist to size bridge buffers and gate refusals, each costing
-    declaration + facade forward + impl override per feature. Collapse
-    into one SamplerShape POD FILLED ON DEMAND by a single virtual -
-    not cached-and-refreshed: a forgotten cache refresh after a future
-    mutator is a silent runtime bug where a forgotten forward is a
-    compile error today, and the callers size buffers, they are not
-    hot. Bitwise-neutral; tests/cpp asserts the filled struct matches
-    the live accessors it replaces. Does NOT remove the stale-object
-    --preclean hazard (struct-layout changes corrupt stale .o like
-    vtable changes do). X-macro forwarding generation considered and
-    DECLINED: the facade is src-internal, and the macro costs
-    grep/clangd/debugger legibility with no drift-policing need.
-    decision-gated.
+  facade-shape: LANDED 40082c7 2026-08-06 (docs/plans/facade-shape.md
+    carries the critique and landing records). SamplerBase's 21
+    nullary count/capability virtuals collapsed into one SamplerShape
+    POD filled on demand by a single virtual (dead numVarianceTrees
+    deleted); a future capability costs one field + one fill line.
+    Bitwise-neutral (trio identical), oracled by tests/cpp test_shape
+    over seven construction paths. The stale-object --preclean hazard
+    remains (struct-layout changes corrupt stale .o like vtable
+    changes do).
   forest-ranef-interweaving: RESEARCHED, NO-GO now (recorded door;
     docs/design/forest-ranef-interweaving.md). The weak-signal/small-K
     grouped-mixing bottleneck is forest-ranef confounding (several-fold
