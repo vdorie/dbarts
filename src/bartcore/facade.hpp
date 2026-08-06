@@ -61,9 +61,10 @@ struct SamplerShape {
   bool usesFunctionLeaves;
   bool kIsSampled;
   bool usesDart;
-  /// Whether the forest coupling permits a whole-response swap (setResponse at
-  /// updateScale = false); false off any combiner, and false for a non-gaussian
-  /// response. The bridge gates its multi-forest refusal on it.
+  /// Whether the forest coupling permits the response-side conduit -
+  /// setResponse and setOffset at updateScale = false, and setWeights; false
+  /// off any combiner, and false for a non-gaussian response. The bridge gates
+  /// its multi-forest refusals on it.
   bool supportsResponseMutation;
   /// Whether the recorded test-fit channel carries a defined value: false only
   /// for BCF (no test treatment vector to blend off-sample). The bridge's

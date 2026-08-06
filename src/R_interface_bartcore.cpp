@@ -3474,8 +3474,18 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
 // weighting was incorrect and was stripped rather than ported.
 SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  size_t numObservations = holder.sampler->shape().numObservations;
-  refuseMultiForestMutation(*holder.sampler, "bartcore_setWeights");
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  size_t numObservations = shape.numObservations;
+  // The weight conduit rides the same opt-in as the response swap: the coupling
+  // must cache nothing per-forest across sweeps (BCF re-derives every per-forest
+  // response AND precision from y and w each sweep), and the per-forest leaf
+  // calibration must not be weight-derived (BCF's scaledResponseSd is
+  // unweighted, so a weight swap cannot decalibrate it). There is no scale to
+  // pin here - setWeights never moves the response transform - so the
+  // updateScale = FALSE conjunct setResponse and setOffset carry has no analog.
+  if (shape.numForests >= 2 && !shape.supportsResponseMutation)
+    Rf_error("bartcore_setWeights: this multi-forest sampler fixes its case "
+             "weights at creation; make a new sampler instead");
   refuseBinaryWeightChange(*holder.sampler);
   if (!Rf_isReal(weightsExpr) ||
       static_cast<size_t>(Rf_xlength(weightsExpr)) != numObservations)
