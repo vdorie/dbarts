@@ -3,8 +3,9 @@
 status: CLOSED 2026-08-05 (memo executed under VD's proceed-at-
         discretion grant: all three leafOf-scoped mechanisms declined
         by measurement, ceiling +9.7%; the mu[leafOf]-gather SIMD door
-        in the Memo's RECOMMENDATION stays recorded, decision-gated,
-        NOT built)
+        in the Memo's RECOMMENDATION was TAKEN in a roll-only form,
+        LANDED 9141274 2026-08-06 - see the landing note, which also corrects
+        the Memo)
         (found 2026-08-04 by the constant-leaf-fits bench discharge,
         docs/plans/constant-leaf-fits.md compare record)
 agent: opus
@@ -129,3 +130,103 @@ item with the cross-ISA tests/cpp gate, not this plan's engine lines.
 Standing trade either way: at n=1000, t=75 an accepted single-column
 mutation costs 0.358 ms against a 0.17 ms sweep; the compaction bought
 14-18% on run at n=10000 and gave back 12% here.
+
+## Landing note: the gather door, roll-only (LANDED 9141274 2026-08-06)
+
+The RECOMMENDATION above was designed out and independently critiqued
+before building. Both passes agreed on the shape, and both refuted the
+premise the RECOMMENDATION was written for. What shipped is a manual
+unroll-by-4 (n % 4 prologue first) of three constant-leaf gather loops,
+in src/bartcore/chain.hpp and nowhere else:
+
+    G1  rollTreeResidual, t == 0
+    G2  rollTreeResidual, t > 0
+    G3  finalizeTotalFits
+
+No misc kernel, no dispatch slot, no new ISA translation unit, no
+intrinsics. At -O2 the rolled loop compiles scalar on every ISA and no
+compiler emits a hardware gather at any flag level (gcc's own cost model
+refuses it on znver2, and docs/plans/simd-flag-multiversioning.md already
+measured hardware AVX2 gather 1.15-2.2x SLOWER than scalar loads); the
+unroll is what lets gcc assemble a 128-bit software gather plus packed
+add and lets clang pair the index loads.
+
+Measured, in situ (isolated driver, bench-sampler scenarios verbatim,
+pinned core, min of 7-9 reps x 3 rounds, loadavg recorded):
+
+- x86-64 Zen2, gcc 13.3: run-n1000 -3.0% / -3.7% and run-n10000 -3.7% /
+  -3.9% in two independent measurements on two different cores, ranges
+  disjoint (9 v 9 observations). setPredictor-accept -0.3%, inside the
+  +-1% band it was pre-registered to stay in.
+- LAYOUT LUCK CLOSED. The gap survives a pure layout perturbation
+  (-falign-loops=32 on the engine TU moved the baselines 0.2-0.7% and
+  left the gap at -3.5% / -4.3%), and separately a whole-package -mavx
+  rebuild. The 3-4% is the unroll.
+- Whole-package -mavx buys ZERO end-to-end on either base or roll
+  (differences inside noise, both sizes). The dispatched-misc-kernel
+  design's only differentiator is worth nothing; it was rejected.
+- arm64 (Apple Silicon, clang 17): run-n1000 -5.9%, run-n10000 -12.7
+  to -13.9% (quiet-box A/B, 3 rounds, base and roll back-to-back per
+  scenario, min of 9, 1-min loadavg 1.75-1.88 throughout; base minima
+  identical across all rounds). setPredictor-accept -0.8 to -1.6%,
+  crossing the pre-registered +-1% band in the FAST direction;
+  reattributed per protocol by call-site census: rollTreeResidual and
+  finalizeTotalFits are called only from the sweep loop and
+  growForestFromRoot, never from the setPredictor path, so the
+  movement is code layout - the class the x86 -falign-loops probe
+  bounded at 0.2-0.7% - not execution of the new code.
+- Draws bitwise identical at every variant and width measured
+  (md5 over train fits and sigma, n mod 4 in {0,1,2,3}, gaussian and
+  probit and storage = "single"), and the landing gates below reconfirm.
+
+fp32 IS GUARDED OUT. Each unrolled body sits behind
+`if constexpr (std::is_same_v<ResidT, double>)` with the rolled loop kept
+verbatim in the else. clang already vectorizes the ResidT = float form of
+G1/G2 at tip with NEON lane-insert gathers (`ld1.d` + `fadd.2d`) - the
+very mechanism the design memo had listed as REJECTED-but-plausible - so
+a plain unroll would bolt a scalar prologue onto codegen that is already
+good and inflate G3<float> for nothing. Verified at the object level: the
+float instantiation's emitted code is instruction-identical pre and post
+patch (`Chain<ConstantGaussianLeaf, float>::run`, 800 instructions, and
+all 161 float-instantiated symbols in the engine TU).
+
+Corrections to the Memo above, all measured:
+
+1. "reading tree fits through mu[leafOf] twice" is wrong. The
+   constant-leaf accept path reads mu[leafOf] ONCE - subtractTreeFitsFromTotal
+   (G5, 140k cycles) - plus installLeafOfAndAddToTotal's SCATTER add
+   (~119k). Only the 140k is addressable by a gather; 140/262 = 53%. The
+   "79% of the regression is the gather" share double-counts by ~2x.
+2. addTreeFitsToTotal (G4) is NOT on the constant-leaf accept path at
+   all: chain.hpp puts installLeafOfAndAddToTotal in the
+   `if constexpr (leafIsConstant)` arm and G4 in the `else`. The Memo
+   names it as a primary target; for that path it is dead code.
+3. Unrolling G4/G5 - the two sites the Memo names - measured 1.7-2.4%
+   WORSE on setPredictor-accept, reproducible, ranges disjoint, in two
+   independent runs. DECLINED. Do not re-propose. installLeafOfAndAddToTotal
+   is a scatter with no portable SIMD form below AVX512, and the Memo's
+   own +9.7% ceiling already keeps that item closed.
+4. G2 - the hottest site, 74 of 75 trees per sweep - only vectorizes its
+   ADD on x86. All four body subtractions stay scalar `subsd`. G1 and G3
+   vectorize fully. The mechanism is half operative where most of the
+   traffic is; the win is still real.
+5. "A misc/SIMD item with the cross-ISA tests/cpp gate" - there is NO
+   cross-ISA gate in tests/cpp. main.cpp calls misc_simd_init() once and
+   never re-dispatches. The dispatch gate is inst/tinytest/test-simd.R,
+   at the R level - and it CANNOT fail on a header change like this one,
+   because it compares dispatch levels of a single binary and a header
+   change moves every level identically. The real regression nets here
+   are the value-hardcoded tinytests and the equivalence trio.
+6. What the Memo got right and carried the item: the gather is
+   elementwise and order-preserving, which makes the change bitwise-safe
+   by construction, and the same code serves rollTreeResidual. That
+   second half turned out to be the entire value.
+
+Line references at the time of landing: rollTreeResidual and
+finalizeTotalFits carry the WHY comments; G4/G5/S1 are untouched.
+New coverage: tests/cpp testGatherTailShapes drives n = 1001 (a
+one-element prologue) for both ResidT instantiations and pins
+totalFits against a freshly gathered per-tree sum and the rolled
+residual against a scalar one - the n % 4 prologue is the only new
+failure mode, and a deliberately broken prologue was confirmed to
+fail both assertions.

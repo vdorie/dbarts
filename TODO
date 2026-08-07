@@ -157,12 +157,17 @@ items
     the proceed-at-discretion grant) - the leafOf rebuild is only ~21%
     of the regression and every leafOf-scoped mechanism's measured
     ceiling is +9.7%, still outside the gate, so the item is not worth
-    its complexity. Remaining door, decision-gated and NOT built:
-    vectorize the mu[leafOf] gather in subtractTreeFitsFromTotal /
-    addTreeFitsToTotal (bitwise-safe elementwise map, attacks the 79%,
-    same kernel serves rollTreeResidual; a misc/SIMD item with the
-    cross-ISA tests/cpp gate)
-    (docs/plans/setpredictor-leafof-rebuild.md Memo).
+    its complexity. The gather door is now TAKEN in a roll-only form
+    (LANDED 9141274 2026-08-06): rollTreeResidual + finalizeTotalFits unrolled by
+    4 behind an n % 4 prologue, ResidT = double only, header-local - no
+    misc kernel, no dispatch slot; x86 run -3.0 to -3.9%, arm64 run
+    -5.9% (n=1000) / -12.7 to -13.9% (n=10000), draws bitwise
+    identical, layout luck closed. DECLINED by measurement, do not
+    re-propose: unrolling subtractTreeFitsFromTotal / addTreeFitsToTotal
+    (1.7-2.4% WORSE on setPredictor-accept) and the
+    installLeafOfAndAddToTotal scatter. The Memo's "79% is the gather"
+    and its cross-ISA tests/cpp gate were both wrong; corrected in the
+    landing note (docs/plans/setpredictor-leafof-rebuild.md).
   sparse-extensions: streaming range kernel, mutation on dense-backed
     mixed columns, and the smaller deferred extensions in
     docs/plans/sparse-extensions.md's Status list (sparse x.test,
