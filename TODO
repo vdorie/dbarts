@@ -168,16 +168,26 @@ items
     installLeafOfAndAddToTotal scatter. The Memo's "79% is the gather"
     and its cross-ISA tests/cpp gate were both wrong; corrected in the
     landing note (docs/plans/setpredictor-leafof-rebuild.md).
-  sparse-extensions: streaming range kernel, mutation on dense-backed
-    mixed columns, and the smaller deferred extensions in
-    docs/plans/sparse-extensions.md's Status list (sparse x.test,
-    setData on a CSC store, ...). consumer-gated. VD 2026-08-05:
-    dense-only mutation is a conservative gate, not a design fact -
-    the transaction is shape-agnostic past quantizeColumn (codes in,
-    same repartition), mixed-dense columns already retain raw
-    (data.hpp ~725), and CSC-backed mutation needs only an ownership
-    policy for the borrowed triple plus a slice resize; scope it with
-    typed-ingestion below.
+  integer-predictor-storage: dense-INTEGER storage in the
+    PredictorSource view. denseValues is const double* (data.hpp ~188),
+    ColumnType is semantic only (ordinal | categorical), and R still
+    as.doubles at the bartcore.R entrances. A memory win, not speed;
+    integer -> double is exact in range so the slice MUST be
+    trio-bitwise. Split out of typed-ingestion at its 2026-08-06
+    close: the typing that mattered (ordinal vs categorical with
+    declared K) landed with slice 2b; storage width is a separate
+    question with its own gate. consumer-gated.
+  sparse-extensions: the streaming range kernel and the smaller
+    deferred extensions in docs/plans/sparse-extensions.md's Status
+    list (rbart_vi/linear-leaf on sparse, per-column u8 widths).
+    consumer-gated. Resolved since the entry was written: mutation on
+    dense-backed mixed columns landed with typed-ingestion slice 2a
+    (95db5d7); sparse x.test was delivered and closed by
+    docs/plans/test-data-parity.md; the CSC ownership policy VD's
+    2026-08-05 note asked for landed with slice 2b (hybrid - borrowed
+    triple until a column's first write, then per-column owned
+    slices; data.hpp ~174). setData on a CSC/mixed store and
+    per-observation CSC mutation are recorded typed-ingestion doors.
   typed-ingestion: surfaced by the 2026-08-05 facade review; premise
     reset by VD - there are NO frozen contracts (consumers sweep in
     lockstep; a dbarts.h change costs the ABI checklist + sweep, not
@@ -198,15 +208,21 @@ items
     2a 95db5d7 2026-08-06 lifts mixed-container column mutation
     (refCode-keyed engine pattern, slot-surgery R mirror, dense-backed
     per-observation opened for the IRT case) and aligns foreign test
-    containers at the validateXTest funnel (suite 3581). REMAINING:
-    slice 2b, the PredictorSource view consolidation proper (the 9
-    SamplerOptions ingestion fields, the 7-arg setTestData, the
-    mutation entries -> one spelling; whole-matrix setPredictor on
-    mixed designs is a recorded door here - its install path would
-    replace the container). Step list + critique before
-    implementation. Typing stops at the boundary: the hot layer stays
-    quantized codes + double cuts; response/offset/weights stay
-    double*. decision-gated.
+    containers at the validateXTest funnel (suite 3581); slice 2b,
+    the PredictorSource view consolidation proper, LANDED d4e80e3
+    2026-08-06 (record 4a14eeb; step list, refuting critique, FIX-0
+    pre-slice 8872dd2, and landing note all in the plan doc) - one
+    borrowed trivially-destructible view taken by creation, test
+    ingestion, and mutation, buildFromCsc/buildMixed/buildTestMixed
+    retired, dbarts.h byte-unchanged, whole-matrix setPredictor on
+    mixed designs OPEN through bartcore.R's sparse-bearing branch.
+    The arc is CLOSED. Remaining doors, consumer-gated, recorded at
+    the 2b landing: sparse-valued mutation, typed flat C API entries
+    (the only dbarts.h toucher), setData on a CSC/mixed store,
+    per-observation mutation of CSC-backed columns; dense-integer
+    storage moved to integer-predictor-storage above. Typing stops at
+    the boundary: the hot layer stays quantized codes + double cuts;
+    response/offset/weights stay double*.
   survival-followups: doors out of the survival family pair (AFT +
     discrete-time hazard both landed; records in docs/plans/survival-
     models.md and docs/design/survival.md sec 6): cloglog link (needs a
