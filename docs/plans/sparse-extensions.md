@@ -45,7 +45,10 @@ builds of the same values exactly.
   (sparse-columns.md "Extension (i)" section): setPredictor/updatePredictor
   mutate CSC-backed columns, in-place when the nonzero pattern holds and
   rebuilding the layout otherwise, with dense-identical codes/draws and
-  transactional roll-back. Remaining deferred extensions (sparse x.test, a
-  streaming range kernel, dense-backed mixed-column mutation at the R5
-  level, rbart_vi/linear-leaf on sparse, per-column u8 widths) stay
-  consumer-gated.
+  transactional roll-back. Of the extensions deferred here, two have since
+  been delivered elsewhere (2026-08-06 correction): sparse x.test by
+  docs/plans/test-data-parity.md (typed sparse test store, CLOSED there),
+  and dense-backed mixed-column mutation, R mirror included, by
+  typed-ingestion slice 2a (95db5d7). Still deferred and consumer-gated:
+  a streaming range kernel, rbart_vi/linear-leaf on sparse, per-column
+  u8 widths.
