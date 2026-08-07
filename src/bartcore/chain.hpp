@@ -2531,6 +2531,15 @@ public:
   const std::uint32_t* leafOfForTesting(size_t t) const {
     return forests_[0].leafOf.data() + t * data_.numObservations;
   }
+  /// Test hooks: the running residual forest 0 rolls across a sweep, and the
+  /// working response it is rolled against. Together with treeFits() they pin
+  /// the unrolled mu[leafOf] gathers elementwise, tail included.
+  const std::vector<ResidT>& residualForTesting() const {
+    return forests_[0].treeY;
+  }
+  const double* workingResponseForTesting() const {
+    return response_->workingResponse();
+  }
 
   /// Test hook: split forest 0's tree 0 at (variableIndex, splitIndex) and
   /// strand its right child empty, then run tree 0's parameter draw exactly
@@ -2871,6 +2880,23 @@ private:
   /// treeY <- the residual tree t owns, admitting tree t's old fits and (t > 0)
   /// retiring tree t-1's new fits in observation order. The constant leaf
   /// gathers each tree's fit through mu[leafOf]; the dense slab reads it direct.
+  ///
+  /// The constant-leaf gathers are unrolled by 4 (n % 4 prologue first) for
+  /// ResidT = double and MUST STAY THAT WAY: at -O2 the rolled loop compiles
+  /// scalar on every ISA - no compiler emits a hardware gather at any flag
+  /// level - and the unroll is what lets gcc assemble a 128-bit (256-bit under
+  /// -mavx) software gather plus a packed add, and lets clang pair the index
+  /// loads. On x86 the t > 0 body vectorizes only its add; its subtractions
+  /// stay scalar. Unrolling reorders iterations, not the operations within an
+  /// iteration, so every element is bit-for-bit what the rolled form writes.
+  /// ResidT = float deliberately keeps the rolled loop: clang already
+  /// vectorizes it with NEON lane-insert gathers, and the unroll would only
+  /// bolt a scalar prologue onto that. Measured x86 run -3.0 to -3.9%; see
+  /// docs/plans/setpredictor-leafof-rebuild.md.
+  ///
+  /// leaf and leafPrev are two rows of one allocation; __restrict is sound on
+  /// them because both are read-only through the block, not because the rows
+  /// are disjoint.
   void rollTreeResidual(Forest<L, ResidT>& forest, size_t t, const double* forestY) {
     size_t n = data_.numObservations;
     // the delta/total is formed in double from double inputs (mu, y, total);
@@ -2883,15 +2909,50 @@ private:
       if (t == 0) {
         const double* __restrict y_ = forestY;
         const double* __restrict total = forest.totalFits.data();
-        for (size_t i = 0; i < n; ++i)
-          resid[i] = static_cast<ResidT>(y_[i] - total[i] + mu[leaf[i]]);
+        if constexpr (std::is_same_v<ResidT, double>) {
+          size_t i = 0, nMod4 = n % 4;
+          for ( ; i < nMod4; ++i)
+            resid[i] = static_cast<ResidT>(y_[i] - total[i] + mu[leaf[i]]);
+          for ( ; i < n; i += 4) {
+            resid[i] = static_cast<ResidT>(y_[i] - total[i] + mu[leaf[i]]);
+            resid[i + 1] =
+              static_cast<ResidT>(y_[i + 1] - total[i + 1] + mu[leaf[i + 1]]);
+            resid[i + 2] =
+              static_cast<ResidT>(y_[i + 2] - total[i + 2] + mu[leaf[i + 2]]);
+            resid[i + 3] =
+              static_cast<ResidT>(y_[i + 3] - total[i + 3] + mu[leaf[i + 3]]);
+          }
+        } else {
+          for (size_t i = 0; i < n; ++i)
+            resid[i] = static_cast<ResidT>(y_[i] - total[i] + mu[leaf[i]]);
+        }
       } else {
         const double* __restrict muPrev = forest.muByTree[t - 1].data();
         const std::uint32_t* __restrict leafPrev =
           forest.leafOf.data() + (t - 1) * n;
-        for (size_t i = 0; i < n; ++i)
-          resid[i] = static_cast<ResidT>(static_cast<double>(resid[i]) +
-                                         (mu[leaf[i]] - muPrev[leafPrev[i]]));
+        if constexpr (std::is_same_v<ResidT, double>) {
+          size_t i = 0, nMod4 = n % 4;
+          for ( ; i < nMod4; ++i)
+            resid[i] = static_cast<ResidT>(static_cast<double>(resid[i]) +
+                                           (mu[leaf[i]] - muPrev[leafPrev[i]]));
+          for ( ; i < n; i += 4) {
+            resid[i] = static_cast<ResidT>(static_cast<double>(resid[i]) +
+                                           (mu[leaf[i]] - muPrev[leafPrev[i]]));
+            resid[i + 1] =
+              static_cast<ResidT>(static_cast<double>(resid[i + 1]) +
+                                  (mu[leaf[i + 1]] - muPrev[leafPrev[i + 1]]));
+            resid[i + 2] =
+              static_cast<ResidT>(static_cast<double>(resid[i + 2]) +
+                                  (mu[leaf[i + 2]] - muPrev[leafPrev[i + 2]]));
+            resid[i + 3] =
+              static_cast<ResidT>(static_cast<double>(resid[i + 3]) +
+                                  (mu[leaf[i + 3]] - muPrev[leafPrev[i + 3]]));
+          }
+        } else {
+          for (size_t i = 0; i < n; ++i)
+            resid[i] = static_cast<ResidT>(static_cast<double>(resid[i]) +
+                                           (mu[leaf[i]] - muPrev[leafPrev[i]]));
+        }
       }
     } else {
       const double* __restrict treeFits = forest.treeFits.data() + t * n;
@@ -2911,6 +2972,14 @@ private:
 
   /// Rebuild totalFits after the sweep loop: the last tree's new fits retire
   /// here instead of in a pass of their own.
+  ///
+  /// The constant-leaf gather is unrolled by 4 (n % 4 prologue first) for
+  /// ResidT = double for the reason rollTreeResidual documents at length: the
+  /// rolled form never vectorizes at -O2 on any ISA, the unroll is what buys
+  /// the packed software gather, and it is elementwise so it stays
+  /// bit-for-bit identical to the rolled form. Do not roll it back up.
+  /// ResidT = float keeps the rolled loop so clang's own codegen there is
+  /// left exactly as it is.
   void finalizeTotalFits(Forest<L, ResidT>& forest, const double* forestY) {
     if (forest.numTrees == 0) return;
     size_t n = data_.numObservations;
@@ -2921,7 +2990,18 @@ private:
     if constexpr (leafIsConstant) {
       const double* __restrict mu = forest.muByTree[last].data();
       const std::uint32_t* __restrict leaf = forest.leafOf.data() + last * n;
-      for (size_t i = 0; i < n; ++i) total[i] = y_[i] - resid[i] + mu[leaf[i]];
+      if constexpr (std::is_same_v<ResidT, double>) {
+        size_t i = 0, nMod4 = n % 4;
+        for ( ; i < nMod4; ++i) total[i] = y_[i] - resid[i] + mu[leaf[i]];
+        for ( ; i < n; i += 4) {
+          total[i] = y_[i] - resid[i] + mu[leaf[i]];
+          total[i + 1] = y_[i + 1] - resid[i + 1] + mu[leaf[i + 1]];
+          total[i + 2] = y_[i + 2] - resid[i + 2] + mu[leaf[i + 2]];
+          total[i + 3] = y_[i + 3] - resid[i + 3] + mu[leaf[i + 3]];
+        }
+      } else {
+        for (size_t i = 0; i < n; ++i) total[i] = y_[i] - resid[i] + mu[leaf[i]];
+      }
     } else {
       const double* __restrict lastFits = forest.treeFits.data() + last * n;
       for (size_t i = 0; i < n; ++i)

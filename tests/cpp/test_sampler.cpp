@@ -169,6 +169,78 @@ static void testEndToEndGaussianFp32(ext_rng* rng) {
          "sse ratio %.3f)\n", sigmaPosteriorMean, sseFit / sseMean);
 }
 
+// The constant-leaf mu[leafOf] gathers in rollTreeResidual and
+// finalizeTotalFits are unrolled by 4 behind an n % 4 prologue, so only a shape
+// whose n is not a multiple of 4 runs both halves; every other fixture here uses
+// a round n. Two identities pin the loops elementwise, tail included:
+//
+//   totalFits[i] == sum_t mu_t[leafOf_t[i]]        (finalizeTotalFits)
+//   treeY[i]     == y[i] - sum_{t < last} mu_t[leafOf_t[i]]   (the roll)
+//
+// The right-hand sides are gathered fresh through the dense export, which stays
+// rolled, so a prologue that skipped or double-counted an element shows up on
+// the left. The roll accumulates incrementally where the reference sums in one
+// pass, so the comparison is to within accumulation error, not bitwise.
+template <typename SamplerT>
+static void checkGatherTailIdentities(SamplerT& sampler, size_t n,
+                                      double tolerance, const char* fitLabel,
+                                      const char* residualLabel) {
+  size_t numTrees = sampler.chain(0).numTrees();
+  const std::vector<double>& total = sampler.chain(0).totalFits();
+  std::vector<double> fits = sampler.chain(0).treeFits();
+  const double* y = sampler.chain(0).workingResponseForTesting();
+  const auto& resid = sampler.chain(0).residualForTesting();
+
+  double worstFit = 0.0, worstResidual = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    double allButLast = 0.0;
+    for (size_t t = 0; t + 1 < numTrees; ++t) allButLast += fits[t * n + i];
+    double gathered = allButLast + fits[(numTrees - 1) * n + i];
+    worstFit = std::max(worstFit, std::fabs(total[i] - gathered));
+    worstResidual =
+      std::max(worstResidual,
+               std::fabs(static_cast<double>(resid[i]) - (y[i] - allButLast)));
+  }
+  check(worstFit < tolerance, fitLabel);
+  check(worstResidual < tolerance, residualLabel);
+  printf("ok: %s (worst fit %.3g, worst residual %.3g)\n", fitLabel, worstFit,
+         worstResidual);
+}
+
+static void testGatherTailShapes(ext_rng* rng) {
+  const size_t n = 1001, p = 4;  // n % 4 == 1: a one-element prologue
+  std::vector<double> x(n * p), y(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i)
+    y[i] = std::sin(3.0 * x[i]) + 2.0 * x[i + n] * x[i + 2 * n] +
+           0.3 * (runif01() - 0.5);
+
+  SamplerOptions options;
+  options.numTrees = 25;
+
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+  Results results;
+  sampler.run(20, 5, results);
+  checkGatherTailIdentities(sampler, n, 1e-10,
+                            "n % 4 != 0: totalFits matches a fresh mu[leafOf] sum",
+                            "n % 4 != 0: rolled residual matches a scalar sum");
+
+  // the fp32 instantiation keeps the rolled loops; it runs the same shape so a
+  // future edit that unrolls it too is caught by the same identities, at the
+  // looser tolerance a float residual store carries
+  options.fp32Residual = true;
+  Sampler<ConstantGaussianLeaf, float> single(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+    3.0, 0.37804942330213542, options, &rng);
+  Results fp32Results;
+  single.run(20, 5, fp32Results);
+  checkGatherTailIdentities(single, n, 1e-5,
+                            "fp32 n % 4 != 0: totalFits matches a fresh mu[leafOf] sum",
+                            "fp32 n % 4 != 0: rolled residual matches a scalar sum");
+}
+
 // The cooperative cancellation the R interrupt handler drives: run() polls the
 // supplied predicate and returns true when it stops early, on both the
 // single-chain (inline poll) and multi-chain (worker cancel flag) paths.
@@ -3036,6 +3108,7 @@ void runSamplerTests(ext_rng* rng) {
   testViewSamplerMatchesFull();
   testEndToEndGaussian(rng);
   testEndToEndGaussianFp32(rng);
+  testGatherTailShapes(rng);
   testRunCancellation(rng);
   testEndToEndProbit(rng);
   testMultiChain();
