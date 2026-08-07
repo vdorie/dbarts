@@ -191,7 +191,7 @@ door, not taken); spec.sdModerate is discarded at construction
 tau.leaf.scale * sqrt(tau.numTrees) * 0.674 / s), so updateScale=TRUE
 is implementable in principle; the governing refusal is d489986's -
 recomputing s mid-run is a data-dependent prior refresh
-(2026-08-06 correction); the tau-forest leaf scale
+(2026-08-07 correction); the tau-forest leaf scale
 is untestable from tests/cpp without a new accessor (Chain::leaf() is
 forest-0-only).
 
@@ -303,7 +303,7 @@ Door, not taken: the runSbcBCF CLI band is per-functional 5%;
 adopting the matrix's Bonferroni band would stop wandering marginal
 cells from reading as flags.
 
-## setData door survey (2026-08-06, at f592572)
+## setData door survey (2026-08-07, at f592572)
 
 The setData refusal above was surveyed (design memo plus an
 independent refuting critique, both against live code) after VD

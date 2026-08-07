@@ -4,7 +4,7 @@ status: CLOSED 2026-08-05 (memo executed under VD's proceed-at-
         discretion grant: all three leafOf-scoped mechanisms declined
         by measurement, ceiling +9.7%; the mu[leafOf]-gather SIMD door
         in the Memo's RECOMMENDATION was TAKEN in a roll-only form,
-        LANDED 9141274 2026-08-06 - see the landing note, which also corrects
+        LANDED 9141274 2026-08-07 - see the landing note, which also corrects
         the Memo)
         (found 2026-08-04 by the constant-leaf-fits bench discharge,
         docs/plans/constant-leaf-fits.md compare record)
@@ -131,7 +131,7 @@ Standing trade either way: at n=1000, t=75 an accepted single-column
 mutation costs 0.358 ms against a 0.17 ms sweep; the compaction bought
 14-18% on run at n=10000 and gave back 12% here.
 
-## Landing note: the gather door, roll-only (LANDED 9141274 2026-08-06)
+## Landing note: the gather door, roll-only (LANDED 9141274 2026-08-07)
 
 The RECOMMENDATION above was designed out and independently critiqued
 before building. Both passes agreed on the shape, and both refuted the
