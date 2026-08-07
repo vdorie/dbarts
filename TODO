@@ -154,6 +154,23 @@ items
     decision-gated.
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
+  sampletreesfromprior-midchain: mid-chain sampleTreesFromPrior leaves
+    chain state inconsistent (found 2026-08-07 by the fused-suffstat
+    design memo, enlarged by its refuting critique; durable summary
+    here). Two defects, one site: (1) muByTree is zeroed to the NEW
+    arena size while totalFits keeps the pre-reset fits, so the next
+    sweep's rolls run against a residual displaced by the old fits
+    regardless of arena size; (2) when the arena shrinks, leafOf
+    still holds old node ids and rollTreeResidual reads mu[leaf[i]]
+    past .size() inside capacity (ASAN-invisible with
+    container-overflow off). Exposure: the R method and the shipped
+    ABI entry dbarts_sampler_sampleTreesFromPrior called mid-chain;
+    every current call site (R init-time sites, tests/cpp test_moves
+    prior reset) is safe by ordering luck only. Fix is its own arc
+    (refresh totalFits + leafOf after the reset, or spec the entry
+    init-only and guard); NOT folded into the fused-suffstat landing.
+    A fix changes draws only for mid-chain callers, which shipped
+    code does not contain.
   sbc-family-tiers: BUILT d094675 (2026-08-04) - t and multinomial
     softmax ALL PASS, ordinal 9/10 with gamma3 resolved as ridge
     mixing by the 3x ladder, nbinom identified mu PASS with r/agg.psi
@@ -232,12 +249,26 @@ items
     landing). The arm64 in-situ leg RAN 2026-08-07 (sec 12, M1 Max):
     direction confirmed and growing with n (1.07x at n=1e5, 1.23-1.25x
     at n=1e6) but far below Zen2, and the no-signal worst case INVERTS
-    to a ~5% loss - the design must weigh that regression (n-gate,
-    arch-gate, or accept). The fused-suffstat arc now runs, in order:
-    a design memo + refuting critique (weighted/fp32/multi-forest
-    scope, leafOfStale, K choice, no-signal regression policy, the
-    re-record procedure), then implementation. Throwaway patch in
-    wt/fused-falsifier.
+    to a ~5% loss. Design memo + refuting critique RAN 2026-08-07
+    (verdict stands-with-amendments; conclusions here, long-form in
+    the orchestration scratch): scope is constant leaf + fp64 +
+    unweighted + fresh leafOf, covering monotone free and
+    probit/ordinal/AFT/grouped (null workingWeights); BCF and
+    multinomial decline through the weights clause alone, so their
+    equivalence baselines stay bitwise and serve as a positive
+    landing gate; K=4 constexpr, no knob (K is the draw law); NO
+    structural gate - a stock-tree census (noise-n1e5 bare-root
+    fraction ~0.20 with 69% of trees single-split, friedman ~0.02)
+    refuted the memo's isRoot gate, so v1 lands ungated exactly as
+    measured and ACCEPTS the arm64 ~5% no-signal loss with a
+    pre-registered arm re-run; the fused pass must reproduce the
+    roll residual bitwise so the suffstat association is the only
+    draw change; 11 decline scenarios stay bitwise vs
+    equivalence-7903855 while covered scenarios shift last-ULP (six
+    pinned tinytest files re-pin in the code commit; bcf/multinomial
+    baselines do NOT re-record). IMPLEMENTATION IN FLIGHT
+    (serialized). Throwaway patch in wt/fused-falsifier. Related
+    defect found by the design pass: sampletreesfromprior-midchain.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   note: the schedule/dispatch-only workflows (equivalence, rchk,
