@@ -162,7 +162,10 @@ items
     at fixed n via the fixed glue (a=1, b0=0, b1=1) + setTreatment
     per iteration; what remains is exact zero-weight exclusion and
     O(treated) tau cost - the narrower per-forest row-subsetting
-    door, efficiency-shaped, also open.
+    door, efficiency-shaped, also open. BOTH update-shape doors are
+    RESEARCH-GATED (VD 2026-08-06): before designing any particular
+    shape, survey which model classes are actually worth enabling -
+    the shape follows from the models. In due course, not queued.
   setpredictor-leafof-rebuild: CLOSED 2026-08-05 (memo executed under
     the proceed-at-discretion grant) - the leafOf rebuild is only ~21%
     of the regression and every leafOf-scoped mechanism's measured
