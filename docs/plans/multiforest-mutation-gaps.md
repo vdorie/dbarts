@@ -174,6 +174,6 @@ gate check).
   record lands with that commit.
 - Out of scope, left open: n x K multinomial offset (new shape, no
   demand); the setSigma-on-multinomial door subsumed into H2; BCF
-  whole-data setData, surveyed and held OPEN 2026-08-06 at the
+  whole-data setData, surveyed and held OPEN 2026-08-07 at the
   joint x/y/z-with-n-free semantics - record in
   docs/plans/runsbcbcf-repair.md ("setData door survey").

@@ -492,3 +492,40 @@ Three verdicts:
   on the residual stream alone before its own costs. Closed.
 - DATA-LAYOUT REORDER (data-layout.md): re-evaluated and kept shelved;
   the dated close-out lives in that doc's post-mortem.
+
+## 11. Fused-kernel falsifier: measured GREEN at K = 4 (2026-08-07, dbarts-bench)
+
+The section-10 next-artifact ran (throwaway patch, chain.hpp only,
++147/-4, worktree wt/fused-falsifier): the roll and the node-average
+suffstat fused into one obs-order pass, acc[leafOf[i]] += resid[i]
+into a node-indexed accumulator, scalar and fixed-order, selected by
+DBARTS_FUSED_SUFFSTAT with K banks combined in fixed order. The fused
+path declines to stock for non-constant leaves, ResidT = float,
+weights != nullptr, and a stale leafOf - the post-sampleTreesFromPrior
+hazard the 2a sketch missed. In situ on Zen2 (200 trees, friedman
+p=10, 1 chain/1 thread, min of 7 x 3 rounds, base and fused
+back-to-back, 1-min loadavg 0.87-1.45 throughout); ratio = base/fused
+ms per sample, per-round minima:
+
+  K = 1: n=1e5 0.92-0.95 (a LOSS), n=1e6 1.15-1.20, no-signal worst
+  case 0.67 - the single-accumulator FP dependency chain sec 2a
+  predicted. NOT green against the pre-registered >= 1.25 line.
+  K = 4: n=1e5 1.41-1.43, n=1e6 1.49-1.54, worst case a 1.11x WIN.
+  GREEN in every round. 1.53x implies the fused pass costs ~7% of
+  the sweep against the gather's 39%, independently corroborating
+  the section-10 profile. Block-fusion Stage A's bench-neutral prior
+  does NOT reproduce post-leafOf-refactor.
+
+Privatization is the MECHANISM, not a mitigation, and K joins the
+exactness contract: different K sum in different orders. Sanity vs
+base (n=5000, 200 trees, 500+500): sigma posterior mean and rmse
+agree to ~2e-15 relative, varcounts to 4 dp, node sums differ at
+<= 1.4e-11 relative, and no MH accept flipped over 1000 sweeps - the
+draws are NOT bitwise (snapshot re-record at landing, the sec-1
+shifting class) but the measured shift is last-ULP, far milder than
+the class name suggests. UNMEASURED: weighted, fp32 residual, the
+move-phase child gathers, vector/function leaves, BCF/multinomial,
+monotone, growForestFromRoot, K = 8, and any arm64 in-situ leg - the
+arm A/B is the confirmation to demand before an arc lands
+(within-chain-threading.md sec 10a). The real arc runs design +
+refuting critique on that scope before implementation.

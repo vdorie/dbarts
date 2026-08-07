@@ -21,7 +21,7 @@ Standing fact (VD, 2026-07-06): single-chain n >= 1e5 workloads are
 common. The large-n performance items are live, not consumer-gated.
 
 items
-  backlog-hygiene: EXECUTED 65ef425 2026-08-06 (32-entry census: 21
+  backlog-hygiene: EXECUTED 65ef425 2026-08-07 (32-entry census: 21
     current, 5 stale, 5 done-and-collapsed; worst finds were a
     landed equivalence scenario read as unbuilt, a deleted refusal
     cited as live, and a release-currency claim spanning a draw-law
@@ -120,7 +120,7 @@ items
     gaussian-fixed() Gibbs conduit stays open). Record:
     docs/plans/multiforest-mutation-gaps.md. Doors left open: n x K
     multinomial offset (no demand); BCF whole-data setData - surveyed
-    2026-08-06 (design memo + refuting critique; record in
+    2026-08-07 (design memo + refuting critique; record in
     docs/plans/runsbcbcf-repair.md "setData door survey") and held
     OPEN at the joint x/y/z-with-n-free semantics per VD's
     enabling-models rationale, z REQUIRED in the same call (the
@@ -167,7 +167,7 @@ items
     acceptance-arm verdict records as an addendum in
     docs/plans/runsbcbcf-repair.md).
   setpredictor-leafof-rebuild: CLOSED 2026-08-05; the gather door
-    TAKEN roll-only, LANDED 9141274 2026-08-06 (x86 run -3.0 to
+    TAKEN roll-only, LANDED 9141274 2026-08-07 (x86 run -3.0 to
     -3.9%, arm64 -5.9 to -13.9%, draws bitwise identical). Record,
     Memo corrections, and the DECLINED do-not-re-propose list in
     docs/plans/setpredictor-leafof-rebuild.md.
@@ -223,9 +223,17 @@ items
     suffstat's premise SURVIVES (ceiling ~1.67x; block-fusion Stage A's
     bench-neutral result is the standing counter-evidence), Z-order /
     locality reordering measured DEAD, data-layout.md re-evaluated and
-    closed shelved. Next action: VD fork on building the fused-kernel
-    falsifier (measured in situ, never a microbench alone).
-    decision-gated.
+    closed shelved. The fused-kernel falsifier RAN 2026-08-07
+    (memory-wall-frontier.md sec 11): K=4 accumulator-banked fusion
+    GREEN in situ on Zen2 - 1.41-1.43x at n=1e5, 1.49-1.54x at
+    n=1e6, the no-signal worst case a 1.11x win - while K=1 is NOT
+    green (privatization is the mechanism; K joins the exactness
+    contract, and draws shift last-ULP, so baselines re-record at
+    landing). The fused-suffstat arc OPENS behind, in order: the
+    arm64 in-situ leg, a design memo + refuting critique
+    (weighted/fp32/multi-forest scope, leafOfStale, K choice, the
+    re-record procedure), then implementation. Throwaway patch in
+    wt/fused-falsifier.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   note: the schedule/dispatch-only workflows (equivalence, rchk,
