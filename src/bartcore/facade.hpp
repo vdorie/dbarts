@@ -26,8 +26,8 @@ struct SamplerShape {
   std::size_t numChains;
   std::size_t numThreads;
   std::size_t numTrees;
-  /// Forest count: 1 for every non-BCF sampler, 2 for BCF (prognostic +
-  /// treatment).
+  /// Forest count: 1 for single-forest samplers, 2 for BCF (prognostic +
+  /// treatment), K for a K-category multinomial.
   std::size_t numForests;
   /// Grouped random intercepts: the group count, 0 when ungrouped.
   std::size_t numGroups;

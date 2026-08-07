@@ -185,9 +185,13 @@ model.hpp ~3383-3384; NA updateScale must refuse (asLogical NA would
 take the permitted branch); multinomial setOffset is the same silent
 no-op the design refuses for setResponse (door, not taken); setState/
 installForests restore fitMin/fitMax with leaf.scale pinned (sibling
-door, not taken); spec.sdModerate is discarded at construction, which
-makes updateScale=TRUE unimplementable as specified - a stronger
-refusal argument than decalibration alone; the tau-forest leaf scale
+door, not taken); spec.sdModerate is discarded at construction
+(chain.hpp ~636 its only read) but recoverable from the live scales
+(s = mu.leaf.scale * sqrt(mu.numTrees), sdModerate =
+tau.leaf.scale * sqrt(tau.numTrees) * 0.674 / s), so updateScale=TRUE
+is implementable in principle; the governing refusal is d489986's -
+recomputing s mid-run is a data-dependent prior refresh
+(2026-08-06 correction); the tau-forest leaf scale
 is untestable from tests/cpp without a new accessor (Chain::leaf() is
 forest-0-only).
 
@@ -298,3 +302,57 @@ bitwise by bcf-equivalence-99205ee across every landing this run.
 Door, not taken: the runSbcBCF CLI band is per-functional 5%;
 adopting the matrix's Bonferroni band would stop wandering marginal
 cells from reading as flags.
+
+## setData door survey (2026-08-06, at f592572)
+
+The setData refusal above was surveyed (design memo plus an
+independent refuting critique, both against live code) after VD
+reopened the door on enabling-models grounds: mutation on multi-forest
+samplers can enable model classes ahead of any packaged consumer.
+Verdict: the door stays OPEN, held at the joint x/y/z semantics with
+n free; any taken form MUST carry z in the same call. Findings:
+
+- Three holes, not one. G1 structural (the recorded one):
+  recoverTreeParameters and applyNewData address forests_[0] only
+  (chain.hpp ~1456, ~1472). G2 scale: GaussianResponse::setData
+  rescales unconditionally (model.hpp ~2695) - the decalibration
+  setResponse(TRUE) is refused for; a taken door needs the pinned
+  shape, and restoreScale re-anchors the prior but not sigma
+  (~2769/2785 vs ~2686-2698), so a naive getScale/setData/restoreScale
+  sandwich double-anchors. G3 memory safety, previously unrecorded:
+  the combiner indexes borrowed z (holder.ownedTreatment, sized at
+  creation or setTreatment) over live numObservations
+  (combiner.hpp ~482/501/525/662) and setData carries no z channel -
+  an n-growing per-forest setData over-reads the heap, and a fixed-n
+  one silently re-pairs the old z with new rows.
+- The split remap is variable-preserving: mapOldCutPointsOntoNew
+  reads rule.variableIndex and never writes it (tree.hpp ~1201,
+  ~1244), so a tree's used-column set can only shrink and tau's
+  columnMask containment is invariant under applyNewData. The state
+  path's containment checks (chain.hpp ~2377) guard unconstrained
+  donors, not the remap; a per-forest applyNewData needs neither.
+- Already served on BCF at fixed n: forced setPredictor (the
+  transactional refusal gates only forceUpdate != TRUE), setTreatment,
+  setResponse/setOffset scale-pinned under the opt-in, setWeights,
+  and setCutPoints - which has and needs no multi-forest guard and
+  installs an arbitrary grid including a quantile shrink. The door's
+  unique remainder: a row-count change, the nearest-value split
+  remap, and joint-swap atomicity.
+- Calibration fork to resolve at design time: pinned (construction's
+  calibration persists across the swap - the accepted posture of
+  every pinned mutation) vs recalibrating (recompute s: rejected by
+  d489986 as a data-dependent prior refresh).
+- Demand today is zero (no consumer calls setData; none creates a
+  BCF sampler; stan4bart/bartCause/treatSens grepped at their compat
+  heads). Recorded as fact, not as the gate - the enabling rationale
+  governs.
+- The motivating class - Bayesian sensitivity analysis with latent
+  treatment, the treated set resampled per iteration - runs TODAY at
+  fixed n: the glue's default (a = 1, b0 = 0, b1 = 1;
+  combiner.hpp ~293) held fixed (updateA/updateB = false) is exactly
+  y = mu + z tau; a b0 = 0 control row's multiplier is floored to
+  1e-9 so its tau-suffstat weight is ~1e-18, effectively excluding
+  it; and setTreatment swaps z mid-run. What that leaves on the
+  table - exact zero-weight exclusion and tau paying O(n) per sweep
+  regardless of treated count - is a narrower, efficiency-shaped
+  door (per-forest row subsetting), distinct from whole-data setData.

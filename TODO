@@ -150,9 +150,19 @@ items
     block, installed at setState AND installForests; ef61b39
     refusePinnedSigmaChange on fixed-sigma families + heteroscedastic,
     gaussian-fixed() Gibbs conduit stays open). Record:
-    docs/plans/multiforest-mutation-gaps.md. Doors left open there:
-    n x K multinomial offset (no demand); BCF whole-data setData
-    (applyNewData is still forest-0-only).
+    docs/plans/multiforest-mutation-gaps.md. Doors left open: n x K
+    multinomial offset (no demand); BCF whole-data setData - surveyed
+    2026-08-06 (design memo + refuting critique; record in
+    docs/plans/runsbcbcf-repair.md "setData door survey") and held
+    OPEN at the joint x/y/z-with-n-free semantics per VD's
+    enabling-models rationale, z REQUIRED in the same call (the
+    combiner indexes borrowed z over live n: an n-growing variant
+    over-reads, a fixed-n one re-pairs old z with new rows). The
+    latent-treatment sensitivity class that motivated it runs TODAY
+    at fixed n via the fixed glue (a=1, b0=0, b1=1) + setTreatment
+    per iteration; what remains is exact zero-weight exclusion and
+    O(treated) tau cost - the narrower per-forest row-subsetting
+    door, efficiency-shaped, also open.
   setpredictor-leafof-rebuild: CLOSED 2026-08-05 (memo executed under
     the proceed-at-discretion grant) - the leafOf rebuild is only ~21%
     of the regression and every leafOf-scoped mechanism's measured
