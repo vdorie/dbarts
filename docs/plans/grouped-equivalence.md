@@ -1,5 +1,12 @@
 # grouped-equivalence
 
+Status: CLOSED, LANDED (2026-08-06 correction) - the grouped scenario
+shipped in 0e9ccca (2026-07-09, gate-hardening battery: group.by,
+gamma tau prior, non-unit weights; equivalence.R result$grouped) and
+grouped_aft followed in ac6ec2c (result$grouped_aft); both sit in the
+current baseline (MANIFEST, equivalence-7903855.rds, 27 scenarios).
+This doc predates the landing and was never updated; kept as history.
+
 agent: sonnet
 rng: neutral (harness only)
 budget: ~80 lines in equivalence.R
