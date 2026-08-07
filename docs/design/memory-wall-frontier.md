@@ -561,3 +561,36 @@ different load. A fourth partial round (killed mid-run) corroborates
 (1.065 at n=1e5, 1.260 at n=1e6). Gate future single-threaded A/Bs
 on this box at loadavg < 6 and judge by cross-round spread, not
 absolute quiet.
+
+## 13. Landed: the fused pass ships (2026-08-07, c8f661a)
+
+The production kernel landed as c8f661a: rollAndSetNodeAveragesFused
+in chain.hpp, always on where eligible (constant leaf, ResidT double,
+null weights, fresh leafOf map), the stock roll + setNodeAverages
+pair everywhere else, K = 4 constexpr with the fixed positional-bank
+contract, and NO root gate. The root gate the design first proposed
+died on a census: stock noise-n1e5 carries only ~20% bare roots with
+69% of trees single-split (friedman ~2%), so the gate could neither
+capture the arm64 no-signal loss nor fire in signal fits. v1 accepts
+the ~5% arm64 no-signal loss; the pre-registered arm re-run stands.
+The roll expressions are bitwise identical to rollTreeResidual,
+enforced by a Chain test hook that runs fused and stock per tree over
+the same entering residual, so the suffstat summation association is
+the only draw change anywhere. Probit, ordinal, AFT/survival, and
+grouped random effects ride the fused path (null workingWeights);
+BCF, multinomial, logistic, negbin, t, and the heteroscedastic mean
+forest decline through their always-on weights.
+
+Gates at landing, run independently of the implementer: tests/cpp
+plain and ASAN/UBSAN clean from make clean; tinytest 3659/0;
+equivalence vs 7903855 splits into exactly the predicted 11 bitwise
+decline scenarios and 16 covered scenarios at max |z| = 0.00; BCF
+and multinomial equivalence bitwise on every channel; air clean.
+Baseline re-recorded as equivalence-c8f661a.rds (self-reproduces
+27/27 under --strict-coverage); bcf-equivalence-99205ee and
+multinomial-equivalence-ec2a3d0 deliberately not re-recorded - their
+staying bitwise IS the scope gate. PENDING: the bench-sampler speed
+baseline re-records on the next quiet-machine grant, and the arm64
+no-signal number re-measures at the pre-registered re-run. The
+wt/fused-falsifier throwaway probe is superseded by this landing and
+removed.
