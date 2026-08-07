@@ -146,7 +146,7 @@ methods::setValidity("dbartsControl",
       return("'printCutoffs' must be a non-negative integer")
     
     ## try to extract rng kinds from function text
-    rngKind <- parse(text = deparse(RNGkind)[-1L])[[1L]]
+    rngKind <- body(RNGkind)
     rngKinds <- character(0L)
     rngNormalKinds <- character(0L)
     for (i in seq_along(rngKind)) {
