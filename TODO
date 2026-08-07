@@ -10,6 +10,12 @@ plans, who implements, who reviews, which gates run) is
 docs/plans/README.md.
 No item is deferred to post-release, and gate labels (decision-gated,
 consumer-gated) rank priority rather than block work (VD 2026-07-17).
+Standing rule (VD 2026-08-06): gate an item IF we cannot think of
+anything valuable it might enable - that failure, not the absence of
+a caller today, is the only licensed gating fact. "consumer-gated"
+below reads accordingly, and the gate lifts the moment a valuable
+enabled model or use comes to mind. An existing consumer is
+sufficient evidence of value, never necessary.
 
 Standing fact (VD, 2026-07-06): single-chain n >= 1e5 workloads are
 common. The large-n performance items are live, not consumer-gated.
