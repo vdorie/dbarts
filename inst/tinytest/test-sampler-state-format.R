@@ -105,11 +105,11 @@ control.ls <- dbarts::dbartsControl(
   n.trees = 25L,
   updateState = FALSE
 )
-makeSF <- function() {
+makeSF <- function(x, y) {
   set.seed(5L)
   dbarts::dbarts(
-    testData$x,
-    testData$y,
+    x,
+    y,
     control = control.ls,
     resid.prior = dbarts::dbartsPriors$fixed(0.3)
   )
@@ -119,7 +119,7 @@ grabState <- function(s) {
   s$state
 }
 
-donor.sf <- makeSF()
+donor.sf <- makeSF(testData$x, testData$y)
 donor.sf$model@node.scale <- 1.5
 donor.sf$setModel(donor.sf$model)
 invisible(donor.sf$run(25L, 5L))
@@ -127,7 +127,7 @@ state.sf <- grabState(donor.sf)
 # nodeScale / sqrt(numTrees)
 expect_equal(state.sf[[1L]][["forests"]][[1L]][["leaf.scale"]], 1.5 / 5)
 
-dest.sf <- makeSF()
+dest.sf <- makeSF(testData$x, testData$y)
 expect_equal(
   grabState(dest.sf)[[1L]][["forests"]][[1L]][["leaf.scale"]],
   0.5 / 5
@@ -141,7 +141,7 @@ expect_equal(
 # stripped, the destination keeps what it constructed
 state.stripped <- state.sf
 state.stripped[[1L]][["forests"]][[1L]][["leaf.scale"]] <- NULL
-old.sf <- makeSF()
+old.sf <- makeSF(testData$x, testData$y)
 old.sf$setState(state.stripped)
 expect_equal(
   grabState(old.sf)[[1L]][["forests"]][[1L]][["leaf.scale"]],
@@ -154,7 +154,7 @@ expect_equal(
 for (badValue in list(NaN, 0, -1)) {
   hostile <- state.sf
   hostile[[1L]][["forests"]][[1L]][["leaf.scale"]] <- badValue
-  hostile.sf <- makeSF()
+  hostile.sf <- makeSF(testData$x, testData$y)
   hostile.sf$setState(hostile)
   expect_equal(
     grabState(hostile.sf)[[1L]][["forests"]][[1L]][["leaf.scale"]],
