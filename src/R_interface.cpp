@@ -341,7 +341,7 @@ namespace std {
 #endif
 
 extern "C" {
-#define DEF_FUNC(_N_, _F_, _A_) {_N_, std::bit_cast<DL_FUNC>(&(_F_)), _A_}
+#define DEF_FUNC(_N_, _F_, _A_) {_N_, (DL_FUNC) &(_F_), _A_}
 
 static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_create", create, 3),
@@ -418,7 +418,7 @@ typedef struct {
   DL_FUNC function;
 } C_CallMethodDef;
 
-#define DEF_FUNC(_N_, _F_) {_N_, std::bit_cast<DL_FUNC>(&(_F_))}
+#define DEF_FUNC(_N_, _F_) {_N_, (DL_FUNC) &(_F_)}
 
 static C_CallMethodDef C_callMethods[] = {
   DEF_FUNC("createCGMPrior", dbarts_createCGMPrior),
