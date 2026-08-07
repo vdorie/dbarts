@@ -529,3 +529,35 @@ monotone, growForestFromRoot, K = 8, and any arm64 in-situ leg - the
 arm A/B is the confirmation to demand before an arc lands
 (within-chain-threading.md sec 10a). The real arc runs design +
 refuting critique on that scope before implementation.
+
+## 12. arm64 in-situ leg: direction confirmed, no-signal inverts (2026-08-07, M1 Max)
+
+The section-11 arm A/B ran on an Apple M1 Max (8P+2E, macOS), same
+throwaway patch (wt/fused-falsifier, K = 4) against pristine 63456a0,
+mirroring the Zen2 protocol: friedman p=10, 200 trees, 1 chain/
+1 thread, ms per sample after a 200-sweep burn-in, min of 7 reps,
+base and fused back-to-back, 3 rounds. Per-round base/fused ratios:
+
+  run-n1e5:   1.071 / 1.072 / 1.071  (base 43.4-43.8, fused 40.6-40.9)
+  run-n1e6:   1.228 / 1.231 / 1.246  (base 456.7-463.7, fused 371.0-377.7)
+  noise-n1e5: 0.951 / 0.948 / 0.949  (base 39.7-40.1, fused 41.9-42.2)
+
+Direction confirmed at n >= 1e5 and the win still grows with n, but
+far below Zen2 (1.07x/1.23-1.25x vs 1.41-1.43x/1.49-1.54x) -
+consistent with the M-series' bandwidth headroom lowering the wall
+the fusion attacks, though that attribution is unmeasured. The
+no-signal worst case INVERTS: a consistent ~5% loss (0.948-0.951)
+where Zen2 measured a 1.11x win. Mechanism unmeasured; the design
+memo must weigh that regression explicitly (n-gate, arch-gate, or
+accept) - this record does not decide it.
+
+Protocol note: the rounds ran at 1-min loadavg 1.9-3.1 on a
+GUI-loaded desktop - the armab loadavg < 2 gate never opened and was
+relaxed to < 6 (macOS loadavg counts bursty runnable GUI threads; a
+single-threaded R process on 8 P-cores sees little of them). Validity
+rests on the alternating min-of-7 design plus cross-round agreement,
+which is tight: n=1e5 ratio spread 1.071-1.072 across rounds taken at
+different load. A fourth partial round (killed mid-run) corroborates
+(1.065 at n=1e5, 1.260 at n=1e6). Gate future single-threaded A/Bs
+on this box at loadavg < 6 and judge by cross-round spread, not
+absolute quiet.

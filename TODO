@@ -229,9 +229,13 @@ items
     n=1e6, the no-signal worst case a 1.11x win - while K=1 is NOT
     green (privatization is the mechanism; K joins the exactness
     contract, and draws shift last-ULP, so baselines re-record at
-    landing). The fused-suffstat arc OPENS behind, in order: the
-    arm64 in-situ leg, a design memo + refuting critique
-    (weighted/fp32/multi-forest scope, leafOfStale, K choice, the
+    landing). The arm64 in-situ leg RAN 2026-08-07 (sec 12, M1 Max):
+    direction confirmed and growing with n (1.07x at n=1e5, 1.23-1.25x
+    at n=1e6) but far below Zen2, and the no-signal worst case INVERTS
+    to a ~5% loss - the design must weigh that regression (n-gate,
+    arch-gate, or accept). The fused-suffstat arc now runs, in order:
+    a design memo + refuting critique (weighted/fp32/multi-forest
+    scope, leafOfStale, K choice, no-signal regression policy, the
     re-record procedure), then implementation. Throwaway patch in
     wt/fused-falsifier.
 
