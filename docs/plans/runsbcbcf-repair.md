@@ -310,7 +310,10 @@ independent refuting critique, both against live code) after VD
 reopened the door on enabling-models grounds: mutation on multi-forest
 samplers can enable model classes ahead of any packaged consumer.
 Verdict: the door stays OPEN, held at the joint x/y/z semantics with
-n free; any taken form MUST carry z in the same call. Findings:
+n free; any taken form MUST carry z in the same call. RESEARCH GATE
+(VD 2026-08-06): before designing any particular update shape - this
+one or the row-subsetting door below - survey which model classes are
+actually worth enabling; the shape follows from the models. Findings:
 
 - Three holes, not one. G1 structural (the recorded one):
   recoverTreeParameters and applyNewData address forests_[0] only
