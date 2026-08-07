@@ -64,8 +64,16 @@ Windows-arm64 stops silently running scalar kernels.
 
 ## Verification
 
-- tests/cpp component tests (kernel-equality tests cover the variants
-  the runtime dispatches to).
+- tests/cpp component tests. NOTE: these are NOT a cross-ISA gate -
+  main.cpp calls misc_simd_init() once and runs at the host maximum,
+  and no test there forces a dispatch level. The cross-ISA equality
+  gate is inst/tinytest/test-simd.R, which refits at each forced level
+  (0/1 on arm, 0/2/5/7/8 on x86) and compares yhat.train at
+  tolerance = 0. Caveat on what it can catch: it compares levels of one
+  binary, so it fails only on a real dispatch-arm disagreement - a
+  change that moves every level identically (a header or scalar-path
+  edit) cannot fail it. Add kernel-equality arms to tests/cpp if a
+  cross-ISA gate is wanted there.
 - Full tinytest on x86 and arm; equivalence exact on arm (recording
   machine).
 - The bench table recorded in this file; benchmarks/README notes the
