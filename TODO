@@ -48,20 +48,10 @@ items
     - the regime only arises with a stale build scale swapped against a
     new response inside a larger Gibbs loop (setResponse
     updateScale=FALSE). research-open, decision-gated.
-  blocked-jacobi-trees: RESEARCHED, KILLED 2026-07-21 (recorded door;
-    docs/plans/blocked-jacobi-trees.md). Noise-splitting augmentation
-    for exact parallel tree updates is PROVEN EXACT with only a mild
-    per-sweep ESS tax - banked as reusable knowledge - but it is
-    memory-bandwidth-bound (~2x serial's traffic in pseudo-response
-    scratch), so it loses on x86/DDR4 and, where it wins, is dominated
-    by plain within-chain threading, itself NO-GO on the real engine
-    (~1.1x, capped by the ~47% parallel fraction; docs/design/within-
-    chain-threading.md). Both single-chain-parallelism mechanisms are
-    dead; multi-chain remains the way to use cores. Lesson: gate
-    threading claims on in-situ real-engine timing, never a kernel
-    microbench. Reopen only for a concrete embedded-Gibbs consumer on
-    high-bandwidth hardware, or if a fused no-scratch kernel is
-    measured to clear the bar on x86 first.
+  blocked-jacobi-trees: RESEARCHED, KILLED 2026-07-21 (df13c04 +
+    77597cc) - full record, lesson, and reopen clause in
+    docs/plans/blocked-jacobi-trees.md and
+    docs/design/within-chain-threading.md.
   correlated-outcomes: richer error/outcome covariance around a BART
     mean, delivered via outer-sampler composition (stan4bart = WALNUTS
     + dbarts supplying each outcome's conditional mean; the pattern
@@ -81,38 +71,20 @@ items
     convenience, not a gate (demoted in the design doc).
     causal-motivated, decision-gated.
   csc-code-validation: LANDED df79f17 2026-08-05 (typed-ingestion
-    slice 0; docs/plans/csc-code-validation.md carries the critique
-    and landing records). Every categorical ingestion entrance now
-    bounds codes against the training-side K - the verified silent
-    mis-bin/shift-UB/heap-overread class is closed, and CSC-backed
-    categorical setPredictor/updatePredictor refuse at the bridge and
-    flat C API (the pattern rebuild silently merged the reference
-    level). Residual door: a level-order-permuted in-range foreign
-    container is still accepted (semantic alignment belongs to
-    typed-ingestion). Suite total 3509.
-  facade-shape: LANDED 40082c7 2026-08-06 (docs/plans/facade-shape.md
-    carries the critique and landing records). SamplerBase's 21
-    nullary count/capability virtuals collapsed into one SamplerShape
-    POD filled on demand by a single virtual (dead numVarianceTrees
-    deleted); a future capability costs one field + one fill line.
-    Bitwise-neutral (trio identical), oracled by tests/cpp test_shape
-    over seven construction paths. The stale-object --preclean hazard
-    remains (struct-layout changes corrupt stale .o like vtable
-    changes do).
-  forest-ranef-interweaving: RESEARCHED, NO-GO now (recorded door;
-    docs/design/forest-ranef-interweaving.md). The weak-signal/small-K
-    grouped-mixing bottleneck is forest-ranef confounding (several-fold
-    and estimator-unstable; permanent gate benchmarks/R/grouped-
-    mixing.R). No cheap ASIS exists - the forest exposes no per-group
-    knob - and the only real fix, a coupled-leaf collapse
-    (marginalize b via per-group Woodbury), couples the constant-leaf
-    suffstat across groups/trees on the hot path (~800-1300 lines,
-    draw-changing) for a narrow-corner win with a trivial
-    longer/parallel-chain workaround. Reopen with VD sign-off for a
-    concrete weak-signal/few-groups application needing calibrated tau
-    intervals. Secondary: ASIS on (tau, b) is cheap but funnel-only and
-    can WORSEN small-K - conditional-go behind a full-engine prototype.
-    decision-gated.
+    slice 0; record in docs/plans/csc-code-validation.md) - every
+    categorical ingestion entrance bounds codes against the
+    training-side K. Its temporary mutation refusals and the
+    level-permuted-container residual door were both retired by
+    slice 2a (95db5d7): CSC-backed categorical mutation is open and
+    foreign containers are re-coded at the validateXTest funnel.
+  facade-shape: LANDED 40082c7 2026-08-06 (record in
+    docs/plans/facade-shape.md) - 21 nullary virtuals collapsed into
+    one SamplerShape POD, bitwise-neutral, oracled by tests/cpp
+    test_shape.
+  forest-ranef-interweaving: RESEARCHED, NO-GO now - record,
+    permanent gate (benchmarks/R/grouped-mixing.R), and the
+    VD-sign-off reopen clause in
+    docs/design/forest-ranef-interweaving.md. decision-gated.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.
@@ -121,10 +93,17 @@ items
     docs/design/gpu-bart.md and parallel-bart-frontier.md.
   group-by-exposure: public group.by beyond rbart_vi
     (grouped-random-effects.md; naming reserved). decision-gated.
-  grouped-equivalence: equivalence scenario for grouped rbart_vi fits,
-    only if a grouped refactor is planned.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared scan.
+  integer-predictor-storage: dense-INTEGER storage in the
+    PredictorSource view. denseValues is const double* (data.hpp ~188),
+    ColumnType is semantic only (ordinal | categorical), and R still
+    as.doubles at the bartcore.R entrances. A memory win, not speed;
+    integer -> double is exact in range so the slice MUST be
+    trio-bitwise. Split out of typed-ingestion at its 2026-08-06
+    close: the typing that mattered (ordinal vs categorical with
+    declared K) landed with slice 2b; storage width is a separate
+    question with its own gate. consumer-gated.
   interaction-constraints: deliverable B (per-path max-order + hard
     co-occurrence) and P4 (per-tree block-additive blocks(), plus the
     F1 columnMask warm-start fix) both LANDED 2026-07-21 - f455d7c,
@@ -132,6 +111,30 @@ items
     constraints.md and the two plan docs. Remaining doors: soft
     path-dependent penalties, formal heredity (ensemble lattice prior)
     - both decision/consumer-gated.
+  multiforest-mutation-gaps: LANDED, all four commits 2026-08-06
+    (d489986 offset/treatment guards incl. the BCF setOffset(TRUE)
+    decalibration hole and the multinomial test-offset simplex
+    corruption; ae7da51 BCF setWeights under the existing opt-in;
+    a7eb03d leaf.scale rides the state as an append-only per-forest
+    block, installed at setState AND installForests; ef61b39
+    refusePinnedSigmaChange on fixed-sigma families + heteroscedastic,
+    gaussian-fixed() Gibbs conduit stays open). Record:
+    docs/plans/multiforest-mutation-gaps.md. Doors left open: n x K
+    multinomial offset (no demand); BCF whole-data setData - surveyed
+    2026-08-06 (design memo + refuting critique; record in
+    docs/plans/runsbcbcf-repair.md "setData door survey") and held
+    OPEN at the joint x/y/z-with-n-free semantics per VD's
+    enabling-models rationale, z REQUIRED in the same call (the
+    combiner indexes borrowed z over live n: an n-growing variant
+    over-reads, a fixed-n one re-pairs old z with new rows). The
+    latent-treatment sensitivity class that motivated it runs TODAY
+    at fixed n via the fixed glue (a=1, b0=0, b1=1) + setTreatment
+    per iteration; what remains is exact zero-weight exclusion and
+    O(treated) tau cost - the narrower per-forest row-subsetting
+    door, efficiency-shaped, also open. BOTH update-shape doors are
+    RESEARCH-GATED (VD 2026-08-06): before designing any particular
+    shape, survey which model classes are actually worth enabling -
+    the shape follows from the models. In due course, not queued.
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
@@ -164,54 +167,11 @@ items
     multi-forest setResponse, zero harness edits; the R=200 bcf
     acceptance-arm verdict records as an addendum in
     docs/plans/runsbcbcf-repair.md).
-  multiforest-mutation-gaps: LANDED, all four commits 2026-08-06
-    (d489986 offset/treatment guards incl. the BCF setOffset(TRUE)
-    decalibration hole and the multinomial test-offset simplex
-    corruption; ae7da51 BCF setWeights under the existing opt-in;
-    a7eb03d leaf.scale rides the state as an append-only per-forest
-    block, installed at setState AND installForests; ef61b39
-    refusePinnedSigmaChange on fixed-sigma families + heteroscedastic,
-    gaussian-fixed() Gibbs conduit stays open). Record:
-    docs/plans/multiforest-mutation-gaps.md. Doors left open: n x K
-    multinomial offset (no demand); BCF whole-data setData - surveyed
-    2026-08-06 (design memo + refuting critique; record in
-    docs/plans/runsbcbcf-repair.md "setData door survey") and held
-    OPEN at the joint x/y/z-with-n-free semantics per VD's
-    enabling-models rationale, z REQUIRED in the same call (the
-    combiner indexes borrowed z over live n: an n-growing variant
-    over-reads, a fixed-n one re-pairs old z with new rows). The
-    latent-treatment sensitivity class that motivated it runs TODAY
-    at fixed n via the fixed glue (a=1, b0=0, b1=1) + setTreatment
-    per iteration; what remains is exact zero-weight exclusion and
-    O(treated) tau cost - the narrower per-forest row-subsetting
-    door, efficiency-shaped, also open. BOTH update-shape doors are
-    RESEARCH-GATED (VD 2026-08-06): before designing any particular
-    shape, survey which model classes are actually worth enabling -
-    the shape follows from the models. In due course, not queued.
-  setpredictor-leafof-rebuild: CLOSED 2026-08-05 (memo executed under
-    the proceed-at-discretion grant) - the leafOf rebuild is only ~21%
-    of the regression and every leafOf-scoped mechanism's measured
-    ceiling is +9.7%, still outside the gate, so the item is not worth
-    its complexity. The gather door is now TAKEN in a roll-only form
-    (LANDED 9141274 2026-08-06): rollTreeResidual + finalizeTotalFits unrolled by
-    4 behind an n % 4 prologue, ResidT = double only, header-local - no
-    misc kernel, no dispatch slot; x86 run -3.0 to -3.9%, arm64 run
-    -5.9% (n=1000) / -12.7 to -13.9% (n=10000), draws bitwise
-    identical, layout luck closed. DECLINED by measurement, do not
-    re-propose: unrolling subtractTreeFitsFromTotal / addTreeFitsToTotal
-    (1.7-2.4% WORSE on setPredictor-accept) and the
-    installLeafOfAndAddToTotal scatter. The Memo's "79% is the gather"
-    and its cross-ISA tests/cpp gate were both wrong; corrected in the
-    landing note (docs/plans/setpredictor-leafof-rebuild.md).
-  integer-predictor-storage: dense-INTEGER storage in the
-    PredictorSource view. denseValues is const double* (data.hpp ~188),
-    ColumnType is semantic only (ordinal | categorical), and R still
-    as.doubles at the bartcore.R entrances. A memory win, not speed;
-    integer -> double is exact in range so the slice MUST be
-    trio-bitwise. Split out of typed-ingestion at its 2026-08-06
-    close: the typing that mattered (ordinal vs categorical with
-    declared K) landed with slice 2b; storage width is a separate
-    question with its own gate. consumer-gated.
+  setpredictor-leafof-rebuild: CLOSED 2026-08-05; the gather door
+    TAKEN roll-only, LANDED 9141274 2026-08-06 (x86 run -3.0 to
+    -3.9%, arm64 -5.9 to -13.9%, draws bitwise identical). Record,
+    Memo corrections, and the DECLINED do-not-re-propose list in
+    docs/plans/setpredictor-leafof-rebuild.md.
   sparse-extensions: the streaming range kernel and the smaller
     deferred extensions in docs/plans/sparse-extensions.md's Status
     list (rbart_vi/linear-leaf on sparse, per-column u8 widths).
@@ -223,41 +183,6 @@ items
     triple until a column's first write, then per-column owned
     slices; data.hpp ~174). setData on a CSC/mixed store and
     per-observation CSC mutation are recorded typed-ingestion doors.
-  typed-ingestion: surfaced by the 2026-08-05 facade review; premise
-    reset by VD - there are NO frozen contracts (consumers sweep in
-    lockstep; a dbarts.h change costs the ABI checklist + sweep, not
-    a compat break), and R already receives integer matrices, factors
-    with DECLARED levels, and dgCMatrix, then flattens them to double
-    + scattered metadata at the bridge (as.double throughout
-    R/bartcore.R; the levels slot in A_class.R is kept but never
-    passed as K). One borrowed typed PredictorSource view (per
-    column: dense-double | dense-integer | CSC; ordinal | categorical
-    with declared K) taken by creation, test ingestion, and mutation:
-    collapses SamplerOptions' 8 ingestion fields, the 7-arg
-    setTestData, and the dense-only mutation entries into one
-    spelling, and makes dense/CSC categoricals symmetric. Probe
-    executed and slices 0-2a LANDED (docs/plans/typed-ingestion.md
-    carries the probe record, critiques, and landings): slice 0
-    csc-code-validation df79f17 closed the CSC bounding holes; slice
-    1 0d3914c honors declared factor levels in the dense grid; slice
-    2a 95db5d7 2026-08-06 lifts mixed-container column mutation
-    (refCode-keyed engine pattern, slot-surgery R mirror, dense-backed
-    per-observation opened for the IRT case) and aligns foreign test
-    containers at the validateXTest funnel (suite 3581); slice 2b,
-    the PredictorSource view consolidation proper, LANDED d4e80e3
-    2026-08-06 (record 4a14eeb; step list, refuting critique, FIX-0
-    pre-slice 8872dd2, and landing note all in the plan doc) - one
-    borrowed trivially-destructible view taken by creation, test
-    ingestion, and mutation, buildFromCsc/buildMixed/buildTestMixed
-    retired, dbarts.h byte-unchanged, whole-matrix setPredictor on
-    mixed designs OPEN through bartcore.R's sparse-bearing branch.
-    The arc is CLOSED. Remaining doors, consumer-gated, recorded at
-    the 2b landing: sparse-valued mutation, typed flat C API entries
-    (the only dbarts.h toucher), setData on a CSC/mixed store,
-    per-observation mutation of CSC-backed columns; dense-integer
-    storage moved to integer-predictor-storage above. Typing stops at
-    the boundary: the hot layer stays quantized codes + double cuts;
-    response/offset/weights stay double*.
   survival-followups: doors out of the survival family pair (AFT +
     discrete-time hazard both landed; records in docs/plans/survival-
     models.md and docs/design/survival.md sec 6): cloglog link (needs a
@@ -266,9 +191,20 @@ items
     covariates in the auto-expander (available today via the manual
     person-period fit), continuous-time models. Each independent;
     demand-driven. low-ranked.
-  weighted-binary: post 1.0 - integer-weight probit via replicated
-    latents; arbitrary real weights need a real-shape PG sampler (IPW
-    is a pseudo-likelihood trap).
+  typed-ingestion: CLOSED - slices 0-2b ALL LANDED, 2b at d4e80e3
+    2026-08-06 (record 4a14eeb; probe, critiques, and landing notes
+    in docs/plans/typed-ingestion.md): one borrowed PredictorSource
+    view taken by creation, test ingestion, and mutation; declared
+    factor levels ride as K since slice 1 (0d3914c). Remaining
+    doors, consumer-gated: sparse-valued mutation, typed flat C API
+    entries (the only dbarts.h toucher), setData on a CSC/mixed
+    store, per-observation mutation of CSC-backed columns. The hot
+    layer stays quantized codes + double cuts;
+    response/offset/weights stay double*.
+  weighted-binary: integer-weight probit via replicated latents;
+    arbitrary real weights need a real-shape PG sampler (IPW is a
+    pseudo-likelihood trap; the approximate-PG decision is shared
+    with negbin-real-dispersion). decision-gated.
   x86-simd: SIMD is closed as a perf lever - compute width is already
     there (the manual unroll plus the per-file -m flag emits 256-bit at
     -O2, measured on the bench box, docs/plans/simd-flag-
@@ -303,10 +239,10 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     PROTECT-balance and memcheck passes CRAN itself runs. HELD
     2026-07-25 (VD): main stays as it is until VD's own review of the
     branch; revisit these checks then.
-  push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-13; submit both
-    to CRAN together. bartCause is ready on branch dbarts-1.0 in
-    ~/Repositories/bartCause (two commits, unpushed, checks Status OK):
-    push and submit it after dbarts is accepted.
+  push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-14; submit both
+    to CRAN together. bartCause is ready and PUSHED on branch
+    dbarts-1.0 in ~/Repositories/bartCause (ahead of its main; checks
+    Status OK): submit it after dbarts is accepted.
   close GitHub issue #80 at release: fully resolved by the setResponse
     updateScale switch (cf70fd5; default FALSE locks the creation-time
     prior scale - the safe embedded-Gibbs behavior the issue asks for;
@@ -339,9 +275,11 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     sbc gaussian R=100: see cran-readiness.md.
     covr audit and the with-Suggests revdep sweep: see
       cran-readiness.md.
-    note 2026-08-04: this record pins HEAD 51edbf6 + same-day fixes;
-      b96d3bb (prior evaluation environment; suite now 3469) and the
-      2026-08-04 shipped-doc commits (9cf074e, 47149bc - NEWS/Rd/
-      vignette rewrites, new example blocks) postdate it. R-surface
-      and doc only, but re-run check --as-cran + the suite at
-      submission.
+    note 2026-08-06 (supersedes the 2026-08-04 note, which wrongly
+      said "R-surface and doc only"): 16 engine commits postdate
+      47149bc - the typed-ingestion slices, the multiforest guards,
+      the gather unroll 9141274 - including ONE DRAW-LAW change
+      (ec2a3d0, multinomial level-centering; multinomial baseline
+      re-recorded per MANIFEST). At submission re-run the FULL
+      battery: check --as-cran on a clean-copy tarball, the suite,
+      and the equivalence trio against the current baselines.
