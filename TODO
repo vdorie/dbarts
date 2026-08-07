@@ -21,14 +21,13 @@ Standing fact (VD, 2026-07-06): single-chain n >= 1e5 workloads are
 common. The large-n performance items are live, not consumer-gated.
 
 items
-  backlog-hygiene: verify every TODO entry's status claims against
-    git log and live code, and trim the document to genuine to-dos -
-    an entry that says REMAINING or open must be checked, not
-    trusted (the 2026-08-06 precedent: typed-ingestion slice 2b sat
-    as REMAINING though landed at d4e80e3 and nearly got re-built;
-    sparse x.test and mixed-column mutation fell as stale the same
-    night). Done items keep one LANDED line pointing at their
-    record, or move to the plan docs entirely.
+  backlog-hygiene: EXECUTED 65ef425 2026-08-06 (32-entry census: 21
+    current, 5 stale, 5 done-and-collapsed; worst finds were a
+    landed equivalence scenario read as unbuilt, a deleted refusal
+    cited as live, and a release-currency claim spanning a draw-law
+    change). Now a standing discipline, not a one-shot: verify an
+    entry's status claims against git and live code before scoping
+    from it, and re-run a full census before release.
   backlog-value-scan: re-read every gated entry under the
     enabling-value rule (preamble above, b73ad81): per item, ask
     what it might enable and whether its gate still rests on a
