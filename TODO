@@ -246,29 +246,20 @@ items
     n=1e6, the no-signal worst case a 1.11x win - while K=1 is NOT
     green (privatization is the mechanism; K joins the exactness
     contract, and draws shift last-ULP, so baselines re-record at
-    landing). The arm64 in-situ leg RAN 2026-08-07 (sec 12, M1 Max):
-    direction confirmed and growing with n (1.07x at n=1e5, 1.23-1.25x
-    at n=1e6) but far below Zen2, and the no-signal worst case INVERTS
-    to a ~5% loss. Design memo + refuting critique RAN 2026-08-07
-    (verdict stands-with-amendments; conclusions here, long-form in
-    the orchestration scratch): scope is constant leaf + fp64 +
-    unweighted + fresh leafOf, covering monotone free and
-    probit/ordinal/AFT/grouped (null workingWeights); BCF and
-    multinomial decline through the weights clause alone, so their
-    equivalence baselines stay bitwise and serve as a positive
-    landing gate; K=4 constexpr, no knob (K is the draw law); NO
-    structural gate - a stock-tree census (noise-n1e5 bare-root
-    fraction ~0.20 with 69% of trees single-split, friedman ~0.02)
-    refuted the memo's isRoot gate, so v1 lands ungated exactly as
-    measured and ACCEPTS the arm64 ~5% no-signal loss with a
-    pre-registered arm re-run; the fused pass must reproduce the
-    roll residual bitwise so the suffstat association is the only
-    draw change; 11 decline scenarios stay bitwise vs
-    equivalence-7903855 while covered scenarios shift last-ULP (six
-    pinned tinytest files re-pin in the code commit; bcf/multinomial
-    baselines do NOT re-record). IMPLEMENTATION IN FLIGHT
-    (serialized). Throwaway patch in wt/fused-falsifier. Related
-    defect found by the design pass: sampletreesfromprior-midchain.
+    landing). The fused-suffstat arc LANDED c8f661a 2026-08-07 (full
+    record memory-wall-frontier.md secs 11-13): the constant-leaf
+    fp64 unweighted fresh-leafOf path takes the fused four-bank pass
+    (K=4 is part of the draw law), everything else declines to stock;
+    equivalence baseline re-recorded as equivalence-c8f661a.rds.
+    PENDING from that landing: bench-sampler speed baseline
+    re-records on the next quiet-machine grant; the arm64 no-signal
+    ~5% loss re-measures at the pre-registered re-run (accepted, no
+    escalation without it). Remaining doors out of the memory wall:
+    weighted/fp32 fusion legs (unmeasured; would extend the fused
+    path to BCF/multinomial/logistic through their weights),
+    move-phase child gathers (parent-minus-sibling, separate item),
+    K=8 (unmeasured). Related defect found by the design pass:
+    sampletreesfromprior-midchain.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   note: the schedule/dispatch-only workflows (equivalence, rchk,
