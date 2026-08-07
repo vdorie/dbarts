@@ -241,6 +241,204 @@ static void testGatherTailShapes(ext_rng* rng) {
                             "fp32 n % 4 != 0: rolled residual matches a scalar sum");
 }
 
+// The fused suffstat's K banks combine strictly left to right,
+// ((b0 + b1) + b2) + b3, which is part of the draw law rather than an
+// implementation detail. These banks discriminate: 1e-16 is below half an ulp
+// of 1.0 (2.22e-16), so left to right each small term rounds away and the sum
+// is exactly 1.0, while any pairwise regrouping sums the three small terms
+// first and returns 1.0000000000000002. Asserted bitwise, not near.
+static void testFusedSuffstatBankCombine() {
+  const double contiguous[fusedSuffstatBanks] = {1.0, 1e-16, 1e-16, 1e-16};
+  check(combineFusedSuffstatBanks(contiguous, 0, 1) == 1.0,
+        "fused bank combine associates left to right");
+  // the kernel lays the banks out bank-major: slot s of bank b is at
+  // b * stride + s, with stride the tree's node count
+  const double strided[2 * fusedSuffstatBanks] = {0.0, 1.0,   0.0, 1e-16,
+                                                  0.0, 1e-16, 0.0, 1e-16};
+  check(combineFusedSuffstatBanks(strided, 1, 2) == 1.0,
+        "fused bank combine reads the banks bank-major");
+  printf("ok: fused suffstat bank combine\n");
+}
+
+// The fused roll + suffstat pass reproduces rollTreeResidual's per-element
+// residual BITWISE - same expressions, same order - which is what makes the
+// suffstat's summation association the only draw change the fusion
+// introduces. The statistic itself legitimately differs in the last ulps,
+// since the fused banks and the stock unroll-by-5 gather associate
+// differently, so it is compared to a mixed absolute/relative bound.
+//
+// n sweeps all four residues of the n % 4 prologue, which puts its elements in
+// bank 0 and shifts every later element's bank - the pass's one new failure
+// mode, the same reasoning testGatherTailShapes applies to the unrolled
+// gathers - plus the short shapes where n < 4 makes the whole vector prologue
+// and K collapses to 1.
+static void checkFusedSuffstatShape(size_t n, size_t numBurnIn, ext_rng* rng) {
+  const size_t p = 3;
+  std::vector<double> x(n * p), y(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i)
+    y[i] = std::sin(3.0 * x[i]) + 2.0 * x[i + n] * x[i + 2 * n] +
+           0.3 * (runif01() - 0.5);
+
+  SamplerOptions options;
+  options.numTrees = 12;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+  Results empty;
+  sampler.run(numBurnIn, 0, empty);
+
+  FusedSuffstatCheck fused =
+    sampler.chain(0).checkFusedSuffstatAgainstStockForTesting();
+  char label[128];
+  std::snprintf(label, sizeof(label),
+                "n %% 4 == %lu: fused roll matches the stock roll bitwise",
+                static_cast<unsigned long>(n % 4));
+  check(fused.residualsAgreeBitwise, label);
+  std::snprintf(label, sizeof(label),
+                "n %% 4 == %lu: fused sumWeights matches the stock count",
+                static_cast<unsigned long>(n % 4));
+  check(fused.countsAgreeBitwise, label);
+  std::snprintf(label, sizeof(label),
+                "n %% 4 == %lu: fused suffstat matches the stock gather",
+                static_cast<unsigned long>(n % 4));
+  check(fused.worstRelativeError < 1e-9, label);
+  std::snprintf(label, sizeof(label),
+                "n = %lu: every tree took the fused pass",
+                static_cast<unsigned long>(n));
+  check(fused.numTreesFused == sampler.chain(0).numTrees(), label);
+  printf("ok: fused suffstat at n = %lu (worst statistic gap %.3g)\n",
+         static_cast<unsigned long>(n), fused.worstRelativeError);
+}
+
+static void testFusedSuffstatMatchesStock(ext_rng* rng) {
+  for (size_t n = 1000; n <= 1003; ++n) checkFusedSuffstatShape(n, 20, rng);
+  // n < 4: the prologue swallows the whole vector, so the pass is K = 1 and
+  // must agree with the stock root kernel, which sums in the same obs order
+  for (size_t n = 1; n <= 3; ++n) checkFusedSuffstatShape(n, 2, rng);
+}
+
+// Every eligibility clause is otherwise a silent decline, so each one is
+// pinned positively through the fused run counter. The clauses are
+// compile-time (leaf shape, ResidT) or O(1) (weights, leafOf freshness); the
+// stale-map clause is exercised where that state already gets set up, in
+// test_moves.cpp's testLeafOfConsistency.
+static void testFusedSuffstatDeclines(ext_rng* rng) {
+  const size_t n = 300, p = 3;
+  std::vector<double> x(n * p), y(n), w(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    y[i] = 4.0 * (x[i] - 0.5) + 2.0 * x[i + n] + 0.2 * (runif01() - 0.5);
+    w[i] = 0.5 + runif01();
+  }
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  Results empty;
+
+  // covered: the plain gaussian constant leaf, from the very first sweep -
+  // there is no gate on a tree whose root is still its only bottom
+  {
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                                ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, options, &rng);
+    sampler.run(1, 0, empty);
+    check(sampler.chain(0).fusedSuffstatRunsForTesting() == options.numTrees,
+          "the fused suffstat runs on a fresh sampler's first sweep");
+    size_t before = sampler.chain(0).fusedSuffstatRunsForTesting();
+    sampler.run(1, 0, empty);
+    check(sampler.chain(0).fusedSuffstatRunsForTesting() - before ==
+            options.numTrees,
+          "the fused suffstat runs for every tree of a burned-in sweep");
+  }
+
+  // declined: non-null weights, the one clause that also removes logistic,
+  // negbin, t, the heteroscedastic mean forest, BCF and multinomial
+  {
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, w.data(), nullptr,
+                                ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, options, &rng);
+    sampler.run(2, 0, empty);
+    check(sampler.chain(0).fusedSuffstatRunsForTesting() == 0,
+          "weights decline the fused suffstat");
+  }
+
+  // declined: the opt-in fp32 residual, whose roll is left rolled on purpose
+  {
+    SamplerOptions fp32Options = options;
+    fp32Options.fp32Residual = true;
+    Sampler<ConstantGaussianLeaf, float> sampler(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, fp32Options, &rng);
+    sampler.run(2, 0, empty);
+    check(sampler.chain(0).fusedSuffstatRunsForTesting() == 0,
+          "the fp32 residual declines the fused suffstat");
+  }
+
+  // declined: the vector leaf keeps no node averages at all, and the function
+  // leaf keeps the dense slab in place of a leafOf map
+  {
+    std::vector<size_t> covariates = {2};
+    SamplerOptions leafOptions = options;
+    leafOptions.leafCovariateColumns = covariates.data();
+    leafOptions.numLeafCovariates = 1;
+    Sampler<LinearGaussianLeaf> linear(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, leafOptions, &rng);
+    linear.run(2, 0, empty);
+    check(linear.chain(0).fusedSuffstatRunsForTesting() == 0,
+          "the vector leaf declines the fused suffstat");
+
+    leafOptions.gpMaxLeafSize = 100;
+    Sampler<GPGaussianLeaf> gp(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, leafOptions, &rng);
+    gp.run(2, 0, empty);
+    check(gp.chain(0).fusedSuffstatRunsForTesting() == 0,
+          "the function leaf declines the fused suffstat");
+  }
+
+  // declined: both combiners always supply non-null weights, so the two
+  // multi-forest models ride the weights clause with no rule of their own
+  {
+    std::vector<double> z(n), yBcf(n);
+    for (size_t i = 0; i < n; ++i) {
+      z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+      yBcf[i] = 2.0 * x[i] + z[i] * (1.0 + x[i + n]) + 0.2 * (runif01() - 0.5);
+    }
+    BCFSpec spec;
+    spec.mu.numTrees = 20; spec.mu.base = 0.95; spec.mu.power = 2.0;
+    spec.tau.numTrees = 15; spec.tau.base = 0.95; spec.tau.power = 2.0;
+    spec.z = z.data();
+    Sampler<ConstantGaussianLeaf> bcf(
+      x.data(), yBcf.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+      0.37804942330213542, options, spec, &rng);
+    bcf.run(2, 0, empty);
+    check(bcf.chain(0).fusedSuffstatRunsForTesting() == 0,
+          "BCF declines the fused suffstat through its combiner weights");
+  }
+  {
+    const size_t K = 3;
+    std::vector<int> counts(n * K, 0), trials(n, 1);
+    for (size_t i = 0; i < n; ++i) {
+      size_t label = static_cast<size_t>(runif01() * static_cast<double>(K));
+      counts[(label < K ? label : K - 1) * n + i] = 1;
+    }
+    MultinomialSpec spec;
+    spec.numCategories = K;
+    spec.counts = counts.data();
+    spec.trials = trials.data();
+    spec.forest.numTrees = 15;
+    Sampler<ConstantGaussianLeaf> multinomial(x.data(), n, p, options, spec,
+                                              &rng);
+    multinomial.run(2, 0, empty);
+    check(multinomial.chain(0).fusedSuffstatRunsForTesting() == 0,
+          "multinomial declines the fused suffstat through its omega weights");
+  }
+
+  printf("ok: fused suffstat decline set\n");
+}
+
 // The cooperative cancellation the R interrupt handler drives: run() polls the
 // supplied predicate and returns true when it stops early, on both the
 // single-chain (inline poll) and multi-chain (worker cancel flag) paths.
@@ -3109,6 +3307,9 @@ void runSamplerTests(ext_rng* rng) {
   testEndToEndGaussian(rng);
   testEndToEndGaussianFp32(rng);
   testGatherTailShapes(rng);
+  testFusedSuffstatBankCombine();
+  testFusedSuffstatMatchesStock(rng);
+  testFusedSuffstatDeclines(rng);
   testRunCancellation(rng);
   testEndToEndProbit(rng);
   testMultiChain();

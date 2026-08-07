@@ -1007,10 +1007,22 @@ static void testLeafOfConsistency(ext_rng* /*rng*/) {
 
   // wholesale reset: prior-drawn structures mark the map for rebuild, which
   // the next sweep must clear tree by tree
+  size_t fusedBefore = sampler.chain(0).fusedSuffstatRunsForTesting();
   sampler.chain(0).sampleTreesFromPrior();
   sampler.run(1, 0, empty);
+  size_t fusedAfterReset = sampler.chain(0).fusedSuffstatRunsForTesting();
   mapsMatch();
   check(allMatch, "leafOf matches after a prior-drawn structure reset");
+
+  // the same state is the fused roll+suffstat's stale-map decline: over that
+  // sweep the map still describes the PREVIOUS partition, so every tree falls
+  // back to the stock pair, and the fusion resumes once the rebuild lands
+  check(fusedAfterReset == fusedBefore,
+        "a stale leafOf declines the fused suffstat for every tree");
+  sampler.run(1, 0, empty);
+  check(sampler.chain(0).fusedSuffstatRunsForTesting() - fusedAfterReset ==
+          numTrees,
+        "the fused suffstat resumes on the sweep after the leafOf rebuild");
 
   ext_rng_destroy(localRng);
   rngState = savedRngState;
