@@ -28,14 +28,49 @@ items
     change). Now a standing discipline, not a one-shot: verify an
     entry's status claims against git and live code before scoping
     from it, and re-run a full census before release.
-  backlog-value-scan: re-read every gated entry under the
-    enabling-value rule (preamble above, b73ad81): per item, ask
-    what it might enable and whether its gate still rests on a
-    considered failure to think of value rather than the old
-    no-consumer-today reading. Folds into the model-space research
-    VD wants before any multiforest update shape (the research gate
-    in runsbcbcf-repair.md "setData door survey"); authorized by VD
-    2026-08-08, runs inside the model-space survey arc, in flight.
+  backlog-value-scan: EXECUTED 2026-08-08 inside the model-space
+    survey arc (record docs/design/model-space-survey.md sec 7;
+    working papers in .claude/model-space-survey/). 21 rows over 15
+    gated entries re-read under the enabling-value rule. LIFTED, 8
+    rows over 6 entries, each now naming its model in the entry:
+    gp-followups, group-by-exposure, interaction-constraints
+    (heredity half), multiforest-mutation-gaps (row-subsetting door
+    - VALUE only, shape unresolved), the n x K multinomial offset
+    (now multinomial-counts-mutation), sparse-extensions (rbart_vi
+    / linear-leaf half), survival-followups (competing risks, left
+    truncation). GATES STAND, each on a considered reason:
+    bcf-sigma-tail-mixing, forest-ranef-interweaving,
+    interaction-constraints' soft penalties, python-bindings,
+    sparse-extensions' perf-only remainder, survival-followups'
+    cloglog and continuous-time, and typed-ingestion's
+    per-observation CSC refusal - the last now with a MODEL-SPACE
+    reason, since every class needing per-observation mutation
+    mutates a DENSE column. Two KEEPs changed character: the
+    whole-data setData doors (multiforest and CSC/mixed) were gated
+    on absent demand and are now gated on a considered failure to
+    find an enabled model, which is the licensed form. Four
+    candidate lifts REJECTED because they do not move the entry's
+    operative gate: negbin-real-dispersion and weighted-binary (the
+    value was never the gate; the shared approximate-PG posture
+    decision is), integer-predictor-storage (a use, not a model),
+    and correlated-outcomes' AR-1 ENGINE door (already
+    causal-motivated, and the panel-BCF citations do not show the
+    recorded outer-sampler composition insufficient, which is what
+    lifting the engine door would require).
+  bcf-public-surface: BCF ships in the engine with NO public creation
+    entry - reachable only as dbarts:::bartcoreBCFSampler
+    (R/bartcore.R:536, not in NAMESPACE); bcf() is named only in a
+    comment (R/model.R:1032); the flat C API routes
+    dbarts_sampler_create to createHolder, never createBCFHolder.
+    Enables: any package consuming the shipped two-forest sampler at
+    all - bartCause/treatSens-style causal consumers today, and every
+    future BCF update shape (multiforest-predictor-mutation, the
+    row-subsetting door), none of which can be reached without the
+    internal call. Surveyed as prerequisite D3
+    (docs/design/model-space-survey.md sec 4): cheaper than either
+    update-shape door and the actual first constraint on the BCF model
+    space, so it sequences ahead of them. Shape fork at design time: a
+    bcf() front end, dbartsSpec(family = "bcf"), or both.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). The BCF sigma SBC
     flag was diagnosed as a slow forest-mixing burn transient and fixed
@@ -94,12 +129,24 @@ items
     docs/design/forest-ranef-interweaving.md. decision-gated.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
-    low-rank kernels. decision/consumer-gated.
+    low-rank kernels. VALUE GATE LIFTED by the 2026-08-08 model-space
+    survey: GP-leaf BART as a surrogate for sequential design of
+    computer experiments (arXiv 1203.1078), where the response is
+    explicitly nonstationary and a FIXED lengthscale asks the user to
+    know the thing they are estimating; low-rank kernels serve the
+    standing n >= 1e5 fact. decision-gated on cost, no longer on value.
   gpu-bart: backend-seam design waits on frontier items 4-5
     (informed-kernel + CG-leaf prototypes); memo and falsifiers in
     docs/design/gpu-bart.md and parallel-bart-frontier.md.
   group-by-exposure: public group.by beyond rbart_vi
-    (grouped-random-effects.md; naming reserved). decision-gated.
+    (grouped-random-effects.md; naming reserved). VALUE GATE LIFTED by
+    the 2026-08-08 model-space survey: clustered / multi-site causal
+    survival, which riAFTBART does on CRAN TODAY (a random-intercept
+    AFT BART for causal inference with multiple treatments in
+    multilevel survival data), plus grouped discrete-time hazard, which
+    docs/design/survival.md sec 6 already calls feasible by
+    construction with only surface work left. Pairs with
+    sparse-extensions' rbart_vi-on-sparse half. decision-gated.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared scan.
   grow-from-root-default: make defaulting bart2's init to the XBART
@@ -137,9 +184,14 @@ items
     co-occurrence) and P4 (per-tree block-additive blocks(), plus the
     F1 columnMask warm-start fix) both LANDED 2026-07-21 - f455d7c,
     aadbbc8/103dbe2/073d3db; records in docs/design/interaction-
-    constraints.md and the two plan docs. Remaining doors: soft
-    path-dependent penalties, formal heredity (ensemble lattice prior)
-    - both decision/consumer-gated.
+    constraints.md and the two plan docs. Remaining doors: formal
+    heredity (ensemble lattice prior) - VALUE GATE LIFTED by the
+    2026-08-08 model-space survey, enabling functional-ANOVA BART
+    (arXiv 2509.03317: interpretable variance decomposition with a
+    hierarchical ordering of effects), for which dbarts already ships
+    the hard-constraint half; and soft path-dependent penalties, gate
+    STANDS - no model surfaced, it is a knob on an existing constraint.
+    decision-gated.
   multiforest-mutation-gaps: LANDED, all four commits 2026-08-06
     (d489986 offset/treatment guards incl. the BCF setOffset(TRUE)
     decalibration hole and the multinomial test-offset simplex
@@ -148,23 +200,112 @@ items
     block, installed at setState AND installForests; ef61b39
     refusePinnedSigmaChange on fixed-sigma families + heteroscedastic,
     gaussian-fixed() Gibbs conduit stays open). Record:
-    docs/plans/multiforest-mutation-gaps.md. Doors left open: n x K
-    multinomial offset (no demand); BCF whole-data setData - surveyed
-    2026-08-07 (design memo + refuting critique; record in
-    docs/plans/runsbcbcf-repair.md "setData door survey") and held
-    OPEN at the joint x/y/z-with-n-free semantics per VD's
-    enabling-models rationale, z REQUIRED in the same call (the
-    combiner indexes borrowed z over live n: an n-growing variant
-    over-reads, a fixed-n one re-pairs old z with new rows). The
-    latent-treatment sensitivity class that motivated it runs TODAY
-    at fixed n via the fixed glue (a=1, b0=0, b1=1) + setTreatment
-    per iteration; what remains is exact zero-weight exclusion and
-    O(treated) tau cost - the narrower per-forest row-subsetting
-    door, efficiency-shaped, also open. BOTH update-shape doors are
-    RESEARCH-GATED (VD 2026-08-06): before designing any particular
-    shape, survey which model classes are actually worth enabling -
-    the shape follows from the models. Survey authorized by VD
-    2026-08-08 and in flight; setData's data-type shapes ride along.
+    docs/plans/multiforest-mutation-gaps.md. The research gate VD set
+    2026-08-06 has RUN - docs/design/model-space-survey.md, 2026-08-08,
+    memo + blind refuting critique - and both update-shape doors now
+    have verdicts.
+    BCF whole-data setData (n free, z required): KEEP UNDESIGNED. No
+    model class surfaced for an n-free multi-forest joint swap. Every
+    verified multi-forest class holds n FIXED and mutates values or
+    membership; the one verified growing-n class (sequential design of
+    computer experiments) is single-forest and already served by the
+    shipped n-free setData. BART adaptive-trial designs DO exist -
+    riAFT-BART CARA (pubmed 38688389), DOD-BART (pubmed 39611660), BFTS
+    (arXiv 2602.07767) - correcting the survey memo's absence claim, but
+    none maintains one fit across an accruing sample and BFTS
+    deliberately COLD-STARTS from the prior on each refresh, which
+    strengthens the KEEP. The z-required semantics stay correct if the
+    door is ever taken. Now gated on a considered failure to find an
+    enabled model, not on absent demand.
+    Per-forest row subsetting: VALUE GATE LIFTED, SHAPE UNRESOLVED.
+    Enables the tree-based Bayesian AFT MIXTURE CURE model (Sun & Song,
+    Bayesian Analysis 20(2)), whose latency component is fit on the
+    currently-uncured subgroup with the cure label resampled each sweep,
+    and whose authors reimplemented bcf's tree code standalone to get it
+    (github roxiesun/TBAFTcure). The survey memo's other three classes
+    did NOT survive checking: principal stratification enters its
+    imputed strata as SPLITTING COVARIATES on all n rows (that is
+    multiforest-predictor-mutation, not this door), zero-inflated
+    log-linear BART keeps all n rows with augmented weights of zero
+    (the weight channel suffices), and the latent-treatment sensitivity
+    class was double-counted - it runs TODAY at fixed n via the fixed
+    glue (a=1, b0=0, b1=1) + setTreatment per iteration, leaving only
+    exact zero-weight exclusion and O(treated) tau cost, i.e. an
+    EFFICIENCY remainder, not a mutability one. So the shape is a THREE-
+    way fork, not the memo's mask: mutable per-forest row MASK, per-
+    forest ZERO WEIGHT (cheapest - the combiner already forms per-forest
+    weights, combiner.hpp:457-473, and would need only an exact-zero
+    path for the 1e-9 floor; buys exactness but not the O(|S|) cost),
+    or physical COMPACTION (the only real-world datapoint: TBAFTcure
+    gathers into nuncured-sized arrays each sweep and has the
+    zero-weight alternative commented out in the same source). The two
+    interested classes may want DIFFERENT shapes. Settle first whether
+    the subset forest wants its own CUT GRID - if yes the mask is
+    eliminated outright - then cost at 10-50% membership, empty-leaf
+    semantics under changing membership, and which residual sigma's df
+    sees. Design-gated on that fork, no longer value-gated.
+    The n x K multinomial offset door moves to
+    multinomial-counts-mutation, which re-scopes it (the response is
+    the combiner's counts_ matrix, so the offset needs a real channel,
+    not a flag flip). setData's data-type shapes are answered under
+    typed-ingestion. The survey also surfaced two new doors -
+    multiforest-predictor-mutation, bcf-public-surface - and the
+    variance-forest-mutation-routing defect.
+  multiforest-predictor-mutation: the model-space survey's MOST
+    VALUABLE door (docs/design/model-space-survey.md secs 4-5). The
+    multi-forest transactional guard
+    (R_interface_bartcore.cpp:1909-1923) refuses the transactional
+    setPredictor/updatePredictor and EVERY per-observation session on
+    numForests >= 2, because Chain::revalidateTrees (chain.hpp:1484)
+    revalidates forests_[0] only; the forced whole-matrix swap is the
+    only multi-forest predictor mutation there is. Enables four
+    verified fixed-n classes, all of them latent-covariate causal
+    forests: bairrtt's irt_causal_bart with latent ability as a
+    TREATMENT MODERATOR (an EXISTING consumer, whose current
+    single-forest use rides the per-observation surface built for it,
+    blocked at exactly this guard the moment the outcome model becomes
+    a causal forest); treatSens-style latent-confounder sensitivity on
+    a BCF, the class the setData door record names as its own
+    motivation; principal-stratification BCF (arXiv 2403.13256 -
+    imputed intermediates enter tau_Y as splitting covariates);
+    sequential-BART covariate imputation inside a BCF. Fixed n, no new
+    data object, no calibration change - the work is extending
+    revalidation across forests. forceUpdate = TRUE is NOT a
+    workaround: it collapses emptied leaves instead of rolling back (a
+    different proposal, neither one the other), and the per-observation
+    session has no force variant at all, so bairrtt's partial-rollback
+    semantics cannot be recovered by any current call. UNPRICED, and to
+    settle BEFORE designing: lifting this widens the acceptance
+    criterion from "no leaf empties in any tree of any chain" to "...
+    of any FOREST of any chain", so a K-forest sampler rejects strictly
+    more transactions and the partial-install rate bairrtt depends on
+    falls by an unmeasured amount - a modeling consequence, not
+    plumbing. Measure the per-forest veto rate at realistic K, and
+    decide whether the veto is per-forest or per-sampler. The BCF half
+    is only consumable behind bcf-public-surface. Plan doc at design
+    time.
+  multinomial-counts-mutation: multinomial BART cannot mutate its
+    RESPONSE side, so alone among the families it cannot serve as a
+    conditional inside a larger Gibbs sampler - the thing dbarts exists
+    to make possible. MultinomialForestCombiner does not override
+    supportsResponseMutation (combiner.hpp:417 default false), but the
+    fix is NOT that flag: formForestResponse (combiner.hpp:802-814)
+    takes const double* y and w and IGNORES BOTH - the response IS the
+    combiner-owned counts_ matrix, fixed at construction - so
+    setResponse would write a y nothing reads. The real content is a
+    new COUNTS and n x K OFFSET mutation channel on the combiner, plus
+    creation-side surface (R/bart.R:668-680 refuses weights and offset
+    for family = "multinomial"). Enables: competing-risks discrete-time
+    hazard, which docs/design/survival.md sec 6 already records as "the
+    same expansion with a multinomial outcome" (moves with
+    survival-followups); nominal-response IRT and discrete choice with
+    alternative-specific offsets; SUR-style multi-outcome composition,
+    which stan4bart ships for gaussian outcomes and which stops at the
+    multinomial boundary. Subsumes the old "n x K multinomial offset
+    (no demand)" door. NOTE the PREDICTOR channel is already open here
+    - forced setPredictor is not refused for multinomial
+    (R_interface_bartcore.cpp:3676-3679) - so the gap is response-side
+    only. Surveyed as D2, docs/design/model-space-survey.md sec 4.
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
@@ -211,7 +352,14 @@ items
   sparse-extensions: the streaming range kernel and the smaller
     deferred extensions in docs/plans/sparse-extensions.md's Status
     list (rbart_vi/linear-leaf on sparse, per-column u8 widths).
-    consumer-gated. Resolved since the entry was written: mutation on
+    rbart_vi / linear leaf on sparse: VALUE GATE LIFTED by the
+    2026-08-08 model-space survey - grouped random effects on
+    high-dimensional sparse designs (clustered text, genomic and
+    administrative data), the riAFTBART shape meeting the sparse
+    store; pairs with group-by-exposure. Streaming range kernel and
+    per-column u8 widths: gate STANDS - perf/memory only, and unlike
+    integer-predictor-storage they carry no measured win; reopen with
+    numbers. Resolved since the entry was written: mutation on
     dense-backed mixed columns landed with typed-ingestion slice 2a
     (95db5d7); sparse x.test was delivered and closed by
     docs/plans/test-data-parity.md; the CSC ownership policy VD's
@@ -225,8 +373,17 @@ items
     cloglog binary family first), competing risks (crisk.bart's
     territory), left truncation, grouped frailty, time-varying
     covariates in the auto-expander (available today via the manual
-    person-period fit), continuous-time models. Each independent;
-    demand-driven. low-ranked.
+    person-period fit), continuous-time models. Each independent.
+    Two VALUE GATES LIFTED by the 2026-08-08 model-space survey:
+    competing risks, enabling the competing-risks discrete-time hazard
+    class - it is also the named consumer of
+    multinomial-counts-mutation, so the two move together; and left
+    truncation / delayed entry, enabling registry and EHR cohorts with
+    staggered entry, which survival.md already calls the cheapest door
+    (a one-argument expander change). Gates STAND on cloglog (a link
+    awaiting a cloglog binary family, not a model) and continuous time
+    (that is AFT, which ships). The rest stay demand-driven.
+    low-ranked.
   typed-ingestion: CLOSED - slices 0-2b ALL LANDED, 2b at d4e80e3
     2026-08-06 (record 4a14eeb; probe, critiques, and landing notes
     in docs/plans/typed-ingestion.md): one borrowed PredictorSource
@@ -239,11 +396,51 @@ items
     after cheap-uniformity lands so the C surface mirrors the final
     shape (consumer cost: a stan4bart predict sweep only - neither C
     consumer calls the dense mutation entries); setData on a
-    CSC/mixed store folds into the model-space survey;
+    CSC/mixed store SURVEYED and KEPT UNDESIGNED (2026-08-08,
+    docs/design/model-space-survey.md sec 3, door 3) - no model
+    surfaced: the classes needing sparse designs do not swap whole
+    data mid-chain, and every class that DOES mutate mid-chain
+    mutates a DENSE latent column or label, which mixed containers
+    already carry; its one live sub-case, n-free replacement on a
+    sparse store, inherits the multiforest setData verdict;
     per-observation mutation of CSC-backed columns stays a
-    DOCUMENTED REFUSAL (algorithmic: O(nnz) shift). The hot layer
+    DOCUMENTED REFUSAL (algorithmic: O(nnz) shift) and now has a
+    model-space reason as well as a cost one - no surveyed model
+    needs per-observation mutation on a sparse-backed column. The
+    hot layer
     stays quantized codes + double cuts; response/offset/weights
     stay double*.
+  variance-forest-mutation-routing: DEFECT, memory-safety. Found by the
+    model-space survey while establishing its baseline and escalated by
+    its critique (docs/design/model-space-survey.md sec 6). Its own arc
+    - it must NOT queue behind any door in that survey. NO data-mutation
+    path re-routes the variance forest: Chain::revalidateTrees
+    (chain.hpp:1484) and applyNewData (chain.hpp:1557) open on
+    forests_[0]; forceRefreshTrees (chain.hpp:1628) and
+    dropStaleMissingDirections (chain.hpp:1615) iterate forests_ and
+    never touch varianceForest_; the only site that repartitions
+    variance trees, rebuildVarianceForest, is reached from state restore
+    and never from mutation. So the SUPPORTED, DOCUMENTED forced
+    setPredictor idiom and setCutPoints leave the variance forest
+    routing rows by the OLD predictors (demonstrated: an all-identical
+    predictor matrix collapses the mean fits correctly while the
+    variance channel keeps 338 distinct values over 400 rows). setData
+    is accepted at all because refuseMultiForestMutation keys on
+    numForests >= 2 while the variance forest is the separate
+    varianceForest_ member, so a heteroscedastic sampler reports
+    numForests == 1. When n GROWS this stops being silent: meanWeights_
+    is assign(n, 0.0) once at buildVarianceForest (chain.hpp:2898) and
+    never resized, while formMeanWeights and sweepVarianceForest write
+    over the NEW n - an out-of-bounds WRITE that segfaults, reachable
+    from dbarts(..., variance = ~1) plus sampler$setData(). Not
+    reachable from the flat C API (no dbarts_sampler_setData). Fix fork:
+    (a) extend re-routing to varianceForest_ across all four paths and
+    resize its per-observation buffers (rebuildVarianceForest is the
+    template), or (b) refuse the whole predictor-mutation surface on
+    hasVarianceForest, a user-visible removal of currently-accepted
+    behaviour. A setData-only guard does NOT close it. Confirm under
+    ASAN and add the mutation paths to the fuzz/roundtrip coverage.
+    RELEASE BLOCKER.
   weighted-binary: integer-weight probit via replicated latents;
     arbitrary real weights need a real-shape PG sampler (IPW is a
     pseudo-likelihood trap; the approximate-PG decision is shared
