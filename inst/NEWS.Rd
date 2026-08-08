@@ -624,6 +624,10 @@
             single-sparse-column container's reference-level metadata as a
             missing value that was not there, and could miss a real missing
             value stored in a container with two or more sparse columns.
+      \item \code{setPredictor} accepts \code{Matrix::dgCMatrix},
+            \code{Matrix::sparseVector}, and mixed-container values against
+            a sparse or mixed design without the caller densifying them
+            first.
       \item \code{copy} now works for samplers with a stored state.
       \item Seeded parallel \code{rbart_vi} now restores R's stream after
             drawing its chain seeds; the restore assigned a local

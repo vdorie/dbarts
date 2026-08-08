@@ -179,6 +179,25 @@ struct ParsedTestContainer {
   bartcore::PredictorSource view;
 };
 
+// A sparse mutation argument's parsed storage: the borrowed view, the buffers
+// it points into, the store types of the columns it names, and the dense block
+// the engine's re-quantize reads. Held by value in the entrance's
+// unwindProtect frame, so the validation jump frees it.
+struct ParsedMutationSource {
+  std::vector<double> denseAssembly;
+  std::vector<std::int32_t> columnSources;
+  std::vector<bartcore::xint_t> referenceCodes;
+  std::vector<bartcore::ColumnType> storeTypes;
+  std::vector<double> block;
+  // the argument's per-sparse-column reference metadata, borrowed from the
+  // container; NULL for a bare dgCMatrix, whose implicit rows are the zero its
+  // own storage means
+  const int* referenceMeta = NULL;
+  const int* categoryCountMeta = NULL;
+  size_t numSparseColumns = 0;
+  bartcore::PredictorSource view;
+};
+
 struct ParsedData {
   const double* y = NULL;
   size_t numObservations = 0;
@@ -426,13 +445,17 @@ struct CscSlots {
 
 // Borrowed slots of a dgCMatrix; the structure is validated here because
 // the engine trusts it (rows unique, ascending, and in range per column).
-CscSlots parseCscMatrix(SEXP matrixExpr, size_t numObservations) {
+// \p rowCountMessage carries the caller's wording for a disagreeing row count:
+// the default is creation's, which must not surface from a mutation call.
+CscSlots parseCscMatrix(SEXP matrixExpr, size_t numObservations,
+                        const char* rowCountMessage =
+                          "number of rows of 'x' must equal length of 'y'") {
   CscSlots result;
   SEXP dimExpr = PROTECT(Rf_getAttrib(matrixExpr, Rf_install("Dim")));
   if (!Rf_isInteger(dimExpr) || rc_getLength(dimExpr) != 2)
     Rf_error("malformed sparse predictor matrix");
   if (static_cast<size_t>(INTEGER(dimExpr)[0]) != numObservations)
-    Rf_error("number of rows of 'x' must equal length of 'y'");
+    Rf_error("%s", rowCountMessage);
   result.numColumns = static_cast<size_t>(INTEGER(dimExpr)[1]);
 
   SEXP pointersExpr = PROTECT(Rf_getAttrib(matrixExpr, Rf_install("p")));
@@ -567,6 +590,29 @@ void resolveCscCategoricalReferences(
   }
 }
 
+// A sparse column's declared reference level is the code its IMPLICIT rows
+// take, which only a categorical column has: whatever the container declares,
+// the engine reads an ordinal column's implicit rows as the quantized zero, so
+// a reference against one is malformed rather than an alternative implicit
+// value - and the container's own densification would read that column
+// differently from the engine. \p storeTypes is indexed by SOURCE column, so a
+// subset mutation passes the types of the columns it names.
+void refuseCscReferenceAgainstStore(const bartcore::ColumnType* storeTypes,
+                                    const std::int32_t* columnSources,
+                                    size_t numColumns, const int* referenceMeta,
+                                    size_t numSparseColumns) {
+  if (referenceMeta == NULL) return;
+  for (size_t j = 0; j < numColumns; ++j) {
+    if (columnSources[j] >= 0 ||
+        storeTypes[j] == bartcore::ColumnType::categorical)
+      continue;
+    size_t source = static_cast<size_t>(~columnSources[j]);
+    if (source < numSparseColumns && referenceMeta[source] != NA_INTEGER)
+      Rf_error("a sparse predictor column may declare a reference level only "
+               "for a categorical predictor");
+  }
+}
+
 // Parse an R-side mixed test container (a dbartsMixedMatrix as x.test) against
 // the training cut grid the engine already holds: assemble the transient dense
 // block (factors carrying zero-based codes), gather the CSC slices, and resolve
@@ -642,6 +688,95 @@ void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
     out.view.referenceCodes = out.cscReferenceCodes.data();
   }
   UNPROTECT(3);
+}
+
+// Mutation-side wording for the shared parse helpers; the creation-flavored
+// texts they default to describe a design being built, not one being replaced.
+const char* const mutationContainerMessage =
+  "malformed mixed predictor container";
+const char* const mutationReferenceMessage =
+  "sparse categorical predictor columns require reference metadata";
+
+// Parse a sparse mutation argument - a bare dgCMatrix or a dbartsMixedMatrix -
+// into a borrowed view of \p numRows rows over the \p numColumns predictor
+// columns it replaces. Returns false with \p out untouched for anything else,
+// leaving the entrance to refuse it; \p shapeMessage is the entrance's own
+// wording for a disagreeing shape.
+bool parseMutationSource(ParsedMutationSource& out, SEXP xExpr, size_t numRows,
+                         size_t numColumns, const char* shapeMessage) {
+  if (Rf_inherits(xExpr, "dgCMatrix")) {
+    CscSlots csc = parseCscMatrix(xExpr, numRows, shapeMessage);
+    if (csc.numColumns != numColumns) Rf_error("%s", shapeMessage);
+    out.columnSources.resize(numColumns);
+    for (size_t j = 0; j < numColumns; ++j)
+      out.columnSources[j] = ~static_cast<std::int32_t>(j);
+    out.view.cscColumnPointers = csc.pointers;
+    out.view.cscRowIndices = csc.rows;
+    out.view.cscValues = csc.values;
+  } else if (Rf_inherits(xExpr, "dbartsMixedMatrix")) {
+    SEXP denseExpr = PROTECT(getListElement(xExpr, "dense"));
+    SEXP sparseExpr = PROTECT(getListElement(xExpr, "sparse"));
+    SEXP mapExpr = PROTECT(getListElement(xExpr, "map"));
+    if (!Rf_isInteger(mapExpr) ||
+        static_cast<size_t>(rc_getLength(mapExpr)) != numColumns)
+      Rf_error("%s", shapeMessage);
+    bool hasSparse = Rf_inherits(sparseExpr, "dgCMatrix");
+    if ((!Rf_isNull(sparseExpr) && !hasSparse) ||
+        (!Rf_isNull(denseExpr) && TYPEOF(denseExpr) != VECSXP))
+      Rf_error("%s", mutationContainerMessage);
+    CscSlots csc;
+    if (hasSparse) csc = parseCscMatrix(sparseExpr, numRows, shapeMessage);
+    parseMixedContainerBlock(denseExpr, INTEGER(mapExpr), numColumns, numRows,
+                             csc.numColumns, out.denseAssembly,
+                             out.view.denseValues, out.columnSources,
+                             shapeMessage, mutationContainerMessage);
+    if (hasSparse) {
+      out.view.cscColumnPointers = csc.pointers;
+      out.view.cscRowIndices = csc.rows;
+      out.view.cscValues = csc.values;
+      SEXP referenceExpr = getListElement(xExpr, "sparseReference");
+      SEXP countExpr = getListElement(xExpr, "sparseCategoryCount");
+      if (!Rf_isInteger(referenceExpr) || !Rf_isInteger(countExpr) ||
+          static_cast<size_t>(rc_getLength(referenceExpr)) != csc.numColumns ||
+          static_cast<size_t>(rc_getLength(countExpr)) != csc.numColumns)
+        Rf_error("%s", mutationContainerMessage);
+      out.referenceMeta = INTEGER(referenceExpr);
+      out.categoryCountMeta = INTEGER(countExpr);
+      out.numSparseColumns = csc.numColumns;
+    }
+    UNPROTECT(3);
+  } else {
+    return false;
+  }
+  out.view.numRows = numRows;
+  out.view.numColumns = numColumns;
+  out.view.columnSources = out.columnSources.data();
+  return true;
+}
+
+// Materialize a parsed mutation argument into the dense block the engine's
+// re-quantize takes, under the STORE's implicit rule: \p storeTypes gives the
+// store's type of each column the argument names. A declared reference against
+// a non-categorical store column is refused before anything is read.
+const double* materializeMutationSource(
+    ParsedMutationSource& parsed, const bartcore::ColumnType* storeTypes) {
+  size_t numColumns = parsed.view.numColumns;
+  refuseCscReferenceAgainstStore(storeTypes, parsed.columnSources.data(),
+                                 numColumns, parsed.referenceMeta,
+                                 parsed.numSparseColumns);
+  if (parsed.referenceMeta != NULL) {
+    resolveCscCategoricalReferences(
+      storeTypes, parsed.columnSources.data(), numColumns,
+      parsed.referenceMeta, parsed.categoryCountMeta, parsed.numSparseColumns,
+      parsed.referenceCodes, nullptr, mutationContainerMessage,
+      mutationReferenceMessage);
+    parsed.view.referenceCodes = parsed.referenceCodes.data();
+  }
+  parsed.block.resize(parsed.view.numRows * numColumns);
+  bartcore::materializePredictorSource(parsed.view, storeTypes, 0,
+                                       parsed.view.numRows,
+                                       parsed.block.data());
+  return parsed.block.data();
 }
 
 // Route a parsed test container to the engine's typed test store (against the
@@ -3672,38 +3807,58 @@ SEXP bartcore_getSumsOfSquaredResiduals(SEXP ptrExpr) {
 
 SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
                            SEXP updateCutPointsExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  bartcore::SamplerShape shape = holder.sampler->shape();
-  refuseMutationOnView(*holder.sampler, "bartcore_setPredictor");
-  if (Rf_asLogical(forceUpdateExpr) != TRUE)
-    refuseMultiForestTransactionalUpdate(*holder.sampler,
-                                         "bartcore_setPredictor");
-  SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
-  if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
-      static_cast<size_t>(INTEGER(dims)[0]) != shape.numObservations ||
-      static_cast<size_t>(INTEGER(dims)[1]) != shape.numPredictors)
-    Rf_error("bartcore_setPredictor requires a matrix with matching dimensions");
+  // the materialized block is owned across validateColumnValues, whose refusal
+  // longjmps past its destructor
+  return unwindProtect([&, parsed = ParsedMutationSource{}]() mutable -> SEXP {
+    const char* shapeMessage =
+      "bartcore_setPredictor requires a matrix with matching dimensions";
+    BartcoreHolder& holder(holderFromExpression(ptrExpr));
+    bartcore::SamplerShape shape = holder.sampler->shape();
+    refuseMutationOnView(*holder.sampler, "bartcore_setPredictor");
+    if (Rf_asLogical(forceUpdateExpr) != TRUE)
+      refuseMultiForestTransactionalUpdate(*holder.sampler,
+                                           "bartcore_setPredictor");
+    const double* values;
+    if (Rf_isReal(xExpr)) {
+      SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
+      if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
+          static_cast<size_t>(INTEGER(dims)[0]) != shape.numObservations ||
+          static_cast<size_t>(INTEGER(dims)[1]) != shape.numPredictors)
+        Rf_error("%s", shapeMessage);
+      values = REAL(xExpr);
+    } else {
+      if (!parseMutationSource(parsed, xExpr, shape.numObservations,
+                               shape.numPredictors, shapeMessage))
+        Rf_error("%s", shapeMessage);
+      values = materializeMutationSource(parsed,
+                                         holder.sampler->data().types.data());
+    }
 
-  for (size_t j = 0; j < shape.numPredictors; ++j)
-    validateColumnValues(holder.sampler->data(), j,
-                         REAL(xExpr) + j * shape.numObservations,
-                         shape.numObservations);
+    for (size_t j = 0; j < shape.numPredictors; ++j)
+      validateColumnValues(holder.sampler->data(), j,
+                           values + j * shape.numObservations,
+                           shape.numObservations);
 
-  bartcore::PredictorUpdateResult result = holder.sampler->setPredictor(
-    REAL(xExpr), Rf_asLogical(forceUpdateExpr) == TRUE,
-    Rf_asLogical(updateCutPointsExpr) == TRUE);
-  if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
-    Rf_error("number of induced cut points in new predictor less than "
-             "previous: old splits would be invalid");
-  // the engine re-quantized xExpr into owned codes and retains no pointer; the
-  // R method reassigns sampler$data@x, which keeps the current matrix alive
-  return Rf_ScalarLogical(
-    result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
+    bartcore::PredictorUpdateResult result = holder.sampler->setPredictor(
+      values, Rf_asLogical(forceUpdateExpr) == TRUE,
+      Rf_asLogical(updateCutPointsExpr) == TRUE);
+    if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
+      Rf_error("number of induced cut points in new predictor less than "
+               "previous: old splits would be invalid");
+    // the engine re-quantized the values into owned codes and retains no
+    // pointer; the R method reassigns sampler$data@x, which keeps the current
+    // source alive
+    return Rf_ScalarLogical(
+      result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
+  });
 }
 
 SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
                               SEXP forceUpdateExpr, SEXP updateCutPointsExpr) {
-  return unwindProtect([&, columns = std::vector<size_t>{}]() mutable -> SEXP {
+  return unwindProtect([&, columns = std::vector<size_t>{},
+                        parsed = ParsedMutationSource{}]() mutable -> SEXP {
+    const char* shapeMessage =
+      "bartcore_updatePredictor requires numObservations values per column";
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     refuseMutationOnView(*holder.sampler, "bartcore_updatePredictor");
     if (Rf_asLogical(forceUpdateExpr) != TRUE)
@@ -3715,8 +3870,9 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
 
     size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
     if (numColumns == 0 ||
-        static_cast<size_t>(Rf_xlength(xExpr)) != numObservations * numColumns)
-      Rf_error("bartcore_updatePredictor requires numObservations values per column");
+        (Rf_isReal(xExpr) && static_cast<size_t>(Rf_xlength(xExpr)) !=
+                               numObservations * numColumns))
+      Rf_error("%s", shapeMessage);
 
     columns.resize(numColumns);
     for (size_t k = 0; k < numColumns; ++k) {
@@ -3726,12 +3882,26 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
       columns[k] = static_cast<size_t>(column - 1);
     }
 
+    const double* values;
+    if (Rf_isReal(xExpr)) {
+      values = REAL(xExpr);
+    } else {
+      if (!parseMutationSource(parsed, xExpr, numObservations, numColumns,
+                               shapeMessage))
+        Rf_error("%s", shapeMessage);
+      // the store's type of each column the argument names, in argument order
+      parsed.storeTypes.resize(numColumns);
+      for (size_t k = 0; k < numColumns; ++k)
+        parsed.storeTypes[k] = holder.sampler->data().types[columns[k]];
+      values = materializeMutationSource(parsed, parsed.storeTypes.data());
+    }
+
     for (size_t k = 0; k < numColumns; ++k)
       validateColumnValues(holder.sampler->data(), columns[k],
-                           REAL(xExpr) + k * numObservations, numObservations);
+                           values + k * numObservations, numObservations);
 
     bartcore::PredictorUpdateResult result = holder.sampler->updatePredictor(
-      REAL(xExpr), columns.data(), numColumns,
+      values, columns.data(), numColumns,
       Rf_asLogical(forceUpdateExpr) == TRUE,
       Rf_asLogical(updateCutPointsExpr) == TRUE);
     if (result == bartcore::PredictorUpdateResult::invalidCutPoints)

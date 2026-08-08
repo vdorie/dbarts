@@ -1032,6 +1032,97 @@ static void testPredictorViewEquivalence() {
   printf("ok: predictor view builder equivalence\n");
 }
 
+// The materializer answers the implicit question the same way the quantizers
+// do: a CSC column's unstored rows read the reference code where the STORE
+// types the column categorical and zero otherwise - so the same source read
+// against an all-ordinal store fills zeros where a categorical one fills the
+// reference - and a mapped dense column is read from the index the map names,
+// not from its own position.
+static void testMaterializePredictorSource() {
+  const size_t n = 64, p = 4;
+  const xint_t reference = 2;
+
+  // three CSC columns: an ordinal one carrying a stored NaN, a categorical one
+  // whose reference is past zero, and one with no stored entries at all
+  const int pointers[4] = { 0, 3, 5, 5 };
+  const int rows[5] = { 3, 7, 10, 0, 5 };
+  const double values[5] = { 1.5, std::numeric_limits<double>::quiet_NaN(),
+                             2.5, 4.0, 0.0 };
+  // two dense columns; predictor 3 names the SECOND, so a materializer keying
+  // on j rather than on the map would read the first
+  std::vector<double> dense(2 * n);
+  for (size_t i = 0; i < n; ++i) {
+    dense[i] = -1.0 - static_cast<double>(i);
+    dense[i + n] = 0.25 * static_cast<double>(i);
+  }
+  const std::int32_t sources[p] = { ~0, ~1, ~2, 1 };
+  const ColumnType types[p] = { ColumnType::ordinal, ColumnType::categorical,
+                                ColumnType::ordinal, ColumnType::ordinal };
+  const xint_t references[p] = { 0, reference, 0, 0 };
+
+  PredictorSource source;
+  source.numRows = n;
+  source.numColumns = p;
+  source.denseValues = dense.data();
+  source.cscColumnPointers = pointers;
+  source.cscRowIndices = rows;
+  source.cscValues = values;
+  source.columnSources = sources;
+  source.referenceCodes = references;
+
+  std::vector<double> block(n * p);
+  materializePredictorSource(source, types, 0, n, block.data());
+
+  bool ordinalHolds = true;
+  for (size_t i = 0; i < n; ++i) {
+    double expected = i == 3 ? 1.5 : (i == 10 ? 2.5 : 0.0);
+    if (i == 7) continue;
+    ordinalHolds &= block[i] == expected;
+  }
+  check(ordinalHolds, "an ordinal CSC column scatters over an implicit zero");
+  check(std::isnan(block[7]) && !std::isnan(block[6]),
+        "a stored NaN survives materialization and implicit rows stay finite");
+
+  bool categoricalHolds = block[n + 0] == 4.0 && block[n + 5] == 0.0;
+  for (size_t i = 1; i < n; ++i)
+    if (i != 5) categoricalHolds &= block[n + i] == static_cast<double>(reference);
+  check(categoricalHolds,
+        "a categorical CSC column's implicit rows read its reference code");
+
+  bool allImplicitHolds = true;
+  for (size_t i = 0; i < n; ++i) allImplicitHolds &= block[2 * n + i] == 0.0;
+  check(allImplicitHolds, "a CSC column with no stored entries is constant");
+
+  bool denseHolds = true;
+  for (size_t i = 0; i < n; ++i)
+    denseHolds &= block[3 * n + i] == dense[i + n];
+  check(denseHolds,
+        "a mapped dense column is read from the index the map names");
+
+  std::vector<double> ordinalBlock(n * p);
+  materializePredictorSource(source, nullptr, 0, n, ordinalBlock.data());
+  bool typeKeyed = true;
+  for (size_t i = 0; i < n; ++i)
+    if (i != 0 && i != 5) typeKeyed &= ordinalBlock[n + i] == 0.0;
+  check(typeKeyed,
+        "the implicit rule keys on the store's type, not the declared "
+        "reference");
+
+  const size_t begin = 8, end = 24;
+  std::vector<double> chunk((end - begin) * p);
+  materializePredictorSource(source, types, begin, end, chunk.data());
+  bool chunkHolds = true;
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = begin; i < end; ++i) {
+      double whole = block[j * n + i];
+      double part = chunk[j * (end - begin) + (i - begin)];
+      chunkHolds &= std::isnan(whole) ? std::isnan(part) : whole == part;
+    }
+  check(chunkHolds, "a row range materializes the whole block's own rows");
+
+  printf("ok: predictor source materialization\n");
+}
+
 void runDataTests() {
   testColumnStoreCodes();
   testColumnStoreView();
@@ -1048,4 +1139,5 @@ void runDataTests() {
   testSparseTestColumnStore();
   testSparseCategoricalTestColumnStore();
   testPredictorViewEquivalence();
+  testMaterializePredictorSource();
 }
