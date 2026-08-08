@@ -590,7 +590,20 @@ Baseline re-recorded as equivalence-c8f661a.rds (self-reproduces
 27/27 under --strict-coverage); bcf-equivalence-99205ee and
 multinomial-equivalence-ec2a3d0 deliberately not re-recorded - their
 staying bitwise IS the scope gate. PENDING: the bench-sampler speed
-baseline re-records on the next quiet-machine grant, and the arm64
-no-signal number re-measures at the pre-registered re-run. The
+baseline re-records on the next quiet-machine grant. The
 wt/fused-falsifier throwaway probe is superseded by this landing and
 removed.
+
+The pre-registered arm64 no-signal re-run RAN 2026-08-08 (M1 Max,
+production install of the landed kernel at tip d4e8c2a vs pristine
+63456a0, sec-12 protocol: n=1e5, 200 trees, 1 chain/1 thread, min of
+7, base/fused back-to-back, 3 rounds, 1-min loadavg 2.9-4.5).
+Per-round base/fused ratios: noise-n1e5 0.964 / 0.970 / 0.950 - a
+3-5% loss, matching the probe's 0.948-0.951 and far inside the
+pre-registered acceptance (escalation line ~10%, memo sec 5.3);
+run-n1e5 control 1.058 / 1.079 / 1.102, reproducing the sec-12 win
+and corroborating build provenance (the fused install carries
+rollAndSetNodeAveragesFused, the base install does not). The
+no-signal loss is ACCEPTED and the re-run obligation is discharged;
+reopening now requires a no-signal loss beyond ~10% or an inversion
+in a real-signal scenario.
