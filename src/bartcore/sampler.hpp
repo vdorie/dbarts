@@ -518,6 +518,9 @@ public:
   /// tree count; the run/predict bridges gate the s(x) channels on this.
   bool hasVarianceForest() const { return chains_[0]->hasVarianceForest(); }
   size_t numVarianceTrees() const { return chains_[0]->numVarianceTrees(); }
+  const ResidualPrior& varianceLeafPrior() const {
+    return chains_[0]->varianceLeafPrior();
+  }
 
   /// The variance surface s^2(x) for raw column-major new rows, original scale,
   /// mirroring predict: out is numTestObservations x savedTreeCapacity x
@@ -656,6 +659,11 @@ public:
         return WarmStartResult::shapeMismatch;
       if (chains_[c]->usesDart() != !src.dartProbabilities.empty())
         return WarmStartResult::dartMismatch;
+      // the reassembled state below carries no variance trees, so a donor and
+      // destination that disagree here would silently drop a scale surface or
+      // leave one cold-started under a mean forest fitted with it
+      if (src.varianceTrees.empty() == chains_[c]->hasVarianceForest())
+        return WarmStartResult::shapeMismatch;
 
       ChainStateData& dst = install[c];
       dst.forests.resize(src.forests.size());

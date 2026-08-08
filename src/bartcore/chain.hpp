@@ -30,6 +30,13 @@
 
 namespace bartcore {
 
+/// A residual variance prior on the ORIGINAL response scale. A heteroscedastic
+/// chain retains its creation value because these three numbers - and nothing
+/// else - calibrate the scale leaf, once, at construction.
+struct ResidualPrior {
+  double sigmaEstimate = 0.0, sigmaDf = 0.0, sigmaRawScale = 0.0;
+};
+
 struct SamplerOptions {
   size_t numTrees = 200;
   size_t numChains = 1;
@@ -631,7 +638,7 @@ public:
     // this whole path compiled/branched out, so the mean sweep is byte-identical.
     if constexpr (std::is_same_v<L, ConstantGaussianLeaf>)
       if (family == ResponseFamily::gaussian && options.numVarianceTrees > 0)
-        buildVarianceForest(options, sigmaDf, sigmaRawScale);
+        buildVarianceForest(options, sigmaEstimate, sigmaDf, sigmaRawScale);
 
     resizeTestStorage();
   }
@@ -726,6 +733,9 @@ public:
   std::size_t numVarianceTrees() const {
     return varianceForest_ ? varianceForest_->numTrees : 0;
   }
+  /// The residual prior the scale leaf was calibrated from at creation;
+  /// meaningful only under a variance forest, where nothing recalibrates it.
+  const ResidualPrior& varianceLeafPrior() const { return varianceLeafPrior_; }
 
   /// s^2(x) on the ORIGINAL scale for raw new rows from one saved sample's
   /// variance trees; the per-tree factors MULTIPLY into the product.
@@ -1126,13 +1136,16 @@ public:
       if (response_->workingWeightsVaryPerSweep())
         forests_[0].leaf.invalidateStatistics();
   }
-  /// Deliberately unguarded, even for a model whose sigma is structurally
-  /// pinned: both restore paths (setState and installForest) reinstall
-  /// state.sigma through it - the donor's own pinned value, so the write is
-  /// benign - and a chain-level refusal would break every binary and
-  /// heteroscedastic state restore. The user-facing change is refused at the
-  /// bridge instead (refusePinnedSigmaChange).
+  /// Unguarded for the structurally pinned binary families: their restore
+  /// paths (setState and installForest) reinstall the donor's own pinned
+  /// value, so the write is benign, and the user-facing change is refused at
+  /// the bridge (refusePinnedSigmaChange). Under a variance forest sigma is
+  /// not a parameter at all - buildVarianceForest pins it at 1 on the working
+  /// scale and the variance surface carries the residual scale from there - so
+  /// every write is dropped, which is what closes the internal callers that
+  /// have no error channel.
   void setSigma(double sigmaOriginalScale) {
+    if (varianceForest_) return;
     sigma_ = sigmaOriginalScale / response_->sigmaScale();
   }
   const double* latents() const { return response_->latents(); }
@@ -1165,7 +1178,13 @@ public:
       forest.k = model.k;
     }
 
-    if (family_ == ResponseFamily::gaussian || family_ == ResponseFamily::aft) {
+    // both arms move a variance forest's pin - the fixed one by installing an
+    // estimate over the working-scale 1, the other by re-prioring and
+    // unpinning - so the whole clause is skipped there; the incoming residual
+    // prior addresses the scale leaf instead, and the bridge refuses a change
+    if (!varianceForest_ &&
+        (family_ == ResponseFamily::gaussian ||
+         family_ == ResponseFamily::aft)) {
       sigmaIsFixed_ = model.sigmaIsFixed;
       if (model.sigmaIsFixed)
         setSigma(model.sigmaEstimate);
@@ -2867,8 +2886,9 @@ private:
   /// derivation), seed s^2(x) at the initial variance, then fix the global
   /// sigma at 1 - the variance forest carries the residual variance from here.
   /// At numVarianceTrees == 1 the calibration reproduces the sigma prior exactly.
-  void buildVarianceForest(const SamplerOptions& options, double sigmaDf,
-                           double sigmaRawScale) {
+  void buildVarianceForest(const SamplerOptions& options, double sigmaEstimate,
+                           double sigmaDf, double sigmaRawScale) {
+    varianceLeafPrior_ = {sigmaEstimate, sigmaDf, sigmaRawScale};
     std::size_t n = data_.numObservations;
     double initialVariance = sigma_ * sigma_;  // sigma_ still holds initialSigma
     double priorScale = initialVariance * sigmaRawScale;
@@ -3904,6 +3924,7 @@ private:
   // the variance forest is built.
   std::unique_ptr<VarianceForest> varianceForest_;
   std::vector<double> meanWeights_;
+  ResidualPrior varianceLeafPrior_;
 
   // Persistent pool for parallel test-fit routing, sized to this chain's
   // share of the thread budget; created lazily, never below the cutoff. The

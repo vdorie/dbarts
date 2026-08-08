@@ -117,7 +117,31 @@ expect_error(
   pattern = "should be one of"
 )
 
+# (f) a heteroscedastic sampler has no scalar sigma to add as observation
+# noise - s(x) comes from a prior draw of the variance forest, which the ppd
+# path does not make - so "ppd" is refused. "ev" never reaches that draw and
+# is a legitimate mean-surface prior draw, so it keeps working.
+sampler.variance <- dbarts(
+  y ~ x,
+  control = control.plain,
+  variance = TRUE,
+  n.trees.variance = 5L
+)
+expect_error(
+  samplePriorPredictive(sampler.variance, n.samples = 5L, type = "ppd"),
+  pattern = "heteroscedastic sampler"
+)
+ev.variance <- samplePriorPredictive(
+  sampler.variance,
+  n.samples = 5L,
+  type = "ev"
+)
+expect_equal(dim(ev.variance), c(5L, n))
+expect_true(all(is.finite(ev.variance)))
+
 rm(
+  sampler.variance,
+  ev.variance,
   n,
   p,
   x,

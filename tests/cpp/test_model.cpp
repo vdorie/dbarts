@@ -706,6 +706,31 @@ static void testVarianceForestRefusal() {
                       ResponseFamily::gaussian, 1.0, 3.0, 0.378, options, rngs)
           == nullptr,
         "variance forest refused for a non-constant mean leaf");
+
+  // the multi-forest factories build chains that never call
+  // buildVarianceForest, so they refuse the option rather than drop it
+  options.leafCovariateColumns = nullptr;
+  options.numLeafCovariates = 0;
+  std::vector<double> z(n, 0.0);
+  for (size_t i = n / 2; i < n; ++i) z[i] = 1.0;
+  BCFSpec bcfSpec;
+  bcfSpec.mu.numTrees = 5;
+  bcfSpec.tau.numTrees = 5;
+  bcfSpec.z = z.data();
+  check(createBCFSampler(x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+                         0.378, options, bcfSpec, rngs) == nullptr,
+        "variance forest refused at the bcf factory");
+  const size_t K = 2;
+  std::vector<int> counts(n * K, 0), trials(n, 1);
+  for (size_t i = 0; i < n; ++i) counts[i + (i % K) * n] = 1;
+  MultinomialSpec multinomialSpec;
+  multinomialSpec.numCategories = K;
+  multinomialSpec.counts = counts.data();
+  multinomialSpec.trials = trials.data();
+  multinomialSpec.forest.numTrees = 5;
+  check(createMultinomialSampler(x.data(), n, p, options, multinomialSpec,
+                                 rngs) == nullptr,
+        "variance forest refused at the multinomial factory");
   ext_rng_destroy(rng);
   printf("ok: variance forest gaussian-only refusal\n");
 }
