@@ -91,9 +91,18 @@ items
     sparse-valued mutation shim at the bridge (the typed-ingestion
     door), sparse test-column update, and resident-sparse predict
     (today predict materializes dense). Ingestion shape only, no
-    draw-law change expected: trio-bitwise gate. Design memo ->
-    blind refuting critique -> serialized implementer; plan doc
-    docs/plans/cheap-uniformity.md at design time. in flight.
+    draw-law change expected: trio-bitwise gate. Plan + landing notes
+    in docs/plans/cheap-uniformity.md; design artifacts in
+    .claude/cheap-uniformity-design/. S0-S2 LANDED 2026-08-08
+    (e6e55a6, 0fef4b0, fca2bcf): sparse-valued mutation open on
+    sparse-backed designs, per-column container x.test update open,
+    and all three live defects closed (transposed silent acceptance,
+    anyNA both directions, the predict/setTestPredictor reference
+    divergence - opposite-sign values on the same container captured
+    pre-fix). REMAINING: piece 3, resident-sparse predict, an OPEN VD
+    FORK - Branch A engine-resident reader table vs Branch B
+    row-chunked densification (orchestrator recommends B); specced
+    both ways in the plan, S3 waits on the call.
   correlated-outcomes: richer error/outcome covariance around a BART
     mean, delivered via outer-sampler composition (stan4bart = WALNUTS
     + dbarts supplying each outcome's conditional mean; the pattern
