@@ -45,7 +45,7 @@ expectTwinsAgree <- function(design, y, sparse.arg, dense.arg, column = NULL) {
       }
     }
   }
-  expect_identical(
+  tinytest::expect_identical(
     mutatedState(design, y, mutate(sparse.arg)),
     mutatedState(design, y, mutate(dense.arg))
   )
