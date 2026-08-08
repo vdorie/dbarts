@@ -459,3 +459,31 @@ Semantics this arc pins:
   `.claude/cheap-uniformity-design/`. The critique's verdict was STANDS
   WITH AMENDMENTS; A1-A10 are adopted here, with two corrections recorded
   in the synthesis (A5's mechanism and A6's reachability route).
+
+## Landing notes
+
+- S0 landed e6e55a6 (2026-08-08): dim-keyed shape checks + `sourceAnyNA`;
+  three failing-first tests; full battery green (tinytest 3671/0, trio
+  bitwise). Post-landing lint fix 0f646eb: `object_usage_linter` flags a
+  bare tinytest call inside a test helper function - namespace-qualify;
+  per-file lintr is now a fixed landing step.
+- S1 landed 0fef4b0: `materializePredictorSource` (data.hpp),
+  `ParsedMutationSource` at both mutation entrances under
+  `unwindProtect`, R5 pass-through, per-column container splice with
+  canonicalization. Deviations accepted: the bare-dgCMatrix
+  `installPredictorColumns` branch is also sparse-accepting (the
+  oracle's bare-design x container cell requires it); the
+  all-implicit-column edge asserts dense parity - the plan's claimed
+  degeneracy refusal does not exist for a dense constant either; the
+  budget overrun was the mandated 322-line oracle file. Battery green
+  including the ASAN leg (tinytest 3700/0, trio bitwise).
+- S2 landed fca2bcf: per-column container `x.test` update through
+  `installPredictorColumns`; the A6 pin at `validateXTest` (R) and
+  inside `parseTestContainer` (bridge - one shared-funnel call covering
+  all three callers instead of three site calls, equivalent because
+  `columnTypes` is store-typed at mutation and being-built at creation);
+  the reference-metadata validation hoisted to every sparse parse.
+  Pre-fix divergence captured in the tests: `predict()` +9.746372
+  against `setTestPredictor()` + run -9.740065 on the same container.
+  Battery green (tinytest 3728/0, trio bitwise).
+- S0-S2 close all three live defects. Piece 3 remains the open VD fork.
