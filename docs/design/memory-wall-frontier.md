@@ -607,3 +607,14 @@ rollAndSetNodeAveragesFused, the base install does not). The
 no-signal loss is ACCEPTED and the re-run obligation is discharged;
 reopening now requires a no-signal loss beyond ~10% or an inversion
 in a real-signal scenario.
+
+The pending bench-sampler speed baseline re-record RAN 2026-08-08 on
+the quiet-machine grant (M1 Max, cold record at tip ab1dc52, 1-min
+loadavg 2.6-2.8 across the window): bench-sampler-ab1dc52.csv. vs
+b9d53c7 (2026-07-17, pre-fusion): run-n10000-p10-t75 1.810 -> 1.524
+ms/iteration (0.842) - the fused pass where it bites, at the grid's
+largest n; setPredictor accept/reject 0.965/0.971 (the gather-door
+fused walk unroll landed in between); every other arm within +/- 1.5
+percent and no arm slower. A same-window print re-run reproduced
+every arm within 2 percent (n10000 at 1.496). With this, every
+obligation from the c8f661a landing is discharged.
