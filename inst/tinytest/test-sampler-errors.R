@@ -177,7 +177,113 @@ sampler.aft <- dbarts::dbarts(
 sampler.aft$setSigma(0.7)
 expect_equal(sampler.aft$getSigmas(), 0.7)
 
+# Predictor mutation is refused at every entry on a heteroscedastic sampler:
+# the variance forest holds its trees outside the forest vector the mutation
+# helpers loop, so an accepted change leaves s^2(x) routed by the predictors
+# the forest was built with. setData and setCutPoints are worse than stale -
+# a change in the observation count overruns the variance forest's n-sized
+# buffers (the following run segfaulted in 4 tries out of 5), and a shrinking
+# cut grid leaves its split thresholds outside the grid its own state
+# serializes against.
+xVariance <- as.matrix(train[, c("x", "z")])
+xReplacement <- xVariance
+xReplacement[, 1L] <- rev(xVariance[, 1L])
+varianceRefusal <- "variance forest keeps routing observations"
+expect_error(
+  sampler.variance$setData(dbarts::dbartsData(y ~ x + z, train)),
+  varianceRefusal
+)
+expect_error(
+  sampler.variance$setData(dbarts::dbartsData(
+    matrix(runif(4L * nrow(train)), 2L * nrow(train)),
+    rnorm(2L * nrow(train))
+  )),
+  varianceRefusal
+)
+expect_error(
+  sampler.variance$setCutPoints(list(c(0.2, 0.5)), 1L),
+  varianceRefusal
+)
+expect_error(sampler.variance$setPredictor(xReplacement), varianceRefusal)
+expect_error(
+  sampler.variance$setPredictor(xReplacement[, 1L], 1L),
+  varianceRefusal
+)
+expect_error(
+  sampler.variance$setPredictor(xReplacement[, 1L], 1L, forceUpdate = TRUE),
+  varianceRefusal
+)
+expect_error(
+  sampler.variance$setPredictor(
+    xReplacement[, 1L],
+    1L,
+    forceUpdate = "partial"
+  ),
+  varianceRefusal
+)
+expect_error(
+  dbarts::updatePredictorPerObservationJointly(
+    list(sampler.variance),
+    xReplacement[, 1L],
+    "x"
+  ),
+  varianceRefusal
+)
+
+# resid.prior calibrates the variance forest's scale leaf at creation and is
+# never re-read, so a changed one is refused rather than silently ignored
+modelWithNewPrior <- sampler.variance$model
+modelWithNewPrior@resid.prior@df <- 5
+expect_error(
+  sampler.variance$setModel(modelWithNewPrior),
+  "calibrated from resid.prior"
+)
+
+# and sigma stays pinned across setModel: under a variance forest it is not a
+# parameter, so neither branch of the model's sigma clause may move it
+pinnedSigma <- sampler.variance$getSigmas()
+sampler.variance$setModel(sampler.variance$model)
+expect_true(all(sampler.variance$run(0L, 5L)$sigma == pinnedSigma))
+expect_equal(sampler.variance$getSigmas(), pinnedSigma)
+# non-vacuity: the same recipe moves sigma where it IS a parameter
+sampler.homoscedastic <- dbarts::dbarts(y ~ x + z, train, control = control)
+homoscedasticSigma <- sampler.homoscedastic$getSigmas()
+sampler.homoscedastic$setModel(sampler.homoscedastic$model)
+expect_true(
+  any(sampler.homoscedastic$run(0L, 5L)$sigma != homoscedasticSigma)
+)
+
+# a warm start carries no variance trees, so a donor and destination that
+# disagree on the variance forest are refused in both directions
+donor.variance <- dbarts::dbarts(
+  y ~ x + z,
+  train,
+  control = control,
+  variance = TRUE,
+  n.trees.variance = 10L
+)
+invisible(donor.variance$run(0L, 1L))
+donor.homoscedastic <- dbarts::dbarts(y ~ x + z, train, control = control)
+invisible(donor.homoscedastic$run(0L, 1L))
+expect_error(
+  sampler.homoscedastic$installTrees(donor.variance),
+  "shape-compatible"
+)
+expect_error(
+  sampler.variance$installTrees(donor.homoscedastic),
+  "shape-compatible"
+)
+
 rm(
+  xVariance,
+  xReplacement,
+  varianceRefusal,
+  modelWithNewPrior,
+  pinnedSigma,
+  homoscedasticSigma,
+  sampler.homoscedastic,
+  donor.variance,
+  donor.homoscedastic,
   n,
   sampler,
   control,

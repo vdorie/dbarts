@@ -56,6 +56,9 @@ struct SamplerShape {
   /// Whether a heteroscedastic variance forest is present; the s^2(x)
   /// channels of run and predictVariance gate on it.
   bool hasVarianceForest;
+  /// The residual prior the variance forest's scale leaf was calibrated from
+  /// at creation, original scale; all zero when homoscedastic.
+  ResidualPrior varianceLeafPrior;
   /// True for function-valued (GP) leaf models, whose state and reporting
   /// layouts differ from the vector-parameter ones.
   bool usesFunctionLeaves;
@@ -254,6 +257,7 @@ public:
     s.savedTreeCapacity = impl_.savedTreeCapacity();
     s.family = impl_.family();
     s.hasVarianceForest = impl_.hasVarianceForest();
+    s.varianceLeafPrior = impl_.varianceLeafPrior();
     s.usesFunctionLeaves = Sampler<L, ResidT>::usesFunctionLeaves();
     s.kIsSampled = impl_.kIsSampled();
     s.usesDart = impl_.usesDart();
@@ -621,6 +625,10 @@ inline std::unique_ptr<SamplerBase> createBCFSampler(
   std::size_t numPredictors, const double* weights, const double* offset,
   double sigmaEstimate, double sigmaDf, double sigmaRawScale,
   const SamplerOptions& options, const BCFSpec& spec, ext_rng* const* rngs) {
+  // only the single-forest chain builds a variance forest, so accepting the
+  // option at these two factories would drop it silently; refuse it as
+  // createSampler does
+  if (options.numVarianceTrees > 0) return nullptr;
   return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
     x, y, numObservations, numPredictors, weights, offset, sigmaEstimate,
     sigmaDf, sigmaRawScale, options, spec, rngs);
@@ -633,6 +641,7 @@ inline std::unique_ptr<SamplerBase> createMultinomialSampler(
   const double* x, std::size_t numObservations, std::size_t numPredictors,
   const SamplerOptions& options, const MultinomialSpec& spec,
   ext_rng* const* rngs) {
+  if (options.numVarianceTrees > 0) return nullptr;  // as createBCFSampler
   return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
     x, numObservations, numPredictors, options, spec, rngs);
 }

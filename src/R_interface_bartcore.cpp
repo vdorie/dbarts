@@ -2041,17 +2041,34 @@ void refuseMultiForestTestOffset(const bartcore::SamplerBase& sampler,
              "softmax scale; it carries no test offset", caller);
 }
 
+// No predictor-mutation path carries the variance forest: it holds its own
+// trees outside forests_, which every revalidate/refresh helper loops, so an
+// accepted change leaves s^2(x) routing observations by the codes of the
+// predictors it was built with - and a grid that shrinks under it leaves its
+// serialized split thresholds outside the new cut points. Every entry that
+// moves the predictors, the cut grid, or the observation count refuses.
+void refuseVarianceForestPredictorMutation(
+    const bartcore::SamplerBase& sampler, const char* caller) {
+  if (sampler.shape().hasVarianceForest)
+    Rf_error("%s: a heteroscedastic sampler's variance forest keeps routing "
+             "observations by the predictors it was built with; make a new "
+             "sampler instead", caller);
+}
+
 // The transactional predictor paths (setPredictor and updatePredictor without
 // forceUpdate, and the per-observation sessions, which have no force variant)
 // validate and rebuild through revalidateAllChains, which revalidates only the
 // primary forest - an accepted change would leave a multi-forest sampler's
 // other forests routed against stale codes. The FORCE paths refresh every
-// forest (forceRefreshTrees) and stay available: a forced whole-matrix
-// setPredictor is the supported multi-forest predictor swap (the bartCause
-// propensity pattern).
+// forest (forceRefreshTrees) and stay available for a multi-forest sampler: a
+// forced whole-matrix setPredictor is the supported multi-forest predictor
+// swap (the bartCause propensity pattern). forceRefreshTrees does not reach
+// the variance forest, so forcedUpdate does not excuse one.
 void refuseMultiForestTransactionalUpdate(const bartcore::SamplerBase& sampler,
-                                          const char* caller) {
-  if (sampler.shape().numForests >= 2)
+                                          const char* caller,
+                                          bool forcedUpdate = false) {
+  refuseVarianceForestPredictorMutation(sampler, caller);
+  if (!forcedUpdate && sampler.shape().numForests >= 2)
     Rf_error("%s: a transactional predictor update validates only the primary "
              "forest of a multi-forest sampler; use setPredictor with "
              "forceUpdate = TRUE or make a new sampler instead", caller);
@@ -3446,6 +3463,7 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   bartcore::SamplerShape shape = sampler.shape();
   refusePredictorMutation(sampler, "bartcore_setData");
   refuseMultiForestMutation(sampler, "bartcore_setData");
+  refuseVarianceForestPredictorMutation(sampler, "bartcore_setData");
   if (shape.numGroups > 0)
     Rf_error("grouped random effects fix the data at creation; make a new "
              "sampler instead");
@@ -3767,6 +3785,19 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
       }
     }
 
+    // The variance forest's scale leaf is calibrated from these three numbers
+    // once, at creation, and Chain::setModel installs no sigma under one, so a
+    // changed residual prior would be silently inert. Refuse rather than
+    // ignore; an unchanged one passes and the rest of the model installs.
+    const bartcore::ResidualPrior& calibration = shape.varianceLeafPrior;
+    if (shape.hasVarianceForest &&
+        (parameters.sigmaEstimate != calibration.sigmaEstimate ||
+         model.sigmaDf != calibration.sigmaDf ||
+         model.sigmaRawScale != calibration.sigmaRawScale))
+      Rf_error("bartcore_setModel: a heteroscedastic sampler's variance forest "
+               "was calibrated from resid.prior when it was created and does "
+               "not re-read it; make a new sampler instead");
+
     // split probabilities are copied per chain before the model goes away
     sampler.setModel(parameters);
 
@@ -3815,9 +3846,9 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     bartcore::SamplerShape shape = holder.sampler->shape();
     refuseMutationOnView(*holder.sampler, "bartcore_setPredictor");
-    if (Rf_asLogical(forceUpdateExpr) != TRUE)
-      refuseMultiForestTransactionalUpdate(*holder.sampler,
-                                           "bartcore_setPredictor");
+    refuseMultiForestTransactionalUpdate(
+      *holder.sampler, "bartcore_setPredictor",
+      Rf_asLogical(forceUpdateExpr) == TRUE);
     const double* values;
     if (Rf_isReal(xExpr)) {
       SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
@@ -3861,9 +3892,9 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
       "bartcore_updatePredictor requires numObservations values per column";
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     refuseMutationOnView(*holder.sampler, "bartcore_updatePredictor");
-    if (Rf_asLogical(forceUpdateExpr) != TRUE)
-      refuseMultiForestTransactionalUpdate(*holder.sampler,
-                                           "bartcore_updatePredictor");
+    refuseMultiForestTransactionalUpdate(
+      *holder.sampler, "bartcore_updatePredictor",
+      Rf_asLogical(forceUpdateExpr) == TRUE);
     bartcore::SamplerShape shape = holder.sampler->shape();
     size_t numObservations = shape.numObservations;
     size_t numPredictors = shape.numPredictors;
@@ -3920,6 +3951,8 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
                         columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     refuseRequantizeWithoutSource(*holder.sampler, "bartcore_setCutPoints");
+    refuseVarianceForestPredictorMutation(*holder.sampler,
+                                          "bartcore_setCutPoints");
     size_t numPredictors = holder.sampler->shape().numPredictors;
     // dense columns re-quantize from the supplied data@x; CSC/mixed columns
     // read their retained slices, so a non-matrix source is passed as null
@@ -5400,6 +5433,18 @@ static const char* readWarmStartState(SEXP stateExpr,
       chainState.b0 = REAL(bcfExpr)[2];
       chainState.b1 = REAL(bcfExpr)[3];
     }
+
+    // the variance trees ride four chain-level slots, as in the setState
+    // parser. installForests does not install them, but it compares the
+    // donor's against this sampler's shape, so they must be read faithfully.
+    SEXP varianceVarsExpr = getListElement(chainExpr, "variance.vars");
+    if (!Rf_isNull(varianceVarsExpr) &&
+        !readFlatTrees(varianceVarsExpr,
+                       getListElement(chainExpr, "variance.values"),
+                       getListElement(chainExpr, "variance.sizes"),
+                       getListElement(chainExpr, "variance.flags"),
+                       sampler.data(), chainState.varianceTrees, &errorMessage))
+      break;
   }
   return errorMessage;
 }
@@ -5496,7 +5541,8 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                "restricted variance forest) in force here");
     case bartcore::WarmStartResult::shapeMismatch:
       Rf_error("warm-start donor is not shape-compatible with this sampler "
-               "(number of trees, forests, or predictors differ)");
+               "(number of trees, forests, or predictors differ, or only one "
+               "of the two carries a variance forest)");
   }
 }
 

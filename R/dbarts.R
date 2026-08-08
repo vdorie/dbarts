@@ -626,6 +626,17 @@ samplePriorPredictive <- function(
 
   sigmaDraws <- NULL
   if (type == "ppd" && !responseIsBinary) {
+    # the noise a heteroscedastic prior predictive adds is s(x) eps, drawn
+    # from the variance forest's own prior; the scalar draws below would
+    # report a homoscedastic prior predictive instead. "ev" needs no noise
+    # term and is unaffected.
+    if (!is.null(attr(draw$control, "bartcore.variance"))) {
+      stop(
+        "samplePriorPredictive(type = \"ppd\") is not defined for a ",
+        "heteroscedastic sampler: its residual scale is a variance forest, ",
+        "not a single sigma"
+      )
+    }
     residPrior <- draw$model@resid.prior
     if (inherits(residPrior, "dbartsChiSqPrior")) {
       # reported-scale scaled-inverse-chi-squared, matching the engine's own
