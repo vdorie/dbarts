@@ -34,8 +34,8 @@ items
     considered failure to think of value rather than the old
     no-consumer-today reading. Folds into the model-space research
     VD wants before any multiforest update shape (the research gate
-    in runsbcbcf-repair.md "setData door survey"); VD-timed, in due
-    course.
+    in runsbcbcf-repair.md "setData door survey"); authorized by VD
+    2026-08-08, runs inside the model-space survey arc, in flight.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). The BCF sigma SBC
     flag was diagnosed as a slow forest-mixing burn transient and fixed
@@ -51,6 +51,14 @@ items
     77597cc) - full record, lesson, and reopen clause in
     docs/plans/blocked-jacobi-trees.md and
     docs/design/within-chain-threading.md.
+  cheap-uniformity: VD GO 2026-08-08 - close the dense-only
+    asymmetries that do not wait on the model-space survey:
+    sparse-valued mutation shim at the bridge (the typed-ingestion
+    door), sparse test-column update, and resident-sparse predict
+    (today predict materializes dense). Ingestion shape only, no
+    draw-law change expected: trio-bitwise gate. Design memo ->
+    blind refuting critique -> serialized implementer; plan doc
+    docs/plans/cheap-uniformity.md at design time. in flight.
   correlated-outcomes: richer error/outcome covariance around a BART
     mean, delivered via outer-sampler composition (stan4bart = WALNUTS
     + dbarts supplying each outcome's conditional mean; the pattern
@@ -109,7 +117,13 @@ items
     draw-law change on the default path: every equivalence baseline and
     hard-coded snapshot re-records in the same battery. Posterior is
     invariant (warm-start only), so the decision is init quality +
-    surface economics, not correctness.
+    surface economics, not correctness. VD 2026-08-08: prerequisites
+    AUTHORIZED, plus (4) exploration-cost research - what a
+    data-fitted init gives up walking sticky or multimodal
+    posteriors vs the stump init; the flip research must measure or
+    bound it, and the k study folds into the same pre-registered
+    design. Code pieces (categorical scan, family consistency) queue
+    behind the cheap-uniformity implementer.
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. denseValues is const double* (data.hpp ~188),
     ColumnType is semantic only (ordinal | categorical), and R still
@@ -149,7 +163,8 @@ items
     door, efficiency-shaped, also open. BOTH update-shape doors are
     RESEARCH-GATED (VD 2026-08-06): before designing any particular
     shape, survey which model classes are actually worth enabling -
-    the shape follows from the models. In due course, not queued.
+    the shape follows from the models. Survey authorized by VD
+    2026-08-08 and in flight; setData's data-type shapes ride along.
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
@@ -216,12 +231,19 @@ items
     2026-08-06 (record 4a14eeb; probe, critiques, and landing notes
     in docs/plans/typed-ingestion.md): one borrowed PredictorSource
     view taken by creation, test ingestion, and mutation; declared
-    factor levels ride as K since slice 1 (0d3914c). Remaining
-    doors, consumer-gated: sparse-valued mutation, typed flat C API
-    entries (the only dbarts.h toucher), setData on a CSC/mixed
-    store, per-observation mutation of CSC-backed columns. The hot
-    layer stays quantized codes + double cuts;
-    response/offset/weights stay double*.
+    factor levels ride as K since slice 1 (0d3914c). Door status
+    (VD 2026-08-08): sparse-valued mutation taken by the
+    cheap-uniformity arc; typed flat C API entries (the only
+    dbarts.h toucher) OPENED for the pre-release breaking window -
+    reshape-by-replacement to source-shaped signatures, sequenced
+    after cheap-uniformity lands so the C surface mirrors the final
+    shape (consumer cost: a stan4bart predict sweep only - neither C
+    consumer calls the dense mutation entries); setData on a
+    CSC/mixed store folds into the model-space survey;
+    per-observation mutation of CSC-backed columns stays a
+    DOCUMENTED REFUSAL (algorithmic: O(nnz) shift). The hot layer
+    stays quantized codes + double cuts; response/offset/weights
+    stay double*.
   weighted-binary: integer-weight probit via replicated latents;
     arbitrary real weights need a real-shape PG sampler (IPW is a
     pseudo-likelihood trap; the approximate-PG decision is shared
@@ -281,6 +303,10 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     PROTECT-balance and memcheck passes CRAN itself runs. HELD
     2026-07-25 (VD): main stays as it is until VD's own review of the
     branch; revisit these checks then.
+  the typed-ingestion dbarts.h reshape (VD 2026-08-08) lands BEFORE
+    the freeze - the last planned pre-release breaking change;
+    re-verify stan4bart bartcore against the reshaped header in the
+    same window.
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-14; submit both
     to CRAN together. bartCause is ready and PUSHED on branch
     dbarts-1.0 in ~/Repositories/bartCause (ahead of its main; checks
