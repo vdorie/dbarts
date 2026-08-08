@@ -373,6 +373,81 @@ predictorColumnSlice <- function(values, k, numColumns, numObservations) {
   }
 }
 
+## The entries dgCMatrix column `rank` (1-based) stores, paired with the value
+## its unstored rows read.
+sparseBlockColumn <- function(sparse, rank, implicit) {
+  entries <- seq.int(
+    sparse@p[rank] + 1L,
+    length.out = sparse@p[rank + 1L] - sparse@p[rank]
+  )
+  list(implicit = implicit, i = sparse@i[entries], x = sparse@x[entries])
+}
+
+## Column k (1-based) of a replacement block, described by its storage: a
+## sparse-stored column as list(implicit, i = 0-based rows, x = values), any
+## other as a plain double vector. Reading the block one column at a time is
+## what keeps a sparse-valued replacement off the O(n x p) densification its
+## caller would otherwise have to perform.
+predictorSourceColumn <- function(values, k, numColumns, numObservations) {
+  if (inherits(values, "dbartsMixedMatrix")) {
+    source <- values$map[k]
+    if (source > 0L) {
+      column <- values$dense[[source]]
+      return(
+        if (is.factor(column)) {
+          as.double(as.integer(column) - 1L)
+        } else {
+          as.double(column)
+        }
+      )
+    }
+    rank <- -source
+    return(sparseBlockColumn(
+      values$sparse,
+      rank,
+      if (!is.na(values$sparseReference[rank])) {
+        values$sparseReference[rank]
+      } else {
+        0
+      }
+    ))
+  }
+  if (inherits(values, "dgCMatrix")) {
+    return(sparseBlockColumn(values, k, 0))
+  }
+  as.double(predictorColumnSlice(values, k, numColumns, numObservations))
+}
+
+## The dense double vector a source column describes.
+materializeSourceColumn <- function(column, numObservations) {
+  if (!is.list(column)) {
+    return(column)
+  }
+  result <- rep(as.double(column$implicit), numObservations)
+  result[column$i + 1L] <- column$x
+  result
+}
+
+## The 0-based rows and values a source column contributes to a dgCMatrix
+## column whose unstored rows read `implicit`: an entry is stored iff it is NA
+## or differs from that value, the pattern rule the engine applies
+## (mutateCscColumnFromDense, src/bartcore/data.hpp). A sparse-stored column
+## that already reads the same implicit contributes its own entries, but must
+## still be canonicalized - Matrix keeps explicit entries this rule drops, and
+## leaving them would diverge the container's pattern from the store's.
+sparseEntriesForColumn <- function(column, implicit, numObservations) {
+  if (is.list(column) && isTRUE(column$implicit == implicit)) {
+    stored <- is.na(column$x) | column$x != implicit
+    return(list(
+      i = as.integer(column$i[stored]),
+      x = as.double(column$x[stored])
+    ))
+  }
+  values <- materializeSourceColumn(column, numObservations)
+  stored <- is.na(values) | values != implicit
+  list(i = as.integer(which(stored) - 1L), x = as.double(values[stored]))
+}
+
 ## Replace one column of a dgCMatrix in place by DIRECT SLOT SURGERY on
 ## @i/@p/@x: splice the column's entries out and the replacement's in, shifting
 ## the pointers of every column after it. Matrix's `[<-` is disqualified here -
@@ -385,9 +460,9 @@ predictorColumnSlice <- function(values, k, numColumns, numObservations) {
 ## missing values included - the engine's own pattern rule
 ## (mutateCscColumnFromDense, src/bartcore/data.hpp), mirrored.
 replaceSparseColumn <- function(sparse, rank, implicit, values) {
-  stored <- is.na(values) | values != implicit
-  newRows <- as.integer(which(stored) - 1L)
-  newValues <- as.double(values[stored])
+  entries <- sparseEntriesForColumn(values, implicit, nrow(sparse))
+  newRows <- entries$i
+  newValues <- entries$x
 
   numEntries <- length(sparse@i)
   start <- sparse@p[rank]
@@ -415,6 +490,7 @@ replaceSparseColumn <- function(sparse, rank, implicit, values) {
 ## records.
 replaceSparseColumns <- function(sparse, ranks, implicits, values) {
   numColumns <- length(sparse@p) - 1L
+  numObservations <- nrow(sparse)
   entryRows <- vector("list", numColumns)
   entryValues <- vector("list", numColumns)
   counts <- integer(numColumns)
@@ -428,10 +504,13 @@ replaceSparseColumns <- function(sparse, ranks, implicits, values) {
       entryRows[[k]] <- sparse@i[keep]
       entryValues[[k]] <- sparse@x[keep]
     } else {
-      column <- values[[index]]
-      stored <- is.na(column) | column != implicits[index]
-      entryRows[[k]] <- as.integer(which(stored) - 1L)
-      entryValues[[k]] <- as.double(column[stored])
+      entries <- sparseEntriesForColumn(
+        values[[index]],
+        implicits[index],
+        numObservations
+      )
+      entryRows[[k]] <- entries$i
+      entryValues[[k]] <- entries$x
     }
     counts[k] <- length(entryRows[[k]])
   }
@@ -465,7 +544,11 @@ replaceSparseColumns <- function(sparse, ranks, implicits, values) {
 ## of a CSC-backed column is refused upstream, so the partial merge below only
 ## ever addresses dense-backed columns. Naming several sparse-backed columns -
 ## a whole-matrix replacement of a sparse design does - splices them in one
-## pass (replaceSparseColumns).
+## pass (replaceSparseColumns). In the container branch `values` may itself be
+## sparse - a dgCMatrix or another container - and is read one column at a
+## time, so a sparse-backed target column whose implicit agrees with the
+## argument's splices the argument's entries directly (O(nnz)) and an untouched
+## column is never materialized at all.
 installPredictorColumns <- function(x, rows, columns, values) {
   if (is.matrix(x)) {
     if (is.null(rows)) {
@@ -475,19 +558,23 @@ installPredictorColumns <- function(x, rows, columns, values) {
     }
     return(x)
   }
-  values <- as.double(values)
   # a pure dgCMatrix design (the sparse-column in-place mutation extension,
   # docs/design/sparse-columns.md): every column is CSC-backed and ordinal, so
   # the implicit rows read numeric zero
   if (inherits(x, "dgCMatrix")) {
     numObservations <- nrow(x)
     if (length(columns) == 1L) {
-      return(replaceSparseColumn(x, columns, 0, values))
+      return(replaceSparseColumn(
+        x,
+        columns,
+        0,
+        predictorSourceColumn(values, 1L, 1L, numObservations)
+      ))
     }
     columnValues <- lapply(
       seq_along(columns),
       function(k) {
-        predictorColumnSlice(values, k, length(columns), numObservations)
+        predictorSourceColumn(values, k, length(columns), numObservations)
       }
     )
     return(replaceSparseColumns(
@@ -504,10 +591,10 @@ installPredictorColumns <- function(x, rows, columns, values) {
     sparseValues <- list()
     for (k in seq_along(columns)) {
       column <-
-        predictorColumnSlice(values, k, length(columns), numObservations)
+        predictorSourceColumn(values, k, length(columns), numObservations)
       source <- x$map[columns[k]]
       if (source > 0L) {
-        x$dense[[source]] <- column
+        x$dense[[source]] <- materializeSourceColumn(column, numObservations)
       } else {
         rank <- -source
         sparseRanks <- c(sparseRanks, rank)
@@ -535,7 +622,7 @@ installPredictorColumns <- function(x, rows, columns, values) {
     }
     return(x)
   }
-  values <- matrix(values, ncol = length(columns))
+  values <- matrix(as.double(values), ncol = length(columns))
   for (k in seq_along(columns)) {
     sourceIndex <- x$map[columns[k]]
     column <- x$dense[[sourceIndex]]

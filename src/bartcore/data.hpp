@@ -292,6 +292,46 @@ inline bool predictorSourceIsAllCsc(const PredictorSource& source,
   return true;
 }
 
+/// Materialize rows [rowBegin, rowEnd) of a borrowed view as a column-major
+/// (rowEnd - rowBegin) x source.numColumns block of raw doubles: each column is
+/// filled with its implicit value, then its stored entries scatter over it.
+///
+/// A CSC column's implicit rows read \p storeTypes[j] == categorical ?
+/// referenceCodeOf(j) : 0 - the rule quantizeCscColumnInto applies, keyed on
+/// the STORE's type rather than on whether the source declared a reference. A
+/// null \p storeTypes means all-ordinal. \p out holds one block's worth of
+/// doubles; the row range exists so a caller may stream a wide source in
+/// chunks without materializing it whole.
+inline void materializePredictorSource(const PredictorSource& source,
+                                       const ColumnType* storeTypes,
+                                       size_t rowBegin, size_t rowEnd,
+                                       double* out) {
+  size_t numRows = rowEnd - rowBegin;
+  for (size_t j = 0; j < source.numColumns; ++j) {
+    double* target = out + j * numRows;
+    std::int32_t which = source.sourceOf(j);
+    if (which >= 0) {
+      std::memcpy(target,
+                  source.denseValues + static_cast<size_t>(which) *
+                                         source.numRows + rowBegin,
+                  numRows * sizeof(double));
+      continue;
+    }
+    bool categorical = storeTypes != nullptr &&
+                       storeTypes[j] == ColumnType::categorical;
+    double implicitValue =
+      categorical ? static_cast<double>(source.referenceCodeOf(j)) : 0.0;
+    for (size_t i = 0; i < numRows; ++i) target[i] = implicitValue;
+    size_t column = static_cast<size_t>(~which);
+    for (int k = source.cscColumnPointers[column];
+         k < source.cscColumnPointers[column + 1]; ++k) {
+      size_t row = static_cast<size_t>(source.cscRowIndices[k]);
+      if (row >= rowBegin && row < rowEnd)
+        target[row - rowBegin] = source.cscValues[k];
+    }
+  }
+}
+
 /// One row set's code storage over the store's shared cut grid: the packed
 /// dense codes and their per-column starts, the rank storage of the sparse
 /// columns, and the per-column source descriptors. Instantiated train and test

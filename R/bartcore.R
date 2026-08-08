@@ -138,10 +138,17 @@ bartcoreSamplerSetPredictor <- function(
     } else if (length(x) != prod(dim(sampler$data@x))) {
       stop("length of new x does not match old")
     }
-    x <- if (!is.null(xDim)) {
-      matrix(as.double(x), xDim[1L])
-    } else {
-      matrix(as.double(x), nrow(sampler$data@x))
+    # a sparse-valued argument onto a sparse-backed design rides to the bridge
+    # as supplied: it materializes there, under the store's own implicit rule,
+    # rather than being densified here. Every other argument - a plain vector,
+    # a sparseVector, any Matrix class the bridge does not ingest - keeps the
+    # as.double path, as does a plain-matrix design.
+    if (!(sparseSource && predictorSourceIsSparse(x))) {
+      x <- if (!is.null(xDim)) {
+        matrix(as.double(x), xDim[1L])
+      } else {
+        matrix(as.double(x), nrow(sampler$data@x))
+      }
     }
     if (!sparseSource) {
       # a pointer swap: the engine borrows data@x, so install there first and
@@ -196,15 +203,25 @@ bartcoreSamplerSetPredictor <- function(
         "' is out of range"
       )
     }
-    if (!is.null(xDim) && xDim[2L] != length(column)) {
-      stop(
-        "number of columns of new x does not match length of columns to replace"
-      )
-    }
-    if (length(x) != nrow(sampler$data@x) * length(column)) {
+    # length() counts a container's fields rather than its cells, so the shape
+    # check reads dim() wherever the argument carries one; only a dimensionless
+    # argument falls back to the total-length check
+    if (!is.null(xDim)) {
+      if (xDim[2L] != length(column)) {
+        stop(
+          "number of columns of new x does not match length of columns to ",
+          "replace"
+        )
+      }
+      if (xDim[1L] != nrow(sampler$data@x)) {
+        stop("length of new x does not match y")
+      }
+    } else if (length(x) != nrow(sampler$data@x) * length(column)) {
       stop("length of new x does not match y")
     }
-    x <- as.double(x)
+    if (!(sparseSource && predictorSourceIsSparse(x))) {
+      x <- as.double(x)
+    }
     # the engine keeps no predictor matrix, so maintain data@x R-side when the
     # update is applied (forceUpdate, or a non-rolled-back transaction);
     # install by reference - only the addressed columns change, the rest of the
