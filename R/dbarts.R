@@ -1062,7 +1062,7 @@ dbartsSampler <- setRefClass(
     ) {
       "Changes a single column of the predictor matrix, or the entire matrix if column is missing. updateState is opt-in; see setData."
 
-      checkMissingPolicy(data, anyNA(x), "predictors")
+      checkMissingPolicy(data, sourceAnyNA(x), "predictors")
       result <- bartcoreSamplerSetPredictor(
         .self,
         x,
@@ -1093,7 +1093,7 @@ dbartsSampler <- setRefClass(
     setTestPredictor = function(x.test, column) {
       "Changes a single column of the test predictor matrix."
 
-      checkMissingPolicy(data, anyNA(x.test), "test predictors")
+      checkMissingPolicy(data, sourceAnyNA(x.test), "test predictors")
       bartcoreSamplerSetTestPredictor(
         .self,
         x.test,
@@ -1104,7 +1104,7 @@ dbartsSampler <- setRefClass(
       "Changes the test predictor matrix, and optionally the test offset."
       checkMissingPolicy(
         data,
-        !is.null(x.test) && anyNA(x.test),
+        !is.null(x.test) && sourceAnyNA(x.test),
         "test predictors"
       )
       if (missing(offset.test)) {

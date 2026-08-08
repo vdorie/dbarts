@@ -610,6 +610,20 @@
             masks, and restoring such a state reports a missing
             \code{'tree.masks'} block; states whose tier is unchanged
             restore correctly.
+      \item \code{setPredictor} on a mixed or \code{dgCMatrix} design now
+            refuses a whole-matrix replacement argument whose shape
+            disagrees with the design instead of reinterpreting it
+            column-major; previously only \code{is.matrix} arguments (never
+            a \code{Matrix} class) had their dimensions checked, so a
+            transposed argument of the same total length was silently
+            accepted.
+      \item \code{missing = "error"} on \code{setPredictor},
+            \code{setTestPredictor}, and \code{setTestPredictorAndOffset}
+            now inspects a mixed or sparse container's actual values rather
+            than the container's underlying list, which read a
+            single-sparse-column container's reference-level metadata as a
+            missing value that was not there, and could miss a real missing
+            value stored in a container with two or more sparse columns.
       \item \code{copy} now works for samplers with a stored state.
       \item Seeded parallel \code{rbart_vi} now restores R's stream after
             drawing its chain seeds; the restore assigned a local

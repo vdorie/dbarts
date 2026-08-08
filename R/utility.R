@@ -37,6 +37,29 @@ announceAutoFamily <- function(responseType, nLevels, family) {
   )
 }
 
+# Missingness predicate for a setPredictor/setTestPredictor/
+# setTestPredictorAndOffset argument. Never plain anyNA() on a
+# dbartsMixedMatrix: it is a plain list, and base anyNA on a list is TRUE
+# iff some TOP-LEVEL element is a length-one atomic NA - true of a
+# single-sparse-column container's sparseReference sentinel (a false
+# missing value) and false whenever a real NA sits in sparse@x behind a
+# longer metadata vector (a missed one). recursive = TRUE fixes neither: it
+# also descends into sparseReference. A sparseMatrix reads its own @x
+# rather than densifying through the default method; a pattern matrix (no
+# @x) carries no values to be missing.
+sourceAnyNA <- function(x) {
+  if (inherits(x, "dbartsMixedMatrix")) {
+    return(
+      any(vapply(x$dense, anyNA, NA)) ||
+        (!is.null(x$sparse) && anyNA(x$sparse@x))
+    )
+  }
+  if (methods::is(x, "sparseMatrix")) {
+    return(methods::.hasSlot(x, "x") && anyNA(x@x))
+  }
+  anyNA(x)
+}
+
 # The dbartsSampler mutators (setPredictor/setTestPredictor/
 # setTestPredictorAndOffset) refuse a new predictor matrix containing NA when
 # the sampler was built with missing = "error"; `what` names the refused

@@ -122,19 +122,24 @@ bartcoreSamplerSetPredictor <- function(
   }
   updateCutPoints <- coerceOrError(updateCutPoints, "logical")
 
+  # dim(), not is.matrix(): the latter is FALSE for every Matrix class, so a
+  # transposed dgCMatrix argument (same total length, wrong shape) fell
+  # through to the length-only check below and was silently reinterpreted
+  # column-major
+  xDim <- dim(x)
   if (is.null(column)) {
-    if (is.matrix(x)) {
-      if (ncol(x) != ncol(sampler$data@x)) {
+    if (!is.null(xDim)) {
+      if (xDim[2L] != ncol(sampler$data@x)) {
         stop("dimension of x must be equal to ", ncol(sampler$data@x))
       }
-      if (nrow(x) != nrow(sampler$data@x)) {
+      if (xDim[1L] != nrow(sampler$data@x)) {
         stop("dimension of x must be equal to ", nrow(sampler$data@x))
       }
     } else if (length(x) != prod(dim(sampler$data@x))) {
       stop("length of new x does not match old")
     }
-    x <- if (is.matrix(x)) {
-      matrix(as.double(x), nrow(x))
+    x <- if (!is.null(xDim)) {
+      matrix(as.double(x), xDim[1L])
     } else {
       matrix(as.double(x), nrow(sampler$data@x))
     }
@@ -191,7 +196,7 @@ bartcoreSamplerSetPredictor <- function(
         "' is out of range"
       )
     }
-    if (is.matrix(x) && ncol(x) != length(column)) {
+    if (!is.null(xDim) && xDim[2L] != length(column)) {
       stop(
         "number of columns of new x does not match length of columns to replace"
       )
@@ -400,6 +405,12 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
         "column '",
         column[which(column < 1L | column > ncol(sampler$data@x.test))[1L]],
         "' is out of range"
+      )
+    }
+    xTestDim <- dim(x.test)
+    if (!is.null(xTestDim) && xTestDim[2L] != length(column)) {
+      stop(
+        "number of columns of new x does not match length of columns to replace"
       )
     }
     if (length(x.test) != nrow(sampler$data@x.test) * length(column)) {
