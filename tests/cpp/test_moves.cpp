@@ -1029,9 +1029,111 @@ static void testLeafOfConsistency(ext_rng* /*rng*/) {
   printf("ok: leafOf consistency\n");
 }
 
+// A wholesale prior structure draw returns the forest to the zero-fit state a
+// freshly built chain carries: totalFits zero, so the cached-fits evaluator
+// mu[leafOf] the next sweep's residual roll reads agrees with it (INV-1), and
+// every map entry indexes the reset arena (INV-2, which a draw that SHRINKS a
+// tree breaks unless the map moves with the values). A local generator and a
+// restored rngState leave the shared stream untouched.
+static void testPriorResetContract(ext_rng* /*rng*/) {
+  std::uint64_t savedRngState = rngState;
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 13579u);
+  std::unique_ptr<ConstantLeafSampler> samplerPtr =
+    makeBurnedInSampler(x, y, n, localRng);
+  ConstantLeafSampler& sampler(*samplerPtr);
+  const size_t numTrees = sampler.chain(0).numTrees();
+
+  // the burn-in leaves real fits behind, so the zeroing below is a change of
+  // state rather than a no-op restatement of construction
+  bool anyFit = false;
+  for (double v : sampler.chain(0).totalFits())
+    if (v != 0.0) { anyFit = true; break; }
+  check(anyFit, "the burn-in left non-zero totalFits");
+
+  sampler.chain(0).sampleTreesFromPrior();
+
+  // every tree stays marked for rebuild: clearing the mark here would make the
+  // fused roll+suffstat pass eligible one sweep early and move the draws of
+  // every prior-initialized run
+  bool allStale = true;
+  for (size_t t = 0; t < numTrees; ++t)
+    allStale = allStale && sampler.chain(0).leafOfStaleForTesting(t) != 0;
+  check(allStale, "a prior reset leaves every tree marked for rebuild");
+
+  bool totalZero = true;
+  for (double v : sampler.chain(0).totalFits())
+    totalZero = totalZero && v == 0.0;
+  check(totalZero, "a prior reset zeroes totalFits");
+
+  // one sweep on, totalFits sums the per-tree fits again: the roll retired
+  // exactly the cached fits it read, so no displacement enters the chain. The
+  // two sides are the same quantity by different summation orders (the roll's
+  // running residual against a gather over mu[leafOf]), hence a last-ulp band
+  // rather than equality.
+  Results empty;
+  sampler.run(1, 0, empty);
+  std::vector<double> perTree = sampler.chain(0).treeFits();
+  const std::vector<double>& total = sampler.chain(0).totalFits();
+  bool invariantHolds = true;
+  double worstDeviation = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    double sum = 0.0;
+    for (size_t t = 0; t < numTrees; ++t) sum += perTree[t * n + i];
+    double deviation = std::fabs(sum - total[i]);
+    if (deviation > worstDeviation) worstDeviation = deviation;
+    invariantHolds = invariantHolds &&
+      deviation <= 1.0e-12 * (1.0 + std::fabs(total[i]));
+  }
+  check(invariantHolds, "totalFits sums the per-tree fits after a reset sweep");
+
+  ext_rng_destroy(localRng);
+
+  // an arena SHRINK is the bounds half: growSubtreeFromPrior returns before its
+  // Bernoulli when the growth probability is zero, so a flattened prior forces
+  // bare roots and consumes no draws. Any observation whose pre-reset leaf id
+  // survived would then index past the one-node arena. The check reads only
+  // leafOf and nodes.size(), never mu, so it diagnoses the read without making
+  // it.
+  std::vector<double> xShrink, yShrink;
+  makeMutationData(xShrink, yShrink, n);
+  ext_rng* shrinkRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(shrinkRng, 86420u);
+  std::unique_ptr<ConstantLeafSampler> shrunkPtr =
+    makeBurnedInSampler(xShrink, yShrink, n, shrinkRng);
+  ConstantLeafSampler& shrunk(*shrunkPtr);
+
+  bool anyGrown = false;
+  for (size_t t = 0; t < numTrees; ++t)
+    anyGrown = anyGrown || shrunk.chain(0).tree(t).nodes.size() > 1;
+  check(anyGrown, "the burn-in grew at least one tree");
+
+  ModelParameters flat;
+  flat.base = 0.0;
+  shrunk.chain(0).setModel(flat);
+  shrunk.chain(0).sampleTreesFromPrior();
+
+  bool insideArena = true;
+  for (size_t t = 0; t < numTrees; ++t) {
+    const std::uint32_t* leafOf = shrunk.chain(0).leafOfForTesting(t);
+    size_t arenaSize = shrunk.chain(0).tree(t).nodes.size();
+    for (size_t i = 0; i < n; ++i)
+      if (leafOf[i] >= arenaSize) { insideArena = false; break; }
+  }
+  check(insideArena, "the obs-to-leaf map stays inside the reset arena");
+
+  ext_rng_destroy(shrinkRng);
+  rngState = savedRngState;
+  printf("ok: prior reset contract (INV-1 residual %.2e)\n", worstDeviation);
+}
+
 void runMovesTests(ext_rng* rng) {
   testDartUpdate(rng);
   testLeafOfConsistency(rng);
+  testPriorResetContract(rng);
   testDartSparsityRecovery(rng);
   testSetPredictorTransaction(rng);
   testSetPredictorForced(rng);
