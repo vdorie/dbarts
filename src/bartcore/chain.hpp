@@ -2650,6 +2650,23 @@ public:
   const double* workingResponseForTesting() const {
     return response_->workingResponse();
   }
+  /// Test hook: forest f's tree t. Chain::tree reaches forest 0 alone, so a
+  /// whole-sampler structural check (routing agreement) needs this to see a
+  /// BCF or multinomial forest at all.
+  const Tree& treeInForestForTesting(std::size_t f, std::size_t t) const {
+    return forests_[f].trees[t];
+  }
+  /// Test hooks: variance tree j's live partition, and the per-tree factor slab
+  /// h_j(x_i), tree-major (numVarianceTrees x n), whose product over j is the
+  /// combined variance varianceFits() reports. The variance forest sits outside
+  /// forests_, so nothing else exposes either to a test. Both dereference the
+  /// forest; a caller gates on hasVarianceForest().
+  const Tree& varianceTreeForTesting(std::size_t j) const {
+    return varianceForest_->trees[j];
+  }
+  const double* varianceFactorsForTesting() const {
+    return varianceForest_->factorByTree.data();
+  }
 
   /// Test hook: split forest 0's tree 0 at (variableIndex, splitIndex) and
   /// strand its right child empty, then run tree 0's parameter draw exactly

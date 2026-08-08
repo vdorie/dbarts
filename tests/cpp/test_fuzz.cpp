@@ -73,6 +73,33 @@ static bool fuzzSubtreeCovers(const Tree& t, int32_t i, size_t& leafObs) {
          fuzzSubtreeCovers(t, nd.leftChild + 1, leafObs);
 }
 
+// owner[i] <- the bottom node whose index range currently holds observation i,
+// read off the live partition alone.
+static void fuzzFillOwner(const Tree& t, int32_t i, std::vector<int32_t>& owner) {
+  const Node& nd(t.at(i));
+  if (nd.isBottom()) {
+    for (size_t m = nd.begin; m < nd.end; ++m) owner[t.indices[m]] = i;
+    return;
+  }
+  fuzzFillOwner(t, nd.leftChild, owner);
+  fuzzFillOwner(t, nd.leftChild + 1, owner);
+}
+
+// Routing agreement: the partition a tree HOLDS must be the partition its split
+// rules DESCRIBE. fuzzSubtreeCovers is interval arithmetic over index ranges
+// and never consults a rule, so a partition left over from the previous
+// predictors satisfies it exactly; this re-descends every observation through
+// the rules against the current codes and demands it land in the leaf that owns
+// it. That is the invariant a missed re-route violates.
+static bool fuzzTreeRoutesCorrectly(const Tree& t, const ColumnStore& data,
+                                    size_t n, std::vector<int32_t>& owner) {
+  owner.assign(n, invalidNode);
+  fuzzFillOwner(t, 0, owner);
+  for (size_t i = 0; i < n; ++i)
+    if (t.findBottomNodeForObservation(data, i) != owner[i]) return false;
+  return true;
+}
+
 template <typename S>
 static const char* fuzzInvariantViolation(S& s) {
   size_t n = s.numObservations();
@@ -95,6 +122,33 @@ static const char* fuzzInvariantViolation(S& s) {
         return "totalFits != tree-order sum";
     }
     if (!(std::isfinite(s.sigma(c)))) return "sigma not finite";
+    std::vector<int32_t> owner;
+    for (size_t f = 0; f < ch.numForests(); ++f)
+      for (size_t t = 0; t < ch.numTreesInForest(f); ++t)
+        if (!fuzzTreeRoutesCorrectly(ch.treeInForestForTesting(f, t),
+                                     s.data(), n, owner))
+          return "mean tree routes an observation to a foreign leaf";
+    if (!ch.hasVarianceForest()) continue;
+    size_t m = ch.numVarianceTrees();
+    for (size_t j = 0; j < m; ++j)
+      if (!fuzzTreeRoutesCorrectly(s.varianceTreeForTesting(c, j), s.data(), n,
+                                   owner))
+        return "variance tree routes an observation to a foreign leaf";
+    // s^2(x_i) is maintained incrementally across a sweep and recomputed as the
+    // fresh product at its end, so it must equal that product exactly here; a
+    // factor is a drawn scale and is strictly positive by construction.
+    const double* combined = ch.varianceFits();
+    const double* factors = ch.varianceFactorsForTesting();
+    for (size_t i = 0; i < n; ++i) {
+      double product = 1.0;
+      for (size_t j = 0; j < m; ++j) {
+        double h = factors[j * n + i];
+        if (!(h > 0.0)) return "variance factor not positive";
+        product *= h;
+      }
+      if (std::fabs(combined[i] - product) > 1e-12 * (1.0 + std::fabs(product)))
+        return "combinedVariance != per-tree factor product";
+    }
   }
   return nullptr;
 }
@@ -138,6 +192,10 @@ struct ConfigSpec {
   std::vector<ColSpec> cols;
   size_t numChains;
   unsigned opMask;
+  // > 0 builds a heteroscedastic sampler (constant-leaf gaussian only); the
+  // mask must then exclude every predictor-side op, which the bridge refuses
+  // under a variance forest until the routing repairs land.
+  size_t numVarianceTrees = 0;
 };
 
 // One column of candidate values. Ordinal flavors: 0 identity, 1 jitter,
@@ -467,6 +525,7 @@ static void fuzzRunConstant(const ConfigSpec& spec, std::uint32_t seed,
   SamplerOptions options;
   options.numTrees = 15;
   options.numChains = spec.numChains;
+  options.numVarianceTrees = spec.numVarianceTrees;
   options.predictors.columnTypes = types.data();
   if (spec.family != ResponseFamily::gaussian) options.nodeScale = 3.0;
   std::vector<ext_rng*> rngs(spec.numChains);
@@ -581,6 +640,15 @@ static void testMutationFuzzer(int numSeeds) {
      (1u << OP_SET_PREDICTOR) | (1u << OP_UPDATE_COLUMNS) | (1u << OP_PER_OBS) |
        (1u << OP_SESSION_ABANDON) | (1u << OP_SET_DATA) | (1u << OP_SET_CUTS) |
        (1u << OP_SET_TEST) | (1u << OP_RUN) | (1u << OP_STATE)},
+    // The response/weight/offset/test/run/state surface is the whole of what a
+    // heteroscedastic sampler may do today: every predictor-side op and
+    // setSigma are refused at the bridge (setSigma is additionally an engine
+    // no-op under a variance forest). setCuts joins when setCutPoints re-routes
+    // the variance forest, setData when applyNewData resizes and re-routes it.
+    {"heteroscedastic", ResponseFamily::gaussian, {ord, ord, ord}, 1,
+     (1u << OP_SET_RESPONSE) | (1u << OP_SET_WEIGHTS) | (1u << OP_SET_OFFSET) |
+       (1u << OP_SET_TEST) | (1u << OP_RUN) | (1u << OP_STATE),
+     8},
   };
   const int numOps = 40;
   for (int sd = 0; sd < numSeeds; ++sd) {
