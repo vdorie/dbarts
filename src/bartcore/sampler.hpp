@@ -521,6 +521,10 @@ public:
   const ResidualPrior& varianceLeafPrior() const {
     return chains_[0]->varianceLeafPrior();
   }
+  /// Test hook passthrough: chain c's variance tree j.
+  const Tree& varianceTreeForTesting(size_t chainNum, size_t j) const {
+    return chains_[chainNum]->varianceTreeForTesting(j);
+  }
 
   /// The variance surface s^2(x) for raw column-major new rows, original scale,
   /// mirroring predict: out is numTestObservations x savedTreeCapacity x

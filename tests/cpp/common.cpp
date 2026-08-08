@@ -41,6 +41,10 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
           xf.leafScale != yf.leafScale)
         return false;
     }
+    // the variance forest sits outside forests_, so its flat trees are a
+    // sibling field rather than a ForestStateData member; a homoscedastic state
+    // carries none on either side and agrees vacuously
+    if (!sameFlatTrees(x.varianceTrees, y.varianceTrees)) return false;
     if (x.latents != y.latents || x.groupEffects != y.groupEffects ||
         x.dartProbabilities != y.dartProbabilities ||
         x.rngState != y.rngState)
