@@ -280,3 +280,47 @@ it names only those cells.
   identical tables.
 - The script exits nonzero only on the invariance diagnostic's bug branch
   (disagreement stable in chain length), never on a study finding.
+
+## Results (run 2026-08-08; harness, results.md, and all 98 checkpoints
+## in .claude/grow-from-root-default-research/harness/)
+
+VERDICT: KILL in BOTH strata, each on a mandated fresh-seed re-run.
+The grow-from-root warm start does NOT default; n.grow.sweeps stays
+opt-in. Reopening requires a changed design (for example warm-starting
+a subset of chains, or post-init tempering) plus a re-run of this
+battery on an extended k grid.
+
+- M0 landed branch 1, not the anticipated branch 2: rho0 >= 1 in every
+  grid cell (minimum 1.116 at n=500/k=16; 1.65-4.06 at n=50000), modal
+  agreement max 0.442. The warm start stays overdispersed relative to
+  the target everywhere measured; Stage 1 ran with no caveat.
+- SMALL: aggregate benefit passed (B1 at t=100 +0.199, z=25.5) and all
+  four aggregate non-inferiority tests passed, but S4-5000 (Friedman
+  p=50, noise-heavy) carried C2 = +11.10% against the 6% margin (Holm
+  p=2e-17); re-run +11.58% (z=10.84). KILL.
+- LARGE: aggregate benefit passed (+0.152, z=27.9), all aggregates
+  non-inferior, but S1-50000 carried C1 = +4.47% (margin 3%) and C2 =
+  +10.66% (margin 6%), both Holm-significant; re-run C1 +3.45%
+  (z=6.33), C2 +9.87% (z=7.87). KILL.
+- The substantive finding: the plateau cost concentrates in specific
+  regimes - noise-heavy designs and large n - and pooling averages it
+  away. The per-cell KILL clause, not any aggregate, is what caught it.
+- S7 matched its pre-registered null (all contrasts inside the margins);
+  the categorical renormalization stays closed as documented behavior.
+- The S6 duplicate-column null control FAILED its non-zero-switch
+  clause: 147/192 warm chains had zero root switches, because dbarts'
+  change move cannot rotate the root of a deep tree. Per the
+  Verification clause the S1m/S2m structure estimators are VOID (they
+  had also independently left the gate on floor-above-ceiling). The
+  root-rotation limitation is itself a stickiness datum, recorded here
+  for any future structure-metric design.
+- k* = 16 is a grid artefact: no k satisfied the within-10%-everywhere
+  selection rule, and 16 is the largest grid value with B2 still
+  falling. Any future flip proposal re-runs Part A on an extended grid.
+- The invariance diagnostic landed on the slow-mixing branch and the
+  sigma difference flips sign between 40k and 160k draws (+0.00138 ->
+  -0.00188): mixing noise, not init-dependent bias.
+- 17 deviations logged in results.md, plus a process note: an
+  intermediate analysis pass printed GREEN before the mandated re-runs
+  had run; the verdict logic was corrected to a PENDING state and the
+  GREEN was never a valid result. Total compute 1.93 h.

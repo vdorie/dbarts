@@ -149,44 +149,33 @@ items
     sparse-extensions' rbart_vi-on-sparse half. decision-gated.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared scan.
-  grow-from-root-default: make defaulting bart2's init to the XBART
-    grow-from-root warm start a LIVE OPTION (VD 2026-08-08; the landed
-    surface is n.grow.sweeps = 0L opt-in, docs/plans/grow-from-root-
-    warm-start.md). Prerequisites before the flip is decidable:
-    (1) categorical support in the scan/grower - v1 is ordinal-only and
-    never splits categorical predictors, a silent init bias for
-    categorical-heavy designs if defaulted; (2) a measured default k
-    (early-iteration RMSE / effective burn-in vs k, a few n and signal
-    regimes; bart2's own formal is n.grow.sweeps = 0L (R/bart.R:546)
-    and the only 2L is the R5 method default
-    dbartsSampler$growFromRoot(n.sweeps = 2L) (R/dbarts.R:798),
-    unmeasured and reachable only by direct R5 callers - there is no
-    default of 2 on the bridge or in C++, so the flip picks a NEW k
-    rather than ratifying 2L); (3) family consistency - FOUR bart2
-    branches refuse n.grow.sweeps through the shared helper
-    checkFamilyUnsupportedArgs (R/bart.R:473-501, guard proper at
-    :484-492, not :470-490): multinomial (:684), ordinal (:827),
-    nbinom (:855), hurdle.lognormal (:884), each returning before the
-    init fork (:963-966). rbart_vi is NOT a bart2 branch and refuses
-    nothing - it has no n.grow.sweeps formal at all and always
-    prior-inits (sampleTreesFromPrior, R/rbart.R:774 and :902), so that
-    gap is a silent absence rather than a refusal. The default either
-    extends there or the difference is documented. The flip itself is a
-    draw-law change on the default path: every equivalence baseline and
-    hard-coded snapshot re-records in the same battery. Posterior is
-    invariant (warm-start only), so the decision is init quality +
-    surface economics, not correctness. VD 2026-08-08: prerequisites
-    AUTHORIZED, plus (4) exploration-cost research - what a
-    data-fitted init gives up walking sticky or multimodal
-    posteriors vs the stump init; the flip research must measure or
-    bound it, and the k study folds into the same pre-registered
-    design; the revised pre-registration is
-    docs/plans/grow-from-root-default-study.md (memo section 2's gate
-    table was statistically unrunnable and is superseded), and the
-    corrected literature is
-    .claude/grow-from-root-default-research/lit-conclusions.md. Code
-    pieces (categorical scan, family consistency) queue behind the
-    cheap-uniformity implementer.
+  grow-from-root-default: RESOLVED NO 2026-08-08. The pre-registered
+    study (docs/plans/grow-from-root-default-study.md, Results section;
+    working papers and 98 checkpoints in
+    .claude/grow-from-root-default-research/) returned KILL in BOTH
+    strata, each confirmed by a mandated fresh-seed re-run: the
+    early-iteration benefit is real (B1 z=25.5 small / 27.9 large) but
+    the warm start pays a plateau posterior-mean RMSE cost concentrated
+    where aggregates hide it - +11.1% (re-run +11.6%) in the
+    noise-heavy Friedman p=50 cell against a 6% margin, and +4.5%/+10.7%
+    (re-run +3.5%/+9.9%) at n=50000 against 3%/6% margins. VD's
+    exploration-cost question (4) is thereby answered: the cost is
+    real, regime-concentrated, and decisive. n.grow.sweeps stays
+    opt-in; the flip reopens only with a changed design (e.g.
+    warm-starting a chain subset) plus a re-run on an extended k grid
+    (k*=16 was a grid artefact). Ancillary: warm starts stay
+    target-overdispersed (M0 branch 1, rho0 >= 1 everywhere); the
+    categorical scan skip matched its pre-registered null, so the
+    renormalization stays closed as documented behavior and the old
+    prerequisite (1) categorical-scan support is MOOT for the flip
+    (stands only as ordinary opt-in-quality backlog, unscheduled); the
+    change move cannot rotate the root of a deep tree (the stickiness
+    datum that voided the structure metrics, recorded in the Results
+    section). Family consistency (four bart2 families refuse
+    n.grow.sweeps via checkFamilyUnsupportedArgs R/bart.R:484-492;
+    rbart_vi lacks the formal entirely) is now an ordinary
+    opt-in-surface question - extend or document - low priority,
+    unscheduled.
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. denseValues is const double* (data.hpp ~188),
     ColumnType is semantic only (ordinal | categorical), and R still
