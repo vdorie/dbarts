@@ -94,6 +94,22 @@ items
     (grouped-random-effects.md; naming reserved). decision-gated.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared scan.
+  grow-from-root-default: make defaulting bart2's init to the XBART
+    grow-from-root warm start a LIVE OPTION (VD 2026-08-08; the landed
+    surface is n.grow.sweeps = 0L opt-in, docs/plans/grow-from-root-
+    warm-start.md). Prerequisites before the flip is decidable:
+    (1) categorical support in the scan/grower - v1 is ordinal-only and
+    never splits categorical predictors, a silent init bias for
+    categorical-heavy designs if defaulted; (2) a measured default k
+    (early-iteration RMSE / effective burn-in vs k, a few n and signal
+    regimes; the method default 2L is unmeasured); (3) family
+    consistency - the multinomial/rbart bart2 branches refuse
+    n.grow.sweeps today (R/bart.R:470-490), so the default either
+    extends there or the difference is documented. The flip itself is a
+    draw-law change on the default path: every equivalence baseline and
+    hard-coded snapshot re-records in the same battery. Posterior is
+    invariant (warm-start only), so the decision is init quality +
+    surface economics, not correctness.
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. denseValues is const double* (data.hpp ~188),
     ColumnType is semantic only (ordinal | categorical), and R still
