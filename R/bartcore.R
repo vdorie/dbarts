@@ -410,12 +410,6 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
     # with a NULL removal.
     x.test <- validateXTest(x.test, sampler$data@x)
   } else {
-    if (inherits(sampler$data@x.test, "dbartsMixedMatrix")) {
-      stop(
-        "cannot update a single column of a sparse test matrix; ",
-        "replace the whole test matrix instead"
-      )
-    }
     column <- as.integer(column)
     if (any(column < 1L | column > ncol(sampler$data@x.test))) {
       stop(
@@ -433,10 +427,22 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
     if (length(x.test) != nrow(sampler$data@x.test) * length(column)) {
       stop("length of new x does not match old x.test")
     }
-    # the engine replaces the whole matrix; column updates copy-modify it
-    new.x.test <- sampler$data@x.test
-    new.x.test[, column] <- as.double(x.test)
-    x.test <- new.x.test
+    if (inherits(sampler$data@x.test, "dbartsMixedMatrix")) {
+      # a container's per-column storage decision (dense vs CSC-backed) is
+      # preserved; installPredictorColumns splices the replacement in place,
+      # canonicalizing a CSC-backed target column against its implicit
+      x.test <- installPredictorColumns(
+        sampler$data@x.test,
+        NULL,
+        column,
+        x.test
+      )
+    } else {
+      # the engine replaces the whole matrix; column updates copy-modify it
+      new.x.test <- sampler$data@x.test
+      new.x.test[, column] <- as.double(x.test)
+      x.test <- new.x.test
+    }
   }
 
   # install the new test set R-side, then roll back if the bridge refuses it

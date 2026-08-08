@@ -653,6 +653,55 @@ alignContainerFactorLevels <- function(x.test, predictorNames, factorLevels) {
   x.test
 }
 
+## Refuse a sparse test column's declared reference level when the training
+## column it maps to is not categorical (attr(x.train, "varTypes")): a
+## container's as.matrix (mixedMatrix.R) takes that column's implicit rows to
+## be the reference whenever it is non-NA, but the engine takes them to be the
+## reference only for a store-CATEGORICAL column and 0 otherwise - two
+## different densifications of the same container (the A6 pin,
+## docs/plans/cheap-uniformity.md). Positions match the way validateXTest's
+## later reorder does: by name when both sides carry unique names, by position
+## otherwise. The reverse mismatch (no reference against a store-categorical
+## column) is refused downstream, inside resolveCscCategoricalReferences.
+refuseSparseTestReferenceAgainstTrainTypes <- function(
+  x.test,
+  predictorNames,
+  varTypes
+) {
+  if (is.null(x.test$sparse) || ncol(x.test$sparse) == 0L) {
+    return(invisible(NULL))
+  }
+  containerNames <- x.test$columnNames
+  positions <- if (
+    !is.null(predictorNames) &&
+      !is.null(containerNames) &&
+      anyDuplicated(predictorNames) == 0L
+  ) {
+    match(predictorNames, containerNames)
+  } else {
+    seq_along(varTypes)
+  }
+
+  for (j in seq_along(varTypes)) {
+    if (isTRUE(varTypes[j] == CATEGORICAL_VARIABLE)) {
+      next
+    }
+    position <- positions[j]
+    if (is.na(position) || position > length(x.test$map)) {
+      next
+    }
+    source <- x.test$map[position]
+    if (source > 0L || is.na(x.test$sparseReference[-source])) {
+      next
+    }
+    stop(
+      "a sparse predictor column may declare a reference level only for a ",
+      "categorical predictor"
+    )
+  }
+  invisible(NULL)
+}
+
 ## use this to produce calls of the form
 ##  dbarts:::functionName
 ## so that we can evaluate non-exported functions in

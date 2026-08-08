@@ -471,15 +471,79 @@ expect_equal(as.numeric(sampler.dense.mut$data@x.test[, "a"]), 2 * new.a)
 sampler.dense.mut$setTestPredictor(NULL)
 expect_null(sampler.dense.mut$data@x.test)
 
-# a per-column update against a resident sparse test store is refused: the
-# container takes whole-object replacement only, and the refusal is inert
-sampler.container.mut <- makeMixedSampler(test.mix.sparse, 101L)
-expect_inherits(sampler.container.mut$data@x.test, "dbartsMixedMatrix")
-expect_error(
-  sampler.container.mut$setTestPredictor(rnorm(n.mtest), column = 1L),
-  pattern = "single column"
+# CONTAINER PER-COLUMN UPDATE: a container's per-column storage decision
+# (dense vs CSC-backed) is preserved across a single-column replacement, and
+# the result matches a whole-object install of the same spliced container AND
+# the dense equivalent, by index and by name - for the dense-backed column
+# ('a') and the sparse-backed one ('s')
+new.a.container <- rnorm(n.mtest)
+sampler.col.index <- makeMixedSampler(test.mix.sparse, 101L)
+sampler.col.index$setTestPredictor(new.a.container, column = 1L)
+expect_inherits(sampler.col.index$data@x.test, "dbartsMixedMatrix")
+result.col.index <- sampler.col.index$run(10L, 20L)
+
+sampler.col.name <- makeMixedSampler(test.mix.sparse, 101L)
+sampler.col.name$setTestPredictor(new.a.container, column = "a")
+result.col.name <- sampler.col.name$run(10L, 20L)
+expect_identical(result.col.index$test, result.col.name$test)
+
+test.mix.sparse.a <- test.mix.sparse
+test.mix.sparse.a$a <- new.a.container
+result.col.whole <- makeMixedSampler(test.mix.sparse.a, 101L)$run(10L, 20L)
+expect_identical(result.col.index$test, result.col.whole$test)
+
+test.mix.dense.a <- test.mix.dense
+test.mix.dense.a$a <- new.a.container
+result.col.dense <- makeMixedSampler(test.mix.dense.a, 101L)$run(10L, 20L)
+expect_identical(result.col.index$test, result.col.dense$test)
+
+new.s.container <- Matrix::sparseVector(
+  x = 0.4 + runif(10L),
+  i = sort(sample.int(n.mtest, 10L)),
+  length = n.mtest
 )
-expect_inherits(sampler.container.mut$data@x.test, "dbartsMixedMatrix")
+sampler.sparse.col.index <- makeMixedSampler(test.mix.sparse, 111L)
+sampler.sparse.col.index$setTestPredictor(new.s.container, column = 3L)
+result.sparse.col.index <- sampler.sparse.col.index$run(10L, 20L)
+
+sampler.sparse.col.name <- makeMixedSampler(test.mix.sparse, 111L)
+sampler.sparse.col.name$setTestPredictor(new.s.container, column = "s")
+result.sparse.col.name <- sampler.sparse.col.name$run(10L, 20L)
+expect_identical(result.sparse.col.index$test, result.sparse.col.name$test)
+
+test.mix.sparse.s <- test.mix.sparse
+test.mix.sparse.s$s <- new.s.container
+result.sparse.col.whole <- makeMixedSampler(test.mix.sparse.s, 111L)$run(
+  10L,
+  20L
+)
+expect_identical(result.sparse.col.index$test, result.sparse.col.whole$test)
+
+test.mix.dense.s <- test.mix.dense
+test.mix.dense.s$s <- as.double(new.s.container)
+result.sparse.col.dense <- makeMixedSampler(test.mix.dense.s, 111L)$run(
+  10L,
+  20L
+)
+expect_identical(result.sparse.col.index$test, result.sparse.col.dense$test)
+
+# BRIDGE REFUSAL ROLLS BACK: a per-column value that plants an out-of-range
+# category code past the training K is refused at the bridge exactly as a
+# whole-object container is (the codeMessage above), and the refusal leaves
+# @x.test/@offset.test as the prior, accepted container
+sampler.col.refuse <- makeMixedSampler(test.mix.sparse, 121L)
+before.col.refuse.x.test <- sampler.col.refuse$data@x.test
+before.col.refuse.offset.test <- sampler.col.refuse$data@offset.test
+bad.g.column <- Matrix::sparseVector(x = 9, i = 1L, length = n.mtest)
+expect_error(
+  sampler.col.refuse$setTestPredictor(bad.g.column, column = "g"),
+  pattern = "existing category codes"
+)
+expect_identical(sampler.col.refuse$data@x.test, before.col.refuse.x.test)
+expect_identical(
+  sampler.col.refuse$data@offset.test,
+  before.col.refuse.offset.test
+)
 
 # setTestPredictorAndOffset installs a container together with an offset,
 # matching the dense-equivalent bitwise; a mismatched offset length still errors
@@ -973,4 +1037,66 @@ frame.align.new$f <- sparseFactor(
 expect_error(
   sampler.align$setTestPredictor(dbartsData(frame.align.new, rnorm(3L))@x),
   pattern = levelMessage
+)
+
+# A6 PIN: a container's declared sparse reference level meant one thing to
+# predict()'s R-side densification (as.matrix.dbartsMixedMatrix, gated only on
+# is.na) and another to the engine (a reference is read only for a
+# store-categorical column, 0 otherwise) - reachable by training with an
+# ORDERED factor column (typed ordinal, but still carrying a factor.levels
+# entry) and supplying that column as a sparseFactor test column;
+# mapFactorColumnsToTrainingLevels remaps it rather than refusing, since its
+# numeric-training guard keys on a NULL level table, not on varTypes. Both
+# funnels now refuse it identically, at the validateXTest choke point they
+# both share.
+levels.ord <- c("lo", "mid", "hi")
+f.ord <- factor(
+  sample(levels.ord, 120L, replace = TRUE),
+  levels = levels.ord,
+  ordered = TRUE
+)
+y.ord <- c(-10, 0, 10)[as.integer(f.ord)] + rnorm(120L, 0, 0.5)
+train.ord <- data.frame(f = f.ord)
+expect_equal(
+  attr(dbarts:::makeCategoricalModelMatrix(train.ord), "varTypes"),
+  0L
+)
+
+sampler.ord <- dbarts(
+  train.ord,
+  y.ord,
+  control = dbartsControl(
+    n.trees = 1L,
+    n.chains = 1L,
+    n.threads = 1L,
+    updateState = FALSE
+  )
+)
+invisible(sampler.ord$run(50L, 1L))
+
+test.ord.bad <- data.frame(
+  f = factor(rep("hi", 5L), levels = levels.ord, ordered = TRUE)
+)
+test.ord.bad$f <- sparseFactor(test.ord.bad$f, reference = "hi")
+
+referenceMessage <-
+  "a sparse predictor column may declare a reference level only for a categorical predictor"
+expect_error(sampler.ord$predict(test.ord.bad), pattern = referenceMessage)
+expect_error(
+  sampler.ord$setTestPredictor(test.ord.bad),
+  pattern = referenceMessage
+)
+
+# the bridge's own check is independent of validateXTest: a container fed
+# directly to the bridge entry point (bypassing the R wrapper, the way the
+# equivalence harness does) is refused there too
+bc.ord <- dbarts:::bartcoreSampler(sampler.ord)
+bad.container.ord <- dbarts:::makeCategoricalModelMatrix(test.ord.bad)
+expect_error(
+  .Call(
+    dbarts:::C_dbarts_bartcore_setTestPredictor,
+    bc.ord$ptr,
+    bad.container.ord
+  ),
+  pattern = referenceMessage
 )

@@ -628,6 +628,16 @@
             \code{Matrix::sparseVector}, and mixed-container values against
             a sparse or mixed design without the caller densifying them
             first.
+      \item A single column of a sparse or mixed \code{x.test} can now be
+            replaced with \code{setTestPredictor(x, column = j)}; previously
+            any column update on a resident sparse or mixed test container
+            was refused outright.
+      \item A sparse test column declaring a reference level for a training
+            column that is not categorical is now refused, at both
+            \code{predict} and \code{setTestPredictor}. The two previously
+            read such a column differently - \code{predict} densified with
+            the declared reference, \code{setTestPredictor} stayed resident
+            with an implicit zero - and disagreed silently.
       \item \code{copy} now works for samplers with a stored state.
       \item Seeded parallel \code{rbart_vi} now restores R's stream after
             drawing its chain seeds; the restore assigned a local
