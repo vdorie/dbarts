@@ -1198,14 +1198,44 @@ public:
   }
 
   /// Replace every tree's structure with a draw from the tree prior over the
-  /// current cut grid, empty leaves collapsed. Fits are left stale, which
-  /// run() tolerates because totalFits still sums the per-tree fits.
+  /// current cut grid, empty leaves collapsed, and return the forest to the
+  /// zero-fit state a freshly constructed chain carries: every tree's leaf
+  /// parameters are zero, hence every tree's fit is identically zero,
+  /// totalFits and totalTestFits are zero, and the constant leaf's obs-to-leaf
+  /// map is all-root. The cached-fits evaluator the next sweep's residual roll
+  /// reads - mu[leafOf] for the constant leaf, the dense treeFits row
+  /// otherwise - therefore agrees with totalFits, and every map entry is in
+  /// bounds for the reset arena. Leaving the pre-reset fits behind instead is
+  /// what broke once: zeroing mu alone left totalFits summing fits the cache
+  /// could no longer reproduce, and the displacement that injects is carried
+  /// forward by every later sweep rather than healing.
+  ///
+  /// The reset is FOREST-ONLY. sigma, k, the DART probabilities, the BCF /
+  /// multinomial glue, the variance forest, the saved-tree buffers and the
+  /// response's latent block (z, omega, cutpoints, dispersion) are untouched,
+  /// exactly as sampleNodeParametersFromPrior leaves them; a caller wanting a
+  /// true restart on a latent family follows with setResponse.
+  ///
+  /// Two deviations from a freshly constructed chain are deliberate, and both
+  /// are load-bearing: leafOfStale[t] is left at 1 where a fresh chain has 0,
+  /// and muByTree[t] is sized to the drawn tree where a fresh chain holds a
+  /// single root.
+  ///
+  /// Do NOT rebuild the map with rebuildLeafOf (or installLeafOfAndAddToTotal)
+  /// here. Either clears leafOfStale, which makes the fused roll+suffstat pass
+  /// eligible on the first post-reset sweep; that pass is bitwise-identical on
+  /// the residual but deliberately NOT on the suffstat association, so it
+  /// would move the draws of every call site - bart2's default init is this
+  /// entry with no parameter draw after it, so its sweep 1 depends on the
+  /// decline. The all-root memset keeps the decline and is in bounds for every
+  /// tree while gathering mu[0] == 0, so the roll's cached term is exactly
+  /// zero against the zeroed totalFits.
   void sampleTreesFromPrior() {
     size_t n = data_.numObservations;
     const double* y = response_->workingResponse();
     const double* weights = response_->workingWeights();
     std::vector<double> paramByNode;
-    for (Forest<L, ResidT>& forest : forests_)
+    for (Forest<L, ResidT>& forest : forests_) {
       for (size_t t = 0; t < forest.numTrees; ++t) {
         forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
         growSubtreeFromPrior(forest, forest.trees[t], 0, y, weights);
@@ -1215,22 +1245,37 @@ public:
         if constexpr (L::hasVectorParams)
           forest.paramsByTree[t].assign(
             forest.trees[t].nodes.size() * forest.leaf.numParams(), 0.0);
-        // the old leafOf map stays behind as the cached-fits evaluator the
-        // next sweep's residual roll needs (it reads mu[leafOf], and the stale
-        // all-root map indexes only mu[0]); mark for rebuild at its draw. mu
-        // itself must be resized to the grown tree here: a ParamScoringLeafModel
-        // (monotone) reads muByTree for frozen neighbors DURING the first move,
-        // before the stale rebuild in maintainMonotoneLeafStore runs, so a
-        // block left at its size-1 root would be read out of bounds. The
-        // all-equal zero seed is monotone-feasible (every neighbor bound holds
-        // with equality) and is exactly what the first draw reassigns, so the
-        // conjugate constant leaf - which never reads mu in the move - is
-        // byte-unchanged.
         if constexpr (leafIsConstant) {
+          // mu must be resized to the grown tree here: a ParamScoringLeafModel
+          // (monotone) reads muByTree for frozen neighbors DURING the first
+          // move, before the stale rebuild in maintainMonotoneLeafStore runs,
+          // so a block left at its size-1 root would be read out of bounds.
+          // The all-equal zero seed is monotone-feasible (every neighbor bound
+          // holds with equality) and is exactly what the first draw reassigns,
+          // so the conjugate constant leaf - which never reads mu in the move
+          // - is byte-unchanged.
           forest.muByTree[t].assign(forest.trees[t].nodes.size(), 0.0);
+          // the map is the evaluator's other half and moves with the values:
+          // assign never shrinks capacity, so a draw that SHRINKS the arena
+          // would leave leafOf naming node ids past mu's .size() and the
+          // gather would read stale bytes rather than fault. All-root is in
+          // bounds for every tree (nodes.size() >= 1) and gathers mu[0] == 0.
+          std::memset(forest.leafOf.data() + t * n, 0,
+                      n * sizeof(std::uint32_t));
+          // still marked for rebuild at the tree's own draw, which is also
+          // what declines the fused suffstat pass for this sweep
           forest.leafOfStale[t] = 1;
+        } else if constexpr (L::hasVectorParams || L::hasFunctionParams) {
+          // vector and function leaves carry the dense slab in place of the
+          // (mu, leafOf) pair; for the function leaf the row IS the parameters
+          misc_setVectorToConstant(forest.treeFits.data() + t * n, n, 0.0);
         }
       }
+      misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+      if (data_.numTestObservations > 0)
+        misc_setVectorToConstant(forest.totalTestFits.data(),
+                                 data_.numTestObservations, 0.0);
+    }
   }
 
   /// Warm-start producer: run numSweeps of XBART-style grow-from-root in place
@@ -2571,6 +2616,12 @@ public:
   const std::uint32_t* leafOfForTesting(size_t t) const {
     return forests_[0].leafOf.data() + t * data_.numObservations;
   }
+  /// Test hook: tree t's rebuild mark, the fused suffstat pass's eligibility
+  /// gate (forest 0). Non-zero means the map still describes the previous
+  /// partition, so the sweep rebuilds before the tree's draw.
+  std::uint8_t leafOfStaleForTesting(size_t t) const {
+    return forests_[0].leafOfStale[t];
+  }
   /// Test hooks: the running residual forest 0 rolls across a sweep, and the
   /// working response it is rolled against. Together with treeFits() they pin
   /// the unrolled mu[leafOf] gathers elementwise, tail included.
@@ -3019,6 +3070,16 @@ private:
     if constexpr (leafIsConstant) {
       const double* __restrict mu = forest.muByTree[t].data();
       const std::uint32_t* __restrict leaf = forest.leafOf.data() + t * n;
+#ifndef NDEBUG
+      // mu and leafOf are two halves of one cached-fits evaluator; resizing
+      // one without the other reads past mu's .size() but inside its capacity,
+      // which returns stale values instead of faulting and which the local
+      // ASAN build cannot see (detect_container_overflow is off). Mirrors the
+      // fused pass's map assert. R's build defines NDEBUG, so this is live
+      // only in tests/cpp.
+      for (size_t j = 0; j < n; ++j)
+        assert(leaf[j] < forest.muByTree[t].size());
+#endif
       if (t == 0) {
         const double* __restrict y_ = forestY;
         const double* __restrict total = forest.totalFits.data();
@@ -3043,6 +3104,10 @@ private:
         const double* __restrict muPrev = forest.muByTree[t - 1].data();
         const std::uint32_t* __restrict leafPrev =
           forest.leafOf.data() + (t - 1) * n;
+#ifndef NDEBUG
+        for (size_t j = 0; j < n; ++j)
+          assert(leafPrev[j] < forest.muByTree[t - 1].size());
+#endif
         if constexpr (std::is_same_v<ResidT, double>) {
           size_t i = 0, nMod4 = n % 4;
           for ( ; i < nMod4; ++i)
