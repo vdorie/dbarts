@@ -157,9 +157,20 @@ items
     never splits categorical predictors, a silent init bias for
     categorical-heavy designs if defaulted; (2) a measured default k
     (early-iteration RMSE / effective burn-in vs k, a few n and signal
-    regimes; the method default 2L is unmeasured); (3) family
-    consistency - the multinomial/rbart bart2 branches refuse
-    n.grow.sweeps today (R/bart.R:470-490), so the default either
+    regimes; bart2's own formal is n.grow.sweeps = 0L (R/bart.R:546)
+    and the only 2L is the R5 method default
+    dbartsSampler$growFromRoot(n.sweeps = 2L) (R/dbarts.R:798),
+    unmeasured and reachable only by direct R5 callers - there is no
+    default of 2 on the bridge or in C++, so the flip picks a NEW k
+    rather than ratifying 2L); (3) family consistency - FOUR bart2
+    branches refuse n.grow.sweeps through the shared helper
+    checkFamilyUnsupportedArgs (R/bart.R:473-501, guard proper at
+    :484-492, not :470-490): multinomial (:684), ordinal (:827),
+    nbinom (:855), hurdle.lognormal (:884), each returning before the
+    init fork (:963-966). rbart_vi is NOT a bart2 branch and refuses
+    nothing - it has no n.grow.sweeps formal at all and always
+    prior-inits (sampleTreesFromPrior, R/rbart.R:774 and :902), so that
+    gap is a silent absence rather than a refusal. The default either
     extends there or the difference is documented. The flip itself is a
     draw-law change on the default path: every equivalence baseline and
     hard-coded snapshot re-records in the same battery. Posterior is
@@ -169,8 +180,13 @@ items
     data-fitted init gives up walking sticky or multimodal
     posteriors vs the stump init; the flip research must measure or
     bound it, and the k study folds into the same pre-registered
-    design. Code pieces (categorical scan, family consistency) queue
-    behind the cheap-uniformity implementer.
+    design; the revised pre-registration is
+    docs/plans/grow-from-root-default-study.md (memo section 2's gate
+    table was statistically unrunnable and is superseded), and the
+    corrected literature is
+    .claude/grow-from-root-default-research/lit-conclusions.md. Code
+    pieces (categorical scan, family consistency) queue behind the
+    cheap-uniformity implementer.
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. denseValues is const double* (data.hpp ~188),
     ColumnType is semantic only (ordinal | categorical), and R still
