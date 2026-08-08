@@ -256,8 +256,10 @@ items
     fp64 unweighted fresh-leafOf path takes the fused four-bank pass
     (K=4 is part of the draw law), everything else declines to stock;
     equivalence baseline re-recorded as equivalence-c8f661a.rds.
-    PENDING from that landing: bench-sampler speed baseline
-    re-records on the next quiet-machine grant. The pre-registered
+    The bench-sampler speed baseline re-recorded 2026-08-08 on the
+    quiet-machine grant as bench-sampler-ab1dc52.csv: no arm slower
+    than b9d53c7, run-n10000 0.842 (the fused pass where it bites);
+    landing obligations all discharged. The pre-registered
     arm64 no-signal re-run RAN 2026-08-08: 3-5% loss confirmed with
     the production kernel, ACCEPTED (record in memory-wall-frontier.md
     sec 13); reopening needs >~10% or a signal-scenario inversion.
