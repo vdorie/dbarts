@@ -170,23 +170,12 @@ items
     decision-gated.
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
-  sampletreesfromprior-midchain: mid-chain sampleTreesFromPrior leaves
-    chain state inconsistent (found 2026-08-07 by the fused-suffstat
-    design memo, enlarged by its refuting critique; durable summary
-    here). Two defects, one site: (1) muByTree is zeroed to the NEW
-    arena size while totalFits keeps the pre-reset fits, so the next
-    sweep's rolls run against a residual displaced by the old fits
-    regardless of arena size; (2) when the arena shrinks, leafOf
-    still holds old node ids and rollTreeResidual reads mu[leaf[i]]
-    past .size() inside capacity (ASAN-invisible with
-    container-overflow off). Exposure: the R method and the shipped
-    ABI entry dbarts_sampler_sampleTreesFromPrior called mid-chain;
-    every current call site (R init-time sites, tests/cpp test_moves
-    prior reset) is safe by ordering luck only. Fix is its own arc
-    (refresh totalFits + leafOf after the reset, or spec the entry
-    init-only and guard); NOT folded into the fused-suffstat landing.
-    A fix changes draws only for mid-chain callers, which shipped
-    code does not contain.
+  sampletreesfromprior-midchain: FIXED 1947b10 2026-08-08 - the reset
+    now lands the forest in the zero-fit state (leafOfStale kept at 1;
+    the growFromRoot-after-reset and setPredictor/setCutPoints
+    exposures inherit the repair). Defect record, shape decision,
+    amendments, and landing note in
+    docs/plans/sampletreesfromprior-midchain.md.
   sbc-family-tiers: BUILT d094675 (2026-08-04) - t and multinomial
     softmax ALL PASS, ordinal 9/10 with gamma3 resolved as ridge
     mixing by the 3x ladder, nbinom identified mu PASS with r/agg.psi
