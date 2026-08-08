@@ -660,6 +660,32 @@ void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
     out.view.cscValues = csc.values;
   }
 
+  // Reference metadata is present whenever the container carries a sparse
+  // block, independent of whether any CSC column happens to be
+  // store-categorical: a non-NA reference against a store-ORDINAL column is
+  // malformed at every funnel (rule 2), so the refusal below must not be
+  // gated on a categorical column existing among this container's columns.
+  const int* referenceMeta = nullptr;
+  const int* categoryCountMeta = nullptr;
+  if (hasSparse) {
+    SEXP referenceExpr = getListElement(containerExpr, "sparseReference");
+    SEXP categoryCountExpr =
+      getListElement(containerExpr, "sparseCategoryCount");
+    if (!Rf_isInteger(referenceExpr) || !Rf_isInteger(categoryCountExpr) ||
+        static_cast<size_t>(rc_getLength(referenceExpr)) != numCscColumns ||
+        static_cast<size_t>(rc_getLength(categoryCountExpr)) != numCscColumns)
+      Rf_error("sparse categorical test predictor columns require reference "
+               "metadata");
+    referenceMeta = INTEGER(referenceExpr);
+    categoryCountMeta = INTEGER(categoryCountExpr);
+  }
+  // the A6 pin: a non-NA reference against a store-ORDINAL column is refused
+  // here, for every parseTestContainer caller (creation, setTestPredictor,
+  // setTestPredictorAndOffset) alike, since columnTypes is the STORE's types
+  // at mutation and the being-built types at creation
+  refuseCscReferenceAgainstStore(columnTypes, out.columnSources.data(),
+                                 numPredictors, referenceMeta, numCscColumns);
+
   // resolve the reference code per CSC-backed categorical test column (the code
   // its implicit rows take); the container's per-sparse-column metadata is
   // already in level order
@@ -671,18 +697,10 @@ void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
       break;
     }
   if (anyTestCscCategorical) {
-    SEXP referenceExpr = getListElement(containerExpr, "sparseReference");
-    SEXP categoryCountExpr =
-      getListElement(containerExpr, "sparseCategoryCount");
-    if (!Rf_isInteger(referenceExpr) || !Rf_isInteger(categoryCountExpr) ||
-        static_cast<size_t>(rc_getLength(referenceExpr)) != numCscColumns ||
-        static_cast<size_t>(rc_getLength(categoryCountExpr)) != numCscColumns)
-      Rf_error("sparse categorical test predictor columns require reference "
-               "metadata");
     resolveCscCategoricalReferences(
-      columnTypes, out.columnSources.data(), numPredictors,
-      INTEGER(referenceExpr), INTEGER(categoryCountExpr), numCscColumns,
-      out.cscReferenceCodes, nullptr, "malformed mixed test container",
+      columnTypes, out.columnSources.data(), numPredictors, referenceMeta,
+      categoryCountMeta, numCscColumns, out.cscReferenceCodes, nullptr,
+      "malformed mixed test container",
       "sparse categorical test predictor columns require reference "
       "metadata");
     out.view.referenceCodes = out.cscReferenceCodes.data();

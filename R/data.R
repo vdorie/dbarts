@@ -41,6 +41,7 @@ validateXTest <- function(x.test, x.train) {
   predictorNames <- colnames(x.train)
   drop <- attr(x.train, "drop")
   factorLevels <- attr(x.train, "factor.levels")
+  varTypes <- attr(x.train, "varTypes")
 
   if (is.null(x.test)) {
     return(x.test)
@@ -133,6 +134,22 @@ validateXTest <- function(x.test, x.train) {
   # was already coded against those tables, so it passes through untouched.
   if (inherits(x.test, "dbartsMixedMatrix") && !is.null(factorLevels)) {
     x.test <- alignContainerFactorLevels(x.test, predictorNames, factorLevels)
+  }
+  # the A6 pin: a sparse column's declared reference level means one thing to
+  # this function's own densification (as.matrix.dbartsMixedMatrix, gated only
+  # on is.na) and another to the engine (referenceCodeOf ignored for a
+  # non-categorical column); refuse the mismatch here rather than let the two
+  # disagree silently
+  if (inherits(x.test, "dbartsMixedMatrix")) {
+    refuseSparseTestReferenceAgainstTrainTypes(
+      x.test,
+      predictorNames,
+      if (is.null(varTypes)) {
+        rep.int(ORDINAL_VARIABLE, numPredictors)
+      } else {
+        varTypes
+      }
+    )
   }
   # a sparse-backed container stays resident (the engine codes it against the
   # training cuts); everything else densifies as before
