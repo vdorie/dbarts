@@ -488,3 +488,23 @@ Semantics this arc pins:
   against `setTestPredictor()` + run -9.740065 on the same container.
   Battery green (tinytest 3728/0, trio bitwise).
 - S0-S2 close all three live defects. Piece 3 remains the open VD fork.
+- S3 (Branch A) landed 06c0254 (2026-08-09): `DenseColumnReader` /
+  `DenseColumns` in tree.hpp; `partitionFlatIndices` and all four
+  `*Below` helpers templated on `Columns` with the raw column-major
+  entries kept as delegating wrappers; all three raw-read sites route
+  through `column(j).at(i)`. chain.hpp `addFlatPredictions` templated
+  with NO dense overload, so an unconverted call site is a compile
+  error; fresh call-site census at 239897c found the plan's six and no
+  more (751, 779, 1967, 1993, 2028, 2056 - the variance-forest arc
+  added none). New oracle `testMappedSourceReplay`: mapping A moves
+  every column, mapping B is split-stable so the leaf-covariate reads
+  alone discriminate; verified failing-first (bypassed reads produce 2
+  failures). Battery run twice - implementer, then orchestrator
+  independently on the merged tree: tests/cpp 201/201 plain and
+  ASAN+UBSAN (zero diagnostics), tinytest 3735/0, trio bitwise
+  (27/27, 5x6, 3x5). Codegen A/B (M-series, 20k rows x 75 trees x 100
+  samples, min-of-9): six valid rounds at loadavg < 6, base/rolled
+  ratios 0.9791-1.0077, median 1.001; round B's 2.1% was a
+  single-round outlier that did not reproduce - GREEN, the reader
+  indirection compiles away. Budget 323 of ~350. Dense behavior
+  unchanged by construction and by gate.

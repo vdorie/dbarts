@@ -103,13 +103,15 @@ items
     and all three live defects closed (transposed silent acceptance,
     anyNA both directions, the predict/setTestPredictor reference
     divergence - opposite-sign values on the same container captured
-    pre-fix). REMAINING: piece 3, resident-sparse predict. VD
-    2026-08-09: Branch A, engine-resident. Rationale recorded: we do
-    not wait for consumers - we enable them by building flexibility
-    they can use creatively; potential realistic models motivate,
-    consumer absence never decides. S3 (dense-only templating, codegen
-    A/B gate) then S4 (SparseRawColumn + facade virtual); F7 stays the
-    pre-registered fallback to Branch B.
+    pre-fix). REMAINING: piece 3 S4 only. VD 2026-08-09: Branch A,
+    engine-resident. Rationale recorded: we do not wait for consumers
+    - we enable them by building flexibility they can use creatively;
+    potential realistic models motivate, consumer absence never
+    decides. S3 (dense-only templating) LANDED 06c0254 - codegen A/B
+    green (median ratio 1.001), full battery green twice, landing
+    note in the plan doc. NEXT: S4 (SparseRawColumn + facade virtual,
+    --preclean mandatory); F7 stays the pre-registered fallback to
+    Branch B.
   correlated-outcomes: richer error/outcome covariance around a BART
     mean, delivered via outer-sampler composition (stan4bart = WALNUTS
     + dbarts supplying each outcome's conditional mean; the pattern
