@@ -490,6 +490,28 @@ public:
   /// inserts the K location dimension between the observations and the slots;
   /// L = 1 keeps the exact numTestObservations-per-slot byte layout.
   void predict(const double* x_test, size_t numTestObservations, double* out) {
+    predictColumns(DenseColumns{x_test, numTestObservations},
+                   numTestObservations, out);
+  }
+
+  /// The same over a borrowed view: a dense block reads through the reader the
+  /// raw entry builds, so its replay is unchanged, while a CSC-backed source
+  /// routes rows off rank bitmaps built here, for this call only. Nothing is
+  /// retained - the view is the caller's, and the sampler's own test store is
+  /// untouched.
+  void predict(const PredictorSource& source, size_t numTestObservations,
+               double* out) {
+    if (source.isDenseBlock())
+      predictColumns(DenseColumns{source.denseValues, numTestObservations},
+                     numTestObservations, out);
+    else
+      predictColumns(PredictorSourceColumns(source, data_.types.data()),
+                     numTestObservations, out);
+  }
+
+  template <typename Columns>
+  void predictColumns(const Columns& columns, size_t numTestObservations,
+                      double* out) {
     size_t capacity = savedTreeCapacity();
     size_t numLocations = numReportedLocations();
     size_t slab = numTestObservations * numLocations;
@@ -498,17 +520,17 @@ public:
         for (size_t slot = 0; slot < capacity; ++slot) {
           double* dst = out + (c * capacity + slot) * slab;
           if (numLocations > 1)
-            chains_[c]->predictFromSavedSampleMulti(slot, x_test,
+            chains_[c]->predictFromSavedSampleMulti(slot, columns,
                                                     numTestObservations, dst);
           else
-            chains_[c]->predictFromSavedSample(slot, x_test,
+            chains_[c]->predictFromSavedSample(slot, columns,
                                                numTestObservations, dst);
         }
       } else if (numLocations > 1) {
-        chains_[c]->predictFromCurrentTreesMulti(x_test, numTestObservations,
+        chains_[c]->predictFromCurrentTreesMulti(columns, numTestObservations,
                                                  out + c * slab);
       } else {
-        chains_[c]->predictFromCurrentTrees(x_test, numTestObservations,
+        chains_[c]->predictFromCurrentTrees(columns, numTestObservations,
                                             out + c * slab);
       }
     }
@@ -531,11 +553,30 @@ public:
   /// numChains, chain-major. Requires saved trees (keepTrees).
   void predictVariance(const double* x_test, size_t numTestObservations,
                        double* out) {
+    predictVarianceColumns(DenseColumns{x_test, numTestObservations},
+                           numTestObservations, out);
+  }
+
+  /// The variance twin of the view-taking predict.
+  void predictVariance(const PredictorSource& source,
+                       size_t numTestObservations, double* out) {
+    if (source.isDenseBlock())
+      predictVarianceColumns(
+        DenseColumns{source.denseValues, numTestObservations},
+        numTestObservations, out);
+    else
+      predictVarianceColumns(PredictorSourceColumns(source, data_.types.data()),
+                             numTestObservations, out);
+  }
+
+  template <typename Columns>
+  void predictVarianceColumns(const Columns& columns,
+                              size_t numTestObservations, double* out) {
     size_t capacity = savedTreeCapacity();
     for (size_t c = 0; c < chains_.size(); ++c)
       for (size_t slot = 0; slot < capacity; ++slot)
         chains_[c]->predictVarianceFromSavedSample(
-          slot, x_test, numTestObservations,
+          slot, columns, numTestObservations,
           out + (c * capacity + slot) * numTestObservations);
   }
 

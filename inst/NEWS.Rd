@@ -638,6 +638,10 @@
             read such a column differently - \code{predict} densified with
             the declared reference, \code{setTestPredictor} stayed resident
             with an implicit zero - and disagreed silently.
+      \item \code{predict} and \code{getTrees(newdata =)} route a sparse or
+            mixed test set through the trees off its own storage; neither
+            materializes the full dense test matrix any more. A designated
+            leaf covariate column must still arrive dense.
       \item \code{copy} now works for samplers with a stored state.
       \item Seeded parallel \code{rbart_vi} now restores R's stream after
             drawing its chain seeds; the restore assigned a local

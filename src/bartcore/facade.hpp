@@ -181,13 +181,29 @@ public:
                            std::vector<double>* slopes = nullptr,
                            std::vector<std::uint64_t>* masks = nullptr,
                            std::size_t forestIndex = 0) = 0;
-  virtual void predict(const double* x_test,
+  /// Fits for new rows of a borrowed predictor view; a CSC-backed view routes
+  /// its rows resident, without a dense n x p materialization.
+  virtual void predict(const PredictorSource& source,
                        std::size_t numTestObservations, double* out) = 0;
   /// Heteroscedastic variance surface s^2(x) on new rows (original scale);
   /// SamplerShape::hasVarianceForest gates it.
-  virtual void predictVariance(const double* x_test,
+  virtual void predictVariance(const PredictorSource& source,
                                std::size_t numTestObservations,
                                double* out) = 0;
+  /// Dense convenience spellings (the dbarts.h shape): a plain column-major
+  /// block of new rows, as setTestPredictors takes.
+  void predict(const double* x_test, std::size_t numTestObservations,
+               double* out) {
+    predict(densePredictorSource(x_test, numTestObservations,
+                                 data().numPredictors),
+            numTestObservations, out);
+  }
+  void predictVariance(const double* x_test, std::size_t numTestObservations,
+                       double* out) {
+    predictVariance(densePredictorSource(x_test, numTestObservations,
+                                         data().numPredictors),
+                    numTestObservations, out);
+  }
   virtual void getState(SamplerStateData& state) = 0;
   /// currentPredictors supplies raw for a cross-grid restore's re-quantization
   /// (null for a same-spec continuation, which re-quantizes nothing).
@@ -356,13 +372,17 @@ public:
     impl_.flattenTree(chainNum, treeNum, nodes, counts, slopes, masks,
                       forestIndex);
   }
-  void predict(const double* x_test, std::size_t numTestObservations,
+  // as for setPredictor: the view-taking overrides hide the base's dense
+  // convenience spellings, so re-expose them
+  using SamplerBase::predict;
+  using SamplerBase::predictVariance;
+  void predict(const PredictorSource& source, std::size_t numTestObservations,
                double* out) override {
-    impl_.predict(x_test, numTestObservations, out);
+    impl_.predict(source, numTestObservations, out);
   }
-  void predictVariance(const double* x_test, std::size_t numTestObservations,
-                       double* out) override {
-    impl_.predictVariance(x_test, numTestObservations, out);
+  void predictVariance(const PredictorSource& source,
+                       std::size_t numTestObservations, double* out) override {
+    impl_.predictVariance(source, numTestObservations, out);
   }
   void getState(SamplerStateData& state) override { impl_.getState(state); }
   bool setState(const SamplerStateData& state,

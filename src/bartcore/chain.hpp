@@ -737,16 +737,17 @@ public:
   /// meaningful only under a variance forest, where nothing recalibrates it.
   const ResidualPrior& varianceLeafPrior() const { return varianceLeafPrior_; }
 
-  /// s^2(x) on the ORIGINAL scale for raw new rows from one saved sample's
-  /// variance trees; the per-tree factors MULTIPLY into the product.
-  void predictVarianceFromSavedSample(std::size_t slot, const double* x_test,
+  /// s^2(x) on the ORIGINAL scale for new rows of a Columns predictor source
+  /// from one saved sample's variance trees; the per-tree factors MULTIPLY
+  /// into the product.
+  template <typename Columns>
+  void predictVarianceFromSavedSample(std::size_t slot, const Columns& columns,
                                       std::size_t numTest, double* out) {
     VarianceForest& vf = *varianceForest_;
     for (std::size_t i = 0; i < numTest; ++i) out[i] = 1.0;
     std::vector<std::size_t> indices(numTest);
     std::vector<std::size_t> blockOffsets;
     std::vector<double> treeFit(numTest);
-    DenseColumns columns{x_test, numTest};
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       misc_setVectorToConstant(treeFit.data(), numTest, 0.0);
       addFlatPredictions(vf.savedTrees[slot * vf.numTrees + j], nullptr,
@@ -761,11 +762,13 @@ public:
   /// reported on the original scale as the working s^2 times its square.
   double sigmaScale() const { return response_->sigmaScale(); }
 
-  /// The variance surface s^2(x) on the ORIGINAL response scale for raw
-  /// column-major new rows, from the current variance trees; null-safe no-op
-  /// off a variance forest. Each tree is flattened and replayed like the mean
-  /// forest's predict, but the per-tree factors MULTIPLY into the product.
-  void predictVariance(const double* x_test, std::size_t numTest, double* out) {
+  /// The variance surface s^2(x) on the ORIGINAL response scale for new rows
+  /// of a Columns predictor source, from the current variance trees; null-safe
+  /// no-op off a variance forest. Each tree is flattened and replayed like the
+  /// mean forest's predict, but the per-tree factors MULTIPLY into the product.
+  template <typename Columns>
+  void predictVariance(const Columns& columns, std::size_t numTest,
+                       double* out) {
     if (!varianceForest_) return;
     VarianceForest& vf = *varianceForest_;
     for (std::size_t i = 0; i < numTest; ++i) out[i] = 1.0;
@@ -773,7 +776,6 @@ public:
     std::vector<std::size_t> blockOffsets;
     std::vector<double> leafValues, treeFit(numTest);
     std::vector<FlatNode> flat;
-    DenseColumns columns{x_test, numTest};
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       recoverVarianceLeafValues(vf, j, leafValues);
       vf.trees[j].flatten(data_, leafValues.data(), flat);
@@ -1953,15 +1955,16 @@ public:
     }
   }
 
-  /// Fits for raw column-major test rows from one saved sample's trees, on
-  /// the original response scale; offsets are the caller's problem.
-  void predictFromSavedSample(size_t slot, const double* x_test,
+  /// Fits for the test rows of a Columns predictor source from one saved
+  /// sample's trees, on the original response scale; offsets are the caller's
+  /// problem.
+  template <typename Columns>
+  void predictFromSavedSample(size_t slot, const Columns& columns,
                               size_t numTestObservations, double* out) const {
     const Forest<L, ResidT>& forest = forests_[0];
     misc_setVectorToConstant(out, numTestObservations, 0.0);
     std::vector<size_t> indices(numTestObservations);
     std::vector<size_t> blockOffsets;
-    DenseColumns columns{x_test, numTestObservations};
     for (size_t t = 0; t < forest.numTrees; ++t) {
       const std::uint64_t* masks = data_.hasPooledCategorical
         ? forest.savedTreeMasks[slot * forest.numTrees + t].data() : nullptr;
@@ -1980,7 +1983,8 @@ public:
   /// The same from the live trees, flattened on the fly; function-valued
   /// leaves recompute their blocks from the persisted fits against the
   /// current covariates (no draw cache is fresh between runs).
-  void predictFromCurrentTrees(const double* x_test,
+  template <typename Columns>
+  void predictFromCurrentTrees(const Columns& columns,
                                size_t numTestObservations, double* out) {
     misc_setVectorToConstant(out, numTestObservations, 0.0);
     std::vector<size_t> indices(numTestObservations);
@@ -1991,7 +1995,6 @@ public:
     std::vector<std::uint64_t> maskBuffer;
     std::vector<std::uint64_t>* masks =
       data_.hasPooledCategorical ? &maskBuffer : nullptr;
-    DenseColumns columns{x_test, numTestObservations};
     for (size_t t = 0; t < forests_[0].numTrees; ++t) {
       flattenTree(t, flat, counts, &slopes, masks);
       addFlatPredictions(flat, &slopes, maskBuffer.data(), columns,
@@ -2013,14 +2016,14 @@ public:
   /// The per-forest total is on the internal (softmax log-odds) scale, not the
   /// fitScale-shifted response scale, exactly as totalTestFits is - fitScale is
   /// the identity for the multinomial response, so no conversion applies.
-  void predictFromSavedSampleMulti(size_t slot, const double* x_test,
+  template <typename Columns>
+  void predictFromSavedSampleMulti(size_t slot, const Columns& columns,
                                    size_t numTestObservations,
                                    double* out) const {
     size_t K = forests_.size();
     std::vector<double> raw(numTestObservations * K);
     std::vector<size_t> indices(numTestObservations);
     std::vector<size_t> blockOffsets;
-    DenseColumns columns{x_test, numTestObservations};
     for (size_t f = 0; f < K; ++f) {
       const Forest<L, ResidT>& forest = forests_[f];
       double* forestRaw = raw.data() + f * numTestObservations;
@@ -2041,7 +2044,8 @@ public:
   /// The same K-forest softmax replay from the live trees, flattened on the
   /// fly; reached only when keepTrees is off, which the R surface refuses for a
   /// multinomial predict, so it exists for completeness and the engine tests.
-  void predictFromCurrentTreesMulti(const double* x_test,
+  template <typename Columns>
+  void predictFromCurrentTreesMulti(const Columns& columns,
                                     size_t numTestObservations, double* out) {
     size_t K = forests_.size();
     std::vector<double> raw(numTestObservations * K);
@@ -2053,7 +2057,6 @@ public:
     std::vector<std::uint64_t> maskBuffer;
     std::vector<std::uint64_t>* masks =
       data_.hasPooledCategorical ? &maskBuffer : nullptr;
-    DenseColumns columns{x_test, numTestObservations};
     for (size_t f = 0; f < K; ++f) {
       double* forestRaw = raw.data() + f * numTestObservations;
       misc_setVectorToConstant(forestRaw, numTestObservations, 0.0);
