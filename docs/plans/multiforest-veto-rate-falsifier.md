@@ -441,7 +441,38 @@ wrong and **the measurement stops**.
 
 For a column type: **GREEN** iff P1, P3 (or P3 out of the gate), L1' and T1
 all GREEN, all validity gates pass, and M1 == 0. **KILL** iff any KILL
-clause fires (P3's confirmed on re-run). **YELLOW** otherwise.
+clause fires, where EVERY primary KILL crossing (P1, P3, or T1) must be
+confirmed on a fresh-seed re-run of that cell before it counts.
+**YELLOW** otherwise.
+
+### Threshold provenance and ratification
+
+Ratified by VD 2026-08-09 on the orchestrator's recommendation, with an
+explicit caveat on provenance recorded here so no later reader over-reads
+a line as measured when it is judged. Classification:
+
+- **Mechanism-anchored:** P1's GREEN 2 pp (sized against the one recorded
+  consumer's Robbins-Monro acceptance target and its observed per-person
+  acceptance spread - though the underlying bairrtt "< 1% at 150 trees"
+  baseline is prose, not a reproducible measurement); L1's count law
+  itself (a theorem, with M1 as its hard assertion), with only the 1.5
+  dependence allowance judged.
+- **Judgment with structural guards:** P3's 1 pp ceiling (the harm
+  mechanism - persistent per-row freezing biases person-level estimands -
+  is real; the 1% choice is judged; the operative clause self-calibrates
+  via the Stage-0 matched-null beta and self-retires if noise exceeds
+  the ceiling).
+- **Pure judgment:** P1's KILL 15 pp ("more than one proposed latent
+  move in seven lost") and T1's 1.5x / 0.5 / 0.9. No measurement anchors
+  these. The wide YELLOW band is the working protection: everything
+  between GREEN and KILL opens the arc with required mitigation
+  elements, so a mis-set KILL number matters only for cells landing
+  beyond it - and by the amendment above, any such crossing needs a
+  fresh-seed confirmation before it counts.
+
+Registered pre-data as part of this ratification: any metric landing
+within its cell's Stage-0 noise band of a decision line is reported as
+NEAR-LINE in the results, whatever side it falls on.
 
 ### What YELLOW authorizes
 

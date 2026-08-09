@@ -347,9 +347,14 @@ items
     docs/plans/multiforest-veto-rate-falsifier.md - per-column-type
     verdicts, driven closed-loop arm via the open forceUpdate path,
     ~11 h single-core / ~1.75 h on 8, load-insensitive, no engine
-    patch. RUN GATED on VD ratifying four threshold calls (P1 KILL
-    15 pp, P3 1 pp ceiling, L1' 1.5, binary-vs-continuous lines);
-    Stage 0 freezes the matched-null beta into the doc before arms.
+    patch. THRESHOLDS RATIFIED by VD 2026-08-09 (on orchestrator
+    recommendation, provenance caveat + classification recorded in
+    the plan doc; ratification-time amendment: every primary KILL
+    crossing needs a fresh-seed confirmation). Stage 0 freezes the
+    matched-null beta into the doc before arms. Runner queued behind
+    the cheap-uniformity S4 implementer - S4 carries a pre-registered
+    TIMING falsifier (F7) and the measurement must not share the
+    machine with it.
   multinomial-counts-mutation: multinomial BART cannot mutate its
     RESPONSE side, so alone among the families it cannot serve as a
     conditional inside a larger Gibbs sampler - the thing dbarts exists
