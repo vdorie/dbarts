@@ -1,6 +1,6 @@
 # Design doc index
 
-Manifest of every `docs/design/*.md` (38 files), grouped by theme. STATUS is
+Manifest of every `docs/design/*.md` (39 files), grouped by theme. STATUS is
 read from each doc's live `Status:` line or `## Status` section as of
 2026-08-04, when a consistency pass re-verified every row against its doc;
 a few standing-reference docs carry no status line by design
@@ -75,4 +75,5 @@ Columns: `file | STATUS | one-liner`.
 | change-move-balance.md | LANDED, 2026-07-08 | Fixes a since-origin detailed-balance defect in the tree change move (missing proposal-density correction, biased toward low-cardinality variables); hybrid ordinal/categorical fix. Plan: change-move-fix.md. |
 | empty-leaf-veto.md | LANDED (keep-and-document) | Investigates occupancy-aware tree proposals vs. the existing finite-penalty empty-leaf veto; keeps the veto, corrected 2026-07-15 to -HUGE_VAL (was a beatable finite -1e7). Plan: empty-leaf-veto.md. |
 | grow-from-root.md | MIXED (GO on cut-scan/warm-start; NO-GO on standalone sampler) | XBART-style root-down stochastic tree construction; ships only as a validity-free warm-start producer, rejected as a standalone approximate posterior sampler (not MH-exact). Plans: grow-from-root.md, grow-from-root-warm-start.md. |
+| grow-from-root-default.md | KILLED (measured), 2026-08-08 | Pre-registered study deciding whether the XBART grow-from-root warm start should default on; KILLED in both size strata (each confirmed by a mandated fresh-seed re-run) on a per-cell plateau posterior-mean-RMSE cost concentrated in noise-heavy and large-n regimes that a pooled aggregate hides; `n.grow.sweeps` stays opt-in. Records the corrected literature (neither formal mixing lower bound binds dbarts' four-move sampler), the full per-cell data (checkpoints are gitignored, so this doc is the durable record), and a change-move root-rotation stickiness datum. Plan: grow-from-root-default-study.md. |
 | interaction-constraints.md | LANDED, 2026-07-21 (f455d7c; P4 aadbbc8/103dbe2/073d3db) | Per-forest limits on which predictors may jointly shape the fit: cap interaction ORDER (1 = additive/GAM, 2 = pairwise) and/or DENY named co-occurrences or ALLOW declared groups; motivates calibrated-additivity causal use (additive tau, free mu). Plans: interaction-constraints.md, interaction-constraints-p4.md. |
