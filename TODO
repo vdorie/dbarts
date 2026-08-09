@@ -496,8 +496,33 @@ items
     as a periodic MOVE rather than an init, tempered structure
     proposals, informed proposals via the shared scan (the
     grow-from-root frontier 3.1 door). Kim-Rockova's superpolynomial
-    mixing bounds do not bind this four-move set. Likely post-release;
-    timing free. research-open.
+    mixing bounds do not bind this four-move set. RESEARCH COMPLETE
+    2026-08-09 (memo -> blind critique, verdict REFUTED at the
+    original top recommendation -> synthesis re-verifying every proof
+    against primary sources; artifacts .claude/tree-mixing-research/):
+    durable record docs/design/tree-mixing-proposals.md. Rebuilt
+    ranking: (1) parametric absorption by composition (VD's
+    proposal, added mid-synthesis - the only lever that shrinks the
+    sticky part's job; NO published mixing measurement exists for
+    any composed model, stan4bart's own paper leaves it open); (2)
+    same-variable cut redraw "perturb" (MH correction provably 1,
+    only candidate with a tunable step size); (3) rotation (best
+    published match, key regime constant unverifiable); (4) heated
+    companion chains with private ladders (reopened - the
+    architectural objection failed); (5) informed birth/death; (6)
+    twigs. Set aside with receipts: annealed burn (cited evidence
+    evaluates a different construction), restructure, particle
+    Gibbs, CTBD. NEXT FALSIFIER (awaiting VD go): the composition
+    probe - four arms (BART alone / linear leaves / conjugate
+    offset block / stan4bart), absorbable share dialed 0-50-100 on
+    Friedman, matched sweeps, tree-space readouts; kill if depth
+    does not fall or the ridge eats the transfer; zero engine
+    change, every arm ships today. Then the perturb study (Stage-0
+    per-move acceptance census - a number that exists nowhere).
+    Two errata applied to existing records
+    (grow-from-root-default.md 4.8, forest-ranef-interweaving.md).
+    Likely post-release for any CODE; probe timing free.
+    research-complete, decision-gated.
   typed-ingestion: CLOSED - slices 0-2b ALL LANDED, 2b at d4e80e3
     2026-08-06 (record 4a14eeb; probe, critiques, and landing notes
     in docs/plans/typed-ingestion.md): one borrowed PredictorSource
