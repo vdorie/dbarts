@@ -34,6 +34,15 @@ tries to bring in-engine. No maintained pure-Gibbs BART package fixes this;
 BayesTree-era rbart (this code's ancestor) carried the same confounded blocked
 Gibbs.
 
+**Erratum (2026-08-09, tree-mixing synthesis).** "Marginalizes the ridge
+in one joint proposal" overstates stan4bart: the HMC block marginalizes
+only WITHIN the parametric block (b, Sigma); the (f, b) ridge itself is
+still traversed by alternation - stan4bart runs one BART sweep per
+parametric draw (stan4bart init.cpp:642). The strongest-evidence claim
+should read: joint moves pay within the parametric block, and whether
+composition helps the cross-block ridge is measured, not established -
+see docs/design/tree-mixing-proposals.md (parametric absorption).
+
 ## 0. The load-bearing finding: there is NO cheap interweave; the fix is a collapse
 
 The natural hope is that this mirrors the BCF a-ridge move (docs/plans/bcf-ridge-

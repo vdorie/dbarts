@@ -860,6 +860,16 @@ grow-from-root arm essentially never does), not of general tree-space
 mixing - and any future structure-metric design needs a statistic that
 does not route through the change move's root sensitivity.
 
+**Erratum (2026-08-09, tree-mixing synthesis).** The datum cannot
+separate acceptance collapse from proposal rarity: the change move
+proposes the root at only ~0.4 x 1/|notBottom| x 1/p per sweep
+(~2e-3/sweep at the S6 shape), which alone predicts a switch count
+matching the cold arm's recorded rate with no acceptance-collapse
+contribution required. The fixed-skeleton acceptance mechanism above is
+real as mechanism but is NOT what S6 measured; the corrected reading
+and the probe that would separate the two live in
+docs/design/tree-mixing-proposals.md (mode A).
+
 The m=75 arms cannot detect structural mode collapse at all (the ensemble
 self-averages the x1/x2 label at rate 1/sqrt(#splits) with no mixing
 required); no m=75 cell is gated on a structural statistic; those cells
