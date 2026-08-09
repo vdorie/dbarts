@@ -508,3 +508,28 @@ Semantics this arc pins:
   single-round outlier that did not reproduce - GREEN, the reader
   indirection compiles away. Budget 323 of ~350. Dense behavior
   unchanged by construction and by gate.
+- S4 (Branch A) landed 9929ede (2026-08-09), ARC COMPLETE.
+  `SparseRawColumn` + `PredictorSourceColumns` (data.hpp, per-call,
+  borrowed CSC values); the predict/predictVariance facade virtuals
+  take `PredictorSource` with dense non-virtual inlines (the
+  setTestPredictors precedent); bridge `parseTestSource` accepts
+  `dgCMatrix` / `dbartsMixedMatrix` at `bartcore_predict` and
+  `bartcore_getTrees(newdata=)`, a bare dgCMatrix parsing as the
+  all-CSC container; both R densification lines deleted. F7 PASS at
+  n_test = 1e5, p = 1e4, density 0.01: resident-sparse 0.075-0.082 s
+  and ~1.0 GB peak RSS vs densify-path 2.59-3.47 s and 10.0-12.4 GB -
+  34.5x faster, 9.96x smaller peak RSS (25.3x analytic input
+  footprint), checksums identical to 17 digits across all six runs.
+  Battery run twice (implementer, then orchestrator independently on
+  the merged tree): tests/cpp 201/201 plain and ASAN+UBSAN with zero
+  diagnostics, tinytest 3747/0, trio bitwise (27/27, 5x6, 3x5), air +
+  lintr clean; F5 held - the 8 pre-existing test-predict-sparse.R
+  assertions verbatim, 20/20 in the extended file. Deviations
+  accepted: borrowed rather than copied CSC values (per-call view,
+  nothing retained); internal getTrees signature moved to
+  `PredictorSource*` (not dbarts.h); dense gatherTrees routed through
+  the same reader (diagnostic path, one predictable branch per read);
+  two test_model.cpp call sites name DenseColumns explicitly. Budget
+  589 insertions / 100 deletions vs ~480 (1.23x; 232 insertions are
+  the mandated oracles). Stale grow_from_root kernel binary deleted
+  at landing per the header-edit rule.
