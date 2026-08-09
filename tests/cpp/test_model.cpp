@@ -876,6 +876,65 @@ static void testVarianceReportingStatePredict() {
   printf("ok: variance reporting, state, predict\n");
 }
 
+// An installed variance tree may hold a bottom this data leaves empty (here a
+// region no row can reach: a nested split on one column). Recovering 0.0 for it
+// flattened a state that failed its OWN strict-positivity check - the sampler
+// could not restore what it had just written - and zeroed s^2 for any test row
+// routed there. The multiplicative identity closes the round trip: that tree
+// abstains where it has no training support.
+static void testVarianceEmptyBottomStateRoundTrip() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 606u);
+  const size_t n = 200, p = 1;
+  std::vector<double> x(n), y(n), weights(n, 1.0);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = (double) i / (double) n;
+    y[i] = ext_rng_simulateStandardNormal(rng);
+  }
+  ColumnStore store;
+  store.build(x.data(), n, p, 50);
+
+  SamplerOptions options;
+  options.numTrees = 10;
+  options.numVarianceTrees = 4;
+  Chain<ConstantGaussianLeaf> chain(store, y.data(), weights.data(), nullptr,
+                                    ResponseFamily::gaussian, 1.0, 3.0,
+                                    0.37804942330213542, options, rng);
+  Results empty;
+  chain.run(20, 0, empty);
+
+  ChainStateData state;
+  chain.getState(state);
+  // x <= cut[2] then x > cut[8]: an empty right grandchild, whatever the data
+  const std::vector<double>& cuts(store.cutPoints[0]);
+  check(store.numCuts[0] > 8, "enough cuts for the nested split");
+  std::vector<FlatNode>& donor(state.varianceTrees[0]);
+  donor.assign(5, FlatNode());
+  donor[0].variable = 0;
+  donor[0].value = cuts[2];
+  setFlatKind(donor[0], FlatKind::ordinal);
+  donor[1].variable = 0;
+  donor[1].value = cuts[8];
+  setFlatKind(donor[1], FlatKind::ordinal);
+  donor[2].value = 1.3;
+  donor[3].value = 0.7;  // the unreachable bottom
+  donor[4].value = 1.1;
+  check(chain.stateIsValid(state), "hand-built variance state validates");
+  check(chain.setState(state), "hand-built variance state restores");
+
+  ChainStateData round;
+  chain.getState(round);
+  check(round.varianceTrees[0].size() == 5, "the installed tree round trips");
+  check(round.varianceTrees[0][3].value == 1.0,
+        "an empty variance bottom flattens as the multiplicative identity");
+  check(chain.stateIsValid(round),
+        "a flattened state with an empty variance bottom validates");
+  check(chain.setState(round), "and restores into the sampler that wrote it");
+
+  ext_rng_destroy(rng);
+  printf("ok: variance empty-bottom state round trip\n");
+}
+
 // C3 gate (a) at the C++ level: a constant predictor stops both forests from
 // splitting, so an m'=1 variance forest is a single chi^-2 leaf whose posterior
 // is the homoscedastic sigma^2 posterior - the Section-3.4 calibration collapse.
@@ -6157,6 +6216,7 @@ void runModelTests(ext_rng* rng) {
   testVarianceForestRecovery();
   testVarianceForestRefusal();
   testVarianceReportingStatePredict();
+  testVarianceEmptyBottomStateRoundTrip();
   testVarianceSavedPredict();
   testVarianceM1Reduction();
 }

@@ -722,13 +722,21 @@
             before any live state is touched, so the destination sampler is
             unaffected and usable afterward.
       \item A heteroscedastic sampler (\code{variance = TRUE}) now refuses
-            predictor mutation rather than silently reporting a variance
-            surface routed by the previous predictors; \code{$setData} and
-            \code{$setCutPoints} previously risked memory corruption. The
-            refusals on \code{$setPredictor}, \code{$updatePredictor},
-            per-observation updates, \code{$setData} and
-            \code{$setCutPoints} are lifted in later releases as each path
-            is routed correctly.
+            transactional and per-observation predictor mutation rather
+            than silently reporting a variance surface routed by the
+            previous predictors, and refuses \code{$setData}, which
+            previously risked memory corruption. The refusals on the
+            transactional \code{$setPredictor} and \code{$updatePredictor},
+            per-observation updates, and \code{$setData} are lifted in
+            later releases as each path is routed correctly.
+      \item \code{$setPredictor} and \code{$updatePredictor} with
+            \code{forceUpdate = TRUE}, and \code{$setCutPoints}, re-route a
+            heteroscedastic sampler's variance forest, so the reported
+            variance surface and \code{s.test} follow the new predictors
+            instead of the ones the forest was built with. Splits the new
+            cut grid can no longer address collapse into their parent,
+            merging their scale factors by a weight-weighted geometric
+            mean.
       \item \code{$setModel} no longer unpins the residual standard
             deviation of a heteroscedastic sampler, and a warm start no
             longer overwrites its pinned value; \code{$setModel} refuses a

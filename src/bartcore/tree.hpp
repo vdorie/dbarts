@@ -230,6 +230,31 @@ struct Node {
 
 constexpr size_t minMaskPoolCompactionSize = 256;
 
+/// How a collapse merges the leaf parameters of the subtree it replaces.
+/// A policy maps a parameter into the space the weighted mean is taken in and
+/// back; the merge itself (weights, the no-weight fallback) is common.
+///
+/// ArithmeticMerge is the additive rule every mean forest uses and the default
+/// argument everywhere, so both merge sites compile to the code they carried
+/// before the policy existed - a codegen or bitwise difference on a
+/// homoscedastic path is a defect, not a tolerance.
+struct ArithmeticMerge {
+  static double toMergeSpace(double param) { return param; }
+  static double fromMergeSpace(double merged) { return merged; }
+};
+
+/// The multiplicative analogue, for the variance forest's scale leaves:
+/// exp(sum_b w_b log h_b / sum_b w_b). Merging positive factors arithmetically
+/// would average over GM-natural quantities and bias the merged s^2 high;
+/// exp of a finite mean of logs is positive by construction, which is what
+/// keeps stateIsValid's strict positivity and formMeanWeights' division safe
+/// structurally (docs/plans/variance-forest-mutation-routing.md, "Collapse
+/// semantics"). Every h_b a live tree holds is a drawn scale, hence positive.
+struct GeometricMerge {
+  static double toMergeSpace(double param) { return std::log(param); }
+  static double fromMergeSpace(double merged) { return std::exp(merged); }
+};
+
 class Tree {
 public:
   std::vector<Node> nodes;
@@ -985,11 +1010,14 @@ public:
   /// parameter is the effective-observation-weighted mean of its subtree's
   /// leaf parameters, for forced predictor updates. paramByNode is indexed by
   /// arena id, paramStride doubles per node, merged per coordinate; a subtree
-  /// with no observations at all gets the plain mean.
+  /// with no observations at all gets the plain mean. Merge selects the space
+  /// the mean is taken in (arithmetic for an additive leaf parameter,
+  /// geometric for a multiplicative scale).
+  template <typename Merge = ArithmeticMerge>
   void collapseEmptyNodes(const ColumnStore& data, const double* weights,
                           std::vector<double>& paramByNode,
                           size_t paramStride = 1) {
-    collapseEmptyNodesBelow(0, data, weights, paramByNode, paramStride);
+    collapseEmptyNodesBelow<Merge>(0, data, weights, paramByNode, paramStride);
   }
 
   /// An ordinal rule whose index no longer addresses a cut after the grid
@@ -1016,7 +1044,9 @@ public:
   /// new cut whose value is nearest the old cut, restricted to the ancestor-
   /// constrained interval; a subtree whose interval empties collapses to a
   /// leaf with the plain mean of its leaf parameters. paramByNode is indexed
-  /// by arena id, paramStride doubles per node, merged per coordinate.
+  /// by arena id, paramStride doubles per node, merged per coordinate. Merge
+  /// selects the space the mean is taken in, as for collapseEmptyNodes.
+  template <typename Merge = ArithmeticMerge>
   void mapOldCutPointsOntoNew(const ColumnStore& data,
                               const std::vector<std::vector<double>>& oldCutPoints,
                               std::vector<double>& paramByNode,
@@ -1025,8 +1055,8 @@ public:
     std::vector<int32_t> maxIndices(data.numPredictors);
     for (size_t j = 0; j < data.numPredictors; ++j)
       maxIndices[j] = static_cast<int32_t>(data.numCuts[j]);
-    mapCutPointsBelow(0, data, oldCutPoints, paramByNode, minIndices.data(),
-                      maxIndices.data(), paramStride);
+    mapCutPointsBelow<Merge>(0, data, oldCutPoints, paramByNode,
+                             minIndices.data(), maxIndices.data(), paramStride);
   }
 
   /// Drop a rule's missing direction after a data mutation stops its column
@@ -1196,6 +1226,7 @@ private:
   /// restored around the recursion. Categorical rules have nothing to remap
   /// (category counts are fixed across data replacement) and pass through to
   /// their children.
+  template <typename Merge>
   void mapCutPointsBelow(int32_t nodeIndex, const ColumnStore& data,
                          const std::vector<std::vector<double>>& oldCutPoints,
                          std::vector<double>& paramByNode,
@@ -1206,10 +1237,12 @@ private:
     int32_t varIndex = at(nodeIndex).rule.variableIndex;
 
     if (data.types[static_cast<size_t>(varIndex)] == ColumnType::categorical) {
-      mapCutPointsBelow(at(nodeIndex).leftChild, data, oldCutPoints,
-                        paramByNode, minIndices, maxIndices, paramStride);
-      mapCutPointsBelow(at(nodeIndex).leftChild + 1, data, oldCutPoints,
-                        paramByNode, minIndices, maxIndices, paramStride);
+      mapCutPointsBelow<Merge>(at(nodeIndex).leftChild, data, oldCutPoints,
+                               paramByNode, minIndices, maxIndices,
+                               paramStride);
+      mapCutPointsBelow<Merge>(at(nodeIndex).leftChild + 1, data, oldCutPoints,
+                               paramByNode, minIndices, maxIndices,
+                               paramStride);
       return;
     }
 
@@ -1231,16 +1264,18 @@ private:
         const double* params =
           paramByNode.data() + static_cast<size_t>(i) * paramStride;
         for (size_t j = 0; j < paramStride; ++j) {
-          paramTotals[j] += weight * params[j];
-          paramSums[j] += params[j];
+          double param = Merge::toMergeSpace(params[j]);
+          paramTotals[j] += weight * param;
+          paramSums[j] += param;
         }
       }
       double* merged =
         paramByNode.data() + static_cast<size_t>(nodeIndex) * paramStride;
       for (size_t j = 0; j < paramStride; ++j)
-        merged[j] = weightTotal > 0.0
-          ? paramTotals[j] / weightTotal
-          : paramSums[j] / static_cast<double>(bottoms.size());
+        merged[j] = Merge::fromMergeSpace(
+          weightTotal > 0.0
+            ? paramTotals[j] / weightTotal
+            : paramSums[j] / static_cast<double>(bottoms.size()));
       collapseSubtreeToLeaf(nodeIndex);
       return;
     }
@@ -1270,16 +1305,17 @@ private:
     at(nodeIndex).rule.setSplitIndex(newIndex);
 
     maxIndices[varIndex] = newIndex;
-    mapCutPointsBelow(at(nodeIndex).leftChild, data, oldCutPoints, paramByNode,
-                      minIndices, maxIndices, paramStride);
+    mapCutPointsBelow<Merge>(at(nodeIndex).leftChild, data, oldCutPoints,
+                             paramByNode, minIndices, maxIndices, paramStride);
     maxIndices[varIndex] = maxIndex;
 
     minIndices[varIndex] = newIndex + 1;
-    mapCutPointsBelow(at(nodeIndex).leftChild + 1, data, oldCutPoints,
-                      paramByNode, minIndices, maxIndices, paramStride);
+    mapCutPointsBelow<Merge>(at(nodeIndex).leftChild + 1, data, oldCutPoints,
+                             paramByNode, minIndices, maxIndices, paramStride);
     minIndices[varIndex] = minIndex;
   }
 
+  template <typename Merge>
   void collapseEmptyNodesBelow(int32_t nodeIndex, const ColumnStore& data,
                                const double* weights,
                                std::vector<double>& paramByNode,
@@ -1305,23 +1341,25 @@ private:
         const double* params =
           paramByNode.data() + static_cast<size_t>(i) * paramStride;
         for (size_t j = 0; j < paramStride; ++j) {
-          paramTotals[j] += weight * params[j];
-          paramSums[j] += params[j];
+          double param = Merge::toMergeSpace(params[j]);
+          paramTotals[j] += weight * param;
+          paramSums[j] += param;
         }
       }
       double* merged =
         paramByNode.data() + static_cast<size_t>(nodeIndex) * paramStride;
       for (size_t j = 0; j < paramStride; ++j)
-        merged[j] = weightTotal > 0.0
-          ? paramTotals[j] / weightTotal
-          : paramSums[j] / static_cast<double>(bottoms.size());
+        merged[j] = Merge::fromMergeSpace(
+          weightTotal > 0.0
+            ? paramTotals[j] / weightTotal
+            : paramSums[j] / static_cast<double>(bottoms.size()));
 
       collapseSubtreeToLeaf(nodeIndex);
     } else {
-      collapseEmptyNodesBelow(at(nodeIndex).leftChild, data, weights,
-                              paramByNode, paramStride);
-      collapseEmptyNodesBelow(at(nodeIndex).leftChild + 1, data, weights,
-                              paramByNode, paramStride);
+      collapseEmptyNodesBelow<Merge>(at(nodeIndex).leftChild, data, weights,
+                                     paramByNode, paramStride);
+      collapseEmptyNodesBelow<Merge>(at(nodeIndex).leftChild + 1, data, weights,
+                                     paramByNode, paramStride);
     }
   }
 

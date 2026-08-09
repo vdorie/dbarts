@@ -640,14 +640,15 @@ static void testMutationFuzzer(int numSeeds) {
      (1u << OP_SET_PREDICTOR) | (1u << OP_UPDATE_COLUMNS) | (1u << OP_PER_OBS) |
        (1u << OP_SESSION_ABANDON) | (1u << OP_SET_DATA) | (1u << OP_SET_CUTS) |
        (1u << OP_SET_TEST) | (1u << OP_RUN) | (1u << OP_STATE)},
-    // The response/weight/offset/test/run/state surface is the whole of what a
-    // heteroscedastic sampler may do today: every predictor-side op and
-    // setSigma are refused at the bridge (setSigma is additionally an engine
-    // no-op under a variance forest). setCuts joins when setCutPoints re-routes
-    // the variance forest, setData when applyNewData resizes and re-routes it.
+    // setCuts joins the safe surface now that setCutPoints re-routes the
+    // variance forest through forceRefreshTrees; setData joins when
+    // applyNewData resizes and re-routes it. The transactional predictor ops
+    // and setSigma stay out for the whole arc: they are refused at the bridge
+    // (setSigma is additionally an engine no-op under a variance forest).
     {"heteroscedastic", ResponseFamily::gaussian, {ord, ord, ord}, 1,
      (1u << OP_SET_RESPONSE) | (1u << OP_SET_WEIGHTS) | (1u << OP_SET_OFFSET) |
-       (1u << OP_SET_TEST) | (1u << OP_RUN) | (1u << OP_STATE),
+       (1u << OP_SET_TEST) | (1u << OP_RUN) | (1u << OP_STATE) |
+       (1u << OP_SET_CUTS),
      8},
   };
   const int numOps = 40;

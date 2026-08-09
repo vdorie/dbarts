@@ -1681,6 +1681,13 @@ public:
         }
       }
     }
+
+    // the variance forest lives outside forests_ and needs the same re-route;
+    // the grid is installed rather than rebuilt on every path that reaches
+    // here (setCutPoints, a forced predictor swap), so no remap. Appended, and
+    // called per site rather than from dropStaleMissingDirections, which three
+    // paths share (refreshVarianceForest drops its own directions).
+    if (varianceForest_) refreshVarianceForest(nullptr);
   }
 
   // Saved-tree (keepTrees) storage: a circular buffer of capacity slots,
@@ -3001,11 +3008,21 @@ private:
   /// Node-indexed (arena id) leaf factors for variance tree j, recovered from
   /// the per-observation slab (every member of a leaf carries its value): the
   /// scale analogue of recoverParametersFromFits, for flattening and predict.
+  ///
+  /// A bottom with no members carries no drawn factor and reads the
+  /// multiplicative identity 1.0 - that tree abstains where it has no training
+  /// support - so an unsupported test row reads the product over the trees that
+  /// DO have support instead of zero, and a flattened state stays inside its
+  /// own strict-positivity check. The empty-leaf veto keeps a live tree's
+  /// bottoms occupied, so only an installed tree (setState today, a warm start
+  /// once installForest carries variance trees) can need the fallback;
+  /// refreshVarianceForest asserts the live invariant at its recover step.
+  /// Internal slots are never read - flatten and the merges take bottoms only.
   void recoverVarianceLeafValues(const VarianceForest& vf, std::size_t j,
                                  std::vector<double>& out) const {
     const Tree& tree = vf.trees[j];
     const double* factor = vf.factorByTree.data() + j * data_.numObservations;
-    out.assign(tree.nodes.size(), 0.0);
+    out.assign(tree.nodes.size(), 1.0);
     for (std::size_t nd = 0; nd < tree.nodes.size(); ++nd) {
       const Node& node = tree.at(static_cast<int32_t>(nd));
       if (node.isBottom() && node.numObservations() > 0)
@@ -3076,6 +3093,58 @@ private:
       }
     }
     return true;
+  }
+
+  /// Re-anchor the variance forest to the store after a mutation moved the
+  /// predictors, the cut grid, or the observation count: the scale analogue of
+  /// the forests_ body of forceRefreshTrees and applyNewData, which loop
+  /// forests_ and so never reach it. oldCutPoints remaps split indices onto a
+  /// rebuilt grid (null when the grid is installed rather than rebuilt, as
+  /// setCutPoints and a forced predictor swap leave it).
+  ///
+  /// The order is load-bearing. Recovery reads the per-observation slab through
+  /// each leaf's CURRENT members, so it must precede every partition change;
+  /// recovering afterwards reads the new partition's members out of the old
+  /// leaves' slots. Everything downstream then works on node-indexed factors,
+  /// exactly as the mean forest's parameters do.
+  void refreshVarianceForest(
+      const std::vector<std::vector<double>>* oldCutPoints) {
+    VarianceForest& vf = *varianceForest_;
+    std::size_t n = data_.numObservations;
+    bool numObservationsChanged = n * vf.numTrees != vf.indexBuffer.size();
+    std::vector<double> leafValues;
+    for (std::size_t j = 0; j < vf.numTrees; ++j) {
+      Tree& tree = vf.trees[j];
+      // the empty-leaf veto admits no unoccupied bottom into live state, so
+      // every recovered factor here is a drawn (positive) scale
+      assert(tree.bottomNodesAreOccupied());
+      recoverVarianceLeafValues(vf, j, leafValues);
+      tree.dropStaleMissingDirections(data_);
+      if (oldCutPoints != nullptr)
+        tree.mapOldCutPointsOntoNew<GeometricMerge>(data_, *oldCutPoints,
+                                                    leafValues);
+      if (numObservationsChanged)
+        tree.resetObservations(vf.indexBuffer.data() + j * n, n);
+      tree.repartitionSubtree(data_, 0);
+      tree.collapseEmptyNodes<GeometricMerge>(
+        data_, response_->workingWeights(), leafValues);
+      // scatter the surviving factors back through the new partition
+      double* factor = vf.factorByTree.data() + j * n;
+      tree.bottomScratch.clear();
+      tree.fillBottom(0, tree.bottomScratch);
+      for (int32_t b : tree.bottomScratch) {
+        double h = leafValues[static_cast<std::size_t>(b)];
+        const Node& node = tree.at(b);
+        for (std::size_t m = node.begin; m < node.end; ++m)
+          factor[tree.indices[m]] = h;
+      }
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+      double product = 1.0;
+      for (std::size_t j = 0; j < vf.numTrees; ++j)
+        product *= vf.factorByTree[j * n + i];
+      vf.combinedVariance[i] = product;
+    }
   }
 
   /// treeY <- the residual tree t owns, admitting tree t's old fits and (t > 0)
