@@ -185,14 +185,37 @@ items
     categorical scan skip matched its pre-registered null, so the
     renormalization stays closed as documented behavior and the old
     prerequisite (1) categorical-scan support is MOOT for the flip
-    (stands only as ordinary opt-in-quality backlog, unscheduled); the
+    (REAL categorical support is now scheduled on feature-completeness
+    grounds - see grow-from-root-categorical-scan); the
     change move cannot rotate the root of a deep tree (the stickiness
     datum that voided the structure metrics, recorded in the Results
     section). Family consistency (four bart2 families refuse
     n.grow.sweeps via checkFamilyUnsupportedArgs R/bart.R:484-492;
     rbart_vi lacks the formal entirely) is now an ordinary
     opt-in-surface question - extend or document - low priority,
-    unscheduled.
+    unscheduled. VD 2026-08-09: keep it inconsistent until we know
+    what we really want to do with the feature - explicitly not
+    scheduled.
+  grow-from-root-categorical-scan: SCHEDULED, VD 2026-08-09 - the
+    opt-in n.grow.sweeps init should not ship incomplete.
+    growTreeFromRoot skips every categorical predictor as a split
+    candidate (grow.hpp:100) while counting it in
+    availableSplitProbability (grow.hpp:94-97), so init-grown trees
+    never place categorical splits; categorical structure appears
+    only once regular sampling takes over. Measured floor:
+    init-no-better-than-cold, not worse; the arithmetic-only
+    renormalization matched its pre-registered null and stays CLOSED
+    - this entry is REAL support, not the renorm. Work: a
+    categorical analog of scanOrdinalCuts (per-category suffstats in
+    one O(n) sweep; candidate rules likely sorted-partition
+    enumeration over category means), the tree prior's categorical
+    rule probability in the candidate weight (must match the regular
+    grow move's rule representation), missing-direction handling.
+    Init-only, so no MH-kernel/detailed-balance obligation; opt-in
+    path only, so the equivalence trio should stay bitwise (verify
+    at design that no trio scenario sets n.grow.sweeps). Design memo
+    commissioned (.claude/grow-from-root-categorical-scan/);
+    implementation queued pre-release by default (VD can demote).
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. denseValues is const double* (data.hpp ~188),
     ColumnType is semantic only (ordinal | categorical), and R still
@@ -339,9 +362,17 @@ items
     - forced setPredictor is not refused for multinomial
     (R_interface_bartcore.cpp:3676-3679) - so the gap is response-side
     only. Surveyed as D2, docs/design/model-space-survey.md sec 4. VD
-    2026-08-09: stays recorded and UNSCHEDULED, coupled with
-    survival-followups' competing-risks door - the two move as one arc
-    or not at all, never scheduled independently.
+    2026-08-09 (revised same day): SCHEDULED - the impediments are
+    ordinary design + engineering (the counts / n x K offset channel
+    with latent re-formation, state/install/warm-start carriage per
+    the variance-forest-mutation-routing precedent, creation-side
+    weights/offset surface), no research gate. Design memo
+    commissioned (.claude/multinomial-counts-mutation-design/);
+    implementation enters the serialized queue after the zero-weight
+    exactness fix and BEFORE the dbarts.h reshape so the C surface
+    mirrors the final mutation shape. The competing-risks front end
+    stays recorded in survival-followups, enabled by this channel -
+    the two decouple, channel first.
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
