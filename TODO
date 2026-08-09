@@ -70,7 +70,11 @@ items
     (docs/design/model-space-survey.md sec 4): cheaper than either
     update-shape door and the actual first constraint on the BCF model
     space, so it sequences ahead of them. Shape fork at design time: a
-    bcf() front end, dbartsSpec(family = "bcf"), or both.
+    bcf() front end, dbartsSpec(family = "bcf"), or both. VD
+    2026-08-09: goes FIRST, ahead of multiforest-predictor-mutation,
+    and lands INSIDE the pre-release breaking window alongside the
+    dbarts.h reshape - a public creation surface must not land after
+    the freeze.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). The BCF sigma SBC
     flag was diagnosed as a slow forest-mixing burn transient and fixed
@@ -99,10 +103,13 @@ items
     and all three live defects closed (transposed silent acceptance,
     anyNA both directions, the predict/setTestPredictor reference
     divergence - opposite-sign values on the same container captured
-    pre-fix). REMAINING: piece 3, resident-sparse predict, an OPEN VD
-    FORK - Branch A engine-resident reader table vs Branch B
-    row-chunked densification (orchestrator recommends B); specced
-    both ways in the plan, S3 waits on the call.
+    pre-fix). REMAINING: piece 3, resident-sparse predict. VD
+    2026-08-09: Branch A, engine-resident. Rationale recorded: we do
+    not wait for consumers - we enable them by building flexibility
+    they can use creatively; potential realistic models motivate,
+    consumer absence never decides. S3 (dense-only templating, codegen
+    A/B gate) then S4 (SparseRawColumn + facade virtual); F7 stays the
+    pre-registered fallback to Branch B.
   correlated-outcomes: richer error/outcome covariance around a BART
     mean, delivered via outer-sampler composition (stan4bart = WALNUTS
     + dbarts supplying each outcome's conditional mean; the pattern
@@ -258,7 +265,15 @@ items
     the subset forest wants its own CUT GRID - if yes the mask is
     eliminated outright - then cost at 10-50% membership, empty-leaf
     semantics under changing membership, and which residual sigma's df
-    sees. Design-gated on that fork, no longer value-gated.
+    sees. Design-gated on that fork, no longer value-gated. VD
+    2026-08-09, two calls: (1) ship the per-forest ZERO-WEIGHT
+    exactness half NOW - an exact-zero path replacing the 1e-9
+    multiplier floor plus a caller-settable per-forest weight; small,
+    additive, serves the latent-treatment sensitivity remainder, and
+    prejudges nothing (exact-zero sigma-df semantics already solved,
+    docs/plans/sigma-df-zero-weights.md); (2) the mask/compaction
+    shape research stays value-lifted, design-gated, NOT scheduled -
+    revisit on a second consumer or a release want.
     The n x K multinomial offset door moves to
     multinomial-counts-mutation, which re-scopes it (the response is
     the combiner's counts_ matrix, so the offset needs a real channel,
@@ -298,7 +313,10 @@ items
     plumbing. Measure the per-forest veto rate at realistic K, and
     decide whether the veto is per-forest or per-sampler. The BCF half
     is only consumable behind bcf-public-surface. Plan doc at design
-    time.
+    time. VD 2026-08-09: measure FIRST - a standalone pre-registered
+    falsifier on the per-forest transaction veto rate and the
+    per-observation partial-install rate at realistic K, before any
+    design arc opens; the design waits on its verdict.
   multinomial-counts-mutation: multinomial BART cannot mutate its
     RESPONSE side, so alone among the families it cannot serve as a
     conditional inside a larger Gibbs sampler - the thing dbarts exists
@@ -320,7 +338,10 @@ items
     (no demand)" door. NOTE the PREDICTOR channel is already open here
     - forced setPredictor is not refused for multinomial
     (R_interface_bartcore.cpp:3676-3679) - so the gap is response-side
-    only. Surveyed as D2, docs/design/model-space-survey.md sec 4.
+    only. Surveyed as D2, docs/design/model-space-survey.md sec 4. VD
+    2026-08-09: stays recorded and UNSCHEDULED, coupled with
+    survival-followups' competing-risks door - the two move as one arc
+    or not at all, never scheduled independently.
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
@@ -399,6 +420,21 @@ items
     awaiting a cloglog binary family, not a model) and continuous time
     (that is AFT, which ships). The rest stay demand-driven.
     low-ranked.
+  tree-mixing-proposals: research door, VD-flagged 2026-08-09 - in
+    what ways is the BART posterior sticky, and are there proposal
+    mechanisms beyond the shipped four-move set (moves.hpp) that would
+    help the sampler explore and mix better? Seeded by the
+    grow-from-root study's stickiness datum (the change move cannot
+    rotate the root of a deep tree; the XOR-at-m=1 probe separated
+    locked from mixing chains; BOTH warm and cold arms sat at R-hat
+    1.28-1.53 after 1000 draws on the inclusion functional) and by
+    bcf-sigma-tail-mixing's frozen-structure high-SNR tail. Candidate
+    space to survey: rotate/radical structural moves, grow-from-root
+    as a periodic MOVE rather than an init, tempered structure
+    proposals, informed proposals via the shared scan (the
+    grow-from-root frontier 3.1 door). Kim-Rockova's superpolynomial
+    mixing bounds do not bind this four-move set. Likely post-release;
+    timing free. research-open.
   typed-ingestion: CLOSED - slices 0-2b ALL LANDED, 2b at d4e80e3
     2026-08-06 (record 4a14eeb; probe, critiques, and landing notes
     in docs/plans/typed-ingestion.md): one borrowed PredictorSource
