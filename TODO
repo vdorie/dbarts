@@ -425,37 +425,21 @@ items
     hot layer
     stays quantized codes + double cuts; response/offset/weights
     stay double*.
-  variance-forest-mutation-routing: DEFECT, memory-safety. Found by the
-    model-space survey while establishing its baseline and escalated by
-    its critique (docs/design/model-space-survey.md sec 6). Its own arc
-    - it must NOT queue behind any door in that survey. NO data-mutation
-    path re-routes the variance forest: Chain::revalidateTrees
-    (chain.hpp:1484) and applyNewData (chain.hpp:1557) open on
-    forests_[0]; forceRefreshTrees (chain.hpp:1628) and
-    dropStaleMissingDirections (chain.hpp:1615) iterate forests_ and
-    never touch varianceForest_; the only site that repartitions
-    variance trees, rebuildVarianceForest, is reached from state restore
-    and never from mutation. So the SUPPORTED, DOCUMENTED forced
-    setPredictor idiom and setCutPoints leave the variance forest
-    routing rows by the OLD predictors (demonstrated: an all-identical
-    predictor matrix collapses the mean fits correctly while the
-    variance channel keeps 338 distinct values over 400 rows). setData
-    is accepted at all because refuseMultiForestMutation keys on
-    numForests >= 2 while the variance forest is the separate
-    varianceForest_ member, so a heteroscedastic sampler reports
-    numForests == 1. When n GROWS this stops being silent: meanWeights_
-    is assign(n, 0.0) once at buildVarianceForest (chain.hpp:2898) and
-    never resized, while formMeanWeights and sweepVarianceForest write
-    over the NEW n - an out-of-bounds WRITE that segfaults, reachable
-    from dbarts(..., variance = ~1) plus sampler$setData(). Not
-    reachable from the flat C API (no dbarts_sampler_setData). Fix fork:
-    (a) extend re-routing to varianceForest_ across all four paths and
-    resize its per-observation buffers (rebuildVarianceForest is the
-    template), or (b) refuse the whole predictor-mutation surface on
-    hasVarianceForest, a user-visible removal of currently-accepted
-    behaviour. A setData-only guard does NOT close it. Confirm under
-    ASAN and add the mutation paths to the fuzz/roundtrip coverage.
-    RELEASE BLOCKER.
+  variance-forest-mutation-routing: RESOLVED 2026-08-08/09, all five
+    slices landed (S1 51378c0 stop-loss refusals + engine sigma pin,
+    S2 23050b9 gate hardening, S3 cd6af7d refreshVarianceForest +
+    geometric merge, S4 4a4a0b1 setData repair - whose mandatory ASAN
+    leg caught and fixed a node-arena recovery defect, S5 dbcd255 warm
+    start + growFromRoot + setModel recalibration). The release-blocking
+    memory-safety hole is closed and every heteroscedastic mutation
+    entry either routes the variance forest correctly or refuses
+    cleanly. Full record, landing notes, and the doors still open
+    (transactional/per-observation rides
+    multiforest-predictor-mutation; scale-leaf staleness under
+    updateScale; heteroscedastic prior-predictive draw; the setState
+    variance column-mask gap found at S5) in
+    docs/plans/variance-forest-mutation-routing.md; design artifacts in
+    .claude/varianceforest-mutation-design/.
   weighted-binary: integer-weight probit via replicated latents;
     arbitrary real weights need a real-shape PG sampler (IPW is a
     pseudo-likelihood trap; the approximate-PG decision is shared
