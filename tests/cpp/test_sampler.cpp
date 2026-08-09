@@ -994,6 +994,49 @@ static void testSetDataResize(ext_rng* rng) {
   printf("ok: setData resize\n");
 }
 
+// E1 (docs/plans/variance-forest-mutation-routing.md, slice S4): a variance
+// forest pins seven n-sized allocations at the creation count, so a
+// replacement data set of a different length used to overrun them. setData
+// itself returned cleanly and the fault landed on the FOLLOWING run, which
+// segfaulted in 4 tries out of 5 and reported a non-finite variance in the
+// fifth - which is why this probe belongs in the ASAN leg, where the
+// out-of-bounds write is seen on the try that would have survived.
+static void testSetDataVarianceForestResize(ext_rng* rng) {
+  const size_t n = 200, nGrown = 5000;
+  std::vector<double> x, y, xGrown, yGrown;
+  makeMutationData(x, y, n);
+  makeMutationData(xGrown, yGrown, nGrown);
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.numVarianceTrees = 10;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, size_t(2), nullptr,
+                              nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+  Results empty;
+  sampler.run(50, 0, empty);
+
+  auto runAndCheck = [&](size_t count, const char* label) {
+    std::vector<double> varianceDraws(count * 5);
+    Results results;
+    results.varianceFits = varianceDraws.data();
+    sampler.run(0, 5, results);
+    bool finite = true;
+    for (double v : varianceDraws) finite &= std::isfinite(v) && v > 0.0;
+    check(finite, label);
+  };
+  sampler.setData(xGrown.data(), yGrown.data(), nGrown, nullptr, nullptr,
+                  nullptr, 0);
+  check(sampler.numObservations() == nGrown,
+        "setData grows a heteroscedastic sampler");
+  runAndCheck(nGrown, "s^2 stays finite and positive after setData grows n");
+  sampler.setData(x.data(), y.data(), n, nullptr, nullptr, nullptr, 0);
+  check(sampler.numObservations() == n,
+        "setData shrinks a heteroscedastic sampler");
+  runAndCheck(n, "s^2 stays finite and positive after setData shrinks n");
+
+  printf("ok: setData resize under a variance forest\n");
+}
+
 static void testSetDataQuantileShrink(ext_rng* rng) {
   const size_t n = 200;
   // 10 discrete levels induce 9 quantile cuts
@@ -3317,6 +3360,7 @@ void runSamplerTests(ext_rng* rng) {
   testSetData(rng);
   testSetResponseScaleLock(rng);
   testSetDataResize(rng);
+  testSetDataVarianceForestResize(rng);
   testSetDataQuantileShrink(rng);
   testSetDataProbit(rng);
   testMultiChainSetData();
