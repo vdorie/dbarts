@@ -350,23 +350,28 @@ items
     plumbing. Measure the per-forest veto rate at realistic K, and
     decide whether the veto is per-forest or per-sampler. The BCF half
     is only consumable behind bcf-public-surface. Plan doc at design
-    time. VD 2026-08-09: measure FIRST - a standalone pre-registered
-    falsifier on the per-forest transaction veto rate and the
-    per-observation partial-install rate at realistic K, before any
-    design arc opens; the design waits on its verdict. PRE-REGISTRATION
-    COMPLETE (memo -> blind critique 6-blocking -> synthesis; artifacts
-    .claude/d1-veto-rate-falsifier/): the final design is
-    docs/plans/multiforest-veto-rate-falsifier.md - per-column-type
-    verdicts, driven closed-loop arm via the open forceUpdate path,
-    ~11 h single-core / ~1.75 h on 8, load-insensitive, no engine
-    patch. THRESHOLDS RATIFIED by VD 2026-08-09 (on orchestrator
-    recommendation, provenance caveat + classification recorded in
-    the plan doc; ratification-time amendment: every primary KILL
-    crossing needs a fresh-seed confirmation). Stage 0 freezes the
-    matched-null beta into the doc before arms. Runner queued behind
-    the cheap-uniformity S4 implementer - S4 carries a pre-registered
-    TIMING falsifier (F7) and the measurement must not share the
-    machine with it.
+    time. VD 2026-08-09: measure FIRST. MEASURED AND RESOLVED same
+    day (pre-registration memo -> blind critique 6-blocking ->
+    synthesis -> thresholds VD-ratified with provenance recorded ->
+    run; artifacts .claude/d1-veto-rate-falsifier/, full results in
+    docs/plans/multiforest-veto-rate-falsifier.md): VERDICT YELLOW
+    for BOTH column types, FINAL (no KILL crossing, so no
+    confirmations owed). The widening is nearly free: install-rate
+    deficit max +0.0059 pp continuous / +0.0369 pp binary against a
+    2 pp GREEN line; ZERO frozen rows anywhere (frozen beta = 0.000
+    in all six cell classes); count law within 8% under a 4x
+    widening, L1' max 1.39 (two NEAR-LINE cells labeled); M1 exactly
+    zero over 14.4M decisions. T1 alone kept the verdict off GREEN,
+    on its ratio clause, which the registered replication leaves
+    Poisson-noise dominated - an ungated 40-seed supplement found
+    every interval covering 1 (context, not a re-decision). The
+    VARIANCE FOREST, not tau, is the payer (sole objector in 21-36%
+    of rejections vs 0-3% tau). CONSEQUENCE per the registered
+    YELLOW semantics: the design arc is AUTHORIZED and must carry
+    (1) mask/j-split pruning, (2) a priced collapse-on-object
+    comparison (a THIRD posterior) vs declining the widening for the
+    objecting ensemble class, (3) the attribution table with scope
+    caveats. Ten deviations logged in-doc, none touching a gate.
   multinomial-counts-mutation: multinomial BART cannot mutate its
     RESPONSE side, so alone among the families it cannot serve as a
     conditional inside a larger Gibbs sampler - the thing dbarts exists

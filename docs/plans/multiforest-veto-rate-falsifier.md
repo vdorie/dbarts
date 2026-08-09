@@ -1,6 +1,10 @@
 # multiforest-veto-rate-falsifier
 
-status: PRE-REGISTERED, NOT RUN. Ratified design; supersedes
+status: RUN AND REPORTED (2026-08-09). Verdict: **YELLOW for both column
+  types** - P1, P3 and L1' GREEN, M1 exactly 0, every validity gate passing,
+  T1 YELLOW on its ratio clause alone. No KILL clause fired anywhere, so no
+  fresh-seed confirmation was triggered. See "Results". Ratified design;
+  supersedes
   `.claude/d1-veto-rate-falsifier/memo.md` and its critique wherever they
   differ. Adjudication record: `.claude/d1-veto-rate-falsifier/synthesis.md`.
 agent: opus (harness + analysis; no engine change)
@@ -380,7 +384,9 @@ target" would condemn the criterion already shipping at E = 1.
 
 `beta` = twice the seed-to-seed SD of the MATCHED NULL delta (config (a) at
 seed s versus config (a) at seed s'), measured in Stage 0 and written into
-this file at FREEZE.
+this file at FREEZE. **FROZEN: `beta` = 0.000 pp in every (n, column type)
+cell class** - see "Stage 0 FREEZE" below. P3 therefore stays in the gate,
+with GREEN at `delta <= 0.2 pp` and KILL at `delta >= 1 pp`.
 
 - **GREEN** if `delta <= max(0.2 pp, beta)` in every realistic gated cell.
 - **KILL** if `delta >= max(1 pp, 3 x beta)` in any realistic gated cell,
@@ -523,6 +529,54 @@ multiplicity artifact at these SEs. No Holm correction is applied, and this
 is deliberate: the design is asymmetric on purpose, since a false YELLOW
 costs a design pass and a false GREEN costs an engine arc.
 
+## Stage 0 FREEZE
+
+Written 2026-08-09, after V0-V3c and the calibration cells, before any gated
+number was read. Harness: `.claude/d1-veto-rate-falsifier/harness/`; cells
+under `.claude/d1-veto-rate-falsifier/results/`. Build: repo tip b4b8614,
+`R CMD INSTALL --preclean` into a private library.
+
+**Validity gates - all eight PASS.**
+
+| gate | outcome | evidence |
+|---|---|---|
+| V0 | PASS | 96 comparisons, 0 mismatch against the engine-verbatim loop and 0 against the unfiltered router; 34 comparisons carried at least one rejection, 47 carried a tight leaf |
+| V1 | PASS | no-op installs everything and vetoes nothing in the oracle for configs (a)-(d) x {continuous, binary} and in the engine for (a); pinned grids and code vectors identical across the three surrogate samplers |
+| V2 | PASS | 4972 nodes over 16 cells, integer-exact against the live `n` column, 0 bad trees |
+| V2r | PASS | 3000 single-row replays, 0 bad |
+| V2v | PASS | relative spread of `engine$variance / oracleProduct` <= 1.8e-16 at `n.trees.variance` 1 and 40, both column types (line 1e-10) |
+| V3a | PASS | 1200 proposals, 68 engine vetoes, 0 verdict disagreements |
+| V3b | PASS with a recorded deviation (D2) | 20 fits: serialized state identical in EVERY slot (not just trees/values/sizes/flags), `data@x` identical, rng aligned in 20/20; multi-ensemble leg 20/20 structure-preserving and partition-exact on configs (b) and (d). The literal bitwise-run clause fails at max 4.4e-14 |
+| V3c | PASS | stressed proposal (engine reject 0.49% continuous / 0.33% binary): difference of means 0.0033 pp and 0.000 pp, CI half-widths 0.042 pp and 0.000 pp, both inside the 0.4 pp line |
+
+**Frozen calibration.** Matched null = eight disjoint config-(a) seed pairs
+per cell class; `sd_seed` from 16 config-(a) seeds and 8 config-(b) seeds.
+
+| column type | n | `beta` (pp) | max abs null delta (pp) | config-(a) P3 share (pp) | `sd_seed` (a) (pp) | `sd_seed` (b) (pp) |
+|---|---|---|---|---|---|---|
+| continuous | 500 | 0.000 | 0.000 | 0.000 | 0.0032 | 0.0079 |
+| continuous | 1000 | 0.000 | 0.000 | 0.000 | 0.0018 | 0.0015 |
+| continuous | 5000 | 0.000 | 0.000 | 0.000 | 0.0002 | 0.0001 |
+| binary | 500 | 0.000 | 0.000 | 0.000 | 0.0164 | 0.0158 |
+| binary | 1000 | 0.000 | 0.000 | 0.000 | 0.0072 | 0.0043 |
+| binary | 5000 | 0.000 | 0.000 | 0.000 | 0.0015 | 0.0015 |
+
+- **`beta` = 0.000 pp everywhere.** No config-(a) row is ever rejected in
+  >= 50% of a W = 200 tracking window, at any seed, at any n, in either column
+  type. P3 does NOT leave the gate (`beta` <= 1 pp): GREEN at
+  `delta <= max(0.2 pp, 0) = 0.2 pp`, KILL at
+  `delta >= max(1 pp, 0) = 1 pp`, KILL requiring a fresh-seed confirmation.
+- **`sd_seed` <= 0.0164 pp**, three orders of magnitude under the 2.83 pp
+  design condition. The registered seed count therefore STANDS: 8 seeds
+  (6 at n = 5000). No margin leaves the gate under floor-above-ceiling.
+- **Stage-0 noise bands, for the pre-registered NEAR-LINE labelling.** Per
+  cell class the band is `2 x sd_seed / sqrt(8)`: 0.0022 pp (continuous 500),
+  0.0013 pp (continuous 1000), 0.0001 pp (continuous 5000), 0.0116 pp
+  (binary 500), 0.0051 pp (binary 1000), 0.0011 pp (binary 5000). Every P1
+  decision line (2 pp, 15 pp) and every P3 line (0.2 pp, 1 pp) sits far
+  outside these bands, so a NEAR-LINE label can only arise from a cell whose
+  own metric lands within a band of a line.
+
 ## Instrumentation
 
 Ships today; sufficient for every arm; **no engine change**.
@@ -641,6 +695,294 @@ exported doubles, not SIMD paths). `R CMD INSTALL .` first; no
 - The harness exits nonzero only on a validity-gate failure or M1 != 0,
   never on a study finding.
 
+## Results
+
+Run 2026-08-09 at tip b4b8614 (deviation D1), single build,
+`R CMD INSTALL --preclean` into a private library, 8 workers on the laptop.
+1971 cells under `.claude/d1-veto-rate-falsifier/results/`; harness under
+`.claude/d1-veto-rate-falsifier/harness/`; the full emitted tables are
+`.claude/d1-veto-rate-falsifier/results.md`. No wall-clock quantity enters any
+metric. Reproducibility spot-checked as the Verification section requires: four
+cells re-run from scratch reproduced their install masks, per-row reject
+counts, veto sequences and `T_j` traces bitwise.
+
+### Verdict
+
+| column type | P1 | P3 | L1' | T1 | M1 | composite |
+|---|---|---|---|---|---|---|
+| continuous | **GREEN** (max D 0.0059 pp) | **GREEN** (0.000 pp in all 9) | **GREEN** (max 1.18) | **YELLOW** (2/9 ratio-clause failures; max rate 0.0025) | exactly 0 | **YELLOW** |
+| binary | **GREEN** (max D 0.0369 pp) | **GREEN** (0.000 pp in all 9) | **GREEN** (max 1.39) | **YELLOW** (4/9 ratio-clause failures; max rate 0.0069) | exactly 0 | **YELLOW** |
+
+**Confirmation status: no obligations outstanding.** The ratification
+amendment requires a fresh-seed re-run only for a primary KILL crossing. No
+P1 cell reached 15 pp (the largest is 0.037 pp, a factor of 400 below the
+line), no P3 cell reached 1 pp (every cell is identically 0), and no T1 cell
+reached the KILL condition `rate(E_all) >= 0.9` (the largest is 0.0069). Both
+verdicts are therefore FINAL as issued.
+
+**NEAR-LINE cells** (registered pre-data; a metric within its cell's Stage-0
+noise band of a line). No P1 or P3 cell is near any line - the Stage-0 bands
+are 0.0001-0.0116 pp and the nearest line is 2 pp. Three L1' cells are
+NEAR-LINE against the 1.5 ceiling, by the Poisson interval on their event
+counts: continuous / het / n = 500 (1.18, upper 1.53), binary / BCF 75-50 /
+n = 5000 (1.39, interval 1.15-1.63), binary / het / n = 5000 (1.31, interval
+1.10-1.52). All three fall on the GREEN side; the label records that the
+replication cannot separate them from 1.5.
+
+### Primary 1 - per-observation efficiency (P1)
+
+Nine gated cells per column type; `D = mean(reject | b/c/d, E_all) -
+mean(reject | a, shipped)`, in pp, matched on (n, DGP, move, seed, W), 8 seeds
+(6 at n = 5000).
+
+| type | cfg | n | (a) reject % | (b/c/d) reject % | **D (pp)** | SE(D) | P1d (pp) | events (a) | events (x) |
+|---|---|---|---|---|---|---|---|---|---|
+| continuous | b | 500 | 0.00850 | 0.00938 | +0.00088 | 0.0031 | 0.00025 | 68 | 75 |
+| continuous | c | 500 | 0.00850 | 0.00863 | +0.00013 | 0.0024 | 0.00000 | 68 | 69 |
+| continuous | d | 500 | 0.00850 | 0.01438 | +0.00588 | 0.0014 | 0.00375 | 68 | 115 |
+| continuous | b | 1000 | 0.00319 | 0.00163 | -0.00156 | 0.0011 | 0.00006 | 51 | 26 |
+| continuous | c | 1000 | 0.00319 | 0.00300 | -0.00019 | 0.0009 | 0.00006 | 51 | 48 |
+| continuous | d | 1000 | 0.00319 | 0.00344 | +0.00025 | 0.0008 | 0.00113 | 51 | 55 |
+| continuous | b | 5000 | 0.00038 | 0.00010 | -0.00028 | 0.0001 | 0.00000 | 23 | 6 |
+| continuous | c | 5000 | 0.00038 | 0.00023 | -0.00015 | 0.0001 | 0.00000 | 23 | 14 |
+| continuous | d | 5000 | 0.00038 | 0.00047 | +0.00008 | 0.0001 | 0.00010 | 23 | 28 |
+| binary | b | 500 | 0.0625 | 0.0588 | -0.00375 | 0.0086 | 0.00088 | 500 | 470 |
+| binary | c | 500 | 0.0625 | 0.0591 | -0.00338 | 0.0039 | 0.00038 | 500 | 473 |
+| binary | d | 500 | 0.0625 | 0.0994 | +0.03688 | 0.0037 | 0.03388 | 500 | 795 |
+| binary | b | 1000 | 0.0279 | 0.0254 | -0.00256 | 0.0025 | 0.00056 | 447 | 406 |
+| binary | c | 1000 | 0.0279 | 0.0247 | -0.00325 | 0.0028 | 0.00013 | 447 | 395 |
+| binary | d | 1000 | 0.0279 | 0.0444 | +0.01650 | 0.0031 | 0.01594 | 447 | 711 |
+| binary | b | 5000 | 0.00373 | 0.00477 | +0.00103 | 0.0005 | 0.00015 | 224 | 286 |
+| binary | c | 5000 | 0.00373 | 0.00317 | -0.00057 | 0.0005 | 0.00008 | 224 | 190 |
+| binary | d | 5000 | 0.00373 | 0.00798 | +0.00425 | 0.0006 | 0.00247 | 224 | 479 |
+
+GREEN on both types, by a factor of 54 (binary) to 340 (continuous) on the
+2 pp line. The largest cost of any kind - adding a 40-tree variance forest to
+a binary latent at n = 500 - is **0.037 pp**, i.e. 3.7 rejected installs per
+10,000 proposed row-moves; four of the nine continuous cells and four of the
+nine binary cells are NEGATIVE (the multi-ensemble fit rejects less often than
+the single-forest baseline, because the added ensemble absorbs signal and
+mu's trees get shallower). P1d - the ungated `E_all` versus `E_0` contrast on
+the same multi-ensemble fit, i.e. literally what the code change toggles - is
+never above 0.034 pp and is essentially all of D in the heteroscedastic cells,
+confirming that in the BCF cells the (already tiny) D is a fit-shape effect
+rather than the widening.
+
+### Primary 2 - mixing pathology (P3)
+
+`delta` is **identically 0.000 pp in all 18 gated cells**, against a frozen
+GREEN line of 0.2 pp and a KILL line of 1 pp. Not one row in any
+configuration, at any n, in either column type, was rejected in as many as
+half of its 200 tracking transactions. The concentration diagnostic P2 shows
+why: rejections are extremely concentrated (max-to-mean per-row reject-rate
+ratios of 70 to 10,000) but *transient* - a given row is rejected once or
+twice out of 200, never persistently. The frozen-subpopulation failure mode
+this line exists to catch does not appear. See deviation D7 for the structural
+caveat on the binary type.
+
+### Primary 3 - priceability (L1')
+
+GREEN on both types: every cell is at or under the 1.5 ceiling, with the three
+NEAR-LINE cells listed above. Values run 0.22-1.18 (continuous) and 0.86-1.39
+(binary). The count law is not just an upper bound here, it is close to an
+identity: the strongest evidence is arm 0, where quadrupling the number of
+chains widens the criterion by exactly 4x the tree count and
+
+| type | n | `T_j` at 1 chain | reject % at 1 chain | `T_j` at 4 chains | reject % at 4 chains | observed / count-law predicted |
+|---|---|---|---|---|---|---|
+| continuous | 300 | 10.2 | 0.0175 | 40.9 | 0.0754 | 1.08 |
+| continuous | 500 | 10.9 | 0.0085 | 42.6 | 0.0319 | 0.96 |
+| continuous | 1000 | 10.4 | 0.0032 | 41.0 | 0.0136 | 1.08 |
+| binary | 300 | 10.3 | 0.1277 | 43.0 | 0.5004 | 0.94 |
+| binary | 500 | 10.5 | 0.0625 | 42.3 | 0.2561 | 1.02 |
+| binary | 1000 | 10.1 | 0.0279 | 42.2 | 0.1164 | 1.00 |
+
+A 4x widening of the veto is priced to within 8% by
+`1 - (1 - r_1)^(T_j)` with `r_1` read off the un-widened fit. Mask and
+j-split pruning therefore buy back exactly what the arithmetic says they
+should. X3, reported and not gated: the pooled log-log slope of the per-sweep
+reject rate on `T_j` is 0.41 (continuous) and -0.06 (binary) - sublinear, as
+the design anticipated, and for the registered reason (row-level heterogeneity
+in `r_1` saturates the union).
+
+### Secondary - whole-transaction veto rate (T1), fraction 0.01
+
+**This is the only clause that is not GREEN, and it is the whole reason both
+composites are YELLOW.** The absolute clause passes everywhere by three orders
+of magnitude: the largest `rate(E_all)` in any gated cell is **0.0069**,
+against a GREEN ceiling of 0.5 and a KILL floor of 0.9. The ratio clause
+`rate(E_all) <= 1.5 x rate(shipped, a)` fails in 2 of 9 continuous cells and 4
+of 9 binary cells.
+
+| type | cfg | n | (a) rate (events) | `E_all` rate (events) | `E_0` rate | ratio | ratio <= 1.5 |
+|---|---|---|---|---|---|---|---|
+| continuous | b | 500 | 0.00188 (3) | 0.00063 (1) | 0.00063 | 0.33 | yes |
+| continuous | c | 500 | 0.00188 (3) | 0.00125 (2) | 0.00125 | 0.67 | yes |
+| continuous | d | 500 | 0.00188 (3) | 0.00125 (2) | 0.00125 | 0.67 | yes |
+| continuous | b | 1000 | 0.00125 (2) | 0.00063 (1) | 0.00063 | 0.50 | yes |
+| continuous | c | 1000 | 0.00125 (2) | 0.00125 (2) | 0.00125 | 1.00 | yes |
+| continuous | d | 1000 | 0.00125 (2) | 0.00125 (2) | 0.00125 | 1.00 | yes |
+| continuous | b | 5000 | 0.00083 (1) | 0.00000 (0) | 0.00000 | 0.00 | yes |
+| continuous | c | 5000 | 0.00083 (1) | 0.00167 (2) | 0.00167 | 2.00 | **no** |
+| continuous | d | 5000 | 0.00083 (1) | 0.00250 (3) | 0.00250 | 3.00 | **no** |
+| binary | b | 500 | 0.00313 (5) | 0.00500 (8) | 0.00500 | 1.60 | **no** |
+| binary | c | 500 | 0.00313 (5) | 0.00063 (1) | 0.00063 | 0.20 | yes |
+| binary | d | 500 | 0.00313 (5) | 0.00313 (5) | 0.00188 | 1.00 | yes |
+| binary | b | 1000 | 0.00063 (1) | 0.00250 (4) | 0.00250 | 4.00 | **no** |
+| binary | c | 1000 | 0.00063 (1) | 0.00375 (6) | 0.00375 | 6.00 | **no** |
+| binary | d | 1000 | 0.00063 (1) | 0.00688 (11) | 0.00438 | 11.00 | **no** |
+| binary | b | 5000 | 0.00500 (6) | 0.00000 (0) | 0.00000 | 0.00 | yes |
+| binary | c | 5000 | 0.00500 (6) | 0.00333 (4) | 0.00333 | 0.67 | yes |
+| binary | d | 5000 | 0.00500 (6) | 0.00250 (3) | 0.00167 | 0.50 | yes |
+
+Read the event counts, not the ratios: the registered replication (8 seeds,
+6 at n = 5000, W = 200) puts **0 to 11 whole-transaction vetoes** in a cell,
+so a ratio of 11.0 is "11 events against 1 event". The clause is
+Poisson-noise dominated at this replication and the design did not size for
+it - the power table sizes P1 and P3 but leaves T1's replication implicit.
+The verdict is issued as registered anyway: T1 = YELLOW on both types.
+
+An UNGATED supplement at 40 seeds per cell (seeds 9-40, ~8000 transactions per
+cell) resolves what the registered replication cannot: **the ratio clause is
+noise**. Supplement ratios and their 95% intervals: continuous 0.42-2.20, all
+nine intervals covering 1, the largest point estimate 2.20 (interval
+-0.13-4.53, 11 events against 5); binary 0.43-1.95, all nine covering 1, the
+single point estimate over 1.5 being het at n = 1000 (1.95, interval
+0.87-3.03). Only 1 of the 18 supplement cells has a point estimate above 1.5,
+and no interval excludes 1.5 from below. This does NOT change the registered
+verdict, and it is recorded as context, not as a re-decision.
+
+The `E_0` column is the useful one for the arc: on the BCF configurations
+`rate(E_0)` and `rate(E_all)` are IDENTICAL in every gated cell - a tau forest
+restricted to moderators never objects to a whole-column swap that mu accepts.
+Only the heteroscedastic configuration separates them (binary n = 500:
+`E_0` 0.0019 vs `E_all` 0.0031; binary n = 1000: 0.0044 vs 0.0069; binary
+n = 5000: 0.0017 vs 0.0025). The whole-transaction cost of the widening is
+carried by the variance forest.
+
+### M1 - correctness assertion
+
+**Exactly 0, as the theorem requires.** Across 18 mask-excluded cell classes
+(4 seeds each), the masked ensemble contributed a j-splitting tree count of
+exactly 0, and the widened per-observation mask differed from the forest-0
+mask in **0 of 14,400,000 install decisions**, with 0 differing
+whole-transaction verdicts in 14,400 transactions. A per-forest column mask is
+an exact opt-out, measured.
+
+### P4 / T2 attribution (reported, not decided - fork 2)
+
+Oracle-attributed for arm A' (the shipped surfaces return a conjunction, never
+an attribution); engine-measured for arm B.
+
+| type | cfg | ensemble | `T_j` | mean leaf depth | P(leaf holds 1 obs) | P4 sole objector | T2 per-obs (pp) | T2 transaction (pp) |
+|---|---|---|---|---|---|---|---|---|
+| continuous | BCF 75/50 | mu | 8.6-10.5 | 1.36-1.40 | 0.026-0.047 | 96-100% | 0 | 0 |
+| continuous | BCF 75/50 | tau | 1.1-1.3 | 0.40-0.42 | 0.008-0.018 | 0-2.7% | 0.00006-0.00025 | 0.000 |
+| continuous | het 75/40 | mu | 7.4-10.5 | 1.32-1.35 | 0.036-0.049 | 67-79% | 0 | 0 |
+| continuous | het 75/40 | variance | 4.9-5.2 | 1.27-1.34 | n/a | 21-33% | 0.0001-0.0038 | 0.000 |
+| binary | BCF 75/50 | tau | 1.0-1.4 | 0.41-0.43 | 0.010-0.021 | 1.5-3.1% | 0.00015-0.00088 | 0.000 |
+| binary | het 75/40 | variance | 5.5-5.6 | 1.24-1.32 | n/a | 31-36% | 0.0025-0.0339 | 0.083-0.250 |
+
+Three things the arc should carry forward. First, a **tau forest restricted to
+moderators is nearly free**: it contributes ~1 j-splitting tree out of 50
+(against ~10 out of 75 for mu) because `treatment.base = 0.25` /
+`treatment.power = 3` keeps it at mean leaf depth ~0.4, i.e. mostly stumps, and
+its leaves therefore hold most of the sample. It is the sole objector in 0-3%
+of rejections. Second, the **variance forest is the real payer**: at 40 trees
+under the mean model's own tree prior it carries 5-6 j-splitting trees at
+depth ~1.3, and is the sole objector in 21-36% of rejections. Third, the
+per-forest split is scope-limited exactly as the design says: it is oracle
+attribution, and it attributes per FOREST inside one sampler, which no shipped
+surface can confirm. Arm B's per-SAMPLER attribution IS engine-measured, by
+snapshot-and-replay: `setState` restores chain 0's rng, so each subset replay
+draws the same scan permutation and the masks are scan-order matched by
+construction (verified: a replayed subset call reproduces its mask bitwise and
+the restore returns every serialized slot exactly).
+
+### Arm B - surrogate, calibration, E = 3
+
+| type | n | S | `T_j` | reject % | engine marginal S=1 | S<=2 | S<=3 |
+|---|---|---|---|---|---|---|---|
+| continuous | 1000 | 1 | 10.4 | 0.00319 | 0.00319 | - | - |
+| continuous | 1000 | 2 | 11.2 | 0.00319 | 0.00319 | 0.00319 | - |
+| continuous | 1000 | 3 | 15.7 | 0.00369 | 0.00313 | 0.00313 | 0.00369 |
+| binary | 1000 | 1 | 10.1 | 0.0279 | 0.0279 | - | - |
+| binary | 1000 | 2 | 11.6 | 0.0278 | 0.0273 | 0.0278 | - |
+| binary | 1000 | 3 | 16.6 | 0.0426 | 0.0265 | 0.0269 | 0.0426 |
+
+E = 3 - the shape the engine refuses to construct - costs 0.0005 pp
+(continuous) to 0.016 pp (binary) over E = 1 on the surrogate. Reported and
+ungated, and it authorizes nothing: `createBCFSampler` still returns nullptr
+on `numVarianceTrees > 0` and lifting that is a separate arc.
+
+**V4 / C1.** Arm A' (real BCF, E = 2) against arm B (S = 2 surrogate) at
+matched n: C1 = -0.0009, +0.0016 pp (continuous, n = 500 / 1000) and +0.0054,
++0.0024 pp (binary). `|C1|` is at most 0.0054 pp against the 3 pp line, so the
+arms agree and the surrogate's tree-shape bias is not detectable at this
+resolution. The verdicts are read off arm A' regardless, as registered.
+
+**Q1** (reported, never gated; three kernels on the S = 2 surrogate, with a
+real Metropolis filter on the latent so the comparison is between stationary
+distributions rather than random walks - see deviation D8). Continuous: mean
+of per-row posterior means 0.041 (widened veto) / 0.045 (forced collapse) /
+0.029 (frozen forest); mean of per-row posterior sds 0.277 / 0.268 / 0.488;
+pooled KS 0.025 (veto vs collapse), 0.039 (veto vs frozen), 0.026 (collapse
+vs frozen). Binary: the Metropolis filter almost never accepts a flip against
+this surface (per-row sd ~0.003), so the kernels are indistinguishable
+(KS <= 0.005) and the comparison is uninformative rather than reassuring. The
+continuous reading is that the veto and the forced collapse produce nearly the
+same latent posterior on the surrogate, and both differ from the frozen-forest
+kernel by more than they differ from each other. It bounds the posterior
+question; it does not settle it, and by design it gates nothing.
+
+### Reported, ungated
+
+- **bairrtt cross-check.** At the one recorded consumer shape (n = 300, 150
+  trees as 2 chains x 75, ~1 SD move, config (a) shipped) the harness rejects
+  **0.043%** of moves on a continuous latent and **0.226%** on a binary one,
+  against bairrtt's prose "under 1%" (`bairrtt/TODO:117-118`). Consistent, and
+  on the low side. Under the accepted-rows reading (~0.44n) the figures are
+  ~0.10% and ~0.51%; both readings sit under 1%.
+- **Move size.** Smaller moves do not cost more: at n = 1000 continuous,
+  reject rates are 0.0036% / 0.0011% / 0.0032% at moves 0.1 / 0.4 / 0.8 -
+  flat, because what matters is whether a row is the last occupant of a leaf,
+  not how far it travels once it leaves.
+- **Fraction.** At fraction 1/n the whole-transaction veto rate is 0-0.125%
+  (the design predicted "of order 1e-3", correct); at fraction 1.0 it is
+  1.75-4.0% (continuous) and 19-28% (binary), which is why the
+  per-observation session exists. Both bracket the gated 0.01 regime and
+  neither is gated.
+- **Multinomial K = 4 (E = 4), UNGATED stress.** n = 1000: per-observation
+  reject 0.010% at `E_all` vs 0.002% at `E_0` (continuous) and 0.087% vs
+  0.020% (binary); whole-transaction 0.25% vs 0.125% and 1.25% vs 0.25%. Four
+  symmetric 75-tree forests raise `T_j` to ~40 and the reject rate rises
+  roughly with it - the count law again. Still far under every line, but this
+  is the shape where a widened veto costs the most, and it is reported, not
+  decided.
+- **Five-level categorical latent, UNGATED.** n = 1000, per-observation:
+  0.034% (single forest), 0.029% (BCF), 0.050% at `E_all` vs 0.029% at `E_0`
+  (het). Whole-transaction at fraction 0.01: 0.25% / 0.375% / 0.50% vs 0.125%
+  at `E_0`. Same order as the binary type. Columns with more than 64 levels
+  remain out of scope for the reason recorded below.
+- **p = 5.** Halving the predictor count roughly doubles `T_j` (10.4 -> 19.7
+  continuous, 10.1 -> 20.7 binary) and roughly doubles the reject rate
+  (0.0032% -> 0.0104%, 0.0279% -> 0.0531%) - the count law once more.
+
+### Reading
+
+The widening is essentially free in every shape that exists, and it is
+free for a *reason* the arc can rely on: the rejection rate is
+`1 - (1 - r_1)^(T_j)` with `r_1` around 1e-5 to 1e-4, so the entire cost is
+carried by the count of j-splitting trees, and pruning that count - by
+`moderators`, by `varianceForestColumns`, or by skipping trees with no j-split
+- removes the cost exactly (M1 = 0, measured over 14.4 million decisions). The
+verdict is YELLOW rather than GREEN on a secondary clause whose registered
+replication cannot resolve it and whose supplement says it is noise. What
+YELLOW authorizes is unchanged and is stated below; nothing in these results
+argues against any of its three required elements, and the P4/T2 table says
+which of them matters: the variance forest, not the tau forest, is what a
+widened veto makes a consumer pay for.
+
 ## What this measurement cannot tell us
 
 1. **The stationary widened posterior, on real trees.** Every arm measures
@@ -714,5 +1056,132 @@ V4 3 pp, 200 replicates, 1e-10 on V2v) follow from the arithmetic above.
 
 ## Deviations from this pre-registration
 
-(none yet - append here, with date and reason, before reading any gated
-metric)
+All of D1-D6 were recorded at FREEZE, before any gated metric was read.
+D7-D8 are execution notes recorded during Stage 1.
+
+**D1 (2026-08-09) - tip.** The header pins d3cb94b / engine 06c0254. The run
+executed at branch tip **b4b8614** (engine 9929ede), all CI green, which is
+what the orchestrator supplied. Nothing between the two tips touches the
+predictor-mutation, revalidation or export paths the design anchors on; every
+line reference in this file was re-verified at b4b8614 before the harness was
+written. During the run a concurrent agent landed d2e8e0a
+(`docs/plans/composition-mixing-probe.md`, documentation only), so branch HEAD
+has advanced; the measured binary is b4b8614's `src/` exactly.
+
+Also recorded against the header: the budget line says "~700-850 lines across
+five files". The harness came to ~2240 lines across seven
+(`oracle.R`, `common.R`, `armB.R`, `armC.R`, `run.R`, `stage0.R`, `report.R`).
+The excess is the resumable job dispatcher, the per-column-type report
+generator and the arm-B state-replay attribution, none of which the budget
+line anticipated; no engine or package file was touched.
+
+**D2 (2026-08-09) - V3b's bitwise-run clause.** V3b has three clauses. The
+state-identity clause passes in a STRONGER form than written: all 20 fits
+agree in *every* serialized slot, not merely trees/values/sizes/flags, and the
+installed column agrees exactly. The multi-ensemble leg passes 20/20. The
+third clause - "the two subsequent `run(0, 1)` outputs bitwise equal" - fails
+in 20/20 fits, at a maximum absolute difference of **4.4e-14** on `train`
+(sigma agrees to the printed digit). Cause, diagnosed: the serialized state
+deliberately omits the accumulated total-fits cache
+(`R_interface_bartcore.cpp:4820-4826`, "dropped the accumulation-history
+slots"), and the two paths rebuild it in different summation orders -
+`revalidateAllChains` -> `rebuildFitsFromParameters` versus
+`forceRefreshTrees`. That is a floating-point association difference, not the
+semantic divergence the contingency exists to catch (an emulated install
+landing a *different live state* than the widened path would). No metric in
+this design reads a fit: masks and verdicts are decided by tree partitions and
+integer leaf counts, both certified exact by V2, V2r, V2v and the V3b
+multi-ensemble leg. The gate is therefore recorded as PASS with the bitwise
+clause relaxed to `<= 1e-10`, and the **ForTesting contingency is NOT
+invoked**. Consequence for arm A': the driven loop is statistically, not
+bitwise, the trajectory a widened engine would take.
+
+Also recorded here because the pre-registration does not mention it: the
+partial path draws a scan permutation from chain 0's rng
+(`sampler.hpp:1066`) while the forced path draws none, so V3b as literally
+written could never have matched two rng streams. The harness aligns them by
+issuing a no-op partial call on the twin before the forced install (V1
+certifies a no-op partial changes nothing); with that, rng state matched in
+20/20.
+
+**D3 (2026-08-09) - a third exactness-preserving speedup.** The file
+pre-registers two speedups. Both are implemented, and both are insufficient at
+the largest cells: at n = 5000 with ~60 j-splitting trees a sweep produces
+~1e5 (row, tree) mover pairs, and the registered "R loop touches only rows
+that actually move" is still ~6e7 interpreted iterations per run. The harness
+adds a third restriction, exact rather than approximate: a leaf whose
+out-mover count is at most `count - 1` can never be read at occupancy 1 by any
+checking mover (its k-th checker sees `count - (k - 1) >= 2`, and incoming
+moves only raise the count), so only rows touching a "tight" leaf
+(`moversOut >= count`) need the sequential loop, and only tight-leaf counts
+need tracking. V0 was extended to cover it: 96 comparisons against the
+engine-verbatim loop, 0 mismatches, with 47 comparisons carrying at least one
+tight leaf and 34 carrying at least one rejection.
+
+**D4 (2026-08-09) - the response surface.** The pre-registration pins n, p,
+tree counts, move sizes, the cut grid and the phase structure, but not the
+response surface. The harness fixes one, ASCII-recorded in
+`harness/common.R`: the latent is the surface's primary driver (as it is in
+every motivating class), entering mu through
+`3 * standardize(sin(2 theta) + 0.5 theta)` alongside a linear term, an
+interaction and a kink in the other covariates, entering tau linearly, and
+entering the variance surface as `exp(0.6 * standardize(...) + 0.3 x2)`;
+`pihat` is a genuine propensity column held out of the moderator set. Sanity
+check against the one recorded consumer figure: at bairrtt's shape (n = 300,
+150 trees, ~1 SD move, config (a)) this surface rejects 0.08-0.32% of moves,
+against bairrtt's prose "under 1%". The verdicts below are conditional on this
+surface; X1/X2 report the leaf-size and `r_1` profile it produces so a reader
+can place it.
+
+**D5 (2026-08-09) - V3c runs on a stressed proposal.** V3c's arithmetic is
+sized for reject rates of 2-25%. The gated cells reject at ~1e-5 to 1e-3, so a
+200-replicate difference of means on a gated cell has a zero-width CI and
+tests nothing. V3c therefore runs on a deliberately stressed proposal (n = 300,
+4 chains, 6 SD continuous move) whose engine reject rate is 0.49%. The gate is
+about oracle-versus-engine scan-order agreement, which is a property of the
+simulator, not of a scenario.
+
+**D6 (2026-08-09) - the L1' and P4/T2 estimators.** The file names L1' and the
+attribution statistics but not their estimators. Registered here, pre-data:
+`r_1^(a)` is estimated by pooling every config-(a) decision in the matched
+cell class across seeds and sweeps and inverting the union law once,
+`r_1 = 1 - (1 - rejectRate)^(1 / mean T_j)`; L1' then divides the pooled
+multi-ensemble reject rate by `1 - (1 - r_1^(a))^(mean T_j)` at that cell's own
+`T_j`. Pooling rather than per-seed inversion is forced by the event counts -
+several cells produce single-digit rejections per seed. P4 evaluates every
+tree at the moment of the check rather than short-circuiting as the engine
+does (the mask is unaffected; only the objector set differs). T2 is measured
+per ensemble as `rate(E_0 u {f}) - rate(E_0)` on the same fit and the same
+scan order.
+
+**D7 (2026-08-09) - P3 on the binary column type is structurally bounded.**
+The binary proposal flips a proposed row with probability 0.5, so a row is
+offered a move in only ~50% of the W transactions and can be rejected in at
+most ~50% of them. P3's ">= 50% of transactions" functional is therefore
+near-degenerate for the binary type by construction, not by measurement. It is
+reported as measured and its GREEN carries that caveat.
+
+**D8 (2026-08-09) - arm B's Q1 kernel comparison needed a Metropolis filter.**
+Q1 asks for "the stationary per-row latent posterior under three kernels". The
+rest of the design drives the latent with a bare random walk plus the veto,
+which has no stationary distribution, so a three-kernel *posterior* comparison
+is not defined on it. Q1 therefore runs its own kernel: a Metropolis-within-
+Gibbs step on each row's latent against the two surrogate samplers' Gaussian
+likelihoods (fits from `bartcore_predict` on the live trees) and an N(0, 1)
+prior, with the veto / forced collapse / frozen forest applied to the accepted
+rows. This is the bairrtt pattern (`irt_causal_bart.R:598-613`: MH filter, then
+install). It is confined to Q1, which is REPORTED and never gated, and it does
+not touch P1's denominator anywhere else in the design.
+
+**D9 (2026-08-09) - T1 replication supplement, ungated.** T1's ratio clause
+turned out to be unresolvable at the registered replication (0-11 events per
+cell). A 40-seed supplement was run to say whether the failures are real. It is
+recorded as REPORTED and UNGATED; the T1 verdict in the Results section is read
+off the registered 8 (6) seeds exactly as pre-registered, and is YELLOW.
+
+**D10 (2026-08-09) - a `dbartsMixedMatrix` design needed densifying.** A
+factor in the design makes `data@x` a `dbartsMixedMatrix`, which refuses
+`x[, j] <- v`. The harness densifies with `as.matrix` before routing. This
+affects only the ungated 5-level-categorical cells; the continuous and binary
+designs are plain numeric matrices throughout. Noted because it is a live
+sharp edge for any consumer writing an R-side oracle against `data@x`.
