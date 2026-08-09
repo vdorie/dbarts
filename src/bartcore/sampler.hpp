@@ -74,7 +74,7 @@ struct SamplerStateData {
 /// forest can seed several chains, so the donor's chain count need not match.
 enum class WarmStartResult {
   ok, shapeMismatch, gridMismatch, dartMismatch, interactionMismatch,
-  columnMaskMismatch
+  columnMaskMismatch, varianceMismatch
 };
 
 /// A sequential per-observation predictor update: stage one observation's
@@ -663,9 +663,9 @@ public:
         return WarmStartResult::shapeMismatch;
       if (chains_[c]->usesDart() != !src.dartProbabilities.empty())
         return WarmStartResult::dartMismatch;
-      // the reassembled state below carries no variance trees, so a donor and
-      // destination that disagree here would silently drop a scale surface or
-      // leave one cold-started under a mean forest fitted with it
+      // a donor and destination that disagree here would drop a scale surface
+      // or leave one cold-started under a mean forest fitted with it; the
+      // trees themselves ride the reassembled state below
       if (src.varianceTrees.empty() == chains_[c]->hasVarianceForest())
         return WarmStartResult::shapeMismatch;
 
@@ -712,6 +712,11 @@ public:
       dst.aVariance = src.aVariance;
       dst.b0 = src.b0;
       dst.b1 = src.b1;
+      // the donor's LIVE variance trees, whatever slot the mean forests come
+      // from: the state format carries no saved variance channel, so a
+      // slot-sourced warm start pairs a saved mean forest with the donor's
+      // current scale surface rather than cold-starting it
+      dst.varianceTrees = src.varianceTrees;
     }
 
     // containment (design "Containment"): a donor grown under a different (or
@@ -747,6 +752,13 @@ public:
     for (size_t c = 0; c < chains_.size(); ++c)
       if (!chains_[c]->installForest(install[c], donorGridPtr, &data_))
         return WarmStartResult::shapeMismatch;
+    // the variance half, separately so a refusal names the variance forest;
+    // the shape gate above pairs hasVarianceForest with a non-empty block
+    for (size_t c = 0; c < chains_.size(); ++c)
+      if (chains_[c]->hasVarianceForest() &&
+          !chains_[c]->installVarianceForest(install[c].varianceTrees,
+                                             donorGridPtr, &data_))
+        return WarmStartResult::varianceMismatch;
     currentSampleNum_ = 0;
     return WarmStartResult::ok;
   }

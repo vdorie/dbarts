@@ -3790,6 +3790,11 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
       parameters.k = model.k;
     }
     if (drawsSigma) {
+      // the prior half travels in both arms: a homoscedastic chain reads it
+      // only when sigma is drawn, but a heteroscedastic one recalibrates its
+      // scale leaf from the whole triple whatever fixed() says about sigma
+      parameters.sigmaDf = model.sigmaDf;
+      parameters.sigmaRawScale = model.sigmaRawScale;
       if (model.sigmaIsFixed) {
         // documented semantics: fixed(value) holds the residual variance
         parameters.sigmaIsFixed = true;
@@ -3799,23 +3804,8 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
           Rf_getAttrib(dataExpr, Rf_install("sigma")), "sigma estimate",
           RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_YES,
           RC_VALUE | RC_GT, 0.0, RC_END);
-        parameters.sigmaDf = model.sigmaDf;
-        parameters.sigmaRawScale = model.sigmaRawScale;
       }
     }
-
-    // The variance forest's scale leaf is calibrated from these three numbers
-    // once, at creation, and Chain::setModel installs no sigma under one, so a
-    // changed residual prior would be silently inert. Refuse rather than
-    // ignore; an unchanged one passes and the rest of the model installs.
-    const bartcore::ResidualPrior& calibration = shape.varianceLeafPrior;
-    if (shape.hasVarianceForest &&
-        (parameters.sigmaEstimate != calibration.sigmaEstimate ||
-         model.sigmaDf != calibration.sigmaDf ||
-         model.sigmaRawScale != calibration.sigmaRawScale))
-      Rf_error("bartcore_setModel: a heteroscedastic sampler's variance forest "
-               "was calibrated from resid.prior when it was created and does "
-               "not re-read it; make a new sampler instead");
 
     // split probabilities are copied per chain before the model goes away
     sampler.setModel(parameters);
@@ -5556,6 +5546,11 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                "this forest's allowed column set; the donor's fit is "
                "incompatible with the column restriction (BCF moderators or a "
                "restricted variance forest) in force here");
+    case bartcore::WarmStartResult::varianceMismatch:
+      Rf_error("warm-start donor's variance trees cannot be installed on this "
+               "sampler's data (a rebuilt variance tree leaves a leaf empty, "
+               "or a flat tree failed to rebuild); the donor's variance "
+               "surface is incompatible with this sampler");
     case bartcore::WarmStartResult::shapeMismatch:
       Rf_error("warm-start donor is not shape-compatible with this sampler "
                "(number of trees, forests, or predictors differ, or only one "
