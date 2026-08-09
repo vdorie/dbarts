@@ -708,6 +708,55 @@ void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
   UNPROTECT(3);
 }
 
+// Whether a test-side argument carries its values sparsely, so it takes the
+// resident container parse rather than the dense matrix one.
+bool testSourceIsSparse(SEXP xTestExpr) {
+  return Rf_inherits(xTestExpr, "dbartsMixedMatrix") ||
+         Rf_inherits(xTestExpr, "dgCMatrix");
+}
+
+// A sparse test set at a read-only entrance (predict, tree replay): a mixed
+// container parses as at every other test funnel, and a bare dgCMatrix is the
+// all-CSC spelling of the same container - every column CSC-backed, implicit
+// rows the zero its own storage means, no reference metadata to declare.
+void parseTestSource(ParsedTestContainer& out, SEXP xTestExpr,
+                     size_t numPredictors,
+                     const bartcore::ColumnType* storeTypes) {
+  if (!Rf_inherits(xTestExpr, "dgCMatrix")) {
+    parseTestContainer(out, xTestExpr, numPredictors, storeTypes);
+    return;
+  }
+  SEXP dimExpr = PROTECT(Rf_getAttrib(xTestExpr, Rf_install("Dim")));
+  if (!Rf_isInteger(dimExpr) || rc_getLength(dimExpr) != 2)
+    Rf_error("malformed sparse predictor matrix");
+  size_t numTest = static_cast<size_t>(INTEGER(dimExpr)[0]);
+  UNPROTECT(1);
+  CscSlots csc = parseCscMatrix(xTestExpr, numTest);
+  if (csc.numColumns != numPredictors)
+    Rf_error("number of columns in 'x.test' must equal that of 'x'");
+  out.columnSources.resize(numPredictors);
+  for (size_t j = 0; j < numPredictors; ++j)
+    out.columnSources[j] = ~static_cast<std::int32_t>(j);
+  out.view.numRows = numTest;
+  out.view.numColumns = numPredictors;
+  out.view.columnSources = out.columnSources.data();
+  out.view.cscColumnPointers = csc.pointers;
+  out.view.cscRowIndices = csc.rows;
+  out.view.cscValues = csc.values;
+}
+
+// A designated leaf covariate reads contiguous raw values, which CSC storage
+// does not serve. The test-store entrances answer this with setTestData's false
+// return; a read-only replay builds no store, so it checks the view itself and
+// raises the same text.
+void refuseSparseLeafCovariate(const bartcore::SamplerShape& shape,
+                               const bartcore::PredictorSource& source) {
+  for (size_t k = 0; k < shape.numLeafCovariates; ++k)
+    if (source.sourceOf(shape.leafCovariateColumns[k]) < 0)
+      Rf_error("a leaf covariate column cannot be a sparse test column; "
+               "supply it as a dense test column");
+}
+
 // Mutation-side wording for the shared parse helpers; the creation-flavored
 // texts they default to describe a design being built, not one being replaced.
 const char* const mutationContainerMessage =
@@ -4433,26 +4482,15 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
   return R_NilValue;
 }
 
-// Fits for new data on the original response scale (binary responses give
-// the latent scale, as the classic engine does). With keepTrees the saved
-// trees produce numTestObservations x numSamples (x numChains) fits; without,
-// the live trees produce a single set per chain. A multi-location combiner
-// (multinomial: K softmax channels) inserts the K dimension between the rows
-// and the samples, matching the run's test channel. offset, when non-null, is
-// added to every sample's fits (refused for a multi-location surface, whose
-// output is probabilities rather than an additive latent scale).
-SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  bartcore::SamplerBase& sampler(*holder.sampler);
-  bartcore::SamplerShape shape = sampler.shape();
-
-  // predict() sums only the prognostic forest, so a BCF prediction would drop
-  // the treatment forest and the glue; refuse it for the same reason recorded
-  // BCF test fits are undefined.
-  refuseBCFTestSurface(sampler, "bartcore_predict");
-
-  size_t numTestObservations =
-    validatePredictorMatrix(sampler, xTestExpr, "bartcore_predict");
+// The shared tail of both predict entrances: allocate the surface's result
+// shape, replay the borrowed view into it, and add the offset. The view's rows
+// are the result's rows either flavor, so the dense and resident-sparse paths
+// differ only in how the view was built.
+SEXP predictFromSource(bartcore::SamplerBase& sampler,
+                       const bartcore::SamplerShape& shape,
+                       const bartcore::PredictorSource& source,
+                       SEXP offsetExpr) {
+  size_t numTestObservations = source.numRows;
   if (numTestObservations == 0) Rf_error("bartcore_predict requires rows");
 
   const double* offset = NULL;
@@ -4507,7 +4545,7 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
                                static_cast<int>(numChains)));
   }
 
-  sampler.predict(REAL(xTestExpr), numTestObservations, REAL(resultExpr));
+  sampler.predict(source, numTestObservations, REAL(resultExpr));
 
   if (offset != NULL) {
     for (size_t slab = 0; slab < numSamples * numChains; ++slab)
@@ -4521,8 +4559,7 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   // needs saved trees, so a null-capacity variance forest has nothing to replay.
   if (shape.hasVarianceForest && capacity > 0) {
     SEXP varianceExpr = PROTECT(Rf_duplicate(resultExpr));  // clone the shape
-    sampler.predictVariance(REAL(xTestExpr), numTestObservations,
-                            REAL(varianceExpr));
+    sampler.predictVariance(source, numTestObservations, REAL(varianceExpr));
     SEXP listExpr = PROTECT(Rf_allocVector(VECSXP, 2));
     SET_VECTOR_ELT(listExpr, 0, resultExpr);
     SET_VECTOR_ELT(listExpr, 1, varianceExpr);
@@ -4538,6 +4575,47 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   return resultExpr;
 }
 
+// Fits for new data on the original response scale (binary responses give
+// the latent scale, as the classic engine does). With keepTrees the saved
+// trees produce numTestObservations x numSamples (x numChains) fits; without,
+// the live trees produce a single set per chain. A multi-location combiner
+// (multinomial: K softmax channels) inserts the K dimension between the rows
+// and the samples, matching the run's test channel. offset, when non-null, is
+// added to every sample's fits (refused for a multi-location surface, whose
+// output is probabilities rather than an additive latent scale). A dense
+// matrix, a dgCMatrix, and a dbartsMixedMatrix all predict; only the dense one
+// is materialized, and it was already.
+SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerBase& sampler(*holder.sampler);
+  bartcore::SamplerShape shape = sampler.shape();
+
+  // predict() sums only the prognostic forest, so a BCF prediction would drop
+  // the treatment forest and the glue; refuse it for the same reason recorded
+  // BCF test fits are undefined.
+  refuseBCFTestSurface(sampler, "bartcore_predict");
+
+  // a sparse test set replays resident, off the view the container parses to;
+  // the parse owns buffers, so the unwind-protected scope frees them on the
+  // error jump
+  if (testSourceIsSparse(xTestExpr))
+    return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
+      parseTestSource(parsed, xTestExpr, shape.numPredictors,
+                      sampler.data().types.data());
+      validateTestContainerAgainstStore(sampler.data(), parsed);
+      refuseSparseLeafCovariate(shape, parsed.view);
+      return predictFromSource(sampler, shape, parsed.view, offsetExpr);
+    });
+
+  size_t numTestObservations =
+    validatePredictorMatrix(sampler, xTestExpr, "bartcore_predict");
+  return predictFromSource(
+    sampler, shape,
+    bartcore::densePredictorSource(REAL(xTestExpr), numTestObservations,
+                                   shape.numPredictors),
+    offsetExpr);
+}
+
 // index conversion around bartcore_bridge::getTrees, which describes the
 // data.frame produced
 SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
@@ -4545,7 +4623,8 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
                        SEXP trainingDataExpr, SEXP forestExpr) {
   return unwindProtect([&, chainIndices = std::vector<size_t>{},
                         sampleIndices = std::vector<size_t>{},
-                        treeIndices = std::vector<size_t>{}]() mutable -> SEXP {
+                        treeIndices = std::vector<size_t>{},
+                        parsed = ParsedTestContainer{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     bartcore::SamplerBase& sampler(*holder.sampler);
     bartcore::SamplerShape shape = sampler.shape();
@@ -4580,12 +4659,24 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
       treeIndices[i] = static_cast<size_t>(treeNum - 1);
     }
 
-    const double* newdata = NULL;
+    // newdata replays through the trees exactly as predict routes it: dense
+    // from its own block, sparse from the container's rank bitmaps
+    const bartcore::PredictorSource* newdata = NULL;
     size_t newdataNumRows = 0;
-    if (!Rf_isNull(newdataExpr)) {
+    bartcore::PredictorSource newdataView;
+    if (testSourceIsSparse(newdataExpr)) {
+      parseTestSource(parsed, newdataExpr, shape.numPredictors,
+                      sampler.data().types.data());
+      validateTestContainerAgainstStore(sampler.data(), parsed);
+      refuseSparseLeafCovariate(shape, parsed.view);
+      newdata = &parsed.view;
+      newdataNumRows = parsed.view.numRows;
+    } else if (!Rf_isNull(newdataExpr)) {
       newdataNumRows =
         validatePredictorMatrix(sampler, newdataExpr, "bartcore_getTrees");
-      newdata = REAL(newdataExpr);
+      newdataView = bartcore::densePredictorSource(
+        REAL(newdataExpr), newdataNumRows, shape.numPredictors);
+      newdata = &newdataView;
     }
 
     // saved-tree replay reads the current training predictors the R method
@@ -5579,8 +5670,9 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
                  size_t numChainIndices, const size_t* sampleIndices,
                  size_t numSampleIndices, const size_t* treeIndices,
                  size_t numTreeIndices, bool useSaved,
-                 const double* replayData, size_t replayNumRows,
-                 size_t forestIndex, GatheredTrees& out) {
+                 const bartcore::PredictorSource* replaySource,
+                 size_t replayNumRows, size_t forestIndex,
+                 GatheredTrees& out) {
   const bartcore::ColumnStore& store(sampler.data());
 
   std::vector<bartcore::FlatNode> liveNodes;
@@ -5588,6 +5680,11 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
   std::vector<std::uint64_t> liveMasks;
   std::vector<std::uint32_t> counts;
   std::vector<size_t> replayIndices(replayNumRows);
+  // one reader set for every tree replayed: a dense replay source resolves to
+  // its columns' pointers, a sparse one lays its rank bitmaps down once
+  bartcore::PredictorSourceColumns replayColumns(
+    replaySource != NULL ? *replaySource : bartcore::PredictorSource{},
+    store.types.data());
   std::string directionsScratch;
   bool functionLeaves = sampler.shape().usesFunctionLeaves;
   // the mask side channel exists only for pooled columns (past 63 levels)
@@ -5621,11 +5718,11 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
           if (out.numSlopes > 0) slopes = &liveSlopes;
           if (anyPooled) masks = &liveMasks;
         }
-        if (replayData != NULL) {
+        if (replaySource != NULL) {
           counts.resize(nodes->size());
           for (size_t l = 0; l < replayNumRows; ++l) replayIndices[l] = l;
           bartcore::countFlatObservationsBelow(
-            nodes->data(), replayData, replayNumRows, replayIndices.data(), 0,
+            nodes->data(), replayColumns, replayIndices.data(), 0,
             replayNumRows, counts.data(), masks != NULL ? masks->data() : NULL);
         } else if (useSaved) {
           // saved trees carry no counts; a null replay source (a sparse or
@@ -5790,10 +5887,10 @@ SEXP emitTreeDataFrame(const GatheredTrees& gathered) {
 SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
               size_t numChainIndices, const size_t* sampleIndices,
               size_t numSampleIndices, const size_t* treeIndices,
-              size_t numTreeIndices, bool useLiveTrees, const double* newdata,
-              size_t newdataNumRows, const double* trainingReplay,
-              size_t trainingReplayNumRows, size_t forestIndex,
-              const char* caller) {
+              size_t numTreeIndices, bool useLiveTrees,
+              const bartcore::PredictorSource* newdata, size_t newdataNumRows,
+              const double* trainingReplay, size_t trainingReplayNumRows,
+              size_t forestIndex, const char* caller) {
   const bartcore::ColumnStore& store(sampler.data());
   bartcore::SamplerShape shape = sampler.shape();
 
@@ -5818,13 +5915,16 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
   // saved trees carry no counts of their own and replay the training rows the
   // caller supplies (the engine keeps no matrix); newdata replays its rows
   // through live and saved trees alike
-  const double* replayData = NULL;
+  const bartcore::PredictorSource* replaySource = NULL;
   size_t replayNumRows = 0;
+  bartcore::PredictorSource trainingView;
   if (newdata != NULL) {
-    replayData = newdata;
+    replaySource = newdata;
     replayNumRows = newdataNumRows;
-  } else if (useSaved) {
-    replayData = trainingReplay;
+  } else if (useSaved && trainingReplay != NULL) {
+    trainingView = bartcore::densePredictorSource(
+      trainingReplay, trainingReplayNumRows, store.numPredictors);
+    replaySource = &trainingView;
     replayNumRows = trainingReplayNumRows;
   }
 
@@ -5846,7 +5946,7 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
   gathered.slopes.resize(numSlopes);
   gatherTrees(sampler, chainIndices, numChainIndices, sampleIndices,
               numSampleIndices, treeIndices, numTreeIndices, useSaved,
-              replayData, replayNumRows, forestIndex, gathered);
+              replaySource, replayNumRows, forestIndex, gathered);
 
   return emitTreeDataFrame(gathered);
 }

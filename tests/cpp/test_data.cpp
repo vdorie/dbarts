@@ -1120,6 +1120,40 @@ static void testMaterializePredictorSource() {
     }
   check(chunkHolds, "a row range materializes the whole block's own rows");
 
+  // the resident reader is the materializer's answer without the block: every
+  // cell agrees, for the mapped dense column and the CSC ones alike, and
+  // duplicate stored values are no different (the rank indexes the pattern)
+  std::vector<double> duplicated(values, values + 5);
+  duplicated[0] = duplicated[2] = 2.5;
+  PredictorSource duplicateSource = source;
+  duplicateSource.cscValues = duplicated.data();
+  std::vector<double> duplicateBlock(n * p);
+  materializePredictorSource(duplicateSource, types, 0, n,
+                             duplicateBlock.data());
+  PredictorSourceColumns columns(source, types);
+  PredictorSourceColumns duplicateColumns(duplicateSource, types);
+  bool readerHolds = true;
+  for (size_t j = 0; j < p; ++j) {
+    for (size_t i = 0; i < n; ++i) {
+      double expected = block[j * n + i], read = columns.column(j).at(i);
+      readerHolds &= std::isnan(expected) ? std::isnan(read) : read == expected;
+      double duplicateExpected = duplicateBlock[j * n + i];
+      double duplicateRead = duplicateColumns.column(j).at(i);
+      readerHolds &= std::isnan(duplicateExpected)
+        ? std::isnan(duplicateRead)
+        : duplicateRead == duplicateExpected;
+    }
+  }
+  check(readerHolds, "the resident reader answers as the materialized block");
+
+  // an all-ordinal store reads the categorical column's implicit rows as zero
+  // here too: one implicit rule, both consumers
+  PredictorSourceColumns ordinalColumns(source, nullptr);
+  bool readerTypeKeyed = true;
+  for (size_t i = 0; i < n; ++i)
+    if (i != 0 && i != 5) readerTypeKeyed &= ordinalColumns.column(1).at(i) == 0.0;
+  check(readerTypeKeyed, "the reader's implicit rule keys on the store's type");
+
   printf("ok: predictor source materialization\n");
 }
 

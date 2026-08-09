@@ -775,7 +775,8 @@ static void testVarianceSavedPredict() {
   std::vector<double> pred(n);
   bool savedMatch = true;
   for (size_t s = 0; s < numSamples; ++s) {
-    chain.predictVarianceFromSavedSample(s, x.data(), n, pred.data());
+    chain.predictVarianceFromSavedSample(s, DenseColumns{x.data(), n}, n,
+                                         pred.data());
     const double* recorded = varFits.data() + s * n;
     for (size_t i = 0; i < n; ++i)
       if (std::fabs(pred[i] - recorded[i]) > 1e-9 * s2scale) savedMatch = false;
@@ -837,8 +838,9 @@ static void testVarianceReportingStatePredict() {
 
   // (c) predict on new data matches an in-sample recompute
   std::vector<double> predTrain(n), predTest(nTest);
-  chain.predictVariance(x.data(), n, predTrain.data());
-  chain.predictVariance(xTest.data(), nTest, predTest.data());
+  chain.predictVariance(DenseColumns{x.data(), n}, n, predTrain.data());
+  chain.predictVariance(DenseColumns{xTest.data(), nTest}, nTest,
+                        predTest.data());
   bool predMatch = true, predTestMatch = true;
   for (size_t i = 0; i < n; ++i)
     if (std::fabs(predTrain[i] - s2scale * combined[i]) > tol) predMatch = false;

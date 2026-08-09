@@ -332,6 +332,115 @@ inline void materializePredictorSource(const PredictorSource& source,
   }
 }
 
+/// SparseColumnData's shape over RAW values: the same fixed pattern (bits,
+/// wordRanks) and O(1) at(i), holding the borrowed nonzero doubles of one CSC
+/// column and the double its implicit rows read. No cut grid and no
+/// quantization, so nothing here touches a draw law - it is the read side of a
+/// replay over a caller's sparse argument.
+///
+/// Built per call and never cached: a consumer reads the source it was handed,
+/// so no store owns one and no mutation can leave one stale. nzValues borrows
+/// the CSC values of its column, which are in ascending row order, so the rank
+/// indexes the pattern rather than the values and duplicate values are no
+/// different from distinct ones.
+struct SparseRawColumn {
+  std::vector<std::uint64_t> bits;       // ceil(n / 64) words
+  std::vector<std::uint32_t> wordRanks;  // nonzeros before each word
+  const double* nzValues = nullptr;      // borrowed, ascending-row order
+  double implicitValue = 0.0;
+
+  double at(size_t i) const {
+    std::uint64_t word = bits[i >> 6];
+    std::uint64_t bit = std::uint64_t{1} << (i & 63u);
+    if ((word & bit) == 0) return implicitValue;
+    return nzValues[wordRanks[i >> 6] +
+                    static_cast<size_t>(std::popcount(word & (bit - 1u)))];
+  }
+
+  /// Lay the pattern of one CSC column's \p numNonzero ascending \p rows over
+  /// \p numRows rows; \p values is borrowed for the reader's lifetime.
+  void build(const int* rows, const double* values, size_t numNonzero,
+             size_t numRows, double implicit) {
+    size_t numWords = (numRows + 63) / 64;
+    bits.assign(numWords, 0);
+    wordRanks.assign(numWords, 0);
+    nzValues = values;
+    implicitValue = implicit;
+    for (size_t k = 0; k < numNonzero; ++k) {
+      size_t row = static_cast<size_t>(rows[k]);
+      bits[row >> 6] |= std::uint64_t{1} << (row & 63u);
+    }
+    std::uint32_t runningRank = 0;
+    for (size_t w = 0; w < numWords; ++w) {
+      wordRanks[w] = runningRank;
+      runningRank += static_cast<std::uint32_t>(std::popcount(bits[w]));
+    }
+  }
+};
+
+/// The reader a borrowed view hands the flat replay: one indexed load off a
+/// dense-backed column, the rank lookup off a CSC-backed one.
+struct PredictorSourceColumnReader {
+  const double* dense;
+  const SparseRawColumn* sparse;
+  double at(size_t row) const {
+    return dense != nullptr ? dense[row] : sparse->at(row);
+  }
+};
+
+/// A borrowed PredictorSource in the Columns shape the flat replay reads
+/// predictors through, so a sparse or mixed test set routes rows without a
+/// dense n x p materialization. column(j) answers for STORE column j, which is
+/// what the routing hoist and the leaf-covariate loads both index by.
+///
+/// A CSC-backed column's implicit rows read \p storeTypes[j] == categorical ?
+/// referenceCodeOf(j) : 0, the same rule materializePredictorSource applies;
+/// a null \p storeTypes means all-ordinal. Everything is built in the
+/// constructor and freed with the object: the rank bitmaps cost O(numRows / 64)
+/// words per CSC-backed column against the O(numRows) doubles a densification
+/// would cost, and the values themselves stay borrowed.
+struct PredictorSourceColumns {
+  PredictorSourceColumns(const PredictorSource& source,
+                         const ColumnType* storeTypes) {
+    size_t numRows = source.numRows;
+    size_t numColumns = source.numColumns;
+    // sized once, before any reader points into it, so no build reallocates;
+    // an all-dense source allocates no column storage at all
+    size_t numSparse = 0;
+    for (size_t j = 0; j < numColumns; ++j)
+      if (source.sourceOf(j) < 0) ++numSparse;
+    sparseColumns_.resize(numSparse);
+    readers_.resize(numColumns);
+    numSparse = 0;
+    for (size_t j = 0; j < numColumns; ++j) {
+      std::int32_t which = source.sourceOf(j);
+      if (which >= 0) {
+        readers_[j] = {
+          source.denseValues + static_cast<size_t>(which) * numRows, nullptr};
+        continue;
+      }
+      size_t column = static_cast<size_t>(~which);
+      int begin = source.cscColumnPointers[column];
+      int end = source.cscColumnPointers[column + 1];
+      bool categorical =
+        storeTypes != nullptr && storeTypes[j] == ColumnType::categorical;
+      sparseColumns_[numSparse].build(
+        source.cscRowIndices + begin, source.cscValues + begin,
+        static_cast<size_t>(end - begin), numRows,
+        categorical ? static_cast<double>(source.referenceCodeOf(j)) : 0.0);
+      readers_[j] = {nullptr, &sparseColumns_[numSparse++]};
+    }
+  }
+
+  PredictorSourceColumnReader column(size_t j) const { return readers_[j]; }
+
+private:
+  // one entry per CSC-backed column, packed in column order; the readers point
+  // into it, so it is filled to its final size before any reader is published
+  std::vector<SparseRawColumn> sparseColumns_;
+  std::vector<PredictorSourceColumnReader> readers_;
+};
+
 /// One row set's code storage over the store's shared cut grid: the packed
 /// dense codes and their per-column starts, the rank storage of the sparse
 /// columns, and the per-column source descriptors. Instantiated train and test

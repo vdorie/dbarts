@@ -79,8 +79,10 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
 
 /// A data.frame of tree structure over 0-based index arrays; unprotected on
 /// return. Reads saved trees unless useLiveTrees (sample indices are then
-/// ignored); newdata, when non-null, replays its newdataNumRows rows for
-/// the n column. trainingReplay supplies the training predictors the saved
+/// ignored); newdata, when non-null, is a borrowed predictor view - dense or
+/// CSC-backed - whose newdataNumRows rows replay for the n column. Only the
+/// dense flavor is materialized, and its caller already had it.
+/// trainingReplay supplies the training predictors the saved
 /// trees replay when no newdata is given (the engine keeps no matrix): the
 /// caller passes the current data@x, or null to leave saved-tree counts
 /// unpopulated. caller labels range errors.
@@ -88,9 +90,10 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const std::size_t* chainIndices,
               std::size_t numChainIndices, const std::size_t* sampleIndices,
               std::size_t numSampleIndices, const std::size_t* treeIndices,
               std::size_t numTreeIndices, bool useLiveTrees,
-              const double* newdata, std::size_t newdataNumRows,
-              const double* trainingReplay, std::size_t trainingReplayNumRows,
-              std::size_t forestIndex, const char* caller);
+              const bartcore::PredictorSource* newdata,
+              std::size_t newdataNumRows, const double* trainingReplay,
+              std::size_t trainingReplayNumRows, std::size_t forestIndex,
+              const char* caller);
 
 /// Errors unless every replacement value for a categorical column is an
 /// existing category code; ordinal columns pass through.
