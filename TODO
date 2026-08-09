@@ -372,17 +372,23 @@ items
     - forced setPredictor is not refused for multinomial
     (R_interface_bartcore.cpp:3676-3679) - so the gap is response-side
     only. Surveyed as D2, docs/design/model-space-survey.md sec 4. VD
-    2026-08-09 (revised same day): SCHEDULED - the impediments are
-    ordinary design + engineering (the counts / n x K offset channel
-    with latent re-formation, state/install/warm-start carriage per
-    the variance-forest-mutation-routing precedent, creation-side
-    weights/offset surface), no research gate. Design memo
-    commissioned (.claude/multinomial-counts-mutation-design/);
-    implementation enters the serialized queue after the zero-weight
-    exactness fix and BEFORE the dbarts.h reshape so the C surface
-    mirrors the final mutation shape. The competing-risks front end
-    stays recorded in survival-followups, enabled by this channel -
-    the two decouple, channel first.
+    2026-08-09 (revised same day): SCHEDULED - no research gate.
+    DESIGN COMPLETE same day (memo -> blind critique 5-blocking ->
+    synthesis, all ADOPT; artifacts
+    .claude/multinomial-counts-mutation-design/): plan at
+    docs/plans/multinomial-counts-mutation.md - 5 slices (counts
+    channel; train offset + mandatory refusal floors; test offset +
+    predict replays, droppable; fixture re-record own-commit; public
+    surface), rawFits(k) accessor keeps the null-offset path
+    byte-identical, burned-in swap oracle O11 pinnable pre-arc.
+    Channel stays dbarts:::-only (critique + synthesis agree; public
+    multinomial surface is a recorded door, D3 analog). Implementation
+    enters the serialized queue after the zero-weight exactness fix
+    and BEFORE the dbarts.h reshape so the C surface mirrors the
+    final mutation shape (reshape reservations recorded in the plan
+    for c-api-growth.md). The competing-risks front end stays
+    recorded in survival-followups, enabled by this channel - the
+    two decouple, channel first.
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
