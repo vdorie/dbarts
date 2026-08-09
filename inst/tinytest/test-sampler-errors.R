@@ -177,14 +177,14 @@ sampler.aft <- dbarts::dbarts(
 sampler.aft$setSigma(0.7)
 expect_equal(sampler.aft$getSigmas(), 0.7)
 
-# Predictor mutation is refused at every entry on a heteroscedastic sampler:
-# the variance forest holds its trees outside the forest vector the mutation
-# helpers loop, so an accepted change leaves s^2(x) routed by the predictors
-# the forest was built with. setData and setCutPoints are worse than stale -
-# a change in the observation count overruns the variance forest's n-sized
-# buffers (the following run segfaulted in 4 tries out of 5), and a shrinking
-# cut grid leaves its split thresholds outside the grid its own state
-# serializes against.
+# The transactional and per-observation predictor entries are refused on a
+# heteroscedastic sampler: the variance forest holds its trees outside the
+# forest vector revalidateAllChains loops, so an accepted change would leave
+# s^2(x) routed by the predictors the forest was built with. The forced paths
+# and setCutPoints re-route it, and are covered by the mutation test file.
+# setData is worse than stale - a change in the observation count overruns the
+# variance forest's n-sized buffers (the following run segfaulted in 4 tries
+# out of 5) - and refuses until it resizes them.
 xVariance <- as.matrix(train[, c("x", "z")])
 xReplacement <- xVariance
 xReplacement[, 1L] <- rev(xVariance[, 1L])
@@ -200,17 +200,10 @@ expect_error(
   )),
   varianceRefusal
 )
-expect_error(
-  sampler.variance$setCutPoints(list(c(0.2, 0.5)), 1L),
-  varianceRefusal
-)
-expect_error(sampler.variance$setPredictor(xReplacement), varianceRefusal)
+# a single column without forceUpdate is the transactional path (a whole
+# matrix defaults to the forced one, which is routed and tested elsewhere)
 expect_error(
   sampler.variance$setPredictor(xReplacement[, 1L], 1L),
-  varianceRefusal
-)
-expect_error(
-  sampler.variance$setPredictor(xReplacement[, 1L], 1L, forceUpdate = TRUE),
   varianceRefusal
 )
 expect_error(

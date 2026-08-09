@@ -2059,12 +2059,13 @@ void refuseMultiForestTestOffset(const bartcore::SamplerBase& sampler,
              "softmax scale; it carries no test offset", caller);
 }
 
-// No predictor-mutation path carries the variance forest: it holds its own
-// trees outside forests_, which every revalidate/refresh helper loops, so an
-// accepted change leaves s^2(x) routing observations by the codes of the
-// predictors it was built with - and a grid that shrinks under it leaves its
-// serialized split thresholds outside the new cut points. Every entry that
-// moves the predictors, the cut grid, or the observation count refuses.
+// The variance forest holds its trees outside forests_, which the revalidate
+// and whole-data helpers loop, so an accepted change on one of those paths
+// leaves s^2(x) routing observations by the codes of the predictors it was
+// built with - and an observation count that moves under it overruns its
+// n-sized buffers. The FORCED refresh reaches it (forceRefreshTrees calls
+// refreshVarianceForest), so the entries that refuse are setData, which resizes
+// nothing of it yet, and the transactional paths below.
 void refuseVarianceForestPredictorMutation(
     const bartcore::SamplerBase& sampler, const char* caller) {
   if (sampler.shape().hasVarianceForest)
@@ -2080,12 +2081,13 @@ void refuseVarianceForestPredictorMutation(
 // other forests routed against stale codes. The FORCE paths refresh every
 // forest (forceRefreshTrees) and stay available for a multi-forest sampler: a
 // forced whole-matrix setPredictor is the supported multi-forest predictor
-// swap (the bartCause propensity pattern). forceRefreshTrees does not reach
-// the variance forest, so forcedUpdate does not excuse one.
+// swap (the bartCause propensity pattern). forceRefreshTrees now re-routes the
+// variance forest as well, so a forced update is the heteroscedastic predictor
+// swap too; a transactional one revalidates forest 0 alone and refuses.
 void refuseMultiForestTransactionalUpdate(const bartcore::SamplerBase& sampler,
                                           const char* caller,
                                           bool forcedUpdate = false) {
-  refuseVarianceForestPredictorMutation(sampler, caller);
+  if (!forcedUpdate) refuseVarianceForestPredictorMutation(sampler, caller);
   if (!forcedUpdate && sampler.shape().numForests >= 2)
     Rf_error("%s: a transactional predictor update validates only the primary "
              "forest of a multi-forest sampler; use setPredictor with "
@@ -3969,8 +3971,6 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
                         columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     refuseRequantizeWithoutSource(*holder.sampler, "bartcore_setCutPoints");
-    refuseVarianceForestPredictorMutation(*holder.sampler,
-                                          "bartcore_setCutPoints");
     size_t numPredictors = holder.sampler->shape().numPredictors;
     // dense columns re-quantize from the supplied data@x; CSC/mixed columns
     // read their retained slices, so a non-matrix source is passed as null
