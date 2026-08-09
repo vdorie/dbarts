@@ -1641,18 +1641,39 @@ private:
   }
 };
 
-/// Partition indices[lo, hi) of raw column-major predictors around a
+/// The reader a dense column-major block hands the flat replay: a bare
+/// pointer at a column's first row, so at(row) is one indexed load.
+struct DenseColumnReader {
+  const double* values;
+  double at(size_t row) const { return values[row]; }
+};
+
+/// A borrowed dense column-major block in the Columns shape the flat replay
+/// reads predictors through: column(j) yields a reader over store column j.
+/// Every raw read in a replay - the routing hoist and the leaf covariate
+/// loads, which index by the store column - goes through column(), so a
+/// source that maps store columns onto other storage substitutes here
+/// without a second code path.
+struct DenseColumns {
+  const double* values;
+  size_t numRows;
+  DenseColumnReader column(size_t j) const {
+    return DenseColumnReader{values + j * numRows};
+  }
+};
+
+/// Partition indices[lo, hi) of a Columns predictor source around a
 /// flattened split so left-bound rows precede right-bound ones, returning
 /// the boundary: ordinal rows go left when x <= value, categorical rows when
 /// the mask's direction bit for their code is clear. Order within the halves
 /// is not preserved (nor needed; replays only count or accumulate). The tag
 /// selects the payload; maskWords holds a pooled rule's numMaskWords words at
 /// maskOffset and may be null when no rule is pooled.
-inline size_t partitionFlatIndices(const FlatNode& flat, const double* x,
-                                   size_t numRows, size_t* indices, size_t lo,
-                                   size_t hi,
+template <typename Columns>
+inline size_t partitionFlatIndices(const FlatNode& flat, const Columns& x,
+                                   size_t* indices, size_t lo, size_t hi,
                                    const std::uint64_t* maskWords = nullptr) {
-  const double* column = x + static_cast<size_t>(flat.variable) * numRows;
+  auto column = x.column(static_cast<size_t>(flat.variable));
   size_t mid = lo;
   bool missingGoesLeft = (flat.flags & flatMissingGoesRight) == 0;
   FlatKind kind = flatKindOf(flat);
@@ -1663,7 +1684,7 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const double* x,
     // undefined behavior, so the tree layer is safe standalone
     std::uint32_t maxCode = 64u * flat.numMaskWords - 1u;
     for (size_t k = lo; k < hi; ++k) {
-      double value = column[indices[k]];
+      double value = column.at(indices[k]);
       bool goesLeft = isNA(value)
         ? missingGoesLeft
         : !maskTestBit(directions,
@@ -1678,7 +1699,7 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const double* x,
   } else if (kind == FlatKind::categoricalInline) {
     std::uint64_t directions = flat.mask;
     for (size_t k = lo; k < hi; ++k) {
-      double value = column[indices[k]];
+      double value = column.at(indices[k]);
       bool goesLeft = isNA(value)
         ? missingGoesLeft
         : ((directions >>
@@ -1692,7 +1713,7 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const double* x,
     }
   } else {
     for (size_t k = lo; k < hi; ++k) {
-      double value = column[indices[k]];
+      double value = column.at(indices[k]);
       // a NaN comparison is false, which would silently send it right
       bool goesLeft = isNA(value) ? missingGoesLeft : value <= flat.value;
       if (goesLeft) {
@@ -1706,35 +1727,53 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const double* x,
   return mid;
 }
 
-/// Route indices[lo, hi) of a raw column-major matrix through a flattened
+/// The raw column-major entry: numRows is the block's row stride.
+inline size_t partitionFlatIndices(const FlatNode& flat, const double* x,
+                                   size_t numRows, size_t* indices, size_t lo,
+                                   size_t hi,
+                                   const std::uint64_t* maskWords = nullptr) {
+  return partitionFlatIndices(flat, DenseColumns{x, numRows}, indices, lo, hi,
+                              maskWords);
+}
+
+/// Route indices[lo, hi) of a Columns predictor source through a flattened
 /// subtree, writing each node's routed count in pre-order; indices is
 /// scrambled. Returns the number of flattened nodes consumed.
+template <typename Columns>
 inline size_t countFlatObservationsBelow(const FlatNode* flatNodes,
-                                         const double* x, size_t numRows,
-                                         size_t* indices, size_t lo, size_t hi,
+                                         const Columns& x, size_t* indices,
+                                         size_t lo, size_t hi,
                                          std::uint32_t* counts,
                                          const std::uint64_t* maskWords = nullptr) {
   counts[0] = static_cast<std::uint32_t>(hi - lo);
   if (flatNodes[0].variable == invalidVariable) return 1;
 
   size_t mid =
-    partitionFlatIndices(flatNodes[0], x, numRows, indices, lo, hi, maskWords);
+    partitionFlatIndices(flatNodes[0], x, indices, lo, hi, maskWords);
   size_t numNodes = 1;
-  numNodes += countFlatObservationsBelow(flatNodes + numNodes, x, numRows,
-                                         indices, lo, mid, counts + numNodes,
-                                         maskWords);
-  numNodes += countFlatObservationsBelow(flatNodes + numNodes, x, numRows,
-                                         indices, mid, hi, counts + numNodes,
-                                         maskWords);
+  numNodes += countFlatObservationsBelow(flatNodes + numNodes, x, indices, lo,
+                                         mid, counts + numNodes, maskWords);
+  numNodes += countFlatObservationsBelow(flatNodes + numNodes, x, indices, mid,
+                                         hi, counts + numNodes, maskWords);
   return numNodes;
+}
+
+/// The raw column-major entry: numRows is the block's row stride.
+inline size_t countFlatObservationsBelow(const FlatNode* flatNodes,
+                                         const double* x, size_t numRows,
+                                         size_t* indices, size_t lo, size_t hi,
+                                         std::uint32_t* counts,
+                                         const std::uint64_t* maskWords = nullptr) {
+  return countFlatObservationsBelow(flatNodes, DenseColumns{x, numRows},
+                                    indices, lo, hi, counts, maskWords);
 }
 
 /// Add each routed row's leaf parameter into fits (one slot per row).
 /// Returns the number of flattened nodes consumed.
+template <typename Columns>
 inline size_t addFlatPredictionsBelow(const FlatNode* flatNodes,
-                                      const double* x, size_t numRows,
-                                      size_t* indices, size_t lo, size_t hi,
-                                      double* fits,
+                                      const Columns& x, size_t* indices,
+                                      size_t lo, size_t hi, double* fits,
                                       const std::uint64_t* maskWords = nullptr) {
   if (flatNodes[0].variable == invalidVariable) {
     for (size_t k = lo; k < hi; ++k) fits[indices[k]] += flatNodes[0].value;
@@ -1742,13 +1781,23 @@ inline size_t addFlatPredictionsBelow(const FlatNode* flatNodes,
   }
 
   size_t mid =
-    partitionFlatIndices(flatNodes[0], x, numRows, indices, lo, hi, maskWords);
+    partitionFlatIndices(flatNodes[0], x, indices, lo, hi, maskWords);
   size_t numNodes = 1;
-  numNodes += addFlatPredictionsBelow(flatNodes + numNodes, x, numRows,
-                                      indices, lo, mid, fits, maskWords);
-  numNodes += addFlatPredictionsBelow(flatNodes + numNodes, x, numRows,
-                                      indices, mid, hi, fits, maskWords);
+  numNodes += addFlatPredictionsBelow(flatNodes + numNodes, x, indices, lo,
+                                      mid, fits, maskWords);
+  numNodes += addFlatPredictionsBelow(flatNodes + numNodes, x, indices, mid,
+                                      hi, fits, maskWords);
   return numNodes;
+}
+
+/// The raw column-major entry: numRows is the block's row stride.
+inline size_t addFlatPredictionsBelow(const FlatNode* flatNodes,
+                                      const double* x, size_t numRows,
+                                      size_t* indices, size_t lo, size_t hi,
+                                      double* fits,
+                                      const std::uint64_t* maskWords = nullptr) {
+  return addFlatPredictionsBelow(flatNodes, DenseColumns{x, numRows}, indices,
+                                 lo, hi, fits, maskWords);
 }
 
 /// The linear-leaf analogue of addFlatPredictionsBelow: a routed row's fit
@@ -1758,9 +1807,10 @@ inline size_t addFlatPredictionsBelow(const FlatNode* flatNodes,
 /// holds numSlopes doubles per leaf in pre-order; leafOffset counts the
 /// leaves consumed before this subtree. Returns the number of flattened
 /// nodes consumed.
+template <typename Columns>
 inline size_t addFlatLinearPredictionsBelow(
-    const FlatNode* flatNodes, const double* x,
-    size_t numRows, size_t* indices, size_t lo, size_t hi, double* fits,
+    const FlatNode* flatNodes, const Columns& x,
+    size_t* indices, size_t lo, size_t hi, double* fits,
     const size_t* columns, const double* means, const double* sds,
     size_t numSlopes, const double* slopes, size_t leafOffset = 0,
     const std::uint64_t* maskWords = nullptr) {
@@ -1770,7 +1820,7 @@ inline size_t addFlatLinearPredictionsBelow(
       size_t row = indices[k];
       double fit = flatNodes[0].value;
       for (size_t j = 0; j < numSlopes; ++j) {
-        double value = x[columns[j] * numRows + row];
+        double value = x.column(columns[j]).at(row);
         fit += leafSlopes[j] *
                (isNA(value) ? 0.0 : (value - means[j]) / sds[j]);
       }
@@ -1780,16 +1830,28 @@ inline size_t addFlatLinearPredictionsBelow(
   }
 
   size_t mid =
-    partitionFlatIndices(flatNodes[0], x, numRows, indices, lo, hi, maskWords);
+    partitionFlatIndices(flatNodes[0], x, indices, lo, hi, maskWords);
   size_t numOnLeft = addFlatLinearPredictionsBelow(
-    flatNodes + 1, x, numRows, indices, lo, mid, fits, columns, means,
+    flatNodes + 1, x, indices, lo, mid, fits, columns, means,
     sds, numSlopes, slopes, leafOffset, maskWords);
   size_t numNodes = 1 + numOnLeft;
   numNodes += addFlatLinearPredictionsBelow(
-    flatNodes + numNodes, x, numRows, indices, mid, hi, fits, columns,
+    flatNodes + numNodes, x, indices, mid, hi, fits, columns,
     means, sds, numSlopes, slopes, leafOffset + (numOnLeft + 1) / 2,
     maskWords);
   return numNodes;
+}
+
+/// The raw column-major entry: numRows is the block's row stride.
+inline size_t addFlatLinearPredictionsBelow(
+    const FlatNode* flatNodes, const double* x,
+    size_t numRows, size_t* indices, size_t lo, size_t hi, double* fits,
+    const size_t* columns, const double* means, const double* sds,
+    size_t numSlopes, const double* slopes, size_t leafOffset = 0,
+    const std::uint64_t* maskWords = nullptr) {
+  return addFlatLinearPredictionsBelow(
+    flatNodes, DenseColumns{x, numRows}, indices, lo, hi, fits, columns, means,
+    sds, numSlopes, slopes, leafOffset, maskWords);
 }
 
 /// Function-valued leaves' saved side channel holds one variable-length
@@ -1834,9 +1896,10 @@ constexpr size_t maxFunctionLeafCovariates = 8;
 /// indexes blocks per pre-order leaf (computeFunctionBlockOffsets);
 /// leafOffset counts the leaves consumed before this subtree. Returns the
 /// number of flattened nodes consumed.
+template <typename Columns>
 inline size_t addFlatFunctionPredictionsBelow(
-    const FlatNode* flatNodes, const double* x,
-    size_t numRows, size_t* indices, size_t lo, size_t hi, double* fits,
+    const FlatNode* flatNodes, const Columns& x,
+    size_t* indices, size_t lo, size_t hi, double* fits,
     const size_t* columns, const double* means, const double* sds,
     const double* lengthscales, size_t numCovariates, const double* blocks,
     const size_t* blockOffsets, size_t leafOffset = 0,
@@ -1854,7 +1917,7 @@ inline size_t addFlatFunctionPredictionsBelow(
     for (size_t k = lo; k < hi; ++k) {
       size_t row = indices[k];
       for (size_t j = 0; j < numCovariates; ++j) {
-        double value = x[columns[j] * numRows + row];
+        double value = x.column(columns[j]).at(row);
         uStar[j] = isNA(value) ? 0.0 : (value - means[j]) / sds[j];
       }
       double fit = 0.0;
@@ -1873,17 +1936,31 @@ inline size_t addFlatFunctionPredictionsBelow(
   }
 
   size_t mid =
-    partitionFlatIndices(flatNodes[0], x, numRows, indices, lo, hi, maskWords);
+    partitionFlatIndices(flatNodes[0], x, indices, lo, hi, maskWords);
   size_t numOnLeft = addFlatFunctionPredictionsBelow(
-    flatNodes + 1, x, numRows, indices, lo, mid, fits, columns, means,
+    flatNodes + 1, x, indices, lo, mid, fits, columns, means,
     sds, lengthscales, numCovariates, blocks, blockOffsets, leafOffset,
     maskWords);
   size_t numNodes = 1 + numOnLeft;
   numNodes += addFlatFunctionPredictionsBelow(
-    flatNodes + numNodes, x, numRows, indices, mid, hi, fits, columns,
+    flatNodes + numNodes, x, indices, mid, hi, fits, columns,
     means, sds, lengthscales, numCovariates, blocks, blockOffsets,
     leafOffset + (numOnLeft + 1) / 2, maskWords);
   return numNodes;
+}
+
+/// The raw column-major entry: numRows is the block's row stride.
+inline size_t addFlatFunctionPredictionsBelow(
+    const FlatNode* flatNodes, const double* x,
+    size_t numRows, size_t* indices, size_t lo, size_t hi, double* fits,
+    const size_t* columns, const double* means, const double* sds,
+    const double* lengthscales, size_t numCovariates, const double* blocks,
+    const size_t* blockOffsets, size_t leafOffset = 0,
+    const std::uint64_t* maskWords = nullptr) {
+  return addFlatFunctionPredictionsBelow(
+    flatNodes, DenseColumns{x, numRows}, indices, lo, hi, fits, columns, means,
+    sds, lengthscales, numCovariates, blocks, blockOffsets, leafOffset,
+    maskWords);
 }
 
 /// Structural well-formedness of a flattened subtree - complete pre-order,
