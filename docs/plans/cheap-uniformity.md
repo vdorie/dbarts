@@ -449,12 +449,13 @@ Semantics this arc pins:
 
 ## Open items
 
-- The piece-3 fork is unresolved and belongs to VD. Branch A is the only
-  branch that answers "without densifying" and is the only one whose risk
-  needs the A/B protocol; Branch B is bitwise-exact, ~250 lines, and bounds
-  rather than removes the materialization. Deciding evidence: whether the
-  target shape (n_test = 1e5, p = 1e4, density 0.01) is a shape a consumer
-  actually runs. S0-S2 do not wait on it.
+- The piece-3 fork was RESOLVED by VD 2026-08-09: Branch A. Rationale
+  recorded verbatim in spirit: we do not wait for consumers - we enable
+  them by building flexibility they can use creatively; potential
+  realistic models are the motivation, and consumer absence is never the
+  deciding evidence (the "shape a consumer actually runs" framing above
+  is retired). F7 and the S3 codegen A/B remain the pre-registered
+  fallbacks to Branch B. S3 is the next slice.
 - Design artifacts (memo, blind critique, synthesis) are durable at
   `.claude/cheap-uniformity-design/`. The critique's verdict was STANDS
   WITH AMENDMENTS; A1-A10 are adopted here, with two corrections recorded
