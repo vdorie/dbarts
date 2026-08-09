@@ -103,15 +103,16 @@ items
     and all three live defects closed (transposed silent acceptance,
     anyNA both directions, the predict/setTestPredictor reference
     divergence - opposite-sign values on the same container captured
-    pre-fix). REMAINING: piece 3 S4 only. VD 2026-08-09: Branch A,
-    engine-resident. Rationale recorded: we do not wait for consumers
-    - we enable them by building flexibility they can use creatively;
-    potential realistic models motivate, consumer absence never
-    decides. S3 (dense-only templating) LANDED 06c0254 - codegen A/B
-    green (median ratio 1.001), full battery green twice, landing
-    note in the plan doc. NEXT: S4 (SparseRawColumn + facade virtual,
-    --preclean mandatory); F7 stays the pre-registered fallback to
-    Branch B.
+    pre-fix). ARC COMPLETE 2026-08-09: VD chose Branch A
+    (engine-resident; rationale recorded - we enable consumers by
+    building flexibility they can use creatively, consumer absence
+    never decides). S3 LANDED 06c0254 (templated flat replay, codegen
+    A/B median 1.001); S4 LANDED 9929ede (SparseRawColumn +
+    PredictorSource facade virtuals + sparse predict/getTrees at the
+    bridge; F7 PASS by an order of magnitude - 34.5x faster, 9.96x
+    smaller peak RSS at n_test=1e5, p=1e4, density 0.01). Landing
+    notes in the plan doc. The dbarts.h reshape arc mirrors this
+    final surface (release section sequencing).
   correlated-outcomes: richer error/outcome covariance around a BART
     mean, delivered via outer-sampler composition (stan4bart = WALNUTS
     + dbarts supplying each outcome's conditional mean; the pattern
@@ -521,7 +522,21 @@ items
     blind critique -> run (machine-sequenced behind the
     cheap-uniformity S4 timing falsifier and the veto-rate
     measurement). Then the perturb study (Stage-0 per-move
-    acceptance census - a number that exists nowhere).
+    acceptance census - a number that exists nowhere). TWO FURTHER
+    VD DIRECTIONS commissioned 2026-08-09 (one research memo in
+    flight, .claude/forest-specialization-research/; memo -> blind
+    critique -> synthesis -> addendum to the design doc): (a)
+    components specializing to different posterior regions, kept
+    apart by penalties - input-space (mixture-of-experts), posterior-
+    space (repulsive ensembles / particle-VI, exactness status must
+    be stated), and within-forest diversity readings, each with the
+    label-switching/exchangeability hazard engaged; (b) XBART-scan
+    whole-tree REGROW as a far-jump MH proposal with a parametric/
+    orthogonal residual-targeting trick - extends the informed
+    birth/death candidate to whole-tree granularity; exactness
+    hinges on the scan's computable proposal density and its
+    SUPPORT, which the grow-from-root-categorical-scan arc
+    completes (dependency noted).
     Two errata applied to existing records
     (grow-from-root-default.md 4.8, forest-ranef-interweaving.md).
     Likely post-release for any CODE; probe timing free.
