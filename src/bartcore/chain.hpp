@@ -746,10 +746,11 @@ public:
     std::vector<std::size_t> indices(numTest);
     std::vector<std::size_t> blockOffsets;
     std::vector<double> treeFit(numTest);
+    DenseColumns columns{x_test, numTest};
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       misc_setVectorToConstant(treeFit.data(), numTest, 0.0);
       addFlatPredictions(vf.savedTrees[slot * vf.numTrees + j], nullptr,
-                         nullptr, x_test, numTest, indices, blockOffsets,
+                         nullptr, columns, numTest, indices, blockOffsets,
                          treeFit.data());
       for (std::size_t i = 0; i < numTest; ++i) out[i] *= treeFit[i];
     }
@@ -772,11 +773,12 @@ public:
     std::vector<std::size_t> blockOffsets;
     std::vector<double> leafValues, treeFit(numTest);
     std::vector<FlatNode> flat;
+    DenseColumns columns{x_test, numTest};
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       recoverVarianceLeafValues(vf, j, leafValues);
       vf.trees[j].flatten(data_, leafValues.data(), flat);
       misc_setVectorToConstant(treeFit.data(), numTest, 0.0);
-      addFlatPredictions(flat, nullptr, nullptr, x_test, numTest, indices,
+      addFlatPredictions(flat, nullptr, nullptr, columns, numTest, indices,
                          blockOffsets, treeFit.data());
       for (std::size_t i = 0; i < numTest; ++i) out[i] *= treeFit[i];
     }
@@ -1912,14 +1914,15 @@ public:
     }
   }
 
-  /// Adds one flattened tree's predictions for raw column-major test rows
-  /// to out, dispatching on the leaf shape's record format: plain leaf
-  /// values, slope blocks, or function blocks (whose offsets are valid by
-  /// construction or by stateIsValid). sideChannel is null for scalar
-  /// leaves; indices and blockOffsets are caller scratch.
+  /// Adds one flattened tree's predictions for numTestObservations rows of a
+  /// Columns predictor source to out, dispatching on the leaf shape's record
+  /// format: plain leaf values, slope blocks, or function blocks (whose
+  /// offsets are valid by construction or by stateIsValid). sideChannel is
+  /// null for scalar leaves; indices and blockOffsets are caller scratch.
+  template <typename Columns>
   void addFlatPredictions(const std::vector<FlatNode>& flat,
                           const std::vector<double>* sideChannel,
-                          const std::uint64_t* masks, const double* x_test,
+                          const std::uint64_t* masks, const Columns& x_test,
                           size_t numTestObservations,
                           std::vector<size_t>& indices,
                           std::vector<size_t>& blockOffsets,
@@ -1927,12 +1930,11 @@ public:
     const L& leaf = forests_[0].leaf;
     for (size_t i = 0; i < numTestObservations; ++i) indices[i] = i;
     if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
-      addFlatPredictionsBelow(flat.data(), x_test, numTestObservations,
-                              indices.data(), 0, numTestObservations, out,
-                              masks);
+      addFlatPredictionsBelow(flat.data(), x_test, indices.data(), 0,
+                              numTestObservations, out, masks);
     } else if constexpr (L::hasVectorParams) {
       addFlatLinearPredictionsBelow(
-        flat.data(), x_test, numTestObservations,
+        flat.data(), x_test,
         indices.data(), 0, numTestObservations, out,
         leaf.covariateColumns().data(), leaf.covariateMeans().data(),
         leaf.covariateSds().data(), leaf.numParams() - 1,
@@ -1942,7 +1944,7 @@ public:
                                   (flat.size() + 1) / 2,
                                   leaf.numCovariates(), blockOffsets);
       addFlatFunctionPredictionsBelow(
-        flat.data(), x_test, numTestObservations,
+        flat.data(), x_test,
         indices.data(), 0, numTestObservations, out,
         leaf.covariateColumns().data(), leaf.covariateMeans().data(),
         leaf.covariateSds().data(), leaf.lengthscales().data(),
@@ -1959,13 +1961,14 @@ public:
     misc_setVectorToConstant(out, numTestObservations, 0.0);
     std::vector<size_t> indices(numTestObservations);
     std::vector<size_t> blockOffsets;
+    DenseColumns columns{x_test, numTestObservations};
     for (size_t t = 0; t < forest.numTrees; ++t) {
       const std::uint64_t* masks = data_.hasPooledCategorical
         ? forest.savedTreeMasks[slot * forest.numTrees + t].data() : nullptr;
       const std::vector<double>* sideChannel = forest.savedTreeParams.empty()
         ? nullptr : &forest.savedTreeParams[slot * forest.numTrees + t];
       addFlatPredictions(forest.savedTrees[slot * forest.numTrees + t],
-                         sideChannel, masks, x_test, numTestObservations,
+                         sideChannel, masks, columns, numTestObservations,
                          indices, blockOffsets, out);
     }
     double scale = response_->fitScale();
@@ -1988,9 +1991,10 @@ public:
     std::vector<std::uint64_t> maskBuffer;
     std::vector<std::uint64_t>* masks =
       data_.hasPooledCategorical ? &maskBuffer : nullptr;
+    DenseColumns columns{x_test, numTestObservations};
     for (size_t t = 0; t < forests_[0].numTrees; ++t) {
       flattenTree(t, flat, counts, &slopes, masks);
-      addFlatPredictions(flat, &slopes, maskBuffer.data(), x_test,
+      addFlatPredictions(flat, &slopes, maskBuffer.data(), columns,
                          numTestObservations, indices, blockOffsets, out);
     }
     double scale = response_->fitScale();
@@ -2016,6 +2020,7 @@ public:
     std::vector<double> raw(numTestObservations * K);
     std::vector<size_t> indices(numTestObservations);
     std::vector<size_t> blockOffsets;
+    DenseColumns columns{x_test, numTestObservations};
     for (size_t f = 0; f < K; ++f) {
       const Forest<L, ResidT>& forest = forests_[f];
       double* forestRaw = raw.data() + f * numTestObservations;
@@ -2026,7 +2031,7 @@ public:
         const std::vector<double>* sideChannel = forest.savedTreeParams.empty()
           ? nullptr : &forest.savedTreeParams[slot * forest.numTrees + t];
         addFlatPredictions(forest.savedTrees[slot * forest.numTrees + t],
-                           sideChannel, masks, x_test, numTestObservations,
+                           sideChannel, masks, columns, numTestObservations,
                            indices, blockOffsets, forestRaw);
       }
     }
@@ -2048,12 +2053,13 @@ public:
     std::vector<std::uint64_t> maskBuffer;
     std::vector<std::uint64_t>* masks =
       data_.hasPooledCategorical ? &maskBuffer : nullptr;
+    DenseColumns columns{x_test, numTestObservations};
     for (size_t f = 0; f < K; ++f) {
       double* forestRaw = raw.data() + f * numTestObservations;
       misc_setVectorToConstant(forestRaw, numTestObservations, 0.0);
       for (size_t t = 0; t < forests_[f].numTrees; ++t) {
         flattenTree(t, flat, counts, &slopes, masks, f);
-        addFlatPredictions(flat, &slopes, maskBuffer.data(), x_test,
+        addFlatPredictions(flat, &slopes, maskBuffer.data(), columns,
                            numTestObservations, indices, blockOffsets,
                            forestRaw);
       }
