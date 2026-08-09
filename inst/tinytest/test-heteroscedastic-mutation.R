@@ -81,6 +81,68 @@ sScratch <- sqrt(apply(scratch$run(150L, 100L)$variance, 1L, mean))
 expect_true(cor(sMutated, sScratch) > 0.9)
 expect_true(abs(mean(sMutated) / mean(sScratch) - 1) < 0.15)
 
+# ---- setData: a replacement data set, observation count included (S4) ----
+# Seven n-sized allocations are pinned at creation n - meanWeights_ and the
+# variance forest's indexBuffer, factorByTree, combinedVariance, meanResidual,
+# divisor and treeResidual - so a changed count used to overrun them. setData
+# itself returned cleanly; the fault landed on the FOLLOWING run, which
+# segfaulted in 4 tries out of 5 and reported a non-finite variance in the
+# fifth. Assert the run completes and every reported value is finite.
+set.seed(41, sample.kind = "Rejection")
+nSmall <- 200L
+nLarge <- 5000L
+xSmall <- cbind(runif(nSmall), runif(nSmall))
+ySmall <- 2 *
+  xSmall[, 1L] +
+  ifelse(xSmall[, 2L] < 0.5, 0.3, 1.5) * rnorm(nSmall)
+xLarge <- cbind(runif(nLarge), runif(nLarge))
+yLarge <- 2 *
+  xLarge[, 1L] +
+  ifelse(xLarge[, 2L] < 0.5, 0.3, 1.5) * rnorm(nLarge)
+resized <- buildVarianceSampler(xSmall, ySmall)
+invisible(resized$run(50L, 0L))
+resized$setData(dbarts::dbartsData(xLarge, yLarge))
+grownRun <- resized$run(0L, 5L)
+expect_equal(nrow(grownRun$variance), nLarge)
+expect_true(all(is.finite(grownRun$variance)))
+expect_true(all(grownRun$variance > 0))
+resized$setData(dbarts::dbartsData(xSmall, ySmall))
+shrunkRun <- resized$run(0L, 5L)
+expect_equal(nrow(shrunkRun$variance), nSmall)
+expect_true(all(is.finite(shrunkRun$variance)))
+expect_true(all(shrunkRun$variance > 0))
+
+# the routing half, isolated at a FIXED count so no buffer moves: replacing the
+# design with an all-identical one admits exactly one reported value
+identicalDesign <- matrix(rep(c(0.35, 0.65), each = nSmall), nSmall, 2L)
+replaced <- buildVarianceSampler(xSmall, ySmall)
+invisible(replaced$run(50L, 0L))
+replaced$setData(dbarts::dbartsData(identicalDesign, ySmall))
+replacedRun <- replaced$run(0L, 1L)
+expect_equal(numDistinct(replacedRun$variance), 1L)
+expect_equal(numDistinct(replacedRun$train), 1L)
+
+# ---- statistical agreement with a from-scratch fit on the replacement data
+set.seed(43, sample.kind = "Rejection")
+nDataOld <- 200L
+nDataNew <- 400L
+xDataOld <- cbind(runif(nDataOld), runif(nDataOld))
+yDataOld <- 2 *
+  xDataOld[, 1L] +
+  ifelse(xDataOld[, 2L] < 0.5, 0.4, 1.6) * rnorm(nDataOld)
+xDataNew <- cbind(runif(nDataNew), runif(nDataNew))
+yDataNew <- 2 *
+  xDataNew[, 1L] +
+  ifelse(xDataNew[, 2L] < 0.5, 0.4, 1.6) * rnorm(nDataNew)
+swappedData <- buildVarianceSampler(xDataOld, yDataOld)
+invisible(swappedData$run(50L, 0L))
+swappedData$setData(dbarts::dbartsData(xDataNew, yDataNew))
+sSwapped <- sqrt(apply(swappedData$run(100L, 100L)$variance, 1L, mean))
+scratchData <- buildVarianceSampler(xDataNew, yDataNew)
+sScratchData <- sqrt(apply(scratchData$run(150L, 100L)$variance, 1L, mean))
+expect_true(cor(sSwapped, sScratchData) > 0.9)
+expect_true(abs(mean(sSwapped) / mean(sScratchData) - 1) < 0.15)
+
 rm(
   n,
   x,
@@ -101,5 +163,27 @@ rm(
   mutated,
   sMutated,
   scratch,
-  sScratch
+  sScratch,
+  nSmall,
+  nLarge,
+  xSmall,
+  ySmall,
+  xLarge,
+  yLarge,
+  resized,
+  grownRun,
+  shrunkRun,
+  identicalDesign,
+  replaced,
+  replacedRun,
+  nDataOld,
+  nDataNew,
+  xDataOld,
+  yDataOld,
+  xDataNew,
+  yDataNew,
+  swappedData,
+  sSwapped,
+  scratchData,
+  sScratchData
 )

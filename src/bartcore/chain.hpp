@@ -1564,15 +1564,32 @@ public:
       recoverLeafParameters(forest, t, params[t]);
   }
 
+  /// Companion first phase for the variance forest: the node-indexed leaf
+  /// factors of every variance tree, read through the LIVE partition. The
+  /// recovery strides the per-observation slab by data_.numObservations, so it
+  /// cannot wait until applyNewData - by then the store carries the
+  /// replacement count and the stride is wrong. Left empty (and unread) off a
+  /// variance forest.
+  void recoverVarianceParameters(TreeParameters& params) {
+    if (varianceForest_ == nullptr) return;
+    VarianceForest& vf = *varianceForest_;
+    params.resize(vf.numTrees);
+    for (std::size_t j = 0; j < vf.numTrees; ++j)
+      recoverVarianceLeafValues(vf, j, params[j]);
+  }
+
   /// Second phase, after the shared store holds the new predictors and
   /// freshly rebuilt cuts: swap the response state (sigma is preserved on
   /// the original scale), resize per-observation storage, remap split
   /// indices onto the new cut grid, re-route, and collapse anything left
   /// invalid or empty. Node averages are left stale; run() recomputes them.
+  /// varianceParams carries recoverVarianceParameters' factors and is read
+  /// only under a variance forest.
   void applyNewData(const double* y, const double* weights,
                     const double* offset,
                     const std::vector<std::vector<double>>& oldCutPoints,
-                    TreeParameters& params) {
+                    TreeParameters& params,
+                    const TreeParameters& varianceParams) {
     Forest<L, ResidT>& forest = forests_[0];
     size_t n = data_.numObservations;
     bool numObservationsChanged =
@@ -1627,6 +1644,19 @@ public:
     }
 
     resizeTestStorage();
+
+    // the variance forest lives outside forests_ and pins seven n-sized
+    // allocations at the creation count, so a replacement data set of a
+    // different length overruns them (meanWeights_ first, in formMeanWeights).
+    // Resize, then re-anchor through the rebuilt grid with the factors
+    // recovered before the store moved. Appended after the forest-0 body:
+    // nothing above it moves, so a homoscedastic chain draws what it drew.
+    if (varianceForest_) {
+      bool varianceCountChanged = varianceForest_->numObservations() != n;
+      if (varianceCountChanged) resizeVarianceStorage(n);
+      refreshVarianceForest(&oldCutPoints, &varianceParams,
+                            varianceCountChanged);
+    }
   }
 
   /// After a data mutation re-quantizes the store, drop every tree's stale
@@ -3023,11 +3053,26 @@ private:
     const Tree& tree = vf.trees[j];
     const double* factor = vf.factorByTree.data() + j * data_.numObservations;
     out.assign(tree.nodes.size(), 1.0);
-    for (std::size_t nd = 0; nd < tree.nodes.size(); ++nd) {
-      const Node& node = tree.at(static_cast<int32_t>(nd));
-      if (node.isBottom() && node.numObservations() > 0)
-        out[nd] = factor[tree.indices[node.begin]];
+    recoverVarianceLeafValuesBelow(tree, 0, factor, out);
+  }
+
+  /// The recursion, over the LIVE tree rather than the node arena: a released
+  /// pair stays in `nodes` on the free list, reads as a bottom, and keeps the
+  /// index range it held when it was live - which a setData that SHRINKS n
+  /// puts past the end of the resized index buffer. Walking from the root is
+  /// also what the mean side's functionLeafValues does.
+  void recoverVarianceLeafValuesBelow(const Tree& tree, std::int32_t nodeIndex,
+                                      const double* factor,
+                                      std::vector<double>& out) const {
+    const Node& node = tree.at(nodeIndex);
+    if (node.isBottom()) {
+      if (node.numObservations() > 0)
+        out[static_cast<std::size_t>(nodeIndex)] =
+          factor[tree.indices[node.begin]];
+      return;
     }
+    recoverVarianceLeafValuesBelow(tree, node.leftChild, factor, out);
+    recoverVarianceLeafValuesBelow(tree, node.leftChild + 1, factor, out);
   }
 
   /// Flatten every variance tree into saved slot `slot` for this kept sample,
@@ -3095,6 +3140,25 @@ private:
     return true;
   }
 
+  /// Re-length the seven n-sized allocations a variance forest pins at the
+  /// creation count - meanWeights_ and the forest's indexBuffer, factorByTree,
+  /// combinedVariance, meanResidual, divisor, treeResidual - for a replacement
+  /// data set. Every one is scratch or re-derived: refreshVarianceForest,
+  /// which the caller must run next, scatters factorByTree through the new
+  /// partition and rebuilds combinedVariance from it, and each sweep fills the
+  /// other four before reading them. combinedVarianceTest belongs to
+  /// resizeTestStorage.
+  void resizeVarianceStorage(std::size_t n) {
+    VarianceForest& vf = *varianceForest_;
+    vf.indexBuffer.assign(n * vf.numTrees, 0);
+    vf.factorByTree.assign(n * vf.numTrees, 1.0);
+    vf.combinedVariance.assign(n, 1.0);
+    vf.meanResidual.assign(n, 0.0);
+    vf.divisor.assign(n, 1.0);
+    vf.treeResidual.assign(n, 0.0);
+    meanWeights_.assign(n, 0.0);
+  }
+
   /// Re-anchor the variance forest to the store after a mutation moved the
   /// predictors, the cut grid, or the observation count: the scale analogue of
   /// the forests_ body of forceRefreshTrees and applyNewData, which loop
@@ -3107,18 +3171,30 @@ private:
   /// recovering afterwards reads the new partition's members out of the old
   /// leaves' slots. Everything downstream then works on node-indexed factors,
   /// exactly as the mean forest's parameters do.
+  ///
+  /// recoveredFactors supplies those node-indexed factors from an EARLIER
+  /// recovery, which is what a whole-data replacement needs: the slab's stride
+  /// is the old observation count and the store no longer reports it. Null
+  /// recovers here instead. numObservationsChanged says the caller has already
+  /// resized the storage (resizeVarianceStorage), so the trees must be
+  /// re-pointed at the moved index buffer; the paths that install a grid over
+  /// unchanged data leave it false.
   void refreshVarianceForest(
-      const std::vector<std::vector<double>>* oldCutPoints) {
+      const std::vector<std::vector<double>>* oldCutPoints,
+      const TreeParameters* recoveredFactors = nullptr,
+      bool numObservationsChanged = false) {
     VarianceForest& vf = *varianceForest_;
     std::size_t n = data_.numObservations;
-    bool numObservationsChanged = n * vf.numTrees != vf.indexBuffer.size();
     std::vector<double> leafValues;
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       Tree& tree = vf.trees[j];
       // the empty-leaf veto admits no unoccupied bottom into live state, so
       // every recovered factor here is a drawn (positive) scale
       assert(tree.bottomNodesAreOccupied());
-      recoverVarianceLeafValues(vf, j, leafValues);
+      if (recoveredFactors != nullptr)
+        leafValues = (*recoveredFactors)[j];
+      else
+        recoverVarianceLeafValues(vf, j, leafValues);
       tree.dropStaleMissingDirections(data_);
       if (oldCutPoints != nullptr)
         tree.mapOldCutPointsOntoNew<GeometricMerge>(data_, *oldCutPoints,

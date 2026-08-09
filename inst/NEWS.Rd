@@ -724,11 +724,10 @@
       \item A heteroscedastic sampler (\code{variance = TRUE}) now refuses
             transactional and per-observation predictor mutation rather
             than silently reporting a variance surface routed by the
-            previous predictors, and refuses \code{$setData}, which
-            previously risked memory corruption. The refusals on the
-            transactional \code{$setPredictor} and \code{$updatePredictor},
-            per-observation updates, and \code{$setData} are lifted in
-            later releases as each path is routed correctly.
+            previous predictors. The refusals on the transactional
+            \code{$setPredictor} and \code{$updatePredictor} and on
+            per-observation updates are lifted in a later release, as each
+            path is routed correctly.
       \item \code{$setPredictor} and \code{$updatePredictor} with
             \code{forceUpdate = TRUE}, and \code{$setCutPoints}, re-route a
             heteroscedastic sampler's variance forest, so the reported
@@ -737,6 +736,12 @@
             cut grid can no longer address collapse into their parent,
             merging their scale factors by a weight-weighted geometric
             mean.
+      \item \code{$setData} works on a heteroscedastic sampler, including a
+            replacement data set with a different number of observations:
+            the variance forest's per-observation storage resizes with it
+            and its trees re-route onto the rebuilt cut grid. A changed
+            observation count previously overran that storage and the
+            following \code{$run} corrupted memory.
       \item \code{$setModel} no longer unpins the residual standard
             deviation of a heteroscedastic sampler, and a warm start no
             longer overwrites its pinned value; \code{$setModel} refuses a

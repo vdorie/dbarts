@@ -2060,12 +2060,12 @@ void refuseMultiForestTestOffset(const bartcore::SamplerBase& sampler,
 }
 
 // The variance forest holds its trees outside forests_, which the revalidate
-// and whole-data helpers loop, so an accepted change on one of those paths
-// leaves s^2(x) routing observations by the codes of the predictors it was
-// built with - and an observation count that moves under it overruns its
-// n-sized buffers. The FORCED refresh reaches it (forceRefreshTrees calls
-// refreshVarianceForest), so the entries that refuse are setData, which resizes
-// nothing of it yet, and the transactional paths below.
+// helpers loop, so an accepted change on one of those paths leaves s^2(x)
+// routing observations by the codes of the predictors it was built with. The
+// FORCED refresh reaches it (forceRefreshTrees calls refreshVarianceForest)
+// and so does the whole-data replacement (applyNewData resizes its n-sized
+// buffers and re-routes it), so the entries that refuse are the transactional
+// paths below.
 void refuseVarianceForestPredictorMutation(
     const bartcore::SamplerBase& sampler, const char* caller) {
   if (sampler.shape().hasVarianceForest)
@@ -3483,7 +3483,6 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   bartcore::SamplerShape shape = sampler.shape();
   refusePredictorMutation(sampler, "bartcore_setData");
   refuseMultiForestMutation(sampler, "bartcore_setData");
-  refuseVarianceForestPredictorMutation(sampler, "bartcore_setData");
   if (shape.numGroups > 0)
     Rf_error("grouped random effects fix the data at creation; make a new "
              "sampler instead");

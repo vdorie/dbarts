@@ -912,10 +912,16 @@ public:
                const double* x_test, size_t numTestObservations,
                const double* testOffset = nullptr) {
     // recover parameters against the old fits and partitions before anything
-    // moves; the old cut values drive the split remap
+    // moves; the old cut values drive the split remap. The variance forest's
+    // factors ride the same phase: their per-observation slab is strided by
+    // the store's observation count, which the replacement moves.
     std::vector<typename Chain<L, ResidT>::TreeParameters> params(chains_.size());
-    for (size_t c = 0; c < chains_.size(); ++c)
+    std::vector<typename Chain<L, ResidT>::TreeParameters>
+      varianceParams(chains_.size());
+    for (size_t c = 0; c < chains_.size(); ++c) {
       chains_[c]->recoverTreeParameters(params[c]);
+      chains_[c]->recoverVarianceParameters(varianceParams[c]);
+    }
 
     std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
 
@@ -928,7 +934,8 @@ public:
     }
 
     for (size_t c = 0; c < chains_.size(); ++c)
-      chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c]);
+      chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c],
+                               varianceParams[c]);
   }
 
   /// Replace the predictor matrix from a borrowed view (the store keeps its
