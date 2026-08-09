@@ -161,7 +161,8 @@ items
   grow-from-root-default: RESOLVED NO 2026-08-08. The pre-registered
     study (docs/plans/grow-from-root-default-study.md, Results section;
     working papers and 98 checkpoints in
-    .claude/grow-from-root-default-research/) returned KILL in BOTH
+    .claude/grow-from-root-default-research/; durable record
+    docs/design/grow-from-root-default.md) returned KILL in BOTH
     strata, each confirmed by a mandated fresh-seed re-run: the
     early-iteration benefit is real (B1 z=25.5 small / 27.9 large) but
     the warm start pays a plateau posterior-mean RMSE cost concentrated
