@@ -744,10 +744,19 @@
             following \code{$run} corrupted memory.
       \item \code{$setModel} no longer unpins the residual standard
             deviation of a heteroscedastic sampler, and a warm start no
-            longer overwrites its pinned value; \code{$setModel} refuses a
-            changed \code{resid.prior} rather than ignoring it.
+            longer overwrites its pinned value; a changed
+            \code{resid.prior} recalibrates the variance forest's scale
+            leaf, where it addresses the residual scale, rather than being
+            silently ignored.
       \item \code{$installTrees} refuses a donor and destination that
             disagree on whether they carry a variance forest.
+      \item A warm start carries the donor's variance trees instead of
+            cold-starting the variance surface, remapping them onto the
+            destination's cut grid when the two differ, and
+            \code{n.grow.sweeps} initializes against the variance-weighted
+            precisions. A donor variance tree that splits outside a
+            restricted destination's \code{variance = ~ x} columns, or that
+            leaves a leaf empty on the destination's data, is refused.
       \item \code{samplePriorPredictive(type = "ppd")} refuses a
             heteroscedastic sampler rather than returning a homoscedastic
             prior predictive; \code{type = "ev"} is unaffected.

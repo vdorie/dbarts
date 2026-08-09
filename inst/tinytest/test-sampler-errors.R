@@ -210,14 +210,23 @@ expect_error(
   varianceRefusal
 )
 
-# resid.prior calibrates the variance forest's scale leaf at creation and is
-# never re-read, so a changed one is refused rather than silently ignored
+# resid.prior calibrates the variance forest's scale leaf rather than a sigma
+# that is not a parameter here, so setModel recalibrates the leaf from the
+# incoming triple instead of refusing it (S5 replacing S1's refusal). A prior
+# this tight swamps the residuals: every leaf factor is drawn at essentially
+# its prior value, so the surface collapses onto sigest^2 * scale wherever the
+# data would have put it (it sat 20% below that pin beforehand).
+varianceSurface <- sampler.variance$run(0L, 5L)$variance
+expect_true(sd(varianceSurface) / mean(varianceSurface) > 0.5)
 modelWithNewPrior <- sampler.variance$model
-modelWithNewPrior@resid.prior@df <- 5
-expect_error(
-  sampler.variance$setModel(modelWithNewPrior),
-  "calibrated from resid.prior"
-)
+modelWithNewPrior@resid.prior@df <- 2000
+modelWithNewPrior@resid.prior@quantile <- 0.001
+sampler.variance$setModel(modelWithNewPrior)
+recalibrated <- sampler.variance$run(0L, 5L)$variance
+pinned <- attr(sampler.variance$data, "sigma")^2 * qchisq(0.999, 2000) / 2000
+expect_true(sd(recalibrated) / mean(recalibrated) < 0.1)
+expect_true(abs(mean(recalibrated) / pinned - 1) < 0.05)
+expect_true(abs(mean(varianceSurface) / pinned - 1) > 0.1)
 
 # and sigma stays pinned across setModel: under a variance forest it is not a
 # parameter, so neither branch of the model's sigma clause may move it
@@ -253,12 +262,18 @@ expect_error(
   sampler.variance$installTrees(donor.homoscedastic),
   "shape-compatible"
 )
+# two heteroscedastic samplers agree on the shape, and the donor's variance
+# trees now ride the install (S5); the state-level gate is in tests/cpp
+expect_silent(sampler.variance$installTrees(donor.variance))
 
 rm(
   xVariance,
   xReplacement,
   varianceRefusal,
+  varianceSurface,
   modelWithNewPrior,
+  recalibrated,
+  pinned,
   pinnedSigma,
   homoscedasticSigma,
   sampler.homoscedastic,

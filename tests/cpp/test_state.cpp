@@ -1064,6 +1064,145 @@ static void testCrossGridWarmStart() {
          donorLeaves, liveLeaves);
 }
 
+// Warm start under a variance forest (docs/plans/variance-forest-mutation-
+// routing.md, slice S5). installForests used to reassemble a state carrying no
+// variance trees at all, so the destination adopted the donor's mean forest
+// while keeping its own cold scale surface. The gate is STATE-level - the
+// donor's variance trees ARE the destination's immediately after the install -
+// and deliberately not behavioral: a behavioral probe of this shape was run
+// twice during design and could not separate warm from cold, since one sweep
+// of a variance forest on a strong scale signal already recovers the surface.
+// Three refusals ride the same fixture: a rebuilt variance tree that leaves a
+// bottom unoccupied (that tree would report a scale this data never
+// supported), one that splits outside a restricted destination's variance
+// columns, and their specificity arms.
+static void testVarianceWarmStart() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 515151u;
+
+  const size_t n = 300, p = 2, numTrees = 20, numVarianceTrees = 5;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    // signal in the mean (x0) and in the scale (x1), so both forests split
+    y[i] = 3.0 * x[i] + (x[i + n] < 0.5 ? 0.2 : 1.4) * z;
+  }
+
+  std::vector<ext_rng*> rngs;  // each Sampler holds its rng; outlive them all
+  const std::vector<size_t> allowZero = {0};
+  auto makeSampler = [&](std::uint32_t seed, std::uint32_t maxNumCuts,
+                         bool restrictVarianceToZero) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numVarianceTrees = numVarianceTrees;
+    options.maxNumCuts = maxNumCuts;
+    if (restrictVarianceToZero) {
+      options.varianceForestColumns = allowZero.data();
+      options.numVarianceForestColumns = allowZero.size();
+    }
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+      3.0, 0.37804942330213542, options, &r);
+  };
+  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  Results empty;
+
+  auto donor = makeSampler(2024, 100, false);
+  donor->run(60, 0, empty);
+  SamplerStateData donorState;
+  donor->getState(donorState);
+
+  // (1) same grid: the donor's variance trees install verbatim
+  auto dest = makeSampler(4048, 100, false);
+  dest->run(60, 0, empty);
+  SamplerStateData before;
+  dest->getState(before);
+  check(!sameFlatTrees(before.chains[0].varianceTrees,
+                       donorState.chains[0].varianceTrees),
+        "variance warm start: the destination's own surface differs first");
+  check(dest->installForests(donorState, liveMap) == WarmStartResult::ok,
+        "variance warm start: a heteroscedastic donor installs");
+  SamplerStateData after;
+  dest->getState(after);
+  check(sameFlatTrees(after.chains[0].varianceTrees,
+                      donorState.chains[0].varianceTrees),
+        "variance warm start: the donor's variance trees are the "
+        "destination's");
+
+  // (2) cross grid: the donor's thresholds remap onto a coarser destination
+  // grid, so the trees are NOT identical - what must hold is that every factor
+  // survives positive and the flattened state is legal against the new grid
+  auto coarse = makeSampler(6072, 8, false);
+  check(coarse->data().cutPoints != donorState.cutPoints,
+        "variance warm start: the coarse destination is on another grid");
+  check(coarse->installForests(donorState, liveMap) == WarmStartResult::ok,
+        "variance warm start: a cross-grid donor installs by remapping");
+  const double* remapped = coarse->chain(0).varianceFits();
+  bool positive = true;
+  for (size_t i = 0; i < n; ++i)
+    positive &= std::isfinite(remapped[i]) && remapped[i] > 0.0;
+  check(positive, "variance warm start: every remapped factor stays positive");
+  SamplerStateData remappedState;
+  coarse->getState(remappedState);
+  check(coarse->setState(remappedState, nullptr),
+        "variance warm start: the remapped surface serializes legally");
+
+  // (3) an install leaving a variance bottom unoccupied is refused: x0 <=
+  // cut[2] then x0 > cut[8] is a region no row can reach (the S3 empty-bottom
+  // construction, moved to the install path)
+  SamplerStateData emptyBottom = donorState;
+  const std::vector<double>& cuts(donorState.cutPoints[0]);
+  check(cuts.size() > 8, "variance warm start: enough cuts for the nesting");
+  std::vector<FlatNode>& stranded(emptyBottom.chains[0].varianceTrees[0]);
+  stranded.assign(5, FlatNode());
+  stranded[0].variable = 0;
+  stranded[0].value = cuts[2];
+  setFlatKind(stranded[0], FlatKind::ordinal);
+  stranded[1].variable = 0;
+  stranded[1].value = cuts[8];
+  setFlatKind(stranded[1], FlatKind::ordinal);
+  stranded[2].value = 1.3;
+  stranded[3].value = 0.7;  // the unreachable bottom
+  stranded[4].value = 1.1;
+  auto strandTarget = makeSampler(8096, 100, false);
+  check(strandTarget->installForests(emptyBottom, liveMap) ==
+          WarmStartResult::varianceMismatch,
+        "variance warm start: an unoccupied variance bottom is refused");
+
+  // (4) a donor variance tree splitting outside a `variance = ~ x0`
+  // destination's columns is refused, and a compliant one is not
+  SamplerStateData outOfMask = donorState;
+  std::vector<FlatNode>& onOne(outOfMask.chains[0].varianceTrees[0]);
+  onOne.assign(3, FlatNode());
+  onOne[0].variable = 1;
+  onOne[0].value = donorState.cutPoints[1][10];
+  setFlatKind(onOne[0], FlatKind::ordinal);
+  onOne[1].value = 1.2;
+  onOne[2].value = 0.8;
+  auto restricted = makeSampler(1120, 100, true);
+  check(restricted->installForests(outOfMask, liveMap) ==
+          WarmStartResult::columnMaskMismatch,
+        "variance warm start: an out-of-mask variance tree is refused");
+  SamplerStateData compliant = outOfMask;
+  for (std::vector<FlatNode>& tree : compliant.chains[0].varianceTrees) {
+    tree.assign(1, FlatNode());
+    tree[0].value = 1.1;
+  }
+  auto restricted2 = makeSampler(1344, 100, true);
+  check(restricted2->installForests(compliant, liveMap) == WarmStartResult::ok,
+        "variance warm start: an in-mask variance donor installs");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: variance-forest warm start\n");
+}
+
 // The per-forest leaf scale rides the state (docs/plans/multiforest-mutation-
 // gaps.md item 3). BCF derives both forests' scales from the response's SHAPE,
 // so a destination built on a differently shaped response constructs different
@@ -1172,5 +1311,6 @@ void runStateTests(ext_rng* rng) {
   testColumnMaskContainment();
   testBlockAdditiveConfinement();
   testCrossGridWarmStart();
+  testVarianceWarmStart();
   testStateLeafScale(rng);
 }

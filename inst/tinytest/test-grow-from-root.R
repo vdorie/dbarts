@@ -140,3 +140,64 @@ expect_false(is.null(store$state))
 expect_false(statesAgree(store$state, initialState))
 
 rm(nostore, optin, store, initialState)
+
+## a heteroscedastic sampler grows against the variance-weighted precisions
+## (docs/plans/variance-forest-mutation-routing.md, slice S5). Under a variance
+## forest the global sigma is pinned at 1 on the working scale, so a scan
+## reading unit precisions prices every split against a residual variance the
+## data does not have. The homoscedastic control is the reference: its sigma
+## carries the scale, so its own scan was always right, and it is fit to the
+## same data by the same recipe. Reweighting by 1/s^2(x) is more efficient
+## where the noise varies 900-fold in variance, so the heteroscedastic init
+## must beat it - and does, once the pre-step is there (cor 0.96 vs the
+## control's 0.86; without the pre-step it was 0.14, and the quiet region's
+## RMSE 1.32 against the control's 0.55).
+set.seed(53, sample.kind = "Rejection")
+nGrow <- 400L
+xGrow <- cbind(runif(nGrow), runif(nGrow))
+muGrow <- 4 * xGrow[, 1L]
+yGrow <- muGrow + ifelse(xGrow[, 2L] < 0.5, 0.1, 3) * rnorm(nGrow)
+growControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.trees = 25L,
+  n.burn = 0L,
+  verbose = FALSE
+)
+growInit <- function(sampler) {
+  invisible(sampler$run(50L, 0L)) # fit the scale surface the scan then reads
+  sampler$growFromRoot(1L)
+  as.vector(sampler$predict(xGrow))
+}
+fitHeteroscedastic <- growInit(dbarts::dbarts(
+  xGrow,
+  yGrow,
+  control = growControl,
+  variance = TRUE,
+  n.trees.variance = 10L
+))
+fitHomoscedastic <- growInit(dbarts::dbarts(
+  xGrow,
+  yGrow,
+  control = growControl
+))
+expect_true(
+  cor(fitHeteroscedastic, muGrow) > cor(fitHomoscedastic, muGrow)
+)
+## and the gain is where the weighting puts it: the low-noise half, which the
+## precisions promote from a 900th of the weight to parity
+quiet <- xGrow[, 2L] < 0.5
+rmseQuiet <- function(fit) sqrt(mean((fit - muGrow)[quiet]^2))
+expect_true(rmseQuiet(fitHeteroscedastic) < 0.5 * rmseQuiet(fitHomoscedastic))
+
+rm(
+  nGrow,
+  xGrow,
+  muGrow,
+  yGrow,
+  growControl,
+  growInit,
+  fitHeteroscedastic,
+  fitHomoscedastic,
+  quiet,
+  rmseQuiet
+)

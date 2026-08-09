@@ -1181,7 +1181,7 @@ public:
     // both arms move a variance forest's pin - the fixed one by installing an
     // estimate over the working-scale 1, the other by re-prioring and
     // unpinning - so the whole clause is skipped there; the incoming residual
-    // prior addresses the scale leaf instead, and the bridge refuses a change
+    // prior addresses the scale leaf instead (below)
     if (!varianceForest_ &&
         (family_ == ResponseFamily::gaussian ||
          family_ == ResponseFamily::aft)) {
@@ -1191,6 +1191,25 @@ public:
       else
         response_->setSigmaPrior(model.sigmaEstimate, model.sigmaDf,
                                  model.sigmaRawScale);
+    }
+
+    // Under a variance forest the residual prior calibrates the scale leaf
+    // rather than sigma - the same three numbers buildVarianceForest consumed,
+    // through the same conversion to the working scale (initialSigma =
+    // sigmaEstimate / sigmaScale). The retained triple moves with the leaf, so
+    // it always names the prior the live calibration came from. The next sweep
+    // redraws every factor under the new prior; the current surface is left
+    // alone, as a homoscedastic setSigmaPrior leaves the current sigma.
+    // KNOWN GAP: sigmaScale() is read here and at creation, so an intervening
+    // updateScale response/offset swap recalibrates onto the NEW scale while an
+    // untouched leaf keeps the old one.
+    if (varianceForest_) {
+      double workingSigma = model.sigmaEstimate / response_->sigmaScale();
+      varianceForest_->leaf = ConstantVarianceLeaf::calibrated(
+        model.sigmaDf, workingSigma * workingSigma * model.sigmaRawScale,
+        varianceForest_->numTrees);
+      varianceLeafPrior_ = {model.sigmaEstimate, model.sigmaDf,
+                            model.sigmaRawScale};
     }
 
     if (!forest.useDart) {
@@ -1317,6 +1336,18 @@ public:
       GrowScratch growScratch;
 
       for (size_t sweep = 0; sweep < numSweeps; ++sweep) {
+        // heteroscedastic: the scan reads precisions, and under a variance
+        // forest the global sigma is pinned at 1 on the working scale, so it
+        // must see w_i / s^2(x_i) - run()'s own pre-step. Scanning against unit
+        // precisions instead would price every split against a residual
+        // variance of 1 where the data's is s^2(x_i). The variance forest is
+        // NOT swept here: grow-from-root initializes the mean forest, and the
+        // following run's first sweep fits the variance surface against it.
+        if (varianceForest_) {
+          formMeanWeights();
+          weights = meanWeights_.data();
+        }
+
         for (size_t f = 0; f < forests_.size(); ++f) {
           Forest<L, ResidT>& forest = forests_[f];
           const double* forestY = y;
@@ -2389,6 +2420,21 @@ public:
         if (!scratch.columnMaskSubtreeIsValid(0)) return false;
       }
     }
+    // the variance forest sits outside forests_, so a `variance = ~ subset`
+    // restriction needs its own pass over the state's variance trees - the
+    // same scratch build, against varianceForest_->columnMask. A state
+    // carrying no variance trees skips, as does an unrestricted variance
+    // forest (no mask).
+    if (varianceForest_ && !varianceForest_->columnMask.empty() &&
+        state.varianceTrees.size() == varianceForest_->numTrees) {
+      for (const std::vector<FlatNode>& flat : state.varianceTrees) {
+        scratch.initialize(scratchIndices.data(), n);
+        scratch.setColumnMask(varianceForest_->columnMask.data());
+        if (!scratch.buildFromFlat(data_, flat.data(), flat.size(), params))
+          continue;
+        if (!scratch.columnMaskSubtreeIsValid(0)) return false;
+      }
+    }
     return true;
   }
 
@@ -2571,6 +2617,48 @@ public:
       forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
     }
     if (combiner_) combiner_->restoreGlue(state);
+    return true;
+  }
+
+  /// The warm start's variance half, run by installForests right after
+  /// installForest so a refusal can name the variance forest rather than the
+  /// shape. Same grid: the donor's flat trees resolve against the live grid and
+  /// rebuildVarianceForest installs them verbatim, as setState does. Cross
+  /// grid: build each tree's structure against the donor grid - where its
+  /// ordinal split values resolve exactly - then hand it to
+  /// refreshVarianceForest's remap arm, mirroring rebuildLiveForestRemapped
+  /// (the recovered factors come from the flat trees, not from the live slab,
+  /// which still holds the destination's own surface). False when a flat tree
+  /// fails to rebuild, or when a rebuilt tree leaves a bottom unoccupied: an
+  /// empty bottom carries no drawn factor, and while recoverVarianceLeafValues
+  /// keeps that safe by abstaining (1.0), installing one would report a scale
+  /// this data never supported. Only the same-grid arm can produce one - the
+  /// cross-grid remap collapses empty nodes.
+  bool installVarianceForest(
+      const std::vector<std::vector<FlatNode>>& trees,
+      const std::vector<std::vector<double>>* donorCutPoints,
+      ColumnStore* store) {
+    VarianceForest& vf = *varianceForest_;
+    std::size_t n = data_.numObservations;
+    if (trees.size() != vf.numTrees) return false;
+    if (donorCutPoints == nullptr) {
+      if (!rebuildVarianceForest(trees)) return false;
+    } else {
+      TreeParameters recovered(vf.numTrees);
+      {
+        ScopedCutGrid donorGrid(*store, *donorCutPoints);
+        for (std::size_t j = 0; j < vf.numTrees; ++j) {
+          Tree& tree = vf.trees[j];
+          tree.initialize(vf.indexBuffer.data() + j * n, n);
+          if (!tree.buildFromFlat(*store, trees[j].data(), trees[j].size(),
+                                  recovered[j]))
+            return false;
+        }
+      }
+      refreshVarianceForest(donorCutPoints, &recovered);
+    }
+    for (std::size_t j = 0; j < vf.numTrees; ++j)
+      if (!vf.trees[j].bottomNodesAreOccupied()) return false;
     return true;
   }
 
@@ -3189,8 +3277,12 @@ private:
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       Tree& tree = vf.trees[j];
       // the empty-leaf veto admits no unoccupied bottom into live state, so
-      // every recovered factor here is a drawn (positive) scale
-      assert(tree.bottomNodesAreOccupied());
+      // every factor recovered HERE is a drawn (positive) scale. A
+      // caller supplying recoveredFactors read them itself and owns that
+      // invariant: setData's from its own live partition, the warm start's
+      // from a donor's flat trees, whose partition is not built until the
+      // repartition below.
+      assert(recoveredFactors != nullptr || tree.bottomNodesAreOccupied());
       if (recoveredFactors != nullptr)
         leafValues = (*recoveredFactors)[j];
       else
