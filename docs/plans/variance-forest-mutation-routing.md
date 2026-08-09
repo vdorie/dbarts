@@ -412,6 +412,13 @@ a semantic question into a clamp.
 - **A prior draw of the variance forest**, which is what a correct
   heteroscedastic `samplePriorPredictive(type = "ppd")` needs. S1 refuses
   instead.
+- **setState column-mask check for variance trees** (found at S5,
+  pre-existing, unlisted): `stateIsValid`'s variance branch checks count,
+  well-formedness, and strict positivity only, and `rebuildVarianceForest`
+  has no `columnMaskSubtreeIsValid` backstop - the mean path has both. The
+  INSTALL path is covered by S5's `installForests` pre-flight; a
+  column-restricted variance forest restored through `setState` is not.
+  Small, same scratch-pass shape as the S5 install check.
 
 ## Verification (every slice)
 
@@ -491,3 +498,53 @@ Stop conditions per docs/plans/README.md: a step fails twice, the diff exceeds
   findings neither document has (the default-path `getState` flatten, the
   `setModel` fixed branch as a fourth sigma door, and
   `columnMaskStateFeasible`'s missing variance arm).
+
+## Landing notes
+
+All five slices landed 2026-08-08/09, each behind an independent
+orchestrator battery (tests/cpp plain + ASAN/UBSAN from clean, full
+tinytest, the trio bitwise, air), trio bitwise at every tip.
+
+- S1 51378c0: every stop-loss refusal + the engine sigma pin (all four
+  doors); E1's five segfault/SIGBUS repetitions became five clean errors.
+  Deviations: `refuseMultiForestTransactionalUpdate` gained a
+  `forcedUpdate` parameter (predicate-only could not refuse the forced
+  flavors); `readWarmStartState` parses donor `variance.vars`
+  structurally so the shape check sees them.
+- S2 23050b9: gate hardening, 93 append-only lines; both new invariants
+  falsified-then-reverted (the routing-agreement check caught a disabled
+  repartition in every predictor-mutating config; the `statesAgree`
+  variance arm caught a 1.001 leaf perturbation AND went green with the
+  widening removed - the weak-gate proof). Two extra `ForTesting`
+  accessors beyond the prescribed one.
+- S3 cd6af7d: merge-policy template (`ArithmeticMerge` default compiles
+  to the prior code - trio bitwise is the codegen proof), geometric
+  variance merge, empty bottom -> 1.0 (healing the setState flat-state
+  hole), `refreshVarianceForest` from `forceRefreshTrees` only;
+  setCutPoints + forced refusals lifted. The intermediate
+  refusals-lifted-no-repair build proved the tests detect the original
+  corruption (79 distinct values against bound 1). Honest weakness: the
+  statistical-agreement test does not discriminate the repair - the
+  variance forest re-fits within a few sweeps; the bounds and the
+  routing invariant are the discriminating gates.
+- S4 4a4a0b1: setData repaired - factors recovered BEFORE the store
+  moves (the slab stride is the old n), the seven pinned allocations
+  resized, refresh through the old grid appended after the forest-0
+  body; refusal lifted. The mandatory ASAN leg caught a defect S4 made
+  reachable: S3's recovery looped the node arena, where a free-listed
+  pair reads as a bottom with a stale index range that a shrinking n
+  puts out of bounds - fixed by recursing the live tree
+  (`recoverVarianceLeafValuesBelow`).
+- S5 dbcd255: warm starts carry variance trees (same-grid rebuild /
+  cross-grid remap), with `WarmStartResult::varianceMismatch` for the
+  unoccupied-bottom and out-of-mask refusals (a reused `shapeMismatch`
+  text would have lied); `columnMaskStateFeasible` variance pass;
+  `growForestFromRoot` scans against `w/s^2` (het grow-init correlation
+  with truth 0.139 -> 0.962, homoscedastic control bit-identical);
+  `setModel` recalibrates the scale leaf, replacing the S1 refusal (the
+  working-scale formula verified equal to `buildVarianceForest`'s own).
+  New door recorded above: the setState variance column-mask gap.
+
+Budget note for future plans: every test-heavy slice overran its test
+budget while staying at or under the engine budget; size test budgets
+to the oracle actually mandated, not to the engine delta.
