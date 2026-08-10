@@ -87,6 +87,8 @@ weights can change between draws, for use inside larger MCMC schemes.
   : Interaction Constraints for BART
 - [`blocks()`](https://vdorie.github.io/dbarts/reference/blocks.md) :
   Block-Additive Constraints for BART
+- [`treatmentForest()`](https://vdorie.github.io/dbarts/reference/treatmentForest.md)
+  : Treatment Forest Specification for Bayesian Causal Forests
 - [`extract(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/extract.dbartsSampler.md)
   : Extract the Predictor Matrix From a Sampler
 - [`samplePriorPredictive()`](https://vdorie.github.io/dbarts/reference/samplePriorPredictive.md)

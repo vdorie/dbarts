@@ -10,13 +10,14 @@ dbartsData(
     formula, data, test, subset, weights,
     offset, offset.test = offset,
     factors = c("categorical", "indicators"),
-    missing = c("incorporate", "error"))
+    missing = c("incorporate", "error"),
+    treatment = NULL)
 ```
 
 ## Arguments
 
 - formula, data, test, subset, weights, offset, offset.test, factors,
-  missing:
+  missing, treatment:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
   Retains backwards compatibility with
@@ -202,6 +203,9 @@ data
 #> [1] NA
 #> 
 #> Slot "response.levels":
+#> NULL
+#> 
+#> Slot "treatment":
 #> NULL
 #> 
 #> Slot "testUsesRegularOffset":

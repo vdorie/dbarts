@@ -18,6 +18,7 @@ dbartsSpec(
     monotone = NULL, interactions = NULL, blocks = NULL,
     variance = NULL, n.trees.variance = 40L,
     power.variance = NULL, base.variance = NULL,
+    treatment = NULL, moderators = NULL, treatmentForest = NULL,
     sigma = NA_real_, seed = NA_integer_,
     family = c("auto", "gaussian", "probit", "logistic", "aft",
                "ordinal", "nbinom"),
@@ -38,8 +39,8 @@ dbartsSpec(
 
 - control, tree.prior, node.prior, resid.prior, resid.dist,
   proposal.probs, monotone, interactions, blocks, variance,
-  n.trees.variance, power.variance, base.variance, sigma, seed, family,
-  dispersion:
+  n.trees.variance, power.variance, base.variance, treatment,
+  moderators, treatmentForest, sigma, seed, family, dispersion:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
   The prior arguments are evaluated in dbarts's own prior vocabulary, so

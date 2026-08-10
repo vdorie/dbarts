@@ -19,6 +19,7 @@ dbarts(
     blocks = NULL,
     variance = NULL, n.trees.variance = 40L,
     power.variance = NULL, base.variance = NULL,
+    treatment = NULL, moderators = NULL, treatmentForest = NULL,
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal",
@@ -266,6 +267,40 @@ dbarts(
   posterior draws `s.train`/`s.test` of \\s(x)\\, and `predict` attaches
   an `"s"` attribute with \\s(x)\\ at new predictors (requires
   `keepTrees`).
+
+- treatment:
+
+  An optional vector of 0/1 treatment assignments, one per observation,
+  selecting a Bayesian causal forest instead of a single ensemble: the
+  response is fit as \\y = a \mu(x) + b_z \tau(x) + \epsilon\\, with a
+  prognostic forest \\\mu\\ over every predictor and a treatment forest
+  \\\tau\\ over the moderators. Gaussian responses only. The result is
+  an ordinary `dbartsSampler`; per-forest fits and the glue \\(a, b_0,
+  b_1)\\ are read off the sampler rather than from the run's combined
+  `train` channel. The vector is stored on the data object, so it is
+  subset by `subset` and survives a sampler's re-creation. Options the
+  two-forest model does not read - `monotone`, `variance`, a DART tree
+  prior, `split.probs`, a linear or Gaussian-process node prior, a `k`
+  hyperprior or non-default `k`, a non-default `proposal.probs`,
+  Student-t residuals, grouped random effects, `storage = "single"`,
+  per-column cut counts, and a `test` set - are refused at creation
+  rather than ignored.
+
+- moderators:
+
+  Optional restriction of the treatment forest to a subset of the model
+  matrix, by column name or index. `NULL` leaves it reading every
+  predictor. Read only when `treatment` is supplied.
+
+- treatmentForest:
+
+  Optional
+  [`treatmentForest`](https://vdorie.github.io/dbarts/reference/treatmentForest.md)
+  specification carrying the treatment forest's tree count and structure
+  prior, the prior scales of the glue, and the treatment forest's own
+  `interactions`/`blocks` constraints (the arguments of those names
+  constrain the prognostic forest). Read only when `treatment` is
+  supplied.
 
 - n.trees.variance, power.variance, base.variance:
 

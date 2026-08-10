@@ -47,13 +47,14 @@
 <span>    <span class="va">formula</span>, <span class="va">data</span>, <span class="va">test</span>, <span class="va">subset</span>, <span class="va">weights</span>,</span>
 <span>    <span class="va">offset</span>, offset.test <span class="op">=</span> <span class="va">offset</span>,</span>
 <span>    factors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"categorical"</span>, <span class="st">"indicators"</span><span class="op">)</span>,</span>
-<span>    missing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"incorporate"</span>, <span class="st">"error"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<span>    missing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"incorporate"</span>, <span class="st">"error"</span><span class="op">)</span>,</span>
+<span>    treatment <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <p></p>
-<dl><dt id="arg-formula-data-test-subset-weights-offset-offset-test-factors-missing">formula, data, test, subset, weights, offset, offset.test, factors, missing<a class="anchor" aria-label="anchor" href="#arg-formula-data-test-subset-weights-offset-offset-test-factors-missing"></a></dt>
+<dl><dt id="arg-formula-data-test-subset-weights-offset-offset-test-factors-missing-treatment">formula, data, test, subset, weights, offset, offset.test, factors, missing, treatment<a class="anchor" aria-label="anchor" href="#arg-formula-data-test-subset-weights-offset-offset-test-factors-missing-treatment"></a></dt>
 <dd><p>As in <code><a href="dbarts.html">dbarts</a></code>. Retains backwards compatibility with <code><a href="bart.html">bart</a></code>, so that <code>formula</code>/<code>data</code> can be a <code><a href="https://rdrr.io/r/stats/formula.html" class="external-link">formula</a></code>/<code><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></code> pair, or a pair of <code>x.train</code>/<code>y.train</code> matrices/vector.</p></dd>
 
 </dl></div>
@@ -189,6 +190,9 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] NA</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.levels":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "treatment":</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Slot "testUsesRegularOffset":</span>
