@@ -1057,3 +1057,20 @@ Recommendation: (a).
 9. **The E2 rejection is re-argued on benefit and evidence**, not on the semantic
    description alone, and the variance-only steelman is recorded in open decision 1
    so it is not re-proposed as new.
+
+## Landing notes
+
+SL LANDED 7299b8b (2026-08-10, out of band as sequenced). Both refusal
+helpers promoted into bartcore_bridge and declared in the common header;
+both flat entries guarded at forceUpdate == 0; reachability comments in
+place. The capi consumer test extended in its existing shape (deviation:
+two new forced-variant wrappers rather than parameterizing the existing
+ones, which other tests rely on unchanged). Gates double-run
+(implementer + orchestrator): install, capi 70/70, tinytest 3791/0, trio
+bitwise (27/27 + 3x5 + 5x7), air 0, lintr 0. Refusal matrix as
+pre-registered: both entries refuse a flat-created heteroscedastic
+sampler unforced and accept it forced. No dbarts.h change, no hash
+re-bake. The live silent-corruption window is CLOSED; the numForests
+clause sits dormant until BCF becomes flat-creatable.
+
+S0-S4 await the bcf-public-surface arc per the window section.
