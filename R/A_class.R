@@ -399,7 +399,7 @@ methods::setValidity("dbartsModel", function(object) {
   if (any(proposalProbs < 0.0) || any(proposalProbs > 1.0)) {
     return("rule proposal probabilities must be in [0, 1]")
   }
-  if (abs(sum(proposalProbs) - 1.0) >= 1e-10) {
+  if (abs(sum(proposalProbs) - 1.0) >= sqrt(.Machine$double.eps)) {
     return("rule proposal probabilities must sum to 1")
   }
 

@@ -239,3 +239,51 @@ trees.tau <- dbarts:::bartcoreGetTrees(
 expect_true(nrow(trees.tau) > 0L)
 expect_true(all(is.finite(trees.tau$value)))
 expect_true(all(trees.tau$n >= 0L))
+
+# --- state carriage boundary: storeState/setState and installForests ------
+# The per-forest weight lives in the holder, not the state - deliberately,
+# and for the same reason z does: Chain::setForestWeights stores a borrowed
+# pointer beside the treatment vector, and neither rides serializeGlue or
+# stateFormatVersion. A storeState/setState round trip and an installForests
+# transplant must therefore leave whatever weight was installed before the
+# call installed after it, unconditionally. Checked by running the SAME
+# holder through each round trip twice - once with an excluding weight,
+# once with the all-ones identity - and confirming the two still diverge
+# afterward: if the round trip had cleared the weight, both runs would
+# collapse onto the identical unweighted chain and this comparison would
+# fail.
+#
+# The CROSS-sampler case is NOT covered here and is documented, not
+# asserted: a pipeline that discards this holder and setState()s a FRESH
+# one built from a donor's saved state starts with no per-forest weight
+# installed no matter what the donor had, exactly because the weight was
+# never part of what state carries - only the same-holder round trip above
+# is testable this way.
+roundTripState <- function(weight) {
+  set.seed(5001)
+  bc <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
+  dbarts:::bartcoreSetForestWeights(bc, 1L, weight)
+  invisible(dbarts:::bartcoreRun(bc, 5L, 0L))
+  state <- dbarts:::bartcoreStoreState(bc)
+  dbarts:::bartcoreSetState(bc, state) # a same-holder round trip to itself
+  invisible(dbarts:::bartcoreRun(bc, 0L, 5L))
+  dbarts:::bartcoreForestFits(bc, 1L)
+}
+expect_false(identical(roundTripState(rep(0, n)), roundTripState(rep(1, n))))
+
+roundTripInstall <- function(weight) {
+  set.seed(5002)
+  donor <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
+  invisible(dbarts:::bartcoreRun(donor, 5L, 0L))
+  donorState <- dbarts:::bartcoreStoreState(donor)
+
+  target <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
+  dbarts:::bartcoreSetForestWeights(target, 1L, weight)
+  .Call(dbarts:::C_dbarts_bartcore_installForests, target$ptr, donorState, NULL)
+  invisible(dbarts:::bartcoreRun(target, 0L, 5L))
+  dbarts:::bartcoreForestFits(target, 1L)
+}
+expect_false(identical(
+  roundTripInstall(rep(0, n)),
+  roundTripInstall(rep(1, n))
+))

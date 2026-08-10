@@ -481,6 +481,36 @@ This is exactly the latents/tree.params/tree.masks conditional-required
 pattern already in setState (:3046-3078, :3104-3112), so NB adds no new
 machinery - it instantiates the registry rule.
 
+### Reserved: a future dbarts_sampler_setForestWeights (2026-08-10, not built)
+
+docs/plans/zero-weight-exactness.md (S2) adds a caller-settable per-forest,
+per-observation weight to the engine (`Chain::setForestWeights`) and the
+bartcore bridge (`bartcore_setForestWeights`), `dbarts:::`-only - no
+`dbarts.h` symbol, because the flat API has no BCF creation entry point to
+reach it from (`dbarts_sampler_create` only ever routes to `createHolder`,
+never a BCF holder). Reserving the name and signature here so a later BCF
+creation entry does not collide with it:
+
+    X(int, dbarts_sampler_setForestWeights,
+      (dbarts_sampler*, size_t forest, const double* weights),
+      (sampler, forest, weights))
+
+appended at the END of the X-list (dbarts.h), `DBARTS_C_API_MINOR` bumped
+when it lands. Three constraints recorded now so a later implementer does not
+relitigate them:
+
+1. Nonzero return means refusal, matching `dbarts_sampler_setPredictor` and
+   its siblings; `weights == NULL` clears the installed weight rather than
+   refusing.
+2. Per-forest weights must NOT be folded into a future BCF creation struct -
+   membership is typically resampled per sweep, so this is a mutation entry
+   point, not a creation-time parameter.
+3. `dbarts_sampler_setWeights` must NOT be widened with a forest index to
+   carry this instead: the two channels differ on the sigma degrees of
+   freedom (the case weight counts toward it; the per-forest weight must
+   not), so collapsing them would need a call-site flag anyway and buys
+   nothing.
+
 ## Verification
 
 Gates run from a worktree against a private library (per the repo's install

@@ -116,10 +116,15 @@ from `(data, spec)` by Chain's BCF constructor. The math is unchanged from
 bcf.md and bcf-ridge-interweaving's landing, relocated verbatim:
 
 - `formForestResponse` divides the residual by forest f's scale multiplier (a
-  for mu, b_z for tau), flooring near-zero multipliers so the division stays
-  finite, and scales the weight by the multiplier squared - the resid/m,
-  w*m^2 pair that reproduces bcf.md's model equation (y = a mu + b_z tau +
-  eps) in each forest's own constant-leaf node sums.
+  for mu, b_z for tau) and scales the weight by the multiplier squared - the
+  resid/m, w*m^2 pair that reproduces bcf.md's model equation (y = a mu +
+  b_z tau + eps) in each forest's own constant-leaf node sums. A multiplier
+  indistinguishable from zero at `sqrt(DBL_EPSILON)` (2^-26) snaps both to
+  exactly 0.0 instead of dividing by a floored near-zero value (2026-08-10,
+  docs/plans/zero-weight-exactness.md); it composes with an optional
+  caller-settable per-forest weight `s_{f,i}` installed by
+  `Chain::setForestWeights`, applied as one further multiplicative factor on
+  the weight channel right after this call returns, before the tree loop.
 - `combinedFits` blends `a * mu + b_z * tau` per observation.
 - `drawGlue` draws the Gaussian full conditionals for a (with its half-Cauchy
   scale-mixture auxiliary aVariance) and b0/b1 (docs/design/bcf.md).

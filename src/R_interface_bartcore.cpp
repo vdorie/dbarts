@@ -55,6 +55,13 @@ static const char storageSingleUnsupportedMessage[] =
   "storage = \"single\" is currently supported only for gaussian models "
   "with constant leaves";
 
+// Tolerance for a user-supplied probability vector that must sum to 1.0:
+// sqrt(DBL_EPSILON) = 2^-26 = 1.4901161193847656e-08, which R's all.equal,
+// tinytest::expect_equal and testthat all default to when asked whether two
+// numbers are the same; shares combiner.hpp's zeroMultiplierTolerance
+// derivation. Written as a hex literal because 2^-26 is exact.
+static constexpr double sumToOneTolerance = 0x1p-26;
+
 void retain(SEXP ptrExpr, int slot, SEXP value) {
   SET_VECTOR_ELT(R_ExternalPtrProtected(ptrExpr), slot, value);
 }
@@ -1155,7 +1162,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
 
   if (std::fabs(model.birthOrDeathProbability + model.swapProbability +
-                model.changeProbability - 1.0) >= 1.0e-10)
+                model.changeProbability - 1.0) >= sumToOneTolerance)
     Rf_error("rule proposal probabilities must sum to 1.0");
 
   REPROTECT_SLOT(slotExpr, modelExpr, "p.birth", slotIndex);
@@ -1327,7 +1334,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
         Rf_error("split probabilities must be non-negative");
       totalProbability += model.splitProbabilities[j];
     }
-    if (std::fabs(totalProbability - 1.0) >= 1.0e-10)
+    if (std::fabs(totalProbability - 1.0) >= sumToOneTolerance)
       Rf_error("split probabilities must sum to 1.0");
   }
 

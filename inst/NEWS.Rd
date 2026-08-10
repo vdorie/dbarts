@@ -797,6 +797,9 @@
             so a caller can exclude rows from one forest's leaf
             conditionals without excluding them from the model.
             \code{dbarts:::}-only; no public surface in this release.
+      \item Probability vectors for the tree prior are validated with the
+            standard \code{all.equal} tolerance instead of a hand-picked
+            1e-10.
     }
   }
 }
