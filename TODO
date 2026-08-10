@@ -69,12 +69,17 @@ items
     internal call. Surveyed as prerequisite D3
     (docs/design/model-space-survey.md sec 4): cheaper than either
     update-shape door and the actual first constraint on the BCF model
-    space, so it sequences ahead of them. Shape fork at design time: a
-    bcf() front end, dbartsSpec(family = "bcf"), or both. VD
-    2026-08-09: goes FIRST, ahead of multiforest-predictor-mutation,
-    and lands INSIDE the pre-release breaking window alongside the
-    dbarts.h reshape - a public creation surface must not land after
-    the freeze.
+    space, so it sequences ahead of them. VD
+    2026-08-09: goes FIRST, ahead of multiforest-predictor-mutation.
+    PLAN COMMITTED docs/plans/bcf-public-surface.md (design cycle
+    memo -> blind critique -> synthesis, 2026-08-10): layered surface
+    - a treatment argument on dbarts()/dbartsSpec() with the knobs on
+    one constructor, z riding a dbartsData slot, bcf() on top; seven
+    slices S0-S6; the flat C surface is ONE slice re-baking the API
+    hash (setResponse widened with updateScale, four appended
+    entries). OPEN VD FORK: the public naming (the plan's "Open
+    decision" section). Anchors read at b374d9e; combiner.hpp and
+    model.hpp moved at the zero-weight snap landing c820227.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). The BCF sigma SBC
     flag was diagnosed as a slow forest-mixing burn transient and fixed
