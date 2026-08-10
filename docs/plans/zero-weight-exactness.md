@@ -399,7 +399,8 @@ required at creation).
    bool. `SamplerShape::supportsForestWeights` is DERIVED FROM THE SAME
    PREDICATE so the shape and the setter can never disagree. The refusal is at
    the ENGINE, not only the bridge: `tests/cpp` constructs chains directly, and
-   the reserved flat entry returns nonzero on refusal.
+   the reserved flat entry returns 1 on acceptance and 0 on refusal (ERRATUM
+   2026-08-10 - this line originally said the inverse).
 2. Engine application, chain-level, at BOTH `formForestResponse` sites and
    immediately after the call, before the tree loop: if and only if forest f has
    a weight installed, multiply into a chain-owned scratch buffer and repoint
@@ -449,7 +450,10 @@ step, three CI-red incidents); rchk on the next scheduled run.
    `multiforest-mutation-gaps`; `docs/plans/c-api-growth.md` (the reservation:
    `X(int, dbarts_sampler_setForestWeights, (dbarts_sampler*, size_t forest,
    const double* weights), (sampler, forest, weights))` appended at the END of
-   the X-list, nonzero on refusal, `DBARTS_C_API_MINOR` bump; `weights == NULL`
+   the X-list (ERRATUM 2026-08-10: "nonzero on refusal" here was the INVERSE
+   of the shipped convention - the entry returns 1 on acceptance, 0 on
+   refusal, and the `DBARTS_C_API_MINOR` bump clause is void under VD's
+   no-increment ruling; see c-api-growth.md); `weights == NULL`
    clears; per-forest weights must NOT be folded into a future BCF creation
    struct, because membership is resampled per sweep; and
    `dbarts_sampler_setWeights` must NOT be widened with a forest index, since

@@ -361,6 +361,45 @@ forces a lockstep consumer recompile.
    shared helper so the two surfaces cannot diverge. `setTestOffset` KEEPS its
    refusal - BCF refuses the whole test surface, so relaxing it would open a
    path the engine does not define.
+2b. **Guard `dbarts_sampler_predict` and `dbarts_sampler_setTestPredictors`
+   with `refuseBCFTestSurface`** (amendment applied 2026-08-10 from
+   dbarts-h-reshape's adjudication, before this slice started). S1 makes BCF
+   flat-creatable and thereby makes a SILENT WRONG ANSWER reachable:
+   `Sampler::predict` routes to `predictColumns`, whose
+   `Chain::predictFromSavedSample` / `predictFromCurrentTrees` both open
+   `const Forest& forest = forests_[0]` and loop `forests_[0].numTrees`, so a
+   flat BCF consumer receives mu(x) labelled as the fit. The R bridge already
+   guards all four of its siblings (`bartcore_predict`,
+   `bartcore_setTestPredictor`, `bartcore_setTestOffset`,
+   `bartcore_setTestPredictorAndOffset`); of the flat siblings only
+   `setTestOffset` is guarded, and only incidentally, by
+   `refuseMultiForestMutation` (C_interface.cpp:306). This is NOT two lines.
+   `refuseBCFTestSurface` is defined INSIDE the anonymous namespace of
+   `R_interface_bartcore.cpp`: not declared in
+   `R_interface_bartcore_common.hpp` and not reachable from `C_interface.cpp`.
+   The one guard C_interface can already see, `refuseMultiForestMutation`, is
+   the WRONG predicate - it fires on `numForests >= 2`, while
+   `refuseBCFTestSurface` fires on `numForests >= 2 &&
+   !shape.testFitsAreDefined`, deliberately gated on `testFitsAreDefined` so a
+   future flat-creatable multinomial (whose test blend IS defined) passes
+   through. Using it here would over-refuse exactly the case the engine
+   comment says must be allowed. Mechanics, the five steps commit 7299b8b took
+   for `refuseMultiForestTransactionalUpdate`: (i) move the definition down
+   out of the anonymous namespace into the `bartcore_bridge` block, beside
+   `refuseMultiForestMutation`; (ii) append one sentence to its comment -
+   "External linkage: the flat C API reuses this guard on its own predict and
+   test-predictor entries."; (iii) copy the doc comment as a declaration into
+   `R_interface_bartcore_common.hpp` inside `namespace bartcore_bridge`;
+   (iv) add `using bartcore_bridge::refuseBCFTestSurface;` at the top of BOTH
+   `R_interface_bartcore.cpp` (so its existing unqualified call sites still
+   resolve) and `C_interface.cpp`; (v) call it at
+   `dbarts_sampler_setTestPredictors` and `dbarts_sampler_predict`, naming
+   each entry. Budget: ~35 bridge/common-header + ~25 consumer.c. Extend the
+   capi tests with two legs: on a flat-created BCF, `predict` and
+   `setTestPredictors` each refuse with the BCF message. NEGATIVE HALF: swap
+   the guard for `refuseMultiForestMutation` and a flat multinomial (when one
+   exists) must go red - until then, assert the predicate directly in
+   `tests/cpp` on a shape with `numForests >= 2 && testFitsAreDefined`.
 3. **Append**, at the END of the X-list:
    `size_t dbarts_sampler_numForests(const dbarts_sampler*)` (no error channel,
    matching its `numChains`/`numTrees` siblings; always >= 1);
@@ -370,10 +409,12 @@ forces a lockstep consumer recompile.
    `int dbarts_sampler_bcfGlue(const dbarts_sampler*, double* out)`
    (3 x numChains). The three `int` entries return **1 on success, 0 on
    refusal** - the shipped convention, not the inverse.
-4. Bump `DBARTS_C_API_MINOR` 0 -> 1, keep MAJOR at 1 (1.0 never shipped, so
-   there is nothing to be incompatible with; the minor floor is what lets a
-   lockstep consumer detect a stale library), re-bake `DBARTS_C_API_HASH`, and
-   document the creation route in `dbarts_sampler_create`'s Doxygen.
+4. Re-bake `DBARTS_C_API_HASH` and LEAVE BOTH VERSION CONSTANTS ALONE (VD
+   2026-08-10: "No need to increment versions - no bartcore version has been
+   released"; the constants stay 1.0 until the first release, when whatever
+   they read becomes the initial contract; the hash is the lockstep
+   stale-library signal). Document the creation route in
+   `dbarts_sampler_create`'s Doxygen.
 5. `inst/tinytest/capi/consumer.c` exercises creation, the scale-pinned
    response swap, `numForests`, `setTreatment`, `forestFits`, `bcfGlue`, and
    the four surviving refusals.
@@ -387,8 +428,9 @@ indexed variants of `setTreeStorage`, `getTrees`, `printTrees`, `predict` and
 `numTrees`, all of which are forest-blind today and ambiguous on a BCF sampler.
 
 rng: NEUTRAL. Gates: as S1, plus `test-capi.R`.
-ABORT: any trio divergence, or a hash re-bake that is not accompanied by the
-minor bump.
+ABORT: any trio divergence; a re-signed or appended X-list that leaves
+`DBARTS_C_API_HASH` unchanged; or any movement in `DBARTS_C_API_MAJOR` /
+`DBARTS_C_API_MINOR` (VD 2026-08-10 - no increments pre-release).
 
 ## S4. Per-draw per-forest reporting. Ergonomics and C reach.
 
@@ -520,7 +562,10 @@ worktree dbarts-1.0@bb9a121, bairrtt main@6167423.
   ADOPT BCF: its grid mutates the RESPONSE at four sites through
   `dbarts_sampler_setResponse`, so it needs S3, not S1 alone - the memo's
   "creation alone unblocks treatSens" was wrong. Each site gains an explicit
-  `updateScale` argument (0 for a BCF). It also hand-assembles the model with
+  `updateScale` argument - 0 for a BCF, but its EXISTING gaussian grid needs
+  **1** at all four sites to preserve behavior (the current entry hardcodes
+  true), noting three of the four are post-burn-in calls where dbarts.h's own
+  advice is `false`. It also hand-assembles the model with
   `dbarts:::parsePriors` and a positional `methods::new("dbartsModel", ...)`;
   a BCF spec reachable through `dbartsSpec()` lets it retire both `:::`
   reach-ins in the same lockstep. It inherits the `data@sigma` precalibration
@@ -623,8 +668,9 @@ all four.
   adopts them verbatim, and that the forest-indexed predictor/tree entries are
   reserved for it.
 - The release checklist: add "re-verify all four sister packages against the
-  re-baked header" alongside the existing stan4bart line, and note that the
-  minor floor moved to 1.
+  re-baked header" alongside the existing stan4bart line, and note the version
+  constants stay 1.0 until the first release, when whatever they read becomes
+  the initial contract (VD 2026-08-10).
 
 ## Departures from the memo and the critique (record)
 
@@ -681,6 +727,30 @@ all four.
    census.
 
 ## Landing notes
+
+S1 LANDED a1dbde7 (2026-08-10; includes the _pkgdown.yml reference entry the
+orchestrator added at review - the new-exported-Rd-topic lesson's fourth
+occurrence, caught pre-push this time; pkgdown::check_pkgdown clean). Public
+`dbarts(treatment =, moderators =, treatmentForest =)` under the option-A
+names; the decisive falsifier PASSED - public creation is BITWISE IDENTICAL
+to `bartcoreBCFSampler` on all six channels (train, sigma, varcount, mu
+fits, tau fits, glue) under a shared seed, and differs unseeded; 17 refusal
+assertions fire (the pre-registered eleven plus proposal.probs, Student-t
+residuals, and a test set - each silently dropped before; and non-gaussian
+family); the null-factory segfault is fixed (factory result tested, clean
+R error, no handle escapes) with the variance refusal firing first so the
+nullptr is defensive; the stale 5-arg createBCFHolder declaration corrected.
+Deviations accepted: resolveModerators EXTRACTED to R/model.R and called
+from bartcoreBCFSampler (the lift the plan asked for; behavior proven
+unchanged by the 5x7 bitwise gate); Rd docs added in-slice (an exported
+function without Rd breaks R CMD check long before S6); the third public
+argument is spelled treatmentForest= (argument name == constructor name, the
+interactions/blocks precedent). Budget: R side ~1.85x (air one-arg-per-line
+inflation + the early Rd work), bridge/test near budget. Gates double-run
+(implementer + orchestrator independently): install --preclean, tests/cpp
+plain + ASAN from clean, tinytest 3853/0 (S0 pins passing UNCHANGED), trio
+bitwise (27/27 + 3x5 + 5x7), air 0, lintr 0 on all touched R files,
+pkgdown check clean.
 
 S0 LANDED 994c161 (2026-08-10; tests only, src proven untouched by git
 status, so the trio was correctly not run). inst/tinytest/
