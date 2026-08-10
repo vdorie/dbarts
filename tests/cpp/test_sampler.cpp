@@ -2391,6 +2391,111 @@ static void testBCFGrowForestFromRoot() {
   printf("ok: BCF grow-from-root sweep\n");
 }
 
+// The pathological near-zero forest multiplier, pinned as the reparameterization
+// treats it TODAY so that a later change of semantics is evidence rather than
+// assertion. A constructed BCF combiner carries the neutral glue
+// (a, b0, b1) = (1, 0, 1), so forest 1's control rows have a multiplier of
+// exactly zero: |m| is floored to 1e-9, which amplifies the row's response by a
+// billion and pushes its weight to w * 1e-18 instead of dropping the row out of
+// the treatment forest's leaf conditionals. The expectations are written the way
+// the engine computes them - a division by the 1e-9 literal, and (w * m) * m
+// left to right - because 1e-9 is not exactly representable, so resid * 1e9 and
+// w * 1e-18 are different doubles.
+static void testBCFFloorContamination() {
+  const size_t n = 8;
+  std::vector<double> xDummy(n, 0.0);
+  ColumnStore data;
+  data.build(xDummy.data(), n, 1, 100);
+
+  std::vector<double> z(n), y(n), w(n), muFits(n), tauFits(n);
+  for (size_t i = 0; i < n; ++i) {
+    double t = static_cast<double>(i);
+    z[i] = i % 2 == 0 ? 0.0 : 1.0;
+    y[i] = 0.5 * t - 1.5;
+    w[i] = 0.75 + 0.25 * t;
+    muFits[i] = 0.3 * t - 0.7;
+    tauFits[i] = 0.9 - 0.2 * t;
+  }
+
+  BCFSpec spec;
+  spec.z = z.data();
+  BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+
+  std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+  for (size_t f = 0; f < 2; ++f) {
+    forests[f].numTrees = 1;
+    forests[f].leaf.scale = 1.0;
+    forests[f].k = 2.0;
+    forests[f].treeFits.assign(n, 0.0);
+  }
+  forests[0].totalFits = muFits;
+  forests[1].totalFits = tauFits;
+
+  double a, b0, b1;
+  combiner.bcfGlue(a, b0, b1);
+  check(a == 1.0 && b0 == 0.0 && b1 == 1.0,
+        "a constructed BCF combiner holds the neutral (1, 0, 1) glue");
+
+  ForestResponse fr =
+    combiner.formForestResponse(1, forests, y.data(), w.data());
+  bool floored = true, treated = true;
+  for (size_t i = 0; i < n; ++i) {
+    double resid = y[i] - a * muFits[i];
+    if (z[i] == 0.0)
+      floored &= fr.response[i] == resid / 1.0e-9 &&
+                 fr.weights[i] == w[i] * 1.0e-9 * 1.0e-9;
+    else
+      treated &= fr.response[i] == resid && fr.weights[i] == w[i];
+  }
+  check(floored,
+        "a zero treatment multiplier floors to 1e-9 rather than excluding "
+        "the row");
+  check(treated, "a unit treatment multiplier passes the residual through");
+
+  // The constant-leaf marginal those floored statistics feed. A leaf holding
+  // only control rows accumulates sumWeights = sum w m^2 and
+  // sumWeightedResponse = sum w m r, whose two data terms in the marginal are
+  // O(1) quantities that cancel: at k = 2, scale = 1/sqrt(25) and unit residual
+  // variance the computed value keeps no correct digit of the algebraic
+  // marginal, and a control-only birth - whose log MH delta is exactly zero for
+  // leaves carrying no information - is contaminated at the 1e-15 scale.
+  {
+    ConstantGaussianLeaf leaf{1.0 / std::sqrt(25.0)};
+    const size_t rows = 100, cut = 40;
+    const double m = 1.0e-9;
+    double swP = 0.0, swrP = 0.0, swL = 0.0, swrL = 0.0, swR = 0.0, swrR = 0.0;
+    for (size_t i = 0; i < rows; ++i) {
+      double resid = 0.25 + 0.005 * static_cast<double>(i);
+      double wi = m * m, wri = (m * m) * (resid / m);
+      swP += wi;
+      swrP += wri;
+      if (i < cut) { swL += wi; swrL += wri; }
+      else         { swR += wi; swrR += wri; }
+    }
+    double parent = leaf.logIntegratedLikelihood(2.0, 1.0, swP, swrP);
+    double left = leaf.logIntegratedLikelihood(2.0, 1.0, swL, swrL);
+    double right = leaf.logIntegratedLikelihood(2.0, 1.0, swR, swrR);
+
+    // the same marginal in the algebraically equivalent form the cancellation
+    // does not reach: 0.5 log(p / (p + q)) + 0.5 q^2 mean^2 / (p + q)
+    double priorPrecision = (2.0 / leaf.scale) * (2.0 / leaf.scale);
+    double mean = swrP / swP;
+    double exactParent =
+      0.5 * std::log1p(-swP / (priorPrecision + swP)) +
+      0.5 * swP * swP * mean * mean / (priorPrecision + swP);
+    check(std::fabs(parent - exactParent) > 100.0 * std::fabs(exactParent),
+          "the floored control-leaf marginal keeps no digit of the algebraic "
+          "value");
+    check(std::fabs(left + right - parent) > 1.0e-16,
+          "a control-only birth's log MH delta is contaminated by the floor");
+    printf("     floored control leaf: marginal %.3g against an algebraic %.3g,"
+           " birth delta %.3g\n",
+           parent, exactParent, left + right - parent);
+  }
+
+  printf("ok: BCF near-zero multiplier floor (pre-snap)\n");
+}
+
 // Build a one-hot n x K category-major count matrix and unit trials from
 // single-trial labels - the count-native combiner's single-trial input, whose
 // draw stream and working response reduce byte-for-byte to the label path.
@@ -3343,6 +3448,7 @@ void runSamplerTests(ext_rng* rng) {
   testBCFInterweave(rng);
   testBCFInterweaveKeepTrees(rng);
   testBCFGrowForestFromRoot();
+  testBCFFloorContamination();
   testMultinomial(rng);
   testMultinomialGrowForestFromRoot();
   testMultinomialCountGrowForestFromRoot();
