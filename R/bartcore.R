@@ -13,6 +13,26 @@
 # the transparent re-creation getPointer performs after save/load - continues
 # the chains bitwise identically.
 
+# A public dbartsSampler created through the treatment = spec branch
+# (docs/design/bcf.md) carries its 0/1 treatment vector on data@treatment,
+# mirroring data@weights; this is the R5-layer capability probe, cheaper than
+# a round trip through the bridge's own (Chain::bcfGlue-based) one.
+isBCFSampler <- function(sampler) {
+  !is.null(sampler$data@treatment)
+}
+
+# BCF-specific wording for a mutation the bridge refuses through a guard
+# shared with every multi-forest model (refuseMultiForestMutation and its
+# siblings in R_interface_bartcore.cpp also cover a future multinomial
+# creation route, so their own message cannot name BCF by itself). Raised
+# R-side, before the .Call, so a BCF sampler never reaches the bridge's
+# generic "multi-forest" phrasing.
+refuseBCFMutation <- function(sampler, what, ...) {
+  if (isBCFSampler(sampler)) {
+    stop(what, " does not support a BCF sampler: ", ...)
+  }
+}
+
 # Drives a dbartsSampler (the R5 sampler layer), reading its control defaults
 # and delegating through its external pointer; cf. bartcoreRun, which drives a
 # low-level bartcore handle directly.
@@ -60,6 +80,15 @@ bartcoreSamplerSetPredictor <- function(
     length(forceUpdate) == 1L &&
     !is.na(forceUpdate) &&
     forceUpdate == "partial"
+  if (partialUpdate) {
+    refuseBCFMutation(
+      sampler,
+      "setPredictor(forceUpdate = \"partial\")",
+      "a per-observation session has no force variant and validates only ",
+      "the prognostic forest; use forceUpdate = TRUE or make a new sampler ",
+      "instead"
+    )
+  }
 
   if (!is.null(column) && is.character(column)) {
     if (is.null(colnames(sampler$data@x))) {
@@ -121,6 +150,14 @@ bartcoreSamplerSetPredictor <- function(
     coerceOrError(forceUpdate, "logical")
   }
   updateCutPoints <- coerceOrError(updateCutPoints, "logical")
+  if (!forceUpdate) {
+    refuseBCFMutation(
+      sampler,
+      "setPredictor",
+      "a transactional update validates only the prognostic forest; use ",
+      "forceUpdate = TRUE or make a new sampler instead"
+    )
+  }
 
   # dim(), not is.matrix(): the latter is FALSE for every Matrix class, so a
   # transposed dgCMatrix argument (same total length, wrong shape) fell
@@ -251,6 +288,14 @@ bartcoreSamplerSetResponse <- function(sampler, y, updateScale = FALSE) {
   if (anyNA(y)) {
     stop("response contains missing values")
   }
+  if (isTRUE(updateScale)) {
+    refuseBCFMutation(
+      sampler,
+      "setResponse(updateScale = TRUE)",
+      "both forests keep leaf calibrations stated against the response ",
+      "transform fixed at creation; use updateScale = FALSE instead"
+    )
+  }
   # validate (the C length check) before installing, so a rejected y never
   # leaves data@y holding the bad replacement
   .Call(
@@ -264,6 +309,14 @@ bartcoreSamplerSetResponse <- function(sampler, y, updateScale = FALSE) {
 }
 
 bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
+  if (isTRUE(updateScale)) {
+    refuseBCFMutation(
+      sampler,
+      "setOffset(updateScale = TRUE)",
+      "both forests keep leaf calibrations stated against the response ",
+      "transform fixed at creation; use updateScale = FALSE instead"
+    )
+  }
   # a synced test offset follows the regular one;
   # NA marks "leave the test offset alone"
   offset.test <- NA
@@ -334,6 +387,12 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   if (!inherits(newData, "dbartsData")) {
     stop("'data' must inherit from dbartsData")
   }
+  refuseBCFMutation(
+    sampler,
+    "setData",
+    "both forests are calibrated against the data at creation; make a new ",
+    "sampler instead"
+  )
   if (ncol(newData@x) != ncol(sampler$data@x)) {
     stop("bartcore setData requires the same predictors")
   }
