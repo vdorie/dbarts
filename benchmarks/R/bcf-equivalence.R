@@ -13,10 +13,15 @@
 #   - the raw per-forest fits of BOTH forests (bartcoreForestFits 0 and 1),
 #   - the glue (bartcoreBCFGlue: a, b0, b1),
 #   - sigma,
-#   - the reported result$train and result$varcount channels.
+#   - the reported result$train and result$varcount channels,
+#   - the treatment forest's own split counts
+#     (bartcoreForestVariableCounts 1).
 # train and varcount are the only bitwise guard on storeSample's BCF report
 # branches; the per-forest fits and glue guard the combining math and the
-# coupling draw.
+# coupling draw. result$varcount is the reported channel, which for a BCF
+# sampler is the PROGNOSTIC forest alone, so varcount.tau is the only guard on
+# the treatment forest's tree structure - without it a change that moved tau's
+# splits but not mu's would read as a leaf-value change.
 #
 # A getState -> setState continuation is deliberately NOT recorded: restore is
 # structural by contract (the dropped accumulation history is not reproduced,
@@ -92,7 +97,8 @@ recordChannels <- function(bcSampler, result) {
     glue = dbarts:::bartcoreBCFGlue(bcSampler),
     sigma = result$sigma,
     train = result$train,
-    varcount = result$varcount
+    varcount = result$varcount,
+    varcount.tau = dbarts:::bartcoreForestVariableCounts(bcSampler, 1L)
   )
 }
 
