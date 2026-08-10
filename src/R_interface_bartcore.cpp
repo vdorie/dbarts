@@ -2559,6 +2559,9 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
                                 control.keepTrainingFits};
     // moving z keeps its buffer, so the chains' borrowed z stays valid
     holder->ownedTreatment = std::move(z);
+    // one empty per-forest weight slot per forest; nothing is installed until
+    // a caller asks, so the engine keeps its pass-through
+    holder->ownedForestWeights.resize(holder->sampler->shape().numForests);
     return R_NilValue;
   });
   return holder;
@@ -3035,6 +3038,41 @@ SEXP bartcore_setTreatment(SEXP ptrExpr, SEXP zExpr) {
   for (size_t i = 0; i < n; ++i)
     holder.ownedTreatment[i] = REAL(zExpr)[i] != 0.0 ? 1.0 : 0.0;
   holder.sampler->setTreatment(holder.ownedTreatment.data());
+  return R_NilValue;
+}
+
+// A caller-supplied per-forest, per-observation weight: a multiplicative
+// precision factor on that forest's own leaf conditionals, composing with the
+// case weights (bartcore/chain.hpp states the semantics and its two edges).
+SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
+                               SEXP weightsExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  // The capability probe comes FIRST, and it is not a forest count: a K-forest
+  // multinomial carries several forests and admits no such weight.
+  if (!shape.supportsForestWeights)
+    Rf_error("bartcore_setForestWeights requires a BCF sampler");
+  size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
+  if (forestIndex >= shape.numForests)
+    Rf_error("forest index out of range");
+  size_t n = shape.numObservations;
+  if (!Rf_isReal(weightsExpr) ||
+      static_cast<size_t>(Rf_xlength(weightsExpr)) != n)
+    Rf_error("forest weight length must match the number of observations");
+  const double* weights = REAL(weightsExpr);
+  for (size_t i = 0; i < n; ++i)
+    if (!R_FINITE(weights[i]) || weights[i] < 0.0)
+      Rf_error("forest weights must be finite and non-negative");
+  // Copy rather than retain: PROT_COUNT is a fixed enum, so a per-forest
+  // multiplicity cannot take a protection slot. Growing the outer vector never
+  // relocates an inner vector's storage, so an installed pointer survives.
+  holder.ownedForestWeights.resize(shape.numForests);
+  std::vector<double>& owned = holder.ownedForestWeights[forestIndex];
+  owned.assign(weights, weights + n);
+  // defense in depth: the probe and the range check already cover the engine's
+  // two refusal conditions
+  if (!holder.sampler->setForestWeights(forestIndex, owned.data()))
+    Rf_error("bartcore_setForestWeights refused by the sampler");
   return R_NilValue;
 }
 

@@ -1134,6 +1134,21 @@ public:
   void setTreatment(const double* z) {
     for (auto& chain : chains_) chain->setTreatment(z);
   }
+  /// Whether the forest coupling admits a caller-supplied per-forest weight;
+  /// chain 0 answers for all, as every chain carries the same combiner.
+  bool supportsForestWeights() const {
+    return chains_[0]->supportsForestWeights();
+  }
+  /// Installs (or clears, at null) a borrowed per-observation weight on forest
+  /// forestIndex in every chain, each of which composes it into its own
+  /// scratch; false, installing nothing, on a refusal. Every chain refuses on
+  /// the same two conditions, so the fan-out cannot land half applied.
+  bool setForestWeights(size_t forestIndex, const double* weights) {
+    bool installed = true;
+    for (auto& chain : chains_)
+      installed = chain->setForestWeights(forestIndex, weights) && installed;
+    return installed;
+  }
   bool bcfGlue(size_t chainNum, double* out) const {
     return chains_[chainNum]->bcfGlue(out[0], out[1], out[2]);
   }

@@ -416,6 +416,15 @@ struct ForestCombiner {
   /// narrow it.
   virtual bool supportsResponseMutation() const { return false; }
 
+  /// Whether this coupling admits a caller-supplied per-forest, per-observation
+  /// weight; Chain::setForestWeights states the semantics and is the only
+  /// consumer. True only for a combiner whose per-forest precisions are a plain
+  /// multiplicative factor on forest f's own leaf conditionals, so a row factor
+  /// composed into them cannot invalidate anything the coupling carries.
+  /// Defaults false so a future multi-forest model stays refused until it is
+  /// audited.
+  virtual bool supportsForestWeights() const { return false; }
+
   /// Glue (de)serialization into the BCF-shaped state fields; inert unless the
   /// combiner carries glue.
   virtual void serializeGlue(ChainStateData&) const {}
@@ -657,6 +666,11 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// not move the transform, and scaledResponseSd - the anchor both leaf
   /// calibrations are stated against - is unweighted.
   bool supportsResponseMutation() const override { return true; }
+
+  /// BCF's per-forest precision is w_i m_f^2, re-derived from y and w every
+  /// sweep and read by nothing else, so a caller-supplied row factor composes
+  /// into it exactly and carries nothing across sweeps.
+  bool supportsForestWeights() const override { return true; }
 
   /// The glue scalars into and out of the BCF-shaped wire format. serializeGlue
   /// owns the hasBCF flag (the "carries glue" marker); restoreGlue is a no-op on

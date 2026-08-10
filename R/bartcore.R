@@ -759,6 +759,34 @@ bartcoreSetTreatment <- function(bcSampler, z) {
   invisible(.Call(C_dbarts_bartcore_setTreatment, bcSampler$ptr, as.double(z)))
 }
 
+# A per-forest, per-observation weight s on forest `forest` (0 prognostic, 1
+# treatment): a multiplicative precision factor on that forest's own leaf
+# conditionals, composing with the case weights so the forest's draws see
+# w_i * m_f^2 * s_i. It does not remove the row from occupancy, from the
+# empty-leaf veto, from the combination (the row still receives m_f f_f(x_i)),
+# or from the residual sigma degrees of freedom; s_i = 0 says only that row i
+# carries no information about forest f, and that forest's leaves over such
+# rows stay well-defined prior draws.
+#
+# Two edges, or a consumer is misled. At s_i = 0 with a nonzero multiplier only
+# the WEIGHT is zeroed - the response stays the reparameterized residual - so
+# the reported-fit exactness an exactly zero multiplier buys does not follow
+# this channel. And the weight lives on the sampler, not in its state, so a
+# pipeline that REBUILDS a sampler and restores a stored state silently drops
+# the weight and fits a different model while the states still agree.
+bartcoreSetForestWeights <- function(bcSampler, forest, weights) {
+  weights <- as.double(weights)
+  if (!all(is.finite(weights)) || any(weights < 0)) {
+    stop("forest weights must be finite and non-negative")
+  }
+  invisible(.Call(
+    C_dbarts_bartcore_setForestWeights,
+    bcSampler$ptr,
+    as.integer(forest),
+    weights
+  ))
+}
+
 # The glue on the combining response, a 3 x n.chains matrix of (a, b0, b1).
 bartcoreBCFGlue <- function(bcSampler) {
   .Call(C_dbarts_bartcore_getBCFGlue, bcSampler$ptr)

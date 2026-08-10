@@ -769,6 +769,10 @@
             rows instead of a near-zero floor, so the treatment surface
             reported at control rows under a fixed glue is exact rather
             than accurate to about seven digits.
+      \item A BCF sampler accepts a per-forest, per-observation weight,
+            so a caller can exclude rows from one forest's leaf
+            conditionals without excluding them from the model.
+            \code{dbarts:::}-only; no public surface in this release.
     }
   }
 }

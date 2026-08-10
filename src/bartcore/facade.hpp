@@ -69,6 +69,11 @@ struct SamplerShape {
   /// off any combiner, and false for a non-gaussian response. The bridge gates
   /// its multi-forest refusals on it.
   bool supportsResponseMutation;
+  /// Whether the forest coupling admits a caller-supplied per-forest,
+  /// per-observation weight (BCF alone today). Derived from the same predicate
+  /// Chain::setForestWeights refuses on, so the bridge's capability probe and
+  /// the engine's refusal cannot disagree. Internal, invisible to dbarts.h.
+  bool supportsForestWeights;
   /// Whether the recorded test-fit channel carries a defined value: false only
   /// for BCF (no test treatment vector to blend off-sample). The bridge's
   /// test-surface refusal gates on it, so multinomial and single-forest
@@ -236,6 +241,12 @@ public:
   /// BCF surface (docs/design/bcf.md); no-op/false off BCF. out receives
   /// {a, b0, b1}; forestTotalFits writes numObservations internal-scale fits.
   virtual void setTreatment(const double* z) = 0;
+  /// Installs (or clears, at a null vector) a borrowed per-observation weight
+  /// on forest forestIndex in every chain; false, installing nothing, when the
+  /// coupling admits none or the index names no forest. Chain::setForestWeights
+  /// states the semantics.
+  virtual bool setForestWeights(std::size_t forestIndex,
+                                const double* weights) = 0;
   virtual bool bcfGlue(std::size_t chainNum, double* out) const = 0;
   virtual void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
                                double* out) const = 0;
@@ -278,6 +289,7 @@ public:
     s.kIsSampled = impl_.kIsSampled();
     s.usesDart = impl_.usesDart();
     s.supportsResponseMutation = impl_.supportsResponseMutation();
+    s.supportsForestWeights = impl_.supportsForestWeights();
     s.testFitsAreDefined = impl_.testFitsAreDefined();
     return s;
   }
@@ -436,6 +448,10 @@ public:
     return impl_.sigma(chainNum);
   }
   void setTreatment(const double* z) override { impl_.setTreatment(z); }
+  bool setForestWeights(std::size_t forestIndex,
+                        const double* weights) override {
+    return impl_.setForestWeights(forestIndex, weights);
+  }
   bool bcfGlue(std::size_t chainNum, double* out) const override {
     return impl_.bcfGlue(chainNum, out);
   }

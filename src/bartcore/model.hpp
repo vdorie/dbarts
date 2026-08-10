@@ -2578,6 +2578,11 @@ public:
   virtual double fitShift() const = 0;
   virtual double sigmaScale() const = 0;
 
+  /// Test hook: the residual-variance posterior's degrees of freedom,
+  /// nu_0 + #{w_i > 0} over THIS model's own precisions. Zero for a family
+  /// that draws no sigma.
+  virtual double sigmaDegreesOfFreedomForTesting() const { return 0.0; }
+
   /// Per-observation log-likelihood of the training response under the
   /// current fit, into out (numObservations values). totalFits is the forest
   /// sum on the internal scale and sigma the internal residual sd; each family
@@ -2659,6 +2664,11 @@ public:
     return std::sqrt(sigmaSqPrior_.drawSigmaSqFromPosterior(
       rng, yRescaled_.data(), totalFits, weights_, numObservations_,
       numPositiveWeights_));
+  }
+
+  double sigmaDegreesOfFreedomForTesting() const override {
+    return sigmaSqPrior_.degreesOfFreedom +
+           static_cast<double>(numPositiveWeights_);
   }
 
   void setResponse(const double* y, ext_rng*, const double*, bool updateScale,
@@ -4345,6 +4355,9 @@ public:
   double fitScale() const override { return base_->fitScale(); }
   double fitShift() const override { return base_->fitShift(); }
   double sigmaScale() const override { return base_->sigmaScale(); }
+  double sigmaDegreesOfFreedomForTesting() const override {
+    return base_->sigmaDegreesOfFreedomForTesting();
+  }
 
   /// The per-observation location is f(x_i) + b_g(i); add the group intercept
   /// on the base's internal scale (as shiftFits does) and defer to the base

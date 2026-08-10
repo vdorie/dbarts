@@ -23,6 +23,7 @@ SEXP bartcore_createMultinomial(SEXP control, SEXP model, SEXP data,
 SEXP bartcore_createMultinomialCounts(SEXP control, SEXP model, SEXP data,
                                       SEXP counts, SEXP numCategories);
 SEXP bartcore_setTreatment(SEXP ptr, SEXP z);
+SEXP bartcore_setForestWeights(SEXP ptr, SEXP forest, SEXP weights);
 SEXP bartcore_getBCFGlue(SEXP ptr);
 SEXP bartcore_getForestFits(SEXP ptr, SEXP forest);
 SEXP bartcore_getForestVariableCounts(SEXP ptr, SEXP forest);

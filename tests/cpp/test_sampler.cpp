@@ -2519,6 +2519,222 @@ static void testBCFZeroMultiplierSnap() {
   printf("ok: BCF zero multiplier snaps to an exact exclusion\n");
 }
 
+// The caller-supplied per-forest observation weight, on the three questions
+// only the engine can answer: the refusal is a returned false and it perturbs
+// nothing; the zeroed rows' sufficient statistics are invariant to their own
+// responses; and the sigma posterior's degrees of freedom never see the
+// channel. The end-to-end null gate, the consumer case and the surface
+// refusals are the R suite's (inst/tinytest/test-forest-weights.R).
+static void testForestWeights() {
+  // A local stream, so adding this test does not shift the shared runif01()
+  // state the hardcoded characteristic values downstream depend on.
+  std::uint64_t state = 20260810u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+
+  // ---- the zeroed rows' node statistics are invariant to their responses ----
+  // With s_i = 0 on a subset S, forest 1's sumWeights and sumWeightedResponse
+  // must be BITWISE unchanged when S's RESPONSES are replaced by arbitrary
+  // other finite values. NOT stated as "zeroed equals dropped": the suffstat
+  // kernel sums 5-wide groups after a length % 5 prologue, so physically
+  // removing rows re-associates the sum and moves the last ulp. Every row here
+  // is TREATED, whose multiplier is exactly one, so the exclusion is the weight
+  // channel's alone - on a control row the zero multiplier would already zero
+  // both quantities and the check would be vacuous. The substituted values are
+  // enormous, so this doubles as the probe that a zero weight never meets an
+  // amplified response and yields NaN.
+  {
+    const size_t m = 64;
+    std::vector<double> xs(m), ys(m), yAlt(m), w(m), sMask(m), muFits(m),
+      tauFits(m), zs(m, 1.0);
+    for (size_t i = 0; i < m; ++i) {
+      xs[i] = unif();
+      ys[i] = 0.8 * unif() - 0.4;
+      w[i] = 0.5 + unif();
+      muFits[i] = 0.3 * unif();
+      tauFits[i] = 0.2 * unif();
+      sMask[i] = i % 5 == 0 ? 0.0 : 1.0;
+      yAlt[i] = sMask[i] == 0.0 ? (i % 2 == 0 ? 1.0e300 : -1.0e300) : ys[i];
+    }
+
+    ColumnStore store;
+    store.build(xs.data(), m, 1, 20);
+    BCFSpec spec;
+    spec.z = zs.data();
+    BCFForestCombiner<ConstantGaussianLeaf> combiner(store, spec);
+    std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+    forests[0].totalFits = muFits;
+    forests[1].totalFits = tauFits;
+
+    // the combiner's pair, composed with s exactly as the chain composes it the
+    // moment formForestResponse returns; the returned pointers alias combiner
+    // scratch, so each pair is copied out before the next call
+    std::vector<double> yBase, wBase, ySub, wSub;
+    auto formPair = [&](const double* response, std::vector<double>& outY,
+                        std::vector<double>& outW) {
+      ForestResponse fr =
+        combiner.formForestResponse(1, forests, response, w.data());
+      outY.assign(fr.response, fr.response + m);
+      outW.resize(m);
+      for (size_t i = 0; i < m; ++i) outW[i] = fr.weights[i] * sMask[i];
+    };
+    formPair(ys.data(), yBase, wBase);
+    formPair(yAlt.data(), ySub, wSub);
+
+    bool substituted = false;
+    for (size_t i = 0; i < m; ++i)
+      if (sMask[i] == 0.0 && std::fabs(ySub[i]) > 1.0e200) substituted = true;
+    check(substituted, "the excluded rows really carry substituted responses");
+
+    std::vector<index_t> indicesA(m), indicesB(m);
+    Tree treeA, treeB;
+    treeA.initialize(indicesA.data(), m);
+    treeB.initialize(indicesB.data(), m);
+    Rule rule;
+    rule.variableIndex = 0;
+    rule.setSplitIndex(static_cast<int32_t>(store.numCuts[0] / 2));
+    treeA.birth(store, 0, rule, yBase.data(), wBase.data());
+    treeB.birth(store, 0, rule, ySub.data(), wSub.data());
+    treeA.setNodeAverages(yBase.data(), wBase.data());
+    treeB.setNodeAverages(ySub.data(), wSub.data());
+    treeA.bottomScratch.clear();
+    treeA.fillBottom(0, treeA.bottomScratch);
+    treeB.bottomScratch.clear();
+    treeB.fillBottom(0, treeB.bottomScratch);
+
+    bool invariant = treeA.bottomScratch.size() == 2 &&
+                     treeB.bottomScratch.size() == 2;
+    for (size_t b = 0; b < treeA.bottomScratch.size() && invariant; ++b) {
+      const Node& na(treeA.at(treeA.bottomScratch[b]));
+      const Node& nb(treeB.at(treeB.bottomScratch[b]));
+      invariant = na.numObservations() > 0 &&
+                  na.sumWeights == nb.sumWeights &&
+                  na.sumWeightedResponse == nb.sumWeightedResponse &&
+                  std::isfinite(nb.sumWeightedResponse);
+    }
+    check(invariant,
+          "zero-weight rows leave the node statistics bitwise untouched");
+  }
+
+  const size_t n = 240, p = 3;
+  std::vector<double> x(n * p), y(n), z(n), unitWeights(n, 1.0), zeros(n, 0.0);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = unif() < 0.5 ? 1.0 : 0.0;
+    double mu = std::sin(3.0 * x[i]) + x[i + n];
+    double tau = 1.0 + 2.0 * x[i + 2 * n];
+    y[i] = mu + z[i] * tau + 0.2 * (unif() - 0.5);
+  }
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  BCFSpec spec;
+  spec.mu.numTrees = 20;
+  spec.tau.numTrees = 10;
+  spec.z = z.data();
+
+  // ---- the refusal is the engine's, and it installs and perturbs nothing ----
+  // A single-forest chain handed a non-null per-forest pointer would take the
+  // composed path and draw a different chain, so the refusal must land before
+  // anything is stored; a multinomial carries K forests, so a forest-count
+  // probe in place of the capability probe would let it through.
+  ext_rng* rngRefused = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER,
+                                       nullptr);
+  ext_rng* rngPlain = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER,
+                                     nullptr);
+  ext_rng_setSeed(rngRefused, 20260810u);
+  ext_rng_setSeed(rngPlain, 20260810u);
+  ConstantLeafSampler refused(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rngRefused);
+  ConstantLeafSampler plain(x.data(), y.data(), n, p, nullptr, nullptr,
+                            ResponseFamily::gaussian, 1.0, 3.0,
+                            0.37804942330213542, options, &rngPlain);
+  check(!refused.supportsForestWeights(),
+        "a single-forest sampler admits no per-forest weight");
+  check(!refused.setForestWeights(0, unitWeights.data()),
+        "a single-forest sampler refuses a per-forest weight");
+
+  const size_t numSamples = 20;
+  std::vector<double> sigmaRefused(numSamples), sigmaPlain(numSamples),
+    fitsRefused(n * numSamples), fitsPlain(n * numSamples);
+  Results resultsRefused, resultsPlain;
+  resultsRefused.sigma = sigmaRefused.data();
+  resultsRefused.trainingFits = fitsRefused.data();
+  resultsPlain.sigma = sigmaPlain.data();
+  resultsPlain.trainingFits = fitsPlain.data();
+  refused.run(10, numSamples, resultsRefused);
+  plain.run(10, numSamples, resultsPlain);
+  bool unperturbed = true;
+  for (size_t s = 0; s < numSamples && unperturbed; ++s)
+    unperturbed = sigmaRefused[s] == sigmaPlain[s];
+  for (size_t i = 0; i < n * numSamples && unperturbed; ++i)
+    unperturbed = fitsRefused[i] == fitsPlain[i];
+  check(unperturbed, "a refused per-forest weight leaves the draws bitwise");
+  ext_rng_destroy(rngPlain);
+  ext_rng_destroy(rngRefused);
+
+  {
+    const size_t K = 3;
+    std::vector<int> counts(n * K, 0), trials(n, 1);
+    for (size_t i = 0; i < n; ++i) counts[(i % K) * n + i] = 1;
+    MultinomialSpec multinomialSpec;
+    multinomialSpec.numCategories = K;
+    multinomialSpec.counts = counts.data();
+    multinomialSpec.trials = trials.data();
+    multinomialSpec.forest.numTrees = 10;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(rng, 20260811u);
+    ConstantLeafSampler multinomial(x.data(), n, p, options, multinomialSpec,
+                                    &rng);
+    check(multinomial.numForests() == K &&
+            !multinomial.supportsForestWeights(),
+          "a multinomial sampler admits no per-forest weight despite K forests");
+    check(!multinomial.setForestWeights(1, unitWeights.data()),
+          "a multinomial sampler refuses a per-forest weight");
+    ext_rng_destroy(rng);
+  }
+
+  // ---- BCF installs, refuses an out-of-range forest, and keeps the df ----
+  // The sigma posterior's degrees of freedom are nu_0 + #{w_i > 0} over the
+  // RESPONSE model's own precisions, so pinning those pins the df; a per-forest
+  // weight lives on the chain and must never reach them.
+  ext_rng* rngBCF = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rngBCF, 20260812u);
+  ConstantLeafSampler bcf(x.data(), y.data(), n, p, unitWeights.data(), nullptr,
+                          1.0, 3.0, 0.37804942330213542, options, spec,
+                          &rngBCF);
+  check(bcf.supportsForestWeights(), "a BCF sampler admits a per-forest weight");
+  check(!bcf.setForestWeights(2, zeros.data()),
+        "a per-forest weight on a forest index out of range is refused");
+  check(bcf.setForestWeights(1, zeros.data()) &&
+          bcf.setForestWeights(1, nullptr) &&
+          bcf.setForestWeights(1, zeros.data()),
+        "a per-forest weight installs, clears, and reinstalls");
+
+  // the df itself, not the draw it feeds: nu_0 = 3 plus the count of positive
+  // OBSERVATION weights, all n of which are one here
+  double dfBefore = bcf.chain(0).sigmaDegreesOfFreedomForTesting();
+  std::vector<double> sigmaBCF(numSamples), fitsBCF(n * numSamples);
+  Results resultsBCF;
+  resultsBCF.sigma = sigmaBCF.data();
+  resultsBCF.trainingFits = fitsBCF.data();
+  bcf.run(10, numSamples, resultsBCF);
+  check(dfBefore == 3.0 + static_cast<double>(n) &&
+          bcf.chain(0).sigmaDegreesOfFreedomForTesting() == dfBefore,
+        "an all-zero per-forest weight leaves the sigma posterior df at nu + n");
+  bool finite = true;
+  for (size_t s = 0; s < numSamples && finite; ++s) finite = sigmaBCF[s] > 0.0;
+  for (size_t i = 0; i < n * numSamples && finite; ++i)
+    finite = std::isfinite(fitsBCF[i]);
+  check(finite, "an all-zero per-forest weight keeps the run finite");
+  ext_rng_destroy(rngBCF);
+
+  printf("ok: per-forest observation weights\n");
+}
+
 // Build a one-hot n x K category-major count matrix and unit trials from
 // single-trial labels - the count-native combiner's single-trial input, whose
 // draw stream and working response reduce byte-for-byte to the label path.
@@ -3472,6 +3688,7 @@ void runSamplerTests(ext_rng* rng) {
   testBCFInterweaveKeepTrees(rng);
   testBCFGrowForestFromRoot();
   testBCFZeroMultiplierSnap();
+  testForestWeights();
   testMultinomial(rng);
   testMultinomialGrowForestFromRoot();
   testMultinomialCountGrowForestFromRoot();

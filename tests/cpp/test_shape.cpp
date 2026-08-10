@@ -46,6 +46,7 @@ void checkShapeMatchesImpl(const SamplerFacade<L, ResidT>& facade,
   CHECK_SHAPE_FIELD(kIsSampled);
   CHECK_SHAPE_FIELD(usesDart);
   CHECK_SHAPE_FIELD(supportsResponseMutation);
+  CHECK_SHAPE_FIELD(supportsForestWeights);
   CHECK_SHAPE_FIELD(testFitsAreDefined);
 }
 
@@ -127,6 +128,8 @@ void testConstantGaussian(ShapeFixture& fixture) {
         "shape: constant gaussian reports one location");
   check(shape.testFitsAreDefined,
         "shape: constant gaussian test fits are defined");
+  check(!shape.supportsForestWeights,
+        "shape: a single-forest sampler admits no per-forest weight");
   check(shape.numGroups == 5, "shape: grouped intercept count");
   check(shape.usesDart && shape.kIsSampled, "shape: dart and sampled k");
   check(!shape.usesFunctionLeaves, "shape: constant leaf is not function-valued");
@@ -251,6 +254,8 @@ void testBCF(ShapeFixture& fixture) {
   check(shape.numTrees == spec.mu.numTrees,
         "shape: bcf numTrees addresses the prognostic forest");
   check(shape.numReportedLocations == 1, "shape: bcf reports one location");
+  check(shape.supportsForestWeights,
+        "shape: bcf admits a per-forest weight");
   checkShapeMatchesImpl(facade, "bcf, before run");
 
   runBriefly(facade, 0);
@@ -291,6 +296,8 @@ void testMultinomial(ShapeFixture& fixture) {
         "shape: multinomial counts variables over K forests");
   check(shape.testFitsAreDefined,
         "shape: multinomial test fits are defined");
+  check(!shape.supportsForestWeights,
+        "shape: multinomial admits no per-forest weight despite K forests");
   checkShapeMatchesImpl(facade, "multinomial, before run");
 
   runBriefly(facade, 0);
