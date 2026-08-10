@@ -670,5 +670,30 @@ budget), bridge 47/~35 (~70), R 28/12 (~15), tests 465/337 (~280; the
 overrun is mandated commentary, no test cut - the sized-to-oracle budget
 lesson again).
 
-Remaining: S3 (surface consistency, records, and the sum-to-one
-unification).
+S3 LANDED 8c04f6e (rebased over the multiforest plan commit; recorded
+in-worktree as 5a52afd). Same-holder round trips (storeState/setState and
+installForests) proven to leave an installed per-forest weight in force;
+the cross-sampler drop documented, not asserted, as specified. Docs
+updated: bcf.md (Status bump + weight-channel subsection),
+forest-combiner.md (a stale "flooring" description corrected to the
+snap), model-space-survey.md door 2 (shape (2) SHIPPED; the
+non-interchangeability fact recorded), TODO, c-api-growth.md (the
+dbarts_sampler_setForestWeights reservation with its three constraints),
+NEWS. Sum-to-one unification landed on all three sites (verified live at
+R_interface_bartcore.cpp:1158/:1330 pre-edit, R/A_class.R:402; the
+shared constant sumToOneTolerance = 0x1p-26 lands at :63) with band-edge
+tests per surface (1e-9 accepted, 1e-7 refused) in
+test-sum-to-one-tolerance.R, isolating each site by direct slot mutation
+past unrelated R-side gates. Gates double-run (implementer +
+orchestrator): install, tinytest 3787/0, trio bitwise (27/27 + 3x5 + 5x7
+vs c820227), air 0, lintr 0 on all three touched R files. Accepted
+deviations: a create() helper to keep air-formatted .Call boilerplate
+readable; the R validity test adjusted to dbartsModel's actual
+initialize(proposal.probs=) signature.
+
+ARC COMPLETE 2026-08-10: S0 4979656, S1 c820227 + d53efe6 (baseline
+bcf-equivalence-c820227.rds), S2 153d1dd, S3 8c04f6e. All six CI
+workflows green through the S2 engine push at landing time. Doors that
+remain open are listed in "Doors held open"; the sum-to-one door is
+CLOSED (unified at S3), and monotoneTreeIsFeasible's constant stays by
+the recorded recommendation.
