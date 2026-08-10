@@ -20,6 +20,7 @@
 using std::size_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseMultiForestMutation;
+using bartcore_bridge::refuseMultiForestTransactionalUpdate;
 using bartcore_bridge::refusePinnedSigmaChange;
 using bartcore_bridge::validateColumnValues;
 
@@ -239,6 +240,13 @@ int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out) {
 int dbarts_sampler_setPredictor(dbarts_sampler* sampler, const double* x,
                                 int forceUpdate, int updateCutPoints) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
+  // the variance clause is reachable today: dbartsSpec(variance = ) hands a
+  // consumer a flat-creatable heteroscedastic sampler, and an unforced
+  // transactional call here used to accept and silently misroute s^2(x); the
+  // numForests >= 2 clause is unreachable until BCF gains a flat creation
+  // path, and becomes load-bearing from that tip on
+  refuseMultiForestTransactionalUpdate(engine, "dbarts_sampler_setPredictor",
+                                       forceUpdate != 0);
   bartcore::SamplerShape shape = engine.shape();
   size_t numObservations = shape.numObservations;
   for (size_t j = 0; j < shape.numPredictors; ++j)
@@ -257,6 +265,9 @@ int dbarts_sampler_updatePredictor(dbarts_sampler* sampler, const double* x,
                                    const size_t* columns, size_t numColumns,
                                    int forceUpdate, int updateCutPoints) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
+  // same guard as dbarts_sampler_setPredictor above
+  refuseMultiForestTransactionalUpdate(
+    engine, "dbarts_sampler_updatePredictor", forceUpdate != 0);
   bartcore::SamplerShape shape = engine.shape();
   size_t numObservations = shape.numObservations;
   for (size_t k = 0; k < numColumns; ++k) {

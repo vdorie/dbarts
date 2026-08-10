@@ -164,6 +164,50 @@ rm(savedSeed)
 expect_true(CALL("capi_set_predictor", ptr2, xNew))
 expect_true(CALL("capi_update_predictor", ptr2, matrix(x[, 3L], n), 2L))
 
+# stop-loss: dbarts_sampler_setPredictor and dbarts_sampler_updatePredictor
+# refuse a heteroscedastic sampler's transactional predictor mutation
+# (forceUpdate = 0) and accept the forced flavor (forceUpdate = 1), matching
+# the R bridge entries (docs/plans/multiforest-predictor-mutation.md
+# "SL. Stop-loss")
+nVar <- 60L
+xVar <- matrix(runif(nVar * 2L), nVar, 2L)
+yVar <- rnorm(nVar)
+controlVar <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 8L,
+  updateState = FALSE,
+  rngSeed = 5L
+)
+specVar <- dbarts(
+  xVar,
+  yVar,
+  control = controlVar,
+  variance = TRUE,
+  n.trees.variance = 4L
+)
+ptrVar <- CALL("capi_create", specVar$control, specVar$model, specVar$data, "")
+CALL("capi_sample_trees_from_prior", ptrVar)
+xVarNew <- xVar
+xVarNew[, 1L] <- runif(nVar)
+
+expect_error(CALL("capi_set_predictor", ptrVar, xVarNew), "variance forest")
+expect_true(CALL("capi_set_predictor_forced", ptrVar, xVarNew))
+
+expect_error(
+  CALL("capi_update_predictor", ptrVar, matrix(xVar[, 2L], nVar), 1L),
+  "variance forest"
+)
+expect_true(CALL(
+  "capi_update_predictor_forced",
+  ptrVar,
+  matrix(xVar[, 2L], nVar),
+  1L
+))
+
+rm(nVar, xVar, yVar, controlVar, specVar, ptrVar, xVarNew)
+invisible(gc(FALSE))
+
 # test-data replacement and removal
 CALL("capi_set_test_predictors", ptr2, NULL)
 expect_equal(CALL("capi_dims", ptr2)[3L], 0L)
