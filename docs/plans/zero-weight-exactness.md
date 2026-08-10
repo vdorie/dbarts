@@ -647,6 +647,28 @@ engines alike (the pin depends on the shared runif01 stream position); the
 full run passes. `benchmarks/README.md` no longer names baseline hashes
 (MANIFEST is authoritative).
 
-Remaining: S2 (the per-forest weight channel) and S3 (surface consistency,
-records, and the sum-to-one unification), serialized after the S1 sanitizer
-CI is green.
+S2 LANDED 153d1dd (rebased over the composition-probe records; recorded
+in-worktree as 98c1817). All six CI workflows were green on the S1 push
+before this landed. The slice survived a mid-gates session kill: a second
+implementer audited the inherited uncommitted work against this plan and
+found three gaps, all fixed before any gate ran - F4 asserted a
+positive-count proxy rather than the sigma df (fixed with a
+sigmaDegreesOfFreedomForTesting hook pinning nu_0 + #{w_i > 0} == 3 + n
+across an all-zero install), the bridge lacked the Rf_isReal conjunct (an
+integer vector reaching REAL() was UB), and the stale-weight-under-setData
+edge case was untested. Gates double-run (implementer, then orchestrator
+independently on the rebased tree): install --preclean, tests/cpp plain +
+ASAN from clean, tinytest 3779/0, trio bitwise (27/27 + 3x5 + 5x7 vs
+c820227 - the null gate holds), air 0, lintr 0 on both touched R files.
+Falsifiers: F1 bitwise-invariant to 1e300 substituted responses on zeroed
+rows; F2 all-ones identical to no call; F3 both halves (fixed glue
+identical including sweep 0; default glue divergent after sweep 1); F4 the
+df pinned directly; F5 all-zero finite with a live tau posterior; F6
+engine-level refusals on single-forest and multinomial with
+refused-call-perturbs-nothing. Budget: engine 127 raw/~95 code (~110
+budget), bridge 47/~35 (~70), R 28/12 (~15), tests 465/337 (~280; the
+overrun is mandated commentary, no test cut - the sized-to-oracle budget
+lesson again).
+
+Remaining: S3 (surface consistency, records, and the sum-to-one
+unification).
