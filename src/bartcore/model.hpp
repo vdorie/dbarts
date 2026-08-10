@@ -163,7 +163,11 @@ struct ConstantGaussianLeaf {
   double logIntegratedLikelihood(double k, double residualVariance,
                                  double sumWeights,
                                  double sumWeightedResponse) const {
-    if (sumWeights == 0.0) return 0.0;
+    // negated so a NaN or a negative total lands here as well; both are
+    // unreachable under the bridge's nonnegative-weight validation and a
+    // combiner's w m^2, and this guard is all that stands between them and a
+    // division by the total below
+    if (!(sumWeights > 0.0)) return 0.0;
 
     double priorPrecision = (k / scale) * (k / scale);
     double posteriorPrecision = sumWeights / residualVariance;
@@ -478,7 +482,9 @@ inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
 }
 
 /// True when every leaf's value lies within its neighbor bounds - the monotone
-/// feasibility invariant (a component-test predicate).
+/// feasibility invariant. MonotoneConstantGaussianLeaf::drawFromPriorForTree
+/// calls it as the acceptance predicate of the constrained prior's rejection
+/// sampler, so tol is part of a live draw law and not a test-only slack.
 inline bool monotoneTreeIsFeasible(const Tree& tree, const ColumnStore& data,
                                    const std::int8_t* directions,
                                    const double* mu, double tol = 1e-9) {
