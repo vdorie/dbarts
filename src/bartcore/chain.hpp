@@ -824,6 +824,40 @@ public:
     return combiner_ && combiner_->supportsResponseMutation() &&
            family_ == ResponseFamily::gaussian;
   }
+  /// Whether this chain admits a caller-supplied per-forest weight. The
+  /// setter's refusal and SamplerShape::supportsForestWeights both read this
+  /// one predicate, so the advertised capability and the refusal cannot
+  /// disagree.
+  bool supportsForestWeights() const {
+    return combiner_ != nullptr && combiner_->supportsForestWeights();
+  }
+
+  /// Installs a BORROWED per-observation weight s on forest f, clearing it at a
+  /// null pointer; returns false, installing nothing, when the coupling admits
+  /// no such weight or f names no forest.
+  ///
+  /// s is a multiplicative PRECISION factor on forest f's own leaf
+  /// conditionals, composing with the observation weight so that forest f's
+  /// draws see w_i m_f^2 s_i. It does NOT remove the row from occupancy, from
+  /// the empty-leaf veto, from the combination (the row still receives
+  /// m_f f_f(x_i)), or from the residual sigma degrees of freedom, which count
+  /// positive OBSERVATION weights; s_i = 0 says only that row i carries no
+  /// information about forest f, and its leaves stay well-defined prior draws.
+  ///
+  /// Two edges a consumer is misled without: at s_i = 0 with a nonzero
+  /// multiplier only the WEIGHT is zeroed - the response stays the
+  /// reparameterized residual r_i / m_f - so the reported-fit exactness an
+  /// exactly zero multiplier buys does NOT follow this channel; and the weight
+  /// lives on the chain rather than in the serialized state, so a pipeline that
+  /// REBUILDS a sampler and restores its state silently drops the weight and
+  /// draws a different model while the states still agree.
+  bool setForestWeights(std::size_t f, const double* s) {
+    if (!supportsForestWeights() || f >= forests_.size()) return false;
+    if (forestWeights_.empty()) forestWeights_.assign(forests_.size(), nullptr);
+    forestWeights_[f] = s;
+    return true;
+  }
+
   /// BCF glue on the combining response; false for a non-BCF chain.
   bool bcfGlue(double& a, double& b0, double& b1) const {
     return combiner_ ? combiner_->bcfGlue(a, b0, b1) : false;
@@ -971,7 +1005,7 @@ public:
           ForestResponse fr = combiner_->formForestResponse(f, forests_, y,
                                                             weights);
           forestY = fr.response;
-          forestWeights = fr.weights;
+          forestWeights = composeForestWeights(f, fr.weights);
         }
         MoveContext ctx{data_,
                         forest.treePrior,
@@ -1361,7 +1395,7 @@ public:
             ForestResponse fr = combiner_->formForestResponse(f, forests_, y,
                                                               weights);
             forestY = fr.response;
-            forestWeights = fr.weights;
+            forestWeights = composeForestWeights(f, fr.weights);
           }
 
           forest.kSumSquaredParams = 0.0;
@@ -2784,6 +2818,12 @@ public:
   const double* workingResponseForTesting() const {
     return response_->workingResponse();
   }
+  /// Test hook: the sigma posterior's degrees of freedom, nu_0 plus the count
+  /// of positive precisions on the RESPONSE model. A per-forest weight lives on
+  /// the chain and must never reach them.
+  double sigmaDegreesOfFreedomForTesting() const {
+    return response_->sigmaDegreesOfFreedomForTesting();
+  }
   /// Test hook: forest f's tree t. Chain::tree reaches forest 0 alone, so a
   /// whole-sampler structural check (routing agreement) needs this to see a
   /// BCF or multinomial forest at all.
@@ -2911,6 +2951,24 @@ public:
   }
 
 private:
+  /// Composes forest f's installed per-observation weight into the precisions
+  /// the combiner just formed, returning a chain-owned scratch pointer; the
+  /// combiner's own pointer passes through with no allocation, no copy and no
+  /// arithmetic when forest f carries no weight, which is the whole cost of the
+  /// channel on every configuration that installs none. Called the moment
+  /// formForestResponse returns, before the tree loop reads the precisions -
+  /// grow-from-root consumes them immediately, in setNodeAverages. The
+  /// combiner's weights are never null, so neither is the composed vector.
+  const double* composeForestWeights(std::size_t f, const double* weights) {
+    if (forestWeights_.empty() || forestWeights_[f] == nullptr) return weights;
+    std::size_t n = data_.numObservations;
+    forestWeightScratch_.resize(n);
+    const double* s = forestWeights_[f];
+    for (std::size_t i = 0; i < n; ++i)
+      forestWeightScratch_[i] = weights[i] * s[i];
+    return forestWeightScratch_.data();
+  }
+
   template <typename F> struct TestFitRange { size_t begin, end; F* fn; };
   template <typename F> static void runTestFitRange(void* data) {
     TestFitRange<F>* r = static_cast<TestFitRange<F>*>(data);
@@ -4179,6 +4237,15 @@ private:
   // sampler, so the sweep, reporting, and state paths collapse to the direct
   // forest-0 path when so and pay no virtual call
   std::unique_ptr<ForestCombiner<L, ResidT>> combiner_;
+
+  // caller-supplied per-forest observation weights, one BORROWED pointer per
+  // forest (null = none). Left EMPTY until the first install, which is the
+  // pass-through gate every configuration that installs none takes. The scratch
+  // holds the composed precisions of whichever forest is being formed, so one
+  // buffer serves them all: nothing reads a forest's precisions past its own
+  // tree loop.
+  std::vector<const double*> forestWeights_;
+  std::vector<double> forestWeightScratch_;
 
   // heteroscedastic variance forest (docs/design/heteroscedastic.md); null for
   // every homoscedastic sampler, so its sweep and the weight division are

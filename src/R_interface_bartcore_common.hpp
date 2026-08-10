@@ -32,6 +32,13 @@ struct BartcoreHolder {
   // setTreatment installs a replacement without a protection slot
   std::vector<double> ownedTreatment{};
 
+  // one owned per-forest observation weight vector per forest, borrowed by the
+  // chains. The NESTING is load-bearing: a flat numForests * n buffer would
+  // dangle every installed pointer the moment it were resized, whereas growing
+  // the outer vector MOVES the inner vectors without relocating their heap
+  // storage, so an already-installed pointer survives.
+  std::vector<std::vector<double>> ownedForestWeights{};
+
   // multinomial holds an owned copy of the category-major n x K count matrix
   // and the per-observation trials the combiner borrows for the sampler's
   // lifetime (the single-trial label entry builds a one-hot counts matrix)
