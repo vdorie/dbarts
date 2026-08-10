@@ -17,6 +17,7 @@ dbarts(
     blocks = NULL,
     variance = NULL, n.trees.variance = 40L,
     power.variance = NULL, base.variance = NULL,
+    treatment = NULL, moderators = NULL, treatmentForest = NULL,
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal",
@@ -78,6 +79,15 @@ dbarts(
   }
   \item{variance}{
     Optional heteroscedastic variance forest (HBART; Pratola, Chipman, George, and McCulloch 2020). When supplied, a second ensemble models the residual variance surface \eqn{s^2(x)} as a product of scaled-inverse-chi-squared (multiplicative) leaves, so \eqn{y_i = f(x_i) + s(x_i)\epsilon_i}, coupled to the mean forest through the per-observation precision. \code{variance} selects which predictors drive the variance: a one-sided formula or character/integer column selector (\code{~ x1 + x2}), \code{TRUE} for every predictor, or \code{NULL} (the default) for the ordinary homoscedastic fit. Gaussian responses and constant leaves only; monotone constraints and the latent families are not supported. The per-tree leaf prior is calibrated from the residual (\code{resid.prior}) hyperparameters so that a constant variance surface reproduces the homoscedastic \code{sigma} posterior. The fit gains posterior draws \code{s.train}/\code{s.test} of \eqn{s(x)}, and \code{predict} attaches an \code{"s"} attribute with \eqn{s(x)} at new predictors (requires \code{keepTrees}).
+  }
+  \item{treatment}{
+    An optional vector of 0/1 treatment assignments, one per observation, selecting a Bayesian causal forest instead of a single ensemble: the response is fit as \eqn{y = a \mu(x) + b_z \tau(x) + \epsilon}{y = a mu(x) + b_z tau(x) + eps}, with a prognostic forest \eqn{\mu}{mu} over every predictor and a treatment forest \eqn{\tau}{tau} over the moderators. Gaussian responses only. The result is an ordinary \code{dbartsSampler}; per-forest fits and the glue \eqn{(a, b_0, b_1)}{(a, b0, b1)} are read off the sampler rather than from the run's combined \code{train} channel. The vector is stored on the data object, so it is subset by \code{subset} and survives a sampler's re-creation. Options the two-forest model does not read - \code{monotone}, \code{variance}, a DART tree prior, \code{split.probs}, a linear or Gaussian-process node prior, a \code{k} hyperprior or non-default \code{k}, a non-default \code{proposal.probs}, Student-t residuals, grouped random effects, \code{storage = "single"}, per-column cut counts, and a \code{test} set - are refused at creation rather than ignored.
+  }
+  \item{moderators}{
+    Optional restriction of the treatment forest to a subset of the model matrix, by column name or index. \code{NULL} leaves it reading every predictor. Read only when \code{treatment} is supplied.
+  }
+  \item{treatmentForest}{
+    Optional \code{\link{treatmentForest}} specification carrying the treatment forest's tree count and structure prior, the prior scales of the glue, and the treatment forest's own \code{interactions}/\code{blocks} constraints (the arguments of those names constrain the prognostic forest). Read only when \code{treatment} is supplied.
   }
   \item{n.trees.variance, power.variance, base.variance}{
     The number of variance trees (default \code{40}) and their tree-structure prior. \code{power.variance} and \code{base.variance} default to the mean forest's \code{tree.prior} values. Read only when \code{variance} is supplied.

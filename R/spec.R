@@ -29,6 +29,9 @@ resolveSamplerSpec <- function(
   base.variance,
   survivalStatus,
   hazardPeriods,
+  treatment,
+  moderators,
+  treatmentForest,
   evalEnv
 ) {
   # a factor/logical/character response declares a classification model. The
@@ -353,6 +356,101 @@ resolveSamplerSpec <- function(
     )
   }
 
+  # the Bayesian causal forest (docs/design/bcf.md): a 0/1 `treatment` vector
+  # selects the two-forest model y = a mu(x) + b_z tau(x) + eps. The vector is
+  # conditioning DATA and rides the data object beside the weights it mirrors;
+  # the treatment forest's CONFIGURATION - its tree count and structure prior,
+  # the moderator column mask, the glue scales and the per-forest constraints -
+  # rides the control attribute the C bridge reads, exactly as the variance
+  # forest's does above. The bridge cross-checks the two halves in both
+  # directions, so a stripped attribute is a loud error, never a silent
+  # single-forest fit.
+  if (!is.null(treatment)) {
+    data@treatment <- validateTreatment(treatment, length(data@y))
+  }
+  if (!is.null(data@treatment)) {
+    if (family != "gaussian") {
+      stop(
+        "a treatment forest requires a continuous (gaussian) response; ",
+        "family \"",
+        family,
+        "\" has its own fixed error scale"
+      )
+    }
+    # The BCF chain builds both forests from its own calibration map (fixed
+    # k = 1, leaf scales from the response sd) and reads neither the DART
+    # machinery, the split probabilities, the monotone directions, a
+    # non-constant leaf, the grouped decorator, a variance forest, an fp32
+    # residual, a per-column cut cap, nor the Student-t error law. Every one of
+    # those would otherwise be dropped in silence, changing the fitted model
+    # without a word; name each one instead.
+    defaultProbs <- defaultProposalProbs
+    unsupported <- c(
+      "a DART tree prior" = is(priors$tree.prior, "dbartsDartPrior"),
+      "'split.probs'" = length(priors$tree.prior@splitProbabilities) > 0L,
+      "'monotone'" = !is.null(monotoneDirections),
+      "a linear node prior" = is(priors$node.prior, "dbartsLinearPrior"),
+      "a Gaussian-process node prior" = is(priors$node.prior, "dbartsGPPrior"),
+      "a 'k' hyperprior" = is(priors$node.hyperprior, "dbartsChiHyperprior"),
+      "a non-default 'k'" = is(
+        priors$node.hyperprior,
+        "dbartsFixedHyperprior"
+      ) &&
+        priors$node.hyperprior@k != 2.0,
+      "a non-default 'node.scale'" = model@node.scale != 0.5,
+      # a monotone constraint rewrites proposal.probs above, so only an
+      # unconstrained fit's is the caller's own
+      "a non-default 'proposal.probs'" = is.null(monotoneDirections) &&
+        !isTRUE(all.equal(proposal.probs[names(defaultProbs)], defaultProbs)),
+      "Student-t residuals" = !is.null(residDf),
+      "grouped random effects" = !is.null(attr(control, "bartcore.groups")),
+      "'variance'" = !is.null(varianceColumns),
+      "storage = \"single\"" = identical(control@storage, "single"),
+      "per-column 'n.cuts'" = length(unique(data@n.cuts)) > 1L,
+      "test predictors" = !is.null(data@x.test)
+    )
+    if (any(unsupported)) {
+      stop(
+        "a treatment forest does not support ",
+        paste0(names(unsupported)[unsupported], collapse = ", "),
+        "; drop it or fit a single-forest model"
+      )
+    }
+    tauSpec <- resolveTreatmentForest(treatmentForest)
+    moderatorColumns <- resolveModerators(moderators, data)
+    attr(control, "bartcore.bcf") <- list(
+      params = as.double(c(
+        tauSpec$n.trees,
+        tauSpec$base,
+        tauSpec$power,
+        tauSpec$sd.control,
+        tauSpec$sd.moderate,
+        tauSpec$b.prior.variance,
+        tauSpec$update.a,
+        tauSpec$update.b
+      )),
+      # resolved 1-based moderator indices, or NULL for an unrestricted forest
+      moderators = moderatorColumns,
+      # the prognostic forest takes the fit's own interactions()/blocks()
+      # arguments, already resolved above; the treatment forest takes the
+      # constructor's, resolved against the columns it may split on
+      mu.interactions = interactionSpec,
+      tau.interactions = resolveInteractions(tauSpec$interactions, data),
+      mu.blocks = blockSpec,
+      tau.blocks = resolveBlocks(
+        tauSpec$blocks,
+        data,
+        tauSpec$n.trees,
+        availableColumns = moderatorColumns
+      )
+    )
+  } else if (!is.null(moderators) || !is.null(treatmentForest)) {
+    stop(
+      "'moderators' and 'treatmentForest' configure the treatment forest a ",
+      "'treatment' vector selects; supply one or drop them"
+    )
+  }
+
   namedList(control, model, data, family)
 }
 
@@ -377,6 +475,9 @@ dbartsSpec <- function(
   n.trees.variance = 40L,
   power.variance = NULL,
   base.variance = NULL,
+  treatment = NULL,
+  moderators = NULL,
+  treatmentForest = NULL,
   sigma = NA_real_,
   seed = NA_integer_,
   family = c(
@@ -455,6 +556,9 @@ dbartsSpec <- function(
     base.variance = base.variance,
     survivalStatus = survival,
     hazardPeriods = NULL,
+    treatment = treatment,
+    moderators = moderators,
+    treatmentForest = treatmentForest,
     evalEnv = parentEnv
   )
 }

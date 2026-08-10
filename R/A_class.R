@@ -474,6 +474,12 @@ methods::setClass(
     # numeric ordinal fit derives sort(unique(y)) itself). The other families
     # never read it.
     response.levels = "ANY",
+    # the 0/1 treatment indicator a Bayesian causal forest contrasts on
+    # (docs/design/bcf.md), null for an ordinary single-forest fit. It rides
+    # the data object rather than the control, exactly as `weights` does: it
+    # is conditioning data, so the setter that replaces it mirrors into this
+    # slot and a re-created sampler carries it without further discipline.
+    treatment = "numericOrNULL",
 
     testUsesRegularOffset = "logical"
   ),
@@ -492,6 +498,7 @@ methods::setClass(
     response.type = "numeric",
     response.n.levels = NA_integer_,
     response.levels = NULL,
+    treatment = NULL,
 
     testUsesRegularOffset = NA
   )
@@ -535,6 +542,17 @@ methods::setValidity("dbartsData", function(object) {
   }
   if (!is.null(object@offset) && length(object@offset) != numObservations) {
     return("'offset' must be null or have length equal to that of 'y'")
+  }
+  if (!is.null(object@treatment)) {
+    if (length(object@treatment) != numObservations) {
+      return("'treatment' must be null or have length equal to that of 'y'")
+    }
+    if (
+      anyNA(object@treatment) ||
+        any(object@treatment != 0.0 & object@treatment != 1.0)
+    ) {
+      return("'treatment' must be coded 0 (control) or 1 (treated)")
+    }
   }
   if (!is.null(object@x.test)) {
     if (

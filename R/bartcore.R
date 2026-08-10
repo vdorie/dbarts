@@ -584,30 +584,7 @@ bartcoreBCFSampler <- function(
   mu.blocks = NULL,
   tau.blocks = NULL
 ) {
-  if (!is.null(moderators)) {
-    if (length(moderators) == 0L) {
-      stop(
-        "'moderators' is empty; omit it to leave the treatment forest ",
-        "unrestricted"
-      )
-    }
-    if (is.character(moderators)) {
-      columnNames <- colnames(sampler$data@x)
-      if (is.null(columnNames)) {
-        stop("'moderators' given by name but the design has no column names")
-      }
-      moderators <- match(moderators, columnNames)
-      if (anyNA(moderators)) {
-        stop("moderator name not found in the design's column names")
-      }
-    } else {
-      moderators <- as.integer(moderators)
-      if (any(moderators < 1L | moderators > ncol(sampler$data@x))) {
-        stop("moderator column index out of range")
-      }
-    }
-    moderators <- sort(unique(as.integer(moderators)))
-  }
+  moderators <- resolveModerators(moderators, sampler$data)
   bcfParams <- as.double(c(
     n.trees.treatment,
     treatment.base,
