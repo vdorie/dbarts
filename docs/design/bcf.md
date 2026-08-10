@@ -2,9 +2,12 @@
 
 Status: LANDED. Proposed 2026-07-07; the two-forest sampler and the Forest
 split it forced shipped 2026-07-07, with mixing refinements through 2026-07-10
-(see "Landing" below). Model and defaults follow Hahn, Murray, and Carvalho
-(2020), "Bayesian Regression Tree Models for Causal Inference" (Bayesian Analysis
-15(3), 965-1056), and the `bcf` R package; deviations from either are flagged.
+(see "Landing" below); the combiner's exact-zero multiplier snap and the
+caller-settable per-forest weight landed 2026-08-10
+(docs/plans/zero-weight-exactness.md). Model and defaults follow Hahn, Murray,
+and Carvalho (2020), "Bayesian Regression Tree Models for Causal Inference"
+(Bayesian Analysis 15(3), 965-1056), and the `bcf` R package; deviations from
+either are flagged.
 
 BCF fits two ensembles at once: a prognostic forest mu(x, pihat) and a
 treatment forest tau(x), combined as
@@ -136,6 +139,32 @@ gate a pure two-forest enumeration; the expansion is added afterward as the
 default. Continuous z would replace the two-level b_z with a function b(z), out
 of scope.
 
+### The multiplier snap and the per-forest weight (2026-08-10)
+
+Forming forest f's own leaf conditionals divides the residual by its scale
+multiplier (a for mu, b_z for tau). `BCFForestCombiner::formForestResponse`
+(combiner.hpp) snaps a multiplier with `|m_f| < sqrt(DBL_EPSILON)` (2^-26) to
+exactly zero rather than flooring it and dividing: both the reparameterized
+response and the weight are written as exact 0.0, so a row that carries no
+information about forest f (the common case is `b0 = 0` at control rows under
+the fixed glue `(1, 0, 1)`) contributes nothing to that forest's sufficient
+statistics instead of an amplified-and-cancelled near-zero contribution. The
+snap is local to the reparameterization: `combinedFits` and `drawGlue` keep the
+exact `b0`, and no snapped value is written back into the glue
+(docs/plans/zero-weight-exactness.md).
+
+A caller-settable per-forest, per-observation weight composes with this
+multiplicatively: `forestWeights[i] = w_i * m_f^2 * s_{f,i}`, installed via
+`Chain::setForestWeights(f, s)` and reached from R as
+`dbarts:::bartcoreSetForestWeights` (`dbarts:::`-only; no public surface yet).
+It excludes a row from forest f's leaf conditionals without excluding it from
+the model, the combination, occupancy, or the residual sigma degrees of
+freedom. Two edges: at `s = 0` with `m != 0` only the WEIGHT is zeroed - the
+response stays `r/m`, so the snap's reported-fit exactness does not follow this
+channel; and the weight lives on the chain, not the serialized state (as `z`
+does not either), so a pipeline that rebuilds the sampler and restores its
+state silently drops the weight while `statesAgree` reports agreement.
+
 ## Exact-posterior gate
 
 The existing gates (benchmarks/R/logistic-reference.R, categorical-exact.R) take
@@ -178,6 +207,10 @@ which entry points fan per forest.
   single-forest analog; updating it between sweeps re-forms b_{z_i} and both
   residuals. Installing pihat as a mutable prognostic column uses the ordinary
   predictor path.
+- Also new for BCF: setForestWeights(f, s), a per-forest, per-observation
+  precision multiplier ("The multiplier snap and the per-forest weight"
+  above). Unlike setTreatment it does not ride the state; a warm start or a
+  restore must reinstall it explicitly.
 
 C exposure stays internal first (bartcore helpers plus the bridge, as the data
 handle does); bartCause drives from R, dbarts-level public exposure a later

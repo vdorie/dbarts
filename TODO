@@ -325,6 +325,10 @@ items
     monotoneTreeIsFeasible's tolerance, which is NOT the test-only
     predicate its stale comment claims but the acceptance test of the
     constrained-prior rejection sampler.
+    Call (1) LANDED 2026-08-10: the weight channel now exists - the
+    exact-zero multiplier snap and a caller-settable per-forest weight
+    (docs/plans/zero-weight-exactness.md). Call (2), mask/compaction,
+    stays unscheduled.
     The n x K multinomial offset door moves to
     multinomial-counts-mutation, which re-scopes it (the response is
     the combiner's counts_ matrix, so the offset needs a real channel,

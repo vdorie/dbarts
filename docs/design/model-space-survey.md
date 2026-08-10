@@ -289,6 +289,18 @@ bonus. A design pass must decide whether one mechanism serves both or whether
 - **Whether one class is enough to build for.** The value gate lifts on one; the
   shape decision does not have a second consumer to triangulate against.
 
+**Update, 2026-08-10 (docs/plans/zero-weight-exactness.md).** Shape (2), per-
+forest zero weight, SHIPPED: the combiner's exact-zero multiplier snap (S1) and
+a caller-settable per-forest, per-observation weight on `BCFForestCombiner`
+(S2, `dbarts:::`-only). Shapes (1) (mutable row mask) and (3) (physical
+compaction) stay open and unscheduled - the shipment resolves only shape (2)'s
+branch of the fork above, not the fork itself. One fact recorded, not decided:
+because occupancy is count-based, per-forest zero weight and physical
+compaction are NOT the same draw law even in the limit - under compaction the
+excluded rows do not exist, so their cut positions cannot be split on and their
+leaves cannot be created; under zero weight they can, at the prior. The three
+shapes are therefore not interchangeable implementations of one semantic.
+
 ### Door 3 - `setData` data-type shapes (whole-data replacement on CSC/mixed)
 
 **KEEP UNDESIGNED.** No model surfaced, and the corrections strengthen it.
