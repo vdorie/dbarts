@@ -29,7 +29,9 @@ using std::size_t;
 using std::uint32_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseMultiForestMutation;
+using bartcore_bridge::refuseMultiForestTransactionalUpdate;
 using bartcore_bridge::refusePinnedSigmaChange;
+using bartcore_bridge::refuseVarianceForestPredictorMutation;
 using bartcore_bridge::validateColumnValues;
 
 namespace {
@@ -2115,41 +2117,6 @@ void refuseMultiForestTestOffset(const bartcore::SamplerBase& sampler,
              "softmax scale; it carries no test offset", caller);
 }
 
-// The variance forest holds its trees outside forests_, which the revalidate
-// helpers loop, so an accepted change on one of those paths leaves s^2(x)
-// routing observations by the codes of the predictors it was built with. The
-// FORCED refresh reaches it (forceRefreshTrees calls refreshVarianceForest)
-// and so does the whole-data replacement (applyNewData resizes its n-sized
-// buffers and re-routes it), so the entries that refuse are the transactional
-// paths below.
-void refuseVarianceForestPredictorMutation(
-    const bartcore::SamplerBase& sampler, const char* caller) {
-  if (sampler.shape().hasVarianceForest)
-    Rf_error("%s: a heteroscedastic sampler's variance forest keeps routing "
-             "observations by the predictors it was built with; make a new "
-             "sampler instead", caller);
-}
-
-// The transactional predictor paths (setPredictor and updatePredictor without
-// forceUpdate, and the per-observation sessions, which have no force variant)
-// validate and rebuild through revalidateAllChains, which revalidates only the
-// primary forest - an accepted change would leave a multi-forest sampler's
-// other forests routed against stale codes. The FORCE paths refresh every
-// forest (forceRefreshTrees) and stay available for a multi-forest sampler: a
-// forced whole-matrix setPredictor is the supported multi-forest predictor
-// swap (the bartCause propensity pattern). forceRefreshTrees now re-routes the
-// variance forest as well, so a forced update is the heteroscedastic predictor
-// swap too; a transactional one revalidates forest 0 alone and refuses.
-void refuseMultiForestTransactionalUpdate(const bartcore::SamplerBase& sampler,
-                                          const char* caller,
-                                          bool forcedUpdate = false) {
-  if (!forcedUpdate) refuseVarianceForestPredictorMutation(sampler, caller);
-  if (!forcedUpdate && sampler.shape().numForests >= 2)
-    Rf_error("%s: a transactional predictor update validates only the primary "
-             "forest of a multi-forest sampler; use setPredictor with "
-             "forceUpdate = TRUE or make a new sampler instead", caller);
-}
-
 // A built column store (cuts + codes) shared by row-subset view samplers
 // (public-surface.md section 5; internal). The external pointer's
 // protection slot pins the data expression whose x the store borrows.
@@ -2254,6 +2221,44 @@ void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
   if (sampler.shape().numForests >= 2)
     Rf_error("%s: a multi-forest sampler fixes its data at creation; make a "
              "new sampler instead", caller);
+}
+
+// The variance forest holds its trees outside forests_, which the revalidate
+// helpers loop, so an accepted change on one of those paths leaves s^2(x)
+// routing observations by the codes of the predictors it was built with. The
+// FORCED refresh reaches it (forceRefreshTrees calls refreshVarianceForest)
+// and so does the whole-data replacement (applyNewData resizes its n-sized
+// buffers and re-routes it), so the entries that refuse are the transactional
+// paths below. External linkage: the flat C API reuses this guard through
+// refuseMultiForestTransactionalUpdate.
+void refuseVarianceForestPredictorMutation(
+    const bartcore::SamplerBase& sampler, const char* caller) {
+  if (sampler.shape().hasVarianceForest)
+    Rf_error("%s: a heteroscedastic sampler's variance forest keeps routing "
+             "observations by the predictors it was built with; make a new "
+             "sampler instead", caller);
+}
+
+// The transactional predictor paths (setPredictor and updatePredictor without
+// forceUpdate, and the per-observation sessions, which have no force variant)
+// validate and rebuild through revalidateAllChains, which revalidates only the
+// primary forest - an accepted change would leave a multi-forest sampler's
+// other forests routed against stale codes. The FORCE paths refresh every
+// forest (forceRefreshTrees) and stay available for a multi-forest sampler: a
+// forced whole-matrix setPredictor is the supported multi-forest predictor
+// swap (the bartCause propensity pattern). forceRefreshTrees now re-routes the
+// variance forest as well, so a forced update is the heteroscedastic predictor
+// swap too; a transactional one revalidates forest 0 alone and refuses.
+// External linkage: the flat C API reuses this guard on its own setPredictor/
+// updatePredictor entries.
+void refuseMultiForestTransactionalUpdate(const bartcore::SamplerBase& sampler,
+                                          const char* caller,
+                                          bool forcedUpdate) {
+  if (!forcedUpdate) refuseVarianceForestPredictorMutation(sampler, caller);
+  if (!forcedUpdate && sampler.shape().numForests >= 2)
+    Rf_error("%s: a transactional predictor update validates only the primary "
+             "forest of a multi-forest sampler; use setPredictor with "
+             "forceUpdate = TRUE or make a new sampler instead", caller);
 }
 
 // A sampler whose residual sd is not a free parameter has none to set:

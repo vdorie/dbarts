@@ -447,6 +447,20 @@ SEXP capi_update_predictor(SEXP ptrExpr, SEXP xExpr, SEXP columnExpr) {
     samplerFromExpr(ptrExpr), REAL(xExpr), &column, 1, FALSE, TRUE));
 }
 
+/* the forced flavors of the two above, for the stop-loss guard's accept arm
+ * (docs/plans/multiforest-predictor-mutation.md "SL. Stop-loss") */
+SEXP capi_set_predictor_forced(SEXP ptrExpr, SEXP xExpr) {
+  return Rf_ScalarLogical(
+    dbarts_sampler_setPredictor(samplerFromExpr(ptrExpr), REAL(xExpr), TRUE,
+                                TRUE));
+}
+
+SEXP capi_update_predictor_forced(SEXP ptrExpr, SEXP xExpr, SEXP columnExpr) {
+  size_t column = (size_t) Rf_asInteger(columnExpr); /* already 0-based */
+  return Rf_ScalarLogical(dbarts_sampler_updatePredictor(
+    samplerFromExpr(ptrExpr), REAL(xExpr), &column, 1, TRUE, TRUE));
+}
+
 SEXP capi_set_test_predictors(SEXP ptrExpr, SEXP xTestExpr) {
   if (Rf_isNull(xTestExpr)) {
     dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), NULL, 0);
