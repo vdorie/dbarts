@@ -77,8 +77,11 @@ items
     one constructor, z riding a dbartsData slot, bcf() on top; seven
     slices S0-S6; the flat C surface is ONE slice re-baking the API
     hash (setResponse widened with updateScale, four appended
-    entries). OPEN VD FORK: the public naming (the plan's "Open
-    decision" section). Anchors read at b374d9e; combiner.hpp and
+    entries). NAMING RESOLVED 2026-08-10: option A, FINAL
+    (treatment= / moderators= / treatmentForest(...) /
+    data@treatment; VD's conditional ratification verified in the
+    plan's Open decision section). S0 LANDED 994c161 (pins).
+    Anchors read at b374d9e; combiner.hpp and
     model.hpp moved at the zero-weight snap landing c820227.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). The BCF sigma SBC

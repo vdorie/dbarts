@@ -889,6 +889,11 @@ not re-proposed as a fresh idea.
 Recommendation: (a). S3 already carries the pre-registered fallback to (c) if the
 validate/rebuild split cannot hold the geometric-merge contract.
 
+RESOLVED: (a), 2026-08-10 - VD granted "proceed at your discretion" over the
+open recommendations; the variance forest is IN as S3 with the `stateIsValid`
+occupancy gap closed in the same slice, the fallback to (c) staying
+pre-registered.
+
 ### 2. Sequencing: what actually remains open
 
 Nothing about the ORDER. VD ruled 2026-08-09 that bcf-public-surface goes first,
@@ -940,6 +945,11 @@ shape in scope, and the shape where `T_j` is largest (~40).
   and leaves a refusal whose stated reason has been removed.
 
 Recommendation: (a).
+
+RESOLVED: (a), 2026-08-10, same discretion grant - multinomial is named and
+ungated, with the ungated status stated in NEWS and the docs as specified.
+Question 2's SL interleave was likewise taken as recommended and SL has
+LANDED (see Landing notes).
 
 ## Migration costs per consumer (enumerated, never constraining)
 
