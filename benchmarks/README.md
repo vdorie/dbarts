@@ -66,9 +66,9 @@ mode against the current baseline; bitwise exactness stays a local,
 same-machine check.
 
 R/bcf-equivalence.R and R/multinomial-equivalence.R are sibling harnesses
-for the two multi-forest samplers, with their own current baselines
-(bcf-equivalence-99205ee.rds, multinomial-equivalence-8c2b5fc.rds) in the
-MANIFEST; the three together are the "equivalence trio" the plan docs
+for the two multi-forest samplers, with their own current baselines named
+by the MANIFEST (which is authoritative; hashes rotate at every
+re-record); the three together are the "equivalence trio" the plan docs
 gate on.
 
 Passing `engine=new` routes the comparison side through a standalone shim
