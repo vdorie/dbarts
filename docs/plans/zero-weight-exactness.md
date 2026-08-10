@@ -99,7 +99,7 @@ classification; do not restate it elsewhere.
 | `monotoneIntegrate` (model.hpp) | `tol = 1e-12` | quadrature convergence criterion, not an equality test; halved down the recursion | OUT OF SCOPE |
 | `sign * DBL_EPSILON` latent fallbacks (model.hpp, probit and ordinal) | DBL_EPSILON | sentinel value for a NaN draw, not a comparison | OUT OF SCOPE |
 | GP kernel `nugget` (model.hpp) | 1e-6 | regularizer, not a comparison | OUT OF SCOPE |
-| split-probability and proposal-probability sum-to-one checks (`R_interface_bartcore.cpp` twice, `R/A_class.R` validity) | 1e-10 | IS an almost-equal predicate at unit scale, hand-picked | IN CLASS, OUT OF THIS ARC - see "Doors" |
+| split-probability and proposal-probability sum-to-one checks (`R_interface_bartcore.cpp:1158`, `:1330`, `R/A_class.R:402`) | 1e-10 | IS an almost-equal predicate at unit scale, hand-picked | UNIFY at S3 (VD 2026-08-10) |
 
 ## Binding decisions inherited (do not reopen)
 
@@ -166,6 +166,13 @@ exactness at all (with `m != 0` the response stays `r/m`, so the reported-fit
 benefit does NOT follow the weight channel), would introduce a cliff for a
 caller annealing membership weights toward zero, and would put a per-row branch
 on a path that needs none.
+
+RESOLVED - VD ratified the no-band departure 2026-08-10, restating the
+governing principle: constants are selected to conform to what a user expects,
+and a deviation that reads as "normal" is fine. A supplied weight used exactly
+as given is the normal expectation - no R modeling surface snaps a small
+`weights=` entry to zero (`lm`, `glm` use it verbatim) - so here the BAND, not
+its absence, would be the deviation.
 
 ## Corrected divergence shape (pre-registration; MEASURED, not predicted)
 
@@ -459,10 +466,24 @@ step, three CI-red incidents); rchk on the next scheduled run.
    do not exist, so their cut positions cannot be split on and their leaves
    cannot be created; under zero weight they can, at the prior. The three door-2
    shapes are therefore not interchangeable implementations of one semantic.
+5. **Sum-to-one unification (VD 2026-08-10: unify).** The three hand-picked
+   1e-10 almost-equal checks on user-supplied probability vectors -
+   `R_interface_bartcore.cpp:1158` (rule proposal probabilities), `:1330`
+   (split probabilities), `R/A_class.R:402` (validity) - move to the
+   conventional tolerance. C-side: the same named `0x1p-26` constant as the
+   combiner snap, sharing its derivation comment. R-side:
+   `sqrt(.Machine$double.eps)` (all.equal's default), matching `R/spec.R`'s
+   sibling check. Error messages unchanged. Tests: one tinytest per surface
+   pinning the band from both sides - a vector mis-normalized by 1e-9 (refused
+   today) is ACCEPTED, one off by 1e-7 is refused. This widens accepted INPUT,
+   deliberately: anything newly admitted is input `all.equal` reports equal
+   to 1.
 
 Gates: full tinytest; `air format --check .`; `lintr::lint` on touched R files;
-no engine delta, so the trio is not required (run it if anything under `src/`
-moved).
+`R CMD INSTALL` refresh of the private lib for the bridge change (a `.cpp`, no
+header, so `--preclean` is not required) and the trio BITWISE on all three
+baselines - item 5 touches `src/`, and input validation must not move draws;
+any divergence is a leak, ABORT.
 
 ## Falsifiers (pre-registered)
 
@@ -529,15 +550,10 @@ the decision, do not thread the weight through it).
 
 ## Doors held open (recorded, not scheduled)
 
-- **The 1e-10 sum-to-one checks.** `R_interface_bartcore.cpp` (twice) and
-  `R/A_class.R`'s validity function test `abs(sum(p) - 1) > 1e-10` on
-  user-supplied probability vectors. These ARE almost-equal predicates at unit
-  scale carrying hand-picked constants, so they are in the class VD's ruling
-  names, and the package is already internally inconsistent (R/spec.R compares a
-  sibling quantity with `all.equal` at its default). They are OUT OF THIS ARC
-  because changing them changes which user INPUT is accepted - a validation
-  surface change with no bearing on zero-weight exactness. Two-line change if
-  VD wants conformance everywhere; raise it as its own item.
+- **The 1e-10 sum-to-one checks: RESOLVED into S3 item 5** (VD 2026-08-10:
+  "Unify. The reasoning is why."). Held here originally because widening the
+  tolerance changes which user INPUT is accepted; VD accepted that consequence -
+  anything newly admitted is input `all.equal` reports equal to 1.
 - **`monotoneTreeIsFeasible`'s tolerance**, per "Open decision".
 - **The two `-Inf` sites at zero USER weight in the pointwise log-likelihood
   channel** (model.hpp, gaussian and one family decorator), unguarded and
@@ -556,6 +572,8 @@ the decision, do not thread the weight through it).
 - S2: a BCF sampler accepts a per-forest, per-observation weight, so a caller
   can exclude rows from one forest's leaf conditionals without excluding them
   from the model. `dbarts:::`-only; no public surface in this release.
+- S3: probability vectors for the tree prior are validated with the standard
+  `all.equal` tolerance instead of a hand-picked 1e-10.
 
 ## Departures from the memo and the critique (record)
 
