@@ -608,3 +608,45 @@ the decision, do not thread the weight through it).
    write-conflict rationale has lapsed - that measurement's freeze is committed
    at 7759672 - but its substantive rationale stands: nothing in that document
    is wrong, so there is nothing to correct.
+
+## Landing notes
+
+S0 LANDED 4979656; S1 LANDED c820227 (engine) + d53efe6 (baseline re-record,
+`bcf-equivalence-c820227.rds`; recorded in-worktree under the pre-rebase hash
+and renamed at the rebase onto the docs commits). Implementer gates green per
+commit; the orchestrator independently re-ran the battery on the final tree:
+install `--preclean` into a fresh private lib, `tests/cpp` from clean plain AND
+ASAN (`detect_container_overflow=0`), tinytest 3753/0, `equivalence-c8f661a`
+27/27 identical draws, `multinomial-equivalence-ec2a3d0` 3x5 identical,
+BCF 5x7 identical against the new baseline, `bcf-exact.R` quick OK
+(mode 2a/2b gaps at the plan's values), `air format --check .` clean, lintr
+clean on touched files (one pre-existing brace-style hit in the harness,
+outside the diff).
+
+Band-hit report: count 0 over the five scenarios (temporary instrumented
+build, reverted, restored engine byte-identical); the only in-band glue value
+anywhere is `glue_toggle`'s fixed `b0 = 0`, so the re-record divergence is
+entirely the `b0 = 0` initialization and none of it is the widening.
+Divergence exactly as pre-registered: five scenarios mismatch in mu, tau,
+glue, sigma, train; `varcount` identical in all five, tau varcounts measured
+identical pre/post as well - no tree structure moved. Magnitudes 6.46e-12 to
+4.34e-06. Payoff measured: control-cell tau fits bitwise identical post-fix
+(spread exactly 0, vs 3.67e-7/3.95e-7 pre-fix over 67/78 distinct values);
+treated rows keep the ordinary cancellation, as scoped.
+
+Accepted deviations: S0's marginal pin asserts digit-loss plus a nonzero
+birth delta rather than a literal 0.0 (exact cancellation is
+fixture-dependent - measured -1.78e-15 against an algebraic 1.19e-17); the S0
+case renamed `testBCFZeroMultiplierSnap` at S1; the MANIFEST partition names
+SIX pre-existing channels - this plan's "five" was wrong, the 99205ee compare
+did cover `varcount`; two extra pre-fix builds taken for evidence (payoff
+spread, tau varcount cross-check). Pre-existing fact found, not this arc's:
+`./test_bartcore sampler` run suite-filtered fails
+`testBCFGrowForestFromRoot`'s pinned characteristic value on old and new
+engines alike (the pin depends on the shared runif01 stream position); the
+full run passes. `benchmarks/README.md` no longer names baseline hashes
+(MANIFEST is authoritative).
+
+Remaining: S2 (the per-forest weight channel) and S3 (surface consistency,
+records, and the sum-to-one unification), serialized after the S1 sanitizer
+CI is green.
