@@ -320,11 +320,13 @@ items
     the threshold: the 1e-9 floor becomes a snap to EXACTLY zero at
     sqrt(DBL_EPSILON) = 2^-26, the R/Python almost-equal default, so
     that behaviour conforms to expectation. That plan also carries the
-    package-wide near-zero tolerance classification and holds two
-    doors open from it - the 1e-10 sum-to-one input checks, and
-    monotoneTreeIsFeasible's tolerance, which is NOT the test-only
-    predicate its stale comment claims but the acceptance test of the
-    constrained-prior rejection sampler.
+    package-wide near-zero tolerance classification. Its sum-to-one
+    door CLOSED 2026-08-10 (VD: unify; landed with S3 - all three
+    input checks now use the conventional tolerance); the remaining
+    door is monotoneTreeIsFeasible's tolerance, which is NOT the
+    test-only predicate its stale comment claimed but the acceptance
+    test of the constrained-prior rejection sampler (comment fixed
+    at S1; constant deliberately left).
     Call (1) LANDED 2026-08-10: the weight channel now exists - the
     exact-zero multiplier snap and a caller-settable per-forest weight
     (docs/plans/zero-weight-exactness.md). Call (2), mask/compaction,
@@ -390,6 +392,23 @@ items
     comparison (a THIRD posterior) vs declining the widening for the
     objecting ensemble class, (3) the attribution table with scope
     caveats. Ten deviations logged in-doc, none touching a gate.
+    PLAN COMMITTED docs/plans/multiforest-predictor-mutation.md
+    (design cycle memo -> blind critique 6-blocking -> synthesis,
+    2026-08-10, all three obligations carried): slices SL+S0-S4,
+    all draw-neutral on existing paths. The critique CONFIRMED a
+    live defect the memo found: the flat dbarts_sampler_setPredictor
+    and _updatePredictor accept a flat-created heteroscedastic
+    sampler and silently corrupt the variance surface (~6 sd); SL is
+    the standalone ~155-line stop-loss guard. The critique also
+    proved all three equivalence harnesses carry ZERO predictor-
+    mutation scenarios; S0 adds them with re-recorded baselines.
+    The entry's anchors above are STALE: the guard is now
+    refuseMultiForestTransactionalUpdate and revalidation is
+    Chain::revalidateTrees (verified in the plan's seams section).
+    OPEN VD FORKS in the plan's Open decisions section: variance
+    forest in/out (rec: in with the stateIsValid occupancy gap
+    closed), multinomial named-ungated/gated/excluded (rec:
+    named-ungated). SL + S0 are answer-independent and queued.
   multinomial-counts-mutation: multinomial BART cannot mutate its
     RESPONSE side, so alone among the families it cannot serve as a
     conditional inside a larger Gibbs sampler - the thing dbarts exists
