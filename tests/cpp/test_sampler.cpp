@@ -2391,17 +2391,16 @@ static void testBCFGrowForestFromRoot() {
   printf("ok: BCF grow-from-root sweep\n");
 }
 
-// The pathological near-zero forest multiplier, pinned as the reparameterization
-// treats it TODAY so that a later change of semantics is evidence rather than
-// assertion. A constructed BCF combiner carries the neutral glue
-// (a, b0, b1) = (1, 0, 1), so forest 1's control rows have a multiplier of
-// exactly zero: |m| is floored to 1e-9, which amplifies the row's response by a
-// billion and pushes its weight to w * 1e-18 instead of dropping the row out of
-// the treatment forest's leaf conditionals. The expectations are written the way
-// the engine computes them - a division by the 1e-9 literal, and (w * m) * m
-// left to right - because 1e-9 is not exactly representable, so resid * 1e9 and
-// w * 1e-18 are different doubles.
-static void testBCFFloorContamination() {
+// A forest multiplier that is zero - or indistinguishable from zero at the
+// tolerance R's own almost-equal comparisons default to - excludes the row from
+// that forest's leaf conditionals exactly. A constructed BCF combiner carries
+// the neutral glue (a, b0, b1) = (1, 0, 1), so forest 1's control rows have a
+// multiplier of exactly zero and must come back with exactly zero weight AND
+// exactly zero response; the response half is load-bearing, since the chain
+// reads that buffer arithmetically and the node kernels accumulate w * y. The
+// snap band is pinned from BOTH sides so the constant cannot drift silently,
+// and the treated rows pin that an ordinary multiplier is untouched.
+static void testBCFZeroMultiplierSnap() {
   const size_t n = 8;
   std::vector<double> xDummy(n, 0.0);
   ColumnStore data;
@@ -2438,62 +2437,86 @@ static void testBCFFloorContamination() {
 
   ForestResponse fr =
     combiner.formForestResponse(1, forests, y.data(), w.data());
-  bool floored = true, treated = true;
+  bool excluded = true, treated = true, capped = true;
   for (size_t i = 0; i < n; ++i) {
     double resid = y[i] - a * muFits[i];
     if (z[i] == 0.0)
-      floored &= fr.response[i] == resid / 1.0e-9 &&
-                 fr.weights[i] == w[i] * 1.0e-9 * 1.0e-9;
+      excluded &= fr.response[i] == 0.0 && fr.weights[i] == 0.0;
     else
       treated &= fr.response[i] == resid && fr.weights[i] == w[i];
+    // the condition cap the tolerance buys, on every row and every path; NaN
+    // from a zero weight meeting an amplified response fails this comparison
+    capped &= std::fabs(fr.response[i]) <= std::fabs(resid) * 0x1p26;
   }
-  check(floored,
-        "a zero treatment multiplier floors to 1e-9 rather than excluding "
-        "the row");
+  check(excluded,
+        "a zero treatment multiplier gives exactly zero weight and response");
   check(treated, "a unit treatment multiplier passes the residual through");
+  check(capped, "no reparameterized response exceeds the condition cap");
 
-  // The constant-leaf marginal those floored statistics feed. A leaf holding
-  // only control rows accumulates sumWeights = sum w m^2 and
-  // sumWeightedResponse = sum w m r, whose two data terms in the marginal are
-  // O(1) quantities that cancel: at k = 2, scale = 1/sqrt(25) and unit residual
-  // variance the computed value keeps no correct digit of the algebraic
-  // marginal, and a control-only birth - whose log MH delta is exactly zero for
-  // leaves carrying no information - is contaminated at the 1e-15 scale.
+  // Both band edges, through the glue restore: 2^-27 is inside the band and
+  // snaps whichever sign it carries, 2^-26 is the band itself and 2^-25 is
+  // outside it, where the reparameterization is the plain division.
+  ChainStateData glued;
+  glued.hasBCF = true;
+  glued.a = 1.0;
+  glued.b1 = 1.0;
+  for (int sign = -1; sign <= 1; sign += 2) {
+    glued.b0 = sign * 0x1p-27;
+    combiner.restoreGlue(glued);
+    ForestResponse edge =
+      combiner.formForestResponse(1, forests, y.data(), w.data());
+    bool inside = true;
+    for (size_t i = 0; i < n; ++i)
+      if (z[i] == 0.0)
+        inside &= edge.response[i] == 0.0 && edge.weights[i] == 0.0;
+    check(inside, "a multiplier inside the band snaps regardless of sign");
+  }
+
+  glued.b0 = 0x1p-25;
+  combiner.restoreGlue(glued);
+  ForestResponse outside =
+    combiner.formForestResponse(1, forests, y.data(), w.data());
+  bool divides = true;
+  for (size_t i = 0; i < n; ++i) {
+    if (z[i] != 0.0) continue;
+    double resid = y[i] - muFits[i];
+    divides &= outside.response[i] == resid / 0x1p-25 &&
+               outside.weights[i] == w[i] * 0x1p-25 * 0x1p-25;
+  }
+  check(divides, "a multiplier outside the band still divides exactly");
+
+  // The constant-leaf marginal a control-only leaf now feeds, accumulated from
+  // the combiner's own output at the zero multiplier rather than from
+  // hand-written zeros. Such a leaf carries no weight at all, so its marginal is
+  // the honest zero of an uninformative leaf rather than a cancellation of two
+  // O(1) terms - and it is zero on BOTH sides of a birth, so a control-only
+  // split decision is exactly the prior's instead of the prior's to within a
+  // contaminated 1e-15.
   {
+    glued.b0 = 0.0;
+    combiner.restoreGlue(glued);
+    ForestResponse zeroed =
+      combiner.formForestResponse(1, forests, y.data(), w.data());
     ConstantGaussianLeaf leaf{1.0 / std::sqrt(25.0)};
-    const size_t rows = 100, cut = 40;
-    const double m = 1.0e-9;
     double swP = 0.0, swrP = 0.0, swL = 0.0, swrL = 0.0, swR = 0.0, swrR = 0.0;
-    for (size_t i = 0; i < rows; ++i) {
-      double resid = 0.25 + 0.005 * static_cast<double>(i);
-      double wi = m * m, wri = (m * m) * (resid / m);
+    for (size_t i = 0; i < n; ++i) {
+      if (z[i] != 0.0) continue;
+      double wi = zeroed.weights[i], wri = wi * zeroed.response[i];
       swP += wi;
       swrP += wri;
-      if (i < cut) { swL += wi; swrL += wri; }
-      else         { swR += wi; swrR += wri; }
+      if (i < n / 2) { swL += wi; swrL += wri; }
+      else           { swR += wi; swrR += wri; }
     }
     double parent = leaf.logIntegratedLikelihood(2.0, 1.0, swP, swrP);
     double left = leaf.logIntegratedLikelihood(2.0, 1.0, swL, swrL);
     double right = leaf.logIntegratedLikelihood(2.0, 1.0, swR, swrR);
-
-    // the same marginal in the algebraically equivalent form the cancellation
-    // does not reach: 0.5 log(p / (p + q)) + 0.5 q^2 mean^2 / (p + q)
-    double priorPrecision = (2.0 / leaf.scale) * (2.0 / leaf.scale);
-    double mean = swrP / swP;
-    double exactParent =
-      0.5 * std::log1p(-swP / (priorPrecision + swP)) +
-      0.5 * swP * swP * mean * mean / (priorPrecision + swP);
-    check(std::fabs(parent - exactParent) > 100.0 * std::fabs(exactParent),
-          "the floored control-leaf marginal keeps no digit of the algebraic "
-          "value");
-    check(std::fabs(left + right - parent) > 1.0e-16,
-          "a control-only birth's log MH delta is contaminated by the floor");
-    printf("     floored control leaf: marginal %.3g against an algebraic %.3g,"
-           " birth delta %.3g\n",
-           parent, exactParent, left + right - parent);
+    check(parent == 0.0 && left == 0.0 && right == 0.0,
+          "a control-only leaf's marginal is exactly zero");
+    check(left + right - parent == 0.0,
+          "a control-only birth's log MH delta is exactly zero");
   }
 
-  printf("ok: BCF near-zero multiplier floor (pre-snap)\n");
+  printf("ok: BCF zero multiplier snaps to an exact exclusion\n");
 }
 
 // Build a one-hot n x K category-major count matrix and unit trials from
@@ -3448,7 +3471,7 @@ void runSamplerTests(ext_rng* rng) {
   testBCFInterweave(rng);
   testBCFInterweaveKeepTrees(rng);
   testBCFGrowForestFromRoot();
-  testBCFFloorContamination();
+  testBCFZeroMultiplierSnap();
   testMultinomial(rng);
   testMultinomialGrowForestFromRoot();
   testMultinomialCountGrowForestFromRoot();

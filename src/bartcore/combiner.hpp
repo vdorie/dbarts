@@ -449,11 +449,30 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
     return true;
   }
 
+  /// Multipliers with |m_f| below this are taken as exactly zero:
+  /// sqrt(DBL_EPSILON) = 2^-26 = 1.4901161193847656e-08, which R's all.equal,
+  /// tinytest::expect_equal and testthat all default to when asked whether two
+  /// numbers are the same. Written as a hex literal because 2^-26 is exact.
+  static constexpr double zeroMultiplierTolerance = 0x1p-26;
+
   /// Effective response and precision forest f's constant-leaf draws see so that
   /// m_f * f_f explains the residual (y minus the other forests' scaled
   /// contributions): response r_i / m_f, weight w_i m_f^2, which reproduce the
-  /// leaf's node sums without touching the leaf math. |m_f| is floored to keep
-  /// the division finite in the pathological near-zero-scale case.
+  /// leaf's node sums without touching the leaf math.
+  ///
+  /// A multiplier indistinguishable from zero at that tolerance says row i
+  /// carries no information about forest f, so the row leaves with exactly zero
+  /// weight and exactly zero response. The zero RESPONSE is required rather than
+  /// cosmetic: the chain reads this buffer arithmetically when it rolls the
+  /// running residual and finalizes total fits, and the node sufficient-statistic
+  /// kernels accumulate w * y, where a zero weight against an amplified response
+  /// would be 0 * inf. The tolerance doubles as a condition-number cap - the
+  /// division amplifies by at most 2^26, so the cancellation downstream stays
+  /// inside half the mantissa.
+  ///
+  /// The snap belongs to this REPARAMETERIZATION, not to the model: combinedFits
+  /// and drawGlue keep the exact multiplier, so a snapped row still receives
+  /// m_f f_f(x_i) in the combination and still informs the glue draw.
   ForestResponse formForestResponse(std::size_t f,
       const std::vector<Forest<L, ResidT>>& forests, const double* y,
       const double* w) override {
@@ -461,11 +480,15 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
     glue_.forestResponse.resize(n);
     glue_.forestWeights.resize(n);
     for (std::size_t i = 0; i < n; ++i) {
+      double m = forestMultiplier(f, i);
+      if (std::fabs(m) < zeroMultiplierTolerance) {
+        glue_.forestResponse[i] = 0.0;
+        glue_.forestWeights[i] = 0.0;
+        continue;
+      }
       double resid = y[i];
       for (std::size_t g = 0; g < forests.size(); ++g)
         if (g != f) resid -= forestMultiplier(g, i) * forests[g].totalFits[i];
-      double m = forestMultiplier(f, i);
-      if (std::fabs(m) < 1.0e-9) m = m < 0.0 ? -1.0e-9 : 1.0e-9;
       glue_.forestResponse[i] = resid / m;
       glue_.forestWeights[i] = (w == nullptr ? 1.0 : w[i]) * m * m;
     }

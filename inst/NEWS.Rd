@@ -764,6 +764,11 @@
       \item \code{samplePriorPredictive(type = "ppd")} refuses a
             heteroscedastic sampler rather than returning a homoscedastic
             prior predictive; \code{type = "ev"} is unaffected.
+      \item A BCF forest whose scale multiplier is zero now contributes
+            exactly zero weight and exactly zero response for the affected
+            rows instead of a near-zero floor, so the treatment surface
+            reported at control rows under a fixed glue is exact rather
+            than accurate to about seven digits.
     }
   }
 }
