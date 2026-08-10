@@ -16,6 +16,7 @@
 \alias{\S4method{setResponse}{dbartsSampler}}
 \alias{\S4method{setOffset}{dbartsSampler}}
 \alias{\S4method{setWeights}{dbartsSampler}}
+\alias{\S4method{setTreatment}{dbartsSampler}}
 \alias{\S4method{setSigma}{dbartsSampler}}
 \alias{\S4method{setPredictor}{dbartsSampler}}
 \alias{\S4method{setCutPoints}{dbartsSampler}}
@@ -27,6 +28,9 @@
 \alias{\S4method{getSigmas}{dbartsSampler}}
 \alias{\S4method{getLatents}{dbartsSampler}}
 \alias{\S4method{getSumsOfSquaredResiduals}{dbartsSampler}}
+\alias{\S4method{getForestFits}{dbartsSampler}}
+\alias{\S4method{getBCFGlue}{dbartsSampler}}
+\alias{\S4method{getForestVariableCounts}{dbartsSampler}}
 \alias{\S4method{installTrees}{dbartsSampler}}
 \alias{\S4method{storeState}{dbartsSampler}}
 \alias{\S4method{setState}{dbartsSampler}}
@@ -53,6 +57,7 @@
 \S4method{setResponse}{dbartsSampler}(y, updateScale = FALSE, updateState = NA)
 \S4method{setOffset}{dbartsSampler}(offset, updateScale = FALSE, updateState = NA)
 \S4method{setWeights}{dbartsSampler}(weights, updateState = NA)
+\S4method{setTreatment}{dbartsSampler}(z, updateState = NA)
 \S4method{setSigma}{dbartsSampler}(sigma, updateState = NA)
 \S4method{setPredictor}{dbartsSampler}(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA)
 \S4method{setCutPoints}{dbartsSampler}(cuts, column, updateState = NA)
@@ -66,6 +71,9 @@
 \S4method{getSigmas}{dbartsSampler}(result)
 \S4method{getLatents}{dbartsSampler}(result)
 \S4method{getSumsOfSquaredResiduals}{dbartsSampler}(result)
+\S4method{getForestFits}{dbartsSampler}(forest)
+\S4method{getBCFGlue}{dbartsSampler}()
+\S4method{getForestVariableCounts}{dbartsSampler}(forest)
 \S4method{installTrees}{dbartsSampler}(donor, samples = NULL)
 \S4method{storeState}{dbartsSampler}()
 \S4method{setState}{dbartsSampler}(newState)
@@ -83,7 +91,7 @@
     A positive integer determining how many posterior samples should be returned. If missing or \code{NA}, the default is also filled in from the control object.
   }
   \item{updateState}{
-    A logical determining if the local cache of the sampler's state should be updated after the call completes. Two conventions apply, by method: for \code{run}, \code{sampleTreesFromPrior}, and \code{sampleNodeParametersFromPrior}, \code{NA} (the default) fills in the sampler's \code{\link[=dbartsControl]{control}} object's \code{updateState}, and explicit \code{TRUE}/\code{FALSE} override it. For the mutators - \code{setData}, \code{setResponse}, \code{setOffset}, \code{setWeights}, \code{setSigma}, \code{setPredictor}, and \code{setCutPoints} - the state is stored only on explicit \code{TRUE}; \code{NA} (the default) and \code{FALSE} both store nothing, regardless of \code{control@updateState}. These are typically called once per sweep inside a larger Gibbs/MH loop (as \code{dbartsSampler} is designed for), where storing state on every mutation would be wasted work whenever the loop only reads \code{state} occasionally (or never); an unforced \code{state} promise materializes the sampler's \emph{current} state on first access regardless, so a mutate-then-first-read sequence needs no explicit store. Pass \code{TRUE} explicitly when \code{state} was already forced (read or saved) earlier and a later mutation must be reflected in the next save.
+    A logical determining if the local cache of the sampler's state should be updated after the call completes. Two conventions apply, by method: for \code{run}, \code{sampleTreesFromPrior}, and \code{sampleNodeParametersFromPrior}, \code{NA} (the default) fills in the sampler's \code{\link[=dbartsControl]{control}} object's \code{updateState}, and explicit \code{TRUE}/\code{FALSE} override it. For the mutators - \code{setData}, \code{setResponse}, \code{setOffset}, \code{setWeights}, \code{setTreatment}, \code{setSigma}, \code{setPredictor}, and \code{setCutPoints} - the state is stored only on explicit \code{TRUE}; \code{NA} (the default) and \code{FALSE} both store nothing, regardless of \code{control@updateState}. These are typically called once per sweep inside a larger Gibbs/MH loop (as \code{dbartsSampler} is designed for), where storing state on every mutation would be wasted work whenever the loop only reads \code{state} occasionally (or never); an unforced \code{state} promise materializes the sampler's \emph{current} state on first access regardless, so a mutate-then-first-read sequence needs no explicit store. Pass \code{TRUE} explicitly when \code{state} was already forced (read or saved) earlier and a later mutation must be reflected in the next save.
   }
   \item{shallow}{
     A logical determining if the copy should retain the underlying data of the sampler (\code{TRUE}) or have its own copies (\code{FALSE}).
@@ -127,6 +135,12 @@
   }
   \item{weights}{
     A numeric vector of non-negative case weights, of length equal to that with which the sampler was created. Weights of zero exclude an observation from the likelihood while keeping its fitted values. \code{setWeights} only applies to a gaussian-family sampler; calling it on a probit- or logistic-family sampler is refused, since a weighted probit has no tractable latent-variable form and logistic weights (observation counts) are fixed when the sampler is created. See \code{\link{dbarts}} for the family-specific weight rules that apply at creation time.
+  }
+  \item{z}{
+    A 0/1 (or logical) treatment indicator, of length equal to that with which the sampler was created. \code{setTreatment} only applies to a Bayesian causal forest built with \code{treatment = } (see \code{\link{dbarts}}); it writes both the engine and \code{data@treatment}, so \code{getPointer}'s transparent re-creation after save/load carries the current assignment rather than the one the sampler was created with.
+  }
+  \item{forest}{
+    For \code{getForestFits} and \code{getForestVariableCounts}, a single integer selecting a Bayesian causal forest's prognostic (\code{0}) or treatment (\code{1}) forest. Refused on a sampler that is not a Bayesian causal forest.
   }
   \item{cuts}{
     Vector of cut points for use with \code{setCutPoints}.
@@ -288,6 +302,8 @@
   For \code{getSumsOfSquaredResiduals}, a numeric vector of length equal to the number of chains, giving each chain's residual sum of squares \eqn{\sum (y - \hat{y})^2}{sum((y - yhat)^2)} on the original response scale; a binary-response sampler reports on the latent scale instead.
 
   For \code{getLatents}, \code{NULL} when the model has no latent-variable representation (e.g. a gaussian response); otherwise the sampler's current latent values - a plain vector of length equal to the number of observations when there is a single chain, or an observations-by-chains matrix otherwise - written into \code{result} when one was supplied.
+
+  For \code{getForestFits}, a Bayesian causal forest's requested forest's current internal-scale fitted values, an n.observations x n.chains matrix. For \code{getBCFGlue}, the combining coefficients \eqn{(a, b_0, b_1)}{(a, b0, b1)} of \eqn{y = a \mu(x) + b_z \tau(x) + \epsilon}{y = a mu(x) + b_z tau(x) + eps}, a 3 x n.chains matrix. For \code{getForestVariableCounts}, the requested forest's current per-predictor split counts, an n.predictors x n.chains integer matrix.
 
   For \code{storeState}, \code{NULL} invisibly; it is called for its side effect of capturing the sampler's current engine state into the serializable \code{state} field, which \code{\link{save}} then writes out. See \sQuote{Saving}.
 }

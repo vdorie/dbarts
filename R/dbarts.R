@@ -909,7 +909,7 @@ dbartsSampler <- setRefClass(
       .Call(C_dbarts_bartcore_predict, ptr, x.test, offset.test)
     },
     setControl = function(newControl) {
-      "Sets the control object for the sampler to a new one. Preserves the call() slot."
+      "Sets the control object for the sampler to a new one. Preserves the call() slot and any bartcore.* control attributes."
       if (!inherits(newControl, "dbartsControl")) {
         stop("'control' must inherit from dbartsControl")
       }
@@ -918,6 +918,24 @@ dbartsSampler <- setRefClass(
 
       newControl@binary <- control@binary
       newControl@call <- control@call
+      # bartcore.* attributes (the BCF, variance, grouped, survival and
+      # ordinal/nbinom configuration resolveSamplerSpec attaches at creation,
+      # docs/design/bcf.md) live outside the S4 slots newControl replaces
+      # wholesale; a freshly built dbartsControl() never carries them, so
+      # carry them forward exactly as binary/call are. Without this, a
+      # legitimate setControl silently orphans the model configuration the
+      # stored state's forest counts were built against, and the next
+      # getPointer() re-creation refuses loudly instead (a BCF sampler: "the
+      # data carry a treatment vector but no treatment forest was
+      # configured"; a heteroscedastic one: "state is not consistent with
+      # this sampler").
+      for (attrName in grep(
+        "^bartcore\\.",
+        names(attributes(control)),
+        value = TRUE
+      )) {
+        attr(newControl, attrName) <- attr(control, attrName)
+      }
 
       # settings fixed at creation: the generators and anything shaping
       # the cut grid
@@ -950,6 +968,12 @@ dbartsSampler <- setRefClass(
       if (!inherits(newModel, "dbartsModel")) {
         stop("'model' must inherit from dbartsModel")
       }
+      refuseBCFMutation(
+        .self,
+        "setModel",
+        "both forests' node and tree priors are calibrated at creation; ",
+        "make a new sampler instead"
+      )
       # the Dirichlet machinery is fixed at creation: a sampler cannot gain
       # or reconfigure it
       if (
@@ -1039,6 +1063,34 @@ dbartsSampler <- setRefClass(
         .Call(C_dbarts_bartcore_setWeights, ptr, data@weights),
         error = function(e) {
           selfEnv$data@weights <- oldWeights
+          e
+        }
+      )
+      if (inherits(tryResult, "error")) {
+        stop(tryResult)
+      }
+
+      if (identical(updateState, TRUE)) {
+        storeState(ptr)
+      }
+      invisible(NULL)
+    },
+    setTreatment = function(z, updateState = NA) {
+      "Changes the 0/1 treatment indicator a BCF sampler's treatment forest contrasts on. updateState is opt-in; see setData."
+      if (is.null(z)) {
+        stop("'z' cannot be NULL")
+      }
+      z <- validateTreatment(z, length(data@y))
+
+      ptr <- getPointer()
+      selfEnv <- parent.env(environment())
+
+      oldTreatment <- data@treatment
+      selfEnv$data@treatment <- z
+      tryResult <- tryCatch(
+        .Call(C_dbarts_bartcore_setTreatment, ptr, data@treatment),
+        error = function(e) {
+          selfEnv$data@treatment <- oldTreatment
           e
         }
       )
@@ -1227,6 +1279,21 @@ dbartsSampler <- setRefClass(
       "Return sum( (y - y.hat)^2 ) on original scale."
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getSumsOfSquaredResiduals, ptr)
+    },
+    getForestFits = function(forest) {
+      "Returns a BCF sampler's per-forest internal-scale fitted values (0 = prognostic, 1 = treatment), n.observations x n.chains."
+      ptr <- getPointer()
+      .Call(C_dbarts_bartcore_getForestFits, ptr, as.integer(forest))
+    },
+    getBCFGlue = function() {
+      "Returns a BCF sampler's combining glue (a, b0, b1), a 3 x n.chains matrix."
+      ptr <- getPointer()
+      .Call(C_dbarts_bartcore_getBCFGlue, ptr)
+    },
+    getForestVariableCounts = function(forest) {
+      "Returns a BCF sampler's per-forest predictor split counts (0 = prognostic, 1 = treatment), n.predictors x n.chains."
+      ptr <- getPointer()
+      .Call(C_dbarts_bartcore_getForestVariableCounts, ptr, as.integer(forest))
     },
     getPointer = function() {
       "Returns the underlying reference pointer, checking for consistency first."

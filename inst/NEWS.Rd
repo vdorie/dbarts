@@ -57,7 +57,16 @@
             stores, saves, and re-creates like any other, and the treatment
             vector rides the data object beside the weights it mirrors.
             Gaussian responses only; every option the two-forest model does
-            not read is refused at creation rather than ignored.
+            not read is refused at creation rather than ignored. A Bayesian
+            causal forest's \code{$setTreatment} mutates the treatment
+            vector in place, mirroring it into \code{data@treatment} as
+            \code{$setWeights} does for weights; \code{$getForestFits},
+            \code{$getBCFGlue}, and \code{$getForestVariableCounts} read the
+            prognostic and treatment forests' fitted values, combining
+            coefficients, and split counts separately. \code{$setControl} no
+            longer discards a sampler's \code{bartcore.*} model
+            configuration (the two-forest structure, a variance forest, and
+            similar), which used to make the next re-creation refuse loudly.
       \item Interaction constraints: the new \code{interactions} argument of
             \code{dbarts} and \code{bart2}, built with \code{\link{interactions}},
             restricts which predictors may jointly shape the fit.
