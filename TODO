@@ -596,8 +596,17 @@ items
     dbarts.h toucher) OPENED for the pre-release breaking window -
     reshape-by-replacement to source-shaped signatures, sequenced
     after cheap-uniformity lands so the C surface mirrors the final
-    shape (consumer cost: a stan4bart predict sweep only - neither C
-    consumer calls the dense mutation entries); setData on a
+    shape. RESHAPE PLAN COMMITTED docs/plans/dbarts-h-reshape.md
+    (design cycle memo -> blind critique 7-blocking -> synthesis,
+    2026-08-10; artifacts .claude/dbarts-h-reshape-design/): one
+    size-first dbarts_predictor_source POD replaces the dense
+    predictor params; forest-indexed numTrees/getTrees/printTrees;
+    sparse predict for free (engine already resident); NO version
+    increments (VD 2026-08-10 - nothing released; hash is the
+    lockstep signal); slices S0-S2, runs AFTER bcf-public-surface;
+    consumer cost CORRECTED by verified census: five stan4bart
+    call sites (predict, getTrees, printTrees, numTrees x2), other
+    consumers rebuild only; setData on a
     CSC/mixed store SURVEYED and KEPT UNDESIGNED (2026-08-08,
     docs/design/model-space-survey.md sec 3, door 3) - no model
     surfaced: the classes needing sparse designs do not swap whole

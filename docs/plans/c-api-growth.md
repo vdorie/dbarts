@@ -495,13 +495,19 @@ creation entry does not collide with it:
       (dbarts_sampler*, size_t forest, const double* weights),
       (sampler, forest, weights))
 
-appended at the END of the X-list (dbarts.h), `DBARTS_C_API_MINOR` bumped
-when it lands. Three constraints recorded now so a later implementer does not
-relitigate them:
+appended at the END of the X-list (dbarts.h); no version constant moves when
+it lands (VD 2026-08-10: no increments pre-release - the constants stay 1.0
+until the first release). Three constraints recorded now so a later
+implementer does not relitigate them:
 
-1. Nonzero return means refusal, matching `dbarts_sampler_setPredictor` and
-   its siblings; `weights == NULL` clears the installed weight rather than
-   refusing.
+1. **Erratum (dbarts-h-reshape, 2026-08-10):** this reservation originally
+   read "Nonzero return means refusal, matching `dbarts_sampler_setPredictor`".
+   That is the INVERSE of the shipped convention - `dbarts_sampler_setPredictor`
+   ends `return result == bartcore::PredictorUpdateResult::accepted ? 1 : 0`
+   (C_interface.cpp), i.e. **1 = accepted, 0 = refused**, which is also what
+   bcf-public-surface S3 item 3 records. The entry is built with
+   1 = accepted / 0 = refused; `weights == NULL` clears the installed weight
+   rather than refusing.
 2. Per-forest weights must NOT be folded into a future BCF creation struct -
    membership is typically resampled per sweep, so this is a mutation entry
    point, not a creation-time parameter.
