@@ -281,6 +281,13 @@ there is one resolver and one validator.
 **Recommendation: A.** What would change it: a preference for engine-vocabulary
 symmetry over reader-facing description, which argues B.
 
+**RESOLVED: A, FINAL (VD 2026-08-10).** VD's ratification was conditional -
+"I assume that your recommendation matches user expectations. If so, you can
+proceed" - and the condition holds by construction: `treatment` and
+`moderators` are the words the causal-inference literature and the reference
+`bcf` package put in front of users, which is the ground the recommendation
+was made on. The public spellings are the option-A list above.
+
 ## S0. Pin the current surface. No engine change.
 
 tinytest asserting today's BCF behavior one by one, so S1's routing cannot
@@ -672,3 +679,20 @@ all four.
 9. **A1, A2, A3, A5, A7, B2, B4, B5, B6, B7 adopted** as stated, with the
    amendments above folded into the slices, the falsifiers and the migration
    census.
+
+## Landing notes
+
+S0 LANDED 994c161 (2026-08-10; tests only, src proven untouched by git
+status, so the trio was correctly not run). inst/tinytest/
+test-bcf-mutation-pins.R, 19 assertions: all eight refusals pinned with
+their current messages (setData, setModel, predict, setTestPredictor,
+setTestOffset - the last never previously pinned on a BCF sampler -
+transactional setPredictor, the per-observation session, and
+setResponse(updateScale = TRUE)); all five allowed mutations pinned
+(forced whole-matrix setPredictor, setTreatment, scale-pinned
+setResponse/setOffset/setWeights); both halves of the driver-loop
+identity pinned (scale*(a*mu + b_z*tau) + shift reconstructs train to
+~9e-16 per chain at 2 chains; a per-sweep loop is bitwise identical to a
+batched run). Gates: tinytest 3810/0 (implementer) and the new file
+19/0 re-run independently by the orchestrator against a fresh install;
+air 0; lintr 0. No deviations from the pin list.

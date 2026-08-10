@@ -404,6 +404,27 @@ house at 6x.
 
 ### 4.1 Move signal out of the forest, and let BART fit the remainder
 
+**Erratum (2026-08-10, composition mixing probe).** This section's
+first-overall rank is WITHDRAWN by measurement. The pre-registered probe
+(docs/plans/composition-mixing-probe.md, run to verdicts the day after this
+survey landed) returned YELLOW with its registered HARM clause fired and
+fresh-seed confirmed, which by the registration kills the blanket
+composition recommendation whatever the mixing gates say. What the probe
+measured: the representation-transfer leg below is REAL (absorbing the
+smooth share robustly shrinks the forest's own job - this section's
+mechanism holds); the mixing payoff does NOT reliably follow (no arm
+reached the inclusion-efficiency margin at the frozen replication, and the
+one fresh-seed pass disagrees with the main block at z 2.5); and the
+accuracy guardrail bites where this section did not predict - linear
+leaves cost 18% held-out RMSE when there is NOTHING to absorb, while
+outer composition buys 15% when there is. What survives is a CONDITIONAL
+tool, not a recommendation: outer composition where absorbable structure
+is known present. The cross-block ridge is material in every outer arm
+(IACT 850-880 of a 2000-sweep window; cor(a_t, b_t) -0.98 to -0.995), the
+first such measurement on a composed parametric-plus-BART sampler. The
+falsifier this section proposed has therefore RUN; section 7's
+recommendation to run it first is discharged.
+
 **What it is.** Put a parametric component - a linear predictor `Z beta`,
 random effects, splines, a latent vector - *outside* the forest, sample it
 with a gradient-based sampler (Hamiltonian Monte Carlo, NUTS, WALNUTS) that

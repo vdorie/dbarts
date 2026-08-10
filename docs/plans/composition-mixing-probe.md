@@ -1404,7 +1404,10 @@ Appended with date and reason. Items 1-11 were recorded as they arose;
    a forest with nothing to fit collapses to stumps at m = 75 - is false.
    Evidence and reasoning in full under Results. This deviation is carried in
    the results title line rather than a footnote, and the decision is left
-   open for VD to overrule.
+   open for VD to overrule. UPHELD 2026-08-10 under VD's discretion grant:
+   the continuation stands - the gate's premise was refuted by direct
+   measurement and two independent identity checks passed; the A2 flag stays
+   visible in the verdict table.
 2. **2026-08-10 - sampler seed carries the chain index for every arm**, not
    only A3: `seed = rep * 1000 + chain`. The registration writes "sampler
    seed = r for every arm" and, separately, one sampler object per chain;
