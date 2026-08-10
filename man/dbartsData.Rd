@@ -9,10 +9,11 @@ dbartsData(
     formula, data, test, subset, weights,
     offset, offset.test = offset,
     factors = c("categorical", "indicators"),
-    missing = c("incorporate", "error"))
+    missing = c("incorporate", "error"),
+    treatment = NULL)
 }
 \arguments{
-   \item{formula, data, test, subset, weights, offset, offset.test, factors, missing}{
+   \item{formula, data, test, subset, weights, offset, offset.test, factors, missing, treatment}{
      As in \code{\link{dbarts}}. Retains backwards compatibility with \code{\link{bart}}, so that \code{formula}/\code{data} can be a \code{\link{formula}}/\code{\link{data.frame}} pair, or a pair of \code{x.train}/\code{y.train} matrices/vector.
    }
 }

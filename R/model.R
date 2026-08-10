@@ -610,6 +610,76 @@ resolveVarianceColumns <- function(variance, data) {
   sort(unique(index))
 }
 
+## Resolve the `moderators` selector - the columns a Bayesian causal forest's
+## treatment forest may split on (docs/design/bcf.md) - to sorted 1-based
+## model-matrix column indices, or NULL for an unrestricted forest. Column
+## names resolve against colnames(data@x), indices are range-checked; an
+## explicitly empty selection is an error rather than a silent full forest.
+resolveModerators <- function(moderators, data) {
+  if (is.null(moderators)) {
+    return(NULL)
+  }
+  if (length(moderators) == 0L) {
+    stop(
+      "'moderators' is empty; omit it to leave the treatment forest ",
+      "unrestricted"
+    )
+  }
+  if (is.character(moderators)) {
+    columnNames <- colnames(data@x)
+    if (is.null(columnNames)) {
+      stop("'moderators' given by name but the design has no column names")
+    }
+    moderators <- match(moderators, columnNames)
+    if (anyNA(moderators)) {
+      stop("moderator name not found in the design's column names")
+    }
+  } else {
+    moderators <- as.integer(moderators)
+    if (any(moderators < 1L | moderators > ncol(data@x))) {
+      stop("moderator column index out of range")
+    }
+  }
+  sort(unique(as.integer(moderators)))
+}
+
+## Resolve a treatmentForest() specification into the validated knobs the BCF
+## control attribute carries. NULL takes the constructor's defaults, so a
+## `treatment` vector alone fits the default two-forest model.
+resolveTreatmentForest <- function(spec) {
+  if (is.null(spec)) {
+    spec <- treatmentForest()
+  }
+  if (!inherits(spec, "dbartsTreatmentForest")) {
+    stop("'treatmentForest' must be a treatmentForest() specification")
+  }
+  numTrees <- suppressWarnings(as.integer(spec$n.trees))
+  if (length(numTrees) != 1L || is.na(numTrees) || numTrees < 1L) {
+    stop("treatmentForest 'n.trees' must be a single integer >= 1")
+  }
+  spec$n.trees <- numTrees
+  for (name in c("power", "sd.control", "sd.moderate", "b.prior.variance")) {
+    value <- suppressWarnings(as.double(spec[[name]]))
+    if (length(value) != 1L || is.na(value) || value <= 0.0) {
+      stop("treatmentForest '", name, "' must be a single positive number")
+    }
+    spec[[name]] <- value
+  }
+  base <- suppressWarnings(as.double(spec$base))
+  if (length(base) != 1L || is.na(base) || base <= 0.0 || base >= 1.0) {
+    stop("treatmentForest 'base' must be a single number in (0, 1)")
+  }
+  spec$base <- base
+  for (name in c("update.a", "update.b")) {
+    flag <- suppressWarnings(as.logical(spec[[name]]))
+    if (length(flag) != 1L || is.na(flag)) {
+      stop("treatmentForest '", name, "' must be TRUE or FALSE")
+    }
+    spec[[name]] <- flag
+  }
+  spec
+}
+
 ## Resolve an interactions() specification against the fitted model matrix into
 ## the engine's per-forest constraint (docs/design/interaction-constraints.md):
 ## a max-order cap (0 = uncapped) and a de-duplicated 2 x k integer matrix of
@@ -1065,6 +1135,46 @@ blocks <- function(groups, trees.per.group = NULL) {
   structure(
     list(groups = groups, trees.per.group = trees.per.group),
     class = "dbartsBlocks"
+  )
+}
+
+## The treatment forest of a Bayesian causal forest (docs/design/bcf.md),
+## passed as treatmentForest = to dbarts()/dbartsSpec() alongside a `treatment`
+## vector. One constructor carries every knob the second forest and the glue
+## own, so the fitting functions grow three arguments rather than fourteen:
+## n.trees, base and power are its tree-structure prior; sd.control and
+## sd.moderate scale the prognostic and treatment totals in sd(y) units;
+## b.prior.variance is the N(0, .) variance of the b0/b1 glue; update.a and
+## update.b fix the matching glue block when FALSE. interactions and blocks are
+## the treatment forest's own constraints - the dbarts() arguments of the same
+## names constrain the prognostic forest. Validated at fit time, in
+## resolveTreatmentForest. Exported, like interactions() and blocks().
+treatmentForest <- function(
+  n.trees = 50L,
+  base = 0.25,
+  power = 3,
+  sd.control = 2,
+  sd.moderate = 1,
+  b.prior.variance = 0.5,
+  update.a = TRUE,
+  update.b = TRUE,
+  interactions = NULL,
+  blocks = NULL
+) {
+  structure(
+    list(
+      n.trees = n.trees,
+      base = base,
+      power = power,
+      sd.control = sd.control,
+      sd.moderate = sd.moderate,
+      b.prior.variance = b.prior.variance,
+      update.a = update.a,
+      update.b = update.b,
+      interactions = interactions,
+      blocks = blocks
+    ),
+    class = "dbartsTreatmentForest"
   )
 }
 

@@ -19,6 +19,7 @@ methods::setMethod(
       .Object@weights.test <- modelMatrices$weights.test
       .Object@offset <- modelMatrices$offset
       .Object@offset.test <- modelMatrices$offset.test
+      .Object@treatment <- modelMatrices$treatment
 
       .Object@testUsesRegularOffset <- modelMatrices$testUsesRegularOffset
     }
@@ -622,6 +623,36 @@ validateXYWeights <- function(weights, initialNumObservations, subset) {
   weights[subset]
 }
 
+# Validate and subset a user-supplied 0/1 treatment indicator, the vector a
+# Bayesian causal forest contrasts on (docs/design/bcf.md). A NULL passes
+# through; anything else is length-checked against the pre-subset response and
+# restricted to 'subset', exactly as the weights it rides beside are. The
+# formula branch has no row index to restrict by, so it passes the assembled
+# response length and no subset.
+validateTreatment <- function(
+  treatment,
+  initialNumObservations,
+  subset = NULL
+) {
+  if (is.null(treatment)) {
+    return(NULL)
+  }
+  if (!is.numeric(treatment) && !is.logical(treatment)) {
+    stop("'treatment' must be a numeric or logical vector")
+  }
+  treatment <- as.double(treatment)
+  if (length(treatment) != initialNumObservations) {
+    stop("length of 'treatment' must equal length of 'y'")
+  }
+  if (!is.null(subset)) {
+    treatment <- treatment[subset]
+  }
+  if (anyNA(treatment) || any(treatment != 0.0 & treatment != 1.0)) {
+    stop("'treatment' must be coded 0 (control) or 1 (treated)")
+  }
+  treatment
+}
+
 # Validate and subset a user-supplied offset vector for the x/y interfaces
 # (shared by both x/y branches, formerly byte-identical): a NULL passes through
 # unchanged, otherwise the vector is numeric-checked, length-1 recycled (which
@@ -662,7 +693,8 @@ dbartsData <- function(
   offset,
   offset.test = offset,
   factors = c("categorical", "indicators"),
-  missing = c("incorporate", "error")
+  missing = c("incorporate", "error"),
+  treatment = NULL
 ) {
   dataIsMissing <- missing(data)
   testIsMissing <- missing(test)
@@ -843,6 +875,9 @@ dbartsData <- function(
     y <- coded$y
     responseInfo <- coded[c("type", "n.levels", "levels")]
     numObservations <- NROW(y)
+    # the model frame owns the row selection here, so the treatment is checked
+    # against the rows that survived it
+    treatment <- validateTreatment(treatment, numObservations)
 
     ## weights
     weights <- as.vector(model.weights(modelFrame))
@@ -924,6 +959,7 @@ dbartsData <- function(
     }
     y <- y[subset]
     x <- formula[subset, , drop = FALSE]
+    treatment <- validateTreatment(treatment, initialNumObservations, subset)
 
     if (missing(weights)) {
       weights <- NULL
@@ -989,6 +1025,7 @@ dbartsData <- function(
     } else {
       formula[subset]
     }
+    treatment <- validateTreatment(treatment, initialNumObservations, subset)
 
     if (missing(weights)) {
       weights <- NULL
@@ -1255,6 +1292,7 @@ dbartsData <- function(
       weights.test,
       offset,
       offset.test,
+      treatment,
       testUsesRegularOffset
     ),
     n.cuts = NA_integer_,

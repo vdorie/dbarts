@@ -30,6 +30,7 @@ reference:
   - dbartsPriors
   - interactions
   - blocks
+  - treatmentForest
   - extract.dbartsSampler
   - samplePriorPredictive
   - sparseFactor

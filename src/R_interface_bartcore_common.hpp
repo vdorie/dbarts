@@ -60,10 +60,18 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 /// A BCF two-forest sampler (docs/design/bcf.md): the model spec supplies the
 /// prognostic forest, bcfParams (length 8: tau tree count, base, power;
 /// aPriorScale; sdModerate; bPriorVariance; updateA and updateB flags) the
-/// treatment forest and glue, z the 0/1 treatment. Gaussian only; raises R
-/// errors otherwise.
+/// treatment forest and glue, z the 0/1 treatment. moderators holds the
+/// treatment forest's optional 1-based column restriction, and the four
+/// trailing expressions the per-forest interactions() and blocks() lists (mu
+/// is the prognostic forest, tau the treatment forest); each may be null.
+/// Gaussian only; raises R errors otherwise. The public creation route reaches
+/// the same build through createHolder, which reads the same pieces off a
+/// control attribute.
 BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
-                                SEXP dataExpr, SEXP zExpr, SEXP bcfParamsExpr);
+                                SEXP dataExpr, SEXP zExpr, SEXP bcfParamsExpr,
+                                SEXP moderatorsExpr, SEXP muInteractionsExpr,
+                                SEXP tauInteractionsExpr, SEXP muBlocksExpr,
+                                SEXP tauBlocksExpr);
 
 /// The complete sampler state as a serializable R object of class
 /// "bartcoreState"; unprotected on return.

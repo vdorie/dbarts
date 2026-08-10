@@ -45,6 +45,19 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Bayesian causal forests: \code{dbarts} and \code{dbartsSpec}
+            accept a \code{treatment} vector of 0/1 assignments, which fits
+            the two-forest model
+            \eqn{y = a \mu(x) + b_z \tau(x) + \epsilon}{y = a mu(x) +
+            b_z tau(x) + eps} instead of a single ensemble. The companion
+            \code{moderators} argument restricts the treatment forest to a
+            subset of the design, and \code{\link{treatmentForest}} carries
+            its tree count, structure prior, prior scales and per-forest
+            constraints. The result is an ordinary \code{dbartsSampler}: it
+            stores, saves, and re-creates like any other, and the treatment
+            vector rides the data object beside the weights it mirrors.
+            Gaussian responses only; every option the two-forest model does
+            not read is refused at creation rather than ignored.
       \item Interaction constraints: the new \code{interactions} argument of
             \code{dbarts} and \code{bart2}, built with \code{\link{interactions}},
             restricts which predictors may jointly shape the fit.

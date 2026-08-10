@@ -15,6 +15,7 @@ export(makeind, makeModelMatrixFromDataFrame, makeTestModelMatrix)
 export(dbartsPriors)
 export(interactions)
 export(blocks)
+export(treatmentForest)
 export(sparseFactor)
 
 exportClasses(dbartsSampler)

@@ -347,6 +347,9 @@ dbarts <- function(
   n.trees.variance = 40L,
   power.variance = NULL,
   base.variance = NULL,
+  treatment = NULL,
+  moderators = NULL,
+  treatmentForest = NULL,
   control = dbarts::dbartsControl(),
   sigma = NA_real_,
   seed = NA_integer_,
@@ -556,6 +559,11 @@ dbarts <- function(
     base.variance = base.variance,
     survivalStatus = survivalStatus,
     hazardPeriods = hazardPeriods,
+    # the treatment vector already rides the data object: dbartsData() is the
+    # one place that knows which rows 'subset' kept
+    treatment = NULL,
+    moderators = moderators,
+    treatmentForest = treatmentForest,
     evalEnv = evalEnv
   )
 
