@@ -310,7 +310,16 @@ items
     prejudges nothing (exact-zero sigma-df semantics already solved,
     docs/plans/sigma-df-zero-weights.md); (2) the mask/compaction
     shape research stays value-lifted, design-gated, NOT scheduled -
-    revisit on a second consumer or a release want.
+    revisit on a second consumer or a release want. Call (1) is
+    PLANNED at docs/plans/zero-weight-exactness.md. VD 2026-08-10 set
+    the threshold: the 1e-9 floor becomes a snap to EXACTLY zero at
+    sqrt(DBL_EPSILON) = 2^-26, the R/Python almost-equal default, so
+    that behaviour conforms to expectation. That plan also carries the
+    package-wide near-zero tolerance classification and holds two
+    doors open from it - the 1e-10 sum-to-one input checks, and
+    monotoneTreeIsFeasible's tolerance, which is NOT the test-only
+    predicate its stale comment claims but the acceptance test of the
+    constrained-prior rejection sampler.
     The n x K multinomial offset door moves to
     multinomial-counts-mutation, which re-scopes it (the response is
     the combiner's counts_ matrix, so the offset needs a real channel,
