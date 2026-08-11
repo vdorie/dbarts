@@ -91,7 +91,11 @@ items
     setControl attr preservation). S3 LANDED 1622eb9 (flat C: hash
     re-baked 0x1a911c00bb26dcd7, setResponse widened, four entries
     appended, predict/setTestPredictors BCF-guarded; landing notes in
-    the plan doc). S4 next; S5 (bcf()) PAUSED on the
+    the plan doc). S4 LANDED 1df9c0c (per-draw forestFits + glue on
+    the varianceFits precedent, F8 at one ulp, zero dbarts.h delta).
+    S6 (docs) HELD until the multiforest-extension-surface synthesis
+    lands so the docs write the settled surface story once
+    (treatment= is provisional); S5 (bcf()) PAUSED on the
     extension-surface arc.
     Anchors read at b374d9e; combiner.hpp and
     model.hpp moved at the zero-weight snap landing c820227.
