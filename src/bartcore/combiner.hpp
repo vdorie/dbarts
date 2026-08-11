@@ -382,6 +382,16 @@ struct ForestCombiner {
   virtual bool testFitsAreDefined() const { return true; }
   virtual bool logLikelihoodIsDefined() const { return true; }
 
+  /// Whether the per-draw per-forest reporting channels are defined: every
+  /// forest's own function values and the scalars that recombine them into the
+  /// per-observation location. True only for a coupling that composes its
+  /// forests through such scalars (BCF: a mu + b_z tau, reported as the fits of
+  /// both forests plus (a, b0, b1)); false otherwise, so a run over any other
+  /// model allocates and computes nothing for either channel. storeSample fills
+  /// them from forestTotalFits and bcfGlue, and the run bridge reads this
+  /// predicate to decide whether the channels exist at all.
+  virtual bool forestReportingIsDefined() const { return false; }
+
   /// How many per-observation channels combinedFits packs, one per reported
   /// location: 1 for every additive combiner (BCF's a mu + b_z tau is a single
   /// location), K for a model whose combined output is K per-observation values
@@ -654,6 +664,11 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// per-observation location is not visible to the response model to score.
   bool testFitsAreDefined() const override { return false; }
   bool logLikelihoodIsDefined() const override { return false; }
+
+  /// Both per-forest channels are defined here: mu and tau are the forests'
+  /// own function values, and (a, b0, b1) is exactly the scalar set that
+  /// recombines them, so a consumer reads both surfaces off one run.
+  bool forestReportingIsDefined() const override { return true; }
 
   /// BCF admits the scale-pinned response and offset swaps, relying on two
   /// conditions: the gaussian response re-maps y through the pinned

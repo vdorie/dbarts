@@ -3373,49 +3373,35 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   size_t numChains = shape.numChains;
   int numSamplesInt = static_cast<int>(numSamples);
   int numChainsInt = static_cast<int>(numChains);
-  // a multi-location combiner (multinomial: K softmax channels) inserts a
-  // location dimension between the observations and the samples; L = 1 keeps
-  // the exact n x numSamples (x numChains) shape and byte layout every other
-  // model relies on.
-  size_t numLocations = shape.numReportedLocations;
-  auto allocFitsArray = [&](size_t leadingDim) -> SEXP {
+  // One recorded channel that widens on an inner per-sample axis: a leading
+  // dimension, the axis it widens on, the samples, and a trailing chain
+  // dimension when there is more than one chain. An inner dimension of 1 keeps
+  // the exact leadingDim x numSamples (x numChains) shape and byte layout every
+  // unwidened model relies on.
+  auto allocChannelArray = [&](SEXPTYPE type, size_t leadingDim,
+                               size_t innerDim) -> SEXP {
     int dims[4];
     int numDims = 0;
     dims[numDims++] = static_cast<int>(leadingDim);
-    dims[numDims++] = static_cast<int>(numLocations);
+    dims[numDims++] = static_cast<int>(innerDim);
     dims[numDims++] = numSamplesInt;
     if (numChains > 1) dims[numDims++] = numChainsInt;
     R_xlen_t total = 1;
     for (int d = 0; d < numDims; ++d) total *= dims[d];
-    SEXP arr = PROTECT(Rf_allocVector(REALSXP, total));
+    SEXP arr = PROTECT(Rf_allocVector(type, total));
     SEXP dimExpr = Rf_allocVector(INTSXP, numDims);
     for (int d = 0; d < numDims; ++d) INTEGER(dimExpr)[d] = dims[d];
     Rf_setAttrib(arr, R_DimSymbol, dimExpr);
     UNPROTECT(1);
     return arr;
   };
+  // a multi-location combiner (multinomial: K softmax channels) inserts a
+  // location dimension between the observations and the samples
+  size_t numLocations = shape.numReportedLocations;
   // the varcount channel widens on its own forest axis (multinomial: K category
   // forests), inserting a forest dimension between the predictors and the
-  // samples exactly as the fits seam inserts locations; count 1 keeps the exact
-  // numPredictors x numSamples (x numChains) INTSXP shape and byte layout every
-  // other model relies on.
+  // samples exactly as the fits seam inserts locations
   size_t numVCForests = shape.numVariableCountForests;
-  auto allocVarcountArray = [&]() -> SEXP {
-    int dims[4];
-    int numDims = 0;
-    dims[numDims++] = static_cast<int>(numPredictors);
-    dims[numDims++] = static_cast<int>(numVCForests);
-    dims[numDims++] = numSamplesInt;
-    if (numChains > 1) dims[numDims++] = numChainsInt;
-    R_xlen_t total = 1;
-    for (int d = 0; d < numDims; ++d) total *= dims[d];
-    SEXP arr = PROTECT(Rf_allocVector(INTSXP, total));
-    SEXP dimExpr = Rf_allocVector(INTSXP, numDims);
-    for (int d = 0; d < numDims; ++d) INTEGER(dimExpr)[d] = dims[d];
-    Rf_setAttrib(arr, R_DimSymbol, dimExpr);
-    UNPROTECT(1);
-    return arr;
-  };
 
   if (numSamples == 0) {
     bartcore::Results empty;
@@ -3435,9 +3421,20 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // a separately-typed variance channel; gaussian-only, so mutually exclusive
   // with the ordinal cutpoint slot
   bool hasVariance = shape.hasVarianceForest;
-  int numResultSlots = 8 + (hasCutpoints ? 1 : 0) + (hasVariance ? 2 : 0);
+  // a coupling that composes its forests through scalar glue (BCF) appends the
+  // per-forest fits and that glue, so one run reports both surfaces and every
+  // draw's recombination; every other model appends neither slot and the engine
+  // computes nothing for them
+  bool hasForestReporting = shape.forestReportingIsDefined;
+  size_t numForests = shape.numForests;
+  int numResultSlots = 8 + (hasCutpoints ? 1 : 0) + (hasVariance ? 2 : 0) +
+                       (hasForestReporting ? 2 : 0);
   int varianceTrainSlot = hasVariance ? 8 + (hasCutpoints ? 1 : 0) : -1;
   int varianceTestSlot = hasVariance ? varianceTrainSlot + 1 : -1;
+  int forestFitsSlot = hasForestReporting
+    ? 8 + (hasCutpoints ? 1 : 0) + (hasVariance ? 2 : 0)
+    : -1;
+  int glueSlot = hasForestReporting ? forestFitsSlot + 1 : -1;
 
   // several chains add a trailing chain dimension, as the classic engine's
   // results do. Every column roots in the protected container the moment it
@@ -3454,7 +3451,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     !holder.keepTrainingFits
       ? R_NilValue
       : numLocations > 1
-        ? allocFitsArray(numObservations)
+        ? allocChannelArray(REALSXP, numObservations, numLocations)
         : numChains == 1
           ? Rf_allocMatrix(REALSXP, static_cast<int>(numObservations),
                            numSamplesInt)
@@ -3465,7 +3462,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     numTestObservations == 0
       ? R_NilValue
       : numLocations > 1
-        ? allocFitsArray(numTestObservations)
+        ? allocChannelArray(REALSXP, numTestObservations, numLocations)
         : numChains == 1
           ? Rf_allocMatrix(REALSXP, static_cast<int>(numTestObservations),
                            numSamplesInt)
@@ -3474,7 +3471,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SEXP varcountExpr = installResult(
     resultExpr, 3,
     numVCForests > 1
-      ? allocVarcountArray()
+      ? allocChannelArray(INTSXP, numPredictors, numVCForests)
       : numChains == 1
         ? Rf_allocMatrix(INTSXP, static_cast<int>(numPredictors), numSamplesInt)
         : Rf_alloc3DArray(INTSXP, static_cast<int>(numPredictors),
@@ -3538,6 +3535,19 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
                            numSamplesInt)
           : Rf_alloc3DArray(REALSXP, static_cast<int>(numTestObservations),
                             numSamplesInt, numChainsInt));
+  // the forest axis is always present here (the channel exists only for a
+  // multi-forest coupling), so this is n x numForests x numSamples (x numChains)
+  SEXP forestFitsExpr = !hasForestReporting
+    ? R_NilValue
+    : installResult(resultExpr, forestFitsSlot,
+                    allocChannelArray(REALSXP, numObservations, numForests));
+  SEXP glueExpr = !hasForestReporting
+    ? R_NilValue
+    : installResult(
+        resultExpr, glueSlot,
+        numChains == 1
+          ? Rf_allocMatrix(REALSXP, 3, numSamplesInt)
+          : Rf_alloc3DArray(REALSXP, 3, numSamplesInt, numChainsInt));
 
   std::vector<std::uint32_t> variableCounts(numPredictors * numVCForests *
                                             numSamples * numChains);
@@ -3565,6 +3575,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   results.varianceFits = hasVariance ? REAL(varianceTrainExpr) : NULL;
   results.varianceTestFits =
     (hasVariance && numTestObservations > 0) ? REAL(varianceTestExpr) : NULL;
+  // each forest's own internal-scale fits and the (a, b0, b1) that recombines
+  // them, per draw; both null unless the coupling defines the channels
+  results.forestFits = hasForestReporting ? REAL(forestFitsExpr) : NULL;
+  results.glue = hasForestReporting ? REAL(glueExpr) : NULL;
 
   GetRNGstate();
   bool cancelled = sampler.run(numBurnIn, numSamples, results,
@@ -3600,6 +3614,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   if (hasVariance) {
     SET_STRING_ELT(namesExpr, varianceTrainSlot, Rf_mkChar("variance"));
     SET_STRING_ELT(namesExpr, varianceTestSlot, Rf_mkChar("varianceTest"));
+  }
+  if (hasForestReporting) {
+    SET_STRING_ELT(namesExpr, forestFitsSlot, Rf_mkChar("forestFits"));
+    SET_STRING_ELT(namesExpr, glueSlot, Rf_mkChar("glue"));
   }
 
   UNPROTECT(1);

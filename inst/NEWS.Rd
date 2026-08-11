@@ -67,6 +67,14 @@
             longer discards a sampler's \code{bartcore.*} model
             configuration (the two-forest structure, a variance forest, and
             similar), which used to make the next re-creation refuse loudly.
+            A run reports both surfaces for every draw rather than only the
+            current one: \code{$run} gains a \code{forestFits} element holding
+            each forest's fitted values (n.obs x 2 x n.samples) and a
+            \code{glue} element holding the
+            \eqn{(a, b_0, b_1)}{(a, b0, b1)} that draw combines them through
+            (3 x n.samples), so a caller reads mu, tau and the treatment glue
+            from one call instead of driving the sampler one draw at a time.
+            Neither element is present for any other model.
       \item Interaction constraints: the new \code{interactions} argument of
             \code{dbarts} and \code{bart2}, built with \code{\link{interactions}},
             restricts which predictors may jointly shape the fit.

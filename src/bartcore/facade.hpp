@@ -80,6 +80,12 @@ struct SamplerShape {
   /// samplers are allowed while BCF stays refused. Internal, invisible to
   /// dbarts.h.
   bool testFitsAreDefined;
+  /// Whether the recorded per-forest fits and glue channels carry defined
+  /// values: true only for a coupling that composes its forests through scalar
+  /// glue (BCF today), so a run over any other model allocates neither. The run
+  /// bridge reads it to decide whether the two channels exist; internal,
+  /// invisible to dbarts.h.
+  bool forestReportingIsDefined;
 };
 
 // Bridge entry points longjmp out of Rf_error past every destructor, so no
@@ -291,6 +297,7 @@ public:
     s.supportsResponseMutation = impl_.supportsResponseMutation();
     s.supportsForestWeights = impl_.supportsForestWeights();
     s.testFitsAreDefined = impl_.testFitsAreDefined();
+    s.forestReportingIsDefined = impl_.forestReportingIsDefined();
     return s;
   }
 
