@@ -1090,4 +1090,36 @@ sampler unforced and accept it forced. No dbarts.h change, no hash
 re-bake. The live silent-corruption window is CLOSED; the numForests
 clause sits dormant until BCF becomes flat-creatable.
 
-S0-S4 await the bcf-public-surface arc per the window section.
+S0 LANDED 1357e7d (2026-08-11). The trio gained its predictor-mutation
+eyes: the six scenarios of "The harness this arc needs" (predswap,
+predcol, predpartial, predreject, predforce, hetforce) plus one forced
+whole-matrix swap each in the bcf and multinomial harnesses, and the
+three baselines re-recorded at the engine head 33f6fdc (R-only
+landing, engine binary identical). Neutrality partition: every
+pre-existing scenario reproduced its superseded baseline bitwise
+first (27/27 identical draws, bcf 5/5 and multinomial 3/3 on every
+channel, additions reported skipped), and each new baseline
+reproduces itself (33/33 under --strict-coverage, 6x7, 4x5). Pins
+landed beside the existing cases in test-multi-forest-seam.R and
+test-heteroscedastic-mutation.R: multinomial and heteroscedastic
+samplers refuse every transactional and per-observation entry with
+their current messages while the forced entries and setCutPoints
+succeed; the BCF pins stay where bcf-public-surface wrote them.
+equivalence.yaml re-pinned to the new baseline (the established
+re-recording pattern). Deviations, all deliberate: no S0 NEWS bullet
+(the plan's NEWS section lists none and the slice is user-invisible;
+precedent 994c161); an s2.test channel added so hetforce gates
+refreshVarianceForest directly (S3's abort gate, F11's subject);
+hetforce runs binary = TRUE because sigma is structurally pinned
+under a variance forest and both sigma summaries would be degenerate
+(ordinal/nbinom precedent). Findings for later slices: R `$`
+partial-matches list keys (the new mutate keys are read with [[ ]]
+and named prefix-free); the bcf/multinomial compare loops print no
+line for a run-only scenario (uncovered additions were verified by
+hand at recording); the refuse* helpers now live at
+R_interface_bartcore.cpp:2605/2625 after SL's promotion. Gates
+double-run (implementer + independent verifier): install, tinytest
+3982/0, the neutrality and self-reproduction partitions above, air 0,
+lintr no new findings.
+
+S1-S4 remain queued per the window section; S1 is next.
