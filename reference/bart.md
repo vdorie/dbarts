@@ -1131,7 +1131,10 @@ number of observations, and `colnames(x.train)` (when present) named on
 that margin. `bc` and `fit` are present only under `keepTrees` - the
 K-forest sampler handle and the host sampler `predict.bartMultinomial`
 replays through; absent `keepTrees`, neither survives the call and
-`predict` errors.
+`predict` errors. `fit` is only that host shell: it carries the design
+and priors the K-forest model was built from but none of the model, so
+it refuses mutation (`$setResponse`, `$run`, and the rest) rather than
+accepting a change nothing would read.
 
 Generics for a `"bartMultinomial"` fit: `fitted(object)` (`type = "ev"`,
 the default) returns the posterior-mean n \\\times\\ K probability
@@ -1323,7 +1326,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.218407
+#> total seconds in loop: 0.209762
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1389,7 +1392,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001388
+#> total seconds in loop: 0.001260
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

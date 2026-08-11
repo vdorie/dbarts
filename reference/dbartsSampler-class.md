@@ -155,7 +155,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - y:
 
   A numeric response vector of length equal to that with which the
-  sampler was created.
+  sampler was created, and lying in the response family's support: 0/1
+  for `probit` and `logistic`, an integer category index in \\\[1, K\]\\
+  for `ordinal`, and a finite non-negative integer count for `nbinom`.
+  Values off the support are refused, as they are at creation;
+  `gaussian` and `aft` (log survival times) constrain nothing.
 
 - x:
 
@@ -186,7 +190,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   the new offset (`setOffset`) or response (`setResponse`). Defaults to
   `FALSE`, locking the scale set at creation; should only be `TRUE`
   during burn-in, as re-anchoring mid-run makes the fits across
-  iterations no longer comparable.
+  iterations no longer comparable. `TRUE` is refused by samplers whose
+  leaf calibrations are stated against the transform fixed at creation
+  and are never restated: a two-forest (`treatment`) sampler and a
+  heteroscedastic (`variance`) one, whose variance forest would
+  otherwise keep reporting \\s^2(x)\\ on the abandoned scale.
 
 - offset.test:
 

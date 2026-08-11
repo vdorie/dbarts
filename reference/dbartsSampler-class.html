@@ -146,7 +146,7 @@
 <dd><p>An object inheriting from <code><a href="dbartsData.html">dbartsData</a></code>.</p></dd>
 
   <dt id="arg-y">y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
-<dd><p>A numeric response vector of length equal to that with which the sampler was created.</p></dd>
+<dd><p>A numeric response vector of length equal to that with which the sampler was created, and lying in the response family's support: 0/1 for <code>probit</code> and <code>logistic</code>, an integer category index in \([1, K]\) for <code>ordinal</code>, and a finite non-negative integer count for <code>nbinom</code>. Values off the support are refused, as they are at creation; <code>gaussian</code> and <code>aft</code> (log survival times) constrain nothing.</p></dd>
 
   <dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
 <dd><p>A numeric predictor vector of length equal to that with which the sampler was created. Can be of a distinct number of rows for <code>setTestPredictor</code>.</p></dd>
@@ -158,7 +158,7 @@
 <dd><p>A numeric vector of length equal to that with which the sampler was created, or <code>NULL</code>. If <code>offset.test</code> was set from <code>offset</code>, will attempt to update that as well.</p></dd>
 
   <dt id="arg-updatescale">updateScale<a class="anchor" aria-label="anchor" href="#arg-updatescale"></a></dt>
-<dd><p>Logical indicating whether BART's internal scale should re-anchor to the new offset (<code>setOffset</code>) or response (<code>setResponse</code>). Defaults to <code>FALSE</code>, locking the scale set at creation; should only be <code>TRUE</code> during burn-in, as re-anchoring mid-run makes the fits across iterations no longer comparable.</p></dd>
+<dd><p>Logical indicating whether BART's internal scale should re-anchor to the new offset (<code>setOffset</code>) or response (<code>setResponse</code>). Defaults to <code>FALSE</code>, locking the scale set at creation; should only be <code>TRUE</code> during burn-in, as re-anchoring mid-run makes the fits across iterations no longer comparable. <code>TRUE</code> is refused by samplers whose leaf calibrations are stated against the transform fixed at creation and are never restated: a two-forest (<code>treatment</code>) sampler and a heteroscedastic (<code>variance</code>) one, whose variance forest would otherwise keep reporting \(s^2(x)\) on the abandoned scale.</p></dd>
 
   <dt id="arg-offset-test">offset.test<a class="anchor" aria-label="anchor" href="#arg-offset-test"></a></dt>
 <dd><p>A numeric vector of length equal to that of the test matrix, or <code>NULL</code>. Can be missing for <code>setTestPredictorAndOffset</code>.</p></dd>
