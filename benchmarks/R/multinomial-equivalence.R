@@ -189,6 +189,49 @@ runScenarios <- function() {
     result$k3counts <- recordChannels(bc, res, K)
   }
 
+  # (d) K = 3, FORCED whole-matrix setPredictor: run, replace the entire design
+  # through the forced path - the only predictor mutation a multinomial sampler
+  # accepts today, and the one that re-routes every category forest and
+  # collapses any leaf the new codes empty - then run again and record the
+  # post-swap state per category (docs/plans/multiforest-predictor-mutation.md,
+  # "The harness this arc needs"). Nothing guarded that loop before. Its seeds
+  # are LITERALS kept out of the guarded `seeds` vector above, as k3counts's
+  # are, so settingsList() stays identical to the ec2a3d0 baseline and the
+  # neutrality compare against it still runs; it runs last with its own
+  # set.seed, so it perturbs none of the scenarios above. local() rather than
+  # the bare block above: it scopes the same reused names without an own-line
+  # brace.
+  result$k3swap <- local({
+    set.seed(6004L)
+    K <- 3L
+    x <- matrix(runif(n * p), n, p)
+    eta <- cbind(
+      2 * (x[, 1L] - 0.5),
+      x[, 2L] - x[, 3L],
+      1.5 * (x[, 4L] - 0.5)
+    )
+    probs <- exp(eta) / rowSums(exp(eta))
+    labels <- vapply(
+      seq_len(n),
+      function(i) sample.int(K, 1L, prob = probs[i, ]) - 1L,
+      integer(1L)
+    )
+    x2 <- matrix(runif(n * p), n, p)
+    x.test <- x[seq_len(25L), , drop = FALSE]
+    sampler <- dbarts(
+      x,
+      as.double(labels),
+      test = x.test,
+      control = makeControl()
+    )
+    set.seed(7004L)
+    bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    dbarts:::bartcoreSetPredictor(bc, x2, forceUpdate = TRUE)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    recordChannels(bc, res, K)
+  })
+
   result
 }
 

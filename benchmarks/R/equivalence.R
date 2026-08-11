@@ -589,6 +589,133 @@ makeScenarios <- function() {
     hurdleFit = TRUE
   )
 
+  # --- predictor-mutation scenarios (docs/plans/multiforest-predictor-
+  # mutation.md, "The harness this arc needs"). Before these, no anchor in the
+  # trio drove any predictor mutation at all: this file's only mutation
+  # surfaces were setData, setWeights and setTestOffset, so the transactional
+  # two-phase path, the per-observation session and the forced refresh were
+  # bitwise-uncovered. Each scenario burns in, mutates mid-chain, then runs a
+  # SHORT second leg, so the carried-over tree state - exactly what a widened
+  # revalidation moves - is what the recorded draws depend on. ---
+
+  # transactional whole-matrix setPredictor: validate every tree against the
+  # proposed codes, then rebuild the fits from the recovered parameters. The
+  # replacement is a jitter of the design sized so the transaction is ACCEPTED
+  # (5/5 probe seeds accept at this sd; 0.01 accepts 3/5), which is the arm the
+  # rollback scenario below cannot reach.
+  set.seed(5124L)
+  x <- matrix(runif(500L * 10L), 500L)
+  result$predswap <- list(
+    x = x,
+    y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
+    samplerApi = TRUE,
+    mutate = list(
+      predictor = pmin(
+        pmax(x + matrix(rnorm(500L * 10L, 0, 0.005), 500L), 0),
+        1
+      )
+    )
+  )
+
+  # transactional single-column update: the same two-phase path entered through
+  # updatePredictor, which touches one column's codes and leaves the rest of
+  # the store alone (the subset the arc's pruning argument is stated over).
+  # Column 3 is one friedman splits on, and the jitter is sized to be accepted.
+  set.seed(5125L)
+  x <- matrix(runif(500L * 10L), 500L)
+  result$predcol <- list(
+    x = x,
+    y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
+    samplerApi = TRUE,
+    mutate = list(
+      column = list(
+        index = 3L,
+        values = pmin(pmax(x[, 3L] + rnorm(500L, 0, 0.02), 0), 1)
+      )
+    )
+  )
+
+  # the per-observation update session: an independent draw for one column,
+  # installed row by row under a scan permutation the ENGINE draws (from chain
+  # 0's generator), with a row skipped whenever installing it would empty a
+  # leaf. The only scenario that consumes that permutation, so it is the one
+  # that pins the session refactor; the install mask rides into the second leg,
+  # so both the permutation and the veto are locked by the recorded draws.
+  set.seed(5126L)
+  x <- matrix(runif(500L * 10L), 500L)
+  result$predpartial <- list(
+    x = x,
+    y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
+    samplerApi = TRUE,
+    mutate = list(partial = list(index = 4L, values = runif(500L)))
+  )
+
+  # a transactional proposal built to be ROLLED BACK: a two-level replacement
+  # column at updateCutPoints = FALSE collapses every observation onto two
+  # values of the existing grid, which empties leaves in any tree splitting on
+  # it, so the transaction is refused (0/5 probe seeds accept). LIMITATION,
+  # stated because the scenario cannot state it itself: this gates that a
+  # rejected transaction leaves the run BITWISE, and nothing more - it cannot
+  # by itself distinguish an accept from a reject, since a build that wrongly
+  # accepted would simply record different draws, which is what the accept
+  # scenarios above are for.
+  set.seed(5127L)
+  x <- matrix(runif(500L * 10L), 500L)
+  result$predreject <- list(
+    x = x,
+    y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
+    samplerApi = TRUE,
+    mutate = list(
+      column = list(
+        index = 5L,
+        values = ifelse(seq_len(500L) %% 2L == 0L, 0.25, 0.75)
+      )
+    )
+  )
+
+  # the forced whole-matrix swap (the bartCause propensity pattern): no veto,
+  # no rollback - every forest is re-routed against the new codes and any leaf
+  # that empties is collapsed, so an arbitrary replacement design is legal.
+  set.seed(5128L)
+  x <- matrix(runif(500L * 10L), 500L)
+  result$predforce <- list(
+    x = x,
+    y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
+    samplerApi = TRUE,
+    mutate = list(forced = matrix(runif(500L * 10L), 500L))
+  )
+
+  # a HETEROSCEDASTIC sampler taking the forced whole-matrix swap. There was no
+  # heteroscedastic scenario in this harness at all, so refreshVarianceForest -
+  # the forced path's variance arm - had zero equivalence coverage. Recorded
+  # channels include s2.test, the variance surface on the held-out rows, which
+  # a change in the variance forest's routing moves directly rather than
+  # transitively through the mean forest's weights. binary = TRUE skips the
+  # sigma summaries: under a variance forest sigma is structurally pinned (the
+  # bridge refuses to set it for exactly that reason), so its draws are a
+  # constant and both summaries would be degenerate.
+  set.seed(5129L)
+  x <- matrix(runif(400L * 10L), 400L)
+  result$hetforce <- list(
+    x = x,
+    y = friedman(x) + (0.5 + 2 * x[, 6L]) * rnorm(400L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE,
+    samplerApi = TRUE,
+    samplerArgs = list(variance = TRUE, n.trees.variance = 40L),
+    mutate = list(forced = matrix(runif(400L * 10L), 400L))
+  )
+
   result
 }
 
@@ -659,6 +786,34 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
     if (!is.null(scenario$mutate$offset.test)) {
       sampler$setTestOffset(scenario$mutate$offset.test)
     }
+    # predictor keys, read with [[ ]] rather than $: $ partial-matches on
+    # lists, so a scenario carrying only one of these would silently take
+    # another's branch. The transactional flavors can be REFUSED by the engine
+    # (a proposal that would empty a leaf rolls back), which is a legitimate
+    # outcome the scenarios exercise deliberately; the return value is dropped
+    # here because the recorded draws, not the verdict, are the gate.
+    mutate <- scenario$mutate
+    if (!is.null(mutate[["predictor"]])) {
+      sampler$setPredictor(mutate[["predictor"]], forceUpdate = FALSE)
+    }
+    if (!is.null(mutate[["column"]])) {
+      sampler$setPredictor(
+        mutate[["column"]]$values,
+        column = mutate[["column"]]$index,
+        forceUpdate = FALSE,
+        updateCutPoints = FALSE
+      )
+    }
+    if (!is.null(mutate[["partial"]])) {
+      sampler$setPredictor(
+        mutate[["partial"]]$values,
+        column = mutate[["partial"]]$index,
+        forceUpdate = "partial"
+      )
+    }
+    if (!is.null(mutate[["forced"]])) {
+      sampler$setPredictor(mutate[["forced"]], forceUpdate = TRUE)
+    }
     sampler$run(ceiling(nskip / 4), ndpost)
   } else {
     sampler$run(nskip, ndpost)
@@ -667,7 +822,11 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
     yhat.test = poolChains(r$test),
     varcount = poolChains(r$varcount),
     sigma = as.vector(r$sigma),
-    k = if (!is.null(r$k)) as.vector(r$k)
+    k = if (!is.null(r$k)) as.vector(r$k),
+    # a variance forest additionally reports s^2(x) on the test rows; absent -
+    # and so unsummarized - for every other sampler, which leaves the existing
+    # scenarios' summary vectors untouched
+    variance.test = if (!is.null(r$varianceTest)) poolChains(r$varianceTest)
   )
 }
 
@@ -1018,6 +1177,20 @@ fitSummaries <- function(scenario, seed) {
       setNames(
         colMeans(fit[["pos.test"]]),
         paste0("pos.test.", seq_len(n.test))
+      )
+    )
+  }
+  # heteroscedastic-only channel (fitViaSamplerApi under variance = TRUE);
+  # NULL - and so absent - for every other sampler. The posterior-mean variance
+  # surface on the test rows: the direct read on the variance forest's routing,
+  # which the mean-side channels see only transitively (s^2 enters the mean
+  # forest's likelihood as a per-observation weight).
+  if (!is.null(fit[["variance.test"]])) {
+    result <- c(
+      result,
+      setNames(
+        colMeans(fit[["variance.test"]]),
+        paste0("s2.test.", seq_len(n.test))
       )
     )
   }

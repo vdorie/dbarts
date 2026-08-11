@@ -143,6 +143,48 @@ sScratchData <- sqrt(apply(scratchData$run(150L, 100L)$variance, 1L, mean))
 expect_true(cor(sSwapped, sScratchData) > 0.9)
 expect_true(abs(mean(sSwapped) / mean(sScratchData) - 1) < 0.15)
 
+# ---- the transactional predictor surface, pinned one entry at a time ahead of
+# the widening (docs/plans/multiforest-predictor-mutation.md, S0). The variance
+# forest sits outside the forest vector revalidateAllChains loops, so an
+# accepted transactional change would leave s^2(x) routed by the old codes:
+# every transactional entry refuses, while the forced entries and setCutPoints
+# reach it (the sections above measure that they do) and are the supported
+# heteroscedastic predictor mutations. S3 INVERTS these refusals in place
+# rather than deleting them. Its own sampler, at the end of the file, so no
+# assertion above sees a different rng stream.
+set.seed(47, sample.kind = "Rejection")
+nPin <- 200L
+xPin <- cbind(x1 = runif(nPin), x2 = runif(nPin), x3 = runif(nPin))
+yPin <- 2 * xPin[, 1L] + ifelse(xPin[, 2L] < 0.5, 0.3, 1.5) * rnorm(nPin)
+pinned <- buildVarianceSampler(xPin, yPin)
+invisible(pinned$run(50L, 0L))
+# a shrunk-and-shifted design: every value stays inside the build range, so
+# nothing here turns on an out-of-grid value
+xPinNew <- xPin * 0.9 + 0.05
+expect_error(
+  pinned$setPredictor(xPinNew, forceUpdate = FALSE),
+  "variance forest"
+)
+expect_error(
+  pinned$setPredictor(xPinNew[, 1L], column = 1L, forceUpdate = FALSE),
+  "variance forest"
+)
+expect_error(
+  pinned$setPredictor(xPinNew[, 1L], column = 1L, forceUpdate = "partial"),
+  "variance forest"
+)
+expect_error(
+  dbarts::updatePredictorPerObservationJointly(pinned, xPinNew[, 1L], "x1"),
+  "variance forest"
+)
+# ... while the forced entries and the cut-grid change stay supported
+expect_silent(pinned$setPredictor(xPinNew, forceUpdate = TRUE))
+expect_silent(pinned$setPredictor(xPin[, 1L], column = 1L, forceUpdate = TRUE))
+expect_silent(pinned$setCutPoints(rep(list(c(1 / 3, 2 / 3)), 3L), 1:3))
+pinnedRun <- pinned$run(0L, 5L)
+expect_true(all(is.finite(pinnedRun$variance)))
+expect_true(all(pinnedRun$variance > 0))
+
 rm(
   n,
   x,
@@ -185,5 +227,11 @@ rm(
   swappedData,
   sSwapped,
   scratchData,
-  sScratchData
+  sScratchData,
+  nPin,
+  xPin,
+  yPin,
+  pinned,
+  xPinNew,
+  pinnedRun
 )
