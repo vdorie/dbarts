@@ -4,7 +4,9 @@ Status: LANDED. Proposed 2026-07-07; the two-forest sampler and the Forest
 split it forced shipped 2026-07-07, with mixing refinements through 2026-07-10
 (see "Landing" below); the combiner's exact-zero multiplier snap and the
 caller-settable per-forest weight landed 2026-08-10
-(docs/plans/zero-weight-exactness.md). Model and defaults follow Hahn, Murray,
+(docs/plans/zero-weight-exactness.md); public creation, R5 mutation, a flat C
+surface and per-draw reporting landed 2026-08-10 to 2026-08-11 - see "Public
+creation surface" below. Model and defaults follow Hahn, Murray,
 and Carvalho (2020), "Bayesian Regression Tree Models for Causal Inference"
 (Bayesian Analysis 15(3), 965-1056), and the `bcf` R package; deviations from
 either are flagged.
@@ -15,10 +17,11 @@ treatment forest tau(x), combined as
     y_i = mu(x_i, pihat_i) + b_{z_i} tau(x_i) + eps_i,   eps ~ N(0, sigma^2),
 
 with z_i binary treatment. It is the concrete case the multi-forest provision
-(core-generalization.md, the multi-forest provision) was designed for, and bartCause is the intended
-consumer, driving from R over the sampler mutation API. Scope: binary z and a
-Gaussian response. Continuous treatment is out of scope (it needs a coefficient
-function b(z), not a two-level scalar).
+(core-generalization.md, the multi-forest provision) was designed for, and
+bartCause is the intended consumer (see "Public creation surface" below for
+the corrected picture of how). Scope: binary z and a Gaussian response.
+Continuous treatment is out of scope (it needs a coefficient function b(z),
+not a two-level scalar).
 
 ## The Forest member split
 
@@ -212,9 +215,10 @@ which entry points fan per forest.
   above). Unlike setTreatment it does not ride the state; a warm start or a
   restore must reinstall it explicitly.
 
-C exposure stays internal first (bartcore helpers plus the bridge, as the data
-handle does); bartCause drives from R, dbarts-level public exposure a later
-decision (public-surface.md section 5's handle deferral).
+C exposure stayed internal at first (bartcore helpers plus the bridge, as the
+data handle does); it is now the public dbarts.h surface - see "Public
+creation surface" below, which also corrects "bartCause drives from R" to name
+what it actually drives.
 
 ## Open questions
 
@@ -305,10 +309,53 @@ forests (933eed8). Mixing refinements landed 2026-07-10: an
 interweaving rescale move on the glue ridge (9617c94;
 docs/plans/bcf-ridge-interweaving.md) and the sigma burn-in
 calibration recorded above (docs/plans/bcf-sigma-residual.md).
-bartCause is the intended consumer, driving from R over the mutation
-surface described above.
+bartCause is the intended consumer, over the public creation surface
+recorded below.
+
+## Public creation surface (2026-08-10 to 2026-08-11)
+
+BCF stopped being reachable only through `dbarts:::bartcoreBCFSampler`
+(docs/plans/bcf-public-surface.md). `dbarts(x, y, treatment = z, moderators =
+, treatmentForest = treatmentForest(...))`/`dbartsSpec()` build an ordinary
+`dbartsSampler` (S1, a1dbde7): z rides `data@treatment` (R/A_class.R:477-482,
+the `weights` precedent) and the treatment forest's configuration rides
+`attr(control, "bartcore.bcf")` (R/spec.R:421-434, the `bartcore.variance`
+precedent), cross-checked in both directions at creation
+(src/R_interface_bartcore.cpp:2648-2655). `$setTreatment`, `$getForestFits`,
+`$getBCFGlue`, `$getForestVariableCounts` are public R5 methods (S2,
+339aeb0; R/dbarts.R:1078-1092, 1283-1296). `dbarts_sampler_create` reaches
+the same path from C (S3, 1622eb9): `numForests`/`setTreatment`/`forestFits`/
+`bcfGlue` are public `dbarts.h` entries (inst/include/dbarts/dbarts.h:264-271),
+and `setResponse` takes an explicit `updateScale` argument. A run reports
+both forests' fits and the combining glue for every draw (S4, 1df9c0c)
+instead of one call per sweep.
+
+Two corrections to this document as originally written: **"C exposure stays
+internal first"** (Mutation surface, above) was accurate then; S3 made it
+public. **"bartCause is the intended consumer, driving from R over the
+sampler mutation API"** (opening paragraph) overstated the mechanism -
+bartCause never calls a mutation method. Verified by grep at bartCause
+dbarts-1.0@695c603 (no `LinkingTo`, no `src/`): every sibling in its
+response-method switch (`R/bartc.R:123-126` - `bart`, `p.weight`, `tmle`, and
+the still-commented `bcf`) dispatches to a FIT FUNCTION (`getBartResponseFit`
+calls `dbarts::bart2`/`rbart_vi`, R/responseFit.R:91,112,121;
+`getPWeightResponseFit`/`getTMLEResponseFit` both redirect through it,
+R/responseFit.R:399,682), never a `dbartsSampler` method. BCF is expected to
+arrive in bartCause the same way, through a `bcf()` fit function.
+
+**The causal argument names are PROVISIONAL.** VD: "I don't think `bcf`
+belongs in the `dbarts` function." `treatment =`, `moderators =`,
+`treatmentForest =`, and the flat `setTreatment`/`bcfGlue` names are
+scheduled for replacement by the engine-vocabulary `forests = list(forest(basis
+= ...))` route once BCF has a home outside dbarts
+(docs/plans/multiforest-extension-surface.md, M2 and fork 4); `bcf()` itself
+is expected to relocate to bartCause. The S1/S2 mechanism above survives that
+re-skinning - only the public spellings move - and this document still
+describes the shipped, provisional surface, not the replacement.
 
 ## Status
 
 LANDED. Two-forest sampler and Forest split 2026-07-07; mixing
-refinements 2026-07-10 (see "Landing" above).
+refinements 2026-07-10; public creation, R5 mutation, a flat C surface and
+per-draw reporting 2026-08-10 to 2026-08-11 (see "Landing" and "Public
+creation surface" above).

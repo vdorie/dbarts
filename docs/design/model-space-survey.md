@@ -400,19 +400,25 @@ motivated form); SUR-style multi-outcome composition, which
 docs/design/correlated-outcomes.md shipped for gaussian outcomes in stan4bart and
 which stops at the multinomial boundary.
 
-### D3. Public BCF creation surface - a prerequisite, not a door
+### D3. Public BCF creation surface - CLOSED (2026-08-10 to 2026-08-11)
 
-Verified end to end. BCF is reachable only through `dbarts:::bartcoreBCFSampler`
-(R/bartcore.R:536, not in NAMESPACE); `bcf()` is named only in a comment
-(R/model.R:1032); the flat C API has no BCF creation entry
-(`dbarts_sampler_create` routes to `createHolder`, never `createBCFHolder`) and
-no `dbarts_sampler_setData` at all.
+**CLOSED by bcf-public-surface.** BCF is now reachable from
+`dbarts(treatment = z, ...)`/`dbartsSpec(...)` (S1, a1dbde7): the one flat
+creation entry, `dbarts_sampler_create` (src/C_interface.cpp:107), routes
+through `bartcore_bridge::createHolder`, which now dispatches to BCF
+creation itself when the data carries a treatment vector
+(src/R_interface_bartcore.cpp:2580-2655) - `createBCFHolder` is no longer
+the only path in, and `dbarts:::bartcoreBCFSampler` (R/bartcore.R:629,
+corrected from this section's stale :536) is no longer the only R entry.
+`bcf()` stays a comment (R/model.R:1102, 1120), expected to ship in
+bartCause instead (docs/plans/multiforest-extension-surface.md fork 4). The
+R5 surface (S2, 339aeb0), the flat C surface (S3, 1622eb9) and per-draw
+reporting (S4, 1df9c0c) followed; `treatment =`/`moderators =`/
+`treatmentForest =` are PROVISIONAL, scheduled for replacement by
+`forests = list(forest(basis = ...))` (same plan, M2).
 
-**This conditions every BCF verdict above.** No package can consume any BCF
-update shape - present or future, door 1, door 2 or D1 - without either that
-internal call or a public `bcf()` / `dbartsSpec(family = "bcf")` entry. It is
-cheaper than any door here and is the actual first constraint on the BCF model
-space.
+**This conditioned every BCF verdict above; it no longer does** - door 1,
+door 2, and D1 all now have a public creation route to be consumed through.
 
 ---
 

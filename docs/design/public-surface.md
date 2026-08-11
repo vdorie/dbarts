@@ -469,3 +469,27 @@ classic engine.
   threads - with the R loop retained for custom priors and callbacks.
   Grouping stays internal (an attribute on the control object); no
   public group.by exposure beyond rbart_vi yet.
+
+## 8. Bayesian causal forests: a provisional creation surface
+
+BCF (docs/design/bcf.md) landed inside this document's cutover window but
+outside its numbered proposals. Landed 2026-08-10 to 2026-08-11
+(docs/plans/bcf-public-surface.md S1-S4): `dbarts(treatment = z, moderators =
+, treatmentForest = treatmentForest(...))`/`dbartsSpec()` build an ordinary
+`dbartsSampler`; z rides `data@treatment` (the `weights` precedent) and the
+treatment forest's configuration rides `attr(control, "bartcore.bcf")` (the
+`bartcore.variance` precedent), cross-checked both directions at creation.
+`$setTreatment`/`$getForestFits`/`$getBCFGlue`/`$getForestVariableCounts` are
+R5 methods; `dbarts_sampler_numForests`/`setTreatment`/`forestFits`/`bcfGlue`
+reach the same sampler from C (inst/include/dbarts/dbarts.h:264-271); a run
+reports both forests' fits and the combining glue for every draw. Full detail
+and anchors: docs/design/bcf.md, "Public creation surface".
+
+**Provisional naming**, not the stable surface: `treatment =`, `moderators
+=`, `treatmentForest =`, and the flat `setTreatment`/`bcfGlue` names are
+causal vocabulary scheduled for replacement by the engine-vocabulary
+`forests = list(forest(basis = ...))` route once BCF has a home outside
+dbarts (docs/plans/multiforest-extension-surface.md M2); `bcf()` itself is
+expected to relocate to bartCause (same plan, fork 4). The
+creation-and-mutation mechanism survives that re-skinning; only the public
+spellings move.

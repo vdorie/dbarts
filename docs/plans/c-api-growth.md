@@ -517,6 +517,32 @@ implementer does not relitigate them:
    not), so collapsing them would need a call-site flag anyway and buys
    nothing.
 
+### Landed: the BCF flat surface (bcf-public-surface S3, 1622eb9, 2026-08-10)
+
+S3 appended four entries at the END of the X-list - `dbarts_sampler_numForests`,
+`setTreatment`, `forestFits`, `bcfGlue` (inst/include/dbarts/dbarts.h:264-271)
+- and widened `dbarts_sampler_setResponse` to take `updateScale`, re-baking
+`DBARTS_C_API_HASH` from `0xf760898d116cb3a3ULL` to `0x1a911c00bb26dcd7ULL`
+(dbarts.h:83); both version constants stayed at 1 and 0 (no bartcore release
+has shipped). The three `int` entries return 1 = accepted, 0 = refused,
+matching `dbarts_sampler_setPredictor` and this reservation's own convention.
+
+**Reserved for the dbarts.h reshape, not built there:** forest-indexed
+`getTrees`, `printTrees`, `predict` and `numTrees` - today's tree-facing
+queries are forest-blind, ambiguous on a two-forest sampler
+(bcf-public-surface.md S3, "Coordination with the queued dbarts.h reshape";
+that section also named `setTreeStorage`, whose forest-indexed form the
+reshape plan since CLOSED BY FACT - storage is per sampler).
+`docs/plans/dbarts-h-reshape.md` S1 item 3 builds the three forest-indexed
+tree queries (`numTrees`, `getTrees`, `printTrees`); forest-indexed `predict`
+stays a recorded door there.
+That plan's S1 item 5b is a CONDITIONAL carve-out re-signing `setTreatment`/
+`bcfGlue` themselves to `setForestBasis`/`numForestAmplitudes`/
+`forestAmplitudes`, engine vocabulary, if
+`docs/plans/multiforest-extension-surface.md`'s fork 3 is answered before
+that slice starts (dbarts-h-reshape.md binding decision 3's carve-out);
+otherwise the BCF names S3 shipped go to release unchanged.
+
 ## Verification
 
 Gates run from a worktree against a private library (per the repo's install
