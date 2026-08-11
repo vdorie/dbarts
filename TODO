@@ -210,10 +210,9 @@ items
     draw-neutral on existing paths; SL (the flat-entry stop-loss
     guard) LANDED. VD resolved the plan's forks: variance forest IN
     (S3 closes the stateIsValid occupancy gap same-slice);
-    multinomial NAMED-AND-UNGATED. S0-S4 queued; the R/C-division
-    hold is lifted (review complete 2026-08-11) - next code slot,
-    the response-support-validation stop-loss slice having landed at
-    33f6fdc.
+    multinomial NAMED-AND-UNGATED. S0 (pins + trio eyes + the three
+    33f6fdc baselines) LANDED 1357e7d; S1-S4 queued, S1 (the
+    two-phase revalidation across forests_) is the next code slot.
   multinomial-counts-mutation: multinomial BART cannot mutate its
     RESPONSE side - alone among the families it cannot serve as a
     conditional inside a larger Gibbs sampler. The response is the
