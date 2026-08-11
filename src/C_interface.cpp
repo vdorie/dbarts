@@ -19,9 +19,12 @@
 
 using std::size_t;
 using bartcore_bridge::BartcoreHolder;
+using bartcore_bridge::refuseBCFTestSurface;
 using bartcore_bridge::refuseMultiForestMutation;
+using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refuseMultiForestTransactionalUpdate;
 using bartcore_bridge::refusePinnedSigmaChange;
+using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::validateColumnValues;
 
 struct dbarts_sampler_t {
@@ -194,26 +197,34 @@ void dbarts_sampler_sampleNodeParametersFromPrior(dbarts_sampler* sampler) {
   samplerOf(sampler).sampleNodeParametersFromPrior();
 }
 
-void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y) {
-  // unreachable today (ResponseFamily has no multi-forest member on the flat
-  // C API's creation path) but guarded defensively, matching the bridge entry
-  refuseMultiForestMutation(samplerOf(sampler), "dbarts_sampler_setResponse");
+void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
+                                int updateScale) {
+  // the shared conduit guard, not the whole-data refusal: a two-forest sampler
+  // is flat-creatable, and its response swap is opt-in and scale-pinned rather
+  // than refused - the same rule bartcore_setResponse applies
+  refuseMultiForestResponseMutation(samplerOf(sampler),
+                                    "dbarts_sampler_setResponse",
+                                    ResponseConduit::response, updateScale);
   // the probit latent redraw draws from the chain RNG, not R's stream
-  samplerOf(sampler).setResponse(y, true); // flat ABI keeps re-anchoring
+  samplerOf(sampler).setResponse(y, updateScale != 0);
 }
 
 void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
                               int updateScale) {
-  // the offset is the response-side swap under a different pointer; unreachable
-  // today, guarded defensively, see dbarts_sampler_setResponse
-  refuseMultiForestMutation(samplerOf(sampler), "dbarts_sampler_setOffset");
+  // the offset is the response-side swap under a different pointer, so it
+  // carries the same conditions; see dbarts_sampler_setResponse
+  refuseMultiForestResponseMutation(samplerOf(sampler),
+                                    "dbarts_sampler_setOffset",
+                                    ResponseConduit::offset, updateScale);
   samplerOf(sampler).setOffset(offset, updateScale != 0);
 }
 
 void dbarts_sampler_setWeights(dbarts_sampler* sampler,
                                const double* weights) {
-  // unreachable today, guarded defensively; see dbarts_sampler_setResponse
-  refuseMultiForestMutation(samplerOf(sampler), "dbarts_sampler_setWeights");
+  // the weight conduit has no scale to pin; see dbarts_sampler_setResponse
+  refuseMultiForestResponseMutation(samplerOf(sampler),
+                                    "dbarts_sampler_setWeights",
+                                    ResponseConduit::weights, 0);
   samplerOf(sampler).setWeights(weights);
 }
 
@@ -289,6 +300,10 @@ void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
                                       const double* xTest,
                                       size_t numTestObservations) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
+  // BCF's test blend is undefined without a test treatment vector, and its
+  // whole test surface is refused; a multi-forest model whose blend IS defined
+  // passes (refuseBCFTestSurface, not the forest count)
+  refuseBCFTestSurface(engine, "dbarts_sampler_setTestPredictors");
   if (xTest == NULL) {
     engine.setTestPredictors(NULL, 0);
     return;
@@ -311,6 +326,9 @@ void dbarts_sampler_predict(dbarts_sampler* sampler, const double* xTest,
                             size_t numTestObservations,
                             const double* offsetTest, double* out) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
+  // predictColumns opens forests_[0] alone, so on BCF a caller would receive
+  // mu(x) labelled as the fit; see dbarts_sampler_setTestPredictors
+  refuseBCFTestSurface(engine, "dbarts_sampler_predict");
   bartcore::SamplerShape shape = engine.shape();
   for (size_t j = 0; j < shape.numPredictors; ++j)
     validateColumnValues(engine.data(), j, xTest + j * numTestObservations,
@@ -431,6 +449,48 @@ int dbarts_sampler_kIsSampled(const dbarts_sampler* sampler) {
 
 int dbarts_sampler_usesDart(const dbarts_sampler* sampler) {
   return samplerOf(sampler).shape().usesDart ? 1 : 0;
+}
+
+size_t dbarts_sampler_numForests(const dbarts_sampler* sampler) {
+  return samplerOf(sampler).shape().numForests;
+}
+
+int dbarts_sampler_setTreatment(dbarts_sampler* sampler, const double* z) {
+  BartcoreHolder& holder(*sampler->holder);
+  bartcore::SamplerBase& engine(*holder.sampler);
+  // a capability probe rather than a forest count, matching
+  // bartcore_setTreatment: z is defined only as the contrast the BCF glue forms
+  // b_{z_i} against, and a K-forest multinomial would defeat a numForests test
+  double glue[3];
+  if (!engine.bcfGlue(0, glue)) return 0;
+  size_t numObservations = engine.shape().numObservations;
+  // the combiner borrows z for the sampler's lifetime, so the holder owns the
+  // 0/1 coercion and the caller's array need not outlive the call
+  holder.ownedTreatment.resize(numObservations);
+  for (size_t i = 0; i < numObservations; ++i)
+    holder.ownedTreatment[i] = z[i] != 0.0 ? 1.0 : 0.0;
+  engine.setTreatment(holder.ownedTreatment.data());
+  return 1;
+}
+
+int dbarts_sampler_forestFits(const dbarts_sampler* sampler, size_t forest,
+                              double* out) {
+  const bartcore::SamplerBase& engine(samplerOf(sampler));
+  bartcore::SamplerShape shape = engine.shape();
+  if (forest >= shape.numForests) return 0;
+  for (size_t c = 0; c < shape.numChains; ++c)
+    engine.forestTotalFits(c, forest, out + c * shape.numObservations);
+  return 1;
+}
+
+int dbarts_sampler_bcfGlue(const dbarts_sampler* sampler, double* out) {
+  const bartcore::SamplerBase& engine(samplerOf(sampler));
+  size_t numChains = engine.shape().numChains;
+  // the glue is a model property, so chain 0 answers for every chain; its
+  // refusal writes nothing
+  if (!engine.bcfGlue(0, out)) return 0;
+  for (size_t c = 1; c < numChains; ++c) engine.bcfGlue(c, out + 3 * c);
+  return 1;
 }
 
 // Provider-side binding: each real function's address must

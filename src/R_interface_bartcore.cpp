@@ -28,10 +28,13 @@
 using std::size_t;
 using std::uint32_t;
 using bartcore_bridge::BartcoreHolder;
+using bartcore_bridge::refuseBCFTestSurface;
 using bartcore_bridge::refuseMultiForestMutation;
+using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refuseMultiForestTransactionalUpdate;
 using bartcore_bridge::refusePinnedSigmaChange;
 using bartcore_bridge::refuseVarianceForestPredictorMutation;
+using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::validateColumnValues;
 
 namespace {
@@ -2322,24 +2325,6 @@ void refuseRequantizeWithoutSource(const bartcore::SamplerBase& sampler,
   refuseMutationOnView(sampler, caller);
 }
 
-// The single-forest test-fit and prediction surface has no meaning under BCF:
-// with two forests and no test treatment vector, a blend a * mu + b_z * tau is
-// ill-defined, so the engine would fall back to the bare prognostic forest and
-// silently misreport. Reject test data and out-of-sample prediction on a BCF
-// sampler; consumers recombine per forest via getForestFits + the BCF glue
-// (docs/design/bcf.md). Gated on testFitsAreDefined rather than the forest
-// count so a multi-forest model whose test blend IS defined (multinomial
-// softmax over the K forests' totalTestFits) is allowed through; only BCF, the
-// one multi-forest model that leaves the channel undefined, is refused.
-void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
-                          const char* caller) {
-  bartcore::SamplerShape shape = sampler.shape();
-  if (shape.numForests >= 2 && !shape.testFitsAreDefined)
-    Rf_error("%s: a BCF sampler carries no test treatment vector, so its test "
-             "fits are undefined; predict per forest with getForestFits and "
-             "the BCF glue instead", caller);
-}
-
 // storeSample adds the test offset to every reported channel AFTER the forests
 // are blended, so on the one multi-forest model whose test blend IS defined
 // (the multinomial softmax) it would shift the reported probabilities off the
@@ -2450,14 +2435,72 @@ namespace bartcore_bridge {
 // fixes its data and prior at creation, as grouped/sparse/aft samplers do.
 // setTreatment, the one supported multi-forest data swap, routes through the
 // combiner and stays allowed; setResponse is opt-in and scale-pinned rather
-// than refused, and carries its own condition at bartcore_setResponse.
+// than refused, and carries its own condition in
+// refuseMultiForestResponseMutation below.
 // External linkage: the flat C API (C_interface.cpp) reuses this guard on
-// its own setResponse/setWeights entries.
+// its own setTestOffset entry.
 void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
                                const char* caller) {
   if (sampler.shape().numForests >= 2)
     Rf_error("%s: a multi-forest sampler fixes its data at creation; make a "
              "new sampler instead", caller);
+}
+
+// The response, offset and weight conduits are one rule under three names. The
+// coupling must re-derive every per-forest residual AND precision from y and w
+// each sweep, caching nothing across sweeps (supportsResponseMutation), and the
+// response transform must stay where the per-forest leaf calibrations were
+// stated against it: updateScale = TRUE would re-anchor it while both forests
+// keep the old calibration, silently decalibrating them. NA is not FALSE here -
+// only an explicit FALSE takes the permitted branch. The offset conduit is the
+// response-side swap under a different pointer (for a gaussian response
+// setOffset(yBuild - yNew, FALSE) re-maps through the pinned transform exactly
+// as setResponse(yNew, FALSE) does), so it carries both conditions; a coupling
+// that does not opt in has no offset semantics at all, since the K-forest
+// softmax is invariant to a common per-observation shift. Weights carry no
+// scale - setWeights never moves the transform, and BCF's scaledResponseSd is
+// unweighted - so only the opt-in half applies to them.
+// External linkage: the flat C API reuses this guard on its own setResponse,
+// setOffset and setWeights entries.
+void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
+                                       const char* caller,
+                                       ResponseConduit conduit,
+                                       int updateScale) {
+  bartcore::SamplerShape shape = sampler.shape();
+  if (shape.numForests < 2) return;
+  if (!shape.supportsResponseMutation) {
+    const char* fixed = "fixes its response at creation";
+    if (conduit == ResponseConduit::offset) fixed = "carries no offset";
+    else if (conduit == ResponseConduit::weights)
+      fixed = "fixes its case weights at creation";
+    Rf_error("%s: this multi-forest sampler %s; make a new sampler instead",
+             caller, fixed);
+  }
+  if (conduit != ResponseConduit::weights && updateScale != FALSE)
+    Rf_error("%s: a multi-forest sampler supports %s swap only with "
+             "updateScale = FALSE, which pins the response transform its "
+             "per-forest leaf calibrations are stated against", caller,
+             conduit == ResponseConduit::response ? "a response" : "an offset");
+}
+
+// The single-forest test-fit and prediction surface has no meaning under BCF:
+// with two forests and no test treatment vector, a blend a * mu + b_z * tau is
+// ill-defined, so the engine would fall back to the bare prognostic forest and
+// silently misreport. Reject test data and out-of-sample prediction on a BCF
+// sampler; consumers recombine per forest via getForestFits + the BCF glue
+// (docs/design/bcf.md). Gated on testFitsAreDefined rather than the forest
+// count so a multi-forest model whose test blend IS defined (multinomial
+// softmax over the K forests' totalTestFits) is allowed through; only BCF, the
+// one multi-forest model that leaves the channel undefined, is refused.
+// External linkage: the flat C API reuses this guard on its own predict and
+// test-predictor entries.
+void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
+                          const char* caller) {
+  bartcore::SamplerShape shape = sampler.shape();
+  if (shape.numForests >= 2 && !shape.testFitsAreDefined)
+    Rf_error("%s: a BCF sampler carries no test treatment vector, so its test "
+             "fits are undefined; predict per forest with getForestFits and "
+             "the BCF glue instead", caller);
 }
 
 // The variance forest holds its trees outside forests_, which the revalidate
@@ -3671,25 +3714,8 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   int updateScale = Rf_asLogical(updateScaleExpr);
-  // The offset conduit is the response-side swap under a different pointer -
-  // for a gaussian response setOffset(yBuild - yNew, FALSE) re-maps through the
-  // pinned transform exactly as setResponse(yNew, FALSE) does - so it carries
-  // the same two conditions bartcore_setResponse states. A coupling that does
-  // not opt in has no offset semantics at all: the K-forest softmax is
-  // invariant to a common per-observation shift, so a flat offset is
-  // identically inert and a meaningful one would be n x K. updateScale = TRUE
-  // re-anchors the response transform while both forests keep leaf
-  // calibrations stated against the old one, silently decalibrating them; NA
-  // is not FALSE here.
-  if (shape.numForests >= 2) {
-    if (!shape.supportsResponseMutation)
-      Rf_error("bartcore_setOffset: this multi-forest sampler carries no "
-               "offset; make a new sampler instead");
-    if (updateScale != FALSE)
-      Rf_error("bartcore_setOffset: a multi-forest sampler supports an offset "
-               "swap only with updateScale = FALSE, which pins the response "
-               "transform its per-forest leaf calibrations are stated against");
-  }
+  refuseMultiForestResponseMutation(*holder.sampler, "bartcore_setOffset",
+                                    ResponseConduit::offset, updateScale);
   if (!Rf_isNull(offsetExpr) &&
       (!Rf_isReal(offsetExpr) ||
        static_cast<size_t>(Rf_xlength(offsetExpr)) != shape.numObservations))
@@ -3704,23 +3730,8 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   int updateScale = Rf_asLogical(updateScaleExpr);
-  // The one multi-forest whole-data mutation that is opt-in rather than
-  // refused, and only scale-pinned. The coupling must re-derive every
-  // per-forest residual from y each sweep and cache nothing across sweeps
-  // (supportsResponseMutation); updateScale = TRUE would re-anchor the response
-  // transform while both forests keep leaf calibrations stated against the old
-  // one, silently decalibrating them. NA is not FALSE here - only an explicit
-  // FALSE takes the permitted branch.
-  if (shape.numForests >= 2) {
-    if (!shape.supportsResponseMutation)
-      Rf_error("bartcore_setResponse: this multi-forest sampler fixes its "
-               "response at creation; make a new sampler instead");
-    if (updateScale != FALSE)
-      Rf_error("bartcore_setResponse: a multi-forest sampler supports a "
-               "response swap only with updateScale = FALSE, which pins the "
-               "response transform its per-forest leaf calibrations are stated "
-               "against");
-  }
+  refuseMultiForestResponseMutation(*holder.sampler, "bartcore_setResponse",
+                                    ResponseConduit::response, updateScale);
   if (shape.numGroups > 0)
     Rf_error("grouped random effects fix the response at creation; make a "
              "new sampler instead");
@@ -3948,16 +3959,8 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   size_t numObservations = shape.numObservations;
-  // The weight conduit rides the same opt-in as the response swap: the coupling
-  // must cache nothing per-forest across sweeps (BCF re-derives every per-forest
-  // response AND precision from y and w each sweep), and the per-forest leaf
-  // calibration must not be weight-derived (BCF's scaledResponseSd is
-  // unweighted, so a weight swap cannot decalibrate it). There is no scale to
-  // pin here - setWeights never moves the response transform - so the
-  // updateScale = FALSE conjunct setResponse and setOffset carry has no analog.
-  if (shape.numForests >= 2 && !shape.supportsResponseMutation)
-    Rf_error("bartcore_setWeights: this multi-forest sampler fixes its case "
-             "weights at creation; make a new sampler instead");
+  refuseMultiForestResponseMutation(*holder.sampler, "bartcore_setWeights",
+                                    ResponseConduit::weights, FALSE);
   refuseBinaryWeightChange(*holder.sampler);
   if (!Rf_isReal(weightsExpr) ||
       static_cast<size_t>(Rf_xlength(weightsExpr)) != numObservations)

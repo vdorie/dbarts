@@ -217,10 +217,10 @@ expect_equal(CALL("capi_dims", ptr2)[3L], 20L)
 # the remaining conditioning hooks: a replacement response moves the fits,
 # gaussian weights install, and leaf parameters redraw from the prior
 yShifted <- y + 10
-CALL("capi_set_response", ptr2, yShifted)
+CALL("capi_set_response", ptr2, yShifted, TRUE)
 rShifted <- CALL("capi_run", ptr2, 10L, 3L, TRUE, FALSE)
 expect_true(abs(mean(rShifted$train) - mean(yShifted)) < 3)
-CALL("capi_set_response", ptr2, y)
+CALL("capi_set_response", ptr2, y, TRUE)
 
 # the sampler borrows what it is handed, so the vector must stay live
 weights <- rep(c(0.5, 1.5), length.out = n)
@@ -478,7 +478,56 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
   rm(ptrSparse)
 }
 
+# the two-forest (BCF) surface, docs/design/bcf.md: a treatment vector on the
+# data object and the treatment forest's configuration on the control make a
+# Bayesian causal forest through this same creation entry point. The whole
+# mutation and reporting surface is driven from the consumer - the acceptances,
+# the refusals, and the reason each refusal names - so what is checked is the
+# flat API's own agreement with the R bridge rather than an R restatement of it
+set.seed(21L)
+nBCF <- 200L
+xBCF <- matrix(runif(nBCF * 3L), nBCF, 3L)
+zBCF <- as.double(rbinom(nBCF, 1L, 0.5))
+yBCF <- 2 * xBCF[, 1L] + zBCF * (1 + xBCF[, 2L]) + rnorm(nBCF, 0, 0.2)
+specBCF <- dbartsSpec(
+  dbartsData(xBCF, yBCF),
+  dbartsControl(
+    n.chains = 2L,
+    n.threads = 1L,
+    n.trees = 25L,
+    n.samples = 3L,
+    updateState = FALSE,
+    rngSeed = 41L
+  ),
+  treatment = zBCF,
+  treatmentForest = treatmentForest(n.trees = 15L)
+)
+ptrBCF <- CALL("capi_create", specBCF$control, specBCF$model, specBCF$data, "")
+expect_equal(CALL("capi_dims", ptrBCF)[5L], 25L)
+invisible(CALL("capi_run", ptrBCF, 5L, 3L, FALSE, FALSE))
+
+# borrowed until replaced, so these must outlive the sampler below
+offsetBCF <- rep(0, nBCF)
+weightsBCF <- rep(1, nBCF)
+bcfLegs <- CALL(
+  "capi_bcf_surface",
+  ptrBCF,
+  yBCF,
+  offsetBCF,
+  weightsBCF,
+  zBCF,
+  xBCF[1:5, , drop = FALSE]
+)
+for (leg in names(bcfLegs)) {
+  expect_true(bcfLegs[[leg]], info = leg)
+}
+
+# the accepted mutations leave the sampler running
+rBCF <- CALL("capi_run", ptrBCF, 0L, 3L, TRUE, FALSE)
+expect_true(all(is.finite(rBCF$train)))
+
 # destruction runs through the finalizer
 rm(ptr1, ptr2, ptr3, ptrBinary, ptrFixed, ptrLL)
-rm(ptrCbA, ptrCbB, ptrStop, ptrMT, ptrG)
+rm(ptrCbA, ptrCbB, ptrStop, ptrMT, ptrG, ptrBCF)
 invisible(gc(FALSE))
+rm(offsetBCF, weightsBCF, yBCF, zBCF)

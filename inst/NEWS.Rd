@@ -593,6 +593,18 @@
             initializer in \code{dbarts/dbarts.h} sets \code{structSize} and zeroes the
             field pointers, so the size cannot be forgotten:
             \code{dbarts_results r = DBARTS_RESULTS_INIT;}.
+      \item The C API reaches Bayesian causal forests:
+            \code{dbarts_sampler_numForests} reports the model's forest count,
+            \code{dbarts_sampler_setTreatment} swaps the treatment vector, and
+            \code{dbarts_sampler_forestFits} and \code{dbarts_sampler_bcfGlue}
+            read the per-forest fits and the glue the two combine through.
+            \code{dbarts_sampler_setResponse} takes an explicit
+            \code{updateScale} argument matching
+            \code{dbarts_sampler_setOffset}, in place of always re-deriving the
+            response transform, and the mutation entries now carry the same
+            per-model rules as their R counterparts: a two-forest sampler takes
+            a scale-pinned response, offset or weight swap and refuses its whole
+            test surface.
       \item The \code{x_test} and \code{offset_test} parameters of
             \code{dbarts_sampler_setTestPredictors}, \code{dbarts_sampler_setTestOffset},
             and \code{dbarts_sampler_predict} are renamed \code{xTest} and \code{offsetTest}

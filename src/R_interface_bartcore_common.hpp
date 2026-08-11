@@ -123,6 +123,33 @@ void validateColumnValues(const bartcore::ColumnStore& store,
 void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
                                const char* caller);
 
+/// The response-side conduits refuseMultiForestResponseMutation covers. They
+/// carry one rule and differ only in what a refusal names and in whether the
+/// conduit has a scale to pin (weights do not).
+enum class ResponseConduit { response, offset, weights };
+
+/// Errors on a multi-forest sampler (numForests >= 2) that either fixes
+/// conduit at creation - its coupling caches something per forest across
+/// sweeps rather than re-deriving it (!supportsResponseMutation) - or was asked
+/// to move the response transform its per-forest leaf calibrations are stated
+/// against (any updateScale but FALSE, which the scaleless weight conduit
+/// ignores). The one multi-forest mutation family that is opt-in rather than
+/// refused; both the R bridge and the flat C API guard with this, so the two
+/// surfaces cannot state different rules. caller labels the error.
+void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
+                                       const char* caller,
+                                       ResponseConduit conduit,
+                                       int updateScale);
+
+/// Errors on a BCF sampler (numForests >= 2 and its test fits undefined),
+/// whose test surface has no meaning without a test treatment vector: a blend
+/// a * mu + b_z * tau is ill-defined, so the engine would fall back to the bare
+/// prognostic forest and silently misreport. Gated on testFitsAreDefined rather
+/// than the forest count, so a multi-forest model whose test blend IS defined
+/// (the multinomial softmax) passes through. caller labels the error.
+void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
+                          const char* caller);
+
 /// Errors on a sampler whose residual sd is structurally pinned - a family
 /// that fixes it by definition (probit, logistic, multinomial, ordinal,
 /// nbinom) or a heteroscedastic variance forest - where a change would
