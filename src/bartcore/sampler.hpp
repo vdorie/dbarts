@@ -312,6 +312,13 @@ public:
       if (results.varianceTestFits != nullptr)
         r.varianceTestFits = results.varianceTestFits +
           c * numSamples * data_.numTestObservations;
+      // the per-forest slab carries every forest's own fits per sample, and the
+      // glue slab three scalars; both are filled only by a coupling that defines
+      // them, so the strides are reached on that path alone
+      if (results.forestFits != nullptr)
+        r.forestFits = results.forestFits +
+          c * numSamples * data_.numObservations * numForests();
+      if (results.glue != nullptr) r.glue = results.glue + c * numSamples * 3;
     }
 
     if (options_.verbose) ext_printf("Running mcmc loop:\n");
@@ -1130,6 +1137,11 @@ public:
   size_t numCutpoints() const { return chains_[0]->numCutpoints(); }
   bool testFitsAreDefined() const {
     return chains_[0]->testFitsAreDefined();
+  }
+  /// Whether the recorded per-forest fits and glue channels carry defined
+  /// values; chain 0 answers for all, as every chain carries the same combiner.
+  bool forestReportingIsDefined() const {
+    return chains_[0]->forestReportingIsDefined();
   }
   void setTreatment(const double* z) {
     for (auto& chain : chains_) chain->setTreatment(z);

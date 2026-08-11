@@ -290,6 +290,16 @@ struct Results {
   // variance forest is present, left untouched otherwise.
   double* varianceFits = nullptr;
   double* varianceTestFits = nullptr;
+  // per-draw per-forest reporting, both null unless the forest coupling defines
+  // them (ForestCombiner::forestReportingIsDefined; BCF alone today), so every
+  // other model allocates and computes nothing here: forestFits is
+  // numObservations x numForests x numSamples, forest-major within a sample, on
+  // the INTERNAL scale (the forests' own function values, as forestTotalFits
+  // reports them); glue is 3 x numSamples, each column the (a, b0, b1) that
+  // recombines them into that draw's location. A SEPARATELY-typed channel pair,
+  // as the variance surface is, not a numReportedLocations widening.
+  double* forestFits = nullptr;
+  double* glue = nullptr;
   // per-observation channels the trainingFits/testFits arrays carry: 1 for
   // every additive model (the exact current layout), more for a multi-location
   // combiner. The run bridge sizes the fits buffers by it and Sampler strides
@@ -808,6 +818,12 @@ public:
   /// multinomial and single-forest samplers are allowed.
   bool testFitsAreDefined() const {
     return combiner_ ? combiner_->testFitsAreDefined() : true;
+  }
+  /// Whether the recorded per-forest fits and glue channels carry defined
+  /// values: the coupling's own answer (true for BCF), false off any combiner.
+  /// The run bridge reads it to decide whether to allocate them at all.
+  bool forestReportingIsDefined() const {
+    return combiner_ != nullptr && combiner_->forestReportingIsDefined();
   }
   bool usesDart() const { return forests_[0].useDart; }
   /// Re-forms b_{z_i} and both residuals on the next sweep; z is borrowed.
@@ -4154,6 +4170,25 @@ private:
           if (data_.testOffset != nullptr)
             misc_addVectorsInPlace(data_.testOffset, nTest, dst);
         }
+      }
+    }
+
+    // per-forest reporting, for a coupling that defines it (BCF): each forest's
+    // own internal-scale function values, forest-major within a sample, and the
+    // scalars that recombine them. Both are reads of state this sweep already
+    // settled on - the same values forestTotalFits and bcfGlue hand a caller
+    // that drives one sweep at a time - so the channels consume no rng and
+    // mutate no state.
+    if (combiner_ && combiner_->forestReportingIsDefined()) {
+      if (results.forestFits != nullptr) {
+        double* out = results.forestFits + sampleNum * n * forests_.size();
+        for (std::size_t f = 0; f < forests_.size(); ++f)
+          std::memcpy(out + f * n, forests_[f].totalFits.data(),
+                      n * sizeof(double));
+      }
+      if (results.glue != nullptr) {
+        double* out = results.glue + sampleNum * 3;
+        combiner_->bcfGlue(out[0], out[1], out[2]);
       }
     }
 
