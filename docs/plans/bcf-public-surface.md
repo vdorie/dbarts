@@ -306,6 +306,19 @@ opening sentence of this section is thereby amended: the option-A spellings
 are the surface UNTIL the home lands; what survives to release becomes the
 contract.
 
+**RESOLVED, in part, by multiforest-extension-surface (2026-08-10).** The
+replacement creation route is `forests = list(forest(basis = ...), ...)` on
+`dbarts()`/`dbartsSpec()`, resolving to THIS arc's spec machinery unchanged;
+`treatment =`, `moderators =` and `treatmentForest =` are REMOVED in the same
+slice rather than deprecated, since nothing is released and bartCause has not
+adopted them. The rename surface is THREE things, not two: this block names
+`setTreatment` and `bcfGlue`, and misses the creation contract documented at
+`dbarts.h:348-357` ("dbartsSpec(data, control, treatment = z)") plus the
+ownership sentence at `:43`. The conflict between this block and
+dbarts-h-reshape's binding decision 3 is adjudicated in favour of this block:
+that decision now carries a conditional carve-out for the two BCF-specific
+names and the creation contract.
+
 ## S0. Pin the current surface. No engine change.
 
 tinytest asserting today's BCF behavior one by one, so S1's routing cannot
@@ -468,6 +481,16 @@ and that is GATED, not assumed. Gates: as S1, plus the mandated BCF oracle set
 (`bcf-exact.R` quick, `bcf-exact-restricted.R`) UNMOVED.
 
 ## S5. `bcf()` and the fit class.
+
+**PAUSED, and RELOCATED under multiforest-extension-surface's home decision
+(conditional on VD's fork 4).** `bcf()` and the `bartBCF` class ship in
+bartCause, not in dbarts: the engine exports no fit function with domain
+semantics, and bartCause already owns the estimands, common support and the
+two-counterfactual-surface output contract this slice was written against.
+What survives verbatim is the CONTRACT - per-draw mu, tau, glue, sigma,
+per-forest varcount and both counterfactual surfaces, forest-INDEXED rather
+than positional, with the option-A element names, which stay correct for a
+fit function. If VD keeps `bcf()` in dbarts, this slice resumes as written.
 
 `bcf(formula|x, y, treatment, ...)` returning `bartBCF` carrying per-draw mu,
 tau, glue, sigma, per-forest varcount, and the two counterfactual surfaces
@@ -646,7 +669,11 @@ all four.
   decorator. S1 REFUSES the composition; building it is its own arc.
 - **Retiring `bartcoreBCFSampler`** in favour of the public path, with the
   bcf-equivalence re-record it forces. Own arc.
-- **Public `setForestWeights`**; inherits the mirroring rule on exposure.
+- **Public `setForestWeights`** - SCHEDULED as multiforest-extension-surface
+  M1, which must land before dbarts-h-reshape S1 makes the flat entry public;
+  a channel reachable from C but not from R inverts VD's prototyping
+  principle. It inherits the mirroring rule on exposure and carries the
+  documented rebuild hazard at the method.
 - **Forest-indexed `setTreeStorage`/`getTrees`/`printTrees`/`predict`/
   `numTrees`** - reserved for the dbarts.h reshape, not built here.
 - **Continuous treatment** (out of scope).

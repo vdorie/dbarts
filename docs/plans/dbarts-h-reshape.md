@@ -53,10 +53,25 @@ one. ONE hash re-bake, NO version bump, ONE consumer migration.
    links the unreleased header.
 2. **Consumer compatibility is a cost to ENUMERATE, never a design
    constraint** (VD 2026-08-10). Enumerated in "Migration costs" below.
-3. **bcf-public-surface S3's entries are adopted VERBATIM**: the widened
-   `dbarts_sampler_setResponse(sampler, y, updateScale)` and the four appended
-   names `numForests`, `setTreatment`, `forestFits`, `bcfGlue`. This arc
-   re-signs none of them and re-relaxes none of their guards.
+3. **bcf-public-surface S3's entries are adopted VERBATIM, with ONE carve-out
+   (amended 2026-08-10 by multiforest-extension-surface, which adjudicated a
+   conflict between this item and bcf-public-surface's AMENDED Open decision
+   block).** The widened `dbarts_sampler_setResponse(sampler, y,
+   updateScale)`, `numForests` and `forestFits` are adopted verbatim and
+   re-signed never; no guard S3 relaxed is re-relaxed. CARVE-OUT: the two
+   BCF-SPECIFIC names `setTreatment` and `bcfGlue`, and the creation contract
+   documented at `dbarts.h:348-357` plus the ownership sentence at `:43`, MAY
+   be re-signed to engine vocabulary in this arc's S1, because
+   bcf-public-surface's later VD amendment authorizes exactly that ("The flat
+   C names S3 shipped (`setTreatment`, `bcfGlue`) are likewise renameable at
+   the queued dbarts.h reshape re-bake if the settled surface uses engine
+   vocabulary") and because this arc's S1 is the window's LAST re-bake, so
+   declining costs a post-release MINOR bump plus a lockstep bump of
+   stan4bart's floor - the exact cost resolved question 2 refused to pay for
+   `setForestWeights`. The re-sign is CONDITIONAL: it happens only if
+   multiforest-extension-surface's naming fork is answered before this slice
+   starts, and its content is that plan's M3. Otherwise the shipped names go
+   to release unchanged.
 4. **The source semantics are already signed off** - cheap-uniformity.md
    "Source-shaped mutation surface", rules 1-5. This plan spells them in C and
    adds nothing to them.
@@ -583,7 +598,32 @@ report - do not build a private substitute.
    flat entry BORROWS - it retains nothing and copies nothing, so the caller
    owns the buffer for the sampler's life. State that in the Doxygen; it is the
    one place the flat entry's contract differs from the bridge's, which copies
-   into a holder-owned buffer.
+   into a holder-owned buffer. The precision channel and the mean channel stay
+   TWO entries forever: `s_{f,i}` scales forest f's own leaf conditionals and
+   never enters `combinedFits` (measured, 1.8e-15), while a basis scales
+   forest f's contribution to the mean. Widening this entry with a basis is
+   refused on the rule zero-weight-exactness applied to
+   `dbarts_sampler_setWeights`.
+5b. **The mean channel, CONDITIONAL on multiforest-extension-surface's fork 3
+   (see binding decision 3's carve-out).** Re-sign
+   `dbarts_sampler_setTreatment` as
+   `X(int, dbarts_sampler_setForestBasis, (dbarts_sampler*, size_t forest,
+   const double* basis, size_t numColumns), (sampler, forest, basis,
+   numColumns))`, `basis` column-major n x numColumns; replace
+   `dbarts_sampler_bcfGlue` with
+   `X(size_t, dbarts_sampler_numForestAmplitudes, (const dbarts_sampler*,
+   size_t forest), (sampler, forest))` and
+   `X(int, dbarts_sampler_forestAmplitudes, (const dbarts_sampler*, size_t
+   forest, double* out), (sampler, forest, out))` filling
+   numForestAmplitudes(forest) x numChains. 1 = accepted, 0 = refused. The
+   body accepts only what today's engine honours - forest 1, a two-column
+   complementary 0/1 basis, Gaussian family - and refuses the rest naming the
+   capability, so the family relaxes guard bodies later and moves no header.
+   Ownership: the entry COPIES, matching `setTreatment` (`dbarts.h:43`); state
+   it in the Doxygen, because a continuous basis cannot be coerced-and-copied
+   incidentally the way a 0/1 z can. Re-word the creation Doxygen
+   (`dbarts.h:348-357`) in engine vocabulary. Budget ~40 header + ~80
+   C_interface + ~70 consumer.c + ~60 test-capi.R.
 6. **`consumer.c` + `test-capi.R`**: every entry above; the refusal matrix; the
    `structSize` canary; the sparse-predict parity oracle; and the RE-POINTED raw
    canary - `p_apiHash_raw` resolved by hand through `R_GetCCallable` with a
