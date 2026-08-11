@@ -288,6 +288,24 @@ proceed" - and the condition holds by construction: `treatment` and
 `bcf` package put in front of users, which is the ground the recommendation
 was made on. The public spellings are the option-A list above.
 
+**AMENDED (VD 2026-08-10, after S2 landed): the option-A creation surface is
+PROVISIONAL.** VD: "I don't think `bcf` belongs in the `dbarts` function" -
+the causal vocabulary (`treatment =`, `moderators =`, `treatmentForest()`)
+is SCHEDULED FOR REMOVAL from `dbarts()`/`dbartsSpec()` once BCF finds its
+proper home ("we can schedule it for removal when we find it a proper home";
+the multiforest-extension-surface design arc owns the home question -
+candidates include bartCause's reserved "bcf" slot and a declarative
+engine-vocabulary K-forest surface). Removal sequences AFTER a replacement
+creation route exists, since `treatment =` is today's only public R creation
+route. Not a rollback: the S1/S2 mechanism (spec resolution, the
+`bartcore.bcf` attributes, the bidirectional cross-check, the R5 methods)
+survives re-skinning; only the public argument names move. The flat C names
+S3 shipped (`setTreatment`, `bcfGlue`) are likewise renameable at the queued
+dbarts.h reshape re-bake if the settled surface uses engine vocabulary. The
+opening sentence of this section is thereby amended: the option-A spellings
+are the surface UNTIL the home lands; what survives to release becomes the
+contract.
+
 ## S0. Pin the current surface. No engine change.
 
 tinytest asserting today's BCF behavior one by one, so S1's routing cannot
@@ -727,6 +745,34 @@ all four.
    census.
 
 ## Landing notes
+
+S3 LANDED 1622eb9 (2026-08-10). The flat C surface in one commit, one hash
+re-bake: setResponse widened in place to take updateScale;
+setResponse/setOffset/setWeights route through the NEW shared
+bartcore_bridge::refuseMultiForestResponseMutation(conduit, updateScale) -
+one predicate for both surfaces, refusal texts byte-identical (S0 pins pass
+unchanged); refuseBCFTestSurface promoted to the bridge block per the
+7299b8b five-step template and guarding dbarts_sampler_predict +
+setTestPredictors (amendment 2b - the silent mu(x)-as-fit hole closed);
+numForests/setTreatment/forestFits/bcfGlue appended at list end, int
+entries 1 = accepted / 0 = refused; DBARTS_C_API_HASH 0xf760898d116cb3a3 ->
+0x1a911c00bb26dcd7, both version constants untouched. The hash is NOT
+script-generated (no generator exists; the C_interface static_assert is the
+machinery) - the implementer validated its recomputation by reproducing the
+old baked value from the pre-edit header first. F10 implemented as
+capi_bcf_surface: 12 legs run under R_tryCatchError inside consumer.c,
+accept/refuse outcome AND message text checked in C; the 2b negative half
+asserted in tests/cpp/test_shape.cpp on both a BCF shape (condition fires)
+and a multinomial shape (does not), since the guard cannot link into that
+build. Unpredicted facts: dbartsSpec() leaves control@n.samples NA and
+dbarts_sampler_create refuses that, so a flat consumer hand-building a spec
+must set n.samples; dbarts.h has no hand-written stubs block - stubs and
+registration are both DBARTS_C_API_LIST expansions, so the list edit
+carried them. Budget 489+/90- (~1.36x; moved comment blocks + the 12-leg
+harness). Gates double-run (implementer + orchestrator independently):
+install --preclean fresh privlib, tests/cpp plain + ASAN/UBSAN from clean,
+tinytest 3900/0, test-capi.R 70 -> 84, trio bitwise (27/27 identical draws
++ bcf 5x7 + multinomial 3x5), air 0, lintr clean on test-capi.R.
 
 S2 LANDED 339aeb0 (2026-08-10; R and tests only, zero src delta, so the
 tests/cpp leg was correctly skipped). The R5 surface: $setTreatment mirrors
