@@ -192,6 +192,35 @@ runScenarios <- function() {
     result$set_treatment <- recordChannels(bc, res)
   }
 
+  # (f) forced whole-matrix setPredictor: run, replace the entire design
+  # through the FORCED path - the only predictor mutation a BCF sampler accepts
+  # today, and the one that re-routes both forests and collapses any leaf the
+  # new codes empty - then run again and record the post-swap state per forest
+  # (docs/plans/multiforest-predictor-mutation.md, "The harness this arc
+  # needs"). Nothing guarded that loop before. Its seeds are LITERALS kept out
+  # of the guarded `seeds` vector above so settingsList() stays identical to
+  # the c820227 baseline and the neutrality compare against it still runs (that
+  # compare checks only the five scenarios it recorded); the k3counts precedent
+  # in multinomial-equivalence.R. This scenario runs after the five above with
+  # its own set.seed, so it perturbs none of them. local() rather than the bare
+  # block above: it scopes the same reused names without an own-line brace.
+  result$set_predictor <- local({
+    d <- makeData(n, p, 8006L)
+    set.seed(8106L)
+    x2 <- matrix(runif(n * p), n, p)
+    sampler <- dbarts(d$x, d$y, control = makeControl())
+    set.seed(9006L)
+    bc <- dbarts:::bartcoreBCFSampler(
+      sampler,
+      d$z,
+      n.trees.treatment = n.trees.tau
+    )
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    dbarts:::bartcoreSetPredictor(bc, x2, forceUpdate = TRUE)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    recordChannels(bc, res)
+  })
+
   result
 }
 

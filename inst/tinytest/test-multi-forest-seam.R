@@ -258,6 +258,47 @@ expect_error(
   "multi-forest"
 )
 
+# --- the multinomial predictor-mutation surface, pinned one entry at a time
+# ahead of the widening (docs/plans/multiforest-predictor-mutation.md, S0):
+# every transactional entry validates through revalidateAllChains, which
+# reaches forest 0 alone, so all four refuse on a K-forest sampler, while the
+# forced entries and setCutPoints refresh every category forest and are the
+# supported multinomial predictor mutations. The refusals are INVERTED in
+# place - not deleted - by the slices that retire them (S1 for the two
+# whole-matrix/column entries, S2 for the two sessions), so this file stays
+# green across the arc boundary. ---
+expect_error(
+  dbarts:::bartcoreSetPredictor(bc.mn, x, forceUpdate = FALSE),
+  "multi-forest"
+)
+expect_error(
+  dbarts:::bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = FALSE),
+  "multi-forest"
+)
+expect_error(
+  dbarts:::bartcoreUpdatePredictorPerObservation(bc.mn, x[, 1L], 1L),
+  "multi-forest"
+)
+# the joint session installs in every sampler or none, so one refusing sampler
+# refuses the whole call; a single-element list is the smallest case that
+# reaches the same guard
+expect_error(
+  dbarts:::bartcoreUpdatePredictorPerObservationJointly(
+    list(bc.mn),
+    x[, 1L],
+    1L
+  ),
+  "multi-forest"
+)
+expect_true(dbarts:::bartcoreSetPredictor(bc.mn, x, forceUpdate = TRUE))
+expect_true(
+  dbarts:::bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = TRUE)
+)
+# setCutPoints carries no transactional guard at all: it refreshes every forest
+# unconditionally, pruning whatever the coarsened grid orphans
+expect_silent(dbarts:::bartcoreSetCutPoints(bc.mn, list(c(1 / 3, 2 / 3)), 1L))
+expect_true(all(is.finite(dbarts:::bartcoreRun(bc.mn, 0L, 5L)$train)))
+
 # the same guard is inert on a single-forest sampler: these mutations still
 # work, including setOffset at updateScale = TRUE (rbart_vi's warmup rescale)
 expect_silent(dbarts:::bartcoreSetResponse(bc.one, y + 1))
