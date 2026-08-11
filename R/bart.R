@@ -1194,6 +1194,9 @@ bart2Multinomial <- function(
   sampler <- eval(samplerCall, envir = callingEnv)
 
   bc <- bartcoreMultinomialSampler(sampler, labels, K = K)
+  # from here the host owns no model: bc does. Mark it, so a mutation through
+  # the fit's $fit errors instead of silently changing a sampler nothing reads
+  sampler$hostFor <- "bart2(family = \"multinomial\")"
   samples <- bartcoreRun(bc, control@n.burn, control@n.samples)
 
   result <- packageMultinomialResults(
@@ -1266,6 +1269,8 @@ bart2MultinomialCounts <- function(
   sampler <- eval(samplerCall, envir = callingEnv)
 
   bc <- bartcoreMultinomialCountSampler(sampler, y, K = K)
+  # the host owns no model past this point; see bart2Multinomial
+  sampler$hostFor <- "bart2(family = \"multinomial\")"
   samples <- bartcoreRun(bc, control@n.burn, control@n.samples)
 
   result <- packageMultinomialResults(

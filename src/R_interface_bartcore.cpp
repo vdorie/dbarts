@@ -34,8 +34,10 @@ using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refuseMultiForestTransactionalUpdate;
 using bartcore_bridge::refusePinnedSigmaChange;
 using bartcore_bridge::refuseVarianceForestPredictorMutation;
+using bartcore_bridge::refuseVarianceForestScaleUpdate;
 using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::validateColumnValues;
+using bartcore_bridge::validateResponseSupport;
 
 namespace {
 
@@ -1605,14 +1607,25 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                  "model for continuous weights");
 }
 
-// The post-creation half of the policy: weight changes on binary-response
-// samplers are refused outright, since probit never supports weights and
-// logistic weights enter the latent construction at creation.
+// The post-creation half of the policy: every family but gaussian refuses a
+// weight change outright, each for its creation-time reason - probit, ordinal,
+// aft and nbinom support no weights at all, and logistic weights are the
+// observation counts its Polya-Gamma latents were built from. Naming the actual
+// family matters: the one message this used to carry told an aft, ordinal or
+// nbinom caller about "a binary response" they had not asked for.
 void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
-  if (sampler.shape().family != bartcore::ResponseFamily::gaussian)
-    Rf_error("weights on a binary response cannot be set after creation: "
-             "probit does not support weights, and logistic weights "
-             "(observation counts) are fixed when the sampler is created");
+  bartcore::ResponseFamily family = sampler.shape().family;
+  if (family == bartcore::ResponseFamily::gaussian) return;
+  if (family == bartcore::ResponseFamily::logistic)
+    Rf_error("logistic weights are the observation counts its latents were "
+             "built from and cannot be set after creation; make a new sampler "
+             "with the new counts instead");
+  const char* name = "probit";
+  if (family == bartcore::ResponseFamily::aft) name = "aft (survival)";
+  else if (family == bartcore::ResponseFamily::ordinal) name = "ordinal";
+  else if (family == bartcore::ResponseFamily::nbinom) name = "nbinom (count)";
+  Rf_error("%s models do not support case weights, so none can be set after "
+           "creation; fit a gaussian model for a weighted likelihood", name);
 }
 
 // Column j's dense slice of a parsed view, when a dense source serves it: the
@@ -2385,6 +2398,13 @@ bartcore::ResponseFamily parseSamplerSpecification(
   // value, so sigma enters as sqrt(value) and is never drawn
   if (sigmaIsFixed) data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
   enforceBinaryWeightPolicy(family, data.weights, data.numObservations);
+  // the response-support rule, stated once for creation and every mutation
+  // conduit: the R surface checks it first, so this is a no-op there and the
+  // real gate for the flat C API, which has no R layer ahead of it
+  bartcore_bridge::validateResponseSupport(family,
+                                           control.numOrdinalCategories, data.y,
+                                           data.numObservations,
+                                           "sampler creation");
   // a weighted truncated-latent draw is not a coherent likelihood; AFT v1
   // rejects weights (docs/design/survival.md)
   if (family == bartcore::ResponseFamily::aft && data.weights != NULL)
@@ -2481,6 +2501,77 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
              "updateScale = FALSE, which pins the response transform its "
              "per-forest leaf calibrations are stated against", caller,
              conduit == ResponseConduit::response ? "a response" : "an offset");
+}
+
+// The heteroscedastic analogue of the multi-forest scale pin above, and the
+// fifth sigma door: a variance forest's scale leaf is calibrated once, at
+// creation, against the response transform in force then, and no path re-states
+// it. updateScale = TRUE re-anchors that transform under the calibration, so
+// every s^2(x) the forest reports is measured on a scale the model no longer
+// uses and the fit runs away while getSigmas() - which reads the pinned sigma,
+// not the forest - shows nothing. There is no algebra that would rescue it
+// short of recalibrating the scale leaf, so refuse; updateScale = FALSE pins
+// the transform and is the supported heteroscedastic response swap. Weights
+// carry no transform and never reach here.
+// External linkage: the flat C API reuses this guard on its own setResponse and
+// setOffset entries.
+void refuseVarianceForestScaleUpdate(const bartcore::SamplerBase& sampler,
+                                     const char* caller,
+                                     ResponseConduit conduit, int updateScale) {
+  if (conduit == ResponseConduit::weights || updateScale == FALSE) return;
+  if (!sampler.shape().hasVarianceForest) return;
+  Rf_error("%s: a heteroscedastic sampler's variance forest is calibrated "
+           "against the response transform fixed at creation, so %s swap is "
+           "supported only with updateScale = FALSE, which pins it", caller,
+           conduit == ResponseConduit::response ? "a response" : "an offset");
+}
+
+// The post-creation half of the response-support policy the R surface applies
+// at creation (R/spec.R): mutation must accept exactly what creation does, or a
+// swap walks the sampler off its family's support. Two harms, both confirmed:
+// probit/ordinal latents drawn against an out-of-support y are silently garbage
+// (a non-0/1 y drives probit latents into the hundreds), and an nbinom count
+// that is negative underflows NBDispersionPrior::computeKernel's
+// static_cast<size_t>(lround(y)) into a ~1.8e19 histogram allocation - an
+// uncatchable crash, not an error. gaussian and aft impose nothing (aft's y is
+// a log survival time, any real), so they pass through; multinomial counts are
+// not reachable by this conduit. Magnitude is deliberately NOT bounded here:
+// creation bounds it nowhere either, and the exact Polya-Gamma augmentation's
+// O(y + r) cost is a recorded family cost (docs/design/negative-binomial.md
+// section 2), not a mutation-side defect.
+// External linkage: the creation prologue and the flat C API both call this, so
+// creation and every mutation conduit state one rule.
+void validateResponseSupport(bartcore::ResponseFamily family,
+                             size_t numCategories, const double* y,
+                             size_t numObservations, const char* caller) {
+  if (y == NULL) return;
+  switch (family) {
+  case bartcore::ResponseFamily::probit:
+  case bartcore::ResponseFamily::logistic:
+    for (size_t i = 0; i < numObservations; ++i)
+      if (y[i] != 0.0 && y[i] != 1.0)
+        Rf_error("%s: a binary (probit/logistic) response must be coded 0 or "
+                 "1; fit family = \"gaussian\" for a continuous response",
+                 caller);
+    break;
+  case bartcore::ResponseFamily::ordinal:
+    for (size_t i = 0; i < numObservations; ++i)
+      if (!std::isfinite(y[i]) || y[i] != std::floor(y[i]) || y[i] < 1.0 ||
+          y[i] > static_cast<double>(numCategories))
+        Rf_error("%s: an ordinal response must be an integer category index "
+                 "in [1, %lu], the coding fixed when the sampler was created; "
+                 "make a new sampler to change the category set", caller,
+                 static_cast<unsigned long>(numCategories));
+    break;
+  case bartcore::ResponseFamily::nbinom:
+    for (size_t i = 0; i < numObservations; ++i)
+      if (!std::isfinite(y[i]) || y[i] < 0.0 || y[i] != std::floor(y[i]))
+        Rf_error("%s: family \"nbinom\" requires a non-negative integer "
+                 "(count) response", caller);
+    break;
+  default:
+    break; // gaussian and aft constrain nothing
+  }
 }
 
 // The single-forest test-fit and prediction surface has no meaning under BCF:
@@ -3734,6 +3825,8 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   int updateScale = Rf_asLogical(updateScaleExpr);
   refuseMultiForestResponseMutation(*holder.sampler, "bartcore_setOffset",
                                     ResponseConduit::offset, updateScale);
+  refuseVarianceForestScaleUpdate(*holder.sampler, "bartcore_setOffset",
+                                  ResponseConduit::offset, updateScale);
   if (!Rf_isNull(offsetExpr) &&
       (!Rf_isReal(offsetExpr) ||
        static_cast<size_t>(Rf_xlength(offsetExpr)) != shape.numObservations))
@@ -3750,6 +3843,8 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
   int updateScale = Rf_asLogical(updateScaleExpr);
   refuseMultiForestResponseMutation(*holder.sampler, "bartcore_setResponse",
                                     ResponseConduit::response, updateScale);
+  refuseVarianceForestScaleUpdate(*holder.sampler, "bartcore_setResponse",
+                                  ResponseConduit::response, updateScale);
   if (shape.numGroups > 0)
     Rf_error("grouped random effects fix the response at creation; make a "
              "new sampler instead");
@@ -3757,6 +3852,9 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
       static_cast<size_t>(Rf_xlength(yExpr)) != shape.numObservations)
     Rf_error("y must be of length equal to %lu",
              static_cast<unsigned long>(shape.numObservations));
+  // support before install: the engine's latent refresh consumes y immediately
+  validateResponseSupport(shape.family, shape.numCutpoints + 1, REAL(yExpr),
+                          shape.numObservations, "bartcore_setResponse");
   GetRNGstate(); // probit latent redraw
   holder.sampler->setResponse(REAL(yExpr), updateScale == TRUE);
   PutRNGstate();
@@ -3799,6 +3897,9 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
     if (data.numPredictors != shape.numPredictors)
       Rf_error("bartcore setData requires the same predictors");
     if (data.weights != NULL) refuseBinaryWeightChange(sampler);
+    // the whole-data conduit swaps y too, so it carries the same support rule
+    validateResponseSupport(shape.family, shape.numCutpoints + 1, data.y,
+                            data.numObservations, "bartcore setData");
     for (size_t j = 0; j < data.numPredictors; ++j) {
       bool wasCategorical = sampler.data().types[j] ==
                             bartcore::ColumnType::categorical;

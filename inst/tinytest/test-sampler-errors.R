@@ -266,7 +266,45 @@ expect_error(
 # trees now ride the install (S5); the state-level gate is in tests/cpp
 expect_silent(sampler.variance$installTrees(donor.variance))
 
+# The response-side conduits carry the same scale pin the transactional
+# predictor paths carry: a variance forest's scale leaf is calibrated once,
+# against the response transform in force at creation, and updateScale = TRUE
+# re-anchors that transform under the calibration - the fit then runs away
+# while getSigmas(), which reads the pinned sigma rather than the forest, shows
+# nothing. updateScale = FALSE pins the transform and is the supported swap.
+varianceScaleRefusal <- "variance forest is calibrated against the response"
+expect_error(
+  sampler.variance$setResponse(train$y, updateScale = TRUE),
+  varianceScaleRefusal
+)
+expect_error(
+  sampler.variance$setOffset(rep(0.5, n), updateScale = TRUE),
+  varianceScaleRefusal
+)
+expect_silent(sampler.variance$setResponse(train$y))
+expect_silent(sampler.variance$setOffset(rep(0.5, n)))
+
+# A binary sampler's latents are drawn against y directly, so an out-of-support
+# swap is silently garbage rather than an error; mutation now accepts exactly
+# what creation accepts. The refusal names the family, not the length.
+binaryRefusal <- "must be coded 0 or 1"
+expect_error(sampler.probit$setResponse(rnorm(length(yBinary))), binaryRefusal)
+expect_error(sampler.logistic$setResponse(yBinary + 0.5), binaryRefusal)
+# a well-formed swap still lands
+sampler.probit$setResponse(1 - yBinary)
+expect_identical(sampler.probit$data@y, 1 - yBinary)
+
+# the weight-change refusal names the family that refuses: the single message
+# it used to carry told an aft, ordinal or nbinom caller about "a binary
+# response" they never asked for
+expect_error(
+  sampler.aft$setWeights(rep(1, length(sampler.aft$data@y))),
+  "aft \\(survival\\) models do not support case weights"
+)
+
 rm(
+  binaryRefusal,
+  varianceScaleRefusal,
   xVariance,
   xReplacement,
   varianceRefusal,

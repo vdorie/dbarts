@@ -106,7 +106,7 @@
     An object inheriting from \code{\link{dbartsData}}.
   }
   \item{y}{
-    A numeric response vector of length equal to that with which the sampler was created.
+    A numeric response vector of length equal to that with which the sampler was created, and lying in the response family's support: 0/1 for \code{probit} and \code{logistic}, an integer category index in \eqn{[1, K]}{[1, K]} for \code{ordinal}, and a finite non-negative integer count for \code{nbinom}. Values off the support are refused, as they are at creation; \code{gaussian} and \code{aft} (log survival times) constrain nothing.
   }
   \item{x}{
     A numeric predictor vector of length equal to that with which the sampler was created. Can be of a distinct number of rows for \code{setTestPredictor}.
@@ -118,7 +118,7 @@
     A numeric vector of length equal to that with which the sampler was created, or \code{NULL}. If \code{offset.test} was set from \code{offset}, will attempt to update that as well.
   }
   \item{updateScale}{
-    Logical indicating whether BART's internal scale should re-anchor to the new offset (\code{setOffset}) or response (\code{setResponse}). Defaults to \code{FALSE}, locking the scale set at creation; should only be \code{TRUE} during burn-in, as re-anchoring mid-run makes the fits across iterations no longer comparable.
+    Logical indicating whether BART's internal scale should re-anchor to the new offset (\code{setOffset}) or response (\code{setResponse}). Defaults to \code{FALSE}, locking the scale set at creation; should only be \code{TRUE} during burn-in, as re-anchoring mid-run makes the fits across iterations no longer comparable. \code{TRUE} is refused by samplers whose leaf calibrations are stated against the transform fixed at creation and are never restated: a two-forest (\code{treatment}) sampler and a heteroscedastic (\code{variance}) one, whose variance forest would otherwise keep reporting \eqn{s^2(x)}{s^2(x)} on the abandoned scale.
   }
   \item{offset.test}{
     A numeric vector of length equal to that of the test matrix, or \code{NULL}. Can be missing for \code{setTestPredictorAndOffset}.

@@ -141,6 +141,33 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
                                        ResponseConduit conduit,
                                        int updateScale);
 
+/// Errors when a heteroscedastic sampler's response-side conduit was asked to
+/// re-anchor the response transform (updateScale = TRUE): the variance forest's
+/// scale leaf is calibrated once, against the transform fixed at creation, and
+/// nothing re-states it, so a re-anchored transform leaves s^2(x) measured on
+/// the old scale and the fit runs away with getSigmas() reading unchanged. The
+/// fifth sigma door beyond the transactional ones; updateScale = FALSE pins the
+/// transform and stays allowed. Both the R bridge and the flat C API guard with
+/// this. caller labels the error.
+void refuseVarianceForestScaleUpdate(const bartcore::SamplerBase& sampler,
+                                     const char* caller,
+                                     ResponseConduit conduit, int updateScale);
+
+/// Errors on a response value outside the family's support, the post-creation
+/// half of the rule the R surface (R/spec.R) enforces when the sampler is
+/// built: 0/1 for probit and logistic, an integer category index in [1, K] for
+/// ordinal, a finite non-negative integer count for nbinom. gaussian and aft
+/// (log survival times) constrain nothing, so they pass through. Memory safety,
+/// not only modelling: NBDispersionPrior::computeKernel sizes its count
+/// histogram from lround(max y), which a negative element underflows into a
+/// ~1.8e19 allocation. numCategories is K for ordinal and ignored otherwise; a
+/// null y is a no-op. Called at creation (so the flat C API, which has no R
+/// surface ahead of it, states the same rule) and on every conduit that swaps
+/// y. caller labels the error.
+void validateResponseSupport(bartcore::ResponseFamily family,
+                             std::size_t numCategories, const double* y,
+                             std::size_t numObservations, const char* caller);
+
 /// Errors on a BCF sampler (numForests >= 2 and its test fits undefined),
 /// whose test surface has no meaning without a test treatment vector: a blend
 /// a * mu + b_z * tau is ill-defined, so the engine would fall back to the bare
