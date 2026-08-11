@@ -72,6 +72,8 @@
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">setWeights</span><span class="op">(</span><span class="va">weights</span>, updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
+<span><span class="fu">setTreatment</span><span class="op">(</span><span class="va">z</span>, updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
+<span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">setSigma</span><span class="op">(</span><span class="va">sigma</span>, updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">setPredictor</span><span class="op">(</span><span class="va">x</span>, <span class="va">column</span>, <span class="va">forceUpdate</span>, updateCutPoints <span class="op">=</span> <span class="cn">FALSE</span>, updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
@@ -95,6 +97,12 @@
 <span><span class="fu">getLatents</span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">getSumsOfSquaredResiduals</span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span>
+<span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
+<span><span class="fu">getForestFits</span><span class="op">(</span><span class="va">forest</span><span class="op">)</span></span>
+<span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
+<span><span class="fu">getBCFGlue</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
+<span><span class="fu">getForestVariableCounts</span><span class="op">(</span><span class="va">forest</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">installTrees</span><span class="op">(</span><span class="va">donor</span>, samples <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
@@ -123,7 +131,7 @@
 <dd><p>A positive integer determining how many posterior samples should be returned. If missing or <code>NA</code>, the default is also filled in from the control object.</p></dd>
 
   <dt id="arg-updatestate">updateState<a class="anchor" aria-label="anchor" href="#arg-updatestate"></a></dt>
-<dd><p>A logical determining if the local cache of the sampler's state should be updated after the call completes. Two conventions apply, by method: for <code>run</code>, <code>sampleTreesFromPrior</code>, and <code>sampleNodeParametersFromPrior</code>, <code>NA</code> (the default) fills in the sampler's <code><a href="dbartsControl.html">control</a></code> object's <code>updateState</code>, and explicit <code>TRUE</code>/<code>FALSE</code> override it. For the mutators - <code>setData</code>, <code>setResponse</code>, <code>setOffset</code>, <code>setWeights</code>, <code>setSigma</code>, <code>setPredictor</code>, and <code>setCutPoints</code> - the state is stored only on explicit <code>TRUE</code>; <code>NA</code> (the default) and <code>FALSE</code> both store nothing, regardless of <code>control@updateState</code>. These are typically called once per sweep inside a larger Gibbs/MH loop (as <code>dbartsSampler</code> is designed for), where storing state on every mutation would be wasted work whenever the loop only reads <code>state</code> occasionally (or never); an unforced <code>state</code> promise materializes the sampler's <em>current</em> state on first access regardless, so a mutate-then-first-read sequence needs no explicit store. Pass <code>TRUE</code> explicitly when <code>state</code> was already forced (read or saved) earlier and a later mutation must be reflected in the next save.</p></dd>
+<dd><p>A logical determining if the local cache of the sampler's state should be updated after the call completes. Two conventions apply, by method: for <code>run</code>, <code>sampleTreesFromPrior</code>, and <code>sampleNodeParametersFromPrior</code>, <code>NA</code> (the default) fills in the sampler's <code><a href="dbartsControl.html">control</a></code> object's <code>updateState</code>, and explicit <code>TRUE</code>/<code>FALSE</code> override it. For the mutators - <code>setData</code>, <code>setResponse</code>, <code>setOffset</code>, <code>setWeights</code>, <code>setTreatment</code>, <code>setSigma</code>, <code>setPredictor</code>, and <code>setCutPoints</code> - the state is stored only on explicit <code>TRUE</code>; <code>NA</code> (the default) and <code>FALSE</code> both store nothing, regardless of <code>control@updateState</code>. These are typically called once per sweep inside a larger Gibbs/MH loop (as <code>dbartsSampler</code> is designed for), where storing state on every mutation would be wasted work whenever the loop only reads <code>state</code> occasionally (or never); an unforced <code>state</code> promise materializes the sampler's <em>current</em> state on first access regardless, so a mutate-then-first-read sequence needs no explicit store. Pass <code>TRUE</code> explicitly when <code>state</code> was already forced (read or saved) earlier and a later mutation must be reflected in the next save.</p></dd>
 
   <dt id="arg-shallow">shallow<a class="anchor" aria-label="anchor" href="#arg-shallow"></a></dt>
 <dd><p>A logical determining if the copy should retain the underlying data of the sampler (<code>TRUE</code>) or have its own copies (<code>FALSE</code>).</p></dd>
@@ -167,6 +175,12 @@
 
   <dt id="arg-weights">weights<a class="anchor" aria-label="anchor" href="#arg-weights"></a></dt>
 <dd><p>A numeric vector of non-negative case weights, of length equal to that with which the sampler was created. Weights of zero exclude an observation from the likelihood while keeping its fitted values. <code>setWeights</code> only applies to a gaussian-family sampler; calling it on a probit- or logistic-family sampler is refused, since a weighted probit has no tractable latent-variable form and logistic weights (observation counts) are fixed when the sampler is created. See <code><a href="dbarts.html">dbarts</a></code> for the family-specific weight rules that apply at creation time.</p></dd>
+
+  <dt id="arg-z">z<a class="anchor" aria-label="anchor" href="#arg-z"></a></dt>
+<dd><p>A 0/1 (or logical) treatment indicator, of length equal to that with which the sampler was created. <code>setTreatment</code> only applies to a Bayesian causal forest built with <code>treatment = </code> (see <code><a href="dbarts.html">dbarts</a></code>); it writes both the engine and <code>data@treatment</code>, so <code>getPointer</code>'s transparent re-creation after save/load carries the current assignment rather than the one the sampler was created with.</p></dd>
+
+  <dt id="arg-forest">forest<a class="anchor" aria-label="anchor" href="#arg-forest"></a></dt>
+<dd><p>For <code>getForestFits</code> and <code>getForestVariableCounts</code>, a single integer selecting a Bayesian causal forest's prognostic (<code>0</code>) or treatment (<code>1</code>) forest. Refused on a sampler that is not a Bayesian causal forest.</p></dd>
 
   <dt id="arg-cuts">cuts<a class="anchor" aria-label="anchor" href="#arg-cuts"></a></dt>
 <dd><p>Vector of cut points for use with <code>setCutPoints</code>.</p></dd>
@@ -323,6 +337,7 @@
 <p>For <code>getSigmas</code>, a numeric vector of length equal to the number of chains, giving each chain's current residual standard deviation on the original response scale.</p>
 <p>For <code>getSumsOfSquaredResiduals</code>, a numeric vector of length equal to the number of chains, giving each chain's residual sum of squares \(\sum (y - \hat{y})^2\) on the original response scale; a binary-response sampler reports on the latent scale instead.</p>
 <p>For <code>getLatents</code>, <code>NULL</code> when the model has no latent-variable representation (e.g. a gaussian response); otherwise the sampler's current latent values - a plain vector of length equal to the number of observations when there is a single chain, or an observations-by-chains matrix otherwise - written into <code>result</code> when one was supplied.</p>
+<p>For <code>getForestFits</code>, a Bayesian causal forest's requested forest's current internal-scale fitted values, an n.observations x n.chains matrix. For <code>getBCFGlue</code>, the combining coefficients \((a, b_0, b_1)\) of \(y = a \mu(x) + b_z \tau(x) + \epsilon\), a 3 x n.chains matrix. For <code>getForestVariableCounts</code>, the requested forest's current per-predictor split counts, an n.predictors x n.chains integer matrix.</p>
 <p>For <code>storeState</code>, <code>NULL</code> invisibly; it is called for its side effect of capturing the sampler's current engine state into the serializable <code>state</code> field, which <code><a href="https://rdrr.io/r/base/save.html" class="external-link">save</a></code> then writes out. See ‘Saving’.</p>
     </div>
     <div class="section level2">

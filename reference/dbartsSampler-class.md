@@ -36,6 +36,8 @@ setOffset(offset, updateScale = FALSE, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setWeights(weights, updateState = NA)
 # S4 method for class 'dbartsSampler'
+setTreatment(z, updateState = NA)
+# S4 method for class 'dbartsSampler'
 setSigma(sigma, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setPredictor(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA)
@@ -59,6 +61,12 @@ getSigmas(result)
 getLatents(result)
 # S4 method for class 'dbartsSampler'
 getSumsOfSquaredResiduals(result)
+# S4 method for class 'dbartsSampler'
+getForestFits(forest)
+# S4 method for class 'dbartsSampler'
+getBCFGlue()
+# S4 method for class 'dbartsSampler'
+getForestVariableCounts(forest)
 # S4 method for class 'dbartsSampler'
 installTrees(donor, samples = NULL)
 # S4 method for class 'dbartsSampler'
@@ -107,10 +115,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   object's `updateState`, and explicit `TRUE`/`FALSE` override it. For
   the mutators - `setData`, `setResponse`, `setOffset`, `setWeights`,
-  `setSigma`, `setPredictor`, and `setCutPoints` - the state is stored
-  only on explicit `TRUE`; `NA` (the default) and `FALSE` both store
-  nothing, regardless of `control@updateState`. These are typically
-  called once per sweep inside a larger Gibbs/MH loop (as
+  `setTreatment`, `setSigma`, `setPredictor`, and `setCutPoints` - the
+  state is stored only on explicit `TRUE`; `NA` (the default) and
+  `FALSE` both store nothing, regardless of `control@updateState`. These
+  are typically called once per sweep inside a larger Gibbs/MH loop (as
   `dbartsSampler` is designed for), where storing state on every
   mutation would be wasted work whenever the loop only reads `state`
   occasionally (or never); an unforced `state` promise materializes the
@@ -217,6 +225,23 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   (observation counts) are fixed when the sampler is created. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
   the family-specific weight rules that apply at creation time.
+
+- z:
+
+  A 0/1 (or logical) treatment indicator, of length equal to that with
+  which the sampler was created. `setTreatment` only applies to a
+  Bayesian causal forest built with `treatment = ` (see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)); it
+  writes both the engine and `data@treatment`, so `getPointer`'s
+  transparent re-creation after save/load carries the current assignment
+  rather than the one the sampler was created with.
+
+- forest:
+
+  For `getForestFits` and `getForestVariableCounts`, a single integer
+  selecting a Bayesian causal forest's prognostic (`0`) or treatment
+  (`1`) forest. Refused on a sampler that is not a Bayesian causal
+  forest.
 
 - cuts:
 
@@ -554,6 +579,13 @@ representation (e.g. a gaussian response); otherwise the sampler's
 current latent values - a plain vector of length equal to the number of
 observations when there is a single chain, or an observations-by-chains
 matrix otherwise - written into `result` when one was supplied.
+
+For `getForestFits`, a Bayesian causal forest's requested forest's
+current internal-scale fitted values, an n.observations x n.chains
+matrix. For `getBCFGlue`, the combining coefficients \\(a, b_0, b_1)\\
+of \\y = a \mu(x) + b_z \tau(x) + \epsilon\\, a 3 x n.chains matrix. For
+`getForestVariableCounts`, the requested forest's current per-predictor
+split counts, an n.predictors x n.chains integer matrix.
 
 For `storeState`, `NULL` invisibly; it is called for its side effect of
 capturing the sampler's current engine state into the serializable
