@@ -74,7 +74,11 @@
             \eqn{(a, b_0, b_1)}{(a, b0, b1)} that draw combines them through
             (3 x n.samples), so a caller reads mu, tau and the treatment glue
             from one call instead of driving the sampler one draw at a time.
-            Neither element is present for any other model.
+            Neither element is present for any other model. The
+            \code{treatment}, \code{moderators}, and \code{treatmentForest}
+            argument names are provisional and are expected to be replaced
+            by an engine-vocabulary \code{forests} argument once Bayesian
+            causal forests find a permanent home outside \code{dbarts}.
       \item Interaction constraints: the new \code{interactions} argument of
             \code{dbarts} and \code{bart2}, built with \code{\link{interactions}},
             restricts which predictors may jointly shape the fit.
