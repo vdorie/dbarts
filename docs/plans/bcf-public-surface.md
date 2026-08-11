@@ -746,6 +746,33 @@ all four.
 
 ## Landing notes
 
+S4 LANDED 1df9c0c (2026-08-10). Per-draw per-forest reporting on the
+varianceFits precedent: Results gains forestFits (numObservations x
+numForests x numSamples, forest-major within a sample, INTERNAL scale) and
+glue (3 x numSamples), both null unless
+ForestCombiner::forestReportingIsDefined() (true for BCF alone), so
+single-forest and multinomial samplers allocate and compute nothing;
+storeSample fills both from totalFits/bcfGlue - reads of settled state,
+no rng; SamplerShape gains forestReportingIsDefined; the bridge's two
+near-identical alloc lambdas collapsed into one
+allocChannelArray(type, leadingDim, innerDim) and the two run slots
+appended after the variance slots. ZERO dbarts.h changes (the flat C
+reach is S3's forestFits/bcfGlue readers). No R code needed - the run
+result is the bridge's list; Rd \value + the NEWS BCF entry extended.
+F8 PASSED at one ulp: forestFits[,1,s]*a_s + forestFits[,2,s]*b_{z_i,s}
+vs the recorded internal-scale train draw, max abs error 1.11e-16 over
+all draws, both chain counts; the batched channels identical() to a
+per-sweep driver loop's and to the live $getForestFits/$getBCFGlue
+reads. New test test-bcf-reporting.R (40 assertions) incl the
+multinomial exclusion asserted on the coupling predicate, not the
+forest count. Unpredicted: the plan's ~30 R budget had no R code
+behind it (went to the Rd edits). Budget 296 vs ~390. Gates double-run
+(implementer + orchestrator independently): install --preclean fresh
+privlib, tests/cpp plain + ASAN/UBSAN from clean, tinytest 3940/0,
+trio bitwise (27/27 + bcf 5x7 + multinomial 3x5), bcf-exact quick +
+restricted OK unmoved, air 0, lintr clean, Rd/NEWS parse clean. CI all
+six green on the S3 push 1622eb9 before this landing.
+
 S3 LANDED 1622eb9 (2026-08-10). The flat C surface in one commit, one hash
 re-bake: setResponse widened in place to take updateScale;
 setResponse/setOffset/setWeights route through the NEW shared
