@@ -728,6 +728,21 @@ all four.
 
 ## Landing notes
 
+S2 LANDED 339aeb0 (2026-08-10; R and tests only, zero src delta, so the
+tests/cpp leg was correctly skipped). The R5 surface: $setTreatment mirrors
+data@treatment (F3 both halves: a getPointer() re-creation reconstructs
+train with the MIRRORED z, not the creation-time z); $setControl now
+PRESERVES bartcore.* control attributes (F6 both legs, pre-fix loud
+failures quoted in test comments; the heteroscedastic leg keeps its
+variance channel); BCF-specific messages on setData/setModel/transactional
+setPredictor/setResponse+setOffset(updateScale=TRUE) - the last extended
+beyond the plan's list by symmetry, accepted; accessors left un-wrapped
+where the bridge message already names the capability, accepted; no S0 pin
+inverted (the pins drive the low-level handle, a different path). Trio
+bitwise, tinytest 3886/0, air 0, lintr 0, pkgdown clean (new aliases ride
+the existing dbartsSampler-class page). Budget 0.71x R / 0.86x test.
+Double battery (implementer + orchestrator independent).
+
 S1 LANDED a1dbde7 (2026-08-10; includes the _pkgdown.yml reference entry the
 orchestrator added at review - the new-exported-Rd-topic lesson's fourth
 occurrence, caught pre-push this time; pkgdown::check_pkgdown clean). Public
