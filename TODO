@@ -80,7 +80,19 @@ items
     entries). NAMING RESOLVED 2026-08-10: option A, FINAL
     (treatment= / moderators= / treatmentForest(...) /
     data@treatment; VD's conditional ratification verified in the
-    plan's Open decision section). S0 LANDED 994c161 (pins).
+    plan's Open decision section). AMENDED 2026-08-10: the option-A
+    creation surface is PROVISIONAL - VD schedules the causal
+    vocabulary for REMOVAL from dbarts()/dbartsSpec() once BCF finds
+    its proper home (multiforest-extension-surface arc; removal only
+    after a replacement creation route exists; mechanism survives
+    re-skinning; see the plan's Open decision amendment). S0 LANDED
+    994c161 (pins). S1 LANDED a1dbde7 (public creation bitwise-
+    identical to the internal path). S2 LANDED 339aeb0 (R5 surface +
+    setControl attr preservation). S3 LANDED 1622eb9 (flat C: hash
+    re-baked 0x1a911c00bb26dcd7, setResponse widened, four entries
+    appended, predict/setTestPredictors BCF-guarded; landing notes in
+    the plan doc). S4 next; S5 (bcf()) PAUSED on the
+    extension-surface arc.
     Anchors read at b374d9e; combiner.hpp and
     model.hpp moved at the zero-weight snap landing c820227.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
@@ -606,7 +618,14 @@ items
     lockstep signal); slices S0-S2, runs AFTER bcf-public-surface;
     consumer cost CORRECTED by verified census: five stan4bart
     call sites (predict, getTrees, printTrees, numTrees x2), other
-    consumers rebuild only; setData on a
+    consumers rebuild only. bcf S3 (1622eb9) already widened
+    setResponse and appended numForests/setTreatment/forestFits/
+    bcfGlue at list end; the reshape adopts them verbatim, and the
+    forest-indexed predictor/tree entries stay reserved for it. DOOR:
+    the multiforest-extension-surface memo recommends renaming the
+    BCF-specific flat names to engine vocabulary at this arc's
+    re-bake (pending its blind critique + synthesis + VD; the
+    treatment= surface itself is provisional per VD 2026-08-10); setData on a
     CSC/mixed store SURVEYED and KEPT UNDESIGNED (2026-08-08,
     docs/design/model-space-survey.md sec 3, door 3) - no model
     surfaced: the classes needing sparse designs do not swap whole
