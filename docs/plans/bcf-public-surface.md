@@ -482,11 +482,14 @@ and that is GATED, not assumed. Gates: as S1, plus the mandated BCF oracle set
 
 ## S5. `bcf()` and the fit class.
 
-**PAUSED, and RELOCATED under multiforest-extension-surface's home decision
-(conditional on VD's fork 4).** `bcf()` and the `bartBCF` class ship in
-bartCause, not in dbarts: the engine exports no fit function with domain
-semantics, and bartCause already owns the estimands, common support and the
-two-counterfactual-surface output contract this slice was written against.
+**PAUSED, and RELOCATED under multiforest-extension-surface's home decision -
+fork 4 RESOLVED (VD 2026-08-11): bartCause, on its dbarts-1.0 branch.**
+`bcf()` and the `bartBCF` class ship in bartCause, not in dbarts: the engine
+exports no fit function with domain semantics, and bartCause already owns the
+estimands, common support and the two-counterfactual-surface output contract
+this slice was written against. The moderator EXCLUSION for the
+propensity-score-as-covariate column ("Migration costs per consumer",
+"bartCause") is part of that cost, not a separate decision.
 What survives verbatim is the CONTRACT - per-draw mu, tau, glue, sigma,
 per-forest varcount and both counterfactual surfaces, forest-INDEXED rather
 than positional, with the option-A element names, which stay correct for a

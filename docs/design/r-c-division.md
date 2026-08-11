@@ -1,7 +1,7 @@
 # The R / C++ division
 
-Status: PRINCIPLE PROPOSED, awaiting VD acceptance or edit (the text in
-"The principle" below). Arc record, 2026-08-11. Artifacts (gitignored):
+Status: ACCEPTED (VD 2026-08-11), text amended (the text in "The
+principle" below). Arc record, 2026-08-11. Artifacts (gitignored):
 `.claude/r-c-division-design/{memo.md,critique.md,guide-memo.md}` - a
 channel-by-family census memo, its adversarial critique (fifteen probe
 scripts, run against a private build of b70b373), and a guide-first
@@ -10,9 +10,10 @@ should cover what we aspire to and not what we have currently
 implemented"; "grounding the principle in code ... misses the entire
 point of a principle which is as a guide"). The census and its
 empirical claims were adversarially verified; the guide memo's two new
-measurements are independently corroborated by the critique's probes,
-but the guide memo as a document has NOT had its own refuting critique
-- run one before treating its Part B demand census as settled fact.
+measurements are independently corroborated by the critique's probes;
+the guide memo's own Part B demand census has since had its own
+refuting critique (2026-08-11) - verdict NOT SETTLED AS WRITTEN,
+amended below rather than treated as settled fact.
 
 ## VD's conjecture, adjudicated
 
@@ -60,8 +61,12 @@ forests); moves that write engine state (the per-forest ASIS rescale);
 likelihoods that do not factorise over observations given the forest
 (AR-1/spatial/copula errors - leaf statistics stop being within-leaf
 sums); and the CALIBRATION (below). Mixing loss from separate blocking
-is a price, not a wall (measured up to ~6x effective samples in the
-bad case, level in the common one).
+is a price, not a wall. CORRECTED (critique, 2026-08-11): the arc's
+first pass reported "up to ~6x effective samples in the bad case,
+level in the common one", which conflated RMSE against the engine
+target with actual mixing loss; the corrected measurement is that
+separate blocking moves the truth by about ~1.5x in the bad case,
+level in the common one.
 
 **The wall that remains is calibration, and it is measured.** A
 structurally correct pure-R probit composition inherits its leaf prior
@@ -72,41 +77,58 @@ recovered only near one lucky range. stan4bart's mvbart() refuses the
 response channel outright to avoid exactly this. The composed model's
 BLOCKING ports to R; its PRIOR does not, unless it can be named.
 
-## The principle (proposed text, VD to accept or edit)
+## The principle (ACCEPTED AS AMENDED, VD 2026-08-11)
 
-> R addresses the conditionals; C++ owns the integrand.
+> R addresses the conditionals; C++ addresses the integrand.
 >
-> 1. R's side. Anything expressible as "one of the engine's own models
->    fit to data the host can compute" must be reachable from R. The
->    host owns the outer loop, the residual algebra, the latent draws
->    and every non-forest block, and changes response, offset,
->    weights, predictors and sigma between sweeps (each channel where
->    the family's own identification permits it - a refusal on model
+> 1. R's side. Anything expressible as "one of the engine's own
+>    models, fit to quantities the driving R program can compute
+>    between sweeps" - residuals, latent draws, offsets from other
+>    model blocks - should be reachable from R. The R program owns the
+>    outer loop, the residual algebra, the latent draws and every
+>    non-forest block, and changes response, offset, weights,
+>    predictors and sigma between sweeps, on each channel where the
+>    family's own identification permits it (a refusal on model
 >    grounds is part of the model). Selecting an engine-provided
 >    family or prior by argument is also R's side.
-> 2. C++'s side. Anything that changes what the engine INTEGRATES - a
+> 2. C++'s side. Anything that changes what the engine integrates - a
 >    family, link, leaf model, tree prior, hyperprior law or
->    split-rule representation - is C++, contributed to dbarts, then
->    selected from R by argument. So is any move that must write
->    engine state, and any likelihood that does not factorise over
->    observations given the forest.
-> 3. The promise. On R's side dbarts promises POSSIBLE and CORRECT,
->    and prices PRACTICAL. A composition must target the same
->    posterior as the equivalent engine model; where a difference
->    remains it is named, measured and testable - never silent.
-> 4. What that obliges. R must be able to NAME the calibration it
+>    split-rule representation - belongs to C++ when it ships:
+>    contributed to dbarts, then selected from R by argument. So does
+>    any move that writes engine state, and any likelihood that does
+>    not factorise over observations given the forest. The principle
+>    adds reach to R; it never argues for moving what already runs
+>    well in C++ out of it.
+> 3. The promise. On R's side dbarts aspires to POSSIBLE and CORRECT,
+>    and is honest about PRACTICAL. A composition targets the same
+>    posterior as the equivalent engine model, or differs in a way
+>    that is named, measured and testable - never silently.
+> 4. What that asks. R should be able to name the calibration it
 >    composes against, rather than inherit it from a construction
->    accident. Every engine capability has an R route that reaches the
->    same posterior, even if slower. Every R affordance ships with a
->    tested recipe and a validator the author can run. Read/write
->    symmetry is a rule: whatever the engine conditions on, the host
->    may write; whatever the engine draws, the host may read.
+>    accident. Every engine capability should have an R route that
+>    reaches the same posterior or a stated, tested difference, even
+>    if slower. Every R affordance aims to ship with a tested recipe
+>    and a validator its author can run. Read/write symmetry is the
+>    default: whatever the engine conditions on, the R program may
+>    write; whatever the engine draws, the R program may read.
 
-The parenthetical in clause 1 is an orchestrator amendment absorbing
-the critique's finding that sigma and per-observation weights are
-refused for latent families BY IDENTIFICATION - the guide memo's
-wording survives it; the census memo's "every channel for every
-family" did not.
+Amendments made in accepting the text (VD 2026-08-11, relative to the
+proposed draft): "owns" removed from both halves of the opening split;
+clause 2 is a HOME-WHEN-SHIPPED claim, not a capability claim (the
+clbart counterexample - its tree MOVES are pure R - would otherwise
+read as a violation), plus the explicit sentence that the principle
+adds reach to R and never argues for moving what already runs well in
+C++ out of it; "host-computed data" is unpacked into what the R
+program can actually compute between sweeps (residuals, latent draws,
+offsets from other model blocks); the voice is aspirational throughout
+("should"/"aims"/"asks", never "must"/"obliges"); clauses 3-4 read
+"same posterior OR a named, measured, testable difference" rather than
+a bare "must target". Clause 1's channel-permits-it parenthetical
+carries forward the orchestrator's original absorption of the
+critique's finding that sigma and per-observation weights are refused
+for latent families BY IDENTIFICATION - the guide memo's wording
+survives it; the census memo's "every channel for every family" did
+not.
 
 Arbitrations behind it (guide memo A12): velocity vs calibration ->
 SPLIT THE OBJECT (R owns structure, the engine owns calibration, so
@@ -121,63 +143,124 @@ symmetry as a rule (readers carry no legality matrix); release latency
 vs correctness -> the R shadow is mandatory and allowed to be worse,
 provided the difference is stated and testable.
 
-## Demand headlines (guide memo Part B; tool-verified, not yet
-adversarially critiqued)
+## Demand headlines (guide memo Part B; tool-verified, adversarially
+critiqued 2026-08-11 - verdict NOT SETTLED AS WRITTEN, amendments
+folded in below; no fabricated citation found anywhere in Part B,
+including an independent re-check of Sun and Song)
 
 - 24 of 24 BART-family artifacts that ship a tree sampler wrote or
   copied their own; zero reused an engine as a library; in every case
   the new thing was an integrand change or a non-factorising
   likelihood. One author under experimental control: nbbart reuses
   dbarts while the change is data; clbart abandons every engine the
-  moment the leaf stops being conjugate.
+  moment the leaf stops being conjugate. CRITIQUE: NEAR-TAUTOLOGICAL
+  as stated - the honest ratio is 24 of 27, not 24 of 24; the guide
+  memo's own list carries four integrand-change counterexamples,
+  dbarts among them; and clbart's tree MOVES are themselves pure R,
+  which cuts against the headline rather than for it.
 - Of four CRAN packages driving a dbarts sampler iteratively, two are
   statistically invalid (posterior means used as draws) - a 50% defect
   rate on the response channel among peer-reviewed methodology. The
   composition failure mode is real and nobody catches it today.
+  CRITIQUE: the honest count is 1 of 3 true sampler-drivers, not 50%
+  of four; both defects are the SAME mistake (posterior means used as
+  draws), which is exactly what the composition VALIDATOR (Adoption
+  slate, below) catches - not something a calibration fix would have
+  prevented.
 - The top UNMET affordance is a row subset that changes between draws
   (principal stratification, mediation, IV): princeBART monkey-patches
   eight unexported dbarts internals for it; an AOAS 2024 sampler
-  builds six fresh samplers inside each of 6000 iterations. (This
-  reprices the multiforest-mutation-gaps row-subsetting door, which
-  was value-lifted but unscheduled on a single consumer - the demand
-  survey found the class, not just a consumer.)
+  builds six fresh samplers inside each of 6000 iterations. CRITIQUE:
+  REFUTED as an unmet affordance - Gaussian row subsetting already
+  ships from R via zero weights (`dbartsSampler-class.Rd:137`); the
+  real gaps are the empty-leaf veto counting zero-weight rows as
+  occupied, the latent-family refusal on sigma/weight mutation
+  (clause 1's identification parenthetical), and a missing
+  method-list doc - all priced in the Adoption slate rather than a new
+  mutation shape. (This still reprices the multiforest-mutation-gaps
+  row-subsetting door, which was value-lifted but unscheduled on a
+  single consumer - the demand survey found the class, not just a
+  consumer; what it opens is the latent-family subset mask below, not
+  a general row-subset arc.)
 - Peer packages misdescribe dbarts (SoftBart claims to be the only
   embeddable BART; stochtree's feature table denies dbarts a C API);
   the capability gap is smaller than the perception gap. Recipes and
   documentation, not architecture, are the competitive answer.
 
-## Adoption cost (new work the principle creates; committed plans
-carry their own budgets)
+## Adoption slate (VD 2026-08-11: ALL items pre-release, framed by
+UTILITY - price sizes a budget, it never ranks or gates; every item
+below lands before the 1.0-0 freeze; committed plans carry their own
+budgets)
 
-~1950-2200 lines: mutable row subset ~450-700 (own design arc);
-nameable calibration ~300 (the single highest-value item); exported
-augmentation helpers ~240; a composition validator (SBC over a
-user-supplied one-sweep closure) ~350; named recipes cross-referenced
-from ?bart ~150; an offset-free fit accessor ~110 (four independent
-codebases hand-write train - offset today); six small census items
-~290; a seeding contract for composed samplers ~60 doc.
+- Nameable calibration (TODO entry `nameable-calibration`): design
+  before the dbarts.h reshape's S1 (it may leave a header
+  footprint); the single highest-value item; budget expected above
+  ~300 lines, sized at design time.
+- A latent-family subset mask (TODO `latent-subset-mask`): design arc
+  before reshape S1. This is the row-subset door the corrected demand
+  survey actually opens (see "Demand headlines") - Gaussian row
+  subsetting already ships today via zero weights.
+- The empty-leaf veto fix (TODO `empty-leaf-veto-fix`): its own
+  measured slice, a draw-law change - the veto counts LEAF MEMBERS
+  where it should count POSITIVE-WEIGHT members
+  (`src/bartcore/moves.hpp`, the `numObservations() == 0` veto site);
+  expect to re-record the zero-weight baseline.
+- A composition validator (TODO `composition-validator`; SBC over a
+  user-supplied one-sweep closure): the item that catches the measured
+  posterior-mean-as-draws defect class (see "Demand headlines"), not a
+  calibration fix.
+- Exported augmentation helpers (TODO `augmentation-helpers`) and
+  named recipes cross-referenced from `?bart` (TODO `named-recipes`,
+  surface shakedown).
+- An offset-free fit accessor and a seeding contract for composed
+  samplers: already committed inside the getLatents docs slice
+  (defect 5, below); confirmed here, not double-booked. The claim that
+  motivated it corrects from "four independent codebases hand-write
+  train - offset today" to three packages under one author - the
+  demand is real but narrower than first stated.
+- Six small census items, itemized: G1 (setResponse support
+  validation), G5 (the weight-refusal message) and G11 (the
+  variance-forest updateScale guard) are DONE at 33f6fdc (see
+  "Defects"). G2 (getLatents location-vs-precision docs, the wrong
+  "(gaussian)" parenthetical in dbarts.h) IS the committed getLatents
+  docs slice (defect 5) - no new entry. G3: export the nbinom
+  dispersion r per draw as a first-class surface (a run-result slot or
+  getter, dbarts.h plus R5) in place of the bart2Negbin per-sweep
+  state-read idiom; small pre-release slice, scheduled after the
+  getLatents docs slice. G10: relax the bridge-only refusal of
+  setResponse on a GroupedResponse sampler - the model already
+  delegates correctly, a bridge nit this arc recorded; small
+  pre-release slice, same era. No VD fork: every remaining item
+  carries a surface and a nameable value, so all schedule pre-release
+  under the recorded frame.
 
 ## Fork implications (docs/plans/multiforest-extension-surface.md,
-Open decisions)
+Open decisions) - ALL FOUR RESOLVED (VD 2026-08-11)
 
-All four recommendations UNCHANGED; two justifications change:
+All four recommendations ADOPTED; fork 1's scheduling changed from the
+recommendation, and one other justification changes:
 
-1. Basis family: still (a) build post-freeze entry-gated, but
-   RE-ORDERED - the "non-Gaussian multiforest is otherwise
-   unreachable from R" premise is falsified by measurement, so build
-   the ~300-line nameable-calibration affordance first and let FA1/FA2
-   (the amplitude/ASIS mixing gates) become the whole argument.
-2. Non-Gaussian v1: still (a) probit+logistic - the reason is now
+1. Basis family: BUILD, PRE-RELEASE - not post-freeze as recommended.
+   Scheduled after the dbarts.h reshape (M3 carries its header entries
+   into reshape S1). The "non-Gaussian multiforest is otherwise
+   unreachable from R" premise is falsified by measurement, so the
+   ~300-line nameable-calibration affordance is built first (Adoption
+   slate, above) and FA1/FA2 (the amplitude/ASIS mixing gates) become
+   design-informing probes rather than go/no-go gates.
+2. Non-Gaussian v1: probit+logistic, ADOPTED - the reason is
    correct-by-construction calibration vs correct-by-care, not
    impossibility. AMENDMENT REQUIRED at M4 scheduling: falsifier FA5
    as committed tests a strawman (K independent probit samplers); the
    decisive arm is K GAUSSIAN samplers with host-drawn latents against
    the combined fit, which measurement predicts will AGREE.
-3. Flat rename: still (a) + KEEP setForestWeights; stakes lowered (the
-   flat C surface has exactly one consumer and it is in-house - 1
-   reverse LinkingTo vs 23 R-level consumers).
-4. bcf() home: still (a) bartCause; discoverability is answered by
-   documentation, not vocabulary at the engine's front door.
+3. Flat rename: ADOPTED, re-sign at the dbarts.h reshape re-bake to
+   setForestBasis/numForestAmplitudes/forestAmplitudes, + KEEP
+   setForestWeights; stakes lowered (the flat C surface has exactly
+   one consumer and it is in-house - 1 reverse LinkingTo vs 23
+   R-level consumers).
+4. bcf() home: bartCause (its dbarts-1.0 branch), ADOPTED;
+   discoverability is answered by documentation, not vocabulary at the
+   engine's front door.
 
 Layering, sharpened: stan4bart is where the OTHER block gets a better
 sampler; dbarts is where the FOREST does; everything else is a recipe,
@@ -190,44 +273,61 @@ confirmed)
    single negative element SEGFAULTS the R process (uncatchable;
    static_cast of a negative lround underflows to ~1.8e19 and sizes a
    histogram); y = 1e9 hangs on unbounded allocation. Same hole on the
-   flat C path. Creation validates what mutation accepts.
+   flat C path. Creation validates what mutation accepts. FIXED at
+   33f6fdc: `bartcore_bridge::validateResponseSupport`, shared by both
+   surfaces at creation, setResponse and setData, refuses the negative
+   element. DELIBERATE DEVIATION: no nbinom magnitude cap - creation
+   imposes none either, so y = 1e9 still hangs, on both creation and
+   mutation; a magnitude-cap or sparse-tally decision is a new open
+   item, VD-facing, unscheduled (TODO `response-support-validation`).
 2. SILENTLY WRONG: probit/ordinal setResponse accept out-of-support
    responses (non-0/1 y gives latents in the hundreds; constant 0.5
    collapses every latent to zero). setTreatment already shows the
-   correct pattern (validates support post-creation).
+   correct pattern (validates support post-creation). FIXED at
+   33f6fdc: the same `validateResponseSupport` guard.
 3. Variance forest + setResponse/setOffset(updateScale = TRUE): the
    sigma-pin is bypassed and the fit RUNS AWAY (mean variance 156 ->
    0.70 against truth ~171 over 750 sweeps) while getSigmas() reads
    unchanged - a fifth sigma door beyond variance-forest-mutation-
    routing's four, invisible from R. A refusal keyed on
-   hasVarianceForest (mirroring the BCF one) needs no algebra.
+   hasVarianceForest (mirroring the BCF one) needs no algebra. FIXED
+   at 33f6fdc: `refuseVarianceForestScaleUpdate`, on setResponse and
+   setOffset, both surfaces.
 4. refuseBinaryWeightChange tells aft/ordinal/nbinom users about "a
-   binary response" (~6 lines).
+   binary response" (~6 lines). FIXED at 33f6fdc: reworded per family.
+   OPEN FOLLOW-ON: the flat C `dbarts_sampler_setWeights` still lacks
+   this guard entirely (silent ignore on probit/ordinal/aft/nbinom;
+   logistic reaches a division by zero on a negative weight) - a small
+   follow-up slice, same class as this one, unscheduled.
 5. getLatents is family-polymorphic with no documentation (probit/
    ordinal/aft return a LOCATION; logistic/nbinom/Student-t a
    PRECISION; dbarts.h's "(gaussian)" parenthetical is wrong), and
    run()$train CARRIES THE OFFSET - the natural reading of
    "getLatents() - train" as a conditional draw biases slopes by 7-10
    oracle SEs; correct usage is incremental. Doc + Rd + dbarts.h fix,
-   plus the offset-free fit accessor.
+   plus the offset-free fit accessor. STILL OPEN: the one committed
+   docs slice this arc's stop-loss landing did not close.
 6. The multinomial bart2 host's $fit is a placeholder sampler that
    accepts every mutation as a silent no-op (the real K-forest sampler
    rides $bc); needs a guard or prominent documentation until the
-   multinomial mutation arc replaces the area.
+   multinomial mutation arc replaces the area. FIXED at 33f6fdc for
+   multinomial: a `hostFor` field plus `refuseHostMutation` on the R
+   sampler class. NEW OPEN ITEM: bart2's ordinal and nbinom hosts
+   retain the same disconnected-$fit shape; whether to extend the
+   `hostFor` guard to them is a VD question BY NAME, unscheduled.
 
-Recommended sequencing: items 1-4 are one stop-loss slice (the SL/VF
-S1 pattern: refusals first, no draw-law change on valid paths) and
-should take the next code slot ahead of multiforest S0; 5 is a docs
-slice; 6 folds into whichever lands first of the stop-loss slice or
-the multinomial arc.
+Recommended sequencing, as landed: items 1-4 and 6 were one stop-loss
+slice at 33f6fdc (the SL/VF S1 pattern: refusals first, no draw-law
+change on valid paths); 5 remains a docs slice, the one item that
+commit does not close.
 
 ## Errata this arc generates elsewhere
 
-- docs/plans/multiforest-extension-surface.md needs an anchor-refresh
-  pass: three stale line numbers its own header claims were verified
-  (:146, :360, :970) plus at least six chain.hpp/combiner.hpp anchors
-  drifted by the S4 landing (fact 12's latent draw is
-  chain.hpp:1125-1126, not :1109-1112, at the current tip).
+- docs/plans/multiforest-extension-surface.md's anchor-refresh pass is
+  DONE, this commit (31 corrections applied; three stale line numbers
+  its own header claimed were verified - :146, :360, :970 - plus the
+  chain.hpp/combiner.hpp anchors drifted by the S4 landing, incl.
+  fact 12's latent draw at chain.hpp:1125-1126, not :1109-1112).
 - The census memo's tier (iii).1, its fork-1/fork-2 "strengthened"
   justifications, its two-sampler latent probe, and its "nbinom
   dispersion unreachable" gap are superseded per the critique
@@ -241,5 +341,7 @@ the calibration does not; the runaway diverges), not about magnitudes.
 The demand census counts what was findable on CRAN/GitHub/arXiv. The
 IACT figures carried from earlier arcs keep their recorded caveats
 (none is a forest-vs-forest measurement). The guide memo's Part B has
-not been adversarially re-verified; its Part A load-bearing claims
-have, via the critique's independent probes.
+now been adversarially critiqued (2026-08-11): verdict NOT SETTLED AS
+WRITTEN, amended as recorded in "Demand headlines" and the "Adoption
+slate" above; its Part A load-bearing claims were independently
+corroborated by the critique's probes before this pass.

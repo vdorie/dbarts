@@ -3,7 +3,8 @@
 agent: M0 sonnet (docs + vignette + pins, no src). M1 sonnet (one R5 method and
   its mirror). M2 opus (creation-surface replacement, one resolver, a wide
   refusal list). M3 opus, folded INTO dbarts-h-reshape S1 (header re-sign, one
-  re-bake). M4 opus throughout (engine), conditional arc, own slice list.
+  re-bake). M4 opus throughout (engine), RESOLVED pre-release arc (VD
+  2026-08-11, fork 1), own slice list, scheduled after the reshape.
   Serialized: one implementer, each slice lands before the next starts.
 rng: M0, M1 NEUTRAL (no src). M2 NEUTRAL and BITWISE-GATED: the new creation
   route resolves to the SAME spec the treatment= route resolves to, so BCF must
@@ -15,8 +16,9 @@ rng: M0, M1 NEUTRAL (no src). M2 NEUTRAL and BITWISE-GATED: the new creation
 window: M0, M1, M2 land INSIDE the pre-release breaking window. M3 rides
   dbarts-h-reshape S1, which is the SECOND AND LAST re-bake of that window, so
   the mean channel's flat spelling is decided there or never (pre-release).
-  M4 is a POST-FREEZE arc and needs no header movement if M3 lands. Everything
-  is breakable and the four sister packages migrate in lockstep at the freeze,
+  M4 is a PRE-RELEASE arc, scheduled after M3/the reshape (RESOLVED
+  2026-08-11), and needs no header movement if M3 lands. Everything is
+  breakable and the four sister packages migrate in lockstep at the freeze,
   once, against the final header (VD 2026-08-10).
 budget: M0 ~220 design doc + ~180 vignette + ~200 test. M1 ~60 R + ~40 man +
   ~140 test. M2 ~180 R + ~60 man + ~260 test (test-bcf-creation.R rewritten).
@@ -33,8 +35,20 @@ tip: every anchor below re-read at db81bfe in this worktree, with src/ read
 landed: 2026-08-11 at e2cc1de by the orchestrator, verbatim from the synthesis
   except this note. bcf-public-surface S4, in flight when the tip note was
   written, landed 1df9c0c with CI all six green. The TODO door sentence cited
-  below at :625 sits at :629 at the landing tip. All eight cross-plan
-  amendments applied at this commit.
+  below at :625 sat at :629 at the landing tip, and is now the consolidated
+  multiforest-extension-surface TODO entry at :154-178, rewritten again by
+  the records commit below. All eight cross-plan amendments applied at this
+  commit.
+records: anchor-refresh pass applied 2026-08-11, in the records commit that
+  also lands the four VD forks (see "Open decisions" below) and the R/C-
+  division principle. 31 line-number corrections applied against the live
+  tree at 33f6fdc (table authored in
+  scratchpad/extension-surface-anchor-refresh.md): every chain.hpp/
+  combiner.hpp anchor drifted by the in-flight bcf-public-surface S4 landing
+  is corrected below to its 33f6fdc position; dbarts.h,
+  R_interface_bartcore.cpp, R_interface_bartcore_common.hpp and
+  C_interface.cpp anchors were RE-VERIFIED against 33f6fdc (the stop-loss
+  slice that landed there touched all four files) and none had drifted.
 
 ## The question, answered
 
@@ -143,8 +157,9 @@ had drifted the current ones are given.
 **B1 (route 3's held door for a state-dependent multiplier callback): ADOPTED
 in full, and the door is DELETED.** Verified independently: `Chain::run`
 evaluates `onSweep` at the TOP of each sweep, before the forest loop
-(`chain.hpp:958-959`, forest loop at `:993`), and the previous sweep ended with
-`combinedFits` (`:1109`), `drawGlue` and `afterCombine` (`:1122-1125`). So the
+(`chain.hpp:974-976`, forest loop at `:1009`), and the previous sweep ended
+with `combinedFits` (`:1125`), `drawGlue` and `afterCombine` (`:1139-1140`,
+line numbers re-verified at 33f6fdc). So the
 memo's stated hook point ("after `combinedFits` and before the next
 `formForestResponse`") IS the sweep boundary, which the shipped
 `dbarts_sampler_callback` already occupies. The ABI does not refuse it; it
@@ -155,7 +170,7 @@ nobody needs. The one class the door was held for (LongBet-style panel with a
 sampled time factor) needs a combiner-internal draw, not a host hook. RE-SCOPED
 as an M4 spec question: "a per-forest amplitude with a caller-supplied
 covariance kernel, drawn in the combiner", structurally what BCF's `a` and its
-half-Cauchy auxiliary already are (`combiner.hpp:529-547`).
+half-Cauchy auxiliary already are (`combiner.hpp:539-557`).
 
 **B2 (open decision 5's vector-leaf pricing): ADOPTED, and the door is
 re-priced and narrowed.** Verified: `VectorLeafModel` requires
@@ -166,12 +181,12 @@ vector axis is the OUTCOME dimension, so lifting a leaf assert cannot buy
 multivariate-outcome BCF: a d-dimensional outcome needs a d-dimensional
 response, d-dimensional fits, a d x d residual covariance and a Results layout.
 **That half of the door is struck as a category error.** There are TWO asserts
-(`combiner.hpp:442` BCF, `:746` multinomial), and the naive lift is undefined
-behaviour, not a configuration change: `muByTree` is documented "Empty for
-vector and function leaves, which keep the dense `treeFits` slab"
+(`combiner.hpp:452-453` BCF, `:761-762` multinomial), and the naive lift is
+undefined behaviour, not a configuration change: `muByTree` is documented
+"Empty for vector and function leaves, which keep the dense `treeFits` slab"
 (`combiner.hpp:174-181`) while `BCFForestCombiner::afterCombine` indexes
-`forest.muByTree[t]` unconditionally (`:591`) and rescales it (`:622-623`), as
-does the multinomial combiner (`:928`, `:951`), and the saved-slot rescale
+`forest.muByTree[t]` unconditionally (`:601`) and rescales it (`:631-633`), as
+does the multinomial combiner (`:943`, `:966`), and the saved-slot rescale
 walks `FlatNode`s carrying one scalar `value`. ADDED here, and it matters for
 VD's fork 1: multi-arm treatment on a vector leaf and the per-forest basis
 channel are DIFFERENT arcs serving different classes (one partition shared
@@ -226,7 +241,7 @@ and is amended below.
 
 **B5 (the naming collision is a schedule blocker): the FINDING is adopted, its
 CONSEQUENCE is narrowed.** Verified: the precision channel is entirely
-`dbarts:::`-only today - `Chain::setForestWeights` (`chain.hpp:854`), bridge
+`dbarts:::`-only today - `Chain::setForestWeights` (`chain.hpp:870`), bridge
 `bartcore_setForestWeights`, R `bartcoreSetForestWeights` (`R/bartcore.R:813`,
 absent from `NAMESPACE`, with no R5 method) - and the flat entry does not exist:
 `zero-weight-exactness.md` only reserves it and `dbarts-h-reshape.md` S1 item 5
@@ -236,8 +251,9 @@ spelling does freeze there. NARROWED: the collision the memo feared
 by naming the mean channel **basis** rather than multiplier or weights.
 "Weights" in dbarts already means precisions - `setWeights` installs
 observation precisions, and `setForestWeights` is its per-forest sibling,
-composing exactly as `w_i m_f^2 s_i` (`chain.hpp:835-853`,
-`composeForestWeights` at `:2962-2970`) - so renaming it would cost the parallel
+composing exactly as `w_i m_f^2 s_i` (`chain.hpp:855-857`,
+`composeForestWeights` at `:2970-2986`, fn at `:2978`) - so renaming it would
+cost the parallel
 that explains it. Therefore fork 3's mean-channel spelling does NOT block
 reshape S1, provided the mean channel never asks for the word "weights", and
 under this plan's spec it must not. What DOES remain schedule-bound, and is put
@@ -263,7 +279,7 @@ dropped.
 Confirmed by the critique's probes and re-verified structurally here:
 
 1. **`setForestWeights` is a PRECISION channel that `combinedFits` never
-   reads.** `BCFForestCombiner::combinedFits` (`combiner.hpp:507-516`) reads
+   reads.** `BCFForestCombiner::combinedFits` (`combiner.hpp:517-526`) reads
    `glue_.a`, `glue_.b0/b1` and `z`, never `forestWeights_`; the only consumer
    of the channel is `composeForestWeights`. Numerically: with `s = 0` on every
    row of forest 1, the reported location still contains that forest's full
@@ -280,7 +296,7 @@ Confirmed by the critique's probes and re-verified structurally here:
 3. **Rebuild plus `setState` silently drops a per-forest weight while the two
    stored states compare equal.** Real (reproduced: 0.38 max difference in tau
    fits, identical states) and already a RECORDED DECISION, not a discovery:
-   `chain.hpp:851-853` documents it, `zero-weight-exactness.md:121-126` decides
+   `chain.hpp:866-869` documents it, `zero-weight-exactness.md:121-126` decides
    it, and `inst/tinytest/test-forest-weights.R` pins the same-holder round trip
    and records the cross-sampler case as documented rather than asserted. It is
    a contract item for M0's doc, not a defect.
@@ -337,8 +353,8 @@ New findings made in synthesis, each a departure from the memo (receipts in
 9. **BCF is NOT an instance of the memo's declarative form, so the memo's
    spec and its falsifier F2 are both wrong.** `combinedFits` uses `b_{z_i}`
    and `drawGlue` draws `b0` and `b1` as two SEPARATE conjugate coefficients
-   accumulated over the `z = 0` and `z = 1` subsets (`combiner.hpp:507-516`,
-   `:548-563`). Since `b_{z_i} = b0 (1 - z_i) + b1 z_i`, forest 1 carries a
+   accumulated over the `z = 0` and `z = 1` subsets (`combiner.hpp:517-526`,
+   `:559-572`). Since `b_{z_i} = b0 (1 - z_i) + b1 z_i`, forest 1 carries a
    TWO-COLUMN indicator basis with two coefficients, not one column times one
    amplitude. "Amplitude times one multiplier column" therefore does NOT
    contain BCF (it is BCF with `b0` pinned at 0), and the memo's F2 ("a K = 2
@@ -357,11 +373,11 @@ New findings made in synthesis, each a departure from the memo (receipts in
     Only the per-forest weight SETTER remains internal.
 12. **Non-Gaussian multiforest is a refusal plus a calibration map, not missing
     machinery.** The latent draw already runs against the combined fit
-    (`chain.hpp:1109-1112`) and the multinomial K-forest chain already runs a
+    (`chain.hpp:1125-1126`) and the multinomial K-forest chain already runs a
     non-Gaussian response (its constructor sets `family_ = logistic` with
     Polya-Gamma augmentation). What forces Gaussian on the BCF path is the
     constructor itself: it builds a `GaussianResponse` and sets
-    `family_ = ResponseFamily::gaussian` unconditionally (`chain.hpp:660-664`),
+    `family_ = ResponseFamily::gaussian` unconditionally (`chain.hpp:671-674`),
     and BCF's calibration map is stated through `scaledResponseSd()`, a
     range-scaled Gaussian notion. So the memo's "the non-Gaussian case is the
     family's irreducible engine content" STANDS, and its price is lower than
@@ -391,7 +407,7 @@ column-major) and a coefficient vector `a_f` of length q_f. The mean is
 so the per-row effective multiplier `m_{f,i} = dot(a_f, B_f[i,])` stays a
 SCALAR. `formForestResponse`'s reparameterization (response `r_i / m_{f,i}`,
 weight `w_i m_{f,i}^2`) and the `0x1p-26` zero-multiplier snap
-(`combiner.hpp:465-497`) are unchanged in shape, which is why this is a
+(`combiner.hpp:471-514`) are unchanged in shape, which is why this is a
 generalization rather than a second mechanism.
 
 **Instances.** BCF: forest 0 with an intercept basis and free amplitude `a`;
@@ -431,7 +447,7 @@ re-bake:
 numForestAmplitudes(forest) x numChains; `1 = accepted, 0 = refused` (the house
 convention). A raw pointer plus a count, never a struct, because the FNV-1a
 token hashes signatures and is blind to struct layout
-(`dbarts-h-reshape.md:173-191`, measured). **Ownership is COPY**, matching the
+(`dbarts-h-reshape.md:198-207`, measured). **Ownership is COPY**, matching the
 shipped `setTreatment` ("setTreatment copies the 0/1 values it is handed",
 `dbarts.h:43`) and the bridge's `ownedForestWeights` pattern, and it must be
 stated in the Doxygen: a continuous basis cannot be coerced-and-copied
@@ -500,14 +516,14 @@ semiparametrics (offset; both cited through
 `docs/design/tree-mixing-proposals.md` rather than re-fetched here); splines or
 GAM plus BART (offset); AR-1 errors (offset, deferred in
 `correlated-outcomes.md`); multivariate and SUR outcomes (ALREADY SHIPPED as
-`mvbart()` with zero dbarts engine change, `docs/design/INDEX.md:34`, commit
+`mvbart()` with zero dbarts engine change, `docs/design/INDEX.md:35`, commit
 e27a7c3); IRT plus BART (latent covariate; bairrtt, live); latent-confounder and
 measurement-error sensitivity (latent covariate; the treatSens class);
 sequential covariate imputation inside a fit (latent covariate); instrumental
 variables (the first-stage fit feeds the second). Hurdle and two-part models
 belong to NEITHER channel: the split is observed, so they are two conditionally
 independent ordinary fits, shipped R-side with zero engine code
-(`INDEX.md:30`). Cost: zero dbarts change for the offset channel; the
+(`INDEX.md:31`). Cost: zero dbarts change for the offset channel; the
 latent-covariate channel needs multiforest-predictor-mutation only if the BART
 side becomes multi-forest. One correction that must travel with this home:
 WALNUTS does NOT fix the cross-block ridge - it removes ridges INSIDE the
@@ -566,8 +582,10 @@ exists":
     multiforest-predictor-mutation S0-S4   (committed, untouched)
     M2  forests= replaces treatment=       R + tests, no src, bitwise-gated
     dbarts-h-reshape S0-S2, with M3 as an item inside S1   (one re-bake)
+    M4  the general basis family           RESOLVED pre-release (fork 1,
+                                            VD 2026-08-11); FA1/FA2 run
+                                            first, design-informing
     1.0-0 freeze
-    M4  the general basis family           conditional, entry-gated
 
 M0 and M1 must land after bcf-public-surface S4 rather than beside it: S4 is
 editing `inst/NEWS.Rd` and `man/dbartsSampler-class.Rd`, which both slices
@@ -600,7 +618,7 @@ model authors already use.
    It COMMITS NOTHING about: per-forest decomposition of test fits
    (`testFitsAreDefined() == false` under BCF); mid-sweep hooks (refused on
    invariant grounds as well as threading grounds - during the tree loop
-   "totalFits is stale until rebuilt after the loop", `chain.hpp:1031`);
+   "totalFits is stale until rebuilt after the loop", `chain.hpp:1047`);
    per-forest saved-tree replay; cross-host bitwise reproducibility
    (within-host across any SIMD dispatch only).
    It RECORDS the sweep-boundary hooks that exist and their constraints: the
@@ -741,11 +759,18 @@ reproduces the R5 path bitwise at a shared seed. **FC2** the refusal matrix run
 from `consumer.c`, outcome AND message text checked in C (the S3 harness
 pattern). **FC3** the hash moved and neither version constant did.
 
-## M4. The general basis family. CONDITIONAL, entry-gated, post-freeze.
+## M4. The general basis family. RESOLVED pre-release (VD 2026-08-11, fork
+1), scheduled after the dbarts.h reshape.
 
-Only if VD adopts fork 1. Two falsifiers run BEFORE any engine work, because
-they can kill the Gaussian justification and make fork 1 option (c) the answer
-on evidence.
+VD adopted fork 1: BUILD, pre-release, not post-freeze as recommended. FA1
+and FA2 still run BEFORE any engine work, now as design-informing probes
+rather than go/no-go gates - the orchestrator's reading of the decision,
+stated to VD and uncorrected - because they can still shape the amplitude
+and ASIS design even though a null result no longer collapses this slice
+into option (c). Falsifier FA5 stands as a required respec at scheduling
+time: its committed form below tests a strawman (K independent probit
+samplers); the decisive arm is K GAUSSIAN samplers with host-drawn latents
+against the combined fit, which measurement predicts will AGREE.
 
 - **M4.0 (tests only).** Pin today's combiner at the seam that generalizes:
   `forestMultiplier`'s two values, `combinedFits`' blend, `drawGlue`'s
@@ -796,7 +821,8 @@ escapes.
 Priced honestly, and higher than the memo's estimate because of fact 9: ~450 to
 650 engine lines, ~200 bridge, ~250 R, plus the M4.0 pins and one possible
 bcf-equivalence re-record. Sequenced after multiforest-predictor-mutation S0-S4
-so the window holds one re-record, and after the freeze.
+so the window holds one re-record, and after the dbarts.h reshape (RESOLVED
+pre-release, VD 2026-08-11 - not after the freeze as this plan recommended).
 
 ## Cross-plan amendments (apply verbatim)
 
@@ -904,18 +930,24 @@ inherited (do not reopen)", after item 5.** Insert:
 >    No measurement exists above K = 4. If a general K-forest family lands, that
 >    arc owns a fresh veto-rate measurement at its own K.
 
-**8. `TODO`, the `multiforest-extension-surface` door sentences (currently at
-:86 and :625).** Replace with the landing record: plan path
-`docs/plans/multiforest-extension-surface.md`, artifacts under
-`.claude/multiforest-extension-surface-design/`, the answer (the driver surface
-is the shape and is nearly shipped; the declarative per-forest basis is the
-model-carrying surface and its justification is the non-Gaussian case), the
-four slices M0 to M3 before the freeze plus a conditional post-freeze M4, the
-three-home layering (dbarts engine, stan4bart WALNUTS collection, bartCause
-causal fit layer, no third package), VD's R-first principle with its scope limit
-(R-first for additive composition and for configuring engine-provided families
-and priors; authoring a response shape or a prior law is an engine change with
-C++ as its path), and the four VD forks with their status.
+**8. `TODO`, the `multiforest-extension-surface` door sentences.** APPLIED,
+records commit (2026-08-11). The sentences originally cited at :86 and :625
+were already consolidated to one block at TODO:124-144 by e2cc1de (past this
+item's own literal replacement text - it named the completed R/C-division
+review); the records commit rewrites that block again, now at TODO:154-178,
+recording: plan path `docs/plans/multiforest-extension-surface.md`,
+artifacts under `.claude/multiforest-extension-surface-design/`, the answer
+(the driver surface is the shape and is nearly shipped; the declarative
+per-forest basis is the model-carrying surface and its justification is the
+non-Gaussian case), the slices M0 to M3 pre-freeze plus M4 (the general basis
+family) ALSO pre-release, scheduled after the dbarts.h reshape (not
+post-freeze as this item originally proposed), the three-home layering
+(dbarts engine, stan4bart WALNUTS collection, bartCause causal fit layer, no
+third package), VD's R-first principle with its scope limit (R-first for
+additive composition and for configuring engine-provided families and
+priors; authoring a response shape or a prior law is an engine change with
+C++ as its path), and the four VD forks, ALL RESOLVED 2026-08-11 (see "Open
+decisions" below).
 
 ## Open decisions (VD)
 
@@ -961,13 +993,21 @@ stated as the non-Gaussian case rather than Gaussian ergonomics.** What would
 change it: FA1 coming back null AND a decision that non-Gaussian multiforest is
 out of scope, which collapses (a) into (c).
 
+**RESOLVED (VD 2026-08-11): (a), BUILD the family - PRE-RELEASE, not
+post-freeze as recommended.** Scheduling within the backlog at orchestrator
+discretion -> placed after the dbarts.h reshape (M3 carries its header
+entries into reshape S1). FA1 and FA2 still run first, but as
+DESIGN-INFORMING probes rather than go/no-go gates (orchestrator
+interpretation, stated to VD, uncorrected) - a null result now shapes the
+amplitude/ASIS design rather than collapsing this slice into option (c).
+
 **Fork 2. Does the family's v1 cover non-Gaussian responses?**
 
 This is the axis that decides whether the family has engine content at all. For
 Gaussian there are no latents to refresh, so the composition is expressible in R
 today; for probit, logistic, Student-t, ordinal, negative-binomial and the
 softmax the latents are drawn ONCE against the COMBINED fit
-(`chain.hpp:1109-1112`), so K independent R samplers are a DIFFERENT model, not
+(`chain.hpp:1125-1126`), so K independent R samplers are a DIFFERENT model, not
 a slower one.
 
 - **(a) Probit and logistic in v1, the rest doors (RECOMMENDED).** Cost is lower
@@ -987,6 +1027,12 @@ a slower one.
 **Recommendation: (a).** What would change it: a decision that the calibration
 map for latent families needs its own research arc, in which case (b) ships
 first and (a) becomes the second slice.
+
+**RESOLVED (VD 2026-08-11): (a), probit and logistic in v1, other families as
+doors** - ADOPTED as recommended, with the escape hatch kept live: if the
+latent-scale calibration map needs its own research arc, Gaussian-only ships
+first and non-Gaussian is the immediate second slice, both still
+pre-release.
 
 **Fork 3. The flat naming, and which committed plan yields.**
 
@@ -1026,6 +1072,14 @@ disagrees: `setForestRowPrecision` (accurate, loses the parallel),
 would change (a): a decision that fork 1 is (c) and the family will never land,
 which makes the causal names accurate and (c) the honest choice.
 
+**RESOLVED (VD 2026-08-11): (a) for the rename, KEEP for the precision
+channel** - both ADOPTED as recommended. `setTreatment` -> `setForestBasis
+(sampler, forest, basis, numColumns)`; `bcfGlue` -> `numForestAmplitudes`
+plus `forestAmplitudes`; the creation Doxygen moves to engine vocabulary -
+all at the dbarts.h reshape re-bake. `setForestWeights` keeps its name. The
+schedule-bound carve-out (dbarts-h-reshape.md binding decision 3) is
+satisfied.
+
 **Fork 4. Where does `bcf()` live?**
 
 - **(a) bartCause (RECOMMENDED).** It already owns the causal vocabulary, the
@@ -1050,6 +1104,11 @@ which makes the causal names accurate and (c) the honest choice.
 **Recommendation: (a).** What would change it: a judgment that dbarts should
 ship one turnkey causal fit function for discoverability, which is coherent but
 inverts binding decision 2.
+
+**RESOLVED (VD 2026-08-11): (a), bartCause** - ADOPTED as recommended, on its
+dbarts-1.0 branch. bcf-public-surface S5 relocates there; the moderator
+EXCLUSION for the propensity-score-as-covariate column is part of that cost,
+not a separate decision.
 
 ## What NOT to build, recorded so it is not re-proposed
 
@@ -1137,8 +1196,8 @@ inverts binding decision 2.
 1. **The memo's declarative spec is OVERTURNED and replaced** (fact 9). Its
    "amplitude times an n x K multiplier matrix" does not contain BCF, because
    `combinedFits` uses `b_{z_i}` and `drawGlue` draws `b0` and `b1` as two
-   conjugate coefficients over the two z subsets (`combiner.hpp:507-516`,
-   `:548-563`), i.e. forest 1 carries a two-column indicator basis. The channel
+   conjugate coefficients over the two z subsets (`combiner.hpp:517-526`,
+   `:559-572`), i.e. forest 1 carries a two-column indicator basis. The channel
    is a per-forest basis MATRIX with a coefficient VECTOR. Its falsifier F2 is
    struck and replaced by FA0.
 2. **The memo's cost estimate for the family is raised**, from 350-500 engine
