@@ -520,11 +520,20 @@ likewise `test` (or `NULL` if the sampler has no test data) and
 `varcount` are n.predictors x n.samples x n.chains; `sigma` is n.samples
 x n.chains. When `n.chains` is `1` the trailing chain dimension is
 dropped, so `train` is a plain n.obs x n.samples matrix and `sigma` a
-plain vector of length n.samples. A run can be interrupted with
-`Ctrl-C`: it stops between iterations - joining any worker threads
-first - and signals an error, returning no samples from the interrupted
-run. The sampler's chains are left at the iteration they reached, which
-is a valid state to run again from.
+plain vector of length n.samples. A Bayesian causal forest adds two
+more: `forestFits`, an n.obs x 2 x n.samples x n.chains array of each
+forest's fitted values on the internal scale (the prognostic \\\mu\\
+first, the treatment \\\tau\\ second), and `glue`, a 3 x n.samples x
+n.chains array of the \\(a, b_0, b_1)\\ each draw combines them through,
+so both surfaces and their recombination come from a single call;
+`train` carries the combination \\a \mu(x_i) + b\_{z_i} \tau(x_i)\\ on
+the response scale, and `test` is filled with `NaN` (there is no test
+treatment vector to combine off-sample). No other model reports either
+element. A run can be interrupted with `Ctrl-C`: it stops between
+iterations - joining any worker threads first - and signals an error,
+returning no samples from the interrupted run. The sampler's chains are
+left at the iteration they reached, which is a valid state to run again
+from.
 
 For `setPredictor`, `TRUE`/`FALSE` depending on whether or not the
 operation was successful. The operation can fail if the new predictor
