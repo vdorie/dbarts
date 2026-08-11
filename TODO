@@ -20,488 +20,173 @@ sufficient evidence of value, never necessary.
 Standing fact (VD, 2026-07-06): single-chain n >= 1e5 workloads are
 common. The large-n performance items are live, not consumer-gated.
 
+Standing discipline (from the 2026-08-07 census, 65ef425): verify an
+entry's status claims against git and live code before scoping from
+it; re-run a full census before release. The 2026-08-08 value scan
+(docs/design/model-space-survey.md sec 7) re-read every gated entry
+under the enabling-value rule; its per-entry verdicts are folded into
+the entries below.
+
 items
-  backlog-hygiene: EXECUTED 65ef425 2026-08-07 (32-entry census: 21
-    current, 5 stale, 5 done-and-collapsed; worst finds were a
-    landed equivalence scenario read as unbuilt, a deleted refusal
-    cited as live, and a release-currency claim spanning a draw-law
-    change). Now a standing discipline, not a one-shot: verify an
-    entry's status claims against git and live code before scoping
-    from it, and re-run a full census before release.
-  backlog-value-scan: EXECUTED 2026-08-08 inside the model-space
-    survey arc (record docs/design/model-space-survey.md sec 7;
-    working papers in .claude/model-space-survey/). 21 rows over 15
-    gated entries re-read under the enabling-value rule. LIFTED, 8
-    rows over 6 entries, each now naming its model in the entry:
-    gp-followups, group-by-exposure, interaction-constraints
-    (heredity half), multiforest-mutation-gaps (row-subsetting door
-    - VALUE only, shape unresolved), the n x K multinomial offset
-    (now multinomial-counts-mutation), sparse-extensions (rbart_vi
-    / linear-leaf half), survival-followups (competing risks, left
-    truncation). GATES STAND, each on a considered reason:
-    bcf-sigma-tail-mixing, forest-ranef-interweaving,
-    interaction-constraints' soft penalties, python-bindings,
-    sparse-extensions' perf-only remainder, survival-followups'
-    cloglog and continuous-time, and typed-ingestion's
-    per-observation CSC refusal - the last now with a MODEL-SPACE
-    reason, since every class needing per-observation mutation
-    mutates a DENSE column. Two KEEPs changed character: the
-    whole-data setData doors (multiforest and CSC/mixed) were gated
-    on absent demand and are now gated on a considered failure to
-    find an enabled model, which is the licensed form. Four
-    candidate lifts REJECTED because they do not move the entry's
-    operative gate: negbin-real-dispersion and weighted-binary (the
-    value was never the gate; the shared approximate-PG posture
-    decision is), integer-predictor-storage (a use, not a model),
-    and correlated-outcomes' AR-1 ENGINE door (already
-    causal-motivated, and the panel-BCF citations do not show the
-    recorded outer-sampler composition insufficient, which is what
-    lifting the engine door would require).
-  bcf-public-surface: BCF ships in the engine with NO public creation
-    entry - reachable only as dbarts:::bartcoreBCFSampler
-    (R/bartcore.R:536, not in NAMESPACE); bcf() is named only in a
-    comment (R/model.R:1032); the flat C API routes
-    dbarts_sampler_create to createHolder, never createBCFHolder.
-    Enables: any package consuming the shipped two-forest sampler at
-    all - bartCause/treatSens-style causal consumers today, and every
-    future BCF update shape (multiforest-predictor-mutation, the
-    row-subsetting door), none of which can be reached without the
-    internal call. Surveyed as prerequisite D3
-    (docs/design/model-space-survey.md sec 4): cheaper than either
-    update-shape door and the actual first constraint on the BCF model
-    space, so it sequences ahead of them. VD
-    2026-08-09: goes FIRST, ahead of multiforest-predictor-mutation.
-    PLAN COMMITTED docs/plans/bcf-public-surface.md (design cycle
-    memo -> blind critique -> synthesis, 2026-08-10): layered surface
-    - a treatment argument on dbarts()/dbartsSpec() with the knobs on
-    one constructor, z riding a dbartsData slot, bcf() on top; seven
-    slices S0-S6; the flat C surface is ONE slice re-baking the API
-    hash (setResponse widened with updateScale, four appended
-    entries). NAMING RESOLVED 2026-08-10: option A, FINAL
-    (treatment= / moderators= / treatmentForest(...) /
-    data@treatment; VD's conditional ratification verified in the
-    plan's Open decision section). AMENDED 2026-08-10: the option-A
-    creation surface is PROVISIONAL - VD schedules the causal
-    vocabulary for REMOVAL from dbarts()/dbartsSpec() once BCF finds
-    its proper home (multiforest-extension-surface arc; removal only
-    after a replacement creation route exists; mechanism survives
-    re-skinning; see the plan's Open decision amendment). S0 LANDED
-    994c161 (pins). S1 LANDED a1dbde7 (public creation bitwise-
-    identical to the internal path). S2 LANDED 339aeb0 (R5 surface +
-    setControl attr preservation). S3 LANDED 1622eb9 (flat C: hash
-    re-baked 0x1a911c00bb26dcd7, setResponse widened, four entries
-    appended, predict/setTestPredictors BCF-guarded; landing notes in
-    the plan doc). S4 LANDED 1df9c0c (per-draw forestFits + glue on
-    the varianceFits precedent, F8 at one ulp, zero dbarts.h delta).
-    S6 (docs) UNBLOCKED 2026-08-11 - the multiforest-extension-
-    surface plan landed, so the docs write the settled story
-    (treatment= provisional, replaced by forests= per that plan's
-    M2); S5 (bcf()) RELOCATED to bartCause under that plan,
-    conditional on VD's fork 4.
-    Anchors read at b374d9e; combiner.hpp and
-    model.hpp moved at the zero-weight snap landing c820227.
+  bcf-public-surface: S0-S4 and S6 landed; the public creation
+    surface exists (plan + landing notes in
+    docs/plans/bcf-public-surface.md). REMAINING: S5 (bcf() and the
+    bartBCF fit class) is PAUSED and RELOCATED to bartCause,
+    conditional on VD's extension-surface fork 4. The
+    treatment=/moderators=/treatmentForest= names (and flat
+    setTreatment/bcfGlue) are PROVISIONAL, scheduled for replacement
+    by forests = list(forest(basis = ...)) per
+    multiforest-extension-surface M2.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
-    residual.md sec 4 item 2; no separate plan doc). The BCF sigma SBC
-    flag was diagnosed as a slow forest-mixing burn transient and fixed
-    for acceptance by pinning absolute burn sweeps (no engine or
-    draw-law change). Open: the EXTREME tail (|a0| >= ~40, ~3% of the
-    prior) is frozen-structure mixing that no amount of burn fixes; a
-    principled remedy would target tree-structure mixing at high SNR
-    (tempered early sweeps, restart-style grow proposals). Low priority
-    - the regime only arises with a stale build scale swapped against a
-    new response inside a larger Gibbs loop (setResponse
-    updateScale=FALSE). research-open, decision-gated.
+    residual.md sec 4 item 2; no separate plan doc). Open: the EXTREME
+    tail (|a0| >= ~40, ~3% of the prior) is frozen-structure mixing
+    that no amount of burn fixes; a principled remedy would target
+    tree-structure mixing at high SNR (tempered early sweeps,
+    restart-style grow proposals). Low priority - the regime only
+    arises with a stale build scale swapped against a new response
+    inside a larger Gibbs loop (setResponse updateScale=FALSE).
+    research-open, decision-gated.
   blocked-jacobi-trees: RESEARCHED, KILLED 2026-07-21 (df13c04 +
     77597cc) - full record, lesson, and reopen clause in
     docs/plans/blocked-jacobi-trees.md and
     docs/design/within-chain-threading.md.
-  cheap-uniformity: VD GO 2026-08-08 - close the dense-only
-    asymmetries that do not wait on the model-space survey:
-    sparse-valued mutation shim at the bridge (the typed-ingestion
-    door), sparse test-column update, and resident-sparse predict
-    (today predict materializes dense). Ingestion shape only, no
-    draw-law change expected: trio-bitwise gate. Plan + landing notes
-    in docs/plans/cheap-uniformity.md; design artifacts in
-    .claude/cheap-uniformity-design/. S0-S2 LANDED 2026-08-08
-    (e6e55a6, 0fef4b0, fca2bcf): sparse-valued mutation open on
-    sparse-backed designs, per-column container x.test update open,
-    and all three live defects closed (transposed silent acceptance,
-    anyNA both directions, the predict/setTestPredictor reference
-    divergence - opposite-sign values on the same container captured
-    pre-fix). ARC COMPLETE 2026-08-09: VD chose Branch A
-    (engine-resident; rationale recorded - we enable consumers by
-    building flexibility they can use creatively, consumer absence
-    never decides). S3 LANDED 06c0254 (templated flat replay, codegen
-    A/B median 1.001); S4 LANDED 9929ede (SparseRawColumn +
-    PredictorSource facade virtuals + sparse predict/getTrees at the
-    bridge; F7 PASS by an order of magnitude - 34.5x faster, 9.96x
-    smaller peak RSS at n_test=1e5, p=1e4, density 0.01). Landing
-    notes in the plan doc. The dbarts.h reshape arc mirrors this
-    final surface (release section sequencing).
-  correlated-outcomes: richer error/outcome covariance around a BART
-    mean, delivered via outer-sampler composition (stan4bart = WALNUTS
-    + dbarts supplying each outcome's conditional mean; the pattern
-    bairrtt uses). RESOLVED 2026-07-22 (docs/design/correlated-
-    outcomes.md): (b) multivariate / multiple correlated outcomes
-    SHIPPED as mvbart() in stan4bart (e27a7c3) with zero dbarts code -
-    SUR chained conditionals reduce each outcome's step to a
-    per-observation offset + scalar sd against resid.prior=fixed()
-    (mediation is the triangular case, rho the sensitivity knob). What
-    remains open: (a) AR-1 / serially-correlated errors (longitudinal,
-    panel, ITS, DiD - the Bertrand-Duflo-Mullainathan SE problem)
-    compose today via a latent AR-state + nugget in the outer sampler
-    (the rbart_vi pattern, AR replacing the intercept), with EXACT
-    pure-AR-1 errors a deferred ENGINE door (banded residual precision
-    + cross-leaf GLS leaf updates break per-leaf independence).
-    Exposing the per-sweep callback on dbartsSampler$run is a perf-only
-    convenience, not a gate (demoted in the design doc).
-    causal-motivated, decision-gated.
-  csc-code-validation: LANDED df79f17 2026-08-05 (typed-ingestion
-    slice 0; record in docs/plans/csc-code-validation.md) - every
-    categorical ingestion entrance bounds codes against the
-    training-side K. Its temporary mutation refusals and the
-    level-permuted-container residual door were both retired by
-    slice 2a (95db5d7): CSC-backed categorical mutation is open and
-    foreign containers are re-coded at the validateXTest funnel.
-  facade-shape: LANDED 40082c7 2026-08-06 (record in
-    docs/plans/facade-shape.md) - 21 nullary virtuals collapsed into
-    one SamplerShape POD, bitwise-neutral, oracled by tests/cpp
-    test_shape.
+  cheap-uniformity: COMPLETE 2026-08-09 (S0-S4; plan + landing notes
+    in docs/plans/cheap-uniformity.md). Sparse-valued mutation,
+    per-column x.test update, and engine-resident sparse predict all
+    open; the dbarts.h reshape mirrors this final surface.
+  correlated-outcomes: multivariate/SUR outcomes SHIPPED as mvbart()
+    in stan4bart with zero dbarts code (docs/design/correlated-
+    outcomes.md). Open: AR-1 / serially-correlated errors
+    (longitudinal, panel, ITS, DiD) compose today via a latent
+    AR-state + nugget in the outer sampler (the rbart_vi pattern),
+    with EXACT pure-AR-1 errors a deferred ENGINE door (banded
+    residual precision + cross-leaf GLS leaf updates break per-leaf
+    independence). causal-motivated, decision-gated.
+  csc-code-validation: LANDED (record in
+    docs/plans/csc-code-validation.md); categorical ingestion bounds
+    codes against training-side K everywhere.
+  facade-shape: LANDED (record in docs/plans/facade-shape.md);
+    SamplerShape POD, oracled by tests/cpp test_shape.
   forest-ranef-interweaving: RESEARCHED, NO-GO now - record,
     permanent gate (benchmarks/R/grouped-mixing.R), and the
     VD-sign-off reopen clause in
     docs/design/forest-ranef-interweaving.md. decision-gated.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
-    real cost - not the mechanical follow-up the proposal suggested);
-    low-rank kernels. VALUE GATE LIFTED by the 2026-08-08 model-space
-    survey: GP-leaf BART as a surrogate for sequential design of
-    computer experiments (arXiv 1203.1078), where the response is
-    explicitly nonstationary and a FIXED lengthscale asks the user to
-    know the thing they are estimating; low-rank kernels serve the
-    standing n >= 1e5 fact. decision-gated on cost, no longer on value.
+    real cost) and low-rank kernels. Value gate lifted by the
+    model-space survey: GP-leaf BART as a surrogate for sequential
+    design of computer experiments (arXiv 1203.1078), where a FIXED
+    lengthscale asks the user to know the thing they are estimating;
+    low-rank kernels serve the standing n >= 1e5 fact. decision-gated
+    on cost, no longer on value.
   gpu-bart: backend-seam design waits on frontier items 4-5
     (informed-kernel + CG-leaf prototypes); memo and falsifiers in
     docs/design/gpu-bart.md and parallel-bart-frontier.md.
   group-by-exposure: public group.by beyond rbart_vi
-    (grouped-random-effects.md; naming reserved). VALUE GATE LIFTED by
-    the 2026-08-08 model-space survey: clustered / multi-site causal
-    survival, which riAFTBART does on CRAN TODAY (a random-intercept
-    AFT BART for causal inference with multiple treatments in
-    multilevel survival data), plus grouped discrete-time hazard, which
-    docs/design/survival.md sec 6 already calls feasible by
-    construction with only surface work left. Pairs with
-    sparse-extensions' rbart_vi-on-sparse half. decision-gated.
+    (grouped-random-effects.md; naming reserved). Value gate lifted:
+    clustered / multi-site causal survival (riAFTBART's shape) plus
+    grouped discrete-time hazard, which docs/design/survival.md sec 6
+    calls feasible by construction with only surface work left. Pairs
+    with sparse-extensions' rbart_vi-on-sparse half. decision-gated.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared scan.
-  grow-from-root-default: RESOLVED NO 2026-08-08. The pre-registered
-    study (docs/plans/grow-from-root-default-study.md, Results section;
-    working papers and 98 checkpoints in
-    .claude/grow-from-root-default-research/; durable record
-    docs/design/grow-from-root-default.md) returned KILL in BOTH
-    strata, each confirmed by a mandated fresh-seed re-run: the
-    early-iteration benefit is real (B1 z=25.5 small / 27.9 large) but
-    the warm start pays a plateau posterior-mean RMSE cost concentrated
-    where aggregates hide it - +11.1% (re-run +11.6%) in the
-    noise-heavy Friedman p=50 cell against a 6% margin, and +4.5%/+10.7%
-    (re-run +3.5%/+9.9%) at n=50000 against 3%/6% margins. VD's
-    exploration-cost question (4) is thereby answered: the cost is
-    real, regime-concentrated, and decisive. n.grow.sweeps stays
-    opt-in; the flip reopens only with a changed design (e.g.
-    warm-starting a chain subset) plus a re-run on an extended k grid
-    (k*=16 was a grid artefact). Ancillary: warm starts stay
-    target-overdispersed (M0 branch 1, rho0 >= 1 everywhere); the
-    categorical scan skip matched its pre-registered null, so the
-    renormalization stays closed as documented behavior and the old
-    prerequisite (1) categorical-scan support is MOOT for the flip
-    (REAL categorical support is now scheduled on feature-completeness
-    grounds - see grow-from-root-categorical-scan); the
-    change move cannot rotate the root of a deep tree (the stickiness
-    datum that voided the structure metrics, recorded in the Results
-    section). Family consistency (four bart2 families refuse
-    n.grow.sweeps via checkFamilyUnsupportedArgs R/bart.R:484-492;
-    rbart_vi lacks the formal entirely) is now an ordinary
-    opt-in-surface question - extend or document - low priority,
-    unscheduled. VD 2026-08-09: keep it inconsistent until we know
-    what we really want to do with the feature - explicitly not
-    scheduled.
-  grow-from-root-categorical-scan: SCHEDULED, VD 2026-08-09 - the
-    opt-in n.grow.sweeps init should not ship incomplete.
-    growTreeFromRoot skips every categorical predictor as a split
-    candidate (grow.hpp:100) while counting it in
-    availableSplitProbability (grow.hpp:94-97), so init-grown trees
-    never place categorical splits; categorical structure appears
-    only once regular sampling takes over. Measured floor:
-    init-no-better-than-cold, not worse; the arithmetic-only
-    renormalization matched its pre-registered null and stays CLOSED
-    - this entry is REAL support, not the renorm. Work: a
-    categorical analog of scanOrdinalCuts (per-category suffstats in
-    one O(n) sweep; candidate rules likely sorted-partition
-    enumeration over category means), the tree prior's categorical
-    rule probability in the candidate weight (must match the regular
-    grow move's rule representation), missing-direction handling.
-    Init-only, so no MH-kernel/detailed-balance obligation; opt-in
-    path only, and the design VERIFIED no trio scenario reaches the
-    path (zero snapshot burden confirmed twice). DESIGN COMPLETE
-    2026-08-09 (memo -> blind critique 5-blocking -> synthesis, all
-    ADOPT; artifacts .claude/grow-from-root-categorical-scan/): plan
-    at docs/plans/grow-from-root-categorical-scan.md - 6 slices (S0
-    ordinal missing-weight falsifier+pin; kernel with plain-counter
-    enumeration - the memo's Gray recipe emitted an empty-child
-    partition - and closed-form cap mass repair continuous across
-    P=10; oracles incl the DART-coupling assertion and the three
-    coverage gaps; R surface; three-arm in-situ measured arm with
-    pinned constants, R=12 paired cat-vs-skip; docs). OPEN VD FORK
-    recorded in the plan, deferred until S0's falsifier result
-    exists: if it confirms the ordinal missing-coin inconsistency,
-    whether to change the shipped weight (rec: fix). Implementation
-    queued pre-release by default after the multinomial channel.
+  grow-from-root-default: RESOLVED NO 2026-08-08 - the pre-registered
+    study returned KILL in both strata on confirmed re-runs (Results
+    in docs/plans/grow-from-root-default-study.md; durable record
+    docs/design/grow-from-root-default.md). n.grow.sweeps stays
+    opt-in; the flip reopens only with a changed design plus an
+    extended-k re-run. Family consistency (four bart2 families refuse
+    n.grow.sweeps; rbart_vi lacks the formal) stays INCONSISTENT by
+    VD's explicit call until we know what we want from the feature -
+    unscheduled.
+  grow-from-root-categorical-scan: SCHEDULED (VD: the opt-in
+    n.grow.sweeps init should not ship incomplete - growTreeFromRoot
+    never places categorical splits while counting categoricals in
+    the availability normalizer). REAL categorical support in the
+    init scan; the arithmetic-only renormalization measured null and
+    stays closed. Plan at
+    docs/plans/grow-from-root-categorical-scan.md (6 slices; S0 is an
+    ordinal missing-weight falsifier). OPEN VD FORK, deferred until
+    S0's falsifier result exists: if it confirms the ordinal
+    missing-coin inconsistency, whether to change the shipped weight
+    (rec: fix). Implementation queued pre-release by default after
+    the multinomial channel.
   integer-predictor-storage: dense-INTEGER storage in the
-    PredictorSource view. denseValues is const double* (data.hpp ~188),
-    ColumnType is semantic only (ordinal | categorical), and R still
-    as.doubles at the bartcore.R entrances. A memory win, not speed;
-    integer -> double is exact in range so the slice MUST be
-    trio-bitwise. Split out of typed-ingestion at its 2026-08-06
-    close: the typing that mattered (ordinal vs categorical with
-    declared K) landed with slice 2b; storage width is a separate
-    question with its own gate. consumer-gated.
-  interaction-constraints: deliverable B (per-path max-order + hard
-    co-occurrence) and P4 (per-tree block-additive blocks(), plus the
-    F1 columnMask warm-start fix) both LANDED 2026-07-21 - f455d7c,
-    aadbbc8/103dbe2/073d3db; records in docs/design/interaction-
-    constraints.md and the two plan docs. Remaining doors: formal
-    heredity (ensemble lattice prior) - VALUE GATE LIFTED by the
-    2026-08-08 model-space survey, enabling functional-ANOVA BART
-    (arXiv 2509.03317: interpretable variance decomposition with a
-    hierarchical ordering of effects), for which dbarts already ships
-    the hard-constraint half; and soft path-dependent penalties, gate
-    STANDS - no model surfaced, it is a knob on an existing constraint.
+    PredictorSource view. A memory win, not speed; integer -> double
+    is exact in range so the slice MUST be trio-bitwise. Split out of
+    typed-ingestion at its close. consumer-gated.
+  interaction-constraints: deliverable B and P4 landed (records in
+    docs/design/interaction-constraints.md and the two plan docs).
+    Remaining doors: formal heredity (ensemble lattice prior) - value
+    gate lifted, enabling functional-ANOVA BART (arXiv 2509.03317),
+    for which dbarts already ships the hard-constraint half; soft
+    path-dependent penalties, gate STANDS - no model surfaced.
     decision-gated.
-  multiforest-extension-surface: ANSWERED - VD's "is there a
-    multiforest ABI or API model writers would want to use?" PLAN
-    COMMITTED docs/plans/multiforest-extension-surface.md (design
-    cycle memo -> blind critique 6-blocking -> synthesis, 2026-08-10;
-    artifacts .claude/multiforest-extension-surface-design/). The
-    answer: the DRIVER surface (caller-owned outer loop, dbarts owns
-    one coupled sweep) is the shape model writers already use and is
-    nearly shipped - what is missing is the documented contract, not
-    mechanism; the DECLARATIVE per-forest basis (each forest's mean
-    contribution scaled by caller-supplied columns with their own
-    coefficients; BCF = a two-column indicator basis, so the memo's
-    multiplier spec was overturned) is the model-carrying surface,
-    and its justification is the NON-GAUSSIAN case, where latents
-    draw once against the combined fit so pure-R composition is a
-    different model. Slices: M0 on-ramp contract (docs+vignette+
-    pins), M1 public $setForestWeights (R/C parity, must precede
-    reshape S1), M2 forests= REPLACES treatment= (bitwise-gated,
-    the removal VD scheduled), M3 flat mean channel (an item inside
-    reshape S1, conditional on fork 3) all pre-freeze; M4 general
-    basis family post-freeze, conditional, entry-gated on FA1/FA2.
-    Layering: dbarts = engine, stan4bart = WALNUTS semiparametric
-    collection, bartCause = causal fit layer; NO third package; C++
-    extension headers REFUSED on the build record. VD's R-first
-    principle with its scope limit recorded as binding decisions
-    1/1b: R-first covers additive composition and CONFIGURING
-    engine-provided families/priors by argument; AUTHORING a
-    response shape or prior law is an engine change with C++ as its
-    path. FOUR VD FORKS OPEN (plan's Open decisions, presented
-    2026-08-11): (1) build the basis family? rec: yes, post-freeze,
-    entry-gated; (2) non-Gaussian in v1? rec: probit+logistic; (3)
-    flat rename at the reshape re-bake + keep-or-rename
-    setForestWeights? rec: rename to basis vocabulary, KEEP
-    setForestWeights; (4) bcf() home? rec: bartCause. M0-M4 enter
-    the code queue only after VD answers.
-  multiforest-mutation-gaps: LANDED, all four commits 2026-08-06
-    (d489986 offset/treatment guards incl. the BCF setOffset(TRUE)
-    decalibration hole and the multinomial test-offset simplex
-    corruption; ae7da51 BCF setWeights under the existing opt-in;
-    a7eb03d leaf.scale rides the state as an append-only per-forest
-    block, installed at setState AND installForests; ef61b39
-    refusePinnedSigmaChange on fixed-sigma families + heteroscedastic,
-    gaussian-fixed() Gibbs conduit stays open). Record:
-    docs/plans/multiforest-mutation-gaps.md. The research gate VD set
-    2026-08-06 has RUN - docs/design/model-space-survey.md, 2026-08-08,
-    memo + blind refuting critique - and both update-shape doors now
-    have verdicts.
-    BCF whole-data setData (n free, z required): KEEP UNDESIGNED. No
-    model class surfaced for an n-free multi-forest joint swap. Every
-    verified multi-forest class holds n FIXED and mutates values or
-    membership; the one verified growing-n class (sequential design of
-    computer experiments) is single-forest and already served by the
-    shipped n-free setData. BART adaptive-trial designs DO exist -
-    riAFT-BART CARA (pubmed 38688389), DOD-BART (pubmed 39611660), BFTS
-    (arXiv 2602.07767) - correcting the survey memo's absence claim, but
-    none maintains one fit across an accruing sample and BFTS
-    deliberately COLD-STARTS from the prior on each refresh, which
-    strengthens the KEEP. The z-required semantics stay correct if the
-    door is ever taken. Now gated on a considered failure to find an
-    enabled model, not on absent demand.
-    Per-forest row subsetting: VALUE GATE LIFTED, SHAPE UNRESOLVED.
-    Enables the tree-based Bayesian AFT MIXTURE CURE model (Sun & Song,
-    Bayesian Analysis 20(2)), whose latency component is fit on the
-    currently-uncured subgroup with the cure label resampled each sweep,
-    and whose authors reimplemented bcf's tree code standalone to get it
-    (github roxiesun/TBAFTcure). The survey memo's other three classes
-    did NOT survive checking: principal stratification enters its
-    imputed strata as SPLITTING COVARIATES on all n rows (that is
-    multiforest-predictor-mutation, not this door), zero-inflated
-    log-linear BART keeps all n rows with augmented weights of zero
-    (the weight channel suffices), and the latent-treatment sensitivity
-    class was double-counted - it runs TODAY at fixed n via the fixed
-    glue (a=1, b0=0, b1=1) + setTreatment per iteration, leaving only
-    exact zero-weight exclusion and O(treated) tau cost, i.e. an
-    EFFICIENCY remainder, not a mutability one. So the shape is a THREE-
-    way fork, not the memo's mask: mutable per-forest row MASK, per-
-    forest ZERO WEIGHT (cheapest - the combiner already forms per-forest
-    weights, combiner.hpp:457-473, and would need only an exact-zero
-    path for the 1e-9 floor; buys exactness but not the O(|S|) cost),
-    or physical COMPACTION (the only real-world datapoint: TBAFTcure
-    gathers into nuncured-sized arrays each sweep and has the
-    zero-weight alternative commented out in the same source). The two
-    interested classes may want DIFFERENT shapes. Settle first whether
-    the subset forest wants its own CUT GRID - if yes the mask is
-    eliminated outright - then cost at 10-50% membership, empty-leaf
-    semantics under changing membership, and which residual sigma's df
-    sees. Design-gated on that fork, no longer value-gated. VD
-    2026-08-09, two calls: (1) ship the per-forest ZERO-WEIGHT
-    exactness half NOW - an exact-zero path replacing the 1e-9
-    multiplier floor plus a caller-settable per-forest weight; small,
-    additive, serves the latent-treatment sensitivity remainder, and
-    prejudges nothing (exact-zero sigma-df semantics already solved,
-    docs/plans/sigma-df-zero-weights.md); (2) the mask/compaction
-    shape research stays value-lifted, design-gated, NOT scheduled -
-    revisit on a second consumer or a release want. Call (1) is
-    PLANNED at docs/plans/zero-weight-exactness.md. VD 2026-08-10 set
-    the threshold: the 1e-9 floor becomes a snap to EXACTLY zero at
-    sqrt(DBL_EPSILON) = 2^-26, the R/Python almost-equal default, so
-    that behaviour conforms to expectation. That plan also carries the
-    package-wide near-zero tolerance classification. Its sum-to-one
-    door CLOSED 2026-08-10 (VD: unify; landed with S3 - all three
-    input checks now use the conventional tolerance); the remaining
-    door is monotoneTreeIsFeasible's tolerance, which is NOT the
-    test-only predicate its stale comment claimed but the acceptance
-    test of the constrained-prior rejection sampler (comment fixed
-    at S1; constant deliberately left).
-    Call (1) LANDED 2026-08-10: the weight channel now exists - the
-    exact-zero multiplier snap and a caller-settable per-forest weight
-    (docs/plans/zero-weight-exactness.md). Call (2), mask/compaction,
-    stays unscheduled.
-    The n x K multinomial offset door moves to
-    multinomial-counts-mutation, which re-scopes it (the response is
-    the combiner's counts_ matrix, so the offset needs a real channel,
-    not a flag flip). setData's data-type shapes are answered under
-    typed-ingestion. The survey also surfaced two new doors -
-    multiforest-predictor-mutation, bcf-public-surface - and the
-    variance-forest-mutation-routing defect.
-  multiforest-predictor-mutation: the model-space survey's MOST
-    VALUABLE door (docs/design/model-space-survey.md secs 4-5). The
-    multi-forest transactional guard
-    (R_interface_bartcore.cpp:1909-1923) refuses the transactional
-    setPredictor/updatePredictor and EVERY per-observation session on
-    numForests >= 2, because Chain::revalidateTrees (chain.hpp:1484)
-    revalidates forests_[0] only; the forced whole-matrix swap is the
-    only multi-forest predictor mutation there is. Enables four
-    verified fixed-n classes, all of them latent-covariate causal
-    forests: bairrtt's irt_causal_bart with latent ability as a
-    TREATMENT MODERATOR (an EXISTING consumer, whose current
-    single-forest use rides the per-observation surface built for it,
-    blocked at exactly this guard the moment the outcome model becomes
-    a causal forest); treatSens-style latent-confounder sensitivity on
-    a BCF, the class the setData door record names as its own
-    motivation; principal-stratification BCF (arXiv 2403.13256 -
-    imputed intermediates enter tau_Y as splitting covariates);
-    sequential-BART covariate imputation inside a BCF. Fixed n, no new
-    data object, no calibration change - the work is extending
-    revalidation across forests. forceUpdate = TRUE is NOT a
-    workaround: it collapses emptied leaves instead of rolling back (a
-    different proposal, neither one the other), and the per-observation
-    session has no force variant at all, so bairrtt's partial-rollback
-    semantics cannot be recovered by any current call. UNPRICED, and to
-    settle BEFORE designing: lifting this widens the acceptance
-    criterion from "no leaf empties in any tree of any chain" to "...
-    of any FOREST of any chain", so a K-forest sampler rejects strictly
-    more transactions and the partial-install rate bairrtt depends on
-    falls by an unmeasured amount - a modeling consequence, not
-    plumbing. Measure the per-forest veto rate at realistic K, and
-    decide whether the veto is per-forest or per-sampler. The BCF half
-    is only consumable behind bcf-public-surface. Plan doc at design
-    time. VD 2026-08-09: measure FIRST. MEASURED AND RESOLVED same
-    day (pre-registration memo -> blind critique 6-blocking ->
-    synthesis -> thresholds VD-ratified with provenance recorded ->
-    run; artifacts .claude/d1-veto-rate-falsifier/, full results in
-    docs/plans/multiforest-veto-rate-falsifier.md): VERDICT YELLOW
-    for BOTH column types, FINAL (no KILL crossing, so no
-    confirmations owed). The widening is nearly free: install-rate
-    deficit max +0.0059 pp continuous / +0.0369 pp binary against a
-    2 pp GREEN line; ZERO frozen rows anywhere (frozen beta = 0.000
-    in all six cell classes); count law within 8% under a 4x
-    widening, L1' max 1.39 (two NEAR-LINE cells labeled); M1 exactly
-    zero over 14.4M decisions. T1 alone kept the verdict off GREEN,
-    on its ratio clause, which the registered replication leaves
-    Poisson-noise dominated - an ungated 40-seed supplement found
-    every interval covering 1 (context, not a re-decision). The
-    VARIANCE FOREST, not tau, is the payer (sole objector in 21-36%
-    of rejections vs 0-3% tau). CONSEQUENCE per the registered
-    YELLOW semantics: the design arc is AUTHORIZED and must carry
-    (1) mask/j-split pruning, (2) a priced collapse-on-object
-    comparison (a THIRD posterior) vs declining the widening for the
-    objecting ensemble class, (3) the attribution table with scope
-    caveats. Ten deviations logged in-doc, none touching a gate.
-    PLAN COMMITTED docs/plans/multiforest-predictor-mutation.md
-    (design cycle memo -> blind critique 6-blocking -> synthesis,
-    2026-08-10, all three obligations carried): slices SL+S0-S4,
-    all draw-neutral on existing paths. The critique CONFIRMED a
-    live defect the memo found: the flat dbarts_sampler_setPredictor
-    and _updatePredictor accept a flat-created heteroscedastic
-    sampler and silently corrupt the variance surface (~6 sd); SL is
-    the standalone ~155-line stop-loss guard. The critique also
-    proved all three equivalence harnesses carry ZERO predictor-
-    mutation scenarios; S0 adds them with re-recorded baselines.
-    The entry's anchors above are STALE: the guard is now
-    refuseMultiForestTransactionalUpdate and revalidation is
-    Chain::revalidateTrees (verified in the plan's seams section).
-    OPEN VD FORKS in the plan's Open decisions section: variance
-    forest in/out (rec: in with the stateIsValid occupancy gap
-    closed), multinomial named-ungated/gated/excluded (rec:
-    named-ungated). SL + S0 are answer-independent and queued.
+  multiforest-extension-surface: PLAN COMMITTED
+    docs/plans/multiforest-extension-surface.md (artifacts
+    .claude/multiforest-extension-surface-design/). The answer to
+    VD's "a multiforest ABI/API model writers would want": the DRIVER
+    surface (caller-owned outer loop) is the shape and is nearly
+    shipped - the missing piece is the documented contract; the
+    declarative per-forest BASIS is the model-carrying surface, with
+    the non-Gaussian case as its engine justification. Slices M0-M3
+    pre-freeze, M4 post-freeze conditional (entry conditions and
+    sequencing in the plan). FOUR VD FORKS OPEN in the plan's Open
+    decisions section - basis family build; non-Gaussian v1; flat
+    rename at the reshape re-bake + keep-or-rename setForestWeights
+    (SCHEDULE-BOUND: unanswered when reshape S1 starts means the
+    shipped BCF names go to release); bcf() home - currently HELD,
+    with the M slices, behind VD's R/C-division principle review
+    (artifacts .claude/r-c-division-design/).
+  multiforest-mutation-gaps: guards landed (record in
+    docs/plans/multiforest-mutation-gaps.md); the weight channel
+    (exact-zero multiplier snap + caller-settable per-forest weight)
+    landed via docs/plans/zero-weight-exactness.md, which also
+    carries the package-wide near-zero tolerance classification.
+    Doors still open here:
+    BCF whole-data setData (n free, z required): KEEP UNDESIGNED,
+    gated on a considered failure to find an enabled model - every
+    verified multi-forest class holds n fixed, and the BART
+    adaptive-trial designs that exist cold-start per refresh.
+    Per-forest row subsetting (mask vs physical compaction): value
+    lifted by the AFT mixture-cure class (Sun & Song, whose authors
+    reimplemented bcf's tree code standalone to get it -
+    github roxiesun/TBAFTcure), shape UNRESOLVED (settle whether the
+    subset forest wants its own cut grid first; the two interested
+    classes may want different shapes). Design-gated, NOT scheduled
+    (VD: revisit on a second consumer or a release want).
+    monotoneTreeIsFeasible's 1e-9: deliberately left (it is the
+    acceptance predicate of the constrained-prior rejection sampler,
+    a one-sided feasibility slack, not an equality tolerance).
+  multiforest-predictor-mutation: the survey's most valuable door -
+    per-observation/transactional predictor mutation on multi-forest
+    samplers (latent-covariate causal forests: bairrtt's
+    irt_causal_bart with latent ability as a treatment moderator,
+    treatSens-style latent confounders on a BCF, principal
+    stratification, sequential imputation inside a BCF). Veto-rate
+    falsifier MEASURED YELLOW (docs/plans/
+    multiforest-veto-rate-falsifier.md; the variance forest, not tau,
+    is the payer), authorizing the arc with its three recorded
+    obligations. PLAN COMMITTED
+    docs/plans/multiforest-predictor-mutation.md: slices SL+S0-S4,
+    draw-neutral on existing paths; SL (the flat-entry stop-loss
+    guard) LANDED. VD resolved the plan's forks: variance forest IN
+    (S3 closes the stateIsValid occupancy gap same-slice);
+    multinomial NAMED-AND-UNGATED. S0-S4 queued - currently held
+    behind the R/C-division principle review.
   multinomial-counts-mutation: multinomial BART cannot mutate its
-    RESPONSE side, so alone among the families it cannot serve as a
-    conditional inside a larger Gibbs sampler - the thing dbarts exists
-    to make possible. MultinomialForestCombiner does not override
-    supportsResponseMutation (combiner.hpp:417 default false), but the
-    fix is NOT that flag: formForestResponse (combiner.hpp:802-814)
-    takes const double* y and w and IGNORES BOTH - the response IS the
-    combiner-owned counts_ matrix, fixed at construction - so
-    setResponse would write a y nothing reads. The real content is a
-    new COUNTS and n x K OFFSET mutation channel on the combiner, plus
-    creation-side surface (R/bart.R:668-680 refuses weights and offset
-    for family = "multinomial"). Enables: competing-risks discrete-time
-    hazard, which docs/design/survival.md sec 6 already records as "the
-    same expansion with a multinomial outcome" (moves with
-    survival-followups); nominal-response IRT and discrete choice with
-    alternative-specific offsets; SUR-style multi-outcome composition,
-    which stan4bart ships for gaussian outcomes and which stops at the
-    multinomial boundary. Subsumes the old "n x K multinomial offset
-    (no demand)" door. NOTE the PREDICTOR channel is already open here
-    - forced setPredictor is not refused for multinomial
-    (R_interface_bartcore.cpp:3676-3679) - so the gap is response-side
-    only. Surveyed as D2, docs/design/model-space-survey.md sec 4. VD
-    2026-08-09 (revised same day): SCHEDULED - no research gate.
-    DESIGN COMPLETE same day (memo -> blind critique 5-blocking ->
-    synthesis, all ADOPT; artifacts
-    .claude/multinomial-counts-mutation-design/): plan at
-    docs/plans/multinomial-counts-mutation.md - 5 slices (counts
-    channel; train offset + mandatory refusal floors; test offset +
-    predict replays, droppable; fixture re-record own-commit; public
-    surface), rawFits(k) accessor keeps the null-offset path
-    byte-identical, burned-in swap oracle O11 pinnable pre-arc.
-    Channel stays dbarts:::-only (critique + synthesis agree; public
-    multinomial surface is a recorded door, D3 analog). Implementation
-    enters the serialized queue after the zero-weight exactness fix
-    and BEFORE the dbarts.h reshape so the C surface mirrors the
-    final mutation shape (reshape reservations recorded in the plan
-    for c-api-growth.md). The competing-risks front end stays
-    recorded in survival-followups, enabled by this channel - the
-    two decouple, channel first.
+    RESPONSE side - alone among the families it cannot serve as a
+    conditional inside a larger Gibbs sampler. The response is the
+    combiner-owned counts_ matrix, so the content is a new COUNTS and
+    n x K OFFSET channel plus creation-side surface. Enables
+    competing-risks discrete-time hazard (moves with
+    survival-followups), nominal-response IRT and discrete choice,
+    SUR-style composition past the multinomial boundary. The
+    predictor channel is already open; the gap is response-side only.
+    SCHEDULED, no research gate; plan at
+    docs/plans/multinomial-counts-mutation.md (5 slices; channel
+    stays dbarts:::-only, public surface a recorded door). Queued
+    after the multiforest arc, BEFORE the dbarts.h reshape so the C
+    surface mirrors the final mutation shape.
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
@@ -509,239 +194,101 @@ items
     means dbarts' first documented-approximate family (truncated
     gamma-sum, bias bounded ~1e-3 at K = 200) behind an explicit
     opt-in; the same decision gates weighted-binary's fractional
-    weights. The engine seams (shape-parameterized PG helper, r-update
-    strategy) are already in place. Poisson family and grouped NB are
-    companion doors (design sec 7). decision-gated.
+    weights. The engine seams are in place. Poisson family and grouped
+    NB are companion doors (design sec 7). decision-gated.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take
-    over (2026-07-17 data review): host-side ingestion validation (CSC
-    structure, categorical bounds, sparse metadata assembly) lives in
-    the R bridge and would need an R-free bartcore ingest helper, and
+    over: host-side ingestion validation (CSC structure, categorical
+    bounds, sparse metadata assembly) lives in the R bridge, and
     mixed/CSC stores hold lifetime borrows anchored by R protection.
     decision-gated.
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
-  sampletreesfromprior-midchain: FIXED 1947b10 2026-08-08 - the reset
-    now lands the forest in the zero-fit state (leafOfStale kept at 1;
-    the growFromRoot-after-reset and setPredictor/setCutPoints
-    exposures inherit the repair). Defect record, shape decision,
-    amendments, and landing note in
-    docs/plans/sampletreesfromprior-midchain.md.
-  sbc-family-tiers: BUILT d094675 (2026-08-04) - t and multinomial
-    softmax ALL PASS, ordinal 9/10 with gamma3 resolved as ridge
-    mixing by the 3x ladder, nbinom identified mu PASS with r/agg.psi
-    H-MIX (ESS a few dozen at thin=30; full-R ladder commands recorded
-    in the plan). Open doors: the monotone follow-on arm (enabler
-    173a710), the heteroscedastic setState lift, full-R ladder
-    re-runs. Closed 2026-08-05: raw-f_ik FIXED at ec2a3d0 (the
-    level-centering exact conditional; all cells PASS at the matrix
-    band) and runSbcBCF REPAIRED at 62caed0 (FIX-B scale-pinned
-    multi-forest setResponse, zero harness edits; the R=200 bcf
-    acceptance-arm verdict records as an addendum in
-    docs/plans/runsbcbcf-repair.md).
-  setpredictor-leafof-rebuild: CLOSED 2026-08-05; the gather door
-    TAKEN roll-only, LANDED 9141274 2026-08-07 (x86 run -3.0 to
-    -3.9%, arm64 -5.9 to -13.9%, draws bitwise identical). Record,
-    Memo corrections, and the DECLINED do-not-re-propose list in
+  sampletreesfromprior-midchain: FIXED (defect record, shape decision,
+    and landing note in docs/plans/sampletreesfromprior-midchain.md).
+  sbc-family-tiers: BUILT (records in docs/plans/sbc-family-tiers.md
+    and runsbcbcf-repair.md). Open doors: the monotone follow-on arm,
+    the heteroscedastic setState lift, full-R ladder re-runs.
+  setpredictor-leafof-rebuild: CLOSED; the gather door taken
+    roll-only. Record, memo corrections, and the DECLINED
+    do-not-re-propose list in
     docs/plans/setpredictor-leafof-rebuild.md.
-  sparse-extensions: the streaming range kernel and the smaller
-    deferred extensions in docs/plans/sparse-extensions.md's Status
-    list (rbart_vi/linear-leaf on sparse, per-column u8 widths).
-    rbart_vi / linear leaf on sparse: VALUE GATE LIFTED by the
-    2026-08-08 model-space survey - grouped random effects on
-    high-dimensional sparse designs (clustered text, genomic and
-    administrative data), the riAFTBART shape meeting the sparse
-    store; pairs with group-by-exposure. Streaming range kernel and
-    per-column u8 widths: gate STANDS - perf/memory only, and unlike
-    integer-predictor-storage they carry no measured win; reopen with
-    numbers. Resolved since the entry was written: mutation on
-    dense-backed mixed columns landed with typed-ingestion slice 2a
-    (95db5d7); sparse x.test was delivered and closed by
-    docs/plans/test-data-parity.md; the CSC ownership policy VD's
-    2026-08-05 note asked for landed with slice 2b (hybrid - borrowed
-    triple until a column's first write, then per-column owned
-    slices; data.hpp ~174). setData on a CSC/mixed store and
+  sparse-extensions: open halves of docs/plans/sparse-extensions.md's
+    Status list. rbart_vi / linear leaf on sparse: value gate lifted
+    (grouped random effects on high-dimensional sparse designs, the
+    riAFTBART shape meeting the sparse store; pairs with
+    group-by-exposure). Streaming range kernel and per-column u8
+    widths: gate STANDS - perf/memory only with no measured win;
+    reopen with numbers. setData on a CSC/mixed store and
     per-observation CSC mutation are recorded typed-ingestion doors.
-  survival-followups: doors out of the survival family pair (AFT +
-    discrete-time hazard both landed; records in docs/plans/survival-
-    models.md and docs/design/survival.md sec 6): cloglog link (needs a
-    cloglog binary family first), competing risks (crisk.bart's
-    territory), left truncation, grouped frailty, time-varying
-    covariates in the auto-expander (available today via the manual
-    person-period fit), continuous-time models. Each independent.
-    Two VALUE GATES LIFTED by the 2026-08-08 model-space survey:
-    competing risks, enabling the competing-risks discrete-time hazard
-    class - it is also the named consumer of
-    multinomial-counts-mutation, so the two move together; and left
-    truncation / delayed entry, enabling registry and EHR cohorts with
-    staggered entry, which survival.md already calls the cheapest door
-    (a one-argument expander change). Gates STAND on cloglog (a link
-    awaiting a cloglog binary family, not a model) and continuous time
-    (that is AFT, which ships). The rest stay demand-driven.
-    low-ranked.
-  tree-mixing-proposals: research door, VD-flagged 2026-08-09 - in
-    what ways is the BART posterior sticky, and are there proposal
-    mechanisms beyond the shipped four-move set (moves.hpp) that would
-    help the sampler explore and mix better? Seeded by the
-    grow-from-root study's stickiness datum (the change move cannot
-    rotate the root of a deep tree; the XOR-at-m=1 probe separated
-    locked from mixing chains; BOTH warm and cold arms sat at R-hat
-    1.28-1.53 after 1000 draws on the inclusion functional) and by
-    bcf-sigma-tail-mixing's frozen-structure high-SNR tail. Candidate
-    space to survey: rotate/radical structural moves, grow-from-root
-    as a periodic MOVE rather than an init, tempered structure
-    proposals, informed proposals via the shared scan (the
-    grow-from-root frontier 3.1 door). Kim-Rockova's superpolynomial
-    mixing bounds do not bind this four-move set. RESEARCH COMPLETE
-    2026-08-09 (memo -> blind critique, verdict REFUTED at the
-    original top recommendation -> synthesis re-verifying every proof
-    against primary sources; artifacts .claude/tree-mixing-research/):
-    durable record docs/design/tree-mixing-proposals.md. Rebuilt
-    ranking: (1) parametric absorption by composition (VD's
-    proposal, added mid-synthesis - the only lever that shrinks the
-    sticky part's job; NO published mixing measurement exists for
-    any composed model, stan4bart's own paper leaves it open); (2)
-    same-variable cut redraw "perturb" (MH correction provably 1,
-    only candidate with a tunable step size); (3) rotation (best
-    published match, key regime constant unverifiable); (4) heated
-    companion chains with private ladders (reopened - the
-    architectural objection failed); (5) informed birth/death; (6)
-    twigs. Set aside with receipts: annealed burn (cited evidence
-    evaluates a different construction), restructure, particle
-    Gibbs, CTBD. COMPOSITION PROBE GREEN-LIT by VD 2026-08-09 -
-    four arms (BART alone / linear leaves / conjugate offset block
-    / stan4bart), absorbable share dialed 0-50-100 on Friedman,
-    matched sweeps, tree-space readouts; kill if depth does not
-    fall or the ridge eats the transfer; zero engine change.
-    Pipeline: runnable pre-registration (pilot-then-freeze) ->
-    blind critique -> run (machine-sequenced behind the
-    cheap-uniformity S4 timing falsifier and the veto-rate
-    measurement). Then the perturb study (Stage-0 per-move
-    acceptance census - a number that exists nowhere). TWO FURTHER
-    VD DIRECTIONS commissioned 2026-08-09 (one research memo in
-    flight, .claude/forest-specialization-research/; memo -> blind
-    critique -> synthesis -> addendum to the design doc): (a)
-    components specializing to different posterior regions, kept
-    apart by penalties - input-space (mixture-of-experts), posterior-
-    space (repulsive ensembles / particle-VI, exactness status must
-    be stated), and within-forest diversity readings, each with the
-    label-switching/exchangeability hazard engaged; (b) XBART-scan
-    whole-tree REGROW as a far-jump MH proposal with a parametric/
-    orthogonal residual-targeting trick - extends the informed
-    birth/death candidate to whole-tree granularity; exactness
-    hinges on the scan's computable proposal density and its
-    SUPPORT, which the grow-from-root-categorical-scan arc
-    completes (dependency noted).
-    Two errata applied to existing records
-    (grow-from-root-default.md 4.8, forest-ranef-interweaving.md).
-    Likely post-release for any CODE; probe timing free.
-    research-complete, decision-gated.
-  typed-ingestion: CLOSED - slices 0-2b ALL LANDED, 2b at d4e80e3
-    2026-08-06 (record 4a14eeb; probe, critiques, and landing notes
-    in docs/plans/typed-ingestion.md): one borrowed PredictorSource
-    view taken by creation, test ingestion, and mutation; declared
-    factor levels ride as K since slice 1 (0d3914c). Door status
-    (VD 2026-08-08): sparse-valued mutation taken by the
-    cheap-uniformity arc; typed flat C API entries (the only
-    dbarts.h toucher) OPENED for the pre-release breaking window -
-    reshape-by-replacement to source-shaped signatures, sequenced
-    after cheap-uniformity lands so the C surface mirrors the final
-    shape. RESHAPE PLAN COMMITTED docs/plans/dbarts-h-reshape.md
-    (design cycle memo -> blind critique 7-blocking -> synthesis,
-    2026-08-10; artifacts .claude/dbarts-h-reshape-design/): one
-    size-first dbarts_predictor_source POD replaces the dense
-    predictor params; forest-indexed numTrees/getTrees/printTrees;
-    sparse predict for free (engine already resident); NO version
-    increments (VD 2026-08-10 - nothing released; hash is the
-    lockstep signal); slices S0-S2, runs AFTER bcf-public-surface;
-    consumer cost CORRECTED by verified census: five stan4bart
-    call sites (predict, getTrees, printTrees, numTrees x2), other
-    consumers rebuild only. bcf S3 (1622eb9) already widened
-    setResponse and appended numForests/setTreatment/forestFits/
-    bcfGlue at list end; the reshape adopts them verbatim, and the
-    forest-indexed predictor/tree entries stay reserved for it. The
-    BCF-specific flat rename is now a CONDITIONAL CARVE-OUT in the
-    reshape plan (binding decision 3 + S1 item 5b, amended by
-    multiforest-extension-surface): setTreatment -> setForestBasis,
-    bcfGlue -> numForestAmplitudes + forestAmplitudes, only if VD's
-    fork 3 lands before reshape S1 starts; setData on a
-    CSC/mixed store SURVEYED and KEPT UNDESIGNED (2026-08-08,
-    docs/design/model-space-survey.md sec 3, door 3) - no model
-    surfaced: the classes needing sparse designs do not swap whole
-    data mid-chain, and every class that DOES mutate mid-chain
-    mutates a DENSE latent column or label, which mixed containers
-    already carry; its one live sub-case, n-free replacement on a
-    sparse store, inherits the multiforest setData verdict;
-    per-observation mutation of CSC-backed columns stays a
-    DOCUMENTED REFUSAL (algorithmic: O(nnz) shift) and now has a
-    model-space reason as well as a cost one - no surveyed model
-    needs per-observation mutation on a sparse-backed column. The
-    hot layer
-    stays quantized codes + double cuts; response/offset/weights
-    stay double*.
-  variance-forest-mutation-routing: RESOLVED 2026-08-08/09, all five
-    slices landed (S1 51378c0 stop-loss refusals + engine sigma pin,
-    S2 23050b9 gate hardening, S3 cd6af7d refreshVarianceForest +
-    geometric merge, S4 4a4a0b1 setData repair - whose mandatory ASAN
-    leg caught and fixed a node-arena recovery defect, S5 dbcd255 warm
-    start + growFromRoot + setModel recalibration). The release-blocking
+  survival-followups: doors out of the survival family pair (records
+    in docs/plans/survival-models.md and docs/design/survival.md sec
+    6): competing risks (value lifted; the named consumer of
+    multinomial-counts-mutation, the two move together), left
+    truncation / delayed entry (value lifted; the cheapest door, a
+    one-argument expander change), cloglog link (gate stands - awaits
+    a cloglog binary family), grouped frailty, time-varying covariates
+    in the auto-expander, continuous-time models (gate stands - that
+    is AFT, which ships). low-ranked.
+  tree-mixing-proposals: research door - how is the BART posterior
+    sticky, and what proposal mechanisms beyond the shipped four-move
+    set would help? RESEARCH COMPLETE; durable record
+    docs/design/tree-mixing-proposals.md (ranking in sec 4.1 as
+    amended, specialization addendum sec 12). The composition probe
+    RAN (docs/plans/composition-mixing-probe.md): YELLOW, and the
+    registered harm clause fired - the first-overall composition
+    recommendation is WITHDRAWN (sec 4.1 erratum); the mechanism
+    survives as a conditional tool (outer composition when absorbable
+    structure is known), and the cross-block ridge is measured
+    (IACT 850-880 on the outer arms). Ranked next steps, all
+    decision-gated, likely post-release for code: same-variable cut
+    redraw "perturb" (Stage-0 per-move acceptance census first),
+    rotation, Stage R0 generator-only regrow census, the
+    re-specified reallocation census, heated companion chains.
+  typed-ingestion: CLOSED - one borrowed PredictorSource view taken
+    by creation, test ingestion, and mutation (record + landing notes
+    in docs/plans/typed-ingestion.md). Its flat-C door became the
+    RESHAPE: plan committed docs/plans/dbarts-h-reshape.md (one
+    size-first dbarts_predictor_source POD replacing the dense
+    predictor params; forest-indexed tree queries; sparse predict for
+    free; no version increments - the hash is the lockstep signal;
+    slices S0-S2, AFTER the multiforest and multinomial arcs;
+    consumer cost = five stan4bart call sites, others rebuild). The
+    BCF-specific flat rename is a CONDITIONAL CARVE-OUT there
+    (binding decision 3 + S1 item 5b): setTreatment ->
+    setForestBasis, bcfGlue -> numForestAmplitudes +
+    forestAmplitudes, only if VD's extension-surface fork 3 lands
+    before reshape S1 starts. setData on a CSC/mixed store: SURVEYED,
+    KEPT UNDESIGNED - no model surfaced (classes needing sparse
+    designs do not swap whole data mid-chain; mid-chain mutation
+    targets dense latent columns, which mixed containers carry).
+    Per-observation mutation of CSC-backed columns stays a DOCUMENTED
+    REFUSAL (O(nnz) shift, and no surveyed model needs it). The hot
+    layer stays quantized codes + double cuts; response/offset/
+    weights stay double*.
+  variance-forest-mutation-routing: RESOLVED - the release-blocking
     memory-safety hole is closed and every heteroscedastic mutation
-    entry either routes the variance forest correctly or refuses
-    cleanly. Full record, landing notes, and the doors still open
-    (transactional/per-observation rides
+    entry routes the variance forest correctly or refuses cleanly
+    (full record and landing notes in
+    docs/plans/variance-forest-mutation-routing.md). Doors still
+    open, recorded there: transactional/per-observation rides
     multiforest-predictor-mutation; scale-leaf staleness under
     updateScale; heteroscedastic prior-predictive draw; the setState
-    variance column-mask gap found at S5) in
-    docs/plans/variance-forest-mutation-routing.md; design artifacts in
-    .claude/varianceforest-mutation-design/.
+    variance column-mask gap.
   weighted-binary: integer-weight probit via replicated latents;
     arbitrary real weights need a real-shape PG sampler (IPW is a
     pseudo-likelihood trap; the approximate-PG decision is shared
     with negbin-real-dispersion). decision-gated.
-  x86-simd: SIMD is closed as a perf lever - compute width is already
-    there (the manual unroll plus the per-file -m flag emits 256-bit at
-    -O2, measured on the bench box, docs/plans/simd-flag-
-    multiversioning.md), and both remaining candidates measured NO-GO:
-    NT stores (the fits compaction left no hot store-bound elementwise
-    caller, so the commented bodies were deleted; git history keeps
-    them) and the SSR SIMD leaf (~0.1% of a sweep, so <=0.05%
-    end-to-end, against a permanent cross-ISA fixed-lane/no-FMA
-    obligation; docs/design/memory-wall-frontier.md sec 6). The
-    windows-arm64 NEON config is validated end-to-end by the
-    windows-11-arm CI job in check-standard.yaml (native compile +
-    bitwise scalar-vs-NEON; the MSVC intrinsic branch stays unexercised
-    by design - R packages build with the Rtools toolchain). The live
-    perf frontier past SIMD is the MEMORY WALL: re-profile + census run
-    2026-08-04 on dbarts-bench (memory-wall-frontier.md sec 10) - the
-    suffstat gather is 46-49% of a sweep, the flagship histogram-fused
-    suffstat's premise SURVIVES (ceiling ~1.67x; block-fusion Stage A's
-    bench-neutral result is the standing counter-evidence), Z-order /
-    locality reordering measured DEAD, data-layout.md re-evaluated and
-    closed shelved. The fused-kernel falsifier RAN 2026-08-07
-    (memory-wall-frontier.md sec 11): K=4 accumulator-banked fusion
-    GREEN in situ on Zen2 - 1.41-1.43x at n=1e5, 1.49-1.54x at
-    n=1e6, the no-signal worst case a 1.11x win - while K=1 is NOT
-    green (privatization is the mechanism; K joins the exactness
-    contract, and draws shift last-ULP, so baselines re-record at
-    landing). The fused-suffstat arc LANDED c8f661a 2026-08-07 (full
-    record memory-wall-frontier.md secs 11-13): the constant-leaf
-    fp64 unweighted fresh-leafOf path takes the fused four-bank pass
-    (K=4 is part of the draw law), everything else declines to stock;
-    equivalence baseline re-recorded as equivalence-c8f661a.rds.
-    The bench-sampler speed baseline re-recorded 2026-08-08 on the
-    quiet-machine grant as bench-sampler-ab1dc52.csv: no arm slower
-    than b9d53c7, run-n10000 0.842 (the fused pass where it bites);
-    landing obligations all discharged. The pre-registered
-    arm64 no-signal re-run RAN 2026-08-08: 3-5% loss confirmed with
-    the production kernel, ACCEPTED (record in memory-wall-frontier.md
-    sec 13); reopening needs >~10% or a signal-scenario inversion.
-    Remaining doors out of the memory wall:
-    weighted/fp32 fusion legs (unmeasured; would extend the fused
-    path to BCF/multinomial/logistic through their weights),
-    move-phase child gathers (parent-minus-sibling, separate item),
-    K=8 (unmeasured). Related defect found by the design pass:
-    sampletreesfromprior-midchain.
+  x86-simd: CLOSED as a perf lever - compute width is already emitted,
+    and the remaining kernel candidates measured NO-GO (records in
+    docs/plans/simd-flag-multiversioning.md, x86-simd.md,
+    docs/design/memory-wall-frontier.md). The live perf frontier is
+    the MEMORY WALL (frontier doc secs 10-13; the fused-suffstat arc
+    landed from it). Remaining doors: weighted/fp32 fusion legs
+    (would extend the fused path to BCF/multinomial/logistic through
+    their weights), move-phase child gathers, K=8. All unmeasured;
+    reopen with numbers.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   note: the schedule/dispatch-only workflows (equivalence, rchk,
@@ -754,10 +301,9 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     PROTECT-balance and memcheck passes CRAN itself runs. HELD
     2026-07-25 (VD): main stays as it is until VD's own review of the
     branch; revisit these checks then.
-  the typed-ingestion dbarts.h reshape (VD 2026-08-08) lands BEFORE
-    the freeze - the last planned pre-release breaking change;
-    re-verify stan4bart bartcore against the reshaped header in the
-    same window.
+  the dbarts.h reshape lands BEFORE the freeze - the last planned
+    pre-release breaking change; re-verify stan4bart bartcore against
+    the reshaped header in the same window.
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-14; submit both
     to CRAN together. bartCause is ready and PUSHED on branch
     dbarts-1.0 in ~/Repositories/bartCause (ahead of its main; checks
@@ -765,10 +311,8 @@ release (deferred; the one ordered procedure, run when VD triggers it)
   close GitHub issue #80 at release: fully resolved by the setResponse
     updateScale switch (cf70fd5; default FALSE locks the creation-time
     prior scale - the safe embedded-Gibbs behavior the issue asks for;
-    latent families never rescale by construction). Audited 2026-07-18:
-    engine behavior spot-checked, dbartsSampler-class.Rd documents the
-    default, NEWS 1.0-0 UPGRADING carries the bullet. Point the
-    reporter at the Rd and NEWS entries.
+    latent families never rescale by construction). Point the reporter
+    at the dbartsSampler-class.Rd and NEWS entries.
   on any post-release dbarts.h change: bump DBARTS_C_API_MINOR (or MAJOR
     if incompatible) alongside the hash re-bake, and bump stan4bart's
     Depends/LinkingTo dbarts floor in the same lockstep release - the
@@ -780,25 +324,8 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     genuinely weighted binomial analyses lose the dbarts learners by
     design, and family routing on their side would need the matching
     inverse link.
-
-  pre-submission gate run 2026-07-25 (macOS arm64, R 4.6.1, HEAD
-  51edbf6 + the DESCRIPTION/CITATION fixes):
-    R CMD check --as-cran on the built tarball: Status OK, zero NOTEs
-      (the old ___stderrp compiled-code NOTE is gone). tinytest 3402
-      results, examples + --run-donttest + vignette rebuild + PDF and
-      HTML manual all OK.
-    equivalence vs baselines/equivalence-7903855.rds: 27 compared / 0
-      skipped, ALL identical draws (same RNG stream) - closes the
-      equivalence-trio residual recorded in cran-readiness.md, i.e. the
-      07-21..07-24 audit and dedup refactors are draw-neutral.
-    sbc gaussian R=100: see cran-readiness.md.
-    covr audit and the with-Suggests revdep sweep: see
-      cran-readiness.md.
-    note 2026-08-06 (supersedes the 2026-08-04 note, which wrongly
-      said "R-surface and doc only"): 16 engine commits postdate
-      47149bc - the typed-ingestion slices, the multiforest guards,
-      the gather unroll 9141274 - including ONE DRAW-LAW change
-      (ec2a3d0, multinomial level-centering; multinomial baseline
-      re-recorded per MANIFEST). At submission re-run the FULL
-      battery: check --as-cran on a clean-copy tarball, the suite,
-      and the equivalence trio against the current baselines.
+  at submission, re-run the FULL battery on the tip: R CMD check
+    --as-cran on a clean-copy tarball, the suite, and the equivalence
+    trio against the current baselines (the last full pre-submission
+    gate run predates many engine commits; details in
+    docs/plans/cran-readiness.md and this file's git history).
