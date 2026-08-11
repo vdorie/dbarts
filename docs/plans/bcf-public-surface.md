@@ -773,6 +773,43 @@ all four.
 
 ## Landing notes
 
+S6 LANDED aa6978b (2026-08-11; docs and records only, zero src/R/test
+delta). docs/design/bcf.md gains a "Public creation surface" section
+recording S1-S4 (the treatment slot on dbartsData, the bartcore.bcf control
+attribute, the bidirectional cross-check, the R5 and flat C surfaces, and
+per-draw reporting) and corrects two sentences that were accurate when
+written and are not now: "C exposure stays internal first" (S3 made it
+public) and "bartCause ... driving from R over the sampler mutation API"
+(verified by grep at bartCause dbarts-1.0@695c603: zero sampler-mutation
+calls anywhere in R/, every response-method sibling dispatching to
+bart2/rbart_vi). docs/design/model-space-survey.md marks door D3 CLOSED with
+the landing commits and corrects its stale R/bartcore.R:536 anchor to :629
+(bartcoreBCFSampler moved position during S1). docs/design/public-surface.md
+gains a new section 8 recording the same creation/mutation/reporting surface
+for a reader who starts there. docs/plans/c-api-growth.md gains a
+subsection recording S3's four appended dbarts.h entries and the hash
+re-bake, and the forest-indexed tree queries reserved for the dbarts.h
+reshape (citing that plan's binding decision 3 and S1 item 5b).
+inst/NEWS.Rd gains one sentence on the existing BCF bullet stating the
+causal argument names are provisional. Every doc treats
+treatment=/moderators=/treatmentForest= (and the flat setTreatment/bcfGlue
+names) as PROVISIONAL, scheduled for replacement by
+forests = list(forest(basis = ...)) per multiforest-extension-surface.md M2,
+never as the stable surface, and none claims the removal as done - it is
+scheduled, conditional on nothing but M2 shipping. Gates:
+tools:::.build_news_db_from_package_NEWS_Rd parses inst/NEWS.Rd clean
+(implementer and orchestrator independently); git diff touches exactly these
+six files. Orchestrator amendments at landing: the c-api-growth.md reshape
+pointer tightened to name the three tree queries S1 item 3 builds and the
+setTreeStorage closed-by-fact status (both verified against
+dbarts-h-reshape.md); the implementer's single commit split into content +
+this records commit so the landing note can cite the real hash (the repo's
+S0-S4 pattern; the implementer's combined commit 5819e8d on wt/zero-weight
+carried a necessarily-stale self-reference and was re-created, not merged).
+Budget note: 157/25 changed lines against a ~60-120 guideline, accepted -
+the overrun is the mandated verified CORRECTION and the D3 closure across
+five citation-dense docs.
+
 S4 LANDED 1df9c0c (2026-08-10). Per-draw per-forest reporting on the
 varianceFits precedent: Results gains forestFits (numObservations x
 numForests x numSamples, forest-major within a sample, INTERNAL scale) and
