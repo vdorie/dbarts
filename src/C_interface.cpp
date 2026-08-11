@@ -24,8 +24,10 @@ using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refuseMultiForestTransactionalUpdate;
 using bartcore_bridge::refusePinnedSigmaChange;
+using bartcore_bridge::refuseVarianceForestScaleUpdate;
 using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::validateColumnValues;
+using bartcore_bridge::validateResponseSupport;
 
 struct dbarts_sampler_t {
   BartcoreHolder* holder;
@@ -205,6 +207,15 @@ void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
   refuseMultiForestResponseMutation(samplerOf(sampler),
                                     "dbarts_sampler_setResponse",
                                     ResponseConduit::response, updateScale);
+  refuseVarianceForestScaleUpdate(samplerOf(sampler),
+                                  "dbarts_sampler_setResponse",
+                                  ResponseConduit::response, updateScale);
+  // the one place minimal validation is not enough: an out-of-support y is a
+  // silently garbage latent draw for probit/ordinal and, for nbinom, an
+  // uncatchable crash inside the count histogram (see validateResponseSupport)
+  bartcore::SamplerShape shape = samplerOf(sampler).shape();
+  validateResponseSupport(shape.family, shape.numCutpoints + 1, y,
+                          shape.numObservations, "dbarts_sampler_setResponse");
   // the probit latent redraw draws from the chain RNG, not R's stream
   samplerOf(sampler).setResponse(y, updateScale != 0);
 }
@@ -216,6 +227,9 @@ void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
   refuseMultiForestResponseMutation(samplerOf(sampler),
                                     "dbarts_sampler_setOffset",
                                     ResponseConduit::offset, updateScale);
+  refuseVarianceForestScaleUpdate(samplerOf(sampler),
+                                  "dbarts_sampler_setOffset",
+                                  ResponseConduit::offset, updateScale);
   samplerOf(sampler).setOffset(offset, updateScale != 0);
 }
 

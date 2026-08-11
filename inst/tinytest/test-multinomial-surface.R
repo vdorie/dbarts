@@ -318,6 +318,19 @@ pred3train <- predict(fit3p, x3)
 expect_equal(dim(pred3train), c(n.samples, n, 3L))
 expect_true(max(abs(pred3train - fit3p$yhat.train)) < 1e-6)
 
+# --- the retained $fit is a host shell: mutating it errors, reading does not ---
+# it carries the design and priors the K-forest engine ($bc) was built from but
+# none of the model, so every mutation through it used to be a silent no-op
+hostRefusal <- "host sampler of a bart2"
+expect_error(fit3p$fit$setResponse(rnorm(n)), hostRefusal)
+expect_error(fit3p$fit$setOffset(rep(0.5, n)), hostRefusal)
+expect_error(fit3p$fit$setSigma(2), hostRefusal)
+expect_error(fit3p$fit$run(0L, 1L), hostRefusal)
+expect_error(fit3p$fit$setPredictor(x3[, 1L], 1L), hostRefusal)
+# the read surface predict() threads through is untouched
+expect_equal(ncol(fit3p$fit$data@x), ncol(x3))
+expect_identical(predict(fit3p, x3.test), pred3p)
+
 # multi-chain predict threads the chain margin like the run channels
 set.seed(431)
 fit3pMulti <- bart2(

@@ -713,7 +713,13 @@ dbartsSampler <- setRefClass(
     control = "dbartsControl",
     model = "dbartsModel",
     data = "dbartsData",
-    state = "ANY" # is either a list of states, or a promise to evaluate
+    state = "ANY", # is either a list of states, or a promise to evaluate
+    # Non-empty when this sampler is only the HOST SHELL of a fit whose model
+    # lives elsewhere - bart2(family = "multinomial"), whose K-forest engine
+    # rides the fit's $bc and reads nothing back from here. The string names
+    # that fit and appears in the refusals below; empty for every sampler a
+    # user builds, which is every sampler that owns its own model.
+    hostFor = "character"
   ),
   methods = list(
     initialize = function(control, model, data, ...) {
@@ -729,6 +735,7 @@ dbartsSampler <- setRefClass(
       .self$control <- control
       .self$model <- model
       .self$data <- data
+      .self$hostFor <- character(0L)
 
       # "auto" (a hand-built model) keeps the bridge's own dispatch
       .self$pointer <- .Call(
@@ -760,6 +767,20 @@ dbartsSampler <- setRefClass(
 
       callSuper(...)
     },
+    refuseHostMutation = function(what) {
+      "Errors when this sampler is only the host shell of a fit whose model lives elsewhere; see the hostFor field."
+      if (length(hostFor) == 0L) {
+        return(invisible(NULL))
+      }
+      stop(
+        what,
+        " is not available on the host sampler of a ",
+        hostFor,
+        " fit: it carries the design and priors that fit was built from but ",
+        "not its model, so the change would never reach the fit; refit with ",
+        "bart2() to change the data"
+      )
+    },
     run = function(
       numBurnIn,
       numSamples,
@@ -767,6 +788,7 @@ dbartsSampler <- setRefClass(
       n.threads = control@n.threads
     ) {
       "Runs the posterior sampler and returns a list with the results."
+      refuseHostMutation("$run")
       if (missing(numBurnIn)) {
         numBurnIn <- NA_integer_
       }
@@ -788,6 +810,7 @@ dbartsSampler <- setRefClass(
     },
     sampleTreesFromPrior = function(updateState = NA) {
       "Draws tree structure from prior"
+      refuseHostMutation("$sampleTreesFromPrior")
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_sampleTreesFromPrior, ptr)
 
@@ -802,6 +825,7 @@ dbartsSampler <- setRefClass(
     },
     sampleNodeParametersFromPrior = function(updateState = NA) {
       "Draws end node parameters from prior; does not update tree structure."
+      refuseHostMutation("$sampleNodeParametersFromPrior")
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_sampleNodeParametersFromPrior, ptr)
 
@@ -816,6 +840,7 @@ dbartsSampler <- setRefClass(
     },
     growFromRoot = function(n.sweeps = 2L, updateState = NA) {
       "Builds an initial forest by XBART-style grow-from-root (He, Yalov and Hahn 2019) as a warm start, running n.sweeps grow sweeps in place; the exact MCMC sampler owns the forest once run() begins. Constant-leaf models only. See ?dbartsSampler."
+      refuseHostMutation("$growFromRoot")
       if (
         is(model@node.prior, "dbartsLinearPrior") ||
           is(model@node.prior, "dbartsGPPrior")
@@ -910,6 +935,7 @@ dbartsSampler <- setRefClass(
     },
     setControl = function(newControl) {
       "Sets the control object for the sampler to a new one. Preserves the call() slot and any bartcore.* control attributes."
+      refuseHostMutation("$setControl")
       if (!inherits(newControl, "dbartsControl")) {
         stop("'control' must inherit from dbartsControl")
       }
@@ -965,6 +991,7 @@ dbartsSampler <- setRefClass(
     },
     setModel = function(newModel) {
       "Sets the model object for the sampler to a new one."
+      refuseHostMutation("$setModel")
       if (!inherits(newModel, "dbartsModel")) {
         stop("'model' must inherit from dbartsModel")
       }
@@ -1010,6 +1037,7 @@ dbartsSampler <- setRefClass(
     },
     setData = function(newData, updateState = NA) {
       "Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots. updateState is opt-in: only explicit TRUE stores state afterwards (NA/FALSE store nothing) - mutators are called per-sweep in Gibbs loops, so the default must stay free of that cost; contrast run()'s NA -> control@updateState convention."
+      refuseHostMutation("$setData")
       if (
         data@missing == "error" &&
           (anyNA(as.matrix(newData@x)) ||
@@ -1027,6 +1055,7 @@ dbartsSampler <- setRefClass(
     },
     setResponse = function(y, updateScale = FALSE, updateState = NA) {
       "Changes the response against which the sampler is fitted. updateState is opt-in; see setData."
+      refuseHostMutation("$setResponse")
       bartcoreSamplerSetResponse(.self, y, updateScale)
       if (identical(updateState, TRUE)) {
         storeState()
@@ -1035,6 +1064,7 @@ dbartsSampler <- setRefClass(
     },
     setOffset = function(offset, updateScale = FALSE, updateState = NA) {
       "Changes the offset slot used to adjust the response. updateState is opt-in; see setData."
+      refuseHostMutation("$setOffset")
       bartcoreSamplerSetOffset(.self, offset, updateScale)
       if (identical(updateState, TRUE)) {
         storeState()
@@ -1043,6 +1073,7 @@ dbartsSampler <- setRefClass(
     },
     setWeights = function(weights, updateState = NA) {
       "Changes the weights with which the sampler is fitted. updateState is opt-in; see setData."
+      refuseHostMutation("$setWeights")
       weights <- as.double(weights)
       if (length(weights) != length(data@y)) {
         stop("'weights' must have length equal to that of 'y'")
@@ -1077,6 +1108,7 @@ dbartsSampler <- setRefClass(
     },
     setTreatment = function(z, updateState = NA) {
       "Changes the 0/1 treatment indicator a BCF sampler's treatment forest contrasts on. updateState is opt-in; see setData."
+      refuseHostMutation("$setTreatment")
       if (is.null(z)) {
         stop("'z' cannot be NULL")
       }
@@ -1105,6 +1137,7 @@ dbartsSampler <- setRefClass(
     },
     setSigma = function(sigma, updateState = NA) {
       "Changes the residual standard deviation parameter for each chain. updateState is opt-in; see setData."
+      refuseHostMutation("$setSigma")
       sigma <- as.double(sigma)
       if (length(sigma) != 1L) {
         stop("'sigma' must be of length 1")
@@ -1128,6 +1161,7 @@ dbartsSampler <- setRefClass(
       updateState = NA
     ) {
       "Changes a single column of the predictor matrix, or the entire matrix if column is missing. updateState is opt-in; see setData."
+      refuseHostMutation("$setPredictor")
 
       checkMissingPolicy(data, sourceAnyNA(x), "predictors")
       result <- bartcoreSamplerSetPredictor(
@@ -1146,6 +1180,7 @@ dbartsSampler <- setRefClass(
     },
     setCutPoints = function(cuts, column, updateState = NA) {
       "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty. updateState is opt-in; see setData."
+      refuseHostMutation("$setCutPoints")
 
       bartcoreSamplerSetCutPoints(
         .self,
@@ -1159,6 +1194,7 @@ dbartsSampler <- setRefClass(
     },
     setTestPredictor = function(x.test, column) {
       "Changes a single column of the test predictor matrix."
+      refuseHostMutation("$setTestPredictor")
 
       checkMissingPolicy(data, sourceAnyNA(x.test), "test predictors")
       bartcoreSamplerSetTestPredictor(
@@ -1169,6 +1205,7 @@ dbartsSampler <- setRefClass(
     },
     setTestPredictorAndOffset = function(x.test, offset.test) {
       "Changes the test predictor matrix, and optionally the test offset."
+      refuseHostMutation("$setTestPredictorAndOffset")
       checkMissingPolicy(
         data,
         !is.null(x.test) && sourceAnyNA(x.test),
@@ -1225,6 +1262,7 @@ dbartsSampler <- setRefClass(
     },
     setTestOffset = function(offset.test) {
       "Changes the test offset."
+      refuseHostMutation("$setTestOffset")
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
@@ -1327,6 +1365,7 @@ dbartsSampler <- setRefClass(
     },
     setState = function(newState) {
       "Sets the internal state from a cache."
+      refuseHostMutation("$setState")
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
       }
@@ -1359,6 +1398,7 @@ dbartsSampler <- setRefClass(
       "Warm-starts the forests from a donor sampler or bart fit over the same
        predictors. 'samples' maps each chain to a 1-based donor-sample index;
        NULL spreads the chains across the donor's kept samples."
+      refuseHostMutation("$installTrees")
       donorState <- warmStartState(donor)
       if (!is.null(samples)) {
         samples <- as.integer(samples)

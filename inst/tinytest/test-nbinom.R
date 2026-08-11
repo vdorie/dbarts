@@ -270,6 +270,32 @@ expect_identical(after[[1L]]$dispersion, rBefore)
 expect_false(identical(after[[1L]]$latents, latentsBefore))
 expect_true(all(after[[1L]]$latents > 0)) # omega are Polya-Gamma (positive)
 
+# the support rule creation applies is applied at mutation too. A negative
+# element is memory safety, not taste: it used to size the dispersion kernel's
+# count histogram through static_cast<size_t>(lround(y)), underflowing into a
+# ~1.8e19 allocation that took the process down uncatchably. Magnitude itself
+# is NOT bounded here - a large count is a legal count at creation too, and the
+# exact Polya-Gamma augmentation's O(y + r) cost is a recorded family cost -
+# but a non-finite one is refused with the rest.
+countRefusal <- "family \"nbinom\" requires a non-negative integer"
+expect_error(
+  sampler$setResponse(replace(as.double(yNew), 1L, -1)),
+  countRefusal
+)
+expect_error(
+  sampler$setResponse(replace(as.double(yNew), 1L, 2.5)),
+  countRefusal
+)
+expect_error(
+  sampler$setResponse(replace(as.double(yNew), 1L, Inf)),
+  countRefusal
+)
+# a refused swap leaves the installed response alone, and a valid one still
+# lands afterwards
+expect_identical(sampler$data@y, as.double(yNew))
+sampler$setResponse(as.double(replace(yNew, 1L, yNew[1L] + 1L)))
+expect_identical(sampler$data@y, as.double(replace(yNew, 1L, yNew[1L] + 1L)))
+
 # --- recovery: mean-count calibration and r, statistically ---
 
 set.seed(4242)

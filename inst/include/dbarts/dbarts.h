@@ -380,18 +380,22 @@ void dbarts_sampler_setCallback(dbarts_sampler* sampler,
                                 dbarts_sampler_callback callback,
                                 void* userData);
 
-/// y has numObservations values; for binary families they must be 0/1.
-/// updateScale re-derives the internal response transform from the new
-/// response, as dbarts_sampler_setOffset's argument does (gaussian only); pass
-/// false once burnt in so fits stay comparable, and on a two-forest sampler,
-/// whose per-forest leaf calibrations are stated against the transform it was
-/// built with - true is refused there.
+/// y has numObservations values, which must lie in the family's support: 0/1
+/// for probit and logistic, an integer category index in [1, K] for ordinal, a
+/// finite non-negative integer count for nbinom. Out-of-support values are an
+/// error, as they are at creation; gaussian and aft (log survival times)
+/// constrain nothing. updateScale re-derives the internal response transform
+/// from the new response, as dbarts_sampler_setOffset's argument does (gaussian
+/// only); pass false once burnt in so fits stay comparable. true is refused on
+/// a two-forest sampler, whose per-forest leaf calibrations are stated against
+/// the transform it was built with, and on a heteroscedastic one, whose
+/// variance forest is calibrated the same way.
 void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                                 int updateScale);
 /// offset has numObservations values or is null to remove. updateScale
 /// rescales the internal response transform to the offset-adjusted range
-/// (gaussian only); pass false once burnt in so fits stay comparable, and on a
-/// two-forest sampler, which refuses true (see setResponse).
+/// (gaussian only); pass false once burnt in so fits stay comparable. A
+/// two-forest or heteroscedastic sampler refuses true (see setResponse).
 void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
                               int updateScale);
 /// weights has numObservations values; gaussian responses only. There is no

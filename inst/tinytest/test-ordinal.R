@@ -281,6 +281,19 @@ bounds <- c(-Inf, cutBefore, Inf)
 zNew <- after[[1L]]$latents
 expect_true(all(zNew > bounds[codesNew] & zNew <= bounds[codesNew + 1L]))
 
+# the category coding is fixed at creation, so mutation accepts exactly what
+# creation did: an out-of-support code silently drew latents against intervals
+# it had no category for
+ordinalRefusal <- "ordinal response must be an integer category index"
+expect_error(sampler$setResponse(as.double(codesNew) - 1), ordinalRefusal)
+expect_error(sampler$setResponse(rep(4, n)), ordinalRefusal)
+expect_error(sampler$setResponse(as.double(codesNew) + 0.5), ordinalRefusal)
+# a refused swap leaves the installed response alone, and a valid one still
+# lands afterwards
+expect_identical(sampler$data@y, as.double(codesNew))
+sampler$setResponse(as.double(codes))
+expect_identical(sampler$data@y, as.double(codes))
+
 # --- recovery: probabilities and the free cutpoint, statistically ---
 
 set.seed(4242)

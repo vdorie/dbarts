@@ -846,6 +846,41 @@
       \item Probability vectors for the tree prior are validated with the
             standard \code{all.equal} tolerance instead of a hand-picked
             1e-10.
+      \item \code{$setResponse} and \code{$setData} check that the
+            replacement response lies in the family's support, as sampler
+            creation always has: 0/1 for \code{probit} and
+            \code{logistic}, an integer category index for
+            \code{ordinal}, and a finite non-negative integer count for
+            \code{nbinom}. A count response with a negative element
+            previously sized the dispersion kernel's histogram from it and
+            crashed the R session uncatchably; a binary or ordinal
+            response off its support previously drew latents against it
+            and returned silent garbage. The flat C API's
+            \code{dbarts_sampler_setResponse} takes the same rule, and so
+            does sampler creation through \code{dbarts_sampler_create},
+            which has no R layer ahead of it.
+      \item A heteroscedastic sampler (\code{variance = TRUE}) refuses
+            \code{$setResponse} and \code{$setOffset} with
+            \code{updateScale = TRUE}. The variance forest's scale leaf is
+            calibrated once, against the response transform fixed at
+            creation, so re-anchoring that transform left every
+            \eqn{s^2(x)}{s^2(x)} measured on a scale the model no longer
+            used and the fit ran away while \code{getSigmas} read
+            unchanged. \code{updateScale = FALSE}, which pins the
+            transform, is the supported response and offset swap.
+      \item The refusal to change case weights after creation names the
+            family that refuses - \code{probit}, \code{ordinal},
+            \code{aft} or \code{nbinom} support no weights at all, and
+            \code{logistic} weights are the observation counts its latents
+            were built from - instead of telling every one of them about
+            "a binary response".
+      \item The sampler retained as \code{$fit} by
+            \code{bart2(family = "multinomial", keepTrees = TRUE)} refuses
+            mutation. It is only the host shell of the fit, carrying the
+            design and priors the K-forest model was built from but none
+            of the model, so \code{$setResponse}, \code{$run} and the rest
+            silently changed nothing about the fit; its read surface,
+            which \code{predict} uses, is unaffected.
     }
   }
 }
