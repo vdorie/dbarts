@@ -39,7 +39,8 @@
 ///   and the call-time raw source for saved-tree replay and state restore.
 ///   Raw-array setters borrow for the call's duration only: setResponse,
 ///   setOffset, and setWeights keep the array alive until replaced; the
-///   predictor setters re-quantize the borrow and retain no pointer.
+///   predictor setters re-quantize the borrow and retain no pointer, and
+///   setTreatment copies the 0/1 values it is handed.
 /// - Matrices are column-major. Result and prediction layouts put samples
 ///   and then chains in trailing dimensions.
 
@@ -79,7 +80,7 @@
 /// signature change in the list fails dbarts's compile until this literal is
 /// re-baked; that re-bake is the mechanical acknowledgment of an ABI change.
 /// Plain hex literal, usable from C.
-#define DBARTS_C_API_HASH 0xf760898d116cb3a3ULL
+#define DBARTS_C_API_HASH 0x1a911c00bb26dcd7ULL
 
 #ifdef __cplusplus
 extern "C" {
@@ -184,7 +185,8 @@ typedef int (*dbarts_sampler_callback)(void* userData, dbarts_sampler* sampler,
   X(void, dbarts_sampler_sampleNodeParametersFromPrior, \
     (dbarts_sampler* sampler), (sampler)) \
   X(void, dbarts_sampler_setResponse, \
-    (dbarts_sampler* sampler, const double* y), (sampler, y)) \
+    (dbarts_sampler* sampler, const double* y, int updateScale), \
+    (sampler, y, updateScale)) \
   X(void, dbarts_sampler_setOffset, \
     (dbarts_sampler* sampler, const double* offset, int updateScale), \
     (sampler, offset, updateScale)) \
@@ -258,7 +260,16 @@ typedef int (*dbarts_sampler_callback)(void* userData, dbarts_sampler* sampler,
     (sampler)) \
   X(int, dbarts_sampler_kIsSampled, (const dbarts_sampler* sampler), \
     (sampler)) \
-  X(int, dbarts_sampler_usesDart, (const dbarts_sampler* sampler), (sampler))
+  X(int, dbarts_sampler_usesDart, (const dbarts_sampler* sampler), (sampler)) \
+  X(size_t, dbarts_sampler_numForests, (const dbarts_sampler* sampler), \
+    (sampler)) \
+  X(int, dbarts_sampler_setTreatment, \
+    (dbarts_sampler* sampler, const double* z), (sampler, z)) \
+  X(int, dbarts_sampler_forestFits, \
+    (const dbarts_sampler* sampler, size_t forest, double* out), \
+    (sampler, forest, out)) \
+  X(int, dbarts_sampler_bcfGlue, \
+    (const dbarts_sampler* sampler, double* out), (sampler, out))
 
 /// One stringized "returnType name(parameterList);" per list entry, adjacent
 /// string literals that concatenate into the full declaration text the
@@ -333,6 +344,17 @@ int dbarts_apiMinorVersion(void);
 /// numeric status vector (1 = event, 0 = right-censored) is read from the
 /// control's "bartcore.survival" attribute. A verbose control prints the
 /// initial summary here.
+///
+/// The two-forest Bayesian causal forest (docs/design/bcf.md) is created
+/// through this same entry point: the R specification dbartsSpec(data, control,
+/// treatment = z) puts the 0/1 treatment vector on the data object and the
+/// treatment forest's configuration on the control, and creation reads both
+/// halves (either alone is an error). Such a sampler reports numForests == 2,
+/// swaps its treatment with dbarts_sampler_setTreatment, reads its two surfaces
+/// with dbarts_sampler_forestFits and dbarts_sampler_bcfGlue, takes a
+/// scale-pinned response, offset or weight swap, and refuses the whole test
+/// surface (setTestPredictors, setTestOffset, predict), whose blend is
+/// undefined without a test treatment vector. Gaussian responses only.
 dbarts_sampler* dbarts_sampler_create(SEXP control, SEXP model, SEXP data,
                                       const char* family);
 void dbarts_sampler_destroy(dbarts_sampler* sampler);
@@ -359,13 +381,21 @@ void dbarts_sampler_setCallback(dbarts_sampler* sampler,
                                 void* userData);
 
 /// y has numObservations values; for binary families they must be 0/1.
-void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y);
+/// updateScale re-derives the internal response transform from the new
+/// response, as dbarts_sampler_setOffset's argument does (gaussian only); pass
+/// false once burnt in so fits stay comparable, and on a two-forest sampler,
+/// whose per-forest leaf calibrations are stated against the transform it was
+/// built with - true is refused there.
+void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
+                                int updateScale);
 /// offset has numObservations values or is null to remove. updateScale
 /// rescales the internal response transform to the offset-adjusted range
-/// (gaussian only); pass false once burnt in so fits stay comparable.
+/// (gaussian only); pass false once burnt in so fits stay comparable, and on a
+/// two-forest sampler, which refuses true (see setResponse).
 void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
                               int updateScale);
-/// weights has numObservations values; gaussian responses only.
+/// weights has numObservations values; gaussian responses only. There is no
+/// scale to pin, so a two-forest sampler takes this as it stands.
 void dbarts_sampler_setWeights(dbarts_sampler* sampler,
                                const double* weights);
 /// Holds the residual standard deviation at sigma (original response scale)
@@ -389,7 +419,8 @@ int dbarts_sampler_updatePredictor(dbarts_sampler* sampler, const double* x,
                                    int forceUpdate, int updateCutPoints);
 
 /// xTest is numTestObservations x numPredictors, or null with 0 rows to
-/// remove test data (clearing any test offset).
+/// remove test data (clearing any test offset). Refused on a two-forest
+/// sampler whose test blend is undefined (see dbarts_sampler_create).
 void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
                                       const double* xTest,
                                       size_t numTestObservations);
@@ -401,7 +432,9 @@ void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
 /// the latent scale). With tree storage out is numTestObservations x
 /// numSavedSamples x numChains from the saved trees; without, one set per
 /// chain from the live trees. offsetTest, when non-null, is added to
-/// every sample's fits.
+/// every sample's fits. Refused on a two-forest sampler whose blend is
+/// undefined (see dbarts_sampler_create): read the forests separately with
+/// dbarts_sampler_forestFits and combine them with dbarts_sampler_bcfGlue.
 void dbarts_sampler_predict(dbarts_sampler* sampler, const double* xTest,
                             size_t numTestObservations,
                             const double* offsetTest, double* out);
@@ -467,6 +500,29 @@ size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler);
 size_t dbarts_sampler_numSavedSamples(const dbarts_sampler* sampler);
 int dbarts_sampler_kIsSampled(const dbarts_sampler* sampler);
 int dbarts_sampler_usesDart(const dbarts_sampler* sampler);
+/// The number of forests the model fits, always at least 1; 2 for a Bayesian
+/// causal forest, whose forest 0 is prognostic and forest 1 the treatment
+/// effect (see dbarts_sampler_create).
+size_t dbarts_sampler_numForests(const dbarts_sampler* sampler);
+
+/// Replaces the 0/1 treatment vector a two-forest sampler contrasts on; z has
+/// numObservations values, read as z != 0, and is copied. The one whole-data
+/// swap such a sampler supports - it routes through the combiner rather than
+/// rebuilding a forest. Returns 1, or 0 without touching the sampler when the
+/// model has no treatment vector.
+int dbarts_sampler_setTreatment(dbarts_sampler* sampler, const double* z);
+/// Copies forest number forest's current function values, numObservations x
+/// numChains, into out. The values are on the engine's internal response scale
+/// (the scale saved-tree leaf values carry), which the stored state's fit.scale
+/// maps back to the response scale. Returns 1, or 0 without touching out when
+/// forest names no forest.
+int dbarts_sampler_forestFits(const dbarts_sampler* sampler, size_t forest,
+                              double* out);
+/// Copies the Bayesian causal forest glue, 3 x numChains as {a, b0, b1} per
+/// chain, into out: observation i's internal-scale location is
+/// a * forestFits(0)[i] + b_{z_i} * forestFits(1)[i]. Returns 1, or 0 without
+/// touching out when the model carries no glue.
+int dbarts_sampler_bcfGlue(const dbarts_sampler* sampler, double* out);
 
 #endif // DBARTS_USE_STUBS
 

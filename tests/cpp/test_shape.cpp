@@ -251,6 +251,11 @@ void testBCF(ShapeFixture& fixture) {
   SamplerShape shape = facade.shape();
   check(shape.numForests == 2, "shape: bcf carries two forests");
   check(!shape.testFitsAreDefined, "shape: bcf test fits are undefined");
+  // The condition the R bridge's and the flat C API's shared test-surface
+  // guard fires on, spelled here because the guard itself lives in the bridge
+  // and cannot link into this build. Positive half.
+  check(shape.numForests >= 2 && !shape.testFitsAreDefined,
+        "shape: bcf meets the test-surface refusal condition");
   check(shape.numTrees == spec.mu.numTrees,
         "shape: bcf numTrees addresses the prognostic forest");
   check(shape.numReportedLocations == 1, "shape: bcf reports one location");
@@ -296,6 +301,12 @@ void testMultinomial(ShapeFixture& fixture) {
         "shape: multinomial counts variables over K forests");
   check(shape.testFitsAreDefined,
         "shape: multinomial test fits are defined");
+  // The negative half of the condition asserted for bcf above: a multi-forest
+  // model whose test blend IS defined passes the refusal, which is why the
+  // guard tests testFitsAreDefined and not the forest count - a numForests
+  // test alone would refuse this sampler's whole test surface.
+  check(!(shape.numForests >= 2 && !shape.testFitsAreDefined),
+        "shape: multinomial escapes the test-surface refusal condition");
   check(!shape.supportsForestWeights,
         "shape: multinomial admits no per-forest weight despite K forests");
   checkShapeMatchesImpl(facade, "multinomial, before run");

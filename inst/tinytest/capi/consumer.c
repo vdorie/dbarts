@@ -379,8 +379,9 @@ SEXP capi_sample_node_parameters_from_prior(SEXP ptrExpr) {
   return R_NilValue;
 }
 
-SEXP capi_set_response(SEXP ptrExpr, SEXP yExpr) {
-  dbarts_sampler_setResponse(samplerFromExpr(ptrExpr), REAL(yExpr));
+SEXP capi_set_response(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
+  dbarts_sampler_setResponse(samplerFromExpr(ptrExpr), REAL(yExpr),
+                             Rf_asLogical(updateScaleExpr) == TRUE);
   return R_NilValue;
 }
 
@@ -537,4 +538,184 @@ SEXP capi_store_state(SEXP ptrExpr) {
 SEXP capi_set_state(SEXP ptrExpr, SEXP stateExpr) {
   dbarts_sampler_setState(samplerFromExpr(ptrExpr), stateExpr);
   return R_NilValue;
+}
+
+/* The two-forest (BCF) surface, docs/design/bcf.md. Every verdict below is
+ * reached HERE rather than in R: what is under test is that the flat API and
+ * the R bridge apply one rule, so each acceptance, each refusal, and the reason
+ * a refusal names are checked in the consumer, and the R side only reads the
+ * per-leg results off the returned vector. A refusal arrives as an R error,
+ * which longjmps out of the entry point, so every leg runs under
+ * R_tryCatchError. */
+enum {
+  LEG_NUM_FORESTS,
+  LEG_RESPONSE_PINNED,
+  LEG_RESPONSE_RESCALED,
+  LEG_OFFSET_PINNED,
+  LEG_OFFSET_RESCALED,
+  LEG_WEIGHTS,
+  LEG_TEST_OFFSET,
+  LEG_TEST_PREDICTORS,
+  LEG_PREDICT,
+  LEG_TREATMENT,
+  LEG_FOREST_FITS,
+  LEG_GLUE,
+  LEG_COUNT
+};
+
+static const char* const legNames[LEG_COUNT] = {
+  "numForests",
+  "response.pinned",
+  "response.rescaled",
+  "offset.pinned",
+  "offset.rescaled",
+  "weights",
+  "testOffset",
+  "setTestPredictors",
+  "predict",
+  "setTreatment",
+  "forestFits",
+  "bcfGlue"
+};
+
+/* the refusal each leg must draw, or NULL where it must be accepted */
+static const char* const legRefusals[LEG_COUNT] = {
+  NULL,
+  NULL,
+  "a response swap only with updateScale = FALSE",
+  NULL,
+  "an offset swap only with updateScale = FALSE",
+  NULL,
+  "multi-forest sampler fixes its data at creation",
+  "BCF sampler carries no test treatment vector",
+  "BCF sampler carries no test treatment vector",
+  NULL,
+  NULL,
+  NULL
+};
+
+typedef struct {
+  dbarts_sampler* sampler;
+  const double* y;
+  const double* offset;
+  const double* weights;
+  const double* z;
+  const double* xTest;
+  size_t numTestObservations;
+  double* out;
+  int leg;
+  int accepted;
+  int errored;
+  char message[256];
+} bcfLegs;
+
+static SEXP bcfLegBody(void* data) {
+  bcfLegs* legs = (bcfLegs*) data;
+  size_t n = dbarts_sampler_numObservations(legs->sampler);
+  size_t chains = dbarts_sampler_numChains(legs->sampler);
+  switch (legs->leg) {
+    case LEG_NUM_FORESTS:
+      legs->accepted = dbarts_sampler_numForests(legs->sampler) == 2;
+      break;
+    case LEG_RESPONSE_PINNED:
+      dbarts_sampler_setResponse(legs->sampler, legs->y, 0);
+      break;
+    case LEG_RESPONSE_RESCALED:
+      dbarts_sampler_setResponse(legs->sampler, legs->y, 1);
+      break;
+    case LEG_OFFSET_PINNED:
+      dbarts_sampler_setOffset(legs->sampler, legs->offset, 0);
+      break;
+    case LEG_OFFSET_RESCALED:
+      dbarts_sampler_setOffset(legs->sampler, legs->offset, 1);
+      break;
+    case LEG_WEIGHTS:
+      dbarts_sampler_setWeights(legs->sampler, legs->weights);
+      break;
+    case LEG_TEST_OFFSET:
+      dbarts_sampler_setTestOffset(legs->sampler, legs->offset);
+      break;
+    case LEG_TEST_PREDICTORS:
+      dbarts_sampler_setTestPredictors(legs->sampler, legs->xTest,
+                                       legs->numTestObservations);
+      break;
+    case LEG_PREDICT:
+      dbarts_sampler_predict(legs->sampler, legs->xTest,
+                             legs->numTestObservations, NULL, legs->out);
+      break;
+    case LEG_TREATMENT:
+      legs->accepted = dbarts_sampler_setTreatment(legs->sampler, legs->z);
+      break;
+    case LEG_FOREST_FITS:
+      /* both forests read, an index past the last one refuses, and every
+       * value written is finite */
+      legs->accepted =
+        dbarts_sampler_forestFits(legs->sampler, 0, legs->out) &&
+        dbarts_sampler_forestFits(legs->sampler, 1, legs->out + n * chains) &&
+        !dbarts_sampler_forestFits(legs->sampler, 2, legs->out);
+      for (size_t i = 0; i < 2 * n * chains; ++i)
+        if (!R_FINITE(legs->out[i])) legs->accepted = 0;
+      break;
+    case LEG_GLUE:
+      legs->accepted = dbarts_sampler_bcfGlue(legs->sampler, legs->out);
+      for (size_t i = 0; i < 3 * chains; ++i)
+        if (!R_FINITE(legs->out[i])) legs->accepted = 0;
+      break;
+  }
+  return R_NilValue;
+}
+
+static SEXP bcfLegHandler(SEXP condExpr, void* data) {
+  bcfLegs* legs = (bcfLegs*) data;
+  legs->errored = 1;
+  if (Rf_isVectorList(condExpr) && Rf_xlength(condExpr) > 0) {
+    SEXP messageExpr = VECTOR_ELT(condExpr, 0); /* conditionMessage */
+    if (Rf_isString(messageExpr) && Rf_xlength(messageExpr) > 0) {
+      strncpy(legs->message, CHAR(STRING_ELT(messageExpr, 0)),
+              sizeof(legs->message) - 1);
+      legs->message[sizeof(legs->message) - 1] = '\0';
+    }
+  }
+  return R_NilValue;
+}
+
+/* an accepting leg must return 1 without erroring; a refusing one must error
+ * with a message naming its reason */
+static int runBCFLeg(bcfLegs* legs, int leg) {
+  legs->leg = leg;
+  legs->accepted = 1;
+  legs->errored = 0;
+  legs->message[0] = '\0';
+  R_tryCatchError(bcfLegBody, legs, bcfLegHandler, legs);
+  if (legRefusals[leg] == NULL) return !legs->errored && legs->accepted;
+  return legs->errored && strstr(legs->message, legRefusals[leg]) != NULL;
+}
+
+SEXP capi_bcf_surface(SEXP ptrExpr, SEXP yExpr, SEXP offsetExpr,
+                      SEXP weightsExpr, SEXP zExpr, SEXP xTestExpr) {
+  bcfLegs legs;
+  legs.sampler = samplerFromExpr(ptrExpr);
+  legs.y = REAL(yExpr);
+  legs.offset = REAL(offsetExpr);
+  legs.weights = REAL(weightsExpr);
+  legs.z = REAL(zExpr);
+  legs.xTest = REAL(xTestExpr);
+  legs.numTestObservations =
+    (size_t) INTEGER(Rf_getAttrib(xTestExpr, R_DimSymbol))[0];
+  /* the widest leg is the two forests' fits; the glue is 3 x chains and
+   * predict, refused before it reads anything, would want fewer rows still */
+  legs.out = (double*) R_alloc(
+    2 * dbarts_sampler_numObservations(legs.sampler) *
+      dbarts_sampler_numChains(legs.sampler),
+    sizeof(double));
+
+  SEXP result = PROTECT(Rf_allocVector(LGLSXP, LEG_COUNT));
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, LEG_COUNT));
+  for (int leg = 0; leg < LEG_COUNT; ++leg) {
+    LOGICAL(result)[leg] = runBCFLeg(&legs, leg);
+    SET_STRING_ELT(namesExpr, leg, Rf_mkChar(legNames[leg]));
+  }
+  Rf_setAttrib(result, R_NamesSymbol, namesExpr);
+  UNPROTECT(2);
+  return result;
 }
