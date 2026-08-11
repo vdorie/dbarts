@@ -1,6 +1,7 @@
 # Design doc index
 
-Manifest of every `docs/design/*.md` (40 files), grouped by theme. STATUS is
+Manifest of every `docs/design/*.md` (41 docs besides this index), grouped by
+theme. STATUS is
 read from each doc's live `Status:` line or `## Status` section as of
 2026-08-04, when a consistency pass re-verified every row against its doc;
 a few standing-reference docs carry no status line by design
@@ -68,6 +69,7 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | core-generalization.md | LANDED (mostly; phase 6 open) | Founding design for the bartcore C++20 rewrite: layering, concept decomposition (ResponseModel/LeafModel/MoveStrategy/SplitSelector/Forest), phase-by-phase log. Cutover complete 2026-07-03; phase 6 (GP leaves/non-conjugate moves) tracked via gp-leaves.md. Self-identifies as historical reference; docs/architecture.md is authoritative for current state. |
 | consumer-spec-surface.md | LANDED, 2026-07-25 | Exports `dbartsSpec()`, which resolves the (control, model, data) triple and family token without constructing a sampler, so a LinkingTo consumer reaches the whole single-forest feature set through supported surface instead of an unexported internal; prior evaluation environment narrowed 2026-07-27 (b96d3bb, section 7). Plan: consumer-spec-surface.md. |
+| r-c-division.md | PROPOSED (awaiting VD), 2026-08-11 | The R-vs-C/C++ boundary as a guide: "R addresses the conditionals; C++ owns the integrand" (four clauses, VD to accept or edit). Adjudicates VD's conjecture - mutation-built models are R-doable; residualization is Gaussian-bound only on the response-swap route (the offset route is family-generic and K-block splitting with host-drawn latents targets the same posterior, both measured); the real wall is nameable calibration. Prices adoption (~2k lines, led by a mutable row subset and a nameable leaf scale), amends two extension-surface fork justifications (FA5 respec required), and records six adversarially confirmed defects incl a setResponse segfault (stop-loss slice queued). Artifacts gitignored under .claude/r-c-division-design/. |
 | public-surface.md | MIXED (reviewed 07-03, updated through 07-06; decisions recorded inline) | The major-version public R surface: engine cutover sequencing, factor/categorical ingestion, response-family exposure, DART, standalone data handle, C API/callbacks; section 7 catalogs features deferred here that have since landed elsewhere. |
 | kernel-vocabulary.md | REFERENCE | Normative contract between the generic BART core and the compiled `misc.a` kernel library: dispatch mechanism, current vocabulary, planned additions. Plan: kernel-cleanups.md. |
 | robust-errors.md | LANDED, 2026-07-17 | Student-t residuals for continuous responses via scale-mixture augmentation (resid.dist), riding the existing workingWeights hook. Plan: robust-errors.md. |
