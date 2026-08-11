@@ -54,6 +54,13 @@ entries. No `dbarts.h` symbol is added or changed and no API hash moves.
 5. **Occupancy is count-based** (zero-weight-exactness binding decision 2). A
    per-forest weight, including an exact zero, changes no veto and no leaf's
    occupancy. Nothing in this arc makes per-forest zero weight an opt-out.
+5b. **The large-K price is UNPRICED and is recorded, not assumed away**
+   (multiforest-extension-surface, 2026-08-10). The veto rate scales with the
+   j-splitting trees summed over ENSEMBLES, and the per-forest column mask
+   does not save a VCBART-shaped model, where all p+1 ensembles are functions
+   of the SAME modifiers, so the mask is vacuous there rather than an opt-out.
+   No measurement exists above K = 4. If a general K-forest family lands, that
+   arc owns a fresh veto-rate measurement at its own K.
 6. **Consumer compatibility is a cost to enumerate, never a design constraint**
    (VD scope ruling 2026-08-10): everything is pre-release and the sister
    packages migrate in lockstep.

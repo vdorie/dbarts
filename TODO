@@ -93,10 +93,11 @@ items
     appended, predict/setTestPredictors BCF-guarded; landing notes in
     the plan doc). S4 LANDED 1df9c0c (per-draw forestFits + glue on
     the varianceFits precedent, F8 at one ulp, zero dbarts.h delta).
-    S6 (docs) HELD until the multiforest-extension-surface synthesis
-    lands so the docs write the settled surface story once
-    (treatment= is provisional); S5 (bcf()) PAUSED on the
-    extension-surface arc.
+    S6 (docs) UNBLOCKED 2026-08-11 - the multiforest-extension-
+    surface plan landed, so the docs write the settled story
+    (treatment= provisional, replaced by forests= per that plan's
+    M2); S5 (bcf()) RELOCATED to bartCause under that plan,
+    conditional on VD's fork 4.
     Anchors read at b374d9e; combiner.hpp and
     model.hpp moved at the zero-weight snap landing c820227.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
@@ -275,6 +276,40 @@ items
     the hard-constraint half; and soft path-dependent penalties, gate
     STANDS - no model surfaced, it is a knob on an existing constraint.
     decision-gated.
+  multiforest-extension-surface: ANSWERED - VD's "is there a
+    multiforest ABI or API model writers would want to use?" PLAN
+    COMMITTED docs/plans/multiforest-extension-surface.md (design
+    cycle memo -> blind critique 6-blocking -> synthesis, 2026-08-10;
+    artifacts .claude/multiforest-extension-surface-design/). The
+    answer: the DRIVER surface (caller-owned outer loop, dbarts owns
+    one coupled sweep) is the shape model writers already use and is
+    nearly shipped - what is missing is the documented contract, not
+    mechanism; the DECLARATIVE per-forest basis (each forest's mean
+    contribution scaled by caller-supplied columns with their own
+    coefficients; BCF = a two-column indicator basis, so the memo's
+    multiplier spec was overturned) is the model-carrying surface,
+    and its justification is the NON-GAUSSIAN case, where latents
+    draw once against the combined fit so pure-R composition is a
+    different model. Slices: M0 on-ramp contract (docs+vignette+
+    pins), M1 public $setForestWeights (R/C parity, must precede
+    reshape S1), M2 forests= REPLACES treatment= (bitwise-gated,
+    the removal VD scheduled), M3 flat mean channel (an item inside
+    reshape S1, conditional on fork 3) all pre-freeze; M4 general
+    basis family post-freeze, conditional, entry-gated on FA1/FA2.
+    Layering: dbarts = engine, stan4bart = WALNUTS semiparametric
+    collection, bartCause = causal fit layer; NO third package; C++
+    extension headers REFUSED on the build record. VD's R-first
+    principle with its scope limit recorded as binding decisions
+    1/1b: R-first covers additive composition and CONFIGURING
+    engine-provided families/priors by argument; AUTHORING a
+    response shape or prior law is an engine change with C++ as its
+    path. FOUR VD FORKS OPEN (plan's Open decisions, presented
+    2026-08-11): (1) build the basis family? rec: yes, post-freeze,
+    entry-gated; (2) non-Gaussian in v1? rec: probit+logistic; (3)
+    flat rename at the reshape re-bake + keep-or-rename
+    setForestWeights? rec: rename to basis vocabulary, KEEP
+    setForestWeights; (4) bcf() home? rec: bartCause. M0-M4 enter
+    the code queue only after VD answers.
   multiforest-mutation-gaps: LANDED, all four commits 2026-08-06
     (d489986 offset/treatment guards incl. the BCF setOffset(TRUE)
     decalibration hole and the multinomial test-offset simplex
@@ -625,11 +660,12 @@ items
     consumers rebuild only. bcf S3 (1622eb9) already widened
     setResponse and appended numForests/setTreatment/forestFits/
     bcfGlue at list end; the reshape adopts them verbatim, and the
-    forest-indexed predictor/tree entries stay reserved for it. DOOR:
-    the multiforest-extension-surface memo recommends renaming the
-    BCF-specific flat names to engine vocabulary at this arc's
-    re-bake (pending its blind critique + synthesis + VD; the
-    treatment= surface itself is provisional per VD 2026-08-10); setData on a
+    forest-indexed predictor/tree entries stay reserved for it. The
+    BCF-specific flat rename is now a CONDITIONAL CARVE-OUT in the
+    reshape plan (binding decision 3 + S1 item 5b, amended by
+    multiforest-extension-surface): setTreatment -> setForestBasis,
+    bcfGlue -> numForestAmplitudes + forestAmplitudes, only if VD's
+    fork 3 lands before reshape S1 starts; setData on a
     CSC/mixed store SURVEYED and KEPT UNDESIGNED (2026-08-08,
     docs/design/model-space-survey.md sec 3, door 3) - no model
     surfaced: the classes needing sparse designs do not swap whole
