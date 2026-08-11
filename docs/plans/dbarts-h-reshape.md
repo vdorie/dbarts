@@ -72,6 +72,16 @@ one. ONE hash re-bake, NO version bump, ONE consumer migration.
    multiforest-extension-surface's naming fork is answered before this slice
    starts, and its content is that plan's M3. Otherwise the shipped names go
    to release unchanged.
+
+   **Fork-3 RESOLVED (VD 2026-08-11, multiforest-extension-surface).** The
+   condition above is met before this slice starts. Rename content:
+   `setTreatment` -> `setForestBasis(sampler, forest, basis, numColumns)`;
+   `bcfGlue` -> `numForestAmplitudes` plus `forestAmplitudes` (S1 item 5b
+   carries the mechanics, unchanged by this note). `setForestWeights` KEEPS
+   its name - the precision channel and the mean channel stay two entries
+   forever, and "weights" already means precisions in dbarts. The re-sign in
+   this item is therefore no longer conditional; it is decided, and S1 item
+   5b is unconditional content rather than a contingency.
 4. **The source semantics are already signed off** - cheap-uniformity.md
    "Source-shaped mutation surface", rules 1-5. This plan spells them in C and
    adds nothing to them.

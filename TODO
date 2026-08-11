@@ -28,11 +28,18 @@ under the enabling-value rule; its per-entry verdicts are folded into
 the entries below.
 
 items
+  augmentation-helpers: exported R helpers for the augmentation draws
+    dbarts already runs internally (Polya-Gamma, Albert-Chib,
+    scale-mixture), so a host composing dbarts inside a larger
+    Gibbs/MH sampler replicates them without re-deriving the math.
+    Value-lifted by the r-c-division adoption slate
+    (docs/design/r-c-division.md); ~240 lines. SCHEDULED, pre-release.
   bcf-public-surface: S0-S4 and S6 landed; the public creation
     surface exists (plan + landing notes in
     docs/plans/bcf-public-surface.md). REMAINING: S5 (bcf() and the
-    bartBCF fit class) is PAUSED and RELOCATED to bartCause,
-    conditional on VD's extension-surface fork 4. The
+    bartBCF fit class) is PAUSED and RELOCATED to bartCause, per VD's
+    extension-surface fork 4 (RESOLVED 2026-08-11: bartCause, on its
+    dbarts-1.0 branch). The
     treatment=/moderators=/treatmentForest= names (and flat
     setTreatment/bcfGlue) are PROVISIONAL, scheduled for replacement
     by forests = list(forest(basis = ...)) per
@@ -54,6 +61,13 @@ items
     in docs/plans/cheap-uniformity.md). Sparse-valued mutation,
     per-column x.test update, and engine-resident sparse predict all
     open; the dbarts.h reshape mirrors this final surface.
+  composition-validator: an SBC (simulation-based calibration) check
+    over a user-supplied one-sweep closure, so a host composing
+    dbarts inside a larger Gibbs/MH sampler can validate its own
+    composition rather than trust it. Value-lifted by the
+    r-c-division adoption slate: it is the item that catches the
+    measured posterior-mean-as-draws defect class
+    (docs/design/r-c-division.md). ~350 lines. SCHEDULED, pre-release.
   correlated-outcomes: multivariate/SUR outcomes SHIPPED as mvbart()
     in stan4bart with zero dbarts code (docs/design/correlated-
     outcomes.md). Open: AR-1 / serially-correlated errors
@@ -65,6 +79,13 @@ items
   csc-code-validation: LANDED (record in
     docs/plans/csc-code-validation.md); categorical ingestion bounds
     codes against training-side K everywhere.
+  empty-leaf-veto-fix: draw-law fix to the empty-leaf veto
+    (docs/design/empty-leaf-veto.md, LANDED keep-and-document): the
+    veto counts LEAF MEMBERS where it should count POSITIVE-WEIGHT
+    members (src/bartcore/moves.hpp, the numObservations() == 0 veto
+    site), found by the r-c-division arc. Own measured slice (a
+    draw-law change); expect to re-record the zero-weight baseline.
+    SCHEDULED, pre-release.
   facade-shape: LANDED (record in docs/plans/facade-shape.md);
     SamplerShape POD, oracled by tests/cpp test_shape.
   forest-ranef-interweaving: RESEARCHED, NO-GO now - record,
@@ -121,6 +142,15 @@ items
     for which dbarts already ships the hard-constraint half; soft
     path-dependent penalties, gate STANDS - no model surfaced.
     decision-gated.
+  latent-subset-mask: design arc for a per-observation mask that
+    changes a latent-family sampler's active row set between draws
+    (principal stratification, mediation, IV). Gaussian row
+    subsetting already ships via zero weights
+    (dbartsSampler-class.Rd:137); this door is for the latent
+    families zero weights do not reach, opened by the r-c-division
+    demand survey once its row-subset claim was corrected
+    (docs/design/r-c-division.md). Design before the dbarts.h
+    reshape's S1. decision-gated on the design's own scope.
   multiforest-extension-surface: PLAN COMMITTED
     docs/plans/multiforest-extension-surface.md (artifacts
     .claude/multiforest-extension-surface-design/). The answer to
@@ -129,19 +159,23 @@ items
     shipped - the missing piece is the documented contract; the
     declarative per-forest BASIS is the model-carrying surface, with
     the non-Gaussian case as its engine justification. Slices M0-M3
-    pre-freeze, M4 post-freeze conditional (entry conditions and
-    sequencing in the plan). FOUR VD FORKS OPEN in the plan's Open
-    decisions section - basis family build; non-Gaussian v1; flat
-    rename at the reshape re-bake + keep-or-rename setForestWeights
-    (SCHEDULE-BOUND: unanswered when reshape S1 starts means the
-    shipped BCF names go to release); bcf() home. The R/C-division
-    review COMPLETED 2026-08-11 (docs/design/r-c-division.md): all
-    four recommendations unchanged, but fork 1 re-orders (build the
-    nameable-calibration affordance ~300 lines BEFORE the ~1000-line
-    family - the unreachability premise was refuted by measurement)
-    and falsifier FA5 must be respecified at M4 scheduling (its
-    committed form tests a strawman; the decisive arm is K Gaussian
-    samplers with host-drawn latents). Forks await VD.
+    pre-freeze; M4 (the general basis family) also RESOLVED
+    pre-release (VD 2026-08-11, fork 1 below), scheduled after the
+    dbarts.h reshape, with FA1/FA2 run first as design-informing
+    probes rather than go/no-go gates. ALL FOUR VD FORKS RESOLVED
+    2026-08-11, per the R/C-division review (docs/design/
+    r-c-division.md): build the general basis family, pre-release
+    (fork 1); probit and logistic in the family's v1, other families
+    as doors, with a Gaussian-only escape hatch if the latent-scale
+    calibration map needs its own research arc (fork 2); re-sign
+    setTreatment/bcfGlue to setForestBasis/numForestAmplitudes/
+    forestAmplitudes at the dbarts.h reshape re-bake, KEEP
+    setForestWeights (fork 3); bcf() lives in bartCause, on its
+    dbarts-1.0 branch (fork 4). Falsifier FA5 still needs
+    respecifying at M4 scheduling: its committed form tests a
+    strawman (K independent probit samplers); the decisive arm is K
+    Gaussian samplers with host-drawn latents against the combined
+    fit.
   multiforest-mutation-gaps: guards landed (record in
     docs/plans/multiforest-mutation-gaps.md); the weight channel
     (exact-zero multiplier snap + caller-settable per-forest weight)
@@ -177,8 +211,9 @@ items
     guard) LANDED. VD resolved the plan's forks: variance forest IN
     (S3 closes the stateIsValid occupancy gap same-slice);
     multinomial NAMED-AND-UNGATED. S0-S4 queued; the R/C-division
-    hold is lifted (review complete 2026-08-11) - next code slot
-    after the response-support-validation stop-loss slice.
+    hold is lifted (review complete 2026-08-11) - next code slot,
+    the response-support-validation stop-loss slice having landed at
+    33f6fdc.
   multinomial-counts-mutation: multinomial BART cannot mutate its
     RESPONSE side - alone among the families it cannot serve as a
     conditional inside a larger Gibbs sampler. The response is the
@@ -193,6 +228,20 @@ items
     stays dbarts:::-only, public surface a recorded door). Queued
     after the multiforest arc, BEFORE the dbarts.h reshape so the C
     surface mirrors the final mutation shape.
+  nameable-calibration: design for letting an R composition NAME the
+    leaf-prior calibration it composes against, instead of
+    inheriting one from a construction accident
+    (docs/design/r-c-division.md, "the wall that remains is
+    calibration"). The single highest-value item on the r-c-division
+    adoption slate; possible header footprint, so design lands
+    before the dbarts.h reshape's S1; budget expected above ~300
+    lines, sized at design. SCHEDULED, pre-release.
+  named-recipes: named, tested R compositions cross-referenced from
+    ?bart (probit/aft residualization, K-block splitting, and the
+    rest of the getting-started recipes the r-c-division demand
+    survey found missing), so the on-ramp is documentation rather
+    than a support burden. ~150 lines. SCHEDULED, pre-release
+    (surface shakedown).
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
@@ -212,47 +261,76 @@ items
   r-c-division: the R-vs-C/C++ boundary as a GUIDE, researched at
     VD's direction 2026-08-11 (durable record docs/design/
     r-c-division.md; artifacts .claude/r-c-division-design/ incl the
-    guide memo, census memo, and the critique's fifteen probes). The
-    proposed principle text ("R addresses the conditionals; C++ owns
-    the integrand", four clauses) AWAITS VD acceptance or edit. VD's
-    conjecture adjudicated: mutation-built models are R-doable
-    (multinomial the one hole, plan committed); residualization
-    assumes Gaussian ONLY on the response-swap route - the offset
-    route is family-generic (measured, production precedent) and
-    K-block splitting with host-drawn latents targets the same
-    posterior (proven twice); the real wall is CALIBRATION
-    (construction-range accident, 16x lever, no warning). Adoption
-    cost of the principle ~1950-2200 lines, dominated by the mutable
-    row subset (~450-700, own design arc; also the demand survey's
-    top unmet need) and nameable calibration (~300, highest value).
-    The guide memo's demand census (24-of-24 reimplementation events,
-    50% defect rate among CRAN sampler-drivers) is tool-verified but
-    has NOT had its own refuting critique - run one before treating
-    Part B as settled. decision-gated (VD: the principle text, then
-    which C2 items to schedule).
+    guide memo, census memo, and the critique's fifteen probes).
+    ACCEPTED AS AMENDED (VD 2026-08-11): "R addresses the
+    conditionals; C++ addresses the integrand" (four clauses,
+    verbatim text in the design doc). VD's conjecture adjudicated:
+    mutation-built models are R-doable (multinomial the one hole,
+    plan committed); residualization assumes Gaussian ONLY on the
+    response-swap route - the offset route is family-generic
+    (measured, production precedent) and K-block splitting with
+    host-drawn latents targets the same posterior (proven twice); the
+    real wall is CALIBRATION (construction-range accident, 16x lever,
+    no warning). The guide memo's Part B demand census was
+    adversarially critiqued 2026-08-11: verdict NOT SETTLED AS
+    WRITTEN - the 24-of-24 reimplementation count is
+    near-tautological (true ratio 24:27, four own-list integrand
+    counterexamples incl. dbarts itself), the "50% defect rate" among
+    CRAN sampler-drivers corrects to 1-of-3 true sampler-drivers, and
+    the row-subset "top unmet affordance" claim is REFUTED (Gaussian
+    row subsetting already ships via zero weights,
+    dbartsSampler-class.Rd:137); amendments recorded in the design
+    doc. ADOPTION SLATE ALL PRE-RELEASE (VD: utility decides, price
+    sizes a budget only): nameable calibration and a latent-subset-mask
+    design both land before the dbarts.h reshape's S1 (separate TODO
+    entries); the empty-leaf-veto-fix, composition-validator,
+    augmentation-helpers and named-recipes entries above; the
+    offset-free fit accessor and a seeding contract, already
+    committed inside the getLatents docs slice (defect 5, below). Six
+    small census items itemized: G1 (setResponse support
+    validation), G5 (the weight-refusal message) and G11 (the
+    variance-forest updateScale guard) are DONE at 33f6fdc; G2
+    (getLatents location-vs-precision docs, the wrong "(gaussian)"
+    parenthetical in dbarts.h) IS the committed getLatents docs
+    slice, no new entry; G3 (export the nbinom dispersion r per draw
+    as a first-class surface - a run-result slot or getter, dbarts.h
+    plus R5 - in place of the bart2Negbin per-sweep state-read idiom)
+    and G10 (relax the bridge-only refusal of setResponse on a
+    GroupedResponse sampler - the model already delegates correctly,
+    a bridge nit this arc recorded) are small pre-release slices,
+    scheduled after the getLatents docs slice. No VD fork: every
+    remaining item carries a surface and a nameable value, so all
+    schedule pre-release under the recorded frame. Fork implications
+    for multiforest-extension-surface (basis family pre-release not
+    post-freeze, FA5 respec, KEEP setForestWeights, bcf() to
+    bartCause) are RESOLVED; see that entry.
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
-  response-support-validation: STOP-LOSS SLICE, next code slot (found
-    and adversarially confirmed by the r-c-division arc, receipts in
-    docs/design/r-c-division.md "Defects"): (1) MEMORY-UNSAFE - nbinom
-    setResponse with one negative element SEGFAULTS (static_cast of a
-    negative lround sizes a histogram at ~1.8e19; model.hpp
-    computeKernel), y=1e9 hangs; same hole on the flat C path; (2)
-    probit/ordinal setResponse accept out-of-support responses
-    silently (creation validates, mutation does not; setTreatment
-    shows the correct pattern); (3) variance forest +
-    setResponse/setOffset(updateScale=TRUE) bypasses the sigma pin
-    and RUNS AWAY (fifth sigma door; refusal keyed on
-    hasVarianceForest mirrors the BCF one, no algebra needed); (4)
-    refuseBinaryWeightChange tells aft/ordinal/nbinom users about "a
-    binary response". Follow-on docs slice: getLatents
-    location-vs-precision semantics + the wrong "(gaussian)"
-    parenthetical in dbarts.h + run()$train CARRIES THE OFFSET
-    (incremental-use trap measured at 7-10 oracle SEs) + the
-    offset-free fit accessor; the multinomial $fit placeholder
-    silent-no-op guard folds in here or into the multinomial arc,
-    whichever lands first. Refusals only on valid paths - the SL/VF
-    S1 pattern; trio bitwise.
+  response-support-validation: LANDED 33f6fdc (defects 1-4 and 6 of
+    docs/design/r-c-division.md "Defects", found and adversarially
+    confirmed by the r-c-division arc): nbinom setResponse's SEGFAULT
+    on a negative element, and probit/ordinal setResponse's silent
+    out-of-support accept, both now refuse via the shared
+    bartcore_bridge::validateResponseSupport, called at creation,
+    setResponse and setData on both surfaces; variance forest +
+    setResponse/setOffset(updateScale=TRUE) now refuses via
+    refuseVarianceForestScaleUpdate, both surfaces; refuseBinaryWeightChange
+    is reworded per family; the multinomial bart2 $fit placeholder
+    now refuses mutation via a hostFor field plus refuseHostMutation
+    on the R sampler class. DELIBERATE DEVIATION: no nbinom magnitude
+    cap - creation imposes none either, so y=1e9 still hangs on both
+    creation and mutation; a magnitude-cap or sparse-tally decision is
+    open, VD-facing, unscheduled. OPEN: defect 5 (getLatents
+    location-vs-precision semantics, the wrong "(gaussian)"
+    parenthetical in dbarts.h, run()$train CARRIES THE OFFSET
+    (incremental-use trap measured at 7-10 oracle SEs), the
+    offset-free fit accessor) remains a docs slice. OPEN FOLLOW-ONS,
+    same class, unscheduled: the flat C dbarts_sampler_setWeights
+    lacks refuseBinaryWeightChange (silent ignore on probit/ordinal/
+    aft/nbinom; logistic reaches a division by zero on a negative
+    weight); bart2's ordinal and nbinom hosts also retain a
+    disconnected $fit sampler carrying the real family - whether to
+    extend the hostFor guard to them is a VD question BY NAME.
   sampletreesfromprior-midchain: FIXED (defect record, shape decision,
     and landing note in docs/plans/sampletreesfromprior-midchain.md).
   sbc-family-tiers: BUILT (records in docs/plans/sbc-family-tiers.md
@@ -303,11 +381,11 @@ items
     free; no version increments - the hash is the lockstep signal;
     slices S0-S2, AFTER the multiforest and multinomial arcs;
     consumer cost = five stan4bart call sites, others rebuild). The
-    BCF-specific flat rename is a CONDITIONAL CARVE-OUT there
-    (binding decision 3 + S1 item 5b): setTreatment ->
-    setForestBasis, bcfGlue -> numForestAmplitudes +
-    forestAmplitudes, only if VD's extension-surface fork 3 lands
-    before reshape S1 starts. setData on a CSC/mixed store: SURVEYED,
+    BCF-specific flat rename is a CARVE-OUT there (binding decision 3
+    + S1 item 5b): setTreatment -> setForestBasis, bcfGlue ->
+    numForestAmplitudes + forestAmplitudes. Extension-surface fork 3
+    (the condition) is RESOLVED 2026-08-11 in favour of the rename;
+    it lands at reshape S1. setData on a CSC/mixed store: SURVEYED,
     KEPT UNDESIGNED - no model surfaced (classes needing sparse
     designs do not swap whole data mid-chain; mid-chain mutation
     targets dense latent columns, which mixed containers carry).
