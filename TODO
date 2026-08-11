@@ -134,9 +134,14 @@ items
     decisions section - basis family build; non-Gaussian v1; flat
     rename at the reshape re-bake + keep-or-rename setForestWeights
     (SCHEDULE-BOUND: unanswered when reshape S1 starts means the
-    shipped BCF names go to release); bcf() home - currently HELD,
-    with the M slices, behind VD's R/C-division principle review
-    (artifacts .claude/r-c-division-design/).
+    shipped BCF names go to release); bcf() home. The R/C-division
+    review COMPLETED 2026-08-11 (docs/design/r-c-division.md): all
+    four recommendations unchanged, but fork 1 re-orders (build the
+    nameable-calibration affordance ~300 lines BEFORE the ~1000-line
+    family - the unreachability premise was refuted by measurement)
+    and falsifier FA5 must be respecified at M4 scheduling (its
+    committed form tests a strawman; the decisive arm is K Gaussian
+    samplers with host-drawn latents). Forks await VD.
   multiforest-mutation-gaps: guards landed (record in
     docs/plans/multiforest-mutation-gaps.md); the weight channel
     (exact-zero multiplier snap + caller-settable per-forest weight)
@@ -171,8 +176,9 @@ items
     draw-neutral on existing paths; SL (the flat-entry stop-loss
     guard) LANDED. VD resolved the plan's forks: variance forest IN
     (S3 closes the stateIsValid occupancy gap same-slice);
-    multinomial NAMED-AND-UNGATED. S0-S4 queued - currently held
-    behind the R/C-division principle review.
+    multinomial NAMED-AND-UNGATED. S0-S4 queued; the R/C-division
+    hold is lifted (review complete 2026-08-11) - next code slot
+    after the response-support-validation stop-loss slice.
   multinomial-counts-mutation: multinomial BART cannot mutate its
     RESPONSE side - alone among the families it cannot serve as a
     conditional inside a larger Gibbs sampler. The response is the
@@ -203,8 +209,50 @@ items
     bounds, sparse metadata assembly) lives in the R bridge, and
     mixed/CSC stores hold lifetime borrows anchored by R protection.
     decision-gated.
+  r-c-division: the R-vs-C/C++ boundary as a GUIDE, researched at
+    VD's direction 2026-08-11 (durable record docs/design/
+    r-c-division.md; artifacts .claude/r-c-division-design/ incl the
+    guide memo, census memo, and the critique's fifteen probes). The
+    proposed principle text ("R addresses the conditionals; C++ owns
+    the integrand", four clauses) AWAITS VD acceptance or edit. VD's
+    conjecture adjudicated: mutation-built models are R-doable
+    (multinomial the one hole, plan committed); residualization
+    assumes Gaussian ONLY on the response-swap route - the offset
+    route is family-generic (measured, production precedent) and
+    K-block splitting with host-drawn latents targets the same
+    posterior (proven twice); the real wall is CALIBRATION
+    (construction-range accident, 16x lever, no warning). Adoption
+    cost of the principle ~1950-2200 lines, dominated by the mutable
+    row subset (~450-700, own design arc; also the demand survey's
+    top unmet need) and nameable calibration (~300, highest value).
+    The guide memo's demand census (24-of-24 reimplementation events,
+    50% defect rate among CRAN sampler-drivers) is tool-verified but
+    has NOT had its own refuting critique - run one before treating
+    Part B as settled. decision-gated (VD: the principle text, then
+    which C2 items to schedule).
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
+  response-support-validation: STOP-LOSS SLICE, next code slot (found
+    and adversarially confirmed by the r-c-division arc, receipts in
+    docs/design/r-c-division.md "Defects"): (1) MEMORY-UNSAFE - nbinom
+    setResponse with one negative element SEGFAULTS (static_cast of a
+    negative lround sizes a histogram at ~1.8e19; model.hpp
+    computeKernel), y=1e9 hangs; same hole on the flat C path; (2)
+    probit/ordinal setResponse accept out-of-support responses
+    silently (creation validates, mutation does not; setTreatment
+    shows the correct pattern); (3) variance forest +
+    setResponse/setOffset(updateScale=TRUE) bypasses the sigma pin
+    and RUNS AWAY (fifth sigma door; refusal keyed on
+    hasVarianceForest mirrors the BCF one, no algebra needed); (4)
+    refuseBinaryWeightChange tells aft/ordinal/nbinom users about "a
+    binary response". Follow-on docs slice: getLatents
+    location-vs-precision semantics + the wrong "(gaussian)"
+    parenthetical in dbarts.h + run()$train CARRIES THE OFFSET
+    (incremental-use trap measured at 7-10 oracle SEs) + the
+    offset-free fit accessor; the multinomial $fit placeholder
+    silent-no-op guard folds in here or into the multinomial arc,
+    whichever lands first. Refusals only on valid paths - the SL/VF
+    S1 pattern; trio bitwise.
   sampletreesfromprior-midchain: FIXED (defect record, shape decision,
     and landing note in docs/plans/sampletreesfromprior-midchain.md).
   sbc-family-tiers: BUILT (records in docs/plans/sbc-family-tiers.md
