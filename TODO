@@ -133,12 +133,16 @@ items
     the availability normalizer). REAL categorical support in the
     init scan; the arithmetic-only renormalization measured null and
     stays closed. Plan at
-    docs/plans/grow-from-root-categorical-scan.md (6 slices; S0 is an
-    ordinal missing-weight falsifier). OPEN VD FORK, deferred until
-    S0's falsifier result exists: if it confirms the ordinal
-    missing-coin inconsistency, whether to change the shipped weight
-    (rec: fix). Implementation queued pre-release by default after
-    the multinomial channel.
+    docs/plans/grow-from-root-categorical-scan.md (revalidated
+    b24c66a9: S0 split into S0a falsifier / S0b fix). S0a LANDED
+    6e7edaf1: the falsifier CONFIRMS (chi2 6471 vs the exact law,
+    REJECT; isolating arm shows the shipped odds exactly 2x off; a
+    SECOND inconsistency surfaced - see ordinal-scan-missing-rows).
+    OPEN VD FORK, now PRESENTED with the result (rec: fix; the fix
+    reaches the rule-group law, 39 percent of the gap to the exact
+    law survives via the second inconsistency); S0b implements only
+    on VD's signature. S1 (the categorical scan itself) proceeds
+    independently of the fork.
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. A memory win, not speed; integer -> double
     is exact in range so the slice MUST be trio-bitwise. Split out of
@@ -297,6 +301,21 @@ items
     opt-in; the same decision gates weighted-binary's fractional
     weights. The engine seams are in place. Poisson family and grouped
     NB are companion doors (design sec 7). decision-gated.
+  ordinal-scan-missing-rows: the grow-from-root ordinal scan drops
+    missing rows from the split likelihood (scan.hpp skips naCode)
+    while the no-split term counts them (grow.hpp takes the full
+    node's stats), so a split score is short the missing rows' leaf
+    marginal - the SECOND inconsistency the categorical-scan S0a
+    falsifier surfaced and its verifier confirmed from code
+    (2026-08-12; docs/plans/grow-from-root-categorical-scan.md S0a
+    landing note). Two components: the dropped weighted
+    sum-of-squares no longer cancels split-vs-no-split (monotone in
+    the missing rows' sum w y^2: TV 0.017 -> 0.59 as it goes 0 ->
+    32), and the missing weight never inflates child precision (the
+    floor). Independent of the log 2 fork - 39 percent of the
+    shipped-to-exact gap survives that fix. Opt-in grow path only,
+    missing-bearing ordinal columns only. Own slice, draw-law
+    change when taken.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take

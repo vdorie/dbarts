@@ -670,7 +670,14 @@ root (grow must still terminate and produce a legal forest).
   likelihood ratios of `exp(O(n_node))`, so it bites only at the shallow-signal
   small-node margin). Or pin the shipped weight as the smaller-enumerated-set
   convention and document it, at the cost of the two branches obeying different
-  rules. Recommendation: fix.
+  rules. Recommendation: fix. CAVEAT the presentation must carry (S0a
+  verifier): the fix reaches the rule-group law, NOT full correctness of the
+  missing-bearing grow draw - 39 percent of the shipped-to-exact
+  total-variation gap survives it, owed to a SECOND, separate inconsistency
+  S0a surfaced (scanOrdinalCuts drops missing rows from the split likelihood
+  while the no-split term counts them; confirmed from code, monotone in the
+  missing rows' weighted sum of squared responses; its own ticket in TODO
+  regardless of how this fork is signed).
 - **The mass-spread bias direction is RECORDED, not scheduled.** Above the cap
   the retained greedy prefixes inherit the family's whole mass, which is the
   ESL 9.2.4 many-level-predictor overfitting direction. S7's 8 levels sit below
@@ -690,3 +697,54 @@ root (grow must still terminate and produce a legal forest).
   `flatten`/`buildFromFlat` with `masks == nullptr`, which would null-deref if a
   variance-forest tree ever held a pooled categorical rule. Grow does not sweep
   the variance forest, so this arc does not reach it. Its own ticket.
+
+## Landing notes
+
+S0a LANDED 6e7edaf1, 2026-08-12 (amended once at verification for
+a one-word doc mislabel). The falsifier CONFIRMS under the
+pre-registered rule (chi-square GOF, 9 cells, df 8, 2e5 grows,
+alpha 1e-3): shipped draws vs the exact law 6471.30, p below
+1e-300, REJECT; the exact law's own draws 6.06, p 0.640, no
+reject; control (shipped vs the reconstructed shipped law) 7.38,
+p 0.496. A third, ISOLATING law was added beyond the plan's two
+arms, adjudicated right: shipped and exact differ in two ways at
+once, so the plan's literal A-vs-B rule was under-identified (the
+scan omission alone would have satisfied it); the group law
+differs from shipped by exactly log 2 and from exact only in the
+likelihood, and the shipped split-to-no-split odds are exactly 2x
+the group's (asserted at 1e-9; the verifier re-derived all three
+laws independently in R and re-ran the kernel at four fresh seeds
+- every number reproduced, verdicts seed-stable). P(no-split):
+shipped 0.10257, group 0.05406, exact 0.05990. SECOND
+INCONSISTENCY surfaced and confirmed from code: scan.hpp skips
+naCode so a split score covers only non-missing members while the
+no-split term is taken over ALL node members; two components - the
+dropped weighted sum-of-squares no longer cancels
+split-vs-no-split (exactly zero on this deliberately signal-free
+fixture, monotone in the missing rows' sum w y^2: the verifier's
+sweep runs TV 0.0169 -> 0.5901 as it goes 0 -> 32), and the
+missing weight never inflates any child's posterior precision
+(the 0.0169 floor). Dropping log 2 closes 61 percent of the
+shipped-to-exact total-variation gap (0.04364 -> 0.01691); the
+residual is the second effect - the fork bullet carries the
+caveat, and ordinal-scan-missing-rows is its own TODO ticket
+regardless of the signature. The in-file chi-square upper tail
+(libR's pchisq returns 0 without an initialized R runtime) agrees
+with R's to 1.7e-14 relative over df 1-30. The pin is recorded AS
+MEASURED in grow.hpp's draw-discipline comment and
+docs/design/grow-from-root.md section 7, so S0b's change, if
+signed, re-points visibly; the log 2 line is untouched and S0b is
+not started. Budget: 272 tests/cpp lines vs ~110 - the
+pre-registration comment, the in-file tail, the reporting block
+and the third law account for most of the overage; accepted.
+Gates double-run (implementer + independent verifier, fresh
+privlibs, --preclean): tests/cpp plain + ASAN/UBSAN clean
+(statistics bit-identical across optimization levels), tinytest
+4174/0 unchanged with no snapshot regenerated, trio 35/35 strict /
+11/11 / 10/10 (the rng-neutral claim held), categorical-exact
+0.0008, multinomial-exact six arms at the recorded values, air 0,
+lintr 0.
+
+The fork is WITH VD (presented 2026-08-12, result + recommendation
++ caveat). S0b implements only on VD's signature and only because
+S0a confirmed. S1 onward proceed independently of the fork.
