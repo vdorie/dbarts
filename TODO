@@ -215,10 +215,15 @@ items
     surfaces widened both R and flat C) LANDED 938eb81 + baselines
     7a9c6f3. S2 (per-observation session across forests, survivor
     table + shared predicate, refusal retired R-bridge-only) LANDED
-    3cab553 + baselines 5acd116. S3 (variance forest, + the
-    statesAgree above-chain-level gap S1 recorded) is the next code
-    slot; then S4 (residual coverage incl. the un-pinned-in-CI
-    bcf/multinomial equivalence legs).
+    3cab553 + baselines 5acd116. S3 (variance forest two-phase
+    split, stateIsValid occupancy gap closed, last refusals deleted,
+    flat entries legal again) LANDED a825263 + baselines b174737.
+    S4 (docs, records, residual coverage) closes the arc; its
+    carries, recorded in the S3 landing note: the sampler$data@x
+    dimnames drop breaking by-name joint resolution, the
+    recoverVarianceLeafValues docstring, the un-pinned-in-CI
+    bcf/multinomial equivalence legs, the slice/falsifier comment
+    anchors, the statesAgree helper gap.
   multinomial-counts-mutation: multinomial BART cannot mutate its
     RESPONSE side - alone among the families it cannot serve as a
     conditional inside a larger Gibbs sampler. The response is the
