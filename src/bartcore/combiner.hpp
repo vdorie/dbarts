@@ -350,6 +350,21 @@ struct ForestCombiner {
   /// the new vector on the next sweep.
   virtual void setTreatment(const double*) {}
 
+  /// Whether this coupling OWNS its response as a count matrix that can be
+  /// replaced on a live sampler at fixed n and K. True only for a combiner
+  /// whose response is the borrowed counts it reads directly - the chain's y
+  /// is not that response, so the response-side conduit
+  /// (supportsResponseMutation) cannot express the swap and must not be
+  /// widened to it. Defaults false so a future coupling stays refused at the
+  /// bridge until it is audited.
+  virtual bool supportsCountsMutation() const { return false; }
+
+  /// Swaps the borrowed n x K count matrix and its per-observation trials;
+  /// inert unless a subclass carries them. Both are borrowed for the sampler's
+  /// lifetime, as the constructed pair is, and both are re-read from scratch on
+  /// the next sweep - the coupling caches nothing derived from either.
+  virtual void setCounts(const int*, const int*) {}
+
   /// The BCF glue coefficients (a, b0, b1) on the combining response, for the
   /// per-forest reporting path (getBCFGlue); false for a combiner carrying no
   /// such glue, which is how the "no BCF glue" answer reaches the caller.
@@ -790,6 +805,29 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   bool testFitsAreDefined() const override { return true; }
   bool logLikelihoodIsDefined() const override { return false; }
 
+  /// The response IS the count matrix here, so it is replaceable at fixed n and
+  /// K: every quantity derived from it (the margins, omega, the working
+  /// response) is per-sweep scratch the next sweep rebuilds, and the leaf
+  /// calibration is the data-independent pi*sqrt(3)/sqrt(2) anchor, so nothing
+  /// carries an old count forward. The trees do carry over, fitted to the
+  /// previous counts, exactly as a single-forest setResponse leaves them.
+  bool supportsCountsMutation() const override { return true; }
+
+  /// Installs a replacement count matrix and its per-observation trials, both
+  /// borrowed and both sized to the constructed n and K (the host validates the
+  /// shape; nothing here can grow a buffer). The next sweep re-reads them: the
+  /// trials drive the PG draw count and the counts the working response, and no
+  /// scratch is invalidated - drawForestGlue's f == 0 branch rebuilds the whole
+  /// suffix/prefix mix, and every omega column is written before it is read.
+  /// omega_ is deliberately NOT re-seeded: it holds no count-derived value
+  /// between sweeps. A later setState restores trees against WHATEVER counts
+  /// the sampler holds then, as a single-forest restore does against the
+  /// current y - the counts are data and ride no wire block.
+  void setCounts(const int* counts, const int* trials) override {
+    counts_ = counts;
+    trials_ = trials;
+  }
+
   /// Interleaved PG draw for category f: form the current margin C_if and draw
   /// omega_if ~ PG(n_i, f_if - C_if) against it, storing both so
   /// formForestResponse(f), called immediately after, reads the SAME margin and
@@ -851,6 +889,14 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// is ignored). Reads the margin and omega drawForestGlue(f) just stored. At
   /// n_i = 1 the one-hot y_if is in {0, 1} and trials * 0.5 is exactly 0.5, so
   /// this is the byte-identical single-trial reduction.
+  ///
+  /// INVARIANT: drawForestGlue(f) immediately precedes this call, for the same
+  /// f, on the same fits. margins_ and omega_'s f-th column are that call's
+  /// handoff, and nothing else writes them, so a caller that reordered the pair
+  /// would form category f's response against another category's margin. Both
+  /// sweep loops (Chain::run and growForestFromRoot) fire the pair adjacently.
+  /// Not asserted: drawForestGlue sets lastF_ = f unconditionally, so a
+  /// lastF_ == f check here is tautological.
   ForestResponse formForestResponse(std::size_t f,
       const std::vector<Forest<L, ResidT>>& forests, const double* /*y*/,
       const double* /*w*/) override {

@@ -782,6 +782,43 @@ bartcoreMultinomialCountSampler <- function(sampler, counts, K = NULL) {
   result
 }
 
+# Replaces a multinomial sampler's response: an n x K matrix of nonnegative
+# integer counts in the same layout the count creation entry takes (column k is
+# category k), with trials n_i = sum_k counts[i, k] >= 1. n and K are fixed at
+# creation - every combiner buffer is sized by n, and K is the forest count - so
+# only the values may change. The trees carry over, fitted to the previous
+# counts, exactly as a single-forest setResponse leaves them; the next run forms
+# every category's working response against the new counts.
+#
+# The sweep draws n_i Polya-Gamma variates per observation per category, so
+# replacing single-trial labels with grouped counts multiplies sweep cost by
+# mean(n_i).
+#
+# Validated R-side (safe over fast); the engine re-derives the trials and
+# re-checks the invariants, and refuses everything before it installs anything,
+# so a rejected matrix leaves the sampler untouched.
+bartcoreSetCounts <- function(bcSampler, counts) {
+  counts <- as.matrix(counts)
+  if (!is.numeric(counts)) {
+    stop("multinomial counts must be a numeric matrix of nonnegative integers")
+  }
+  if (anyNA(counts)) {
+    stop("multinomial counts must not contain missing values")
+  }
+  if (any(counts < 0)) {
+    stop("multinomial counts must be nonnegative")
+  }
+  if (any(counts != round(counts))) {
+    stop("multinomial counts must be whole numbers")
+  }
+  if (any(rowSums(counts) < 1)) {
+    stop("every multinomial count row must have at least one trial (n_i >= 1)")
+  }
+  storage.mode(counts) <- "integer"
+  # counts is column-major (category-major), the layout the combiner reads
+  invisible(.Call(C_dbarts_bartcore_setCounts, bcSampler$ptr, counts))
+}
+
 # The 0/1 treatment the treatment forest contrasts on; re-forms b_{z_i} and
 # both residuals on the next run.
 bartcoreSetTreatment <- function(bcSampler, z) {

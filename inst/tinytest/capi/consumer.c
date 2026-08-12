@@ -589,7 +589,17 @@ static const char* const legNames[LEG_COUNT] = {
   "bcfGlue"
 };
 
-/* the refusal each leg must draw, or NULL where it must be accepted */
+/* The refusal each leg must draw, or NULL where it must be accepted.
+ *
+ * The response, offset and weight refusals come from the guard the R bridge
+ * shares with this surface, which has a second branch naming a coupling whose
+ * response is its own count matrix. BCF is not that coupling - it opts into the
+ * response conduit - so these legs are also the pin that the branch stays
+ * conditioned on the capability rather than on the forest count: were it to
+ * fire here, the three accepting legs below would refuse. The branch's own
+ * message is unreachable from this surface, which has no multinomial creation
+ * entry (dbarts_sampler_create builds single-forest and BCF samplers only);
+ * inst/tinytest/test-multinomial-counts-mutation.R pins the text. */
 static const char* const legRefusals[LEG_COUNT] = {
   NULL,
   NULL,

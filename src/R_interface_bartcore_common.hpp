@@ -135,7 +135,10 @@ enum class ResponseConduit { response, offset, weights };
 /// against (any updateScale but FALSE, which the scaleless weight conduit
 /// ignores). The one multi-forest mutation family that is opt-in rather than
 /// refused; both the R bridge and the flat C API guard with this, so the two
-/// surfaces cannot state different rules. caller labels the error.
+/// surfaces cannot state different rules. A coupling whose response is its own
+/// count matrix (SamplerShape::supportsCountsMutation) is still refused here -
+/// no conduit of this shape can express that response - but the refusal names
+/// the channel that can. caller labels the error.
 void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
                                        const char* caller,
                                        ResponseConduit conduit,

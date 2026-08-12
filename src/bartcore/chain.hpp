@@ -848,6 +848,28 @@ public:
     return combiner_ != nullptr && combiner_->supportsForestWeights();
   }
 
+  /// Whether this chain's response is a replaceable count matrix (the softmax
+  /// coupling's). Distinct from supportsResponseMutation, whose contract is
+  /// that the coupling re-derives everything from the chain's y and w: a
+  /// counts-owning combiner names those out, so the two capabilities are
+  /// independent and neither implies the other.
+  bool supportsCountsMutation() const {
+    return combiner_ != nullptr && combiner_->supportsCountsMutation();
+  }
+
+  /// Installs a BORROWED replacement count matrix (n x K, category-major) and
+  /// its per-observation trials; false, installing nothing, when the coupling
+  /// owns no counts. n and K are fixed at creation - every combiner buffer and
+  /// every forest allocation is sized by them - so the host validates the shape
+  /// and this swaps two pointers. The trees carry over, fitted to the previous
+  /// counts; the next sweep forms every per-forest response against the new
+  /// ones.
+  bool setCounts(const int* counts, const int* trials) {
+    if (!supportsCountsMutation()) return false;
+    combiner_->setCounts(counts, trials);
+    return true;
+  }
+
   /// Installs a BORROWED per-observation weight s on forest f, clearing it at a
   /// null pointer; returns false, installing nothing, when the coupling admits
   /// no such weight or f names no forest.

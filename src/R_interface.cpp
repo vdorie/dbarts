@@ -183,6 +183,7 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_createMultinomial", bartcore_createMultinomial, 5),
   DEF_FUNC("dbarts_bartcore_createMultinomialCounts",
            bartcore_createMultinomialCounts, 5),
+  DEF_FUNC("dbarts_bartcore_setCounts", bartcore_setCounts, 2),
   DEF_FUNC("dbarts_bartcore_setTreatment", bartcore_setTreatment, 2),
   DEF_FUNC("dbarts_bartcore_setForestWeights", bartcore_setForestWeights, 3),
   DEF_FUNC("dbarts_bartcore_getBCFGlue", bartcore_getBCFGlue, 1),

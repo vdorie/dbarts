@@ -1161,6 +1161,20 @@ public:
       installed = chain->setForestWeights(forestIndex, weights) && installed;
     return installed;
   }
+  /// Whether the forest coupling owns a replaceable count-matrix response;
+  /// chain 0 answers for all, as every chain carries the same combiner.
+  bool supportsCountsMutation() const {
+    return chains_[0]->supportsCountsMutation();
+  }
+  /// Installs the borrowed replacement counts and trials in every chain, so a
+  /// multi-chain sampler cannot be left half swapped; false, installing
+  /// nothing, on a refusal. Every chain refuses on the same predicate.
+  bool setCounts(const int* counts, const int* trials) {
+    bool installed = true;
+    for (auto& chain : chains_)
+      installed = chain->setCounts(counts, trials) && installed;
+    return installed;
+  }
   bool bcfGlue(size_t chainNum, double* out) const {
     return chains_[chainNum]->bcfGlue(out[0], out[1], out[2]);
   }
