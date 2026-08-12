@@ -51,14 +51,28 @@ of
 [`setPredictor`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
 A single sequential sweep installs each observation in every sampler at
 once, and only if its new value keeps every leaf non-empty in every tree
-of every chain of every sampler; otherwise that observation is rolled
-back to its previous value in all of them. Like the single-sampler
-partial mode, the update never changes tree structure – it only
-re-routes observations.
+of every *forest* of every chain of every sampler; otherwise that
+observation is rolled back to its previous value in all of them. Any of
+the samplers may itself carry more than one forest - a Bayesian causal
+forest, a multinomial sampler, or a heteroscedastic (`variance`)
+sampler - and each of its forests is checked on the same terms as an
+ordinary single-forest sampler's mean forest (see ‘Multi-forest and
+heteroscedastic predictor mutation’ in
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
+Like the single-sampler partial mode, the update never changes tree
+structure – it only re-routes observations.
 
 This supports embedding several BART components that condition on a
 common latent predictor (for example, a shared ability or trait in an
 item-response model) within a larger Gibbs/Metropolis sampler.
+
+A whole-matrix `setPredictor` call on one of the samplers, made earlier
+in the same script, strips the column names from that sampler's `data@x`
+(see ‘Multi-forest and heteroscedastic predictor mutation’,
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md))
+and this function's by-name `column` matching then fails on it. Either
+replace predictors a column at a time on samplers this function will
+later reference, or call this function first.
 
 ## Value
 

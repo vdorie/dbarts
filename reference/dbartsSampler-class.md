@@ -276,18 +276,25 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - forceUpdate:
 
   For `setPredictor`, controls how the trees respond to a new predictor
-  that would leave a tree with an empty leaf-node. `FALSE` rolls the
-  whole update back and leaves the sampler unchanged (rejection
-  sampling); `TRUE` forces the change, collapsing any empty nodes; the
-  string `"partial"` installs each observation's new value individually
-  and rolls back only those observations whose value would empty a leaf,
-  returning a per-observation logical of what was installed. `"partial"`
-  requires a single `column` and cannot be combined with
-  `updateCutPoints`; it also requires a dense-backed column, since a
-  sparse column's storage fixes its nonzero pattern per cell - replace
-  such a column whole instead. When missing, defaults to `TRUE` when the
-  whole predictor matrix is being replaced (`column` is missing) and
-  `FALSE` when a single column is being replaced.
+  that would leave a leaf empty in any tree of any forest of any chain -
+  the ordinary mean forest, and, on a sampler with more than one forest,
+  all of them together: a Bayesian causal forest's second (treatment)
+  forest, a multinomial sampler's per-category forests, and a
+  heteroscedastic (`variance`) sampler's variance forest are checked on
+  exactly the same terms as the mean forest, not independently (see
+  ‘Multi-forest and heteroscedastic predictor mutation’ below). `FALSE`
+  rolls the whole update back and leaves the sampler unchanged
+  (rejection sampling); `TRUE` forces the change, collapsing any empty
+  nodes; the string `"partial"` installs each observation's new value
+  individually and rolls back only those observations whose value would
+  empty a leaf in any of those trees, returning a per-observation
+  logical of what was installed. `"partial"` requires a single `column`
+  and cannot be combined with `updateCutPoints`; it also requires a
+  dense-backed column, since a sparse column's storage fixes its nonzero
+  pattern per cell - replace such a column whole instead. When missing,
+  defaults to `TRUE` when the whole predictor matrix is being replaced
+  (`column` is missing) and `FALSE` when a single column is being
+  replaced.
 
 - updateCutPoints:
 
@@ -487,6 +494,59 @@ with the package), which invokes the engine directly and performs no
 R-side collection; such clients supply their own current predictor
 matrix when replaying saved trees.
 
+### Multi-forest and heteroscedastic predictor mutation
+
+`setPredictor` - whole-matrix, single- or multi-column (via `column`),
+and per-observation (`forceUpdate = "partial"`) - and
+[`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md)
+accept a Bayesian causal forest, a multinomial sampler, and a
+heteroscedastic (`variance`) sampler on the same terms as an ordinary
+single-forest sampler. The acceptance criterion is a single conjunction
+over every tree of every forest of every chain of the sampler: a
+treatment forest, a multinomial sampler's per-category forests, and a
+variance forest are all checked together with the mean forest, never
+independently, so a change that a mean-forest tree would tolerate can
+still be rejected because it would empty a leaf in the treatment or
+variance forest, and vice versa. A rejected transactional whole-matrix
+or column update rolls *every* forest back to its pre-call state; under
+`forceUpdate = "partial"` the per-observation install mask reflects that
+same joint criterion, so an observation installs only where it empties
+no leaf anywhere in the sampler, and a rejected observation is rolled
+back in every forest, leaving the rest of the run untouched. The one
+exemption is a forest whose trees never split on the column being
+changed - a treatment or moderator forest restricted to a column subset,
+or a `variance` forest declared over its own predictor subset - which
+structurally cannot veto a change to a column outside its own reach;
+nothing needs to be done to obtain that exemption; it falls out of which
+columns the forest's trees actually use.
+`updatePredictorPerObservationJointly` applies the identical per-sampler
+conjunction across every sampler passed to it as well: an observation
+installs only where it would remain valid in the union of every
+sampler's forests, and it is declined in all of them otherwise.
+
+Column names after a whole-matrix replacement: a transactional or forced
+whole-matrix `setPredictor(x, ...)` (`column` missing) installs `x` into
+`sampler$data@x` as a plain matrix, which does not carry `x`'s column
+names even when the sampler was originally built with named columns.
+Once that has happened, every later *by-name* column reference on that
+sampler fails: `setPredictor`'s own `column` argument, given as a
+character name, resolves it through `colnames(sampler$data@x)` (now
+`NULL`) and errors with “column names not specified at initialization”,
+and so does
+[`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md)'s
+shared-column match, whether its own `column` is given by name or by
+integer (it still resolves a shared name across every referenced
+sampler). An *integer* `column` to `setPredictor` itself is unaffected,
+since it skips the name lookup entirely. Two reliable workarounds: pass
+integer column indices to any later `setPredictor` call on the affected
+sampler; and, for `updatePredictorPerObservationJointly` specifically
+(integer `column` does not help there), either replace predictors a
+column at a time (`setPredictor(x, column = ...)`), which merges into
+the existing matrix in place and so keeps its dimnames rather than
+replacing the whole matrix, or call
+`updatePredictorPerObservationJointly` before the first whole-matrix
+replacement in a script that needs both.
+
 ### Warm starts
 
 `installTrees` seeds the sampler's forests from a `donor` instead of
@@ -545,12 +605,14 @@ from.
 
 For `setPredictor`, `TRUE`/`FALSE` depending on whether or not the
 operation was successful. The operation can fail if the new predictor
-results in a tree with an empty leaf-node. If only single columns were
-replaced, the update is rolled back so that the sampler remains in a
-valid state. When `forceUpdate` is `"partial"`, instead returns a
-logical vector of length equal to the number of observations, `TRUE`
-where that observation's new value was installed and `FALSE` where it
-was rolled back to its previous value to keep every tree valid.
+results in an empty leaf-node in any tree of any forest of the sampler
+(see ‘Multi-forest and heteroscedastic predictor mutation’). If only
+single columns were replaced, the update is rolled back so that the
+sampler remains in a valid state. When `forceUpdate` is `"partial"`,
+instead returns a logical vector of length equal to the number of
+observations, `TRUE` where that observation's new value was installed
+and `FALSE` where it was rolled back to its previous value to keep every
+tree of every forest valid.
 
 `predict` keeps the current test matrix in place and uses the current
 set of tree splits. This function has two use cases. The first is when

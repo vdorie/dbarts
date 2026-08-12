@@ -80,12 +80,21 @@
     <p>This is the multi-sampler analog of the <code>forceUpdate = "partial"</code> mode of
   <code><a href="dbartsSampler-class.html">setPredictor</a></code>. A single sequential sweep installs each
   observation in every sampler at once, and only if its new value keeps every leaf non-empty in every
-  tree of every chain of every sampler; otherwise that observation is rolled back to its previous
-  value in all of them. Like the single-sampler partial mode, the update never changes tree structure
-  – it only re-routes observations.</p>
+  tree of every <em>forest</em> of every chain of every sampler; otherwise that observation is rolled back to
+  its previous value in all of them. Any of the samplers may itself carry more than one forest - a
+  Bayesian causal forest, a multinomial sampler, or a heteroscedastic (<code>variance</code>) sampler - and
+  each of its forests is checked on the same terms as an ordinary single-forest sampler's mean forest
+  (see ‘Multi-forest and heteroscedastic predictor mutation’ in
+  <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>). Like the single-sampler partial mode, the update
+  never changes tree structure – it only re-routes observations.</p>
 <p>This supports embedding several BART components that condition on a common latent predictor (for
   example, a shared ability or trait in an item-response model) within a larger Gibbs/Metropolis
   sampler.</p>
+<p>A whole-matrix <code>setPredictor</code> call on one of the samplers, made earlier in the same script,
+  strips the column names from that sampler's <code>data@x</code> (see ‘Multi-forest and
+  heteroscedastic predictor mutation’, <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>) and this
+  function's by-name <code>column</code> matching then fails on it. Either replace predictors a column at a
+  time on samplers this function will later reference, or call this function first.</p>
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
