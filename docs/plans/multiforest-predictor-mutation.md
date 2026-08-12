@@ -1340,10 +1340,16 @@ flat guards' SL-to-S2 lifetime and S3 retirement; fork 2 recorded
 settled per-sampler; bcf-public-surface pin citation verified to
 :326-327) plus the statesAgree-gap record. Residual coverage: the
 CI equivalence net widened - bcf-equivalence and
-multinomial-equivalence jobs added parallel to the gaussian job,
-pinned to the a825263 baselines, compare commands validated locally
-verbatim; runner execution confirmed by watching the CI on this
-push. Verification ran two rounds: the verifier's first verdict was
+multinomial-equivalence jobs added parallel to the gaussian job in
+equivalence.yaml, pinned to the a825263 baselines, compare commands
+validated locally verbatim by implementer and verifier both.
+Runner execution is DEFERRED, not confirmed: GitHub registers
+workflows from the default branch, equivalence.yaml has never been
+on main, so the workflow is neither schedule-fired nor dispatchable
+from bartcore (checked at this landing - gh workflow list does not
+know it); its first real execution, gaussian job included, comes
+when bartcore lands on main. This is the workflow's own documented
+shape, not a defect of this slice. Verification ran two rounds: the verifier's first verdict was
 DO-NOT-LAND on four documentation defects (a phantom
 updatePredictor R method named in the new Rd text and echoed in
 three design docs, a false claim that setPredictor's by-name
