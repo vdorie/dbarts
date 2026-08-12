@@ -240,6 +240,28 @@ state. Chain::growForestFromRoot duplicates run()'s sweep body with the per-tree
 MH move replaced by a fresh grow, so the default run path stays byte-identical
 (equivalence.R: 21/21 identical draws).
 
+Missing-value convention, pinned as measured (2026-08-12). On a column with
+missing values a cut candidate stands for the two rules {cut, missing left} and
+{cut, missing right} that the post-draw coin picks between, but carries the
+prior mass of one of them: grow.hpp's `logCut` is `-log(numCuts) - log 2`, CGM's
+mass for a single rule. The pair therefore enters the discrete draw at half its
+group's prior mass, and the remainder accrues to no-split. Measured on a
+signal-free 64-row fixture with one 4-cut ordinal column, 8 missing rows carrying
+the node's mean response, 2e5 grows over the 9-cell outcome space
+{no-split} U {(cut, missing side)}: the realized root rules match the shipped
+weights (chi-square 7.38 on 8 df, p = 0.50) and reject both the law in which the
+candidate carries its group's mass (8937, p < 1e-300) and the exact law that
+enumerates all 2 x numCuts rules with the missing rows placed on the side each
+rule names (6471, p < 1e-300); the exact law's own draws do not reject it
+(6.06, p = 0.64). Shipped no-split probability 0.1026, against 0.0541 under the
+group's mass and 0.0599 under the exact law, and the group's split-to-no-split
+odds are exactly twice the shipped candidate's by construction. Total variation
+to the exact law is 0.0436 from the shipped weights and 0.0169 from the group's;
+the residual is a second and separate effect - the scan omits the missing rows
+from the split likelihood while the no-split term counts them, so a split score
+is short their leaf marginal, by a margin that grows with their weighted sum of
+squared responses and is near its floor on this fixture by construction.
+
 Surface: Sampler::growFromRoot fans across chains on the thread pool
 (thread-count-independent, single chain inline on R's stream); the R5 method
 dbartsSampler$growFromRoot(n.sweeps = 2L, updateState = FALSE) refuses linear
