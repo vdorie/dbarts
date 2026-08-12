@@ -59,11 +59,11 @@ expect_null(dimnames(result.many$test))
 # nothing stale. updateScale = TRUE would move the transform while both leaf
 # calibrations stayed stated against the old one, and NA is not FALSE, so both
 # are still refused; so is a coupling that does not opt in (multinomial, whose
-# setResponse is an empty override). The whole-matrix and column TRANSACTIONAL
-# predictor paths (setPredictor / updatePredictor without forceUpdate)
-# revalidate every forest and are ACCEPTED; the per-observation sessions, whose
-# cell guard still caches forest 0 alone, stay refused. The FORCE paths refresh
-# every forest and stay supported (the bartCause propensity swap, test-bcf.R).
+# setResponse is an empty override). Every transactional predictor path is
+# ACCEPTED: the whole-matrix and column ones revalidate every forest, and the
+# per-observation sessions guard every forest's trees that the column can move.
+# The FORCE paths refresh every forest and stay supported (the bartCause
+# propensity swap, test-bcf.R).
 # setTreatment, the supported multi-forest data swap, stays allowed ---
 set.seed(11)
 z <- rbinom(n, 1L, 0.5)
@@ -139,12 +139,23 @@ expect_false(
     1L
   )
 )
-# the per-observation session keeps the multi-forest refusal until its cell
-# guard widens past forest 0 (S2 inverts this one)
-expect_error(
-  dbarts:::bartcoreUpdatePredictorPerObservation(bc.bcf, x[, 1L], 1L),
-  "multi-forest"
-)
+# the per-observation session is accepted too: its cell guard caches every
+# forest, pruned to the trees the column can move, so a row installs only if it
+# empties no leaf anywhere (INVERTED in place per docs/plans/multiforest-
+# predictor-mutation.md S2). Re-installing the column's own values moves
+# nothing, so every row installs; the two-level collapse declines the rows that
+# would empty a leaf - the per-row rollback - and the run stays finite
+expect_true(all(
+  dbarts:::bartcoreUpdatePredictorPerObservation(bc.bcf, x[, 1L], 1L)
+))
+expect_true(any(
+  !dbarts:::bartcoreUpdatePredictorPerObservation(
+    bc.bcf,
+    ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
+    1L
+  )
+))
+expect_true(all(is.finite(dbarts:::bartcoreRun(bc.bcf, 0L, 5L)$train)))
 # ... and the force path refreshes every forest and stays supported
 expect_true(dbarts:::bartcoreSetPredictor(bc.bcf, x + 0, forceUpdate = TRUE))
 
@@ -274,30 +285,37 @@ expect_error(
 
 # --- the multinomial predictor-mutation surface, one entry at a time
 # (docs/plans/multiforest-predictor-mutation.md). S0 pinned all four entries as
-# refusing; S1 INVERTS the two whole-matrix/column entries in place, since
-# revalidateAllChains now loops every category forest, and leaves the two
-# sessions refusing until S2 widens their cell guard. The forced entries and
-# setCutPoints refresh every category forest throughout. ---
+# refusing; S1 INVERTED the two whole-matrix/column entries in place, since
+# revalidateAllChains now loops every category forest, and S2 INVERTS the two
+# sessions, whose cell guard now caches every forest pruned to the trees the
+# column can move. The forced entries and setCutPoints refresh every category
+# forest throughout. ---
 expect_true(dbarts:::bartcoreSetPredictor(bc.mn, x, forceUpdate = FALSE))
 expect_true(
   dbarts:::bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = FALSE)
 )
 expect_true(all(is.finite(dbarts:::bartcoreRun(bc.mn, 0L, 5L)$train)))
-expect_error(
-  dbarts:::bartcoreUpdatePredictorPerObservation(bc.mn, x[, 1L], 1L),
-  "multi-forest"
-)
-# the joint session installs in every sampler or none, so one refusing sampler
-# refuses the whole call; a single-element list is the smallest case that
-# reaches the same guard
-expect_error(
+expect_true(all(
+  dbarts:::bartcoreUpdatePredictorPerObservation(bc.mn, x[, 1L], 1L)
+))
+expect_true(any(
+  !dbarts:::bartcoreUpdatePredictorPerObservation(
+    bc.mn,
+    ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
+    1L
+  )
+))
+expect_true(all(is.finite(dbarts:::bartcoreRun(bc.mn, 0L, 5L)$train)))
+# the joint session installs in every sampler or none; a single-element list is
+# the smallest case that reaches the same guard, and it now installs rather
+# than refusing
+expect_true(all(
   dbarts:::bartcoreUpdatePredictorPerObservationJointly(
     list(bc.mn),
     x[, 1L],
     1L
-  ),
-  "multi-forest"
-)
+  )
+))
 expect_true(dbarts:::bartcoreSetPredictor(bc.mn, x, forceUpdate = TRUE))
 expect_true(
   dbarts:::bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = TRUE)

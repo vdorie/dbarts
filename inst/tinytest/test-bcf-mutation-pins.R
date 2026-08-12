@@ -45,12 +45,25 @@ expect_error(dbarts:::bartcoreSetTestOffset(bc, rep(0, n)), "BCF")
 # predictor-mutation.md S1). Replacing the design with its own values cannot
 # empty a leaf, so this one installs
 expect_true(dbarts:::bartcoreSetPredictor(bc, x, forceUpdate = FALSE))
-# --- refuses: the per-observation session has no force variant, and its cell
-# guard still caches the prognostic forest alone (S2 inverts this one)
-expect_error(
-  dbarts:::bartcoreUpdatePredictorPerObservation(bc, x[, 1L], 1L),
-  "multi-forest"
+# --- succeeds: the per-observation session's cell guard caches every forest,
+# pruned to the trees the column can move, so a row installs only if it empties
+# no leaf of either forest and is declined otherwise (INVERTED in place from
+# the refusal this file pinned, per docs/plans/multiforest-predictor-
+# mutation.md S2). Re-installing the column's own values moves nothing, so
+# every row installs
+expect_true(all(
+  dbarts:::bartcoreUpdatePredictorPerObservation(bc, x[, 1L], 1L)
+))
+# ... and a column collapsed onto two values of the existing grid empties
+# leaves, so the veto declines the rows that would: the per-row rollback, and a
+# run afterwards stays finite, which is what says both forests were re-routed
+installed.partial <- dbarts:::bartcoreUpdatePredictorPerObservation(
+  bc,
+  ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
+  1L
 )
+expect_true(any(!installed.partial))
+expect_true(all(is.finite(dbarts:::bartcoreRun(bc, 0L, 5L)$train)))
 
 # --- refuses: updateScale = TRUE would re-anchor the response transform while
 # both forests keep leaf calibrations stated against the old one

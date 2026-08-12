@@ -187,7 +187,9 @@ void refusePinnedSigmaChange(const bartcore::SamplerBase& sampler,
 /// Errors when the sampler holds a variance forest: it lives outside
 /// forests_, which the transactional revalidate/rebuild helpers loop, so an
 /// accepted transactional change would leave s^2(x) routing observations by
-/// the predictors it was built with. caller labels the error.
+/// the predictors it was built with. The two per-observation sessions, which
+/// have no force variant, call this directly; the transactional entries reach
+/// it through refuseMultiForestTransactionalUpdate. caller labels the error.
 void refuseVarianceForestPredictorMutation(
     const bartcore::SamplerBase& sampler, const char* caller);
 
@@ -198,13 +200,6 @@ void refuseVarianceForestPredictorMutation(
 void refuseMultiForestTransactionalUpdate(const bartcore::SamplerBase& sampler,
                                           const char* caller,
                                           bool forcedUpdate = false);
-
-/// Errors on the per-observation sessions, which have no force variant: the
-/// variance-forest refusal above, plus numForests >= 2, which stands while the
-/// session's cell guard caches the primary forest alone. caller labels the
-/// error.
-void refuseMultiForestPerObservationUpdate(
-    const bartcore::SamplerBase& sampler, const char* caller);
 
 } // namespace bartcore_bridge
 

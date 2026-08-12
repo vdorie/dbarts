@@ -133,7 +133,7 @@ static FuzzSnapshot<S> fuzzCapture(S& s) {
       size_t numTrees = ch.numTreesInForest(f);
       std::vector<FuzzTree> trees(numTrees);
       for (size_t t = 0; t < numTrees; ++t)
-        trees[t] = fuzzCaptureTree(ch.treeInForestForTesting(f, t), n);
+        trees[t] = fuzzCaptureTree(ch.treeInForest(f, t), n);
       g.trees[c].push_back(std::move(trees));
       std::vector<double> slab(n * numTrees);
       ch.forestTreeFits(f, slab.data());
@@ -213,7 +213,7 @@ static const char* fuzzInvariantViolation(S& s) {
       fits.resize(n * numTrees);
       ch.forestTreeFits(f, fits.data());
       for (size_t t = 0; t < numTrees; ++t) {
-        const Tree& tree(ch.treeInForestForTesting(f, t));
+        const Tree& tree(ch.treeInForest(f, t));
         if (!tree.bottomNodesAreOccupied()) return "empty leaf";
         size_t leafObs = 0;
         if (tree.at(0).begin != 0 || tree.at(0).end != n ||
@@ -231,7 +231,7 @@ static const char* fuzzInvariantViolation(S& s) {
     std::vector<int32_t> owner;
     for (size_t f = 0; f < ch.numForests(); ++f)
       for (size_t t = 0; t < ch.numTreesInForest(f); ++t)
-        if (!fuzzTreeRoutesCorrectly(ch.treeInForestForTesting(f, t),
+        if (!fuzzTreeRoutesCorrectly(ch.treeInForest(f, t),
                                      s.data(), n, owner))
           return "mean tree routes an observation to a foreign leaf";
     if (!ch.hasVarianceForest()) continue;
@@ -655,15 +655,17 @@ static void fuzzRunConstant(const ConfigSpec& spec, std::uint32_t seed,
   ext_rng_destroy(opRng);
 }
 
-// The multi-forest op surface: the transactional predictor paths, the forced
-// refresh, setCutPoints, run and the state round trip. setData, setResponse,
-// setWeights and setOffset are refused for a multi-forest sampler at the
-// bridge (test-multi-forest-seam.R), and the per-observation session joins at
-// S2 of docs/plans/multiforest-predictor-mutation.md, when its cell guard
-// widens past forest 0.
+// The multi-forest op surface: the transactional predictor paths, the
+// per-observation session in both its committing and its abandoned flavor, the
+// forced refresh, setCutPoints, run and the state round trip. setData,
+// setResponse, setWeights and setOffset are refused for a multi-forest sampler
+// at the bridge (test-multi-forest-seam.R). OP_PER_OBS carries F7 across the
+// whole surface - the driver fails on a finalize that returns false, which the
+// pairing invariant says cannot happen - and OP_SESSION_ABANDON carries F8.
 static const unsigned fuzzMultiForestMask =
-  (1u << OP_SET_PREDICTOR) | (1u << OP_UPDATE_COLUMNS) | (1u << OP_SET_CUTS) |
-  (1u << OP_RUN) | (1u << OP_STATE);
+  (1u << OP_SET_PREDICTOR) | (1u << OP_UPDATE_COLUMNS) | (1u << OP_PER_OBS) |
+  (1u << OP_SESSION_ABANDON) | (1u << OP_SET_CUTS) | (1u << OP_RUN) |
+  (1u << OP_STATE);
 
 // A two-forest BCF sampler (docs/design/bcf.md) over the same op loop: the
 // shape whose forest 1 the widened revalidation must re-route, and which the
@@ -1005,6 +1007,388 @@ static void testSnapshotCoversEveryFamily() {
   printf("ok: fuzz snapshot family coverage\n");
 }
 
+// ---------------------------------------------------------------------------
+// F5 and F6 (docs/plans/multiforest-predictor-mutation.md): the two gates on
+// the per-observation session's PRUNED cache. The fuzzer above proves the
+// sampler stays self-consistent whatever the session decided; these prove the
+// session decided what an independent count says it must, and that the trees
+// pruning skipped came through untouched to the bit.
+
+// The two multi-forest shapes, each owning the buffers it lends the sampler
+// for its life. Both instantiate Sampler<ConstantGaussianLeaf>; only the
+// coupling differs, which is the point - one session implementation serves
+// either.
+struct MultiForestFixture {
+  std::vector<double> x, y, z;
+  std::vector<int> counts, trials;
+  std::vector<size_t> moderators;
+  std::vector<ext_rng*> rngs;
+  std::unique_ptr<Sampler<ConstantGaussianLeaf>> sampler;
+  size_t n = 0, p = 0;
+
+  ~MultiForestFixture() {
+    sampler.reset();
+    for (ext_rng* r : rngs) ext_rng_destroy(r);
+  }
+
+  void makeRngs(size_t numChains, std::uint32_t seed) {
+    rngs.resize(numChains);
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rngs[c], seed + static_cast<std::uint32_t>(c));
+    }
+  }
+
+  // tau reads columns 0 and 2 alone, so columns 1 and 3 prune the treatment
+  // forest out of the session entirely and the pruning is not vacuous
+  void buildBCF(size_t n_, size_t p_, size_t numChains, std::uint32_t seed) {
+    n = n_;
+    p = p_;
+    x.resize(n * p);
+    for (double& v : x) v = runif01();
+    y.resize(n);
+    z.resize(n);
+    for (size_t i = 0; i < n; ++i) {
+      z[i] = runif01() < 0.5 ? 0.0 : 1.0;
+      y[i] = 4.0 * (x[i] - 0.5) + 2.0 * x[i + n] +
+             z[i] * (1.0 + 2.0 * x[i + 2 * n]) + 0.2 * (runif01() - 0.5);
+    }
+    moderators = {0, 2};
+    SamplerOptions options;
+    options.numChains = numChains;
+    BCFSpec spec;
+    spec.mu.numTrees = 10;
+    spec.tau.numTrees = 8;
+    spec.tau.columns = moderators.data();
+    spec.tau.numColumns = moderators.size();
+    spec.z = z.data();
+    makeRngs(numChains, seed);
+    sampler = std::make_unique<Sampler<ConstantGaussianLeaf>>(
+      x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0, fuzzRawScale,
+      options, spec, rngs.data());
+    Results empty;
+    sampler->run(40, 0, empty);
+  }
+
+  void buildMultinomial(size_t n_, size_t p_, size_t numChains,
+                        std::uint32_t seed) {
+    n = n_;
+    p = p_;
+    const size_t K = 3;
+    x.resize(n * p);
+    for (double& v : x) v = runif01();
+    counts.assign(n * K, 0);
+    trials.assign(n, 1);
+    for (size_t i = 0; i < n; ++i) {
+      size_t k = runif01() < 0.3 + 0.5 * x[i] ? 0 : (runif01() < 0.5 ? 1 : 2);
+      counts[k * n + i] = 1;
+    }
+    SamplerOptions options;
+    options.numChains = numChains;
+    MultinomialSpec mn;
+    mn.numCategories = K;
+    mn.counts = counts.data();
+    mn.trials = trials.data();
+    mn.forest.numTrees = 8;
+    makeRngs(numChains, seed);
+    sampler = std::make_unique<Sampler<ConstantGaussianLeaf>>(
+      x.data(), n, p, options, mn, rngs.data());
+    Results empty;
+    sampler->run(40, 0, empty);
+  }
+};
+
+// F5's oracle: its own per-tree leaf counts over EVERY tree of EVERY forest of
+// EVERY chain, pruned or not, maintained independently of the session. The
+// engine's cached set is a strict subset of this one, so a pruning bug that
+// dropped a tree able to veto shows up as a decision the oracle refuses and
+// the engine accepts.
+struct MaskOracle {
+  std::vector<const Tree*> trees;
+  std::vector<std::vector<int32_t>> obsLeaf;            // tree, observation
+  std::vector<std::vector<std::uint32_t>> leafCounts;   // tree, arena id
+
+  void build(const Sampler<ConstantGaussianLeaf>& s) {
+    size_t n = s.numObservations();
+    trees.clear();
+    for (size_t c = 0; c < s.numChains(); ++c) {
+      const auto& ch(s.chain(c));
+      for (size_t f = 0; f < ch.numForests(); ++f)
+        for (size_t t = 0; t < ch.numTreesInForest(f); ++t)
+          trees.push_back(&ch.treeInForest(f, t));
+    }
+    obsLeaf.assign(trees.size(), std::vector<int32_t>(n, invalidNode));
+    leafCounts.resize(trees.size());
+    for (size_t k = 0; k < trees.size(); ++k) {
+      leafCounts[k].assign(trees[k]->nodes.size(), 0);
+      for (size_t i = 0; i < n; ++i) {
+        int32_t leaf = trees[k]->findBottomNodeForObservation(s.data(), i);
+        obsLeaf[k][i] = leaf;
+        ++leafCounts[k][static_cast<size_t>(leaf)];
+      }
+    }
+  }
+
+  // the per-sampler conjunction, computed from the oracle's own counts: the
+  // row installs iff it leaves every leaf of every tree occupied
+  bool wouldRemainValid(const ColumnStore& data, size_t i, size_t column,
+                        xint_t newCode, std::vector<int32_t>& newLeaf) const {
+    bool valid = true;
+    for (size_t k = 0; k < trees.size(); ++k) {
+      newLeaf[k] = trees[k]->findBottomNodeForObservation(
+        data, i, static_cast<int32_t>(column), newCode);
+      if (newLeaf[k] != obsLeaf[k][i] &&
+          leafCounts[k][static_cast<size_t>(obsLeaf[k][i])] == 1)
+        valid = false;
+    }
+    return valid;
+  }
+
+  void commit(size_t i, const std::vector<int32_t>& newLeaf) {
+    for (size_t k = 0; k < trees.size(); ++k) {
+      if (newLeaf[k] == obsLeaf[k][i]) continue;
+      --leafCounts[k][static_cast<size_t>(obsLeaf[k][i])];
+      ++leafCounts[k][static_cast<size_t>(newLeaf[k])];
+      obsLeaf[k][i] = newLeaf[k];
+    }
+  }
+};
+
+// One session, driven at a CALLER-CHOSEN scan order so nothing here rides the
+// engine's drawn permutation. Returns the number of decisions made and adds
+// their verdicts to installs/declines.
+static size_t maskOracleSession(Sampler<ConstantGaussianLeaf>& s, ext_rng* r,
+                                size_t column, const double* newColumn,
+                                const char* label, std::vector<char>& installed,
+                                size_t& installs, size_t& declines,
+                                size_t& mismatches) {
+  size_t n = s.numObservations();
+  MaskOracle oracle;
+  oracle.build(s);
+  // the same quantizer the session descends on, so the comparison is about
+  // the DECISION and not about how a value became a code
+  std::vector<xint_t> newCodes(n);
+  for (size_t i = 0; i < n; ++i)
+    newCodes[i] = s.data().codeFor(column, newColumn[i]);
+
+  std::vector<size_t> order(n);
+  for (size_t i = 0; i < n; ++i) order[i] = i;
+  for (size_t i = n; i > 1; --i) std::swap(order[i - 1], order[fuzzInt(r, i)]);
+
+  std::unique_ptr<PredictorUpdateSession> session =
+    s.beginPredictorUpdate(newColumn, column);
+  std::vector<int32_t> newLeaf(oracle.trees.size(), invalidNode);
+  installed.assign(n, 0);
+  for (size_t k = 0; k < n; ++k) {
+    size_t i = order[k];
+    bool expected =
+      oracle.wouldRemainValid(s.data(), i, column, newCodes[i], newLeaf);
+    bool actual = session->observationWouldRemainValid(i);
+    if (actual != expected) ++mismatches;
+    if (expected) ++installs; else ++declines;
+    if (actual) {
+      session->commitObservation(i);
+      oracle.commit(i, newLeaf);
+      installed[i] = 1;
+    }
+  }
+  // F7 on this surface too: the guarded set is a subset of the revalidated
+  // set, so the finalize cannot report an empty leaf
+  check(session->finalize(), label);
+  return n;
+}
+
+// Candidate replacement columns. flavor 0 jitters, which almost every row can
+// take; 1 collapses onto two values of the grid and 2 onto one, which empty
+// leaves and force declines - so the oracle is compared on both verdicts and
+// not only on the easy one.
+static void maskCandidateColumn(ext_rng* r, const double* current, size_t n,
+                                int flavor, std::vector<double>& out) {
+  out.resize(n);
+  double level = 0.2 + 0.6 * fuzzUnif(r);
+  for (size_t i = 0; i < n; ++i)
+    out[i] = flavor == 0   ? current[i] + 0.02 * (fuzzUnif(r) - 0.5)
+             : flavor == 1 ? (fuzzUnif(r) < 0.5 ? 0.25 : 0.75)
+                           : level;
+}
+
+static void testPerObservationMaskExactness() {
+  ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(r, 7311u);
+  const size_t n = 250, p = 4, numSessions = 220;
+  size_t decisions = 0, installs = 0, declines = 0, mismatches = 0;
+
+  for (int shape = 0; shape < 2; ++shape) {
+    rngState = 0x51ED270B0F71C8ull + static_cast<uint64_t>(shape);
+    MultiForestFixture fixture;
+    if (shape == 0) fixture.buildBCF(n, p, 2, 4200u);
+    else fixture.buildMultinomial(n, p, 1, 4300u);
+    Sampler<ConstantGaussianLeaf>& s(*fixture.sampler);
+    // the driver keeps the current column itself; the engine holds no matrix
+    std::vector<double> current(fixture.x);
+    std::vector<double> candidate;
+    std::vector<char> installed;
+    for (size_t k = 0; k < numSessions; ++k) {
+      size_t column = fuzzInt(r, p);
+      int flavor = k % 8 == 7 ? 2 : (k % 4 == 3 ? 1 : 0);
+      maskCandidateColumn(r, current.data() + column * n, n, flavor,
+                          candidate);
+      decisions += maskOracleSession(
+        s, r, column, candidate.data(),
+        shape == 0 ? "F5: the BCF session's finalize holds"
+                   : "F5: the multinomial session's finalize holds",
+        installed, installs, declines, mismatches);
+      // the engine keeps no predictor matrix, so the driver tracks the
+      // installed cells itself, as the R layer does
+      for (size_t i = 0; i < n; ++i)
+        if (installed[i]) current[column * n + i] = candidate[i];
+    }
+  }
+
+  check(mismatches == 0, "F5: every install decision matches the oracle");
+  check(decisions >= 100000, "F5: at least 1e5 install decisions");
+  check(installs > 0 && declines > 0, "F5: both verdicts occur");
+  ext_rng_destroy(r);
+  printf("ok: per-observation mask exactness (%zu decisions, %zu installed, "
+         "%zu declined)\n", decisions, installs, declines);
+}
+
+// One tree's F6 families: everything an untouched tree must carry through a
+// transaction unchanged.
+struct F6Tree {
+  std::vector<FuzzNode> nodes;   // split rules and index ranges
+  std::vector<index_t> indices;  // the raw index buffer, within-leaf order too
+  std::vector<double> fits;      // the tree's own fit slab
+  bool operator==(const F6Tree&) const = default;
+};
+
+static bool f6FlatEqual(const std::vector<FlatNode>& a,
+                        const std::vector<FlatNode>& b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); ++i)
+    if (a[i].variable != b[i].variable ||
+        a[i].numMaskWords != b[i].numMaskWords || a[i].mask != b[i].mask ||
+        a[i].flags != b[i].flags)
+      return false;  // .mask is the union's raw word: a leaf value compares bitwise
+  return true;
+}
+
+struct F6Capture {
+  std::vector<std::vector<std::vector<F6Tree>>> trees;    // chain, forest, tree
+  std::vector<std::vector<std::vector<double>>> totals;   // chain, forest
+  SamplerStateData state;                                 // recovered leaves
+};
+
+static F6Capture f6Capture(Sampler<ConstantGaussianLeaf>& s) {
+  F6Capture out;
+  size_t n = s.numObservations();
+  s.getState(out.state);
+  out.trees.resize(s.numChains());
+  out.totals.resize(s.numChains());
+  std::vector<double> slab;
+  for (size_t c = 0; c < s.numChains(); ++c) {
+    const auto& ch(s.chain(c));
+    for (size_t f = 0; f < ch.numForests(); ++f) {
+      size_t numTrees = ch.numTreesInForest(f);
+      slab.assign(n * numTrees, 0.0);
+      ch.forestTreeFits(f, slab.data());
+      std::vector<F6Tree> forestTrees(numTrees);
+      for (size_t t = 0; t < numTrees; ++t) {
+        const Tree& tree(ch.treeInForest(f, t));
+        F6Tree& e(forestTrees[t]);
+        e.nodes.resize(tree.nodes.size());
+        for (size_t i = 0; i < tree.nodes.size(); ++i) {
+          const Node& nd(tree.nodes[i]);
+          e.nodes[i] = FuzzNode{nd.leftChild, nd.rule.variableIndex,
+                                nd.rule.bits, nd.begin, nd.end};
+        }
+        e.indices.assign(tree.indices, tree.indices + n);
+        e.fits.assign(slab.begin() + static_cast<long>(t * n),
+                      slab.begin() + static_cast<long>((t + 1) * n));
+      }
+      out.trees[c].push_back(std::move(forestTrees));
+      out.totals[c].push_back(ch.totalFitsInForest(f));
+    }
+  }
+  return out;
+}
+
+// F6, on the SHIPPED (pruned) build: after an accepted transaction, a tree
+// with no split on a touched column is bitwise where it was - rules, index
+// ranges, the index buffer itself, its fit slab and its persisted leaf
+// parameters - and if no tree of a forest splits on the column, that forest's
+// totalFits keeps every contribution bitwise, where an unpruned rebuild would
+// round trip it through a subtract and an add.
+//
+// Asserted for f >= 1 only. Forest 0 is NEVER pruned, by rule: its
+// subtract-then-add round trip IS the recorded single-forest arithmetic, and
+// (T - f) + f differs from T at the last ulp on a few percent of rows, so
+// pruning it would move an equivalence baseline. The asymmetry is deliberate
+// and the count this test prints is the measurement of it - not a bug.
+static void testUntouchedTreeExactness() {
+  size_t skipped = 0, forestZeroTotalMoves = 0;
+  for (int shape = 0; shape < 2; ++shape) {
+    rngState = 0x6C1F3A55D0027Bull + static_cast<uint64_t>(shape);
+    const size_t n = 240, p = 4;
+    MultiForestFixture fixture;
+    if (shape == 0) fixture.buildBCF(n, p, 2, 4400u);
+    else fixture.buildMultinomial(n, p, 1, 4500u);
+    Sampler<ConstantGaussianLeaf>& s(*fixture.sampler);
+
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, 7411u + static_cast<std::uint32_t>(shape));
+    std::vector<double> current(fixture.x);
+    std::vector<std::uint32_t> uses(p);
+
+    for (size_t column = 0; column < p; ++column) {
+      // a jitter small enough to be accepted, so the transaction really runs
+      // its rebuild rather than rolling back
+      std::vector<double> candidate(n);
+      for (size_t i = 0; i < n; ++i)
+        candidate[i] = current[column * n + i] + 0.004 * (fuzzUnif(r) - 0.5);
+      F6Capture before = f6Capture(s);
+      PredictorUpdateResult res =
+        s.updatePredictor(candidate.data(), &column, 1, false, false);
+      if (res != PredictorUpdateResult::accepted) continue;
+      for (size_t i = 0; i < n; ++i) current[column * n + i] = candidate[i];
+      F6Capture after = f6Capture(s);
+
+      for (size_t c = 0; c < s.numChains(); ++c) {
+        const auto& ch(s.chain(c));
+        for (size_t f = 1; f < ch.numForests(); ++f) {
+          bool forestUntouched = true;
+          for (size_t t = 0; t < ch.numTreesInForest(f); ++t) {
+            std::memset(uses.data(), 0, p * sizeof(std::uint32_t));
+            ch.treeInForest(f, t).countVariableUses(uses.data());
+            if (uses[column] != 0) { forestUntouched = false; continue; }
+            ++skipped;
+            check(before.trees[c][f][t] == after.trees[c][f][t],
+                  "F6: an untouched tree's rules, ranges, indices and fits "
+                  "are bitwise unchanged");
+            check(f6FlatEqual(before.state.chains[c].forests[f].trees[t],
+                              after.state.chains[c].forests[f].trees[t]),
+                  "F6: an untouched tree's leaf parameters are bitwise "
+                  "unchanged");
+          }
+          if (forestUntouched)
+            check(before.totals[c][f] == after.totals[c][f],
+                  "F6: a forest no touched column reaches keeps its totalFits "
+                  "bitwise");
+        }
+        // the measured asymmetry, reported rather than asserted
+        for (size_t i = 0; i < n; ++i)
+          if (before.totals[c][0][i] != after.totals[c][0][i])
+            ++forestZeroTotalMoves;
+      }
+    }
+    ext_rng_destroy(r);
+  }
+  check(skipped > 0, "F6: the pruning actually skipped trees");
+  printf("ok: untouched-tree exactness (%zu pruned trees checked; forest 0's "
+         "unpruned round trip moved totalFits on %zu rows)\n",
+         skipped, forestZeroTotalMoves);
+}
+
 static void testMutationFuzzer(int numSeeds) {
   ColSpec ord;
   ColSpec cat4{ColumnType::categorical, 4, 0.0};
@@ -1067,5 +1451,7 @@ static void testMutationFuzzer(int numSeeds) {
 
 void runFuzzTests(int numSeeds) {
   testSnapshotCoversEveryFamily();
+  testPerObservationMaskExactness();
+  testUntouchedTreeExactness();
   testMutationFuzzer(numSeeds);
 }
