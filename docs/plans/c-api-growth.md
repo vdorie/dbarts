@@ -555,6 +555,35 @@ their guard bodies changed. No X-list entry was appended and
 `DBARTS_C_API_HASH` did not move, so the queued dbarts.h reshape is
 unaffected by this arc.
 
+### No X-list change: multinomial-counts-mutation (2026-08-12), reservations for the reshape
+
+`docs/plans/multinomial-counts-mutation.md` (S1-S5) added a counts mutation
+channel (`bartcore_setCounts`) and an n x K / nTest x K category offset
+(train, test, and a per-call predict offset) to the multinomial sampler, all
+`dbarts:::bartcore*`-only - `dbarts_sampler_create` has no multinomial branch
+to reach a flat entry from, so no `dbarts.h` symbol was added and
+`DBARTS_C_API_HASH` did not move. S5 lifted `bart2(family = "multinomial")`'s
+own `offset` refusal for an n x K matrix (a one-shot creation-time argument,
+not a mutation surface); still no flat surface. Three reservations for
+whenever the dbarts.h reshape scopes a flat multinomial creation entry:
+
+1. **Source-shaped response and offset parameters.** The reshape already
+   re-signs predictor entries onto a borrowed `PredictorSource` view; the
+   response side needs the same treatment before a flat multinomial entry can
+   exist - a tagged source expressing at minimum `{ double* vector }` and
+   `{ int* counts, size_t numCategories }` for the response, and
+   `{ double* vector }` / `{ double* matrix, size_t numCategories }` for the
+   offset. Built this way, a later flat multinomial creation entry needs a new
+   tag, not an ABI break.
+2. **A size-first spec struct**, per the `dbarts_results` `structSize`
+   precedent (Part 1, above), for any future flat multinomial creation entry.
+3. **Whatever tagged struct the reshape adopts must PRESERVE the
+   `refuseMultiForestMutation` / `refuseMultiForestResponseMutation` guards**
+   already on the flat response-side entries (the D4 precedent,
+   `docs/plans/multiforest-mutation-gaps.md`) - the reshape is exactly where a
+   guard like this gets dropped by accident, widening a flat entry to silently
+   accept a multi-forest sampler it was never exercised against.
+
 ## Verification
 
 Gates run from a worktree against a private library (per the repo's install

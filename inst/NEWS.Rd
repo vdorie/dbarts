@@ -882,6 +882,12 @@
             that holds a category offset refuses to predict without one,
             an all-zero matrix being how the offset-free surface is asked
             for. \code{dbarts:::}-only; no public surface in this release.
+      \item \code{bart2(family = "multinomial")} accepts an \code{offset}:
+            an observation by category numeric matrix, entering each
+            category's linear predictor before the softmax as it does on
+            the \code{dbarts:::}-only channel above. A vector \code{offset}
+            is refused by name, since a common per-observation shift is the
+            softmax's own null direction and is identically inert.
       \item Probability vectors for the tree prior are validated with the
             standard \code{all.equal} tolerance instead of a hand-picked
             1e-10.

@@ -2953,8 +2953,14 @@ static void parseMultinomialData(SEXP controlExpr, SEXP modelExpr,
   validateCategoricalPredictors(data);
   if (!data.predictors.isDenseBlock())
     Rf_error("multinomial requires dense predictors");
+  // an integer weight is exactly the row-wise count replication the counts
+  // response already expresses, and a non-integer one would need a
+  // real-shape PG(w_i n_i, .) draw with no exact sampler
   if (data.weights != NULL)
-    Rf_error("multinomial (softmax) models do not support case weights");
+    Rf_error("multinomial (softmax) models do not support case weights: an "
+             "integer weight is already expressible as row-wise count "
+             "replication in the response, and a non-integer one has no "
+             "exact augmentation sampler");
   // the softmax is invariant to a common per-observation shift, so the HOST
   // data object's flat offset points exactly along the null direction and is
   // identically inert; the meaningful one is the n x K category offset the
@@ -2962,8 +2968,15 @@ static void parseMultinomialData(SEXP controlExpr, SEXP modelExpr,
   if (data.offset != NULL)
     Rf_error("multinomial (softmax) models do not support a flat offset; the "
              "category offset is an n x K matrix");
+  // same reasoning as the train-side flat offset above: the meaningful test
+  // offset is the nTest x K category test offset, an internal-channel-only
+  // capability (this creation entry's own categoryTestOffsetExpr argument, or
+  // bartcore_setCategoryTestOffset after) - never this HOST data object's flat
+  // one, which is the same null direction the train side is
   if (data.testOffset != NULL)
-    Rf_error("multinomial (softmax) models do not support a test offset");
+    Rf_error("multinomial (softmax) models do not support a flat test "
+             "offset; the category test offset is an nTest x K matrix "
+             "(bartcore_setCategoryTestOffset)");
   if (data.numTestObservations > 0 && data.testIsMixed)
     Rf_error("multinomial (softmax) models require a dense test matrix");
   if (numCategories < 2)
@@ -5236,7 +5249,10 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   // row-count coincidence between them is not consent. A sampler that models a
   // per-category shift therefore cannot answer here without one being named -
   // and an all-zero matrix is how a caller asks for the offset-free surface.
-  if (!holder.ownedCategoryOffset.empty() && Rf_isNull(offsetExpr))
+  // Either resident offset triggers the refusal: a train-only offset predicts
+  // the offset-free surface just as wrongly as a test-only one would.
+  if ((!holder.ownedCategoryOffset.empty() ||
+       !holder.ownedCategoryTestOffset.empty()) && Rf_isNull(offsetExpr))
     Rf_error("bartcore_predict: this sampler carries an n x K category offset, "
              "and the predicted rows are not its rows, so their offset cannot "
              "be inferred; pass one per predicted row (an all-zero matrix for "

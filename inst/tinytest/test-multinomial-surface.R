@@ -17,7 +17,8 @@ internalMultinomialFit <- function(
   n.trees,
   n.burn,
   n.samples,
-  test = NULL
+  test = NULL,
+  offset = NULL
 ) {
   control <- dbartsControl(
     n.chains = 1L,
@@ -30,7 +31,12 @@ internalMultinomialFit <- function(
   } else {
     dbarts(x, as.double(labels), test = test, control = control)
   }
-  bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
+  bc <- dbarts:::bartcoreMultinomialSampler(
+    sampler,
+    labels,
+    K = K,
+    offset = offset
+  )
   dbarts:::bartcoreRun(bc, n.burn, n.samples)
 }
 
@@ -361,7 +367,8 @@ internalMultinomialCountFit <- function(
   n.trees,
   n.burn,
   n.samples,
-  test = NULL
+  test = NULL,
+  offset = NULL
 ) {
   control <- dbartsControl(
     n.chains = 1L,
@@ -374,7 +381,12 @@ internalMultinomialCountFit <- function(
   } else {
     dbarts(x, as.double(counts[, 1L]), test = test, control = control)
   }
-  bc <- dbarts:::bartcoreMultinomialCountSampler(sampler, counts, K = K)
+  bc <- dbarts:::bartcoreMultinomialCountSampler(
+    sampler,
+    counts,
+    K = K,
+    offset = offset
+  )
   dbarts:::bartcoreRun(bc, n.burn, n.samples)
 }
 
@@ -657,7 +669,113 @@ fit3Char <- bart2(
 )
 expect_equal(fit3Char$levels, sort(levels(y3)))
 
+# --- category offset (S5): bart2's own n x K matrix 'offset', threaded to
+# the internal creator's own offset argument, never to the host dbarts()
+# call (whose flat offset stays refused separately, below). The
+# reproduction gate extends to it on both response forms: a public offset
+# fit must reproduce internalMultinomialFit/internalMultinomialCountFit's
+# own offset-carrying channel bit for bit, and the offset must move the
+# answer (non-vacuity). ---
+offset3 <- cbind(
+  0.6 * (x3[, 1L] - 0.5),
+  -0.4 + 0.3 * x3[, 2L],
+  0.2 * sin(4 * x3[, 3L])
+)
+set.seed(seed3)
+fit3o <- bart2(
+  x3,
+  y3,
+  family = "multinomial",
+  offset = offset3,
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+set.seed(seed3)
+internal3o <- internalMultinomialFit(
+  x3,
+  labels3,
+  3L,
+  n.trees,
+  n.burn,
+  n.samples,
+  offset = offset3
+)
+probs3o.fit <- fit3o$yhat.train
+dimnames(probs3o.fit) <- NULL
+expect_identical(probs3o.fit, aperm(internal3o$train, c(3L, 1L, 2L)))
+expect_true(all(fit3o$yhat.train >= 0 & fit3o$yhat.train <= 1))
+expect_true(all(abs(apply(fit3o$yhat.train, c(1L, 2L), sum) - 1) < 1e-8))
+expect_false(isTRUE(all.equal(fit3o$yhat.train, fit3$yhat.train)))
+
+offset3c <- cbind(
+  0.5 * (x3c[, 1L] - 0.5),
+  -0.3 + 0.2 * x3c[, 2L],
+  0.1 * sin(3 * x3c[, 4L])
+)
+set.seed(seed3c)
+fit3co <- bart2(
+  x3c,
+  counts3c,
+  family = "multinomial",
+  offset = offset3c,
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+set.seed(seed3c)
+internal3co <- internalMultinomialCountFit(
+  x3c,
+  counts3c,
+  3L,
+  n.trees,
+  n.burn,
+  n.samples,
+  offset = offset3c
+)
+probs3co.fit <- fit3co$yhat.train
+dimnames(probs3co.fit) <- NULL
+expect_identical(probs3co.fit, aperm(internal3co$train, c(3L, 1L, 2L)))
+expect_false(isTRUE(all.equal(fit3co$yhat.train, fit3c$yhat.train)))
+
+# a wrong-shape matrix refuses naming n and K (validateCategoryOffset,
+# reached through bartcoreMultinomialSampler)
+expect_error(
+  bart2(
+    x3,
+    y3,
+    family = "multinomial",
+    offset = offset3[, seq_len(2L), drop = FALSE],
+    n.trees = 5L,
+    n.burn = 2L,
+    n.samples = 2L
+  ),
+  "150 x 3 matrix"
+)
+# a non-numeric matrix refuses by name, before it ever reaches validation
+expect_error(
+  bart2(
+    x3,
+    y3,
+    family = "multinomial",
+    offset = matrix("a", n, 3L),
+    n.trees = 5L,
+    n.burn = 2L,
+    n.samples = 2L
+  ),
+  "numeric"
+)
+
 # --- honest refusals ---
+# the improved message names the model reason (binding decision 4): an
+# integer weight is already expressible as the count matrix's row-wise
+# replication, a non-integer one has no exact augmentation sampler
 expect_error(
   bart2(
     x2,
@@ -668,8 +786,10 @@ expect_error(
     n.burn = 2L,
     n.samples = 2L
   ),
-  "weights"
+  "already expressible as row-wise count replication"
 )
+# a flat vector stays refused - it is the softmax's own null direction and
+# identically inert (S5: only an n x K matrix carries a meaningful offset)
 expect_error(
   bart2(
     x2,
@@ -680,7 +800,7 @@ expect_error(
     n.burn = 2L,
     n.samples = 2L
   ),
-  "offset"
+  "does not support a flat 'offset'"
 )
 # the internal constructor refuses a host offset for the same reason bart2
 # does, rather than silently dropping it: the softmax is invariant to a common
@@ -699,6 +819,40 @@ samplerOffset <- dbarts(
 expect_error(
   dbarts:::bartcoreMultinomialSampler(samplerOffset, labels2, K = 2L),
   "do not support a flat offset"
+)
+# offset is train-side only. bart2's own offset.test is caught at the R
+# boundary, before it would otherwise fall through to the host dbarts() call
+# (does not support 'offset.test'); the underlying host-object flat test
+# offset refusal, reached only by building the internal sampler directly,
+# names the internal channel instead of an unqualified "do not support"
+expect_error(
+  bart2(
+    x2,
+    y2,
+    family = "multinomial",
+    test = x2.test,
+    offset.test = rep(0, 15L),
+    n.trees = 5L,
+    n.burn = 2L,
+    n.samples = 2L
+  ),
+  "does not support 'offset.test'"
+)
+samplerTestOffset <- dbarts(
+  x2,
+  as.double(labels2),
+  test = x2.test,
+  offset.test = rep(0.5, 15L),
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 5L,
+    updateState = FALSE
+  )
+)
+expect_error(
+  dbarts:::bartcoreMultinomialSampler(samplerTestOffset, labels2, K = 2L),
+  "category test offset is an nTest x K matrix"
 )
 # setSigma is refused for the same class of reason: the softmax chain marks
 # itself binary-sigma (sigmaScale() is 1 and the redraw is gated off), so a

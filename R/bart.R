@@ -668,12 +668,49 @@ bart2 <- function(
   if (family == "multinomial") {
     if (!missing(weights)) {
       stop(
-        "family = \"multinomial\" does not support 'weights'"
+        "family = \"multinomial\" does not support 'weights': a non-integer ",
+        "weight has no exact augmentation sampler, and an integer weight is ",
+        "already expressible as row-wise count replication in the response"
       )
     }
+    # the n x K category offset (docs/design/multinomial.md "The surface"):
+    # a matrix enters the raw fits before the softmax and is threaded to
+    # bartcoreMultinomialSampler/bartcoreMultinomialCountSampler's own offset
+    # argument, never to the host dbarts() call below (matchedCall$offset is
+    # cleared so redirectCall does not forward it there, where it would be
+    # read as a flat per-row offset). A flat vector stays refused - it points
+    # exactly along the softmax's null direction (a common per-observation
+    # shift) and is identically inert, exactly as the host data object's own
+    # flat offset is (parseMultinomialData, refused separately, below).
+    multinomialOffset <- NULL
     if (!missing(offset)) {
+      if (!is.matrix(offset)) {
+        stop(
+          "family = \"multinomial\" does not support a flat 'offset': a ",
+          "common per-observation shift is the softmax's own null direction ",
+          "and is identically inert; pass an n x K numeric matrix instead"
+        )
+      }
+      if (!is.numeric(offset)) {
+        stop("family = \"multinomial\" 'offset' must be a numeric n x K matrix")
+      }
+      multinomialOffset <- offset
+      matchedCall$offset <- NULL
+    }
+    # offset is train-side only: an explicit offset.test is caught HERE,
+    # before it would otherwise fall through buildHostSamplerCall's
+    # redirectCall into the host dbarts() call and be refused several layers
+    # down by parseMultinomialData, several steps from where the caller wrote
+    # it. yhat.test is always computed WITHOUT any category offset (see
+    # docs/design/multinomial.md "The surface"), so a caller wanting one
+    # needs the dbarts:::-only channel this message names.
+    if (!missing(offset.test)) {
       stop(
-        "family = \"multinomial\" does not support 'offset'"
+        "family = \"multinomial\" does not support 'offset.test'; yhat.test ",
+        "is always computed without any category offset. A category test ",
+        "offset is an internal-channel capability only ",
+        "(dbarts:::bartcoreSetCategoryTestOffset, or the internal creators' ",
+        "own offset.test argument), not reachable from bart2"
       )
     }
     if (!missing(subset)) {
@@ -777,7 +814,8 @@ bart2 <- function(
         sigquant,
         sigest,
         dart,
-        combineChains
+        combineChains,
+        offset = multinomialOffset
       ))
     }
     if (is.character(y)) {
@@ -814,7 +852,8 @@ bart2 <- function(
       sigquant,
       sigest,
       dart,
-      combineChains
+      combineChains,
+      offset = multinomialOffset
     ))
   }
 
@@ -1149,7 +1188,10 @@ detectAutoOrdinal <- function(formula, data, dataIsMissing, callingEnv) {
 # then one bartcoreRun call) for the bitwise reproduction gate in
 # test-multinomial-surface.R. No warm start and no two-phase burn-in/sample
 # split: both are skipped so the RNG stream matches that internal pattern
-# exactly for a given seed.
+# exactly for a given seed. offset, when non-NULL, is the validated n x K
+# category offset (bart2's own matrix-only surface, above); it is threaded to
+# bartcoreMultinomialSampler's own offset argument, never to the host sampler
+# call, whose 'offset' matchedCall has already had cleared.
 bart2Multinomial <- function(
   matchedCall,
   callingEnv,
@@ -1161,7 +1203,8 @@ bart2Multinomial <- function(
   sigquant,
   sigest,
   dart,
-  combineChains
+  combineChains,
+  offset = NULL
 ) {
   K <- nlevels(y)
   labels <- as.integer(y) - 1L
@@ -1193,7 +1236,7 @@ bart2Multinomial <- function(
 
   sampler <- eval(samplerCall, envir = callingEnv)
 
-  bc <- bartcoreMultinomialSampler(sampler, labels, K = K)
+  bc <- bartcoreMultinomialSampler(sampler, labels, K = K, offset = offset)
   # from here the host owns no model: bc does. Mark it, so a mutation through
   # the fit's $fit errors instead of silently changing a sampler nothing reads
   sampler$hostFor <- "bart2(family = \"multinomial\")"
@@ -1229,7 +1272,8 @@ bart2Multinomial <- function(
 # for the label vector. A one-hot y with every row sum 1 is therefore the
 # same draw stream as bart2Multinomial on the equivalent factor (the
 # single-trial reduction; see benchmarks/R/multinomial-equivalence.R's
-# k3counts scenario).
+# k3counts scenario). offset, as for bart2Multinomial, is the validated n x K
+# category offset threaded to bartcoreMultinomialCountSampler's own argument.
 bart2MultinomialCounts <- function(
   matchedCall,
   callingEnv,
@@ -1242,7 +1286,8 @@ bart2MultinomialCounts <- function(
   sigquant,
   sigest,
   dart,
-  combineChains
+  combineChains,
+  offset = NULL
 ) {
   K <- ncol(y)
 
@@ -1268,7 +1313,7 @@ bart2MultinomialCounts <- function(
 
   sampler <- eval(samplerCall, envir = callingEnv)
 
-  bc <- bartcoreMultinomialCountSampler(sampler, y, K = K)
+  bc <- bartcoreMultinomialCountSampler(sampler, y, K = K, offset = offset)
   # the host owns no model past this point; see bart2Multinomial
   sampler$hostFor <- "bart2(family = \"multinomial\")"
   samples <- bartcoreRun(bc, control@n.burn, control@n.samples)

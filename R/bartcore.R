@@ -1015,7 +1015,10 @@ bartcoreBCFGlue <- function(bcSampler) {
 }
 
 # A forest's internal-scale function values (0 prognostic, 1 treatment),
-# n.observations x n.chains.
+# n.observations x n.chains. For a multinomial handle (forest = category,
+# 0-based) this is the OFFSET-FREE totalFits: with a category offset
+# installed, softmax_k(bartcoreForestFits(bc, k) + offset[, k]) reproduces
+# the reported train channel, not softmax_k(bartcoreForestFits(bc, k)) alone.
 bartcoreForestFits <- function(bcSampler, forest) {
   .Call(C_dbarts_bartcore_getForestFits, bcSampler$ptr, as.integer(forest))
 }

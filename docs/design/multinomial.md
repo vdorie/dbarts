@@ -196,9 +196,21 @@ output, probability-scale generics with an argmax class convenience, and a
 fit class of its own (bartMultinomial) so no single-forest generic misreads
 the K-widened arrays; its fit path reproduces the internal pattern bit for
 bit (test-multinomial-surface.R pins it). Unsupported surface is refused by
-name, never silently reshaped: weights, offset, and the latent type. Test
-data at creation and out-of-sample prediction under keepTrees are both
-supported (below).
+name, never silently reshaped: weights and the latent type always, and a
+flat offset - it is the softmax's own null direction (a common
+per-observation shift) and is identically inert. An n x K numeric matrix
+offset IS accepted (landed with the mutation channel below,
+docs/plans/multinomial-counts-mutation.md S5): a creation-time argument on
+bart2's one-shot fit, threaded to the internal creator's own offset
+argument rather than to the host sampler's flat one. It is TRAIN-side only:
+bart2's own offset.test is refused by name, and yhat.test is always
+computed WITHOUT any category offset - even when offset was supplied for
+training - since the category test offset stays an internal-channel
+capability (bartcoreSetCategoryTestOffset, or the internal creators' own
+offset.test argument), not reachable from bart2. A caller comparing an
+offset-fitted yhat.train against yhat.test needs to know this asymmetry.
+Test data at creation and out-of-sample prediction under keepTrees are
+both supported (below).
 
 - The response is an n x K nonnegative integer count matrix with row
   sums n_i >= 1 (trials): category k's one-vs-rest conditional is
@@ -259,7 +271,10 @@ supported (below).
   is common to every forest and is NOT applied to totalTestFits (afterCombine
   leaves it alone); softmax invariance to a common per-observation shift (the
   identification section, above) makes the blend correct without touching it.
-  A test offset is refused at creation (the softmax carries no offset), and a
+  An n x K category offset moves the reported train blend the same way
+  (below), and its nTest x K test twin moves combinedTestFits identically -
+  both entering the raw fits before the softmax, never the response
+  model's own (flat, and refused for that reason - see below). A
   mixed/sparse test store cannot arise (multinomial requires dense
   predictors).
 - Out-of-sample prediction (predict.bartMultinomial, R/generics.R) replays the
@@ -278,16 +293,49 @@ supported (below).
   (logLikelihoodIsDefined() false): storeSample scores one forest's fits
   through response_->computeLogLikelihood, which cannot see the K-blend -
   BCF's exact NaN-flag choice, untouched by this arc.
-- Whole-data mutation is refused, as for every multi-forest sampler:
-  setData/setResponse/setWeights refuse on any sampler with >= 2 forests
-  (refuseMultiForestMutation), and the transactional (non-force) predictor
-  paths - including the per-observation sessions, which have no force variant
-  - refuse likewise (refuseMultiForestTransactionalUpdate), because
-  applyNewData and revalidateTrees rebuild only forest 0. A forced
-  whole-matrix setPredictor, which refreshes every forest, stays available;
-  the TEST predictor family (setTestPredictor and friends) is a separate
-  gate, refuseBCFTestSurface, keyed on testFitsAreDefined() rather than forest
-  count, so it now passes multinomial through (above) and refuses only BCF.
+- Two mutation channels (dbarts:::bartcore* only - not bart2, a one-shot
+  fit; docs/plans/multinomial-counts-mutation.md) are the exceptions to an
+  otherwise-refused whole-data swap. bartcoreSetCounts replaces the n x K
+  count response at fixed n and K (n and K cannot change on a live
+  sampler); the trees carry over, refitted against the new counts on the
+  next sweep, exactly as a single-forest setResponse leaves them.
+  bartcoreSetCategoryOffset / bartcoreSetCategoryTestOffset install or
+  clear an n x K / nTest x K category offset entering the raw fits BEFORE
+  the softmax - never a leaf value, and never ResponseModel::offset(),
+  which storeSample adds AFTER the K-blend and would push reported
+  probabilities off the simplex (the mistake docs/plans/
+  multiforest-mutation-gaps.md hole H1 measured). Both channels are gated
+  by a dedicated SamplerShape::supportsCountsMutation probe (K read off
+  numReportedLocations), never by supportsResponseMutation, whose
+  re-derive-everything-from-y-and-w contract the borrowed count response
+  cannot satisfy. Out-of-sample prediction takes its own nNew x K offset
+  argument per call rather than reading either resident offset - a
+  row-count coincidence between the predicted rows and a resident offset's
+  rows is not consent - and refuses a no-offset call outright while
+  EITHER resident offset (train or test) is installed, rather than
+  silently reporting the offset-free surface; an explicit all-zero matrix
+  asks for that surface on purpose. setResponse, setWeights and setData
+  otherwise stay refused on the multi-forest grounds every K >= 2 forest
+  sampler shares (refuseMultiForestMutation /
+  refuseMultiForestResponseMutation): applyNewData and revalidateTrees
+  rebuild only forest 0, and multinomial never opts into
+  supportsResponseMutation, so their refusal messages point at the
+  channels above by name rather than reporting a response "fixed at
+  creation", which it no longer is. Case weights stay refused on model
+  grounds instead: a non-integer weight would need a real-shape PG(w_i
+  n_i, .) draw with no exact sampler, and an integer weight is already
+  the row-wise count replication the counts channel expresses.
+  bartcoreForestFits (a forest's per-observation totalFits) stays
+  OFFSET-FREE under either report; softmax_k(bartcoreForestFits(bc, k) +
+  offset[, k]) reproduces the reported channel, not
+  softmax_k(bartcoreForestFits(bc, k)) alone. The predictor-mutation
+  family (setPredictor, updatePredictor, the per-observation sessions,
+  setCutPoints) is unguarded by forest count - the multiforest-predictor-
+  mutation arc opened it for every multi-forest sampler, multinomial
+  included, out of this arc's scope - and the TEST predictor family is a
+  separate gate, refuseBCFTestSurface, keyed on testFitsAreDefined()
+  rather than forest count, so it passes multinomial through and refuses
+  only BCF.
 - State carries NO combiner wire blocks. The K forests serialize through the
   existing per-forest tree list (any length), and the multinomial combiner
   overrides neither serializeGlue nor restoreGlue - it serializes nothing. omega
