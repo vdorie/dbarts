@@ -121,11 +121,10 @@ expect_error(
 # transactional (non-force) predictor updates are ACCEPTED: the two-phase
 # revalidation loops every forest, so a whole-matrix or column proposal
 # installs only if no leaf of any tree of either forest would empty, and rolls
-# the whole change back otherwise (INVERTED in place from the refusals
-# bcf-public-surface S0 wrote, per docs/plans/multiforest-predictor-
-# mutation.md S1). Re-installing the current values cannot empty a leaf, so
-# both accept; a run afterwards must stay finite, which is the assertion that
-# every forest really was re-routed rather than left against stale codes
+# the whole change back otherwise. Re-installing the current values cannot
+# empty a leaf, so both accept; a run afterwards must stay finite, which is
+# the assertion that every forest really was re-routed rather than left
+# against stale codes
 expect_true(dbarts:::bartcoreSetPredictor(bc.bcf, x))
 expect_true(dbarts:::bartcoreUpdatePredictor(bc.bcf, x[, 1L], 1L))
 expect_true(all(is.finite(dbarts:::bartcoreRun(bc.bcf, 0L, 5L)$train)))
@@ -141,8 +140,7 @@ expect_false(
 )
 # the per-observation session is accepted too: its cell guard caches every
 # forest, pruned to the trees the column can move, so a row installs only if it
-# empties no leaf anywhere (INVERTED in place per docs/plans/multiforest-
-# predictor-mutation.md S2). Re-installing the column's own values moves
+# empties no leaf anywhere. Re-installing the column's own values moves
 # nothing, so every row installs; the two-level collapse declines the rows that
 # would empty a leaf - the per-row rollback - and the run stays finite
 expect_true(all(
@@ -283,13 +281,12 @@ expect_error(
   "multi-forest"
 )
 
-# --- the multinomial predictor-mutation surface, one entry at a time
-# (docs/plans/multiforest-predictor-mutation.md). S0 pinned all four entries as
-# refusing; S1 INVERTED the two whole-matrix/column entries in place, since
-# revalidateAllChains now loops every category forest, and S2 INVERTS the two
-# sessions, whose cell guard now caches every forest pruned to the trees the
-# column can move. The forced entries and setCutPoints refresh every category
-# forest throughout. ---
+# --- the multinomial predictor-mutation surface, one entry at a time: the
+# whole-matrix/column entries install under revalidateAllChains, which loops
+# every category forest, and the per-observation sessions install under a
+# cell guard that caches every forest pruned to the trees the column can move.
+# The forced entries and setCutPoints refresh every category forest
+# throughout. ---
 expect_true(dbarts:::bartcoreSetPredictor(bc.mn, x, forceUpdate = FALSE))
 expect_true(
   dbarts:::bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = FALSE)

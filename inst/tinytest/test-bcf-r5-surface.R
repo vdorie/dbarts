@@ -78,15 +78,13 @@ expect_error(refused$setResponse(y, updateScale = TRUE), "BCF")
 expect_error(refused$setOffset(rep(0, n), updateScale = TRUE), "BCF")
 # the transactional column update is no longer refused: revalidateAllChains
 # loops both forests, so it installs under the empty-leaf veto and reports a
-# logical rather than erroring (INVERTED in place per docs/plans/multiforest-
-# predictor-mutation.md S1). Replacing a column with its own values cannot
+# logical rather than erroring. Replacing a column with its own values cannot
 # empty a leaf, so the answer is TRUE
 expect_true(refused$setPredictor(x[, 1L], column = 1L))
 # the per-observation session is no longer refused either: its cell guard
 # caches every forest, pruned to the trees the column can move, so it returns
-# the install mask rather than erroring (INVERTED in place per
-# docs/plans/multiforest-predictor-mutation.md S2). Re-installing the column's
-# own values moves no observation, so every row installs
+# the install mask rather than erroring. Re-installing the column's own values
+# moves no observation, so every row installs
 installed.r5 <- refused$setPredictor(
   x[, 1L],
   column = 1L,

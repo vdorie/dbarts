@@ -1,7 +1,11 @@
 # Heteroscedastic BART (HBART): design
 
-Status: LANDED 2026-07-20 (arc 3775437..994ec7e; records 31c0204). Plan: docs/plans/multi-forest-models.md (the
-heteroscedastic half). Users declare a second ensemble modeling the residual
+Status: LANDED 2026-07-20 (arc 3775437..994ec7e; records 31c0204); predictor
+mutation (setPredictor, transactional and per-observation) on a
+heteroscedastic sampler LANDED 2026-08-12
+(docs/plans/multiforest-predictor-mutation.md S3, a825263; see section 14).
+Plan: docs/plans/multi-forest-models.md (the heteroscedastic half). Users
+declare a second ensemble modeling the residual
 variance as a function of predictors, so y_i = f(x_i) + s(x_i) eps_i with
 eps_i ~ N(0, 1): the mean forest f is the ordinary constant-leaf ensemble, and
 the variance forest s^2(x) = product of multiplicative-positive trees (Pratola,
@@ -627,3 +631,47 @@ TODO). Cite this note, not them, for the variance-forest's conjugacy.
   the conjugacy claim (section 0), which is verified against two independent
   implementations rather than recalled; the residual risk is engineering (the roll,
   the weighted suffstat, and the two-leaf plumbing), not algorithmic.
+
+## 14. Post-landing: predictor mutation on a heteroscedastic sampler
+
+Sections 0-13 cover the model's own landing (2026-07-20). Everything below is a
+later arc, docs/plans/multiforest-predictor-mutation.md S3 (2026-08-12), which
+did not touch the model - no new draw, no changed prior, no changed sweep -
+only widened which store mutations the variance forest can survive.
+
+Before S3, `$setPredictor` (transactional, whole-matrix or column-subset via
+its `column` argument, and per-observation via `forceUpdate = "partial"`)
+refused outright on any sampler carrying a variance forest; only the FORCED
+whole-matrix swap, `setCutPoints`, and `setData` re-routed it (section 6's
+Chain-level integration covers those paths, which are unchanged). S3 splits
+`refreshVarianceForest` - collapse-and-remap, still exactly what
+`forceRefreshTrees` and `setData`'s `applyNewData` use - into two halves for
+the transactional paths only: `revalidateVarianceTrees` recovers each tree's
+node-indexed factors through the LIVE partition, repartitions, and reports
+occupancy without collapsing or scattering anything; `rebuildVarianceFactors`
+then drops stale missing directions, scatters the recovered factors through the
+new partition, and recomputes `combinedVariance`. `Chain::repartitionTrees`
+(the transaction's rollback route) gained a variance arm to match, so a
+rejected transaction restores the variance trees' partitions exactly rather
+than leaving them re-routed by the declined proposal.
+
+The acceptance criterion is the one this document's variance forest has always
+needed and did not fully have: `Chain::stateIsValid`'s variance branch checked
+tree well-formedness and strict leaf positivity but not occupancy, so
+`$setState` could install a variance state with an unoccupied bottom - one that
+carries no drawn scale - where its mean-forest sibling had refused the
+analogous state all along. S3 closes that gap: the variance branch now builds
+the same scratch-tree-and-repartition check the mean branch already ran, so
+`$setState` refuses such a state too. This is a behavior change (a state that
+used to install now does not) and ships its own NEWS bullet and tinytest.
+
+Net effect: a heteroscedastic sampler now accepts `$setPredictor` - whole
+matrix, column subset, and per-observation alike - and the per-observation
+session across samplers (`updatePredictorPerObservationJointly`) on the same
+terms as an ordinary single-forest sampler - a row installs only if it
+empties no leaf in any mean tree AND no variance tree, rolling back (or
+declining, per row) otherwise. See
+docs/design/empty-leaf-veto.md for why that criterion is not new, and
+docs/plans/multiforest-predictor-mutation.md for the full mechanism, the
+falsifiers that gate it (F9, F10 cover the variance-specific rollback and
+recovery-ordering claims), and the equivalence baselines.

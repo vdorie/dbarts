@@ -1,6 +1,9 @@
 # Model-space survey: which model classes justify which update shapes
 
-Status: COMPLETE as a survey, 2026-08-08. Research only - no code changed. Run
+Status: COMPLETE as a survey, 2026-08-08; D1 (section 4) subsequently LANDED
+2026-08-10 through 2026-08-12 (docs/plans/multiforest-predictor-mutation.md,
+SL 7299b8b through S4) - see the landing note appended to section 4. Research
+only - no code changed. Run
 as the research gate VD placed in front of the two multi-forest update-shape
 doors (TODO `multiforest-mutation-gaps`; docs/plans/runsbcbcf-repair.md "setData
 door survey"), on the standing rule that **the shape follows from the models**.
@@ -365,6 +368,25 @@ veto rate at realistic K on the models that want it, and decide whether the veto
 is per-forest or per-sampler, **before** committing to the semantics. This is the
 one open question that could change D1 from cheap to expensive.
 
+**LANDED, 2026-08-10 through 2026-08-12** (docs/plans/multiforest-predictor-
+mutation.md, SL 7299b8b through S4). The named question resolved to
+**per-sampler**: a row installs only if it empties no leaf in any tree of any
+forest (and, from that plan's S3, the variance forest) of any chain, and the
+per-forest column mask is the exact opt-out - a forest whose trees never split
+on the touched column cannot veto, structurally. The veto-rate falsifier this
+section called for ran (`docs/plans/multiforest-veto-rate-falsifier.md`,
+verdict YELLOW on both column types) and its obligations were discharged in the
+landing plan rather than blocking it. Multinomial is included, named and
+UNGATED: its veto rate is recorded as measured stress, not covered by a
+verdict. The heteroscedastic (variance-forest) class turned out to carry the
+largest share of the measured cost, not a side case, and landed alongside the
+mean-forest classes; doing so required also closing a real gap in
+`Chain::stateIsValid`'s variance branch, which had not imposed occupancy the
+way its mean branch always had, so `setState` had been admitting variance
+states the widened veto would refuse. `refuseMultiForestTransactionalUpdate`
+and `refuseVarianceForestPredictorMutation` are retired from all four
+transactional entries.
+
 ### D2. Multinomial response-side mutation - a counts/offset channel
 
 `MultinomialForestCombiner` does not override `supportsResponseMutation`
@@ -451,6 +473,16 @@ The case, in the order the evidence lands:
 The one thing that would change this assessment is D1's unpriced veto-scope
 consequence (section 4). It does not change the *value*; it could change the
 *price*.
+
+**D1 landed (section 4); this class is now buildable engine-side.** A BCF
+sampler accepts `$setPredictor` (whole matrix, column subset, or
+per-observation) and the per-observation session across samplers
+(`updatePredictorPerObservationJointly`) on the same terms as a single-forest
+sampler, so theta as a treatment moderator no longer needs new engine work.
+bairrtt's OTHER named blocker is untouched by
+this landing: its MH filter still calls `$predict` on the BCF test surface,
+which `refuseBCFTestSurface` still refuses (`docs/plans/multiforest-predictor-
+mutation.md` "Migration costs per consumer").
 
 ---
 

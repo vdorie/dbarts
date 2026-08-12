@@ -1479,8 +1479,7 @@ private:
     /// The cache is the subset of the revalidated set that drops forest 0's
     /// non-splitting trees, whose partitions the revalidation reproduces
     /// unchanged, so no leaf it did not guard can empty and this returns true
-    /// by construction (docs/plans/multiforest-predictor-mutation.md,
-    /// "Pruning"). The variance arm is guarded and revalidated on the same
+    /// by construction. The variance arm is guarded and revalidated on the same
     /// predicate with no exemption, so the two sets coincide there.
     bool finalize() override {
       return sampler_.revalidateAllChains(&column_, 1);

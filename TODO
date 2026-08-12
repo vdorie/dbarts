@@ -43,7 +43,15 @@ items
     treatment=/moderators=/treatmentForest= names (and flat
     setTreatment/bcfGlue) are PROVISIONAL, scheduled for replacement
     by forests = list(forest(basis = ...)) per
-    multiforest-extension-surface M2.
+    multiforest-extension-surface M2. Its S0 BCF transactional-
+    setPredictor and per-observation-session pins
+    (bcf-public-surface.md:326-327) are INVERTED IN PLACE by
+    multiforest-predictor-mutation's S1 (the whole-matrix/column
+    entries) and S2 (the two per-observation entries), in
+    test-bcf-mutation-pins.R, test-bcf-r5-surface.R, and
+    test-multi-forest-seam.R: each retirement commit edited the
+    assertion this arc wrote from REFUSE to ACCEPT in place, rather
+    than deleting or duplicating it.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). Open: the EXTREME
     tail (|a0| >= ~40, ~3% of the prior) is frozen-structure mixing
@@ -196,6 +204,14 @@ items
     monotoneTreeIsFeasible's 1e-9: deliberately left (it is the
     acceptance predicate of the constrained-prior rejection sampler,
     a one-sided feasibility slack, not an equality tolerance).
+    The flat C dbarts_sampler_setPredictor/updatePredictor entries:
+    guarded SL-through-S2 of
+    docs/plans/multiforest-predictor-mutation.md by one helper shared
+    with the R bridge (promoted out of R_interface_bartcore.cpp's
+    anonymous namespace at SL, so the two surfaces could not diverge);
+    S3 RETIRED the guards once the multi-forest and variance-forest
+    paths they were guarding became legal, so the flat entries are
+    unguarded again BY DESIGN, not by omission.
   multiforest-predictor-mutation: the survey's most valuable door -
     per-observation/transactional predictor mutation on multi-forest
     samplers (latent-covariate causal forests: bairrtt's
@@ -218,12 +234,26 @@ items
     3cab553 + baselines 5acd116. S3 (variance forest two-phase
     split, stateIsValid occupancy gap closed, last refusals deleted,
     flat entries legal again) LANDED a825263 + baselines b174737.
-    S4 (docs, records, residual coverage) closes the arc; its
-    carries, recorded in the S3 landing note: the sampler$data@x
-    dimnames drop breaking by-name joint resolution, the
-    recoverVarianceLeafValues docstring, the un-pinned-in-CI
-    bcf/multinomial equivalence legs, the slice/falsifier comment
-    anchors, the statesAgree helper gap.
+    Fork 2 (per-forest vs. per-sampler veto) settled PER-SAMPLER: a
+    row installs only if it empties no leaf in any tree of any
+    forest of any chain, with the per-forest column mask as the
+    exact opt-out. S4 (docs, records, residual coverage) closes the
+    arc: Rd docs for setPredictor and
+    updatePredictorPerObservationJointly record the multi-forest/
+    heteroscedastic acceptance criterion, the install mask, and
+    honestly the sampler$data@x dimnames-drop limitation (workaround
+    documented; the fix is its own queued entry below). Design docs
+    (model-space-survey.md secs 4-5, heteroscedastic.md sec 14,
+    empty-leaf-veto.md) and c-api-growth.md record the arc's outcome
+    (no dbarts.h change, no hash move). CI's exact-gates workflow now
+    pins bcf-equivalence and multinomial-equivalence beside the
+    existing gaussian leg. A comment-anchor sweep rewrote the SL-
+    through-S3 plan-slice/falsifier citations across src/, tests/cpp/
+    and inst/tinytest/ into self-contained rationale.
+    recoverVarianceLeafValues' docstring no longer names setState as
+    a reachable route to its 1.0 fallback. The statesAgree
+    above-chain-level gap remains worked around in the fuzz snapshot,
+    not fixed.
   multinomial-counts-mutation: multinomial BART cannot mutate its
     RESPONSE side - alone among the families it cannot serve as a
     conditional inside a larger Gibbs sampler. The response is the
@@ -346,6 +376,22 @@ items
   sbc-family-tiers: BUILT (records in docs/plans/sbc-family-tiers.md
     and runsbcbcf-repair.md). Open doors: the monotone follow-on arm,
     the heteroscedastic setState lift, full-R ladder re-runs.
+  setpredictor-dimnames: a whole-matrix transactional (or forced)
+    setPredictor(x, ...) installs x into sampler$data@x as a plain
+    matrix, dropping x's column names even when the sampler was built
+    with named columns (pre-existing since
+    docs/plans/multiforest-predictor-mutation.md S1). Breaks by-name
+    column resolution on every later call that resolves a column by
+    name against that sampler - most visibly
+    updatePredictorPerObservationJointly's shared-column match.
+    Workaround documented (man/dbartsSampler-class.Rd,
+    man/updatePredictorPerObservationJointly.Rd): mutate a column at a
+    time (setPredictor(x, column = ...)), which preserves dimnames via
+    installPredictorColumns' in-place assignment, or order any joint
+    call before the whole-matrix replacement. Small R-layer fix:
+    carry the incoming x's dimnames (or fall back to the existing
+    matrix's) when building the replacement. Not scheduled; small
+    slice, no plan doc yet.
   setpredictor-leafof-rebuild: CLOSED; the gather door taken
     roll-only. Record, memo corrections, and the DECLINED
     do-not-re-propose list in
@@ -407,11 +453,16 @@ items
     memory-safety hole is closed and every heteroscedastic mutation
     entry routes the variance forest correctly or refuses cleanly
     (full record and landing notes in
-    docs/plans/variance-forest-mutation-routing.md). Doors still
-    open, recorded there: transactional/per-observation rides
-    multiforest-predictor-mutation; scale-leaf staleness under
-    updateScale; heteroscedastic prior-predictive draw; the setState
-    variance column-mask gap.
+    docs/plans/variance-forest-mutation-routing.md). The
+    transactional/per-observation door CLOSED: it landed via
+    multiforest-predictor-mutation S3 (a825263, 2026-08-12), which
+    also CLOSED stateIsValid's variance OCCUPANCY gap in the same
+    slice (open decision 1 took the variance forest IN rather than
+    re-homing this item there). Doors still open, recorded there:
+    scale-leaf staleness under updateScale; heteroscedastic
+    prior-predictive draw; the setState variance COLUMN-MASK gap - a
+    distinct, still-open check (columnMaskSubtreeIsValid has no
+    variance-branch backstop), not the occupancy gap S3 closed.
   weighted-binary: integer-weight probit via replicated latents;
     arbitrary real weights need a real-shape PG sampler (IPW is a
     pseudo-likelihood trap; the approximate-PG decision is shared

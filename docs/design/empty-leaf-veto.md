@@ -126,3 +126,26 @@ deliberate, unconditional (-HUGE_VAL) penalty. If a future consumer
 needs occupancy-aware ordinal proposals for a reason beyond the
 invariant (e.g. mixing), that work should be scheduled on its own, with
 the exact-posterior gates as the arbiter.
+
+## The invariant elsewhere: the transactional predictor surface
+
+The empty-leaf invariant this note keeps (no live tree may hold an unoccupied
+bottom) is not confined to the move kernels. `Chain::stateIsValid`'s mean
+branch has always re-derived it structurally - build a scratch tree per stored
+tree, repartition against the sampler's current data, and refuse unless every
+bottom is occupied - as the criterion `$setState` and a warm start
+(`installForests`) both gate on. `docs/plans/multiforest-predictor-mutation.md`
+made the TRANSACTIONAL predictor surface (`$setPredictor` - whole matrix,
+column subset, or per-observation - and the cross-sampler per-observation
+session) enforce that same criterion rather than a weaker one: a row installs
+only if it empties no leaf in any tree of any forest of any chain, exactly
+what `stateIsValid` already required of a
+restored state. That arc did not invent a new invariant; it closed a gap
+between two paths that were supposed to agree and did not.
+
+One asymmetry survived until that arc's S3: the variance forest's branch of
+`stateIsValid` checked well-formedness and strict leaf positivity but not
+occupancy, so a heteroscedastic sampler's `$setState` could install a variance
+state the mutation veto would have refused. S3 (2026-08-12) closed it, adding
+the same scratch-build-and-repartition occupancy check to the variance branch;
+see docs/design/heteroscedastic.md section 14.

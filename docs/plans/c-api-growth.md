@@ -543,6 +543,18 @@ That plan's S1 item 5b is a CONDITIONAL carve-out re-signing `setTreatment`/
 that slice starts (dbarts-h-reshape.md binding decision 3's carve-out);
 otherwise the BCF names S3 shipped go to release unchanged.
 
+### No X-list change: multiforest-predictor-mutation (2026-08-10 to 08-12)
+
+`docs/plans/multiforest-predictor-mutation.md` (SL through S4) widened
+`setPredictor`, `updatePredictor`, and the per-observation session to accept a
+BCF, multinomial, and heteroscedastic sampler, and retired
+`refuseMultiForestTransactionalUpdate` and
+`refuseVarianceForestPredictorMutation` from the R bridge. None of that
+touched `dbarts.h`: the four transactional entries already existed and only
+their guard bodies changed. No X-list entry was appended and
+`DBARTS_C_API_HASH` did not move, so the queued dbarts.h reshape is
+unaffected by this arc.
+
 ## Verification
 
 Gates run from a worktree against a private library (per the repo's install

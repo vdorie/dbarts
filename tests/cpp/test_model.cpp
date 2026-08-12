@@ -886,11 +886,11 @@ static void testVarianceReportingStatePredict() {
 // where it has no training support.
 //
 // stateIsValid now REFUSES such a state, the occupancy criterion its mean
-// branch always imposed (docs/plans/multiforest-predictor-mutation.md, S3 item
-// 5), so no public route installs one: Sampler::setState gates on it and
-// installForests refuses the same construction (test_state.cpp). The
-// chain-level install below is not gated and still exercises the identity,
-// which stays live as the defense behind those refusals.
+// branch always imposed, so no public route installs one: Sampler::setState
+// gates on it and installForests refuses the same construction
+// (test_state.cpp). The chain-level install below is not gated and still
+// exercises the identity, which stays live as the defense behind those
+// refusals.
 static void testVarianceEmptyBottomStateRoundTrip() {
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
   ext_rng_setSeed(rng, 606u);

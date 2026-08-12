@@ -1154,8 +1154,7 @@ static void testVarianceWarmStart() {
         "variance warm start: the remapped surface serializes legally");
 
   // (3) an install leaving a variance bottom unoccupied is refused: x0 <=
-  // cut[2] then x0 > cut[8] is a region no row can reach (the S3 empty-bottom
-  // construction, moved to the install path)
+  // cut[2] then x0 > cut[8] is a region no row can reach
   SamplerStateData emptyBottom = donorState;
   const std::vector<double>& cuts(donorState.cutPoints[0]);
   check(cuts.size() > 8, "variance warm start: enough cuts for the nesting");
