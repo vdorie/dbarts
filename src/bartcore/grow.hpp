@@ -51,6 +51,15 @@ struct GrowScratch {
 ///    no-split outcome (always representable) ends the node.
 ///  - A split on a column with missing values draws ONE additional symmetric
 ///    missing-direction coin, matching CGMTreePrior::drawRuleForVariable.
+///    Convention on such a column, measured rather than assumed: an enumerated
+///    cut candidate STANDS FOR the two rules {cut, missing left} and {cut,
+///    missing right} the coin picks between, but CARRIES the prior mass of one
+///    of them (the `- log 2` below), so the pair enters the discrete draw at
+///    half its group's prior mass and the remainder accrues to no-split.
+///    test_grow.cpp chi-squares the realized root-rule frequencies against
+///    that law, against the group's own mass, and against the exact law over
+///    the full rule set; docs/design/grow-from-root.md section 7 records what
+///    it measured.
 ///
 /// Categorical predictors are ordinal-only in v1: they are never scanned and
 /// never split here (that keeps the draw count above exact), so their structure

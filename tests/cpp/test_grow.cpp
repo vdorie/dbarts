@@ -1,7 +1,8 @@
 // Component tests for grow-from-root (grow.hpp + Chain::growForestFromRoot):
 // seeded determinism and the documented per-node draw count, the well-formed /
 // legal-chain-state invariants of a grown tree, the ordinal-only categorical
-// contract, and grow-then-MH continuation through a live sampler.
+// contract, the prior mass an enumerated cut candidate carries on a column
+// with missing values, and grow-then-MH continuation through a live sampler.
 #include "common.hpp"
 
 namespace {
@@ -328,6 +329,275 @@ void testGrowHonorsInteraction() {
   printf("ok: grow-from-root honors the interaction predicate\n");
 }
 
+// ---------------------------------------------------------------------------
+// What an enumerated cut candidate stands for on a column with missing values.
+//
+// growTreeFromRoot enumerates one candidate per cut and gives it the prior mass
+// -log(numCuts) - log(2), which is the mass CGM puts on ONE rule of a column
+// that routes missing values. After the draw it spends a fair coin to decide
+// which of the two rules (missing left, missing right) the winning candidate
+// became. The candidate therefore stands for a two-rule group while carrying
+// one rule's mass. This measures whether that is really so before any weight
+// changes, by comparing three laws over the same outcome space
+// {no-split} U {(cut, missing side)}:
+//
+//   shipped  the weights grow.hpp assembles, halved by the fair coin
+//   group    the same, each cut candidate instead carrying its two-rule
+//            group's mass (the shipped weight times two)
+//   exact    all 2 * numCuts rules enumerated separately, each carrying its own
+//            likelihood with the missing rows PLACED on the side its rule
+//            names - no scan approximation. This is the law the CGM prior and
+//            the leaf marginal define on the full rule set.
+//
+// Decision rule, fixed before the first run: chi-square goodness of fit at
+// alpha = 1e-3, df = cells - 1, over 2e5 grows. Realized root rules matching
+// the shipped law but REJECTING the group law confirms that the shipped weight
+// is one rule's, not the group's; not rejecting the group law refutes it and
+// the shipped weight stands. The exact law's own draws are the calibration
+// control and must not reject.
+//
+// The fixture is deliberately signal-free and gives its missing rows the node's
+// mean response, so the two rules of a cut's group have near-equal exact
+// likelihood: that is the regime where the group's total mass is unambiguous
+// and the prior-mass question is not confounded with the scan's separate
+// omission of the missing rows from the split likelihood. The residual between
+// the group law and the exact law measures that second effect.
+
+// deterministic fixture noise from a local counter generator, so the fixture
+// disturbs neither the shared ext_rng stream nor the global rngState the
+// seed-pinned suites depend on
+double fixtureUniform(std::uint64_t& state) {
+  state = state * 6364136223846793005ull + 1442695040888963407ull;
+  return static_cast<double>((state >> 11) & ((1ull << 53) - 1)) *
+         (1.0 / 9007199254740992.0);
+}
+
+std::vector<double> normalizedFromLogWeights(
+    const std::vector<double>& logWeights) {
+  double maxLogWeight = *std::max_element(logWeights.begin(), logWeights.end());
+  std::vector<double> probabilities(logWeights.size());
+  double sum = 0.0;
+  for (size_t i = 0; i < logWeights.size(); ++i) {
+    probabilities[i] = std::exp(logWeights[i] - maxLogWeight);
+    sum += probabilities[i];
+  }
+  for (double& probability : probabilities) probability /= sum;
+  return probabilities;
+}
+
+// Pearson goodness of fit against a fully specified law: df = cells - 1
+double chiSquareStatistic(const std::vector<double>& counts,
+                          const std::vector<double>& probabilities,
+                          double numDraws) {
+  double statistic = 0.0;
+  for (size_t i = 0; i < counts.size(); ++i) {
+    double expected = numDraws * probabilities[i];
+    double deviation = counts[i] - expected;
+    statistic += deviation * deviation / expected;
+  }
+  return statistic;
+}
+
+// Regularized upper incomplete gamma Q(a, x): the series for P below the
+// crossover, the Lentz continued fraction for Q above it. Coded here because
+// libR's own pchisq silently returns zero without an initialized R runtime,
+// which this standalone host is not; agrees with R's to 6 figures.
+double upperIncompleteGamma(double a, double x) {
+  double logGammaA = std::lgamma(a);
+  if (x < a + 1.0) {
+    double term = 1.0 / a, sum = term;
+    for (int i = 1; i < 1000; ++i) {
+      term *= x / (a + i);
+      sum += term;
+      if (std::fabs(term) < std::fabs(sum) * 1e-16) break;
+    }
+    return 1.0 - sum * std::exp(-x + a * std::log(x) - logGammaA);
+  }
+  const double tiny = 1e-300;
+  double b = x + 1.0 - a, c = 1.0 / tiny, d = 1.0 / b, h = d;
+  for (int i = 1; i < 1000; ++i) {
+    double an = -i * (i - a);
+    b += 2.0;
+    d = an * d + b;
+    if (std::fabs(d) < tiny) d = tiny;
+    c = b + an / c;
+    if (std::fabs(c) < tiny) c = tiny;
+    d = 1.0 / d;
+    double delta = d * c;
+    h *= delta;
+    if (std::fabs(delta - 1.0) < 1e-16) break;
+  }
+  return h * std::exp(-x + a * std::log(x) - logGammaA);
+}
+
+double chiSquareUpperTail(double statistic, double df) {
+  return upperIncompleteGamma(0.5 * df, 0.5 * statistic);
+}
+
+double totalVariation(const std::vector<double>& p,
+                      const std::vector<double>& q) {
+  double distance = 0.0;
+  for (size_t i = 0; i < p.size(); ++i) distance += std::fabs(p[i] - q[i]);
+  return 0.5 * distance;
+}
+
+void testOrdinalMissingRuleGroupWeight() {
+  const size_t n = 64, numMissing = 8, numDraws = 200000;
+  const double alpha = 1e-3, k = 2.0, sigma = 0.9;
+  double residualVariance = sigma * sigma;
+
+  std::vector<double> x(n), y(n);
+  std::uint64_t generator = 20260812u;
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % 5);
+    y[i] = 0.6 * (2.0 * fixtureUniform(generator) - 1.0);  // no signal
+  }
+  for (size_t m = 0; m < numMissing; ++m) {
+    x[m * (n / numMissing)] = std::nan("");
+    y[m * (n / numMissing)] = 0.0;  // the node's mean response
+  }
+
+  ColumnStore store;
+  store.build(x.data(), n, 1, 4);
+  size_t numCuts = store.numCuts[0];
+  check(store.hasMissing[0] == 1,
+        "the measured fixture's only splittable column carries missing values");
+  check(numCuts == 4, "the measured fixture has four ordinal cuts");
+
+  // the node's suffstats, per code and over the missing rows
+  const xint_t* codes = store.column(0);
+  std::vector<ConstantLeafScanBin> bins(numCuts + 1);
+  ConstantLeafScanBin missing, nodeTotal, observedTotal;
+  for (size_t i = 0; i < n; ++i) {
+    nodeTotal.addObservation(1.0, y[i]);
+    if (codes[i] == naCode) missing.addObservation(1.0, y[i]);
+    else bins[codes[i]].addObservation(1.0, y[i]);
+  }
+  for (const ConstantLeafScanBin& bin : bins) observedTotal.addBin(bin);
+  check(missing.count == static_cast<double>(numMissing),
+        "every missing row reaches the node as naCode");
+
+  CGMTreePrior prior;
+  prior.power = 8.0;  // depth-1 growth ~ 0.004: the root draw is the measurement
+  ConstantGaussianLeaf leaf{0.5};
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  tree.initialize(indexBuffer.data(), n);
+  tree.computeLeafStats(0, y.data(), nullptr);
+  double growth = prior.growthProbability(tree, store, 0);
+  double logGrowth = std::log(growth);
+  // CGM's uniform over the 2 * numCuts rules; grow.hpp's logCut is this exactly
+  double logRule = -std::log(static_cast<double>(2 * numCuts));
+
+  auto marginal = [&](const ConstantLeafScanBin& bin) {
+    return leaf.logIntegratedLikelihood(k, residualVariance, bin.sumWeights,
+                                        bin.sumWeightedResponse);
+  };
+
+  size_t numCells = 1 + 2 * numCuts;
+  std::vector<double> logShipped(numCells), logGroup(numCells);
+  std::vector<double> logExact(numCells);
+  double noSplit = std::log(1.0 - growth) + marginal(nodeTotal);
+  logShipped[0] = logGroup[0] = logExact[0] = noSplit;
+
+  ConstantLeafScanBin left;
+  for (size_t cut = 0; cut < numCuts; ++cut) {
+    left.addBin(bins[cut]);
+    ConstantLeafScanBin right;
+    right.count = observedTotal.count - left.count;
+    right.sumWeights = observedTotal.sumWeights - left.sumWeights;
+    right.sumWeightedResponse =
+      observedTotal.sumWeightedResponse - left.sumWeightedResponse;
+    check(left.count > 0.0 && right.count > 0.0,
+          "every cut of the measured fixture is occupancy-nonempty");
+    double scanned = marginal(left) + marginal(right);
+    for (size_t side = 0; side < 2; ++side) {
+      ConstantLeafScanBin exactLeft(left), exactRight(right);
+      (side == 0 ? exactLeft : exactRight).addBin(missing);
+      size_t cell = 1 + 2 * cut + side;
+      logShipped[cell] = logGrowth + logRule + scanned - std::log(2.0);
+      logGroup[cell] = logGrowth + logRule + scanned;
+      logExact[cell] =
+        logGrowth + logRule + marginal(exactLeft) + marginal(exactRight);
+    }
+  }
+
+  std::vector<double> shipped(normalizedFromLogWeights(logShipped));
+  std::vector<double> group(normalizedFromLogWeights(logGroup));
+  std::vector<double> exact(normalizedFromLogWeights(logExact));
+
+  // realized root rules: the shipped kernel, then the exact law's own draws
+  std::vector<double> shippedCounts(numCells, 0.0), exactCounts(numCells, 0.0);
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20260812u);
+  GrowScratch scratch;
+  for (size_t draw = 0; draw < numDraws; ++draw) {
+    tree.initialize(indexBuffer.data(), n);
+    tree.computeLeafStats(0, y.data(), nullptr);
+    growTreeFromRoot(store, prior, leaf, rng, tree, 0, y.data(), nullptr, k,
+                     sigma, scratch);
+    size_t cell = 0;
+    if (!tree.at(0).isBottom())
+      cell = 1 + 2 * static_cast<size_t>(tree.at(0).rule.splitIndex()) +
+             (tree.at(0).rule.missingGoesRight() ? 1u : 0u);
+    shippedCounts[cell] += 1.0;
+  }
+  for (size_t draw = 0; draw < numDraws; ++draw)
+    exactCounts[ext_rng_drawFromDiscreteDistribution(rng, exact.data(),
+                                                     numCells)] += 1.0;
+  ext_rng_destroy(rng);
+
+  double total = static_cast<double>(numDraws);
+  double df = static_cast<double>(numCells - 1);
+  double x2ShippedVsShipped = chiSquareStatistic(shippedCounts, shipped, total);
+  double x2ShippedVsGroup = chiSquareStatistic(shippedCounts, group, total);
+  double x2ShippedVsExact = chiSquareStatistic(shippedCounts, exact, total);
+  double x2ExactVsExact = chiSquareStatistic(exactCounts, exact, total);
+  auto pValue = [df](double statistic) {
+    return chiSquareUpperTail(statistic, df);
+  };
+
+  printf("  missing-rule-group weight, %zu cells, df %.0f, %zu grows\n",
+         numCells, df, numDraws);
+  printf("    no-split probability: shipped %.5f group %.5f exact %.5f, "
+         "realized %.5f\n", shipped[0], group[0], exact[0],
+         shippedCounts[0] / total);
+  printf("    chi2 shipped draws vs shipped law %.2f (p %.3g)\n",
+         x2ShippedVsShipped, pValue(x2ShippedVsShipped));
+  printf("    chi2 shipped draws vs group law   %.2f (p %.3g)\n",
+         x2ShippedVsGroup, pValue(x2ShippedVsGroup));
+  printf("    chi2 shipped draws vs exact law   %.2f (p %.3g)\n",
+         x2ShippedVsExact, pValue(x2ShippedVsExact));
+  printf("    chi2 exact draws vs exact law     %.2f (p %.3g)\n",
+         x2ExactVsExact, pValue(x2ExactVsExact));
+  printf("    total variation: shipped-exact %.5f group-exact %.5f "
+         "shipped-group %.5f\n", totalVariation(shipped, exact),
+         totalVariation(group, exact), totalVariation(shipped, group));
+
+  // the calibration controls: the reconstructed shipped law is the kernel's
+  // own, and the chi-square is calibrated at this cell count and draw count
+  check(pValue(x2ShippedVsShipped) >= alpha,
+        "realized root rules match the shipped weights as reconstructed");
+  check(pValue(x2ExactVsExact) >= alpha,
+        "the exact law's own draws match it (chi-square calibration)");
+
+  // the measurement, pinned as measured: a cut candidate on a missing-bearing
+  // column carries one rule's prior mass while standing for a two-rule group,
+  // so the realized law is not the group law and not the exact law
+  check(pValue(x2ShippedVsGroup) < alpha,
+        "a cut candidate carries one rule's prior mass, not its group's");
+  check(pValue(x2ShippedVsExact) < alpha,
+        "the realized law is not the exact law on the full rule set");
+  // exactly a factor of two, read off the split-to-no-split odds of the two
+  // reconstructed laws rather than inferred from the chi-square
+  double shippedOdds = (1.0 - shipped[0]) / shipped[0];
+  double groupOdds = (1.0 - group[0]) / group[0];
+  checkNear(groupOdds / shippedOdds, 2.0, 1e-9,
+            "the group's mass is exactly twice the mass the candidate carries");
+
+  printf("ok: grow ordinal missing rule-group weight\n");
+}
+
 }  // namespace
 
 void runGrowTests(ext_rng* rng) {
@@ -337,4 +607,5 @@ void runGrowTests(ext_rng* rng) {
   testCategoricalNeverSplit();
   testGrowThenContinue(rng);
   testGrowHonorsInteraction();
+  testOrdinalMissingRuleGroupWeight();
 }
