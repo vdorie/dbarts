@@ -698,7 +698,7 @@ samplerOffset <- dbarts(
 )
 expect_error(
   dbarts:::bartcoreMultinomialSampler(samplerOffset, labels2, K = 2L),
-  "do not support an offset"
+  "do not support a flat offset"
 )
 # setSigma is refused for the same class of reason: the softmax chain marks
 # itself binary-sigma (sigmaScale() is 1 and the redraw is gated off), so a

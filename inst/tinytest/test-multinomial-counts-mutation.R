@@ -326,14 +326,17 @@ expect_identical(arm.refused$runVarcount, arm.untouched$runVarcount)
 # the response-side conduits stay refused - a flat y cannot express an n x K
 # count matrix, a flat offset points exactly along the softmax's null
 # direction, and the case weights an integer weight would express are already
-# row-wise count replication - but the refusal now names the channel that
+# row-wise count replication - but each refusal now names the channel that
 # works instead of reporting a response fixed at creation, which it no longer
 # is. The guard is shared with the flat C API, so both surfaces say this.
 expect_error(
   dbarts:::bartcoreSetResponse(bc.mn, as.double(labels)),
   "n x K count matrix"
 )
-expect_error(dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n)), "n x K count")
+expect_error(
+  dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n)),
+  "n x K category matrix"
+)
 expect_error(dbarts:::bartcoreSetWeights(bc.mn, runif(n, 0.5, 1.5)), "n x K")
 # and a BCF sampler, which DOES opt into the response conduit, keeps the
 # generic wording: the counts hint is conditioned on the capability, not on the

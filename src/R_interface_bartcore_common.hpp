@@ -44,6 +44,12 @@ struct BartcoreHolder {
   // lifetime (the single-trial label entry builds a one-hot counts matrix)
   std::vector<int> ownedCounts{}, ownedTrials{};
 
+  // and, when one is installed, an owned copy of the n x K category offset the
+  // combiner borrows in the same layout. Empty means none: the bridge reads
+  // emptiness as the sampler's "carries a category offset" answer, since the
+  // engine's own probe is a capability rather than a state.
+  std::vector<double> ownedCategoryOffset{};
+
   ~BartcoreHolder() {
     for (std::size_t c = rngs.size(); c > 0; --c)
       if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);

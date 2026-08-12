@@ -275,6 +275,10 @@ struct MultinomialSpec {
   std::size_t numCategories = 0;      // K
   const int* counts = nullptr;        // borrowed n x K count matrix, category-major
   const int* trials = nullptr;        // borrowed per-observation trial count n_i
+  // borrowed n x K category offset in the same category-major layout, null for
+  // none: the latent is f_ik + o_ik, so the offset enters the margins, the
+  // working response and the reported softmax, never the leaf values
+  const double* offset = nullptr;
   MultinomialForestSpec forest;       // shared across the K category forests
   // per-forest leaf scale anchor and k: the pairwise log-odds f_ik - f_ij is a
   // difference of two forests, so the per-forest node scale is the logistic
@@ -364,6 +368,13 @@ struct ForestCombiner {
   /// lifetime, as the constructed pair is, and both are re-read from scratch on
   /// the next sweep - the coupling caches nothing derived from either.
   virtual void setCounts(const int*, const int*) {}
+
+  /// Swaps the borrowed n x K offset on the coupling's own linear predictor,
+  /// clearing it at a null pointer; inert unless a subclass carries one. It is
+  /// NOT the response model's offset, which every reported channel adds after
+  /// the forests are combined: this one enters BEFORE the combination, which is
+  /// the only place a per-category shift means anything under a softmax.
+  virtual void setCategoryOffset(const double*) {}
 
   /// The BCF glue coefficients (a, b0, b1) on the combining response, for the
   /// per-forest reporting path (getBCFGlue); false for a combiner carrying no
@@ -771,6 +782,17 @@ inline void softmaxLocationMajor(const double* raw, std::size_t n,
 /// immediately before forest k's tree update, cycling the categories (Held and
 /// Holmes 2006; Polson, Scott and Windle 2013 sec 4). A single post-loop all-K
 /// draw would be an invalid Jacobi-style update.
+///
+/// An optional n x K CATEGORY OFFSET makes the latent f_ik + o_ik. Everything
+/// above reads it through rawFits: the margins become C_ik = log sum_{j != k}
+/// exp(f_ij + o_ij), the working response gains a - o_if so forest f still
+/// estimates its own part, and the reported softmax is taken over the offset
+/// fits. It is not the response model's offset, which is added to every
+/// reported channel AFTER the forests are combined - past the softmax that
+/// would be the wrong side of the nonlinearity, and a flat per-observation
+/// shift is the softmax's null direction in any case. The level-centering move
+/// is unaffected: its shift is derived from the leaf prior alone, and a common
+/// shift of all K is that same null direction.
 template <IntegrableLeafModel L, typename ResidT = double>
 struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   static_assert(!L::hasVectorParams && !L::hasFunctionParams,
@@ -778,8 +800,11 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
 
   MultinomialForestCombiner(const ColumnStore& data, const MultinomialSpec& spec)
       : data_(data), numCategories_(spec.numCategories), counts_(spec.counts),
-        trials_(spec.trials) {
+        trials_(spec.trials), offset_(spec.offset) {
     std::size_t n = data_.numObservations;
+    // the raw slab exists only under an offset; off it every read resolves to
+    // the forests' own totalFits and this stays empty
+    if (offset_ != nullptr) raw_.resize(n * numCategories_);
     // n x K omega scratch, cold-started at PG(1, 0)'s mean 1/4 (the logistic
     // seed); drawForestGlue overwrites category k's column each sweep before it
     // is read, so the cold value is only a fallback.
@@ -828,6 +853,24 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
     trials_ = trials;
   }
 
+  /// Installs a replacement n x K category offset, borrowed and sized to the
+  /// constructed n and K, or clears it at a null pointer. The latent becomes
+  /// f_ik + o_ik: the margins C_ik are formed over the OFFSET fits, the working
+  /// response subtracts o_if back off (forest f estimates f_if, not the sum),
+  /// and the reported softmax is taken over the offset fits, so the offset
+  /// shifts the model without ever entering a leaf value. Nothing derived is
+  /// cached across the call - the raw slab is rematerialized in full at every
+  /// sweep entry and at every reporting point - so a mid-life install or clear
+  /// takes effect on the next read with no refresh hook.
+  void setCategoryOffset(const double* offset) override {
+    offset_ = offset;
+    // grows once and is kept: a caller clearing and reinstalling an offset
+    // should not pay for the allocation twice, and an unused slab costs nK
+    // doubles on a sampler that had one
+    if (offset_ != nullptr)
+      raw_.resize(data_.numObservations * numCategories_);
+  }
+
   /// Interleaved PG draw for category f: form the current margin C_if and draw
   /// omega_if ~ PG(n_i, f_if - C_if) against it, storing both so
   /// formForestResponse(f), called immediately after, reads the SAME margin and
@@ -845,10 +888,15 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
       // point, so snapshot the whole suffix by one backward two-way merge from
       // the empty top row: suffix_[g] = LSE over j > g. Seed the prefix (LSE
       // over j < f) from the below-f fits - empty, hence -inf, when f == 0.
+      // Under an offset the whole raw slab is rebuilt first: this is one of the
+      // two points that dominate every write to totalFits made outside a sweep
+      // (a predictor mutation's tree revalidation), so nothing carries a fit
+      // from before it.
+      if (offset_ != nullptr) materializeRawFits(forests);
       double* top = suffix_.data() + (K - 1) * n;
       for (std::size_t i = 0; i < n; ++i) top[i] = -HUGE_VAL;
       for (std::size_t g = K - 1; g-- > 0; ) {
-        const double* next = forests[g + 1].totalFits.data();
+        const double* next = rawFits(g + 1, forests);
         const double* above = suffix_.data() + (g + 1) * n;
         double* here = suffix_.data() + g * n;
         for (std::size_t i = 0; i < n; ++i)
@@ -856,7 +904,7 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
       }
       for (std::size_t i = 0; i < n; ++i) prefix_[i] = -HUGE_VAL;
       for (std::size_t g = 0; g < f; ++g) {
-        const double* below = forests[g].totalFits.data();
+        const double* below = rawFits(g, forests);
         for (std::size_t i = 0; i < n; ++i)
           prefix_[i] = logSumExp2(prefix_[i], below[i]);
       }
@@ -864,13 +912,18 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
       // In-order continuation: category f - 1's tree update landed since its
       // glue call, so its fit is now NEW; fold it into the running prefix (the
       // interleaving's below-f mix). suffix_[f] still holds the OLD above-f mix.
-      const double* prev = forests[f - 1].totalFits.data();
+      // Refreshing only column f - 1 is exact WITHIN a sweep: between this call
+      // and the previous one the sole totalFits write is that forest's own
+      // finalizeTotalFits. It is safe to be lazy here only because both
+      // reporting paths rematerialize in full.
+      if (offset_ != nullptr) refreshRawColumn(f - 1, forests);
+      const double* prev = rawFits(f - 1, forests);
       for (std::size_t i = 0; i < n; ++i)
         prefix_[i] = logSumExp2(prefix_[i], prev[i]);
     }
     lastF_ = f;
 
-    const double* fFits = forests[f].totalFits.data();
+    const double* fFits = rawFits(f, forests);
     const double* suffix = suffix_.data() + f * n;
     double* omega = omega_.data() + f * n;
     for (std::size_t i = 0; i < n; ++i) {
@@ -897,25 +950,53 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// sweep loops (Chain::run and growForestFromRoot) fire the pair adjacently.
   /// Not asserted: drawForestGlue sets lastF_ = f unconditionally, so a
   /// lastF_ == f check here is tautological.
+  ///
+  /// Under a category offset the response carries an extra - o_if: the latent
+  /// is f_if + o_if, so the forest is asked for the residual part. This is the
+  /// one train-side reader that cannot go through the offset fits, since it
+  /// SUBTRACTS the offset rather than adding it; the branch is hoisted out of
+  /// the loop so the null path runs today's statement unchanged. The subtraction
+  /// also keeps totalFits offset-free (finalizeTotalFits sums this response's
+  /// own tree fits), which is the invariant the offset fits are built on.
   ForestResponse formForestResponse(std::size_t f,
       const std::vector<Forest<L, ResidT>>& forests, const double* /*y*/,
       const double* /*w*/) override {
     (void) forests;
     std::size_t n = data_.numObservations;
     const double* omega = omega_.data() + f * n;
-    for (std::size_t i = 0; i < n; ++i) {
-      double yif = static_cast<double>(counts_[f * n + i]);
-      forestResponse_[i] = (yif - trials_[i] * 0.5) / omega[i] + margins_[i];
-      forestWeights_[i] = omega[i];
+    if (offset_ == nullptr) {
+      for (std::size_t i = 0; i < n; ++i) {
+        double yif = static_cast<double>(counts_[f * n + i]);
+        forestResponse_[i] = (yif - trials_[i] * 0.5) / omega[i] + margins_[i];
+        forestWeights_[i] = omega[i];
+      }
+    } else {
+      const double* o = offset_ + f * n;
+      for (std::size_t i = 0; i < n; ++i) {
+        double yif = static_cast<double>(counts_[f * n + i]);
+        forestResponse_[i] =
+          (yif - trials_[i] * 0.5) / omega[i] + margins_[i] - o[i];
+        forestWeights_[i] = omega[i];
+      }
     }
     return {forestResponse_.data(), forestWeights_.data()};
   }
 
   /// The K softmax probabilities per observation, location-major (channel k at
   /// combined_[k*n + i]); the reported training output. Log-sum-exp-safe.
+  ///
+  /// Under an offset the whole raw slab is rebuilt here, not refreshed
+  /// per-column. This is a reporting point, and it is reached from three places
+  /// per recorded sweep - after the forest loop, inside storeSample (which runs
+  /// after the level-centering move has shifted every totalFits) and in
+  /// grow-from-root - so a column left at the previous sweep's fit would be
+  /// reported as though it were current. The full pass also absorbs any
+  /// totalFits written between sweeps, outside the combiner entirely, by a
+  /// predictor mutation's tree revalidation.
   const double* combinedFits(const std::vector<Forest<L, ResidT>>& forests) override {
+    if (offset_ != nullptr) materializeRawFits(forests);
     return blendSoftmax(data_.numObservations,
-        [&](std::size_t k) { return forests[k].totalFits.data(); },
+        [&](std::size_t k) { return rawFits(k, forests); },
         combined_.data());
   }
 
@@ -1020,6 +1101,37 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   }
 
 private:
+  /// The single definition of "the per-observation fit the softmax sees" for
+  /// category k: forest k's own totalFits off an offset, and the offset column
+  /// f_k + o_k under one. Every train-side reader goes through it - the suffix
+  /// fold, the prefix seed and its continuation, the drawn category's own fits,
+  /// and the reported blend - so there is one place where the offset enters the
+  /// latent, and on the null path it yields exactly today's pointer, which is
+  /// what makes an offset-free run bit-for-bit unchanged.
+  const double* rawFits(std::size_t k,
+                        const std::vector<Forest<L, ResidT>>& forests) const {
+    if (offset_ == nullptr) return forests[k].totalFits.data();
+    return raw_.data() + k * data_.numObservations;
+  }
+
+  /// Rewrites category k's offset fits from the forest's current totalFits.
+  /// Never called off an offset.
+  void refreshRawColumn(std::size_t k,
+                        const std::vector<Forest<L, ResidT>>& forests) {
+    std::size_t n = data_.numObservations;
+    const double* fits = forests[k].totalFits.data();
+    const double* o = offset_ + k * n;
+    double* out = raw_.data() + k * n;
+    for (std::size_t i = 0; i < n; ++i) out[i] = fits[i] + o[i];
+  }
+
+  /// Rewrites all K columns. The two callers (a fresh sweep entry and the
+  /// reported blend) are what make the in-sweep per-column refresh safe.
+  void materializeRawFits(const std::vector<Forest<L, ResidT>>& forests) {
+    for (std::size_t k = 0; k < numCategories_; ++k)
+      refreshRawColumn(k, forests);
+  }
+
   /// The live tree count the level-centering passes may touch: numTrees clamped
   /// to the tree and leaf-table lengths, so a partially built forest (a
   /// component-test fixture, a forest mid-resize) walks only what exists.
@@ -1063,6 +1175,8 @@ private:
   std::size_t numCategories_;
   const int* counts_;    // borrowed n x K count matrix, category-major (k*n + i)
   const int* trials_;    // borrowed per-observation trial count n_i (>= 1)
+  const double* offset_; // borrowed n x K category offset, same layout; or null
+  std::vector<double> raw_;  // n x K fits + offset; empty and unread off one
   std::vector<double> omega_;          // n x K, category-major (column k at k*n)
   std::vector<double> margins_;        // n; the current forest's C_if handoff
   std::vector<double> suffix_;         // n x K; per-sweep LSE over j > f, old fits

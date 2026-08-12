@@ -692,6 +692,47 @@ bartcoreBCFSampler <- function(
   result
 }
 
+# Integer coercion for an already-validated count matrix. The RANGE check comes
+# BEFORE the coercion: storage.mode() turns a value past .Machine$integer.max
+# into NA with a warning, which the engine would then report as a negative
+# count - a true refusal naming the wrong reason.
+asCountMatrix <- function(counts) {
+  if (any(counts > .Machine$integer.max)) {
+    stop("multinomial counts must be representable as integers")
+  }
+  storage.mode(counts) <- "integer"
+  counts
+}
+
+# The n x K category offset shared by the two multinomial creators and the
+# setter: NULL means none, anything else must be a numeric n x K matrix with
+# every entry finite (an infinite entry propagates through the log-sum-exp
+# margin into a NaN for every category of that row). Only the row-centred part
+# of the offset is identified - adding a constant to every entry of a row
+# leaves the softmax unchanged - so the input is passed through as given rather
+# than silently re-centred.
+validateCategoryOffset <- function(offset, n, K) {
+  if (is.null(offset)) {
+    return(NULL)
+  }
+  offset <- as.matrix(offset)
+  if (!is.numeric(offset)) {
+    stop("multinomial category offset must be a numeric matrix")
+  }
+  if (nrow(offset) != n || ncol(offset) != K) {
+    stop(sprintf(
+      "multinomial category offset must be a %d x %d matrix",
+      n,
+      K
+    ))
+  }
+  if (!all(is.finite(offset))) {
+    stop("multinomial category offset must be finite")
+  }
+  storage.mode(offset) <- "double"
+  offset
+}
+
 # A K-forest multinomial (softmax) sampler (docs/design/multinomial.md),
 # internal and single-trial: the K symmetric category forests couple through a
 # softmax likelihood with an interleaved one-vs-rest Polya-Gamma augmentation
@@ -706,7 +747,14 @@ bartcoreBCFSampler <- function(
 # reports the same K softmax probabilities on the held-out rows (the K forests'
 # totalTestFits blended by softmax). Under keepTrees, out-of-sample predict()
 # replays all K forests' saved trees and softmaxes them (bartcorePredict).
-bartcoreMultinomialSampler <- function(sampler, labels, K = NULL) {
+# offset, when given, is the n x K category offset bartcoreSetCategoryOffset
+# installs; see it for the semantics and for what it refuses.
+bartcoreMultinomialSampler <- function(
+  sampler,
+  labels,
+  K = NULL,
+  offset = NULL
+) {
   labels <- as.integer(labels)
   if (anyNA(labels)) {
     stop("multinomial labels must be integer category codes 0..K-1")
@@ -717,6 +765,7 @@ bartcoreMultinomialSampler <- function(sampler, labels, K = NULL) {
   if (is.null(K)) {
     K <- max(labels) + 1L
   }
+  offset <- validateCategoryOffset(offset, length(labels), K)
   result <- new.env(parent = emptyenv())
   result$ptr <- .Call(
     C_dbarts_bartcore_createMultinomial,
@@ -724,11 +773,15 @@ bartcoreMultinomialSampler <- function(sampler, labels, K = NULL) {
     sampler$model,
     sampler$data,
     labels,
-    as.integer(K)
+    as.integer(K),
+    offset
   )
   # the engine keeps no predictor matrix; track it R-side for the re-quantize
   # surface, as the other dense-predictor wrappers do
   result$x <- rawPredictorMatrix(sampler$data@x)
+  # K, so the response-side entries can state the expected shape R-side; the
+  # engine reads its own (numReportedLocations) and re-checks
+  result$K <- as.integer(K)
   result
 }
 
@@ -739,7 +792,12 @@ bartcoreMultinomialSampler <- function(sampler, labels, K = NULL) {
 # K-forest softmax engine; the single-trial label path is the special case of a
 # one-hot matrix with every trial 1. Validated R-side (safe over fast); the
 # engine re-derives the trials and re-checks the invariants.
-bartcoreMultinomialCountSampler <- function(sampler, counts, K = NULL) {
+bartcoreMultinomialCountSampler <- function(
+  sampler,
+  counts,
+  K = NULL,
+  offset = NULL
+) {
   counts <- as.matrix(counts)
   if (!is.numeric(counts)) {
     stop("multinomial counts must be a numeric matrix of nonnegative integers")
@@ -765,7 +823,8 @@ bartcoreMultinomialCountSampler <- function(sampler, counts, K = NULL) {
   if (any(rowSums(counts) < 1)) {
     stop("every multinomial count row must have at least one trial (n_i >= 1)")
   }
-  storage.mode(counts) <- "integer"
+  counts <- asCountMatrix(counts)
+  offset <- validateCategoryOffset(offset, nrow(counts), K)
   result <- new.env(parent = emptyenv())
   # counts is column-major (category-major), the layout the combiner reads
   result$ptr <- .Call(
@@ -774,11 +833,15 @@ bartcoreMultinomialCountSampler <- function(sampler, counts, K = NULL) {
     sampler$model,
     sampler$data,
     counts,
-    as.integer(K)
+    as.integer(K),
+    offset
   )
   # the engine keeps no predictor matrix; track it R-side for the re-quantize
   # surface, as the other dense-predictor wrappers do
   result$x <- rawPredictorMatrix(sampler$data@x)
+  # K, so the response-side entries can state the expected shape R-side; the
+  # engine reads its own (numReportedLocations) and re-checks
+  result$K <- as.integer(K)
   result
 }
 
@@ -814,9 +877,40 @@ bartcoreSetCounts <- function(bcSampler, counts) {
   if (any(rowSums(counts) < 1)) {
     stop("every multinomial count row must have at least one trial (n_i >= 1)")
   }
-  storage.mode(counts) <- "integer"
+  counts <- asCountMatrix(counts)
   # counts is column-major (category-major), the layout the combiner reads
   invisible(.Call(C_dbarts_bartcore_setCounts, bcSampler$ptr, counts))
+}
+
+# Installs (or clears, at NULL) a multinomial sampler's n x K category offset:
+# the latent becomes f_ik + o_ik, so the offset enters the log-sum-exp margins,
+# each category's working response and the reported softmax probabilities, and
+# never a leaf value. n and K are fixed at creation, as they are for the counts.
+#
+# This is the response-side counterpart of bartcoreSetCounts, not
+# bartcoreSetOffset: the response model's offset is added to every reported
+# channel AFTER the K forests are blended, which for a softmax is the wrong side
+# of the nonlinearity, and a flat per-observation offset is the softmax's own
+# null direction in any case. Only the row-centred part is identified - adding a
+# constant to a whole row of the matrix leaves every reported probability
+# unchanged - and the entrance leaves the input as given rather than re-centring
+# it.
+#
+# While an offset is installed the sampler carries no test data and cannot
+# predict: those channels blend the category forests' test fits alone and would
+# report probabilities without the offset.
+bartcoreSetCategoryOffset <- function(bcSampler, offset) {
+  # the shape check needs the handle's own K, which only a multinomial handle
+  # carries; off one, the entry's capability probe is the refusal, and it names
+  # the family situation rather than a shape
+  if (!is.null(bcSampler$K)) {
+    offset <- validateCategoryOffset(offset, nrow(bcSampler$x), bcSampler$K)
+  }
+  invisible(.Call(
+    C_dbarts_bartcore_setCategoryOffset,
+    bcSampler$ptr,
+    offset
+  ))
 }
 
 # The 0/1 treatment the treatment forest contrasts on; re-forms b_{z_i} and

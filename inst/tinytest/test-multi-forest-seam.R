@@ -255,15 +255,20 @@ expect_error(
   "n x K count matrix"
 )
 # a flat offset points exactly along the softmax's null direction (a common
-# per-observation shift), so it has no semantics here at any updateScale
-expect_error(dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n)), "n x K count")
+# per-observation shift), so it has no semantics here at any updateScale - and
+# the refusal names the per-category matrix that does
+# (test-multinomial-category-offset.R)
+expect_error(
+  dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n)),
+  "n x K category matrix"
+)
 expect_error(
   dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = TRUE),
-  "n x K count"
+  "n x K category matrix"
 )
 expect_error(
   dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = NA),
-  "n x K count"
+  "n x K category matrix"
 )
 # case weights are refused at multinomial creation and stay refused after it:
 # the opt-in that opens them for BCF is the combiner's, and this one does not

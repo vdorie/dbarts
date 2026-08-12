@@ -19,10 +19,13 @@ SEXP bartcore_createBCF(SEXP control, SEXP model, SEXP data, SEXP z,
                         SEXP muInteractions, SEXP tauInteractions,
                         SEXP muBlocks, SEXP tauBlocks);
 SEXP bartcore_createMultinomial(SEXP control, SEXP model, SEXP data,
-                                SEXP labels, SEXP numCategories);
+                                SEXP labels, SEXP numCategories,
+                                SEXP categoryOffset);
 SEXP bartcore_createMultinomialCounts(SEXP control, SEXP model, SEXP data,
-                                      SEXP counts, SEXP numCategories);
+                                      SEXP counts, SEXP numCategories,
+                                      SEXP categoryOffset);
 SEXP bartcore_setCounts(SEXP ptr, SEXP counts);
+SEXP bartcore_setCategoryOffset(SEXP ptr, SEXP offset);
 SEXP bartcore_setTreatment(SEXP ptr, SEXP z);
 SEXP bartcore_setForestWeights(SEXP ptr, SEXP forest, SEXP weights);
 SEXP bartcore_getBCFGlue(SEXP ptr);
