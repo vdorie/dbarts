@@ -1,8 +1,9 @@
 // Component tests for grow-from-root (grow.hpp + Chain::growForestFromRoot):
 // seeded determinism and the documented per-node draw count, the well-formed /
-// legal-chain-state invariants of a grown tree, the ordinal-only categorical
-// contract, the prior mass an enumerated cut candidate carries on a column
-// with missing values, and grow-then-MH continuation through a live sampler.
+// legal-chain-state invariants of a grown tree, the categorical rules it now
+// places and their gauge, the prior mass an enumerated cut candidate carries on
+// a column with missing values, and grow-then-MH continuation through a live
+// sampler.
 #include "common.hpp"
 
 namespace {
@@ -22,8 +23,9 @@ bool treeStructureEqual(const Tree& a, const Tree& b) {
   return true;
 }
 
-// every node the recursion draws at has positive prior growth probability; a
-// no-missing build spends no missing coins, so this is the exact uniform count
+// every node the recursion draws at has positive prior growth probability; on a
+// no-missing, all-ordinal build there are no missing coins and no categorical
+// orientation or absent-position coins, so this is the exact uniform count
 size_t positiveGrowthNodeCount(const Tree& tree, const ColumnStore& store,
                                const CGMTreePrior& prior) {
   size_t count = 0;
@@ -59,7 +61,8 @@ void testDeterminismAndDrawCount() {
   makeStepData(x, y, n);
   ColumnStore store;
   store.build(x.data(), n, 1, 50);
-  check(store.hasMissing[0] == 0, "no-missing build for the draw-count census");
+  check(store.hasMissing[0] == 0 && store.types[0] == ColumnType::ordinal,
+        "no-missing, all-ordinal build for the draw-count census");
 
   CGMTreePrior prior;  // base 0.95, power 2
   ConstantGaussianLeaf leaf{0.5};
@@ -83,7 +86,9 @@ void testDeterminismAndDrawCount() {
   check(treeA.nodes.size() > 1, "the strong signal grows past the root");
 
   // exact draw count: replay the census many continuous uniforms on a fresh
-  // generator and confirm it reaches the same serialized state as the grow
+  // generator and confirm it reaches the same serialized state as the grow.
+  // One uniform per positive-growth node is the WHOLE count only because this
+  // fixture spends no post-draw coin of either kind
   size_t expectedDraws = positiveGrowthNodeCount(treeA, store, prior);
   ext_rng* replay = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
   ext_rng_setSeed(replay, 20260710u);
@@ -187,42 +192,150 @@ void testGrownTreeWellFormed() {
   printf("ok: grown tree well-formed\n");
 }
 
-void testCategoricalNeverSplit() {
+// The v1 "categorical predictors are never split here" contract, inverted: a
+// categorical column is scanned and split like any other. The fixture keeps the
+// signal ORDINAL, so categorical rules appear only because they carry their
+// family's prior mass - the weaker and more informative direction. Every one
+// must be in gauge (nonzero, a strict subset of the node's reachable set,
+// unequal to it) so buildFromFlat would accept the grown tree.
+void testCategoricalSplits() {
   const size_t n = 300;
-  // column 0 categorical (4 levels), column 1 ordinal with the signal
+  const uint32_t numLevels = 5, numObserved = 4;
+  // column 0 categorical, column 1 ordinal with the signal
   std::vector<double> x(n * 2), y(n);
   for (size_t i = 0; i < n; ++i) {
-    x[i] = static_cast<double>(i % 4);
+    x[i] = static_cast<double>(i % numObserved);
     x[i + n] = runif01();
     y[i] = (x[i + n] < 0.5 ? -2.0 : 2.0) + 0.1 * (runif01() - 0.5);
   }
   ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
+  // one declared level no row observes: reachable everywhere, present nowhere,
+  // so A = 1 at the root and the absent-position coin runs
+  uint32_t categoryCounts[] = {numLevels, 0};
   ColumnStore store;
-  store.build(x.data(), n, 2, 20, false, types);
+  store.build(x.data(), n, 2, 20, false, types, nullptr, 0, categoryCounts);
+  check(store.numCuts[0] == numLevels && !store.columnIsPooled(0),
+        "the categorical fixture declares five inline levels");
 
   CGMTreePrior prior;
   ConstantGaussianLeaf leaf{0.5};
   std::vector<index_t> buf(n);
   Tree tree;
-  tree.initialize(buf.data(), n);
-  tree.computeLeafStats(0, y.data(), nullptr);
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
   ext_rng_setSeed(rng, 555u);
   GrowScratch scratch;
-  growTreeFromRoot(store, prior, leaf, rng, tree, 0, y.data(), nullptr, 2.0, 0.9,
-                   scratch);
+
+  size_t numCategorical = 0, numGrown = 0, absentRight = 0, absentSeen = 0;
+  bool inGauge = true, occupied = true, everOrdinal = false;
+  for (int iter = 0; iter < 200; ++iter) {
+    tree.initialize(buf.data(), n);
+    tree.computeLeafStats(0, y.data(), nullptr);
+    growTreeFromRoot(store, prior, leaf, rng, tree, 0, y.data(), nullptr, 2.0,
+                     0.9, scratch);
+    occupied &= tree.bottomNodesAreOccupied();
+    std::vector<int32_t> internal;
+    tree.fillNotBottom(0, internal);
+    if (!internal.empty()) ++numGrown;
+    for (int32_t node : internal) {
+      if (tree.at(node).rule.variableIndex != 0) { everOrdinal = true; continue; }
+      ++numCategorical;
+      uint64_t mask = tree.at(node).rule.categoryDirections();
+      uint64_t reachable = tree.reachableCategories(store, node, 0);
+      inGauge &= mask != 0 && (mask & ~reachable) == 0 && mask != reachable;
+      if ((reachable >> (numLevels - 1)) & 1ull) {
+        ++absentSeen;  // the never-observed level, drawn by its own coin
+        if ((mask >> (numLevels - 1)) & 1ull) ++absentRight;
+      }
+    }
+  }
   ext_rng_destroy(rng);
 
-  std::vector<int32_t> internal;
-  tree.fillNotBottom(0, internal);
-  bool ordinalOnly = true;
-  for (int32_t node : internal)
-    ordinalOnly &= tree.at(node).rule.variableIndex == 1;
-  check(!internal.empty(), "the ordinal signal grew the tree");
-  check(ordinalOnly, "grow-from-root never splits a categorical column (v1)");
-  check(tree.bottomNodesAreOccupied(), "categorical-present grow stays occupied");
+  check(numGrown > 0 && everOrdinal, "the ordinal signal grew the tree");
+  check(numCategorical > 0,
+        "grow-from-root places categorical rules (the v1 contract inverted)");
+  check(inGauge, "every grown categorical mask is in gauge");
+  check(occupied, "categorical grow keeps every leaf occupied");
+  check(absentSeen > 0 && absentRight > 0 && absentRight < absentSeen,
+        "an absent reachable category is drawn, not pinned to one side");
 
-  printf("ok: grow categorical never split\n");
+  printf("ok: grow categorical splits (%zu rules over %zu grown trees)\n",
+         numCategorical, numGrown);
+}
+
+// The pooled tier: past 63 categories a mask no longer fits the rule word, so
+// grow allocates it in the tree's own pool and writes it through
+// mutableMaskWordsFor. Same gauge, read through reachableCategoriesWide. Its
+// missing pseudo-category sits at position K rather than 63, and the fixture
+// leaves categories reachable but ABSENT at every node, so the absent-position
+// coins run.
+void testPooledCategoricalGrow() {
+  // a private generator and a saved global-rng snapshot keep the shared stream
+  // (and the seed-pinned suites that follow) bitwise intact
+  uint64_t savedRngState = rngState;
+  rngState = 31415u;
+  const size_t n = 420;
+  const uint32_t numLevels = 70, numObserved = 60;
+  std::vector<double> x(n), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % numObserved);
+    y[i] = (i % numObserved < 30 ? -1.5 : 1.5) + 0.1 * (runif01() - 0.5);
+  }
+  x[5] = std::nan("");
+  ColumnType types[] = {ColumnType::categorical};
+  // the declared level count exceeds what any row observes, so ten categories
+  // are reachable but absent at every node and their coins really run
+  uint32_t categoryCounts[] = {numLevels};
+  ColumnStore store;
+  store.build(x.data(), n, 1, 10, false, types, nullptr, 0, categoryCounts);
+  check(store.columnIsPooled(0) && store.hasMissing[0] == 1 &&
+          store.numCuts[0] == numLevels,
+        "the wide fixture pools its mask and carries a missing value");
+
+  CGMTreePrior prior;
+  ConstantGaussianLeaf leaf{0.5};
+  std::vector<index_t> buf(n);
+  Tree tree;
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 8080u);
+  GrowScratch scratch;
+  size_t numWords = maskWordsForCount(numLevels);
+  std::vector<uint64_t> reachable(numWords);
+
+  size_t numRules = 0, absentRight = 0, absentSeen = 0;
+  bool inGauge = true, occupied = true;
+  for (int iter = 0; iter < 40; ++iter) {
+    tree.initialize(buf.data(), n);
+    tree.computeLeafStats(0, y.data(), nullptr);
+    growTreeFromRoot(store, prior, leaf, rng, tree, 0, y.data(), nullptr, 2.0,
+                     0.9, scratch);
+    occupied &= tree.bottomNodesAreOccupied();
+    std::vector<int32_t> internal;
+    tree.fillNotBottom(0, internal);
+    for (int32_t node : internal) {
+      ++numRules;
+      const uint64_t* mask = tree.maskWordsFor(tree.at(node).rule);
+      tree.reachableCategoriesWide(store, node, 0, reachable.data());
+      inGauge &= !maskIsZero(mask, numWords) &&
+                 maskIsSubsetOf(mask, reachable.data(), numWords) &&
+                 !maskEquals(mask, reachable.data(), numWords);
+      // the never-observed levels: a coin each, so both directions appear
+      for (uint32_t c = numObserved; c < numLevels; ++c)
+        if (maskTestBit(reachable.data(), c)) {
+          ++absentSeen;
+          if (maskTestBit(mask, c)) ++absentRight;
+        }
+    }
+  }
+  ext_rng_destroy(rng);
+
+  check(numRules > 0, "the pooled column grows past the root");
+  check(inGauge, "every grown pooled mask is in gauge");
+  check(occupied, "pooled grow keeps every leaf occupied");
+  check(absentSeen > 0 && absentRight > 0 && absentRight < absentSeen,
+        "absent reachable categories are drawn, not pinned to one side");
+
+  rngState = savedRngState;
+  printf("ok: grow pooled categorical (%zu rules)\n", numRules);
 }
 
 // grow in place through a live sampler, then confirm the forest is a legal
@@ -604,7 +717,8 @@ void runGrowTests(ext_rng* rng) {
   testDeterminismAndDrawCount();
   testVetoDrawsNothing();
   testGrownTreeWellFormed();
-  testCategoricalNeverSplit();
+  testCategoricalSplits();
+  testPooledCategoricalGrow();
   testGrowThenContinue(rng);
   testGrowHonorsInteraction();
   testOrdinalMissingRuleGroupWeight();

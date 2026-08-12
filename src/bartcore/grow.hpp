@@ -1,6 +1,8 @@
 #ifndef BARTCORE_GROW_HPP
 #define BARTCORE_GROW_HPP
 
+#include <bit>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -17,9 +19,10 @@
 // XBART-style root-down stochastic tree construction (He, Yalov and Hahn 2019),
 // the warm-start forest builder of docs/design/grow-from-root.md. Parallel to
 // moves.hpp's metropolisJumpForTree, but a builder rather than a reversible MH
-// kernel: at each node it scans every ordinal cut of every available variable
-// (scan.hpp) and draws one outcome from the weighted set {no-split} U {(var,
-// cut)}, the CGM tree prior's own factors times the integrated leaf likelihood.
+// kernel: at each node it scans every ordinal cut and every categorical
+// partition candidate of every available variable (scan.hpp) and draws one
+// outcome from the weighted set {no-split} U {(var, candidate)}, the CGM tree
+// prior's own factors times the integrated leaf likelihood.
 // It is NOT a posterior kernel; the exact MH sweeps that follow own
 // stationarity, so the grown forest need only be a LEGAL chain state (non-empty
 // leaves, rules in gauge, availability/depth vetoes respected).
@@ -30,14 +33,91 @@ namespace bartcore {
 /// reused down the whole recursion (a node's assembly is over before its
 /// children recurse, so nothing aliases).
 struct GrowScratch {
-  std::vector<ConstantLeafScanBin> binScratch;  // scan.hpp histogram
+  std::vector<ConstantLeafScanBin> binScratch;  // scan.hpp ordinal histogram
+  CategoricalScanScratch categoryScan;          // scan.hpp category histogram
   std::vector<std::uint8_t> available;          // per-predictor availability
-  std::vector<double> cutLogLikelihood;         // per-variable cut scores
+  std::vector<double> cutLogLikelihood;         // per-variable candidate scores
   std::vector<double> candidateLogWeights;      // {no-split} U {valid (var,cut)}
   std::vector<double> candidateWeights;         // exp'd, normalized for the draw
   std::vector<std::int32_t> candidateVariable;  // parallel to the weights
   std::vector<std::int32_t> candidateCut;
+  // pooled categorical masks; grow owns these rather than borrowing
+  // Tree::reachableScratch_, which variableAvailable and buildFromFlatBelow
+  // also use
+  std::vector<std::uint64_t> reachableMask;
+  std::vector<std::uint64_t> presentMask;
 };
+
+/// Turn the winning categorical candidate into a rule, in the fixed order the
+/// draw discipline documents: rebuild the variable's present categories and
+/// their sort order (deterministic and RNG-free, so nothing has to survive the
+/// discrete draw), decode the candidate into a side of the present set, flip a
+/// single orientation coin, then walk the REACHABLE positions ascending and
+/// flip one coin per ABSENT one. `rule.variableIndex` is already set; this
+/// fills in the mask, inline or through the tree's pool.
+template <ScalarLeafModel L, typename ResidT = double>
+void growCategoricalRule(const ColumnStore& data, const L& leaf, ext_rng* rng,
+                         Tree& tree, std::int32_t nodeIndex, const ResidT* y,
+                         const double* weights, double k,
+                         double residualVariance, std::size_t begin,
+                         std::size_t numMembers, std::int32_t candidate,
+                         GrowScratch& scratch, Rule& rule) {
+  std::size_t j = static_cast<std::size_t>(rule.variableIndex);
+  std::size_t numPresent =
+    scanCategoryHistogram(data, j, tree.indices + begin, numMembers, y, weights,
+                          leaf, k, residualVariance, scratch.categoryScan);
+  const std::vector<CategoricalScanEntry>& present =
+    scratch.categoryScan.present;
+  bool exact = numPresent <= categoricalExhaustiveCap;
+  bool orientation = ext_rng_simulateBernoulli(rng, 0.5) == 1;
+  auto goesRight = [&](std::size_t position) {
+    bool holds = exact ? exactPartitionHoldsPosition(candidate, position)
+                       : prefixPartitionHoldsPosition(candidate, position);
+    return holds != orientation;  // the complement when the coin says so
+  };
+
+  if (data.columnIsPooled(j)) {
+    std::size_t numWords = maskWordsForCount(data.numCuts[j]);
+    scratch.reachableMask.resize(numWords);
+    tree.reachableCategoriesWide(data, nodeIndex,
+                                 static_cast<std::int32_t>(j),
+                                 scratch.reachableMask.data());
+    scratch.presentMask.assign(numWords, 0);
+    // grow never rejects, so the pool needs no mark and no truncate;
+    // growForestFromRoot compacts it per grown tree
+    std::size_t offset = tree.allocateMask(numWords);
+    std::uint64_t* directions = tree.mutableMaskWordsFor(offset);
+    for (std::size_t position = 0; position < numPresent; ++position) {
+      maskSetBit(scratch.presentMask.data(), present[position].code);
+      if (goesRight(position)) maskSetBit(directions, present[position].code);
+    }
+    for (std::size_t w = 0; w < numWords; ++w) {
+      std::uint64_t absent =
+        scratch.reachableMask[w] & ~scratch.presentMask[w];
+      while (absent != 0) {
+        std::uint32_t bit = static_cast<std::uint32_t>(std::countr_zero(absent));
+        absent &= absent - 1;
+        if (ext_rng_simulateBernoulli(rng, 0.5) == 1)
+          maskSetBit(directions, bit + 64u * static_cast<std::uint32_t>(w));
+      }
+    }
+    rule.setMaskOffset(offset);
+    return;
+  }
+
+  std::uint64_t presentBits = 0, directions = 0;
+  for (std::size_t position = 0; position < numPresent; ++position) {
+    presentBits |= 1ull << present[position].code;
+    if (goesRight(position)) directions |= 1ull << present[position].code;
+  }
+  std::uint64_t absent = tree.inlineReachableMasks()[j] & ~presentBits;
+  while (absent != 0) {
+    std::uint32_t category = static_cast<std::uint32_t>(std::countr_zero(absent));
+    absent &= absent - 1;
+    if (ext_rng_simulateBernoulli(rng, 0.5) == 1) directions |= 1ull << category;
+  }
+  rule.setCategoryDirections(directions);
+}
 
 /// Recursively split `tree` from nodeIndex against the residual y (per-tree
 /// working response) and case weights. The leaf's integrated likelihood scores
@@ -47,27 +127,41 @@ struct GrowScratch {
 ///  - A node whose prior growth probability is zero - the depth veto or no
 ///    available variable - draws NOTHING and stays a leaf.
 ///  - Every other node draws exactly ONE discrete outcome over {no-split} plus
-///    the occupancy-nonempty ordinal cuts of every available variable. A
-///    no-split outcome (always representable) ends the node.
-///  - A split on a column with missing values draws ONE additional symmetric
-///    missing-direction coin, matching CGMTreePrior::drawRuleForVariable.
-///    Convention on such a column, measured rather than assumed: an enumerated
-///    cut candidate STANDS FOR the two rules {cut, missing left} and {cut,
-///    missing right} the coin picks between, but CARRIES the prior mass of one
-///    of them (the `- log 2` below), so the pair enters the discrete draw at
-///    half its group's prior mass and the remainder accrues to no-split.
-///    test_grow.cpp chi-squares the realized root-rule frequencies against
-///    that law, against the group's own mass, and against the exact law over
-///    the full rule set; docs/design/grow-from-root.md section 7 records what
-///    it measured.
+///    the occupancy-nonempty ordinal cuts and the categorical partition
+///    candidates of every available variable. A no-split outcome (always
+///    representable) ends the node.
+///  - An ORDINAL split on a column with missing values draws ONE additional
+///    symmetric missing-direction coin, matching
+///    CGMTreePrior::drawRuleForVariable. Convention on such a column, measured
+///    rather than assumed: an enumerated cut candidate STANDS FOR the two rules
+///    {cut, missing left} and {cut, missing right} the coin picks between, but
+///    CARRIES the prior mass of one of them (the `- log 2` below), so the pair
+///    enters the discrete draw at half its group's prior mass and the remainder
+///    accrues to no-split. test_grow.cpp chi-squares the realized root-rule
+///    frequencies against that law, against the group's own mass, and against
+///    the exact law over the full rule set; docs/design/grow-from-root.md
+///    section 7 records what it measured.
+///  - A CATEGORICAL split draws exactly 1 + A more symmetric coins and NEVER
+///    rejects: one orientation coin, then one per category REACHABLE at the
+///    node but ABSENT from its members (A = R - P), taken over the reachable
+///    positions ascending, the bit-by-bit convention and generator-granularity
+///    reason of CGMTreePrior::drawCategoryPattern. There is no rejection loop
+///    because the present side already leaves both children occupied, and the
+///    absent positions are drawn rather than pinned left because pinning would
+///    bias where a category unseen at the node routes at PREDICT time, in a
+///    direction the MH sweeps do not correct. The candidate carries its whole
+///    enumerable family's mass spread over what the enumeration emits
+///    (CGMTreePrior::categoricalGroupLogProbability), which is the same
+///    "candidate stands for a rule group" reading the ordinal missing
+///    convention above is measured against.
 ///
-/// Categorical predictors are ordinal-only in v1: they are never scanned and
-/// never split here (that keeps the draw count above exact), so their structure
-/// is left for the MH sweeps that refine the warm start to discover. Occupancy
-/// (scan.hpp) subsumes the ancestor split interval - members violating an
-/// ancestor cut have codes confined to the interval, so out-of-interval cuts
-/// have an empty side and are already zeroed - and keeps both children
-/// non-empty, so the built tree satisfies MH's structural invariants.
+/// Occupancy (scan.hpp) subsumes the ancestor split interval - members
+/// violating an ancestor cut have codes confined to the interval, so
+/// out-of-interval cuts have an empty side and are already zeroed - and keeps
+/// both children non-empty, so the built tree satisfies MH's structural
+/// invariants. The categorical branch's enumeration domain does the same by
+/// construction, and its mask comes out nonzero, a strict subset of the node's
+/// reachable set and unequal to it, which is buildFromFlat's gauge.
 template <ScalarLeafModel L, typename ResidT = double>
 void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
                       const L& leaf, ext_rng* rng, Tree& tree,
@@ -106,12 +200,52 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
       if (scratch.available[j]) availableSplitProbability += splitProbabilities[j];
 
   for (std::size_t j = 0; j < data.numPredictors; ++j) {
-    if (!scratch.available[j] || data.types[j] == ColumnType::categorical)
-      continue;
+    if (!scratch.available[j]) continue;
     double logSplitVariable =
       splitProbabilities == nullptr
         ? -std::log(static_cast<double>(numAvailable))
         : std::log(splitProbabilities[j] / availableSplitProbability);
+
+    if (data.types[j] == ColumnType::categorical) {
+      // R, the categories that reach this node: read off the mask
+      // collectAvailableVariables already narrowed for an inline column,
+      // walked here for a pooled one (that pass skips those)
+      std::size_t numReachable;
+      if (data.columnIsPooled(j)) {
+        std::size_t numWords = maskWordsForCount(data.numCuts[j]);
+        scratch.reachableMask.resize(numWords);
+        tree.reachableCategoriesWide(data, nodeIndex,
+                                     static_cast<std::int32_t>(j),
+                                     scratch.reachableMask.data());
+        numReachable = maskPopcount(scratch.reachableMask.data(), numWords);
+      } else {
+        numReachable = static_cast<std::size_t>(
+          std::popcount(tree.inlineReachableMasks()[j]));
+      }
+
+      std::size_t numEmitted = scanCategoricalPartitions(
+        data, j, tree.indices + begin, numMembers, y, weights, leaf, k,
+        residualVariance, scratch.categoryScan, scratch.cutLogLikelihood);
+      if (numEmitted == 0) continue;  // fewer than two categories present
+      std::size_t numPresent = scratch.categoryScan.present.size();
+      // a member arrives only by satisfying every ancestor rule, so its
+      // category survived every AND: present implies reachable, A = R - P >= 0
+      assert(numPresent <= numReachable);
+
+      double splitBase =
+        logGrowth + logSplitVariable +
+        CGMTreePrior::categoricalGroupLogProbability(
+          numReachable, numPresent, static_cast<double>(numEmitted));
+      for (std::size_t candidate = 0; candidate < numEmitted; ++candidate) {
+        if (scratch.cutLogLikelihood[candidate] == cutScanEmptySentinel)
+          continue;
+        scratch.candidateLogWeights.push_back(
+          splitBase + scratch.cutLogLikelihood[candidate]);
+        scratch.candidateVariable.push_back(static_cast<std::int32_t>(j));
+        scratch.candidateCut.push_back(static_cast<std::int32_t>(candidate));
+      }
+      continue;
+    }
 
     // P(cut): uniform over the ancestor-constrained interval, widened by the
     // missing-direction coin when the column can route one (CGMTreePrior's
@@ -163,9 +297,16 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
 
   Rule rule;
   rule.variableIndex = scratch.candidateVariable[choice];
-  rule.setSplitIndex(scratch.candidateCut[choice]);
-  if (data.hasMissing[static_cast<std::size_t>(rule.variableIndex)])
-    rule.setMissingGoesRight(ext_rng_simulateBernoulli(rng, 0.5) == 1);
+  std::size_t winner = static_cast<std::size_t>(rule.variableIndex);
+  if (data.types[winner] == ColumnType::categorical)
+    growCategoricalRule(data, leaf, rng, tree, nodeIndex, y, weights, k,
+                        residualVariance, begin, numMembers,
+                        scratch.candidateCut[choice], scratch, rule);
+  else {
+    rule.setSplitIndex(scratch.candidateCut[choice]);
+    if (data.hasMissing[winner])
+      rule.setMissingGoesRight(ext_rng_simulateBernoulli(rng, 0.5) == 1);
+  }
 
   tree.birth(data, nodeIndex, rule, y, weights);
   std::int32_t leftChild = tree.at(nodeIndex).leftChild;

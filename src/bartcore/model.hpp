@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cassert>
 #include <cmath>
 #include <concepts>
 #include <cstddef>
@@ -2124,6 +2125,47 @@ struct CGMTreePrior {
     if (data.hasMissing[static_cast<size_t>(variableIndex)])
       logNumRules += std::log(2.0);
     return -logNumRules;
+  }
+
+  /// The prior mass ONE grow-from-root categorical candidate carries, the
+  /// commensurable sibling of ruleForVariableLogProbability above; the two
+  /// derivations sit together deliberately.
+  ///
+  /// That builder enumerates the partitions of the P categories PRESENT at a
+  /// node, not the 2^R - 2 masks. Grouping the masks by the partition they
+  /// induce on the present set leaves 2^(A+1) masks per unordered partition
+  /// (A = R - P absent positions, both orientations) over 2^(P-1) - 1
+  /// partitions, the residual 2^(A+1) - 2 masks being exactly the empty-child
+  /// rules, so the variable's whole enumerable family carries
+  ///
+  ///     M(R, P) = (2^(P-1) - 1) 2^(A+1) / (2^R - 2)
+  ///             = (1 - 2^(1-P)) / (1 - 2^(1-R))
+  ///
+  /// and a candidate carries that spread evenly over the numEmitted the
+  /// enumeration emits. Below the cap numEmitted is 2^(P-1) - 1 and this
+  /// reduces (to within an ulp) to the per-partition group mass
+  /// (1-P) log 2 - log1p(-exp2(1-R)); above it the sorted-prefix family's P - 1
+  /// candidates carry the SAME family total, which is what keeps a variable's
+  /// realized split mass continuous in its level count rather than dropping
+  /// ~100x at a compile-time constant the user cannot see. The retained
+  /// prefixes therefore inherit the whole family's mass, which over-weights a
+  /// high-cardinality factor by at most (2^(P-1)-1)/(P-1) in the strong-signal
+  /// regime, where a likelihood ratio of exp(O(n_node)) decides anyway; the
+  /// exact conditional errs by the same factor the other way in the regime
+  /// where the prior IS what decides.
+  ///
+  /// The log1p/exp2 spelling needs no R > 54 branch: exp2(1-R) underflows to
+  /// zero harmlessly where pow(2, R) - 2 stops being exact and then overflows.
+  static double categoricalGroupLogProbability(size_t numReachable,
+                                               size_t numPresent,
+                                               double numEmitted) {
+    // meaningless outside this range: it returns a "probability" above one at
+    // P < 2, and P > R contradicts every present category being reachable
+    assert(numPresent >= 2 && numPresent <= numReachable);
+    double R = static_cast<double>(numReachable);
+    double P = static_cast<double>(numPresent);
+    return std::log1p(-std::exp2(1.0 - P)) - std::log1p(-std::exp2(1.0 - R)) -
+           std::log(numEmitted);
   }
 
   double treeLogProbability(const Tree& tree, const ColumnStore& data,
