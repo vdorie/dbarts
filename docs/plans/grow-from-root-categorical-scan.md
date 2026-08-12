@@ -1002,4 +1002,64 @@ fresh privlibs, --preclean); the post-fix amendment re-ran
 tinytest/air/lintr/R CMD check with the trio cited from its two
 same-tree runs (R-test-only amendment).
 
-S4 (the measured arm) is next, then S5.
+S4 COMPLETE 2026-08-12 (measurement only - no code commit; this
+records commit is the landing). ALL GATES PASS, double-run
+(implementer + verifier, both Opus; the verifier recomputed every
+gate statistic digit-for-digit from the 120 per-fit checkpoints
+with independent code, regenerated the frozen E literal identical,
+refit five (s, arm) fits bitwise from its own DGP+fit code, and
+closed both libraries' provenance with scratch rebuilds - clean
+tree and patch-applied - all bitwise; both report files
+byte-identical to fresh analyze runs). G1 PRIMARY (k = 2): all
+twelve D_s positive (1.2009..1.4948), mean +1.3277, realized
+paired SD 0.0984 against the 0.191 planning bound (NOT
+underpowered), one-sided z = 46.72, paired t(11) = 46.72,
+p = 2.6e-14 - PASS. The mandatory fresh-seed block was run even
+though untriggered (the study's premature-GREEN failure mode):
+s = 101..112 gives +1.3021, SD 0.1045, z = 43.18 - fully
+reproduces. G2: B1@t1(cat, k2) = +0.6765 (raw t = 1 RMSE cold
+1.1162 / cat 0.3604 / skip 1.8391); the in-situ floor sits BELOW
+cold (B1@t1(skip) = -0.6512), i.e. a warm start whose scan cannot
+place categorical splits is WORSE than no warm start on this
+factor-signal design. G3 GUARDRAIL: worst cat-arm gaps across both
+blocks C1 +0.0092, C2 +0.0107 against the frozen 0.03/0.06 - no
+breach. G4: paired B2 +2.500 (SE 0.148); k = 8 descriptive: paired
+B1@t1 +1.4042, B2 cat +2.6717 / skip +0.4683. SUBSTANTIVE FINDING,
+verifier-corrected wording: the warm categorical forest is far
+ahead at t = 1 and delays attainment of the plateau by roughly 6x
+(smoothed trajectories: cold within 2 percent of its plateau by
+t ~ 30, cat by t ~ 180-300; per-replicate median ratio 5.8-7.1x,
+consistent with B2 +2.49 log2 = 5.6x); the plateau level itself is
+not detectably moved (C1 +0.9/+0.5 percent, C2 +0.1/+1.1 percent,
+inside the frozen margins - bounded by the guardrails, not shown
+equal). This reinforces the settled opt-in stance for
+n.grow.sweeps; the default question stays closed and no verdict
+moves. THE SKIP ARM: a local, never-committed patch (constexpr
+kGrowCategoricalScan = false + a guard as the FIRST statement of
+the categorical branch, downstream of the availableSplitProbability
+accumulation, so categoricals still pay into the availability
+normalizer and emit nothing - verified coincident with the pre-S1
+skip position at 995002ef^, the only intervening code the
+side-effect-free logSplitVariable). Caveat on record: skip is
+HEAD-minus-emission, not literally the pre-S1 commit - S0b's
+ordinal log 2 fix rides along, inert here because the DGP has no
+missing values. Patch preserved at .claude/grow-from-root-
+categorical-scan/s4-skip-patch.diff beside the harness
+(s4-common/run/analyze/sanity.R), the two per-block reports, and
+the 120 checkpoints - all gitignored; the harness reproduces from
+the plan's pinned constants plus the frozen E literal. Pins
+realized: 8 chains, n.threads = 8, 2000 draws, n.burn = 0,
+combineChains = FALSE, m = 75, n = 5000 + 200, sd(mu) 2.2959
+(theory 2.3054), sigma = 1. Wall clock ~159 s per 60-fit block,
+~7 min for the slice against the plan's ~90 min estimate.
+Deviations adjudicated at verification: within-replicate draw
+order (unpinned by the plan) fixed across arms; the fresh block
+run though untriggered; G1 reported on both the study's one-sided
+z and a paired t, agreeing to three digits. Nits on record, none
+load-bearing: the one-sided critical value 1.645 vs t(11)'s 1.796
+(immaterial at z 46.7); B2 pairs chains warm-to-cold and averages
+log2 per replicate (the log2-of-mean-ratio alternative gives
++1.71, direction unchanged, G4 non-gating); exactly 1 of 96
+cat-k2 chains in block 2 hits the pre-registered censor at 2001.
+
+S5 (docs) closes the arc.
