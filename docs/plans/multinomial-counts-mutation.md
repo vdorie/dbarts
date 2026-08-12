@@ -873,7 +873,54 @@ privlibs, --preclean): tinytest 4162/0 unchanged, trio neutrality
 brace lints in the harness), diff confined to harness + baselines
 + MANIFEST + yaml (src/R/inst zero diff).
 
-S5 (public surface, messages, docs - carries the predict
-missing-offset predicate fix at R_interface_bartcore.cpp:5239, the
-bartcoreForestFits offset-free doc note, and the bart2 test-side
-matrix decision) closes the arc.
+S5 LANDED 69b28a3e, 2026-08-12 (amended once at verification).
+Public surface: bart2's multinomial offset refusal lifted for an
+n x K numeric matrix only, threaded to the internal creators -
+bitwise identical to the dbarts::: creator at the same seed and
+offset, 0.807 from the no-offset fit (verifier functional probe);
+offset.test NOT wired, per the plan's item 1 and the synthesis
+For-VD note, both naming the train side only. The verifier's one
+defect drove the amendment: a train-offset fit with test data
+silently reported an offset-free yhat.test, against the arc's
+no-channel-silently-omits-the-offset contract - the amendment
+DOCUMENTS the asymmetry (bart.Rd: offset is train-side only,
+yhat.test is always computed without any category offset, the
+test twin is dbarts:::-only; multinomial.md carries the matching
+sentence), adds an R-boundary refusal for an explicit offset.test
+naming the internal channel (previously fell through to a
+bridge-depth message several layers from the caller), and
+re-qualifies parseMultinomialData's now-false unqualified "do not
+support a test offset" to name the nTest x K channel; no prior
+test pinned the old text, and both new messages are pinned.
+predict's missing-offset predicate fixed (the S3 carry): the
+refusal keys on EITHER resident offset; the verifier probed all
+four configurations - neither predicts, train-only, test-only and
+both refuse, and an explicit all-zero matrix escapes all three
+refusing configurations. bartcoreForestFits documented offset-free
+with the reconstruction identity (measured: gap 0 with the offset
+added back, 0.451 without). Deviations accepted: the creation-time
+weights message improved beyond the plan's literal singular (no
+pinned text; accurate on both surfaces); two stale multinomial.md
+surface bullets corrected on initiative (the transactional-refusal
+and test-offset-at-creation claims, superseded by the multiforest
+arc and S3 - verified live by the verifier). Wrong-shape public
+offsets fail at the R boundary with named messages, never
+bridge-deep. Door candidates recorded: no test-side
+bartcoreForestFits analog; the k3countsswap door stands. Gates
+double-run plus the amendment re-run: tests/cpp plain green,
+tinytest 4174/0 (12 new), trio 35/35 strict / 11/11 / 10/10 vs
+the current baselines, the six exact arms at the recorded gaps,
+air 0, lintr::lint_package 0, R CMD check clean-copy tarball
+Status OK on every round, no new exported topic.
+
+THE ARC IS COMPLETE. Landed: S1 729bbdd (counts channel), S2
+d7d27a3 (train category offset + floors), S3 1027be5 (test offset
++ predict replays, floors lifted), S4 2b96a9f (k3offset fixture +
+multinomial-equivalence-1027be5), S5 69b28a3e (public surface +
+messages + docs); records 99dfd10, dff706b, 89ddb0f, ed1ffb9, and
+this commit. The multinomial family now serves as a conditional
+inside a larger Gibbs/MH sampler on the same terms as every other
+family: counts mutate at fixed n and K, train and test category
+offsets install and clear mid-chain, predict replays honor a
+per-call offset, no reported channel silently omits the offset,
+and the one public surface is bart2's train-side matrix offset.
