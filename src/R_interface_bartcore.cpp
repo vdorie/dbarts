@@ -2343,26 +2343,40 @@ void refuseRequantizeWithoutSource(const bartcore::SamplerBase& sampler,
 // simplex rather than shift any latent. parseMultinomialData refuses a test
 // offset at creation; refuse the post-creation install to match. Ordered after
 // refuseBCFTestSurface at every call site, so BCF keeps its own message.
+//
+// The flat vector stays refused on the softmax coupling FOREVER, and truthfully
+// - after the blend it leaves the simplex, and before it a common
+// per-observation shift is the softmax's own null direction. What the coupling
+// does carry is the per-category matrix, so the message names it rather than
+// leaving a caller to conclude the test rows admit no offset at all. The
+// generic wording stays verbatim for every other multi-forest coupling.
 void refuseMultiForestTestOffset(const bartcore::SamplerBase& sampler,
                                  const char* caller) {
-  if (sampler.shape().numForests >= 2)
-    Rf_error("%s: a multi-forest sampler adds a test offset after its forests "
-             "are blended, which would move the reported values off the "
-             "softmax scale; it carries no test offset", caller);
+  bartcore::SamplerShape shape = sampler.shape();
+  if (shape.numForests < 2) return;
+  if (shape.supportsCountsMutation)
+    Rf_error("%s: a flat test offset is added to every reported channel after "
+             "the categories are blended, which would move the reported "
+             "probabilities off the simplex, and before the blend a common "
+             "per-observation shift is inert; use "
+             "bartcore_setCategoryTestOffset with an nTest x K matrix", caller);
+  Rf_error("%s: a multi-forest sampler adds a test offset after its forests "
+           "are blended, which would move the reported values off the "
+           "softmax scale; it carries no test offset", caller);
 }
 
-// Validates a category offset argument into scratch: a null expression clears
-// (out empty), anything else must be a real matrix of exactly n x K. The
-// DIMENSIONS are checked, not the length, for the reason the counts entrance
-// checks them - a transposed matrix carries exactly n*K entries and would shift
-// every cell by another cell's offset. Every entry must be FINITE: an infinity
-// propagates through the log-sum-exp margin into a NaN for every category at
-// that row, and an NA is not a shift. The copy is the caller's to swap in, so
-// nothing is retained from R.
-void parseCategoryOffset(SEXP offsetExpr, size_t n, size_t K,
-                         std::vector<double>& out, const char* caller) {
-  out.clear();
-  if (Rf_isNull(offsetExpr)) return;
+// Validates a category offset argument in place and returns its values,
+// borrowed from R for the call's duration; a null expression yields null. The
+// shared check behind every category-offset entrance, train, test and predict:
+// anything non-null must be a real matrix of exactly n x K. The DIMENSIONS are
+// checked, not the length, for the reason the counts entrance checks them - a
+// transposed matrix carries exactly n*K entries and would shift every cell by
+// another cell's offset. Every entry must be FINITE: an infinity propagates
+// through the log-sum-exp margin into a NaN for every category at that row, and
+// an NA is not a shift.
+const double* validateCategoryOffset(SEXP offsetExpr, size_t n, size_t K,
+                                     const char* caller) {
+  if (Rf_isNull(offsetExpr)) return NULL;
   SEXP dimsExpr = Rf_getAttrib(offsetExpr, R_DimSymbol);
   if (!Rf_isReal(offsetExpr) || Rf_xlength(dimsExpr) != 2 ||
       static_cast<size_t>(INTEGER(dimsExpr)[0]) != n ||
@@ -2374,26 +2388,48 @@ void parseCategoryOffset(SEXP offsetExpr, size_t n, size_t K,
   for (size_t j = 0; j < n * K; ++j)
     if (!R_finite(src[j]))
       Rf_error("%s requires every category offset entry to be finite", caller);
+  return src;
+}
+
+// The same into scratch, for the entrances that INSTALL one: the copy is the
+// caller's to swap in - the combiner borrows what it is handed - so nothing is
+// retained from R. A null expression clears (out empty).
+void parseCategoryOffset(SEXP offsetExpr, size_t n, size_t K,
+                         std::vector<double>& out, const char* caller) {
+  out.clear();
+  const double* src = validateCategoryOffset(offsetExpr, n, K, caller);
+  if (src == NULL) return;
   out.assign(src, src + n * K);
 }
 
-// A category offset enters the K raw fits BEFORE the softmax, which is the only
-// place a per-category shift means anything. Nothing on the test side does
-// that: the test blend maps the category forests' own test fits, the recorded
-// test channel IS that blend, and both out-of-sample replays build their own
-// raw slab and softmax it directly. So a sampler holding a category offset has
-// no test surface that could carry it, and the combination is refused in both
-// directions - installing either against the other - rather than reported
-// without it. That is the failure the simplex showed when a test offset was
-// added after the K-forest blend (docs/plans/multiforest-mutation-gaps.md hole
-// H1), and refusing is what keeps it from recurring silently.
-void refuseCategoryOffsetTestSurface(bool hasCategoryOffset,
-                                     bool hasTestSurface, const char* caller) {
-  if (!hasCategoryOffset || !hasTestSurface) return;
-  Rf_error("%s: an n x K category offset enters the softmax before the "
-           "categories are blended, and the out-of-sample channels blend the "
-           "category forests' test fits alone; they would report probabilities "
-           "without it", caller);
+// The test twin, whose row count is the CURRENT test store's: without test rows
+// there is nothing for a per-test-row offset to describe, and accepting one
+// would leave it silently unread. The engine sizes nothing off it, so this is
+// the only place the shape is pinned to the test store.
+void parseCategoryTestOffset(SEXP offsetExpr, size_t nTest, size_t K,
+                             std::vector<double>& out, const char* caller) {
+  out.clear();
+  if (Rf_isNull(offsetExpr)) return;
+  if (nTest == 0)
+    Rf_error("%s requires test data: it carries one row per test row", caller);
+  parseCategoryOffset(offsetExpr, nTest, K, out, caller);
+}
+
+// Every test-side channel now carries its own per-category offset - the
+// reported test blend through the resident nTest x K one, and predict through
+// the per-call matrix it takes - so a sampler holding a train category offset
+// has a test surface that can express one. What is NOT expressible is deriving
+// one from the other: the test rows are other rows, so an unset test offset
+// means zero there, and predict refuses rather than guess (both stated at their
+// entrances below). Installing test predictors under a resident test offset is
+// refused for the same reason - the offset describes rows that are being
+// replaced.
+void refuseStaleCategoryTestOffset(bool hasCategoryTestOffset,
+                                   const char* caller) {
+  if (!hasCategoryTestOffset) return;
+  Rf_error("%s: this sampler carries an nTest x K category test offset, one "
+           "row per CURRENT test row; clear it with a null category test "
+           "offset before replacing those rows", caller);
 }
 
 // A built column store (cuts + codes) shared by row-subset view samplers
@@ -2936,21 +2972,19 @@ static void parseMultinomialData(SEXP controlExpr, SEXP modelExpr,
 
 // Builds the K-forest multinomial sampler shared by both entries: sizes the
 // options, creates the per-chain rngs, builds the sampler from the count-native
-// spec, and sets the test predictors. counts is the borrowed category-major
-// n x K matrix and trials the per-observation trial counts; both the label
-// entry (one-hot, unit trials) and the count entry route through here so their
-// draw streams are the one code path. offset is the borrowed n x K category
-// offset in the same layout, or null. Leaf-scale and k follow the multinomial
-// calibration, not the host node prior (a gaussian default).
+// spec, and sets the test predictors and their offset. counts is the borrowed
+// category-major n x K matrix and trials the per-observation trial counts; both
+// the label entry (one-hot, unit trials) and the count entry route through here
+// so their draw streams are the one code path. offset is the borrowed n x K
+// category offset in the same layout, or null, and testOffset its nTest x K
+// test twin. Leaf-scale and k follow the multinomial calibration, not the host
+// node prior (a gaussian default).
 static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
     const ParsedControl& control, const ParsedModel& model,
     const ParsedData& data, SEXP modelExpr, bool sigmaIsFixed,
     size_t numCategories, const int* counts, const int* trials,
-    const double* offset, std::vector<ext_rng*>& rngs) {
-  // the offset reaches the train blend only, so a sampler carrying one has no
-  // test channel to report; refused before any rng is created
-  refuseCategoryOffsetTestSurface(offset != NULL, data.numTestObservations > 0,
-                                  "multinomial creation");
+    const double* offset, const double* testOffset,
+    std::vector<ext_rng*>& rngs) {
   bartcore::SamplerOptions options =
     optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
   if (options.fp32Residual)
@@ -2984,11 +3018,14 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   // test-at-creation: the K forests each accumulate their own totalTestFits in
   // the sweep, and storeSample blends them into the K softmax test
   // probabilities (chain testFitsAreDefined() is true). buildTest copies the
-  // dense test values, so nothing is pinned; parseMultinomialData ruled out a
-  // test offset and a mixed test store.
-  if (data.numTestObservations > 0)
+  // dense test values, so nothing is pinned; parseMultinomialData ruled out the
+  // host object's FLAT test offset (the softmax's null direction) and a mixed
+  // test store. The category test offset installs after the rows it describes.
+  if (data.numTestObservations > 0) {
     sampler->setTestPredictors(data.testPredictors.denseValues,
                                data.numTestObservations);
+    if (testOffset != NULL) sampler->setCategoryTestOffset(testOffset);
+  }
   return sampler;
 }
 
@@ -2996,16 +3033,20 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
 // (docs/design/multinomial.md). The single-trial label entry: the category codes
 // (0..K-1, one per observation) become a one-hot n x K count matrix with every
 // trial 1, the exact n_i = 1 reduction of the count-native combiner.
-// categoryOffsetExpr is the optional n x K category offset (null for none).
+// categoryOffsetExpr is the optional n x K category offset (null for none) and
+// categoryTestOffsetExpr its optional nTest x K test twin, which requires test
+// rows to describe.
 BartcoreHolder* createMultinomialHolder(SEXP controlExpr, SEXP modelExpr,
                                         SEXP dataExpr, SEXP labelsExpr,
                                         SEXP numCategoriesExpr,
-                                        SEXP categoryOffsetExpr) {
+                                        SEXP categoryOffsetExpr,
+                                        SEXP categoryTestOffsetExpr) {
   BartcoreHolder* holder = nullptr;
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
                  counts = std::vector<int>{}, trials = std::vector<int>{},
-                 offset = std::vector<double>{}]() mutable -> SEXP {
+                 offset = std::vector<double>{},
+                 testOffset = std::vector<double>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     size_t numCategories = static_cast<size_t>(Rf_asInteger(numCategoriesExpr));
     parseMultinomialData(controlExpr, modelExpr, dataExpr, control, model, data,
@@ -3017,6 +3058,9 @@ BartcoreHolder* createMultinomialHolder(SEXP controlExpr, SEXP modelExpr,
     size_t n = data.numObservations;
     parseCategoryOffset(categoryOffsetExpr, n, numCategories, offset,
                         "multinomial category offset");
+    parseCategoryTestOffset(categoryTestOffsetExpr, data.numTestObservations,
+                            numCategories, testOffset,
+                            "multinomial category test offset");
     // one-hot category-major counts (column k contiguous at k*n) with unit
     // trials: at n_i = 1 the combiner's PG summing loop and (y - n_i/2) working
     // response reduce byte-identically to the label path
@@ -3032,15 +3076,17 @@ BartcoreHolder* createMultinomialHolder(SEXP controlExpr, SEXP modelExpr,
     std::unique_ptr<bartcore::SamplerBase> sampler = buildMultinomialSampler(
       control, model, data, modelExpr, sigmaIsFixed, numCategories,
       counts.data(), trials.data(),
-      offset.empty() ? NULL : offset.data(), rngs);
+      offset.empty() ? NULL : offset.data(),
+      testOffset.empty() ? NULL : testOffset.data(), rngs);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
                                 control.keepTrainingFits};
     // moving keeps the buffers, so the combiner's borrowed counts/trials and
-    // category offset stay valid
+    // both category offsets stay valid
     holder->ownedCounts = std::move(counts);
     holder->ownedTrials = std::move(trials);
     holder->ownedCategoryOffset = std::move(offset);
+    holder->ownedCategoryTestOffset = std::move(testOffset);
     return R_NilValue;
   });
   return holder;
@@ -3052,16 +3098,19 @@ BartcoreHolder* createMultinomialHolder(SEXP controlExpr, SEXP modelExpr,
 // n_i = sum_k Y_ik must be >= 1 (an empty row carries no information; a PG(0, .)
 // point mass at 0 would break the working response). Same engine as the label
 // entry, count-native (docs/design/multinomial.md). categoryOffsetExpr is the
-// optional n x K category offset (null for none).
+// optional n x K category offset (null for none) and categoryTestOffsetExpr its
+// optional nTest x K test twin, which requires test rows to describe.
 BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
                                               SEXP dataExpr, SEXP countsExpr,
                                               SEXP numCategoriesExpr,
-                                              SEXP categoryOffsetExpr) {
+                                              SEXP categoryOffsetExpr,
+                                              SEXP categoryTestOffsetExpr) {
   BartcoreHolder* holder = nullptr;
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
                  counts = std::vector<int>{}, trials = std::vector<int>{},
-                 offset = std::vector<double>{}]() mutable -> SEXP {
+                 offset = std::vector<double>{},
+                 testOffset = std::vector<double>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     size_t numCategories = static_cast<size_t>(Rf_asInteger(numCategoriesExpr));
     parseMultinomialData(controlExpr, modelExpr, dataExpr, control, model, data,
@@ -3085,19 +3134,24 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
         Rf_error("every multinomial count row must have at least one trial");
     parseCategoryOffset(categoryOffsetExpr, n, numCategories, offset,
                         "multinomial category offset");
+    parseCategoryTestOffset(categoryTestOffsetExpr, data.numTestObservations,
+                            numCategories, testOffset,
+                            "multinomial category test offset");
 
     std::unique_ptr<bartcore::SamplerBase> sampler = buildMultinomialSampler(
       control, model, data, modelExpr, sigmaIsFixed, numCategories,
       counts.data(), trials.data(),
-      offset.empty() ? NULL : offset.data(), rngs);
+      offset.empty() ? NULL : offset.data(),
+      testOffset.empty() ? NULL : testOffset.data(), rngs);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
                                 control.keepTrainingFits};
     // moving keeps the buffers, so the combiner's borrowed counts/trials and
-    // category offset stay valid
+    // both category offsets stay valid
     holder->ownedCounts = std::move(counts);
     holder->ownedTrials = std::move(trials);
     holder->ownedCategoryOffset = std::move(offset);
+    holder->ownedCategoryTestOffset = std::move(testOffset);
     return R_NilValue;
   });
   return holder;
@@ -3361,14 +3415,16 @@ SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 
 // A K-forest multinomial (softmax) sampler; internal, constant-leaf only
 // (docs/design/multinomial.md). labels are the 0..K-1 category codes;
-// categoryOffset is the optional n x K category offset.
+// categoryOffset is the optional n x K category offset and categoryTestOffset
+// its optional nTest x K test twin.
 SEXP bartcore_createMultinomial(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                                 SEXP labelsExpr, SEXP numCategoriesExpr,
-                                SEXP categoryOffsetExpr) {
+                                SEXP categoryOffsetExpr,
+                                SEXP categoryTestOffsetExpr) {
   return createExternalHolder(dataExpr, [&]() {
     return bartcore_bridge::createMultinomialHolder(
       controlExpr, modelExpr, dataExpr, labelsExpr, numCategoriesExpr,
-      categoryOffsetExpr);
+      categoryOffsetExpr, categoryTestOffsetExpr);
   });
 }
 
@@ -3377,11 +3433,12 @@ SEXP bartcore_createMultinomial(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 SEXP bartcore_createMultinomialCounts(SEXP controlExpr, SEXP modelExpr,
                                       SEXP dataExpr, SEXP countsExpr,
                                       SEXP numCategoriesExpr,
-                                      SEXP categoryOffsetExpr) {
+                                      SEXP categoryOffsetExpr,
+                                      SEXP categoryTestOffsetExpr) {
   return createExternalHolder(dataExpr, [&]() {
     return bartcore_bridge::createMultinomialCountsHolder(
       controlExpr, modelExpr, dataExpr, countsExpr, numCategoriesExpr,
-      categoryOffsetExpr);
+      categoryOffsetExpr, categoryTestOffsetExpr);
   });
 }
 
@@ -3480,6 +3537,10 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
 // combiner BORROWS ownedCategoryOffset.data(), so an in-place write would BE
 // the mutation. Clearing returns the sampler to the exact offset-free path,
 // pointer for pointer.
+//
+// This one shifts the TRAIN latent only. The test rows are other rows, so they
+// carry their own offset (bartcore_setCategoryTestOffset), and predict takes
+// its own per call; neither is derived from this one.
 SEXP bartcore_setCategoryOffset(SEXP ptrExpr, SEXP offsetExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
@@ -3491,9 +3552,6 @@ SEXP bartcore_setCategoryOffset(SEXP ptrExpr, SEXP offsetExpr) {
              "sampler");
   size_t n = shape.numObservations;
   size_t K = shape.numReportedLocations;
-  refuseCategoryOffsetTestSurface(!Rf_isNull(offsetExpr),
-                                  shape.numTestObservations > 0,
-                                  "bartcore_setCategoryOffset");
 
   return unwindProtect([&, offset = std::vector<double>{}]() mutable -> SEXP {
     parseCategoryOffset(offsetExpr, n, K, offset, "bartcore_setCategoryOffset");
@@ -3506,6 +3564,46 @@ SEXP bartcore_setCategoryOffset(SEXP ptrExpr, SEXP offsetExpr) {
       // old buffer, which the scratch would free on the way out.
       holder.ownedCategoryOffset.swap(offset);
       Rf_error("bartcore_setCategoryOffset refused by the sampler");
+    }
+    return R_NilValue;
+  });
+}
+
+// Installs (or clears, at NULL) a multinomial sampler's nTest x K category test
+// offset: the reported test channel becomes softmax(f_test + o_test), formed
+// where the train blend forms softmax(f + o). Nothing else moves - the test
+// fits enter no likelihood - so a run under this offset alone is bitwise a run
+// without one on every train channel.
+//
+// The shape is pinned to the CURRENT test rows, which is also why installing
+// test predictors is refused while one is here: the offset describes the rows
+// being replaced, and no row-count coincidence makes it describe the new ones.
+// Clearing first is the explicit way through. Validation is total before
+// anything is installed, as at every borrowed-buffer entrance.
+SEXP bartcore_setCategoryTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  // the capability probe comes FIRST and is not a forest count: what makes a
+  // per-category test shift meaningful is the softmax test blend, which arrived
+  // with the count response
+  if (!shape.supportsCountsMutation)
+    Rf_error("bartcore_setCategoryTestOffset requires a multinomial (softmax) "
+             "sampler");
+  size_t nTest = shape.numTestObservations;
+  size_t K = shape.numReportedLocations;
+
+  return unwindProtect([&, offset = std::vector<double>{}]() mutable -> SEXP {
+    parseCategoryTestOffset(offsetExpr, nTest, K, offset,
+                            "bartcore_setCategoryTestOffset");
+    holder.ownedCategoryTestOffset.swap(offset);
+    const double* installed = holder.ownedCategoryTestOffset.empty()
+      ? NULL : holder.ownedCategoryTestOffset.data();
+    if (!holder.sampler->setCategoryTestOffset(installed)) {
+      // defense in depth: the probe above is the engine's own predicate, so
+      // this is unreachable. Swap back first - the combiner still borrows the
+      // old buffer, which the scratch would free on the way out.
+      holder.ownedCategoryTestOffset.swap(offset);
+      Rf_error("bartcore_setCategoryTestOffset refused by the sampler");
     }
     return R_NilValue;
   });
@@ -4122,15 +4220,17 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   if (Rf_isNull(xTestExpr)) {
-    // removal: back to the no-test-data state, offset included
+    // removal: back to the no-test-data state, both offsets included
+    refuseStaleCategoryTestOffset(!holder.ownedCategoryTestOffset.empty(),
+                                  "bartcore_setTestPredictor");
     holder.sampler->setTestPredictors(NULL, 0);
     holder.sampler->setTestOffset(NULL);
     retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
     return R_NilValue;
   }
   refuseBCFTestSurface(*holder.sampler, "bartcore_setTestPredictor");
-  refuseCategoryOffsetTestSurface(!holder.ownedCategoryOffset.empty(), true,
-                                  "bartcore_setTestPredictor");
+  refuseStaleCategoryTestOffset(!holder.ownedCategoryTestOffset.empty(),
+                                "bartcore_setTestPredictor");
   if (Rf_inherits(xTestExpr, "dbartsMixedMatrix"))
     // whole-object replacement by a mixed/sparse container: parse against the
     // training cut grid, then rebuild the typed test store. Both the parse and
@@ -4199,14 +4299,16 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
   if (Rf_isNull(xTestExpr)) {
     if (!Rf_isNull(offsetExpr))
       Rf_error("when test matrix is NULL, test offset must be as well");
+    refuseStaleCategoryTestOffset(!holder.ownedCategoryTestOffset.empty(),
+                                  "bartcore_setTestPredictorAndOffset");
     holder.sampler->setTestPredictors(NULL, 0);
     holder.sampler->setTestOffset(NULL);
     retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
     return R_NilValue;
   }
   refuseBCFTestSurface(*holder.sampler, "bartcore_setTestPredictorAndOffset");
-  refuseCategoryOffsetTestSurface(!holder.ownedCategoryOffset.empty(), true,
-                                  "bartcore_setTestPredictorAndOffset");
+  refuseStaleCategoryTestOffset(!holder.ownedCategoryTestOffset.empty(),
+                                "bartcore_setTestPredictorAndOffset");
   if (!Rf_isNull(offsetExpr))
     refuseMultiForestTestOffset(*holder.sampler,
                                 "bartcore_setTestPredictorAndOffset");
@@ -5012,28 +5114,38 @@ SEXP predictFromSource(bartcore::SamplerBase& sampler,
   size_t numTestObservations = source.numRows;
   if (numTestObservations == 0) Rf_error("bartcore_predict requires rows");
 
-  const double* offset = NULL;
-  if (!Rf_isNull(offsetExpr)) {
-    if (!Rf_isReal(offsetExpr) ||
-        static_cast<size_t>(Rf_xlength(offsetExpr)) != numTestObservations)
-      Rf_error("bartcore_predict offset must have one value per row");
-    offset = REAL(offsetExpr);
-  }
-
   size_t capacity = shape.savedTreeCapacity;
   size_t numChains = shape.numChains;
   size_t numSamples = capacity > 0 ? capacity : 1;
   size_t numLocations = shape.numReportedLocations;
 
-  // a multi-location (multinomial softmax) surface reports probabilities, not
-  // an additive latent scale, so a FLAT offset has no meaning there: added
-  // after the blend it would move the values off the simplex, and added before
-  // it, a common per-observation shift is the softmax's own null direction. The
-  // per-category form is an n x K matrix, which this entry does not take.
-  if (offset != NULL && numLocations > 1)
-    Rf_error("bartcore_predict: a flat offset is undefined for a multi-location "
-             "(multinomial softmax) predict surface, whose offset would have to "
-             "be a per-category matrix");
+  // The offset takes the shape of the surface. A multi-location (multinomial
+  // softmax) surface reports probabilities, not an additive latent scale, so
+  // the offset is a PER-CATEGORY nNew x K matrix entering the raw fits before
+  // the blend - the only place a shift means anything under a softmax. A flat
+  // vector stays refused there, and truthfully: after the blend it would move
+  // the values off the simplex, and before it a common per-observation shift is
+  // the softmax's own null direction. Every other surface takes the flat form,
+  // added to the replayed fits below.
+  const double* offset = NULL;
+  const double* categoryOffset = NULL;
+  if (!Rf_isNull(offsetExpr)) {
+    if (numLocations > 1) {
+      if (Rf_isNull(Rf_getAttrib(offsetExpr, R_DimSymbol)))
+        Rf_error("bartcore_predict: a flat offset is undefined for a "
+                 "multi-location (multinomial softmax) predict surface, whose "
+                 "offset must be a per-category matrix, one row per predicted "
+                 "row");
+      categoryOffset = validateCategoryOffset(offsetExpr, numTestObservations,
+                                              numLocations,
+                                              "bartcore_predict offset");
+    } else {
+      if (!Rf_isReal(offsetExpr) ||
+          static_cast<size_t>(Rf_xlength(offsetExpr)) != numTestObservations)
+        Rf_error("bartcore_predict offset must have one value per row");
+      offset = REAL(offsetExpr);
+    }
+  }
 
   int numTestInt = static_cast<int>(numTestObservations);
   SEXP resultExpr;
@@ -5068,7 +5180,8 @@ SEXP predictFromSource(bartcore::SamplerBase& sampler,
                                static_cast<int>(numChains)));
   }
 
-  sampler.predict(source, numTestObservations, REAL(resultExpr));
+  sampler.predict(source, numTestObservations, categoryOffset,
+                  REAL(resultExpr));
 
   if (offset != NULL) {
     for (size_t slab = 0; slab < numSamples * numChains; ++slab)
@@ -5104,10 +5217,11 @@ SEXP predictFromSource(bartcore::SamplerBase& sampler,
 // the live trees produce a single set per chain. A multi-location combiner
 // (multinomial: K softmax channels) inserts the K dimension between the rows
 // and the samples, matching the run's test channel. offset, when non-null, is
-// added to every sample's fits (refused for a multi-location surface, whose
-// output is probabilities rather than an additive latent scale). A dense
-// matrix, a dgCMatrix, and a dbartsMixedMatrix all predict; only the dense one
-// is materialized, and it was already.
+// added to every sample's fits - or, on a multi-location surface, is the
+// nNew x K matrix each replay adds to its raw fits before the softmax, since
+// probabilities admit no additive shift. A dense matrix, a dgCMatrix, and a
+// dbartsMixedMatrix all predict; only the dense one is materialized, and it was
+// already.
 SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
@@ -5117,11 +5231,16 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   // the treatment forest and the glue; refuse it for the same reason recorded
   // BCF test fits are undefined.
   refuseBCFTestSurface(sampler, "bartcore_predict");
-  // the replays build their own raw slab from the saved (or live) trees and
-  // softmax it directly, never touching the combiner, so an installed category
-  // offset would be dropped from every predicted probability
-  refuseCategoryOffsetTestSurface(!holder.ownedCategoryOffset.empty(), true,
-                                  "bartcore_predict");
+  // The rows are the CALLER's, so the offset must be too: predict never reads
+  // the sampler's resident category offsets, whose rows are other rows, and a
+  // row-count coincidence between them is not consent. A sampler that models a
+  // per-category shift therefore cannot answer here without one being named -
+  // and an all-zero matrix is how a caller asks for the offset-free surface.
+  if (!holder.ownedCategoryOffset.empty() && Rf_isNull(offsetExpr))
+    Rf_error("bartcore_predict: this sampler carries an n x K category offset, "
+             "and the predicted rows are not its rows, so their offset cannot "
+             "be inferred; pass one per predicted row (an all-zero matrix for "
+             "the offset-free surface)");
 
   // a sparse test set replays resident, off the view the container parses to;
   // the parse owns buffers, so the unwind-protected scope frees them on the

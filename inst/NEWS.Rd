@@ -848,10 +848,16 @@
             category offset matrix, given at creation or installed
             between runs. It enters each category's linear predictor
             before the softmax, so it shifts the model rather than the
-            reported probabilities. While one is held, test data and
-            out-of-sample prediction are refused rather than reported
-            without it. \code{dbarts:::}-only; no public surface in this
-            release.
+            reported probabilities. \code{dbarts:::}-only; no public
+            surface in this release.
+      \item The multinomial category offset extends to test data and to
+            out-of-sample prediction. Test rows take their own observation
+            by category matrix, given at creation or installed between
+            runs, and prediction takes one per call for the rows it is
+            given rather than reusing either resident offset. A sampler
+            that holds a category offset refuses to predict without one,
+            an all-zero matrix being how the offset-free surface is asked
+            for. \code{dbarts:::}-only; no public surface in this release.
       \item Probability vectors for the tree prior are validated with the
             standard \code{all.equal} tolerance instead of a hand-picked
             1e-10.

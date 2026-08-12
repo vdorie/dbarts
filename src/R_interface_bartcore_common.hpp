@@ -50,6 +50,12 @@ struct BartcoreHolder {
   // engine's own probe is a capability rather than a state.
   std::vector<double> ownedCategoryOffset{};
 
+  // the test-side twin, nTest x K over the CURRENT test rows, likewise borrowed
+  // and likewise empty for none. A separate buffer because it describes
+  // different rows: nothing derives one from the other, which is why replacing
+  // the test rows under one is refused rather than reinterpreted.
+  std::vector<double> ownedCategoryTestOffset{};
+
   ~BartcoreHolder() {
     for (std::size_t c = rngs.size(); c > 0; --c)
       if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);

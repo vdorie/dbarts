@@ -3732,6 +3732,90 @@ static void testMultinomialCategoryOffset() {
     ext_rng_destroy(rng);
   }
 
+  // (4) the test blend's own offset: a SEPARATE nTest x K object over the test
+  //     rows, entering the reported test softmax where the train offset enters
+  //     the train one. Its slab is sized off the test store, so this is also
+  //     the arm that walks that buffer under the sanitizers.
+  {
+    const size_t nTest = 5;
+    std::vector<double> xTestDummy(nTest, 0.0);
+    data.buildTest(xTestDummy.data(), nTest);
+    std::vector<double> testOffset(nTest * K), testZeros(nTest * K, 0.0);
+    for (size_t k = 0; k < K; ++k)
+      for (size_t i = 0; i < nTest; ++i) {
+        forests[k].totalTestFits.resize(nTest);
+        forests[k].totalTestFits[i] =
+          0.2 * static_cast<double>(k) - 0.35 * static_cast<double>(i % 3);
+        testOffset[k * nTest + i] =
+          0.5 - 0.3 * static_cast<double>(k) + 0.1 * static_cast<double>(i);
+      }
+
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    const double* plain = combiner.combinedTestFits(forests);
+    std::vector<double> recPlain(plain, plain + nTest * K);
+    combiner.setCategoryTestOffset(testZeros.data());
+    const double* zeroed = combiner.combinedTestFits(forests);
+    bool zeroIsNull = true;
+    for (size_t j = 0; j < nTest * K; ++j)
+      zeroIsNull &= zeroed[j] == recPlain[j];
+    check(zeroIsNull, "an all-zero category TEST offset is the null path");
+
+    combiner.setCategoryTestOffset(testOffset.data());
+    const double* blended = combiner.combinedTestFits(forests);
+    bool formed = true, moved = false;
+    for (size_t i = 0; i < nTest; ++i) {
+      double maxRaw = -HUGE_VAL, sumExp = 0.0;
+      for (size_t k = 0; k < K; ++k)
+        maxRaw = std::max(maxRaw, forests[k].totalTestFits[i] +
+                                    testOffset[k * nTest + i]);
+      for (size_t k = 0; k < K; ++k)
+        sumExp += std::exp(forests[k].totalTestFits[i] +
+                           testOffset[k * nTest + i] - maxRaw);
+      for (size_t k = 0; k < K; ++k) {
+        double p = std::exp(forests[k].totalTestFits[i] +
+                            testOffset[k * nTest + i] - maxRaw) / sumExp;
+        formed &= std::fabs(blended[k * nTest + i] - p) < 1e-14;
+        moved |= blended[k * nTest + i] != recPlain[k * nTest + i];
+      }
+    }
+    check(formed, "the test blend is the softmax of the offset TEST fits");
+    check(moved, "and the test offset is not inert");
+
+    // the test blend follows the test fits, not a snapshot: a totalTestFits
+    // write between reports shows in the next one
+    for (size_t i = 0; i < nTest; ++i) forests[K - 1].totalTestFits[i] += 0.9;
+    const double* after = combiner.combinedTestFits(forests);
+    bool current = true;
+    for (size_t i = 0; i < nTest; ++i) {
+      double maxRaw = -HUGE_VAL, sumExp = 0.0;
+      for (size_t k = 0; k < K; ++k)
+        maxRaw = std::max(maxRaw, forests[k].totalTestFits[i] +
+                                    testOffset[k * nTest + i]);
+      for (size_t k = 0; k < K; ++k)
+        sumExp += std::exp(forests[k].totalTestFits[i] +
+                           testOffset[k * nTest + i] - maxRaw);
+      for (size_t k = 0; k < K; ++k)
+        current &= std::fabs(after[k * nTest + i] -
+                             std::exp(forests[k].totalTestFits[i] +
+                                      testOffset[k * nTest + i] - maxRaw) /
+                               sumExp) < 1e-14;
+    }
+    check(current, "the test blend reads every category's CURRENT test fit");
+
+    // clearing returns to the offset-free test path, pointer for pointer
+    for (size_t i = 0; i < nTest; ++i) forests[K - 1].totalTestFits[i] -= 0.9;
+    combiner.setCategoryTestOffset(nullptr);
+    const double* cleared = combiner.combinedTestFits(forests);
+    bool restored = true;
+    for (size_t j = 0; j < nTest * K; ++j)
+      restored &= cleared[j] == recPlain[j];
+    check(restored, "clearing a category test offset restores the null path");
+
+    // the TRAIN offset is untouched by any of it
+    check(combiner.combinedFits(forests) != nullptr,
+          "the train blend survives a test-offset cycle");
+  }
+
   printf("ok: multinomial category offset\n");
 }
 
