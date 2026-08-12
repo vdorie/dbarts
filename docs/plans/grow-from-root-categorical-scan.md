@@ -1,8 +1,18 @@
 # grow-from-root-categorical-scan
 
-agent: S0/S1/S2 opus (each moves a draw law on the opt-in path); S3 sonnet
-  (R surface + tests); S4 opus (it records a measurement); S5 sonnet (docs).
-  Serialized: one implementer, each slice lands before the next starts.
+agent: S0a/S0b/S1/S2 opus (each moves a draw law on the opt-in path, or decides
+  whether one moves); S3 sonnet (R surface + tests); S4 opus (it records a
+  measurement); S5 sonnet (docs). Serialized: one implementer, each slice lands
+  before the next starts. S0 is TWO slices with a VD signature between them:
+  S0a runs the falsifier and stops; S0b applies the fix only if VD signs.
+revalidated: 2026-08-12 at `9f92074a`, against the multiforest-predictor-
+  mutation and multinomial-counts-mutation landings. The S0/S1 work surface is
+  byte-identical to the context tip below: `git diff 54c0b9f..9f92074a` is EMPTY
+  for `grow.hpp`, `scan.hpp`, `tree.hpp`, `tests/cpp/test_{grow,scan,tree}.cpp`,
+  `benchmarks/R/categorical-exact.R`, `docs/design/grow-from-root.md`, all three
+  `growFromRoot` tinytest files and `inst/common/friedmanData.R`. Corrections
+  applied at this revalidation: the S0a/S0b split, the trio baseline names, the
+  house gates the battery gained, and the moved anchors marked DRIFT below.
 rng: NEUTRAL on every default path, EVERY slice. The categorical branch sits
   INSIDE the existing `j` loop of `growTreeFromRoot`, so the ordinal emission
   order and count are unchanged and an all-ordinal design draws an identical
@@ -18,10 +28,12 @@ rng: NEUTRAL on every default path, EVERY slice. The categorical branch sits
 window: after the multinomial counts/offset channel
   (docs/plans/multinomial-counts-mutation.md), whose S4 re-records the
   multinomial baseline - name the hash in `benchmarks/baselines/MANIFEST` at
-  this arc's start, not `ec2a3d0`. Pre-release by default. Does NOT reopen the
-  `n.grow.sweeps` default (KILLED in both strata) or the arithmetic-only
-  renormalization (CLOSED by measurement as cell S7).
-budget: S0 ~110 tests/cpp + 1 line grow.hpp + ~10 docs; S1 ~150 scan.hpp +
+  this arc's start, not `ec2a3d0`. SATISFIED: that arc closed at `9f92074a`,
+  and the MANIFEST hash it resolves to is
+  `multinomial-equivalence-1027be5.rds` (current, 10 scenarios). Pre-release by
+  default. Does NOT reopen the `n.grow.sweeps` default (KILLED in both strata)
+  or the arithmetic-only renormalization (CLOSED by measurement as cell S7).
+budget: S0a ~110 tests/cpp; S0b 1 line grow.hpp + ~10 docs; S1 ~150 scan.hpp +
   ~30 model.hpp + ~8 tree.hpp + ~90 grow.hpp + ~110 tests/cpp; S2 ~380
   tests/cpp; S3 ~180 R test; S4 ~350 R harness (gitignored) + a landing note;
   S5 ~80 docs. ~5.5 sessions plus ~90 min compute. Budgets are sized to the
@@ -60,12 +72,15 @@ variable's total realized split mass is continuous in its level count. The v1
    not correct.
 6. **No new `CGMTreePrior` or `ColumnStore` members.** All new state in
    `GrowScratch`.
-7. Design artifacts (memo, adversarial critique, synthesis) are durable at
-   `.claude/grow-from-root-categorical-scan/`. **Read the synthesis before
-   starting** - it carries the corrected enumeration recipe, the mass-repair
-   derivation, and the re-aimed measured arm, none of which is in the memo.
+7. Design artifacts are durable at `.claude/grow-from-root-categorical-scan/`
+   (gitignored) as `memo.md` (the design), `critique.md` (the independent
+   adversarial critique: STANDS WITH AMENDMENTS, 5 blocking and 12 advisory)
+   and `synthesis.md` (the adjudication: all 17 adopted, no overturns).
+   **Read `synthesis.md` before starting** - it carries the corrected
+   enumeration recipe, the mass-repair derivation, and the re-aimed measured
+   arm, none of which is in `memo.md`.
 
-## Context (seams, all read at 54c0b9f / engine 06c0254)
+## Context (seams, all read at 54c0b9f / engine 06c0254; re-read at 9f92074a)
 
 - `growTreeFromRoot` (grow.hpp) assembles one discrete draw over `{no-split} U
   {(variable, cut)}`; the whole defect is the `data.types[j] ==
@@ -112,6 +127,37 @@ variable's total realized split mass is continuous in its level count. The v1
   the v1 categorical paragraph lives), docs/design/pooled-masks.md (the two
   mask tiers), docs/design/grow-from-root-default.md (the closed study),
   docs/design/interaction-constraints.md (grow is the FIFTH split generator).
+
+**DRIFT since 54c0b9f** (verified at 9f92074a; every anchor NOT listed here is
+unmoved, and `grow.hpp`, `scan.hpp`, `tree.hpp` and the three `tests/cpp` files
+this arc edits are byte-identical):
+
+- `Chain::growForestFromRoot` is chain.hpp:1444, and its SHAPE changed: it now
+  loops `forests_` and, under a combiner, calls `drawForestGlue` then
+  `formForestResponse` then `composeForestWeights` (chain.hpp:1467-1477), so
+  `growTreeFromRoot` receives an already-composed `forestY`/`forestWeights`.
+  The multinomial CATEGORY OFFSET therefore enters UPSTREAM, at chain.hpp:1473;
+  the categorical kernel sees opaque arrays exactly as the ordinal branch does.
+  **No new coupling, and this arc adds none** - do not reach for the offset,
+  the combiner, `ForestRevalidation`/the survivor tables, or `repartitionTrees`
+  (grow rebuilds from the root and never sweeps the variance forest).
+- `compactMaskPoolIfNeeded` is chain.hpp:1494-1495 on the grow path (and
+  chain.hpp:1139-1140 on run's); still guarded by `data_.hasPooledCategorical`,
+  so "Post-draw rule assembly" step 4's no-mark/no-truncate claim stands.
+- The per-forest DART close-of-sweep block is chain.hpp:1518-1530, the shape
+  "The DART consumer" already describes.
+- `CGMTreePrior::ruleForVariableLogProbability` is model.hpp:2093;
+  `drawCategoryPattern` model.hpp:2197, `drawCategoryPatternWide` model.hpp:2213.
+- `test_fuzz.cpp`'s `FuzzOp` grew four mutation ops and a per-config allowed-op
+  mask. S2's `OP_GROW` must extend `fuzzOpName` and `fuzzOpWeight` alongside the
+  enum; it then auto-enables on exactly the four `(1u << OP_COUNT) - 1` gaussian
+  configs - including `categorical` (`cat4`) and `missing` (`cat3Miss`), which
+  is the coverage S2 wants - and NOT on the BCF/multinomial/multiforest configs,
+  which carry the explicit `fuzzMultiForestMask`. **Leave them out**: grow under
+  a combiner is a different question and this arc does not open it.
+- `$growFromRoot` (R/dbarts.R:841) now opens with
+  `refuseHostMutation("$growFromRoot")`. S3's plain `dbarts()` sampler is not a
+  host, so the surface S3 tests is unchanged.
 
 ## The weight, and the mass repair
 
@@ -269,11 +315,12 @@ it (NEWS plus the design note), name it here.
   prefixes are retained); `man/bart.Rd`'s stale "replaced with dummies" line for
   `bart2` (real, confirmed, its own ticket).
 
-## S0. The ordinal `log 2` convention: falsifier, then pin
+## S0a. The ordinal `log 2` convention: the falsifier, and the pin
 
-Decides a question, then acts on the answer. Lands first so S1 writes the
-commensurability rule against a settled convention. **VD signs before the fix
-half lands** (see Open items).
+Decides a question and STOPS. Lands first so S1 writes the commensurability
+rule against a settled convention. **This slice does not touch the shipped
+weight.** It ends by reporting the chi-square result, which is what the VD fork
+in Open items is presented with; the fix is S0b and runs only if VD signs.
 
 1. Two-arm falsifier in `tests/cpp/test_grow.cpp`, on a small missing-bearing
    ordinal fixture. Arm A = the shipped code. Arm B = an explicit
@@ -286,12 +333,29 @@ half lands** (see Open items).
    arm A rejecting while arm B does not CONFIRMS that the shipped weight
    implements the smaller-set convention and deflates the group by exactly 2;
    arm A not rejecting REFUTES the memo's reading and the shipped weight stands.
-3. If confirmed and signed: delete the `logCut -= std::log(2.0)` line. Keep the
+3. Either way, PIN the convention AS MEASURED: one sentence in
+   `growTreeFromRoot`'s draw-discipline comment naming which rule set an
+   enumerated candidate stands for, and a matching note in
+   docs/design/grow-from-root.md. The convention is what S1's categorical
+   branch is written against. If S0b lands, it re-points this one sentence.
+4. STOP and report: the two arms' chi-square statistics and p-values, which
+   pre-registered branch they select, and the recommendation attached
+   (fix - see Open items). Do not delete the `log 2` line in this slice.
+
+Gate: `cd tests/cpp && make && ./test_bartcore`; the trio bitwise; full
+tinytest with NO snapshot regenerated. RNG class: NEUTRAL on every path -
+this slice adds a test and a comment and changes no draw.
+
+## S0b. The `log 2` fix (VD-signed, conditional)
+
+Runs ONLY after VD signs the Open-items fork with S0a's result in hand, and
+only if S0a CONFIRMED. If S0a refuted, or VD pins the shipped weight, this
+slice does not exist and S1 proceeds against the convention S0a pinned.
+
+1. Delete the `logCut -= std::log(2.0)` line (grow.hpp:114). Keep the
    falsifier, re-pointed so arm A is the new code and now agrees with arm B.
-4. Either way, PIN the convention: one sentence in `growTreeFromRoot`'s
-   draw-discipline comment naming which rule set an enumerated candidate stands
-   for, and a matching note in docs/design/grow-from-root.md. The convention is
-   what S1's categorical branch is written against.
+2. Re-point S0a's pinned sentence in `growTreeFromRoot`'s draw-discipline
+   comment and in docs/design/grow-from-root.md to the settled convention.
 
 Gate: `cd tests/cpp && make && ./test_bartcore`; the trio bitwise;
 full tinytest with NO snapshot regenerated. The regeneration prediction is
@@ -299,8 +363,12 @@ ZERO and is a HARD gate, not an expectation: the three tinytest files reaching
 `growFromRoot` all source `inst/common/friedmanData.R`
 (`matrix(runif(n*10), n, 10)`, no factors, no NAs) and
 test-grow-from-root.R's heteroscedastic block is `cbind(runif, runif)`, so no
-recorded value can move. A shift means the change leaked into the non-missing
-ordinal path - STOP, never regenerate.
+recorded value can move (re-verified at 9f92074a; the three files are
+test-grow-from-root.R, test-bart2-grow-from-root.R and
+test-sampler-prior-midchain.R). A shift means the change leaked into the
+non-missing ordinal path - STOP, never regenerate. RNG class:
+DRAW-LAW-CHANGING on the opt-in grow path for missing-bearing ordinal columns,
+deliberately; NEUTRAL on every default path, and no baseline covers it.
 
 ## S1. The kernel, the weight, and the install path
 
@@ -471,7 +539,8 @@ Wall clock enters no criterion, so this arm does not need a quiet machine.
 
 docs/design/grow-from-root.md: the v1 categorical contract replaced, the
 enumeration and weight rule stated once, the INIT-ONLY label explained, the
-pinned `log 2` convention from S0, and the DART consumer. A landing note on
+pinned `log 2` convention from S0a (as S0b left it, if S0b landed), and the
+DART consumer. A landing note on
 docs/design/grow-from-root-default.md section 5's categorical bullet (real
 support landed; the renormalization stays closed; no verdict on the default).
 The `Status:` line bumped to `LANDED <date> (<commit>)`. TODO, `inst/NEWS.Rd`,
@@ -484,24 +553,38 @@ and the `## Landing` note in this file.
   binaries after any header edit; `tests/cpp` tracks headers via `-MMD -MP`, so
   plain `make` is correct there.
 - `cd tests/cpp && make clean && make && ./test_bartcore` - all pass. ASAN+UBSAN
-  leg for S0-S2 (each makes new engine or new reachable code); S3-S5 add none.
+  leg for S0a-S2 (each makes new engine or new reachable code); S3-S5 add none.
 - Full `tinytest::test_package("dbarts")` from a preclean install. New tests
   ADD; NO snapshot is regenerated at any slice. A forced snapshot is a signal
   the slice changed more than intended - stop and report.
-- The trio, EVERY slice, expecting no deviation:
-  `benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-c8f661a.rds`
-  -> 27/27 "identical draws (same RNG stream)";
-  `bcf-equivalence-99205ee.rds` -> 5 scenarios x 6 channels bitwise; the
-  multinomial baseline named in `benchmarks/baselines/MANIFEST` at the arc's
-  start -> bitwise on every channel. No max-|z| line anywhere. **THE TRIO IS
+- The trio, EVERY slice, expecting no deviation. These are the CURRENT names per
+  `benchmarks/baselines/MANIFEST` (which is authoritative; re-read it at spawn
+  rather than trusting this line):
+  `benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-a825263.rds --strict-coverage`
+  -> 35/35 "identical draws (same RNG stream)";
+  `bcf-equivalence-a825263.rds` -> 11 scenarios x their channels bitwise;
+  `multinomial-equivalence-1027be5.rds` -> 10 scenarios x their channels
+  bitwise. No max-|z| line anywhere. **THE TRIO IS
   NECESSARY, NOT SUFFICIENT, and here it is unusually weak**: no trio scenario
-  reaches `growTreeFromRoot` at all (verified - zero `n.grow.sweeps` /
-  `growFromRoot` hits under `benchmarks/`), including `equivalence.R`'s
-  `categorical` scenario, which is pure MH. The trio proves only that nothing
-  leaked into the default path. O1/O1F/O2 and S4 are the real oracles.
-- `benchmarks/R/categorical-exact.R` unchanged-pass at every slice.
-- `air format --check .` on any slice touching R/. No bridge move in this arc,
-  so no rchk obligation.
+  reaches `growTreeFromRoot` at all (re-verified at 9f92074a - zero
+  `n.grow.sweeps` / `growFromRoot` hits under `benchmarks/`), including
+  `equivalence.R`'s `categorical` scenario, which is pure MH. The trio proves
+  only that nothing leaked into the default path. O1/O1F/O2 and S4 are the real
+  oracles. NOTHING IN THIS ARC RE-RECORDS a baseline; a deviation is a bug.
+- `benchmarks/R/categorical-exact.R` unchanged-pass at every slice. Note that
+  `.github/workflows/exact-gates.yaml` runs it AND `multinomial-exact.R`'s six
+  arms on every push, so the exact grid is a CI net as well as a local step -
+  a slice that moves an exact gate is caught there even if it is not run
+  locally.
+- `air format --check .` and `lintr::lint_package()` on any slice touching R/
+  (both are enforced by `.github/workflows/lint.yaml`). `R CMD check` on any
+  slice touching R/ or Rd - S5 does, for `inst/NEWS.Rd`. No bridge move in this
+  arc, so no rchk obligation.
+- `tests/cpp/test_shape.cpp` field-oracles `SamplerShape` member by member.
+  **N/A here**: no slice in this arc adds or moves a `SamplerShape` field, so
+  no slice extends it. Stated so the omission is a decision, not a gap.
+- Speed: `bench-sampler-ab1dc52.csv` is not a gate. The opt-in grow path is in
+  no timed arm of `bench-sampler.R`; confirm before skipping.
 
 Stop conditions per docs/plans/README.md, plus:
 
@@ -520,7 +603,7 @@ Stop conditions per docs/plans/README.md, plus:
 
 ## Falsifiers
 
-- **F1 (S0).** The two-arm falsifier must be written so arm B can disagree with
+- **F1 (S0a).** The two-arm falsifier must be written so arm B can disagree with
   arm A. If both arms pass the same chi-square, the fixture has no missing
   predictor on a splittable column and proves nothing - `testDeterminism-
   AndDrawCount` asserts `hasMissing[0] == 0` precisely because the existing
@@ -563,8 +646,9 @@ root (grow must still terminate and produce a legal forest).
 
 ## NEWS bullets (inst/NEWS.Rd, one per slice, same commit)
 
-- S0: (only if the fix lands) the grow-from-root initializer no longer
-  under-weights cut candidates on ordinal predictors that carry missing values.
+- S0b: (only if the fix lands; S0a is test-and-comment only and carries no
+  bullet) the grow-from-root initializer no longer under-weights cut candidates
+  on ordinal predictors that carry missing values.
 - S1: the `n.grow.sweeps` initializer now places categorical split rules
   instead of skipping categorical predictors; below ten categories present at a
   node the node's choice is exact over all category subsets, and above it a
@@ -575,7 +659,9 @@ root (grow must still terminate and produce a legal forest).
 
 ## Open items
 
-- **The `log 2` convention needs VD's signature before S0's fix half lands.**
+- **The `log 2` convention needs VD's signature before S0b lands.** The
+  question is presented ONLY with S0a's falsifier result in hand and this
+  recommendation attached; S0a stops for exactly that reason.
   The falsifier settles the fact; VD signs the consequence. Fix it and the two
   branches obey one rule - a candidate carries its rule group's total prior
   mass, post-draw coins pick uniformly within the group - at the cost of a
@@ -599,7 +685,8 @@ root (grow must still terminate and produce a legal forest).
   out of this arc, worth its own ticket - an outside reader otherwise concludes
   dbarts dummy-expands.
 - Pre-existing hazard found in the census, unrelated and unreached here:
-  `storeVarianceSavedTrees` and `rebuildVarianceForest` (chain.hpp) call
+  `storeVarianceSavedTrees` and `rebuildVarianceForest` (chain.hpp:3577 and
+  :3612 at 9f92074a, where the census's finding was re-confirmed live) call
   `flatten`/`buildFromFlat` with `masks == nullptr`, which would null-deref if a
   variance-forest tree ever held a pooled categorical rule. Grow does not sweep
   the variance forest, so this arc does not reach it. Its own ticket.
