@@ -428,3 +428,25 @@ expect_false(isTRUE(all.equal(
   dbarts:::bartcorePredict(bc.pred.none, x.test, testOffset),
   dbarts:::bartcorePredict(bc.pred.none, x.test)
 )))
+
+# the refusal keys on EITHER resident offset, not the train one alone: a
+# sampler carrying only a resident TEST offset (no train offset) must refuse a
+# no-offset predict exactly as the train-offset-only sampler above does,
+# rather than silently reporting the offset-free surface.
+set.seed(313)
+bc.pred.testonly <- buildSampler(
+  NULL,
+  testOffset,
+  keepTrees = TRUE,
+  n.samples = 4L
+)
+dbarts:::bartcoreRun(bc.pred.testonly, 15L, 4L)
+expect_error(
+  dbarts:::bartcorePredict(bc.pred.testonly, x.test),
+  "cannot be inferred"
+)
+expect_silent(dbarts:::bartcorePredict(
+  bc.pred.testonly,
+  x.test,
+  zeroTestOffset
+))
