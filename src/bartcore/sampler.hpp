@@ -1175,6 +1175,16 @@ public:
       installed = chain->setCounts(counts, trials) && installed;
     return installed;
   }
+  /// Installs (or clears, at null) the borrowed n x K category offset in every
+  /// chain, so a multi-chain sampler cannot be left half offset; false,
+  /// installing nothing, on a refusal. Every chain refuses on the same
+  /// predicate.
+  bool setCategoryOffset(const double* offset) {
+    bool installed = true;
+    for (auto& chain : chains_)
+      installed = chain->setCategoryOffset(offset) && installed;
+    return installed;
+  }
   bool bcfGlue(size_t chainNum, double* out) const {
     return chains_[chainNum]->bcfGlue(out[0], out[1], out[2]);
   }

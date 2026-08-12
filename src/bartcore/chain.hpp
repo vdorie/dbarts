@@ -870,6 +870,27 @@ public:
     return true;
   }
 
+  /// Installs a BORROWED n x K category offset (category-major, like the
+  /// counts) on the coupling's linear predictor, or clears it at a null
+  /// pointer; false, installing nothing, when the coupling owns no such
+  /// predictor. n and K are fixed at creation, so the host validates the shape.
+  ///
+  /// The capability is the counts one: a coupling whose response is an n x K
+  /// count matrix is exactly a coupling with an n x K linear predictor to
+  /// shift, and the two halves arrived together. Should a coupling ever own one
+  /// without the other, split the predicate then rather than pre-emptively -
+  /// the field the bridge probes would have to split with it.
+  ///
+  /// This is NOT setOffset: that one goes to the response model, which adds it
+  /// to every reported channel after the forests are combined. On a softmax
+  /// coupling an offset only means anything before the blend, which is where
+  /// this one lands.
+  bool setCategoryOffset(const double* offset) {
+    if (!supportsCountsMutation()) return false;
+    combiner_->setCategoryOffset(offset);
+    return true;
+  }
+
   /// Installs a BORROWED per-observation weight s on forest f, clearing it at a
   /// null pointer; returns false, installing nothing, when the coupling admits
   /// no such weight or f names no forest.

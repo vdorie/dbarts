@@ -3549,6 +3549,192 @@ static void testMultinomialSetCounts() {
   printf("ok: multinomial counts channel\n");
 }
 
+// The category offset on the combiner: the latent is f_ik + o_ik, so the offset
+// enters the margin, is SUBTRACTED back out of the working response, and rides
+// the reported blend. Four facts are under test, each of which a plausible
+// wrong implementation would break.
+//
+// The formed response is checked against the formula directly, so a sign or a
+// placement error shows here rather than as a shifted posterior. An all-zero
+// offset must reproduce the offset-free stream bitwise, and so must clearing
+// one, which is what makes the null path structurally today's path rather than
+// today's path plus a rounding argument. And the blend must be same-vintage:
+// fits written between sweeps - which is what a predictor mutation's tree
+// revalidation does, outside the combiner entirely - must appear in the very
+// next reported blend, not one sweep later.
+static void testMultinomialCategoryOffset() {
+  const size_t n = 6, K = 3;
+  std::vector<double> xDummy(n, 0.0);
+  ColumnStore data;
+  data.build(xDummy.data(), n, 1, 100);
+
+  std::vector<int> trials = {1, 2, 1, 3, 2, 1};
+  std::vector<int> counts(n * K, 0);
+  for (size_t i = 0; i < n; ++i) counts[(i % K) * n + i] = trials[i];
+
+  std::vector<Forest<ConstantGaussianLeaf>> forests(K);
+  std::vector<std::vector<double>> f = {
+    {0.3, -0.4, 0.8, 0.1, -0.6, 0.5},
+    {-0.2, 0.6, -0.3, 0.4, 0.7, -0.5},
+    {0.5, 0.1, -0.7, 0.2, -0.1, 0.6}};
+  for (size_t k = 0; k < K; ++k) {
+    forests[k].numTrees = 1;
+    forests[k].leaf.scale = 3.0;
+    forests[k].k = 2.0;
+    forests[k].treeFits.assign(n, 0.0);
+    forests[k].totalFits = f[k];
+  }
+
+  // a per-category, per-observation offset with no common row component, so
+  // nothing about it lies along the softmax's null direction
+  std::vector<double> offset(n * K), zeros(n * K, 0.0);
+  for (size_t k = 0; k < K; ++k)
+    for (size_t i = 0; i < n; ++i)
+      offset[k * n + i] = 0.4 * static_cast<double>(k) -
+                          0.15 * static_cast<double>(i % 4);
+
+  MultinomialSpec spec;
+  spec.numCategories = K;
+  spec.counts = counts.data();
+  spec.trials = trials.data();
+
+  auto seeded = [](std::uint32_t seed) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, seed);
+    return rng;
+  };
+  auto cycle = [&](MultinomialForestCombiner<ConstantGaussianLeaf>& combiner,
+                   ext_rng* rng, size_t sweeps, std::vector<double>* out) {
+    for (size_t s = 0; s < sweeps; ++s)
+      for (size_t fk = 0; fk < K; ++fk) {
+        combiner.drawForestGlue(fk, rng, forests);
+        ForestResponse fr =
+          combiner.formForestResponse(fk, forests, nullptr, nullptr);
+        if (out == NULL) continue;
+        for (size_t i = 0; i < n; ++i) {
+          out->push_back(fr.response[i]);
+          out->push_back(fr.weights[i]);
+        }
+      }
+  };
+
+  // (1) the formula: the margin is the log-sum-exp over the OTHER categories'
+  //     offset fits, and the response carries - o_if
+  {
+    MultinomialSpec withOffset = spec;
+    withOffset.offset = offset.data();
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, withOffset);
+    ext_rng* rng = seeded(9101u);
+    bool formed = true;
+    for (size_t fk = 0; fk < K; ++fk) {
+      combiner.drawForestGlue(fk, rng, forests);
+      ForestResponse fr =
+        combiner.formForestResponse(fk, forests, nullptr, nullptr);
+      for (size_t i = 0; i < n; ++i) {
+        double margin = -HUGE_VAL;
+        for (size_t j = 0; j < K; ++j) {
+          if (j == fk) continue;
+          double raw = f[j][i] + offset[j * n + i];
+          margin = margin == -HUGE_VAL
+            ? raw
+            : std::max(margin, raw) +
+                std::log1p(std::exp(-std::fabs(raw - margin)));
+        }
+        double expected =
+          (static_cast<double>(counts[fk * n + i]) - trials[i] * 0.5) /
+            fr.weights[i] + margin - offset[fk * n + i];
+        formed &= std::fabs(fr.response[i] - expected) < 1e-12;
+      }
+    }
+    check(formed,
+          "an offset combiner forms (y - n/2)/omega + C - o against the "
+          "offset margin");
+    ext_rng_destroy(rng);
+  }
+
+  // (2) an all-zero offset is the null path, bitwise, and so is a cleared one;
+  //     an installed offset is not (the non-vacuity arm)
+  std::vector<double> recNull, recZero, recCleared, recOffset, recSwapped;
+  {
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    ext_rng* rng = seeded(9102u);
+    cycle(combiner, rng, 2, &recNull);
+    ext_rng_destroy(rng);
+  }
+  {
+    MultinomialSpec zeroed = spec;
+    zeroed.offset = zeros.data();
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, zeroed);
+    ext_rng* rng = seeded(9102u);
+    cycle(combiner, rng, 2, &recZero);
+    ext_rng_destroy(rng);
+  }
+  {
+    MultinomialSpec withOffset = spec;
+    withOffset.offset = offset.data();
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, withOffset);
+    ext_rng* rng = seeded(9102u);
+    cycle(combiner, rng, 2, &recOffset);
+    ext_rng_destroy(rng);
+  }
+  {
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    combiner.setCategoryOffset(offset.data());
+    ext_rng* rng = seeded(9102u);
+    cycle(combiner, rng, 2, &recSwapped);
+    ext_rng_destroy(rng);
+  }
+  {
+    MultinomialSpec withOffset = spec;
+    withOffset.offset = offset.data();
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, withOffset);
+    combiner.setCategoryOffset(nullptr);
+    ext_rng* rng = seeded(9102u);
+    cycle(combiner, rng, 2, &recCleared);
+    ext_rng_destroy(rng);
+  }
+  check(recZero == recNull, "an all-zero category offset is the null path");
+  check(recCleared == recNull, "clearing a category offset restores it");
+  check(recSwapped == recOffset,
+        "installing an offset matches building with it");
+  check(recOffset != recNull, "and the offset is not inert");
+
+  // (3) the reported blend is softmax(f + o) and is SAME-VINTAGE: a totalFits
+  //     write between sweeps - what a predictor mutation's revalidation does,
+  //     never entering the combiner - must show in the next blend
+  {
+    MultinomialSpec withOffset = spec;
+    withOffset.offset = offset.data();
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, withOffset);
+    ext_rng* rng = seeded(9103u);
+    cycle(combiner, rng, 1, NULL);
+    for (size_t i = 0; i < n; ++i) forests[K - 1].totalFits[i] += 0.75;
+    const double* blended = combiner.combinedFits(forests);
+    bool current = true;
+    for (size_t i = 0; i < n; ++i) {
+      double maxRaw = -HUGE_VAL, sumExp = 0.0;
+      for (size_t k = 0; k < K; ++k)
+        maxRaw = std::max(maxRaw, forests[k].totalFits[i] + offset[k * n + i]);
+      for (size_t k = 0; k < K; ++k)
+        sumExp +=
+          std::exp(forests[k].totalFits[i] + offset[k * n + i] - maxRaw);
+      for (size_t k = 0; k < K; ++k) {
+        double p =
+          std::exp(forests[k].totalFits[i] + offset[k * n + i] - maxRaw) /
+          sumExp;
+        current &= std::fabs(blended[k * n + i] - p) < 1e-14;
+      }
+    }
+    check(current,
+          "the reported blend is the softmax of every category's CURRENT "
+          "offset fit");
+    for (size_t i = 0; i < n; ++i) forests[K - 1].totalFits[i] -= 0.75;
+    ext_rng_destroy(rng);
+  }
+
+  printf("ok: multinomial category offset\n");
+}
+
 // The per-observation log-likelihood channel: requesting it draws no rng and
 // mutates no state (computed post-hoc at storeSample), so sigma/train are
 // bitwise unchanged, and each family's values equal the closed-form density of
@@ -3850,6 +4036,7 @@ void runSamplerTests(ext_rng* rng) {
   testMultinomialGrowForestFromRoot();
   testMultinomialCountGrowForestFromRoot();
   testMultinomialSetCounts();
+  testMultinomialCategoryOffset();
   testViewSamplerMatchesFull();
   testEndToEndGaussian(rng);
   testEndToEndGaussianFp32(rng);

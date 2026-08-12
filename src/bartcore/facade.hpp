@@ -264,6 +264,12 @@ public:
   /// a counts-owning coupling. n and K are fixed at creation, so the host
   /// validates the shape. Chain::setCounts states the semantics.
   virtual bool setCounts(const int* counts, const int* trials) = 0;
+  /// Installs a borrowed n x K category offset (category-major) on the forest
+  /// coupling's linear predictor in every chain, clearing it at a null pointer;
+  /// false, installing nothing, off a counts-owning coupling. Distinct from
+  /// setOffset, which the response model adds after the forests are combined.
+  /// Chain::setCategoryOffset states the semantics.
+  virtual bool setCategoryOffset(const double* offset) = 0;
   virtual bool bcfGlue(std::size_t chainNum, double* out) const = 0;
   virtual void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
                                double* out) const = 0;
@@ -473,6 +479,9 @@ public:
   }
   bool setCounts(const int* counts, const int* trials) override {
     return impl_.setCounts(counts, trials);
+  }
+  bool setCategoryOffset(const double* offset) override {
+    return impl_.setCategoryOffset(offset);
   }
   bool bcfGlue(std::size_t chainNum, double* out) const override {
     return impl_.bcfGlue(chainNum, out);

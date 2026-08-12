@@ -868,6 +868,14 @@
             response-side refusals name this channel instead of reporting
             that the sampler fixes its response at creation.
             \code{dbarts:::}-only; no public surface in this release.
+      \item A multinomial (softmax) sampler accepts an observation by
+            category offset matrix, given at creation or installed
+            between runs. It enters each category's linear predictor
+            before the softmax, so it shifts the model rather than the
+            reported probabilities. While one is held, test data and
+            out-of-sample prediction are refused rather than reported
+            without it. \code{dbarts:::}-only; no public surface in this
+            release.
       \item Probability vectors for the tree prior are validated with the
             standard \code{all.equal} tolerance instead of a hand-picked
             1e-10.

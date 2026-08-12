@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
 # Exact-posterior gate for the bartcore multinomial (softmax) sampler
-# (docs/design/multinomial.md). Five arms, each matching the sampler's
+# (docs/design/multinomial.md). Six arms, each matching the sampler's
 # posterior mean of the IDENTIFIED softmax probabilities to a closed-form
 # quadrature, to Monte Carlo error. A failure means the softmax coupling, the
 # interleaved one-vs-rest Polya-Gamma draw, the level-centering move, or the
@@ -10,7 +10,10 @@
 # gates that the TEST channel (combinedTestFits) equals the same quadrature
 # target as the train channel - the softmax-invariance correctness fact. Arm 5
 # is the grouped-count analog of arm 1 (n_i > 1), the only exact gate on the
-# PG(n_i) summing draw and the (y - n_i/2) working response.
+# PG(n_i) summing draw and the (y - n_i/2) working response. Arm 6 is arm 1
+# under a fixed category offset, the only oracle that catches a consistently
+# wrong sign or placement for it: a create-vs-swap parity cannot, since both of
+# its arms would make the same error.
 #
 # The sampler's per-forest total-fit prior is symmetric N(0, tau^2)^K with
 #   tau = nodeScale / k,  nodeScale = pi*sqrt(3)/sqrt(2),  k = 2
@@ -460,6 +463,128 @@ armCount <- function() {
   report("  arm5 counts K=3", max(abs(fit - exact)), tolerance)
 }
 
+# ---------------------------------------------------------------------------
+# Arm 6: intercept-only K = 3 with a fixed CATEGORY OFFSET
+# ---------------------------------------------------------------------------
+
+armOffset <- function() {
+  # The category offset's only exact gate, and the only oracle in the arc that
+  # can see a consistently wrong SIGN or PLACEMENT: a create-vs-swap parity
+  # agrees happily with an offset that is added to the margin but not
+  # subtracted from the working response, or vice versa, since both of its arms
+  # make the same mistake. Here the offset is IN the likelihood the quadrature
+  # integrates, so any of those errors moves the sampler off the target.
+  #
+  # Intercept-only (a constant predictor, root-only trees), so the K forests
+  # carry one level each and the identified quantity is the difference vector
+  # d = (f0 - f2, f1 - f2) with the same correlated N(0, tau^2 (I + 11')) prior
+  # arm 1 uses. The offset varies by category and by GROUP - two blocks of rows
+  # with different per-category shifts - so the softmax differs between the
+  # blocks while the forests do not, which no common-shift null direction can
+  # produce. Within a group the likelihood collapses to multinomial on that
+  # group's column sums, so the quadrature is arm 1's with one likelihood
+  # factor per group, each evaluated at d + delta_g.
+  ndpost <- if (quick) 10000L else 40000L
+  nburn <- 5000L
+  nSeeds <- if (quick) 1L else 3L
+  tolerance <- if (quick) 0.012 else 0.008
+
+  set.seed(5150L)
+  K <- 3L
+  nPerGroup <- 120L
+  n <- 2L * nPerGroup
+  group <- rep(1:2, each = nPerGroup)
+  # per-group, per-category offsets; neither row is constant, so neither lies
+  # along the softmax's null direction
+  offsetByGroup <- rbind(c(0.0, 0.8, -0.5), c(0.4, -0.6, 0.9))
+  offset <- offsetByGroup[group, ]
+  trueP <- t(apply(offsetByGroup, 1L, function(o) exp(o) / sum(exp(o))))
+  labels <- vapply(
+    seq_len(n),
+    function(i) sample.int(K, 1L, prob = trueP[group[i], ]) - 1L,
+    integer(1L)
+  )
+  counts <- vapply(
+    1:2,
+    function(g) tabulate(labels[group == g] + 1L, K),
+    numeric(K)
+  )
+  x <- matrix(0.5, n, 1L) # constant predictor: no cut points, root-only trees
+
+  # exact posterior mean of each group's identified softmax probabilities:
+  # arm 1's 2-D quadrature over d, with the group's offset differences added
+  # inside the softmax and one likelihood factor per group
+  Sigma <- tau2 * matrix(c(2, 1, 1, 2), 2L, 2L)
+  Prec <- solve(Sigma)
+  M <- 12
+  g <- seq(-M, M, length.out = 301L)
+  grid <- as.matrix(expand.grid(d0 = g, d1 = g))
+  d0 <- grid[, 1L]
+  d1 <- grid[, 2L]
+  logPOf <- function(delta) {
+    e0 <- d0 + delta[1L]
+    e1 <- d1 + delta[2L]
+    lse <- log1p(exp(e0) + exp(e1)) # log(exp(e0) + exp(e1) + 1); f2 = 0
+    cbind(e0 - lse, e1 - lse, -lse)
+  }
+  # the reference category's offset drops out of the differences, exactly as
+  # the reference forest's level does
+  logP <- lapply(1:2, function(gr) {
+    logPOf(offsetByGroup[gr, 1:2] - offsetByGroup[gr, 3L])
+  })
+  q <- Prec[1, 1] * d0^2 + 2 * Prec[1, 2] * d0 * d1 + Prec[2, 2] * d1^2
+  w <- as.vector(logP[[1L]] %*% counts[, 1L] + logP[[2L]] %*% counts[, 2L]) -
+    0.5 * q
+  w <- exp(w - max(w))
+  exact <- vapply(
+    1:2,
+    function(gr) {
+      colSums(exp(logP[[gr]]) * w) / sum(w)
+    },
+    numeric(K)
+  )
+
+  fitSeed <- function(seed) {
+    set.seed(seed)
+    control <- dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 50L,
+      updateState = FALSE
+    )
+    host <- dbarts(x, as.double(labels), control = control)
+    bc <- dbarts:::bartcoreMultinomialSampler(
+      host,
+      labels,
+      K = K,
+      offset = offset
+    )
+    r <- dbarts:::bartcoreRun(bc, nburn, ndpost)
+    # every row of a group shares that group's probabilities; average them
+    c(
+      apply(r$train[group == 1L, , , drop = FALSE], 2L, mean),
+      apply(r$train[group == 2L, , , drop = FALSE], 2L, mean)
+    )
+  }
+  fit <- colMeans(do.call(rbind, lapply(seq_len(nSeeds), fitSeed)))
+  fit <- matrix(fit, K, 2L)
+
+  cat("Arm 6 (intercept-only K = 3 with a category offset):\n")
+  for (gr in 1:2) {
+    cat(sprintf(
+      "  group %d exact   %s\n",
+      gr,
+      paste(sprintf("%.4f", exact[, gr]), collapse = " ")
+    ))
+    cat(sprintf(
+      "  group %d sampler %s\n",
+      gr,
+      paste(sprintf("%.4f", fit[, gr]), collapse = " ")
+    ))
+  }
+  report("  arm6 category offset", max(abs(fit - exact)), tolerance)
+}
+
 arm1()
 cat("\n")
 arm2()
@@ -467,6 +592,8 @@ cat("\n")
 arm3()
 cat("\n")
 armCount()
+cat("\n")
+armOffset()
 cat("\n")
 
 if (anyFailure) {
