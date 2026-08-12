@@ -263,11 +263,13 @@ items
     survival-followups), nominal-response IRT and discrete choice,
     SUR-style composition past the multinomial boundary. The
     predictor channel is already open; the gap is response-side only.
-    SCHEDULED, no research gate; plan at
-    docs/plans/multinomial-counts-mutation.md (5 slices; channel
-    stays dbarts:::-only, public surface a recorded door). Queued
-    after the multiforest arc, BEFORE the dbarts.h reshape so the C
-    surface mirrors the final mutation shape.
+    RUNNING; plan at docs/plans/multinomial-counts-mutation.md
+    (5 slices; channel stays dbarts:::-only, public surface a
+    recorded door; revalidated against the multiforest landings at
+    3ca85bb), BEFORE the dbarts.h reshape so the C surface mirrors
+    the final mutation shape. S1 (counts channel) LANDED 729bbdd;
+    S3 confirmed in scope (VD 2026-08-12); S2 (n x K train offset)
+    is the next code slot, then S3, S4 (fixture + re-record), S5.
   nameable-calibration: design for letting an R composition NAME the
     leaf-prior calibration it composes against, instead of
     inheriting one from a construction accident
