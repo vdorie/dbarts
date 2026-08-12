@@ -710,27 +710,50 @@ asCountMatrix <- function(counts) {
 # margin into a NaN for every category of that row). Only the row-centred part
 # of the offset is identified - adding a constant to every entry of a row
 # leaves the softmax unchanged - so the input is passed through as given rather
-# than silently re-centred.
-validateCategoryOffset <- function(offset, n, K) {
+# than silently re-centred. `what` names the offset in the refusals, since the
+# train rows and the test rows each carry their own.
+validateCategoryOffset <- function(offset, n, K, what = "category offset") {
   if (is.null(offset)) {
     return(NULL)
   }
   offset <- as.matrix(offset)
   if (!is.numeric(offset)) {
-    stop("multinomial category offset must be a numeric matrix")
+    stop(sprintf("multinomial %s must be a numeric matrix", what))
   }
   if (nrow(offset) != n || ncol(offset) != K) {
     stop(sprintf(
-      "multinomial category offset must be a %d x %d matrix",
+      "multinomial %s must be a %d x %d matrix",
+      what,
       n,
       K
     ))
   }
   if (!all(is.finite(offset))) {
-    stop("multinomial category offset must be finite")
+    stop(sprintf("multinomial %s must be finite", what))
   }
   storage.mode(offset) <- "double"
   offset
+}
+
+# The creation-time test twin, shaped against the host data object's test rows:
+# without them there is nothing for a per-test-row offset to describe, and
+# accepting one would leave it silently unread.
+validateCategoryTestOffset <- function(offset.test, sampler, K) {
+  if (is.null(offset.test)) {
+    return(NULL)
+  }
+  if (is.null(sampler$data@x.test)) {
+    stop(
+      "multinomial category test offset requires test data: it carries one ",
+      "row per test row"
+    )
+  }
+  validateCategoryOffset(
+    offset.test,
+    nrow(sampler$data@x.test),
+    K,
+    "category test offset"
+  )
 }
 
 # A K-forest multinomial (softmax) sampler (docs/design/multinomial.md),
@@ -748,12 +771,15 @@ validateCategoryOffset <- function(offset, n, K) {
 # totalTestFits blended by softmax). Under keepTrees, out-of-sample predict()
 # replays all K forests' saved trees and softmaxes them (bartcorePredict).
 # offset, when given, is the n x K category offset bartcoreSetCategoryOffset
-# installs; see it for the semantics and for what it refuses.
+# installs; offset.test the nTest x K one bartcoreSetCategoryTestOffset
+# installs over the host data object's x.test. See those two for the semantics
+# and for what they refuse.
 bartcoreMultinomialSampler <- function(
   sampler,
   labels,
   K = NULL,
-  offset = NULL
+  offset = NULL,
+  offset.test = NULL
 ) {
   labels <- as.integer(labels)
   if (anyNA(labels)) {
@@ -766,6 +792,7 @@ bartcoreMultinomialSampler <- function(
     K <- max(labels) + 1L
   }
   offset <- validateCategoryOffset(offset, length(labels), K)
+  offset.test <- validateCategoryTestOffset(offset.test, sampler, K)
   result <- new.env(parent = emptyenv())
   result$ptr <- .Call(
     C_dbarts_bartcore_createMultinomial,
@@ -774,7 +801,8 @@ bartcoreMultinomialSampler <- function(
     sampler$data,
     labels,
     as.integer(K),
-    offset
+    offset,
+    offset.test
   )
   # the engine keeps no predictor matrix; track it R-side for the re-quantize
   # surface, as the other dense-predictor wrappers do
@@ -796,7 +824,8 @@ bartcoreMultinomialCountSampler <- function(
   sampler,
   counts,
   K = NULL,
-  offset = NULL
+  offset = NULL,
+  offset.test = NULL
 ) {
   counts <- as.matrix(counts)
   if (!is.numeric(counts)) {
@@ -825,6 +854,7 @@ bartcoreMultinomialCountSampler <- function(
   }
   counts <- asCountMatrix(counts)
   offset <- validateCategoryOffset(offset, nrow(counts), K)
+  offset.test <- validateCategoryTestOffset(offset.test, sampler, K)
   result <- new.env(parent = emptyenv())
   # counts is column-major (category-major), the layout the combiner reads
   result$ptr <- .Call(
@@ -834,7 +864,8 @@ bartcoreMultinomialCountSampler <- function(
     sampler$data,
     counts,
     as.integer(K),
-    offset
+    offset,
+    offset.test
   )
   # the engine keeps no predictor matrix; track it R-side for the re-quantize
   # surface, as the other dense-predictor wrappers do
@@ -896,9 +927,9 @@ bartcoreSetCounts <- function(bcSampler, counts) {
 # unchanged - and the entrance leaves the input as given rather than re-centring
 # it.
 #
-# While an offset is installed the sampler carries no test data and cannot
-# predict: those channels blend the category forests' test fits alone and would
-# report probabilities without the offset.
+# This one shifts the TRAIN latent only. The test rows are other rows, so they
+# carry their own offset (bartcoreSetCategoryTestOffset), and predict takes its
+# own matrix per call; neither is derived from this one.
 bartcoreSetCategoryOffset <- function(bcSampler, offset) {
   # the shape check needs the handle's own K, which only a multinomial handle
   # carries; off one, the entry's capability probe is the refusal, and it names
@@ -910,6 +941,37 @@ bartcoreSetCategoryOffset <- function(bcSampler, offset) {
     C_dbarts_bartcore_setCategoryOffset,
     bcSampler$ptr,
     offset
+  ))
+}
+
+# Installs (or clears, at NULL) a multinomial sampler's nTest x K category test
+# offset: the recorded test channel becomes softmax(f_test + o_test), formed
+# where the train blend forms softmax(f + o). The test fits enter no
+# likelihood, so this moves the reported test probabilities and nothing else -
+# no draw, no working response, no train channel.
+#
+# Its rows are the CURRENT test rows. Replacing those rows while it is
+# installed is refused rather than silently reinterpreted (clear it first);
+# out-of-sample predict does not read it at all, taking its own matrix for the
+# rows it is given.
+bartcoreSetCategoryTestOffset <- function(bcSampler, offset.test) {
+  # as for the train offset, the shape check needs the handle's own K; off a
+  # multinomial handle the entry's capability probe is the refusal. The ROW
+  # count belongs to the sampler's test store, which the handle does not track,
+  # so the engine is what pins it - here only K and finiteness are checked
+  if (!is.null(bcSampler$K) && !is.null(offset.test)) {
+    offset.test <- as.matrix(offset.test)
+    offset.test <- validateCategoryOffset(
+      offset.test,
+      nrow(offset.test),
+      bcSampler$K,
+      "category test offset"
+    )
+  }
+  invisible(.Call(
+    C_dbarts_bartcore_setCategoryTestOffset,
+    bcSampler$ptr,
+    offset.test
   ))
 }
 
@@ -1137,11 +1199,26 @@ bartcoreGetLatents <- function(bcSampler) {
   .Call(C_dbarts_bartcore_getLatents, bcSampler$ptr, NULL)
 }
 
+# offset.test takes the shape of the surface: a flat per-row vector for every
+# additive family, and for a multinomial handle an nNew x K matrix, one row per
+# predicted row, entering the raw fits before the softmax. It is never taken
+# from the sampler - these rows are the caller's - so a handle carrying a
+# category offset must be given one here, an all-zero matrix being how the
+# offset-free surface is asked for.
 bartcorePredict <- function(bcSampler, x.test, offset.test = NULL) {
   x.test <- as.matrix(x.test)
   storage.mode(x.test) <- "double"
   if (!is.null(offset.test)) {
-    offset.test <- as.double(offset.test)
+    if (!is.null(bcSampler$K)) {
+      offset.test <- validateCategoryOffset(
+        offset.test,
+        nrow(x.test),
+        bcSampler$K,
+        "predict category offset"
+      )
+    } else {
+      offset.test <- as.double(offset.test)
+    }
   }
   .Call(C_dbarts_bartcore_predict, bcSampler$ptr, x.test, offset.test)
 }

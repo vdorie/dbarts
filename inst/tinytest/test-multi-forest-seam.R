@@ -284,12 +284,16 @@ expect_error(
   dbarts:::bartcoreSetTreatment(bc.mn, rbinom(n, 1L, 0.5)),
   "requires a BCF sampler"
 )
-# a test offset is added AFTER the K forests are blended, so it would move the
-# reported probabilities off the simplex; refused post-creation exactly as the
-# multinomial constructor refuses one
+# a FLAT test offset is added AFTER the K forests are blended, so it would move
+# the reported probabilities off the simplex, and before the blend a common
+# per-observation shift is the softmax's own null direction; refused
+# post-creation exactly as the multinomial constructor refuses one, and the
+# refusal names the per-category matrix entry that does carry a test shift
+# (test-multinomial-test-offset.R). The generic multi-forest wording is
+# conditioned on the counts capability, so BCF keeps it.
 expect_error(
   dbarts:::bartcoreSetTestOffset(bc.mn, rep(0.5, nTest)),
-  "multi-forest"
+  "bartcore_setCategoryTestOffset"
 )
 
 # --- the multinomial predictor-mutation surface, one entry at a time: the

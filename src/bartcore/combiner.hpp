@@ -376,6 +376,13 @@ struct ForestCombiner {
   /// the only place a per-category shift means anything under a softmax.
   virtual void setCategoryOffset(const double*) {}
 
+  /// The test-side twin: swaps the borrowed nTest x K offset the combined TEST
+  /// location reads, clearing it at a null pointer; inert unless a subclass
+  /// carries one. It is a separate object from the train offset - the test rows
+  /// are other rows, so neither can be derived from the other - and it enters
+  /// the test blend at the same place the train offset enters combinedFits.
+  virtual void setCategoryTestOffset(const double*) {}
+
   /// The BCF glue coefficients (a, b0, b1) on the combining response, for the
   /// per-forest reporting path (getBCFGlue); false for a combiner carrying no
   /// such glue, which is how the "no BCF glue" answer reaches the caller.
@@ -792,7 +799,10 @@ inline void softmaxLocationMajor(const double* raw, std::size_t n,
 /// would be the wrong side of the nonlinearity, and a flat per-observation
 /// shift is the softmax's null direction in any case. The level-centering move
 /// is unaffected: its shift is derived from the leaf prior alone, and a common
-/// shift of all K is that same null direction.
+/// shift of all K is that same null direction. The test rows carry their own
+/// nTest x K offset, entering the reported test blend where the train offset
+/// enters the reported train blend; it is a separate object, since the test
+/// rows are other rows.
 template <IntegrableLeafModel L, typename ResidT = double>
 struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   static_assert(!L::hasVectorParams && !L::hasFunctionParams,
@@ -869,6 +879,22 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
     // doubles on a sampler that had one
     if (offset_ != nullptr)
       raw_.resize(data_.numObservations * numCategories_);
+  }
+
+  /// Installs a replacement nTest x K test offset, borrowed and sized to the
+  /// CURRENT test store, or clears it at a null pointer. It shifts the reported
+  /// test probabilities to softmax(f_test + o_test) and nothing else: the test
+  /// fits enter no likelihood, so this touches no draw and no working response,
+  /// and a sampler that carries only this one is bitwise a sampler with none on
+  /// every train channel.
+  ///
+  /// It is NOT the train offset restricted to the test rows: the test rows are
+  /// other rows, and no shape coincidence between them makes one the other. The
+  /// host must therefore not resize the test store under an installed offset -
+  /// the two would silently stop describing the same rows - which is why the
+  /// bridge refuses a test-predictor install while one is here.
+  void setCategoryTestOffset(const double* offset) override {
+    testOffset_ = offset;
   }
 
   /// Interleaved PG draw for category f: form the current margin C_if and draw
@@ -1009,12 +1035,24 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// leaves totalTestFits alone (docs/design/multinomial.md). combinedTest_ is
   /// sized here, not at construction, because numTestObservations may be set
   /// after the combiner is built (setTestPredictors); off the sweep hot path.
+  ///
+  /// Under a TEST offset the blend reads the offset test fits instead, through
+  /// the same rawTestFits/rawFits split the train side uses, so off one the
+  /// gathered pointer is exactly today's totalTestFits and the reported test
+  /// channel is byte-identical. Rematerializing here rather than at the install
+  /// is what keeps the two sides symmetric: totalTestFits is rewritten by every
+  /// sweep and by a predictor mutation, and this is the only point that reports
+  /// it.
   const double* combinedTestFits(
       const std::vector<Forest<L, ResidT>>& forests) override {
     std::size_t nTest = data_.numTestObservations;
     combinedTest_.resize(nTest * numCategories_);
+    if (testOffset_ != nullptr) {
+      rawTest_.resize(nTest * numCategories_);
+      materializeRawTestFits(forests);
+    }
     return blendSoftmax(nTest,
-        [&](std::size_t k) { return forests[k].totalTestFits.data(); },
+        [&](std::size_t k) { return rawTestFits(k, forests); },
         combinedTest_.data());
   }
 
@@ -1132,6 +1170,29 @@ private:
       refreshRawColumn(k, forests);
   }
 
+  /// rawFits' test twin: forest k's own totalTestFits off a test offset, and
+  /// the offset column f_test_k + o_test_k under one. The single definition of
+  /// "the test fit the reported softmax sees", so off an offset the blend
+  /// gathers exactly the pointer it gathers today.
+  const double* rawTestFits(
+      std::size_t k, const std::vector<Forest<L, ResidT>>& forests) const {
+    if (testOffset_ == nullptr) return forests[k].totalTestFits.data();
+    return rawTest_.data() + k * data_.numTestObservations;
+  }
+
+  /// Rewrites all K test columns from the forests' current totalTestFits. The
+  /// one caller is the reported test blend, so nothing here is ever stale;
+  /// never called off a test offset.
+  void materializeRawTestFits(const std::vector<Forest<L, ResidT>>& forests) {
+    std::size_t nTest = data_.numTestObservations;
+    for (std::size_t k = 0; k < numCategories_; ++k) {
+      const double* fits = forests[k].totalTestFits.data();
+      const double* o = testOffset_ + k * nTest;
+      double* out = rawTest_.data() + k * nTest;
+      for (std::size_t i = 0; i < nTest; ++i) out[i] = fits[i] + o[i];
+    }
+  }
+
   /// The live tree count the level-centering passes may touch: numTrees clamped
   /// to the tree and leaf-table lengths, so a partially built forest (a
   /// component-test fixture, a forest mid-resize) walks only what exists.
@@ -1176,7 +1237,9 @@ private:
   const int* counts_;    // borrowed n x K count matrix, category-major (k*n + i)
   const int* trials_;    // borrowed per-observation trial count n_i (>= 1)
   const double* offset_; // borrowed n x K category offset, same layout; or null
+  const double* testOffset_ = nullptr;  // borrowed nTest x K test one, or null
   std::vector<double> raw_;  // n x K fits + offset; empty and unread off one
+  std::vector<double> rawTest_;  // nTest x K test fits + test offset; likewise
   std::vector<double> omega_;          // n x K, category-major (column k at k*n)
   std::vector<double> margins_;        // n; the current forest's C_if handoff
   std::vector<double> suffix_;         // n x K; per-sweep LSE over j > f, old fits

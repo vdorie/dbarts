@@ -498,7 +498,7 @@ public:
   /// L = 1 keeps the exact numTestObservations-per-slot byte layout.
   void predict(const double* x_test, size_t numTestObservations, double* out) {
     predictColumns(DenseColumns{x_test, numTestObservations},
-                   numTestObservations, out);
+                   numTestObservations, nullptr, out);
   }
 
   /// The same over a borrowed view: a dense block reads through the reader the
@@ -506,19 +506,24 @@ public:
   /// routes rows off rank bitmaps built here, for this call only. Nothing is
   /// retained - the view is the caller's, and the sampler's own test store is
   /// untouched.
+  ///
+  /// categoryOffset, when non-null, is the caller's per-call nNew x K offset
+  /// for a multi-location surface, added to the raw fits before the softmax.
+  /// It is never read from the sampler: predict's rows are the caller's, so
+  /// its offset must be too.
   void predict(const PredictorSource& source, size_t numTestObservations,
-               double* out) {
+               const double* categoryOffset, double* out) {
     if (source.isDenseBlock())
       predictColumns(DenseColumns{source.denseValues, numTestObservations},
-                     numTestObservations, out);
+                     numTestObservations, categoryOffset, out);
     else
       predictColumns(PredictorSourceColumns(source, data_.types.data()),
-                     numTestObservations, out);
+                     numTestObservations, categoryOffset, out);
   }
 
   template <typename Columns>
   void predictColumns(const Columns& columns, size_t numTestObservations,
-                      double* out) {
+                      const double* categoryOffset, double* out) {
     size_t capacity = savedTreeCapacity();
     size_t numLocations = numReportedLocations();
     size_t slab = numTestObservations * numLocations;
@@ -528,13 +533,15 @@ public:
           double* dst = out + (c * capacity + slot) * slab;
           if (numLocations > 1)
             chains_[c]->predictFromSavedSampleMulti(slot, columns,
-                                                    numTestObservations, dst);
+                                                    numTestObservations,
+                                                    categoryOffset, dst);
           else
             chains_[c]->predictFromSavedSample(slot, columns,
                                                numTestObservations, dst);
         }
       } else if (numLocations > 1) {
         chains_[c]->predictFromCurrentTreesMulti(columns, numTestObservations,
+                                                 categoryOffset,
                                                  out + c * slab);
       } else {
         chains_[c]->predictFromCurrentTrees(columns, numTestObservations,
@@ -1183,6 +1190,14 @@ public:
     bool installed = true;
     for (auto& chain : chains_)
       installed = chain->setCategoryOffset(offset) && installed;
+    return installed;
+  }
+  /// The same for the borrowed nTest x K TEST offset, which every chain's
+  /// reported test blend reads; false, installing nothing, on a refusal.
+  bool setCategoryTestOffset(const double* offset) {
+    bool installed = true;
+    for (auto& chain : chains_)
+      installed = chain->setCategoryTestOffset(offset) && installed;
     return installed;
   }
   bool bcfGlue(size_t chainNum, double* out) const {

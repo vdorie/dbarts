@@ -199,9 +199,14 @@ public:
                            std::vector<std::uint64_t>* masks = nullptr,
                            std::size_t forestIndex = 0) = 0;
   /// Fits for new rows of a borrowed predictor view; a CSC-backed view routes
-  /// its rows resident, without a dense n x p materialization.
+  /// its rows resident, without a dense n x p materialization. categoryOffset,
+  /// when non-null, is the caller's numTestObservations x K offset for a
+  /// multi-location (multinomial softmax) surface, entering the raw fits before
+  /// the blend; the sampler's own resident offsets are never substituted for
+  /// it, since these rows are the caller's.
   virtual void predict(const PredictorSource& source,
-                       std::size_t numTestObservations, double* out) = 0;
+                       std::size_t numTestObservations,
+                       const double* categoryOffset, double* out) = 0;
   /// Heteroscedastic variance surface s^2(x) on new rows (original scale);
   /// SamplerShape::hasVarianceForest gates it.
   virtual void predictVariance(const PredictorSource& source,
@@ -213,7 +218,7 @@ public:
                double* out) {
     predict(densePredictorSource(x_test, numTestObservations,
                                  data().numPredictors),
-            numTestObservations, out);
+            numTestObservations, nullptr, out);
   }
   void predictVariance(const double* x_test, std::size_t numTestObservations,
                        double* out) {
@@ -270,6 +275,11 @@ public:
   /// setOffset, which the response model adds after the forests are combined.
   /// Chain::setCategoryOffset states the semantics.
   virtual bool setCategoryOffset(const double* offset) = 0;
+  /// Installs a borrowed nTest x K test offset (category-major) on the reported
+  /// test blend in every chain, clearing it at a null pointer; false,
+  /// installing nothing, off a counts-owning coupling. Sized to the current
+  /// test store. Chain::setCategoryTestOffset states the semantics.
+  virtual bool setCategoryTestOffset(const double* offset) = 0;
   virtual bool bcfGlue(std::size_t chainNum, double* out) const = 0;
   virtual void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
                                double* out) const = 0;
@@ -414,8 +424,8 @@ public:
   using SamplerBase::predict;
   using SamplerBase::predictVariance;
   void predict(const PredictorSource& source, std::size_t numTestObservations,
-               double* out) override {
-    impl_.predict(source, numTestObservations, out);
+               const double* categoryOffset, double* out) override {
+    impl_.predict(source, numTestObservations, categoryOffset, out);
   }
   void predictVariance(const PredictorSource& source,
                        std::size_t numTestObservations, double* out) override {
@@ -482,6 +492,9 @@ public:
   }
   bool setCategoryOffset(const double* offset) override {
     return impl_.setCategoryOffset(offset);
+  }
+  bool setCategoryTestOffset(const double* offset) override {
+    return impl_.setCategoryTestOffset(offset);
   }
   bool bcfGlue(std::size_t chainNum, double* out) const override {
     return impl_.bcfGlue(chainNum, out);

@@ -46,9 +46,9 @@ control <- function(n.chains = 1L) {
   )
 }
 
-# a multinomial handle with an offset carries no test data (the floors below),
-# so the recorded channels here are the train blend, the per-category forest
-# fits and the two variable-count channels
+# the recorded channels of an offset handle built without test data: the train
+# blend, the per-category forest fits and the two variable-count channels (the
+# test channel and its own offset are test-multinomial-test-offset.R's)
 recordChannels <- function(bc, result) {
   list(
     train = result$train,
@@ -337,59 +337,76 @@ expect_true(grepl("finite", arm.refused$refused))
 expect_identical(arm.refused$train, arm.untouched$train)
 expect_identical(arm.refused$forestFits, arm.untouched$forestFits)
 
-# --- The test-surface floors. A category offset enters the softmax before the
-# categories are blended; the test blend, the recorded test channel and both
-# out-of-sample replays form their probabilities from the category forests'
-# test fits alone, so a sampler holding one has no test surface that could
-# report it. Refused in both directions rather than reported without it. ---
-hostTest <- dbarts(
-  x,
-  as.double(labels),
-  test = x[seq_len(12L), ],
-  control = control()
+# --- The test surface under a TRAIN offset. Each test-side channel now carries
+# its own per-category offset (test-multinomial-test-offset.R), so a sampler
+# holding a train offset no longer has to refuse one: test data installs, the
+# offset installs against test data, and the recorded test channel is the
+# category forests' test blend, which is what the test rows' own offset shifts.
+# What none of them does is REUSE the train offset - its rows are the train
+# rows - so the test channel here is the surface at a zero test offset, and
+# predict, whose rows are the caller's, refuses to guess. ---
+nTest <- 12L
+x.test <- x[seq_len(nTest), , drop = FALSE]
+# built exactly where buildSampler builds its host, so the two draw streams
+# line up and the train comparison below is a statement about test data rather
+# than about creation order
+set.seed(4242)
+hostTest <- dbarts(x, as.double(labels), test = x.test, control = control())
+bc.createTest <- dbarts:::bartcoreMultinomialCountSampler(
+  hostTest,
+  counts,
+  K = K,
+  offset = offset
 )
-expect_error(
-  dbarts:::bartcoreMultinomialCountSampler(
-    hostTest,
-    counts,
-    K = K,
-    offset = offset
-  ),
-  "would report probabilities without it"
+res.createTest <- dbarts:::bartcoreRun(bc.createTest, 20L, 8L)
+# the train channels are the no-test-data sampler's, bitwise: test rows consume
+# no rng and enter no likelihood
+expect_identical(res.createTest$train, arm.build$train)
+expect_true(all(is.finite(res.createTest$test)))
+expect_equal(
+  apply(res.createTest$test, c(1L, 3L), sum),
+  matrix(1, nTest, 8L),
+  tolerance = 1e-12
 )
-expect_error(
-  dbarts:::bartcoreMultinomialSampler(hostTest, labels, K = K, offset = offset),
-  "would report probabilities without it"
+# the label entry likewise
+expect_silent(
+  dbarts:::bartcoreMultinomialSampler(hostTest, labels, K = K, offset = offset)
 )
+# installing the train offset on a sampler that already holds test data
 bc.test <- dbarts:::bartcoreMultinomialCountSampler(hostTest, counts, K = K)
-expect_error(
-  dbarts:::bartcoreSetCategoryOffset(bc.test, offset),
-  "would report probabilities without it"
-)
-# and the reverse direction, on a sampler that already carries one
+expect_silent(dbarts:::bartcoreSetCategoryOffset(bc.test, offset))
+# and the reverse direction: test data installs on a sampler already holding a
+# train offset, whose test rows the train offset says nothing about
 bc.offset <- buildSampler(offset)
-expect_error(
-  dbarts:::bartcoreSetTestPredictor(bc.offset, x[seq_len(12L), ]),
-  "would report probabilities without it"
-)
+expect_silent(dbarts:::bartcoreSetTestPredictor(bc.offset, x.test))
+expect_true(all(is.finite(dbarts:::bartcoreRun(bc.offset, 0L, 3L)$test)))
+# the combined entry takes the test rows too; its FLAT offset argument stays
+# refused, and truthfully - after the blend it leaves the simplex, before it a
+# common per-observation shift is inert - and now names the matrix entry
 expect_error(
   .Call(
     dbarts:::C_dbarts_bartcore_setTestPredictorAndOffset,
     bc.offset$ptr,
-    x[seq_len(12L), ],
-    rep(0, 12L)
+    x.test,
+    rep(0, nTest)
   ),
-  "would report probabilities without it"
+  "bartcore_setCategoryTestOffset"
 )
+expect_silent(
+  .Call(
+    dbarts:::C_dbarts_bartcore_setTestPredictorAndOffset,
+    bc.offset$ptr,
+    x.test,
+    NULL
+  )
+)
+# predict is the one channel that still refuses under a train offset, and for a
+# different reason: its rows are the caller's, so no resident offset describes
+# them and none is substituted. An explicit matrix is the way through.
 expect_error(
-  dbarts:::bartcorePredict(bc.offset, x[seq_len(12L), ]),
-  "would report probabilities without it"
+  dbarts:::bartcorePredict(bc.offset, x.test),
+  "cannot be inferred"
 )
-# clearing the offset lifts every one of them: the floors track the offset, not
-# the family
-dbarts:::bartcoreSetCategoryOffset(bc.offset, NULL)
-expect_silent(dbarts:::bartcoreSetTestPredictor(bc.offset, x[seq_len(12L), ]))
-expect_true(all(is.finite(dbarts:::bartcoreRun(bc.offset, 0L, 3L)$test)))
 
 # the response-side conduit's offset half now names the entry that works. The
 # flat vector stays refused, and truthfully: a common per-observation shift is
@@ -402,11 +419,20 @@ expect_error(
   dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = TRUE),
   "n x K category matrix"
 )
-# predict's own flat-offset refusal is narrow rather than false, and now says
-# which form would not be: this sampler carries no category offset, so the
-# floor above is not what fires here
+# predict's own flat-offset refusal is narrow rather than false, and says which
+# form is not: the R wrapper shapes the argument against the handle's K, and
+# the C entry refuses a dimensionless vector on its own
 expect_error(
-  dbarts:::bartcorePredict(bc.mn, x[seq_len(12L), ], rep(0.5, 12L)),
+  dbarts:::bartcorePredict(bc.mn, x.test, rep(0.5, nTest)),
+  "12 x 3 matrix"
+)
+expect_error(
+  .Call(
+    dbarts:::C_dbarts_bartcore_predict,
+    bc.mn$ptr,
+    x.test,
+    rep(0.5, nTest)
+  ),
   "per-category matrix"
 )
 

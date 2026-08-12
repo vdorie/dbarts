@@ -891,6 +891,25 @@ public:
     return true;
   }
 
+  /// Installs a BORROWED nTest x K test offset (category-major) on the reported
+  /// test blend, or clears it at a null pointer; false, installing nothing,
+  /// when the coupling owns no such blend. Sized to the CURRENT test store, so
+  /// the host validates the shape and must not resize that store underneath it.
+  ///
+  /// The test fits enter no likelihood, so this shifts the reported test
+  /// probabilities and nothing else - no draw, no working response, no train
+  /// channel. It is not the train offset: the test rows are other rows, and
+  /// only the caller knows their offsets.
+  ///
+  /// The capability is the counts one, as setCategoryOffset's is: what makes a
+  /// per-category test shift meaningful is the softmax blend the coupling
+  /// reports, and that arrived with the count response.
+  bool setCategoryTestOffset(const double* offset) {
+    if (!supportsCountsMutation()) return false;
+    combiner_->setCategoryTestOffset(offset);
+    return true;
+  }
+
   /// Installs a BORROWED per-observation weight s on forest f, clearing it at a
   /// null pointer; returns false, installing nothing, when the coupling admits
   /// no such weight or f names no forest.
@@ -2321,9 +2340,17 @@ public:
   /// The per-forest total is on the internal (softmax log-odds) scale, not the
   /// fitScale-shifted response scale, exactly as totalTestFits is - fitScale is
   /// the identity for the multinomial response, so no conversion applies.
+  ///
+  /// categoryOffset, when non-null, is a PER-CALL numNew x K offset (same
+  /// category-major layout as the slab) added to the raw fits BEFORE the
+  /// softmax, where a per-category shift is the only thing it can mean. It is
+  /// the caller's, never the sampler's resident test offset: these rows are the
+  /// caller's rows, and a row-count coincidence with the test store is not
+  /// consent. Off one the loop is unchanged.
   template <typename Columns>
   void predictFromSavedSampleMulti(size_t slot, const Columns& columns,
                                    size_t numTestObservations,
+                                   const double* categoryOffset,
                                    double* out) const {
     size_t K = forests_.size();
     std::vector<double> raw(numTestObservations * K);
@@ -2343,15 +2370,20 @@ public:
                            indices, blockOffsets, forestRaw);
       }
     }
+    if (categoryOffset != nullptr)
+      misc_addVectorsInPlace(categoryOffset, numTestObservations * K,
+                             raw.data());
     softmaxLocationMajor(raw.data(), numTestObservations, K, out);
   }
 
   /// The same K-forest softmax replay from the live trees, flattened on the
   /// fly; reached only when keepTrees is off, which the R surface refuses for a
   /// multinomial predict, so it exists for completeness and the engine tests.
+  /// categoryOffset is the saved-sample replay's, with the same contract.
   template <typename Columns>
   void predictFromCurrentTreesMulti(const Columns& columns,
-                                    size_t numTestObservations, double* out) {
+                                    size_t numTestObservations,
+                                    const double* categoryOffset, double* out) {
     size_t K = forests_.size();
     std::vector<double> raw(numTestObservations * K);
     std::vector<size_t> indices(numTestObservations);
@@ -2372,6 +2404,9 @@ public:
                            forestRaw);
       }
     }
+    if (categoryOffset != nullptr)
+      misc_addVectorsInPlace(categoryOffset, numTestObservations * K,
+                             raw.data());
     softmaxLocationMajor(raw.data(), numTestObservations, K, out);
   }
 
