@@ -127,44 +127,20 @@ items
     n.grow.sweeps; rbart_vi lacks the formal) stays INCONSISTENT by
     VD's explicit call until we know what we want from the feature -
     unscheduled.
-  grow-from-root-categorical-scan: SCHEDULED (VD: the opt-in
-    n.grow.sweeps init should not ship incomplete - growTreeFromRoot
-    never places categorical splits while counting categoricals in
-    the availability normalizer). REAL categorical support in the
-    init scan; the arithmetic-only renormalization measured null and
-    stays closed. Plan at
-    docs/plans/grow-from-root-categorical-scan.md (revalidated
-    b24c66a9: S0 split into S0a falsifier / S0b fix). S0a LANDED
-    6e7edaf1: the falsifier CONFIRMS (chi2 6471 vs the exact law,
-    REJECT; isolating arm shows the shipped odds exactly 2x off; a
-    SECOND inconsistency surfaced - see ordinal-scan-missing-rows).
-    FORK SIGNED BY VD 2026-08-12: FIX (the fix reaches the
-    rule-group law; 39 percent of the gap to the exact law survives
-    via ordinal-scan-missing-rows). S1 (categorical splits in the
-    scan, plain binary counter + sentinel, pooled + absent-level
-    coverage) LANDED 995002ef. S0b (the halving deleted, falsifier
-    re-pointed with all arms kept, power-test-verified) LANDED
-    7f82f560. S2 (OP_GROW fuzz, O1/O1F/O2) LANDED 0ab97023 - the
-    HARD CARRY DISCHARGED: O1's expected law verified kernel-free
-    by trace, the 1 + A coin count verified by full RNG census;
-    two plan deviations adjudicated right at verification (F4b as
-    written proved unfalsifiable, substituted; df 14 mask cells
-    strictly dominate the plan's df 7). S2 hardening items for the
-    next tests/cpp-touching slice: ran-at-all counter for the
-    per-partition mass arm; assert O2's pooled-below-cap coverage;
-    a fixture with a present category whose weights are all zero
-    (everything now passes weights = nullptr). S3 (R surface +
-    DART assertion) LANDED 3fee02d6 - the DART assertion was
-    re-pointed at verification from an absolute bar (tautological
-    > 0 clause; 0.5 bar cleared by a no-grow arm on 7/24 seeds) to
-    the paired grow-vs-no-grow contrast, which actually observes
-    the dart x grow interaction. S4 (the measured arm) COMPLETE
-    2026-08-12, all gates pass verified: G1 paired D +1.33 at
-    z 46.7, guardrails inside, floor measured in situ (skip arm
-    BELOW cold); warm start delays plateau attainment ~6x while
-    the plateau holds - the opt-in stance stands. S5 (docs; owes
-    the NEWS bullet INTRODUCING n.grow.sweeps - both grow bullets
-    currently amend an unannounced feature) closes the arc.
+  grow-from-root-categorical-scan: ARC COMPLETE 2026-08-12. Real
+    categorical splits in the opt-in n.grow.sweeps init scan,
+    oracled, R-surfaced, measured, documented; full record in
+    docs/plans/grow-from-root-categorical-scan.md landing notes and
+    docs/design/grow-from-root.md section 8. Warm start beats the
+    categorical-blind floor by paired D +1.33 (z 46.7) and beats
+    cold at t = 1, but delays plateau attainment ~6x - the opt-in
+    stance stands, the default question stays closed. Residue
+    ticketed: ordinal-scan-missing-rows (own entry); S2 test-
+    hardening items for the next tests/cpp-touching slice
+    (ran-at-all counter for the per-partition mass arm; assert
+    O2's pooled-below-cap coverage; an all-zero-weights
+    present-category fixture); the multiforest fuzz op-mask door
+    (OP_GROW rides it with OP_SET_COUNTS).
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. A memory win, not speed; integer -> double
     is exact in range so the slice MUST be trio-bitwise. Split out of

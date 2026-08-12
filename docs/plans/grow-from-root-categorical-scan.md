@@ -190,9 +190,10 @@ whatever the branch emits**:
 Bias, recorded honestly: within the Fisher branch the retained greedy prefixes
 inherit the family's whole mass, so relative to the ideal `sum over all
 partitions of pi * L` the variable is over-weighted by at most
-`(2^(P-1)-1)/(P-1)` - 51x at P = 11. That bound is attained only in the
-strong-signal regime, where the likelihood ratio is `exp(O(n_node))` and a 51x
-prior factor does not decide. The exact conditional errs by the SAME factor in
+`(2^(P-1)-1)/(P-1)` - 102x at P = 11 (corrected at S5 review; the original
+51x contradicted the formula beside it and the synthesis's own arithmetic).
+That bound is attained only in the strong-signal regime, where the likelihood
+ratio is `exp(O(n_node))` and a 102x prior factor does not decide. The exact conditional errs by the SAME factor in
 the opposite direction in the weak/no-signal regime, where the prior IS what
 decides. That asymmetry is the whole reason for the choice.
 
@@ -1062,4 +1063,50 @@ log2 per replicate (the log2-of-mean-ratio alternative gives
 +1.71, direction unchanged, G4 non-gating); exactly 1 of 96
 cat-k2 chains in block 2 hits the pre-registered censor at 2001.
 
-S5 (docs) closes the arc.
+S5 LANDED 1edcaa5a, 2026-08-12, closing the arc. Three files, one
+commit, orchestrator-reviewed with two correction rounds folded in
+before landing. docs/design/grow-from-root.md gains section 8: the
+v1 ordinal-only contract inverted, the enumeration and weight rule
+stated once, the INIT-ONLY licence argued (Fisher truncation +
+absent-position coins break MH reachability, so the kernel drives
+one-shot forest building only), the 1 + A draw contract and the
+count sentinel, the DART consumer including the stream-position
+honesty (a count moving off zero shifts uniform consumption for the
+rest of the fit), and the S4 measured record; section 7's draw
+count updated in place; the Status line bumped, closing a
+pre-existing gap (the 2026-07-10 role-(a) landing had never moved
+it off "memo") using heteroscedastic.md's multi-stage precedent,
+engine range 995002ef..7f82f560, records ce9c1412.
+grow-from-root-default.md section 5's categorical bullet gains the
+landing note: real support landed, the renormalization stays
+closed, superseded rather than revisited, NO verdict on the default
+moves. inst/NEWS.Rd: the owed INTRODUCING bullet (XBART-style
+grow-from-root, opt-in at n.grow.sweeps = 0L default, mutually
+exclusive with warm.start, targeted posterior unchanged - only
+where the chain starts), the categorical and log2-fix bullets
+reworked without the vacuous never-released-feature sentence, and
+the S3 DART bullet - which S3 landed without, caught against the
+plan's per-slice list at review - added with the same vacuous tail
+excised. CORRECTIONS AT REVIEW, both verified rather than assumed:
+the introducing bullet's trailing sentence trimmed as redundant
+with the categorical bullet below it; and the over-weight figure
+corrected 51x -> 102x at P = 11 - synthesis.md asserted 51.1 with
+no arithmetic while computing 102.3 for the same ratio three lines
+earlier, the orientation-coin-halving hypothesis was checked and
+REFUTED (the coin cancels symmetrically in the ratio), and the
+design doc now ties the over-weight bound to the mass-cliff figure
+explicitly; the same error in this plan's Bias paragraph is
+corrected in place above. Gates: NEWS parse OK (4 entries);
+clean-copy R CMD check Status: OK, run on both the original and
+the amended commit.
+
+ARC CLOSED 2026-08-12. Landed: S0a 6e7edaf1, S1 995002ef, S0b
+7f82f560, S2 0ab97023, S3 3fee02d6, S4 (measurement, records
+ce9c1412), S5 1edcaa5a. Ticketed residue, all in TODO: ordinal-
+scan-missing-rows; man/bart.Rd's stale dummies text for bart2; the
+variance-forest flatten/buildFromFlat masks == nullptr hazard; the
+three S2 test-hardening items; the multiforest fuzz op-mask door
+(OP_GROW and OP_SET_COUNTS both ride it). Doors recorded, not
+scheduled: the above-cap mass-spread bias direction (reopening
+trigger and remedy in Open items); grow-from-root default stays
+closed by measurement.
