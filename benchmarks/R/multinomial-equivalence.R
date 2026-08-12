@@ -232,6 +232,102 @@ runScenarios <- function() {
     recordChannels(bc, res, K)
   })
 
+  # (e)-(g) the TRANSACTIONAL predictor paths, which a K-forest multinomial
+  # sampler began accepting when the two-phase revalidation widened across
+  # forests_ (docs/plans/multiforest-predictor-mutation.md, S1). New streams:
+  # these paths were refused at the bridge before this tip, so they have no
+  # earlier baseline and become the regression floor from here. K = 3 makes
+  # this the largest j-splitting tree count in scope, and the engine's verdict
+  # rides beside the draws so a build that flipped an accept into a rollback
+  # fails on the flag rather than only on the post-mutation state. Seeds are
+  # LITERALS kept out of the guarded `seeds` vector, as k3counts's and
+  # k3swap's are, so settingsList() stays identical to the 33f6fdc baseline;
+  # each runs after the scenarios above with its own set.seed.
+  makeK3 <- function(seed) {
+    set.seed(seed)
+    K <- 3L
+    x <- matrix(runif(n * p), n, p)
+    eta <- cbind(
+      2 * (x[, 1L] - 0.5),
+      x[, 2L] - x[, 3L],
+      1.5 * (x[, 4L] - 0.5)
+    )
+    probs <- exp(eta) / rowSums(exp(eta))
+    labels <- vapply(
+      seq_len(n),
+      function(i) sample.int(K, 1L, prob = probs[i, ]) - 1L,
+      integer(1L)
+    )
+    list(x = x, labels = labels, K = K)
+  }
+
+  # (e) transactional whole-matrix setPredictor, sized to be ACCEPTED: every
+  # tree of all three category forests re-routes and rebuilds. The jitter is
+  # finer than the BCF fixture's, because the veto quantifies over three
+  # forests of 40 trees rather than two of 50 and 25 (0.002 accepts at this
+  # seed, 0.005 rolls back) - the count law the arc's measurement reports,
+  # visible in the fixture itself.
+  result$k3txn <- local({
+    d <- makeK3(6005L)
+    set.seed(6105L)
+    x2 <- pmin(pmax(d$x + matrix(rnorm(n * p, 0, 0.002), n, p), 0), 1)
+    sampler <- dbarts(
+      d$x,
+      as.double(d$labels),
+      test = d$x[seq_len(25L), , drop = FALSE],
+      control = makeControl()
+    )
+    set.seed(7005L)
+    bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    accepted <- dbarts:::bartcoreSetPredictor(bc, x2)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    c(recordChannels(bc, res, d$K), list(accepted = accepted))
+  })
+
+  # (f) transactional single-column updatePredictor: the subset the pruning
+  # argument is stated over, summed over three forests rather than two.
+  result$k3txncol <- local({
+    d <- makeK3(6006L)
+    set.seed(6106L)
+    v <- pmin(pmax(d$x[, 2L] + rnorm(n, 0, 0.02), 0), 1)
+    sampler <- dbarts(
+      d$x,
+      as.double(d$labels),
+      test = d$x[seq_len(25L), , drop = FALSE],
+      control = makeControl()
+    )
+    set.seed(7006L)
+    bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    accepted <- dbarts:::bartcoreUpdatePredictor(bc, v, 2L)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    c(recordChannels(bc, res, d$K), list(accepted = accepted))
+  })
+
+  # (g) a transactional proposal built to be ROLLED BACK, as the BCF fixture's
+  # is: the veto reaches across every category forest, and the rollback has to
+  # put every one of them back.
+  result$k3reject <- local({
+    d <- makeK3(6007L)
+    sampler <- dbarts(
+      d$x,
+      as.double(d$labels),
+      test = d$x[seq_len(25L), , drop = FALSE],
+      control = makeControl()
+    )
+    set.seed(7007L)
+    bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    accepted <- dbarts:::bartcoreUpdatePredictor(
+      bc,
+      ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
+      1L
+    )
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    c(recordChannels(bc, res, d$K), list(accepted = accepted))
+  })
+
   result
 }
 

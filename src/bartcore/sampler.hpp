@@ -1202,19 +1202,23 @@ private:
   }
 
   /// Two-phase transaction over every chain: validate all trees of all
-  /// chains first, then rebuild fits only if everything holds, so a failure
-  /// in a late chain never leaves an early chain's fits overwritten.
-  bool revalidateAllChains() {
+  /// forests of all chains first, then rebuild fits only if everything holds,
+  /// so a failure in a late chain never leaves an early chain's fits
+  /// overwritten. columns names the touched columns (null for a whole-matrix
+  /// swap), which prunes the trees of forests past the first that cannot be
+  /// affected; the survivor lists travel from phase one to phase two inside
+  /// the handoff, so both phases quantify over the same set.
+  bool revalidateAllChains(const size_t* columns, size_t numColumns) {
     size_t numChains = chains_.size();
-    std::vector<typename Chain<L, ResidT>::TreeParameters> params(numChains);
+    std::vector<typename Chain<L, ResidT>::ForestRevalidation> state(numChains);
 
     bool allValid = true;
     for (size_t c = 0; c < numChains && allValid; ++c)
-      allValid = chains_[c]->revalidateTrees(params[c]);
+      allValid = chains_[c]->revalidateTrees(state[c], columns, numColumns);
     if (!allValid) return false;
 
     for (size_t c = 0; c < numChains; ++c)
-      chains_[c]->rebuildFitsFromParameters(params[c]);
+      chains_[c]->rebuildFitsFromParameters(state[c]);
     return true;
   }
 
@@ -1368,7 +1372,7 @@ private:
     data_.snapshotOwnedDenseColumns(strategy.columns, strategy.numColumns(),
                                     oldOwnedDense);
     strategy.snapshotApply(updateCutPoints);
-    if (!revalidateAllChains()) {
+    if (!revalidateAllChains(strategy.columns, strategy.numColumns())) {
       data_.gatheredRawValues = std::move(oldGatheredRaw);
       data_.restoreOwnedDenseColumns(oldOwnedDense);
       strategy.restore(updateCutPoints);
@@ -1452,7 +1456,14 @@ private:
       }
     }
 
-    bool finalize() override { return sampler_.revalidateAllChains(); }
+    /// The session moves exactly one column, so the revalidation prunes
+    /// against that column alone. The cache below covers forest 0, so the
+    /// pairing invariant (guarded set subset of revalidated set) holds only
+    /// while a multi-forest sampler is refused at the bridge; the cache widens
+    /// with that refusal (S2 of docs/plans/multiforest-predictor-mutation.md).
+    bool finalize() override {
+      return sampler_.revalidateAllChains(&column_, 1);
+    }
 
   private:
     const Tree& treeAt(size_t t) const {
