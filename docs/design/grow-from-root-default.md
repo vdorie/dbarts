@@ -931,7 +931,13 @@ stump, `sampleTreesFromPrior`) is unchanged.
   documented behavior.** S7 matched its pre-registered null; the
   renormalization stays undone; the old prerequisite "(1) categorical scan
   support" is MOOT for this flip specifically (it stands only as ordinary
-  opt-in-quality backlog, unscheduled).
+  opt-in-quality backlog, unscheduled). **Landing note (2026-08-12):** real
+  categorical split support has since landed
+  (docs/design/grow-from-root.md section 8; 995002ef..7f82f560) - a
+  categorical column is now scanned and split at a prior-mass-commensurate
+  weight rather than counted-but-skipped. The renormalization named above
+  stays closed, superseded rather than revisited. This carries no verdict
+  on the `n.grow.sweeps` default: the default question stays closed.
 - **The change-move root-rotation limitation** (section 4.8) is recorded
   as a structural datum about dbarts' sampler, independent of this flip's
   outcome, for any future structure-metric design.

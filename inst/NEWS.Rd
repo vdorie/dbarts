@@ -591,26 +591,36 @@
             monotonicity, interaction and block constraints, a variance
             forest, robust residuals - reachable from a \code{LinkingTo: dbarts}
             package without reaching into an unexported function.
-      \item The \code{n.grow.sweeps} initializer (\code{bart2}, and
-            \code{dbartsSampler$growFromRoot}) places categorical split rules
-            instead of skipping categorical predictors, so a factor-heavy
-            design no longer pays those columns into the split-variable
-            probability while drawing nothing out. Below ten categories
-            present at a node the node's choice is exact over all category
-            subsets; above it a sorted-prefix family carries the same total
-            prior mass, so a variable's realized split mass stays continuous
-            in its level count. Seeded results from a warm-started fit on a
-            design with categorical predictors differ from previous
-            versions.
+      \item \code{n.grow.sweeps} (\code{bart2}) and the sampler's
+            \code{growFromRoot} method build the initial forest by
+            XBART-style grow-from-root (He, Yalov and Hahn 2019): each
+            requested sweep rebuilds every tree from the root against the
+            current residual, in place of a draw from the tree prior,
+            before the ordinary Metropolis-Hastings sweeps take over. It is
+            opt-in (the default \code{n.grow.sweeps = 0L} leaves fits
+            unchanged), mutually exclusive with \code{warm.start}, and
+            leaves the targeted posterior unchanged - only where the chain
+            starts.
+      \item The \code{n.grow.sweeps} initializer now places real categorical
+            split rules instead of skipping categorical predictors, so a
+            factor-heavy design no longer pays those columns into the
+            split-variable probability while drawing nothing out. Below ten
+            categories present at a node the node's choice is exact over all
+            category subsets; above it a sorted-prefix family carries the
+            same total prior mass, so a variable's realized split mass stays
+            continuous in its level count.
+      \item With \code{dart = TRUE}, categorical predictors now receive split
+            counts during the grow sweeps, instead of the structurally zero
+            counts they always drew before, so factor signals inform the
+            sampled split-variable probabilities from the first regular
+            sweep.
       \item The \code{n.grow.sweeps} initializer no longer under-weights cut
             candidates on ordinal predictors that carry missing values. Such
             a candidate stands for the two rules - missing values routed
             left, missing values routed right - that the initializer's
             post-draw coin picks between, and now carries the prior mass of
             both instead of one, so the pair no longer enters the node's
-            choice at half its weight relative to not splitting. Seeded
-            results from a warm-started fit on a design with missing
-            predictor values differ from previous versions.
+            choice at half its weight relative to not splitting.
     }
   }
   \subsection{C API}{
