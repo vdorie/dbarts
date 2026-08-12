@@ -446,28 +446,34 @@ void testGrowHonorsInteraction() {
 // What an enumerated cut candidate stands for on a column with missing values.
 //
 // growTreeFromRoot enumerates one candidate per cut and gives it the prior mass
-// -log(numCuts) - log(2), which is the mass CGM puts on ONE rule of a column
-// that routes missing values. After the draw it spends a fair coin to decide
-// which of the two rules (missing left, missing right) the winning candidate
-// became. The candidate therefore stands for a two-rule group while carrying
-// one rule's mass. This measures whether that is really so before any weight
-// changes, by comparing three laws over the same outcome space
-// {no-split} U {(cut, missing side)}:
+// -log(numCuts), which is the mass CGM puts on the PAIR of rules (missing left,
+// missing right) of a column that routes missing values. After the draw it
+// spends a fair coin to decide which of the two the winning candidate became.
+// The candidate therefore stands for a two-rule group and carries that group's
+// whole mass, the coin picking uniformly within it. This measures that the
+// realized law is really so, by comparing three laws over the same outcome
+// space {no-split} U {(cut, missing side)}:
 //
-//   shipped  the weights grow.hpp assembles, halved by the fair coin
-//   group    the same, each cut candidate instead carrying its two-rule
-//            group's mass (the shipped weight times two)
+//   group    the weights grow.hpp assembles, halved by the fair coin: each cut
+//            candidate carrying its two-rule group's mass
+//   halved   the same with each candidate instead carrying the mass of ONE of
+//            its two rules, half the group's - the convention this kernel
+//            implemented until 2026-08-12, kept as the arm the realized draws
+//            must now REJECT
 //   exact    all 2 * numCuts rules enumerated separately, each carrying its own
 //            likelihood with the missing rows PLACED on the side its rule
 //            names - no scan approximation. This is the law the CGM prior and
 //            the leaf marginal define on the full rule set.
 //
-// Decision rule, fixed before the first run: chi-square goodness of fit at
-// alpha = 1e-3, df = cells - 1, over 2e5 grows. Realized root rules matching
-// the shipped law but REJECTING the group law confirms that the shipped weight
-// is one rule's, not the group's; not rejecting the group law refutes it and
-// the shipped weight stands. The exact law's own draws are the calibration
-// control and must not reject.
+// Decision rule, fixed before the first run and re-pointed onto the group law
+// when the halving was deleted: chi-square goodness of fit at alpha = 1e-3,
+// df = cells - 1, over 2e5 grows. Realized root rules matching the group law
+// while REJECTING the halved law confirms that a cut candidate carries its
+// group's mass; matching the halved law instead would mean the halving is back
+// in the weight. The exact law's own draws are the calibration control and must
+// not reject. The realized draws must still reject the EXACT law: the scan
+// omits the missing rows from a split's likelihood while the no-split term
+// counts them, a separate inconsistency carried on its own ticket.
 //
 // The fixture is deliberately signal-free and gives its missing rows the node's
 // mean response, so the two rules of a cut's group have near-equal exact
@@ -599,7 +605,8 @@ void testOrdinalMissingRuleGroupWeight() {
   tree.computeLeafStats(0, y.data(), nullptr);
   double growth = prior.growthProbability(tree, store, 0);
   double logGrowth = std::log(growth);
-  // CGM's uniform over the 2 * numCuts rules; grow.hpp's logCut is this exactly
+  // CGM's uniform over the 2 * numCuts rules, i.e. ONE rule's mass; grow.hpp's
+  // logCut is twice this (the group's) and the coin halves it back
   double logRule = -std::log(static_cast<double>(2 * numCuts));
 
   auto marginal = [&](const ConstantLeafScanBin& bin) {
@@ -608,10 +615,10 @@ void testOrdinalMissingRuleGroupWeight() {
   };
 
   size_t numCells = 1 + 2 * numCuts;
-  std::vector<double> logShipped(numCells), logGroup(numCells);
+  std::vector<double> logGroup(numCells), logHalved(numCells);
   std::vector<double> logExact(numCells);
   double noSplit = std::log(1.0 - growth) + marginal(nodeTotal);
-  logShipped[0] = logGroup[0] = logExact[0] = noSplit;
+  logGroup[0] = logHalved[0] = logExact[0] = noSplit;
 
   ConstantLeafScanBin left;
   for (size_t cut = 0; cut < numCuts; ++cut) {
@@ -628,15 +635,15 @@ void testOrdinalMissingRuleGroupWeight() {
       ConstantLeafScanBin exactLeft(left), exactRight(right);
       (side == 0 ? exactLeft : exactRight).addBin(missing);
       size_t cell = 1 + 2 * cut + side;
-      logShipped[cell] = logGrowth + logRule + scanned - std::log(2.0);
       logGroup[cell] = logGrowth + logRule + scanned;
+      logHalved[cell] = logGrowth + logRule + scanned - std::log(2.0);
       logExact[cell] =
         logGrowth + logRule + marginal(exactLeft) + marginal(exactRight);
     }
   }
 
-  std::vector<double> shipped(normalizedFromLogWeights(logShipped));
   std::vector<double> group(normalizedFromLogWeights(logGroup));
+  std::vector<double> halved(normalizedFromLogWeights(logHalved));
   std::vector<double> exact(normalizedFromLogWeights(logExact));
 
   // realized root rules: the shipped kernel, then the exact law's own draws
@@ -662,8 +669,8 @@ void testOrdinalMissingRuleGroupWeight() {
 
   double total = static_cast<double>(numDraws);
   double df = static_cast<double>(numCells - 1);
-  double x2ShippedVsShipped = chiSquareStatistic(shippedCounts, shipped, total);
   double x2ShippedVsGroup = chiSquareStatistic(shippedCounts, group, total);
+  double x2ShippedVsHalved = chiSquareStatistic(shippedCounts, halved, total);
   double x2ShippedVsExact = chiSquareStatistic(shippedCounts, exact, total);
   double x2ExactVsExact = chiSquareStatistic(exactCounts, exact, total);
   auto pValue = [df](double statistic) {
@@ -672,41 +679,42 @@ void testOrdinalMissingRuleGroupWeight() {
 
   printf("  missing-rule-group weight, %zu cells, df %.0f, %zu grows\n",
          numCells, df, numDraws);
-  printf("    no-split probability: shipped %.5f group %.5f exact %.5f, "
-         "realized %.5f\n", shipped[0], group[0], exact[0],
+  printf("    no-split probability: group %.5f halved %.5f exact %.5f, "
+         "realized %.5f\n", group[0], halved[0], exact[0],
          shippedCounts[0] / total);
-  printf("    chi2 shipped draws vs shipped law %.2f (p %.3g)\n",
-         x2ShippedVsShipped, pValue(x2ShippedVsShipped));
   printf("    chi2 shipped draws vs group law   %.2f (p %.3g)\n",
          x2ShippedVsGroup, pValue(x2ShippedVsGroup));
+  printf("    chi2 shipped draws vs halved law  %.2f (p %.3g)\n",
+         x2ShippedVsHalved, pValue(x2ShippedVsHalved));
   printf("    chi2 shipped draws vs exact law   %.2f (p %.3g)\n",
          x2ShippedVsExact, pValue(x2ShippedVsExact));
   printf("    chi2 exact draws vs exact law     %.2f (p %.3g)\n",
          x2ExactVsExact, pValue(x2ExactVsExact));
-  printf("    total variation: shipped-exact %.5f group-exact %.5f "
-         "shipped-group %.5f\n", totalVariation(shipped, exact),
-         totalVariation(group, exact), totalVariation(shipped, group));
+  printf("    total variation: group-exact %.5f halved-exact %.5f "
+         "group-halved %.5f\n", totalVariation(group, exact),
+         totalVariation(halved, exact), totalVariation(group, halved));
 
-  // the calibration controls: the reconstructed shipped law is the kernel's
-  // own, and the chi-square is calibrated at this cell count and draw count
-  check(pValue(x2ShippedVsShipped) >= alpha,
-        "realized root rules match the shipped weights as reconstructed");
+  // the calibration control: the chi-square is calibrated at this cell count
+  // and draw count
   check(pValue(x2ExactVsExact) >= alpha,
         "the exact law's own draws match it (chi-square calibration)");
 
   // the measurement, pinned as measured: a cut candidate on a missing-bearing
-  // column carries one rule's prior mass while standing for a two-rule group,
-  // so the realized law is not the group law and not the exact law
-  check(pValue(x2ShippedVsGroup) < alpha,
-        "a cut candidate carries one rule's prior mass, not its group's");
+  // column carries its two-rule group's whole prior mass and the post-draw coin
+  // picks uniformly within the group, so the realized law is the group law and
+  // neither the halved law nor the exact law
+  check(pValue(x2ShippedVsGroup) >= alpha,
+        "realized root rules match a cut candidate carrying its group's mass");
+  check(pValue(x2ShippedVsHalved) < alpha,
+        "the realized law is not the one that halves the group to one rule");
   check(pValue(x2ShippedVsExact) < alpha,
         "the realized law is not the exact law on the full rule set");
   // exactly a factor of two, read off the split-to-no-split odds of the two
   // reconstructed laws rather than inferred from the chi-square
-  double shippedOdds = (1.0 - shipped[0]) / shipped[0];
   double groupOdds = (1.0 - group[0]) / group[0];
-  checkNear(groupOdds / shippedOdds, 2.0, 1e-9,
-            "the group's mass is exactly twice the mass the candidate carries");
+  double halvedOdds = (1.0 - halved[0]) / halved[0];
+  checkNear(groupOdds / halvedOdds, 2.0, 1e-9,
+            "the group's mass is exactly twice one of its two rules'");
 
   printf("ok: grow ordinal missing rule-group weight\n");
 }
