@@ -462,8 +462,8 @@ reproduces itself; `equivalence-a825263` (35 scenarios, strict) and
 
 Gate: full tinytest with NO snapshot regenerated (S5 is RNG-neutral surface);
 `R CMD check`; `air format --check .` and `lintr::lint_package()`; trio bitwise
-against the S4 baseline (the new multinomial hash, plus `equivalence-a825263`
-strict and `bcf-equivalence-a825263`).
+against the S4 baseline (`multinomial-equivalence-1027be5.rds`, 10 scenarios,
+plus `equivalence-a825263` strict and `bcf-equivalence-a825263`).
 
 ## What the reshape must reserve (record in c-api-growth.md)
 
@@ -544,6 +544,17 @@ Multi-chain: every chain sees the swap.
 - **The tests/cpp `ConfigSpec` multi-forest fuzz arm.** `ConfigSpec` has never
   covered ANY multi-forest sampler, BCF included, so scope it as the general
   gap plus an `OP_SET_COUNTS` op, not as a multinomial follow-up.
+- **A `k3countsswap` equivalence scenario, at the next multinomial
+  re-record.** The counts-swap stream is transitively pinned today
+  (test-multinomial-counts-mutation.R pins swap == rebuild bitwise on all five
+  channels with a non-vacuity arm, and k3counts pins the rebuild against the
+  frozen baseline), so a change moving swap draws is caught either by k3counts
+  or by the tinytest identity. The single point of failure is a slice that
+  DELIBERATELY revises swap semantics and regenerates that identity as
+  expected - the transitive pin dissolves silently. A direct scenario costs a
+  full baseline re-record whether recorded now or later, so it rides the next
+  multinomial re-record rather than forcing one (S4 verifier adjudication,
+  2026-08-12).
 
 ## Verification (every slice)
 
@@ -564,7 +575,8 @@ Multi-chain: every chain sees the swap.
   -> 35/35 "identical draws (same RNG stream)";
   `bcf-equivalence-a825263.rds` -> 11 scenarios x their channels bitwise;
   `multinomial-equivalence-a825263.rds` -> 9 scenarios x their channels bitwise
-  (S1-S3; the new hash at 10 scenarios from S4 on). The multinomial nine are
+  (S1-S3; `multinomial-equivalence-1027be5.rds` at 10 scenarios from S4 on,
+  k3offset the addition). The multinomial nine are
   k3, k2, k3counts, k3swap, k3txn, k3txncol, k3reject, k3perobs,
   k3perobspartial - six of them predictor-mutation scenarios the multiforest
   arc added, so this leg now exercises `revalidateTrees` and the
@@ -821,5 +833,47 @@ vs a825263 no re-record, multinomial-exact all six arms at exactly
 the recorded gaps, bcf oracles at MANIFEST values, air 0,
 lintr::lint_package 0, R CMD check clean-copy tarball Status OK.
 
-S4 (the k3offset fixture scenario and the baseline re-record, its
-own commit) is next; then S5 (public surface, messages, docs).
+S4 LANDED 2b96a9f, 2026-08-12. The k3offset scenario in
+benchmarks/R/multinomial-equivalence.R: K = 3, an n x K train
+offset and a 25 x K test offset taken at CREATION, a first run,
+then BOTH replaced mid-chain via bartcoreSetCategoryOffset /
+bartcoreSetCategoryTestOffset, a second run; five channels
+recorded, no verdict channel (offsets install unconditionally);
+seeds 6010/6110/7010 are literals outside the guarded seeds
+vector, so settingsList() is byte-identical to the a825263
+recording and the neutrality compare runs. ONLY the multinomial
+baseline re-recorded, as multinomial-equivalence-1027be5.rds -
+named by the ENGINE tip per the exact 33f6fdc precedent (HEAD at
+recording was 89ddb0f, one docs-only commit later; meta.rev says
+so, MANIFEST states it); equivalence-a825263 and
+bcf-equivalence-a825263 re-verified at this tip and left current;
+equivalence.yaml:113 re-pinned, :61/:87 correctly untouched.
+Neutrality: 35/35 strict / 11/11 / 9/9 with k3offset printing no
+line (verified ran); self-reproduction 10/10; the six exact arms
+at the recorded gaps. Non-vacuity, measured at recording and
+reproduced independently by the verifier: with both offsets NULL
+at the same seeds train moves 0.83 and test 0.77 max-abs and tree
+structure moves (both varcount channels differ);
+softmax(forestFits + offset) reproduces the final recorded train
+sample at machine epsilon while softmax(forestFits) alone is 0.37
+away - the offset-free forestFits report is load-bearing, not
+redundant. The verifier additionally falsified the BCF harness
+against the historical 99205ee baseline (5 MISMATCH in the exact
+documented pattern) to prove the compare is live. No NEWS bullet
+(the plan assigns S1/S2/S3/S5 only). COVERAGE ADJUDICATION
+(verifier, accepted): no scenario drives bartcoreSetCounts
+mid-chain; the swap stream is transitively pinned (tinytest swap
+== rebuild bitwise + k3counts pins the rebuild), the residual
+being only a deliberate contract revision that regenerates the
+identity - recorded as the k3countsswap door in "Doors held open",
+riding the next multinomial re-record rather than forcing one.
+Gates double-run (implementer + independent verifier, fresh
+privlibs, --preclean): tinytest 4162/0 unchanged, trio neutrality
++ self-reproduction as above, air 0, lintr 0 new (3 pre-existing
+brace lints in the harness), diff confined to harness + baselines
++ MANIFEST + yaml (src/R/inst zero diff).
+
+S5 (public surface, messages, docs - carries the predict
+missing-offset predicate fix at R_interface_bartcore.cpp:5239, the
+bartcoreForestFits offset-free doc note, and the bart2 test-side
+matrix decision) closes the arc.
