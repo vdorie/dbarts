@@ -30,7 +30,6 @@ using std::uint32_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseBCFTestSurface;
 using bartcore_bridge::refuseMultiForestMutation;
-using bartcore_bridge::refuseMultiForestPerObservationUpdate;
 using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refuseMultiForestTransactionalUpdate;
 using bartcore_bridge::refusePinnedSigmaChange;
@@ -2601,8 +2600,9 @@ void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
 // FORCED refresh reaches it (forceRefreshTrees calls refreshVarianceForest)
 // and so does the whole-data replacement (applyNewData resizes its n-sized
 // buffers and re-routes it), so the entries that refuse are the transactional
-// paths below. External linkage: the flat C API reuses this guard through
-// refuseMultiForestTransactionalUpdate.
+// paths below plus the two per-observation sessions, which have no force
+// variant and call this directly. External linkage: the flat C API reuses this
+// guard through refuseMultiForestTransactionalUpdate.
 void refuseVarianceForestPredictorMutation(
     const bartcore::SamplerBase& sampler, const char* caller) {
   if (sampler.shape().hasVarianceForest)
@@ -2626,21 +2626,6 @@ void refuseMultiForestTransactionalUpdate(const bartcore::SamplerBase& sampler,
                                           const char* caller,
                                           bool forcedUpdate) {
   if (!forcedUpdate) refuseVarianceForestPredictorMutation(sampler, caller);
-}
-
-// The per-observation sessions have no force variant, and their cell guard
-// caches the primary forest's trees alone: widening the revalidation without
-// widening that cache would let a forest outside the cache empty a leaf and
-// fail the finalize AFTER cells have been written, with no journal to undo
-// them. So they keep the multi-forest refusal the two entries above retired,
-// until the cache widens with it.
-void refuseMultiForestPerObservationUpdate(
-    const bartcore::SamplerBase& sampler, const char* caller) {
-  refuseMultiForestTransactionalUpdate(sampler, caller, false);
-  if (sampler.shape().numForests >= 2)
-    Rf_error("%s: a per-observation predictor update validates only the "
-             "primary forest of a multi-forest sampler; use setPredictor with "
-             "forceUpdate = TRUE instead", caller);
 }
 
 // A sampler whose residual sd is not a free parameter has none to set:
@@ -4407,7 +4392,10 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
   bartcore::SamplerShape shape = holder.sampler->shape();
   refuseMutationOnView(
     *holder.sampler, "bartcore_updatePredictorPerObservation");
-  refuseMultiForestPerObservationUpdate(
+  // the session's cell guard now caches every forest, pruned to the trees the
+  // column can move, so a multi-forest sampler takes this entry; the variance
+  // forest, which lives outside forests_, is what is left refused
+  refuseVarianceForestPredictorMutation(
     *holder.sampler, "bartcore_updatePredictorPerObservation");
   size_t numObservations = shape.numObservations;
 
@@ -4472,7 +4460,7 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
         holderFromExpression(VECTOR_ELT(ptrsExpr, static_cast<R_xlen_t>(k))));
       refuseMutationOnView(
         *holder.sampler, "bartcore_updatePredictorPerObservationJointly");
-      refuseMultiForestPerObservationUpdate(
+      refuseVarianceForestPredictorMutation(
         *holder.sampler, "bartcore_updatePredictorPerObservationJointly");
       samplers[k] = holder.sampler.get();
       int column = INTEGER(columnsExpr)[k];

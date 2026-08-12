@@ -82,12 +82,29 @@ expect_error(refused$setOffset(rep(0, n), updateScale = TRUE), "BCF")
 # predictor-mutation.md S1). Replacing a column with its own values cannot
 # empty a leaf, so the answer is TRUE
 expect_true(refused$setPredictor(x[, 1L], column = 1L))
-# the per-observation session keeps its BCF-named refusal until S2 widens the
-# cell guard past the prognostic forest
-expect_error(
-  refused$setPredictor(x[, 1L], column = 1L, forceUpdate = "partial"),
-  "BCF"
+# the per-observation session is no longer refused either: its cell guard
+# caches every forest, pruned to the trees the column can move, so it returns
+# the install mask rather than erroring (INVERTED in place per
+# docs/plans/multiforest-predictor-mutation.md S2). Re-installing the column's
+# own values moves no observation, so every row installs
+installed.r5 <- refused$setPredictor(
+  x[, 1L],
+  column = 1L,
+  forceUpdate = "partial"
 )
+expect_true(is.logical(installed.r5) && all(installed.r5))
+# a two-level replacement returns a mask of the same shape and leaves the
+# sampler runnable. This sampler has not been run, so its trees are stumps and
+# no row can empty a leaf; the DECLINE half of the veto is pinned on the
+# burned-in low-level handles (test-bcf-mutation-pins.R,
+# test-multi-forest-seam.R), where a leaf can be down to its last occupant
+installed.coarse <- refused$setPredictor(
+  ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
+  column = 1L,
+  forceUpdate = "partial"
+)
+expect_true(is.logical(installed.coarse) && length(installed.coarse) == n)
+expect_true(all(is.finite(refused$run(0L, 5L)$train)))
 
 # the accepted BCF mutations are unaffected by the new pre-checks
 expect_silent(refused$setPredictor(x, forceUpdate = TRUE))

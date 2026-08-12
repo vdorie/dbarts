@@ -328,6 +328,57 @@ runScenarios <- function() {
     c(recordChannels(bc, res, d$K), list(accepted = accepted))
   })
 
+  # (h)-(i) the PER-OBSERVATION session, which a K-forest multinomial sampler
+  # began accepting when the session's cell guard widened across forests_
+  # (docs/plans/multiforest-predictor-mutation.md, S2). New streams, mirroring
+  # the BCF fixture's pair. The verdict channel is the install MASK - the
+  # session answers per row, not per transaction - and K = 3 makes this the
+  # widest guarded set in the arc's scope: the veto quantifies over every tree
+  # of all three category forests that splits on the column. Seeds are
+  # LITERALS kept out of the guarded `seeds` vector.
+  #
+  # (h) the ACCEPT shape: a jitter nearly every row can take.
+  result$k3perobs <- local({
+    d <- makeK3(6008L)
+    set.seed(6108L)
+    v <- pmin(pmax(d$x[, 2L] + rnorm(n, 0, 0.02), 0), 1)
+    sampler <- dbarts(
+      d$x,
+      as.double(d$labels),
+      test = d$x[seq_len(25L), , drop = FALSE],
+      control = makeControl()
+    )
+    set.seed(7008L)
+    bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    installed <- dbarts:::bartcoreUpdatePredictorPerObservation(bc, v, 2L)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    c(recordChannels(bc, res, d$K), list(installed = installed))
+  })
+
+  # (i) the DECLINE shape: the two-level replacement that rolls the whole
+  # transaction back in (g) instead declines row by row here, leaving the
+  # sampler on a partly installed column.
+  result$k3perobspartial <- local({
+    d <- makeK3(6009L)
+    sampler <- dbarts(
+      d$x,
+      as.double(d$labels),
+      test = d$x[seq_len(25L), , drop = FALSE],
+      control = makeControl()
+    )
+    set.seed(7009L)
+    bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    installed <- dbarts:::bartcoreUpdatePredictorPerObservation(
+      bc,
+      ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
+      1L
+    )
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    c(recordChannels(bc, res, d$K), list(installed = installed))
+  })
+
   result
 }
 

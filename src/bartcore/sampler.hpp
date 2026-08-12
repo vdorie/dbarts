@@ -1060,8 +1060,8 @@ public:
   }
 
   /// Install one column's new values observation-by-observation in random
-  /// scan order, rolling back exactly those whose move would empty a leaf in
-  /// any tree of any chain; installed must have room for a flag per
+  /// scan order, declining exactly those whose move would empty a leaf in any
+  /// tree of any forest of any chain; installed must have room for a flag per
   /// observation. Returns finalize() validity, which the guard makes true by
   /// construction.
   bool updatePredictorPerObservation(const double* newColumn, size_t column,
@@ -1393,26 +1393,39 @@ private:
   }
 
   /// Caches each observation's leaf and per-leaf occupancy for every tree of
-  /// every chain by routing codes through the split structure, so staging a
-  /// move is a descent and a count check per tree.
+  /// every forest of every chain that splits on the session's column, by
+  /// routing codes through the split structure, so staging a move is a descent
+  /// and a count check per cached tree.
   class UpdateSessionImpl final : public PredictorUpdateSession {
   public:
     UpdateSessionImpl(Sampler& sampler, const double* newColumn, size_t column)
       : sampler_(sampler), column_(column), newColumn_(newColumn) {
       size_t n = sampler_.data_.numObservations;
-      size_t totalNumTrees =
-        sampler_.options_.numTrees * sampler_.chains_.size();
 
       newCodes_.resize(n);
       for (size_t i = 0; i < n; ++i)
         newCodes_[i] = sampler_.data_.codeFor(column_, newColumn_[i]);
 
-      observationLeaf_.resize(totalNumTrees * n);
-      leafCounts_.resize(totalNumTrees);
-      pendingNewLeaf_.assign(totalNumTrees, invalidNode);
-      pendingOldLeaf_.resize(totalNumTrees);
+      // The cached set spans every forest and is pruned to the trees the
+      // column can move, so it is sparse: an explicit (chain, forest, tree)
+      // table rather than offset arithmetic over a rectangular tree count.
+      std::vector<std::uint32_t> census;
+      std::vector<size_t> splitting;
+      for (size_t c = 0; c < sampler_.chains_.size(); ++c) {
+        const Chain<L, ResidT>& chain(*sampler_.chains_[c]);
+        for (size_t f = 0; f < chain.numForests(); ++f) {
+          chain.treesSplittingOnColumn(f, column_, census, splitting);
+          for (size_t t : splitting) cached_.push_back(CachedTree{c, f, t});
+        }
+      }
 
-      for (size_t t = 0; t < totalNumTrees; ++t) {
+      size_t numCachedTrees = cached_.size();
+      observationLeaf_.resize(numCachedTrees * n);
+      leafCounts_.resize(numCachedTrees);
+      pendingNewLeaf_.assign(numCachedTrees, invalidNode);
+      pendingOldLeaf_.resize(numCachedTrees);
+
+      for (size_t t = 0; t < numCachedTrees; ++t) {
         const Tree& tree(treeAt(t));
         leafCounts_[t].assign(tree.nodes.size(), 0);
         for (size_t i = 0; i < n; ++i) {
@@ -1457,25 +1470,34 @@ private:
     }
 
     /// The session moves exactly one column, so the revalidation prunes
-    /// against that column alone. The cache below covers forest 0, so the
-    /// pairing invariant (guarded set subset of revalidated set) holds only
-    /// while a multi-forest sampler is refused at the bridge; the cache widens
-    /// with that refusal (S2 of docs/plans/multiforest-predictor-mutation.md).
+    /// against that column alone - the same predicate that built the cache.
+    /// The cache is the subset of the revalidated set that drops forest 0's
+    /// non-splitting trees, whose partitions the revalidation reproduces
+    /// unchanged, so no leaf it did not guard can empty and this returns true
+    /// by construction (docs/plans/multiforest-predictor-mutation.md,
+    /// "Pruning").
     bool finalize() override {
       return sampler_.revalidateAllChains(&column_, 1);
     }
 
   private:
+    /// One cached tree, addressed as the engine holds it.
+    struct CachedTree {
+      size_t chain, forest, tree;
+    };
+
     const Tree& treeAt(size_t t) const {
-      size_t numTrees = sampler_.options_.numTrees;
-      return sampler_.chains_[t / numTrees]->tree(t % numTrees);
+      const CachedTree& entry(cached_[t]);
+      return sampler_.chains_[entry.chain]->treeInForest(entry.forest,
+                                                         entry.tree);
     }
 
     Sampler& sampler_;
     size_t column_;
     const double* newColumn_;
     std::vector<xint_t> newCodes_;
-    std::vector<int32_t> observationLeaf_;  // totalNumTrees x numObservations
+    std::vector<CachedTree> cached_;
+    std::vector<int32_t> observationLeaf_;  // cached_.size() x numObservations
     std::vector<std::vector<std::uint32_t>> leafCounts_;  // arena-id indexed
     std::vector<int32_t> pendingNewLeaf_;  // invalidNode when no move staged
     std::vector<int32_t> pendingOldLeaf_;

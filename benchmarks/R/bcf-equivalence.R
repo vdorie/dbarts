@@ -300,6 +300,60 @@ runScenarios <- function() {
     c(recordChannels(bc, res), list(accepted = accepted))
   })
 
+  # (j)-(k) the PER-OBSERVATION session, which a BCF sampler began accepting
+  # when the session's cell guard widened across forests_
+  # (docs/plans/multiforest-predictor-mutation.md, S2). New streams, on the
+  # same terms as (g)-(i): the path was refused at the bridge before this tip.
+  # The verdict channel here is the install MASK itself - the session's answer
+  # is per row, not per transaction - so a build that moved one row's decision
+  # fails on `installed` rather than only on the post-mutation draws. This is
+  # also the only BCF scenario that consumes the engine's scan permutation.
+  # Seeds are LITERALS kept out of the guarded `seeds` vector, as (f)-(i)'s
+  # are, so settingsList() stays identical to the 938eb81 baseline.
+  #
+  # (j) the ACCEPT shape: a jitter of the moderator tau is a function of,
+  # sized so nearly every row installs, then a second leg so the carried-over
+  # tree state matters.
+  result$per_observation <- local({
+    d <- makeData(n, p, 8010L)
+    set.seed(8110L)
+    v <- pmin(pmax(d$x[, 3L] + rnorm(n, 0, 0.02), 0), 1)
+    sampler <- dbarts(d$x, d$y, control = makeControl())
+    set.seed(9010L)
+    bc <- dbarts:::bartcoreBCFSampler(
+      sampler,
+      d$z,
+      n.trees.treatment = n.trees.tau
+    )
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    installed <- dbarts:::bartcoreUpdatePredictorPerObservation(bc, v, 3L)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    c(recordChannels(bc, res), list(installed = installed))
+  })
+
+  # (k) the DECLINE shape: the two-level replacement (i) rolls a whole
+  # transaction back on instead declines row by row, so the recorded mask is
+  # the per-row rollback and the sampler continues from a partly installed
+  # column - the state the whole-transaction scenarios cannot reach.
+  result$per_observation_partial <- local({
+    d <- makeData(n, p, 8011L)
+    sampler <- dbarts(d$x, d$y, control = makeControl())
+    set.seed(9011L)
+    bc <- dbarts:::bartcoreBCFSampler(
+      sampler,
+      d$z,
+      n.trees.treatment = n.trees.tau
+    )
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    installed <- dbarts:::bartcoreUpdatePredictorPerObservation(
+      bc,
+      ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
+      1L
+    )
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    c(recordChannels(bc, res), list(installed = installed))
+  })
+
   result
 }
 

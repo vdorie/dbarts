@@ -1599,21 +1599,17 @@ public:
     }
   }
 
-  /// Forest f's survivor list for a transaction touching numTouched columns
-  /// (a null list means every column, where the predicate is vacuous):
-  /// forest 0 keeps every tree, a forest past it keeps the trees that split on
-  /// a touched column. scratch is a numPredictors-sized census buffer the
-  /// caller owns so the census does not allocate per tree.
-  void collectSurvivors(const Forest<L, ResidT>& forest, std::size_t f,
-                        const std::size_t* touched, std::size_t numTouched,
-                        std::vector<std::uint32_t>& scratch,
-                        std::vector<std::size_t>& out) const {
+  /// THE pruning predicate: forest's trees that split on at least one of the
+  /// numTouched columns, in tree order. Both consumers share it - the
+  /// transaction's revalidate/rebuild pair through collectSurvivors, which
+  /// exempts forest 0, and the per-observation session's cell guard through
+  /// treesSplittingOnColumn, which does not. scratch is a numPredictors-sized
+  /// census buffer the caller owns so the census does not allocate per tree.
+  void collectSplittingTrees(const Forest<L, ResidT>& forest,
+                             const std::size_t* touched, std::size_t numTouched,
+                             std::vector<std::uint32_t>& scratch,
+                             std::vector<std::size_t>& out) const {
     out.clear();
-    if (f == 0 || touched == nullptr) {
-      out.resize(forest.numTrees);
-      for (size_t t = 0; t < forest.numTrees; ++t) out[t] = t;
-      return;
-    }
     scratch.resize(data_.numPredictors);
     for (size_t t = 0; t < forest.numTrees; ++t) {
       std::memset(scratch.data(), 0,
@@ -1625,6 +1621,40 @@ public:
           break;
         }
     }
+  }
+
+  /// Forest f's survivor list for a transaction touching numTouched columns
+  /// (a null list means every column, where the predicate is vacuous):
+  /// forest 0 keeps every tree, a forest past it keeps the trees that split on
+  /// a touched column.
+  void collectSurvivors(const Forest<L, ResidT>& forest, std::size_t f,
+                        const std::size_t* touched, std::size_t numTouched,
+                        std::vector<std::uint32_t>& scratch,
+                        std::vector<std::size_t>& out) const {
+    if (f == 0 || touched == nullptr) {
+      out.clear();
+      out.resize(forest.numTrees);
+      for (size_t t = 0; t < forest.numTrees; ++t) out[t] = t;
+      return;
+    }
+    collectSplittingTrees(forest, touched, numTouched, scratch, out);
+  }
+
+  /// Forest f's trees that split on column: what a per-observation session
+  /// caches for that forest. The same predicate the rebuild prunes with,
+  /// WITHOUT forest 0's exemption - that exemption preserves forest 0's
+  /// recorded subtract-then-add arithmetic and is no part of the predicate.
+  /// So the guarded set is a subset of the revalidated set in every forest,
+  /// and a tree in the difference is one whose partition the revalidation
+  /// reproduces unchanged from an occupied pre-state: that is why the session's
+  /// finalize cannot fail (docs/plans/multiforest-predictor-mutation.md,
+  /// "Pruning"). Dropping a tree from the cache cannot move the returned mask
+  /// either: with no node splitting on column the override never fires during
+  /// the descent, so the new leaf is the old one and no move is ever staged.
+  void treesSplittingOnColumn(std::size_t f, std::size_t column,
+                              std::vector<std::uint32_t>& scratch,
+                              std::vector<std::size_t>& out) const {
+    collectSplittingTrees(forests_[f], &column, 1, scratch, out);
   }
 
   /// Recover leaf parameters (from fits for scalar leaves, from the
@@ -2913,10 +2943,12 @@ public:
   double sigmaDegreesOfFreedomForTesting() const {
     return response_->sigmaDegreesOfFreedomForTesting();
   }
-  /// Test hook: forest f's tree t. Chain::tree reaches forest 0 alone, so a
-  /// whole-sampler structural check (routing agreement) needs this to see a
-  /// BCF or multinomial forest at all.
-  const Tree& treeInForestForTesting(std::size_t f, std::size_t t) const {
+  /// Forest f's tree t. Chain::tree reaches forest 0 alone and keeps that
+  /// meaning for its own callers; this is what a whole-sampler walk resolves
+  /// through - the per-observation session's survivor table, and the
+  /// structural checks (routing agreement) that must see a BCF or multinomial
+  /// forest at all.
+  const Tree& treeInForest(std::size_t f, std::size_t t) const {
     return forests_[f].trees[t];
   }
   /// Test hooks: variance tree j's live partition, and the per-tree factor slab

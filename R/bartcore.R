@@ -75,19 +75,15 @@ bartcoreSamplerSetPredictor <- function(
   # creation. Read before data@x is swapped.
   sparseSource <- predictorSourceIsSparse(sampler$data@x)
 
+  # no BCF pre-check on the partial path either: the session's cell guard
+  # caches every forest, pruned to the trees the column can move, so a row
+  # installs only if it empties no leaf anywhere and a two-forest sampler takes
+  # it (docs/plans/multiforest-predictor-mutation.md)
   partialUpdate <- !is.null(forceUpdate) &&
     is.character(forceUpdate) &&
     length(forceUpdate) == 1L &&
     !is.na(forceUpdate) &&
     forceUpdate == "partial"
-  if (partialUpdate) {
-    refuseBCFMutation(
-      sampler,
-      "setPredictor(forceUpdate = \"partial\")",
-      "a per-observation session has no force variant and its cell guard ",
-      "caches the prognostic forest alone; use forceUpdate = TRUE instead"
-    )
-  }
 
   if (!is.null(column) && is.character(column)) {
     if (is.null(colnames(sampler$data@x))) {
