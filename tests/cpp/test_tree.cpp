@@ -588,9 +588,12 @@ struct MappedColumns {
 // A mapped source must reach the dense block's fits for every leaf shape the
 // flat replay knows. Two mappings: one that moves every column, and one that
 // leaves both split variables in place so that only the leaf covariate reads
-// can tell the mapped source from the raw block underneath it.
+// can tell the mapped source from the raw block underneath it. Column 4 is a
+// POOLED categorical, whose direction bits live in the side channel rather
+// than the record: grow-from-root now places such rules, so the tier is
+// load-bearing on every path a saved forest is replayed through.
 static void testMappedSourceReplay() {
-  const size_t n = 40, p = 4;
+  const size_t n = 40, p = 5;
   std::vector<double> storeBlock(n * p);
   for (size_t i = 0; i < n; ++i) {
     double t = static_cast<double>(i);
@@ -598,14 +601,16 @@ static void testMappedSourceReplay() {
     storeBlock[n + i] = std::sin(t);
     storeBlock[2 * n + i] = static_cast<double>(i % 4);
     storeBlock[3 * n + i] = std::cos(0.5 * t);
+    storeBlock[4 * n + i] = static_cast<double>((i * 11) % 70);  // 70 levels
   }
   // missing routes by the flag and enters a leaf at the standardized mean
   storeBlock[7] = std::nan("");
   storeBlock[n + 11] = std::nan("");
   storeBlock[2 * n + 3] = std::nan("");
+  storeBlock[4 * n + 25] = std::nan("");  // a row that reaches the pooled rule
 
-  const size_t positionsA[p] = {2, 3, 0, 1};  // every column moves
-  const size_t positionsB[p] = {0, 3, 2, 1};  // only the leaf covariates move
+  const size_t positionsA[p] = {2, 3, 4, 1, 0};  // every column moves
+  const size_t positionsB[p] = {0, 3, 2, 1, 4};  // only the leaf covariates move
   std::vector<double> blockA(n * p), blockB(n * p);
   for (size_t j = 0; j < p; ++j)
     for (size_t i = 0; i < n; ++i) {
@@ -616,8 +621,10 @@ static void testMappedSourceReplay() {
   MappedColumns mappedB{blockB.data(), n, positionsB};
 
   // root: ordinal split on store column 0, missing right; left child: inline
-  // categorical split on store column 2, missing left; three leaves
-  std::vector<FlatNode> flat(5);
+  // categorical split on store column 2, missing left; right child: pooled
+  // categorical split on store column 4, whose directions live in the side
+  // channel; four leaves
+  std::vector<FlatNode> flat(7);
   flat[0].variable = 0;
   flat[0].value = 0.5;
   setFlatKind(flat[0], FlatKind::ordinal);
@@ -627,19 +634,29 @@ static void testMappedSourceReplay() {
   setFlatKind(flat[1], FlatKind::categoricalInline);
   flat[2].value = 1.5;
   flat[3].value = -0.75;
-  flat[4].value = 0.25;
+  flat[4].variable = 4;
+  flat[4].maskOffset = 0;
+  flat[4].numMaskWords = 2;
+  setFlatKind(flat[4], FlatKind::categoricalPooled);
+  flat[5].value = 0.25;
+  flat[6].value = -1.25;
+  // codes the pooled subtree really holds; category 68 lands in the second
+  // word, so the channel spans both
+  const std::uint64_t maskChannel[2] = {
+    (1ull << 21) | (1ull << 43) | (1ull << 61), 1ull << 4};
 
   // leaf covariates are store columns 1 and 3, which both mappings move
   const size_t covariates[2] = {1, 3};
   const double means[2] = {0.1, -0.2};
   const double sds[2] = {0.8, 1.25};
-  const double slopes[6] = {0.5, -1.5, 2.0, 0.25, -0.75, 1.0};
+  const double slopes[8] = {0.5, -1.5, 2.0, 0.25, -0.75, 1.0, 0.3, -0.6};
   const double lengthscales[2] = {0.7, 1.3};
-  // leaves 0 and 1 carry two support rows each; leaf 2 replays a constant
-  const double blocks[16] = {2.0,  0.5,  -0.25, 0.1,  0.2,  -0.3, 0.4, 2.0,
-                             -1.0, 0.75, 0.6,   -0.5, 0.15, 0.9,  0.0, 0.42};
+  // leaves 0 and 1 carry two support rows each; leaves 2 and 3 replay constants
+  const double blocks[18] = {2.0,  0.5,  -0.25, 0.1,  0.2,  -0.3,
+                             0.4,  2.0,  -1.0,  0.75, 0.6,  -0.5,
+                             0.15, 0.9,  0.0,   0.42, 0.0,  -0.31};
   std::vector<size_t> blockOffsets;
-  check(computeFunctionBlockOffsets(blocks, 16, 3, 2, blockOffsets),
+  check(computeFunctionBlockOffsets(blocks, 18, 4, 2, blockOffsets),
         "the function side channel walks");
 
   // every replay a source reaches, run over one source
@@ -649,32 +666,41 @@ static void testMappedSourceReplay() {
     bool operator==(const Replay&) const = default;
   };
   std::vector<size_t> indices(n);
-  auto replay = [&](const auto& source) {
+  auto replayWith = [&](const auto& source, const std::uint64_t* masks) {
     Replay out{std::vector<std::uint32_t>(flat.size()),
                std::vector<double>(n, 0.0), std::vector<double>(n, 0.0),
                std::vector<double>(n, 0.0)};
     for (size_t i = 0; i < n; ++i) indices[i] = i;
     countFlatObservationsBelow(flat.data(), source, indices.data(), 0, n,
-                               out.counts.data());
+                               out.counts.data(), masks);
     for (size_t i = 0; i < n; ++i) indices[i] = i;
     addFlatPredictionsBelow(flat.data(), source, indices.data(), 0, n,
-                            out.scalar.data());
+                            out.scalar.data(), masks);
     for (size_t i = 0; i < n; ++i) indices[i] = i;
     addFlatLinearPredictionsBelow(flat.data(), source, indices.data(), 0, n,
                                   out.linear.data(), covariates, means, sds, 2,
-                                  slopes);
+                                  slopes, 0, masks);
     for (size_t i = 0; i < n; ++i) indices[i] = i;
     addFlatFunctionPredictionsBelow(flat.data(), source, indices.data(), 0, n,
                                     out.function.data(), covariates, means, sds,
                                     lengthscales, 2, blocks,
-                                    blockOffsets.data());
+                                    blockOffsets.data(), 0, masks);
     return out;
+  };
+  auto replay = [&](const auto& source) {
+    return replayWith(source, maskChannel);
   };
 
   Replay dense = replay(DenseColumns{storeBlock.data(), n});
   check(replay(mappedA) == dense, "a mapped source replays like its block");
   check(replay(mappedB) == dense,
         "a split-stable mapping replays like its block");
+  // the pooled rule's directions are in the channel and nowhere else: replayed
+  // against an empty one every row of that subtree goes left instead
+  const std::uint64_t emptyChannel[2] = {0, 0};
+  check(replayWith(DenseColumns{storeBlock.data(), n}, emptyChannel).counts !=
+          dense.counts,
+        "the pooled rule routes by its side channel, not by the record");
 
   // reading mapping A's block at the store index moves the routing, since A
   // moves both split variables
