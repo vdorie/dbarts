@@ -142,10 +142,13 @@ items
     rule-group law; 39 percent of the gap to the exact law survives
     via ordinal-scan-missing-rows). S1 (categorical splits in the
     scan, plain binary counter + sentinel, pooled + absent-level
-    coverage) LANDED 995002ef. S0b (delete the log 2 halving,
-    re-point the as-measured pin) is the next code slot, then S2
-    (OP_GROW fuzz, O1/O1F/O2 - the HARD CARRY: S1's mass formula
-    and coin count have no oracle until S2 lands them), S3-S5.
+    coverage) LANDED 995002ef. S0b (the halving deleted, falsifier
+    re-pointed with all arms kept, power-test-verified) LANDED
+    7f82f560. S2 (OP_GROW fuzz, O1/O1F/O2 - the HARD CARRY: S1's
+    mass formula and coin count have no oracle until S2 lands
+    them) is the next code slot, then S3-S5 (S5 also owes the
+    NEWS bullet INTRODUCING n.grow.sweeps - both grow bullets
+    currently amend an unannounced feature).
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. A memory win, not speed; integer -> double
     is exact in range so the slice MUST be trio-bitwise. Split out of
