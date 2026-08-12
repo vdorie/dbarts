@@ -602,6 +602,15 @@
             in its level count. Seeded results from a warm-started fit on a
             design with categorical predictors differ from previous
             versions.
+      \item The \code{n.grow.sweeps} initializer no longer under-weights cut
+            candidates on ordinal predictors that carry missing values. Such
+            a candidate stands for the two rules - missing values routed
+            left, missing values routed right - that the initializer's
+            post-draw coin picks between, and now carries the prior mass of
+            both instead of one, so the pair no longer enters the node's
+            choice at half its weight relative to not splitting. Seeded
+            results from a warm-started fit on a design with missing
+            predictor values differ from previous versions.
     }
   }
   \subsection{C API}{

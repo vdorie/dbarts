@@ -134,13 +134,15 @@ void growCategoricalRule(const ColumnStore& data, const L& leaf, ext_rng* rng,
 ///    symmetric missing-direction coin, matching
 ///    CGMTreePrior::drawRuleForVariable. Convention on such a column, measured
 ///    rather than assumed: an enumerated cut candidate STANDS FOR the two rules
-///    {cut, missing left} and {cut, missing right} the coin picks between, but
-///    CARRIES the prior mass of one of them (the `- log 2` below), so the pair
-///    enters the discrete draw at half its group's prior mass and the remainder
-///    accrues to no-split. test_grow.cpp chi-squares the realized root-rule
-///    frequencies against that law, against the group's own mass, and against
+///    {cut, missing left} and {cut, missing right} the coin picks between and
+///    CARRIES their combined prior mass, so the group enters the discrete draw
+///    whole and the coin picks uniformly within it. test_grow.cpp chi-squares
+///    the realized root-rule frequencies against that law, against the law in
+///    which a candidate carries only one of its two rules' mass, and against
 ///    the exact law over the full rule set; docs/design/grow-from-root.md
-///    section 7 records what it measured.
+///    section 7 records what it measured. The realized law is still not the
+///    exact one, by a residual that is the scan's separate omission of the
+///    missing rows from a split likelihood, not this weight.
 ///  - A CATEGORICAL split draws exactly 1 + A more symmetric coins and NEVER
 ///    rejects: one orientation coin, then one per category REACHABLE at the
 ///    node but ABSENT from its members (A = R - P), taken over the reachable
@@ -247,14 +249,15 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
       continue;
     }
 
-    // P(cut): uniform over the ancestor-constrained interval, widened by the
-    // missing-direction coin when the column can route one (CGMTreePrior's
-    // ruleForVariableLogProbability)
+    // P(cut group): uniform over the ancestor-constrained interval. On a column
+    // that routes missing values a candidate stands for the two rules the
+    // post-draw coin picks between and carries their COMBINED mass, so the
+    // halving CGMTreePrior::ruleForVariableLogProbability applies to one such
+    // rule cancels against the coin and does not appear here.
     std::int32_t left, right;
     tree.splitInterval(data, nodeIndex, static_cast<std::int32_t>(j), &left,
                        &right);
     double logCut = -std::log(static_cast<double>(right - left + 1));
-    if (data.hasMissing[j]) logCut -= std::log(2.0);
 
     std::size_t numCuts = data.numCuts[j];
     scratch.cutLogLikelihood.resize(numCuts);

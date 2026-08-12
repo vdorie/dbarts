@@ -240,27 +240,43 @@ state. Chain::growForestFromRoot duplicates run()'s sweep body with the per-tree
 MH move replaced by a fresh grow, so the default run path stays byte-identical
 (equivalence.R: 21/21 identical draws).
 
-Missing-value convention, pinned as measured (2026-08-12). On a column with
+Missing-value convention, measured then fixed (2026-08-12). On a column with
 missing values a cut candidate stands for the two rules {cut, missing left} and
-{cut, missing right} that the post-draw coin picks between, but carries the
-prior mass of one of them: grow.hpp's `logCut` is `-log(numCuts) - log 2`, CGM's
-mass for a single rule. The pair therefore enters the discrete draw at half its
-group's prior mass, and the remainder accrues to no-split. Measured on a
+{cut, missing right} that the post-draw coin picks between, and carries their
+COMBINED prior mass: grow.hpp's `logCut` is `-log(numCuts)`, twice CGM's mass
+for one rule, so a group enters the discrete draw whole and the coin picks
+uniformly within it. That is the same "a candidate carries its rule group's
+mass" reading the categorical branch is written against.
+
+It did not always. Until this date `logCut` carried a further `- log 2` - one
+rule's mass for a candidate standing for two - so a pair entered the draw at
+half its group's prior mass and the remainder accrued to no-split. Measured on a
 signal-free 64-row fixture with one 4-cut ordinal column, 8 missing rows carrying
 the node's mean response, 2e5 grows over the 9-cell outcome space
-{no-split} U {(cut, missing side)}: the realized root rules match the shipped
-weights (chi-square 7.38 on 8 df, p = 0.50) and reject both the law in which the
-candidate carries its group's mass (8937, p < 1e-300) and the exact law that
-enumerates all 2 x numCuts rules with the missing rows placed on the side each
-rule names (6471, p < 1e-300); the exact law's own draws do not reject it
-(6.06, p = 0.64). Shipped no-split probability 0.1026, against 0.0541 under the
-group's mass and 0.0599 under the exact law, and the group's split-to-no-split
-odds are exactly twice the shipped candidate's by construction. Total variation
-to the exact law is 0.0436 from the shipped weights and 0.0169 from the group's;
-the residual is a second and separate effect - the scan omits the missing rows
-from the split likelihood while the no-split term counts them, so a split score
-is short their leaf marginal, by a margin that grows with their weighted sum of
-squared responses and is near its floor on this fixture by construction.
+{no-split} U {(cut, missing side)} (test_grow.cpp, which still gates all of
+this): the realized root rules then matched the halved weights (chi-square 7.38
+on 8 df, p = 0.50) and rejected both the law in which the candidate carries its
+group's mass (8937, p < 1e-300) and the exact law that enumerates all
+2 x numCuts rules with the missing rows placed on the side each rule names
+(6471, p < 1e-300); the exact law's own draws did not reject it (6.06,
+p = 0.64). No-split probability was 0.1026 under the halved weights against
+0.0541 under the group's mass and 0.0599 under the exact law, the group's
+split-to-no-split odds exactly twice the halved candidate's by construction.
+
+With the halving deleted the same fixture reads the other way: the realized root
+rules match the group law (19.07 on 8 df, p = 0.014, and 5.50 / 8.45 / 14.95 /
+5.33 / 1.97 at five fresh seeds) and reject the halved law (5461, p < 1e-300);
+realized no-split 0.0525 against the group's 0.0541; the calibration control
+holds (5.08, p = 0.75).
+
+The realized law is still not the exact one and still rejects it (444,
+p = 8e-91), at a total variation of 0.0169 against the 0.0436 the halved weights
+carried - 61 percent of the gap closed. The residual is a second and separate
+effect: the scan omits the missing rows from the split likelihood while the
+no-split term counts them, so a split score is short their leaf marginal, by a
+margin that grows with their weighted sum of squared responses and is near its
+floor on this fixture by construction. That is its own ticket
+(ordinal-scan-missing-rows in TODO) and this fix does not touch it.
 
 Surface: Sampler::growFromRoot fans across chains on the thread pool
 (thread-count-independent, single chain inline on R's stream); the R5 method
