@@ -154,10 +154,14 @@ items
     per-partition mass arm; assert O2's pooled-below-cap coverage;
     a fixture with a present category whose weights are all zero
     (everything now passes weights = nullptr). S3 (R surface +
-    DART assertion; owns dart = TRUE with n.grow.sweeps > 0 and
-    the all-P<2 design) is the next code slot, then S4-S5 (S5
-    also owes the NEWS bullet INTRODUCING n.grow.sweeps - both
-    grow bullets currently amend an unannounced feature).
+    DART assertion) LANDED 3fee02d6 - the DART assertion was
+    re-pointed at verification from an absolute bar (tautological
+    > 0 clause; 0.5 bar cleared by a no-grow arm on 7/24 seeds) to
+    the paired grow-vs-no-grow contrast, which actually observes
+    the dart x grow interaction. S4 (the measured arm) is the next
+    code slot, then S5 (S5 also owes the NEWS bullet INTRODUCING
+    n.grow.sweeps - both grow bullets currently amend an
+    unannounced feature).
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. A memory win, not speed; integer -> double
     is exact in range so the slice MUST be trio-bitwise. Split out of

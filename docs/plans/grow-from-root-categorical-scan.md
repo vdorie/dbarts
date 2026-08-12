@@ -946,7 +946,60 @@ line, categorical-exact 0.0008, multinomial-exact six arms at the
 recorded gaps. K = 70 timing note per the plan: 0.036-0.042 ms
 per grow at -O2 (0.14-0.15 under sanitizers).
 
-S3 (R surface + the DART assertion; also owns the two edge cases
-S2 declared out of scope for it - dart = TRUE with
-n.grow.sweeps > 0, and a design where every categorical column
-has P < 2 at the root) is next, then S4-S5.
+S3 LANDED 3fee02d6, 2026-08-12. One new file,
+inst/tinytest/test-grow-from-root-categorical.R (126 lines: 22
+comment / 6 blank / 98 code against the ~150 budget); R-test-only,
+RNG-NEUTRAL as mandated - trio bitwise (35/35 strict identical
+draws / 11/11 / 10/10, no max-|z| line) run twice on the tree,
+tinytest 4183/0 (9 new assertions) with no snapshot regenerated,
+air 0, lintr 0, clean-copy R CMD check Status: OK twice, tests/cpp
+unchanged all-pass. The four assertions, with the verifier's
+non-vacuity probes on record: (1) growFromRoot(2L) places
+categorical rules on the signal factors (19 g1 / 28 g2 splits over
+50 trees at the committed seed; a cold sampler is 50 stumps and
+FAILS the assertion, so it measures grow; the directions-decode
+check is redundant to column typing - under factors =
+"categorical" any signal-factor rule is mask-based by construction
+- and tests the getTrees decode, recorded as such). (2) The
+early-RMSE warm-start assertion is like-for-like (only
+n.grow.sweeps differs): ratio 0.721 committed, 0.808/0.778/0.858
+fresh, worst 0.877 over 15 exploration seeds against the 0.9 bar;
+the window is genuinely early (cold falls 0.649 -> 0.308 across
+the first 10 kept samples while grow sits flat ~0.285 from the
+first; the all-20 ratio is 0.828, so the early window carries the
+discrimination). (3) THE DART ASSERTION WAS RE-POINTED AT
+VERIFICATION - as first committed it had weak falsifying power:
+its > 0 clause was a tautology (Dirichlet mass is a.s. positive;
+on a structurally unsplittable fixture the degenerate columns
+still draw 1e-4 and 3.6e-3), and its absolute 0.5 bar is cleared
+by a no-grow dart arm at the committed seed (0.5735) and on 7/24
+seeds. The landed form asserts the PAIRED contrast against a
+matched n.grow.sweeps = 0L arm, identical but for the sweeps -
+grow exceeds no-grow on 23/24 seeds with mean gap 0.2355 (sd
+0.1257); committed seed 0.7487 vs 0.5735, fresh pairs
+0.6688/0.4949, 0.6021/0.5226, 0.8373/0.5608 - keeping the > 0.5
+secondary. This is the arc's only observable of the dart x grow
+interaction and it is now actually observed. (4) The
+all-categorical-P<2 design (h1 3 declared / 1 present, h2 4 / 1,
+plus an ordinal signal column) completes cleanly: both degenerate
+columns are retained in the design matrix so a stray rule would
+trip the never-chosen check, the forest genuinely grows (60
+ordinal splits, 110 leaves, RMSE 0.205 vs sd(y) 0.948), and the
+premise matches scan.hpp (categoricalNumEmitted returns 0 for
+numPresent < 2; the categorical arm's early return) - grow
+degrades gracefully, asserted, not assumed. NEAR-BAR SEEDS ON
+RECORD: the dart grow arm dips below the 0.5 secondary on 1/24
+seeds (min 0.457) and the RMSE ratio peaks at 0.886 vs the 0.9 bar
+on 1/12 - deterministic at the pinned seeds, but a future
+RNG-stream shift on the grow path re-rolls both; re-pin seeds
+then, do not read a regression. exhaustiveCap sizing observation,
+per S3.3: the enumeration is NOT the cost driver - the
+O(numMembers) histogram is, the same cost the ordinal path already
+pays - and S2's K = 70 timing (0.036-0.042 ms per grow at -O2)
+stands as the record; no separate measurement was spent, per the
+plan's own instruction. Gates double-run (implementer + verifier,
+fresh privlibs, --preclean); the post-fix amendment re-ran
+tinytest/air/lintr/R CMD check with the trio cited from its two
+same-tree runs (R-test-only amendment).
+
+S4 (the measured arm) is next, then S5.
