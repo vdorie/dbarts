@@ -1233,4 +1233,78 @@ above-chain-level gap stands. Carried to S4 (residual coverage):
 the bcf/multinomial equivalence legs are pinned by no CI workflow -
 local-only gates, a pre-existing shape, not introduced here.
 
-S3, S4 remain queued; S3 (the variance forest) is next.
+S3 LANDED a825263 (engine) + b174737 (baselines), 2026-08-12. The
+E3 fallback was not needed: refreshVarianceForest split into
+revalidateVarianceTrees + rebuildVarianceFactors for the
+transactional paths - validate recovers node-indexed factors through
+the LIVE partition first, repartitions, reports occupancy, collapses
+nothing, drops no directions, scatters nothing; rebuild drops stale
+directions, scatters survivors, recomputes combinedVariance - while
+the collapse-and-remap form stays byte-for-byte for
+forceRefreshTrees and applyNewData (hetforce bitwise gates it, F11
+green). Deviation from the plan's signatures, verified sound: the
+two halves take a ForestRevalidation handoff (one per chain, phase
+one over all chains before phase two) plus the touched-column list
+rather than a bare TreeParameters&, because the Pruning section's
+requirement 1 mandates ONE survivor list travelling between phases
+and the variance arm is pruned; the struct gained exactly two
+members. Both calls appended after the forests_ body under the
+runtime varianceForest_ guard; repartitionTrees gains the variance
+arm; the session cache admits variance trees through promoted
+Chain::varianceTree(j) + varianceTreesSplittingOnColumn (the
+forest-index carry from S2). stateIsValid's variance branch gains
+the scratch build, repartition and occupancy test its mean sibling
+has - a setState behavior change with its own tinytest and NEWS
+text; chain-level install stays ungated and the flatten identity
+stays covered (test_model.cpp verdicts flipped in place). Bridge:
+refuseVarianceForestPredictorMutation deleted AND
+refuseMultiForestTransactionalUpdate deleted with it - the variance
+clause was its whole body - so the flat C entries are unguarded
+again BY DESIGN: the path SL's stop-loss protected is now legal, the
+SL/F13 pins inverted in place at test-capi.R:167-215, and the flat
+decline arm is reachable and pinned through a new test-support
+capi_update_predictor_fixed_cuts wrapper in the tinytest consumer.c
+(dbarts.h zero diff). Fuzz: the heteroscedastic config re-admits
+OP_SET_PREDICTOR | OP_UPDATE_COLUMNS | OP_PER_OBS |
+OP_SESSION_ABANDON, comment edited not flipped; snapshot discipline
+held. Falsifiers: F9 green (5 rollbacks, 2 with the variance forest
+sole objector on a mean-restricted fixture), negative half red on
+exactly those 2; F10 green (12 accepted transactions, 22
+observations changed variance leaves), negative half red on all 12;
+F5 extension green at 215000 caller-ordered decisions, 105000 under
+a variance forest, 0 mismatches, negative half red on mask + 413
+finalizes; F6 extension green (21 pruned variance trees bitwise
+incl. the factor slab, s2(x) bitwise where no variance tree is
+reached), negative half reddened the routing invariant on the het
+config; F12 untouched and intact. Harness: hetswap (verdict channel
+15 accepts / 5 rollbacks over 20 seeds) + hetpartial (install mask
+399-400/400, declines on 4 seeds), both carrying s2.test;
+recordVerdict is per scenario so S0's summaries are unchanged. NEWS:
+the SL "still refuse" sentences rewritten into the S3 bullet so the
+release notes are not self-contradictory. Baselines
+equivalence/bcf-equivalence/multinomial-equivalence-a825263.rds:
+neutrality 33/33 (hetforce included) / 11/11 / 9/9 vs 3cab553, no
+max |z| anywhere; self-reproduction 35/35 strict, 11/11, 9/9; the
+bcf/multinomial re-records are pure re-anchors, stated in MANIFEST
+with the reason (E = 3 unconstructible); equivalence.yaml re-pinned.
+Budget: ~997 changed lines vs the ~640 checkpoint - engine 183,
+bridge 92 (85 percent deletions), the remainder the plan-mandated
+F9/F10 tests, het fixture, pin inversions, the item-5 setState
+tinytest, harness scenarios and NEWS. Gates double-run (implementer
++ independent verifier, fresh privlibs): install --preclean, 0
+compiler warnings, tests/cpp plain + ASAN/UBSAN clean, tinytest
+4003/0 no snapshot regenerated, trio + oracles exact, air 0, lintr
+0 new. Carried to S4: the dimnames drop on sampler$data@x after a
+whole-matrix transactional setPredictor (pre-existing R-layer
+behavior since S1) breaks by-name column resolution in
+updatePredictorPerObservationJointly - the het pin orders the joint
+call first as a workaround; recoverVarianceLeafValues' 1.0
+fallback docstring still names setState as a reachable case and no
+longer is, from any public route; the bcf/multinomial equivalence
+legs remain un-pinned in CI; seven new comments cite slice/falsifier
+identifiers (arc precedent from S1/S2) - whether S4 sweeps these
+into self-contained rationale is an open hygiene choice; the
+statesAgree above-chain-level gap remains worked around in the fuzz
+snapshot rather than fixed in the helper.
+
+S4 (docs, records, residual coverage) is the arc's last slice.
