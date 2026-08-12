@@ -1307,4 +1307,60 @@ into self-contained rationale is an open hygiene choice; the
 statesAgree above-chain-level gap remains worked around in the fuzz
 snapshot rather than fixed in the helper.
 
-S4 (docs, records, residual coverage) is the arc's last slice.
+S4 LANDED 031184c, 2026-08-12. Rd: dbartsSampler-class.Rd gains the
+multi-forest/heteroscedastic mutation subsection (the per-sampler
+conjunction, the install mask, the structural column-subset
+exemption) and updatePredictorPerObservationJointly.Rd the joint
+semantics; the sampler$data@x dimnames drop after a whole-matrix
+setPredictor is DOCUMENTED with its exact blast radius (every later
+by-name resolution fails - setPredictor's character column= and the
+joint entry even under an integer column - while integer column= to
+setPredictor itself survives) and workarounds; the fix is queued as
+the new setpredictor-dimnames TODO entry, not shipped here. NEWS
+needed nothing: the S1 commit already carried the plan's S4
+sentence inside the S1 bullet - discovered, not decided. Design
+docs: model-space-survey secs 4-5 + Status, heteroscedastic new sec
+14 + Status, empty-leaf-veto records that the transaction enforces
+the criterion stateIsValid already enforced and that S3 closed the
+variance asymmetry (that file carries no Status line by its own
+convention), c-api-growth records this arc added NO X-list entry
+and moved NO hash. The VD-decided comment-anchor sweep landed:
+about 20 comment/message-string edits across 13 files (chain.hpp,
+sampler.hpp, common.cpp, test_fuzz.cpp incl. the check-message
+falsifier tags, test_model.cpp, test_state.cpp, consumer.c, five
+tinytest files) rewritten into self-contained rationale,
+deliberately scoped to THIS arc's citations - sibling plans reusing
+the S/F vocabulary keep theirs for their own arcs; the independent
+verifier read every hunk: comment/string-only, no statement
+touched, no technical claim lost, and the bitwise trio corroborates.
+recoverVarianceLeafValues' docstring corrected (its 1.0 fallback is
+unreachable from every public route since S3). TODO block landed
+with the drift corrections (multiforest-mutation-gaps records the
+flat guards' SL-to-S2 lifetime and S3 retirement; fork 2 recorded
+settled per-sampler; bcf-public-surface pin citation verified to
+:326-327) plus the statesAgree-gap record. Residual coverage: the
+CI equivalence net widened - bcf-equivalence and
+multinomial-equivalence jobs added parallel to the gaussian job,
+pinned to the a825263 baselines, compare commands validated locally
+verbatim; runner execution confirmed by watching the CI on this
+push. Verification ran two rounds: the verifier's first verdict was
+DO-NOT-LAND on four documentation defects (a phantom
+updatePredictor R method named in the new Rd text and echoed in
+three design docs, a false claim that setPredictor's by-name
+column= survives the dimnames drop, a wrong TODO pin citation,
+Status lines bumped by addendum rather than literally), all fixed
+in the amended commit and re-checked (parse_Rd clean, clean-copy
+tarball R CMD check --as-cran Status OK both rounds). Gates:
+install --preclean, tests/cpp plain + ASAN/UBSAN clean, tinytest
+4003/0, trio bitwise 35/35 strict / 11/11 / 9/9 vs a825263 with no
+re-record (rng-neutral, and the trio doubles as proof the sweep
+moved no draw), air 0, lintr 0.
+
+THE ARC IS COMPLETE. Landed: SL 7299b8b; S0 1357e7d (+ records
+430d4ee); S1 938eb81 + 7a9c6f3 (+ records 2e5114b); S2 3cab553 +
+5acd116 (+ records e8d4812); S3 a825263 + b174737 (+ records
+f5284cf); S4 031184c. Every predictor-mutation refusal is retired:
+BCF, multinomial and heteroscedastic samplers accept transactional
+and per-observation predictor mutation, joint variant included,
+under the per-sampler empty-leaf conjunction with per-forest
+j-split pruning, and setState validates variance occupancy.
