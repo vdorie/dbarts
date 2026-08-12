@@ -555,23 +555,38 @@ summary(object, ...)
   resolves to probit, and a numeric response is unchanged. A
   count-matrix (`cbind(c1, ..., cK) ~ x`) response is only ever
   multinomial when `family = "multinomial"` is given explicitly - it is
-  never inferred. `weights`, `offset`, `subset`, `samplerOnly`,
-  `warm.start`, and `n.grow.sweeps` are all refused with an error naming
-  the limitation. `test` is supported: an `x.test` of the same column
-  structure as `x.train` reports the K-category softmax probabilities on
-  the held-out rows as `yhat.test`, shaped and levels-named exactly like
-  `yhat.train` (see ‘Value’). `keepTrees` is supported too: it retains
-  every one of the K forests' trees so `predict` can replay them at new
-  predictors afterward, reproducing `yhat.test` bitwise when `newdata`
-  matches the fit-time `test`; without `keepTrees`, `predict` errors.
-  The per-forest leaf scale follows its own K-dependent calibration (the
-  K = 2 anchor is the logistic scale \\\pi\sqrt{3}\\ divided by
-  \\\sqrt{2}\\, for the identified pairwise log-odds); `k` is read from
-  the usual node prior exactly as for any other family, but the node
-  prior's `node.scale` itself is NOT consulted - the multinomial engine
-  calibrates its own. The fit's class is `"bartMultinomial"`, not
-  `"bart"`: see ‘Value’ below and the `extract`/`fitted`/`predict`
-  methods for `bartMultinomial` objects.
+  never inferred. `weights`, `subset`, `samplerOnly`, `warm.start`, and
+  `n.grow.sweeps` are all refused with an error naming the limitation
+  (an integer weight is already expressible as row-wise count
+  replication in the response, and a non-integer one has no exact
+  augmentation sampler). `offset` is accepted only as an n x K numeric
+  matrix, entering the K forests' raw fits before the softmax, one
+  column per category, in the same layout as a count-matrix `y.train`; a
+  flat (length-n) offset is refused by name, since a common
+  per-observation shift is the softmax's own null direction and is
+  identically inert. `offset` is a TRAIN-side argument only:
+  `offset.test` is refused by name too, and `yhat.test` is always
+  computed WITHOUT any category offset, even when `offset` was supplied
+  for training - a caller comparing an offset-fitted `yhat.train`
+  against `yhat.test` should keep this asymmetry in mind. A category
+  test offset is an internal-channel capability only
+  (`dbarts:::bartcoreSetCategoryTestOffset`, or the internal creators'
+  own `offset.test` argument), not reachable from `bart2`. `test` is
+  supported: an `x.test` of the same column structure as `x.train`
+  reports the K-category softmax probabilities on the held-out rows as
+  `yhat.test`, shaped and levels-named exactly like `yhat.train` (see
+  ‘Value’). `keepTrees` is supported too: it retains every one of the K
+  forests' trees so `predict` can replay them at new predictors
+  afterward, reproducing `yhat.test` bitwise when `newdata` matches the
+  fit-time `test`; without `keepTrees`, `predict` errors. The per-forest
+  leaf scale follows its own K-dependent calibration (the K = 2 anchor
+  is the logistic scale \\\pi\sqrt{3}\\ divided by \\\sqrt{2}\\, for the
+  identified pairwise log-odds); `k` is read from the usual node prior
+  exactly as for any other family, but the node prior's `node.scale`
+  itself is NOT consulted - the multinomial engine calibrates its own.
+  The fit's class is `"bartMultinomial"`, not `"bart"`: see ‘Value’
+  below and the `extract`/`fitted`/`predict` methods for
+  `bartMultinomial` objects.
 
   `family = "ordinal"` fits an ordered categorical response by a
   cumulative probit (a single forest, unlike multinomial's K): a latent
@@ -1326,7 +1341,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.218796
+#> total seconds in loop: 0.215499
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1392,7 +1407,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001392
+#> total seconds in loop: 0.001368
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
