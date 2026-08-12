@@ -878,12 +878,19 @@ static void testVarianceReportingStatePredict() {
   printf("ok: variance reporting, state, predict\n");
 }
 
-// An installed variance tree may hold a bottom this data leaves empty (here a
-// region no row can reach: a nested split on one column). Recovering 0.0 for it
-// flattened a state that failed its OWN strict-positivity check - the sampler
-// could not restore what it had just written - and zeroed s^2 for any test row
-// routed there. The multiplicative identity closes the round trip: that tree
-// abstains where it has no training support.
+// A variance tree may hold a bottom this data leaves empty (here a region no
+// row can reach: a nested split on one column). Recovering 0.0 for it flattened
+// a state that failed its OWN strict-positivity check - the sampler could not
+// restore what it had just written - and zeroed s^2 for any test row routed
+// there. The multiplicative identity closes the round trip: that tree abstains
+// where it has no training support.
+//
+// stateIsValid now REFUSES such a state, the occupancy criterion its mean
+// branch always imposed (docs/plans/multiforest-predictor-mutation.md, S3 item
+// 5), so no public route installs one: Sampler::setState gates on it and
+// installForests refuses the same construction (test_state.cpp). The
+// chain-level install below is not gated and still exercises the identity,
+// which stays live as the defense behind those refusals.
 static void testVarianceEmptyBottomStateRoundTrip() {
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
   ext_rng_setSeed(rng, 606u);
@@ -921,7 +928,8 @@ static void testVarianceEmptyBottomStateRoundTrip() {
   donor[2].value = 1.3;
   donor[3].value = 0.7;  // the unreachable bottom
   donor[4].value = 1.1;
-  check(chain.stateIsValid(state), "hand-built variance state validates");
+  check(!chain.stateIsValid(state),
+        "a variance state with an unoccupied bottom is refused");
   check(chain.setState(state), "hand-built variance state restores");
 
   ChainStateData round;
@@ -929,8 +937,8 @@ static void testVarianceEmptyBottomStateRoundTrip() {
   check(round.varianceTrees[0].size() == 5, "the installed tree round trips");
   check(round.varianceTrees[0][3].value == 1.0,
         "an empty variance bottom flattens as the multiplicative identity");
-  check(chain.stateIsValid(round),
-        "a flattened state with an empty variance bottom validates");
+  check(!chain.stateIsValid(round),
+        "and the flattened state is refused on the same criterion");
   check(chain.setState(round), "and restores into the sampler that wrote it");
 
   ext_rng_destroy(rng);

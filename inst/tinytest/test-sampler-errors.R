@@ -177,38 +177,43 @@ sampler.aft <- dbarts::dbarts(
 sampler.aft$setSigma(0.7)
 expect_equal(sampler.aft$getSigmas(), 0.7)
 
-# The transactional and per-observation predictor entries are refused on a
-# heteroscedastic sampler: the variance forest holds its trees outside the
-# forest vector revalidateAllChains loops, so an accepted change would leave
-# s^2(x) routed by the predictors the forest was built with. The forced paths,
-# setCutPoints and setData re-route it (setData resizes its n-sized buffers
-# first), and are covered by the mutation test file.
+# The transactional and per-observation predictor entries are accepted on a
+# heteroscedastic sampler: the two-phase revalidation and the session's cell
+# guard reach the variance forest, so every variance tree is re-routed with the
+# mean ones or the change is refused - the transaction rolling back, or the row
+# declining (docs/plans/multiforest-predictor-mutation.md, S3; these three
+# refusals are INVERTED in place). The forced paths, setCutPoints and setData
+# re-route it too (setData resizes its n-sized buffers first), and are covered
+# by the mutation test file.
+# Its own sampler: these entries now INSTALL, so driving them on
+# sampler.variance would move the surface the recalibration assertions below
+# measure.
+sampler.mutable <- dbarts::dbarts(
+  y ~ x + z,
+  train,
+  control = control,
+  variance = TRUE,
+  n.trees.variance = 10L
+)
 xVariance <- as.matrix(train[, c("x", "z")])
 xReplacement <- xVariance
 xReplacement[, 1L] <- rev(xVariance[, 1L])
-varianceRefusal <- "variance forest keeps routing observations"
 # a single column without forceUpdate is the transactional path (a whole
-# matrix defaults to the forced one, which is routed and tested elsewhere)
-expect_error(
-  sampler.variance$setPredictor(xReplacement[, 1L], 1L),
-  varianceRefusal
-)
-expect_error(
-  sampler.variance$setPredictor(
-    xReplacement[, 1L],
-    1L,
-    forceUpdate = "partial"
-  ),
-  varianceRefusal
-)
-expect_error(
-  dbarts::updatePredictorPerObservationJointly(
-    list(sampler.variance),
-    xReplacement[, 1L],
-    "x"
-  ),
-  varianceRefusal
-)
+# matrix defaults to the forced one, which is routed and tested elsewhere). A
+# row-reversal preserves every value and so every cut, but re-routes rows: the
+# verdict is the engine's, and both arms leave a runnable sampler
+expect_true(is.logical(sampler.mutable$setPredictor(xReplacement[, 1L], 1L)))
+expect_true(any(sampler.mutable$setPredictor(
+  xReplacement[, 1L],
+  1L,
+  forceUpdate = "partial"
+)))
+expect_true(any(dbarts::updatePredictorPerObservationJointly(
+  list(sampler.mutable),
+  xReplacement[, 1L],
+  "x"
+)))
+expect_true(all(is.finite(sampler.mutable$run(0L, 2L)$variance)))
 
 # resid.prior calibrates the variance forest's scale leaf rather than a sigma
 # that is not a parameter here, so setModel recalibrates the leaf from the
@@ -305,9 +310,9 @@ expect_error(
 rm(
   binaryRefusal,
   varianceScaleRefusal,
+  sampler.mutable,
   xVariance,
   xReplacement,
-  varianceRefusal,
   varianceSurface,
   modelWithNewPrior,
   recalibrated,

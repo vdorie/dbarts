@@ -144,7 +144,7 @@ static FuzzSnapshot<S> fuzzCapture(S& s) {
     size_t m = ch.numVarianceTrees();
     for (size_t j = 0; j < m; ++j)
       g.varianceTrees[c].push_back(
-        fuzzCaptureTree(ch.varianceTreeForTesting(j), n));
+        fuzzCaptureTree(ch.varianceTree(j), n));
     const double* factors = ch.varianceFactorsForTesting();
     g.varianceFactors[c].assign(factors, factors + m * n);
     const double* combined = ch.varianceFits();
@@ -298,9 +298,7 @@ struct ConfigSpec {
   std::vector<ColSpec> cols;
   size_t numChains;
   unsigned opMask;
-  // > 0 builds a heteroscedastic sampler (constant-leaf gaussian only); the
-  // mask must then exclude every predictor-side op, which the bridge refuses
-  // under a variance forest until the routing repairs land.
+  // > 0 builds a heteroscedastic sampler (constant-leaf gaussian only)
   size_t numVarianceTrees = 0;
 };
 
@@ -1014,10 +1012,12 @@ static void testSnapshotCoversEveryFamily() {
 // session decided what an independent count says it must, and that the trees
 // pruning skipped came through untouched to the bit.
 
-// The two multi-forest shapes, each owning the buffers it lends the sampler
-// for its life. Both instantiate Sampler<ConstantGaussianLeaf>; only the
-// coupling differs, which is the point - one session implementation serves
-// either.
+// The three widened shapes, each owning the buffers it lends the sampler for
+// its life. All instantiate Sampler<ConstantGaussianLeaf>; only the coupling
+// differs, which is the point - one session implementation serves each. The
+// heteroscedastic build is not multi-forest (numForests == 1) but carries the
+// variance forest, the third ensemble class the session and the revalidation
+// walk, so it rides the same fixture.
 struct MultiForestFixture {
   std::vector<double> x, y, z;
   std::vector<int> counts, trials;
@@ -1096,13 +1096,50 @@ struct MultiForestFixture {
     Results empty;
     sampler->run(40, 0, empty);
   }
+
+  // one mean forest plus the variance forest: scale signal on column 1 and
+  // mean signal on column 0, so both ensembles split and the pruning has
+  // something to skip in either. restrictMean confines the mean forest to
+  // columns 0 and 1, which leaves columns 2 and 3 reachable by the variance
+  // forest ALONE - the shape in which the variance forest is the only ensemble
+  // that can veto, and the only one whose partition a transaction moves.
+  void buildHeteroscedastic(size_t n_, size_t p_, size_t numChains,
+                            std::uint32_t seed, bool restrictMean = false) {
+    n = n_;
+    p = p_;
+    x.resize(n * p);
+    for (double& v : x) v = runif01();
+    y.resize(n);
+    for (size_t i = 0; i < n; ++i) {
+      double u1 = runif01(), u2 = runif01();
+      double e = std::sqrt(-2.0 * std::log(u1)) *
+                 std::cos(6.283185307179586 * u2);
+      y[i] = 3.0 * x[i] + (x[i + n] < 0.5 ? 0.25 : 1.5) * e;
+    }
+    SamplerOptions options;
+    options.numChains = numChains;
+    options.numTrees = 10;
+    options.numVarianceTrees = 8;
+    moderators = {0, 1};
+    if (restrictMean) {
+      options.forestColumns = moderators.data();
+      options.numForestColumns = moderators.size();
+    }
+    makeRngs(numChains, seed);
+    sampler = std::make_unique<Sampler<ConstantGaussianLeaf>>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+      3.0, fuzzRawScale, options, rngs.data());
+    Results empty;
+    sampler->run(40, 0, empty);
+  }
 };
 
 // F5's oracle: its own per-tree leaf counts over EVERY tree of EVERY forest of
-// EVERY chain, pruned or not, maintained independently of the session. The
-// engine's cached set is a strict subset of this one, so a pruning bug that
-// dropped a tree able to veto shows up as a decision the oracle refuses and
-// the engine accepts.
+// EVERY chain - and, on a heteroscedastic sampler, every variance tree -
+// pruned or not, maintained independently of the session. The engine's cached
+// set is a strict subset of this one, so a pruning bug that dropped a tree
+// able to veto shows up as a decision the oracle refuses and the engine
+// accepts.
 struct MaskOracle {
   std::vector<const Tree*> trees;
   std::vector<std::vector<int32_t>> obsLeaf;            // tree, observation
@@ -1116,6 +1153,9 @@ struct MaskOracle {
       for (size_t f = 0; f < ch.numForests(); ++f)
         for (size_t t = 0; t < ch.numTreesInForest(f); ++t)
           trees.push_back(&ch.treeInForest(f, t));
+      if (!ch.hasVarianceForest()) continue;
+      for (size_t j = 0; j < ch.numVarianceTrees(); ++j)
+        trees.push_back(&ch.varianceTree(j));
     }
     obsLeaf.assign(trees.size(), std::vector<int32_t>(n, invalidNode));
     leafCounts.resize(trees.size());
@@ -1215,15 +1255,20 @@ static void maskCandidateColumn(ext_rng* r, const double* current, size_t n,
 static void testPerObservationMaskExactness() {
   ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(r, 7311u);
-  const size_t n = 250, p = 4, numSessions = 220;
+  const size_t n = 250, p = 4;
   size_t decisions = 0, installs = 0, declines = 0, mismatches = 0;
+  size_t varianceDecisions = 0;
 
-  for (int shape = 0; shape < 2; ++shape) {
+  for (int shape = 0; shape < 3; ++shape) {
     rngState = 0x51ED270B0F71C8ull + static_cast<uint64_t>(shape);
     MultiForestFixture fixture;
     if (shape == 0) fixture.buildBCF(n, p, 2, 4200u);
-    else fixture.buildMultinomial(n, p, 1, 4300u);
+    else if (shape == 1) fixture.buildMultinomial(n, p, 1, 4300u);
+    else fixture.buildHeteroscedastic(n, p, 1, 4600u);
     Sampler<ConstantGaussianLeaf>& s(*fixture.sampler);
+    // the heteroscedastic shape carries the 1e5-decision floor on its own, the
+    // others between them, as at S2
+    size_t numSessions = shape == 2 ? 420 : 220;
     // the driver keeps the current column itself; the engine holds no matrix
     std::vector<double> current(fixture.x);
     std::vector<double> candidate;
@@ -1233,11 +1278,14 @@ static void testPerObservationMaskExactness() {
       int flavor = k % 8 == 7 ? 2 : (k % 4 == 3 ? 1 : 0);
       maskCandidateColumn(r, current.data() + column * n, n, flavor,
                           candidate);
-      decisions += maskOracleSession(
+      size_t made = maskOracleSession(
         s, r, column, candidate.data(),
         shape == 0 ? "F5: the BCF session's finalize holds"
-                   : "F5: the multinomial session's finalize holds",
+        : shape == 1 ? "F5: the multinomial session's finalize holds"
+                     : "F5: the heteroscedastic session's finalize holds",
         installed, installs, declines, mismatches);
+      decisions += made;
+      if (shape == 2) varianceDecisions += made;
       // the engine keeps no predictor matrix, so the driver tracks the
       // installed cells itself, as the R layer does
       for (size_t i = 0; i < n; ++i)
@@ -1247,10 +1295,13 @@ static void testPerObservationMaskExactness() {
 
   check(mismatches == 0, "F5: every install decision matches the oracle");
   check(decisions >= 100000, "F5: at least 1e5 install decisions");
+  check(varianceDecisions >= 100000,
+        "F5: at least 1e5 of them under a variance forest");
   check(installs > 0 && declines > 0, "F5: both verdicts occur");
   ext_rng_destroy(r);
-  printf("ok: per-observation mask exactness (%zu decisions, %zu installed, "
-         "%zu declined)\n", decisions, installs, declines);
+  printf("ok: per-observation mask exactness (%zu decisions, %zu under a "
+         "variance forest, %zu installed, %zu declined)\n", decisions,
+         varianceDecisions, installs, declines);
 }
 
 // One tree's F6 families: everything an untouched tree must carry through a
@@ -1276,6 +1327,8 @@ static bool f6FlatEqual(const std::vector<FlatNode>& a,
 struct F6Capture {
   std::vector<std::vector<std::vector<F6Tree>>> trees;    // chain, forest, tree
   std::vector<std::vector<std::vector<double>>> totals;   // chain, forest
+  std::vector<std::vector<F6Tree>> varianceTrees;         // chain, tree
+  std::vector<std::vector<double>> combinedVariance;      // chain
   SamplerStateData state;                                 // recovered leaves
 };
 
@@ -1285,9 +1338,32 @@ static F6Capture f6Capture(Sampler<ConstantGaussianLeaf>& s) {
   s.getState(out.state);
   out.trees.resize(s.numChains());
   out.totals.resize(s.numChains());
+  out.varianceTrees.resize(s.numChains());
+  out.combinedVariance.resize(s.numChains());
   std::vector<double> slab;
   for (size_t c = 0; c < s.numChains(); ++c) {
     const auto& ch(s.chain(c));
+    if (ch.hasVarianceForest()) {
+      // the variance twin of the per-forest slab: the tree's own factors
+      // h_j(x_i), and the product s^2(x) they compose
+      const double* factors = ch.varianceFactorsForTesting();
+      size_t m = ch.numVarianceTrees();
+      out.varianceTrees[c].resize(m);
+      for (size_t j = 0; j < m; ++j) {
+        const Tree& tree(ch.varianceTree(j));
+        F6Tree& e(out.varianceTrees[c][j]);
+        e.nodes.resize(tree.nodes.size());
+        for (size_t i = 0; i < tree.nodes.size(); ++i) {
+          const Node& nd(tree.nodes[i]);
+          e.nodes[i] = FuzzNode{nd.leftChild, nd.rule.variableIndex,
+                                nd.rule.bits, nd.begin, nd.end};
+        }
+        e.indices.assign(tree.indices, tree.indices + n);
+        e.fits.assign(factors + j * n, factors + (j + 1) * n);
+      }
+      const double* combined = ch.varianceFits();
+      out.combinedVariance[c].assign(combined, combined + n);
+    }
     for (size_t f = 0; f < ch.numForests(); ++f) {
       size_t numTrees = ch.numTreesInForest(f);
       slab.assign(n * numTrees, 0.0);
@@ -1320,19 +1396,22 @@ static F6Capture f6Capture(Sampler<ConstantGaussianLeaf>& s) {
 // totalFits keeps every contribution bitwise, where an unpruned rebuild would
 // round trip it through a subtract and an add.
 //
-// Asserted for f >= 1 only. Forest 0 is NEVER pruned, by rule: its
-// subtract-then-add round trip IS the recorded single-forest arithmetic, and
-// (T - f) + f differs from T at the last ulp on a few percent of rows, so
-// pruning it would move an equivalence baseline. The asymmetry is deliberate
-// and the count this test prints is the measurement of it - not a bug.
+// Asserted for f >= 1 and for the variance forest, whose factor slab and
+// combined variance are the scale analogues of a fit slab and a totalFits.
+// Forest 0 is NEVER pruned, by rule: its subtract-then-add round trip IS the
+// recorded single-forest arithmetic, and (T - f) + f differs from T at the last
+// ulp on a few percent of rows, so pruning it would move an equivalence
+// baseline. The asymmetry is deliberate and the count this test prints is the
+// measurement of it - not a bug.
 static void testUntouchedTreeExactness() {
-  size_t skipped = 0, forestZeroTotalMoves = 0;
-  for (int shape = 0; shape < 2; ++shape) {
+  size_t skipped = 0, forestZeroTotalMoves = 0, varianceSkipped = 0;
+  for (int shape = 0; shape < 3; ++shape) {
     rngState = 0x6C1F3A55D0027Bull + static_cast<uint64_t>(shape);
     const size_t n = 240, p = 4;
     MultiForestFixture fixture;
     if (shape == 0) fixture.buildBCF(n, p, 2, 4400u);
-    else fixture.buildMultinomial(n, p, 1, 4500u);
+    else if (shape == 1) fixture.buildMultinomial(n, p, 1, 4500u);
+    else fixture.buildHeteroscedastic(n, p, 1, 4700u);
     Sampler<ConstantGaussianLeaf>& s(*fixture.sampler);
 
     ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -1375,6 +1454,28 @@ static void testUntouchedTreeExactness() {
                   "F6: a forest no touched column reaches keeps its totalFits "
                   "bitwise");
         }
+        // the same for the variance forest, which prunes on the same predicate
+        // with no forest-0 exemption
+        if (ch.hasVarianceForest()) {
+          bool varianceUntouched = true;
+          for (size_t j = 0; j < ch.numVarianceTrees(); ++j) {
+            std::memset(uses.data(), 0, p * sizeof(std::uint32_t));
+            ch.varianceTree(j).countVariableUses(uses.data());
+            if (uses[column] != 0) { varianceUntouched = false; continue; }
+            ++varianceSkipped;
+            check(before.varianceTrees[c][j] == after.varianceTrees[c][j],
+                  "F6: an untouched variance tree's rules, ranges, indices and "
+                  "factors are bitwise unchanged");
+            check(f6FlatEqual(before.state.chains[c].varianceTrees[j],
+                              after.state.chains[c].varianceTrees[j]),
+                  "F6: an untouched variance tree's leaf factors are bitwise "
+                  "unchanged");
+          }
+          if (varianceUntouched)
+            check(before.combinedVariance[c] == after.combinedVariance[c],
+                  "F6: a variance forest no touched column reaches keeps "
+                  "s^2(x) bitwise");
+        }
         // the measured asymmetry, reported rather than asserted
         for (size_t i = 0; i < n; ++i)
           if (before.totals[c][0][i] != after.totals[c][0][i])
@@ -1384,9 +1485,157 @@ static void testUntouchedTreeExactness() {
     ext_rng_destroy(r);
   }
   check(skipped > 0, "F6: the pruning actually skipped trees");
-  printf("ok: untouched-tree exactness (%zu pruned trees checked; forest 0's "
-         "unpruned round trip moved totalFits on %zu rows)\n",
-         skipped, forestZeroTotalMoves);
+  check(varianceSkipped > 0, "F6: the pruning skipped variance trees too");
+  printf("ok: untouched-tree exactness (%zu pruned trees checked, %zu of them "
+         "variance; forest 0's unpruned round trip moved totalFits on %zu "
+         "rows)\n", skipped, varianceSkipped, forestZeroTotalMoves);
+}
+
+// ---------------------------------------------------------------------------
+// F9 and F10 (docs/plans/multiforest-predictor-mutation.md): the two gates on
+// the variance forest's half of the transaction. F9 is the rollback identity,
+// F10 the recovery ordering.
+
+// Node-indexed leaf factors of variance tree j, read off the LIVE partition:
+// the same quantity the validate phase recovers, computed independently here
+// so F10 compares against a value the engine did not hand us.
+static void f10NodeFactors(const Tree& tree, const double* factor,
+                           int32_t nodeIndex, std::vector<double>& out) {
+  const Node& node(tree.at(nodeIndex));
+  if (node.isBottom()) {
+    if (node.numObservations() > 0)
+      out[static_cast<size_t>(nodeIndex)] = factor[tree.indices[node.begin]];
+    return;
+  }
+  f10NodeFactors(tree, factor, node.leftChild, out);
+  f10NodeFactors(tree, factor, node.leftChild + 1, out);
+}
+
+// F10: after an ACCEPTED transaction, every observation's factor is the
+// PRE-transaction factor of the leaf it now lands in. That is the ordering
+// claim - the recovery reads each leaf's current members before any partition
+// change - stated over a quantity a caller can see. Recovering after the
+// repartition instead reads the new partition's members out of the old leaves'
+// slots, which moves a factor wherever the partition moved. It does not cover
+// the missing-direction drop, which routes nothing and so is order-free by
+// construction (tree.hpp, dropStaleMissingDirections).
+static void testVarianceRecoveryOrdering() {
+  rngState = 0x2D77C41B5E0093ull;
+  const size_t n = 240, p = 4;
+  MultiForestFixture fixture;
+  fixture.buildHeteroscedastic(n, p, 1, 4800u);
+  Sampler<ConstantGaussianLeaf>& s(*fixture.sampler);
+
+  ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(r, 7511u);
+  std::vector<double> current(fixture.x);
+  size_t accepted = 0, moved = 0;
+
+  for (size_t pass = 0; pass < 3; ++pass) {
+    for (size_t column = 0; column < p; ++column) {
+      std::vector<double> candidate(n);
+      for (size_t i = 0; i < n; ++i)
+        candidate[i] = current[column * n + i] + 0.01 * (fuzzUnif(r) - 0.5);
+
+      const auto& ch(s.chain(0));
+      size_t m = ch.numVarianceTrees();
+      std::vector<std::vector<double>> nodeFactors(m);
+      std::vector<std::vector<int32_t>> ownerBefore(m);
+      const double* factorsBefore = ch.varianceFactorsForTesting();
+      for (size_t j = 0; j < m; ++j) {
+        const Tree& tree(ch.varianceTree(j));
+        nodeFactors[j].assign(tree.nodes.size(), 0.0);
+        f10NodeFactors(tree, factorsBefore + j * n, 0, nodeFactors[j]);
+        ownerBefore[j].assign(n, invalidNode);
+        fuzzFillOwner(tree, 0, ownerBefore[j]);
+      }
+
+      if (s.updatePredictor(candidate.data(), &column, 1, false, false) !=
+          PredictorUpdateResult::accepted)
+        continue;
+      ++accepted;
+      for (size_t i = 0; i < n; ++i) current[column * n + i] = candidate[i];
+
+      const double* factorsAfter = ch.varianceFactorsForTesting();
+      std::vector<int32_t> ownerAfter(n, invalidNode);
+      for (size_t j = 0; j < m; ++j) {
+        fuzzFillOwner(ch.varianceTree(j), 0, ownerAfter);
+        for (size_t i = 0; i < n; ++i) {
+          if (ownerAfter[i] != ownerBefore[j][i]) ++moved;
+          check(factorsAfter[j * n + i] ==
+                  nodeFactors[j][static_cast<size_t>(ownerAfter[i])],
+                "F10: a rebuilt factor is its new leaf's pre-transaction "
+                "factor");
+        }
+      }
+    }
+  }
+  check(accepted > 0, "F10: at least one transaction was accepted");
+  check(moved > 0, "F10: the accepted transactions moved variance partitions");
+  ext_rng_destroy(r);
+  printf("ok: variance recovery ordering (%zu accepted transactions, %zu "
+         "observations changed variance leaves)\n", accepted, moved);
+}
+
+// F9: a ROLLED BACK transaction leaves a heteroscedastic sampler bitwise where
+// it was, under the widened snapshot - which covers each variance tree's
+// partition (by leaf assignment), the per-tree factor slab and s^2(x). The
+// validate phase re-routes the variance trees before the veto fires, so
+// repartitionTrees has to put them back; without its variance arm s^2(x) stays
+// routed by the rejected proposal.
+static void testVarianceRollback() {
+  rngState = 0x71B9E0C33A4D15ull;
+  const size_t n = 240, p = 4;
+  MultiForestFixture fixture;
+  fixture.buildHeteroscedastic(n, p, 1, 4900u, true);
+  Sampler<ConstantGaussianLeaf>& s(*fixture.sampler);
+  using Snap = FuzzSnapshot<Sampler<ConstantGaussianLeaf>>;
+
+  size_t rejected = 0, varianceObjected = 0;
+  std::vector<std::uint32_t> uses(p);
+  for (size_t column = 0; column < p; ++column) {
+    // two levels of the existing grid: every tree splitting on the column
+    // empties a leaf, so the whole transaction reverts
+    std::vector<double> candidate(n);
+    for (size_t i = 0; i < n; ++i) candidate[i] = i % 2 == 0 ? 0.25 : 0.75;
+    // columns 2 and 3 are outside the mean forest's mask, so a veto there is
+    // the variance forest's alone - the arm on which the rollback has variance
+    // partitions to restore at all
+    const auto& ch(s.chain(0));
+    size_t varianceSplitters = 0;
+    for (size_t j = 0; j < ch.numVarianceTrees(); ++j) {
+      std::memset(uses.data(), 0, p * sizeof(std::uint32_t));
+      ch.varianceTree(j).countVariableUses(uses.data());
+      if (uses[column] != 0) ++varianceSplitters;
+    }
+    Snap before = fuzzCapture(s);
+    PredictorUpdateResult res =
+      s.updatePredictor(candidate.data(), &column, 1, false, false);
+    if (res == PredictorUpdateResult::accepted) continue;
+    ++rejected;
+    if (column >= 2 && varianceSplitters > 0) ++varianceObjected;
+    check(fuzzSnapshotsEqual(before, fuzzCapture(s)),
+          "F9: a rolled-back transaction leaves the variance forest bitwise");
+  }
+  // the whole-matrix flavor too, whose null column list prunes nothing
+  {
+    std::vector<double> candidate(n * p);
+    for (size_t i = 0; i < n * p; ++i) candidate[i] = i % 2 == 0 ? 0.25 : 0.75;
+    Snap before = fuzzCapture(s);
+    if (s.setPredictor(candidate.data(), false, false) !=
+        PredictorUpdateResult::accepted) {
+      ++rejected;
+      check(fuzzSnapshotsEqual(before, fuzzCapture(s)),
+            "F9: a rolled-back whole-matrix swap leaves the variance forest "
+            "bitwise");
+    }
+  }
+  check(rejected > 0, "F9: at least one transaction rolled back");
+  check(varianceObjected > 0,
+        "F9: at least one rollback had the variance forest as sole objector");
+  printf("ok: variance rollback identity (%zu rolled-back transactions, %zu "
+         "with the variance forest the sole objector)\n", rejected,
+         varianceObjected);
 }
 
 static void testMutationFuzzer(int numSeeds) {
@@ -1414,13 +1663,17 @@ static void testMutationFuzzer(int numSeeds) {
     // setCuts joined the safe surface once setCutPoints re-routed the variance
     // forest through forceRefreshTrees, and setData once applyNewData resized
     // its seven n-sized allocations and re-routed it - the op the fuzzer runs
-    // at a fresh count every time. The transactional predictor ops and
-    // setSigma stay out for the whole arc: they are refused at the bridge
-    // (setSigma is additionally an engine no-op under a variance forest).
+    // at a fresh count every time. The transactional predictor paths and the
+    // per-observation session joined when the two-phase revalidation and the
+    // session's cell guard reached the variance forest (S3), so this config
+    // now runs every op but setSigma, which stays out because it is an engine
+    // no-op under a variance forest (the forest IS the residual variance).
     {"heteroscedastic", ResponseFamily::gaussian, {ord, ord, ord}, 1,
      (1u << OP_SET_RESPONSE) | (1u << OP_SET_WEIGHTS) | (1u << OP_SET_OFFSET) |
        (1u << OP_SET_TEST) | (1u << OP_RUN) | (1u << OP_STATE) |
-       (1u << OP_SET_CUTS) | (1u << OP_SET_DATA),
+       (1u << OP_SET_CUTS) | (1u << OP_SET_DATA) |
+       (1u << OP_SET_PREDICTOR) | (1u << OP_UPDATE_COLUMNS) |
+       (1u << OP_PER_OBS) | (1u << OP_SESSION_ABANDON),
      8},
   };
   // the multi-forest shapes, on their own runners: one continuous and one
@@ -1453,5 +1706,7 @@ void runFuzzTests(int numSeeds) {
   testSnapshotCoversEveryFamily();
   testPerObservationMaskExactness();
   testUntouchedTreeExactness();
+  testVarianceRecoveryOrdering();
+  testVarianceRollback();
   testMutationFuzzer(numSeeds);
 }

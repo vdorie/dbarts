@@ -22,7 +22,6 @@ using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseBCFTestSurface;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
-using bartcore_bridge::refuseMultiForestTransactionalUpdate;
 using bartcore_bridge::refusePinnedSigmaChange;
 using bartcore_bridge::refuseVarianceForestScaleUpdate;
 using bartcore_bridge::ResponseConduit;
@@ -264,15 +263,12 @@ int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out) {
 
 int dbarts_sampler_setPredictor(dbarts_sampler* sampler, const double* x,
                                 int forceUpdate, int updateCutPoints) {
+  // Unguarded again, as it was before the stop-loss, but for the opposite
+  // reason: the two-phase transaction now covers every forest and the variance
+  // forest, so an unforced call here vetoes or rolls back rather than
+  // misrouting. Mirrors the R bridge's bartcore_setPredictor, which carries no
+  // guard either.
   bartcore::SamplerBase& engine(samplerOf(sampler));
-  // reachable today: dbartsSpec(variance = ) hands a consumer a flat-creatable
-  // heteroscedastic sampler, and an unforced transactional call here used to
-  // accept and silently misroute s^2(x). One shared helper with the R bridge's
-  // bartcore_setPredictor, which this entry mirrors exactly: its multi-forest
-  // clause retired when the revalidation widened across forests_, so a flat
-  // BCF now takes a transactional update here as it does there.
-  refuseMultiForestTransactionalUpdate(engine, "dbarts_sampler_setPredictor",
-                                       forceUpdate != 0);
   bartcore::SamplerShape shape = engine.shape();
   size_t numObservations = shape.numObservations;
   for (size_t j = 0; j < shape.numPredictors; ++j)
@@ -290,10 +286,8 @@ int dbarts_sampler_setPredictor(dbarts_sampler* sampler, const double* x,
 int dbarts_sampler_updatePredictor(dbarts_sampler* sampler, const double* x,
                                    const size_t* columns, size_t numColumns,
                                    int forceUpdate, int updateCutPoints) {
+  // unguarded, as dbarts_sampler_setPredictor above
   bartcore::SamplerBase& engine(samplerOf(sampler));
-  // same guard as dbarts_sampler_setPredictor above
-  refuseMultiForestTransactionalUpdate(
-    engine, "dbarts_sampler_updatePredictor", forceUpdate != 0);
   bartcore::SamplerShape shape = engine.shape();
   size_t numObservations = shape.numObservations;
   for (size_t k = 0; k < numColumns; ++k) {

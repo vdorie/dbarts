@@ -143,47 +143,135 @@ sScratchData <- sqrt(apply(scratchData$run(150L, 100L)$variance, 1L, mean))
 expect_true(cor(sSwapped, sScratchData) > 0.9)
 expect_true(abs(mean(sSwapped) / mean(sScratchData) - 1) < 0.15)
 
-# ---- the transactional predictor surface, pinned one entry at a time ahead of
-# the widening (docs/plans/multiforest-predictor-mutation.md, S0). The variance
-# forest sits outside the forest vector revalidateAllChains loops, so an
-# accepted transactional change would leave s^2(x) routed by the old codes:
-# every transactional entry refuses, while the forced entries and setCutPoints
-# reach it (the sections above measure that they do) and are the supported
-# heteroscedastic predictor mutations. S3 INVERTS these refusals in place
-# rather than deleting them. Its own sampler, at the end of the file, so no
-# assertion above sees a different rng stream.
+# ---- the transactional predictor surface, one entry at a time. S0 pinned all
+# four as refusing; S3 INVERTS those refusals in place
+# (docs/plans/multiforest-predictor-mutation.md): the two-phase revalidation and
+# the per-observation session's cell guard now reach the variance forest, so a
+# transactional change either re-routes every variance tree with the mean ones
+# or is refused - the whole transaction rolling back, or the row declining -
+# and never installs a partition s^2(x) would misroute. The forced entries and
+# setCutPoints reach it as before (the sections above measure that they do).
+# Its own sampler, at the end of the file, so no assertion above sees a
+# different rng stream.
 set.seed(47, sample.kind = "Rejection")
 nPin <- 200L
 xPin <- cbind(x1 = runif(nPin), x2 = runif(nPin), x3 = runif(nPin))
 yPin <- 2 * xPin[, 1L] + ifelse(xPin[, 2L] < 0.5, 0.3, 1.5) * rnorm(nPin)
 pinned <- buildVarianceSampler(xPin, yPin)
 invisible(pinned$run(50L, 0L))
-# a shrunk-and-shifted design: every value stays inside the build range, so
-# nothing here turns on an out-of-grid value
-xPinNew <- xPin * 0.9 + 0.05
-expect_error(
-  pinned$setPredictor(xPinNew, forceUpdate = FALSE),
-  "variance forest"
+# a jitter small enough that no leaf of any tree - mean or variance - empties,
+# so the ACCEPT arm is what runs
+xPinJitter <- pmin(
+  pmax(xPin + matrix(rnorm(nPin * 3L, 0, 0.005), nPin), 0),
+  1
 )
-expect_error(
-  pinned$setPredictor(xPinNew[, 1L], column = 1L, forceUpdate = FALSE),
-  "variance forest"
+# the joint entry resolves its column by NAME, and a whole-matrix replacement
+# leaves data@x without dimnames (pre-existing R-layer behavior, shared with
+# every other shape's transactional path), so it runs first
+installedJointly <- dbarts::updatePredictorPerObservationJointly(
+  pinned,
+  xPinJitter[, 3L],
+  "x3"
 )
-expect_error(
-  pinned$setPredictor(xPinNew[, 1L], column = 1L, forceUpdate = "partial"),
-  "variance forest"
+expect_true(is.logical(installedJointly) && length(installedJointly) == nPin)
+expect_true(any(installedJointly))
+installed <- pinned$setPredictor(
+  xPinJitter[, 2L],
+  column = 2L,
+  forceUpdate = "partial"
 )
-expect_error(
-  dbarts::updatePredictorPerObservationJointly(pinned, xPinNew[, 1L], "x1"),
-  "variance forest"
-)
+expect_true(is.logical(installed) && length(installed) == nPin)
+expect_true(any(installed))
+expect_true(pinned$setPredictor(
+  xPinJitter[, 1L],
+  column = 1L,
+  forceUpdate = FALSE,
+  updateCutPoints = FALSE
+))
+expect_true(pinned$setPredictor(xPinJitter, forceUpdate = FALSE))
+# the DECLINE arm, beside each: a two-level replacement column empties leaves,
+# so the whole transaction rolls back and the per-row session declines the rows
+# that would empty one
+xPinTwoLevel <- ifelse(seq_len(nPin) %% 2L == 0L, 0.25, 0.75)
+expect_false(pinned$setPredictor(
+  xPinTwoLevel,
+  column = 1L,
+  forceUpdate = FALSE,
+  updateCutPoints = FALSE
+))
+expect_true(any(
+  !pinned$setPredictor(
+    xPinTwoLevel,
+    column = 1L,
+    forceUpdate = "partial"
+  )
+))
 # ... while the forced entries and the cut-grid change stay supported
+xPinNew <- xPin * 0.9 + 0.05
 expect_silent(pinned$setPredictor(xPinNew, forceUpdate = TRUE))
 expect_silent(pinned$setPredictor(xPin[, 1L], column = 1L, forceUpdate = TRUE))
 expect_silent(pinned$setCutPoints(rep(list(c(1 / 3, 2 / 3)), 3L), 1:3))
 pinnedRun <- pinned$run(0L, 5L)
 expect_true(all(is.finite(pinnedRun$variance)))
 expect_true(all(pinnedRun$variance > 0))
+
+# ---- setState now validates variance tree occupancy ----
+# The transactional entries above install a row only if it empties no leaf of
+# any tree, the variance forest included. setState imposed that criterion on
+# every mean tree and on no variance tree, so the route the old refusal message
+# recommended admitted states the veto refuses: a variance bottom no row reaches
+# carries no drawn scale. It is checked now
+# (docs/plans/multiforest-predictor-mutation.md, S3 item 5), which is a
+# behavior CHANGE - such a state used to install.
+set.seed(53, sample.kind = "Rejection")
+stateSampler <- buildVarianceSampler(xPin, yPin)
+# an explicit grid, so the hand-built splits below sit on known cut values
+stateSampler$setCutPoints(list(c(0.25, 0.5, 0.75)), 1L)
+invisible(stateSampler$run(20L, 0L))
+stateSampler$storeState()
+# replace variance tree 1 with a five-node tree: an ordinal split, then a
+# NESTED split on the same column. The pre-order layout is (root, root's left
+# child, that child's two leaves, root's right leaf), so the second split
+# lands inside the first's left branch.
+replaceFirstVarianceTree <- function(state, values) {
+  chainState <- state[[1L]]
+  sizes <- chainState$variance.sizes
+  keptNodes <- -seq_len(sizes[1L])
+  keptBytes <- -seq_len(sizes[1L] * 8L)
+  chainState$variance.vars <- c(
+    c(1L, 1L, -1L, -1L, -1L),
+    chainState$variance.vars[keptNodes]
+  )
+  chainState$variance.values <- c(
+    writeBin(values, raw()),
+    chainState$variance.values[keptBytes]
+  )
+  # bits 1-2 of the flag byte hold the node kind; 2 is an ordinal split
+  chainState$variance.flags <- c(
+    as.raw(c(2L, 2L, 0L, 0L, 0L)),
+    chainState$variance.flags[keptNodes]
+  )
+  sizes[1L] <- 5L
+  chainState$variance.sizes <- sizes
+  state[[1L]] <- chainState
+  state
+}
+# x1 <= 0.25 and then x1 > 0.75: a region no row can reach
+strandedState <- replaceFirstVarianceTree(
+  stateSampler$state,
+  c(0.25, 0.75, 1.3, 0.7, 1.1)
+)
+expect_error(stateSampler$setState(strandedState), "not consistent")
+# non-vacuity: the same hand-built shape with the nesting the other way round
+# leaves every bottom occupied and installs
+occupiedState <- replaceFirstVarianceTree(
+  stateSampler$state,
+  c(0.5, 0.25, 1.3, 0.7, 1.1)
+)
+expect_silent(stateSampler$setState(occupiedState))
+stateRun <- stateSampler$run(0L, 3L)
+expect_true(all(is.finite(stateRun$variance)))
+expect_true(all(stateRun$variance > 0))
 
 rm(
   n,
@@ -232,6 +320,15 @@ rm(
   xPin,
   yPin,
   pinned,
+  xPinJitter,
+  installed,
+  installedJointly,
+  xPinTwoLevel,
   xPinNew,
-  pinnedRun
+  pinnedRun,
+  stateSampler,
+  replaceFirstVarianceTree,
+  strandedState,
+  occupiedState,
+  stateRun
 )

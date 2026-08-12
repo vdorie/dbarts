@@ -771,13 +771,16 @@
             refusal happens
             before any live state is touched, so the destination sampler is
             unaffected and usable afterward.
-      \item A heteroscedastic sampler (\code{variance = TRUE}) now refuses
-            transactional and per-observation predictor mutation rather
-            than silently reporting a variance surface routed by the
-            previous predictors. The refusals on the transactional
-            \code{$setPredictor} and \code{$updatePredictor} and on
-            per-observation updates are lifted in a later release, as each
-            path is routed correctly.
+      \item A heteroscedastic sampler (\code{variance = TRUE}) accepts
+            transactional and per-observation predictor mutation, which it
+            refused rather than silently reporting a variance surface
+            routed by the previous predictors: every variance tree is now
+            re-routed with the mean forest's, and a change that would leave
+            a variance leaf empty rolls the whole transaction back, or
+            declines the row, instead of installing. \code{$setState}
+            validates variance tree occupancy as it has always validated
+            it for mean trees, so a state carrying an unoccupied variance
+            leaf is refused where it previously installed.
       \item \code{$setPredictor} and \code{$updatePredictor} with
             \code{forceUpdate = TRUE}, and \code{$setCutPoints}, re-route a
             heteroscedastic sampler's variance forest, so the reported
@@ -817,15 +820,13 @@
             chain would empty; otherwise the whole change rolls back and
             the call reports \code{FALSE}, exactly as on a single-forest
             sampler. Multinomial's rejection rate was measured as ungated
-            stress rather than covered by a verdict. Heteroscedastic
-            samplers still refuse.
+            stress rather than covered by a verdict.
       \item The per-observation update session, including
             \code{updatePredictorPerObservationJointly} and
             \code{$setPredictor(forceUpdate = "partial")}, accepts BCF and
             multinomial samplers. A row is installed only if it empties no
             leaf of any tree of any forest of any chain, and the returned
-            mask reports which rows were. Heteroscedastic samplers still
-            refuse.
+            mask reports which rows were.
       \item A BCF forest whose scale multiplier is zero now contributes
             exactly zero weight and exactly zero response for the affected
             rows instead of a near-zero floor, so the treatment surface
