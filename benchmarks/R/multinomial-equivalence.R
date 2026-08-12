@@ -379,6 +379,51 @@ runScenarios <- function() {
     c(recordChannels(bc, res, d$K), list(installed = installed))
   })
 
+  # (j) the CATEGORY OFFSET channel: an n x K TRAIN offset and an n.test x K
+  # TEST offset, the response-side shifts that enter the latent on both sides
+  # of the softmax (docs/plans/multinomial-counts-mutation.md). Both entrances
+  # are exercised in the one scenario - both offsets taken at CREATION, then
+  # both REPLACED mid-chain through their setters - so the recorded state
+  # moves if either the creation lift or the mutation-time rematerialization
+  # of the raw fits does. The train offset enters every category's working
+  # response and rides the draws from the first sweep; the test offset enters
+  # no likelihood and moves only the recorded test channel, which is why one
+  # scenario can guard both. New stream: the channel did not exist before this
+  # tip, so it has no earlier baseline and becomes the regression floor from
+  # here. Its seeds are LITERALS kept out of the guarded `seeds` vector, as
+  # (c)-(i)'s are, so settingsList() stays identical to the a825263 baseline
+  # and the neutrality compare against it runs at all; it runs last with its
+  # own set.seed, so it perturbs none of the scenarios above.
+  result$k3offset <- local({
+    d <- makeK3(6010L)
+    n.test <- 25L
+    x.test <- d$x[seq_len(n.test), , drop = FALSE]
+    set.seed(6110L)
+    offset <- matrix(rnorm(n * d$K, 0, 0.5), n, d$K)
+    offset.test <- matrix(rnorm(n.test * d$K, 0, 0.5), n.test, d$K)
+    offset2 <- matrix(rnorm(n * d$K, 0, 0.5), n, d$K)
+    offset.test2 <- matrix(rnorm(n.test * d$K, 0, 0.5), n.test, d$K)
+    sampler <- dbarts(
+      d$x,
+      as.double(d$labels),
+      test = x.test,
+      control = makeControl()
+    )
+    set.seed(7010L)
+    bc <- dbarts:::bartcoreMultinomialSampler(
+      sampler,
+      d$labels,
+      K = d$K,
+      offset = offset,
+      offset.test = offset.test
+    )
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    dbarts:::bartcoreSetCategoryOffset(bc, offset2)
+    dbarts:::bartcoreSetCategoryTestOffset(bc, offset.test2)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    recordChannels(bc, res, d$K)
+  })
+
   result
 }
 

@@ -110,4 +110,4 @@ jobs:
       - name: Run the multinomial statistical equivalence gate
         run: |
           Rscript benchmarks/R/multinomial-equivalence.R compare \
-            benchmarks/baselines/multinomial-equivalence-a825263.rds
+            benchmarks/baselines/multinomial-equivalence-1027be5.rds
