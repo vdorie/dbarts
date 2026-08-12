@@ -751,6 +751,75 @@ at exactly the S1-recorded gaps; arm6 1e-4 vs 8e-3), bcf oracles
 at MANIFEST values, air 0, lintr::lint_package 0, R CMD check
 clean-copy tarball Status OK.
 
-S3 (the nTest x K test offset and the predict replays, confirmed
-in scope by VD 2026-08-12) is next; then S4 (fixture + re-record),
-S5.
+S3 LANDED 1027be5, 2026-08-12. The test offset channel: creation
+offset.test on both internal creators (the matrix form on the R
+bridge entries, per item 2) + bartcoreSetCategoryTestOffset +
+resident semantics; combinedTestFits carries the offset with
+rawTest_/rawTestFits/materializeRawTestFits mirroring the train
+trio, private, in place, blendSoftmax untouched, rematerialization
+EAGER at every report (no install-time caching - the lazy variant
+is a demonstrated-red falsifier); the two predict replays thread
+the per-call offset through the template Columns forms with the
+null path unchanged. All five refuseCategoryOffsetTestSurface call
+sites AND the helper deleted, zero references repo-wide; the S2
+floor pins inverted in place. dbarts.h and C_interface.cpp zero
+diff - the flat refuseMultiForestMutation guard stands (binding
+decision 3). No seventh exact arm, adjudicated correct: S3's gate
+stanza is "as S2 plus ASAN", the new-arm mandate was S2's O4, and
+a test offset enters no likelihood so there is no quadrature
+target. The implementer-added refuseStaleCategoryTestOffset guard
+was adjudicated STRONGER than a design choice - a memory-safety
+requirement: rawTest_ is sized off numTestObservations and
+materializeRawTestFits reads nTest*K doubles from the BORROWED
+testOffset_ sized at install, so replacing test predictors at a
+different nTest would overrun it; all four post-creation resize
+sites are guarded and setData is independently refused. The
+refusal asymmetry is the PLAN's own floors semantics: replacements
+under a resident test offset refuse (clear first), zero-surface
+extensions are allowed and PINNED AS INTENDED (all-zero == no
+offset bitwise; the no-test-offset recorded channel == the
+zero-offset predict), and predict re-imposes the refusal since it
+receives both at once. Predict precedence pinned both ways: the
+argument always wins and the resident offset is never read.
+Deviations accepted: creation-side lift mandated by item 2 with
+create-vs-swap parity bitwise; flat-offset-on-multinomial refusals
+pinned R-side and by direct .Call; predict-vs-run asserted
+BITWISE (expect_identical - the replay path has no RNG).
+Falsifiers: F6 red on exactly the four replay-side arms with every
+blend-side arm green (verifier re-ran it independently from a
+scratch copy: 4 red of 59, same lines), proving the halves
+independently gated; the lazy-rematerialization negative half red
+on 3 tests/cpp checks; F4 non-vacuity in both new files. DEFECT
+CARRIED TO S5 (verifier, low severity, non-blocking):
+R_interface_bartcore.cpp:5239 - predict's missing-offset refusal
+keys on the TRAIN offset only, so a sampler carrying a resident
+TEST offset and no train offset accepts a no-offset predict and
+returns the well-defined offset-free surface; the plan's wording
+is the unqualified "carries a category offset"; fix is one ||
+clause plus a pin, folded into S5's surface-message pass. Budget:
+1068 insertions / 1254 changed lines vs ~575/~860 (1.86x on
+insertions, 1.46x on changed lines) - the verifier mapped the
+430-line test file section by section onto the plan's six S3 test
+items and the full edge-case list, genuinely mandated; accepted at
+orchestrator discretion under the mandated-oracle rule, as S2's
+was. Engine-risk probes: every hostile input refused with the
+subsequent run bitwise the untouched arm; set/clear cycles,
+setCounts, setState round trips, whole-matrix setPredictor,
+per-observation session all safe under a resident test offset
+(nothing changes nTest; eager rematerialization dominates the
+mutation-time totalFits writers). Carries to S4: k3offset takes
+the test offset at creation or via the setter; reuse
+recordChannels from test-multinomial-test-offset.R. Carries to S5:
+the :5239 predicate fix + pin; bartcoreForestFits reports
+offset-FREE totalFits (docs must say so); bart2 does not yet
+forward a test-side matrix (thread it if test.offset is wanted for
+multinomial); no test-side analog of bartcoreForestFits. Gates
+double-run (implementer + independent verifier, fresh privlibs,
+--preclean): tests/cpp plain + ASAN/UBSAN clean, tinytest 4162/0
+(62 new) no snapshot regenerated, trio 35/35 strict / 11/11 / 9/9
+vs a825263 no re-record, multinomial-exact all six arms at exactly
+the recorded gaps, bcf oracles at MANIFEST values, air 0,
+lintr::lint_package 0, R CMD check clean-copy tarball Status OK.
+
+S4 (the k3offset fixture scenario and the baseline re-record, its
+own commit) is next; then S5 (public surface, messages, docs).
