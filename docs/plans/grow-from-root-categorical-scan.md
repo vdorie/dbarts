@@ -809,4 +809,47 @@ testMappedSourceReplay's pooled arm. Gates double-run
 tests/cpp plain + ASAN/UBSAN clean, R CMD check clean-copy
 tarball Status OK, air 0, lintr 0.
 
-S0b (the signed ordinal fix) is next, then S2.
+S0b LANDED 7f82f560, 2026-08-12 (the fork VD signed: FIX). One
+engine line deleted - the ordinal missing-weight halving - so a
+cut candidate on a missing-bearing ordinal column carries its rule
+group's total prior mass and the post-draw coin picks uniformly
+within the group. The S0a falsifier re-pointed IN PLACE with all
+four arms kept (the old shipped law renamed halved): committed
+seed shipped-vs-group 19.07 on 8 df, p 0.0145, no reject at alpha
+1e-3; shipped-vs-halved 5460.86 REJECT; exact-vs-exact control
+5.08 p 0.749; shipped-vs-exact 443.70 p 8.3e-91 - the expected
+residual, TV 0.0436 -> 0.0169 exactly as S0a predicted, owed to
+ordinal-scan-missing-rows. The verifier settled the low
+committed-seed p by POWER TEST rather than spread-eyeballing: at
+10x draws a systematic leak into the group law would scale its
+chi-square linearly to ~118; it FELL to 6.62 (p 0.578, realized
+no-split 0.05404 vs the law's 0.05406) while the
+genuinely-deviating arms scaled as they must (halved -> 51178,
+exact -> 3466) - noise, and the test's group law was read to
+reconstruct the kernel's weights exactly, so nothing but noise is
+available. Grow tinytest files held bitwise (friedmanData carries
+no NA - the fix cannot reach them); trio 35/35 strict / 11/11 /
+10/10 with zero max-z; categorical-exact 0.0008 and
+multinomial-exact six arms unchanged; tests/cpp plain + ASAN/UBSAN
+clean with bit-identical statistics; tinytest 4174/0; air 0, lintr
+0. Records re-pointed: grow.hpp's draw-discipline comment states
+the group convention as implemented, keeping the
+still-not-the-exact-law caveat; design-doc section 7 carries the
+pre-fix measurement as record plus the post-fix re-read and the
+ordinal-scan-missing-rows pointer, every quoted number verified
+against live output; the NEWS bullet sits in NEW FEATURES,
+adjudicated correct - n.grow.sweeps first appeared inside the
+1.0-0 cycle and the halved weight never shipped in a release.
+ADVISORIES TO S5's docs pass: inst/NEWS.Rd has NO 1.0-0 bullet
+introducing n.grow.sweeps at all (both grow bullets amend an
+unannounced feature - S5 adds the introducing bullet), and the
+"seeded results differ from previous versions" sentence is
+vacuous for a never-released feature (house pattern, pre-existing
+in the S1 bullet too). The design doc's fresh-seed statistics
+carried no recorded seeds; the stability claim was independently
+reconfirmed at verification with four further seeds and the power
+test - noted here so the numbers' provenance is on record.
+
+S2 (OP_GROW fuzz + the O1/O1F/O2 oracles - the HARD CARRY: S1's
+mass formula and coin count have no oracle until S2 lands) is
+next, then S3-S5.
