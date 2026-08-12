@@ -591,6 +591,17 @@
             monotonicity, interaction and block constraints, a variance
             forest, robust residuals - reachable from a \code{LinkingTo: dbarts}
             package without reaching into an unexported function.
+      \item The \code{n.grow.sweeps} initializer (\code{bart2}, and
+            \code{dbartsSampler$growFromRoot}) places categorical split rules
+            instead of skipping categorical predictors, so a factor-heavy
+            design no longer pays those columns into the split-variable
+            probability while drawing nothing out. Below ten categories
+            present at a node the node's choice is exact over all category
+            subsets; above it a sorted-prefix family carries the same total
+            prior mass, so a variable's realized split mass stays continuous
+            in its level count. Seeded results from a warm-started fit on a
+            design with categorical predictors differ from previous
+            versions.
     }
   }
   \subsection{C API}{

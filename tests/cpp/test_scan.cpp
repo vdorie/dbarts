@@ -1,11 +1,15 @@
 // Component tests for the cut-scan primitive (scan.hpp): per-cut integrated
 // log-likelihoods against an independent brute-force recompute (tolerance),
 // against a from-scratch histogram collapse (bitwise), the promoted histogram-
-// totals check, and the occupancy sentinel. Needs only the data/model layers
-// plus scan.hpp, so a touch to moves/chain/sampler does not recompile this TU.
+// totals check, the occupancy sentinel, and the categorical scan's enumeration
+// (exhaustive against a brute-forced partition set) and per-candidate scores.
+// Needs only the data/model layers plus scan.hpp, so a touch to
+// moves/chain/sampler does not recompile this TU.
 #include "assert.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <vector>
 
@@ -301,6 +305,196 @@ void testMissingExcluded() {
   printf("ok: scan missing excluded\n");
 }
 
+// ---------------------------------------------------------------------------
+// The categorical enumeration.
+//
+// The recipe is the plain binary counter s = 0 .. 2^(P-1) - 2 over the P - 1
+// non-anchor positions. This checks it exhaustively against an independently
+// brute-forced enumeration of the unordered both-sides-non-empty partitions,
+// for P = 2..12 - a range that deliberately runs past the exhaustive cap, since
+// the recipe is a combinatorial fact about the counter and does not stop being
+// one where the scan stops using it. It goes red against the reflected Gray map
+// G(g) = g ^ (g >> 1) over the same range, which emits the FULL non-anchor mask
+// (an empty right child) for every P >= 3 and drops one legitimate partition
+// while keeping the count right.
+void testCategoricalEnumeration() {
+  bool countExact = true, uniqueEverywhere = true, bothSidesNonEmpty = true;
+  bool bijective = true;
+  for (size_t numPresent = 2; numPresent <= 12; ++numPresent) {
+    size_t numEmitted = (static_cast<size_t>(1) << (numPresent - 1)) - 1;
+
+    // the emitted set, canonicalized as the side holding position 0
+    std::vector<uint32_t> emitted;
+    for (size_t c = 0; c < numEmitted; ++c) {
+      uint32_t side = 0, other = 0;
+      for (size_t position = 0; position < numPresent; ++position) {
+        if (exactPartitionHoldsPosition(static_cast<int32_t>(c), position))
+          side |= 1u << position;
+        else
+          other |= 1u << position;
+      }
+      bothSidesNonEmpty &= side != 0 && other != 0;
+      bothSidesNonEmpty &= (side & 1u) != 0;  // the anchor is always held
+      emitted.push_back(side);
+    }
+    std::vector<uint32_t> sorted(emitted);
+    std::sort(sorted.begin(), sorted.end());
+    uniqueEverywhere &=
+      std::adjacent_find(sorted.begin(), sorted.end()) == sorted.end();
+
+    // brute force: every subset of the P positions that holds position 0 and
+    // leaves the complement non-empty is exactly one unordered partition
+    std::vector<uint32_t> brute;
+    for (uint32_t mask = 0; mask < (1u << numPresent); ++mask) {
+      if ((mask & 1u) == 0) continue;
+      if (mask == (1u << numPresent) - 1u) continue;
+      brute.push_back(mask);
+    }
+    std::sort(brute.begin(), brute.end());
+    countExact &= emitted.size() == brute.size();
+    bijective &= sorted == brute;
+
+    // the shipped emission count agrees below the cap and switches to the
+    // sorted-prefix family above it
+    size_t shipped = categoricalNumEmitted(numPresent);
+    countExact &= shipped == (numPresent <= categoricalExhaustiveCap
+                                ? numEmitted : numPresent - 1);
+  }
+  check(countExact, "the counter emits 2^(P-1) - 1 candidates, P = 2..12");
+  check(bothSidesNonEmpty, "every emitted candidate leaves both sides occupied");
+  check(uniqueEverywhere, "no induced partition is emitted twice");
+  check(bijective,
+        "the emitted set is the brute-forced partition set, P = 2..12");
+  check(categoricalNumEmitted(0) == 0 && categoricalNumEmitted(1) == 0,
+        "a node with fewer than two present categories emits nothing");
+
+  // the Fisher branch's decode is the sorted prefix of length c + 1
+  bool prefixExact = true;
+  for (size_t c = 0; c + 1 < 12; ++c)
+    for (size_t position = 0; position < 12; ++position)
+      prefixExact &= prefixPartitionHoldsPosition(static_cast<int32_t>(c),
+                                                  position) ==
+                     (position <= c);
+  check(prefixExact, "the prefix decode names the sorted prefix of length c + 1");
+
+  printf("ok: scan categorical enumeration\n");
+}
+
+// The categorical scan itself, against an independent recompute over the
+// partition each emitted candidate decodes to: both branches, the missing
+// pseudo-category as a real bin, the shrunken sort order, and the P < 2 node
+// that emits nothing while staying available.
+void testCategoricalScan() {
+  // a saved snapshot of the shared runif01 stream keeps the seed-pinned suites
+  // downstream of this TU bitwise intact
+  uint64_t savedRngState = rngState;
+  const size_t n = 240;
+  const uint32_t numLevels = 6;
+  std::vector<double> x(n * 2), y(n), w(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % numLevels);
+    // a second categorical column with 12 levels, past the exhaustive cap
+    x[i + n] = static_cast<double>(i % 12);
+    y[i] = runif01() - 0.5 + 0.4 * static_cast<double>(i % numLevels);
+    w[i] = 0.5 + runif01();
+  }
+  x[3] = std::nan("");  // one missing value: a real category, not a skip
+  ColumnType types[] = {ColumnType::categorical, ColumnType::categorical};
+  ColumnStore store;
+  store.build(x.data(), n, 2, 20, false, types);
+  check(store.hasMissing[0] == 1 && store.numCuts[0] == numLevels,
+        "the categorical fixture declares six levels and carries a missing one");
+
+  std::vector<index_t> members(n);
+  for (size_t i = 0; i < n; ++i) members[i] = i;
+
+  ConstantGaussianLeaf leaf{0.5};
+  double k = 2.0, residualVariance = 0.7;
+  CategoricalScanScratch scratch;
+  std::vector<double> scan;
+
+  for (size_t variable = 0; variable < 2; ++variable) {
+    size_t numEmitted =
+      scanCategoricalPartitions(store, variable, members.data(), n, y.data(),
+                                w.data(), leaf, k, residualVariance, scratch,
+                                scan);
+    size_t numPresent = scratch.present.size();
+    bool exact = numPresent <= categoricalExhaustiveCap;
+    check(numEmitted == categoricalNumEmitted(numPresent) && numEmitted > 0,
+          variable == 0 ? "the exhaustive branch emits 2^(P-1) - 1 candidates"
+                        : "the prefix branch emits P - 1 candidates");
+    check(exact == (variable == 0),
+          variable == 0 ? "six levels plus a missing one stay under the cap"
+                        : "twelve levels run past the cap");
+
+    // the histogram is a partition of the members, missing row included
+    double totalCount = 0.0;
+    for (const CategoricalScanEntry& entry : scratch.present)
+      totalCount += entry.bin.count;
+    check(totalCount == static_cast<double>(n),
+          "every member lands in exactly one category bin");
+
+    // the sort key is the singleton-category leaf posterior mean, ascending
+    double priorVariance = (k / leaf.scale) * (k / leaf.scale) * residualVariance;
+    bool ordered = true;
+    for (size_t i = 0; i + 1 < numPresent; ++i) {
+      double a = scratch.present[i].bin.sumWeightedResponse /
+                 (priorVariance + scratch.present[i].bin.sumWeights);
+      double b = scratch.present[i + 1].bin.sumWeightedResponse /
+                 (priorVariance + scratch.present[i + 1].bin.sumWeights);
+      ordered &= a < b || (a == b && scratch.present[i].code <
+                                     scratch.present[i + 1].code);
+    }
+    check(ordered, "present categories sort by the shrunken category mean");
+
+    // an independent recompute of every emitted candidate, over the raw
+    // members rather than the compacted bins
+    bool scored = true, anySentinel = false;
+    std::vector<CategoricalScanEntry> present(scratch.present);
+    for (size_t c = 0; c < numEmitted; ++c) {
+      uint64_t rightCodes = 0;
+      for (size_t position = 0; position < numPresent; ++position) {
+        bool holds = exact
+          ? exactPartitionHoldsPosition(static_cast<int32_t>(c), position)
+          : prefixPartitionHoldsPosition(static_cast<int32_t>(c), position);
+        if (!holds) rightCodes |= 1ull << present[position].code;
+      }
+      double lw = 0.0, lwz = 0.0, rw = 0.0, rwz = 0.0;
+      size_t lc = 0, rc = 0;
+      for (size_t i = 0; i < n; ++i) {
+        xint_t code = store.codeAt(variable, i);
+        bool right = ((rightCodes >> code) & 1ull) != 0;
+        if (right) { ++rc; rw += w[i]; rwz += w[i] * y[i]; }
+        else { ++lc; lw += w[i]; lwz += w[i] * y[i]; }
+      }
+      anySentinel |= scan[c] == cutScanEmptySentinel;
+      double expected =
+        leaf.logIntegratedLikelihood(k, residualVariance, lw, lwz) +
+        leaf.logIntegratedLikelihood(k, residualVariance, rw, rwz);
+      scored &= lc > 0 && rc > 0 &&
+                std::fabs(scan[c] - expected) <=
+                  1e-11 * (1.0 + std::fabs(expected));
+    }
+    check(scored, "every emitted candidate scores its own partition");
+    check(!anySentinel,
+          "the enumeration domain never reaches the occupancy sentinel");
+  }
+
+  // a node holding one category emits nothing and spends no candidate
+  std::vector<index_t> single;
+  for (size_t i = 0; i < n; ++i)
+    if (store.codeAt(0, i) == 2) single.push_back(i);
+  check(!single.empty(), "the single-category subset is populated");
+  size_t emptyEmission =
+    scanCategoricalPartitions(store, 0, single.data(), single.size(), y.data(),
+                              nullptr, leaf, k, residualVariance, scratch, scan);
+  check(emptyEmission == 0 && scratch.present.size() == 1,
+        "a node with one present category emits no candidate");
+
+  rngState = savedRngState;
+  printf("ok: scan categorical partitions\n");
+}
+
 }  // namespace
 
 void runScanTests() {
@@ -308,4 +502,6 @@ void runScanTests() {
   testHistogramTotals();
   testOccupancySentinel();
   testMissingExcluded();
+  testCategoricalEnumeration();
+  testCategoricalScan();
 }

@@ -631,6 +631,16 @@ public:
     return count;
   }
 
+  /// The reachable category masks collectAvailableVariables narrowed on its
+  /// single walk, indexed by predictor. Valid for INLINE categorical columns
+  /// only (the walk skips pooled ones, which need reachableCategoriesWide) and
+  /// only until the next availability query on this tree, so a caller that
+  /// already collected availability at a node reads R here instead of paying a
+  /// second O(p * depth) walk for it.
+  const std::uint64_t* inlineReachableMasks() const {
+    return availMaskScratch_.data();
+  }
+
   /// Leaf sufficient statistic (sum w, sum wz) in one pass. The root
   /// intentionally uses the non-indexed kernels (identical values, cheaper
   /// access). Templated on the residual element type: the default double path
