@@ -263,18 +263,17 @@ items
     survival-followups), nominal-response IRT and discrete choice,
     SUR-style composition past the multinomial boundary. The
     predictor channel is already open; the gap is response-side only.
-    RUNNING; plan at docs/plans/multinomial-counts-mutation.md
-    (5 slices; channel stays dbarts:::-only, public surface a
-    recorded door; revalidated against the multiforest landings at
-    3ca85bb), BEFORE the dbarts.h reshape so the C surface mirrors
-    the final mutation shape. S1 (counts channel) LANDED 729bbdd;
-    S2 (n x K train category offset + floors) LANDED d7d27a3; S3
-    (test offset + predict replays, floors lifted) LANDED 1027be5;
-    S4 (k3offset fixture + multinomial-equivalence-1027be5
-    re-record, k3countsswap door recorded) LANDED 2b96a9f. S5
-    (public surface, messages, docs - carries the predict
-    missing-offset predicate fix at R_interface_bartcore.cpp:5239,
-    see the S3 landing note) closes the arc.
+    COMPLETE 2026-08-12 (S1-S5; plan + landing notes in
+    docs/plans/multinomial-counts-mutation.md: S1 729bbdd counts
+    channel, S2 d7d27a3 train category offset, S3 1027be5 test
+    offset + predict replays, S4 2b96a9f k3offset fixture +
+    multinomial-equivalence-1027be5, S5 69b28a3e public bart2
+    train-side matrix offset + messages + docs). The multinomial
+    family is now a full conditional inside a larger Gibbs/MH
+    sampler. Doors recorded there: k3countsswap scenario at the
+    next multinomial re-record; no test-side bartcoreForestFits
+    analog; ConfigSpec OP_SET_COUNTS rides the general multi-forest
+    fuzz-arm gap.
   nameable-calibration: design for letting an R composition NAME the
     leaf-prior calibration it composes against, instead of
     inheriting one from a construction accident
