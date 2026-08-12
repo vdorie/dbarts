@@ -1,6 +1,7 @@
 #include "config.hpp"
 #include "R_interface_bartcore.hpp"
 
+#include <climits> // INT_MAX
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -2487,6 +2488,16 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
   bartcore::SamplerShape shape = sampler.shape();
   if (shape.numForests < 2) return;
   if (!shape.supportsResponseMutation) {
+    // A coupling that owns its response as a count matrix does not fix it at
+    // creation - it swaps through its own entry, and an integer case weight is
+    // exactly the row-wise count replication that matrix already expresses - so
+    // naming the channel is the whole repair. Both this bridge and the flat C
+    // API call this helper, so the hint lands on both surfaces, which is the
+    // point: a guard that exists so two surfaces cannot state different rules
+    // must not be made to state two.
+    if (shape.supportsCountsMutation)
+      Rf_error("%s: this sampler's response is its n x K count matrix; swap it "
+               "with bartcore_setCounts", caller);
     const char* fixed = "fixes its response at creation";
     if (conduit == ResponseConduit::offset) fixed = "carries no offset";
     else if (conduit == ResponseConduit::weights)
@@ -3289,6 +3300,86 @@ SEXP bartcore_createMultinomialCounts(SEXP controlExpr, SEXP modelExpr,
   return createExternalHolder(dataExpr, [&]() {
     return bartcore_bridge::createMultinomialCountsHolder(
       controlExpr, modelExpr, dataExpr, countsExpr, numCategoriesExpr);
+  });
+}
+
+// Replaces a multinomial (softmax) sampler's response: the n x K
+// category-major count matrix and the trials n_i = sum_k y_ik it implies. The
+// trees carry over, fitted to the previous counts, so the swap is the response
+// mutation every other family reaches through setResponse - which cannot serve
+// here, since the combiner names the chain's y out and reads these counts
+// directly (docs/design/multinomial.md).
+//
+// n and K are fixed: every combiner buffer and every forest allocation is
+// sized by them, and K is the forest count, which no live sampler can change.
+// A length mismatch is refused naming both.
+//
+// COST: the sweep draws n_i Polya-Gamma variates per observation per category
+// (combiner.hpp drawForestGlue sums n_i PG(1, psi)), so a swap to large row
+// sums multiplies sweep cost by mean(n_i) - a data property, not a defect, but
+// one a caller replacing single-trial labels with grouped counts should know.
+//
+// Validation is total before anything is installed: the combiner BORROWS
+// ownedCounts.data(), so an in-place write would BE the mutation and an error
+// midway would leave half-new counts. The scratch is built and checked whole,
+// then swapped in, then the engine is pointed at the fresh buffers. The
+// scratch rides the unwindProtect closure, so an error frees it.
+SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  // The capability probe comes FIRST, and it is not a forest count: BCF also
+  // carries several forests and owns no counts, while a future coupling that
+  // did would have to opt in here.
+  if (!shape.supportsCountsMutation)
+    Rf_error("bartcore_setCounts requires a multinomial (softmax) sampler");
+  size_t n = shape.numObservations;
+  // K for a counts-owning coupling; the reported-location count IS the category
+  // count, so there is no second field to keep in step with it
+  size_t K = shape.numReportedLocations;
+
+  return unwindProtect([&, counts = std::vector<int>{},
+                        trials = std::vector<int>{}]() mutable -> SEXP {
+    // the strict TYPE check creation applies, kept rather than a value test:
+    // a double matrix of whole numbers is still the wrong buffer to borrow.
+    // NA_INTEGER is INT_MIN, so the nonnegativity test below catches NA too.
+    // The DIMENSIONS are checked, not just the length: a transposed matrix has
+    // exactly n*K entries and would install every count in the wrong cell
+    SEXP dimsExpr = Rf_getAttrib(countsExpr, R_DimSymbol);
+    if (!Rf_isInteger(countsExpr) || Rf_xlength(dimsExpr) != 2 ||
+        static_cast<size_t>(INTEGER(dimsExpr)[0]) != n ||
+        static_cast<size_t>(INTEGER(dimsExpr)[1]) != K)
+      Rf_error("bartcore_setCounts requires an integer matrix of %lu "
+               "observations x %lu categories",
+               static_cast<unsigned long>(n), static_cast<unsigned long>(K));
+    const int* src = INTEGER(countsExpr);
+    counts.assign(src, src + n * K);
+    trials.assign(n, 0);
+    for (size_t k = 0; k < K; ++k)
+      for (size_t i = 0; i < n; ++i) {
+        int y = counts[k * n + i];
+        if (y < 0) Rf_error("multinomial counts must be nonnegative");
+        // the trials are int, as the combiner's PG loop counter is; a row sum
+        // that overflows would wrap into a negative or absurd draw count
+        if (trials[i] > INT_MAX - y)
+          Rf_error("multinomial count row sums must fit in an integer");
+        trials[i] += y;
+      }
+    for (size_t i = 0; i < n; ++i)
+      if (trials[i] < 1)
+        Rf_error("every multinomial count row must have at least one trial");
+
+    holder.ownedCounts.swap(counts);
+    holder.ownedTrials.swap(trials);
+    if (!holder.sampler->setCounts(holder.ownedCounts.data(),
+                                   holder.ownedTrials.data())) {
+      // defense in depth: the probe above is the engine's own predicate, so
+      // this is unreachable. Swap back first - the combiner still borrows the
+      // old buffer, which the scratch would free on the way out.
+      holder.ownedCounts.swap(counts);
+      holder.ownedTrials.swap(trials);
+      Rf_error("bartcore_setCounts refused by the sampler");
+    }
+    return R_NilValue;
   });
 }
 

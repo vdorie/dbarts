@@ -74,6 +74,12 @@ struct SamplerShape {
   /// Chain::setForestWeights refuses on, so the bridge's capability probe and
   /// the engine's refusal cannot disagree. Internal, invisible to dbarts.h.
   bool supportsForestWeights;
+  /// Whether the forest coupling owns a count-matrix response that setCounts
+  /// can replace (the multinomial softmax alone today). The category count K
+  /// rides numReportedLocations, which already is K for that coupling and 1 for
+  /// every additive model, so the bridge reads the pair rather than a second
+  /// name for the same number. Internal, invisible to dbarts.h.
+  bool supportsCountsMutation;
   /// Whether the recorded test-fit channel carries a defined value: false only
   /// for BCF (no test treatment vector to blend off-sample). The bridge's
   /// test-surface refusal gates on it, so multinomial and single-forest
@@ -253,6 +259,11 @@ public:
   /// states the semantics.
   virtual bool setForestWeights(std::size_t forestIndex,
                                 const double* weights) = 0;
+  /// Installs a borrowed replacement count matrix (n x K, category-major) and
+  /// its per-observation trials in every chain; false, installing nothing, off
+  /// a counts-owning coupling. n and K are fixed at creation, so the host
+  /// validates the shape. Chain::setCounts states the semantics.
+  virtual bool setCounts(const int* counts, const int* trials) = 0;
   virtual bool bcfGlue(std::size_t chainNum, double* out) const = 0;
   virtual void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
                                double* out) const = 0;
@@ -296,6 +307,7 @@ public:
     s.usesDart = impl_.usesDart();
     s.supportsResponseMutation = impl_.supportsResponseMutation();
     s.supportsForestWeights = impl_.supportsForestWeights();
+    s.supportsCountsMutation = impl_.supportsCountsMutation();
     s.testFitsAreDefined = impl_.testFitsAreDefined();
     s.forestReportingIsDefined = impl_.forestReportingIsDefined();
     return s;
@@ -458,6 +470,9 @@ public:
   bool setForestWeights(std::size_t forestIndex,
                         const double* weights) override {
     return impl_.setForestWeights(forestIndex, weights);
+  }
+  bool setCounts(const int* counts, const int* trials) override {
+    return impl_.setCounts(counts, trials);
   }
   bool bcfGlue(std::size_t chainNum, double* out) const override {
     return impl_.bcfGlue(chainNum, out);

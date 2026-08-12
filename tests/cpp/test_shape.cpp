@@ -47,6 +47,7 @@ void checkShapeMatchesImpl(const SamplerFacade<L, ResidT>& facade,
   CHECK_SHAPE_FIELD(usesDart);
   CHECK_SHAPE_FIELD(supportsResponseMutation);
   CHECK_SHAPE_FIELD(supportsForestWeights);
+  CHECK_SHAPE_FIELD(supportsCountsMutation);
   CHECK_SHAPE_FIELD(testFitsAreDefined);
 }
 
@@ -130,6 +131,8 @@ void testConstantGaussian(ShapeFixture& fixture) {
         "shape: constant gaussian test fits are defined");
   check(!shape.supportsForestWeights,
         "shape: a single-forest sampler admits no per-forest weight");
+  check(!shape.supportsCountsMutation,
+        "shape: a single-forest sampler owns no count response");
   check(shape.numGroups == 5, "shape: grouped intercept count");
   check(shape.usesDart && shape.kIsSampled, "shape: dart and sampled k");
   check(!shape.usesFunctionLeaves, "shape: constant leaf is not function-valued");
@@ -261,6 +264,10 @@ void testBCF(ShapeFixture& fixture) {
   check(shape.numReportedLocations == 1, "shape: bcf reports one location");
   check(shape.supportsForestWeights,
         "shape: bcf admits a per-forest weight");
+  // the counts probe is a capability, not a forest count: bcf carries two
+  // forests and a gaussian response, so it must NOT answer the counts channel
+  check(!shape.supportsCountsMutation,
+        "shape: bcf owns no count response despite two forests");
   checkShapeMatchesImpl(facade, "bcf, before run");
 
   runBriefly(facade, 0);
@@ -309,6 +316,14 @@ void testMultinomial(ShapeFixture& fixture) {
         "shape: multinomial escapes the test-surface refusal condition");
   check(!shape.supportsForestWeights,
         "shape: multinomial admits no per-forest weight despite K forests");
+  // the counts channel's capability probe, and the pair the bridge reads with
+  // it: K comes off numReportedLocations rather than a field of its own
+  check(shape.supportsCountsMutation,
+        "shape: multinomial owns a replaceable count response");
+  check(!shape.supportsResponseMutation,
+        "shape: multinomial's counts channel is not the response conduit");
+  check(shape.numReportedLocations == K,
+        "shape: the counts channel reads K off numReportedLocations");
   checkShapeMatchesImpl(facade, "multinomial, before run");
 
   runBriefly(facade, 0);

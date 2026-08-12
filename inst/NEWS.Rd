@@ -836,6 +836,14 @@
             so a caller can exclude rows from one forest's leaf
             conditionals without excluding them from the model.
             \code{dbarts:::}-only; no public surface in this release.
+      \item A multinomial (softmax) sampler's count response can be
+            replaced between runs, at the observation and category counts
+            it was built with, so the model can serve as a conditional
+            inside a larger sampler as every other family already could.
+            The trees carry over, fitted to the previous counts. The
+            response-side refusals name this channel instead of reporting
+            that the sampler fixes its response at creation.
+            \code{dbarts:::}-only; no public surface in this release.
       \item Probability vectors for the tree prior are validated with the
             standard \code{all.equal} tolerance instead of a hand-picked
             1e-10.

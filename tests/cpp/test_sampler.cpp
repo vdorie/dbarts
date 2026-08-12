@@ -3392,6 +3392,163 @@ static void testMultinomialCountGrowForestFromRoot() {
   printf("ok: multinomial count grow-from-root sweep\n");
 }
 
+// The counts channel on the combiner: a live multinomial combiner's count
+// response is replaceable at fixed n and K. Two facts are under test. A
+// combiner built over A and swapped to B must form exactly what one built over
+// B forms from the same seeded rng - bitwise, since nothing about the swap is
+// approximate. And the swap must carry the TRIALS as well as the successes:
+// n_i drives the PG draw COUNT and the (y - n_i/2) numerator, so a swap that
+// installed only the count matrix would still form the wrong response against
+// the wrong-length draw stream.
+//
+// The burned-in arm is the one with no create-side twin: a combiner several
+// glue/form cycles in carries a live omega column set and a running prefix mix,
+// and no freshly built combiner can be put in that state. It is checked against
+// itself (a self-swap must be inert) and against the count formula (the new
+// counts and trials are both in force after the burn).
+static void testMultinomialSetCounts() {
+  const size_t n = 7, K = 3;
+  std::vector<double> xDummy(n, 0.0);
+  ColumnStore data;
+  data.build(xDummy.data(), n, 1, 100);
+
+  // two count matrices over the same rows, differing in successes AND in row
+  // totals, category-major (column k at k*n)
+  std::vector<int> trialsA = {1, 2, 1, 3, 1, 2, 1};
+  std::vector<int> trialsB = {2, 1, 3, 1, 4, 1, 2};
+  std::vector<int> countsA(n * K, 0), countsB(n * K, 0);
+  for (size_t i = 0; i < n; ++i) {
+    countsA[(i % K) * n + i] = trialsA[i];
+    countsB[((i + 1) % K) * n + i] = trialsB[i];
+  }
+
+  // static fits: the combiner is driven directly, so no tree update moves them
+  std::vector<Forest<ConstantGaussianLeaf>> forests(K);
+  std::vector<std::vector<double>> f = {
+    {0.3, -0.4, 0.8, 0.1, -0.6, 0.5, 0.2},
+    {-0.2, 0.6, -0.3, 0.4, 0.7, -0.5, 0.0},
+    {0.5, 0.1, -0.7, 0.2, -0.1, 0.6, -0.4}};
+  for (size_t k = 0; k < K; ++k) {
+    forests[k].numTrees = 1;
+    forests[k].leaf.scale = 3.0;
+    forests[k].k = 2.0;
+    forests[k].treeFits.assign(n, 0.0);
+    forests[k].totalFits = f[k];
+  }
+
+  MultinomialSpec specA, specB;
+  specA.numCategories = specB.numCategories = K;
+  specA.counts = countsA.data();
+  specA.trials = trialsA.data();
+  specB.counts = countsB.data();
+  specB.trials = trialsB.data();
+
+  // one pass of the sweep's per-forest pair, recording every response and
+  // weight when asked; sweeps of them replay the interleaving
+  auto cycle = [&](MultinomialForestCombiner<ConstantGaussianLeaf>& combiner,
+                   ext_rng* rng, size_t sweeps, std::vector<double>* out) {
+    for (size_t s = 0; s < sweeps; ++s)
+      for (size_t fk = 0; fk < K; ++fk) {
+        combiner.drawForestGlue(fk, rng, forests);
+        ForestResponse fr =
+          combiner.formForestResponse(fk, forests, nullptr, nullptr);
+        if (out == NULL) continue;
+        for (size_t i = 0; i < n; ++i) {
+          out->push_back(fr.response[i]);
+          out->push_back(fr.weights[i]);
+        }
+      }
+  };
+  auto seeded = [](std::uint32_t seed) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, seed);
+    return rng;
+  };
+
+  // (1) swap-vs-build parity, and its non-vacuity arm
+  std::vector<double> recSwap, recBuild, recA;
+  {
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, specA);
+    check(combiner.supportsCountsMutation(),
+          "the multinomial combiner owns a replaceable count response");
+    combiner.setCounts(countsB.data(), trialsB.data());
+    ext_rng* rng = seeded(9001u);
+    cycle(combiner, rng, 2, &recSwap);
+    ext_rng_destroy(rng);
+  }
+  {
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, specB);
+    ext_rng* rng = seeded(9001u);
+    cycle(combiner, rng, 2, &recBuild);
+    ext_rng_destroy(rng);
+  }
+  {
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, specA);
+    ext_rng* rng = seeded(9001u);
+    cycle(combiner, rng, 2, &recA);
+    ext_rng_destroy(rng);
+  }
+  check(recSwap.size() == recBuild.size() && recSwap == recBuild,
+        "a swapped combiner forms what one built over the new counts forms");
+  check(recA != recBuild,
+        "and the two count matrices are not the same problem");
+
+  // (2) burned-in: a self-swap is inert, and a swap after the burn installs
+  //     both halves of the response
+  std::vector<double> recSelf, recControl;
+  {
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, specA);
+    ext_rng* rng = seeded(9002u);
+    cycle(combiner, rng, 3, NULL);
+    combiner.setCounts(countsA.data(), trialsA.data());
+    cycle(combiner, rng, 1, &recSelf);
+    ext_rng_destroy(rng);
+  }
+  {
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, specA);
+    ext_rng* rng = seeded(9002u);
+    cycle(combiner, rng, 3, NULL);
+    cycle(combiner, rng, 1, &recControl);
+    ext_rng_destroy(rng);
+  }
+  check(recSelf == recControl,
+        "a self-swap on a burned-in combiner changes nothing");
+
+  {
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, specA);
+    ext_rng* rng = seeded(9003u);
+    cycle(combiner, rng, 3, NULL);
+    combiner.setCounts(countsB.data(), trialsB.data());
+    bool formed = true;
+    for (size_t fk = 0; fk < K; ++fk) {
+      combiner.drawForestGlue(fk, rng, forests);
+      ForestResponse fr =
+        combiner.formForestResponse(fk, forests, nullptr, nullptr);
+      for (size_t i = 0; i < n; ++i) {
+        // the margin over the other categories, this fixture's fits being
+        // static; the response must be B's (y - n_i/2)/omega + C
+        double margin = -HUGE_VAL;
+        for (size_t j = 0; j < K; ++j) {
+          if (j == fk) continue;
+          margin = margin == -HUGE_VAL
+            ? f[j][i]
+            : std::max(margin, f[j][i]) +
+                std::log1p(std::exp(-std::fabs(f[j][i] - margin)));
+        }
+        double expected =
+          (static_cast<double>(countsB[fk * n + i]) - trialsB[i] * 0.5) /
+            fr.weights[i] + margin;
+        formed &= std::fabs(fr.response[i] - expected) < 1e-12;
+      }
+    }
+    check(formed,
+          "a burned-in swap forms the new counts against the new trials");
+    ext_rng_destroy(rng);
+  }
+
+  printf("ok: multinomial counts channel\n");
+}
+
 // The per-observation log-likelihood channel: requesting it draws no rng and
 // mutates no state (computed post-hoc at storeSample), so sigma/train are
 // bitwise unchanged, and each family's values equal the closed-form density of
@@ -3692,6 +3849,7 @@ void runSamplerTests(ext_rng* rng) {
   testMultinomial(rng);
   testMultinomialGrowForestFromRoot();
   testMultinomialCountGrowForestFromRoot();
+  testMultinomialSetCounts();
   testViewSamplerMatchesFull();
   testEndToEndGaussian(rng);
   testEndToEndGaussianFp32(rng);

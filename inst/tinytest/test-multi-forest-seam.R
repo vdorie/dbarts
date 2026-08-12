@@ -229,7 +229,12 @@ expect_identical(arm.swap$fit.scale, arm.keep$fit.scale)
 
 # a multi-forest coupling that does not opt in stays refused at every
 # updateScale: multinomial's setResponse is an empty override, and its response
-# is the borrowed count matrix a flat double vector cannot express
+# is the borrowed count matrix a flat double vector cannot express. The refusal
+# NAMES that matrix rather than reporting a response fixed at creation, which
+# it no longer is - the counts have their own mutation entry
+# (test-multinomial-counts-mutation.R). The hint is conditioned on the counts
+# capability, not on the forest count, so BCF above keeps the generic wording,
+# and the guard is shared with the flat C API, so both surfaces say this.
 set.seed(23)
 labels <- sample(0L:2L, n, replace = TRUE)
 # the host carries test data so the test-offset refusal below is reached on a
@@ -243,29 +248,30 @@ sampler.mn.host <- dbarts(
 bc.mn <- dbarts:::bartcoreMultinomialSampler(sampler.mn.host, labels, K = 3L)
 expect_error(
   dbarts:::bartcoreSetResponse(bc.mn, as.double(labels)),
-  "multi-forest"
+  "n x K count matrix"
 )
 expect_error(
   dbarts:::bartcoreSetResponse(bc.mn, as.double(labels), updateScale = TRUE),
-  "multi-forest"
+  "n x K count matrix"
 )
 # a flat offset points exactly along the softmax's null direction (a common
 # per-observation shift), so it has no semantics here at any updateScale
-expect_error(dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n)), "multi-forest")
+expect_error(dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n)), "n x K count")
 expect_error(
   dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = TRUE),
-  "multi-forest"
+  "n x K count"
 )
 expect_error(
   dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = NA),
-  "multi-forest"
+  "n x K count"
 )
 # case weights are refused at multinomial creation and stay refused after it:
 # the opt-in that opens them for BCF is the combiner's, and this one does not
-# take it
+# take it - and an integer case weight is row-wise count replication the
+# response matrix already expresses, which is why the hint names it
 expect_error(
   dbarts:::bartcoreSetWeights(bc.mn, runif(n, 0.5, 1.5)),
-  "multi-forest"
+  "n x K count matrix"
 )
 # z is defined only as the contrast the BCF glue forms b_{z_i} against; the
 # capability probe catches a K-forest multinomial that a forest count would not

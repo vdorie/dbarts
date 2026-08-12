@@ -497,7 +497,13 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
 # Bayesian causal forest through this same creation entry point. The whole
 # mutation and reporting surface is driven from the consumer - the acceptances,
 # the refusals, and the reason each refusal names - so what is checked is the
-# flat API's own agreement with the R bridge rather than an R restatement of it
+# flat API's own agreement with the R bridge rather than an R restatement of it.
+# The response-side legs also pin the one branch of that shared guard this
+# surface cannot reach: a coupling whose response is its own count matrix is
+# refused with a message naming the counts channel, conditioned on the
+# capability and not on the forest count, so a BCF sampler - which opts into
+# the response conduit - must still be ACCEPTED at updateScale = FALSE and must
+# still refuse with the generic wording at TRUE
 set.seed(21L)
 nBCF <- 200L
 xBCF <- matrix(runif(nBCF * 3L), nBCF, 3L)
