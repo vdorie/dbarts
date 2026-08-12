@@ -688,5 +688,69 @@ vs tolerances 8e-3..1.5e-2, bcf oracles at the MANIFEST values,
 air 0, lintr::lint_package 0, R CMD check clean-copy tarball
 Status OK.
 
-S2 (the n x K train offset) is next; S3 confirmed in scope (VD
-2026-08-12); then S4 (fixture + re-record), S5.
+S2 LANDED d7d27a3, 2026-08-12. The category offset channel through
+the offset indirection as decided: rawFits returns
+totalFits.data() off an offset so the null path is today's
+pointer; full rematerialization at the fresh-sweep branch (f == 0
+or out-of-order) and at the top of combinedFits, per-column
+refresh only in the in-order continuation; blendSoftmax and
+combinedTestFits untouched; formForestResponse's null branch is
+the old statement verbatim; the working response subtracts o[i]
+with psi = rawFits - margin folded over offset fits. Internal
+creation surface (matrix offset at creation). B2's floors sit at
+bridge level via refuseCategoryOffsetTestSurface (anonymous
+namespace) at FIVE call sites - creation, setCategoryOffset,
+setTestPredictor, setTestPredictorAndOffset, predict - which S3
+lifts by deletion (the implementer counted four; the verifier
+found five; five is the record). The setCategoryOffset message
+half sits in the shared conduit helper's supportsCountsMutation
+branch with the seam-file pins edited in place. O11 carries the
+offset term and the after-a-per-observation-session arm. The
+INT_MAX range check precedes integer coercion on both counts
+entrances, pinned. Deviations verified sound: ONE capability probe
+(binding decision 2 fixes one field; no combiner can own an n x K
+count response without the n x K predictor; the split note lives
+on Chain::setCategoryOffset); predict's flat-offset predicate
+numLocations > 1 is exactly supportsCountsMutation today;
+creation's refusal reworded with the pre-existing pin edited in
+place; multinomial handles carry $K, which cannot go stale because
+setCounts refuses any K change; floors bridge-level, the flat C
+API needing none. Falsifiers: F2 red - the sign-flipped working
+response drives the new exact arm to gap 0.5648 vs tol 0.012, and
+its FIRST run was a false green from a stale non-preclean install,
+caught and re-run (the --preclean discipline is the recorded
+lesson); F5 red 4/53 - the lazy per-column refresh fails both O11
+same-vintage arms AND both all-zero-offset neutrality arms, since
+a zero offset routes through raw_ and exposes the stale column,
+proving raw_ rests on O11 exactly as the S1 carry predicted; F4
+non-vacuity on both parities with the row-shift invariance stated
+as softmax identifiability. The verifier's independent engine-risk
+probe: 24 hostile inputs through both the R wrapper and the C
+entry all refused with the sampler's subsequent run bitwise
+identical to baseline; six set/clear cycles, set-then-setCounts,
+three setState interleavings, a whole-matrix setPredictor, a
+per-observation session and a two-chain run all hold
+softmax(forestFits + offset) == train at gap 0; the offset is
+never silently dropped. Budget: 1213 insertions vs ~810 (1.50x on
+the insertions metric, 74 percent of the overage oracle content -
+tests/cpp 187 vs 50, R/bench 582 vs 380) - accepted at
+orchestrator discretion under the mandated-oracle rule. Note to
+S5: bartcoreForestFits reports the offset-FREE totalFits, correct
+and load-bearing - its surface docs must say so. Carries to S3:
+lift the five floors by deleting the refuseCategoryOffsetTestSurface
+call sites; the predict message repair is already the
+per-category-matrix pointer S3 makes true; rawTestFits/rawTest_
+mirror rawFits/materializeRawFits, both private, in place. Carry
+to S4: k3offset can reuse recordChannels from
+test-multinomial-category-offset.R. Gates double-run (implementer
++ independent verifier, fresh privlibs, --preclean): tests/cpp
+plain + ASAN/UBSAN clean, tinytest 4100/0 (53 new) no snapshot
+regenerated, trio 35/35 strict / 11/11 / 9/9 vs a825263 no
+re-record, multinomial-exact all six arms (the five pre-existing
+at exactly the S1-recorded gaps; arm6 1e-4 vs 8e-3), bcf oracles
+at MANIFEST values, air 0, lintr::lint_package 0, R CMD check
+clean-copy tarball Status OK.
+
+S3 (the nTest x K test offset and the predict replays, confirmed
+in scope by VD 2026-08-12) is next; then S4 (fixture + re-record),
+S5.
