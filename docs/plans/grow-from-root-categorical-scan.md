@@ -745,6 +745,68 @@ privlibs, --preclean): tests/cpp plain + ASAN/UBSAN clean
 0.0008, multinomial-exact six arms at the recorded values, air 0,
 lintr 0.
 
-The fork is WITH VD (presented 2026-08-12, result + recommendation
-+ caveat). S0b implements only on VD's signature and only because
-S0a confirmed. S1 onward proceed independently of the fork.
+The fork was SIGNED BY VD 2026-08-12: FIX. S0b is unblocked and
+lands after S1.
+
+S1 LANDED 995002ef, 2026-08-12. Categorical splits in the
+grow-from-root scan per BL-1: plain binary counter over
+2^(P-1)-1 with the anchor always held (verified NOT a Gray code -
+the F2 negative half swaps in g^(g>>1) and the enumeration check
+goes red on the brute-force bijection, both-sides-occupied,
+per-candidate score and sentinel assertions); the count sentinel
+in both branches; mass-spread via categoricalGroupLogProbability;
+the INIT-ONLY and rewritten draw-discipline comment blocks; P
+above the cap takes the greedy-prefix arm; the pooled branch
+through reachableCategoriesWide/allocateMask/mutableMaskWordsFor
+with absent-position coins drawn ascending, both directions
+asserted observed. Deviations verified sound: ONE mass-spread
+formula for both branches (worst gap 1 ulp over P=2..24 x
+R=P..65537; the emitted-mass invariant holds to 8.9e-16 in BOTH
+branches and the A=0 family total is 1.0 across the cap - the
+reduced form equals the group mass only in the exhaustive branch,
+so the single spelling is what makes the S2 invariant exact in
+the Fisher branch too; zero references outside grow.hpp);
+scanCategoricalPartitions takes a resizable vector (persistent
+GrowScratch, nothing allocates in steady state, the ordinal
+branch already resizes per variable and writes all numCuts
+entries so the shrink exposes no stale score); a pooled-grow test
+added beyond the plan's list because the pooled branch was
+otherwise reached by no test and the mandatory ASAN leg would not
+have covered it (fixture: 70 declared / 60 observed levels with
+the missing pseudo-category in word 1 - a genuine multi-word
+span). Falsifiers, re-run independently by the verifier from
+scratch copies: F2 red on 4; F3 (one extra exact candidate) red
+with the sentinel FIRING while both grow tests stay green - the
+undrawable-candidate-not-empty-leaf claim; F3b (widened AND
+sentinel deleted) reddens the gauge and occupancy grow
+assertions, isolating the sentinel as the mechanism. Engine-risk
+sweep (verifier, code-read + probes): masks always in gauge
+(each side holds a present bit, absent bits drawn only from
+reachable, matching buildFromFlat's three checks and the
+missing-direction flags round trip); occupancy is on integer
+counts so zero-weight-but-occupied is correctly not sentineled;
+no OOB (maskWordsForCount covers the missing code; coin bits
+bounded); no draw-stream desync (the histogram is RNG-free,
+availMaskScratch_ written only in collectAvailableVariables,
+pooled columns never read the inline masks). RNG class HELD:
+tinytest 4174/0 UNCHANGED with the three grow files holding
+exactly (friedmanData is all-ordinal - identical stream), trio
+35/35 strict / 11/11 / 10/10 zero max-z (the leak detector
+clean), categorical-exact 0.0008 unchanged, multinomial-exact six
+arms at the recorded gaps. The ordinal log 2 line and the ordinal
+scan's missing-row handling are untouched. Budget, corrected at
+verification: 789 added / 58 deleted by numstat (the implementer's
+590 omitted test_scan.cpp), of which 233 comment lines and 46
+blank - non-comment code ~499, 1.29x the ~388 estimate; accepted.
+HARD CARRY TO S2, do not slip: categoricalGroupLogProbability and
+the 1 + A coin count ship in this slice with NO oracle - S2's
+O1/O1F/O2 (the coin-count assertion, the A = 0 cross-check
+against ruleForVariableLogProbability, the closed-form mass
+invariant, the P=12/cap-10 Fisher chi-square) are their only
+correctness gates. Also S2's: OP_GROW in the fuzz configs and
+testMappedSourceReplay's pooled arm. Gates double-run
+(implementer + independent verifier, fresh privlibs, --preclean):
+tests/cpp plain + ASAN/UBSAN clean, R CMD check clean-copy
+tarball Status OK, air 0, lintr 0.
+
+S0b (the signed ordinal fix) is next, then S2.

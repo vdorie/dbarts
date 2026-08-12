@@ -138,11 +138,14 @@ items
     6e7edaf1: the falsifier CONFIRMS (chi2 6471 vs the exact law,
     REJECT; isolating arm shows the shipped odds exactly 2x off; a
     SECOND inconsistency surfaced - see ordinal-scan-missing-rows).
-    OPEN VD FORK, now PRESENTED with the result (rec: fix; the fix
-    reaches the rule-group law, 39 percent of the gap to the exact
-    law survives via the second inconsistency); S0b implements only
-    on VD's signature. S1 (the categorical scan itself) proceeds
-    independently of the fork.
+    FORK SIGNED BY VD 2026-08-12: FIX (the fix reaches the
+    rule-group law; 39 percent of the gap to the exact law survives
+    via ordinal-scan-missing-rows). S1 (categorical splits in the
+    scan, plain binary counter + sentinel, pooled + absent-level
+    coverage) LANDED 995002ef. S0b (delete the log 2 halving,
+    re-point the as-measured pin) is the next code slot, then S2
+    (OP_GROW fuzz, O1/O1F/O2 - the HARD CARRY: S1's mass formula
+    and coin count have no oracle until S2 lands them), S3-S5.
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. A memory win, not speed; integer -> double
     is exact in range so the slice MUST be trio-bitwise. Split out of
