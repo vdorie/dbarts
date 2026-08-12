@@ -34,13 +34,23 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NA)
   This is the multi-sampler analog of the \code{forceUpdate = "partial"} mode of
   \code{\link[=dbartsSampler-class]{setPredictor}}. A single sequential sweep installs each
   observation in every sampler at once, and only if its new value keeps every leaf non-empty in every
-  tree of every chain of every sampler; otherwise that observation is rolled back to its previous
-  value in all of them. Like the single-sampler partial mode, the update never changes tree structure
-  -- it only re-routes observations.
+  tree of every \emph{forest} of every chain of every sampler; otherwise that observation is rolled back to
+  its previous value in all of them. Any of the samplers may itself carry more than one forest - a
+  Bayesian causal forest, a multinomial sampler, or a heteroscedastic (\code{variance}) sampler - and
+  each of its forests is checked on the same terms as an ordinary single-forest sampler's mean forest
+  (see \sQuote{Multi-forest and heteroscedastic predictor mutation} in
+  \code{\link[=dbartsSampler-class]{dbartsSampler}}). Like the single-sampler partial mode, the update
+  never changes tree structure -- it only re-routes observations.
 
   This supports embedding several BART components that condition on a common latent predictor (for
   example, a shared ability or trait in an item-response model) within a larger Gibbs/Metropolis
   sampler.
+
+  A whole-matrix \code{setPredictor} call on one of the samplers, made earlier in the same script,
+  strips the column names from that sampler's \code{data@x} (see \sQuote{Multi-forest and
+  heteroscedastic predictor mutation}, \code{\link[=dbartsSampler-class]{dbartsSampler}}) and this
+  function's by-name \code{column} matching then fails on it. Either replace predictors a column at a
+  time on samplers this function will later reference, or call this function first.
 }
 \value{
   A logical vector of length equal to the number of observations, \code{TRUE} where the observation's

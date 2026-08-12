@@ -28,7 +28,7 @@ bool sameFlatTrees(const std::vector<std::vector<FlatNode>>& a,
 // size is the LP64 layout (std::vector 24 bytes, size_t 8); other data models
 // are let through rather than guessed at. Honest, not airtight - a small field
 // can hide in existing padding - which is why the table-driven coverage test
-// beside the fuzz snapshot (F4) exists as well.
+// beside the fuzz snapshot exists as well.
 static_assert(sizeof(void*) != 8 || sizeof(ChainStateData) == 272,
               "ChainStateData gained or lost a field; add its comparison to "
               "statesAgree below and update this size");

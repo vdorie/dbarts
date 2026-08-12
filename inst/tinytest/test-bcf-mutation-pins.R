@@ -40,17 +40,13 @@ expect_error(dbarts:::bartcoreSetTestOffset(bc, rep(0, n)), "BCF")
 
 # --- succeeds: a transactional predictor update revalidates every forest and
 # installs under the empty-leaf veto, rolling the whole change back and
-# reporting FALSE if any tree of either forest would lose a leaf (INVERTED in
-# place from the refusal this file pinned, per docs/plans/multiforest-
-# predictor-mutation.md S1). Replacing the design with its own values cannot
-# empty a leaf, so this one installs
+# reporting FALSE if any tree of either forest would lose a leaf. Replacing
+# the design with its own values cannot empty a leaf, so this one installs
 expect_true(dbarts:::bartcoreSetPredictor(bc, x, forceUpdate = FALSE))
 # --- succeeds: the per-observation session's cell guard caches every forest,
 # pruned to the trees the column can move, so a row installs only if it empties
-# no leaf of either forest and is declined otherwise (INVERTED in place from
-# the refusal this file pinned, per docs/plans/multiforest-predictor-
-# mutation.md S2). Re-installing the column's own values moves nothing, so
-# every row installs
+# no leaf of either forest and is declined otherwise. Re-installing the
+# column's own values moves nothing, so every row installs
 expect_true(all(
   dbarts:::bartcoreUpdatePredictorPerObservation(bc, x[, 1L], 1L)
 ))

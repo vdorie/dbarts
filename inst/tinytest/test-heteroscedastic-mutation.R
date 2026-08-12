@@ -143,16 +143,14 @@ sScratchData <- sqrt(apply(scratchData$run(150L, 100L)$variance, 1L, mean))
 expect_true(cor(sSwapped, sScratchData) > 0.9)
 expect_true(abs(mean(sSwapped) / mean(sScratchData) - 1) < 0.15)
 
-# ---- the transactional predictor surface, one entry at a time. S0 pinned all
-# four as refusing; S3 INVERTS those refusals in place
-# (docs/plans/multiforest-predictor-mutation.md): the two-phase revalidation and
-# the per-observation session's cell guard now reach the variance forest, so a
-# transactional change either re-routes every variance tree with the mean ones
-# or is refused - the whole transaction rolling back, or the row declining -
-# and never installs a partition s^2(x) would misroute. The forced entries and
-# setCutPoints reach it as before (the sections above measure that they do).
-# Its own sampler, at the end of the file, so no assertion above sees a
-# different rng stream.
+# ---- the transactional predictor surface, one entry at a time: the two-phase
+# revalidation and the per-observation session's cell guard now reach the
+# variance forest, so a transactional change either re-routes every variance
+# tree with the mean ones or is refused - the whole transaction rolling back,
+# or the row declining - and never installs a partition s^2(x) would misroute.
+# The forced entries and setCutPoints reach it as before (the sections above
+# measure that they do). Its own sampler, at the end of the file, so no
+# assertion above sees a different rng stream.
 set.seed(47, sample.kind = "Rejection")
 nPin <- 200L
 xPin <- cbind(x1 = runif(nPin), x2 = runif(nPin), x3 = runif(nPin))
@@ -220,9 +218,8 @@ expect_true(all(pinnedRun$variance > 0))
 # any tree, the variance forest included. setState imposed that criterion on
 # every mean tree and on no variance tree, so the route the old refusal message
 # recommended admitted states the veto refuses: a variance bottom no row reaches
-# carries no drawn scale. It is checked now
-# (docs/plans/multiforest-predictor-mutation.md, S3 item 5), which is a
-# behavior CHANGE - such a state used to install.
+# carries no drawn scale. It is checked now, which is a behavior CHANGE - such
+# a state used to install.
 set.seed(53, sample.kind = "Rejection")
 stateSampler <- buildVarianceSampler(xPin, yPin)
 # an explicit grid, so the hand-built splits below sit on known cut values

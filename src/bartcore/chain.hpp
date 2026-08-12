@@ -1562,8 +1562,7 @@ public:
   /// split on a column the transaction touched. Skipping the rest is exact,
   /// not approximate: an untouched tree's partition, parameters and fits are
   /// unchanged, and leaving its contribution to forest.totalFits alone
-  /// preserves it bitwise where a round trip would perturb it
-  /// (docs/plans/multiforest-predictor-mutation.md, "Pruning"). An empty
+  /// preserves it bitwise where a round trip would perturb it. An empty
   /// params[f][t] is NOT a legal skip marker - a function-valued leaf
   /// legitimately produces one - so the list is explicit and shared.
   ///
@@ -1656,10 +1655,10 @@ public:
   /// So the guarded set is a subset of the revalidated set in every forest,
   /// and a tree in the difference is one whose partition the revalidation
   /// reproduces unchanged from an occupied pre-state: that is why the session's
-  /// finalize cannot fail (docs/plans/multiforest-predictor-mutation.md,
-  /// "Pruning"). Dropping a tree from the cache cannot move the returned mask
-  /// either: with no node splitting on column the override never fires during
-  /// the descent, so the new leaf is the old one and no move is ever staged.
+  /// finalize cannot fail. Dropping a tree from the cache cannot move the
+  /// returned mask either: with no node splitting on column the override never
+  /// fires during the descent, so the new leaf is the old one and no move is
+  /// ever staged.
   void treesSplittingOnColumn(std::size_t f, std::size_t column,
                               std::vector<std::uint32_t>& scratch,
                               std::vector<std::size_t>& out) const {
@@ -2598,8 +2597,7 @@ public:
     // with every bottom occupied against this sampler's data, the criterion the
     // mean branch above imposes tree by tree. Without the occupancy pass an
     // installed variance tree could report a scale no row supports, which is
-    // exactly what the transactional veto refuses to create
-    // (docs/plans/multiforest-predictor-mutation.md, S3 item 5).
+    // exactly what the transactional veto refuses to create.
     if (varianceForest_) {
       if (state.varianceTrees.size() != varianceForest_->numTrees) return false;
       const std::uint8_t* varianceMask = varianceForest_->columnMask.empty()
@@ -3455,9 +3453,12 @@ private:
   /// support - so an unsupported test row reads the product over the trees that
   /// DO have support instead of zero, and a flattened state stays inside its
   /// own strict-positivity check. The empty-leaf veto keeps a live tree's
-  /// bottoms occupied, so only an installed tree (setState today, a warm start
-  /// once installForest carries variance trees) can need the fallback;
-  /// refreshVarianceForest asserts the live invariant at its recover step.
+  /// bottoms occupied, and every public route that can install a variance
+  /// state - setState and a warm start through installForests - now refuses
+  /// one with an unoccupied bottom, so the fallback is unreachable from any
+  /// public route; it remains a defensive floor for a recover call over a tree
+  /// admitted some other way. refreshVarianceForest asserts the live invariant
+  /// at its recover step.
   /// Internal slots are never read - flatten and the merges take bottoms only.
   void recoverVarianceLeafValues(const VarianceForest& vf, std::size_t j,
                                  std::vector<double>& out) const {

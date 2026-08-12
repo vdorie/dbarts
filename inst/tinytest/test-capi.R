@@ -166,10 +166,9 @@ expect_true(CALL("capi_update_predictor", ptr2, matrix(x[, 3L], n), 2L))
 
 # dbarts_sampler_setPredictor and dbarts_sampler_updatePredictor take a
 # heteroscedastic sampler's transactional predictor mutation (forceUpdate = 0)
-# and return the engine's verdict, matching the R bridge entries. The stop-loss
-# refusal these pinned is INVERTED in place: the two-phase revalidation reaches
-# the variance forest, so the entry either re-routes every variance tree or
-# rolls the whole change back (docs/plans/multiforest-predictor-mutation.md, S3)
+# and return the engine's verdict, matching the R bridge entries: the
+# two-phase revalidation reaches the variance forest, so the entry either
+# re-routes every variance tree or rolls the whole change back
 nVar <- 60L
 xVar <- matrix(runif(nVar * 2L), nVar, 2L)
 yVar <- rnorm(nVar)

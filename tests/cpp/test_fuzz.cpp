@@ -38,16 +38,15 @@ static void fuzzFillOwner(const Tree& t, int32_t i, std::vector<int32_t>& owner)
   fuzzFillOwner(t, nd.leftChild + 1, owner);
 }
 
-// The state a rejected or abandoned mutation must leave untouched. The old
+// The state a rejected or abandoned mutation must leave untouched. An earlier
 // fingerprint carried codes, cuts, sigma and Chain::treeFits(), which is
 // forest 0 alone: a rollback that restored mu and left tau routed by the
 // proposal passed it green. It is rebuilt here so that omission stops being
-// expressible (docs/plans/multiforest-predictor-mutation.md, "The snapshot,
-// closed structurally"): the persisted state entire, plus every LIVE structure
-// the persisted state does not carry, captured by INDEX LOOPS with no forest
-// literal anywhere - a new forest class is covered on arrival. F4
-// (testSnapshotCoversEveryFamily) is the gate that each captured family can
-// make the comparison false.
+// expressible: the persisted state entire, plus every LIVE structure the
+// persisted state does not carry, captured by INDEX LOOPS with no forest
+// literal anywhere - a new forest class is covered on arrival.
+// testSnapshotCoversEveryFamily is the gate that each captured family, when
+// perturbed alone, makes the comparison false.
 
 // One arena node's structure: the split rule and the index range it owns.
 struct FuzzNode {
@@ -65,8 +64,9 @@ struct FuzzNode {
 // leafOwner, and NOT the raw index buffer: the rollback re-routes from the root
 // (Chain::repartitionTrees), and the kernel's partition is not order-stable, so
 // a rejected transaction restores each leaf's MEMBERSHIP but generally permutes
-// its members. Measured on the shipped rollback, S1 engine and pre-S1 alike:
-// every other family below - codes, cuts, the whole persisted state, split
+// its members. Measured on the shipped rollback, across both the old
+// forest-0-only revalidation and the widened per-forest one: every other
+// family below - codes, cuts, the whole persisted state, split
 // rules, index RANGES, fits and totalFits - comes back bitwise, and only the
 // within-leaf order moves. Recorded here rather than asserted because it is
 // pre-existing behavior with a live baseline over it (the predreject
@@ -657,9 +657,11 @@ static void fuzzRunConstant(const ConfigSpec& spec, std::uint32_t seed,
 // per-observation session in both its committing and its abandoned flavor, the
 // forced refresh, setCutPoints, run and the state round trip. setData,
 // setResponse, setWeights and setOffset are refused for a multi-forest sampler
-// at the bridge (test-multi-forest-seam.R). OP_PER_OBS carries F7 across the
-// whole surface - the driver fails on a finalize that returns false, which the
-// pairing invariant says cannot happen - and OP_SESSION_ABANDON carries F8.
+// at the bridge (test-multi-forest-seam.R). OP_PER_OBS asserts, across the
+// whole surface, that finalize never returns false - the guarded set is always
+// a subset of the revalidated set, so an empty leaf it did not catch cannot
+// occur - and OP_SESSION_ABANDON asserts that a dropped session leaves the
+// sampler unchanged.
 static const unsigned fuzzMultiForestMask =
   (1u << OP_SET_PREDICTOR) | (1u << OP_UPDATE_COLUMNS) | (1u << OP_PER_OBS) |
   (1u << OP_SESSION_ABANDON) | (1u << OP_SET_CUTS) | (1u << OP_RUN) |
@@ -848,11 +850,11 @@ static void fuzzRunSparse(std::uint32_t seed, int numOps) {
   ext_rng_destroy(opRng);
 }
 
-// F4, the structural gate on the snapshot (docs/plans/multiforest-predictor-
-// mutation.md): table-driven, one row per captured family, each row perturbing
-// exactly that family and requiring the comparison to go false. A family with
-// no row is a family the snapshot does not cover - which is the failure mode
-// the rebuild exists to close, and which no amount of green fuzzing detects.
+// The structural gate on the snapshot: table-driven, one row per captured
+// family, each row perturbing exactly that family and requiring the
+// comparison to go false. A family with no row is a family the snapshot does
+// not cover - which is the failure mode the rebuild exists to close, and which
+// no amount of green fuzzing detects.
 using FuzzSnap = FuzzSnapshot<Sampler<ConstantGaussianLeaf>>;
 
 struct FuzzFamily {
@@ -1006,11 +1008,10 @@ static void testSnapshotCoversEveryFamily() {
 }
 
 // ---------------------------------------------------------------------------
-// F5 and F6 (docs/plans/multiforest-predictor-mutation.md): the two gates on
-// the per-observation session's PRUNED cache. The fuzzer above proves the
-// sampler stays self-consistent whatever the session decided; these prove the
-// session decided what an independent count says it must, and that the trees
-// pruning skipped came through untouched to the bit.
+// The two gates on the per-observation session's PRUNED cache. The fuzzer
+// above proves the sampler stays self-consistent whatever the session
+// decided; these prove the session decided what an independent count says it
+// must, and that the trees pruning skipped came through untouched to the bit.
 
 // The three widened shapes, each owning the buffers it lends the sampler for
 // its life. All instantiate Sampler<ConstantGaussianLeaf>; only the coupling
@@ -1134,12 +1135,12 @@ struct MultiForestFixture {
   }
 };
 
-// F5's oracle: its own per-tree leaf counts over EVERY tree of EVERY forest of
-// EVERY chain - and, on a heteroscedastic sampler, every variance tree -
-// pruned or not, maintained independently of the session. The engine's cached
-// set is a strict subset of this one, so a pruning bug that dropped a tree
-// able to veto shows up as a decision the oracle refuses and the engine
-// accepts.
+// An independent oracle: its own per-tree leaf counts over EVERY tree of
+// EVERY forest of EVERY chain - and, on a heteroscedastic sampler, every
+// variance tree - pruned or not, maintained independently of the session. The
+// engine's cached set is a strict subset of this one, so a pruning bug that
+// dropped a tree able to veto shows up as a decision the oracle refuses and
+// the engine accepts.
 struct MaskOracle {
   std::vector<const Tree*> trees;
   std::vector<std::vector<int32_t>> obsLeaf;            // tree, observation
@@ -1232,8 +1233,8 @@ static size_t maskOracleSession(Sampler<ConstantGaussianLeaf>& s, ext_rng* r,
       installed[i] = 1;
     }
   }
-  // F7 on this surface too: the guarded set is a subset of the revalidated
-  // set, so the finalize cannot report an empty leaf
+  // the guarded set is a subset of the revalidated set on this surface too,
+  // so the finalize cannot report an empty leaf
   check(session->finalize(), label);
   return n;
 }
@@ -1267,7 +1268,7 @@ static void testPerObservationMaskExactness() {
     else fixture.buildHeteroscedastic(n, p, 1, 4600u);
     Sampler<ConstantGaussianLeaf>& s(*fixture.sampler);
     // the heteroscedastic shape carries the 1e5-decision floor on its own, the
-    // others between them, as at S2
+    // BCF and multinomial shapes split it between them
     size_t numSessions = shape == 2 ? 420 : 220;
     // the driver keeps the current column itself; the engine holds no matrix
     std::vector<double> current(fixture.x);
@@ -1280,9 +1281,9 @@ static void testPerObservationMaskExactness() {
                           candidate);
       size_t made = maskOracleSession(
         s, r, column, candidate.data(),
-        shape == 0 ? "F5: the BCF session's finalize holds"
-        : shape == 1 ? "F5: the multinomial session's finalize holds"
-                     : "F5: the heteroscedastic session's finalize holds",
+        shape == 0 ? "the BCF session's finalize holds"
+        : shape == 1 ? "the multinomial session's finalize holds"
+                     : "the heteroscedastic session's finalize holds",
         installed, installs, declines, mismatches);
       decisions += made;
       if (shape == 2) varianceDecisions += made;
@@ -1293,19 +1294,19 @@ static void testPerObservationMaskExactness() {
     }
   }
 
-  check(mismatches == 0, "F5: every install decision matches the oracle");
-  check(decisions >= 100000, "F5: at least 1e5 install decisions");
+  check(mismatches == 0, "every install decision matches the oracle");
+  check(decisions >= 100000, "at least 1e5 install decisions");
   check(varianceDecisions >= 100000,
-        "F5: at least 1e5 of them under a variance forest");
-  check(installs > 0 && declines > 0, "F5: both verdicts occur");
+        "at least 1e5 of them under a variance forest");
+  check(installs > 0 && declines > 0, "both verdicts occur");
   ext_rng_destroy(r);
   printf("ok: per-observation mask exactness (%zu decisions, %zu under a "
          "variance forest, %zu installed, %zu declined)\n", decisions,
          varianceDecisions, installs, declines);
 }
 
-// One tree's F6 families: everything an untouched tree must carry through a
-// transaction unchanged.
+// One tree's untouched-tree families: everything an untouched tree must carry
+// through a transaction unchanged.
 struct F6Tree {
   std::vector<FuzzNode> nodes;   // split rules and index ranges
   std::vector<index_t> indices;  // the raw index buffer, within-leaf order too
@@ -1389,8 +1390,8 @@ static F6Capture f6Capture(Sampler<ConstantGaussianLeaf>& s) {
   return out;
 }
 
-// F6, on the SHIPPED (pruned) build: after an accepted transaction, a tree
-// with no split on a touched column is bitwise where it was - rules, index
+// On the shipped (pruned) build: after an accepted transaction, a tree with
+// no split on a touched column is bitwise where it was - rules, index
 // ranges, the index buffer itself, its fit slab and its persisted leaf
 // parameters - and if no tree of a forest splits on the column, that forest's
 // totalFits keeps every contribution bitwise, where an unpruned rebuild would
@@ -1442,16 +1443,16 @@ static void testUntouchedTreeExactness() {
             if (uses[column] != 0) { forestUntouched = false; continue; }
             ++skipped;
             check(before.trees[c][f][t] == after.trees[c][f][t],
-                  "F6: an untouched tree's rules, ranges, indices and fits "
+                  "an untouched tree's rules, ranges, indices and fits "
                   "are bitwise unchanged");
             check(f6FlatEqual(before.state.chains[c].forests[f].trees[t],
                               after.state.chains[c].forests[f].trees[t]),
-                  "F6: an untouched tree's leaf parameters are bitwise "
+                  "an untouched tree's leaf parameters are bitwise "
                   "unchanged");
           }
           if (forestUntouched)
             check(before.totals[c][f] == after.totals[c][f],
-                  "F6: a forest no touched column reaches keeps its totalFits "
+                  "a forest no touched column reaches keeps its totalFits "
                   "bitwise");
         }
         // the same for the variance forest, which prunes on the same predicate
@@ -1464,16 +1465,16 @@ static void testUntouchedTreeExactness() {
             if (uses[column] != 0) { varianceUntouched = false; continue; }
             ++varianceSkipped;
             check(before.varianceTrees[c][j] == after.varianceTrees[c][j],
-                  "F6: an untouched variance tree's rules, ranges, indices and "
+                  "an untouched variance tree's rules, ranges, indices and "
                   "factors are bitwise unchanged");
             check(f6FlatEqual(before.state.chains[c].varianceTrees[j],
                               after.state.chains[c].varianceTrees[j]),
-                  "F6: an untouched variance tree's leaf factors are bitwise "
+                  "an untouched variance tree's leaf factors are bitwise "
                   "unchanged");
           }
           if (varianceUntouched)
             check(before.combinedVariance[c] == after.combinedVariance[c],
-                  "F6: a variance forest no touched column reaches keeps "
+                  "a variance forest no touched column reaches keeps "
                   "s^2(x) bitwise");
         }
         // the measured asymmetry, reported rather than asserted
@@ -1484,21 +1485,20 @@ static void testUntouchedTreeExactness() {
     }
     ext_rng_destroy(r);
   }
-  check(skipped > 0, "F6: the pruning actually skipped trees");
-  check(varianceSkipped > 0, "F6: the pruning skipped variance trees too");
+  check(skipped > 0, "the pruning actually skipped trees");
+  check(varianceSkipped > 0, "the pruning skipped variance trees too");
   printf("ok: untouched-tree exactness (%zu pruned trees checked, %zu of them "
          "variance; forest 0's unpruned round trip moved totalFits on %zu "
          "rows)\n", skipped, varianceSkipped, forestZeroTotalMoves);
 }
 
 // ---------------------------------------------------------------------------
-// F9 and F10 (docs/plans/multiforest-predictor-mutation.md): the two gates on
-// the variance forest's half of the transaction. F9 is the rollback identity,
-// F10 the recovery ordering.
+// The two gates on the variance forest's half of the transaction: the
+// rollback identity and the recovery ordering.
 
 // Node-indexed leaf factors of variance tree j, read off the LIVE partition:
 // the same quantity the validate phase recovers, computed independently here
-// so F10 compares against a value the engine did not hand us.
+// so this test compares against a value the engine did not hand us.
 static void f10NodeFactors(const Tree& tree, const double* factor,
                            int32_t nodeIndex, std::vector<double>& out) {
   const Node& node(tree.at(nodeIndex));
@@ -1511,7 +1511,7 @@ static void f10NodeFactors(const Tree& tree, const double* factor,
   f10NodeFactors(tree, factor, node.leftChild + 1, out);
 }
 
-// F10: after an ACCEPTED transaction, every observation's factor is the
+// After an ACCEPTED transaction, every observation's factor is the
 // PRE-transaction factor of the leaf it now lands in. That is the ordering
 // claim - the recovery reads each leaf's current members before any partition
 // change - stated over a quantity a caller can see. Recovering after the
@@ -1564,21 +1564,21 @@ static void testVarianceRecoveryOrdering() {
           if (ownerAfter[i] != ownerBefore[j][i]) ++moved;
           check(factorsAfter[j * n + i] ==
                   nodeFactors[j][static_cast<size_t>(ownerAfter[i])],
-                "F10: a rebuilt factor is its new leaf's pre-transaction "
+                "a rebuilt factor is its new leaf's pre-transaction "
                 "factor");
         }
       }
     }
   }
-  check(accepted > 0, "F10: at least one transaction was accepted");
-  check(moved > 0, "F10: the accepted transactions moved variance partitions");
+  check(accepted > 0, "at least one transaction was accepted");
+  check(moved > 0, "the accepted transactions moved variance partitions");
   ext_rng_destroy(r);
   printf("ok: variance recovery ordering (%zu accepted transactions, %zu "
          "observations changed variance leaves)\n", accepted, moved);
 }
 
-// F9: a ROLLED BACK transaction leaves a heteroscedastic sampler bitwise where
-// it was, under the widened snapshot - which covers each variance tree's
+// A ROLLED BACK transaction leaves a heteroscedastic sampler bitwise where it
+// was, under the widened snapshot - which covers each variance tree's
 // partition (by leaf assignment), the per-tree factor slab and s^2(x). The
 // validate phase re-routes the variance trees before the veto fires, so
 // repartitionTrees has to put them back; without its variance arm s^2(x) stays
@@ -1615,7 +1615,7 @@ static void testVarianceRollback() {
     ++rejected;
     if (column >= 2 && varianceSplitters > 0) ++varianceObjected;
     check(fuzzSnapshotsEqual(before, fuzzCapture(s)),
-          "F9: a rolled-back transaction leaves the variance forest bitwise");
+          "a rolled-back transaction leaves the variance forest bitwise");
   }
   // the whole-matrix flavor too, whose null column list prunes nothing
   {
@@ -1626,13 +1626,13 @@ static void testVarianceRollback() {
         PredictorUpdateResult::accepted) {
       ++rejected;
       check(fuzzSnapshotsEqual(before, fuzzCapture(s)),
-            "F9: a rolled-back whole-matrix swap leaves the variance forest "
+            "a rolled-back whole-matrix swap leaves the variance forest "
             "bitwise");
     }
   }
-  check(rejected > 0, "F9: at least one transaction rolled back");
+  check(rejected > 0, "at least one transaction rolled back");
   check(varianceObjected > 0,
-        "F9: at least one rollback had the variance forest as sole objector");
+        "at least one rollback had the variance forest as sole objector");
   printf("ok: variance rollback identity (%zu rolled-back transactions, %zu "
          "with the variance forest the sole objector)\n", rejected,
          varianceObjected);
@@ -1664,9 +1664,9 @@ static void testMutationFuzzer(int numSeeds) {
     // forest through forceRefreshTrees, and setData once applyNewData resized
     // its seven n-sized allocations and re-routed it - the op the fuzzer runs
     // at a fresh count every time. The transactional predictor paths and the
-    // per-observation session joined when the two-phase revalidation and the
-    // session's cell guard reached the variance forest (S3), so this config
-    // now runs every op but setSigma, which stays out because it is an engine
+    // per-observation session joined once the two-phase revalidation and the
+    // session's cell guard reached the variance forest, so this config now
+    // runs every op but setSigma, which stays out because it is an engine
     // no-op under a variance forest (the forest IS the residual variance).
     {"heteroscedastic", ResponseFamily::gaussian, {ord, ord, ord}, 1,
      (1u << OP_SET_RESPONSE) | (1u << OP_SET_WEIGHTS) | (1u << OP_SET_OFFSET) |

@@ -458,8 +458,9 @@ SEXP capi_update_predictor_fixed_cuts(SEXP ptrExpr, SEXP xExpr,
     samplerFromExpr(ptrExpr), REAL(xExpr), &column, 1, FALSE, FALSE));
 }
 
-/* the forced flavors of the two above, for the stop-loss guard's accept arm
- * (docs/plans/multiforest-predictor-mutation.md "SL. Stop-loss") */
+/* the forced flavors of the two above, exercising the transactional guard's
+ * accept arm: forceUpdate = TRUE bypasses the empty-leaf veto and always
+ * installs */
 SEXP capi_set_predictor_forced(SEXP ptrExpr, SEXP xExpr) {
   return Rf_ScalarLogical(
     dbarts_sampler_setPredictor(samplerFromExpr(ptrExpr), REAL(xExpr), TRUE,

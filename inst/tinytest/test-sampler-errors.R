@@ -181,10 +181,9 @@ expect_equal(sampler.aft$getSigmas(), 0.7)
 # heteroscedastic sampler: the two-phase revalidation and the session's cell
 # guard reach the variance forest, so every variance tree is re-routed with the
 # mean ones or the change is refused - the transaction rolling back, or the row
-# declining (docs/plans/multiforest-predictor-mutation.md, S3; these three
-# refusals are INVERTED in place). The forced paths, setCutPoints and setData
-# re-route it too (setData resizes its n-sized buffers first), and are covered
-# by the mutation test file.
+# declining. The forced paths, setCutPoints and setData re-route it too
+# (setData resizes its n-sized buffers first), and are covered by the mutation
+# test file.
 # Its own sampler: these entries now INSTALL, so driving them on
 # sampler.variance would move the surface the recalibration assertions below
 # measure.
