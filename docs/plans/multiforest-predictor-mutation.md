@@ -1169,4 +1169,68 @@ clean, tinytest 3985/0 no snapshot regenerated, trio + oracles
 (bcf-exact quick 1e-4, restricted 2e-4), air 0, lintr no new
 findings.
 
-S2-S4 remain queued; S2 (widen UpdateSessionImpl) is next.
+S2 LANDED 3cab553 (engine) + 5acd116 (baselines), 2026-08-12.
+UpdateSessionImpl builds an explicit (chain, forest, tree) survivor
+table in its constructor, pruned to the trees splitting on the
+session's column and resolved through the promoted const
+Chain::treeInForest (Chain::tree keeps its forest-0 meaning); one
+predicate, Chain::collectSplittingTrees, feeds both consumers -
+collectSurvivors (forest-0 exempt, the rebuild's
+arithmetic-preservation rule) and the session's
+treesSplittingOnColumn (not exempt) - so the guarded set is a subset
+of the revalidated set in every forest, forest 0 included, as the
+Pruning section mandates. Bridge:
+refuseMultiForestPerObservationUpdate deleted; the retirement is
+R-bridge ONLY - deviation from the plan's both-surfaces wording,
+verified sound: the helper had no C_interface.cpp caller and
+dbarts.h exposes no per-observation entry, so there was no flat
+clause to drop; both per-observation entries now call
+refuseVarianceForestPredictorMutation directly (S3 retires it); an
+R-level refuseBCFMutation on the partial path removed. Joint entry
+untouched (one permutation from samplers[0]->rng(), all-or-none
+install, ANDed finalize returns). Fuzz: OP_PER_OBS +
+OP_SESSION_ABANDON in fuzzMultiForestMask across all four
+BCF/multinomial configs; snapshot discipline held (codes +
+cutPoints/currentSampleNum compared beside statesAgree;
+leaf-assignment capture at all three rejected/abandoned sites).
+Falsifiers: F5 green at 110000 caller-ordered decisions (109456
+installed / 544 declined) against an in-test per-tree leaf-count
+oracle over every tree of every forest, negative half red on both
+the mask and the finalizes; F6 green (82 pruned trees bitwise
+including raw indices and fit slab; forest 0's unpruned round trip
+moves totalFits on ~394 rows, reported not asserted, per the
+invariant asymmetry), negative half reddened F2 on exactly the four
+multi-forest configs; F7 green, negative half run in full - the
+cache pinned to forest 0 with the revalidation widened raises the
+unrecoverable "produced a tree with an empty leaf" hard error on a
+multinomial sampler after cells were written, where the shipped
+build installs 190-196/200; F8 green. Pins inverted in place; the
+R5 pin asserts mask shape + finite run (that sampler is never run,
+its trees are stumps, no row can empty a leaf - the decline half is
+pinned on the burned-in handles in test-bcf-mutation-pins.R and
+test-multi-forest-seam.R). Harness: per_observation 200/200 +
+per_observation_partial 197/200 (BCF), k3perobs 198/200 +
+k3perobspartial 194/200 (multinomial); the verdict channel is the
+whole install mask, the session answering per row. Baselines
+equivalence/bcf-equivalence/multinomial-equivalence-3cab553.rds:
+neutrality partition first (33/33 identical draws, 9/9, 7/7 vs
+938eb81, no max |z| anywhere), then self-reproduction 33/33 strict,
+11/11, 9/9; equivalence.yaml re-pinned. Budget: ~820 changed lines
+vs the ~440 estimate - engine 126 and bridge 51 within intent, the
+overage entirely the mandated F5 oracle, F6 capture, fixtures, pins
+and the harness lines item 7 mandates but the estimate omitted.
+Gates double-run (implementer + independent verifier, fresh
+privlibs): install --preclean, tests/cpp plain + ASAN/UBSAN clean,
+tinytest 3993/0 no snapshot regenerated, trio + oracles (bcf-exact
+quick to 4 dp, restricted 2e-4), air 0, lintr 0 new. Carried to S3:
+Chain::treesSplittingOnColumn takes a forest index, so the variance
+arm needs its own accessor beside varianceTree(j) (no
+numTreesInForest entry); the heteroscedastic config's "for the
+whole arc" comment in test_fuzz.cpp is still the pre-S2 text and is
+S3's to edit; MultiForestFixture is the natural host for the
+heteroscedastic F5/F6 configuration; the statesAgree
+above-chain-level gap stands. Carried to S4 (residual coverage):
+the bcf/multinomial equivalence legs are pinned by no CI workflow -
+local-only gates, a pre-existing shape, not introduced here.
+
+S3, S4 remain queued; S3 (the variance forest) is next.

@@ -213,9 +213,12 @@ items
     multinomial NAMED-AND-UNGATED. S0 (pins + trio eyes) LANDED
     1357e7d; S1 (two-phase revalidation across forests_, transactional
     surfaces widened both R and flat C) LANDED 938eb81 + baselines
-    7a9c6f3. S2 (widen UpdateSessionImpl, per-observation session for
-    BCF/multinomial) is the next code slot; then S3 (variance forest,
-    + the statesAgree above-chain-level gap S1 recorded), S4.
+    7a9c6f3. S2 (per-observation session across forests, survivor
+    table + shared predicate, refusal retired R-bridge-only) LANDED
+    3cab553 + baselines 5acd116. S3 (variance forest, + the
+    statesAgree above-chain-level gap S1 recorded) is the next code
+    slot; then S4 (residual coverage incl. the un-pinned-in-CI
+    bcf/multinomial equivalence legs).
   multinomial-counts-mutation: multinomial BART cannot mutate its
     RESPONSE side - alone among the families it cannot serve as a
     conditional inside a larger Gibbs sampler. The response is the
