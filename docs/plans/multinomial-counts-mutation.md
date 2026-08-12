@@ -41,11 +41,14 @@ entrance refuses cleanly today (audited entrance by entrance in the critique,
 Part 0.1; no silently-wrong reachable path, so NO stop-loss slice is needed).
 All combiner mutable state (`omega_`, `margins_`, `suffix_`, `prefix_`,
 `lastF_`, `combined_`) is per-sweep scratch: the `f == 0` disjunct in
-`drawForestGlue` rebuilds it at every sweep entry. Design artifacts (memo,
-adversarial critique, synthesis) are durable at
-`.claude/multinomial-counts-mutation-design/`. **Read the synthesis before
-starting** - it carries the B1 redesign this plan encodes and three extensions
-neither of the other two documents has.
+`drawForestGlue` rebuilds it at every sweep entry. Design artifacts are durable
+at `.claude/multinomial-counts-mutation-design/` (`memo.md`, `critique.md`,
+`synthesis.md`). **Read `synthesis.md` before starting** - it carries the B1
+redesign this plan encodes and three extensions neither of the other two
+documents has. `.claude/` is gitignored, so the directory does NOT arrive with
+a `git worktree add`; the orchestrator copies it into the implementer's
+worktree at spawn, and an implementer who cannot find it must ask rather than
+proceed without it.
 
 ## Binding decisions inherited (do not reopen)
 
@@ -58,17 +61,24 @@ neither of the other two documents has.
 2. **The channel carries its OWN capability predicate.**
    `Chain::supportsResponseMutation` is `combiner opt-in AND family ==
    gaussian`, and multinomial sets `family_ = logistic`, so flipping the
-   combiner flag would not open `setResponse` anyway. New
-   `SamplerShape::supportsCountsMutation` and `numCategories`; never route
-   through `supportsResponseMutation`, whose contract (re-derive everything from
-   the chain's `y` and `w`) multinomial cannot satisfy.
+   combiner flag would not open `setResponse` anyway. ONE new field,
+   `SamplerShape::supportsCountsMutation`; K comes off the existing
+   `numReportedLocations` (see S1 item 1). Never route through
+   `supportsResponseMutation`, whose contract (re-derive everything from the
+   chain's `y` and `w`) multinomial cannot satisfy.
 3. **A category offset enters the raw fits BEFORE the softmax, never after the
    blend.** The simplex precedent is binding: `docs/plans/multiforest-mutation-
    gaps.md` hole H1 measured reported "probabilities" summing to 10 because
-   `storeSample` added a test offset after the K-blend.
-   `refuseMultiForestTestOffset` stays in force for the FLAT entries forever,
-   and the category offset must never reach `ResponseModel::offset()` (which
-   `storeSample` adds post-blend to every location channel).
+   `storeSample` added a test offset after the K-blend. **The FLAT test-offset
+   refusal stays in force forever** - and the helper on that entry is
+   `refuseMultiForestMutation` (`C_interface.cpp:330`), NOT
+   `refuseMultiForestTestOffset`, which is R-bridge-only
+   (`R_interface_bartcore.cpp:2345`, called at :3959 and :3988). Both refuse
+   the multinomial on the same predicate (`numForests >= 2`) and differ only in
+   message, so the decision is unchanged; the earlier spelling of it simply
+   named the wrong guard. The category offset must never reach
+   `ResponseModel::offset()` (which `storeSample` adds post-blend to every
+   location channel).
 4. **Case weights stay refused**, on model grounds: a non-integer weight makes
    the augmentation `PG(w_i n_i, .)`, a real-shape draw with no exact sampler
    (the gap `docs/plans/negative-binomial.md` records), and an INTEGER weight is
@@ -86,25 +96,60 @@ neither of the other two documents has.
    so `dbarts_sampler_setCounts` would be dead on arrival and would freeze a
    signature before use.
 
-## Context (seams, all read at d3cb94b / engine 06c0254)
+## Context (seams, first read at d3cb94b / engine 06c0254; REVALIDATED at
+## f737702, 2026-08-12, after the multiforest-predictor-mutation arc landed
+## SL+S0-S4 (33f6fdc..a825263, records through f737702) - corrections applied
+## in place below and in the slices)
+
+- Live bridge entries (`R_interface_bartcore.cpp` at f737702), since the
+  multiforest arc moved every one of them: `setTreatment` :3295,
+  `setForestWeights` :3319, `setOffset` :3782, `setResponse` :3800,
+  `setSigma` :3825, `setData` :3832, `setTestOffset` :3951,
+  `setTestPredictorAndOffset` :3974, `setWeights` :4037, `setControl` :4059,
+  `setModel` :4089, `setPredictor` :4195, `predict` :4884 (whose offset guard
+  now lives in the shared `predictFromSource` :4785, predicate unchanged:
+  `offset != NULL && numLocations > 1`). Every multinomial combiner anchor is
+  intact, line-shifted: `drawForestGlue` :800 (`lastF_ = f` :833),
+  `formForestResponse` :854, `combinedFits` :870, `combinedTestFits` :885,
+  `blendSoftmax` :995, `counts_` :1018, `trials_` :1019, the per-sweep scratch
+  :1020-1025, `ForestCombiner::supportsResponseMutation` :427. The
+  zero-weight arc's exact-zero snap landed in `BCFForestCombiner::
+  formForestResponse` only; the multinomial combiner is untouched.
+- **A mutation-time `totalFits` writer the original reading predates.**
+  `Chain::revalidateTrees` / `rebuildFitsFromParameters` (chain.hpp:1572-1830,
+  the multiforest arc's two-phase revalidation and per-observation session)
+  write `forests_[f].totalFits` OUTSIDE any sweep and never touch `combiner_`.
+  Multinomial reaches them: the equivalence harness's k3swap/k3txn/k3txncol/
+  k3reject/k3perobs/k3perobspartial scenarios all run this path. The in-sweep
+  statement below ("between `drawForestGlue(f-1)` and `drawForestGlue(f)` the
+  only `totalFits` write is `finalizeTotalFits`") is still true WITHIN a sweep,
+  but it is no longer the whole census, and S2's `raw_` must survive a rebuild
+  that happened since the last sweep.
 
 - `blendSoftmax` (combiner.hpp) is a template over a `fitsOf(k)` lambda SHARED
   by `combinedFits` (n, `totalFits`) and `combinedTestFits` (nTest,
   `totalTestFits`). It must stay shared and unchanged; an n x K slab cannot
   serve the test blend.
-- `combinedFits()` is called THREE times per recorded sweep-equivalent:
-  chain.hpp post-forest-loop (pre-`afterCombine`), inside `storeSample` (which
-  runs AFTER `afterCombine`), and in `growForestFromRoot`. Any per-column lazy
-  refresh scheme leaves the last category stale at all three.
+- `combinedFits()` is called THREE times per recorded sweep-equivalent, and
+  still exactly three at f737702: chain.hpp:1125 post-forest-loop
+  (pre-`afterCombine`), chain.hpp:4368 inside `storeSample` (which runs AFTER
+  `afterCombine`), and chain.hpp:1443 in `growForestFromRoot`. Any per-column
+  lazy refresh scheme leaves the last category stale at all three.
+  `combinedTestFits` has one call site, chain.hpp:4405.
 - `finalizeTotalFits` computes `total = forestY - resid + lastFit`, i.e. the sum
   of the forest's own tree fits. `forestY` will carry `- o_if`, so `totalFits`
   stays offset-FREE. That is the invariant `raw = totalFits + offset` needs.
 - `drawForestGlue` sets `lastF_ = f` unconditionally, so a `lastF_ == f` assert
   in `formForestResponse` would be tautological. Add the invariant COMMENT; skip
   the assert.
-- `predictFromSavedSampleMulti` and `predictFromCurrentTreesMulti` (chain.hpp)
-  build their own raw slab and call `softmaxLocationMajor` directly - they never
-  touch the combiner. `bartcore_predict` therefore is a THIRD reported channel.
+- `predictFromSavedSampleMulti` and `predictFromCurrentTreesMulti`
+  (chain.hpp:2282 / :2310) build their own raw slab and call
+  `softmaxLocationMajor` directly - they never touch the combiner.
+  `bartcore_predict` therefore is a THIRD reported channel. Both are now
+  `template <typename Columns>` over a borrowed predictor view rather than a
+  bare `const double* x_test` (the typed-ingestion re-sign), so S3's per-call
+  offset argument threads through the templates, not through a pointer
+  parameter.
 - `MultinomialResponse` (model.hpp) reports `fitScale() == 1`,
   `fitShift() == 0`, `sigmaScale() == 1`, `initialSigma() == 1`, `offset() ==
   nullptr`, `workingWeights() == nullptr`; sigma is pinned; the leaf scale is
@@ -162,10 +207,19 @@ The implementation shape, which is what makes neutrality structural:
 2. `raw_` is maintained ONLY under an offset, as
    `raw_[k*n+i] = totalFits_k[i] + offset_[k*n+i]`, and materialized in FULL at
    the `f == 0` fresh-sweep branch and at the TOP OF `combinedFits`. The
-   in-order continuation may refresh only column f-1, because between
-   `drawForestGlue(f-1)` and `drawForestGlue(f)` the only `totalFits` write is
-   `finalizeTotalFits(forests_[f-1])`. Every path that REPORTS rematerializes in
-   full, so no reported fit is ever mixed-vintage.
+   in-order continuation may refresh only column f-1, because WITHIN A SWEEP,
+   between `drawForestGlue(f-1)` and `drawForestGlue(f)`, the only `totalFits`
+   write is `finalizeTotalFits(forests_[f-1])`. Every path that REPORTS
+   rematerializes in full, so no reported fit is ever mixed-vintage.
+   **The full-rematerialization pair is load-bearing for a second reason the
+   original reading predates**: `revalidateTrees`/`rebuildFitsFromParameters`
+   (chain.hpp:1572-1830) rewrite `totalFits` at PREDICTOR-MUTATION time,
+   between sweeps, without entering the combiner - so a `raw_` maintained only
+   by the in-sweep continuation would be stale from the mutation until the next
+   sweep. The `f == 0` and `combinedFits`-top rematerializations both dominate
+   that write, so the scheme is correct as specified; do NOT weaken either one
+   into a lazy refresh, and do not add a "refresh at mutation" hook (the
+   combiner is not on that path and must not be put on it).
 3. `blendSoftmax` is UNCHANGED. `combinedTestFits` gets a symmetric
    `rawTestFits(k)` over its own nTest x K `rawTest_` slab, materialized in full
    inside `combinedTestFits` under a test offset and returning
@@ -198,12 +252,16 @@ path pays zero - no inner-loop branch, no extra traffic.
 ## S1. The counts channel
 
 1. Engine: `ForestCombiner::setCounts` base virtual (inert) plus the
-   multinomial override swapping `counts_` and `trials_`;
-   `supportsCountsMutation()` / `numCategories()` probes defaulting false/0 on
-   the base combiner, exactly as `supportsResponseMutation` does, so a future
-   coupling stays refused until audited. `Chain` fan-in, `Sampler` fan-out (the
-   `setTreatment` pattern), `SamplerBase` virtual and the two new
-   `SamplerShape` fields.
+   multinomial override swapping `counts_` and `trials_`; a
+   `supportsCountsMutation()` probe defaulting false on the base combiner,
+   exactly as `supportsResponseMutation` does, so a future coupling stays
+   refused until audited. `Chain` fan-in, `Sampler` fan-out (the
+   `setTreatment` pattern), `SamplerBase` virtual and ONE new `SamplerShape`
+   field. **No `numCategories` field**: `SamplerShape::numReportedLocations`
+   already is K for multinomial (facade.hpp:42-44) and 1 for every additive
+   model, so a second name for the same number would be a second thing to keep
+   in sync. Read K off `numReportedLocations`, gated by
+   `supportsCountsMutation`.
 2. Bridge `bartcore_setCounts`: capability probe FIRST (never a `numForests`
    test - the `setTreatment`/`bcfGlue` precedent), then validate into scratch
    (integer type, `length == n*K` naming both, nonnegative, `sum_k y_ik >= 1`
@@ -214,11 +272,28 @@ path pays zero - no inner-loop branch, no extra traffic.
 4. Document the PG cost cliff at the entrance: the sweep draws `n_i` PGs per
    observation per category, so a swap to large row sums multiplies sweep cost
    by `mean(n_i)`.
-5. **Message repair (B3): `bartcore_setResponse`.** Under
-   `numForests >= 2 && !supportsResponseMutation`, branch on the NEW
-   `supportsCountsMutation` probe and name `bartcore_setCounts`; the generic
-   text stays verbatim for a future non-opt-in coupling. Re-pin its cases in
-   test-multi-forest-seam.R in this slice.
+5. **Message repair (B3): the response conduit.** The guard is no longer an
+   inline `numForests >= 2 && !supportsResponseMutation` test in
+   `bartcore_setResponse`: the multiforest arc folded response, offset and
+   weights into ONE conduit-parameterized helper,
+   `refuseMultiForestResponseMutation(sampler, caller, ResponseConduit,
+   updateScale)` (`R_interface_bartcore.cpp:2483`, declared in
+   `R_interface_bartcore_common.hpp`), and the FLAT C entries call the same
+   helper (`C_interface.cpp:206` / :226 / :238). So the repair goes inside the
+   shared helper's `!supportsResponseMutation` branch, keyed on the NEW
+   `supportsCountsMutation` probe, and the counts hint lands on BOTH surfaces.
+   That is correct and deliberate: the hint is true on both, and a helper
+   whose whole reason for existing is that "the two surfaces cannot state
+   different rules" must not be made to state two. The generic text stays
+   verbatim for a future non-opt-in coupling, and the `ResponseConduit`
+   wording (`fixes its response at creation` / `carries no offset` / `fixes its
+   case weights at creation`) is preserved per conduit. Re-pin in this slice:
+   `inst/tinytest/test-multi-forest-seam.R` (the multinomial block, currently
+   :231-282, which pins `setResponse` at both `updateScale`, `setOffset` at
+   TRUE/FALSE/NA, `setWeights`, `setTreatment`, `setTestOffset`) AND the flat
+   surface's expectations, `inst/tinytest/capi/consumer.c` with
+   `inst/tinytest/test-capi.R` - the shared helper means an unpinned flat
+   message drifts silently.
 
 Tests: **O1** counts create-vs-swap parity - `create(A) -> setCounts(B) ->
 run(burn, m)` bitwise identical on all five recorded channels to
@@ -236,12 +311,17 @@ reduction order). **O7 counts half** plus the multinomial `setData`/`setModel`/
 `setSigma` refusal pins the existing battery lacks. **O8 tests/cpp** combiner
 unit: build with A, `setCounts(B)`, glue + form, compare against a combiner
 built with B from the same seeded rng, WITH a burned-in arm (several
-glue/form cycles before the swap).
-Gate: trio bitwise; tests/cpp from clean plus the ASAN/UBSAN leg (new engine
-code on a live path); full tinytest, no snapshot regenerated;
-`air format --check .`; rchk next scheduled run. `R CMD INSTALL --preclean`
-MANDATORY (facade.hpp virtuals move - stale objects bus-error) and delete the
-`benchmarks/kernels` binaries.
+glue/form cycles before the swap). **`tests/cpp/test_shape.cpp`**: the shape
+POD is field-oracled there (`CHECK_SHAPE_FIELD` per member, with a multinomial
+arm at :298-310), so the new `supportsCountsMutation` field is not optional
+test work - extend the oracle in this slice, asserting true on the multinomial
+arm and false on the single-forest and BCF arms.
+Gate: trio bitwise (the a825263 baselines - see "Verification"); tests/cpp from
+clean plus the ASAN/UBSAN leg (new engine code on a live path); full tinytest,
+no snapshot regenerated; `air format --check .` and `lintr::lint_package()`;
+rchk next scheduled run. `R CMD INSTALL --preclean` MANDATORY (facade.hpp
+virtuals move - stale objects bus-error) and delete the `benchmarks/kernels`
+binaries.
 
 ## S2. The n x K train offset, engine + internal creation, with the floors
 
@@ -284,21 +364,36 @@ the offset is added to the margin but not subtracted from the working response);
 it is scoped to sign and placement only, since the common-component question is
 an exact identity, not a measurement. **O11 with the offset** -
 `softmax_k(forestFits[, k] + offset[, k]) == train[, k, last]` - the direct
-falsifier for a mixed-vintage `raw_`. **O6** simplex invariant with an offset
-installed. **O7 offset half** plus the three new floor refusals.
+falsifier for a mixed-vintage `raw_`. **O11-after-session**, its second arm and
+the cheapest guard on the mutation-time rebuild named in the Context: run,
+install a category offset, drive a per-observation predictor session
+(`bartcoreUpdatePredictorPerObservation`, which the multinomial handle accepts
+since the multiforest S2 widening) so `rebuildFitsFromParameters` rewrites
+`totalFits` between sweeps, run one more sample, and re-check the same
+identity. **O6** simplex invariant with an offset installed. **O7 offset half**
+plus the three new floor refusals.
 Gate: as S1, plus the FULL `benchmarks/R/multinomial-exact.R` (all arms, not
-only the new one). `--preclean`; delete the kernel binaries.
+only the new one; note `.github/workflows/exact-gates.yaml` runs this harness
+on every push to bartcore, so O4's new arm becomes a CI gate the moment it
+lands). `--preclean`; delete the kernel binaries.
 
 ## S3. The nTest x K test offset and the predict replays
 
 1. Engine: `rawTest_` and `rawTestFits` inside `combinedTestFits`; the
    nTest x K test offset storage and its setter; the two multi predict replays
-   (`predictFromSavedSampleMulti`, `predictFromCurrentTreesMulti`) take a
+   (`predictFromSavedSampleMulti` chain.hpp:2282, `predictFromCurrentTreesMulti`
+   :2310 - both now `template <typename Columns>` over a borrowed predictor
+   view, so the offset is a new function parameter threaded through the
+   templates and their `bartcore_predict` / `predictFromSource` callers) take a
    per-call nNew x K offset added to their raw slab BEFORE
    `softmaxLocationMajor`.
 2. Bridge: `bartcore_setCategoryTestOffset`; the creation-side test-offset lift
-   for the MATRIX form only, keeping `refuseMultiForestTestOffset` in force for
-   the flat entries; `bartcore_predict` gains an nNew x K matrix offset form.
+   for the MATRIX form only, on the R BRIDGE entries only. The FLAT entries stay
+   refused, by `refuseMultiForestMutation` on `dbarts_sampler_setTestOffset`
+   (`C_interface.cpp:330`) - the R-bridge-only `refuseMultiForestTestOffset`
+   (`R_interface_bartcore.cpp:2345`) is the guard this slice conditions, not the
+   flat one. Do not touch the flat guard. `bartcore_predict` gains an
+   nNew x K matrix offset form.
    **Predict reads its ARGUMENT, never the resident test offset** - a row-count
    coincidence is not consent. If the sampler carries a category offset and no
    offset argument is supplied, REFUSE; an explicit all-zero matrix is how a
@@ -325,17 +420,31 @@ Not folded into S5: a baseline re-record IS a snapshot move, and S5's gate is
 and test offsets instead of two.
 
 1. Add a `k3offset` scenario to `benchmarks/R/multinomial-equivalence.R`
-   exercising a train AND a test category offset across all five channels.
+   exercising a train AND a test category offset across all five recorded
+   channels (`recordChannels`: train, test, per-category `forestFits`,
+   per-category `varcount`, `runVarcount`). (Written for the S3-in-scope shape;
+   if S3 is deferred - see "Open items" - the scenario carries the TRAIN offset
+   only and its test channel is the S2 floor's refusal, not a recorded array.)
 2. Re-record to `multinomial-equivalence-<hash>.rds`; mark
-   `multinomial-equivalence-ec2a3d0.rds` historical in
+   `multinomial-equivalence-a825263.rds` historical in
    `benchmarks/baselines/MANIFEST` with the PARTITION statement the 2bd34db /
-   8c2b5fc entries establish: inside a compare against ec2a3d0 the three
-   existing scenarios reproduce bitwise and only the new scenario is absent.
-3. Every later gate (S5 and everything downstream) names the NEW hash,
-   4 scenarios x 5 channels bitwise.
+   8c2b5fc entries establish: inside a compare against a825263 the NINE
+   existing scenarios (k3, k2, k3counts, k3swap, k3txn, k3txncol, k3reject,
+   k3perobs, k3perobspartial) reproduce bitwise and only the new scenario is
+   absent.
+3. Re-pin the three CI legs in `.github/workflows/equivalence.yaml` - :61
+   (gaussian, `equivalence-a825263.rds --strict-coverage`), :87 (bcf,
+   `bcf-equivalence-a825263.rds`), :113 (multinomial) - so the multinomial line
+   names the NEW hash and the other two stay where they are. The workflow does
+   not fire from bartcore (its own header records this; it is manual-dispatch
+   only until it lands on main), so the edit is a bookkeeping obligation the
+   local run will not catch.
+4. Every later gate (S5 and everything downstream) names the NEW hash,
+   10 scenarios x their channels bitwise.
 
 Gate: the partition statement above verified, not asserted; the new baseline
-reproduces itself; `equivalence-c8f661a` and `bcf-equivalence-99205ee` unmoved.
+reproduces itself; `equivalence-a825263` (35 scenarios, strict) and
+`bcf-equivalence-a825263` (11 scenarios) unmoved.
 
 ## S5. Public surface, remaining messages, docs
 
@@ -352,7 +461,9 @@ reproduces itself; `equivalence-c8f661a` and `bcf-equivalence-99205ee` unmoved.
    it is lost when the reshape is scoped (next section).
 
 Gate: full tinytest with NO snapshot regenerated (S5 is RNG-neutral surface);
-`R CMD check`; `air format --check .`; trio bitwise against the S4 baseline.
+`R CMD check`; `air format --check .` and `lintr::lint_package()`; trio bitwise
+against the S4 baseline (the new multinomial hash, plus `equivalence-a825263`
+strict and `bcf-equivalence-a825263`).
 
 ## What the reshape must reserve (record in c-api-growth.md)
 
@@ -445,17 +556,29 @@ Multi-chain: every chain sees the swap.
 - Full `tinytest::test_package("dbarts")` from a preclean install. New tests
   ADD; no snapshot is regenerated at any slice. A forced snapshot is a signal
   the slice changed more than intended - stop and report.
-- The trio, EVERY slice, expecting no deviation:
-  `benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-c8f661a.rds`
-  -> 27/27 "identical draws (same RNG stream)";
-  `bcf-equivalence-99205ee.rds` -> 5 scenarios x 6 channels bitwise;
-  `multinomial-equivalence-ec2a3d0.rds` -> 3 scenarios x 5 channels bitwise
-  (S1-S3; the new hash at 4 scenarios x 5 channels from S4 on). No max-|z| line
-  anywhere. THE TRIO IS NECESSARY, NOT SUFFICIENT: it proves only that nothing
-  moved while the channel is unused. O1-O11 are the real oracle, and no state
-  comparator can ever gate this channel.
-- `air format --check .` on any slice touching R/. rchk on the next scheduled
-  run for S1-S3 and S5 (the bridge moves).
+- The trio, EVERY slice, expecting no deviation. The multiforest arc re-recorded
+  all three at a825263, so these are the CURRENT names per
+  `benchmarks/baselines/MANIFEST` (which is authoritative; re-read it at spawn
+  rather than trusting this line):
+  `benchmarks/R/equivalence.R compare benchmarks/baselines/equivalence-a825263.rds --strict-coverage`
+  -> 35/35 "identical draws (same RNG stream)";
+  `bcf-equivalence-a825263.rds` -> 11 scenarios x their channels bitwise;
+  `multinomial-equivalence-a825263.rds` -> 9 scenarios x their channels bitwise
+  (S1-S3; the new hash at 10 scenarios from S4 on). The multinomial nine are
+  k3, k2, k3counts, k3swap, k3txn, k3txncol, k3reject, k3perobs,
+  k3perobspartial - six of them predictor-mutation scenarios the multiforest
+  arc added, so this leg now exercises `revalidateTrees` and the
+  per-observation session on a multinomial chain and is a real guard on S2's
+  `raw_`, not only on the untouched paths. No max-|z| line anywhere. THE TRIO IS
+  NECESSARY, NOT SUFFICIENT: it proves only that nothing moved while the channel
+  is unused. O1-O11 are the real oracle, and no state comparator can ever gate
+  this channel.
+- `air format --check .` and `lintr::lint_package()` on any slice touching R/
+  (both are enforced by `.github/workflows/lint.yaml`). `R CMD check` on any
+  slice touching R/ or Rd - S2 and S5 both do. rchk on the next scheduled run
+  for S1-S3 and S5 (the bridge moves).
+- `tests/cpp/test_shape.cpp` field-oracles `SamplerShape` member by member, so
+  any slice adding a shape field extends it in the same slice (S1).
 - Speed: no slice touches `run()`'s inner loop and no new entry is inside
   `bench-sampler.R`'s timed arms, so `bench-sampler-ab1dc52.csv` is a formality.
   The offset path's extra O(nK) pass is off every timed arm; confirm before
@@ -489,10 +612,16 @@ standing lesson; S2 and S3 are the test-heavy slices.
 - S3 is the droppable slice. Because B2's floors land in S2, the arc closes
   honestly at the S2 tip; if the queue tightens before the reshape, defer S3 -
   it is the only slice whose absence costs capability rather than correctness.
+  This is the one scope question to settle with VD BEFORE S1, because it
+  decides S4's content: with S3 in, the `k3offset` fixture carries a train AND
+  a test category offset; with S3 out, it carries the train offset only and
+  the test channel records S2's refusal. S4 is written above for S3-in.
 - Design artifacts are durable at
-  `.claude/multinomial-counts-mutation-design/` (memo, adversarial critique,
-  synthesis). The critique's verdict was STANDS WITH AMENDMENTS; all five
-  blocking and all eight advisory amendments are ADOPTED, with NO overturns.
+  `.claude/multinomial-counts-mutation-design/` (`memo.md`, `critique.md`,
+  `synthesis.md`; the critique was an independent adversarial pass, read-only
+  on source, re-anchored against engine tip 06c0254). The critique's verdict
+  was STANDS WITH AMENDMENTS; all five blocking and all eight advisory
+  amendments are ADOPTED, with NO overturns.
   Three are adopted with corrections recorded in the synthesis: B1's refresh
   redesign (a `rawFits` accessor that is today's pointer on the null path, full
   rematerialization at every reporting point, `blendSoftmax` untouched), B2's
