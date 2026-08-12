@@ -262,16 +262,16 @@ static const char* fuzzInvariantViolation(S& s) {
 enum FuzzOp {
   OP_SET_PREDICTOR, OP_UPDATE_COLUMNS, OP_PER_OBS, OP_SESSION_ABANDON,
   OP_SET_DATA, OP_SET_CUTS, OP_SET_SIGMA, OP_SET_RESPONSE, OP_SET_WEIGHTS,
-  OP_SET_OFFSET, OP_SET_TEST, OP_RUN, OP_STATE, OP_COUNT
+  OP_SET_OFFSET, OP_SET_TEST, OP_RUN, OP_STATE, OP_GROW, OP_COUNT
 };
 
 static const char* const fuzzOpName[OP_COUNT] = {
   "setPredictor", "updateColumns", "perObs", "sessionAbandon", "setData",
   "setCuts", "setSigma", "setResponse", "setWeights", "setOffset", "setTest",
-  "run", "state"};
+  "run", "state", "grow"};
 
 static const int fuzzOpWeight[OP_COUNT] = {5, 5, 4, 3, 2, 3, 2, 2, 2, 2, 2,
-                                           3, 2};
+                                           3, 2, 2};
 
 static int fuzzPickOp(ext_rng* r, unsigned mask) {
   int total = 0;
@@ -596,6 +596,28 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
           SamplerStateData st2;
           s.getState(st2);
           if (!statesAgree(st, st2)) fail("state round trip disagrees");
+        }
+        break;
+      }
+      case OP_GROW: {
+        // The warm-start initializer, run on live state. The generic invariant
+        // below is the cheap oracle for a candidate that would empty a child -
+        // it reports "empty leaf" - and the state round trip is the cheapest
+        // one for the flat encoding of the rules grow places, categorical
+        // masks included, on the configurations that carry them.
+        size_t numSweeps = 1 + fuzzInt(opRng, 2);
+        s.growFromRoot(numSweeps);
+        snprintf(line, sizeof line, "op%d grow sweeps=%zu", op, numSweeps);
+        record(line);
+        SamplerStateData grown;
+        s.getState(grown);
+        if (!s.setState(grown, curAll())) {
+          fail("setState refused a grown state");
+        } else {
+          SamplerStateData reGrown;
+          s.getState(reGrown);
+          if (!statesAgree(grown, reGrown))
+            fail("grown state round trip disagrees");
         }
         break;
       }
