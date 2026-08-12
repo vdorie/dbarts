@@ -144,11 +144,20 @@ items
     scan, plain binary counter + sentinel, pooled + absent-level
     coverage) LANDED 995002ef. S0b (the halving deleted, falsifier
     re-pointed with all arms kept, power-test-verified) LANDED
-    7f82f560. S2 (OP_GROW fuzz, O1/O1F/O2 - the HARD CARRY: S1's
-    mass formula and coin count have no oracle until S2 lands
-    them) is the next code slot, then S3-S5 (S5 also owes the
-    NEWS bullet INTRODUCING n.grow.sweeps - both grow bullets
-    currently amend an unannounced feature).
+    7f82f560. S2 (OP_GROW fuzz, O1/O1F/O2) LANDED 0ab97023 - the
+    HARD CARRY DISCHARGED: O1's expected law verified kernel-free
+    by trace, the 1 + A coin count verified by full RNG census;
+    two plan deviations adjudicated right at verification (F4b as
+    written proved unfalsifiable, substituted; df 14 mask cells
+    strictly dominate the plan's df 7). S2 hardening items for the
+    next tests/cpp-touching slice: ran-at-all counter for the
+    per-partition mass arm; assert O2's pooled-below-cap coverage;
+    a fixture with a present category whose weights are all zero
+    (everything now passes weights = nullptr). S3 (R surface +
+    DART assertion; owns dart = TRUE with n.grow.sweeps > 0 and
+    the all-P<2 design) is the next code slot, then S4-S5 (S5
+    also owes the NEWS bullet INTRODUCING n.grow.sweeps - both
+    grow bullets currently amend an unannounced feature).
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. A memory win, not speed; integer -> double
     is exact in range so the slice MUST be trio-bitwise. Split out of

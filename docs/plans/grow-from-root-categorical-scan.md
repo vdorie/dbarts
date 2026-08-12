@@ -850,6 +850,103 @@ carried no recorded seeds; the stability claim was independently
 reconfirmed at verification with four further seeds and the power
 test - noted here so the numbers' provenance is on record.
 
-S2 (OP_GROW fuzz + the O1/O1F/O2 oracles - the HARD CARRY: S1's
-mass formula and coin count have no oracle until S2 lands) is
-next, then S3-S5.
+S2 LANDED 0ab97023, 2026-08-12. The oracles; tests/cpp only, src
+untouched. O1 (P = R = 4, ~2e5 grows, chi2 21.74 on df 14, seed-
+stable), O1F (P = 12 / cap 10, chi2 28.09 on df 22), the closed-
+form mass invariant over a 63-cell (R, P) grid spanning both
+branches and the cap boundary (worst relative error 6.62e-16)
+with the A = 0 cross-check at 7.55e-15, O2's 1 + A coin count
+exact on four fixtures (K = 6 inline and K = 70 pooled, each with
+an NA-bearing variant carrying a companion ordinal column - a
+deviation adjudicated sound: with one categorical column the
+missing pseudo-category can never be reachable-but-absent, so the
+plan's named edge case needs a non-categorical ancestor to
+separate the NA rows), OP_GROW in the fuzz configs (confirmed
+firing by instrumentation: 8 hits each in categorical and
+missing, plus gaussian/linear/multichain), and the pooled column
+in testMappedSourceReplay. S1's HARD CARRY IS DISCHARGED, and the
+licence was verified by trace, not trust: O1's expected law
+touches only growthProbability, logIntegratedLikelihood and
+store.codeAt - never categoricalGroupLogProbability,
+scanCategoricalPartitions, exactPartitionHoldsPosition or
+categoricalNumEmitted - and at P = R the enumeration reaches each
+of the 2^R - 2 masks exactly once, where the kernel's own weight
+is literally CGM's uniform; the test writes -log(2^R - 2)
+directly. TWO PLAN DEVIATIONS ADJUDICATED RIGHT AT VERIFICATION.
+First, F4b as written is UNFALSIFIABLE - proved symbolically: the
+orientation coin is fair, consumed once, drawn after the
+candidate and before the absent coins, and the literal swap
+b -> 1 - b is a measure-preserving bijection, so the joint law of
+the grown tree and the uniform count is identical (run to
+confirm: chi2 21.51, no rejection); the substituted falsifier
+(coin drawn but not consulted) reddens O1/O1F at 197358/192882.
+Same shape as S1's F3b -> F3b'. Second, O1's cells are the 14
+masks + no-split, not the plan's 7 partitions + no-split: a
+partition-level law is invariant to the orientation coin so the
+coarse cells provably cannot detect an orientation error; the
+split leaves partition-level noncentrality unchanged and only
+moves the critical value 24.32 -> 36.12 at alpha 1e-3, a 1.49x
+requirement against F4a's realized ~663, and the 7 partition
+weights stay asserted twice over (as the coarsening, and exactly
+by the per-partition group-mass arm). The coin-count premise -
+every consumer on the grow path takes exactly one continuous
+uniform per positive-growth node - was verified by full RNG
+census: drawFromDiscreteDistribution and simulateBernoulli each
+consume one uniform, nothing in scan.hpp or tree.hpp draws, and
+the ordinal missing coin sits in the non-categorical branch while
+O2's fixtures assert hasMissing[1] == 0; expectedUniforms is
+built from tree structure and category counts, never the
+generator, so the oracle is not circular, and two verifier-added
+perturbations (a surplus Bernoulli in growCategoricalRule; absent
+positions pinned left) both redden it. Falsifiers double-run
+independently: F4a red at exactly the two intended assertions
+(676.97 / 1821.25); F5 red with blast radius 7 failures, not the
+implementer's 2 - it also zeroes the pooled K = 70 O2 arms
+(understated in the report, corrected here); F6 red at the new
+pooled replay assertion plus three pre-existing pooled ones.
+Seed-robustness verified beyond the implementer's three reruns:
+fresh seed families give O1 9.07 (p 0.83) / O1F 22.23 (p 0.45), a
+fresh fixture (which reshuffles O1F's sort order) 22.35 / 24.56;
+the in-test chi-square tail agrees with R's pchisq to 4 figures.
+KNOWN LIMITS ON RECORD, not defects: the family-total mass arm
+is, taken alone, an algebraic identity of the shipped helper
+(emitted is passed in and multiplied back out) - its real content
+is branch-divergence detection (F5 fires it), and the independent
+anchors are the per-partition arm below the cap and O1F's law,
+which uses the literal numLevels - 1 and (2^P - 2)/(2^R - 2);
+and the greedy-prefix retention sort key
+(sumWeightedResponse/(priorVariance + sumWeights)) is recomputed
+from the kernel's formula in both S1's test_scan and O1F with
+strict ordering asserted, so it is a known UNORACLED choice - a
+wrong key keeps every gate green; mass and legality are order-
+invariant, only which prefixes are retained changes. Hardening
+items ticketed in TODO for the next tests/cpp-touching slice: the
+per-partition arm runs under if (P <= cap && R <= 40) with no
+ran-at-all counter (silent pass if the grid drifts); O2's
+pooled-below-cap coverage is real (10 of 1169 pooled nodes at
+P <= 10, min 2) but unasserted; and every new fixture passes
+weights = nullptr, so a present category with count >= 1 but
+all-zero weights is exercised nowhere. OP_GROW does not reach the
+multiforest fuzz configs, whose explicit op masks predate the
+slice - it rides the same multi-forest fuzz-arm gap door as
+OP_SET_COUNTS. Both clang-tidy diagnostics on the touched files
+are benign and pre-existing (FuzzOp's unfixed enum base is a
+test-local index; the test_tree.cpp widening last moved at
+72f2246f and cannot overflow - uint32_t indices, n = 700, peak
+product 25900). Budget: 731 added / 22 deleted = 568 non-comment
+code lines, 1.49x the ~380 estimate, flagged under the
+mandated-oracle rule and accepted. Gates double-run (implementer
++ independent verifier, fresh privlibs, --preclean, the
+verifier's perturbations all in a hermetic scratch copy):
+tests/cpp plain from clean all pass with every reported statistic
+reproduced exactly, ASAN/UBSAN exit 0 bit-identical to plain
+outside the timing lines, tinytest 4174/0 with no snapshot
+regenerated, trio 35/35 strict / 11/11 / 10/10 with no max-|z|
+line, categorical-exact 0.0008, multinomial-exact six arms at the
+recorded gaps. K = 70 timing note per the plan: 0.036-0.042 ms
+per grow at -O2 (0.14-0.15 under sanitizers).
+
+S3 (R surface + the DART assertion; also owns the two edge cases
+S2 declared out of scope for it - dart = TRUE with
+n.grow.sweeps > 0, and a design where every categorical column
+has P < 2 at the root) is next, then S4-S5.
