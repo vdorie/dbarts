@@ -1,9 +1,11 @@
 # Grow-from-root: cost and validity of root-down tree sampling
 
-Status: memo, 2026-07-08. Decides whether dbarts adds XBART-style root-down
-stochastic tree construction, and in what role. Grounded in a measured
-cut-scan kernel (benchmarks/kernels/grow_from_root.c) and in the actual move
-dispatch (moves.hpp metropolisJumpForTree, model.hpp CGMTreePrior/DartPrior).
+Status: LANDED 2026-07-10 (role a, constant leaf; section 7). Categorical
+splits LANDED 2026-08-12 (995002ef..7f82f560; records ce9c1412). Decides
+whether dbarts adds XBART-style root-down stochastic tree construction, and
+in what role. Grounded in a measured cut-scan kernel
+(benchmarks/kernels/grow_from_root.c) and in the actual move dispatch
+(moves.hpp metropolisJumpForTree, model.hpp CGMTreePrior/DartPrior).
 The cut-scan histogram it needs is the same primitive the informed-proposal
 construction of parallel-bart-frontier.md 3.1 wants, so the cost table below
 reports the numbers that construction's falsifier needs too.
@@ -231,13 +233,13 @@ draws one outcome from {no-split} U {occupancy-nonempty (var, cut)}, weighted by
 the CGM prior's own factors ((1 - growth) L(node); growth P(var) P(cut)
 exp(L_left + L_right)) assembled in log space with a max-shift before
 exponentiating. Draw count per node is exact: one discrete draw at every
-positive-growth node, plus one symmetric missing-direction coin per split on a
-column with missing values. Categoricals are ordinal-only in v1 (never scanned,
-never split), which keeps that count exact and leaves categorical structure for
-the MH sweeps; occupancy on the non-missing counts subsumes the ancestor split
-interval and keeps every child non-empty, so the grown forest is a legal chain
-state. Chain::growForestFromRoot duplicates run()'s sweep body with the per-tree
-MH move replaced by a fresh grow, so the default run path stays byte-identical
+positive-growth node, plus one symmetric missing-direction coin per split on
+an ordinal column with missing values, plus (since 2026-08-12; section 8)
+1 + A Bernoullis when the winning candidate is categorical. Occupancy on the
+non-missing counts subsumes the ancestor split interval and keeps every child
+non-empty, so the grown forest is a legal chain state.
+Chain::growForestFromRoot duplicates run()'s sweep body with the per-tree MH
+move replaced by a fresh grow, so the default run path stays byte-identical
 (equivalence.R: 21/21 identical draws).
 
 Missing-value convention, measured then fixed (2026-08-12). On a column with
@@ -288,3 +290,102 @@ workflow donor$growFromRoot(k) then target$installTrees(donor) reuses the
 existing warm-start seam with no new install code. bart() (BayesTree-compat)
 does not gain the argument. The exact-sampler use of the scan remains
 frontier 3.1's informed proposal, unaffected.
+
+## 8. Categorical splits (landed 2026-08-12)
+
+v1 shipped categorical predictors ordinal-only: counted into
+`availableSplitProbability` but never scanned or split, leaving all
+categorical structure to the later MH sweeps. That contract inverts: the
+grow scan now places real categorical split rules, weighted commensurably
+with the ordinal branch, so a factor-heavy design no longer pays those
+columns into the split-variable probability while drawing nothing out.
+
+`scanCategoricalPartitions` (scan.hpp) and the branch it feeds in
+`growTreeFromRoot` are explicitly labeled INIT-ONLY, in both the kernel's
+header comment and `growTreeFromRoot`'s draw-discipline comment: the
+candidate set is Fisher-truncated above the cap and mass-reweighted, and the
+present-partition grouping's absent-position coins change the reverse
+move's reachable sets. Neither property is a valid Metropolis-Hastings
+neighborhood, so the kernel may only drive a one-shot forest-building draw
+(section 3(a)'s warm-start role, which carries no correctness obligation of
+its own) - never an MH proposal.
+
+Enumeration. Fix a node and an available categorical variable with R
+reachable categories (including the missing pseudo-category where the
+column has one) and P categories present among the node's members
+(A = R - P absent-but-reachable). Sort the P present categories ascending
+by their singleton-category leaf posterior mean, a code tie-break making
+the order deterministic. At P <= exhaustiveCap (10, compile-time) the
+node's choice is EXACT: a plain binary counter s = 0 .. 2^(P-1) - 2 over
+the P-1 non-anchor categories, with the anchor (sorted position 0) always
+held on the left side - left = {anchor} union s, bit b of s naming sorted
+position b+1 - enumerating each of the 2^(P-1) - 1 present-set partitions
+exactly once, both children always non-empty, recomputed from the compact
+present array per candidate so no path-dependent accumulation can drift.
+Above the cap, a greedy-prefix arm takes the P - 1 sorted prefixes instead
+of the full partition family.
+
+Weight. Every categorical candidate carries its rule group's total CGM
+prior mass, spread evenly over whatever the branch emits
+(`CGMTreePrior::categoricalGroupLogProbability`, model.hpp):
+
+    logRuleCat = log1p(-exp2(1-P)) - log1p(-exp2(1-R)) - log(numEmitted)
+
+Exact below the cap (numEmitted = 2^(P-1) - 1); above it (numEmitted = P - 1)
+the same formula keeps a variable's realized total split mass continuous in
+its level count across the cap boundary - without it the total drops from
+1.000 at P = 10 to 0.009775 at P = 11, a 102x cliff at a compile-time
+constant a user cannot see. The price above the cap: the retained greedy
+prefixes inherit the whole family mass, so relative to the ideal
+partition-weighted sum a variable is over-weighted by up to
+(2^(P-1)-1)/(P-1) - 102x at P = 11, the same ratio as the mass cliff above
+- attained only in the strong-signal regime, where the likelihood ratio
+decides regardless of a 102x prior factor; the exact conditional errs by
+the same factor the other way in the weak-signal regime, where the prior
+is what decides. Recorded, not scheduled: this is the classic
+many-level-predictor overfitting direction, unexercised by any factor at
+or below the cap.
+
+The winning candidate's rule is assembled in a fixed order, part of the RNG
+contract: one Bernoulli for orientation (the present side, or its
+complement), then one Bernoulli per absent reachable position walked
+ascending, matching the ordinary rule-draw's bit-by-bit convention - no
+rejection loop, since the present side already guarantees both children
+non-empty. Exactly 1 + A Bernoullis. A count-based sentinel (left count
+zero, or equal to the node's total) converts any recipe defect into an
+undrawable candidate rather than a silently wrong score, since the
+integrated-likelihood marginal returns 0.0 at zero weight and cannot itself
+distinguish a legal all-zero-weight side from an illegal empty one.
+
+The pinned missing-value convention above - a candidate carries its rule
+group's total prior mass, and the post-draw coin picks uniformly within it
+- is the one convention the categorical branch is written against too; the
+two branches now obey the same rule.
+
+The DART consumer. Every grow sweep closes with the same per-forest DART
+update that run() uses: a variable-use count per tree followed by
+`DartPrior::update`. Categorical columns used to receive structurally zero
+split counts on every warm-start sweep; they now receive real ones, so
+`bart2(..., dart = TRUE, n.grow.sweeps = k)` changes - a categorical
+design's split probabilities entering the first regular sweep now reflect
+the grown categorical structure. This is a stream-position change, not only
+a value one: `DartPrior::update` draws a rejection-sampled gamma per
+predictor, and a count moving off zero can shift the uniform-consumption
+count for the rest of the fit. Not gated: a DART posterior fed real
+categorical counts is more correct than one fed structurally-zero counts.
+The paired grow-vs-no-grow `dart = TRUE` contrast in
+inst/tinytest/test-grow-from-root-categorical.R is the only place this
+interaction is observed.
+
+Measured (2026-08-12; n = 5000, 10 predictors, x1-x5 unordered 8-level
+factors, m = 75, 8 chains x 2000 draws, R = 12 replicates): a warm start
+whose grow scan places categorical splits beats one whose scan skips them
+by a paired D = +1.33 in early-iterate benefit (one-sided z = 46.7). The
+skip arm's own floor sits BELOW cold start (B1@t1(skip) = -0.65) - a
+categorical-blind grow scan is worse than no warm start at all on a
+factor-signal design. The categorical-aware scan beats cold at the first
+kept iterate (B1@t1 = +0.68) but delays plateau attainment roughly 6x (cold
+is within 2 percent of its plateau by t ~ 30, the categorical warm start by
+t ~ 180-300); the plateau level itself is not detectably moved, staying
+inside the frozen 3 / 6 percent guardrails. This is why `n.grow.sweeps`
+stays opt-in.
