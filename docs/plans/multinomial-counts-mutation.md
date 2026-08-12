@@ -616,6 +616,7 @@ standing lesson; S2 and S3 are the test-heavy slices.
   decides S4's content: with S3 in, the `k3offset` fixture carries a train AND
   a test category offset; with S3 out, it carries the train offset only and
   the test channel records S2's refusal. S4 is written above for S3-in.
+  RESOLVED 2026-08-12 (VD): S3 stays IN SCOPE; S4 as written stands.
 - Design artifacts are durable at
   `.claude/multinomial-counts-mutation-design/` (`memo.md`, `critique.md`,
   `synthesis.md`; the critique was an independent adversarial pass, read-only
@@ -627,3 +628,65 @@ standing lesson; S2 and S3 are the test-heavy slices.
   rematerialization at every reporting point, `blendSoftmax` untouched), B2's
   predict-offset-argument resolution, and B5's split-run control arm plus the
   new O11 same-vintage oracle.
+
+## Landing notes
+
+S1 LANDED 729bbdd, 2026-08-12. The counts channel: base-inert
+ForestCombiner::setCounts + supportsCountsMutation with the
+multinomial override; Chain/Sampler/facade fan-out; SamplerShape
+gains the capability field with K read off numReportedLocations (no
+numCategories field, per the revalidation); test_shape.cpp oracle
+extended (multinomial true, single-forest and BCF false); bridge
+bartcore_setCounts runs the capability probe first, whole-scratch
+validation under unwindProtect, then swap-then-install - the
+verifier probed 13 hostile inputs (wrong n, K mismatch, transposed,
+no dim attr, 3-d array, real, logical, NA, negative, zero row,
+overflow row, out-of-int-range double, valid self-swap): every one
+refused and the sampler's subsequent 4-sample run stayed bitwise
+identical to an untouched baseline; dbarts:::bartcoreSetCounts; the
+B3 message repair in the shared conduit-parameterized
+refuseMultiForestResponseMutation - the counts hint is emitted on
+both surfaces by the helper, while the flat-surface re-pin is
+documentation-only, verified sound: dbarts_sampler_create has no
+multinomial branch, so the flat counts path is unreachable and
+consumer.c's BCF legs pin the capability conditioning; NEWS bullet.
+Deviations accepted at verification: the entrance checks
+DIMENSIONS, not length (a transposed n x K matrix has n*K entries
+and slipped a length test; pinned in the test file); O5 built over
+grouped counts so a lost trials recompute shows in the self-swap;
+O7 covers setData/setModel since multinomial setSigma was already
+pinned; 807 changed lines vs the ~650 budget, overage all oracle
+content. Falsifiers: F3a (trials recompute disabled) red, 14
+failures; F3b (omega re-seed) PROVEN unfalsifiable by construction,
+not a masked hole - omega_ has exactly four sites in combiner.hpp
+and formForestResponse's only two engine call sites each sit
+immediately after drawForestGlue for the same forest, so no
+first-sweep, post-setState or post-swap path reads omega before
+that sweep wrote it (verified independently by implementer and
+verifier); replaced by the stronger F3b' (an rng draw inserted at
+Chain::setCounts), red with 14 failures - O1's five channels plus
+label-entry and two-chain arms plus O5's five, proving O5 live
+(the implementer counted 12; the verifier measured 14 and derived
+14 analytically; 14 is the record). The four oracle identifiers in
+the test file's section comments were reworded to self-contained
+rationale at landing per the comment-anchor discipline.
+Message-quality carry to S2: R/bartcore.R coerces counts to integer
+after the nonnegativity check with no range check, so a count above
+INT_MAX errors with a misleading nonnegativity message (sampler
+untouched either way) - range-check before coercion in S2's pass
+through the same entry. Implementer carries to S2: O11 is pinned at
+the null offset, so S2 only adds the offset term; the counts
+refusal message needs its setCategoryOffset half in the same helper
+branch (the seam file's setOffset pins move with it); raw_ cannot
+lean on parity oracles - O11 is the oracle that can see a mixed
+vintage. Gates double-run (implementer + independent verifier,
+fresh privlibs): install --preclean, tests/cpp plain + ASAN/UBSAN
+clean, tinytest 4047/0 (44 new) no snapshot regenerated, trio
+35/35 strict / 11/11 / 9/9 vs a825263 with no re-record,
+multinomial-exact all five arms at gaps 3e-4/8e-4/5e-4/5e-4/1e-4
+vs tolerances 8e-3..1.5e-2, bcf oracles at the MANIFEST values,
+air 0, lintr::lint_package 0, R CMD check clean-copy tarball
+Status OK.
+
+S2 (the n x K train offset) is next; S3 confirmed in scope (VD
+2026-08-12); then S4 (fixture + re-record), S5.
