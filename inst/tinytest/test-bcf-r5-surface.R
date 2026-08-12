@@ -76,8 +76,14 @@ expect_error(refused$setData(refused$data), "BCF")
 expect_error(refused$setModel(refused$model), "BCF")
 expect_error(refused$setResponse(y, updateScale = TRUE), "BCF")
 expect_error(refused$setOffset(rep(0, n), updateScale = TRUE), "BCF")
-# transactional: column given without forceUpdate defaults to FALSE
-expect_error(refused$setPredictor(x[, 1L], column = 1L), "BCF")
+# the transactional column update is no longer refused: revalidateAllChains
+# loops both forests, so it installs under the empty-leaf veto and reports a
+# logical rather than erroring (INVERTED in place per docs/plans/multiforest-
+# predictor-mutation.md S1). Replacing a column with its own values cannot
+# empty a leaf, so the answer is TRUE
+expect_true(refused$setPredictor(x[, 1L], column = 1L))
+# the per-observation session keeps its BCF-named refusal until S2 widens the
+# cell guard past the prognostic forest
 expect_error(
   refused$setPredictor(x[, 1L], column = 1L, forceUpdate = "partial"),
   "BCF"

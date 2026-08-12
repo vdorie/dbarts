@@ -265,11 +265,12 @@ int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out) {
 int dbarts_sampler_setPredictor(dbarts_sampler* sampler, const double* x,
                                 int forceUpdate, int updateCutPoints) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
-  // the variance clause is reachable today: dbartsSpec(variance = ) hands a
-  // consumer a flat-creatable heteroscedastic sampler, and an unforced
-  // transactional call here used to accept and silently misroute s^2(x); the
-  // numForests >= 2 clause is unreachable until BCF gains a flat creation
-  // path, and becomes load-bearing from that tip on
+  // reachable today: dbartsSpec(variance = ) hands a consumer a flat-creatable
+  // heteroscedastic sampler, and an unforced transactional call here used to
+  // accept and silently misroute s^2(x). One shared helper with the R bridge's
+  // bartcore_setPredictor, which this entry mirrors exactly: its multi-forest
+  // clause retired when the revalidation widened across forests_, so a flat
+  // BCF now takes a transactional update here as it does there.
   refuseMultiForestTransactionalUpdate(engine, "dbarts_sampler_setPredictor",
                                        forceUpdate != 0);
   bartcore::SamplerShape shape = engine.shape();

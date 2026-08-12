@@ -38,12 +38,15 @@ expect_error(
 )
 expect_error(dbarts:::bartcoreSetTestOffset(bc, rep(0, n)), "BCF")
 
-# --- refuses: a transactional predictor update validates only the primary
-# forest, and the per-observation session has no force variant
-expect_error(
-  dbarts:::bartcoreSetPredictor(bc, x, forceUpdate = FALSE),
-  "multi-forest"
-)
+# --- succeeds: a transactional predictor update revalidates every forest and
+# installs under the empty-leaf veto, rolling the whole change back and
+# reporting FALSE if any tree of either forest would lose a leaf (INVERTED in
+# place from the refusal this file pinned, per docs/plans/multiforest-
+# predictor-mutation.md S1). Replacing the design with its own values cannot
+# empty a leaf, so this one installs
+expect_true(dbarts:::bartcoreSetPredictor(bc, x, forceUpdate = FALSE))
+# --- refuses: the per-observation session has no force variant, and its cell
+# guard still caches the prognostic forest alone (S2 inverts this one)
 expect_error(
   dbarts:::bartcoreUpdatePredictorPerObservation(bc, x[, 1L], 1L),
   "multi-forest"

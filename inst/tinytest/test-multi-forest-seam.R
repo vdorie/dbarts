@@ -59,12 +59,12 @@ expect_null(dimnames(result.many$test))
 # nothing stale. updateScale = TRUE would move the transform while both leaf
 # calibrations stayed stated against the old one, and NA is not FALSE, so both
 # are still refused; so is a coupling that does not opt in (multinomial, whose
-# setResponse is an empty override). The TRANSACTIONAL predictor paths
-# (setPredictor / updatePredictor without forceUpdate, and the per-observation
-# sessions, which have no force variant) validate through revalidateAllChains -
-# also forest 0 only - and are refused; the FORCE paths refresh every forest
-# and stay supported (the bartCause propensity swap, test-bcf.R). setTreatment,
-# the supported multi-forest data swap, stays allowed ---
+# setResponse is an empty override). The whole-matrix and column TRANSACTIONAL
+# predictor paths (setPredictor / updatePredictor without forceUpdate)
+# revalidate every forest and are ACCEPTED; the per-observation sessions, whose
+# cell guard still caches forest 0 alone, stay refused. The FORCE paths refresh
+# every forest and stay supported (the bartCause propensity swap, test-bcf.R).
+# setTreatment, the supported multi-forest data swap, stays allowed ---
 set.seed(11)
 z <- rbinom(n, 1L, 0.5)
 y.bcf <- f + z * (1 + 2 * x[, 3L]) + rnorm(n, sd = 0.2)
@@ -118,20 +118,34 @@ expect_error(
   "multi-forest"
 )
 
-# transactional (non-force) predictor updates refuse ...
-expect_error(
-  dbarts:::bartcoreSetPredictor(bc.bcf, x + 0.01),
-  "multi-forest"
+# transactional (non-force) predictor updates are ACCEPTED: the two-phase
+# revalidation loops every forest, so a whole-matrix or column proposal
+# installs only if no leaf of any tree of either forest would empty, and rolls
+# the whole change back otherwise (INVERTED in place from the refusals
+# bcf-public-surface S0 wrote, per docs/plans/multiforest-predictor-
+# mutation.md S1). Re-installing the current values cannot empty a leaf, so
+# both accept; a run afterwards must stay finite, which is the assertion that
+# every forest really was re-routed rather than left against stale codes
+expect_true(dbarts:::bartcoreSetPredictor(bc.bcf, x))
+expect_true(dbarts:::bartcoreUpdatePredictor(bc.bcf, x[, 1L], 1L))
+expect_true(all(is.finite(dbarts:::bartcoreRun(bc.bcf, 0L, 5L)$train)))
+# a proposal that WOULD empty a leaf rolls back and reports FALSE rather than
+# erroring - the veto, not a refusal. Collapsing a column onto two values of
+# the existing grid empties leaves in every tree that splits on it
+expect_false(
+  dbarts:::bartcoreUpdatePredictor(
+    bc.bcf,
+    ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
+    1L
+  )
 )
-expect_error(
-  dbarts:::bartcoreUpdatePredictor(bc.bcf, x[, 1L] + 0.01, 1L),
-  "multi-forest"
-)
+# the per-observation session keeps the multi-forest refusal until its cell
+# guard widens past forest 0 (S2 inverts this one)
 expect_error(
   dbarts:::bartcoreUpdatePredictorPerObservation(bc.bcf, x[, 1L], 1L),
   "multi-forest"
 )
-# ... while the force path refreshes every forest and stays supported
+# ... and the force path refreshes every forest and stays supported
 expect_true(dbarts:::bartcoreSetPredictor(bc.bcf, x + 0, forceUpdate = TRUE))
 
 # setOffset rides the same conduit as setResponse under a different pointer
@@ -258,23 +272,17 @@ expect_error(
   "multi-forest"
 )
 
-# --- the multinomial predictor-mutation surface, pinned one entry at a time
-# ahead of the widening (docs/plans/multiforest-predictor-mutation.md, S0):
-# every transactional entry validates through revalidateAllChains, which
-# reaches forest 0 alone, so all four refuse on a K-forest sampler, while the
-# forced entries and setCutPoints refresh every category forest and are the
-# supported multinomial predictor mutations. The refusals are INVERTED in
-# place - not deleted - by the slices that retire them (S1 for the two
-# whole-matrix/column entries, S2 for the two sessions), so this file stays
-# green across the arc boundary. ---
-expect_error(
-  dbarts:::bartcoreSetPredictor(bc.mn, x, forceUpdate = FALSE),
-  "multi-forest"
+# --- the multinomial predictor-mutation surface, one entry at a time
+# (docs/plans/multiforest-predictor-mutation.md). S0 pinned all four entries as
+# refusing; S1 INVERTS the two whole-matrix/column entries in place, since
+# revalidateAllChains now loops every category forest, and leaves the two
+# sessions refusing until S2 widens their cell guard. The forced entries and
+# setCutPoints refresh every category forest throughout. ---
+expect_true(dbarts:::bartcoreSetPredictor(bc.mn, x, forceUpdate = FALSE))
+expect_true(
+  dbarts:::bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = FALSE)
 )
-expect_error(
-  dbarts:::bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = FALSE),
-  "multi-forest"
-)
+expect_true(all(is.finite(dbarts:::bartcoreRun(bc.mn, 0L, 5L)$train)))
 expect_error(
   dbarts:::bartcoreUpdatePredictorPerObservation(bc.mn, x[, 1L], 1L),
   "multi-forest"

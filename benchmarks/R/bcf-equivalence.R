@@ -221,6 +221,85 @@ runScenarios <- function() {
     recordChannels(bc, res)
   })
 
+  # (g)-(i) the TRANSACTIONAL predictor paths, which a BCF sampler began
+  # accepting when the two-phase revalidation widened across forests_
+  # (docs/plans/multiforest-predictor-mutation.md, S1). New streams: these
+  # paths were refused at the bridge before this tip, so they have no earlier
+  # baseline and become the regression floor from here. Each records the
+  # engine's verdict beside the draws, so a build that silently flipped an
+  # accept into a rollback (or the reverse) fails on the flag rather than only
+  # on the post-mutation state. Seeds are LITERALS kept out of the guarded
+  # `seeds` vector, as (f)'s are, so settingsList() stays identical to the
+  # 33f6fdc baseline and the neutrality compare against it still runs; each
+  # runs after the scenarios above with its own set.seed and perturbs none.
+  #
+  # (g) transactional whole-matrix setPredictor: a jitter of the design sized
+  # to be ACCEPTED, so every tree of BOTH forests re-routes against the new
+  # codes and the fits rebuild from the recovered leaf parameters.
+  result$set_predictor_txn <- local({
+    d <- makeData(n, p, 8007L)
+    set.seed(8107L)
+    x2 <- pmin(pmax(d$x + matrix(rnorm(n * p, 0, 0.005), n, p), 0), 1)
+    sampler <- dbarts(d$x, d$y, control = makeControl())
+    set.seed(9007L)
+    bc <- dbarts:::bartcoreBCFSampler(
+      sampler,
+      d$z,
+      n.trees.treatment = n.trees.tau
+    )
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    accepted <- dbarts:::bartcoreSetPredictor(bc, x2)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    c(recordChannels(bc, res), list(accepted = accepted))
+  })
+
+  # (h) transactional single-column updatePredictor: the subset the pruning
+  # argument is stated over - only the trees splitting on column 3 can veto,
+  # and only they are re-routed and rebuilt in the treatment forest. Column 3
+  # is the moderator tau is a function of, so tau really does split on it.
+  result$update_column_txn <- local({
+    d <- makeData(n, p, 8008L)
+    set.seed(8108L)
+    v <- pmin(pmax(d$x[, 3L] + rnorm(n, 0, 0.02), 0), 1)
+    sampler <- dbarts(d$x, d$y, control = makeControl())
+    set.seed(9008L)
+    bc <- dbarts:::bartcoreBCFSampler(
+      sampler,
+      d$z,
+      n.trees.treatment = n.trees.tau
+    )
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    accepted <- dbarts:::bartcoreUpdatePredictor(bc, v, 3L)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    c(recordChannels(bc, res), list(accepted = accepted))
+  })
+
+  # (i) a transactional proposal built to be ROLLED BACK: a two-level
+  # replacement column collapses every observation onto two values of the
+  # existing grid, which empties leaves in any tree splitting on it, so the
+  # whole change reverts and the sampler continues from the pre-proposal
+  # state. Gates that the rollback leaves a BCF run bitwise - the widened
+  # revalidation touches both forests before it fails, and repartitionTrees
+  # has to put both back.
+  result$update_column_reject <- local({
+    d <- makeData(n, p, 8009L)
+    sampler <- dbarts(d$x, d$y, control = makeControl())
+    set.seed(9009L)
+    bc <- dbarts:::bartcoreBCFSampler(
+      sampler,
+      d$z,
+      n.trees.treatment = n.trees.tau
+    )
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    accepted <- dbarts:::bartcoreUpdatePredictor(
+      bc,
+      ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
+      1L
+    )
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    c(recordChannels(bc, res), list(accepted = accepted))
+  })
+
   result
 }
 

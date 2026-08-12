@@ -30,6 +30,7 @@ using std::uint32_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseBCFTestSurface;
 using bartcore_bridge::refuseMultiForestMutation;
+using bartcore_bridge::refuseMultiForestPerObservationUpdate;
 using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refuseMultiForestTransactionalUpdate;
 using bartcore_bridge::refusePinnedSigmaChange;
@@ -2606,30 +2607,40 @@ void refuseVarianceForestPredictorMutation(
     const bartcore::SamplerBase& sampler, const char* caller) {
   if (sampler.shape().hasVarianceForest)
     Rf_error("%s: a heteroscedastic sampler's variance forest keeps routing "
-             "observations by the predictors it was built with; make a new "
-             "sampler instead", caller);
+             "observations by the predictors it was built with; use "
+             "setPredictor with forceUpdate = TRUE instead", caller);
 }
 
-// The transactional predictor paths (setPredictor and updatePredictor without
-// forceUpdate, and the per-observation sessions, which have no force variant)
-// validate and rebuild through revalidateAllChains, which revalidates only the
-// primary forest - an accepted change would leave a multi-forest sampler's
-// other forests routed against stale codes. The FORCE paths refresh every
-// forest (forceRefreshTrees) and stay available for a multi-forest sampler: a
-// forced whole-matrix setPredictor is the supported multi-forest predictor
-// swap (the bartCause propensity pattern). forceRefreshTrees now re-routes the
-// variance forest as well, so a forced update is the heteroscedastic predictor
-// swap too; a transactional one revalidates forest 0 alone and refuses.
-// External linkage: the flat C API reuses this guard on its own setPredictor/
-// updatePredictor entries.
+// The whole-matrix and subset transactional predictor paths (setPredictor and
+// updatePredictor without forceUpdate) revalidate and rebuild every forest of
+// every chain, so a multi-forest sampler takes them: a row installs only if no
+// leaf of any tree of any forest empties, the criterion setState already
+// imposes (docs/plans/multiforest-predictor-mutation.md). What is left is the
+// variance forest, which lives outside forests_ and is still refused. The
+// FORCE paths refresh every forest and the variance forest
+// (forceRefreshTrees), so a forced whole-matrix setPredictor stays the
+// heteroscedastic predictor swap. External linkage: the flat C API reuses this
+// guard on its own setPredictor/updatePredictor entries, which mirror these
+// two exactly.
 void refuseMultiForestTransactionalUpdate(const bartcore::SamplerBase& sampler,
                                           const char* caller,
                                           bool forcedUpdate) {
   if (!forcedUpdate) refuseVarianceForestPredictorMutation(sampler, caller);
-  if (!forcedUpdate && sampler.shape().numForests >= 2)
-    Rf_error("%s: a transactional predictor update validates only the primary "
-             "forest of a multi-forest sampler; use setPredictor with "
-             "forceUpdate = TRUE or make a new sampler instead", caller);
+}
+
+// The per-observation sessions have no force variant, and their cell guard
+// caches the primary forest's trees alone: widening the revalidation without
+// widening that cache would let a forest outside the cache empty a leaf and
+// fail the finalize AFTER cells have been written, with no journal to undo
+// them. So they keep the multi-forest refusal the two entries above retired,
+// until the cache widens with it.
+void refuseMultiForestPerObservationUpdate(
+    const bartcore::SamplerBase& sampler, const char* caller) {
+  refuseMultiForestTransactionalUpdate(sampler, caller, false);
+  if (sampler.shape().numForests >= 2)
+    Rf_error("%s: a per-observation predictor update validates only the "
+             "primary forest of a multi-forest sampler; use setPredictor with "
+             "forceUpdate = TRUE instead", caller);
 }
 
 // A sampler whose residual sd is not a free parameter has none to set:
@@ -4396,7 +4407,7 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
   bartcore::SamplerShape shape = holder.sampler->shape();
   refuseMutationOnView(
     *holder.sampler, "bartcore_updatePredictorPerObservation");
-  refuseMultiForestTransactionalUpdate(
+  refuseMultiForestPerObservationUpdate(
     *holder.sampler, "bartcore_updatePredictorPerObservation");
   size_t numObservations = shape.numObservations;
 
@@ -4461,7 +4472,7 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
         holderFromExpression(VECTOR_ELT(ptrsExpr, static_cast<R_xlen_t>(k))));
       refuseMutationOnView(
         *holder.sampler, "bartcore_updatePredictorPerObservationJointly");
-      refuseMultiForestTransactionalUpdate(
+      refuseMultiForestPerObservationUpdate(
         *holder.sampler, "bartcore_updatePredictorPerObservationJointly");
       samplers[k] = holder.sampler.get();
       int column = INTEGER(columnsExpr)[k];

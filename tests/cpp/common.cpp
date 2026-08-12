@@ -22,6 +22,20 @@ bool sameFlatTrees(const std::vector<std::vector<FlatNode>>& a,
   return true;
 }
 
+// Tripwire for the comparison below and for the fuzz snapshot built on it: a
+// new PERSISTED field must gain a comparison here, and a state field that
+// nothing compares is a state field a rollback or restore gate cannot see. The
+// size is the LP64 layout (std::vector 24 bytes, size_t 8); other data models
+// are let through rather than guessed at. Honest, not airtight - a small field
+// can hide in existing padding - which is why the table-driven coverage test
+// beside the fuzz snapshot (F4) exists as well.
+static_assert(sizeof(void*) != 8 || sizeof(ChainStateData) == 272,
+              "ChainStateData gained or lost a field; add its comparison to "
+              "statesAgree below and update this size");
+static_assert(sizeof(void*) != 8 || sizeof(ForestStateData) == 160,
+              "ForestStateData gained or lost a field; add its comparison to "
+              "statesAgree below and update this size");
+
 bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
   if (a.chains.size() != b.chains.size()) return false;
   for (size_t c = 0; c < a.chains.size(); ++c) {

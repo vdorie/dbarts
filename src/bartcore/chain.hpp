@@ -1550,6 +1550,26 @@ public:
   // every chain before any chain's fits are overwritten.
 
   using TreeParameters = std::vector<std::vector<double>>;
+  /// One entry per forest of forests_, in forest order.
+  using ForestParameters = std::vector<TreeParameters>;
+
+  /// What the validate phase of a predictor transaction hands the rebuild
+  /// phase: every forest's recovered leaf parameters, plus the per-forest list
+  /// of trees the two phases agree to visit. Forest 0's list is always every
+  /// tree in order - its subtract-then-add round trip is the recorded
+  /// single-forest arithmetic, and (T - f) + f != T at the ULP, so pruning it
+  /// would move a baseline - while a forest past it lists only the trees that
+  /// split on a column the transaction touched. Skipping the rest is exact,
+  /// not approximate: an untouched tree's partition, parameters and fits are
+  /// unchanged, and leaving its contribution to forest.totalFits alone
+  /// preserves it bitwise where a round trip would perturb it
+  /// (docs/plans/multiforest-predictor-mutation.md, "Pruning"). An empty
+  /// params[f][t] is NOT a legal skip marker - a function-valued leaf
+  /// legitimately produces one - so the list is explicit and shared.
+  struct ForestRevalidation {
+    ForestParameters params;
+    std::vector<std::vector<std::size_t>> survivors;
+  };
 
   /// Leaf parameters of tree t in transferable form: recovered from the
   /// fits for scalar leaves, copied from the persisted blocks for vector
@@ -1579,49 +1599,97 @@ public:
     }
   }
 
+  /// Forest f's survivor list for a transaction touching numTouched columns
+  /// (a null list means every column, where the predicate is vacuous):
+  /// forest 0 keeps every tree, a forest past it keeps the trees that split on
+  /// a touched column. scratch is a numPredictors-sized census buffer the
+  /// caller owns so the census does not allocate per tree.
+  void collectSurvivors(const Forest<L, ResidT>& forest, std::size_t f,
+                        const std::size_t* touched, std::size_t numTouched,
+                        std::vector<std::uint32_t>& scratch,
+                        std::vector<std::size_t>& out) const {
+    out.clear();
+    if (f == 0 || touched == nullptr) {
+      out.resize(forest.numTrees);
+      for (size_t t = 0; t < forest.numTrees; ++t) out[t] = t;
+      return;
+    }
+    scratch.resize(data_.numPredictors);
+    for (size_t t = 0; t < forest.numTrees; ++t) {
+      std::memset(scratch.data(), 0,
+                  data_.numPredictors * sizeof(std::uint32_t));
+      forest.trees[t].countVariableUses(scratch.data());
+      for (size_t k = 0; k < numTouched; ++k)
+        if (scratch[touched[k]] != 0) {
+          out.push_back(t);
+          break;
+        }
+    }
+  }
+
   /// Recover leaf parameters (from fits for scalar leaves, from the
   /// persisted blocks for vector ones; function-valued leaves keep their
   /// per-observation fits in place, so nothing is recovered), re-route every
-  /// tree against the store's current codes, and report whether all leaves
-  /// stay occupied.
-  bool revalidateTrees(TreeParameters& params) {
-    Forest<L, ResidT>& forest = forests_[0];
-    params.resize(forest.numTrees);
+  /// tree of every forest against the store's current codes, and report
+  /// whether all leaves stay occupied. touched names the columns the
+  /// transaction moved (null for a whole-matrix swap); it drives the j-split
+  /// pruning of forests past the first, which forest 0 does not take. A
+  /// single-forest chain therefore runs exactly the loop it always ran.
+  bool revalidateTrees(ForestRevalidation& state, const std::size_t* touched,
+                       std::size_t numTouched) {
+    state.params.resize(forests_.size());
+    state.survivors.resize(forests_.size());
+    std::vector<std::uint32_t> census;
     bool allValid = true;
-    for (size_t t = 0; t < forest.numTrees && allValid; ++t) {
-      recoverLeafParameters(forest, t, params[t]);
-      forest.trees[t].repartitionSubtree(data_, 0);
-      allValid = forest.trees[t].bottomNodesAreOccupied();
+    for (size_t f = 0; f < forests_.size() && allValid; ++f) {
+      Forest<L, ResidT>& forest = forests_[f];
+      collectSurvivors(forest, f, touched, numTouched, census,
+                       state.survivors[f]);
+      TreeParameters& params = state.params[f];
+      params.resize(forest.numTrees);
+      const std::vector<std::size_t>& survivors = state.survivors[f];
+      for (size_t k = 0; k < survivors.size() && allValid; ++k) {
+        size_t t = survivors[k];
+        recoverLeafParameters(forest, t, params[t]);
+        forest.trees[t].repartitionSubtree(data_, 0);
+        allValid = forest.trees[t].bottomNodesAreOccupied();
+      }
     }
     return allValid;
   }
 
   /// Second phase of a successful transaction: rewrite tree fits from the
-  /// parameters revalidateTrees recovered. Node averages are left stale;
-  /// run() recomputes them from current residuals before any use.
-  /// Function-valued leaves only refresh the covariate gather: their
-  /// per-observation fits are the parameters and stay in place (the next
-  /// sweep's draws replace them under the new values).
-  void rebuildFitsFromParameters(const TreeParameters& params) {
-    Forest<L, ResidT>& forest = forests_[0];
+  /// parameters revalidateTrees recovered, over the same survivor lists.
+  /// Node averages are left stale; run() recomputes them from current
+  /// residuals before any use. Function-valued leaves only refresh the
+  /// covariate gather: their per-observation fits are the parameters and stay
+  /// in place (the next sweep's draws replace them under the new values).
+  void rebuildFitsFromParameters(const ForestRevalidation& state) {
     dropStaleMissingDirections();
-    if constexpr (L::hasFunctionParams) {
-      (void) params;
-      forest.leaf.regatherTrainingCovariates(data_);
-    } else {
-      // vector leaves read raw covariate values: pick up the installed ones
-      if constexpr (L::hasVectorParams)
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      Forest<L, ResidT>& forest = forests_[f];
+      const TreeParameters& params = state.params[f];
+      const std::vector<std::size_t>& survivors = state.survivors[f];
+      if constexpr (L::hasFunctionParams) {
+        (void) params;
+        (void) survivors;
         forest.leaf.regatherTrainingCovariates(data_);
-      for (size_t t = 0; t < forest.numTrees; ++t) {
-        // the subtract reads the pre-reroute (mu, leafOf) pair, exactly the
-        // cached fits totalFits still sums; the map then tracks the
-        // repartition revalidateTrees performed
-        subtractTreeFitsFromTotal(forest, t);
-        setTreeFits(forest, t, params[t]);
-        if constexpr (leafIsConstant) {
-          installLeafOfAndAddToTotal(forest, t);
-        } else {
-          addTreeFitsToTotal(forest, t);
+      } else {
+        // vector leaves read raw covariate values: pick up the installed ones
+        if constexpr (L::hasVectorParams)
+          forest.leaf.regatherTrainingCovariates(data_);
+        for (size_t k = 0; k < survivors.size(); ++k) {
+          size_t t = survivors[k];
+          // the subtract reads the pre-reroute (mu, leafOf) pair, exactly the
+          // cached fits totalFits still sums; the map then tracks the
+          // repartition revalidateTrees performed
+          subtractTreeFitsFromTotal(forest, t);
+          setTreeFits(forest, t, params[t]);
+          if constexpr (leafIsConstant) {
+            installLeafOfAndAddToTotal(forest, t);
+          } else {
+            addTreeFitsToTotal(forest, t);
+          }
         }
       }
     }
@@ -2814,6 +2882,11 @@ public:
     return out;
   }
   const std::vector<double>& totalFits() const { return forests_[0].totalFits; }
+  /// The per-forest sibling of totalFits(), which addresses forest 0 alone;
+  /// a whole-sampler consistency read (the fuzz snapshot) needs every forest's.
+  const std::vector<double>& totalFitsInForest(std::size_t f) const {
+    return forests_[f].totalFits;
+  }
   /// Test hook: tree t's obs-to-leaf map (constant leaf, forest 0), where entry
   /// i is the arena bottom-node index owning observation i.
   const std::uint32_t* leafOfForTesting(size_t t) const {

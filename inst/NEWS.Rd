@@ -810,6 +810,16 @@
       \item \code{samplePriorPredictive(type = "ppd")} refuses a
             heteroscedastic sampler rather than returning a homoscedastic
             prior predictive; \code{type = "ev"} is unaffected.
+      \item \code{$setPredictor} and \code{$updatePredictor} accept
+            transactional (rollback) updates on BCF and multinomial
+            samplers, which previously refused them. A replacement is
+            installed only if no leaf of any tree of any forest of any
+            chain would empty; otherwise the whole change rolls back and
+            the call reports \code{FALSE}, exactly as on a single-forest
+            sampler. Multinomial's rejection rate was measured as ungated
+            stress rather than covered by a verdict. Per-observation
+            updates (\code{forceUpdate = "partial"}) and heteroscedastic
+            samplers still refuse.
       \item A BCF forest whose scale multiplier is zero now contributes
             exactly zero weight and exactly zero response for the affected
             rows instead of a near-zero floor, so the treatment surface

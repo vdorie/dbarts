@@ -84,9 +84,8 @@ bartcoreSamplerSetPredictor <- function(
     refuseBCFMutation(
       sampler,
       "setPredictor(forceUpdate = \"partial\")",
-      "a per-observation session has no force variant and validates only ",
-      "the prognostic forest; use forceUpdate = TRUE or make a new sampler ",
-      "instead"
+      "a per-observation session has no force variant and its cell guard ",
+      "caches the prognostic forest alone; use forceUpdate = TRUE instead"
     )
   }
 
@@ -150,14 +149,12 @@ bartcoreSamplerSetPredictor <- function(
     coerceOrError(forceUpdate, "logical")
   }
   updateCutPoints <- coerceOrError(updateCutPoints, "logical")
-  if (!forceUpdate) {
-    refuseBCFMutation(
-      sampler,
-      "setPredictor",
-      "a transactional update validates only the prognostic forest; use ",
-      "forceUpdate = TRUE or make a new sampler instead"
-    )
-  }
+
+  # no BCF pre-check here: a transactional whole-matrix or column update
+  # revalidates every forest and rolls the whole change back if any leaf of any
+  # tree of any forest would empty, so a two-forest sampler takes it
+  # (docs/plans/multiforest-predictor-mutation.md). The per-observation session
+  # above is the one that still refuses.
 
   # dim(), not is.matrix(): the latter is FALSE for every Matrix class, so a
   # transposed dgCMatrix argument (same total length, wrong shape) fell

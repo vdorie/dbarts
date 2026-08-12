@@ -191,15 +191,20 @@ void refusePinnedSigmaChange(const bartcore::SamplerBase& sampler,
 void refuseVarianceForestPredictorMutation(
     const bartcore::SamplerBase& sampler, const char* caller);
 
-/// Errors on the transactional predictor paths (setPredictor and
-/// updatePredictor without forceUpdate, and the per-observation sessions,
-/// which have no force variant) for a sampler a single-forest revalidation
-/// cannot safely cover: a variance forest (always, through
-/// refuseVarianceForestPredictorMutation), or numForests >= 2 when
-/// !forcedUpdate. caller labels the error.
+/// Errors on the whole-matrix and subset transactional predictor paths
+/// (setPredictor and updatePredictor without forceUpdate) for a sampler the
+/// revalidation cannot cover: a variance forest, which sits outside forests_.
+/// Multi-forest samplers are covered and pass. caller labels the error.
 void refuseMultiForestTransactionalUpdate(const bartcore::SamplerBase& sampler,
                                           const char* caller,
                                           bool forcedUpdate = false);
+
+/// Errors on the per-observation sessions, which have no force variant: the
+/// variance-forest refusal above, plus numForests >= 2, which stands while the
+/// session's cell guard caches the primary forest alone. caller labels the
+/// error.
+void refuseMultiForestPerObservationUpdate(
+    const bartcore::SamplerBase& sampler, const char* caller);
 
 } // namespace bartcore_bridge
 

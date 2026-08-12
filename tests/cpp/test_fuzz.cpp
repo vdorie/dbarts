@@ -26,25 +26,129 @@ struct FuzzArena {
   }
 };
 
-// A cheap bitwise fingerprint of the state a rejected transaction must leave
-// untouched: the codes, cut grid, per-chain tree fits, and sigma (the fields
-// the classic rollback path restores exactly; see testSetPredictorTransaction).
-template <typename S>
-struct FuzzSnapshot {
-  std::vector<xint_t> codes;
-  std::vector<std::vector<double>> cuts;
-  std::vector<std::vector<double>> fits;
-  std::vector<double> sigma;
+// owner[i] <- the bottom node whose index range currently holds observation i,
+// read off the live partition alone.
+static void fuzzFillOwner(const Tree& t, int32_t i, std::vector<int32_t>& owner) {
+  const Node& nd(t.at(i));
+  if (nd.isBottom()) {
+    for (size_t m = nd.begin; m < nd.end; ++m) owner[t.indices[m]] = i;
+    return;
+  }
+  fuzzFillOwner(t, nd.leftChild, owner);
+  fuzzFillOwner(t, nd.leftChild + 1, owner);
+}
+
+// The state a rejected or abandoned mutation must leave untouched. The old
+// fingerprint carried codes, cuts, sigma and Chain::treeFits(), which is
+// forest 0 alone: a rollback that restored mu and left tau routed by the
+// proposal passed it green. It is rebuilt here so that omission stops being
+// expressible (docs/plans/multiforest-predictor-mutation.md, "The snapshot,
+// closed structurally"): the persisted state entire, plus every LIVE structure
+// the persisted state does not carry, captured by INDEX LOOPS with no forest
+// literal anywhere - a new forest class is covered on arrival. F4
+// (testSnapshotCoversEveryFamily) is the gate that each captured family can
+// make the comparison false.
+
+// One arena node's structure: the split rule and the index range it owns.
+struct FuzzNode {
+  int32_t leftChild = invalidNode;
+  int32_t variable = invalidVariable;
+  std::uint64_t bits = 0;
+  size_t begin = 0, end = 0;
+  bool operator==(const FuzzNode&) const = default;
+};
+
+// One tree's live geometry: its arena, its pooled-mask pool, and the partition
+// its index buffer expresses - observation i's owning bottom node, read off
+// the live begin/end ranges.
+//
+// leafOwner, and NOT the raw index buffer: the rollback re-routes from the root
+// (Chain::repartitionTrees), and the kernel's partition is not order-stable, so
+// a rejected transaction restores each leaf's MEMBERSHIP but generally permutes
+// its members. Measured on the shipped rollback, S1 engine and pre-S1 alike:
+// every other family below - codes, cuts, the whole persisted state, split
+// rules, index RANGES, fits and totalFits - comes back bitwise, and only the
+// within-leaf order moves. Recorded here rather than asserted because it is
+// pre-existing behavior with a live baseline over it (the predreject
+// equivalence scenario runs a second leg after a rejected transaction, so
+// whatever the permutation does to a later sweep's reduction order is pinned
+// bitwise there).
+struct FuzzTree {
+  std::vector<FuzzNode> nodes;
+  std::vector<std::uint64_t> maskPool;
+  std::vector<int32_t> leafOwner;
+  bool operator==(const FuzzTree&) const = default;
+};
+
+// Everything getState does not carry, per chain and per forest.
+struct FuzzGeometry {
+  std::vector<std::vector<std::vector<FuzzTree>>> trees;   // chain, forest, tree
+  std::vector<std::vector<std::vector<double>>> fits;      // chain, forest
+  std::vector<std::vector<std::vector<double>>> totals;    // chain, forest
+  std::vector<std::vector<FuzzTree>> varianceTrees;        // chain, tree
+  std::vector<std::vector<double>> varianceFactors;        // chain
+  std::vector<std::vector<double>> varianceFits;           // chain
+  bool operator==(const FuzzGeometry&) const = default;
 };
 
 template <typename S>
-static FuzzSnapshot<S> fuzzCapture(const S& s) {
+struct FuzzSnapshot {
+  // the store's quantized predictors; the persisted state carries the cut grid
+  // but never the codes, and a rollback must put both back
+  std::vector<xint_t> codes;
+  SamplerStateData state;
+  FuzzGeometry geom;
+};
+
+static FuzzTree fuzzCaptureTree(const Tree& tree, size_t n) {
+  FuzzTree out;
+  out.nodes.resize(tree.nodes.size());
+  for (size_t i = 0; i < tree.nodes.size(); ++i) {
+    const Node& nd(tree.nodes[i]);
+    out.nodes[i] = FuzzNode{nd.leftChild, nd.rule.variableIndex, nd.rule.bits,
+                            nd.begin, nd.end};
+  }
+  out.maskPool = tree.maskPool;
+  out.leafOwner.assign(n, invalidNode);
+  fuzzFillOwner(tree, 0, out.leafOwner);
+  return out;
+}
+
+template <typename S>
+static FuzzSnapshot<S> fuzzCapture(S& s) {
   FuzzSnapshot<S> snap;
+  size_t n = s.numObservations();
   snap.codes = s.data().train.codes;
-  snap.cuts = s.data().cutPoints;
+  s.getState(snap.state);
+  FuzzGeometry& g(snap.geom);
+  g.trees.resize(s.numChains());
+  g.fits.resize(s.numChains());
+  g.totals.resize(s.numChains());
+  g.varianceTrees.resize(s.numChains());
+  g.varianceFactors.resize(s.numChains());
+  g.varianceFits.resize(s.numChains());
   for (size_t c = 0; c < s.numChains(); ++c) {
-    snap.fits.push_back(s.chain(c).treeFits());
-    snap.sigma.push_back(s.sigma(c));
+    const auto& ch(s.chain(c));
+    for (size_t f = 0; f < ch.numForests(); ++f) {
+      size_t numTrees = ch.numTreesInForest(f);
+      std::vector<FuzzTree> trees(numTrees);
+      for (size_t t = 0; t < numTrees; ++t)
+        trees[t] = fuzzCaptureTree(ch.treeInForestForTesting(f, t), n);
+      g.trees[c].push_back(std::move(trees));
+      std::vector<double> slab(n * numTrees);
+      ch.forestTreeFits(f, slab.data());
+      g.fits[c].push_back(std::move(slab));
+      g.totals[c].push_back(ch.totalFitsInForest(f));
+    }
+    if (!ch.hasVarianceForest()) continue;
+    size_t m = ch.numVarianceTrees();
+    for (size_t j = 0; j < m; ++j)
+      g.varianceTrees[c].push_back(
+        fuzzCaptureTree(ch.varianceTreeForTesting(j), n));
+    const double* factors = ch.varianceFactorsForTesting();
+    g.varianceFactors[c].assign(factors, factors + m * n);
+    const double* combined = ch.varianceFits();
+    g.varianceFits[c].assign(combined, combined + n);
   }
   return snap;
 }
@@ -52,8 +156,14 @@ static FuzzSnapshot<S> fuzzCapture(const S& s) {
 template <typename S>
 static bool fuzzSnapshotsEqual(const FuzzSnapshot<S>& a,
                                const FuzzSnapshot<S>& b) {
-  return a.codes == b.codes && a.cuts == b.cuts && a.fits == b.fits &&
-         a.sigma == b.sigma;
+  // statesAgree covers the per-chain and per-forest half of the persisted
+  // state and nothing above it: SamplerStateData's own cutPoints and
+  // currentSampleNum have no comparison there (deliberately - the state tests
+  // compare states across cut grids), so the sampler-level fields are compared
+  // here, where a rollback must restore both.
+  return a.codes == b.codes && a.state.cutPoints == b.state.cutPoints &&
+         a.state.currentSampleNum == b.state.currentSampleNum &&
+         statesAgree(a.state, b.state) && a.geom == b.geom;
 }
 
 // Every internal node's children must nest its index range exactly and every
@@ -71,18 +181,6 @@ static bool fuzzSubtreeCovers(const Tree& t, int32_t i, size_t& leafObs) {
     return false;
   return fuzzSubtreeCovers(t, nd.leftChild, leafObs) &&
          fuzzSubtreeCovers(t, nd.leftChild + 1, leafObs);
-}
-
-// owner[i] <- the bottom node whose index range currently holds observation i,
-// read off the live partition alone.
-static void fuzzFillOwner(const Tree& t, int32_t i, std::vector<int32_t>& owner) {
-  const Node& nd(t.at(i));
-  if (nd.isBottom()) {
-    for (size_t m = nd.begin; m < nd.end; ++m) owner[t.indices[m]] = i;
-    return;
-  }
-  fuzzFillOwner(t, nd.leftChild, owner);
-  fuzzFillOwner(t, nd.leftChild + 1, owner);
 }
 
 // Routing agreement: the partition a tree HOLDS must be the partition its split
@@ -105,21 +203,29 @@ static const char* fuzzInvariantViolation(S& s) {
   size_t n = s.numObservations();
   for (size_t c = 0; c < s.numChains(); ++c) {
     const auto& ch(s.chain(c));
-    const std::vector<double>& fits(ch.treeFits());
-    const std::vector<double>& total(ch.totalFits());
-    for (size_t t = 0; t < s.numTrees(); ++t) {
-      const Tree& tree(ch.tree(t));
-      if (!tree.bottomNodesAreOccupied()) return "empty leaf";
-      size_t leafObs = 0;
-      if (tree.at(0).begin != 0 || tree.at(0).end != n ||
-          !fuzzSubtreeCovers(tree, 0, leafObs) || leafObs != n)
-        return "partition does not cover n";
-    }
-    for (size_t i = 0; i < n; i += 17) {
-      double acc = 0.0;
-      for (size_t t = 0; t < s.numTrees(); ++t) acc += fits[t * n + i];
-      if (std::fabs(acc - total[i]) > 1e-8 * (1.0 + std::fabs(total[i])))
-        return "totalFits != tree-order sum";
+    // occupancy, coverage and the totalFits identity, per FOREST: the check
+    // read forest 0 against forest 0's total, which is self-consistent and so
+    // would not misfire on a BCF - it simply left forest 1 uncovered
+    std::vector<double> fits;
+    for (size_t f = 0; f < ch.numForests(); ++f) {
+      size_t numTrees = ch.numTreesInForest(f);
+      const std::vector<double>& total(ch.totalFitsInForest(f));
+      fits.resize(n * numTrees);
+      ch.forestTreeFits(f, fits.data());
+      for (size_t t = 0; t < numTrees; ++t) {
+        const Tree& tree(ch.treeInForestForTesting(f, t));
+        if (!tree.bottomNodesAreOccupied()) return "empty leaf";
+        size_t leafObs = 0;
+        if (tree.at(0).begin != 0 || tree.at(0).end != n ||
+            !fuzzSubtreeCovers(tree, 0, leafObs) || leafObs != n)
+          return "partition does not cover n";
+      }
+      for (size_t i = 0; i < n; i += 17) {
+        double acc = 0.0;
+        for (size_t t = 0; t < numTrees; ++t) acc += fits[t * n + i];
+        if (std::fabs(acc - total[i]) > 1e-8 * (1.0 + std::fabs(total[i])))
+          return "totalFits != tree-order sum";
+      }
     }
     if (!(std::isfinite(s.sigma(c)))) return "sigma not finite";
     std::vector<int32_t> owner;
@@ -459,8 +565,12 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
       }
       case OP_RUN: {
         size_t nc = s.numChains();
-        std::vector<double> sig(nc), tf(nc * n);
+        // a multi-location combiner (the multinomial softmax) reports L
+        // channels per observation per sample; L is 1 everywhere else
+        size_t numLocations = s.numReportedLocations();
+        std::vector<double> sig(nc), tf(nc * n * numLocations);
         Results r;
+        r.numReportedLocations = numLocations;
         r.sigma = sig.data();
         r.trainingFits = tf.data();
         s.run(0, 1, r);
@@ -545,6 +655,126 @@ static void fuzzRunConstant(const ConfigSpec& spec, std::uint32_t seed,
   ext_rng_destroy(opRng);
 }
 
+// The multi-forest op surface: the transactional predictor paths, the forced
+// refresh, setCutPoints, run and the state round trip. setData, setResponse,
+// setWeights and setOffset are refused for a multi-forest sampler at the
+// bridge (test-multi-forest-seam.R), and the per-observation session joins at
+// S2 of docs/plans/multiforest-predictor-mutation.md, when its cell guard
+// widens past forest 0.
+static const unsigned fuzzMultiForestMask =
+  (1u << OP_SET_PREDICTOR) | (1u << OP_UPDATE_COLUMNS) | (1u << OP_SET_CUTS) |
+  (1u << OP_RUN) | (1u << OP_STATE);
+
+// A two-forest BCF sampler (docs/design/bcf.md) over the same op loop: the
+// shape whose forest 1 the widened revalidation must re-route, and which the
+// snapshot above must see. tau carries a moderator subset, so its trees split
+// on a strict subset of the columns and the j-split pruning of the rebuild is
+// exercised rather than vacuous.
+static void fuzzRunBCF(const ConfigSpec& spec, std::uint32_t seed, int numOps) {
+  FuzzArena arena;
+  size_t n0 = 160, p = spec.cols.size();
+  ext_rng* opRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(opRng, seed * 2u + 7u);
+
+  std::vector<ColumnType> types(p);
+  std::vector<double> x(n0 * p), y(n0), z(n0);
+  for (size_t j = 0; j < p; ++j) {
+    types[j] = spec.cols[j].type;
+    fuzzFillColumn(opRng, spec.cols[j], nullptr, n0,
+                   spec.cols[j].type == ColumnType::categorical ? 0 : 2,
+                   x.data() + j * n0);
+  }
+  fuzzFillResponse(opRng, spec.family, x.data(), n0, p, y.data());
+  for (size_t i = 0; i < n0; ++i) {
+    z[i] = fuzzUnif(opRng) < 0.5 ? 0.0 : 1.0;
+    y[i] += z[i] * (1.0 + 2.0 * x[i]);
+  }
+  double* xb = arena.keep(std::move(x));
+  double* yb = arena.keep(std::move(y));
+  double* zb = arena.keep(std::move(z));
+
+  SamplerOptions options;
+  options.numChains = spec.numChains;
+  options.predictors.columnTypes = types.data();
+  std::vector<size_t> moderators = {0, 1};
+  BCFSpec bcf;
+  bcf.mu.numTrees = 15;
+  bcf.tau.numTrees = 10;
+  bcf.tau.base = 0.25;
+  bcf.tau.power = 3.0;
+  bcf.tau.columns = moderators.data();
+  bcf.tau.numColumns = moderators.size();
+  bcf.z = zb;
+
+  std::vector<ext_rng*> rngs(spec.numChains);
+  for (size_t c = 0; c < spec.numChains; ++c) {
+    rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngs[c], seed * 2u + 1u + static_cast<std::uint32_t>(c));
+  }
+  Sampler<ConstantGaussianLeaf> s(xb, yb, n0, p, nullptr, nullptr, 1.0, 3.0,
+                                  fuzzRawScale, options, bcf, rngs.data());
+  Results empty;
+  s.run(12, 0, empty);
+  fuzzDrive(s, spec, arena, opRng, seed, numOps, xb);
+
+  for (size_t c = 0; c < spec.numChains; ++c) ext_rng_destroy(rngs[c]);
+  ext_rng_destroy(opRng);
+}
+
+// A K-forest multinomial (softmax) sampler (docs/design/multinomial.md): the
+// other shape the widened revalidation lifts, and the one with the largest
+// j-splitting tree count. Its response is the borrowed one-hot count matrix,
+// so the response-side ops stay out for that reason as well.
+static void fuzzRunMultinomial(const ConfigSpec& spec, std::uint32_t seed,
+                               int numOps) {
+  FuzzArena arena;
+  size_t n0 = 160, p = spec.cols.size(), K = 3;
+  ext_rng* opRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(opRng, seed * 2u + 7u);
+
+  std::vector<ColumnType> types(p);
+  std::vector<double> x(n0 * p);
+  for (size_t j = 0; j < p; ++j) {
+    types[j] = spec.cols[j].type;
+    fuzzFillColumn(opRng, spec.cols[j], nullptr, n0,
+                   spec.cols[j].type == ColumnType::categorical ? 0 : 2,
+                   x.data() + j * n0);
+  }
+  // a covariate-dependent label, one-hot into the category-major count matrix
+  std::vector<int> counts(n0 * K, 0), trials(n0, 1);
+  for (size_t i = 0; i < n0; ++i) {
+    double v = x[i];
+    if (std::isnan(v)) v = 0.5;
+    size_t k = fuzzUnif(opRng) < 0.5 + 0.4 * (v - 0.5)
+                 ? 0
+                 : (fuzzUnif(opRng) < 0.5 ? 1 : 2);
+    counts[k * n0 + i] = 1;
+  }
+  double* xb = arena.keep(std::move(x));
+
+  SamplerOptions options;
+  options.numChains = spec.numChains;
+  options.predictors.columnTypes = types.data();
+  MultinomialSpec mn;
+  mn.numCategories = K;
+  mn.counts = counts.data();
+  mn.trials = trials.data();
+  mn.forest.numTrees = 12;
+
+  std::vector<ext_rng*> rngs(spec.numChains);
+  for (size_t c = 0; c < spec.numChains; ++c) {
+    rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngs[c], seed * 2u + 1u + static_cast<std::uint32_t>(c));
+  }
+  Sampler<ConstantGaussianLeaf> s(xb, n0, p, options, mn, rngs.data());
+  Results empty;
+  s.run(12, 0, empty);
+  fuzzDrive(s, spec, arena, opRng, seed, numOps, xb);
+
+  for (size_t c = 0; c < spec.numChains; ++c) ext_rng_destroy(rngs[c]);
+  ext_rng_destroy(opRng);
+}
+
 static void fuzzRunLinear(std::uint32_t seed, int numOps) {
   FuzzArena arena;
   size_t n0 = 160, p = 3;
@@ -618,6 +848,163 @@ static void fuzzRunSparse(std::uint32_t seed, int numOps) {
   ext_rng_destroy(opRng);
 }
 
+// F4, the structural gate on the snapshot (docs/plans/multiforest-predictor-
+// mutation.md): table-driven, one row per captured family, each row perturbing
+// exactly that family and requiring the comparison to go false. A family with
+// no row is a family the snapshot does not cover - which is the failure mode
+// the rebuild exists to close, and which no amount of green fuzzing detects.
+using FuzzSnap = FuzzSnapshot<Sampler<ConstantGaussianLeaf>>;
+
+struct FuzzFamily {
+  const char* name;
+  std::function<void(FuzzSnap&)> perturb;
+};
+
+// pre-order index of the first leaf of a flattened tree; every tree has one
+static size_t fuzzFirstFlatLeaf(const std::vector<FlatNode>& tree) {
+  for (size_t i = 0; i < tree.size(); ++i)
+    if (tree[i].variable == invalidVariable) return i;
+  return 0;
+}
+
+// arena index of the first internal node of a live tree, or 0 for a stump
+static size_t fuzzFirstInternal(const std::vector<FuzzNode>& nodes) {
+  for (size_t i = 0; i < nodes.size(); ++i)
+    if (nodes[i].leftChild != invalidNode) return i;
+  return 0;
+}
+
+static void fuzzCheckFamilies(FuzzSnap& base,
+                              const std::vector<FuzzFamily>& families) {
+  char line[160];
+  for (const FuzzFamily& family : families) {
+    FuzzSnap moved = base;
+    family.perturb(moved);
+    snprintf(line, sizeof line,
+             "the fuzz snapshot sees a change in %s", family.name);
+    check(!fuzzSnapshotsEqual(base, moved), line);
+  }
+}
+
+static void testSnapshotCoversEveryFamily() {
+  const size_t n = 120, p = 3;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = runif01() < 0.5 ? 0.0 : 1.0;
+    y[i] = 4.0 * (x[i] - 0.5) + 2.0 * x[i + n] +
+           z[i] * (1.0 + 2.0 * x[i + 2 * n]) + 0.2 * (runif01() - 0.5);
+  }
+
+  // a two-chain BCF: the mean/tau, per-chain and persisted families
+  {
+    SamplerOptions options;
+    options.numChains = 2;
+    BCFSpec spec;
+    spec.mu.numTrees = 10;
+    spec.tau.numTrees = 8;
+    spec.z = z.data();
+    ext_rng* rngs[2];
+    for (size_t c = 0; c < 2; ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rngs[c], 5150u + static_cast<std::uint32_t>(c));
+    }
+    Sampler<ConstantGaussianLeaf> s(x.data(), y.data(), n, p, nullptr, nullptr,
+                                    1.0, 3.0, fuzzRawScale, options, spec, rngs);
+    Results empty;
+    s.run(60, 0, empty);
+    FuzzSnap base = fuzzCapture(s);
+    check(base.geom.trees.size() == 2 && base.geom.trees[0].size() == 2,
+          "the snapshot captured both chains and both BCF forests");
+    check(fuzzFirstInternal(base.geom.trees[0][1][0].nodes) != 0 ||
+            base.geom.trees[0][1][0].nodes.size() > 1,
+          "the BCF snapshot's tau trees carry a split to perturb");
+
+    fuzzCheckFamilies(base, {
+      {"a store code", [](FuzzSnap& t) { t.codes[0] ^= 1; }},
+      {"a cut point", [](FuzzSnap& t) { t.state.cutPoints[0][0] += 1.0; }},
+      {"the saved-tree write position",
+       [](FuzzSnap& t) { ++t.state.currentSampleNum; }},
+      {"sigma", [](FuzzSnap& t) { t.state.chains[0].sigma += 1.0; }},
+      {"the BCF glue", [](FuzzSnap& t) { t.state.chains[0].a += 1.0; }},
+      {"a persisted mean leaf", [](FuzzSnap& t) {
+         std::vector<FlatNode>& tree(t.state.chains[0].forests[0].trees[0]);
+         tree[fuzzFirstFlatLeaf(tree)].value += 1.0;
+       }},
+      {"a persisted tau leaf", [](FuzzSnap& t) {
+         std::vector<FlatNode>& tree(t.state.chains[0].forests[1].trees[0]);
+         tree[fuzzFirstFlatLeaf(tree)].value += 1.0;
+       }},
+      {"a mean split rule", [](FuzzSnap& t) {
+         std::vector<FuzzNode>& nodes(t.geom.trees[0][0][0].nodes);
+         ++nodes[fuzzFirstInternal(nodes)].variable;
+       }},
+      {"a tau split rule", [](FuzzSnap& t) {
+         std::vector<FuzzNode>& nodes(t.geom.trees[0][1][0].nodes);
+         nodes[fuzzFirstInternal(nodes)].bits ^= 1;
+       }},
+      {"a mean partition range",
+       [](FuzzSnap& t) { ++t.geom.trees[0][0][0].nodes[0].end; }},
+      {"a tau partition range",
+       [](FuzzSnap& t) { ++t.geom.trees[0][1][0].nodes[0].end; }},
+      {"a mean leaf assignment",
+       [](FuzzSnap& t) { ++t.geom.trees[0][0][0].leafOwner[0]; }},
+      {"a tau leaf assignment",
+       [](FuzzSnap& t) { ++t.geom.trees[0][1][0].leafOwner[0]; }},
+      {"a pooled mask word",
+       [](FuzzSnap& t) { t.geom.trees[0][0][0].maskPool.push_back(1ull); }},
+      {"mean tree fits", [](FuzzSnap& t) { t.geom.fits[0][0][0] += 1.0; }},
+      {"tau tree fits", [](FuzzSnap& t) { t.geom.fits[0][1][0] += 1.0; }},
+      {"mean totalFits", [](FuzzSnap& t) { t.geom.totals[0][0][0] += 1.0; }},
+      {"tau totalFits", [](FuzzSnap& t) { t.geom.totals[0][1][0] += 1.0; }},
+      {"chain 1's tau fits", [](FuzzSnap& t) { t.geom.fits[1][1][0] += 1.0; }},
+      {"chain 1's tau partition",
+       [](FuzzSnap& t) { ++t.geom.trees[1][1][0].leafOwner[0]; }},
+    });
+    for (size_t c = 0; c < 2; ++c) ext_rng_destroy(rngs[c]);
+  }
+
+  // a heteroscedastic sampler: the variance-forest families, which live
+  // outside forests_ and which the old snapshot could not see at all
+  {
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.numVarianceTrees = 8;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 5160u);
+    Sampler<ConstantGaussianLeaf> s(x.data(), y.data(), n, p, nullptr, nullptr,
+                                    ResponseFamily::gaussian, 1.0, 3.0,
+                                    fuzzRawScale, options, &rng);
+    Results empty;
+    s.run(60, 0, empty);
+    FuzzSnap base = fuzzCapture(s);
+    check(base.geom.varianceTrees[0].size() == 8,
+          "the snapshot captured every variance tree");
+
+    fuzzCheckFamilies(base, {
+      {"a persisted variance leaf", [](FuzzSnap& t) {
+         std::vector<FlatNode>& tree(t.state.chains[0].varianceTrees[0]);
+         tree[fuzzFirstFlatLeaf(tree)].value += 1.0;
+       }},
+      {"a variance split rule", [](FuzzSnap& t) {
+         std::vector<FuzzNode>& nodes(t.geom.varianceTrees[0][0].nodes);
+         nodes[fuzzFirstInternal(nodes)].bits ^= 1;
+       }},
+      {"a variance partition range",
+       [](FuzzSnap& t) { ++t.geom.varianceTrees[0][0].nodes[0].end; }},
+      {"a variance leaf assignment",
+       [](FuzzSnap& t) { ++t.geom.varianceTrees[0][0].leafOwner[0]; }},
+      {"a variance factor",
+       [](FuzzSnap& t) { t.geom.varianceFactors[0][0] += 1.0; }},
+      {"the combined variance",
+       [](FuzzSnap& t) { t.geom.varianceFits[0][0] += 1.0; }},
+    });
+    ext_rng_destroy(rng);
+  }
+
+  printf("ok: fuzz snapshot family coverage\n");
+}
+
 static void testMutationFuzzer(int numSeeds) {
   ColSpec ord;
   ColSpec cat4{ColumnType::categorical, 4, 0.0};
@@ -652,11 +1039,26 @@ static void testMutationFuzzer(int numSeeds) {
        (1u << OP_SET_CUTS) | (1u << OP_SET_DATA),
      8},
   };
+  // the multi-forest shapes, on their own runners: one continuous and one
+  // categorical design each, so the transactional paths meet both column types
+  ConfigSpec bcf{"bcf", ResponseFamily::gaussian, {ord, ord, ord}, 1,
+                 fuzzMultiForestMask};
+  ConfigSpec bcfCat{"bcf-categorical", ResponseFamily::gaussian,
+                    {ord, cat4, ord}, 2, fuzzMultiForestMask};
+  ConfigSpec multinomial{"multinomial", ResponseFamily::logistic,
+                         {ord, ord, ord}, 1, fuzzMultiForestMask};
+  ConfigSpec multinomialMiss{"multinomial-missing", ResponseFamily::logistic,
+                             {ordMiss, cat3Miss, ord}, 1, fuzzMultiForestMask};
+
   const int numOps = 40;
   for (int sd = 0; sd < numSeeds; ++sd) {
     std::uint32_t seed = 1u + static_cast<std::uint32_t>(sd);
     for (const ConfigSpec& spec : configs)
       fuzzRunConstant(spec, seed, numOps);
+    fuzzRunBCF(bcf, seed, numOps);
+    fuzzRunBCF(bcfCat, seed, numOps);
+    fuzzRunMultinomial(multinomial, seed, numOps);
+    fuzzRunMultinomial(multinomialMiss, seed, numOps);
     fuzzRunLinear(seed, numOps);
     fuzzRunSparse(seed, numOps);
   }
@@ -664,5 +1066,6 @@ static void testMutationFuzzer(int numSeeds) {
 }
 
 void runFuzzTests(int numSeeds) {
+  testSnapshotCoversEveryFamily();
   testMutationFuzzer(numSeeds);
 }
