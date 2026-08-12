@@ -716,6 +716,58 @@ makeScenarios <- function() {
     mutate = list(forced = matrix(runif(400L * 10L), 400L))
   )
 
+  # the two TRANSACTIONAL heteroscedastic paths, which a variance forest began
+  # accepting when the two-phase revalidation and the per-observation session
+  # reached it (docs/plans/multiforest-predictor-mutation.md, S3). New streams:
+  # both were refused at the bridge before this tip, so they have no earlier
+  # baseline and become the regression floor from here. Each records the
+  # engine's verdict beside the draws - recordVerdict is opt-in, so the
+  # scenarios above keep the summary vectors they recorded - so a build that
+  # flipped an accept into a rollback, or moved one row's install decision,
+  # fails on the verdict rather than only on the post-mutation draws. Their
+  # channels include s2.test, the direct read on the variance forest's routing.
+  # binary = TRUE for hetforce's reason: sigma is structurally pinned under a
+  # variance forest.
+  #
+  # hetswap: the whole-matrix transaction, a jitter sized to be ACCEPTED, so
+  # every variance tree re-routes against the new codes and its factors scatter
+  # through the new partition.
+  set.seed(5130L)
+  x <- matrix(runif(400L * 10L), 400L)
+  result$hetswap <- list(
+    x = x,
+    y = friedman(x) + (0.5 + 2 * x[, 6L]) * rnorm(400L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE,
+    samplerApi = TRUE,
+    recordVerdict = TRUE,
+    samplerArgs = list(variance = TRUE, n.trees.variance = 40L),
+    mutate = list(
+      predictor = pmin(
+        pmax(x + matrix(rnorm(400L * 10L, 0, 0.005), 400L), 0),
+        1
+      )
+    )
+  )
+
+  # hetpartial: the per-observation session, whose cell guard now caches the
+  # variance trees that split on the column beside the mean forest's. The
+  # verdict channel is the whole install mask - the session answers per row -
+  # and this is the only heteroscedastic scenario that consumes the engine's
+  # scan permutation.
+  set.seed(5131L)
+  x <- matrix(runif(400L * 10L), 400L)
+  result$hetpartial <- list(
+    x = x,
+    y = friedman(x) + (0.5 + 2 * x[, 6L]) * rnorm(400L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE,
+    samplerApi = TRUE,
+    recordVerdict = TRUE,
+    samplerArgs = list(variance = TRUE, n.trees.variance = 40L),
+    mutate = list(partial = list(index = 6L, values = runif(400L)))
+  )
+
   result
 }
 
@@ -770,6 +822,7 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
   poolChains <- function(a) {
     if (length(dim(a)) == 3L) t(matrix(a, nrow = dim(a)[1L])) else t(a)
   }
+  verdict <- NULL
   r <- if (!is.null(scenario$setData)) {
     sampler$run(nskip, 0L)
     sampler$setData(dbartsData(
@@ -790,14 +843,19 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
     # lists, so a scenario carrying only one of these would silently take
     # another's branch. The transactional flavors can be REFUSED by the engine
     # (a proposal that would empty a leaf rolls back), which is a legitimate
-    # outcome the scenarios exercise deliberately; the return value is dropped
-    # here because the recorded draws, not the verdict, are the gate.
+    # outcome the scenarios exercise deliberately. The return value - the
+    # accept/rollback flag, or the session's per-row install mask - rides into
+    # the summaries only for a scenario that asks for it (recordVerdict), so
+    # the scenarios recorded before it existed keep their summary vectors.
     mutate <- scenario$mutate
     if (!is.null(mutate[["predictor"]])) {
-      sampler$setPredictor(mutate[["predictor"]], forceUpdate = FALSE)
+      verdict <- sampler$setPredictor(
+        mutate[["predictor"]],
+        forceUpdate = FALSE
+      )
     }
     if (!is.null(mutate[["column"]])) {
-      sampler$setPredictor(
+      verdict <- sampler$setPredictor(
         mutate[["column"]]$values,
         column = mutate[["column"]]$index,
         forceUpdate = FALSE,
@@ -805,7 +863,7 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
       )
     }
     if (!is.null(mutate[["partial"]])) {
-      sampler$setPredictor(
+      verdict <- sampler$setPredictor(
         mutate[["partial"]]$values,
         column = mutate[["partial"]]$index,
         forceUpdate = "partial"
@@ -826,7 +884,8 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
     # a variance forest additionally reports s^2(x) on the test rows; absent -
     # and so unsummarized - for every other sampler, which leaves the existing
     # scenarios' summary vectors untouched
-    variance.test = if (!is.null(r$varianceTest)) poolChains(r$varianceTest)
+    variance.test = if (!is.null(r$varianceTest)) poolChains(r$varianceTest),
+    verdict = if (isTRUE(scenario$recordVerdict)) as.double(verdict)
   )
 }
 
@@ -1193,6 +1252,15 @@ fitSummaries <- function(scenario, seed) {
         paste0("s2.test.", seq_len(n.test))
       )
     )
+  }
+  # the engine's verdict on a transactional mutation, for a scenario that asked
+  # to record it (recordVerdict): the accept/rollback flag as one entry, or the
+  # per-observation session's whole install mask, one entry per row. NULL - and
+  # so absent - everywhere else, including the predictor-mutation scenarios
+  # recorded before this channel existed.
+  if (!is.null(fit[["verdict"]])) {
+    v <- fit[["verdict"]]
+    result <- c(result, setNames(v, paste0("verdict.", seq_along(v))))
   }
   result
 }

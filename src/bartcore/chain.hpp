@@ -1566,9 +1566,15 @@ public:
   /// (docs/plans/multiforest-predictor-mutation.md, "Pruning"). An empty
   /// params[f][t] is NOT a legal skip marker - a function-valued leaf
   /// legitimately produces one - so the list is explicit and shared.
+  ///
+  /// The variance forest rides the same handoff in its own pair of members: it
+  /// lives outside forests_, carries node-indexed leaf FACTORS rather than mean
+  /// parameters, and prunes on the same predicate a forest past the first does.
   struct ForestRevalidation {
     ForestParameters params;
     std::vector<std::vector<std::size_t>> survivors;
+    TreeParameters varianceParams;
+    std::vector<std::size_t> varianceSurvivors;
   };
 
   /// Leaf parameters of tree t in transferable form: recovered from the
@@ -1605,7 +1611,10 @@ public:
   /// exempts forest 0, and the per-observation session's cell guard through
   /// treesSplittingOnColumn, which does not. scratch is a numPredictors-sized
   /// census buffer the caller owns so the census does not allocate per tree.
-  void collectSplittingTrees(const Forest<L, ResidT>& forest,
+  /// Templated on the ensemble so the variance forest, which is not a
+  /// Forest<L, ResidT>, prunes on the same predicate rather than a copy of it.
+  template <typename Ensemble>
+  void collectSplittingTrees(const Ensemble& forest,
                              const std::size_t* touched, std::size_t numTouched,
                              std::vector<std::uint32_t>& scratch,
                              std::vector<std::size_t>& out) const {
@@ -1657,6 +1666,30 @@ public:
     collectSplittingTrees(forests_[f], &column, 1, scratch, out);
   }
 
+  /// The variance forest's own pair. It sits outside forests_ and has no
+  /// numTreesInForest entry, so it is addressed by numVarianceTrees() and
+  /// reached through these rather than through a forest index. The pruning is
+  /// the f >= 1 rule (no forest-0 exemption): the variance path carries no
+  /// recorded subtract-then-add arithmetic to preserve, so skipping a tree no
+  /// touched column reaches is the exact implementation, not an optimization.
+  void varianceSurvivors(const std::size_t* touched, std::size_t numTouched,
+                         std::vector<std::uint32_t>& scratch,
+                         std::vector<std::size_t>& out) const {
+    const VarianceForest& vf = *varianceForest_;
+    if (touched == nullptr) {
+      out.clear();
+      out.resize(vf.numTrees);
+      for (std::size_t j = 0; j < vf.numTrees; ++j) out[j] = j;
+      return;
+    }
+    collectSplittingTrees(vf, touched, numTouched, scratch, out);
+  }
+  void varianceTreesSplittingOnColumn(std::size_t column,
+                                      std::vector<std::uint32_t>& scratch,
+                                      std::vector<std::size_t>& out) const {
+    collectSplittingTrees(*varianceForest_, &column, 1, scratch, out);
+  }
+
   /// Recover leaf parameters (from fits for scalar leaves, from the
   /// persisted blocks for vector ones; function-valued leaves keep their
   /// per-observation fits in place, so nothing is recovered), re-route every
@@ -1684,6 +1717,40 @@ public:
         forest.trees[t].repartitionSubtree(data_, 0);
         allValid = forest.trees[t].bottomNodesAreOccupied();
       }
+    }
+    // the variance forest, appended after the forests_ body: a homoscedastic
+    // chain never takes the branch, so its path is the one it always ran
+    if (allValid && varianceForest_ != nullptr)
+      allValid = revalidateVarianceTrees(state, touched, numTouched, census);
+    return allValid;
+  }
+
+  /// The variance forest's validate phase: recover each surviving tree's
+  /// node-indexed leaf factors through its LIVE partition FIRST, then
+  /// repartition against the store's current codes and report occupancy. The
+  /// order is the one refreshVarianceForest documents - the recovery reads the
+  /// per-observation slab through each leaf's current members, so recovering
+  /// after the repartition would read the new partition's members out of the
+  /// old leaves' slots.
+  ///
+  /// Collapses nothing, drops no missing directions and scatters nothing: this
+  /// half must be undoable by a repartition alone, and factorByTree and
+  /// combinedVariance stay untouched so a rollback restores the state exactly.
+  bool revalidateVarianceTrees(ForestRevalidation& state,
+                               const std::size_t* touched,
+                               std::size_t numTouched,
+                               std::vector<std::uint32_t>& census) {
+    VarianceForest& vf = *varianceForest_;
+    varianceSurvivors(touched, numTouched, census, state.varianceSurvivors);
+    TreeParameters& params = state.varianceParams;
+    params.resize(vf.numTrees);
+    bool allValid = true;
+    const std::vector<std::size_t>& survivors = state.varianceSurvivors;
+    for (std::size_t k = 0; k < survivors.size() && allValid; ++k) {
+      std::size_t j = survivors[k];
+      recoverVarianceLeafValues(vf, j, params[j]);
+      vf.trees[j].repartitionSubtree(data_, 0);
+      allValid = vf.trees[j].bottomNodesAreOccupied();
     }
     return allValid;
   }
@@ -1723,6 +1790,47 @@ public:
         }
       }
     }
+    if (varianceForest_) rebuildVarianceFactors(state);
+  }
+
+  /// The variance forest's rebuild phase: drop the missing directions the new
+  /// codes stranded, scatter each surviving tree's recovered factors through
+  /// the partition the validate phase installed, and recompute s^2(x) as the
+  /// fresh product. A pruned tree keeps its slab entries, which its unchanged
+  /// partition still describes, so the product is the same one it would have
+  /// been round tripped to.
+  ///
+  /// The direction drop follows the repartition here rather than preceding it
+  /// (refreshVarianceForest's order): with hasMissing false for the column, the
+  /// bit routes nothing, so clearing it before or after the routing is the same
+  /// partition (tree.hpp, dropStaleMissingDirections). It runs over every tree,
+  /// as the mean side's chain-level drop does, since a stale bit outside the
+  /// reachable gauge would fail a later flatten wherever it sits.
+  void rebuildVarianceFactors(const ForestRevalidation& state) {
+    VarianceForest& vf = *varianceForest_;
+    std::size_t n = data_.numObservations;
+    for (std::size_t j = 0; j < vf.numTrees; ++j)
+      vf.trees[j].dropStaleMissingDirections(data_);
+    for (std::size_t k = 0; k < state.varianceSurvivors.size(); ++k) {
+      std::size_t j = state.varianceSurvivors[k];
+      Tree& tree = vf.trees[j];
+      const std::vector<double>& leafValues = state.varianceParams[j];
+      double* factor = vf.factorByTree.data() + j * n;
+      tree.bottomScratch.clear();
+      tree.fillBottom(0, tree.bottomScratch);
+      for (std::int32_t b : tree.bottomScratch) {
+        double h = leafValues[static_cast<std::size_t>(b)];
+        const Node& node = tree.at(b);
+        for (std::size_t m = node.begin; m < node.end; ++m)
+          factor[tree.indices[m]] = h;
+      }
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+      double product = 1.0;
+      for (std::size_t j = 0; j < vf.numTrees; ++j)
+        product *= vf.factorByTree[j * n + i];
+      vf.combinedVariance[i] = product;
+    }
   }
 
   /// Rollback re-route: restore partitions consistent with the store after
@@ -1735,6 +1843,13 @@ public:
       for (size_t t = 0; t < forest.numTrees; ++t)
         forest.trees[t].repartitionSubtree(data_, 0);
     }
+    // the variance trees the validate phase re-routed. Load-bearing: without
+    // it a rejected transaction leaves s^2(x) routed by the proposal. Nothing
+    // else has to be put back - the validate phase leaves factorByTree and
+    // combinedVariance alone, so restoring the partition restores the state.
+    if (varianceForest_)
+      for (Tree& tree : varianceForest_->trees)
+        tree.repartitionSubtree(data_, 0);
   }
 
   /// First phase of a whole-data replacement: recover every tree's leaf
@@ -2479,15 +2594,31 @@ public:
     if (state.fitMax < state.fitMin) return false;
     // heteroscedastic: a variance state must carry one flat tree per variance
     // tree, each well-formed AND with every leaf a strictly positive scale (a
-    // variance, unlike a Gaussian mean leaf) - the new scale-leaf validation
+    // variance, unlike a Gaussian mean leaf) - the scale-leaf validation - AND
+    // with every bottom occupied against this sampler's data, the criterion the
+    // mean branch above imposes tree by tree. Without the occupancy pass an
+    // installed variance tree could report a scale no row supports, which is
+    // exactly what the transactional veto refuses to create
+    // (docs/plans/multiforest-predictor-mutation.md, S3 item 5).
     if (varianceForest_) {
       if (state.varianceTrees.size() != varianceForest_->numTrees) return false;
+      const std::uint8_t* varianceMask = varianceForest_->columnMask.empty()
+        ? nullptr : varianceForest_->columnMask.data();
       for (const std::vector<FlatNode>& tree : state.varianceTrees) {
         if (!flatTreeIsWellFormed(data_, tree.data(), tree.size(), nullptr, 0))
           return false;
         for (const FlatNode& node : tree)
           if (flatKindOf(node) == FlatKind::leaf && !(node.value > 0.0))
             return false;
+        scratch.initialize(scratchIndices.data(), n);
+        // the variance forest carries no interaction constraint; clear the
+        // mean loop's, which the shared scratch would otherwise still hold
+        scratch.setInteractionConstraint(nullptr);
+        scratch.setColumnMask(varianceMask);
+        if (!scratch.buildFromFlat(data_, tree.data(), tree.size(), params))
+          return false;
+        scratch.repartitionSubtree(data_, 0);
+        if (!scratch.bottomNodesAreOccupied()) return false;
       }
     } else if (!state.varianceTrees.empty()) {
       return false;
@@ -2951,14 +3082,18 @@ public:
   const Tree& treeInForest(std::size_t f, std::size_t t) const {
     return forests_[f].trees[t];
   }
-  /// Test hooks: variance tree j's live partition, and the per-tree factor slab
-  /// h_j(x_i), tree-major (numVarianceTrees x n), whose product over j is the
-  /// combined variance varianceFits() reports. The variance forest sits outside
-  /// forests_, so nothing else exposes either to a test. Both dereference the
-  /// forest; a caller gates on hasVarianceForest().
-  const Tree& varianceTreeForTesting(std::size_t j) const {
+  /// Variance tree j. The scale twin of treeInForest: the variance forest sits
+  /// outside forests_ and has no numTreesInForest entry, so a whole-sampler
+  /// walk - the per-observation session's survivor table, the structural
+  /// checks - reaches its trees through this and counts them with
+  /// numVarianceTrees(). Dereferences the forest; a caller gates on
+  /// hasVarianceForest().
+  const Tree& varianceTree(std::size_t j) const {
     return varianceForest_->trees[j];
   }
+  /// Test hook: the per-tree factor slab h_j(x_i), tree-major
+  /// (numVarianceTrees x n), whose product over j is the combined variance
+  /// varianceFits() reports. Nothing else exposes it to a test.
   const double* varianceFactorsForTesting() const {
     return varianceForest_->factorByTree.data();
   }

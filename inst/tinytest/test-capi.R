@@ -164,11 +164,12 @@ rm(savedSeed)
 expect_true(CALL("capi_set_predictor", ptr2, xNew))
 expect_true(CALL("capi_update_predictor", ptr2, matrix(x[, 3L], n), 2L))
 
-# stop-loss: dbarts_sampler_setPredictor and dbarts_sampler_updatePredictor
-# refuse a heteroscedastic sampler's transactional predictor mutation
-# (forceUpdate = 0) and accept the forced flavor (forceUpdate = 1), matching
-# the R bridge entries (docs/plans/multiforest-predictor-mutation.md
-# "SL. Stop-loss")
+# dbarts_sampler_setPredictor and dbarts_sampler_updatePredictor take a
+# heteroscedastic sampler's transactional predictor mutation (forceUpdate = 0)
+# and return the engine's verdict, matching the R bridge entries. The stop-loss
+# refusal these pinned is INVERTED in place: the two-phase revalidation reaches
+# the variance forest, so the entry either re-routes every variance tree or
+# rolls the whole change back (docs/plans/multiforest-predictor-mutation.md, S3)
 nVar <- 60L
 xVar <- matrix(runif(nVar * 2L), nVar, 2L)
 yVar <- rnorm(nVar)
@@ -191,13 +192,27 @@ CALL("capi_sample_trees_from_prior", ptrVar)
 xVarNew <- xVar
 xVarNew[, 1L] <- runif(nVar)
 
-expect_error(CALL("capi_set_predictor", ptrVar, xVarNew), "variance forest")
+# the transactional entries answer with the engine's verdict where they used to
+# refuse: an accept re-routes every variance tree with the mean ones
+expect_true(CALL("capi_set_predictor", ptrVar, xVarNew))
+expect_true(is.logical(CALL(
+  "capi_update_predictor",
+  ptrVar,
+  matrix(xVar[, 2L], nVar),
+  1L
+)))
+# and the DECLINE arm: a two-level replacement column empties leaves, so the
+# transaction rolls back rather than installing (against the existing grid,
+# since refreshing the cuts from a collapsed column is refused for its cut
+# count first)
+expect_false(CALL(
+  "capi_update_predictor_fixed_cuts",
+  ptrVar,
+  matrix(ifelse(seq_len(nVar) %% 2L == 0L, 0.25, 0.75), nVar),
+  0L
+))
+# ... while the forced flavors stay what they were
 expect_true(CALL("capi_set_predictor_forced", ptrVar, xVarNew))
-
-expect_error(
-  CALL("capi_update_predictor", ptrVar, matrix(xVar[, 2L], nVar), 1L),
-  "variance forest"
-)
 expect_true(CALL(
   "capi_update_predictor_forced",
   ptrVar,

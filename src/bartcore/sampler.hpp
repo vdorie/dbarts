@@ -552,7 +552,7 @@ public:
   }
   /// Test hook passthrough: chain c's variance tree j.
   const Tree& varianceTreeForTesting(size_t chainNum, size_t j) const {
-    return chains_[chainNum]->varianceTreeForTesting(j);
+    return chains_[chainNum]->varianceTree(j);
   }
 
   /// The variance surface s^2(x) for raw column-major new rows, original scale,
@@ -1393,9 +1393,9 @@ private:
   }
 
   /// Caches each observation's leaf and per-leaf occupancy for every tree of
-  /// every forest of every chain that splits on the session's column, by
-  /// routing codes through the split structure, so staging a move is a descent
-  /// and a count check per cached tree.
+  /// every forest - and of the variance forest - of every chain that splits on
+  /// the session's column, by routing codes through the split structure, so
+  /// staging a move is a descent and a count check per cached tree.
   class UpdateSessionImpl final : public PredictorUpdateSession {
   public:
     UpdateSessionImpl(Sampler& sampler, const double* newColumn, size_t column)
@@ -1406,9 +1406,10 @@ private:
       for (size_t i = 0; i < n; ++i)
         newCodes_[i] = sampler_.data_.codeFor(column_, newColumn_[i]);
 
-      // The cached set spans every forest and is pruned to the trees the
-      // column can move, so it is sparse: an explicit (chain, forest, tree)
-      // table rather than offset arithmetic over a rectangular tree count.
+      // The cached set spans every forest and the variance forest, and is
+      // pruned to the trees the column can move, so it is sparse: an explicit
+      // (chain, forest, tree) table rather than offset arithmetic over a
+      // rectangular tree count.
       std::vector<std::uint32_t> census;
       std::vector<size_t> splitting;
       for (size_t c = 0; c < sampler_.chains_.size(); ++c) {
@@ -1417,6 +1418,10 @@ private:
           chain.treesSplittingOnColumn(f, column_, census, splitting);
           for (size_t t : splitting) cached_.push_back(CachedTree{c, f, t});
         }
+        if (!chain.hasVarianceForest()) continue;
+        chain.varianceTreesSplittingOnColumn(column_, census, splitting);
+        for (size_t j : splitting)
+          cached_.push_back(CachedTree{c, varianceForest, j});
       }
 
       size_t numCachedTrees = cached_.size();
@@ -1475,21 +1480,26 @@ private:
     /// non-splitting trees, whose partitions the revalidation reproduces
     /// unchanged, so no leaf it did not guard can empty and this returns true
     /// by construction (docs/plans/multiforest-predictor-mutation.md,
-    /// "Pruning").
+    /// "Pruning"). The variance arm is guarded and revalidated on the same
+    /// predicate with no exemption, so the two sets coincide there.
     bool finalize() override {
       return sampler_.revalidateAllChains(&column_, 1);
     }
 
   private:
-    /// One cached tree, addressed as the engine holds it.
+    /// One cached tree, addressed as the engine holds it. The variance forest
+    /// has no index in forests_, so it takes a sentinel in the forest slot.
+    static constexpr size_t varianceForest = static_cast<size_t>(-1);
     struct CachedTree {
       size_t chain, forest, tree;
     };
 
     const Tree& treeAt(size_t t) const {
       const CachedTree& entry(cached_[t]);
-      return sampler_.chains_[entry.chain]->treeInForest(entry.forest,
-                                                         entry.tree);
+      const Chain<L, ResidT>& chain(*sampler_.chains_[entry.chain]);
+      return entry.forest == varianceForest
+        ? chain.varianceTree(entry.tree)
+        : chain.treeInForest(entry.forest, entry.tree);
     }
 
     Sampler& sampler_;

@@ -448,6 +448,16 @@ SEXP capi_update_predictor(SEXP ptrExpr, SEXP xExpr, SEXP columnExpr) {
     samplerFromExpr(ptrExpr), REAL(xExpr), &column, 1, FALSE, TRUE));
 }
 
+/* a transactional column update against the EXISTING cut grid: the flavor a
+ * replacement that would empty leaves can reach at all, since refreshing the
+ * cuts from a collapsed column is refused for its cut count first */
+SEXP capi_update_predictor_fixed_cuts(SEXP ptrExpr, SEXP xExpr,
+                                      SEXP columnExpr) {
+  size_t column = (size_t) Rf_asInteger(columnExpr); /* already 0-based */
+  return Rf_ScalarLogical(dbarts_sampler_updatePredictor(
+    samplerFromExpr(ptrExpr), REAL(xExpr), &column, 1, FALSE, FALSE));
+}
+
 /* the forced flavors of the two above, for the stop-loss guard's accept arm
  * (docs/plans/multiforest-predictor-mutation.md "SL. Stop-loss") */
 SEXP capi_set_predictor_forced(SEXP ptrExpr, SEXP xExpr) {

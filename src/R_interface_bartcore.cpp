@@ -31,9 +31,7 @@ using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseBCFTestSurface;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
-using bartcore_bridge::refuseMultiForestTransactionalUpdate;
 using bartcore_bridge::refusePinnedSigmaChange;
-using bartcore_bridge::refuseVarianceForestPredictorMutation;
 using bartcore_bridge::refuseVarianceForestScaleUpdate;
 using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::validateColumnValues;
@@ -2594,40 +2592,6 @@ void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
              "the BCF glue instead", caller);
 }
 
-// The variance forest holds its trees outside forests_, which the revalidate
-// helpers loop, so an accepted change on one of those paths leaves s^2(x)
-// routing observations by the codes of the predictors it was built with. The
-// FORCED refresh reaches it (forceRefreshTrees calls refreshVarianceForest)
-// and so does the whole-data replacement (applyNewData resizes its n-sized
-// buffers and re-routes it), so the entries that refuse are the transactional
-// paths below plus the two per-observation sessions, which have no force
-// variant and call this directly. External linkage: the flat C API reuses this
-// guard through refuseMultiForestTransactionalUpdate.
-void refuseVarianceForestPredictorMutation(
-    const bartcore::SamplerBase& sampler, const char* caller) {
-  if (sampler.shape().hasVarianceForest)
-    Rf_error("%s: a heteroscedastic sampler's variance forest keeps routing "
-             "observations by the predictors it was built with; use "
-             "setPredictor with forceUpdate = TRUE instead", caller);
-}
-
-// The whole-matrix and subset transactional predictor paths (setPredictor and
-// updatePredictor without forceUpdate) revalidate and rebuild every forest of
-// every chain, so a multi-forest sampler takes them: a row installs only if no
-// leaf of any tree of any forest empties, the criterion setState already
-// imposes (docs/plans/multiforest-predictor-mutation.md). What is left is the
-// variance forest, which lives outside forests_ and is still refused. The
-// FORCE paths refresh every forest and the variance forest
-// (forceRefreshTrees), so a forced whole-matrix setPredictor stays the
-// heteroscedastic predictor swap. External linkage: the flat C API reuses this
-// guard on its own setPredictor/updatePredictor entries, which mirror these
-// two exactly.
-void refuseMultiForestTransactionalUpdate(const bartcore::SamplerBase& sampler,
-                                          const char* caller,
-                                          bool forcedUpdate) {
-  if (!forcedUpdate) refuseVarianceForestPredictorMutation(sampler, caller);
-}
-
 // A sampler whose residual sd is not a free parameter has none to set:
 // Chain::setSigma installs the value unconditionally and the constant-leaf
 // draws divide by sigma_ * sigma_, but sigmaIsFixed_ gates off the redraw that
@@ -4237,10 +4201,10 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
       "bartcore_setPredictor requires a matrix with matching dimensions";
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     bartcore::SamplerShape shape = holder.sampler->shape();
+    // no shape guard left: the two-phase transaction covers every forest and
+    // the variance forest, so an unforced call vetoes or rolls back rather
+    // than accepting a change one ensemble would misroute
     refuseMutationOnView(*holder.sampler, "bartcore_setPredictor");
-    refuseMultiForestTransactionalUpdate(
-      *holder.sampler, "bartcore_setPredictor",
-      Rf_asLogical(forceUpdateExpr) == TRUE);
     const double* values;
     if (Rf_isReal(xExpr)) {
       SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
@@ -4283,10 +4247,8 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
     const char* shapeMessage =
       "bartcore_updatePredictor requires numObservations values per column";
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
+    // unguarded, as bartcore_setPredictor above
     refuseMutationOnView(*holder.sampler, "bartcore_updatePredictor");
-    refuseMultiForestTransactionalUpdate(
-      *holder.sampler, "bartcore_updatePredictor",
-      Rf_asLogical(forceUpdateExpr) == TRUE);
     bartcore::SamplerShape shape = holder.sampler->shape();
     size_t numObservations = shape.numObservations;
     size_t numPredictors = shape.numPredictors;
@@ -4390,12 +4352,10 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
                                             SEXP columnExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
+  // the session's cell guard caches every forest AND the variance forest,
+  // pruned to the trees the column can move, so every sampler shape takes this
+  // entry: a row installs only where no leaf of any tree would empty
   refuseMutationOnView(
-    *holder.sampler, "bartcore_updatePredictorPerObservation");
-  // the session's cell guard now caches every forest, pruned to the trees the
-  // column can move, so a multi-forest sampler takes this entry; the variance
-  // forest, which lives outside forests_, is what is left refused
-  refuseVarianceForestPredictorMutation(
     *holder.sampler, "bartcore_updatePredictorPerObservation");
   size_t numObservations = shape.numObservations;
 
@@ -4458,9 +4418,8 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
     for (size_t k = 0; k < numSamplers; ++k) {
       BartcoreHolder& holder(
         holderFromExpression(VECTOR_ELT(ptrsExpr, static_cast<R_xlen_t>(k))));
+      // unguarded, as the single-sampler entry above
       refuseMutationOnView(
-        *holder.sampler, "bartcore_updatePredictorPerObservationJointly");
-      refuseVarianceForestPredictorMutation(
         *holder.sampler, "bartcore_updatePredictorPerObservationJointly");
       samplers[k] = holder.sampler.get();
       int column = INTEGER(columnsExpr)[k];
