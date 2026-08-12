@@ -158,10 +158,13 @@ items
     re-pointed at verification from an absolute bar (tautological
     > 0 clause; 0.5 bar cleared by a no-grow arm on 7/24 seeds) to
     the paired grow-vs-no-grow contrast, which actually observes
-    the dart x grow interaction. S4 (the measured arm) is the next
-    code slot, then S5 (S5 also owes the NEWS bullet INTRODUCING
-    n.grow.sweeps - both grow bullets currently amend an
-    unannounced feature).
+    the dart x grow interaction. S4 (the measured arm) COMPLETE
+    2026-08-12, all gates pass verified: G1 paired D +1.33 at
+    z 46.7, guardrails inside, floor measured in situ (skip arm
+    BELOW cold); warm start delays plateau attainment ~6x while
+    the plateau holds - the opt-in stance stands. S5 (docs; owes
+    the NEWS bullet INTRODUCING n.grow.sweeps - both grow bullets
+    currently amend an unannounced feature) closes the arc.
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. A memory win, not speed; integer -> double
     is exact in range so the slice MUST be trio-bitwise. Split out of
