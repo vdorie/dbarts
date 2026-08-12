@@ -1122,4 +1122,51 @@ double-run (implementer + independent verifier): install, tinytest
 3982/0, the neutrality and self-reproduction partitions above, air 0,
 lintr no new findings.
 
-S1-S4 remain queued per the window section; S1 is next.
+S1 LANDED 938eb81 (engine) + 7a9c6f3 (baselines), 2026-08-11/12. The
+two-phase revalidation transaction runs across forests_: forest 0's
+inner loop byte-for-byte (33/33 + 6 + 4 pre-existing scenarios
+bitwise vs the S0 baselines), forests f >= 1 j-split pruned with the
+survivor list shared between phases; ForestParameters =
+std::vector<TreeParameters> on the transactional pair only
+(recoverTreeParameters/applyNewData keep forest-0 signatures; setData
+stays refused). Bridge: the numForests clause dropped from the
+transactional entries on BOTH surfaces - deviation from the plan's
+R-only wording, deliberate: SL unified the helper so the surfaces
+cannot diverge, and BCF has been flat-creatable since
+bcf-public-surface S1, so the flat clause was live, not dormant; the
+per-observation clause moved to a new
+refuseMultiForestPerObservationUpdate (S2 retires it); variance
+clause untouched (S3). Still-refusing messages now name the forced
+swap, not "make a new sampler"; an R-level refuseBCFMutation on the
+transactional path (outside the plan's seam list) removed. Pins
+inverted IN PLACE in three files - test-bcf-mutation-pins.R (a BCF
+pin file the plan did not name), test-bcf-r5-surface.R,
+test-multi-forest-seam.R (BCF + multinomial transactional) - with
+rollback/finite-run assertions beside each; per-observation and
+heteroscedastic pins still refuse. Fuzz: BCF + multinomial
+ConfigSpecs (four configs), snapshot rebuilt with THREE members
+(statesAgree compares nothing above the per-chain level, so store
+codes + SamplerStateData cutPoints/currentSampleNum are compared
+explicitly - carry to S3); snapshot captures LEAF ASSIGNMENT, not raw
+index order, because a rejected transaction permutes members within a
+leaf (measured, pre-existing on single-forest configs too, rollback
+re-routes from the root and the partition kernel is not order-stable;
+draw-invisible, pinned by predreject at the draw level, recorded in
+the capture comment). Falsifiers: F2 both halves green AND verified
+able to go red (forest-0-only validation reddens exactly the
+multi-forest configs); F3 green; F4 shipped as
+testSnapshotCoversEveryFamily (26 families, drop-test verified);
+repartitionTrees no-change asserted by test (plan item 3). Harness:
+three transactional scenarios per shape (accept whole-matrix, accept
+single-column, rollback) with the engine's accepted verdict recorded
+as a channel; multinomial accept jitter 0.002 (0.005 rolls back at
+K=3x40 - the count law visible in the fixture). Baselines
+equivalence/bcf-equivalence/multinomial-equivalence-938eb81.rds:
+neutrality partition first, self-reproduction 33/33 strict, 9/9, 7/7;
+equivalence.yaml re-pinned. Gates double-run (implementer +
+independent verifier): install --preclean, tests/cpp plain + ASAN
+clean, tinytest 3985/0 no snapshot regenerated, trio + oracles
+(bcf-exact quick 1e-4, restricted 2e-4), air 0, lintr no new
+findings.
+
+S2-S4 remain queued; S2 (widen UpdateSessionImpl) is next.
