@@ -302,17 +302,16 @@ items
     next multinomial re-record; no test-side bartcoreForestFits
     analog; ConfigSpec OP_SET_COUNTS rides the general multi-forest
     fuzz-arm gap.
-  nameable-calibration: S0 signature freeze LANDED 4c866286; S1
-    creation half LANDED c2a7e89b (landing notes in
-    docs/plans/nameable-calibration.md, artifacts
-    .claude/nameable-calibration-design/). prior.scale (forest-total
-    prior sd at k = 1, response units) is now nameable at creation
-    (dbartsModel slot + bart/bart2/rbart_vi/xbart formals); a sampled
-    k honors prior.scale and refuses prior.sd. Remaining: S2
-    mid-chain ($getCalibration/$setCalibration over every chain,
-    carries three items recorded in the S1 landing note) -> S3 flat
-    C inside dbarts-h-reshape S1. V1-V10 adopted 2026-08-12 under
-    VD's proceed-at-discretion grant.
+  nameable-calibration: R SURFACE COMPLETE - S0 freeze 4c866286, S1
+    creation c2a7e89b, S2 mid-chain d809b944+7da36dc3 (landing notes
+    in docs/plans/nameable-calibration.md, artifacts
+    .claude/nameable-calibration-design/). prior.scale nameable at
+    creation and mid-chain ($getCalibration/$setCalibration over
+    every chain, get-then-set bitwise inert); a sampled k honors
+    prior.scale and refuses prior.sd. Remaining: S3 flat C INSIDE
+    dbarts-h-reshape S1 (signatures frozen at S0; carries two items
+    recorded in the S2 landing note). V1-V10 adopted 2026-08-12
+    under VD's proceed-at-discretion grant.
   multinomial-dart-drop: bart2(family = "multinomial") accepts a
     DART request and silently drops it (the chain never routes it;
     see docs/design/feature-matrix.md for the anchors), unlike BCF
@@ -411,6 +410,18 @@ items
     for multiforest-extension-surface (basis family pre-release not
     post-freeze, FA5 respec, KEEP setForestWeights, bcf() to
     bartCause) are RESOLVED; see that entry.
+  r5-forest-indexing: the R5 surface mixes forest-index conventions
+    (found + reviewer-confirmed at the calibration S2 landing):
+    $getForestFits / $getForestVariableCounts pass as.integer(forest)
+    through 0-based (0 = prognostic, 1 = treatment) while
+    $getCalibration / $setCalibration take 1-based via
+    resolveForestIndex (errors below 1), and the flat C S3 entries
+    take a size_t; man/dbartsSampler-class.Rd documents both
+    conventions in one \item{forest} paragraph. R users expect
+    1-based. Normalize at the dbarts-h-reshape re-bake (the window's
+    rename moment) - decide 1-based everywhere R-side, migrate the
+    two 0-based getters, lockstep the sister packages. Surface-
+    bearing, pre-release.
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
   response-support-validation: LANDED 33f6fdc (defects 1-4 and 6 of
