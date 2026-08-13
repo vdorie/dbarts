@@ -47,6 +47,7 @@ void checkShapeMatchesImpl(const SamplerFacade<L, ResidT>& facade,
   CHECK_SHAPE_FIELD(usesDart);
   CHECK_SHAPE_FIELD(supportsResponseMutation);
   CHECK_SHAPE_FIELD(supportsForestWeights);
+  CHECK_SHAPE_FIELD(supportsActiveRows);
   CHECK_SHAPE_FIELD(supportsCountsMutation);
   CHECK_SHAPE_FIELD(testFitsAreDefined);
 }
@@ -133,6 +134,8 @@ void testConstantGaussian(ShapeFixture& fixture) {
         "shape: a single-forest sampler admits no per-forest weight");
   check(!shape.supportsCountsMutation,
         "shape: a single-forest sampler owns no count response");
+  check(shape.supportsActiveRows,
+        "shape: a gaussian sampler accepts an active-row mask");
   check(shape.numGroups == 5, "shape: grouped intercept count");
   check(shape.usesDart && shape.kIsSampled, "shape: dart and sampled k");
   check(!shape.usesFunctionLeaves, "shape: constant leaf is not function-valued");
@@ -214,6 +217,8 @@ void testResponseSurfaces(ShapeFixture& fixture) {
     SamplerShape shape = facade.shape();
     check(shape.numCutpoints == K - 1, "shape: ordinal cutpoint count");
     check(shape.family == ResponseFamily::ordinal, "shape: ordinal family");
+    check(shape.supportsActiveRows,
+          "shape: an ordinal sampler accepts an active-row mask");
     checkShapeMatchesImpl(facade, "ordinal");
     ext_rng_destroy(rng);
   }
@@ -316,6 +321,10 @@ void testMultinomial(ShapeFixture& fixture) {
         "shape: multinomial escapes the test-surface refusal condition");
   check(!shape.supportsForestWeights,
         "shape: multinomial admits no per-forest weight despite K forests");
+  // the probe is the family's, not the forest count's: multinomial's masking
+  // is unbuilt in v1 and the probe must say so
+  check(!shape.supportsActiveRows,
+        "shape: multinomial accepts no active-row mask");
   // the counts channel's capability probe, and the pair the bridge reads with
   // it: K comes off numReportedLocations rather than a field of its own
   check(shape.supportsCountsMutation,

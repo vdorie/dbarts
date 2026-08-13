@@ -74,6 +74,12 @@ struct SamplerShape {
   /// Chain::setForestWeights refuses on, so the bridge's capability probe and
   /// the engine's refusal cannot disagree. Internal, invisible to dbarts.h.
   bool supportsForestWeights;
+  /// Whether the response family accepts a per-observation 0/1 active-row
+  /// mask. Derived from the same predicate Chain::setActiveRows refuses on,
+  /// so the bridge's capability probe and the engine's refusal cannot
+  /// disagree. A probe rather than a family test on purpose: family reports
+  /// gaussian for a Student-t sampler, which does accept one.
+  bool supportsActiveRows;
   /// Whether the forest coupling owns a count-matrix response that setCounts
   /// can replace (the multinomial softmax alone today). The category count K
   /// rides numReportedLocations, which already is K for that coupling and 1 for
@@ -264,6 +270,12 @@ public:
   /// states the semantics.
   virtual bool setForestWeights(std::size_t forestIndex,
                                 const double* weights) = 0;
+  /// Installs (or clears, at a null pointer) a per-observation 0/1 active-row
+  /// mask in every chain; false, installing nothing, when the family
+  /// implements none or an element is not exactly 0 or 1. The values are
+  /// COPIED - the entry retains no pointer. Chain::setActiveRows states the
+  /// semantics, including the all-ones normalization.
+  virtual bool setActiveRows(const double* active) = 0;
   /// Installs a borrowed replacement count matrix (n x K, category-major) and
   /// its per-observation trials in every chain; false, installing nothing, off
   /// a counts-owning coupling. n and K are fixed at creation, so the host
@@ -323,6 +335,7 @@ public:
     s.usesDart = impl_.usesDart();
     s.supportsResponseMutation = impl_.supportsResponseMutation();
     s.supportsForestWeights = impl_.supportsForestWeights();
+    s.supportsActiveRows = impl_.supportsActiveRows();
     s.supportsCountsMutation = impl_.supportsCountsMutation();
     s.testFitsAreDefined = impl_.testFitsAreDefined();
     s.forestReportingIsDefined = impl_.forestReportingIsDefined();
@@ -486,6 +499,9 @@ public:
   bool setForestWeights(std::size_t forestIndex,
                         const double* weights) override {
     return impl_.setForestWeights(forestIndex, weights);
+  }
+  bool setActiveRows(const double* active) override {
+    return impl_.setActiveRows(active);
   }
   bool setCounts(const int* counts, const int* trials) override {
     return impl_.setCounts(counts, trials);

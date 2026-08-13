@@ -51,6 +51,11 @@ pointwiseLogLikelihood <- function(object, ev) {
       sd <- sd / rep(sqrt(weights), each = n.draws)
     }
     result <- dnorm(y, as.vector(ev), sd, log = TRUE)
+    # a zero-weight row is not in the model, so the channel flags it as
+    # unavailable rather than reporting the -Inf an infinite sd would give
+    if (!is.null(weights)) {
+      result[rep(weights, each = n.draws) == 0] <- NaN
+    }
   } else if (identical(family, "probit") || identical(family, "logistic")) {
     result <- dbinom(y, 1L, as.vector(ev), log = TRUE)
     if (!is.null(weights)) {

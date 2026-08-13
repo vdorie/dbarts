@@ -3678,6 +3678,51 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
   return R_NilValue;
 }
 
+// The family a refused active-row mask should be named by. shape.family
+// reports gaussian for Student-t and logistic for the multinomial coupling, so
+// the counts capability answers first and the enum only after it.
+static const char* activeRowsFamilyName(const bartcore::SamplerShape& shape) {
+  if (shape.supportsCountsMutation) return "multinomial";
+  switch (shape.family) {
+  case bartcore::ResponseFamily::logistic: return "logistic";
+  case bartcore::ResponseFamily::nbinom: return "nbinom (count)";
+  case bartcore::ResponseFamily::aft: return "aft (survival)";
+  case bartcore::ResponseFamily::probit: return "probit";
+  case bartcore::ResponseFamily::ordinal: return "ordinal";
+  case bartcore::ResponseFamily::gaussian: break;
+  }
+  return "gaussian";
+}
+
+// A per-observation 0/1 mask saying which rows are in the data set this sweep:
+// an inactive row leaves every sufficient statistic, every family-level
+// parameter update and its own latent draw, while keeping its leaf occupancy
+// and its fitted value (bartcore/chain.hpp states the semantics). The
+// capability probe comes FIRST and never switches on the family - Student-t
+// reports as gaussian - then the length; the exact-{0,1} scan and the all-ones
+// normalization are the engine's, so every surface inherits them. NULL clears.
+// The values are copied into the sampler, so nothing is retained here.
+SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  if (!shape.supportsActiveRows)
+    Rf_error("active-row masking is not implemented for %s samplers",
+             activeRowsFamilyName(shape));
+  if (activeExpr == R_NilValue) {
+    holder.sampler->setActiveRows(NULL);
+    return R_NilValue;
+  }
+  size_t n = shape.numObservations;
+  if (!Rf_isReal(activeExpr) ||
+      static_cast<size_t>(Rf_xlength(activeExpr)) != n)
+    Rf_error("active row length must match the number of observations");
+  if (!holder.sampler->setActiveRows(REAL(activeExpr)))
+    Rf_error("active rows must be exactly 0 or 1: a fractional value is a "
+             "weighted likelihood, which the latent families have no coherent "
+             "form for");
+  return R_NilValue;
+}
+
 // The glue on the combining response, one column {a, b0, b1} per chain.
 SEXP bartcore_getBCFGlue(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));

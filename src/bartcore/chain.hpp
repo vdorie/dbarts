@@ -1246,6 +1246,46 @@ public:
     if constexpr (L::hasVectorParams)
       forests_[0].leaf.invalidateStatistics();
   }
+  /// Whether this chain's response family implements the active-row channel.
+  /// setActiveRows refuses on this same predicate, so the advertised
+  /// capability and the refusal cannot disagree.
+  bool supportsActiveRows() const { return response_->supportsActiveRows(); }
+
+  /// Installs (or clears, at a null pointer) a per-observation 0/1 mask saying
+  /// which rows are in the data set this sweep; false, installing nothing,
+  /// when the family implements none or any element is not exactly 0 or 1
+  /// (NaN fails both tests, so it refuses too). Absolute and INDEPENDENT of
+  /// setWeights: the family holds both and serves w * a in either call order.
+  ///
+  /// One O(n) pass validates and normalizes: an all-ones mask reports success
+  /// and installs NOTHING, restoring the pre-mask weight pointer by identity,
+  /// so a mask returning to all ones is the same object as no mask at all
+  /// (the opposite of setWeights, where an all-ones vector installs and
+  /// measurably leaves the fused path - one channel is membership, the other
+  /// precision). An all-ZEROS mask is accepted and runs: the forest sits at
+  /// its prior and every row still receives a fit.
+  ///
+  /// The scan lives here rather than in a host because the engine is the only
+  /// site under every surface; a flat caller inherits it.
+  bool setActiveRows(const double* active) {
+    if (!supportsActiveRows()) return false;
+    if (active != nullptr) {
+      size_t n = data_.numObservations;
+      size_t numInactive = 0;
+      for (size_t i = 0; i < n; ++i) {
+        if (active[i] != 0.0 && active[i] != 1.0) return false;
+        if (active[i] == 0.0) ++numInactive;
+      }
+      if (numInactive == 0) active = nullptr;  // all ones is no mask
+    }
+    if (!response_->setActiveRows(active)) return false;
+    // the linear leaf's U'WU cache re-validates on the ordered member list
+    // alone, so a mask toggle that moves no membership is invisible to it;
+    // a served value is bitwise the fresh scan's, so the clear moves no draw
+    if constexpr (L::hasVectorParams)
+      forests_[0].leaf.invalidateStatistics();
+    return true;
+  }
   void setResponse(const double* y, bool updateScale) {
     response_->setResponse(y, rng_, forests_[0].totalFits.data(), updateScale,
                            &sigma_);

@@ -1459,6 +1459,194 @@ static void testPooledMaskSampler(ext_rng* rng) {
   printf("ok: pooled mask sampler\n");
 }
 
+// The active-row channel at the sampler surface, where the engine's own
+// normalizer and value scan live: an all-ones mask installs NOTHING and is
+// bitwise the unmasked run; a fractional or NaN element refuses the whole call
+// and perturbs nothing; an all-zeros mask is ACCEPTED and runs with every
+// forest at its prior; a family v1 does not build refuses. Closes with the
+// vector-leaf arm: installing a mask mid-run must drop the linear leaf's U'WU
+// cache, which re-validates on the ordered member list alone and so cannot see
+// a weight change that moves no membership.
+static void testActiveRows() {
+  const size_t n = 200, numSamples = 8;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::vector<double> weights(n), active(n), composed(n), ones(n, 1.0),
+    zeros(n, 0.0);
+  for (size_t i = 0; i < n; ++i) {
+    weights[i] = 0.5 + runif01();
+    active[i] = i % 4 == 0 ? 0.0 : 1.0;
+    composed[i] = weights[i] * active[i];
+  }
+  // the bad vectors are otherwise-valid masks, so a partial application would
+  // install a real mask and show up in the draws
+  std::vector<double> fractional(active), missing(active);
+  fractional[n - 3] = 0.5;
+  missing[n - 3] = std::nan("");
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  auto makeSeededRng = []() {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20260816u);
+    return rng;
+  };
+  auto makeSampler = [&](ext_rng*& rng, ResponseFamily family,
+                         const double* response, const double* w) {
+    rng = makeSeededRng();
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), response, n, 2, w, nullptr, family, 1.0, 3.0,
+      0.37804942330213542, options, &rng);
+  };
+
+  // ---- the normalizer and the refusals, all against one unmasked twin ----
+  std::vector<double> sigmaPlain(numSamples), trainPlain(n * numSamples);
+  std::vector<double> sigmaOther(numSamples), trainOther(n * numSamples);
+  Results resultsPlain, resultsOther;
+  resultsPlain.sigma = sigmaPlain.data();
+  resultsPlain.trainingFits = trainPlain.data();
+  resultsOther.sigma = sigmaOther.data();
+  resultsOther.trainingFits = trainOther.data();
+
+  ext_rng* rngPlain;
+  auto plain = makeSampler(rngPlain, ResponseFamily::gaussian, y.data(),
+                           weights.data());
+  plain->run(20, numSamples, resultsPlain);
+
+  struct Degenerate { const double* values; const char* what; bool accepted; };
+  const Degenerate degenerates[] = {
+    {ones.data(), "an all-ones mask installs nothing", true},
+    {fractional.data(), "a fractional element refuses the whole call", false},
+    {missing.data(), "an NA element refuses the whole call", false}};
+  for (const Degenerate& d : degenerates) {
+    ext_rng* rng;
+    auto sampler = makeSampler(rng, ResponseFamily::gaussian, y.data(),
+                               weights.data());
+    check(sampler->setActiveRows(d.values) == d.accepted, d.what);
+    sampler->run(20, numSamples, resultsOther);
+    check(sigmaPlain == sigmaOther && trainPlain == trainOther,
+          "a normalized or refused mask leaves the draws bitwise unchanged");
+    ext_rng_destroy(rng);
+  }
+
+  // ---- all zeros: accepted, finite, forest at its prior, fits reported ----
+  {
+    ext_rng* rng;
+    auto sampler = makeSampler(rng, ResponseFamily::gaussian, y.data(),
+                               weights.data());
+    check(sampler->setActiveRows(zeros.data()),
+          "an all-zeros mask is accepted, not refused");
+    check(sampler->chain(0).sigmaDegreesOfFreedomForTesting() == 3.0,
+          "an all-zeros mask leaves the sigma posterior at the prior df");
+    sampler->run(20, numSamples, resultsOther);
+    bool finite = true;
+    for (size_t s = 0; s < numSamples; ++s) finite = finite && sigmaOther[s] > 0.0;
+    for (size_t i = 0; i < n * numSamples; ++i)
+      finite = finite && std::isfinite(trainOther[i]);
+    check(finite, "an all-zeros mask runs finite and still reports every fit");
+    ext_rng_destroy(rng);
+  }
+
+  // ---- a family v1 does not build refuses, and perturbs nothing ----
+  {
+    std::vector<double> binary(n);
+    for (size_t i = 0; i < n; ++i) binary[i] = y[i] > 0.0 ? 1.0 : 0.0;
+    ext_rng* rngLogistic;
+    auto logistic = makeSampler(rngLogistic, ResponseFamily::logistic,
+                                binary.data(), nullptr);
+    check(!logistic->supportsActiveRows() &&
+            !logistic->setActiveRows(active.data()),
+          "a logistic sampler refuses an active-row mask");
+    ext_rng* rngProbit;
+    auto probit = makeSampler(rngProbit, ResponseFamily::probit, binary.data(),
+                              nullptr);
+    check(probit->supportsActiveRows() && probit->setActiveRows(active.data()),
+          "a probit sampler accepts one, though it refuses case weights");
+    ext_rng_destroy(rngProbit);
+    ext_rng_destroy(rngLogistic);
+  }
+  ext_rng_destroy(rngPlain);
+
+  // ---- grouped intercepts delegate, with no edit of their own ----
+  // drawGroupEffects already weights its per-group sums by workingWeights(),
+  // so an inactive row leaves its group's mean and precision; a group whose
+  // every row is inactive falls back to its prior through the same formula,
+  // which is coherent and is NOT what deleting the group would do.
+  {
+    std::vector<std::uint32_t> groups(n);
+    for (size_t i = 0; i < n; ++i)
+      groups[i] = static_cast<std::uint32_t>(i % 5);
+    std::vector<double> groupMask(n);
+    for (size_t i = 0; i < n; ++i)
+      groupMask[i] = groups[i] == 0 ? 0.0 : 1.0;  // group 0 entirely inactive
+
+    SamplerOptions groupedOptions = options;
+    groupedOptions.groupIndices = groups.data();
+    groupedOptions.numGroups = 5;
+    ext_rng* rng = makeSeededRng();
+    ConstantLeafSampler grouped(x.data(), y.data(), n, 2, weights.data(),
+                                nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, groupedOptions, &rng);
+    check(grouped.supportsActiveRows() &&
+            grouped.setActiveRows(groupMask.data()),
+          "a grouped sampler forwards the mask to its base family");
+    std::vector<double> effects(5 * numSamples);
+    Results groupedResults(resultsOther);
+    groupedResults.groupEffects = effects.data();
+    grouped.run(20, numSamples, groupedResults);
+    bool finite = true;
+    for (double effect : effects) finite = finite && std::isfinite(effect);
+    for (size_t i = 0; i < n * numSamples; ++i)
+      finite = finite && std::isfinite(trainOther[i]);
+    check(finite,
+          "an entirely inactive group draws its effect from the prior, finite");
+    ext_rng_destroy(rng);
+  }
+
+  // ---- the vector leaf: a mid-run install must drop the U'WU cache ----
+  // Both arms move the same weights by the same values and both invalidate,
+  // so their draws agree bitwise; the mask install moves no MEMBERSHIP, so a
+  // cache that was not dropped would serve stale statistics on the leaves at
+  // or over minCachedLeafSize and this comparison would part.
+  {
+    const size_t columns[] = {1};
+    SamplerOptions leafOptions = options;
+    leafOptions.numTrees = 5;  // few trees, so the leaves clear the cache floor
+    leafOptions.leafCovariateColumns = columns;
+    leafOptions.numLeafCovariates = 1;
+
+    ext_rng* rngMasked = makeSeededRng();
+    ext_rng* rngWeighted = makeSeededRng();
+    Sampler<LinearGaussianLeaf> masked(x.data(), y.data(), n, 2, weights.data(),
+                                       nullptr, ResponseFamily::gaussian, 1.0,
+                                       3.0, 0.37804942330213542, leafOptions,
+                                       &rngMasked);
+    Sampler<LinearGaussianLeaf> weighted(x.data(), y.data(), n, 2,
+                                         weights.data(), nullptr,
+                                         ResponseFamily::gaussian, 1.0, 3.0,
+                                         0.37804942330213542, leafOptions,
+                                         &rngWeighted);
+    std::vector<double> sigmaWeighted(numSamples),
+      trainWeighted(n * numSamples);
+    Results resultsWeighted;
+    resultsWeighted.sigma = sigmaWeighted.data();
+    resultsWeighted.trainingFits = trainWeighted.data();
+    masked.run(20, numSamples, resultsOther);  // warm the cache on both arms
+    weighted.run(20, numSamples, resultsWeighted);
+    check(masked.setActiveRows(active.data()),
+          "a linear-leaf sampler accepts an active-row mask");
+    weighted.setWeights(composed.data());
+    masked.run(0, numSamples, resultsOther);
+    weighted.run(0, numSamples, resultsWeighted);
+    check(sigmaOther == sigmaWeighted && trainOther == trainWeighted,
+          "a mid-run mask install on a vector leaf equals setWeights(w * a)");
+    ext_rng_destroy(rngWeighted);
+    ext_rng_destroy(rngMasked);
+  }
+
+  printf("ok: active rows at the sampler surface\n");
+}
+
 static void testSetWeightsAndTestOffset() {
   const size_t n = 200, nTest = 20;
   std::vector<double> x, y;
@@ -4144,6 +4332,7 @@ void runSamplerTests(ext_rng* rng) {
   testEndToEndCategorical(rng);
   testWideCategorical(rng);
   testPooledMaskSampler(rng);
+  testActiveRows();
   testSetWeightsAndTestOffset();
   testSetControlAndModel();
   testMissingEndToEnd();

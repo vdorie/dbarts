@@ -1106,6 +1106,29 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
+    setActiveRows = function(active, updateState = NA) {
+      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. NULL clears, and an all-ones mask installs nothing. updateState is opt-in; see setData."
+      refuseHostMutation("$setActiveRows")
+      if (!is.null(active)) {
+        active <- as.double(active)
+        if (length(active) != length(data@y)) {
+          stop("'active' must have length equal to that of 'y'")
+        }
+        if (anyNA(active)) {
+          stop("'active' cannot be NA")
+        }
+        if (any(active != 0 & active != 1)) {
+          stop("'active' must be all 0 or 1")
+        }
+      }
+
+      ptr <- getPointer()
+      .Call(C_dbarts_bartcore_setActiveRows, ptr, active)
+      if (identical(updateState, TRUE)) {
+        storeState(ptr)
+      }
+      invisible(NULL)
+    },
     setTreatment = function(z, updateState = NA) {
       "Changes the 0/1 treatment indicator a BCF sampler's treatment forest contrasts on. updateState is opt-in; see setData."
       refuseHostMutation("$setTreatment")
