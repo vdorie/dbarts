@@ -6,6 +6,7 @@
 // definitions live in R_interface_bartcore.cpp
 
 #include <cstddef> // size_t
+#include <cstdint> // int32_t
 #include <memory>  // unique_ptr
 #include <vector>
 
@@ -198,6 +199,37 @@ void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
 /// silently rescale every leaf posterior precision. caller labels the error.
 void refusePinnedSigmaChange(const bartcore::SamplerBase& sampler,
                              const char* caller);
+
+/// Errors when a CSC-backed column declares a reference level against a
+/// store-ORDINAL column: a reference is the code the column's IMPLICIT rows
+/// take, which only a categorical column has, so the engine would read those
+/// rows as the quantized zero while the caller's own densification read them
+/// as the declared level. columnSources is the view's source map (a negative
+/// entry names CSC column ~v) and storeTypes is indexed by SOURCE column, so a
+/// subset mutation passes the types of the columns it names; a null
+/// referenceMeta (nothing declared) passes through.
+void refuseCscReferenceAgainstStore(const bartcore::ColumnType* storeTypes,
+                                    const std::int32_t* columnSources,
+                                    std::size_t numColumns,
+                                    const int* referenceMeta,
+                                    std::size_t numSparseColumns);
+
+/// Errors when a designated leaf covariate column arrives CSC-backed in a test
+/// view: a leaf covariate reads contiguous raw values, which CSC storage does
+/// not serve. The store entrances answer this with setTestData's false return;
+/// a read-only replay builds no store, so it checks the view itself.
+void refuseSparseLeafCovariate(const bartcore::SamplerShape& shape,
+                               const bartcore::PredictorSource& source);
+
+/// Errors on a test view's categorical code outside the STORE's fixed
+/// category counts - the training-side bound the view's author cannot see,
+/// since its own declared K is the caller's, not the sampler's. Covers a
+/// dense-backed column's slice, a CSC-backed column's stored codes, and the
+/// reference code its implicit rows read. Run after the view is assembled and
+/// before any store change: creation-time validation is long past by then, and
+/// setTestData would otherwise quantize an unbounded code into the test store.
+void validateTestContainerAgainstStore(const bartcore::ColumnStore& store,
+                                       const bartcore::PredictorSource& view);
 
 } // namespace bartcore_bridge
 

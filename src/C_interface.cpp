@@ -398,8 +398,10 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
     if (treeIndices[i] >= shape.numTrees)
       Rf_error("dbarts_sampler_printTrees tree number out of range");
   }
+  // forest 0, matching the tree range check above: shape.numTrees is forest
+  // 0's count on a multi-forest sampler
   engine.printTrees(chainIndices, numChainIndices, sampleIndices,
-                    numSampleIndices, treeIndices, numTreeIndices);
+                    numSampleIndices, treeIndices, numTreeIndices, 0);
 }
 
 SEXP dbarts_sampler_storeState(dbarts_sampler* sampler) {
