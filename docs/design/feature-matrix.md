@@ -276,12 +276,15 @@ reshape's S1. Nothing is built today.
 below zero and warns that zeros are ignored; bridge RIB:4387). The conditionals
 are exact - leaf suffstats multiply by `w` (MOD:313, 1118), and the sigma
 posterior counts only positive-weight rows (`numPositiveWeights_` MOD:2691,
-consumed MOD:2705-2709). ONE named inexactness against a true subset fit: the
-empty-leaf veto counts leaf MEMBERS, not positive-weight members
-(MOV:73), so a leaf held alive only by zeroed rows survives and draws at the
-prior. Recorded at r-c-division.md:183-184 and scheduled as `empty-leaf-veto-fix`
-(TODO:90-96, SCHEDULED pre-release, a draw-law change expecting a zero-weight
-baseline re-record). Same caveat applies to BCF and the Student-t row.
+consumed MOD:2705-2709). The one named inexactness against a true subset fit is
+CLOSED (`empty-leaf-veto-fix`, 2026-08-12): the empty-leaf veto counts
+POSITIVE-WEIGHT members, so a leaf held alive only by zeroed rows is empty and
+its branch is vetoed, on the conjugate path (MOV) and the constrained-leaf path
+(MOD) alike. Occupancy elsewhere - the birth scan's `count`,
+`collapseEmptyNodes`' trigger, `stateIsValid` - still counts members
+deliberately, so this does NOT make zero-weight occupancy match a compacted fit;
+see docs/design/empty-leaf-veto.md, "What counts as empty". The same fix covers
+BCF and the Student-t row.
 
 [f18] No latent vector exists: gaussian, BCF and heteroscedastic all leave
 `ResponseModel::latents()` at its nullptr default (MOD:2598), and the bridge
@@ -324,9 +327,10 @@ gaussian) supports `extract(type = "loglik")` on its own.
 inherited) and then into the per-forest weights at CH:1086. A per-forest mask is
 refused as REDUNDANT rather than unbuilt: `setForestWeights` (RIB:3649) already
 expresses it - though note that channel is deliberately NOT row removal
-(CH:915-931: it does not remove the row from occupancy, the veto, the
-combination or the sigma df), and it is MISSING from the R5 object, reachable
-only through the unexported `bartcoreSetForestWeights` (bartcore.R:999).
+(CH:915-931: it does not remove the row from occupancy, the combination or the
+sigma df; it DOES reach that forest's empty-leaf veto, which counts positive
+composed weights), and it is MISSING from the R5 object, reachable only through
+the unexported `bartcoreSetForestWeights` (bartcore.R:999).
 
 [f27] Delegating / decorating: `GroupedResponse` forwards `setActiveRows` to its
 base exactly as it forwards `setWeights` (MOD:4366), and the heteroscedastic
@@ -392,9 +396,9 @@ gap, not an engine one.
 [f38] The MEAN forest keeps DART; the variance forest never takes it
 (`buildVarianceForest` CH:3430 never sets `useDart`, default false at CH:118).
 
-[f39] Current baselines: `equivalence-a825263.rds` (35 scenarios),
+[f39] Current baselines: `equivalence-21fc29c.rds` (35 scenarios),
 `bcf-equivalence-a825263.rds` (11), `multinomial-equivalence-1027be5.rds` (10) -
-benchmarks/baselines/MANIFEST:15, 39, 45. Scenario names are the keys in
+benchmarks/baselines/MANIFEST:15, 40, 46. Scenario names are the keys in
 `makeScenarios()`, benchmarks/R/equivalence.R:60.
 
 [f40] docs/plans/sbc-family-tiers.md (status BUILT) plus
@@ -445,8 +449,8 @@ carries a schedule, and REFUSED cells are deliberately absent - they are part of
 the models.
 
 **gaussian.** None; every column is S or an intentional `-`. The one standing
-inexactness (zero-weight rows survive the empty-leaf veto, [f17]) is already
-carried as `empty-leaf-veto-fix`.
+inexactness (zero-weight rows survived the empty-leaf veto) closed at
+`empty-leaf-veto-fix` ([f17]).
 
 **student (Gaussian + Student-t residuals).** No `rbart_vi()` surface
 (rbart.R:59); no `xbart()` surface (xbart.R:9-38). Pointwise loglik evaluates

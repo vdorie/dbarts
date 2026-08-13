@@ -657,6 +657,12 @@
   }
   \subsection{BUG FIXES}{
     \itemize{
+      \item A leaf containing only observations of weight zero now counts as
+            empty for the tree-move vetoes, so no tree can keep a leaf that
+            no observation in the likelihood reaches. Previously such a leaf
+            was treated as occupied and drew its value from the prior. Fits
+            with no weights, or with strictly positive weights, draw exactly
+            as before.
       \item Mutating a dense-backed column of a mixed dense/sparse predictor
             container now updates the values the sampler re-reads, not only
             its bins. Cut point installation (\code{setCutPoints}), a state

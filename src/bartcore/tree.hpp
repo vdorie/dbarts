@@ -339,8 +339,8 @@ public:
   /// when no member carries positive weight (docs/design/empty-leaf-veto.md).
   /// With no weight vector installed this IS the member count, bit for bit the
   /// test the veto has always run; with one, a zero-weight row is absent from
-  /// the likelihood rather than downweighted
-  /// (docs/plans/zero-weight-exactness.md), so a leaf of only such rows carries
+  /// the likelihood rather than downweighted (docs/design/empty-leaf-veto.md,
+  /// "What counts as empty"), so a leaf of only such rows carries
   /// nothing to estimate a parameter from and its branch must be vetoed. The
   /// scan stops at the first positive weight, so an ordinary leaf costs one
   /// gather; only a leaf that is about to be vetoed walks its members.

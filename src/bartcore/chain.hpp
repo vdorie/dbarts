@@ -917,10 +917,13 @@ public:
   /// s is a multiplicative PRECISION factor on forest f's own leaf
   /// conditionals, composing with the observation weight so that forest f's
   /// draws see w_i m_f^2 s_i. It does NOT remove the row from occupancy, from
-  /// the empty-leaf veto, from the combination (the row still receives
-  /// m_f f_f(x_i)), or from the residual sigma degrees of freedom, which count
-  /// positive OBSERVATION weights; s_i = 0 says only that row i carries no
-  /// information about forest f, and its leaves stay well-defined prior draws.
+  /// the combination (the row still receives m_f f_f(x_i)), or from the
+  /// residual sigma degrees of freedom, which count positive OBSERVATION
+  /// weights; s_i = 0 says only that row i carries no information about forest
+  /// f, and its leaves stay well-defined prior draws. It DOES reach forest f's
+  /// empty-leaf veto, which counts positive composed weights
+  /// (docs/design/empty-leaf-veto.md): forest f cannot hold a leaf whose every
+  /// member has s_i = 0, since no likelihood term of that forest reaches it.
   ///
   /// Two edges a consumer is misled without: at s_i = 0 with a nonzero
   /// multiplier only the WEIGHT is zeroed - the response stays the

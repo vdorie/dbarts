@@ -81,3 +81,52 @@ Diff: the design note plus a net-zero comment reword at the veto site.
 Gates: install clean, component tests all pass; snapshot/equivalence/
 exact-posterior/bench gates are no-ops for a comment-only change (the
 posterior-changing class applied only to the unimplemented branch).
+
+## Slice: the weight law (empty-leaf-veto-fix)
+
+agent: opus
+rng: DRAW-LAW-CHANGING, but only where a weight vector carries an exact zero.
+  Every scenario whose weights are strictly positive - and every unweighted one
+  - must stay BITWISE; a deviation there is a BUG in the change, never a
+  re-record.
+budget: ~15 engine + ~250 test + ~80 records/NEWS lines.
+
+Goal: the veto counts POSITIVE-WEIGHT members rather than members, so a leaf
+all of whose rows carry weight zero is empty and its branch is vetoed. The
+mechanism (the `-HUGE_VAL` penalty at the single conjugate site) does not
+change; the predicate does. Found by the r-c-division arc
+(docs/design/r-c-division.md, "the real gaps"); ordered BEFORE
+docs/plans/latent-subset-mask.md S1 so the zero-weight baseline re-records once.
+
+Scope: the draw-law sites only - `logLikelihoodForBranch` (moves.hpp) and the
+constrained leaf's `logLikelihoodForBranchWithParams` (model.hpp), which owns
+its branch marginal and never reaches the first. The scan's `count`,
+`collapseEmptyNodes`' trigger, `bottomNodesAreOccupied` / `stateIsValid` and the
+chi-k gates keep the member count deliberately; the design note records why.
+This slice does NOT align masked or zero-weighted occupancy with compaction and
+makes no such claim.
+
+Mechanism: `Tree::leafHasNoWeight(i, weights)` - the member count when no weight
+vector is installed (bit for bit the historical test, on the overwhelmingly
+common path), otherwise a member scan that stops at the first positive weight.
+`Node::sumWeights` was rejected: it is not refreshed for vector-param leaves.
+
+Verification: `tests/cpp` from clean, plain and ASAN; full tinytest; the trio
+against the MANIFEST baselines, expecting IDENTICAL everywhere except the one
+zero-weight scenario.
+
+## Landing
+
+Weight law LANDED 21fc29c3, 2026-08-12. Engine: `Tree::leafHasNoWeight`
+(tree.hpp) consumed at the two branch-score sites, plus the `setForestWeights`
+contract sentence the change makes true. Tests: `tests/cpp` `testEmptyLeafVeto-
+CountsWeight` (test_moves.cpp, with the count-law non-vacuity measurement) and a
+monotone arm in test_model.cpp; `inst/tinytest/test-empty-leaf-veto-weights.R`
+(gaussian and Student-t, oracled by routing only the positive-weight rows
+through the live trees). Gates: preclean install clean; `tests/cpp` all pass
+plain and under ASAN/UBSAN; tinytest 4190 pass / 0 fail with NO snapshot
+re-pinned; `equivalence-a825263` 34/35 bitwise with `zeroweights` at max |z| =
+2.85 over 37 summaries (re-recorded as `equivalence-21fc29c`);
+`bcf-equivalence-a825263` and `multinomial-equivalence-1027be5` bitwise on every
+channel. Records: the design note's 2026-08-12 section, feature-matrix [f17],
+NEWS.
