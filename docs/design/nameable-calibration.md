@@ -155,14 +155,22 @@ direction, and it is measured: `inst/tinytest/test-calibration-midchain.R`
 runs identical sweeps across a get-then-set, on a named scale and on an
 inherited one.
 
-The other direction is not bitwise, and the reason is arithmetic rather than
-design. The value in force is the request divided by the transform, and the
-report multiplies it back: `(P / f) * f != P` for about 10% of positive pairs
-(MEASURED 194596 of 2e6), and the shipped fixture misses by an ulp at
-`n.trees` 20, 50 and 200 while holding exactly at 25. Recovering that bit
-would mean either caching the named value in the engine - which the state
-format and every re-anchoring channel would then have to carry, and which
-would make the reader something other than a reader - or nudging the scale in
-force off the exact quotient. Neither is worth an ulp, so set-then-get
-fidelity is pinned at ulp level, fifteen orders of magnitude below the
-`sqrt(m)`-shaped error it exists to catch.
+The other direction is pinned at ulp level rather than bitwise, and that is a
+robustness choice rather than a concession to a failure the fixture shows. The
+value in force is the request divided by the transform, and the report
+multiplies it back, so exactness is a property of the particular `(P, f)` pair:
+`(P / f) * f != P` for about 10% of positive pairs (MEASURED 194596 of 2e6).
+The shipped fixture is mostly on the lucky side of that - at its own transform
+the round trip is BITWISE EXACT for all four requests at `n.trees` 20, 50 and
+200, and the one rounding cell among them is `m = 25` with `P = 0.25`, off by
+half an ulp - which is exactly why the assertion is not written as bitwise: it
+would be pinning an accident of this response vector and this tree count, and
+any fixture edit, any re-anchoring channel, or any consumer's own transform
+could break it without a defect. Recovering the bit in general would mean
+either caching the named value in the engine - which the state format and
+every re-anchoring channel would then have to carry, and which would make the
+reader something other than a reader - or nudging the scale in force off the
+exact quotient. Neither is worth an ulp, so set-then-get fidelity is pinned at
+ulp level, fifteen orders of magnitude below the `sqrt(m)`-shaped error it
+exists to catch, and the O4b loop carries the rounding cell so the tolerance
+is exercised rather than merely permitted.
