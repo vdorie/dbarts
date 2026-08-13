@@ -1,6 +1,6 @@
 # Response-model feature matrix
 
-Status: living reference, current at 8b047f8b (2026-08-13). Carries no landing
+Status: living reference, current at 93afd635 (2026-08-13). Carries no landing
 date and is not a design proposal - the orchestrator updates it in place at
 every landing that changes a cell, and VD uses it to schedule feature
 completion.
@@ -22,7 +22,7 @@ guessed.
 | `-` | N/A. The concept does not apply to this row; the row footnote says why. |
 | `?` | UNVERIFIED. Constructs today with no refusal site, but no test, doc or adjudication backs it. Do not schedule against the cell until it is settled; every `?` is listed under "Gaps". |
 
-Path aliases used in anchors (line numbers are at 8b047f8b):
+Path aliases used in anchors (line numbers are at 93afd635):
 
     RIB   src/R_interface_bartcore.cpp      CAPI  inst/include/dbarts/dbarts.h
     MOD   src/bartcore/model.hpp            CH    src/bartcore/chain.hpp
@@ -125,7 +125,7 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | aft | R RIB:2512 | S MOD:3770 | S MOD:3831 | S generics.R:64 | S dbarts.R:1359, 1364 [f16] |
 | hazard | R RIB:1613 [f6] | S MOD:3040 [f6] | S MOD:3076 | S generics.R:59 [f24] | S dbarts.R:1359, 1364 [f6] |
 | hurdle | R bart.R:944 | - [f12] | - [f12] | M generics.R:86 [f25] | - [f12] |
-| bcf | S COM:722-733 [f17] | ? MOD:2814 [f26] | - [f18] | M generics.R:86 | R [f23] |
+| bcf | S COM:722-733 [f17] | S MOD:2814, CH:1160 [f26] | - [f18] | M generics.R:86 | R [f23] |
 | grouped | S MOD:4587-4609 | S MOD:4743 [f27] | S MOD:4752 | S generics.R:1396 | S MOD:4774 [f27] |
 | hetero | S CH:3613, MOD:306 | S CH:3609 [f27] | - [f18] | ? generics.R:48 [f28] | S test-calibration-prior-draws.R:251 [f29] |
 
@@ -255,9 +255,9 @@ not a model refusal - but it errors, so callers see a refusal.
 and `setSigma`; grouped probit is refused on both (RIB:1642, RIB:2737); grouped
 aft takes `setSigma` and refuses `setWeights`.
 
-[f15] Arc `latent-subset-mask` (TODO:155), design FINAL, S0 through S3
-LANDED; artifacts .claude/latent-subset-mask-design/. A first-class 0/1
-`setActiveRows` channel each family composes into its own precision vector,
+[f15] Arc `latent-subset-mask` (TODO:155), design FINAL, ARC COMPLETE (S0
+through S4 LANDED); artifacts .claude/latent-subset-mask-design/. A first-class
+0/1 `setActiveRows` channel each family composes into its own precision vector,
 with the latent draw skipped for inactive rows. Slices: **S0** pins (no engine
 change); **S1** the channel plus gaussian, Student-t, probit, ordinal; **S2**
 logistic, nbinom, aft; **S3** multinomial (global only); **S4** surface,
@@ -318,8 +318,14 @@ substituted-response independence arm the S2 families got (moving successes
 AND trial counts at the inactive rows, since PG(n_i, .) sums n_i variates),
 plus an all-zeros mask run (every category forest at its prior, every row
 still reporting a simplex) and the `setForestWeights` model-grounds refusal
-(also pinned in test-forest-weights.R). What remains: **S4** (surface,
-records, baselines).
+(also pinned in test-forest-weights.R). S4 landed at 93afd635
+(implemented as 76fd3ba6, amended during independent review): Rd
+(man/dbartsSampler-class.Rd), NEWS (inst/NEWS.Rd), a named recipe
+(man/bart.Rd), the dbarts.h reservation (docs/plans/c-api-growth.md),
+two new equivalence.R scenarios (maskprobit, maskordinal) and one
+bcf-equivalence.R scenario (masked, pinning BCF - see [f26]). ARC
+COMPLETE; what remains is the flat-C entry, which rides the dbarts.h
+reshape's S1.
 
 [f16] Arc `nameable-calibration` (TODO:279), design AMENDED FINAL, LANDED
 through S2; artifacts .claude/nameable-calibration-design/. Names the
@@ -460,16 +466,18 @@ response is the expanded binary indicator.
 generics.R:86-91, but each component fit (`$occupancy` probit, `$positive`
 gaussian) supports `extract(type = "loglik")` on its own.
 
-[f26] WORKS but is UNCOVERED, hence `?`. A BCF sampler's response IS a
-`GaussianResponse`, so nothing on the path gates on the coupling: the shape
-probe (FAC:86) reports `supportsActiveRows`, the mask composes into the case
-weights at MOD:2814 (so the sigma df is inherited) and then into the per-forest
-weights at CH:1160. MEASURED at 6db22aee on a 200-row two-forest sampler:
-`$setActiveRows(a)` and the bridge `bartcoreSetActiveRows` are both accepted;
-on a sampler carrying `w` the mask is BITWISE `setWeights(w * a)` in `train`
-and in `sigma`; an all-zeros mask runs finite; a fractional element is refused.
-No tinytest and no man/ entry exercises BCF under a mask, so no test, doc or
-adjudication backs the cell. A per-forest mask is refused as REDUNDANT rather
+[f26] SHIPPED, pinned bitwise at mask S4 (93afd635). A BCF sampler's response
+IS a `GaussianResponse`, so nothing on the path gates on the coupling: the
+shape probe (FAC:86) reports `supportsActiveRows`, the mask composes into the
+case weights at MOD:2814 (so the sigma df is inherited) and then into the
+per-forest weights at CH:1160. MEASURED at 6db22aee on a 200-row two-forest
+sampler: `$setActiveRows(a)` and the bridge `bartcoreSetActiveRows` are both
+accepted; on a sampler carrying `w` the mask is BITWISE `setWeights(w * a)` in
+`train` and in `sigma`; an all-zeros mask runs finite; a fractional element is
+refused. PINNED at mask S4: `inst/tinytest/test-active-rows-pins.R:84-112`
+(masked-bcf, bitwise vs `setWeights(w * a)` on train and sigma) and the
+`bcf-equivalence.R` `masked` scenario, recorded in
+`bcf-equivalence-8b047f8b.rds`. A per-forest mask is refused as REDUNDANT rather
 than unbuilt: `setForestWeights` (RIB:3679) already expresses it - though note
 that channel is deliberately NOT row removal (CH:946-965: it does not remove
 the row from occupancy, the combination or the sigma df; it DOES reach that
@@ -585,9 +593,9 @@ gap, not an engine one.
 [f38] The MEAN forest keeps DART; the variance forest never takes it
 (`buildVarianceForest` CH:3573 never sets `useDart`, default false at CH:125).
 
-[f39] Current baselines: `equivalence-21fc29c.rds` (35 scenarios),
-`bcf-equivalence-a825263.rds` (11), `multinomial-equivalence-1027be5.rds` (10) -
-benchmarks/baselines/MANIFEST:15, 40, 46. Scenario names are the keys in
+[f39] Current baselines: `equivalence-8b047f8b.rds` (37 scenarios),
+`bcf-equivalence-8b047f8b.rds` (12), `multinomial-equivalence-1027be5.rds` (10)
+- benchmarks/baselines/MANIFEST:16, 42, 48. Scenario names are the keys in
 `makeScenarios()`, benchmarks/R/equivalence.R:60.
 
 [f40] docs/plans/sbc-family-tiers.md (status BUILT) plus
@@ -691,9 +699,7 @@ that depends on it.
 
 **bcf.** No `bart2()` surface, by the resolved fork that puts `bcf()` in
 bartCause ([f7]). `setForestWeights` reaches the bridge but has no R5 method
-([f26]). The active-row mask is ACCEPTED on a BCF sampler and measures bitwise
-`setWeights(w * a)`, but no test or doc covers BCF under a mask - the one `?`
-the mask S1 landing leaves ([f26]). No pointwise loglik. Warm start and
+([f26]). No pointwise loglik. Warm start and
 grow-from-root are unrefused and untested for two forests ([f36]). Whole-data
 `setData` stays undesigned (door 1 of the model-space survey).
 
@@ -712,7 +718,8 @@ column-mask gap (variance-forest-mutation-routing.md:499-500).
 **Cross-cutting.** `nameable-calibration` is now R-SIDE COMPLETE, both halves
 LANDED (S0 4c866286, S1 c2a7e89b, S2 d809b944 + 7da36dc3) - what remains is
 S3, the flat-C entries, which rides the dbarts.h reshape's S1 and does not
-gate any `dbartsSampler` caller. `latent-subset-mask` (S0 dc11a805, S1
-6db22aee, S2 87d370ea, S3 8b047f8b - what remains is S4) is sequenced before
-the dbarts.h reshape's S1, same as `nameable-calibration` S3; table 3 now
-carries no `P` cell.
+gate any `dbartsSampler` caller. `latent-subset-mask` is ARC COMPLETE (S0
+dc11a805, S1 6db22aee, S2 87d370ea, S3 8b047f8b, S4 93afd635) - the mask
+covers every response family and every R-facing surface; what remains is the
+flat-C entry, which rides the dbarts.h reshape's S1, same as
+`nameable-calibration` S3; table 3 now carries no `P` cell.

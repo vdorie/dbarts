@@ -1103,6 +1103,102 @@ lint clean); x86 leg green; CI six-green on the push. The new tests
 add more plan-label comments - the S4 normalization item grows
 accordingly.
 
-S4 LANDED <commit>, <date>.
+S4 LANDED 93afd635, 2026-08-13 (implemented as 76fd3ba6, amended
+during independent review). Rd (man/dbartsSampler-class.Rd), NEWS
+(inst/NEWS.Rd), a named recipe (man/bart.Rd), the dbarts.h reservation
+(docs/plans/c-api-growth.md) and the r-c-division Adoption-slate mark
+close the surface obligations; two new equivalence.R scenarios
+(maskprobit, maskordinal) and one bcf-equivalence.R scenario (masked)
+exercise $setActiveRows through the benchmark harnesses; tests/cpp
+carries the arms the S2 review deferred (NaN pointwise-loglik for
+logistic/nbinom/aft, test_model.cpp; all-zeros runs-finite for the
+same three, test_sampler.cpp) and a masked-BCF pin
+(test-active-rows-pins.R, bitwise vs setWeights(w * a) on train and
+sigma); plan-label comments (S0-S3, T1, T2(b), T2(c), F6) normalized
+to self-describing prose across the arc's test files, comment-only.
+Budgets: docs ~136 dense-equivalent (Rd 61, NEWS 22, bart.Rd 17,
+c-api-growth 22, r-c-division 14) vs ~160 - the reviewer's own
+recount, correcting the implementer-reported ~119 with the conclusion
+(under budget) unchanged; tests 128 non-comment lines vs ~140,
+verified exact.
 
-ARC COMPLETE <date>.
+Review: independent Opus reviewer, full battery from scratch, verdict
+LAND-AFTER-CHANGES. The blocker: .github/workflows/equivalence.yaml
+still ran equivalence-21fc29c.rds --strict-coverage, which at the S4
+tree exits 1 (35 compared / 2 skipped: maskprobit, maskordinal) -
+every prior re-record bumped that line in the same commit, and this
+one had not. Caveat for the record: equivalence.yaml has never been
+registered by GitHub (it has never been on main), so no run would
+actually have fired from bartcore; the fix matters because the file
+is what runs once bartcore lands on main.
+
+Amend (76fd3ba6 -> 93afd635, 4 files, 6 lines): (i) equivalence.yaml
+bumped to equivalence-8b047f8b.rds and the bcf job to
+bcf-equivalence-8b047f8b.rds; (ii) the MANIFEST equivalence-8b047f8b
+entry reworded - the old-baseline partition compare runs WITHOUT
+--strict-coverage (35 compared / 2 skipped, exit 0), no longer
+misattributed to a strict run; (iii) man/dbartsSampler-class.Rd gains
+the setData-CLEARS-an-installed-mask sentence (a per-row vector,
+setData may change n), closing a doc gap the plan's composition
+section implied and test-active-rows-pins.R pins; (iv) inst/NEWS.Rd's
+no-pointwise-loglik sentence extended to cover Bayesian causal forest
+fits alongside multinomial (combiner-level logLikelihoodIsDefined()
+== false for both).
+
+Reviewer attack-aim outcomes: (a) the null gate CONFIRMED on all five
+compares, every scenario bitwise; (b) the MANIFEST partition entries
+CONFIRMED accurate apart from the wording defect the amend fixes -
+the naming-by-engine-tip rule (8b047f8b, the 33f6fdc precedent)
+verified; (c) Rd/NEWS consistency with the S1-S3 landing-note rulings
+CONFIRMED - no per-category setActiveRows surface described, BCF
+documented as ACCEPTING, no multinomial NaN arm claimed; (d) the
+comment normalization CONFIRMED comment-only for every removed line;
+the "separate additive hunks" claim PARTLY refuted - the new BCF arm
+in test-active-rows-pins.R shares one hunk with a reworded
+all-ones-normalizer header - accepted as harmless; (e) the masked-bcf
+pin CONFIRMED GENUINE: fixture replay gives the shipped arm's
+train/sigma maxdiff 0.0, a mask-not-installed falsifier diverges
+6.8e-1 train / 5.1e-2 sigma, and omitting sigma= diverges 5.6e-4 /
+3.7e-5 - start-value magnitude corroborating the implementer's own
+spurious-divergence diagnosis (estimateSigmaFromLinearModel on
+differing weight vectors); expect_identical retained throughout, no
+tolerance anywhere.
+
+Accepted non-blockers, dispositions recorded: new "carried from S2"
+comment labels in tests/cpp/test_model.cpp and test_sampler.cpp,
+introduced by the very commit that normalizes the plan labels
+(precedent at test_sampler.cpp:997) - normalize at the next
+tests/cpp-touching slice together with the standing S2 test-hardening
+items; dash-ruler misalignment at test-active-rows-pins.R:39,301,430 -
+cosmetic, same slot; maskordinal records 35 sampler-API summaries with
+no ordinalFit-specific channel (the cutpoint pass is exercised through
+train only) - a coverage-scope note.
+
+Gates: implementer and reviewer batteries both green from scratch at
+76fd3ba6 (preclean private-lib install OK; tests/cpp from clean
+231/231; full tinytest 4424/0; trio - vs OLD equivalence-21fc29c.rds
+35/35 bitwise (2 skipped, exit 0), vs NEW equivalence-8b047f8b.rds
+--strict-coverage 37/37 with 0 skipped, bcf vs OLD a825263 11/11
+bitwise, vs NEW bcf-equivalence-8b047f8b.rds 12/12 (masked included),
+multinomial vs 1027be5 10/10 bitwise, no statistical (max |z|) line
+anywhere; air format --check clean; lintr zero new lints on touched R
+files; R CMD check on a clean-copy tarball Status OK zero E/W/N;
+pkgdown no problems); x86 leg (dbarts-bench, Ubuntu 24.04, R 4.3.3,
+x86_64) at 76fd3ba6, still valid for 93afd635 since the amend touches
+no code the leg exercises (install clean; tests/cpp 121/121 via the
+libshim R_LDFLAGS route; tinytest 4412/0; equivalence.R statistical vs
+equivalence-8b047f8b.rds 37/37 compared, 0 skipped, max |z| = 0.00 on
+every scenario, exit 0); post-amend re-gate at 93afd635 (R CMD check
+Status OK zero E/W/N; NEWS.Rd parses, news() returns 5 releases' items
+cleanly; pkgdown::check_pkgdown no problems). CI six-green on the
+push.
+
+ARC COMPLETE 2026-08-13. The mask engine now covers every response
+family - gaussian, Student-t, probit and ordinal (S1); logistic,
+nbinom and aft (S2); multinomial, global-only (S3); BCF, via the
+shared gaussian response and composeForestWeights, pinned bitwise at
+S4 - and every R-facing surface ships: the R5 method, the dbarts:::
+bridge entry, both equivalence harnesses, Rd and NEWS. The arc's only
+remaining obligation is the flat-C entry,
+dbarts_sampler_setActiveRows, which rides dbarts-h-reshape S1 per "The
+dbarts.h footprint" above.
