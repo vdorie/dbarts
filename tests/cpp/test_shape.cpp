@@ -329,10 +329,11 @@ void testMultinomial(ShapeFixture& fixture) {
         "shape: multinomial escapes the test-surface refusal condition");
   check(!shape.supportsForestWeights,
         "shape: multinomial admits no per-forest weight despite K forests");
-  // the probe is the family's, not the forest count's: multinomial's masking
-  // is unbuilt in v1 and the probe must say so
-  check(!shape.supportsActiveRows,
-        "shape: multinomial accepts no active-row mask");
+  // the probe is the family's, not the forest count's: the multinomial mask is
+  // GLOBAL and the coupling carries it, so the probe reports the capability
+  // while the per-forest channel above stays refused
+  check(shape.supportsActiveRows,
+        "shape: multinomial accepts the global active-row mask");
   // the counts channel's capability probe, and the pair the bridge reads with
   // it: K comes off numReportedLocations rather than a field of its own
   check(shape.supportsCountsMutation,

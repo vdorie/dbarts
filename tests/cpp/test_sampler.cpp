@@ -1547,9 +1547,10 @@ static void testActiveRows() {
     ext_rng_destroy(rng);
   }
 
-  // ---- every single-response family accepts, multinomial refuses ----
-  // The multinomial response holds no precisions to compose a mask into: the
-  // combiner owns the K interleaved Polya-Gamma draws.
+  // ---- every family accepts, multinomial through its coupling ----
+  // The multinomial response holds no precisions to compose a mask into, so it
+  // advertises the channel and the combiner carries it (the K interleaved
+  // Polya-Gamma precisions); the kernel arm is testActiveRowsMultinomialKernel.
   {
     std::vector<double> binary(n), counts(n);
     for (size_t i = 0; i < n; ++i) {
@@ -1580,9 +1581,30 @@ static void testActiveRows() {
     ext_rng* rngMultinomial = makeSeededRng();
     ConstantLeafSampler multinomial(x.data(), n, 2, options, spec,
                                     &rngMultinomial);
-    check(!multinomial.supportsActiveRows() &&
-            !multinomial.setActiveRows(active.data()),
-          "a multinomial sampler refuses an active-row mask");
+    check(multinomial.supportsActiveRows() &&
+            multinomial.setActiveRows(active.data()) &&
+            !multinomial.setActiveRows(fractional.data()),
+          "a multinomial sampler takes the global mask and refuses a "
+          "fractional one");
+    // all zeros on a K-forest sampler: every category's forest sits at its
+    // prior and the reported softmax probabilities stay a per-row simplex
+    check(multinomial.setActiveRows(zeros.data()),
+          "an all-zeros mask is accepted on a multinomial sampler");
+    std::vector<double> softmax(n * K * numSamples);
+    Results resultsMultinomial;
+    resultsMultinomial.trainingFits = softmax.data();
+    resultsMultinomial.numReportedLocations = K;
+    multinomial.run(10, numSamples, resultsMultinomial);
+    bool simplex = true;
+    for (size_t s = 0; s < numSamples; ++s)
+      for (size_t i = 0; i < n; ++i) {
+        double sum = 0.0;
+        for (size_t k = 0; k < K; ++k) sum += softmax[i + n * (k + K * s)];
+        simplex = simplex && std::fabs(sum - 1.0) < 1e-12;
+      }
+    check(simplex,
+          "an all-zeros multinomial mask runs and still reports every row's "
+          "softmax");
     ext_rng_destroy(rngMultinomial);
   }
   ext_rng_destroy(rngPlain);
@@ -4048,6 +4070,158 @@ static void testMultinomialCategoryOffset() {
   printf("ok: multinomial category offset\n");
 }
 
+// The active-row mask on the softmax coupling, at the kernel. The mask is
+// GLOBAL, so a masked combiner over n rows is the SAME combiner over the
+// compacted active rows: bit for bit in the working response and the composed
+// precision at every active row, and variate for variate in the Polya-Gamma
+// stream. The comparison is well posed because the margin C_if is row-local (a
+// log-sum-exp across the categories AT THAT ROW), so deleting a row changes no
+// other row's conditional.
+//
+// This is the arm that pins the SKIP semantics. The Polya-Gamma sampler is a
+// rejection sampler whose consumption depends on psi, so an implementation that
+// draws an inactive row's K latents and discards them desynchronizes the two
+// streams and every later active row parts. Two further pins ride along: an
+// inactive row's composed precision is EXACTLY zero (it leaves every leaf
+// sufficient statistic, branch score and leaf draw of every forest), and its
+// working response stays finite, because the zero goes into the precision and
+// never into omega, which the response divides by.
+static void testActiveRowsMultinomialKernel() {
+  const size_t n = 12, K = 3;
+  std::vector<double> active(n);
+  std::vector<size_t> kept;
+  for (size_t i = 0; i < n; ++i) {
+    active[i] = (i == 0 || i % 5 == 1) ? 0.0 : 1.0;
+    if (active[i] != 0.0) kept.push_back(i);
+  }
+  const size_t m = kept.size();
+
+  // multi-trial rows, so the arm also covers PG(n_i, .)'s variate summing: a
+  // skipped row must consume none of its n_i draws
+  std::vector<int> counts(n * K, 0), trials(n);
+  std::vector<double> fits(n * K);
+  for (size_t i = 0; i < n; ++i) {
+    trials[i] = 1 + static_cast<int>(i % 3);
+    counts[((3 * i + 1) % K) * n + i] = trials[i];
+    for (size_t k = 0; k < K; ++k)
+      fits[k * n + i] =
+        0.4 * static_cast<double>(i) - 1.1 * static_cast<double>(k);
+  }
+  std::vector<int> countsKept(m * K, 0), trialsKept(m);
+  std::vector<double> fitsKept(m * K);
+  for (size_t j = 0; j < m; ++j) {
+    trialsKept[j] = trials[kept[j]];
+    for (size_t k = 0; k < K; ++k) {
+      countsKept[k * m + j] = counts[k * n + kept[j]];
+      fitsKept[k * m + j] = fits[k * n + kept[j]];
+    }
+  }
+
+  auto build = [](size_t rows, const int* c, const int* t, const double* f,
+                  size_t categories, ColumnStore& data,
+                  std::vector<double>& xDummy,
+                  std::vector<Forest<ConstantGaussianLeaf>>& forests) {
+    xDummy.assign(rows, 0.0);
+    data.build(xDummy.data(), rows, 1, 100);
+    forests.resize(categories);
+    for (size_t k = 0; k < categories; ++k) {
+      forests[k].numTrees = 1;
+      forests[k].leaf.scale = 3.0;
+      forests[k].k = 2.0;
+      forests[k].treeFits.assign(rows, 0.0);
+      forests[k].totalFits.assign(f + k * rows, f + (k + 1) * rows);
+    }
+    MultinomialSpec spec;
+    spec.numCategories = categories;
+    spec.counts = c;
+    spec.trials = t;
+    return spec;
+  };
+
+  ColumnStore dataMasked, dataKept;
+  std::vector<double> xMasked, xKept;
+  std::vector<Forest<ConstantGaussianLeaf>> forestsMasked, forestsKept;
+  MultinomialSpec specMasked = build(n, counts.data(), trials.data(),
+                                     fits.data(), K, dataMasked, xMasked,
+                                     forestsMasked);
+  MultinomialSpec specKept = build(m, countsKept.data(), trialsKept.data(),
+                                   fitsKept.data(), K, dataKept, xKept,
+                                   forestsKept);
+  MultinomialForestCombiner<ConstantGaussianLeaf> masked(dataMasked,
+                                                         specMasked);
+  MultinomialForestCombiner<ConstantGaussianLeaf> compacted(dataKept, specKept);
+  masked.setActiveRows(active.data());
+
+  ext_rng* rngMasked = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngCompacted = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER,
+                                         NULL);
+  ext_rng_setSeed(rngMasked, 20260813u);
+  ext_rng_setSeed(rngCompacted, 20260813u);
+
+  bool agrees = true, zeroed = true, finite = true;
+  for (size_t f = 0; f < K; ++f) {
+    masked.drawForestGlue(f, rngMasked, forestsMasked);
+    ForestResponse mf = masked.formForestResponse(f, forestsMasked, nullptr,
+                                                  nullptr);
+    compacted.drawForestGlue(f, rngCompacted, forestsKept);
+    ForestResponse cf = compacted.formForestResponse(f, forestsKept, nullptr,
+                                                     nullptr);
+    for (size_t j = 0; j < m; ++j)
+      agrees = agrees && mf.response[kept[j]] == cf.response[j] &&
+               mf.weights[kept[j]] == cf.weights[j];
+    for (size_t i = 0; i < n; ++i)
+      if (active[i] == 0.0) {
+        zeroed = zeroed && mf.weights[i] == 0.0;
+        finite = finite && std::isfinite(mf.response[i]);
+      }
+  }
+  check(agrees,
+        "a masked multinomial coupling is bitwise the compacted one at every "
+        "active row");
+  check(zeroed, "an inactive row's composed precision is exactly zero");
+  check(finite,
+        "an inactive row's working response stays finite (omega is never "
+        "zeroed)");
+  check(ext_rng_simulateContinuousUniform(rngMasked) ==
+          ext_rng_simulateContinuousUniform(rngCompacted),
+        "an inactive row's K Polya-Gamma draws are skipped, not discarded");
+
+  // clearing restores the unmasked kernel exactly, which is what makes the
+  // engine's all-ones normalization a no-op rather than a near-no-op
+  masked.setActiveRows(nullptr);
+  ext_rng* rngCleared = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER,
+                                       NULL);
+  ext_rng* rngNever = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngCleared, 20260814u);
+  ext_rng_setSeed(rngNever, 20260814u);
+  ColumnStore dataNever;
+  std::vector<double> xNever;
+  std::vector<Forest<ConstantGaussianLeaf>> forestsNever;
+  MultinomialSpec specNever = build(n, counts.data(), trials.data(),
+                                    fits.data(), K, dataNever, xNever,
+                                    forestsNever);
+  MultinomialForestCombiner<ConstantGaussianLeaf> never(dataNever, specNever);
+  bool restored = true;
+  for (size_t f = 0; f < K; ++f) {
+    masked.drawForestGlue(f, rngCleared, forestsMasked);
+    ForestResponse mf = masked.formForestResponse(f, forestsMasked, nullptr,
+                                                  nullptr);
+    never.drawForestGlue(f, rngNever, forestsNever);
+    ForestResponse nf = never.formForestResponse(f, forestsNever, nullptr,
+                                                 nullptr);
+    for (size_t i = 0; i < n; ++i)
+      restored = restored && mf.response[i] == nf.response[i] &&
+                 mf.weights[i] == nf.weights[i];
+  }
+  check(restored, "clearing the mask restores the unmasked coupling bitwise");
+
+  ext_rng_destroy(rngNever);
+  ext_rng_destroy(rngCleared);
+  ext_rng_destroy(rngCompacted);
+  ext_rng_destroy(rngMasked);
+  printf("ok: multinomial active-row mask kernel\n");
+}
+
 // The per-observation log-likelihood channel: requesting it draws no rng and
 // mutates no state (computed post-hoc at storeSample), so sigma/train are
 // bitwise unchanged, and each family's values equal the closed-form density of
@@ -4471,6 +4645,7 @@ void runSamplerTests(ext_rng* rng) {
   testMultinomialCountGrowForestFromRoot();
   testMultinomialSetCounts();
   testMultinomialCategoryOffset();
+  testActiveRowsMultinomialKernel();
   testViewSamplerMatchesFull();
   testEndToEndGaussian(rng);
   testEndToEndGaussianFp32(rng);

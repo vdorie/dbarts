@@ -192,9 +192,13 @@ expect_error(
 set.seed(4007)
 labels <- rbinom(n, 2L, 0.5)
 bc.multinomial <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = 3L)
+# a softmax coupling refuses it on model grounds rather than for want of an
+# implementation, and says so: this is the only per-forest, per-observation
+# channel a caller can reach, so an attempt to hold one category's rows out
+# arrives here, and the margin reads all K forests
 expect_error(
   dbarts:::bartcoreSetForestWeights(bc.multinomial, 1L, rep(1, n)),
-  "BCF"
+  "applies to every category"
 )
 
 # an installed weight can never go stale against a changed n, because a

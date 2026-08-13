@@ -3657,6 +3657,19 @@ public:
     return sigma;
   }
 
+  /// The active-row channel, advertised here and IMPLEMENTED IN THE COMBINER:
+  /// this family holds no precisions of its own (workingWeights() is null and
+  /// the coupling discards the chain's), so the mask has nothing to compose
+  /// into here and lands on the K interleaved Polya-Gamma precisions
+  /// MultinomialForestCombiner owns. Chain::setActiveRows forwards it there
+  /// after this returns, and a MultinomialResponse is constructed only
+  /// alongside that coupling, so the capability the probe reads off the
+  /// response is the one the coupling honours. Accepting here rather than
+  /// widening the probe keeps SamplerShape::supportsActiveRows derived from the
+  /// single predicate the setter refuses on.
+  bool supportsActiveRows() const override { return true; }
+  bool setActiveRows(const double*) override { return true; }
+
   // The multinomial response is the borrowed n x K count matrix on the spec,
   // which a flat double* cannot express; the softmax is invariant to a common
   // per-observation shift, so a flat offset points exactly along the null

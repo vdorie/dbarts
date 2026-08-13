@@ -396,22 +396,90 @@ expect_identical(
   dbarts:::bartcoreRun(aftHandle(y, NULL), 20L, 10L)$train
 )
 
-# multinomial is the one family left without the channel, and its refusal
-# names it: the combiner owns the K interleaved draws, so the response holds no
-# precisions to compose a mask into.
+# --- S3: multinomial, GLOBAL only -------------------------------------------
+# The mask lands on the softmax COUPLING, not on the response, which holds no
+# precisions of its own: an inactive row's K interleaved Polya-Gamma draws are
+# skipped and its composed precision is zero in every category. The R5 object
+# never builds a multinomial sampler, so every arm here drives the dbarts:::
+# handle, which is the surface this family's mask ships on.
+K.mn <- 3L
+labels.mn <- codes.ord - 1L
+counts.mn <- matrix(0L, n, K.mn)
+counts.mn[cbind(seq_len(n), labels.mn + 1L)] <- 1L + seq_len(n) %% 3L
+# The substituted arm moves the successes AND the trials at the inactive rows:
+# PG(n_i, psi) sums n_i variates, so a mask that reached the working response
+# but not the draw count would part here (the logistic lesson at S2).
+counts.mn.other <- counts.mn
+counts.mn.other[a == 0, ] <- counts.mn[a == 0, c(2L, 3L, 1L)] + 2L
+
+multinomialHandle <- function(counts, mask = a) {
+  handle <- dbarts:::bartcoreMultinomialCountSampler(
+    dbarts::dbarts(x, as.double(labels.mn), control = control),
+    counts,
+    K = K.mn
+  )
+  if (!is.null(mask)) {
+    dbarts:::bartcoreSetActiveRows(handle, mask)
+  }
+  handle
+}
+
+# T2(c): substituting the inactive rows' counts leaves every ACTIVE row's
+# recorded softmax bitwise. Polya-Gamma is a rejection sampler, so this fails
+# outright if an inactive row's K draws are taken and discarded, not skipped.
+train.mn.a <- dbarts:::bartcoreRun(multinomialHandle(counts.mn), 20L, 10L)$train
+train.mn.b <- dbarts:::bartcoreRun(
+  multinomialHandle(counts.mn.other),
+  20L,
+  10L
+)$train
+expect_identical(train.mn.a[a == 1, , ], train.mn.b[a == 1, , ])
+expect_true(max(abs(train.mn.a[a == 0, , ] - train.mn.b[a == 0, , ])) < 1e-12)
+
+# T2(b): the engine's normalizer clears an all-ones mask here too, and the
+# coupling serves its unmasked precisions when it does
+expect_identical(
+  dbarts:::bartcoreRun(multinomialHandle(counts.mn, rep(1, n)), 20L, 10L)$train,
+  dbarts:::bartcoreRun(multinomialHandle(counts.mn, NULL), 20L, 10L)$train
+)
+
+# an all-zeros mask runs: every category forest sits at its prior and every row
+# still gets its K reported probabilities, which stay a simplex
+train.mn.empty <- dbarts:::bartcoreRun(
+  multinomialHandle(counts.mn, rep(0, n)),
+  20L,
+  10L
+)$train
+expect_true(all(is.finite(train.mn.empty)))
+expect_true(max(abs(apply(train.mn.empty, c(1L, 3L), sum) - 1)) < 1e-12)
+
+# the engine's value scan is under this surface too
 expect_error(
   dbarts:::bartcoreSetActiveRows(
-    dbarts:::bartcoreMultinomialSampler(
-      dbarts::dbarts(x, as.double(codes.ord), control = control),
-      codes.ord - 1L,
-      K = 3L
-    ),
-    a
+    multinomialHandle(counts.mn, NULL),
+    replace(a, 2L, 0.5)
   ),
-  "not implemented for multinomial"
+  "exactly 0 or 1"
+)
+
+# PER-FOREST masking is refused permanently and on model grounds, not for want
+# of an implementation: the per-forest weight entry is the only per-forest,
+# per-observation channel a caller can reach, and a softmax sampler refuses it
+# with that reason.
+expect_error(
+  dbarts:::bartcoreSetForestWeights(multinomialHandle(counts.mn, NULL), 1L, a),
+  "applies to every category"
 )
 
 rm(
+  K.mn,
+  labels.mn,
+  counts.mn,
+  counts.mn.other,
+  multinomialHandle,
+  train.mn.a,
+  train.mn.b,
+  train.mn.empty,
   n,
   x,
   y,

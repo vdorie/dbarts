@@ -3682,8 +3682,18 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
   bartcore::SamplerShape shape = holder.sampler->shape();
   // The capability probe comes FIRST, and it is not a forest count: a K-forest
   // multinomial carries several forests and admits no such weight.
-  if (!shape.supportsForestWeights)
+  if (!shape.supportsForestWeights) {
+    // This is the only per-forest, per-observation channel a caller can reach,
+    // so it is where an attempt to restrict a softmax sampler's rows to one
+    // category arrives - and that is refused on model grounds rather than for
+    // want of an implementation, permanently. A multinomial mask is GLOBAL
+    // ($setActiveRows); the coupling's own setActiveRows carries the argument.
+    if (shape.supportsCountsMutation)
+      Rf_error("a multinomial mask applies to every category: the softmax "
+               "margin reads all K forests, so a row cannot leave one "
+               "category's likelihood alone");
     Rf_error("bartcore_setForestWeights requires a BCF sampler");
+  }
   size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
   if (forestIndex >= shape.numForests)
     Rf_error("forest index out of range");
@@ -3719,10 +3729,14 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
 SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
-  // multinomial is the one family without the channel: its response holds no
-  // precisions at all, since the combiner owns the K interleaved draws
+  // Every shipped family implements the channel, multinomial included (there
+  // the mask is GLOBAL: it lands on the softmax coupling's K interleaved
+  // precisions, since the response holds none of its own). The probe stays as
+  // the contract's first step - a family that does not override the base
+  // refusal is refused here rather than silently ignored, which is the
+  // r-c-division defect this channel's shape exists to avoid.
   if (!shape.supportsActiveRows)
-    Rf_error("active-row masking is not implemented for multinomial samplers");
+    Rf_error("active-row masking is not implemented for this response family");
   if (activeExpr == R_NilValue) {
     holder.sampler->setActiveRows(NULL);
     return R_NilValue;

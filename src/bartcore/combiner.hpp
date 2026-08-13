@@ -468,6 +468,23 @@ struct ForestCombiner {
   /// audited.
   virtual bool supportsForestWeights() const { return false; }
 
+  /// Installs (or clears, at a null pointer) the validated 0/1 active-row mask
+  /// on a coupling that owns its OWN per-observation precisions; inert unless a
+  /// subclass carries them. An additive coupling needs no override: its
+  /// per-forest precisions are formed from the chain's working weights, which
+  /// the response model has already composed the mask into.
+  ///
+  /// GLOBAL by construction - there is no forest index. A row is in the data
+  /// set for the sampler or it is not; a coupling whose forests share one
+  /// likelihood cannot restrict it forest by forest (MultinomialForestCombiner
+  /// states the model reason).
+  ///
+  /// Chain::setActiveRows owns the single validating and normalizing scan and
+  /// calls this after the response model's own install, so the values here are
+  /// exactly 0 or 1, the length is the constructed n, and a null pointer means
+  /// every row is active. The values are COPIED.
+  virtual void setActiveRows(const double*) {}
+
   /// Glue (de)serialization into the BCF-shaped state fields; inert unless the
   /// combiner carries glue.
   virtual void serializeGlue(ChainStateData&) const {}
@@ -897,6 +914,30 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
     testOffset_ = offset;
   }
 
+  /// Installs the GLOBAL active-row mask, or clears it at a null pointer. An
+  /// inactive row leaves the softmax likelihood entirely: its K interleaved
+  /// Polya-Gamma draws are SKIPPED in drawForestGlue and its composed precision
+  /// is zero in every category's formForestResponse, so it enters no leaf
+  /// sufficient statistic, no branch score and no leaf draw of any forest. It
+  /// keeps its leaf occupancy and its reported softmax probabilities, as every
+  /// other family's inactive rows keep their fits.
+  ///
+  /// PER-FOREST masking is refused, permanently and on model grounds rather
+  /// than for want of an implementation: category f's margin C_if is a
+  /// log-sum-exp over the OTHER K-1 forests, so a row absent from category f's
+  /// forest is still in every other category's likelihood, and "row i is out of
+  /// category f only" restricts no likelihood at all. Only the global mask is
+  /// well-posed here, which is why this takes no forest index.
+  ///
+  /// The mask is length-n and n is fixed at creation for a multi-forest chain
+  /// (whole-data replacement is refused outright), so an installed mask cannot
+  /// go stale. A count or offset swap leaves it standing: it names rows, not
+  /// responses.
+  void setActiveRows(const double* active) override {
+    if (active == nullptr) activeRows_.clear();
+    else activeRows_.assign(active, active + data_.numObservations);
+  }
+
   /// Interleaved PG draw for category f: form the current margin C_if and draw
   /// omega_if ~ PG(n_i, f_if - C_if) against it, storing both so
   /// formForestResponse(f), called immediately after, reads the SAME margin and
@@ -952,9 +993,18 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
     const double* fFits = rawFits(f, forests);
     const double* suffix = suffix_.data() + f * n;
     double* omega = omega_.data() + f * n;
+    const double* active = activeRows_.empty() ? nullptr : activeRows_.data();
     for (std::size_t i = 0; i < n; ++i) {
       double margin = logSumExp2(prefix_[i], suffix[i]);
       margins_[i] = margin;
+      // An inactive row's K latents are SKIPPED, not drawn and discarded: the
+      // Polya-Gamma sampler is a rejection sampler whose consumption depends on
+      // psi, so a discard would desynchronize the stream from the compacted
+      // model this channel is meant to reproduce. omega keeps its last drawn
+      // (or cold-started) value, which is STALE and strictly positive -
+      // formForestResponse divides by it, so the zero goes into the composed
+      // precision and never in here.
+      if (active != nullptr && active[i] == 0.0) continue;
       double psi = fFits[i] - margin;
       double draw = ext_rng_simulatePolyaGamma(rng, psi);
       for (int c = 1; c < trials_[i]; ++c)
@@ -1005,6 +1055,14 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
         forestWeights_[i] = omega[i];
       }
     }
+    // The mask composes into the PRECISION, in a pass of its own so the
+    // unmasked loops above stay the statement they were: a_i = 0 zeroes the
+    // row's precision in every category, which is what drops it from every
+    // leaf sufficient statistic, branch score and leaf draw of forest f. The
+    // response is left at its stale-omega value rather than zeroed - nothing
+    // reads a zero-precision row's response, and a NaN there would propagate.
+    if (!activeRows_.empty())
+      for (std::size_t i = 0; i < n; ++i) forestWeights_[i] *= activeRows_[i];
     return {forestResponse_.data(), forestWeights_.data()};
   }
 
@@ -1248,6 +1306,7 @@ private:
   std::vector<double> combined_;       // n x K softmax probabilities
   std::vector<double> combinedTest_;   // nTest x K softmax test probabilities
   std::vector<double> forestResponse_, forestWeights_;  // n each
+  std::vector<double> activeRows_;     // the global 0/1 mask; empty when none
 };
 
 }  // namespace bartcore
