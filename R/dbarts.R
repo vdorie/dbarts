@@ -546,7 +546,28 @@ dbarts <- function(
       if (missing(data)) NULL else data
     ))
   }
-  data <- eval(dataCall, evalEnv)
+  data <- if (is.null(basisDeclaration)) {
+    eval(dataCall, evalEnv)
+  } else {
+    # the basis rides the data object's own 'treatment' argument, which this
+    # caller never wrote, so a refusal from it is restated in the word the
+    # caller used; only validateTreatment names that argument. An unrelated
+    # error - anything not naming 'treatment' - is not this call's to
+    # relabel, so it keeps its own condition class and call
+    tryCatch(
+      eval(dataCall, evalEnv),
+      error = function(e) {
+        message <- conditionMessage(e)
+        if (!grepl("'treatment'", message, fixed = TRUE)) {
+          stop(e)
+        }
+        stop(
+          gsub("'treatment'", "'basis'", message, fixed = TRUE),
+          call. = FALSE
+        )
+      }
+    )
+  }
 
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigma
@@ -1205,7 +1226,8 @@ dbartsSampler <- setRefClass(
       }
       z <- validateTreatment(
         expandForestBasis(evaluateForestBasis(basis)),
-        length(data@y)
+        length(data@y),
+        argument = "basis"
       )
 
       ptr <- getPointer()
@@ -1445,12 +1467,6 @@ dbartsSampler <- setRefClass(
     ) {
       "Restates a forest's leaf prior on every chain so that the forest total's prior standard deviation at k = 1 is prior.scale, in response units; prior.sd is the same statement at the current k and is refused when k is drawn from a hyperprior. Exactly one of the two is given. Nothing else moves - not k, not the response transform, not sigma, not the tree prior - and the write takes effect on the next sweep, reinterpreting no leaf value already drawn. updateState is opt-in; see setData."
       refuseHostMutation("$setCalibration")
-      refuseBCFMutation(
-        .self,
-        "setCalibration",
-        "both forests' leaf scales come from the two-forest calibration map; ",
-        "make a new sampler instead"
-      )
       if (!missing(prior.mean)) {
         stop(
           "'prior.mean' is not writable: the leaf values it would shift are ",
@@ -1463,6 +1479,14 @@ dbartsSampler <- setRefClass(
       if (missing(prior.scale) == missing(prior.sd)) {
         stop("give exactly one of 'prior.scale' and 'prior.sd'")
       }
+      # after the argument checks above, so a malformed call is answered on its
+      # own terms rather than by the refusal that would follow a well-formed one
+      refuseBCFMutation(
+        .self,
+        "setCalibration",
+        "both forests' leaf scales come from the two-forest calibration map; ",
+        "make a new sampler instead"
+      )
 
       ptr <- getPointer()
       index <- resolveForestIndex(forest)

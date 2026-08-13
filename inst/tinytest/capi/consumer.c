@@ -4,26 +4,30 @@
  * LinkingTo path, where each dbarts_sampler_* call binds to a cached
  * R_GetCCallable pointer generated inside dbarts.h - and exposes .Call wrappers
  * for the R-side assertions. One entry point is still resolved by hand as a
- * deliberate canary (see p_apiVersion_raw). */
+ * deliberate canary (see p_apiHash_raw). */
 
 #define DBARTS_USE_STUBS
 #include <dbarts/dbarts.h>
 
-#include <string.h> /* memcpy */
+#include <stdio.h>  /* snprintf */
+#include <string.h> /* memcpy, strcmp */
 
 #include <R_ext/Rdynload.h> /* R_GetCCallable, for the raw canary below */
 
-/* Deliberate canary: dbarts_apiVersion is ALSO resolved the old way, by hand
+/* Deliberate canary: dbarts_apiHash is ALSO resolved the old way, by hand
  * through R_GetCCallable with a hand-written cast - the un-stubbed per-symbol
  * path a consumer that declines DBARTS_USE_STUBS (or a diagnostic tool) still
  * relies on. Everything else goes through the stubs, so this one raw path
- * guards that plain R_RegisterCCallable registration keeps working on its own. */
-static int (*p_apiVersion_raw)(void);
+ * guards that plain R_RegisterCCallable registration keeps working on its own.
+ * It guards the signature token specifically because that token is the only
+ * runtime signal a stale consumer binary trips while the version constants
+ * stay put. */
+static uint64_t (*p_apiHash_raw)(void);
 
 static void initCanary(void) {
-  if (p_apiVersion_raw == NULL)
-    p_apiVersion_raw =
-      (int (*)(void)) R_GetCCallable("dbarts", "dbarts_apiVersion");
+  if (p_apiHash_raw == NULL)
+    p_apiHash_raw =
+      (uint64_t (*)(void)) R_GetCCallable("dbarts", "dbarts_apiHash");
 }
 
 static void samplerFinalizer(SEXP ptrExpr) {
@@ -39,22 +43,87 @@ static dbarts_sampler* samplerFromExpr(SEXP ptrExpr) {
   return sampler;
 }
 
-/* the packed version, through the raw canary path */
-SEXP capi_version(void) {
+/* the signature token as text (it does not fit an R integer), plus whether the
+ * raw canary path and the stubs agree on it, plus whether the installed
+ * library's token equals the one this consumer compiled against */
+SEXP capi_hash(void) {
+  char text[32];
+  uint64_t stubbed = dbarts_apiHash();
   initCanary();
-  return Rf_ScalarInteger(p_apiVersion_raw());
+  snprintf(text, sizeof(text), "0x%016llx", (unsigned long long) stubbed);
+
+  SEXP result = PROTECT(Rf_allocVector(VECSXP, 3));
+  SET_VECTOR_ELT(result, 0, Rf_mkString(text));
+  SET_VECTOR_ELT(result, 1, Rf_ScalarLogical(p_apiHash_raw() == stubbed));
+  SET_VECTOR_ELT(result, 2, Rf_ScalarLogical(stubbed == DBARTS_C_API_HASH));
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 3));
+  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("text"));
+  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("raw.agrees"));
+  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("matches.header"));
+  Rf_setAttrib(result, R_NamesSymbol, namesExpr);
+  UNPROTECT(2);
+  return result;
 }
 
-/* the packed integer plus the two components, through the stubs; the R side
- * checks all three agree with the header macros */
+/* the two version components, through the stubs; the R side checks they agree
+ * with the header macros */
 SEXP capi_versions(void) {
-  SEXP result = PROTECT(Rf_allocVector(INTSXP, 3));
+  SEXP result = PROTECT(Rf_allocVector(INTSXP, 2));
   int* v = INTEGER(result);
-  v[0] = dbarts_apiVersion();
-  v[1] = dbarts_apiMajorVersion();
-  v[2] = dbarts_apiMinorVersion();
+  v[0] = dbarts_apiMajorVersion();
+  v[1] = dbarts_apiMinorVersion();
   UNPROTECT(1);
   return result;
+}
+
+/* An R-built dbarts_predictor_source: the list's elements map onto the
+ * struct's members one for one, so the R side can hand the entries a dense
+ * block, a CSC triple, a mixed map, or a deliberately malformed argument. The
+ * source borrows every array from the list, which stays protected by the
+ * caller for the duration of the entry-point call. */
+static SEXP getElement(SEXP list, const char* name) {
+  SEXP names = Rf_getAttrib(list, R_NamesSymbol);
+  if (Rf_isNull(names)) return R_NilValue;
+  for (R_xlen_t i = 0; i < Rf_xlength(list); ++i)
+    if (strcmp(CHAR(STRING_ELT(names, i)), name) == 0)
+      return VECTOR_ELT(list, i);
+  return R_NilValue;
+}
+
+static dbarts_predictor_source sourceFromList(SEXP spec) {
+  dbarts_predictor_source source = DBARTS_PREDICTOR_SOURCE_INIT;
+  SEXP element;
+
+  source.numRows = (size_t) Rf_asInteger(getElement(spec, "numRows"));
+  source.numColumns = (size_t) Rf_asInteger(getElement(spec, "numColumns"));
+
+  element = getElement(spec, "dense");
+  if (!Rf_isNull(element)) source.denseValues = REAL(element);
+
+  element = getElement(spec, "cscColumnPointers");
+  if (!Rf_isNull(element)) {
+    source.numCscColumns = (size_t) (Rf_xlength(element) - 1);
+    source.cscColumnPointers = INTEGER(element);
+    source.cscRowIndices = INTEGER(getElement(spec, "cscRowIndices"));
+    source.cscValues = REAL(getElement(spec, "cscValues"));
+  }
+  /* a caller may declare fewer CSC columns than its pointer array carries,
+   * which is how the out-of-range decode is driven */
+  element = getElement(spec, "numCscColumns");
+  if (!Rf_isNull(element))
+    source.numCscColumns = (size_t) Rf_asInteger(element);
+
+  element = getElement(spec, "columnSources");
+  if (!Rf_isNull(element)) source.columnSources = (const int32_t*) INTEGER(element);
+  element = getElement(spec, "columnTypes");
+  if (!Rf_isNull(element)) source.columnTypes = (const int32_t*) INTEGER(element);
+  element = getElement(spec, "categoryCounts");
+  if (!Rf_isNull(element))
+    source.categoryCounts = (const uint32_t*) INTEGER(element);
+  element = getElement(spec, "referenceCodes");
+  if (!Rf_isNull(element))
+    source.referenceCodes = (const int32_t*) INTEGER(element);
+  return source;
 }
 
 SEXP capi_create(SEXP control, SEXP model, SEXP data, SEXP family) {
@@ -76,7 +145,7 @@ SEXP capi_dims(SEXP ptrExpr) {
   dims[1] = (int) dbarts_sampler_numPredictors(sampler);
   dims[2] = (int) dbarts_sampler_numTestObservations(sampler);
   dims[3] = (int) dbarts_sampler_numChains(sampler);
-  dims[4] = (int) dbarts_sampler_numTrees(sampler);
+  dims[4] = (int) dbarts_sampler_numTrees(sampler, 0);
   dims[5] = (int) dbarts_sampler_numSavedSamples(sampler);
   dims[6] = dbarts_sampler_kIsSampled(sampler);
   dims[7] = dbarts_sampler_usesDart(sampler);
@@ -396,13 +465,26 @@ SEXP capi_set_test_offset(SEXP ptrExpr, SEXP offsetExpr) {
   return R_NilValue;
 }
 
-/* prints the first tree of the first chain, exercising the entry point;
- * the R side captures the console output */
-SEXP capi_print_trees(SEXP ptrExpr) {
-  size_t chainIndex = 0, treeIndex = 0;
-  dbarts_sampler_printTrees(samplerFromExpr(ptrExpr), &chainIndex, 1, NULL, 0,
-                            &treeIndex, 1);
+/* prints the first tree of the first chain of the named forest, exercising the
+ * entry point; the R side captures the console output */
+SEXP capi_print_trees(SEXP ptrExpr, SEXP forestExpr) {
+  size_t chainIndex = 0, treeIndex = 0, sampleIndex = 0;
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numSamples = dbarts_sampler_numSavedSamples(sampler) > 0 ? 1 : 0;
+  dbarts_sampler_printTrees(sampler, &chainIndex, 1, &sampleIndex, numSamples,
+                            &treeIndex, 1,
+                            (size_t) Rf_asInteger(forestExpr));
   return R_NilValue;
+}
+
+SEXP capi_num_trees(SEXP ptrExpr, SEXP forestExpr) {
+  return Rf_ScalarInteger((int) dbarts_sampler_numTrees(
+    samplerFromExpr(ptrExpr), (size_t) Rf_asInteger(forestExpr)));
+}
+
+SEXP capi_num_forests(SEXP ptrExpr) {
+  return Rf_ScalarInteger(
+    (int) dbarts_sampler_numForests(samplerFromExpr(ptrExpr)));
 }
 
 SEXP capi_set_run_controls(SEXP ptrExpr, SEXP numThreadsExpr,
@@ -436,16 +518,26 @@ SEXP capi_get_latents(SEXP ptrExpr) {
   return haveLatents ? result : R_NilValue;
 }
 
+/* the dense spelling every wrapper below hands the entries: the header's own
+ * constructor over an R matrix */
+static dbarts_predictor_source denseSource(SEXP xExpr) {
+  SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
+  return dbarts_dense_predictor_source(
+    REAL(xExpr), (size_t) INTEGER(dims)[0], (size_t) INTEGER(dims)[1]);
+}
+
 SEXP capi_set_predictor(SEXP ptrExpr, SEXP xExpr) {
+  dbarts_predictor_source source = denseSource(xExpr);
   return Rf_ScalarLogical(
-    dbarts_sampler_setPredictor(samplerFromExpr(ptrExpr), REAL(xExpr), FALSE,
+    dbarts_sampler_setPredictor(samplerFromExpr(ptrExpr), &source, FALSE,
                                 TRUE));
 }
 
 SEXP capi_update_predictor(SEXP ptrExpr, SEXP xExpr, SEXP columnExpr) {
   size_t column = (size_t) Rf_asInteger(columnExpr); /* already 0-based */
+  dbarts_predictor_source source = denseSource(xExpr);
   return Rf_ScalarLogical(dbarts_sampler_updatePredictor(
-    samplerFromExpr(ptrExpr), REAL(xExpr), &column, 1, FALSE, TRUE));
+    samplerFromExpr(ptrExpr), &source, &column, 1, FALSE, TRUE));
 }
 
 /* a transactional column update against the EXISTING cut grid: the flavor a
@@ -454,34 +546,105 @@ SEXP capi_update_predictor(SEXP ptrExpr, SEXP xExpr, SEXP columnExpr) {
 SEXP capi_update_predictor_fixed_cuts(SEXP ptrExpr, SEXP xExpr,
                                       SEXP columnExpr) {
   size_t column = (size_t) Rf_asInteger(columnExpr); /* already 0-based */
+  dbarts_predictor_source source = denseSource(xExpr);
   return Rf_ScalarLogical(dbarts_sampler_updatePredictor(
-    samplerFromExpr(ptrExpr), REAL(xExpr), &column, 1, FALSE, FALSE));
+    samplerFromExpr(ptrExpr), &source, &column, 1, FALSE, FALSE));
 }
 
 /* the forced flavors of the two above, exercising the transactional guard's
  * accept arm: forceUpdate = TRUE bypasses the empty-leaf veto and always
  * installs */
 SEXP capi_set_predictor_forced(SEXP ptrExpr, SEXP xExpr) {
+  dbarts_predictor_source source = denseSource(xExpr);
   return Rf_ScalarLogical(
-    dbarts_sampler_setPredictor(samplerFromExpr(ptrExpr), REAL(xExpr), TRUE,
+    dbarts_sampler_setPredictor(samplerFromExpr(ptrExpr), &source, TRUE,
                                 TRUE));
 }
 
 SEXP capi_update_predictor_forced(SEXP ptrExpr, SEXP xExpr, SEXP columnExpr) {
   size_t column = (size_t) Rf_asInteger(columnExpr); /* already 0-based */
+  dbarts_predictor_source source = denseSource(xExpr);
   return Rf_ScalarLogical(dbarts_sampler_updatePredictor(
-    samplerFromExpr(ptrExpr), REAL(xExpr), &column, 1, TRUE, TRUE));
+    samplerFromExpr(ptrExpr), &source, &column, 1, TRUE, TRUE));
 }
 
 SEXP capi_set_test_predictors(SEXP ptrExpr, SEXP xTestExpr) {
   if (Rf_isNull(xTestExpr)) {
-    dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), NULL, 0);
+    dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), NULL);
   } else {
-    size_t numRows = (size_t) INTEGER(Rf_getAttrib(xTestExpr, R_DimSymbol))[0];
-    dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), REAL(xTestExpr),
-                                     numRows);
+    dbarts_predictor_source source = denseSource(xTestExpr);
+    dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), &source);
   }
   return R_NilValue;
+}
+
+/* the source-shaped flavors, over an R-built spec: dense, CSC, mixed, or
+ * malformed. Every entry that takes a source has one, since the refusals are
+ * stated once and must fire at every funnel. */
+SEXP capi_set_predictor_source(SEXP ptrExpr, SEXP specExpr) {
+  dbarts_predictor_source source = sourceFromList(specExpr);
+  return Rf_ScalarLogical(dbarts_sampler_setPredictor(
+    samplerFromExpr(ptrExpr), &source, FALSE, TRUE));
+}
+
+SEXP capi_update_predictor_source(SEXP ptrExpr, SEXP specExpr,
+                                  SEXP columnsExpr) {
+  dbarts_predictor_source source = sourceFromList(specExpr);
+  size_t numColumns = (size_t) Rf_xlength(columnsExpr);
+  size_t* columns = (size_t*) R_alloc(numColumns, sizeof(size_t));
+  for (size_t k = 0; k < numColumns; ++k)
+    columns[k] = (size_t) INTEGER(columnsExpr)[k]; /* already 0-based */
+  return Rf_ScalarLogical(dbarts_sampler_updatePredictor(
+    samplerFromExpr(ptrExpr), &source, columns, numColumns, FALSE, TRUE));
+}
+
+SEXP capi_set_test_predictors_source(SEXP ptrExpr, SEXP specExpr) {
+  dbarts_predictor_source source = sourceFromList(specExpr);
+  dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), &source);
+  return R_NilValue;
+}
+
+SEXP capi_predict_source(SEXP ptrExpr, SEXP specExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  dbarts_predictor_source source = sourceFromList(specExpr);
+  size_t saved = dbarts_sampler_numSavedSamples(sampler);
+  size_t numSamples = saved > 0 ? saved : 1;
+  size_t length =
+    source.numRows * numSamples * dbarts_sampler_numChains(sampler);
+
+  SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
+  dbarts_sampler_predict(sampler, &source, NULL, REAL(result));
+  UNPROTECT(1);
+  return result;
+}
+
+/* the input-side write guard, inverted for a READ: an old, smaller caller
+ * pins structSize below columnTypes and poisons every field past that
+ * boundary, so an entry that read a member it was not handed would fault on
+ * the unmapped page. Returns the fits, which must equal the dense answer. */
+SEXP capi_predict_truncated(SEXP ptrExpr, SEXP xTestExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  SEXP dims = Rf_getAttrib(xTestExpr, R_DimSymbol);
+  void* poison = (void*) (uintptr_t) 0x1;
+
+  dbarts_predictor_source source;
+  memset(&source, 0, sizeof(source));
+  source.structSize = offsetof(dbarts_predictor_source, columnTypes);
+  source.numRows = (size_t) INTEGER(dims)[0];
+  source.numColumns = (size_t) INTEGER(dims)[1];
+  source.denseValues = REAL(xTestExpr);
+  source.columnTypes = (const int32_t*) poison;
+  source.categoryCounts = (const uint32_t*) poison;
+  source.referenceCodes = (const int32_t*) poison;
+
+  size_t saved = dbarts_sampler_numSavedSamples(sampler);
+  size_t numSamples = saved > 0 ? saved : 1;
+  size_t length =
+    source.numRows * numSamples * dbarts_sampler_numChains(sampler);
+  SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
+  dbarts_sampler_predict(sampler, &source, NULL, REAL(result));
+  UNPROTECT(1);
+  return result;
 }
 
 SEXP capi_set_tree_storage(SEXP ptrExpr, SEXP keepTreesExpr,
@@ -494,13 +657,14 @@ SEXP capi_set_tree_storage(SEXP ptrExpr, SEXP keepTreesExpr,
 
 SEXP capi_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
-  size_t numRows = (size_t) INTEGER(Rf_getAttrib(xTestExpr, R_DimSymbol))[0];
+  dbarts_predictor_source source = denseSource(xTestExpr);
   size_t saved = dbarts_sampler_numSavedSamples(sampler);
   size_t numSamples = saved > 0 ? saved : 1;
-  size_t length = numRows * numSamples * dbarts_sampler_numChains(sampler);
+  size_t length =
+    source.numRows * numSamples * dbarts_sampler_numChains(sampler);
 
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
-  dbarts_sampler_predict(sampler, REAL(xTestExpr), numRows,
+  dbarts_sampler_predict(sampler, &source,
                          Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr),
                          REAL(result));
   UNPROTECT(1);
@@ -510,13 +674,15 @@ SEXP capi_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
 /* sampleNumsExpr null reads every saved sample; otherwise its 1-based indices
  * select the saved samples, so the caller can compare the all-samples table
  * against a per-sample gather (the consistency stan4bart's extract relies on). */
-SEXP capi_get_trees(SEXP ptrExpr, SEXP useLiveTreesExpr, SEXP sampleNumsExpr) {
+SEXP capi_get_trees(SEXP ptrExpr, SEXP useLiveTreesExpr, SEXP sampleNumsExpr,
+                    SEXP forestExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   int useLiveTrees = Rf_asLogical(useLiveTreesExpr) == TRUE;
+  size_t forest = (size_t) Rf_asInteger(forestExpr);
 
   size_t numChains = dbarts_sampler_numChains(sampler);
   size_t numSaved = useLiveTrees ? 0 : dbarts_sampler_numSavedSamples(sampler);
-  size_t numTrees = dbarts_sampler_numTrees(sampler);
+  size_t numTrees = dbarts_sampler_numTrees(sampler, forest);
 
   size_t* chainIndices = (size_t*) R_alloc(numChains, sizeof(size_t));
   for (size_t i = 0; i < numChains; ++i) chainIndices[i] = i;
@@ -539,7 +705,7 @@ SEXP capi_get_trees(SEXP ptrExpr, SEXP useLiveTreesExpr, SEXP sampleNumsExpr) {
 
   return dbarts_sampler_getTrees(sampler, chainIndices, numChains,
                                  sampleIndices, numSampleIndices, treeIndices,
-                                 numTrees, useLiveTrees);
+                                 numTrees, useLiveTrees, forest);
 }
 
 SEXP capi_store_state(SEXP ptrExpr) {
@@ -549,6 +715,144 @@ SEXP capi_store_state(SEXP ptrExpr) {
 SEXP capi_set_state(SEXP ptrExpr, SEXP stateExpr) {
   dbarts_sampler_setState(samplerFromExpr(ptrExpr), stateExpr);
   return R_NilValue;
+}
+
+/* the per-observation 0/1 active-row mask; a NULL clears it. The values are
+ * consumed during the call, so nothing here has to outlive it. */
+SEXP capi_set_active_rows(SEXP ptrExpr, SEXP activeExpr) {
+  return Rf_ScalarInteger(dbarts_sampler_setActiveRows(
+    samplerFromExpr(ptrExpr),
+    Rf_isNull(activeExpr) ? NULL : REAL(activeExpr)));
+}
+
+/* the per-forest precision weight. BORROWED until replaced, unlike the mask
+ * above, so the R side keeps its vector alive for the sampler's life. */
+SEXP capi_set_forest_weights(SEXP ptrExpr, SEXP forestExpr,
+                             SEXP weightsExpr) {
+  return Rf_ScalarInteger(dbarts_sampler_setForestWeights(
+    samplerFromExpr(ptrExpr), (size_t) Rf_asInteger(forestExpr),
+    Rf_isNull(weightsExpr) ? NULL : REAL(weightsExpr)));
+}
+
+/* the mean channel: the basis a forest's amplitudes multiply, column-major
+ * numObservations x numColumns and copied by the entry */
+SEXP capi_set_forest_basis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr) {
+  SEXP dims = Rf_getAttrib(basisExpr, R_DimSymbol);
+  size_t numColumns =
+    Rf_isNull(dims) ? 1 : (size_t) INTEGER(dims)[1];
+  return Rf_ScalarInteger(dbarts_sampler_setForestBasis(
+    samplerFromExpr(ptrExpr), (size_t) Rf_asInteger(forestExpr),
+    REAL(basisExpr), numColumns));
+}
+
+/* the ragged amplitude read: the count first, so the caller sizes its own
+ * buffer, then the values as numForestAmplitudes x numChains */
+SEXP capi_forest_amplitudes(SEXP ptrExpr, SEXP forestExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t forest = (size_t) Rf_asInteger(forestExpr);
+  size_t numAmplitudes = dbarts_sampler_numForestAmplitudes(sampler, forest);
+  size_t numChains = dbarts_sampler_numChains(sampler);
+
+  SEXP valuesExpr = PROTECT(
+    Rf_allocVector(REALSXP, (R_xlen_t) (numAmplitudes * numChains)));
+  int accepted =
+    dbarts_sampler_forestAmplitudes(sampler, forest, REAL(valuesExpr));
+
+  SEXP result = PROTECT(Rf_allocVector(VECSXP, 3));
+  SET_VECTOR_ELT(result, 0, Rf_ScalarInteger((int) numAmplitudes));
+  SET_VECTOR_ELT(result, 1, valuesExpr);
+  SET_VECTOR_ELT(result, 2, Rf_ScalarInteger(accepted));
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 3));
+  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("count"));
+  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("values"));
+  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("accepted"));
+  Rf_setAttrib(result, R_NamesSymbol, namesExpr);
+  UNPROTECT(3);
+  return result;
+}
+
+/* one forest's calibration through the size-first output struct. partial
+ * pins structSize below leafModel and poisons that member, the omitting
+ * caller the presence test exists for; skipK leaves the k pointer null, the
+ * null-member-skips half of the same contract. */
+SEXP capi_forest_calibration(SEXP ptrExpr, SEXP forestExpr, SEXP partialExpr,
+                             SEXP skipKExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numChains = dbarts_sampler_numChains(sampler);
+  int partial = Rf_asLogical(partialExpr) == TRUE;
+  int skipK = Rf_asLogical(skipKExpr) == TRUE;
+
+  SEXP priorScaleExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
+  SEXP priorSdExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
+  SEXP priorMeanExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
+  SEXP kExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
+  SEXP scaleExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
+  SEXP shiftExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
+  SEXP hyperExpr = PROTECT(Rf_allocVector(INTSXP, (R_xlen_t) numChains));
+  SEXP leafExpr = PROTECT(Rf_allocVector(INTSXP, (R_xlen_t) numChains));
+  for (size_t c = 0; c < numChains; ++c) {
+    REAL(kExpr)[c] = -1.0;
+    INTEGER(leafExpr)[c] = -1;
+  }
+
+  dbarts_forest_calibration calibration = DBARTS_FOREST_CALIBRATION_INIT;
+  calibration.priorScale = REAL(priorScaleExpr);
+  calibration.priorSd = REAL(priorSdExpr);
+  calibration.priorMean = REAL(priorMeanExpr);
+  calibration.k = skipK ? NULL : REAL(kExpr);
+  calibration.responseScale = REAL(scaleExpr);
+  calibration.responseShift = REAL(shiftExpr);
+  calibration.kHasHyperprior = INTEGER(hyperExpr);
+  if (partial) {
+    calibration.structSize = offsetof(dbarts_forest_calibration, leafModel);
+    calibration.leafModel = (int*) (uintptr_t) 0x1; /* poisoned: never read */
+  } else {
+    calibration.leafModel = INTEGER(leafExpr);
+  }
+
+  int accepted =
+    dbarts_sampler_forestCalibration(sampler, (size_t) Rf_asInteger(forestExpr),
+                                     &calibration);
+
+  SEXP result = PROTECT(Rf_allocVector(VECSXP, 9));
+  SET_VECTOR_ELT(result, 0, priorScaleExpr);
+  SET_VECTOR_ELT(result, 1, priorSdExpr);
+  SET_VECTOR_ELT(result, 2, priorMeanExpr);
+  SET_VECTOR_ELT(result, 3, kExpr);
+  SET_VECTOR_ELT(result, 4, scaleExpr);
+  SET_VECTOR_ELT(result, 5, shiftExpr);
+  SET_VECTOR_ELT(result, 6, hyperExpr);
+  SET_VECTOR_ELT(result, 7, leafExpr);
+  SET_VECTOR_ELT(result, 8, Rf_ScalarInteger(accepted));
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 9));
+  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("prior.scale"));
+  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("prior.sd"));
+  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("prior.mean"));
+  SET_STRING_ELT(namesExpr, 3, Rf_mkChar("k"));
+  SET_STRING_ELT(namesExpr, 4, Rf_mkChar("response.scale"));
+  SET_STRING_ELT(namesExpr, 5, Rf_mkChar("response.shift"));
+  SET_STRING_ELT(namesExpr, 6, Rf_mkChar("k.has.hyperprior"));
+  SET_STRING_ELT(namesExpr, 7, Rf_mkChar("leaf.model"));
+  SET_STRING_ELT(namesExpr, 8, Rf_mkChar("accepted"));
+  Rf_setAttrib(result, R_NamesSymbol, namesExpr);
+  UNPROTECT(10);
+  return result;
+}
+
+/* the zero-structSize guard on the calibration buffers, the read-side twin of
+ * capi_run_zero_structsize: this call must error rather than fill nothing */
+SEXP capi_forest_calibration_zero_structsize(SEXP ptrExpr) {
+  dbarts_forest_calibration calibration;
+  memset(&calibration, 0, sizeof(calibration)); /* structSize left 0 */
+  return Rf_ScalarInteger(dbarts_sampler_forestCalibration(
+    samplerFromExpr(ptrExpr), 0, &calibration));
+}
+
+SEXP capi_set_forest_prior_scale(SEXP ptrExpr, SEXP forestExpr,
+                                 SEXP priorScaleExpr) {
+  return Rf_ScalarInteger(dbarts_sampler_setForestPriorScale(
+    samplerFromExpr(ptrExpr), (size_t) Rf_asInteger(forestExpr),
+    Rf_asReal(priorScaleExpr)));
 }
 
 /* The two-forest (BCF) surface, docs/design/bcf.md. Every verdict below is
@@ -568,9 +872,15 @@ enum {
   LEG_TEST_OFFSET,
   LEG_TEST_PREDICTORS,
   LEG_PREDICT,
-  LEG_TREATMENT,
+  LEG_BASIS,
+  LEG_BASIS_FOREST_0,
+  LEG_BASIS_WIDTH,
+  LEG_BASIS_VALUES,
   LEG_FOREST_FITS,
-  LEG_GLUE,
+  LEG_AMPLITUDES,
+  LEG_FOREST_WEIGHTS,
+  LEG_FOREST_WEIGHTS_RANGE,
+  LEG_CALIBRATION,
   LEG_COUNT
 };
 
@@ -584,9 +894,15 @@ static const char* const legNames[LEG_COUNT] = {
   "testOffset",
   "setTestPredictors",
   "predict",
-  "setTreatment",
+  "setForestBasis",
+  "setForestBasis.forest0",
+  "setForestBasis.width",
+  "setForestBasis.values",
   "forestFits",
-  "bcfGlue"
+  "forestAmplitudes",
+  "setForestWeights",
+  "setForestWeights.range",
+  "forestCalibration"
 };
 
 /* The refusal each leg must draw, or NULL where it must be accepted.
@@ -610,6 +926,12 @@ static const char* const legRefusals[LEG_COUNT] = {
   "multi-forest sampler fixes its data at creation",
   "BCF sampler carries no test treatment vector",
   "BCF sampler carries no test treatment vector",
+  NULL,
+  NULL,
+  "two-column complementary 0/1 basis",
+  "two-column complementary 0/1 basis",
+  NULL,
+  NULL,
   NULL,
   NULL,
   NULL
@@ -656,17 +978,58 @@ static SEXP bcfLegBody(void* data) {
     case LEG_TEST_OFFSET:
       dbarts_sampler_setTestOffset(legs->sampler, legs->offset);
       break;
-    case LEG_TEST_PREDICTORS:
-      dbarts_sampler_setTestPredictors(legs->sampler, legs->xTest,
-                                       legs->numTestObservations);
+    case LEG_TEST_PREDICTORS: {
+      dbarts_predictor_source source = dbarts_dense_predictor_source(
+        legs->xTest, legs->numTestObservations,
+        dbarts_sampler_numPredictors(legs->sampler));
+      dbarts_sampler_setTestPredictors(legs->sampler, &source);
       break;
-    case LEG_PREDICT:
-      dbarts_sampler_predict(legs->sampler, legs->xTest,
-                             legs->numTestObservations, NULL, legs->out);
+    }
+    case LEG_PREDICT: {
+      dbarts_predictor_source source = dbarts_dense_predictor_source(
+        legs->xTest, legs->numTestObservations,
+        dbarts_sampler_numPredictors(legs->sampler));
+      dbarts_sampler_predict(legs->sampler, &source, NULL, legs->out);
       break;
-    case LEG_TREATMENT:
-      legs->accepted = dbarts_sampler_setTreatment(legs->sampler, legs->z);
+    }
+    case LEG_BASIS: {
+      /* the two-column complementary indicator (1 - z, z) the amplitudes
+       * contrast on, which is the one basis today's engine honours */
+      double* basis = (double*) R_alloc(2 * n, sizeof(double));
+      for (size_t i = 0; i < n; ++i) {
+        basis[i] = 1.0 - legs->z[i];
+        basis[i + n] = legs->z[i];
+      }
+      legs->accepted = dbarts_sampler_setForestBasis(legs->sampler, 1, basis, 2);
       break;
+    }
+    case LEG_BASIS_FOREST_0: {
+      /* forest 0's basis is the implicit intercept: a capability answer, not
+       * a raise, and it must touch nothing */
+      double* basis = (double*) R_alloc(2 * n, sizeof(double));
+      for (size_t i = 0; i < n; ++i) {
+        basis[i] = 1.0 - legs->z[i];
+        basis[i + n] = legs->z[i];
+      }
+      legs->accepted =
+        dbarts_sampler_setForestBasis(legs->sampler, 0, basis, 2) == 0 &&
+        dbarts_sampler_setForestBasis(legs->sampler, 2, basis, 2) == 0;
+      break;
+    }
+    case LEG_BASIS_WIDTH:
+      /* a malformed basis RAISES, naming the capability */
+      dbarts_sampler_setForestBasis(legs->sampler, 1, legs->z, 1);
+      break;
+    case LEG_BASIS_VALUES: {
+      /* two columns, but not complementary 0/1 */
+      double* basis = (double*) R_alloc(2 * n, sizeof(double));
+      for (size_t i = 0; i < n; ++i) {
+        basis[i] = 0.25;
+        basis[i + n] = 0.75;
+      }
+      dbarts_sampler_setForestBasis(legs->sampler, 1, basis, 2);
+      break;
+    }
     case LEG_FOREST_FITS:
       /* both forests read, an index past the last one refuses, and every
        * value written is finite */
@@ -677,11 +1040,50 @@ static SEXP bcfLegBody(void* data) {
       for (size_t i = 0; i < 2 * n * chains; ++i)
         if (!R_FINITE(legs->out[i])) legs->accepted = 0;
       break;
-    case LEG_GLUE:
-      legs->accepted = dbarts_sampler_bcfGlue(legs->sampler, legs->out);
+    case LEG_AMPLITUDES:
+      /* the ragged pair: one amplitude for the intercept forest, two for the
+       * indicator basis, every value finite, and an index past the last
+       * forest refuses the read while the count entry raises */
+      legs->accepted =
+        dbarts_sampler_numForestAmplitudes(legs->sampler, 0) == 1 &&
+        dbarts_sampler_numForestAmplitudes(legs->sampler, 1) == 2 &&
+        dbarts_sampler_forestAmplitudes(legs->sampler, 0, legs->out) &&
+        dbarts_sampler_forestAmplitudes(legs->sampler, 1,
+                                        legs->out + chains) &&
+        !dbarts_sampler_forestAmplitudes(legs->sampler, 2, legs->out);
       for (size_t i = 0; i < 3 * chains; ++i)
         if (!R_FINITE(legs->out[i])) legs->accepted = 0;
       break;
+    case LEG_FOREST_WEIGHTS:
+      /* 1 = accepted, and a null clears; the weights are BORROWED, so the
+       * caller's vector outlives the call (the R side holds it) */
+      legs->accepted =
+        dbarts_sampler_setForestWeights(legs->sampler, 1, legs->weights) == 1 &&
+        dbarts_sampler_setForestWeights(legs->sampler, 1, NULL) == 1;
+      break;
+    case LEG_FOREST_WEIGHTS_RANGE:
+      /* 0 = refused, without touching the sampler: a forest past the last one
+       * is a capability answer, not a raise */
+      legs->accepted =
+        dbarts_sampler_setForestWeights(legs->sampler, 2, legs->weights) == 0;
+      break;
+    case LEG_CALIBRATION: {
+      /* both forests read, an index past the last one refuses, and the write
+       * is refused on every forest because the two-forest map owns it */
+      dbarts_forest_calibration calibration = DBARTS_FOREST_CALIBRATION_INIT;
+      calibration.priorScale = legs->out;
+      calibration.k = legs->out + chains;
+      legs->accepted =
+        dbarts_sampler_forestCalibration(legs->sampler, 0, &calibration) &&
+        dbarts_sampler_forestCalibration(legs->sampler, 1, &calibration) &&
+        !dbarts_sampler_forestCalibration(legs->sampler, 2, &calibration) &&
+        !dbarts_sampler_setForestPriorScale(legs->sampler, 0, 2.5) &&
+        !dbarts_sampler_setForestPriorScale(legs->sampler, 1, 2.5);
+      for (size_t i = 0; i < 2 * chains; ++i)
+        if (!R_FINITE(legs->out[i]) || legs->out[i] <= 0.0)
+          legs->accepted = 0;
+      break;
+    }
   }
   return R_NilValue;
 }

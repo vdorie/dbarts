@@ -20,13 +20,16 @@
 using std::size_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseBCFTestSurface;
+using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refusePinnedSigmaChange;
+using bartcore_bridge::refuseSparseLeafCovariate;
 using bartcore_bridge::refuseVarianceForestScaleUpdate;
 using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::validateColumnValues;
 using bartcore_bridge::validateResponseSupport;
+using bartcore_bridge::validateTestContainerAgainstStore;
 
 struct dbarts_sampler_t {
   BartcoreHolder* holder;
@@ -57,6 +60,199 @@ const double* predictorsFromDataExpr(SEXP dataExpr) {
   return REAL(xExpr);
 }
 
+// Present-by-size read of a caller-filled struct's member: the input-side twin
+// of the dbarts_results write guard, so a caller compiled against an older
+// (smaller) layout is never READ past its own buffer either. Every optional
+// member of dbarts_predictor_source below arrives through it.
+#define SOURCE_PTR(source, field) \
+  (DBARTS_HAS_FIELD(dbarts_predictor_source, (source), field) \
+     ? (source)->field : NULL)
+#define SOURCE_NUM(source, field) \
+  (DBARTS_HAS_FIELD(dbarts_predictor_source, (source), field) \
+     ? (source)->field : 0)
+
+// A caller's predictor source, validated and translated: the engine's borrowed
+// view, plus the STORE's column types indexed by the VIEW's own columns, which
+// is what the CSC implicit-value rule and the reference refusal both key on (a
+// subset mutation names its own columns, so the two indexings differ).
+struct TranslatedSource {
+  bartcore::PredictorSource view;
+  const bartcore::ColumnType* storeTypes;
+};
+
+// Validate a caller's source against the sampler and translate it into the
+// engine's view. \p columns maps view column j onto store column columns[j]
+// (null for the identity, and range-checked by the caller before it gets
+// here), \p numColumns is the width the entry requires, and \p numRowsRequired
+// the row count it requires (0 leaves the rows the source's own, which is what
+// the test-side entries take). Scratch rides R's transient stack, so the
+// refusals below cost no cleanup on the way out.
+//
+// Every refusal here exists because the source declares its own shape: an
+// argument that does not describe itself is refused rather than read to the
+// sampler's width, which is the whole reason these entries take a struct.
+TranslatedSource translateSource(const bartcore::ColumnStore& store,
+                                 const dbarts_predictor_source* source,
+                                 const size_t* columns, size_t numColumns,
+                                 size_t numRowsRequired, const char* caller) {
+  if (source == NULL) Rf_error("%s: the predictor source is NULL", caller);
+  // as dbarts_sampler_run's results do: a zero structSize means the caller
+  // forgot to set it, and reading every member as absent would silently make a
+  // null source of a populated one
+  if (source->structSize == 0)
+    Rf_error("%s: source.structSize is 0 - set it to "
+             "sizeof(dbarts_predictor_source) (e.g. dbarts_predictor_source x "
+             "= DBARTS_PREDICTOR_SOURCE_INIT)", caller);
+
+  size_t numRows = SOURCE_NUM(source, numRows);
+  if (SOURCE_NUM(source, numColumns) != numColumns)
+    Rf_error("%s: the source declares %lu columns; %lu are required", caller,
+             static_cast<unsigned long>(SOURCE_NUM(source, numColumns)),
+             static_cast<unsigned long>(numColumns));
+  if (numRowsRequired != 0 && numRows != numRowsRequired)
+    Rf_error("%s: the source declares %lu rows; %lu are required", caller,
+             static_cast<unsigned long>(numRows),
+             static_cast<unsigned long>(numRowsRequired));
+
+  const double* denseValues = SOURCE_PTR(source, denseValues);
+  size_t numCscColumns = SOURCE_NUM(source, numCscColumns);
+  const int* cscColumnPointers = SOURCE_PTR(source, cscColumnPointers);
+  const int* cscRowIndices = SOURCE_PTR(source, cscRowIndices);
+  const double* cscValues = SOURCE_PTR(source, cscValues);
+  const std::int32_t* columnSources = SOURCE_PTR(source, columnSources);
+  const std::int32_t* columnTypes = SOURCE_PTR(source, columnTypes);
+  const std::uint32_t* categoryCounts = SOURCE_PTR(source, categoryCounts);
+  const std::int32_t* referenceCodes = SOURCE_PTR(source, referenceCodes);
+
+  bool anyDense = false, anyCsc = false;
+  for (size_t j = 0; j < numColumns; ++j) {
+    if (columnTypes != NULL && columnTypes[j] != DBARTS_COLUMN_ORDINAL &&
+        columnTypes[j] != DBARTS_COLUMN_CATEGORICAL)
+      Rf_error("%s: source.columnTypes[%lu] is neither DBARTS_COLUMN_ORDINAL "
+               "nor DBARTS_COLUMN_CATEGORICAL", caller,
+               static_cast<unsigned long>(j));
+    if (categoryCounts != NULL && categoryCounts[j] > bartcore::maxCategories)
+      Rf_error("%s: source.categoryCounts[%lu] exceeds the %lu category limit",
+               caller, static_cast<unsigned long>(j),
+               static_cast<unsigned long>(bartcore::maxCategories));
+    if (referenceCodes != NULL &&
+        static_cast<std::int64_t>(referenceCodes[j]) >
+          static_cast<std::int64_t>(bartcore::maxCategories))
+      Rf_error("%s: source.referenceCodes[%lu] exceeds the %lu category limit",
+               caller, static_cast<unsigned long>(j),
+               static_cast<unsigned long>(bartcore::maxCategories));
+    std::int32_t which =
+      columnSources != NULL ? columnSources[j] : static_cast<std::int32_t>(j);
+    if (which >= 0) {
+      if (static_cast<size_t>(which) >= numColumns)
+        Rf_error("%s: source.columnSources[%lu] names dense column %lu, past "
+                 "the source's own width", caller,
+                 static_cast<unsigned long>(j),
+                 static_cast<unsigned long>(which));
+      anyDense = true;
+    } else {
+      if (static_cast<size_t>(~which) >= numCscColumns)
+        Rf_error("%s: source.columnSources[%lu] names CSC column %lu, but the "
+                 "source declares %lu", caller, static_cast<unsigned long>(j),
+                 static_cast<unsigned long>(~which),
+                 static_cast<unsigned long>(numCscColumns));
+      anyCsc = true;
+    }
+  }
+  if (anyDense && denseValues == NULL)
+    Rf_error("%s: a dense-backed column names no denseValues", caller);
+  if (anyCsc && (cscColumnPointers == NULL || cscRowIndices == NULL ||
+                 cscValues == NULL))
+    Rf_error("%s: a CSC-backed column names an incomplete CSC triple", caller);
+
+  // the STORE's types, gathered onto the view's own columns
+  bartcore::ColumnType* storeTypes = reinterpret_cast<bartcore::ColumnType*>(
+    R_alloc(numColumns > 0 ? numColumns : 1, sizeof(bartcore::ColumnType)));
+  for (size_t j = 0; j < numColumns; ++j)
+    storeTypes[j] = store.types[columns != NULL ? columns[j] : j];
+
+  // one rule, one implementation: the bridge's own refusal, over the
+  // per-CSC-column NA_INTEGER encoding it keys on (< 0 here is "declared
+  // none", which is the absence a uint code cannot express)
+  if (anyCsc && referenceCodes != NULL) {
+    int* referenceMeta =
+      reinterpret_cast<int*>(R_alloc(numCscColumns, sizeof(int)));
+    for (size_t s = 0; s < numCscColumns; ++s) referenceMeta[s] = NA_INTEGER;
+    for (size_t j = 0; j < numColumns; ++j) {
+      if (columnSources[j] >= 0 || referenceCodes[j] < 0) continue;
+      referenceMeta[static_cast<size_t>(~columnSources[j])] = referenceCodes[j];
+    }
+    refuseCscReferenceAgainstStore(storeTypes, columnSources, numColumns,
+                                   referenceMeta, numCscColumns);
+  }
+
+  TranslatedSource translated;
+  translated.storeTypes = storeTypes;
+  translated.view.numRows = numRows;
+  translated.view.numColumns = numColumns;
+  translated.view.denseValues = denseValues;
+  // published only when a column actually reads it, so a caller that leaves
+  // stray CSC pointers beside an all-dense map keeps the dense fast path
+  if (anyCsc) {
+    translated.view.cscColumnPointers = cscColumnPointers;
+    translated.view.cscRowIndices = cscRowIndices;
+    translated.view.cscValues = cscValues;
+  }
+  translated.view.columnSources = columnSources;
+  translated.view.categoryCounts = categoryCounts;
+  if (referenceCodes != NULL) {
+    bartcore::xint_t* codes = reinterpret_cast<bartcore::xint_t*>(R_alloc(
+      numColumns > 0 ? numColumns : 1, sizeof(bartcore::xint_t)));
+    for (size_t j = 0; j < numColumns; ++j)
+      codes[j] = referenceCodes[j] >= 0
+        ? static_cast<bartcore::xint_t>(referenceCodes[j]) : bartcore::xint_t{0};
+    translated.view.referenceCodes = codes;
+  }
+  return translated;
+}
+
+#undef SOURCE_PTR
+#undef SOURCE_NUM
+
+// The dense block a MUTATION reads. Every mutation kernel indexes values
+// column-major, so a non-dense source is materialized here exactly as the R
+// bridge materializes its own - and a plain dense block is passed straight
+// through, never copied. A non-dense view must never reach the engine: it
+// would answer unsupportedSource, which the accepted ? 1 : 0 mapping reports
+// to the caller as an ordinary rollback, a silent lie.
+const double* mutationValues(const TranslatedSource& source) {
+  if (source.view.isDenseBlock()) return source.view.denseValues;
+  double* block = reinterpret_cast<double*>(
+    R_alloc(source.view.numRows * source.view.numColumns > 0
+              ? source.view.numRows * source.view.numColumns : 1,
+            sizeof(double)));
+  bartcore::materializePredictorSource(source.view, source.storeTypes, 0,
+                                       source.view.numRows, block);
+  return block;
+}
+
+// The test-side entries' shared refusals, in the order the R bridge runs them:
+// a designated leaf covariate must be dense (CSC serves no contiguous raw),
+// and every categorical code is bounded against the STORE's counts, which the
+// view's author cannot see.
+void validateTestSource(const bartcore::SamplerBase& engine,
+                        const TranslatedSource& source) {
+  refuseSparseLeafCovariate(engine.shape(), source.view);
+  validateTestContainerAgainstStore(engine.data(), source.view);
+}
+
+// dbarts_leaf_model for the engine's tag; the two enumerations are separate on
+// purpose, since one is an ABI constant and the other an engine detail.
+int leafModelTag(bartcore::LeafModelKind kind) {
+  switch (kind) {
+  case bartcore::LeafModelKind::monotone: return DBARTS_LEAF_MONOTONE;
+  case bartcore::LeafModelKind::linear: return DBARTS_LEAF_LINEAR;
+  case bartcore::LeafModelKind::gp: return DBARTS_LEAF_GP;
+  case bartcore::LeafModelKind::constant: break;
+  }
+  return DBARTS_LEAF_CONSTANT;
+}
+
 } // namespace
 
 // Layout lock for dbarts_results (dbarts.h): the growable ABI. Fields append
@@ -79,10 +275,60 @@ static_assert(sizeof(dbarts_results) == sizeof(size_t) + 9 * sizeof(double*),
               "dbarts_results layout changed; update these offsets, and bump "
               "DBARTS_C_API_MINOR if a field was appended after 1.0-0");
 
+// The same lock for the two structs a CALLER fills, whose structSize is read
+// against the library's offsets rather than written to the caller's. The API
+// token is blind to struct layout (it hashes signatures), so these asserts
+// plus structSize are the whole layout contract.
+static_assert(offsetof(dbarts_predictor_source, structSize) == 0);
+static_assert(offsetof(dbarts_predictor_source, numRows) == 1 * sizeof(size_t));
+static_assert(offsetof(dbarts_predictor_source, numColumns) == 2 * sizeof(size_t));
+static_assert(offsetof(dbarts_predictor_source, denseValues) == 3 * sizeof(size_t));
+static_assert(offsetof(dbarts_predictor_source, numCscColumns) ==
+              3 * sizeof(size_t) + 1 * sizeof(double*));
+static_assert(offsetof(dbarts_predictor_source, cscColumnPointers) ==
+              4 * sizeof(size_t) + 1 * sizeof(double*));
+static_assert(offsetof(dbarts_predictor_source, cscRowIndices) ==
+              4 * sizeof(size_t) + 2 * sizeof(double*));
+static_assert(offsetof(dbarts_predictor_source, cscValues) ==
+              4 * sizeof(size_t) + 3 * sizeof(double*));
+static_assert(offsetof(dbarts_predictor_source, columnSources) ==
+              4 * sizeof(size_t) + 4 * sizeof(double*));
+static_assert(offsetof(dbarts_predictor_source, columnTypes) ==
+              4 * sizeof(size_t) + 5 * sizeof(double*));
+static_assert(offsetof(dbarts_predictor_source, categoryCounts) ==
+              4 * sizeof(size_t) + 6 * sizeof(double*));
+static_assert(offsetof(dbarts_predictor_source, referenceCodes) ==
+              4 * sizeof(size_t) + 7 * sizeof(double*));
+static_assert(sizeof(dbarts_predictor_source) ==
+                4 * sizeof(size_t) + 8 * sizeof(double*),
+              "dbarts_predictor_source layout changed; update these offsets");
+
+static_assert(offsetof(dbarts_forest_calibration, structSize) == 0);
+static_assert(offsetof(dbarts_forest_calibration, priorScale) == sizeof(size_t) + 0 * sizeof(double*));
+static_assert(offsetof(dbarts_forest_calibration, priorSd) == sizeof(size_t) + 1 * sizeof(double*));
+static_assert(offsetof(dbarts_forest_calibration, priorMean) == sizeof(size_t) + 2 * sizeof(double*));
+static_assert(offsetof(dbarts_forest_calibration, k) == sizeof(size_t) + 3 * sizeof(double*));
+static_assert(offsetof(dbarts_forest_calibration, responseScale) == sizeof(size_t) + 4 * sizeof(double*));
+static_assert(offsetof(dbarts_forest_calibration, responseShift) == sizeof(size_t) + 5 * sizeof(double*));
+static_assert(offsetof(dbarts_forest_calibration, kHasHyperprior) == sizeof(size_t) + 6 * sizeof(double*));
+static_assert(offsetof(dbarts_forest_calibration, leafModel) == sizeof(size_t) + 7 * sizeof(double*));
+// every member is a pointer so that an omitting caller's structSize cannot
+// land inside tail padding and make DBARTS_HAS_FIELD claim a field it does not
+// carry; the size assert is what forces an appending author back to the list
+static_assert(sizeof(dbarts_forest_calibration) ==
+                sizeof(size_t) + 8 * sizeof(double*),
+              "dbarts_forest_calibration layout changed; update these offsets, "
+              "and bump DBARTS_C_API_MINOR if a field was appended after 1.0-0");
+
 // Compile-time signature token: FNV-1a over the stringized
 // DBARTS_C_API_LIST, checked against the baked DBARTS_C_API_HASH. A changed
 // signature moves the hash and fails this assert until DBARTS_C_API_HASH is
 // re-baked - the mechanical acknowledgment that the ABI surface changed.
+//
+// To re-check that the assert still bites: flip one digit of
+// DBARTS_C_API_HASH in inst/include/dbarts/dbarts.h and rebuild; the build
+// must stop here. It sees SIGNATURES only, never struct layout, which is what
+// the exact-offset locks above carry.
 namespace {
 constexpr std::uint64_t dbarts_fnv1a(const char* text) {
   std::uint64_t hash = 0xcbf29ce484222325ULL; // FNV-1a 64-bit offset basis
@@ -101,9 +347,9 @@ static_assert(dbarts_fnv1a(DBARTS_C_API_DECLS) == DBARTS_C_API_HASH,
 
 extern "C" {
 
-int dbarts_apiVersion(void) { return DBARTS_C_API_VERSION; }
 int dbarts_apiMajorVersion(void) { return DBARTS_C_API_MAJOR; }
 int dbarts_apiMinorVersion(void) { return DBARTS_C_API_MINOR; }
+uint64_t dbarts_apiHash(void) { return DBARTS_C_API_HASH; }
 
 dbarts_sampler* dbarts_sampler_create(SEXP control, SEXP model, SEXP data,
                                       const char* family) {
@@ -261,7 +507,8 @@ int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out) {
   return 1;
 }
 
-int dbarts_sampler_setPredictor(dbarts_sampler* sampler, const double* x,
+int dbarts_sampler_setPredictor(dbarts_sampler* sampler,
+                                const dbarts_predictor_source* x,
                                 int forceUpdate, int updateCutPoints) {
   // Unguarded again, as it was before the stop-loss, but for the opposite
   // reason: the two-phase transaction now covers every forest and the variance
@@ -271,34 +518,51 @@ int dbarts_sampler_setPredictor(dbarts_sampler* sampler, const double* x,
   bartcore::SamplerBase& engine(samplerOf(sampler));
   bartcore::SamplerShape shape = engine.shape();
   size_t numObservations = shape.numObservations;
+  void* scratch = vmaxget();
+  TranslatedSource source =
+    translateSource(engine.data(), x, NULL, shape.numPredictors,
+                    numObservations, "dbarts_sampler_setPredictor");
+  const double* values = mutationValues(source);
   for (size_t j = 0; j < shape.numPredictors; ++j)
-    validateColumnValues(engine.data(), j, x + j * numObservations,
+    validateColumnValues(engine.data(), j, values + j * numObservations,
                          numObservations);
 
   bartcore::PredictorUpdateResult result =
-    engine.setPredictor(x, forceUpdate != 0, updateCutPoints != 0);
+    engine.setPredictor(values, forceUpdate != 0, updateCutPoints != 0);
+  vmaxset(scratch);
   if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
     Rf_error("number of induced cut points in new predictor less than "
              "previous: old splits would be invalid");
   return result == bartcore::PredictorUpdateResult::accepted ? 1 : 0;
 }
 
-int dbarts_sampler_updatePredictor(dbarts_sampler* sampler, const double* x,
+int dbarts_sampler_updatePredictor(dbarts_sampler* sampler,
+                                   const dbarts_predictor_source* x,
                                    const size_t* columns, size_t numColumns,
                                    int forceUpdate, int updateCutPoints) {
   // unguarded, as dbarts_sampler_setPredictor above
   bartcore::SamplerBase& engine(samplerOf(sampler));
   bartcore::SamplerShape shape = engine.shape();
   size_t numObservations = shape.numObservations;
-  for (size_t k = 0; k < numColumns; ++k) {
+  for (size_t k = 0; k < numColumns; ++k)
     if (columns[k] >= shape.numPredictors)
       Rf_error("dbarts_sampler_updatePredictor column out of range");
-    validateColumnValues(engine.data(), columns[k], x + k * numObservations,
-                         numObservations);
-  }
+
+  void* scratch = vmaxget();
+  // the source's columns are in ARGUMENT order, so column k of the source is
+  // store column columns[k] - what the type gather and the validation below
+  // both index by
+  TranslatedSource source =
+    translateSource(engine.data(), x, columns, numColumns, numObservations,
+                    "dbarts_sampler_updatePredictor");
+  const double* values = mutationValues(source);
+  for (size_t k = 0; k < numColumns; ++k)
+    validateColumnValues(engine.data(), columns[k],
+                         values + k * numObservations, numObservations);
 
   bartcore::PredictorUpdateResult result = engine.updatePredictor(
-    x, columns, numColumns, forceUpdate != 0, updateCutPoints != 0);
+    values, columns, numColumns, forceUpdate != 0, updateCutPoints != 0);
+  vmaxset(scratch);
   if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
     Rf_error("number of induced cut points in new predictor less than "
              "previous: old splits would be invalid");
@@ -306,8 +570,7 @@ int dbarts_sampler_updatePredictor(dbarts_sampler* sampler, const double* x,
 }
 
 void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
-                                      const double* xTest,
-                                      size_t numTestObservations) {
+                                      const dbarts_predictor_source* xTest) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
   // BCF's test blend is undefined without a test treatment vector, and its
   // whole test surface is refused; a multi-forest model whose blend IS defined
@@ -317,10 +580,19 @@ void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
     engine.setTestPredictors(NULL, 0);
     return;
   }
-  for (size_t j = 0; j < engine.shape().numPredictors; ++j)
-    validateColumnValues(engine.data(), j, xTest + j * numTestObservations,
-                         numTestObservations);
-  engine.setTestPredictors(xTest, numTestObservations);
+  void* scratch = vmaxget();
+  TranslatedSource source =
+    translateSource(engine.data(), xTest, NULL, engine.shape().numPredictors, 0,
+                    "dbarts_sampler_setTestPredictors");
+  validateTestSource(engine, source);
+  // the store build answers the leaf-covariate refusal with a false return;
+  // defense in depth, since validateTestSource has already raised it - a
+  // discarded false would leave the store holding its PREVIOUS rows and report
+  // them as the new test set
+  if (!engine.setTestData(source.view))
+    Rf_error("a leaf covariate column cannot be a sparse test column; "
+             "supply it as a dense test column");
+  vmaxset(scratch);
 }
 
 void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
@@ -331,19 +603,25 @@ void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
   samplerOf(sampler).setTestOffset(offsetTest);
 }
 
-void dbarts_sampler_predict(dbarts_sampler* sampler, const double* xTest,
-                            size_t numTestObservations,
+void dbarts_sampler_predict(dbarts_sampler* sampler,
+                            const dbarts_predictor_source* xTest,
                             const double* offsetTest, double* out) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
   // predictColumns opens forests_[0] alone, so on BCF a caller would receive
   // mu(x) labelled as the fit; see dbarts_sampler_setTestPredictors
   refuseBCFTestSurface(engine, "dbarts_sampler_predict");
   bartcore::SamplerShape shape = engine.shape();
-  for (size_t j = 0; j < shape.numPredictors; ++j)
-    validateColumnValues(engine.data(), j, xTest + j * numTestObservations,
-                         numTestObservations);
+  void* scratch = vmaxget();
+  TranslatedSource source = translateSource(
+    engine.data(), xTest, NULL, shape.numPredictors, 0,
+    "dbarts_sampler_predict");
+  // a read-only replay builds no store, so the leaf-covariate rule is checked
+  // on the view itself rather than answered by a store build
+  validateTestSource(engine, source);
+  size_t numTestObservations = source.view.numRows;
 
-  engine.predict(xTest, numTestObservations, out);
+  engine.predict(source.view, numTestObservations, NULL, out);
+  vmaxset(scratch);
 
   if (offsetTest != NULL) {
     size_t capacity = shape.savedTreeCapacity;
@@ -365,7 +643,9 @@ SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler,
                              const size_t* sampleIndices,
                              size_t numSampleIndices,
                              const size_t* treeIndices, size_t numTreeIndices,
-                             int useLiveTrees) {
+                             int useLiveTrees, size_t forest) {
+  if (forest >= samplerOf(sampler).shape().numForests)
+    Rf_error("dbarts_sampler_getTrees forest index out of range");
   // the n column replays the retained creation spec's predictors through each
   // saved tree; the engine keeps no matrix, and a caller that mutated
   // predictors since creation sees the pre-mutation spec
@@ -373,7 +653,7 @@ SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler,
   return bartcore_bridge::getTrees(
     samplerOf(sampler), chainIndices, numChainIndices, sampleIndices,
     numSampleIndices, treeIndices, numTreeIndices, useLiveTrees != 0, NULL, 0,
-    replay, samplerOf(sampler).shape().numObservations, 0,
+    replay, samplerOf(sampler).shape().numObservations, forest,
     "dbarts_sampler_getTrees");
 }
 
@@ -383,9 +663,14 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
                                const size_t* sampleIndices,
                                size_t numSampleIndices,
                                const size_t* treeIndices,
-                               size_t numTreeIndices) {
+                               size_t numTreeIndices, size_t forest) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
   bartcore::SamplerShape shape = engine.shape();
+  // the engine's printers index forests_[forest] unchecked, by design (fast
+  // over safe), so this is the only thing between a caller's index and a read
+  // past the last forest
+  if (forest >= shape.numForests)
+    Rf_error("dbarts_sampler_printTrees forest index out of range");
   for (size_t i = 0; i < numChainIndices; ++i) {
     if (chainIndices[i] >= shape.numChains)
       Rf_error("dbarts_sampler_printTrees chain number out of range");
@@ -394,14 +679,14 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
     if (sampleIndices[i] >= shape.savedTreeCapacity)
       Rf_error("dbarts_sampler_printTrees sample number out of range");
   }
+  // against the NAMED forest's own count, which a multi-forest sampler states
+  // per forest (shape.numTrees is forest 0's)
   for (size_t i = 0; i < numTreeIndices; ++i) {
-    if (treeIndices[i] >= shape.numTrees)
+    if (treeIndices[i] >= engine.numTreesInForest(forest))
       Rf_error("dbarts_sampler_printTrees tree number out of range");
   }
-  // forest 0, matching the tree range check above: shape.numTrees is forest
-  // 0's count on a multi-forest sampler
   engine.printTrees(chainIndices, numChainIndices, sampleIndices,
-                    numSampleIndices, treeIndices, numTreeIndices, 0);
+                    numSampleIndices, treeIndices, numTreeIndices, forest);
 }
 
 SEXP dbarts_sampler_storeState(dbarts_sampler* sampler) {
@@ -446,8 +731,13 @@ size_t dbarts_sampler_numChains(const dbarts_sampler* sampler) {
   return samplerOf(sampler).shape().numChains;
 }
 
-size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler) {
-  return samplerOf(sampler).shape().numTrees;
+size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler, size_t forest) {
+  const bartcore::SamplerBase& engine(samplerOf(sampler));
+  // a size_t probe carries no refusal channel, so an out-of-range forest
+  // errors: a 0 tree count is indistinguishable from a legitimate answer
+  if (forest >= engine.shape().numForests)
+    Rf_error("dbarts_sampler_numTrees forest index out of range");
+  return engine.numTreesInForest(forest);
 }
 
 size_t dbarts_sampler_numSavedSamples(const dbarts_sampler* sampler) {
@@ -466,20 +756,39 @@ size_t dbarts_sampler_numForests(const dbarts_sampler* sampler) {
   return samplerOf(sampler).shape().numForests;
 }
 
-int dbarts_sampler_setTreatment(dbarts_sampler* sampler, const double* z) {
+int dbarts_sampler_setForestBasis(dbarts_sampler* sampler, size_t forest,
+                                  const double* basis, size_t numColumns) {
   BartcoreHolder& holder(*sampler->holder);
   bartcore::SamplerBase& engine(*holder.sampler);
-  // a capability probe rather than a forest count, matching
-  // bartcore_setTreatment: z is defined only as the contrast the BCF glue forms
-  // b_{z_i} against, and a K-forest multinomial would defeat a numForests test
-  double glue[3];
-  if (!engine.bcfGlue(0, glue)) return 0;
-  size_t numObservations = engine.shape().numObservations;
-  // the combiner borrows z for the sampler's lifetime, so the holder owns the
-  // 0/1 coercion and the caller's array need not outlive the call
-  holder.ownedTreatment.resize(numObservations);
-  for (size_t i = 0; i < numObservations; ++i)
-    holder.ownedTreatment[i] = z[i] != 0.0 ? 1.0 : 0.0;
+  bartcore::SamplerShape shape = engine.shape();
+  // a capability probe rather than a forest count, matching the bridge: a
+  // basis is defined only as what the amplitudes multiply, and a K-forest
+  // multinomial would defeat a numForests test
+  double amplitudes[3];
+  if (!engine.bcfGlue(0, amplitudes)) return 0;
+  // forest 0's basis is the implicit intercept its single amplitude scales, so
+  // there is nothing there to replace, and anything past forest 1 names no
+  // forest of a two-forest sampler at all
+  if (forest != 1) return 0;
+  if (basis == NULL)
+    Rf_error("dbarts_sampler_setForestBasis: 'basis' is NULL");
+  if (numColumns != 2)
+    Rf_error("dbarts_sampler_setForestBasis: today's engine takes a "
+             "two-column complementary 0/1 basis, not %lu columns",
+             static_cast<unsigned long>(numColumns));
+  size_t numObservations = shape.numObservations;
+  for (size_t i = 0; i < numObservations; ++i) {
+    double control = basis[i], treated = basis[i + numObservations];
+    if ((control != 0.0 && control != 1.0) ||
+        (treated != 0.0 && treated != 1.0) || control + treated != 1.0)
+      Rf_error("dbarts_sampler_setForestBasis: today's engine takes a "
+               "two-column complementary 0/1 basis, whose columns are "
+               "(1 - z, z)");
+  }
+  // the combiner borrows the indicator for the sampler's lifetime, so the
+  // holder owns the copy and the caller's array need not outlive the call
+  holder.ownedTreatment.assign(basis + numObservations,
+                               basis + 2 * numObservations);
   engine.setTreatment(holder.ownedTreatment.data());
   return 1;
 }
@@ -494,14 +803,110 @@ int dbarts_sampler_forestFits(const dbarts_sampler* sampler, size_t forest,
   return 1;
 }
 
-int dbarts_sampler_bcfGlue(const dbarts_sampler* sampler, double* out) {
+size_t dbarts_sampler_numForestAmplitudes(const dbarts_sampler* sampler,
+                                          size_t forest) {
   const bartcore::SamplerBase& engine(samplerOf(sampler));
-  size_t numChains = engine.shape().numChains;
-  // the glue is a model property, so chain 0 answers for every chain; its
-  // refusal writes nothing
-  if (!engine.bcfGlue(0, out)) return 0;
-  for (size_t c = 1; c < numChains; ++c) engine.bcfGlue(c, out + 3 * c);
+  // a size_t probe carries no refusal channel; see dbarts_sampler_numTrees
+  if (forest >= engine.shape().numForests)
+    Rf_error("dbarts_sampler_numForestAmplitudes forest index out of range");
+  double amplitudes[3];
+  // the amplitude vector is ragged by construction: one for the forest the
+  // intercept basis scales, one per level for the two-column indicator basis
+  if (!engine.bcfGlue(0, amplitudes)) return 0;
+  return forest == 0 ? 1 : 2;
+}
+
+int dbarts_sampler_forestAmplitudes(const dbarts_sampler* sampler,
+                                    size_t forest, double* out) {
+  const bartcore::SamplerBase& engine(samplerOf(sampler));
+  bartcore::SamplerShape shape = engine.shape();
+  if (forest >= shape.numForests) return 0;
+  double amplitudes[3];
+  // the amplitudes are a model property, so chain 0 answers whether there are
+  // any at all; its refusal writes nothing
+  if (!engine.bcfGlue(0, amplitudes)) return 0;
+  size_t numAmplitudes = forest == 0 ? 1 : 2;
+  for (size_t c = 0; c < shape.numChains; ++c) {
+    engine.bcfGlue(c, amplitudes);
+    for (size_t j = 0; j < numAmplitudes; ++j)
+      out[c * numAmplitudes + j] = amplitudes[forest == 0 ? 0 : 1 + j];
+  }
   return 1;
+}
+
+int dbarts_sampler_setForestWeights(dbarts_sampler* sampler, size_t forest,
+                                    const double* weights) {
+  bartcore::SamplerBase& engine(samplerOf(sampler));
+  bartcore::SamplerShape shape = engine.shape();
+  // the capability probe comes FIRST, and it is not a forest count: a K-forest
+  // multinomial carries several forests and admits no such weight
+  if (!shape.supportsForestWeights) return 0;
+  if (forest >= shape.numForests) return 0;
+  if (weights != NULL)
+    for (size_t i = 0; i < shape.numObservations; ++i)
+      if (!R_FINITE(weights[i]) || weights[i] < 0.0)
+        Rf_error("dbarts_sampler_setForestWeights: weights must be finite and "
+                 "non-negative");
+  // BORROWED, unlike the bridge's copy into a holder-owned buffer: the chains
+  // hold this pointer until it is replaced, so the caller owns the array for
+  // the sampler's life
+  return engine.setForestWeights(forest, weights) ? 1 : 0;
+}
+
+int dbarts_sampler_forestCalibration(const dbarts_sampler* sampler,
+                                     size_t forest,
+                                     dbarts_forest_calibration* out) {
+  if (out == NULL || out->structSize == 0)
+    Rf_error("dbarts_sampler_forestCalibration: out.structSize is 0 - set it "
+             "to sizeof(dbarts_forest_calibration) (e.g. "
+             "dbarts_forest_calibration c = DBARTS_FOREST_CALIBRATION_INIT)");
+  const bartcore::SamplerBase& engine(samplerOf(sampler));
+  bartcore::SamplerShape shape = engine.shape();
+  if (forest >= shape.numForests) return 0;
+  int leafModel = leafModelTag(shape.leafModel);
+  for (size_t c = 0; c < shape.numChains; ++c) {
+    bartcore::ForestCalibration calibration =
+      engine.forestCalibration(c, forest);
+    // a member is filled only when both present-by-size and non-null, the
+    // dbarts_results contract read in the same direction
+#define FILL(field, value) \
+  if (DBARTS_HAS_FIELD(dbarts_forest_calibration, out, field) && \
+      out->field != NULL) \
+    out->field[c] = (value)
+    FILL(priorScale, calibration.priorScale);
+    FILL(priorSd, calibration.priorSd);
+    FILL(priorMean, calibration.priorMean);
+    FILL(k, calibration.k);
+    FILL(responseScale, calibration.responseScale);
+    FILL(responseShift, calibration.responseShift);
+    FILL(kHasHyperprior, calibration.kHasHyperprior ? 1 : 0);
+    FILL(leafModel, leafModel);
+#undef FILL
+  }
+  return 1;
+}
+
+int dbarts_sampler_setForestPriorScale(dbarts_sampler* sampler, size_t forest,
+                                       double priorScale) {
+  bartcore::SamplerBase& engine(samplerOf(sampler));
+  // two channels, as the getter has: a capability answer returns, a malformed
+  // value raises
+  if (forest >= engine.shape().numForests) return 0;
+  if (!R_FINITE(priorScale) || priorScale <= 0.0)
+    Rf_error("dbarts_sampler_setForestPriorScale: 'priorScale' must be a "
+             "positive finite number");
+  return engine.setForestPriorScale(forest, priorScale) ? 1 : 0;
+}
+
+int dbarts_sampler_setActiveRows(dbarts_sampler* sampler,
+                                 const double* active) {
+  bartcore::SamplerBase& engine(samplerOf(sampler));
+  // the capability probe comes FIRST and never switches on the family -
+  // Student-t reports as gaussian - and the exact-{0,1} scan, the all-ones
+  // normalization and the copy are all the engine's, inherited rather than
+  // restated here
+  if (!engine.shape().supportsActiveRows) return 0;
+  return engine.setActiveRows(active) ? 1 : 0;
 }
 
 // Provider-side binding: each real function's address must

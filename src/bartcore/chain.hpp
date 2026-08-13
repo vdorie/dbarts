@@ -978,6 +978,11 @@ public:
   /// (setResponse/setOffset at updateScale = true, setData) moves without
   /// touching the model's recorded intent.
   ForestCalibration forestCalibration(std::size_t f) const {
+    // the one bounds check on this surface, because the reader has no refusal
+    // channel of its own: a default-constructed calibration is what a host
+    // turns into "no such forest", and the alternative is a read past the last
+    // forest (setForestPriorScale answers the same question with false)
+    if (f >= forests_.size()) return ForestCalibration{};
     const Forest<L, ResidT>& forest = forests_[f];
     ForestCalibration calibration;
     calibration.responseScale = response_->fitScale();

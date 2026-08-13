@@ -422,7 +422,9 @@
             surface (response, offset, weights, sigma, predictors, test
             data), latents, prediction, tree storage and introspection,
             and state save and restore. Entry points are reached through
-            \code{R_GetCCallable} and versioned by \code{DBARTS_C_API_VERSION}.
+            \code{R_GetCCallable} and versioned by \code{DBARTS_C_API_MAJOR}
+            and \code{DBARTS_C_API_MINOR}, with \code{dbarts_apiHash()} as an
+            exact signature check.
             It replaces the removed C++ interface in
             \code{dbarts/R_C_interface.hpp}.
       \item Every chain runs its own generator. \code{rngSeed} makes results
@@ -691,9 +693,11 @@
             \code{dbarts_results r = DBARTS_RESULTS_INIT;}.
       \item The C API reaches Bayesian causal forests:
             \code{dbarts_sampler_numForests} reports the model's forest count,
-            \code{dbarts_sampler_setTreatment} swaps the treatment vector, and
-            \code{dbarts_sampler_forestFits} and \code{dbarts_sampler_bcfGlue}
-            read the per-forest fits and the glue the two combine through.
+            \code{dbarts_sampler_setForestBasis} swaps the treatment vector, and
+            \code{dbarts_sampler_forestFits} and the amplitude pair
+            (\code{dbarts_sampler_numForestAmplitudes},
+            \code{dbarts_sampler_forestAmplitudes}) read the per-forest fits
+            and the amplitudes the two combine through.
             \code{dbarts_sampler_setResponse} takes an explicit
             \code{updateScale} argument matching
             \code{dbarts_sampler_setOffset}, in place of always re-deriving the
@@ -707,6 +711,25 @@
             for the header's camelCase convention. Parameter names are not part
             of the ABI, so callers are unaffected; the rename is baked into the
             1.0-0 signature hash and does not change the version.
+      \item The flat C API's predictor entries
+            (\code{dbarts_sampler_setPredictor},
+            \code{dbarts_sampler_updatePredictor},
+            \code{dbarts_sampler_setTestPredictors} and
+            \code{dbarts_sampler_predict}) take a single self-describing source
+            struct, \code{dbarts_predictor_source}, so a C consumer hands the
+            sampler compressed-column storage for prediction and test data
+            without densifying it and without an R container class, and every
+            predictor argument declares its own width and its own CSC column
+            count.
+      \item \code{dbarts_sampler_numTrees}, \code{dbarts_sampler_getTrees} and
+            \code{dbarts_sampler_printTrees} take a forest index, so they are
+            unambiguous on a two-forest sampler; \code{dbarts_apiHash()} gives
+            a consumer an exact signature-lockstep check alongside the
+            major/minor handshake; and \code{dbarts_sampler_setForestWeights},
+            \code{dbarts_sampler_setActiveRows},
+            \code{dbarts_sampler_forestCalibration} and
+            \code{dbarts_sampler_setForestPriorScale} reach the per-forest
+            weight, active-row mask and leaf-prior calibration channels from C.
     }
   }
   \subsection{BUG FIXES}{

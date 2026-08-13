@@ -40,14 +40,25 @@ if (!file.exists(sharedLib)) {
 dll <- dyn.load(sharedLib)
 CALL <- function(name, ...) .Call(getNativeSymbolInfo(name, dll), ...)
 
-# the packed version, resolved through the raw R_GetCCallable canary
-expect_equal(CALL("capi_version"), 1000L)
+# the signature token, resolved BOTH ways: through the stubs and through the
+# raw R_GetCCallable canary, which is the un-stubbed per-symbol path a consumer
+# that declines DBARTS_USE_STUBS still relies on. The two must agree, and the
+# installed library must carry the token this consumer compiled against - the
+# only runtime signal that separates a stale consumer binary from a fresh one
+# while the version constants stay put.
+hashes <- CALL("capi_hash")
+expect_true(hashes$raw.agrees)
+expect_true(hashes$matches.header)
+# and the token really moved when the surface was re-signed: this is the
+# literal the pre-reshape header baked, so a token blind to the change would
+# still read it
+expect_false(identical(hashes$text, "0x1a911c00bb26dcd7"))
 
-# the two-component accessors, through the stubs, agree with the packed integer
-# and the fixed 1.0-0 encoding (major * 1000 + minor)
+# the two version components did NOT move: no version of this API has shipped,
+# so whatever they read at the first release becomes the initial contract, and
+# the hash above is what acknowledges a pre-release change
 versions <- CALL("capi_versions")
-expect_equal(versions, c(1000L, 1L, 0L))
-expect_equal(versions[1L], versions[2L] * 1000L + versions[3L])
+expect_equal(versions, c(1L, 0L))
 
 set.seed(0)
 n <- 150L
@@ -253,7 +264,7 @@ expect_equal(length(rThinned$sigma), 2L)
 CALL("capi_set_run_controls", ptr2, 1L, 1L, FALSE)
 
 # a live-tree dump goes through the R console without touching state
-printed <- capture.output(CALL("capi_print_trees", ptr2))
+printed <- capture.output(CALL("capi_print_trees", ptr2, 0L))
 expect_true(is.character(printed))
 
 # a test offset adds to the recorded test fits without entering the trees:
@@ -338,14 +349,14 @@ pred3 <- CALL("capi_predict", ptr3, x.test, NULL)
 expect_identical(pred3, pred1)
 
 # tree introspection: saved trees carry a sample column, live trees do not
-trees <- CALL("capi_get_trees", ptr1, FALSE, NULL)
+trees <- CALL("capi_get_trees", ptr1, FALSE, NULL, 0L)
 expect_inherits(trees, "data.frame")
 expect_equal(names(trees), c("sample", "tree", "n", "var", "value"))
 expect_equal(sort(unique(trees$tree)), 1:25)
 expect_true(all(trees$var[trees$var < 0] == -1))
 expect_true(all(trees$var <= p))
 
-treesLive <- CALL("capi_get_trees", ptr1, TRUE, NULL)
+treesLive <- CALL("capi_get_trees", ptr1, TRUE, NULL, 0L)
 expect_equal(names(treesLive), c("tree", "n", "var", "value"))
 # every tree's root row sees all observations
 expect_true(all(treesLive$n[!duplicated(treesLive$tree)] == n))
@@ -359,7 +370,7 @@ perSample <- do.call(
   rbind,
   lapply(
     seq_len(nSamples),
-    function(i) CALL("capi_get_trees", ptr1, FALSE, as.integer(i))
+    function(i) CALL("capi_get_trees", ptr1, FALSE, as.integer(i), 0L)
   )
 )
 row.names(perSample) <- row.names(trees)
@@ -492,6 +503,530 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
   rm(ptrSparse)
 }
 
+# ---------------------------------------------------------------------------
+# The self-describing predictor source. One struct carries the four predictor
+# entries' arguments, so a C consumer hands the sampler compressed-column
+# storage for prediction and test data without densifying it, and every
+# argument declares its own width and its own CSC column count.
+# ---------------------------------------------------------------------------
+
+# a CSC column over a dense vector: the rows differing from the implicit value
+# are stored, and every other row reads the implicit one
+cscColumn <- function(values, implicit) {
+  stored <- which(values != implicit)
+  list(i = as.integer(stored - 1L), x = as.double(values[stored]))
+}
+
+# an R-built dbarts_predictor_source, member for member, so a malformed
+# argument is as easy to hand the entries as a well-formed one
+makeSource <- function(
+  numRows,
+  numColumns,
+  dense = NULL,
+  cscColumns = NULL,
+  map = NULL,
+  types = NULL,
+  counts = NULL,
+  refs = NULL,
+  numCscColumns = NULL
+) {
+  spec <- list(
+    numRows = as.integer(numRows),
+    numColumns = as.integer(numColumns)
+  )
+  if (!is.null(dense)) {
+    spec$dense <- as.double(dense)
+  }
+  if (!is.null(cscColumns)) {
+    sizes <- vapply(cscColumns, function(column) length(column$i), integer(1L))
+    spec$cscColumnPointers <- as.integer(c(0L, cumsum(sizes)))
+    spec$cscRowIndices <- as.integer(unlist(lapply(cscColumns, `[[`, "i")))
+    spec$cscValues <- as.double(unlist(lapply(cscColumns, `[[`, "x")))
+  }
+  if (!is.null(numCscColumns)) {
+    spec$numCscColumns <- as.integer(numCscColumns)
+  }
+  if (!is.null(map)) {
+    spec$columnSources <- as.integer(map)
+  }
+  if (!is.null(types)) {
+    spec$columnTypes <- as.integer(types)
+  }
+  if (!is.null(counts)) {
+    spec$categoryCounts <- as.integer(counts)
+  }
+  if (!is.null(refs)) {
+    spec$referenceCodes <- as.integer(refs)
+  }
+  spec
+}
+
+set.seed(909L)
+nSrc <- 120L
+levelsSrc <- c("a", "b", "c")
+labelsSrc <- sample(levelsSrc, nSrc, replace = TRUE)
+frameSrc <- data.frame(x1 = rnorm(nSrc))
+frameSrc$f <- factor(labelsSrc, levels = levelsSrc)
+ySrc <- 2 * match(labelsSrc, levelsSrc) + rnorm(nSrc, 0, 0.2)
+controlSrc <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  updateState = FALSE,
+  rngSeed = 17L
+)
+specSrc <- dbarts(frameSrc, ySrc, control = controlSrc)
+ptrSrc <- CALL("capi_create", specSrc$control, specSrc$model, specSrc$data, "")
+CALL("capi_set_tree_storage", ptrSrc, TRUE, 4L)
+rSrc <- CALL("capi_run", ptrSrc, 20L, 4L, FALSE, FALSE)
+# the categorical column is split on, so the implicit-value legs below are not
+# vacuous: a wrong reference has somewhere to show up
+expect_true(sum(matrix(rSrc$varcount, 2L)[2L, ]) > 0L)
+
+codesSrc <- as.matrix(specSrc$data@x)
+storage.mode(codesSrc) <- "double"
+
+nTestSrc <- 30L
+x1TestSrc <- rnorm(nTestSrc)
+x1TestSrc[c(2L, 5L, 9L, 14L, 21L, 27L)] <- 0 # implicit rows of an ordinal CSC
+codesTestSrc <- as.double(sample(0:2, nTestSrc, replace = TRUE))
+codesTestSrc[c(1L, 4L, 8L)] <- 1 # implicit rows under reference "b"
+denseTestSrc <- cbind(x1TestSrc, codesTestSrc)
+predDenseSrc <- CALL("capi_predict", ptrSrc, denseTestSrc, NULL)
+
+# the sparse-predict oracle: a CSC source predicts bitwise identically to the
+# dense source holding the materialized same values, on an ordinal CSC column,
+# a categorical CSC column with a NONZERO reference, an all-CSC design, and a
+# column whose every row is implicit
+srcOrdinal <- makeSource(
+  nTestSrc,
+  2L,
+  dense = codesTestSrc,
+  cscColumns = list(cscColumn(x1TestSrc, 0)),
+  map = c(-1L, 0L),
+  types = c(0L, 1L)
+)
+expect_identical(CALL("capi_predict_source", ptrSrc, srcOrdinal), predDenseSrc)
+
+srcCategorical <- makeSource(
+  nTestSrc,
+  2L,
+  dense = x1TestSrc,
+  cscColumns = list(cscColumn(codesTestSrc, 1)),
+  map = c(0L, -1L),
+  types = c(0L, 1L),
+  counts = c(0L, 3L),
+  refs = c(-1L, 1L)
+)
+expect_identical(
+  CALL("capi_predict_source", ptrSrc, srcCategorical),
+  predDenseSrc
+)
+
+srcBoth <- makeSource(
+  nTestSrc,
+  2L,
+  cscColumns = list(cscColumn(x1TestSrc, 0), cscColumn(codesTestSrc, 1)),
+  map = c(-1L, -2L),
+  types = c(0L, 1L),
+  counts = c(0L, 3L),
+  refs = c(-1L, 1L)
+)
+expect_identical(CALL("capi_predict_source", ptrSrc, srcBoth), predDenseSrc)
+
+codesAllImplicit <- rep(1, nTestSrc)
+predAllImplicit <- CALL(
+  "capi_predict",
+  ptrSrc,
+  cbind(x1TestSrc, codesAllImplicit),
+  NULL
+)
+srcAllImplicit <- makeSource(
+  nTestSrc,
+  2L,
+  dense = x1TestSrc,
+  cscColumns = list(cscColumn(codesAllImplicit, 1)),
+  map = c(0L, -1L),
+  types = c(0L, 1L),
+  counts = c(0L, 3L),
+  refs = c(-1L, 1L)
+)
+expect_identical(
+  CALL("capi_predict_source", ptrSrc, srcAllImplicit),
+  predAllImplicit
+)
+
+# the negative half of that oracle: force the categorical column's implicit
+# rows to read the storage's zero rather than the declared reference and the
+# answers must part company
+srcWrongReference <- makeSource(
+  nTestSrc,
+  2L,
+  dense = x1TestSrc,
+  cscColumns = list(cscColumn(codesTestSrc, 1)),
+  map = c(0L, -1L),
+  types = c(0L, 1L),
+  counts = c(0L, 3L),
+  refs = c(-1L, 0L)
+)
+expect_false(identical(
+  CALL("capi_predict_source", ptrSrc, srcWrongReference),
+  predDenseSrc
+))
+
+# rule 5 at the flat funnel: a reference level is the code a column's IMPLICIT
+# rows take, which only a categorical column has, so declaring one against a
+# store-ORDINAL column is refused at EVERY entry that takes a source - and 0,
+# a legal code, is refused exactly as any other declared value is
+for (declared in c(2L, 0L)) {
+  trainReference <- makeSource(
+    nSrc,
+    2L,
+    dense = codesSrc[, 2L],
+    cscColumns = list(cscColumn(codesSrc[, 1L], 0)),
+    map = c(-1L, 0L),
+    types = c(0L, 1L),
+    refs = c(declared, -1L)
+  )
+  testReference <- makeSource(
+    nTestSrc,
+    2L,
+    dense = codesTestSrc,
+    cscColumns = list(cscColumn(x1TestSrc, 0)),
+    map = c(-1L, 0L),
+    types = c(0L, 1L),
+    refs = c(declared, -1L)
+  )
+  reason <- "reference level only for a categorical"
+  expect_error(
+    CALL("capi_set_predictor_source", ptrSrc, trainReference),
+    reason
+  )
+  expect_error(
+    CALL("capi_update_predictor_source", ptrSrc, trainReference, c(0L, 1L)),
+    reason
+  )
+  expect_error(
+    CALL("capi_set_test_predictors_source", ptrSrc, testReference),
+    reason
+  )
+  expect_error(CALL("capi_predict_source", ptrSrc, testReference), reason)
+}
+
+# ... while an UNDECLARED reference on the same ordinal column is accepted and
+# reads exactly as a source declaring none at all: "< 0" is the absence a code
+# type with no sentinel cannot express
+srcUndeclared <- makeSource(
+  nTestSrc,
+  2L,
+  dense = codesTestSrc,
+  cscColumns = list(cscColumn(x1TestSrc, 0)),
+  map = c(-1L, 0L),
+  types = c(0L, 1L),
+  refs = c(-1L, -1L)
+)
+expect_identical(
+  CALL("capi_predict_source", ptrSrc, srcUndeclared),
+  CALL("capi_predict_source", ptrSrc, srcOrdinal)
+)
+expect_identical(
+  CALL("capi_predict_source", ptrSrc, srcUndeclared),
+  predDenseSrc
+)
+
+# the self-description matrix: an argument that does not describe itself is
+# refused rather than read to the sampler's own width. The dense entries used
+# to infer p from the sampler and consume whatever lay past a narrow caller's
+# matrix - a measured one-unit swing on the response scale, silently
+wideTest <- makeSource(nTestSrc, 3L, dense = cbind(denseTestSrc, x1TestSrc))
+wideTrain <- makeSource(nSrc, 3L, dense = cbind(codesSrc, codesSrc[, 1L]))
+expect_error(CALL("capi_predict_source", ptrSrc, wideTest), "columns")
+expect_error(
+  CALL("capi_set_test_predictors_source", ptrSrc, wideTest),
+  "columns"
+)
+expect_error(CALL("capi_set_predictor_source", ptrSrc, wideTrain), "columns")
+expect_error(
+  CALL("capi_update_predictor_source", ptrSrc, wideTrain, c(0L, 1L)),
+  "columns"
+)
+# a mutation source must also declare the sampler's own row count
+expect_error(
+  CALL(
+    "capi_set_predictor_source",
+    ptrSrc,
+    makeSource(nSrc - 1L, 2L, dense = codesSrc[-1L, ])
+  ),
+  "rows"
+)
+# a column type outside {ordinal, categorical}, a declared level count or a
+# reference code past the engine's category limit, and a source naming a CSC
+# column it does not carry (without the bound, the ~v decode reads past the
+# caller's own pointer array)
+expect_error(
+  CALL(
+    "capi_predict_source",
+    ptrSrc,
+    makeSource(nTestSrc, 2L, dense = denseTestSrc, types = c(0L, 7L))
+  ),
+  "columnTypes"
+)
+expect_error(
+  CALL(
+    "capi_predict_source",
+    ptrSrc,
+    makeSource(nTestSrc, 2L, dense = denseTestSrc, counts = c(0L, 70000L))
+  ),
+  "categoryCounts"
+)
+expect_error(
+  CALL(
+    "capi_predict_source",
+    ptrSrc,
+    makeSource(nTestSrc, 2L, dense = denseTestSrc, refs = c(-1L, 70000L))
+  ),
+  "referenceCodes"
+)
+expect_error(
+  CALL(
+    "capi_predict_source",
+    ptrSrc,
+    makeSource(
+      nTestSrc,
+      2L,
+      dense = x1TestSrc,
+      cscColumns = list(cscColumn(codesTestSrc, 1)),
+      map = c(0L, -2L),
+      numCscColumns = 1L,
+      types = c(0L, 1L),
+      counts = c(0L, 3L),
+      refs = c(-1L, 1L)
+    )
+  ),
+  "CSC column"
+)
+
+# the read guard on the caller-filled struct, the input-side twin of the
+# results write guard: a caller whose struct predates the typing channel pins
+# structSize below it, and those members - pointed at an unmapped page here -
+# must never be read
+expect_identical(
+  CALL("capi_predict_truncated", ptrSrc, denseTestSrc),
+  predDenseSrc
+)
+
+# forest addressing on a single-forest sampler: forest 0 is exactly today's
+# behavior, and an index past the last forest is an error on all three tree
+# queries rather than a read past the last forest (the engine's printers index
+# their forest unchecked, so the bridge's check is the only guard)
+expect_equal(CALL("capi_num_forests", ptrSrc), 1L)
+expect_equal(CALL("capi_num_trees", ptrSrc, 0L), 20L)
+expect_error(CALL("capi_num_trees", ptrSrc, 1L), "forest index out of range")
+expect_error(
+  CALL("capi_get_trees", ptrSrc, FALSE, NULL, 1L),
+  "forest index out of range"
+)
+expect_error(
+  CALL("capi_print_trees", ptrSrc, 1L),
+  "forest index out of range"
+)
+# both print branches take the index: ptr2 has no tree storage (the live
+# trees print), ptrSrc has it (the saved ones)
+expect_true(length(capture.output(CALL("capi_print_trees", ptr2, 0L))) > 0L)
+expect_true(length(capture.output(CALL("capi_print_trees", ptrSrc, 0L))) > 0L)
+
+# the honesty falsifier: a CSC MUTATION source is materialized exactly as the
+# R bridge materializes its own, so it draws the same accept/reject verdict as
+# its dense equivalent and the sampler that took it draws bitwise identically.
+# Handing the engine a non-dense view instead would return unsupportedSource,
+# which the 1/0 mapping would report as an ordinary rollback
+ptrMutDense <- CALL(
+  "capi_create",
+  specSrc$control,
+  specSrc$model,
+  specSrc$data,
+  ""
+)
+ptrMutCsc <- CALL(
+  "capi_create",
+  specSrc$control,
+  specSrc$model,
+  specSrc$data,
+  ""
+)
+newCodesSrc <- codesSrc
+newCodesSrc[, 2L] <- (codesSrc[, 2L] + 1) %% 3
+verdictDense <- CALL("capi_set_predictor", ptrMutDense, newCodesSrc)
+verdictCsc <- CALL(
+  "capi_set_predictor_source",
+  ptrMutCsc,
+  makeSource(
+    nSrc,
+    2L,
+    dense = newCodesSrc[, 1L],
+    cscColumns = list(cscColumn(newCodesSrc[, 2L], 1)),
+    map = c(0L, -1L),
+    types = c(0L, 1L),
+    counts = c(0L, 3L),
+    refs = c(-1L, 1L)
+  )
+)
+expect_identical(verdictDense, verdictCsc)
+expect_true(verdictDense)
+expect_identical(
+  CALL("capi_run", ptrMutDense, 5L, 3L, TRUE, FALSE),
+  CALL("capi_run", ptrMutCsc, 5L, 3L, TRUE, FALSE)
+)
+rm(ptrMutDense, ptrMutCsc)
+invisible(gc(FALSE))
+
+# the leaf-covariate refusal at both flat test entries: a linear leaf reads its
+# covariate's contiguous raw values, which CSC storage does not serve. The
+# refusal must leave the installed test store INTACT - a discarded refusal
+# would report the PREVIOUS rows as the new test set
+set.seed(505L)
+nLeaf <- 90L
+xLeaf <- matrix(rnorm(nLeaf * 2L), nLeaf, 2L)
+yLeaf <- 2 * xLeaf[, 1L] + rnorm(nLeaf, 0, 0.3)
+controlLeaf <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 10L,
+  updateState = FALSE,
+  rngSeed = 23L
+)
+specLeaf <- dbarts(xLeaf, yLeaf, node.prior = linear(1L), control = controlLeaf)
+xTestLeaf <- matrix(rnorm(12L * 2L), 12L, 2L)
+sparseLeafSource <- makeSource(
+  12L,
+  2L,
+  dense = xTestLeaf[, 2L],
+  cscColumns = list(cscColumn(xTestLeaf[, 1L], 0)),
+  map = c(-1L, 0L)
+)
+ptrLeafA <- CALL(
+  "capi_create",
+  specLeaf$control,
+  specLeaf$model,
+  specLeaf$data,
+  ""
+)
+ptrLeafB <- CALL(
+  "capi_create",
+  specLeaf$control,
+  specLeaf$model,
+  specLeaf$data,
+  ""
+)
+CALL("capi_set_test_predictors", ptrLeafA, xTestLeaf)
+CALL("capi_set_test_predictors", ptrLeafB, xTestLeaf)
+reasonLeaf <- "leaf covariate column cannot be a sparse test column"
+expect_error(
+  CALL("capi_set_test_predictors_source", ptrLeafB, sparseLeafSource),
+  reasonLeaf
+)
+expect_error(
+  CALL("capi_predict_source", ptrLeafB, sparseLeafSource),
+  reasonLeaf
+)
+expect_equal(CALL("capi_dims", ptrLeafB)[3L], 12L)
+expect_identical(
+  CALL("capi_run", ptrLeafA, 10L, 2L, FALSE, TRUE)$test,
+  CALL("capi_run", ptrLeafB, 10L, 2L, FALSE, TRUE)$test
+)
+rm(ptrLeafA, ptrLeafB)
+invisible(gc(FALSE))
+
+# the calibration surface from C: the reader fills only the members the caller
+# both carries (by structSize) and points somewhere, and the writer answers a
+# capability with a return value while a malformed value raises
+calibration <- CALL("capi_forest_calibration", ptrSrc, 0L, FALSE, FALSE)
+expect_equal(calibration$accepted, 1L)
+expect_true(all(calibration$prior.scale > 0))
+expect_equal(calibration$prior.sd, calibration$prior.scale / calibration$k)
+expect_true(all(calibration$response.scale > 0))
+expect_equal(calibration$k.has.hyperprior, 0L)
+expect_equal(calibration$leaf.model, 0L) # DBARTS_LEAF_CONSTANT
+# an index past the last forest touches nothing and answers 0
+expect_equal(
+  CALL("capi_forest_calibration", ptrSrc, 1L, FALSE, FALSE)$accepted,
+  0L
+)
+# an omitting caller (structSize below leafModel, that member poisoned) and a
+# null member are both skipped, and everything else still fills
+calibrationPartial <- CALL("capi_forest_calibration", ptrSrc, 0L, TRUE, TRUE)
+expect_equal(calibrationPartial$accepted, 1L)
+expect_equal(calibrationPartial$leaf.model, -1L)
+expect_equal(calibrationPartial$k, -1)
+expect_identical(calibrationPartial$prior.scale, calibration$prior.scale)
+expect_error(
+  CALL("capi_forest_calibration_zero_structsize", ptrSrc),
+  "structSize"
+)
+expect_equal(CALL("capi_set_forest_prior_scale", ptrSrc, 0L, 2.5), 1L)
+expect_equal(
+  CALL("capi_forest_calibration", ptrSrc, 0L, FALSE, FALSE)$prior.scale,
+  2.5,
+  tolerance = 1e-12
+)
+# a read-then-write is inert, an index past the last forest refuses without
+# raising, and a malformed scale raises
+expect_equal(CALL("capi_set_forest_prior_scale", ptrSrc, 0L, 2.5), 1L)
+expect_equal(CALL("capi_set_forest_prior_scale", ptrSrc, 1L, 2.5), 0L)
+expect_error(
+  CALL("capi_set_forest_prior_scale", ptrSrc, 0L, -1),
+  "positive finite"
+)
+expect_error(
+  CALL("capi_set_forest_prior_scale", ptrSrc, 0L, NaN),
+  "positive finite"
+)
+rm(ptrSrc)
+invisible(gc(FALSE))
+
+# the active-row mask from C: a masked row leaves the data set for the sweep,
+# an all-ones mask installs nothing, a fractional value is refused (0, not a
+# raise), and NULL clears. The probe is a capability, never a family switch,
+# so a probit sampler takes one too, and a genuine mask must move ITS draws
+# exactly as it does the gaussian ones
+ptrMaskA <- CALL("capi_create", spec$control, spec$model, spec$data, "")
+ptrMaskB <- CALL("capi_create", spec$control, spec$model, spec$data, "")
+ptrMaskC <- CALL("capi_create", spec$control, spec$model, spec$data, "")
+expect_equal(
+  CALL("capi_set_active_rows", ptrMaskA, as.double(seq_len(n) %% 2L)),
+  1L
+)
+rMaskA <- CALL("capi_run", ptrMaskA, 5L, 3L, TRUE, FALSE)
+rMaskB <- CALL("capi_run", ptrMaskB, 5L, 3L, TRUE, FALSE)
+expect_false(identical(rMaskA$train, rMaskB$train))
+expect_equal(CALL("capi_set_active_rows", ptrMaskC, rep(1, n)), 1L)
+expect_identical(CALL("capi_run", ptrMaskC, 5L, 3L, TRUE, FALSE), rMaskB)
+expect_equal(CALL("capi_set_active_rows", ptrMaskA, rep(0.5, n)), 0L)
+expect_equal(CALL("capi_set_active_rows", ptrMaskA, NULL), 1L)
+ptrProbitMaskA <- CALL(
+  "capi_create",
+  specBinary$control,
+  specBinary$model,
+  specBinary$data,
+  "probit"
+)
+ptrProbitMaskB <- CALL(
+  "capi_create",
+  specBinary$control,
+  specBinary$model,
+  specBinary$data,
+  "probit"
+)
+expect_equal(
+  CALL("capi_set_active_rows", ptrProbitMaskA, as.double(seq_len(n) %% 2L)),
+  1L
+)
+rProbitMaskA <- CALL("capi_run", ptrProbitMaskA, 5L, 3L, TRUE, FALSE)
+rProbitMaskB <- CALL("capi_run", ptrProbitMaskB, 5L, 3L, TRUE, FALSE)
+expect_false(identical(rProbitMaskA$train, rProbitMaskB$train))
+rm(ptrMaskA, ptrMaskB, ptrMaskC, ptrProbitMaskA, ptrProbitMaskB)
+invisible(gc(FALSE))
+
 # the two-forest (BCF) surface, docs/design/bcf.md: a treatment vector on the
 # data object and the treatment forest's configuration on the control make a
 # Bayesian causal forest through this same creation entry point. The whole
@@ -537,6 +1072,7 @@ bcfLegs <- CALL(
   zBCF,
   xBCF[1:5, , drop = FALSE]
 )
+expect_equal(length(bcfLegs), 18L)
 for (leg in names(bcfLegs)) {
   expect_true(bcfLegs[[leg]], info = leg)
 }
@@ -545,8 +1081,104 @@ for (leg in names(bcfLegs)) {
 rBCF <- CALL("capi_run", ptrBCF, 0L, 3L, TRUE, FALSE)
 expect_true(all(is.finite(rBCF$train)))
 
+# forest addressing on a two-forest sampler, which is what the index is FOR:
+# the tree queries name the forest they read instead of silently answering for
+# forest 0, and each reads its own forest's tree count
+expect_equal(CALL("capi_num_forests", ptrBCF), 2L)
+expect_equal(CALL("capi_num_trees", ptrBCF, 0L), 25L)
+expect_equal(CALL("capi_num_trees", ptrBCF, 1L), 15L)
+expect_error(CALL("capi_num_trees", ptrBCF, 2L), "forest index out of range")
+treesMu <- CALL("capi_get_trees", ptrBCF, TRUE, NULL, 0L)
+treesTau <- CALL("capi_get_trees", ptrBCF, TRUE, NULL, 1L)
+expect_equal(sort(unique(treesMu$tree)), 1:25)
+expect_equal(sort(unique(treesTau$tree)), 1:15)
+expect_error(
+  CALL("capi_get_trees", ptrBCF, TRUE, NULL, 2L),
+  "forest index out of range"
+)
+# the flat forwarding must actually carry the forest index through to the
+# engine's printer rather than silently answering for forest 0: the live
+# (unstored) branch here, exercised through ptrBCF, which never enabled tree
+# storage, and the saved branch below, on a holder that did. Comparing
+# lengths would not falsify a forest-0 pin (both forests have live trees to
+# print), so this is a content pin - forest 0 (mu, all 3 predictors) and
+# forest 1 (tau, the z-factor basis) print different splits
+printBCFLive0 <- capture.output(CALL("capi_print_trees", ptrBCF, 0L))
+printBCFLive1 <- capture.output(CALL("capi_print_trees", ptrBCF, 1L))
+expect_true(length(printBCFLive1) > 0L)
+expect_false(identical(printBCFLive0, printBCFLive1))
+expect_error(
+  CALL("capi_print_trees", ptrBCF, 2L),
+  "forest index out of range"
+)
+
+# the same forwarding, through the saved-tree branch this time: a BCF holder
+# with tree storage enabled and a run behind it takes printSavedTree instead
+# of printTree (bartcore/sampler.hpp printTrees dispatches on keepTrees), a
+# separate code path the live-branch pin above cannot reach
+ptrBCFSaved <- CALL(
+  "capi_create",
+  specBCF$control,
+  specBCF$model,
+  specBCF$data,
+  ""
+)
+CALL("capi_set_tree_storage", ptrBCFSaved, TRUE, 2L)
+invisible(CALL("capi_run", ptrBCFSaved, 5L, 2L, FALSE, FALSE))
+expect_true(CALL("capi_dims", ptrBCFSaved)[6L] > 0L)
+printBCFSaved0 <- capture.output(CALL("capi_print_trees", ptrBCFSaved, 0L))
+printBCFSaved1 <- capture.output(CALL("capi_print_trees", ptrBCFSaved, 1L))
+expect_true(length(printBCFSaved0) > 0L)
+expect_true(length(printBCFSaved1) > 0L)
+expect_false(identical(printBCFSaved0, printBCFSaved1))
+rm(ptrBCFSaved)
+invisible(gc(FALSE))
+
+# the per-forest precision weight from C: 1 = accepted, 0 = refused - the
+# shipped polarity, which two landed plans recorded inverted - and an accepted
+# non-degenerate weight really installs, while an all-ones one is bitwise inert
+# and a refused call leaves the sampler where it was. The weights are BORROWED,
+# so these vectors outlive the samplers below
+weightsForest <- rep(c(0.25, 1.75), length.out = nBCF)
+onesForest <- rep(1, nBCF)
+ptrW1 <- CALL("capi_create", specBCF$control, specBCF$model, specBCF$data, "")
+ptrW2 <- CALL("capi_create", specBCF$control, specBCF$model, specBCF$data, "")
+ptrW3 <- CALL("capi_create", specBCF$control, specBCF$model, specBCF$data, "")
+expect_equal(CALL("capi_set_forest_weights", ptrW1, 1L, weightsForest), 1L)
+expect_equal(CALL("capi_set_forest_weights", ptrW3, 1L, onesForest), 1L)
+rW1 <- CALL("capi_run", ptrW1, 5L, 3L, TRUE, FALSE)
+rW2 <- CALL("capi_run", ptrW2, 5L, 3L, TRUE, FALSE)
+rW3 <- CALL("capi_run", ptrW3, 5L, 3L, TRUE, FALSE)
+expect_false(identical(rW1$train, rW2$train))
+expect_identical(rW3, rW2)
+# the refusals: a forest past the last one, and a sampler whose coupling
+# admits no such weight at all
+expect_equal(CALL("capi_set_forest_weights", ptrW2, 2L, weightsForest), 0L)
+expect_equal(CALL("capi_set_forest_weights", ptr1, 0L, rep(1, n)), 0L)
+# and the refused call moved nothing: the next draws still agree with the
+# sampler that was never asked
+expect_identical(
+  CALL("capi_run", ptrW2, 0L, 3L, TRUE, FALSE),
+  CALL("capi_run", ptrW3, 0L, 3L, TRUE, FALSE)
+)
+
+# the amplitude pair from C, ragged by construction: the basis forest carries
+# two amplitudes and the intercept forest one, and the values agree with the
+# R5 reader on the same draws
+amplitudes0 <- CALL("capi_forest_amplitudes", ptrW2, 0L)
+amplitudes1 <- CALL("capi_forest_amplitudes", ptrW2, 1L)
+expect_equal(amplitudes0$count, 1L)
+expect_equal(amplitudes1$count, 2L)
+expect_equal(amplitudes0$accepted, 1L)
+expect_equal(length(amplitudes1$values), 2L * 2L) # two amplitudes, two chains
+expect_true(all(is.finite(c(amplitudes0$values, amplitudes1$values))))
+expect_error(
+  CALL("capi_forest_amplitudes", ptrW2, 2L),
+  "forest index out of range"
+)
+
 # destruction runs through the finalizer
 rm(ptr1, ptr2, ptr3, ptrBinary, ptrFixed, ptrLL)
-rm(ptrCbA, ptrCbB, ptrStop, ptrMT, ptrG, ptrBCF)
+rm(ptrCbA, ptrCbB, ptrStop, ptrMT, ptrG, ptrBCF, ptrW1, ptrW2, ptrW3)
 invisible(gc(FALSE))
-rm(offsetBCF, weightsBCF, yBCF, zBCF)
+rm(offsetBCF, weightsBCF, yBCF, zBCF, weightsForest, onesForest)
