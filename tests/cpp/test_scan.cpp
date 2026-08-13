@@ -194,6 +194,67 @@ void testHistogramTotals() {
   printf("ok: scan histogram totals\n");
 }
 
+// The bin's split, pinned at a fixture where it bites: count tallies MEMBERS,
+// sumWeights sums their weights, so a bin made entirely of zero-weight members
+// carries positive count and zero sumWeights at once (ConstantLeafScanBin,
+// scan.hpp). The scan's own occupancy gate (scanOrdinalCuts' left.count == 0.0
+// test) reads count only, never sumWeights, so a cut isolating such a bin is
+// scored - not vetoed with the sentinel - and its scored side lands on
+// ConstantGaussianLeaf::logIntegratedLikelihood at sumWeights == 0.0.
+void testCountWeightSplit() {
+  // a saved snapshot of the shared runif01 stream keeps the seed-pinned suites
+  // downstream of this TU bitwise intact
+  uint64_t savedRngState = rngState;
+  const size_t n = 400;
+  std::vector<double> x(n), y(n), w(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i) / static_cast<double>(n - 1);  // full [0, 1]
+    y[i] = runif01() - 0.5;
+    w[i] = (i < n / 4) ? 0.0 : 1.0;  // the low quarter carries no weight
+  }
+  ColumnStore store;
+  store.build(x.data(), n, 1, 10);
+  size_t numCuts = store.numCuts[0];
+
+  std::vector<index_t> members(n);
+  for (size_t i = 0; i < n; ++i) members[i] = i;
+
+  // x, hence code, is nondecreasing in i, so every code strictly below the
+  // first positive-weight member's code is reached only by zero-weight
+  // members - a bin made entirely of them
+  xint_t boundaryCode = store.codeAt(0, n / 4);
+  check(boundaryCode >= 1,
+        "the fixture leaves at least one code entirely zero-weight");
+
+  // direct histogram: every such bin carries positive count and zero
+  // sumWeights - the split, isolated
+  size_t numBins = numCuts + 1;
+  std::vector<ConstantLeafScanBin> bins(numBins);
+  for (size_t i = 0; i < n; ++i)
+    bins[store.codeAt(0, i)].addObservation(w[i], y[i]);
+  bool sawSplit = true;
+  for (xint_t code = 0; code < boundaryCode; ++code)
+    sawSplit &= bins[code].count > 0.0 && bins[code].sumWeights == 0.0;
+  check(sawSplit, "every code below the boundary carries positive count and "
+                  "zero sumWeights");
+
+  // the scan over the same fixture: the cut isolating those codes is occupied
+  // by count and is scored, not vetoed
+  size_t isolatingCut = static_cast<size_t>(boundaryCode) - 1;
+  ConstantGaussianLeaf leaf{0.5};
+  std::vector<ConstantLeafScanBin> binScratch;
+  std::vector<double> scan(numCuts);
+  scanOrdinalCuts(store, 0, members.data(), n, y.data(), w.data(), leaf, 2.0,
+                  0.7, binScratch, scan.data());
+  check(scan[isolatingCut] != cutScanEmptySentinel,
+        "a zero-weight-only side is occupied by count, not vetoed");
+  check(std::isfinite(scan[isolatingCut]),
+        "the zero-weight side's marginal scores finite, so the cut does too");
+
+  rngState = savedRngState;
+  printf("ok: scan count/sumWeights split\n");
+}
+
 // Occupancy gate: a cut whose either side has zero non-missing members gets the
 // never-selected sentinel, and its softmax weight is exactly zero. The cut grid
 // adapts to the column's range, so one-sidedness is forced by scanning only the
@@ -500,6 +561,7 @@ void testCategoricalScan() {
 void runScanTests() {
   testScanAgreement();
   testHistogramTotals();
+  testCountWeightSplit();
   testOccupancySentinel();
   testMissingExcluded();
   testCategoricalEnumeration();
