@@ -20,16 +20,50 @@ window: the LAST breaking change before the 1.0-0 freeze (TODO, "the
   constant moves in either re-bake (VD 2026-08-10, binding decision 8).
   Everything is breakable; the sister packages migrate in lockstep at the
   freeze, once, against the final header (VD 2026-08-10).
-budget: S0 ~15 engine + ~10 facade + ~65 bridge/common-header + ~45 tests/cpp.
-  S1 ~150 header + ~230 C_interface + ~200 consumer.c + ~150 test-capi.R.
+budget: S0 ~15 engine + ~10 facade + ~65 bridge/common-header + ~45 tests/cpp
+  (LANDED at +180 net, 1.33x, ruled justified - landing note below).
+  S1 AS WRITTEN ~150 header + ~230 C_interface + ~200 consumer.c + ~150
+  test-capi.R = ~730.
+  **S1 RE-PRICED (added 2026-08-13, pre-S1), dense-equivalent.** The written
+  figure predates items 5b, 7 and 8, none of which revised it; each is priced
+  by its own source plan and all three are ADDITIVE:
+  + item 5b (M3) ~40 header + ~80 C_interface + ~70 consumer.c + ~60
+    test-capi.R = ~250 (multiforest-extension-surface.md:29-30);
+  + item 7 (calibration S3) ~80 header + ~90 C_interface + ~125 across
+    consumer.c AND test-capi.R jointly = ~295 (nameable-calibration.md:547-555,
+    which does not split its last figure);
+  + item 8 (the mask flat entry and its four test-capi arms) ~135, stated as
+    ONE unsplit figure by latent-subset-mask.md:23-24 ("~135 reshape-side
+    lines carried by dbarts-h-reshape S1").
+  New S1 total ~1410, 1.93x the written ~730; the 1.5x stop therefore applies
+  to ~1410 (i.e. ~2115), not to ~730. Per area, with the two unsplit carries
+  named rather than invented: dbarts.h ~270 plus the mask's entry and Doxygen;
+  C_interface.cpp ~400 plus the mask's body; consumer.c ~270 and test-capi.R
+  ~210, plus calibration's joint ~125 and the mask's four arms spread across
+  the two. Item 9 (the R5 forest-index normalization) is R-side and priced in
+  its own item.
   S2 ~100 docs/records + 5 out-of-repo call-site edits (all stan4bart), 2
-  optional handshake edits, and 4 rebuilds. Total in-repo ~965.
-tip: every anchor below re-read against the live tree at 2e50cf1 (branch
-  bartcore, local == origin). bcf-public-surface S0 has landed (994c161); its
-  S1 and S3 have NOT. Design artifacts (memo, blind refuting critique, two
-  probes) sit at `.claude/dbarts-h-reshape-design/`, which is GIT-IGNORED - this
-  plan is the only tracked record and carries the load-bearing facts rather than
-  pointing at them.
+  optional handshake edits, and 4 rebuilds. Total in-repo ~1690 (S0's actual
+  +180, S1 ~1410, item 9's ~100, S2 ~100), superseding the written ~965.
+  If that total argues for splitting S1's implementation across two serialized
+  commits, the one-hash-move rule still binds unchanged: exactly one commit may
+  carry a `DBARTS_C_API_HASH` literal differing from its parent's, so any split
+  must keep the entire X-list edit and the re-bake together in one commit and
+  leave the other hash-neutral. Not decided in this plan.
+tip: anchors first read at 2e50cf1, RE-VERIFIED BY SYMBOL against the live tree
+  at e2a278d1 (added 2026-08-13, pre-S1); every line citation below is
+  confirmed or corrected in place. bcf-public-surface S0-S4 AND S6 have ALL
+  LANDED (S0 994c161, S1 a1dbde7, S2 339aeb0, S3 1622eb9, S4 1df9c0c, S6
+  aa6978b); only S5 (`bcf()` and the fit class) is outstanding and it gates
+  nothing here. S1's gated precondition is therefore MET: `numForests` is in
+  the X-list at `dbarts.h:264`, `dbarts_sampler_setResponse` already takes
+  `updateScale` (X-list `dbarts.h:188-189`, prototype `:393-394`), and the flat
+  BCF creation path is live. This arc's own S0 landed a262cd26;
+  multiforest-extension-surface M1 (05ac3b4b) and M2 (64b13b98) landed after
+  it. Design artifacts (memo, blind refuting critique, two probes) sit at
+  `.claude/dbarts-h-reshape-design/`, which is GIT-IGNORED - this plan is the
+  only tracked record and carries the load-bearing facts rather than pointing
+  at them.
 
 ## Goal
 
@@ -87,7 +121,8 @@ one. ONE hash re-bake, NO version bump, ONE consumer migration.
    adds nothing to them.
 5. **The house return convention is 1 = accepted, 0 = refused.** Measured, not
    asserted: `dbarts_sampler_setPredictor` ends `return result ==
-   bartcore::PredictorUpdateResult::accepted ? 1 : 0` (C_interface.cpp:285).
+   bartcore::PredictorUpdateResult::accepted ? 1 : 0` (C_interface.cpp:283;
+   `dbarts_sampler_updatePredictor` ends identically at :305).
    bcf-public-surface S3 item 3 states the same ("1 on success, 0 on refusal -
    the shipped convention, not the inverse"). The `size_t` probes carry no error
    channel, so an out-of-range argument to one must `Rf_error`.
@@ -132,11 +167,12 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
   only on nonzero passes "declared reference 0 against an ordinal column"
   silently - the exact hole cheap-uniformity rule 2 exists to close, at the one
   value `PredictorSource::referenceCodeOf` already returns for an absent array
-  (data.hpp:220-222). The engine's own view carries no declared/absent bit
+  (data.hpp:221-223). The engine's own view carries no declared/absent bit
   either: the R layer keeps it one level up as a SEPARATE field,
-  `ParsedMutationSource::referenceMeta` (R_interface_bartcore.cpp:204), "R
+  `ParsedMutationSource::referenceMeta` (R_interface_bartcore.cpp:211), "R
   INTEGER, NA_INTEGER == undeclared", which is exactly what the promoted helper
-  keys on (`refuseCscReferenceAgainstStore`, :613-620). **Resolution:** the POD
+  keys on (`refuseCscReferenceAgainstStore`, now in `bartcore_bridge` after S0,
+  R_interface_bartcore.cpp:2699-2712). **Resolution:** the POD
   field becomes `const int32_t*`, `< 0` = column declared none, `>= 0` = the
   code, refused above `bartcore::maxCategories` (0xFFFF, data.hpp:95). This
   keeps the memo's decoupling goal (it still does not spell `xint_t`) and
@@ -152,10 +188,10 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
   `refuseCscReferenceAgainstStore`'s `numSparseColumns` argument directly, so
   the promoted helper is reused with its body UNCHANGED.
 - **B2 UPHELD as a defect, remedy OVERTURNED.** `SamplerBase::setTestData(const
-  PredictorSource&)` returns `bool` (facade.hpp:112-113): "Returns false without
+  PredictorSource&)` returns `bool` (facade.hpp:131-134): "Returns false without
   touching the test store when a designated leaf covariate column would be
   CSC-backed." Today's `void` flat entry is safe only because its argument is
-  unconditionally dense - the header comment at facade.hpp:114-116 says so. The
+  unconditionally dense - the header comment at facade.hpp:135-137 says so. The
   moment the entry takes a source the refusal is reachable, and a `void` entry
   discarding the bool leaves the store holding its PREVIOUS rows, so the next
   `dbarts_sampler_run` fills `results.test` for the old test set. Silent wrong
@@ -164,7 +200,8 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
   legitimate caller condition rather than a malformed argument" - a CSC-backed
   leaf covariate is a FIXABLE MALFORMED ARGUMENT, which is why the R funnel
   raises it as an error with a repair instruction ("supply it as a dense test
-  column", R_interface_bartcore.cpp:3672-3673); (ii) the entry already
+  column", the message inside the now-promoted `refuseSparseLeafCovariate`,
+  R_interface_bartcore.cpp:2725-2726); (ii) the entry already
   `Rf_error`s for its other malformed arguments (`validateColumnValues`), so an
   `int` for one failure mode and a longjmp for the rest is a worse contract than
   one uniform failure mode; (iii) `dbarts_sampler_predict` is a read-only replay
@@ -188,7 +225,7 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
   working on its own." Removing it deletes the ONLY in-repo coverage of one of
   the two consumer paths the shipped header documents. `test-capi.R:43-50` pins
   `1000L` and the packed identity. `man/dbarts-package.Rd:43` documents the flat
-  API as "versioned by `\code{DBARTS_C_API_VERSION}`"; `inst/NEWS.Rd:362` names
+  API as "versioned by `\code{DBARTS_C_API_VERSION}`"; `inst/NEWS.Rd:425` names
   it too. **Resolution:** the removal stands; the canary is RE-POINTED at
   `dbarts_apiHash` in the same commit (named in S1 item 6, gated by F6), and
   `man/dbarts-package.Rd` joins S2's doc list. Under binding decision 8 the
@@ -204,24 +241,27 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
   `uint32_t* varcount` retyped to `uint64_t* varcount`, a hard ABI break - all
   hash to `0xf760898d116cb3a3`, identical, `declsBytes` 3023 in all three; the
   token text does not contain "varcount" at all. The same run independently
-  re-derived the baked literal at dbarts.h:82. This arc makes the exposure worse
+  re-derived the baked literal at dbarts.h:83. This arc makes the exposure worse
   in two ways at once: it adds a SECOND ABI struct, and binding decision 8
   promotes the token from one of two lockstep signals to the ONLY one.
   **Resolution:** the header says what the token actually covers - the
   entry-point SIGNATURES, not the layout of the structs they name - and points
-  at `structSize` plus the exact-offset locks (C_interface.cpp:64-76) as the
+  at `structSize` plus the exact-offset locks (C_interface.cpp:68-77) as the
   layout contract. **Do not ship "catches ANY signature change."** A struct
   layout change in this window is therefore NOT self-detecting and must be
   announced by hand to the sister packages; say so in the header and in
   c-api-growth.md.
-- **B5 UPHELD, verbatim. The setForestWeights reservation states the INVERSE
-  polarity, in two landed plans.** `docs/plans/c-api-growth.md:502-504`:
-  "Nonzero return means refusal, matching `dbarts_sampler_setPredictor` and its
-  siblings". `docs/plans/zero-weight-exactness.md:452`: "nonzero on refusal".
-  Both are wrong on the fact they cite (binding decision 5). No falsifier
-  covered the entry. **Resolution:** the entry is built with 1 = accepted /
-  0 = refused; both plans get an ERRATUM edit at landing (text below, verbatim);
-  F10 pins the polarity with an inverted negative half.
+- **B5 UPHELD, verbatim. The setForestWeights reservation stated the INVERSE
+  polarity, in two landed plans.** `docs/plans/c-api-growth.md` constraint 1
+  read "Nonzero return means refusal, matching `dbarts_sampler_setPredictor` and
+  its siblings"; `docs/plans/zero-weight-exactness.md` read "nonzero on
+  refusal". Both were wrong on the fact they cite (binding decision 5). No
+  falsifier covered the entry. **Resolution:** the entry is built with
+  1 = accepted / 0 = refused; F10 pins the polarity with an inverted negative
+  half. **The erratum edits are APPLIED** (added 2026-08-13, pre-S1): live at
+  c-api-growth.md:503-510 and zero-weight-exactness.md:402-403 and :453-456,
+  which also strike the void `DBARTS_C_API_MINOR`-bump clause. Only the
+  BUILT marking remains - see "TODO edits at landing" items 2 and 3.
 - **B6 UPHELD in substance, OVERTURNED in scope.** S0's "Bodies unchanged" is
   false as written, but the transitive closure is ONE type, not six symbols.
   (i) `refuseSparseLeafCovariate` (:761-772) takes `(const SamplerShape&, const
@@ -244,6 +284,21 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
   internal-linkage CALLEES defined earlier in the same translation unit
   (:1602-1643, anonymous namespace :37-2196); an external-linkage function
   defined lower in the same TU calls them legally. Nothing about them moves.
+
+  **APPLIED at S0, a262cd26 (added 2026-08-13, pre-S1).** All three promotions
+  landed exactly as adjudicated, and the anchors above are pre-landing. Live
+  homes: `refuseSparseLeafCovariate` R_interface_bartcore.cpp:2721-2727 (body
+  byte-identical), `refuseCscReferenceAgainstStore` :2699-2712 (body
+  byte-identical), `validateTestContainerAgainstStore` :2740 re-signed to
+  `(const ColumnStore&, const PredictorSource&)` with all four call sites
+  converted (:4426, :4505, :5442, :5507); declarations
+  R_interface_bartcore_common.hpp:211, :221, :231. The five named callees did
+  NOT move (`rawViewColumn` :1618, `categoricalTestMessage` :1638,
+  `ParsedCscCodes` :1643, `parsedCscCodes` :1648, `refuseInvalidCategoryCodes`
+  :1659), confirming the scope overturn. The anonymous namespace is now
+  :44-2479, the first `bartcore_bridge` block :2481-3212, and
+  `ParsedTestContainer` :189-196. S1 still owes the C-side `NA_INTEGER`
+  adapter (ii) and the F3 translation.
 - **NEW, found here: S0's printer widening is under-scoped.** The memo names
   only `Chain::printTree` (chain.hpp:1916, `Forest<L, ResidT>& forest =
   forests_[0]`). `Chain::printSavedTree` (chain.hpp:1936, `const Forest<L,
@@ -251,6 +306,12 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
   `Sampler::printTrees` takes when `options_.keepTrees` (sampler.hpp:945-946).
   BOTH printers take the forest index, or `printTrees(forest = 1)` prints tau's
   trees without `keepTrees` and mu's with it.
+
+  **APPLIED at S0, a262cd26 (added 2026-08-13, pre-S1).** Both printers now
+  read `forests_[forestIndex]` (chain.hpp:2330 and :2351) and
+  `Sampler::printTrees` (sampler.hpp:941-944) forwards it on both branches
+  (:954 and :964). The index is UNCHECKED at the engine by design; S1 item 3
+  carries the bridge range check the moment it becomes caller-supplied.
 - **B7 UPHELD. The defect handoff is not two lines, and the reachable guard is
   the wrong predicate.** `refuseBCFTestSurface` is defined at
   R_interface_bartcore.cpp:2097-2105 INSIDE the anonymous namespace (:37-2196):
@@ -266,6 +327,18 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
   **Resolution:** the fix is the fourth namespace promotion of the same kind, it
   belongs to bcf-public-surface S3 by the orchestrator's sequencing call, and
   this plan hands that arc the exact mechanics under "TODO edits at landing".
+
+  **APPLIED at bcf-public-surface S3, 1622eb9 (added 2026-08-13, pre-S1).**
+  `refuseBCFTestSurface` is promoted: declared
+  R_interface_bartcore_common.hpp:193, defined in the bridge block at
+  R_interface_bartcore.cpp:2646, `using`-imported into both TUs
+  (C_interface.cpp:22, R_interface_bartcore.cpp:32), and it guards
+  `dbarts_sampler_setTestPredictors` at C_interface.cpp:315 and
+  `dbarts_sampler_predict` at :340. Nothing here is owed forward. The
+  consequence for this arc's S0, recorded at the S0 spawn: S0 promoted the
+  THREE remaining guards, not "the fourth of the same kind", with 1622eb9 and
+  7299b8b standing together as the promotion precedent. Resolved question 4
+  and "TODO edits at landing" item 1 are likewise discharged.
 - **A2 ADOPTED, narrowed.** "Under stubs a re-signed entry is a COMPILE ERROR at
   the consumer's call site" is TRUE for every re-sign this arc makes - all four
   predictor entries change arity or change a parameter from `const double*` to
@@ -285,7 +358,8 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
 - **A6 ADOPTED. State the dense short-circuit.** The bridge does NOT materialize
   a plain dense argument: `if (Rf_isReal(xExpr)) { ...; values = REAL(xExpr); }
   else { ... materializeMutationSource(...); }`
-  (R_interface_bartcore.cpp:3960-3975). The flat mutation entries take
+  (`bartcore_setPredictor`, R_interface_bartcore.cpp:4721-4734). The flat
+  mutation entries take
   `source->isDenseBlock() ? source->denseValues : materialize(...)`, or the
   dense path acquires an unconditional O(n x p) copy that contradicts this
   plan's own byte-identical claim - and F1 would catch it.
@@ -302,7 +376,8 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
   LinkingTo consumer building at CXX17 would take a `-Wc99-designator` hit that
   CRAN reports. `static inline` is already the header's own idiom (the stubs).
 - **A9 ADOPTED.** S1's preconditions (a landed bcf-public-surface S1 and S3) are
-  gated explicitly, not asserted in prose.
+  gated explicitly, not asserted in prose. Both are now FACTS - see S1's
+  PRECONDITION block.
 - **A5 ADOPTED as an OBSERVATION, not a gate.** The 34.5x / 9.96x sparse-predict
   payoff (cheap-uniformity S4 landing, 9929ede: n_test 1e5, p 1e4, density 0.01;
   0.075-0.082 s / ~1.0 GB against 2.59-3.47 s / 10.0-12.4 GB) is an R-surface
@@ -335,17 +410,18 @@ outside an allocation):
 A one-unit swing on the response scale, silently, from bytes outside the
 caller's intended matrix. Today both entries infer p from the sampler and index
 `x + j * numTestObservations` for `j < shape.numPredictors` with no width check
-(C_interface.cpp:288-300 and :310-328). This is the arc's strongest single
+(`dbarts_sampler_setTestPredictors` C_interface.cpp:308-324,
+`dbarts_sampler_predict` :334-355). This is the arc's strongest single
 justification and F8's premise; it is not cosmetics.
 
-## Verified seams (read at 2e50cf1)
+## Verified seams (read at 2e50cf1, re-verified by symbol at e2a278d1)
 
 - **The X-list is the single source; registration is fully mechanical.**
   `DBARTS_C_API_LIST` (dbarts.h:171-272) expands into the consumer stubs, the
-  readable prototypes' bind-asserts (`DBARTS_BIND_ASSERT`, C_interface.cpp:441),
-  the CCallable table (`DBARTS_API_REGISTER`, R_interface.cpp:256-265) and the
+  readable prototypes' bind-asserts (`DBARTS_BIND_ASSERT`, C_interface.cpp:512),
+  the CCallable table (`DBARTS_API_REGISTER`, R_interface.cpp:263-274) and the
   FNV-1a token (`static_assert(dbarts_fnv1a(DBARTS_C_API_DECLS) ==
-  DBARTS_C_API_HASH)`, C_interface.cpp:93). Adding or removing an entry costs
+  DBARTS_C_API_HASH)`, C_interface.cpp:97). Adding or removing an entry costs
   ZERO registration lines. Baked literal `0x1a911c00bb26dcd7ULL` (dbarts.h:83);
   re-baking is a one-literal edit dbarts's own compile forces.
 - **Both compiled consumers use `DBARTS_USE_STUBS`** (stan4bart
@@ -372,70 +448,85 @@ justification and F8's premise; it is not cosmetics.
   numRows, numColumns, denseValues, cscColumnPointers, cscRowIndices, cscValues,
   columnSources, columnTypes, categoryCounts, referenceCodes.
   `columnSources == nullptr` is the identity map; a negative entry names CSC
-  column `~v` (`sourceOf`, :208). `isDenseBlock()` (:231) is the predicate the
-  mutation kernels gate on. `xint_t` is `uint16_t` (data.hpp:20) and
+  column `~v` (`sourceOf`, :208; `referenceCodeOf` :221-223). `isDenseBlock()`
+  (:231) is the predicate the mutation kernels gate on. `xint_t` is `uint16_t`
+  (data.hpp:20) and
   `ColumnType` is `enum class : uint8_t` (:93) - BOTH are storage decisions the
   reduced-precision work reserves the right to change (public-surface.md sec 7,
   per-column u8 code widths), so neither may be spelled into the shipped ABI.
   `maxCategories` is `0xFFFFu` (:95). The view is trivially destructible by
   static_assert (:243), because `Rf_error` longjmps past destructors.
 - **The engine's mutation virtuals REFUSE a non-dense view.**
-  `SamplerBase::setPredictor(const PredictorSource&, ...)` (facade.hpp:129-133)
-  is documented "only a dense block is consumable"; sampler.hpp:1003 and :1017
+  `SamplerBase::setPredictor(const PredictorSource&, ...)` (facade.hpp:149-154)
+  is documented "only a dense block is consumable"; sampler.hpp:1022 and :1036
   return `PredictorUpdateResult::unsupportedSource` otherwise. The R bridge
   therefore MATERIALIZES first (`materializeMutationSource`,
-  R_interface_bartcore.cpp:837-856, over `bartcore::materializePredictorSource`,
+  R_interface_bartcore.cpp:818, over `bartcore::materializePredictorSource`,
   data.hpp:305). **This is the most important fact in the plan**: a
   source-shaped C mutation entry buys uniformity, an explicit shape and
   validation - NOT resident sparse mutation, and NOT a lower whole-matrix peak.
   cheap-uniformity S1 item 5 states the same honest limit for R.
 - **The predict and test-ingestion virtuals DO consume a sparse view resident.**
   `SamplerBase::predict(const PredictorSource&, size_t, double*)` is itself a
-  virtual (facade.hpp:191-192) with a dense convenience spelling over
-  `densePredictorSource` (:200-206); `Sampler::predict` (sampler.hpp:502-510)
+  virtual (facade.hpp:217-220) with a dense convenience spelling over
+  `densePredictorSource` (:227-236); `Sampler::predict` (sampler.hpp:514-522)
   branches on `isDenseBlock()` and otherwise routes rows through
   `PredictorSourceColumns` rank bitmaps; `setTestData(const PredictorSource&)`
-  (facade.hpp:112) is the resident test store. So predict and test ingestion are
+  (facade.hpp:134) is the resident test store. So predict and test ingestion are
   where the reshape delivers a MEASURED capability; mutation delivers uniformity
   only. Say both, in the header.
 - **`bartcore_bridge::getTrees` ALREADY takes a forest index**
-  (R_interface_bartcore_common.hpp:96-103; `bartcore_getTrees` reads forestExpr
-  and range-checks against `shape.numForests`, R_interface_bartcore.cpp:4688,
-  message "forest index out of range" at :4689). `dbarts_sampler_getTrees`
-  hardcodes 0 (C_interface.cpp:354). `SamplerBase::numTreesInForest(f)` exists
-  (facade.hpp:260). `savedTree`, `savedTreeSlopes`, `savedTreeMasks` and
-  `flattenTree` all take `forestIndex = 0` (facade.hpp:167-188).
-- **printTrees is forest-0-only in the ENGINE, on BOTH branches.**
-  `Sampler::printTrees` (sampler.hpp:924) calls `printTree` without keepTrees
-  (:936) and `printSavedTree` with it (:946); both read `forests_[0]`
-  (chain.hpp:1917 and :1937). A forest-indexed flat entry needs the engine
-  widening on both.
+  (R_interface_bartcore_common.hpp:117-124; `bartcore_getTrees` reads forestExpr
+  and range-checks against `shape.numForests`, message "bartcore_getTrees forest
+  index out of range" at R_interface_bartcore.cpp:5472).
+  `dbarts_sampler_getTrees` hardcodes 0 (the literal in its `bartcore_bridge::
+  getTrees` call, C_interface.cpp:376). `SamplerBase::numTreesInForest(f)`
+  exists (facade.hpp:325). `savedTree`, `savedTreeSlopes`, `savedTreeMasks` and
+  `flattenTree` all take `forestIndex = 0` (facade.hpp:189-199).
+- **printTrees is forest-indexed in the ENGINE on BOTH branches, since S0
+  (a262cd26).** `Sampler::printTrees` (sampler.hpp:941-944) takes `forestIndex`
+  and forwards it to `printTree` without keepTrees (:954) and `printSavedTree`
+  with it (:964); both read `forests_[forestIndex]` (chain.hpp:2330 and :2351).
+  The index is UNCHECKED at the engine and both production callers pass a
+  literal 0 today (C_interface.cpp:405, and the bridge). S1 supplies the
+  caller-facing index and the bridge range check that must accompany it.
 - **`setTreeStorage` is per SAMPLER by construction.** `Sampler::setTreeStorage`
-  (sampler.hpp:851) calls `chain->initializeSavedTrees(capacity)`, which
+  (sampler.hpp:865-874) calls `chain->initializeSavedTrees(capacity)`, which
   allocates saved slots for the variance forest AND every entry of `forests_`
-  (chain.hpp:1797-1806). There is no per-forest storage to select.
+  (chain.hpp:2209-2232). There is no per-forest storage to select.
 - **`shape.numTrees` is forest 0's count on every multi-forest sampler** - the
   BCF constructor sets `options_.numTrees = spec.mu.numTrees` and the
   multinomial one `spec.forest.numTrees`, each with the comment "single-forest
   queries (numTrees, savedTree, printTrees) address forest 0" (sampler.hpp:166,
   :195). So `dbarts_sampler_numTrees` is silently forest-0 on a BCF the moment
   BCF is flat-creatable.
-- **Three helpers the C surface needs live in the ANONYMOUS namespace of
-  R_interface_bartcore.cpp** (`namespace {` :37, closed :2196):
-  `refuseCscReferenceAgainstStore` (:609), `refuseSparseLeafCovariate` (:761),
-  `validateTestContainerAgainstStore` (:1742). `validateColumnValues` (:2290)
-  and the four refusal helpers C_interface already uses sit in
-  `bartcore_bridge` (:2198-2758) and are declared in
-  `R_interface_bartcore_common.hpp`. **Commit 7299b8b is the exact promotion
-  precedent** and its five mechanics are reused verbatim in S0 and quoted for
-  bcf S3 below.
-- **`setForestWeights` exists at the engine.** `SamplerBase::setForestWeights
-  (size_t forestIndex, const double* weights)` returns `bool`, true on install
-  (facade.hpp:246-249), with the `SamplerFacade` fan-out at :451-453 and the
-  shape predicate at :74. Bridge `bartcore_setForestWeights` and R
-  `bartcoreSetForestWeights` landed at 153d1dd. Only the flat entry is missing.
+- **Three helpers the C surface needs lived in the ANONYMOUS namespace of
+  R_interface_bartcore.cpp; S0 (a262cd26) promoted all three.** As written:
+  `namespace {` :37, closed :2196; `refuseCscReferenceAgainstStore` (:609),
+  `refuseSparseLeafCovariate` (:761), `validateTestContainerAgainstStore`
+  (:1742). LIVE: all three sit in `bartcore_bridge` (:2699, :2721, :2740),
+  declared in `R_interface_bartcore_common.hpp` (:211, :221, :231), beside
+  `validateColumnValues` (:2681, declared :128). The anonymous namespace is
+  :44-2479 and the first `bartcore_bridge` block :2481-3212 (a second one
+  exists at :5629-6793). **Commits 7299b8b and 1622eb9 are the promotion
+  precedents**; S0 reused their five mechanics verbatim. Nothing here is owed
+  forward - S1 consumes the promoted declarations.
+- **`setForestWeights` exists at the engine and now on the R5 surface.**
+  `SamplerBase::setForestWeights(size_t forestIndex, const double* weights)`
+  returns `bool`, true on install (facade.hpp:275-280), with the
+  `SamplerFacade` fan-out at :522-525 and the shape predicate at :80. Bridge
+  `bartcore_setForestWeights` and internal R `bartcoreSetForestWeights` landed
+  at 153d1dd; the PUBLIC R5 `$setForestWeights` landed at
+  multiforest-extension-surface M1 (05ac3b4b, R/dbarts.R:1157, 1-based via
+  `resolveForestIndex` at :1171). Only the flat entry is missing, and its R
+  counterpart now exists - the precondition bcf-public-surface.md:675-679
+  states.
 
-## S0. Plumbing. No dbarts.h change, no hash move.
+## S0. Plumbing. No dbarts.h change, no hash move. LANDED a262cd26.
+
+Line anchors in this section are AS WRITTEN, before the slice landed; the live
+homes are in the B6 and printer entries of the adjudication above and in the
+landing note below. Kept unrewritten as the record of what was asked.
 
 1. Promote three helpers from the anonymous namespace of
    `R_interface_bartcore.cpp` into `bartcore_bridge`, by the 7299b8b mechanics:
@@ -486,6 +577,23 @@ F5's second leg, and a flat BCF for F10's coupling refusal). Verify by grepping
 the live X-list for `numForests` before starting; if it is absent, STOP and
 report - do not build a private substitute.
 
+**All three preconditions are now FACTS, not conditions (added 2026-08-13,
+pre-S1).** Keep the grep as a start-of-slice sanity check, not as a gate that
+might fail.
+- bcf-public-surface S1 LANDED a1dbde7 and S3 LANDED 1622eb9;
+  `dbarts_sampler_numForests` is in the X-list at `dbarts.h:264` and the flat
+  BCF creation path is live.
+- multiforest-extension-surface **M1 LANDED 05ac3b4b** - the HARD precondition
+  bcf-public-surface.md:675-679 sets ("a channel reachable from C but not from
+  R inverts VD's prototyping principle"). The public R5 `$setForestWeights` is
+  live at R/dbarts.R:1157, so item 5's flat entry now has its R counterpart.
+- multiforest-extension-surface **M2 LANDED 64b13b98**, so the M2-before-S1
+  sequencing ruling is MOOT: `forests = list(forest(...))` has replaced
+  `treatment =`, `$setForestBasis` has replaced `$setTreatment`, and
+  `$getForestAmplitudes` has replaced `$getBCFGlue`. Item 5b's C-side
+  vocabulary therefore lands against matching R vocabulary rather than
+  inverting it.
+
 1. **The POD**, size-first, in the ABI-types block beside `dbarts_results`:
 
        typedef enum { DBARTS_COLUMN_ORDINAL = 0, DBARTS_COLUMN_CATEGORICAL = 1 }
@@ -518,7 +626,7 @@ report - do not build a private substitute.
    neither depends on field order. The dense constructor replaces the memo's
    argument-reordering macro (A8). Add exact-`offsetof` and exact-`sizeof`
    static_asserts in `C_interface.cpp` beside the `dbarts_results` ones
-   (:64-76). Generalize `DBARTS_RESULTS_HAS` (dbarts.h:137) into
+   (:68-77). Generalize `DBARTS_RESULTS_HAS` (dbarts.h:138) into
    `DBARTS_HAS_FIELD(type, ptr, field)` and re-express the old spelling over it;
    zero consumer uses either (verified, all four repos). A zero `structSize`
    errors, as `dbarts_sampler_run` already does (C_interface.cpp:135; the
@@ -541,7 +649,9 @@ report - do not build a private substitute.
    diverge: refuse `structSize == 0`; refuse `numColumns` disagreeing with
    `shape.numPredictors` (`updatePredictor` compares against its own
    `numColumns` argument, whose columns are in ARGUMENT order exactly as
-   `bartcore_updatePredictor` treats them, R_interface_bartcore.cpp:4035-4042);
+   `bartcore_updatePredictor` treats them - its column resolve at
+   R_interface_bartcore.cpp:4774-4780 and its argument-order `storeTypes` fill
+   at :4789-4795);
    refuse a `columnTypes` entry outside `{0, 1}`, a `categoryCounts` entry above
    `maxCategories`, a `referenceCodes` entry above `maxCategories`, and a
    `columnSources` entry naming a CSC column `>= numCscColumns` or a dense
@@ -585,7 +695,7 @@ report - do not build a private substitute.
    `printTrees` by association - write its range check explicitly and cover
    it with F5's negative half.
    **Do NOT build a forest-indexed `setTreeStorage`**: storage is per sampler
-   (chain.hpp:1797-1806), so its only legal value would be "all forests". Record
+   (chain.hpp:2209-2232), so its only legal value would be "all forests". Record
    CLOSED BY FACT. **Do NOT build a forest-indexed `predict`**: it needs
    per-forest saved-tree replay, which bcf-public-surface itself holds as a door
    with named consumers. Shipping the symbol without the engine behind it is
@@ -613,8 +723,8 @@ report - do not build a private substitute.
          (sampler, forest, weights))
 
    at the END of the X-list. **1 = accepted, 0 = refused** (binding decision 5;
-   the two recorded reservations say the inverse and are corrected at landing).
-   `weights == NULL` clears. Body: capability probe on
+   the two recorded reservations said the inverse and are already corrected -
+   see B5). `weights == NULL` clears. Body: capability probe on
    `shape.supportsForestWeights` FIRST (never a forest count, so a multinomial
    cannot slip through), then `forest < numForests`, then every element finite
    and `>= 0`; forward `SamplerBase::setForestWeights`' bool. Ownership: the
@@ -627,8 +737,25 @@ report - do not build a private substitute.
    forest f's contribution to the mean. Widening this entry with a basis is
    refused on the rule zero-weight-exactness applied to
    `dbarts_sampler_setWeights`.
-5b. **The mean channel, CONDITIONAL on multiforest-extension-surface's fork 3
-   (see binding decision 3's carve-out).** Re-sign
+
+   **A POSITIVE `test-capi.R` arm, not signature-only (added 2026-08-13,
+   pre-S1).** The remaining scope of the TODO's `setforestweights-r5-exposure`
+   entry, now that M1 (05ac3b4b) has closed its R half, is exactly "the flat C
+   entry ... give it a `test-capi.R` positive arm rather than signature-only
+   treatment". F10 pins the POLARITY (an accepted call returns 1, two refusal
+   legs return 0, a refused call leaves draws bitwise unchanged) but never that
+   an ACCEPTED install changes anything. So: on a flat-created BCF, install a
+   non-degenerate per-forest weight on forest 1 and assert the subsequent draws
+   differ from the same seed with no weight installed - and that an all-ones
+   vector is accepted and BITWISE identical, the contrast
+   `test-forest-weights.R:73-79` already pins on the R side. Without this arm
+   an entry that returns 1 and installs nothing passes every other check.
+5b. **The mean channel** (multiforest-extension-surface M3, that plan's
+   :1274-1297 - re-cited 2026-08-13, pre-S1; it sat at :737-760 when this item
+   was written and the file has since gained its amendments and landing notes).
+   UNCONDITIONAL: fork 3 was resolved 2026-08-11 and M2 landed 64b13b98, so the
+   R vocabulary this re-sign matches is already shipped (see binding decision
+   3's carve-out and the PRECONDITION block). Re-sign
    `dbarts_sampler_setTreatment` as
    `X(int, dbarts_sampler_setForestBasis, (dbarts_sampler*, size_t forest,
    const double* basis, size_t numColumns), (sampler, forest, basis,
@@ -647,6 +774,21 @@ report - do not build a private substitute.
    incidentally the way a 0/1 z can. Re-word the creation Doxygen
    (`dbarts.h:348-357`) in engine vocabulary. Budget ~40 header + ~80
    C_interface + ~70 consumer.c + ~60 test-capi.R.
+
+   **Also retire the bridge message vocabulary M2 left behind (added
+   2026-08-13, pre-S1).** M2's landing note records three leaks as src-owned
+   and explicitly assigns them here (multiforest-extension-surface.md:1992-1997,
+   "M3 (riding `dbarts-h-reshape` S1) retires these alongside the flat-C
+   renames"), verified live: `bartcore_setTreatment` errors
+   "bartcore_setTreatment requires a BCF sampler"
+   (R_interface_bartcore.cpp:3675); `bartcore_getBCFGlue` errors
+   "bartcore_getBCFGlue requires a BCF sampler" (:3773); and a length-mismatched
+   basis supplied under `forests =` still errors "length of 'treatment' must
+   equal length of 'y'" - that third one is R-side (`R/data.R:645`), so it is
+   the one part of this obligation that is not a `src/` edit. A renamed bridge
+   entry carries the new vocabulary in its own messages - the message is part of
+   the rename, not a follow-up. Any tinytest asserting the old text moves in the
+   same commit.
 6. **`consumer.c` + `test-capi.R`**: every entry above; the refusal matrix; the
    `structSize` canary; the sparse-predict parity oracle; and the RE-POINTED raw
    canary - `p_apiHash_raw` resolved by hand through `R_GetCCallable` with a
@@ -837,6 +979,37 @@ report - do not build a private substitute.
    state block, so the writer is the only source of the value and a reader
    can only echo it. If V6 is ever reversed and the mask DOES ride the
    state, a reader becomes necessary and must be added in the same re-bake.
+9. **Normalize the R5 forest index to 1-based. SETTLED BY VD 2026-08-13**
+   (added 2026-08-13, pre-S1). The decision is recorded, not re-argued here:
+   multiforest-extension-surface.md:765-783, M1 item 1, "Forest indexing:
+   1-BASED, converted at the boundary" - R code holds 1-based throughout with
+   ONE conversion point at the bridge call site (`resolveForestIndex`,
+   R/bartcore.R:1051, which rejects anything below 1 and returns `forest - 1L`),
+   while the C API, the bridge and the engine stay 0-based. That entry also
+   assigns the remaining migration to this re-bake.
+
+   Scope, verified against the live `r5-forest-indexing` TODO entry
+   (TODO:434-454) and the live R5 methods: exactly TWO methods are still
+   0-based, `$getForestFits` (R/dbarts.R:1415-1418) and
+   `$getForestVariableCounts` (:1425-1428), both passing
+   `as.integer(forest)` straight through. Everything else already landed on
+   the 1-based side - `$getCalibration` (:1433) and `$setCalibration` (:1464)
+   from the calibration arc, `$setForestWeights` (:1157, index resolved
+   :1171) at M1, and `$setForestBasis` (:1193, resolved :1196) at M2;
+   `$getForestAmplitudes` (:1420) stays argument-free as its `$getBCFGlue`
+   predecessor was and is out of scope. So these two getters are the WHOLE
+   remaining surface, and this item closes the ticket rather than shrinking it.
+
+   The work: route both through `resolveForestIndex`, so a BCF sampler's basis
+   forest becomes `2L` and `0` becomes an error rather than silently naming the
+   prognostic forest; rewrite the `\item{forest}` paragraph
+   (man/dbartsSampler-class.Rd:169-171), which today documents both conventions
+   in one paragraph, to state one convention; migrate every in-repo caller and
+   test; NEWS bullet. This is a BREAKING R-surface change and belongs in this
+   window for the same reason the header re-sign does. Budget ~30 R + ~25 man +
+   ~30 test + ~15 NEWS, ~100 - R-side, outside the header/C budget above.
+   Nothing here touches `dbarts.h`, so it moves no hash and could ride either
+   commit if S1 is split.
 
 rng: NEUTRAL. Gates: preclean install into the private library; `tests/cpp`
 plain and ASAN from clean; `test-capi.R` (the load-bearing gate); full tinytest;
@@ -956,7 +1129,11 @@ dbarts-1.0@bb9a121 (the worktree, not the `master` primary at d1da1dd, which
 still binds the removed C++ ABI), bartCause dbarts-1.0@695c603, bairrtt
 main@6167423 - whole-tree ripgrep plus a binary symbol census.
 
-| consumer | entries used | this arc's call-site edits | bcf S3's edits | optional handshake | total |
+The `bcf S3's edits` column is a LANDED record (1622eb9), not a forward cost;
+it is kept because the consumers migrate once, at the freeze, against the
+cumulative header (added 2026-08-13, pre-S1).
+
+| consumer | entries used | this arc's call-site edits | bcf S3's edits (landed) | optional handshake | total |
 |---|---|---|---|---|---|
 | stan4bart | 23 (38 call expressions) | 5 | 0 | 1 | 5-6 + rebuild |
 | treatSens | 10 (21 call expressions) | 0 | 4 | 1 | 4-5 + rebuild |
@@ -977,16 +1154,22 @@ main@6167423 - whole-tree ripgrep plus a binary symbol census.
   `dbarts_sampler_setResponse` calls (public-surface.md:347 recorded this for
   0.0-13; still true at 6ce0440), so bcf S3's setResponse widening costs it
   nothing but the rebuild.
-- **treatSens** - ZERO call-site edits for THIS arc. Its window cost belongs to
-  bcf S3: four `dbarts_sampler_setResponse` sites
-  (`sensitivityAnalysis.cpp:173, :184, :278, :291`) gain an explicit
-  `updateScale`, which must be **1**, not 0, to preserve today's behavior -
-  `dbarts_sampler_setResponse` hardcodes `setResponse(y, true)`
-  (C_interface.cpp:202). bcf S3's note ("0 for a BCF") is right for a BCF and
-  wrong for treatSens's gaussian grid. Flagged for that arc, not decided here:
-  three of the four sites (:173, :184, :291) are POST-BURN-IN, where
-  dbarts.h:363-365 advises `false`, so preservation and desirability may diverge
-  there.
+- **treatSens** - ZERO call-site edits for THIS arc, and its four-site cost is
+  now a LANDED RECORD rather than a forward cost (corrected 2026-08-13,
+  pre-S1). bcf-public-surface S3 (1622eb9) already widened the entry:
+  `dbarts_sampler_setResponse(sampler, y, updateScale)` is the live signature
+  (X-list `dbarts.h:188-189`, prototype `:393-394`, body
+  `C_interface.cpp:201-219` ending `setResponse(y, updateScale != 0)` at :219).
+  The claim this bullet used to carry - "`dbarts_sampler_setResponse` hardcodes
+  `setResponse(y, true)`" - is FALSE against the live tree and is struck.
+  What survives, unchanged and still owed at the freeze rebuild: treatSens's
+  four sites (`sensitivityAnalysis.cpp:173, :184, :278, :291`) must pass **1**,
+  not 0, to preserve today's behavior, because bcf S3's note ("0 for a BCF") is
+  right for a BCF and wrong for treatSens's gaussian grid; and three of the four
+  (:173, :184, :291) are POST-BURN-IN, where the header's own advice ("pass
+  false once burnt in so fits stay comparable", dbarts.h:389) points the other
+  way, so preservation and desirability may diverge there. That is a note for
+  the treatSens migration, not work this arc schedules.
 - **bartCause / bairrtt** - no `dbarts_` or `DBARTS_` symbol anywhere, no
   `LinkingTo: dbarts`; they drive the R surface only.
 
@@ -1018,7 +1201,7 @@ all with zero consumer calls - STAY.
    `consumer.c`'s hand-resolved `R_GetCCallable` path re-points at
    `dbarts_apiHash`, keeping its comment; `test-capi.R`'s three version
    assertions are rewritten per S1 item 6; `man/dbarts-package.Rd:43` and
-   `inst/NEWS.Rd:362` are edited. Without the re-point the removal deletes the
+   `inst/NEWS.Rd:425` are edited. Without the re-point the removal deletes the
    only in-repo coverage of the un-stubbed per-symbol path the header documents.
 2. **The standalone `numTestObservations` parameters** of `setTestPredictors`
    and `predict` - absorbed into `dbarts_predictor_source::numRows`. Replacement
@@ -1073,23 +1256,59 @@ all with zero consumer calls - STAY.
    because: the header's own evolution rule is "function additions arrive under
    new names (a minor bump)" (dbarts.h:22-24); a counts response is a different
    data type, not a differently shaped y; `dbarts_sampler_create` routes only to
-   `createHolder` (C_interface.cpp:104-110), so the flat surface cannot produce
-   a multinomial sampler at all and every tag but the vector one is unreachable
-   dead surface; building it would RE-SIGN `setResponse` a second time in the
-   same window, moving treatSens's four sites twice; and the reservation's
-   stated goal - no ABI break later - is met exactly as well by a new name.
-   A plan may decline another plan's reservation when the substitute meets the
-   reservation's own goal, the departure is recorded where the reserving author
-   will see it, and the reservation is not yet in the registry. All three hold:
-   multinomial-counts-mutation has not landed and c-api-growth.md carries no
-   multinomial reservation today. Reserved in its place, both APPENDS:
+   `createHolder` (C_interface.cpp:108-114, over
+   R_interface_bartcore.cpp:2761), which has a BCF branch but NO multinomial
+   one, so the flat surface cannot produce a multinomial sampler at all and
+   every tag but the vector one is unreachable dead surface; building it would
+   RE-SIGN `setResponse` a second time in the same window, moving treatSens's
+   four sites twice; and the reservation's stated goal - no ABI break later -
+   is met exactly as well by a new name.
+
+   **RE-LICENSED 2026-08-13, pre-S1. The decline STANDS; two of its stated
+   warrants have expired and are struck.** The original licence was a
+   three-part test - a plan may decline another plan's reservation when (a) the
+   substitute meets the reservation's own goal, (b) the departure is recorded
+   where the reserving author will see it, and (c) the reservation is not yet
+   in the registry - supported by "multinomial-counts-mutation has not landed
+   and c-api-growth.md carries no multinomial reservation today". BOTH of those
+   facts are now false: that arc LANDED (S1-S5), and c-api-growth.md:558-585
+   carries its three reservations in the registry. So leg (c) FAILS on its
+   face, and leg (b) can no longer be satisfied by editing an unlanded plan
+   alone.
+
+   The decline is re-licensed on what survives, which is the substantive half
+   and was always the load-bearing half: leg (a) holds unchanged and is
+   dispositive - the reservation's own stated goal is "a later flat multinomial
+   creation entry needs a new tag, not an ABI break"
+   (c-api-growth.md:570-577), and two reserved APPEND names meet that goal
+   exactly, at strictly lower cost than a tagged struct, under the header's own
+   "additions arrive under new names" rule. The dead-surface fact is
+   independent of anything that landed: the flat surface still cannot build a
+   multinomial sampler, so every tag but the vector one would ship unreachable.
+   Legs (b) and (c) become an OBLIGATION rather than a precondition: because
+   the reservation IS in the registry, the departure must be recorded in BOTH
+   places, and it is - "TODO edits at landing" item 4 writes the supersession
+   into c-api-growth.md and item 5 into multinomial-counts-mutation.md. Neither
+   was optional before; both are now load-bearing, and S2 may not drop either.
+   A third warrant is honestly WEAKER and is not leaned on: "moving treatSens's
+   four sites twice" miscounts, by this plan's own rule that the number of
+   re-bakes is NOT the number of migrations - consumers migrate ONCE, at the
+   freeze, against the final header. A second re-sign would cost review
+   clarity, not migration.
+
+   Reserved in its place, both APPENDS:
    `dbarts_sampler_setCounts(dbarts_sampler*, const int* counts, size_t
    numCategories)` and `dbarts_sampler_setOffsetMatrix(dbarts_sampler*, const
    double* offset, size_t numCategories)`. Its item 2 (a size-first spec struct
    for a future flat creation) is ADOPTED. Its item 3 is SUPERSEDED, not
    adopted - see the A3 adjudication.
-4. **The flat BCF test-surface gap belongs to bcf-public-surface S3.** Settled
-   by the orchestrator's sequencing call; the amendment text is below.
+4. **The flat BCF test-surface gap belongs to bcf-public-surface S3. APPLIED
+   at 1622eb9.** Settled by the orchestrator's sequencing call; the amendment
+   text is below, and that arc applied it. `refuseBCFTestSurface` is promoted
+   (declared R_interface_bartcore_common.hpp:193, defined
+   R_interface_bartcore.cpp:2646) and guards both flat entries
+   (C_interface.cpp:315, :340). Nothing is owed forward; see the B7
+   adjudication.
 
 ## Open decisions (VD)
 
@@ -1105,9 +1324,9 @@ recorded principles and measured evidence, and the fourth (versioning) by VD's
   surface has both; the flat surface has neither. Additive later.
 - **Flat `setCutPoints` and `setData`** - additive later; `setData` inherits the
   multi-forest refusal survey in `runsbcbcf-repair.md`.
-- **Flat `predictVariance`** - the virtual exists (facade.hpp:195-197) with a
-  dense convenience spelling; no flat entry. Additive later, and it takes the
-  same source POD when it arrives.
+- **Flat `predictVariance`** - the virtual exists (facade.hpp:222-224) with a
+  dense convenience spelling (:233-238); no flat entry. Additive later, and it
+  takes the same source POD when it arrives.
 - **Flat multinomial / counts creation, `setCounts`, `setOffsetMatrix`** -
   reserved names (resolved question 3).
 - **A tagged response/offset source** - DECLINED in favour of new names; the
@@ -1144,7 +1363,25 @@ prior version exists to have changed from (binding decision 8).
 
 ## TODO edits at landing
 
-1. **The `bcf-public-surface` S3 amendment, to be applied VERBATIM by the
+1. **APPLIED at bcf-public-surface S3, 1622eb9 (marked 2026-08-13, pre-S1).
+   Nothing to do; kept as the record of what was handed over.** The whole item
+   below - the 2b amendment and the further amendments after it - was applied
+   by that arc before its slice ran, and reproduces in that plan (its 2b at
+   bcf-public-surface.md:395, marked "amendment applied 2026-08-10"; the void
+   minor-bump ABORT clause replaced at :462-464; the treatSens migration note
+   carrying both 1 and 0 at :605-612). Verified live:
+   `refuseBCFTestSurface` declared R_interface_bartcore_common.hpp:193, defined
+   R_interface_bartcore.cpp:2646, `using`-imported at C_interface.cpp:22 and
+   R_interface_bartcore.cpp:32, guarding `dbarts_sampler_setTestPredictors` at
+   C_interface.cpp:315 and `dbarts_sampler_predict` at :340; the R bridge's four
+   sibling call sites are now :4414, :4462, :4492, :5420; and no version
+   constant moved (`DBARTS_C_API_MAJOR` 1, `DBARTS_C_API_MINOR` 0,
+   dbarts.h:71-72).
+   The consequence for this arc's S0: it promoted the THREE remaining
+   anonymous-namespace guards, not "the fourth of the same kind". Original
+   text follows, unedited.
+
+   **The `bcf-public-surface` S3 amendment, to be applied VERBATIM by the
    orchestrator before that slice starts** (resolved question 4's mechanism, per
    the landed SL precedent at commit 7299b8b). Insert as a new S3 item, after
    item 2:
@@ -1202,27 +1439,25 @@ prior version exists to have changed from (binding decision 8).
    - S3 item 1's migration note: "0 for a BCF" is right for a BCF and wrong for
      treatSens's existing gaussian grid, whose four sites need **1** to preserve
      behavior; write both, and flag that three of the four (:173, :184, :291)
-     are post-burn-in, where dbarts.h:363-365 advises `false`.
+     are post-burn-in, where the header advises `false` (dbarts.h:389).
 2. **`docs/plans/c-api-growth.md`, the setForestWeights reservation
-   (:496-512).** ERRATUM, not an adoption. Replace constraint 1's first clause
-   with: "**Erratum (dbarts-h-reshape, 2026-08-10):** this reservation
-   originally read 'Nonzero return means refusal, matching
-   `dbarts_sampler_setPredictor`'. That is the INVERSE of the shipped
-   convention - `dbarts_sampler_setPredictor` ends `return result ==
-   bartcore::PredictorUpdateResult::accepted ? 1 : 0` (C_interface.cpp), i.e.
-   **1 = accepted, 0 = refused**, which is also what bcf-public-surface S3 item
-   3 records. The entry is built with 1 = accepted / 0 = refused." In the same
-   edit, strike "`DBARTS_C_API_MINOR` bumped when it lands" - it landed in this
-   window with no version movement (VD 2026-08-10) - and mark the reservation
-   BUILT, naming this arc's S1.
-3. **`docs/plans/zero-weight-exactness.md`, S3 item 2.** Same erratum, two
-   sentences: the phrase "nonzero on refusal" is wrong and reads "1 on
-   acceptance, 0 on refusal", and the "`DBARTS_C_API_MINOR` bump" clause is void
-   under VD 2026-08-10. The flat entry landed in dbarts-h-reshape S1. Do not
-   restate the derivation - point at c-api-growth.md.
+   (:484-518).** **DOWNGRADED 2026-08-13, pre-S1: already applied.** The
+   erratum is live at :503-510, carrying the 1 = accepted / 0 = refused
+   correction verbatim as constraint 1, and the MINOR-bump clause is already
+   struck - that sentence now reads "no version constant moves when it lands
+   (VD 2026-08-10: no increments pre-release - the constants stay 1.0 until the
+   first release)" at :498-500. ONLY REMAINING: **mark the reservation BUILT,
+   naming this arc's S1.**
+3. **`docs/plans/zero-weight-exactness.md`, S3 item 2.** **DOWNGRADED
+   2026-08-13, pre-S1: already applied.** The erratum is live at :402-403
+   ("the reserved flat entry returns 1 on acceptance and 0 on refusal (ERRATUM
+   2026-08-10 - this line originally said the inverse)") and again at :453-456,
+   where the MINOR-bump clause is already declared void. ONLY REMAINING: **mark
+   it BUILT**, recording that the flat entry landed in dbarts-h-reshape S1. Do
+   not restate the derivation - point at c-api-growth.md.
 4. **`docs/plans/c-api-growth.md`, reservations closed and opened:**
    forest-indexed `setTreeStorage` CLOSED BY FACT (storage is per sampler,
-   chain.hpp:1797-1806); forest-indexed `predict` DOOR, blocker = per-forest
+   chain.hpp:2209-2232); forest-indexed `predict` DOOR, blocker = per-forest
    saved-tree replay; `dbarts_sampler_setCounts` / `dbarts_sampler_setOffsetMatrix`
    reserved as appends, SUPERSEDING multinomial-counts-mutation's
    tagged-response reservation item 1; the pre-release rule (VD 2026-08-10) that
@@ -1248,7 +1483,7 @@ prior version exists to have changed from (binding decision 8).
    post-release bump rule untouched - it still binds from the first release on.
 7. **`man/dbarts-package.Rd:43`** - "versioned by `\code{DBARTS_C_API_VERSION}`"
    becomes the major/minor handshake, naming `dbarts_apiHash()` as the exact
-   signature check. **`inst/NEWS.Rd:362`** - the historical 1.0-0 line names a
+   signature check. **`inst/NEWS.Rd:425`** - the historical 1.0-0 line names a
    macro that will not ship; edit deliberately.
 8. **`docs/design/public-surface.md` sec 6** - the flat surface's shape, the
    source POD, the forest-indexed family, and the honest mutation-vs-predict
@@ -1289,9 +1524,9 @@ prior version exists to have changed from (binding decision 8).
    `numCscColumns`, so the CSC triple was not self-describing and no bound could
    be checked on the `~v` decode - the same defect class the arc exists to
    close; the field is added and F8 leg (iv) gates it. (ii) S0's printer
-   widening missed `Chain::printSavedTree` (chain.hpp:1936), the branch
-   `Sampler::printTrees` takes under `keepTrees`, which also hardcodes
-   `forests_[0]`; both printers are widened and F5 gates both branches.
+   widening missed `Chain::printSavedTree` (chain.hpp:1936, now :2349), the
+   branch `Sampler::printTrees` takes under `keepTrees`, which also hardcoded
+   `forests_[0]`; both printers were widened at S0 and F5 gates both branches.
 6. **A8 is adopted with a different mechanism**: a `static inline` constructor
    rather than designated initializers, which are a warned extension below
    C++20 and would cost a CXX17 LinkingTo consumer a CRAN-visible warning.
@@ -1307,7 +1542,11 @@ prior version exists to have changed from (binding decision 8).
    byte-identical. Every anchor in THIS plan was re-read at 2e50cf1 and several
    were corrected by a line or two in the process (`R_interface.cpp` register
    table :256-265; `sampler.hpp:1017`; `C_interface.cpp:354` for the getTrees
-   hardcode; `treatSens R_interface.cpp:446-448`).
+   hardcode; `treatSens R_interface.cpp:446-448`). The same is true of the five
+   landings since (bcf S3/S4/S6, this arc's S0, extension-surface M1 and M2):
+   the whole file was re-swept by symbol at e2a278d1 on 2026-08-13 and the
+   moved anchors corrected in place. Cite by SYMBOL when re-verifying; the
+   line numbers are a convenience, not the contract.
 
 ## Landing notes
 
