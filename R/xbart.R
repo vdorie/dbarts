@@ -221,20 +221,29 @@ xbart <- function(
     if (is.call(kValue)) {
       kValue <- eval(kValue)
     }
+    # the k argument replaces the supplied prior's own k, but its named
+    # calibration is not a grid axis and rides every cell unchanged
+    namedSd <- node.spec@prior.sd
+    namedScale <- node.spec@prior.scale
     node.prior <- if (is(node.spec, "dbartsLinearPrior")) {
-      resolveLeafCovariates(linear(node.spec@columns, kValue), data)
+      resolveLeafCovariates(
+        linear(node.spec@columns, kValue, namedSd, namedScale),
+        data
+      )
     } else if (is(node.spec, "dbartsGPPrior")) {
       resolveLeafCovariates(
         gp(
           node.spec@columns,
           kValue,
           node.spec@lengthscale,
-          node.spec@max.leaf.size
+          node.spec@max.leaf.size,
+          namedSd,
+          namedScale
         ),
         data
       )
     } else {
-      normal(kValue)
+      normal(kValue, namedSd, namedScale)
     }
   }
   # xbart cells always run a fixed k (the default 2, not the binary
@@ -262,6 +271,9 @@ xbart <- function(
     node.hyperprior,
     resid.prior,
     family = family,
+    # a named calibration is held across every cell, created or re-modelled:
+    # cellModel carries this model, and the setModel branch re-derives it
+    prior.scale = resolvePriorScale(node.prior, node.hyperprior),
     # the logistic scale is probit's default widened by the logistic
     # latent's standard deviation, pi / sqrt(3)
     node.scale = switch(

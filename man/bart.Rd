@@ -43,7 +43,7 @@ BART is a Bayesian \dQuote{sum-of-trees} model in which each tree is constrained
 bart(
     x.train, y.train, x.test = matrix(0.0, 0, 0),
     sigest = NA, sigdf = 3, sigquant = 0.90,
-    k = 2.0,
+    k = 2.0, prior.scale = NA_real_,
     power = 2.0, base = 0.95, splitprobs = 1 / numvars,
     binaryOffset = 0.0, weights = NULL,
     ntree = 200,
@@ -60,7 +60,7 @@ bart(
 bart2(
     formula, data, test, subset, weights, offset, offset.test = offset,
     sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
-    k = NULL,
+    k = NULL, prior.scale = NA_real_,
     power = 2.0, base = 0.95, split.probs = 1 / num.vars,
     dart = FALSE,
     n.trees = 75L,
@@ -173,6 +173,9 @@ extract(object, \dots)
    }
    \item{k}{
      For numeric \eqn{y}, \code{k} is the number of prior standard deviations \eqn{E(Y|x) = f(x)} is away from \eqn{\pm 0.5}{+/- 0.5}. The response (\code{y.train}) is internally scaled to range from \eqn{-0.5} to \eqn{0.5}. For binary \eqn{y} fit with the default probit link, \code{k} is the number of prior standard deviations \eqn{f(x)} is away from \eqn{\pm 3}{+/- 3}, the probit reference scale; \code{family = "logistic"} (\code{bart2} only) widens this to \eqn{\pm \pi \sqrt{3}}{+/- pi*sqrt(3)}, which is three standard deviations of the standard logistic latent variable (\eqn{\pi / \sqrt{3}}{pi/sqrt(3)} each), the same three-sd span probit's \eqn{\pm 3}{+/- 3} covers. In both cases, the bigger \eqn{k} is, the more conservative the fitting will be. The value can be either a fixed number, or a \emph{hyperprior} of the form \code{chi(degreesOfFreedom = 1.5, scale = 2)}. For \code{bart2}, the default of \code{NULL} uses the value 2 for continuous responses and the \code{chi(1.5, 2)} hyperprior for binary ones, which centers the sampled \code{k} near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass \code{k = 2} for the fixed BART-package default, or \code{chi(1.5, Inf)} for the old improper prior. The default of 2 for continuous responses follows Chipman, George, and McCulloch's argument (see References) that with node prior standard deviation \eqn{\sigma_\mu = 0.5 / (k \sqrt{m})}{sigma_mu = 0.5 / (k * sqrt(m))} for \eqn{m} trees, \eqn{k} prior standard deviations of \eqn{f(x)} span the whole coded response range regardless of \eqn{m} -- so \eqn{k = 2} places that range at roughly a 95\% prior interval. The range scaling itself is an outlier-sensitive convention shared with BayesTree/bartMachine: extreme \eqn{y} values compress the effective prior on everything else, for which the published workaround is to log-transform or winsorize such values before fitting, or to let \code{k} adapt via the \code{chi} hyperprior.
+   }
+   \item{prior.scale}{
+     Names the leaf calibration in response units instead of inheriting it from the range of \code{y.train}: the prior standard deviation of the forest total \eqn{f} at \code{k = 1}, so the prior standard deviation in force is \code{prior.scale / k} and the prior mean is the response transform's shift. \code{NA} (the default) leaves the family's own calibration in place and nothing changes. Useful when the fit is one block of a larger sampler and the response it is handed varies in scale between sweeps. For the leaf-model qualifications on what the named quantity bounds, and for the \code{sd} spelling and its refusal under a sampled \code{k}, see \code{\link{dbarts}}'s Details and \code{\link{dbartsPriors}}.
    }
    \item{power}{
      Power parameter for tree prior. Default 2, Chipman, George, and McCulloch's empirical recommendation (see References) for the split-probability decay \eqn{base (1 + depth)^{-power}}{base * (1 + depth)^(-power)}, not derived from a formula.

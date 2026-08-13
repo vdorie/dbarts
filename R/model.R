@@ -20,6 +20,7 @@ setMethod(
     resid.prior,
     proposal.probs = defaultProposalProbs,
     node.scale = 0.5,
+    prior.scale = NA_real_,
     family = "auto"
   ) {
     if (
@@ -80,6 +81,7 @@ setMethod(
     .Object@p.birth <- probs[["birth"]]
 
     .Object@node.scale <- node.scale
+    .Object@prior.scale <- as.double(prior.scale)
     .Object@family <- family
 
     validObject(.Object)
@@ -953,18 +955,32 @@ cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
   result
 }
 
-linear <- function(columns, k = NULL) {
+linear <- function(columns, k = NULL, sd = NULL, scale = NULL) {
   if (missing(columns)) {
     stop("linear node prior requires 'columns' naming the leaf covariates")
   }
   if (!is.character(columns) && !is.numeric(columns)) {
     stop("linear node prior 'columns' must be a character or numeric vector")
   }
-  normalPrior <- normal(k) # reuses its k validation and coercions
-  new("dbartsLinearPrior", k = normalPrior@k, columns = columns)
+  # reuses normal()'s k validation and coercions, and its named-scale rules
+  normalPrior <- normal(k, sd, scale)
+  new(
+    "dbartsLinearPrior",
+    k = normalPrior@k,
+    columns = columns,
+    prior.scale = normalPrior@prior.scale,
+    prior.sd = normalPrior@prior.sd
+  )
 }
 
-gp <- function(columns, k = NULL, lengthscale = NULL, max.leaf.size = 256L) {
+gp <- function(
+  columns,
+  k = NULL,
+  lengthscale = NULL,
+  max.leaf.size = 256L,
+  sd = NULL,
+  scale = NULL
+) {
   if (missing(columns)) {
     stop("gp node prior requires 'columns' naming the leaf covariates")
   }
@@ -986,17 +1002,67 @@ gp <- function(columns, k = NULL, lengthscale = NULL, max.leaf.size = 256L) {
   ) {
     stop("gp node prior 'max.leaf.size' must be a positive integer")
   }
-  normalPrior <- normal(k) # reuses its k validation and coercions
+  # reuses normal()'s k validation and coercions, and its named-scale rules
+  normalPrior <- normal(k, sd, scale)
   new(
     "dbartsGPPrior",
     k = normalPrior@k,
     columns = columns,
     lengthscale = if (is.null(lengthscale)) NULL else as.double(lengthscale),
-    max.leaf.size = max.leaf.size
+    max.leaf.size = max.leaf.size,
+    prior.scale = normalPrior@prior.scale,
+    prior.sd = normalPrior@prior.sd
   )
 }
 
-normal <- function(k = NULL) {
+## One named-calibration argument, wherever it is spelled: NULL or NA leaves it
+## unnamed, anything else must be a single positive finite number.
+validateNamedScale <- function(value, name) {
+  if (is.null(value)) {
+    return(NA_real_)
+  }
+  value <- coerceOrError(value, "numeric")
+  if (length(value) != 1L) {
+    stop("'", name, "' must be a single number")
+  }
+  if (!is.na(value) && (!is.finite(value) || value <= 0.0)) {
+    stop("'", name, "' must be positive")
+  }
+  value
+}
+
+## The two spellings of the named leaf calibration, shared by normal(),
+## linear() and gp(): 'scale' is the forest total's prior sd at k = 1, 'sd' the
+## same at the resolved k. Both are response units and at most one may be
+## given; the sd-to-scale conversion waits for k (resolvePriorScale).
+resolveNamedScaleArgs <- function(sd, scale) {
+  sd <- validateNamedScale(sd, "sd")
+  scale <- validateNamedScale(scale, "scale")
+  if (!is.na(sd) && !is.na(scale)) {
+    stop("give at most one of 'sd' and 'scale' to a node prior")
+  }
+  list(prior.sd = sd, prior.scale = scale)
+}
+
+## The model's response-unit prior.scale, resolved from a node prior's named
+## calibration against the k that will actually be in force. A sampled k has no
+## single value to multiply an sd by and drifts every sweep, so the sd spelling
+## is refused there rather than honored at the current draw.
+resolvePriorScale <- function(node.prior, node.hyperprior) {
+  if (is.na(node.prior@prior.sd)) {
+    return(node.prior@prior.scale)
+  }
+  if (!is(node.hyperprior, "dbartsFixedHyperprior")) {
+    stop(
+      "'sd' names a prior sd at the current 'k', but 'k' is drawn every ",
+      "sweep under a hyperprior and the named sd would drift: name ",
+      "'scale' instead (the prior sd at k = 1), or fix 'k' at a number"
+    )
+  }
+  node.prior@prior.sd * node.hyperprior@k
+}
+
+normal <- function(k = NULL, sd = NULL, scale = NULL) {
   if (is.character(k)) {
     # compatibility with string specifications like "chi(1.5)" or "2"
     if (startsWith(k, "chi")) {
@@ -1019,7 +1085,13 @@ normal <- function(k = NULL) {
   ) {
     stop("'k' must be a positive scalar or a hyperprior specification")
   }
-  new("dbartsNormalPrior", k = k)
+  named <- resolveNamedScaleArgs(sd, scale)
+  new(
+    "dbartsNormalPrior",
+    k = k,
+    prior.scale = named$prior.scale,
+    prior.sd = named$prior.sd
+  )
 }
 
 chisq <- function(df = 3, quant = 0.9) {

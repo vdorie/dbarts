@@ -48,6 +48,13 @@ struct SamplerOptions {
   size_t numThin = 1;
   double k = 2.0;
   double nodeScale = 0.5;  // 3.0 for binary responses
+  // the named leaf calibration, in RESPONSE units: the forest total's prior sd
+  // at k = 1. Finite, it OVERRIDES nodeScale - the single-forest constructor
+  // divides it by the response transform's fitScale to get the internal node
+  // scale - and NaN leaves nodeScale the primitive. The two-forest (BCF) and
+  // multinomial constructors build from their own calibration maps and never
+  // read it, so the bridge refuses a named value there rather than dropping it.
+  double priorScale = std::numeric_limits<double>::quiet_NaN();
   double base = 0.95, power = 2.0;
   double birthOrDeathProbability = 0.5;
   double swapProbability = 0.1;
@@ -234,6 +241,10 @@ struct ModelParameters {
   double changeProbability = 0.4;
   double birthProbability = 0.5;
   double nodeScale = 0.5;
+  // the named calibration, matching SamplerOptions: finite overrides nodeScale
+  // and is RE-DERIVED against the transform in force when the model installs,
+  // not against the one creation saw, so an intervening re-anchor is honored
+  double priorScale = std::numeric_limits<double>::quiet_NaN();
   // k is fixed at .k unless updateK, matching SamplerOptions
   double k = 2.0;
   bool updateK = false;
@@ -555,8 +566,9 @@ public:
         options.tauSliceSteps, rng);
     options_.groupIndices = nullptr;  // consumed above
 
-    forest.leaf.scale =
-      options.nodeScale / std::sqrt(static_cast<double>(forest.numTrees));
+    forest.leaf.scale = resolvedNodeScale(options.nodeScale,
+                                          options.priorScale) /
+                        std::sqrt(static_cast<double>(forest.numTrees));
     // the constrained constant leaf reads box geometry from the store and its
     // per-column directions from the borrowed spec; the c-inflation matches a
     // constrained leaf's post-truncation variance to the unconstrained prior
@@ -1327,8 +1339,11 @@ public:
     forest.swapProbability = model.swapProbability;
     forest.changeProbability = model.changeProbability;
     forest.birthProbability = model.birthProbability;
-    forest.leaf.scale =
-      model.nodeScale / std::sqrt(static_cast<double>(forest.numTrees));
+    // the same conversion creation runs, re-derived against the CURRENT
+    // transform: without it a round trip through the model SEXP would revert a
+    // named calibration to the family-keyed nodeScale in silence
+    forest.leaf.scale = resolvedNodeScale(model.nodeScale, model.priorScale) /
+                        std::sqrt(static_cast<double>(forest.numTrees));
 
     forest.updateK = model.updateK;
     if (model.updateK) {
@@ -3326,6 +3341,17 @@ public:
   }
 
 private:
+  /// The internal-unit node scale in force: a named priorScale is the forest
+  /// total's prior sd at k = 1 in RESPONSE units, so dividing by the response
+  /// transform's multiplier converts it, and a non-finite one leaves the
+  /// family-keyed nodeScale alone. The divisor is never zero - every family's
+  /// rescale() ran in its own constructor and its degenerate guards floor the
+  /// range at 1 - and the grouped decorator delegates the transform it wraps.
+  double resolvedNodeScale(double nodeScale, double priorScale) const {
+    return std::isfinite(priorScale) ? priorScale / response_->fitScale()
+                                     : nodeScale;
+  }
+
   /// Composes forest f's installed per-observation weight into the precisions
   /// the combiner just formed, returning a chain-owned scratch pointer; the
   /// combiner's own pointer passes through with no allocation, no copy and no

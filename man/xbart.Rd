@@ -63,7 +63,7 @@ xbart(
      A vector of positive integers setting the BART hyperparameter for the number of trees in the sum-of-trees formulation. See \code{\link{bart}}.
    }
    \item{k}{
-     A vector of positive real numbers, setting the BART hyperparameter for the node-mean prior standard deviation. If \code{NULL}, the default of \code{bart2} will be used - 2 for continuous response and a Chi hyperprior for binary. Hyperprior crossvalidation not possible at this time.
+     A vector of positive real numbers, setting the BART hyperparameter for the node-mean prior standard deviation. If \code{NULL}, the default of \code{bart2} will be used - 2 for continuous response and a Chi hyperprior for binary. Hyperprior crossvalidation not possible at this time. A hyperprior \code{k} is held, not swept, and is DRAWN every sweep in every cell, so the reported loss is computed under a shrinkage that moves within each fit rather than under the named value.
    }
    \item{power}{
      A vector of real numbers greater than one, setting the BART hyperparameter for the tree prior's growth probability, given by \eqn{{base} / (1 + depth)^{power}}.
@@ -103,6 +103,8 @@ xbart(
    }
    \item{node.prior}{
      An optional expression of the form \code{normal(k)}, \code{linear(columns, k)}, or \code{gp(columns, k, ...)} selecting the leaf model, as in \code{\link{dbarts}}. The default fits constant leaves. A \code{k} given inside the prior stands in for a missing \code{k} argument; the \code{k} argument otherwise drives the crossvalidation grid as usual.
+
+     A named leaf calibration (\code{normal(scale = )}, and likewise for \code{linear} and \code{gp}) is NOT a grid axis: it is held fixed across every cell, so the \code{k} grid sweeps the prior standard deviation \code{scale / k} about a fixed anchor rather than about whatever the response range happened to imply. It is honored in cells that re-use a sampler as well as in cells that create one, so the loss surface does not depend on the order the cells run in. The \code{sd} spelling meets the same refusal here as everywhere when \code{k} is a hyperprior.
    }
 }
 \details{

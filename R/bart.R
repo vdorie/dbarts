@@ -335,10 +335,12 @@ buildSamplerPriors <- function(
   sigdf,
   sigquant,
   nodeK,
+  priorScale = NA_real_,
   dart = FALSE,
   splitProbsName = "split.probs",
   splitProbsDefault = NULL
 ) {
+  priorScale <- validateNamedScale(priorScale, "prior.scale")
   if (inherits(dart, "dbartsDartPrior")) {
     # a full spec overrides the power/base arguments with its own
     tree.prior <- dart
@@ -366,9 +368,15 @@ buildSamplerPriors <- function(
     }
   }
 
-  if (!is.null(nodeK)) {
+  # a named prior.scale needs a node prior to ride even when k is left to the
+  # family default, so it builds one; the k slot then drops out of the call and
+  # dbarts() resolves k exactly as it would have with no node prior at all
+  if (!is.null(nodeK) || !is.na(priorScale)) {
     node.prior <- quote(normal(k))
     node.prior[[2L]] <- nodeK
+    if (!is.na(priorScale)) {
+      node.prior[["scale"]] <- priorScale
+    }
   } else {
     node.prior <- NULL
   }
@@ -512,6 +520,7 @@ bart2 <- function(
   sigdf = 3.0,
   sigquant = 0.90,
   k = NULL,
+  prior.scale = NA_real_,
   power = 2.0,
   base = 0.95,
   split.probs = 1 / num.vars,
@@ -815,7 +824,8 @@ bart2 <- function(
         sigest,
         dart,
         combineChains,
-        offset = multinomialOffset
+        offset = multinomialOffset,
+        prior.scale = prior.scale
       ))
     }
     if (is.character(y)) {
@@ -853,7 +863,8 @@ bart2 <- function(
       sigest,
       dart,
       combineChains,
-      offset = multinomialOffset
+      offset = multinomialOffset,
+      prior.scale = prior.scale
     ))
   }
 
@@ -880,7 +891,8 @@ bart2 <- function(
       sigdf,
       sigquant,
       dart,
-      combineChains
+      combineChains,
+      prior.scale = prior.scale
     ))
   }
 
@@ -908,7 +920,8 @@ bart2 <- function(
       sigdf,
       sigquant,
       dart,
-      combineChains
+      combineChains,
+      prior.scale = prior.scale
     ))
   }
 
@@ -966,6 +979,7 @@ bart2 <- function(
     sigdf,
     sigquant,
     nodeK = matchedCall[["k"]],
+    priorScale = prior.scale,
     dart = dart,
     splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
   )
@@ -1204,7 +1218,8 @@ bart2Multinomial <- function(
   sigest,
   dart,
   combineChains,
-  offset = NULL
+  offset = NULL,
+  prior.scale = NA_real_
 ) {
   K <- nlevels(y)
   labels <- as.integer(y) - 1L
@@ -1216,6 +1231,7 @@ bart2Multinomial <- function(
     sigdf,
     sigquant,
     nodeK = matchedCall[["k"]],
+    priorScale = prior.scale,
     dart = dart,
     splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
   )
@@ -1287,7 +1303,8 @@ bart2MultinomialCounts <- function(
   sigest,
   dart,
   combineChains,
-  offset = NULL
+  offset = NULL,
+  prior.scale = NA_real_
 ) {
   K <- ncol(y)
 
@@ -1298,6 +1315,7 @@ bart2MultinomialCounts <- function(
     sigdf,
     sigquant,
     nodeK = matchedCall[["k"]],
+    priorScale = prior.scale,
     dart = dart,
     splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
   )
@@ -1471,7 +1489,8 @@ bart2Ordinal <- function(
   sigdf,
   sigquant,
   dart,
-  combineChains
+  combineChains,
+  prior.scale = NA_real_
 ) {
   priors <- buildSamplerPriors(
     matchedCall,
@@ -1480,6 +1499,7 @@ bart2Ordinal <- function(
     sigdf,
     sigquant,
     nodeK = matchedCall[["k"]],
+    priorScale = prior.scale,
     dart = dart,
     splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
   )
@@ -1709,7 +1729,8 @@ bart2Negbin <- function(
   sigdf,
   sigquant,
   dart,
-  combineChains
+  combineChains,
+  prior.scale = NA_real_
 ) {
   priors <- buildSamplerPriors(
     matchedCall,
@@ -1718,6 +1739,7 @@ bart2Negbin <- function(
     sigdf,
     sigquant,
     nodeK = matchedCall[["k"]],
+    priorScale = prior.scale,
     dart = dart,
     splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
   )
@@ -2251,6 +2273,7 @@ bart <- function(
   sigdf = 3.0,
   sigquant = 0.90,
   k = 2.0,
+  prior.scale = NA_real_,
   power = 2.0,
   base = 0.95,
   splitprobs = 1 / numvars,
@@ -2344,6 +2367,7 @@ bart <- function(
     sigdf,
     sigquant,
     nodeK = if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k,
+    priorScale = prior.scale,
     splitProbsName = "splitprobs",
     splitProbsDefault = formals(dbarts::bart)[["splitprobs"]]
   )
