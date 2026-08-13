@@ -208,34 +208,33 @@ expect_identical(train.a[a == 1, ], train.b[a == 1, ])
 expect_true(max(abs(train.a[a == 0, ] - train.b[a == 0, ])) < 1e-12)
 rm(probit.a, probit.b, train.a, train.b)
 
-# The refusal for a family v1 does not build names that family and the reason
-expect_error(
-  dbarts::dbarts(
-    x,
-    y.binary,
-    family = "logistic",
-    control = control
-  )$setActiveRows(a),
-  "not implemented for logistic"
-)
-
 # Decorators compose with no edit of their own, which is a claim and so a pin.
 # Heteroscedastic: the mean weights divide the composed weight by s^2(x), so a
 # masked row is zero there too, and the variance forest carries the same
-# composed weight.
-hetero <- dbarts::dbarts(
-  x,
-  y,
-  variance = TRUE,
-  n.trees.variance = 10L,
-  control = control,
-  sigma = 1,
-  n.samples = 10L
-)
+# composed weight. Pinned BITWISE against setWeights(w * a) rather than for
+# finiteness, which a mask that never reached the variance forest's sufficient
+# statistics would also satisfy.
+heteroSampler <- function(weights) {
+  dbarts::dbarts(
+    x,
+    y,
+    weights = weights,
+    variance = TRUE,
+    n.trees.variance = 10L,
+    control = control,
+    sigma = 1,
+    n.samples = 10L
+  )
+}
+hetero <- heteroSampler(w)
 hetero$setActiveRows(a)
+hetero.composed <- heteroSampler(w * a)
 draws.hetero <- hetero$run(20L, 10L)
+draws.hetero.composed <- hetero.composed$run(20L, 10L)
 expect_true(all(is.finite(draws.hetero$train)))
-rm(hetero, draws.hetero)
+expect_identical(draws.hetero$train, draws.hetero.composed$train)
+expect_identical(draws.hetero$varcount, draws.hetero.composed$varcount)
+rm(hetero, hetero.composed, draws.hetero, draws.hetero.composed, heteroSampler)
 
 # A GP leaf under a mask: the pin is STRUCTURAL, never an equality - the clean
 # and positive-subset paths consume different numbers of variates per leaf, so
@@ -269,6 +268,149 @@ expect_true(
 )
 rm(gp, draws.gp)
 
+# --- S2: logistic, nbinom and aft ------------------------------------------
+# Each family's oracle is T2(c) at the SAMPLER level: substituting arbitrary
+# in-support responses at the INACTIVE rows leaves every ACTIVE row's recorded
+# draw bitwise. Because every one of these latents comes from a rejection
+# sampler, an arm fails outright if an inactive row's draw is taken and
+# discarded rather than skipped. An inactive row's own reported fit is not
+# claimed bitwise, for the reason the probit arm above states.
+
+# T2(c), ordinal, at the sampler level beside the kernel-level coverage in
+# tests/cpp: the cutpoint pass is the surface the kernels cover one at a time,
+# and both its proposal (a count tally) and its target (a category-wise
+# likelihood) read the mask, so a mask reaching the latents but not the
+# cutpoints parts here.
+levels.ord <- c("lo", "mid", "hi")
+z.ord <- 2 * (x[, 1L] - 0.5) + rnorm(n)
+codes.ord <- 1L + (z.ord > 0) + (z.ord > 0.8)
+codes.other <- codes.ord
+codes.other[a == 0] <- 1L + (codes.ord[a == 0] %% 3L)
+ordinalSampler <- function(codes) {
+  sampler <- dbarts::dbarts(
+    x,
+    ordered(levels.ord[codes], levels = levels.ord),
+    family = "ordinal",
+    control = control
+  )
+  sampler$setActiveRows(a)
+  sampler
+}
+
+# logistic: the channel is not redundant with the count weights - a zero count
+# is refused at creation, no count change is accepted after it, and a
+# zero-count row would still consume one Polya-Gamma variate. The inactive
+# rows' TRIAL COUNTS are substituted alongside their labels, since the count is
+# what the Polya-Gamma draw itself reads (the label enters only the working
+# response), so the arm sees the draw and not just the statistic.
+counts.binary <- rep(1, n)
+counts.binary.other <- counts.binary
+counts.binary.other[a == 0] <- 3
+logisticSampler <- function(y.logistic, trials = counts.binary, mask = a) {
+  sampler <- dbarts::dbarts(
+    x,
+    y.logistic,
+    weights = trials,
+    family = "logistic",
+    control = control
+  )
+  if (!is.null(mask)) {
+    sampler$setActiveRows(mask)
+  }
+  sampler
+}
+
+# nbinom: the substituted counts move the dispersion kernel too, so this arm
+# also fails unless the count histogram behind L_k is rebuilt over the ACTIVE
+# rows at every mask change.
+counts <- as.double(rpois(n, 3))
+counts.other <- counts
+counts.other[a == 0] <- counts[a == 0] + 5
+nbinomSampler <- function(y.count, mask = a) {
+  sampler <- dbarts::dbarts(x, y.count, family = "nbinom", control = control)
+  if (!is.null(mask)) {
+    sampler$setActiveRows(mask)
+  }
+  sampler
+}
+
+for (arms in list(
+  list(ordinalSampler(codes.ord), ordinalSampler(codes.other)),
+  list(
+    logisticSampler(y.binary),
+    logisticSampler(ifelse(a == 0, 1 - y.binary, y.binary), counts.binary.other)
+  ),
+  list(nbinomSampler(counts), nbinomSampler(counts.other))
+)) {
+  train.a <- arms[[1L]]$run(20L, 10L)$train
+  train.b <- arms[[2L]]$run(20L, 10L)$train
+  expect_identical(train.a[a == 1, ], train.b[a == 1, ])
+  expect_true(max(abs(train.a[a == 0, ] - train.b[a == 0, ])) < 1e-12)
+}
+rm(arms, train.a, train.b)
+
+# aft: the censored rows' log-time redraw is the latent. The substituted times
+# stay strictly inside the observed range and leave the extremes alone, because
+# the response transform is the FULL-data one by design and a new extreme would
+# move both arms' scale rather than just one row.
+status <- as.double(seq_len(n) %% 3L != 1L)
+aftHandle <- function(logTime, mask = a) {
+  sampler <- dbarts::dbarts(
+    x,
+    logTime,
+    control = control,
+    sigma = 1,
+    n.samples = 10L
+  )
+  ctrl <- sampler$control
+  attr(ctrl, "bartcore.survival") <- status
+  sampler$control <- ctrl
+  handle <- dbarts:::bartcoreSampler(sampler, family = "aft")
+  if (!is.null(mask)) {
+    dbarts:::bartcoreSetActiveRows(handle, mask)
+  }
+  handle
+}
+y.other <- y
+substitutable <- a == 0
+substitutable[c(which.min(y), which.max(y))] <- FALSE
+y.other[substitutable] <- mean(y)
+aft.train.a <- dbarts:::bartcoreRun(aftHandle(y), 20L, 10L)$train
+aft.train.b <- dbarts:::bartcoreRun(aftHandle(y.other), 20L, 10L)$train
+expect_identical(aft.train.a[a == 1, ], aft.train.b[a == 1, ])
+expect_true(max(abs(aft.train.a[a == 0, ] - aft.train.b[a == 0, ])) < 1e-12)
+
+# T2(b) for the three families this slice adds: the engine's normalizer clears
+# an all-ones mask, and each serves its pre-mask precision pointer by identity
+# when it does - a new branch per family, so a new arm per family.
+expect_identical(
+  logisticSampler(y.binary, mask = rep(1, n))$run(20L, 10L)$train,
+  logisticSampler(y.binary, mask = NULL)$run(20L, 10L)$train
+)
+expect_identical(
+  nbinomSampler(counts, rep(1, n))$run(20L, 10L)$train,
+  nbinomSampler(counts, NULL)$run(20L, 10L)$train
+)
+expect_identical(
+  dbarts:::bartcoreRun(aftHandle(y, rep(1, n)), 20L, 10L)$train,
+  dbarts:::bartcoreRun(aftHandle(y, NULL), 20L, 10L)$train
+)
+
+# multinomial is the one family left without the channel, and its refusal
+# names it: the combiner owns the K interleaved draws, so the response holds no
+# precisions to compose a mask into.
+expect_error(
+  dbarts:::bartcoreSetActiveRows(
+    dbarts:::bartcoreMultinomialSampler(
+      dbarts::dbarts(x, as.double(codes.ord), control = control),
+      codes.ord - 1L,
+      K = 3L
+    ),
+    a
+  ),
+  "not implemented for multinomial"
+)
+
 rm(
   n,
   x,
@@ -279,5 +421,22 @@ rm(
   control,
   makeSampler,
   plain,
-  draws.plain
+  draws.plain,
+  levels.ord,
+  z.ord,
+  codes.ord,
+  codes.other,
+  ordinalSampler,
+  counts.binary,
+  counts.binary.other,
+  logisticSampler,
+  counts,
+  counts.other,
+  nbinomSampler,
+  status,
+  aftHandle,
+  y.other,
+  substitutable,
+  aft.train.a,
+  aft.train.b
 )

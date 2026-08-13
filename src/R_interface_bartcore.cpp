@@ -3708,22 +3708,6 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
   return R_NilValue;
 }
 
-// The family a refused active-row mask should be named by. shape.family
-// reports gaussian for Student-t and logistic for the multinomial coupling, so
-// the counts capability answers first and the enum only after it.
-static const char* activeRowsFamilyName(const bartcore::SamplerShape& shape) {
-  if (shape.supportsCountsMutation) return "multinomial";
-  switch (shape.family) {
-  case bartcore::ResponseFamily::logistic: return "logistic";
-  case bartcore::ResponseFamily::nbinom: return "nbinom (count)";
-  case bartcore::ResponseFamily::aft: return "aft (survival)";
-  case bartcore::ResponseFamily::probit: return "probit";
-  case bartcore::ResponseFamily::ordinal: return "ordinal";
-  case bartcore::ResponseFamily::gaussian: break;
-  }
-  return "gaussian";
-}
-
 // A per-observation 0/1 mask saying which rows are in the data set this sweep:
 // an inactive row leaves every sufficient statistic, every family-level
 // parameter update and its own latent draw, while keeping its leaf occupancy
@@ -3735,9 +3719,10 @@ static const char* activeRowsFamilyName(const bartcore::SamplerShape& shape) {
 SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
+  // multinomial is the one family without the channel: its response holds no
+  // precisions at all, since the combiner owns the K interleaved draws
   if (!shape.supportsActiveRows)
-    Rf_error("active-row masking is not implemented for %s samplers",
-             activeRowsFamilyName(shape));
+    Rf_error("active-row masking is not implemented for multinomial samplers");
   if (activeExpr == R_NilValue) {
     holder.sampler->setActiveRows(NULL);
     return R_NilValue;
