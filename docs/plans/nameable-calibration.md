@@ -554,6 +554,15 @@ Not a separate slice and not a separate re-bake.
 3. O8 in `inst/tinytest/capi/consumer.c` and `inst/tinytest/test-capi.R`,
    including an omitting-caller `structSize` canary (~125).
 
+Carried from the S2 landing (detail in the S2 landing note): (a) the engine
+`Chain::forestCalibration` getter lacks a forest-index bounds check while the
+setter has one; the flat getter's frozen signature owes the "return 0, touch
+nothing" capability answer, so the check goes in the engine or is repeated in
+`C_interface.cpp` - decide and test here. (b) Cosmetic, fix if touching the
+site anyway: `refuseBCFMutation` fires before argument validation, so a BCF
+`setCalibration(prior.mean = 0)` reports the BCF refusal rather than the
+`prior.mean` one.
+
 rng: NEUTRAL (header and `C_interface` only). Gates: reshape S1's list as it
 actually reads - `tests/cpp` plain AND ASAN from clean (that plan's S0 states
 `ASAN_OPTIONS=detect_container_overflow=0`); `test-capi.R` as the load-bearing
@@ -733,6 +742,54 @@ test-calibration-creation.R:100-104, which understates the shipped
 coverage (test-calibration-prior-draws.R pins the absolute prior sd
 at m = 20, so a sqrt(m)-forgetting conversion fails outright).
 
-S2 -
-
-S3 -
+S2 - LANDED d809b944 + 7da36dc3 (record correction), 2026-08-13. The
+four items plus carried items i-iv, all reviewer-verified: (i) NaN now
+refused R-side via `is.nan` in `validateNamedScale` and the validity
+method, bridge check retained as depth; (ii) NEWS sampled-k content
+deduped into the mid-chain bullet; (iii) the stale coverage comment
+rewritten; (iv) heteroscedastic pinned as the tenth anchor-sweep arm
+(absolute 0.75 target, 9 percent band - the unnamed path reports ~1.5,
+RED by 100 percent), settling the feature-matrix `?` cell. Get-then-set
+inertness confirmed bitwise by the implementer three ways AND by the
+reviewer's independent 40-cell mid-chain sweep (named/unnamed x five m
+x four response scalings x three chains; a 1-ulp-nudged write moves the
+draws, so the harness is non-vacuous). O4b DEVIATION, accepted as
+STRENGTHENED: the plan asked set-then-get BITWISE; shipped is < 4 eps
+plus bitwise-across-chains. The general argument stands ((P/f)*f != P
+for ~9.7-9.8 percent of positive pairs, independently measured twice),
+but the originally recorded fixture evidence was FALSE - the shipped
+fixture is bitwise-exact at n.trees 20/50/200 and rounds ONLY at
+m = 25, P = 0.25 (the record had it inverted; root cause: a number
+transplanted from a scratch script with a different fitScale).
+Corrected in 7da36dc3, which also adds the m = 25/P = 0.25 arm so the
+tolerance is exercised by a genuinely rounding cell; the pin is a
+robustness choice - exactness is a property of the (P, f) pair, not of
+the implementation, so a bitwise assertion would pin an accident.
+Budget: code+docs 389 dense-equivalent vs ~360 (1.08x; the docs item
+was 2.6x because ~65 covered a man page plus a whole new design doc);
+tests 430 dense-equivalent vs the ~210 S2 residual = 2.05x, reviewer
+ruled ACCEPT AS IS - the ~210 predates carried items i-iv and O6's
+twelve-row channel table, and the reviewer's own count found zero
+padding (~13 optional lines named, not taken). Implementation facts:
+`leafScale` already rode `ForestStateData`, so no state field grew;
+`statesAgree` in inst/common/stateContinuation.R extended to walk `k`
+and `leaf.scale` anyway (discrimination verified); the R5 `forest`
+argument is 1-BASED via `resolveForestIndex` per this plan's own
+spelling, while `$getForestFits`/`$getForestVariableCounts` are
+0-based - the mixed convention is TICKETED (TODO
+r5-forest-indexing) for the reshape re-bake. NAMESPACE needed no edit
+(useDynLib .registration covers the new entries). Gates: implementer
+and reviewer batteries both green from scratch (preclean private
+libs, tests/cpp plain + ASAN zero reports, tinytest 4400/0, trio
+identical x3, air + lint_package clean, R CMD check Status OK
+clean-copy, pkgdown clean, saveRDS/readRDS updateState round trip
+asserted); x86 box leg green at d809b944 (tinytest 4388/0 incl. both
+calibration files, equivalence.R statistical OK); CI on the push per
+the records commit. Carried to S3 (inside reshape S1): (a) the engine
+`Chain::forestCalibration` getter has NO bounds check on the forest
+index (the setter does; harmless today, bridge is the only caller) -
+the flat getter owes the frozen signature's "return 0, touch nothing"
+capability answer, so put the check in the engine or repeat it in
+C_interface.cpp; (b) cosmetic: on a BCF sampler `refuseBCFMutation`
+fires before argument validation, so setCalibration(prior.mean = 0)
+reports the BCF refusal rather than the prior.mean one.
