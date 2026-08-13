@@ -368,17 +368,17 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - forest:
 
-  For `getForestFits` and `getForestVariableCounts`, a single integer
-  selecting a Bayesian causal forest's prognostic (`0`) or basis (`1`)
-  forest. Refused on a sampler that is not a Bayesian causal forest. For
-  `getCalibration` and `setCalibration`, a single positive integer
-  indexing the forests from `1` (the default, and the only forest of an
-  ordinary sampler); a Bayesian causal forest's prognostic forest is `1`
-  and its basis forest `2`. `setForestWeights` indexes from `1` as well,
-  with no default: a Bayesian causal forest's basis forest is `2L`.
-  `setForestBasis` indexes from `1` too, and takes only `2L` today - the
-  first forest's basis is the implicit intercept its own amplitude
-  scales.
+  A single positive integer indexing the forests from `1`.
+  `getCalibration` and `setCalibration` default to `1`, the only forest
+  of an ordinary sampler; `getForestFits`, `getForestVariableCounts`,
+  `setForestWeights`, and `setForestBasis` have no default. A Bayesian
+  causal forest's prognostic forest is `1` and its basis forest `2`;
+  `setForestWeights` and `setForestBasis` are refused on a sampler that
+  is not a Bayesian causal forest, and `setForestBasis` takes only `2L`
+  today - the first forest's basis is the implicit intercept its own
+  amplitude scales. `getForestFits` and `getForestVariableCounts` accept
+  `forest = 1` on any sampler - it selects the only forest - and refuse
+  only an out-of-range index.
 
 - prior.scale:
 
