@@ -1500,3 +1500,63 @@ measurement exists above K = 4, and the per-forest column mask is vacuous for
 VCBART-shaped models. (4) Whether the q-variate amplitude conditional can be
 made bitwise identical to BCF's two scalar draws; if it cannot, M4.2 either
 keeps BCF's specialized path or owns a bcf-equivalence re-record.
+
+## Landing notes
+
+M1 LANDED 05ac3b4b, 2026-08-13 (implemented as 78b080c5, amended during
+independent review). Public R5 `$setForestWeights(forest, weights)` on
+`dbartsSampler`, forest 1-BASED and converted at the boundary via
+`resolveForestIndex` (the settled decision, item 1 above; a BCF sampler's
+treatment forest is `2L`); a new `forestWeights` R5 field mirroring every
+installed per-forest weight, re-applied at THREE re-creation sites -
+`getPointer()`, `setState()`, and `$copy()` (the third added during review,
+beyond the plan's two named sites); Rd on the class page (the three-way
+all-ones contrast, the four-factor composition `(w_i a_i) m_f^2 s_i`, a
+1-based `\item{forest}` clause, the rebuild hazard, the unreachable-`setData`
+disposition); the existing NEWS bullet amended in place (the `dbarts:::`-only
+caveat removed); new `inst/tinytest/test-forest-weights-r5.R` (12 results).
+R-only, no `src/` touch, no baseline change. Clears reshape S1's HARD
+precondition (`bcf-public-surface.md`'s M1-before-the-flat-entry rule).
+
+Review: independent Opus reviewer, full battery from scratch, verdict
+LAND-AFTER-CHANGES; after the fix pass, final verdict LAND, all five findings
+resolved. The two blockers: (1) both FW1 mirror arms were VACUOUS - they
+compared a weighted sampler against a DIFFERENT plain sampler, so the
+stored-state difference satisfied the assertion even with the mirror
+mechanism deleted (proven empirically); (2) the Rd's all-ones leg claimed a
+`setForestWeights` all-ones vector is "bitwise distinct from carrying none" -
+false; it INSTALLS (a round trip reports it) but is the BITWISE IDENTITY on
+draws (plan item 3(b) above, `test-forest-weights.R:73`). Red-team finding,
+fixed as a review-mandated scope extension beyond the plan's two named sites:
+`$copy()` silently DROPPED installed per-forest weights (a fresh R5 object,
+`setState` reapplies the dupe's empty list); fixed with an explicit field
+carry plus reapply onto the dupe's pointer, alias-safe by copy-on-modify,
+both shallow and deep. Also fixed: FW2's materiality guard was float noise
+(`sd(tau0) = 1.5e-16` on a never-splitting zero-weight forest) ->
+`abs(mean(tau0)) > 0.1` (measured 0.456).
+
+Fix verification, record this discipline: per-site falsifiers - commenting
+out each of the three `reapplyForestWeights` call sites in the installed
+copy turned EXACTLY its own test arm red with the other eleven results
+green (the fixer ran all three; the reviewer independently re-ran the
+`setState` falsifier in its own scratch tree - its arm red, 11/12 green).
+Two design facts the fixer discovered along the way, worth the record (they
+shaped the FW1 arms as symmetric fresh-pointer pairs sharing one donor
+state and differing only in the field): `setState` on an already-valid
+pointer does NOT clear a prior real forest-weight install; and a
+fresh-pointer `setState` restore never reproduces a live pointer's
+RNG-stream continuation (deliberate, per `inst/common/stateContinuation.R`).
+
+Budgets: R 48 + ~4 (the copy fix) non-comment, man 4 raw (the dense
+single-paragraph convention), NEWS 9, test ~137 - comfortably inside the
+amended ~270-290 dense-equivalent envelope.
+
+Gates: implementer, fixer and reviewer batteries all green from scratch
+(preclean private-lib installs; `tests/cpp` plain all-pass confirming no
+`src` drift; full tinytest 4436/0, no snapshot regenerated; the trio
+IDENTICAL - `equivalence-8b047f8b` 37/37 strict, `bcf-equivalence-8b047f8b`
+12/12, `multinomial-equivalence-1027be5` 10/10, no max |z| anywhere; air
+clean; lintr zero lints; `R CMD check` on a clean-copy tarball Status OK
+zero E/W/N; pkgdown no problems; an independent `saveRDS`/`readRDS` round
+trip). NO x86 leg: an R-only slice with no baseline change - the x86
+standard applies to engine slices. CI six-green on the push.

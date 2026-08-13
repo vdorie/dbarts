@@ -187,15 +187,20 @@ items
     (dbarts_sampler_setActiveRows) rides dbarts-h-reshape S1. V1-V9
     adopted 2026-08-12 under VD's proceed-at-discretion grant
     (Student-t disposition VD-reviewed same day).
-  multiforest-extension-surface: PLAN COMMITTED
-    docs/plans/multiforest-extension-surface.md (artifacts
+  multiforest-extension-surface: M1 LANDED 05ac3b4b - a public R5
+    $setForestWeights on dbartsSampler, 1-based via resolveForestIndex
+    (a BCF treatment forest is 2L), mirrored across re-creation at
+    getPointer, setState and copy (docs/plans/
+    multiforest-extension-surface.md Landing notes; artifacts
     .claude/multiforest-extension-surface-design/). The answer to
     VD's "a multiforest ABI/API model writers would want": the DRIVER
     surface (caller-owned outer loop) is the shape and is nearly
     shipped - the missing piece is the documented contract; the
     declarative per-forest BASIS is the model-carrying surface, with
-    the non-Gaussian case as its engine justification. Slices M0-M3
-    pre-freeze; M4 (the general basis family) also RESOLVED
+    the non-Gaussian case as its engine justification. M0 (the on-ramp
+    docs/vignette slice) is DEFERRED, orchestrator discretion; M2
+    (forests = replaces treatment =) is NEXT. M3 rides the dbarts.h
+    reshape's S1; M4 (the general basis family) also RESOLVED
     pre-release (VD 2026-08-11, fork 1 below), scheduled after the
     dbarts.h reshape, with FA1/FA2 run first as design-informing
     probes rather than go/no-go gates. ALL FOUR VD FORKS RESOLVED
@@ -418,9 +423,14 @@ items
     resolveForestIndex (errors below 1), and the flat C S3 entries
     take a size_t; man/dbartsSampler-class.Rd documents both
     conventions in one \item{forest} paragraph. R users expect
-    1-based. Normalize at the dbarts-h-reshape re-bake (the window's
-    rename moment) - decide 1-based everywhere R-side, migrate the
-    two 0-based getters, lockstep the sister packages. Surface-
+    1-based. $setForestWeights landed on the 1-based side, on the same
+    resolveForestIndex pattern (multiforest-extension-surface M1,
+    05ac3b4b, per VD's settled 2026-08-13 decision) - it did NOT
+    extend the 0-based split onto a new axis, so this ticket still
+    covers exactly the two 0-based getters named above. Normalize at
+    the dbarts-h-reshape re-bake (the window's rename moment) - decide
+    1-based everywhere R-side, migrate the two 0-based getters,
+    lockstep the sister packages. Surface-
     bearing, pre-release.
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
@@ -454,16 +464,13 @@ items
   sbc-family-tiers: BUILT (records in docs/plans/sbc-family-tiers.md
     and runsbcbcf-repair.md). Open doors: the monotone follow-on arm,
     the heteroscedastic setState lift, full-R ladder re-runs.
-  setforestweights-r5-exposure: TBAFTcure (mixture-cure AFT;
-    docs/design/bart-landscape.md, grade B) hangs on per-forest
-    weights existing only as unexported
-    dbarts:::bartcoreSetForestWeights - absent from dbarts.h and
-    the R5 class. The flat half is already frozen into reshape S1
-    (fork 3 KEEP setForestWeights). At reshape S1 scoping, VERIFY
-    whether a multiforest-extension-surface M-slice already carries
-    the public R5 method; if not, add it there (small, with a named
-    external consumer), and give the flat entry a test-capi.R
-    positive arm rather than signature-only treatment.
+  setforestweights-r5-exposure: R HALF LANDED - $setForestWeights is
+    now a public R5 method (multiforest-extension-surface M1,
+    05ac3b4b), closing the gap TBAFTcure (mixture-cure AFT;
+    docs/design/bart-landscape.md, grade B) hung on. REMAINING: the
+    flat C entry, frozen into the dbarts.h reshape's S1 (fork 3 KEEP
+    setForestWeights) - give it a test-capi.R positive arm rather than
+    signature-only treatment.
   setpredictor-dimnames: a whole-matrix transactional (or forced)
     setPredictor(x, ...) installs x into sampler$data@x as a plain
     matrix, dropping x's column names even when the sampler was built
