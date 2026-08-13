@@ -23,10 +23,12 @@ window: M0, M1, M2 land INSIDE the pre-release breaking window. M3 rides
 budget: M0 ~220 design doc + ~180 vignette + ~200 test. M1 ~75-85 R + ~50-60
   man + ~140 test, ~270-290 total (RESTATED 2026-08-13 pre-M1, superseding the
   ~60 + ~40 + ~140 committed 2026-08-11; the carried items are in M1 item 5).
-  M2 ~180 R + ~60 man + ~260 test (test-bcf-creation.R rewritten).
+  M2 ~200-240 R + ~120-160 man + ~420-460 test, ~760-880 total (RESTATED
+  2026-08-13 pre-M2, superseding the ~180 + ~60 + ~260 committed 2026-08-11;
+  the carried items are in M2 item 12).
   M3 ~40 header + ~80 C_interface + ~70 consumer.c + ~60 test-capi.R, inside
-  dbarts-h-reshape S1's own budget. Total in-repo before the freeze ~1630
-  (~1590 before M1's 2026-08-13 restatement).
+  dbarts-h-reshape S1's own budget. Total in-repo before the freeze ~2130-2250
+  (~1630 before M2's 2026-08-13 restatement, ~1590 before M1's).
   M4 priced in its own section (~600-900), not committed here.
 tip: every anchor below re-read at db81bfe in this worktree, with src/ read
   through `git show HEAD:` because a code implementer is editing
@@ -62,6 +64,21 @@ amended: 2026-08-13, PRE-M1, by the orchestrator. Every anchor in this file
   the SETTLED forest-index base, the mirroring mechanism, the three mask-arc
   interactions, the multinomial refusal siting and an explicit restated
   budget; nothing else about the arc's content or ordering moved.
+amended: 2026-08-13, PRE-M2, by the orchestrator, against 4c7aa200 (M1 landed
+  05ac3b4b plus its records commit). The M2 section's anchors are re-verified
+  BY SYMBOL and given with their stale values - M1 added ~67 lines to
+  `R/dbarts.R`, moving every R5 anchor the section carried - and the section
+  gains seven items: the surface bookkeeping M2 owes `NAMESPACE`,
+  `_pkgdown.yml` and `man/` in both directions (item 6); the settled 1-based
+  rule applied, with `$getBCFGlue`'s argument-FREE signature recorded as the
+  fact that keeps `$getForestAmplitudes` argument-free too (item 7); the three
+  M1 interactions, all clean (item 8); the verified migration list, with the
+  finding that `benchmarks/R/bcf-equivalence.R` needs NO edit because it drives
+  the internal route (item 9); the refusal count corrected from eleven to
+  seventeen inherited plus one retired, and the knob map found INCOMPLETE (item
+  10); `dbartsData(treatment = )` FLAGGED as an unsettled fourth site (item
+  11); and a restated budget (item 12). Nothing about the arc's content,
+  ordering or decisions moved.
 
 ## The question, answered
 
@@ -890,26 +907,306 @@ scenarios), `bcf-equivalence-8b047f8b` (12) and
 3. `treatment =`, `moderators =`, `treatmentForest =` are REMOVED, and
    `$setTreatment`/`$getBCFGlue` are renamed to
    `$setForestBasis`/`$getForestAmplitudes` with the old spellings gone.
-   `inst/tinytest/test-bcf-creation.R` is rewritten; the other ten files
-   touching `treatment` have their creation calls updated.
+   `inst/tinytest/test-bcf-creation.R` is rewritten; the "other ten files
+   touching `treatment`" this item named before the 2026-08-13 pre-M2 refresh
+   was never enumerated and is wrong in both directions - item 9 replaces it
+   with the verified list.
 4. Every declaration today's engine cannot honour REFUSES at creation, one
    assertion each: K > 2 forests; a numeric (non-factor) basis; a factor with
    more than two levels; a basis on forest 0; a non-Gaussian family; a variance
-   forest alongside; plus the eleven S1 refusals inherited unchanged.
+   forest alongside; plus the shipped refusal set inherited unchanged (item 10
+   corrects "the eleven S1 refusals" this item carried, and names the one
+   refusal M2 RETIRES rather than inherits).
 5. Docs: `docs/design/bcf.md` and `docs/design/public-surface.md` gain the
    engine-vocabulary surface; `inst/NEWS.Rd`; `_pkgdown.yml` if a new topic
-   appears (the recorded new-exported-Rd-topic lesson).
+   appears (the recorded new-exported-Rd-topic lesson). Item 6 settles that a
+   new topic DOES appear, and that an old one goes.
+
+**Anchors, re-verified BY SYMBOL at 4c7aa200 (added 2026-08-13, pre-M2).**
+Every number this section carried predates M1 (05ac3b4b, ~67 lines added to
+`R/dbarts.R`) and the mask arc; these are the live ones, and where the section
+cited a number it is given with its stale value.
+Creation formals: `dbarts()`'s three at `R/dbarts.R:350-352`, reaching
+`dbartsData()` through `dataCall <- redirectCall(matchedCall, ...)` (`:539`)
+and `resolveSamplerSpec` at `:562-566`, whose comment (`:562-563`) records why
+`treatment = NULL` is passed there - the vector already rides the data object,
+because `dbartsData()` is the one place that knows which rows `subset` kept.
+That redirect is load-bearing for M2: dropping `dbarts()`'s formal alone does
+not remove the argument if `dbartsData()` keeps one of the same name (item 11).
+`dbartsSpec()` `R/spec.R:471`, its formals `:486-488`, forwarding `:567-569`;
+`resolveSamplerSpec` `R/spec.R:15`, formals `:32-34`. The resolution path is
+`R/spec.R:363-460`: the design comment `:363-371`, `data@treatment <-
+validateTreatment(...)` `:373`, the gaussian gate `:375-384`, the `unsupported`
+vector `:391-420`, its `stop` `:421-426`, `resolveTreatmentForest` `:427`,
+`resolveModerators` `:428`, the `attr(control, "bartcore.bcf")` payload
+`:429-454`, the orphan-argument gate `:455-460`. Constructor and resolvers:
+`treatmentForest()` `R/model.R:1238-1264` with its doc `:1228-1237`,
+`resolveTreatmentForest` `:651-681`, `resolveModerators` `:620-646`. Data half:
+`dbartsData()`'s own `treatment` formal `R/data.R:697`, `validateTreatment`
+`:631-654` called at `:880`, `:962`, `:1028`; the slot `R/A_class.R:518`
+(comment `:513`, prototype `:537`, validity `:582-591`). R5: `$setTreatment`
+`R/dbarts.R:1185-1212` (was cited `:1132`), its docstring `:1186`, the
+`data@treatment` mirror `:1196-1197`, the `.Call` `:1199`; `$getBCFGlue`
+`:1402-1406` (was cited `:1349`), between `$getForestFits` `:1397` (was
+`:1344`) and `$getForestVariableCounts` `:1407` (was `:1354`);
+`$getCalibration` `:1412` (was `:1362`) and `$setCalibration` `:1417` (was
+`:1393`), the two `resolveForestIndex` precedents, at `:1415` and `:1446`.
+Rd: aliases `man/dbartsSampler-class.Rd:21` and `:34` - the block gained
+`setForestWeights` at `:20` in M1, so both stale by one - usage `:66` and
+`:81`, the mutator list naming `setTreatment` `:104`, the `updateScale`
+refusal sentence `:131`, `\item{z}` `:166-168`, `\item{forest}` `:169-171`,
+`\value` `:355`; `man/dbarts.Rd` usage `:20` and the three `\item` blocks
+`:83-85`, `:86-88`, `:89-91`, plus the calibration sentence `:153`;
+`man/dbartsSpec.Rd:17` and `:28`; `man/dbartsData.Rd:13` and `:16`;
+`man/treatmentForest.Rd`, 92 lines; `inst/NEWS.Rd:85-95`, the R5 bullet naming
+both renamed methods, and `:693`, the FLAT entry, which is M3's and not M2's.
+One anchor outside R and decisive for item 11: the bridge reads the
+`"treatment"` slot BY NAME at `src/R_interface_bartcore.cpp:1112` (length check
+`:1117`), so `data@treatment` cannot move inside an R-only slice.
+
+**6. Surface bookkeeping, made explicit (added 2026-08-13, pre-M2).** The
+section hedged this ("`_pkgdown.yml` if a new topic appears"); scoping settles
+it in both directions, and each half has a gate consequence.
+   (a) `treatmentForest` is EXPORTED (`NAMESPACE:18`, verified) and is a listed
+   pkgdown reference topic (`_pkgdown.yml:33`, verified, inside "The mutable
+   sampler"). M2 removes it from BOTH, and deletes or rewrites
+   `man/treatmentForest.Rd`. An export removed without its `_pkgdown.yml` line
+   leaves `check_pkgdown` pointing at a topic that no longer exists.
+   (b) `forest()` is a NEW exported constructor with a NEW Rd topic, so M2 adds
+   the `NAMESPACE` export, writes `man/forest.Rd`, and adds the
+   `_pkgdown.yml` entry beside `interactions`/`blocks` where `treatmentForest`
+   sat. This is the new-exported-Rd-topic lesson's fifth occurrence; its fourth
+   was caught at review rather than by a gate (`bcf-public-surface.md:886-888`),
+   which is why `pkgdown::check_pkgdown` is a NAMED gate below rather than
+   "pkgdown check", and why `R CMD check` (undocumented-export and codoc) joins
+   M2's gate line - M1 needed neither, having no new topic.
+   (c) No name collision: `forest` is unused as a symbol anywhere in `R/`
+   (verified), so the export is free. It does collide with the loop variable in
+   `reapplyForestWeights` (`R/dbarts.R:1483`) only lexically, which is harmless
+   and worth neither a rename nor a comment.
+
+**7. Forest indexing: the SETTLED 1-based-at-the-boundary rule applies to both
+renamed methods (added 2026-08-13, pre-M2).** Cited, not restated: M1 item 1
+(VD 2026-08-13). `$setForestBasis(forest, basis)` takes a forest index and
+routes it through `resolveForestIndex` (`R/bartcore.R:1051`), as
+`$setForestWeights` and `$getCalibration`/`$setCalibration` do; the treatment
+forest is `2L` in every M2 example, Rd sentence and test.
+`$getForestAmplitudes` is the exception, and it is a FACT not a choice:
+`$getBCFGlue` at HEAD takes NO argument (`getBCFGlue = function()`,
+`R/dbarts.R:1402`) and returns the whole 3 x n.chains `(a, b0, b1)` matrix, so
+the plain rename is argument-free too. Giving it a `forest` argument is a
+SURFACE CHANGE, not a rename: it would have to return forest 0's one amplitude
+or forest 1's two, i.e. the ragged shape M3's `numForestAmplitudes` plus
+`forestAmplitudes` pair exists to size. M2 keeps the argument-free
+`$getForestAmplitudes()` and the 3-row matrix; the forest-indexed reader
+arrives with M3's flat pair or with M4's K-length amplitude vector, whichever
+lands first. Recorded so a later slice does not read the rename as having
+settled the reader's shape. `$getForestFits`/`$getForestVariableCounts` stay
+0-based, untouched, still the `r5-forest-indexing` ticket's two named cases.
+
+**8. Interactions with M1, all three checked (added 2026-08-13, pre-M2).**
+   (a) **The `data@treatment` mirror SURVIVES the rename, unchanged in
+   mechanism.** `$setTreatment` writes the engine and the slot under a
+   `tryCatch` that rolls the slot back on a bridge error
+   (`R/dbarts.R:1196-1205`), which is what makes `getPointer()`'s transparent
+   re-creation carry the current assignment. `$setForestBasis` keeps exactly
+   that body: the slot is read back by name from C at every create
+   (`src/R_interface_bartcore.cpp:1112`), so no R-only slice can replace the
+   mechanism, and M0 item 1(iii) commits it as contract. What moves is the
+   ARGUMENT's spelling - `z` becomes the two-column indicator `basis`, and the
+   method reduces it to the 0/1 column the slot and the bridge still take, on
+   the same expansion rule item 2 uses at creation. The Rd's `\item{z}`
+   (`man/dbartsSampler-class.Rd:166-168`) becomes `\item{basis}` and keeps its
+   mirroring sentence verbatim.
+   (b) **M1's `forestWeights` field and its three re-application sites are
+   name-independent of both renames. Verified, no collision.** The field
+   (`R/dbarts.R:725-728`, initialized `:745`), its install
+   (`:1167-1172`), `reapplyForestWeights` (`:1481-1489`) and its three call
+   sites - `$copy` `:906-907`, `getPointer()` `:1518`, `setState()` `:1544` -
+   name neither `setTreatment` nor `getBCFGlue` and touch neither
+   `data@treatment` nor the BCF control attribute. Two Rd adjacencies, both
+   benign: M1's `setForestWeights` paragraph (`:149`) says "built with
+   `treatment = `" and the method's own docstring (`:1150`) says the same, so
+   both need the one-phrase re-word to `forests = ` that every other
+   `treatment = ` reference needs; and `\item{forest}` (`:169-171`) already
+   carries three clauses (the 0-based readers, the 1-based
+   calibration pair, M1's `setForestWeights`) and gains a fourth for
+   `setForestBasis` on the 1-based side. Paragraph ORDER does not move.
+   (c) **`inst/tinytest/test-forest-weights-r5.R` builds its BCF samplers with
+   `treatment = ` (`:34`) and reads `$getBCFGlue` (`:166`), so M1's own test
+   file migrates inside M2.** It is one of the seven in item 9; the budget
+   covers it there.
+
+**9. The migration, enumerated (added 2026-08-13, pre-M2).** Two routes create
+a BCF sampler and only ONE of them moves. The PUBLIC formals go; the internal
+`dbarts:::bartcoreBCFSampler` route (`R/bartcore.R:622-680`, with its own
+`n.trees.treatment =` and `moderators =` formals) is untouched by M2 - it is
+`dbarts:::`-only, absent from `NAMESPACE`, and its flat siblings are M3's.
+   PUBLIC-formal creation calls that M2 must migrate, all under
+   `inst/tinytest/`, verified by grep at 4c7aa200: `test-bcf-creation.R`
+   (about 30 hits, REWRITTEN wholesale, 385 lines today, 26 `expect_error`);
+   `test-bcf-r5-surface.R` (4 creation calls `:33`, `:73`, `:131`, `:179`, plus
+   2 `$setTreatment` `:111`, `:134` and 2 `$getBCFGlue` `:38`, `:147`, plus
+   4 header/section comments); `test-bcf-reporting.R` (3 calls `:35`, `:82`,
+   `:99`, plus `$getBCFGlue` `:91`); `test-calibration-creation.R` (2, `:198`,
+   `:208`); `test-active-rows-pins.R` (2, `:94`, `:103`);
+   `test-calibration-midchain.R` (1, `:333`); `test-capi.R` (1 call `:522-523`,
+   the only migrating site that also passes `treatmentForest()`);
+   `test-forest-weights-r5.R` (1 call `:34`, plus `$getBCFGlue` `:166`).
+   SEVEN files plus the rewritten one; 14 creation calls and 5 R5-method call
+   sites outside the rewrite.
+   NOT migrating, because they drive the internal route: `test-bcf.R` (19
+   hits), `test-forest-weights.R` (7), `test-interactions.R` (4),
+   `test-blocks.R` (4), `test-multi-forest-seam.R` (2),
+   `test-bcf-zero-multiplier.R` (2), `test-bcf-mutation-pins.R` (2),
+   `test-multinomial-test-offset.R` (1), `test-multinomial-counts-mutation.R`
+   (1), `test-multinomial-category-offset.R` (1) - the three multinomial ones
+   build a BCF sampler only as a refusal fixture. `vignettes/` and
+   `inst/common/` have ZERO hits (verified); no benchmark under
+   `benchmarks/R/` uses a public formal.
+   **The bcf-equivalence harness needs NO edit, and that is why the neutrality
+   compare stays runnable.** `benchmarks/R/bcf-equivalence.R` drives
+   `dbarts:::bartcoreBCFSampler` throughout (its header says so at `:11`); its
+   `dbarts()` calls build a plain single-forest HOST and pass no BCF argument;
+   `n.trees.treatment =` and `moderators =` there are that internal
+   constructor's formals, not `dbarts()`'s. `settingsList()` (`:386-395`)
+   carries only `quick`, `n.threads`, `n.burn`, `n.samples`, `n.trees.mu`,
+   `n.trees.tau` and the `seeds` vector - no creation vocabulary at all - and
+   is re-checked against the baseline meta at compare (`:419-420`), so it stays
+   byte-identical with zero work. Scenario names and seeds are untouched.
+   Consequence for FS1: the harness is NOT the vehicle. FS1 runs in
+   `test-bcf-creation.R`, where the ORACLE is that same internal route, exactly
+   as the shipped F1 pin does today (`:33-70` positive, `:76-93` negative) -
+   so FS1 needs nothing "reconstructed from the pinned tests": it re-points the
+   existing public-versus-internal bitwise pin at `forests =`, keeps
+   `control@rngSeed = 17L`, and keeps the unseeded negative half (the internal
+   route builds and discards a host engine, drawing `n.chains` `unif_rand()`s
+   off R's stream, so the two must differ). The six channels are `train`,
+   `sigma`, `varcount`, both forests' `bartcoreForestFits`, and
+   `bartcoreBCFGlue`.
+
+**10. The refusal set, counted, and the one refusal M2 RETIRES (added
+2026-08-13, pre-M2).** "The eleven S1 refusals" in item 4 is stale: eleven was
+the PRE-REGISTERED count, and S1 landed 17 firing assertions
+(`bcf-public-surface.md:892-895`). At HEAD the shipped set is the 16-entry
+`unsupported` vector (`R/spec.R:391-420`: DART prior, `split.probs`,
+`monotone`, linear node prior, GP node prior, `k` hyperprior, non-default `k`,
+non-default `node.scale`, named `prior.scale`, non-default `proposal.probs`,
+Student-t residuals, grouped random effects, `variance`,
+`storage = "single"`, per-column `n.cuts`, test predictors) plus the
+gaussian-family gate
+(`:375-384`) - 17 inherited unchanged. The eighteenth, the orphan-argument gate
+(`:455-460`, "'moderators' and 'treatmentForest' configure the treatment forest
+a 'treatment' vector selects"), is RETIRED by M2 along with the arguments it
+guards; its replacement is whatever `forests =` needs in its place, which under
+item 1's one-argument shape is nothing - there is no second argument left to
+orphan. Say so in the slice rather than porting a dead message.
+   **The knob map must be TOTAL, and item 1's eight-name sketch is not.**
+   `treatmentForest()` carries TEN knobs (`R/model.R:1238-1249`): `n.trees`,
+   `base`, `power`, `sd.control`, `sd.moderate`, `b.prior.variance`,
+   `update.a`, `update.b`, `interactions`, `blocks`. Item 1 names
+   `basis`, `vars`, `n.trees`, `base`, `power`, `interactions`, `blocks`, `sd`
+   - so `sd.control`/`sd.moderate` collapse correctly into each forest's own
+   `sd =` (they are per-forest leaf scales; forest 0 takes the first, forest 1
+   the second), but `b.prior.variance`, `update.a` and `update.b` have NO
+   landing place. They are AMPLITUDE knobs and belong to the forest that owns
+   the amplitude: `update.a` to forest 0, `b.prior.variance` and `update.b` to
+   forest 1. M2 must give them per-forest spellings (the natural pair is
+   `amplitude.prior.variance =` and `update.amplitude =`, matching the fork-3
+   `forestAmplitudes` vocabulary) or the public route silently loses
+   capability the internal route keeps - and M0's FD4 requires the public
+   `update.a = update.b = FALSE` fit, so a dropped knob breaks a committed
+   falsifier, not just a corner. Whatever the spelling, it is a mapping, not a
+   new mechanism: the payload at `R/spec.R:429-454` takes the same eight
+   doubles in the same order.
+
+**11. `dbartsData(treatment = )` is a FOURTH site and is NOT settled by this
+plan; FLAGGED for the implementer to raise, not decided here (added 2026-08-13,
+pre-M2).** Item 3 names `dbarts()` and `dbartsSpec()`. But `dbartsData()` has
+its own `treatment` formal (`R/data.R:697`, documented `man/dbartsData.Rd:13`,
+`:16`, its own pkgdown topic `_pkgdown.yml:28`), it is where `subset`
+alignment happens (`validateTreatment(treatment, initialNumObservations,
+subset)`, `R/data.R:962`, `:1028`), and it is REACHED BY `dbarts()`'s own
+redirect (`R/dbarts.R:539`), so the two cannot be decided separately. Two
+constraints bound the answer, both verified: the SLOT `data@treatment` cannot
+move at M2 (the bridge reads it by name, `src/R_interface_bartcore.cpp:1112`,
+and M2 is no-src), and `dbartsSpec(dbartsData(x, y, treatment = z), control)`
+is a shipped, tested creation route (`test-bcf-creation.R:272`) that resolves
+off the slot rather than off a `dbartsSpec()` argument (`R/spec.R:375`).
+   - **(a) `dbartsData()` KEEPS `treatment = ` as the data-side carrier.**
+     Cheapest, and it keeps subset alignment where the one function that knows
+     the kept rows already does it. Cost: causal vocabulary survives at the
+     engine's front door on an exported function with its own topic, which is
+     most of what binding decision 2 and VD's removal decision were aimed at,
+     and the surface reads split (a `forests =` model configured with a
+     `treatment =` column).
+   - **(b) `dbartsData()` gains a basis-shaped carrier too** (e.g. the basis
+     columns ride the data object under a neutral name, with `data@treatment`
+     kept as the private slot the bridge still reads). Consistent, and it is
+     the shape M4 needs anyway for an n x q_f basis. Cost: a second expansion
+     and subsetting path in `R/data.R` inside an R-only slice, plus its own
+     refusals; and the slot/argument name split has to be documented so it does
+     not read as an accident.
+   **Recommendation: (a) for M2, recorded as debt with (b) named as its
+   retirement**, because (b)'s honest form is the n x q_f basis M4 lands and
+   building half of it here buys a second refactor over the same code (fork 1
+   option (b)'s failure mode). If the implementer finds the split surface
+   unshippable, this is a VD question, not an implementer call.
+
+**12. Budget, RESTATED with the migration and the bookkeeping included (added
+2026-08-13, pre-M2; supersedes the ~180 R + ~60 man + ~260 test committed
+2026-08-11).** ~760-880 dense-equivalent total.
+   **R ~200-240**: `forest()` and its validator (`treatmentForest()` +
+   `resolveTreatmentForest` are 27 + 31 lines today and are re-skinned rather
+   than rewritten, but gain `basis`, `vars` and the three amplitude knobs of
+   item 10); the `forests =` list resolver (arity, per-forest dispatch, the
+   K > 2 and forest-0-basis refusals); the basis EXPANSION - evaluating a
+   formula in the data environment, expanding a factor to level indicators, and
+   aligning it with `subset` - which is the one genuinely new mechanism in the
+   slice and has no ancestor in the `treatment =` path; the two R5 renames
+   (`$setTreatment`'s 28-line body plus `$getBCFGlue`'s 5); and the removals
+   across `R/dbarts.R`, `R/spec.R`, `R/model.R`.
+   **man ~120-160 raw**: a new `man/forest.Rd` in the shape of
+   `man/treatmentForest.Rd` (92 lines) with `basis`/`vars` added and the
+   amplitude knobs documented; the three `\item` blocks and the usage line of
+   `man/dbarts.Rd` collapsing to one; `man/dbartsSpec.Rd`; five sites in
+   `man/dbartsSampler-class.Rd` (two aliases, two usage lines, the mutator
+   list, `\item{z}` -> `\item{basis}`, `\item{forest}`'s fourth clause,
+   `\value`) plus M1's two `treatment = ` phrases (item 8(b)); `inst/NEWS.Rd`.
+   The dense single-paragraph convention applies, as it did to M1's 4 raw
+   lines - these are raw line counts, not prose volume.
+   **test ~420-460**: `test-bcf-creation.R` rewritten (385 lines today, and it
+   GROWS - item 4 adds six refusals to the 26 assertions already there); FS1's
+   two halves re-pointed at `forests =` with the internal-route oracle
+   unchanged; FS3's byte-neutrality arm; and the seven-file migration of item 9
+   (14 creation calls, 5 R5-method call sites, ~40 lines of edits carrying no
+   new assertions).
+   The calibration-S2 lesson applies, as it did at M1: this budget moves with
+   the obligations, and a stale one beside added obligations is the failure
+   mode.
 
 Falsifiers: **FS1, load-bearing** - with `control@rngSeed` SET, a `forests =`
-BCF is BITWISE IDENTICAL to the removed `treatment =` route (reconstructed from
-the pinned tests) on all six bcf-equivalence channels; NEGATIVE HALF: perturb
-the factor expansion (swap the two indicator columns) and it must go red.
-**FS2** the refusal list of item 4, one assertion each, each raising an R
-condition with no handle escaping. **FS3** `forests = NULL` is byte-neutral: a
-single-forest fit is bitwise unchanged.
-rng: NEUTRAL on every existing path. Gates: `R CMD INSTALL` into a private
-library; full tinytest with NO snapshot regenerated; the trio BITWISE; air;
-lintr; pkgdown check. ABORT: any trio divergence.
+BCF is BITWISE IDENTICAL on all six bcf-equivalence channels to the
+`dbarts:::bartcoreBCFSampler` oracle the shipped F1 pin already compares
+against (item 9 - the removed `treatment =` route needs no reconstruction, and
+the phrase "reconstructed from the pinned tests" is struck); NEGATIVE HALF, two
+arms: perturb the factor expansion (swap the two indicator columns) and it must
+go red, and the shipped unseeded arm must keep differing.
+**FS2** the refusal list of item 4 as corrected by item 10, one assertion each,
+each raising an R condition with no handle escaping. **FS3** `forests = NULL`
+is byte-neutral: a single-forest fit is bitwise unchanged.
+rng: NEUTRAL on every existing path. Gates: `R CMD INSTALL --preclean` into a
+private library; full tinytest with NO snapshot regenerated; `R CMD check` on a
+clean-copy tarball (NEW relative to M1: M2 moves `NAMESPACE`, so
+undocumented-export and codoc are live); `air format --check .`; `lintr` on
+touched R; `pkgdown::check_pkgdown` (NAMED, not "pkgdown check" - it is the gate
+that catches item 6's missing `_pkgdown.yml` entry); the trio expected BITWISE
+against baselines `equivalence-8b047f8b` (37 scenarios),
+`bcf-equivalence-8b047f8b` (12) and `multinomial-equivalence-1027be5` (10), all
+three verified current in `benchmarks/baselines/MANIFEST` at 4c7aa200. ABORT on
+any trio divergence: M2 is R-only against an untouched engine and an untouched
+internal creation route, so a divergence is a LEAK in the new resolver, never a
+re-record.
 
 ## M3. The flat mean channel. An item INSIDE dbarts-h-reshape S1.
 
