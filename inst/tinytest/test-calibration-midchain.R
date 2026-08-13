@@ -120,16 +120,23 @@ expect_false(identical(inertA$run(20L, 10L)$train, inertE$run(20L, 10L)$train))
 #
 # DEVIATION from the plan's "bitwise": the reported value is the internal
 # scale times the transform, and the internal scale is the requested value
-# DIVIDED by that transform, so the response-unit round trip rounds. MEASURED:
-# (P / f) * f != P for 194596 of 2e6 random positive pairs (9.7%), and at this
-# fixture's own transform it misses by an ulp at n.trees 20, 50 and 200 while
-# holding exactly at 25. Recovering the last bit would mean either caching the
-# named value in the engine - which the state format and every re-anchoring
-# channel would then have to carry - or nudging the leaf scale in force off
-# the exact quotient. The assertion is therefore ulp-level, which is 15 orders
-# of magnitude below the error it exists to catch, and the BITWISE half that
-# is achievable - every chain reporting the same bits - is asserted as such.
-# ---
+# DIVIDED by that transform, so exactness is a property of the particular
+# (value, transform) pair rather than of the implementation. MEASURED:
+# (P / f) * f != P for 194596 of 2e6 random positive pairs (9.7%). This
+# fixture happens to sit on the lucky side - at its own transform the round
+# trip is bitwise exact for all four requests at n.trees 20, 50 and 200, and
+# the one rounding cell is m = 25 at P = 0.25, half an ulp out. Asserting
+# bitwise would therefore pin an accident of this response vector and this
+# tree count, which any fixture edit or re-anchoring channel could break with
+# no defect behind it. The m = 25 arm below carries that rounding cell on
+# purpose, so the tolerance is exercised rather than merely permitted.
+# Recovering the last bit in general would mean either caching the named
+# value in the engine - which the state format and every re-anchoring channel
+# would then have to carry - or nudging the leaf scale in force off the exact
+# quotient. The assertion is therefore ulp-level, which is 15 orders of
+# magnitude below the error it exists to catch, and the BITWISE half that IS
+# implementation-determined - every chain reporting the same bits - is
+# asserted as such. ---
 fidelity <- namedSampler()
 for (requested in c(1.5, 0.25, 3.75, 12)) {
   fidelity$setCalibration(prior.scale = requested)
@@ -137,6 +144,20 @@ for (requested in c(1.5, 0.25, 3.75, 12)) {
   expect_true(max(abs(reported / requested - 1)) < 4 * .Machine$double.eps)
   expect_identical(reported[[1L]], reported[[2L]])
 }
+# the rounding cell: m = 25 at P = 0.25 reports half an ulp below what was
+# asked for, so this arm is the one that distinguishes the shipped tolerance
+# from an equality and would fail a bitwise assertion outright
+rounding <- dbarts(
+  x,
+  y,
+  control = midControl(n.trees = 25L),
+  node.prior = normal(k = 2, scale = 1.5)
+)
+rounding$setCalibration(prior.scale = 0.25)
+roundingReported <- priorScaleOf(rounding)
+expect_true(max(abs(roundingReported / 0.25 - 1)) < 4 * .Machine$double.eps)
+expect_identical(roundingReported[[1L]], roundingReported[[2L]])
+expect_false(identical(unname(roundingReported[[1L]]), 0.25))
 # the sd spelling is the same statement at the k in force
 fidelity$setCalibration(prior.sd = 0.75)
 expect_true(max(abs(priorScaleOf(fidelity) / 1.5 - 1)) < 1e-14)
