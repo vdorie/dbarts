@@ -1350,6 +1350,11 @@ public:
       if (numInactive == 0) active = nullptr;  // all ones is no mask
     }
     if (!response_->setActiveRows(active)) return false;
+    // a coupling that owns its own per-observation precisions takes the mask
+    // here, since the response has none to compose it into (the multinomial
+    // softmax); inert for an additive coupling, whose per-forest precisions are
+    // formed from the working weights the response has already composed
+    if (combiner_) combiner_->setActiveRows(active);
     // the linear leaf's U'WU cache re-validates on the ordered member list
     // alone, so a mask toggle that moves no membership is invisible to it;
     // a served value is bitwise the fresh scan's, so the clear moves no draw
