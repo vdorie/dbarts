@@ -5014,14 +5014,14 @@ static bool rngStreamsAgree(ext_rng* a, ext_rng* b, int numDraws = 32) {
   return true;
 }
 
-// T3a, probit: the masked n-row latent kernel and the same kernel over the
-// COMPACTED active rows produce bit-identical latents at the active rows and
-// consume an identical rng stream, over lockstepped generators. The stream
-// half is the one that pins the skip: the truncated-normal primitive is a
-// rejection sampler whose consumption depends on the bound, so an inactive
-// row drawn and discarded would desynchronize it. Also T2(c) at the kernel:
-// substituting arbitrary in-support labels at the inactive rows moves no
-// active row's draw. Local generators, restored global rngState.
+// The masked n-row latent kernel and the same kernel over the COMPACTED
+// active rows produce bit-identical latents at the active rows and consume
+// an identical rng stream, over lockstepped generators. The stream half is
+// the one that pins the skip: the truncated-normal primitive is a rejection
+// sampler whose consumption depends on the bound, so an inactive row drawn
+// and discarded would desynchronize it. Also: substituting arbitrary
+// in-support labels at the inactive rows moves no active row's draw. Local
+// generators, restored global rngState.
 static void testActiveRowsProbitKernel(ext_rng*) {
   uint64_t savedRngState = rngState;
   const std::size_t n = 40;
@@ -5086,7 +5086,7 @@ static void testActiveRowsProbitKernel(ext_rng*) {
   printf("ok: active rows, probit latent kernel\n");
 }
 
-// T3a, ordinal: all three masked kernels against the compacted arm - the
+// All three masked ordinal kernels against the compacted arm - the
 // count-derived proposal scales (computeScales), the marginal cutpoint MH pass
 // (updateCutpoints, whose target is cutpointLogAcceptance and whose stream
 // carries 1 or 2 variates per free cutpoint), and the latent redraw
@@ -5166,7 +5166,7 @@ static void testActiveRowsOrdinalKernels(ext_rng*) {
 // > 0}, not the unmasked count - the defect the chain-level alternative to
 // family composition would have reintroduced. Pinned two ways: the df itself,
 // and the sigma draw, which must be bit-identical to a bare Gaussian carrying
-// w * a as fixed weights on a lockstepped generator (T1 at the model level).
+// w * a as fixed weights on a lockstepped generator, at the model level.
 // The all-ones and null masks restore the pre-mask pointer BY IDENTITY.
 static void testActiveRowsGaussianDf(ext_rng*) {
   uint64_t savedRngState = rngState;
@@ -5298,13 +5298,14 @@ static void testActiveRowsStudentComposite(ext_rng*) {
   printf("ok: active rows, student-t composite and nu gate\n");
 }
 
-// T3a, logistic: the masked n-row Polya-Gamma kernel against the same kernel
-// over the COMPACTED active rows - bitwise omega and working response at the
+// The masked n-row Polya-Gamma kernel against the same kernel over the
+// COMPACTED active rows - bitwise omega and working response at the
 // active rows, and an identical rng stream. The stream half pins the skip: PG
 // is a rejection sampler whose consumption depends on psi, so an inactive row
-// drawn and discarded would desynchronize it. Also T2(c) at the kernel, and
-// the composite: the zero rides a_i omega_i and NEVER omega_ itself, which
-// the working response divides by. Local generators, restored rngState.
+// drawn and discarded would desynchronize it. Also: substituting inactive
+// rows' responses moves no active row's draw, and the composite: the zero
+// rides a_i omega_i and NEVER omega_ itself, which the working response
+// divides by. Local generators, restored rngState.
 static void testActiveRowsLogisticKernel(ext_rng*) {
   uint64_t savedRngState = rngState;
   const std::size_t n = 40;
@@ -5370,13 +5371,24 @@ static void testActiveRowsLogisticKernel(ext_rng*) {
   check(rngStreamsAgree(rngMasked, rngCompact),
         "a masked logistic consumes the compacted rng stream exactly");
 
+  // rule 6, carried from S2: an inactive row's pointwise log-likelihood is
+  // NaN rather than a finite value, beside the gaussian pin in
+  // testActiveRowsGaussianDf
+  std::vector<double> loglik(n);
+  masked.computeLogLikelihood(eta.data(), 1.0, n, loglik.data());
+  bool flagged = true;
+  for (std::size_t i = 0; i < n; ++i)
+    if (std::isnan(loglik[i]) != (active[i] == 0.0)) flagged = false;
+  check(flagged, "an inactive logistic row reports NaN pointwise "
+                 "log-likelihood");
+
   for (ext_rng* r : {rngMasked, rngCompact, rngPerturbed}) ext_rng_destroy(r);
   rngState = savedRngState;
   printf("ok: active rows, logistic omega kernel\n");
 }
 
-// T3a, nbinom: logistic's omega arm PLUS the dispersion block, which is where
-// this family carries more than a composition. The count-histogram kernel L_k
+// The logistic omega arm above PLUS the dispersion block, which is where
+// nbinom carries more than a composition. The count-histogram kernel L_k
 // is REBUILT over the active counts at every mask change and the collapsed
 // statistic S = sum log(1 - p_i) sums only active rows, so the whole grid full
 // conditional - hence the r draw, hence every omega shape after it - is the
@@ -5451,13 +5463,24 @@ static void testActiveRowsNBKernels(ext_rng*) {
   check(rngStreamsAgree(rngMasked, rngCompact),
         "a masked nbinom consumes the compacted rng stream exactly");
 
+  // rule 6, carried from S2: an inactive row's pointwise log-likelihood is
+  // NaN rather than a finite value, beside the gaussian pin in
+  // testActiveRowsGaussianDf
+  std::vector<double> loglik(n);
+  masked.computeLogLikelihood(fits.data(), 1.0, n, loglik.data());
+  bool flagged = true;
+  for (std::size_t i = 0; i < n; ++i)
+    if (std::isnan(loglik[i]) != (active[i] == 0.0)) flagged = false;
+  check(flagged, "an inactive nbinom row reports NaN pointwise "
+                 "log-likelihood");
+
   ext_rng_destroy(rngCompact);
   ext_rng_destroy(rngMasked);
   rngState = savedRngState;
   printf("ok: active rows, nbinom omega and dispersion kernels\n");
 }
 
-// T3a, aft: the censored-row redraw. The comparator PRESERVES ROW ORDER, since
+// The masked aft censored-row redraw. The comparator PRESERVES ROW ORDER, since
 // the redraw iterates the gathered censored indices, and both arms share the
 // response transform by construction (the extreme log-times are active), which
 // is what makes the comparison well posed - the scale itself is a full-data
@@ -5523,6 +5546,16 @@ static void testActiveRowsAFTCensored(ext_rng*) {
   check(held, "an inactive censored aft row keeps its stale log-time");
   check(rngStreamsAgree(rngMasked, rngCompact),
         "a masked aft consumes the compacted rng stream exactly");
+
+  // rule 6, carried from S2: an inactive row's pointwise log-likelihood is
+  // NaN rather than a finite value, beside the gaussian pin in
+  // testActiveRowsGaussianDf
+  std::vector<double> loglik(n);
+  masked.computeLogLikelihood(fits.data(), sigma, n, loglik.data());
+  bool flagged = true;
+  for (std::size_t i = 0; i < n; ++i)
+    if (std::isnan(loglik[i]) != (active[i] == 0.0)) flagged = false;
+  check(flagged, "an inactive aft row reports NaN pointwise log-likelihood");
 
   ext_rng_destroy(rngCompact);
   ext_rng_destroy(rngMasked);

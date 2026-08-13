@@ -649,6 +649,31 @@
             post-draw coin picks between, and now carries the prior mass of
             both instead of one, so the pair no longer enters the node's
             choice at half its weight relative to not splitting.
+      \item A sampler accepts a per-observation 0/1 active-row mask
+            (\code{$setActiveRows}), which removes a row from the likelihood
+            and from the latent draws of a gaussian, Student-t, \code{probit}
+            or \code{ordinal} sampler between draws while keeping its fitted
+            value and its leaf occupancy - the row stays in the forest, just
+            not in the model this sweep. \code{NULL} clears; an all-ones mask
+            is treated as no mask; fractional or \code{NA} values are refused.
+            Independent of \code{setWeights} and composes with it.
+      \item The active-row mask extends to \code{logistic}, \code{nbinom} and
+            \code{aft} samplers.
+      \item The active-row mask extends to multinomial samplers, where it
+            applies to every category at once; a per-category mask is
+            refused, since the softmax margin reads every category's forest.
+            \code{dbarts:::}-only; no public surface in this release.
+      \item The pointwise log-likelihood channel - the flat C API's
+            \code{logLikelihood} results field, and, for a stored zero-weight
+            \code{gaussian} fit, R's \code{pointwiseLogLikelihood}/
+            \code{\link{extract}(type = "loglik")} - now reports \code{NaN}
+            at any row whose composed weight is zero, rather than a finite
+            value or \code{-Inf}: a row not in the model has no likelihood to
+            report. Previously a zero-weight \code{gaussian} row reported
+            \code{-Inf}, and a zero-weight \code{probit} or \code{ordinal}
+            row (reachable only through the active-row mask above) reported a
+            finite value. Multinomial and Bayesian causal forest fits report no
+            pointwise log-likelihood at all, with or without a mask.
     }
   }
   \subsection{C API}{

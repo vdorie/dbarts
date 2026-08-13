@@ -58,7 +58,7 @@ jobs:
       - name: Run the statistical equivalence gate
         run: |
           Rscript benchmarks/R/equivalence.R compare \
-            benchmarks/baselines/equivalence-21fc29c.rds --strict-coverage
+            benchmarks/baselines/equivalence-8b047f8b.rds --strict-coverage
 
   bcf-equivalence:
     runs-on: ubuntu-latest
@@ -84,7 +84,7 @@ jobs:
       - name: Run the BCF statistical equivalence gate
         run: |
           Rscript benchmarks/R/bcf-equivalence.R compare \
-            benchmarks/baselines/bcf-equivalence-a825263.rds
+            benchmarks/baselines/bcf-equivalence-8b047f8b.rds
 
   multinomial-equivalence:
     runs-on: ubuntu-latest

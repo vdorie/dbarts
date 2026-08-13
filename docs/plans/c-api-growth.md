@@ -584,6 +584,39 @@ whenever the dbarts.h reshape scopes a flat multinomial creation entry:
    guard like this gets dropped by accident, widening a flat entry to silently
    accept a multi-forest sampler it was never exercised against.
 
+### Reserved: a future dbarts_sampler_setActiveRows (2026-08-13, not built)
+
+docs/plans/latent-subset-mask.md adds a per-observation 0/1 active-row mask
+to the engine, the `dbarts:::` bridge (`bartcore_setActiveRows`), and a
+`dbartsSampler$setActiveRows` R5 method; it carries the flat entry to this
+plan's dbarts.h reshape (S1), not to its own slices, so it has landed
+`dbarts:::`-only through S3. Reserving the name and signature here so the
+reshape does not have to relitigate them:
+
+    X(int, dbarts_sampler_setActiveRows,
+      (dbarts_sampler* sampler, const double* active), (sampler, active))
+
+appended at the END of the X-list; no version constant moves when it lands
+(pre-release: the constants stay 1.0 until the first release). Two
+constraints recorded now:
+
+1. **Ownership: the entry RETAINS NOTHING.** `active`'s values are consumed
+   into the sampler's own buffer during the call and the caller's array is
+   free immediately after the call returns - neither `setForestWeights`'s
+   borrow-and-retain (which is why THAT entry obliges the caller to keep its
+   array alive) nor a copy into a holder, but the predictor setters' "retain
+   no pointer" clause. No clause joins dbarts.h's keep-alive list.
+2. **1 = accepted, 0 = refused**, the same polarity as `setPredictor` and
+   `setForestWeights` (the erratum above), not its inverse. `active == NULL`
+   clears (every row active); an all-ones vector is accepted and installs
+   nothing - the engine's own all-ones normalizer, which this entry inherits
+   rather than re-implements.
+
+Reachable for gaussian, Student-t, probit, logistic, aft, ordinal and
+nbinom - the families `dbarts_sampler_create` builds by name; multinomial
+and BCF have no flat creation path, so their masking stays `dbarts:::`-only,
+as `bartcore_setCounts` and `bartcore_setForestWeights` already are.
+
 ## Verification
 
 Gates run from a worktree against a private library (per the repo's install
