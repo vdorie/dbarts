@@ -979,7 +979,11 @@ might fail.
    state block, so the writer is the only source of the value and a reader
    can only echo it. If V6 is ever reversed and the mask DOES ride the
    state, a reader becomes necessary and must be added in the same re-bake.
-9. **Normalize the R5 forest index to 1-based. SETTLED BY VD 2026-08-13**
+9. **Normalize the R5 forest index to 1-based. SETTLED BY VD 2026-08-13,
+   LANDED SEPARATELY a14040de, 2026-08-13.** Ahead of S1, per this item's
+   own separability note below (no `dbarts.h` touch, moves no hash, could
+   ride either commit). Full record in Landing notes. THE S1 IMPLEMENTER
+   SKIPS THIS ITEM; S1's remaining budget is ~1310 of the re-priced ~1410.
    (added 2026-08-13, pre-S1). The decision is recorded, not re-argued here:
    multiforest-extension-surface.md:765-783, M1 item 1, "Forest indexing:
    1-BASED, converted at the boundary" - R code holds 1-based throughout with
@@ -1621,3 +1625,45 @@ max |z| line anywhere - LABELLED a formality, per this plan's rng line, since
 no flat entry drives it yet). x86 leg (dbarts-bench) green: install clean,
 tests/cpp plain + ASAN both all-pass, tinytest 4412/0, equivalence.R
 statistical 37/37, max |z| = 0.00, exit 0. CI six-green on the push.
+
+Item 9 (the R5 forest-index normalization) LANDED a14040de, 2026-08-13
+(implemented as 6189365f, amended once during review), ahead of S1 per its
+own separability note (no `dbarts.h` touch, moves no hash, could ride
+either commit if S1 is split). `$getForestFits` and
+`$getForestVariableCounts` normalized from 0-based to 1-BASED via
+`resolveForestIndex` - the entire R5 surface is now uniformly 1-based, all
+six forest-taking methods routed through `resolveForestIndex`:
+`setForestWeights`, `setForestBasis`, `getCalibration`, `setCalibration`,
+and now the two getters. A BCF sampler's prognostic forest is `1`, its
+treatment forest `2`; `0` is refused with `resolveForestIndex`'s message.
+The Rd's `\item{forest}` paragraph, which documented both conventions in
+one paragraph, collapses to one uniform statement. Three test files
+migrated (`test-bcf-r5-surface.R`, `test-bcf-reporting.R`,
+`test-forest-weights-r5.R`); one NEWS bullet under 1.0-0. Benchmarks
+untouched and verified independent: `benchmarks/R/sbc.R` calls the internal
+0-based `C_dbarts_bartcore_getForestFits` route directly. R-only, ~54-line
+diff, hash-neutral, no `src/` touch.
+
+Review: independent Opus reviewer, full battery from scratch, verdict LAND,
+one non-blocker taken in an amend: the collapsed Rd sentence grouped the
+two getters with the two setters as "refused on a sampler that is not a
+Bayesian causal forest" - true for the setters, FALSE for the getters
+(`forest = 1` on an ordinary sampler returns the only forest's channels;
+only out-of-range values error, verified crash-free). Fixed by carving the
+getters out of that clause - they accept `forest = 1` on any sampler - in
+the Rd and the two R docstrings. Reviewer confirmations worth the record:
+migration completeness proven tree-wide (every remaining 0-based literal is
+the internal `dbarts:::` route, correctly 0-based); the pins bite - the
+dropped-conversion simulation returns the treatment channel and fails the
+mu-oracle assertion; `resolveForestIndex` enforces the lower bound, the C
+range check the upper, and an ordinary sampler at `forest = 2` errors
+cleanly.
+
+Gates: implementer and reviewer batteries both green from scratch (preclean
+installs; full tinytest 4478/0, no snapshot regenerated; the trio IDENTICAL
+- equivalence-8b047f8b 37/37 strict, bcf-equivalence-8b047f8b 12/12,
+multinomial-equivalence-1027be5 10/10; air clean; lintr zero; R CMD check on
+a clean-copy tarball Status OK, zero E/W/N; pkgdown no problems); post-amend
+re-gate green (`check --as-cran` OK, pkgdown, air/lint, the touched test
+file 40/40). No x86 leg: R-only, no baseline change. CI six-green on the
+push.

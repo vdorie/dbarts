@@ -431,27 +431,14 @@ items
     for multiforest-extension-surface (basis family pre-release not
     post-freeze, FA5 respec, KEEP setForestWeights, bcf() to
     bartCause) are RESOLVED; see that entry.
-  r5-forest-indexing: the R5 surface mixes forest-index conventions
-    (found + reviewer-confirmed at the calibration S2 landing):
-    $getForestFits / $getForestVariableCounts pass as.integer(forest)
-    through 0-based (0 = prognostic, 1 = treatment) while
-    $getCalibration / $setCalibration take 1-based via
-    resolveForestIndex (errors below 1), and the flat C S3 entries
-    take a size_t; man/dbartsSampler-class.Rd documents both
-    conventions in one \item{forest} paragraph. R users expect
-    1-based. $setForestWeights landed on the 1-based side, on the same
-    resolveForestIndex pattern (multiforest-extension-surface M1,
-    05ac3b4b, per VD's settled 2026-08-13 decision) - it did NOT
-    extend the 0-based split onto a new axis, so this ticket still
-    covers exactly the two 0-based getters named above. $setForestBasis,
-    replacing $setTreatment at M2 (64b13b98), landed on the same 1-based
-    side; $getForestAmplitudes, replacing $getBCFGlue, stays argument-free
-    as its predecessor was, so neither renamed method touches this
-    ticket's scope either. Normalize at
-    the dbarts-h-reshape re-bake (the window's rename moment) - decide
-    1-based everywhere R-side, migrate the two 0-based getters,
-    lockstep the sister packages. Surface-
-    bearing, pre-release.
+  r5-forest-indexing: LANDED a14040de (record in docs/plans/dbarts-h-
+    reshape.md, Landing notes, item 9; implemented as 6189365f, amended
+    during review). The last two 0-based methods, $getForestFits and
+    $getForestVariableCounts, now route through resolveForestIndex -
+    the whole R5 surface is 1-based (all six forest-taking methods:
+    setForestWeights, setForestBasis, getCalibration, setCalibration,
+    getForestFits, getForestVariableCounts). A BCF sampler's
+    prognostic forest is 1, its treatment forest 2; 0 is refused.
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
   response-support-validation: LANDED 33f6fdc (defects 1-4 and 6 of
