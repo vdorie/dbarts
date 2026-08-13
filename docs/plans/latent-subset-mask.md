@@ -1056,7 +1056,52 @@ logistic/nbinom/aft (rule 6 is implemented but only gaussian is
 asserted; the channel has no R reader today) and all-zeros arms for the
 three new families (reviewer verified finite manually; unpinned).
 
-S3 LANDED <commit>, <date>.
+S3 LANDED 8b047f8b, 2026-08-13. The global channel at the COMBINER:
+`ForestCombiner::setActiveRows` is a base no-op; the multinomial
+combiner skips the inactive rows' K Polya-Gamma draws in
+`drawForestGlue` (skip, never draw-and-discard - shown RED against the
+discard variant), never zeroes omega (cold start 0.25 keeps
+`(y - n/2)/omega` finite for rows inactive from creation), writes
+`margins_[i]` BEFORE the skip so no stale margin reaches
+`formForestResponse`, and composes `a_i` into `forestWeights_` in its
+own pass re-applied at every forest f - the global mask reaches all K
+forests' sufficient statistics. `Chain::setActiveRows` forwards after
+the normalizer, so all-ones clears the coupling too;
+`MultinomialResponse` now overrides `supportsActiveRows`. Budgets well
+under (+16 engine of ~70, +171 test of ~180 dense-equivalent). TWO
+DEVIATIONS, both reviewer-accepted with the siting shown FORCED: (1)
+the per-forest refusal lands at `bartcore_setForestWeights` - no mask
+surface takes a forest index, so that entry is the only reachable
+per-forest per-observation channel; the message is the plan's verbatim
+softmax-margin identification reason, raised under
+`supportsCountsMutation` (exclusive to the multinomial combiner). NO
+BCF message ships and none could: test-forest-weights.R already PINS
+BCF accepting a per-forest 0/1 vector, so the plan's REFUSAL-MESSAGES
+BCF bullet is SATISFIED BY ACCEPTANCE (the redundancy call realized) -
+read that bullet as met, not missed. The same message now also answers
+a fractional per-forest precision request on multinomial in mask
+wording; the margin argument covers that case. (2) The bridge's
+family-capability refusal is UNREACHABLE after this slice (every
+shipped family implements the channel) but is KEPT as defense-in-depth
+per the in-file setForestWeights precedent, reworded family-neutral -
+this also discharges the S2-carried comment reword (the old text
+called multinomial's refusal permanent; the channel is global now, and
+the advertise/implement split cannot desynchronize -
+`MultinomialResponse` is built only in the multinomial Chain ctor
+beside the coupling). SEVEN-RULES LEDGER for multinomial, per the
+review: 1/3/4/normalizer/fractional/all-zeros pinned (T2(c)
+substitutes counts AND trials - the S2 logistic lesson applied); rule
+2 unreachable by the mask (the coupling serves workingWeights ==
+nullptr, occupancy stays count-based; verified manually); rules 6 and
+7 are VACUOUS, not gaps - `logLikelihoodIsDefined()` is false for the
+coupling and drawSigma/refreshLatents are no-ops - so S4 must NOT
+chase NaN-loglik arms for multinomial. Gates: implementer and
+reviewer batteries both green from scratch (trio identical x3 with
+the multinomial harness 10/10 bitwise - the null gate on exactly the
+moved path; tinytest 4422/0; cpp 231 plain + ASAN zero reports; air +
+lint clean); x86 leg green; CI six-green on the push. The new tests
+add more plan-label comments - the S4 normalization item grows
+accordingly.
 
 S4 LANDED <commit>, <date>.
 
