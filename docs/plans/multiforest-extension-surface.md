@@ -1920,3 +1920,83 @@ clean; lintr zero lints; `R CMD check` on a clean-copy tarball Status OK
 zero E/W/N; pkgdown no problems; an independent `saveRDS`/`readRDS` round
 trip). NO x86 leg: an R-only slice with no baseline change - the x86
 standard applies to engine slices. CI six-green on the push.
+
+M2 LANDED 64b13b98, 2026-08-13 (implemented as 639ceea9, amended during
+independent review). `dbarts()`/`dbartsSpec()` gain `forests =
+list(forest(...))`, replacing the removed `treatment =`/`moderators =`/
+`treatmentForest =` (formals, `NAMESPACE` export, `_pkgdown.yml` entry, Rd);
+`$setTreatment` becomes `$setForestBasis(forest, basis)`, 1-based via
+`resolveForestIndex` on the same side as `setForestWeights` and the
+calibration pair (a BCF sampler's treatment forest is `2L`); `$getBCFGlue`
+becomes the argument-free `$getForestAmplitudes()`; a new exported `forest()`
+constructor is its own Rd topic and `_pkgdown.yml` entry, carrying the
+complete ten-knob map settled in the pre-M2 amendment - `basis`, `vars`,
+`n.trees`, `base`, `power`, `sd`, `interactions`, `blocks`,
+`amplitude.prior.variance` (legal only on a forest given `basis =`) and
+`update.amplitude` (legal on every forest of a `forests =` spec, refused only
+at `K = 1` where no amplitude channel exists at all - so `forest(sd = )`
+beside `dbartsData(treatment = )` configures rather than refuses).
+`resolveSamplerSpec` resolves `forests =` to exactly the `treatment =`
+payload. `test-bcf-creation.R` is rewritten (80 results); seven more test
+files migrate off the removed formals; benchmarks are untouched, since the
+bcf harness drives the internal constructor route and `settingsList()`
+carries no creation vocabulary. R-only, no `src/` touch, no baseline change.
+
+Review: independent Opus reviewer, full battery from scratch, verdict
+LAND-AFTER-CHANGES; after the fix pass, final verdict LAND. The blocker:
+`forest(n.trees = )`/`base = `/`power = ` on the first forest silently
+overrode an explicitly declared `control@n.trees` / tree-prior `base`/`power`
+value, undocumented and unpinned; refusal was ruled not cleanly
+implementable, since an explicitly passed default is indistinguishable from
+the default. Resolved as DOCUMENTED PRECEDENCE - the `forest()` value
+governs, as the more specific declaration, a sentence added to
+`man/forest.Rd` - plus a compound disagreement pin proving the rule
+knob by knob: flipping precedence on `n.trees`, `base`, or `power` alone each
+breaks it.
+
+Four implementer deviations ACCEPTED. (i) The refusal set grew from the
+planned nine to a larger set by item 4's own by-name-refusal rule: variables
+on forest 0, a second forest with no basis anywhere, a non-`forest()` list
+element, an empty list, a two-sided basis formula, and per-knob range
+renames each earned their own refusal and their own pin - spec-consistent,
+not scope creep. (ii) `n.trees`/`base`/`power` on forest 0 are implemented as
+RESTATING the fit's own `control`/tree-prior slots, since the engine carries
+no separate payload slot for forest 0 the way it does for forest 1's;
+ruled the right call over a silent drop or a tenth refusal. (iii) the K = 1
+nuance in the amendment's `update.amplitude` legality rule. (iv)
+`resolveModerators` gained an argument parameter so PUBLIC errors say
+`'vars'` while the internal route keeps `'moderators'`.
+
+Review round two added pins for facts the first pass verified but left
+unpinned - the `hasBasis` escape (`sd` reaching `params[4]`,
+`update.amplitude` reaching `params[7]`, a K = 2 no-basis spec still
+honouring `n.trees`) and the positive `interactions`/`blocks` routes - and a
+suspected `tau.blocks` pin, tested and empirically falsified, was left
+standing as written.
+
+Budget ACCEPTED: about 791 dense-equivalent lines, inside the amended
+775-895 band - R landed at 246, six over its own sub-band, bought back by
+the accepted deviations.
+
+Gates: implementer, fixer and reviewer batteries all green from scratch
+(preclean private-lib installs; `tests/cpp` plain all-pass confirming no
+`src` drift; full tinytest 4475/0, no snapshot regenerated; the trio
+IDENTICAL - `equivalence-8b047f8b` 37/37 strict, `bcf-equivalence-8b047f8b`
+12/12, `multinomial-equivalence-1027be5` 10/10; air clean; lintr zero lints;
+`R CMD check` on a clean-copy tarball Status OK zero E/W/N;
+`pkgdown::check_pkgdown` no problems, `forest` added and `treatmentForest`
+removed; FS1 positive bitwise on all six channels plus both negative arms;
+FS2 42 message-asserting refusals; FS3 single-forest byte-neutrality). NO
+x86 leg: R-only, no baseline change. CI six-green on the push.
+
+Recorded for M3 (the reviewer's finding 4, src-owned, non-blocker): removed
+vocabulary still leaks from bridge messages - "bartcore_setTreatment
+requires a BCF sampler", "bartcore_getBCFGlue requires a BCF sampler", and a
+length-mismatched basis under `forests =` still erroring "length of
+'treatment' must equal length of 'y'". M3 (riding `dbarts-h-reshape` S1)
+retires these alongside the flat-C renames.
+
+Arc status: M1 and M2 landed. M0 (the on-ramp docs/vignette slice) stays
+deferred at orchestrator discretion; M3 rides `dbarts-h-reshape` S1; M4 (the
+general basis family) is RESOLVED pre-release and scheduled after the
+reshape.

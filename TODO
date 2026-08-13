@@ -87,6 +87,18 @@ items
   csc-code-validation: LANDED (record in
     docs/plans/csc-code-validation.md); categorical ingestion bounds
     codes against training-side K everywhere.
+  dbartsdata-treatment-slot-debt: dbartsData(treatment = ) and the
+    data@treatment slot deliberately SURVIVE multiforest-extension-surface
+    M2 (SETTLED 2026-08-13 pre-M2, docs/plans/multiforest-extension-
+    surface.md item 11) - the bridge reads the slot by name
+    (src/R_interface_bartcore.cpp:1112, length check :1117) and forests =
+    populates it internally, with exactly the values and at exactly the
+    point treatment = populated it before. The debt is the remaining
+    split: a forests = model whose basis column still arrives at
+    dbartsData() under a treatment = name. Retires at M3, M4 (whose
+    n x q_f basis is the honest carrier and would absorb it whole), or the
+    dbarts-h-reshape re-bake window, whichever lands first. No escalation:
+    the split surface is shippable as-is. Pre-release.
   embedding-page: a visible, citable "embedding dbarts" pkgdown
     page: the dbarts.h X-list surface, dbartsSpec, LinkingTo
     mechanics, and cross-refs to the named recipes. Evidence: the
@@ -187,19 +199,23 @@ items
     (dbarts_sampler_setActiveRows) rides dbarts-h-reshape S1. V1-V9
     adopted 2026-08-12 under VD's proceed-at-discretion grant
     (Student-t disposition VD-reviewed same day).
-  multiforest-extension-surface: M1 LANDED 05ac3b4b - a public R5
-    $setForestWeights on dbartsSampler, 1-based via resolveForestIndex
-    (a BCF treatment forest is 2L), mirrored across re-creation at
-    getPointer, setState and copy (docs/plans/
-    multiforest-extension-surface.md Landing notes; artifacts
-    .claude/multiforest-extension-surface-design/). The answer to
-    VD's "a multiforest ABI/API model writers would want": the DRIVER
-    surface (caller-owned outer loop) is the shape and is nearly
+  multiforest-extension-surface: M1 LANDED 05ac3b4b, M2 LANDED 64b13b98 -
+    forests = list(forest(...)) on dbarts()/dbartsSpec() replaces the
+    removed treatment =/moderators =/treatmentForest =, with
+    $setTreatment -> $setForestBasis(forest, basis) and $getBCFGlue ->
+    $getForestAmplitudes(), both 1-based via resolveForestIndex (a BCF
+    sampler's treatment forest is 2L) on the same side as M1's public R5
+    $setForestWeights, itself mirrored across re-creation at getPointer,
+    setState and copy (docs/plans/multiforest-extension-surface.md Landing
+    notes; artifacts .claude/multiforest-extension-surface-design/). The
+    answer to VD's "a multiforest ABI/API model writers would want": the
+    DRIVER surface (caller-owned outer loop) is the shape and is nearly
     shipped - the missing piece is the documented contract; the
-    declarative per-forest BASIS is the model-carrying surface, with
-    the non-Gaussian case as its engine justification. M0 (the on-ramp
-    docs/vignette slice) is DEFERRED, orchestrator discretion; M2
-    (forests = replaces treatment =) is NEXT. M3 rides the dbarts.h
+    declarative per-forest BASIS is the model-carrying surface, with the
+    non-Gaussian case as its engine justification, and forests = is now the
+    only public creation route to it. M0 (the on-ramp docs/vignette slice)
+    stays DEFERRED, orchestrator discretion; M3 (the flat mean channel) is
+    the only piece left before the engine slice, and rides the dbarts.h
     reshape's S1; M4 (the general basis family) also RESOLVED
     pre-release (VD 2026-08-11, fork 1 below), scheduled after the
     dbarts.h reshape, with FA1/FA2 run first as design-informing
@@ -427,7 +443,11 @@ items
     resolveForestIndex pattern (multiforest-extension-surface M1,
     05ac3b4b, per VD's settled 2026-08-13 decision) - it did NOT
     extend the 0-based split onto a new axis, so this ticket still
-    covers exactly the two 0-based getters named above. Normalize at
+    covers exactly the two 0-based getters named above. $setForestBasis,
+    replacing $setTreatment at M2 (64b13b98), landed on the same 1-based
+    side; $getForestAmplitudes, replacing $getBCFGlue, stays argument-free
+    as its predecessor was, so neither renamed method touches this
+    ticket's scope either. Normalize at
     the dbarts-h-reshape re-bake (the window's rename moment) - decide
     1-based everywhere R-side, migrate the two 0-based getters,
     lockstep the sister packages. Surface-
