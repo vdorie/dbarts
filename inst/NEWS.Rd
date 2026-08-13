@@ -947,8 +947,15 @@
             than accurate to about seven digits.
       \item A BCF sampler accepts a per-forest, per-observation weight,
             so a caller can exclude rows from one forest's leaf
-            conditionals without excluding them from the model.
-            \code{dbarts:::}-only; no public surface in this release.
+            conditionals without excluding them from the model, via
+            the sampler's \code{$setForestWeights(forest, weights)}.
+            \code{forest} indexes from \code{1}, as
+            \code{$getCalibration}/\code{$setCalibration} already do
+            (a Bayesian causal forest's treatment forest is
+            \code{2}). The weight does not ride the sampler's saved
+            state, so it is mirrored and reinstalled automatically
+            whenever \code{$getPointer} or \code{$setState}
+            re-creates the underlying engine.
       \item A multinomial (softmax) sampler's count response can be
             replaced between runs, at the observation and category counts
             it was built with, so the model can serve as a conditional

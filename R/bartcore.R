@@ -983,12 +983,12 @@ bartcoreSetTreatment <- function(bcSampler, z) {
 
 # A per-forest, per-observation weight s on forest `forest` (0 prognostic, 1
 # treatment): a multiplicative precision factor on that forest's own leaf
-# conditionals, composing with the case weights so the forest's draws see
-# w_i * m_f^2 * s_i. It does not remove the row from occupancy, from the
-# empty-leaf veto, from the combination (the row still receives m_f f_f(x_i)),
-# or from the residual sigma degrees of freedom; s_i = 0 says only that row i
-# carries no information about forest f, and that forest's leaves over such
-# rows stay well-defined prior draws.
+# conditionals, composing with the case weights and the active-row mask so
+# the forest's draws see (w_i * a_i) * m_f^2 * s_i. It does not remove the
+# row from occupancy, from the empty-leaf veto, from the combination (the
+# row still receives m_f f_f(x_i)), or from the residual sigma degrees of
+# freedom; s_i = 0 says only that row i carries no information about forest
+# f, and that forest's leaves over such rows stay well-defined prior draws.
 #
 # Two edges, or a consumer is misled. At s_i = 0 with a nonzero multiplier only
 # the WEIGHT is zeroed - the response stays the reparameterized residual - so

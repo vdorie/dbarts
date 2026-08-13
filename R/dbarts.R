@@ -719,7 +719,13 @@ dbartsSampler <- setRefClass(
     # rides the fit's $bc and reads nothing back from here. The string names
     # that fit and appears in the refusals below; empty for every sampler a
     # user builds, which is every sampler that owns its own model.
-    hostFor = "character"
+    hostFor = "character",
+    # The per-forest, per-observation precision weight installed by
+    # setForestWeights, mirrored here because it does not ride the engine's
+    # saved state: forestWeights[[forest]] (1-based) holds the last vector
+    # installed on that forest, NULL where none is. getPointer and setState
+    # both re-apply it on every re-creation.
+    forestWeights = "list"
   ),
   methods = list(
     initialize = function(control, model, data, ...) {
@@ -736,6 +742,7 @@ dbartsSampler <- setRefClass(
       .self$model <- model
       .self$data <- data
       .self$hostFor <- character(0L)
+      .self$forestWeights <- list()
 
       # "auto" (a hand-built model) keeps the bridge's own dispatch
       .self$pointer <- .Call(
@@ -888,6 +895,16 @@ dbartsSampler <- setRefClass(
       if (!is.null(state)) {
         dupe$setState(state)
       }
+      # forestWeights is a plain list field: assigning it shares the
+      # underlying object, but R's copy-on-modify means a later
+      # setForestWeights on either sampler duplicates before mutating, so
+      # this is as alias-safe as the state install above. setState's own
+      # reapply already ran against dupe's still-empty field, so reapply
+      # again now that it carries .self's weights; dupe$pointer is valid
+      # straight out of $new (and stays so after setState), which is what
+      # lets this skip getPointer's re-creation branch
+      dupe$forestWeights <- forestWeights
+      dupe$reapplyForestWeights(dupe$pointer)
       dupe
     },
     show = function() {
@@ -1124,6 +1141,42 @@ dbartsSampler <- setRefClass(
 
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_setActiveRows, ptr, active)
+      if (identical(updateState, TRUE)) {
+        storeState(ptr)
+      }
+      invisible(NULL)
+    },
+    setForestWeights = function(forest, weights, updateState = NA) {
+      "Sets a per-forest, per-observation weight: a multiplicative precision factor on the named forest's own leaf conditionals, composing with weights and active as (w_i * a_i) * m_f^2 * s_i rather than widening either channel. Only applies to a Bayesian causal forest built with treatment = (see dbarts); forest indexes from 1, as with getCalibration/setCalibration (the treatment forest is 2). The weight does not ride the sampler's saved state; it is mirrored on an R5 field that getPointer and setState both reinstall on every re-creation. updateState is opt-in; see setData."
+      refuseHostMutation("$setForestWeights")
+      weights <- as.double(weights)
+      if (length(weights) != length(data@y)) {
+        stop("'weights' must have length equal to that of 'y'")
+      }
+      if (anyNA(weights)) {
+        stop("'weights' cannot be NA")
+      }
+      if (any(weights < 0.0)) {
+        stop("'weights' must all be non-negative")
+      }
+
+      index <- resolveForestIndex(forest)
+      ptr <- getPointer()
+      selfEnv <- parent.env(environment())
+
+      oldWeights <- forestWeights[index + 1L]
+      selfEnv$forestWeights[index + 1L] <- list(weights)
+      tryResult <- tryCatch(
+        .Call(C_dbarts_bartcore_setForestWeights, ptr, index, weights),
+        error = function(e) {
+          selfEnv$forestWeights[index + 1L] <- oldWeights
+          e
+        }
+      )
+      if (inherits(tryResult, "error")) {
+        stop(tryResult)
+      }
+
       if (identical(updateState, TRUE)) {
         storeState(ptr)
       }
@@ -1425,6 +1478,16 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
+    reapplyForestWeights = function(ptr) {
+      "Re-installs every forest weight mirrored on this sampler onto ptr, a freshly (re-)created or restated engine pointer that carries none of them. Called from getPointer and setState, never recursing through getPointer."
+      for (forest in seq_along(forestWeights)) {
+        weights <- forestWeights[[forest]]
+        if (!is.null(weights)) {
+          .Call(C_dbarts_bartcore_setForestWeights, ptr, forest - 1L, weights)
+        }
+      }
+      invisible(NULL)
+    },
     getPointer = function() {
       "Returns the underlying reference pointer, checking for consistency first."
       selfEnv <- parent.env(environment())
@@ -1452,6 +1515,7 @@ dbartsSampler <- setRefClass(
           state,
           rawPredictorMatrix(data@x)
         )
+        reapplyForestWeights(pointer)
       }
       pointer
     },
@@ -1477,6 +1541,7 @@ dbartsSampler <- setRefClass(
         newState,
         rawPredictorMatrix(data@x)
       )
+      reapplyForestWeights(pointer)
       selfEnv$state <- newState
       invisible(NULL)
     },
