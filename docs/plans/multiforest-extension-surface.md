@@ -20,10 +20,13 @@ window: M0, M1, M2 land INSIDE the pre-release breaking window. M3 rides
   2026-08-11), and needs no header movement if M3 lands. Everything is
   breakable and the four sister packages migrate in lockstep at the freeze,
   once, against the final header (VD 2026-08-10).
-budget: M0 ~220 design doc + ~180 vignette + ~200 test. M1 ~60 R + ~40 man +
-  ~140 test. M2 ~180 R + ~60 man + ~260 test (test-bcf-creation.R rewritten).
+budget: M0 ~220 design doc + ~180 vignette + ~200 test. M1 ~75-85 R + ~50-60
+  man + ~140 test, ~270-290 total (RESTATED 2026-08-13 pre-M1, superseding the
+  ~60 + ~40 + ~140 committed 2026-08-11; the carried items are in M1 item 5).
+  M2 ~180 R + ~60 man + ~260 test (test-bcf-creation.R rewritten).
   M3 ~40 header + ~80 C_interface + ~70 consumer.c + ~60 test-capi.R, inside
-  dbarts-h-reshape S1's own budget. Total in-repo before the freeze ~1590.
+  dbarts-h-reshape S1's own budget. Total in-repo before the freeze ~1630
+  (~1590 before M1's 2026-08-13 restatement).
   M4 priced in its own section (~600-900), not committed here.
 tip: every anchor below re-read at db81bfe in this worktree, with src/ read
   through `git show HEAD:` because a code implementer is editing
@@ -37,8 +40,8 @@ landed: 2026-08-11 at e2cc1de by the orchestrator, verbatim from the synthesis
   written, landed 1df9c0c with CI all six green. The TODO door sentence cited
   below at :625 sat at :629 at the landing tip, and is now the consolidated
   multiforest-extension-surface TODO entry at :154-178, rewritten again by
-  the records commit below. All eight cross-plan amendments applied at this
-  commit.
+  the records commit below; at 934a02d5 that entry sits at TODO:190-214. All
+  eight cross-plan amendments applied at this commit.
 records: anchor-refresh pass applied 2026-08-11, in the records commit that
   also lands the four VD forks (see "Open decisions" below) and the R/C-
   division principle. 31 line-number corrections applied against the live
@@ -49,6 +52,16 @@ records: anchor-refresh pass applied 2026-08-11, in the records commit that
   R_interface_bartcore.cpp, R_interface_bartcore_common.hpp and
   C_interface.cpp anchors were RE-VERIFIED against 33f6fdc (the stop-loss
   slice that landed there touched all four files) and none had drifted.
+amended: 2026-08-13, PRE-M1, by the orchestrator. Every anchor in this file
+  re-verified BY SYMBOL against 934a02d5 and corrected where it had drifted:
+  the latent-subset-mask arc (S0-S4, through 414c50a6) and reshape S0
+  (a262cd26) moved chain.hpp, sampler.hpp, facade.hpp and
+  R_interface_bartcore.cpp under the 33f6fdc numbers. `chain.hpp:870` was a
+  FALSE-POSITIVE anchor: at HEAD it resolves to `supportsResponseMutation`,
+  and `Chain::setForestWeights` is `:966`. The M1 section additionally gains
+  the SETTLED forest-index base, the mirroring mechanism, the three mask-arc
+  interactions, the multinomial refusal siting and an explicit restated
+  budget; nothing else about the arc's content or ordering moved.
 
 ## The question, answered
 
@@ -151,42 +164,42 @@ authoring one.
 
 ## Adjudication: the critique's six blocking findings
 
-Every anchor re-verified here at db81bfe; where a document's own line numbers
-had drifted the current ones are given.
+Every anchor re-verified here at db81bfe, and again at 934a02d5 (2026-08-13);
+where a document's own line numbers had drifted the current ones are given.
 
 **B1 (route 3's held door for a state-dependent multiplier callback): ADOPTED
 in full, and the door is DELETED.** Verified independently: `Chain::run`
 evaluates `onSweep` at the TOP of each sweep, before the forest loop
-(`chain.hpp:974-976`, forest loop at `:1009`), and the previous sweep ended
-with `combinedFits` (`:1125`), `drawGlue` and `afterCombine` (`:1139-1140`,
-line numbers re-verified at 33f6fdc). So the
+(`chain.hpp:1110-1111`, `run` at `:1095`, forest loop at `:1145`), and the
+previous sweep ended with `combinedFits` (`:1261`), `drawGlue` and
+`afterCombine` (`:1275-1276`, line numbers re-verified at 934a02d5). So the
 memo's stated hook point ("after `combinedFits` and before the next
 `formForestResponse`") IS the sweep boundary, which the shipped
 `dbarts_sampler_callback` already occupies. The ABI does not refuse it; it
 charges a documented price (`sampler.hpp:260-263` inline-only;
-`dbarts.h:371-378` the same refusal predicate). Nothing needs building inside
+`dbarts.h:372-378` the same refusal predicate). Nothing needs building inside
 the sweep, so the memo's per-observation-dispatch objection describes a hook
 nobody needs. The one class the door was held for (LongBet-style panel with a
 sampled time factor) needs a combiner-internal draw, not a host hook. RE-SCOPED
 as an M4 spec question: "a per-forest amplitude with a caller-supplied
 covariance kernel, drawn in the combiner", structurally what BCF's `a` and its
-half-Cauchy auxiliary already are (`combiner.hpp:539-557`).
+half-Cauchy auxiliary already are (`combiner.hpp:589-607`).
 
 **B2 (open decision 5's vector-leaf pricing): ADOPTED, and the door is
 re-priced and narrowed.** Verified: `VectorLeafModel` requires
-`{ leaf.fitForObservation(v, i) } -> std::same_as<double>` (`model.hpp:58-65`),
+`{ leaf.fitForObservation(v, i) } -> std::same_as<double>` (`model.hpp:60-67`),
 so dbarts' "vector leaf" is a vector of PARAMETERS producing a SCALAR fit;
-`ResponseFamily` has no multivariate member (`model.hpp:2459`). McJames et al.'s
+`ResponseFamily` has no multivariate member (`model.hpp:2523`). McJames et al.'s
 vector axis is the OUTCOME dimension, so lifting a leaf assert cannot buy
 multivariate-outcome BCF: a d-dimensional outcome needs a d-dimensional
 response, d-dimensional fits, a d x d residual covariance and a Results layout.
 **That half of the door is struck as a category error.** There are TWO asserts
-(`combiner.hpp:452-453` BCF, `:761-762` multinomial), and the naive lift is
+(`combiner.hpp:502` BCF, `:825` multinomial), and the naive lift is
 undefined behaviour, not a configuration change: `muByTree` is documented
 "Empty for vector and function leaves, which keep the dense `treeFits` slab"
 (`combiner.hpp:174-181`) while `BCFForestCombiner::afterCombine` indexes
-`forest.muByTree[t]` unconditionally (`:601`) and rescales it (`:631-633`), as
-does the multinomial combiner (`:943`, `:966`), and the saved-slot rescale
+`forest.muByTree[t]` unconditionally (`:651`) and rescales it (`:682-683`), as
+does the multinomial combiner (`:1166`, `:1189`), and the saved-slot rescale
 walks `FlatNode`s carrying one scalar `value`. ADDED here, and it matters for
 VD's fork 1: multi-arm treatment on a vector leaf and the per-forest basis
 channel are DIFFERENT arcs serving different classes (one partition shared
@@ -241,8 +254,11 @@ and is amended below.
 
 **B5 (the naming collision is a schedule blocker): the FINDING is adopted, its
 CONSEQUENCE is narrowed.** Verified: the precision channel is entirely
-`dbarts:::`-only today - `Chain::setForestWeights` (`chain.hpp:870`), bridge
-`bartcore_setForestWeights`, R `bartcoreSetForestWeights` (`R/bartcore.R:813`,
+`dbarts:::`-only today - `Chain::setForestWeights` (`chain.hpp:966`; the
+`:870` this plan cited before the 2026-08-13 refresh is a FALSE-POSITIVE
+anchor at HEAD, where it resolves to `supportsResponseMutation`), bridge
+`bartcore_setForestWeights` (`R_interface_bartcore.cpp:3688-3728`), R
+`bartcoreSetForestWeights` (`R/bartcore.R:999`,
 absent from `NAMESPACE`, with no R5 method) - and the flat entry does not exist:
 `zero-weight-exactness.md` only reserves it and `dbarts-h-reshape.md` S1 item 5
 BUILDS it, in the window's last re-bake. So the precision channel's public
@@ -251,9 +267,10 @@ spelling does freeze there. NARROWED: the collision the memo feared
 by naming the mean channel **basis** rather than multiplier or weights.
 "Weights" in dbarts already means precisions - `setWeights` installs
 observation precisions, and `setForestWeights` is its per-forest sibling,
-composing exactly as `w_i m_f^2 s_i` (`chain.hpp:855-857`,
-`composeForestWeights` at `:2970-2986`, fn at `:2978`) - so renaming it would
-cost the parallel
+composing as `(w_i a_i) m_f^2 s_i` (`chain.hpp:948-950`,
+`composeForestWeights` at `:3431-3447`, fn at `:3439`; the `a_i` term is the
+active-row mask, which landed after this plan was written - see M1 item 3a) -
+so renaming it would cost the parallel
 that explains it. Therefore fork 3's mean-channel spelling does NOT block
 reshape S1, provided the mean channel never asks for the word "weights", and
 under this plan's spec it must not. What DOES remain schedule-bound, and is put
@@ -279,7 +296,7 @@ dropped.
 Confirmed by the critique's probes and re-verified structurally here:
 
 1. **`setForestWeights` is a PRECISION channel that `combinedFits` never
-   reads.** `BCFForestCombiner::combinedFits` (`combiner.hpp:517-526`) reads
+   reads.** `BCFForestCombiner::combinedFits` (`combiner.hpp:567-576`) reads
    `glue_.a`, `glue_.b0/b1` and `z`, never `forestWeights_`; the only consumer
    of the channel is `composeForestWeights`. Numerically: with `s = 0` on every
    row of forest 1, the reported location still contains that forest's full
@@ -296,7 +313,7 @@ Confirmed by the critique's probes and re-verified structurally here:
 3. **Rebuild plus `setState` silently drops a per-forest weight while the two
    stored states compare equal.** Real (reproduced: 0.38 max difference in tau
    fits, identical states) and already a RECORDED DECISION, not a discovery:
-   `chain.hpp:866-869` documents it, `zero-weight-exactness.md:121-126` decides
+   `chain.hpp:962-965` documents it, `zero-weight-exactness.md:121-126` decides
    it, and `inst/tinytest/test-forest-weights.R` pins the same-holder round trip
    and records the cross-sampler case as documented rather than asserted. It is
    a contract item for M0's doc, not a defect.
@@ -353,8 +370,8 @@ New findings made in synthesis, each a departure from the memo (receipts in
 9. **BCF is NOT an instance of the memo's declarative form, so the memo's
    spec and its falsifier F2 are both wrong.** `combinedFits` uses `b_{z_i}`
    and `drawGlue` draws `b0` and `b1` as two SEPARATE conjugate coefficients
-   accumulated over the `z = 0` and `z = 1` subsets (`combiner.hpp:517-526`,
-   `:559-572`). Since `b_{z_i} = b0 (1 - z_i) + b1 z_i`, forest 1 carries a
+   accumulated over the `z = 0` and `z = 1` subsets (`combiner.hpp:567-576`,
+   `:609-622`). Since `b_{z_i} = b0 (1 - z_i) + b1 z_i`, forest 1 carries a
    TWO-COLUMN indicator basis with two coefficients, not one column times one
    amplitude. "Amplitude times one multiplier column" therefore does NOT
    contain BCF (it is BCF with `b0` pinned at 0), and the memo's F2 ("a K = 2
@@ -363,21 +380,21 @@ New findings made in synthesis, each a departure from the memo (receipts in
    MATRIX. This is what "spec the actual channel it rides" resolves to, below.
 10. **The general amplitude conditional is a small dense solve and the
     machinery ships.** `choleskyDecompose`, `solveLowerTriangular` and
-    `solveLowerTriangularTransposed` (`model.hpp:864-895`) already serve
+    `solveLowerTriangularTransposed` (`model.hpp:869-895`) already serve
     `LinearGaussianLeaf`'s normal equations and `GPGaussianLeaf`'s kernel
     solves. BCF's indicator basis is ORTHOGONAL, which makes its Gram matrix
     diagonal, which is exactly why the shipped code draws two scalars.
 11. **The memo's D2 is half moot.** The per-forest READERS were promoted at
     bcf-public-surface S2: `$getForestFits`, `$getBCFGlue` and
-    `$getForestVariableCounts` are public R5 methods (`R/dbarts.R:1283-1296`).
-    Only the per-forest weight SETTER remains internal.
+    `$getForestVariableCounts` are public R5 methods (`R/dbarts.R:1344`,
+    `:1349`, `:1354`). Only the per-forest weight SETTER remains internal.
 12. **Non-Gaussian multiforest is a refusal plus a calibration map, not missing
     machinery.** The latent draw already runs against the combined fit
-    (`chain.hpp:1125-1126`) and the multinomial K-forest chain already runs a
+    (`chain.hpp:1261-1262`) and the multinomial K-forest chain already runs a
     non-Gaussian response (its constructor sets `family_ = logistic` with
     Polya-Gamma augmentation). What forces Gaussian on the BCF path is the
     constructor itself: it builds a `GaussianResponse` and sets
-    `family_ = ResponseFamily::gaussian` unconditionally (`chain.hpp:671-674`),
+    `family_ = ResponseFamily::gaussian` unconditionally (`chain.hpp:702-705`),
     and BCF's calibration map is stated through `scaledResponseSd()`, a
     range-scaled Gaussian notion. So the memo's "the non-Gaussian case is the
     family's irreducible engine content" STANDS, and its price is lower than
@@ -407,7 +424,7 @@ column-major) and a coefficient vector `a_f` of length q_f. The mean is
 so the per-row effective multiplier `m_{f,i} = dot(a_f, B_f[i,])` stays a
 SCALAR. `formForestResponse`'s reparameterization (response `r_i / m_{f,i}`,
 weight `w_i m_{f,i}^2`) and the `0x1p-26` zero-multiplier snap
-(`combiner.hpp:471-514`) are unchanged in shape, which is why this is a
+(`combiner.hpp:525-565`) are unchanged in shape, which is why this is a
 generalization rather than a second mechanism.
 
 **Instances.** BCF: forest 0 with an intercept basis and free amplitude `a`;
@@ -498,7 +515,7 @@ against the combined fit; the per-forest ASIS rescale, which writes leaf values
 and for which no setter exists or should; exactness at near-zero multipliers;
 one store, one cut grid, one state); the driver contract and its callback. Does
 NOT own `bcf()`, `treatment =`, `moderators =`, or any estimand. Cost: M0 to M3
-below, about 1590 lines pre-freeze, plus M4 if VD wants the family.
+below, about 1630 lines pre-freeze, plus M4 if VD wants the family.
 
 **stan4bart, the WALNUTS semiparametric collection (VD's question 2).** Its
 boundary rule: a model belongs here when its non-BART component is PARAMETRIC
@@ -537,7 +554,9 @@ support, the two counterfactual surfaces and the option-A names
 which stay correct for a fit function even though they leave the engine. Its
 estimator layer is already written against two counterfactual SURFACES, and
 under BCF both follow from mu, tau and glue with no test matrix at all
-(`bcf-public-surface.md:479-484`). Cost: uncomment the reserved
+(`bcf-public-surface.md:503-510`; the `:479-484` this plan cited before the
+2026-08-13 refresh now lands on S4's rng note and the S5 heading). Cost:
+uncomment the reserved
 `#bcf = redirectCall(...)` line in its response-method switch, write a `bcf`
 response fitter against the S5 output contract, and add a moderator EXCLUSION so
 its propensity-score-as-covariate option enters mu only. It has no `src/` and no
@@ -618,7 +637,7 @@ model authors already use.
    It COMMITS NOTHING about: per-forest decomposition of test fits
    (`testFitsAreDefined() == false` under BCF); mid-sweep hooks (refused on
    invariant grounds as well as threading grounds - during the tree loop
-   "totalFits is stale until rebuilt after the loop", `chain.hpp:1047`);
+   "totalFits is stale until rebuilt after the loop", `chain.hpp:1183`);
    per-forest saved-tree replay; cross-host bitwise reproducibility
    (within-host across any SIMD dispatch only).
    It RECORDS the sweep-boundary hooks that exist and their constraints: the
@@ -689,14 +708,172 @@ inverts binding decision 1(a). It also gives the on-ramp its
 zero-information-row affordance (annealed or partial membership) without a
 `dbarts:::` reach-in.
 
-Falsifiers: **FW1** the mirror, both halves - a `storeState`/`getPointer()`
-re-creation keeps the weight in force, and with the field removed the
-difference is observable. **FW2** the channel does not move the mean: with
+**Anchors, re-verified BY SYMBOL at 934a02d5 (added 2026-08-13, pre-M1).**
+Engine: `Chain::setForestWeights` `chain.hpp:966` with its semantics doc
+`:944-965` (the composition sentence `:948-950`, the rebuild-drop sentence
+`:962-965`); `Chain::supportsForestWeights` `:878-880`;
+`Chain::composeForestWeights` `:3431-3447`, fn `:3439`, called from the forest
+loop at `:1160`; the capability is true only on `BCFForestCombiner`
+(`combiner.hpp:738`). Fan-out `sampler.hpp:1170`; facade virtual
+`facade.hpp:279`, shape field `:80`, populated `:358`. Bridge
+`bartcore_setForestWeights` `R_interface_bartcore.cpp:3688-3728`. Internal R
+wrapper `bartcoreSetForestWeights` `R/bartcore.R:999` (its semantics comment
+`:984-998`), absent from `NAMESPACE`, with no R5 method. The R5 method's site
+is between `$setActiveRows` (`R/dbarts.R:1109`) and `$setTreatment` (`:1132`).
+Rd: aliases `man/dbartsSampler-class.Rd:18-19`, usage `:62-63`,
+`\item{weights}` `:144-146`, `\item{active}` `:147-161`, `\item{forest}`
+`:165-167`. The ENGINE channel is already pinned by
+`inst/tinytest/test-forest-weights.R` (293 lines), including the all-ones
+identity (`:73-79`), `storeState`/`setState` and `installForests` round trips
+(`:276`, `:292`).
+
+**1. Forest indexing: 1-BASED, converted at the boundary. SETTLED (VD
+2026-08-13; added 2026-08-13, pre-M1.)** R code holds 1-based throughout, with
+ONE conversion point at the bridge call site - the `resolveForestIndex` pattern
+(`R/bartcore.R:1051`, which rejects anything below 1 and returns `forest - 1L`).
+The C API, the bridge and the engine stay 0-based. So `$setForestWeights(forest,
+weights)` routes through `resolveForestIndex`, NOT through the raw 0-based
+internal wrapper `bartcoreSetForestWeights` (which is 0-based, takes a bartcore
+handle rather than an R5 pointer, and is therefore not reusable here anyway):
+the method calls `C_dbarts_bartcore_setForestWeights` directly with the
+converted index, as `$getCalibration`/`$setCalibration` already do
+(`R/dbarts.R:1362`, `:1393`). A BCF sampler's treatment forest is therefore
+`2L` in every M1 example, Rd sentence and test. Relation to the open
+`r5-forest-indexing` ticket (`TODO:413-424`): M1 MUST NOT extend the 0-based
+split onto a new axis - it lands on the 1-based side, leaving the ticket with
+exactly the two 0-based getters it already names (`$getForestFits`,
+`$getForestVariableCounts`), which the dbarts-h-reshape re-bake still
+normalizes. The Rd's `\item{forest}` paragraph (`:165-167`) documents both
+conventions today and gains a third clause naming `setForestWeights` on the
+1-based side.
+
+**2. The mirroring mechanism: a NEW R5 field, re-applied at BOTH re-creation
+sites (added 2026-08-13, pre-M1).** `$setTreatment` is not the template it
+looks like. It mirrors through `data@treatment` (`R/dbarts.R:1144-1146`), a
+`dbartsData` slot (`R/A_class.R:518`) that `bartcore_create` reads back for
+free on every re-creation. `dbartsData` has NO per-forest weight slot
+(`R/A_class.R:478-541`, verified slot by slot), and the R5 fields are exactly
+six - `pointer`, `control`, `model`, `data`, `state`, `hostFor`
+(`R/dbarts.R:711-722`) - none of which can carry one. So M1 must ADD an R5
+field holding the installed per-forest weights (a list or a matrix indexed by
+1-based forest, `NULL` where none is installed) and RE-APPLY it after every
+re-creation, at BOTH live sites:
+   - `getPointer()` (`R/dbarts.R:1428-1456`), after its
+     `C_dbarts_bartcore_create` + `C_dbarts_bartcore_setState` pair;
+   - `setState()` (`R/dbarts.R:1458-1482`), after its own
+     `C_dbarts_bartcore_setState`, which re-creates on an invalid pointer by
+     the same two calls.
+   Re-application must not recurse through `getPointer()`. FW1 as the plan
+   originally wrote it exercises only the first site; **FW1 is extended to
+   exercise BOTH**, each with the field-removed negative half. `$setActiveRows`
+   is NOT a counter-precedent to mirroring: it installs no mirror at all and
+   the Rd says so (`man/dbartsSampler-class.Rd:158`, the mask does not ride a
+   saved state), which is precisely the asymmetry M1 is closing for this
+   channel under bcf-public-surface's recorded mirroring rule.
+
+**3. Interactions with the latent-subset-mask arc, which this plan predates
+(added 2026-08-13, pre-M1).**
+   (a) **Composition is now `(w_i a_i) m_f^2 s_i`, not `w_i m_f^2 s_i`.** The
+   active-row mask lands inside the response family: `workingWeights()` serves
+   `w * a` while a mask is installed and `w` by identity when it is not
+   (`docs/plans/latent-subset-mask.md`, "Composition with setWeights",
+   `:436-448`), the chain reads it at `chain.hpp:1101`, the combiner forms
+   `(w a) m_f^2` in `formForestResponse` (`combiner.hpp:562`), and
+   `composeForestWeights` multiplies `s` on top afterwards (`chain.hpp:1160`,
+   `:3439`). The two channels are independent and order-free (the Rd already
+   states `w_i * a_i` for the mask, `man/dbartsSampler-class.Rd:148`). M1's Rd
+   states the FOUR-factor form. The internal comments still say the three-factor
+   `w_i m_f^2 s_i` - `chain.hpp:948-950` and `R/bartcore.R:984-998`; refreshing
+   the R one is free for M1, the `chain.hpp` one is comment-only src and rides a
+   later slice rather than breaking M1's no-src rule.
+   (b) **The Rd's degenerate-value contrast becomes THREE-way.** Verified:
+   `setWeights` all-ones INSTALLS and is measurably distinct from carrying no
+   weights at all; `setActiveRows` all-ones reports success, installs NOTHING
+   and CLEARS any installed mask (both stated at
+   `man/dbartsSampler-class.Rd:148`); `setForestWeights` all-ones INSTALLS -
+   it takes the composed path (scratch buffer, an O(n) multiply) where not
+   installing passes the combiner's own pointer through - and is BITWISE
+   identity, pinned as the identity arm at
+   `inst/tinytest/test-forest-weights.R:73-79`, while staying in force across a
+   state round trip (`:276`, `:292`). M1's Rd must state all three, and must
+   not flatten the third into "no-op": it installs, and a later round trip can
+   tell.
+   (c) **`setData` vs an installed per-forest weight: the interaction is
+   UNREACHABLE, and that is the answer M1's Rd documents.** `setData` clears
+   the active-row mask because the mask is length-n and `setData` may change n.
+   The per-forest weight needs no such rule: `bartcore_setData` refuses on ANY
+   multi-forest sampler before it does anything (`R_interface_bartcore.cpp:4337`
+   calling `refuseMultiForestMutation`, whose body is at `:2503-2508` - "a
+   multi-forest sampler fixes its data at creation; make a new sampler
+   instead"), and `supportsForestWeights` is true only on `BCFForestCombiner`
+   (`combiner.hpp:738`), i.e. only on a sampler with two forests. So a sampler
+   that can HOLD a per-forest weight can never TAKE a `setData`, and nothing
+   clears anything. The Rd says the channel is BCF-only and that `setData` is
+   refused on such a sampler, rather than repeating the mask's "setData clears"
+   sentence. DOOR: if a later slice makes `setData` reachable on a multi-forest
+   sampler, that slice owns the clearing rule for both the engine pointer and
+   this R5 field.
+
+**4. The multinomial refusal sits INSIDE the entry M1 wraps; the R5 posture is
+PASS-THROUGH (added 2026-08-13, pre-M1).** Mask S3 put the softmax-margin
+refusal in `bartcore_setForestWeights` itself
+(`R_interface_bartcore.cpp:3694-3704`: the capability probe comes first, and
+under `supportsCountsMutation` it raises "a multinomial mask applies to every
+category: the softmax margin reads all K forests, so a row cannot leave one
+category's likelihood alone" before falling through to
+"bartcore_setForestWeights requires a BCF sampler"). POSTURE: the R5 method
+adds NO pre-refusal of its own and lets the bridge raise. This matches the
+house posture of its neighbours - `$setActiveRows` (`R/dbarts.R:1109-1131`)
+validates shape and length in R and leaves every family/capability refusal to
+the bridge, and `$setCalibration`'s only R-side pre-refusal
+(`refuseBCFMutation`, `:1373-1378`) is a BCF-calibration refusal, not a family
+one. Like every R5 mutator, the method opens with
+`refuseHostMutation("$setForestWeights")` (`:770-783`) and validates length,
+`NA` and non-negativity in R before the call, on the `$setWeights` pattern.
+   **One correction, verified rather than assumed: the multinomial message is
+   NOT reachable through the public R5 route at HEAD, so M1 must not budget a
+   test that pins it there.** A multinomial engine only
+   ever exists as a bare-environment bartcore handle built by
+   `C_dbarts_bartcore_createMultinomial` (`R/bartcore.R:797-806`); the
+   `dbartsSampler` a multinomial fit carries is a HOST SHELL over an ordinary
+   single-forest engine (`R/bart.R:1258`, `:1336`), every mutator on which is
+   refused first by `refuseHostMutation`. The R5 route's reachable refusals are
+   therefore the host-shell one and, on an ordinary sampler,
+   "bartcore_setForestWeights requires a BCF sampler". M1 pins those two
+   through the PUBLIC route; the multinomial message keeps its existing
+   internal-route pin at `inst/tinytest/test-active-rows-pins.R:501-504`
+   (the call at `:502`), which STAYS. If a later slice gives the R5 layer a
+   multinomial-shaped pointer, the public pin lands there.
+
+**5. Budget, RESTATED with the carried items included (added 2026-08-13,
+pre-M1; supersedes the ~60 R + ~40 man + ~140 test committed 2026-08-11, and
+carried into this plan's header).**
+~270-290 dense-equivalent total: **R ~75-85** (the method, plus the new field
+and its re-application at both re-creation sites), **man ~50-60** (the method's
+own entry, the three-way degenerate-value contrast, the `setData` clause, the
+1-based `\item{forest}` clause, the rebuild hazard, the two-channel
+cross-reference), **test ~140 sited on the R5 LAYER** - the mirror at BOTH
+re-creation sites, the R5-route refusals, FW2, and the 1-based boundary
+conversion (that `2L` reaches forest 1 and that `0L` is refused) - and NOT on
+re-pinning the engine channel, which `test-forest-weights.R` already covers end
+to end. The calibration-S2 lesson applies: this budget moves with the
+obligations, and a stale one beside added obligations is the failure mode.
+
+Falsifiers: **FW1** the mirror, both halves, at BOTH re-creation sites - a
+`storeState`/`getPointer()` re-creation and a `setState()` re-creation each
+keep the weight in force, and with the field removed the difference is
+observable in each. **FW2** the channel does not move the mean: with
 `s = 0` on every row of one forest, the reported location still contains that
 forest's full contribution (the critique's 1.8e-15 probe promoted to a shipped
 test), so a reader cannot mistake it for an exclusion from the fit.
-rng: NEUTRAL. Gates: tinytest, `saveRDS`/`readRDS` round trip, air, lintr,
-pkgdown (a new R5 alias rides the existing class page).
+rng: NEUTRAL (no src). Gates: `R CMD INSTALL` into a private library; full
+tinytest with NO snapshot regenerated; `saveRDS`/`readRDS` round trip;
+`R CMD check`; `air format --check .`; `lintr` on touched R; pkgdown check,
+with NO new Rd topic and NO `_pkgdown.yml` edit - the alias rides
+`dbartsSampler-class`, already listed at `_pkgdown.yml:26`. The trio is
+expected IDENTICAL (no src), against baselines `equivalence-8b047f8b` (37
+scenarios), `bcf-equivalence-8b047f8b` (12) and
+`multinomial-equivalence-1027be5` (10).
 
 ## M2. `forests =` replaces `treatment =`. R only, bitwise-gated.
 
@@ -934,7 +1111,8 @@ inherited (do not reopen)", after item 5.** Insert:
 records commit (2026-08-11). The sentences originally cited at :86 and :625
 were already consolidated to one block at TODO:124-144 by e2cc1de (past this
 item's own literal replacement text - it named the completed R/C-division
-review); the records commit rewrites that block again, now at TODO:154-178,
+review); the records commit rewrites that block again, then at TODO:154-178
+and at 934a02d5 at TODO:190-214,
 recording: plan path `docs/plans/multiforest-extension-surface.md`,
 artifacts under `.claude/multiforest-extension-surface-design/`, the answer
 (the driver surface is the shape and is nearly shipped; the declarative
@@ -1007,7 +1185,7 @@ This is the axis that decides whether the family has engine content at all. For
 Gaussian there are no latents to refresh, so the composition is expressible in R
 today; for probit, logistic, Student-t, ordinal, negative-binomial and the
 softmax the latents are drawn ONCE against the COMBINED fit
-(`chain.hpp:1125-1126`), so K independent R samplers are a DIFFERENT model, not
+(`chain.hpp:1261-1262`), so K independent R samplers are a DIFFERENT model, not
 a slower one.
 
 - **(a) Probit and logistic in v1, the rest doors (RECOMMENDED).** Cost is lower
@@ -1196,14 +1374,14 @@ not a separate decision.
 1. **The memo's declarative spec is OVERTURNED and replaced** (fact 9). Its
    "amplitude times an n x K multiplier matrix" does not contain BCF, because
    `combinedFits` uses `b_{z_i}` and `drawGlue` draws `b0` and `b1` as two
-   conjugate coefficients over the two z subsets (`combiner.hpp:517-526`,
-   `:559-572`), i.e. forest 1 carries a two-column indicator basis. The channel
+   conjugate coefficients over the two z subsets (`combiner.hpp:567-576`,
+   `:609-622`), i.e. forest 1 carries a two-column indicator basis. The channel
    is a per-forest basis MATRIX with a coefficient VECTOR. Its falsifier F2 is
    struck and replaced by FA0.
 2. **The memo's cost estimate for the family is raised**, from 350-500 engine
    lines to 450-650, on departure 1 plus the q-variate amplitude conditional -
    which is cheaper than it sounds because `choleskyDecompose` and the
-   triangular solves already ship (`model.hpp:864-895`).
+   triangular solves already ship (`model.hpp:869-895`).
 3. **The memo's 1.04x is void wherever it is attributed to the R composition**
    (B3, adopted): 1.39-1.43x measured at K = 2, and 0.89-0.95x for the engine's
    own per-sweep drive.
