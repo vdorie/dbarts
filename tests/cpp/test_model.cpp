@@ -5797,6 +5797,26 @@ static void testMonotoneFeasibility() {
     tree, midLeaf, yg.data(), nullptr, 2.0, 1.0, mu.data());
   check(sentinel == -HUGE_VAL, "monotone empty cone scores the sentinel");
 
+  // the constrained leaf owns the whole branch marginal, so the moves.hpp veto
+  // never runs for it; the same emptiness law applies here, counting
+  // POSITIVE-WEIGHT members rather than members
+  // (docs/design/empty-leaf-veto.md)
+  std::vector<double> muFeasible(tree.nodes.size(), 0.0);
+  muFeasible[lowLeaf] = -1.0;
+  muFeasible[highLeaf] = 1.0;  // increasing, so every cone is non-degenerate
+  std::vector<double> unitWeights(m, 1.0), midZeroed(m, 1.0);
+  const Node& midNode = tree.at(midLeaf);
+  for (size_t i = midNode.begin; i < midNode.end; ++i)
+    midZeroed[tree.indices[i]] = 0.0;
+  check(std::isfinite(leaf.logLikelihoodForBranchWithParams(
+          tree, 0, yg.data(), unitWeights.data(), 2.0, 1.0,
+          muFeasible.data())),
+        "monotone branch scores finite under positive weights");
+  check(leaf.logLikelihoodForBranchWithParams(tree, 0, yg.data(),
+                                              midZeroed.data(), 2.0, 1.0,
+                                              muFeasible.data()) == -HUGE_VAL,
+        "monotone branch vetoes a leaf of only zero-weight rows");
+
   // draw sweep keeps the tree feasible from a feasible start
   std::vector<double> mu2(tree.nodes.size(), 0.0);
   std::vector<std::int32_t> bottoms;

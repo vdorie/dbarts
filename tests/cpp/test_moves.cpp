@@ -852,6 +852,135 @@ static void testCategoricalMutation(ext_rng* rng) {
   printf("ok: categorical mutation\n");
 }
 
+// ---------------------------------------------------------------------------
+// The empty-leaf veto counts POSITIVE-WEIGHT members, not members. A leaf all
+// of whose rows carry weight zero enters no likelihood term, so a branch
+// holding one scores the sentinel; a chain driven under such weights may never
+// settle on one. With NO weight vector the veto stays the member count it has
+// always been - the same decision and the same arithmetic
+// (docs/design/empty-leaf-veto.md). A local generator leaves the shared stream
+// untouched for the suites that follow.
+// ---------------------------------------------------------------------------
+static void testEmptyLeafVetoCountsWeight() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 20260812u);
+  const size_t n = 256, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % 8) / 8.0;              // x0: codes 0..7
+    x[i + n] = static_cast<double>((i / 8) % 8) / 8.0;    // x1: codes 0..7
+    y[i] = 2.0 * x[i] - x[i + n] + 0.1 * static_cast<double>(i % 3);
+  }
+  ColumnStore store;
+  store.build(x.data(), n, p, 7);
+
+  // the lowest cut of x0 isolates the code-0 rows; weight zero exactly there
+  std::vector<double> zeroed(n, 1.0), positive(n, 1.0);
+  for (size_t i = 0; i < n; ++i)
+    if (i % 8 == 0) zeroed[i] = 0.0;
+
+  CGMTreePrior prior;
+  prior.base = 0.95;
+  prior.power = 2.0;
+  ConstantGaussianLeaf leaf{0.5};
+  MoveScratch scratch;
+  const double sigma = 0.7, k = 2.0;
+
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  auto buildSplit = [&](const double* weights) {
+    tree.initialize(indexBuffer.data(), n);
+    tree.computeLeafStats(0, y.data(), weights);
+    Rule rule;
+    rule.variableIndex = 0;
+    rule.setSplitIndex(0);
+    tree.birth(store, 0, rule, y.data(), weights);
+  };
+
+  buildSplit(zeroed.data());
+  int32_t left = tree.at(0).leftChild;
+  check(tree.at(left).numObservations() == n / 8,
+        "veto fixture: the zero-weight leaf is occupied by count");
+  check(tree.at(left).sumWeights == 0.0,
+        "veto fixture: the zero-weight leaf holds no weight");
+
+  MoveContext zeroCtx{store,      prior, 0.5, 0.1, 0.5,
+                      zeroed.data(), k,   scratch};
+  check(logLikelihoodForBranch(zeroCtx, leaf, tree, 0, y.data(), sigma) ==
+          -HUGE_VAL,
+        "a leaf of only zero-weight rows vetoes its branch");
+
+  buildSplit(positive.data());
+  MoveContext positiveCtx{store,           prior, 0.5, 0.1, 0.5,
+                          positive.data(), k,     scratch};
+  check(std::isfinite(
+          logLikelihoodForBranch(positiveCtx, leaf, tree, 0, y.data(), sigma)),
+        "the same leaf under positive weights scores finite");
+
+  // the no-weights path: the same branch, scored with no weight vector, is
+  // bitwise the sum of its leaves' marginals, and the veto there is still the
+  // member count
+  buildSplit(nullptr);
+  MoveContext nullCtx{store, prior, 0.5, 0.1, 0.5, nullptr, k, scratch};
+  std::vector<int32_t> bottoms;
+  tree.fillBottom(0, bottoms);
+  double reference = 0.0;
+  for (int32_t b : bottoms)
+    reference +=
+      leaf.logIntegratedLikelihoodForNode(tree, y.data(), nullptr, k,
+                                          sigma * sigma, b);
+  check(logLikelihoodForBranch(nullCtx, leaf, tree, 0, y.data(), sigma) ==
+          reference,
+        "the no-weights branch score is bitwise the leaf marginals");
+  bool countLaw = true;
+  for (size_t i = 0; i < tree.nodes.size(); ++i)
+    countLaw &= tree.leafHasNoWeight(static_cast<int32_t>(i), nullptr) ==
+                (tree.at(static_cast<int32_t>(i)).numObservations() == 0);
+  check(countLaw, "with no weights, emptiness is exactly the member count");
+
+  Node saved = tree.at(left);
+  tree.at(left).end = tree.at(left).begin;  // strand the leaf outright
+  check(logLikelihoodForBranch(nullCtx, leaf, tree, 0, y.data(), sigma) ==
+          -HUGE_VAL,
+        "a member-empty leaf still vetoes with no weights");
+  tree.at(left) = saved;
+
+  // the invariant a move chain must maintain under those weights, and the
+  // non-vacuity measurement beside it: the same chain under the count law (no
+  // weights installed) settles on leaves the weight law forbids
+  auto driveChain = [&](const double* weights) {
+    tree.initialize(indexBuffer.data(), n);
+    tree.computeLeafStats(0, y.data(), weights);
+    MoveContext ctx{store, prior, 0.5, 0.1, 0.5, weights, k, scratch};
+    size_t violations = 0, accepted = 0;
+    for (int iter = 0; iter < 4000; ++iter) {
+      bool stepTaken = false;
+      StepType stepType;
+      metropolisJumpForTree(ctx, leaf, rng, tree, y.data(), sigma, &stepTaken,
+                            &stepType);
+      accepted += stepTaken ? 1 : 0;
+      bottoms.clear();
+      tree.fillBottom(0, bottoms);
+      for (int32_t b : bottoms)
+        violations += tree.leafHasNoWeight(b, zeroed.data()) ? 1 : 0;
+    }
+    return std::pair<size_t, size_t>{violations, accepted};
+  };
+
+  auto weighted = driveChain(zeroed.data());
+  check(weighted.second > 0, "the weighted move chain moves");
+  check(weighted.first == 0,
+        "no accepted move leaves a leaf of only zero-weight rows");
+  auto counted = driveChain(nullptr);
+  check(counted.first > 0,
+        "non-vacuity: the count law does settle on such leaves");
+
+  ext_rng_destroy(rng);
+  printf("ok: empty-leaf veto counts weight (%zu count-law leaves of only "
+         "zero-weight rows, %zu under the weight law)\n",
+         counted.first, weighted.first);
+}
+
 static void testLinearLeafMutation(ext_rng* rng) {
   const size_t n = 200, p = 3;
   std::vector<double> x(n * p), y(n);
@@ -1150,4 +1279,5 @@ void runMovesTests(ext_rng* rng) {
   testLogisticMutation(rng);
   testCategoricalMutation(rng);
   testLinearLeafMutation(rng);
+  testEmptyLeafVetoCountsWeight();
 }
