@@ -470,26 +470,32 @@ classic engine.
   Grouping stays internal (an attribute on the control object); no
   public group.by exposure beyond rbart_vi yet.
 
-## 8. Bayesian causal forests: a provisional creation surface
+## 8. Multi-forest models: the `forests =` creation surface
 
 BCF (docs/design/bcf.md) landed inside this document's cutover window but
 outside its numbered proposals. Landed 2026-08-10 to 2026-08-11
-(docs/plans/bcf-public-surface.md S1-S4): `dbarts(treatment = z, moderators =
-, treatmentForest = treatmentForest(...))`/`dbartsSpec()` build an ordinary
-`dbartsSampler`; z rides `data@treatment` (the `weights` precedent) and the
-treatment forest's configuration rides `attr(control, "bartcore.bcf")` (the
+(docs/plans/bcf-public-surface.md S1-S4) and re-skinned into engine vocabulary
+2026-08-13 (docs/plans/multiforest-extension-surface.md M2):
+`dbarts(forests = list(forest(), forest(basis = ~ factor(z), vars =
+)))`/`dbartsSpec()` build an ordinary `dbartsSampler`; the 0/1 column the
+factor basis expands to rides `data@treatment` (the `weights` precedent) and
+the second forest's configuration rides `attr(control, "bartcore.bcf")` (the
 `bartcore.variance` precedent), cross-checked both directions at creation.
-`$setTreatment`/`$getForestFits`/`$getBCFGlue`/`$getForestVariableCounts` are
-R5 methods; `dbarts_sampler_numForests`/`setTreatment`/`forestFits`/`bcfGlue`
-reach the same sampler from C (inst/include/dbarts/dbarts.h:264-271); a run
-reports both forests' fits and the combining glue for every draw. Full detail
+`$setForestBasis`/`$getForestFits`/`$getForestAmplitudes`/`$getForestVariableCounts`
+are R5 methods; `dbarts_sampler_numForests`/`setTreatment`/`forestFits`/
+`bcfGlue` reach the same sampler from C (inst/include/dbarts/dbarts.h:264-271);
+a run reports both forests' fits and the amplitudes for every draw. Full detail
 and anchors: docs/design/bcf.md, "Public creation surface".
 
-**Provisional naming**, not the stable surface: `treatment =`, `moderators
-=`, `treatmentForest =`, and the flat `setTreatment`/`bcfGlue` names are
-causal vocabulary scheduled for replacement by the engine-vocabulary
-`forests = list(forest(basis = ...))` route once BCF has a home outside
-dbarts (docs/plans/multiforest-extension-surface.md M2); `bcf()` itself is
-expected to relocate to bartCause (same plan, fork 4). The
-creation-and-mutation mechanism survives that re-skinning; only the public
-spellings move.
+**One knob per forest.** `forest()` carries `basis`, `vars`, `n.trees`,
+`base`, `power`, `sd`, `interactions`, `blocks`,
+`amplitude.prior.variance` and `update.amplitude`, every one defaulting to
+NULL - "not declared" - so an omitted knob takes the engine's default and a
+declaration colliding with a top-level argument of the same name refuses
+instead of silently winning. The FIRST forest's structural knobs restate the
+fit's own `control@n.trees`, `tree.prior`, `interactions` and `blocks` rather
+than adding a second set. `forests = NULL` is byte-identical to the
+single-forest path. Two causal spellings survive M2 deliberately:
+`dbartsData(treatment = )` still names the column directly, and the flat
+`dbarts_sampler_setTreatment`/`bcfGlue` entries are the reshape's to re-sign.
+`bcf()` itself is expected to land in bartCause (same plan, fork 4).

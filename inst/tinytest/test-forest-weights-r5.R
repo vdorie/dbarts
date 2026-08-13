@@ -31,7 +31,14 @@ seededControl <- function(...) {
     ...
   )
 }
-build <- function() dbarts(x, y, treatment = z, control = seededControl())
+build <- function() {
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z))),
+    control = seededControl()
+  )
+}
 
 # --- 1-based boundary conversion: setForestWeights(1L, ) reaches the
 # engine's forest 0 (prognostic) and setForestWeights(2L, ) reaches forest 1
@@ -163,7 +170,7 @@ zeroed$setForestWeights(2L, rep(0, n))
 result.zeroed <- zeroed$run(0L, 5L)
 mu0 <- zeroed$getForestFits(0L)[, 1L]
 tau0 <- zeroed$getForestFits(1L)[, 1L]
-glue0 <- zeroed$getBCFGlue()
+glue0 <- zeroed$getForestAmplitudes()
 zeroed$storeState()
 fitScale0 <- zeroed$state[[1L]]$fit.scale
 scale0 <- fitScale0[2L] - fitScale0[1L]

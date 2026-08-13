@@ -1,7 +1,8 @@
 # The R5 dbartsSampler surface over a public Bayesian causal forest
-# (docs/design/bcf.md, S1 landing a1dbde7): $setTreatment mirrors the engine
-# and data@treatment, $getForestFits/$getBCFGlue/$getForestVariableCounts
-# read the per-forest channels the low-level bartcoreForestFits/bartcoreBCFGlue
+# (docs/design/bcf.md, S1 landing a1dbde7): $setForestBasis mirrors the engine
+# and data@treatment, $getForestFits/$getForestAmplitudes/
+# $getForestVariableCounts read the per-forest channels the low-level
+# bartcoreForestFits/bartcoreBCFGlue
 # route already exposed, refused mutations get a BCF-specific message rather
 # than the generic multi-forest one, and $setControl carries bartcore.*
 # control attributes forward so a save/load round trip re-creates cleanly.
@@ -27,15 +28,20 @@ seededControl <- function(...) {
   )
 }
 
-# --- getForestFits/getBCFGlue/getForestVariableCounts read the same channels
+# --- getForestFits/getForestAmplitudes/getForestVariableCounts read the same
 # the low-level route does, and the driver-loop identity (the S0 pin's
 # reconstruction) holds through the R5 accessors too ---
-sampler <- dbarts(x, y, treatment = z, control = seededControl())
+sampler <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z))),
+  control = seededControl()
+)
 result <- sampler$run(0L, 5L)
 
 muFits <- sampler$getForestFits(0L)
 tauFits <- sampler$getForestFits(1L)
-glue <- sampler$getBCFGlue()
+glue <- sampler$getForestAmplitudes()
 muCounts <- sampler$getForestVariableCounts(0L)
 tauCounts <- sampler$getForestVariableCounts(1L)
 
@@ -70,7 +76,12 @@ expect_equal(
 
 # --- BCF-specific messages on the refused mutations: an R5 BCF sampler names
 # BCF rather than surfacing the bridge's generic "multi-forest" wording ---
-refused <- dbarts(x, y, treatment = z, control = seededControl())
+refused <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z))),
+  control = seededControl()
+)
 
 expect_error(refused$setData(refused$data), "BCF")
 expect_error(refused$setModel(refused$model), "BCF")
@@ -108,7 +119,11 @@ expect_true(all(is.finite(refused$run(0L, 5L)$train)))
 expect_silent(refused$setPredictor(x, forceUpdate = TRUE))
 expect_silent(refused$setResponse(y, updateScale = FALSE))
 expect_silent(refused$setOffset(rep(0, n), updateScale = FALSE))
-expect_silent(refused$setTreatment(z))
+expect_silent(refused$setForestBasis(2L, factor(z)))
+# the first forest's basis is the implicit intercept its own amplitude scales,
+# so the 1-based index takes only the basis forest today
+expect_error(refused$setForestBasis(1L, factor(z)), "only on the second")
+expect_error(refused$setForestBasis(0L, factor(z)), "single positive integer")
 
 # the test surface's refusal already named BCF before this slice (S1's
 # refuseBCFTestSurface); light regression coverage on the R5 path, which S0
@@ -125,13 +140,20 @@ expect_error(refused$setTestPredictor(x[1:5, , drop = FALSE]), "BCF")
 plain <- dbarts(x, y, control = seededControl())
 expect_silent(plain$setResponse(y, updateScale = TRUE))
 
-# --- F3, both halves: $setTreatment mirrors the engine AND data@treatment,
+# --- F3, both halves: $setForestBasis mirrors the engine AND data@treatment,
 # and a save/load round trip continues from the mirrored assignment rather
 # than the one the sampler was created with ---
-mirror <- dbarts(x, y, treatment = z, control = seededControl())
+mirror <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z))),
+  control = seededControl()
+)
 mirror$run(10L, 5L)
 z2 <- rep(0, n)
-mirror$setTreatment(z2)
+# an explicit level set, so the basis still has the two columns the amplitudes
+# ride on when the data happen to sit entirely in one of them
+mirror$setForestBasis(2L, factor(z2, levels = c(0, 1)))
 expect_identical(mirror$data@treatment, z2)
 
 mirror$storeState()
@@ -144,7 +166,7 @@ unlink(mirrorFile)
 # not survive serialization); the slot rides the object, so this needs no
 # extra plumbing
 reloadedResult <- reloadedMirror$run(0L, 1L)
-reloadedGlue <- reloadedMirror$getBCFGlue()
+reloadedGlue <- reloadedMirror$getForestAmplitudes()
 reloadedMuFits <- reloadedMirror$getForestFits(0L)[, 1L]
 reloadedTauFits <- reloadedMirror$getForestFits(1L)[, 1L]
 
@@ -176,7 +198,12 @@ expect_true(diffOriginalZ > 1e-6)
 # replaced control wholesale, dropping the attribute, so createHolder saw
 # data@treatment with no matching forest configuration (the bidirectional
 # cross-check from S1, firing on the half setControl silently orphaned). ---
-controlled <- dbarts(x, y, treatment = z, control = seededControl())
+controlled <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z))),
+  control = seededControl()
+)
 controlled$run(0L, 5L)
 controlled$storeState()
 controlled$setControl(seededControl(printEvery = 50L))

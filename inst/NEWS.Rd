@@ -73,40 +73,41 @@
             also re-pins \code{sigma} and refuses a DART sampler outright.
             Its \code{prior.sd} spelling meets the same sampled-\code{k}
             refusal as at creation.
-      \item Bayesian causal forests: \code{dbarts} and \code{dbartsSpec}
-            accept a \code{treatment} vector of 0/1 assignments, which fits
-            the two-forest model
+      \item Multi-forest models: \code{dbarts} and \code{dbartsSpec} accept a
+            \code{forests} list of \code{\link{forest}} specifications, which
+            fits the mean as a weighted sum of the declared ensembles instead
+            of a single one. Each forest carries its own tree count, structure
+            prior, leaf scale, column restriction (\code{vars}) and
+            \code{interactions}/\code{blocks} constraints, and a forest given
+            a \code{basis} enters multiplied by the amplitudes on that basis's
+            columns. Today's engine fits at most two forests, and a basis only
+            on the second and only as a two-level factor, which is the
+            Bayesian causal forest
             \eqn{y = a \mu(x) + b_z \tau(x) + \epsilon}{y = a mu(x) +
-            b_z tau(x) + eps} instead of a single ensemble. The companion
-            \code{moderators} argument restricts the treatment forest to a
-            subset of the design, and \code{\link{treatmentForest}} carries
-            its tree count, structure prior, prior scales and per-forest
-            constraints. The result is an ordinary \code{dbartsSampler}: it
-            stores, saves, and re-creates like any other, and the treatment
-            vector rides the data object beside the weights it mirrors.
-            Gaussian responses only; every option the two-forest model does
-            not read is refused at creation rather than ignored. A Bayesian
-            causal forest's \code{$setTreatment} mutates the treatment
-            vector in place, mirroring it into \code{data@treatment} as
+            b_z tau(x) + eps}. The result is an ordinary
+            \code{dbartsSampler}: it stores, saves, and re-creates like any
+            other, and the column a basis expands to rides the data object
+            beside the weights it mirrors. Gaussian responses only; every
+            option the two-forest model does not read, and every declaration
+            the engine cannot honour, is refused at creation rather than
+            ignored. \code{$setForestBasis} mutates a forest's basis in place,
+            mirroring the column it expands to into \code{data@treatment} as
             \code{$setWeights} does for weights; \code{$getForestFits},
-            \code{$getBCFGlue}, and \code{$getForestVariableCounts} read the
-            prognostic and treatment forests' fitted values, combining
-            coefficients, and split counts separately. \code{$setControl} no
-            longer discards a sampler's \code{bartcore.*} model
-            configuration (the two-forest structure, a variance forest, and
-            similar), which used to make the next re-creation refuse loudly.
-            A run reports both surfaces for every draw rather than only the
-            current one: \code{$run} gains a \code{forestFits} element holding
-            each forest's fitted values (n.obs x 2 x n.samples) and a
-            \code{glue} element holding the
+            \code{$getForestAmplitudes}, and \code{$getForestVariableCounts}
+            read the two forests' fitted values, amplitudes, and split counts
+            separately. \code{$setControl} no longer discards a sampler's
+            \code{bartcore.*} model configuration (the two-forest structure, a
+            variance forest, and similar), which used to make the next
+            re-creation refuse loudly. A run reports both surfaces for every
+            draw rather than only the current one: \code{$run} gains a
+            \code{forestFits} element holding each forest's fitted values
+            (n.obs x 2 x n.samples) and a \code{glue} element holding the
             \eqn{(a, b_0, b_1)}{(a, b0, b1)} that draw combines them through
-            (3 x n.samples), so a caller reads mu, tau and the treatment glue
-            from one call instead of driving the sampler one draw at a time.
-            Neither element is present for any other model. The
-            \code{treatment}, \code{moderators}, and \code{treatmentForest}
-            argument names are provisional and are expected to be replaced
-            by an engine-vocabulary \code{forests} argument once Bayesian
-            causal forests find a permanent home outside \code{dbarts}.
+            (3 x n.samples), so a caller reads both surfaces and the
+            amplitudes from one call instead of driving the sampler one draw
+            at a time. Neither element is present for any other model.
+            \code{dbartsData} keeps its own \code{treatment} argument, which
+            names the same column directly.
       \item Interaction constraints: the new \code{interactions} argument of
             \code{dbarts} and \code{bart2}, built with \code{\link{interactions}},
             restricts which predictors may jointly shape the fit.

@@ -612,74 +612,245 @@ resolveVarianceColumns <- function(variance, data) {
   sort(unique(index))
 }
 
-## Resolve the `moderators` selector - the columns a Bayesian causal forest's
-## treatment forest may split on (docs/design/bcf.md) - to sorted 1-based
-## model-matrix column indices, or NULL for an unrestricted forest. Column
-## names resolve against colnames(data@x), indices are range-checked; an
-## explicitly empty selection is an error rather than a silent full forest.
-resolveModerators <- function(moderators, data) {
+## Resolve a column selector - the columns one forest of a multi-forest model
+## may split on (docs/design/bcf.md) - to sorted 1-based model-matrix column
+## indices, or NULL for an unrestricted forest. Column names resolve against
+## colnames(data@x), indices are range-checked; an explicitly empty selection
+## is an error rather than a silent full forest. `argument` names the spelling
+## the caller used, which is `vars` on a forest() specification and
+## `moderators` on the internal two-forest constructor.
+resolveModerators <- function(moderators, data, argument = "moderators") {
   if (is.null(moderators)) {
     return(NULL)
   }
   if (length(moderators) == 0L) {
-    stop(
-      "'moderators' is empty; omit it to leave the treatment forest ",
-      "unrestricted"
-    )
+    stop("'", argument, "' is empty; omit it to leave the forest unrestricted")
   }
   if (is.character(moderators)) {
     columnNames <- colnames(data@x)
     if (is.null(columnNames)) {
-      stop("'moderators' given by name but the design has no column names")
+      stop("'", argument, "' given by name but the design has no column names")
     }
     moderators <- match(moderators, columnNames)
     if (anyNA(moderators)) {
-      stop("moderator name not found in the design's column names")
+      stop("'", argument, "' name not found in the design's column names")
     }
   } else {
     moderators <- as.integer(moderators)
     if (any(moderators < 1L | moderators > ncol(data@x))) {
-      stop("moderator column index out of range")
+      stop("'", argument, "' column index out of range")
     }
   }
   sort(unique(as.integer(moderators)))
 }
 
-## Resolve a treatmentForest() specification into the validated knobs the BCF
-## control attribute carries. NULL takes the constructor's defaults, so a
-## `treatment` vector alone fits the default two-forest model.
-resolveTreatmentForest <- function(spec) {
-  if (is.null(spec)) {
-    spec <- treatmentForest()
+## The `basis` declaration of a forest, or NULL when it declares none. Read
+## before the structural validation resolveForests does, so anything it cannot
+## make sense of falls through as NULL to be refused there, by name.
+forestBasisDeclaration <- function(forests) {
+  if (!is.list(forests) || length(forests) != 2L) {
+    return(NULL)
   }
-  if (!inherits(spec, "dbartsTreatmentForest")) {
-    stop("'treatmentForest' must be a treatmentForest() specification")
+  if (!inherits(forests[[2L]], "dbartsForest")) {
+    return(NULL)
   }
-  numTrees <- suppressWarnings(as.integer(spec$n.trees))
-  if (length(numTrees) != 1L || is.na(numTrees) || numTrees < 1L) {
-    stop("treatmentForest 'n.trees' must be a single integer >= 1")
+  forests[[2L]]$basis
+}
+
+## Evaluate a `basis` declaration to the vector it names. A one-sided formula
+## is evaluated against the data the fit was given and then in its own
+## environment, as a model formula's terms are; anything else is already a
+## value. `data` is the fitting function's data argument when that is a frame,
+## list or environment, and NULL otherwise (the x/y interface, dbartsSpec).
+evaluateForestBasis <- function(basis, data = NULL) {
+  if (!inherits(basis, "formula")) {
+    return(basis)
   }
-  spec$n.trees <- numTrees
-  for (name in c("power", "sd.control", "sd.moderate", "b.prior.variance")) {
-    value <- suppressWarnings(as.double(spec[[name]]))
-    if (length(value) != 1L || is.na(value) || value <= 0.0) {
-      stop("treatmentForest '", name, "' must be a single positive number")
+  if (length(basis) != 2L) {
+    stop("a 'basis' formula must be one-sided, as ~ factor(z)")
+  }
+  if (is.data.frame(data) || is.list(data) || is.environment(data)) {
+    eval(basis[[2L]], data, environment(basis))
+  } else {
+    eval(basis[[2L]], environment(basis))
+  }
+}
+
+## Expand an evaluated basis to the columns a forest's amplitudes multiply.
+## The rule is R's own model-matrix rule - a factor expands to its level
+## indicators, one amplitude per level - and today's engine honours exactly the
+## two-column complementary case, whose second indicator IS the 0/1 vector the
+## treatment slot and the C bridge already take, so the expansion reduces to
+## it. Level ORDER is therefore load-bearing: the second level is the one the
+## second amplitude scales.
+expandForestBasis <- function(basis) {
+  if (is.character(basis)) {
+    basis <- factor(basis)
+  }
+  if (is.logical(basis)) {
+    basis <- factor(basis, levels = c(FALSE, TRUE))
+  }
+  if (!is.factor(basis)) {
+    stop(
+      "a 'basis' must be a factor: today's engine fits the two-column ",
+      "indicator basis of a two-level factor, not a numeric basis column"
+    )
+  }
+  if (nlevels(basis) != 2L) {
+    stop(
+      "a 'basis' factor must have exactly two levels; today's engine fits no ",
+      "wider indicator basis"
+    )
+  }
+  if (anyNA(basis)) {
+    stop("a 'basis' cannot be NA")
+  }
+  as.double(as.integer(basis) - 1L)
+}
+
+## Validate the knobs one forest() declares. Only a declared (non-NULL) knob is
+## checked; an omitted one keeps its NULL, so the caller can tell "not
+## declared" from "declared at the default" - which is what makes the
+## top-level-versus-forest-0 ambiguity below detectable.
+validateForestKnobs <- function(spec) {
+  if (!is.null(spec$n.trees)) {
+    numTrees <- suppressWarnings(as.integer(spec$n.trees))
+    if (length(numTrees) != 1L || is.na(numTrees) || numTrees < 1L) {
+      stop("forest 'n.trees' must be a single integer >= 1")
     }
-    spec[[name]] <- value
+    spec$n.trees <- numTrees
   }
-  base <- suppressWarnings(as.double(spec$base))
-  if (length(base) != 1L || is.na(base) || base <= 0.0 || base >= 1.0) {
-    stop("treatmentForest 'base' must be a single number in (0, 1)")
+  for (name in c("power", "sd", "amplitude.prior.variance")) {
+    if (!is.null(spec[[name]])) {
+      value <- suppressWarnings(as.double(spec[[name]]))
+      if (length(value) != 1L || is.na(value) || value <= 0.0) {
+        stop("forest '", name, "' must be a single positive number")
+      }
+      spec[[name]] <- value
+    }
   }
-  spec$base <- base
-  for (name in c("update.a", "update.b")) {
-    flag <- suppressWarnings(as.logical(spec[[name]]))
+  if (!is.null(spec$base)) {
+    base <- suppressWarnings(as.double(spec$base))
+    if (length(base) != 1L || is.na(base) || base <= 0.0 || base >= 1.0) {
+      stop("forest 'base' must be a single number in (0, 1)")
+    }
+    spec$base <- base
+  }
+  if (!is.null(spec$update.amplitude)) {
+    flag <- suppressWarnings(as.logical(spec$update.amplitude))
     if (length(flag) != 1L || is.na(flag)) {
-      stop("treatmentForest '", name, "' must be TRUE or FALSE")
+      stop("forest 'update.amplitude' must be TRUE or FALSE")
     }
-    spec[[name]] <- flag
+    spec$update.amplitude <- flag
   }
   spec
+}
+
+## Resolve a `forests` declaration into the per-forest knobs a sampler
+## specification carries, or NULL for the single-forest path. Everything
+## today's engine cannot honour refuses here, by name, rather than being
+## dropped: at most two forests, a basis only on the second one, the column
+## restriction only where a basis is, and the amplitude knobs only where an
+## amplitude exists. `interactions` and `blocks` are the fit's own top-level
+## arguments, which address the FIRST forest under the same spelling a forest()
+## uses, so supplying both is ambiguous rather than layered. `hasBasis` records
+## whether the conditioning vector reached the data object some other way, the
+## dbartsData(treatment = ) route being a supported one.
+resolveForests <- function(forests, interactions, blocks, hasBasis) {
+  if (is.null(forests)) {
+    return(NULL)
+  }
+  if (
+    !is.list(forests) ||
+      !all(vapply(forests, inherits, logical(1L), "dbartsForest"))
+  ) {
+    stop("'forests' must be a list of forest() specifications")
+  }
+  if (length(forests) == 0L) {
+    stop("'forests' is empty; omit it to fit a single forest")
+  }
+  if (length(forests) > 2L) {
+    stop(
+      "today's engine fits at most two forests; 'forests' declares ",
+      length(forests)
+    )
+  }
+  mu <- validateForestKnobs(forests[[1L]])
+  tau <- if (length(forests) == 2L) {
+    validateForestKnobs(forests[[2L]])
+  } else {
+    NULL
+  }
+  if (!is.null(mu$basis)) {
+    stop(
+      "the first forest takes no 'basis': its basis is the implicit ",
+      "intercept its own amplitude scales"
+    )
+  }
+  if (!is.null(mu$vars)) {
+    stop(
+      "'vars' restricts a basis forest; today's engine reads every predictor ",
+      "in the first forest"
+    )
+  }
+  if (!is.null(mu$amplitude.prior.variance)) {
+    stop(
+      "'amplitude.prior.variance' is the prior on a basis forest's ",
+      "amplitudes, and the first forest has no 'basis'"
+    )
+  }
+  if (is.null(tau)) {
+    for (name in if (hasBasis) character(0L) else c("sd", "update.amplitude")) {
+      if (!is.null(mu[[name]])) {
+        stop(
+          "'",
+          name,
+          "' configures the amplitudes a model combines its forests with; a ",
+          "single-forest 'forests' has none"
+        )
+      }
+    }
+  } else if (is.null(tau$basis) && !hasBasis) {
+    stop(
+      "the second forest needs a 'basis': the amplitudes multiplying it are ",
+      "what distinguishes it from the first"
+    )
+  }
+  if (!is.null(mu$interactions) && !is.null(interactions)) {
+    stop(
+      "'interactions' is declared both at the top level and on the first ",
+      "forest, which are the same constraint; give one"
+    )
+  }
+  if (!is.null(mu$blocks) && !is.null(blocks)) {
+    stop(
+      "'blocks' is declared both at the top level and on the first forest, ",
+      "which are the same constraint; give one"
+    )
+  }
+  list(mu = mu, tau = tau)
+}
+
+## The eight doubles attr(control, "bartcore.bcf")$params carries, in the order
+## the C bridge reads them: the basis forest's tree count and structure prior,
+## the two forests' leaf scales in sd(y) units, the basis amplitudes' prior
+## variance, and the two amplitude update flags. The defaults are the engine's,
+## so a `forests` declaring nothing beyond its basis and a data object carrying
+## a treatment vector with no declaration at all resolve to the same eight.
+forestParams <- function(mu, tau) {
+  declared <- function(value, default) {
+    if (is.null(value)) default else value
+  }
+  as.double(c(
+    declared(tau$n.trees, 50L),
+    declared(tau$base, 0.25),
+    declared(tau$power, 3),
+    declared(mu$sd, 2),
+    declared(tau$sd, 1),
+    declared(tau$amplitude.prior.variance, 0.5),
+    declared(mu$update.amplitude, TRUE),
+    declared(tau$update.amplitude, TRUE)
+  ))
 }
 
 ## Resolve an interactions() specification against the fitted model matrix into
@@ -1224,43 +1395,47 @@ blocks <- function(groups, trees.per.group = NULL) {
   )
 }
 
-## The treatment forest of a Bayesian causal forest (docs/design/bcf.md),
-## passed as treatmentForest = to dbarts()/dbartsSpec() alongside a `treatment`
-## vector. One constructor carries every knob the second forest and the glue
-## own, so the fitting functions grow three arguments rather than fourteen:
-## n.trees, base and power are its tree-structure prior; sd.control and
-## sd.moderate scale the prognostic and treatment totals in sd(y) units;
-## b.prior.variance is the N(0, .) variance of the b0/b1 glue; update.a and
-## update.b fix the matching glue block when FALSE. interactions and blocks are
-## the treatment forest's own constraints - the dbarts() arguments of the same
-## names constrain the prognostic forest. Validated at fit time, in
-## resolveTreatmentForest. Exported, like interactions() and blocks().
-treatmentForest <- function(
-  n.trees = 50L,
-  base = 0.25,
-  power = 3,
-  sd.control = 2,
-  sd.moderate = 1,
-  b.prior.variance = 0.5,
-  update.a = TRUE,
-  update.b = TRUE,
+## One forest of a multi-forest model (docs/design/bcf.md), passed inside the
+## forests = list(forest(), forest(...)) argument of dbarts()/dbartsSpec().
+## Every knob is per forest, so the fitting functions grow exactly one argument
+## however many forests a model has. basis is the data the forest's amplitudes
+## multiply, a one-sided formula or a vector, expanded by R's own model-matrix
+## rule; vars restricts the columns the forest may split on; n.trees, base and
+## power are its tree-structure prior; sd is its total's prior scale in sd(y)
+## units; amplitude.prior.variance is the N(0, .) variance of the amplitudes on
+## its basis; update.amplitude fixes those amplitudes at their prior center
+## when FALSE; interactions and blocks are this forest's own constraints - the
+## arguments of the same names on the fitting function are the FIRST forest's.
+## Every knob defaults to NULL, "not declared", which is what lets a
+## declaration that collides with one of those arguments refuse rather than
+## silently win. Validated at fit time, in resolveForests. Exported, like
+## interactions() and blocks().
+forest <- function(
+  basis = NULL,
+  vars = NULL,
+  n.trees = NULL,
+  base = NULL,
+  power = NULL,
+  sd = NULL,
   interactions = NULL,
-  blocks = NULL
+  blocks = NULL,
+  amplitude.prior.variance = NULL,
+  update.amplitude = NULL
 ) {
   structure(
     list(
+      basis = basis,
+      vars = vars,
       n.trees = n.trees,
       base = base,
       power = power,
-      sd.control = sd.control,
-      sd.moderate = sd.moderate,
-      b.prior.variance = b.prior.variance,
-      update.a = update.a,
-      update.b = update.b,
+      sd = sd,
       interactions = interactions,
-      blocks = blocks
+      blocks = blocks,
+      amplitude.prior.variance = amplitude.prior.variance,
+      update.amplitude = update.amplitude
     ),
-    class = "dbartsTreatmentForest"
+    class = "dbartsForest"
   )
 }
 
