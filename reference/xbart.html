@@ -104,7 +104,7 @@
 <dd><p>A vector of positive integers setting the BART hyperparameter for the number of trees in the sum-of-trees formulation. See <code><a href="bart.html">bart</a></code>.</p></dd>
 
    <dt id="arg-k">k<a class="anchor" aria-label="anchor" href="#arg-k"></a></dt>
-<dd><p>A vector of positive real numbers, setting the BART hyperparameter for the node-mean prior standard deviation. If <code>NULL</code>, the default of <code>bart2</code> will be used - 2 for continuous response and a Chi hyperprior for binary. Hyperprior crossvalidation not possible at this time.</p></dd>
+<dd><p>A vector of positive real numbers, setting the BART hyperparameter for the node-mean prior standard deviation. If <code>NULL</code>, the default of <code>bart2</code> will be used - 2 for continuous response and a Chi hyperprior for binary. Hyperprior crossvalidation not possible at this time. A hyperprior <code>k</code> is held, not swept, and is DRAWN every sweep in every cell, so the reported loss is computed under a shrinkage that moves within each fit rather than under the named value.</p></dd>
 
    <dt id="arg-power">power<a class="anchor" aria-label="anchor" href="#arg-power"></a></dt>
 <dd><p>A vector of real numbers greater than one, setting the BART hyperparameter for the tree prior's growth probability, given by \({base} / (1 + depth)^{power}\).</p></dd>
@@ -143,7 +143,8 @@
 <dd><p>How missing values in the predictors enter the model; as in <code><a href="dbarts.html">dbarts</a></code>.</p></dd>
 
    <dt id="arg-node-prior">node.prior<a class="anchor" aria-label="anchor" href="#arg-node-prior"></a></dt>
-<dd><p>An optional expression of the form <code>normal(k)</code>, <code>linear(columns, k)</code>, or <code>gp(columns, k, ...)</code> selecting the leaf model, as in <code><a href="dbarts.html">dbarts</a></code>. The default fits constant leaves. A <code>k</code> given inside the prior stands in for a missing <code>k</code> argument; the <code>k</code> argument otherwise drives the crossvalidation grid as usual.</p></dd>
+<dd><p>An optional expression of the form <code>normal(k)</code>, <code>linear(columns, k)</code>, or <code>gp(columns, k, ...)</code> selecting the leaf model, as in <code><a href="dbarts.html">dbarts</a></code>. The default fits constant leaves. A <code>k</code> given inside the prior stands in for a missing <code>k</code> argument; the <code>k</code> argument otherwise drives the crossvalidation grid as usual.</p>
+<p>A named leaf calibration (<code>normal(scale = )</code>, and likewise for <code>linear</code> and <code>gp</code>) is NOT a grid axis: it is held fixed across every cell, so the <code>k</code> grid sweeps the prior standard deviation <code>scale / k</code> about a fixed anchor rather than about whatever the response range happened to imply. It is honored in cells that re-use a sampler as well as in cells that create one, so the loss surface does not depend on the order the cells run in. The <code>sd</code> spelling meets the same refusal here as everywhere when <code>k</code> is a hyperprior.</p></dd>
 
 </dl></div>
     <div class="section level2">

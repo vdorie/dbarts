@@ -23,7 +23,7 @@ constrained by a prior to be a weak learner.
 bart(
     x.train, y.train, x.test = matrix(0.0, 0, 0),
     sigest = NA, sigdf = 3, sigquant = 0.90,
-    k = 2.0,
+    k = 2.0, prior.scale = NA_real_,
     power = 2.0, base = 0.95, splitprobs = 1 / numvars,
     binaryOffset = 0.0, weights = NULL,
     ntree = 200,
@@ -40,7 +40,7 @@ bart(
 bart2(
     formula, data, test, subset, weights, offset, offset.test = offset,
     sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
-    k = NULL,
+    k = NULL, prior.scale = NA_real_,
     power = 2.0, base = 0.95, split.probs = 1 / num.vars,
     dart = FALSE,
     n.trees = 75L,
@@ -263,6 +263,22 @@ summary(object, ...)
   effective prior on everything else, for which the published workaround
   is to log-transform or winsorize such values before fitting, or to let
   `k` adapt via the `chi` hyperprior.
+
+- prior.scale:
+
+  Names the leaf calibration in response units instead of inheriting it
+  from the range of `y.train`: the prior standard deviation of the
+  forest total \\f\\ at `k = 1`, so the prior standard deviation in
+  force is `prior.scale / k` and the prior mean is the response
+  transform's shift. `NA` (the default) leaves the family's own
+  calibration in place and nothing changes. Useful when the fit is one
+  block of a larger sampler and the response it is handed varies in
+  scale between sweeps. For the leaf-model qualifications on what the
+  named quantity bounds, and for the `sd` spelling and its refusal under
+  a sampled `k`, see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  Details and
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
 
 - power:
 
@@ -1341,7 +1357,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.217507
+#> total seconds in loop: 0.216721
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1407,7 +1423,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001369
+#> total seconds in loop: 0.001373
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

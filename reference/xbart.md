@@ -150,7 +150,10 @@ xbart(
   A vector of positive real numbers, setting the BART hyperparameter for
   the node-mean prior standard deviation. If `NULL`, the default of
   `bart2` will be used - 2 for continuous response and a Chi hyperprior
-  for binary. Hyperprior crossvalidation not possible at this time.
+  for binary. Hyperprior crossvalidation not possible at this time. A
+  hyperprior `k` is held, not swept, and is DRAWN every sweep in every
+  cell, so the reported loss is computed under a shrinkage that moves
+  within each fit rather than under the named value.
 
 - power:
 
@@ -243,6 +246,15 @@ xbart(
   default fits constant leaves. A `k` given inside the prior stands in
   for a missing `k` argument; the `k` argument otherwise drives the
   crossvalidation grid as usual.
+
+  A named leaf calibration (`normal(scale = )`, and likewise for
+  `linear` and `gp`) is NOT a grid axis: it is held fixed across every
+  cell, so the `k` grid sweeps the prior standard deviation `scale / k`
+  about a fixed anchor rather than about whatever the response range
+  happened to imply. It is honored in cells that re-use a sampler as
+  well as in cells that create one, so the loss surface does not depend
+  on the order the cells run in. The `sd` spelling meets the same
+  refusal here as everywhere when `k` is a hyperprior.
 
 ## Details
 

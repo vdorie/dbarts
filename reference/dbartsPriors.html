@@ -75,7 +75,7 @@
       passed (default: half the control's burn-in), so the forest is
       likelihood-informed when counts first enter the Dirichlet.</p></dd>
 
-    <dt><code>normal(k = NULL)</code></dt>
+    <dt><code>normal(k = NULL, sd = NULL, scale = NULL)</code></dt>
 <dd><p>Normal prior on the node means. <code>k</code> scales the standard
       deviation and can be a positive scalar, a hyperprior built with
       <code>chi</code>, or <code>NULL</code> for the default: 2 for continuous
@@ -85,9 +85,19 @@
       <code>m</code> trees, <code>k</code> prior standard deviations of \(f(x)\)
       span the whole response range regardless of <code>m</code>; see
       <code><a href="dbarts.html">dbarts</a></code>'s Details for the response-scaling caveat this
-      relies on.</p></dd>
+      relies on.</p>
+<p><code>scale</code> and <code>sd</code> NAME that calibration instead of
+      inheriting it from the response range, in response units: at most
+      one may be given, <code>scale</code> is the prior standard deviation of
+      the forest total at <code>k = 1</code>, and <code>sd</code> is the same
+      quantity at the resolved <code>k</code> (so <code>scale = sd * k</code>).
+      <code>sd</code> is refused when <code>k</code> carries a hyperprior, since a
+      <code>k</code> drawn every sweep leaves no single value to divide by;
+      name <code>scale</code> there, which a sampled <code>k</code> scales rather
+      than replaces. See <code><a href="dbarts.html">dbarts</a></code>'s Details for what the
+      named quantity means under each leaf model.</p></dd>
 
-    <dt><code>linear(columns, k = NULL)</code></dt>
+    <dt><code>linear(columns, k = NULL, sd = NULL, scale = NULL)</code></dt>
 <dd><p>Each leaf fits an intercept plus a linear term in the designated
       continuous predictor columns instead of a constant, so the forest
       models smoothly-varying coefficients. <code>columns</code> names model
@@ -97,10 +107,12 @@
       coefficient shares the <code>normal(k)</code> prior. Reported leaf values
       keep the intercept; <code>getTrees</code> adds one <code>beta.&lt;column&gt;</code>
       column per covariate. <code><a href="xbart.html">xbart</a></code> accepts the same
-      specification through its own <code>node.prior</code> argument.</p></dd>
+      specification through its own <code>node.prior</code> argument.
+      <code>sd</code> and <code>scale</code> name the calibration as they do for
+      <code>normal</code>.</p></dd>
 
     <dt><code>gp(columns, k = NULL, lengthscale = NULL,
-                   max.leaf.size = 256L)</code></dt>
+                   max.leaf.size = 256L, sd = NULL, scale = NULL)</code></dt>
 <dd><p>Each leaf fits a smooth Gaussian-process function of the designated
       continuous predictor columns, drawn under a squared-exponential
       kernel whose prior scale ties to <code>k</code> exactly as the other leaf
@@ -115,7 +127,8 @@
       Function-valued fits ride prediction only: <code>getTrees</code> reports
       <code>NA</code> leaf values, and <code>keepTrees</code> storage grows with the
       leaf sizes. <code><a href="xbart.html">xbart</a></code> accepts the same specification
-      through its own <code>node.prior</code> argument.</p>
+      through its own <code>node.prior</code> argument. <code>sd</code> and
+      <code>scale</code> name the calibration as they do for <code>normal</code>.</p>
 <p><code>predict</code> at a training row re-krigs the jitter-free
       posterior mean from the cached kernel and drawn training values,
       while the fit recorded during sampling includes a small

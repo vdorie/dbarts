@@ -30,7 +30,7 @@ A list of functions:
   burn-in), so the forest is likelihood-informed when counts first enter
   the Dirichlet.
 
-- `normal(k = NULL)`:
+- `normal(k = NULL, sd = NULL, scale = NULL)`:
 
   Normal prior on the node means. `k` scales the standard deviation and
   can be a positive scalar, a hyperprior built with `chi`, or `NULL` for
@@ -43,7 +43,17 @@ A list of functions:
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   Details for the response-scaling caveat this relies on.
 
-- `linear(columns, k = NULL)`:
+  `scale` and `sd` NAME that calibration instead of inheriting it from
+  the response range, in response units: at most one may be given,
+  `scale` is the prior standard deviation of the forest total at
+  `k = 1`, and `sd` is the same quantity at the resolved `k` (so
+  `scale = sd * k`). `sd` is refused when `k` carries a hyperprior,
+  since a `k` drawn every sweep leaves no single value to divide by;
+  name `scale` there, which a sampled `k` scales rather than replaces.
+  See [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  Details for what the named quantity means under each leaf model.
+
+- `linear(columns, k = NULL, sd = NULL, scale = NULL)`:
 
   Each leaf fits an intercept plus a linear term in the designated
   continuous predictor columns instead of a constant, so the forest
@@ -54,9 +64,10 @@ A list of functions:
   the `normal(k)` prior. Reported leaf values keep the intercept;
   `getTrees` adds one `beta.<column>` column per covariate.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
-  the same specification through its own `node.prior` argument.
+  the same specification through its own `node.prior` argument. `sd` and
+  `scale` name the calibration as they do for `normal`.
 
-- `gp(columns, k = NULL, lengthscale = NULL, max.leaf.size = 256L)`:
+- `gp(columns, k = NULL, lengthscale = NULL, max.leaf.size = 256L, sd = NULL, scale = NULL)`:
 
   Each leaf fits a smooth Gaussian-process function of the designated
   continuous predictor columns, drawn under a squared-exponential kernel
@@ -71,7 +82,8 @@ A list of functions:
   ride prediction only: `getTrees` reports `NA` leaf values, and
   `keepTrees` storage grows with the leaf sizes.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
-  the same specification through its own `node.prior` argument.
+  the same specification through its own `node.prior` argument. `sd` and
+  `scale` name the calibration as they do for `normal`.
 
   `predict` at a training row re-krigs the jitter-free posterior mean
   from the cached kernel and drawn training values, while the fit

@@ -61,7 +61,7 @@ bart2 fits further response families through its family argument, described belo
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">bart</span><span class="op">(</span></span>
 <span>    <span class="va">x.train</span>, <span class="va">y.train</span>, x.test <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fl">0.0</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span>
 <span>    sigest <span class="op">=</span> <span class="cn">NA</span>, sigdf <span class="op">=</span> <span class="fl">3</span>, sigquant <span class="op">=</span> <span class="fl">0.90</span>,</span>
-<span>    k <span class="op">=</span> <span class="fl">2.0</span>,</span>
+<span>    k <span class="op">=</span> <span class="fl">2.0</span>, prior.scale <span class="op">=</span> <span class="cn">NA_real_</span>,</span>
 <span>    power <span class="op">=</span> <span class="fl">2.0</span>, base <span class="op">=</span> <span class="fl">0.95</span>, splitprobs <span class="op">=</span> <span class="fl">1</span> <span class="op">/</span> <span class="va">numvars</span>,</span>
 <span>    binaryOffset <span class="op">=</span> <span class="fl">0.0</span>, weights <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    ntree <span class="op">=</span> <span class="fl">200</span>,</span>
@@ -78,7 +78,7 @@ bart2 fits further response families through its family argument, described belo
 <span><span class="fu">bart2</span><span class="op">(</span></span>
 <span>    <span class="va">formula</span>, <span class="va">data</span>, <span class="va">test</span>, <span class="va">subset</span>, <span class="va">weights</span>, <span class="va">offset</span>, offset.test <span class="op">=</span> <span class="va">offset</span>,</span>
 <span>    sigest <span class="op">=</span> <span class="cn">NA_real_</span>, sigdf <span class="op">=</span> <span class="fl">3.0</span>, sigquant <span class="op">=</span> <span class="fl">0.90</span>,</span>
-<span>    k <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>    k <span class="op">=</span> <span class="cn">NULL</span>, prior.scale <span class="op">=</span> <span class="cn">NA_real_</span>,</span>
 <span>    power <span class="op">=</span> <span class="fl">2.0</span>, base <span class="op">=</span> <span class="fl">0.95</span>, split.probs <span class="op">=</span> <span class="fl">1</span> <span class="op">/</span> <span class="va">num.vars</span>,</span>
 <span>    dart <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>    n.trees <span class="op">=</span> <span class="fl">75L</span>,</span>
@@ -206,6 +206,9 @@ bart2 fits further response families through its family argument, described belo
 
    <dt id="arg-k">k<a class="anchor" aria-label="anchor" href="#arg-k"></a></dt>
 <dd><p>For numeric \(y\), <code>k</code> is the number of prior standard deviations \(E(Y|x) = f(x)\) is away from \(\pm 0.5\). The response (<code>y.train</code>) is internally scaled to range from \(-0.5\) to \(0.5\). For binary \(y\) fit with the default probit link, <code>k</code> is the number of prior standard deviations \(f(x)\) is away from \(\pm 3\), the probit reference scale; <code>family = "logistic"</code> (<code>bart2</code> only) widens this to \(\pm \pi \sqrt{3}\), which is three standard deviations of the standard logistic latent variable (\(\pi / \sqrt{3}\) each), the same three-sd span probit's \(\pm 3\) covers. In both cases, the bigger \(k\) is, the more conservative the fitting will be. The value can be either a fixed number, or a <em>hyperprior</em> of the form <code>chi(degreesOfFreedom = 1.5, scale = 2)</code>. For <code>bart2</code>, the default of <code>NULL</code> uses the value 2 for continuous responses and the <code>chi(1.5, 2)</code> hyperprior for binary ones, which centers the sampled <code>k</code> near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass <code>k = 2</code> for the fixed BART-package default, or <code>chi(1.5, Inf)</code> for the old improper prior. The default of 2 for continuous responses follows Chipman, George, and McCulloch's argument (see References) that with node prior standard deviation \(\sigma_\mu = 0.5 / (k \sqrt{m})\) for \(m\) trees, \(k\) prior standard deviations of \(f(x)\) span the whole coded response range regardless of \(m\) – so \(k = 2\) places that range at roughly a 95% prior interval. The range scaling itself is an outlier-sensitive convention shared with BayesTree/bartMachine: extreme \(y\) values compress the effective prior on everything else, for which the published workaround is to log-transform or winsorize such values before fitting, or to let <code>k</code> adapt via the <code>chi</code> hyperprior.</p></dd>
+
+   <dt id="arg-prior-scale">prior.scale<a class="anchor" aria-label="anchor" href="#arg-prior-scale"></a></dt>
+<dd><p>Names the leaf calibration in response units instead of inheriting it from the range of <code>y.train</code>: the prior standard deviation of the forest total \(f\) at <code>k = 1</code>, so the prior standard deviation in force is <code>prior.scale / k</code> and the prior mean is the response transform's shift. <code>NA</code> (the default) leaves the family's own calibration in place and nothing changes. Useful when the fit is one block of a larger sampler and the response it is handed varies in scale between sweeps. For the leaf-model qualifications on what the named quantity bounds, and for the <code>sd</code> spelling and its refusal under a sampled <code>k</code>, see <code><a href="dbarts.html">dbarts</a></code>'s Details and <code><a href="dbartsPriors.html">dbartsPriors</a></code>.</p></dd>
 
    <dt id="arg-power">power<a class="anchor" aria-label="anchor" href="#arg-power"></a></dt>
 <dd><p>Power parameter for tree prior. Default 2, Chipman, George, and McCulloch's empirical recommendation (see References) for the split-probability decay \(base (1 + depth)^{-power}\), not derived from a formula.</p></dd>
@@ -563,7 +566,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.217507</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.216721</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -629,7 +632,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001369</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001373</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>
