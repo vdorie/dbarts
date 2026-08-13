@@ -23,11 +23,11 @@ window: M0, M1, M2 land INSIDE the pre-release breaking window. M3 rides
 budget: M0 ~220 design doc + ~180 vignette + ~200 test. M1 ~75-85 R + ~50-60
   man + ~140 test, ~270-290 total (RESTATED 2026-08-13 pre-M1, superseding the
   ~60 + ~40 + ~140 committed 2026-08-11; the carried items are in M1 item 5).
-  M2 ~200-240 R + ~120-160 man + ~420-460 test, ~760-880 total (RESTATED
+  M2 ~200-240 R + ~120-160 man + ~435-475 test, ~775-895 total (RESTATED
   2026-08-13 pre-M2, superseding the ~180 + ~60 + ~260 committed 2026-08-11;
   the carried items are in M2 item 12).
   M3 ~40 header + ~80 C_interface + ~70 consumer.c + ~60 test-capi.R, inside
-  dbarts-h-reshape S1's own budget. Total in-repo before the freeze ~2130-2250
+  dbarts-h-reshape S1's own budget. Total in-repo before the freeze ~2145-2265
   (~1630 before M2's 2026-08-13 restatement, ~1590 before M1's).
   M4 priced in its own section (~600-900), not committed here.
 tip: every anchor below re-read at db81bfe in this worktree, with src/ read
@@ -79,6 +79,24 @@ amended: 2026-08-13, PRE-M2, by the orchestrator, against 4c7aa200 (M1 landed
   10); `dbartsData(treatment = )` FLAGGED as an unsettled fourth site (item
   11); and a restated budget (item 12). Nothing about the arc's content,
   ordering or decisions moved.
+  FOLLOW-UP the same day, still pre-M2: two of those three flags are now
+  DECIDED by the orchestrator under the standing grant, VD may veto. (1) The
+  knob map is settled and total - the three unhoused `treatmentForest()` knobs
+  become `forest(amplitude.prior.variance =)` and `forest(update.amplitude =)`,
+  with `amplitude.prior.variance` legal only on a forest given `basis =` and
+  `update.amplitude` legal on every forest of a `forests =` spec (the literal
+  basis-gate had to be split there or `update.a` would be unreachable and M0's
+  FD4 unexpressible; item 10 records the split and the reasoning). Item 1
+  carries the complete constructor, item 4 goes from six refusals to nine, and
+  item 12 gains ~15 test lines for the FD4-expressibility pin - the three new
+  refusals themselves ride the refusal matrix item 4 and FS2 already own.
+  (2) `dbartsData(treatment = )` and the `data@treatment` slot STAY AS-IS at
+  M2 as recorded data-side debt, with `forests =` populating the slot
+  internally exactly as `treatment =` did; item 11 is now a settled
+  disposition rather than two options, the escalation sentence is struck (the
+  split surface is shippable), and the M2 RECORDS commit opens the TODO ticket
+  for the debt. The third flag, the refusal count, was already corrected in
+  place at 3fb77060 and stands: 17 inherited, 1 retired.
 
 ## The question, answered
 
@@ -895,11 +913,14 @@ scenarios), `bcf-equivalence-8b047f8b` (12) and
 ## M2. `forests =` replaces `treatment =`. R only, bitwise-gated.
 
 1. `forests = list(forest(...), ...)` on `dbarts()` and `dbartsSpec()`, with
-   `forest(basis =, vars =, n.trees =, base =, power =, interactions =,
-   blocks =, sd =)` as the single constructor (the
-   `interactions()`/`blocks()`/`treatmentForest()` precedent: fourteen knobs
-   ride one constructor, so `dbarts()` grows exactly ONE argument, down from
-   three).
+   `forest(basis =, vars =, n.trees =, base =, power =, sd =, interactions =,
+   blocks =, amplitude.prior.variance =, update.amplitude =)` as the single
+   constructor (the `interactions()`/`blocks()`/`treatmentForest()` precedent:
+   fourteen knobs ride one constructor, so `dbarts()` grows exactly ONE
+   argument, down from three). The last two are the amplitude-prior knobs
+   DECIDED 2026-08-13 pre-M2 (orchestrator discretion under the standing
+   grant, VD may veto); the map is complete and total, and item 10 walks it
+   knob by knob with the two refusals it adds.
 2. `resolveSamplerSpec` resolves `forests =` to the SAME
    `attr(control, "bartcore.bcf")` payload plus `data@treatment` that
    `treatment =` resolves to today, expanding a factor basis to its level
@@ -912,9 +933,14 @@ scenarios), `bcf-equivalence-8b047f8b` (12) and
    was never enumerated and is wrong in both directions - item 9 replaces it
    with the verified list.
 4. Every declaration today's engine cannot honour REFUSES at creation, one
-   assertion each: K > 2 forests; a numeric (non-factor) basis; a factor with
-   more than two levels; a basis on forest 0; a non-Gaussian family; a variance
-   forest alongside; plus the shipped refusal set inherited unchanged (item 10
+   assertion each. NINE, up from the six this item carried before the
+   2026-08-13 pre-M2 refresh: K > 2 forests; a numeric (non-factor) basis; a
+   factor with more than two levels; a basis on forest 0; a non-Gaussian
+   family; a variance forest alongside; plus the three the settled knob map
+   adds (item 10) - `amplitude.prior.variance` on a forest with no `basis =`,
+   any amplitude knob on a K = 1 `forests =` spec, and the top-level
+   `interactions =`/`blocks =` supplied together with the same knob on forest
+   0. On top of those, the shipped refusal set is inherited unchanged (item 10
    corrects "the eleven S1 refusals" this item carried, and names the one
    refusal M2 RETIRES rather than inherits).
 5. Docs: `docs/design/bcf.md` and `docs/design/public-surface.md` gain the
@@ -1101,61 +1127,92 @@ a 'treatment' vector selects"), is RETIRED by M2 along with the arguments it
 guards; its replacement is whatever `forests =` needs in its place, which under
 item 1's one-argument shape is nothing - there is no second argument left to
 orphan. Say so in the slice rather than porting a dead message.
-   **The knob map must be TOTAL, and item 1's eight-name sketch is not.**
-   `treatmentForest()` carries TEN knobs (`R/model.R:1238-1249`): `n.trees`,
-   `base`, `power`, `sd.control`, `sd.moderate`, `b.prior.variance`,
-   `update.a`, `update.b`, `interactions`, `blocks`. Item 1 names
-   `basis`, `vars`, `n.trees`, `base`, `power`, `interactions`, `blocks`, `sd`
-   - so `sd.control`/`sd.moderate` collapse correctly into each forest's own
-   `sd =` (they are per-forest leaf scales; forest 0 takes the first, forest 1
-   the second), but `b.prior.variance`, `update.a` and `update.b` have NO
-   landing place. They are AMPLITUDE knobs and belong to the forest that owns
-   the amplitude: `update.a` to forest 0, `b.prior.variance` and `update.b` to
-   forest 1. M2 must give them per-forest spellings (the natural pair is
-   `amplitude.prior.variance =` and `update.amplitude =`, matching the fork-3
-   `forestAmplitudes` vocabulary) or the public route silently loses
-   capability the internal route keeps - and M0's FD4 requires the public
-   `update.a = update.b = FALSE` fit, so a dropped knob breaks a committed
-   falsifier, not just a corner. Whatever the spelling, it is a mapping, not a
-   new mechanism: the payload at `R/spec.R:429-454` takes the same eight
-   doubles in the same order.
+   **The knob map, walked and SETTLED (decided 2026-08-13 pre-M2, orchestrator
+   discretion under the standing grant, VD may veto; item 1's earlier
+   eight-name sketch was not total).** `treatmentForest()` carries TEN knobs
+   (`R/model.R:1238-1249`). Each one's landing place, in order:
+   `n.trees` -> `forest(n.trees =)`, per forest; `base` -> `forest(base =)`,
+   per forest; `power` -> `forest(power =)`, per forest; `sd.control` ->
+   `forest(sd =)` on forest 0 and `sd.moderate` -> `forest(sd =)` on forest 1
+   (they are per-forest leaf scales, so the pair collapses into one per-forest
+   name); `b.prior.variance` -> `forest(amplitude.prior.variance =)` on the
+   BASIS forest; `update.a` -> `forest(update.amplitude =)` on forest 0 and
+   `update.b` -> `forest(update.amplitude =)` on forest 1 (again one
+   per-forest name for a pair that was only ever per-forest);
+   `interactions` -> `forest(interactions =)` and `blocks` ->
+   `forest(blocks =)`, per forest. The removed `moderators =` lands as
+   `forest(vars =)` on the basis forest, completing the three removed formals.
+   The two new names match the fork-3 `forestAmplitudes` vocabulary, and the
+   whole map is a mapping rather than a new mechanism: the payload at
+   `R/spec.R:429-454` takes the same eight doubles in the same order.
+   **The legality rule, and where the "only with `basis =`" form had to be
+   split.** `amplitude.prior.variance` is the `N(0, .)` variance of the
+   `b0`/`b1` glue alone, so it is LEGAL ONLY on a forest given `basis =` and
+   REFUSED at creation on a forest without one - forest 0's amplitude `a`
+   carries the half-Cauchy scale-mixture prior, which the channel spec above
+   fixes as an engine choice with no caller slot. `update.amplitude` cannot
+   take that rule literally without becoming unreachable: `update.a` is forest
+   0's flag, forest 0 takes NO explicit `basis =` (item 4 refuses one there,
+   its basis being the implicit intercept), so a strict basis-gate would make
+   `update.a` unexpressible and break M0's FD4 - the very failure this decision
+   exists to prevent. It is therefore legal on EVERY forest of a `forests =`
+   spec, which is the same rule read against the thing that actually gates it,
+   an amplitude rather than an explicit basis, and refused where no amplitude
+   channel exists at all: a K = 1 `forests =` spec. Both refusals are
+   reachable and both are new (item 4). FD4's public fit is expressible and
+   must be PINNED positively:
+   `forests = list(forest(update.amplitude = FALSE), forest(basis = ~
+   factor(z), update.amplitude = FALSE))` reproduces today's
+   `treatmentForest(update.a = FALSE, update.b = FALSE)`.
+   **One disposition falls out of the walk rather than being invented here.**
+   `interactions`/`blocks` are per-forest above, but `dbarts()` ALSO has
+   top-level arguments of those names, and today they are forest 0's
+   constraints (`mu.interactions`/`mu.blocks`, `R/spec.R:441-452`) while the
+   constructor's are forest 1's. Under `forests =` the two spellings address
+   the same slot for forest 0, so supplying both is refused as ambiguous - the
+   third new assertion in item 4. The top-level pair keeps its meaning
+   untouched on the single-forest path, so FS3's byte-neutrality is unaffected.
 
-**11. `dbartsData(treatment = )` is a FOURTH site and is NOT settled by this
-plan; FLAGGED for the implementer to raise, not decided here (added 2026-08-13,
-pre-M2).** Item 3 names `dbarts()` and `dbartsSpec()`. But `dbartsData()` has
-its own `treatment` formal (`R/data.R:697`, documented `man/dbartsData.Rd:13`,
-`:16`, its own pkgdown topic `_pkgdown.yml:28`), it is where `subset`
-alignment happens (`validateTreatment(treatment, initialNumObservations,
-subset)`, `R/data.R:962`, `:1028`), and it is REACHED BY `dbarts()`'s own
-redirect (`R/dbarts.R:539`), so the two cannot be decided separately. Two
-constraints bound the answer, both verified: the SLOT `data@treatment` cannot
-move at M2 (the bridge reads it by name, `src/R_interface_bartcore.cpp:1112`,
-and M2 is no-src), and `dbartsSpec(dbartsData(x, y, treatment = z), control)`
-is a shipped, tested creation route (`test-bcf-creation.R:272`) that resolves
-off the slot rather than off a `dbartsSpec()` argument (`R/spec.R:375`).
-   - **(a) `dbartsData()` KEEPS `treatment = ` as the data-side carrier.**
-     Cheapest, and it keeps subset alignment where the one function that knows
-     the kept rows already does it. Cost: causal vocabulary survives at the
-     engine's front door on an exported function with its own topic, which is
-     most of what binding decision 2 and VD's removal decision were aimed at,
-     and the surface reads split (a `forests =` model configured with a
-     `treatment =` column).
-   - **(b) `dbartsData()` gains a basis-shaped carrier too** (e.g. the basis
-     columns ride the data object under a neutral name, with `data@treatment`
-     kept as the private slot the bridge still reads). Consistent, and it is
-     the shape M4 needs anyway for an n x q_f basis. Cost: a second expansion
-     and subsetting path in `R/data.R` inside an R-only slice, plus its own
-     refusals; and the slot/argument name split has to be documented so it does
-     not read as an accident.
-   **Recommendation: (a) for M2, recorded as debt with (b) named as its
-   retirement**, because (b)'s honest form is the n x q_f basis M4 lands and
-   building half of it here buys a second refactor over the same code (fork 1
-   option (b)'s failure mode). If the implementer finds the split surface
-   unshippable, this is a VD question, not an implementer call.
+**11. `dbartsData(treatment = )` is a FOURTH site, and it STAYS AS-IS at M2 as
+recorded data-side debt. SETTLED 2026-08-13 pre-M2 (orchestrator discretion
+under the standing grant, VD may veto).** Item 3 names `dbarts()` and
+`dbartsSpec()`. `dbartsData()` has its own `treatment` formal (`R/data.R:697`,
+documented `man/dbartsData.Rd:13`, `:16`, its own pkgdown topic
+`_pkgdown.yml:28`), it is where `subset` alignment happens
+(`validateTreatment(treatment, initialNumObservations, subset)`,
+`R/data.R:962`, `:1028`), and it is REACHED BY `dbarts()`'s own redirect
+(`R/dbarts.R:539`), so the two could not be decided separately. Two verified
+constraints forced the disposition: the SLOT `data@treatment` cannot move at M2
+(the bridge reads it by name, `src/R_interface_bartcore.cpp:1112`, and M2 is
+no-src), and `dbartsSpec(dbartsData(x, y, treatment = z), control)` is a
+shipped, tested creation route (`test-bcf-creation.R:272`) resolving off the
+slot rather than off a `dbartsSpec()` argument (`R/spec.R:375`).
+   The settled path, in four sentences the implementer can build to.
+   `dbarts(forests = ...)`'s resolution populates `data@treatment` INTERNALLY,
+   with exactly the values and at exactly the point `treatment =` populated it
+   (`R/spec.R:373`), so the bridge, the payload cross-check and the R5 mirror
+   of item 8(a) all see what they see today - which is also what makes FS1
+   bitwise rather than merely close. The public `dbartsData(treatment = )`
+   formal, its Rd entry and its pkgdown topic REMAIN, untouched and
+   undeprecated; item 6's bookkeeping covers `treatmentForest` only.
+   `dbarts()` and `dbartsSpec()` still lose their three formals, so the causal
+   vocabulary leaves the two FITTING functions in this slice, which is what
+   binding decision 3 sequenced and what bartCause's `bcf()` needs. The debt is
+   the remaining split - a `forests =` model whose column still arrives under a
+   `treatment =` name - and it retires at a later slice, the candidates being
+   M3, M4 (whose n x q_f basis is the honest carrier and would absorb it whole)
+   or the reshape re-bake window; the M2 RECORDS commit opens the TODO ticket
+   for it, and this plan does not edit `TODO` itself.
+   No escalation: the split surface is shippable. It is one exported
+   data-constructor argument naming a column, against a fitting surface that no
+   longer names one, inside a pre-release window where nothing is frozen
+   (binding decision 5) - and building the basis-shaped carrier here instead
+   would buy a second refactor over the same code when M4 lands the real one,
+   which is fork 1 option (b)'s recorded failure mode.
 
 **12. Budget, RESTATED with the migration and the bookkeeping included (added
 2026-08-13, pre-M2; supersedes the ~180 R + ~60 man + ~260 test committed
-2026-08-11).** ~760-880 dense-equivalent total.
+2026-08-11).** ~775-895 dense-equivalent total.
    **R ~200-240**: `forest()` and its validator (`treatmentForest()` +
    `resolveTreatmentForest` are 27 + 31 lines today and are re-skinned rather
    than rewritten, but gain `basis`, `vars` and the three amplitude knobs of
@@ -1175,12 +1232,18 @@ off the slot rather than off a `dbartsSpec()` argument (`R/spec.R:375`).
    `\value`) plus M1's two `treatment = ` phrases (item 8(b)); `inst/NEWS.Rd`.
    The dense single-paragraph convention applies, as it did to M1's 4 raw
    lines - these are raw line counts, not prose volume.
-   **test ~420-460**: `test-bcf-creation.R` rewritten (385 lines today, and it
-   GROWS - item 4 adds six refusals to the 26 assertions already there); FS1's
+   **test ~435-475**: `test-bcf-creation.R` rewritten (385 lines today, and it
+   GROWS - item 4 adds NINE refusals to the 26 assertions already there); FS1's
    two halves re-pointed at `forests =` with the internal-route oracle
    unchanged; FS3's byte-neutrality arm; and the seven-file migration of item 9
    (14 creation calls, 5 R5-method call sites, ~40 lines of edits carrying no
-   new assertions).
+   new assertions). The settled knob map moves this by about +15 over the
+   ~420-460 first written on 2026-08-13: its three new refusals ride the
+   rewritten file's refusal matrix at no extra cost, since item 4 and FS2
+   already own that matrix, but item 10's FD4-expressibility arm is NEW - a
+   positive pin that `forest(update.amplitude = FALSE)` on both forests
+   reproduces `treatmentForest(update.a = FALSE, update.b = FALSE)`, without
+   which a knob can be accepted and dropped in silence.
    The calibration-S2 lesson applies, as it did at M1: this budget moves with
    the obligations, and a stale one beside added obligations is the failure
    mode.
