@@ -149,3 +149,108 @@ occupancy, so a heteroscedastic sampler's `$setState` could install a variance
 state the mutation veto would have refused. S3 (2026-08-12) closed it, adding
 the same scratch-build-and-repartition occupancy check to the variance branch;
 see docs/design/heteroscedastic.md section 14.
+
+## What counts as empty: the weight law (2026-08-12)
+
+The veto counted leaf MEMBERS. It now counts POSITIVE-WEIGHT members. A zero
+weight is ABSENCE, not reweighting - the shipped contract
+(`dbartsSampler-class.Rd`, docs/plans/zero-weight-exactness.md,
+docs/plans/sigma-df-zero-weights.md: the leaf suffstats multiply by `w` and the
+sigma posterior's df counts positive weights only) - so a leaf all of whose rows
+carry weight zero enters no likelihood term of the forest that holds it. Under
+the count law such a leaf was legal: it scored exactly `0.0`
+(`ConstantGaussianLeaf::logIntegratedLikelihood` returns 0 at `sumWeights == 0`)
+and drew its parameter from the prior at posterior precision 0, a state no fit
+on the positive-weight subset could produce. It is now vetoed, by the same
+`-HUGE_VAL` mechanism at the same site. The mechanism, the penalty value and the
+finite-vs-vetoed argument above are unchanged; only the predicate moved.
+
+Two sites carry the predicate, because the branch marginal has two owners:
+
+- `logLikelihoodForBranch` (moves.hpp), the conjugate path every ordinal and
+  categorical birth/death/change/swap consumes.
+- `MonotoneConstantGaussianLeaf::logLikelihoodForBranchWithParams` (model.hpp),
+  which owns the constrained joint outright and therefore returns from
+  `logLikelihoodForBranch` BEFORE the loop above it runs. It had its own copy of
+  the count test; it now takes the same weight law. Monotone directions compose
+  with weights on any family (facade.hpp dispatches on the direction vector
+  alone), so leaving it behind would have kept one reachable configuration on
+  the old law.
+
+Both call `Tree::leafHasNoWeight(i, weights)`: with `weights == nullptr` it IS
+`numObservations() == 0`, so the unweighted path - the overwhelmingly common one
+- keeps its decision AND its arithmetic bit for bit; with a weight vector it
+scans the leaf's members and stops at the first positive weight, so an ordinary
+leaf costs one gather and only a leaf about to be vetoed walks its members.
+
+The obvious cheaper candidate, `Node::sumWeights == 0.0` (exact, since a sum of
+nonnegatives is exactly zero iff every addend is), was REJECTED on freshness,
+not on arithmetic: `Chain::run` refreshes node statistics only
+`if constexpr (leafTracksNodeAverages)`, i.e. `!L::hasVectorParams`, so a
+linear-leaf chain never calls `setNodeAverages` and a root-only tree there
+carries the field at its `0.0` default. Reading it at the veto would have
+vetoed every root branch on that path.
+
+### Which weights the predicate sees
+
+`MoveContext::weights` is the weight vector the forest is actually being scored
+against, not the user's: the mean forest under a variance forest sees
+`w_i / s^2(x_i)`, a BCF forest sees `composeForestWeights`' product of the
+observation weight and the per-forest weight, and a latent family sees its
+composed working weights. So a zero per-forest weight (`setForestWeights`) now
+also vetoes a leaf of only such rows in THAT forest - stated in
+`Chain::setForestWeights`' contract - while the veto for the variance forest
+reads the user weights it is handed. Weights ship on gaussian and Student-t
+only, and the latent families' own working weights are strictly positive
+(a zero Polya-Gamma weight is unreachable, and a zero count is refused at
+creation), so no shipped latent configuration changes behavior.
+
+### The sites that still count members, and why that is correct
+
+The fix is deliberately confined to the DRAW LAW. Every other occupancy site
+keeps the member count, and each is right to (docs/plans/latent-subset-mask.md,
+"Semantics of inactive" rule 2, which depends on this and is written against
+it):
+
+- The birth scan's `count` (scan.hpp) sentinels a bin's membership; its
+  `sumWeights` is a separate field and the marginal it feeds already returns
+  `0.0` at `sumWeights == 0`. Occupancy and weight are two facts there, kept
+  apart on purpose.
+- `Tree::collapseEmptyNodesBelow` merges on `numObservations() == 0` (its
+  weighted merge WEIGHT is a weight sum, but the trigger is the count). It runs
+  on structure that must be legal after a data or cut-grid change, where a
+  member-empty leaf is unrepresentable and a zero-weight one is merely
+  uninformative.
+- `Tree::bottomNodesAreOccupied` and `Chain::stateIsValid`'s scratch rebuild -
+  the transactional predictor surface and the state-restore criterion. These
+  answer "is this partition representable against this data", a question about
+  membership; a weight-based criterion there would refuse a state the sampler
+  itself could have drawn under a different weight vector, since weights do not
+  ride the state block.
+- `Tree::numObservations` itself, and the chi-k leaf-count gates that read it.
+
+The fix therefore changes which branches are VETOED, not which are CREATED, and
+it does NOT align a masked or zero-weighted sampler's occupancy with a compacted
+one's; that claim is struck in the subset-mask plan and is not made here.
+
+### Measured effect
+
+- `benchmarks/R/equivalence.R` against `equivalence-a825263.rds`: 34 of 35
+  scenarios reproduce BITWISE ("identical draws (same RNG stream)"), including
+  every weighted one whose weights are strictly positive (`weighted`,
+  `wtoffset`, `wtgp`, `wtlogistic`, `grouped`, `student`, `logistic`). Only
+  `zeroweights` moves - 37 summaries, max |z| = 2.85, so the posterior is
+  unmoved and the draw law is not. `bcf-equivalence-a825263.rds` and
+  `multinomial-equivalence-1027be5.rds` are bitwise on every channel of every
+  scenario (no baseline scenario installs a zero weight on those paths).
+- `tests/cpp` non-vacuity, measured: driving 4000 moves on a fixture whose
+  lowest cut of x0 isolates a zero-weight block, the count law settles on a leaf
+  of only zero-weight rows 546 times and the weight law never does.
+- tinytest non-vacuity (`test-empty-leaf-veto-weights.R`): with the zero-weight
+  half-space `x1 > 0.5`, a 50-tree sampler under the count law leaves live
+  leaves that no positive-weight row reaches; under the weight law every leaf is
+  reached by one, for gaussian and for Student-t, and the zero-weight rows still
+  receive fits.
+- Cost: the added work is one gather and compare per leaf per branch score, and
+  only when a weight vector is installed; the unweighted path compiles to the
+  same count test it ran before.

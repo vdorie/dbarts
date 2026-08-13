@@ -87,13 +87,12 @@ items
   csc-code-validation: LANDED (record in
     docs/plans/csc-code-validation.md); categorical ingestion bounds
     codes against training-side K everywhere.
-  empty-leaf-veto-fix: draw-law fix to the empty-leaf veto
-    (docs/design/empty-leaf-veto.md, LANDED keep-and-document): the
-    veto counts LEAF MEMBERS where it should count POSITIVE-WEIGHT
-    members (src/bartcore/moves.hpp, the numObservations() == 0 veto
-    site), found by the r-c-division arc. Own measured slice (a
-    draw-law change); expect to re-record the zero-weight baseline.
-    SCHEDULED, pre-release.
+  empty-leaf-veto-fix: LANDED (records in
+    docs/design/empty-leaf-veto.md, "What counts as empty", and
+    docs/plans/empty-leaf-veto.md); the veto counts POSITIVE-WEIGHT
+    members, so a leaf of only zero-weight rows is empty. Zero-weight
+    baseline re-recorded (equivalence-21fc29c); every other scenario
+    bitwise.
   facade-shape: LANDED (record in docs/plans/facade-shape.md);
     SamplerShape POD, oracled by tests/cpp test_shape.
   forest-ranef-interweaving: RESEARCHED, NO-GO now - record,
@@ -167,8 +166,8 @@ items
     ordinal, then S2 logistic/nbinom/aft, S3 multinomial
     (global-only), S4 records. V1-V9 adopted 2026-08-12 under VD's
     proceed-at-discretion grant (Student-t disposition VD-reviewed
-    same day). ORDERING: empty-leaf-veto-fix lands FIRST; the flat
-    entry rides dbarts-h-reshape S1.
+    same day). ORDERING: empty-leaf-veto-fix landed first, as
+    required; the flat entry rides dbarts-h-reshape S1.
   multiforest-extension-surface: PLAN COMMITTED
     docs/plans/multiforest-extension-surface.md (artifacts
     .claude/multiforest-extension-surface-design/). The answer to
