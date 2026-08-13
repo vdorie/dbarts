@@ -17,6 +17,7 @@
 \alias{\S4method{setOffset}{dbartsSampler}}
 \alias{\S4method{setWeights}{dbartsSampler}}
 \alias{\S4method{setActiveRows}{dbartsSampler}}
+\alias{\S4method{setForestWeights}{dbartsSampler}}
 \alias{\S4method{setTreatment}{dbartsSampler}}
 \alias{\S4method{setSigma}{dbartsSampler}}
 \alias{\S4method{setPredictor}{dbartsSampler}}
@@ -61,6 +62,7 @@
 \S4method{setOffset}{dbartsSampler}(offset, updateScale = FALSE, updateState = NA)
 \S4method{setWeights}{dbartsSampler}(weights, updateState = NA)
 \S4method{setActiveRows}{dbartsSampler}(active, updateState = NA)
+\S4method{setForestWeights}{dbartsSampler}(forest, weights, updateState = NA)
 \S4method{setTreatment}{dbartsSampler}(z, updateState = NA)
 \S4method{setSigma}{dbartsSampler}(sigma, updateState = NA)
 \S4method{setPredictor}{dbartsSampler}(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA)
@@ -143,6 +145,8 @@
   }
   \item{weights}{
     A numeric vector of non-negative case weights, of length equal to that with which the sampler was created. Weights of zero exclude an observation from the likelihood while keeping its fitted values. \code{setWeights} only applies to a gaussian-family sampler; calling it on a probit- or logistic-family sampler is refused, since a weighted probit has no tractable latent-variable form and logistic weights (observation counts) are fixed when the sampler is created. See \code{\link{dbarts}} for the family-specific weight rules that apply at creation time.
+
+    For \code{setForestWeights}, a distinct per-FOREST case weight on a Bayesian causal forest, refused off one: it composes with \code{weights} and \code{active} as \eqn{(w_i a_i) m_f^2 s_i}{(w_i * a_i) * m_f^2 * s_i}, where \eqn{m_f}{m_f} is the named forest's own multiplier, rather than widening either channel, so \code{s_i = 0} excludes row \eqn{i} from \emph{that forest's own leaf conditionals only} - its occupancy, its place in the combination, and the residual degrees of freedom are unaffected, and the reported location still carries the forest's full contribution even when every row is excluded. The third leg of a three-way degenerate-value contrast: \code{weights} installs and is measurably distinct from carrying none, \code{active} at all-ones installs nothing and clears any mask in force, and \code{setForestWeights} at all-ones INSTALLS - a round trip reports it - but is bitwise IDENTICAL to carrying no per-forest weight at all, the null gate its multiplicative composition (\eqn{m_f \times 1 = m_f}{m_f * 1 = m_f}) is built to guarantee. The weight does not ride the sampler's saved \code{state} - a sampler rebuilt with \code{setState} from a stored state silently drops it while \code{statesAgree} still reports agreement - so it is additionally mirrored on an R5 field that \code{getPointer}, \code{setState}, and \code{copy} all reinstall on every re-creation; a caller never reinstalls it by hand. \code{setData} needs no clearing rule here the way it does for \code{active}: it is refused outright on any multi-forest sampler (\dQuote{a multi-forest sampler fixes its data at creation}), so the two channels never interact.
   }
   \item{active}{
     A numeric vector of per-observation 0/1 membership indicators - "row \eqn{i} is not in the data set for this sampler this sweep" - of length equal to that with which the sampler was created, or \code{NULL}. Unlike \code{weights}, \code{setActiveRows} reaches families that refuse case weights entirely: gaussian, Student-t, \code{probit}, \code{ordinal}, \code{logistic}, \code{nbinom}, and \code{aft} samplers all accept it, including a Bayesian causal forest (its two forests share one gaussian response). It is absolute and independent of \code{weights}, composing with it in either call order (\eqn{w_i \times a_i}{w_i * a_i} in effect). \code{NULL} clears the mask (every row active). Length and \code{NA} are validated as for \code{weights}; the only legal values are exactly \code{0} and \code{1}, and a fractional element refuses the WHOLE call and installs nothing. An all-ones vector reports success but installs NOTHING, clearing any previously installed mask - the OPPOSITE of \code{weights}, where an all-ones vector installs and is measurably distinct from carrying no weights at all. One channel states membership, the other precision, and the two deliberately carry opposite degenerate-value policies.
@@ -163,7 +167,7 @@
     A 0/1 (or logical) treatment indicator, of length equal to that with which the sampler was created. \code{setTreatment} only applies to a Bayesian causal forest built with \code{treatment = } (see \code{\link{dbarts}}); it writes both the engine and \code{data@treatment}, so \code{getPointer}'s transparent re-creation after save/load carries the current assignment rather than the one the sampler was created with.
   }
   \item{forest}{
-    For \code{getForestFits} and \code{getForestVariableCounts}, a single integer selecting a Bayesian causal forest's prognostic (\code{0}) or treatment (\code{1}) forest. Refused on a sampler that is not a Bayesian causal forest. For \code{getCalibration} and \code{setCalibration}, a single positive integer indexing the forests from \code{1} (the default, and the only forest of an ordinary sampler); a Bayesian causal forest's prognostic forest is \code{1} and its treatment forest \code{2}.
+    For \code{getForestFits} and \code{getForestVariableCounts}, a single integer selecting a Bayesian causal forest's prognostic (\code{0}) or treatment (\code{1}) forest. Refused on a sampler that is not a Bayesian causal forest. For \code{getCalibration} and \code{setCalibration}, a single positive integer indexing the forests from \code{1} (the default, and the only forest of an ordinary sampler); a Bayesian causal forest's prognostic forest is \code{1} and its treatment forest \code{2}. \code{setForestWeights} indexes from \code{1} as well, with no default: a Bayesian causal forest's treatment forest is \code{2L}.
   }
   \item{prior.scale}{
     For \code{setCalibration}, the prior standard deviation of the forest total at \code{k = 1}, in response units (the family's latent units where the response is not rescaled). This is the identified quantity: only the ratio of the leaf scale to \code{k} enters a draw law, so under a fixed \code{k} the pair has one degree of freedom, and \code{prior.scale} is the half of it a hyperprior on \code{k} leaves alone. Must be a single positive finite number; exactly one of \code{prior.scale} and \code{prior.sd} is given.
