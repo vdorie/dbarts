@@ -572,6 +572,18 @@ report - do not build a private substitute.
    `size_t` with no error channel (binding decision 5), so its out-of-range case
    must error rather than return 0 - a 0 tree count is indistinguishable from a
    legitimate answer to a caller that does not check.
+   **Carried from the S0 landing review (added here, not in the plan as
+   originally written).** `Chain::printTree`/`printSavedTree`,
+   `Sampler::printTrees` and the `SamplerBase`/`SamplerFacade` `printTrees`
+   virtual (S0, a262cd26) take `forestIndex` UNCHECKED - facade.hpp says so in
+   its own Doxygen - and both of today's callers (`C_interface.cpp`,
+   `R_interface_bartcore.cpp`) pass a literal 0, so nothing is reachable yet.
+   The moment `dbarts_sampler_printTrees` forwards a caller-supplied value
+   (this item), the bridge range check above is the ONLY thing standing
+   between an out-of-range forest index and `forests_[forestIndex]` reading
+   past the end. Do not assume `numTrees`/`getTrees` coverage extends to
+   `printTrees` by association - write its range check explicitly and cover
+   it with F5's negative half.
    **Do NOT build a forest-indexed `setTreeStorage`**: storage is per sampler
    (chain.hpp:1797-1806), so its only legal value would be "all forests". Record
    CLOSED BY FACT. **Do NOT build a forest-indexed `predict`**: it needs
@@ -1296,3 +1308,77 @@ prior version exists to have changed from (binding decision 8).
    were corrected by a line or two in the process (`R_interface.cpp` register
    table :256-265; `sampler.hpp:1017`; `C_interface.cpp:354` for the getTrees
    hardcode; `treatSens R_interface.cpp:446-448`).
+
+## Landing notes
+
+S0 LANDED a262cd26, 2026-08-13. The three remaining anonymous-namespace
+bridge guards - `refuseCscReferenceAgainstStore`, `refuseSparseLeafCovariate`,
+`validateTestContainerAgainstStore` - promoted into `bartcore_bridge` and
+declared in `R_interface_bartcore_common.hpp`; both engine tree printers
+(`Chain::printTree`/`printSavedTree` and `Sampler::printTrees` through the
+`SamplerBase`/`SamplerFacade` pair) widened with a forest index, undefaulted
+at every caller, both bridge call sites passing 0 today; `tests/cpp` gains an
+Rprintf capture shim in `common.cpp` (`ext_printf` is `Rprintf`; libR's own
+implementation needs a live R session and segfaults without one) and a
+two-branch BCF printer fixture. No `dbarts.h` touch, no X-list change, no
+hash move. 9 files, all `src/` + `tests/cpp`.
+
+Plan correction applied at spawn: the plan's "fourth namespace promotion"
+(`refuseBCFTestSurface`) had already landed, at bcf-public-surface S3
+(1622eb9); S0 promoted the remaining three, with 1622eb9 and 7299b8b standing
+as the in-tree promotion precedent.
+
+Budgets: engine (chain.hpp + sampler.hpp) +19/-12 against a ~15 budget,
+facade.hpp +9/-3 against ~10, bridge + common header net +45 against ~65,
+tests/cpp +122 against ~45 (2.7x on that area alone); total net +180 against
+~135, 1.33x, under the 1.5x stop. The tests/cpp overage is ruled justified by
+review: about 35 of the added lines are the capture shim plus its
+declarations, infrastructure the estimate assumed already existed (tests/cpp
+had no way to observe `ext_printf` before this slice); the rest is fixture
+and checks, not padding.
+
+Review: independent Opus reviewer, full battery from scratch, verdict LAND,
+no blockers. Confirmed: both unchanged-body promotions are byte-identical to
+their pre-move selves; the third is exactly the spec's re-signature
+(mechanical `parsed.view` -> `view` substitution, all four call sites
+converted, none left behind); `dbarts.h` is absent from the diff and
+`C_interface.cpp` gains only a comment and a `, 0` argument; the printers'
+forest-0 output is byte-identical, established INDEPENDENTLY (the reviewer
+built its own dump harness against the parent and HEAD headers, `cmp`
+byte-identical, 47 lines), and the forest index is non-vacuous (forest 1's
+dump differs from forest 0's - 21 splits all var 0 vs. 6 var 0 + 9 var 2;
+wiring the index to a constant 0 makes tau read as mu and fails three of the
+four new checks); the capture shim is sound (truncation clamped, capture
+disarmed before the sink dies, serial use only). Deviations, all ACCEPTED:
+(d1) the new declarations appended at the end of the namespace block, per the
+promotion-ordered precedent; (d2) the flat-C-consumer sentence in each
+promoted doc comment worded as rationale rather than a live fact, since no C
+call site exists until S1; (d3) the tests/cpp overage above.
+
+Reviewer non-blockers, dispositions: the capture shim is a bare global with
+no RAII guard, so a nested capture would clobber the outer one - add a scoped
+guard when a second call site needs one; unarmed output is silently
+discarded and a captured line truncates silently past 4095 bytes - both
+acceptable for a single serial call site today, revisit alongside the guard;
+one 81-column line lands in test_sampler.cpp (the file already carries 61
+others). CARRIED TO S1, written into that section as an explicit item: the
+widened printer index is documented but unchecked (facade.hpp), and both
+production callers pass a literal 0 today - S1 MUST add the bridge range
+check the moment the index becomes caller-supplied.
+
+Pre-existing finding, confirmed at the parent by the reviewer and NOT
+introduced by S0: `./test_bartcore sampler` run alone (a single-suite
+filtered run) fails the hardcoded "BCF grow-from-root combined fit
+characteristic value" check, because filtering shifts the shared
+`runif01()` stream; the full unfiltered run is the gate and is clean. A short
+TODO entry records this so nobody debugs a filtered run as a regression.
+
+Gates: implementer and reviewer batteries both green from scratch (preclean
+private-lib installs; `tests/cpp` from clean 232/232 plain AND ASAN/UBSAN,
+zero sanitizer diagnostics; full tinytest 4424/0, provenance-checked, no
+snapshot regenerated; the trio IDENTICAL - equivalence-8b047f8b 37/37 strict,
+bcf-equivalence-8b047f8b 12/12, multinomial-equivalence-1027be5 10/10, no
+max |z| line anywhere - LABELLED a formality, per this plan's rng line, since
+no flat entry drives it yet). x86 leg (dbarts-bench) green: install clean,
+tests/cpp plain + ASAN both all-pass, tinytest 4412/0, equivalence.R
+statistical 37/37, max |z| = 0.00, exit 0. CI six-green on the push.

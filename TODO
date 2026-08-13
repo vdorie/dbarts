@@ -501,6 +501,17 @@ items
     a cloglog binary family), grouped frailty, time-varying covariates
     in the auto-expander, continuous-time models (gate stands - that
     is AFT, which ships). low-ranked.
+  test-bartcore-filtered-run-false-fail: `./test_bartcore sampler` run
+    alone (a single-suite filtered run) fails the hardcoded "BCF
+    grow-from-root combined fit characteristic value" check, because
+    filtering shifts the shared runif01() stream the hardcoded value
+    depends on; NOT a regression - pre-existing, reconfirmed against
+    the parent commit during the dbarts-h-reshape S0 review
+    (landed a262cd26). The full unfiltered run is, and remains, the
+    gate, and it is clean. Give the affected test its own locally
+    seeded stream (the testPrintTreesForest precedent, a262cd26) so a
+    filtered run stops false-failing. Harness-only, no engine change.
+    Pre-release at discretion.
   tree-mixing-proposals: research door - how is the BART posterior
     sticky, and what proposal mechanisms beyond the shipped four-move
     set would help? RESEARCH COMPLETE; durable record
@@ -524,7 +535,10 @@ items
     predictor params; forest-indexed tree queries; sparse predict for
     free; no version increments - the hash is the lockstep signal;
     slices S0-S2, AFTER the multiforest and multinomial arcs;
-    consumer cost = five stan4bart call sites, others rebuild). The
+    consumer cost = five stan4bart call sites, others rebuild). S0
+    (printer forest index widened on both engine paths + three
+    bridge guards promoted into bartcore_bridge, no dbarts.h touch,
+    no X-list change, no hash move) LANDED a262cd26. The
     BCF-specific flat rename is a CARVE-OUT there (binding decision 3
     + S1 item 5b): setTreatment -> setForestBasis, bcfGlue ->
     numForestAmplitudes + forestAmplitudes. Extension-surface fork 3
