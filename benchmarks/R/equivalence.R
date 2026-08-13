@@ -327,6 +327,46 @@ makeScenarios <- function() {
     samplerApi = TRUE
   )
 
+  # active-row mask (docs/plans/latent-subset-mask.md) on a probit sampler:
+  # the family that accepts no case weights at all still takes a
+  # between-draws 0/1 row mask, exercised mid-chain through $setActiveRows
+  # exactly as wtoffset exercises setWeights above - the counterpart to
+  # zeroweights for a family zero weights cannot reach.
+  set.seed(5132L)
+  x <- matrix(runif(600L * 10L), 600L)
+  result$maskprobit <- list(
+    x = x,
+    y = rbinom(600L, 1L, pnorm(scale(friedman(x)))),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE,
+    samplerApi = TRUE,
+    samplerArgs = list(family = "probit"),
+    mutate = list(activeRows = as.double(rbinom(600L, 1L, 0.75)))
+  )
+
+  # the same mask on an ordinal sampler: two family-specific sums
+  # (computeScales, the cutpoint proposal; cutpointLogAcceptance, its
+  # target) ride the mask beside the shared latent-skip machinery the probit
+  # scenario above exercises, so this is the one guard on the cutpoint pass
+  # moving under a mask installed mid-chain.
+  set.seed(5133L)
+  x <- matrix(runif(500L * 10L), 500L)
+  latentMask <- as.vector(scale(friedman(x))) + rnorm(500L)
+  result$maskordinal <- list(
+    x = x,
+    y = cut(
+      latentMask,
+      c(-Inf, -0.8, 0.2, 1.0, Inf),
+      labels = c("a", "b", "c", "d"),
+      ordered_result = TRUE
+    ),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE,
+    samplerApi = TRUE,
+    samplerArgs = list(family = "ordinal"),
+    mutate = list(activeRows = as.double(rbinom(500L, 1L, 0.75)))
+  )
+
   # sparse (dgCMatrix) predictors: the rank-bitmap column store and sparse
   # partition kernel. x.test stays dense (sparse test input is unsupported).
   # Skipped when Matrix is unavailable so the core gate still runs.
@@ -835,6 +875,9 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
     sampler$run(nskip, 0L)
     if (!is.null(scenario$mutate$weights)) {
       sampler$setWeights(scenario$mutate$weights)
+    }
+    if (!is.null(scenario$mutate$activeRows)) {
+      sampler$setActiveRows(scenario$mutate$activeRows)
     }
     if (!is.null(scenario$mutate$offset.test)) {
       sampler$setTestOffset(scenario$mutate$offset.test)

@@ -1570,6 +1570,51 @@ static void testActiveRows() {
       ext_rng_destroy(rng);
     }
 
+    // carried from the S2 review (verified manually there; pinned here): an
+    // all-zeros mask on logistic and nbinom also runs finite, exactly as the
+    // gaussian arm above.
+    for (const Reachable& r : reachable) {
+      if (r.family == ResponseFamily::probit) continue;
+      ext_rng* rng;
+      auto sampler = makeSampler(rng, r.family, r.response, nullptr);
+      check(sampler->setActiveRows(zeros.data()),
+            "an all-zeros mask is accepted on this family too");
+      std::vector<double> sigmaZ(numSamples), trainZ(n * numSamples);
+      Results resultsZ;
+      resultsZ.sigma = sigmaZ.data();
+      resultsZ.trainingFits = trainZ.data();
+      sampler->run(10, numSamples, resultsZ);
+      bool finiteZ = true;
+      for (size_t s = 0; s < numSamples; ++s)
+        finiteZ = finiteZ && sigmaZ[s] > 0.0;
+      for (double v : trainZ) finiteZ = finiteZ && std::isfinite(v);
+      check(finiteZ, "an all-zeros mask runs finite and reports every fit");
+      ext_rng_destroy(rng);
+    }
+
+    // aft needs its own construction (survivalStatus), so it is not in
+    // reachable above; same all-zeros claim, carried from the same review.
+    SamplerOptions aftOptions = options;
+    std::vector<double> statusAll(n, 1.0);  // no censoring; any finite y works
+    aftOptions.survivalStatus = statusAll.data();
+    ext_rng* rngAft = makeSeededRng();
+    ConstantLeafSampler aftSampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                                   ResponseFamily::aft, 1.0, 3.0,
+                                   0.37804942330213542, aftOptions, &rngAft);
+    check(aftSampler.setActiveRows(zeros.data()),
+          "an all-zeros mask is accepted on an aft sampler");
+    std::vector<double> sigmaAftZ(numSamples), trainAftZ(n * numSamples);
+    Results resultsAftZ;
+    resultsAftZ.sigma = sigmaAftZ.data();
+    resultsAftZ.trainingFits = trainAftZ.data();
+    aftSampler.run(10, numSamples, resultsAftZ);
+    bool finiteAftZ = true;
+    for (size_t s = 0; s < numSamples; ++s)
+      finiteAftZ = finiteAftZ && sigmaAftZ[s] > 0.0;
+    for (double v : trainAftZ) finiteAftZ = finiteAftZ && std::isfinite(v);
+    check(finiteAftZ, "an all-zeros mask runs finite on an aft sampler too");
+    ext_rng_destroy(rngAft);
+
     const size_t K = 3;
     std::vector<int> categoryCounts(n * K, 0), trials(n, 1);
     for (size_t i = 0; i < n; ++i) categoryCounts[(i % K) * n + i] = 1;

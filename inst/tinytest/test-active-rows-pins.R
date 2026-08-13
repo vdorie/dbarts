@@ -1,5 +1,5 @@
-# S0 pins for the latent-subset-mask arc: fixed points the active-rows
-# channel must not move without disturbing. Extended at S1.
+# Fixed points the active-row mask channel must not move without disturbing,
+# plus the channel's own semantics pinned one assertion at a time below.
 
 set.seed(20260812L)
 n <- 200L
@@ -36,7 +36,7 @@ expect_error(
 
 rm(sampler.probit)
 
-# --- S1: the $setActiveRows channel ---------------------------------------
+# --- the $setActiveRows channel ---------------------------------------
 # The mask says "row i is not in the data set for this sampler this sweep": the
 # row leaves every sufficient statistic, every family-level parameter update
 # and its own latent draw, but keeps its leaf occupancy and its fitted value.
@@ -57,7 +57,7 @@ makeSampler <- function(weights = NULL, ...) {
   )
 }
 
-# T1, gaussian, BITWISE: setActiveRows(a) on a sampler carrying w draws exactly
+# Gaussian, bitwise: setActiveRows(a) on a sampler carrying w draws exactly
 # what setWeights(w * a) draws with no mask. The comparator is w * a, never "no
 # weights" - an unweighted sampler is not bitwise one carrying rep(1, n),
 # because only the unweighted path takes the fused node-average roll.
@@ -70,8 +70,8 @@ expect_identical(draws.masked$train, draws.composed$train)
 expect_identical(draws.masked$sigma, draws.composed$sigma)
 rm(masked, composed, draws.masked, draws.composed)
 
-# T1, Student-t: both arms draw lambda at every row on the same build, so the
-# mask annihilates the composite without moving the stream
+# Student-t, bitwise: both arms draw lambda at every row on the same build,
+# so the mask annihilates the composite without moving the stream
 masked.t <- makeSampler(w, resid.dist = dbarts:::student(df = 4))
 masked.t$setActiveRows(a)
 composed.t <- makeSampler(w * a, resid.dist = dbarts:::student(df = 4))
@@ -81,10 +81,40 @@ expect_identical(draws.masked.t$train, draws.composed.t$train)
 expect_identical(draws.masked.t$sigma, draws.composed.t$sigma)
 rm(masked.t, composed.t, draws.masked.t, draws.composed.t)
 
-# T2(b), the all-ones normalizer, on BOTH surfaces this slice ships - the R5
-# method and the dbarts::: bridge entry. The normalizer is in the ENGINE, so
-# neither surface can be the one that is right. (The flat entry is the third
-# surface; it lands with the dbarts.h reshape.)
+# Bayesian causal forest, bitwise: a BCF sampler's two forests share one
+# gaussian response, which composes the mask exactly as the single-forest
+# gaussian arm above, and the mask reaches both forests through
+# composeForestWeights with no code of its own - so setActiveRows(a) on a
+# BCF sampler carrying w draws exactly what setWeights(w * a) draws with no
+# mask, on train and sigma both.
+z.bcf <- as.double(seq_len(n) %% 2L)
+masked.bcf <- dbarts::dbarts(
+  x,
+  y,
+  treatment = z.bcf,
+  weights = w,
+  control = control,
+  sigma = 1
+)
+masked.bcf$setActiveRows(a)
+composed.bcf <- dbarts::dbarts(
+  x,
+  y,
+  treatment = z.bcf,
+  weights = w * a,
+  control = control,
+  sigma = 1
+)
+draws.masked.bcf <- masked.bcf$run(20L, 10L)
+draws.composed.bcf <- composed.bcf$run(20L, 10L)
+expect_identical(draws.masked.bcf$train, draws.composed.bcf$train)
+expect_identical(draws.masked.bcf$sigma, draws.composed.bcf$sigma)
+rm(masked.bcf, composed.bcf, draws.masked.bcf, draws.composed.bcf, z.bcf)
+
+# The all-ones normalizer, on BOTH R-facing surfaces - the R5 method and the
+# dbarts::: bridge entry. The normalizer is in the ENGINE, so neither surface
+# can be the one that is right. (The flat entry is the third surface; it
+# lands with the dbarts.h reshape.)
 #
 # The comparator is deliberately an UNWEIGHTED sampler: gaussian-unweighted,
 # probit and ordinal are the three configurations still on the fused
@@ -173,7 +203,7 @@ swapped$setData(newData)
 expect_identical(dropped$run(20L, 10L)$train, swapped$run(20L, 10L)$train)
 rm(order.aw, order.wa, survives, kept, dropped, swapped, newData, w2)
 
-# F6: an all-zeros mask is ACCEPTED and runs - the natural answer for a host
+# An all-zeros mask is ACCEPTED and runs - the natural answer for a host
 # whose stratum has emptied. Every forest sits at its prior and every row still
 # receives a fit, which is what makes the channel worth more than compaction.
 empty <- makeSampler(w)
@@ -184,7 +214,7 @@ expect_true(all(is.finite(draws.empty$sigma) & draws.empty$sigma > 0))
 expect_equal(dim(draws.empty$train), c(n, 10L))
 rm(empty, draws.empty)
 
-# T2(c), probit: substituting arbitrary labels at the INACTIVE rows leaves
+# Probit: substituting arbitrary labels at the INACTIVE rows leaves
 # every active row's recorded draw bitwise. Because the truncated-normal
 # primitive is a rejection sampler, this fails outright if an inactive row's
 # latent is drawn and discarded rather than skipped.
@@ -268,15 +298,15 @@ expect_true(
 )
 rm(gp, draws.gp)
 
-# --- S2: logistic, nbinom and aft ------------------------------------------
-# Each family's oracle is T2(c) at the SAMPLER level: substituting arbitrary
-# in-support responses at the INACTIVE rows leaves every ACTIVE row's recorded
-# draw bitwise. Because every one of these latents comes from a rejection
-# sampler, an arm fails outright if an inactive row's draw is taken and
-# discarded rather than skipped. An inactive row's own reported fit is not
-# claimed bitwise, for the reason the probit arm above states.
+# --- logistic, nbinom and aft ------------------------------------------
+# Each family's oracle substitutes arbitrary in-support responses at the
+# INACTIVE rows and checks that every ACTIVE row's recorded draw stays
+# bitwise, at the SAMPLER level. Because every one of these latents comes
+# from a rejection sampler, an arm fails outright if an inactive row's draw
+# is taken and discarded rather than skipped. An inactive row's own reported
+# fit is not claimed bitwise, for the reason the probit arm above states.
 
-# T2(c), ordinal, at the sampler level beside the kernel-level coverage in
+# Ordinal, at the sampler level beside the kernel-level coverage in
 # tests/cpp: the cutpoint pass is the surface the kernels cover one at a time,
 # and both its proposal (a count tally) and its target (a category-wise
 # likelihood) read the mask, so a mask reaching the latents but not the
@@ -380,9 +410,10 @@ aft.train.b <- dbarts:::bartcoreRun(aftHandle(y.other), 20L, 10L)$train
 expect_identical(aft.train.a[a == 1, ], aft.train.b[a == 1, ])
 expect_true(max(abs(aft.train.a[a == 0, ] - aft.train.b[a == 0, ])) < 1e-12)
 
-# T2(b) for the three families this slice adds: the engine's normalizer clears
-# an all-ones mask, and each serves its pre-mask precision pointer by identity
-# when it does - a new branch per family, so a new arm per family.
+# The all-ones normalizer for logistic, nbinom and aft: the engine's
+# normalizer clears an all-ones mask, and each serves its pre-mask precision
+# pointer by identity when it does - a new branch per family, so a new arm
+# per family.
 expect_identical(
   logisticSampler(y.binary, mask = rep(1, n))$run(20L, 10L)$train,
   logisticSampler(y.binary, mask = NULL)$run(20L, 10L)$train
@@ -396,7 +427,7 @@ expect_identical(
   dbarts:::bartcoreRun(aftHandle(y, NULL), 20L, 10L)$train
 )
 
-# --- S3: multinomial, GLOBAL only -------------------------------------------
+# --- multinomial, GLOBAL only -------------------------------------------
 # The mask lands on the softmax COUPLING, not on the response, which holds no
 # precisions of its own: an inactive row's K interleaved Polya-Gamma draws are
 # skipped and its composed precision is zero in every category. The R5 object
@@ -408,7 +439,8 @@ counts.mn <- matrix(0L, n, K.mn)
 counts.mn[cbind(seq_len(n), labels.mn + 1L)] <- 1L + seq_len(n) %% 3L
 # The substituted arm moves the successes AND the trials at the inactive rows:
 # PG(n_i, psi) sums n_i variates, so a mask that reached the working response
-# but not the draw count would part here (the logistic lesson at S2).
+# but not the draw count would part here, exactly as it does for logistic
+# above.
 counts.mn.other <- counts.mn
 counts.mn.other[a == 0, ] <- counts.mn[a == 0, c(2L, 3L, 1L)] + 2L
 
@@ -424,9 +456,9 @@ multinomialHandle <- function(counts, mask = a) {
   handle
 }
 
-# T2(c): substituting the inactive rows' counts leaves every ACTIVE row's
-# recorded softmax bitwise. Polya-Gamma is a rejection sampler, so this fails
-# outright if an inactive row's K draws are taken and discarded, not skipped.
+# Substituting the inactive rows' counts leaves every ACTIVE row's recorded
+# softmax bitwise. Polya-Gamma is a rejection sampler, so this fails outright
+# if an inactive row's K draws are taken and discarded, not skipped.
 train.mn.a <- dbarts:::bartcoreRun(multinomialHandle(counts.mn), 20L, 10L)$train
 train.mn.b <- dbarts:::bartcoreRun(
   multinomialHandle(counts.mn.other),
@@ -436,8 +468,8 @@ train.mn.b <- dbarts:::bartcoreRun(
 expect_identical(train.mn.a[a == 1, , ], train.mn.b[a == 1, , ])
 expect_true(max(abs(train.mn.a[a == 0, , ] - train.mn.b[a == 0, , ])) < 1e-12)
 
-# T2(b): the engine's normalizer clears an all-ones mask here too, and the
-# coupling serves its unmasked precisions when it does
+# The all-ones normalizer clears here too, and the coupling serves its
+# unmasked precisions when it does
 expect_identical(
   dbarts:::bartcoreRun(multinomialHandle(counts.mn, rep(1, n)), 20L, 10L)$train,
   dbarts:::bartcoreRun(multinomialHandle(counts.mn, NULL), 20L, 10L)$train

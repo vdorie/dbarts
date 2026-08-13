@@ -207,18 +207,23 @@ budgets)
   across four slices (budget expected above ~300 at design time);
   the excess is the flat-C half, the leaf-model contract, the
   three creation refusals and the oracle.
-- A latent-family subset mask (TODO `latent-subset-mask`): design arc
-  before reshape S1. This is the row-subset door the corrected demand
-  survey actually opens (see "Demand headlines") - Gaussian row
-  subsetting already ships today via zero weights. princeBART guards
-  each `setData` block with `if (sum(<stratum>) > 0)`, so a stratum
-  that empties is SKIPPED and that sampler silently keeps the previous
-  iteration's data; and `dbarts_binary` widens dbarts's binary
-  detection to admit an all-0/all-1 stratum (R/utils.R:191-200,
-  comment "can happen in principal stratification") because a
-  constant all-1 response is NOT detected as binary today. Both are
-  defects the mask removes by construction, and both are stronger
-  demand evidence than the count that was wrong.
+- A latent-family subset mask (TODO `latent-subset-mask`): SHIPPED, S0-S4
+  (dc11a805, 6db22aee, 87d370ea, 8b047f8b, this slice). This is the
+  row-subset door the corrected demand survey opened (see "Demand
+  headlines") - Gaussian row subsetting already shipped via zero weights;
+  `$setActiveRows` extends the same "row i is not in the data set this
+  sweep" membership channel to gaussian, Student-t, probit, ordinal,
+  logistic, negative-binomial, aft and multinomial (global only), the
+  latent families zero weights cannot reach. princeBART guarded each
+  `setData` block with `if (sum(<stratum>) > 0)`, so a stratum that
+  emptied was SKIPPED and that sampler silently kept the previous
+  iteration's data; and `dbarts_binary` widens dbarts's binary detection
+  to admit an all-0/all-1 stratum (R/utils.R:191-200, comment "can happen
+  in principal stratification") because a constant all-1 response is NOT
+  detected as binary today. Both were defects the mask removes by
+  construction - an all-zeros mask is accepted and runs rather than
+  needing to be guarded around - and both were stronger demand evidence
+  than the count that was wrong.
 - The empty-leaf veto fix (TODO `empty-leaf-veto-fix`): its own
   measured slice, a draw-law change - the veto counts LEAF MEMBERS
   where it should count POSITIVE-WEIGHT members

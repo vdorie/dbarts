@@ -354,6 +354,32 @@ runScenarios <- function() {
     c(recordChannels(bc, res), list(installed = installed))
   })
 
+  # (l) active-row mask (docs/plans/latent-subset-mask.md) on the shared
+  # gaussian response: a BCF chain composes the mask into its
+  # GaussianResponse (the sigma df recount) and into composeForestWeights'
+  # fan-out across BOTH forests, with no combiner-level code of its own -
+  # the base ForestCombiner's setActiveRows is a no-op by design. Exercised
+  # mid-chain through bartcoreSetActiveRows, same shape as (f)'s forced
+  # setPredictor. Seeds are LITERAL, kept out of the guarded `seeds` vector
+  # as (f)-(k)'s are, so settingsList() stays identical to the a825263
+  # baseline and its neutrality compare still runs.
+  result$masked <- local({
+    d <- makeData(n, p, 8012L)
+    set.seed(8112L)
+    mask <- as.double(rbinom(n, 1L, 0.75))
+    sampler <- dbarts(d$x, d$y, control = makeControl())
+    set.seed(9012L)
+    bc <- dbarts:::bartcoreBCFSampler(
+      sampler,
+      d$z,
+      n.trees.treatment = n.trees.tau
+    )
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    dbarts:::bartcoreSetActiveRows(bc, mask)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    recordChannels(bc, res)
+  })
+
   result
 }
 
