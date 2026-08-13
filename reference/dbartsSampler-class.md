@@ -68,6 +68,12 @@ getBCFGlue()
 # S4 method for class 'dbartsSampler'
 getForestVariableCounts(forest)
 # S4 method for class 'dbartsSampler'
+getCalibration(forest = 1L)
+# S4 method for class 'dbartsSampler'
+setCalibration(
+  prior.scale, prior.sd, prior.mean, forest = 1L, updateState = NA
+)
+# S4 method for class 'dbartsSampler'
 installTrees(donor, samples = NULL)
 # S4 method for class 'dbartsSampler'
 storeState()
@@ -115,17 +121,18 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   object's `updateState`, and explicit `TRUE`/`FALSE` override it. For
   the mutators - `setData`, `setResponse`, `setOffset`, `setWeights`,
-  `setTreatment`, `setSigma`, `setPredictor`, and `setCutPoints` - the
-  state is stored only on explicit `TRUE`; `NA` (the default) and
-  `FALSE` both store nothing, regardless of `control@updateState`. These
-  are typically called once per sweep inside a larger Gibbs/MH loop (as
-  `dbartsSampler` is designed for), where storing state on every
-  mutation would be wasted work whenever the loop only reads `state`
-  occasionally (or never); an unforced `state` promise materializes the
-  sampler's *current* state on first access regardless, so a
-  mutate-then-first-read sequence needs no explicit store. Pass `TRUE`
-  explicitly when `state` was already forced (read or saved) earlier and
-  a later mutation must be reflected in the next save.
+  `setTreatment`, `setSigma`, `setCalibration`, `setPredictor`, and
+  `setCutPoints` - the state is stored only on explicit `TRUE`; `NA`
+  (the default) and `FALSE` both store nothing, regardless of
+  `control@updateState`. These are typically called once per sweep
+  inside a larger Gibbs/MH loop (as `dbartsSampler` is designed for),
+  where storing state on every mutation would be wasted work whenever
+  the loop only reads `state` occasionally (or never); an unforced
+  `state` promise materializes the sampler's *current* state on first
+  access regardless, so a mutate-then-first-read sequence needs no
+  explicit store. Pass `TRUE` explicitly when `state` was already forced
+  (read or saved) earlier and a later mutation must be reflected in the
+  next save.
 
 - shallow:
 
@@ -249,7 +256,37 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   For `getForestFits` and `getForestVariableCounts`, a single integer
   selecting a Bayesian causal forest's prognostic (`0`) or treatment
   (`1`) forest. Refused on a sampler that is not a Bayesian causal
-  forest.
+  forest. For `getCalibration` and `setCalibration`, a single positive
+  integer indexing the forests from `1` (the default, and the only
+  forest of an ordinary sampler); a Bayesian causal forest's prognostic
+  forest is `1` and its treatment forest `2`.
+
+- prior.scale:
+
+  For `setCalibration`, the prior standard deviation of the forest total
+  at `k = 1`, in response units (the family's latent units where the
+  response is not rescaled). This is the identified quantity: only the
+  ratio of the leaf scale to `k` enters a draw law, so under a fixed `k`
+  the pair has one degree of freedom, and `prior.scale` is the half of
+  it a hyperprior on `k` leaves alone. Must be a single positive finite
+  number; exactly one of `prior.scale` and `prior.sd` is given.
+
+- prior.sd:
+
+  For `setCalibration`, the same statement at the `k` currently in
+  force, so `prior.scale = prior.sd * k`. Refused when `k` is drawn from
+  a hyperprior - it would name a different prior every sweep - and
+  refused when the chains' `k` have diverged, since one number would
+  then mean a different scale on each; `prior.scale` serves in both
+  cases. Note the binary families default to a sampled `k`.
+
+- prior.mean:
+
+  Not writable, and present only to say so with its remedy: the leaf
+  values it would shift are already drawn and stored. The prior mean of
+  the forest total is the response transform's shift, and the lever that
+  moves the modelled quantity is the offset channel,
+  `setOffset(rep_len(-getCalibration()[1, "prior.mean"], n))`.
 
 - cuts:
 
@@ -665,6 +702,59 @@ matrix. For `getBCFGlue`, the combining coefficients \\(a, b_0, b_1)\\
 of \\y = a \mu(x) + b_z \tau(x) + \epsilon\\, a 3 x n.chains matrix. For
 `getForestVariableCounts`, the requested forest's current per-predictor
 split counts, an n.predictors x n.chains integer matrix.
+
+For `getCalibration`, the leaf-prior calibration a forest currently runs
+under, as a numeric matrix with one row per chain and the columns
+`prior.scale` (the prior standard deviation of the forest total at
+`k = 1`, in response units), `prior.sd` (`prior.scale / k`),
+`prior.mean`, `k`, `k.has.hyperprior` (1 when this forest's `k` is drawn
+every sweep, in which case `prior.sd` moves every sweep while
+`prior.scale` does not), `response.scale`, and `response.shift`. The
+leaf model rides as a `"leaf.model"` attribute, one of `"constant"`,
+`"monotone"`, `"linear"`, or `"gp"`, and qualifies what `prior.sd`
+means.
+
+`prior.scale` and `prior.sd` describe the LEAF-PARAMETER scale of the
+forest total. They equal the prior standard deviation of \\f(x)\\ at
+every \\x\\ for the constant leaf only; for the other three the prior of
+\\f(x)\\ is x-dependent and `prior.sd` bounds it in a leaf-specific
+direction. Under `"linear"` it is a LOWER bound attained at the
+standardized covariate origin, with \\sd(f(x)) = \\ `prior.sd`
+\\\sqrt{1 + \\z(x)\\^2}\\ in the internally standardized leaf covariates
+(a missing value maps to \\z_j = 0\\); `prior.mean` is exact. Under
+`"gp"` it is an UPPER bound over \\x\\, attained at rows that reproduce
+a leaf member and on over-cap leaves, and elsewhere decaying to zero as
+\\x\\ leaves the leaf's data cloud, where every prior draw equals
+`prior.mean` exactly. Under `"monotone"` it is a LOWER bound in the
+interior - the realized standard deviation runs a few per cent to about
+twenty per cent above it - and `prior.mean` is NOT the prior mean of
+\\f(x)\\ under an active constraint: that marginal is skew, with an
+x-dependent mean tracking the constraint's direction across several
+`prior.sd` (see `monotone` in
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)).
+
+This is the authoritative reader of the calibration in force. A model's
+`prior.scale` slot records the named intent and is never rewritten by
+the engine, so a channel that re-anchors the response transform -
+`setResponse` or `setOffset` at `updateScale = TRUE`, or `setData` -
+moves what is in force while leaving the intent alone; `getCalibration`
+shows the move, and `setCalibration` or `setModel(sampler$model)`
+re-issues the intent.
+
+For `setCalibration`, `NULL` invisibly. The write lands on every chain
+and takes effect on the next sweep, reinterpreting no leaf value already
+drawn; a write that reproduces what is already in force is skipped
+bitwise, so a read followed by a write cannot perturb a draw. It is
+total over the four leaf models, each of which carries the one scale it
+writes. It is refused on a Bayesian causal forest and on a multinomial
+sampler, whose per-forest leaf scales come from their own calibration
+maps, and on the host shell of a fit whose model lives elsewhere; a
+value that is not a single positive finite number is an error. Nothing
+else moves - not `k`, not the response transform, not `sigma`, not the
+tree prior, not a DART split prior - which is the difference from
+`setModel`, and the reason a DART sampler is served here and refused
+there. A heteroscedastic sampler's variance forest is a separate leaf
+model and is not addressable.
 
 For `storeState`, `NULL` invisibly; it is called for its side effect of
 capturing the sampler's current engine state into the serializable
