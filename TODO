@@ -141,6 +141,12 @@ items
     O2's pooled-below-cap coverage; an all-zero-weights
     present-category fixture); the multiforest fuzz op-mask door
     (OP_GROW rides it with OP_SET_COUNTS).
+  hurdle-variance-forwarding: the feature matrix
+    (docs/design/feature-matrix.md) records that a hurdle model
+    forwards variance = to BOTH components while the occupancy
+    probit would refuse it, contradicting man/bart.Rd's hurdle
+    text. Verify which side is wrong and fix (behavior or doc);
+    small slice.
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. A memory win, not speed; integer -> double
     is exact in range so the slice MUST be trio-bitwise. Split out of
@@ -288,6 +294,16 @@ items
     S3 flat C inside dbarts-h-reshape S1 (S0 lands before that
     slice starts). V1-V10 adopted 2026-08-12 under VD's
     proceed-at-discretion grant.
+  multinomial-dart-drop: bart2(family = "multinomial") accepts a
+    DART request and silently drops it (the chain never routes it;
+    see docs/design/feature-matrix.md for the anchors), unlike BCF
+    which refuses by name. Add the refusal or the routing; small
+    slice, verify the matrix's anchors at scoping.
+  multinomial-variance-crash: buildMultinomialSampler does not
+    null-check the factory before setTestPredictors, so
+    bart2(family = "multinomial", variance = ...) likely crashes
+    rather than errors (docs/design/feature-matrix.md). Reproduce,
+    then refuse cleanly; small slice.
   named-recipes: named, tested R compositions cross-referenced from
     ?bart (probit/aft residualization, K-block splitting, and the
     rest of the getting-started recipes the r-c-division demand
@@ -495,6 +511,9 @@ items
     prior-predictive draw; the setState variance COLUMN-MASK gap - a
     distinct, still-open check (columnMaskSubtreeIsValid has no
     variance-branch backstop), not the occupancy gap S3 closed.
+  warm-starts-doc-stale: docs/plans/warm-starts.md is stale on
+    cross-grid remap per the feature-matrix pass (one line); verify
+    and correct at the next records touch.
   weighted-binary: integer-weight probit via replicated latents;
     arbitrary real weights need a real-shape PG sampler (IPW is a
     pseudo-likelihood trap; the approximate-PG decision is shared
