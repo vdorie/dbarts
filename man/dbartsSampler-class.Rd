@@ -18,7 +18,7 @@
 \alias{\S4method{setWeights}{dbartsSampler}}
 \alias{\S4method{setActiveRows}{dbartsSampler}}
 \alias{\S4method{setForestWeights}{dbartsSampler}}
-\alias{\S4method{setTreatment}{dbartsSampler}}
+\alias{\S4method{setForestBasis}{dbartsSampler}}
 \alias{\S4method{setSigma}{dbartsSampler}}
 \alias{\S4method{setPredictor}{dbartsSampler}}
 \alias{\S4method{setCutPoints}{dbartsSampler}}
@@ -31,7 +31,7 @@
 \alias{\S4method{getLatents}{dbartsSampler}}
 \alias{\S4method{getSumsOfSquaredResiduals}{dbartsSampler}}
 \alias{\S4method{getForestFits}{dbartsSampler}}
-\alias{\S4method{getBCFGlue}{dbartsSampler}}
+\alias{\S4method{getForestAmplitudes}{dbartsSampler}}
 \alias{\S4method{getForestVariableCounts}{dbartsSampler}}
 \alias{\S4method{getCalibration}{dbartsSampler}}
 \alias{\S4method{setCalibration}{dbartsSampler}}
@@ -63,7 +63,7 @@
 \S4method{setWeights}{dbartsSampler}(weights, updateState = NA)
 \S4method{setActiveRows}{dbartsSampler}(active, updateState = NA)
 \S4method{setForestWeights}{dbartsSampler}(forest, weights, updateState = NA)
-\S4method{setTreatment}{dbartsSampler}(z, updateState = NA)
+\S4method{setForestBasis}{dbartsSampler}(forest, basis, updateState = NA)
 \S4method{setSigma}{dbartsSampler}(sigma, updateState = NA)
 \S4method{setPredictor}{dbartsSampler}(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA)
 \S4method{setCutPoints}{dbartsSampler}(cuts, column, updateState = NA)
@@ -78,7 +78,7 @@
 \S4method{getLatents}{dbartsSampler}(result)
 \S4method{getSumsOfSquaredResiduals}{dbartsSampler}(result)
 \S4method{getForestFits}{dbartsSampler}(forest)
-\S4method{getBCFGlue}{dbartsSampler}()
+\S4method{getForestAmplitudes}{dbartsSampler}()
 \S4method{getForestVariableCounts}{dbartsSampler}(forest)
 \S4method{getCalibration}{dbartsSampler}(forest = 1L)
 \S4method{setCalibration}{dbartsSampler}(
@@ -101,7 +101,7 @@
     A positive integer determining how many posterior samples should be returned. If missing or \code{NA}, the default is also filled in from the control object.
   }
   \item{updateState}{
-    A logical determining if the local cache of the sampler's state should be updated after the call completes. Two conventions apply, by method: for \code{run}, \code{sampleTreesFromPrior}, and \code{sampleNodeParametersFromPrior}, \code{NA} (the default) fills in the sampler's \code{\link[=dbartsControl]{control}} object's \code{updateState}, and explicit \code{TRUE}/\code{FALSE} override it. For the mutators - \code{setData}, \code{setResponse}, \code{setOffset}, \code{setWeights}, \code{setTreatment}, \code{setSigma}, \code{setCalibration}, \code{setPredictor}, and \code{setCutPoints} - the state is stored only on explicit \code{TRUE}; \code{NA} (the default) and \code{FALSE} both store nothing, regardless of \code{control@updateState}. These are typically called once per sweep inside a larger Gibbs/MH loop (as \code{dbartsSampler} is designed for), where storing state on every mutation would be wasted work whenever the loop only reads \code{state} occasionally (or never); an unforced \code{state} promise materializes the sampler's \emph{current} state on first access regardless, so a mutate-then-first-read sequence needs no explicit store. Pass \code{TRUE} explicitly when \code{state} was already forced (read or saved) earlier and a later mutation must be reflected in the next save.
+    A logical determining if the local cache of the sampler's state should be updated after the call completes. Two conventions apply, by method: for \code{run}, \code{sampleTreesFromPrior}, and \code{sampleNodeParametersFromPrior}, \code{NA} (the default) fills in the sampler's \code{\link[=dbartsControl]{control}} object's \code{updateState}, and explicit \code{TRUE}/\code{FALSE} override it. For the mutators - \code{setData}, \code{setResponse}, \code{setOffset}, \code{setWeights}, \code{setForestBasis}, \code{setSigma}, \code{setCalibration}, \code{setPredictor}, and \code{setCutPoints} - the state is stored only on explicit \code{TRUE}; \code{NA} (the default) and \code{FALSE} both store nothing, regardless of \code{control@updateState}. These are typically called once per sweep inside a larger Gibbs/MH loop (as \code{dbartsSampler} is designed for), where storing state on every mutation would be wasted work whenever the loop only reads \code{state} occasionally (or never); an unforced \code{state} promise materializes the sampler's \emph{current} state on first access regardless, so a mutate-then-first-read sequence needs no explicit store. Pass \code{TRUE} explicitly when \code{state} was already forced (read or saved) earlier and a later mutation must be reflected in the next save.
   }
   \item{shallow}{
     A logical determining if the copy should retain the underlying data of the sampler (\code{TRUE}) or have its own copies (\code{FALSE}).
@@ -128,7 +128,7 @@
     A numeric vector of length equal to that with which the sampler was created, or \code{NULL}. If \code{offset.test} was set from \code{offset}, will attempt to update that as well.
   }
   \item{updateScale}{
-    Logical indicating whether BART's internal scale should re-anchor to the new offset (\code{setOffset}) or response (\code{setResponse}). Defaults to \code{FALSE}, locking the scale set at creation; should only be \code{TRUE} during burn-in, as re-anchoring mid-run makes the fits across iterations no longer comparable. \code{TRUE} is refused by samplers whose leaf calibrations are stated against the transform fixed at creation and are never restated: a two-forest (\code{treatment}) sampler and a heteroscedastic (\code{variance}) one, whose variance forest would otherwise keep reporting \eqn{s^2(x)}{s^2(x)} on the abandoned scale.
+    Logical indicating whether BART's internal scale should re-anchor to the new offset (\code{setOffset}) or response (\code{setResponse}). Defaults to \code{FALSE}, locking the scale set at creation; should only be \code{TRUE} during burn-in, as re-anchoring mid-run makes the fits across iterations no longer comparable. \code{TRUE} is refused by samplers whose leaf calibrations are stated against the transform fixed at creation and are never restated: a two-forest (\code{forests}) sampler and a heteroscedastic (\code{variance}) one, whose variance forest would otherwise keep reporting \eqn{s^2(x)}{s^2(x)} on the abandoned scale.
   }
   \item{offset.test}{
     A numeric vector of length equal to that of the test matrix, or \code{NULL}. Can be missing for \code{setTestPredictorAndOffset}.
@@ -146,7 +146,7 @@
   \item{weights}{
     A numeric vector of non-negative case weights, of length equal to that with which the sampler was created. Weights of zero exclude an observation from the likelihood while keeping its fitted values. \code{setWeights} only applies to a gaussian-family sampler; calling it on a probit- or logistic-family sampler is refused, since a weighted probit has no tractable latent-variable form and logistic weights (observation counts) are fixed when the sampler is created. See \code{\link{dbarts}} for the family-specific weight rules that apply at creation time.
 
-    For \code{setForestWeights}, a distinct per-FOREST case weight on a Bayesian causal forest, refused off one: it composes with \code{weights} and \code{active} as \eqn{(w_i a_i) m_f^2 s_i}{(w_i * a_i) * m_f^2 * s_i}, where \eqn{m_f}{m_f} is the named forest's own multiplier, rather than widening either channel, so \code{s_i = 0} excludes row \eqn{i} from \emph{that forest's own leaf conditionals only} - its occupancy, its place in the combination, and the residual degrees of freedom are unaffected, and the reported location still carries the forest's full contribution even when every row is excluded. The third leg of a three-way degenerate-value contrast: \code{weights} installs and is measurably distinct from carrying none, \code{active} at all-ones installs nothing and clears any mask in force, and \code{setForestWeights} at all-ones INSTALLS - a round trip reports it - but is bitwise IDENTICAL to carrying no per-forest weight at all, the null gate its multiplicative composition (\eqn{m_f \times 1 = m_f}{m_f * 1 = m_f}) is built to guarantee. The weight does not ride the sampler's saved \code{state} - a sampler rebuilt with \code{setState} from a stored state silently drops it while \code{statesAgree} still reports agreement - so it is additionally mirrored on an R5 field that \code{getPointer}, \code{setState}, and \code{copy} all reinstall on every re-creation; a caller never reinstalls it by hand. \code{setData} needs no clearing rule here the way it does for \code{active}: it is refused outright on any multi-forest sampler (\dQuote{a multi-forest sampler fixes its data at creation}), so the two channels never interact.
+    For \code{setForestWeights}, a distinct per-FOREST case weight on a Bayesian causal forest (built with \code{forests = }, see \code{\link{dbarts}}), refused off one: it composes with \code{weights} and \code{active} as \eqn{(w_i a_i) m_f^2 s_i}{(w_i * a_i) * m_f^2 * s_i}, where \eqn{m_f}{m_f} is the named forest's own multiplier, rather than widening either channel, so \code{s_i = 0} excludes row \eqn{i} from \emph{that forest's own leaf conditionals only} - its occupancy, its place in the combination, and the residual degrees of freedom are unaffected, and the reported location still carries the forest's full contribution even when every row is excluded. The third leg of a three-way degenerate-value contrast: \code{weights} installs and is measurably distinct from carrying none, \code{active} at all-ones installs nothing and clears any mask in force, and \code{setForestWeights} at all-ones INSTALLS - a round trip reports it - but is bitwise IDENTICAL to carrying no per-forest weight at all, the null gate its multiplicative composition (\eqn{m_f \times 1 = m_f}{m_f * 1 = m_f}) is built to guarantee. The weight does not ride the sampler's saved \code{state} - a sampler rebuilt with \code{setState} from a stored state silently drops it while \code{statesAgree} still reports agreement - so it is additionally mirrored on an R5 field that \code{getPointer}, \code{setState}, and \code{copy} all reinstall on every re-creation; a caller never reinstalls it by hand. \code{setData} needs no clearing rule here the way it does for \code{active}: it is refused outright on any multi-forest sampler (\dQuote{a multi-forest sampler fixes its data at creation}), so the two channels never interact.
   }
   \item{active}{
     A numeric vector of per-observation 0/1 membership indicators - "row \eqn{i} is not in the data set for this sampler this sweep" - of length equal to that with which the sampler was created, or \code{NULL}. Unlike \code{weights}, \code{setActiveRows} reaches families that refuse case weights entirely: gaussian, Student-t, \code{probit}, \code{ordinal}, \code{logistic}, \code{nbinom}, and \code{aft} samplers all accept it, including a Bayesian causal forest (its two forests share one gaussian response). It is absolute and independent of \code{weights}, composing with it in either call order (\eqn{w_i \times a_i}{w_i * a_i} in effect). \code{NULL} clears the mask (every row active). Length and \code{NA} are validated as for \code{weights}; the only legal values are exactly \code{0} and \code{1}, and a fractional element refuses the WHOLE call and installs nothing. An all-ones vector reports success but installs NOTHING, clearing any previously installed mask - the OPPOSITE of \code{weights}, where an all-ones vector installs and is measurably distinct from carrying no weights at all. One channel states membership, the other precision, and the two deliberately carry opposite degenerate-value policies.
@@ -163,11 +163,11 @@
 
     On a sampler with grouped random effects, a group all of whose rows are inactive draws its effect from the PRIOR through the group-effect update's own formula - the coherent answer, and NOT what a compacted sampler with that group physically deleted would do.
   }
-  \item{z}{
-    A 0/1 (or logical) treatment indicator, of length equal to that with which the sampler was created. \code{setTreatment} only applies to a Bayesian causal forest built with \code{treatment = } (see \code{\link{dbarts}}); it writes both the engine and \code{data@treatment}, so \code{getPointer}'s transparent re-creation after save/load carries the current assignment rather than the one the sampler was created with.
+  \item{basis}{
+    The data a forest's amplitudes multiply, of length equal to that with which the sampler was created: a two-level factor (or a one-sided formula naming one), whose second level indicator is the 0/1 column the amplitudes \eqn{(b_0, b_1)}{(b0, b1)} contrast on - the same expansion \code{\link{forest}} applies at creation. \code{setForestBasis} only applies to a Bayesian causal forest built with \code{forests = } (see \code{\link{dbarts}}); it writes both the engine and \code{data@treatment}, so \code{getPointer}'s transparent re-creation after save/load carries the current assignment rather than the one the sampler was created with.
   }
   \item{forest}{
-    For \code{getForestFits} and \code{getForestVariableCounts}, a single integer selecting a Bayesian causal forest's prognostic (\code{0}) or treatment (\code{1}) forest. Refused on a sampler that is not a Bayesian causal forest. For \code{getCalibration} and \code{setCalibration}, a single positive integer indexing the forests from \code{1} (the default, and the only forest of an ordinary sampler); a Bayesian causal forest's prognostic forest is \code{1} and its treatment forest \code{2}. \code{setForestWeights} indexes from \code{1} as well, with no default: a Bayesian causal forest's treatment forest is \code{2L}.
+    For \code{getForestFits} and \code{getForestVariableCounts}, a single integer selecting a Bayesian causal forest's prognostic (\code{0}) or basis (\code{1}) forest. Refused on a sampler that is not a Bayesian causal forest. For \code{getCalibration} and \code{setCalibration}, a single positive integer indexing the forests from \code{1} (the default, and the only forest of an ordinary sampler); a Bayesian causal forest's prognostic forest is \code{1} and its basis forest \code{2}. \code{setForestWeights} indexes from \code{1} as well, with no default: a Bayesian causal forest's basis forest is \code{2L}. \code{setForestBasis} indexes from \code{1} too, and takes only \code{2L} today - the first forest's basis is the implicit intercept its own amplitude scales.
   }
   \item{prior.scale}{
     For \code{setCalibration}, the prior standard deviation of the forest total at \code{k = 1}, in response units (the family's latent units where the response is not rescaled). This is the identified quantity: only the ratio of the leaf scale to \code{k} enters a draw law, so under a fixed \code{k} the pair has one degree of freedom, and \code{prior.scale} is the half of it a hyperprior on \code{k} leaves alone. Must be a single positive finite number; exactly one of \code{prior.scale} and \code{prior.sd} is given.
@@ -352,7 +352,7 @@
 
   For \code{getLatents}, \code{NULL} when the model has no latent-variable representation (e.g. a gaussian response); otherwise the sampler's current latent values - a plain vector of length equal to the number of observations when there is a single chain, or an observations-by-chains matrix otherwise - written into \code{result} when one was supplied.
 
-  For \code{getForestFits}, a Bayesian causal forest's requested forest's current internal-scale fitted values, an n.observations x n.chains matrix. For \code{getBCFGlue}, the combining coefficients \eqn{(a, b_0, b_1)}{(a, b0, b1)} of \eqn{y = a \mu(x) + b_z \tau(x) + \epsilon}{y = a mu(x) + b_z tau(x) + eps}, a 3 x n.chains matrix. For \code{getForestVariableCounts}, the requested forest's current per-predictor split counts, an n.predictors x n.chains integer matrix.
+  For \code{getForestFits}, a Bayesian causal forest's requested forest's current internal-scale fitted values, an n.observations x n.chains matrix. For \code{getForestAmplitudes}, the amplitudes \eqn{(a, b_0, b_1)}{(a, b0, b1)} of \eqn{y = a \mu(x) + b_z \tau(x) + \epsilon}{y = a mu(x) + b_z tau(x) + eps}, a 3 x n.chains matrix. For \code{getForestVariableCounts}, the requested forest's current per-predictor split counts, an n.predictors x n.chains integer matrix.
 
   For \code{getCalibration}, the leaf-prior calibration a forest currently runs under, as a numeric matrix with one row per chain and the columns \code{prior.scale} (the prior standard deviation of the forest total at \code{k = 1}, in response units), \code{prior.sd} (\code{prior.scale / k}), \code{prior.mean}, \code{k}, \code{k.has.hyperprior} (1 when this forest's \code{k} is drawn every sweep, in which case \code{prior.sd} moves every sweep while \code{prior.scale} does not), \code{response.scale}, and \code{response.shift}. The leaf model rides as a \code{"leaf.model"} attribute, one of \code{"constant"}, \code{"monotone"}, \code{"linear"}, or \code{"gp"}, and qualifies what \code{prior.sd} means.
 

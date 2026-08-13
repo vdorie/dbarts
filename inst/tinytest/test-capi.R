@@ -519,8 +519,7 @@ specBCF <- dbartsSpec(
     updateState = FALSE,
     rngSeed = 41L
   ),
-  treatment = zBCF,
-  treatmentForest = treatmentForest(n.trees = 15L)
+  forests = list(forest(), forest(basis = ~ factor(zBCF), n.trees = 15L))
 )
 ptrBCF <- CALL("capi_create", specBCF$control, specBCF$model, specBCF$data, "")
 expect_equal(CALL("capi_dims", ptrBCF)[5L], 25L)

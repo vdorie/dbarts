@@ -30,8 +30,7 @@ resolveSamplerSpec <- function(
   survivalStatus,
   hazardPeriods,
   treatment,
-  moderators,
-  treatmentForest,
+  forests,
   evalEnv
 ) {
   # a factor/logical/character response declares a classification model. The
@@ -191,6 +190,30 @@ resolveSamplerSpec <- function(
     data@offset.test <- NULL
   }
 
+  # the multi-forest declaration (docs/design/bcf.md): forests = list(forest(),
+  # forest(basis = ~ factor(z))) names the ensembles the mean is a weighted sum
+  # of, and every knob is per forest. The FIRST forest's structural knobs are
+  # this fit's own - its tree count is control@n.trees and its structure prior
+  # is tree.prior - so they are applied to those here, before anything reads
+  # them; its interactions/blocks are the top-level arguments of those names,
+  # which is why declaring both refuses. The rest ride the BCF control
+  # attribute below.
+  forestSpec <- resolveForests(
+    forests,
+    interactions,
+    blocks,
+    hasBasis = !is.null(treatment) || !is.null(data@treatment)
+  )
+  if (!is.null(forestSpec$mu$n.trees)) {
+    control@n.trees <- forestSpec$mu$n.trees
+  }
+  if (!is.null(forestSpec$mu$interactions)) {
+    interactions <- forestSpec$mu$interactions
+  }
+  if (!is.null(forestSpec$mu$blocks)) {
+    blocks <- forestSpec$mu$blocks
+  }
+
   # resolve the monotone spec here, where its argument is a forced value (a
   # wrapper forwarding it through ... would otherwise reach parsePriors as an
   # unevaluated ...-reference); the resolved direction vector is injected below
@@ -221,6 +244,15 @@ resolveSamplerSpec <- function(
     }
   }
   priors <- eval(parsePriorsCall)
+
+  # the first forest's structure prior is this fit's tree.prior, so a knob
+  # declared on it restates that prior's half rather than adding a second one
+  if (!is.null(forestSpec$mu$base)) {
+    priors$tree.prior@base <- forestSpec$mu$base
+  }
+  if (!is.null(forestSpec$mu$power)) {
+    priors$tree.prior@power <- forestSpec$mu$power
+  }
 
   # A monotone constraint restricts the forest to birth/death proposals (change
   # and swap would need a > 2-D constrained integral, monotone.md section 5): a
@@ -360,15 +392,15 @@ resolveSamplerSpec <- function(
     )
   }
 
-  # the Bayesian causal forest (docs/design/bcf.md): a 0/1 `treatment` vector
-  # selects the two-forest model y = a mu(x) + b_z tau(x) + eps. The vector is
-  # conditioning DATA and rides the data object beside the weights it mirrors;
-  # the treatment forest's CONFIGURATION - its tree count and structure prior,
-  # the moderator column mask, the glue scales and the per-forest constraints -
-  # rides the control attribute the C bridge reads, exactly as the variance
-  # forest's does above. The bridge cross-checks the two halves in both
-  # directions, so a stripped attribute is a loud error, never a silent
-  # single-forest fit.
+  # the Bayesian causal forest (docs/design/bcf.md): a second forest with a
+  # two-level factor basis selects the model y = a mu(x) + b_z tau(x) + eps.
+  # The 0/1 column that basis expands to is conditioning DATA and rides the
+  # data object beside the weights it mirrors; the second forest's
+  # CONFIGURATION - its tree count and structure prior, its column mask, the
+  # amplitude scales and the per-forest constraints - rides the control
+  # attribute the C bridge reads, exactly as the variance forest's does above.
+  # The bridge cross-checks the two halves in both directions, so a stripped
+  # attribute is a loud error, never a silent single-forest fit.
   if (!is.null(treatment)) {
     data@treatment <- validateTreatment(treatment, length(data@y))
   }
@@ -424,38 +456,25 @@ resolveSamplerSpec <- function(
         "; drop it or fit a single-forest model"
       )
     }
-    tauSpec <- resolveTreatmentForest(treatmentForest)
-    moderatorColumns <- resolveModerators(moderators, data)
+    tauSpec <- forestSpec$tau
+    tauTrees <- if (is.null(tauSpec$n.trees)) 50L else tauSpec$n.trees
+    moderatorColumns <- resolveModerators(tauSpec$vars, data, "vars")
     attr(control, "bartcore.bcf") <- list(
-      params = as.double(c(
-        tauSpec$n.trees,
-        tauSpec$base,
-        tauSpec$power,
-        tauSpec$sd.control,
-        tauSpec$sd.moderate,
-        tauSpec$b.prior.variance,
-        tauSpec$update.a,
-        tauSpec$update.b
-      )),
-      # resolved 1-based moderator indices, or NULL for an unrestricted forest
+      params = forestParams(forestSpec$mu, tauSpec),
+      # resolved 1-based column indices, or NULL for an unrestricted forest
       moderators = moderatorColumns,
-      # the prognostic forest takes the fit's own interactions()/blocks()
-      # arguments, already resolved above; the treatment forest takes the
-      # constructor's, resolved against the columns it may split on
+      # the first forest takes the fit's own interactions()/blocks() arguments,
+      # already resolved above; the second takes its own, resolved against the
+      # columns it may split on
       mu.interactions = interactionSpec,
       tau.interactions = resolveInteractions(tauSpec$interactions, data),
       mu.blocks = blockSpec,
       tau.blocks = resolveBlocks(
         tauSpec$blocks,
         data,
-        tauSpec$n.trees,
+        tauTrees,
         availableColumns = moderatorColumns
       )
-    )
-  } else if (!is.null(moderators) || !is.null(treatmentForest)) {
-    stop(
-      "'moderators' and 'treatmentForest' configure the treatment forest a ",
-      "'treatment' vector selects; supply one or drop them"
     )
   }
 
@@ -483,9 +502,7 @@ dbartsSpec <- function(
   n.trees.variance = 40L,
   power.variance = NULL,
   base.variance = NULL,
-  treatment = NULL,
-  moderators = NULL,
-  treatmentForest = NULL,
+  forests = NULL,
   sigma = NA_real_,
   seed = NA_integer_,
   family = c(
@@ -547,6 +564,17 @@ dbartsSpec <- function(
     data@sigma <- coerceOrError(sigma, "numeric")
   }
 
+  # this surface does no data ingestion of its own, so a declared basis is
+  # evaluated here and reaches data@treatment through the same validation
+  # dbartsData() applies on the fitting path; the caller's data object has
+  # already had its own 'subset' applied
+  basisDeclaration <- forestBasisDeclaration(forests)
+  basis <- if (is.null(basisDeclaration)) {
+    NULL
+  } else {
+    expandForestBasis(evaluateForestBasis(basisDeclaration))
+  }
+
   resolveSamplerSpec(
     matchedCall,
     formals(dbartsSpec),
@@ -564,9 +592,8 @@ dbartsSpec <- function(
     base.variance = base.variance,
     survivalStatus = survival,
     hazardPeriods = NULL,
-    treatment = treatment,
-    moderators = moderators,
-    treatmentForest = treatmentForest,
+    treatment = basis,
+    forests = forests,
     evalEnv = parentEnv
   )
 }

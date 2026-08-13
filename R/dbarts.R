@@ -347,9 +347,7 @@ dbarts <- function(
   n.trees.variance = 40L,
   power.variance = NULL,
   base.variance = NULL,
-  treatment = NULL,
-  moderators = NULL,
-  treatmentForest = NULL,
+  forests = NULL,
   control = dbarts::dbartsControl(),
   sigma = NA_real_,
   seed = NA_integer_,
@@ -537,6 +535,17 @@ dbarts <- function(
   }
 
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
+  # a forests = declaration's basis is conditioning DATA (docs/design/bcf.md),
+  # so the column it expands to rides the data object beside the weights it
+  # mirrors. Evaluated here, against this fit's own data, and handed to
+  # dbartsData(), which is the one place that knows which rows 'subset' kept.
+  basisDeclaration <- forestBasisDeclaration(forests)
+  if (!is.null(basisDeclaration)) {
+    dataCall$treatment <- expandForestBasis(evaluateForestBasis(
+      basisDeclaration,
+      if (missing(data)) NULL else data
+    ))
+  }
   data <- eval(dataCall, evalEnv)
 
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
@@ -559,11 +568,10 @@ dbarts <- function(
     base.variance = base.variance,
     survivalStatus = survivalStatus,
     hazardPeriods = hazardPeriods,
-    # the treatment vector already rides the data object: dbartsData() is the
-    # one place that knows which rows 'subset' kept
+    # the basis column already rides the data object: dbartsData() is the one
+    # place that knows which rows 'subset' kept
     treatment = NULL,
-    moderators = moderators,
-    treatmentForest = treatmentForest,
+    forests = forests,
     evalEnv = evalEnv
   )
 
@@ -1147,7 +1155,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setForestWeights = function(forest, weights, updateState = NA) {
-      "Sets a per-forest, per-observation weight: a multiplicative precision factor on the named forest's own leaf conditionals, composing with weights and active as (w_i * a_i) * m_f^2 * s_i rather than widening either channel. Only applies to a Bayesian causal forest built with treatment = (see dbarts); forest indexes from 1, as with getCalibration/setCalibration (the treatment forest is 2). The weight does not ride the sampler's saved state; it is mirrored on an R5 field that getPointer and setState both reinstall on every re-creation. updateState is opt-in; see setData."
+      "Sets a per-forest, per-observation weight: a multiplicative precision factor on the named forest's own leaf conditionals, composing with weights and active as (w_i * a_i) * m_f^2 * s_i rather than widening either channel. Only applies to a Bayesian causal forest built with forests = (see dbarts); forest indexes from 1, as with getCalibration/setCalibration (the basis forest is 2). The weight does not ride the sampler's saved state; it is mirrored on an R5 field that getPointer and setState both reinstall on every re-creation. updateState is opt-in; see setData."
       refuseHostMutation("$setForestWeights")
       weights <- as.double(weights)
       if (length(weights) != length(data@y)) {
@@ -1182,13 +1190,23 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setTreatment = function(z, updateState = NA) {
-      "Changes the 0/1 treatment indicator a BCF sampler's treatment forest contrasts on. updateState is opt-in; see setData."
-      refuseHostMutation("$setTreatment")
-      if (is.null(z)) {
-        stop("'z' cannot be NULL")
+    setForestBasis = function(forest, basis, updateState = NA) {
+      "Changes the basis the named forest's amplitudes multiply. forest indexes from 1, as with setForestWeights and getCalibration/setCalibration (a Bayesian causal forest's basis forest is 2); today's engine takes a basis only there, and only a two-level factor, whose second level indicator is the 0/1 column the (b0, b1) amplitudes contrast on. That column is mirrored into data@treatment as setWeights mirrors weights, so it survives the sampler's re-creation. updateState is opt-in; see setData."
+      refuseHostMutation("$setForestBasis")
+      index <- resolveForestIndex(forest)
+      if (index != 1L) {
+        stop(
+          "today's engine takes a 'basis' only on the second forest; the ",
+          "first forest's is the implicit intercept"
+        )
       }
-      z <- validateTreatment(z, length(data@y))
+      if (is.null(basis)) {
+        stop("'basis' cannot be NULL")
+      }
+      z <- validateTreatment(
+        expandForestBasis(evaluateForestBasis(basis)),
+        length(data@y)
+      )
 
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
@@ -1399,8 +1417,8 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getForestFits, ptr, as.integer(forest))
     },
-    getBCFGlue = function() {
-      "Returns a BCF sampler's combining glue (a, b0, b1), a 3 x n.chains matrix."
+    getForestAmplitudes = function() {
+      "Returns a BCF sampler's amplitudes (a, b0, b1) - the first forest's on its implicit intercept, the second's on its two basis indicators - as a 3 x n.chains matrix."
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getBCFGlue, ptr)
     },

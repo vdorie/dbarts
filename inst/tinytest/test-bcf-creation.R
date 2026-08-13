@@ -1,10 +1,11 @@
-# Public Bayesian causal forest creation (docs/design/bcf.md): dbarts() and
-# dbartsSpec() accept a 0/1 treatment vector and build an ordinary
-# dbartsSampler holding the two-forest model. The internal
+# Public multi-forest creation (docs/design/bcf.md): dbarts() and dbartsSpec()
+# take a forests = list(forest(...)) declaration and build an ordinary
+# dbartsSampler holding the model it names. Two forests, the second carrying a
+# two-level factor basis, is the Bayesian causal forest. The internal
 # dbarts:::bartcoreBCFSampler route is the oracle - identical (control, model,
 # data) and a fixed rng seed must reproduce it draw for draw - and every option
-# the two-forest chain does not read must refuse at creation rather than be
-# dropped in silence.
+# the two-forest chain does not read, and every declaration today's engine
+# cannot honour, must refuse at creation rather than be dropped in silence.
 
 set.seed(3)
 n <- 300L
@@ -31,16 +32,24 @@ seededControl <- function(...) {
 # a public sampler's raw handle, so the internal per-forest readers apply to it
 handleOf <- function(sampler) list(ptr = sampler$getPointer())
 
-# --- F1, positive half: with control@rngSeed set every chain's generator is
+# the declaration every refusal below is attached to: a plain first forest and
+# a second one whose two-level factor basis carries the (b0, b1) amplitudes
+twoForests <- list(forest(), forest(basis = ~ factor(z)))
+
+# --- FS1, positive half: with control@rngSeed set every chain's generator is
 # independent of R's stream, so the public path and the internal one receive
 # identical seeds from identical specifications and must agree bitwise on all
-# six channels the bcf-equivalence fixture reports. ---
+# six channels the bcf-equivalence fixture reports. The removed treatment =
+# route needs no reconstruction: the internal constructor is, and always was,
+# the oracle this pin compares against. ---
 control <- seededControl()
 publicSampler <- dbarts(
   x,
   y,
-  treatment = z,
-  treatmentForest = treatmentForest(n.trees = 25L, sd.moderate = 1.5),
+  forests = list(
+    forest(),
+    forest(basis = ~ factor(z), n.trees = 25L, sd = 1.5)
+  ),
   control = control
 )
 publicResult <- publicSampler$run(0L, 10L)
@@ -70,16 +79,36 @@ expect_identical(
   dbarts:::bartcoreBCFGlue(internalSampler)
 )
 
-# the sampler this produced is an ordinary dbartsSampler carrying two forests
+# the sampler this produced is an ordinary dbartsSampler carrying two forests,
+# and the column the factor basis expanded to is the one the slot takes
 expect_true(inherits(publicSampler, "dbartsSampler"))
 expect_identical(publicSampler$data@treatment, as.double(z))
 expect_true(all(is.finite(publicResult$train)))
 expect_true(all(publicResult$sigma > 0))
 
-# --- F1, negative half: UNSEEDED, the internal route builds and discards a
-# host engine first, which draws n.chains unif_rand()s off R's stream, so the
-# two routes must NOT agree. Written explicitly so a divergence here is read as
-# the expected stream offset rather than as a creation bug. ---
+# --- FS1, negative half, arm 1: the expansion's level ORDER is load-bearing.
+# Swapping the two indicator columns swaps which rows b1 scales, so a sampler
+# built from the reversed factor must NOT reproduce the oracle. Without this a
+# silently transposed basis would pass the positive half on symmetry alone. ---
+swappedSampler <- dbarts(
+  x,
+  y,
+  forests = list(
+    forest(),
+    forest(basis = ~ factor(z, levels = c(1, 0)), n.trees = 25L, sd = 1.5)
+  ),
+  control = seededControl()
+)
+expect_identical(swappedSampler$data@treatment, 1 - as.double(z))
+expect_false(identical(
+  swappedSampler$run(0L, 10L)$train,
+  internalResult$train
+))
+
+# --- FS1, negative half, arm 2: UNSEEDED, the internal route builds and
+# discards a host engine first, which draws n.chains unif_rand()s off R's
+# stream, so the two routes must NOT agree. Written explicitly so a divergence
+# here is read as the expected stream offset rather than as a creation bug. ---
 unseeded <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
@@ -88,7 +117,10 @@ unseeded <- dbartsControl(
   updateState = FALSE
 )
 set.seed(99L)
-unseededPublic <- dbarts(x, y, treatment = z, control = unseeded)$run(0L, 5L)
+unseededPublic <- dbarts(x, y, forests = twoForests, control = unseeded)$run(
+  0L,
+  5L
+)
 set.seed(99L)
 unseededInternal <- dbarts:::bartcoreRun(
   dbarts:::bartcoreBCFSampler(dbarts(x, y, control = unseeded), z),
@@ -97,8 +129,8 @@ unseededInternal <- dbarts:::bartcoreRun(
 )
 expect_false(identical(unseededPublic$train, unseededInternal$train))
 
-# --- the reported draws really are the two-forest blend: the glue and the
-# per-forest fits reconstruct the recorded train draw through the stored
+# --- the reported draws really are the two-forest blend: the amplitudes and
+# the per-forest fits reconstruct the recorded train draw through the stored
 # response transform (the S0 pin's identity, now on a public sampler) ---
 glue <- dbarts:::bartcoreBCFGlue(handleOf(publicSampler))
 muFits <- dbarts:::bartcoreForestFits(handleOf(publicSampler), 0L)[, 1L]
@@ -113,13 +145,12 @@ expect_equal(
   tolerance = 1e-10
 )
 
-# --- the moderator restriction reaches the treatment forest: tau splits only
-# on the declared columns, mu on whatever it likes ---
+# --- the second forest's vars restriction reaches it: tau splits only on the
+# declared columns, mu on whatever it likes ---
 restricted <- dbarts(
   x,
   y,
-  treatment = z,
-  moderators = c("x3", "x4"),
+  forests = list(forest(), forest(basis = ~ factor(z), vars = c("x3", "x4"))),
   control = seededControl()
 )
 restricted$run(0L, 10L)
@@ -127,7 +158,140 @@ tauCounts <- dbarts:::bartcoreForestVariableCounts(handleOf(restricted), 1L)
 expect_true(all(tauCounts[1:2, ] == 0L))
 expect_true(sum(tauCounts[3:4, ]) > 0L)
 
-# --- dbartsSpec() reaches the same model, and carries the treatment on the
+# --- the whole knob map is honoured, not accepted and dropped. Each knob of
+# the second forest reaches the eight doubles the control attribute carries,
+# and the FIRST forest's structural knobs restate the fit's own control and
+# tree prior rather than adding a second set. A knob that went nowhere would
+# leave a default here. ---
+knobs <- dbartsSpec(
+  dbartsData(x, y),
+  seededControl(),
+  forests = list(
+    forest(
+      n.trees = 30L,
+      base = 0.7,
+      power = 1.5,
+      sd = 2.5,
+      update.amplitude = FALSE
+    ),
+    forest(
+      basis = ~ factor(z),
+      n.trees = 15L,
+      base = 0.4,
+      power = 2,
+      sd = 1.25,
+      amplitude.prior.variance = 0.75,
+      update.amplitude = FALSE
+    )
+  )
+)
+expect_equal(
+  attr(knobs$control, "bartcore.bcf")$params,
+  c(15, 0.4, 2, 2.5, 1.25, 0.75, 0, 0)
+)
+expect_identical(knobs$control@n.trees, 30L)
+expect_equal(knobs$model@tree.prior@base, 0.7)
+expect_equal(knobs$model@tree.prior@power, 1.5)
+
+# --- a forest() n.trees/base/power on the first forest is a more specific
+# declaration than an explicitly supplied control@n.trees or tree.prior of the
+# same name, and governs the fit over it rather than being silently overridden
+# by it: the run really is the seven-tree, base = 0.3, power = 1.1 fit, not
+# the hundred-tree, base = 0.6, power = 4 one it disagrees with ---
+disagreeingControl <- dbartsControl(
+  n.chains = 2L,
+  n.threads = 1L,
+  n.trees = 100L,
+  n.samples = 10L,
+  updateState = FALSE,
+  rngSeed = 17L
+)
+sevenTreeControl <- dbartsControl(
+  n.chains = 2L,
+  n.threads = 1L,
+  n.trees = 7L,
+  n.samples = 10L,
+  updateState = FALSE,
+  rngSeed = 17L
+)
+expect_identical(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(n.trees = 7L, base = 0.3, power = 1.1)),
+    tree.prior = cgm(base = 0.6, power = 4),
+    control = disagreeingControl
+  )$run(0L, 5L)$train,
+  dbarts(
+    x,
+    y,
+    tree.prior = cgm(base = 0.3, power = 1.1),
+    control = sevenTreeControl
+  )$run(0L, 5L)$train
+)
+
+# FD4's public fit, pinned positively: update.amplitude = FALSE on both
+# forests is the pinned-amplitude model (y = mu + z tau exactly) the on-ramp
+# vignette's continuity falsifier composes against, and it must reproduce the
+# internal route's update.a = update.b = FALSE draw for draw
+pinnedPublic <- dbarts(
+  x,
+  y,
+  forests = list(
+    forest(update.amplitude = FALSE),
+    forest(basis = ~ factor(z), n.trees = 25L, update.amplitude = FALSE)
+  ),
+  control = seededControl()
+)
+pinnedInternal <- dbarts:::bartcoreBCFSampler(
+  dbarts(x, y, control = seededControl()),
+  z,
+  n.trees.treatment = 25L,
+  update.a = FALSE,
+  update.b = FALSE
+)
+expect_identical(
+  pinnedPublic$run(0L, 10L)$train,
+  dbarts:::bartcoreRun(pinnedInternal, 0L, 10L)$train
+)
+
+# --- FS3: forests = NULL is byte-neutral, and a single-forest declaration is
+# the same fit with its structural knobs restated ---
+plainResult <- dbarts(x, y, control = seededControl())$run(0L, 5L)
+expect_identical(
+  dbarts(x, y, forests = NULL, control = seededControl())$run(0L, 5L)$train,
+  plainResult$train
+)
+expect_identical(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(n.trees = 50L)),
+    control = seededControl()
+  )$run(0L, 5L)$train,
+  plainResult$train
+)
+# and a restated knob really is the fit's own: a different tree count draws
+# what the control carrying that count draws
+twentyTrees <- dbartsControl(
+  n.chains = 2L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.samples = 10L,
+  updateState = FALSE,
+  rngSeed = 17L
+)
+expect_identical(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(n.trees = 20L)),
+    control = seededControl()
+  )$run(0L, 5L)$train,
+  dbarts(x, y, control = twentyTrees)$run(0L, 5L)$train
+)
+
+# --- dbartsSpec() reaches the same model, and carries the basis column on the
 # data object rather than on the control ---
 specSampler <- do.call(
   function(control, model, data, family) {
@@ -136,33 +300,116 @@ specSampler <- do.call(
   dbartsSpec(
     dbartsData(x, y),
     seededControl(),
-    treatment = z,
-    treatmentForest = treatmentForest(n.trees = 25L, sd.moderate = 1.5)
+    forests = list(
+      forest(),
+      forest(basis = ~ factor(z), n.trees = 25L, sd = 1.5)
+    )
   )
 )
 expect_identical(specSampler$run(0L, 10L)$train, publicResult$train)
 
 # a treatment supplied to dbartsData() rides the data object and is restricted
-# by 'subset' exactly as the weights beside it are
+# by 'subset' exactly as the weights beside it are; that argument is not
+# removed, and it still selects the two-forest model with no declaration at all
 subsetData <- dbartsData(x, y, subset = 1:100, treatment = z)
 expect_identical(subsetData@treatment, as.double(z[1:100]))
 expect_error(dbartsData(x, y, treatment = rep(2, n)), "coded 0")
 expect_error(dbartsData(x, y, treatment = z[1:10]), "length of 'treatment'")
+offSlot <- dbartsSpec(dbartsData(x, y, treatment = z), seededControl())
+expect_equal(
+  attr(offSlot$control, "bartcore.bcf")$params,
+  c(50, 0.25, 3, 2, 1, 0.5, 1, 1)
+)
+# and a basis declared alongside subset reaches dbartsData's own alignment
+subsetForests <- dbarts(
+  x,
+  y,
+  subset = 1:100,
+  forests = twoForests,
+  control = seededControl()
+)
+expect_identical(subsetForests$data@treatment, as.double(z[1:100]))
 
-# --- F4: every option the two-forest chain does not read refuses at creation,
-# one assertion each. A silently accepted one is the failure mode this
-# creation route exists to prevent. ---
+# --- the hasBasis escape (model.R's validateForestKnobs/resolveForests): a
+# treatment vector reaching the data through dbartsData(treatment=) rather
+# than a forest() basis= unlocks the amplitude knobs and a basis-less second
+# forest just as a declared basis would, and those knobs really reach the
+# resolved spec ---
+sdViaHasBasis <- dbartsSpec(
+  dbartsData(x, y, treatment = z),
+  seededControl(),
+  forests = list(forest(sd = 3.5))
+)
+expect_equal(attr(sdViaHasBasis$control, "bartcore.bcf")$params[4L], 3.5)
+
+noUpdateViaHasBasis <- dbartsSpec(
+  dbartsData(x, y, treatment = z),
+  seededControl(),
+  forests = list(forest(update.amplitude = FALSE))
+)
+expect_equal(attr(noUpdateViaHasBasis$control, "bartcore.bcf")$params[7L], 0)
+
+# a second forest with no basis of its own still takes its own knobs when the
+# treatment reaches the data another way
+noBasisSecondForest <- dbartsSpec(
+  dbartsData(x, y, treatment = z),
+  seededControl(),
+  forests = list(forest(), forest(n.trees = 25L))
+)
+expect_equal(attr(noBasisSecondForest$control, "bartcore.bcf")$params[1L], 25)
+
+# --- interactions()/blocks() declared on a forest() reach the resolved
+# per-forest constraint the control attribute carries, not only the top-level
+# ambiguity refusal and expect_silent tested below ---
+muInteractionsSpec <- dbartsSpec(
+  dbartsData(x, y, treatment = z),
+  seededControl(),
+  forests = list(forest(interactions = interactions(max.order = 1L)))
+)
+expect_equal(
+  attr(muInteractionsSpec$control, "bartcore.bcf")$mu.interactions$max.order,
+  1L
+)
+
+tauInteractionsSpec <- dbartsSpec(
+  dbartsData(x, y, treatment = z),
+  seededControl(),
+  forests = list(
+    forest(),
+    forest(interactions = interactions(max.order = 2L))
+  )
+)
+expect_equal(
+  attr(tauInteractionsSpec$control, "bartcore.bcf")$tau.interactions$max.order,
+  2L
+)
+
+tauBlocksSpec <- dbartsSpec(
+  dbartsData(x, y, treatment = z),
+  seededControl(),
+  forests = list(
+    forest(),
+    forest(blocks = blocks(groups = list(c("x1", "x2"), c("x3", "x4"))))
+  )
+)
+tauBlockAttr <- attr(tauBlocksSpec$control, "bartcore.bcf")$tau.blocks
+expect_equal(tauBlockAttr$block.of.column, c(0L, 0L, 1L, 1L))
+expect_equal(tauBlockAttr$block.tree.counts, c(25L, 25L))
+
+# --- FS2, inherited half: every option the two-forest chain does not read
+# refuses at creation, one assertion each. A silently accepted one is the
+# failure mode this creation route exists to prevent. ---
 expect_error(
-  dbarts(x, y, treatment = z, tree.prior = dart, control = seededControl()),
+  dbarts(x, y, forests = twoForests, tree.prior = dart, control = control),
   "DART tree prior"
 )
 expect_error(
   dbarts(
     x,
     y,
-    treatment = z,
+    forests = twoForests,
     tree.prior = cgm(split.probs = c(0.4, 0.2, 0.2, 0.2)),
-    control = seededControl()
+    control = control
   ),
   "split.probs"
 )
@@ -170,9 +417,9 @@ expect_error(
   dbarts(
     x,
     y,
-    treatment = z,
+    forests = twoForests,
     monotone = c(1, 0, 0, 0),
-    control = seededControl()
+    control = control
   ),
   "monotone"
 )
@@ -180,9 +427,9 @@ expect_error(
   dbarts(
     x,
     y,
-    treatment = z,
+    forests = twoForests,
     node.prior = linear(columns = "x1"),
-    control = seededControl()
+    control = control
   ),
   "linear node prior"
 )
@@ -190,9 +437,9 @@ expect_error(
   dbarts(
     x,
     y,
-    treatment = z,
+    forests = twoForests,
     node.prior = gp(columns = "x1"),
-    control = seededControl()
+    control = control
   ),
   "Gaussian-process node prior"
 )
@@ -200,42 +447,43 @@ expect_error(
   dbarts(
     x,
     y,
-    treatment = z,
+    forests = twoForests,
     node.prior = normal(chi(1.5)),
-    control = seededControl()
+    control = control
   ),
   "'k' hyperprior"
+)
+expect_error(
+  dbarts(x, y, forests = twoForests, node.prior = normal(3), control = control),
+  "non-default 'k'"
+)
+expect_error(
+  dbarts(x, y, forests = twoForests, variance = TRUE, control = control),
+  "'variance'"
 )
 expect_error(
   dbarts(
     x,
     y,
-    treatment = z,
-    node.prior = normal(3),
-    control = seededControl()
+    forests = twoForests,
+    control = seededControl(
+      storage = "single"
+    )
   ),
-  "non-default 'k'"
-)
-expect_error(
-  dbarts(x, y, treatment = z, variance = TRUE, control = seededControl()),
-  "'variance'"
-)
-expect_error(
-  dbarts(x, y, treatment = z, control = seededControl(storage = "single")),
   "storage = \"single\""
 )
 expect_error(
   dbarts(
     x,
     y,
-    treatment = z,
+    forests = twoForests,
     proposal.probs = c(
       birth_death = 0.6,
       swap = 0.1,
       change = 0.3,
       birth = 0.5
     ),
-    control = seededControl()
+    control = control
   ),
   "non-default 'proposal.probs'"
 )
@@ -243,14 +491,14 @@ expect_error(
   dbarts(
     x,
     y,
-    treatment = z,
+    forests = twoForests,
     resid.dist = student(5),
-    control = seededControl()
+    control = control
   ),
   "Student-t residuals"
 )
 expect_error(
-  dbarts(x, y, test = x, treatment = z, control = seededControl()),
+  dbarts(x, y, test = x, forests = twoForests, control = control),
   "test predictors"
 )
 # per-column cut counts survive only through dbartsSpec(), which keeps a data
@@ -272,26 +520,228 @@ expect_error(
   dbartsSpec(dbartsData(x, y, treatment = z), groupedControl),
   "grouped random effects"
 )
-# a latent-scale family owns the precision channel the glue routes through
+# a latent-scale family owns the precision channel the amplitudes route through
 expect_error(
-  dbarts(x, rbinom(n, 1L, 0.5), treatment = z, control = seededControl()),
+  dbarts(x, rbinom(n, 1L, 0.5), forests = twoForests, control = control),
   "gaussian"
 )
-# the two companion arguments configure a forest a treatment vector selects
+
+# --- FS2, new half: every declaration today's engine cannot honour refuses at
+# creation, one assertion each, on the same refuse-rather-than-drop discipline
+# the inherited set above enforces ---
 expect_error(
-  dbarts(x, y, moderators = "x3", control = seededControl()),
-  "'treatment' vector selects"
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z)), forest()),
+    control = control
+  ),
+  "at most two forests"
 )
 expect_error(
-  dbarts(x, y, treatmentForest = treatmentForest(), control = seededControl()),
-  "'treatment' vector selects"
+  dbarts(x, y, forests = list(forest(), forest(basis = z)), control = control),
+  "not a numeric basis column"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(
+      forest(),
+      forest(basis = factor(rep(c("a", "b", "c"), length.out = n)))
+    ),
+    control = control
+  ),
+  "exactly two levels"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(basis = ~ factor(z)), forest(basis = ~ factor(z))),
+    control = control
+  ),
+  "first forest takes no 'basis'"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(vars = "x1"), forest(basis = ~ factor(z))),
+    control = control
+  ),
+  "'vars' restricts a basis forest"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(
+      forest(amplitude.prior.variance = 1),
+      forest(basis = ~ factor(z))
+    ),
+    control = control
+  ),
+  "the first forest has no 'basis'"
+)
+expect_error(
+  dbarts(x, y, forests = list(forest(sd = 1.5)), control = control),
+  "single-forest 'forests' has none"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(update.amplitude = FALSE)),
+    control = control
+  ),
+  "single-forest 'forests' has none"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(interactions = interactions(max.order = 1L))),
+    interactions = interactions(max.order = 2L),
+    control = control
+  ),
+  "both at the top level and on the first forest"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(
+      blocks = blocks(
+        groups = list(
+          c("x1", "x2"),
+          c(
+            "x3",
+            "x4"
+          )
+        )
+      )
+    )),
+    blocks = blocks(groups = list(c("x1", "x2"), c("x3", "x4"))),
+    control = control
+  ),
+  "both at the top level and on the first forest"
+)
+# a second forest with no basis, and no basis reaching the data any other way,
+# is not a second forest at all
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(n.trees = 25L)),
+    control = control
+  ),
+  "second forest needs a 'basis'"
+)
+# the shape of the argument itself
+expect_error(
+  dbarts(x, y, forests = forest(), control = control),
+  "list of forest\\(\\) specifications"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), list(n.trees = 25L)),
+    control = control
+  ),
+  "list of forest\\(\\) specifications"
+)
+expect_error(
+  dbarts(x, y, forests = list(), control = control),
+  "'forests' is empty"
+)
+# a top-level interactions/blocks with NO forest-level twin still constrains
+# the first forest, so the ambiguity refusal is not a blanket one
+expect_silent(dbarts(
+  x,
+  y,
+  forests = twoForests,
+  interactions = interactions(max.order = 1L),
+  control = control
+))
+
+# --- forest() validates its own knobs at fit time ---
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z), base = 1.5)),
+    control = control
+  ),
+  "forest 'base'"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z), n.trees = 0L)),
+    control = control
+  ),
+  "forest 'n.trees'"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z), power = -1)),
+    control = control
+  ),
+  "forest 'power'"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z), sd = 0)),
+    control = control
+  ),
+  "forest 'sd'"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(
+      forest(),
+      forest(basis = ~ factor(z), amplitude.prior.variance = 0)
+    ),
+    control = control
+  ),
+  "forest 'amplitude.prior.variance'"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(
+      forest(),
+      forest(basis = ~ factor(z), update.amplitude = NA)
+    ),
+    control = control
+  ),
+  "forest 'update.amplitude'"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = y ~ factor(z))),
+    control = control
+  ),
+  "must be one-sided"
 )
 
 # --- F5: a creation the factory would refuse raises an R condition, and no
 # usable handle escapes. Driven past the R-layer refusal by hand-attaching the
 # variance attribute to an already-resolved BCF spec, so the bridge's own
 # backstop is what answers. ---
-resolved <- dbartsSpec(dbartsData(x, y), seededControl(), treatment = z)
+resolved <- dbartsSpec(dbartsData(x, y), seededControl(), forests = twoForests)
 withVariance <- resolved
 attr(withVariance$control, "bartcore.variance") <- list(
   n.trees = 20L,
@@ -350,36 +800,4 @@ expect_error(
     strippedTreatment$data
   ),
   "carry no treatment vector"
-)
-
-# --- treatmentForest() validates its own knobs at fit time ---
-expect_error(
-  dbarts(
-    x,
-    y,
-    treatment = z,
-    treatmentForest = treatmentForest(base = 1.5),
-    control = seededControl()
-  ),
-  "'base'"
-)
-expect_error(
-  dbarts(
-    x,
-    y,
-    treatment = z,
-    treatmentForest = treatmentForest(n.trees = 0L),
-    control = seededControl()
-  ),
-  "'n.trees'"
-)
-expect_error(
-  dbarts(
-    x,
-    y,
-    treatment = z,
-    treatmentForest = list(n.trees = 25L),
-    control = seededControl()
-  ),
-  "treatmentForest\\(\\) specification"
 )

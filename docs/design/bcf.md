@@ -206,13 +206,13 @@ which entry points fan per forest.
   view, but a mutation to a column both forests reference fans to both under the
   single-writer rule (collapsing the two-copy setPredictorJointly workaround,
   data-ownership.md Sharing).
-- New for BCF: setTreatment(z). z is the one response-side quantity with no
-  single-forest analog; updating it between sweeps re-forms b_{z_i} and both
-  residuals. Installing pihat as a mutable prognostic column uses the ordinary
-  predictor path.
+- New for BCF: setForestBasis(f, basis) (R5; setTreatment(z) on the flat
+  surface). z is the one response-side quantity with no single-forest analog;
+  updating it between sweeps re-forms b_{z_i} and both residuals. Installing
+  pihat as a mutable prognostic column uses the ordinary predictor path.
 - Also new for BCF: setForestWeights(f, s), a per-forest, per-observation
   precision multiplier ("The multiplier snap and the per-forest weight"
-  above). Unlike setTreatment it does not ride the state; a warm start or a
+  above). Unlike the basis it does not ride the state; a warm start or a
   restore must reinstall it explicitly.
 
 C exposure stayed internal at first (bartcore helpers plus the bridge, as the
@@ -315,14 +315,14 @@ recorded below.
 ## Public creation surface (2026-08-10 to 2026-08-11)
 
 BCF stopped being reachable only through `dbarts:::bartcoreBCFSampler`
-(docs/plans/bcf-public-surface.md). `dbarts(x, y, treatment = z, moderators =
-, treatmentForest = treatmentForest(...))`/`dbartsSpec()` build an ordinary
+(docs/plans/bcf-public-surface.md). `dbarts(x, y, forests = list(forest(),
+forest(basis = ~ factor(z), vars = ...)))`/`dbartsSpec()` build an ordinary
 `dbartsSampler` (S1, a1dbde7): z rides `data@treatment` (R/A_class.R:477-482,
 the `weights` precedent) and the treatment forest's configuration rides
 `attr(control, "bartcore.bcf")` (R/spec.R:421-434, the `bartcore.variance`
 precedent), cross-checked in both directions at creation
-(src/R_interface_bartcore.cpp:2648-2655). `$setTreatment`, `$getForestFits`,
-`$getBCFGlue`, `$getForestVariableCounts` are public R5 methods (S2,
+(src/R_interface_bartcore.cpp:2648-2655). `$setForestBasis`, `$getForestFits`,
+`$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
 339aeb0; R/dbarts.R:1078-1092, 1283-1296). `dbarts_sampler_create` reaches
 the same path from C (S3, 1622eb9): `numForests`/`setTreatment`/`forestFits`/
 `bcfGlue` are public `dbarts.h` entries (inst/include/dbarts/dbarts.h:264-271),
@@ -343,15 +343,23 @@ calls `dbarts::bart2`/`rbart_vi`, R/responseFit.R:91,112,121;
 R/responseFit.R:399,682), never a `dbartsSampler` method. BCF is expected to
 arrive in bartCause the same way, through a `bcf()` fit function.
 
-**The causal argument names are PROVISIONAL.** VD: "I don't think `bcf`
-belongs in the `dbarts` function." `treatment =`, `moderators =`,
-`treatmentForest =`, and the flat `setTreatment`/`bcfGlue` names are
-scheduled for replacement by the engine-vocabulary `forests = list(forest(basis
-= ...))` route once BCF has a home outside dbarts
-(docs/plans/multiforest-extension-surface.md, M2 and fork 4); `bcf()` itself
-is expected to relocate to bartCause. The S1/S2 mechanism above survives that
-re-skinning - only the public spellings move - and this document still
-describes the shipped, provisional surface, not the replacement.
+**The causal argument names are GONE from the fitting surface (M2,
+2026-08-13).** VD: "I don't think `bcf` belongs in the `dbarts` function."
+`treatment =`, `moderators =` and `treatmentForest =` were removed from
+`dbarts()`/`dbartsSpec()` and replaced by the engine-vocabulary
+`forests = list(forest(basis = ...))` route
+(docs/plans/multiforest-extension-surface.md M2); `$setTreatment` became
+`$setForestBasis(forest, basis)` and `$getBCFGlue` became
+`$getForestAmplitudes()`. The S1/S2 mechanism above survived the re-skinning
+unchanged, which is what let M2 gate itself bitwise against the internal
+constructor: a `forests =` fit resolves to exactly the `data@treatment` plus
+`attr(control, "bartcore.bcf")` the removed arguments resolved to, with the
+factor basis expanded to its level indicators in R so the bridge sees what it
+always saw. Two spellings did NOT move: `dbartsData(treatment = )` still names
+the column directly (the data-side split M2 records as debt, to retire with M3,
+M4's n x q_f basis, or the reshape re-bake), and the flat
+`dbarts_sampler_setTreatment`/`bcfGlue` entries are the reshape's to re-sign.
+`bcf()` itself is expected to land in bartCause (same plan, fork 4).
 
 ## Status
 

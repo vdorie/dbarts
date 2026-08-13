@@ -32,7 +32,7 @@ numSamples <- 8L
 sampler <- dbarts(
   x,
   y,
-  treatment = z,
+  forests = list(forest(), forest(basis = ~ factor(z))),
   control = reportingControl(n.chains = 1L)
 )
 batched <- sampler$run(0L, numSamples)
@@ -79,7 +79,12 @@ expect_true(
 # of numSamples sweeps and numSamples runs of one sweep agree to the bit, and
 # each recorded slab equals what the live per-forest accessors read at that
 # point - the loop a front end would otherwise have to own ---
-looped <- dbarts(x, y, treatment = z, control = reportingControl(n.chains = 1L))
+looped <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z))),
+  control = reportingControl(n.chains = 1L)
+)
 loopFits <- array(0, dim(batched$forestFits))
 loopGlue <- array(0, dim(batched$glue))
 for (s in seq_len(numSamples)) {
@@ -88,7 +93,7 @@ for (s in seq_len(numSamples)) {
   loopGlue[, s] <- sweep$glue[, 1L]
   expect_identical(sweep$forestFits[, 1L, 1L], looped$getForestFits(0L)[, 1L])
   expect_identical(sweep$forestFits[, 2L, 1L], looped$getForestFits(1L)[, 1L])
-  expect_identical(sweep$glue[, 1L], looped$getBCFGlue()[, 1L])
+  expect_identical(sweep$glue[, 1L], looped$getForestAmplitudes()[, 1L])
 }
 expect_identical(loopFits, batched$forestFits)
 expect_identical(loopGlue, batched$glue)
@@ -96,7 +101,12 @@ expect_identical(loopGlue, batched$glue)
 # --- several chains: each chain fills its own slab, and the reconstruction
 # holds per chain (a mixed-up stride would show as a cross-chain reconstruction
 # failure, since a and b_z are per-chain draws) ---
-multi <- dbarts(x, y, treatment = z, control = reportingControl(n.chains = 2L))
+multi <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z))),
+  control = reportingControl(n.chains = 2L)
+)
 multiResult <- multi$run(0L, numSamples)
 multi$storeState()
 

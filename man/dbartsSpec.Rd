@@ -14,7 +14,7 @@ dbartsSpec(
     monotone = NULL, interactions = NULL, blocks = NULL,
     variance = NULL, n.trees.variance = 40L,
     power.variance = NULL, base.variance = NULL,
-    treatment = NULL, moderators = NULL, treatmentForest = NULL,
+    forests = NULL,
     sigma = NA_real_, seed = NA_integer_,
     family = c("auto", "gaussian", "probit", "logistic", "aft",
                "ordinal", "nbinom"),
@@ -25,8 +25,8 @@ dbartsSpec(
   \item{data}{
     A \code{dbartsData} object, as built by \code{\link{dbartsData}}. Unlike \code{\link{dbarts}}, this function does no response ingestion of its own: the response must already be materialized.
   }
-  \item{control, tree.prior, node.prior, resid.prior, resid.dist, proposal.probs, monotone, interactions, blocks, variance, n.trees.variance, power.variance, base.variance, treatment, moderators, treatmentForest, sigma, seed, family, dispersion}{
-    As in \code{\link{dbarts}}. The prior arguments are evaluated in dbarts's own prior vocabulary, so bare expressions such as \code{normal(k = chi(1.25, Inf))} resolve regardless of what the caller has attached.
+  \item{control, tree.prior, node.prior, resid.prior, resid.dist, proposal.probs, monotone, interactions, blocks, variance, n.trees.variance, power.variance, base.variance, forests, sigma, seed, family, dispersion}{
+    As in \code{\link{dbarts}}. The prior arguments are evaluated in dbarts's own prior vocabulary, so bare expressions such as \code{normal(k = chi(1.25, Inf))} resolve regardless of what the caller has attached. A \code{\link{forest}} \code{basis} given as a one-sided formula is evaluated in \code{parentEnv}, this surface performing no data ingestion of its own; the data object's rows are already whatever its own \code{subset} kept.
   }
   \item{survival}{
     For \code{family = "aft"} only: a vector of per-observation status codes, 1 for an observed event and 0 for a right-censored observation, with the response holding log event/censoring times. \code{\link{dbarts}} reads this off a \code{Surv} or two-column response; a caller supplying log-times directly supplies it here. \code{NULL} for every other family.

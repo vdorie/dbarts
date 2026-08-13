@@ -91,7 +91,7 @@ z.bcf <- as.double(seq_len(n) %% 2L)
 masked.bcf <- dbarts::dbarts(
   x,
   y,
-  treatment = z.bcf,
+  forests = list(forest(), forest(basis = ~ factor(z.bcf))),
   weights = w,
   control = control,
   sigma = 1
@@ -100,7 +100,7 @@ masked.bcf$setActiveRows(a)
 composed.bcf <- dbarts::dbarts(
   x,
   y,
-  treatment = z.bcf,
+  forests = list(forest(), forest(basis = ~ factor(z.bcf))),
   weights = w * a,
   control = control,
   sigma = 1

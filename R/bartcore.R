@@ -13,8 +13,8 @@
 # the transparent re-creation getPointer performs after save/load - continues
 # the chains bitwise identically.
 
-# A public dbartsSampler created through the treatment = spec branch
-# (docs/design/bcf.md) carries its 0/1 treatment vector on data@treatment,
+# A public dbartsSampler created through the forests = spec branch
+# (docs/design/bcf.md) carries its basis forest's 0/1 column on data@treatment,
 # mirroring data@weights; this is the R5-layer capability probe, cheaper than
 # a round trip through the bridge's own (Chain::bcfGlue-based) one.
 isBCFSampler <- function(sampler) {

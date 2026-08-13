@@ -195,7 +195,7 @@ expect_error(
   dbarts(
     xRef,
     yRef,
-    treatment = zRef,
+    forests = list(forest(), forest(basis = ~ factor(zRef))),
     control = refControl(),
     node.prior = normal(scale = 1.5)
   ),
@@ -205,7 +205,7 @@ expect_error(
 resolved <- dbartsSpec(
   dbartsData(xRef, yRef),
   refControl(),
-  treatment = zRef
+  forests = list(forest(), forest(basis = ~ factor(zRef)))
 )
 resolved$model@prior.scale <- 1.5
 expect_error(

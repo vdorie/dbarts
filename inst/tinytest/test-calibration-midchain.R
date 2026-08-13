@@ -330,7 +330,12 @@ expect_true(any(sampledK$getCalibration()[, "k"] != 2))
 # by name, because the calibration map owns both halves
 zBCF <- rbinom(n, 1L, 0.5)
 yBCF <- 12 * (x[, 1L] - x[, 2L]) + 2 * zBCF + rnorm(n)
-bcf <- dbarts(x, yBCF, treatment = zBCF, control = midControl())
+bcf <- dbarts(
+  x,
+  yBCF,
+  forests = list(forest(), forest(basis = ~ factor(zBCF))),
+  control = midControl()
+)
 bcfCalibration <- bcf$getCalibration(1L)
 expect_equal(dim(bcfCalibration), c(2L, 7L))
 expect_true(all(bcfCalibration[, "prior.scale"] > 0))
