@@ -2323,10 +2323,11 @@ public:
     }
   }
 
-  /// Info dump of live tree t; function-valued leaves print their per-leaf
-  /// mean fits.
-  void printTree(size_t t, int indentation) {
-    Forest<L, ResidT>& forest = forests_[0];
+  /// Info dump of live tree t of forest forestIndex; function-valued leaves
+  /// print their per-leaf mean fits. The index is undefaulted so a
+  /// single-forest caller states the 0 rather than inheriting it.
+  void printTree(size_t t, int indentation, size_t forestIndex) {
+    Forest<L, ResidT>& forest = forests_[forestIndex];
     if constexpr (L::hasFunctionParams) {
       std::vector<double> values;
       functionLeafValues(forest.trees[t],
@@ -2345,8 +2346,9 @@ public:
 
   /// The same for one saved tree; function-valued leaves print their
   /// recorded mean values.
-  void printSavedTree(size_t slot, size_t t, int indentation) const {
-    const Forest<L, ResidT>& forest = forests_[0];
+  void printSavedTree(size_t slot, size_t t, int indentation,
+                      size_t forestIndex) const {
+    const Forest<L, ResidT>& forest = forests_[forestIndex];
     const std::vector<FlatNode>& flat(
       forest.savedTrees[slot * forest.numTrees + t]);
     const std::uint64_t* masks = data_.hasPooledCategorical

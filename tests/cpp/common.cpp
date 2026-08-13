@@ -1,5 +1,32 @@
 #include "common.hpp"
 
+#include <cstdarg>
+
+namespace {
+
+std::string* printSink = nullptr;
+
+}  // namespace
+
+extern "C" void Rprintf(const char* format, ...) {
+  if (printSink == nullptr) return;
+  char line[4096];
+  va_list args;
+  va_start(args, format);
+  int written = std::vsnprintf(line, sizeof(line), format, args);
+  va_end(args);
+  if (written <= 0) return;
+  size_t length = static_cast<size_t>(written);
+  printSink->append(line, length < sizeof(line) ? length : sizeof(line) - 1);
+}
+
+void beginPrintCapture(std::string& sink) {
+  sink.clear();
+  printSink = &sink;
+}
+
+void endPrintCapture() { printSink = nullptr; }
+
 bool sameFlatTrees(const std::vector<std::vector<FlatNode>>& a,
                    const std::vector<std::vector<FlatNode>>& b) {
   if (a.size() != b.size()) return false;

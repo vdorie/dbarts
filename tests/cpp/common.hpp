@@ -133,6 +133,14 @@ struct CscFixture {
   }
 };
 
+// ext_printf is Rprintf (external/io.h), whose real implementation needs a
+// live R session and segfaults without one, so this host defines the symbol
+// itself and the executable's definition binds ahead of the framework's.
+// Output is discarded unless a capture is armed, which is how the engine's
+// info dumps become assertable here.
+void beginPrintCapture(std::string& sink);
+void endPrintCapture();
+
 // One entry point per translation unit, called from main() in original
 // test order; each runs its area's tests, filtered by suite name there.
 void runDataTests();

@@ -932,12 +932,16 @@ public:
     for (std::thread& worker : workers) worker.join();
   }
 
-  /// Info dump; the per-node output format is R-visible and pinned by tests.
-  /// Without keepTrees the live trees print and sample indices are ignored;
-  /// with it, the requested saved slots print in the saved-tree format.
+  /// Info dump of forest forestIndex; the per-node output format is R-visible
+  /// and pinned by tests. Without keepTrees the live trees print and sample
+  /// indices are ignored; with it, the requested saved slots print in the
+  /// saved-tree format. treeIndices are read against the NAMED forest's tree
+  /// count, which a multi-forest sampler states per forest; range-checking is
+  /// the bridge's, as everywhere here.
   void printTrees(const size_t* chainIndices, size_t numChainIndices,
                   const size_t* sampleIndices, size_t numSampleIndices,
-                  const size_t* treeIndices, size_t numTreeIndices) {
+                  const size_t* treeIndices, size_t numTreeIndices,
+                  size_t forestIndex) {
     int indent = 0;
     for (size_t i = 0; i < numChainIndices; ++i) {
       size_t chainNum = chainIndices[i];
@@ -947,7 +951,7 @@ public:
       }
       if (!options_.keepTrees) {
         for (size_t k = 0; k < numTreeIndices; ++k)
-          chains_[chainNum]->printTree(treeIndices[k], indent);
+          chains_[chainNum]->printTree(treeIndices[k], indent, forestIndex);
       } else {
         for (size_t j = 0; j < numSampleIndices; ++j) {
           size_t sampleNum = sampleIndices[j];
@@ -957,7 +961,8 @@ public:
             indent += 2;
           }
           for (size_t k = 0; k < numTreeIndices; ++k)
-            chains_[chainNum]->printSavedTree(sampleNum, treeIndices[k], indent);
+            chains_[chainNum]->printSavedTree(sampleNum, treeIndices[k], indent,
+                                              forestIndex);
           if (numSampleIndices > 1)
             indent -= 2;
         }

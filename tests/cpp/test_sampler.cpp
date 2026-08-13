@@ -4551,6 +4551,92 @@ static void testBCFTauModeratorRestriction(ext_rng* rng) {
          static_cast<unsigned long>(tauSplits));
 }
 
+// The info dump names its forest. The widened printers must reach forest 1 of
+// a BCF sampler on BOTH branches - saved slots under keepTrees, live trees
+// without it - while forest 0 renders exactly what it always did. tau is
+// restricted to one moderator column, so the forest a dump came from is
+// legible in the dump itself: every split tau prints names column 0, and mu
+// names others.
+static void testPrintTreesForest() {
+  // A local stream and locally owned generator, so adding this test shifts
+  // neither the shared runif01() state nor the shared rng the hardcoded
+  // characteristic values downstream depend on.
+  std::uint64_t state = 20260814u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+
+  const size_t n = 300, p = 4;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = unif() < 0.5 ? 1.0 : 0.0;
+    y[i] = 3.0 * x[i + 2 * n] + x[i + n] + z[i] * 4.0 * x[i] +
+           0.2 * (unif() - 0.5);
+  }
+
+  const std::vector<size_t> moderators = {0};
+  SamplerOptions options;
+  options.keepTrees = true;
+  options.numSamplesToStore = 2;
+  BCFSpec spec;
+  spec.mu.numTrees = 30;
+  spec.tau.numTrees = 20;
+  spec.tau.columns = moderators.data();
+  spec.tau.numColumns = moderators.size();
+  spec.z = z.data();
+
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 9310u);
+  Sampler<ConstantGaussianLeaf> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+    0.37804942330213542, options, spec, &rng);
+  Results empty;
+  sampler.run(150, 2, empty);
+
+  const size_t chain = 0, slot = 0, trees[] = {0, 1, 2};
+  auto dump = [&](size_t forestIndex, size_t numSampleIndices) {
+    std::string text;
+    beginPrintCapture(text);
+    sampler.printTrees(&chain, 1, &slot, numSampleIndices, trees, 3,
+                       forestIndex);
+    endPrintCapture();
+    return text;
+  };
+  auto splitVariables = [](const std::string& text) {
+    std::vector<long> variables;
+    for (size_t at = text.find("var: "); at != std::string::npos;
+         at = text.find("var: ", at + 1))
+      variables.push_back(std::strtol(text.c_str() + at + 5, nullptr, 10));
+    return variables;
+  };
+
+  for (int saved = 1; saved >= 0; --saved) {
+    if (saved == 0) sampler.setTreeStorage(false, 0);
+    std::string branch(saved ? "saved " : "live ");
+    std::string mu = dump(0, saved ? 1 : 0), tau = dump(1, saved ? 1 : 0);
+    // forest 0's head is the rendering the R surface's format tests pin
+    check(mu.compare(0, saved ? 6 : 12, saved ? "TBN: 1" : "n: 300 TBN: ") == 0,
+          (branch + "dump of forest 0 opens in its branch's format").c_str());
+    check(!tau.empty() && mu != tau,
+          (branch + "dump of forest 1 is its own").c_str());
+    std::vector<long> muVariables = splitVariables(mu),
+                      tauVariables = splitVariables(tau);
+    bool tauContained = !tauVariables.empty();
+    for (long variable : tauVariables) tauContained &= variable == 0;
+    check(tauContained, (branch + "dump of forest 1 is tau's, splitting only "
+                                  "on its moderator").c_str());
+    bool muBeyond = false;
+    for (long variable : muVariables) muBeyond |= variable != 0;
+    check(muBeyond,
+          (branch + "dump of forest 0 is mu's, reading the full store").c_str());
+  }
+
+  ext_rng_destroy(rng);
+  printf("ok: printTrees forest index\n");
+}
+
 // The mid-chain calibration surface at the engine boundary. Four claims the R
 // tests can only see through the bridge: the reported prior scale is the leaf
 // scale carried into response units by an independently computed factor; the
@@ -4676,6 +4762,7 @@ void runSamplerTests(ext_rng* rng) {
   testForestColumnRestriction(rng);
   testForestColumnRestrictionAllNeutral();
   testBCFTauModeratorRestriction(rng);
+  testPrintTreesForest();
   testBCFTwoForest(rng);
   testBCFResponseSwap();
   testBCFInteractionLifetime();

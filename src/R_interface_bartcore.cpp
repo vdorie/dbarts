@@ -30,13 +30,16 @@ using std::size_t;
 using std::uint32_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseBCFTestSurface;
+using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refusePinnedSigmaChange;
+using bartcore_bridge::refuseSparseLeafCovariate;
 using bartcore_bridge::refuseVarianceForestScaleUpdate;
 using bartcore_bridge::ResponseConduit;
 using bartcore_bridge::validateColumnValues;
 using bartcore_bridge::validateResponseSupport;
+using bartcore_bridge::validateTestContainerAgainstStore;
 
 namespace {
 
@@ -612,29 +615,6 @@ void resolveCscCategoricalReferences(
   }
 }
 
-// A sparse column's declared reference level is the code its IMPLICIT rows
-// take, which only a categorical column has: whatever the container declares,
-// the engine reads an ordinal column's implicit rows as the quantized zero, so
-// a reference against one is malformed rather than an alternative implicit
-// value - and the container's own densification would read that column
-// differently from the engine. \p storeTypes is indexed by SOURCE column, so a
-// subset mutation passes the types of the columns it names.
-void refuseCscReferenceAgainstStore(const bartcore::ColumnType* storeTypes,
-                                    const std::int32_t* columnSources,
-                                    size_t numColumns, const int* referenceMeta,
-                                    size_t numSparseColumns) {
-  if (referenceMeta == NULL) return;
-  for (size_t j = 0; j < numColumns; ++j) {
-    if (columnSources[j] >= 0 ||
-        storeTypes[j] == bartcore::ColumnType::categorical)
-      continue;
-    size_t source = static_cast<size_t>(~columnSources[j]);
-    if (source < numSparseColumns && referenceMeta[source] != NA_INTEGER)
-      Rf_error("a sparse predictor column may declare a reference level only "
-               "for a categorical predictor");
-  }
-}
-
 // Parse an R-side mixed test container (a dbartsMixedMatrix as x.test) against
 // the training cut grid the engine already holds: assemble the transient dense
 // block (factors carrying zero-based codes), gather the CSC slices, and resolve
@@ -765,18 +745,6 @@ void parseTestSource(ParsedTestContainer& out, SEXP xTestExpr,
   out.view.cscColumnPointers = csc.pointers;
   out.view.cscRowIndices = csc.rows;
   out.view.cscValues = csc.values;
-}
-
-// A designated leaf covariate reads contiguous raw values, which CSC storage
-// does not serve. The test-store entrances answer this with setTestData's false
-// return; a read-only replay builds no store, so it checks the view itself and
-// raises the same text.
-void refuseSparseLeafCovariate(const bartcore::SamplerShape& shape,
-                               const bartcore::PredictorSource& source) {
-  for (size_t k = 0; k < shape.numLeafCovariates; ++k)
-    if (source.sourceOf(shape.leafCovariateColumns[k]) < 0)
-      Rf_error("a leaf covariate column cannot be a sparse test column; "
-               "supply it as a dense test column");
 }
 
 // Mutation-side wording for the shared parse helpers; the creation-flavored
@@ -1779,35 +1747,6 @@ void validateCategoricalPredictors(const ParsedData& data) {
   }
 }
 
-// Bound a parsed test container's categorical codes against the STORE's fixed
-// category counts - the training-side bound the container itself cannot see,
-// since its own declared K is its author's, not the sampler's. Covers a
-// dense-backed column's slice, a CSC-backed column's stored codes, and the
-// reference code its implicit rows read. The container mutation entrances run
-// this after parseTestContainer and before any store change: creation-time
-// validation is long past there, and setTestData would otherwise quantize an
-// unbounded code straight into the test store.
-void validateTestContainerAgainstStore(const bartcore::ColumnStore& store,
-                                       const ParsedTestContainer& parsed) {
-  for (size_t j = 0; j < store.numPredictors; ++j) {
-    if (store.types[j] != bartcore::ColumnType::categorical) continue;
-    double bound = static_cast<double>(store.numCuts[j]);
-    if (parsed.view.sourceOf(j) >= 0) {
-      refuseInvalidCategoryCodes(rawViewColumn(parsed.view, j),
-                                 parsed.view.numRows, bound,
-                                 categoricalTestMessage);
-      continue;
-    }
-    ParsedCscCodes stored =
-      parsedCscCodes(parsed.view.cscColumnPointers, parsed.view.cscValues,
-                     parsed.view.sourceOf(j));
-    refuseInvalidCategoryCodes(stored.values, stored.numValues, bound,
-                               categoricalTestMessage);
-    double reference = static_cast<double>(parsed.view.referenceCodeOf(j));
-    refuseInvalidCategoryCodes(&reference, 1, bound, categoricalTestMessage);
-  }
-}
-
 bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
                                            const ParsedModel& model,
                                            const ParsedData& data,
@@ -2745,6 +2684,76 @@ void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
   for (size_t i = 0; i < numValues; ++i) {
     if (!store.categoricalValueIsValid(column, values[i]))
       Rf_error("categorical predictor values must be existing category codes");
+  }
+}
+
+// A sparse column's declared reference level is the code its IMPLICIT rows
+// take, which only a categorical column has: whatever the container declares,
+// the engine reads an ordinal column's implicit rows as the quantized zero, so
+// a reference against one is malformed rather than an alternative implicit
+// value - and the container's own densification would read that column
+// differently from the engine. \p storeTypes is indexed by SOURCE column, so a
+// subset mutation passes the types of the columns it names. External linkage:
+// promoted to the bridge block so the flat C API's source-shaped entries state
+// this rule once rather than restating it.
+void refuseCscReferenceAgainstStore(const bartcore::ColumnType* storeTypes,
+                                    const std::int32_t* columnSources,
+                                    size_t numColumns, const int* referenceMeta,
+                                    size_t numSparseColumns) {
+  if (referenceMeta == NULL) return;
+  for (size_t j = 0; j < numColumns; ++j) {
+    if (columnSources[j] >= 0 ||
+        storeTypes[j] == bartcore::ColumnType::categorical)
+      continue;
+    size_t source = static_cast<size_t>(~columnSources[j]);
+    if (source < numSparseColumns && referenceMeta[source] != NA_INTEGER)
+      Rf_error("a sparse predictor column may declare a reference level only "
+               "for a categorical predictor");
+  }
+}
+
+// A designated leaf covariate reads contiguous raw values, which CSC storage
+// does not serve. The test-store entrances answer this with setTestData's false
+// return; a read-only replay builds no store, so it checks the view itself and
+// raises the same text. External linkage: promoted to the bridge block so the
+// flat C API's source-shaped entries state this rule once rather than
+// restating it.
+void refuseSparseLeafCovariate(const bartcore::SamplerShape& shape,
+                               const bartcore::PredictorSource& source) {
+  for (size_t k = 0; k < shape.numLeafCovariates; ++k)
+    if (source.sourceOf(shape.leafCovariateColumns[k]) < 0)
+      Rf_error("a leaf covariate column cannot be a sparse test column; "
+               "supply it as a dense test column");
+}
+
+// Bound a parsed test view's categorical codes against the STORE's fixed
+// category counts - the training-side bound the view's author cannot see,
+// since its own declared K is the caller's, not the sampler's. Covers a
+// dense-backed column's slice, a CSC-backed column's stored codes, and the
+// reference code its implicit rows read. The container mutation entrances run
+// this after parseTestContainer and before any store change: creation-time
+// validation is long past there, and setTestData would otherwise quantize an
+// unbounded code straight into the test store. Takes the bare view rather
+// than the R-side parse it came from, which no header can name. External
+// linkage: promoted to the bridge block so the flat C API's source-shaped
+// entries state this rule once rather than restating it.
+void validateTestContainerAgainstStore(
+    const bartcore::ColumnStore& store,
+    const bartcore::PredictorSource& view) {
+  for (size_t j = 0; j < store.numPredictors; ++j) {
+    if (store.types[j] != bartcore::ColumnType::categorical) continue;
+    double bound = static_cast<double>(store.numCuts[j]);
+    if (view.sourceOf(j) >= 0) {
+      refuseInvalidCategoryCodes(rawViewColumn(view, j), view.numRows, bound,
+                                 categoricalTestMessage);
+      continue;
+    }
+    ParsedCscCodes stored = parsedCscCodes(view.cscColumnPointers,
+                                           view.cscValues, view.sourceOf(j));
+    refuseInvalidCategoryCodes(stored.values, stored.numValues, bound,
+                               categoricalTestMessage);
+    double reference = static_cast<double>(view.referenceCodeOf(j));
+    refuseInvalidCategoryCodes(&reference, 1, bound, categoricalTestMessage);
   }
 }
 
@@ -4414,7 +4423,7 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
     return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
       parseTestContainer(parsed, xTestExpr, shape.numPredictors,
                          holder.sampler->data().types.data());
-      validateTestContainerAgainstStore(holder.sampler->data(), parsed);
+      validateTestContainerAgainstStore(holder.sampler->data(), parsed.view);
       if (holder.sampler->data().testOffset != NULL &&
           parsed.view.numRows != shape.numTestObservations)
         Rf_error("test offset length would no longer match; set the predictors "
@@ -4493,7 +4502,7 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
     return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
       parseTestContainer(parsed, xTestExpr, numPredictors,
                          holder.sampler->data().types.data());
-      validateTestContainerAgainstStore(holder.sampler->data(), parsed);
+      validateTestContainerAgainstStore(holder.sampler->data(), parsed.view);
       if (!Rf_isNull(offsetExpr) &&
           (!Rf_isReal(offsetExpr) ||
            static_cast<size_t>(Rf_xlength(offsetExpr)) != parsed.view.numRows))
@@ -5430,7 +5439,7 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
     return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
       parseTestSource(parsed, xTestExpr, shape.numPredictors,
                       sampler.data().types.data());
-      validateTestContainerAgainstStore(sampler.data(), parsed);
+      validateTestContainerAgainstStore(sampler.data(), parsed.view);
       refuseSparseLeafCovariate(shape, parsed.view);
       return predictFromSource(sampler, shape, parsed.view, offsetExpr);
     });
@@ -5495,7 +5504,7 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
     if (testSourceIsSparse(newdataExpr)) {
       parseTestSource(parsed, newdataExpr, shape.numPredictors,
                       sampler.data().types.data());
-      validateTestContainerAgainstStore(sampler.data(), parsed);
+      validateTestContainerAgainstStore(sampler.data(), parsed.view);
       refuseSparseLeafCovariate(shape, parsed.view);
       newdata = &parsed.view;
       newdataNumRows = parsed.view.numRows;
@@ -5573,9 +5582,11 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
       }
     }
 
+    // forest 0: shape.numTrees, which the tree range check above reads, is
+    // forest 0's count on a multi-forest sampler
     sampler.printTrees(chainIndices.data(), chainIndices.size(),
                        sampleIndices.data(), sampleIndices.size(),
-                       treeIndices.data(), treeIndices.size());
+                       treeIndices.data(), treeIndices.size(), 0);
 
     return R_NilValue;
   });

@@ -254,12 +254,16 @@ public:
   virtual void setTreeStorage(bool keepTrees, std::size_t numSamplesToStore) = 0;
   virtual void setModel(const ModelParameters& model) = 0;
   virtual double sumOfSquaredResiduals(std::size_t chainNum) = 0;
+  /// Info dump of forest forestIndex; treeIndices are read against that
+  /// forest's own tree count (numTreesInForest), so a multi-forest caller
+  /// names both. Unchecked, like the rest of this surface.
   virtual void printTrees(const std::size_t* chainIndices,
                           std::size_t numChainIndices,
                           const std::size_t* sampleIndices,
                           std::size_t numSampleIndices,
                           const std::size_t* treeIndices,
-                          std::size_t numTreeIndices) = 0;
+                          std::size_t numTreeIndices,
+                          std::size_t forestIndex) = 0;
 
   virtual ext_rng* rng() const = 0;
   virtual const ColumnStore& data() const = 0;
@@ -499,9 +503,11 @@ public:
                   std::size_t numChainIndices,
                   const std::size_t* sampleIndices,
                   std::size_t numSampleIndices, const std::size_t* treeIndices,
-                  std::size_t numTreeIndices) override {
+                  std::size_t numTreeIndices,
+                  std::size_t forestIndex) override {
     impl_.printTrees(chainIndices, numChainIndices, sampleIndices,
-                     numSampleIndices, treeIndices, numTreeIndices);
+                     numSampleIndices, treeIndices, numTreeIndices,
+                     forestIndex);
   }
 
   ext_rng* rng() const override { return impl_.rng(); }
