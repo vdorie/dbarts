@@ -40,7 +40,7 @@ setActiveRows(active, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setForestWeights(forest, weights, updateState = NA)
 # S4 method for class 'dbartsSampler'
-setTreatment(z, updateState = NA)
+setForestBasis(forest, basis, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setSigma(sigma, updateState = NA)
 # S4 method for class 'dbartsSampler'
@@ -68,7 +68,7 @@ getSumsOfSquaredResiduals(result)
 # S4 method for class 'dbartsSampler'
 getForestFits(forest)
 # S4 method for class 'dbartsSampler'
-getBCFGlue()
+getForestAmplitudes()
 # S4 method for class 'dbartsSampler'
 getForestVariableCounts(forest)
 # S4 method for class 'dbartsSampler'
@@ -125,7 +125,7 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   object's `updateState`, and explicit `TRUE`/`FALSE` override it. For
   the mutators - `setData`, `setResponse`, `setOffset`, `setWeights`,
-  `setTreatment`, `setSigma`, `setCalibration`, `setPredictor`, and
+  `setForestBasis`, `setSigma`, `setCalibration`, `setPredictor`, and
   `setCutPoints` - the state is stored only on explicit `TRUE`; `NA`
   (the default) and `FALSE` both store nothing, regardless of
   `control@updateState`. These are typically called once per sweep
@@ -203,7 +203,7 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   during burn-in, as re-anchoring mid-run makes the fits across
   iterations no longer comparable. `TRUE` is refused by samplers whose
   leaf calibrations are stated against the transform fixed at creation
-  and are never restated: a two-forest (`treatment`) sampler and a
+  and are never restated: a two-forest (`forests`) sampler and a
   heteroscedastic (`variance`) one, whose variance forest would
   otherwise keep reporting \\s^2(x)\\ on the abandoned scale.
 
@@ -246,28 +246,30 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   the family-specific weight rules that apply at creation time.
 
   For `setForestWeights`, a distinct per-FOREST case weight on a
-  Bayesian causal forest, refused off one: it composes with `weights`
-  and `active` as \\(w_i a_i) m_f^2 s_i\\, where \\m_f\\ is the named
-  forest's own multiplier, rather than widening either channel, so
-  `s_i = 0` excludes row \\i\\ from *that forest's own leaf conditionals
-  only* - its occupancy, its place in the combination, and the residual
-  degrees of freedom are unaffected, and the reported location still
-  carries the forest's full contribution even when every row is
-  excluded. The third leg of a three-way degenerate-value contrast:
-  `weights` installs and is measurably distinct from carrying none,
-  `active` at all-ones installs nothing and clears any mask in force,
-  and `setForestWeights` at all-ones INSTALLS - a round trip reports
-  it - but is bitwise IDENTICAL to carrying no per-forest weight at all,
-  the null gate its multiplicative composition (\\m_f \times 1 = m_f\\)
-  is built to guarantee. The weight does not ride the sampler's saved
-  `state` - a sampler rebuilt with `setState` from a stored state
-  silently drops it while `statesAgree` still reports agreement - so it
-  is additionally mirrored on an R5 field that `getPointer`, `setState`,
-  and `copy` all reinstall on every re-creation; a caller never
-  reinstalls it by hand. `setData` needs no clearing rule here the way
-  it does for `active`: it is refused outright on any multi-forest
-  sampler (“a multi-forest sampler fixes its data at creation”), so the
-  two channels never interact.
+  Bayesian causal forest (built with `forests = `, see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)),
+  refused off one: it composes with `weights` and `active` as \\(w_i
+  a_i) m_f^2 s_i\\, where \\m_f\\ is the named forest's own multiplier,
+  rather than widening either channel, so `s_i = 0` excludes row \\i\\
+  from *that forest's own leaf conditionals only* - its occupancy, its
+  place in the combination, and the residual degrees of freedom are
+  unaffected, and the reported location still carries the forest's full
+  contribution even when every row is excluded. The third leg of a
+  three-way degenerate-value contrast: `weights` installs and is
+  measurably distinct from carrying none, `active` at all-ones installs
+  nothing and clears any mask in force, and `setForestWeights` at
+  all-ones INSTALLS - a round trip reports it - but is bitwise IDENTICAL
+  to carrying no per-forest weight at all, the null gate its
+  multiplicative composition (\\m_f \times 1 = m_f\\) is built to
+  guarantee. The weight does not ride the sampler's saved `state` - a
+  sampler rebuilt with `setState` from a stored state silently drops it
+  while `statesAgree` still reports agreement - so it is additionally
+  mirrored on an R5 field that `getPointer`, `setState`, and `copy` all
+  reinstall on every re-creation; a caller never reinstalls it by hand.
+  `setData` needs no clearing rule here the way it does for `active`: it
+  is refused outright on any multi-forest sampler (“a multi-forest
+  sampler fixes its data at creation”), so the two channels never
+  interact.
 
 - active:
 
@@ -350,11 +352,15 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   update's own formula - the coherent answer, and NOT what a compacted
   sampler with that group physically deleted would do.
 
-- z:
+- basis:
 
-  A 0/1 (or logical) treatment indicator, of length equal to that with
-  which the sampler was created. `setTreatment` only applies to a
-  Bayesian causal forest built with `treatment = ` (see
+  The data a forest's amplitudes multiply, of length equal to that with
+  which the sampler was created: a two-level factor (or a one-sided
+  formula naming one), whose second level indicator is the 0/1 column
+  the amplitudes \\(b_0, b_1)\\ contrast on - the same expansion
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
+  applies at creation. `setForestBasis` only applies to a Bayesian
+  causal forest built with `forests = ` (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)); it
   writes both the engine and `data@treatment`, so `getPointer`'s
   transparent re-creation after save/load carries the current assignment
@@ -363,14 +369,16 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - forest:
 
   For `getForestFits` and `getForestVariableCounts`, a single integer
-  selecting a Bayesian causal forest's prognostic (`0`) or treatment
-  (`1`) forest. Refused on a sampler that is not a Bayesian causal
-  forest. For `getCalibration` and `setCalibration`, a single positive
-  integer indexing the forests from `1` (the default, and the only
-  forest of an ordinary sampler); a Bayesian causal forest's prognostic
-  forest is `1` and its treatment forest `2`. `setForestWeights` indexes
-  from `1` as well, with no default: a Bayesian causal forest's
-  treatment forest is `2L`.
+  selecting a Bayesian causal forest's prognostic (`0`) or basis (`1`)
+  forest. Refused on a sampler that is not a Bayesian causal forest. For
+  `getCalibration` and `setCalibration`, a single positive integer
+  indexing the forests from `1` (the default, and the only forest of an
+  ordinary sampler); a Bayesian causal forest's prognostic forest is `1`
+  and its basis forest `2`. `setForestWeights` indexes from `1` as well,
+  with no default: a Bayesian causal forest's basis forest is `2L`.
+  `setForestBasis` indexes from `1` too, and takes only `2L` today - the
+  first forest's basis is the implicit intercept its own amplitude
+  scales.
 
 - prior.scale:
 
@@ -809,8 +817,8 @@ matrix otherwise - written into `result` when one was supplied.
 
 For `getForestFits`, a Bayesian causal forest's requested forest's
 current internal-scale fitted values, an n.observations x n.chains
-matrix. For `getBCFGlue`, the combining coefficients \\(a, b_0, b_1)\\
-of \\y = a \mu(x) + b_z \tau(x) + \epsilon\\, a 3 x n.chains matrix. For
+matrix. For `getForestAmplitudes`, the amplitudes \\(a, b_0, b_1)\\ of
+\\y = a \mu(x) + b_z \tau(x) + \epsilon\\, a 3 x n.chains matrix. For
 `getForestVariableCounts`, the requested forest's current per-predictor
 split counts, an n.predictors x n.chains integer matrix.
 

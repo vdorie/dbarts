@@ -18,7 +18,7 @@ dbartsSpec(
     monotone = NULL, interactions = NULL, blocks = NULL,
     variance = NULL, n.trees.variance = 40L,
     power.variance = NULL, base.variance = NULL,
-    treatment = NULL, moderators = NULL, treatmentForest = NULL,
+    forests = NULL,
     sigma = NA_real_, seed = NA_integer_,
     family = c("auto", "gaussian", "probit", "logistic", "aft",
                "ordinal", "nbinom"),
@@ -39,13 +39,17 @@ dbartsSpec(
 
 - control, tree.prior, node.prior, resid.prior, resid.dist,
   proposal.probs, monotone, interactions, blocks, variance,
-  n.trees.variance, power.variance, base.variance, treatment,
-  moderators, treatmentForest, sigma, seed, family, dispersion:
+  n.trees.variance, power.variance, base.variance, forests, sigma, seed,
+  family, dispersion:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
   The prior arguments are evaluated in dbarts's own prior vocabulary, so
   bare expressions such as `normal(k = chi(1.25, Inf))` resolve
-  regardless of what the caller has attached.
+  regardless of what the caller has attached. A
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
+  `basis` given as a one-sided formula is evaluated in `parentEnv`, this
+  surface performing no data ingestion of its own; the data object's
+  rows are already whatever its own `subset` kept.
 
 - survival:
 

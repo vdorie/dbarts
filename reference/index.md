@@ -60,7 +60,7 @@ weights can change between draws, for use inside larger MCMC schemes.
   [`setWeights(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setActiveRows(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setForestWeights(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  [`setTreatment(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`setForestBasis(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setSigma(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setPredictor(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setCutPoints(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
@@ -73,7 +73,7 @@ weights can change between draws, for use inside larger MCMC schemes.
   [`getLatents(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`getSumsOfSquaredResiduals(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`getForestFits(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  [`getBCFGlue(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`getForestAmplitudes(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`getForestVariableCounts(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`getCalibration(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setCalibration(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
@@ -95,8 +95,8 @@ weights can change between draws, for use inside larger MCMC schemes.
   : Interaction Constraints for BART
 - [`blocks()`](https://vdorie.github.io/dbarts/reference/blocks.md) :
   Block-Additive Constraints for BART
-- [`treatmentForest()`](https://vdorie.github.io/dbarts/reference/treatmentForest.md)
-  : Treatment Forest Specification for Bayesian Causal Forests
+- [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) :
+  Forest Specification for Multi-Forest Models
 - [`extract(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/extract.dbartsSampler.md)
   : Extract the Predictor Matrix From a Sampler
 - [`samplePriorPredictive()`](https://vdorie.github.io/dbarts/reference/samplePriorPredictive.md)

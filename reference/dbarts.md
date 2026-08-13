@@ -19,7 +19,7 @@ dbarts(
     blocks = NULL,
     variance = NULL, n.trees.variance = 40L,
     power.variance = NULL, base.variance = NULL,
-    treatment = NULL, moderators = NULL, treatmentForest = NULL,
+    forests = NULL,
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal",
@@ -268,39 +268,31 @@ dbarts(
   an `"s"` attribute with \\s(x)\\ at new predictors (requires
   `keepTrees`).
 
-- treatment:
+- forests:
 
-  An optional vector of 0/1 treatment assignments, one per observation,
-  selecting a Bayesian causal forest instead of a single ensemble: the
-  response is fit as \\y = a \mu(x) + b_z \tau(x) + \epsilon\\, with a
-  prognostic forest \\\mu\\ over every predictor and a treatment forest
-  \\\tau\\ over the moderators. Gaussian responses only. The result is
-  an ordinary `dbartsSampler`; per-forest fits and the glue \\(a, b_0,
-  b_1)\\ are read off the sampler rather than from the run's combined
-  `train` channel. The vector is stored on the data object, so it is
-  subset by `subset` and survives a sampler's re-creation. Options the
-  two-forest model does not read - `monotone`, `variance`, a DART tree
-  prior, `split.probs`, a linear or Gaussian-process node prior, a `k`
-  hyperprior or non-default `k`, a non-default `proposal.probs`,
-  Student-t residuals, grouped random effects, `storage = "single"`,
-  per-column cut counts, and a `test` set - are refused at creation
-  rather than ignored.
-
-- moderators:
-
-  Optional restriction of the treatment forest to a subset of the model
-  matrix, by column name or index. `NULL` leaves it reading every
-  predictor. Read only when `treatment` is supplied.
-
-- treatmentForest:
-
-  Optional
-  [`treatmentForest`](https://vdorie.github.io/dbarts/reference/treatmentForest.md)
-  specification carrying the treatment forest's tree count and structure
-  prior, the prior scales of the glue, and the treatment forest's own
-  `interactions`/`blocks` constraints (the arguments of those names
-  constrain the prognostic forest). Read only when `treatment` is
-  supplied.
+  Optional list of
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
+  specifications declaring the ensembles the mean is a weighted sum of,
+  instead of the single ensemble `NULL` (the default) fits. Each forest
+  carries its own tree count, structure prior, leaf scale, column
+  restriction and `interactions`/`blocks` constraints; a forest given a
+  `basis` enters the mean multiplied by the amplitudes on that basis's
+  columns. Today's engine fits at most two forests, and a basis only on
+  the second and only as a two-level factor, which is the Bayesian
+  causal forest \\y = a \mu(x) + b_z \tau(x) + \epsilon\\: a prognostic
+  forest \\\mu\\ over every predictor and a modulating forest \\\tau\\
+  over the columns its `vars` allows. Gaussian responses only. The
+  result is an ordinary `dbartsSampler`; per-forest fits and the
+  amplitudes \\(a, b_0, b_1)\\ are read off the sampler rather than from
+  the run's combined `train` channel. The column a basis expands to is
+  stored on the data object, so it is subset by `subset` and survives a
+  sampler's re-creation. Options a two-forest model does not read -
+  `monotone`, `variance`, a DART tree prior, `split.probs`, a linear or
+  Gaussian-process node prior, a `k` hyperprior or non-default `k`, a
+  non-default `proposal.probs`, Student-t residuals, grouped random
+  effects, `storage = "single"`, per-column cut counts, and a `test`
+  set - are refused at creation rather than ignored, as is any
+  declaration the engine cannot honour.
 
 - n.trees.variance, power.variance, base.variance:
 
@@ -596,7 +588,7 @@ force, and the engine never writes it back, so a channel that re-anchors
 the transform (`setResponse` or `setOffset` with `updateScale = TRUE`,
 or `setData`) moves the calibration actually in force while leaving the
 recorded intent alone; re-issue the model to restate it. Two-forest
-(`treatment`) and multinomial models take both forests' leaf scales from
+(`forests`) and multinomial models take both forests' leaf scales from
 their own calibration maps and refuse a named calibration rather than
 drop it.
 

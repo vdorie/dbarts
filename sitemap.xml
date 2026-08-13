@@ -15,6 +15,7 @@
 <url><loc>https://vdorie.github.io/dbarts/reference/dbartsSampler-class.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/dbartsSpec.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/extract.dbartsSampler.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/forest.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/guessNumCores.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/index.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/interactions.html</loc></url>
@@ -26,7 +27,6 @@
 <url><loc>https://vdorie.github.io/dbarts/reference/sparseFactor.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/summary.bart.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/survivalProbabilities.html</loc></url>
-<url><loc>https://vdorie.github.io/dbarts/reference/treatmentForest.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/xbart.html</loc></url>
 </urlset>
