@@ -1,6 +1,6 @@
 # Response-model feature matrix
 
-Status: living reference, current at 64b13b98 (2026-08-13). Carries no landing
+Status: living reference, current at a14040de (2026-08-13). Carries no landing
 date and is not a design proposal - the orchestrator updates it in place at
 every landing that changes a cell, and VD uses it to schedule feature
 completion.
@@ -22,7 +22,7 @@ guessed.
 | `-` | N/A. The concept does not apply to this row; the row footnote says why. |
 | `?` | UNVERIFIED. Constructs today with no refusal site, but no test, doc or adjudication backs it. Do not schedule against the cell until it is settled; every `?` is listed under "Gaps". |
 
-Path aliases used in anchors (line numbers are at 64b13b98):
+Path aliases used in anchors (line numbers are at a14040de):
 
     RIB   src/R_interface_bartcore.cpp      CAPI  inst/include/dbarts/dbarts.h
     MOD   src/bartcore/model.hpp            CH    src/bartcore/chain.hpp
@@ -117,15 +117,15 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 
 | model | zero-weight row subset | active-rows mask [f15] | `getLatents` | pointwise loglik | nameable calibration [f16] |
 |---|---|---|---|---|---|
-| gaussian | S sampler.Rd:143, MOD:2729 [f17] | S MOD:2814 | - RIB:5599 [f18] | S generics.R:48 | S dbarts.R:1430, 1435 [f16] |
-| student | S MOD:4009-4016 [f17] | S MOD:4064 | S MOD:4076 | ? generics.R:48 [f19] | S dbarts.R:1430, 1435 [f16] |
-| probit | R RIB:1581 | S MOD:3040 | S MOD:3076 | S generics.R:59 | S dbarts.R:1430, 1435 [f16] |
-| logistic | R RIB:1585 [f20] | S MOD:3476 | S MOD:3550 | S generics.R:59 | S dbarts.R:1430, 1435 [f16] |
-| ordinal | R RIB:2455 | S MOD:3172 | S MOD:3217 | M generics.R:86 | S dbarts.R:1430, 1435 [f16] |
-| nbinom | R RIB:2461 | S MOD:4304 | S MOD:4357 | M generics.R:86 | S dbarts.R:1430, 1435 [f16] |
+| gaussian | S sampler.Rd:143, MOD:2729 [f17] | S MOD:2814 | - RIB:5599 [f18] | S generics.R:48 | S dbarts.R:1434, 1439 [f16] |
+| student | S MOD:4009-4016 [f17] | S MOD:4064 | S MOD:4076 | ? generics.R:48 [f19] | S dbarts.R:1434, 1439 [f16] |
+| probit | R RIB:1581 | S MOD:3040 | S MOD:3076 | S generics.R:59 | S dbarts.R:1434, 1439 [f16] |
+| logistic | R RIB:1585 [f20] | S MOD:3476 | S MOD:3550 | S generics.R:59 | S dbarts.R:1434, 1439 [f16] |
+| ordinal | R RIB:2455 | S MOD:3172 | S MOD:3217 | M generics.R:86 | S dbarts.R:1434, 1439 [f16] |
+| nbinom | R RIB:2461 | S MOD:4304 | S MOD:4357 | M generics.R:86 | S dbarts.R:1434, 1439 [f16] |
 | multinom | R RIB:2990 | S COM:936 [f21] | M MOD:3635 [f22] | M generics.R:86 | R [f23] |
-| aft | R RIB:2451 | S MOD:3770 | S MOD:3831 | S generics.R:64 | S dbarts.R:1430, 1435 [f16] |
-| hazard | R RIB:1581 [f6] | S MOD:3040 [f6] | S MOD:3076 | S generics.R:59 [f24] | S dbarts.R:1430, 1435 [f6] |
+| aft | R RIB:2451 | S MOD:3770 | S MOD:3831 | S generics.R:64 | S dbarts.R:1434, 1439 [f16] |
+| hazard | R RIB:1581 [f6] | S MOD:3040 [f6] | S MOD:3076 | S generics.R:59 [f24] | S dbarts.R:1434, 1439 [f6] |
 | hurdle | R bart.R:944 | - [f12] | - [f12] | M generics.R:86 [f25] | - [f12] |
 | bcf | S COM:722-733 [f17] | S MOD:2814, CH:1160 [f26] | - [f18] | M generics.R:86 | R [f23] |
 | grouped | S MOD:4587-4609 | S MOD:4743 [f27] | S MOD:4752 | S generics.R:1396 | S MOD:4774 [f27] |
@@ -353,7 +353,7 @@ than staying silent - and the writer, `Chain::setForestPriorScale` (CH:1003),
 sharing one `priorScaleFactor` conversion (CH:3426) with the reader so neither
 direction can drift from the other; both are total over the four leaf models
 and carry no family switch (facade FAC:284, 291; `Sampler` SAM:1182, 1191; R5
-`dbartsSampler$getCalibration`/`$setCalibration` dbarts.R:1430, 1435; bridge
+`dbartsSampler$getCalibration`/`$setCalibration` dbarts.R:1434, 1439; bridge
 `bartcore_getCalibration`/`bartcore_setCalibration` RIB:3820, 3867). Refused
 under a `k` hyperprior (the `sd` spelling only, since a sampled `k` has no
 single value to divide by, or once the chains' `k` have diverged) and for
@@ -448,10 +448,10 @@ BCF-composition gate (`refuseUnsupportedBCFComposition`, RIB:2238), and the
 multinomial forest builder (`buildMultinomialSampler`, RIB:3041). S2
 (d809b944) adds the mid-chain refusals, at TWO independent sites rather than
 one shared gate: `$setCalibration`'s R5 method refuses BCF through
-`refuseBCFMutation` (dbarts.R:1444, MEASURED "two-forest calibration map",
+`refuseBCFMutation` (dbarts.R:1448, MEASURED "two-forest calibration map",
 test-calibration-midchain.R:341-344) before ever reaching the bridge, and
 refuses a multinomial fit's host shell through `refuseHostMutation`
-(dbarts.R:1443, MEASURED "host sampler of a bart2", line 375-378); underneath
+(dbarts.R:1447, MEASURED "host sampler of a bart2", line 375-378); underneath
 both, the engine-level gate any DIRECT low-level call still hits -
 `Chain::setForestPriorScale` returning false whenever `combiner_ != nullptr`
 (CH:1003), surfaced as `Rf_error(...calibrationMapName...)` at the bridge
@@ -488,7 +488,7 @@ PUBLIC R5 method, `dbartsSampler$setForestWeights` (dbarts.R:1157, landed
 multiforest-extension-surface M1, 05ac3b4b), 1-based via `resolveForestIndex`
 (a BCF basis forest is `2L`) and mirrored across re-creation on a
 `forestWeights` field re-applied at `getPointer`, `setState` and `copy`
-(dbarts.R:1499); the unexported `bartcoreSetForestWeights` (bartcore.R:999)
+(dbarts.R:1503); the unexported `bartcoreSetForestWeights` (bartcore.R:999)
 stays the 0-based internal wrapper the R5 method does not call.
 
 [f27] Delegating / decorating, and that is what 6db22aee landed for the
@@ -588,7 +588,7 @@ ordinary single-forest chain that takes it.
 variance-forest presence only (SAM:685-735), matching donor forest counts at
 SAM:717, and `growForestFromRoot` loops every forest (CH:1589). Neither is
 exercised by a BCF test, and BCF has no `bart2()` surface, so both are reached
-only through the R5 `$installTrees` (dbarts.R:1572) / `$growFromRoot`
+only through the R5 `$installTrees` (dbarts.R:1576) / `$growFromRoot`
 (dbarts.R:856).
 
 [f37] `rbart_vi()` carries no `warm.start` or `n.grow.sweeps` formal
