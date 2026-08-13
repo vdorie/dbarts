@@ -999,6 +999,14 @@
             of the model, so \code{$setResponse}, \code{$run} and the rest
             silently changed nothing about the fit; its read surface,
             which \code{predict} uses, is unaffected.
+      \item \code{$getForestFits} and \code{$getForestVariableCounts} now
+            index \code{forest} from \code{1}, as
+            \code{$setForestWeights}, \code{$setForestBasis}, and
+            \code{$getCalibration}/\code{$setCalibration} already did (a
+            Bayesian causal forest's treatment forest is \code{2});
+            \code{0} is refused rather than silently naming the
+            prognostic forest. The R5 sampler's forest index is now
+            1-based everywhere.
     }
   }
 }

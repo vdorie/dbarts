@@ -1413,9 +1413,9 @@ dbartsSampler <- setRefClass(
       .Call(C_dbarts_bartcore_getSumsOfSquaredResiduals, ptr)
     },
     getForestFits = function(forest) {
-      "Returns a BCF sampler's per-forest internal-scale fitted values (0 = prognostic, 1 = treatment), n.observations x n.chains."
+      "Returns a sampler's per-forest internal-scale fitted values (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.observations x n.chains. forest indexes from 1, as with setForestWeights/setForestBasis/getCalibration/setCalibration."
       ptr <- getPointer()
-      .Call(C_dbarts_bartcore_getForestFits, ptr, as.integer(forest))
+      .Call(C_dbarts_bartcore_getForestFits, ptr, resolveForestIndex(forest))
     },
     getForestAmplitudes = function() {
       "Returns a BCF sampler's amplitudes (a, b0, b1) - the first forest's on its implicit intercept, the second's on its two basis indicators - as a 3 x n.chains matrix."
@@ -1423,9 +1423,13 @@ dbartsSampler <- setRefClass(
       .Call(C_dbarts_bartcore_getBCFGlue, ptr)
     },
     getForestVariableCounts = function(forest) {
-      "Returns a BCF sampler's per-forest predictor split counts (0 = prognostic, 1 = treatment), n.predictors x n.chains."
+      "Returns a sampler's per-forest predictor split counts (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.predictors x n.chains. forest indexes from 1, as with setForestWeights/setForestBasis/getCalibration/setCalibration."
       ptr <- getPointer()
-      .Call(C_dbarts_bartcore_getForestVariableCounts, ptr, as.integer(forest))
+      .Call(
+        C_dbarts_bartcore_getForestVariableCounts,
+        ptr,
+        resolveForestIndex(forest)
+      )
     },
     getCalibration = function(forest = 1L) {
       "Returns the leaf-prior calibration in force, one row per chain and one column of prior.scale (the forest total's prior standard deviation at k = 1, in response units), prior.sd (prior.scale / k), prior.mean, k, k.has.hyperprior, response.scale, and response.shift. The leaf model rides on a 'leaf.model' attribute and qualifies prior.sd: an equality only for the constant leaf. This is the authoritative reader of the calibration - model@prior.scale records the named intent, which a channel that re-anchors the response transform leaves untouched while moving what is in force."

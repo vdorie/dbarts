@@ -168,8 +168,8 @@ expect_false(identical(
 zeroed <- build()
 zeroed$setForestWeights(2L, rep(0, n))
 result.zeroed <- zeroed$run(0L, 5L)
-mu0 <- zeroed$getForestFits(0L)[, 1L]
-tau0 <- zeroed$getForestFits(1L)[, 1L]
+mu0 <- zeroed$getForestFits(1L)[, 1L]
+tau0 <- zeroed$getForestFits(2L)[, 1L]
 glue0 <- zeroed$getForestAmplitudes()
 zeroed$storeState()
 fitScale0 <- zeroed$state[[1L]]$fit.scale
