@@ -31,6 +31,8 @@
 \alias{\S4method{getForestFits}{dbartsSampler}}
 \alias{\S4method{getBCFGlue}{dbartsSampler}}
 \alias{\S4method{getForestVariableCounts}{dbartsSampler}}
+\alias{\S4method{getCalibration}{dbartsSampler}}
+\alias{\S4method{setCalibration}{dbartsSampler}}
 \alias{\S4method{installTrees}{dbartsSampler}}
 \alias{\S4method{storeState}{dbartsSampler}}
 \alias{\S4method{setState}{dbartsSampler}}
@@ -74,6 +76,10 @@
 \S4method{getForestFits}{dbartsSampler}(forest)
 \S4method{getBCFGlue}{dbartsSampler}()
 \S4method{getForestVariableCounts}{dbartsSampler}(forest)
+\S4method{getCalibration}{dbartsSampler}(forest = 1L)
+\S4method{setCalibration}{dbartsSampler}(
+  prior.scale, prior.sd, prior.mean, forest = 1L, updateState = NA
+)
 \S4method{installTrees}{dbartsSampler}(donor, samples = NULL)
 \S4method{storeState}{dbartsSampler}()
 \S4method{setState}{dbartsSampler}(newState)
@@ -91,7 +97,7 @@
     A positive integer determining how many posterior samples should be returned. If missing or \code{NA}, the default is also filled in from the control object.
   }
   \item{updateState}{
-    A logical determining if the local cache of the sampler's state should be updated after the call completes. Two conventions apply, by method: for \code{run}, \code{sampleTreesFromPrior}, and \code{sampleNodeParametersFromPrior}, \code{NA} (the default) fills in the sampler's \code{\link[=dbartsControl]{control}} object's \code{updateState}, and explicit \code{TRUE}/\code{FALSE} override it. For the mutators - \code{setData}, \code{setResponse}, \code{setOffset}, \code{setWeights}, \code{setTreatment}, \code{setSigma}, \code{setPredictor}, and \code{setCutPoints} - the state is stored only on explicit \code{TRUE}; \code{NA} (the default) and \code{FALSE} both store nothing, regardless of \code{control@updateState}. These are typically called once per sweep inside a larger Gibbs/MH loop (as \code{dbartsSampler} is designed for), where storing state on every mutation would be wasted work whenever the loop only reads \code{state} occasionally (or never); an unforced \code{state} promise materializes the sampler's \emph{current} state on first access regardless, so a mutate-then-first-read sequence needs no explicit store. Pass \code{TRUE} explicitly when \code{state} was already forced (read or saved) earlier and a later mutation must be reflected in the next save.
+    A logical determining if the local cache of the sampler's state should be updated after the call completes. Two conventions apply, by method: for \code{run}, \code{sampleTreesFromPrior}, and \code{sampleNodeParametersFromPrior}, \code{NA} (the default) fills in the sampler's \code{\link[=dbartsControl]{control}} object's \code{updateState}, and explicit \code{TRUE}/\code{FALSE} override it. For the mutators - \code{setData}, \code{setResponse}, \code{setOffset}, \code{setWeights}, \code{setTreatment}, \code{setSigma}, \code{setCalibration}, \code{setPredictor}, and \code{setCutPoints} - the state is stored only on explicit \code{TRUE}; \code{NA} (the default) and \code{FALSE} both store nothing, regardless of \code{control@updateState}. These are typically called once per sweep inside a larger Gibbs/MH loop (as \code{dbartsSampler} is designed for), where storing state on every mutation would be wasted work whenever the loop only reads \code{state} occasionally (or never); an unforced \code{state} promise materializes the sampler's \emph{current} state on first access regardless, so a mutate-then-first-read sequence needs no explicit store. Pass \code{TRUE} explicitly when \code{state} was already forced (read or saved) earlier and a later mutation must be reflected in the next save.
   }
   \item{shallow}{
     A logical determining if the copy should retain the underlying data of the sampler (\code{TRUE}) or have its own copies (\code{FALSE}).
@@ -140,7 +146,16 @@
     A 0/1 (or logical) treatment indicator, of length equal to that with which the sampler was created. \code{setTreatment} only applies to a Bayesian causal forest built with \code{treatment = } (see \code{\link{dbarts}}); it writes both the engine and \code{data@treatment}, so \code{getPointer}'s transparent re-creation after save/load carries the current assignment rather than the one the sampler was created with.
   }
   \item{forest}{
-    For \code{getForestFits} and \code{getForestVariableCounts}, a single integer selecting a Bayesian causal forest's prognostic (\code{0}) or treatment (\code{1}) forest. Refused on a sampler that is not a Bayesian causal forest.
+    For \code{getForestFits} and \code{getForestVariableCounts}, a single integer selecting a Bayesian causal forest's prognostic (\code{0}) or treatment (\code{1}) forest. Refused on a sampler that is not a Bayesian causal forest. For \code{getCalibration} and \code{setCalibration}, a single positive integer indexing the forests from \code{1} (the default, and the only forest of an ordinary sampler); a Bayesian causal forest's prognostic forest is \code{1} and its treatment forest \code{2}.
+  }
+  \item{prior.scale}{
+    For \code{setCalibration}, the prior standard deviation of the forest total at \code{k = 1}, in response units (the family's latent units where the response is not rescaled). This is the identified quantity: only the ratio of the leaf scale to \code{k} enters a draw law, so under a fixed \code{k} the pair has one degree of freedom, and \code{prior.scale} is the half of it a hyperprior on \code{k} leaves alone. Must be a single positive finite number; exactly one of \code{prior.scale} and \code{prior.sd} is given.
+  }
+  \item{prior.sd}{
+    For \code{setCalibration}, the same statement at the \code{k} currently in force, so \code{prior.scale = prior.sd * k}. Refused when \code{k} is drawn from a hyperprior - it would name a different prior every sweep - and refused when the chains' \code{k} have diverged, since one number would then mean a different scale on each; \code{prior.scale} serves in both cases. Note the binary families default to a sampled \code{k}.
+  }
+  \item{prior.mean}{
+    Not writable, and present only to say so with its remedy: the leaf values it would shift are already drawn and stored. The prior mean of the forest total is the response transform's shift, and the lever that moves the modelled quantity is the offset channel, \code{setOffset(rep_len(-getCalibration()[1, "prior.mean"], n))}.
   }
   \item{cuts}{
     Vector of cut points for use with \code{setCutPoints}.
@@ -317,6 +332,14 @@
   For \code{getLatents}, \code{NULL} when the model has no latent-variable representation (e.g. a gaussian response); otherwise the sampler's current latent values - a plain vector of length equal to the number of observations when there is a single chain, or an observations-by-chains matrix otherwise - written into \code{result} when one was supplied.
 
   For \code{getForestFits}, a Bayesian causal forest's requested forest's current internal-scale fitted values, an n.observations x n.chains matrix. For \code{getBCFGlue}, the combining coefficients \eqn{(a, b_0, b_1)}{(a, b0, b1)} of \eqn{y = a \mu(x) + b_z \tau(x) + \epsilon}{y = a mu(x) + b_z tau(x) + eps}, a 3 x n.chains matrix. For \code{getForestVariableCounts}, the requested forest's current per-predictor split counts, an n.predictors x n.chains integer matrix.
+
+  For \code{getCalibration}, the leaf-prior calibration a forest currently runs under, as a numeric matrix with one row per chain and the columns \code{prior.scale} (the prior standard deviation of the forest total at \code{k = 1}, in response units), \code{prior.sd} (\code{prior.scale / k}), \code{prior.mean}, \code{k}, \code{k.has.hyperprior} (1 when this forest's \code{k} is drawn every sweep, in which case \code{prior.sd} moves every sweep while \code{prior.scale} does not), \code{response.scale}, and \code{response.shift}. The leaf model rides as a \code{"leaf.model"} attribute, one of \code{"constant"}, \code{"monotone"}, \code{"linear"}, or \code{"gp"}, and qualifies what \code{prior.sd} means.
+
+  \code{prior.scale} and \code{prior.sd} describe the LEAF-PARAMETER scale of the forest total. They equal the prior standard deviation of \eqn{f(x)}{f(x)} at every \eqn{x}{x} for the constant leaf only; for the other three the prior of \eqn{f(x)}{f(x)} is x-dependent and \code{prior.sd} bounds it in a leaf-specific direction. Under \code{"linear"} it is a LOWER bound attained at the standardized covariate origin, with \eqn{sd(f(x)) = }{sd(f(x)) = } \code{prior.sd} \eqn{\sqrt{1 + \|z(x)\|^2}}{* sqrt(1 + ||z(x)||^2)} in the internally standardized leaf covariates (a missing value maps to \eqn{z_j = 0}{z_j = 0}); \code{prior.mean} is exact. Under \code{"gp"} it is an UPPER bound over \eqn{x}{x}, attained at rows that reproduce a leaf member and on over-cap leaves, and elsewhere decaying to zero as \eqn{x}{x} leaves the leaf's data cloud, where every prior draw equals \code{prior.mean} exactly. Under \code{"monotone"} it is a LOWER bound in the interior - the realized standard deviation runs a few per cent to about twenty per cent above it - and \code{prior.mean} is NOT the prior mean of \eqn{f(x)}{f(x)} under an active constraint: that marginal is skew, with an x-dependent mean tracking the constraint's direction across several \code{prior.sd} (see \code{monotone} in \code{\link{dbarts}}).
+
+  This is the authoritative reader of the calibration in force. A model's \code{prior.scale} slot records the named intent and is never rewritten by the engine, so a channel that re-anchors the response transform - \code{setResponse} or \code{setOffset} at \code{updateScale = TRUE}, or \code{setData} - moves what is in force while leaving the intent alone; \code{getCalibration} shows the move, and \code{setCalibration} or \code{setModel(sampler$model)} re-issues the intent.
+
+  For \code{setCalibration}, \code{NULL} invisibly. The write lands on every chain and takes effect on the next sweep, reinterpreting no leaf value already drawn; a write that reproduces what is already in force is skipped bitwise, so a read followed by a write cannot perturb a draw. It is total over the four leaf models, each of which carries the one scale it writes. It is refused on a Bayesian causal forest and on a multinomial sampler, whose per-forest leaf scales come from their own calibration maps, and on the host shell of a fit whose model lives elsewhere; a value that is not a single positive finite number is an error. Nothing else moves - not \code{k}, not the response transform, not \code{sigma}, not the tree prior, not a DART split prior - which is the difference from \code{setModel}, and the reason a DART sampler is served here and refused there. A heteroscedastic sampler's variance forest is a separate leaf model and is not addressable.
 
   For \code{storeState}, \code{NULL} invisibly; it is called for its side effect of capturing the sampler's current engine state into the serializable \code{state} field, which \code{\link{save}} then writes out. See \sQuote{Saving}.
 }

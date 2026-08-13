@@ -1023,6 +1023,39 @@ bartcoreForestFits <- function(bcSampler, forest) {
   .Call(C_dbarts_bartcore_getForestFits, bcSampler$ptr, as.integer(forest))
 }
 
+# A forest's leaf-prior calibration in RESPONSE units, one row per chain
+# (columns prior.scale, prior.sd, prior.mean, k, k.has.hyperprior,
+# response.scale, response.shift) with the leaf model on a "leaf.model"
+# attribute. Total over forests: a combiner's forests report the calibration
+# its own map fixed. Forest is 0-based here, as everywhere on this layer; the
+# R5 $getCalibration indexes from 1.
+bartcoreForestCalibration <- function(bcSampler, forest) {
+  .Call(C_dbarts_bartcore_getCalibration, bcSampler$ptr, as.integer(forest))
+}
+
+# Restates a forest's leaf prior on every chain so the forest total's prior sd
+# at k = 1 is prior.scale, response units. Refused when a combiner owns the
+# calibration; nothing else moves, and a write reproducing what is in force is
+# skipped bitwise.
+bartcoreSetForestPriorScale <- function(bcSampler, forest, prior.scale) {
+  invisible(.Call(
+    C_dbarts_bartcore_setCalibration,
+    bcSampler$ptr,
+    as.integer(forest),
+    validateLiveScale(prior.scale, "prior.scale")
+  ))
+}
+
+# The R5 calibration surface indexes forests from 1, as R indexes; the bridge
+# and the flat C entries count from 0, as the engine does.
+resolveForestIndex <- function(forest) {
+  forest <- as.integer(forest)
+  if (length(forest) != 1L || is.na(forest) || forest < 1L) {
+    stop("'forest' must be a single positive integer (1 selects the first)")
+  }
+  forest - 1L
+}
+
 # A forest's current per-predictor split counts (0 prognostic, 1 treatment),
 # n.predictors x n.chains; the per-forest analog of the run's varcount channel.
 bartcoreForestVariableCounts <- function(bcSampler, forest) {

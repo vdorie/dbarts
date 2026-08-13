@@ -4291,6 +4291,127 @@ static void testBCFTauModeratorRestriction(ext_rng* rng) {
          static_cast<unsigned long>(tauSplits));
 }
 
+// The mid-chain calibration surface at the engine boundary. Four claims the R
+// tests can only see through the bridge: the reported prior scale is the leaf
+// scale carried into response units by an independently computed factor; the
+// write lands on EVERY chain; a read-then-write is bitwise inert, in the
+// internal scale and not merely in the reported one; and a combiner refuses
+// the write while the reader still serves each of its forests.
+static void testForestCalibration() {
+  // A local stream and locally owned generators, so adding this test shifts
+  // neither the shared runif01() state nor the shared rng the hardcoded
+  // characteristic values downstream depend on.
+  std::uint64_t state = 20260813u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+
+  const size_t n = 300, p = 3, numChains = 3, numTrees = 40;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = unif() < 0.5 ? 1.0 : 0.0;
+    y[i] = 7.0 * (x[i] - x[i + n]) + z[i] + 0.4 * (unif() - 0.5);
+  }
+
+  ext_rng* rngs[numChains];
+  for (size_t c = 0; c < numChains; ++c) {
+    rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngs[c], 9200 + static_cast<std::uint32_t>(c));
+  }
+
+  SamplerOptions options;
+  options.numTrees = numTrees;
+  options.numChains = numChains;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, rngs);
+
+  // the reported scale against the factor recomputed from the response
+  // transform and the tree count alone
+  double factor = sampler.fitScale() * std::sqrt(static_cast<double>(numTrees));
+  ForestCalibration calibration = sampler.forestCalibration(0, 0);
+  check(calibration.responseScale == sampler.fitScale(),
+        "calibration: the reported transform is the response's own");
+  check(calibration.priorScale ==
+          sampler.chain(0).leaf().scale * factor,
+        "calibration: prior scale is the leaf scale in response units");
+  check(calibration.priorSd == calibration.priorScale / calibration.k,
+        "calibration: prior sd is prior scale over k");
+  check(calibration.priorMean == calibration.responseShift,
+        "calibration: prior mean is the transform's shift");
+  check(!calibration.kHasHyperprior,
+        "calibration: a fixed k reports no hyperprior");
+  // the default is the family-keyed node scale carried out, so the surface is
+  // reading the engine rather than echoing a stored name
+  check(std::fabs(calibration.priorScale / (0.5 * sampler.fitScale()) - 1.0) <
+          1.0e-12,
+        "calibration: an unnamed model reports the node scale in response "
+        "units");
+
+  // the write lands on every chain, and a read-then-write does not touch the
+  // internal scale on any of them
+  check(sampler.setForestPriorScale(0, 2.5),
+        "calibration: a single-forest write is accepted");
+  std::vector<double> written(numChains);
+  for (size_t c = 0; c < numChains; ++c) {
+    written[c] = sampler.chain(c).leaf().scale;
+    check(std::fabs(sampler.forestCalibration(c, 0).priorScale / 2.5 - 1.0) <
+            8.0 * DBL_EPSILON,
+          "calibration: the write reaches every chain");
+  }
+  for (size_t c = 0; c < numChains; ++c)
+    sampler.setForestPriorScale(0, sampler.forestCalibration(c, 0).priorScale);
+  for (size_t c = 0; c < numChains; ++c)
+    check(sampler.chain(c).leaf().scale == written[c],
+          "calibration: a read-then-write leaves the internal scale bitwise "
+          "untouched");
+  // and the skip is not vacuous - a value that is not what is in force writes
+  check(sampler.setForestPriorScale(0, 2.5 * (1.0 + 1.0e-9)),
+        "calibration: a different value is accepted");
+  check(sampler.chain(0).leaf().scale != written[0],
+        "calibration: a different value really moves the internal scale");
+
+  // an out-of-range forest is a capability answer, not a raise
+  check(!sampler.setForestPriorScale(1, 2.5),
+        "calibration: an out-of-range forest refuses the write");
+
+  {
+    ext_rng* bcfRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(bcfRng, 9210);
+    SamplerOptions bcfOptions;
+    BCFSpec spec;
+    spec.mu.numTrees = 30;
+    spec.tau.numTrees = 15;
+    spec.z = z.data();
+    Sampler<ConstantGaussianLeaf> bcf(x.data(), y.data(), n, p, nullptr,
+                                      nullptr, 1.0, 3.0, 0.37804942330213542,
+                                      bcfOptions, spec, &bcfRng);
+    check(bcf.numForests() == 2, "calibration: the BCF fixture has two forests");
+    // the reader is total over a combiner's forests, each against its own tree
+    // count, so the map's ratio is visible rather than hidden
+    ForestCalibration mu = bcf.forestCalibration(0, 0);
+    ForestCalibration tau = bcf.forestCalibration(0, 1);
+    check(mu.priorScale > 0.0 && tau.priorScale > 0.0,
+          "calibration: both BCF forests report a positive prior scale");
+    check(mu.k == 1.0 && !mu.kHasHyperprior,
+          "calibration: the BCF map pins k at one");
+    check(mu.priorScale ==
+            bcf.chain(0).leaf().scale * bcf.fitScale() * std::sqrt(30.0),
+          "calibration: the BCF prognostic scale carries its own tree count");
+    // the writer refuses, because the map owns both halves
+    check(!bcf.setForestPriorScale(0, 2.5) &&
+            !bcf.setForestPriorScale(1, 2.5),
+          "calibration: a combiner refuses the write on every forest");
+    ext_rng_destroy(bcfRng);
+  }
+
+  for (size_t c = 0; c < numChains; ++c) ext_rng_destroy(rngs[c]);
+  printf("ok: forest calibration read/write (prior scale %.4f)\n",
+         calibration.priorScale);
+}
+
 void runSamplerTests(ext_rng* rng) {
   testForestColumnRestriction(rng);
   testForestColumnRestrictionAllNeutral();
@@ -4337,4 +4458,5 @@ void runSamplerTests(ext_rng* rng) {
   testSetControlAndModel();
   testMissingEndToEnd();
   testLogLikelihood();
+  testForestCalibration();
 }

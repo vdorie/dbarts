@@ -57,6 +57,22 @@
             \code{rbart_vi}. It is re-derived at every \code{setModel}, so a
             round trip through the model object holds it. Unset, nothing
             changes.
+      \item A sampler reports the calibration in force, per chain and per
+            forest, with \code{$getCalibration}: \code{prior.scale},
+            \code{prior.sd}, \code{prior.mean}, \code{k},
+            \code{k.has.hyperprior}, the response transform, and a
+            \code{leaf.model} tag. It reads the engine rather than the model
+            object, so it is the first surface to show a re-anchoring channel
+            (a \code{setResponse}, \code{setOffset}, or \code{setData} that
+            re-derives the response transform) moving what is in force while
+            the named intent on the model stays where it was put. For the
+            monotone, linear, and Gaussian-process leaf models the reported
+            \code{prior.sd} is a stated bound rather than an equality.
+            \code{$setCalibration} rewrites its scale half on every chain,
+            mid-chain, touching nothing else - unlike \code{setModel}, which
+            also re-pins \code{sigma} and refuses a DART sampler outright.
+            Its \code{prior.sd} spelling meets the same sampled-\code{k}
+            refusal as at creation.
       \item Bayesian causal forests: \code{dbarts} and \code{dbartsSpec}
             accept a \code{treatment} vector of 0/1 assignments, which fits
             the two-forest model

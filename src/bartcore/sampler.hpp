@@ -1168,6 +1168,27 @@ public:
       installed = chain->setForestWeights(forestIndex, weights) && installed;
     return installed;
   }
+  /// The leaf model in force; a property of the type, so every chain agrees.
+  static constexpr LeafModelKind leafModel() { return leafModelKindOf<L>(); }
+  /// Forest forestIndex's calibration on ONE chain: the chains carry their own
+  /// transforms and their own drawn k, so they can and do disagree, and the
+  /// caller reads each rather than a flattened summary.
+  /// Chain::forestCalibration states the semantics.
+  ForestCalibration forestCalibration(size_t chainNum,
+                                      size_t forestIndex) const {
+    return chains_[chainNum]->forestCalibration(forestIndex);
+  }
+  /// Restates forest forestIndex's leaf prior on EVERY chain; false, writing
+  /// nothing, on a refusal. Every chain refuses on the same two conditions, so
+  /// the fan-out cannot land half applied - and every chain skips a write
+  /// reproducing its own current value independently, so a read-then-write on
+  /// diverged chains is inert on each.
+  bool setForestPriorScale(size_t forestIndex, double priorScale) {
+    bool written = true;
+    for (auto& chain : chains_)
+      written = chain->setForestPriorScale(forestIndex, priorScale) && written;
+    return written;
+  }
   /// Whether the response family implements the active-row channel; chain 0
   /// answers for all, as every chain carries the same family.
   bool supportsActiveRows() const { return chains_[0]->supportsActiveRows(); }

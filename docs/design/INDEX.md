@@ -1,6 +1,6 @@
 # Design doc index
 
-Manifest of every `docs/design/*.md` (43 docs besides this index), grouped by
+Manifest of every `docs/design/*.md` (44 docs besides this index), grouped by
 theme. STATUS is
 read from each doc's live `Status:` line or `## Status` section as of
 2026-08-04, when a consistency pass re-verified every row against its doc;
@@ -76,6 +76,7 @@ Columns: `file | STATUS | one-liner`.
 | kernel-vocabulary.md | REFERENCE | Normative contract between the generic BART core and the compiled `misc.a` kernel library: dispatch mechanism, current vocabulary, planned additions. Plan: kernel-cleanups.md. |
 | robust-errors.md | LANDED, 2026-07-17 | Student-t residuals for continuous responses via scale-mixture augmentation (resid.dist), riding the existing workingWeights hook. Plan: robust-errors.md. |
 | prior-defaults.md | REFERENCE | Plain record of every current prior default (k, power/base, sigdf/sigquant, node.scale, n.trees, dart delay, tau slice steps) with source and rationale; a record, not a re-derivation. |
+| nameable-calibration.md | PARTIAL, 2026-08-13 | Names the leaf-prior calibration in RESPONSE units (`prior.scale`, the forest-total prior sd at `k = 1`) instead of inheriting it from the construction range: a `dbartsModel` slot plus a `bart`/`bart2`/`rbart_vi` formal (LANDED c2a7e89b), and a `$getCalibration`/`$setCalibration` pair over every chain whose reader is the authoritative one, so a re-anchoring channel stops being silent (LANDED). Closes r-c-division.md's "the wall that remains is calibration". The flat-C half rides the dbarts.h reshape's S1. Plan: nameable-calibration.md. |
 | change-move-balance.md | LANDED, 2026-07-08 | Fixes a since-origin detailed-balance defect in the tree change move (missing proposal-density correction, biased toward low-cardinality variables); hybrid ordinal/categorical fix. Plan: change-move-fix.md. |
 | empty-leaf-veto.md | LANDED (keep-and-document) | Investigates occupancy-aware tree proposals vs. the existing finite-penalty empty-leaf veto; keeps the veto, corrected 2026-07-15 to -HUGE_VAL (was a beatable finite -1e7). Plan: empty-leaf-veto.md. |
 | grow-from-root.md | MIXED (GO on cut-scan/warm-start; NO-GO on standalone sampler) | XBART-style root-down stochastic tree construction; ships only as a validity-free warm-start producer, rejected as a standalone approximate posterior sampler (not MH-exact). Plans: grow-from-root.md, grow-from-root-warm-start.md. |

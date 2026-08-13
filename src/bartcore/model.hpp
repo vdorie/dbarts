@@ -13,6 +13,7 @@
 #include <limits>
 #include <memory>
 #include <numbers>
+#include <type_traits>
 #include <vector>
 
 #include <external/random.h>
@@ -2495,6 +2496,25 @@ struct ChiSquaredScalePrior {
            ext_rng_simulateChiSquared(rng, posteriorDegreesOfFreedom);
   }
 };
+
+/// The leaf model in force, as a value. All four location-scale leaves carry
+/// the one `scale` field the calibration surface writes, so the write is total
+/// over them; what the reported prior sd MEANS is leaf-specific and only this
+/// tag can say which (docs/design/nameable-calibration.md section 3).
+enum class LeafModelKind { constant = 0, monotone = 1, linear = 2, gp = 3 };
+
+/// A leaf model type's tag. A property of the type alone, so constexpr; the
+/// numbering is the one dbarts.h's dbarts_leaf_model publishes.
+template <typename L> constexpr LeafModelKind leafModelKindOf() {
+  if constexpr (std::is_same_v<L, MonotoneConstantGaussianLeaf>)
+    return LeafModelKind::monotone;
+  else if constexpr (std::is_same_v<L, LinearGaussianLeaf>)
+    return LeafModelKind::linear;
+  else if constexpr (std::is_same_v<L, GPGaussianLeaf>)
+    return LeafModelKind::gp;
+  else
+    return LeafModelKind::constant;
+}
 
 /// Response families the sampler can run; gaussian fits the response
 /// directly, the binary families fit a latent working response, aft fits

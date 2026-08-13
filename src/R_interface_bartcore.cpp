@@ -3786,6 +3786,93 @@ SEXP bartcore_getForestFits(SEXP ptrExpr, SEXP forestExpr) {
   return result;
 }
 
+// The calibration map that owns a combiner's leaf scales, named so a refusal
+// points at the thing that fixed them rather than at the refusal itself.
+static const char* calibrationMapName(const bartcore::SamplerShape& shape) {
+  return shape.supportsCountsMutation ? "softmax calibration map"
+                                      : "two-forest calibration map";
+}
+
+static const char* leafModelName(bartcore::LeafModelKind kind) {
+  switch (kind) {
+  case bartcore::LeafModelKind::monotone: return "monotone";
+  case bartcore::LeafModelKind::linear: return "linear";
+  case bartcore::LeafModelKind::gp: return "gp";
+  case bartcore::LeafModelKind::constant: break;
+  }
+  return "constant";
+}
+
+// One forest's leaf-prior calibration in RESPONSE units, one ROW per chain -
+// the chains carry their own transforms and their own drawn k, so a flattened
+// summary would hide a divergence this surface exists to show. The leaf-model
+// tag rides as an attribute because it is a property of the sampler, not of a
+// chain, and it qualifies what the reported prior sd means: an equality for
+// the constant leaf, a stated bound for the other three.
+SEXP bartcore_getCalibration(SEXP ptrExpr, SEXP forestExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
+  if (forestIndex >= shape.numForests)
+    Rf_error("forest index out of range");
+  const char* const columnNames[] = {
+    "prior.scale", "prior.sd", "prior.mean", "k",
+    "k.has.hyperprior", "response.scale", "response.shift"
+  };
+  size_t numColumns = sizeof columnNames / sizeof columnNames[0];
+  size_t numChains = shape.numChains;
+  SEXP resultExpr = PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numChains),
+                                           static_cast<int>(numColumns)));
+  double* result = REAL(resultExpr);
+  for (size_t c = 0; c < numChains; ++c) {
+    bartcore::ForestCalibration calibration =
+      holder.sampler->forestCalibration(c, forestIndex);
+    result[c] = calibration.priorScale;
+    result[c + numChains] = calibration.priorSd;
+    result[c + 2 * numChains] = calibration.priorMean;
+    result[c + 3 * numChains] = calibration.k;
+    result[c + 4 * numChains] = calibration.kHasHyperprior ? 1.0 : 0.0;
+    result[c + 5 * numChains] = calibration.responseScale;
+    result[c + 6 * numChains] = calibration.responseShift;
+  }
+  SEXP dimNamesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
+  SET_VECTOR_ELT(dimNamesExpr, 0, R_NilValue);
+  SEXP columnNamesExpr =
+    PROTECT(Rf_allocVector(STRSXP, static_cast<R_xlen_t>(numColumns)));
+  for (size_t j = 0; j < numColumns; ++j)
+    SET_STRING_ELT(columnNamesExpr, static_cast<R_xlen_t>(j),
+                   Rf_mkChar(columnNames[j]));
+  SET_VECTOR_ELT(dimNamesExpr, 1, columnNamesExpr);
+  Rf_setAttrib(resultExpr, R_DimNamesSymbol, dimNamesExpr);
+  Rf_setAttrib(resultExpr, Rf_install("leaf.model"),
+               Rf_mkString(leafModelName(shape.leafModel)));
+  UNPROTECT(3);
+  return resultExpr;
+}
+
+// Restates one forest's leaf prior on every chain, response units. Two error
+// channels, as the flat entry has: a CAPABILITY answer (no such forest, or a
+// combiner owns the calibration) and a MALFORMED VALUE. Neither the response
+// transform, k, sigma nor the tree prior moves, and a write reproducing what
+// is in force is skipped bitwise inside the engine, so a read-then-write
+// cannot perturb a draw.
+SEXP bartcore_setCalibration(SEXP ptrExpr, SEXP forestExpr,
+                             SEXP priorScaleExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
+  if (forestIndex >= shape.numForests)
+    Rf_error("forest index out of range");
+  double priorScale = Rf_asReal(priorScaleExpr);
+  if (!std::isfinite(priorScale) || priorScale <= 0.0)
+    Rf_error("'prior.scale' must be a positive finite number");
+  if (!holder.sampler->setForestPriorScale(forestIndex, priorScale))
+    Rf_error("this forest's leaf scale comes from the %s, which owns both "
+             "halves of its calibration; make a new sampler instead",
+             calibrationMapName(shape));
+  return R_NilValue;
+}
+
 SEXP bartcore_getForestVariableCounts(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
