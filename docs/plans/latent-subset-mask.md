@@ -733,11 +733,24 @@ draw-law-changing on the opt-in masked path. ASAN leg REQUIRED.
 
 Combiner-level. The per-forest refusal lands here with its model reason.
 
+Carried from the S2 landing: reword the bridge comment beside the multinomial
+refusal - it currently reads as a permanent identification reason ("holds no
+precisions at all"), but the refusal is UNBUILT and this slice builds the
+global channel.
+
 Budget ~70 engine + ~180 test. Gates: the house battery. RNG class: NEUTRAL on
 every shipped configuration (trio IDENTICAL, deviation is a leak, ABORT);
 draw-law-changing on the opt-in masked path. ASAN leg REQUIRED.
 
 ## S4. Surface, records, baselines
+
+Carried from the S2 landing, inside this slice's test budget (state the budget
+with these included at spawn): cpp-level NaN pointwise-log-likelihood arms for
+logistic, nbinom and aft (rule 6 is implemented arc-wide but only gaussian is
+asserted, test_model.cpp; the engine channel has no R reader) and all-zeros
+runs-finite arms for the same three families (verified manually at the S2
+review, unpinned). Also from S1: normalize the plan-label comments in the
+arc's test files.
 
 1. `man/dbartsSampler-class.Rd`, beside the `weights` item: the seven rules, all
    three T4 named differences, both state edges, the grouped all-inactive
@@ -1002,7 +1015,46 @@ Carried to S2 (from the independent review): see the S2 section.
 Carried to S4: normalize the plan-label comments in the arc's test
 files.
 
-S2 LANDED <commit>, <date>.
+S2 LANDED 87d370ea, 2026-08-13. Logistic, nbinom and aft composed into
+the channel per "Per family" - logistic serves `a_i * omega_i` from its
+own composite (omega never zeroed, PG draw skipped not discarded, every
+omega writer recomposes); nbinom restricts the collapsed statistic AND
+rebuilds the dispersion kernel over the active histogram at every
+install/setResponse (measured rebuild cost +2.5us to +100us per install
+across n = 2000..20000, maxCount = 26..908); aft skips the inactive
+censored redraw and forwards to its gaussian so the sigma df recount is
+inherited (pinned as df == nu0 + numActive). UNBUILT refusals relaxed;
+only multinomial refuses, and the message is now a LITERAL (the bridge
+helper activeRowsFamilyName was deleted as dead - every single-response
+arm was unreachable; wording byte-identical, the S3 tests' expectation
+holds). Carried items landed: the hetero and grouped pins are now
+BITWISE masked-vs-setWeights(w*a) oracles, shown RED under
+sweepVarianceForest reading pre-mask weights and under
+GroupedResponse::setActiveRows swallowing the mask - both breaks the
+S1-era finiteness pins slept through; the ordinal sampler-level T2(c)
+arm shipped. F8 DEVIATION, reviewer-verified by rebuilding both broken
+variants: as written (maxCount scan only) F8 is UNFALSIFIABLE -
+computeKernel skips zero-histogram bins, so a longer grid adds no terms
+- and the shipped falsifier restricts both passes and reddens on the
+histogram tally. Two new test-only hooks (NBResponse
+dispersionKernelForTesting, collapsedStatisticForTesting; the aft df
+hook is a forwarding override of a PRE-EXISTING virtual, initially
+miscounted as new). FINDING, load-bearing for anyone extending T2(c):
+logistic's sampler-level skip falsifier must substitute TRIAL COUNTS as
+well as labels at inactive rows - the PG draw reads psi, not y, so
+label-only substitution is a dead arm (verified against a
+draw-and-discard build). Budgets: engine +142 net vs ~130; tests +435
+net - 1.21x of the brief's restated ~360 (the plan's pre-carry ~290
+would read 1.5x; the restated figure governs). Gates: implementer and
+reviewer batteries both green from scratch (preclean private libs,
+tests/cpp 230/230 plain + ASAN zero reports, tinytest 4416/0, trio
+identical x3, air + lint clean); aft confirmed R5-reachable end to end;
+x86 box leg green; CI six-green on the push. Carried to S3: reword the
+bridge comment implying multinomial's refusal is permanent (S3 builds
+the channel). Carried to S4: cpp-level NaN pointwise-loglik arms for
+logistic/nbinom/aft (rule 6 is implemented but only gaussian is
+asserted; the channel has no R reader today) and all-zeros arms for the
+three new families (reviewer verified finite manually; unpinned).
 
 S3 LANDED <commit>, <date>.
 

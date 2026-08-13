@@ -176,17 +176,18 @@ items
     for which dbarts already ships the hard-constraint half; soft
     path-dependent penalties, gate STANDS - no model surfaced.
     decision-gated.
-  latent-subset-mask: S0 pins LANDED dc11a805; S1 LANDED 6db22aee -
-    the $setActiveRows channel plus gaussian/Student-t/probit/
-    ordinal (landing notes in docs/plans/latent-subset-mask.md,
-    artifacts .claude/latent-subset-mask-design/). Per-observation
-    0/1 active-row channel for the latent families zero weights do
-    not reach. Remaining: S2 logistic/nbinom/aft (carries the
-    S1-review pin strengthenings recorded in the plan), S3
-    multinomial (global-only), S4 records + baseline re-record; the
-    flat entry rides dbarts-h-reshape S1. V1-V9 adopted 2026-08-12
-    under VD's proceed-at-discretion grant (Student-t disposition
-    VD-reviewed same day).
+  latent-subset-mask: S0 dc11a805, S1 6db22aee, S2 87d370ea LANDED -
+    the $setActiveRows channel covers every single-response family
+    (gaussian/Student-t/probit/ordinal/logistic/nbinom/aft, plus
+    grouped/hetero by delegation); only multinomial refuses (landing
+    notes in docs/plans/latent-subset-mask.md, artifacts
+    .claude/latent-subset-mask-design/). Remaining: S3 multinomial
+    (global-only; one carried comment reword), S4 surface + records
+    + baseline re-record (carries NaN-loglik and all-zeros arms for
+    the three S2 families, the masked-bcf pin, and the plan-label
+    comment normalization); the flat entry rides dbarts-h-reshape
+    S1. V1-V9 adopted 2026-08-12 under VD's proceed-at-discretion
+    grant (Student-t disposition VD-reviewed same day).
   multiforest-extension-surface: PLAN COMMITTED
     docs/plans/multiforest-extension-surface.md (artifacts
     .claude/multiforest-extension-surface-design/). The answer to
