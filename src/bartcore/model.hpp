@@ -2591,6 +2591,21 @@ public:
   /// elsewhere a no-op (the host rejects earlier).
   virtual void setWeights(const double*) {}
 
+  /// Whether this family implements the active-row channel. setActiveRows's
+  /// own refusal reads it, so the advertised capability and the refusal
+  /// cannot disagree.
+  virtual bool supportsActiveRows() const { return false; }
+
+  /// Install (or clear, at a null pointer) a per-observation 0/1 active-row
+  /// mask: a_i = 0 says row i is not in the data set for this sampler this
+  /// sweep. The family composes a into its own workingWeights() - keeping the
+  /// user weight pointer, which the two setters hold independently - and skips
+  /// the inactive rows' latent draws and family-level sums. The values are
+  /// COPIED, so the caller's array is free the moment this returns. The host
+  /// has already validated the values and normalized an all-ones mask to a
+  /// null pointer; false is the refusal of a family that implements none.
+  virtual bool setActiveRows(const double*) { return false; }
+
   /// Replace the residual-variance prior: re-anchors to the supplied
   /// original-scale sigma estimate exactly as construction does, so a swap
   /// before any run matches creating with the new prior. A no-op for the
@@ -2689,7 +2704,7 @@ public:
   GaussianResponse(const double* y, const double* offset, const double* weights,
                    std::size_t numObservations, double sigmaEstimate,
                    double sigmaDf, double sigmaRawScale)
-    : y_(y), offset_(offset), weights_(weights),
+    : y_(y), offset_(offset), weights_(weights), userWeights_(weights),
       numObservations_(numObservations),
       numPositiveWeights_(countPositiveWeights(weights, numObservations)) {
     yRescaled_.resize(numObservations);
@@ -2749,9 +2764,12 @@ public:
 
     y_ = y;
     offset_ = offset;
-    weights_ = weights;
     numObservations_ = numObservations;
-    numPositiveWeights_ = countPositiveWeights(weights, numObservations);
+    // the mask is length-n and n may have changed; a data swap drops it
+    activeRows_.clear();
+    composite_.clear();
+    userWeights_ = weights;
+    installWeights(weights);
     yRescaled_.resize(numObservations);
     rescale();
 
@@ -2759,9 +2777,31 @@ public:
     *sigmaInOut = sigmaUnscaled / range_;
   }
 
+  /// The two setters are absolute and independent: this replaces the borrowed
+  /// user weights and recomposes against whatever mask is installed, so the
+  /// served precisions are w * a in either call order.
   void setWeights(const double* weights) override {
-    weights_ = weights;
-    numPositiveWeights_ = countPositiveWeights(weights, numObservations_);
+    userWeights_ = weights;
+    recomposeActiveRows();
+  }
+
+  bool supportsActiveRows() const override { return true; }
+
+  /// a_i multiplies the case weight, so a masked gaussian is exactly
+  /// setWeights(w * a) - including the sigma posterior's degrees of freedom,
+  /// which installWeights RECOUNTS off the composite rather than leaving at
+  /// the unmasked total.
+  bool setActiveRows(const double* active) override {
+    if (active == nullptr) {
+      if (activeRows_.empty()) return true;
+      activeRows_.clear();
+      installWeights(userWeights_);  // the pre-mask pointer, by identity
+      return true;
+    }
+    activeRows_.assign(active, active + numObservations_);
+    composite_.resize(numObservations_);
+    recomposeActiveRows();
+    return true;
   }
 
   void setSigmaPrior(double sigmaEstimate, double degreesOfFreedom,
@@ -2802,13 +2842,19 @@ public:
 
   /// dnorm(y_i, mu_i, sigma_i) with mu the original-scale fit (fits carry any
   /// offset) and sigma_i the residual sd scaled by the precision weight:
-  /// y | x ~ N(f(x) + offset, sigma^2 / w_i).
+  /// y | x ~ N(f(x) + offset, sigma^2 / w_i). A row whose composed weight is
+  /// zero is not in the model at all, so its entry is NaN - the channel's own
+  /// "unavailable" flag - rather than the -Inf an infinite sd would give.
   void computeLogLikelihood(const double* totalFits, double sigma,
                             std::size_t numObservations,
                             double* out) const override {
     double shift = range_ * 0.5 + min_;
     double sigmaOriginal = sigma * range_;
     for (std::size_t i = 0; i < numObservations; ++i) {
+      if (weights_ != nullptr && weights_[i] == 0.0) {
+        out[i] = std::numeric_limits<double>::quiet_NaN();
+        continue;
+      }
       double mu = range_ * totalFits[i] + shift +
                   (offset_ != nullptr ? offset_[i] : 0.0);
       double sd = weights_ != nullptr ? sigmaOriginal / std::sqrt(weights_[i])
@@ -2847,6 +2893,28 @@ public:
   }
 
 private:
+  /// The one write path to the served precisions: every install recounts the
+  /// positive ones, so the sigma posterior's df can never lag the weights
+  /// (docs/plans/sigma-df-zero-weights.md is the defect this closes).
+  void installWeights(const double* weights) {
+    weights_ = weights;
+    numPositiveWeights_ = countPositiveWeights(weights, numObservations_);
+  }
+
+  /// c_i = w_i a_i, or the borrowed user pointer BY IDENTITY when no mask is
+  /// installed - which is what keeps the fused node-average path reachable on
+  /// an unmasked unweighted sampler.
+  void recomposeActiveRows() {
+    if (activeRows_.empty()) {
+      installWeights(userWeights_);
+      return;
+    }
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      composite_[i] =
+        (userWeights_ != nullptr ? userWeights_[i] : 1.0) * activeRows_[i];
+    installWeights(composite_.data());
+  }
+
   /// Zero-weight rows are documented as ignored; the sigma posterior df counts
   /// only positive-weight rows (all n when unweighted).
   static std::size_t countPositiveWeights(const double* weights,
@@ -2890,9 +2958,12 @@ private:
 
   const double* y_;
   const double* offset_;
-  const double* weights_;
+  const double* weights_;      // served: userWeights_ by identity, or composite_
+  const double* userWeights_;  // borrowed, the pre-mask pointer
   std::size_t numObservations_;
   std::size_t numPositiveWeights_;
+  std::vector<double> activeRows_;  // the raw 0/1 mask; empty when none
+  std::vector<double> composite_;   // c_i = w_i a_i, served while masked
   std::vector<double> yRescaled_;
   double min_ = 0.0, max_ = 0.0, range_ = 1.0;
   double initialSigma_ = 1.0;
@@ -2918,12 +2989,23 @@ public:
   }
 
   double* workingResponse() override { return working_.data(); }
-  const double* workingWeights() const override { return nullptr; }
+  /// The 0/1 mask IS the precision vector here (probit carries no user
+  /// weights), and null - the unit-weight fused path - when none is installed.
+  const double* workingWeights() const override {
+    return activeRows_.empty() ? nullptr : activeRows_.data();
+  }
   const double* offset() const override { return offset_; }
 
+  /// An inactive row's truncated-normal draw is SKIPPED, not drawn and
+  /// discarded: the primitive is a rejection sampler whose consumption depends
+  /// on the bound, so discarding would desynchronize the stream against a
+  /// sampler built on the retained rows. Its latents_[i] therefore keeps its
+  /// last drawn value - finite, so rebuildWorking and the running residual
+  /// never see a NaN - and is stale until the row is active again.
   void refreshLatents(ext_rng* rng, const double* totalFits,
                       double) override {
     for (std::size_t i = 0; i < numObservations_; ++i) {
+      if (!activeRows_.empty() && activeRows_[i] == 0.0) continue;
       double mean = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
       double sign = 2.0 * y_[i] - 1.0;
       double z =
@@ -2931,6 +3013,14 @@ public:
       latents_[i] = !std::isnan(z) ? z : sign * DBL_EPSILON;
     }
     rebuildWorking();
+  }
+
+  bool supportsActiveRows() const override { return true; }
+
+  bool setActiveRows(const double* active) override {
+    if (active == nullptr) activeRows_.clear();
+    else activeRows_.assign(active, active + numObservations_);
+    return true;
   }
 
   double drawSigma(ext_rng*, const double*, double sigma) override {
@@ -2953,6 +3043,7 @@ public:
     y_ = y;
     offset_ = offset;
     numObservations_ = numObservations;
+    activeRows_.clear();  // length-n and n may have changed
     latents_.resize(numObservations);
     working_.resize(numObservations);
     // cold init, z = 2 y - 1
@@ -2976,11 +3067,16 @@ public:
 
   /// log dbinom(y_i, 1, Phi(eta_i)) with eta the latent location f(x) + offset,
   /// via the stable log lower/upper normal tail: log Phi(eta) for a success,
-  /// log Phi(-eta) for a failure.
+  /// log Phi(-eta) for a failure. An inactive row is not in the model, so its
+  /// entry is NaN rather than the finite value its fit would still give.
   void computeLogLikelihood(const double* totalFits, double,
                             std::size_t numObservations,
                             double* out) const override {
     for (std::size_t i = 0; i < numObservations; ++i) {
+      if (!activeRows_.empty() && activeRows_[i] == 0.0) {
+        out[i] = std::numeric_limits<double>::quiet_NaN();
+        continue;
+      }
       double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
       out[i] = Rf_pnorm5(eta, 0.0, 1.0, y_[i] != 0.0 ? 1 : 0, 1);
     }
@@ -2997,6 +3093,7 @@ private:
   const double* y_;
   const double* offset_;
   std::size_t numObservations_;
+  std::vector<double> activeRows_;  // the 0/1 mask, served as the weights
   std::vector<double> latents_;
   std::vector<double> working_;
 };
@@ -3033,7 +3130,11 @@ public:
   }
 
   double* workingResponse() override { return working_.data(); }
-  const double* workingWeights() const override { return nullptr; }
+  /// As probit: the 0/1 mask is the precision vector, null when none is
+  /// installed.
+  const double* workingWeights() const override {
+    return activeRows_.empty() ? nullptr : activeRows_.data();
+  }
   const double* offset() const override { return offset_; }
 
   void refreshLatents(ext_rng* rng, const double* totalFits,
@@ -3041,6 +3142,18 @@ public:
     updateCutpoints(rng, totalFits);
     drawLatents(rng, totalFits);
     rebuildWorking();
+  }
+
+  bool supportsActiveRows() const override { return true; }
+
+  /// Both cutpoint sums restrict to the active rows, so the proposal scale -
+  /// a function of the category counts - is recomputed here; the target
+  /// (cutpointLogAcceptance) reads the mask directly.
+  bool setActiveRows(const double* active) override {
+    if (active == nullptr) activeRows_.clear();
+    else activeRows_.assign(active, active + numObservations_);
+    computeScales();
+    return true;
   }
 
   double drawSigma(ext_rng*, const double*, double sigma) override {
@@ -3072,6 +3185,7 @@ public:
     y_ = y;
     offset_ = offset;
     numObservations_ = numObservations;
+    activeRows_.clear();  // length-n and n may have changed
     latents_.resize(numObservations);
     working_.resize(numObservations);
     coldCutpoints();
@@ -3111,6 +3225,10 @@ public:
                             std::size_t numObservations,
                             double* out) const override {
     for (std::size_t i = 0; i < numObservations; ++i) {
+      if (!isActive(i)) {
+        out[i] = std::numeric_limits<double>::quiet_NaN();
+        continue;
+      }
       double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
       int k = category(i);
       out[i] = std::log(Phi(cutAt(k) - eta) - Phi(cutAt(k - 1) - eta));
@@ -3126,8 +3244,29 @@ public:
     return cutpointLogAcceptance(totalFits, s, proposal);
   }
 
+  /// The three per-sweep kernels in isolation, so a component test can drive
+  /// the masked n-row form against the same kernel over the compacted active
+  /// rows; computeScales returns the free cutpoints' proposal scales, its only
+  /// observable. Nothing else reaches them - refreshLatents runs two at once.
+  const double* computeScalesForTesting() {
+    computeScales();
+    return proposalScale_.data();
+  }
+  void updateCutpointsForTesting(ext_rng* rng, const double* totalFits) {
+    updateCutpoints(rng, totalFits);
+  }
+  void drawLatentsForTesting(ext_rng* rng, const double* totalFits) {
+    drawLatents(rng, totalFits);
+  }
+
 private:
   int category(std::size_t i) const { return static_cast<int>(y_[i]); }
+
+  /// Whether row i is in the data set this sweep; true throughout when no
+  /// mask is installed.
+  bool isActive(std::size_t i) const {
+    return activeRows_.empty() || activeRows_[i] != 0.0;
+  }
 
   static double Phi(double x) { return Rf_pnorm5(x, 0.0, 1.0, 1, 0); }
 
@@ -3173,11 +3312,12 @@ private:
 
   /// Fixed count-derived random-walk scale for each free cutpoint gamma_s:
   /// c / sqrt(n_s + n_{s+1}) (section 3), floored so an empty adjacent pair
-  /// still moves under the prior.
+  /// still moves under the prior. Counts only the active rows, so the proposal
+  /// is the retained subsample's.
   void computeScales() {
     std::vector<double> counts(numCategories_ + 1, 0.0);
     for (std::size_t i = 0; i < numObservations_; ++i)
-      counts[static_cast<std::size_t>(category(i))] += 1.0;
+      if (isActive(i)) counts[static_cast<std::size_t>(category(i))] += 1.0;
     for (std::size_t s = 2; s < numCategories_; ++s) {
       double denom = counts[s] + counts[s + 1];
       proposalScale_[s - 1] =
@@ -3213,6 +3353,7 @@ private:
     double lo = cutAt(si - 1), hi = cutAt(si + 1);
     double logLik = 0.0;
     for (std::size_t i = 0; i < numObservations_; ++i) {
+      if (!isActive(i)) continue;  // the target is the subsample's likelihood
       int k = category(i);
       if (k != si && k != si + 1) continue;
       double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
@@ -3238,9 +3379,11 @@ private:
   /// gamma_{y_i}]. Boundary categories keep probit's one-sided rejection
   /// primitives and sign * DBL_EPSILON NaN fallback so K = 2 is bitwise probit;
   /// interior categories use the doubly-truncated primitive with a midpoint
-  /// fallback.
+  /// fallback. An inactive row's draw is skipped for probit's reason (the
+  /// primitives are rejection samplers), leaving its z stale but finite.
   void drawLatents(ext_rng* rng, const double* totalFits) {
     for (std::size_t i = 0; i < numObservations_; ++i) {
+      if (!isActive(i)) continue;
       double mean = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
       int k = category(i);
       if (k <= 1) {
@@ -3277,6 +3420,7 @@ private:
   std::size_t numCategories_;
   std::vector<double> gamma_;          // finite cutpoints gamma_1..gamma_{K-1}
   std::vector<double> proposalScale_;  // per free cutpoint; index 0 unused
+  std::vector<double> activeRows_;     // the 0/1 mask, served as the weights
   std::vector<double> latents_;
   std::vector<double> working_;
 };
@@ -3736,12 +3880,18 @@ public:
     double sumLogLambda = 0.0, sumLambda = 0.0, numInformative = 0.0;
     for (std::size_t i = 0; i < numObservations_; ++i) {
       double w = userWeights_ != nullptr ? userWeights_[i] : 1.0;
+      double a = activeRows_.empty() ? 1.0 : activeRows_[i];
       double r = z[i] - totalFits[i];
+      // lambda is drawn for EVERY row: the mask annihilates its value through
+      // the composite rather than suppressing the draw, which keeps an
+      // inactive row's lambda current for the sweep it reactivates on
       double lambda =
         ext_rng_simulateGamma(rng, shape, 2.0 / (nu_ + w * r * r / sigmaSq));
       lambda_[i] = lambda;
-      composite_[i] = w * lambda;
-      if (w > 0.0) {
+      composite_[i] = w * lambda * a;
+      // the nu statistics read the COMPOSED weight, so an inactive row leaves
+      // them exactly as a zero user weight does
+      if (w * a > 0.0) {
         sumLogLambda += std::log(lambda);
         sumLambda += lambda;
         numInformative += 1.0;
@@ -3775,6 +3925,7 @@ public:
     y_ = y;
     userWeights_ = weights;
     numObservations_ = numObservations;
+    activeRows_.clear();  // length-n and n may have changed
     lambda_.assign(numObservations, 1.0);
     composite_.assign(numObservations, 0.0);
     gaussian_->setData(y, offset, weights, numObservations, sigmaInOut);
@@ -3784,6 +3935,19 @@ public:
   void setWeights(const double* weights) override {
     userWeights_ = weights;
     recompose();
+  }
+
+  bool supportsActiveRows() const override { return true; }
+
+  /// The mask joins the mixture composite, c_i = w_i lambda_i a_i, so the
+  /// contained Gaussian inherits it through the pointer it is already handed -
+  /// node statistics, sigma df and all. The lambda draw itself continues at
+  /// every row; refreshLatents states why.
+  bool setActiveRows(const double* active) override {
+    if (active == nullptr) activeRows_.clear();
+    else activeRows_.assign(active, active + numObservations_);
+    recompose();
+    return true;
   }
 
   void setSigmaPrior(double sigmaEstimate, double degreesOfFreedom,
@@ -3828,6 +3992,13 @@ public:
     double sigmaOriginal = sigma * scale;
     const double* offset = gaussian_->offset();
     for (std::size_t i = 0; i < numObservations; ++i) {
+      // lambda is positive, so the composite vanishes exactly when the user
+      // weight or the mask does: not in the model, hence NaN
+      if ((userWeights_ != nullptr && userWeights_[i] == 0.0) ||
+          (!activeRows_.empty() && activeRows_[i] == 0.0)) {
+        out[i] = std::numeric_limits<double>::quiet_NaN();
+        continue;
+      }
       double mu = scale * totalFits[i] + shift +
                   (offset != nullptr ? offset[i] : 0.0);
       double sd = userWeights_ != nullptr
@@ -3838,12 +4009,13 @@ public:
   }
 
 private:
-  /// c_i = w_i lambda_i, then hand the composite to the contained Gaussian so
-  /// its weights, node statistics, and sigma draw all see the mixture.
+  /// c_i = w_i lambda_i a_i, then hand the composite to the contained Gaussian
+  /// so its weights, node statistics, and sigma draw all see the mixture.
   void recompose() {
     for (std::size_t i = 0; i < numObservations_; ++i)
       composite_[i] =
-        (userWeights_ != nullptr ? userWeights_[i] : 1.0) * lambda_[i];
+        (userWeights_ != nullptr ? userWeights_[i] : 1.0) * lambda_[i] *
+        (activeRows_.empty() ? 1.0 : activeRows_[i]);
     gaussian_->setWeights(composite_.data());
   }
 
@@ -3862,7 +4034,8 @@ private:
   double nu_;
   std::unique_ptr<GaussianResponse> gaussian_;
   std::vector<double> lambda_;      // per-observation mixing precisions
-  std::vector<double> composite_;   // c_i = w_i lambda_i, the Gaussian's weights
+  std::vector<double> activeRows_;  // the 0/1 mask; empty when none
+  std::vector<double> composite_;   // c_i = w_i lambda_i a_i, the Gaussian's weights
   ResidualDfPrior nuPrior_;         // grid machinery, used only when estimating
 };
 
@@ -4368,6 +4541,17 @@ public:
 
   void setWeights(const double* weights) override {
     base_->setWeights(weights);
+  }
+
+  /// Pure delegation, as setWeights is: drawGroupEffects already weights its
+  /// per-group sums by workingWeights(), so an inactive row leaves its group's
+  /// mean and precision and an all-inactive group falls back to its prior
+  /// through the same formula.
+  bool supportsActiveRows() const override {
+    return base_->supportsActiveRows();
+  }
+  bool setActiveRows(const double* active) override {
+    return base_->setActiveRows(active);
   }
 
   void setSigmaPrior(double sigmaEstimate, double degreesOfFreedom,

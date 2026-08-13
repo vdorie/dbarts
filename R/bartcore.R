@@ -1075,6 +1075,24 @@ bartcoreSetResponse <- function(bcSampler, y, updateScale = FALSE) {
   ))
 }
 
+# A per-observation 0/1 mask saying which rows are in the data set for this
+# sampler this sweep. An inactive row leaves every sufficient statistic, every
+# family-level parameter update and its own latent draw, but keeps its leaf
+# occupancy and still receives a fitted value. Absolute and independent of the
+# case weights: the family serves w * a in either call order.
+#
+# NULL clears. An all-ones mask reports success and installs nothing - the
+# opposite of setWeights, where all-ones installs - because one channel is
+# membership and the other precision. An all-zeros mask is accepted and runs,
+# with every forest at its prior. Values other than 0 and 1 refuse the whole
+# call and install nothing.
+bartcoreSetActiveRows <- function(bcSampler, active) {
+  if (!is.null(active)) {
+    active <- as.double(active)
+  }
+  invisible(.Call(C_dbarts_bartcore_setActiveRows, bcSampler$ptr, active))
+}
+
 bartcoreSetWeights <- function(bcSampler, weights) {
   invisible(.Call(
     C_dbarts_bartcore_setWeights,

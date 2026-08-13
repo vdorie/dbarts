@@ -30,6 +30,7 @@ SEXP bartcore_setCategoryOffset(SEXP ptr, SEXP offset);
 SEXP bartcore_setCategoryTestOffset(SEXP ptr, SEXP offset);
 SEXP bartcore_setTreatment(SEXP ptr, SEXP z);
 SEXP bartcore_setForestWeights(SEXP ptr, SEXP forest, SEXP weights);
+SEXP bartcore_setActiveRows(SEXP ptr, SEXP active);
 SEXP bartcore_getBCFGlue(SEXP ptr);
 SEXP bartcore_getForestFits(SEXP ptr, SEXP forest);
 SEXP bartcore_getForestVariableCounts(SEXP ptr, SEXP forest);

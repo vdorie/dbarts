@@ -1168,6 +1168,19 @@ public:
       installed = chain->setForestWeights(forestIndex, weights) && installed;
     return installed;
   }
+  /// Whether the response family implements the active-row channel; chain 0
+  /// answers for all, as every chain carries the same family.
+  bool supportsActiveRows() const { return chains_[0]->supportsActiveRows(); }
+  /// Installs (or clears, at null) the 0/1 active-row mask in every chain,
+  /// each of which copies it into its own family buffer; false, installing
+  /// nothing, on a refusal. Every chain refuses on the same family predicate
+  /// and the same value scan, so the fan-out cannot land half applied.
+  bool setActiveRows(const double* active) {
+    bool installed = true;
+    for (auto& chain : chains_)
+      installed = chain->setActiveRows(active) && installed;
+    return installed;
+  }
   /// Whether the forest coupling owns a replaceable count-matrix response;
   /// chain 0 answers for all, as every chain carries the same combiner.
   bool supportsCountsMutation() const {

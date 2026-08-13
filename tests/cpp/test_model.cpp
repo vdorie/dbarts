@@ -5003,6 +5003,301 @@ static void testOrdinalStateRoundTrip() {
   printf("ok: ordinal cutpoint state round trip\n");
 }
 
+// Advance both generators past the kernel under test and compare the streams
+// they leave behind: identical tails prove identical consumption, which is
+// what a skipped (rather than drawn-and-discarded) latent buys.
+static bool rngStreamsAgree(ext_rng* a, ext_rng* b, int numDraws = 32) {
+  for (int j = 0; j < numDraws; ++j)
+    if (ext_rng_simulateContinuousUniform(a) !=
+        ext_rng_simulateContinuousUniform(b))
+      return false;
+  return true;
+}
+
+// T3a, probit: the masked n-row latent kernel and the same kernel over the
+// COMPACTED active rows produce bit-identical latents at the active rows and
+// consume an identical rng stream, over lockstepped generators. The stream
+// half is the one that pins the skip: the truncated-normal primitive is a
+// rejection sampler whose consumption depends on the bound, so an inactive
+// row drawn and discarded would desynchronize it. Also T2(c) at the kernel:
+// substituting arbitrary in-support labels at the inactive rows moves no
+// active row's draw. Local generators, restored global rngState.
+static void testActiveRowsProbitKernel(ext_rng*) {
+  uint64_t savedRngState = rngState;
+  const std::size_t n = 40;
+  std::vector<double> y(n), active(n), eta(n), yPerturbed(n);
+  std::vector<double> yCompact, etaCompact;
+  std::vector<std::size_t> activeIndex;
+  for (std::size_t i = 0; i < n; ++i) {
+    y[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    eta[i] = 2.0 * runif01() - 1.0;
+    active[i] = (i % 3 == 0) ? 0.0 : 1.0;
+    yPerturbed[i] = active[i] == 0.0 ? 1.0 - y[i] : y[i];
+    if (active[i] != 0.0) {
+      activeIndex.push_back(i);
+      yCompact.push_back(y[i]);
+      etaCompact.push_back(eta[i]);
+    }
+  }
+
+  ProbitResponse masked(y.data(), nullptr, n);
+  ProbitResponse perturbed(yPerturbed.data(), nullptr, n);
+  ProbitResponse compact(yCompact.data(), nullptr, yCompact.size());
+  check(masked.supportsActiveRows() && masked.setActiveRows(active.data()) &&
+          perturbed.setActiveRows(active.data()),
+        "probit accepts an active-row mask");
+  check(masked.workingWeights() != nullptr &&
+          masked.workingWeights()[0] == 0.0 &&
+          masked.workingWeights()[1] == 1.0,
+        "a masked probit serves the 0/1 mask as its precisions");
+
+  ext_rng* rngMasked = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngCompact = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngPerturbed =
+    ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  for (ext_rng* r : {rngMasked, rngCompact, rngPerturbed})
+    ext_rng_setSeed(r, 20260812u);
+
+  const double* stale = masked.latents();
+  std::vector<double> before(stale, stale + n);
+  masked.refreshLatents(rngMasked, eta.data(), 1.0);
+  compact.refreshLatents(rngCompact, etaCompact.data(), 1.0);
+  perturbed.refreshLatents(rngPerturbed, eta.data(), 1.0);
+
+  bool exact = true, held = true, independent = true;
+  for (std::size_t k = 0; k < activeIndex.size(); ++k)
+    if (masked.latents()[activeIndex[k]] != compact.latents()[k]) exact = false;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (active[i] != 0.0) {
+      if (masked.latents()[i] != perturbed.latents()[i]) independent = false;
+    } else if (masked.latents()[i] != before[i]) {
+      held = false;
+    }
+  }
+  check(exact, "masked probit latents are bitwise the compacted kernel's");
+  check(held, "an inactive probit row keeps its stale latent");
+  check(independent,
+        "inactive probit responses leave every active row's draw untouched");
+  check(rngStreamsAgree(rngMasked, rngCompact),
+        "a masked probit consumes the compacted rng stream exactly");
+
+  for (ext_rng* r : {rngMasked, rngCompact, rngPerturbed}) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: active rows, probit latent kernel\n");
+}
+
+// T3a, ordinal: all three masked kernels against the compacted arm - the
+// count-derived proposal scales (computeScales), the marginal cutpoint MH pass
+// (updateCutpoints, whose target is cutpointLogAcceptance and whose stream
+// carries 1 or 2 variates per free cutpoint), and the latent redraw
+// (drawLatents). K is an input on both arms, so the comparison is well posed
+// even where the mask empties a category. Local generators, restored rngState.
+static void testActiveRowsOrdinalKernels(ext_rng*) {
+  uint64_t savedRngState = rngState;
+  const std::size_t n = 60, K = 4;
+  std::vector<double> y(n), active(n), eta(n), yCompact, etaCompact;
+  std::vector<std::size_t> activeIndex;
+  for (std::size_t i = 0; i < n; ++i) {
+    y[i] = static_cast<double>(1 + (i % K));
+    eta[i] = 1.5 * runif01() - 0.5;
+    // drop every fourth row, and every remaining row of the top category, so
+    // one boundary category empties under the mask
+    active[i] = (i % 4 == 1 || y[i] == static_cast<double>(K)) ? 0.0 : 1.0;
+    if (active[i] != 0.0) {
+      activeIndex.push_back(i);
+      yCompact.push_back(y[i]);
+      etaCompact.push_back(eta[i]);
+    }
+  }
+
+  OrdinalResponse masked(y.data(), nullptr, n, K);
+  OrdinalResponse compact(yCompact.data(), nullptr, yCompact.size(), K);
+  check(masked.supportsActiveRows() && masked.setActiveRows(active.data()),
+        "ordinal accepts an active-row mask");
+  check(masked.numCutpoints() == K - 1,
+        "an emptied boundary category leaves K and its cutpoints standing");
+
+  const double* scalesMasked = masked.computeScalesForTesting();
+  const double* scalesCompact = compact.computeScalesForTesting();
+  bool scalesAgree = true;
+  for (std::size_t s = 1; s < K - 1; ++s)
+    if (scalesMasked[s] != scalesCompact[s]) scalesAgree = false;
+  check(scalesAgree,
+        "masked ordinal proposal scales are the compacted arm's exactly");
+
+  bool targetAgrees = true;
+  for (double proposal : {0.4, 0.9, 1.8})
+    if (masked.cutpointLogAcceptanceForTesting(eta.data(), 2, proposal) !=
+        compact.cutpointLogAcceptanceForTesting(etaCompact.data(), 2, proposal))
+      targetAgrees = false;
+  check(targetAgrees,
+        "masked ordinal cutpoint acceptance is the compacted arm's exactly");
+
+  ext_rng* rngMasked = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngCompact = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngMasked, 20260813u);
+  ext_rng_setSeed(rngCompact, 20260813u);
+  masked.updateCutpointsForTesting(rngMasked, eta.data());
+  compact.updateCutpointsForTesting(rngCompact, etaCompact.data());
+  bool cutpointsAgree = true;
+  for (std::size_t s = 0; s < K - 1; ++s)
+    if (masked.cutpoints()[s] != compact.cutpoints()[s]) cutpointsAgree = false;
+  check(cutpointsAgree && rngStreamsAgree(rngMasked, rngCompact),
+        "a masked ordinal cutpoint pass matches the compacted one, stream and "
+        "all");
+
+  masked.drawLatentsForTesting(rngMasked, eta.data());
+  compact.drawLatentsForTesting(rngCompact, etaCompact.data());
+  bool latentsAgree = true;
+  for (std::size_t k = 0; k < activeIndex.size(); ++k)
+    if (masked.latents()[activeIndex[k]] != compact.latents()[k])
+      latentsAgree = false;
+  check(latentsAgree && rngStreamsAgree(rngMasked, rngCompact),
+        "masked ordinal latents are bitwise the compacted kernel's");
+
+  ext_rng_destroy(rngCompact);
+  ext_rng_destroy(rngMasked);
+  rngState = savedRngState;
+  printf("ok: active rows, ordinal kernels\n");
+}
+
+// The gaussian composition, and the recount it is obliged to route through:
+// the sigma posterior's degrees of freedom under a mask are nu_0 + #{w_i a_i
+// > 0}, not the unmasked count - the defect the chain-level alternative to
+// family composition would have reintroduced. Pinned two ways: the df itself,
+// and the sigma draw, which must be bit-identical to a bare Gaussian carrying
+// w * a as fixed weights on a lockstepped generator (T1 at the model level).
+// The all-ones and null masks restore the pre-mask pointer BY IDENTITY.
+static void testActiveRowsGaussianDf(ext_rng*) {
+  uint64_t savedRngState = rngState;
+  const std::size_t n = 24;
+  const double sigmaDf = 3.0, rawScale = 0.37804942330213542, sigma = 0.6;
+  std::vector<double> y(n), weights(n), active(n), composed(n), fits(n),
+    ones(n, 1.0);
+  std::size_t numPositive = 0;
+  for (std::size_t i = 0; i < n; ++i) {
+    y[i] = runif01();
+    weights[i] = i % 7 == 0 ? 0.0 : 0.5 + runif01();
+    active[i] = i % 5 == 0 ? 0.0 : 1.0;
+    composed[i] = weights[i] * active[i];
+    fits[i] = 0.05 * static_cast<double>(i) - 0.3;
+    if (composed[i] > 0.0) ++numPositive;
+  }
+
+  GaussianResponse resp(y.data(), nullptr, weights.data(), n, 1.0, sigmaDf,
+                        rawScale);
+  const double* premask = resp.workingWeights();
+  check(resp.sigmaDegreesOfFreedomForTesting() != sigmaDf +
+          static_cast<double>(numPositive),
+        "the unmasked df differs from the masked one, so the pin can fail");
+  check(resp.supportsActiveRows() && resp.setActiveRows(active.data()),
+        "gaussian accepts an active-row mask");
+  check(resp.sigmaDegreesOfFreedomForTesting() ==
+          sigmaDf + static_cast<double>(numPositive),
+        "a masked gaussian draws sigma at the COMPOSED positive-weight df");
+
+  GaussianResponse ref(y.data(), nullptr, composed.data(), n, 1.0, sigmaDf,
+                       rawScale);
+  ext_rng* rngResp = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngRef = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngResp, 20260814u);
+  ext_rng_setSeed(rngRef, 20260814u);
+  check(resp.drawSigma(rngResp, fits.data(), sigma) ==
+          ref.drawSigma(rngRef, fits.data(), sigma),
+        "a masked gaussian sigma draw is bitwise setWeights(w * a)'s");
+
+  // both degenerate clears restore the borrowed pointer itself, which is what
+  // keeps the fused node-average path reachable afterwards
+  check(resp.setActiveRows(nullptr) && resp.workingWeights() == premask,
+        "clearing the mask restores the pre-mask weight pointer by identity");
+  check(resp.setActiveRows(active.data()), "the mask reinstalls");
+  resp.setWeights(ones.data());
+  check(resp.workingWeights()[0] == 0.0 && resp.workingWeights()[1] == 1.0 &&
+          resp.sigmaDegreesOfFreedomForTesting() ==
+            sigmaDf + static_cast<double>(n - 5),
+        "setWeights under an installed mask recomposes rather than clearing");
+
+  // the pointwise log-likelihood channel flags a row whose COMPOSED weight is
+  // zero as unavailable rather than reporting a value for a row that is not in
+  // the model: NaN, where a zero weight used to give -Inf through an infinite
+  // residual sd and a masked probit would have given a finite number
+  std::vector<double> loglik(n);
+  resp.setWeights(weights.data());
+  resp.computeLogLikelihood(fits.data(), sigma, n, loglik.data());
+  bool flagged = std::isnan(loglik[0]) && std::isfinite(loglik[1]);
+  for (std::size_t i = 0; i < n; ++i)
+    if (std::isnan(loglik[i]) != (composed[i] == 0.0)) flagged = false;
+  check(flagged, "a zero composed weight reports NaN, not -Inf, in the "
+                 "gaussian log-likelihood channel");
+
+  ext_rng_destroy(rngRef);
+  ext_rng_destroy(rngResp);
+  rngState = savedRngState;
+  printf("ok: active rows, gaussian df recount\n");
+}
+
+// Student-t: the mask annihilates lambda's contribution through the composite
+// (c_i = w_i lambda_i a_i) while the lambda DRAW continues at every row, and
+// the nu statistics read the COMPOSED weight - so an inactive row leaves
+// numInformative, sumLogLambda and sumLambda exactly as a zero user weight
+// does. Pinned by lockstepping a masked arm against one whose user weights are
+// already w * a: identical lambda draws and an identical nu stream.
+static void testActiveRowsStudentComposite(ext_rng*) {
+  uint64_t savedRngState = rngState;
+  const std::size_t n = 20;
+  const double sigma = 0.45, sigmaDf = 3.0, rawScale = 0.37804942330213542;
+  std::vector<double> y(n), weights(n), active(n), composed(n), fits(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    y[i] = runif01();
+    weights[i] = 0.5 + runif01();
+    active[i] = i % 4 == 0 ? 0.0 : 1.0;
+    composed[i] = weights[i] * active[i];
+    fits[i] = 0.04 * static_cast<double>(i) - 0.2;
+  }
+
+  TResponse masked(y.data(), nullptr, weights.data(), n, 1.0, sigmaDf,
+                   rawScale, -1.0);  // estimate nu on the grid
+  TResponse ref(y.data(), nullptr, composed.data(), n, 1.0, sigmaDf, rawScale,
+                -1.0);
+  check(masked.supportsActiveRows() && masked.setActiveRows(active.data()),
+        "student-t accepts an active-row mask");
+
+  ext_rng* rngMasked = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngRef = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngMasked, 20260815u);
+  ext_rng_setSeed(rngRef, 20260815u);
+  masked.refreshLatents(rngMasked, fits.data(), sigma);
+  ref.refreshLatents(rngRef, fits.data(), sigma);
+
+  // at an active row w a == w, so the two arms' conditionals coincide exactly;
+  // at an inactive one the masked arm still DRAWS - lambda leaves its cold 1.0
+  // - from a conditional the row's own residual still enters, which is what
+  // spares t the reactivation staleness the skipping families carry
+  bool drawnEverywhere = true, annihilated = true;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (active[i] != 0.0) {
+      if (masked.latents()[i] != ref.latents()[i]) drawnEverywhere = false;
+    } else if (masked.latents()[i] == 1.0) {
+      drawnEverywhere = false;
+    }
+    if (masked.workingWeights()[i] !=
+        weights[i] * masked.latents()[i] * active[i])
+      annihilated = false;
+  }
+  check(drawnEverywhere,
+        "a masked student-t draws lambda at every row, inactive included");
+  check(annihilated && masked.workingWeights()[0] == 0.0,
+        "the student-t composite is w_i lambda_i a_i exactly");
+  check(masked.residualDf() == ref.residualDf() &&
+          rngStreamsAgree(rngMasked, rngRef),
+        "the nu statistics read the composed weight, not the user weight");
+
+  ext_rng_destroy(rngRef);
+  ext_rng_destroy(rngMasked);
+  rngState = savedRngState;
+  printf("ok: active rows, student-t composite and nu gate\n");
+}
+
 // The engine test-container entry (facade setTestData): a sampler given a
 // mixed dense + CSC test set records test fits BITWISE-IDENTICALLY to one given
 // the dense test matrix of the same values, and the entry REFUSES a designated
@@ -6210,6 +6505,10 @@ void runModelTests(ext_rng* rng) {
   testOrdinalCutpointConditional(rng);
   testOrdinalProbitEquivalence(rng);
   testOrdinalStateRoundTrip();
+  testActiveRowsProbitKernel(rng);
+  testActiveRowsOrdinalKernels(rng);
+  testActiveRowsGaussianDf(rng);
+  testActiveRowsStudentComposite(rng);
   testNBPolyaGammaShapeMoments(rng);
   testNBDispersionGridConditional(rng);
   testNBSweepOrderAndRestore(rng);

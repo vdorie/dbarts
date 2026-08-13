@@ -900,8 +900,25 @@ reviewed by VD the same day.
 
 ## Open items
 
-- **T3b remains UNPILOTED**, and it is this arc's named overrun risk. Its
-  fixture is sized from a pilot written inside S1, not from this document.
+- **T3b is PILOTED at S1** (gaussian; the pilot is not a shipped test). Sizing,
+  from n = 500, p = 5 Friedman, 50 trees, 70% retained, burn 500, 4 replicates:
+  - The two arms MUST take DIFFERENT rng seeds. At the same seed, 2 of 5
+    replicates kept the masked and the compacted chain BITWISE LOCKED for 400
+    sweeps (identical varcount, sigma to 2e-15) - the move stream only diverges
+    once a re-association crosses an MH threshold, so a same-seed T3b is vacuous
+    on some seeds and a real comparison on others.
+  - The oracle is a RATIO against a within-arm control, not an absolute
+    tolerance: rmse(posterior mean, masked vs compacted, at retained rows)
+    divided by rmse(masked vs a SECOND masked run at another seed). Measured
+    0.96-1.10 at S = 1000 and 0.99-1.21 at S = 4000, i.e. the cross-arm gap is
+    the chain-to-chain gap. Threshold 1.5 leaves ~35% headroom. Correlation of
+    the two posterior means, a cheap secondary, was 0.995-0.998.
+  - A per-row z against a batch-means Monte Carlo SE does NOT work at any
+    affordable S: it still reports rms|z| ~2.9 and max|z| ~10-15 at S = 4000
+    while the ratio above says the arms agree. The SE is what is wrong (BART's
+    posterior-mean autocorrelation), not the sampler. Do not pre-register it.
+  - Cost: 0.15 s per arm at S = 1000, so ~0.5 s per replicate, ~2 s per family.
+    T3b is cheap; S = 1000 and 4 replicates is the recommendation.
 - **Nothing in this design was built or prototyped.** The cache-invalidation
   requirement is a source-and-contract derivation plus a reachability argument,
   not an end-to-end reproduction of a wrong draw; the heteroscedastic and grouped
