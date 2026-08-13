@@ -315,6 +315,30 @@ subsetData <- dbartsData(x, y, subset = 1:100, treatment = z)
 expect_identical(subsetData@treatment, as.double(z[1:100]))
 expect_error(dbartsData(x, y, treatment = rep(2, n)), "coded 0")
 expect_error(dbartsData(x, y, treatment = z[1:10]), "length of 'treatment'")
+
+# ... while a caller who declared a forest's BASIS is refused in that word, on
+# every surface that takes one, rather than in the data object's
+expect_error(
+  dbartsSpec(
+    dbartsData(x, y),
+    seededControl(),
+    forests = list(forest(), forest(basis = ~ factor(z[1:10])))
+  ),
+  "length of 'basis'"
+)
+expect_error(
+  dbarts(x, y, forests = list(forest(), forest(basis = ~ factor(z[1:10])))),
+  "length of 'basis'"
+)
+expect_error(
+  dbarts(
+    x,
+    y,
+    control = seededControl(),
+    forests = list(forest(), forest(basis = ~ factor(z)))
+  )$setForestBasis(2L, ~ factor(z[1:10])),
+  "length of 'basis'"
+)
 offSlot <- dbartsSpec(dbartsData(x, y, treatment = z), seededControl())
 expect_equal(
   attr(offSlot$control, "bartcore.bcf")$params,

@@ -628,27 +628,30 @@ validateXYWeights <- function(weights, initialNumObservations, subset) {
 # through; anything else is length-checked against the pre-subset response and
 # restricted to 'subset', exactly as the weights it rides beside are. The
 # formula branch has no row index to restrict by, so it passes the assembled
-# response length and no subset.
+# response length and no subset. 'argument' names the surface the value came
+# from, so a caller who wrote a forest's basis is refused in those terms rather
+# than in the data object's.
 validateTreatment <- function(
   treatment,
   initialNumObservations,
-  subset = NULL
+  subset = NULL,
+  argument = "treatment"
 ) {
   if (is.null(treatment)) {
     return(NULL)
   }
   if (!is.numeric(treatment) && !is.logical(treatment)) {
-    stop("'treatment' must be a numeric or logical vector")
+    stop("'", argument, "' must be a numeric or logical vector")
   }
   treatment <- as.double(treatment)
   if (length(treatment) != initialNumObservations) {
-    stop("length of 'treatment' must equal length of 'y'")
+    stop("length of '", argument, "' must equal length of 'y'")
   }
   if (!is.null(subset)) {
     treatment <- treatment[subset]
   }
   if (anyNA(treatment) || any(treatment != 0.0 & treatment != 1.0)) {
-    stop("'treatment' must be coded 0 (control) or 1 (treated)")
+    stop("'", argument, "' must be coded 0 (control) or 1 (treated)")
   }
   treatment
 }

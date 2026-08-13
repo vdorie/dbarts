@@ -2927,7 +2927,7 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
     if (!data.predictors.isDenseBlock())
       Rf_error("BCF requires dense predictors");
     if (static_cast<size_t>(Rf_xlength(zExpr)) != data.numObservations)
-      Rf_error("treatment length must match the number of observations");
+      Rf_error("basis length must match the number of observations");
 
     z.resize(data.numObservations);
     for (size_t i = 0; i < data.numObservations; ++i)
@@ -3665,16 +3665,17 @@ SEXP bartcore_setTreatment(SEXP ptrExpr, SEXP zExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   size_t n = shape.numObservations;
-  // A capability probe, not a forest count: z is defined only as the contrast
-  // the BCF glue forms b_{z_i} against, and a K-forest multinomial (K >= 2)
-  // defeats a numForests test. Chain::bcfGlue is false off a combiner and
-  // false for the multinomial combiner, so the single-forest case this already
-  // covered keeps its message.
-  double glue[3];
-  if (!holder.sampler->bcfGlue(0, glue))
-    Rf_error("bartcore_setTreatment requires a BCF sampler");
+  // A capability probe, not a forest count: the basis column is defined only
+  // as the contrast the amplitudes form b_{z_i} against, and a K-forest
+  // multinomial (K >= 2) defeats a numForests test. Chain::bcfGlue is false
+  // off a combiner and false for the multinomial combiner, so the
+  // single-forest case this already covered keeps its refusal.
+  double amplitudes[3];
+  if (!holder.sampler->bcfGlue(0, amplitudes))
+    Rf_error("a forest basis requires a sampler whose forests carry "
+             "amplitudes");
   if (static_cast<size_t>(Rf_xlength(zExpr)) != n)
-    Rf_error("treatment length must match the number of observations");
+    Rf_error("basis length must match the number of observations");
   holder.ownedTreatment.resize(n);
   for (size_t i = 0; i < n; ++i)
     holder.ownedTreatment[i] = REAL(zExpr)[i] != 0.0 ? 1.0 : 0.0;
@@ -3761,7 +3762,7 @@ SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr) {
   return R_NilValue;
 }
 
-// The glue on the combining response, one column {a, b0, b1} per chain.
+// The amplitudes on the combining response, one column {a, b0, b1} per chain.
 SEXP bartcore_getBCFGlue(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   size_t numChains = holder.sampler->shape().numChains;
@@ -3770,7 +3771,7 @@ SEXP bartcore_getBCFGlue(SEXP ptrExpr) {
   for (size_t c = 0; c < numChains; ++c)
     if (!holder.sampler->bcfGlue(c, REAL(result) + 3 * c)) {
       UNPROTECT(1);
-      Rf_error("bartcore_getBCFGlue requires a BCF sampler");
+      Rf_error("forest amplitudes require a sampler whose forests carry them");
     }
   UNPROTECT(1);
   return result;

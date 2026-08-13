@@ -278,11 +278,12 @@ expect_error(
   dbarts:::bartcoreSetWeights(bc.mn, runif(n, 0.5, 1.5)),
   "n x K count matrix"
 )
-# z is defined only as the contrast the BCF glue forms b_{z_i} against; the
-# capability probe catches a K-forest multinomial that a forest count would not
+# the basis column is defined only as the contrast the amplitudes form
+# b_{z_i} against; the capability probe catches a K-forest multinomial that a
+# forest count would not
 expect_error(
   dbarts:::bartcoreSetTreatment(bc.mn, rbinom(n, 1L, 0.5)),
-  "requires a BCF sampler"
+  "forests carry amplitudes"
 )
 # a FLAT test offset is added AFTER the K forests are blended, so it would move
 # the reported probabilities off the simplex, and before the blend a common

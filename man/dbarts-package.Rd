@@ -40,7 +40,7 @@
   Every chain runs its own random number generator, so results never depend on the thread count and sampling does not advance R's stream. Calling \code{\link{set.seed}} beforehand suffices; passing \code{seed} instead makes a fit reproducible without touching R's stream at all. See \code{\link{bart}}'s \sQuote{Reproducibility} section.
 }
 \section{Using dbarts from another package}{
-  Calling the R interface needs no special linkage. A package that drives the sampler from C should declare \code{LinkingTo: dbarts} and use the flat C API declared in the installed header \file{dbarts/dbarts.h}, whose entry points are reached through \code{R_GetCCallable} and versioned by \code{DBARTS_C_API_VERSION}. \code{\link{dbartsSpec}} produces the specification objects that API's sampler constructor takes. The C++ interface of releases before 1.0-0, \file{dbarts/R_C_interface.hpp}, has been removed.
+  Calling the R interface needs no special linkage. A package that drives the sampler from C should declare \code{LinkingTo: dbarts} and use the flat C API declared in the installed header \file{dbarts/dbarts.h}, whose entry points are reached through \code{R_GetCCallable} and versioned by the two-component handshake \code{DBARTS_C_API_MAJOR}/\code{DBARTS_C_API_MINOR}, with \code{dbarts_apiHash()} as an exact signature check. \code{\link{dbartsSpec}} produces the specification objects that API's sampler constructor takes. The C++ interface of releases before 1.0-0, \file{dbarts/R_C_interface.hpp}, has been removed.
 }
 \references{
 Chipman, H., George, E., and McCulloch, R. (2010)

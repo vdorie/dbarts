@@ -402,7 +402,12 @@ resolveSamplerSpec <- function(
   # The bridge cross-checks the two halves in both directions, so a stripped
   # attribute is a loud error, never a silent single-forest fit.
   if (!is.null(treatment)) {
-    data@treatment <- validateTreatment(treatment, length(data@y))
+    # the only caller supplies it as a forest's basis, so a refusal names that
+    data@treatment <- validateTreatment(
+      treatment,
+      length(data@y),
+      argument = "basis"
+    )
   }
   if (!is.null(data@treatment)) {
     if (family != "gaussian") {

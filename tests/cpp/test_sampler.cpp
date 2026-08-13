@@ -4722,6 +4722,15 @@ static void testForestCalibration() {
   // an out-of-range forest is a capability answer, not a raise
   check(!sampler.setForestPriorScale(1, 2.5),
         "calibration: an out-of-range forest refuses the write");
+  // and the READER, which has no refusal channel of its own, answers with a
+  // default-constructed calibration rather than reading past the last forest -
+  // the flat C getter turns that into its own "0, touching nothing"
+  ForestCalibration missing = sampler.forestCalibration(0, 1);
+  check(missing.priorScale == 0.0 && missing.priorSd == 0.0 &&
+          missing.priorMean == 0.0 && missing.k == 0.0 &&
+          missing.responseScale == 0.0 && missing.responseShift == 0.0 &&
+          !missing.kHasHyperprior,
+        "calibration: an out-of-range forest reads as the empty calibration");
 
   {
     ext_rng* bcfRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
