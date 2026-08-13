@@ -488,7 +488,12 @@ items
     + S1 item 5b): setTreatment -> setForestBasis, bcfGlue ->
     numForestAmplitudes + forestAmplitudes. Extension-surface fork 3
     (the condition) is RESOLVED 2026-08-11 in favour of the rename;
-    it lands at reshape S1. setData on a CSC/mixed store: SURVEYED,
+    it lands at reshape S1. Reshape S1 also now carries two frozen,
+    AMENDABLE items from other arcs' S0 signature freezes: the
+    dbarts_sampler_forestCalibration / setForestPriorScale POD+entries
+    (docs/plans/nameable-calibration.md sec 8) and the
+    dbarts_sampler_setActiveRows entry (docs/plans/latent-subset-mask.md).
+    setData on a CSC/mixed store: SURVEYED,
     KEPT UNDESIGNED - no model surfaced (classes needing sparse
     designs do not swap whole data mid-chain; mid-chain mutation
     targets dense latent columns, which mixed containers carry).

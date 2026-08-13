@@ -644,6 +644,187 @@ report - do not build a private substitute.
    `apiMinorVersion()` are STILL 1 and 0, that the raw and stubbed hash agree,
    and that the hash literal differs from the literal recorded at
    slice start (F6).
+7. **Nameable-calibration's mid-chain footprint** (docs/plans/nameable-calibration.md
+   sec 8 and its S0, "Signature freeze. No code."). **AMENDABLE until this
+   slice starts**: if S2's implementation falsifies a signature choice, the
+   plan is corrected rather than frozen. Creation half: NONE - the model
+   crosses as SEXP (`dbarts_sampler_create`, `dbarts.h:175-177`) and the
+   `prior.scale` -> `node.scale` conversion is engine-side, so a flat-C
+   consumer reaches it with no header change. Mid-chain half: one output
+   POD, one enum, two X-list entries appended at the END of
+   `DBARTS_C_API_LIST`:
+
+       typedef enum {
+         DBARTS_LEAF_CONSTANT = 0,
+         DBARTS_LEAF_MONOTONE = 1,
+         DBARTS_LEAF_LINEAR   = 2,
+         DBARTS_LEAF_GP       = 3
+       } dbarts_leaf_model;
+
+       /// Caller-owned output buffers for dbarts_sampler_forestCalibration, the
+       /// dbarts_results contract: set structSize; EVERY member is a pointer and
+       /// is filled only when both present-by-size and non-null, each over
+       /// numChains; a zero structSize errors. Fields append below the marked
+       /// boundary and never reorder. All quantities are in RESPONSE units (the
+       /// family's latent units where the response is not rescaled).
+       typedef struct dbarts_forest_calibration_t {
+         size_t  structSize;      ///< caller sets to sizeof(dbarts_forest_calibration)
+         double* priorScale;      ///< numChains; forest-total prior sd at k = 1
+         double* priorSd;         ///< numChains; priorScale / k at the current k
+         double* priorMean;       ///< numChains; prior mean of the forest total
+         double* k;               ///< numChains
+         double* responseScale;   ///< numChains; internal-to-response multiplier
+         double* responseShift;   ///< numChains; internal-to-response offset
+         int*    kHasHyperprior;  ///< numChains; THIS FOREST's own k law (not the
+                                  ///< sampler-wide dbarts_sampler_kIsSampled,
+                                  ///< which reads the sampler option and
+                                  ///< disagrees on BCF and multinomial)
+         int*    leafModel;       ///< numChains; dbarts_leaf_model, qualifying
+                                  ///< priorSd and priorMean (see below)
+         /* 1.0-0 field boundary: appends go below, never above. */
+       } dbarts_forest_calibration;
+
+       #define DBARTS_FOREST_CALIBRATION_INIT { sizeof(dbarts_forest_calibration) }
+
+       X(int, dbarts_sampler_forestCalibration, \
+         (const dbarts_sampler* sampler, size_t forest, \
+          dbarts_forest_calibration* out), \
+         (sampler, forest, out)) \
+       X(int, dbarts_sampler_setForestPriorScale, \
+         (dbarts_sampler* sampler, size_t forest, double priorScale), \
+         (sampler, forest, priorScale))
+
+   **Why the two trailing members are `int*` and not `int`** (compiled and
+   measured, `cc -std=c99`, arm64 LP64): with two trailing `int`s, tail
+   padding makes `sizeof` identical with and without the last field - 56
+   through `responseShift`, 64 with one `int`, 64 with two,
+   `offsetof(leafModel) = 60` - so a caller omitting `leafModel` sets
+   `structSize = 64` and `DBARTS_HAS_FIELD(..., leafModel)` returns TRUE for
+   a field it does not carry, while the exact-`sizeof` static assert cannot
+   see a future sub-word append at all because it lands in existing padding.
+   That would be the first POD to break the header's stated invariant
+   (`dbarts_results`' own Doxygen: the library fills only fields whose end
+   offset falls within `structSize`). With pointers the arithmetic is
+   honest: 64 with one, 72 with two, and the omitting caller's `HAS` is
+   FALSE. The uniform pointer shape also gives the two members the "null
+   member skips" spelling the POD's Doxygen claims for every member, and the
+   per-chain shape the rest of the struct already has.
+
+   Prototype-view Doxygen (the `#else` branch) states, in this order: what
+   the getter fills and that `priorScale` is the quantity the setter
+   writes; that `priorSd` is `priorScale / k` per chain and moves every
+   sweep under `kHasHyperprior` while `priorScale` does not; the
+   LEAF-PARAMETER sentence (`prior.scale`/`prior.sd` describe the
+   leaf-parameter scale of the forest total, equal to the prior sd of
+   `f(x)` at every x for the constant leaf only) with equality for
+   `DBARTS_LEAF_CONSTANT` only; then per tag - `DBARTS_LEAF_LINEAR` a LOWER
+   bound attained at the standardized covariate origin, larger by
+   `sqrt(1 + ||z(x)||^2)`; `DBARTS_LEAF_GP` an UPPER bound attained at rows
+   reproducing a leaf member and on over-cap leaves, elsewhere
+   `priorSd^2 c(x)' C^-1 c(x)` decaying to 0 as x leaves the leaf's data
+   cloud, where every draw equals `priorMean`; `DBARTS_LEAF_MONOTONE` a
+   LOWER bound in the interior (realized sd a few per cent to ~20% above
+   it) whose `priorMean` is NOT the prior mean of `f(x)` under an active
+   constraint, that marginal being skew with an x-dependent mean spanning
+   several `priorSd` along the constrained axis; and that `priorMean` is
+   exact for the constant, linear and gp leaves. Returns 1, or 0 without
+   touching `out` when `forest` names no forest; errors on a zero
+   `structSize`.
+
+   The setter's Doxygen states: it restates forest `forest`'s leaf prior on
+   EVERY chain so the forest total's prior sd at `k = 1` is `priorScale`, in
+   response units; `k`, the response transform, sigma and the tree prior
+   are untouched; it takes effect on the NEXT sweep and never reinterprets
+   leaf values already drawn; a write reproducing the current internal
+   scale bitwise is skipped, so a read-then-write is inert; to move the
+   prior MEAN, shift the reported fit with `dbarts_sampler_setOffset`; the
+   leaf model qualifies the write exactly as it qualifies the read. TWO
+   ERROR CHANNELS, because the header's global contract raises on invalid
+   arguments: a CAPABILITY answer is a RETURN VALUE - 0, touching nothing,
+   when `forest` names no forest or a combiner owns this forest's
+   calibration (a two-forest or multinomial sampler) - while a MALFORMED
+   VALUE RAISES, namely a non-finite or non-positive `priorScale`.
+   1 = accepted. The flat surface deliberately carries no `prior.sd`
+   spelling, so it has no sampled-k refusal; that sugar and its refusal are
+   R-side only.
+
+   Forward compatibility: `forest` is a parameter, so the general basis
+   family (multiforest-extension-surface M4) relaxes the refusal in its own
+   guard body and moves no header - record that in the reshape landing
+   note.
+
+   Signature assumption the design carries, NOT a reshape obligation:
+   `Chain::setModel` RE-DERIVES `leaf.scale = model.priorScale /
+   response_->fitScale()` against the CURRENT transform whenever
+   `priorScale` is finite - the same conversion creation runs - so that a
+   no-op `$setModel(sampler$model)` does not silently REVERT a named
+   calibration (MEASURED 1.5 -> 12.0, 8x, on a range-24 gaussian, absent
+   this rule). The signature above assumes that rule holds; S0 records it
+   as an assumption the signature carries, not as work item S1 owes.
+
+   PRECONDITION, verified live in this worktree (4f0aeab8):
+   `dbarts_sampler_numForests` IS in the X-list, at `dbarts.h:264` exactly
+   as the calibration plan cites - reshape S1's own start condition is met.
+   The reshape plan's zero-`structSize` anchor sentence above (item 1) reads
+   "(C_interface.cpp:135; the comment explaining why is at :131-134)",
+   confirmed correct against the live file: the comment sits at :131-134 and
+   the check at :135. No errata to carry forward.
+8. **Latent-subset-mask's flat entry** (docs/plans/latent-subset-mask.md,
+   "The dbarts.h footprint (carried by dbarts-h-reshape S1)"). **AMENDABLE
+   until this slice starts**, same as item 7. ONE entry, appended at the END
+   of the X-list:
+
+       X(int, dbarts_sampler_setActiveRows,
+         (dbarts_sampler* sampler, const double* active), (sampler, active))
+
+   Contract (Doxygen): `active` is length `dbarts_sampler_numObservations`,
+   each element exactly `0.0` or `1.0`; `NULL` clears (every row active); an
+   all-ones vector is accepted and installs nothing. Returns **1 = accepted,
+   0 = refused** - the shipped convention (`dbarts_sampler_setPredictor`
+   ends `accepted ? 1 : 0`; the polarity erratum in
+   `docs/plans/c-api-growth.md`). No version constant moves (binding
+   decision 8). **Ownership: the entry RETAINS NOTHING.** The values are
+   consumed (copied) into the sampler's own buffer during the call and the
+   caller's array is free immediately after it returns. This is NEITHER
+   `setForestWeights`'s borrow-and-retain (which is why THAT entry obliges
+   the caller to keep the array alive) NOR a copy into a holder; it is the
+   predictor setters' "retain no pointer" clause. No clause joins dbarts.h's
+   keep-alive list. Reachable for gaussian, Student-t, probit, logistic,
+   aft, ordinal and nbinom - the families `dbarts_sampler_create` builds by
+   name; multinomial and BCF have no flat creation path, so their masking
+   stays `dbarts:::`-only, as `bartcore_setCounts` and
+   `bartcore_setForestWeights` already are.
+
+   Body decision (subset-mask V4): the S1 body ACCEPTS gaussian (and
+   Student-t, the same `shape.family`) and refuses every other family by
+   name - the pattern this plan's own item 5b proposes ("The body accepts
+   only what today's engine honours ... and refuses the rest naming the
+   capability, so the family relaxes guard bodies later and moves no
+   header"). Gaussian masking needs no new engine work at that point: it is
+   `setWeights(w * a)` composed at the entry. Validation runs the
+   capability probe on `shape.supportsActiveRows` FIRST, never a family
+   switch; the length is implicit (no length argument - the entry reads
+   `numObservations` from the shape); the exact-`{0,1}` scan is the
+   ENGINE's, inherited by the flat entry, so the r-c-division defect-4 hole
+   does not reopen.
+
+   `test-capi.R` positive-arm obligation (this plan's own S1 item 6 requires
+   coverage of every entry plus the refusal matrix, calling `test-capi.R`
+   "the load-bearing gate"): one positive arm (gaussian mask changes the
+   fit, all-ones does not), one refusal arm per refused family reachable
+   from `dbarts_sampler_create` (probit at S1 time), one fractional-value
+   refusal, one `NULL`-clears arm. Because the body accepts gaussian, no
+   assertion has to invert when this arc's S1 lands - only refusal arms are
+   relaxed later, which is what item 5b was designed for. A body that always
+   returns 0 is WITHDRAWN: it would ship a symbol that lies by omission and
+   plant an assertion in another arc's gate file that must later invert.
+
+   Two entries considered and NOT proposed, so a later reader does not
+   reopen them: a reader (`dbarts_sampler_getActiveRows`) and a count
+   (`dbarts_sampler_numActiveObservations`). The channel does not ride the
+   state block, so the writer is the only source of the value and a reader
+   can only echo it. If V6 is ever reversed and the mask DOES ride the
+   state, a reader becomes necessary and must be added in the same re-bake.
 
 rng: NEUTRAL. Gates: preclean install into the private library; `tests/cpp`
 plain and ASAN from clean; `test-capi.R` (the load-bearing gate); full tinytest;
