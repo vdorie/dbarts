@@ -21,6 +21,7 @@ rbart_vi <- function(
   sigdf = 3.0,
   sigquant = 0.90,
   k = 2.0,
+  prior.scale = NA_real_,
   power = 2.0,
   base = 0.95,
   split.probs = 1 / num.vars,
@@ -112,6 +113,7 @@ rbart_vi <- function(
     sigdf,
     sigquant,
     nodeK = if (!is.null(matchedCall[["k"]])) k else NULL,
+    priorScale = prior.scale,
     dart = dart,
     splitProbsDefault = formals(dbarts::rbart_vi)[["split.probs"]]
   )

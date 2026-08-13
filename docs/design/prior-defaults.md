@@ -99,3 +99,31 @@ changes. `setResponse` and `setOffset` both take `updateScale` (default
 sampling and between-draw substitution never drift; `updateScale =
 TRUE` re-anchors and is documented as burn-in only, since re-anchoring
 mid-run makes fits across iterations no longer comparable.
+
+## prior.scale (naming the calibration)
+
+Locking the anchor is not the same as choosing it. A composed model -
+one whose driving R program hands the sampler latents, residuals or
+another block's offsets - still inherits whatever calibration the
+CONSTRUCTION vector implied, which is an accident of how the outer loop
+was initialized rather than a modelling statement. `prior.scale` names
+it instead, in response units: it is the prior sd of the forest total at
+`k = 1`, so `prior.scale = fitScale * node.scale * sqrt(m)` is the
+conversion, `prior.sd = prior.scale / k` is the reading at the k in
+force, and the prior mean is the transform's shift, whose lever is the
+offset channel. Only the ratio `node.scale / k` enters any draw law, so
+under a fixed `k` the pair carries one degree of freedom and
+`prior.scale` is the identified half; `k` matters when a hyperprior
+draws it, and then `prior.scale` is the constant of the model while
+`prior.sd` moves every sweep - which is why the `sd` spelling is refused
+under a hyperprior and the `scale` spelling is not.
+
+The named value overrides the family-keyed `node.scale` above, which
+stays the internal-unit primitive and is what the bridge reads when
+nothing is named. The conversion happens engine-side, at the one site
+that sets the leaf scale and again on every model install, so a
+hand-built model reaches it with no R-side arithmetic. Because the
+transform is the divisor there, a channel that re-anchors it moves the
+calibration in force while leaving the named intent on the model alone.
+The two-forest and multinomial models have their own calibration maps
+and refuse a named value rather than drop it.

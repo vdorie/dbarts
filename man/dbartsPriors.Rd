@@ -31,7 +31,7 @@
       passed (default: half the control's burn-in), so the forest is
       likelihood-informed when counts first enter the Dirichlet.
     }
-    \item{\code{normal(k = NULL)}}{
+    \item{\code{normal(k = NULL, sd = NULL, scale = NULL)}}{
       Normal prior on the node means. \code{k} scales the standard
       deviation and can be a positive scalar, a hyperprior built with
       \code{chi}, or \code{NULL} for the default: 2 for continuous
@@ -42,8 +42,19 @@
       span the whole response range regardless of \code{m}; see
       \code{\link{dbarts}}'s Details for the response-scaling caveat this
       relies on.
+
+      \code{scale} and \code{sd} NAME that calibration instead of
+      inheriting it from the response range, in response units: at most
+      one may be given, \code{scale} is the prior standard deviation of
+      the forest total at \code{k = 1}, and \code{sd} is the same
+      quantity at the resolved \code{k} (so \code{scale = sd * k}).
+      \code{sd} is refused when \code{k} carries a hyperprior, since a
+      \code{k} drawn every sweep leaves no single value to divide by;
+      name \code{scale} there, which a sampled \code{k} scales rather
+      than replaces. See \code{\link{dbarts}}'s Details for what the
+      named quantity means under each leaf model.
     }
-    \item{\code{linear(columns, k = NULL)}}{
+    \item{\code{linear(columns, k = NULL, sd = NULL, scale = NULL)}}{
       Each leaf fits an intercept plus a linear term in the designated
       continuous predictor columns instead of a constant, so the forest
       models smoothly-varying coefficients. \code{columns} names model
@@ -54,9 +65,11 @@
       keep the intercept; \code{getTrees} adds one \code{beta.<column>}
       column per covariate. \code{\link{xbart}} accepts the same
       specification through its own \code{node.prior} argument.
+      \code{sd} and \code{scale} name the calibration as they do for
+      \code{normal}.
     }
     \item{\code{gp(columns, k = NULL, lengthscale = NULL,
-                   max.leaf.size = 256L)}}{
+                   max.leaf.size = 256L, sd = NULL, scale = NULL)}}{
       Each leaf fits a smooth Gaussian-process function of the designated
       continuous predictor columns, drawn under a squared-exponential
       kernel whose prior scale ties to \code{k} exactly as the other leaf
@@ -71,7 +84,8 @@
       Function-valued fits ride prediction only: \code{getTrees} reports
       \code{NA} leaf values, and \code{keepTrees} storage grows with the
       leaf sizes. \code{\link{xbart}} accepts the same specification
-      through its own \code{node.prior} argument.
+      through its own \code{node.prior} argument. \code{sd} and
+      \code{scale} name the calibration as they do for \code{normal}.
 
       \code{predict} at a training row re-krigs the jitter-free
       posterior mean from the cached kernel and drawn training values,

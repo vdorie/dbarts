@@ -270,6 +270,11 @@ struct ParsedModel {
   double changeProbability = 0.4;
   double birthProbability = 0.5;
   double nodeScale = 0.5;
+  // the model's prior.scale slot: the NAMED leaf calibration in response
+  // units, NA when unnamed. Finite, the single-forest engine converts it
+  // against the response transform and it overrides nodeScale; the two-forest
+  // and multinomial creation paths refuse it by name below.
+  double priorScale = NA_REAL;
   double power = 2.0;
   double base = 0.95;
   const double* splitProbabilities = NULL;
@@ -1198,6 +1203,17 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     slotExpr, "scale of node prior", RC_LENGTH | RC_EQ, rc_asRLength(1),
     RC_VALUE | RC_GT, 0.0, RC_END);
 
+  // the named calibration, response units (docs/design/prior-defaults.md). NA
+  // is the unnamed default, which the engine reads off the same non-finite
+  // test that lets a NaN through; anything else must be usable as a divisor,
+  // so infinity is refused here alongside the R validity method's own check.
+  REPROTECT_SLOT(slotExpr, modelExpr, "prior.scale", slotIndex);
+  model.priorScale = rc_getDouble(
+    slotExpr, "named prior scale", RC_LENGTH | RC_EQ, rc_asRLength(1),
+    RC_NA | RC_YES, RC_VALUE | RC_GT, 0.0, RC_END);
+  if (!ISNAN(model.priorScale) && !std::isfinite(model.priorScale))
+    Rf_error("named prior scale must be NA or a positive finite number");
+
   // monotone (mBART) directions ride the model as a per-predictor integer
   // attribute the R surface resolves; absent or all-zero keeps the
   // unconstrained constant leaf (docs/design/monotone.md section 8)
@@ -1811,6 +1827,8 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.dispersion = control.dispersion;
   options.k = model.k;
   options.nodeScale = model.nodeScale;
+  // NA_REAL is a NaN, so the engine's isfinite test reads "unnamed" from it
+  options.priorScale = model.priorScale;
   options.base = model.base;
   options.power = model.power;
   options.birthOrDeathProbability = model.birthOrDeathProbability;
@@ -2275,6 +2293,10 @@ void refuseUnsupportedBCFComposition(bartcore::ResponseFamily family,
   else if (model.updateK) offender = "a k hyperprior";
   else if (model.k != 2.0) offender = "a non-default k";
   else if (model.nodeScale != 0.5) offender = "a non-default node scale";
+  // the node-scale gate above does not fire on a model that names its
+  // calibration in response units instead, and the calibration map would drop
+  // it in silence, so it is its own offender
+  else if (std::isfinite(model.priorScale)) offender = "a named 'prior.scale'";
   else if (model.birthOrDeathProbability != 0.5 ||
            model.swapProbability != 0.1 || model.changeProbability != 0.4 ||
            model.birthProbability != 0.5)
@@ -3002,6 +3024,14 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
     optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
   if (options.fp32Residual)
     Rf_error("%s", storageSingleUnsupportedMessage);
+  // the K category forests take their leaf scale from the softmax calibration
+  // map below, never from the host node prior, so a named calibration has
+  // nowhere to land; refuse it rather than drop it. This is the first
+  // node-scale-class refusal on this path - the host's own node.scale is
+  // deliberately not read, and carries a gaussian default no user chose.
+  if (std::isfinite(model.priorScale))
+    Rf_error("a multinomial forest does not support a named 'prior.scale'; "
+             "its leaf scale comes from the softmax calibration map");
   rngs = createChainRngs(control, options.numChains);
 
   bartcore::MultinomialSpec spec;
@@ -4512,6 +4542,10 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
     parameters.changeProbability = model.changeProbability;
     parameters.birthProbability = model.birthProbability;
     parameters.nodeScale = model.nodeScale;
+    // carried so the install re-derives the named calibration against the
+    // transform in force; without it $setModel(sampler$model) - a no-op round
+    // trip - would revert to the family-keyed node scale
+    parameters.priorScale = model.priorScale;
     parameters.updateK = model.updateK;
     if (parameters.updateK) {
       parameters.kHyperprior.degreesOfFreedom = model.kDf;

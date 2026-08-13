@@ -14,7 +14,7 @@ rbart_vi(
     formula, data, test, subset, weights, offset, offset.test = offset,
     group.by, group.by.test, prior = cauchy,
     sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
-    k = 2.0,
+    k = 2.0, prior.scale = NA_real_,
     power = 2.0, base = 0.95,
     split.probs = 1 / num.vars,
     dart = FALSE,
@@ -86,6 +86,9 @@ rbart_vi(
   }
   \item{k}{
     As in \code{\link{bart2}}, except that \code{rbart_vi} fixes the default at \code{2.0} for both continuous and binary responses; unlike \code{bart2}, a \code{NULL} default (and thus the \code{chi} hyperprior on binary fits) is not available here.
+  }
+  \item{prior.scale}{
+    As in \code{\link{bart2}}: names the forest's leaf calibration in response units (the prior standard deviation of \eqn{f} at \code{k = 1}) instead of inheriting it from the response range. The group intercepts' own prior is a separate object and is unaffected. \code{NA} (the default) changes nothing.
   }
   \item{family}{
     One of \code{"auto"}, \code{"gaussian"}, or \code{"aft"}. With \code{"auto"} (the default) the response family is resolved as gaussian or probit from the response, exactly as before this argument existed; a two-level factor, logical, or two-level character response is also detected and fit as probit (reporting the choice in a one-line message), while a factor response with three or more levels is an error, since \code{rbart_vi}'s random-effects model does not fit the multinomial family. \code{"gaussian"} forces the continuous model. \code{"aft"} fits a grouped accelerated failure time (AFT) log-normal survival model, \eqn{\log T_i = f(x_i) + \alpha_{g[i]} + \sigma \epsilon_i} with \eqn{\epsilon_i \sim N(0, 1)}, adding random intercepts to the model of \code{\link{bart2}}'s \code{family = "aft"}. The survival response enters through the formula's left-hand side as a \code{survival::Surv} object (right-censoring only) or a two-column \code{cbind(time, status)} of the event/censoring time and the 0/1 event indicator; a \code{Surv} response selects \code{"aft"} on its own from \code{"auto"}, while a bare two-column response needs \code{family = "aft"} explicitly. As in \code{\link{bart2}}, \code{predict}, \code{extract}, and \code{fitted} then return the linear predictor \eqn{E[\log T \mid x, g]} on the LOG-TIME scale (never the time scale), and \code{\link{survivalProbabilities}} gives survival-probability draws that include the drawn intercepts. Survival fits do not support \code{weights} or \code{subset} in this version, and enter only through the formula interface.

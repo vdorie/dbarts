@@ -45,6 +45,18 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item A model's leaf-prior calibration can be named at creation, in
+            response units, rather than inherited from the range of the
+            vector the sampler happened to be constructed on:
+            \code{prior.scale} (the prior standard deviation of the forest
+            total at \code{k = 1}) as a \code{dbartsModel} slot, as
+            \code{node.prior = normal(scale = )} on \code{dbarts} and
+            \code{xbart} (also \code{sd = }, the same quantity at the
+            resolved \code{k}, refused under a \code{k} hyperprior), and as
+            a \code{prior.scale} argument of \code{bart}, \code{bart2}, and
+            \code{rbart_vi}. It is re-derived at every \code{setModel}, so a
+            round trip through the model object holds it. Unset, nothing
+            changes.
       \item Bayesian causal forests: \code{dbarts} and \code{dbartsSpec}
             accept a \code{treatment} vector of 0/1 assignments, which fits
             the two-forest model

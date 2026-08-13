@@ -116,12 +116,15 @@ methods::setValidity("dbartsFixedHyperprior", function(object) {
 methods::setClass("dbartsNodePrior")
 # k holds the raw user specification (positive scalar, hyperprior object, or
 # NULL for the family-dependent default); it becomes the model's separate
-# node.hyperprior when a sampler is built
+# node.hyperprior when a sampler is built. prior.scale and prior.sd hold the
+# named calibration exactly as it was spelled - at most one is non-NA - and
+# resolve into the model's single prior.scale slot once k is known, since the
+# sd spelling is the scale divided by the resolved k.
 methods::setClass(
   "dbartsNormalPrior",
   contains = "dbartsNodePrior",
-  slots = list(k = "ANY"),
-  prototype = list(k = NULL)
+  slots = list(k = "ANY", prior.scale = "numeric", prior.sd = "numeric"),
+  prototype = list(k = NULL, prior.scale = NA_real_, prior.sd = NA_real_)
 )
 # each leaf fits an intercept plus a linear term in the designated
 # continuous columns; columns holds the raw user designation (character
@@ -130,8 +133,18 @@ methods::setClass(
 methods::setClass(
   "dbartsLinearPrior",
   contains = "dbartsNodePrior",
-  slots = list(k = "ANY", columns = "ANY"),
-  prototype = list(k = NULL, columns = NULL)
+  slots = list(
+    k = "ANY",
+    columns = "ANY",
+    prior.scale = "numeric",
+    prior.sd = "numeric"
+  ),
+  prototype = list(
+    k = NULL,
+    columns = NULL,
+    prior.scale = NA_real_,
+    prior.sd = NA_real_
+  )
 )
 # each leaf fits a smooth Gaussian-process function of the designated
 # continuous columns; columns resolves as the linear prior's does.
@@ -145,13 +158,17 @@ methods::setClass(
     k = "ANY",
     columns = "ANY",
     lengthscale = "ANY",
-    max.leaf.size = "integer"
+    max.leaf.size = "integer",
+    prior.scale = "numeric",
+    prior.sd = "numeric"
   ),
   prototype = list(
     k = NULL,
     columns = NULL,
     lengthscale = NULL,
-    max.leaf.size = 256L
+    max.leaf.size = 256L,
+    prior.scale = NA_real_,
+    prior.sd = NA_real_
   )
 )
 
@@ -373,6 +390,12 @@ methods::setClass(
     p.birth = "numeric",
 
     node.scale = "numeric",
+    # The NAMED leaf calibration, in response units: the forest total's prior
+    # sd at k = 1, or NA to inherit node.scale's family-keyed internal-unit
+    # default. This slot records the named INTENT and is never rewritten by
+    # the engine; a channel that re-anchors the response transform moves what
+    # is in force without touching it.
+    prior.scale = "numeric",
     # "auto" until a fitting function resolves it against the response
     family = "character",
 
@@ -387,6 +410,7 @@ methods::setClass(
     p.change = 0.0,
     p.birth = 0.5,
     node.scale = 0.5,
+    prior.scale = NA_real_,
     family = "auto",
     tree.prior = new("dbartsCGMPrior"),
     node.prior = new("dbartsNormalPrior"),
@@ -409,6 +433,14 @@ methods::setValidity("dbartsModel", function(object) {
 
   if (object@node.scale <= 0.0) {
     return("node.scale must be > 0")
+  }
+
+  if (
+    length(object@prior.scale) != 1L ||
+      (!is.na(object@prior.scale) &&
+        (!is.finite(object@prior.scale) || object@prior.scale <= 0.0))
+  ) {
+    return("prior.scale must be NA or a single positive number")
   }
 
   if (

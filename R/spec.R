@@ -245,6 +245,10 @@ resolveSamplerSpec <- function(
     priors$resid.prior,
     proposal.probs = proposal.probs,
     family = family,
+    # a named calibration (node.prior's scale = / sd =) overrides the switch
+    # below in the engine, which converts it out of response units against the
+    # transform; NA leaves the family-keyed internal default in force
+    prior.scale = resolvePriorScale(priors$node.prior, priors$node.hyperprior),
     # the logistic scale is probit's default widened by the logistic
     # latent's standard deviation, pi / sqrt(3)
     node.scale = switch(
@@ -398,6 +402,10 @@ resolveSamplerSpec <- function(
       ) &&
         priors$node.hyperprior@k != 2.0,
       "a non-default 'node.scale'" = model@node.scale != 0.5,
+      # the calibration map fixes both forests' leaf scales from the response
+      # sd, so a named prior.scale has nowhere to land and the node.scale gate
+      # above does not fire on it
+      "a named 'prior.scale'" = !is.na(model@prior.scale),
       # a monotone constraint rewrites proposal.probs above, so only an
       # unconstrained fit's is the caller's own
       "a non-default 'proposal.probs'" = is.null(monotoneDirections) &&
