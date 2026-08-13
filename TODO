@@ -87,6 +87,14 @@ items
   csc-code-validation: LANDED (record in
     docs/plans/csc-code-validation.md); categorical ingestion bounds
     codes against training-side K everywhere.
+  embedding-page: a visible, citable "embedding dbarts" pkgdown
+    page: the dbarts.h X-list surface, dbartsSpec, LinkingTo
+    mechanics, and cross-refs to the named recipes. Evidence: the
+    landscape survey's peer-perception finding
+    (docs/design/bart-landscape.md, synthesis point 5 - peer prose
+    misdescribes dbarts while the peer table is fairer; the gap is
+    documentation, not architecture). Folds with named-recipes at
+    the surface shakedown. ~80 lines. Pre-release at discretion.
   empty-leaf-veto-fix: LANDED (records in
     docs/design/empty-leaf-veto.md, "What counts as empty", and
     docs/plans/empty-leaf-veto.md); the veto counts POSITIVE-WEIGHT
@@ -423,6 +431,16 @@ items
   sbc-family-tiers: BUILT (records in docs/plans/sbc-family-tiers.md
     and runsbcbcf-repair.md). Open doors: the monotone follow-on arm,
     the heteroscedastic setState lift, full-R ladder re-runs.
+  setforestweights-r5-exposure: TBAFTcure (mixture-cure AFT;
+    docs/design/bart-landscape.md, grade B) hangs on per-forest
+    weights existing only as unexported
+    dbarts:::bartcoreSetForestWeights - absent from dbarts.h and
+    the R5 class. The flat half is already frozen into reshape S1
+    (fork 3 KEEP setForestWeights). At reshape S1 scoping, VERIFY
+    whether a multiforest-extension-surface M-slice already carries
+    the public R5 method; if not, add it there (small, with a named
+    external consumer), and give the flat entry a test-capi.R
+    positive arm rather than signature-only treatment.
   setpredictor-dimnames: a whole-matrix transactional (or forced)
     setPredictor(x, ...) installs x into sampler$data@x as a plain
     matrix, dropping x's column names even when the sampler was built
