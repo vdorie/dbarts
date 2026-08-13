@@ -93,6 +93,7 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
+| latent-subset-mask.md | COMMITTED | Per-observation 0/1 active-row channel (`$setActiveRows`) extending between-draw row subsetting to the latent families zero weights cannot reach; v1 gaussian/Student-t/probit/ordinal, then logistic/nbinom/aft, then multinomial (global-only). |
 | mutation-fuzzing.md | LANDED | Randomized adversarial property-test fuzzer over setPredictor/setCell/sessions/state round-trips; found two latent state-serialization edge cases. |
 | mutation-journal.md | LANDED | Replaces full-array copy-then-restore with build-new-and-swap; journals only changed cells past a break-even threshold. |
 
@@ -186,6 +187,7 @@ Columns: `file | STATUS | one-liner`.
 | capi-dispatch-table.md | LANDED (arc complete) | ABI-compatibility mechanism for LinkingTo consumers (X-macro single-source stubs + version/hash handshake); both dbarts and stan4bart landed. |
 | consumer-spec-surface.md | LANDED, 2026-07-25 | Exports `dbartsSpec()` over a shared internal resolution, so an embedding package builds a sampler specification without reaching into `dbarts:::parsePriors`. |
 | interface-review.md | LANDED | Review-2 retrospective auditing the exported R surface; 11 code fixes + 6 doc fixes + 11 taste calls, all landed same day. |
+| nameable-calibration.md | COMMITTED | Lets an R composition name the leaf-prior calibration (`prior.scale`, response units) at creation and mid-chain instead of inheriting it from the construction range; the per-chain getter is the authoritative reader of what is in force. |
 | pre-release-surface-fixes.md | LANDED | Fixes aft-loglik defect + freeze-regret paper-cuts from a pre-release surface audit. |
 | r-ingestion-cleanups.md | LANDED | Unifies duplicated classification-family routing, sparse test-matrix handling, missing-policy guards. |
 | r5-cleanup.md | LANDED | Removes startThreads/stopThreads no-ops, documents offset sync, hides internal class names from S4 validity errors. |

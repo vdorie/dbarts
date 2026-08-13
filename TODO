@@ -152,15 +152,17 @@ items
     for which dbarts already ships the hard-constraint half; soft
     path-dependent penalties, gate STANDS - no model surfaced.
     decision-gated.
-  latent-subset-mask: design arc for a per-observation mask that
-    changes a latent-family sampler's active row set between draws
-    (principal stratification, mediation, IV). Gaussian row
-    subsetting already ships via zero weights
-    (dbartsSampler-class.Rd:137); this door is for the latent
-    families zero weights do not reach, opened by the r-c-division
-    demand survey once its row-subset claim was corrected
-    (docs/design/r-c-division.md). Design before the dbarts.h
-    reshape's S1. decision-gated on the design's own scope.
+  latent-subset-mask: PLAN COMMITTED docs/plans/latent-subset-mask.md
+    (artifacts .claude/latent-subset-mask-design/). Per-observation
+    0/1 active-row channel for the latent families zero weights do
+    not reach; the surface is $setActiveRows - the design renames
+    this entry's "mask" vocabulary, which collides with the
+    categorical rule bitmasks. v1 gaussian + Student-t + probit +
+    ordinal, then S2 logistic/nbinom/aft, S3 multinomial
+    (global-only), S4 records. V1-V9 adopted 2026-08-12 under VD's
+    proceed-at-discretion grant (Student-t disposition VD-reviewed
+    same day). ORDERING: empty-leaf-veto-fix lands FIRST; the flat
+    entry rides dbarts-h-reshape S1.
   multiforest-extension-surface: PLAN COMMITTED
     docs/plans/multiforest-extension-surface.md (artifacts
     .claude/multiforest-extension-surface-design/). The answer to
@@ -276,14 +278,16 @@ items
     next multinomial re-record; no test-side bartcoreForestFits
     analog; ConfigSpec OP_SET_COUNTS rides the general multi-forest
     fuzz-arm gap.
-  nameable-calibration: design for letting an R composition NAME the
-    leaf-prior calibration it composes against, instead of
-    inheriting one from a construction accident
-    (docs/design/r-c-division.md, "the wall that remains is
-    calibration"). The single highest-value item on the r-c-division
-    adoption slate; possible header footprint, so design lands
-    before the dbarts.h reshape's S1; budget expected above ~300
-    lines, sized at design. SCHEDULED, pre-release.
+  nameable-calibration: PLAN COMMITTED docs/plans/nameable-calibration.md
+    (artifacts .claude/nameable-calibration-design/). prior.scale
+    (forest-total prior sd at k = 1, response units) nameable at
+    creation (dbartsModel slot + bart/bart2/rbart_vi formal) and
+    mid-chain ($getCalibration/$setCalibration over every chain);
+    a sampled k honors prior.scale and refuses prior.sd. ~1593
+    lines: S0 signature freeze -> S1 creation -> S2 mid-chain ->
+    S3 flat C inside dbarts-h-reshape S1 (S0 lands before that
+    slice starts). V1-V10 adopted 2026-08-12 under VD's
+    proceed-at-discretion grant.
   named-recipes: named, tested R compositions cross-referenced from
     ?bart (probit/aft residualization, K-block splitting, and the
     rest of the getting-started recipes the r-c-division demand
@@ -314,6 +318,11 @@ items
     shipped-to-exact gap survives that fix. Opt-in grow path only,
     missing-bearing ordinal columns only. Own slice, draw-law
     change when taken.
+  plans-index-backfill: docs/plans/INDEX.md's consistency pass is
+    stale (2026-08-04): roughly 20 plans landed since then
+    (grow-from-root-categorical-scan, multiforest-extension-surface,
+    ...) have no row and the header's file count is off. Backfill
+    rows and re-verify statuses; a small records slice.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take
