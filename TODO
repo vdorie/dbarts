@@ -95,6 +95,17 @@ items
     misdescribes dbarts while the peer table is fairer; the gap is
     documentation, not architecture). Folds with named-recipes at
     the surface shakedown. ~80 lines. Pre-release at discretion.
+  equivalence-harness-statistical-mode: bcf-equivalence.R and
+    multinomial-equivalence.R compare via identical() only, so a
+    cross-host run against the arm64-recorded baselines structurally
+    fails (measured 2026-08-12 on the returned x86 box: all-MISMATCH
+    exit 1, while equivalence.R's statistical mode passes cleanly).
+    With the equivalence CI jobs unregistered from bartcore, the box
+    is the only cross-platform equivalence net, and it covers one
+    harness of three. Give both harnesses equivalence.R's null-gated
+    statistical (|z|) fallback so x86 legs can cover the bcf and
+    multinomial channels. Harness-only, no engine change, no baseline
+    re-record. Pre-release at discretion.
   empty-leaf-veto-fix: LANDED (records in
     docs/design/empty-leaf-veto.md, "What counts as empty", and
     docs/plans/empty-leaf-veto.md); the veto counts POSITIVE-WEIGHT
@@ -165,17 +176,17 @@ items
     for which dbarts already ships the hard-constraint half; soft
     path-dependent penalties, gate STANDS - no model surfaced.
     decision-gated.
-  latent-subset-mask: PLAN COMMITTED docs/plans/latent-subset-mask.md
-    (artifacts .claude/latent-subset-mask-design/). Per-observation
+  latent-subset-mask: S0 pins LANDED dc11a805; S1 LANDED 6db22aee -
+    the $setActiveRows channel plus gaussian/Student-t/probit/
+    ordinal (landing notes in docs/plans/latent-subset-mask.md,
+    artifacts .claude/latent-subset-mask-design/). Per-observation
     0/1 active-row channel for the latent families zero weights do
-    not reach; the surface is $setActiveRows - the design renames
-    this entry's "mask" vocabulary, which collides with the
-    categorical rule bitmasks. v1 gaussian + Student-t + probit +
-    ordinal, then S2 logistic/nbinom/aft, S3 multinomial
-    (global-only), S4 records. V1-V9 adopted 2026-08-12 under VD's
-    proceed-at-discretion grant (Student-t disposition VD-reviewed
-    same day). ORDERING: empty-leaf-veto-fix landed first, as
-    required; the flat entry rides dbarts-h-reshape S1.
+    not reach. Remaining: S2 logistic/nbinom/aft (carries the
+    S1-review pin strengthenings recorded in the plan), S3
+    multinomial (global-only), S4 records + baseline re-record; the
+    flat entry rides dbarts-h-reshape S1. V1-V9 adopted 2026-08-12
+    under VD's proceed-at-discretion grant (Student-t disposition
+    VD-reviewed same day).
   multiforest-extension-surface: PLAN COMMITTED
     docs/plans/multiforest-extension-surface.md (artifacts
     .claude/multiforest-extension-surface-design/). The answer to

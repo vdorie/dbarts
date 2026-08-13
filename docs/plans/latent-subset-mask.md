@@ -714,6 +714,17 @@ Per "Per family". nbinom carries the dispersion-kernel rebuild and its
 per-install cost note. The refusal messages for these three are relaxed from
 UNBUILT to accepted.
 
+Carried from the S1 independent review, inside this slice's test budget:
+
+1. Strengthen the S1 heteroscedastic and grouped pins with the bitwise
+   masked-vs-`setWeights(w * a)` oracle - both configurations are
+   gaussian-reachable, so the cheap oracle applies. The shipped pins are
+   finiteness-only and would not detect the mask failing to reach the
+   variance-forest sufficient statistics or the per-group sums.
+2. Add a sampler-level ordinal T2(c) arm beside the kernel-level T3a coverage
+   (the kernel arm pins the skip semantics; the gap is sampler-level coverage,
+   not correctness).
+
 Budget ~130 engine + ~290 test. Gates: the house battery. RNG class: NEUTRAL on
 every shipped configuration (trio IDENTICAL, deviation is a leak, ABORT);
 draw-law-changing on the opt-in masked path. ASAN leg REQUIRED.
@@ -951,7 +962,45 @@ slice, independent re-run delegated to CI on the push - six-green
 confirmed 2026-08-12 (sanitizers, cpp-tests, exact-gates, R-CMD-check,
 lint, pkgdown).
 
-S1 LANDED <commit>, <date>.
+S1 LANDED 6db22aee, 2026-08-12. The channel (engine normalizer,
+validation scan, cache invalidation, composition order), the R5
+`$setActiveRows` + bridge entry, gaussian/Student-t/probit/ordinal, the
+T3a hooks, the all-zeros arm, and `test_shape`'s `supportsActiveRows`
+entry. V3 shipped on BOTH paths: engine `computeLogLikelihood` and the
+R-side `pointwiseLogLikelihood` that `extract(type = "loglik")` uses,
+so the NaN reporting change is surface-wide (S4's NEWS bullet must say
+so). Budgets: engine/bridge/R on or under; tests +741 (~32 percent
+over, under the 1.5x stop, oracle-driven). F1-F7 each shown
+red-then-green; F7's original finiteness GP pin did NOT detect the
+disabled `anyZeroWeight` routing and was strengthened to
+structural/statistical. Recorded deviations, all reviewer-ruled: the
+UNBUILT refusal ships the plan's literal message without a slice name
+(no plan references in shipped code); F4's bridge arm runs end-to-end
+through `bartcoreRun` on a fresh `bartcoreSampler()` handle (the
+helper creates, never aliases); T2(b)/refusal arms use an UNWEIGHTED
+sampler (on a weighted one an all-ones mask composes to
+elementwise-identical values and the arm is vacuous); T2(c) is bitwise
+at ACTIVE rows exactly as specified - an inactive row's reported fit
+wobbles ~5e-15 under its unused response because `finalizeTotalFits`
+reconstructs from the working response (pre-existing mechanism,
+verified untouched; pinned at 1e-12). T3b pilot findings are under
+Open items. Bench arm (VD quiet-machine grant 2026-08-12, armab
+alternating rounds, loadavg clean): masked/unmasked probit sweep
+ratio 1.092x at 80 percent active (spread 1.0865-1.0954; n = 10000,
+p = 10, 75 trees, 1 chain/thread), 1.024x at 50 percent active; a
+two-point extrapolation puts the fixed weighted-path cost near 1.14x
+as the inactive fraction goes to 0 and break-even near 60 percent
+inactive (extrapolation, not measurement). Gates: implementer battery
+green; INDEPENDENT reviewer battery green from scratch (preclean
+private lib, tests/cpp plain+ASAN, tinytest 4222/0, trio identical on
+all three baselines, air+lintr; F3 independently re-falsified); x86
+box leg green (tests/cpp plain+ASAN, tinytest 4210/0 incl. test-simd
+and the new pins, equivalence.R statistical OK; the bcf/multinomial
+harnesses are bitwise-only and cross-host inapplicable - TODO
+equivalence-harness-statistical-mode); CI six-green on the push.
+Carried to S2 (from the independent review): see the S2 section.
+Carried to S4: normalize the plan-label comments in the arc's test
+files.
 
 S2 LANDED <commit>, <date>.
 
