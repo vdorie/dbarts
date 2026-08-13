@@ -91,8 +91,8 @@ for (s in seq_len(numSamples)) {
   sweep <- looped$run(0L, 1L)
   loopFits[,, s] <- sweep$forestFits[,, 1L]
   loopGlue[, s] <- sweep$glue[, 1L]
-  expect_identical(sweep$forestFits[, 1L, 1L], looped$getForestFits(0L)[, 1L])
-  expect_identical(sweep$forestFits[, 2L, 1L], looped$getForestFits(1L)[, 1L])
+  expect_identical(sweep$forestFits[, 1L, 1L], looped$getForestFits(1L)[, 1L])
+  expect_identical(sweep$forestFits[, 2L, 1L], looped$getForestFits(2L)[, 1L])
   expect_identical(sweep$glue[, 1L], looped$getForestAmplitudes()[, 1L])
 }
 expect_identical(loopFits, batched$forestFits)

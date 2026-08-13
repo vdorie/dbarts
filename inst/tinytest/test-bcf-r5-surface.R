@@ -39,11 +39,11 @@ sampler <- dbarts(
 )
 result <- sampler$run(0L, 5L)
 
-muFits <- sampler$getForestFits(0L)
-tauFits <- sampler$getForestFits(1L)
+muFits <- sampler$getForestFits(1L)
+tauFits <- sampler$getForestFits(2L)
 glue <- sampler$getForestAmplitudes()
-muCounts <- sampler$getForestVariableCounts(0L)
-tauCounts <- sampler$getForestVariableCounts(1L)
+muCounts <- sampler$getForestVariableCounts(1L)
+tauCounts <- sampler$getForestVariableCounts(2L)
 
 expect_equal(dim(muFits), c(n, 1L))
 expect_equal(dim(tauFits), c(n, 1L))
@@ -53,15 +53,25 @@ expect_equal(dim(tauCounts), c(p, 1L))
 expect_true(all(is.finite(muFits)) && all(is.finite(tauFits)))
 
 # identical to the same low-level readers on the same live pointer: the R5
-# methods add no computation of their own
+# methods add no computation of their own, and their forest index is 1-based
+# (1 = prognostic, 2 = treatment) against the low-level route's 0-based one
 lowLevel <- list(ptr = sampler$getPointer())
 expect_identical(muFits, dbarts:::bartcoreForestFits(lowLevel, 0L))
 expect_identical(tauFits, dbarts:::bartcoreForestFits(lowLevel, 1L))
 expect_identical(glue, dbarts:::bartcoreBCFGlue(lowLevel))
 expect_identical(
+  muCounts,
+  dbarts:::bartcoreForestVariableCounts(lowLevel, 0L)
+)
+expect_identical(
   tauCounts,
   dbarts:::bartcoreForestVariableCounts(lowLevel, 1L)
 )
+
+# 0 is refused rather than silently naming the prognostic forest
+# (resolveForestIndex, shared with setForestWeights/getCalibration)
+expect_error(sampler$getForestFits(0L), "single positive integer")
+expect_error(sampler$getForestVariableCounts(0L), "single positive integer")
 
 sampler$storeState()
 fitScale <- sampler$state[[1L]]$fit.scale
@@ -167,8 +177,8 @@ unlink(mirrorFile)
 # extra plumbing
 reloadedResult <- reloadedMirror$run(0L, 1L)
 reloadedGlue <- reloadedMirror$getForestAmplitudes()
-reloadedMuFits <- reloadedMirror$getForestFits(0L)[, 1L]
-reloadedTauFits <- reloadedMirror$getForestFits(1L)[, 1L]
+reloadedMuFits <- reloadedMirror$getForestFits(1L)[, 1L]
+reloadedTauFits <- reloadedMirror$getForestFits(2L)[, 1L]
 
 # scale/shift (fit.scale = range(y)) are reused from the sampler above: y is
 # identical across every sampler in this file, so the affine map back to the
