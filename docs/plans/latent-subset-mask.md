@@ -914,7 +914,25 @@ reviewed by VD the same day.
 
 ## Landing notes
 
-S0 LANDED <commit>, <date>.
+S0 LANDED dc11a805, 2026-08-12. Two of the five planned pins were written:
+the scan's `count`/`sumWeights` split (a bin of only zero-weight members
+carries positive count and zero sumWeights, and the count-based occupancy
+gate scores it; `tests/cpp/test_scan.cpp`) and the probit `$setWeights`
+unconditional post-creation refusal, all-ones included
+(`inst/tinytest/test-active-rows-pins.R`, new file, which S1 extends).
+Three were already covered and not duplicated: `logIntegratedLikelihood`
+at `sumWeights == 0` returning `0.0` (`test_model.cpp`
+`testIntegratedLikelihood`), the GP leaf's `anyZeroWeight` routing
+(`test_model.cpp` `testGPLeafZeroWeights`), and `weights = rep(1, n)`
+normalized away at creation for probit/ordinal/nbinom (`test-family.R`,
+`test-ordinal.R`, `test-nbinom.R`). The planned "leaf of only zero-weight
+members is NOT vetoed" pin was DROPPED: the empty-leaf-veto-fix (21fc29c3)
+landed after this plan was written and now vetoes such leaves; its own
+tests pin the new law, and S1's spec sites should be read under it.
+Gates: tests/cpp from clean, full tinytest FAILURES == 0; tests-only
+slice, independent re-run delegated to CI on the push - six-green
+confirmed 2026-08-12 (sanitizers, cpp-tests, exact-gates, R-CMD-check,
+lint, pkgdown).
 
 S1 LANDED <commit>, <date>.
 
