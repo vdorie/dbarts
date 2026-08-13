@@ -3470,13 +3470,24 @@ public:
   }
 
   double* workingResponse() override { return working_.data(); }
-  const double* workingWeights() const override { return omega_.data(); }
+  /// The Polya-Gamma draws, or a_i omega_i from a SEPARATE composite while a
+  /// mask is installed. The zero is never written into omega_ itself: the
+  /// working response divides by it, and 0 * inf in the node kernels is a NaN.
+  const double* workingWeights() const override {
+    return activeRows_.empty() ? omega_.data() : composite_.data();
+  }
   bool workingWeightsVaryPerSweep() const override { return true; }
   const double* offset() const override { return offset_; }
 
+  /// An inactive row's PG draw is SKIPPED, not drawn and discarded: the
+  /// primitive is a rejection sampler whose consumption depends on psi, so a
+  /// discard would desynchronize the stream against a sampler built on the
+  /// retained rows. Its omega_ and working_ keep their last values, which are
+  /// finite and positive, and are stale until the row is active again.
   void refreshLatents(ext_rng* rng, const double* totalFits,
                       double) override {
     for (std::size_t i = 0; i < numObservations_; ++i) {
+      if (!isActive(i)) continue;
       double offset = offset_ != nullptr ? offset_[i] : 0.0;
       double psi = totalFits[i] + offset;
       long reps = weights_ != nullptr ? std::lround(weights_[i]) : 1L;
@@ -3487,6 +3498,23 @@ public:
       double weight = weights_ != nullptr ? weights_[i] : 1.0;
       working_[i] = weight * (y_[i] - 0.5) / omega - offset;
     }
+    recompose();
+  }
+
+  bool supportsActiveRows() const override { return true; }
+
+  /// The mask is NOT redundant with the count weights: a zero count is refused
+  /// at creation, no count change is accepted afterwards, and a zero-count row
+  /// would still consume one PG variate here.
+  bool setActiveRows(const double* active) override {
+    if (active == nullptr) {
+      activeRows_.clear();
+      return true;
+    }
+    activeRows_.assign(active, active + numObservations_);
+    composite_.resize(numObservations_);
+    recompose();
+    return true;
   }
 
   double drawSigma(ext_rng*, const double*, double sigma) override {
@@ -3512,6 +3540,8 @@ public:
     offset_ = offset;
     weights_ = weights;
     numObservations_ = numObservations;
+    activeRows_.clear();  // length-n and n may have changed
+    composite_.clear();
     omega_.resize(numObservations);
     working_.resize(numObservations);
     coldStart();
@@ -3526,6 +3556,7 @@ public:
       working_[i] = weight * (y_[i] - 0.5) / omega_[i] -
                     (offset_ != nullptr ? offset_[i] : 0.0);
     }
+    recompose();
   }
 
   double initialSigma() const override { return 1.0; }
@@ -3535,11 +3566,16 @@ public:
 
   /// w_i log dbinom(y_i, 1, plogis(eta_i)) with eta the log-odds f(x) + offset
   /// and w_i the integer trial count (1 unweighted): -log(1 + exp(-eta)) for a
-  /// success, -log(1 + exp(eta)) for a failure.
+  /// success, -log(1 + exp(eta)) for a failure. An inactive row is not in the
+  /// model, so its entry is NaN rather than the value its fit would give.
   void computeLogLikelihood(const double* totalFits, double,
                             std::size_t numObservations,
                             double* out) const override {
     for (std::size_t i = 0; i < numObservations; ++i) {
+      if (!isActive(i)) {
+        out[i] = std::numeric_limits<double>::quiet_NaN();
+        continue;
+      }
       double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
       double ll = y_[i] != 0.0 ? -logOnePlusExp(-eta) : -logOnePlusExp(eta);
       out[i] = (weights_ != nullptr ? weights_[i] : 1.0) * ll;
@@ -3547,6 +3583,20 @@ public:
   }
 
 private:
+  /// Whether row i is in the data set this sweep; true throughout when no
+  /// mask is installed.
+  bool isActive(std::size_t i) const {
+    return activeRows_.empty() || activeRows_[i] != 0.0;
+  }
+
+  /// c_i = a_i omega_i, the served precisions while a mask is installed; a
+  /// no-op otherwise, when omega_ is served by identity.
+  void recompose() {
+    if (activeRows_.empty()) return;
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      composite_[i] = activeRows_[i] * omega_[i];
+  }
+
   /// Deterministic cold start, the analogue of probit's z = 2 y - 1: omega
   /// at PG(w, 0)'s mean of w/4, so the working response starts at
   /// 4 (y - 1/2) - offset independent of the weight; real draws replace it
@@ -3564,6 +3614,8 @@ private:
   const double* offset_;
   const double* weights_;
   std::size_t numObservations_;
+  std::vector<double> activeRows_;  // the 0/1 mask; empty when none
+  std::vector<double> composite_;   // c_i = a_i omega_i, served while masked
   std::vector<double> omega_;
   std::vector<double> working_;
 };
@@ -3674,7 +3726,9 @@ public:
   /// Redraw each censored log-time from N(f + offset, sigma^2) truncated below
   /// at its log censoring time, mapping the internal-scale fit back to the log
   /// scale through the public accessors, then rebuild the working response
-  /// under the fixed scale. A no-op with no censored observations.
+  /// under the fixed scale. A no-op with no censored observations. An inactive
+  /// censored row's redraw is SKIPPED for probit's reason (the truncated-normal
+  /// primitive is a rejection sampler), leaving its log-time stale but finite.
   void refreshLatents(ext_rng* rng, const double* totalFits,
                       double sigma) override {
     if (censoredIndices_.empty()) return;
@@ -3684,6 +3738,7 @@ public:
     const double* offset = gaussian_->offset();
     for (std::size_t k = 0; k < censoredIndices_.size(); ++k) {
       std::size_t i = censoredIndices_[k];
+      if (!isActive(i)) continue;
       double mean = scale * totalFits[i] + shift +
                     (offset != nullptr ? offset[i] : 0.0);
       double draw =
@@ -3693,9 +3748,25 @@ public:
     rebuildWorking();
   }
 
+  bool supportsActiveRows() const override { return true; }
+
+  /// The mask goes into the contained Gaussian's weights, so the node
+  /// statistics and the sigma posterior's degrees of freedom inherit it through
+  /// the same recount a masked gaussian gets; the response transform stays the
+  /// FULL-data one (rescale spans all n rows), as it does under zero weights.
+  bool setActiveRows(const double* active) override {
+    if (active == nullptr) activeRows_.clear();
+    else activeRows_.assign(active, active + numObservations_);
+    return gaussian_->setActiveRows(active);
+  }
+
   double drawSigma(ext_rng* rng, const double* totalFits,
                    double sigma) override {
     return gaussian_->drawSigma(rng, totalFits, sigma);
+  }
+
+  double sigmaDegreesOfFreedomForTesting() const override {
+    return gaussian_->sigmaDegreesOfFreedomForTesting();
   }
 
   /// Replaces the observed log-times; the censoring structure is fixed at
@@ -3727,6 +3798,7 @@ public:
                std::size_t numObservations, double* sigmaInOut) override {
     logT_.assign(logTime, logTime + numObservations);
     numObservations_ = numObservations;
+    activeRows_.clear();  // length-n and n may have changed
     while (!censoredIndices_.empty() &&
            censoredIndices_.back() >= numObservations) {
       censoredIndices_.pop_back();
@@ -3764,6 +3836,7 @@ public:
   /// log density of the observed log event time for an event, log survival
   /// past the log censoring bound for a censored observation, both on the log
   /// scale with mu the original-scale fit and sigma the log-scale residual sd.
+  /// An inactive row is not in the model, so its entry is NaN.
   void computeLogLikelihood(const double* totalFits, double sigma,
                             std::size_t numObservations,
                             double* out) const override {
@@ -3772,12 +3845,17 @@ public:
     double sigmaLog = sigma * scale;
     const double* offset = gaussian_->offset();
     for (std::size_t i = 0; i < numObservations; ++i) {
+      if (!isActive(i)) {
+        out[i] = std::numeric_limits<double>::quiet_NaN();
+        continue;
+      }
       double mu =
         scale * totalFits[i] + shift + (offset != nullptr ? offset[i] : 0.0);
       out[i] = Rf_dnorm4(logT_[i], mu, sigmaLog, 1);
     }
     for (std::size_t k = 0; k < censoredIndices_.size(); ++k) {
       std::size_t i = censoredIndices_[k];
+      if (!isActive(i)) continue;
       double mu =
         scale * totalFits[i] + shift + (offset != nullptr ? offset[i] : 0.0);
       // log P(log T > log C) = log upper normal tail
@@ -3786,6 +3864,12 @@ public:
   }
 
 private:
+  /// Whether row i is in the data set this sweep; true throughout when no
+  /// mask is installed.
+  bool isActive(std::size_t i) const {
+    return activeRows_.empty() || activeRows_[i] != 0.0;
+  }
+
   /// Rebuild the Gaussian working response from the current log-times under the
   /// fixed scale (updateScale = false), the only side effect the redrawn
   /// latents need.
@@ -3799,6 +3883,7 @@ private:
   std::vector<double> logT_;             // log survival times; latent when censored
   std::vector<std::size_t> censoredIndices_;
   std::vector<double> censorBound_;      // log censoring time, per censored index
+  std::vector<double> activeRows_;       // the 0/1 mask; empty when none
 };
 
 /// Sampled residual degrees of freedom nu on a fixed capped grid under a
@@ -4094,16 +4179,23 @@ struct NBDispersionPrior {
   /// Precompute the count-dependent lgamma kernel L_k from the response: tally
   /// the integer-count histogram n_c, then L_k = sum_c n_c [lgamma(c + r_k) -
   /// lgamma(r_k)]. Called at construction and whenever y changes (setResponse/
-  /// setData), the count analogue of a fixed-data precompute.
-  void computeKernel(const double* y, std::size_t numObservations) {
+  /// setData), the count analogue of a fixed-data precompute. A non-null active
+  /// restricts BOTH passes to the rows in the data set, so the kernel is the
+  /// retained subsample's; that makes an active-row mask change a rebuild, at
+  /// O(n + maxCount * gridSize), the one real per-install cost of the channel.
+  void computeKernel(const double* y, std::size_t numObservations,
+                     const double* active = nullptr) {
     std::size_t maxCount = 0;
     for (std::size_t i = 0; i < numObservations; ++i) {
+      if (active != nullptr && active[i] == 0.0) continue;
       std::size_t c = static_cast<std::size_t>(std::lround(y[i]));
       if (c > maxCount) maxCount = c;
     }
     std::vector<double> histogram(maxCount + 1, 0.0);
-    for (std::size_t i = 0; i < numObservations; ++i)
+    for (std::size_t i = 0; i < numObservations; ++i) {
+      if (active != nullptr && active[i] == 0.0) continue;
       histogram[static_cast<std::size_t>(std::lround(y[i]))] += 1.0;
+    }
     for (std::size_t k = 0; k < gridSize; ++k) {
       double lgammaR = std::lgamma(grid[k]);
       double L = 0.0;
@@ -4167,7 +4259,11 @@ public:
   }
 
   double* workingResponse() override { return working_.data(); }
-  const double* workingWeights() const override { return omega_.data(); }
+  /// The Polya-Gamma draws, or a_i omega_i from a separate composite while a
+  /// mask is installed; as for logistic, the zero never enters omega_ itself.
+  const double* workingWeights() const override {
+    return activeRows_.empty() ? omega_.data() : composite_.data();
+  }
   bool workingWeightsVaryPerSweep() const override { return true; }
   const double* offset() const override { return offset_; }
 
@@ -4178,16 +4274,30 @@ public:
   /// working response with r_new. The reverse order is not invariant - the trees
   /// would consume an omega whose shape carries the stale r. sigma is ignored
   /// (fixed at 1). Fixed-r mode skips step (1) and draws no dispersion variate.
+  /// Under a mask both halves of the r update are the subsample's: S sums the
+  /// active rows and the count histogram behind L_k was rebuilt over them.
   void refreshLatents(ext_rng* rng, const double* totalFits, double) override {
-    if (estimateR_) {
-      double sumLog1mP = 0.0;
-      for (std::size_t i = 0; i < numObservations_; ++i) {
-        double psi = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
-        sumLog1mP -= logOnePlusExp(psi);  // log(1 - plogis(psi)) = -log(1 + e^psi)
-      }
-      r_ = NBDispersionPrior::grid[rPrior_.drawIndex(rng, sumLog1mP)];
-    }
+    if (estimateR_)
+      r_ = NBDispersionPrior::grid[rPrior_.drawIndex(
+        rng, collapsedStatistic(totalFits))];
     drawOmega(rng, totalFits);
+  }
+
+  bool supportsActiveRows() const override { return true; }
+
+  /// Beyond the logistic composition, the dispersion block is the subsample's:
+  /// the count-histogram kernel is REBUILT over the active rows here, which is
+  /// the channel's one per-install cost.
+  bool setActiveRows(const double* active) override {
+    if (active == nullptr) {
+      activeRows_.clear();
+    } else {
+      activeRows_.assign(active, active + numObservations_);
+      composite_.resize(numObservations_);
+      recompose();
+    }
+    rPrior_.computeKernel(y_, numObservations_, activePointer());
+    return true;
   }
 
   double drawSigma(ext_rng*, const double*, double sigma) override {
@@ -4201,7 +4311,7 @@ public:
   void setResponse(const double* y, ext_rng* rng, const double* totalFits,
                    bool, double*) override {
     y_ = y;
-    rPrior_.computeKernel(y, numObservations_);
+    rPrior_.computeKernel(y, numObservations_, activePointer());
     drawOmega(rng, totalFits);
   }
 
@@ -4221,6 +4331,8 @@ public:
     y_ = y;
     offset_ = offset;
     numObservations_ = numObservations;
+    activeRows_.clear();  // length-n and n may have changed
+    composite_.clear();
     omega_.resize(numObservations);
     working_.resize(numObservations);
     if (estimateR_)
@@ -4240,6 +4352,7 @@ public:
     for (std::size_t i = 0; i < numObservations_; ++i)
       working_[i] = 0.5 * (y_[i] - r_) / omega_[i] -
                     (offset_ != nullptr ? offset_[i] : 0.0);
+    recompose();
   }
 
   double initialSigma() const override { return 1.0; }
@@ -4257,6 +4370,16 @@ public:
   bool estimatesDispersion() const { return estimateR_; }
   void restoreDispersion(double dispersion) override { r_ = dispersion; }
 
+  /// The dispersion kernel L_k currently installed and the collapsed statistic
+  /// S the grid draw reads, so a component test can check a masked rebuild and
+  /// a masked reduction against the compacted response's own.
+  double dispersionKernelForTesting(std::size_t k) const {
+    return rPrior_.kernelValue(k);
+  }
+  double collapsedStatisticForTesting(const double* totalFits) const {
+    return collapsedStatistic(totalFits);
+  }
+
   /// log dnbinom(y_i; r, plogis(eta_i)) with eta the log-odds f(x) + offset:
   ///   lgamma(y+r) - lgamma(r) - lgamma(y+1) + y log p + r log(1 - p),
   /// using the stable log p = -log(1 + e^{-eta}), log(1 - p) = -log(1 + e^{eta}).
@@ -4265,6 +4388,10 @@ public:
                             double* out) const override {
     double lgammaR = std::lgamma(r_);
     for (std::size_t i = 0; i < numObservations; ++i) {
+      if (!isActive(i)) {
+        out[i] = std::numeric_limits<double>::quiet_NaN();
+        continue;
+      }
       double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
       double y = y_[i];
       out[i] = std::lgamma(y + r_) - lgammaR - std::lgamma(y + 1.0) -
@@ -4273,18 +4400,46 @@ public:
   }
 
 private:
+  bool isActive(std::size_t i) const {
+    return activeRows_.empty() || activeRows_[i] != 0.0;
+  }
+  const double* activePointer() const {
+    return activeRows_.empty() ? nullptr : activeRows_.data();
+  }
+
+  /// S = sum_i log(1 - p_i) = -sum_i log(1 + e^psi_i), the collapsed statistic
+  /// the dispersion grid draw reads, over the ACTIVE rows only.
+  double collapsedStatistic(const double* totalFits) const {
+    double sumLog1mP = 0.0;
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      if (!isActive(i)) continue;
+      sumLog1mP -=
+        logOnePlusExp(totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0));
+    }
+    return sumLog1mP;
+  }
+
+  /// c_i = a_i omega_i, the served precisions while a mask is installed.
+  void recompose() {
+    if (activeRows_.empty()) return;
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      composite_[i] = activeRows_[i] * omega_[i];
+  }
+
   /// Steps (2)-(3) of the sweep at the CURRENT r: draw omega_i ~ PG(y_i + r,
   /// psi_i) and rebuild the working response. Shared by refreshLatents (after
   /// its r step) and setResponse (which keeps r, the ordinal drawLatents
-  /// analog).
+  /// analog). An inactive row's draw is skipped for logistic's reason.
   void drawOmega(ext_rng* rng, const double* totalFits) {
     for (std::size_t i = 0; i < numObservations_; ++i) {
+      if (!isActive(i)) continue;
       double offset = offset_ != nullptr ? offset_[i] : 0.0;
       double psi = totalFits[i] + offset;
       double omega = simulatePolyaGammaShape(rng, y_[i] + r_, psi);
       omega_[i] = omega;
       working_[i] = 0.5 * (y_[i] - r_) / omega - offset;
     }
+    recompose();
   }
 
   /// Deterministic cold start: omega at PG(y+r, 0)'s mean (y_i + r)/4, so the
@@ -4304,6 +4459,8 @@ private:
   std::size_t numObservations_;
   bool estimateR_;
   double r_;
+  std::vector<double> activeRows_;  // the 0/1 mask; empty when none
+  std::vector<double> composite_;   // c_i = a_i omega_i, served while masked
   std::vector<double> omega_;
   std::vector<double> working_;
   NBDispersionPrior rPrior_;

@@ -5298,6 +5298,238 @@ static void testActiveRowsStudentComposite(ext_rng*) {
   printf("ok: active rows, student-t composite and nu gate\n");
 }
 
+// T3a, logistic: the masked n-row Polya-Gamma kernel against the same kernel
+// over the COMPACTED active rows - bitwise omega and working response at the
+// active rows, and an identical rng stream. The stream half pins the skip: PG
+// is a rejection sampler whose consumption depends on psi, so an inactive row
+// drawn and discarded would desynchronize it. Also T2(c) at the kernel, and
+// the composite: the zero rides a_i omega_i and NEVER omega_ itself, which
+// the working response divides by. Local generators, restored rngState.
+static void testActiveRowsLogisticKernel(ext_rng*) {
+  uint64_t savedRngState = rngState;
+  const std::size_t n = 40;
+  std::vector<double> y(n), active(n), eta(n), counts(n), yPerturbed(n);
+  std::vector<double> yCompact, etaCompact, countsCompact;
+  std::vector<std::size_t> activeIndex;
+  for (std::size_t i = 0; i < n; ++i) {
+    y[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    eta[i] = 1.5 * runif01() - 0.75;
+    counts[i] = static_cast<double>(1 + i % 3);  // integer trial counts
+    active[i] = (i % 3 == 0) ? 0.0 : 1.0;
+    yPerturbed[i] = active[i] == 0.0 ? 1.0 - y[i] : y[i];
+    if (active[i] != 0.0) {
+      activeIndex.push_back(i);
+      yCompact.push_back(y[i]);
+      etaCompact.push_back(eta[i]);
+      countsCompact.push_back(counts[i]);
+    }
+  }
+
+  LogisticResponse masked(y.data(), nullptr, counts.data(), n);
+  LogisticResponse perturbed(yPerturbed.data(), nullptr, counts.data(), n);
+  LogisticResponse compact(yCompact.data(), nullptr, countsCompact.data(),
+                           yCompact.size());
+  check(masked.supportsActiveRows() && masked.setActiveRows(active.data()) &&
+          perturbed.setActiveRows(active.data()),
+        "logistic accepts an active-row mask");
+
+  ext_rng* rngMasked = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngCompact = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngPerturbed =
+    ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  for (ext_rng* r : {rngMasked, rngCompact, rngPerturbed})
+    ext_rng_setSeed(r, 20260817u);
+
+  std::vector<double> before(masked.latents(), masked.latents() + n);
+  masked.refreshLatents(rngMasked, eta.data(), 1.0);
+  compact.refreshLatents(rngCompact, etaCompact.data(), 1.0);
+  perturbed.refreshLatents(rngPerturbed, eta.data(), 1.0);
+
+  bool exact = true, held = true, independent = true, composed = true;
+  for (std::size_t k = 0; k < activeIndex.size(); ++k)
+    if (masked.latents()[activeIndex[k]] != compact.latents()[k] ||
+        masked.workingResponse()[activeIndex[k]] !=
+          compact.workingResponse()[k])
+      exact = false;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (active[i] != 0.0) {
+      if (masked.latents()[i] != perturbed.latents()[i]) independent = false;
+    } else if (masked.latents()[i] != before[i]) {
+      held = false;
+    }
+    if (masked.workingWeights()[i] != active[i] * masked.latents()[i] ||
+        !(masked.latents()[i] > 0.0))
+      composed = false;
+  }
+  check(exact, "masked logistic omega is bitwise the compacted kernel's");
+  check(held, "an inactive logistic row keeps its stale omega");
+  check(independent,
+        "inactive logistic responses leave every active row's draw untouched");
+  check(composed && masked.workingWeights()[0] == 0.0,
+        "the logistic composite is a_i omega_i, with omega_ itself positive");
+  check(rngStreamsAgree(rngMasked, rngCompact),
+        "a masked logistic consumes the compacted rng stream exactly");
+
+  for (ext_rng* r : {rngMasked, rngCompact, rngPerturbed}) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: active rows, logistic omega kernel\n");
+}
+
+// T3a, nbinom: logistic's omega arm PLUS the dispersion block, which is where
+// this family carries more than a composition. The count-histogram kernel L_k
+// is REBUILT over the active counts at every mask change and the collapsed
+// statistic S = sum log(1 - p_i) sums only active rows, so the whole grid full
+// conditional - hence the r draw, hence every omega shape after it - is the
+// retained subsample's. Local generators, restored rngState.
+static void testActiveRowsNBKernels(ext_rng*) {
+  uint64_t savedRngState = rngState;
+  const std::size_t n = 36;
+  std::vector<double> y(n), active(n), fits(n), yCompact, fitsCompact;
+  std::vector<std::size_t> activeIndex;
+  for (std::size_t i = 0; i < n; ++i) {
+    y[i] = static_cast<double>(i % 7);
+    fits[i] = 0.08 * static_cast<double>(i) - 1.1;
+    // drop every third row, and every row carrying the largest count, so the
+    // masked histogram is shorter as well as lighter
+    active[i] = (i % 3 == 0 || y[i] == 6.0) ? 0.0 : 1.0;
+    if (active[i] != 0.0) {
+      activeIndex.push_back(i);
+      yCompact.push_back(y[i]);
+      fitsCompact.push_back(fits[i]);
+    }
+  }
+
+  NBResponse masked(y.data(), nullptr, n, -1.0);  // grid mode
+  NBResponse full(y.data(), nullptr, n, -1.0);
+  NBResponse compact(yCompact.data(), nullptr, yCompact.size(), -1.0);
+  check(masked.supportsActiveRows() && masked.setActiveRows(active.data()),
+        "nbinom accepts an active-row mask");
+
+  bool kernelExact = true, kernelMoved = false;
+  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
+    if (masked.dispersionKernelForTesting(k) !=
+        compact.dispersionKernelForTesting(k))
+      kernelExact = false;
+    if (full.dispersionKernelForTesting(k) !=
+        compact.dispersionKernelForTesting(k))
+      kernelMoved = true;
+  }
+  check(kernelMoved,
+        "the inactive counts do move the kernel, so the pin can fail");
+  check(kernelExact,
+        "a masked nbinom rebuilds the dispersion kernel over the active counts");
+  check(masked.collapsedStatisticForTesting(fits.data()) ==
+          compact.collapsedStatisticForTesting(fitsCompact.data()),
+        "a masked nbinom collapses S over the active rows, bitwise");
+
+  ext_rng* rngMasked = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngCompact = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngMasked, 20260818u);
+  ext_rng_setSeed(rngCompact, 20260818u);
+  std::vector<double> before(masked.latents(), masked.latents() + n);
+  masked.refreshLatents(rngMasked, fits.data(), 1.0);
+  compact.refreshLatents(rngCompact, fitsCompact.data(), 1.0);
+
+  bool exact = true, held = true, composed = true;
+  for (std::size_t k = 0; k < activeIndex.size(); ++k)
+    if (masked.latents()[activeIndex[k]] != compact.latents()[k] ||
+        masked.workingResponse()[activeIndex[k]] !=
+          compact.workingResponse()[k])
+      exact = false;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (active[i] == 0.0 && masked.latents()[i] != before[i]) held = false;
+    if (masked.workingWeights()[i] != active[i] * masked.latents()[i] ||
+        !(masked.latents()[i] > 0.0))
+      composed = false;
+  }
+  check(masked.dispersion() == compact.dispersion(),
+        "a masked nbinom draws r from the retained subsample's conditional");
+  check(exact, "masked nbinom omega is bitwise the compacted kernel's");
+  check(held && composed,
+        "an inactive nbinom row keeps a positive stale omega, zeroed only in "
+        "the composite");
+  check(rngStreamsAgree(rngMasked, rngCompact),
+        "a masked nbinom consumes the compacted rng stream exactly");
+
+  ext_rng_destroy(rngCompact);
+  ext_rng_destroy(rngMasked);
+  rngState = savedRngState;
+  printf("ok: active rows, nbinom omega and dispersion kernels\n");
+}
+
+// T3a, aft: the censored-row redraw. The comparator PRESERVES ROW ORDER, since
+// the redraw iterates the gathered censored indices, and both arms share the
+// response transform by construction (the extreme log-times are active), which
+// is what makes the comparison well posed - the scale itself is a full-data
+// quantity a mask deliberately does not move. Local generators, restored
+// rngState.
+static void testActiveRowsAFTCensored(ext_rng*) {
+  uint64_t savedRngState = rngState;
+  const std::size_t n = 30;
+  const double sigmaDf = 3.0, rawScale = 0.37804942330213542, sigma = 0.5;
+  std::vector<double> logT(n), status(n), active(n), fits(n);
+  std::vector<double> logTCompact, statusCompact, fitsCompact;
+  std::vector<std::size_t> activeIndex;
+  std::size_t numActive = 0;
+  for (std::size_t i = 0; i < n; ++i) {
+    logT[i] = 0.5 + 0.1 * static_cast<double>(i) + 0.2 * runif01();
+    status[i] = i % 3 == 1 ? 0.0 : 1.0;  // every third observation censored
+    fits[i] = 0.03 * static_cast<double>(i) - 0.4;
+    // the extreme log-times stay active, so both arms rescale identically
+    active[i] = (i % 4 == 2 && i != 0 && i + 1 != n) ? 0.0 : 1.0;
+    if (active[i] != 0.0) {
+      ++numActive;
+      activeIndex.push_back(i);
+      logTCompact.push_back(logT[i]);
+      statusCompact.push_back(status[i]);
+      fitsCompact.push_back(fits[i]);
+    }
+  }
+
+  AFTResponse masked(logT.data(), status.data(), nullptr, n, 1.0, sigmaDf,
+                     rawScale);
+  AFTResponse compact(logTCompact.data(), statusCompact.data(), nullptr,
+                      logTCompact.size(), 1.0, sigmaDf, rawScale);
+  double minMasked, maxMasked, minCompact, maxCompact;
+  masked.getScale(minMasked, maxMasked);
+  compact.getScale(minCompact, maxCompact);
+  check(minMasked == minCompact && maxMasked == maxCompact,
+        "both aft arms carry the same response transform, so the redraw "
+        "comparison is well posed");
+  check(masked.supportsActiveRows() && masked.setActiveRows(active.data()),
+        "aft accepts an active-row mask");
+  check(masked.sigmaDegreesOfFreedomForTesting() ==
+          sigmaDf + static_cast<double>(numActive),
+        "a masked aft inherits the composed sigma df through its gaussian");
+
+  ext_rng* rngMasked = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngCompact = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngMasked, 20260819u);
+  ext_rng_setSeed(rngCompact, 20260819u);
+  std::vector<double> before(masked.latents(), masked.latents() + n);
+  masked.refreshLatents(rngMasked, fits.data(), sigma);
+  compact.refreshLatents(rngCompact, fitsCompact.data(), sigma);
+
+  bool exact = true, held = true, redrawn = false;
+  for (std::size_t k = 0; k < activeIndex.size(); ++k) {
+    std::size_t i = activeIndex[k];
+    if (masked.latents()[i] != compact.latents()[k]) exact = false;
+    if (status[i] == 0.0 && masked.latents()[i] != before[i]) redrawn = true;
+  }
+  for (std::size_t i = 0; i < n; ++i)
+    if (active[i] == 0.0 && masked.latents()[i] != before[i]) held = false;
+  check(redrawn, "an active censored aft row is redrawn, so the pin can fail");
+  check(exact, "masked aft log-times are bitwise the compacted kernel's");
+  check(held, "an inactive censored aft row keeps its stale log-time");
+  check(rngStreamsAgree(rngMasked, rngCompact),
+        "a masked aft consumes the compacted rng stream exactly");
+
+  ext_rng_destroy(rngCompact);
+  ext_rng_destroy(rngMasked);
+  rngState = savedRngState;
+  printf("ok: active rows, aft censored redraw\n");
+}
+
 // The engine test-container entry (facade setTestData): a sampler given a
 // mixed dense + CSC test set records test fits BITWISE-IDENTICALLY to one given
 // the dense test matrix of the same values, and the entry REFUSES a designated
@@ -6509,6 +6741,9 @@ void runModelTests(ext_rng* rng) {
   testActiveRowsOrdinalKernels(rng);
   testActiveRowsGaussianDf(rng);
   testActiveRowsStudentComposite(rng);
+  testActiveRowsLogisticKernel(rng);
+  testActiveRowsNBKernels(rng);
+  testActiveRowsAFTCensored(rng);
   testNBPolyaGammaShapeMoments(rng);
   testNBDispersionGridConditional(rng);
   testNBSweepOrderAndRestore(rng);

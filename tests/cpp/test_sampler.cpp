@@ -1547,23 +1547,43 @@ static void testActiveRows() {
     ext_rng_destroy(rng);
   }
 
-  // ---- a family v1 does not build refuses, and perturbs nothing ----
+  // ---- every single-response family accepts, multinomial refuses ----
+  // The multinomial response holds no precisions to compose a mask into: the
+  // combiner owns the K interleaved Polya-Gamma draws.
   {
-    std::vector<double> binary(n);
-    for (size_t i = 0; i < n; ++i) binary[i] = y[i] > 0.0 ? 1.0 : 0.0;
-    ext_rng* rngLogistic;
-    auto logistic = makeSampler(rngLogistic, ResponseFamily::logistic,
-                                binary.data(), nullptr);
-    check(!logistic->supportsActiveRows() &&
-            !logistic->setActiveRows(active.data()),
-          "a logistic sampler refuses an active-row mask");
-    ext_rng* rngProbit;
-    auto probit = makeSampler(rngProbit, ResponseFamily::probit, binary.data(),
-                              nullptr);
-    check(probit->supportsActiveRows() && probit->setActiveRows(active.data()),
-          "a probit sampler accepts one, though it refuses case weights");
-    ext_rng_destroy(rngProbit);
-    ext_rng_destroy(rngLogistic);
+    std::vector<double> binary(n), counts(n);
+    for (size_t i = 0; i < n; ++i) {
+      binary[i] = y[i] > 0.0 ? 1.0 : 0.0;
+      counts[i] = static_cast<double>(i % 5);
+    }
+    struct Reachable { ResponseFamily family; const double* response; };
+    const Reachable reachable[] = {{ResponseFamily::probit, binary.data()},
+                                   {ResponseFamily::logistic, binary.data()},
+                                   {ResponseFamily::nbinom, counts.data()}};
+    for (const Reachable& r : reachable) {
+      ext_rng* rng;
+      auto sampler = makeSampler(rng, r.family, r.response, nullptr);
+      check(sampler->supportsActiveRows() &&
+              sampler->setActiveRows(active.data()),
+            "a latent-family sampler accepts a mask though it refuses weights");
+      ext_rng_destroy(rng);
+    }
+
+    const size_t K = 3;
+    std::vector<int> categoryCounts(n * K, 0), trials(n, 1);
+    for (size_t i = 0; i < n; ++i) categoryCounts[(i % K) * n + i] = 1;
+    MultinomialSpec spec;
+    spec.numCategories = K;
+    spec.counts = categoryCounts.data();
+    spec.trials = trials.data();
+    spec.forest.numTrees = 10;
+    ext_rng* rngMultinomial = makeSeededRng();
+    ConstantLeafSampler multinomial(x.data(), n, 2, options, spec,
+                                    &rngMultinomial);
+    check(!multinomial.supportsActiveRows() &&
+            !multinomial.setActiveRows(active.data()),
+          "a multinomial sampler refuses an active-row mask");
+    ext_rng_destroy(rngMultinomial);
   }
   ext_rng_destroy(rngPlain);
 
@@ -1571,36 +1591,57 @@ static void testActiveRows() {
   // drawGroupEffects already weights its per-group sums by workingWeights(),
   // so an inactive row leaves its group's mean and precision; a group whose
   // every row is inactive falls back to its prior through the same formula,
-  // which is coherent and is NOT what deleting the group would do.
+  // which is coherent and is NOT what deleting the group would do. Pinned
+  // BITWISE against setWeights(w * a) rather than for finiteness: a mask that
+  // never reached the per-group sums would still run finite.
   {
     std::vector<std::uint32_t> groups(n);
     for (size_t i = 0; i < n; ++i)
       groups[i] = static_cast<std::uint32_t>(i % 5);
-    std::vector<double> groupMask(n);
-    for (size_t i = 0; i < n; ++i)
-      groupMask[i] = groups[i] == 0 ? 0.0 : 1.0;  // group 0 entirely inactive
+    std::vector<double> groupMask(n), groupComposed(n);
+    for (size_t i = 0; i < n; ++i) {
+      // group 0 entirely inactive, plus a scatter of rows elsewhere
+      groupMask[i] = (groups[i] == 0 || i % 7 == 3) ? 0.0 : 1.0;
+      groupComposed[i] = weights[i] * groupMask[i];
+    }
 
     SamplerOptions groupedOptions = options;
     groupedOptions.groupIndices = groups.data();
     groupedOptions.numGroups = 5;
-    ext_rng* rng = makeSeededRng();
+    ext_rng* rngMasked = makeSeededRng();
+    ext_rng* rngComposed = makeSeededRng();
     ConstantLeafSampler grouped(x.data(), y.data(), n, 2, weights.data(),
                                 nullptr, ResponseFamily::gaussian, 1.0, 3.0,
-                                0.37804942330213542, groupedOptions, &rng);
+                                0.37804942330213542, groupedOptions,
+                                &rngMasked);
+    ConstantLeafSampler composedGrouped(
+      x.data(), y.data(), n, 2, groupComposed.data(), nullptr,
+      ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, groupedOptions,
+      &rngComposed);
     check(grouped.supportsActiveRows() &&
             grouped.setActiveRows(groupMask.data()),
           "a grouped sampler forwards the mask to its base family");
-    std::vector<double> effects(5 * numSamples);
-    Results groupedResults(resultsOther);
+
+    std::vector<double> effects(5 * numSamples),
+      effectsComposed(5 * numSamples), trainComposed(n * numSamples),
+      sigmaComposed(numSamples);
+    Results groupedResults(resultsOther), composedResults;
     groupedResults.groupEffects = effects.data();
+    composedResults.sigma = sigmaComposed.data();
+    composedResults.trainingFits = trainComposed.data();
+    composedResults.groupEffects = effectsComposed.data();
     grouped.run(20, numSamples, groupedResults);
+    composedGrouped.run(20, numSamples, composedResults);
     bool finite = true;
     for (double effect : effects) finite = finite && std::isfinite(effect);
-    for (size_t i = 0; i < n * numSamples; ++i)
-      finite = finite && std::isfinite(trainOther[i]);
     check(finite,
           "an entirely inactive group draws its effect from the prior, finite");
-    ext_rng_destroy(rng);
+    check(effects == effectsComposed && trainOther == trainComposed &&
+            sigmaOther == sigmaComposed,
+          "a masked grouped sampler is bitwise setWeights(w * a), effects and "
+          "all");
+    ext_rng_destroy(rngComposed);
+    ext_rng_destroy(rngMasked);
   }
 
   // ---- the vector leaf: a mid-run install must drop the U'WU cache ----
