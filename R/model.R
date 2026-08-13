@@ -1016,7 +1016,10 @@ gp <- function(
 }
 
 ## One named-calibration argument, wherever it is spelled: NULL or NA leaves it
-## unnamed, anything else must be a single positive finite number.
+## unnamed, anything else must be a single positive finite number. NaN is NOT
+## the unnamed spelling even though is.na() says so - it carries no intent and
+## cannot serve as a divisor - so it is refused here rather than surviving to
+## the bridge's own last-line check.
 validateNamedScale <- function(value, name) {
   if (is.null(value)) {
     return(NA_real_)
@@ -1025,8 +1028,19 @@ validateNamedScale <- function(value, name) {
   if (length(value) != 1L) {
     stop("'", name, "' must be a single number")
   }
-  if (!is.na(value) && (!is.finite(value) || value <= 0.0)) {
+  if (is.nan(value) || (!is.na(value) && (!is.finite(value) || value <= 0.0))) {
     stop("'", name, "' must be positive")
+  }
+  value
+}
+
+## The mid-chain setter's value: the same rules, plus a refusal of the NA that
+## spells "unnamed" at creation. There is no family default to fall back on
+## once a sampler exists, so an absent value is a malformed one.
+validateLiveScale <- function(value, name) {
+  value <- validateNamedScale(value, name)
+  if (is.na(value)) {
+    stop("'", name, "' must be a positive finite number")
   }
   value
 }

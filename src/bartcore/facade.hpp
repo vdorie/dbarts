@@ -53,6 +53,10 @@ struct SamplerShape {
   /// Saved samples the tree store holds, 0 when keepTrees is off.
   std::size_t savedTreeCapacity;
   ResponseFamily family;
+  /// The leaf model the forests carry, which qualifies what the calibration
+  /// surface's reported prior sd means (equality for the constant leaf, a
+  /// stated bound otherwise). A property of the sampler's type.
+  LeafModelKind leafModel;
   /// Whether a heteroscedastic variance forest is present; the s^2(x)
   /// channels of run and predictVariance gate on it.
   bool hasVarianceForest;
@@ -270,6 +274,18 @@ public:
   /// states the semantics.
   virtual bool setForestWeights(std::size_t forestIndex,
                                 const double* weights) = 0;
+  /// Forest forestIndex's leaf-prior calibration on chain chainNum, response
+  /// units; the authoritative reader of what is in force.
+  /// Chain::forestCalibration states the semantics.
+  virtual ForestCalibration forestCalibration(
+      std::size_t chainNum, std::size_t forestIndex) const = 0;
+  /// Restates forest forestIndex's leaf prior on every chain so the forest
+  /// total's prior sd at k = 1 is priorScale, response units; false, writing
+  /// nothing, when the index names no forest or a combiner owns the
+  /// calibration. A write reproducing what is in force is skipped bitwise.
+  /// Chain::setForestPriorScale states the semantics.
+  virtual bool setForestPriorScale(std::size_t forestIndex,
+                                   double priorScale) = 0;
   /// Installs (or clears, at a null pointer) a per-observation 0/1 active-row
   /// mask in every chain; false, installing nothing, when the family
   /// implements none or an element is not exactly 0 or 1. The values are
@@ -328,6 +344,7 @@ public:
     s.numCutpoints = impl_.numCutpoints();
     s.savedTreeCapacity = impl_.savedTreeCapacity();
     s.family = impl_.family();
+    s.leafModel = Sampler<L, ResidT>::leafModel();
     s.hasVarianceForest = impl_.hasVarianceForest();
     s.varianceLeafPrior = impl_.varianceLeafPrior();
     s.usesFunctionLeaves = Sampler<L, ResidT>::usesFunctionLeaves();
@@ -499,6 +516,14 @@ public:
   bool setForestWeights(std::size_t forestIndex,
                         const double* weights) override {
     return impl_.setForestWeights(forestIndex, weights);
+  }
+  ForestCalibration forestCalibration(
+      std::size_t chainNum, std::size_t forestIndex) const override {
+    return impl_.forestCalibration(chainNum, forestIndex);
+  }
+  bool setForestPriorScale(std::size_t forestIndex,
+                           double priorScale) override {
+    return impl_.setForestPriorScale(forestIndex, priorScale);
   }
   bool setActiveRows(const double* active) override {
     return impl_.setActiveRows(active);

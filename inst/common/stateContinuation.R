@@ -18,7 +18,15 @@ statesAgree <- function(reState, saved) {
         identical(reForests[[fi]]$tree.vars, savedForests[[fi]]$tree.vars) &&
         identical(reForests[[fi]]$tree.sizes, savedForests[[fi]]$tree.sizes) &&
         identical(reForests[[fi]]$tree.flags, savedForests[[fi]]$tree.flags) &&
-        identical(reForests[[fi]]$tree.params, savedForests[[fi]]$tree.params)
+        identical(
+          reForests[[fi]]$tree.params,
+          savedForests[[fi]]$tree.params
+        ) &&
+        # the leaf prior's two halves: a restore that reconstructed the trees
+        # but not the calibration they were drawn under would leave a hybrid,
+        # and an expect_equal on the trees alone cannot see it
+        identical(reForests[[fi]]$k, savedForests[[fi]]$k) &&
+        identical(reForests[[fi]]$leaf.scale, savedForests[[fi]]$leaf.scale)
     }
     agree <- agree &&
       isTRUE(all.equal(

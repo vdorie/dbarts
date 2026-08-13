@@ -260,6 +260,25 @@ struct ModelParameters {
   const double* splitProbabilities = nullptr;  // borrowed; copied on install
 };
 
+/// One forest's leaf-prior calibration on ONE chain, in RESPONSE units (the
+/// family's latent units where the response is not rescaled). priorScale is
+/// the identified, nameable object - the forest total's prior sd at k = 1 -
+/// and is what the setter writes; priorSd is priorScale / k and moves every
+/// sweep under kHasHyperprior while priorScale does not. What priorSd bounds
+/// is leaf-model specific, exact only for the constant leaf
+/// (docs/design/nameable-calibration.md section 3).
+struct ForestCalibration {
+  double priorScale = 0.0;
+  double priorSd = 0.0;
+  double priorMean = 0.0;
+  double k = 0.0;
+  double responseScale = 0.0;
+  double responseShift = 0.0;
+  /// THIS forest's own k law, not the sampler-wide option: a combiner pins its
+  /// forests' k and the two disagree on BCF and multinomial.
+  bool kHasHyperprior = false;
+};
+
 /// Posterior draws on the original response scale; caller-owned storage.
 /// With several chains the arrays hold one slab per chain, chain-major:
 /// sigma and k are numSamples x numChains, fits and counts add their leading
@@ -948,6 +967,46 @@ public:
     if (!supportsForestWeights() || f >= forests_.size()) return false;
     if (forestWeights_.empty()) forestWeights_.assign(forests_.size(), nullptr);
     forestWeights_[f] = s;
+    return true;
+  }
+
+  /// Forest f's leaf-prior calibration in response units. Total over forests
+  /// and over leaf models: every leaf model carries the one scale field, and
+  /// the transform is one virtual call, so there is no family switch here -
+  /// the per-family units are a documentation table, not a branch. The
+  /// authoritative reader of what is IN FORCE, which a re-anchoring channel
+  /// (setResponse/setOffset at updateScale = true, setData) moves without
+  /// touching the model's recorded intent.
+  ForestCalibration forestCalibration(std::size_t f) const {
+    const Forest<L, ResidT>& forest = forests_[f];
+    ForestCalibration calibration;
+    calibration.responseScale = response_->fitScale();
+    calibration.responseShift = response_->fitShift();
+    calibration.priorScale = forest.leaf.scale * priorScaleFactor(forest);
+    calibration.k = forest.k;
+    calibration.priorSd = calibration.priorScale / calibration.k;
+    calibration.priorMean = calibration.responseShift;
+    calibration.kHasHyperprior = forest.updateK;
+    return calibration;
+  }
+
+  /// Restates forest f's leaf prior so the forest total's prior sd at k = 1 is
+  /// priorScale, response units. Touches nothing else - not k, not the
+  /// transform, not sigma, not the tree prior - and takes effect on the next
+  /// sweep, reinterpreting no leaf value already drawn. False, writing
+  /// nothing, when f names no forest or a combiner owns the calibration (BCF
+  /// and multinomial derive both halves from their own maps). A write that
+  /// reproduces what is in force is SKIPPED, on either spelling of "in force":
+  /// the internal scale it derives, and the priorScale forestCalibration
+  /// reports, which the round trip through the response transform need not
+  /// return to the same bits. That is what makes a read-then-write inert.
+  bool setForestPriorScale(std::size_t f, double priorScale) {
+    if (f >= forests_.size() || combiner_ != nullptr) return false;
+    Forest<L, ResidT>& forest = forests_[f];
+    double factor = priorScaleFactor(forest);
+    if (priorScale == forest.leaf.scale * factor) return true;
+    double leafScale = priorScale / factor;
+    if (leafScale != forest.leaf.scale) forest.leaf.scale = leafScale;
     return true;
   }
 
@@ -3350,6 +3409,16 @@ private:
   double resolvedNodeScale(double nodeScale, double priorScale) const {
     return std::isfinite(priorScale) ? priorScale / response_->fitScale()
                                      : nodeScale;
+  }
+
+  /// The factor between a forest's internal leaf scale and its response-unit
+  /// prior scale: the per-tree leaf scale times sqrt(m) is the forest total's
+  /// internal-unit sd at k = 1, and the transform's multiplier carries it into
+  /// response units. Shared by the reader and the writer so the two are the
+  /// same conversion in both directions, never two spellings of it.
+  double priorScaleFactor(const Forest<L, ResidT>& forest) const {
+    return response_->fitScale() *
+           std::sqrt(static_cast<double>(forest.numTrees));
   }
 
   /// Composes forest f's installed per-observation weight into the precisions

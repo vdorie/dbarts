@@ -100,8 +100,11 @@ expect_true(sd(bareB) / sd(bareA) > 3)
 # O1 SCOPE, stated here as it is in the help: both arms run at the same number
 # of trees, so they see only fitScale-dependent errors and are BLIND to a
 # calibration error that is a fixed function of the named value (one forgetting
-# sqrt(m) passes this and still reports the wrong scale). The set-then-get
-# fidelity and static-m oracles cover that, and ride the mid-chain half.
+# sqrt(m) passes this while reporting the wrong scale). That error is caught
+# elsewhere, not left uncovered: test-calibration-prior-draws.R pins the
+# ABSOLUTE prior sd at a known tree count, which a sqrt(m)-forgetting
+# conversion fails outright, and test-calibration-midchain.R's set-then-get
+# fidelity and static-m oracles pin the same error on the write path.
 
 # --- O1b: the same arms NOT centered, each applying the documented offset
 # recipe. This is the only test exercising the named scale and the location

@@ -33,6 +33,8 @@ SEXP bartcore_setForestWeights(SEXP ptr, SEXP forest, SEXP weights);
 SEXP bartcore_setActiveRows(SEXP ptr, SEXP active);
 SEXP bartcore_getBCFGlue(SEXP ptr);
 SEXP bartcore_getForestFits(SEXP ptr, SEXP forest);
+SEXP bartcore_getCalibration(SEXP ptr, SEXP forest);
+SEXP bartcore_setCalibration(SEXP ptr, SEXP forest, SEXP priorScale);
 SEXP bartcore_getForestVariableCounts(SEXP ptr, SEXP forest);
 SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples);
 SEXP bartcore_runWithCallback(SEXP ptr, SEXP numBurnIn, SEXP numSamples,

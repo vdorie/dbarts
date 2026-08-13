@@ -435,8 +435,12 @@ methods::setValidity("dbartsModel", function(object) {
     return("node.scale must be > 0")
   }
 
+  # NaN is not the unnamed spelling, though is.na() accepts it as one: it
+  # names no intent and cannot serve as a divisor, so it is refused with every
+  # other malformed value rather than read as an absent one
   if (
     length(object@prior.scale) != 1L ||
+      is.nan(object@prior.scale) ||
       (!is.na(object@prior.scale) &&
         (!is.finite(object@prior.scale) || object@prior.scale <= 0.0))
   ) {

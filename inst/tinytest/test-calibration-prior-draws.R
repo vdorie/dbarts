@@ -241,6 +241,18 @@ anchorSamplers <- list(
     control = priorControl(),
     family = "logistic",
     weights = rep_len(c(1, 2), n)
+  ),
+  # the heteroscedastic path is ungated by construction rather than by a
+  # guard - the conversion runs at the leaf-scale assignment, before the
+  # variance-forest branch, and reads no family flag - so it needs a pin of
+  # its own rather than an inherited claim. The variance forest is a
+  # separate leaf model outside forests_ and carries no named calibration;
+  # this measures the MEAN forest's.
+  heteroscedastic = anchorSampler(
+    y,
+    control = priorControl(),
+    variance = ~x1,
+    n.trees.variance = 5L
   )
 )
 for (familyName in names(anchorSamplers)) {

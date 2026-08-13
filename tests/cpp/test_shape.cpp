@@ -41,6 +41,7 @@ void checkShapeMatchesImpl(const SamplerFacade<L, ResidT>& facade,
   CHECK_SHAPE_FIELD(numCutpoints);
   CHECK_SHAPE_FIELD(savedTreeCapacity);
   CHECK_SHAPE_FIELD(family);
+  CHECK_SHAPE_FIELD(leafModel);
   CHECK_SHAPE_FIELD(hasVarianceForest);
   CHECK_SHAPE_FIELD(usesFunctionLeaves);
   CHECK_SHAPE_FIELD(kIsSampled);
@@ -139,6 +140,8 @@ void testConstantGaussian(ShapeFixture& fixture) {
   check(shape.numGroups == 5, "shape: grouped intercept count");
   check(shape.usesDart && shape.kIsSampled, "shape: dart and sampled k");
   check(!shape.usesFunctionLeaves, "shape: constant leaf is not function-valued");
+  check(shape.leafModel == LeafModelKind::constant,
+        "shape: constant leaf tag");
   checkShapeMatchesImpl(facade, "constant gaussian, before run");
 
   runBriefly(facade, numTest);
@@ -175,6 +178,10 @@ void testLeafCovariateSamplers(ShapeFixture& fixture) {
           "shape: linear leaf covariate columns");
     check(!shape.usesFunctionLeaves,
           "shape: linear leaf is not function-valued");
+    // the tag the calibration surface qualifies its reported prior sd with;
+    // usesFunctionLeaves cannot stand in for it, since it splits the four
+    // leaf models one against three
+    check(shape.leafModel == LeafModelKind::linear, "shape: linear leaf tag");
     checkShapeMatchesImpl(facade, "linear leaf");
     ext_rng_destroy(rng);
   }
@@ -190,6 +197,7 @@ void testLeafCovariateSamplers(ShapeFixture& fixture) {
       0.37804942330213542, gpOptions, &rng);
     check(facade.shape().usesFunctionLeaves,
           "shape: gp leaf is function-valued");
+    check(facade.shape().leafModel == LeafModelKind::gp, "shape: gp leaf tag");
     checkShapeMatchesImpl(facade, "gp leaf");
     ext_rng_destroy(rng);
   }

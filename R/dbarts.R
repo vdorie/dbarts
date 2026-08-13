@@ -1356,6 +1356,75 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getForestVariableCounts, ptr, as.integer(forest))
     },
+    getCalibration = function(forest = 1L) {
+      "Returns the leaf-prior calibration in force, one row per chain and one column of prior.scale (the forest total's prior standard deviation at k = 1, in response units), prior.sd (prior.scale / k), prior.mean, k, k.has.hyperprior, response.scale, and response.shift. The leaf model rides on a 'leaf.model' attribute and qualifies prior.sd: an equality only for the constant leaf. This is the authoritative reader of the calibration - model@prior.scale records the named intent, which a channel that re-anchors the response transform leaves untouched while moving what is in force."
+      ptr <- getPointer()
+      .Call(C_dbarts_bartcore_getCalibration, ptr, resolveForestIndex(forest))
+    },
+    setCalibration = function(
+      prior.scale,
+      prior.sd,
+      prior.mean,
+      forest = 1L,
+      updateState = NA
+    ) {
+      "Restates a forest's leaf prior on every chain so that the forest total's prior standard deviation at k = 1 is prior.scale, in response units; prior.sd is the same statement at the current k and is refused when k is drawn from a hyperprior. Exactly one of the two is given. Nothing else moves - not k, not the response transform, not sigma, not the tree prior - and the write takes effect on the next sweep, reinterpreting no leaf value already drawn. updateState is opt-in; see setData."
+      refuseHostMutation("$setCalibration")
+      refuseBCFMutation(
+        .self,
+        "setCalibration",
+        "both forests' leaf scales come from the two-forest calibration map; ",
+        "make a new sampler instead"
+      )
+      if (!missing(prior.mean)) {
+        stop(
+          "'prior.mean' is not writable: the leaf values it would shift are ",
+          "already drawn and stored. The lever is the offset channel - ",
+          "setOffset(rep_len(-getCalibration()[1L, \"prior.mean\"], n)) ",
+          "re-centers the modelled quantity, and the getter then reports the ",
+          "mean that is in force"
+        )
+      }
+      if (missing(prior.scale) == missing(prior.sd)) {
+        stop("give exactly one of 'prior.scale' and 'prior.sd'")
+      }
+
+      ptr <- getPointer()
+      index <- resolveForestIndex(forest)
+      if (missing(prior.scale)) {
+        prior.sd <- validateLiveScale(prior.sd, "prior.sd")
+        calibration <- .Call(C_dbarts_bartcore_getCalibration, ptr, index)
+        if (any(calibration[, "k.has.hyperprior"] != 0)) {
+          stop(
+            "'prior.sd' names a prior sd at the current 'k', but 'k' is ",
+            "drawn every sweep under a hyperprior and the named sd would ",
+            "drift: write 'prior.scale' instead (the prior sd at k = 1), or ",
+            "pin 'k' at a number through setModel"
+          )
+        }
+        # the sugar divides by a per-chain quantity, so it has no single
+        # answer once the chains disagree about it; prior.scale is k-free and
+        # remains available
+        k <- unique(calibration[, "k"])
+        if (length(k) != 1L) {
+          stop(
+            "the chains' 'k' have diverged (",
+            paste0(format(k), collapse = ", "),
+            "), so one 'prior.sd' names a different scale on each: write ",
+            "'prior.scale', which does not divide by 'k'"
+          )
+        }
+        prior.scale <- prior.sd * k
+      } else {
+        prior.scale <- validateLiveScale(prior.scale, "prior.scale")
+      }
+
+      .Call(C_dbarts_bartcore_setCalibration, ptr, index, prior.scale)
+      if (identical(updateState, TRUE)) {
+        storeState(ptr)
+      }
+      invisible(NULL)
+    },
     getPointer = function() {
       "Returns the underlying reference pointer, checking for consistency first."
       selfEnv <- parent.env(environment())
