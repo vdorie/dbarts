@@ -38,6 +38,8 @@ setWeights(weights, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setActiveRows(active, updateState = NA)
 # S4 method for class 'dbartsSampler'
+setForestWeights(forest, weights, updateState = NA)
+# S4 method for class 'dbartsSampler'
 setTreatment(z, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setSigma(sigma, updateState = NA)
@@ -243,6 +245,30 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
   the family-specific weight rules that apply at creation time.
 
+  For `setForestWeights`, a distinct per-FOREST case weight on a
+  Bayesian causal forest, refused off one: it composes with `weights`
+  and `active` as \\(w_i a_i) m_f^2 s_i\\, where \\m_f\\ is the named
+  forest's own multiplier, rather than widening either channel, so
+  `s_i = 0` excludes row \\i\\ from *that forest's own leaf conditionals
+  only* - its occupancy, its place in the combination, and the residual
+  degrees of freedom are unaffected, and the reported location still
+  carries the forest's full contribution even when every row is
+  excluded. The third leg of a three-way degenerate-value contrast:
+  `weights` installs and is measurably distinct from carrying none,
+  `active` at all-ones installs nothing and clears any mask in force,
+  and `setForestWeights` at all-ones INSTALLS - a round trip reports
+  it - but is bitwise IDENTICAL to carrying no per-forest weight at all,
+  the null gate its multiplicative composition (\\m_f \times 1 = m_f\\)
+  is built to guarantee. The weight does not ride the sampler's saved
+  `state` - a sampler rebuilt with `setState` from a stored state
+  silently drops it while `statesAgree` still reports agreement - so it
+  is additionally mirrored on an R5 field that `getPointer`, `setState`,
+  and `copy` all reinstall on every re-creation; a caller never
+  reinstalls it by hand. `setData` needs no clearing rule here the way
+  it does for `active`: it is refused outright on any multi-forest
+  sampler (“a multi-forest sampler fixes its data at creation”), so the
+  two channels never interact.
+
 - active:
 
   A numeric vector of per-observation 0/1 membership indicators - "row
@@ -342,7 +368,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   forest. For `getCalibration` and `setCalibration`, a single positive
   integer indexing the forests from `1` (the default, and the only
   forest of an ordinary sampler); a Bayesian causal forest's prognostic
-  forest is `1` and its treatment forest `2`.
+  forest is `1` and its treatment forest `2`. `setForestWeights` indexes
+  from `1` as well, with no default: a Bayesian causal forest's
+  treatment forest is `2L`.
 
 - prior.scale:
 

@@ -59,6 +59,7 @@ weights can change between draws, for use inside larger MCMC schemes.
   [`setOffset(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setWeights(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setActiveRows(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`setForestWeights(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setTreatment(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setSigma(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setPredictor(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
