@@ -73,8 +73,10 @@ structurally correct pure-R probit composition inherits its leaf prior
 from the range of whatever vector the sampler was CONSTRUCTED on: a
 16x sweep of that accident moves the implied leaf sd 16x and the
 posterior sd of f by 4.6x with no error or warning; correctness is
-recovered only near one lucky range. stan4bart's mvbart() refuses the
-response channel outright to avoid exactly this. The composed model's
+recovered only near one lucky range. stan4bart's mvbart() routes around
+the response channel deliberately - the response is fixed and only the
+offset moves - and warns when the per-sweep offset drift threatens the
+anchor (`stan4bart/R/mvbart.R:40-44`, `:262-266`). The composed model's
 BLOCKING ports to R; its PRIOR does not, unless it can be named.
 
 ## The principle (ACCEPTED AS AMENDED, VD 2026-08-11)
@@ -168,9 +170,16 @@ including an independent re-check of Sun and Song)
   slate, below) catches - not something a calibration fix would have
   prevented.
 - The top UNMET affordance is a row subset that changes between draws
-  (principal stratification, mediation, IV): princeBART monkey-patches
-  eight unexported dbarts internals for it; an AOAS 2024 sampler
-  builds six fresh samplers inside each of 6000 iterations. CRITIQUE:
+  (principal stratification, mediation, IV): princeBART builds six
+  probit samplers and re-runs `setData` on all six every outer
+  iteration - five of them with a changed latent-stratum `subset` -
+  for 2000 default iterations at n.thin 20. (Its nine getFromNamespace
+  fetches, of which four are used, hand-build a probit sampler with a
+  chosen node prior; they are NOT the row subsetting, which uses the
+  public `dbartsData(subset =)`. The earlier "eight unexported
+  internals for it" and the separate "AOAS 2024 / 6000 iterations"
+  attribution are corrected and withdrawn: re-verified first-hand at
+  princeBART 0.2.0, no such distinct artifact was found.) CRITIQUE:
   REFUTED as an unmet affordance - Gaussian row subsetting already
   ships from R via zero weights (`dbartsSampler-class.Rd:137`); the
   real gaps are the empty-leaf veto counting zero-weight rows as
@@ -194,12 +203,22 @@ budgets)
 
 - Nameable calibration (TODO entry `nameable-calibration`): design
   before the dbarts.h reshape's S1 (it may leave a header
-  footprint); the single highest-value item; budget expected above
-  ~300 lines, sized at design time.
+  footprint); the single highest-value item; sized at ~1593 lines
+  across four slices (budget expected above ~300 at design time);
+  the excess is the flat-C half, the leaf-model contract, the
+  three creation refusals and the oracle.
 - A latent-family subset mask (TODO `latent-subset-mask`): design arc
   before reshape S1. This is the row-subset door the corrected demand
   survey actually opens (see "Demand headlines") - Gaussian row
-  subsetting already ships today via zero weights.
+  subsetting already ships today via zero weights. princeBART guards
+  each `setData` block with `if (sum(<stratum>) > 0)`, so a stratum
+  that empties is SKIPPED and that sampler silently keeps the previous
+  iteration's data; and `dbarts_binary` widens dbarts's binary
+  detection to admit an all-0/all-1 stratum (R/utils.R:191-200,
+  comment "can happen in principal stratification") because a
+  constant all-1 response is NOT detected as binary today. Both are
+  defects the mask removes by construction, and both are stronger
+  demand evidence than the count that was wrong.
 - The empty-leaf veto fix (TODO `empty-leaf-veto-fix`): its own
   measured slice, a draw-law change - the veto counts LEAF MEMBERS
   where it should count POSITIVE-WEIGHT members

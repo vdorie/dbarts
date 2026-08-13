@@ -199,12 +199,12 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
   does NOT catch "ANY signature change".** The token is FNV-1a over
   `DBARTS_C_API_DECLS`, which stringizes only return types, names and parameter
   lists (`#define DBARTS_API_STRINGIZE(ret, name, params, args) #ret " " #name
-  #params ";"`, dbarts.h:266). It never sees a struct definition. Measured:
+  #params ";"`, dbarts.h:277). It never sees a struct definition. Measured:
   three headers differing only in `dbarts_results`' layout - including
   `uint32_t* varcount` retyped to `uint64_t* varcount`, a hard ABI break - all
   hash to `0xf760898d116cb3a3`, identical, `declsBytes` 3023 in all three; the
   token text does not contain "varcount" at all. The same run independently
-  re-derives the baked literal at dbarts.h:82. This arc makes the exposure worse
+  re-derived the baked literal at dbarts.h:82. This arc makes the exposure worse
   in two ways at once: it adds a SECOND ABI struct, and binding decision 8
   promotes the token from one of two lockstep signals to the ONLY one.
   **Resolution:** the header says what the token actually covers - the
@@ -341,12 +341,12 @@ justification and F8's premise; it is not cosmetics.
 ## Verified seams (read at 2e50cf1)
 
 - **The X-list is the single source; registration is fully mechanical.**
-  `DBARTS_C_API_LIST` (dbarts.h:170-261) expands into the consumer stubs, the
+  `DBARTS_C_API_LIST` (dbarts.h:171-272) expands into the consumer stubs, the
   readable prototypes' bind-asserts (`DBARTS_BIND_ASSERT`, C_interface.cpp:441),
   the CCallable table (`DBARTS_API_REGISTER`, R_interface.cpp:256-265) and the
   FNV-1a token (`static_assert(dbarts_fnv1a(DBARTS_C_API_DECLS) ==
   DBARTS_C_API_HASH)`, C_interface.cpp:93). Adding or removing an entry costs
-  ZERO registration lines. Baked literal `0xf760898d116cb3a3ULL` (dbarts.h:82);
+  ZERO registration lines. Baked literal `0x1a911c00bb26dcd7ULL` (dbarts.h:83);
   re-baking is a one-literal edit dbarts's own compile forces.
 - **Both compiled consumers use `DBARTS_USE_STUBS`** (stan4bart
   `src/Makevars.in:1`, `src/Makevars.win:1`; treatSens `R_interface.cpp:27`,
@@ -521,7 +521,8 @@ report - do not build a private substitute.
    (:64-76). Generalize `DBARTS_RESULTS_HAS` (dbarts.h:137) into
    `DBARTS_HAS_FIELD(type, ptr, field)` and re-express the old spelling over it;
    zero consumer uses either (verified, all four repos). A zero `structSize`
-   errors, as `dbarts_sampler_run` already does (C_interface.cpp:131-133).
+   errors, as `dbarts_sampler_run` already does (C_interface.cpp:135; the
+   comment explaining why is at :131-134).
 2. **Re-sign the four predictor entries.**
 
        X(int,  dbarts_sampler_setPredictor,
@@ -641,17 +642,18 @@ report - do not build a private substitute.
    explanation of why one raw path must survive (B3). Drop the `1000L` and
    packed-identity assertions; assert instead that `apiMajorVersion()` and
    `apiMinorVersion()` are STILL 1 and 0, that the raw and stubbed hash agree,
-   and that the hash literal is no longer `0xf760898d116cb3a3ULL` (F6).
+   and that the hash literal differs from the literal recorded at
+   slice start (F6).
 
 rng: NEUTRAL. Gates: preclean install into the private library; `tests/cpp`
 plain and ASAN from clean; `test-capi.R` (the load-bearing gate); full tinytest;
 the trio bitwise, LABELLED a formality; `air format --check .`; dbarts.h
 ASCII-clean and C99-clean (`consumer.c` compiles as C - the existing self-gating
 check), and clean at CXX17 as well as CXX20 for the `static inline` constructor.
-ABORT: a re-signed X-list that leaves `DBARTS_C_API_HASH` at
-`0xf760898d116cb3a3ULL` (the token failed to see the change); any movement in
-`DBARTS_C_API_MAJOR` or `DBARTS_C_API_MINOR` (binding decision 8); any
-sparse-vs-dense divergence at anything but bitwise; a missing
+ABORT: a re-signed X-list that leaves `DBARTS_C_API_HASH` unchanged from
+the literal recorded at slice start (the token failed to see the change);
+any movement in `DBARTS_C_API_MAJOR` or `DBARTS_C_API_MINOR` (binding
+decision 8); any sparse-vs-dense divergence at anything but bitwise; a missing
 `dbarts_sampler_numForests` in the live X-list at slice start.
 
 ## S2. Consumers, docs, records.
@@ -713,10 +715,10 @@ against the private library; full tinytest; `air format --check .`.
   trees. NEGATIVE HALF: wire the forest argument to a constant 0 and the BCF leg
   must go red on both print branches.
 - **F6 (S1), the token moved and the raw path survives.** `dbarts_apiHash() ==
-  DBARTS_C_API_HASH`; the baked literal is NO LONGER `0xf760898d116cb3a3ULL`
-  (a re-signed X-list that leaves it unchanged means the token is blind to the
-  change - abort, do not proceed); `dbarts_apiMajorVersion() == 1` and
-  `dbarts_apiMinorVersion() == 0`, i.e. the constants did NOT move (binding
+  DBARTS_C_API_HASH`; the baked literal differs from the literal recorded at
+  slice start (a re-signed X-list that leaves it unchanged means the token is
+  blind to the change - abort, do not proceed); `dbarts_apiMajorVersion() == 1`
+  and `dbarts_apiMinorVersion() == 0`, i.e. the constants did NOT move (binding
   decision 8); the hand-resolved `R_GetCCallable("dbarts", "dbarts_apiHash")`
   pointer returns the same value as the stubbed call (the B3 canary,
   re-pointed); and a deliberately perturbed baked literal must still fail
