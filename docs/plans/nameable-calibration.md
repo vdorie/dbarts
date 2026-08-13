@@ -527,6 +527,16 @@ Tests riding this slice: O4a-d (including set-then-get fidelity and the static
 `m` falsifier), the rest of O5, the rest of O6, and the `tests/cpp` component
 test.
 
+Carried from the S1 landing (the S1 landing note has the detail), inside this
+slice's budget: (i) decide the `NaN` refusal site - tighten the R-side checks
+(`is.na(NaN)` is TRUE, so `validateNamedScale` passes it today) or record the
+bridge as the site; (ii) the NEWS bullet dedupes the sampled-k refusal content
+S1's bullet already carries; (iii) fix the stale coverage comment at
+`test-calibration-creation.R:100-104`; (iv) pin the HETEROSCEDASTIC
+creation-time calibration - it already works ungated (the conversion runs
+before the variance branch) but ships no test, so the feature matrix carries
+`?` for it; a one-arm prior-draw pin settles the cell.
+
 rng: NEUTRAL - the surface is inert until called, and a write reproducing the
 current internal scale is bitwise-SKIPPED, so a get-then-set cannot move the
 baseline. Gates: as S1 (`--preclean` is MANDATORY here - `facade.hpp` virtuals
@@ -671,9 +681,57 @@ docs/plans/README.md.
 
 ## Landing notes
 
-S0 -
+S0 - LANDED 4c866286, 2026-08-12. The frozen `dbarts_sampler_get/
+setCalibration` signatures and the `prior.scale` slot shape were
+written into `docs/plans/dbarts-h-reshape.md` S1 (items 7+8, beside
+the active-rows footprint) and `docs/plans/c-api-growth.md`; no code.
 
-S1 -
+S1 - LANDED c2a7e89b, 2026-08-13. All ten items shipped; the
+conversion is a private `Chain::resolvedNodeScale` helper shared by
+the constructor and `setModel` sites, returning `nodeScale` VERBATIM
+(no arithmetic) when `priorScale` is non-finite - the default path is
+bit-exact by construction, and the trio confirmed it. Oracles
+O1a/O1b/O2/O3/O5/O6 each shown RED against two deliberately broken
+preclean builds (creation conversion removed; setModel conversion +
+refusals removed) before green. Carried caveats re-measured at
+implementation time: the monotone shipped-configuration magnitude is
+pinned as a BOUND (span 1.98 prior sd, sd ratio 1.095-1.136x, max <
+1.25), never a point value; the anchor holds across all nine
+family/decoration paths (0.73438, grouped 0.74210, vs 0.75 - within
+2.1 percent); DART accepts a named calibration; the 1e-12 tolerance
+carries ~20x margin at 16x the shipped sweep count. Budget: code
++319/-39 vs ~358 (under); tests 720 raw / 574 non-comment vs the ~320
+oracle share - the independent review CORRECTED the implementer's raw
+2.25x figure to ~1.55x dense-equivalent (293 lines are air-mandated
+one-argument/closer formatting) and ruled ACCEPT AS IS: the nine-path
+sweep is plan-directed (carried caveat 2a ships as a test) and is the
+only coverage of the `fitScale` divisor across families. Process
+note: the implementer finished-and-reported instead of stopping at
+the raw 1.5x threshold; future budgets are stated in dense-equivalent
+terms. Deviation, reviewer-accepted: O1b computes the offset shift in
+R from the plan's own section-2 formula (`getCalibration` is S2's).
+Implementation fact: the bridge slot read needs `RC_NA | RC_YES` plus
+an EXPLICIT non-finite check - `+Inf` passes the GT-0 constraint
+because `assertDoubleConstraint` returns early on NA and `Inf <= 0`
+is false (precedent RIB:1150-1152, the sigma estimate). Gates:
+implementer and independent reviewer batteries both fully green
+(preclean private libs, tests/cpp plain + ASAN with zero reports,
+tinytest 4288/0, trio identical on all three baselines under
+--strict-coverage, air + lint_package clean, R CMD check Status OK
+from a clean-copy tarball, pkgdown no new topic); x86 box leg green
+(tests/cpp plain+ASAN, tinytest 4276/0 incl. both new test files,
+equivalence.R statistical OK; gcc emits benign
+-Wmissing-field-initializers in sampler.hpp - noted, non-functional);
+CI green on the c2a7e89b push. Carried to S2: (i) `NaN` escapes the
+R-side `validateNamedScale`/validity checks because `is.na(NaN)` is
+TRUE in R, and errors only at the bridge ("named prior scale is NaN")
+- the refusal-5 outcome holds via an unintended path; S2 decides
+tighten-R-side vs record-the-bridge-as-the-site; (ii) S2's NEWS
+bullet must DEDUPE the sampled-k refusal content the S1 bullet
+already carries, not restate it; (iii) fix the stale comment at
+test-calibration-creation.R:100-104, which understates the shipped
+coverage (test-calibration-prior-draws.R pins the absolute prior sd
+at m = 20, so a sqrt(m)-forgetting conversion fails outright).
 
 S2 -
 

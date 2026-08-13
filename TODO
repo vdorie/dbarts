@@ -302,16 +302,17 @@ items
     next multinomial re-record; no test-side bartcoreForestFits
     analog; ConfigSpec OP_SET_COUNTS rides the general multi-forest
     fuzz-arm gap.
-  nameable-calibration: PLAN COMMITTED docs/plans/nameable-calibration.md
-    (artifacts .claude/nameable-calibration-design/). prior.scale
-    (forest-total prior sd at k = 1, response units) nameable at
-    creation (dbartsModel slot + bart/bart2/rbart_vi formal) and
-    mid-chain ($getCalibration/$setCalibration over every chain);
-    a sampled k honors prior.scale and refuses prior.sd. ~1593
-    lines: S0 signature freeze -> S1 creation -> S2 mid-chain ->
-    S3 flat C inside dbarts-h-reshape S1 (S0 lands before that
-    slice starts). V1-V10 adopted 2026-08-12 under VD's
-    proceed-at-discretion grant.
+  nameable-calibration: S0 signature freeze LANDED 4c866286; S1
+    creation half LANDED c2a7e89b (landing notes in
+    docs/plans/nameable-calibration.md, artifacts
+    .claude/nameable-calibration-design/). prior.scale (forest-total
+    prior sd at k = 1, response units) is now nameable at creation
+    (dbartsModel slot + bart/bart2/rbart_vi/xbart formals); a sampled
+    k honors prior.scale and refuses prior.sd. Remaining: S2
+    mid-chain ($getCalibration/$setCalibration over every chain,
+    carries three items recorded in the S1 landing note) -> S3 flat
+    C inside dbarts-h-reshape S1. V1-V10 adopted 2026-08-12 under
+    VD's proceed-at-discretion grant.
   multinomial-dart-drop: bart2(family = "multinomial") accepts a
     DART request and silently drops it (the chain never routes it;
     see docs/design/feature-matrix.md for the anchors), unlike BCF
