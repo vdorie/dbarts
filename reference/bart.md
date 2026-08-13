@@ -1357,7 +1357,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.173768
+#> total seconds in loop: 0.215497
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1423,7 +1423,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001102
+#> total seconds in loop: 0.001371
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
@@ -1445,4 +1445,31 @@ fit.na <- dbarts(y.na ~ x.na, control = dbartsControl(
                    n.samples = 20L, n.burn = 20L, n.chains = 1L,
                    n.trees = 20L, n.threads = 1L))
 samples.na <- fit.na$run()
+
+## recipe: between-draws row subsetting on a latent family (e.g. principal
+## stratification or mediation, where an outer Gibbs step redraws which rows
+## belong to a stratum every iteration). $setActiveRows changes which rows
+## are "in" the model from one run() to the next, without rebuilding the
+## sampler and without losing any row's fitted value; see the "active" entry
+## of \link{dbartsSampler-class} for the full semantics. Unlike zero case
+## weights (gaussian only), this reaches probit, ordinal, logistic, nbinom
+## and aft samplers - and an emptied stratum is a legal all-zeros mask
+## rather than a case the caller must special-case and skip.
+set.seed(3)
+n <- 120L
+x.strat <- matrix(runif(n * 2), n, 2)
+y.strat <- rbinom(n, 1L, plogis(2 * x.strat[,1] - 1))
+sampler.strat <- dbarts(x.strat, y.strat, family = "probit",
+                        control = dbartsControl(n.chains = 1L, n.threads = 1L,
+                          n.trees = 20L, updateState = FALSE))
+
+stratum <- rbinom(n, 1L, 0.6)  # this iteration's stratum membership
+sampler.strat$setActiveRows(stratum)
+draws.strat <- sampler.strat$run(20L, 20L)
+
+## the next outer iteration redraws the stratum; even a stratum that empties
+## out is accepted and runs, rather than needing to be skipped
+stratum <- rep(0, n)
+sampler.strat$setActiveRows(stratum)
+draws.empty <- sampler.strat$run(0L, 5L)
 ```

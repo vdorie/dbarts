@@ -36,6 +36,8 @@ setOffset(offset, updateScale = FALSE, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setWeights(weights, updateState = NA)
 # S4 method for class 'dbartsSampler'
+setActiveRows(active, updateState = NA)
+# S4 method for class 'dbartsSampler'
 setTreatment(z, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setSigma(sigma, updateState = NA)
@@ -240,6 +242,87 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   (observation counts) are fixed when the sampler is created. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
   the family-specific weight rules that apply at creation time.
+
+- active:
+
+  A numeric vector of per-observation 0/1 membership indicators - "row
+  \\i\\ is not in the data set for this sampler this sweep" - of length
+  equal to that with which the sampler was created, or `NULL`. Unlike
+  `weights`, `setActiveRows` reaches families that refuse case weights
+  entirely: gaussian, Student-t, `probit`, `ordinal`, `logistic`,
+  `nbinom`, and `aft` samplers all accept it, including a Bayesian
+  causal forest (its two forests share one gaussian response). It is
+  absolute and independent of `weights`, composing with it in either
+  call order (\\w_i \times a_i\\ in effect). `NULL` clears the mask
+  (every row active). Length and `NA` are validated as for `weights`;
+  the only legal values are exactly `0` and `1`, and a fractional
+  element refuses the WHOLE call and installs nothing. An all-ones
+  vector reports success but installs NOTHING, clearing any previously
+  installed mask - the OPPOSITE of `weights`, where an all-ones vector
+  installs and is measurably distinct from carrying no weights at all.
+  One channel states membership, the other precision, and the two
+  deliberately carry opposite degenerate-value policies.
+
+  An inactive row (`active[i] == 0`) contributes nothing to any leaf
+  sufficient statistic, branch log-likelihood, birth-scan weight total,
+  leaf parameter draw, or family-level parameter update that sums over
+  rows (residual degrees of freedom, a dispersion statistic, a group's
+  per-group sums, and so on). It still occupies its leaf for every
+  count-based accounting - `numObservations`, the empty-leaf veto, leaf
+  collapsing - and it still receives a fitted value: `run()$train`,
+  `getForestFits`, and `predict` report \\f(x_i)\\ at an inactive row
+  exactly as at an active one, which is what makes this channel worth
+  more than physically dropping the row.
+
+  An inactive row's own latent draw is SKIPPED - no random numbers are
+  consumed for it - for every family except Student-t, whose per-row
+  \\\lambda_i\\ is drawn unconditionally at every row regardless of the
+  mask; there the mask instead ANNIHILATES its contribution through the
+  composed weight (\\w_i \lambda_i a_i\\). For a skipping family,
+  `getLatents` at an inactive row returns its LAST DRAWN value, which is
+  stale; the correct read at an inactive row is its fit, not its latent.
+  Reactivating a row (a mask change from inactive to active) is a
+  one-sweep MODEL hazard, not only a read hazard: that sweep's tree
+  moves and leaf draws run against the row's stale latent (or, for
+  Student-t, a \\\lambda_i\\ drawn while the row was out) before that
+  sweep's own latent refresh updates it; this does not disturb the
+  posterior while a mask is held fixed, but a caller that moves the mask
+  every sweep should expect it.
+
+  An inactive row's pointwise log-likelihood - the value the flat C
+  API's `logLikelihood` results field reports (see ‘Mutation cost’ above
+  for the C interface) - is `NaN` rather than a finite value or `-Inf`:
+  a row that is not in the model has no likelihood to report.
+
+  Three quantities do NOT follow the mask, by design, so a caller
+  wanting them recomputed on the active subset must re-create the
+  sampler instead: the split-candidate cut grid stays the FULL-data
+  grid, holding the tree prior fixed while the row set moves; the
+  response transform and residual prior scale stay the FULL-data
+  calibration (a masked gaussian - and so `aft`, and any `variance` or
+  grouped decorator - keeps the range and residual-prior scale of every
+  row); and an ordinal sampler keeps its FULL-data number of categories,
+  free cutpoints, and log-gap prior even when a mask empties a boundary
+  category - only `setData` changes them. `setData` also CLEARS an
+  installed mask - the mask is a per-row vector and `setData` may change
+  the number of rows - so a caller replacing the data must reinstall any
+  mask it wants kept.
+
+  The mask does not ride a sampler's saved `state`: a sampler rebuilt
+  with `setState` from a stored state silently drops the mask and
+  computes different draws while `statesAgree` still reports agreement.
+  Conversely, the latents DO ride the state, and under an installed mask
+  they are stale at every inactive row for a skipping family, so two
+  samplers at the same posterior state but different mask histories
+  carry different stored latents and `statesAgree` correctly reports
+  DISAGREEMENT; a Student-t sampler is affected the same way, since an
+  inactive row's stored \\\lambda_i\\ is drawn from a conditional its
+  own data no longer informs.
+
+  On a sampler with grouped random effects, a group all of whose rows
+  are inactive draws its effect from the PRIOR through the group-effect
+  update's own formula - the coherent answer, and NOT what a compacted
+  sampler with that group physically deleted would do.
 
 - z:
 

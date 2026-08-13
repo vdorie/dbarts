@@ -566,7 +566,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.173768</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.215497</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -632,7 +632,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001102</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001371</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>
@@ -654,6 +654,33 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-in"><span>                   n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>, n.chains <span class="op">=</span> <span class="fl">1L</span>,</span></span>
 <span class="r-in"><span>                   n.trees <span class="op">=</span> <span class="fl">20L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">samples.na</span> <span class="op">&lt;-</span> <span class="va">fit.na</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">## recipe: between-draws row subsetting on a latent family (e.g. principal</span></span></span>
+<span class="r-in"><span><span class="co">## stratification or mediation, where an outer Gibbs step redraws which rows</span></span></span>
+<span class="r-in"><span><span class="co">## belong to a stratum every iteration). $setActiveRows changes which rows</span></span></span>
+<span class="r-in"><span><span class="co">## are "in" the model from one run() to the next, without rebuilding the</span></span></span>
+<span class="r-in"><span><span class="co">## sampler and without losing any row's fitted value; see the "active" entry</span></span></span>
+<span class="r-in"><span><span class="co">## of \link{dbartsSampler-class} for the full semantics. Unlike zero case</span></span></span>
+<span class="r-in"><span><span class="co">## weights (gaussian only), this reaches probit, ordinal, logistic, nbinom</span></span></span>
+<span class="r-in"><span><span class="co">## and aft samplers - and an emptied stratum is a legal all-zeros mask</span></span></span>
+<span class="r-in"><span><span class="co">## rather than a case the caller must special-case and skip.</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">120L</span></span></span>
+<span class="r-in"><span><span class="va">x.strat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span> <span class="op">*</span> <span class="fl">2</span><span class="op">)</span>, <span class="va">n</span>, <span class="fl">2</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">y.strat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">1L</span>, <span class="fu"><a href="https://rdrr.io/r/stats/Logistic.html" class="external-link">plogis</a></span><span class="op">(</span><span class="fl">2</span> <span class="op">*</span> <span class="va">x.strat</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">sampler.strat</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">x.strat</span>, <span class="va">y.strat</span>, family <span class="op">=</span> <span class="st">"probit"</span>,</span></span>
+<span class="r-in"><span>                        control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>,</span></span>
+<span class="r-in"><span>                          n.trees <span class="op">=</span> <span class="fl">20L</span>, updateState <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">stratum</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">1L</span>, <span class="fl">0.6</span><span class="op">)</span>  <span class="co"># this iteration's stratum membership</span></span></span>
+<span class="r-in"><span><span class="va">sampler.strat</span><span class="op">$</span><span class="fu">setActiveRows</span><span class="op">(</span><span class="va">stratum</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">draws.strat</span> <span class="op">&lt;-</span> <span class="va">sampler.strat</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="fl">20L</span>, <span class="fl">20L</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">## the next outer iteration redraws the stratum; even a stratum that empties</span></span></span>
+<span class="r-in"><span><span class="co">## out is accepted and runs, rather than needing to be skipped</span></span></span>
+<span class="r-in"><span><span class="va">stratum</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">0</span>, <span class="va">n</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">sampler.strat</span><span class="op">$</span><span class="fu">setActiveRows</span><span class="op">(</span><span class="va">stratum</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">draws.empty</span> <span class="op">&lt;-</span> <span class="va">sampler.strat</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="fl">0L</span>, <span class="fl">5L</span><span class="op">)</span></span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
