@@ -334,6 +334,23 @@ public:
 
   Node& at(int32_t i) { return nodes[static_cast<size_t>(i)]; }
   const Node& at(int32_t i) const { return nodes[static_cast<size_t>(i)]; }
+
+  /// Emptiness as the branch log-likelihood's veto means it: a leaf is empty
+  /// when no member carries positive weight (docs/design/empty-leaf-veto.md).
+  /// With no weight vector installed this IS the member count, bit for bit the
+  /// test the veto has always run; with one, a zero-weight row is absent from
+  /// the likelihood rather than downweighted
+  /// (docs/plans/zero-weight-exactness.md), so a leaf of only such rows carries
+  /// nothing to estimate a parameter from and its branch must be vetoed. The
+  /// scan stops at the first positive weight, so an ordinary leaf costs one
+  /// gather; only a leaf that is about to be vetoed walks its members.
+  bool leafHasNoWeight(int32_t i, const double* weights) const {
+    const Node& node(at(i));
+    if (weights == nullptr) return node.numObservations() == 0;
+    for (size_t j = node.begin; j < node.end; ++j)
+      if (weights[indices[j]] > 0.0) return false;
+    return true;
+  }
   int32_t rightChildOf(int32_t i) const { return at(i).leftChild + 1; }
   bool hasSingleNode() const { return at(0).isBottom(); }
 
