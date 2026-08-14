@@ -1570,9 +1570,8 @@ static void testActiveRows() {
       ext_rng_destroy(rng);
     }
 
-    // carried from the S2 review (verified manually there; pinned here): an
-    // all-zeros mask on logistic and nbinom also runs finite, exactly as the
-    // gaussian arm above.
+    // an all-zeros mask on logistic and nbinom also runs finite, exactly as
+    // the gaussian arm above
     for (const Reachable& r : reachable) {
       if (r.family == ResponseFamily::probit) continue;
       ext_rng* rng;
@@ -1593,7 +1592,7 @@ static void testActiveRows() {
     }
 
     // aft needs its own construction (survivalStatus), so it is not in
-    // reachable above; same all-zeros claim, carried from the same review.
+    // reachable above; same all-zeros claim
     SamplerOptions aftOptions = options;
     std::vector<double> statusAll(n, 1.0);  // no censoring; any finite y works
     aftOptions.survivalStatus = statusAll.data();
@@ -2815,6 +2814,385 @@ static void testBCFZeroMultiplierSnap() {
   printf("ok: BCF zero multiplier snaps to an exact exclusion\n");
 }
 
+// Two generators sit at the same stream position when their serialized states
+// agree: the reading that says a pinned draw sequence was consumed exactly,
+// with nothing taken, skipped or reordered around it.
+static bool sameStreamPosition(const ext_rng* a, const ext_rng* b) {
+  size_t length = ext_rng_getSerializedStateLength(a);
+  std::vector<unsigned char> stateA(length), stateB(length);
+  ext_rng_writeSerializedState(a, stateA.data());
+  ext_rng_writeSerializedState(b, stateB.data());
+  return stateA == stateB;
+}
+
+static ext_rng* makeSeamRng() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20260813u);
+  return rng;
+}
+
+// The combiner at the seam a general per-forest basis family generalizes
+// (docs/plans/multiforest-extension-surface.md, M4.0): forestMultiplier's two
+// values at both of its call sites, combinedFits' blend, drawGlue's four-draw
+// conditional order, and afterCombine's applied scale with its 1.0 skips.
+// These are pins, not derivations - the point is that a generalization which
+// reaches the same quantity by another route still has to land the same bits.
+// Every fixture value is dyadic, so the reference arithmetic is exact and the
+// comparisons can be bitwise without a tolerance to hide a wrong wiring.
+static void testBCFCombinerSeam() {
+  // ---- forestMultiplier's two values, at both call sites ----
+  {
+    const size_t n = 6;
+    std::vector<double> xDummy(n, 0.0);
+    ColumnStore data;
+    data.build(xDummy.data(), n, 1, 100);
+
+    std::vector<double> z = {0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+    std::vector<double> mu = {0.5, -1.5, 2.0, 0.25, -0.75, 1.0};
+    std::vector<double> tau = {1.0, 0.5, -2.0, 1.5, 0.25, -0.5};
+    std::vector<double> y = {2.0, -1.0, 0.5, 3.0, -2.5, 1.25};
+    std::vector<double> w = {0.5, 1.0, 2.0, 0.25, 4.0, 1.5};
+    // three DISTINCT multipliers, so a wiring that reuses one forest's for the
+    // other, or swaps the treated and control coefficients, cannot pass
+    const double a = 1.5, b0 = -0.5, b1 = 0.25;
+
+    BCFSpec spec;
+    spec.z = z.data();
+    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    ChainStateData glue;
+    glue.hasBCF = true;
+    glue.a = a;
+    glue.b0 = b0;
+    glue.b1 = b1;
+    combiner.restoreGlue(glue);
+
+    std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+    forests[0].totalFits = mu;
+    forests[1].totalFits = tau;
+
+    size_t numTreated = 0;
+    for (size_t i = 0; i < n; ++i) numTreated += z[i] != 0.0 ? 1 : 0;
+    check(numTreated > 0 && numTreated < n,
+          "the seam fixture carries both treated and control rows");
+
+    // forest 0's multiplier is a on EVERY row (row-independent), and the
+    // residual it divides is y net of the OTHER forest's b_z tau - the second
+    // call site, which a generalization can miswire on its own
+    ForestResponse prognostic =
+      combiner.formForestResponse(0, forests, y.data(), w.data());
+    bool muPair = true;
+    for (size_t i = 0; i < n; ++i) {
+      double bz = z[i] != 0.0 ? b1 : b0;
+      muPair &= prognostic.response[i] == (y[i] - bz * tau[i]) / a &&
+                prognostic.weights[i] == w[i] * a * a;
+    }
+    check(muPair,
+          "the prognostic multiplier is a on every row, against a residual net "
+          "of b_z tau");
+
+    ForestResponse treatment =
+      combiner.formForestResponse(1, forests, y.data(), w.data());
+    bool tauPair = true;
+    for (size_t i = 0; i < n; ++i) {
+      double m = z[i] != 0.0 ? b1 : b0;
+      tauPair &= treatment.response[i] == (y[i] - a * mu[i]) / m &&
+                 treatment.weights[i] == w[i] * m * m;
+    }
+    check(tauPair,
+          "the treatment multiplier is b1 on treated rows and b0 on control "
+          "rows, against a residual net of a mu");
+
+    const double* combined = combiner.combinedFits(forests);
+    bool blend = true;
+    for (size_t i = 0; i < n; ++i)
+      blend &= combined[i] == a * mu[i] + (z[i] != 0.0 ? b1 : b0) * tau[i];
+    check(blend, "the combined location is a mu + b_z tau, bitwise");
+
+    // the snap belongs to formForestResponse's REPARAMETERIZATION, not to the
+    // model: at a multiplier inside the zero band the treatment pair is
+    // exactly zero on the control rows while the blend still carries the exact
+    // b0 tau. A generalization that snaps once, in a shared effective-
+    // multiplier helper both readers call, fails here and nowhere else.
+    glue.b0 = 0x1p-27;
+    combiner.restoreGlue(glue);
+    ForestResponse snapped =
+      combiner.formForestResponse(1, forests, y.data(), w.data());
+    const double* exactBlend = combiner.combinedFits(forests);
+    bool kept = true;
+    for (size_t i = 0; i < n; ++i) {
+      if (z[i] != 0.0) continue;
+      kept &= snapped.response[i] == 0.0 && snapped.weights[i] == 0.0 &&
+              exactBlend[i] == a * mu[i] + 0x1p-27 * tau[i];
+    }
+    check(kept,
+          "the blend keeps the exact multiplier the reparameterization snaps");
+  }
+
+  // ---- drawGlue draws a, aVariance, b0, b1 in that order, and nothing else --
+  // Zero fits and a unit prior variance leave every conditional mean at 0 and
+  // every precision at exactly 1, so each drawn scalar IS its own draw from the
+  // stream and the order is read off directly, with no reference arithmetic to
+  // go stale. The ridge draw is deliberately absent: it belongs to
+  // afterCombine, and a generalization that folds the two methods into one
+  // moves this stream.
+  {
+    const size_t n = 4;
+    std::vector<double> xDummy(n, 0.0);
+    ColumnStore data;
+    data.build(xDummy.data(), n, 1, 100);
+    std::vector<double> z = {0.0, 1.0, 0.0, 1.0};
+    std::vector<double> y = {0.5, -0.25, 1.0, 0.75};
+    std::vector<double> zeros(n, 0.0);
+
+    BCFSpec spec;
+    spec.z = z.data();
+    spec.bPriorVariance = 1.0;
+
+    auto zeroForests = [&](std::vector<Forest<ConstantGaussianLeaf>>& forests) {
+      forests.clear();
+      forests.resize(2);
+      forests[0].totalFits = zeros;
+      forests[1].totalFits = zeros;
+    };
+
+    {
+      BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+      std::vector<Forest<ConstantGaussianLeaf>> forests;
+      zeroForests(forests);
+      ext_rng* live = makeSeamRng();
+      ext_rng* reference = makeSeamRng();
+      combiner.drawGlue(live, 1.0, y.data(), nullptr, forests);
+
+      double refA = ext_rng_simulateStandardNormal(reference);
+      double rate =
+        0.5 * refA * refA + 0.5 * spec.aPriorScale * spec.aPriorScale;
+      double refAVariance =
+        1.0 / ext_rng_simulateGamma(reference, 1.0, 1.0 / rate);
+      double refB0 = ext_rng_simulateStandardNormal(reference);
+      double refB1 = ext_rng_simulateStandardNormal(reference);
+
+      ChainStateData drawn;
+      combiner.serializeGlue(drawn);
+      check(drawn.a == refA && drawn.aVariance == refAVariance &&
+              drawn.b0 == refB0 && drawn.b1 == refB1,
+            "drawGlue draws a, then aVariance, then b0, then b1");
+      check(sameStreamPosition(live, reference),
+            "drawGlue consumes those four draws and no others");
+      ext_rng_destroy(reference);
+      ext_rng_destroy(live);
+    }
+
+    // the a block's skip takes NO draws, so b0 and b1 are the stream's first
+    // two normals; the b block's skip stops the stream after aVariance
+    {
+      BCFSpec noA = spec;
+      noA.updateA = false;
+      BCFForestCombiner<ConstantGaussianLeaf> combiner(data, noA);
+      std::vector<Forest<ConstantGaussianLeaf>> forests;
+      zeroForests(forests);
+      ext_rng* live = makeSeamRng();
+      ext_rng* reference = makeSeamRng();
+      combiner.drawGlue(live, 1.0, y.data(), nullptr, forests);
+      double refB0 = ext_rng_simulateStandardNormal(reference);
+      double refB1 = ext_rng_simulateStandardNormal(reference);
+      ChainStateData drawn;
+      combiner.serializeGlue(drawn);
+      check(drawn.a == 1.0 && drawn.aVariance == 1.0 && drawn.b0 == refB0 &&
+              drawn.b1 == refB1 && sameStreamPosition(live, reference),
+            "a pinned a block holds its two scalars and takes no draw");
+      ext_rng_destroy(reference);
+      ext_rng_destroy(live);
+    }
+    {
+      BCFSpec noB = spec;
+      noB.updateB = false;
+      BCFForestCombiner<ConstantGaussianLeaf> combiner(data, noB);
+      std::vector<Forest<ConstantGaussianLeaf>> forests;
+      zeroForests(forests);
+      ext_rng* live = makeSeamRng();
+      ext_rng* reference = makeSeamRng();
+      combiner.drawGlue(live, 1.0, y.data(), nullptr, forests);
+      double refA = ext_rng_simulateStandardNormal(reference);
+      double rate =
+        0.5 * refA * refA + 0.5 * spec.aPriorScale * spec.aPriorScale;
+      (void) ext_rng_simulateGamma(reference, 1.0, 1.0 / rate);
+      ChainStateData drawn;
+      combiner.serializeGlue(drawn);
+      check(drawn.a == refA && drawn.b0 == 0.0 && drawn.b1 == 1.0 &&
+              sameStreamPosition(live, reference),
+            "a pinned b block holds its two scalars and takes no draw");
+      ext_rng_destroy(reference);
+      ext_rng_destroy(live);
+    }
+  }
+
+  // ---- afterCombine's applied scale, its GIG map, and its 1.0 skips ----
+  {
+    const size_t n = 4;
+    std::vector<double> xDummy(n, 0.0);
+    ColumnStore data;
+    data.build(xDummy.data(), n, 1, 100);
+    std::vector<double> z = {0.0, 1.0, 0.0, 1.0};
+    std::vector<double> muFits = {0.75, -0.5, 1.25, 0.5};
+    std::vector<double> tauFits = {1.0, -0.25, 0.5, 2.0};
+    const double leafA = 0.5, leafB = 0.25, tauLeaf = 0.125;
+    const double a0 = 1.5, aVariance = 4.0;  // distinct, so a^2/aVariance bites
+
+    BCFSpec spec;
+    spec.z = z.data();
+    ChainStateData glue;
+    glue.hasBCF = true;
+    glue.a = a0;
+    glue.aVariance = aVariance;
+
+    // one occupied leaf per prognostic tree: L is the leaf count, so a
+    // two-tree forest puts the GIG exponent at (L - 1)/2 = 0.5, which the
+    // off-by-one L/2 = 1.0 the move map suggests cannot reproduce
+    auto build = [&](std::vector<Forest<ConstantGaussianLeaf>>& forests,
+                     const std::vector<double>& leaves) {
+      forests.clear();
+      forests.resize(2);
+      for (size_t f = 0; f < 2; ++f) {
+        forests[f].leaf.scale = 1.0;
+        forests[f].k = 2.0;
+      }
+      forests[0].numTrees = leaves.size();
+      forests[0].totalFits = muFits;
+      forests[0].indexBuffer.assign(n * leaves.size(), 0);
+      forests[0].trees.resize(leaves.size());
+      forests[0].muByTree.assign(leaves.size(), std::vector<double>(1, 0.0));
+      for (size_t t = 0; t < leaves.size(); ++t) {
+        forests[0].trees[t].initialize(forests[0].indexBuffer.data() + t * n, n);
+        forests[0].muByTree[t][0] = leaves[t];
+      }
+      forests[1].numTrees = 1;
+      forests[1].totalFits = tauFits;
+      forests[1].indexBuffer.assign(n, 0);
+      forests[1].trees.resize(1);
+      forests[1].trees[0].initialize(forests[1].indexBuffer.data(), n);
+      forests[1].muByTree.assign(1, std::vector<double>(1, tauLeaf));
+    };
+
+    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    combiner.restoreGlue(glue);
+    std::vector<Forest<ConstantGaussianLeaf>> forests;
+    build(forests, {leafA, leafB});
+
+    ext_rng* live = makeSeamRng();
+    ext_rng* reference = makeSeamRng();
+    double c = combiner.afterCombine(forests, false, 0, live);
+    // GIG((L - 1)/2, M / leafVar, a^2 / aVariance), with M the squared sum of
+    // the occupied leaves and 1/leafVar the (k / leaf scale)^2 the forest
+    // carries
+    double squaredSum = leafA * leafA + leafB * leafB;
+    double v = ext_rng_simulateGeneralizedInverseGaussian(
+      reference, 0.5 * (2.0 - 1.0), squaredSum * (2.0 / 1.0) * (2.0 / 1.0),
+      a0 * a0 / aVariance);
+    check(c == std::sqrt(v),
+          "the applied scale is the square root of the ridge's GIG draw");
+    check(sameStreamPosition(live, reference),
+          "afterCombine's move is that one draw and no other");
+
+    ChainStateData moved;
+    combiner.serializeGlue(moved);
+    bool travelled = moved.a == a0 / c && moved.aVariance == aVariance &&
+                     forests[0].muByTree[0][0] == leafA * c &&
+                     forests[0].muByTree[1][0] == leafB * c;
+    for (size_t i = 0; i < n; ++i)
+      travelled &= forests[0].totalFits[i] == muFits[i] * c;
+    check(travelled,
+          "the amplitude travels to a0 / c while every prognostic leaf and fit "
+          "scales by exactly c");
+    bool untouched = forests[1].muByTree[0][0] == tauLeaf;
+    for (size_t i = 0; i < n; ++i)
+      untouched &= forests[1].totalFits[i] == tauFits[i];
+    check(untouched, "the treatment forest is not on this ridge");
+    ext_rng_destroy(reference);
+    ext_rng_destroy(live);
+
+    // the three reachable 1.0 returns, each of which must also leave the
+    // stream where it found it - that is what keeps a skipped move bitwise.
+    // The two non-finite guards below them are unreachable from a fixture.
+    struct Skip {
+      const char* what;
+      std::vector<double> leaves;
+      bool updateA;
+    };
+    const Skip skips[] = {{"a pinned amplitude", {leafA, leafB}, false},
+                          {"a single occupied leaf", {leafA}, true},
+                          {"an all-zero leaf sum", {0.0, 0.0}, true}};
+    for (const Skip& skip : skips) {
+      BCFSpec skipSpec = spec;
+      skipSpec.updateA = skip.updateA;
+      BCFForestCombiner<ConstantGaussianLeaf> skipped(data, skipSpec);
+      skipped.restoreGlue(glue);
+      std::vector<Forest<ConstantGaussianLeaf>> skipForests;
+      build(skipForests, skip.leaves);
+      ext_rng* skipRng = makeSeamRng();
+      ext_rng* skipReference = makeSeamRng();
+      double one = skipped.afterCombine(skipForests, false, 0, skipRng);
+      ChainStateData held;
+      skipped.serializeGlue(held);
+      bool inert = one == 1.0 && held.a == a0 &&
+                   sameStreamPosition(skipRng, skipReference);
+      for (size_t i = 0; i < n; ++i)
+        inert &= skipForests[0].totalFits[i] == muFits[i];
+      std::string label =
+        std::string("afterCombine returns 1.0 and moves nothing at ") +
+        skip.what;
+      check(inert, label.c_str());
+      ext_rng_destroy(skipReference);
+      ext_rng_destroy(skipRng);
+    }
+  }
+
+  // ---- the same 1.0, through the hook the sweep exposes for these tests ----
+  {
+    const size_t n = 120, p = 2;
+    std::uint64_t state = 20260813u;
+    auto unif = [&]() {
+      state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+      return static_cast<double>(state >> 11) * 0x1.0p-53;
+    };
+    std::vector<double> x(n * p), y(n), z(n);
+    for (double& v : x) v = unif();
+    for (size_t i = 0; i < n; ++i) {
+      z[i] = unif() < 0.5 ? 1.0 : 0.0;
+      y[i] = std::sin(3.0 * x[i]) + z[i] * (1.0 + x[i + n]) +
+             0.2 * (unif() - 0.5);
+    }
+
+    SamplerOptions options;
+    BCFSpec spec;
+    spec.mu.numTrees = 10;
+    spec.tau.numTrees = 5;
+    spec.updateA = false;
+    spec.z = z.data();
+    ext_rng* rng = makeSeamRng();
+    Sampler<ConstantGaussianLeaf> sampler(
+      x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+      0.37804942330213542, options, spec, &rng);
+    Results results;
+    sampler.run(20, 0, results);
+
+    double a0, b0, b1;
+    sampler.chain(0).bcfGlue(a0, b0, b1);
+    std::vector<double> before(n);
+    sampler.forestTotalFits(0, 0, before.data());
+    double one = sampler.chain(0).interweaveGlueRidge();
+    double a1, b0p, b1p;
+    sampler.chain(0).bcfGlue(a1, b0p, b1p);
+    std::vector<double> after(n);
+    sampler.forestTotalFits(0, 0, after.data());
+    bool inert = one == 1.0 && a1 == a0;
+    for (size_t i = 0; i < n; ++i) inert &= after[i] == before[i];
+    check(inert, "the chain hook reports a skipped ridge move as exactly 1.0");
+    ext_rng_destroy(rng);
+  }
+
+  printf("ok: BCF combiner seam pins\n");
+}
+
 // The caller-supplied per-forest observation weight, on the three questions
 // only the engine can answer: the refusal is a returned false and it perturbs
 // nothing; the zeroed rows' sufficient statistics are invariant to their own
@@ -3547,6 +3925,109 @@ static void testMultinomial(ext_rng* rng) {
   }
 
   printf("ok: multinomial softmax sampler\n");
+}
+
+// The SECOND live override of the same post-combine virtual (combiner.hpp,
+// MultinomialForestCombiner::afterCombine), pinned at the same seam as BCF's
+// because M4.2 redefines the virtual for both. Its convention is the opposite
+// one: the move is a dataset-wide ADDITIVE shift, drawn from a single standard
+// normal, and the returned 1.0 is a constant that says nothing about whether a
+// move was made - the base virtual's "the scale its move applied" is already
+// false here. Dyadic fixture values, so the reference shift is exact.
+static void testMultinomialCombinerSeam() {
+  const size_t n = 4, K = 3;
+  std::vector<double> xDummy(n, 0.0);
+  ColumnStore data;
+  data.build(xDummy.data(), n, 1, 100);
+  std::vector<int> labels = {0, 1, 2, 1};
+  std::vector<int> counts, trials;
+  oneHotCounts(labels, K, counts, trials);
+  MultinomialSpec spec;
+  spec.numCategories = K;
+  spec.counts = counts.data();
+  spec.trials = trials.data();
+  MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+
+  // one occupied leaf per tree, at leaf scale 2 and k 2. Forest 0 carries TWO
+  // trees on purpose: the move's four per-tree factors - the leaf sd's
+  // sqrt(m), the conditional's m^2 and m divisors, and the uniform absorption
+  // c/m - are all invisible at a fixture where every m is 1
+  const std::vector<std::vector<double>> leaves = {{0.5, -0.125},
+                                                   {-0.25},
+                                                   {0.75}};
+  const std::vector<std::vector<double>> fits = {{0.25, -0.5, 1.0, 0.125},
+                                                 {0.5, 0.25, -0.75, 1.5},
+                                                 {-1.0, 0.75, 0.5, -0.25}};
+  std::vector<Forest<ConstantGaussianLeaf>> forests(K);
+  for (size_t k = 0; k < K; ++k) {
+    size_t numTrees = leaves[k].size();
+    forests[k].numTrees = numTrees;
+    forests[k].leaf.scale = 2.0;
+    forests[k].k = 2.0;
+    forests[k].totalFits = fits[k];
+    forests[k].indexBuffer.assign(n * numTrees, 0);
+    forests[k].trees.resize(numTrees);
+    forests[k].muByTree.assign(numTrees, std::vector<double>(1, 0.0));
+    for (size_t t = 0; t < numTrees; ++t) {
+      forests[k].trees[t].initialize(forests[k].indexBuffer.data() + t * n, n);
+      forests[k].muByTree[t][0] = leaves[k][t];
+    }
+  }
+  check(leaves[0].size() > 1 && leaves[1].size() == 1,
+        "the seam fixture carries forests of unequal tree count");
+
+  ext_rng* live = makeSeamRng();
+  ext_rng* reference = makeSeamRng();
+  double returned = combiner.afterCombine(forests, false, 0, live);
+  // the conditional, in the shipped order: the per-leaf sd carries sqrt(m), the
+  // precision m^2 and the numerator m, so an m that is 1 everywhere would leave
+  // all three - and the c/m absorption below - unmeasured
+  double precision = 0.0, numerator = 0.0;
+  for (size_t k = 0; k < K; ++k) {
+    double m = static_cast<double>(leaves[k].size());
+    double s = 2.0 / (2.0 * std::sqrt(m));  // leaf scale / (k sqrt(m))
+    double inverseVariance = 1.0 / (s * s);
+    double leafSum = 0.0;
+    for (double value : leaves[k]) leafSum += value;
+    precision += m * inverseVariance / (m * m);
+    numerator += leafSum * inverseVariance / m;
+  }
+  double c = -numerator / precision +
+             ext_rng_simulateStandardNormal(reference) / std::sqrt(precision);
+  check(returned == 1.0,
+        "the multinomial post-combine move returns 1.0 having moved");
+  check(sameStreamPosition(live, reference),
+        "the level-centering shift is one standard normal and nothing else");
+  bool additive = true;
+  for (size_t k = 0; k < K; ++k) {
+    double perTree = c / static_cast<double>(leaves[k].size());
+    for (size_t t = 0; t < leaves[k].size(); ++t)
+      additive &= forests[k].muByTree[t][0] == leaves[k][t] + perTree;
+    for (size_t i = 0; i < n; ++i)
+      additive &= forests[k].totalFits[i] == fits[k][i] + c;
+  }
+  check(additive,
+        "every forest's fits take the whole c while its leaves absorb c/m");
+  ext_rng_destroy(reference);
+  ext_rng_destroy(live);
+
+  // the no-move path returns the SAME 1.0 as the move above, which is exactly
+  // why the return value cannot be read as this combiner's move indicator
+  for (size_t k = 0; k < K; ++k) forests[k].numTrees = 0;
+  ext_rng* skipRng = makeSeamRng();
+  ext_rng* skipReference = makeSeamRng();
+  double one = combiner.afterCombine(forests, false, 0, skipRng);
+  bool inert = one == 1.0 && sameStreamPosition(skipRng, skipReference);
+  for (size_t k = 0; k < K; ++k)
+    for (size_t i = 0; i < n; ++i)
+      inert &= forests[k].totalFits[i] == fits[k][i] + c;
+  check(inert,
+        "a post-combine move with no occupied leaf returns the same 1.0 and "
+        "takes no draw");
+  ext_rng_destroy(skipReference);
+  ext_rng_destroy(skipRng);
+
+  printf("ok: multinomial combiner seam pins\n");
 }
 
 // growForestFromRoot on a multinomial sampler exercises the grow-from-root
@@ -4780,8 +5261,10 @@ void runSamplerTests(ext_rng* rng) {
   testBCFInterweaveKeepTrees(rng);
   testBCFGrowForestFromRoot();
   testBCFZeroMultiplierSnap();
+  testBCFCombinerSeam();
   testForestWeights();
   testMultinomial(rng);
+  testMultinomialCombinerSeam();
   testMultinomialGrowForestFromRoot();
   testMultinomialCountGrowForestFromRoot();
   testMultinomialSetCounts();

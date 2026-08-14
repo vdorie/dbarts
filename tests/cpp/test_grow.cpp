@@ -1036,7 +1036,7 @@ void testCategoricalGroupMassClosedForm() {
   const std::size_t absentGrid[] = {0, 1, 2, 7};
   const std::size_t wideGrid[] = {64, 1024, 65537};
   double worstTotal = 0.0, worstGroup = 0.0;
-  std::size_t numGridCells = 0;
+  std::size_t numGridCells = 0, numGroupCells = 0;
   for (std::size_t numPresent : presentGrid) {
     std::vector<std::size_t> reaches;
     for (std::size_t absent : absentGrid) reaches.push_back(numPresent + absent);
@@ -1062,6 +1062,7 @@ void testCategoricalGroupMassClosedForm() {
           (std::pow(2.0, static_cast<double>(numReachable)) - 2.0);
         double relativeGroup = std::fabs(perCandidate - group) / group;
         if (relativeGroup > worstGroup) worstGroup = relativeGroup;
+        ++numGroupCells;
       }
     }
   }
@@ -1099,7 +1100,8 @@ void testCategoricalGroupMassClosedForm() {
   }
 
   printf("  categorical group mass over %zu (R, P) cells spanning both "
-         "branches and the cap\n", numGridCells);
+         "branches and the cap, %zu of them below it\n", numGridCells,
+         numGroupCells);
   printf("    worst relative error: family total %.2e, per-partition group "
          "%.2e, A = 0 cross-check %.2e\n", worstTotal, worstGroup,
          worstCrossCheck);
@@ -1107,6 +1109,13 @@ void testCategoricalGroupMassClosedForm() {
   check(worstTotal <= 1e-12,
         "the emitted candidates' masses sum to the family's total, both "
         "branches");
+  // the below-cap arm is the family total's only independent anchor, so its
+  // reach is asserted rather than assumed: 5 present counts at or under the
+  // cap against the 4 reaches the absent grid supplies (the three wide reaches
+  // are past 40). A grid that drifted off the cap would otherwise pass here
+  // silently, having measured nothing.
+  check(numGroupCells == 20,
+        "the per-partition arm runs on every below-cap cell of the grid");
   check(worstGroup <= 1e-12,
         "below the cap a candidate carries exactly its partition's group mass");
   check(worstCrossCheck <= 1e-12,
@@ -1136,6 +1145,13 @@ struct CategoricalGrowFixture {
   std::uint32_t numObserved;  // fewer, so categories stay reachable but absent
   bool missing;
   size_t numIterations;
+  // every row of category 0 leaves with weight zero. Occupancy is on integer
+  // counts, so the category is PRESENT at every node holding one of its rows -
+  // a histogram bin the partition places and never an absent position - while
+  // a whole side of that partition can carry no mass at all. The count-based
+  // empty sentinel must not fire on such a side, and the coin census must
+  // count the category exactly as it does under uniform weights.
+  bool zeroWeightCategory = false;
 };
 
 // Gauge and coin bookkeeping for one grown internal node, returning the coins
@@ -1143,6 +1159,11 @@ struct CategoricalGrowFixture {
 struct GaugeTally {
   size_t nodes = 0, absentSeen = 0, absentRight = 0;
   size_t missingPresent = 0, missingAbsent = 0;
+  // nodes whose present count sits at or under the exhaustive cap, i.e. the
+  // ones scanned by enumerating partitions rather than sorted prefixes. Both
+  // branches must be met, and on a pooled column that is a property of the
+  // recursion (P falls with depth), not of the fixture's declared level count.
+  size_t belowCap = 0;
   bool inGauge = true, occupied = true, roundTrip = true;
 };
 
@@ -1187,6 +1208,7 @@ size_t tallyCategoricalNode(const Tree& tree, const ColumnStore& store,
     if (category == missingCode) ++tally.missingAbsent;
   }
   ++tally.nodes;
+  if (numPresent <= categoricalExhaustiveCap) ++tally.belowCap;
   return 1 + (numReachable - numPresent);  // orientation, then one per absent
 }
 
@@ -1196,6 +1218,7 @@ void testCategoricalGrowGaugeAndCoins() {
     {"inline K = 6 with NA", 6, 5, true, 400},
     {"pooled K = 70", 70, 62, false, 200},
     {"pooled K = 70 with NA", 70, 60, true, 200},
+    {"inline K = 6, category 0 weightless", 6, 5, false, 400, true},
   };
   const size_t n = 420;
 
@@ -1215,6 +1238,18 @@ void testCategoricalGrowGaugeAndCoins() {
       // is still reachable there: the position is then drawn by its own coin
       if (fixture.missing && i % 7 >= 5 && i % 3 == 0) x[i] = std::nan("");
     }
+
+    std::vector<double> weightStorage;
+    if (fixture.zeroWeightCategory) {
+      weightStorage.assign(n, 1.0);
+      size_t zeroed = 0;
+      for (size_t i = 0; i < n; ++i)
+        if (x[i] == 0.0) { weightStorage[i] = 0.0; ++zeroed; }
+      check(zeroed > 0,
+            "the weightless fixture really zeroes a present category");
+    }
+    const double* weights =
+      weightStorage.empty() ? nullptr : weightStorage.data();
 
     ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
     std::uint32_t categoryCounts[] = {fixture.numLevels, 0};
@@ -1240,16 +1275,27 @@ void testCategoricalGrowGaugeAndCoins() {
     std::vector<double> params, rebuiltParams;
     std::vector<FlatNode> flat;
     std::vector<std::int32_t> internal;
-    size_t expectedUniforms = 0;
+    size_t expectedUniforms = 0, weightlessLeaves = 0;
+    std::vector<std::int32_t> bottom;
     std::clock_t started = std::clock();
 
     for (size_t iteration = 0; iteration < fixture.numIterations; ++iteration) {
       tree.initialize(indexBuffer.data(), n);
-      tree.computeLeafStats(0, y.data(), nullptr);
-      growTreeFromRoot(store, prior, leaf, rng, tree, 0, y.data(), nullptr, 2.0,
+      tree.computeLeafStats(0, y.data(), weights);
+      growTreeFromRoot(store, prior, leaf, rng, tree, 0, y.data(), weights, 2.0,
                        0.9, scratch);
       expectedUniforms += positiveGrowthNodeCount(tree, store, prior);
       tally.occupied &= tree.bottomNodesAreOccupied();
+      if (weights != nullptr) {
+        // the side the count-based sentinel exists to let through: occupied,
+        // so not empty, and carrying no mass at all
+        bottom.clear();
+        tree.fillBottom(0, bottom);
+        for (std::int32_t node : bottom)
+          if (tree.at(node).numObservations() > 0 &&
+              tree.at(node).sumWeights == 0.0)
+            ++weightlessLeaves;
+      }
       internal.clear();  // fillNotBottom appends
       tree.fillNotBottom(0, internal);
       for (std::int32_t node : internal) {
@@ -1288,13 +1334,24 @@ void testCategoricalGrowGaugeAndCoins() {
     ext_rng_destroy(replay);
     ext_rng_destroy(rng);
 
-    printf("  %s: %zu rules over %zu grows, %zu absent positions drawn (%zu "
-           "right), missing bin present/absent %zu/%zu, %.3f ms per grow\n",
-           fixture.name, tally.nodes, fixture.numIterations, tally.absentSeen,
-           tally.absentRight, tally.missingPresent, tally.missingAbsent,
+    printf("  %s: %zu rules over %zu grows (%zu below the cap), %zu absent "
+           "positions drawn (%zu right), missing bin present/absent %zu/%zu, "
+           "%.3f ms per grow\n",
+           fixture.name, tally.nodes, fixture.numIterations, tally.belowCap,
+           tally.absentSeen, tally.absentRight, tally.missingPresent,
+           tally.missingAbsent,
            1000.0 * elapsed / static_cast<double>(fixture.numIterations));
 
     check(tally.nodes > 0, "the categorical fixture grows past the root");
+    // both scan branches are met, and on the pooled column that is the claim
+    // with content: a declared K = 70 still recurses down to nodes the
+    // enumeration scans, so the pooled tier is not a prefix-only path
+    if (store.columnIsPooled(0))
+      check(tally.belowCap > 0 && tally.belowCap < tally.nodes,
+            "a pooled column reaches both the enumerated and the prefix scan");
+    else
+      check(tally.belowCap == tally.nodes,
+            "every node of an inline fixture under the cap is enumerated");
     check(tally.inGauge, "every grown categorical mask is in gauge");
     check(tally.occupied, "every child of a grown categorical rule is occupied");
     check(tally.absentSeen > 0 && tally.absentRight > 0 &&
@@ -1308,6 +1365,10 @@ void testCategoricalGrowGaugeAndCoins() {
       check(tally.missingPresent > 0 && tally.missingAbsent > 0,
             "the missing pseudo-category is placed as a bin at some nodes and "
             "drawn as an absent position at others");
+    if (fixture.zeroWeightCategory)
+      check(weightlessLeaves > 0,
+            "a weightless present category is partitioned into leaves of its "
+            "own rather than sentineled away");
   }
 
   printf("ok: grow categorical gauge, legality and coin count\n");

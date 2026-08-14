@@ -183,12 +183,9 @@ items
     categorical-blind floor by paired D +1.33 (z 46.7) and beats
     cold at t = 1, but delays plateau attainment ~6x - the opt-in
     stance stands, the default question stays closed. Residue
-    ticketed: ordinal-scan-missing-rows (own entry); S2 test-
-    hardening items for the next tests/cpp-touching slice
-    (ran-at-all counter for the per-partition mass arm; assert
-    O2's pooled-below-cap coverage; an all-zero-weights
-    present-category fixture); the multiforest fuzz op-mask door
-    (OP_GROW rides it with OP_SET_COUNTS).
+    ticketed: ordinal-scan-missing-rows (own entry); the multiforest
+    fuzz op-mask door (OP_GROW rides it with OP_SET_COUNTS). The
+    three S2 test-hardening items landed with M4.0.
   hurdle-variance-forwarding: the feature matrix
     (docs/design/feature-matrix.md) records that a hurdle model
     forwards variance = to BOTH components while the occupancy
