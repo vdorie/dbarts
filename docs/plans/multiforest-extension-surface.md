@@ -745,9 +745,9 @@ exists":
                                             VD 2026-08-11); probes RAN
                                             2026-08-13; M4.0 LANDED 562ee684,
                                             M4.1 LANDED 1458328c, M4.2 LANDED
-                                            1a2aaedc, next step M4.3 (both
-                                            preconditions discharged
-                                            2026-08-14)
+                                            1a2aaedc, M4.3 LANDED 9c63e9d8,
+                                            next step M4.5, then M4.4 (hatch
+                                            order)
     1.0-0 freeze
 
 M0 and M1 must land after bcf-public-surface S4 rather than beside it: S4 is
@@ -1458,12 +1458,9 @@ crashed, none was UNOBTAINABLE), and this commit is the re-scope. **M4.0
 LANDED 562ee684**, whose pin scope - BOTH `afterCombine` overrides - the
 verdicts left unchanged, per the Landing notes below. **M4.1 LANDED
 1458328c**, follow-up e48fc5de. **M4.2 LANDED 1a2aaedc**, amended once after
-independent review. **The next step is M4.3, and both of its entry
-preconditions are DISCHARGED by the 2026-08-14 amendment inside that slice**:
-the `setTreatment` x `installForestBasis` interaction spec is written (SUBSUME)
-and M4.3's own test budget is stated fresh at ~645 dense-equivalent (band
-~590-660). The old band reads ~797 consumed of ~350-450 (Budget, below; the
-~732 recorded there was an arithmetic slip, corrected).
+independent review. **M4.3 LANDED 9c63e9d8**, amended once after independent
+review (LAND-AFTER-CHANGES, four dispositions applied). **The next step is
+M4.5, then M4.4 (hatch order).**
 **The slice order is now M4.0 -> M4.1 -> M4.2 -> M4.3 -> M4.5,
 Gaussian-complete, with M4.4 as the IMMEDIATE follow-on slice**, still
 pre-release (fork 2 holds both slices inside the window; the escape hatch
@@ -2214,8 +2211,11 @@ in FA1 and FA5 below ARE the record.
   `createBCFSampler`'s single `SamplerFacade<ConstantGaussianLeaf>`
   instantiation is the fifth place the assumption is baked in. **This slice's
   ENGINE work is UNPRICED (recorded 2026-08-14): five sites and no line count.
-  Its pre-slice check MUST price it, against the ~172-222 the engine band has
-  left after M4.3 (M4.3's amendment, item 7).**
+  Its pre-slice check MUST price it, against what the engine band has left
+  after M4.3, RECOMPUTED on M4.3's LANDED dense-equivalent net rather than
+  the amendment's estimate (M4.3's landing note, BUDGET UNITS CORRECTION):
+  M4.1 ~48 + M4.2 ~180 + M4.3 ~165 = ~393 of the ~500-700 band, leaving
+  ~107-307.**
 
   **RE-SCOPED 2026-08-13 on the probe verdicts (`probes-2026-08-13.md`): this
   slice moves to the END of the arc, as the IMMEDIATE follow-on to M4.5, and
@@ -2271,6 +2271,12 @@ in FA1 and FA5 below ARE the record.
   `dbarts.h` entries and cited `dbarts.h:264-271`, all retired at reshape S1);
   **FIXED 2026-08-13 in the pre-M4 amendment commit**, so M4.5 inherits a
   correct paragraph rather than a deliverable.
+
+  M4.3 LANDED 9c63e9d8 without touching either open doc item, so M4.5 now
+  inherits both by name: the `docs/design/bcf.md` a-move-as-prognostic-only
+  correction, stale since M4.2 recorded it and deferred it here, and the SIX
+  meaning-moving `dbarts.h` Doxygen paragraphs listed above, still open
+  after M4.3. M4.5 is the docs sweep and closes both.
 
 Falsifiers, all AMENDED 2026-08-13 except FA3, FA4 and FA6.
 
@@ -3540,3 +3546,88 @@ M4.5 by design.
 Battery: implementer and reviewer both from clean - tinytest 4582/0 twice,
 trio bitwise twice (37 strict/12/10), ASAN zero twice, seven protected pin
 bodies byte-identical across revs.
+
+M4.3 LANDED 9c63e9d8, CI six-green sanitizers included, amended once after
+independent review (LAND-AFTER-CHANGES -> four dispositions applied). The
+K-length spec surface: setTreatment RETIRED as a mutator at all four layers
+(combiner/chain/sampler/facade) -> setForestBasis(f, values, q);
+installTreatment became the constructor-only synthesizeIndicatorBasis;
+installForestBasis is the SOLE mutator with index/width/finiteness guards;
+glue_.z DELETED (drawShippedGlue partitions from basis[1] - the trio proved
+the bitwise claim); draw-path selection by the per-forest basisIsCanonical
+VALUE predicate, recomputed at install and restore, never serialized;
+bcfGlue re-signed to totalAmplitudes/numForestAmplitudes/amplitudes with a
+K=2 thin adapter; BCFSpec gained the K-length forests vector with
+expandForestSpecs (all 25 BCFSpec fixtures untouched); data@treatment
+retired for a data@bases LIST riding creation - which is how
+restore-then-widen is met with no fourth reapply hook; the persistence
+guarantee survives (the adapted pin asserts VALUES through the combination,
+review-verified not weakened). The bcf-equivalence harness migrated
+IN-COMMIT; all baselines untouched.
+
+The seven interaction arms: 1-5 in testForestBasisOrdering (replacing
+testForestBasisSynthesis, coverage preserved), 6-7 plus the state/glue/probe
+legs in the new inst/tinytest/test-forest-basis-r5.R (48 results after the
+review round).
+
+Refusal ledger AS THE REVIEW RE-DERIVED IT (the implementer's 6/1/4/34 claim
+corrected): 5 relax, 3 restate, 4 rewritten by the slot retirement, 33
+stand, and ONE refusal dropped outright with licensed successors - the
+treatment-coding refusal, replaced by length/finiteness refusals at
+creation. consumer.c: 4 legs moved (2 inverting), LEG_COUNT 18 -> 19, plus
+the review's REQUIRED fix - the legRefusals initializer carried 20 elements
+for LEG_COUNT 19, a silent-vanish hazard under -Werror toolchains in the
+LinkingTo canary (one line, deleted).
+
+Protected-pin record, corrected: the plan's protected set is the 22
+non-rewritten BCFSpec fixtures; 11 cpp pin bodies verified byte-identical by
+BOTH implementer and reviewer; exactly the three licensed rewrites moved;
+three additional moves were FORCED by the licensed ragged ChainStateData and
+are claim-accuracy corrections, not lost guards - test_fuzz.cpp
+(state.chains a -> amplitudes), common.cpp structSize 272 -> 344 (the
+tripwire designed to force it), statesAgree.
+
+Review's other required fix, the M4.0 lesson recurring: Arm 5(iii) was a
+DEAD PIN (canonicalA/canonicalB from identical expressions, true under any
+implementation) - rewritten to hold the treated column fixed and move the
+control column off its determined 1-z, with the red/green shown. Coverage
+additions from the review: the ridge derivation pinned BY NAME (basis-free
+(1, sd) vs basis-carrying (apv, 0), proven read by flipping the transported
+scale); K-length numTrees (a (13,31,7) spec reports 13); a positive
+continuous dbartsData(bases=) arm asserted through fitted-value
+reconstruction.
+
+The ridgeB question RESOLVED at review: no silent enablement is possible -
+on every creation route scale-mixture holds if and only if a forest is
+basis-free (R/model.R writes halfCauchyScale = 0 whenever a basis is
+declared), so every basis-carrying forest gets ridge = false; the one
+reachable q>1 scale-mixture state (post-creation widening of a basis-free
+forest) consumes the SAME single GIG draw already taken at q=1 at the
+M4.2-validated exponent - no stream moves. The M4.2 door stays shut; the
+trio is the standing evidence.
+
+Deviations adjudicated: $getForestAmplitudes(forest = NULL) SATISFIES the
+collision license (takes the argument; the universal 3 x n.chains Rd claim
+is gone; the unchanged K=2 shape left the two shipped pins green - more
+evidence, not less); the K-length params transport derives each forest's
+ridge from scale-mixture-ness (the correct trigger per the resolution
+above); the sampler numTrees fix reads the expanded spec (caught by a red
+setControl pin, not the plan).
+
+BUDGET UNITS CORRECTION: the implementer's 604/632/314 were RAW nets; the
+plan's bands are DENSE-EQUIVALENT. Dense engine net is ~165 vs the ~250-300
+band (85-135 UNDER - most of the raw is Doxygen); tests raw 603 in the
+590-660 band under item 6's own raw-span convention. No overage existed;
+record the units so the next slice prices in one currency.
+
+Minor open items recorded (review finding 5 residue): the restore-recompute
+clause of the canonical predicate is satisfied but VACUOUS (restoreGlue
+never touches basis values; the load-bearing recompute is the install-time
+one) - a doc-level note; the dbarts.h transpose fix landed doc-only, hash
+verified three ways (static_assert, consumer.c legs, the test-capi.R
+literal pin; 188/0).
+
+Battery: implementer and reviewer both from clean - tinytest 4646/0 final
+(4633 pre-amend), trio bitwise twice through the migrated harness, ASAN
+zero twice, R CMD check --as-cran OK 0/0/0 on a git-archive tarball, pkgdown
+clean, no new Rd topic.
