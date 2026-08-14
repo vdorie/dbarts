@@ -1,6 +1,6 @@
 # Design doc index
 
-Manifest of every `docs/design/*.md` (44 docs besides this index), grouped by
+Manifest of every `docs/design/*.md` (45 docs besides this index), grouped by
 theme. STATUS is
 read from each doc's live `Status:` line or `## Status` section as of
 2026-08-04, when a consistency pass re-verified every row against its doc;
@@ -16,6 +16,7 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | bcf.md | LANDED | Two-forest (prognostic mu + treatment tau) Bayesian Causal Forests sampler (Hahn/Murray/Carvalho 2020); landed 2026-07-07, mixing refinements through 07-10. Plans: bcf-b-ridge, bcf-ridge-interweaving, bcf-sigma-residual, bcf-testfits-guard, forest-split-bcf. |
 | forest-combiner.md | LANDED, 2026-07-14 | Promotes BCF's hardcoded Chain-side glue into a polymorphic `ForestCombiner<L>` so multinomial/future multi-forest models reuse it; null-short-circuit costs single-forest chains nothing. Plan: forest-combiner.md. |
+| multiplier-combiner.md | LANDED, Gaussian-complete, 2026-08-13/14 | The general K-forest basis/amplitude family: each forest's n x q_f row-major basis contracts with its amplitude vector into a per-row multiplier, of which bcf's `a mu + b_z tau` is the K = 2 instance. Carries the amplitude conditional, the general ASIS ridge, the three accumulation contracts, the one mutation route and the ragged persistence layout. Gaussian only pending M4.4. Plan: multiforest-extension-surface.md M4. |
 | model-space-survey.md | COMPLETE (survey), 2026-08-08 | The research gate in front of the multi-forest update-shape doors: which model classes justify which mutation shape. Doors 1 (n-free multi-forest setData) and 3 (setData on CSC/mixed) KEEP UNDESIGNED; door 2 (per-forest row subsetting) value-lifted by one class (mixture-cure BCF) with mask-vs-zero-weight-vs-compaction UNRESOLVED. Surfaces three new doors (D1 multi-forest predictor mutation - the most valuable pick, D2 multinomial counts/offset channel, D3 public BCF creation surface) and the variance-forest mutation-routing defect. |
 
 ## Response families

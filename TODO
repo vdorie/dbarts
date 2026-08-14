@@ -34,6 +34,18 @@ items
     Gibbs/MH sampler replicates them without re-deriving the math.
     Value-lifted by the r-c-division adoption slate
     (docs/design/r-c-division.md); ~240 lines. SCHEDULED, pre-release.
+  bcf-naming-generalization: the shipped K-forest amplitude family is
+    spelled with BCF names at every layer - BCFSpec, BCFForestSpec,
+    BCFState, BCFForestCombiner, createBCFSampler,
+    ChainStateData::hasBCF and the state format's "bcf" block - so each
+    reads "BCF" where it means "carries amplitudes". The debt and its
+    mitigation (every capability probe is totalAmplitudes() != 0, never
+    a name or a forest count) are described in
+    docs/design/multiplier-combiner.md. A rename is ENGINE work, not a
+    docs edit: a --preclean, a structSize move on the state fixtures
+    (common.cpp already tripped once, 272 -> 344), and a state-block key
+    change needing the same in-place re-encode M4.3 used. Pre-release,
+    unscheduled.
   bcf-public-surface: S0-S4 and S6 landed; the public creation
     surface exists (plan + landing notes in
     docs/plans/bcf-public-surface.md). REMAINING: S5 (bcf() and the
@@ -145,6 +157,17 @@ items
     bitwise.
   facade-shape: LANDED (record in docs/plans/facade-shape.md);
     SamplerShape POD, oracled by tests/cpp test_shape.
+  feature-matrix-anchor-refresh: docs/design/feature-matrix.md's
+    line-number anchors date to ab3aa2fa, and M4.1-M4.3 moved
+    src/bartcore/combiner.hpp substantially, so the COM anchors are
+    stale by hundreds of lines. M4.5 re-verified FOUR by symbol against
+    its own tree - the bcf row label (COM:685), the two bcf response/offset
+    cells (COM:963), the bcf zero-weight-subset cell (COM:787, 823-827)
+    and the multinom active-rows cell (COM:1581) - and recorded the
+    exception in the file's alias-table paragraph. Everything else is
+    unchecked, and the Status line's "current at" commit was
+    deliberately not bumped. Open: a full by-symbol re-anchor pass, at
+    which point the stamp can move. Pre-release.
   forest-ranef-interweaving: RESEARCHED, NO-GO now - record,
     permanent gate (benchmarks/R/grouped-mixing.R), and the
     VD-sign-off reopen clause in

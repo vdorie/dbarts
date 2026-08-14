@@ -6,8 +6,10 @@ forestMultiplier, the if(bcf_) sweep branches - the shape bcf.md's Forest
 split shipped in) into a polymorphic ForestCombiner<L> hierarchy beside
 Forest<L> (src/bartcore/combiner.hpp since the multinomial extraction below;
 src/bartcore/chain.hpp at this refactor's own landing). BCFForestCombiner<L> is
-its first instance, the math it carries unchanged from bcf.md and
-bcf-ridge-interweaving's landing; MultinomialForestCombiner<L>
+its first instance, the math it carried unchanged from bcf.md and
+bcf-ridge-interweaving's landing at the time - since GENERALIZED to the K-forest
+basis/amplitude family, whose math is docs/design/multiplier-combiner.md's;
+MultinomialForestCombiner<L>
 (docs/design/multinomial.md) is now the second. docs/plans/forest-combiner.md carries the
 step plan, its binding contracts, and its resolved Open questions; this note
 records the shape as landed and what it does and does not anticipate.
@@ -46,11 +48,17 @@ the BCF constructor. The landed virtual surface:
   post-combine move, fired at the fixed sweep points in the fixed order (a,
   aVariance, b0, b1, then the ridge rescale v). Both are inert by default (a
   combiner that only forms an additive combination need not override them).
-  afterCombine returns the scale its move applied (1.0 when it makes none);
-  the sweep discards the return value, but `Chain::interweaveGlueRidge` - a
-  public forwarder kept for the component tests - passes it through, which is
-  how tests/cpp pins the ridge move's magnitude without reaching into
-  BCFForestCombiner's private state.
+  afterCombine's return is a REPORTING channel, not a record of whether it
+  moved: each override states its own convention, 1.0 does NOT mean the state
+  is unchanged, and no caller may read it that way (CORRECTED here; the base
+  Doxygen is authoritative, combiner.hpp:562-572). The per-forest amplitude
+  rescale returns the scale applied to the forest it reports, 1.0 if that one
+  held while another travelled; the multinomial level shift returns 1.0
+  unconditionally, HAVING moved, an additive move having no scale to report.
+  The sweep discards the value, but `Chain::interweaveGlueRidge` - a public
+  forwarder kept for the component tests - passes it through, which is how
+  tests/cpp pins the ridge move's magnitude without reaching into the
+  combiner's private state.
 - `drawForestGlue(f, rng, forests)` - a per-forest pre-update hook, fired inside
   the sweep just before forest f's tree update with the partially updated
   forests (0..f-1 new this sweep, f..K-1 old). A no-op consuming no rng by
@@ -76,6 +84,11 @@ the BCF constructor. The landed virtual surface:
   `Chain::bcfGlue` forward to. Both are inert/false by default; bcfGlue's
   false return is the "no glue" answer a future non-BCF combiner gives for
   free, the same answer Chain already gives when combiner_ is null.
+  (BOTH RETIRED SINCE, at M4.3: `setTreatment` is gone from all four layers in
+  favour of `setForestBasis(f, values, numColumns)`, and `bcfGlue` gave way to
+  the ragged `totalAmplitudes`/`numForestAmplitudes`/`amplitudes` trio, of
+  which bcf's three scalars are a named non-virtual reading. See
+  docs/design/multiplier-combiner.md, "One mutation route".)
 
 BCFForestCombiner<L> is static_assert-gated to `!L::hasVectorParams &&
 !L::hasFunctionParams` - constant leaf only, mirroring the constraint the
@@ -108,42 +121,54 @@ never inside the per-observation partition/suffstat kernels.
 
 ## BCFForestCombiner<L>: the first instance
 
-Holds `BCFState` (the borrowed treatment vector z, the glue a/b0/b1/aVariance,
-the priors, the updateA/updateB switches, and the per-sweep combined/
-forestResponse/forestWeights scratch) plus a `const ColumnStore&` for the
-observation count and, in afterCombine, the data the ridge move touches. Built
-from `(data, spec)` by Chain's BCF constructor. The math is unchanged from
-bcf.md and bcf-ridge-interweaving's landing, relocated verbatim:
+**GENERALIZED SINCE (M4.0-M4.3, 2026-08-13 to 2026-08-14). The math this
+section carried is now docs/design/multiplier-combiner.md's, and this section
+is a pointer plus the combiner-hierarchy facts.** The class is no longer a
+two-forest object: it is the general K-forest basis/amplitude family, each
+forest contributing `m_{f,i} f_f(x_i)` with `m_{f,i} = dot(a_f, B_f(i, .))` a
+contraction of that forest's own n x q_f row-major basis with its own amplitude
+vector, of which bcf's `a mu + b_z tau` is the K = 2 instance
+(combiner.hpp:685, chain.hpp:687-689, facade.hpp:774-776). The SPELLING is
+still bcf's at every layer, which is recorded as debt in that design note.
 
-- `formForestResponse` divides the residual by forest f's scale multiplier (a
-  for mu, b_z for tau) and scales the weight by the multiplier squared - the
-  resid/m, w*m^2 pair that reproduces bcf.md's model equation (y = a mu +
-  b_z tau + eps) in each forest's own constant-leaf node sums. A multiplier
-  indistinguishable from zero at `sqrt(DBL_EPSILON)` (2^-26) snaps both to
-  exactly 0.0 instead of dividing by a floored near-zero value (2026-08-10,
-  docs/plans/zero-weight-exactness.md); it composes with an optional
-  caller-settable per-forest weight `s_{f,i}` installed by
-  `Chain::setForestWeights`, applied as one further multiplicative factor on
-  the weight channel right after this call returns, before the tree loop.
-- `combinedFits` blends `a * mu + b_z * tau` per observation.
-- `drawGlue` draws the Gaussian full conditionals for a (with its half-Cauchy
-  scale-mixture auxiliary aVariance) and b0/b1 (docs/design/bcf.md).
-- `afterCombine` is the interweaving (ASIS) rescale of the prognostic glue
-  ridge (docs/design/bcf.md, "Burn-in" and bcf-ridge-interweaving's folded-in
-  history), reaching Forest<L>'s treeFits/totalFits/test fits and saved-tree
-  FlatNodes to apply the same scale c the glue a absorbed.
-- `reportedForest()` returns 0 (the prognostic forest); `testFitsAreDefined()`
-  and `logLikelihoodIsDefined()` both return false, since BCF's API carries no
-  test treatment vector to blend an off-sample a*mu + b_z*tau, and the blended
-  per-observation location is not visible to the response model to score -
-  storeSample NaN-flags both channels rather than silently misreporting the
-  bare prognostic forest.
-- `serializeGlue` sets hasBCF = true and copies a/aVariance/b0/b1 into
-  ChainStateData; `restoreGlue` is a no-op when the state carries none, so a
-  mismatched restore leaves the glue at its constructed values rather than
-  clobbering them with zeros.
+What is combiner-hierarchy content, and stays here:
+
+- It holds `BCFState` (the per-forest bases and their canonical flags, the flat
+  ragged amplitude vector and its offsets, the per-forest amplitude priors, and
+  the per-sweep combined/forestResponse/forestWeights scratch) plus a
+  `const ColumnStore&` for the observation count and, in afterCombine, the data
+  the ridge move touches. Built from `(data, spec, numForests)` by Chain's
+  K-forest constructor.
+- It is `static_assert`-gated to a constant leaf, and the chain it is built by
+  is Gaussian-only - both are hierarchy constraints, not model choices, and the
+  second is M4.4's to lift.
+- Every virtual it overrides, it overrides as ONE instance would: which
+  channels it defines (`testFitsAreDefined` and `logLikelihoodIsDefined` both
+  false, so storeSample NaN-flags rather than silently reporting the bare
+  reported forest), which conduits it opens (`supportsResponseMutation` and
+  `supportsForestWeights` both true, each with its own recorded reason), and
+  which it declines (`combinedTestFits`, the counts/offset trio,
+  `setActiveRows`, all left at the base's refusing default).
+- `serializeGlue` is the sole writer of `hasBCF = true`, per the marker
+  contract above; `restoreGlue` is a no-op on a state carrying no glue, and
+  `glueIsValid` - a THIRD wire virtual, added after this refactor - refuses a
+  state whose per-forest widths differ from the live ones even at an equal
+  total.
+
+Everything else - the model, the amplitude layout, the reparameterization and
+its `0x1p-26` snap, the q-variate conditional and its LDL' factorization, the
+general per-forest ASIS ridge (which is no longer a PROGNOSTIC-only move: its
+q = 1 instance is bcf's a-move bitwise, its q = 2 fixed-variance instance the
+b-move, and both are one mechanism at exponent `p = (L - q)/2`), the canonical
+draw-path predicate, the single mutation route, the ragged persistence layout
+and the three accumulation contracts - is docs/design/multiplier-combiner.md.
 
 ## What still re-carves when a second combiner lands
+
+The title's premise is spent: three combining models have landed since it was
+written (multinomial 2026-07-15, heteroscedastic's weight-channel variance
+forest 2026-07-20, the general multiplier family 2026-08-14). It is kept as the
+running record of what has and has not generalized.
 
 The combiner's input side already generalizes beyond two forests without
 having built past BCF: `combinedFits`/`formForestResponse` take the whole
@@ -155,37 +180,83 @@ owns its coupling and its internal draw order freely; `storeSample` already
 asks the combiner which forest each reported channel addresses via
 reportedForest() rather than hardcoding forest 0.
 
-What does NOT yet generalize is Chain-level, not combiner-API, and was the
-honest remaining work the second combiner would meet; multinomial (below) has
-since resolved the first and last of these, leaving heteroscedastic and hurdle
-the middle two (recorded here so multi-forest-models.md plans against reality,
-not against what the API merely gestures at):
+What did NOT yet generalize was Chain-level, not combiner-API, and was the
+honest remaining work the second combiner would meet. Three of the four are now
+resolved - multinomial took the first, heteroscedastic the second, the
+multiplier family the fourth - leaving hurdle's the only one standing:
 
 - The combined-fit OUTPUT was a single n-vector: `combinedFits` returned
-  `const double*` and `results.trainingFits` was one channel. Multinomial's
-  n x K combined object was carried by a location-count seam
+  `const double*` and `results.trainingFits` was one channel. RESOLVED by
+  multinomial: its n x K combined object was carried by a location-count seam
   (`numReportedLocations()`, docs/design/multinomial.md) widening combinedFits
   and the training/test writes; `refreshLatents`/`drawSigma` did NOT widen
   (softmax needs no per-observation location on the response side, its K PG
   draws living in the combiner's drawForestGlue), so the predicted
   three-call-site change was really one seam.
 - Chain holds exactly one `response_` and one `sigma_`. Heteroscedastic's
-  variance forest needs either the unused weight-channel route above or a
-  per-observation sigma - a decision this plan explicitly deferred (TODO,
-  architecture-numerical-review.md).
+  variance forest needed either the unused weight-channel route above or a
+  per-observation sigma - a decision this plan explicitly deferred. RESOLVED,
+  2026-07-20 (docs/design/heteroscedastic.md): the WEIGHT-channel route was the
+  right one, and it landed as a Chain-side nullable `varianceForest_`
+  (chain.hpp:680-682) rather than through a combiner at all. The Chain
+  constraint itself stands unchanged; what is settled is the decision, not the
+  constraint. The combiner's own weight-channel seam is therefore STILL the
+  unused route a future combiner-HOSTED variance forest would take.
 - Chain holds a single-leaf-type `std::vector<Forest<L>>` (one L for every
   forest). Hurdle's per-forest response families (an occupancy forest under
   one family, a positive-part forest under another) break that invariant;
-  it is not a property the combiner API constrains.
-- `ChainStateData`'s glue fields are BCF-shaped (a/aVariance/b0/b1). A non-BCF
+  it is not a property the combiner API constrains. STILL OPEN, and see
+  "Anticipated" below for why hurdle no longer asks for it.
+- `ChainStateData`'s glue fields were BCF-shaped (a/aVariance/b0/b1). RESOLVED
+  by the multiplier family (M4.3): they are now `hasBCF`, `amplitudeWidths`,
+  `amplitudes` and `amplitudeVariances` - RAGGED, with the widths travelling
+  because a TOTAL IS NOT A LAYOUT, `q = (1, 3)` and `q = (2, 2)` both carrying
+  four amplitudes (combiner.hpp:92-102) - and the four named scalars survive
+  only as a hand-written K = 2 reading, non-authoritative (:103-109). The
+  bullet's CONCLUSION is what the arc vindicated and it stands: a non-BCF
   combiner overrides `serializeGlue`/`restoreGlue` rather than reaching for an
-  accessor - the interface point is already right. It need not always write
+  accessor, so the interface point was already right. It need not always write
   anything: the multinomial combiner serializes NOTHING (docs/design/
   multinomial.md), redrawing its per-sweep Polya-Gamma latents against the
-  restored forests structurally, so restore is structural, not bitwise. Only a
-  combiner carrying un-recoverable scalar glue of its own shape would need a
-  wire-format bump (the flat-format-v2 scheme public-surface.md anticipates)
-  first - not every multi-forest model does.
+  restored forests structurally, so restore is structural, not bitwise. The
+  interface point did grow a THIRD virtual, `glueIsValid` (combiner.hpp:675,
+  :1018-1028), the layout check `stateIsValid` routes through so a same-total
+  different-layout state cannot be written through the live offsets.
+
+### What the multiplier family closed, and what it opened
+
+The combiner API's own input side is now general in K AND in per-forest basis
+width: `setForestBasis` (combiner.hpp:511-517), the amplitude trio
+`totalAmplitudes`/`numForestAmplitudes`/`amplitudes` (:550-560), and a ragged
+glue wire block (:666-675). The math is docs/design/multiplier-combiner.md's
+and is not restated here.
+
+**What the virtual surface grew, and the general rule it grew under.** Since
+2026-07-14 the base gained `combinedTestFits`, `setForestBasis`,
+`supportsCountsMutation`/`setCounts`/`setCategoryOffset`/
+`setCategoryTestOffset`, the amplitude trio, `forestReportingIsDefined`,
+`numReportedLocations`, `numVariableCountForests`/`variableCountForest`,
+`supportsResponseMutation`, `supportsForestWeights`, `setActiveRows` and
+`glueIsValid` (combiner.hpp:487-676). Every one of them follows one rule, and
+it is the sentence worth landing: **each is a CAPABILITY predicate defaulting
+to the REFUSING answer, so a future combiner stays refused at the bridge until
+it is audited** (combiner.hpp:526-528, :634-638, :645-647). And never a
+forest-count test, because a K-forest multinomial defeats one - which is why
+the bridge probes `totalAmplitudes() != 0` instead (C_interface.cpp:764-770).
+
+What still does NOT generalize, after M4:
+
+- (i) The single-leaf-type forest vector, unchanged (third bullet above).
+- (ii) Non-Gaussian. The K-forest constructor hardcodes `GaussianResponse` and
+  `family_ = ResponseFamily::gaussian` (chain.hpp:702-705), and
+  `createBCFSampler` carries a single `SamplerFacade<ConstantGaussianLeaf>`
+  instantiation (facade.hpp:786-788). That is M4.4.
+- (iii) The NAMING. The general family is spelled `BCFSpec` /
+  `BCFForestCombiner` / `ChainStateData::hasBCF` / the `"bcf"` state block, so
+  every layer reads "BCF" where it means "carries amplitudes". Recorded as debt
+  (root TODO `bcf-naming-generalization`, described in
+  docs/design/multiplier-combiner.md); its mitigation is the capability-probe
+  rule above, which keeps no consumer-visible answer keyed on the name.
 
 ## Anticipated (multinomial now built)
 
@@ -223,18 +294,24 @@ not against what the API merely gestures at):
   it expressible. It does not build grouped-BCF or any grouped-multi-forest
   model.
 
-## Post-mutation fit rebuild stays forest-0-only
+## Post-mutation fit rebuild was forest-0-only (CLOSED)
 
 `revalidateTrees`, `rebuildFitsFromParameters`, `applyNewData`, and
-`recoverTreeParameters` (chain.hpp) all read `forests_[0]` directly and do not
+`recoverTreeParameters` (chain.hpp) all read `forests_[0]` directly and did not
 loop over forests_ the way the sweep, storeSample, getState/setState, and
-installForest already do. This is a pre-existing forest-split interim
+installForest already did. This was a pre-existing forest-split interim
 (forest-split-bcf.md) this refactor did not close: a BCF chain's tau forest
-cannot yet ride setPredictor's whole-data-replacement transaction or a
-warm-start's tree revalidation - both are single-forest paths today, silently
-scoped to mu. Nothing about the combiner blocks widening them to loop over
-forests_; it was simply out of this plan's scope (it touches no combining
-math and no per-sweep behavior).
+could not ride setPredictor's whole-data-replacement transaction or a
+warm-start's tree revalidation. Nothing about the combiner blocked widening
+them to loop over forests_; it was simply out of this plan's scope.
+
+CLOSED, 2026-08-10 to 2026-08-12, by the multiforest-predictor-mutation arc
+(S1-S4; recorded at docs/design/model-space-survey.md:383-400). Every one of
+those paths now loops the forests, including the heteroscedastic variance
+forest, and the acceptance rule resolved to PER-SAMPLER: a row installs only if
+it empties no leaf in any tree of any forest of any chain.
+`refuseMultiForestTransactionalUpdate` is retired from all four transactional
+entries, and feature-matrix.md carries `bcf x setPredictor = S`.
 
 ## A standalone hierarchy, not a ResponseModel subclass
 
@@ -328,8 +405,10 @@ Commit 3 = b8b0b4c. Move the coupling draw and ridge move into the combiner
 (engine, byte-identical). drawGlue and interweaveGlueRidge (the ridge rescale)
 became virtual ForestCombiner methods, called from Chain at the same sweep
 points and in the same rng order as before. DEVIATION recorded: afterCombine
-returns double (the applied ridge scale c, 1.0 when the move is skipped or
-inert) specifically so the cpp component tests can read it through
+returns double (then the applied ridge scale c, 1.0 when the move was skipped
+or inert - see the corrected LIVE contract at "The ForestCombiner<L>
+hierarchy" above, which this historical sentence predates: 1.0 no longer means
+unchanged) specifically so the cpp component tests can read it through
 Chain::interweaveGlueRidge, the public forwarder kept for exactly this; the
 sweep itself discards the return value. Doxygen comments relocated with the
 math were redirected from docs/plans/bcf-ridge-interweaving.md (and a

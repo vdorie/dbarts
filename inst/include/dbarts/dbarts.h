@@ -130,9 +130,10 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// binary, and aft families; aft reports the log density for events and the
 /// log survival tail for right-censored observations, and a grouped
 /// (random-intercept) sampler composes it over the per-group fits. It is
-/// NaN-filled where the per-observation location is not fully recorded (a BCF
-/// two-forest fit), and skipping it (null or absent-by-size) elides all of
-/// its computation.
+/// NaN-filled wherever the combined per-observation location is not visible to
+/// the response model to score - any sampler whose forests combine through
+/// amplitudes, at any forest count, and the multinomial softmax - and skipping
+/// it (null or absent-by-size) elides all of its computation.
 /// Value-initialize with DBARTS_RESULTS_INIT (sets structSize, zeroes the rest):
 ///   dbarts_results results = DBARTS_RESULTS_INIT;
 typedef struct dbarts_results_t {
@@ -491,17 +492,24 @@ uint64_t dbarts_apiHash(void);
 /// control's "bartcore.survival" attribute. A verbose control prints the
 /// initial summary here.
 ///
-/// The two-forest Bayesian causal forest (docs/design/bcf.md) is created
-/// through this same entry point: the R specification dbartsSpec(data, control,
-/// forests = list(forest(), forest(basis = ~ factor(z)))) puts the second
-/// forest's basis column on the data object and that forest's configuration on
-/// the control, and creation reads both halves (either alone is an error).
-/// Such a sampler reports numForests == 2 - forest 0 prognostic, forest 1 the
-/// one carrying the basis - swaps that basis with dbarts_sampler_setForestBasis,
-/// reads its two surfaces with dbarts_sampler_forestFits and the amplitude pair
-/// (dbarts_sampler_numForestAmplitudes, dbarts_sampler_forestAmplitudes), takes
-/// a scale-pinned response, offset or weight swap, and refuses the whole test
-/// surface (setTestPredictors, setTestOffset, predict), whose blend is
+/// The K-forest amplitude family (docs/design/multiplier-combiner.md) is
+/// created through this same entry point. Each forest carries its own basis,
+/// whose row contracts with that forest's own amplitude vector into the scalar
+/// the forest's fit is multiplied by, so the location is
+/// sum_f dot(a_f, B_f(i, .)) * forestFits(f)[i]; a Bayesian causal forest
+/// (docs/design/bcf.md) is the K = 2 instance, forest 0 prognostic over an
+/// implicit intercept and forest 1 over a treatment indicator. The R
+/// specification dbartsSpec(data, control, forests = list(forest(), forest(
+/// basis = ~ factor(z)))) puts each declared forest's basis columns on the data
+/// object and those forests' configuration on the control, and creation reads
+/// both halves (either alone is an error); a K-length forests list builds K
+/// forests, and dbartsData(bases = ) carries a numeric basis directly. Such a
+/// sampler reports numForests == K, swaps any forest's basis with
+/// dbarts_sampler_setForestBasis, reads each forest's surface with
+/// dbarts_sampler_forestFits and its ragged amplitude block with
+/// dbarts_sampler_numForestAmplitudes and dbarts_sampler_forestAmplitudes,
+/// takes a scale-pinned response, offset or weight swap, and refuses the whole
+/// test surface (setTestPredictors, setTestOffset, predict), whose blend is
 /// undefined without a test basis. Gaussian responses only.
 dbarts_sampler* dbarts_sampler_create(SEXP control, SEXP model, SEXP data,
                                       const char* family);
@@ -535,19 +543,23 @@ void dbarts_sampler_setCallback(dbarts_sampler* sampler,
 /// constrain nothing. updateScale re-derives the internal response transform
 /// from the new response, as dbarts_sampler_setOffset's argument does (gaussian
 /// only); pass false once burnt in so fits stay comparable. true is refused on
-/// a two-forest sampler, whose per-forest leaf calibrations are stated against
-/// the transform it was built with, and on a heteroscedastic one, whose
-/// variance forest is calibrated the same way.
+/// any multi-forest sampler, at any forest count, whose per-forest leaf
+/// calibrations are stated against the transform it was built with, and on a
+/// heteroscedastic one, whose variance forest is calibrated the same way. The
+/// swap itself is refused outright on a coupling that caches per-forest state
+/// across sweeps rather than re-deriving it.
 void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                                 int updateScale);
 /// offset has numObservations values or is null to remove. updateScale
 /// rescales the internal response transform to the offset-adjusted range
 /// (gaussian only); pass false once burnt in so fits stay comparable. A
-/// two-forest or heteroscedastic sampler refuses true (see setResponse).
+/// multi-forest sampler, at any forest count, or a heteroscedastic one refuses
+/// true (see setResponse).
 void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
                               int updateScale);
 /// weights has numObservations values; gaussian responses only. There is no
-/// scale to pin, so a two-forest sampler takes this as it stands.
+/// scale to pin, so a multi-forest sampler takes this as it stands, at any
+/// forest count, provided its coupling admits the conduit at all.
 void dbarts_sampler_setWeights(dbarts_sampler* sampler,
                                const double* weights);
 /// Holds the residual standard deviation at sigma (original response scale)
@@ -585,8 +597,10 @@ int dbarts_sampler_updatePredictor(dbarts_sampler* sampler,
 /// over its own numRows, or null to remove test data (clearing any test
 /// offset). A CSC-backed source is consumed as it stands - no dense
 /// materialization - except that a designated leaf covariate column must be
-/// dense, which is an error naming the repair. Refused on a two-forest sampler
-/// whose test blend is undefined (see dbarts_sampler_create).
+/// dense, which is an error naming the repair. Refused on any sampler whose
+/// test blend is undefined - the predicate is the blend, not the forest count,
+/// so a multi-forest model whose test location IS defined passes through (see
+/// dbarts_sampler_create).
 void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
                                       const dbarts_predictor_source* xTest);
 /// offsetTest has numTestObservations values or is null to remove.
@@ -599,8 +613,9 @@ void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
 /// numSavedSamples x numChains from the saved trees; without, one set per
 /// chain from the live trees. offsetTest, when non-null, is added to
 /// every sample's fits. A CSC-backed source routes its rows resident, without
-/// a dense materialization. Refused on a two-forest sampler whose blend is
-/// undefined (see dbarts_sampler_create): read the forests separately with
+/// a dense materialization. Refused on any sampler whose blend is undefined -
+/// the predicate is the blend, not the forest count (see
+/// dbarts_sampler_create): read the forests separately with
 /// dbarts_sampler_forestFits and combine them with the amplitudes.
 void dbarts_sampler_predict(dbarts_sampler* sampler,
                             const dbarts_predictor_source* xTest,
@@ -616,10 +631,12 @@ void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
 /// trees are read unless useLiveTrees; sampleIndices is ignored when
 /// reading live trees. The caller must protect the result.
 ///
-/// forest names the forest to read, 0 for every single-forest sampler and 1
-/// for the second forest of a two-forest one; treeIndices are read against
-/// THAT forest's tree count (dbarts_sampler_numTrees(sampler, forest)). An
-/// index at or above dbarts_sampler_numForests is an error.
+/// forest is a 0-based index in [0, dbarts_sampler_numForests(sampler)), so 0
+/// is the only legal value on a single-forest sampler (on a two-forest bcf one,
+/// forest 1 is the one carrying the basis - an example, not the range).
+/// treeIndices are read against THAT forest's tree count
+/// (dbarts_sampler_numTrees(sampler, forest)). An index at or above
+/// dbarts_sampler_numForests is an error.
 ///
 /// The n column replays the creation specification's predictors through each
 /// saved tree (the engine keeps no predictor matrix); it is left unpopulated
@@ -678,9 +695,13 @@ size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler, size_t forest);
 size_t dbarts_sampler_numSavedSamples(const dbarts_sampler* sampler);
 int dbarts_sampler_kIsSampled(const dbarts_sampler* sampler);
 int dbarts_sampler_usesDart(const dbarts_sampler* sampler);
-/// The number of forests the model fits, always at least 1; 2 for a Bayesian
-/// causal forest, whose forest 0 is prognostic and forest 1 the treatment
-/// effect (see dbarts_sampler_create).
+/// The number of forests the model fits, always at least 1: K for a sampler
+/// built from a K-length forests = specification (a Bayesian causal forest,
+/// whose forest 0 is prognostic and forest 1 the treatment effect, is the K = 2
+/// instance - see dbarts_sampler_create), K for a multinomial softmax sampler's
+/// category forests, and 1 otherwise. A heteroscedastic sampler's variance
+/// forest is NOT counted here - it is a separate member, not one of the
+/// combined forests - so such a sampler reports 1.
 size_t dbarts_sampler_numForests(const dbarts_sampler* sampler);
 
 /// Replaces the basis forest number forest's amplitudes multiply; basis is
@@ -710,15 +731,18 @@ int dbarts_sampler_setForestBasis(dbarts_sampler* sampler, size_t forest,
 int dbarts_sampler_forestFits(const dbarts_sampler* sampler, size_t forest,
                               double* out);
 /// The number of amplitudes forest number forest carries, so a reader can size
-/// its own buffer for a ragged vector: on a two-forest sampler 1 for forest 0
-/// (the free amplitude a) and 2 for forest 1 (the pair b0, b1); 0 where the
-/// model composes its forests without amplitudes. An index at or above
+/// its own buffer for a ragged vector: it is that forest's basis column count,
+/// whatever the forest count (on a two-forest bcf sampler, 1 for forest 0, the
+/// free amplitude a, and 2 for forest 1, the pair b0 and b1); 0 where the model
+/// composes its forests without amplitudes. An index at or above
 /// dbarts_sampler_numForests is an error (a size_t probe carries no refusal).
 size_t dbarts_sampler_numForestAmplitudes(const dbarts_sampler* sampler,
                                           size_t forest);
 /// Copies forest number forest's amplitudes,
 /// numForestAmplitudes(forest) x numChains, into out. Observation i's
-/// internal-scale location on a two-forest sampler is
+/// internal-scale location is sum_f dot(a_f, B_f(i, .)) * forestFits(f)[i],
+/// contracting each forest's amplitude block with the row of the basis last
+/// installed on that forest. On a two-forest bcf sampler that is
 /// a * forestFits(0)[i] + b_{z_i} * forestFits(1)[i], where a is forest 0's
 /// single amplitude and (b0, b1) forest 1's pair against its 0/1 basis.
 /// Returns 1, or 0 without touching out when forest names no forest or the
@@ -779,10 +803,11 @@ int dbarts_sampler_forestCalibration(const dbarts_sampler* sampler,
 /// exactly as it qualifies the read (see dbarts_sampler_forestCalibration).
 ///
 /// Two channels: a CAPABILITY answer is the return value - 0, touching
-/// nothing, when forest names no forest or a combiner owns this forest's
-/// calibration (a two-forest or multinomial sampler) - while a MALFORMED
-/// VALUE, a non-finite or non-positive priorScale, raises. Returns 1 on a
-/// write.
+/// nothing, when forest names no forest, or a combiner owns this forest's
+/// calibration - any sampler whose forests are combined, which is every
+/// amplitude-family sampler at any forest count and every multinomial one -
+/// while a MALFORMED VALUE, a non-finite or non-positive priorScale, raises.
+/// Returns 1 on a write.
 int dbarts_sampler_setForestPriorScale(dbarts_sampler* sampler, size_t forest,
                                        double priorScale);
 

@@ -206,9 +206,15 @@ which entry points fan per forest.
   view, but a mutation to a column both forests reference fans to both under the
   single-writer rule (collapsing the two-copy setPredictorJointly workaround,
   data-ownership.md Sharing).
-- New for BCF: setForestBasis(f, basis) (R5; setTreatment(z) on the flat
-  surface). z is the one response-side quantity with no single-forest analog;
-  updating it between sweeps re-forms b_{z_i} and both residuals. Installing
+- New for BCF: setForestBasis(f, basis), on the R5 surface and, as
+  `dbarts_sampler_setForestBasis(sampler, forest, basis, numColumns)`, on the
+  flat one. (Corrected 2026-08-14: this bullet named `setTreatment(z)` as the
+  flat spelling. `setTreatment` is GONE at every layer - the flat entry was
+  re-signed at the dbarts.h reshape S1, and M4.3 retired the engine virtual
+  through all four layers, leaving `setForestBasis` the SOLE basis-mutation
+  route at any forest and any width.) The basis is the one response-side
+  quantity with no single-forest analog; installing a new one between sweeps
+  re-forms that forest's multiplier and every forest's residual. Installing
   pihat as a mutable prognostic column uses the ordinary predictor path.
 - Also new for BCF: setForestWeights(f, s), a per-forest, per-observation
   precision multiplier ("The multiplier snap and the per-forest weight"
@@ -306,11 +312,26 @@ against the exact posterior, closing the core item (c9fd2fe;
 docs/plans/forest-split-bcf.md); the state format gained a forest
 dimension (4e6b206); and a sampler can warm-start from a donor fit's
 forests (933eed8). Mixing refinements landed 2026-07-10: an
-interweaving rescale move on the glue ridge (9617c94;
-docs/plans/bcf-ridge-interweaving.md) and the sigma burn-in
-calibration recorded above (docs/plans/bcf-sigma-residual.md).
+interweaving (ASIS) rescale move on the PROGNOSTIC glue ridge - the
+a-move (9617c94; docs/plans/bcf-ridge-interweaving.md) - and the
+sigma burn-in calibration recorded above
+(docs/plans/bcf-sigma-residual.md).
 bartCause is the intended consumer, over the public creation surface
 recorded below.
+
+**The a-move is no longer a prognostic special case (M4.2, 1a2aaedc,
+2026-08-14).** It is now one instance of a GENERAL per-forest ASIS
+rescale over the amplitude blocks, run for every forest whose prior
+carries `ridge`; its q = 1 case reproduces the 2026-07-10 move
+BITWISE, which is what let the generalization land with no baseline
+moving. The mechanism - the GIG draw, the exponent, and the
+rescale-consistency set - is
+docs/design/multiplier-combiner.md, "The ASIS ridge", and is not
+restated here. bcf's TREATMENT forest now has its own move available
+in that same code (the b-move, docs/plans/bcf-b-ridge.md), but it
+ships OFF: `BCFSpec::ridgeB = false`, because enabling it consumes a
+GIG draw per sweep - a `bcf-equivalence` re-record - and the b-move's
+own acceptance gate (bcf-b-ridge.md:495-506) has not been run.
 
 ## Public creation surface (2026-08-10 to 2026-08-11)
 
@@ -360,11 +381,19 @@ unchanged, which is what let M2 gate itself bitwise against the internal
 constructor: a `forests =` fit resolves to exactly the `data@treatment` plus
 `attr(control, "bartcore.bcf")` the removed arguments resolved to, with the
 factor basis expanded to its level indicators in R so the bridge sees what it
-always saw. Two spellings did NOT move: `dbartsData(treatment = )` still names
-the column directly (the data-side split M2 records as debt, to retire with M3,
-M4's n x q_f basis, or the reshape re-bake), and the flat
-`dbarts_sampler_setTreatment`/`bcfGlue` entries are the reshape's to re-sign.
-`bcf()` itself is expected to land in bartCause (same plan, fork 4).
+always saw.
+
+**Two spellings that had not moved at M2 have both moved since (corrected
+2026-08-14; as written this paragraph also contradicted the correction two
+paragraphs above).** The flat `dbarts_sampler_setTreatment`/`bcfGlue` pair was
+re-signed at the dbarts.h reshape S1 (ab3aa2fa) to `setForestBasis` and the
+ragged `numForestAmplitudes`/`forestAmplitudes`. `dbartsData(treatment = )` and
+the `data@treatment` slot were retired at M4.3 (9c63e9d8) for a `data@bases`
+LIST, one entry per forest, which rides creation the way the design matrix does
+and is what lets a restore-then-widen work with no fourth reapply hook. So the
+data-side split M2 recorded as debt is CLOSED, by M4's n x q_f basis, which was
+one of the three carriers it named. `bcf()` itself is expected to land in
+bartCause (same plan, fork 4).
 
 ## Status
 

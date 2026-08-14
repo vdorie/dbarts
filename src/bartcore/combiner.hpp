@@ -895,10 +895,11 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   ///
   /// Path selection is a per-forest IS-CANONICAL VALUE predicate, not a width
   /// test. The widths alone would admit a continuous two-column basis into the
-  /// shipped path, which never reads basis[1] at all: it forms two disjoint
-  /// group-precision accumulators keyed on the indicator, so on a 0.25/0.75
-  /// pair it would silently draw a different model. A non-canonical basis at
-  /// ANY forest therefore forces the general path for the whole draw.
+  /// shipped path, which never reads basis[1] as a DESIGN MATRIX: it tests
+  /// column 1 for nonzero as a group key and never multiplies by the stored
+  /// values, forming two disjoint group-precision accumulators instead. So on a
+  /// 0.25/0.75 pair it would silently draw a different model. A non-canonical
+  /// basis at ANY forest therefore forces the general path for the whole draw.
   void drawGlue(ext_rng* rng, double sigma, const double* y, const double* w,
                 const std::vector<Forest<L, ResidT>>& forests) override {
     if (forests.size() == 2 && !generalAmplitudeDraw_ && shippedShape())
@@ -1206,8 +1207,9 @@ private:
   /// it at KS 1.6e-21 (:166-171, :329-357). B reads the LIVE prior variance,
   /// which for a scale mixture is the auxiliary this move conditions on
   /// (refreshing it here would re-randomize the coordinate just conditioned on
-  /// and measurably throttle the mixing gain - IACT check, docs/design/bcf.md);
-  /// the one-sweep lag is benign, the next drawGlue refreshing it | a_new.
+  /// and measurably throttle the mixing gain - IACT 69 -> 196 on |a|, recorded
+  /// at docs/design/multiplier-combiner.md, "The ASIS ridge"); the one-sweep
+  /// lag is benign, the next drawGlue refreshing it | a_new.
   ///
   /// A no-op consuming no rng below two occupied leaves or at a zero leaf sum,
   /// returning 1.0. record/sampleNum locate the keepTrees saved slot whose
