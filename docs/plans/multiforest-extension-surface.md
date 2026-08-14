@@ -34,7 +34,11 @@ window: M0, M1, M2 land INSIDE the pre-release breaking window. M3 LANDED
   (`logLikelihood`'s "a BCF two-forest fit"), `:618-620` (the saved-tree
   `forest` argument), `:681-683` (`numForests`, "2 for a Bayesian causal
   forest"), `:779-780` (`setForestPriorScale`'s "a two-forest or multinomial
-  sampler"). None is a signature; none is inside the hashed macro. Two
+  sampler"). None is a signature; none is inside the hashed macro.
+  The six SPLIT, re-scoped 2026-08-13 on the probe verdicts
+  (`probes-2026-08-13.md`): five ride M4.5, but `:505` ("Gaussian responses
+  only.") stays ACCURATE until M4.4 and moves with M4.4, because M4.5 now lands
+  Gaussian-complete AHEAD of it (fork 2's escape hatch, taken). Two
   near-misses are explicit NON-GOALS: a per-draw amplitude channel in flat C
   (declined, see the M4 section) and any re-sign of
   `dbarts_sampler_setForestBasis`'s error channel (a guard-body change only -
@@ -155,6 +159,29 @@ amended: 2026-08-13, PRE-M4, by the orchestrator, against 25a21d3b (M1
   `C_interface.cpp:280,334-344`: it is FNV-1a over `DBARTS_C_API_DECLS`,
   signatures only. The M3 section and the cross-plan amendment block are
   LANDED RECORDS and keep their pre-re-bake numbers, marked as such in place.
+re-scoped: 2026-08-13, POST-PROBES, by the orchestrator, on the verdicts in
+  `.claude/m4-basis-design/probes-2026-08-13.md`. That file is GIT-IGNORED, so
+  its numbers are carried into this one verbatim, each with the protocol that
+  produced it. **Provenance of the run:** tree sha 47c1fbe1, equal to
+  `origin/bartcore`, worktree clean, no tracked file edited; the package is
+  the pre-existing verified install `.claude/privlib-s2-docs`, confirmed by
+  `DBARTS_C_API_HASH == 0xcd88efcd67de55d7`; base seed 20260813 for FA1a and
+  FA1b (per replicate s in 1..8 the DGP seed and `rngSeed` are both 20260813 +
+  s, so the arms are paired), dataset seed 20260813 for FA5 with chain seeds
+  5101-5108 (arms), 5901-5908 (leg-P reference) and 5801-5808 (leg-G reference
+  validation); harnesses, logs and `.rds` results gitignored under
+  `.claude/m4-basis-design/harness/`. **Three things moved and nothing else.**
+  (1) FA1's pre-registered re-scope is NOT licensed - both conjuncts fail - so
+  M4.2 keeps the q-variate amplitude conditional and the per-forest ASIS
+  rescale in FULL scope, and FA1 is not promoted to `benchmarks/R/`.
+  (2) FA5 FALSIFIED M4.4's headline ground (arm B AGREES on all 12 functionals
+  at max |z| = 2.54), so fork 2's Gaussian-first escape hatch is TAKEN: the arc
+  order is M4.0 -> M4.1 -> M4.2 -> M4.3 -> M4.5, with M4.4 the IMMEDIATE
+  follow-on slice, still pre-release, re-justified on the surviving grounds
+  only. (3) The 1.39-1.43x composition tax this file asserted in eight places
+  is STRUCK as unsourced and replaced by measured, protocol-stated figures -
+  the erratum is "Departures" item 3. Nothing about the arc's decisions moved
+  beyond the M4.4/M4.5 order.
 
 ## The question, answered
 
@@ -176,7 +203,11 @@ The second surface, the one that carries the published models, is a
 DECLARATIVE per-forest basis: each forest's contribution to the mean is scaled
 by caller-supplied data columns with their own coefficients. Its Gaussian half
 is now measured to be ergonomics over a pure-R composition that works today
-(1.39-1.43x at K = 2, and a slightly different prior). Its irreducible engine
+(re-scoped 2026-08-13 on the probe verdicts: **5.14x at K = 2 and 5.43x at
+K = 8**, per-sweep wall time of the K-sampler R composition over a SINGLE
+batched engine sampler at matched total trees, same n, back to back -
+`probes-2026-08-13.md` FA1b; the 1.39-1.43x this sentence carried is struck,
+"Departures" item 3 - and a slightly different prior). Its irreducible engine
 content is the NON-GAUSSIAN case, where the latents are drawn once against the
 COMBINED fit, and that is the content worth building: with an engine-provided
 family selected by `family =`, an author declares a non-Gaussian multiforest
@@ -304,9 +335,20 @@ and the vector-leaf arc is not an alternative to the family.
 on ONE BCF sampler, not K single-forest samplers. The plan's numbers are now
 the critique's measured ones: engine per-sweep drive **0.89-0.95x** of a
 batched run (free, and inside noise), pure-R K-sampler composition
-**1.39-1.43x** at K = 2, growing with K (K stores, K `.Call` round trips, O(nK)
+1.39-1.43x at K = 2, growing with K (K stores, K `.Call` round trips, O(nK)
 R-level residual arithmetic per sweep). Every occurrence of the memo's 1.04x
 attributed to an R composition is void.
+**ERRATUM, 2026-08-13 (post-probes).** The composition half of this adoption is
+STRUCK: **1.39-1.43x has no receipt anywhere in the tree** - the grep finds the
+assertion, never a measurement - and the tool-verified-claims discipline applies
+to this plan's own numbers, not only to the memo's. The engine half keeps its
+receipt (`bcf-public-surface.md:85-93`) and stands. The replacement is FA1b's
+measured figure with its protocol stated: **5.14x at K = 2, 5.36x at K = 4,
+5.43x at K = 8**, per-sweep wall time of the K-sampler R composition over a
+single BATCHED engine sampler carrying the same total tree budget (K * 50) on
+the same n, measured back to back on the same box - and the tax is FLAT in K
+(1.06x growth from K = 2 to K = 8), so "growing with K" is struck too. Full
+erratum in "Departures" item 3.
 
 **B4 (the amendments to the committed plans): ADOPTED, and the plan conflict is
 ADJUDICATED.** (a) The memo's "S3 has not started" amendment and its Q7 are
@@ -432,8 +474,11 @@ Confirmed by the critique's probes and re-verified structurally here:
    the leaf calibration are prior shape, which is the part R-first does not
    carry. It is the sharpest available illustration of VD's qualification, and
    M0 documents it as such rather than as an anomaly.
-6. **The honest cost numbers** are B3's: 0.89-0.95x engine per-sweep drive,
-   1.39-1.43x R K-sampler composition at K = 2.
+6. **The honest cost numbers** are B3's engine figure, 0.89-0.95x per-sweep
+   drive, plus - re-scoped 2026-08-13 on the probe verdicts, B3's composition
+   figure being unsourced - FA1b's MEASURED R K-sampler composition tax:
+   **5.14x at K = 2, 5.43x at K = 8**, against a single batched engine sampler
+   at matched total trees, flat in K (1.06x growth).
 7. **Citations, corrected.** Ting and Linero: JASA 120(551):1400-1413, 2025,
    doi:10.1080/01621459.2025.2491155. Kim and Zigler: Biometrics 81(1), article
    ujaf024, 2025, doi:10.1093/biomtc/ujaf024. VCBART (Deshpande, Bai, Balocchi,
@@ -658,12 +703,14 @@ must be a PUBLIC R route in dbarts.
 
 **A third package: NO.** Sketch it as `y = X beta + sum_f a_f m_f f_f(x) + eps`
 and it consumes only public dbarts primitives for the Gaussian case, degrades to
-the R composition at 1.39-1.43x and a different prior (fact 5, not the memo's
-1.04x), and needs three things that live only in `chain.hpp`/`combiner.hpp`: the
-latent draw against the combined fit, the ASIS rescale that writes leaf values,
-and the near-zero snap. Its Gaussian half collapses into being a stan4bart model
-class (the `mvbart()` precedent adds a model class there with zero dbarts
-change); its causal reporting layer is bartCause; its only engine content argues
+the R composition at 5.14x (K = 2) to 5.43x (K = 8) against a batched engine at
+matched total trees and a different prior (fact 5 and fact 6 as re-scoped
+2026-08-13, not the memo's 1.04x), and needs three things that live only in
+`chain.hpp`/`combiner.hpp`: the latent draw against the combined fit, the ASIS
+rescale that writes leaf values, and the near-zero snap. Its Gaussian half
+collapses into being a stan4bart model class (the `mvbart()` precedent adds a
+model class there with zero dbarts change); its causal reporting layer is
+bartCause; its only engine content argues
 for dbarts. Declined.
 
 **What replaces `treatment =`: `forests =` / `forest()`, and this is DERIVED,
@@ -695,8 +742,8 @@ exists":
     M2  forests= replaces treatment=       R + tests, no src, bitwise-gated
     dbarts-h-reshape S0-S2, with M3 as an item inside S1   (one re-bake)
     M4  the general basis family           RESOLVED pre-release (fork 1,
-                                            VD 2026-08-11); FA1/FA2 run
-                                            first, design-informing
+                                            VD 2026-08-11); probes RAN
+                                            2026-08-13, next step M4.0
     1.0-0 freeze
 
 M0 and M1 must land after bcf-public-surface S4 rather than beside it: S4 is
@@ -742,7 +789,11 @@ model authors already use.
    section: the R composition recipe (forest f gets
    `$setResponse(r_f / m_f, updateScale = FALSE)`, `$setWeights(w * m_f^2)`,
    `$setSigma`, `$run(0L, 1L)`; sigma drawn in R against the combined
-   residual), its measured price (1.39-1.43x at K = 2, growing with K), and the
+   residual), its measured price (re-scoped 2026-08-13 on the probe verdicts:
+   **5.14x at K = 2, 5.43x at K = 8**, against a single batched engine sampler
+   at matched total trees - flat in K, NOT growing with it; the vignette states
+   that denominator, since a price quoted without one is what the struck
+   1.39-1.43x was), and the
    five honest losses stated as prices rather than caveats: no ASIS ridge
    rescale (the in-house surrogate is a per-group INTERCEPT with a closed-form
    collapse, where alternating conditional blocks give IACT 56.1 against 9.3
@@ -1396,9 +1447,18 @@ BCF at n = 500. The probes are minutes, so they run FIRST and nothing forks
 ahead of them. **Amend the plan -> run FA1a, FA1b and the revised FA5 ->
 re-scope M4.2 and M4.4 on the verdicts -> M4.0, M4.1, M4.2, M4.3, M4.4,
 M4.5**, serialized, one implementer, each slice landing before the next
-starts. The probes are STATISTICAL (IACT and posterior agreement, both
-load-independent), so unlike `bench-sampler.R` they need no quiet machine and
-may share the box. Their harnesses live GITIGNORED under
+starts. **STATUS, re-scoped 2026-08-13 on the probe verdicts
+(`probes-2026-08-13.md`): steps 1 to 3 are COMPLETE** - the plan was amended
+(the PRE-M4 block), all three probes ran in the foreground at 47c1fbe1 (no arm
+crashed, none was UNOBTAINABLE), and this commit is the re-scope. **The next
+step is M4.0**, whose pin scope - BOTH `afterCombine` overrides - the verdicts
+leave unchanged. **The slice order is now M4.0 -> M4.1 -> M4.2 -> M4.3 -> M4.5,
+Gaussian-complete, with M4.4 as the IMMEDIATE follow-on slice**, still
+pre-release (fork 2 holds both slices inside the window; the escape hatch
+REORDERS, it does not cancel). FA5 licensed that hatch and it is TAKEN; see
+M4.4 and FA5's teeth. The probes are STATISTICAL (IACT and posterior agreement,
+both load-independent), so unlike `bench-sampler.R` they needed no quiet
+machine and could share the box. Their harnesses live GITIGNORED under
 `.claude/m4-basis-design/harness/` per the house convention
 (`composition-mixing-probe.md:13-16`, `grow-from-root-default.md:6,55`);
 the binding corollary is that their NUMBERS are carried into this section
@@ -1407,6 +1467,10 @@ verbatim, never by reference to a directory that does not arrive with a clone
 `benchmarks/R/basis-amplitude-mixing.R` if and only if its verdict re-scopes
 M4.2 - that is exactly the condition `benchmarks/R/grouped-mixing.R` was
 promoted under. FA5's numbers are a one-time adjudication and stay gitignored.
+**NO PROMOTION (2026-08-13):** FA1's verdict does NOT re-scope M4.2, so the
+condition is not met and `fa1a-basis-amplitude-mixing.R` /
+`fa1b-composition-scaling.R` stay gitignored with FA5's; the numbers recorded
+in FA1 and FA5 below ARE the record.
 
 **Four candidate VD items, ALL resolved WITHOUT a VD question (orchestrator,
 2026-08-13, under the standing grant; VD may veto any of them).**
@@ -1418,18 +1482,30 @@ promoted under. FA5's numbers are a one-time adjudication and stay gitignored.
    own controls. Both halves of the trade are gone, so the item is a design
    consequence to record rather than a decision to take. See M4.2. **No
    `bcf-sigma-residual` ticket is opened or re-opened by M4.**
-2. **The amplitude-free default is PROBE-CONTINGENT on FA1**, not VD-facing
-   ahead of it. If FA1a's WITHOUT arm matches from its best scale cell AND
-   FA1b shows no K-scaling degradation, the general path ships amplitude-FREE
-   by default with amplitudes opt-in and BCF keeping its specialized path.
-   That re-scope is worth roughly M4.2's whole engine budget, which is why FA1
-   runs first. Report the verdict to VD as a fact when it exists.
-3. **M4.4's justification is PROBE-CONTINGENT on the revised FA5.** Fork 2
-   already keeps the Gaussian-first escape hatch live on VD's own resolution
-   ("if the latent-scale calibration map needs its own research arc,
-   Gaussian-only ships first and non-Gaussian is the immediate second slice"),
-   so no new decision slot is needed: FA5's outcome selects among options VD
-   has already licensed. Report, do not ask.
+2. **The amplitude-free default was PROBE-CONTINGENT on FA1. CLOSED
+   2026-08-13: NO amplitude-free default.** The pre-registered antecedent was
+   that FA1a's WITHOUT arm match from its best scale cell AND FA1b show no
+   K-scaling degradation; **both conjuncts FAIL** (FA1a: WITHOUT is 1.08x-1.72x
+   worse on IACT on 7 of 8 functionals from its own best cell and 12-17% worse
+   on muRMSE in every cell, winning 0 of 8 seeds; FA1b: per-forest IACT grows
+   2.8x and sigma IACT 3.0x from K = 2 to K = 8 - numbers and protocols in FA1
+   below). So the general path does NOT ship amplitude-free, amplitudes are NOT
+   demoted to opt-in, and **M4.2 keeps the q-variate amplitude conditional and
+   the per-forest ASIS rescale in FULL scope**. The saving "worth roughly
+   M4.2's whole engine budget" is NOT available; the re-priced budget below
+   never took it, so it stands unchanged. Reported to VD as a fact, no
+   question.
+3. **M4.4's justification was PROBE-CONTINGENT on the revised FA5. CLOSED
+   2026-08-13: the headline ground FALLS and the ESCAPE HATCH IS TAKEN.** Arm B
+   - two single-forest GAUSSIAN samplers with the latents drawn in R against the
+   COMBINED fit - AGREES with the reference on all 12 functionals (max
+   |z| = 2.54 against a threshold of 3.0), with the power precondition MET (arm
+   A, the strawman, differs at max |z| = 772, 12 of 12 over 4). So "the caller
+   cannot compose non-Gaussian latents against the combined fit" is FALSE, and
+   M4.4 is re-justified on the surviving grounds only (see M4.4). Fork 2 had
+   already licensed both branches, so this selects among options VD holds: the
+   arc ships Gaussian-complete through M4.5 and M4.4 follows IMMEDIATELY, both
+   pre-release. Reported, not asked.
 4. **A per-draw amplitude channel in flat C is DECLINED at orchestrator
    discretion.** `dbarts_results` (`dbarts.h:138-152`) has no amplitude member
    and the header contains zero "glue" tokens, while the R bridge does report
@@ -1486,7 +1562,11 @@ promoted under. FA5's numbers are a one-time adjudication and stay gitignored.
   scenarios, `MANIFEST:48`) - the last of these is a GATING baseline for M4.1
   and M4.2 alongside `bcf-equivalence`, because the multinomial combiner is a
   live K-forest model overriding the same virtuals.
-- **M4.2 (engine).** The q-variate amplitude conditional, using the shipped
+- **M4.2 (engine). Scope CONFIRMED IN FULL, re-scoped 2026-08-13 on the probe
+  verdicts** (`probes-2026-08-13.md`): FA1's conjunction fails on both
+  conjuncts, so neither the amplitude conditional nor the ASIS rescale is
+  demoted to opt-in and no BCF-specific carve-out is taken on that ground. The
+  q-variate amplitude conditional, using the shipped
   Cholesky helpers (`model.hpp:869` `choleskyDecompose`, `:886`
   `solveLowerTriangular`, `:895` `solveLowerTriangularTransposed`; in-place,
   row-major p x p, NO failure path because callers guarantee definiteness - so
@@ -1686,12 +1766,51 @@ promoted under. FA5's numbers are a one-time adjudication and stay gitignored.
   and the calibration map at `:716-719`). `model.hpp:2523`'s
   `enum class ResponseFamily` is only the LAST gate. `facade.hpp:750-762`
   `createBCFSampler`'s single `SamplerFacade<ConstantGaussianLeaf>`
-  instantiation is the fifth place the assumption is baked in. **This slice's
-  stated justification is PROBE-CONTINGENT on the revised FA5** and may have to
-  be re-written on cost, ergonomics and the ASIS coupling instead - see the
-  falsifier, which states exactly what makes it unjustified and what licenses
-  fork 2's already-live Gaussian-first escape hatch.
-- **M4.5 (docs).** Deliverable status verified 2026-08-13:
+  instantiation is the fifth place the assumption is baked in.
+
+  **RE-SCOPED 2026-08-13 on the probe verdicts (`probes-2026-08-13.md`): this
+  slice moves to the END of the arc, as the IMMEDIATE follow-on to M4.5, and
+  its justification is rewritten.** FA5's arm B AGREES with the reference on
+  all 12 functionals (max |z| = 2.54, threshold 3.0) with the power
+  precondition met, and it did so from SHIPPED knobs only (`resid.prior =
+  fixed(1)`, `sigma =`, `node.prior = normal(k, scale)`, creation-time
+  `weights =`, `$setResponse(..., updateScale = FALSE)`, `$run(0L, 1L)`,
+  `$getCalibration()`). **The headline ground - "the couplings a caller cannot
+  compose" - is FALSIFIED and is STRUCK from this slice.** What remains, and
+  all this slice may now be argued on:
+  - **The measured composition tax.** **5.43x at K = 8** (5.14x at K = 2, 5.36x
+    at K = 4), where the denominator is stated explicitly because the number it
+    replaces was not: per-sweep wall time of the K-sampler R composition over a
+    SINGLE batched engine sampler carrying the same total tree budget (K * 50)
+    on the same n, measured back to back on the same box (FA1b). The tax is
+    FLAT in K (1.06x growth K = 2 -> K = 8), so it is a level, not a scaling
+    argument. Plus an O(nK) R-level latent draw per sweep on top, for the
+    non-Gaussian case specifically.
+  - **Correctness unreachable from the R composition:** the per-forest ASIS
+    rescale writes LEAF values, and no setter exists or should; and the
+    `0x1p-26` snap's exactness, which the R host can only mirror by hand
+    (arm B did mirror it, `combiner.hpp:534-537`, and that is the point - the
+    host must know the constant).
+  - **Composition ergonomics:** K stores, K states, K `.Call` round trips, K
+    leaf calibrations, a serial outer loop, and a host that must own the
+    latent draw against the combined fit correctly to get arm B's answer.
+
+  That is a WEAKER justification than this plan asserted, and it is written
+  down as such rather than argued back up. **Entry criteria, added
+  2026-08-13:** (i) RE-MEASURE the composition tax at K = 2 under the SAME
+  protocol against the then-current engine at respec time - the harness exists
+  (`.claude/m4-basis-design/harness/fa1b-composition-scaling.R`), so this is
+  minutes, and a tax quoted without its denominator is exactly the defect the
+  erratum records; (ii) respec the calibration map against each family's latent
+  scale, as already written above. **Docs:** M4.5 lands Gaussian-complete, so
+  this slice carries its own docs delta, including `dbarts.h:505` ("Gaussian
+  responses only."), which stays ACCURATE until this slice lands.
+- **M4.5 (docs). Now the LAST slice of the Gaussian-complete arc** (re-scoped
+  2026-08-13 on the probe verdicts), landing BEFORE M4.4 rather than after it,
+  so it documents a K-forest Gaussian family and sweeps FIVE of the six
+  `dbarts.h` Doxygen paragraphs in the `window:` note - `:505` ("Gaussian
+  responses only.") is still true at this point and rides M4.4.
+  Deliverable status verified 2026-08-13:
   `docs/design/multiplier-combiner.md` **does not exist - NEW FILE** (its only
   mention anywhere is this line); `docs/design/model-space-survey.md` exists,
   so "gains the four verified classes it lacks" is an EDIT;
@@ -1760,6 +1879,44 @@ surface.
   convention); 2000 burn + 6000 kept, thin 1; 8 seeds per arm per grid cell;
   3 grid cells for the WITHOUT arm. 32 fits, ~3 minutes of engine time at the
   0.47 ms/sweep the current baseline records.
+  **RESULT, 2026-08-13** (`probes-2026-08-13.md`; ran as specced, 32 fits in
+  298 s, 9.2-10.0 s per fit; base seed 20260813, both arms seeing IDENTICAL
+  data at each replicate; the response-scale decomposition identity of
+  `test-bcf-reporting.R:57-71` holds to 7.1e-15 on all 32 fits). **The WITHOUT
+  arm does NOT match.**
+  - **IACT**, each functional allowed its OWN best WITHOUT cell, mean over 8
+    seeds: `sigma` 65.5 -> 107.7 (**1.65x**), `mean tauhat` 26.5 -> 40.7
+    (**1.54x**), the five held-out fitted values 58.4-66.4 -> 71.7-100.4
+    (**1.08x-1.72x**). Seven of the eight functionals are WORSE, and paired per
+    seed WITHOUT wins at most 4 of 8 on any of them. Lag-1 autocorrelation
+    orders the arms the same way throughout, so no verdict rests on the
+    spectral estimator alone. The one functional WITHOUT wins is
+    `||mu_total||_2` (0.08x), and it is not like-for-like: in the WITH arm that
+    IS the amplitude `a`'s own mixing (IACT 235.7 - the bottleneck the ASIS
+    ridge move exists to relieve, `bcf-ridge-interweaving.md:494-499`), while
+    in the WITHOUT arm `a == 1` identically and there is no amplitude to mix.
+  - **RMSE** on the held-out rows: muRMSE **0.6027** (WITH) against 0.6836 /
+    0.7038 / 0.6934 (sd 0.5 / 1 / 2), i.e. 12-17% worse in EVERY cell, with
+    WITHOUT winning **0 of 8** seeds - including when the best cell is chosen
+    per seed after the fact (0.6750, ratio 1.120, still 0/8). tauRMSE TIES:
+    0.3687 (WITH) against 0.3685 at the best cell, and 0.969 winning 6 of 8
+    under per-seed post-hoc selection.
+  - **The two constructibility caveats, recorded beside the numbers they
+    qualify.** (i) *The muRMSE confound the spec anticipated is REAL and is
+    carried wherever muRMSE is cited here:* forest 0's node scale is
+    `s = scaledResponseSd` unconditionally (`chain.hpp:718`) and `forest(sd =)`
+    on the FIRST forest maps to `spec.aPriorScale`
+    (`R_interface_bartcore.cpp:2145`), not to a node scale, so the WITHOUT arm
+    cannot retune the mu prior at ALL. It does NOT reach the IACT gap - a
+    looser prior mixes worse, not better - and the tau tie runs the same
+    direction. (ii) *The out-of-sample mechanism:* a BCF sampler REFUSES test
+    predictors (`R/spec.R:455`), so the held-out half was carried as 1000
+    additional design rows with WEIGHT 0. That is exact, not a workaround -
+    zero-weight rows drop from the weighted SSR, every leaf conditional and the
+    posterior df (`model.hpp:2481-2483`) while still being assigned to leaves
+    and receiving fitted values (`moves.hpp:69`) - so the likelihood saw
+    exactly 1000 rows in both arms, and the run is an incidental validation of
+    the zero-weight machinery.
 - **FA1b, the amplitude-free family at K > 2 (pure R composition).** FA1a
   cannot say whether the amplitude matters AT SCALE, which is the VCBART
   regime. Build the amplitude-free K-forest sampler as K single-forest gaussian
@@ -1769,12 +1926,42 @@ surface.
   VCBART-shaped DGP (`y = sum_j beta_j(u) X_j + eps`, continuous `X_j`, legal
   here because the HOST applies the basis). Report the composition tax at each
   K; that number is also an input to FA5's teeth.
+  **RESULT, 2026-08-13** (`probes-2026-08-13.md`; 24 fits, 8 seeds, K in
+  {2, 4, 8}, n = 1000 fitted + 1000 test, 50 trees per forest, the beta library
+  and X held FIXED across K within a seed so beta_1 and beta_2 are the same
+  estimand at every K). **Degradation is PRESENT, and it is small.**
+  - **IACT grows:** per-forest mean 1.75 -> 2.58 -> 4.94 across K = 2, 4, 8
+    (**2.8x**) and `sigma` 3.7 -> 5.4 -> 11.2 (**3.0x**), monotone and present
+    in every seed. That IS K-scaling degradation, and it is why this conjunct
+    fails as written.
+  - **It grows off a low base and does not reach accuracy:** every per-forest
+    IACT at K = 8 is under 6; predictive RMSE is flat (beta1 +3%, beta2 +6%
+    from K = 2 to K = 8 despite the DGP carrying four times as many terms); and
+    the combined-location IACT is flat (11.2 -> 10.0 on the four non-outlier
+    test rows - `loc4` at K = 8 is a single-seed outlier, max 243.1 against a
+    median near 10, and is reported separately rather than folded into a mean).
+  - **Composition tax, with its denominator stated:** **5.14x at K = 2, 5.36x
+    at K = 4, 5.43x at K = 8** - per-sweep wall time of the K-sampler R
+    composition over a SINGLE batched engine sampler carrying the same total
+    tree budget (K * 50) on the same n, back to back on the same box. Growth
+    from K = 2 to K = 8 is **1.06x**, so the tax is FLAT in K at a fixed total
+    tree budget, not "growing with K". This is the figure that replaces the
+    struck 1.39-1.43x ("Departures" item 3), and it is FA5's teeth input.
 - **Verdict rule, PRE-REGISTERED.** If FA1a's WITHOUT arm matches on IACT and
   RMSE from its best scale cell AND FA1b shows no K-scaling degradation, the
   amplitude and its ASIS remedy are BCF-SPECIFIC, not family content.
   Consequence: M4.2 keeps BCF's specialized two-scalar path and the general
   path ships amplitude-FREE by default, amplitudes opt-in. That re-scope is
   worth roughly the whole of M4.2's engine budget, which is why FA1 runs first.
+- **VERDICT, 2026-08-13: the rule is a CONJUNCTION and BOTH conjuncts FAIL.**
+  FA1a's WITHOUT arm does not match (1.08x-1.72x worse IACT on 7 of 8
+  functionals from its own best cell; 12-17% worse muRMSE in every cell on 0 of
+  8 seeds), and FA1b measures 2.8x-3.0x IACT growth from K = 2 to K = 8. **The
+  amplitude and its ASIS remedy are NOT shown to be BCF-specific, the re-scope
+  is NOT licensed, and M4.2 keeps full scope** - the general path does not ship
+  amplitude-free, amplitudes are not demoted to opt-in, and the budget saving
+  is unavailable. FA1 is NOT promoted to `benchmarks/R/`, its promotion being
+  gated on exactly the re-scope that did not happen.
 
 **FA2** with the per-forest ASIS rescale removed, the amplitude's IACT degrades
 measurably; if it cannot go red, the remedy is decoration. **Its
@@ -1896,10 +2083,12 @@ TWO legs, split on where an exact posterior is constructible at all.
     non-Gaussian latents against the combined fit" ground FALLS.** M4.4 is
     re-justified on the residual, which is nameable: the per-forest ASIS
     rescale (it writes leaf values, and no setter exists or should), the
-    `0x1p-26` snap's exactness, the K-sampler composition tax (1.39-1.43x at
-    K = 2, growing with K per FA1b, plus an O(nK) R-level latent draw per
-    sweep), and ergonomics. That is a WEAKER justification than this plan
-    asserts and must be written down as such. Predicted outcome.
+    `0x1p-26` snap's exactness, the K-sampler composition tax (MEASURED by
+    FA1b: 5.14x at K = 2 and 5.43x at K = 8 against a single batched engine
+    sampler at matched total trees, flat in K at 1.06x growth - the 1.39-1.43x
+    written here is struck, "Departures" item 3 - plus an O(nK) R-level latent
+    draw per sweep), and ergonomics. That is a WEAKER justification than this
+    plan asserts and must be written down as such. Predicted outcome.
   - **Arm B DIFFERS.** The composition CANNOT be built correctly from the
     shipped R surface. **M4.4 is JUSTIFIED, and the probe hands the
     implementer the reason.** Mandatory follow-up: identify WHICH
@@ -1908,6 +2097,32 @@ TWO legs, split on where an exact posterior is constructible at all.
     the latent draw, or the near-zero multiplier snap. If the gap is a missing
     R knob costing ~20 lines, M4.4's justification shrinks to that knob and
     the non-Gaussian half re-prices accordingly.
+- **RESULT, 2026-08-13** (`probes-2026-08-13.md`; dataset seed 20260813, ONE
+  dataset with only the MCMC seed varying, so the across-replicate spread is
+  pure Monte Carlo error; amplitudes pinned in every arm). **The first outcome
+  obtained.**
+  - **Leg G: PASS, max |z| = 1.35.** The R-composition driver recovers the
+    EXACT posterior (5 x 5 enumerated tree pairs, leaves integrated in closed
+    form, sigma fixed and amplitudes pinned, so no Monte Carlo enters the
+    reference). G0's batch-vs-loop `expect_identical` template holds - the
+    driver loop does not perturb the chain - and the leg-P reference validated
+    against the same exact posterior on its Gaussian branch at max |z| = 1.16.
+    The tolerance unit this fixes is an MC standard error of 7e-4 to 2e-3 at 8
+    seeds x 6000 kept.
+  - **Power precondition: MET.** Arm A, the strawman (each forest drawing its
+    own latents against its OWN contribution - a strictly sharper control than
+    two independent probit samplers, and recorded as that departure), DIFFERS
+    from the reference at max |z| = **772.49**, with 12 of 12 functionals over
+    |z| = 4. The DGP carries ample cross-forest signal; the run is not void and
+    the outcome table may be read. The leg-P reference itself passes its
+    convergence gate at max R-hat 1.0003 against 1.01.
+  - **Arm B AGREES on all 12**, max |z| = **2.54** against the pre-registered
+    threshold of 3.0, zero functionals over 3, zero over 4 - so no AMBIGUOUS
+    flag and no 4x-seed re-run. Its IACT tracks the reference's within about
+    1.5x on every functional. **No arm-B functional required a knob the package
+    does not ship**, and the location lever was HANDLED rather than assumed
+    (centered construction vector, `prior.mean == 0` and `prior.sd == leafSd`
+    ASSERTED on every sampler built).
 - **The teeth, stated plainly.** M4.4's headline justification - "the couplings
   a caller cannot compose" - is FALSIFIED if the power precondition holds and
   arm B AGREES on all 12 functionals. **Fork 2's already-live Gaussian-first
@@ -1926,6 +2141,19 @@ TWO legs, split on where an exact posterior is constructible at all.
   permitted. `fixed()` is reachable publicly as `dbartsPriors$fixed(v)` or by
   bare name inside `resid.prior =`. So an arm-B failure cannot be blamed on a
   missing knob.
+  **BITTEN, 2026-08-13.** The precondition held and arm B agreed on all 12, so
+  M4.4's headline justification is FALSIFIED and is struck from that slice. The
+  hatch's three conditions: (1) arm B agrees - YES, max |z| = 2.54; (2) no
+  arm-B functional needed an unshipped knob - YES, enumerated in the result
+  above; (3) FA1b's measured tax at K = 8 under 2x - **the clause's 2x anchor
+  was calibrated against the 1.39-1.43x figure that has NO receipt, so the
+  anchor falls with the figure** (erratum, "Departures" item 3), and the
+  measured 5.43x is read as a REASON to build M4.4 rather than a bar to
+  reordering it. **The hatch is TAKEN, by the orchestrator under fork 2's
+  pre-authorization:** M4.0 -> M4.1 -> M4.2 -> M4.3 -> M4.5, then M4.4
+  IMMEDIATELY, both slices pre-release. The hatch REORDERS; it does not cancel.
+  Arm E is unchanged and is still M4.4's own acceptance gate, arm B against
+  arm E.
 
 **FA6** every refused creation raises an R condition and no external pointer
 escapes. Already DISCHARGED as discipline: M2's FS2 landed 42
@@ -1955,6 +2183,11 @@ commit. **Both scheduling preconditions are MET:** multiforest-predictor-
 mutation S0-S4 landed (so the window holds one re-record) and the dbarts.h
 reshape landed (S1 ab3aa2fa, S2 1bf2e69c, arc closed 25a21d3b), pre-release as
 VD resolved 2026-08-11 rather than after the freeze as this plan recommended.
+**UNCHANGED by the probe verdicts (2026-08-13):** this pricing already carried
+M4.2 in full, so FA1's failure to license the re-scope removes a saving that
+was never booked; and FA5 reorders M4.4 after M4.5 without changing either
+slice's line count, beyond M4.4 carrying the one `dbarts.h:505` Doxygen
+paragraph M4.5 would otherwise have swept.
 **M0 remains DEFERRED at orchestrator discretion** (`TODO:236-237`) and is NOT
 an M4 precondition; after M4.5 is the cheapest place to land it, since M4 moves
 the vocabulary M0 documents.
@@ -2123,7 +2356,9 @@ different basis columns.
   refactor over the same code.
 - **(c) Decline the family. Ship M0 to M3 and stop.** Coherent, cheapest,
   serves every consumer that exists today, and honest: the Gaussian half is
-  measured ergonomics (1.39-1.43x, and a documented prior difference). Cost: the
+  measured ergonomics (5.14x at K = 2 and 5.43x at K = 8 against a batched
+  engine at matched total trees, re-scoped 2026-08-13 from the struck
+  1.39-1.43x, and a documented prior difference). Cost: the
   five published classes, and non-Gaussian multiforest models stay unreachable
   from R at all - a K-forest probit model would then require authoring engine
   code for what is, on the boundary of binding decision 1b, a composition
@@ -2320,7 +2555,10 @@ not a separate decision.
   rows and bairrtt's filter need, and what would retire
   `testFitsAreDefined() == false`.
 - **Pinned (non-sampled) amplitudes**, VCBART's own parameterization, if FA1
-  says the amplitude is decoration for non-BCF instances.
+  says the amplitude is decoration for non-BCF instances. **The condition FAILED
+  (2026-08-13): FA1 says the opposite** - pinning costs 1.08x-1.72x on IACT and
+  12-17% on muRMSE at K = 2 - so this stays a door in its ALREADY-SHIPPED opt-in
+  form (`forest(update.amplitude = FALSE)`), never a default.
 - **A test basis vector**, which would make a K-forest sampler's blended test
   fits defined.
 - **Grouped x K-forest** (stan4bart's multilevel BCF): the combiner composes
@@ -2346,8 +2584,29 @@ not a separate decision.
    which is cheaper than it sounds because `choleskyDecompose` and the
    triangular solves already ship (`model.hpp:869-895`).
 3. **The memo's 1.04x is void wherever it is attributed to the R composition**
-   (B3, adopted): 1.39-1.43x measured at K = 2, and 0.89-0.95x for the engine's
-   own per-sweep drive.
+   (B3, adopted): 0.89-0.95x is the engine's own per-sweep drive, and it keeps
+   its receipt (`bcf-public-surface.md:85-93`).
+   **ERRATUM, 2026-08-13 (post-probes), in this plan's own house style: the
+   composition figure this item asserted - 1.39-1.43x at K = 2, "growing with
+   K" - is STRUCK, in all EIGHT places it appeared** (this item, the answer
+   section, the B3 block, corrected fact 6, the third-package paragraph, M0's
+   vignette item, FA5's arm-B outcome bullet, and fork 1 option (c)). Grounds:
+   **no receipt exists anywhere in the tree** - the grep finds the assertion at
+   each of those sites and never a measurement, and the figure was adopted from
+   the critique without one. The tool-verified-claims discipline this plan
+   applies to the memo, the critique and the shipped code applies to ITS OWN
+   numbers; a cost quoted with no denominator and no receipt is exactly what
+   that discipline exists to catch, and it had already propagated into a
+   scheduling clause (FA5's "under 2x" hatch condition), which is how an
+   unsourced number does damage. **Replacement, with the protocol stated so the
+   denominator travels with the figure:** per-sweep wall time of the K-sampler
+   R composition over a SINGLE batched engine sampler carrying the same total
+   tree budget (K * 50) on the same n, measured back to back on the same box -
+   **5.14x at K = 2, 5.36x at K = 4, 5.43x at K = 8**, K-relative growth
+   **1.06x**, so the tax is FLAT in K rather than growing with it
+   (`probes-2026-08-13.md`, FA1b, 8 seeds, gitignored harness). A stricter
+   denominator than whatever produced 1.39-1.43x, and stated rather than
+   implied: any future re-quote must carry it or re-measure.
 4. **The memo's "That is not an approximation" is corrected**: the BLOCKING is
    identical, the leaf and amplitude priors are not, and the difference has a
    named mechanism (the pinned transform's `shift` attributed once per forest
