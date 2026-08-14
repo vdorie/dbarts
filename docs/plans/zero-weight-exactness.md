@@ -701,3 +701,8 @@ workflows green through the S2 engine push at landing time. Doors that
 remain open are listed in "Doors held open"; the sum-to-one door is
 CLOSED (unified at S3), and monotoneTreeIsFeasible's constant stays by
 the recorded recommendation.
+
+The reserved flat entry, dbarts_sampler_setForestWeights (S3's
+docs/plans/c-api-growth.md reservation above), LANDED at dbarts-h-reshape
+S1, ab3aa2fa, 2026-08-13; see that plan's S1 landing note and
+c-api-growth.md's now-BUILT entry, not restated here.

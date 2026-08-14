@@ -793,3 +793,39 @@ capability answer, so put the check in the engine or repeat it in
 C_interface.cpp; (b) cosmetic: on a BCF sampler `refuseBCFMutation`
 fires before argument validation, so setCalibration(prior.mean = 0)
 reports the BCF refusal rather than the prior.mean one.
+
+S3 - LANDED at dbarts-h-reshape S1, ab3aa2fa, 2026-08-13 (implemented as
+3a977b6d, amended during independent review). All three items shipped
+exactly to this section's spec: the `dbarts_forest_calibration` POD, the
+`dbarts_leaf_model` enum, the two X-list entries and the per-leaf-model
+Doxygen (dbarts.h); the `C_interface.cpp` bodies
+(`dbarts_sampler_forestCalibration` :856-887, `dbarts_sampler_setForestPriorScale`
+:889-899) plus the exact-`offsetof`/exact-`sizeof` asserts; the `consumer.c`
++ `test-capi.R` coverage, including the omitting-caller `structSize` canary
+(`test-capi.R:955-961`: a caller whose `structSize` stops below `leafModel`
+gets that member skipped and poisoned, everything else still fills) and the
+zero-`structSize` error canary (`test-capi.R:962-965`). Both carried items
+from the S2 landing note above shipped alongside: (a) the engine bounds check
+on `Chain::forestCalibration` - `if (f >= forests_.size()) return
+ForestCalibration{};` (`chain.hpp:985`) - so the reader now answers an
+out-of-range forest with a default-constructed calibration exactly as the
+writer already refused it, pinned at the engine level
+(`tests/cpp/test_sampler.cpp:4722-4733`, `testForestCalibration`) and through
+the flat getter's "return 0, touch nothing" contract (`test-capi.R:950-954`);
+(b) the `refuseBCFMutation` reorder in R5 `$setCalibration` - argument
+validation (the `prior.mean`-not-writable and exactly-one-of
+`prior.scale`/`prior.sd` checks) now runs BEFORE the BCF refusal
+(`dbarts.R:1469-1489`, comment "so a malformed call is answered on its own
+terms rather than by the refusal that would follow a well-formed one"), so
+`setCalibration(prior.mean = 0)` on a BCF sampler reports the `prior.mean`
+refusal rather than the BCF one. No further items are owed forward from S2.
+Budget, review verdict, deviations and gates are recorded at the
+dbarts-h-reshape S1 landing note, not repeated here - this arc contributed
+~295 of that slice's ~1310 re-priced total, per the budget line above.
+
+THE CALIBRATION ARC IS COMPLETE. `prior.scale` is nameable at creation
+(S1), readable and writable mid-chain over every chain (S2), and reachable
+from the flat C API (S3) - the R-user-facing capability was already `S` in
+the feature matrix before S3, since the flat-C gap never gated a
+`dbartsSampler` caller; S3 closes the flat-C gap itself. Nothing here is
+owed forward.

@@ -1996,7 +1996,33 @@ length-mismatched basis under `forests =` still erroring "length of
 'treatment' must equal length of 'y'". M3 (riding `dbarts-h-reshape` S1)
 retires these alongside the flat-C renames.
 
-Arc status: M1 and M2 landed. M0 (the on-ramp docs/vignette slice) stays
-deferred at orchestrator discretion; M3 rides `dbarts-h-reshape` S1; M4 (the
+M3 LANDED at dbarts-h-reshape S1, ab3aa2fa, 2026-08-13 (implemented as
+3a977b6d, amended during independent review). `dbarts_sampler_setTreatment`
+re-signed to `dbarts_sampler_setForestBasis(sampler, forest, basis,
+numColumns)` (C_interface.cpp:759); `dbarts_sampler_bcfGlue` replaced by
+`dbarts_sampler_numForestAmplitudes` (:806) and `dbarts_sampler_forestAmplitudes`
+(:819); the creation Doxygen (dbarts.h:484-505) re-worded end to end in
+engine vocabulary - `forests = list(forest(), forest(basis = ...))`,
+`setForestBasis`, `forestFits`, `numForestAmplitudes`/`forestAmplitudes` -
+with no `treatment`/`bcfGlue` token left in it. All three message leaks
+recorded above are retired: `bartcore_setTreatment` now errors "a forest
+basis requires a sampler whose forests carry amplitudes"
+(R_interface_bartcore.cpp:3675-3676), `bartcore_getBCFGlue` now errors
+"forest amplitudes require a sampler whose forests carry them" (:3774), and
+`validateTreatment`'s length-mismatch message is parameterized by an
+`argument` name that the `forests =` creation path now passes as `"basis"`
+(R/spec.R:404-410, `data.R:648` reads `"length of '", argument, "' must
+equal length of 'y'"`) - no `'treatment'` string reaches a `forests =` user
+anywhere. Falsifiers FC1-FC3 all green: FC1 a flat-created sampler through
+`setForestBasis` reproduces the R5 path bitwise at a shared seed; FC2 the
+refusal matrix, outcome and message text both checked in C; FC3 the hash
+moved and neither version constant did. Budget, review verdict and gates are
+recorded at the dbarts-h-reshape S1 landing note, not repeated here - this
+item priced ~40 header + ~80 C_interface + ~70 consumer.c + ~60 test-capi.R
+of that slice's ~1310 re-priced total.
+
+Arc status: M1 and M2 landed; M3 LANDED (ab3aa2fa). Only M0 (the on-ramp
+docs/vignette slice) remains, deferred at orchestrator discretion; M4 (the
 general basis family) is RESOLVED pre-release and scheduled after the
-reshape.
+reshape, whose S1 - the arc's last header-touching slice - has now landed
+(S2, consumer rebuilds and docs, remains but moves no header).

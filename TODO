@@ -95,10 +95,13 @@ items
     populates it internally, with exactly the values and at exactly the
     point treatment = populated it before. The debt is the remaining
     split: a forests = model whose basis column still arrives at
-    dbartsData() under a treatment = name. Retires at M3, M4 (whose
-    n x q_f basis is the honest carrier and would absorb it whole), or the
-    dbarts-h-reshape re-bake window, whichever lands first. No escalation:
-    the split surface is shippable as-is. Pre-release.
+    dbartsData() under a treatment = name. M3 (multiforest-extension-
+    surface, riding dbarts-h-reshape S1, ab3aa2fa) LANDED without
+    moving this slot - it re-signed the flat C names only - and the
+    dbarts-h-reshape re-bake window (this arc's one and only re-bake)
+    is now spent. Retires at M4 (whose n x q_f basis is the honest
+    carrier and would absorb it whole) or a later window. No
+    escalation: the split surface is shippable as-is. Pre-release.
   embedding-page: a visible, citable "embedding dbarts" pkgdown
     page: the dbarts.h X-list surface, dbartsSpec, LinkingTo
     mechanics, and cross-refs to the named recipes. Evidence: the
@@ -188,15 +191,16 @@ items
     for which dbarts already ships the hard-constraint half; soft
     path-dependent penalties, gate STANDS - no model surfaced.
     decision-gated.
-  latent-subset-mask: ARC COMPLETE - S0 dc11a805, S1 6db22aee, S2
-    87d370ea, S3 8b047f8b, S4 93afd635 LANDED; the $setActiveRows
-    channel covers EVERY response family (multinomial global at the
-    combiner; per-forest refused at the per-forest weight entry with
-    the softmax-margin reason; BCF pinned bitwise against
-    setWeights(w * a); landing notes in
+  latent-subset-mask: ARC FULLY COMPLETE - S0 dc11a805, S1 6db22aee,
+    S2 87d370ea, S3 8b047f8b, S4 93afd635 LANDED, and the flat entry
+    (dbarts_sampler_setActiveRows) LANDED at dbarts-h-reshape S1,
+    ab3aa2fa; the $setActiveRows channel covers EVERY response family
+    (multinomial global at the combiner; per-forest refused at the
+    per-forest weight entry with the softmax-margin reason; BCF
+    pinned bitwise against setWeights(w * a)) and every surface,
+    R and flat C alike (landing notes in
     docs/plans/latent-subset-mask.md, artifacts
-    .claude/latent-subset-mask-design/). Remaining: the flat entry
-    (dbarts_sampler_setActiveRows) rides dbarts-h-reshape S1. V1-V9
+    .claude/latent-subset-mask-design/). Nothing remains. V1-V9
     adopted 2026-08-12 under VD's proceed-at-discretion grant
     (Student-t disposition VD-reviewed same day).
   multiforest-extension-surface: M1 LANDED 05ac3b4b, M2 LANDED 64b13b98 -
@@ -323,15 +327,18 @@ items
     next multinomial re-record; no test-side bartcoreForestFits
     analog; ConfigSpec OP_SET_COUNTS rides the general multi-forest
     fuzz-arm gap.
-  nameable-calibration: R SURFACE COMPLETE - S0 freeze 4c866286, S1
-    creation c2a7e89b, S2 mid-chain d809b944+7da36dc3 (landing notes
-    in docs/plans/nameable-calibration.md, artifacts
+  nameable-calibration: ARC COMPLETE - S0 freeze 4c866286, S1
+    creation c2a7e89b, S2 mid-chain d809b944+7da36dc3, S3 flat C
+    LANDED at dbarts-h-reshape S1, ab3aa2fa (landing notes in
+    docs/plans/nameable-calibration.md, artifacts
     .claude/nameable-calibration-design/). prior.scale nameable at
-    creation and mid-chain ($getCalibration/$setCalibration over
-    every chain, get-then-set bitwise inert); a sampled k honors
-    prior.scale and refuses prior.sd. Remaining: S3 flat C INSIDE
-    dbarts-h-reshape S1 (signatures frozen at S0; carries two items
-    recorded in the S2 landing note). V1-V10 adopted 2026-08-12
+    creation, mid-chain ($getCalibration/$setCalibration over every
+    chain, get-then-set bitwise inert) and from the flat C API
+    (dbarts_sampler_forestCalibration/setForestPriorScale); a sampled
+    k honors prior.scale and refuses prior.sd. Both items carried
+    from the S2 landing note shipped with S3: the engine bounds check
+    on Chain::forestCalibration, and the refuseBCFMutation reorder in
+    $setCalibration. Nothing remains. V1-V10 adopted 2026-08-12
     under VD's proceed-at-discretion grant.
   multinomial-dart-drop: bart2(family = "multinomial") accepts a
     DART request and silently drops it (the chain never routes it;
@@ -471,13 +478,14 @@ items
   sbc-family-tiers: BUILT (records in docs/plans/sbc-family-tiers.md
     and runsbcbcf-repair.md). Open doors: the monotone follow-on arm,
     the heteroscedastic setState lift, full-R ladder re-runs.
-  setforestweights-r5-exposure: R HALF LANDED - $setForestWeights is
-    now a public R5 method (multiforest-extension-surface M1,
-    05ac3b4b), closing the gap TBAFTcure (mixture-cure AFT;
-    docs/design/bart-landscape.md, grade B) hung on. REMAINING: the
-    flat C entry, frozen into the dbarts.h reshape's S1 (fork 3 KEEP
-    setForestWeights) - give it a test-capi.R positive arm rather than
-    signature-only treatment.
+  setforestweights-r5-exposure: LANDED - $setForestWeights is a
+    public R5 method (multiforest-extension-surface M1, 05ac3b4b) and
+    the flat C entry, dbarts_sampler_setForestWeights, shipped at
+    dbarts-h-reshape S1 (ab3aa2fa) with a positive test-capi.R arm
+    (a genuine per-forest weight moves subsequent draws, an all-ones
+    vector is bitwise inert), rather than signature-only treatment -
+    closing the gap TBAFTcure (mixture-cure AFT;
+    docs/design/bart-landscape.md, grade B) hung on. Nothing remains.
   setpredictor-dimnames: a whole-matrix transactional (or forced)
     setPredictor(x, ...) installs x into sampler$data@x as a plain
     matrix, dropping x's column names even when the sampler was built
@@ -544,24 +552,29 @@ items
   typed-ingestion: CLOSED - one borrowed PredictorSource view taken
     by creation, test ingestion, and mutation (record + landing notes
     in docs/plans/typed-ingestion.md). Its flat-C door became the
-    RESHAPE: plan committed docs/plans/dbarts-h-reshape.md (one
-    size-first dbarts_predictor_source POD replacing the dense
-    predictor params; forest-indexed tree queries; sparse predict for
-    free; no version increments - the hash is the lockstep signal;
-    slices S0-S2, AFTER the multiforest and multinomial arcs;
-    consumer cost = five stan4bart call sites, others rebuild). S0
-    (printer forest index widened on both engine paths + three
-    bridge guards promoted into bartcore_bridge, no dbarts.h touch,
-    no X-list change, no hash move) LANDED a262cd26. The
-    BCF-specific flat rename is a CARVE-OUT there (binding decision 3
-    + S1 item 5b): setTreatment -> setForestBasis, bcfGlue ->
-    numForestAmplitudes + forestAmplitudes. Extension-surface fork 3
-    (the condition) is RESOLVED 2026-08-11 in favour of the rename;
-    it lands at reshape S1. Reshape S1 also now carries two frozen,
-    AMENDABLE items from other arcs' S0 signature freezes: the
-    dbarts_sampler_forestCalibration / setForestPriorScale POD+entries
-    (docs/plans/nameable-calibration.md sec 8) and the
-    dbarts_sampler_setActiveRows entry (docs/plans/latent-subset-mask.md).
+    RESHAPE: docs/plans/dbarts-h-reshape.md. S0 (printer forest index
+    widened on both engine paths + three bridge guards promoted into
+    bartcore_bridge, no dbarts.h touch, no X-list change, no hash
+    move) LANDED a262cd26; item 9 (the R5 forest-index normalization)
+    LANDED separately a14040de. S1 LANDED ab3aa2fa, 2026-08-13 (the
+    window's one dbarts.h edit and hash re-bake, new literal
+    0xcd88efcd67de55d7, MAJOR/MINOR pinned 1/0): the
+    dbarts_predictor_source POD and the four predictor entries
+    re-signed onto it; forest-indexed numTrees/getTrees/printTrees,
+    each with its own bridge range check; dbarts_apiHash replacing
+    dbarts_apiVersion/DBARTS_C_API_VERSION. S1 also closed obligations
+    in three other arcs: dbarts_sampler_setForestWeights and
+    dbarts_sampler_setActiveRows appended (closing
+    setforestweights-r5-exposure and latent-subset-mask's last
+    obligations); the nameable-calibration flat pair,
+    forestCalibration/setForestPriorScale (closing that arc); the
+    BCF-specific rename, setTreatment -> setForestBasis, bcfGlue ->
+    numForestAmplitudes + forestAmplitudes (closing
+    multiforest-extension-surface's M3). Consumer cost, corrected from
+    the original "a stan4bart predict sweep only" estimate: five
+    stan4bart call sites (predict, getTrees, printTrees, numTrees x2);
+    treatSens, bartCause and bairrtt rebuild only. REMAINING: S2
+    (consumer rebuilds, docs and records).
     setData on a CSC/mixed store: SURVEYED,
     KEPT UNDESIGNED - no model surfaced (classes needing sparse
     designs do not swap whole data mid-chain; mid-chain mutation

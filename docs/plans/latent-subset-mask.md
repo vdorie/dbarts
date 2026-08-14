@@ -663,6 +663,23 @@ block, so the writer is the only source of the value and a reader can only echo
 it. If V6 is ever reversed and the mask DOES ride the state, a reader becomes
 necessary and must be added in the same re-bake.
 
+**Flat entry LANDED at dbarts-h-reshape S1, ab3aa2fa, 2026-08-13**
+(implemented as 3a977b6d, amended during independent review).
+`dbarts_sampler_setActiveRows` shipped to this section's contract: the
+capability probe on `shape.supportsActiveRows` runs FIRST and never switches
+on family, and the exact-`{0,1}` scan, the all-ones normalization and the
+copy are all inherited from the engine, not restated
+(`C_interface.cpp:901-910`). One disposition changed from this section's own
+proposal: obligation 2 above proposed a probit REFUSAL; the shipped body
+ACCEPTS probit instead, because every `ResponseModel` subclass now reports
+`supportsActiveRows` by the time S1 landed (measured at eight `model.hpp`
+sites, postdating this section) - the reshape plan's own S1 landing note
+records this as a justified deviation. `inst/tinytest/test-capi.R:987-1026`
+covers all four obligations: a genuine gaussian mask moves draws, an all-ones
+mask is bitwise inert, a fractional value is refused (`0`, not a raise), NULL
+clears, and a probit mask moves draws exactly as the gaussian one does. Full
+detail is dbarts-h-reshape.md's S1 landing note, not repeated here.
+
 ## S0. Pins. No engine change.
 
 `tests/cpp` cases asserting TODAY's behavior at the sites S1 moves:
@@ -1198,7 +1215,8 @@ family - gaussian, Student-t, probit and ordinal (S1); logistic,
 nbinom and aft (S2); multinomial, global-only (S3); BCF, via the
 shared gaussian response and composeForestWeights, pinned bitwise at
 S4 - and every R-facing surface ships: the R5 method, the dbarts:::
-bridge entry, both equivalence harnesses, Rd and NEWS. The arc's only
-remaining obligation is the flat-C entry,
-dbarts_sampler_setActiveRows, which rides dbarts-h-reshape S1 per "The
-dbarts.h footprint" above.
+bridge entry, both equivalence harnesses, Rd and NEWS. The arc's last
+remaining obligation, the flat-C entry dbarts_sampler_setActiveRows,
+LANDED at dbarts-h-reshape S1 (ab3aa2fa, 2026-08-13) - see "The
+dbarts.h footprint" above. THE MASK ARC'S LAST OBLIGATION IS DONE;
+nothing here is owed forward.
