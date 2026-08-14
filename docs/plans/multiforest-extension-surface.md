@@ -744,8 +744,9 @@ exists":
     M4  the general basis family           RESOLVED pre-release (fork 1,
                                             VD 2026-08-11); probes RAN
                                             2026-08-13; M4.0 LANDED 562ee684,
-                                            M4.1 LANDED 1458328c, next step
-                                            M4.2
+                                            M4.1 LANDED 1458328c, M4.2 LANDED
+                                            1a2aaedc, next step M4.3 (tests
+                                            re-price precondition)
     1.0-0 freeze
 
 M0 and M1 must land after bcf-public-surface S4 rather than beside it: S4 is
@@ -1455,8 +1456,11 @@ starts. **STATUS, re-scoped 2026-08-13 on the probe verdicts
 crashed, none was UNOBTAINABLE), and this commit is the re-scope. **M4.0
 LANDED 562ee684**, whose pin scope - BOTH `afterCombine` overrides - the
 verdicts left unchanged, per the Landing notes below. **M4.1 LANDED
-1458328c**, follow-up e48fc5de. **The next step is M4.2.** **The slice order
-is now M4.0 -> M4.1 -> M4.2 -> M4.3 -> M4.5,
+1458328c**, follow-up e48fc5de. **M4.2 LANDED 1a2aaedc**, amended once after
+independent review. **The next step is M4.3, gated on its own re-price
+precondition: the tests band now reads ~732 of the ~350-450 band (Budget,
+below), so M4.3 does not start until its own test budget is stated fresh.**
+**The slice order is now M4.0 -> M4.1 -> M4.2 -> M4.3 -> M4.5,
 Gaussian-complete, with M4.4 as the IMMEDIATE follow-on slice**, still
 pre-release (fork 2 holds both slices inside the window; the escape hatch
 REORDERS, it does not cancel). FA5 licensed that hatch and it is TAKEN; see
@@ -1783,6 +1787,14 @@ in FA1 and FA5 below ARE the record.
   `:995-1021`, `:1043-1053` and the `18L` `LEG_COUNT`; `test-capi.R:1165-1179`;
   `test-bcf-reporting.R:41,96,114`; `test-multi-forest-seam.R` (15 refusals);
   `test-bcf-mutation-pins.R` (6); `test-bcf-zero-multiplier.R`.
+
+  **Handoff from M4.2 (LANDED 1a2aaedc), recorded at the M4.2 landing.** ONE
+  item MANDATORY before M4.3 starts: define the `setTreatment` x
+  `installForestBasis` interaction. `setTreatment` silently discards a
+  widened basis today - M4.2's review pass only documented the fact on
+  `installTreatment`'s Doxygen, it did not resolve it. M4.3 wires the
+  per-forest basis surface `installForestBasis` is the engine half of, and
+  must specify which route wins, with a test.
 - **M4.4 (non-Gaussian, the family's justification).** Wire the family enum
   through the K-forest constructor and define the calibration map against each
   family's latent scale; probit and logistic in v1, the rest doors. **The
@@ -2210,7 +2222,11 @@ pre-slice check before M4.3 starts, not assumed from this figure.** **M4.1
 LANDED 1458328c/e48fc5de and added ~98 tests; the band now reads ~446 of the
 ~350-450 tests band consumed (M4.0 ~348 + M4.1 ~98) - at or past the top of
 the range, so the M4.3 re-price called for above is now MANDATORY, not a
-contingency.** DOCS (M4.5) were
+contingency.** **M4.2 LANDED 1a2aaedc and added ~286+65 tests; the band now
+reads ~732 dense-equivalent consumed (M4.0 ~348 + M4.1 ~98 + M4.2 ~286+65)
+against the original ~350-450 band - well past the top of the range, so the
+M4.3 RE-PRICE IS NOW A PRECONDITION: M4.3 does not start until its own test
+budget is stated fresh.** DOCS (M4.5) were
 unpriced; `multiplier-combiner.md` is a NEW file. Plus one possible
 `bcf-equivalence` re-record, with its `equivalence.yaml` bump in the same
 commit. **Both scheduling preconditions are MET:** multiforest-predictor-
@@ -3037,3 +3053,72 @@ alternating rounds, loadavg 2.11-3.68, per-arm git-archive trees and
 privlibs; note there is NO checked-in armab script - armab is a protocol
 name, and bench-sampler.R carries no BCF scenarios, so the harness was
 written in its idiom, gitignored).
+
+M4.2 LANDED 1a2aaedc, CI six-green sanitizers included, amended once after
+independent review (LAND-AFTER-CHANGES -> all four dispositions applied).
+Engine: per-forest q-variate amplitude conditional (P = I/priorVar + sum w x
+x'/sigma^2 on the basis-scaled fits, residual net of the other forests)
+drawn through a NEW square-root-free unit-lower L D L' beside the shipped
+Cholesky (the two-sqrt solve path gives x/sqrt(d)/sqrt(d) != x/d, breaking
+the q=1 bitwise reduction); afterCombine is ONE general per-forest ASIS
+rescale at p = (L-q)/2 (bcf-b-ridge's rule, its q=1 instance
+bitwise-identical to BCF's a-move). Engine ~180 net dense-equivalent, tests
+~351.
+
+THE IN-SLICE RULE'S OUTCOME: bitwise on the ASIS half; SPECIALIZED-PATH-KEPT
+on the conditional half - bitwise is IMPOSSIBLE for the general drawGlue
+loop, a compiler fact: the a-block accumulates in one fused statement while
+the b-block forms per-row products before a branch and fuses unevenly; under
+-ffp-contract=off all four accumulators agree. The reviewer CONFIRMED
+impossibility over 21 accumulation variants against the real engine (its own
+first standalone probe false-alarmed - vectorization split the multiplies in
+the replica, a recorded methodology lesson: contraction probes must run
+against the real engine build, not replicas). The measured split, recorded
+exactly at the branch-deletion trigger comment (combiner.hpp ~:714-726,
+corrected at review): all four PRECISIONS reproduce; the divergence is in
+the MOMENTS - unweighted n1 reproduces/n0 differs, weighted both differ. BCF
+keeps its two-scalar draw explicitly; BCFSpec::generalAmplitudeDraw is the
+one-line switch a future re-record flips. NO baseline moved.
+
+The b-move ships as code, held OFF for BCF (BCFSpec::ridgeB): enabling costs
+a GIG draw/sweep = a re-record, and its own acceptance gate
+(bcf-b-ridge.md:495-506 - IACT payoff, bcf-exact mode-2b, keepTrees
+round-trip) was not run here. DOOR, not a fork: flips only if a measured
+mixing case is named; bcf-equivalence's 12/12 bitwise on the glue channel is
+the standing pin that no GIG draw entered the BCF stream. Reviewer concurred
+with OFF.
+
+Handoff items (a)-(d) all closed: combinedFits untouched (body
+byte-identical); a()/b0()/b1() index through amplitudeOffset (aliasing
+red/green run by implementer AND reviewer - only the multiplier arm
+discriminates, the round-trip arm's limitation is recorded in-test); all
+three accumulation directions documented as contracts in place; every
+per-forest array sized by the chain's forest count (pre-M4.2 resize(2)
+reproduces an ASAN heap overflow at K=3, current clean - both ran it).
+
+Review's required changes, both applied: the trigger-comment correction
+above, and TEETH for the LDL' helper - testUnitLowerFactorization
+(test_model.cpp, p=1 bitwise-equals-b/P with the Cholesky route asserted to
+differ, plus a p=2 orthogonal arm) AND an engine-level assertion that the
+general path's q=1 block is BITWISE the shipped a draw (test_sampler.cpp
+~:3496-3503); the red/green showed a substituted Cholesky draw turns
+EXACTLY that assertion red with the other 241 ok lines green - previously
+invisible to every suite. Also from review: drawShippedGlue's
+prior-variance refresh now carries the same halfCauchyScale > 0.0 guard as
+drawAmplitudes (at the reachable aPriorScale = 0 edge the two paths were
+different MODELS; guard alignment verified rng-neutral - no baseline sets
+it); installTreatment's Doxygen now states that the setTreatment route
+rebuilds basis and layout from scratch, silently resetting an
+installForestBasis widening.
+
+Deviation accepted: installForestBasis (engine-internal, unreachable from
+any public surface - reviewer verified the shipped setForestBasis routes to
+setTreatment) exists because the q0 != 1 fixture is otherwise
+unconstructible; it is the engine half M4.3 wires up.
+
+docs/design/bcf.md still describes the a-move as prognostic-only - left for
+M4.5 by design.
+
+Battery: implementer and reviewer both from clean - tinytest 4582/0 twice,
+trio bitwise twice (37 strict/12/10), ASAN zero twice, seven protected pin
+bodies byte-identical across revs.
