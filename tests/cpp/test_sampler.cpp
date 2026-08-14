@@ -3193,6 +3193,136 @@ static void testBCFCombinerSeam() {
   printf("ok: BCF combiner seam pins\n");
 }
 
+// M4.1's own two facts, beside the seam pins rather than inside them.
+//
+// (1) The row sum's ASSOCIATION is observable. Under fused multiply-add
+// contraction exactly one product in a sum escapes its own rounding - the one
+// the closing add absorbs - and combinedFits absorbs FOREST 0's, which is what
+// makes the K loop bitwise with the two-forest blend it replaces. The seam
+// pin's reference is written as an ordinary expression and so inherits the test
+// compiler's own contraction choice; this one spells both candidate
+// associations with std::fma, so it states the association instead of assuming
+// it, and counts the rows on which the two actually separate.
+static void testCombinedFitsAssociation() {
+  const size_t n = 64;
+  std::vector<double> xDummy(n, 0.0);
+  ColumnStore data;
+  data.build(xDummy.data(), n, 1, 100);
+
+  std::uint64_t state = 20260813u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  std::vector<double> z(n), mu(n), tau(n);
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = unif() < 0.5 ? 1.0 : 0.0;
+    mu[i] = 4.0 * (unif() - 0.5);
+    tau[i] = 4.0 * (unif() - 0.5);
+  }
+  // deliberately NOT dyadic: a product's low bits have to be live or the two
+  // associations agree everywhere and the pin says nothing
+  const double a = 1.0834712, b0 = -0.31274, b1 = 0.9124367;
+
+  BCFSpec spec;
+  spec.z = z.data();
+  BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+  ChainStateData glue;
+  glue.hasBCF = true;
+  glue.a = a;
+  glue.b0 = b0;
+  glue.b1 = b1;
+  combiner.restoreGlue(glue);
+
+  std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+  forests[0].totalFits = mu;
+  forests[1].totalFits = tau;
+
+  const double* combined = combiner.combinedFits(forests);
+  bool absorbsPrognostic = true;
+  size_t discriminating = 0;
+  for (size_t i = 0; i < n; ++i) {
+    double bz = z[i] != 0.0 ? b1 : b0;
+    // lone multiplies, so each is its own correctly rounded product and
+    // neither statement can be contracted into the sums below
+    double prognosticTerm = a * mu[i];
+    double treatmentTerm = bz * tau[i];
+    double absorbsForest0 = std::fma(a, mu[i], treatmentTerm);
+    double absorbsForest1 = std::fma(bz, tau[i], prognosticTerm);
+    absorbsPrognostic &= combined[i] == absorbsForest0;
+    discriminating += absorbsForest0 != absorbsForest1 ? 1 : 0;
+  }
+  check(discriminating > 0,
+        "the association fixture separates the two roundings on some row");
+  check(absorbsPrognostic,
+        "the combination absorbs forest 0's product into the closing add");
+
+  printf("ok: combined fits association (%zu of %zu rows discriminating)\n",
+         discriminating, n);
+}
+
+// (2) The basis is SYNTHESIZED from z rather than read through it, so a
+// mid-life swap has to rebuild it - and has to leave the amplitudes alone,
+// a basis swap being a data move and not a draw. The seam pins never call
+// setTreatment, so this is the only component-level guard on either half.
+static void testForestBasisSynthesis() {
+  const size_t n = 6;
+  std::vector<double> xDummy(n, 0.0);
+  ColumnStore data;
+  data.build(xDummy.data(), n, 1, 100);
+
+  std::vector<double> z = {0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+  // the COMPLEMENT, so a stale basis is wrong on all six rows rather than some
+  std::vector<double> swapped = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+  std::vector<double> mu = {0.5, -1.5, 2.0, 0.25, -0.75, 1.0};
+  std::vector<double> tau = {1.0, 0.5, -2.0, 1.5, 0.25, -0.5};
+  std::vector<double> y = {2.0, -1.0, 0.5, 3.0, -2.5, 1.25};
+  const double a = 1.5, b0 = -0.5, b1 = 0.25;
+
+  BCFSpec spec;
+  spec.z = z.data();
+  BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+  ChainStateData glue;
+  glue.hasBCF = true;
+  glue.a = a;
+  glue.b0 = b0;
+  glue.b1 = b1;
+  combiner.restoreGlue(glue);
+
+  std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+  forests[0].totalFits = mu;
+  forests[1].totalFits = tau;
+
+  combiner.setTreatment(swapped.data());
+
+  double aOut = 0.0, b0Out = 0.0, b1Out = 0.0;
+  combiner.bcfGlue(aOut, b0Out, b1Out);
+  check(aOut == a && b0Out == b0 && b1Out == b1,
+        "a basis swap rebuilds the basis and leaves the amplitudes where they "
+        "were");
+
+  const double* combined = combiner.combinedFits(forests);
+  bool blend = true;
+  for (size_t i = 0; i < n; ++i) {
+    double bz = swapped[i] != 0.0 ? b1 : b0;
+    blend &= combined[i] == std::fma(a, mu[i], bz * tau[i]);
+  }
+  check(blend, "the combination reads the swapped basis, not the constructed "
+               "one");
+
+  ForestResponse treatment =
+    combiner.formForestResponse(1, forests, y.data(), nullptr);
+  bool pair = true;
+  for (size_t i = 0; i < n; ++i) {
+    double m = swapped[i] != 0.0 ? b1 : b0;
+    pair &= treatment.response[i] == (y[i] - a * mu[i]) / m &&
+            treatment.weights[i] == m * m;
+  }
+  check(pair, "the reparameterization reads the swapped basis too");
+
+  printf("ok: forest basis synthesis\n");
+}
+
 // The caller-supplied per-forest observation weight, on the three questions
 // only the engine can answer: the refusal is a returned false and it perturbs
 // nothing; the zeroed rows' sufficient statistics are invariant to their own
@@ -5262,6 +5392,8 @@ void runSamplerTests(ext_rng* rng) {
   testBCFGrowForestFromRoot();
   testBCFZeroMultiplierSnap();
   testBCFCombinerSeam();
+  testCombinedFitsAssociation();
+  testForestBasisSynthesis();
   testForestWeights();
   testMultinomial(rng);
   testMultinomialCombinerSeam();

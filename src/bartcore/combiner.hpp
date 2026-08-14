@@ -288,18 +288,51 @@ struct MultinomialSpec {
   double k = 2.0;
 };
 
-/// The combining response's glue (docs/design/bcf.md): the prognostic scalar
-/// a (half-Cauchy via the scale-mixture auxiliary aVariance) and the
-/// treatment scales b0/b1, plus the sweep's per-forest scratch. y = a mu +
-/// b_z tau + eps; a Chain holds one only in BCF mode.
+/// One forest's amplitude basis: the n x q matrix B_f whose row contracts with
+/// the forest's amplitude vector a_f into the per-observation scalar the forest
+/// enters the combination through, m_f(i) = dot(a_f, B_f(i, .)). Stored
+/// ROW-major (row i at i * numColumns) because that contraction is the only
+/// read: a row is contiguous and the multiplier costs one stream per forest.
+///
+/// q >= 1 always, and the width is uniform across rows, so there is no implicit
+/// all-ones column to special-case - a forest whose multiplier is a plain
+/// amplitude carries the ones column densely and reaches it by the same
+/// contraction every other forest does. That is what leaves exactly one
+/// multiplier path (docs/plans/multiforest-extension-surface.md, M4.1).
+struct ForestBasis {
+  std::vector<double> values;
+  std::size_t numColumns = 0;
+};
+
+/// The combining response's glue (docs/design/bcf.md): the per-forest amplitude
+/// vectors and the bases they contract with, plus the sweep's per-forest
+/// scratch. y = a mu + b_z tau + eps; a Chain holds one only in BCF mode.
+///
+/// The amplitudes are ONE flat vector, forest f's block at amplitudeOffset[f]
+/// and as wide as basis[f]: the general shape, of which bcf is the K = 2
+/// instance (a) x (b0, b1). The named accessors below are that instance's
+/// reading - the same three numbers, in their bcf spelling, for the glue
+/// conditionals and the wire format that still speak it.
 struct BCFState {
   const double* z = nullptr;
-  double a = 1.0, b0 = 0.0, b1 = 1.0;
+  std::vector<ForestBasis> basis;
+  std::vector<double> amplitudes{1.0, 0.0, 1.0};
+  std::vector<std::size_t> amplitudeOffset;  // length K + 1, prefix sums of q_f
   double aVariance = 1.0;
   double aPriorScale = 2.0;
   double bPriorVariance = 0.5;
   bool updateA = true, updateB = true;  // false holds the block at its value
   std::vector<double> combined, forestResponse, forestWeights;
+  // per-forest total-fit pointers, refilled at every combinedFits call: the K
+  // generalization of the two pointers that blend hoisted out of its loop
+  std::vector<const double*> fitsByForest;
+
+  double& a() { return amplitudes[0]; }
+  double a() const { return amplitudes[0]; }
+  double& b0() { return amplitudes[1]; }
+  double b0() const { return amplitudes[1]; }
+  double& b1() { return amplitudes[2]; }
+  double b1() const { return amplitudes[2]; }
 };
 
 /// Forest f's effective response and precision for its own leaf draws: the pair
@@ -504,17 +537,17 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
 
   BCFForestCombiner(const ColumnStore& data, const BCFSpec& spec)
       : data_(data) {
-    glue_.z = spec.z;
     glue_.aPriorScale = spec.aPriorScale;
     glue_.bPriorVariance = spec.bPriorVariance;
     glue_.updateA = spec.updateA;
     glue_.updateB = spec.updateB;
+    installTreatment(spec.z);
   }
 
-  void setTreatment(const double* z) override { glue_.z = z; }
+  void setTreatment(const double* z) override { installTreatment(z); }
 
   bool bcfGlue(double& a, double& b0, double& b1) const override {
-    a = glue_.a; b0 = glue_.b0; b1 = glue_.b1;
+    a = glue_.a(); b0 = glue_.b0(); b1 = glue_.b1();
     return true;
   }
 
@@ -564,14 +597,37 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
     return {glue_.forestResponse.data(), glue_.forestWeights.data()};
   }
 
+  /// The combined location, sum_f m_f(i) f_f(x_i), accumulated WITHIN the row
+  /// and from the LAST forest DOWN.
+  ///
+  /// The direction is load-bearing and measured, not stylistic. Under fused
+  /// multiply-add contraction (clang's default for C++) exactly one product in
+  /// a sum escapes its own rounding - the one the closing add absorbs - and the
+  /// two-forest blend this replaces, `a mu + b_z tau` as a single expression,
+  /// absorbed forest 0's. Seeding the accumulator with the LAST forest leaves
+  /// forest 0's product as the only bare multiply in the closing add, so it is
+  /// the one contracted and bcf's K = 2 instance stays bitwise. Accumulating
+  /// FORWARD absorbs the last forest's product instead and moves ~30% of rows
+  /// by one ulp, which walks into the whole trajectory - measured, all 12
+  /// bcf-equivalence scenarios red on mu, tau, glue, sigma and train.
+  ///
+  /// The multiplier here is the EXACT contraction: the reparameterization's
+  /// near-zero snap belongs to formForestResponse and must not be shared with
+  /// this reader, which still owes a snapped row its m_f f_f.
   const double* combinedFits(const std::vector<Forest<L, ResidT>>& forests) override {
     std::size_t n = data_.numObservations;
+    std::size_t numForests = forests.size();
     glue_.combined.resize(n);
-    const double* mu = forests[0].totalFits.data();
-    const double* tau = forests[1].totalFits.data();
-    for (std::size_t i = 0; i < n; ++i)
-      glue_.combined[i] = glue_.a * mu[i] +
-        (glue_.z[i] != 0.0 ? glue_.b1 : glue_.b0) * tau[i];
+    glue_.fitsByForest.resize(numForests);
+    for (std::size_t f = 0; f < numForests; ++f)
+      glue_.fitsByForest[f] = forests[f].totalFits.data();
+    std::size_t last = numForests - 1;
+    for (std::size_t i = 0; i < n; ++i) {
+      double location = forestMultiplier(last, i) * glue_.fitsByForest[last][i];
+      for (std::size_t f = last; f-- > 0;)
+        location += forestMultiplier(f, i) * glue_.fitsByForest[f][i];
+      glue_.combined[i] = location;
+    }
     return glue_.combined.data();
   }
 
@@ -590,18 +646,18 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
       double aPrec = 1.0 / glue_.aVariance, aNum = 0.0;
       for (std::size_t i = 0; i < n; ++i) {
         double wi = w == nullptr ? 1.0 : w[i];
-        double bz = glue_.z[i] != 0.0 ? glue_.b1 : glue_.b0;
+        double bz = glue_.z[i] != 0.0 ? glue_.b1() : glue_.b0();
         double r = y[i] - bz * tau[i];
         aPrec += wi * mu[i] * mu[i] * invSigmaSq;
         aNum += wi * mu[i] * r * invSigmaSq;
       }
-      glue_.a =
+      glue_.a() =
         aNum / aPrec + ext_rng_simulateStandardNormal(rng) / std::sqrt(aPrec);
 
       // t_1 scale mixture: aVariance ~ IG(1/2, scale^2/2) mixes N(0, aVariance)
       // to Cauchy(0, scale), so the conditional's rate carries scale^2, not its
       // inverse
-      double rate = 0.5 * glue_.a * glue_.a +
+      double rate = 0.5 * glue_.a() * glue_.a() +
                     0.5 * glue_.aPriorScale * glue_.aPriorScale;
       glue_.aVariance = 1.0 / ext_rng_simulateGamma(rng, 1.0, 1.0 / rate);
     }
@@ -611,14 +667,16 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
       double p0 = bPrec, n0 = 0.0, p1 = bPrec, n1 = 0.0;
       for (std::size_t i = 0; i < n; ++i) {
         double wi = w == nullptr ? 1.0 : w[i];
-        double r = y[i] - glue_.a * mu[i];
+        double r = y[i] - glue_.a() * mu[i];
         double prec = wi * tau[i] * tau[i] * invSigmaSq;
         double num = wi * tau[i] * r * invSigmaSq;
         if (glue_.z[i] != 0.0) { p1 += prec; n1 += num; }
         else { p0 += prec; n0 += num; }
       }
-      glue_.b0 = n0 / p0 + ext_rng_simulateStandardNormal(rng) / std::sqrt(p0);
-      glue_.b1 = n1 / p1 + ext_rng_simulateStandardNormal(rng) / std::sqrt(p1);
+      glue_.b0() =
+        n0 / p0 + ext_rng_simulateStandardNormal(rng) / std::sqrt(p0);
+      glue_.b1() =
+        n1 / p1 + ext_rng_simulateStandardNormal(rng) / std::sqrt(p1);
     }
   }
 
@@ -662,7 +720,7 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
     if (numLeaves < 2 || !(M > 0.0)) return 1.0;
 
     // GIG parameters (docs/design/bcf.md): A = M (k/scale)^2, B = a0^2/aVariance
-    double a0 = glue_.a;
+    double a0 = glue_.a();
     double leafPrecision = (forest.k / forest.leaf.scale) *
                            (forest.k / forest.leaf.scale);  // 1 / leafVar
     double gigP = 0.5 * (static_cast<double>(numLeaves) - 1.0);
@@ -677,7 +735,7 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
 
     // travel the ridge: a shrinks, the prognostic fits grow by c. Scaling every
     // leaf value scales every gathered fit, so the mu tables carry the rescale.
-    glue_.a = a0 / c;
+    glue_.a() = a0 / c;
     for (std::size_t t = 0; t < forest.numTrees; ++t)
       misc_scalarMultiplyVectorInPlace(forest.muByTree[t].data(),
                                        forest.muByTree[t].size(), c);
@@ -743,25 +801,77 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// constructed values.
   void serializeGlue(ChainStateData& state) const override {
     state.hasBCF = true;
-    state.a = glue_.a;
+    state.a = glue_.a();
     state.aVariance = glue_.aVariance;
-    state.b0 = glue_.b0;
-    state.b1 = glue_.b1;
+    state.b0 = glue_.b0();
+    state.b1 = glue_.b1();
   }
   void restoreGlue(const ChainStateData& state) override {
     if (!state.hasBCF) return;
-    glue_.a = state.a;
+    glue_.a() = state.a;
     glue_.aVariance = state.aVariance;
-    glue_.b0 = state.b0;
-    glue_.b1 = state.b1;
+    glue_.b0() = state.b0;
+    glue_.b1() = state.b1;
   }
 
 private:
-  /// The scale forest f's constant leaf carries into the combination: a for the
-  /// prognostic forest, b_{z_i} for the treatment forest.
+  /// The scale forest f's constant leaf carries into the combination: the
+  /// contraction of forest f's amplitude vector with its own basis row,
+  /// m_f(i) = dot(a_f, B_f(i, .)). One path, whatever K and whatever q_f - bcf
+  /// reaches its two values through it rather than around it: the prognostic
+  /// forest's all-ones column contracts to a on every row, and the treatment
+  /// forest's (control, treated) indicator pair contracts to b_{z_i}, both
+  /// bitwise (a * 1 is a, and the zero-weighted term adds a zero).
+  ///
+  /// q >= 1 by construction, so the first product seeds the sum and no
+  /// zero-initialized accumulator enters the arithmetic.
   double forestMultiplier(std::size_t f, std::size_t i) const {
-    if (f == 0) return glue_.a;
-    return glue_.z[i] != 0.0 ? glue_.b1 : glue_.b0;
+    const ForestBasis& basis = glue_.basis[f];
+    const double* amplitude =
+      glue_.amplitudes.data() + glue_.amplitudeOffset[f];
+    const double* row = basis.values.data() + i * basis.numColumns;
+    double m = amplitude[0] * row[0];
+    for (std::size_t j = 1; j < basis.numColumns; ++j)
+      m += amplitude[j] * row[j];
+    return m;
+  }
+
+  /// Installs the borrowed treatment vector and SYNTHESIZES the two bases it
+  /// implies: the prognostic forest's single all-ones column, and the treatment
+  /// forest's two-column (control, treated) indicator pair, which is the
+  /// two-level factor basis whose amplitudes are exactly (b0, b1). Synthesized
+  /// here rather than handed in, so the R and flat C routes keep passing
+  /// today's single 0/1 column and bcf stays bitwise identical
+  /// (docs/plans/multiforest-extension-surface.md, M4.1).
+  ///
+  /// The amplitude LAYOUT is derived from the basis widths so the two cannot
+  /// drift; the amplitude VALUES are left alone, since a mid-life basis swap
+  /// must not disturb a live glue draw (the widths are fixed at K = 2, so the
+  /// resize never grows and never truncates). A null z installs the
+  /// all-control basis, matching the constructed b0.
+  void installTreatment(const double* z) {
+    std::size_t n = data_.numObservations;
+    glue_.z = z;
+    glue_.basis.resize(2);
+
+    glue_.basis[0].numColumns = 1;
+    glue_.basis[0].values.assign(n, 1.0);
+
+    ForestBasis& treatment = glue_.basis[1];
+    treatment.numColumns = 2;
+    treatment.values.resize(2 * n);
+    for (std::size_t i = 0; i < n; ++i) {
+      bool treated = z != nullptr && z[i] != 0.0;
+      treatment.values[2 * i] = treated ? 0.0 : 1.0;
+      treatment.values[2 * i + 1] = treated ? 1.0 : 0.0;
+    }
+
+    glue_.amplitudeOffset.resize(glue_.basis.size() + 1);
+    glue_.amplitudeOffset[0] = 0;
+    for (std::size_t f = 0; f < glue_.basis.size(); ++f)
+      glue_.amplitudeOffset[f + 1] =
+        glue_.amplitudeOffset[f] + glue_.basis[f].numColumns;
+    glue_.amplitudes.resize(glue_.amplitudeOffset.back());
   }
 
   const ColumnStore& data_;
