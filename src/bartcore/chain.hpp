@@ -718,7 +718,9 @@ public:
     buildBCFForest(spec.mu, s);
     buildBCFForest(spec.tau, spec.sdModerate * s / kHalfNormalMedian);
 
-    combiner_ = std::make_unique<BCFForestCombiner<L, ResidT>>(data, spec);
+    combiner_ =
+      std::make_unique<BCFForestCombiner<L, ResidT>>(data, spec,
+                                                     forests_.size());
     resizeTestStorage();
   }
 
@@ -1056,10 +1058,11 @@ public:
     }
   }
 
-  /// Fires the combiner's post-combine move (BCF: the interweaving glue-ridge
-  /// rescale, BCFForestCombiner<L>::afterCombine) outside a sweep, for the
-  /// component tests; returns the applied scale (1.0 off BCF or when the move
-  /// is skipped).
+  /// Fires the combiner's post-combine move (BCF: the per-forest interweaving
+  /// amplitude-ridge rescale, BCFForestCombiner<L>::afterCombine) outside a
+  /// sweep, for the component tests; returns whatever that override reports,
+  /// which is NOT a moved/did-not-move flag (ForestCombiner::afterCombine
+  /// states each convention).
   double interweaveGlueRidge(bool record = false, std::size_t sampleNum = 0) {
     return combiner_
       ? combiner_->afterCombine(forests_, record, sampleNum, rng_)

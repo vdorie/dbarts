@@ -23,6 +23,60 @@ static void testIntegratedLikelihood() {
   printf("ok: integrated likelihood\n");
 }
 
+// The square-root-free factorization is not interchangeable with the Cholesky
+// beside it, and nothing else in the suite can tell: the amplitude conditional
+// that needs it rides no equivalence stream, and its own agreement arm is a
+// RELATIVE 1e-12 that a one-ulp move passes. So the pin is on the arithmetic
+// itself - at p = 1 the unit-triangular solves are identity and the pivot
+// divides the moment ONCE, which is bitwise b/P, while the Cholesky's two
+// triangular solves divide twice by sqrt(P) and land somewhere else. The
+// second half is what gives the pin teeth: it asserts the routes DIFFER on
+// this fixture, so a substitution cannot pass by accident.
+static void testUnitLowerFactorization() {
+  // deliberately non-dyadic, so sqrt(P) is inexact and the double division is
+  // forced off the single one; a power of two would agree and say nothing
+  const double P = 3.7182818284590452, b = -1.4142135623730951;
+
+  double matrix = P, moment = b;
+  unitLowerDecompose(&matrix, 1);
+  solveUnitLowerTriangular(&matrix, 1, &moment);
+  moment /= matrix;
+  solveUnitLowerTriangularTransposed(&matrix, 1, &moment);
+  check(matrix == P, "the p = 1 pivot is the matrix itself, untouched");
+  check(moment == b / P,
+        "the unit-triangular solve divides by the pivot exactly once");
+
+  double cholesky = P, choleskyMoment = b;
+  choleskyDecompose(&cholesky, 1);
+  solveLowerTriangular(&cholesky, 1, &choleskyMoment);
+  solveLowerTriangularTransposed(&cholesky, 1, &choleskyMoment);
+  check(cholesky == std::sqrt(P), "the p = 1 Cholesky factor is sqrt(P)");
+  check(choleskyMoment != moment,
+        "the Cholesky route's two divisions by sqrt(P) do NOT reproduce b/P, "
+        "which is why the amplitude conditional cannot use it");
+
+  // the same at p = 2 over an ORTHOGONAL system, which is the shape bcf's
+  // indicator basis presents: both unit triangles must come out exactly zero
+  // so each coordinate is its own scalar solve
+  const double diagonal[2] = {2.3025850929940457, 0.6931471805599453};
+  const double moments[2] = {0.5772156649015329, -0.3010299956639812};
+  double orthogonal[4] = {diagonal[0], 0.0, 0.0, diagonal[1]};
+  double pair[2] = {moments[0], moments[1]};
+  unitLowerDecompose(orthogonal, 2);
+  solveUnitLowerTriangular(orthogonal, 2, pair);
+  pair[0] /= orthogonal[0];
+  pair[1] /= orthogonal[3];
+  solveUnitLowerTriangularTransposed(orthogonal, 2, pair);
+  check(orthogonal[2] == 0.0 && orthogonal[0] == diagonal[0] &&
+          orthogonal[3] == diagonal[1],
+        "an orthogonal system factorizes to exactly its own diagonal");
+  check(pair[0] == moments[0] / diagonal[0] &&
+          pair[1] == moments[1] / diagonal[1],
+        "an orthogonal system solves as two independent scalar divisions");
+
+  printf("ok: unit lower factorization\n");
+}
+
 static void testPosteriorDraw(ext_rng* rng) {
   ConstantGaussianLeaf leaf{0.5 / std::sqrt(50.0)};
   double k = 2.0, sigmaSq = 0.02, sumW = 30.0, sumWZ = 3.6;
@@ -6733,6 +6787,7 @@ static void testMonotoneCInflation() {
 
 void runModelTests(ext_rng* rng) {
   testLeafSeamDispatch();
+  testUnitLowerFactorization();
   testIntegratedLikelihood();
   testPosteriorDraw(rng);
   testConstantLeafSuffstatEquivalence();
