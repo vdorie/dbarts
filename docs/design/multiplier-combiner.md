@@ -230,7 +230,7 @@ the whole draw.
 
 The flag is recomputed at install and at restore and never serialized, so
 nothing can carry a stale answer across a round trip (combiner.hpp:421-429,
-:757, :1016). Recorded as M4.3's doc-level residue (plan :3626-3629): the
+:757, :1016). Recorded as M4.3's doc-level residue (plan :3627-3630): the
 RESTORE-side recompute is VACUOUS, because `restoreGlue` never touches basis
 values - the load-bearing recompute is the install-time one. Verified at
 combiner.hpp:1000-1017, which calls `refreshCanonical()` after writing
@@ -442,7 +442,7 @@ with licensed successors (the treatment-coding refusal, replaced by
 length/finiteness refusals at creation). `consumer.c` `LEG_COUNT` 18 -> 19.
 Engine ~165 dense-equivalent.
 
-**Budget units, as a standing convention** (plan :3620-3624). Slice bands on
+**Budget units, as a standing convention** (plan :3621-3625). Slice bands on
 this arc are DENSE-EQUIVALENT lines - lines counted without blank-line and
 formatting inflation, which roughly doubles raw counts. M4.3's implementer
 reported raw nets against a dense band and appeared over budget when it was

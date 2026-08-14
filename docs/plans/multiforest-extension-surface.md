@@ -3602,12 +3602,13 @@ reconstruction.
 
 The ridgeB question RESOLVED at review: no silent enablement is possible -
 on every creation route scale-mixture holds if and only if a forest is
-basis-free (R/model.R writes halfCauchyScale = 0 whenever a basis is
-declared), so every basis-carrying forest gets ridge = false; the one
-reachable q>1 scale-mixture state (post-creation widening of a basis-free
-forest) consumes the SAME single GIG draw already taken at q=1 at the
-M4.2-validated exponent - no stream moves. The M4.2 door stays shut; the
-trio is the standing evidence.
+basis-free (R/model.R:874 writes the amplitude prior scale as 0 whenever a
+basis is declared; R_interface_bartcore.cpp:2205 reads it into
+amplitudePriorScale and :2207 gates ridge on it), so every basis-carrying
+forest gets ridge = false; the one reachable q>1 scale-mixture state
+(post-creation widening of a basis-free forest) consumes the SAME single
+GIG draw already taken at q=1 at the M4.2-validated exponent - no stream
+moves. The M4.2 door stays shut; the trio is the standing evidence.
 
 Deviations adjudicated: $getForestAmplitudes(forest = NULL) SATISFIES the
 collision license (takes the argument; the universal 3 x n.chains Rd claim
@@ -3634,3 +3635,116 @@ Battery: implementer and reviewer both from clean - tinytest 4646/0 final
 (4633 pre-amend), trio bitwise twice through the migrated harness, ASAN
 zero twice, R CMD check --as-cran OK 0/0/0 on a git-archive tarball, pkgdown
 clean, no new Rd topic.
+
+M4.5 LANDED fcfd4e29, 2026-08-14, the last Gaussian-complete slice of the
+arc, amended once after independent review (first-pass verdict LAND AFTER
+FIXES on fourteen defects; fix-round verdict LAND, four residual NITs, none
+touching src/). Docs sweep for the K-forest amplitude family M4.0-M4.3
+built. New: docs/design/multiplier-combiner.md, the design doc for the
+general family - the model equation, the ragged amplitude layout, the
+reparameterization and its exact-zero snap, the q-variate amplitude
+conditional, the per-forest ASIS rescale, the canonical-basis VALUE
+predicate, install and persistence semantics, the accumulation contracts,
+and bcf as the K = 2 instance. Swept: the two-forest language across
+forest-combiner.md (its re-carves section and its "first instance"
+section, now a pointer at multiplier-combiner.md), model-space-survey.md
+(a new closed door D4, the four multiplier classes that are the family's
+five published instances minus bcf), bcf.md (the a-move-as-prognostic-
+only correction plus two further stale paragraphs), and feature-matrix.md
+(the bcf row label plus a bounded anchor re-verification). Ten dbarts.h
+Doxygen paragraphs changed meaning under K > 2; all comment-only, all
+outside DBARTS_C_API_LIST.
+
+feature-matrix.md moves NO CELL: the family is still gaussian-only, so the
+new K-length creation route reaches no new response family -
+R/spec.R:423-431 refuses data@bases off any non-gaussian family, and
+chain.hpp:702-705 builds GaussianResponse and sets
+family_ = ResponseFamily::gaussian unconditionally on every K-forest route.
+That discharges the matrix's per-landing mandate for this slice; only the
+bcf row LABEL and the spec-named COM/CH anchors moved, both non-cell edits.
+
+The five orchestrator decisions. Q1: M4.5 touches src/ after all -
+dbarts.h is already outside the docs-only no-workflow path, so the
+two-line combiner.hpp:1206-1210 comment fix (a dangling docs/design/bcf.md
+IACT citation, repointed to multiplier-combiner.md) cost nothing extra and
+was taken. Q2: all of forest-combiner.md, not just the plan's named
+re-carves section - leaving the file documenting one combiner instance
+right and one wrong was not acceptable. Q3: a BOUNDED anchor pass -
+feature-matrix.md carries 59 COM/CH occurrences (~31 distinct), over the
+15-anchor threshold for a full pass, so only the spec-named four anchors
+plus the bcf row label were re-verified BY SYMBOL; the alias-table
+sentence now reads "EXCEPT where a cell or footnote says otherwise," the
+Status line's "current at" stamp was deliberately NOT bumped, and TODO
+gained feature-matrix-anchor-refresh for the outstanding full pass. Q4:
+all four classes written, evidence labelled honestly - continuous/
+dose-response BCF's only source (arXiv:2007.09845) is UNPUBLISHED by the
+plan's own correction, so D4 states that plainly rather than inheriting
+the originating phrase's "verified." Q5: the naming debt RECORDED, not
+acted on - multiplier-combiner.md states the family is general and the
+spelling is bcf's (BCFSpec, BCFForestCombiner, createBCFSampler,
+ChainStateData::hasBCF, the "bcf" state block), prices a rename
+(--preclean, a structSize move, a state-block key needing the same
+in-place re-encode M4.3 used), and TODO gained bcf-naming-generalization;
+no rename was started.
+
+Scope EXPANDED. The plan's M4.5 bullet named five deliverables - the new
+file, and edits to forest-combiner.md, model-space-survey.md, bcf.md, and
+dbarts.h. The scoping pass found eight further defects, F1-F8, all taken.
+The single most important: dbarts_sampler_create's Doxygen stated
+numForests == 2 as an invariant against a shipped K = 3 route
+(test-forest-basis-r5.R:145, :236-238 build one through dbarts(...,
+forests = list(forest(), forest(basis = ), forest(basis = )))) - a false
+invariant in the only shipped header, the LinkingTo entry point stan4bart
+and its kin call. Three design docs were found contradicting THEMSELVES:
+forest-combiner.md's heteroscedastic paragraph called a decision
+still-deferred that its own "Anticipated" section already recorded
+landed; bcf.md said two setTreatment spellings "did NOT move" when both
+had, one of which the same file already recorded moving elsewhere;
+model-space-survey.md proposed the 1e-9 multiplier floor as future work
+twice while its own earlier update, in the same file, already recorded
+the floor replaced by the exact-zero snap. All three corrected.
+
+Budget, in dense-equivalent terms. The plan's docs band is ~250-300, and
+the plan's own M4 budget arithmetic records that the band never priced
+multiplier-combiner.md as a new file. The content spec priced the six
+mandated deliverables (the five plan items plus the feature-matrix check)
+at ~371-460 dense-equivalent; the orchestrator's brief folded in all eight
+findings and the two TODO entries and set the working budget at ~450-565.
+Both figures exceed the docs band on their own; the slice took the full
+scope named in the brief, and neither implementer nor reviewer reported an
+overage against it.
+
+Gates, as observed locally: tinytest 4646/0, test-capi.R 188/0, tests/cpp
+all tests passed. dbarts_apiHash() 0xcd88efcd67de55d7, verified three ways
+(the static_assert, the consumer.c raw leg, and the test-capi.R:59 literal
+pin). Equivalence trio bitwise: 37 compared / 0 skipped under
+--strict-coverage, bcf 12/12 on all channels, multinomial 10/10 on all
+channels, zero "max |z|" lines. Every src/ and inst/include/ hunk verified
+comment-only (git diff -U0, filtered for non-"///" lines: zero hits) and
+outside DBARTS_C_API_LIST, so no version constant moved. ASCII clean
+across all ten changed/new files. "Gaussian responses only." survives
+verbatim, now at dbarts.h:513 (shifted from :505 by the paragraph's own
+growth), and moves with M4.4. CI SIX-GREEN on fcfd4e29, sanitizers
+included - this slice touches inst/include/ and src/, which the path
+filters (paths-ignore: docs/**, TODO, **.md, benchmarks/**) do not
+exclude, so unlike a pure docs push it fired the full battery and the
+evidence is runner-executed rather than inferred from byte-identity.
+
+THE STANDING LESSON: a slice that edits files AND cites them by line
+number invalidates its own citations mid-flight. Independent review caught
+three clusters of this on the first pass - the dbarts.h header edits
+shifted every anchor past the first hunk by up to +21; a three-line
+correction to this plan (the column-major -> row-major fix at :557-560)
+shifted every plan anchor above :558 quoted in the new prose by +3; and
+model-space-survey.md's OWN earlier edits, made earlier in the same
+commit, shifted its own new D4 section's citations by +8 and +9. The fix
+pass re-derived 141 citations and corrected 60 - and was not itself
+immune: a single Doxygen comment fix in combiner.hpp (:898-902, four
+lines out, five in) shifted MultinomialForestCombiner::setActiveRows off
+the exact line the review had just given it. The discipline this leaves:
+re-derive every anchor by OPENING THE TARGET, never by applying an
+arithmetic offset - two plan ranges in the fix round correctly did NOT
+move by +3, the evidence re-derivation happened rather than arithmetic -
+and run the anchor pass LAST, after every content edit is final. The
+reviewer's own hand sample, checked the same way, was 62 citations across
+12 files with 60 landing exactly.
