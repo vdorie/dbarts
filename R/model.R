@@ -644,17 +644,18 @@ resolveModerators <- function(moderators, data, argument = "moderators") {
   sort(unique(as.integer(moderators)))
 }
 
-## The `basis` declaration of a forest, or NULL when it declares none. Read
-## before the structural validation resolveForests does, so anything it cannot
-## make sense of falls through as NULL to be refused there, by name.
-forestBasisDeclaration <- function(forests) {
-  if (!is.list(forests) || length(forests) != 2L) {
+## The `basis` declarations of a `forests` list, one element per forest and
+## NULL where a forest declares none, or NULL when there is no usable list at
+## all. Read before the structural validation resolveForests does, so anything
+## it cannot make sense of falls through as NULL to be refused there, by name.
+forestBasisDeclarations <- function(forests) {
+  if (!is.list(forests) || length(forests) < 2L) {
     return(NULL)
   }
-  if (!inherits(forests[[2L]], "dbartsForest")) {
+  if (!all(vapply(forests, inherits, logical(1L), "dbartsForest"))) {
     return(NULL)
   }
-  forests[[2L]]$basis
+  lapply(forests, function(spec) spec$basis)
 }
 
 ## Evaluate a `basis` declaration to the vector it names. A one-sided formula
@@ -676,36 +677,47 @@ evaluateForestBasis <- function(basis, data = NULL) {
   }
 }
 
-## Expand an evaluated basis to the columns a forest's amplitudes multiply.
-## The rule is R's own model-matrix rule - a factor expands to its level
-## indicators, one amplitude per level - and today's engine honours exactly the
-## two-column complementary case, whose second indicator IS the 0/1 vector the
-## treatment slot and the C bridge already take, so the expansion reduces to
-## it. Level ORDER is therefore load-bearing: the second level is the one the
-## second amplitude scales.
+## Expand an evaluated basis to the matrix of columns a forest's amplitudes
+## multiply, one amplitude per column. The rule is R's own model-matrix rule -
+## a factor expands to its level indicators, one amplitude per level, with no
+## reference level dropped, since the forest carries no intercept of its own -
+## and a numeric vector or matrix is already those columns. Level ORDER is
+## therefore load-bearing: amplitude j scales level j. A two-level factor
+## expands to the (1 - z, z) pair whose amplitudes are exactly bcf's (b0, b1).
 expandForestBasis <- function(basis) {
+  if (is.null(basis)) {
+    return(NULL)
+  }
   if (is.character(basis)) {
     basis <- factor(basis)
   }
-  if (is.logical(basis)) {
+  if (is.logical(basis) && is.null(dim(basis))) {
     basis <- factor(basis, levels = c(FALSE, TRUE))
-  }
-  if (!is.factor(basis)) {
-    stop(
-      "a 'basis' must be a factor: today's engine fits the two-column ",
-      "indicator basis of a two-level factor, not a numeric basis column"
-    )
-  }
-  if (nlevels(basis) != 2L) {
-    stop(
-      "a 'basis' factor must have exactly two levels; today's engine fits no ",
-      "wider indicator basis"
-    )
   }
   if (anyNA(basis)) {
     stop("a 'basis' cannot be NA")
   }
-  as.double(as.integer(basis) - 1L)
+  if (is.factor(basis)) {
+    if (nlevels(basis) < 2L) {
+      stop("a 'basis' factor must have at least two levels")
+    }
+    codes <- as.integer(basis)
+    expanded <- matrix(0, length(codes), nlevels(basis))
+    expanded[cbind(seq_along(codes), codes)] <- 1
+    return(expanded)
+  }
+  if (!is.numeric(basis)) {
+    stop("a 'basis' must be numeric, a factor, or a character vector")
+  }
+  basis <- as.matrix(basis)
+  storage.mode(basis) <- "double"
+  if (ncol(basis) < 1L) {
+    stop("a 'basis' must have at least one column")
+  }
+  if (!all(is.finite(basis))) {
+    stop("a 'basis' must be finite")
+  }
+  basis
 }
 
 ## Validate the knobs one forest() declares. Only a declared (non-NULL) knob is
@@ -747,15 +759,16 @@ validateForestKnobs <- function(spec) {
 }
 
 ## Resolve a `forests` declaration into the per-forest knobs a sampler
-## specification carries, or NULL for the single-forest path. Everything
-## today's engine cannot honour refuses here, by name, rather than being
-## dropped: at most two forests, a basis only on the second one, the column
-## restriction only where a basis is, and the amplitude knobs only where an
-## amplitude exists. `interactions` and `blocks` are the fit's own top-level
-## arguments, which address the FIRST forest under the same spelling a forest()
-## uses, so supplying both is ambiguous rather than layered. `hasBasis` records
-## whether the conditioning vector reached the data object some other way, the
-## dbartsData(treatment = ) route being a supported one.
+## specification carries, or NULL for the single-forest path. Returns a LIST of
+## K validated knob lists, one per forest, so nothing downstream is keyed on
+## two. Everything the engine cannot honour refuses here, by name, rather than
+## being dropped: an amplitude prior only where a basis is, a basis somewhere
+## on every forest past the first, and the amplitude knobs only where an
+## amplitude exists at all. `interactions` and `blocks` are the fit's own
+## top-level arguments, which address the FIRST forest under the same spelling
+## a forest() uses, so supplying both is ambiguous rather than layered.
+## `hasBasis` is a per-forest logical recording whether a basis reached that
+## forest some other way, the dbartsData(bases = ) route being a supported one.
 resolveForests <- function(forests, interactions, blocks, hasBasis) {
   if (is.null(forests)) {
     return(NULL)
@@ -769,39 +782,39 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   if (length(forests) == 0L) {
     stop("'forests' is empty; omit it to fit a single forest")
   }
-  if (length(forests) > 2L) {
-    stop(
-      "today's engine fits at most two forests; 'forests' declares ",
-      length(forests)
-    )
+  resolved <- lapply(forests, validateForestKnobs)
+  numForests <- length(resolved)
+
+  for (index in seq_len(numForests)) {
+    spec <- resolved[[index]]
+    if (is.null(spec$basis) && !is.null(spec$amplitude.prior.variance)) {
+      stop(
+        "'amplitude.prior.variance' is the prior on a basis forest's ",
+        "amplitudes, and forest ",
+        index,
+        " has no 'basis'"
+      )
+    }
+    excused <- length(hasBasis) >= index && hasBasis[index]
+    if (index >= 2L && is.null(spec$basis) && !excused) {
+      stop(
+        "forest ",
+        index,
+        " needs a 'basis': the amplitudes multiplying it are what ",
+        "distinguishes it from the first"
+      )
+    }
   }
-  mu <- validateForestKnobs(forests[[1L]])
-  tau <- if (length(forests) == 2L) {
-    validateForestKnobs(forests[[2L]])
-  } else {
-    NULL
-  }
-  if (!is.null(mu$basis)) {
-    stop(
-      "the first forest takes no 'basis': its basis is the implicit ",
-      "intercept its own amplitude scales"
-    )
-  }
-  if (!is.null(mu$vars)) {
-    stop(
-      "'vars' restricts a basis forest; today's engine reads every predictor ",
-      "in the first forest"
-    )
-  }
-  if (!is.null(mu$amplitude.prior.variance)) {
-    stop(
-      "'amplitude.prior.variance' is the prior on a basis forest's ",
-      "amplitudes, and the first forest has no 'basis'"
-    )
-  }
-  if (is.null(tau)) {
-    for (name in if (hasBasis) character(0L) else c("sd", "update.amplitude")) {
-      if (!is.null(mu[[name]])) {
+
+  first <- resolved[[1L]]
+  if (numForests == 1L) {
+    amplitudeKnobs <- if (any(hasBasis)) {
+      character(0L)
+    } else {
+      c("sd", "update.amplitude")
+    }
+    for (name in amplitudeKnobs) {
+      if (!is.null(first[[name]])) {
         stop(
           "'",
           name,
@@ -810,47 +823,58 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
         )
       }
     }
-  } else if (is.null(tau$basis) && !hasBasis) {
-    stop(
-      "the second forest needs a 'basis': the amplitudes multiplying it are ",
-      "what distinguishes it from the first"
-    )
   }
-  if (!is.null(mu$interactions) && !is.null(interactions)) {
+  if (!is.null(first$interactions) && !is.null(interactions)) {
     stop(
       "'interactions' is declared both at the top level and on the first ",
       "forest, which are the same constraint; give one"
     )
   }
-  if (!is.null(mu$blocks) && !is.null(blocks)) {
+  if (!is.null(first$blocks) && !is.null(blocks)) {
     stop(
       "'blocks' is declared both at the top level and on the first forest, ",
       "which are the same constraint; give one"
     )
   }
-  list(mu = mu, tau = tau)
+  resolved
 }
 
-## The eight doubles attr(control, "bartcore.bcf")$params carries, in the order
-## the C bridge reads them: the basis forest's tree count and structure prior,
-## the two forests' leaf scales in sd(y) units, the basis amplitudes' prior
-## variance, and the two amplitude update flags. The defaults are the engine's,
-## so a `forests` declaring nothing beyond its basis and a data object carrying
-## a treatment vector with no declaration at all resolve to the same eight.
-forestParams <- function(mu, tau) {
+## The eight doubles attr(control, "bartcore.bcf")$params carries FOR EACH
+## FOREST, in the order the C bridge reads them: the forest's tree count and
+## structure prior, the node-scale factor and divisor the calibration map
+## reads, the amplitude prior's variance and half-Cauchy scale, and the
+## amplitude update flag. Forest 1 takes its tree count and structure prior
+## from the fit's own control/tree.prior instead, so its first three are
+## carried but unread.
+##
+## Which of the two magnitude channels a forest's `sd` reaches is decided by
+## whether it carries a BASIS. A forest WITHOUT one has a plain scalar
+## amplitude under a half-Cauchy scale mixture, so `sd` is that mixture's
+## median and the node scale stays at the response sd - bcf's prognostic
+## forest. A forest WITH one has a fixed-variance amplitude block, so `sd`
+## multiplies the node scale, divided through the half-normal median 0.674 so
+## the amplitude spread times that scale sits at sd sd(y) - bcf's basis forest.
+## The defaults are the engine's, so a `forests` declaring nothing beyond its
+## basis and a data object carrying bases with no declaration at all resolve to
+## the same numbers.
+forestParams <- function(specs, hasBasis) {
   declared <- function(value, default) {
     if (is.null(value)) default else value
   }
-  as.double(c(
-    declared(tau$n.trees, 50L),
-    declared(tau$base, 0.25),
-    declared(tau$power, 3),
-    declared(mu$sd, 2),
-    declared(tau$sd, 1),
-    declared(tau$amplitude.prior.variance, 0.5),
-    declared(mu$update.amplitude, TRUE),
-    declared(tau$update.amplitude, TRUE)
-  ))
+  lapply(seq_along(specs), function(index) {
+    spec <- specs[[index]]
+    withBasis <- hasBasis[index]
+    as.double(c(
+      declared(spec$n.trees, 50L),
+      declared(spec$base, 0.25),
+      declared(spec$power, 3),
+      if (withBasis) declared(spec$sd, 1) else 1,
+      if (withBasis) 0.674 else 1,
+      if (withBasis) declared(spec$amplitude.prior.variance, 0.5) else 1,
+      if (withBasis) 0 else declared(spec$sd, 2),
+      declared(spec$update.amplitude, TRUE)
+    ))
+  })
 }
 
 ## Resolve an interactions() specification against the fitted model matrix into

@@ -2194,8 +2194,12 @@ static void testBCFTwoForest(ext_rng* rng) {
     blendOk = std::fabs(lastFit[i] - (blend(i) + blendShift)) < 1.0e-8;
   check(blendOk, "BCF training fits are the a*mu + b_z*tau blend");
 
-  std::vector<double> zControl(n, 0.0);
-  sampler.setTreatment(zControl.data());
+  // the all-control basis, ROW-major (1, 0) per row: setForestBasis is the sole
+  // basis-mutation route, so what was a treatment swap is an install
+  std::vector<double> controlBasis(2 * n, 0.0);
+  for (size_t i = 0; i < n; ++i) controlBasis[2 * i] = 1.0;
+  check(sampler.setForestBasis(1, controlBasis.data(), 2),
+        "the sole basis-mutation route installs on the treatment forest");
   std::vector<double> sigma2(10), fits2(n * 10);
   Results r2;
   r2.sigma = sigma2.data();
@@ -2204,7 +2208,7 @@ static void testBCFTwoForest(ext_rng* rng) {
   bool refreshed = true;
   for (size_t i = 0; i < n * 10 && refreshed; ++i)
     refreshed = std::isfinite(fits2[i]);
-  check(refreshed, "BCF setTreatment refresh runs");
+  check(refreshed, "BCF setForestBasis refresh runs");
 
   printf("ok: BCF two-forest sampler\n");
 }
@@ -3289,11 +3293,14 @@ static void testCombinedFitsAssociation() {
          discriminating, n);
 }
 
-// (2) The basis is SYNTHESIZED from z rather than read through it, so a
-// mid-life swap has to rebuild it - and has to leave the amplitudes alone,
-// a basis swap being a data move and not a draw. The seam pins never call
-// setTreatment, so this is the only component-level guard on either half.
-static void testForestBasisSynthesis() {
+// (2) The ORDERING contract on the sole basis-mutation route (M4.3's SUBSUME:
+// synthesis is construction-only, setForestBasis is the only operation, so
+// LAST INSTALL WINS per forest and the two orderings of a widen and a swap
+// commute). Five arms, each red against a different wrong wiring: a route that
+// re-synthesizes on install (1, 2), one that rebuilds the amplitudes rather
+// than carrying them (2, 3), one that keeps a borrowed z beside the basis (4),
+// and one that selects the draw path on widths rather than values (5).
+static void testForestBasisOrdering() {
   const size_t n = 6;
   std::vector<double> xDummy(n, 0.0);
   ColumnStore data;
@@ -3301,54 +3308,257 @@ static void testForestBasisSynthesis() {
 
   std::vector<double> z = {0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
   // the COMPLEMENT, so a stale basis is wrong on all six rows rather than some
-  std::vector<double> swapped = {1.0, 0.0, 1.0, 0.0, 1.0, 0.0};
+  std::vector<double> swapped(2 * n);
+  for (size_t i = 0; i < n; ++i) {
+    swapped[2 * i] = z[i];
+    swapped[2 * i + 1] = 1.0 - z[i];
+  }
+  // a DISCRIMINATING second prognostic column: nonzero and row-varying, so a
+  // multiplier that dropped it moves every row (unit values vacate pins)
+  std::vector<double> wide(2 * n);
+  for (size_t i = 0; i < n; ++i) {
+    wide[2 * i] = 1.0;
+    wide[2 * i + 1] = 0.5 + 0.25 * static_cast<double>(i);
+  }
   std::vector<double> mu = {0.5, -1.5, 2.0, 0.25, -0.75, 1.0};
   std::vector<double> tau = {1.0, 0.5, -2.0, 1.5, 0.25, -0.5};
   std::vector<double> y = {2.0, -1.0, 0.5, 3.0, -2.5, 1.25};
   const double a = 1.5, b0 = -0.5, b1 = 0.25;
 
-  BCFSpec spec;
-  spec.z = z.data();
-  BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
-  ChainStateData glue;
-  glue.hasBCF = true;
-  glue.a = a;
-  glue.b0 = b0;
-  glue.b1 = b1;
-  combiner.restoreGlue(glue);
+  auto build = [&](BCFForestCombiner<ConstantGaussianLeaf>& combiner) {
+    ChainStateData glue;
+    glue.hasBCF = true;
+    glue.a = a;
+    glue.b0 = b0;
+    glue.b1 = b1;
+    combiner.restoreGlue(glue);
+  };
 
   std::vector<Forest<ConstantGaussianLeaf>> forests(2);
   forests[0].totalFits = mu;
   forests[1].totalFits = tau;
 
-  combiner.setTreatment(swapped.data());
+  BCFSpec spec;
+  spec.z = z.data();
 
-  double aOut = 0.0, b0Out = 0.0, b1Out = 0.0;
-  combiner.bcfGlue(aOut, b0Out, b1Out);
-  check(aOut == a && b0Out == b0 && b1Out == b1,
-        "a basis swap rebuilds the basis and leaves the amplitudes where they "
-        "were");
+  // --- Arm 1, widen then swap. The widening survives the swap, the prognostic
+  // multiplier still reads its second column on every row, and the swapped
+  // forest's own block is bitwise what it was. RED under a route that
+  // re-synthesizes forest 0 on any install.
+  {
+    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    build(combiner);
+    check(combiner.installForestBasis(0, wide.data(), 2),
+          "a wider prognostic basis installs");
+    ChainStateData widened;
+    combiner.serializeGlue(widened);
+    // the layout moved, so the added coordinate entered at the neutral 1.0
+    check(widened.amplitudeWidths == std::vector<size_t>{2, 2} &&
+            widened.amplitudes[0] == a && widened.amplitudes[1] == 1.0 &&
+            widened.amplitudes[2] == b0 && widened.amplitudes[3] == b1,
+          "a widening carries every block and enters the new coordinate at 1");
 
-  const double* combined = combiner.combinedFits(forests);
-  bool blend = true;
-  for (size_t i = 0; i < n; ++i) {
-    double bz = swapped[i] != 0.0 ? b1 : b0;
-    blend &= combined[i] == std::fma(a, mu[i], bz * tau[i]);
+    check(combiner.installForestBasis(1, swapped.data(), 2),
+          "the swap installs on the widened combiner");
+    ChainStateData after;
+    combiner.serializeGlue(after);
+    check(after.amplitudeWidths == std::vector<size_t>{2, 2} &&
+            after.amplitudes == widened.amplitudes,
+          "a width-preserving swap leaves every amplitude bitwise");
+
+    const double* combined = combiner.combinedFits(forests);
+    bool reads = true;
+    for (size_t i = 0; i < n; ++i) {
+      double m0 = a * wide[2 * i] + 1.0 * wide[2 * i + 1];
+      double bz = swapped[2 * i + 1] != 0.0 ? b1 : b0;
+      reads &= combined[i] == m0 * mu[i] + bz * tau[i];
+    }
+    check(reads, "the widened prognostic basis survives the swap on every row");
   }
-  check(blend, "the combination reads the swapped basis, not the constructed "
-               "one");
 
-  ForestResponse treatment =
-    combiner.formForestResponse(1, forests, y.data(), nullptr);
-  bool pair = true;
-  for (size_t i = 0; i < n; ++i) {
-    double m = swapped[i] != 0.0 ? b1 : b0;
-    pair &= treatment.response[i] == (y[i] - a * mu[i]) / m &&
-            treatment.weights[i] == m * m;
+  // --- Arm 2, swap then widen. The swapped values survive the layout move and
+  // the swapped forest's coordinates are carried bitwise to their new offsets.
+  {
+    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    build(combiner);
+    check(combiner.installForestBasis(1, swapped.data(), 2),
+          "the swap installs first");
+    check(combiner.installForestBasis(0, wide.data(), 2),
+          "the widening follows it");
+    ChainStateData after;
+    combiner.serializeGlue(after);
+    check(after.amplitudeWidths == std::vector<size_t>{2, 2} &&
+            after.amplitudes[0] == a && after.amplitudes[1] == 1.0 &&
+            after.amplitudes[2] == b0 && after.amplitudes[3] == b1,
+          "the widening carries the swapped forest's block to its new offset");
+
+    const double* combined = combiner.combinedFits(forests);
+    bool reads = true;
+    for (size_t i = 0; i < n; ++i) {
+      double m0 = a * wide[2 * i] + 1.0 * wide[2 * i + 1];
+      double bz = swapped[2 * i + 1] != 0.0 ? b1 : b0;
+      reads &= combined[i] == m0 * mu[i] + bz * tau[i];
+    }
+    check(reads, "both orderings leave the same combination");
   }
-  check(pair, "the reparameterization reads the swapped basis too");
 
-  printf("ok: forest basis synthesis\n");
+  // --- Arm 3, a width-preserving CANONICAL reinstall is the bitwise identity
+  // on every amplitude. This is the pin between M4.3 and a bcf-equivalence
+  // re-record: the shipped mid-life z swap is exactly this install.
+  {
+    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    build(combiner);
+    ChainStateData before;
+    combiner.serializeGlue(before);
+    check(combiner.installForestBasis(1, swapped.data(), 2),
+          "the canonical reinstall runs");
+    ChainStateData after;
+    combiner.serializeGlue(after);
+    check(before.amplitudes == after.amplitudes &&
+            before.amplitudeWidths == after.amplitudeWidths &&
+            before.amplitudeVariances == after.amplitudeVariances,
+          "a width-preserving install is the bitwise identity on the glue");
+
+    // and the reparameterization reads the NEW basis, not the constructed one
+    ForestResponse treatment =
+      combiner.formForestResponse(1, forests, y.data(), nullptr);
+    bool pair = true;
+    for (size_t i = 0; i < n; ++i) {
+      double m = swapped[2 * i + 1] != 0.0 ? b1 : b0;
+      pair &= treatment.response[i] == (y[i] - a * mu[i]) / m &&
+              treatment.weights[i] == m * m;
+    }
+    check(pair, "the reparameterization reads the installed basis");
+  }
+
+  // --- Arm 4, the z divergence: the leg Arm 3 structurally cannot see, since
+  // Arm 3 asserts amplitudes and the defect is in the NEXT draw. A
+  // width-preserving swap to a DIFFERENT complementary pair must change that
+  // draw's PARTITION. RED against a retained glue_.z (old z, new basis), green
+  // once drawShippedGlue partitions from basis[1].
+  {
+    // an ASYMMETRIC fit surface, so the two groups' conditionals differ and a
+    // mis-grouped draw is visible in the values rather than only in the stream
+    std::vector<Forest<ConstantGaussianLeaf>> drawForests(2);
+    drawForests[0].totalFits = std::vector<double>(n, 0.0);
+    drawForests[1].totalFits = {1.0, 1.0, 1.0, 4.0, 4.0, 4.0};
+    std::vector<double> drawY = {1.0, 1.0, 1.0, 8.0, 8.0, 8.0};
+    // rows 0-2 control, rows 3-5 treated under the constructed indicator
+    std::vector<double> grouped = {0.0, 0.0, 0.0, 1.0, 1.0, 1.0};
+    std::vector<double> groupedBasis(2 * n), flippedBasis(2 * n);
+    for (size_t i = 0; i < n; ++i) {
+      groupedBasis[2 * i] = 1.0 - grouped[i];
+      groupedBasis[2 * i + 1] = grouped[i];
+      flippedBasis[2 * i] = grouped[i];
+      flippedBasis[2 * i + 1] = 1.0 - grouped[i];
+    }
+    BCFSpec groupedSpec;
+    groupedSpec.z = grouped.data();
+    groupedSpec.updateA = false;  // isolate the b block
+
+    auto drawPair = [&](const std::vector<double>& basis, double& out0,
+                        double& out1) {
+      BCFForestCombiner<ConstantGaussianLeaf> combiner(data, groupedSpec);
+      build(combiner);
+      check(combiner.installForestBasis(1, basis.data(), 2),
+            "the grouped basis installs");
+      ext_rng* rng = makeSeamRng();
+      combiner.drawGlue(rng, 1.0, drawY.data(), nullptr, drawForests);
+      ext_rng_destroy(rng);
+      double aOut = 0.0;
+      check(combiner.bcfGlue(aOut, out0, out1), "the K = 2 reading holds");
+    };
+
+    double keptB0 = 0.0, keptB1 = 0.0, flippedB0 = 0.0, flippedB1 = 0.0;
+    drawPair(groupedBasis, keptB0, keptB1);
+    drawPair(flippedBasis, flippedB0, flippedB1);
+    // the SAME rng, the same data, the complementary grouping: the two blocks
+    // must trade places rather than reproduce
+    check(keptB0 != flippedB0 && keptB1 != flippedB1,
+          "a width-preserving swap to a different pair changes the partition");
+  }
+
+  // --- Arm 5, draw-path selection is a VALUE predicate, not a width test.
+  // Two decisive discriminators, one per half, each keyed on something the
+  // two-scalar path structurally CANNOT do.
+  //
+  // (i) it cannot write a second prognostic coordinate at all: it addresses
+  // (a, b0, b1) and nothing else, so under q0 = 2 the added coordinate would
+  // stay at the neutral 1.0 the widening entered it at.
+  //
+  // (ii) it never reads basis[1] beyond the treated indicator - it forms two
+  // disjoint group accumulators keyed on it - so changing the CONTROL column
+  // alone would leave its draw bitwise unmoved. The general conditional reads
+  // the whole row, so it must move. This is the arm a width-only predicate
+  // (K == 2, q0 == 1, q1 == 2) passes wrongly: the 0.25/0.75 pair has exactly
+  // that shape.
+  {
+    std::vector<double> weights = {0.5, 1.5, 2.0, 0.25, 1.0, 3.0};
+    auto draw = [&](const std::vector<double>* prognostic,
+                    const std::vector<double>* treatment) {
+      BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+      build(combiner);
+      if (prognostic != nullptr)
+        check(combiner.installForestBasis(0, prognostic->data(), 2),
+              "the q0 = 2 basis installs");
+      if (treatment != nullptr)
+        check(combiner.installForestBasis(1, treatment->data(), 2),
+              "the non-canonical width-2 basis installs");
+      ext_rng* rng = makeSeamRng();
+      combiner.drawGlue(rng, 1.0, y.data(), weights.data(), forests);
+      ext_rng_destroy(rng);
+      ChainStateData drawn;
+      combiner.serializeGlue(drawn);
+      return drawn.amplitudes;
+    };
+
+    std::vector<double> widened = draw(&wide, nullptr);
+    check(widened.size() == 4 && widened[1] != 1.0,
+          "a q0 = 2 basis routes the draw around the two-scalar path, which "
+          "cannot write the second prognostic coordinate");
+
+    std::vector<double> continuousA(2 * n), continuousB(2 * n);
+    for (size_t i = 0; i < n; ++i) {
+      continuousA[2 * i] = 0.25;
+      continuousA[2 * i + 1] = 0.75;
+      // the SAME treated column, a different control column: invisible to the
+      // two-scalar path, load-bearing for the general one
+      continuousB[2 * i] = 3.0 + static_cast<double>(i);
+      continuousB[2 * i + 1] = 0.75;
+    }
+    std::vector<double> drawnA = draw(nullptr, &continuousA);
+    std::vector<double> drawnB = draw(nullptr, &continuousB);
+    check(drawnA.size() == 3 && drawnB.size() == 3 && drawnA != drawnB,
+          "a NON-canonical width-2 basis routes it around too: the control "
+          "column moves the draw, which the two-scalar path never reads");
+
+    // (iii) and the canonical shape is still ON the two-scalar path. A
+    // canonical pair's control column is DETERMINED by its treated column -
+    // 1 - z, and nothing else is canonical - so the discriminating pair holds
+    // the treated column FIXED and moves only the control column off that
+    // determined value. Both bases then carry the same partition, which is all
+    // the two-scalar path reads: it would draw them IDENTICALLY. The general
+    // conditional reads the whole row, so it must not. The correct routing
+    // therefore separates them - the canonical one keeps the two-scalar path,
+    // the perturbed one is moved off it - and a width-only predicate, which
+    // would leave BOTH on the two-scalar path, collapses them and turns this
+    // red. Unlike the pair it replaces (built from identical expressions, true
+    // under any implementation), nothing here is satisfied by construction.
+    std::vector<double> canonical(2 * n), controlPerturbed(2 * n);
+    for (size_t i = 0; i < n; ++i) {
+      canonical[2 * i] = 1.0 - z[i];
+      canonical[2 * i + 1] = z[i];
+      // the same treated column, a control column a canonical pair could not
+      // have: 2 where the canonical one is forced to 1
+      controlPerturbed[2 * i] = 2.0 * (1.0 - z[i]);
+      controlPerturbed[2 * i + 1] = z[i];
+    }
+    check(draw(nullptr, &canonical) != draw(nullptr, &controlPerturbed),
+          "the canonical shape keeps the two-scalar path, which cannot see "
+          "the control column its perturbed twin moves");
+  }
+
+  printf("ok: forest basis ordering\n");
 }
 
 // (3) The GENERAL q-variate amplitude conditional. Every pin above drives the
@@ -3689,22 +3899,45 @@ static void testAmplitudeOffsetIndexing() {
   BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
   combiner.installForestBasis(0, wide.data(), 2);
 
+  // the RAGGED spelling, which is the only one that can name this layout: the
+  // widened prognostic block's second coordinate is where the retired
+  // three-scalar reading put b0
   ChainStateData glue;
   glue.hasBCF = true;
-  glue.a = a;
-  glue.b0 = b0;
-  glue.b1 = b1;
+  glue.amplitudeWidths = {2, 2};
+  glue.amplitudes = {a, 1.0, b0, b1};
+  glue.amplitudeVariances = {1.0, 1.0};
   combiner.restoreGlue(glue);
 
   // The round trip alone is NOT the guard: restore and report went through the
   // same accessors, so the retired pair aliased both together and reads its own
   // writes back (measured). The multiplier arm below is what catches it, by
   // reading the blocks through a third path that always used the offsets.
-  double aOut = 0.0, b0Out = 0.0, b1Out = 0.0;
-  combiner.bcfGlue(aOut, b0Out, b1Out);
-  check(aOut == a && b0Out == b0 && b1Out == b1,
+  ChainStateData reported;
+  combiner.serializeGlue(reported);
+  check(reported.amplitudeWidths == std::vector<size_t>{2, 2} &&
+          reported.amplitudes == glue.amplitudes,
         "the glue channel reads the treatment block at its own offset under a "
         "wide prognostic basis");
+  // the bcf-shaped reading REFUSES this layout rather than answering for it,
+  // which is what keeps a K = 2, q = (1, 2) reader off a wider model
+  double aOut = 0.0, b0Out = 0.0, b1Out = 0.0;
+  check(!combiner.bcfGlue(aOut, b0Out, b1Out),
+        "the three-scalar reading refuses a layout that is not bcf's");
+
+  // the SURFACE route reaches the same install: what the fixture reached
+  // through installForestBasis directly, a caller reaches through
+  // setForestBasis, and a zero-width or non-finite basis is refused
+  check(combiner.setForestBasis(0, wide.data(), 2),
+        "the public route installs the same wide basis");
+  check(!combiner.setForestBasis(0, wide.data(), 0),
+        "a zero-width basis is refused");
+  check(!combiner.setForestBasis(2, wide.data(), 1),
+        "a forest index past the last is refused");
+  std::vector<double> nonFinite(n, std::numeric_limits<double>::infinity());
+  check(!combiner.setForestBasis(1, nonFinite.data(), 1),
+        "a non-finite basis value is refused");
+  combiner.restoreGlue(glue);
 
   std::vector<Forest<ConstantGaussianLeaf>> forests(2);
   forests[0].totalFits = mu;
@@ -5796,7 +6029,7 @@ void runSamplerTests(ext_rng* rng) {
   testBCFZeroMultiplierSnap();
   testBCFCombinerSeam();
   testCombinedFitsAssociation();
-  testForestBasisSynthesis();
+  testForestBasisOrdering();
   testGeneralAmplitudeConditional();
   testGeneralAmplitudeRidge();
   testAmplitudeOffsetIndexing();

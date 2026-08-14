@@ -475,6 +475,7 @@ methods::setValidity("dbartsModel", function(object) {
 
 methods::setClassUnion("matrixOrNULL", c("matrix", "NULL"))
 methods::setClassUnion("numericOrNULL", c("numeric", "NULL"))
+methods::setClassUnion("listOrNULL", c("list", "NULL"))
 
 methods::setClass(
   "dbartsData",
@@ -510,12 +511,17 @@ methods::setClass(
     # numeric ordinal fit derives sort(unique(y)) itself). The other families
     # never read it.
     response.levels = "ANY",
-    # the 0/1 treatment indicator a Bayesian causal forest contrasts on
-    # (docs/design/bcf.md), null for an ordinary single-forest fit. It rides
-    # the data object rather than the control, exactly as `weights` does: it
-    # is conditioning data, so the setter that replaces it mirrors into this
-    # slot and a re-created sampler carries it without further discipline.
-    treatment = "numericOrNULL",
+    # the per-forest amplitude bases a multi-forest fit combines its forests
+    # through (docs/design/bcf.md), null for an ordinary single-forest fit.
+    # Element f is forest f's n x q_f numeric matrix, or NULL for a forest
+    # whose basis is the implicit intercept its single amplitude scales. They
+    # ride the data object rather than the control, exactly as `weights` does:
+    # they are conditioning data, so the setter that replaces one mirrors into
+    # this slot and a re-created sampler carries it without further
+    # discipline - and, because they arrive at CREATION, a widening applied
+    # after a state restore preserves the restored amplitudes rather than the
+    # constructed ones.
+    bases = "listOrNULL",
 
     testUsesRegularOffset = "logical"
   ),
@@ -534,7 +540,7 @@ methods::setClass(
     response.type = "numeric",
     response.n.levels = NA_integer_,
     response.levels = NULL,
-    treatment = NULL,
+    bases = NULL,
 
     testUsesRegularOffset = NA
   )
@@ -579,15 +585,23 @@ methods::setValidity("dbartsData", function(object) {
   if (!is.null(object@offset) && length(object@offset) != numObservations) {
     return("'offset' must be null or have length equal to that of 'y'")
   }
-  if (!is.null(object@treatment)) {
-    if (length(object@treatment) != numObservations) {
-      return("'treatment' must be null or have length equal to that of 'y'")
+  if (!is.null(object@bases)) {
+    if (length(object@bases) < 2L) {
+      return("'bases' must be null or name at least two forests")
     }
-    if (
-      anyNA(object@treatment) ||
-        any(object@treatment != 0.0 & object@treatment != 1.0)
-    ) {
-      return("'treatment' must be coded 0 (control) or 1 (treated)")
+    for (basis in object@bases) {
+      if (is.null(basis)) {
+        next
+      }
+      if (!is.numeric(basis) || NROW(basis) != numObservations) {
+        return(paste0(
+          "each 'bases' element must be null or a numeric matrix with as ",
+          "many rows as 'y' has elements"
+        ))
+      }
+      if (anyNA(basis) || !all(is.finite(basis))) {
+        return("'bases' values must all be finite")
+      }
     }
   }
   if (!is.null(object@x.test)) {

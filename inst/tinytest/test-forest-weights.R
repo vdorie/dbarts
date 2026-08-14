@@ -66,7 +66,7 @@ runBCF <- function(
     varcount = result$varcount,
     mu = dbarts:::bartcoreForestFits(bc, 0L),
     tau = dbarts:::bartcoreForestFits(bc, 1L),
-    glue = dbarts:::bartcoreBCFGlue(bc)
+    glue = dbarts:::bartcoreForestAmplitudes(bc)
   )
 }
 

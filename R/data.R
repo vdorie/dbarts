@@ -19,7 +19,7 @@ methods::setMethod(
       .Object@weights.test <- modelMatrices$weights.test
       .Object@offset <- modelMatrices$offset
       .Object@offset.test <- modelMatrices$offset.test
-      .Object@treatment <- modelMatrices$treatment
+      .Object@bases <- modelMatrices$bases
 
       .Object@testUsesRegularOffset <- modelMatrices$testUsesRegularOffset
     }
@@ -623,37 +623,47 @@ validateXYWeights <- function(weights, initialNumObservations, subset) {
   weights[subset]
 }
 
-# Validate and subset a user-supplied 0/1 treatment indicator, the vector a
-# Bayesian causal forest contrasts on (docs/design/bcf.md). A NULL passes
-# through; anything else is length-checked against the pre-subset response and
-# restricted to 'subset', exactly as the weights it rides beside are. The
+# Validate and subset a user-supplied list of per-forest amplitude bases, the
+# matrices a multi-forest fit combines its forests through
+# (docs/design/bcf.md). A NULL passes through; otherwise every non-null element
+# is coerced to a numeric matrix, row-checked against the pre-subset response
+# and restricted to 'subset', exactly as the weights they ride beside are. The
 # formula branch has no row index to restrict by, so it passes the assembled
 # response length and no subset. 'argument' names the surface the value came
 # from, so a caller who wrote a forest's basis is refused in those terms rather
 # than in the data object's.
-validateTreatment <- function(
-  treatment,
+validateForestBases <- function(
+  bases,
   initialNumObservations,
   subset = NULL,
-  argument = "treatment"
+  argument = "bases"
 ) {
-  if (is.null(treatment)) {
+  if (is.null(bases)) {
     return(NULL)
   }
-  if (!is.numeric(treatment) && !is.logical(treatment)) {
-    stop("'", argument, "' must be a numeric or logical vector")
+  if (!is.list(bases)) {
+    stop("'", argument, "' must be a list of per-forest basis matrices")
   }
-  treatment <- as.double(treatment)
-  if (length(treatment) != initialNumObservations) {
-    stop("length of '", argument, "' must equal length of 'y'")
-  }
-  if (!is.null(subset)) {
-    treatment <- treatment[subset]
-  }
-  if (anyNA(treatment) || any(treatment != 0.0 & treatment != 1.0)) {
-    stop("'", argument, "' must be coded 0 (control) or 1 (treated)")
-  }
-  treatment
+  lapply(bases, function(basis) {
+    if (is.null(basis)) {
+      return(NULL)
+    }
+    if (!is.numeric(basis) && !is.logical(basis)) {
+      stop("'", argument, "' must be numeric or logical")
+    }
+    basis <- as.matrix(basis)
+    storage.mode(basis) <- "double"
+    if (nrow(basis) != initialNumObservations) {
+      stop("length of '", argument, "' must equal length of 'y'")
+    }
+    if (!is.null(subset)) {
+      basis <- basis[subset, , drop = FALSE]
+    }
+    if (anyNA(basis) || !all(is.finite(basis))) {
+      stop("'", argument, "' values must all be finite")
+    }
+    basis
+  })
 }
 
 # Validate and subset a user-supplied offset vector for the x/y interfaces
@@ -697,7 +707,7 @@ dbartsData <- function(
   offset.test = offset,
   factors = c("categorical", "indicators"),
   missing = c("incorporate", "error"),
-  treatment = NULL
+  bases = NULL
 ) {
   dataIsMissing <- missing(data)
   testIsMissing <- missing(test)
@@ -878,9 +888,9 @@ dbartsData <- function(
     y <- coded$y
     responseInfo <- coded[c("type", "n.levels", "levels")]
     numObservations <- NROW(y)
-    # the model frame owns the row selection here, so the treatment is checked
+    # the model frame owns the row selection here, so the bases are checked
     # against the rows that survived it
-    treatment <- validateTreatment(treatment, numObservations)
+    bases <- validateForestBases(bases, numObservations)
 
     ## weights
     weights <- as.vector(model.weights(modelFrame))
@@ -962,7 +972,7 @@ dbartsData <- function(
     }
     y <- y[subset]
     x <- formula[subset, , drop = FALSE]
-    treatment <- validateTreatment(treatment, initialNumObservations, subset)
+    bases <- validateForestBases(bases, initialNumObservations, subset)
 
     if (missing(weights)) {
       weights <- NULL
@@ -1028,7 +1038,7 @@ dbartsData <- function(
     } else {
       formula[subset]
     }
-    treatment <- validateTreatment(treatment, initialNumObservations, subset)
+    bases <- validateForestBases(bases, initialNumObservations, subset)
 
     if (missing(weights)) {
       weights <- NULL
@@ -1295,7 +1305,7 @@ dbartsData <- function(
       weights.test,
       offset,
       offset.test,
-      treatment,
+      bases,
       testUsesRegularOffset
     ),
     n.cuts = NA_integer_,

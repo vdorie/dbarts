@@ -64,7 +64,7 @@ expect_null(dimnames(result.many$test))
 # per-observation sessions guard every forest's trees that the column can move.
 # The FORCE paths refresh every forest and stay supported (the bartCause
 # propensity swap, test-bcf.R).
-# setTreatment, the supported multi-forest data swap, stays allowed ---
+# setForestBasis, the supported multi-forest data swap, stays allowed ---
 set.seed(11)
 z <- rbinom(n, 1L, 0.5)
 y.bcf <- f + z * (1 + 2 * x[, 3L]) + rnorm(n, sd = 0.2)
@@ -173,8 +173,9 @@ expect_error(
 )
 expect_silent(dbarts:::bartcoreSetOffset(bc.bcf, NULL))
 
-# setTreatment is still allowed and a subsequent run stays sane
-dbarts:::bartcoreSetTreatment(bc.bcf, rbinom(n, 1L, 0.5))
+# setForestBasis is still allowed and a subsequent run stays sane
+z.new <- rbinom(n, 1L, 0.5)
+dbarts:::bartcoreSetForestBasis(bc.bcf, 1L, cbind(1 - z.new, z.new))
 result.bcf <- dbarts:::bartcoreRun(bc.bcf, 0L, 5L)
 expect_equal(dim(result.bcf$train), c(n, 5L))
 expect_true(all(is.finite(result.bcf$train)))
@@ -204,7 +205,7 @@ bcfWeightArm <- function(build, swap) {
   list(
     train = res$train,
     varcount = res$varcount,
-    glue = dbarts:::bartcoreBCFGlue(bc),
+    glue = dbarts:::bartcoreForestAmplitudes(bc),
     mu = dbarts:::bartcoreForestFits(bc, 0L),
     tau = dbarts:::bartcoreForestFits(bc, 1L),
     fit.scale = dbarts:::bartcoreStoreState(bc)[[1L]]$fit.scale
@@ -282,7 +283,7 @@ expect_error(
 # b_{z_i} against; the capability probe catches a K-forest multinomial that a
 # forest count would not
 expect_error(
-  dbarts:::bartcoreSetTreatment(bc.mn, rbinom(n, 1L, 0.5)),
+  dbarts:::bartcoreSetForestBasis(bc.mn, 1L, cbind(0.5, 0.5)),
   "forests carry amplitudes"
 )
 # a FLAT test offset is added AFTER the K forests are blended, so it would move

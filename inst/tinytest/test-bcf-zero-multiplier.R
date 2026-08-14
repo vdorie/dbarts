@@ -42,7 +42,7 @@ bcSampler <- dbarts:::bartcoreBCFSampler(
 invisible(dbarts:::bartcoreRun(bcSampler, 100L, 25L))
 
 expect_equal(
-  as.vector(dbarts:::bartcoreBCFGlue(bcSampler)),
+  as.vector(dbarts:::bartcoreForestAmplitudes(bcSampler)),
   c(1, 0, 1)
 )
 

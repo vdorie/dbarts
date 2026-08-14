@@ -308,7 +308,7 @@ samplerFit <- function(seed, updateA, updateB, ndpost, thin) {
     dbarts:::bartcoreRun(bc, 0L, thin)
     muM[d, ] <- dbarts:::bartcoreForestFits(bc, 0L)[repObs, 1L]
     tauM[d, ] <- dbarts:::bartcoreForestFits(bc, 1L)[repObs, 1L]
-    g <- dbarts:::bartcoreBCFGlue(bc)[, 1L]
+    g <- dbarts:::bartcoreForestAmplitudes(bc)[, 1L]
     aVec[d] <- g[1L]
     bDiff[d] <- g[3L] - g[2L]
   }

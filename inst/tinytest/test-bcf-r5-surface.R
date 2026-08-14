@@ -1,8 +1,8 @@
 # The R5 dbartsSampler surface over a public Bayesian causal forest
 # (docs/design/bcf.md, S1 landing a1dbde7): $setForestBasis mirrors the engine
-# and data@treatment, $getForestFits/$getForestAmplitudes/
+# and data@bases, $getForestFits/$getForestAmplitudes/
 # $getForestVariableCounts read the per-forest channels the low-level
-# bartcoreForestFits/bartcoreBCFGlue
+# bartcoreForestFits/bartcoreForestAmplitudes
 # route already exposed, refused mutations get a BCF-specific message rather
 # than the generic multi-forest one, and $setControl carries bartcore.*
 # control attributes forward so a save/load round trip re-creates cleanly.
@@ -58,7 +58,7 @@ expect_true(all(is.finite(muFits)) && all(is.finite(tauFits)))
 lowLevel <- list(ptr = sampler$getPointer())
 expect_identical(muFits, dbarts:::bartcoreForestFits(lowLevel, 0L))
 expect_identical(tauFits, dbarts:::bartcoreForestFits(lowLevel, 1L))
-expect_identical(glue, dbarts:::bartcoreBCFGlue(lowLevel))
+expect_identical(glue, dbarts:::bartcoreForestAmplitudes(lowLevel))
 expect_identical(
   muCounts,
   dbarts:::bartcoreForestVariableCounts(lowLevel, 0L)
@@ -130,10 +130,13 @@ expect_silent(refused$setPredictor(x, forceUpdate = TRUE))
 expect_silent(refused$setResponse(y, updateScale = FALSE))
 expect_silent(refused$setOffset(rep(0, n), updateScale = FALSE))
 expect_silent(refused$setForestBasis(2L, factor(z)))
-# the first forest's basis is the implicit intercept its own amplitude scales,
-# so the 1-based index takes only the basis forest today
-expect_error(refused$setForestBasis(1L, factor(z)), "only on the second")
+# any forest takes a basis, the first included - it widens that forest's
+# amplitude block from the implicit intercept's single coordinate to one per
+# level - while the index itself still refuses on both sides
+expect_silent(refused$setForestBasis(1L, factor(z)))
+expect_equal(nrow(refused$getForestAmplitudes(1L)), 2L)
 expect_error(refused$setForestBasis(0L, factor(z)), "single positive integer")
+expect_error(refused$setForestBasis(3L, factor(z)), "out of range")
 
 # the test surface's refusal already named BCF before this slice (S1's
 # refuseBCFTestSurface); light regression coverage on the R5 path, which S0
@@ -150,7 +153,7 @@ expect_error(refused$setTestPredictor(x[1:5, , drop = FALSE]), "BCF")
 plain <- dbarts(x, y, control = seededControl())
 expect_silent(plain$setResponse(y, updateScale = TRUE))
 
-# --- F3, both halves: $setForestBasis mirrors the engine AND data@treatment,
+# --- F3, both halves: $setForestBasis mirrors the engine AND data@bases,
 # and a save/load round trip continues from the mirrored assignment rather
 # than the one the sampler was created with ---
 mirror <- dbarts(
@@ -164,7 +167,7 @@ z2 <- rep(0, n)
 # an explicit level set, so the basis still has the two columns the amplitudes
 # ride on when the data happen to sit entirely in one of them
 mirror$setForestBasis(2L, factor(z2, levels = c(0, 1)))
-expect_identical(mirror$data@treatment, z2)
+expect_equal(mirror$data@bases[[2L]], unname(cbind(1 - z2, z2)))
 
 mirror$storeState()
 mirrorFile <- tempfile(fileext = ".rds")
@@ -203,11 +206,11 @@ expect_true(diffOriginalZ > 1e-6)
 
 # --- F6, BCF leg: setControl preserves attr(control, "bartcore.bcf"), so
 # getPointer()'s re-creation after a save/load round trip succeeds and
-# carries the same treatment vector. Pre-fix, this raised "the data carry a
-# treatment vector but no treatment forest was configured": setControl
-# replaced control wholesale, dropping the attribute, so createHolder saw
-# data@treatment with no matching forest configuration (the bidirectional
-# cross-check from S1, firing on the half setControl silently orphaned). ---
+# carries the same bases. Pre-fix, this raised "the data carry forest bases
+# but no basis forest was configured": setControl replaced control wholesale,
+# dropping the attribute, so createHolder saw data@bases with no matching
+# forest configuration (the bidirectional cross-check from S1, firing on the
+# half setControl silently orphaned). ---
 controlled <- dbarts(
   x,
   y,
@@ -224,7 +227,10 @@ reloadedControlled <- readRDS(controlledFile)
 unlink(controlledFile)
 
 reloadedControlled$getPointer()
-expect_identical(reloadedControlled$data@treatment, as.double(z))
+expect_equal(
+  reloadedControlled$data@bases[[2L]],
+  cbind(1 - as.double(z), as.double(z))
+)
 rerunControlled <- reloadedControlled$run(0L, 1L)
 expect_true(all(is.finite(rerunControlled$train)))
 

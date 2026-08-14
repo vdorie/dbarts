@@ -45,6 +45,12 @@ struct SamplerShape {
   /// run bridge reads it to size the varcount array; internal, invisible to
   /// dbarts.h.
   std::size_t numVariableCountForests;
+  /// Amplitude coordinates the forests carry in total, sum_f q_f: 0 for a
+  /// coupling carrying none (and every single-forest sampler), 3 for bcf's
+  /// K = 2, q = (1, 2). RAGGED, so this is a total and not a layout - the run
+  /// bridge sizes the glue channel by it, and numForestAmplitudes reads the
+  /// per-forest widths. Internal, invisible to dbarts.h.
+  std::size_t numAmplitudes;
   /// Per-sample cutpoints the recorded cutpoint channel carries: 0 for every
   /// family but ordinal (K-1). The run bridge reads it to size and name the
   /// cutpoints channel, present only when nonzero; internal, invisible to
@@ -269,9 +275,13 @@ public:
   virtual const ColumnStore& data() const = 0;
   virtual const double* latents(std::size_t chainNum) const = 0;
   virtual double sigma(std::size_t chainNum) const = 0;
-  /// BCF surface (docs/design/bcf.md); no-op/false off BCF. out receives
-  /// {a, b0, b1}; forestTotalFits writes numObservations internal-scale fits.
-  virtual void setTreatment(const double* z) = 0;
+  /// The per-forest amplitude basis (docs/design/bcf.md): installs forest
+  /// forestIndex's n x numColumns ROW-major basis, COPIED, in every chain;
+  /// false, installing nothing, off a coupling that carries amplitudes, on an
+  /// index naming no forest, or on a basis it refuses (a zero width, a
+  /// non-finite value). The SOLE basis-mutation route.
+  virtual bool setForestBasis(std::size_t forestIndex, const double* values,
+                              std::size_t numColumns) = 0;
   /// Installs (or clears, at a null vector) a borrowed per-observation weight
   /// on forest forestIndex in every chain; false, installing nothing, when the
   /// coupling admits none or the index names no forest. Chain::setForestWeights
@@ -312,7 +322,13 @@ public:
   /// installing nothing, off a counts-owning coupling. Sized to the current
   /// test store. Chain::setCategoryTestOffset states the semantics.
   virtual bool setCategoryTestOffset(const double* offset) = 0;
-  virtual bool bcfGlue(std::size_t chainNum, double* out) const = 0;
+  /// The amplitude channel. totalAmplitudes is the capability probe as well as
+  /// the length (0 off a coupling that carries none); numForestAmplitudes is
+  /// forest forestIndex's ragged width; amplitudes writes totalAmplitudes()
+  /// values forest-major on chain chainNum, false writing nothing off glue.
+  virtual std::size_t totalAmplitudes() const = 0;
+  virtual std::size_t numForestAmplitudes(std::size_t forestIndex) const = 0;
+  virtual bool amplitudes(std::size_t chainNum, double* out) const = 0;
   virtual void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
                                double* out) const = 0;
   /// Forest forestIndex's per-predictor split usage into out (numPredictors
@@ -345,6 +361,7 @@ public:
     s.leafCovariateColumns = impl_.leafCovariateColumns();
     s.numReportedLocations = impl_.numReportedLocations();
     s.numVariableCountForests = impl_.numVariableCountForests();
+    s.numAmplitudes = impl_.totalAmplitudes();
     s.numCutpoints = impl_.numCutpoints();
     s.savedTreeCapacity = impl_.savedTreeCapacity();
     s.family = impl_.family();
@@ -518,7 +535,10 @@ public:
   double sigma(std::size_t chainNum) const override {
     return impl_.sigma(chainNum);
   }
-  void setTreatment(const double* z) override { impl_.setTreatment(z); }
+  bool setForestBasis(std::size_t forestIndex, const double* values,
+                      std::size_t numColumns) override {
+    return impl_.setForestBasis(forestIndex, values, numColumns);
+  }
   bool setForestWeights(std::size_t forestIndex,
                         const double* weights) override {
     return impl_.setForestWeights(forestIndex, weights);
@@ -543,8 +563,14 @@ public:
   bool setCategoryTestOffset(const double* offset) override {
     return impl_.setCategoryTestOffset(offset);
   }
-  bool bcfGlue(std::size_t chainNum, double* out) const override {
-    return impl_.bcfGlue(chainNum, out);
+  std::size_t totalAmplitudes() const override {
+    return impl_.totalAmplitudes();
+  }
+  std::size_t numForestAmplitudes(std::size_t forestIndex) const override {
+    return impl_.numForestAmplitudes(forestIndex);
+  }
+  bool amplitudes(std::size_t chainNum, double* out) const override {
+    return impl_.amplitudes(chainNum, out);
   }
   void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
                        double* out) const override {
@@ -745,8 +771,9 @@ inline std::unique_ptr<SamplerBase> createSamplerOverStore(
     sigmaRawScale, options, rngs);
 }
 
-/// A BCF two-forest sampler (docs/design/bcf.md): constant-leaf and gaussian
-/// only, so the single instantiation. rngs supplies one generator per chain.
+/// A K-forest combining sampler (docs/design/bcf.md), bcf's two-forest shape
+/// being its K = 2 instance: constant-leaf and gaussian only, so the single
+/// instantiation. rngs supplies one generator per chain.
 inline std::unique_ptr<SamplerBase> createBCFSampler(
   const double* x, const double* y, std::size_t numObservations,
   std::size_t numPredictors, const double* weights, const double* offset,

@@ -53,6 +53,10 @@ expect_true(hashes$matches.header)
 # literal the pre-reshape header baked, so a token blind to the change would
 # still read it
 expect_false(identical(hashes$text, "0x1a911c00bb26dcd7"))
+# and it did NOT move for M4.3, whose only dbarts.h edit was doc text outside
+# DBARTS_C_API_LIST (the basis layout resolved to the engine's row-major
+# reality): the token is the literal reshape S1 baked
+expect_identical(hashes$text, "0xcd88efcd67de55d7")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -1072,7 +1076,7 @@ bcfLegs <- CALL(
   zBCF,
   xBCF[1:5, , drop = FALSE]
 )
-expect_equal(length(bcfLegs), 18L)
+expect_equal(length(bcfLegs), 19L)
 for (leg in names(bcfLegs)) {
   expect_true(bcfLegs[[leg]], info = leg)
 }

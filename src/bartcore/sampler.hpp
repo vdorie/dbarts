@@ -161,9 +161,9 @@ public:
                 options.useQuantiles);
     options_.maxNumCutsPerVariable = nullptr;
     options_.predictors = {};
-    // single-forest queries (numTrees, savedTree, printTrees) address the
-    // prognostic forest
-    options_.numTrees = spec.mu.numTrees;
+    // single-forest queries (numTrees, savedTree, printTrees) address forest 0,
+    // whose count the K-length spec carries wherever it came from
+    options_.numTrees = expandForestSpecs(spec)[0].forest.numTrees;
 
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)
@@ -313,12 +313,14 @@ public:
         r.varianceTestFits = results.varianceTestFits +
           c * numSamples * data_.numTestObservations;
       // the per-forest slab carries every forest's own fits per sample, and the
-      // glue slab three scalars; both are filled only by a coupling that defines
-      // them, so the strides are reached on that path alone
+      // glue slab the ragged amplitude vector; both are filled only by a
+      // coupling that defines them, so the strides are reached on that path
+      // alone
       if (results.forestFits != nullptr)
         r.forestFits = results.forestFits +
           c * numSamples * data_.numObservations * numForests();
-      if (results.glue != nullptr) r.glue = results.glue + c * numSamples * 3;
+      if (results.glue != nullptr)
+        r.glue = results.glue + c * numSamples * totalAmplitudes();
     }
 
     if (options_.verbose) ext_printf("Running mcmc loop:\n");
@@ -763,10 +765,9 @@ public:
       dst.dartAlpha = src.dartAlpha;
       dst.dartNumUpdatesSkipped = src.dartNumUpdatesSkipped;
       dst.hasBCF = src.hasBCF;
-      dst.a = src.a;
-      dst.aVariance = src.aVariance;
-      dst.b0 = src.b0;
-      dst.b1 = src.b1;
+      dst.amplitudeWidths = src.amplitudeWidths;
+      dst.amplitudes = src.amplitudes;
+      dst.amplitudeVariances = src.amplitudeVariances;
       // the donor's LIVE variance trees, whatever slot the mean forests come
       // from: the state format carries no saved variance channel, so a
       // slot-sourced warm start pairs a saved mean forest with the donor's
@@ -1155,8 +1156,16 @@ public:
   bool forestReportingIsDefined() const {
     return chains_[0]->forestReportingIsDefined();
   }
-  void setTreatment(const double* z) {
-    for (auto& chain : chains_) chain->setTreatment(z);
+  /// Installs forest forestIndex's n x numColumns ROW-major amplitude basis in
+  /// every chain; false, installing nothing, on a refusal. Every chain refuses
+  /// on the same conditions, so the fan-out cannot land half applied.
+  bool setForestBasis(size_t forestIndex, const double* values,
+                      size_t numColumns) {
+    bool installed = true;
+    for (auto& chain : chains_)
+      installed = chain->setForestBasis(forestIndex, values, numColumns) &&
+                  installed;
+    return installed;
   }
   /// Whether the forest coupling admits a caller-supplied per-forest weight;
   /// chain 0 answers for all, as every chain carries the same combiner.
@@ -1239,8 +1248,14 @@ public:
       installed = chain->setCategoryTestOffset(offset) && installed;
     return installed;
   }
-  bool bcfGlue(size_t chainNum, double* out) const {
-    return chains_[chainNum]->bcfGlue(out[0], out[1], out[2]);
+  /// The amplitude channel; chain 0 answers the two shape questions for all,
+  /// as every chain carries the same combiner and the same bases.
+  size_t totalAmplitudes() const { return chains_[0]->totalAmplitudes(); }
+  size_t numForestAmplitudes(size_t forestIndex) const {
+    return chains_[0]->numForestAmplitudes(forestIndex);
+  }
+  bool amplitudes(size_t chainNum, double* out) const {
+    return chains_[chainNum]->amplitudes(out);
   }
   void forestTotalFits(size_t chainNum, size_t forestIndex, double* out) const {
     chains_[chainNum]->forestTotalFits(forestIndex, out);

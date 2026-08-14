@@ -11,7 +11,7 @@
 # Each scenario drives the internal bartcoreBCFSampler surface (R/bartcore.R;
 # docs/design/bcf.md) at a fixed seed, single chain, one thread, and records:
 #   - the raw per-forest fits of BOTH forests (bartcoreForestFits 0 and 1),
-#   - the glue (bartcoreBCFGlue: a, b0, b1),
+#   - the amplitudes (bartcoreForestAmplitudes: a, b0, b1),
 #   - sigma,
 #   - the reported result$train and result$varcount channels,
 #   - the treatment forest's own split counts
@@ -94,7 +94,7 @@ recordChannels <- function(bcSampler, result) {
   list(
     mu = dbarts:::bartcoreForestFits(bcSampler, 0L),
     tau = dbarts:::bartcoreForestFits(bcSampler, 1L),
-    glue = dbarts:::bartcoreBCFGlue(bcSampler),
+    glue = dbarts:::bartcoreForestAmplitudes(bcSampler),
     sigma = result$sigma,
     train = result$train,
     varcount = result$varcount,
@@ -173,8 +173,9 @@ runScenarios <- function() {
     result$weighted <- recordChannels(bc, res)
   }
 
-  # (e) setTreatment: run, swap the treatment vector, run again, record the
-  # post-mutation state - the only bitwise guard on the setTreatment routing.
+  # (e) setForestBasis: run, swap the treatment forest's basis, run again,
+  # record the post-mutation state - the only bitwise guard on the sole
+  # basis-mutation route.
   {
     d <- makeData(n, p, seeds[["treatment.data"]])
     set.seed(seeds[["treatment.z2"]])
@@ -187,7 +188,7 @@ runScenarios <- function() {
       n.trees.treatment = n.trees.tau
     )
     dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    dbarts:::bartcoreSetTreatment(bc, z2)
+    dbarts:::bartcoreSetForestBasis(bc, 1L, cbind(1 - z2, z2))
     res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
     result$set_treatment <- recordChannels(bc, res)
   }

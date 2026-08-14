@@ -990,7 +990,7 @@ runSbcGrouped <- function(
 
 .bcfNew <- getFromNamespace("bartcoreBCFSampler", "dbarts")
 .bcfRun <- getFromNamespace("bartcoreRun", "dbarts")
-.bcfGlue <- getFromNamespace("bartcoreBCFGlue", "dbarts")
+.bcfGlue <- getFromNamespace("bartcoreForestAmplitudes", "dbarts")
 .bcfForest <- getFromNamespace("bartcoreForestFits", "dbarts")
 .bcfSetResponse <- getFromNamespace("bartcoreSetResponse", "dbarts")
 .bcfPriorTrees <- getFromNamespace(
