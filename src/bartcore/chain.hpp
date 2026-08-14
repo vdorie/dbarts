@@ -684,10 +684,12 @@ public:
     resizeTestStorage();
   }
 
-  /// K-forest combining chain (docs/design/bcf.md): forests combined on a
-  /// gaussian response as y = sum_f dot(a_f, B_f(i,.)) f_f(x_i) + eps, of which
-  /// bcf's a mu + b_z tau is the K = 2 instance. Constant leaves only; each
-  /// forest reads the full store unless its spec carries a column subset in
+  /// K-forest combining chain (docs/design/bcf.md): forests combined into the
+  /// location sum_f dot(a_f, B_f(i,.)) f_f(x_i), of which bcf's a mu + b_z tau
+  /// is the K = 2 instance. Under gaussian that location is the response mean
+  /// and eps carries a drawn sigma; under probit and logistic it is the latent
+  /// index, on the link's own fixed scale. Constant leaves only; each forest
+  /// reads the full store unless its spec carries a column subset in
   /// BCFForestSpec.columns (the default, no list, restricts nothing).
   Chain(const ColumnStore& data, const double* y, const double* weights,
         const double* offset, double sigmaEstimate, double sigmaDf,
@@ -699,32 +701,77 @@ public:
     options_.maxNumCutsPerVariable = nullptr;
     options_.predictors = {};
     options_.forestColumns = nullptr;  // BCF restriction arrives via BCFForestSpec
-    response_ = std::make_unique<GaussianResponse>(
-      y, offset, weights, data.numObservations, sigmaEstimate, sigmaDf,
-      sigmaRawScale);
-    family_ = ResponseFamily::gaussian;
-    sigmaIsFixed_ = options.sigmaIsFixed;
+    // the families the coupling is built for; the factory refuses the rest
+    // ahead of this, so nothing but gaussian reaches the default arm. Not
+    // lifted out of the single-forest constructor's six-arm switch: three of
+    // those arms are unreachable here and four of the option channels they
+    // read (residualDf, survivalStatus, numCategories, dispersion) are ones
+    // this path does not carry.
+    switch (spec.family) {
+    case ResponseFamily::probit:
+      response_ =
+        std::make_unique<ProbitResponse>(y, offset, data.numObservations);
+      break;
+    case ResponseFamily::logistic:
+      response_ = std::make_unique<LogisticResponse>(y, offset, weights,
+                                                     data.numObservations);
+      break;
+    case ResponseFamily::gaussian:
+    default:
+      response_ = std::make_unique<GaussianResponse>(
+        y, offset, weights, data.numObservations, sigmaEstimate, sigmaDf,
+        sigmaRawScale);
+      break;
+    }
+    family_ = spec.family;
+    // the single-forest rule, verbatim: only the binary families fix sigma by
+    // construction. Left at options.sigmaIsFixed a probit K-forest would enter
+    // run() advertising a drawn sigma and call drawSigma every sweep - the
+    // value is harmless, the semantic gate is not
+    sigmaIsFixed_ = (spec.family != ResponseFamily::gaussian &&
+                     spec.family != ResponseFamily::aft) ||
+                    options.sigmaIsFixed;
     sigma_ = response_->initialSigma();
 
     // Calibration map (docs/design/bcf.md, generalized to K by ForestSpec):
-    // s is the sample sd of the range-scaled response (y mapped to
-    // [-0.5, 0.5]). A forest whose amplitude carries a half-Cauchy scale
-    // mixture keeps its node scale at nodeScaleFactor s and puts the magnitude
-    // in the amplitude prior - bcf's prognostic total mu ~ N(0, s^2) with the
-    // half-Cauchy a (median aPriorScale) at aPriorScale sd(y). A forest whose
-    // amplitude prior is a FIXED variance carries the magnitude in the node
-    // scale instead, divided through the half-normal median - bcf's treatment
-    // total tau ~ N(0, (sdModerate s / 0.674)^2), so with b1 - b0 ~ N(0, 2
-    // bPriorVariance) the effect (b1 - b0) tau sits at sdModerate sd(y). Both
-    // expressions are written exactly as bcf's were, which is what keeps the
-    // K = 2 instance bitwise. The map fixes k at 1 and overrides the host node
-    // prior for every forest.
-    double s = scaledResponseSd();
+    // s is the family's own latent scale, the sample sd of the range-scaled
+    // response (y mapped to [-0.5, 0.5]) under gaussian. A forest whose
+    // amplitude carries a half-Cauchy scale mixture keeps its node scale at
+    // nodeScaleFactor s and puts the magnitude in the amplitude prior - bcf's
+    // prognostic total mu ~ N(0, s^2) with the half-Cauchy a (median
+    // aPriorScale) at aPriorScale units of s. A forest whose amplitude prior
+    // is a FIXED variance carries the magnitude in the node scale instead,
+    // divided through the half-normal median - bcf's treatment total
+    // tau ~ N(0, (sdModerate s / 0.674)^2), so with b1 - b0 ~ N(0, 2
+    // bPriorVariance) the effect (b1 - b0) tau sits at sdModerate units of s.
+    // Both expressions are written exactly as bcf's were, which is what keeps
+    // the K = 2 instance bitwise. The map fixes k at 1 and overrides the host
+    // node prior for every forest.
+    //
+    // The scale is stated PER UNIT OF BASIS ROW NORM, which is what
+    // basisRowNorm divides out: a forest whose basis rows have median nonzero
+    // norm c contributes the scale its host asked for rather than c times it.
+    // Every shipped route has c exactly 1, so the divisor is inert there.
+    //
+    // s is the family's own latent scale (latentScaleAnchor), which under
+    // gaussian is the empirical one above and under a latent family is the
+    // link's fixed one.
+    double s = latentScaleAnchor(spec.family);
+    nodeScaleAnchor_ = s;
     std::vector<ForestSpec> forestSpecs = expandForestSpecs(spec);
-    for (const ForestSpec& forestSpec : forestSpecs)
+    nodeScaleFactors_.resize(forestSpecs.size());
+    nodeScaleDivisors_.resize(forestSpecs.size());
+    for (std::size_t f = 0; f < forestSpecs.size(); ++f) {
+      const ForestSpec& forestSpec = forestSpecs[f];
+      nodeScaleFactors_[f] = forestSpec.nodeScaleFactor;
+      nodeScaleDivisors_[f] = forestSpec.nodeScaleDivisor;
       buildBCFForest(forestSpec.forest,
                      forestSpec.nodeScaleFactor * s /
-                       forestSpec.nodeScaleDivisor);
+                       (forestSpec.nodeScaleDivisor *
+                        basisRowNorm(forestSpec.basis,
+                                     forestSpec.numBasisColumns,
+                                     data.numObservations)));
+    }
 
     combiner_ =
       std::make_unique<BCFForestCombiner<L, ResidT>>(data, spec,
@@ -872,19 +919,41 @@ public:
   /// basis it refuses. The sole basis-mutation route; every multiplier, the
   /// per-forest reparameterization and the amplitude conditional re-read it on
   /// the next sweep.
+  ///
+  /// A successful install RE-DERIVES forest f's leaf scale from the new basis:
+  /// the map's row-norm divisor is otherwise a construction-time constant of
+  /// the OLD basis and no other mutation re-derives a K-forest leaf scale
+  /// (setModel touches forest 0's alone), so a swap into different units would
+  /// leave the forest calibrated in the previous ones. The anchor s is the
+  /// RETAINED construction value, not a fresh scaledResponseSd(): the map is
+  /// pinned at creation (an updateScale swap is refused), so recomputing would
+  /// recalibrate this forest onto a scale the others are not on, and reusing
+  /// the stored double is what makes a norm-preserving re-install bitwise.
+  /// Same expression in the same order as the constructor's, for the reason
+  /// stated there.
   bool setForestBasis(std::size_t f, const double* values,
                       std::size_t numColumns) {
-    return combiner_ ? combiner_->setForestBasis(f, values, numColumns) : false;
+    if (!combiner_ || !combiner_->setForestBasis(f, values, numColumns))
+      return false;
+    if (f < nodeScaleFactors_.size())
+      forests_[f].leaf.scale =
+        nodeScaleFactors_[f] * nodeScaleAnchor_ /
+        (nodeScaleDivisors_[f] *
+         basisRowNorm(values, numColumns, data_.numObservations)) /
+        std::sqrt(static_cast<double>(forests_[f].numTrees));
+    return true;
   }
   /// Whether this chain's forest coupling permits the response-side conduit -
   /// setResponse and setOffset at updateScale = false, and setWeights, which
   /// has no scale to pin at all; false off any combiner, since a single-forest
-  /// chain never consults it. The gaussian conjunct is
-  /// structural, not advisory: a latent family reads forests_[0].totalFits as
-  /// though it were the combined location, which is false on a coupling.
+  /// chain never consults it. The coupling's own answer is the whole answer:
+  /// the family conjunct that used to stand beside it was there because
+  /// setResponse handed the response forest 0's bare totals as though they
+  /// were the combined location, so a latent family would have refreshed its
+  /// latents against the prognostic forest alone. setResponse now passes
+  /// combinedFits(), so the reason is removed rather than suppressed.
   bool supportsResponseMutation() const {
-    return combiner_ && combiner_->supportsResponseMutation() &&
-           family_ == ResponseFamily::gaussian;
+    return combiner_ && combiner_->supportsResponseMutation();
   }
   /// Whether this chain admits a caller-supplied per-forest weight. The
   /// setter's refusal and SamplerShape::supportsForestWeights both read this
@@ -970,6 +1039,15 @@ public:
   /// empty-leaf veto, which counts positive composed weights
   /// (docs/design/empty-leaf-veto.md): forest f cannot hold a leaf whose every
   /// member has s_i = 0, since no likelihood term of that forest reaches it.
+  ///
+  /// It is a WORKING precision under every family, which is what keeps it off
+  /// the observation weight's family-specific meaning: by the time the
+  /// per-forest response is formed a logistic chain's w is the Polya-Gamma
+  /// omega_i and the caller's copy count has already been spent as that draw's
+  /// shape, so this factor cannot move it. It reaches forest f's LEAF
+  /// conditionals only - not the amplitude draw, which reads the response's
+  /// own weights, and not the ASIS rescale, which reads none - so m_f and f_f,
+  /// the two factors of one product, are drawn under three precision vectors.
   ///
   /// Two edges a consumer is misled without: at s_i = 0 with a nonzero
   /// multiplier only the WEIGHT is zeroed - the response stays the
@@ -1404,9 +1482,12 @@ public:
       forests_[0].leaf.invalidateStatistics();
     return true;
   }
+  /// The location handed to the response is the COMBINED one, which is what a
+  /// latent family's refreshed latents must be drawn against: forest 0's bare
+  /// totals are the whole fit only off a coupling, where combinedFits returns
+  /// exactly that pointer.
   void setResponse(const double* y, bool updateScale) {
-    response_->setResponse(y, rng_, forests_[0].totalFits.data(), updateScale,
-                           &sigma_);
+    response_->setResponse(y, rng_, combinedFits(), updateScale, &sigma_);
     // a latent family's setResponse refreshes the Polya-Gamma weights U'WU
     // depends on; a gaussian one moves only the residual
     if constexpr (L::hasVectorParams)
@@ -1508,10 +1589,22 @@ public:
 
   /// Sum of squared working residuals, descaled to the original response
   /// scale (binary families report on the latent scale).
+  ///
+  /// The fit is the COMBINED location, sum_f m_f(i) f_f(x_i): on a coupling
+  /// forest 0's own totals are not the fitted value the contract names, and
+  /// the reported train channel already routes through this same combinedFits.
+  /// Off any combiner it is a literal identity on those totals.
+  ///
+  /// GUARDED, not substituted blindly: a multi-location coupling (the softmax)
+  /// reports a K x n probability slab rather than a location and its working
+  /// response is n zeros, so no residual sum of squares is defined there. NaN
+  /// says so, where a bare substitution would quietly report the sum of
+  /// squared category probabilities instead.
   double sumOfSquaredResiduals() {
+    if (combiner_ != nullptr && combiner_->numReportedLocations() != 1)
+      return std::numeric_limits<double>::quiet_NaN();
     double result = misc_computeSumOfSquaredResiduals(
-      response_->workingResponse(), data_.numObservations,
-      forests_[0].totalFits.data());
+      response_->workingResponse(), data_.numObservations, combinedFits());
     return result * response_->sigmaScale() * response_->sigmaScale();
   }
 
@@ -4454,6 +4547,81 @@ private:
     return std::sqrt(sumSquares / static_cast<double>(n - 1));
   }
 
+  /// The scale the K-forest calibration map states every forest's node scale
+  /// against: the family's own latent scale, so that `forest(sd = )` names one
+  /// unit of the scale the combined index actually lives on.
+  ///
+  ///   gaussian - the sample sd of the range-scaled working response
+  ///   probit   - 1, the standard normal link's error sd
+  ///   logistic - pi/sqrt(3), the logistic law's standard deviation
+  ///
+  /// A latent family's anchor is a CONSTANT rather than a statistic of y. The
+  /// empirical alternative - the sample sd of the cold-start working response -
+  /// is a base-rate artifact, 2 sqrt(p(1-p)) under probit and twice that under
+  /// logistic, so the prior would narrow fivefold between a balanced response
+  /// and one at p = 0.01, withdrawing support from the region such data
+  /// demands. It also agrees with 1.0 at p = 0.5 up to a Bessel factor, which
+  /// is why a balanced fixture cannot see it.
+  ///
+  /// The logistic constant is the LOGISTIC LAW's standard deviation, not a
+  /// property of the augmentation: the engine samples that family through
+  /// Polya-Gamma, whose working residual sd at psi = 0 is 2 (omega = 1/4), not
+  /// 1.8138. pi/sqrt(3) is the sd of the law the log-odds index is stated
+  /// against, and is what makes the single-forest default node scale three of
+  /// these units in both binary families.
+  double latentScaleAnchor(ResponseFamily family) const {
+    switch (family) {
+    case ResponseFamily::probit: return 1.0;
+    case ResponseFamily::logistic: return std::numbers::pi / std::sqrt(3.0);
+    // gaussian's arm is written as its own call rather than as a factor
+    // multiplying a shared value: the map's expressions are bitwise-sensitive
+    // to reassociation, and the O(n) scan must not run on a family that does
+    // not use it, where a later reader would mistake it for the anchor
+    default: return scaledResponseSd();
+    }
+  }
+
+  /// The unit a forest's node scale is stated PER: the median of the NONZERO
+  /// row norms of its n x numColumns ROW-major amplitude basis, 1.0 for a
+  /// forest carrying none (the combiner synthesizes the all-ones column). The
+  /// map divides it out, so a basis in other units - a column of dollars, a
+  /// rescaled moderator - no longer silently multiplies the prior.
+  ///
+  /// A MEDIAN rather than a root-mean-square: the map's own convention is
+  /// already one (the 0.674 divisor is qnorm(0.75)), the median is
+  /// sparsity-invariant where an all-rows RMS would shrink a bare 0/1
+  /// indicator's scale by sqrt(p) for being treatment-only, and it is
+  /// outlier-robust where a max is not. Zero-norm rows are excluded rather
+  /// than counted small: such a row receives no contribution from the forest,
+  /// so it says nothing about the scale the rows that do are stated in.
+  ///
+  /// Every shipped route lands on exactly 1.0 (the all-ones column, the
+  /// (1 - z, z) pair, a one-hot factor expansion) and divisor * 1.0 is divisor
+  /// in IEEE-754, so the K = 2 instance stays bitwise.
+  static double basisRowNorm(const double* basis, std::size_t numColumns,
+                             std::size_t n) {
+    if (basis == nullptr) return 1.0;
+    std::vector<double> norms;
+    norms.reserve(n);
+    for (std::size_t i = 0; i < n; ++i) {
+      double sumSquares = 0.0;
+      for (std::size_t j = 0; j < numColumns; ++j) {
+        double value = basis[i * numColumns + j];
+        sumSquares += value * value;
+      }
+      if (sumSquares > 0.0) norms.push_back(std::sqrt(sumSquares));
+    }
+    if (norms.empty()) return 1.0;  // an all-zero basis scales nothing
+    std::size_t half = norms.size() / 2;
+    std::nth_element(norms.begin(), norms.begin() + half, norms.end());
+    if (norms.size() % 2 == 1) return norms[half];
+    // the even case averages the two central order statistics, as R's median
+    // does, so a host can reproduce the divisor from its own basis
+    double upper = norms[half];
+    double lower = *std::max_element(norms.begin(), norms.begin() + half);
+    return 0.5 * (lower + upper);
+  }
+
   /// Variant A block-additive install (docs/design/interaction-constraints.md):
   /// confine each whole tree to one declared group of predictors so the ensemble
   /// is exactly f = sum_G f_G. Build the numBlocks group-membership rows (each
@@ -4781,6 +4949,12 @@ private:
   // sampler, so the sweep, reporting, and state paths collapse to the direct
   // forest-0 path when so and pay no virtual call
   std::unique_ptr<ForestCombiner<L, ResidT>> combiner_;
+
+  // the calibration map's own inputs, retained per forest so setForestBasis
+  // can re-derive a leaf scale from a new basis; empty off the K-forest
+  // constructor, which is the guard the recomputation reads
+  std::vector<double> nodeScaleFactors_, nodeScaleDivisors_;
+  double nodeScaleAnchor_ = 1.0;
 
   // caller-supplied per-forest observation weights, one BORROWED pointer per
   // forest (null = none). Left EMPTY until the first install, which is the

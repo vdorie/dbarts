@@ -484,7 +484,8 @@ uint64_t dbarts_apiHash(void);
 
 /// Creates a sampler from the R specification objects (dbartsControl,
 /// dbartsModel, dbartsData). family selects the response model for binary
-/// responses: "" or "probit" give probit latents, "logistic" the
+/// responses, on a single forest or on K of them: "" or "probit" give probit
+/// latents, "logistic" the
 /// Polya-Gamma sampler; continuous responses are gaussian and accept "" or
 /// "gaussian", or "aft" for an accelerated failure time (log-normal) survival
 /// fit, in which case the response holds log survival/censoring times and a
@@ -510,7 +511,11 @@ uint64_t dbarts_apiHash(void);
 /// dbarts_sampler_numForestAmplitudes and dbarts_sampler_forestAmplitudes,
 /// takes a scale-pinned response, offset or weight swap, and refuses the whole
 /// test surface (setTestPredictors, setTestOffset, predict), whose blend is
-/// undefined without a test basis. Gaussian responses only.
+/// undefined without a test basis. Gaussian, probit and logistic responses;
+/// the other families are refused at creation, naming what each is missing.
+/// Under a latent family the combined location IS the index, on the link's own
+/// fixed scale - so every forest's prior scale is stated in latent sd units,
+/// sigma is pinned, and there is no response transform to rescale.
 dbarts_sampler* dbarts_sampler_create(SEXP control, SEXP model, SEXP data,
                                       const char* family);
 void dbarts_sampler_destroy(dbarts_sampler* sampler);
@@ -557,9 +562,12 @@ void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
 /// true (see setResponse).
 void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
                               int updateScale);
-/// weights has numObservations values; gaussian responses only. There is no
-/// scale to pin, so a multi-forest sampler takes this as it stands, at any
-/// forest count, provided its coupling admits the conduit at all.
+/// weights has numObservations values. Post-creation weight changes are for
+/// gaussian responses only - the binary families read a weight as a copy count
+/// fixed at creation - but a logistic sampler accepts positive integer counts
+/// AT creation, at any forest count. There is no scale to pin, so a
+/// multi-forest sampler takes this as it stands, at any forest count, provided
+/// its coupling admits the conduit at all.
 void dbarts_sampler_setWeights(dbarts_sampler* sampler,
                                const double* weights);
 /// Holds the residual standard deviation at sigma (original response scale)

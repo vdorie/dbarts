@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <numbers>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -2284,6 +2285,48 @@ bool applyBCFAttributes(SEXP controlExpr, const ParsedModel& model,
   return true;
 }
 
+// The families a K-forest coupling admits, and why each door is shut: null for
+// gaussian, probit and logistic, the reason otherwise. Admission turns on the
+// calibration map having a latent scale to state its node scales against, and
+// on the family's own parameter block being shown to interleave with the
+// amplitude block. The two creation routes ask this separately rather than
+// sharing a gate, since only one runs the whole offender cascade below.
+const char* refusedBCFFamilyReason(bartcore::ResponseFamily family) {
+  switch (family) {
+  case bartcore::ResponseFamily::gaussian:
+  case bartcore::ResponseFamily::probit:
+  case bartcore::ResponseFamily::logistic:
+    return NULL;
+  case bartcore::ResponseFamily::aft:
+    return "an AFT (survival) response: it draws sigma, which the coupling "
+           "pins, and its censoring status reaches no K-forest creation path";
+  case bartcore::ResponseFamily::ordinal:
+    return "an ordinal response: its cutpoint block is not shown to interleave "
+           "with the amplitude block";
+  case bartcore::ResponseFamily::nbinom:
+    return "a count (nbinom) response: its dispersion block is not shown to "
+           "interleave with the amplitude block";
+  }
+  return "this response family";
+}
+
+// The node scale the R surface writes for a family that names none, mirroring
+// defaultNodeScale() in R/model.R. The K-forest gate reads it so "a non-default
+// node scale" means the same thing under every family: the literal 0.5 it used
+// to compare against is GAUSSIAN'S, inlined while the coupling was gaussian.
+double defaultNodeScale(bartcore::ResponseFamily family) {
+  switch (family) {
+  case bartcore::ResponseFamily::probit:
+  case bartcore::ResponseFamily::ordinal:
+    return 3.0;
+  case bartcore::ResponseFamily::logistic:
+  case bartcore::ResponseFamily::nbinom:
+    return std::numbers::pi * std::sqrt(3.0);
+  default:
+    return 0.5;
+  }
+}
+
 // Every option the BCF chain constructor does not read, refused rather than
 // dropped in silence: the calibration map fixes both forests' leaf scales and
 // k, buildBCFForest takes no DART or split probabilities, the constant leaf is
@@ -2296,8 +2339,8 @@ void refuseUnsupportedBCFComposition(bartcore::ResponseFamily family,
                                      const ParsedModel& model,
                                      const ParsedData& data,
                                      const bartcore::SamplerOptions& options) {
-  if (family != bartcore::ResponseFamily::gaussian)
-    Rf_error("a treatment forest requires a continuous (gaussian) response");
+  if (const char* refused = refusedBCFFamilyReason(family))
+    Rf_error("a treatment forest does not support %s", refused);
   if (!data.predictors.isDenseBlock())
     Rf_error("a treatment forest requires dense predictors");
   const char* offender = NULL;
@@ -2308,7 +2351,8 @@ void refuseUnsupportedBCFComposition(bartcore::ResponseFamily family,
     offender = "a linear or Gaussian-process node prior";
   else if (model.updateK) offender = "a k hyperprior";
   else if (model.k != 2.0) offender = "a non-default k";
-  else if (model.nodeScale != 0.5) offender = "a non-default node scale";
+  else if (model.nodeScale != defaultNodeScale(family))
+    offender = "a non-default node scale";
   // the node-scale gate above does not fire on a model that names its
   // calibration in response units instead, and the calibration map would drop
   // it in silence, so it is its own offender
@@ -2914,6 +2958,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                "configured; build the sampler through dbarts() or dbartsSpec()");
     if (isBCF) {
       refuseUnsupportedBCFComposition(family, model, data, options);
+      bcfSpec.family = family;
       if (data.bases.size() != bcfSpec.forests.size())
         Rf_error("the data carry %lu forest bases but %lu forests were "
                  "configured",
@@ -2987,11 +3032,24 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
                  model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
                  storage = BCFSpecStorage{}]() mutable -> SEXP {
     bool sigmaIsFixed;
-    bartcore::ResponseFamily family = parseSamplerSpecification(
-      controlExpr, modelExpr, dataExpr, "", control, model, data, sigmaIsFixed);
+    // the family is read off the model this route was handed rather than
+    // threaded beside it, which is what makes the two agree structurally: the
+    // R5 route already resolves dbartsModel@family away from "auto" and maps
+    // that lone remaining case to the bridge's own "" dispatch, so every
+    // existing caller derives exactly what it derived before
+    SEXP familyExpr = Rf_getAttrib(modelExpr, Rf_install("family"));
+    const char* familyName =
+      Rf_isString(familyExpr) && rc_getLength(familyExpr) >= 1 &&
+          STRING_ELT(familyExpr, 0) != NA_STRING &&
+          std::strcmp(CHAR(STRING_ELT(familyExpr, 0)), "auto") != 0
+        ? CHAR(STRING_ELT(familyExpr, 0))
+        : "";
+    bartcore::ResponseFamily family =
+      parseSamplerSpecification(controlExpr, modelExpr, dataExpr, familyName,
+                                control, model, data, sigmaIsFixed);
     validateCategoricalPredictors(data);
-    if (family != bartcore::ResponseFamily::gaussian)
-      Rf_error("BCF requires a continuous (gaussian) response");
+    if (const char* refused = refusedBCFFamilyReason(family))
+      Rf_error("BCF does not support %s", refused);
     if (!data.predictors.isDenseBlock())
       Rf_error("BCF requires dense predictors");
 
@@ -3001,6 +3059,7 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
       Rf_error("%s", storageSingleUnsupportedMessage);
 
     bartcore::BCFSpec spec;
+    spec.family = family;
     applyBCFSpec(bcfParamsExpr, varsExpr, interactionsExpr, blocksExpr, model,
                  options.numTrees, data.numPredictors, spec, storage);
     // the bases arrive as an argument here rather than on the data object, so
@@ -3519,10 +3578,11 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
   });
 }
 
-// A K-forest combining sampler; internal, gaussian only (docs/design/bcf.md).
-// The model spec is forest 0, bases the per-forest amplitude bases (a null
-// entry leaving that forest the implicit intercept), and bcfParams the
-// K-length per-forest parameter list.
+// A K-forest combining sampler; internal (docs/design/bcf.md). The model spec
+// is forest 0 - and carries the family, which is read off its own slot rather
+// than passed beside it - bases the per-forest amplitude bases (a null entry
+// leaving that forest the implicit intercept), and bcfParams the K-length
+// per-forest parameter list.
 SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                         SEXP basesExpr, SEXP bcfParamsExpr, SEXP varsExpr,
                         SEXP interactionsExpr, SEXP blocksExpr) {

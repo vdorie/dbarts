@@ -274,14 +274,7 @@ xbart <- function(
     # a named calibration is held across every cell, created or re-modelled:
     # cellModel carries this model, and the setModel branch re-derives it
     prior.scale = resolvePriorScale(node.prior, node.hyperprior),
-    # the logistic scale is probit's default widened by the logistic
-    # latent's standard deviation, pi / sqrt(3)
-    node.scale = switch(
-      family,
-      gaussian = 0.5,
-      probit = 3.0,
-      logistic = pi * sqrt(3.0)
-    )
+    node.scale = defaultNodeScale(family)
   )
 
   numObservations <- length(data@y)

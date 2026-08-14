@@ -97,6 +97,7 @@ parsePriors <- function(
   resid.prior,
   resid.dist,
   monotone = NULL,
+  multiForest = FALSE,
   parentEnv
 ) {
   matchedCall <- match.call()
@@ -162,7 +163,9 @@ parsePriors <- function(
   }
 
   # `monotone` arrives already resolved to a per-column direction vector (or
-  # NULL); it only gates the leaf-model refusal and the fixed-k rule here
+  # NULL); it only gates the leaf-model refusal and the fixed-k rule here, as
+  # `multiForest` - whether this fit declares per-forest bases - gates the
+  # second half of that same rule
   if (
     !is.null(monotone) &&
       (is(node.prior, "dbartsLinearPrior") || is(node.prior, "dbartsGPPrior"))
@@ -175,7 +178,8 @@ parsePriors <- function(
   node.hyperprior <- resolveNodeHyperprior(
     node.prior@k,
     control@binary,
-    monotone = !is.null(monotone)
+    monotone = !is.null(monotone),
+    multiForest = isTRUE(multiForest)
   )
 
   namedList(tree.prior, resid.prior, resid.dist, node.prior, node.hyperprior)
@@ -383,15 +387,49 @@ resolveSplitProbabilities <- function(prior, data) {
   prior
 }
 
+## The node scale a family that names no calibration takes, in the units its
+## own latent scale is stated in: gaussian and aft the response range's 0.5,
+## the probit-scale families 3, and the log-odds families that same 3 widened
+## by the logistic latent's standard deviation pi / sqrt(3). One function
+## rather than a switch per call site, since the multi-forest guard reads it
+## too (a "non-default node scale" has always meant "differs from the family
+## default"); the C bridge carries the twin it backstops direct-API consumers
+## with. Ordinal reuses probit's latent scale (docs/design/ordinal.md section 2,
+## scheme C: the K = 2 anchor is probit exactly) and nbinom's psi is a log-odds,
+## so it reuses logistic's (docs/design/negative-binomial.md section 1).
+defaultNodeScale <- function(family) {
+  switch(
+    family,
+    gaussian = 0.5,
+    aft = 0.5,
+    probit = 3.0,
+    ordinal = 3.0,
+    nbinom = pi * sqrt(3.0),
+    logistic = pi * sqrt(3.0)
+  )
+}
+
 ## Turn a normal prior's raw k into the model's node hyperprior: NULL is the
 ## family default (2 for continuous responses, chi(1.5, 2) for binary),
 ## a positive scalar is fixed, and a hyperprior object passes through. Under a
 ## monotone constraint k is fixed for both families (an unsupplied k resolves
 ## to 2, the truncated leaf law having no clean chi-k update; see
 ## docs/design/monotone.md) and a chi hyperprior is refused.
-resolveNodeHyperprior <- function(k, binary, monotone = FALSE) {
+##
+## A multi-forest fit fixes it on the same terms and for the same reason: the
+## calibration map pins every forest's k at 1 and never updates it, so the
+## binary default's chi-k draw would be a hyperprior on a quantity no forest
+## reads. Redirecting the DEFAULT rather than refusing it downstream is what
+## keeps a plain binary two-forest call silent while an explicitly named chi()
+## still refuses by name, and the forced value changes no fitted model.
+resolveNodeHyperprior <- function(
+  k,
+  binary,
+  monotone = FALSE,
+  multiForest = FALSE
+) {
   if (is.null(k)) {
-    k <- if (monotone || !binary) 2.0 else chi(1.5, 2.0)
+    k <- if (monotone || multiForest || !binary) 2.0 else chi(1.5, 2.0)
   } else if (monotone && !is.numeric(k)) {
     stop(
       "a 'k' hyperprior is not supported under a monotone constraint; ",
@@ -850,10 +888,13 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 ## Which of the two magnitude channels a forest's `sd` reaches is decided by
 ## whether it carries a BASIS. A forest WITHOUT one has a plain scalar
 ## amplitude under a half-Cauchy scale mixture, so `sd` is that mixture's
-## median and the node scale stays at the response sd - bcf's prognostic
-## forest. A forest WITH one has a fixed-variance amplitude block, so `sd`
-## multiplies the node scale, divided through the half-normal median 0.674 so
-## the amplitude spread times that scale sits at sd sd(y) - bcf's basis forest.
+## median and the node scale stays at the calibration map's anchor - bcf's
+## prognostic forest. A forest WITH one has a fixed-variance amplitude block,
+## so `sd` multiplies the node scale, divided through the half-normal median
+## 0.674 so the amplitude spread times that scale sits at `sd` anchors - bcf's
+## basis forest. The ANCHOR is the family's own latent scale: sd(y) under
+## gaussian, 1 under probit and pi/sqrt(3) under logistic, per unit of basis
+## row norm.
 ## The defaults are the engine's, so a `forests` declaring nothing beyond its
 ## basis and a data object carrying bases with no declaration at all resolve to
 ## the same numbers.
@@ -1425,8 +1466,10 @@ blocks <- function(groups, trees.per.group = NULL) {
 ## however many forests a model has. basis is the data the forest's amplitudes
 ## multiply, a one-sided formula or a vector, expanded by R's own model-matrix
 ## rule; vars restricts the columns the forest may split on; n.trees, base and
-## power are its tree-structure prior; sd is its total's prior scale in sd(y)
-## units; amplitude.prior.variance is the N(0, .) variance of the amplitudes on
+## power are its tree-structure prior; sd is its total's prior scale in units
+## of the family's latent scale (sd(y) under gaussian, 1 under probit,
+## pi/sqrt(3) under logistic) per unit of basis row norm;
+## amplitude.prior.variance is the N(0, .) variance of the amplitudes on
 ## its basis; update.amplitude fixes those amplitudes at their prior center
 ## when FALSE; interactions and blocks are this forest's own constraints - the
 ## arguments of the same names on the fitting function are the FIRST forest's.

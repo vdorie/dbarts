@@ -91,13 +91,23 @@
             it from the first. The result is an ordinary
             \code{dbartsSampler}: it stores, saves, and re-creates like any
             other, and the columns a basis expands to ride the data object
-            beside the weights they mirror. Gaussian responses only; every
-            option the multi-forest model does not read, and every declaration
-            the engine cannot honour, is refused at creation rather than
-            ignored. \code{$setForestBasis} is the sole route by which a basis
-            changes after creation, at any forest and any width, mirroring the
-            matrix into \code{data@bases} as \code{$setWeights} does for
-            weights; the amplitudes are preserved and remapped, so a
+            beside the weights they mirror. Gaussian, \code{"probit"}, and
+            \code{"logistic"} responses; under the latter two the forests
+            combine into the index rather than the mean, on the link's own
+            fixed scale, so sigma is pinned and every forest's \code{sd} is
+            stated in latent standard deviations rather than
+            \eqn{sd(y)}{sd(y)}; and, under every family, each forest's
+            \code{sd} is now stated per unit of basis row norm, the median
+            of that basis's nonzero row norms dividing it out, so an
+            unnormalized basis no longer multiplies the prior and a Gaussian
+            fit whose basis rows are not unit norm changes. \code{"aft"},
+            \code{"ordinal"}, and \code{"nbinom"} are refused at creation,
+            naming what each is missing; every option the multi-forest model
+            does not read, and every declaration the engine cannot honour, is
+            refused the same way. \code{$setForestBasis} is the sole route by
+            which a basis changes after creation, at any forest and any width,
+            mirroring the matrix into \code{data@bases} as \code{$setWeights}
+            does for weights; the amplitudes are preserved and remapped, so a
             width-preserving install leaves every one of them unchanged and a
             width change carries each forest's block to its new offset.
             \code{$getForestFits}, \code{$getForestAmplitudes}, and

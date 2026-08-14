@@ -146,15 +146,18 @@ public:
                      sigmaRawScale, rngs);
   }
 
-  /// A BCF two-forest sampler over dense predictors (docs/design/bcf.md):
-  /// gaussian only, one prognostic and one treatment forest per chain. The
-  /// CSC/mixed and view ingestion paths are not offered here.
+  /// A K-forest combining sampler over dense predictors (docs/design/bcf.md),
+  /// bcf's prognostic-plus-treatment pair being its K = 2 instance. The family
+  /// rides the spec (gaussian, probit or logistic); family_ takes it rather
+  /// than a pin, since every family-keyed predicate a host reads - the pinned
+  /// sigma and binary weight refusals, the response-support test - answers
+  /// through it. The CSC/mixed and view ingestion paths are not offered here.
   Sampler(const double* x, const double* y, size_t numObservations,
           size_t numPredictors, const double* weights, const double* offset,
           double sigmaEstimate, double sigmaDf, double sigmaRawScale,
           const SamplerOptions& options, const BCFSpec& spec,
           ext_rng* const* rngs)
-    : options_(options), family_(ResponseFamily::gaussian) {
+    : options_(options), family_(spec.family) {
     data_.build(denseCreationPredictorSource(options.predictors, x,
                                              numObservations, numPredictors),
                 options.maxNumCutsPerVariable, options.maxNumCuts,

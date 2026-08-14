@@ -139,9 +139,10 @@ What is combiner-hierarchy content, and stays here:
   `const ColumnStore&` for the observation count and, in afterCombine, the data
   the ridge move touches. Built from `(data, spec, numForests)` by Chain's
   K-forest constructor.
-- It is `static_assert`-gated to a constant leaf, and the chain it is built by
-  is Gaussian-only - both are hierarchy constraints, not model choices, and the
-  second is M4.4's to lift.
+- It is `static_assert`-gated to a constant leaf - a hierarchy constraint, not a
+  model choice. The chain it is built by was Gaussian-only; M4.4 lifted that to
+  gaussian, probit and logistic, the three families the calibration map has a
+  latent scale anchor to state a node scale against.
 - Every virtual it overrides, it overrides as ONE instance would: which
   channels it defines (`testFitsAreDefined` and `logLikelihoodIsDefined` both
   false, so storeSample NaN-flags rather than silently reporting the bare

@@ -242,6 +242,10 @@ resolveSamplerSpec <- function(
   parsePriorsCall$control <- control
   parsePriorsCall$data <- data
   parsePriorsCall$monotone <- monotoneDirections
+  # a multi-forest fit is the one whose forests carry amplitude bases; the
+  # calibration map pins every forest's k, so the binary chi-k default is
+  # redirected to the fixed 2 rather than refused below
+  parsePriorsCall$multiForest <- !is.null(declaredBases)
   parsePriorsCall$parentEnv <- evalEnv
 
   if (fixedUnitScale) {
@@ -288,25 +292,11 @@ resolveSamplerSpec <- function(
     priors$resid.prior,
     proposal.probs = proposal.probs,
     family = family,
-    # a named calibration (node.prior's scale = / sd =) overrides the switch
-    # below in the engine, which converts it out of response units against the
-    # transform; NA leaves the family-keyed internal default in force
+    # a named calibration (node.prior's scale = / sd =) overrides the
+    # family default below in the engine, which converts it out of response
+    # units against the transform; NA leaves that default in force
     prior.scale = resolvePriorScale(priors$node.prior, priors$node.hyperprior),
-    # the logistic scale is probit's default widened by the logistic
-    # latent's standard deviation, pi / sqrt(3)
-    node.scale = switch(
-      family,
-      gaussian = 0.5,
-      aft = 0.5,
-      probit = 3.0,
-      # ordinal reuses probit's latent scale (docs/design/ordinal.md section 2,
-      # scheme C: the K = 2 anchor is probit exactly)
-      ordinal = 3.0,
-      # nbinom's psi is a log-odds, so it reuses logistic's node.scale
-      # (docs/design/negative-binomial.md section 1)
-      nbinom = pi * sqrt(3.0),
-      logistic = pi * sqrt(3.0)
-    )
+    node.scale = defaultNodeScale(family)
   )
 
   # Student-t residuals (docs/design/robust-errors.md): only a continuous
@@ -421,17 +411,37 @@ resolveSamplerSpec <- function(
     )
   }
   if (!is.null(data@bases)) {
-    if (family != "gaussian") {
+    # the families the calibration map has a latent scale to state its node
+    # scales against, and whose own parameter block is shown to interleave with
+    # the amplitude block. A fixed error scale is what makes the binary
+    # families work here rather than a reason they cannot: the combined index
+    # is stated in the link's own units and sigma is pinned there.
+    if (family %not_in% c("gaussian", "probit", "logistic")) {
       stop(
-        "a treatment forest requires a continuous (gaussian) response; ",
-        "family \"",
+        "a treatment forest does not support family \"",
         family,
-        "\" has its own fixed error scale"
+        "\": ",
+        switch(
+          family,
+          aft = paste0(
+            "it draws sigma, which the calibration map pins, and its ",
+            "censoring status reaches no multi-forest creation path"
+          ),
+          ordinal = paste0(
+            "its cutpoint block is not shown to interleave with the ",
+            "amplitude block"
+          ),
+          nbinom = paste0(
+            "its dispersion block is not shown to interleave with the ",
+            "amplitude block"
+          ),
+          "the calibration map states no scale for it"
+        )
       )
     }
-    # The BCF chain builds both forests from its own calibration map (fixed
-    # k = 1, leaf scales from the response sd) and reads neither the DART
-    # machinery, the split probabilities, the monotone directions, a
+    # The BCF chain builds every forest from its own calibration map (fixed
+    # k = 1, leaf scales from the family's own latent scale) and reads neither
+    # the DART machinery, the split probabilities, the monotone directions, a
     # non-constant leaf, the grouped decorator, a variance forest, an fp32
     # residual, a per-column cut cap, nor the Student-t error law. Every one of
     # those would otherwise be dropped in silence, changing the fitted model
@@ -449,10 +459,13 @@ resolveSamplerSpec <- function(
         "dbartsFixedHyperprior"
       ) &&
         priors$node.hyperprior@k != 2.0,
-      "a non-default 'node.scale'" = model@node.scale != 0.5,
-      # the calibration map fixes both forests' leaf scales from the response
-      # sd, so a named prior.scale has nowhere to land and the node.scale gate
-      # above does not fire on it
+      # "differs from the family default", which is what the gaussian-only
+      # literal 0.5 this used to compare against always meant
+      "a non-default 'node.scale'" = model@node.scale !=
+        defaultNodeScale(family),
+      # the calibration map fixes every forest's leaf scale from the family's
+      # own latent scale, so a named prior.scale has nowhere to land and the
+      # node.scale gate above does not fire on it
       "a named 'prior.scale'" = !is.na(model@prior.scale),
       # a monotone constraint rewrites proposal.probs above, so only an
       # unconstrained fit's is the caller's own

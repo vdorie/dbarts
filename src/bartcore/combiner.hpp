@@ -221,8 +221,9 @@ struct Forest {
 /// Per-forest calibration for a BCF sampler: the prognostic (mu) and
 /// treatment (tau) forests carry bcf's distinct tree counts and priors
 /// (docs/design/bcf.md). Node scales are not spec'd: the calibration map
-/// derives them from the response sd at construction, and the adaptive
-/// magnitude lives in the glue (a for mu, b0/b1 for tau).
+/// (ForestSpec below) derives them from the family's own latent scale at
+/// construction, and the adaptive magnitude lives in the glue (a for mu,
+/// b0/b1 for tau).
 struct BCFForestSpec {
   std::size_t numTrees = 200;
   double base = 0.95, power = 2.0;
@@ -260,17 +261,27 @@ struct BCFForestSpec {
 /// amplitude channel it enters the combination through.
 ///
 /// The CALIBRATION MAP is stated here rather than in the chain, and is general
-/// in K: the node scale is nodeScaleFactor * s / nodeScaleDivisor, s the sample
-/// sd of the range-scaled response. The two ways a magnitude can be carried are
-/// the two branches the host picks between - a scale-mixture amplitude carries
-/// it in amplitudePriorScale and leaves the node scale at s (bcf's prognostic
-/// forest, factor and divisor both 1), a fixed-variance amplitude carries it in
-/// the node scale, divided through the half-normal median so the amplitude
-/// spread times that scale sits at nodeScaleFactor sd(y) (bcf's treatment
-/// forest, divisor 0.674). The divisor is CARRIED rather than derived from the
-/// prior, so a forest declaring a zero scale keeps the node scale its host
-/// asked for; and both expressions are written exactly as bcf's were, which is
-/// what keeps the two-forest instance bitwise.
+/// in K: the node scale is nodeScaleFactor * s / (nodeScaleDivisor * c), with s
+/// the FAMILY'S OWN LATENT SCALE (the sample sd of the range-scaled response
+/// under gaussian, 1 under probit, pi/sqrt(3) under logistic) and c the median
+/// nonzero row norm of this forest's basis. The two ways a magnitude can be
+/// carried are the two branches the host picks between - a scale-mixture
+/// amplitude carries it in amplitudePriorScale and leaves the node scale at s
+/// (bcf's prognostic forest, factor and divisor both 1), a fixed-variance
+/// amplitude carries it in the node scale, divided through the half-normal
+/// median so the amplitude spread times that scale sits at nodeScaleFactor
+/// units of s (bcf's treatment forest, divisor 0.674). The divisor is CARRIED
+/// rather than derived from the prior, so a forest declaring a zero scale keeps
+/// the node scale its host asked for; and both expressions are written exactly
+/// as bcf's were, which is what keeps the two-forest instance bitwise.
+///
+/// Every scale here is stated PER UNIT OF BASIS ROW NORM, which is what
+/// dividing by c means: the induced prior sd on the combined index at row i is
+/// sqrt( sum_f nodeScale_f^2 amplitudePriorVariance_f ||B_f(i,.)||^2 ) over the
+/// fixed-variance forests, so a basis in other units would otherwise multiply
+/// the prior a host asked for. That index is in sd(y) units under gaussian,
+/// where a drawn sigma partly absorbs a mis-scaled basis, and in latent sd
+/// units under probit and logistic, where sigma is PINNED and nothing does.
 ///
 /// basis is an optional n x numBasisColumns ROW-major amplitude basis, borrowed
 /// and COPIED at construction; null synthesizes the dense all-ones column whose
@@ -293,10 +304,15 @@ struct ForestSpec {
 /// them, so there is exactly one shape the chain and the combiner read.
 struct BCFSpec {
   BCFForestSpec mu, tau;
+  // The response family the K forests are combined under. gaussian, probit and
+  // logistic are built; the rest are refused by the factory, which is where the
+  // reason for each door lives. It rides the spec rather than the constructor's
+  // parameter list so a fixture that names none keeps bcf's own family.
+  ResponseFamily family = ResponseFamily::gaussian;
   const double* z = nullptr;    // borrowed 0/1 treatment indicator per obs
   double aPriorScale = 2.0;     // half-Cauchy median for the mu scalar a
   double bPriorVariance = 0.5;  // N(0, .) prior variance for b0, b1
-  double sdModerate = 1.0;      // treatment effect scale in sd(y) units
+  double sdModerate = 1.0;      // treatment effect scale, in units of s above
   bool updateA = true, updateB = true;  // false fixes the matching glue block
   // Whether each forest's amplitude block travels its own likelihood-invariant
   // ASIS ridge after the combination (BCFForestCombiner::afterCombine). mu's is
@@ -407,7 +423,9 @@ struct ForestAmplitudePrior {
 
 /// The combining response's glue (docs/design/bcf.md): the per-forest amplitude
 /// vectors and the bases they contract with, plus the sweep's per-forest
-/// scratch. y = a mu + b_z tau + eps; a Chain holds one only in BCF mode.
+/// scratch. The combined location is a mu + b_z tau - the response mean under
+/// gaussian (plus eps), the latent index under probit and logistic; a Chain
+/// holds one only in BCF mode.
 ///
 /// The amplitudes are ONE flat vector, forest f's block at amplitudeOffset[f]
 /// and as wide as basis[f]: the general shape, of which bcf is the K = 2
@@ -676,8 +694,9 @@ struct ForestCombiner {
 };
 
 /// BCF's combiner (docs/design/bcf.md): a prognostic forest mu (forest 0) and a
-/// treatment forest tau (forest 1) combined on a gaussian response as
-/// y = a mu + b_z tau + eps. Holds the glue (the scalar a via its half-Cauchy
+/// treatment forest tau (forest 1) combined into the location a mu + b_z tau,
+/// which is the response mean under gaussian (plus eps) and the latent index
+/// under probit and logistic. Holds the glue (the scalar a via its half-Cauchy
 /// scale mixture aVariance, and the treatment scales b0/b1 over control/treated)
 /// and the sweep's per-forest scratch. Constant leaf only, as the whole BCF
 /// chain is.
@@ -797,9 +816,16 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// cosmetic: the chain reads this buffer arithmetically when it rolls the
   /// running residual and finalizes total fits, and the node sufficient-statistic
   /// kernels accumulate w * y, where a zero weight against an amplified response
-  /// would be 0 * inf. The tolerance doubles as a condition-number cap - the
-  /// division amplifies by at most 2^26, so the cancellation downstream stays
-  /// inside half the mantissa.
+  /// would be 0 * inf. The tolerance doubles as a condition-number cap: the
+  /// division amplifies by at most 2^26, whatever the family, the weights and
+  /// K. What the amplification does NOT reach is the arithmetic downstream,
+  /// which cancels it exactly - the node kernels accumulate sumWeights =
+  /// sum_i w_i m_i^2 and sumWeightedResponse = sum_i (w_i m_i^2)(r_i / m_i),
+  /// whose exact value is sum_i w_i m_i r_i, and combinedFits and
+  /// drawForestAmplitude keep the exact multiplier throughout. (An absolute
+  /// precision claim would need a bounded numerator as well, which only
+  /// gaussian supplies, by range-anchoring its working response to
+  /// [-0.5, 0.5].)
   ///
   /// The snap belongs to this REPARAMETERIZATION, not to the model: combinedFits
   /// and drawGlue keep the exact multiplier, so a snapped row still receives
@@ -950,16 +976,21 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// recombines them, so a consumer reads both surfaces off one run.
   bool forestReportingIsDefined() const override { return true; }
 
-  /// BCF admits the scale-pinned response and offset swaps, relying on two
-  /// conditions: the gaussian response re-maps y through the pinned
-  /// (min_, range_) and touches no forest, so both leaf calibrations and the
-  /// sigma prior stay put; and this combiner caches nothing per-forest across
-  /// sweeps - formForestResponse re-derives every per-forest residual and
-  /// precision from y and w each sweep, and the glue lives here rather than in
-  /// the response, so it carries over. The same two conditions open the
-  /// case-weight swap, which needs no pinned scale of its own: setWeights does
-  /// not move the transform, and scaledResponseSd - the anchor both leaf
-  /// calibrations are stated against - is unweighted.
+  /// BCF admits the scale-pinned response and offset swaps on two conditions,
+  /// both of which hold for every family the coupling is built with. FIRST,
+  /// the response re-maps y and touches no forest, so every leaf calibration
+  /// and the sigma prior stay put: under gaussian that is the re-map through
+  /// the pinned (min_, range_), and under a latent family the transform is the
+  /// identity and sigma pinned outright, the swap redrawing the latents
+  /// against the COMBINED location the chain hands it. SECOND, this combiner
+  /// caches nothing per-forest across sweeps - formForestResponse re-derives
+  /// every per-forest residual and precision from the chain's y and w each
+  /// sweep, and the glue lives here rather than in the response, so it carries
+  /// over; read as the WORKING y and w, which the response itself refreshes,
+  /// that holds under a latent family unchanged. The same two conditions open
+  /// the case-weight swap, which needs no pinned scale of its own: setWeights
+  /// does not move the transform, and the map's anchor - the response sd under
+  /// gaussian, the link's own error sd otherwise - is unweighted either way.
   bool supportsResponseMutation() const override { return true; }
 
   /// BCF's per-forest precision is w_i m_f^2, re-derived from y and w every
