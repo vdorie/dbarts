@@ -743,7 +743,8 @@ exists":
     dbarts-h-reshape S0-S2, with M3 as an item inside S1   (one re-bake)
     M4  the general basis family           RESOLVED pre-release (fork 1,
                                             VD 2026-08-11); probes RAN
-                                            2026-08-13, next step M4.0
+                                            2026-08-13; M4.0 LANDED 562ee684,
+                                            next step M4.1
     1.0-0 freeze
 
 M0 and M1 must land after bcf-public-surface S4 rather than beside it: S4 is
@@ -1450,9 +1451,10 @@ M4.5**, serialized, one implementer, each slice landing before the next
 starts. **STATUS, re-scoped 2026-08-13 on the probe verdicts
 (`probes-2026-08-13.md`): steps 1 to 3 are COMPLETE** - the plan was amended
 (the PRE-M4 block), all three probes ran in the foreground at 47c1fbe1 (no arm
-crashed, none was UNOBTAINABLE), and this commit is the re-scope. **The next
-step is M4.0**, whose pin scope - BOTH `afterCombine` overrides - the verdicts
-leave unchanged. **The slice order is now M4.0 -> M4.1 -> M4.2 -> M4.3 -> M4.5,
+crashed, none was UNOBTAINABLE), and this commit is the re-scope. **M4.0
+LANDED 562ee684**, whose pin scope - BOTH `afterCombine` overrides - the
+verdicts left unchanged, per the Landing notes below. **The next step is
+M4.1.** **The slice order is now M4.0 -> M4.1 -> M4.2 -> M4.3 -> M4.5,
 Gaussian-complete, with M4.4 as the IMMEDIATE follow-on slice**, still
 pre-release (fork 2 holds both slices inside the window; the escape hatch
 REORDERS, it does not cancel). FA5 licensed that hatch and it is TAKEN; see
@@ -2176,7 +2178,11 @@ and `expandForestBasis` going per-forest, `resolveForests`' six positional
 refusals, `validateTreatment`, `$getForestAmplitudes()`'s broken signature and
 `isBCFSampler`'s replacement. TESTS were priced only as "plus the M4.0 pins"
 and are now priced: M4.0's `tests/cpp` pins over both `afterCombine`
-overrides, plus the existing pins the relaxation rewrites. DOCS (M4.5) were
+overrides, plus the existing pins the relaxation rewrites. **M4.0 LANDED
+562ee684 and consumed ~348 of the ~350-450 tests band (reviewer-counted); the
+remainder is M4.3's rewrite share, which MUST be re-priced at its own
+pre-slice check before M4.3 starts, not assumed from this figure.** DOCS
+(M4.5) were
 unpriced; `multiplier-combiner.md` is a NEW file. Plus one possible
 `bcf-equivalence` re-record, with its `equivalence.yaml` bump in the same
 commit. **Both scheduling preconditions are MET:** multiforest-predictor-
@@ -2883,10 +2889,66 @@ recorded at the dbarts-h-reshape S1 landing note, not repeated here - this
 item priced ~40 header + ~80 C_interface + ~70 consumer.c + ~60 test-capi.R
 of that slice's ~1310 re-priced total.
 
-Arc status: M1 and M2 landed; M3 LANDED (ab3aa2fa). Only M0 (the on-ramp
-docs/vignette slice) remains, deferred at orchestrator discretion; M4 (the
-general basis family) is RESOLVED pre-release and scheduled after the
-reshape, whose S1 - the arc's last header-touching slice - landed at
-ab3aa2fa, and whose S2 (consumer rebuilds and docs, moving no header) has
+M4.0 LANDED 562ee684, 2026-08-13, CI six-green sanitizers included, amended
+ONCE after independent review (LAND-AFTER-CHANGES -> applied). Tests-only:
+tests/cpp (3 files), inst/tinytest (1), TODO trim. rng NEUTRAL confirmed by
+two independent trio runs.
+
+Pins: testBCFCombinerSeam (test_sampler.cpp:2818-3160) and
+testMultinomialCombinerSeam covering the full amended mandate -
+forestMultiplier (combiner.hpp:762, both call sites :552/:560), combinedFits
+(:567) incl. the snap-band arm (snap pinned in the reparameterization, exact
+multiplier in the blend), drawGlue (:582) order a/aVariance/b0/b1 + both
+block skips, BCFForestCombiner::afterCombine (:638) GIG rescale c =
+sqrt(GIG((L-1)/2, ...)) with the three reachable 1.0 skips inert on the rng
+stream, MultinomialForestCombiner::afterCombine (:1152) additive shift +
+single normal (:1180) + the returns-1.0-having-moved convention (its pin is
+the SOLE guard on that convention). Every pin states the wrong wiring it
+catches; the reviewer confirmed no over-constraint - each BCF pin is a
+quantity M4.1/M4.2 must reproduce as the K = 2 / q = 1, d = 1 special case.
+
+The review's REQUIRED fix, recorded as the slice's lesson: the multinomial
+fixture originally set numTrees = 1 on all forests, collapsing every
+per-tree factor m_k to 1 and leaving four sites (:1160, :1175, :1176, :1186)
+undiscriminated - the reviewer MEASURED perTree = c staying green. Fixed
+with unequal per-forest tree counts ({2, 1, 1}, forest 0's leaf sum split),
+plus a fixture ran-at-all guard; perTree = c and return c both re-proven RED
+under the new fixture. LESSON, stated as a standing rule: a pin fixture must
+give every factor in the pinned expression a value that discriminates it -
+unit values silently vacate pins.
+
+Red/green demonstrations: implementer one per pinned method (b0/b1 swap,
+cross-amplitude, draw reorder, gigP -> L/2, shift doubling); reviewer
+independently reproduced three (gigP -> L/2; b0/b1 order swap - not
+implementer-emphasized; return c, which failed EXACTLY one pin, proving
+non-vacuity).
+
+Advisories accepted, no action: combiner.hpp:674/:676 non-finite returns are
+in the mandate's skip list but unpinned - unreachable from a fixture
+(near-true: an overflowing M could reach them), recorded as a deviation; the
+hook arm exercises interweaveGlueRidge only with updateA = false, so the
+chain.hpp:1280-1281 sweep order rests on the pre-existing testBCFInterweave
+(:2471) and the trio.
+
+Gates: implementer AND reviewer batteries both clean from scratch (tinytest
+4582/0 twice; trio 37-strict + 12 + 10 bitwise twice, zero max-|z| lines;
+tests/cpp clean builds; reviewer ASAN/UBSAN leg zero reports; air exit 0;
+lintr clean).
+
+Carried items closed in this commit's slice: the three S2 test-hardening
+items (intent verbatim per grow-from-root-categorical-scan.md:924-930 -
+20-cell ran-at-all counter, belowCap tally asserted both ways,
+all-zero-weights present-category fixture with its own zeroed > 0 guard)
+and the TODO residue sentence trimmed; the mask-arc carried cosmetics (test
+labels, dash rulers) done.
+
+Budget: 348 dense-equivalent added (reviewer-counted, claim accurate).
+
+Arc status: M1 and M2 landed; M3 LANDED (ab3aa2fa); M4.0 LANDED (562ee684).
+Only M0 (the on-ramp docs/vignette slice) remains, deferred at orchestrator
+discretion; M4 (the general basis family) is RESOLVED pre-release, its
+sequence now M4.0 (LANDED) -> M4.1 -> M4.2 -> M4.3 -> M4.5 -> M4.4, scheduled
+after the reshape, whose S1 - the arc's last header-touching slice - landed
+at ab3aa2fa, and whose S2 (consumer rebuilds and docs, moving no header) has
 now landed too - the reshape arc is complete
 (docs/plans/dbarts-h-reshape.md).
