@@ -1,5 +1,12 @@
 # dbarts-h-reshape
 
+Status: LANDED, 2026-08-13. S0 a262cd26, item 9 a14040de, S1 ab3aa2fa, S2
+1bf2e69c (in-repo) plus the four sister-package migrations: stan4bart
+bartcore 9fb0305/7ce9a76, treatSens dbarts-1.0 0b85858/1d7c697, bartCause
+695c603 and bairrtt 6167423 (rebuild-only). No version constant moved
+across either re-bake (binding decision 8). Full record in Landing notes
+below.
+
 agent: S0 opus (engine printer widening + bridge helper promotion, no dbarts.h
   change). S1 opus (the one dbarts.h edit, the C_interface bodies, the hash
   re-bake). S2 sonnet (consumer rebuilds, docs, records). Serialized: one
@@ -1785,6 +1792,73 @@ against the shipped fully-named macro; `DBARTS_RESULTS_INIT` and
 being consumer-side-only structs, and the asymmetry is now flagged rather
 than left to look like an oversight.
 
+S2 LANDED, 2026-08-13. In-repo docs+TODO half at 1bf2e69c, amended once
+after an independent review (verdict LAND-AFTER-CHANGES -> applied): the
+durable artifact directory is `.claude/dbarts-h-reshape-design/` in the
+main checkout - the implementer's `.claude/reshape-design/` ruling was
+itself the drift - and the 2026-08-13 scoping/handoff notes were copied
+into the durable directory; the INDEX row was corrected to MIXED pending
+this commit; the exact-offset-lock citation was redone by symbol; two hash
+attributions were fixed; the decline records were reweighted to lead with
+the dispositive leg. CI FACT worth recording for future landings: dbarts's
+workflows carry path filters and a docs-only push fires NO runs (1bf2e69c
+and 9fc9dd70 both show none) - the built package was reviewer-verified
+byte-identical to four-way-gated ab3aa2fa (every changed path is
+`.Rbuildignore`d), so S1's six-green stands as the gate evidence for both
+docs commits.
+
+stan4bart landed bartcore 9fb0305 (five sites in `src/init.cpp`: `predict`
+:340-342 via `dbarts_dense_predictor_source`, `numTrees` :390-392 and
+:453-455, `printTrees` :429, `getTrees` :494-496 with forest 0; the
+handshake hash check :963-976, with the remove-at-freeze comment) plus
+7ce9a76 (a TODO ticket: a `bart_args` forests reserved-guard gap, found and
+empirically confirmed by the review). The census the S1 reviewer could not
+perform is now closed BOTH ways: those five sites are stan4bart's ONLY
+re-signed usage; zero calls to `setPredictor`/`updatePredictor`/
+`setTestPredictors`; the handshake already used `apiMajorVersion`/
+`apiMinorVersion`, never the removed `dbarts_apiVersion`. Gates:
+`install --preclean` clean; tinytest `at_home` 531/0; `compare-posterior`
+5/5 against `posterior-baselines-75d7970`; `recompute-exactness` 3/3 (max
+deviation 7.1e-14); the reviewer independently re-ran install plus
+tinytest. stan4bart CI green at 7ce9a76 (gates, sanitizers, R-CMD-check -
+the last red run was 2026-07-27 on the stale tip; the migration cured it).
+
+treatSens landed dbarts-1.0 0b85858 + 1d7c697 (the worktree checkout). The
+census was corrected: EIGHT entries, not the recorded six - `setResponse`
+and `setSigma` additional. Its four `setResponse` sites had been
+compile-broken since dbarts 1622eb9e added `updateScale` - PRE-EXISTING,
+not reshape damage - fixed with `updateScale = 1`, reviewer-verified equal
+to the old hardcoded `setResponse(y, true)` at `1622eb9e^` and matching the
+`bcf-public-surface.md:605-612` migration note (preservation chosen over
+the header's post-burn-in advice, correct for a neutrality slice; flipping
+to `false` is an available follow-up, deliberately not taken here).
+Handshake hardening applied: S2 item 2's optional edits made in BOTH
+consumers, freeze conditions recorded beside each. Suites 186/0
+implementer, 0-failure reviewer re-run.
+
+bartCause 695c603 and bairrtt 6167423 rebuilt UNCHANGED; both install;
+bairrtt 206/0. bartCause's suite is red PRE-EXISTING: 1 failure plus 2
+errors from the M2 `treatment=` repurpose (64b13b98, an ancestor of
+ab3aa2fa; `bartc()` still passes `treatment=` through) plus one stale
+hardcoded value (`test-06-regression.R:52`). This is the
+`dbartsdata-treatment-slot-debt` ticket manifesting as live sister-package
+breakage; held for scheduling, deliberately not patched here.
+
+Non-blockers accepted and recorded: the hash-only mismatch message prints
+equal version numbers, saved by its "different entry-point signatures"
+clause (polish declined - the check is remove-at-freeze scaffolding);
+stan4bart `init.cpp:341` passes `numPredictors` as the source's
+`numColumns`, restating the sampler rather than the caller's matrix (safe
+under `rc_assertDimConstraints` :306-310); the treatSens MAIN checkout
+carries an unrelated 2024 local edit (`src/include/external/stats.h`);
+`dbarts.h:455`'s DL_FUNC stub cast trips `-Wcast-function-type-mismatch`
+under treatSens's `-Wextra` (a pre-existing header property, ticketed in
+TODO).
+
+The A5/F2 capability observation is carried in
+`docs/design/public-surface.md` sec 6 per S2 item 3. THE ARC IS COMPLETE.
+
 Arc status: S0 landed a262cd26; item 9 (the R5 forest-index normalization)
-landed separately at a14040de; S1 LANDED ab3aa2fa. S2 (consumer rebuilds,
-docs and records) remains.
+landed separately at a14040de; S1 LANDED ab3aa2fa; S2 LANDED 1bf2e69c
+(in-repo) plus stan4bart 9fb0305/7ce9a76, treatSens 0b85858/1d7c697,
+bartCause 695c603 and bairrtt 6167423 (rebuild-only). THE ARC IS COMPLETE.

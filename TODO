@@ -100,8 +100,23 @@ items
     moving this slot - it re-signed the flat C names only - and the
     dbarts-h-reshape re-bake window (this arc's one and only re-bake)
     is now spent. Retires at M4 (whose n x q_f basis is the honest
-    carrier and would absorb it whole) or a later window. No
-    escalation: the split surface is shippable as-is. Pre-release.
+    carrier and would absorb it whole) or a later window. MANIFESTED
+    (dbarts-h-reshape S2, 2026-08-13): bartCause dbarts-1.0@695c603's
+    own tinytest suite is now red on it - 2 errors + 1 failure from
+    bartc() still passing treatment= through to the M2 treatment=
+    repurpose (64b13b98), plus one stale hardcoded value
+    (test-06-regression.R:52) - live sister-package breakage, not
+    theoretical. Raises this ticket's urgency; still no escalation
+    taken here, held for scheduling. Pre-release.
+  dl-func-stub-cast: dbarts.h:455's DBARTS_API_STUB expansion casts the
+    DL_FUNC R_GetCCallable returns straight to `ret (*) params` for
+    every X-list entry, which trips -Wcast-function-type-mismatch
+    under a consumer building at -Wextra (seen, non-blocking, at the
+    treatSens dbarts-h-reshape S2 rebuild). Pre-existing header
+    property, not introduced by the reshape. Consider a conforming
+    intermediate cast (through a matching function-pointer typedef or
+    void*) so a LinkingTo consumer's -Wextra build stays clean.
+    Small, pre-release.
   embedding-page: a visible, citable "embedding dbarts" pkgdown
     page: the dbarts.h X-list surface, dbartsSpec, LinkingTo
     mechanics, and cross-refs to the named recipes. Evidence: the
@@ -574,9 +589,14 @@ items
     multiforest-extension-surface's M3). Consumer cost, corrected from
     the original "a stan4bart predict sweep only" estimate: five
     stan4bart call sites (predict, getTrees, printTrees, numTrees x2);
-    treatSens, bartCause and bairrtt rebuild only. REMAINING: the
-    consumer-repo landings (stan4bart migration, treatSens rebuild
-    commits) and the records commit.
+    treatSens, bartCause and bairrtt rebuild only. S2 (consumer
+    rebuilds, docs, records) LANDED: in-repo docs+TODO half 1bf2e69c;
+    stan4bart bartcore 9fb0305 + 7ce9a76; treatSens dbarts-1.0 0b85858
+    + 1d7c697; bartCause 695c603 and bairrtt 6167423 rebuilt
+    unchanged. No version constant moved across either re-bake in the
+    1.0-0 window (bcf-public-surface S3, this arc's S1). THE ARC IS
+    COMPLETE - full record in docs/plans/dbarts-h-reshape.md, Landing
+    notes.
     setData on a CSC/mixed store: SURVEYED,
     KEPT UNDESIGNED - no model surfaced (classes needing sparse
     designs do not swap whole data mid-chain; mid-chain mutation

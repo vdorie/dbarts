@@ -2024,5 +2024,7 @@ of that slice's ~1310 re-priced total.
 Arc status: M1 and M2 landed; M3 LANDED (ab3aa2fa). Only M0 (the on-ramp
 docs/vignette slice) remains, deferred at orchestrator discretion; M4 (the
 general basis family) is RESOLVED pre-release and scheduled after the
-reshape, whose S1 - the arc's last header-touching slice - has now landed
-(S2, consumer rebuilds and docs, remains but moves no header).
+reshape, whose S1 - the arc's last header-touching slice - landed at
+ab3aa2fa, and whose S2 (consumer rebuilds and docs, moving no header) has
+now landed too - the reshape arc is complete
+(docs/plans/dbarts-h-reshape.md).
