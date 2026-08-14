@@ -561,22 +561,31 @@ own `offset` refusal for an n x K matrix (a one-shot creation-time argument,
 not a mutation surface); still no flat surface. Three reservations for
 whenever the dbarts.h reshape scopes a flat multinomial creation entry:
 
-1. **Source-shaped response and offset parameters.** The reshape already
-   re-signs predictor entries onto a borrowed `PredictorSource` view; the
-   response side needs the same treatment before a flat multinomial entry can
-   exist - a tagged source expressing at minimum `{ double* vector }` and
-   `{ int* counts, size_t numCategories }` for the response, and
-   `{ double* vector }` / `{ double* matrix, size_t numCategories }` for the
-   offset. Built this way, a later flat multinomial creation entry needs a new
-   tag, not an ABI break.
-2. **A size-first spec struct**, per the `dbarts_results` `structSize`
-   precedent (Part 1, above), for any future flat multinomial creation entry.
-3. **Whatever tagged struct the reshape adopts must PRESERVE the
-   `refuseMultiForestMutation` / `refuseMultiForestResponseMutation` guards**
-   already on the flat response-side entries (the D4 precedent,
+1. **DECLINED (dbarts-h-reshape, resolved question 3).** Source-shaped
+   response and offset parameters. The reshape already re-signs predictor
+   entries onto a borrowed `PredictorSource` view; the response side needs
+   the same treatment before a flat multinomial entry can exist - a tagged
+   source expressing at minimum `{ double* vector }` and `{ int* counts,
+   size_t numCategories }` for the response, and `{ double* vector }` /
+   `{ double* matrix, size_t numCategories }` for the offset. Built this way,
+   a later flat multinomial creation entry needs a new tag, not an ABI break.
+   Declined because `dbarts_sampler_create` has no multinomial branch to
+   reach it from, so every tag but the vector one would ship as unreachable
+   dead surface; secondarily, a tagged struct would also re-sign
+   `setResponse` a second time in the same window. See "Reservations closed
+   and opened at the reshape", below, for the substitute reserved in its
+   place.
+2. **ADOPTED.** A size-first spec struct, per the `dbarts_results`
+   `structSize` precedent (Part 1, above), for any future flat multinomial
+   creation entry - matched by `dbarts_predictor_source` and
+   `dbarts_forest_calibration`.
+3. **SUPERSEDED.** Whatever tagged struct the reshape adopts must PRESERVE
+   the `refuseMultiForestMutation` / `refuseMultiForestResponseMutation`
+   guards already on the flat response-side entries (the D4 precedent,
    `docs/plans/multiforest-mutation-gaps.md`) - the reshape is exactly where a
    guard like this gets dropped by accident, widening a flat entry to silently
    accept a multi-forest sampler it was never exercised against.
+   bcf-public-surface S3 item 2 RELAXED exactly those guards, by decision.
 
 ### Landed: dbarts_sampler_setActiveRows (dbarts-h-reshape S1, ab3aa2fa, 2026-08-13)
 
@@ -632,6 +641,40 @@ returns 0 touching nothing, a malformed `priorScale` raises. The engine
 bounds check this arc's own S2 landing note carried forward (`Chain::
 forestCalibration` reading past the last forest) shipped alongside, at
 `chain.hpp:985`. No version constant moved.
+
+### Reservations closed and opened at the reshape (dbarts-h-reshape S1 ab3aa2fa, S2)
+
+- **Forest-indexed `setTreeStorage`** - CLOSED BY FACT, not reserved: storage
+  is per sampler (`chain.hpp:2209-2232`), so its only legal per-forest value
+  would be "all forests" (recorded above, "Landed: the BCF flat surface").
+- **Forest-indexed `predict`** - a DOOR, not built. Blocker: per-forest
+  saved-tree replay - `Chain::predictFromSavedSample`/
+  `predictFromCurrentTrees` both open `forests_[0]` unconditionally, so
+  shipping the symbol without that replay behind it would return mu(x)
+  labelled as whichever forest the caller asked for. Named consumers:
+  `predict.bartBCF` on new rows, bairrtt's MH filter.
+- **`dbarts_sampler_setCounts(dbarts_sampler*, const int* counts, size_t
+  numCategories)` and `dbarts_sampler_setOffsetMatrix(dbarts_sampler*, const
+  double* offset, size_t numCategories)`** - reserved as APPENDS for a future
+  flat multinomial creation entry. SUPERSEDES
+  multinomial-counts-mutation.md's "What the reshape must reserve" item 1
+  (a tagged response/offset source, DECLINED above): the flat surface still
+  cannot build a multinomial sampler, so every tag but the vector one would
+  ship unreachable, and two new names meet that item's own stated goal - a
+  later flat multinomial entry needs a new tag, not an ABI break - at lower
+  cost.
+- **Version movement.** Pre-release (VD 2026-08-10): a re-bake carries no
+  version movement - `DBARTS_C_API_MAJOR`/`MINOR` stay 1/0 through every
+  re-bake before the first release, and whatever they then read becomes the
+  initial contract. Post-release, unchanged: a REPLACED signature bumps
+  MAJOR, an APPENDED one bumps MINOR, and stan4bart's Depends/LinkingTo
+  floor moves in the same lockstep release (TODO, release checklist).
+- **`dbarts_apiHash()` is blind to struct layout, measured**: three headers
+  differing only in `dbarts_results`' layout (including a hard ABI-breaking
+  field retype) all hash identically. `structSize` plus the exact-offset
+  `static_assert` locks on `dbarts_results` (`C_interface.cpp:264-276`) are
+  the layout contract; a layout change is NOT self-detecting and must be
+  announced to the sister packages by hand.
 
 ## Verification
 

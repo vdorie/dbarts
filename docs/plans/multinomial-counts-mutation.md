@@ -467,20 +467,33 @@ plus `equivalence-a825263` strict and `bcf-equivalence-a825263`).
 
 ## What the reshape must reserve (record in c-api-growth.md)
 
-1. **Source-shaped response and offset parameters.** The reshape already
-   re-signs predictor entries onto a borrowed `PredictorSource` view; do the
-   same on the response side, replacing the bare `const double* y` /
-   `const double* offset` with a tagged source able to express at minimum
-   `{ double* vector }` and `{ int* counts, size_t numCategories }` for the
-   response, and `{ double* vector }` / `{ double* matrix, size_t
-   numCategories }` for the offset. A later flat multinomial creation entry then
-   needs a new tag, not an ABI break.
-2. **A size-first spec struct** for any future flat multinomial creation, per
-   the `dbarts_results` `structSize` precedent this arc's sibling established.
-3. **Whatever tagged struct the reshape adopts must PRESERVE the
-   `refuseMultiForestMutation` guards** already on the flat response-side
-   entries (the D4 precedent in `docs/plans/multiforest-mutation-gaps.md`). The
-   reshape is exactly where they get dropped by accident.
+1. **DECLINED (dbarts-h-reshape, resolved question 3).** Source-shaped
+   response and offset parameters. The reshape already re-signs predictor
+   entries onto a borrowed `PredictorSource` view; do the same on the
+   response side, replacing the bare `const double* y` / `const double*
+   offset` with a tagged source able to express at minimum `{ double*
+   vector }` and `{ int* counts, size_t numCategories }` for the response,
+   and `{ double* vector }` / `{ double* matrix, size_t numCategories }` for
+   the offset. A later flat multinomial creation entry then needs a new tag,
+   not an ABI break.
+
+   Declined: `dbarts_sampler_create` has no multinomial branch to reach it
+   from, so every tag but the vector one would ship as unreachable dead
+   surface; secondarily, a tagged struct would also re-sign `setResponse` a
+   second time in the same window. Reserved in its place, meeting this
+   item's own goal at lower cost: `dbarts_sampler_setCounts(dbarts_sampler*,
+   const int* counts, size_t numCategories)` and
+   `dbarts_sampler_setOffsetMatrix(dbarts_sampler*, const double* offset,
+   size_t numCategories)`, both appends - recorded in
+   `docs/plans/c-api-growth.md`, "Reservations closed and opened at the
+   reshape".
+2. **ADOPTED.** A size-first spec struct for any future flat multinomial
+   creation, per the `dbarts_results` `structSize` precedent this arc's
+   sibling established.
+3. **SUPERSEDED.** Whatever tagged struct the reshape adopts must PRESERVE
+   the `refuseMultiForestMutation` guards already on the flat response-side
+   entries (the D4 precedent in `docs/plans/multiforest-mutation-gaps.md`).
+   bcf-public-surface S3 item 2 RELAXED exactly those guards, by decision.
 
 ## Falsifiers
 
