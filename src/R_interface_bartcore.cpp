@@ -2486,11 +2486,13 @@ namespace bartcore_bridge {
 // alone, so on a multi-forest sampler (BCF, and any future multi-forest model)
 // the other forests would keep fits - or, for setModel, a leaf scale - against
 // the old data or an uncalibrated prior. For setData the guard is also memory
-// safety, not just staleness: the BCF combiner indexes its borrowed treatment
-// vector over the live observation count (combiner.hpp combinedFits/drawGlue/
-// forestMultiplier) and setData carries no z channel, so a per-forest
-// applyNewData that grows n would over-read that buffer, and a fixed-n one
-// would silently re-pair the old z with new rows - a lifted refusal must take
+// safety, not just staleness: both of the BCF combiner's z-derived reads are
+// sized to the observation count they were installed at - drawGlue indexes the
+// borrowed treatment vector itself, while combinedFits and forestMultiplier
+// index the per-forest basis synthesized from it at install time (combiner.hpp
+// installTreatment) - and setData carries no z channel, so a per-forest
+// applyNewData that grows n would over-read both, and a fixed-n one would
+// silently re-pair the old treatment with new rows - a lifted refusal must take
 // z in the same call (docs/plans/runsbcbcf-repair.md "setData door survey").
 // Refuse it; a multi-forest sampler
 // fixes its data and prior at creation, as grouped/sparse/aft samplers do.
