@@ -861,7 +861,9 @@ static_assert(ParamScoringLeafModel<MonotoneConstantGaussianLeaf>);
 //
 // LinearGaussianLeaf's ridge normal equations and GPGaussianLeaf's kernel
 // solves run the identical dense factorization and triangular solves over
-// row-major p x p storage; they live here so both leaves share one copy.
+// row-major p x p storage; they live here so both leaves share one copy. The
+// amplitude conditional (combiner.hpp) shares the storage convention through
+// the square-root-free pair below.
 
 /// In-place lower Cholesky of a symmetric positive-definite matrix; callers
 /// guarantee definiteness (a ridge, or a nugget/noise diagonal), so there is
@@ -898,6 +900,57 @@ inline void solveLowerTriangularTransposed(const double* l, std::size_t p,
     double value = x[i - 1];
     for (std::size_t a = i; a < p; ++a) value -= l[a * p + (i - 1)] * x[a];
     x[i - 1] = value / l[(i - 1) * p + (i - 1)];
+  }
+}
+
+/// In-place square-root-free (L D L') factorization of a symmetric positive-
+/// definite matrix over the same row-major p x p storage as the Cholesky
+/// above: the pivots d_j overwrite the diagonal and the UNIT lower triangle's
+/// strict entries overwrite the strict lower triangle. Callers guarantee
+/// definiteness, as there.
+///
+/// It exists beside choleskyDecompose because the two solve arithmetics differ
+/// exactly where the amplitude conditional (combiner.hpp) cannot afford them
+/// to. Through L L' a scalar system divides twice by sqrt(d), and
+/// (x / sqrt(d)) / sqrt(d) is not x / d - measured, 500345 of a million random
+/// (x, d) pairs. Through L D L' the unit triangles contribute nothing at p = 1
+/// and nothing off the diagonal at an orthogonal design, so the solve reduces
+/// to the ONE division per coordinate the scalar conditional writes, and a
+/// q-variate draw over an orthogonal basis reproduces q scalar draws bitwise.
+inline void unitLowerDecompose(double* m, std::size_t p) {
+  for (std::size_t j = 0; j < p; ++j) {
+    double pivot = m[j * p + j];
+    for (std::size_t a = 0; a < j; ++a)
+      pivot -= m[j * p + a] * m[j * p + a] * m[a * p + a];
+    m[j * p + j] = pivot;
+    for (std::size_t i = j + 1; i < p; ++i) {
+      double value = m[i * p + j];
+      for (std::size_t a = 0; a < j; ++a)
+        value -= m[i * p + a] * m[j * p + a] * m[a * p + a];
+      m[i * p + j] = value / pivot;
+    }
+  }
+}
+
+/// Forward solve L x = b in place against an unitLowerDecompose factorization,
+/// b supplied in x. L is UNIT lower triangular, so the diagonal - which holds
+/// the pivots, not ones - is read by neither solve, and neither divides.
+inline void solveUnitLowerTriangular(const double* m, std::size_t p,
+                                     double* x) {
+  for (std::size_t i = 0; i < p; ++i) {
+    double value = x[i];
+    for (std::size_t a = 0; a < i; ++a) value -= m[i * p + a] * x[a];
+    x[i] = value;
+  }
+}
+
+/// Back solve L' x = b in place against the same factorization.
+inline void solveUnitLowerTriangularTransposed(const double* m, std::size_t p,
+                                               double* x) {
+  for (std::size_t i = p; i > 0; --i) {
+    double value = x[i - 1];
+    for (std::size_t a = i; a < p; ++a) value -= m[a * p + (i - 1)] * x[a];
+    x[i - 1] = value;
   }
 }
 

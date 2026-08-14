@@ -3351,6 +3351,381 @@ static void testForestBasisSynthesis() {
   printf("ok: forest basis synthesis\n");
 }
 
+// (3) The GENERAL q-variate amplitude conditional. Every pin above drives the
+// shipped K = 2 shape, which keeps its two-scalar path (drawGlue says why), so
+// none of them enters this code at all. Three arms: the conditional recovers a
+// known closed-form Gaussian posterior over a CONTINUOUS, non-orthogonal basis
+// (the case the factorization exists for); it agrees with the two-scalar path
+// on the shipped shape, which is the whole evidence for keeping both; and at
+// K = 3 every per-forest array is sized by the forest count, which is the read
+// that went out of bounds before.
+static void testGeneralAmplitudeConditional() {
+  const size_t n = 40;
+  std::vector<double> xDummy(n, 0.0);
+  ColumnStore data;
+  data.build(xDummy.data(), n, 1, 100);
+
+  std::uint64_t state = 20260814u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  std::vector<double> z(n), y(n), w(n), mu(n), tau(n), other(n), wide(2 * n);
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = unif() < 0.5 ? 1.0 : 0.0;
+    y[i] = 4.0 * (unif() - 0.5);
+    w[i] = 0.5 + unif();
+    mu[i] = 2.0 * (unif() - 0.5);
+    tau[i] = 2.0 * (unif() - 0.5);
+    other[i] = 2.0 * (unif() - 0.5);
+    // an intercept and a continuous modifier: the crossproduct's off-diagonal
+    // is then nonzero, so the unit triangles are NOT identity and the solve is
+    // the general one rather than two scalar draws in disguise
+    wide[2 * i] = 1.0;
+    wide[2 * i + 1] = 3.0 * unif() - 1.0;
+  }
+  const double sigma = 0.8, aFixed = 1.25, priorVariance = 0.75;
+  const double invSigmaSq = 1.0 / (sigma * sigma);
+
+  // ---- the conditional recovers its own closed form ----
+  {
+    BCFSpec spec;
+    spec.z = z.data();
+    spec.updateA = false;  // pin forest 0, so forest 1's block is all that moves
+    spec.bPriorVariance = priorVariance;
+    spec.generalAmplitudeDraw = true;
+    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    combiner.installForestBasis(1, wide.data(), 2);
+    ChainStateData glue;
+    glue.hasBCF = true;
+    glue.a = aFixed;
+    glue.b0 = 0.0;
+    glue.b1 = 0.0;
+    combiner.restoreGlue(glue);
+
+    std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+    forests[0].totalFits = mu;
+    forests[1].totalFits = tau;
+
+    // P = I / priorVariance + sum_i w_i x_i x_i' / sigma^2 and
+    // num = sum_i w_i x_i r_i / sigma^2, with x_i the basis row scaled by the
+    // forest's own fit and r_i the residual net of a mu
+    double p00 = 1.0 / priorVariance, p11 = p00, p01 = 0.0;
+    double num0 = 0.0, num1 = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      double x0 = wide[2 * i] * tau[i], x1 = wide[2 * i + 1] * tau[i];
+      double r = y[i] - aFixed * mu[i];
+      p00 += w[i] * x0 * x0 * invSigmaSq;
+      p01 += w[i] * x0 * x1 * invSigmaSq;
+      p11 += w[i] * x1 * x1 * invSigmaSq;
+      num0 += w[i] * x0 * r * invSigmaSq;
+      num1 += w[i] * x1 * r * invSigmaSq;
+    }
+    double det = p00 * p11 - p01 * p01;
+    check(det > 0.0 && std::fabs(p01) > 1e-3,
+          "the conditional fixture is positive definite and NOT orthogonal");
+    double v00 = p11 / det, v11 = p00 / det, v01 = -p01 / det;
+    double mean0 = v00 * num0 + v01 * num1, mean1 = v01 * num0 + v11 * num1;
+
+    const size_t draws = 20000;
+    double sum0 = 0.0, sum1 = 0.0, sq0 = 0.0, sq1 = 0.0, cross = 0.0;
+    ext_rng* rng = makeSeamRng();
+    double aOut = 0.0, b0Out = 0.0, b1Out = 0.0;
+    for (size_t d = 0; d < draws; ++d) {
+      combiner.drawGlue(rng, sigma, y.data(), w.data(), forests);
+      combiner.bcfGlue(aOut, b0Out, b1Out);
+      sum0 += b0Out; sum1 += b1Out;
+      sq0 += b0Out * b0Out; sq1 += b1Out * b1Out; cross += b0Out * b1Out;
+    }
+    ext_rng_destroy(rng);
+    double scale = 1.0 / static_cast<double>(draws);
+    double m0 = sum0 * scale, m1 = sum1 * scale;
+    double c00 = sq0 * scale - m0 * m0, c11 = sq1 * scale - m1 * m1;
+    double c01 = cross * scale - m0 * m1;
+    // 4 Monte Carlo standard errors on each mean, 5% on each second moment
+    double se0 = std::sqrt(v00 * scale), se1 = std::sqrt(v11 * scale);
+    check(std::fabs(m0 - mean0) < 4.0 * se0 &&
+            std::fabs(m1 - mean1) < 4.0 * se1,
+          "the q-variate draw's mean is the conditional's mean");
+    check(std::fabs(c00 / v00 - 1.0) < 0.05 &&
+            std::fabs(c11 / v11 - 1.0) < 0.05 &&
+            std::fabs(c01 / v01 - 1.0) < 0.05,
+          "the q-variate draw's covariance is the conditional's inverse "
+          "precision, off-diagonal included");
+    check(aOut == aFixed, "a pinned block takes no draw and does not move");
+    printf("ok: general amplitude conditional (rho %.3f, mean %.4f/%.4f "
+           "against %.4f/%.4f)\n", c01 / std::sqrt(c00 * c11), m0, m1, mean0,
+           mean1);
+  }
+
+  // ---- the general path and the two-scalar path are the same conditional ----
+  // They cannot be BITWISE (drawGlue records the measurement: the b block's
+  // per-row products are formed before a branch and accumulated inside it,
+  // which fuses unevenly against a straight-line loop), so this asserts what
+  // is true - one conditional, one rng stream, agreeing to rounding.
+  {
+    BCFSpec shipped;
+    shipped.z = z.data();
+    shipped.bPriorVariance = priorVariance;
+    BCFSpec general = shipped;
+    general.generalAmplitudeDraw = true;
+
+    double drawn[2][4];
+    for (size_t arm = 0; arm < 2; ++arm) {
+      BCFForestCombiner<ConstantGaussianLeaf> combiner(
+        data, arm == 0 ? shipped : general);
+      std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+      forests[0].totalFits = mu;
+      forests[1].totalFits = tau;
+      ext_rng* rng = makeSeamRng();
+      combiner.drawGlue(rng, sigma, y.data(), w.data(), forests);
+      ChainStateData out;
+      combiner.serializeGlue(out);
+      drawn[arm][0] = out.a; drawn[arm][1] = out.aVariance;
+      drawn[arm][2] = out.b0; drawn[arm][3] = out.b1;
+      ext_rng_destroy(rng);
+    }
+    bool agrees = true;
+    for (size_t j = 0; j < 4; ++j)
+      agrees &= std::fabs(drawn[0][j] - drawn[1][j]) <=
+                1e-12 * std::fabs(drawn[0][j]);
+    check(agrees,
+          "the general conditional reproduces the shipped two-scalar draw to "
+          "rounding on the same stream");
+    // The a block IS bitwise, both accumulators reproducing under weights, so
+    // it pins the general path's solve arithmetic end to end: at q = 1 the
+    // square-root-free route divides the moment by the pivot ONCE and lands on
+    // the shipped n / P + e / sqrt(P) exactly. Swapping in the Cholesky the
+    // leaf models use divides twice by sqrt(P) instead and moves this by an
+    // ulp - the one assertion in the suite that sees such a substitution
+    // through the engine rather than in the helper (test_model.cpp).
+    check(drawn[0][0] == drawn[1][0],
+          "the general conditional's scalar block is BITWISE the shipped a "
+          "draw, which is what the square-root-free solve buys");
+  }
+
+  // ---- K = 3: every per-forest array is sized by the forest count ----
+  // Before the K-length sizing the basis vector held bcf's two entries however
+  // many forests the chain carried, and forest 2's multiplier read past it.
+  {
+    BCFSpec spec;
+    spec.z = z.data();
+    spec.bPriorVariance = priorVariance;
+    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec, 3);
+    std::vector<Forest<ConstantGaussianLeaf>> forests(3);
+    forests[0].totalFits = mu;
+    forests[1].totalFits = tau;
+    forests[2].totalFits = other;
+
+    ext_rng* rng = makeSeamRng();
+    combiner.drawGlue(rng, sigma, y.data(), w.data(), forests);
+    ext_rng_destroy(rng);
+
+    const double* combined = combiner.combinedFits(forests);
+    ForestResponse third =
+      combiner.formForestResponse(2, forests, y.data(), w.data());
+    bool finite = true;
+    for (size_t i = 0; i < n; ++i)
+      finite &= std::isfinite(combined[i]) && std::isfinite(third.response[i]) &&
+                std::isfinite(third.weights[i]);
+    check(finite,
+          "a third forest combines, reparameterizes and draws its amplitude");
+    printf("ok: general amplitude conditional at K = 3\n");
+  }
+}
+
+// (4) The per-forest ASIS rescale, on the two things only the general move can
+// be asked: that it preserves the prior along the orbit at q > 1 (the exponent
+// rule, whose off-by-one this arm rejects), and that the combined fit it leaves
+// behind is the one it found.
+static void testGeneralAmplitudeRidge() {
+  const size_t n = 8, numTrees = 3;
+  std::vector<double> xDummy(n, 0.0);
+  ColumnStore data;
+  data.build(xDummy.data(), n, 1, 100);
+
+  std::vector<double> z(n), mu(n), tau(n);
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = i % 2 == 0 ? 0.0 : 1.0;
+    mu[i] = 0.5 * static_cast<double>(i) - 1.5;
+    tau[i] = 1.25 - 0.25 * static_cast<double>(i);
+  }
+  const double leafScale = 1.0, k = 2.0;
+  const double leafVariance = (leafScale / k) * (leafScale / k);
+  const double priorVariance = 0.75;
+
+  BCFSpec spec;
+  spec.z = z.data();
+  spec.bPriorVariance = priorVariance;
+  spec.updateA = false;   // forest 0 holds, so the treatment ridge is alone
+  spec.ridgeB = true;     // the b-move: OFF for bcf, ON here
+  BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+
+  std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+  std::vector<double> indices(0);
+  for (size_t f = 0; f < 2; ++f) {
+    forests[f].leaf.scale = leafScale;
+    forests[f].k = k;
+  }
+  forests[0].numTrees = 1;
+  forests[0].totalFits = mu;
+  forests[0].indexBuffer.assign(n, 0);
+  forests[0].trees.resize(1);
+  forests[0].trees[0].initialize(forests[0].indexBuffer.data(), n);
+  forests[0].muByTree.assign(1, std::vector<double>(1, 0.5));
+  forests[1].numTrees = numTrees;
+  forests[1].totalFits = tau;
+  forests[1].indexBuffer.assign(n * numTrees, 0);
+  forests[1].trees.resize(numTrees);
+  forests[1].muByTree.assign(numTrees, std::vector<double>(1, 0.0));
+  for (size_t t = 0; t < numTrees; ++t)
+    forests[1].trees[t].initialize(forests[1].indexBuffer.data() + t * n, n);
+
+  ext_rng* rng = makeSeamRng();
+
+  // ---- the move preserves the prior along the orbit ----
+  // The likelihood is constant on the orbit, so the move preserves the
+  // posterior IFF it preserves the prior's along-orbit conditional: draw
+  // (b0, b1, leaves) from the prior, apply ONE move, and the pushed sample must
+  // still be a prior draw. This is docs/plans/bcf-b-ridge.md's prototype (5a)
+  // in the engine, on second moments rather than KS - at L = 3 and q = 2 the
+  // exponent is (L - q)/2 = 0.5, and the off-by-one (L - q + 1)/2 the naive
+  // move-map Jacobian gives inflates the leaves by more than 10%.
+  const size_t replicates = 20000;
+  double amplitudeSquares = 0.0, leafSquares = 0.0;
+  ChainStateData drawnGlue;
+  drawnGlue.hasBCF = true;
+  drawnGlue.a = 1.0;
+  for (size_t r = 0; r < replicates; ++r) {
+    double priorSd = std::sqrt(priorVariance);
+    drawnGlue.b0 = priorSd * ext_rng_simulateStandardNormal(rng);
+    drawnGlue.b1 = priorSd * ext_rng_simulateStandardNormal(rng);
+    combiner.restoreGlue(drawnGlue);
+    for (size_t t = 0; t < numTrees; ++t)
+      forests[1].muByTree[t][0] =
+        std::sqrt(leafVariance) * ext_rng_simulateStandardNormal(rng);
+
+    combiner.afterCombine(forests, false, 0, rng);
+
+    ChainStateData moved;
+    combiner.serializeGlue(moved);
+    amplitudeSquares += moved.b0 * moved.b0 + moved.b1 * moved.b1;
+    for (size_t t = 0; t < numTrees; ++t)
+      leafSquares += forests[1].muByTree[t][0] * forests[1].muByTree[t][0];
+  }
+  double amplitudeMoment =
+    amplitudeSquares / (2.0 * static_cast<double>(replicates)) / priorVariance;
+  double leafMoment =
+    leafSquares /
+    (static_cast<double>(numTrees) * static_cast<double>(replicates)) /
+    leafVariance;
+  check(std::fabs(amplitudeMoment - 1.0) < 0.04 &&
+          std::fabs(leafMoment - 1.0) < 0.04,
+        "the q-variate ridge leaves the prior where it found it, at the "
+        "(L - q)/2 exponent");
+  printf("ok: general amplitude ridge (amplitude %.4f, leaf %.4f, both against "
+         "1)\n", amplitudeMoment, leafMoment);
+
+  // ---- the combined fit is invariant on the orbit ----
+  {
+    forests[1].totalFits = tau;
+    for (size_t t = 0; t < numTrees; ++t)
+      forests[1].muByTree[t][0] = 0.25 * static_cast<double>(t + 1);
+    drawnGlue.b0 = -0.6;
+    drawnGlue.b1 = 0.4;
+    combiner.restoreGlue(drawnGlue);
+    const double* combined = combiner.combinedFits(forests);
+    std::vector<double> before(combined, combined + n);
+    // the reported scale is the REPORTED forest's, so a move at ANOTHER forest
+    // returns 1.0 having moved - the convention the base virtual now states,
+    // and the reason this arm's ran-at-all witness is the amplitude itself
+    double reported = combiner.afterCombine(forests, false, 0, rng);
+    const double* after = combiner.combinedFits(forests);
+    ChainStateData moved;
+    combiner.serializeGlue(moved);
+    bool ran = moved.b0 != drawnGlue.b0 && moved.b1 != drawnGlue.b1 &&
+               forests[1].muByTree[0][0] != 0.25;
+    bool invariant = true;
+    for (size_t i = 0; i < n; ++i)
+      invariant &= std::fabs(after[i] - before[i]) <=
+                   8.0 * std::numeric_limits<double>::epsilon() *
+                     (std::fabs(before[i]) + 1.0);
+    check(ran, "the treatment ridge travelled both amplitudes and the leaves");
+    check(invariant, "the treatment ridge leaves the combined fit where it "
+                     "found it");
+    check(reported == 1.0,
+          "afterCombine returns 1.0 for a held reported forest while another "
+          "forest travels");
+  }
+
+  ext_rng_destroy(rng);
+}
+
+// (5) The amplitude blocks are addressed THROUGH the per-forest offsets. With a
+// two-column prognostic basis the layout is (a0, a1)(b0, b1), so the wire
+// format's b0/b1 live at 2 and 3; the retired accessors read 1 and 2 - forest
+// 0's second coordinate and forest 1's first. Unconstructible while every
+// prognostic basis was one all-ones column, which is why nothing above catches
+// it.
+static void testAmplitudeOffsetIndexing() {
+  const size_t n = 6;
+  std::vector<double> xDummy(n, 0.0);
+  ColumnStore data;
+  data.build(xDummy.data(), n, 1, 100);
+
+  std::vector<double> z = {0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+  std::vector<double> mu = {0.5, -1.5, 2.0, 0.25, -0.75, 1.0};
+  std::vector<double> tau = {1.0, 0.5, -2.0, 1.5, 0.25, -0.5};
+  std::vector<double> wide(2 * n);
+  for (size_t i = 0; i < n; ++i) {
+    wide[2 * i] = 1.0;
+    wide[2 * i + 1] = 0.5 * static_cast<double>(i) - 1.0;
+  }
+  // four DISTINCT amplitudes, so an accessor off by one coordinate cannot pass
+  const double a = 1.5, b0 = -0.5, b1 = 0.25;
+
+  BCFSpec spec;
+  spec.z = z.data();
+  BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+  combiner.installForestBasis(0, wide.data(), 2);
+
+  ChainStateData glue;
+  glue.hasBCF = true;
+  glue.a = a;
+  glue.b0 = b0;
+  glue.b1 = b1;
+  combiner.restoreGlue(glue);
+
+  // The round trip alone is NOT the guard: restore and report went through the
+  // same accessors, so the retired pair aliased both together and reads its own
+  // writes back (measured). The multiplier arm below is what catches it, by
+  // reading the blocks through a third path that always used the offsets.
+  double aOut = 0.0, b0Out = 0.0, b1Out = 0.0;
+  combiner.bcfGlue(aOut, b0Out, b1Out);
+  check(aOut == a && b0Out == b0 && b1Out == b1,
+        "the glue channel reads the treatment block at its own offset under a "
+        "wide prognostic basis");
+
+  std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+  forests[0].totalFits = mu;
+  forests[1].totalFits = tau;
+  const double* combined = combiner.combinedFits(forests);
+  bool blend = true;
+  for (size_t i = 0; i < n; ++i) {
+    // the widening enters at the neutral amplitude 1.0, so the prognostic
+    // multiplier is a + 1.0 * wide_i; an accessor that wrote b0 there instead
+    // would move it on every row
+    double m0 = a * wide[2 * i] + 1.0 * wide[2 * i + 1];
+    double bz = z[i] != 0.0 ? b1 : b0;
+    blend &= combined[i] == std::fma(m0, mu[i], bz * tau[i]);
+  }
+  check(blend,
+        "a glue restore under a wide prognostic basis leaves the prognostic "
+        "multiplier's own coordinates alone");
+
+  printf("ok: amplitude offset indexing\n");
+}
+
 // The caller-supplied per-forest observation weight, on the three questions
 // only the engine can answer: the refusal is a returned false and it perturbs
 // nothing; the zeroed rows' sufficient statistics are invariant to their own
@@ -5422,6 +5797,9 @@ void runSamplerTests(ext_rng* rng) {
   testBCFCombinerSeam();
   testCombinedFitsAssociation();
   testForestBasisSynthesis();
+  testGeneralAmplitudeConditional();
+  testGeneralAmplitudeRidge();
+  testAmplitudeOffsetIndexing();
   testForestWeights();
   testMultinomial(rng);
   testMultinomialCombinerSeam();
