@@ -745,8 +745,9 @@ exists":
                                             VD 2026-08-11); probes RAN
                                             2026-08-13; M4.0 LANDED 562ee684,
                                             M4.1 LANDED 1458328c, M4.2 LANDED
-                                            1a2aaedc, next step M4.3 (tests
-                                            re-price precondition)
+                                            1a2aaedc, next step M4.3 (both
+                                            preconditions discharged
+                                            2026-08-14)
     1.0-0 freeze
 
 M0 and M1 must land after bcf-public-surface S4 rather than beside it: S4 is
@@ -1457,9 +1458,12 @@ crashed, none was UNOBTAINABLE), and this commit is the re-scope. **M4.0
 LANDED 562ee684**, whose pin scope - BOTH `afterCombine` overrides - the
 verdicts left unchanged, per the Landing notes below. **M4.1 LANDED
 1458328c**, follow-up e48fc5de. **M4.2 LANDED 1a2aaedc**, amended once after
-independent review. **The next step is M4.3, gated on its own re-price
-precondition: the tests band now reads ~732 of the ~350-450 band (Budget,
-below), so M4.3 does not start until its own test budget is stated fresh.**
+independent review. **The next step is M4.3, and both of its entry
+preconditions are DISCHARGED by the 2026-08-14 amendment inside that slice**:
+the `setTreatment` x `installForestBasis` interaction spec is written (SUBSUME)
+and M4.3's own test budget is stated fresh at ~645 dense-equivalent (band
+~590-660). The old band reads ~797 consumed of ~350-450 (Budget, below; the
+~732 recorded there was an arithmetic slip, corrected).
 **The slice order is now M4.0 -> M4.1 -> M4.2 -> M4.3 -> M4.5,
 Gaussian-complete, with M4.4 as the IMMEDIATE follow-on slice**, still
 pre-release (fork 2 holds both slices inside the window; the escape hatch
@@ -1664,7 +1668,11 @@ in FA1 and FA5 below ARE the record.
   Unconstructible today; M4.2 generalizes the sizing with the K-length spec.
 - **M4.3 (spec, factory, refusal relaxations). RE-SCOPED WHOLESALE
   2026-08-13** - most of what it was written to design has SHIPPED, and most of
-  what remains it priced at zero.
+  what remains it priced at zero. **AMENDED 2026-08-14**: the amendment block
+  at the end of this slice discharges both entry preconditions (the
+  interaction spec, the test re-price), supersedes the tests paragraph and the
+  M4.2 handoff item below, and its anchor list corrects every stale
+  `combiner.hpp` citation in this section.
 
   **Already shipped, strike it from the slice:** the public creation route
   `forests = list(forest(...))` with the complete ten-knob map (M2), so M4.3
@@ -1777,16 +1785,65 @@ in FA1 and FA5 below ARE the record.
   gate runs THROUGH it. `bartcoreBCFSampler` (`R/bartcore.R:622`, internal) is
   also still the oracle for six test files.
 
-  **Tests the relaxation rewrites** (existing pins, not new tests):
-  `test-bcf-creation.R`'s 45 `expect_error`, ~12 of which encode the K = 2 /
-  two-level / gaussian / forest-2 limits by message text (`:550` "gaussian",
-  `:563` "at most two forests", `:567`, `:579` "exactly two levels", `:588`,
-  `:595`, `:606`, `:613`, `:619`, `:663`) with 16 more the composition
-  refusals at `:428-545`; `test-bcf-r5-surface.R` (`:135` "only on the
-  second", `:44`/`:50` the 3-row dim); `inst/tinytest/capi/consumer.c:931-932`,
-  `:995-1021`, `:1043-1053` and the `18L` `LEG_COUNT`; `test-capi.R:1165-1179`;
-  `test-bcf-reporting.R:41,96,114`; `test-multi-forest-seam.R` (15 refusals);
-  `test-bcf-mutation-pins.R` (6); `test-bcf-zero-multiplier.R`.
+  **Tests the relaxation rewrites** (existing pins, not new tests). RE-COUNTED
+  2026-08-14 against the live files; this paragraph supersedes the count and
+  the citations the slice was re-scoped with, and every line number here is the
+  `expect_error(` ASSERTION line, where the superseded list cited MESSAGE
+  lines (`:550`, `:563`, `:567`, `:579`, ...). `test-bcf-creation.R` carries 45
+  `expect_error` (84 `expect_*`), not M2's 42: `git blame` attributes the three
+  `"length of 'basis'"` pins `:321`, `:329`, `:333` to reshape S1 (M3), which
+  parameterized `validateTreatment`'s message. All 45, by disposition:
+  - **RELAX outright, 6** (the refusal becomes a positive route): `:556` "at
+    most two forests", `:565` "not a numeric basis column", `:569` "exactly two
+    levels", `:581` "first forest takes no 'basis'", `:590` "'vars' restricts a
+    basis forest", `:599` "the first forest has no 'basis'".
+  - **RESTATED for K forests, 1** (the refusal survives): `:656` "second forest
+    needs a 'basis'".
+  - **REWRITTEN by the treatment-slot retirement, 4**: `:316` "coded 0", `:317`
+    "length of 'treatment'", `:808` "no treatment forest was configured",
+    `:819` "carry no treatment vector".
+  - **STAND, 34**: the FIFTEEN composition refusals `:426-548` (the gaussian
+    one is M4.4's, not M4.3's); the 6 knob validators `:694-753`; `:754`
+    one-sided; the 3 shape refusals `:666`, `:670`, `:679`; the 2 top-level
+    ambiguity refusals `:624`, `:634`; the 2 K = 1 amplitude refusals `:611`,
+    `:615`; the 2 bridge backstops `:777`, `:793`; the 3 `"length of 'basis'"`
+    `:321`, `:329`, `:333`.
+
+  The composition refusals are FIFTEEN as pinned, not sixteen: `R/spec.R:429-
+  456` emits sixteen, but only 15 `expect_error` land in [426, 548], and the
+  STAND row balances at 34 only at 15. So 11 of 45 pins move and 34 stand, plus
+  4 positional-`params` assertions the ragged transport rewrites though they
+  are not refusals: `:343-346`, `:367` (`params[4L]`), `:374` (`params[7L]`),
+  `:383` (`params[1L]`).
+
+  Other files. `test-bcf-r5-surface.R` (10 `expect_error`, 40 `expect_*`): the
+  3-row `dim(glue)` pin `:50`, the `"only on the second"` refusal `:135`, the
+  whole F3 mirror block `:153-175`. `test-bcf-reporting.R`: the dims `:41` and
+  `:114`, and the `reconstructionError` helper `:57-71`, which reads
+  `glue[1L,]/[2L,]/[3L,]` by position. `inst/tinytest/capi/consumer.c`: FOUR
+  legs, not three - `:897` `setForestBasis` itself and `:898-900`
+  `.forest0`/`.width`/`.values` - plus their bodies `:1003-1032` and the `18L`
+  `LEG_COUNT`; TWO of the four INVERT, and an inverted refusal leg is exactly
+  where a capability answer and a malformed answer can quietly swap channels:
+  `LEG_BASIS_FOREST_0` (`:1006-1018`) asserts `setForestBasis(sampler, 0, ...)
+  == 0` and becomes an ACCEPTANCE (forest 0 takes a basis; its forest 2 probe
+  stays a capability answer on a K = 2 sampler), and `LEG_BASIS_VALUES`
+  (`:1022-1032`) asserts a raise on a 0.25/0.75 pair that becomes LEGAL (see
+  the amendment's draw-path item). Both leg bodies also re-lay their bases
+  ROW-major under the transpose item. `test-capi.R:1165-1179` (the ragged 1/2
+  amplitude counts); `test-bcf-mutation-pins.R` (6), `test-bcf.R:57` and
+  `test-multi-forest-seam.R:285` follow the route rename.
+  `test-bcf-zero-multiplier.R` never mutates a basis and is STRUCK from this
+  list. In `tests/cpp` the pins whose CONTENT moves are THREE:
+  `testForestBasisSynthesis` (`test_sampler.cpp:3296`, superseded by the
+  amendment's arms), `testAmplitudeOffsetIndexing` (`:3670`, which calls
+  `installForestBasis` directly and gains the surface route), and
+  `testBCFTwoForest`'s `sampler.setTreatment` call (`:2198`) with its "BCF
+  setTreatment refresh runs" message (`:2207`). The other 22 of the 25
+  `BCFSpec` fixtures (`test_sampler.cpp` x 21, `test_fuzz.cpp` x 3,
+  `test_model.cpp` x 1) stay untouched IF collision (f)'s thin-adapter clause
+  is honored - which is why that clause is load-bearing for the C++ suite
+  exactly as it is for `bcf-equivalence.R`.
 
   **Handoff from M4.2 (LANDED 1a2aaedc), recorded at the M4.2 landing.** ONE
   item MANDATORY before M4.3 starts: define the `setTreatment` x
@@ -1794,7 +1851,357 @@ in FA1 and FA5 below ARE the record.
   widened basis today - M4.2's review pass only documented the fact on
   `installTreatment`'s Doxygen, it did not resolve it. M4.3 wires the
   per-forest basis surface `installForestBasis` is the engine half of, and
-  must specify which route wins, with a test.
+  must specify which route wins, with a test. **DISCHARGED 2026-08-14 by item
+  1 of the amendment below, with the test shape at item 2.**
+
+  **AMENDED 2026-08-14**, on `.claude/m4-basis-design/pre-m43-2026-08-14.md`
+  (the pre-slice scoping pass, read at e7708b7c) and
+  `.claude/m4-basis-design/critique-m43-2026-08-14.md` (its adversarial
+  critique, read at the same commit). Where the two conflict the CRITIQUE's
+  evidence wins: it does at items 1, 3, 4, 6 and 7 below and in the tests
+  paragraph above; items 2, 5, 8, 9 and 10 are the scoping pass as written,
+  certified. Both of M4.3's entry preconditions are hereby discharged: the
+  interaction spec (item 1) and the fresh test re-price (item 6). M4.3 may
+  start.
+
+  **1. The interaction spec: SUBSUME. `setTreatment` RETIRES as a mutator.**
+  Basis synthesis becomes construction-only and `installForestBasis`
+  (`combiner.hpp:607-613`) becomes the sole mutation route, at any forest, at
+  any width. It wins by being the only operation there is.
+  - `installTreatment` (`:1119-1142`) becomes the CONSTRUCTOR's private
+    synthesis: `spec.z` -> `basis[0]` all-ones (`:1124-1125`), `basis[1]` the
+    (1 - z, z) pair (`:1127-1134`), forests 2.. all-ones (`:1136-1139`).
+    Nothing outside the constructor calls it. Today it rebuilds BOTH
+    synthesized bases from scratch, silently discarding any widening - the
+    defect this spec closes, and it closes it by DELETING the operation rather
+    than documenting a RESET.
+  - The `setTreatment` virtual is re-signed to `setForestBasis(f, values, q)`
+    through all four layers (`combiner.hpp:599`, `chain.hpp:863-865`,
+    `sampler.hpp:1158-1160`, `facade.hpp:274`/`:521`) - the same four-layer
+    edit shape over the same four files that collision (a) already prices for
+    `bcfGlue`. Do both in one pass.
+  - `dbarts_sampler_setForestBasis` (`C_interface.cpp:759-794`) and
+    `$setForestBasis` (`R/dbarts.R:1214-1253`) route to `installForestBasis`
+    directly; the 2-column collapse-to-z at `C_interface.cpp:790-791` is
+    DELETED, not generalized (see the `glue_.z` clause), and
+    `$setForestBasis`'s `index != 1L` refusal (`R/dbarts.R:1218-1223`)
+    relaxes. 1-based `forest` at the R5 layer is untouched
+    (`resolveForestIndex`, `R/bartcore.R:1051`).
+  - **Ordering is LAST INSTALL WINS, per forest**, and both orderings collapse
+    to that one rule because there is only one operation. widen-then-swap: the
+    "swap" IS an install on the forest swapped, so forest 0's widening
+    survives it. swap-then-widen: the widening replaces exactly that forest's
+    basis, and the swapped forest's block is carried to its new offset. The
+    two commute exactly - `rebuildAmplitudeLayout` (`:1151-1171`) derives
+    offsets as a pure prefix sum of the width vector and carries by position at
+    `min(newWidth, oldWidth)`.
+  - **Amplitudes PRESERVE-and-remap**, which is what `rebuildAmplitudeLayout`
+    already does: a width-preserving install early-returns at `:1159` and is
+    the BITWISE IDENTITY on every amplitude (that is bcf's mid-life z swap, and
+    it is baseline-gating); a width change carries every other forest's block
+    bitwise to its new offset and enters new coordinates at the neutral 1.0.
+  - **`glue_.z` RETIRES with `setTreatment`.** It has exactly ONE writer,
+    `combiner.hpp:1121` inside `installTreatment`, and two readers, `:836` and
+    `:869` inside `drawShippedGlue`; the pointer is the borrowed
+    `BartcoreHolder::ownedTreatment` (`R_interface_bartcore_common.hpp:33-34`)
+    whose contents only `R_interface_bartcore.cpp:3679-3684` and
+    `C_interface.cpp:790-792` refresh. Delete the collapse-to-z while keeping
+    `glue_.z` and it freezes at its construction value forever: a
+    width-preserving z swap would install the new pair into `basis[1]`, leave
+    the layout unmoved, and then draw `b0`/`b1` partitioned by the OLD z at
+    `:869` while `forestMultiplier` (`:1081-1090`) contracts the NEW basis - a
+    silently different model on the one route this spec calls bitwise, and one
+    the amplitude assertions cannot see. So `drawShippedGlue` must partition
+    from `basis[1]` column 1 (`values[2 * i + 1]`, row-major) and `glue_.z`
+    goes. The stored values are the same values `ownedTreatment` holds, so
+    this is expected to be BITWISE on the baselines - a GATED claim, not an
+    assumption: the trio (`bcf-equivalence`, the multinomial baseline,
+    `tests/cpp`) proves it before the slice lands. The bridge note at
+    `R_interface_bartcore.cpp:2489-2493` (an M4.1 review correction) records
+    the two objects as SEPARATE and must be rewritten with them merged. The
+    same clause answers the general route: with no `glue_.z` there is no
+    `nullptr` for a K-forest spec that carries per-forest bases and no z.
+  - **Draw-path selection is a per-forest IS-CANONICAL predicate, not a width
+    test.** `drawGlue` (`:732-738`) today selects `drawShippedGlue` on
+    `forests.size() == 2 && !generalAmplitudeDraw_`, i.e. on the forest count.
+    Selecting instead on widths (K == 2, q0 == 1, q1 == 2) is WRONG, because
+    M4.3 opens legal CONTINUOUS two-column bases into exactly that shape -
+    `consumer.c`'s `LEG_BASIS_VALUES` (`:1022-1032`) installs a 0.25/0.75 pair
+    that today is pinned to raise - and `drawShippedGlue` is not a general
+    q = 2 conditional: it never reads `basis[1]` at all, it forms two disjoint
+    group-precision accumulators keyed on the indicator (`:865-872`). The
+    predicate is therefore a VALUE property: forest f is CANONICAL when its
+    basis is exactly the constructor's shape (all-ones; or, at the treatment
+    forest, a complementary 0/1 pair - each entry in {0, 1}, each row summing
+    to 1). A non-canonical basis at ANY forest forces the general path
+    (`drawAmplitudes`) for that draw.
+  - **The predicate is RECOMPUTED, never serialized**: one `bool` per forest, a
+    pure function of the basis values, recomputed at install and at state
+    restore - O(n) once per install, not once per sweep. **This corrects the
+    scoping report's third decisive argument**, which claimed SUBSUME needs
+    "the LEAST new state - none". It does not. It needs exactly this one
+    recomputable per-forest bool: the minimal state of the three options, and
+    strictly less than the persistent installed/synthesized flag REFUSE needs,
+    but not zero. The argument stands as re-stated here, not as written there.
+  - **`installForestBasis` becomes the terminus of both public entries and must
+    GUARD.** Today it checks nothing - `glue_.basis[f]` indexes a vector sized
+    only by the constructor, no `numColumns >= 1` check, no finiteness check -
+    which is fine while two `tests/cpp` fixtures are its only callers. As the
+    sole mutator it owns the dimension guard (`f` in range, `numColumns >= 1`),
+    the finiteness check, and the canonical-predicate recompute. Same class of
+    item as the `amplitudes[3]` overflow: correctness, not signature.
+  - **Persistence is MANDATORY, and its ORDER is part of the contract.**
+    Nothing about a basis survives serialization today (`serializeGlue`/
+    `restoreGlue` `:803-816` carry `a, aVariance, b0, b1` only, through
+    `ChainStateData` `:92-94`); the basis is re-synthesized at re-creation from
+    `data@treatment`. The successor is M1's pattern - an R5 field mirroring
+    every installed basis, replayed at the same THREE sites
+    `reapplyForestWeights` is (`R/dbarts.R:1564` `getPointer()`, `:1590`
+    `setState()`, `:936` `$copy()`) - but NOT with the same ORDERING. Those
+    three sites all reapply AFTER the state install, which is right for
+    WEIGHTS precisely because weights are deliberately not in the state
+    (`R/bartcore.R:997-999`). Amplitudes ARE state. Reapply a widening after
+    `setState` and the restore either refuses on length or writes a ragged
+    vector into the narrow creation layout, after which the widening enters the
+    added coordinates at the neutral 1.0 and every restored amplitude the
+    widening covered is lost. **The contract is RESTORE-THEN-WIDEN**: widening
+    after the restore must preserve-and-remap the RESTORED amplitudes. Either
+    the bases ride creation (the way `data@treatment` does today) or the basis
+    reapply runs BEFORE `setState` at all three sites - which makes it a
+    different helper from `reapplyForestWeights`, not the same hook. Whichever
+    the implementer picks, the arm asserts AMPLITUDE VALUES across the round
+    trip, not just the surviving basis width.
+  - **The persistence GUARANTEE survives the slot retirement.** Collision (e)
+    retires `data@treatment` as `$setForestBasis`'s mirror;
+    `man/dbartsSampler-class.Rd:167` documents, and
+    `test-bcf-r5-surface.R:167` pins, that a re-created sampler carries the
+    current assignment. The SLOT may go; the GUARANTEE may not - the successor
+    mirror carries it. A tightening of collision (e), not a new public
+    semantic.
+  - **The not-taken alternative, recorded: REFUSE, never RESET.** If an
+    implementer keeps `setTreatment` as a live mutator, the only honest rule is
+    that it REFUSES on a combiner any of whose bases was installed rather than
+    synthesized. That is a cheaper slice by the four-layer re-sign, but it
+    costs a persistent per-forest installed flag and leaves two mutators whose
+    orderings must BOTH be pinned. NOT TAKEN, on two grounds: (i) both shipped
+    public basis entries route to `setTreatment` (`C_interface.cpp:792`,
+    `R/dbarts.R:1239`), so under RESET the documented behavior of one public
+    entry is "silently undoes the other" - a surface whose two halves fight;
+    (ii) a width change now SELECTS THE CONDITIONAL (the canonical predicate
+    above), so it is a MODEL fact, and a model fact cannot be revertible by a
+    data swap - which is what `installForestBasis`' own Doxygen already asserts
+    (`:604-606`). A documented RESET is the one option that must not ship.
+
+  **2. The test shape that discharges the mandate** (both orderings,
+  red/green-able). Engine, `tests/cpp/test_sampler.cpp`, replacing
+  `testForestBasisSynthesis` (`:3296-3352`, today the ONLY component guard on
+  either half) as `testForestBasisOrdering`:
+  - **Arm 1, widen-then-swap.** Install a q0 = 2 prognostic basis with a
+    DISCRIMINATING second column (nonzero, row-varying - unit values vacate
+    pins, the M4.0 lesson), restore distinct amplitudes, then swap forest 1.
+    Assert `basis[0]` is still two columns, the prognostic multiplier still
+    reads its second term on every row, and forest 1's block is bitwise its
+    swapped value. RED under today's reset.
+  - **Arm 2, swap-then-widen.** Swap forest 1, then widen forest 0: the swapped
+    values survive the layout move and forest 1's two coordinates are carried
+    bitwise to their new offsets. RED if the install re-synthesizes.
+  - **Arm 3, width-preserving canonical reinstall is the BITWISE IDENTITY** on
+    every amplitude (the `:1159` early return). This is the pin that stands
+    between M4.3 and a `bcf-equivalence` re-record.
+  - **Arm 4, the z divergence** - the leg Arm 3 structurally cannot see, since
+    Arm 3 asserts amplitudes and the defect is in the NEXT draw. A
+    width-preserving swap to a DIFFERENT complementary pair must change that
+    draw's partition: draw, and assert `b0`/`b1` reflect the new grouping. RED
+    against a retained `glue_.z` (old-z-new-basis), GREEN once
+    `drawShippedGlue` partitions from `basis[1]`.
+  - **Arm 5, draw-path selection.** (i) q0 = 2 does not take the two-scalar
+    path; (ii) a NON-CANONICAL width-2 basis at forest 1 (the 0.25/0.75 pair)
+    does not either - by rng consumption count, or by asserting the drawn
+    a-block's second coordinate moves. 5(i) is RED today; 5(ii) is the arm a
+    width-only predicate passes wrongly.
+
+  R5, `inst/tinytest/test-bcf-r5-surface.R` (or a new
+  `test-forest-basis-r5.R`):
+  - **Arm 6, both orderings at the surface.** `$setForestBasis(1, B)` then
+    `$setForestBasis(2, C)` and the reverse: the resulting per-forest fits and
+    amplitudes agree, and neither install disturbs the other forest.
+  - **Arm 7, persistence.** Widen, `storeState`, `saveRDS`/`readRDS`, force
+    `getPointer()`'s re-creation; assert the widened basis AND the restored
+    amplitude VALUES survive. Run M1's per-site falsifier discipline: comment
+    out each of the three reapply sites in the installed copy and confirm
+    EXACTLY its own arm goes red.
+
+  **3. The state `bcf` block must carry PER-FOREST WIDTHS.** Collision (b)
+  re-encodes the length-4 block in place; a total length is not a layout -
+  `q = (1, 3)` and `q = (2, 2)` both serialize four amplitudes, and both
+  readers today check `Rf_xlength(bcfExpr) != 4` (`:6167`, `:6366`), whose
+  natural generalization to `sum q_f` cannot tell those apart. `restoreGlue`
+  (`combiner.hpp:810-816`) writes THROUGH `amplitudeOffset` (`:369-376`), so a
+  mis-laid vector is silently mis-assigned rather than refused, and combined
+  with the ordering hazard in item 1 a save/load across differently-shaped
+  bases would silently permute forest blocks. NAME THE ENCODING: a K-length
+  width vector followed by `sum q_f` amplitudes (or a reader that validates the
+  incoming layout against the live `amplitudeOffset`). And there are THREE
+  state sites, not the two collision (b) names: write
+  `R_interface_bartcore.cpp:5814-5820`, read `:6165-6175`, and the WARM-START
+  DONOR read `:6364-6374`, which carries its own length check and its own
+  "malformed bcf glue in warm-start donor" message. The round-trip arm pins a
+  REDISTRIBUTION at constant total, not only a malformed length, at both
+  readers.
+
+  **4. The route enumeration is THREE R routes plus the flat one.** Beyond
+  `$setForestBasis` (`R/dbarts.R:1214-1253`, `.Call`ing
+  `C_dbarts_bartcore_setTreatment` at `:1239`) and the flat
+  `dbarts_sampler_setForestBasis` (`C_interface.cpp:759-794`), there is
+  `dbarts:::bartcoreSetTreatment` (`R/bartcore.R:979-981`), which calls the
+  bridge entry directly and is ABSENT from the R site list above - add it. Its
+  callers: `benchmarks/R/bcf-equivalence.R:190`, `test-bcf.R:58,78,138`,
+  `test-bcf-mutation-pins.R:74`, `test-multi-forest-seam.R:177,285`. The first
+  is the mutation call inside equivalence scenario (e), which runs, swaps and
+  RUNS AGAIN, so **the harness must keep working or be migrated IN THE SAME
+  COMMIT, with the baseline UNTOUCHED** - this slice does not license a
+  re-record. The same holds for the `bartcoreBCFGlue` adapter
+  (`R/bartcore.R:1013`, read at `bcf-equivalence.R:97` inside
+  `recordChannels`), whose 3 x n.chains SHAPE the bridge's `getBCFGlue`
+  per-forest rewrite moves. So collision (f)'s thin-adapter clause extends BY
+  NAME to `bartcoreBCFGlue`'s 3-row reading and `bartcoreSetTreatment`'s
+  z-argument signature; either they are preserved as adapters, or they move in
+  the landing commit with the recorded channels bitwise either way.
+
+  **5. The column-major/row-major transpose is a named BRIDGE item, and a
+  silent-wrong-answer one.** `inst/include/dbarts/dbarts.h:686-687` documents
+  the flat basis as COLUMN-major numObservations x numColumns and
+  `C_interface.cpp:781` reads it that way; `ForestBasis` is ROW-major by
+  contract (`combiner.hpp:303-317`, "Stored ROW-major (row i at
+  i * numColumns) because that contraction is the only read") and
+  `installForestBasis` assigns straight through (`:611`). Nothing is red today
+  only because the collapse-to-z at `:790-791` discards the layout entirely.
+  **RESOLVE IN THE DOC DIRECTION**: the header text changes to say ROW-major,
+  matching the engine; no signature moves and no hash re-bake. The flat entry
+  then copies through, `consumer.c`'s basis-building legs re-lay ROW-major, and
+  the R bridge transposes, since R matrices are column-major. M2's R5 route has
+  no live mismatch - a two-level factor collapses to a single column
+  (`R/model.R:707`) and one column is layout-invariant - but it INHERITS the
+  fix the moment q > 1.
+
+  **6. The re-price. TESTS ~645 dense-equivalent (band ~590-660)**, stated as
+  M4.3's OWN budget: "the remainder is M4.3's rewrite share" is STRUCK, since
+  the ~350-450 band is spent at ~797 (item 8). Density convention, stated
+  because the first pass had none and was optimistic without it: a refusal
+  assertion in `test-bcf-creation.R` measures 9.2 lines (multi-line `dbarts()`
+  calls), a creation-shaped POSITIVE arm costs more than the refusal it
+  replaces (a spec read, a run, then assertions) at ~14 lines/assertion, a
+  simple `expect_*` on an existing object ~5, and a `tests/cpp` arm ~10.
+  - T1 ~130, the creation-pin relaxations (6 refusals -> positive routes, 1
+    restated, 4 slot-retirement rewrites, 4 params assertions). Priced ~75 at
+    the first pass, which is BELOW the ~95 lines of live text it REPLACES:
+    `:556-610` = 55, `:656-664` = 9, `:316`/`:317` + `:808-818` + `:819-829` =
+    24, the 4 params assertions = 7. Re-priced at the convention above.
+  - T2 ~95, the K > 2 / wide-basis positive surface: creation at K = 3-4, a
+    continuous basis, a >2-level factor, run sanity, and the FA0 K = 2 bitwise
+    reduction through the new spec route (re-checked at the same convention).
+  - T3 ~75, the interaction spec, arms 1-7 (cpp ~45, tinytest ~30).
+  - T4 ~55, `forestParams` ragged transport: per-forest resolution, both bridge
+    routes agreeing, the retired length-8 message.
+  - T5 ~55, state block round trip at q > 1 / K > 2: both readers (`:6165`,
+    `:6364`), the redistribution-at-constant-total case, malformed length,
+    keepTrees continuation.
+  - T6 ~40, ragged run-result `glue` slot: dims plus the reconstruction
+    identity at K = 3, three sites.
+  - T7 ~40, `$getForestAmplitudes(forest)` signature break: per-forest read,
+    ragged widths, out-of-range refusal, the `test-bcf-reporting.R` helper.
+  - T8 ~55, treatment-slot retirement + capability-probe successor: the five
+    `refuseBCFMutation` sites stay red (`R/bartcore.R:285`, `:306`, `:383`,
+    `R/dbarts.R:1044`, `:1484`), the positive probe, the multinomial
+    non-misfire.
+  - T9 ~65, flat C: the four `consumer.c` legs (two inverting), a wide basis
+    accepted, a ragged amplitude read, the `LEG_COUNT` bump, `test-capi.R`.
+  - T10 ~35, `bcfGlue` four-layer re-sign coverage plus the `amplitudes[3]`
+    overflow (`C_interface.cpp:767`, `:812`, `:824`).
+
+  **7. The slice's non-test price: ~970-1110 dense-equivalent.**
+  - **Engine ~250-300.** K-length forest spec vector + `BCFSpec` thin adapter
+    (~60); the constructor's K `buildBCFForest` loop and calibration map
+    (`chain.hpp:692-724`, `:4457`) (~40); construction-only synthesis plus
+    `installForestBasis` as sole mutator WITH its guards, and the four-layer
+    `setTreatment` -> `setForestBasis` re-sign (~55); the `glue_.z` retirement
+    and the canonical predicate (~15); `bcfGlue` four-layer re-sign to a
+    length-carrying read (~45); `serializeGlue`/`restoreGlue` +
+    `ChainStateData` ragged with widths (~45); reporting-channel counts (~20).
+  - **Bridge ~280-320.** Ragged params transport at both sites (~70); the state
+    block re-encoded in place at all three sites (~55); ragged `glue` result
+    slot (~35); `getBCFGlue` -> per-forest (~30); the basis entry -> per-forest
+    install INCLUDING the transpose (~45); treatment-slot retirement + the
+    two-way cross-check rewrite `:2833-2838` (~40); `amplitudes[3]` buffers
+    (~10). Band ~350-450, nothing consumed.
+  - **R ~360-410 + man ~35.** As scoped (`forestParams` ragged ~55;
+    `forestBasisDeclaration` + `expandForestBasis` per-forest ~80;
+    `resolveForests`' six positional refusals -> per-forest loop ~70;
+    `resolveModerators` ~25; basis validation generalized off
+    `validateTreatment` ~30; `$setForestBasis` + `$getForestAmplitudes(forest)`
+    ~45; `isBCFSampler` successor + its five call sites ~30; the basis mirror +
+    its reapply at three sites ~30; Rd deltas ~35), plus ~10 for the internal
+    `bartcoreSetTreatment` route (item 4). Band ~400-500, nothing consumed.
+  - **Flat C ~45.** Guard bodies at `C_interface.cpp:768-792`, `:815-816`,
+    `:828-832`, and the three `amplitudes[3]` stack buffers -> K-sized.
+  - `dbarts.h` MOVES NO SIGNATURE: `setForestBasis` already takes `numColumns`,
+    `numForestAmplitudes`/`forestAmplitudes` already take `forest`, and
+    `:698-699` says so in the header ("widening it relaxes this guard and moves
+    no signature"). **No hash re-bake, no version-constant move.** Doxygen
+    sweeps ride M4.5; the transpose sentence (item 5) is the one exception and
+    is a doc-only edit.
+  - **Engine-band arithmetic, recorded AS ARITHMETIC and not as a verdict.**
+    The engine band is ~500-700 with ~228 consumed (M4.1 +48, M4.2 ~180);
+    M4.3 at ~250-300 puts it at ~478-528, leaving ~172-222. **M4.4's engine
+    work is UNPRICED** - its bullet enumerates five sites and no line count -
+    so **M4.4's pre-slice check MUST price it**. Whether the band holds is the
+    question that check answers; there is no breach to record today.
+
+  **8. Erratum: the consumed tests band is ~797, not ~732** - M4.0 ~348 +
+  M4.1 ~98 + M4.2 ~351 (M4.2's own landing note reads "tests ~351", i.e.
+  286 + 65) = 797. Corrected in place in the STATUS paragraph and the Budget.
+
+  **9. Collision status, re-verified at e7708b7c.** (a) OPEN in full, all four
+  layers unchanged (`combiner.hpp:463`, `chain.hpp:1021-1023`,
+  `sampler.hpp:1242-1244`, `facade.hpp:315`/`:546`) - do it in the same pass as
+  item 1's re-sign. (b) OPEN, and it is THREE sites not two (item 3); its
+  `amplitudeOffset` prerequisite is DONE (M4.2 handoff (b)). (c) OPEN, and it
+  is THREE glue-stride sites not one: add `chain.hpp:4661-4662`
+  (`results.glue + sampleNum * 3`) and `sampler.hpp:321` (`results.glue +
+  c * numSamples * 3`) beside the bridge alloc `:4098-4102`. (d) OPEN; its
+  twin, `installTreatment`'s `basis.resize(2)` K-sizing, is DONE - every
+  per-forest array is now sized by the chain's forest count
+  (`combiner.hpp:1122`, `:1152-1153`; M4.2 handoff (d), with its ASAN
+  red/green). (e) OPEN, tightened by item 1's persistence clause. (f) OPEN but
+  zero-cost IF the adapter clause is honored, and it is load-bearing on the C++
+  suite's ground as well as `bcf-equivalence.R`'s: 25 `tests/cpp` fixtures
+  construct `BCFSpec`, so the clause is not a courtesy to `bartcoreBCFSampler`
+  alone. Item 4 extends it by name to two more functions.
+
+  **10. Stale `combiner.hpp` anchors** (M4.2 moved the file again). Verified BY
+  SYMBOL at e7708b7c; these correct the M4 text above wherever it cites them.
+  `BCFSpec` `:244-251` -> `:244-263` (M4.2 added `ridgeA`/`ridgeB`/
+  `generalAmplitudeDraw`); `BCFState`'s `a, b0, b1, aVariance` `:290-302` ->
+  struct `:342-377` with accessors `:369-376`; the constant-leaf
+  `static_assert` `:502-503` -> `:583-584`; the base `bcfGlue` virtual
+  `:386-389` -> `:463`; `forestMultiplier` `:761-765` -> `:1081-1090`;
+  `combinedFits` `:567-576` -> `:691-706`; `installTreatment` `:855` ->
+  `:1119-1142` (the resize at `:1122`); `drawGlue` `:582-623` -> `:732-738`
+  (plus `drawShippedGlue` `:824-877`); `afterCombine` `:638-709` -> `:758-767`;
+  `MultinomialForestCombiner::afterCombine` `:1152-1197` -> `:1560-`;
+  `buildBCFForest` `chain.hpp:4454` -> `:4457`; `Chain::bcfGlue`
+  `chain.hpp:1018-1020` -> `:1021-1023`; the bridge's length-8 check #2
+  `:2913-2914` -> `:2915-2916`; its cross-check `:2831-2836` -> `:2833-2838`;
+  `amplitudes[3]` `:3673` -> `:3675` and the stride-3 alloc `:3769-3772` ->
+  `:3771-3774`; the state write `:5812-5818` -> `:5814-5820` and read
+  `:6163-6167` -> `:6165-6169`; `R/spec.R`'s control attribute `:466-486` ->
+  `:467-483`. `BCFForestSpec` `:211-241` is UNCHANGED, as are every `R/model.R`
+  site, every other `R/spec.R` site, `R/data.R:643-655`, `R/dbarts.R:1218-1223`
+  and `:1237`, `R/bartcore.R:18-22`, `:30-34`, `:285`, `:306`, `:383`, `:622`,
+  `:1051`, `R/dbarts.R:1044`, `:1484`, `:1442-1446`, all three
+  `C_interface.cpp` `amplitudes[3]` buffers and its guard bodies,
+  `facade.hpp:274`/`:315`/`:750`, `sampler.hpp:1242-1244`,
+  `R_interface_bartcore.cpp:1112`, `:2134-2135`, `:2138-2148`, `:4098-4102`.
 - **M4.4 (non-Gaussian, the family's justification).** Wire the family enum
   through the K-forest constructor and define the calibration map against each
   family's latent scale; probit and logistic in v1, the rest doors. **The
@@ -1805,7 +2212,10 @@ in FA1 and FA5 below ARE the record.
   and the calibration map at `:716-719`). `model.hpp:2523`'s
   `enum class ResponseFamily` is only the LAST gate. `facade.hpp:750-762`
   `createBCFSampler`'s single `SamplerFacade<ConstantGaussianLeaf>`
-  instantiation is the fifth place the assumption is baked in.
+  instantiation is the fifth place the assumption is baked in. **This slice's
+  ENGINE work is UNPRICED (recorded 2026-08-14): five sites and no line count.
+  Its pre-slice check MUST price it, against the ~172-222 the engine band has
+  left after M4.3 (M4.3's amendment, item 7).**
 
   **RE-SCOPED 2026-08-13 on the probe verdicts (`probes-2026-08-13.md`): this
   slice moves to the END of the arc, as the IMMEDIATE follow-on to M4.5, and
@@ -2223,10 +2633,18 @@ LANDED 1458328c/e48fc5de and added ~98 tests; the band now reads ~446 of the
 ~350-450 tests band consumed (M4.0 ~348 + M4.1 ~98) - at or past the top of
 the range, so the M4.3 re-price called for above is now MANDATORY, not a
 contingency.** **M4.2 LANDED 1a2aaedc and added ~286+65 tests; the band now
-reads ~732 dense-equivalent consumed (M4.0 ~348 + M4.1 ~98 + M4.2 ~286+65)
+reads ~797 dense-equivalent consumed (M4.0 ~348 + M4.1 ~98 + M4.2 ~351)
 against the original ~350-450 band - well past the top of the range, so the
 M4.3 RE-PRICE IS NOW A PRECONDITION: M4.3 does not start until its own test
-budget is stated fresh.** DOCS (M4.5) were
+budget is stated fresh.** (**~797, ERRATUM 2026-08-14**: this paragraph read
+~732, which does not sum - 348 + 98 + 351 = 797, and M4.2's own landing note
+reads "tests ~351".) **The M4.3 re-price is DONE (amendment 2026-08-14, in the
+slice): tests ~645 dense-equivalent, band ~590-660, as M4.3's OWN line item
+rather than a share of the spent band; non-test ~970-1110, of which engine
+~250-300.** That last figure puts the ENGINE band at ~478-528 of ~500-700
+consumed after M4.3, leaving ~172-222; **M4.4's engine work is UNPRICED and
+its pre-slice check must price it** - the arithmetic is recorded here as
+arithmetic, not as a verdict on the band. DOCS (M4.5) were
 unpriced; `multiplier-combiner.md` is a NEW file. Plus one possible
 `bcf-equivalence` re-record, with its `equivalence.yaml` bump in the same
 commit. **Both scheduling preconditions are MET:** multiforest-predictor-
