@@ -186,6 +186,7 @@ Columns: `file | STATUS | one-liner`.
 | capi-callbacks.md | LANDED | Adds a per-sweep conditioning callback and observer hook to the C API. |
 | capi-dispatch-table.md | LANDED (arc complete) | ABI-compatibility mechanism for LinkingTo consumers (X-macro single-source stubs + version/hash handshake); both dbarts and stan4bart landed. |
 | consumer-spec-surface.md | LANDED, 2026-07-25 | Exports `dbartsSpec()` over a shared internal resolution, so an embedding package builds a sampler specification without reaching into `dbarts:::parsePriors`. |
+| dbarts-h-reshape.md | MIXED (S0-S1 LANDED; S2 consumer rebuilds and records outstanding) | Re-signs the flat C API onto a self-describing predictor-source POD (dense or CSC, self-widthed) and a forest-indexed tree-query family; one hash re-bake, no version-constant move. |
 | interface-review.md | LANDED | Review-2 retrospective auditing the exported R surface; 11 code fixes + 6 doc fixes + 11 taste calls, all landed same day. |
 | nameable-calibration.md | COMMITTED | Lets an R composition name the leaf-prior calibration (`prior.scale`, response units) at creation and mid-chain instead of inheriting it from the construction range; the per-chain getter is the authoritative reader of what is in force. |
 | pre-release-surface-fixes.md | LANDED | Fixes aft-loglik defect + freeze-regret paper-cuts from a pre-release surface audit. |

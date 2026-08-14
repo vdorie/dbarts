@@ -1,7 +1,8 @@
 # Public surface for the major version
 
-Status: reviewed 2026-07-03; updated through 2026-07-06. Decisions from that
-review are recorded inline as DECIDED. Companion to core-generalization.md:
+Status: reviewed 2026-07-03; updated through 2026-08-13 (dbarts-h-reshape S1,
+ab3aa2fa - sec 6). Decisions from that review are recorded inline as DECIDED.
+Companion to core-generalization.md:
 the engine reached cutover readiness (full R5 parity, statistical
 equivalence, and the zero-regression speed bar all gated at 209c09b), so
 what remains is what the major version exposes. For the shipped engine's
@@ -433,6 +434,29 @@ the stan4bart workout through R_GetCCallable, self-gating on toolchain
 availability). Remaining for this section: the stan4bart port, observer
 callbacks when a consumer exists, and retiring R_C_interface.hpp with the
 classic engine.
+
+Landed 2026-08-13 (dbarts-h-reshape S0 a262cd26, S1 ab3aa2fa): the flat surface
+stops being dense-only and forest-blind. `setPredictor`, `updatePredictor`,
+`setTestPredictors` and `predict` re-sign onto one self-describing,
+size-first, borrowed source struct, `dbarts_predictor_source` (column-major
+dense or compressed-column, declaring its own width and its own CSC column
+count), so a C consumer hands the sampler CSC storage for prediction and
+test data without densifying it and without an R container class.
+`numTrees`, `getTrees` and `printTrees` take a forest index, unambiguous on
+the multi-forest samplers sec 8 documents. The asymmetry is deliberate and
+documented in the header, not left for a reader to over-infer: mutation
+MATERIALIZES a dense block before the engine ever sees it (the mutation
+virtuals consume only a dense block, matching the R bridge), while predict
+and test ingestion pass a sparse view through resident - a real capability,
+measured order of magnitude on caller storage and process memory at
+n_test 2e4, p 2000, density 0.01: CSC and dense predict bitwise identical,
+4.6 MB against 305 MB of caller storage, 162 MB against 467 MB process RSS.
+Not a benchmark, and not a wall-clock claim - the payoff is MEMORY.
+`dbarts_apiVersion()`/`DBARTS_C_API_VERSION` are removed, replaced by
+`dbarts_apiHash()` alongside the unmoved major/minor handshake:
+`DBARTS_C_API_MAJOR`/`MINOR` stay 1/0 through the pre-release window and
+become the initial contract at the first release. One hash re-bake, no
+version bump. Full detail: docs/plans/dbarts-h-reshape.md.
 
 ## 7. Initially deferred - since landed
 

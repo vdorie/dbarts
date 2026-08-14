@@ -13,11 +13,11 @@ rng: M0, M1 NEUTRAL (no src). M2 NEUTRAL and BITWISE-GATED: the new creation
   trio is a formality, labelled one, per that arc's rng note). M4 owns the only
   re-record in this arc and only if the amplitude conditional cannot be made
   bitwise at K = 2; every other M4 slice gates the trio bitwise.
-window: M0, M1, M2 land INSIDE the pre-release breaking window. M3 rides
-  dbarts-h-reshape S1, which is the SECOND AND LAST re-bake of that window, so
-  the mean channel's flat spelling is decided there or never (pre-release).
+window: M0, M1, M2 land INSIDE the pre-release breaking window. M3 LANDED
+  riding dbarts-h-reshape S1 (ab3aa2fa), the SECOND AND LAST re-bake of that
+  window - the mean channel's flat spelling was decided there.
   M4 is a PRE-RELEASE arc, scheduled after M3/the reshape (RESOLVED
-  2026-08-11), and needs no header movement if M3 lands. Everything is
+  2026-08-11), and needs no header movement, M3 having landed. Everything is
   breakable and the four sister packages migrate in lockstep at the freeze,
   once, against the final header (VD 2026-08-10).
 budget: M0 ~220 design doc + ~180 vignette + ~200 test. M1 ~75-85 R + ~50-60

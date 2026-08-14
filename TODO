@@ -552,7 +552,8 @@ items
   typed-ingestion: CLOSED - one borrowed PredictorSource view taken
     by creation, test ingestion, and mutation (record + landing notes
     in docs/plans/typed-ingestion.md). Its flat-C door became the
-    RESHAPE: docs/plans/dbarts-h-reshape.md. S0 (printer forest index
+    RESHAPE: docs/plans/dbarts-h-reshape.md, artifacts
+    .claude/dbarts-h-reshape-design/. S0 (printer forest index
     widened on both engine paths + three bridge guards promoted into
     bartcore_bridge, no dbarts.h touch, no X-list change, no hash
     move) LANDED a262cd26; item 9 (the R5 forest-index normalization)
@@ -573,8 +574,9 @@ items
     multiforest-extension-surface's M3). Consumer cost, corrected from
     the original "a stan4bart predict sweep only" estimate: five
     stan4bart call sites (predict, getTrees, printTrees, numTrees x2);
-    treatSens, bartCause and bairrtt rebuild only. REMAINING: S2
-    (consumer rebuilds, docs and records).
+    treatSens, bartCause and bairrtt rebuild only. REMAINING: the
+    consumer-repo landings (stan4bart migration, treatSens rebuild
+    commits) and the records commit.
     setData on a CSC/mixed store: SURVEYED,
     KEPT UNDESIGNED - no model surfaced (classes needing sparse
     designs do not swap whole data mid-chain; mid-chain mutation
@@ -625,9 +627,12 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     PROTECT-balance and memcheck passes CRAN itself runs. HELD
     2026-07-25 (VD): main stays as it is until VD's own review of the
     branch; revisit these checks then.
-  the dbarts.h reshape lands BEFORE the freeze - the last planned
-    pre-release breaking change; re-verify stan4bart bartcore against
-    the reshaped header in the same window.
+  the dbarts.h reshape LANDED (S0 a262cd26, S1 ab3aa2fa) before the
+    freeze, the last planned pre-release breaking change: the C ABI
+    constants (DBARTS_C_API_MAJOR/MINOR) read 1.0 through the window
+    and become the initial contract at this release; re-verify all
+    four sister packages (stan4bart, treatSens, bartCause, bairrtt)
+    against the final re-baked header once, at the freeze.
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-14; submit both
     to CRAN together. bartCause is ready and PUSHED on branch
     dbarts-1.0 in ~/Repositories/bartCause (ahead of its main; checks
