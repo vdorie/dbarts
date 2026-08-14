@@ -5371,9 +5371,8 @@ static void testActiveRowsLogisticKernel(ext_rng*) {
   check(rngStreamsAgree(rngMasked, rngCompact),
         "a masked logistic consumes the compacted rng stream exactly");
 
-  // rule 6, carried from S2: an inactive row's pointwise log-likelihood is
-  // NaN rather than a finite value, beside the gaussian pin in
-  // testActiveRowsGaussianDf
+  // an inactive row's pointwise log-likelihood is NaN rather than a finite
+  // value, beside the gaussian pin in testActiveRowsGaussianDf
   std::vector<double> loglik(n);
   masked.computeLogLikelihood(eta.data(), 1.0, n, loglik.data());
   bool flagged = true;
@@ -5463,9 +5462,8 @@ static void testActiveRowsNBKernels(ext_rng*) {
   check(rngStreamsAgree(rngMasked, rngCompact),
         "a masked nbinom consumes the compacted rng stream exactly");
 
-  // rule 6, carried from S2: an inactive row's pointwise log-likelihood is
-  // NaN rather than a finite value, beside the gaussian pin in
-  // testActiveRowsGaussianDf
+  // an inactive row's pointwise log-likelihood is NaN rather than a finite
+  // value, beside the gaussian pin in testActiveRowsGaussianDf
   std::vector<double> loglik(n);
   masked.computeLogLikelihood(fits.data(), 1.0, n, loglik.data());
   bool flagged = true;
@@ -5547,9 +5545,8 @@ static void testActiveRowsAFTCensored(ext_rng*) {
   check(rngStreamsAgree(rngMasked, rngCompact),
         "a masked aft consumes the compacted rng stream exactly");
 
-  // rule 6, carried from S2: an inactive row's pointwise log-likelihood is
-  // NaN rather than a finite value, beside the gaussian pin in
-  // testActiveRowsGaussianDf
+  // an inactive row's pointwise log-likelihood is NaN rather than a finite
+  // value, beside the gaussian pin in testActiveRowsGaussianDf
   std::vector<double> loglik(n);
   masked.computeLogLikelihood(fits.data(), sigma, n, loglik.data());
   bool flagged = true;

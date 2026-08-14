@@ -298,7 +298,7 @@ expect_true(
 )
 rm(gp, draws.gp)
 
-# --- logistic, nbinom and aft ------------------------------------------
+# --- logistic, nbinom and aft -----------------------------------------
 # Each family's oracle substitutes arbitrary in-support responses at the
 # INACTIVE rows and checks that every ACTIVE row's recorded draw stays
 # bitwise, at the SAMPLER level. Because every one of these latents comes
@@ -427,7 +427,7 @@ expect_identical(
   dbarts:::bartcoreRun(aftHandle(y, NULL), 20L, 10L)$train
 )
 
-# --- multinomial, GLOBAL only -------------------------------------------
+# --- multinomial, GLOBAL only -----------------------------------------
 # The mask lands on the softmax COUPLING, not on the response, which holds no
 # precisions of its own: an inactive row's K interleaved Polya-Gamma draws are
 # skipped and its composed precision is zero in every category. The R5 object
