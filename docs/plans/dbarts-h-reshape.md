@@ -623,8 +623,20 @@ might fail.
 
    `DBARTS_PREDICTOR_SOURCE_INIT` initializes only the first member, so C
    zero-initializes and C++ value-initializes the rest; both give NULL/0 and
-   neither depends on field order. The dense constructor replaces the memo's
-   argument-reordering macro (A8). Add exact-`offsetof` and exact-`sizeof`
+   neither depends on field order. **Stale against the shipped macro (S1
+   independent review note, corrected at landing, 2026-08-13):** the built
+   `DBARTS_PREDICTOR_SOURCE_INIT` (`dbarts.h:220-222`) is a fully-named
+   initializer, one value per member, not only the first - it still zeroes
+   every field and is still order-independent (every value is 0/NULL
+   regardless of position), and the fully-named form additionally silences
+   `-Wmissing-field-initializers` for a consumer building at `-Wextra`.
+   `DBARTS_RESULTS_INIT`/`DBARTS_FOREST_CALIBRATION_INIT` keep the
+   one-member form (`{ sizeof(...) }`) below and at item 7 - correct scope,
+   since both are consumer-side-only structs the library never constructs
+   itself, unlike the predictor source, which `dbarts_dense_predictor_source`
+   builds inside the header - but the asymmetry is worth flagging so a later
+   reader does not read it as an oversight. The dense constructor replaces the
+   memo's argument-reordering macro (A8). Add exact-`offsetof` and exact-`sizeof`
    static_asserts in `C_interface.cpp` beside the `dbarts_results` ones
    (:68-77). Generalize `DBARTS_RESULTS_HAS` (dbarts.h:138) into
    `DBARTS_HAS_FIELD(type, ptr, field)` and re-express the old spelling over it;
@@ -1451,14 +1463,18 @@ prior version exists to have changed from (binding decision 8).
    struck - that sentence now reads "no version constant moves when it lands
    (VD 2026-08-10: no increments pre-release - the constants stay 1.0 until the
    first release)" at :498-500. ONLY REMAINING: **mark the reservation BUILT,
-   naming this arc's S1.**
+   naming this arc's S1.** **DONE at S1 landing, ab3aa2fa (records commit).**
+   c-api-growth.md's setForestWeights section retitled "Landed" and the
+   `setActiveRows` reservation likewise, naming this arc's S1.
 3. **`docs/plans/zero-weight-exactness.md`, S3 item 2.** **DOWNGRADED
    2026-08-13, pre-S1: already applied.** The erratum is live at :402-403
    ("the reserved flat entry returns 1 on acceptance and 0 on refusal (ERRATUM
    2026-08-10 - this line originally said the inverse)") and again at :453-456,
    where the MINOR-bump clause is already declared void. ONLY REMAINING: **mark
    it BUILT**, recording that the flat entry landed in dbarts-h-reshape S1. Do
-   not restate the derivation - point at c-api-growth.md.
+   not restate the derivation - point at c-api-growth.md. **DONE at S1
+   landing, ab3aa2fa (records commit).** One line added after zero-weight-
+   exactness.md's own "ARC COMPLETE" paragraph, pointing at c-api-growth.md.
 4. **`docs/plans/c-api-growth.md`, reservations closed and opened:**
    forest-indexed `setTreeStorage` CLOSED BY FACT (storage is per sampler,
    chain.hpp:2209-2232); forest-indexed `predict` DOOR, blocker = per-forest
@@ -1667,3 +1683,108 @@ a clean-copy tarball Status OK, zero E/W/N; pkgdown no problems); post-amend
 re-gate green (`check --as-cran` OK, pkgdown, air/lint, the touched test
 file 40/40). No x86 leg: R-only, no baseline change. CI six-green on the
 push.
+
+S1 LANDED ab3aa2fa, 2026-08-13 (implemented as 3a977b6d, amended during
+independent review). The window's single `dbarts.h` re-bake, and it closes
+obligations in three other arcs at once. Hash re-baked from
+`0x1a911c00bb26dcd7ULL` to the new literal `0xcd88efcd67de55d7ULL`
+(`dbarts.h:101`); `dbarts_apiVersion` and `DBARTS_C_API_VERSION` REMOVED,
+`DBARTS_C_API_MAJOR`/`MINOR` pinned at 1/0 (binding decision 8 held). The
+`dbarts_predictor_source` POD lands with `DBARTS_HAS_FIELD` generalized from
+the old results-only spelling; the four predictor entries (`setPredictor`,
+`updatePredictor`, `setTestPredictors`, `predict`) are re-signed onto it -
+mutation MATERIALIZES a dense block exactly as the R bridge does, predict and
+test ingestion PASS THROUGH the view resident. `numTrees`, `getTrees` and
+`printTrees` become forest-indexed, each with its own bridge range check: the
+live tree turned up that `bartcore_bridge::getTrees` carried none at all, so
+the flat entry grew one of its own rather than inheriting a check that never
+existed. `dbarts_sampler_setForestWeights` and `dbarts_sampler_setActiveRows`
+are appended, both running their capability probe FIRST. Calibration S3
+lands complete: the `dbarts_forest_calibration` POD, the `dbarts_leaf_model`
+enum, `forestCalibration`/`setForestPriorScale`, the per-leaf-model Doxygen,
+the engine bounds check on `Chain::forestCalibration` (`chain.hpp:985`, `if
+(f >= forests_.size()) return ForestCalibration{};`) plus its `tests/cpp`
+pin, and the `refuseBCFMutation` reorder in R5 `$setCalibration`
+(`dbarts.R:1469-1489` - argument validation now runs before the BCF refusal,
+so a malformed call on a BCF sampler is answered on its own terms). M3 lands
+complete: `setTreatment` -> `setForestBasis`, `bcfGlue` ->
+`numForestAmplitudes` + `forestAmplitudes`, the creation Doxygen re-worded in
+engine vocabulary, and the retired-name message vocabulary gone tree-wide -
+no `setTreatment`/`bcfGlue`/`treatment` string survives in a bridge message.
+`consumer.c` + `test-capi.R` now stand at 186 results. 14 files, +1969/-228
+pre-amend; budget +1529 dense-equivalent against the amended ~1310 re-priced
+total, 1.17x, under the 1.5x stop - the largest overrun, `test-capi.R`, is
+air's one-argument-per-line formatting plus F3's loop, not padding.
+
+Review: independent Opus reviewer, full battery from scratch, verdict
+LAND-AFTER-CHANGES, final verdict LAND after the fix pass. The hash was
+INDEPENDENTLY RE-DERIVED twice: a compile probe dumped
+`DBARTS_C_API_DECLS` (3941 bytes) and the reviewer's own FNV-1a
+implementation hashed it to the baked literal, both pre- and post-amend; a
+one-digit perturbation of the literal stops dbarts's own build, confirmed.
+Blocker 1: F5's negative half FAILED exactly as pre-registered - wiring the
+flat `printTrees` to a constant forest 0 still left `test-capi.R` green,
+because the bridge's range check fired first and the content arm asserted
+only non-emptiness, never which forest's trees came back. Fixed with a
+live-branch discrimination pin (forest 0's dump differs from forest 1's) plus
+a NEW saved-tree BCF arm (storage enabled, a run, both forests discriminating
+through the saved-tree branch too); the fix was falsified EMPIRICALLY twice,
+independently, by the fixer and the reviewer - a build hardwired to forest 0
+fails exactly the two new pins and nothing else. Blocker 2: a NEWS sentence
+still named the removed `dbarts_sampler_setTreatment`; corrected. Non-blockers
+all taken in the amend: the probit `setActiveRows` arm had used an all-ones
+mask, which installs nothing by the entry's own contract, so it proved
+nothing - replaced with a genuine 0/1 mask plus a draws-move assertion
+against a same-seed unmasked twin; `createBCFHolder`'s message retired to
+basis vocabulary; the refusal-matrix leg count pinned at `18L` against the
+`LEG_COUNT` enum rather than left implicit; three hash-guarded header doc
+fixes, all of which survived the guard since comments and macros sit outside
+`DBARTS_C_API_LIST`: the `denseValues` doc now states the dense block spans
+`numColumns` columns (closing an OOB self-description gap in the comment
+itself), the thread contract now marks `predict`/`setTestPredictors`
+main-R-thread-only (both ride `R_alloc`), and `DBARTS_PREDICTOR_SOURCE_INIT`
+became the fully-named initializer recorded above; the `dbarts(forests=)`
+`tryCatch` relabel narrowed to rethrow an unrelated error with its original
+condition rather than relabelling every error it catches. Deviations
+adjudicated: (i) the probit `setActiveRows` arm ACCEPTS rather than refuses,
+against the plan's stale refusal arm - JUSTIFIED, every `ResponseModel`
+subclass now reports `supportsActiveRows` (measured at eight `model.hpp`
+sites; the plan predates `latent-subset-mask` S1-S3); (ii) scratch memory
+built on `R_alloc`/`vmaxget`/`vmaxset` rather than `unwindProtect` - ACCEPTED
+after a hard audit (longjmp-safe via the RCNTXT vmax restore, once per body,
+LIFO nesting, every consumer copies by value); (iii) F8 leg (i) cannot run
+failing-first, since the old entry never had a width parameter to invert, and
+leg (iv)'s negative half manifests as a downstream refusal rather than the
+OOB read it exists to prevent - accepted with the caveat recorded in the
+falsifier; (iv) F5's original weakened print leg REJECTED, which is what
+became blocker 1; (v) the relabel deviation accepted then narrowed further;
+(vi) the NEWS amplitude-pair edit accepted and completed by blocker 2's fix.
+F1 through F10 all green as shipped, and F1 was proven non-vacuous against a
+parent-commit install - bitwise across the boundary on every channel.
+
+x86 (dbarts-bench): full leg run at 3a977b6d - install clean, `tests/cpp`
+plain AND ASAN all-pass, tinytest 4563/0 with `test-capi.R` 179/0 driving
+`consumer.c` on x86-64 Linux, statistical equivalence 37/37 max |z| = 0.00;
+a shortened re-run at ab3aa2fa against identical engine binaries - install,
+`tests/cpp` plain, tinytest 4570/0, `test-capi.R` 186/0. The trio IDENTICAL
+on all three harnesses, a labelled formality for this arc (no equivalence
+scenario drives a single `dbarts_sampler_` entry point). CI six-green on the
+push.
+
+A5 observation, recorded rather than gated: `nTest` 2e4 x p 2000 at density
+0.01 - CSC predict and dense predict bitwise identical; caller storage 4.6 MB
+against 305 MB, process RSS 162 MB against 467 MB; wall clock sat below
+measurement resolution at that size, so the order-of-magnitude claim this arc
+carries is MEMORY, not time.
+
+Two plan-text notes from the reviewer, fixed in place at S1 item 1 above,
+cited here as review notes rather than restated: the item-1 rationale that
+`DBARTS_PREDICTOR_SOURCE_INIT` "initializes only the first member" was stale
+against the shipped fully-named macro; `DBARTS_RESULTS_INIT` and
+`DBARTS_FOREST_CALIBRATION_INIT` correctly keep the one-member form, both
+being consumer-side-only structs, and the asymmetry is now flagged rather
+than left to look like an oversight.
+
+Arc status: S0 landed a262cd26; item 9 (the R5 forest-index normalization)
+landed separately at a14040de; S1 LANDED ab3aa2fa. S2 (consumer rebuilds,
+docs and records) remains.

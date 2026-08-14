@@ -481,24 +481,19 @@ This is exactly the latents/tree.params/tree.masks conditional-required
 pattern already in setState (:3046-3078, :3104-3112), so NB adds no new
 machinery - it instantiates the registry rule.
 
-### Reserved: a future dbarts_sampler_setForestWeights (2026-08-10, not built)
+### Landed: dbarts_sampler_setForestWeights (dbarts-h-reshape S1, ab3aa2fa, 2026-08-13)
 
-docs/plans/zero-weight-exactness.md (S2) adds a caller-settable per-forest,
-per-observation weight to the engine (`Chain::setForestWeights`) and the
-bartcore bridge (`bartcore_setForestWeights`), `dbarts:::`-only - no
-`dbarts.h` symbol, because the flat API has no BCF creation entry point to
-reach it from (`dbarts_sampler_create` only ever routes to `createHolder`,
-never a BCF holder). Reserving the name and signature here so a later BCF
-creation entry does not collide with it:
-
-    X(int, dbarts_sampler_setForestWeights,
-      (dbarts_sampler*, size_t forest, const double* weights),
-      (sampler, forest, weights))
-
-appended at the END of the X-list (dbarts.h); no version constant moves when
-it lands (VD 2026-08-10: no increments pre-release - the constants stay 1.0
-until the first release). Three constraints recorded now so a later
-implementer does not relitigate them:
+**BUILT, at dbarts-h-reshape S1 (ab3aa2fa, implemented as 3a977b6d).** Was
+reserved 2026-08-10 (docs/plans/zero-weight-exactness.md S2 adding the
+`dbarts:::`-only engine and bridge halves, `Chain::setForestWeights` /
+`bartcore_setForestWeights`, with no `dbarts.h` symbol because the flat API
+then had no BCF creation entry point to reach it from). The flat entry
+shipped exactly to the reserved signature, appended at the END of the
+X-list (`dbarts.h`), body at `C_interface.cpp:837-854`: the capability probe
+on `shape.supportsForestWeights` runs FIRST, never a forest count, so a
+multinomial cannot slip through; `weights == NULL` clears. No version
+constant moved (`DBARTS_C_API_MAJOR`/`MINOR` stayed 1/0). The three
+constraints recorded at reservation time all held, unrelitigated:
 
 1. **Erratum (dbarts-h-reshape, 2026-08-10):** this reservation originally
    read "Nonzero return means refusal, matching `dbarts_sampler_setPredictor`".
@@ -527,21 +522,20 @@ S3 appended four entries at the END of the X-list - `dbarts_sampler_numForests`,
 has shipped). The three `int` entries return 1 = accepted, 0 = refused,
 matching `dbarts_sampler_setPredictor` and this reservation's own convention.
 
-**Reserved for the dbarts.h reshape, not built there:** forest-indexed
-`getTrees`, `printTrees`, `predict` and `numTrees` - today's tree-facing
-queries are forest-blind, ambiguous on a two-forest sampler
-(bcf-public-surface.md S3, "Coordination with the queued dbarts.h reshape";
-that section also named `setTreeStorage`, whose forest-indexed form the
-reshape plan since CLOSED BY FACT - storage is per sampler).
-`docs/plans/dbarts-h-reshape.md` S1 item 3 builds the three forest-indexed
-tree queries (`numTrees`, `getTrees`, `printTrees`); forest-indexed `predict`
-stays a recorded door there.
-That plan's S1 item 5b is a CONDITIONAL carve-out re-signing `setTreatment`/
-`bcfGlue` themselves to `setForestBasis`/`numForestAmplitudes`/
-`forestAmplitudes`, engine vocabulary, if
-`docs/plans/multiforest-extension-surface.md`'s fork 3 is answered before
-that slice starts (dbarts-h-reshape.md binding decision 3's carve-out);
-otherwise the BCF names S3 shipped go to release unchanged.
+**BUILT at dbarts-h-reshape S1 (ab3aa2fa, 2026-08-13):** forest-indexed
+`getTrees`, `printTrees` and `numTrees` - today's tree-facing queries were
+forest-blind, ambiguous on a two-forest sampler (bcf-public-surface.md S3,
+"Coordination with the queued dbarts.h reshape"; that section also named
+`setTreeStorage`, whose forest-indexed form the reshape plan CLOSED BY FACT -
+storage is per sampler). `dbarts-h-reshape.md` S1 item 3 built the three
+forest-indexed tree queries (`getTrees` C_interface.cpp:640-658, `printTrees`
+:660-690, `numTrees` :734-741), each carrying its own bridge range check;
+forest-indexed `predict` stays a recorded door there, unbuilt.
+That plan's S1 item 5b's carve-out RESOLVED unconditionally (fork 3 answered
+2026-08-11, multiforest-extension-surface.md): `setTreatment`/`bcfGlue`
+re-signed to `setForestBasis`/`numForestAmplitudes`/`forestAmplitudes`,
+engine vocabulary, landed as that plan's M3 - see its landing note for the
+message-vocabulary retirement that rode with the rename.
 
 ### No X-list change: multiforest-predictor-mutation (2026-08-10 to 08-12)
 
@@ -584,21 +578,16 @@ whenever the dbarts.h reshape scopes a flat multinomial creation entry:
    guard like this gets dropped by accident, widening a flat entry to silently
    accept a multi-forest sampler it was never exercised against.
 
-### Reserved: a future dbarts_sampler_setActiveRows (2026-08-13, not built)
+### Landed: dbarts_sampler_setActiveRows (dbarts-h-reshape S1, ab3aa2fa, 2026-08-13)
 
-docs/plans/latent-subset-mask.md adds a per-observation 0/1 active-row mask
-to the engine, the `dbarts:::` bridge (`bartcore_setActiveRows`), and a
-`dbartsSampler$setActiveRows` R5 method; it carries the flat entry to this
-plan's dbarts.h reshape (S1), not to its own slices, so it has landed
-`dbarts:::`-only through S3. Reserving the name and signature here so the
-reshape does not have to relitigate them:
-
-    X(int, dbarts_sampler_setActiveRows,
-      (dbarts_sampler* sampler, const double* active), (sampler, active))
-
-appended at the END of the X-list; no version constant moves when it lands
-(pre-release: the constants stay 1.0 until the first release). Two
-constraints recorded now:
+**BUILT, at dbarts-h-reshape S1 (ab3aa2fa, implemented as 3a977b6d).** Was
+reserved 2026-08-13 (docs/plans/latent-subset-mask.md adding the
+per-observation 0/1 active-row mask to the engine, the `dbarts:::` bridge
+`bartcore_setActiveRows`, and a `dbartsSampler$setActiveRows` R5 method, all
+landed through that arc's S4, `dbarts:::`-only until this slice). The flat
+entry shipped exactly to the reserved signature, appended at the END of the
+X-list, body at `C_interface.cpp:901-910`. Two constraints recorded at
+reservation time both held:
 
 1. **Ownership: the entry RETAINS NOTHING.** `active`'s values are consumed
    into the sampler's own buffer during the call and the caller's array is
@@ -616,6 +605,33 @@ Reachable for gaussian, Student-t, probit, logistic, aft, ordinal and
 nbinom - the families `dbarts_sampler_create` builds by name; multinomial
 and BCF have no flat creation path, so their masking stays `dbarts:::`-only,
 as `bartcore_setCounts` and `bartcore_setForestWeights` already are.
+
+### Landed: the calibration flat surface (dbarts-h-reshape S1, ab3aa2fa, 2026-08-13)
+
+Not previously reserved in this file - the signature was frozen instead in
+`docs/plans/dbarts-h-reshape.md` S1 items 7-8 (`docs/plans/nameable-calibration.md`
+S0, 4c866286) - so this entry records what landed rather than closing a prior
+reservation. Two X-list entries appended at the END of the list:
+
+    X(int, dbarts_sampler_forestCalibration,
+      (const dbarts_sampler* sampler, size_t forest,
+       dbarts_forest_calibration* out), (sampler, forest, out))
+    X(int, dbarts_sampler_setForestPriorScale,
+      (dbarts_sampler* sampler, size_t forest, double priorScale),
+      (sampler, forest, priorScale))
+
+plus the `dbarts_forest_calibration` output POD and the `dbarts_leaf_model`
+enum, both size-first and both consumer-side-only (they keep the
+one-member `DBARTS_FOREST_CALIBRATION_INIT` form, unlike
+`DBARTS_PREDICTOR_SOURCE_INIT` above, which the library itself constructs
+through `dbarts_dense_predictor_source` - see dbarts-h-reshape.md's fixed
+item-1 note). Bodies at `C_interface.cpp:856-887` (getter) and `:889-899`
+(setter): TWO error channels throughout, a capability answer (an
+out-of-range forest, or a combiner-owned calibration on BCF/multinomial)
+returns 0 touching nothing, a malformed `priorScale` raises. The engine
+bounds check this arc's own S2 landing note carried forward (`Chain::
+forestCalibration` reading past the last forest) shipped alongside, at
+`chain.hpp:985`. No version constant moved.
 
 ## Verification
 

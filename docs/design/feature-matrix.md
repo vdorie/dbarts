@@ -1,6 +1,6 @@
 # Response-model feature matrix
 
-Status: living reference, current at a14040de (2026-08-13). Carries no landing
+Status: living reference, current at ab3aa2fa (2026-08-13). Carries no landing
 date and is not a design proposal - the orchestrator updates it in place at
 every landing that changes a cell, and VD uses it to schedule feature
 completion.
@@ -22,7 +22,8 @@ guessed.
 | `-` | N/A. The concept does not apply to this row; the row footnote says why. |
 | `?` | UNVERIFIED. Constructs today with no refusal site, but no test, doc or adjudication backs it. Do not schedule against the cell until it is settled; every `?` is listed under "Gaps". |
 
-Path aliases used in anchors (line numbers are at a14040de):
+Path aliases used in anchors (line numbers are at ab3aa2fa unless the cell or
+footnote says otherwise):
 
     RIB   src/R_interface_bartcore.cpp      CAPI  inst/include/dbarts/dbarts.h
     MOD   src/bartcore/model.hpp            CH    src/bartcore/chain.hpp
@@ -325,18 +326,25 @@ still reporting a simplex) and the `setForestWeights` model-grounds refusal
 (man/dbartsSampler-class.Rd), NEWS (inst/NEWS.Rd), a named recipe
 (man/bart.Rd), the dbarts.h reservation (docs/plans/c-api-growth.md),
 two new equivalence.R scenarios (maskprobit, maskordinal) and one
-bcf-equivalence.R scenario (masked, pinning BCF - see [f26]). ARC
-COMPLETE; what remains is the flat-C entry, which rides the dbarts.h
-reshape's S1.
+bcf-equivalence.R scenario (masked, pinning BCF - see [f26]). The
+flat-C entry, `dbarts_sampler_setActiveRows`, LANDED at dbarts-h-reshape
+S1 (ab3aa2fa, 2026-08-13; body `C_interface.cpp:901-910`): the
+capability probe on `shape.supportsActiveRows` runs first and never
+switches on family, so a probit sampler is reachable from C too - an
+amend over this section's own proposed probit refusal, since every
+`ResponseModel` subclass now reports `supportsActiveRows`
+(`inst/tinytest/test-capi.R:987-1026` pins a genuine mask, an all-ones
+no-op, a fractional refusal, a NULL clear, and a probit mask moving
+draws). ARC FULLY COMPLETE, R and flat C alike.
 
-[f16] Arc `nameable-calibration` (TODO:279), design AMENDED FINAL, LANDED
-through S2; artifacts .claude/nameable-calibration-design/. Names the
+[f16] Arc `nameable-calibration` (TODO:279), design AMENDED FINAL, ARC
+COMPLETE; artifacts .claude/nameable-calibration-design/. Names the
 per-forest prior ANCHOR (`prior.scale`, the forest-total prior scale at k = 1,
 in response units) rather than an sd, with a `$getCalibration` /
 `$setCalibration` pair. Slices: **S0** signature freeze, LANDED 4c866286;
 **S1** creation half, LANDED c2a7e89b; **S2** mid-chain get/set, LANDED
-d809b944 (+ a records correction, 7da36dc3); **S3** the flat-C half, executed
-inside the dbarts.h reshape's S1. The R surface is now COMPLETE:
+d809b944 (+ a records correction, 7da36dc3); **S3** the flat-C half, LANDED
+inside dbarts-h-reshape S1 (ab3aa2fa). The R surface was already COMPLETE:
 `$getCalibration`/`$setCalibration` read and write every chain of any
 single-forest sampler, with a 1-based `forest` arg (`resolveForestIndex`,
 bartcore.R:1051) mapped onto the engine's 0-based one. S1 names the model's
@@ -376,10 +384,16 @@ rounding cell, `m = 25` at `P = 0.25`, so the tolerance is exercised rather
 than merely permitted; plus the refusal matrix, every mutation channel the
 reported value must not surprise on, and the save/load round trip), and a
 component test at the engine boundary (`testForestCalibration`,
-tests/cpp/test_sampler.cpp:4300). What remains is **S3**: the flat C entries
-(`inst/include/dbarts/dbarts.h`) - the R-user-facing capability above is
-already `S`, since the flat-C gap does not gate a `dbartsSampler` caller -
-riding the dbarts.h reshape's S1, with signatures frozen since S0.
+tests/cpp/test_sampler.cpp:4646). **S3**, the flat C entries
+(`dbarts_sampler_forestCalibration`/`setForestPriorScale`,
+`inst/include/dbarts/dbarts.h`), LANDED at dbarts-h-reshape S1 (ab3aa2fa,
+2026-08-13) - the R-user-facing capability above was already `S` before S3,
+since the flat-C gap never gated a `dbartsSampler` caller; S3 closes the
+flat-C gap itself, with the two carried items from S2 shipping alongside:
+the engine bounds check on `Chain::forestCalibration` (`chain.hpp:985`,
+returning a default-constructed calibration rather than reading past the
+last forest) and the `refuseBCFMutation` reorder in `$setCalibration`
+(`dbarts.R:1469-1489`, argument validation before the BCF refusal).
 
 [f17] Zero weights are accepted, not refused (A_class.R:572-576 errors only
 below zero and warns that zeros are ignored; bridge RIB:4557). The conditionals
@@ -722,11 +736,12 @@ undocumented in the header ([f3]). Out of the SBC matrix, deferred not blocked
 ([f47]). One recorded unbuilt door from its own arc: the `setState` variance
 column-mask gap (variance-forest-mutation-routing.md:499-500).
 
-**Cross-cutting.** `nameable-calibration` is now R-SIDE COMPLETE, both halves
-LANDED (S0 4c866286, S1 c2a7e89b, S2 d809b944 + 7da36dc3) - what remains is
-S3, the flat-C entries, which rides the dbarts.h reshape's S1 and does not
-gate any `dbartsSampler` caller. `latent-subset-mask` is ARC COMPLETE (S0
-dc11a805, S1 6db22aee, S2 87d370ea, S3 8b047f8b, S4 93afd635) - the mask
-covers every response family and every R-facing surface; what remains is the
-flat-C entry, which rides the dbarts.h reshape's S1, same as
-`nameable-calibration` S3; table 3 now carries no `P` cell.
+**Cross-cutting.** `nameable-calibration` is ARC COMPLETE, all four slices
+LANDED (S0 4c866286, S1 c2a7e89b, S2 d809b944 + 7da36dc3, S3 at
+dbarts-h-reshape S1, ab3aa2fa) - the flat-C entries shipped and gate nothing
+further; the R surface was already complete before S3, since the flat-C gap
+never gated a `dbartsSampler` caller. `latent-subset-mask` is likewise ARC
+FULLY COMPLETE (S0 dc11a805, S1 6db22aee, S2 87d370ea, S3 8b047f8b, S4
+93afd635, flat-C entry at dbarts-h-reshape S1, ab3aa2fa) - the mask covers
+every response family and every surface, R and flat C alike; table 3 now
+carries no `P` cell.
