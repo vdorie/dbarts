@@ -555,7 +555,10 @@ This is what the declarative recommendation rides. It is one channel, distinct
 from the precision channel, and it contains BCF exactly.
 
 **Model.** Each forest f carries a per-forest basis matrix `B_f` (n x q_f,
-column-major) and a coefficient vector `a_f` of length q_f. The mean is
+ROW-major - corrected 2026-08-14 at M4.5; this line said column-major, and the
+shipped contract is row-major at every layer, `combiner.hpp:380-384` and
+`dbarts.h:707-712`, M4.3 item 5 having resolved the transpose in the doc
+direction) and a coefficient vector `a_f` of length q_f. The mean is
 
     E[y_i] = sum_f ( sum_k a_{f,k} B_f[i,k] ) f_f(x_i)
 

@@ -22,8 +22,8 @@ guessed.
 | `-` | N/A. The concept does not apply to this row; the row footnote says why. |
 | `?` | UNVERIFIED. Constructs today with no refusal site, but no test, doc or adjudication backs it. Do not schedule against the cell until it is settled; every `?` is listed under "Gaps". |
 
-Path aliases used in anchors (line numbers are at ab3aa2fa unless the cell or
-footnote says otherwise):
+Path aliases used in anchors (line numbers are at ab3aa2fa EXCEPT where a cell
+or footnote says otherwise):
 
     RIB   src/R_interface_bartcore.cpp      CAPI  inst/include/dbarts/dbarts.h
     MOD   src/bartcore/model.hpp            CH    src/bartcore/chain.hpp
@@ -32,6 +32,17 @@ footnote says otherwise):
     bart.R, dbarts.R, spec.R, rbart.R, xbart.R, data.R, generics.R,
     A_class.R, bartcore.R      -> R/<name>
     sampler.Rd -> man/dbartsSampler-class.Rd     bart.Rd -> man/bart.Rd
+
+Exception on record, 2026-08-14 (multiforest-extension-surface M4.5). M4.1-M4.3
+moved `src/bartcore/combiner.hpp` substantially. Four anchors were re-verified
+BY SYMBOL and now date to M4.5's own tree (which itself moves `combiner.hpp` by
+one comment line, so they are NOT 54e114ff numbers): the `bcf` row LABEL, the
+two `bcf` x response/offset cells in section 2, the `bcf` zero-weight-subset
+cell in section 3, and the `multinom` active-rows cell in section 3. NO other
+anchor in this file was re-checked in that pass, and the Status line's "current
+at" commit is deliberately NOT bumped, since that stamp would claim a
+whole-file verification that did not happen. A full by-symbol re-anchor pass is
+outstanding (root TODO `feature-matrix-anchor-refresh`).
 
 ## Rows
 
@@ -51,7 +62,7 @@ and schedules against the same way, so they earn rows.
 | aft | AFT survival, log-normal (`AFTResponse` MOD:3713) |
 | hazard | Discrete-time hazard (person-period sugar, dbarts.R:435-484) |
 | hurdle | Hurdle / two-part semicontinuous (R-side composition, bart.R:1958) |
-| bcf | Bayesian causal forest, two forests (`BCFForestCombiner` COM:518) |
+| bcf | K-forest amplitude family, bcf's two forests being its K = 2 instance (`BCFForestCombiner` COM:685) |
 | grouped | Grouped random intercepts (`GroupedResponse` MOD:4624) |
 | hetero | Heteroscedastic variance forest (CH:679) |
 
@@ -105,7 +116,7 @@ it rides on.
 | aft | S MOD:3788 | S MOD:3801 | S MOD:3801 | S RIB:4707 | R RIB:1610 | S RIB:2674 | S RIB:4402 |
 | hazard | S MOD:3050 [f6] | S MOD:3056 | - [f9] | S RIB:4707 | R RIB:1610 | R RIB:2676 | S RIB:4402 |
 | hurdle | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] |
-| bcf | S COM:733 | S COM:733 | R bartcore.R:285 | S RIB:4707, 4863 | S RIB:4549 | S RIB:4325 | R RIB:2650 |
+| bcf | S COM:963 | S COM:963 | R bartcore.R:285 | S RIB:4707, 4863 | S RIB:4549 | S RIB:4325 | R RIB:2650 |
 | grouped | R RIB:4309 [f13] | S MOD:4718 | S MOD:4718 | S RIB:4707 | S MOD:4732 [f14] | S RIB:2674 [f14] | S RIB:4402 |
 | hetero | S RIB:2581 | S RIB:2581 | R RIB:2581 | S RIB:4707, 4863 | S RIB:2577 | R RIB:2672 | S RIB:4402 |
 
@@ -124,11 +135,11 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | logistic | R RIB:1585 [f20] | S MOD:3476 | S MOD:3550 | S generics.R:59 | S dbarts.R:1434, 1439 [f16] |
 | ordinal | R RIB:2455 | S MOD:3172 | S MOD:3217 | M generics.R:86 | S dbarts.R:1434, 1439 [f16] |
 | nbinom | R RIB:2461 | S MOD:4304 | S MOD:4357 | M generics.R:86 | S dbarts.R:1434, 1439 [f16] |
-| multinom | R RIB:2990 | S COM:936 [f21] | M MOD:3635 [f22] | M generics.R:86 | R [f23] |
+| multinom | R RIB:2990 | S COM:1581 [f21] | M MOD:3635 [f22] | M generics.R:86 | R [f23] |
 | aft | R RIB:2451 | S MOD:3770 | S MOD:3831 | S generics.R:64 | S dbarts.R:1434, 1439 [f16] |
 | hazard | R RIB:1581 [f6] | S MOD:3040 [f6] | S MOD:3076 | S generics.R:59 [f24] | S dbarts.R:1434, 1439 [f6] |
 | hurdle | R bart.R:944 | - [f12] | - [f12] | M generics.R:86 [f25] | - [f12] |
-| bcf | S COM:722-733 [f17] | S MOD:2814, CH:1160 [f26] | - [f18] | M generics.R:86 | R [f23] |
+| bcf | S COM:787, 823-827 [f17] | S MOD:2814, CH:1160 [f26] | - [f18] | M generics.R:86 | R [f23] |
 | grouped | S MOD:4587-4609 | S MOD:4743 [f27] | S MOD:4752 | S generics.R:1396 | S MOD:4774 [f27] |
 | hetero | S CH:3615, MOD:306 | S CH:3611 [f27] | - [f18] | ? generics.R:48 [f28] | S test-calibration-prior-draws.R:251 [f29] |
 
@@ -168,7 +179,7 @@ reads "constant leaf" in that column.
 | aft | `grouped_aft` only [f44] | OUT [f45] | test-aft.R, test-rbart-aft.R |
 | hazard | `hazard` | OUT [f45] | test-hazard.R only |
 | hurdle | `hurdle` | OUT [f45] | test-hurdle.R, test-hurdle-surface.R |
-| bcf | 11 scenarios, own harness | PASS [f46] | 6 (test-bcf*.R) |
+| bcf | 12 scenarios, own harness | PASS [f46] | 6 (test-bcf*.R) |
 | grouped | `grouped`, `grouped_aft` | PASS (tier A) | 14 (test-rbart-*.R) |
 | hetero | `hetforce`, `hetswap`, `hetpartial` | OUT [f47] | test-heteroscedastic.R, -mutation.R |
 
@@ -298,7 +309,7 @@ independence arm of its own beside the kernel-level coverage. S3 landed at
 rather than the response, which holds no precisions of its own -
 `MultinomialResponse::setActiveRows` (MOD:3671) is a pass-through that only
 advertises the capability (MOD:3670), and `Chain::setActiveRows` forwards the
-mask to `MultinomialForestCombiner::setActiveRows` (COM:936) after the
+mask to `MultinomialForestCombiner::setActiveRows` (COM:1581) after the
 response's own install (`ForestCombiner::setActiveRows` COM:486 is the inert
 default every additive coupling relies on instead). An inactive row's K
 interleaved Polya-Gamma draws are SKIPPED, not drawn and discarded, in
@@ -432,7 +443,7 @@ rather than the response, which holds no precisions of its own to compose a
 mask into: `MultinomialResponse::setActiveRows` (MOD:3671) is a pass-through
 that only advertises the capability (`supportsActiveRows` MOD:3670), and
 `Chain::setActiveRows` forwards the mask to
-`MultinomialForestCombiner::setActiveRows` (COM:936) after the response's own
+`MultinomialForestCombiner::setActiveRows` (COM:1581) after the response's own
 install. An inactive row's K interleaved Polya-Gamma draws are SKIPPED rather
 than drawn and discarded, in `drawForestGlue` (COM:1007), and its composed
 precision is zeroed in every category in `formForestResponse`

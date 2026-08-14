@@ -2,7 +2,10 @@
 
 Status: COMPLETE as a survey, 2026-08-08; D1 (section 4) subsequently LANDED
 2026-08-10 through 2026-08-12 (docs/plans/multiforest-predictor-mutation.md,
-SL 7299b8b through S4) - see the landing note appended to section 4. Research
+SL 7299b8b through S4) - see the landing note appended to section 4; D4
+(section 4, the general per-forest multiplier channel) ADDED and CLOSED
+2026-08-14 (docs/plans/multiforest-extension-surface.md M4.0-M4.3), carrying
+the four model classes the survey lacked as multiplier classes. Research
 only - no code changed. Run
 as the research gate VD placed in front of the two multi-forest update-shape
 doors (TODO `multiforest-mutation-gaps`; docs/plans/runsbcbcf-repair.md "setData
@@ -105,11 +108,16 @@ posterior df counts only positive-weight rows. "Exact exclusion" as a
 *likelihood* concept is served. What is not served is exclusion of a row from
 *one forest of a coupled model*, and the O(|S|) cost that would come with it.
 
-**The BCF near-exclusion is a floor, not a zero.** `formForestResponse` divides
-the residual by the forest multiplier and floors |m| at 1e-9
-(combiner.hpp:457-473), so a b0 = 0 control row enters tau's suffstats with
-weight ~1e-18 and response ~1e9 x resid. Effective, not exact - and tau still
-pays O(n) per sweep.
+**The BCF near-exclusion was a floor, not a zero - CORRECTED, it is now an
+exact zero.** As surveyed, `formForestResponse` divided the residual by the
+forest multiplier and floored |m| at 1e-9, so a b0 = 0 control row entered
+tau's suffstats with weight ~1e-18 and response ~1e9 x resid: effective, not
+exact. The floor was REPLACED by an exact-zero snap at `0x1p-26` on 2026-08-10
+(combiner.hpp:787, applied :823-827; docs/plans/zero-weight-exactness.md), the
+shipment door 2's own update below records at "Update, 2026-08-10". A snapped
+row now leaves with exactly zero weight and exactly zero response. What the
+snap does NOT change is the cost: tau still pays O(n) per sweep, which is the
+half of this paragraph that door 2 rests on.
 
 ---
 
@@ -209,9 +217,10 @@ away under checking, and this is the survey's largest correction:
   lists it among door 2's four. The pinned record is right and the memo was
   wrong here: that class **runs today** at fixed n via the fixed glue
   (a = 1, b0 = 0, b1 = 1) plus per-iteration `setTreatment`
-  (docs/plans/runsbcbcf-repair.md). Its residual is **efficiency** - exact
-  exclusion instead of the 1e-9 floor, and O(treated) rather than O(n) tau cost -
-  not mutability.
+  (docs/plans/runsbcbcf-repair.md). Its residual is **efficiency** - O(treated)
+  rather than O(n) tau cost - not mutability. (As written this also claimed
+  "exact exclusion instead of the 1e-9 floor"; the floor became an exact zero on
+  2026-08-10, so only the cost half survives. See section 2.)
 - The IV/CACE "neighbour" cited as support has **no compliance classes at all**
   (no principal strata, no latent classes; it is a two-equation continuous-exposure
   IV with correlated errors, both ensembles on all n rows). Citation **dropped**
@@ -232,11 +241,13 @@ class is efficiency, not mutability.
    win only materializes where kernels iterate an index list rather than test a
    flag. Cannot give the subset forest its own cut grid.
 2. **Per-forest ZERO WEIGHT.** Excluded rows get weight 0 in that forest's
-   `ForestResponse`. By far the cheapest: the BCF combiner already forms a
-   per-forest weight vector every sweep (combiner.hpp:457-473) and would need
-   only an exact-zero path in place of the 1e-9 multiplier floor, plus a caller-
-   settable per-forest weight. Exact exclusion from the leaf conditionals and the
-   sigma df is an already-solved semantic (docs/plans/sigma-df-zero-weights.md).
+   `ForestResponse`. By far the cheapest, and SHIPPED since this was written
+   (2026-08-10; see the update below): the combiner already formed a per-forest
+   weight vector every sweep (now combiner.hpp:815-835) and needed only an
+   exact-zero path in place of the then-live 1e-9 multiplier floor, plus a
+   caller-settable per-forest weight. Both landed. Exact exclusion from the leaf
+   conditionals and the sigma df is an already-solved semantic
+   (docs/plans/sigma-df-zero-weights.md).
    This is the shape the surviving zero-inflation construction actually uses.
    Does **not** buy the O(|S|) cost reduction - the forest still pays O(n).
 3. **Physical COMPACTION.** The subset forest holds a gathered |S|-row view,
@@ -262,10 +273,11 @@ costs are not the same.
 
 *A finding in its own right: the two interested classes may want different
 shapes.* The cure model wants (3) or (1) - it needs the cost reduction and
-possibly a subset-specific grid. The latent-treatment sensitivity class wants
-(2) - exactness against the 1e-9 floor - and would take the cost reduction as a
-bonus. A design pass must decide whether one mechanism serves both or whether
-(2) ships alone as the cheap exactness fix.
+possibly a subset-specific grid. The latent-treatment sensitivity class wanted
+(2) - exactness against the then-live 1e-9 floor - and would take the cost
+reduction as a bonus. That last question is ANSWERED: (2) DID ship alone, on
+2026-08-10, as the cheap exactness fix, leaving the cost reduction and the
+one-mechanism-or-two question open for (1) and (3).
 
 *What would settle the shape,* in the order that decides the most per unit cost:
 
@@ -441,6 +453,79 @@ reporting (S4, 1df9c0c) followed; `treatment =`/`moderators =`/
 
 **This conditioned every BCF verdict above; it no longer does** - door 1,
 door 2, and D1 all now have a public creation route to be consumed through.
+
+### D4. The general per-forest multiplier (basis/amplitude) channel - CLOSED (2026-08-13 to 2026-08-14)
+
+The channel: each forest carries its own n x q_f row-major basis `B_f` and its
+own length-q_f amplitude vector `a_f`, and enters the mean scaled by the
+contraction of the two,
+
+    E[y_i] = sum_f m_{f,i} f_f(x_i),   m_{f,i} = dot(a_f, B_f(i, .))
+
+so a MODEL is a choice of basis columns per forest. bcf is the K = 2 instance
+(an intercept basis with free amplitude `a`; the two-column indicator basis
+`(1 - z, z)` with amplitudes `(b0, b1)`). The mechanism, its conditionals, its
+mutation and persistence contracts and its bitwise contracts are
+docs/design/multiplier-combiner.md; the arc is
+docs/plans/multiforest-extension-surface.md M4. **Gaussian responses only** -
+the creation surface refuses a basis off gaussian (R/spec.R:423-431) and the
+K-forest chain builds `GaussianResponse` unconditionally (chain.hpp:702-705) -
+so every class below is expressible only for a continuous outcome until M4.4.
+
+The survey already carried BCF itself (section 2, ledger below). The four
+classes it did NOT carry, each a different basis, are:
+
+- **Continuous / dose-response exposure BCF** (Woody, Carvalho, Hahn, Murray).
+  bcf's shape with a CONTINUOUS exposure: forest 1 takes the single column `z`
+  instead of the two-level indicator, so the treatment forest's contribution
+  scales linearly in dose. **Evidence status, stated on its own because it does
+  not meet this survey's standard: the only source is UNPUBLISHED** -
+  arXiv:2007.09845, v1 only, no journal reference. Not merely venue-unverified;
+  there is no venue. Recorded here because the phrase this section executes
+  ("the four VERIFIED classes it lacks",
+  docs/plans/multiforest-extension-surface.md M4.5) called it verified, and the
+  plan's own later corrected-citations pass (:488-493) downgraded it. Neither
+  claim is left standing silently: the class is written, and it is written as
+  unverified. dbarts expresses it TODAY - a one-column continuous basis is a
+  legal `forest(basis = )` and the canonical predicate routes it onto the
+  general amplitude conditional by VALUE, which is exactly the case
+  `drawShippedGlue` must not see (combiner.hpp:896-902).
+- **VCBART** (Deshpande, Bai, Balocchi, Starling, Weiss), Bayesian Analysis
+  21(1):281-308, 2026. Varying coefficients: forest j carries the single column
+  `X_j`, so `E[y_i] = sum_j beta_j(x_i) X_ij` with each `beta_j` its own
+  ensemble. **The structure matches; the MCMC does not.** VCBART has NO
+  amplitude - its leaf jumps are `N(0, tau_j^2)` with `tau_j` a FIXED
+  hyperparameter, never sampled (plan :488-493) - so dbarts expresses the model
+  shape with an amplitude the original does not draw, which under this survey's
+  own "a model's structure is not its MCMC" rule (section 1) is a different
+  sampler, not a port. Holding a forest's amplitude fixed is one knob
+  (`updateAmplitude = false`), so the exact reduction is reachable.
+- **Heterogeneous mediation** (Ting, Linero), JASA 120(551):1400-1413, 2025,
+  doi:10.1080/01621459.2025.2491155. Forests carrying columns `1`, the
+  treatment `a`, and the OBSERVED mediator `m`, which decomposes the effect into
+  direct and mediated parts. Paper verified at its published venue. Expressible
+  today as a three-forest `forests = list(...)` spec; the mediator column is
+  data, so nothing about it needs a mutation channel.
+- **Principal stratification with BCF** (Kim, Zigler), Biometrics 81(1) article
+  ujaf024, 2025. Forests carrying the column `a_i`. **PRESENT in this survey,
+  but only as its other half:** section 3 door 2 records that the imputed
+  strata enter the outcome ensemble as SPLITTING COVARIATES and routes that half
+  to D1 (`:196-204`, `:354-355`), which was and remains the right routing for
+  it. What was unrecorded is the MULTIPLIER half - the arm indicator entering as
+  a basis column rather than as a split variable. Both halves are the same
+  paper; neither subsumes the other, and the D1 entry is not duplicated here.
+
+**CLOSED.** The channel shipped across M4.0 (562ee684, pins), M4.1 (1458328c +
+e48fc5de, the multiplier generalization), M4.2 (1a2aaedc, the q-variate
+amplitude conditional and the one general ASIS rescale) and M4.3 (9c63e9d8, the
+K-length spec surface, the sole mutation route, and `data@bases`), with the
+landing records at e7708b7c and 54e114ff. It is reachable from the PUBLIC R
+surface at any K through `dbarts(..., forests = list(forest(basis = ...)))`,
+from the R5 sampler through `$setForestBasis`/`$getForestAmplitudes`, and from
+the flat C API through `dbarts_sampler_setForestBasis` and the ragged amplitude
+pair. What it does NOT reach is any non-Gaussian family (M4.4), the test
+surface, and nameable per-forest leaf calibration - the calibration map owns
+that on every combining sampler.
 
 ---
 
@@ -628,7 +713,10 @@ latent classes, and so supported nothing that survives.
   [verified: https://projecteuclid.org/journals/bayesian-analysis/volume-15/issue-3/Bayesian-Regression-Tree-Models-for-Causal-Inference--Regularization-Confounding/10.1214/19-BA1195.full]
 - Dorie, Harada, Carnegie, Hill (2016), Statistics in Medicine - treatSens
   [verified: https://pubmed.ncbi.nlm.nih.gov/27139250/]
-- Bayesian nonparametric trees for principal causal effects
+- Kim, Zigler - Bayesian nonparametric trees for principal causal effects;
+  Biometrics 81(1), article ujaf024, 2025, doi:10.1093/biomtc/ujaf024 (venue
+  added 2026-08-14 from the extension-surface plan's corrected-citations pass,
+  :483-484; this entry was previously venue-less)
   [verified: https://arxiv.org/abs/2403.13256; code https://github.com/lit777/BPCF]
 - Sun, Song, Bayesian Analysis 20(2) 345-373 - tree-based Bayesian AFT cure model
   [verified: https://projecteuclid.org/journals/bayesian-analysis/advance-publication/A-Tree-based-Bayesian-Accelerated-Failure-Time-Cure-Model-for/10.1214/23-BA1402.pdf
@@ -674,6 +762,26 @@ latent classes, and so supported nothing that survives.
   [verified: https://arxiv.org/abs/1803.04559]
 - ANOVA-BART - functional ANOVA decomposition for BART
   [verified: https://arxiv.org/abs/2509.03317]
+
+**Added 2026-08-14 with section 4's D4.** These three were verified by the
+extension-surface plan's corrected-citations pass
+(docs/plans/multiforest-extension-surface.md:483-493), NOT by a fresh fetch in
+this file. Distinguishing the two is the point of this ledger, so it is stated
+rather than blurred.
+
+- Woody, Carvalho, Hahn, Murray (arXiv:2007.09845) - continuous /
+  dose-response exposure BCF. **UNPUBLISHED: v1 only, no journal reference.**
+  It does NOT meet this file's verification standard, and it is the SOLE source
+  for D4's continuous-multiplier class - which the extension-surface plan
+  called "verified" before its own later pass downgraded it (:488-493). Kept as
+  a named class with an unverified source, rather than dropped or relabelled.
+- Deshpande, Bai, Balocchi, Starling, Weiss - VCBART, varying-coefficient BART;
+  Bayesian Analysis 21(1):281-308, 2026 (the 2024-10-04 date is the advance
+  publication). Structure verified; the MCMC differs - its leaf jumps are
+  N(0, tau_j^2) with tau_j a FIXED hyperparameter, never sampled, so the model
+  carries no amplitude at all.
+- Ting, Linero - heterogeneous mediation with BART; JASA 120(551):1400-1413,
+  2025, doi:10.1080/01621459.2025.2491155.
 
 **Verified as a negative (searched, not found):** any BART or BCF model that
 maintains a single fit across an accruing sample; any online/streaming *additive
