@@ -1672,7 +1672,12 @@ in FA1 and FA5 below ARE the record.
   at the end of this slice discharges both entry preconditions (the
   interaction spec, the test re-price), supersedes the tests paragraph and the
   M4.2 handoff item below, and its anchor list corrects every stale
-  `combiner.hpp` citation in this section.
+  `combiner.hpp` citation in this section. **M4.3 LANDED 9c63e9d8, and
+  everything in this bullet is the PRE-SLICE record** - written against
+  `2e538430`/`e7708b7c`, true then, not retro-edited since. The landing note at
+  the end of this file is what is current, and where M4.4's section 4 (every
+  anchor re-derived by symbol at `efec6ba2`) disagrees with anything here,
+  section 4 governs.
 
   **Already shipped, strike it from the slice:** the public creation route
   `forests = list(forest(...))` with the complete ten-knob map (M2), so M4.3
@@ -2153,9 +2158,9 @@ in FA1 and FA5 below ARE the record.
   - **Engine-band arithmetic, recorded AS ARITHMETIC and not as a verdict.**
     The engine band is ~500-700 with ~228 consumed (M4.1 +48, M4.2 ~180);
     M4.3 at ~250-300 puts it at ~478-528, leaving ~172-222. **M4.4's engine
-    work is UNPRICED** - its bullet enumerates five sites and no line count -
-    so **M4.4's pre-slice check MUST price it**. Whether the band holds is the
-    question that check answers; there is no breach to record today.
+    work was UNPRICED here; it is PRICED in M4.4's own bullet** (49-82 dense,
+    stop 123, against ~393 actually consumed through M4.5), and the band
+    holds at the stop. There is no breach to record.
 
   **8. Erratum: the consumed tests band is ~797, not ~732** - M4.0 ~348 +
   M4.1 ~98 + M4.2 ~351 (M4.2's own landing note reads "tests ~351", i.e.
@@ -2195,30 +2200,66 @@ in FA1 and FA5 below ARE the record.
   `amplitudes[3]` `:3673` -> `:3675` and the stride-3 alloc `:3769-3772` ->
   `:3771-3774`; the state write `:5812-5818` -> `:5814-5820` and read
   `:6163-6167` -> `:6165-6169`; `R/spec.R`'s control attribute `:466-486` ->
-  `:467-483`. `BCFForestSpec` `:211-241` is UNCHANGED, as are every `R/model.R`
-  site, every other `R/spec.R` site, `R/data.R:643-655`, `R/dbarts.R:1218-1223`
-  and `:1237`, `R/bartcore.R:18-22`, `:30-34`, `:285`, `:306`, `:383`, `:622`,
-  `:1051`, `R/dbarts.R:1044`, `:1484`, `:1442-1446`, all three
-  `C_interface.cpp` `amplitudes[3]` buffers and its guard bodies,
+  `:467-483`. UNCHANGED **AT e7708b7c, WHICH IS ALL THIS LIST EVER CLAIMED** -
+  M4.3 and M4.5 have landed since and moved several R-side entries (`R/data.R`'s
+  `validateTreatment` is GONE outright), so read it as a stamp and not as
+  current: `BCFForestSpec` `:211-241`, every `R/model.R` site, every other
+  `R/spec.R` site, `R/data.R:643-655`, `R/bartcore.R:18-22`, `:30-34`, `:285`,
+  `:306`, `:383`, `:622`, `:1051`, `R/dbarts.R:1044`, `:1484`, `:1442-1446`,
+  all three `C_interface.cpp` `amplitudes[3]` buffers and its guard bodies,
   `facade.hpp:274`/`:315`/`:750`, `sampler.hpp:1242-1244`,
   `R_interface_bartcore.cpp:1112`, `:2134-2135`, `:2138-2148`, `:4098-4102`.
+  The two entries M4.4 reaches are corrected here rather than left to it:
+  `$setForestBasis` `R/dbarts.R:1218-1223` is now DEFINED at `:1223` with its
+  body to `:1261`, and its `index != 1L` refusal is GONE - M4.3 removed it, and
+  the docstring at `:1224` reads "at any forest and any width"; its `:1237`
+  single-slot `data@treatment` mirror is now the `data@bases` mirror at `:1245`.
 - **M4.4 (non-Gaussian, the family's justification).** Wire the family enum
   through the K-forest constructor and define the calibration map against each
-  family's latent scale; probit and logistic in v1, the rest doors. **The
-  family gate is FOUR sites, not one** (amended 2026-08-13): `R/spec.R:412-419`
-  ("a treatment forest requires a continuous (gaussian) response"), bridge
-  `:2222-2223` and `:2925-2926`, and `chain.hpp:704` (`family_ =
-  ResponseFamily::gaussian`, with `GaussianResponse` hardcoded at `:702-704`
-  and the calibration map at `:716-719`). `model.hpp:2523`'s
-  `enum class ResponseFamily` is only the LAST gate. `facade.hpp:750-762`
-  `createBCFSampler`'s single `SamplerFacade<ConstantGaussianLeaf>`
-  instantiation is the fifth place the assumption is baked in. **This slice's
-  ENGINE work is UNPRICED (recorded 2026-08-14): five sites and no line count.
-  Its pre-slice check MUST price it, against what the engine band has left
-  after M4.3, RECOMPUTED on M4.3's LANDED dense-equivalent net rather than
-  the amendment's estimate (M4.3's landing note, BUDGET UNITS CORRECTION):
-  M4.1 ~48 + M4.2 ~180 + M4.3 ~165 = ~393 of the ~500-700 band, leaving
-  ~107-307.**
+  family's latent scale; probit and logistic in v1, the rest doors.
+
+  **The family gate is SIX sites, not four** (the count was amended to four
+  2026-08-13; ANCHORS RE-DERIVED BY SYMBOL 2026-08-14, when ten of the eleven
+  this bullet used to cite came back stale). Every anchor below and throughout
+  this bullet was located by opening the file at `efec6ba2`; none is an offset
+  of an earlier number. The struck citations are kept in parentheses so a
+  reader of the old text can find where it went.
+  - `R/spec.R:423-431` - the `family != "gaussian"` refusal off `data@bases`:
+    guard `:423`, predicate `:424`, `stop()` `:425-430` (its message literals
+    `:426-429`). (Was `:412-419`, now a comment inside the BCF prose block.)
+  - bridge `R_interface_bartcore.cpp:2299-2300`, the first test inside
+    `refuseUnsupportedBCFComposition` (`:2295-2337`), called from exactly one
+    place, `createHolder:2916`. (Was `:2222-2223`.)
+  - bridge `R_interface_bartcore.cpp:2993-2994`, inside `createBCFHolder`
+    (`:2981-3038`), reached from `bartcore_createBCF` (`:3526-3534`) and the
+    internal R helper `bartcoreBCFSampler` (`R/bartcore.R:626-708`).
+    (Was `:2925-2926`.)
+  - engine `chain.hpp:705` (`family_ = ResponseFamily::gaussian`), with
+    `GaussianResponse` hardcoded at `:702-704` and the EXECUTABLE calibration
+    map at `:722-727` under its Doxygen `:709-721`. (Was `:704` and
+    `:716-719`; the latter lands mid-comment.)
+  - engine `facade.hpp:777-789`, `createBCFSampler` (Doxygen `:774-776`).
+    **This bullet MISCHARACTERIZED the site.** Its single
+    `SamplerFacade<ConstantGaussianLeaf>` instantiation is the LEAF
+    instantiation, not a family one: the family is a RUNTIME enum dispatching
+    to a virtual `ResponseModel`, and the same specialization already serves
+    all six families on the single-forest path (`facade.hpp:640-652`). M4.4
+    adds ZERO template instantiations, ZERO compile surface, no object-size
+    growth and no virtual-table move - so the stale-object bus-error gotcha is
+    not in play beyond the standing header rule. What is actually baked in
+    here is that the function takes no family argument at all. (Was
+    `:750-762`, now `createSamplerOverStore`.)
+  - engine `sampler.hpp:157`, `family_(ResponseFamily::gaussian)` in the
+    K-forest `Sampler` constructor. The SIXTH site, absent from every earlier
+    list including the calibration respec's own. `Sampler::family()`
+    (`sampler.hpp:1123`) is what every family-keyed bridge predicate reads
+    through `shape.family`; left pinned, a probit K-forest sampler LIES to
+    `refusePinnedSigmaChange` (`R_interface_bartcore.cpp:2746-2757`, family
+    test `:2752-2753`), `refuseBinaryWeightChange` (`:1626-1639`) and the
+    `drawsSigma` branch in `bartcore_setModel` (`:4736-4737`).
+
+  `model.hpp:2577`'s `enum class ResponseFamily` is NOT a gate at all: `probit`
+  and `logistic` are already members. (Was `model.hpp:2523`.)
 
   **RE-SCOPED 2026-08-13 on the probe verdicts (`probes-2026-08-13.md`): this
   slice moves to the END of the arc, as the IMMEDIATE follow-on to M4.5, and
@@ -2231,7 +2272,8 @@ in FA1 and FA5 below ARE the record.
   compose" - is FALSIFIED and is STRUCK from this slice.** What remains, and
   all this slice may now be argued on:
   - **The measured composition tax.** **5.43x at K = 8** (5.14x at K = 2, 5.36x
-    at K = 4), where the denominator is stated explicitly because the number it
+    at K = 4; the K = 2 figure RE-MEASURED at **5.11x** 2026-08-14, below),
+    where the denominator is stated explicitly because the number it
     replaces was not: per-sweep wall time of the K-sampler R composition over a
     SINGLE batched engine sampler carrying the same total tree budget (K * 50)
     on the same n, measured back to back on the same box (FA1b). The tax is
@@ -2241,8 +2283,9 @@ in FA1 and FA5 below ARE the record.
   - **Correctness unreachable from the R composition:** the per-forest ASIS
     rescale writes LEAF values, and no setter exists or should; and the
     `0x1p-26` snap's exactness, which the R host can only mirror by hand
-    (arm B did mirror it, `combiner.hpp:534-537`, and that is the point - the
-    host must know the constant).
+    (arm B did mirror it - the constant is `combiner.hpp:787`, its snap branch
+    `:823-827`, split across two places and NOT at the `:534-537` this bullet
+    used to cite - and that is the point: the host must know the constant).
   - **Composition ergonomics:** K stores, K states, K `.Call` round trips, K
     leaf calibrations, a serial outer loop, and a host that must own the
     latent draw against the combined fit correctly to get arm B's answer.
@@ -2254,14 +2297,1327 @@ in FA1 and FA5 below ARE the record.
   (`.claude/m4-basis-design/harness/fa1b-composition-scaling.R`), so this is
   minutes, and a tax quoted without its denominator is exactly the defect the
   erratum records; (ii) respec the calibration map against each family's latent
-  scale, as already written above. **Docs:** M4.5 lands Gaussian-complete, so
-  this slice carries its own docs delta, including `dbarts.h:505` ("Gaussian
-  responses only."), which stays ACCURATE until this slice lands.
+  scale, as already written above.
+
+  ---
+
+  **AMENDED 2026-08-14 on the pre-slice pricing pass.** Five findings under
+  `.claude/m4-basis-design/` (`pre-m44-fa1b-remeasure.md`,
+  `-engine-pricing.md`, `-calibration-respec.md`, `-anchor-simulation.md`,
+  `-open-questions.md`, indexed by `pre-m44-2026-08-14.md`). That directory is
+  GIT-IGNORED, so this bullet carries every conclusion it depends on rather
+  than pointing at it. **Both entry criteria are DISCHARGED, the engine work is
+  PRICED and FITS, and the slice is CLEARED TO PROCEED.**
+
+  **1. Entry criteria, discharged.**
+  - (i) The composition tax at K = 2 re-measured **5.11x** against `efec6ba2`,
+    versus 5.14x recorded 2026-08-13 against `47c1fbe1` - a 0.62% drift, an
+    order of magnitude inside the +/- 15% materiality band and smaller than
+    either run's seed-to-seed spread. Numerator and denominator both moved
+    2-3% TOGETHER (common-mode box state), which is why the ratio is what is
+    quoted. All 80 load-independent K = 2 statistics came back BITWISE
+    identical to the recorded run, confirming M4.1/M4.2/M4.3/M4.5 left the
+    shared single-forest draw path untouched. One honest caveat that travels
+    with the number: neither arm of that harness exercises the K-forest engine
+    surface, so what criterion (i) establishes is that the BASELINE both arms
+    ride is unchanged, not that the native K-forest family costs what the tax
+    predicts. The native arm still owes its own measurement, and arm E is
+    where it lands.
+  - (ii) The calibration map is RESPEC'D against each family's latent scale.
+    Its ALGEBRA survives verbatim as a construction-time constant under both
+    families; only its ANCHOR moves. See item 2.
+
+  **2. The calibration anchor: SETTLED, Option L.** `s` becomes a family-keyed
+  constant:
+
+      gaussian : s = scaledResponseSd()          // UNCHANGED, bitwise
+      probit   : s = 1.0
+      logistic : s = M_PI / std::sqrt(3.0)       // 1.8137993642342178
+
+  the link's own error sd in each family. The rejected alternative, Option C,
+  is CGM's forest-total plausible-index budget (probit `3.0`, logistic
+  `pi*sqrt(3)` - the shipped single-forest `node.scale` at `R/spec.R:301` and
+  `:308`), exactly `3 * L` in both families, so the fork was a single factor of
+  three and one decision covered both. A third option, keeping the empirical
+  `scaledResponseSd()`, is REJECTED outright (item 2c).
+
+  **2a. The decisive argument is ANALYTIC and FAMILY-FREE.** Take the model
+  shape in which nothing adapts - every forest carries a basis, so every
+  amplitude block is fixed-variance. It is the only honest test of an anchor
+  because nothing in the sampler can compensate for it, and it is REACHABLE:
+  `dbartsData(x, y, bases = list(matrix(1, n, 1), cbind(1 - z, z)))` resolves
+  BOTH forests to `(50, 0.25, 3, 1, 0.674, 0.5, 0, 1)`, MEASURED against a
+  private-lib build. **It has NO FIXTURE ANYWHERE.** Repo-wide,
+  `grep "bases = list(" inst benchmarks | grep -v "list(NULL"` returns
+  nothing, and `inst/tinytest/test-bcf-creation.R:392-425` - which this bullet
+  used to cite as the exercise - is the `bases = list(NULL, zBasis)`
+  hasBasis-escape block, i.e. the HALF-CAUCHY shape, the opposite arm.
+  Building the fixture is MANDATED work (checklist item 23).
+
+  Two basis forests at the shipped defaults give
+  `sd(eta) = sqrt(2 * 0.5) * (s / 0.674) = 1.4837 * s`. The comparator is
+  dbarts's own shipped SINGLE-FOREST binary prior on the same index, and it
+  must be quoted TWICE, because the shipped binary default is not the `k = 2`
+  an earlier version of this bullet assumed. `resolveNodeHyperprior`
+  (`R/model.R:392-400`) resolves an unsupplied `k` to `chi(1.5, 2.0)` whenever
+  `binary` is true; only `monotone || !binary` takes the fixed 2.0. At the
+  prior `ChiKHyperprior` (`model.hpp:2500-2524`) draws
+  `k = sqrt(Gamma(nu/2, rate 0.5/scale^2)) = sqrt(Gamma(0.75, rate 0.125))`,
+  and `E[k^-2]` does not exist for a shape below 1, so **the shipped
+  single-forest binary index prior has NO SECOND MOMENT** - the same
+  Cauchy-tail property 2b uses to refute the "(-3, 3)" framing for the
+  K-forest. Robust sd 1.587 at the shipped default, 1.500 at a fixed k = 2;
+  both 2e6-draw simulations (seed 20260814), re-run for this revision.
+
+  Probit below; logistic is every column times `pi/sqrt(3)`, and every ratio
+  is identical because `node.scale` is `3 * (latent sd)` in BOTH families
+  (`R/spec.R:301`, `:308`).
+
+  | arm | L | C | L vs shipped k | C vs shipped k | L vs k = 2 | C vs k = 2 |
+  |---|---|---|---|---|---|---|
+  | K = 2 all-basis, `sd(eta)` | 1.4837 | 4.4510 | **0.934x** | **2.80x** | 0.989x | 2.97x |
+  | K = 2 shipped shape, robust sd | 2.254 | 6.763 | 1.42x | 4.26x | 1.50x | 4.51x |
+
+  **"Structural identity" and "within 1.1%" are STRUCK, and must not be
+  restored.** `(1/0.674)/(3/2) = 0.9891` is an identity against a k-FIXED
+  configuration the binary surface does not default to; against the shipped
+  default there is no identity at all, only a simulated 0.934x. **What carries
+  the verdict is the RATIO L : C, which is exactly 3 under every comparator
+  and in both families**, because Option C's `s` is 3x Option L's by
+  construction. Read off the corrected numbers: L lands within 7% of a prior
+  dbarts ALREADY SHIPS for binary BART, and C lands 2.8x wide of it. A
+  2e6-draw prior-predictive simulation (seed 20260814) against the shipped
+  K = 2 shape, the all-basis shape and K in {2, 4, 8} points the same way on
+  every arm and the other way on none. None of the struck arithmetic may be
+  copied into `latentScaleAnchor`'s Doxygen, `multiplier-combiner.md`'s map
+  section or `nameable-calibration.md`: it would ship a false statement about
+  dbarts's own default in the one comment a future reader will trust.
+
+  **2b. The "lands inside CGM's (-3, 3)" framing is REFUTED. Do not restore
+  it.** The respec argued that Option L "lands on CGM's own (-3, 3) probit
+  target once the amplitude is counted." It does not. On the shipped K = 2
+  shape the index has CAUCHY tails (a half-Cauchy amplitude times a normal
+  forest total), so `P(|eta| > 3) = 0.307` under L and 38% of the induced prior
+  on p sits outside (0.01, 0.99); eta's 2.5/97.5 quantiles are -20.4 and 20.2,
+  not -4.4 and 4.4. The plug-in numbers the respec computed are RIGHT (they
+  evaluate the amplitude at its prior median) and the conclusion drawn from
+  them is WRONG. **The case for L is COMPARATIVE, not absolute**, and it is
+  the two-comparator table in 2a. Written that way, the case is stronger than
+  the refuted version, not weaker.
+
+  **2c. What a naive M4.4 would ship, quantified.** If the family enum is wired
+  and `chain.hpp:722` is left alone, `s` is the sd of the COLD-START working
+  response - `2y - 1 - offset` for probit (`model.hpp:3057-3061`),
+  `4(y - 0.5) - offset` for logistic (`:3657-3664`) - i.e.
+  `2 sqrt(p(1-p) n/(n-1))` for probit and `4 sqrt(p(1-p) n/(n-1))` for
+  logistic (2.001 at p = 0.5, against Option L's 1.8138; the two families do
+  NOT share one formula), a base-rate artifact. The prior narrows 5.03x
+  between p = 0.5 and p = 0.01 (ratio `sqrt(0.25/0.0099)`, independent of n),
+  in the direction that WITHDRAWS prior support from the region the data
+  demands: at p = 0.01 the required index is `qnorm(0.01) = -2.326` and the
+  prior's IQR is [-0.303, 0.302], with prior mass below the required index
+  falling from 0.189 (p = 0.5) to 0.043 (p = 0.01). The failure signature is
+  the worst possible: probit's naive `s` equals Option L's `1.0` at p = 0.5 up
+  to the Bessel factor, so the defect is CORRECT on balanced data and will pass
+  every balanced fixture, with no error and no warning.
+
+  **2d. Two facts about the shipped prior that must travel with the anchor,
+  and are new.** (a) **Adaptivity is capped at one forest, for any K.**
+  `resolveForests` (`R/model.R:772-840`, refusal `:799-806`) requires every
+  forest past the first to carry a basis, and `forestParams` writes the LITERAL
+  `0` for `amplitudePriorScale` whenever a basis is present (`R/model.R:874`),
+  from which the bridge derives `forest.ridge = false`
+  (`R_interface_bartcore.cpp:2207`). So forests 2..K are ALWAYS fixed-variance,
+  a half-Cauchy on a basis forest is unreachable through any shipped surface,
+  and every forest added past K = 2 lands entirely on the non-adaptive channel.
+  This makes the anchor MORE load-bearing at larger K, not less. (b) There is
+  **no per-K renormalization anywhere in the map**: `sd.control`/`sd.moderate`
+  are counts of one anchor unit PER FOREST and the K-forest total is their
+  root-sum-square, so the index disperses as `sqrt(K)` by construction, with
+  the exponent EXACTLY 1/2 (`ForestSpec` carries the factor and divisor per
+  forest and `expandForestSpecs` never reads K; simulated log-log slope
+  0.50025 over K in {1,2,4,8,16}). On the all-basis shape at unit row norms
+  `sd(eta) = 1.04912 * sqrt(K) * s`, i.e. `1.4837 s` at K = 2 and `2.9674 s`
+  at K = 8 - the latter 1.978x the fixed-k comparator, two thirds of the
+  ratio that condemns Option C at K = 2. On the shipped K = 2 shape robust sd
+  is 2.26 at K = 2, 2.96 at K = 4, 3.95 at K = 8. **`2.9674` is Option L's
+  K = 8 index SCALE and, separately, Option C's K = 2 RATIO; they are not the
+  same object and neither is "exactly Option C's K = 2 value" (which is
+  `4.4510 s`).** Both facts are design statements owed a sentence beside the
+  anchor table; the `sqrt(K)` law itself is DEFERRED, see 2f.
+
+  **2e. The anchor is the slice's single biggest risk, and checklist item 25 is
+  the gate on it.** The lines are cheap; the NUMBER in them is argued, not
+  derived from the repo. Getting it wrong produces a sampler that RUNS and MIXES
+  and is silently mis-calibrated, and no STANDING gate sees that:
+  `bcf-equivalence` compares gaussian only, the C++ component tests pin
+  mechanism not calibration, and arm E is a mixing-and-coverage comparison whose
+  power against a mis-scaled prior is unmeasured. So the anchor gets its OWN
+  gate rather than a concession - item 25 asserts the induced index prior
+  against its analytic value and is RED on the naive cold-start anchor, on
+  Option C and on a dropped basis row-norm divisor. The anchor derivation still
+  gets a reviewer BEFORE the switch is written.
+
+  **2f. The anchor's UNIT was wrong, and M4.4 SHIPS the fix (options A + E).**
+  The anchor is stated PER FOREST and consumed PER UNIT OF BASIS ROW NORM, and
+  nothing made the two agree. From the code (`forestMultiplier`
+  `combiner.hpp:1304-1313`, `buildBCFForest` `chain.hpp:4495-4511`, the map
+  `chain.hpp:722-727`), on the all-fixed-variance shape:
+
+      sd(eta_i) = s * sqrt( sum_f (factor_f/divisor_f)^2 v_f ||B_f(i,.)||^2 )
+
+  A basis-free forest's term is Cauchy and has no sd, so the formula prices
+  the fixed-variance forests and the rest is Cauchy. `||B_f(i,.)||` is
+  UNCONSTRAINED on every route: `validateForestBases` (`R/data.R:635-666`)
+  checks list-ness, numeric-or-logical, row count, subset alignment and
+  finiteness; `expandForestBasis` (`R/model.R:687-720`) passes a numeric
+  matrix through; `dbarts_sampler_setForestBasis` (`C_interface.cpp:761-781`)
+  scans finiteness only. MEASURED against a private-lib build:
+  `bases = list(NULL, matrix(rnorm(n, 50, 10)))` resolves to
+  `(50, 0.25, 3, 1, 0.674, 0.5, 0, 1)` and RUNS to completion; under Option L
+  probit that is a prior sd on `eta` of 52.46 latent sd at `||b|| = 50`, with
+  `P(0.01 < p < 0.99) = 0.119` for that term alone and `0.099` for the full
+  K = 2 shape, against 0.879 for the shipped single-forest comparator. (The
+  product-normal values. `eta` is a product of two normals, not a normal, so
+  the normal approximation's 0.035 understates central mass by 3x, in the
+  direction that makes the trap look worse than it is. Use the simulated
+  numbers.) Under gaussian the posterior absorbs it - the same construction's
+  basis-forest amplitude falls by ~41x against its unit-norm twin - which is
+  exactly why the defect is invisible today and goes live when sigma is
+  pinned.
+
+  **VD decision 2026-08-14: SHIP THE FIX.** The map becomes
+
+      nodeScale_f = factor_f * s / (divisor_f * nbar_f)
+
+  with `nbar_f` the MEDIAN OF THE NONZERO row norms of forest f's basis, and
+  `1.0` by convention when `spec.forests[f].basis == nullptr`. **The median,
+  not an RMS, and the choice is named here rather than left to the
+  implementer:** the map's own convention is already a median (`divisor =
+  0.674` is `qnorm(0.75)`, `expandForestSpecs` `combiner.hpp:334`), the median
+  is sparsity-invariant where an all-rows RMS inflates a bare 0/1 indicator
+  column's scale by `1/sqrt(p)` - a legitimate treatment-only forest - and it
+  is outlier-robust where a max is not. Statistically this is identical to
+  normalizing the basis at ingestion, but the constant lives in the node scale
+  rather than in the stored basis, so `$getForestAmplitudes` keeps reporting
+  in the USER'S OWN basis units, no getter contract moves, no new state slot
+  appears and `structSize` does not move.
+
+  **`nbar_f == 1.0` EXACTLY on every shipped route**, which is why this should
+  be free: the internal `bartcoreBCFSampler` route leaves the pointer null
+  (`applyForestBases`, `R_interface_bartcore.cpp:2246-2266`, installs nothing
+  when `data.bases[f]` is NULL, and the combiner synthesizes), and on the
+  public `forests =` / `bases =` routes the basis is the `(1-z, z)` pair, a
+  one-hot factor expansion or an all-ones column - every row norm exactly
+  `1.0`, whose median is exactly `1.0`, and `divisor * 1.0 == divisor` in
+  IEEE-754.
+
+  **And the fix is CLOSED under `$setForestBasis`.** `nbar_f` is otherwise a
+  construction-time constant and no mutation re-derives a K-forest leaf scale
+  (`setModel`, `chain.hpp:1440-1507`, touches `forests_[0]` only), so a
+  mid-sample basis swap would leave the divisor stale. That swap is a SHIPPED
+  knob on three routes (`$setForestBasis` `R/dbarts.R:1223`,
+  `Chain::setForestBasis` `chain.hpp:875-878`, flat C
+  `dbarts_sampler_setForestBasis` `C_interface.cpp:761`), so a divisor that
+  goes stale there would introduce a defect while fixing one. Checklist items
+  21 and 22.
+
+  **A DECISION POINT the implementer hits, not an open question.** E is GATED
+  on the equivalence trio coming back BITWISE under `--preclean` on a build
+  carrying E and nothing else. If any leg moves, **FALL BACK to option A
+  alone**: ship L unchanged, write the identical contract sentences, record
+  `forest(sd = )`'s per-unit-of-row-norm reading as a KNOWN GAP between doc
+  and code in the landing note, and hand E to `binary-kforest-prior-default`.
+  The fallback is still a strict improvement, because `man/forest.Rd:52`
+  promises the unqualified version today.
+
+  **The contract sentence, written in the form the fix makes TRUE.** Four
+  sentences, all load-bearing, identical under A and under E, which is what
+  makes the code fix separable from the contract. They go into
+  `latentScaleAnchor`'s Doxygen, `combiner.hpp:258-273`,
+  `multiplier-combiner.md`'s map section, `man/forest.Rd:52` and `:71`, and
+  `nameable-calibration.md` alike.
+  1. `forest(sd = )` and `amplitude.prior.variance` are stated PER UNIT OF
+     BASIS ROW NORM: a forest whose basis rows have median nonzero norm `c`
+     contributes the scale the argument names, and the map divides `c` out.
+  2. The induced prior sd on the index at row `i` is
+     `sqrt( sum_f prior.scale_f^2 v_f ||B_f(i,.)||^2 )`, with `prior.scale_f`
+     read from `$getCalibration(f)[, "prior.scale"]`, `v_f` the forest's
+     `amplitude.prior.variance` (default `0.5`) and `B_f` from
+     `data@bases[[f]]`; valid on the fixed-variance forests, and a basis-free
+     forest's contribution is Cauchy with no sd.
+  3. Under probit and logistic that index is in LATENT sd units and sigma is
+     PINNED, so nothing in the sampler absorbs a mis-scaled basis; under
+     gaussian it is in `sd(y)` units and a drawn sigma partly does.
+  4. The index disperses as `sqrt(K)`: `1.04912 sqrt(K) s`, so `1.4837 s` at
+     K = 2 and `2.9674 s` at K = 8, at unit row norms and shipped defaults.
+
+  **Two things the fix does NOT touch. Both are DEFERRED BY NAME to
+  `binary-kforest-prior-default`, and M4.4 must NOT do either.**
+  (i) **`sqrt(K)`.** No basis-side option changes the exponent - A, C and E
+  all leave `1.04912 sqrt(K) s` exactly as it is - and the only option that
+  does (normalizing the INDEX rather than the forest) is rejected on its own
+  grounds: it shrinks every declared moderator's prior by `1/sqrt(K/2)`,
+  which is the wrong direction for a varying-coefficient model, makes
+  `forest(sd = 1)` non-composable, has no finite variance to sum on the
+  half-Cauchy channel, and forks the gaussian and latent maps. Any K fix is
+  therefore a change of DEFAULTS, which no slice's surface pins. **M4.4 owes
+  the exponent and the two endpoints in PROSE and owes no code.**
+  (ii) **Observability.** `v_f` is readable from NO getter
+  (`$getForestAmplitudes`, `R/dbarts.R:1450`, returns draws;
+  `$getCalibration`, `:1468`, returns `prior.scale` and no amplitude prior),
+  so a user who took the default cannot reconstruct their induced prior from
+  the public surface at all. Closing that (the costing study's option F: a
+  reader reporting `prior.scale_f`, `v_f`, a row-norm summary and the implied
+  `sd(eta_i)` quantiles, R 8-14 dense) is the cheapest thing that makes any
+  anchor checkable by the person who gets it wrong - and it is NOT M4.4's.
+
+  **One arithmetic correction, recorded so it is not re-derived wrong.**
+  `forest(amplitude.prior.variance = 2)` at K = 2 all-basis gives
+  `sqrt(2*2)/0.674 = 2.9674 s`, which is the K = 8 index scale, NOT Option
+  C's. The value that reproduces Option C from Option L's anchor is
+  **`v = 4.5`**, since `sqrt(2v)/0.674 = 3/0.674` needs `2v = 9`. `v` is a
+  documented knob (`man/forest.Rd:71`) and a free multiplier on the index
+  variance, so any anchor is reachable from any other through it. That is not
+  a defect and not a decision - one sentence in the docs.
+
+  **3. Price, by layer. All figures DENSE-EQUIVALENT non-comment lines** (the
+  repo is air/clang-format wrapped at 80 columns, so raw diff counts inflate
+  roughly 2x; comment lines are quoted separately and never folded in). Every
+  site was opened and read.
+
+  | layer | dense-equivalent | band | consumed before M4.4 |
+  |---|---|---|---|
+  | **Engine** (`src/bartcore/*.hpp`) | **49-82** | ~500-700 | ~393 (M4.1 ~48 + M4.2 ~180 + M4.3 ~165 + M4.5 0) |
+  | **Bridge** (`src/R_interface_bartcore*.{cpp,hpp}`) | **14-28** | ~350-450 | 0 |
+  | **R** (`R/*.R`) | **15-32** | ~400-500 | 0 |
+  | **Flat C** (`src/C_interface.cpp`) | **0** | ~45 booked at M4.3 | - |
+
+  Engine, site by site. FAMILY WORK, 29-55: `chain.hpp:705-706` family + sigma
+  pin 3; `chain.hpp:702-704` the 3-arm response switch 10-14;
+  `chain.hpp:722` the family-keyed anchor helper 8-12;
+  `combiner.hpp:294-317` `BCFSpec` gains the family member 1-2;
+  `sampler.hpp:157` 1; `facade.hpp:777-789` door refusal 2-8;
+  `chain.hpp:1408` `combinedFits()` 2-3; `chain.hpp:887` the conjunct 2-4;
+  `chain.hpp:1514` the residuals fix 2-4 (a guarded substitution, item 6, not
+  a bare one); `model.hpp:2577` 0. SCALE FIX (2f), 20-27:
+  `chain.hpp:4443` the `basisRowNorm` helper beside `scaledResponseSd` 14-17
+  (median form; an all-rows RMS is 11-13 and is REJECTED in 2f);
+  `chain.hpp:724-727` the changed map expression 0 (same line);
+  `chain.hpp:875-878` the `$setForestBasis` recomputation plus the retained
+  per-forest factor/divisor/`s` members 6-10. Adjacent and NOT folded in:
+  engine ~50-70 COMMENT lines, bridge ~10-15, `dbarts.h` ~3-8.
+
+  Flat C is **0 non-comment**, MEASURED four ways: `dbarts_sampler_create`
+  (`inst/include/dbarts/dbarts.h:514-515`) ALREADY takes the family string and
+  its Doxygen at `:495-513` already says the K-forest family is created through
+  this same entry point; the four K-forest guard entries carry no family
+  parameter and no family guard (`dbarts.h:724`, `:731`, `:739`, `:750`; TWO
+  of them gate on `totalAmplitudes()` - `setForestBasis`
+  `C_interface.cpp:768` and `forestAmplitudes` `:812-813` - while `forestFits`
+  `:788` and `numForestAmplitudes` `:798-799` gate only on
+  `forest >= shape().numForests`, which does not move the conclusion); no
+  flat-C struct gains a member, so `structSize` does NOT move
+  (`C_interface.cpp:266`, `:284`, `:308`); and `DBARTS_C_API_STRINGIZE`
+  stringizes return type, name and parameter list only, with the preprocessor
+  stripping comments before `#` applies. **No `dbarts.h` signature moves, no
+  hash re-bake** - `DBARTS_C_API_HASH` (`dbarts.h:101`, `0xcd88efcd67de55d7`),
+  `DBARTS_C_API_MAJOR` (`:80`) and `DBARTS_C_API_MINOR` (`:81`) all stay put,
+  and no stan4bart floor bumps. The M4.3 `structSize` tripwire
+  `static_assert(sizeof(ChainStateData) == 344)` at `tests/cpp/common.cpp:59`
+  does NOT move: latents are already a generic chain-level state slot
+  (`chain.hpp:2647-2651`, restored `:3240-3241`, validity-checked
+  `:2813-2814`, written
+  `R_interface_bartcore.cpp:5879-5886` with no family test and no forest-count
+  test) and the "bcf" state block is purely geometric.
+
+  **Why it is this cheap, stated so the number can be attacked.** The engine is
+  already family-polymorphic (a virtual `ResponseModel` selected by a runtime
+  enum, SIX concrete families - `enum class ResponseFamily` has six members
+  and `facade.hpp:640-651` six arms); the sweep already hands the response the
+  COMBINED location, not forest 0's (`chain.hpp:1303-1304`, `:1313-1314`); the
+  combiner's reparameterization `(r/m, w m^2)` is scale-free and null-weight
+  safe at all four of its `w` reads (`combiner.hpp:832`, `:1057`, `:1087`,
+  `:1171`); the ASIS ridge is likelihood-invariant and reads no sigma and no
+  `w`; and `MultinomialForestCombiner` already SHIPS a K-forest chain running
+  under a fixed-scale non-Gaussian likelihood (`chain.hpp:742-763`). What M4.4
+  actually buys is a 3-arm switch, a family-keyed anchor, four one-line pins,
+  and two refusal relaxations.
+
+  **The multinomial precedent covers LESS than that last clause implies, and
+  the gap is exactly what arm E must have power against.**
+  `ForestCombiner::totalAmplitudes()` returns 0 in the base
+  (`combiner.hpp:558`) and is overridden ONLY by `BCFForestCombiner`
+  (`:772-774`), so the multinomial path has no amplitude, no basis, no
+  `forestMultiplier`, no `(r/m, w m^2)` reparameterization and no `2^-26`
+  snap. What it establishes is that a K-forest chain runs under a pinned
+  sigma; what it does NOT establish is the interaction M4.4 introduces - a
+  per-observation multiplier `m_f(i)` dividing a working response whose
+  precision is a per-sweep PG draw, with a snap - which has NO shipped
+  precedent anywhere in the engine. The price conclusion still holds; the
+  reason is narrower than "already ships".
+
+  **4. The work-item checklist.** Every anchor re-derived by symbol at
+  `efec6ba2`. **F<n>** marks a fork; all seven are RESOLVED in item 5.
+
+  ENGINE
+  1. `chain.hpp:692-695` - the K-forest `Chain` constructor gains the family.
+     It rides `BCFSpec` as a defaulted member, NOT a positional parameter
+     (checklist item 9).
+  2. `chain.hpp:702-704` - 3-arm response switch (gaussian / probit /
+     logistic), mirroring the single-forest 6-arm switch at `:537-577`;
+     `chain.hpp:705` `family_ = spec.family`. **F1: inline vs factored.**
+  3. `chain.hpp:706` - adopt the single-forest `sigmaIsFixed_` rule, which is
+     at `:606-608`: `(family != gaussian && family != aft) ||
+     options.sigmaIsFixed`. Left alone, a probit K-forest enters `run` with
+     `sigmaIsFixed_ == false` and calls `drawSigma` every sweep; the VALUE is
+     harmless (`ProbitResponse::drawSigma` returns its argument,
+     `model.hpp:3099-3101`) but a semantic gate set wrong is a defect whether
+     or not it currently bites.
+  4. `chain.hpp:722` - `double s = latentScaleAnchor(family);`, a new private
+     helper, three arms. **Two properties the reviewer must check.** The
+     gaussian arm calls `scaledResponseSd()` (`chain.hpp:4443-4455`) through
+     the IDENTICAL expression - a refactor that computes `s` once and
+     multiplies by `1.0` on the gaussian arm is NOT acceptable; `x * 1.0` is
+     bitwise but the reassociation risk in `nodeScaleFactor * s /
+     nodeScaleDivisor` is not worth the elegance, and `chain.hpp:718-720`
+     already records that these expressions being "written exactly as bcf's
+     were" is what keeps K = 2 bitwise. And the non-gaussian arms must NOT
+     call `scaledResponseSd()` at all, not even to discard the result: it is
+     O(n), and its presence is what a later reader would mistake for the
+     anchor. Its Doxygen states the ANCHOR, and the logistic arm says "the
+     logistic law's standard deviation" - NOT "the link's own error sd",
+     which reads as a property of the augmentation and is false of one: the
+     engine implements Polya-Gamma (`model.hpp:3501-3508`), whose working
+     residual sd at `psi = 0` is 2 (`omega = 1/4`, `coldStart` `:3657-3663`),
+     not 1.8138. `pi/sqrt(3)` is still the right anchor - it is the sd of the
+     logistic law the log-odds index is stated against, and it is what makes
+     `R/spec.R:308`'s `3 * pi/sqrt(3)` equal `3 * (latent sd)`.
+  5. `chain.hpp:1408` and `:1514` - `combinedFits()` in place of
+     `forests_[0].totalFits.data()`. **F2 (m-i / m-ii).** `:1514` is the
+     FOLDED-IN residuals defect and is NOT a bare substitution: see SECTION 6
+     for what it does per response family.
+  6. `chain.hpp:887` - drop the `family_ == ResponseFamily::gaussian` conjunct
+     from `supportsResponseMutation` (`:885-888`), and rewrite its Doxygen at
+     `:879-884` (the block opens at `:879`, "Whether this chain's forest
+     coupling permits"), which names item 5's site as the reason the conjunct
+     exists. Paired with 5's (m-ii). **The governing rationale is NOT there,
+     it is at `combiner.hpp:953-955`** - the two conditions
+     `BCFForestCombiner::supportsResponseMutation() == true` (`:963`) rests
+     on, the first of which is "the gaussian response re-maps y through the
+     pinned (min_, range_) and touches no forest". Rewriting the chain-side
+     Doxygen and leaving the combiner-side conditions saying "gaussian"
+     leaves the argument false where it actually lives. It carries, but it
+     must be RE-ARGUED there: the second condition ("this combiner caches
+     nothing per-forest across sweeps - `formForestResponse` re-derives every
+     per-forest residual and precision from y and w each sweep") needs
+     restating for a family whose y and w are the latent working values
+     refreshed at `chain.hpp:1304`.
+  7. `facade.hpp:777-789` - `createBCFSampler` reads `spec.family`; add a door
+     refusal (`return nullptr` for aft / ordinal / nbinom) beside the existing
+     `numVarianceTrees` one at `:785`. Signature UNTOUCHED.
+  8. `sampler.hpp:157` - `family_(ResponseFamily::gaussian)` becomes
+     `family_(spec.family)`.
+  9. `combiner.hpp:294-317` - `BCFSpec` gains
+     `ResponseFamily family = ResponseFamily::gaussian;` (`model.hpp` is
+     already included at `combiner.hpp:17`). Defaulted, so it touches ZERO of
+     the ~37 existing `tests/cpp` `BCFSpec` fixture constructions - the M4.3
+     adapter clause honored.
+
+  BRIDGE
+  10. `R_interface_bartcore.cpp:2299-2300` - the first family gate becomes an
+      allowlist over {gaussian, probit, logistic}, refusing the doors by name
+      with a per-family reason.
+  11. `R_interface_bartcore.cpp:2993-2994` - the second family gate, same
+      allowlist. **F3: in place vs delegate.**
+  12. `R_interface_bartcore.cpp:2990-2991` - `createBCFHolder` hardcodes the
+      family name to `""`, so `resolveFamily` (`:1558-1596`, the binary arm at
+      `:1563-1564`) maps it to `probit` on a binary response and the route can
+      NEVER reach logistic. **F4.**
+  13. `R_interface_bartcore.cpp:2311` - key the node-scale gate to the family
+      default rather than the literal `0.5`. **F5**, shared with item 16.
+      `refuseUnsupportedBCFComposition` already takes `family` as its first
+      parameter (`:2295`), so the family is in hand.
+  14. **NON-ITEM, do not add it.** `enforceBinaryWeightPolicy`
+      (`R_interface_bartcore.cpp:1604-1618`) on the two K-forest creation
+      paths was listed as required work by the respec and is NOT: it is
+      already called from `parseSamplerSpecification` at `:2518`, and BOTH
+      `createHolder` (`:2851-2853`) and `createBCFHolder` (`:2990-2991`) call
+      `parseSamplerSpecification`. Probit's outright weight refusal and
+      logistic's positive-integer-count check therefore fire the moment
+      `family` becomes non-gaussian on either route, with zero new code, and
+      `refuseBinaryWeightChange` (`:1626-1639`) already covers the
+      post-creation side at `bartcore_setData:4467` and
+      `bartcore_setWeights:4659`. **A K-forest probit/logistic sampler
+      inherits the whole weight policy for free.**
+
+  R
+  15. `R/spec.R:423-431` - the refusal becomes an allowlist with per-family
+      reason text. Both of today's clauses are wrong under M4.4: the admitted
+      set widens, and "has its own fixed error scale" is now the REASON probit
+      and logistic work rather than a reason they cannot. `%not_in%` already
+      exists (`R/dbarts.R:416`).
+  16. `R/spec.R:452` - `"a non-default 'node.scale'" = model@node.scale != 0.5`
+      fires on the plainest possible binary K-forest call, because the family
+      switch at `R/spec.R:297-309` gives probit `3.0` (`:301`) and logistic
+      `pi * sqrt(3.0)` (`:308`). **F5.**
+  17. `R/model.R:394` - `k <- if (monotone || !binary) 2.0 else chi(1.5, 2.0)`
+      gains a multi-forest disjunct, so that `R/spec.R:446`
+      (`is(priors$node.hyperprior, "dbartsChiHyperprior")`) stops firing on a
+      hyperprior the user never asked for. **NOT a fork - it has a clean
+      shipped precedent in the SAME expression**, the monotone conjunct,
+      documented at `R/model.R:386-391`: a structural feature makes the chi-k
+      update meaningless, the fix is applied to the DEFAULT RESOLUTION rather
+      than to the downstream guard (an unsupplied `k` resolves to the fixed
+      2.0, so the guard sees a default and stays silent), an EXPLICIT
+      non-default still refuses by name (`R/model.R:395-400`), and the forced
+      value is not a modelling statement because it is discarded downstream.
+      Point four is why the precedent transfers EXACTLY here: `buildBCFForest`
+      pins `forest.k = 1.0` (`chain.hpp:4506`) and
+      `forest.updateK = false` (`:4504`), so forcing a binary K-forest's
+      default `k` to 2.0 changes no fitted model. The caller has what it needs
+      at `R/spec.R:206-216` (`declaredBases`, `forestSpec`), resolved BEFORE
+      `parsePriors` runs at `R/spec.R:257`, and
+      `resolveNodeHyperprior` is called with `control@binary` at
+      `R/model.R:175-179`. **It is 4-6 dense, not 1, and it needs a new
+      formal:** the multi-forest fact is NOT in `parsePriors`' scope
+      (`R/model.R:92-101`, formals `control, data, tree.prior, node.prior,
+      resid.prior, resid.dist, monotone = NULL, parentEnv`), which
+      `R/spec.R:257` reaches through `eval(parsePriorsCall)`. So: a new
+      DEFAULTED formal on `parsePriors`, a `parsePriorsCall$<flag> <- ...`
+      assignment in `R/spec.R` on the `monotone` pattern at `:244`, a new
+      argument at `R/model.R:175-179`, and the disjunct.
+      `resolveNodeHyperprior` has exactly two call sites; the second is
+      `R/xbart.R:251` (`resolveNodeHyperprior(node.prior@k, binary = FALSE)`),
+      which a DEFAULTED parameter leaves alone and a REQUIRED one breaks at
+      load. Defaulted is silently correct - xbart fits no K-forest - and that
+      is stated here rather than assumed.
+  18. **ALL FIVE `refuseBCFMutation` messages** (`R/bartcore.R:34-38`), not
+      just the one this bullet used to name. Four carry K = 2 "both forests"
+      language on a K-length surface: `R/bartcore.R:291-292`
+      (`setResponse(updateScale = TRUE)`) and `:312-313`
+      (`setOffset(updateScale = TRUE)`), both "both forests keep leaf
+      calibrations stated against the response transform fixed at creation";
+      `:389-390` (`setData`), "both forests are calibrated against the data at
+      creation"; `R/dbarts.R:1055-1056` (`setModel`), "both forests' node and
+      tree priors are calibrated at creation"; and `R/dbarts.R:1496-1501`
+      (`setCalibration`), "both forests' leaf scales come from the two-forest
+      calibration map". The first two are the `setResponse` / `setOffset`
+      conduit item 5 / F2 is opening, which is a STRONGER claim to M4.4's
+      ownership than the calibration one this bullet argued from.
+
+  ADDITIONAL
+  19. Per-forest weight channel semantics under a latent family. **F6.**
+  20. `combiner.hpp:800-802`'s "half the mantissa" claim. **F7.**
+
+  ENGINE, the scale fix (2f). GATED: build these ALONE first and run the
+  equivalence trio under `--preclean` before the family work goes on top. If
+  any leg moves, DROP 21 and 22 and take the option-A fallback 2f names.
+  21. `chain.hpp:4443` - `basisRowNorm(const ForestSpec&, std::size_t n)`, a
+      new private helper beside `scaledResponseSd`, returning the MEDIAN of
+      the nonzero row norms of `spec.basis` (row-major, `spec.numBasisColumns`
+      wide) and `1.0` when `spec.basis == nullptr`. `ForestSpec` already
+      carries `basis` and `numBasisColumns` (`combiner.hpp:285-286`), and the
+      ctor builds the forests at `chain.hpp:724-727` BEFORE the combiner at
+      `:729`, so the borrowed pointer is in hand at exactly the right moment.
+      The map expression at `:724-727` becomes `forestSpec.nodeScaleFactor *
+      s / (forestSpec.nodeScaleDivisor * basisRowNorm(forestSpec, n))`.
+  22. `chain.hpp:875-878` - `Chain::setForestBasis` re-derives forest f's leaf
+      scale from the NEW basis on a successful install, so the divisor cannot
+      go stale on the one mutation route the multi-forest surface exists for.
+      This needs the map's per-forest `nodeScaleFactor` / `nodeScaleDivisor`
+      and the construction-time `s` RETAINED AS MEMBERS - they are ctor locals
+      today. **Retain `s` rather than recomputing `scaledResponseSd()`:** the
+      K-forest map is pinned at creation (`setResponse(updateScale = TRUE)` is
+      refused, item 18), so recomputing would recalibrate onto a scale the
+      other forests are not on, and reusing the stored double is what keeps a
+      norm-preserving re-install bitwise. Write the recomputation as the SAME
+      expression in the SAME order as item 21's, for the same reason
+      `chain.hpp:718-720` gives.
+
+  TESTS
+  23. The all-basis K-forest fixture 2a says does not exist. Gaussian, at
+      K = 2 and K = 3, through `dbartsData(x, y, bases = list(...))` with
+      every entry non-NULL, asserting both forests resolve to the
+      fixed-variance channel (`params[[f]][7] == 0`, `[[f]][5] == 0.674`) and
+      that the sampler runs. **It must carry a NON-UNIT-NORM basis in at
+      least one cell**, so 2f's sensitivity is PINNED rather than assumed -
+      and under item 21 that cell also pins `nbar_f != 1` behavior, which is
+      the only place in the suite that does.
+  24. **Item 22's staleness closure has NO gate as the slice stands.** No
+      equivalence leg calls `$setForestBasis` at all (`bcf-equivalence.R`
+      mutates z only through creation), and `test-forest-basis-r5.R` asserts
+      widths and amplitudes and never a calibration, so item 22's correctness
+      AND its bitwise claim would ship on argument. Gate both, in that file, on
+      a probit K-forest. (i) STALENESS: swap a forest to a basis whose median
+      nonzero row norm is 4x the old one and assert
+      `$getCalibration(f)[, "prior.scale"]` moved to
+      `factor_f / (divisor_f * nbar_new)`. RED against a divisor left at its
+      construction value, which is the defect item 22 exists to prevent.
+      (ii) BITWISE: re-install the SAME basis values mid-run and assert
+      `identical()` on `prior.scale`, and on `$getForestFits`,
+      `$getForestAmplitudes` and `sigma` after a fixed-seed `$run`, against a
+      twin that never swapped - that is the claim item 22's "retain `s` rather
+      than recompute `scaledResponseSd()`" rests on, and nothing else in the
+      suite or the trio can see it. 14-24 dense.
+  25. **THE ANCHOR'S OWN GATE (2e).** The only assertion in the slice that can
+      fail on a wrong `s`, and it is exact rather than statistical. Under a
+      latent family `fitScale() == 1` and `fitShift() == 0`
+      (`model.hpp:3137-3138` probit, `:3616-3617` logistic), and
+      `priorScaleFactor` (`chain.hpp:3472-3474`) cancels the `sqrt(m)`
+      `buildBCFForest` divides in at `:4507-4508`, so
+      `$getCalibration(f)[, "prior.scale"]` (`chain.hpp:1005`) IS the map's
+      `nodeScale_f = factor_f * s / (divisor_f * nbar_f)`, in latent units, with
+      no conversion at all. Three assertions over item 23's all-basis fixture
+      carried to probit and logistic:
+      - **(a) BASE-RATE INVARIANCE, and it must LEAD.** Two samplers differing
+        only in the response's base rate (p = 0.5 and p = 0.1) report
+        `identical()` `prior.scale`. This is first because 2c's failure
+        signature defeats the obvious fixture: probit's naive `s` equals Option
+        L's `1.0` at p = 0.5, so a balanced fixture passes the defect.
+      - **(b) THE ABSOLUTE ANCHOR.** `prior.scale_f` equals
+        `factor_f * s / (divisor_f * nbar_f)` with `s` written as the LITERAL
+        `1.0` / `pi/sqrt(3)` (never read back from the sampler) and `nbar_f`
+        recomputed R-side as the median nonzero row norm, on a fixture carrying
+        a non-unit-norm cell.
+      - **(c) THE INDUCED INDEX**, contract sentence 2 made executable:
+        `sqrt(sum_f prior.scale_f^2 v_f ||B_f(i,.)||^2)` equals
+        `1.04912 sqrt(K) s` at unit row norms, at K = 2 and K = 3 - `1.4837 s`
+        and `1.8171 s` - which is contract sentence 4's own arithmetic.
+      RED on each of the three wrong anchors, by construction: the naive
+      cold-start `s` (0.600x at p = 0.1, and (a) catches it with no tolerance at
+      all), Option C (exactly 3x, on every arm and in both families), and a
+      dropped `nbar` divisor (4x on the fixture's non-unit-norm cell, which (b)
+      and (c) both see). GREEN on the shipped design. Tolerance `1e-12` relative
+      on (a)/(b) and `1e-4` on (c), and it is NOT vacuous at that width: there
+      is no Monte Carlo anywhere in the test, so no simulation error sets a
+      floor; `1e-4` is there only because `1.04912` is a six-digit rounding of
+      `sqrt(0.5)/0.674`; and the SMALLEST discriminating gap is 40%, four orders
+      above it. 18-30 dense.
+
+  **5. The seven forks, RESOLVED.** Options, choice, argument.
+
+  **F1 - the response switch: INLINE, not factored.** The alternative is
+  lifting a shared `makeResponse(family, ...)` out of the single-forest
+  constructor's family switch (`chain.hpp:537-577`) and calling it from both,
+  at ~30-35 dense
+  against the inline 10-14. **Take inline**, on two grounds. First, the
+  factored form puts the diff INSIDE the constructor `bcf-equivalence` covers
+  bitwise, and the M4.1 reviewer's standing trap applies: a perturbed install
+  has reported bitwise-identical WITHOUT `--preclean`. A mechanical move
+  should be bitwise, but "should be" is what that trap eats. Second, the
+  dedup is smaller than it looks: the single-forest switch is SIX arms
+  carrying option plumbing the K-forest path deliberately does not have
+  (`residualDf`, `survivalStatus`, `numCategories`, `dispersion`), so a shared
+  helper would take four parameters the K-forest caller passes as dead
+  defaults and three arms it can never reach. Inline is also what the price
+  table quotes; the factored upper bound (engine ~50-75) is recorded as a
+  contingency only.
+
+  **F2 - `setResponse` against forest 0: (m-ii), fix both sites and drop the
+  conjunct.** (m-i) keeps the refusal shut, which is cheapest and ships a
+  latent K-forest that runs standalone and cannot be composed - a direct
+  contradiction of the only justification this slice has left, which is
+  composition ergonomics. **Take (m-ii).** They are ONE change, not two: with
+  the conjunct dropped and `:1408` unfixed the slice SHIPS a probit K-forest
+  whose latents are refreshed against the prognostic forest's bare fits after
+  every `$setResponse`, silently, with no crash and no refusal. And with the
+  residuals defect folded in (section 6 below), `:1514` is being edited
+  anyway, so `:1408` is the same substitution in the same hunk. Note that the
+  two sites are NOT symmetric today: `:1408`'s pointer is inert under gaussian,
+  because
+  `GaussianResponse::setResponse` (`model.hpp:2807-2830`) leaves its third
+  parameter UNNAMED and neither branch of its body reads it - so `:1408` is
+  genuinely M4.4's own, while `:1514` is a live defect the slice inherits.
+
+  **F3 - the second bridge gate: SAME ALLOWLIST IN PLACE, do not delegate.**
+  The pricing census called delegating to `refuseUnsupportedBCFComposition`
+  "better", on the reading that it deletes a duplicate check. **That reading
+  is wrong and the census did not verify it.** `createBCFHolder` does NOT call
+  `refuseUnsupportedBCFComposition` at all - only `createHolder` does, at
+  `:2916`. The two checks are not duplicates: `refuseUnsupportedBCFComposition`
+  is a SUPERSET carrying FOURTEEN further refusals (DART, split probabilities,
+  monotone, linear/GP leaves, k hyperprior, non-default k, node scale, named
+  `prior.scale`, proposal probabilities, Student-t, grouped, variance forest,
+  fp32, test predictors, per-column cut counts). Delegating would therefore
+  ADD all of those to the internal route, which is not a cleanup but a
+  behavior change - and that route is what the ENTIRE gate infrastructure runs
+  on: `benchmarks/R/bcf-equivalence.R` (all 12 scenarios), `bcf-exact.R`,
+  `bcf-exact-restricted.R`, `bcf-exact-weak.R`, `benchmarks/R/sbc.R:991`, and
+  ELEVEN tinytest files (`test-bcf-creation.R`, `test-bcf-mutation-pins.R`,
+  `test-bcf-zero-multiplier.R`, `test-bcf.R`, `test-blocks.R`,
+  `test-forest-weights.R`, `test-interactions.R`, `test-multi-forest-seam.R`,
+  and the three `test-multinomial-*.R`). Turning the slice's own bitwise gate
+  red for reasons unrelated to the slice is exactly the failure this costs. It
+  would
+  also require reordering `optionsFromParsed` above the check, since
+  `createBCFHolder` builds `options` after it. **Keep the two gates separate,
+  pay the extra 1-2 dense, and record the divergence** (the internal route
+  does not run the offender cascade) as a named item that is NOT M4.4's.
+
+  **F4 - the `bcf()` family: READ IT OFF THE MODEL, taking neither stated
+  option.** The fork was posed as "thread a family string through
+  `createBCFHolder` / `bartcore_createBCF` / `bartcoreBCFSampler`" versus
+  "document the route as gaussian-or-probit-only". **Both are worse than a
+  third answer the sources did not see:** `dbartsModel` already carries a
+  `family` slot (`R/A_class.R:400`, default `"auto"`, validated `:451-467`),
+  and `bartcoreBCFSampler` already passes `sampler$model` as
+  `bartcore_createBCF`'s second argument (`R/bartcore.R:690`). So
+  `createBCFHolder` should DERIVE its family name from `modelExpr`'s `family`
+  slot, applying the same `"auto" -> ""` mapping the R5 route applies at
+  `R/dbarts.R:792`, instead of hardcoding `""` at `:2990-2991`. No `.Call`
+  arity move (`DEF_FUNC("dbarts_bartcore_createBCF", bartcore_createBCF, 8)`,
+  `src/R_interface.cpp:182`, stays at 8), no three-file edit, and nothing in
+  `dbarts.h`.
+
+  Three arguments. **(a) Value, named.** The internal route is not a shorthand
+  whose reach is optional - it is the route every K-forest GATE is written
+  against (F3's list). A family the gate harness cannot construct is a family
+  whose bitwise, exact-posterior and SBC coverage cannot be written in the
+  shipped harness shape; with this fix, adding a probit `bcf-equivalence`
+  scenario is a one-line change to the host sampler. **(b) It removes a class
+  of mismatch rather than adding one.** Threading a separate string lets a
+  caller state the family twice and disagree with itself; reading it off the
+  model makes agreement structural. Today the two ALREADY disagree - passing a
+  probit host sampler makes `resolveFamily` see `""` on a binary response,
+  resolve to probit, and get refused one line later - which is precisely the
+  silent shape-decides-the-family behavior `resolveFamily`'s own design comment
+  (`:1551-1557`, "Each shape refuses the others' family names by name") exists
+  to prevent. **(c) It is a strict superset with an identical default.** The
+  COMMON case is `"gaussian"`, not `""`: `dbartsSpec` already resolves the
+  family away from `"auto"` (`R/spec.R:85-86`) and writes the resolved value
+  into the model (`:290`), so every existing gate and tinytest derives
+  `"gaussian"` - and `resolveFamily(control, "gaussian")` on a continuous
+  response returns gaussian, so behavior is identical. The rare hand-built
+  `"auto"` model maps to `""`, also identical.
+
+  **The sibling convention, which the fork's sources did not raise and which
+  F4 must not break by omission.** The other two internal creation helpers
+  take an EXPLICIT family beside the model that already carries one:
+  `bartcoreSampler(sampler, family = "")` (`R/bartcore.R:541`) and
+  `bartcoreSamplerFromHandle(..., family = "", ...)` (`:584-591`), and
+  `R/bart.R:1523` uses it (`family = "ordinal"`) against a spec that set
+  `family = "ordinal"` at `:1511`. Under F4 alone `bartcoreBCFSampler` would
+  become the ONLY internal creator whose family is invisible at the call site,
+  which is precisely the payoff sentence in (a) read as a cost. **Take both,
+  at ~2-3 R dense:** the C-side derivation from the model slot stays (it is
+  what covers the flat and internal routes and makes agreement structural),
+  AND `bartcoreBCFSampler` gains `family = NULL`, which when supplied is
+  written into the model object passed as `.Call` argument 2 before the call
+  (`model <- sampler$model; if (!is.null(family)) model@family <- family`).
+  One source of truth C-side, visible at the call site R-side, no arity move,
+  and an unknown name is still refused by `resolveFamily`. Argument (b)'s
+  "state it twice and disagree" objection does not apply, because there is no
+  second channel to disagree with.
+
+  **F5 - the `node.scale` gate: KEY IT TO THE FAMILY DEFAULT (option a).** The
+  alternative (b) is to record whether the user NAMED a node scale and gate on
+  that. It is truer to the guard's stated intent, and it is still the wrong
+  change here. **The monotone precedent at `R/model.R:394` does NOT transfer**
+  and the implementer must not pretend it does: `node.scale` has no unsupplied
+  arm to redirect - it is written UNCONDITIONALLY by the family switch at
+  `R/spec.R:297-309`. The argument for (a) is independent and it is about what
+  the shipped guard already MEANS. `!= 0.5` is not a test for "the user named
+  something"; `0.5` is GAUSSIAN'S DEFAULT, and the guard has always read
+  "differs from the family default" - the literal was inlined only because the
+  family was always gaussian. (a) generalizes the rule the guard already
+  encodes. (b) changes it, and changes it for gaussian too: a gaussian caller
+  who explicitly writes `node.scale = 0.5` is silent today and would newly be
+  refused, which is a behavior move on the shipped path for no gain to this
+  slice. (a)'s one false negative - a caller who explicitly names exactly the
+  family default gets silence, and the map ignores their number anyway - is
+  the same false negative gaussian has shipped since the guard was written.
+
+  Mechanically: the family-keyed switch is written out TWICE today
+  (`R/spec.R:297-309` and `R/xbart.R:279-284`, the latter a three-family
+  subset), so this wants a shared helper rather than a third copy. Introduce
+  `defaultNodeScale(family)`, use it at both existing sites and at
+  `R/spec.R:452`, and give the bridge twin at
+  `R_interface_bartcore.cpp:2311` the matching C-side switch.
+  `R/spec.R:456`'s `prior.scale` gate (`!is.na(model@prior.scale)`) is CORRECT
+  as written for all three families and needs no change - it stays FALSE
+  unless a calibration is NAMED.
+
+  **F6 - per-forest weights under a latent family: ACCEPT, do not refuse; one
+  Doxygen sentence.** The pricing census worried this composes "precision-weight
+  semantics on a family whose weights are declared to mean COPIES". **Reading
+  the channel's own declared contract dissolves the worry.** `setForestWeights`
+  (`chain.hpp:981-986`, Doxygen `:959-980`) declares `s` as "a multiplicative
+  PRECISION factor on forest f's own leaf conditionals, composing with the
+  observation weight so that forest f's draws see `w_i m_f^2 s_i`", explicitly
+  NOT a removal from occupancy, from the combination, or from the residual
+  sigma degrees of freedom. It is consumed at exactly one place,
+  `composeForestWeights` (`chain.hpp:3485-3493`), which multiplies it into the
+  vector the combiner just formed - DOWNSTREAM of `refreshLatents`. It never
+  reaches `LogisticResponse`, so it cannot move the PG shape and cannot be
+  confused with the copy count: by the time `formForestResponse` reads
+  `workingWeights()`, logistic's `w` is `omega_i`, a PRECISION
+  (`model.hpp:3529-3531`), and the copy count has already been spent as the PG
+  shape parameter. Every family serves a working precision; the channel is
+  declared against a working precision; there is no semantic clash to gate on.
+  Nor is it an end-run around `refuseBinaryWeightChange`, which guards the
+  observation weight (the creation-fixed copy count), a different quantity.
+  Cost 0 dense. **The obligation is a Doxygen sentence at `setForestWeights`
+  that carries the COHERENCE point as well as the copies-versus-precision
+  one.** `composeForestWeights` applies the factor to the LEAF conditionals
+  only; it is NOT applied in `drawGlue` / `drawForestAmplitude`, which read
+  the response's own weights (`combiner.hpp:1057`, `:1087`, `:1171`), and NOT
+  in `rescaleAmplitudeRidge`, which reads no weights at all. So `m_f` and
+  `f_f` - the two factors of one product - are drawn under three different
+  precision vectors. That is shipped behavior under gaussian; under a latent
+  family it is newly reachable, on the one channel whose Doxygen this slice is
+  rewriting anyway. Plus one line in the docs delta.
+
+  **F7 - the "half the mantissa" claim: NARROW THE COMMENT.** The alternative
+  is re-deriving a small-`omega` quantile bound on `PG(1, psi)` for the
+  logistic arm. **Narrow it.** Decompose what `combiner.hpp:800-802` asserts:
+  the amplification cap ("the division amplifies by at most 2^26") is a
+  property of the constant `combiner.hpp:787` and the snap branch `:823-827`,
+  holds under any family, any weight vector and any K, and transfers verbatim.
+  The absolute-precision conclusion ("the cancellation downstream stays inside
+  half the mantissa") additionally needs a bounded NUMERATOR, which today comes
+  from gaussian range-anchoring `workingResponse()` to `[-0.5, 0.5]`
+  (`model.hpp:2791`) - probit's is a truncated normal on the latent scale and
+  logistic's is `O(1/omega_i)` with `omega_i` unbounded below, so neither
+  family supplies it by construction. Re-deriving the logistic bound is genuine
+  analytic work with NO gate consequence, because the amplification cancels
+  ANALYTICALLY in what the node kernels accumulate: `sumWeights = sum_i w_i
+  m_i^2` and `sumWeightedResponse = sum_i (w_i m_i^2)(r_i/m_i)`, whose exact
+  value is `sum_i w_i m_i r_i`; and `combinedFits` (`:854-869`) and
+  `drawForestAmplitude` (`:1153-1198`) deliberately keep the EXACT multiplier
+  (`:851-853` states this), so nothing downstream inherits the amplified value.
+  Keep the family-free half, drop the absolute-precision conclusion, and state
+  the cancellation instead. The small-`omega` bound is recorded as an open
+  numerical-hygiene question, out of M4.4.
+
+  **6. FOLDED IN: `$getSumsOfSquaredResiduals()` returns a wrong number today.**
+  VD decision 2026-08-14: this is M4.4's, not a separate slice.
+  `Chain::sumOfSquaredResiduals` (`chain.hpp:1511-1516`) reads
+  `forests_[0].totalFits.data()` at `:1514`, and unlike its twin at `:1408` the
+  pointer IS read - by `misc_computeSumOfSquaredResiduals`, unconditionally,
+  for every family INCLUDING gaussian. The path carries no multi-forest guard
+  anywhere: `$getSumsOfSquaredResiduals` (`R/dbarts.R:1440-1444`) has none,
+  `bartcore_getSumsOfSquaredResiduals` (`R_interface_bartcore.cpp:4799-4808`,
+  call at `:4805`) has none. Its documented contract is
+  `sum((y - yhat)^2)` (`man/dbartsSampler-class.Rd:351`), and on a K-forest
+  `yhat` is `sum_f m_f(i) f_f(x_i)`, not `f_0(x_i)`. MEASURED on four chains
+  after `$run(20L, 5L)` on a K = 2 gaussian K-forest, with the combination
+  reconstructed from public getters only: the reported value equals the
+  forest-0 residual TO THE LAST PRINTED DIGIT on every chain - with the
+  amplitude not even applied - and differs from the correct combined residual
+  by 1% to 49%. **This is a shipped wrong answer on the public R5 surface,
+  gaussian, today.** Nothing caught it because every test that exercises the
+  getter (`test-sampler-residuals.R:17`, `test-data-mixed-mutation.R`,
+  `test-bartcore.R:912`, `test-mutate-sparse-valued.R`) is single-forest, and
+  grep finds no internal caller (`rbart`, `bart2`, `xbart` do not use it).
+  Corroborating, and the shape of the fix: `storeSample` ALREADY routes the
+  reported TRAIN channel through `combinedFits` (`chain.hpp:4636-4637`), so
+  `$run()$train` is right on the same object where this getter is wrong.
+
+  **The substitution is GUARDED, not blind, and here is what it does per
+  response family.** `Chain::combinedFits()` (`chain.hpp:4589-4592`)
+  dispatches virtually, and on a MULTINOMIAL chain (`chain.hpp:742-763` - a
+  K-forest chain with `combiner_` set) `MultinomialForestCombiner::
+  combinedFits` (`combiner.hpp:1725-1730`) returns the **K x n softmax
+  PROBABILITY slab**, channel-major, not a location and not length n. A bare
+  substitution would silently change the number this getter reports there
+  (`MultinomialResponse::workingResponse()` is n zeros, `model.hpp:3691`,
+  `:3697`, so it would go from `sum(totalFits_0[i]^2)` to `sum(p_0i^2)`), at
+  a site whose SIBLING carries an explicit layout guard warning about exactly
+  this K-versus-1 channel confusion (`model.hpp:3701-3704`).
+  - **gaussian, probit, logistic, and every single-forest chain:** take
+    `combinedFits()`. Off a combiner it is a LITERAL identity
+    (`chain.hpp:4590-4591` returns `forests_[0].totalFits.data()`), and on a
+    BCF coupling it is the fix.
+  - **multinomial (any multi-location combiner):** the quantity is not
+    defined - there is no single location and no working response - so gate
+    the substitution on `numReportedLocations() == 1`
+    (`combiner.hpp:612`, overridden `:1493`) and return `NaN` on the other
+    branch, with a Doxygen sentence saying why. Today's value there is
+    equally meaningless, so nothing honest is lost: the path is unreachable
+    from R (`bartcoreMultinomialSampler`, `R/bartcore.R:792-828`, returns a
+    bare environment, not a `dbartsSampler` R5, and
+    `$getSumsOfSquaredResiduals` `R/dbarts.R:1440-1444` is the only R
+    caller) and absent from `dbarts.h` and `C_interface.cpp` entirely, but it
+    IS reachable from C++ through `facade.hpp:516-517`, and the two
+    `tests/cpp` users
+    (`test_grow.cpp:373` finiteness, `test_sampler.cpp:2021` self-recomputed)
+    are both single-forest gaussian and unaffected. Do not leave this
+    implicit.
+
+  **Its own acceptance criterion, separate from the rest of the slice.** Take
+  the CHEAP oracle, not a reconstruction: `storeSample` routes train through
+  `combinedFits` and runs last in the sweep, so on a GAUSSIAN K-forest
+
+      res <- s$run(nBurn, 1L)
+      expect_equal(s$getSumsOfSquaredResiduals(),
+                   colSums((y - res$train[, 1L, ])^2))
+
+  is the shape `inst/tinytest/test-sampler-residuals.R:16-19` already ships
+  (17 non-comment lines for the whole file), it needs no basis, and it is
+  MEASURED to fail on `efec6ba2` (K = 2, four chains: reported 548.0 / 447.3 /
+  240.4 / 256.5 against the oracle's 201.7 / 197.1 / 204.6 / 204.3; K = 3 with
+  a two-column basis, two chains: 472.6 / 761.1 against 203.8 / 200.3). At
+  K = 3 with a multi-column basis, run it. `res$train` is `n x nSamples x
+  nChains`, so the `[, 1L, ]` drop is required at `nSamples = 1`; at one chain
+  it is `n x 1`. An offset is FINE and needs no special handling - the
+  recorded train channel includes it by the original-scale convention and the
+  identity still holds, as `tests/cpp/test_sampler.cpp:2005-2022` pins in C++
+  with an offset present. **The reconstruction oracle this bullet used to
+  mandate is WRONG and must not be written:** `$getForestAmplitudes()`
+  (`R/dbarts.R:1450-1458`) returns AMPLITUDES, the ragged stacked
+  `sum(q) x n.chains` block, while the combination uses the per-observation
+  multiplier `m_f(i) = dot(a_f, B_f(i,.))` (`combiner.hpp:854-869`), and NO
+  getter exposes the basis. A literal `sum_f a_f * fits_f` is accidentally
+  forgiven by the K = 2 two-column indicator and is simply wrong at the K = 3
+  the criterion mandates - and "must FAIL before, pass after" does not
+  discriminate, because a wrong oracle also fails before and can be "fixed"
+  by matching the buggy getter. It must FAIL on `efec6ba2` and pass after.
+  This assertion is gaussian-only and does not depend on any other part of
+  M4.4, which is the point: it is the evidence that the fix landed independent
+  of whether the family work does.
+
+  **The getter's CONTRACT is still wrong on the surface M4.4 newly opens, and
+  the docs delta must pick it up.** `man/dbartsSampler-class.Rd:351` promises
+  `sum((y - yhat)^2)` on the original scale, "a binary-response sampler
+  reports on the latent scale instead". That covers probit. It does NOT cover
+  logistic: `workingResponse()` is `w_i(y_i - 0.5)/omega_i - offset_i`
+  (`model.hpp:3609-3613`) with `omega_i` a fresh PG draw each sweep, so the
+  returned number is a function of this sweep's auxiliary variables and is not
+  a residual sum of squares in any scale. Say so in the Rd rather than letting
+  M4.4 make an unstated case reachable.
+
+  **7. Docs deltas M4.4 inherits, by name.**
+  - `inst/include/dbarts/dbarts.h:513` - "Gaussian responses only.", the LAST
+    sentence of `dbarts_sampler_create`'s K-forest paragraph (`:495-513`) and
+    the ONLY sentence IN THE HEADER asserting a gaussian-only K-forest
+    constraint (the other gaussian hits at `:129`, `:282`, `:488`, `:489`,
+    `:542`, `:544`, `:555`, `:566`, `:570` are single-forest or
+    family-agnostic). RE-VERIFIED at `:513` (this bullet used to cite `:505`;
+    it moved once already, by the paragraph's own growth at M4.5, which is
+    exactly why it must be re-derived and not offset). Also `dbarts.h:560`
+    (`dbarts_sampler_setWeights`, "gaussian responses only"), which becomes
+    ambiguous once logistic K-forest weights are accepted at creation, and the
+    family paragraph at `:485-493`, which describes families only for the
+    single-forest case. Comment-only; the hash does not move.
+  - **NINE further gaussian-only K-forest assertions OUTSIDE the header, all
+    falsified by M4.4.** The header's uniqueness claim above is true of the
+    header and was wrongly read as an inventory of the repo.
+
+    | site | what it says |
+    |---|---|
+    | `chain.hpp:688` | the K-forest `Chain`'s own Doxygen, "gaussian response as y = sum_f ..." |
+    | `sampler.hpp:150` | the K-forest `Sampler`'s own Doxygen, "gaussian only" - and still K = 2 language |
+    | `combiner.hpp:679` | `BCFForestCombiner`'s Doxygen, "combined on a gaussian response" |
+    | `combiner.hpp:953-955` | the GOVERNING RATIONALE for `supportsResponseMutation() == true` (`:963`); see checklist item 6 - it must be re-argued, not swept |
+    | `R/bartcore.R:612` | "internal and gaussian only" - F4's own site |
+    | `R_interface_bartcore.cpp:3522` | "internal, gaussian only" - F4's own site |
+    | `man/dbartsSampler-class.Rd:147` | the R-side twin of `dbarts.h:560` |
+    | `man/dbartsSampler-class.Rd:152` | `setActiveRows`, "its two forests share one gaussian response" |
+    | `docs/design/feature-matrix.md:496-497` (`[f26]`) | "A BCF sampler's response IS a `GaussianResponse`" |
+  - `docs/design/multiplier-combiner.md` - the scope sentence at `:14-17`
+    ("Scope: GAUSSIAN responses only", naming `R/spec.R:423-431` and
+    `chain.hpp:702-705`) becomes gaussian, probit and logistic; the map
+    section `:321-341` gains the anchor table, items 2d(a)/(b) and 2f's four
+    contract sentences; the Status section `:451-455`, which names
+    `dbarts.h:513` as M4.4's, is discharged. **Plus M4.4's own landing note**,
+    in the file's per-slice format - every other slice on the arc has one and
+    this bullet had not booked it.
+  - **The "sd(y) units" phrasing is a REQUIRED edit, not an optional sweep,
+    and it is NOT confined to the design docs.** Under a latent family `sd(y)`
+    is UNDEFINED, so every one of these becomes WRONG rather than merely
+    incomplete: `multiplier-combiner.md:325-335` and its third instance at
+    `:25` ("the sd(y)-unit calibration"); the Doxygen twins
+    `combiner.hpp:262-273` and `:297-299`; `facade.hpp:774-776`
+    ("constant-leaf and gaussian only"); and, on the surface a USER actually
+    reads and where the units are actually chosen -
+    **`man/forest.Rd:52-59`** (`\item{sd}`, "This forest's prior scale, in
+    standard deviations of the response"), **`R/model.R:853`** ("the node
+    scale stays at the response sd"), **`:856`** ("sits at sd sd(y)"),
+    **`:1428`** ("in sd(y) units") and **`R/bartcore.R:616`** ("in sd(y)
+    units"). `man/forest.Rd:52-59` is the worst of them: `forest(sd = )` is
+    the ONE shipped knob, a probit K-forest caller writing `sd = 1.5` reads
+    1.5 response standard deviations and gets 1.5 units of the LINK's error sd
+    with no response sd existing anywhere in the model, and the deferred
+    `binary-kforest-prior-default` slice names that same knob as its
+    correction lever. `R/model.R:851-856` is `forestParams`' Doxygen - the
+    function that WRITES `nodeScaleFactor` and `amplitudePriorScale`, the two
+    numbers `latentScaleAnchor(family)` multiplies - so leaving it saying
+    "stays at the response sd" guarantees the next reader reconciles the
+    payload against an anchor the engine no longer uses. All five take 2f's
+    contract sentences 1 and 3.
+  - `docs/design/nameable-calibration.md` - two new rows after the units
+    table's last row at `:76` (`| BCF | response; k fixed at 1 by the map |
+    range_ | range_*0.5 + min_ |`), for BCF-probit and BCF-logistic, both
+    `1` / `0`. Plus the sentence that `prior.scale` is the prior sd of forest
+    f's own `f_f`, NOT of its contribution `m_f f_f` to the index - already
+    true of the gaussian K-forest, but under a latent family the index is the
+    only scale in the model, so the gap is the difference between a number a
+    reader can act on and one they cannot. Point at `$getForestAmplitudes()`
+    as the other half. **Anchor correction while here:** "refused at three
+    creation sites and again mid-chain" is at `:134-136`, inside the refusals
+    section `:125-145` (`## 5. Refusals` at `:125`, item 7 ending at `:145`,
+    `## 6. Exactness` at `:147`); the respec's `:125-136`, the open-questions
+    file's `:132-134` / `:124-140`, and this bullet's own earlier `:125-140`
+    are all WRONG, verified by opening the file.
+  - `docs/design/feature-matrix.md` - **MANDATE, and M4.4 cannot discharge it
+    the way M4.5 did.** M4.5's landing note records "feature-matrix.md moves NO
+    CELL: the family is still gaussian-only, so the new K-length creation route
+    reaches no new response family". **M4.4 is exactly what changes that**, so
+    it MUST move cells and update the matrix in place. Cited by ROW and COLUMN
+    rather than by line, since the file's own edits shift its lines. At
+    minimum: the `bcf` row's **SEVEN** section-2 mutation cells (`:119`, not
+    six - `setResponse`, `setOffset`, `updateScale = TRUE`,
+    `setPredictor (+ per-obs)`, `setWeights`, `setSigma`, `test surface`)
+    become family-dependent (`setWeights` and `setSigma` are REFUSED for
+    probit/logistic through `refuseBinaryWeightChange` and
+    `refusePinnedSigmaChange`, while `setResponse`/`setOffset` OPEN under item
+    5's F2, and `updateScale = TRUE` takes the shipped latent convention
+    `- [f9]`, ignored rather than refused, since latent families have
+    `fitScale() == 1` / `fitShift() == 0`); the `bcf` x `getLatents` cell in
+    section 3 moves off `-` for the latent families, and footnote `[f18]`
+    ("No latent vector exists: gaussian, BCF and heteroscedastic all
+    leave...") must be rewritten; `bcf` x `zero-weight row subset` (`:142`)
+    becomes family-dependent and `[f17]`'s closing "The same fix covers BCF
+    and the Student-t row" is gaussian-scoped; `bcf` x `active-rows mask`
+    (`:142`) carries `[f26]`, which is the ninth gaussian-only assertion
+    above; the `bcf` x `variance forest` cell in section 4 gains checklist
+    item 7's door refusal beside it; the `bcf` x `DART` cell cites
+    `spec.R:425`, which M4.4's own edit at `:423-431` moves (and which is the
+    wrong anchor anyway - the DART refusal for a K-forest is the `unsupported`
+    entry at `R/spec.R:441`, fired at `:468-474`); `[f23]` (`:467-475`) cites
+    `spec.R:440` for the R-side BCF composition refusal, which the same edit
+    shifts; `[f3]` (`:204-209`, "The header's `family` documentation
+    (CAPI:338-357) names only probit, logistic, gaussian, aft and BCF") is
+    exactly what M4.4 changes AND its anchor is already wrong -
+    `dbarts.h:338-357` is the `DBARTS_C_API_LIST` X-macro body and the family
+    documentation is `:485-493`; the `bcf` row in section 5 gains the new
+    probit/logistic scenarios and test files; the Rows prose citing `MOD:2524`
+    for `enum class ResponseFamily` is stale (`model.hpp:2577`) and M4.4
+    changes that enum's REACH, so it re-anchors; and the section-1 prose on
+    what `dbartsSpec()` resolves gains the family statement. Add an "Exception
+    on record" entry in the file's own format naming what M4.4 re-verified BY
+    SYMBOL and what it did not, and do NOT bump the Status line's "current at"
+    stamp unless a whole-file pass actually happens - the outstanding full pass
+    is the root TODO's `feature-matrix-anchor-refresh`.
+  - `man/dbarts.Rd:84` (inside `\item{forests}`) and `man/forest.Rd:93` both
+    carry "Gaussian responses only." Rd is not air-wrapped, so raw is about
+    dense there.
+  - **State plainly rather than inherit silently:** BCF leaves
+    `testFitsAreDefined()` and `logLikelihoodIsDefined()` false
+    (`combiner.hpp:945-946`), so a probit/logistic K-forest sampler still
+    refuses the whole test surface and reports no log-likelihood. Unchanged by
+    M4.4, and a reader of the new family will look for it.
+
+  **8. Gates.**
+  - **`bcf-equivalence` MUST stay bitwise on the gaussian arm, all 12
+    scenarios, all channels.** Re-check under `--preclean` regardless of which
+    variant of checklist item 2 is taken:
+    `docs/design/multiplier-combiner.md:415-417` records a perturbed install
+    reporting bitwise-identical WITHOUT it. The
+    single-forest `equivalence` (37 scenarios, `--strict-coverage`) and
+    `multinomial-equivalence` (10) legs must stay bitwise too.
+  - **The residuals fix IS draw-neutral, and the STATIC argument is the
+    proof.** The reason matters, because the reason this bullet used to give
+    was wrong. "It is a getter, so it cannot shift draws" does NOT hold:
+    `BCFForestCombiner::combinedFits` (`combiner.hpp:854-869`) is not side
+    effect free - it resizes and WRITES `glue_.combined` and
+    `glue_.fitsByForest` (declared `:435-438`), combiner-owned scratch the
+    sweep also uses, and returns a pointer INTO the first, which the sweep
+    holds live from `chain.hpp:1303` across `refreshLatents` (`:1304`),
+    `drawSigma` (`:1314`) and `drawGlue`/`afterCombine` (`:1317-1318`). The
+    property that actually holds is three-part and each part is checkable:
+    (a) both buffers are FULLY overwritten on every call (`:857-861` sizes
+    them, `:863-868` writes every element), so no stale value can be read;
+    (b) there is NO reachable call site inside `run()` or
+    `growForestFromRoot` - `Chain::sumOfSquaredResiduals` has exactly one
+    caller chain and it is entirely outside the sweep, `sampler.hpp:882-884`
+    -> `facade.hpp:516-517` (virtual, declared `:262`) ->
+    `R_interface_bartcore.cpp:4805`, and `Chain::setResponse`
+    (`chain.hpp:1407`) likewise only `facade.hpp:391-392` (both `facade.hpp`
+    hops were missing from this bullet's prescribed grep); (c) neither branch
+    of `chain.hpp:4590-4591` consumes rng. Record (a) and (b) explicitly, not
+    "consumes no rng" alone: a future combiner that CACHED across calls, or a
+    future in-sweep caller, breaks the weaker claim silently.
+  - **The equivalence trio here is a REGRESSION CHECK, not the proof, and the
+    bullet used to have that ranking backwards.** Run it - under `--preclean`,
+    on a build carrying ONLY checklist items 5 and 6, before the family switch
+    exists - but do not treat green as evidence, because it cannot come back
+    anything else: neither fix site is reachable from `run()`; on the 37
+    single-forest scenarios the substitution is a LITERAL identity
+    (`chain.hpp:4590-4591`); no harness records the channel (zero hits for
+    `SumsOfSquaredResiduals` anywhere under `benchmarks/`); and
+    `bcf-equivalence` never calls `$setResponse` at all. What DOES have teeth
+    is the belt: `$getSumsOfSquaredResiduals()` is on no equivalence channel,
+    so assert that a fixed-seed gaussian K-forest's `$getForestFits`,
+    `$getForestAmplitudes` and `sigma` after `$run` are unchanged against the
+    pre-fix build. **The `combinedFits()` FMA-association contract is still
+    the live hazard for anything that RECOMPUTES the blend inside the sweep**
+    (`combiner.hpp:840-849`: accumulating forward instead of seeding with the
+    last forest moves ~30% of rows by one ulp and turns all 12 scenarios red),
+    which is why item 21's map expression must be written in the stated order.
+  - **The 2f scale fix gets its OWN trio run, and it is a real gate rather
+    than a formality**, because item 21 changes an expression the ctor
+    evaluates on every route. Build items 21 and 22 alone, run
+    `bcf-equivalence` (12), `equivalence` (37, `--strict-coverage`) and
+    `multinomial-equivalence` (10) under `--preclean`, and expect bitwise on
+    the `nbar == 1.0` argument in 2f. **If any leg moves, take 2f's
+    pre-registered option-A fallback** - do not re-record to accommodate a
+    fix that was chosen for being free. Also re-run
+    `inst/tinytest/test-forest-basis-r5.R`, whose `:47` (`wide <- cbind(1,
+    x[, 4L])`, row norms in `[1, sqrt(2)]`) and `:101` (`cbind(1 - z, z,
+    x[, 1L])`) fixtures change MODEL under item 21; neither pins a value, so
+    both should still pass, and a failure there is a finding, not a snapshot
+    to regenerate. **The trio does not reach item 22 at all** - no equivalence
+    leg calls `$setForestBasis` - so its staleness closure is gated by
+    checklist item 24 and by nothing else.
+  - **If it turns out NOT to be draw-neutral,** the slice does not promise a
+    bitwise verdict and instead RE-RECORDS. Re-record `bcf-equivalence`
+    (`benchmarks/baselines/bcf-equivalence-8b047f8b.rds`) and, only if the
+    single-forest or multinomial legs also move, `equivalence-8b047f8b.rds`
+    and `multinomial-equivalence-1027be5.rds`. **A re-record touches FOUR
+    places, not one, and all of them land IN THE SAME COMMIT as the new
+    `.rds` files** - a workflow pointing at a deleted baseline is a red gate
+    that looks like a regression, and a ledger naming a deleted file lies
+    about which baseline is current.
+    (1) the CI workflow lines `.github/workflows/equivalence.yaml:61`, `:87`,
+    `:113`; (2) **`benchmarks/baselines/MANIFEST`** (`:15`, `:16`, `:42`,
+    `:48`) - the AUTHORITATIVE ledger, with a `current`/`historical` role
+    column and a per-baseline narrative entry recording scenario counts, the
+    neutrality partition and the superseding hash, in the format the existing
+    entries set; (3) `TODO:258`, `:387`, `:389`; (4)
+    `docs/design/feature-matrix.md:627-628` (`[f39]`, "Current baselines"),
+    plus `:308`, `:441`, `:507`, `:755`. **The same MANIFEST obligation
+    attaches to F4's own stated payoff** - adding a probit `bcf-equivalence`
+    scenario is a baseline re-record, and if the slice takes that payoff it
+    must budget it rather than treating it as a one-line change. Any
+    tinytest with a hardcoded expected value that shifts is regenerated by
+    REPLAYING THE WHOLE TEST FILE, since the values depend on the file's full
+    execution history and not just the preceding seed. Whichever way it goes,
+    the finding is recorded in the landing note explicitly - "draw-neutral,
+    proven at commit X" or "NOT draw-neutral, baselines re-recorded" - because
+    the next slice will inherit the assumption either way.
+  - **M4.4's OWN acceptance gate is arm E**, specified in the FA5 block below:
+    the K-forest probit sampler, compared against FA5's decisive arm B (K
+    gaussian samplers with host-drawn latents against the combined fit), which
+    AGREED with the reference on all 12 functionals at max |z| = 2.54 against
+    a threshold of 3.0. The harness exists,
+    `.claude/m4-basis-design/harness/fa5-latent-coupling.R`, and arm E is a
+    new arm in it. It must be a STATISTICAL comparison and not a unit test,
+    because the open question it answers - whether the pinned sigma costs
+    mixing on the FIXED-VARIANCE basis forest, which under gaussian would be
+    absorbed by sigma growing - can only be answered by running it. The
+    pre-registered rule already stated for arms A and B applies unchanged.
+    **Arm E is NOT the anchor's gate and the two are not substitutes:** it
+    measures mixing and coverage under a pinned sigma, with no measured power
+    against a mis-scaled prior. Checklist item 25 is the anchor's gate.
+  - Positive builds, not just the absence of the old refusal. **An implementer
+    who tests the family relaxation by deleting `expect_error` and never
+    fitting will not see the adjacent-guard misfire**, which is invisible
+    until the first fit: relaxing `R/spec.R:424` and bridge `:2299` alone
+    produces a sampler that refuses on EVERY probit fit. Both guards were
+    confirmed to fire, for both families, by reading the expressions AND by
+    running real probit and logistic samplers (probit `node.scale` 3, logistic
+    5.441398, both `node.hyperprior` a `dbartsChiHyperprior`, with the user
+    having asked for nothing). **Do not grep for a quoted prefix:**
+    `unsupported` is a named logical vector (`R/spec.R:440-467`) and
+    `:469-473` pastes EVERY true name, so with both `:446` and `:452` firing
+    the actual message is "a treatment forest does not support a 'k'
+    hyperprior, a non-default 'node.scale'; drop it or fit a single-forest
+    model".
+  - **Name the silent behavior flip in the landing note.** After checklist
+    item 15, `dbarts(x, y01, forests = list(forest(), forest(basis = ~
+    factor(z))))` stops raising "a treatment forest requires a continuous
+    (gaussian) response" and silently builds a PROBIT K-forest:
+    `R/spec.R:85-86` resolves a numeric 0/1 response to `"probit"` with no
+    message, and unlike the categorical branch (`R/data.R:461`, `:525`, both
+    calling `announceAutoFamily`) the numeric branch announces nothing. This
+    is longstanding shipped single-forest behavior, so it is a flip M4.4
+    inherits rather than a new inconsistency - but a causal-forest user with
+    a binary outcome who wanted a linear-probability two-forest fit now gets
+    latent-scale amplitudes with nothing said.
+  - Retarget the one existing pin, `inst/tinytest/test-bcf-creation.R:590-594`
+    (`expect_error(..., "gaussian")`), at a DOOR family. It is the only test
+    anywhere that pins this refusal; nothing matches "treatment forest
+    requires" or "requires a continuous", and the two C-side doors at
+    `:2300` / `:2994` are unpinned by any R test.
+  - `R CMD INSTALL --preclean` is mandatory (headers move), and the
+    `benchmarks/kernels` binaries must be deleted by hand - they carry no
+    header dependency tracking.
+  - Making `family_` honest at checklist item 8 flips what EVERY family-keyed
+    bridge predicate answers for a K-forest sampler, all at once:
+    `refusePinnedSigmaChange`, `refuseBinaryWeightChange`, the `drawsSigma`
+    branch in `bartcore_setModel`, `validateResponseSupport` at `setResponse`
+    (`:4424`, `:4469`, `C_interface.cpp:464`) and the aft branch at `:4449`.
+    Each flip is believed CORRECT; the engine cost is one line and the test
+    cost is not. Mildly de-risking, and worth knowing before writing the
+    tests: they are not entirely unexercised today, because the MULTINOMIAL
+    K-forest sampler already reports a non-gaussian family
+    (`sampler.hpp:187`, `chain.hpp:753`), so those four predicates already see
+    a non-gaussian K-forest. What is untested is the BCF-coupling x latent
+    family combination specifically.
+
+  **9. Budget, dense-equivalent, with STOP conditions at 1.5x.**
+
+  | layer | budget | STOP at |
+  |---|---|---|
+  | Engine | 49-82 | 123 |
+  | Bridge | 14-28 | 42 |
+  | R | 18-38 | 57 |
+  | Flat C | 0 | 2 |
+  | Docs | ~100-175 | 265 |
+  | Tests | ~155-260, plus arm E's harness arm | 390 |
+
+  Arc arithmetic: `~393 + 82 = ~475` of the `~500-700` engine band at the top
+  of the inline budget, `~393 + 123 = ~516` at the engine stop - so **even a
+  1.5x engine overrun does not breach the band**, and the stop is a signal to
+  re-scope rather than a budget breach. Say so plainly rather than letting a
+  reviewer infer a crisis. On hitting a stop: HALT and report, do not push
+  through. The named contingency for an engine stop is the probit-only v1
+  (one fewer switch arm, one fewer anchor arm, bridge and R unchanged since
+  the allowlist has two entries instead of three), which saves only ~5-10
+  engine and is **NOT recommended** - logistic costs one switch arm, one
+  anchor constant, and inherits the entire weight policy for free. The 2f
+  scale fix (items 21-22, engine 20-27) has its own pre-registered fallback
+  and is the other lever. A split is not required and none is recommended.
+
+  **The test band is re-derived from the MANDATED ORACLE and from comparable
+  LANDED files, not from the engine delta.** The earlier `~45-100 / stop 150`
+  scheduled a HALT on this slice's NORMAL path and must not be restored.
+  Repo calibration, non-comment lines, measured: one comparable new K-forest
+  R5 test file in this repo lands at 107-234 (`test-bcf-reporting.R` 107,
+  `test-forest-weights-r5.R` 138 for ONE new R5 method,
+  `test-bcf-r5-surface.R` 167, `test-forest-basis-r5.R` 234, M4.3's one new
+  whole file) - so the old band was less than one such file and its stop was
+  below the largest. Arc test-to-engine ratios from this plan's own landing
+  notes: M4.1 98/48 = 2.0x, M4.2 351/180 = 2.0x, M4.3 ~645/165 = 3.9x; the
+  old band was 0.8x, and M4.4 is the FIRST slice on the arc to move engine AND
+  bridge AND R AND the public family surface (M4.1 and M4.2 were engine-only,
+  with zero tinytest). Bottom-up against the mandated work: residuals oracle
+  at K = 2 and K = 3, every chain, in the cheap form section 6 specifies 15-25;
+  the all-basis fixture (item 23) 12-20; retargeting the one existing pin at a
+  door family 3-6; positive probit and logistic K-forest builds, which no
+  longer carry the anchor assertion because item 25 does, 25-45; the five
+  flipped
+  family-keyed bridge predicates x 2 families 30-55; guard relaxations
+  positive AND negative x 2 families (node.scale default silent / non-default
+  still refused; default k silent / explicit `chi()` still refused;
+  `prior.scale` unchanged) 20-35; door refusals aft/ordinal/nbinom on the R
+  route and both bridge routes 10-20; F4's internal-route derivation and its
+  `family =` formal 8-15; item 24's staleness and bitwise arms on
+  `$setForestBasis` 14-24; item 25's anchor gate 18-30. Total ~155-275,
+  midpoint ~215, which is where ~155-260 comes from. The last two lines are
+  the two gates the earlier draft left implicit inside its 40-70 builds line
+  and its "items 21-22 `nbar` behavior 10-18" line; both are now named
+  checklist items with their own red and green cases, and their old carriers
+  were reduced rather than left standing. Arm E's new arm in
+  `.claude/m4-basis-design/harness/fa5-latent-coupling.R` (490 lines today) is
+  plausibly 60-120 more and is excluded from the number but NOT from the work.
+  **If the band is the binding constraint, the split to take is the residuals
+  fix**, which has its own independent acceptance criterion at 15-25 dense and
+  no dependence on the family work.
+
+  **The docs band is COUNTED BOTTOM-UP from section 7's named deliverables**,
+  which is what the two estimates before it were not. `~85-135 / stop 202` was
+  sized on a smaller inventory; `~160-250 / stop 375` grew it by the nine
+  gaussian-only sites, the five "sd(y) units" sites, the feature-matrix cells,
+  M4.4's own landing note and 2f's four contract sentences, but did it as an
+  estimate and in RAW lines, which is the currency error M4.3's landing note
+  records ("most of the raw is Doxygen"). Every row of this table is
+  DENSE-EQUIVALENT: wrapped Doxygen and markdown count at about half their raw
+  lines, Rd at raw. By site: engine, bridge and header Doxygen **37-64** (the
+  price table's own ~50-70 + ~10-15 + ~3-8 RAW comment lines, which is 32-47
+  dense, plus `latentScaleAnchor`'s and `basisRowNorm`'s new blocks, item 6's
+  `chain.hpp:879-884` rewrite, F6's `setForestWeights` sentence, F7's narrowing
+  at `combiner.hpp:800-802`, and `combiner.hpp:953-955` RE-ARGUED rather than
+  swept); Rd **14-25** (`man/forest.Rd:52-59`, `:71`, `:93`, `man/dbarts.Rd:84`,
+  `man/dbartsSampler-class.Rd:147`, `:152`, `:351`); `multiplier-combiner.md`
+  **26-41** (scope `:14-17`, the map section `:321-341` with the anchor table,
+  2d(a)/(b) and the four contract sentences, the `:25` sd(y) phrasing, the
+  Status discharge `:451-455`, and M4.4's own landing note - M4.3's is 20 raw
+  lines in that file's per-slice format); `nameable-calibration.md` **3-7**;
+  `feature-matrix.md` **13-31**. **Total ~93-168, midpoint ~130**, and the band
+  is `~100-175 / stop 265`. EXCLUDED and conditional, on the same convention
+  the tests row uses for arm E's harness: the MANIFEST and baselines-ledger
+  obligation, 0-14 dense, which fires only if the trio moves.
+
+  **10. Explicitly NOT M4.4's.** Each recorded so it is not rediscovered as a
+  surprise.
+  - The K-forest binary prior default (`aPriorScale = 2`). Under Option L, 38%
+    of the K = 2 probit prior on p still lies outside (0.01, 0.99) and 16%
+    within 1e-9 of a boundary, and the source is the PROGNOSTIC channel alone,
+    not the anchor: `a * mu` has median |.| 1.175 but 95th percentile 20.17.
+    That default was set for a gaussian response where a DRAWN sigma absorbs
+    the excess; under probit and logistic sigma is pinned and it cannot.
+    **M4.4 must NOT move it**, and must DOCUMENT that the shipped binary
+    K-forest prior is more diffuse than the shipped single-forest one
+    (`P(p < 0.01 or p > 0.99)` = 0.376 versus 0.238) and point at the deferred
+    slice. VD decision 2026-08-14: its own slice, scheduled after M4.4's arm E
+    and before 1.0-0; root TODO `binary-kforest-prior-default`. It does not
+    disturb the L-versus-C verdict - the ratio stays exactly 3 regardless, and
+    the decisive all-basis arm does not involve `aPriorScale` at all. **Two
+    more items join that same slice, both from 2f, and M4.4 must not do
+    either:** the `sqrt(K)` dispersion law (no basis-side option touches the
+    exponent, and any K fix is a DEFAULTS change; M4.4 owes the exponent in
+    prose only), and the OBSERVABILITY gap (option F - `v_f` is readable from
+    no getter, so a defaulting user cannot reconstruct their induced prior).
+    The TODO entry names all three.
+  - `bart2()` has no `forests` argument (grep-verified), so a binary K-forest
+    fit is reachable only through `dbarts()` / `dbartsSpec()`. Widening
+    `bart2` is a separate, larger surface.
+  - `dbarts_sampler_setWeights` (`src/C_interface.cpp:483-490`) does not call
+    `refuseBinaryWeightChange`, so the flat layer permits a post-creation
+    weight swap on a binary sampler that the R bridge refuses, unenforced
+    against `dbarts.h:560`. Pre-existing; +1-2 flat-C dense if taken.
+  - The divergence F3 records: `createBCFHolder` does not run the offender
+    cascade `createHolder` runs.
+  - The small-`omega` `PG(1, psi)` tail bound F7 scopes.
+  - The wider doors - aft, ordinal, nbinom, grouped, multinomial - stay
+    refused by program Fork 2, and the refusal messages should name what each
+    is missing rather than restating the refusal. aft is the CHEAPEST door
+    (its map is the gaussian one verbatim, since `AFTResponse` delegates
+    `fitScale()` to an internal `GaussianResponse` and its working response is
+    the range-scaled log time; it needs the survival-status channel threaded
+    to the K-forest creation path and `sigmaIsFixed_` handled, since aft
+    DRAWS sigma). ordinal reuses probit's map exactly; nbinom reuses
+    logistic's; grouped would pick up the group draws through an empirical
+    anchor - a second instance of item 2c's defect - and needs its tau block
+    shown to interleave with the amplitude block; multinomial has its own
+    combiner and its own anchor and is structurally a different design, not a
+    door on this one. Say that last one rather than leaving it implied.
+
+  **11. Discipline for the implementer.** This slice edits files AND cites them
+  by line number, which is what cost the previous slice two review rounds.
+  Re-derive EVERY anchor by OPENING THE TARGET and locating the SYMBOL; never
+  apply an arithmetic offset, not even when everything around it moved by a
+  known amount. Run the anchor pass LAST, after every content edit is final.
+  **The failure this rule exists to prevent has already happened once on this
+  bullet, so the signature is known:** an earlier pass moved all seven
+  `docs/design/multiplier-combiner.md` -> plan citations by EXACTLY the plan's
+  net delta (+731) and reported them as re-derived. All seven landed correct
+  by coincidence, and FIVE more citations above the edit region were left
+  untouched and became wrong - one of them (`:319`) in the SAME SENTENCE as a
+  citation the same pass did update. **A per-citation delta table in which
+  every delta is identical is the signature of an offset pass**, and it is
+  what a reviewer should ask for. `multiplier-combiner.md` carries EIGHTEEN
+  such citations on SEVENTEEN lines (`:35`, `:63`, `:132`, `:134`, `:203`,
+  `:233`, `:262`, `:263`, `:285`, `:286`, `:303`, `:318`, `:319`, `:348` -
+  which carries TWO - `:382`, `:420`, `:445`); M4.4 edits that file, so every
+  one of them must be re-derived by CONTENT after the edits land. **The
+  "thirteen" this bullet used to state omitted `:262`, `:285`, `:348` and
+  `:382`**, which is the same defect one level up: an inventory of anchors is
+  itself an anchor, and is re-derived rather than inherited.
+  And keep plan and process references OUT of code comments - a `docs/design`
+  citation in a Doxygen block is fine, a `docs/plans` slice reference is not;
+  code comments carry self-contained rationale.
 - **M4.5 (docs). Now the LAST slice of the Gaussian-complete arc** (re-scoped
   2026-08-13 on the probe verdicts), landing BEFORE M4.4 rather than after it,
   so it documents a K-forest Gaussian family and sweeps FIVE of the six
   `dbarts.h` Doxygen paragraphs in the `window:` note - `:505` ("Gaussian
-  responses only.") is still true at this point and rides M4.4.
+  responses only.") is still true at this point and rides M4.4. **That
+  sentence is now at `dbarts.h:513`**, shifted by its own paragraph's growth
+  when M4.5 swept the other five; M4.4 must re-derive it rather than take
+  either number on faith.
   Deliverable status verified 2026-08-13:
   `docs/design/multiplier-combiner.md` **does not exist - NEW FILE** (its only
   mention anywhere is this line); `docs/design/model-space-survey.md` exists,
@@ -2291,12 +3647,20 @@ half is DISCHARGED: M2's FS1 pinned the `forests =` route bitwise on all six
 FA0's live content is now exactly that the post-M4.1 GENERALIZED combiner still
 reproduces it.
 
-**FA1, the amplitude falsifier** (the critique's A3, adopted), RESPECIFIED
-because it cannot run in VCBART's literal parameterization: a strict VCBART DGP
-wants a CONTINUOUS basis column, and today's engine refuses one by name in two
-places (`R/model.R:693` with its message at `:695-696`;
-`C_interface.cpp:776-789`). Two arms, both of which run TODAY on shipped
-surface.
+**FA1, the amplitude falsifier** (the critique's A3, adopted), RESPECIFIED as
+a binary-basis proxy. **CORRECTED 2026-08-14: the stated reason was FALSE and
+is struck.** This plan claimed that "a strict VCBART DGP wants a CONTINUOUS
+basis column, and today's engine refuses one by name in two places
+(`R/model.R:693` with its message at `:695-696`; `C_interface.cpp:776-789`)".
+Neither site refuses one: `R/model.R:694` is the logical-to-factor coercion
+and `:697-698` is `stop("a 'basis' cannot be NA")`, and
+`C_interface.cpp:777-780` is the finiteness scan. A continuous basis column is
+ACCEPTED on every route and RUNS to completion, MEASURED against a private-lib
+build (see 2f, where the same fact is what makes the basis-scale trap
+reachable). FA1 stays a binary-basis proxy because that is the shape the
+shipped `bcf` fixtures and the `forest(basis = ~ factor(z))` route give for
+free, not because the alternative is refused. Two arms, both of which run
+TODAY on shipped surface.
 - **FA1a, the K = 2 binary-basis proxy (engine).** Both arms
   `dbarts(y ~ ., forests = list(forest(...), forest(basis = ~ factor(z), ...)))`.
   WITH: defaults - `a` free (half-Cauchy via `aVariance`), `b0`/`b1` free, the
