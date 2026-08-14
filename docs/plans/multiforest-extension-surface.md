@@ -20,6 +20,26 @@ window: M0, M1, M2 land INSIDE the pre-release breaking window. M3 LANDED
   2026-08-11), and needs no header movement, M3 having landed. Everything is
   breakable and the four sister packages migrate in lockstep at the freeze,
   once, against the final header (VD 2026-08-10).
+  "No header movement" is VERIFIED, not forecast (amended 2026-08-13, pre-M4):
+  creation crosses as SEXP (`dbarts_sampler_create(SEXP, SEXP, SEXP, const
+  char* family)`, `dbarts.h:506-507`), `setForestBasis(..., forest, basis,
+  numColumns)` (`:700-701`) is already general, `numForestAmplitudes(...,
+  forest)` (`:715-716`) plus `forestAmplitudes(..., forest, out)` (`:724-725`)
+  are already ragged, and the family selector is a `const char*`. The limiting
+  Doxygen sits OUTSIDE `DBARTS_C_API_LIST` (`dbarts.h:297-420`), so relaxing it
+  moves no hash - reshape S1 proved that empirically for three such edits
+  (`dbarts-h-reshape.md:1747-1749`). SIX paragraphs, not two, change meaning
+  under K > 2 and must be swept by M4.5: `:505` ("Gaussian responses only."),
+  `:696-699` ("Today's engine honours exactly one basis..."), `:133-134`
+  (`logLikelihood`'s "a BCF two-forest fit"), `:618-620` (the saved-tree
+  `forest` argument), `:681-683` (`numForests`, "2 for a Bayesian causal
+  forest"), `:779-780` (`setForestPriorScale`'s "a two-forest or multinomial
+  sampler"). None is a signature; none is inside the hashed macro. Two
+  near-misses are explicit NON-GOALS: a per-draw amplitude channel in flat C
+  (declined, see the M4 section) and any re-sign of
+  `dbarts_sampler_setForestBasis`'s error channel (a guard-body change only -
+  its two-channel Doxygen at `:693-699` already anticipates the widening
+  verbatim).
 budget: M0 ~220 design doc + ~180 vignette + ~200 test. M1 ~75-85 R + ~50-60
   man + ~140 test, ~270-290 total (RESTATED 2026-08-13 pre-M1, superseding the
   ~60 + ~40 + ~140 committed 2026-08-11; the carried items are in M1 item 5).
@@ -29,7 +49,10 @@ budget: M0 ~220 design doc + ~180 vignette + ~200 test. M1 ~75-85 R + ~50-60
   M3 ~40 header + ~80 C_interface + ~70 consumer.c + ~60 test-capi.R, inside
   dbarts-h-reshape S1's own budget. Total in-repo before the freeze ~2145-2265
   (~1630 before M2's 2026-08-13 restatement, ~1590 before M1's).
-  M4 priced in its own section (~600-900), not committed here.
+  M4 ~1850-2400, RE-PRICED 2026-08-13 pre-M4 and superseding both the ~600-900
+  written here and the ~900-1100 the M4 section and fork 1 option (a) carried;
+  the split and what each addition is are in the M4 section's budget paragraph.
+  The total above EXCLUDES M4, which is priced in its own section.
 tip: every anchor below re-read at db81bfe in this worktree, with src/ read
   through `git show HEAD:` because a code implementer is editing
   src/{R_interface_bartcore.cpp,bartcore/{chain,combiner,facade,sampler}.hpp}
@@ -97,6 +120,41 @@ amended: 2026-08-13, PRE-M2, by the orchestrator, against 4c7aa200 (M1 landed
   split surface is shippable), and the M2 RECORDS commit opens the TODO ticket
   for the debt. The third flag, the refusal count, was already corrected in
   place at 3fb77060 and stands: 17 inherited, 1 retired.
+amended: 2026-08-13, PRE-M4, by the orchestrator, against 25a21d3b (M1
+  05ac3b4b, M2 64b13b98, reshape S0 a262cd26, item 9 a14040de, S1 with M3
+  folded inside it ab3aa2fa, S2 1bf2e69c, arc close 25a21d3b - all landed
+  since the M4 section was authored 2026-08-11 against a tree where
+  `treatment =` was the creation route, `setTreatment`/`bcfGlue` were the flat
+  C names, and the API hash was `0x1a911c00bb26dcd7`). Artifacts:
+  `.claude/m4-basis-design/pre-m4-scoping-2026-08-13.md` (scoping),
+  `critique-2026-08-13.md` (adversarial critique), `synthesis-2026-08-13.md`
+  (the adjudications, one line each) - all GIT-IGNORED, so the load-bearing
+  facts are carried here rather than pointed at. 31 anchors/claims re-verified
+  BY SYMBOL: 22 verified, 8 line-number drifts, 1 name GONE. No M4 claim is
+  falsified by the tree and no slice loses its target. Where the scoping pass
+  and the critique conflict the critique wins, EXCEPT on three anchors where
+  the critique's own correction is refuted by the tree and the verified value
+  is used instead: `R/spec.R`'s composition refusals are the vector `:429-456`
+  emitted at `:457-463` (not `:428-463`/`:464-469`), and
+  `test-bcf-reporting.R`'s three-chain glue pin is `:114` (not `:113`). What
+  moved: the window paragraph and the M4 budget above; the whole M4 section
+  (preamble, sequence, all six slices, all seven falsifiers, the budget); the
+  two stale `chain.hpp:1261-1262` anchors, both now `:1266-1267`. Nothing about
+  the arc's decisions or its ordering of M4.0-M4.5 moved.
+  DRIFT SWEEP, `dbarts.h`, applied once here rather than by editing landed
+  records: reshape S1 moved every citation this file carries. `:43` (the
+  ownership sentence) is now `:45-49`, and it names `setForestBasis` explicitly
+  ("setForestBasis copies the basis columns it is handed", `:48-49`);
+  `:348-357` (the creation contract) is now `:484-505`, re-worded end to end in
+  `forests =`/`forest(basis =)` vocabulary; `:372-378` (the callback refusal
+  predicate) is now `:520-529`; `:264-271` (the four BCF entries) is now
+  `:389-402`, and TWO of the four names are GONE - the live set is
+  `numForests`, `setForestBasis`, `forestFits`, `numForestAmplitudes`,
+  `forestAmplitudes`. The claim cited via `dbarts-h-reshape.md` that the hash
+  is blind to struct layout re-verifies at `dbarts.h:95-99` plus
+  `C_interface.cpp:280,334-344`: it is FNV-1a over `DBARTS_C_API_DECLS`,
+  signatures only. The M3 section and the cross-plan amendment block are
+  LANDED RECORDS and keep their pre-re-bake numbers, marked as such in place.
 
 ## The question, answered
 
@@ -425,7 +483,7 @@ New findings made in synthesis, each a departure from the memo (receipts in
     `:1349`, `:1354`). Only the per-forest weight SETTER remains internal.
 12. **Non-Gaussian multiforest is a refusal plus a calibration map, not missing
     machinery.** The latent draw already runs against the combined fit
-    (`chain.hpp:1261-1262`) and the multinomial K-forest chain already runs a
+    (`chain.hpp:1266-1267`) and the multinomial K-forest chain already runs a
     non-Gaussian response (its constructor sets `family_ = logistic` with
     Polya-Gamma augmentation). What forces Gaussian on the BCF path is the
     constructor itself: it builds a `GaussianResponse` and sets
@@ -1273,6 +1331,12 @@ re-record.
 
 ## M3. The flat mean channel. An item INSIDE dbarts-h-reshape S1.
 
+**LANDED at ab3aa2fa** (reshape S1, the window's second and last re-bake); the
+four items below are a record of what shipped, not forward work. Every
+`dbarts.h` line number in this section and in the cross-plan block below is
+PRE-RE-BAKE and stale; the drift is swept once in the `amended:` note at the
+top of this file rather than by editing text that was applied verbatim.
+
 Not a separate slice and not a separate re-bake. Conditional on fork 3 landing
 before that slice starts; if it has not, this item is dropped and the shipped
 BCF names go to release.
@@ -1309,59 +1373,598 @@ time: its committed form below tests a strawman (K independent probit
 samplers); the decisive arm is K GAUSSIAN samplers with host-drawn latents
 against the combined fit, which measurement predicts will AGREE.
 
+**Everything below this line is AMENDED 2026-08-13, pre-M4** (artifacts
+`.claude/m4-basis-design/pre-m4-scoping-2026-08-13.md` and
+`critique-2026-08-13.md`; adjudications in `synthesis-2026-08-13.md`). The
+section was the last place in this plan still speaking the retired pre-fork-3
+vocabulary; it now uses the shipped names - `basis` (`forest(basis =)`,
+`$setForestBasis`, `dbarts_sampler_setForestBasis`) and `amplitude`
+(`forest(amplitude.prior.variance =)`, `forest(update.amplitude =)`,
+`$getForestAmplitudes()`, `numForestAmplitudes`/`forestAmplitudes`).
+`setTreatment` and `bcfGlue` are GONE as flat C names and no bridge message
+spells `treatment` (reshape S1's landing note). M3 no longer exists as a
+slice: it landed INSIDE reshape S1, so "the M2 and M3 guards relax in
+lockstep" below means the guards now sited in M4.3's own list.
+
+**Sequence, amended.** The committed order put a VD fork before the probes on
+a cost argument that does not survive: `benchmarks/baselines/
+bench-sampler-235bebc.csv:3` records 0.47 ms/sweep at
+`run-n1000-p10-t200`, exactly FA1a's shape, so FA1a's 32 fits x 8000 sweeps is
+~3 MINUTES of engine time, not the hours the scoping pass estimated;
+`bcf-ridge-interweaving.md:481-483` independently records 0.36 ms/sweep for
+BCF at n = 500. The probes are minutes, so they run FIRST and nothing forks
+ahead of them. **Amend the plan -> run FA1a, FA1b and the revised FA5 ->
+re-scope M4.2 and M4.4 on the verdicts -> M4.0, M4.1, M4.2, M4.3, M4.4,
+M4.5**, serialized, one implementer, each slice landing before the next
+starts. The probes are STATISTICAL (IACT and posterior agreement, both
+load-independent), so unlike `bench-sampler.R` they need no quiet machine and
+may share the box. Their harnesses live GITIGNORED under
+`.claude/m4-basis-design/harness/` per the house convention
+(`composition-mixing-probe.md:13-16`, `grow-from-root-default.md:6,55`);
+the binding corollary is that their NUMBERS are carried into this section
+verbatim, never by reference to a directory that does not arrive with a clone
+(`multiforest-predictor-mutation.md:71`). PROMOTE FA1 to
+`benchmarks/R/basis-amplitude-mixing.R` if and only if its verdict re-scopes
+M4.2 - that is exactly the condition `benchmarks/R/grouped-mixing.R` was
+promoted under. FA5's numbers are a one-time adjudication and stay gitignored.
+
+**Four candidate VD items, ALL resolved WITHOUT a VD question (orchestrator,
+2026-08-13, under the standing grant; VD may veto any of them).**
+
+1. **The b-ridge fork is DISSOLVED - there is no fork.** It was to be put on
+   the b-move's "shot at the open `bcf-sigma-residual` flag". That flag is
+   RESOLVED (`docs/plans/bcf-sigma-residual.md:2-6`, `INDEX.md:20`; no `TODO`
+   entry survives) and the b-move was EXONERATED as its carrier by the memo's
+   own controls. Both halves of the trade are gone, so the item is a design
+   consequence to record rather than a decision to take. See M4.2. **No
+   `bcf-sigma-residual` ticket is opened or re-opened by M4.**
+2. **The amplitude-free default is PROBE-CONTINGENT on FA1**, not VD-facing
+   ahead of it. If FA1a's WITHOUT arm matches from its best scale cell AND
+   FA1b shows no K-scaling degradation, the general path ships amplitude-FREE
+   by default with amplitudes opt-in and BCF keeping its specialized path.
+   That re-scope is worth roughly M4.2's whole engine budget, which is why FA1
+   runs first. Report the verdict to VD as a fact when it exists.
+3. **M4.4's justification is PROBE-CONTINGENT on the revised FA5.** Fork 2
+   already keeps the Gaussian-first escape hatch live on VD's own resolution
+   ("if the latent-scale calibration map needs its own research arc,
+   Gaussian-only ships first and non-Gaussian is the immediate second slice"),
+   so no new decision slot is needed: FA5's outcome selects among options VD
+   has already licensed. Report, do not ask.
+4. **A per-draw amplitude channel in flat C is DECLINED at orchestrator
+   discretion.** `dbarts_results` (`dbarts.h:138-152`) has no amplitude member
+   and the header contains zero "glue" tokens, while the R bridge does report
+   per-draw amplitudes - a real R/C asymmetry, and the exact
+   binding-decision-1(a) inversion M1 existed to close. But it PREDATES M4,
+   M4 does not need it, and closing it would append to `dbarts_results`: not a
+   hash move (struct layout is unhashed, `dbarts.h:95-99`) but a
+   `DBARTS_C_API_MINOR` 0 -> 1 bump by the header's own append rule
+   (`:122-123`), plus a break of the `sizeof(dbarts_results)` assert at
+   `C_interface.cpp:274`. Binding decision 8 pins both constants at 1/0 through
+   the window and forbids it. Recorded as a DOOR on the TODO, not a fork.
+
 - **M4.0 (tests only).** Pin today's combiner at the seam that generalizes:
-  `forestMultiplier`'s two values, `combinedFits`' blend, `drawGlue`'s
-  conditional order (a, aVariance, b0, b1, then the ridge draw), and
-  `afterCombine`'s applied scale.
-- **M4.1 (engine, byte-identical).** `forestMultiplier` becomes
-  `dot(a_f, B_f[i,])`; `combinedFits` becomes a K loop. Ship with BCF's basis
-  synthesized internally from z so BCF is bitwise unchanged. This is the whole
-  architectural risk, isolated. ABORT on any bcf-equivalence divergence.
+  `forestMultiplier`'s two values (`combiner.hpp:762`, private, call sites
+  `:552` and `:560` - so the pins live in `tests/cpp`, not tinytest);
+  `combinedFits`' blend (virtual `:339`, BCF override `:567-576` reading
+  `forests[0]`/`forests[1]` by literal index); and the draw order, which the
+  committed text folds into one method and which is TWO. `drawGlue`
+  (`:582-623`) draws `a` (`:598-599`, standard normal), `aVariance` (`:606`,
+  gamma), `b0` (`:620`), `b1` (`:621`) - and nothing else. The ridge draw is
+  the GIG at `:672` inside `afterCombine` (`:638-709`), which `Chain` calls
+  immediately after `drawGlue` (`chain.hpp:1280-1281`). Pin BOTH, in that
+  order, through the hook that already exists for exactly this -
+  `Chain::interweaveGlueRidge(record, sampleNum)`, `chain.hpp:1063-1067`,
+  documented "for the component tests". **The pin scope covers BOTH live
+  overrides of `afterCombine`, not just BCF's** (amended 2026-08-13):
+  `MultinomialForestCombiner::afterCombine` (`combiner.hpp:1152-1197`) is a
+  second implementation of the same virtual in the same sweep slot, drawing an
+  ADDITIVE level-centering shift that consumes RNG at `:1180-1181`
+  (`ext_rng_simulateStandardNormal`), applying it to every forest's
+  `totalFits` and `muByTree` at `:1183-1195`, and returning 1.0
+  unconditionally at `:1196`. M4.2 redefines that virtual; its multinomial
+  implementation must be pinned on RNG consumption and return value before
+  that happens, or the arc rewrites a virtual with half its implementations
+  unpinned. Also pin BCF's `1.0`-on-every-skip returns (`:640`, `:662`,
+  `:674`, `:676`) and its returned `c` (`:708`).
+- **M4.1 (engine, byte-identical).** `forestMultiplier`
+  (`combiner.hpp:761-765` - the whole K = 2 basis map is five lines) becomes
+  `dot(a_f, B_f[i,])`; `combinedFits` (`:567-576`) becomes a K loop.
+  `formForestResponse` (`:546-565`) needs NO change: it already loops every
+  forest through `forestMultiplier`, and it is generic in q as well as K - the
+  amplitude vector contracts with the basis row to a per-row SCALAR, so
+  `resid / m`, `w m^2` and the `0x1p-26` snap (`:525`, `:553`) all survive a
+  wide basis with the condition-number cap argument at `:538-541` intact. That
+  is this plan's own "generalization rather than a second mechanism" claim, and
+  it holds by symbol. Ship with BCF's basis synthesized internally from z so
+  BCF is bitwise unchanged - which only stays true if the R route keeps
+  producing exactly today's column, so `expandForestBasis`
+  (`R/model.R:686-708`) must not move here. This is the whole architectural
+  risk, isolated. ABORT on any divergence in the gating trio, whose CURRENT
+  baselines are `bcf-equivalence-8b047f8b.rds` (12 scenarios,
+  `benchmarks/baselines/MANIFEST:42`), `equivalence-8b047f8b.rds` (37
+  scenarios, `MANIFEST:16`) and `multinomial-equivalence-1027be5.rds` (10
+  scenarios, `MANIFEST:48`) - the last of these is a GATING baseline for M4.1
+  and M4.2 alongside `bcf-equivalence`, because the multinomial combiner is a
+  live K-forest model overriding the same virtuals.
 - **M4.2 (engine).** The q-variate amplitude conditional, using the shipped
-  Cholesky helpers; `afterCombine` becomes a per-forest ASIS rescale of the
-  whole amplitude vector along the likelihood-invariant orbit. BCF's K = 2
-  orthogonal case must come out bitwise, or its specialized two-scalar path is
-  kept explicitly and the general path is gated statistically. This is the one
-  place in the arc that could force a bcf-equivalence re-record; say so in the
-  slice's rng note rather than discovering it.
-- **M4.3 (spec, factory, refusal relaxations).** A K-length spec vector of
-  `BCFForestSpec`-shaped entries plus per-forest basis and amplitude priors;
-  `BCFSpec` becomes a thin adapter so `bartcoreBCFSampler` and the fixture keep
-  working; the M2 and M3 guards relax in lockstep, with no header movement.
+  Cholesky helpers (`model.hpp:869` `choleskyDecompose`, `:886`
+  `solveLowerTriangular`, `:895` `solveLowerTriangularTransposed`; in-place,
+  row-major p x p, NO failure path because callers guarantee definiteness - so
+  the conditional must supply its own ridge/prior term to keep the crossproduct
+  PD). `afterCombine` becomes a per-forest ASIS rescale of the whole amplitude
+  vector along the likelihood-invariant orbit, and it must RE-STATE the base
+  virtual's contract rather than inherit it: the Doxygen at
+  `combiner.hpp:392-394` ("returns the scale its move applied (1.0 when it
+  makes none)") is already false for the multinomial implementation, which
+  makes an additive move and returns 1.0 by convention (`:1151`, `:1196`).
+  BCF's K = 2 orthogonal case must come out bitwise, or its specialized
+  two-scalar path is kept explicitly and the general path is gated
+  statistically - that in-slice decision mechanism is unchanged. This is the
+  one place in the arc that could force a `bcf-equivalence` re-record; say so
+  in the slice's rng note rather than discovering it. **Standing rule for any
+  re-record:** it bumps `.github/workflows/equivalence.yaml`'s baseline lines
+  in the SAME commit (`:61` equivalence, `:87` bcf-equivalence, `:113`
+  multinomial-equivalence). A re-record that leaves the workflow pointing at
+  the old file passes locally and fails CI - or worse, passes both against a
+  superseded baseline.
+
+  **The containment, recorded (amended 2026-08-13).** The general per-forest
+  ASIS applied at the TREATMENT forest IS the b-move that
+  `docs/plans/bcf-b-ridge.md` derives - not a second mechanism M4.2 adds, but a
+  design consequence of the generalization. The memo's own general rule makes
+  the identity exact: "rescaling k leaf params by c against d glue scalars by
+  1/c gives p = (k-d)/2 (a: k=L, d=1; b: k=Lt, d=2)" (`:192-194`), which IS
+  M4.2's q-variate exponent, with `B = ||a_f||^2 / priorVar_f` for a
+  fixed-variance amplitude prior and `a^2/aVariance` for the scale mixture
+  (`:183-196`). Instantiated at BCF's forest 1 (q = 2, `bPriorVariance` fixed
+  at `combiner.hpp:300`) the general move is the b-move exactly. Three
+  consequences:
+  - **The sigma-motivated build stays REJECTED.** `bcf-b-ridge.md`'s own
+    controls settle it: `:429-438` (control (a), fixed-b) "EXONERATES the
+    b-ridge as the carrier of the residual sigma bias: the a-only memo's
+    'prime suspect' is WRONG"; `:453-463` (control (b), burn-2x) "The residual
+    sigma bias is a BURN TRANSIENT, confirmed"; `:477-478` "ROUTE: FIX
+    INITIALIZATION / BURN, do NOT implement the b-move for the sigma flag";
+    `:509-511` "Do not gate the b-move on sigma, and do not expect the b-move
+    to substitute for the burn/init fix." `bcf-sigma-residual` is RESOLVED
+    (that plan's `:2-6`, `INDEX.md:20`); the only survivor is
+    `TODO`'s `bcf-sigma-tail-mixing` OPTIONAL research door, which routes to
+    tree-structure mixing at high SNR, not to a glue move. **M4.2 opens no
+    sigma ticket and claims no sigma payoff.**
+  - **`bcf-b-ridge.md` is an M4.2 INPUT, and prices the slice DOWN.** It
+    already delivers, for free, three of M4.2's most expensive deliverables:
+    the general `p = (k-d)/2` exponent (`:192-194`) with the naive move-map
+    shortcut identified as off by one (`:166-171`); a PASSED adversarial R
+    prototype across three `Lt` and two parameterizations, whose
+    DISCRIMINATION arm rejects the off-by-one exponent at KS = 1.6e-21
+    (`:329-357`); and the complete rescale-consistency checklist - `treeFits`,
+    `totalFits`, `totalTestFits`/`currTestFits`, and the keepTrees
+    flattened-slot sharp edge (`:280-323`) - each of which the shipped
+    `afterCombine` implements at `combiner.hpp:680-707` and each of which the
+    q-variate generalization must re-derive. Cite sections 2.3, 4 and 5a as the
+    derivation and prototype, not merely as evidence that a move is unbuilt.
+    The GIG generator (`ext_rng_simulateGeneralizedInverseGaussian`) already
+    ships.
+  - **The move's acceptance is its OWN, per that memo's `:495-506`:** judge it
+    on its own IACT payoff (`|b1-b0|` or tau-amplitude IACT on a
+    strong-treatment-signal DGP, mirroring the a-move's `|a|` IACT 2.5x), with
+    correctness acceptance `bcf-exact` mode-2b stays exact AND a keepTrees BCF
+    round-trip tracks. This is FA2's q-variate half, run as an M4.2-internal
+    gate (see the falsifiers).
+- **M4.3 (spec, factory, refusal relaxations). RE-SCOPED WHOLESALE
+  2026-08-13** - most of what it was written to design has SHIPPED, and most of
+  what remains it priced at zero.
+
+  **Already shipped, strike it from the slice:** the public creation route
+  `forests = list(forest(...))` with the complete ten-knob map (M2), so M4.3
+  relaxes a `length(forests) > 2L` test rather than designing a surface; the
+  per-forest amplitude priors `forest(amplitude.prior.variance =)` and
+  `forest(update.amplitude =)` with their settled legality split; the whole
+  flat C mean channel (`setForestBasis`, `numForestAmplitudes`,
+  `forestAmplitudes`) with general, staged-guard signatures; the R5 mirror
+  `$setForestBasis(forest, basis)` and `$getForestAmplitudes()`, 1-based via
+  `resolveForestIndex` (`R/bartcore.R:1051`) since a14040de; the refusal
+  discipline (M2's FS2 landed 42 message-asserting refusals; FC2 landed the
+  flat C refusal matrix in `consumer.c` with an `18L` `LEG_COUNT` pin).
+
+  **What remains, by site.** R creation, `R/model.R`: `:772-776` the `> 2L`
+  arity refusal; `:650-657` `forestBasisDeclaration` (hardcodes
+  `length(forests) != 2L`, must return a per-forest basis LIST); `:686-708`
+  `expandForestBasis` (the whole function is the K = 2 expander - the
+  factor-only guard at `:693` with its message at `:695-696`, "exactly two
+  levels" at `:699-702`, the single 0/1 column collapse at `:708`, plus `:670`
+  "a 'basis' formula must be one-sided"); `:784-818` `resolveForests`'s six
+  positional refusals, each written against "first forest"/"second forest";
+  `:840-854` `forestParams`, whose positional length-8 write (`:844-853`,
+  `declared(tau$sd, 1)` at `:849`) becomes a ragged per-forest transport -
+  **this is the single most K = 2-shaped thing in the arc**; `:622-645`
+  `resolveModerators`, one column-index vector rather than per-forest. R
+  creation, `R/spec.R`: `:412-419` the gaussian-only refusal (M4.4's R-side
+  gate); `:429-456`'s SIXTEEN named composition refusals emitted at `:457-463`
+  - M4 relaxes the family one, the other fifteen and their pins STAY;
+  `:466-486` the `mu.`/`tau.`-prefixed control attribute. R data layer:
+  `R/data.R:643-655` `validateTreatment`'s 0/1 coding check, the K = 2 pin
+  every route reaches. R5: `R/dbarts.R:1218-1223` `$setForestBasis`'s
+  `index != 1L` refusal and `:1237` its single-slot `data@treatment` mirror.
+  Bridge (`src/R_interface_bartcore.cpp`): the length-8 params check at TWO
+  sites (`:2134-2135`, `:2913-2914`) and the positional unpack `:2138-2148`;
+  `applyBCFSpec`'s two-forest shape `:2120-2126` and `applyBCFAttributes`
+  `:2200-2205`; the `data@treatment` read by name `:1112` and the 0/1
+  coercion scans `:2843-2845`, `:2933-2934`; the two-way creation cross-check
+  `:2831-2836`; `double amplitudes[3]` at `:3673` and the stride-3
+  `Rf_allocMatrix` at `:3769-3772`. Flat C (`src/C_interface.cpp`): guard
+  bodies only as designed (`:768`, `:773`, `:775-778`, `:780-787`, `:790-791`,
+  `:814-815`, `:828-832`), plus the THREE `double amplitudes[3]` stack buffers
+  at `:767`, `:812`, `:824`, which a K-amplitude model overflows - a
+  correctness item, not a signature item. Engine: `BCFForestSpec`
+  (`combiner.hpp:211-241`, WIDER than this plan describes - it now carries
+  `columns`/`numColumns`, the three interaction fields and the three block
+  fields, so a K-length vector of these is a bigger object than priced) ->
+  the K-length entry type; `BCFSpec` (`:244-251`) -> the thin adapter;
+  `BCFState`'s `a, b0, b1, aVariance` (`:290-302`) and the same four in
+  `ChainStateData` (`:92-94`) -> per-forest amplitude vectors; the BCF
+  constructor `chain.hpp:692-723` with its two asymmetric `buildBCFForest`
+  calls (`:716-719`) and `buildBCFForest` itself (`:4454`); `facade.hpp:272-274`
+  still spelling the retired `setTreatment` in the engine vtable, and
+  `createBCFSampler` (`:750-762`). The constant-leaf `static_assert`
+  (`combiner.hpp:502-503`) STAYS.
+
+  **Six collisions this slice collides with and priced at zero.**
+  (a) **The `bcfGlue` out-parameter is a FOUR-LAYER vtable, not a bridge
+  concern:** base virtual `combiner.hpp:386-389` `bcfGlue(double&, double&,
+  double&)`, `Chain::bcfGlue` `chain.hpp:1018-1020`, `Sampler::bcfGlue`
+  `sampler.hpp:1242-1244` unpacking `out[0..2]`, `facade.hpp:315` carrying no
+  length at all. Re-signing it is ENGINE work.
+  (b) **The state format's `bcf` block.** Four fixed scalars serialized at
+  `R_interface_bartcore.cpp:5812-5818`, read with an `Rf_xlength(bcfExpr) != 4`
+  check and a "malformed bcf glue in bartcore state" message at `:6163-6167`.
+  A ragged amplitude vector is non-additive to that encoding. **RE-ENCODE
+  "bcf" IN PLACE and bump nothing.** The registry's append-only rule
+  (`:5645-5655`) is real but the paragraph after it waives this case:
+  `:5658-5665` records that version 1 is the FIRST shipped format and "the
+  pre-release development increments (the forests-list/BCF restructure
+  included) are collapsed into it - no released reader or writer ever saw
+  them. Pre-1.0 states are not a compat target." The "bcf" block was itself
+  ADDED by exactly such a pre-release restructure. Do NOT add a parallel
+  optional block: that would carry a dead K = 2 block into the released 1.0-0
+  format permanently, plus read-side precedence rules for four states.
+  (c) **The run-result `glue` slot is 3-row and pinned.**
+  `R_interface_bartcore.cpp:4100-4102` allocates `3 x numSamples` /
+  `3 x numSamples x numChains`; pinned at `test-bcf-reporting.R:41` and `:114`
+  with the reconstruction identity at `:57-71`.
+  (d) **`$getForestAmplitudes()` is the one shipped R5 signature M4 must
+  BREAK.** Argument-free and documented "(a, b0, b1) ... as a 3 x n.chains
+  matrix" (`R/dbarts.R:1442-1446`), pinned `test-bcf-r5-surface.R:44,50`.
+  Under a ragged K-length vector it takes a `forest` argument (matching the
+  flat pair) or returns a list.
+  (e) **The `dbartsData(treatment = )` debt retires HERE and is entangled
+  four ways.** `TODO:90-105` routes it to M4 ("whose n x q_f basis is the
+  honest carrier and would absorb it whole") and it has already MANIFESTED -
+  bartCause `dbarts-1.0@695c603`'s suite is red on it. Beyond data carriage
+  the slot is load-bearing for: the bridge's read by name
+  (`R_interface_bartcore.cpp:1112`), the R5 `$setForestBasis` mirror
+  (`R/dbarts.R:1237`), the two-way creation cross-check (`:2831-2836`), and -
+  decisively - `isBCFSampler <- !is.null(sampler$data@treatment)`
+  (`R/bartcore.R:20-22`), on which the ENTIRE R5 refusal system depends
+  (`refuseBCFMutation` `:30-34` and its five call sites: `setResponse` `:285`,
+  `setOffset` `:306`, `setData` `:383`, `setModel` `R/dbarts.R:1044`,
+  `setCalibration` `:1484`). **The successor is the CAPABILITY probe the
+  shipped code already names**, generalized from "carries BCF glue" to
+  "carries amplitudes": `R/bartcore.R:18-19` documents the slot test as "the
+  R5-layer capability probe, cheaper than a round trip through the bridge's
+  own (`Chain::bcfGlue`-based) one". **A `numForests() > 1` probe is REFUSED
+  by the shipped code twice** - `R_interface_bartcore.cpp:3668-3670` ("a
+  K-forest multinomial (K >= 2) defeats a numForests test") and
+  `C_interface.cpp:764-766` independently. Under M4 that matters more, not
+  less: the general family is a THIRD multi-forest combiner, so a forest-count
+  probe misfires on two of three.
+  (f) **`bcf-equivalence.R` drives the INTERNAL route** and needs no edit -
+  `:11`, `:115`, `:130`, `:147` all call `dbarts:::bartcoreBCFSampler`, and
+  `:95-101` read through `bartcoreForestFits`/`bartcoreBCFGlue`. That holds
+  for M4 only if the "thin adapter" keeps that function's signature, which is
+  why the adapter clause is LOAD-BEARING rather than courtesy: the bitwise
+  gate runs THROUGH it. `bartcoreBCFSampler` (`R/bartcore.R:622`, internal) is
+  also still the oracle for six test files.
+
+  **Tests the relaxation rewrites** (existing pins, not new tests):
+  `test-bcf-creation.R`'s 45 `expect_error`, ~12 of which encode the K = 2 /
+  two-level / gaussian / forest-2 limits by message text (`:550` "gaussian",
+  `:563` "at most two forests", `:567`, `:579` "exactly two levels", `:588`,
+  `:595`, `:606`, `:613`, `:619`, `:663`) with 16 more the composition
+  refusals at `:428-545`; `test-bcf-r5-surface.R` (`:135` "only on the
+  second", `:44`/`:50` the 3-row dim); `inst/tinytest/capi/consumer.c:931-932`,
+  `:995-1021`, `:1043-1053` and the `18L` `LEG_COUNT`; `test-capi.R:1165-1179`;
+  `test-bcf-reporting.R:41,96,114`; `test-multi-forest-seam.R` (15 refusals);
+  `test-bcf-mutation-pins.R` (6); `test-bcf-zero-multiplier.R`.
 - **M4.4 (non-Gaussian, the family's justification).** Wire the family enum
   through the K-forest constructor and define the calibration map against each
-  family's latent scale; probit and logistic in v1, the rest doors.
-- **M4.5 (docs).** `docs/design/multiplier-combiner.md`;
-  `forest-combiner.md`'s "What still re-carves" updated;
-  `model-space-survey.md` gains the four verified classes it lacks.
+  family's latent scale; probit and logistic in v1, the rest doors. **The
+  family gate is FOUR sites, not one** (amended 2026-08-13): `R/spec.R:412-419`
+  ("a treatment forest requires a continuous (gaussian) response"), bridge
+  `:2222-2223` and `:2925-2926`, and `chain.hpp:704` (`family_ =
+  ResponseFamily::gaussian`, with `GaussianResponse` hardcoded at `:702-704`
+  and the calibration map at `:716-719`). `model.hpp:2523`'s
+  `enum class ResponseFamily` is only the LAST gate. `facade.hpp:750-762`
+  `createBCFSampler`'s single `SamplerFacade<ConstantGaussianLeaf>`
+  instantiation is the fifth place the assumption is baked in. **This slice's
+  stated justification is PROBE-CONTINGENT on the revised FA5** and may have to
+  be re-written on cost, ergonomics and the ASIS coupling instead - see the
+  falsifier, which states exactly what makes it unjustified and what licenses
+  fork 2's already-live Gaussian-first escape hatch.
+- **M4.5 (docs).** Deliverable status verified 2026-08-13:
+  `docs/design/multiplier-combiner.md` **does not exist - NEW FILE** (its only
+  mention anywhere is this line); `docs/design/model-space-survey.md` exists,
+  so "gains the four verified classes it lacks" is an EDIT;
+  `docs/design/forest-combiner.md`'s "What still re-carves when a second
+  combiner lands" is at `:146-189`, an EDIT. Plus the SIX meaning-moving
+  `dbarts.h` Doxygen paragraphs listed in the `window:` note above (comment
+  edits only - no re-bake, no version-constant move). `docs/design/bcf.md:
+  325-329` was factually wrong (it named `setTreatment`/`bcfGlue` as public
+  `dbarts.h` entries and cited `dbarts.h:264-271`, all retired at reshape S1);
+  **FIXED 2026-08-13 in the pre-M4 amendment commit**, so M4.5 inherits a
+  correct paragraph rather than a deliverable.
 
-Falsifiers: **FA0** a K = 2 factor-basis sampler is bitwise identical to
-today's BCF at the same seed (this REPLACES the memo's F2, which fact 9
-falsifies). **FA1, the amplitude falsifier** (the critique's A3, adopted): a
-K-forest family WITHOUT per-forest amplitudes, in VCBART's own
-parameterization, against one WITH amplitudes plus the ASIS move, same DGP,
-IACT and RMSE both reported; if the no-amplitude arm mixes comparably, the
-amplitude and its ASIS remedy are decoration and the Gaussian half has no
-engine justification. **FA2** with the per-forest ASIS rescale removed, the
-amplitude's IACT degrades measurably; if it cannot go red, the remedy is
-decoration. **FA3** a continuous single-column basis recovers a known
-closed-form posterior to Monte Carlo error, in `bcf-exact.R`'s idiom. **FA4**
-a K = p+1 VCBART-shaped sampler recovers known coefficient surfaces better than
-one `LinearGaussianLeaf` fit on a DGP where the coefficients break at
-DIFFERENT modifier thresholds; a null means this should have been a leaf model.
-**FA5** the non-Gaussian claim, MEASURED not asserted: a probit K-forest
-sampler draws its latents against the combined fit, and K independent probit
-samplers composed in R are a measurably DIFFERENT model on the same DGP.
+Falsifiers, all AMENDED 2026-08-13 except FA3, FA4 and FA6.
+
+**FA0** a K = 2 factor-basis sampler is bitwise identical to today's BCF at the
+same seed (this REPLACES the memo's F2, which fact 9 falsifies). Its CREATION
+half is DISCHARGED: M2's FS1 pinned the `forests =` route bitwise on all six
+`bcf-equivalence` channels, because that route resolves to the SAME payload
+`treatment =` did (`resolveForests` `R/model.R:759`, `forestParams` `:840-854`).
+FA0's live content is now exactly that the post-M4.1 GENERALIZED combiner still
+reproduces it.
+
+**FA1, the amplitude falsifier** (the critique's A3, adopted), RESPECIFIED
+because it cannot run in VCBART's literal parameterization: a strict VCBART DGP
+wants a CONTINUOUS basis column, and today's engine refuses one by name in two
+places (`R/model.R:693` with its message at `:695-696`;
+`C_interface.cpp:776-789`). Two arms, both of which run TODAY on shipped
+surface.
+- **FA1a, the K = 2 binary-basis proxy (engine).** Both arms
+  `dbarts(y ~ ., forests = list(forest(...), forest(basis = ~ factor(z), ...)))`.
+  WITH: defaults - `a` free (half-Cauchy via `aVariance`), `b0`/`b1` free, the
+  ASIS ridge move active on forest 0. WITHOUT: `forest(update.amplitude =
+  FALSE)` on BOTH forests, which pins `a = 1, b0 = 0, b1 = 1` at their
+  constructed values (`combiner.hpp:297`), makes `drawGlue` consume NO rng
+  (both blocks gated at `:589` and `:609`) and makes `afterCombine` an
+  immediate no-op (`:640`). The model is then `y = mu(x) + z tau(x) + eps` with
+  FIXED leaf-scale hyperparameters - VCBART's parameterization exactly, at
+  K = 2, with no engine change. **The confound and its handling:** forest 0's
+  node scale is `s = scaledResponseSd` unconditionally (`chain.hpp:718`) and
+  there is no knob for it on a BCF sampler (`$setCalibration` refuses,
+  `R/dbarts.R:1484-1489`), so the WITHOUT arm's prior on the mu total is
+  `N(0, s^2)` while the WITH arm's is `a` times that with
+  `a ~ C+(0, aPriorScale = 2)`. Forest 1's scale IS tunable via `forest(sd =)`
+  -> `sdModerate` (`R/model.R:849`, `R_interface_bartcore.cpp:2145`), so run
+  the WITHOUT arm over a small grid of `forest(sd =)` values and report the
+  arm's BEST cell, with forest 0's fixed scale stated as a recorded
+  limitation. A no-amplitude arm that wins from its best cell is a strong null;
+  one that loses only at a badly chosen scale proves nothing.
+  **DGP:** Friedman (1991) for mu (the house convention,
+  `benchmarks/R/grouped-mixing.R:56-58`), a tau surface breaking at DIFFERENT
+  modifier thresholds than mu (FA4's spirit, so the two forests are not
+  near-collinear), binary z with ~40% treated, n = 1000, sigma = 1.
+  **Functionals, all identified:** `sigma`; `mean_i(tauhat_i)` (the WITH arm's
+  `(b1 - b0) * mean tau`, the WITHOUT arm's `mean tau`); `||mu_total||_2`;
+  fitted values at 5 fixed held-out rows. **Reported:** IACT and out-of-sample
+  RMSE against the true `mu` and `(b1-b0)tau` surfaces, averaged over seeds
+  with the spread printed. **IACT estimator, named:** `coda::effectiveSize`
+  (AR-spectral), IACT = N/ESS, per `grouped-mixing.R:68-77`; `coda` is NOT in
+  `DESCRIPTION` Suggests, so the harness `requireNamespace`-guards it and stops
+  with a message as `grouped-mixing.R:39-41` does (the only ESS estimator with
+  a declared dependency is `posterior::ess_bulk`, `R/diagnostics.R:95,100,127`
+  - a promoted harness is the moment to consider switching). Report lag-1
+  autocorrelation beside IACT; single-run IACT is recorded as unstable in two
+  places, which is why seed replication is not optional. **Shape:** K = 2;
+  n = 1000 train + 1000 test; 1 chain per fit (single-chain ESS, the house
+  convention); 2000 burn + 6000 kept, thin 1; 8 seeds per arm per grid cell;
+  3 grid cells for the WITHOUT arm. 32 fits, ~3 minutes of engine time at the
+  0.47 ms/sweep the current baseline records.
+- **FA1b, the amplitude-free family at K > 2 (pure R composition).** FA1a
+  cannot say whether the amplitude matters AT SCALE, which is the VCBART
+  regime. Build the amplitude-free K-forest sampler as K single-forest gaussian
+  dbarts samplers composed in R (exactly correct for gaussian - this plan's own
+  fact 5), leaf priors matched via `$setCalibration`, host owning the residual
+  bookkeeping and the sigma draw. Measure IACT and RMSE at K in {2, 4, 8} on a
+  VCBART-shaped DGP (`y = sum_j beta_j(u) X_j + eps`, continuous `X_j`, legal
+  here because the HOST applies the basis). Report the composition tax at each
+  K; that number is also an input to FA5's teeth.
+- **Verdict rule, PRE-REGISTERED.** If FA1a's WITHOUT arm matches on IACT and
+  RMSE from its best scale cell AND FA1b shows no K-scaling degradation, the
+  amplitude and its ASIS remedy are BCF-SPECIFIC, not family content.
+  Consequence: M4.2 keeps BCF's specialized two-scalar path and the general
+  path ships amplitude-FREE by default, amplitudes opt-in. That re-scope is
+  worth roughly the whole of M4.2's engine budget, which is why FA1 runs first.
+
+**FA2** with the per-forest ASIS rescale removed, the amplitude's IACT degrades
+measurably; if it cannot go red, the remedy is decoration. **Its
+single-amplitude half is ALREADY SATISFIED and the measurement is in the
+repo:** `docs/plans/bcf-ridge-interweaving.md:494-499`, from the arc that BUILT
+the a-move - initial-monotone IACT, mean over 4 seeds, strong prognostic
+signal, n = 200 - `|a|` IACT **321 -> 130 (2.5x)** (base spread 198-544, new
+100-156) and sigma IACT **64 -> 37 (1.7x)** (base 17-112, new 28-50); with the
+sharper control at `:488-492`, where refreshing `aVariance` after the move
+(breaking the ASIS conditioning) HURT `|a|` mixing 69 -> 196. So the remedy is
+not decoration and the mechanism is specifically the ASIS conditioning. **The
+pre-arc re-run is RETIRED at explicit orchestrator discretion** - this is a
+departure from this section's own "FA1 and FA2 still run BEFORE any engine
+work" reading and is recorded as one rather than carried silently; the cost
+saved is small (one `--preclean` build plus minutes), and what it buys is a
+number the repo already has. **What genuinely remains is the q-VARIATE half,
+and it is an M4.2-INTERNAL gate, not a pre-arc probe:** run it with the
+per-forest move in and out, on the same two-build method the a-move used. Its
+acceptance question is its OWN IACT payoff (`|b1-b0|` or tau-amplitude IACT on
+a strong-treatment-signal DGP) plus `bcf-exact` mode-2b staying exact and a
+keepTrees BCF round-trip tracking, per `bcf-b-ridge.md:495-506`. **The
+`bcf-sigma-residual` acceptance question is STRUCK** - that flag is RESOLVED
+and the move was exonerated as its carrier (see M4.2).
+
+**FA3** a continuous single-column basis recovers a known closed-form posterior
+to Monte Carlo error, in `bcf-exact.R`'s idiom - whose header `:1-20` states
+the enumeration plus quadrature construction and its three modes, and whose
+mode 2b comment (`:35-38`) independently names "the bscale ridge".
+
+**FA4** a K = p+1 VCBART-shaped sampler recovers known coefficient surfaces
+better than one `LinearGaussianLeaf` fit on a DGP where the coefficients break
+at DIFFERENT modifier thresholds; a null means this should have been a leaf
+model. Bounded at p <= 8 on the leaf side: `LinearGaussianLeaf`
+(`model.hpp:918`) has `maxNumCovariates = 8` (`:924`).
+
+**FA5, the non-Gaussian claim, RESPECIFIED.** The committed form has no teeth:
+its comparison arm is a composition no competent host would write (K probit
+samplers each drawing latents against its OWN partial fit), so a positive
+result licenses nothing, and its engine arm does not exist until M4.4, so the
+falsifier cannot run before the work it is supposed to justify. The respec is
+TWO legs, split on where an exact posterior is constructible at all.
+
+- **Leg G (Gaussian, EXACT, runs pre-arc).** `bcf-exact.R`'s exactness rests
+  entirely on Gaussian conjugacy: "conditional on the glue (a, b0, b1) and
+  sigma the leaf parameters integrate in closed form (a Gaussian block
+  marginal), leaving a low-dimensional quadrature over the glue and a 1-D
+  quadrature over sigma" (`:7-10`). Under probit, observation i contributes
+  `Phi(mu_{l(i)} + z_i tau_{m(i)})`, which COUPLES its mu leaf to its tau leaf;
+  the leaf marginal becomes a joint integral of dimension L_mu + L_tau,
+  blocked only over connected components of the leaf-overlap bipartite graph
+  and NOT factorizable per leaf - up to 6 dimensions per enumerated tree pair
+  at this DGP. So the exact arm is restricted to the GAUSSIAN legs, where it
+  belongs. Leg G's job is to validate the R-composition DRIVER against the
+  exact posterior on the same enumerable design (`bcf-exact.R:47-49`: K = 3
+  cells, single-tree forests): two single-forest Gaussian samplers, host-owned
+  residual bookkeeping, must recover the exact posterior. It also FIXES the
+  tolerance unit used downstream, and it proves the loop is not itself
+  perturbing the chain via `test-bcf-reporting.R:86-99`'s batch-vs-loop
+  `expect_identical` template.
+- **Leg P (probit, NO exact reference, two arms plus a control).** DGP: the
+  same degenerate enumerable design on a probit likelihood,
+  `y_i ~ Bernoulli(Phi(mu(x_i) + z_i tau(x_i)))`, amplitudes PINNED
+  (`update.amplitude = FALSE` in every arm) so the probe isolates the LATENT
+  coupling and nothing else - the amplitude question is FA1's.
+  - **Arm B (the decisive R-composed arm).** Two single-forest GAUSSIAN dbarts
+    samplers over the same design, each created with `resid.prior = fixed(1)`
+    so sigma is pinned at 1 across sweeps (the value is a VARIANCE, not an sd;
+    recorded footgun, `docs/design/correlated-outcomes.md:161-165`). Per sweep,
+    in R: (1) read both forests' fits and form the combined location
+    `F_i = mu_i + z_i tau_i`; (2) draw `w_i | y_i, F_i ~ TN(F_i, 1)` truncated
+    to the sign of `y_i` - **against the COMBINED fit**, which is the whole
+    point; (3) per forest, `$setResponse(w - other_f, updateScale = FALSE)`,
+    `$setWeights(m_f^2)`, `$run(0L, 1L)`. Leaf priors matched exactly through
+    `$setCalibration(forest, prior.scale =)` (`R/dbarts.R:1461-1527`; legal on
+    a single-forest sampler, refused only on BCF). **The location lever must be
+    matched too, and it is easy to miss:** `prior.mean` is the response
+    transform's SHIFT and an offset of `-prior.mean` re-centers the modelled
+    quantity (`test-calibration-creation.R:56-63`, applied as
+    `setOffset(rep_len(-priorMean, rows), updateScale = FALSE)`). With two
+    samplers each taking a per-forest RESIDUAL response the shift is
+    per-sampler and no longer cancels; omitted, an arm-B disagreement is
+    uninterpretable, because it is the very confound the DIFFERS row sends the
+    implementer to chase. **Predicted: AGREES.** Arm B is cheap because the
+    K = 1 version already ships as a test:
+    `inst/tinytest/test-calibration-creation.R:53-80` is this loop at K = 1.
+  - **Arm A (the committed strawman, kept as the POSITIVE CONTROL).** Two
+    independent PROBIT dbarts samplers, each drawing its own latents against
+    its own fit, composed additively in R. **Predicted: DIFFERS.**
+  - **Arm E (the engine), POST-M4.4.** The K-forest probit sampler, run at
+    M4.4 as its acceptance gate. The decisive comparison for M4.4's own
+    acceptance is arm B vs arm E.
+  - **Reference for leg P:** a long INDEPENDENT MCMC written directly against
+    the enumerated probit model with no dbarts sampler in the loop. It is
+    APPROXIMATE, so it carries its own convergence gate (>= 4 chains, R-hat <=
+    1.01 on every reported functional) and its own MC-error budget; nothing in
+    leg P is called "exact".
+- **Measurement and the PRE-REGISTERED decision rule.** Functionals:
+  `E[mu(x)]` and `E[tau(x)]` at each of the 3 cells and `P(y=1 | x, z)` at each
+  of the 6 (x, z) cells - 12 per arm, 24 z-statistics across arms A and B.
+  Per arm per functional: posterior mean and its Monte Carlo standard error
+  over >= 8 independent seeds, the z-statistic against the reference
+  (`z = (arm - ref) / sqrt(se_arm^2 + se_ref^2)`), plus IACT
+  (`coda::effectiveSize`, IACT = N/ESS) and per-sweep wall time (reported, not
+  gated). **Threshold:** a functional AGREES at `|z| <= 3`. **Multiplicity:**
+  at 24 comparisons an isolated `|z|` in (3, 4] is expected (~0.065 spurious
+  flags at 3, ~1.5e-3 at 4), so an arm is declared to DIFFER only if some
+  `|z| > 4` OR two or more functionals exceed `|z| = 3`; a single flag in
+  (3, 4] with no second is AMBIGUOUS and is RESOLVED BY RE-RUNNING at 4x the
+  seeds, never adjudicated after the fact. **Power precondition, evaluated
+  BEFORE the outcome table is read:** arm A, the positive control, must DIFFER
+  from the reference at `|z| > 6` on at least one functional. If it does not,
+  the DGP has too little cross-forest signal to detect anything and **the run
+  is VOID** - re-run with stronger cross-forest signal. This is a precondition,
+  not a verdict; it is what keeps a weak-DGP artifact from being read as a
+  null.
+- **Outcomes, given the power precondition holds.** Two, and only two.
+  - **Arm B AGREES on all 12.** The composition IS buildable in R by a
+    competent host; the naive one is not. **M4.4's "the caller cannot compose
+    non-Gaussian latents against the combined fit" ground FALLS.** M4.4 is
+    re-justified on the residual, which is nameable: the per-forest ASIS
+    rescale (it writes leaf values, and no setter exists or should), the
+    `0x1p-26` snap's exactness, the K-sampler composition tax (1.39-1.43x at
+    K = 2, growing with K per FA1b, plus an O(nK) R-level latent draw per
+    sweep), and ergonomics. That is a WEAKER justification than this plan
+    asserts and must be written down as such. Predicted outcome.
+  - **Arm B DIFFERS.** The composition CANNOT be built correctly from the
+    shipped R surface. **M4.4 is JUSTIFIED, and the probe hands the
+    implementer the reason.** Mandatory follow-up: identify WHICH
+    shipped-surface gap causes it - sigma pinning across sweeps, the response
+    transform's location lever, the ordering of the amplitude draw relative to
+    the latent draw, or the near-zero multiplier snap. If the gap is a missing
+    R knob costing ~20 lines, M4.4's justification shrinks to that knob and
+    the non-Gaussian half re-prices accordingly.
+- **The teeth, stated plainly.** M4.4's headline justification - "the couplings
+  a caller cannot compose" - is FALSIFIED if the power precondition holds and
+  arm B AGREES on all 12 functionals. **Fork 2's already-live Gaussian-first
+  escape hatch is LICENSED, and should be taken, if all three hold: arm B
+  agrees; FA1b's measured composition tax at K = 8 is under 2x; and no arm-B
+  functional required a knob the package does not ship.** Only a measured
+  arm-B failure preserves the claim as this plan writes it. **Buildability is
+  RESOLVED, which is what sharpens the falsifier:** the one thing that could
+  have made arm B unbuildable - holding sigma across sweeps - is a PUBLIC knob
+  and the supported idiom. `resid.prior = fixed(v)` sets `model.sigmaIsFixed`
+  (`R_interface_bartcore.cpp:1381-1387`), gating the end-of-sweep redraw at
+  `chain.hpp:1276-1277`; `$setSigma()` ALONE does not suffice, because it
+  installs unconditionally (`chain.hpp:1387`) and an unfixed gaussian sampler
+  overwrites it every sweep. The bridge's own comment (`:2655-2680`) names the
+  combination as intended and `test-sampler-errors.R:159-168` asserts it is
+  permitted. `fixed()` is reachable publicly as `dbartsPriors$fixed(v)` or by
+  bare name inside `resid.prior =`. So an arm-B failure cannot be blamed on a
+  missing knob.
+
 **FA6** every refused creation raises an R condition and no external pointer
-escapes.
+escapes. Already DISCHARGED as discipline: M2's FS2 landed 42
+message-asserting refusals.
 
-Priced honestly, and higher than the memo's estimate because of fact 9: ~450 to
-650 engine lines, ~200 bridge, ~250 R, plus the M4.0 pins and one possible
-bcf-equivalence re-record. Sequenced after multiforest-predictor-mutation S0-S4
-so the window holds one re-record, and after the dbarts.h reshape (RESOLVED
-pre-release, VD 2026-08-11 - not after the freeze as this plan recommended).
+**Budget, RE-PRICED 2026-08-13 pre-M4**, superseding both the ~450/200/250
+below and the ~900-1100 fork 1 option (a) carries. **~1850-2400 total:** engine
+~500-700, bridge ~350-450, R ~400-500, tests ~350-450, docs ~250-300. What
+moved and why. ENGINE grows only ~50 over the committed ~450-650, for the
+four-layer `bcfGlue` vtable re-sign and the base virtual's return contract
+re-stated over BOTH `afterCombine` implementations; **M4.2's own share moves
+DOWN, not up**, because `bcf-b-ridge.md` already delivers the `p = (k-d)/2`
+exponent, a passed adversarial prototype with a sharp discrimination arm, and
+the complete rescale-consistency checklist. BRIDGE grows from ~200 for the
+ragged params transport at two sites, the 3-row `glue` result slot, the
+length-4 `bcf` state block re-encoded in place, the `amplitudes[3]` buffers,
+and the treatment-slot retirement with its capability-probe replacement. R
+grows from ~250 for `forestParams`' ragged transport, `forestBasisDeclaration`
+and `expandForestBasis` going per-forest, `resolveForests`' six positional
+refusals, `validateTreatment`, `$getForestAmplitudes()`'s broken signature and
+`isBCFSampler`'s replacement. TESTS were priced only as "plus the M4.0 pins"
+and are now priced: M4.0's `tests/cpp` pins over both `afterCombine`
+overrides, plus the existing pins the relaxation rewrites. DOCS (M4.5) were
+unpriced; `multiplier-combiner.md` is a NEW file. Plus one possible
+`bcf-equivalence` re-record, with its `equivalence.yaml` bump in the same
+commit. **Both scheduling preconditions are MET:** multiforest-predictor-
+mutation S0-S4 landed (so the window holds one re-record) and the dbarts.h
+reshape landed (S1 ab3aa2fa, S2 1bf2e69c, arc closed 25a21d3b), pre-release as
+VD resolved 2026-08-11 rather than after the freeze as this plan recommended.
+**M0 remains DEFERRED at orchestrator discretion** (`TODO:236-237`) and is NOT
+an M4 precondition; after M4.5 is the cheapest place to land it, since M4 moves
+the vocabulary M0 documents.
 
 ## Cross-plan amendments (apply verbatim)
+
+**ALL EIGHT APPLIED at e2cc1de; this block is a LANDED RECORD, not forward
+text** (marked 2026-08-13, pre-M4). The quoted text is left exactly as it was
+applied, including its pre-re-bake `dbarts.h` line numbers; the drift is swept
+once in the `amended:` note at the top of this file.
 
 **1. `docs/plans/dbarts-h-reshape.md`, "Binding decisions inherited (do not
 reopen)", item 3.** Replace the item with:
@@ -1545,7 +2148,7 @@ This is the axis that decides whether the family has engine content at all. For
 Gaussian there are no latents to refresh, so the composition is expressible in R
 today; for probit, logistic, Student-t, ordinal, negative-binomial and the
 softmax the latents are drawn ONCE against the COMBINED fit
-(`chain.hpp:1261-1262`), so K independent R samplers are a DIFFERENT model, not
+(`chain.hpp:1266-1267`), so K independent R samplers are a DIFFERENT model, not
 a slower one.
 
 - **(a) Probit and logistic in v1, the rest doors (RECOMMENDED).** Cost is lower

@@ -324,9 +324,14 @@ precedent), cross-checked in both directions at creation
 (src/R_interface_bartcore.cpp:2648-2655). `$setForestBasis`, `$getForestFits`,
 `$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
 339aeb0; R/dbarts.R:1078-1092, 1283-1296). `dbarts_sampler_create` reaches
-the same path from C (S3, 1622eb9): `numForests`/`setTreatment`/`forestFits`/
-`bcfGlue` are public `dbarts.h` entries (inst/include/dbarts/dbarts.h:264-271),
-and `setResponse` takes an explicit `updateScale` argument. A run reports
+the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/
+`forestFits`/`numForestAmplitudes`/`forestAmplitudes` are public `dbarts.h`
+entries (inst/include/dbarts/dbarts.h:389-402), and `setResponse` takes an
+explicit `updateScale` argument. (Corrected 2026-08-13: this paragraph named
+`setTreatment` and `bcfGlue` at :264-271, both retired at the dbarts.h reshape
+S1 re-bake, ab3aa2fa - `setTreatment` re-signed as `setForestBasis(sampler,
+forest, basis, numColumns)` and `bcfGlue` replaced by the ragged
+`numForestAmplitudes`/`forestAmplitudes` pair.) A run reports
 both forests' fits and the combining glue for every draw (S4, 1df9c0c)
 instead of one call per sweep.
 
