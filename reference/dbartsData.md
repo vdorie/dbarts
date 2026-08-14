@@ -11,13 +11,13 @@ dbartsData(
     offset, offset.test = offset,
     factors = c("categorical", "indicators"),
     missing = c("incorporate", "error"),
-    treatment = NULL)
+    bases = NULL)
 ```
 
 ## Arguments
 
 - formula, data, test, subset, weights, offset, offset.test, factors,
-  missing, treatment:
+  missing:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
   Retains backwards compatibility with
@@ -25,6 +25,22 @@ dbartsData(
   `formula`/`data` can be a
   [`formula`](https://rdrr.io/r/stats/formula.html)/[`data.frame`](https://rdrr.io/r/base/data.frame.html)
   pair, or a pair of `x.train`/`y.train` matrices/vector.
+
+- bases:
+
+  Optional list of the per-forest amplitude bases a multi-forest model
+  combines its forests through, one element per forest and `NULL` where
+  a forest carries the implicit intercept its single amplitude scales.
+  Each non-null element is a numeric matrix with one row per observation
+  and one amplitude per column, restricted by `subset` exactly as
+  `weights` is. This is the data half of a multi-forest specification,
+  and is normally written by
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  `forests = ` argument rather than here; supplying it directly selects
+  the multi-forest model with the engine's default per-forest
+  configuration, and
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
+  declarations may then configure the forests one at a time.
 
 ## Details
 
@@ -205,7 +221,7 @@ data
 #> Slot "response.levels":
 #> NULL
 #> 
-#> Slot "treatment":
+#> Slot "bases":
 #> NULL
 #> 
 #> Slot "testUsesRegularOffset":

@@ -277,15 +277,17 @@ dbarts(
   carries its own tree count, structure prior, leaf scale, column
   restriction and `interactions`/`blocks` constraints; a forest given a
   `basis` enters the mean multiplied by the amplitudes on that basis's
-  columns. Today's engine fits at most two forests, and a basis only on
-  the second and only as a two-level factor, which is the Bayesian
-  causal forest \\y = a \mu(x) + b_z \tau(x) + \epsilon\\: a prognostic
-  forest \\\mu\\ over every predictor and a modulating forest \\\tau\\
-  over the columns its `vars` allows. Gaussian responses only. The
-  result is an ordinary `dbartsSampler`; per-forest fits and the
-  amplitudes \\(a, b_0, b_1)\\ are read off the sampler rather than from
-  the run's combined `train` channel. The column a basis expands to is
-  stored on the data object, so it is subset by `subset` and survives a
+  columns. Any number of forests may be declared, each carrying a basis
+  of any width; the two-forest case with a two-level factor basis is the
+  Bayesian causal forest \\y = a \mu(x) + b_z \tau(x) + \epsilon\\: a
+  prognostic forest \\\mu\\ over every predictor and a modulating forest
+  \\\tau\\ over the columns its `vars` allows. Every forest past the
+  first needs a `basis`, the amplitudes multiplying it being what
+  distinguish it from the first. Gaussian responses only. The result is
+  an ordinary `dbartsSampler`; per-forest fits and the per-forest
+  amplitudes are read off the sampler rather than from the run's
+  combined `train` channel. The columns a basis expands to are stored on
+  the data object, so they are subset by `subset` and survive a
   sampler's re-creation. Options a two-forest model does not read -
   `monotone`, `variance`, a DART tree prior, `split.probs`, a linear or
   Gaussian-process node prior, a `k` hyperprior or non-default `k`, a

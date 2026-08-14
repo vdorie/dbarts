@@ -24,23 +24,24 @@ forest(
 
   The data this forest's amplitudes multiply: a one-sided formula
   (`~ factor(z)`), evaluated against the fit's own `data` and then in
-  its own environment, or an already-evaluated vector. It expands by R's
-  model-matrix rule - a factor becomes its level indicators, one
-  amplitude per level - so the forest enters the mean as \\(\sum_k a_k
-  B_k(x_i)) f(x_i)\\. Today's engine fits exactly one shape: a two-level
-  factor on the SECOND forest, whose two indicators carry the amplitudes
-  \\(b_0, b_1)\\. A numeric basis, a factor of any other width, and a
-  basis on the first forest are each refused at creation. Level order is
-  meaningful: the second level is the one \\b_1\\ scales. The first
-  forest takes no `basis` - its is the implicit intercept its single
-  amplitude \\a\\ scales.
+  its own environment, or an already-evaluated vector or matrix. It
+  expands by R's model-matrix rule - a factor becomes its level
+  indicators, one amplitude per level, with no reference level dropped,
+  since the forest carries no intercept of its own - so the forest
+  enters the mean as \\(\sum_k a_k B_k(x_i)) f(x_i)\\. Any forest may
+  carry one, of any width: a two-level factor gives the pair whose
+  amplitudes are \\(b_0, b_1)\\, a wider factor one amplitude per level,
+  and a numeric vector or matrix is already those columns. Level order
+  is meaningful: the second level is the one \\b_1\\ scales. A forest
+  that declares none takes the implicit intercept its single amplitude
+  \\a\\ scales; every forest past the first needs one, since the
+  amplitudes multiplying it are what distinguish it from the first.
 
 - vars:
 
   Optional restriction of this forest to a subset of the model matrix,
-  by column name or index; `NULL` leaves it reading every predictor.
-  Only a forest with a `basis` may be restricted, today's engine reading
-  the whole design in the first forest.
+  by column name or index; `NULL` leaves it reading every predictor. Any
+  forest may be restricted.
 
 - n.trees, base, power:
 
@@ -58,7 +59,10 @@ forest(
 
   This forest's prior scale, in standard deviations of the response: the
   total \\a\\f(x)\\ or \\(b_1 - b_0)f(x)\\ is placed at `sd` of them.
-  The defaults are 2 for the first forest and 1 for a basis forest.
+  Which of the two channels carries it depends on whether the forest has
+  a `basis`: without one it is the half-Cauchy median of the forest's
+  scalar amplitude, with one it scales the forest's own node prior. The
+  defaults are 2 for a forest with no basis and 1 for one with.
 
 - interactions, blocks:
 
@@ -78,9 +82,10 @@ forest(
 - amplitude.prior.variance:
 
   Prior variance of the \\N(0, \cdot)\\ amplitudes on this forest's
-  basis indicators, default `0.5`. Legal only on a forest given a
-  `basis`: the first forest's amplitude carries the engine's own
-  half-Cauchy scale-mixture prior, which has no caller slot.
+  basis columns, default `0.5`. Legal only on a forest given a `basis`:
+  a forest without one carries a plain scalar amplitude under the
+  engine's half-Cauchy scale-mixture prior, whose median is `sd` rather
+  than a variance.
 
 - update.amplitude:
 

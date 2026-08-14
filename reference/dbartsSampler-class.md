@@ -68,7 +68,7 @@ getSumsOfSquaredResiduals(result)
 # S4 method for class 'dbartsSampler'
 getForestFits(forest)
 # S4 method for class 'dbartsSampler'
-getForestAmplitudes()
+getForestAmplitudes(forest = NULL)
 # S4 method for class 'dbartsSampler'
 getForestVariableCounts(forest)
 # S4 method for class 'dbartsSampler'
@@ -354,31 +354,43 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - basis:
 
-  The data a forest's amplitudes multiply, of length equal to that with
-  which the sampler was created: a two-level factor (or a one-sided
-  formula naming one), whose second level indicator is the 0/1 column
-  the amplitudes \\(b_0, b_1)\\ contrast on - the same expansion
+  The data the named forest's amplitudes multiply, with as many rows as
+  the sampler was created with and one amplitude per column: a factor
+  (or a one-sided formula naming one) expands to its level indicators
+  with no reference level dropped - a two-level factor giving the pair
+  whose amplitudes are \\(b_0, b_1)\\ - and a numeric vector or matrix
+  is already those columns, which is the same expansion
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
-  applies at creation. `setForestBasis` only applies to a Bayesian
-  causal forest built with `forests = ` (see
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)); it
-  writes both the engine and `data@treatment`, so `getPointer`'s
-  transparent re-creation after save/load carries the current assignment
-  rather than the one the sampler was created with.
+  applies at creation. Any forest takes a basis of any width.
+  `setForestBasis` is the *sole* route by which a basis changes after
+  creation, and it applies only to a sampler whose forests carry
+  amplitudes, built with `forests = ` (see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
+  amplitudes are preserved and remapped: a width-preserving install
+  leaves every one of them bitwise, and a width change carries each
+  forest's block to its new offset and enters the added coordinates at
+  `1`. A basis that is not one of the canonical shapes (a dense all-ones
+  column, or a complementary 0/1 pair) moves that forest onto the
+  general amplitude conditional, which is a model fact and not
+  revertible by a later data swap. The matrix is written to both the
+  engine and `data@bases`, so `getPointer`'s transparent re-creation
+  after save/load carries the current assignment rather than the one the
+  sampler was created with; because the bases ride creation, a widening
+  applied after a state restore preserves the *restored* amplitudes.
 
 - forest:
 
   A single positive integer indexing the forests from `1`.
   `getCalibration` and `setCalibration` default to `1`, the only forest
-  of an ordinary sampler; `getForestFits`, `getForestVariableCounts`,
-  `setForestWeights`, and `setForestBasis` have no default. A Bayesian
-  causal forest's prognostic forest is `1` and its basis forest `2`;
-  `setForestWeights` and `setForestBasis` are refused on a sampler that
-  is not a Bayesian causal forest, and `setForestBasis` takes only `2L`
-  today - the first forest's basis is the implicit intercept its own
-  amplitude scales. `getForestFits` and `getForestVariableCounts` accept
-  `forest = 1` on any sampler - it selects the only forest - and refuse
-  only an out-of-range index.
+  of an ordinary sampler, and `getForestAmplitudes` defaults to `NULL`,
+  every forest's block stacked; `getForestFits`,
+  `getForestVariableCounts`, `setForestWeights`, and `setForestBasis`
+  have no default. A Bayesian causal forest's prognostic forest is `1`
+  and its basis forest `2`; `setForestWeights` and `setForestBasis` are
+  refused on a sampler whose forests carry no amplitudes, and
+  `setForestBasis` accepts any forest of one that does. `getForestFits`
+  and `getForestVariableCounts` accept `forest = 1` on any sampler - it
+  selects the only forest - and refuse only an out-of-range index.
 
 - prior.scale:
 
@@ -745,13 +757,15 @@ likewise `test` (or `NULL` if the sampler has no test data) and
 x n.chains. When `n.chains` is `1` the trailing chain dimension is
 dropped, so `train` is a plain n.obs x n.samples matrix and `sigma` a
 plain vector of length n.samples. A Bayesian causal forest adds two
-more: `forestFits`, an n.obs x 2 x n.samples x n.chains array of each
-forest's fitted values on the internal scale (the prognostic \\\mu\\
-first, the treatment \\\tau\\ second), and `glue`, a 3 x n.samples x
-n.chains array of the \\(a, b_0, b_1)\\ each draw combines them through,
-so both surfaces and their recombination come from a single call;
-`train` carries the combination \\a \mu(x_i) + b\_{z_i} \tau(x_i)\\ on
-the response scale, and `test` is filled with `NaN` (there is no test
+more: `forestFits`, an n.obs x n.forests x n.samples x n.chains array of
+each forest's fitted values on the internal scale (the prognostic
+\\\mu\\ first, the treatment \\\tau\\ second), and `glue`, a sum(q) x
+n.samples x n.chains array of the amplitudes each draw combines them
+through, stacked forest-major and as wide as each forest's own basis (a
+Bayesian causal forest's \\(a, b_0, b_1)\\, three rows), so both
+surfaces and their recombination come from a single call; `train`
+carries the combination \\a \mu(x_i) + b\_{z_i} \tau(x_i)\\ on the
+response scale, and `test` is filled with `NaN` (there is no test
 treatment vector to combine off-sample). No other model reports either
 element. A run can be interrupted with `Ctrl-C`: it stops between
 iterations - joining any worker threads first - and signals an error,
@@ -815,12 +829,17 @@ current latent values - a plain vector of length equal to the number of
 observations when there is a single chain, or an observations-by-chains
 matrix otherwise - written into `result` when one was supplied.
 
-For `getForestFits`, a Bayesian causal forest's requested forest's
-current internal-scale fitted values, an n.observations x n.chains
-matrix. For `getForestAmplitudes`, the amplitudes \\(a, b_0, b_1)\\ of
-\\y = a \mu(x) + b_z \tau(x) + \epsilon\\, a 3 x n.chains matrix. For
-`getForestVariableCounts`, the requested forest's current per-predictor
-split counts, an n.predictors x n.chains integer matrix.
+For `getForestFits`, a multi-forest sampler's requested forest's current
+internal-scale fitted values, an n.observations x n.chains matrix. For
+`getForestAmplitudes`, the named forest's amplitudes - one per basis
+column - as a q x n.chains matrix, or, at the default `forest = NULL`,
+every forest's stacked forest-major into a sum(q) x n.chains matrix. The
+vector is *ragged*: a Bayesian causal forest's forest `1` carries the
+single \\a\\ on its implicit intercept and its forest `2` the pair
+\\(b_0, b_1)\\, so the stacked read is the \\(a, b_0, b_1)\\ of \\y = a
+\mu(x) + b_z \tau(x) + \epsilon\\. For `getForestVariableCounts`, the
+requested forest's current per-predictor split counts, an n.predictors x
+n.chains integer matrix.
 
 For `getCalibration`, the leaf-prior calibration a forest currently runs
 under, as a numeric matrix with one row per chain and the columns

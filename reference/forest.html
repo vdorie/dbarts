@@ -71,22 +71,23 @@
 <dl><dt id="arg-basis">basis<a class="anchor" aria-label="anchor" href="#arg-basis"></a></dt>
 <dd><p>The data this forest's amplitudes multiply: a one-sided formula
     (<code>~ factor(z)</code>), evaluated against the fit's own <code>data</code> and then
-    in its own environment, or an already-evaluated vector. It expands by R's
-    model-matrix rule - a factor becomes its level indicators, one amplitude
-    per level - so the forest enters the mean as
-    \((\sum_k a_k B_k(x_i)) f(x_i)\). Today's
-    engine fits exactly one shape: a two-level factor on the SECOND forest,
-    whose two indicators carry the amplitudes \((b_0, b_1)\). A
-    numeric basis, a factor of any other width, and a basis on the first forest
-    are each refused at creation. Level order is meaningful: the second level
-    is the one \(b_1\) scales. The first forest takes no <code>basis</code> -
-    its is the implicit intercept its single amplitude \(a\) scales.</p></dd>
+    in its own environment, or an already-evaluated vector or matrix. It
+    expands by R's model-matrix rule - a factor becomes its level indicators,
+    one amplitude per level, with no reference level dropped, since the forest
+    carries no intercept of its own - so the forest enters the mean as
+    \((\sum_k a_k B_k(x_i)) f(x_i)\). Any
+    forest may carry one, of any width: a two-level factor gives the pair whose
+    amplitudes are \((b_0, b_1)\), a wider factor one amplitude per
+    level, and a numeric vector or matrix is already those columns. Level order
+    is meaningful: the second level is the one \(b_1\) scales. A forest
+    that declares none takes the implicit intercept its single amplitude
+    \(a\) scales; every forest past the first needs one, since the
+    amplitudes multiplying it are what distinguish it from the first.</p></dd>
 
   <dt id="arg-vars">vars<a class="anchor" aria-label="anchor" href="#arg-vars"></a></dt>
 <dd><p>Optional restriction of this forest to a subset of the model matrix, by
-    column name or index; <code>NULL</code> leaves it reading every predictor. Only a
-    forest with a <code>basis</code> may be restricted, today's engine reading the
-    whole design in the first forest.</p></dd>
+    column name or index; <code>NULL</code> leaves it reading every predictor. Any
+    forest may be restricted.</p></dd>
 
   <dt id="arg-n-trees-base-power">n.trees, base, power<a class="anchor" aria-label="anchor" href="#arg-n-trees-base-power"></a></dt>
 <dd><p>This forest's tree count and tree-structure prior. <code>NULL</code> takes the
@@ -102,8 +103,11 @@
   <dt id="arg-sd">sd<a class="anchor" aria-label="anchor" href="#arg-sd"></a></dt>
 <dd><p>This forest's prior scale, in standard deviations of the response: the
     total \(a\,f(x)\) or \((b_1 - b_0)f(x)\) is
-    placed at <code>sd</code> of them. The defaults are 2 for the first forest and 1
-    for a basis forest.</p></dd>
+    placed at <code>sd</code> of them. Which of the two channels carries it depends
+    on whether the forest has a <code>basis</code>: without one it is the half-Cauchy
+    median of the forest's scalar amplitude, with one it scales the forest's own
+    node prior. The defaults are 2 for a forest with no basis and 1 for one
+    with.</p></dd>
 
   <dt id="arg-interactions-blocks">interactions, blocks<a class="anchor" aria-label="anchor" href="#arg-interactions-blocks"></a></dt>
 <dd><p>Optional <code><a href="interactions.html">interactions</a></code> and <code><a href="blocks.html">blocks</a></code> constraints on
@@ -117,9 +121,10 @@
 
   <dt id="arg-amplitude-prior-variance">amplitude.prior.variance<a class="anchor" aria-label="anchor" href="#arg-amplitude-prior-variance"></a></dt>
 <dd><p>Prior variance of the \(N(0, \cdot)\) amplitudes on this
-    forest's basis indicators, default <code>0.5</code>. Legal only on a forest given
-    a <code>basis</code>: the first forest's amplitude carries the engine's own
-    half-Cauchy scale-mixture prior, which has no caller slot.</p></dd>
+    forest's basis columns, default <code>0.5</code>. Legal only on a forest given a
+    <code>basis</code>: a forest without one carries a plain scalar amplitude under
+    the engine's half-Cauchy scale-mixture prior, whose median is <code>sd</code>
+    rather than a variance.</p></dd>
 
   <dt id="arg-update-amplitude">update.amplitude<a class="anchor" aria-label="anchor" href="#arg-update-amplitude"></a></dt>
 <dd><p>Whether this forest's amplitudes are redrawn each sweep, default
