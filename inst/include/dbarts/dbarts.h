@@ -684,19 +684,22 @@ int dbarts_sampler_usesDart(const dbarts_sampler* sampler);
 size_t dbarts_sampler_numForests(const dbarts_sampler* sampler);
 
 /// Replaces the basis forest number forest's amplitudes multiply; basis is
-/// column-major numObservations x numColumns and is COPIED, so the caller's
-/// array need not outlive the call (a continuous basis cannot be
-/// coerced-and-copied incidentally the way a 0/1 indicator can, which is why
-/// the contract is stated). The one whole-data swap a two-forest sampler
-/// supports - it routes through the combiner rather than rebuilding a forest.
+/// ROW-major numObservations x numColumns - row i at basis + i * numColumns -
+/// and is COPIED, so the caller's array need not outlive the call (a continuous
+/// basis cannot be coerced-and-copied incidentally the way a 0/1 indicator can,
+/// which is why the contract is stated). Row-major because the contraction with
+/// the forest's amplitude vector is the only read the engine makes of it. The
+/// one whole-data swap a multi-forest sampler supports - it routes through the
+/// combiner rather than rebuilding a forest - and the SOLE route by which any
+/// basis changes after creation.
 ///
 /// Two channels, as everywhere here: a CAPABILITY answer is the return value -
-/// 0, touching nothing, when the model carries no basis at all or forest names
-/// no forest or names the intercept forest 0 - while a MALFORMED BASIS raises.
-/// Today's engine honours exactly one basis: forest 1 of a two-forest gaussian
-/// sampler, two columns holding a complementary 0/1 indicator pair (1 - z, z).
-/// Anything else in that shape is refused naming the capability; widening it
-/// relaxes this guard and moves no signature.
+/// 0, touching nothing, when the model carries no amplitudes at all or forest
+/// names no forest - while a MALFORMED BASIS raises. Any forest takes a basis
+/// of any width from 1 up; the values must be finite. A basis that is not one
+/// of the canonical shapes (a dense all-ones column, or a complementary 0/1
+/// pair) moves that forest onto the general amplitude conditional, which is a
+/// model fact and not revertible by a later data swap.
 int dbarts_sampler_setForestBasis(dbarts_sampler* sampler, size_t forest,
                                   const double* basis, size_t numColumns);
 /// Copies forest number forest's current function values, numObservations x

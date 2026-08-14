@@ -29,7 +29,7 @@ resolveSamplerSpec <- function(
   base.variance,
   survivalStatus,
   hazardPeriods,
-  treatment,
+  bases,
   forests,
   evalEnv
 ) {
@@ -198,20 +198,31 @@ resolveSamplerSpec <- function(
   # them; its interactions/blocks are the top-level arguments of those names,
   # which is why declaring both refuses. The rest ride the BCF control
   # attribute below.
+  # PER FOREST, not one flag for the model: forest f is excused from declaring
+  # a basis only when one reaches it some other way, the dbartsData(bases = )
+  # route being the supported one. On the fitting path the declarations have
+  # already been expanded onto the data object, so this reads them back and a
+  # forest that declared none is refused by name.
+  declaredBases <- if (is.null(bases)) data@bases else bases
   forestSpec <- resolveForests(
     forests,
     interactions,
     blocks,
-    hasBasis = !is.null(treatment) || !is.null(data@treatment)
+    hasBasis = if (is.null(declaredBases)) {
+      logical(0L)
+    } else {
+      !vapply(declaredBases, is.null, logical(1L))
+    }
   )
-  if (!is.null(forestSpec$mu$n.trees)) {
-    control@n.trees <- forestSpec$mu$n.trees
+  firstForest <- if (is.null(forestSpec)) NULL else forestSpec[[1L]]
+  if (!is.null(firstForest$n.trees)) {
+    control@n.trees <- firstForest$n.trees
   }
-  if (!is.null(forestSpec$mu$interactions)) {
-    interactions <- forestSpec$mu$interactions
+  if (!is.null(firstForest$interactions)) {
+    interactions <- firstForest$interactions
   }
-  if (!is.null(forestSpec$mu$blocks)) {
-    blocks <- forestSpec$mu$blocks
+  if (!is.null(firstForest$blocks)) {
+    blocks <- firstForest$blocks
   }
 
   # resolve the monotone spec here, where its argument is a forced value (a
@@ -247,11 +258,11 @@ resolveSamplerSpec <- function(
 
   # the first forest's structure prior is this fit's tree.prior, so a knob
   # declared on it restates that prior's half rather than adding a second one
-  if (!is.null(forestSpec$mu$base)) {
-    priors$tree.prior@base <- forestSpec$mu$base
+  if (!is.null(firstForest$base)) {
+    priors$tree.prior@base <- firstForest$base
   }
-  if (!is.null(forestSpec$mu$power)) {
-    priors$tree.prior@power <- forestSpec$mu$power
+  if (!is.null(firstForest$power)) {
+    priors$tree.prior@power <- firstForest$power
   }
 
   # A monotone constraint restricts the forest to birth/death proposals (change
@@ -401,15 +412,15 @@ resolveSamplerSpec <- function(
   # attribute the C bridge reads, exactly as the variance forest's does above.
   # The bridge cross-checks the two halves in both directions, so a stripped
   # attribute is a loud error, never a silent single-forest fit.
-  if (!is.null(treatment)) {
-    # the only caller supplies it as a forest's basis, so a refusal names that
-    data@treatment <- validateTreatment(
-      treatment,
+  if (!is.null(bases)) {
+    # the only caller supplies these as forests' bases, so a refusal names that
+    data@bases <- validateForestBases(
+      bases,
       length(data@y),
       argument = "basis"
     )
   }
-  if (!is.null(data@treatment)) {
+  if (!is.null(data@bases)) {
     if (family != "gaussian") {
       stop(
         "a treatment forest requires a continuous (gaussian) response; ",
@@ -461,24 +472,76 @@ resolveSamplerSpec <- function(
         "; drop it or fit a single-forest model"
       )
     }
-    tauSpec <- forestSpec$tau
-    tauTrees <- if (is.null(tauSpec$n.trees)) 50L else tauSpec$n.trees
-    moderatorColumns <- resolveModerators(tauSpec$vars, data, "vars")
+    # every forest resolves its own knobs; a data object carrying bases with no
+    # forests = declaration at all resolves to the engine's defaults, which is
+    # what keeps the dbartsData(bases = ) route a supported one
+    numForests <- length(data@bases)
+    specs <- if (is.null(forestSpec)) {
+      rep(list(NULL), numForests)
+    } else {
+      forestSpec
+    }
+    if (length(specs) > numForests) {
+      stop(
+        "'forests' declares ",
+        length(specs),
+        " forests but the data carry ",
+        numForests,
+        " bases"
+      )
+    }
+    # a declaration reaching only the first forests leaves the rest at the
+    # engine's defaults, which is what keeps a bases-only data object
+    # configurable one forest at a time
+    if (length(specs) < numForests) {
+      specs <- c(specs, rep(list(NULL), numForests - length(specs)))
+    }
+    hasBasis <- !vapply(data@bases, is.null, logical(1L))
+    treeCounts <- vapply(
+      seq_len(numForests),
+      function(index) {
+        if (index == 1L) {
+          control@n.trees
+        } else if (is.null(specs[[index]]$n.trees)) {
+          50L
+        } else {
+          as.integer(specs[[index]]$n.trees)
+        }
+      },
+      integer(1L)
+    )
+    forestColumns <- lapply(
+      seq_len(numForests),
+      function(index) resolveModerators(specs[[index]]$vars, data, "vars")
+    )
     attr(control, "bartcore.bcf") <- list(
-      params = forestParams(forestSpec$mu, tauSpec),
-      # resolved 1-based column indices, or NULL for an unrestricted forest
-      moderators = moderatorColumns,
+      # one length-8 numeric per forest
+      params = forestParams(specs, hasBasis),
+      # resolved 1-based column indices per forest, or NULL for unrestricted
+      vars = forestColumns,
       # the first forest takes the fit's own interactions()/blocks() arguments,
-      # already resolved above; the second takes its own, resolved against the
-      # columns it may split on
-      mu.interactions = interactionSpec,
-      tau.interactions = resolveInteractions(tauSpec$interactions, data),
-      mu.blocks = blockSpec,
-      tau.blocks = resolveBlocks(
-        tauSpec$blocks,
-        data,
-        tauTrees,
-        availableColumns = moderatorColumns
+      # already resolved above; the rest take their own, resolved against the
+      # columns they may split on
+      interactions = c(
+        list(interactionSpec),
+        lapply(
+          specs[-1L],
+          function(spec) resolveInteractions(spec$interactions, data)
+        )
+      ),
+      blocks = c(
+        list(blockSpec),
+        lapply(
+          seq_len(numForests)[-1L],
+          function(index) {
+            resolveBlocks(
+              specs[[index]]$blocks,
+              data,
+              treeCounts[index],
+              availableColumns = forestColumns[[index]]
+            )
+          }
+        )
       )
     )
   }
@@ -570,14 +633,22 @@ dbartsSpec <- function(
   }
 
   # this surface does no data ingestion of its own, so a declared basis is
-  # evaluated here and reaches data@treatment through the same validation
+  # evaluated here and reaches data@bases through the same validation
   # dbartsData() applies on the fitting path; the caller's data object has
   # already had its own 'subset' applied
-  basisDeclaration <- forestBasisDeclaration(forests)
-  basis <- if (is.null(basisDeclaration)) {
+  basisDeclarations <- forestBasisDeclarations(forests)
+  basis <- if (is.null(basisDeclarations)) {
     NULL
   } else {
-    expandForestBasis(evaluateForestBasis(basisDeclaration))
+    expanded <- lapply(
+      basisDeclarations,
+      function(declaration) {
+        expandForestBasis(evaluateForestBasis(declaration))
+      }
+    )
+    # as in dbarts(): a list in which no forest declares a basis names no
+    # multi-forest model, and falls through to resolveForests' refusal
+    if (any(!vapply(expanded, is.null, logical(1L)))) expanded else NULL
   }
 
   resolveSamplerSpec(
@@ -597,7 +668,7 @@ dbartsSpec <- function(
     base.variance = base.variance,
     survivalStatus = survival,
     hazardPeriods = NULL,
-    treatment = basis,
+    bases = basis,
     forests = forests,
     evalEnv = parentEnv
   )

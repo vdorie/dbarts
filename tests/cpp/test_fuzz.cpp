@@ -950,7 +950,8 @@ static void testSnapshotCoversEveryFamily() {
       {"the saved-tree write position",
        [](FuzzSnap& t) { ++t.state.currentSampleNum; }},
       {"sigma", [](FuzzSnap& t) { t.state.chains[0].sigma += 1.0; }},
-      {"the BCF glue", [](FuzzSnap& t) { t.state.chains[0].a += 1.0; }},
+      {"the BCF glue",
+       [](FuzzSnap& t) { t.state.chains[0].amplitudes[0] += 1.0; }},
       {"a persisted mean leaf", [](FuzzSnap& t) {
          std::vector<FlatNode>& tree(t.state.chains[0].forests[0].trees[0]);
          tree[fuzzFirstFlatLeaf(tree)].value += 1.0;

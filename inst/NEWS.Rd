@@ -80,34 +80,45 @@
             prior, leaf scale, column restriction (\code{vars}) and
             \code{interactions}/\code{blocks} constraints, and a forest given
             a \code{basis} enters multiplied by the amplitudes on that basis's
-            columns. Today's engine fits at most two forests, and a basis only
-            on the second and only as a two-level factor, which is the
-            Bayesian causal forest
+            columns. Any number of forests may be declared, each with a
+            basis of any width - a factor of any width expands to one
+            amplitude per level, and a numeric vector or matrix is already
+            those columns - with the two-forest, two-level-factor case being
+            the Bayesian causal forest
             \eqn{y = a \mu(x) + b_z \tau(x) + \epsilon}{y = a mu(x) +
-            b_z tau(x) + eps}. The result is an ordinary
+            b_z tau(x) + eps}. Every forest past the first needs a
+            \code{basis}, the amplitudes multiplying it being what distinguish
+            it from the first. The result is an ordinary
             \code{dbartsSampler}: it stores, saves, and re-creates like any
-            other, and the column a basis expands to rides the data object
-            beside the weights it mirrors. Gaussian responses only; every
-            option the two-forest model does not read, and every declaration
+            other, and the columns a basis expands to ride the data object
+            beside the weights they mirror. Gaussian responses only; every
+            option the multi-forest model does not read, and every declaration
             the engine cannot honour, is refused at creation rather than
-            ignored. \code{$setForestBasis} mutates a forest's basis in place,
-            mirroring the column it expands to into \code{data@treatment} as
-            \code{$setWeights} does for weights; \code{$getForestFits},
-            \code{$getForestAmplitudes}, and \code{$getForestVariableCounts}
-            read the two forests' fitted values, amplitudes, and split counts
-            separately. \code{$setControl} no longer discards a sampler's
-            \code{bartcore.*} model configuration (the two-forest structure, a
-            variance forest, and similar), which used to make the next
-            re-creation refuse loudly. A run reports both surfaces for every
+            ignored. \code{$setForestBasis} is the sole route by which a basis
+            changes after creation, at any forest and any width, mirroring the
+            matrix into \code{data@bases} as \code{$setWeights} does for
+            weights; the amplitudes are preserved and remapped, so a
+            width-preserving install leaves every one of them unchanged and a
+            width change carries each forest's block to its new offset.
+            \code{$getForestFits}, \code{$getForestAmplitudes}, and
+            \code{$getForestVariableCounts} read the forests' fitted values,
+            amplitudes, and split counts separately;
+            \code{$getForestAmplitudes} takes an optional \code{forest},
+            returning that forest's own block, since the amplitude vector is
+            ragged. \code{$setControl} no longer discards a sampler's
+            \code{bartcore.*} model configuration (the multi-forest structure,
+            a variance forest, and similar), which used to make the next
+            re-creation refuse loudly. A run reports every surface for every
             draw rather than only the current one: \code{$run} gains a
             \code{forestFits} element holding each forest's fitted values
-            (n.obs x 2 x n.samples) and a \code{glue} element holding the
-            \eqn{(a, b_0, b_1)}{(a, b0, b1)} that draw combines them through
-            (3 x n.samples), so a caller reads both surfaces and the
-            amplitudes from one call instead of driving the sampler one draw
-            at a time. Neither element is present for any other model.
-            \code{dbartsData} keeps its own \code{treatment} argument, which
-            names the same column directly.
+            (n.obs x n.forests x n.samples) and a \code{glue} element holding
+            the amplitudes that draw combines them through, stacked
+            forest-major (sum(q) x n.samples), so a caller reads every surface
+            and the amplitudes from one call instead of driving the sampler
+            one draw at a time. Neither element is present for any other
+            model. \code{dbartsData} gains a \code{bases} argument naming the
+            same matrices directly, replacing the \code{treatment} argument
+            and slot of the development series.
       \item Interaction constraints: the new \code{interactions} argument of
             \code{dbarts} and \code{bart2}, built with \code{\link{interactions}},
             restricts which predictors may jointly shape the fit.
@@ -693,7 +704,7 @@
             \code{dbarts_results r = DBARTS_RESULTS_INIT;}.
       \item The C API reaches Bayesian causal forests:
             \code{dbarts_sampler_numForests} reports the model's forest count,
-            \code{dbarts_sampler_setForestBasis} swaps the treatment vector, and
+            \code{dbarts_sampler_setForestBasis} swaps a forest's basis, and
             \code{dbarts_sampler_forestFits} and the amplitude pair
             (\code{dbarts_sampler_numForestAmplitudes},
             \code{dbarts_sampler_forestAmplitudes}) read the per-forest fits

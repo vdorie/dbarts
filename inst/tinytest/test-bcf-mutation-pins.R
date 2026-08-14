@@ -71,7 +71,7 @@ expect_error(
 # --- succeeds: the forced whole-matrix predictor swap refreshes every forest
 expect_true(dbarts:::bartcoreSetPredictor(bc, x, forceUpdate = TRUE))
 # --- succeeds: the treatment swap is the supported multi-forest data swap
-expect_silent(dbarts:::bartcoreSetTreatment(bc, z))
+expect_silent(dbarts:::bartcoreSetForestBasis(bc, 1L, cbind(1 - z, z)))
 # --- succeeds: the scale-pinned response, offset and weight swaps
 expect_silent(dbarts:::bartcoreSetResponse(bc, y, updateScale = FALSE))
 expect_silent(dbarts:::bartcoreSetOffset(bc, rep(0, n), updateScale = FALSE))
@@ -86,7 +86,7 @@ expect_true(all(is.finite(result$train)))
 # max) of y) carries the affine map back to the reported scale. a*mu + b_z*tau
 # under that map reconstructs the recorded train draw. ---
 reconstructTrain <- function(bcSampler, zVec, chain = 1L) {
-  glue <- dbarts:::bartcoreBCFGlue(bcSampler)
+  glue <- dbarts:::bartcoreForestAmplitudes(bcSampler)
   muFits <- dbarts:::bartcoreForestFits(bcSampler, 0L)[, chain]
   tauFits <- dbarts:::bartcoreForestFits(bcSampler, 1L)[, chain]
   fitScale <- dbarts:::bartcoreStoreState(bcSampler)[[chain]]$fit.scale

@@ -29,10 +29,6 @@ struct BartcoreHolder {
   std::vector<double> ownedResponse{}, ownedWeights{}, ownedOffset{},
                       ownedTestOffset{};
 
-  // BCF holds an owned copy of the 0/1 treatment the chains borrow, so
-  // setTreatment installs a replacement without a protection slot
-  std::vector<double> ownedTreatment{};
-
   // one owned per-forest observation weight vector per forest, borrowed by the
   // chains. The NESTING is load-bearing: a flat numForests * n buffer would
   // dangle every installed pointer the moment it were resized, whereas growing
@@ -81,10 +77,9 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 /// the same build through createHolder, which reads the same pieces off a
 /// control attribute.
 BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
-                                SEXP dataExpr, SEXP zExpr, SEXP bcfParamsExpr,
-                                SEXP moderatorsExpr, SEXP muInteractionsExpr,
-                                SEXP tauInteractionsExpr, SEXP muBlocksExpr,
-                                SEXP tauBlocksExpr);
+                                SEXP dataExpr, SEXP basesExpr,
+                                SEXP bcfParamsExpr, SEXP varsExpr,
+                                SEXP interactionsExpr, SEXP blocksExpr);
 
 /// The complete sampler state as a serializable R object of class
 /// "bartcoreState"; unprotected on return.

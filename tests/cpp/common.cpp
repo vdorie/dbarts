@@ -56,7 +56,7 @@ bool sameFlatTrees(const std::vector<std::vector<FlatNode>>& a,
 // are let through rather than guessed at. Honest, not airtight - a small field
 // can hide in existing padding - which is why the table-driven coverage test
 // beside the fuzz snapshot exists as well.
-static_assert(sizeof(void*) != 8 || sizeof(ChainStateData) == 272,
+static_assert(sizeof(void*) != 8 || sizeof(ChainStateData) == 344,
               "ChainStateData gained or lost a field; add its comparison to "
               "statesAgree below and update this size");
 static_assert(sizeof(void*) != 8 || sizeof(ForestStateData) == 160,
@@ -106,8 +106,9 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
         x.groupTau != y.groupTau || x.dartAlpha != y.dartAlpha ||
         x.dartNumUpdatesSkipped != y.dartNumUpdatesSkipped)
       return false;
-    if (x.hasBCF != y.hasBCF || x.a != y.a || x.aVariance != y.aVariance ||
-        x.b0 != y.b0 || x.b1 != y.b1)
+    if (x.hasBCF != y.hasBCF || x.amplitudeWidths != y.amplitudeWidths ||
+        x.amplitudes != y.amplitudes ||
+        x.amplitudeVariances != y.amplitudeVariances)
       return false;
     if (std::fabs(x.sigma - y.sigma) > 1e-9 * (1.0 + std::fabs(x.sigma)))
       return false;

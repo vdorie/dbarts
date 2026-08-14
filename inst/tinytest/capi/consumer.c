@@ -875,7 +875,8 @@ enum {
   LEG_BASIS,
   LEG_BASIS_FOREST_0,
   LEG_BASIS_WIDTH,
-  LEG_BASIS_VALUES,
+  LEG_BASIS_CONTINUOUS,
+  LEG_BASIS_RANGE,
   LEG_FOREST_FITS,
   LEG_AMPLITUDES,
   LEG_FOREST_WEIGHTS,
@@ -897,7 +898,8 @@ static const char* const legNames[LEG_COUNT] = {
   "setForestBasis",
   "setForestBasis.forest0",
   "setForestBasis.width",
-  "setForestBasis.values",
+  "setForestBasis.continuous",
+  "setForestBasis.range",
   "forestFits",
   "forestAmplitudes",
   "setForestWeights",
@@ -928,8 +930,9 @@ static const char* const legRefusals[LEG_COUNT] = {
   "BCF sampler carries no test treatment vector",
   NULL,
   NULL,
-  "two-column complementary 0/1 basis",
-  "two-column complementary 0/1 basis",
+  "a basis needs at least one column",
+  NULL,
+  NULL,
   NULL,
   NULL,
   NULL,
@@ -951,6 +954,20 @@ typedef struct {
   int errored;
   char message[256];
 } bcfLegs;
+
+/* Reinstalls the constructed (1 - z, z) pair on forest 1, so a leg that moved
+ * the basis leaves the layout the legs after it read. Reinstalling is the same
+ * one operation an install is - there is no second, restoring route - and it is
+ * the bitwise identity on the amplitudes while the width does not move. */
+static void restoreIndicatorBasis(bcfLegs* legs, size_t n) {
+  double* basis = (double*) R_alloc(2 * n, sizeof(double));
+  for (size_t i = 0; i < n; ++i) {
+    basis[2 * i] = 1.0 - legs->z[i];
+    basis[2 * i + 1] = legs->z[i];
+  }
+  if (dbarts_sampler_setForestBasis(legs->sampler, 1, basis, 2) != 1)
+    legs->accepted = 0;
+}
 
 static SEXP bcfLegBody(void* data) {
   bcfLegs* legs = (bcfLegs*) data;
@@ -994,40 +1011,71 @@ static SEXP bcfLegBody(void* data) {
     }
     case LEG_BASIS: {
       /* the two-column complementary indicator (1 - z, z) the amplitudes
-       * contrast on, which is the one basis today's engine honours */
+       * contrast on, laid ROW-major (row i at basis + i * numColumns) as the
+       * header states and the engine's own contraction reads it */
       double* basis = (double*) R_alloc(2 * n, sizeof(double));
       for (size_t i = 0; i < n; ++i) {
-        basis[i] = 1.0 - legs->z[i];
-        basis[i + n] = legs->z[i];
+        basis[2 * i] = 1.0 - legs->z[i];
+        basis[2 * i + 1] = legs->z[i];
       }
       legs->accepted = dbarts_sampler_setForestBasis(legs->sampler, 1, basis, 2);
       break;
     }
     case LEG_BASIS_FOREST_0: {
-      /* forest 0's basis is the implicit intercept: a capability answer, not
-       * a raise, and it must touch nothing */
+      /* forest 0 takes a basis like any other forest - an ACCEPTANCE, where
+       * this leg once pinned a capability answer - while an index past the
+       * last forest stays a capability answer rather than a raise */
       double* basis = (double*) R_alloc(2 * n, sizeof(double));
       for (size_t i = 0; i < n; ++i) {
-        basis[i] = 1.0 - legs->z[i];
-        basis[i + n] = legs->z[i];
+        basis[2 * i] = 1.0 - legs->z[i];
+        basis[2 * i + 1] = legs->z[i];
       }
+      double* ones = (double*) R_alloc(n, sizeof(double));
+      for (size_t i = 0; i < n; ++i) ones[i] = 1.0;
       legs->accepted =
-        dbarts_sampler_setForestBasis(legs->sampler, 0, basis, 2) == 0 &&
-        dbarts_sampler_setForestBasis(legs->sampler, 2, basis, 2) == 0;
+        dbarts_sampler_setForestBasis(legs->sampler, 0, basis, 2) == 1 &&
+        dbarts_sampler_numForestAmplitudes(legs->sampler, 0) == 2 &&
+        dbarts_sampler_setForestBasis(legs->sampler, 2, basis, 2) == 0 &&
+        /* narrowing back is the same one operation, so the legs that follow
+         * see the constructed layout again */
+        dbarts_sampler_setForestBasis(legs->sampler, 0, ones, 1) == 1 &&
+        dbarts_sampler_numForestAmplitudes(legs->sampler, 0) == 1;
       break;
     }
     case LEG_BASIS_WIDTH:
-      /* a malformed basis RAISES, naming the capability */
-      dbarts_sampler_setForestBasis(legs->sampler, 1, legs->z, 1);
+      /* a zero-width basis is malformed and RAISES */
+      dbarts_sampler_setForestBasis(legs->sampler, 1, legs->z, 0);
       break;
-    case LEG_BASIS_VALUES: {
-      /* two columns, but not complementary 0/1 */
+    case LEG_BASIS_CONTINUOUS: {
+      /* two columns, not complementary 0/1: LEGAL now, where this leg once
+       * pinned a raise. The forest keeps its two amplitudes and moves onto
+       * the general conditional, which no return value reports */
       double* basis = (double*) R_alloc(2 * n, sizeof(double));
       for (size_t i = 0; i < n; ++i) {
-        basis[i] = 0.25;
-        basis[i + n] = 0.75;
+        basis[2 * i] = 0.25;
+        basis[2 * i + 1] = 0.75;
       }
-      dbarts_sampler_setForestBasis(legs->sampler, 1, basis, 2);
+      legs->accepted =
+        dbarts_sampler_setForestBasis(legs->sampler, 1, basis, 2) == 1 &&
+        dbarts_sampler_numForestAmplitudes(legs->sampler, 1) == 2;
+      restoreIndicatorBasis(legs, n);
+      break;
+    }
+    case LEG_BASIS_RANGE: {
+      /* a THREE-column basis widens the block, and the ragged read follows */
+      double* basis = (double*) R_alloc(3 * n, sizeof(double));
+      for (size_t i = 0; i < n; ++i) {
+        basis[3 * i] = 1.0;
+        basis[3 * i + 1] = legs->z[i];
+        basis[3 * i + 2] = 1.0 - legs->z[i];
+      }
+      legs->accepted =
+        dbarts_sampler_setForestBasis(legs->sampler, 1, basis, 3) == 1 &&
+        dbarts_sampler_numForestAmplitudes(legs->sampler, 1) == 3 &&
+        dbarts_sampler_forestAmplitudes(legs->sampler, 1, legs->out) == 1;
+      for (size_t i = 0; i < 3 * chains; ++i)
+        if (!R_FINITE(legs->out[i])) legs->accepted = 0;
+      restoreIndicatorBasis(legs, n);
       break;
     }
     case LEG_FOREST_FITS:

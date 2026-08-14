@@ -14,11 +14,15 @@
 # the chains bitwise identically.
 
 # A public dbartsSampler created through the forests = spec branch
-# (docs/design/bcf.md) carries its basis forest's 0/1 column on data@treatment,
+# (docs/design/bcf.md) carries its forests' amplitude bases on data@bases,
 # mirroring data@weights; this is the R5-layer capability probe, cheaper than
-# a round trip through the bridge's own (Chain::bcfGlue-based) one.
+# a round trip through the bridge's own (totalAmplitudes-based) one. It is a
+# CAPABILITY test - "carries amplitudes" - and deliberately not a forest count:
+# a K-forest multinomial carries several forests and no amplitudes at all, so a
+# numForests probe would misfire on it, as the bridge and the flat C entry each
+# record independently.
 isBCFSampler <- function(sampler) {
-  !is.null(sampler$data@treatment)
+  !is.null(sampler$data@bases)
 }
 
 # BCF-specific wording for a mutation the bridge refuses through a guard
@@ -637,16 +641,23 @@ bartcoreBCFSampler <- function(
   tau.blocks = NULL
 ) {
   moderators <- resolveModerators(moderators, sampler$data)
-  bcfParams <- as.double(c(
-    n.trees.treatment,
-    treatment.base,
-    treatment.power,
-    sd.control,
-    sd.moderate,
-    b.prior.variance,
-    update.a,
-    update.b
-  ))
+  # the K-length per-forest transport, at K = 2: the prognostic forest carries
+  # a plain scalar amplitude under the half-Cauchy scale mixture sd.control is
+  # the median of, and the treatment forest a fixed-variance amplitude pair
+  # whose magnitude rides its node scale through the half-normal median
+  bcfParams <- list(
+    as.double(c(0, 0, 0, 1, 1, 1, sd.control, update.a)),
+    as.double(c(
+      n.trees.treatment,
+      treatment.base,
+      treatment.power,
+      sd.moderate,
+      0.674,
+      b.prior.variance,
+      0,
+      update.b
+    ))
+  )
   # per-forest interaction constraints (docs/design/interaction-constraints.md):
   # mu and tau each resolve their own interactions() prior against the shared
   # design, so the treatment forest can be capped additive-or-low-order while
@@ -668,24 +679,28 @@ bartcoreBCFSampler <- function(
     availableColumns = moderators
   )
 
+  # the treatment forest's basis is the two-level factor basis of z, whose
+  # amplitudes are exactly (b0, b1); the prognostic forest declares none, so
+  # the engine gives it the implicit intercept its single amplitude scales
+  z <- as.double(z != 0)
+  bases <- list(NULL, cbind(1 - z, z))
+
   result <- new.env(parent = emptyenv())
   result$ptr <- .Call(
     C_dbarts_bartcore_createBCF,
     sampler$control,
     sampler$model,
     sampler$data,
-    as.double(z),
+    bases,
     bcfParams,
-    # resolved 1-based moderator indices, or NULL for an unrestricted forest
-    moderators,
+    # resolved 1-based column indices per forest, or NULL for unrestricted
+    list(NULL, moderators),
     # resolved interactions() lists (max.order + 0-based forbidden pairs), or
-    # NULL; mu is forest 0 (prognostic), tau is forest 1 (treatment)
-    muInteractions,
-    tauInteractions,
+    # NULL; forest 1 is prognostic, forest 2 the treatment forest
+    list(muInteractions, tauInteractions),
     # resolved blocks() lists (0-based per-column group + per-group tree
     # capacity), or NULL; per-forest as with the interactions above
-    muBlocks,
-    tauBlocks
+    list(muBlocks, tauBlocks)
   )
   # BCF requires dense predictors; track them R-side for the re-quantize surface
   result$x <- rawPredictorMatrix(sampler$data@x)
@@ -975,10 +990,19 @@ bartcoreSetCategoryTestOffset <- function(bcSampler, offset.test) {
   ))
 }
 
-# The 0/1 treatment the treatment forest contrasts on; re-forms b_{z_i} and
-# both residuals on the next run.
-bartcoreSetTreatment <- function(bcSampler, z) {
-  invisible(.Call(C_dbarts_bartcore_setTreatment, bcSampler$ptr, as.double(z)))
+# Forest `forest`'s (0-based) amplitude basis, an n x q numeric matrix; re-forms
+# every multiplier and both residuals on the next run. The sole basis-mutation
+# route, at any forest and any width: the amplitudes are preserved and remapped,
+# and a width-preserving install is the bitwise identity on all of them.
+bartcoreSetForestBasis <- function(bcSampler, forest, basis) {
+  basis <- as.matrix(basis)
+  storage.mode(basis) <- "double"
+  invisible(.Call(
+    C_dbarts_bartcore_setForestBasis,
+    bcSampler$ptr,
+    as.integer(forest),
+    basis
+  ))
 }
 
 # A per-forest, per-observation weight s on forest `forest` (0 prognostic, 1
@@ -1009,9 +1033,17 @@ bartcoreSetForestWeights <- function(bcSampler, forest, weights) {
   ))
 }
 
-# The glue on the combining response, a 3 x n.chains matrix of (a, b0, b1).
-bartcoreBCFGlue <- function(bcSampler) {
-  .Call(C_dbarts_bartcore_getBCFGlue, bcSampler$ptr)
+# Forest `forest`'s (0-based) amplitudes on the combining response, a
+# q_forest x n.chains matrix, or - at forest = NULL - the whole vector stacked
+# forest-major, sum q_f x n.chains, which is the shape the run's own `glue`
+# channel carries. Ragged forest by forest, which is why a forest is named:
+# bcf's forest 0 carries a, its forest 1 the pair (b0, b1).
+bartcoreForestAmplitudes <- function(bcSampler, forest = NULL) {
+  .Call(
+    C_dbarts_bartcore_getForestAmplitudes,
+    bcSampler$ptr,
+    if (is.null(forest)) NULL else as.integer(forest)
+  )
 }
 
 # A forest's internal-scale function values (0 prognostic, 1 treatment),

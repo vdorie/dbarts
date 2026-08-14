@@ -6,10 +6,12 @@
 
 #include <dbarts/dbarts.h>
 
+#include <cmath> // isfinite
 #include <cstddef> // size_t
 #include <cstdint> // uint64_t
 #include <cstring> // memcpy
 #include <type_traits> // is_same
+#include <vector>
 
 #include <external/Rinternals.h>
 
@@ -758,39 +760,25 @@ size_t dbarts_sampler_numForests(const dbarts_sampler* sampler) {
 
 int dbarts_sampler_setForestBasis(dbarts_sampler* sampler, size_t forest,
                                   const double* basis, size_t numColumns) {
-  BartcoreHolder& holder(*sampler->holder);
-  bartcore::SamplerBase& engine(*holder.sampler);
+  bartcore::SamplerBase& engine(samplerOf(sampler));
   bartcore::SamplerShape shape = engine.shape();
   // a capability probe rather than a forest count, matching the bridge: a
   // basis is defined only as what the amplitudes multiply, and a K-forest
   // multinomial would defeat a numForests test
-  double amplitudes[3];
-  if (!engine.bcfGlue(0, amplitudes)) return 0;
-  // forest 0's basis is the implicit intercept its single amplitude scales, so
-  // there is nothing there to replace, and anything past forest 1 names no
-  // forest of a two-forest sampler at all
-  if (forest != 1) return 0;
+  if (engine.totalAmplitudes() == 0) return 0;
+  if (forest >= shape.numForests) return 0;
   if (basis == NULL)
     Rf_error("dbarts_sampler_setForestBasis: 'basis' is NULL");
-  if (numColumns != 2)
-    Rf_error("dbarts_sampler_setForestBasis: today's engine takes a "
-             "two-column complementary 0/1 basis, not %lu columns",
-             static_cast<unsigned long>(numColumns));
-  size_t numObservations = shape.numObservations;
-  for (size_t i = 0; i < numObservations; ++i) {
-    double control = basis[i], treated = basis[i + numObservations];
-    if ((control != 0.0 && control != 1.0) ||
-        (treated != 0.0 && treated != 1.0) || control + treated != 1.0)
-      Rf_error("dbarts_sampler_setForestBasis: today's engine takes a "
-               "two-column complementary 0/1 basis, whose columns are "
-               "(1 - z, z)");
-  }
-  // the combiner borrows the indicator for the sampler's lifetime, so the
-  // holder owns the copy and the caller's array need not outlive the call
-  holder.ownedTreatment.assign(basis + numObservations,
-                               basis + 2 * numObservations);
-  engine.setTreatment(holder.ownedTreatment.data());
-  return 1;
+  if (numColumns == 0)
+    Rf_error("dbarts_sampler_setForestBasis: a basis needs at least one "
+             "column");
+  // ROW-major, row i at basis + i * numColumns, as the header states and the
+  // engine's own contraction reads it; the values are copied through
+  size_t numValues = shape.numObservations * numColumns;
+  for (size_t i = 0; i < numValues; ++i)
+    if (!std::isfinite(basis[i]))
+      Rf_error("dbarts_sampler_setForestBasis: a basis value is not finite");
+  return engine.setForestBasis(forest, basis, numColumns) ? 1 : 0;
 }
 
 int dbarts_sampler_forestFits(const dbarts_sampler* sampler, size_t forest,
@@ -809,11 +797,9 @@ size_t dbarts_sampler_numForestAmplitudes(const dbarts_sampler* sampler,
   // a size_t probe carries no refusal channel; see dbarts_sampler_numTrees
   if (forest >= engine.shape().numForests)
     Rf_error("dbarts_sampler_numForestAmplitudes forest index out of range");
-  double amplitudes[3];
-  // the amplitude vector is ragged by construction: one for the forest the
-  // intercept basis scales, one per level for the two-column indicator basis
-  if (!engine.bcfGlue(0, amplitudes)) return 0;
-  return forest == 0 ? 1 : 2;
+  // the amplitude vector is ragged by construction: as wide as the forest's
+  // own basis, which every forest carries independently
+  return engine.numForestAmplitudes(forest);
 }
 
 int dbarts_sampler_forestAmplitudes(const dbarts_sampler* sampler,
@@ -821,15 +807,18 @@ int dbarts_sampler_forestAmplitudes(const dbarts_sampler* sampler,
   const bartcore::SamplerBase& engine(samplerOf(sampler));
   bartcore::SamplerShape shape = engine.shape();
   if (forest >= shape.numForests) return 0;
-  double amplitudes[3];
-  // the amplitudes are a model property, so chain 0 answers whether there are
-  // any at all; its refusal writes nothing
-  if (!engine.bcfGlue(0, amplitudes)) return 0;
-  size_t numAmplitudes = forest == 0 ? 1 : 2;
+  // the amplitudes are a model property, so the length answers whether there
+  // are any at all; a coupling carrying none writes nothing
+  size_t total = engine.totalAmplitudes();
+  if (total == 0) return 0;
+  size_t offset = 0;
+  for (size_t f = 0; f < forest; ++f) offset += engine.numForestAmplitudes(f);
+  size_t numAmplitudes = engine.numForestAmplitudes(forest);
+  std::vector<double> amplitudes(total);
   for (size_t c = 0; c < shape.numChains; ++c) {
-    engine.bcfGlue(c, amplitudes);
+    engine.amplitudes(c, amplitudes.data());
     for (size_t j = 0; j < numAmplitudes; ++j)
-      out[c * numAmplitudes + j] = amplitudes[forest == 0 ? 0 : 1 + j];
+      out[c * numAmplitudes + j] = amplitudes[offset + j];
   }
   return 1;
 }

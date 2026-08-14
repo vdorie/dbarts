@@ -297,7 +297,7 @@ samplerFit <- function(seed) {
     dbarts:::bartcoreRun(bc, 0L, thin)
     muM[d, ] <- dbarts:::bartcoreForestFits(bc, 0L)[repObs, 1L]
     tauM[d, ] <- dbarts:::bartcoreForestFits(bc, 1L)[repObs, 1L]
-    aVec[d] <- dbarts:::bartcoreBCFGlue(bc)[1L, 1L]
+    aVec[d] <- dbarts:::bartcoreForestAmplitudes(bc)[1L, 1L]
   }
   list(
     tau = colMeans(tauM),

@@ -10,11 +10,14 @@ dbartsData(
     offset, offset.test = offset,
     factors = c("categorical", "indicators"),
     missing = c("incorporate", "error"),
-    treatment = NULL)
+    bases = NULL)
 }
 \arguments{
-   \item{formula, data, test, subset, weights, offset, offset.test, factors, missing, treatment}{
+   \item{formula, data, test, subset, weights, offset, offset.test, factors, missing}{
      As in \code{\link{dbarts}}. Retains backwards compatibility with \code{\link{bart}}, so that \code{formula}/\code{data} can be a \code{\link{formula}}/\code{\link{data.frame}} pair, or a pair of \code{x.train}/\code{y.train} matrices/vector.
+   }
+   \item{bases}{
+     Optional list of the per-forest amplitude bases a multi-forest model combines its forests through, one element per forest and \code{NULL} where a forest carries the implicit intercept its single amplitude scales. Each non-null element is a numeric matrix with one row per observation and one amplitude per column, restricted by \code{subset} exactly as \code{weights} is. This is the data half of a multi-forest specification, and is normally written by \code{\link{dbarts}}'s \code{forests = } argument rather than here; supplying it directly selects the multi-forest model with the engine's default per-forest configuration, and \code{\link{forest}} declarations may then configure the forests one at a time.
    }
 }
 \details{

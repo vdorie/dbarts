@@ -1,5 +1,5 @@
 # Internal BCF two-forest surface (docs/design/bcf.md; src/bartcore/). Sanity
-# only - creation, a short run, sane glue and per-forest fits, setTreatment,
+# only - creation, a short run, sane glue and per-forest fits, setForestBasis,
 # and the step-4 state refusal. The exact-posterior gate lives in benchmarks/.
 
 set.seed(3)
@@ -49,13 +49,13 @@ expect_error(
 )
 
 # glue is finite and the treated and control scales separate
-glue <- dbarts:::bartcoreBCFGlue(bcSampler)
+glue <- dbarts:::bartcoreForestAmplitudes(bcSampler)
 expect_equal(dim(glue), c(3L, 1L))
 expect_true(all(is.finite(glue)))
 expect_true(glue[2L, 1L] != glue[3L, 1L])
 
-# setTreatment re-forms both residuals; a subsequent run stays sane
-dbarts:::bartcoreSetTreatment(bcSampler, rep(0L, n))
+# setForestBasis re-forms both residuals; a subsequent run stays sane
+dbarts:::bartcoreSetForestBasis(bcSampler, 1L, cbind(rep(1, n), rep(0, n)))
 result.control <- dbarts:::bartcoreRun(bcSampler, 0L, 5L)
 expect_true(all(is.finite(result.control$train)))
 
@@ -75,14 +75,14 @@ expect_error(
 )
 
 # state round-trip: store, restore into a fresh BCF sampler, continue
-dbarts:::bartcoreSetTreatment(bcSampler, z)
+dbarts:::bartcoreSetForestBasis(bcSampler, 1L, cbind(1 - z, z))
 dbarts:::bartcoreRun(bcSampler, 0L, 5L)
 state <- dbarts:::bartcoreStoreState(bcSampler)
 expect_equal(length(state), 1L)
 expect_equal(length(state[[1L]]$forests), 2L)
 expect_false(is.null(state[[1L]]$bcf))
 
-glueBefore <- dbarts:::bartcoreBCFGlue(bcSampler)
+glueBefore <- dbarts:::bartcoreForestAmplitudes(bcSampler)
 muBefore <- dbarts:::bartcoreForestFits(bcSampler, 0L)
 tauBefore <- dbarts:::bartcoreForestFits(bcSampler, 1L)
 
@@ -91,7 +91,7 @@ dbarts:::bartcoreSetState(restored, state)
 
 # the glue rides the state exactly; the forests restore to a continuation
 # (structural, not bitwise: the dropped accumulation history is not reproduced)
-expect_equal(dbarts:::bartcoreBCFGlue(restored), glueBefore)
+expect_equal(dbarts:::bartcoreForestAmplitudes(restored), glueBefore)
 expect_equal(
   dbarts:::bartcoreForestFits(restored, 0L),
   muBefore,
@@ -117,7 +117,7 @@ bcFixed <- dbarts:::bartcoreBCFSampler(
   update.b = FALSE
 )
 dbarts:::bartcoreRun(bcFixed, 50L, 50L)
-expect_equal(dbarts:::bartcoreBCFGlue(bcFixed)[, 1L], c(1, 0, 1))
+expect_equal(dbarts:::bartcoreForestAmplitudes(bcFixed)[, 1L], c(1, 0, 1))
 # the treatment forest still moves under the fixed z * tau model
 expect_true(sum(dbarts:::bartcoreForestFits(bcFixed, 1L)^2) > 0)
 
@@ -135,7 +135,7 @@ dbarts:::bartcoreRun(bcPi, 100L, 20L)
 z2 <- rbinom(n, 1L, pihat)
 x.pi[, ncol(x.pi)] <- plogis(x[, 2L] - 0.5)
 dbarts:::bartcoreSetPredictor(bcPi, x.pi, forceUpdate = TRUE)
-dbarts:::bartcoreSetTreatment(bcPi, z2)
+dbarts:::bartcoreSetForestBasis(bcPi, 1L, cbind(1 - z2, z2))
 result.pi <- dbarts:::bartcoreRun(bcPi, 0L, 20L)
 expect_equal(dim(result.pi$train), c(n, 20L))
 expect_true(all(is.finite(result.pi$train)))
@@ -170,7 +170,7 @@ bcMove <- dbarts:::bartcoreBCFSampler(sampler.m, z.m, n.trees.treatment = 30L)
 res.move <- dbarts:::bartcoreRun(bcMove, 200L, 100L)
 expect_true(all(is.finite(res.move$train)))
 expect_true(all(res.move$sigma > 0))
-expect_true(all(is.finite(dbarts:::bartcoreBCFGlue(bcMove))))
+expect_true(all(is.finite(dbarts:::bartcoreForestAmplitudes(bcMove))))
 muMove <- dbarts:::bartcoreForestFits(bcMove, 0L)
 expect_true(all(is.finite(muMove)) && sum(muMove^2) > 0)
 
@@ -312,7 +312,7 @@ yNew <- mu - z * tau + rnorm(n, sd = 0.2)
 
 bcfMap <- function(bc) {
   reported <- dbarts:::bartcoreRun(bc, 0L, 1L)$train[, 1L]
-  glue <- dbarts:::bartcoreBCFGlue(bc)
+  glue <- dbarts:::bartcoreForestAmplitudes(bc)
   internal <- glue[1L, 1L] *
     dbarts:::bartcoreForestFits(bc, 0L)[, 1L] +
     ifelse(z != 0, glue[3L, 1L], glue[2L, 1L]) *

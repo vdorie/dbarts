@@ -39,12 +39,13 @@ items
     docs/plans/bcf-public-surface.md). REMAINING: S5 (bcf() and the
     bartBCF fit class) is PAUSED and RELOCATED to bartCause, per VD's
     extension-surface fork 4 (RESOLVED 2026-08-11: bartCause, on its
-    dbarts-1.0 branch). The
-    treatment=/moderators=/treatmentForest= names (and flat
-    setTreatment/bcfGlue) are PROVISIONAL, scheduled for replacement
-    by forests = list(forest(basis = ...)) per
-    multiforest-extension-surface M2. Its S0 BCF transactional-
-    setPredictor and per-observation-session pins
+    dbarts-1.0 branch). The provisional
+    treatment=/moderators=/treatmentForest= names are GONE, replaced
+    by forests = list(forest(basis = ...)) (multiforest-extension-
+    surface M2), the flat setTreatment/bcfGlue by
+    setForestBasis/numForestAmplitudes/forestAmplitudes (M3), and the
+    dbartsData(treatment=) slot by the per-forest bases list (M4.3).
+    Its S0 BCF transactional-setPredictor and per-observation-session pins
     (bcf-public-surface.md:326-327) are INVERTED IN PLACE by
     multiforest-predictor-mutation's S1 (the whole-matrix/column
     entries) and S2 (the two per-observation entries), in
@@ -219,8 +220,8 @@ items
     forests = list(forest(...)) on dbarts()/dbartsSpec() replaces the
     removed treatment =/moderators =/treatmentForest =, with
     $setTreatment -> $setForestBasis(forest, basis) and $getBCFGlue ->
-    $getForestAmplitudes(), both 1-based via resolveForestIndex (a BCF
-    sampler's treatment forest is 2L) on the same side as M1's public R5
+    $getForestAmplitudes(forest), both 1-based via resolveForestIndex (a
+    BCF sampler's basis forest is 2L) on the same side as M1's public R5
     $setForestWeights, itself mirrored across re-creation at getPointer,
     setState and copy (docs/plans/multiforest-extension-surface.md Landing
     notes; artifacts .claude/multiforest-extension-surface-design/). The
@@ -243,7 +244,10 @@ items
     calibration map needs its own research arc (fork 2); re-sign
     setTreatment/bcfGlue to setForestBasis/numForestAmplitudes/
     forestAmplitudes at the dbarts.h reshape re-bake, KEEP
-    setForestWeights (fork 3); bcf() lives in bartCause, on its
+    setForestWeights (fork 3, LANDED at reshape S1 and completed by
+    M4.3, which retired setTreatment as a mutator engine-wide -
+    setForestBasis is the sole basis-mutation route, at any forest and
+    any width); bcf() lives in bartCause, on its
     dbarts-1.0 branch (fork 4). Falsifier FA5 still needs
     respecifying at M4 scheduling: its committed form tests a
     strawman (K independent probit samplers); the decisive arm is K
@@ -583,7 +587,9 @@ items
     forestCalibration/setForestPriorScale (closing that arc); the
     BCF-specific rename, setTreatment -> setForestBasis, bcfGlue ->
     numForestAmplitudes + forestAmplitudes (closing
-    multiforest-extension-surface's M3). Consumer cost, corrected from
+    multiforest-extension-surface's M3; M4.3 then widened both behind
+    those names - any forest, any basis width, ragged amplitudes -
+    without moving a signature or the hash). Consumer cost, corrected from
     the original "a stan4bart predict sweep only" estimate: five
     stan4bart call sites (predict, getTrees, printTrees, numTrees x2);
     treatSens, bartCause and bairrtt rebuild only. S2 (consumer

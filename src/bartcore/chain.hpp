@@ -684,10 +684,10 @@ public:
     resizeTestStorage();
   }
 
-  /// Two-forest BCF chain (docs/design/bcf.md): a prognostic forest mu
-  /// (forest 0) and a treatment forest tau (forest 1) combined on a gaussian
-  /// response as y = a mu + b_z tau + eps. Constant leaves only; both forests
-  /// read the full store unless tau carries a moderator subset in
+  /// K-forest combining chain (docs/design/bcf.md): forests combined on a
+  /// gaussian response as y = sum_f dot(a_f, B_f(i,.)) f_f(x_i) + eps, of which
+  /// bcf's a mu + b_z tau is the K = 2 instance. Constant leaves only; each
+  /// forest reads the full store unless its spec carries a column subset in
   /// BCFForestSpec.columns (the default, no list, restricts nothing).
   Chain(const ColumnStore& data, const double* y, const double* weights,
         const double* offset, double sigmaEstimate, double sigmaDf,
@@ -706,17 +706,25 @@ public:
     sigmaIsFixed_ = options.sigmaIsFixed;
     sigma_ = response_->initialSigma();
 
-    // Calibration map (docs/design/bcf.md): s is the sample sd of the
-    // range-scaled response (y mapped to [-0.5, 0.5]). The prognostic total
-    // mu ~ N(0, s^2) so the half-Cauchy a (median aPriorScale) puts it at
-    // aPriorScale sd(y); the treatment total tau ~ N(0, (sdModerate s /
-    // 0.674)^2) so with b1 - b0 ~ N(0, 2 bPriorVariance) and half-normal
-    // median 0.674 the effect (b1 - b0) tau sits at sdModerate sd(y). The
-    // map fixes k at 1 and overrides the host node prior for both forests.
-    constexpr double kHalfNormalMedian = 0.674;
+    // Calibration map (docs/design/bcf.md, generalized to K by ForestSpec):
+    // s is the sample sd of the range-scaled response (y mapped to
+    // [-0.5, 0.5]). A forest whose amplitude carries a half-Cauchy scale
+    // mixture keeps its node scale at nodeScaleFactor s and puts the magnitude
+    // in the amplitude prior - bcf's prognostic total mu ~ N(0, s^2) with the
+    // half-Cauchy a (median aPriorScale) at aPriorScale sd(y). A forest whose
+    // amplitude prior is a FIXED variance carries the magnitude in the node
+    // scale instead, divided through the half-normal median - bcf's treatment
+    // total tau ~ N(0, (sdModerate s / 0.674)^2), so with b1 - b0 ~ N(0, 2
+    // bPriorVariance) the effect (b1 - b0) tau sits at sdModerate sd(y). Both
+    // expressions are written exactly as bcf's were, which is what keeps the
+    // K = 2 instance bitwise. The map fixes k at 1 and overrides the host node
+    // prior for every forest.
     double s = scaledResponseSd();
-    buildBCFForest(spec.mu, s);
-    buildBCFForest(spec.tau, spec.sdModerate * s / kHalfNormalMedian);
+    std::vector<ForestSpec> forestSpecs = expandForestSpecs(spec);
+    for (const ForestSpec& forestSpec : forestSpecs)
+      buildBCFForest(forestSpec.forest,
+                     forestSpec.nodeScaleFactor * s /
+                       forestSpec.nodeScaleDivisor);
 
     combiner_ =
       std::make_unique<BCFForestCombiner<L, ResidT>>(data, spec,
@@ -859,9 +867,14 @@ public:
     return combiner_ != nullptr && combiner_->forestReportingIsDefined();
   }
   bool usesDart() const { return forests_[0].useDart; }
-  /// Re-forms b_{z_i} and both residuals on the next sweep; z is borrowed.
-  void setTreatment(const double* z) {
-    if (combiner_) combiner_->setTreatment(z);
+  /// Installs forest f's n x numColumns amplitude basis, ROW-major and COPIED;
+  /// false, installing nothing, off a coupling that carries amplitudes or on a
+  /// basis it refuses. The sole basis-mutation route; every multiplier, the
+  /// per-forest reparameterization and the amplitude conditional re-read it on
+  /// the next sweep.
+  bool setForestBasis(std::size_t f, const double* values,
+                      std::size_t numColumns) {
+    return combiner_ ? combiner_->setForestBasis(f, values, numColumns) : false;
   }
   /// Whether this chain's forest coupling permits the response-side conduit -
   /// setResponse and setOffset at updateScale = false, and setWeights, which
@@ -1017,9 +1030,30 @@ public:
     return true;
   }
 
-  /// BCF glue on the combining response; false for a non-BCF chain.
+  /// The amplitude channel on the combining response. totalAmplitudes is the
+  /// capability probe as well as the length - 0 off a chain whose forests carry
+  /// none - numForestAmplitudes(f) is forest f's ragged width, and amplitudes
+  /// writes the whole vector forest-major.
+  std::size_t totalAmplitudes() const {
+    return combiner_ ? combiner_->totalAmplitudes() : 0;
+  }
+  /// bcf's (a, b0, b1) reading of that channel, for the conditionals and
+  /// component pins written in its spelling; false off a chain whose amplitude
+  /// layout is not bcf's K = 2, q = (1, 2).
   bool bcfGlue(double& a, double& b0, double& b1) const {
-    return combiner_ ? combiner_->bcfGlue(a, b0, b1) : false;
+    if (totalAmplitudes() != 3 || numForestAmplitudes(0) != 1) return false;
+    double out[3];
+    combiner_->amplitudes(out);
+    a = out[0]; b0 = out[1]; b1 = out[2];
+    return true;
+  }
+  std::size_t numForestAmplitudes(std::size_t f) const {
+    return combiner_ ? combiner_->numForestAmplitudes(f) : 0;
+  }
+  bool amplitudes(double* out) const {
+    if (combiner_ == nullptr || combiner_->totalAmplitudes() == 0) return false;
+    combiner_->amplitudes(out);
+    return true;
   }
   /// The forest's constant-leaf function values on the internal scale (mu for
   /// forest 0, tau for forest 1); numObservations doubles.
@@ -2676,6 +2710,10 @@ public:
 
   bool stateIsValid(const ChainStateData& state) const {
     if (state.forests.size() != forests_.size()) return false;
+    // the amplitude block's LAYOUT, not just its total: a state carrying
+    // q = (1, 3) into a live q = (2, 2) has the same four amplitudes and would
+    // be written straight through the live offsets, permuting the blocks
+    if (combiner_ && !combiner_->glueIsValid(state)) return false;
     size_t n = data_.numObservations;
     Tree scratch;
     std::vector<index_t> scratchIndices(n);
@@ -4658,10 +4696,9 @@ private:
           std::memcpy(out + f * n, forests_[f].totalFits.data(),
                       n * sizeof(double));
       }
-      if (results.glue != nullptr) {
-        double* out = results.glue + sampleNum * 3;
-        combiner_->bcfGlue(out[0], out[1], out[2]);
-      }
+      if (results.glue != nullptr)
+        combiner_->amplitudes(results.glue +
+                              sampleNum * combiner_->totalAmplitudes());
     }
 
     if (results.variableCounts != nullptr) {

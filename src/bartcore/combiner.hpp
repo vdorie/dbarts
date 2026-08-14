@@ -89,8 +89,23 @@ struct ChainStateData {
   double dartAlpha = 1.0;
   size_t dartNumUpdatesSkipped = 0;
   std::vector<unsigned char> rngState;
-  // BCF combining response's glue (docs/design/bcf.md); false off BCF
+  // The amplitude glue a combining response carries (docs/design/bcf.md);
+  // false off a coupling that carries none. RAGGED, because a total is not a
+  // layout: q = (1, 3) and q = (2, 2) both carry four amplitudes, so the
+  // per-forest widths travel with them or a restore silently permutes the
+  // blocks. amplitudes is forest-major, block f at the widths' prefix sum;
+  // amplitudeVariances is one prior variance per forest, live only where a
+  // scale mixture refreshes it.
   bool hasBCF = false;
+  std::vector<std::size_t> amplitudeWidths;
+  std::vector<double> amplitudes;
+  std::vector<double> amplitudeVariances;
+  // bcf's (a, aVariance, b0, b1) reading of the same block - the K = 2,
+  // q = (1, 2) instance, in the spelling the two-forest fixtures state their
+  // glue in and serializeGlue fills alongside the ragged fields. The RAGGED
+  // fields are authoritative: restoreGlue reads these four only when
+  // amplitudeWidths is empty, which is exactly a state written by hand rather
+  // than by a combiner.
   double a = 1.0, aVariance = 1.0, b0 = 0.0, b1 = 1.0;
   // heteroscedastic variance forest (docs/design/heteroscedastic.md): the
   // variance trees' flattened structure, each leaf a POSITIVE scale value on
@@ -240,7 +255,42 @@ struct BCFForestSpec {
   const std::size_t* blockTreeCounts = nullptr;
 };
 
-/// The two model specs plus the treatment vector a BCF chain is built from.
+/// One forest's entry in the K-length spec a general combining chain is built
+/// from: its tree/structure configuration (BCFForestSpec, unchanged) plus the
+/// amplitude channel it enters the combination through.
+///
+/// The CALIBRATION MAP is stated here rather than in the chain, and is general
+/// in K: the node scale is nodeScaleFactor * s / nodeScaleDivisor, s the sample
+/// sd of the range-scaled response. The two ways a magnitude can be carried are
+/// the two branches the host picks between - a scale-mixture amplitude carries
+/// it in amplitudePriorScale and leaves the node scale at s (bcf's prognostic
+/// forest, factor and divisor both 1), a fixed-variance amplitude carries it in
+/// the node scale, divided through the half-normal median so the amplitude
+/// spread times that scale sits at nodeScaleFactor sd(y) (bcf's treatment
+/// forest, divisor 0.674). The divisor is CARRIED rather than derived from the
+/// prior, so a forest declaring a zero scale keeps the node scale its host
+/// asked for; and both expressions are written exactly as bcf's were, which is
+/// what keeps the two-forest instance bitwise.
+///
+/// basis is an optional n x numBasisColumns ROW-major amplitude basis, borrowed
+/// and COPIED at construction; null synthesizes the dense all-ones column whose
+/// contraction is the amplitude itself.
+struct ForestSpec {
+  BCFForestSpec forest;
+  double nodeScaleFactor = 1.0, nodeScaleDivisor = 1.0;
+  double amplitudePriorVariance = 1.0;
+  double amplitudePriorScale = 0.0;  // half-Cauchy median; 0 = fixed variance
+  bool updateAmplitude = true;
+  bool ridge = true;
+  const double* basis = nullptr;
+  std::size_t numBasisColumns = 1;
+};
+
+/// The spec a BCF chain is built from. Two readings of one object: the K = 2
+/// mu/tau shape below, which is what every fixture and the shipped internal
+/// route construct, and the K-LENGTH forests vector, which supersedes it
+/// whenever it is non-empty. expandForestSpecs is the thin adapter between
+/// them, so there is exactly one shape the chain and the combiner read.
 struct BCFSpec {
   BCFForestSpec mu, tau;
   const double* z = nullptr;    // borrowed 0/1 treatment indicator per obs
@@ -260,7 +310,34 @@ struct BCFSpec {
   // compiler forms fused multiply-adds (BCFForestCombiner::drawGlue), so this
   // is off by default to hold bcf-equivalence bitwise.
   bool generalAmplitudeDraw = false;
+  // The K-length reading. EMPTY leaves the mu/tau pair above authoritative and
+  // the treatment forest's basis synthesized from z; non-empty supersedes both,
+  // and z is then read by nothing.
+  std::vector<ForestSpec> forests;
 };
+
+/// The thin adapter: bcf's two-forest spelling read as the K-length vector
+/// every other layer works in. mu takes the half-Cauchy amplitude (bcf's a,
+/// median aPriorScale) over the implicit intercept and leaves its node scale at
+/// s; tau takes the fixed-variance amplitude pair (b0, b1) over the treatment
+/// indicator basis and carries sdModerate in its node scale. A spec that
+/// already carries its own forests vector is returned as it stands.
+inline std::vector<ForestSpec> expandForestSpecs(const BCFSpec& spec) {
+  if (!spec.forests.empty()) return spec.forests;
+  std::vector<ForestSpec> forests(2);
+  forests[0].forest = spec.mu;
+  forests[0].amplitudePriorScale = spec.aPriorScale;
+  forests[0].updateAmplitude = spec.updateA;
+  forests[0].ridge = spec.ridgeA;
+  forests[1].forest = spec.tau;
+  forests[1].nodeScaleFactor = spec.sdModerate;
+  forests[1].nodeScaleDivisor = 0.674;  // the half-normal median
+  forests[1].amplitudePriorVariance = spec.bPriorVariance;
+  forests[1].updateAmplitude = spec.updateB;
+  forests[1].ridge = spec.ridgeB;
+  forests[1].numBasisColumns = 2;  // synthesized from z by the combiner
+  return forests;
+}
 
 /// One category forest's calibration for a multinomial sampler; the K forests
 /// are symmetric, so a single spec builds them all (mbart2's convention). Node
@@ -340,8 +417,16 @@ struct ForestAmplitudePrior {
 /// amplitudeOffset rather than at 0/1/2: forest 1's block starts wherever
 /// forest 0's ends, so a prognostic basis wider than one column moves it.
 struct BCFState {
-  const double* z = nullptr;
   std::vector<ForestBasis> basis;
+  /// Per-forest IS-CANONICAL flag: whether basis[f] is still exactly one of the
+  /// constructor's synthesized shapes - a dense all-ones column, or a
+  /// complementary two-column 0/1 pair. A pure function of the basis VALUES,
+  /// recomputed at install and at restore and never serialized, so nothing can
+  /// carry a stale answer across a round trip. It selects the draw path:
+  /// drawShippedGlue is not a general q = 2 conditional (it never reads
+  /// basis[1] at all - it forms two disjoint group accumulators keyed on the
+  /// indicator), so a legal continuous two-column basis has to route around it.
+  std::vector<std::uint8_t> canonical;
   std::vector<double> amplitudes{1.0, 0.0, 1.0};
   // length K + 1, prefix sums of q_f; seeded with bcf's shipped layout so the
   // accessors below read the constructed amplitudes before any install
@@ -423,10 +508,15 @@ struct ForestCombiner {
     return nullptr;
   }
 
-  /// Swaps the borrowed treatment vector the coupling reads; inert unless a
-  /// subclass carries one. The combiner re-forms its per-forest residuals from
-  /// the new vector on the next sweep.
-  virtual void setTreatment(const double*) {}
+  /// Installs forest f's own n x numColumns amplitude basis, ROW-major, COPIED;
+  /// false, installing nothing, off a coupling that carries no amplitudes or on
+  /// a basis this one refuses. It is the SOLE basis-mutation route: synthesis
+  /// is construction-only, so there is no second operation whose ordering
+  /// against this one would have to be specified
+  /// (docs/plans/multiforest-extension-surface.md, M4.3). Inert in the base.
+  virtual bool setForestBasis(std::size_t, const double*, std::size_t) {
+    return false;
+  }
 
   /// Whether this coupling OWNS its response as a count matrix that can be
   /// replaced on a live sampler at fixed n and K. True only for a combiner
@@ -457,10 +547,17 @@ struct ForestCombiner {
   /// the test blend at the same place the train offset enters combinedFits.
   virtual void setCategoryTestOffset(const double*) {}
 
-  /// The BCF glue coefficients (a, b0, b1) on the combining response, for the
-  /// per-forest reporting path (getBCFGlue); false for a combiner carrying no
-  /// such glue, which is how the "no BCF glue" answer reaches the caller.
-  virtual bool bcfGlue(double&, double&, double&) const { return false; }
+  /// The amplitude channel on the combining response, for the per-forest
+  /// reporting path. totalAmplitudes is the CAPABILITY probe as well as the
+  /// length: 0 says this coupling carries no amplitudes at all, which is how
+  /// the "no glue" answer reaches the caller, and a coupling that carries any
+  /// carries at least one per forest. numForestAmplitudes(f) is forest f's own
+  /// width q_f (the vector is ragged), and amplitudes writes all
+  /// totalAmplitudes() coordinates forest-major, block f at the widths' prefix
+  /// sum.
+  virtual std::size_t totalAmplitudes() const { return 0; }
+  virtual std::size_t numForestAmplitudes(std::size_t) const { return 0; }
+  virtual void amplitudes(double*) const {}
 
   /// The coupling draw and its likelihood-invariant post-combine move, fired at
   /// the fixed sweep points; inert unless a subclass couples the forests.
@@ -566,10 +663,16 @@ struct ForestCombiner {
   /// every row is active. The values are COPIED.
   virtual void setActiveRows(const double*) {}
 
-  /// Glue (de)serialization into the BCF-shaped state fields; inert unless the
-  /// combiner carries glue.
+  /// Glue (de)serialization into the ragged amplitude state fields; inert
+  /// unless the combiner carries glue. glueIsValid is the LAYOUT check
+  /// stateIsValid routes through: a state carrying the same total over
+  /// different per-forest widths - q = (1, 3) against a live q = (2, 2) -
+  /// would otherwise be written straight through the live offsets and silently
+  /// permute the blocks. Accepting on a state that carries no glue keeps a
+  /// mismatched restore a no-op rather than a refusal, as restoreGlue is.
   virtual void serializeGlue(ChainStateData&) const {}
   virtual void restoreGlue(const ChainStateData&) {}
+  virtual bool glueIsValid(const ChainStateData&) const { return true; }
 };
 
 /// BCF's combiner (docs/design/bcf.md): a prognostic forest mu (forest 0) and a
@@ -584,37 +687,97 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
                 "BCF is a constant-leaf model");
 
   /// numForests is the chain's own forest count, which sizes every per-forest
-  /// array here; the spec calibrates the two forests bcf builds (a wider spec
-  /// is M4.3's), so any beyond them enter with a plain amplitude and the
-  /// default prior. It defaults to bcf's two so a fixture need not state it.
+  /// array here; a forest the spec does not reach enters with a plain amplitude
+  /// and the default prior. It defaults to bcf's two so a fixture need not
+  /// state it.
+  ///
+  /// Basis SYNTHESIS happens here and nowhere else. Under the K-length spec
+  /// each forest takes the basis its entry carries, or the dense all-ones
+  /// column when it carries none; under bcf's two-forest spelling forest 1
+  /// takes the (1 - z, z) indicator pair z implies. There is deliberately no
+  /// mid-life synthesis route: setForestBasis is the only mutator, so the
+  /// question of which of two operations wins does not arise
+  /// (docs/plans/multiforest-extension-surface.md, M4.3).
   BCFForestCombiner(const ColumnStore& data, const BCFSpec& spec,
                     std::size_t numForests = 2)
       : data_(data), numForests_(numForests < 2 ? 2 : numForests),
         generalAmplitudeDraw_(spec.generalAmplitudeDraw) {
-    installTreatment(spec.z);
-    glue_.prior[0] = {1.0, spec.aPriorScale, spec.updateA, spec.ridgeA};
-    glue_.prior[1] = {spec.bPriorVariance, 0.0, spec.updateB, spec.ridgeB};
+    std::size_t n = data_.numObservations;
+    std::vector<ForestSpec> forests = expandForestSpecs(spec);
+    glue_.basis.resize(numForests_);
+    glue_.prior.resize(numForests_);
+    for (std::size_t f = 0; f < numForests_; ++f) {
+      if (f < forests.size() && forests[f].basis != nullptr) {
+        glue_.basis[f].numColumns = forests[f].numBasisColumns;
+        glue_.basis[f].values.assign(
+          forests[f].basis, forests[f].basis + n * forests[f].numBasisColumns);
+      } else {
+        glue_.basis[f].numColumns = 1;
+        glue_.basis[f].values.assign(n, 1.0);
+      }
+      if (f < forests.size())
+        glue_.prior[f] = {forests[f].amplitudePriorVariance,
+                          forests[f].amplitudePriorScale,
+                          forests[f].updateAmplitude, forests[f].ridge};
+    }
+    // bcf's two-forest spelling names its treatment basis by the indicator it
+    // contrasts on rather than by the pair; the pair is that indicator's
+    // two-level factor basis, whose amplitudes are exactly (b0, b1)
+    if (spec.forests.empty() && numForests_ > 1) synthesizeIndicatorBasis(1, spec.z);
+    rebuildAmplitudeLayout();
+    refreshCanonical();
   }
 
-  void setTreatment(const double* z) override { installTreatment(z); }
+  /// The SOLE basis-mutation route, at any forest and any width, and therefore
+  /// the owner of the guards nothing else is left to apply: the index, a
+  /// positive width, and finiteness. A refused install writes nothing.
+  ///
+  /// Ordering is LAST INSTALL WINS, per forest, and both orderings of a widen
+  /// and a swap collapse to that one rule because there is only one operation:
+  /// rebuildAmplitudeLayout derives the offsets as a pure prefix sum of the
+  /// width vector and carries every block by position, so a widen-then-swap
+  /// leaves the widening standing and a swap-then-widen carries the swapped
+  /// values to their new offsets. Amplitudes PRESERVE and remap; a
+  /// width-preserving install is the bitwise identity on every one of them.
+  bool setForestBasis(std::size_t f, const double* values,
+                      std::size_t numColumns) override {
+    return installForestBasis(f, values, numColumns);
+  }
 
-  /// Installs forest f's own n x numColumns basis, ROW-major, COPIED. The
-  /// amplitude layout is rebuilt from the new widths and every forest's block
-  /// keeps the coordinates it still has; a coordinate the widening adds enters
-  /// at the neutral amplitude 1.0. A width change is a model change, not the
-  /// data swap setTreatment makes, which is why it is allowed to move the
-  /// layout under a live glue at all.
-  void installForestBasis(std::size_t f, const double* values,
+  bool installForestBasis(std::size_t f, const double* values,
                           std::size_t numColumns) {
     std::size_t n = data_.numObservations;
+    if (f >= glue_.basis.size() || numColumns == 0 || values == nullptr)
+      return false;
+    for (std::size_t i = 0; i < n * numColumns; ++i)
+      if (!std::isfinite(values[i])) return false;
     glue_.basis[f].numColumns = numColumns;
     glue_.basis[f].values.assign(values, values + n * numColumns);
     rebuildAmplitudeLayout();
+    glue_.canonical[f] = basisIsCanonical(f) ? 1 : 0;
+    return true;
   }
 
-  bool bcfGlue(double& a, double& b0, double& b1) const override {
+  /// bcf's three amplitudes (a, b0, b1) off the general ragged channel: the
+  /// K = 2, q = (1, 2) instance, kept as a named reading beside the general
+  /// one for the conditionals and fixtures that speak it. False on any other
+  /// layout, which is how a caller learns it is not looking at bcf.
+  bool bcfGlue(double& a, double& b0, double& b1) const {
+    if (glue_.amplitudes.size() != 3 || glue_.numAmplitudes(0) != 1)
+      return false;
     a = glue_.a(); b0 = glue_.b0(); b1 = glue_.b1();
     return true;
+  }
+
+  std::size_t totalAmplitudes() const override {
+    return glue_.amplitudes.size();
+  }
+  std::size_t numForestAmplitudes(std::size_t f) const override {
+    return f < glue_.basis.size() ? glue_.numAmplitudes(f) : 0;
+  }
+  void amplitudes(double* out) const override {
+    for (std::size_t j = 0; j < glue_.amplitudes.size(); ++j)
+      out[j] = glue_.amplitudes[j];
   }
 
   /// Multipliers with |m_f| below this are taken as exactly zero:
@@ -729,9 +892,16 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// until a bcf-equivalence re-record is authorized, at which point
   /// BCFSpec::generalAmplitudeDraw becomes the default and this branch is
   /// deleted.
+  ///
+  /// Path selection is a per-forest IS-CANONICAL VALUE predicate, not a width
+  /// test. The widths alone would admit a continuous two-column basis into the
+  /// shipped path, which never reads basis[1] at all: it forms two disjoint
+  /// group-precision accumulators keyed on the indicator, so on a 0.25/0.75
+  /// pair it would silently draw a different model. A non-canonical basis at
+  /// ANY forest therefore forces the general path for the whole draw.
   void drawGlue(ext_rng* rng, double sigma, const double* y, const double* w,
                 const std::vector<Forest<L, ResidT>>& forests) override {
-    if (forests.size() == 2 && !generalAmplitudeDraw_)
+    if (forests.size() == 2 && !generalAmplitudeDraw_ && shippedShape())
       drawShippedGlue(rng, sigma, y, w, forests);
     else
       drawAmplitudes(rng, sigma, y, w, forests);
@@ -796,23 +966,64 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// into it exactly and carries nothing across sweeps.
   bool supportsForestWeights() const override { return true; }
 
-  /// The glue scalars into and out of the BCF-shaped wire format. serializeGlue
-  /// owns the hasBCF flag (the "carries glue" marker); restoreGlue is a no-op on
-  /// a state that carries none, so a mismatched restore leaves the glue at its
-  /// constructed values.
+  /// The amplitude block into and out of the ragged wire format: the per-forest
+  /// widths, the flat amplitude vector, and each forest's prior variance.
+  /// serializeGlue owns the hasBCF flag (the "carries glue" marker);
+  /// restoreGlue is a no-op on a state that carries none, so a mismatched
+  /// restore leaves the glue at its constructed values, and glueIsValid has
+  /// already refused a state whose LAYOUT differs - a total is not a layout,
+  /// and restoreGlue writes through the live offsets.
+  ///
+  /// The bases themselves are NOT here. They are model configuration, carried
+  /// by the host across a re-creation the way the design matrix is, and they
+  /// arrive at CONSTRUCTION - so a widening applied after a restore preserves
+  /// and remaps the RESTORED amplitudes rather than the constructed ones.
   void serializeGlue(ChainStateData& state) const override {
     state.hasBCF = true;
-    state.a = glue_.a();
-    state.aVariance = glue_.aVariance();
-    state.b0 = glue_.b0();
-    state.b1 = glue_.b1();
+    std::size_t numForests = glue_.basis.size();
+    state.amplitudeWidths.resize(numForests);
+    state.amplitudeVariances.resize(numForests);
+    for (std::size_t f = 0; f < numForests; ++f) {
+      state.amplitudeWidths[f] = glue_.numAmplitudes(f);
+      state.amplitudeVariances[f] = glue_.prior[f].variance;
+    }
+    state.amplitudes = glue_.amplitudes;
+    if (numForests == 2 && state.amplitudeWidths[0] == 1 &&
+        state.amplitudeWidths[1] == 2) {
+      state.a = glue_.a();
+      state.aVariance = glue_.aVariance();
+      state.b0 = glue_.b0();
+      state.b1 = glue_.b1();
+    }
   }
   void restoreGlue(const ChainStateData& state) override {
     if (!state.hasBCF) return;
-    glue_.a() = state.a;
-    glue_.aVariance() = state.aVariance;
-    glue_.b0() = state.b0;
-    glue_.b1() = state.b1;
+    if (state.amplitudeWidths.empty()) {
+      // a hand-written bcf-shaped state: the four named scalars are the whole
+      // block, and only on the layout they name
+      if (glue_.amplitudes.size() != 3 || glue_.numAmplitudes(0) != 1) return;
+      glue_.a() = state.a;
+      glue_.aVariance() = state.aVariance;
+      glue_.b0() = state.b0;
+      glue_.b1() = state.b1;
+      return;
+    }
+    if (!glueIsValid(state)) return;
+    glue_.amplitudes = state.amplitudes;
+    for (std::size_t f = 0; f < glue_.prior.size(); ++f)
+      glue_.prior[f].variance = state.amplitudeVariances[f];
+    refreshCanonical();
+  }
+  bool glueIsValid(const ChainStateData& state) const override {
+    if (!state.hasBCF || state.amplitudeWidths.empty()) return true;
+    std::size_t numForests = glue_.basis.size();
+    if (state.amplitudeWidths.size() != numForests ||
+        state.amplitudeVariances.size() != numForests ||
+        state.amplitudes.size() != glue_.amplitudes.size())
+      return false;
+    for (std::size_t f = 0; f < numForests; ++f)
+      if (state.amplitudeWidths[f] != glue_.numAmplitudes(f)) return false;
+    return true;
   }
 
 private:
@@ -821,19 +1032,29 @@ private:
   /// against the residual net of the NEW a. drawGlue states why this path
   /// survives beside the general one; it is otherwise the general one at
   /// q = 1 and q = 2 over an orthogonal basis, written out.
+  ///
+  /// The grouping is read from basis[1]'s TREATED column, not from a borrowed
+  /// z. There is no borrowed z any more: it had one writer (the retired
+  /// synthesis route) and only these two readers, so keeping it while
+  /// setForestBasis became the sole mutator would freeze it at its
+  /// construction value - a width-preserving swap would install the new pair,
+  /// leave the layout unmoved, and then partition by the OLD indicator while
+  /// forestMultiplier contracted the NEW basis. The stored column holds
+  /// exactly the values z did, so this is bitwise on every shipped route.
   void drawShippedGlue(ext_rng* rng, double sigma, const double* y,
                        const double* w,
                        const std::vector<Forest<L, ResidT>>& forests) {
     std::size_t n = data_.numObservations;
     const double* mu = forests[0].totalFits.data();
     const double* tau = forests[1].totalFits.data();
+    const double* treated = glue_.basis[1].values.data();  // row-major, col 1
     double invSigmaSq = 1.0 / (sigma * sigma);
 
     if (glue_.prior[0].update) {
       double aPrec = 1.0 / glue_.prior[0].variance, aNum = 0.0;
       for (std::size_t i = 0; i < n; ++i) {
         double wi = w == nullptr ? 1.0 : w[i];
-        double bz = glue_.z[i] != 0.0 ? glue_.b1() : glue_.b0();
+        double bz = treated[2 * i + 1] != 0.0 ? glue_.b1() : glue_.b0();
         double r = y[i] - bz * tau[i];
         aPrec += wi * mu[i] * mu[i] * invSigmaSq;
         aNum += wi * mu[i] * r * invSigmaSq;
@@ -866,7 +1087,7 @@ private:
         double r = y[i] - glue_.a() * mu[i];
         double prec = wi * tau[i] * tau[i] * invSigmaSq;
         double num = wi * tau[i] * r * invSigmaSq;
-        if (glue_.z[i] != 0.0) { p1 += prec; n1 += num; }
+        if (treated[2 * i + 1] != 0.0) { p1 += prec; n1 += num; }
         else { p0 += prec; n0 += num; }
       }
       glue_.b0() =
@@ -1089,25 +1310,12 @@ private:
     return m;
   }
 
-  /// Installs the borrowed treatment vector and SYNTHESIZES the two bases it
-  /// implies: the prognostic forest's single all-ones column, and the treatment
-  /// forest's two-column (control, treated) indicator pair, which is the
-  /// two-level factor basis whose amplitudes are exactly (b0, b1). Synthesized
-  /// here rather than handed in, so the R and flat C routes keep passing
-  /// today's single 0/1 column and bcf stays bitwise identical
-  /// (docs/plans/multiforest-extension-surface.md, M4.1).
-  ///
-  /// The amplitude LAYOUT is derived from the basis widths so the two cannot
-  /// drift; the amplitude VALUES are left alone whenever the layout does not
-  /// move, since a mid-life z swap must not disturb a live glue draw. That is
-  /// every swap on a combiner whose bases are the synthesized ones, whose
-  /// widths are fixed. It is NOT unconditional: this route REBUILDS both
-  /// synthesized bases from scratch, so a forest widened by installForestBasis
-  /// is silently reset to its synthesized width here and the layout does move,
-  /// carrying the surviving coordinates and re-neutralizing the rest. Which of
-  /// the two a caller wants is a question the per-forest basis surface owns
-  /// (M4.3), not this one. A null z installs the all-control basis, matching
-  /// the constructed b0.
+  /// SYNTHESIZES forest f's basis from a 0/1 indicator: the two-column
+  /// (control, treated) pair, which is that indicator's two-level factor basis
+  /// and whose amplitudes are exactly (b0, b1). Called from the CONSTRUCTOR
+  /// only - basis synthesis is construction-only under M4.3, so a widening
+  /// cannot be silently reset by a later data swap. A null indicator installs
+  /// the all-control basis, matching the constructed b0.
   ///
   /// EVERY per-forest array is sized by the chain's own forest count, not by
   /// bcf's two: combinedFits, the reparameterization and the amplitude
@@ -1116,29 +1324,56 @@ private:
   /// basis at each one. Those extra forests carry a plain amplitude - the dense
   /// all-ones column, whose contraction is the amplitude itself - and the
   /// default prior.
-  void installTreatment(const double* z) {
+  void synthesizeIndicatorBasis(std::size_t f, const double* z) {
     std::size_t n = data_.numObservations;
-    glue_.z = z;
-    glue_.basis.resize(numForests_);
-
-    glue_.basis[0].numColumns = 1;
-    glue_.basis[0].values.assign(n, 1.0);
-
-    ForestBasis& treatment = glue_.basis[1];
-    treatment.numColumns = 2;
-    treatment.values.resize(2 * n);
+    ForestBasis& basis = glue_.basis[f];
+    basis.numColumns = 2;
+    basis.values.resize(2 * n);
     for (std::size_t i = 0; i < n; ++i) {
       bool treated = z != nullptr && z[i] != 0.0;
-      treatment.values[2 * i] = treated ? 0.0 : 1.0;
-      treatment.values[2 * i + 1] = treated ? 1.0 : 0.0;
+      basis.values[2 * i] = treated ? 0.0 : 1.0;
+      basis.values[2 * i + 1] = treated ? 1.0 : 0.0;
     }
+  }
 
-    for (std::size_t f = 2; f < numForests_; ++f) {
-      glue_.basis[f].numColumns = 1;
-      glue_.basis[f].values.assign(n, 1.0);
+  /// Whether basis[f] still holds one of the constructor's synthesized shapes:
+  /// a dense all-ones column, or a complementary two-column 0/1 pair (each
+  /// entry in {0, 1}, each row summing to 1). Any other width, and any values
+  /// off those two shapes, is non-canonical - a MODEL fact, since it is what
+  /// selects the amplitude conditional. Recomputed rather than tracked, so
+  /// there is no flag to serialize and none to go stale.
+  bool basisIsCanonical(std::size_t f) const {
+    std::size_t n = data_.numObservations;
+    const ForestBasis& basis = glue_.basis[f];
+    const double* values = basis.values.data();
+    if (basis.numColumns == 1) {
+      for (std::size_t i = 0; i < n; ++i)
+        if (values[i] != 1.0) return false;
+      return true;
     }
+    if (basis.numColumns != 2) return false;
+    for (std::size_t i = 0; i < n; ++i) {
+      double control = values[2 * i], treated = values[2 * i + 1];
+      if ((control != 0.0 && control != 1.0) ||
+          (treated != 0.0 && treated != 1.0) || control + treated != 1.0)
+        return false;
+    }
+    return true;
+  }
 
-    rebuildAmplitudeLayout();
+  void refreshCanonical() {
+    glue_.canonical.resize(glue_.basis.size());
+    for (std::size_t f = 0; f < glue_.basis.size(); ++f)
+      glue_.canonical[f] = basisIsCanonical(f) ? 1 : 0;
+  }
+
+  /// Whether the two bases are still bcf's own - forest 0 the plain intercept,
+  /// forest 1 the complementary indicator pair - which is what the two-scalar
+  /// draw is written against. The widths are checked alongside the value
+  /// predicate because canonical says "one of the two shapes", not which.
+  bool shippedShape() const {
+    return glue_.basis.size() == 2 && glue_.canonical[0] && glue_.canonical[1] &&
+           glue_.basis[0].numColumns == 1 && glue_.basis[1].numColumns == 2;
   }
 
   /// Re-derives the amplitude layout from the basis widths and carries the
