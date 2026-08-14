@@ -3240,20 +3240,48 @@ static void testCombinedFitsAssociation() {
 
   const double* combined = combiner.combinedFits(forests);
   bool absorbsPrognostic = true;
-  size_t discriminating = 0;
+  size_t discriminating = 0, fusionVisible = 0, twiceRounded = 0,
+         absorbsTreatment = 0;
   for (size_t i = 0; i < n; ++i) {
     double bz = z[i] != 0.0 ? b1 : b0;
-    // lone multiplies, so each is its own correctly rounded product and
-    // neither statement can be contracted into the sums below
+    // lone multiplies, so each is its own correctly rounded product and the
+    // twice-rounded sum below has no multiply left in it to contract
     double prognosticTerm = a * mu[i];
     double treatmentTerm = bz * tau[i];
+    double twiceRoundedSum = prognosticTerm + treatmentTerm;
     double absorbsForest0 = std::fma(a, mu[i], treatmentTerm);
     double absorbsForest1 = std::fma(bz, tau[i], prognosticTerm);
     absorbsPrognostic &= combined[i] == absorbsForest0;
     discriminating += absorbsForest0 != absorbsForest1 ? 1 : 0;
+    // a row where fusing forest 0's product changes the answer at all: only
+    // there can this fixture see whether the target contracts
+    if (absorbsForest0 == twiceRoundedSum) continue;
+    ++fusionVisible;
+    twiceRounded += combined[i] == twiceRoundedSum ? 1 : 0;
+    absorbsTreatment +=
+      combined[i] == absorbsForest1 && absorbsForest1 != absorbsForest0 ? 1 : 0;
   }
+  check(fusionVisible > 0,
+        "the association fixture puts forest 0's fused product to work on some "
+        "row");
+
+  // The DIRECTION is only a question where the target fuses at all. A build
+  // with no fused multiply-add - an x86-64 baseline without FMA, or any
+  // -ffp-contract=off build - rounds both products on every row and would fail
+  // a direction assertion for a reason that says nothing about this code, so
+  // the assertion is skipped rather than reported red. What is NOT skipped is
+  // the wiring regression it exists for: absorbing the LAST forest's product.
+  if (fusionVisible > 0 && twiceRounded == fusionVisible) {
+    printf("ok: combined fits association (no fused multiply-add on this "
+           "target; direction assertion skipped, %zu of %zu rows "
+           "discriminating)\n", discriminating, n);
+    return;
+  }
+
   check(discriminating > 0,
         "the association fixture separates the two roundings on some row");
+  check(absorbsTreatment == 0,
+        "the combination never absorbs the last forest's product");
   check(absorbsPrognostic,
         "the combination absorbs forest 0's product into the closing add");
 
