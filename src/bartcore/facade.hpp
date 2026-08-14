@@ -76,8 +76,9 @@ struct SamplerShape {
   bool usesDart;
   /// Whether the forest coupling permits the response-side conduit -
   /// setResponse and setOffset at updateScale = false, and setWeights; false
-  /// off any combiner, and false for a non-gaussian response. The bridge gates
-  /// its multi-forest refusals on it.
+  /// off any combiner, and the coupling's own answer otherwise, at every
+  /// response family it was built with. The bridge gates its multi-forest
+  /// refusals on it.
   bool supportsResponseMutation;
   /// Whether the forest coupling admits a caller-supplied per-forest,
   /// per-observation weight (BCF alone today). Derived from the same predicate
@@ -772,8 +773,9 @@ inline std::unique_ptr<SamplerBase> createSamplerOverStore(
 }
 
 /// A K-forest combining sampler (docs/design/bcf.md), bcf's two-forest shape
-/// being its K = 2 instance: constant-leaf and gaussian only, so the single
-/// instantiation. rngs supplies one generator per chain.
+/// being its K = 2 instance: constant-leaf only, so the single instantiation -
+/// the family rides the spec and selects a runtime response model, exactly as
+/// it does on the single-forest path. rngs supplies one generator per chain.
 inline std::unique_ptr<SamplerBase> createBCFSampler(
   const double* x, const double* y, std::size_t numObservations,
   std::size_t numPredictors, const double* weights, const double* offset,
@@ -783,6 +785,14 @@ inline std::unique_ptr<SamplerBase> createBCFSampler(
   // option at these two factories would drop it silently; refuse it as
   // createSampler does
   if (options.numVarianceTrees > 0) return nullptr;
+  // the doors: aft draws sigma and needs its censoring status threaded here,
+  // ordinal its cutpoint block and nbinom its dispersion block shown to
+  // interleave with the amplitude block. Each is refused rather than built as
+  // the default arm's gaussian
+  if (spec.family != ResponseFamily::gaussian &&
+      spec.family != ResponseFamily::probit &&
+      spec.family != ResponseFamily::logistic)
+    return nullptr;
   return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
     x, y, numObservations, numPredictors, weights, offset, sigmaEstimate,
     sigmaDf, sigmaRawScale, options, spec, rngs);

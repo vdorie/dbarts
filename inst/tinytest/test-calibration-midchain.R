@@ -345,7 +345,7 @@ expect_true(all(bcfCalibration[, "k"] == 1))
 expect_true(all(bcfCalibration[, "k.has.hyperprior"] == 0))
 expect_error(
   bcf$setCalibration(prior.scale = 1.5),
-  "two-forest calibration map"
+  "multi-forest calibration map"
 )
 
 # the multinomial coupling, through the low-level handle its forests live on

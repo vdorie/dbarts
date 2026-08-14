@@ -587,10 +587,18 @@ expect_error(
   dbartsSpec(dbartsData(x, y, bases = list(NULL, zBasis)), groupedControl),
   "grouped random effects"
 )
-# a latent-scale family owns the precision channel the amplitudes route through
+# the doors: a family whose own parameter block is not shown to interleave with
+# the amplitude block refuses by name. (The binary families are no longer among
+# them - they build, and test-bcf-family.R is where that surface is pinned.)
 expect_error(
-  dbarts(x, rbinom(n, 1L, 0.5), forests = twoForests, control = control),
-  "gaussian"
+  dbarts(
+    x,
+    rpois(n, 2),
+    forests = twoForests,
+    family = "nbinom",
+    control = control
+  ),
+  "does not support family \"nbinom\""
 )
 
 # --- FS2, new half: every declaration today's engine cannot honour refuses at

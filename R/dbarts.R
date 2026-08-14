@@ -1053,7 +1053,7 @@ dbartsSampler <- setRefClass(
       refuseBCFMutation(
         .self,
         "setModel",
-        "both forests' node and tree priors are calibrated at creation; ",
+        "every forest's node and tree priors are calibrated at creation; ",
         "make a new sampler instead"
       )
       # the Dirichlet machinery is fixed at creation: a sampler cannot gain
@@ -1496,8 +1496,8 @@ dbartsSampler <- setRefClass(
       refuseBCFMutation(
         .self,
         "setCalibration",
-        "both forests' leaf scales come from the two-forest calibration map; ",
-        "make a new sampler instead"
+        "every forest's leaf scale comes from the multi-forest calibration ",
+        "map; make a new sampler instead"
       )
 
       ptr <- getPointer()

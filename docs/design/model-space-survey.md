@@ -467,10 +467,12 @@ so a MODEL is a choice of basis columns per forest. bcf is the K = 2 instance
 `(1 - z, z)` with amplitudes `(b0, b1)`). The mechanism, its conditionals, its
 mutation and persistence contracts and its bitwise contracts are
 docs/design/multiplier-combiner.md; the arc is
-docs/plans/multiforest-extension-surface.md M4. **Gaussian responses only** -
-the creation surface refuses a basis off gaussian (R/spec.R:423-431) and the
-K-forest chain builds `GaussianResponse` unconditionally (chain.hpp:702-705) -
-so every class below is expressible only for a continuous outcome until M4.4.
+docs/plans/multiforest-extension-surface.md M4. **Gaussian, probit and logistic
+responses** (M4.4) - the creation surface admits those three and refuses `aft`,
+`ordinal` and `nbinom` by name (R/spec.R:419-441), and the K-forest chain builds
+the matching response model (chain.hpp:710-725) - so every class below is
+expressible for a continuous outcome and for a binary one, where the forests
+combine into the INDEX rather than the mean and sigma is pinned.
 
 The survey already carried BCF itself (section 2, ledger below). The four
 classes it did NOT carry, each a different basis, are:
@@ -523,9 +525,10 @@ landing records at e7708b7c and 54e114ff. It is reachable from the PUBLIC R
 surface at any K through `dbarts(..., forests = list(forest(basis = ...)))`,
 from the R5 sampler through `$setForestBasis`/`$getForestAmplitudes`, and from
 the flat C API through `dbarts_sampler_setForestBasis` and the ragged amplitude
-pair. What it does NOT reach is any non-Gaussian family (M4.4), the test
-surface, and nameable per-forest leaf calibration - the calibration map owns
-that on every combining sampler.
+pair. Since M4.4 it also reaches `probit` and `logistic`. What it does NOT
+reach is `aft`, `ordinal` or `nbinom` - each refused at creation naming what
+it is missing - nor the test surface, nor nameable per-forest leaf
+calibration, which the calibration map owns on every combining sampler.
 
 ---
 

@@ -289,8 +289,8 @@ bartcoreSamplerSetResponse <- function(sampler, y, updateScale = FALSE) {
     refuseBCFMutation(
       sampler,
       "setResponse(updateScale = TRUE)",
-      "both forests keep leaf calibrations stated against the response ",
-      "transform fixed at creation; use updateScale = FALSE instead"
+      "every forest keeps its leaf calibration stated against the anchor ",
+      "fixed at creation; use updateScale = FALSE instead"
     )
   }
   # validate (the C length check) before installing, so a rejected y never
@@ -310,8 +310,8 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
     refuseBCFMutation(
       sampler,
       "setOffset(updateScale = TRUE)",
-      "both forests keep leaf calibrations stated against the response ",
-      "transform fixed at creation; use updateScale = FALSE instead"
+      "every forest keeps its leaf calibration stated against the anchor ",
+      "fixed at creation; use updateScale = FALSE instead"
     )
   }
   # a synced test offset follows the regular one;
@@ -387,7 +387,7 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   refuseBCFMutation(
     sampler,
     "setData",
-    "both forests are calibrated against the data at creation; make a new ",
+    "every forest is calibrated against the data at creation; make a new ",
     "sampler instead"
   )
   if (ncol(newData@x) != ncol(sampler$data@x)) {
@@ -609,11 +609,12 @@ bartcoreSamplerFromHandle <- function(
   result
 }
 
-# A BCF two-forest sampler (docs/design/bcf.md), internal and gaussian only:
+# A BCF two-forest sampler (docs/design/bcf.md), internal:
 # the model spec is the prognostic forest mu(x, pihat) - the caller supplies
 # pihat as an ordinary predictor column - the arguments below the treatment
 # forest tau(x) and the glue. z is the 0/1 treatment. sd.control and
-# sd.moderate are the prognostic and effect magnitudes in sd(y) units; the
+# sd.moderate are the prognostic and effect magnitudes in units of the
+# family's own latent scale (sd(y) under gaussian, 1 under probit); the
 # calibration map converts them to the per-forest leaf scales at creation,
 # overriding the host model's node prior and k for the mu forest. update.a /
 # update.b hold the matching glue block fixed when FALSE. moderators restricts
@@ -623,9 +624,16 @@ bartcoreSamplerFromHandle <- function(
 # of Hahn, Murray and Carvalho (2020) the estimated propensity score enters
 # mu's design but not tau's - with a shared design that means carrying pihat as
 # a data column and leaving it out of moderators.
+#
+# family names the response family the two forests are combined under
+# (gaussian, probit or logistic), and is written into the model this call
+# hands the bridge, which is the ONE place the family is read from. Supplying
+# it here rather than only on the model keeps the family visible at the call
+# site, as the other internal creators do, while leaving one source of truth.
 bartcoreBCFSampler <- function(
   sampler,
   z,
+  family = NULL,
   n.trees.treatment = 50L,
   treatment.base = 0.25,
   treatment.power = 3,
@@ -685,11 +693,19 @@ bartcoreBCFSampler <- function(
   z <- as.double(z != 0)
   bases <- list(NULL, cbind(1 - z, z))
 
+  # the bridge derives the family from this model's own slot, so a supplied
+  # name is written into the copy this call hands it; an unknown one is
+  # refused there, against the response shape, as every other route's is
+  model <- sampler$model
+  if (!is.null(family)) {
+    model@family <- family
+  }
+
   result <- new.env(parent = emptyenv())
   result$ptr <- .Call(
     C_dbarts_bartcore_createBCF,
     sampler$control,
-    sampler$model,
+    model,
     sampler$data,
     bases,
     bcfParams,

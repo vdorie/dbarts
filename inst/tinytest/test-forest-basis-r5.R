@@ -323,3 +323,50 @@ expect_error(
   dbarts:::bartcoreSetForestBasis(mn, 1L, cbind(0.5, 0.5)),
   "forests carry amplitudes"
 )
+
+# --- M4.4: the leaf scale a swap leaves behind. The calibration map divides
+# out the median nonzero row norm of each forest's basis, and that divisor is
+# otherwise a construction-time constant - no mutation re-derives a K-forest
+# leaf scale - so $setForestBasis owns the staleness. Pinned on a PROBIT
+# K-forest, where the anchor is the literal 1 and $getCalibration's
+# prior.scale IS the map's node scale, so the assertion is exact. Nothing
+# else in the suite or in the equivalence trio calls this mutator at all. ---
+yBinary <- as.double(y > median(y))
+probitForests <- function() {
+  dbarts(
+    x,
+    yBinary,
+    forests = list(forest(), forest(basis = ~ factor(z))),
+    control = seededControl()
+  )
+}
+priorScale <- function(sampler, forest) {
+  unname(sampler$getCalibration(forest)[1L, "prior.scale"])
+}
+
+# (i) STALENESS: a basis whose median nonzero row norm is 4x the old one moves
+# the divisor with it. RED against a divisor left at its construction value.
+stale <- probitForests()
+expect_equal(priorScale(stale, 2L), 1 / 0.674, tolerance = 1e-12)
+stale$run(5L, 1L)
+stale$setForestBasis(2L, 4 * cbind(1 - z, z))
+expect_equal(priorScale(stale, 2L), 1 / (0.674 * 4), tolerance = 1e-12)
+# and the untouched forest keeps its own
+expect_equal(priorScale(stale, 1L), 1, tolerance = 1e-12)
+
+# (ii) BITWISE: a re-install of the SAME values is the identity, on the
+# calibration and on every draw after it. That is the claim retaining the
+# construction-time anchor rests on - recomputing it would recalibrate this
+# forest onto a scale the others are not on - and only this pins it.
+swapped <- probitForests()
+twin <- probitForests()
+swapped$run(5L, 1L)
+twin$run(5L, 1L)
+swapped$setForestBasis(2L, cbind(1 - z, z))
+expect_identical(priorScale(swapped, 2L), priorScale(twin, 2L))
+swappedResult <- swapped$run(5L, 2L)
+twinResult <- twin$run(5L, 2L)
+expect_identical(swapped$getForestFits(2L), twin$getForestFits(2L))
+expect_identical(swapped$getForestAmplitudes(), twin$getForestAmplitudes())
+expect_identical(swappedResult$sigma, twinResult$sigma)
+expect_identical(swappedResult$train, twinResult$train)

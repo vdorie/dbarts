@@ -74,6 +74,16 @@ branch.
 | nbinom | log-odds `psi`; a mean-scale reading needs the current dispersion | 1 | 0 |
 | multinomial | softmax log-odds, per category forest | 1 | 0 |
 | BCF | response; `k` fixed at 1 by the map | `range_` | `range_*0.5 + min_` |
+| BCF, probit | probit latent; `k` fixed at 1 by the map | 1 | 0 |
+| BCF, logistic | logistic latent (log-odds); `k` fixed at 1 by the map | 1 | 0 |
+
+On every BCF row, `prior.scale` is the prior sd of forest f's own `f_f`, NOT of
+its contribution `m_f f_f` to the combined index - `$getForestAmplitudes()`
+reports the multiplier, the other half of the pair. It is stated PER UNIT OF
+BASIS ROW NORM; under the two latent rows the index itself is in latent sd
+units with sigma PINNED, where the gaussian row's is `sd(y)` and a drawn sigma
+partly absorbs a mis-scaled basis. The induced index prior and its `sqrt(K)`
+dispersion law are docs/design/multiplier-combiner.md's map section.
 
 ## 3. What prior.sd means, per leaf model
 

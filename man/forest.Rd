@@ -50,9 +50,16 @@ forest(
     more specific of the two declarations.
   }
   \item{sd}{
-    This forest's prior scale, in standard deviations of the response: the
-    total \eqn{a\,f(x)}{a f(x)} or \eqn{(b_1 - b_0)f(x)}{(b1 - b0) f(x)} is
-    placed at \code{sd} of them. Which of the two channels carries it depends
+    This forest's prior scale, in units of the response family's own latent
+    scale and per unit of basis row norm: the total \eqn{a\,f(x)}{a f(x)} or
+    \eqn{(b_1 - b_0)f(x)}{(b1 - b0) f(x)} is placed at \code{sd} of them. The
+    unit is \eqn{\mathrm{sd}(y)}{sd(y)} for a gaussian response, \code{1} for
+    \code{"probit"} and \eqn{\pi/\sqrt{3}}{pi/sqrt(3)} for \code{"logistic"} -
+    the standard deviation of the link's own error law, a latent model having
+    no response standard deviation to name. A forest whose \code{basis} rows
+    have median non-zero norm \eqn{c}{c} contributes the scale named here, the
+    calibration map dividing \eqn{c}{c} out, so rescaling a basis column does
+    not silently rescale the prior. Which of the two channels carries it depends
     on whether the forest has a \code{basis}: without one it is the half-Cauchy
     median of the forest's scalar amplitude, with one it scales the forest's own
     node prior. The defaults are 2 for a forest with no basis and 1 for one
@@ -73,7 +80,17 @@ forest(
     forest's basis columns, default \code{0.5}. Legal only on a forest given a
     \code{basis}: a forest without one carries a plain scalar amplitude under
     the engine's half-Cauchy scale-mixture prior, whose median is \code{sd}
-    rather than a variance.
+    rather than a variance. It is a free multiplier on the induced prior: the
+    prior standard deviation of the combined location at row \eqn{i}{i} is
+    \eqn{\sqrt{\sum_f s_f^2 v_f \|B_f(i,\cdot)\|^2}}{sqrt(sum_f s_f^2 v_f
+    ||B_f(i, .)||^2)} over the forests carrying a basis, with \eqn{s_f}{s_f}
+    read from \code{$getCalibration(f)[, "prior.scale"]} and \eqn{v_f}{v_f}
+    this argument; a basis-free forest's own term is Cauchy and has no
+    standard deviation. Under \code{"probit"} and \code{"logistic"} that
+    location IS the latent index and \eqn{\sigma}{sigma} is pinned, so nothing
+    in the sampler absorbs a mis-scaled basis; under a gaussian response it is
+    in \eqn{\mathrm{sd}(y)}{sd(y)} units and a drawn \eqn{\sigma}{sigma}
+    partly does.
   }
   \item{update.amplitude}{
     Whether this forest's amplitudes are redrawn each sweep, default
@@ -90,7 +107,10 @@ forest(
   eps}: a prognostic forest \eqn{\mu}{mu} over every predictor, a modulating
   forest \eqn{\tau}{tau} over the columns \code{vars} allows, and the
   amplitudes \eqn{(a, b_0, b_1)}{(a, b0, b1)} joining them, read back with
-  \code{$getForestAmplitudes}. Gaussian responses only.
+  \code{$getForestAmplitudes}. Gaussian, \code{"probit"} and \code{"logistic"}
+  responses; under a latent family the combination is the index rather than
+  the mean, on the link's own fixed scale, and \code{"aft"}, \code{"ordinal"}
+  and \code{"nbinom"} are refused at creation naming what each is missing.
 
   Both forests' leaf scales come from the model's own calibration map rather
   than from the node prior, which is why a \code{k} hyperprior, a non-default
