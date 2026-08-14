@@ -32,7 +32,7 @@ block all read "BCF" where they mean "carries amplitudes", and the code's own
 Doxygen has already re-described them as general (facade.hpp:774-776,
 chain.hpp:687-689). A rename is ENGINE work, not a docs edit: it costs a
 `--preclean`, a `structSize` move on the state fixtures (`common.cpp` already
-tripped once at 272 -> 344, plan :3589-3591), and a state-block key change
+tripped once at 272 -> 344, plan :4953-4955), and a state-block key change
 needing the same in-place re-encode M4.3 used. Tracked as the root TODO's
 `bcf-naming-generalization`. The mitigation that makes the debt survivable is
 that no consumer-facing PROBE is keyed on the name or on a forest count:
@@ -129,9 +129,9 @@ factor basis - the unit triangles are exactly identity, so the q-variate draw
 is q scalar draws BITWISE, in coordinate order, one standard normal each
 (combiner.hpp:1148-1152). The two-sqrt Cholesky solve gives
 `x/sqrt(d)/sqrt(d) != x/d` and breaks the q = 1 reduction (M4.2 landing note,
-plan :3488-3490). `testUnitLowerFactorization` (tests/cpp/test_model.cpp) is
+plan :4852-4854). `testUnitLowerFactorization` (tests/cpp/test_model.cpp) is
 its teeth, with a p = 1 arm asserting the Cholesky route DIFFERS and a p = 2
-orthogonal arm (plan :3527-3532).
+orthogonal arm (plan :4891-4896).
 
 ## Why bcf keeps a specialized draw
 
@@ -200,7 +200,7 @@ only on a named measured mixing case, plus that gate, plus a re-record with the
 `equivalence.yaml` bump in the same commit.
 
 **No silent enablement is possible** (resolved at M4.3 review, plan
-:3603-3610). On every creation route the scale mixture holds if and only if a
+:4967-4975). On every creation route the scale mixture holds if and only if a
 forest is basis-FREE. R writes the forest's amplitude prior SCALE as 0 whenever
 that forest declares a basis (`R/model.R:874`,
 `if (withBasis) 0 else declared(spec$sd, 2)`); the bridge reads it into
@@ -230,7 +230,7 @@ the whole draw.
 
 The flag is recomputed at install and at restore and never serialized, so
 nothing can carry a stale answer across a round trip (combiner.hpp:421-429,
-:757, :1016). Recorded as M4.3's doc-level residue (plan :3627-3630): the
+:757, :1016). Recorded as M4.3's doc-level residue (plan :4991-4994): the
 RESTORE-side recompute is VACUOUS, because `restoreGlue` never touches basis
 values - the load-bearing recompute is the install-time one. Verified at
 combiner.hpp:1000-1017, which calls `refreshCanonical()` after writing
@@ -259,8 +259,8 @@ baseline-gating.
 column, not from a borrowed indicator, because a width-preserving swap to a
 different complementary pair would otherwise install the new pair, leave the
 layout unmoved, and then draw `b0`/`b1` under the OLD partition while
-`forestMultiplier` contracted the NEW basis (M4.3 item 1, plan :1903-1923;
-landed per :3559-3560).
+`forestMultiplier` contracted the NEW basis (M4.3 item 1, plan :1908-1928;
+landed per :4923-4924).
 
 ## Persistence
 
@@ -282,8 +282,8 @@ The bases ride CREATION, on `data@bases` (a LIST, R/A_class.R:514-524,
 validated by `validateForestBases`, R/data.R:635-655), the way the design
 matrix does. That is how RESTORE-THEN-WIDEN is met with no fourth reapply hook:
 a widening applied after a restore preserves and remaps the RESTORED amplitudes
-rather than the constructed ones (combiner.hpp:978-981; plan :1953-1973, landed
-:3564-3568).
+rather than the constructed ones (combiner.hpp:978-981; plan :1958-1978, landed
+:4928-4932).
 
 ## Bitwise contracts
 
@@ -300,7 +300,7 @@ contract:
    forest's product instead, moves ~30% of rows by one ulp and contaminates the
    trajectory within ~40 sweeps: all 12 `bcf-equivalence` scenarios red on mu,
    tau, glue, sigma and train (combiner.hpp:840-849; M4.1 landing note, plan
-   :3434-3444). `testCombinedFitsAssociation`
+   :4798-4808). `testCombinedFitsAssociation`
    (tests/cpp/test_sampler.cpp:3210) is the ONLY in-process guard - the M4.0
    seam pin structurally CANNOT see association, its reference expression
    inheriting the test compiler's own contraction.
@@ -315,8 +315,8 @@ contract:
 
 The standing lesson these pins carry, twice learned: a pin fixture must give
 every factor in the pinned expression a DISCRIMINATING value - unit values
-silently vacate pins (M4.0's required fix, plan :3381-3389; recurred at M4.3's
-Arm 5(iii) dead pin, :3593-3598).
+silently vacate pins (M4.0's required fix, plan :4745-4753; recurred at M4.3's
+Arm 5(iii) dead pin, :4957-4960).
 
 ## The calibration map, general in K
 
@@ -345,7 +345,7 @@ instance bitwise.
 two-forest spelling and the K-length vector every other layer works in, and it
 is LOAD-BEARING rather than courtesy: 25 `tests/cpp` fixtures and
 benchmarks/R/bcf-equivalence.R drive through the `BCFSpec` spelling (plan
-:1780-1786, :2177-2179). Forest 0 takes the half-Cauchy amplitude over the
+:1785-1791, :2182-2184). Forest 0 takes the half-Cauchy amplitude over the
 implicit intercept and leaves its node scale at s; forest 1 takes the
 fixed-variance pair over the treatment indicator basis and carries `sdModerate`
 in its node scale.
@@ -417,7 +417,7 @@ install WITHOUT `--preclean` reported bitwise identical, so every re-check must
 `--preclean`. BENCH, on a granted quiet window: B/A per-sweep 1.0098 at
 n = 20000 and 1.0105 at n = 2000, flat across 100x in n - per-element compute
 in the combiner, not bandwidth - and the ~1% BCF-only cost was ACCEPTED as the
-price of the general multiplier (plan :3470-3482).
+price of the general multiplier (plan :4834-4846).
 
 **M4.2, 1a2aaedc (the q-variate conditional).** The per-forest q-variate
 conditional through the new unit-lower LDL' helper, and ONE general per-forest
@@ -442,7 +442,7 @@ with licensed successors (the treatment-coding refusal, replaced by
 length/finiteness refusals at creation). `consumer.c` `LEG_COUNT` 18 -> 19.
 Engine ~165 dense-equivalent.
 
-**Budget units, as a standing convention** (plan :3621-3625). Slice bands on
+**Budget units, as a standing convention** (plan :4985-4989). Slice bands on
 this arc are DENSE-EQUIVALENT lines - lines counted without blank-line and
 formatting inflation, which roughly doubles raw counts. M4.3's implementer
 reported raw nets against a dense band and appeared over budget when it was
