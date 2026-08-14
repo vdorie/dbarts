@@ -744,7 +744,8 @@ exists":
     M4  the general basis family           RESOLVED pre-release (fork 1,
                                             VD 2026-08-11); probes RAN
                                             2026-08-13; M4.0 LANDED 562ee684,
-                                            next step M4.1
+                                            M4.1 LANDED 1458328c, next step
+                                            M4.2
     1.0-0 freeze
 
 M0 and M1 must land after bcf-public-surface S4 rather than beside it: S4 is
@@ -1453,8 +1454,9 @@ starts. **STATUS, re-scoped 2026-08-13 on the probe verdicts
 (the PRE-M4 block), all three probes ran in the foreground at 47c1fbe1 (no arm
 crashed, none was UNOBTAINABLE), and this commit is the re-scope. **M4.0
 LANDED 562ee684**, whose pin scope - BOTH `afterCombine` overrides - the
-verdicts left unchanged, per the Landing notes below. **The next step is
-M4.1.** **The slice order is now M4.0 -> M4.1 -> M4.2 -> M4.3 -> M4.5,
+verdicts left unchanged, per the Landing notes below. **M4.1 LANDED
+1458328c**, follow-up e48fc5de. **The next step is M4.2.** **The slice order
+is now M4.0 -> M4.1 -> M4.2 -> M4.3 -> M4.5,
 Gaussian-complete, with M4.4 as the IMMEDIATE follow-on slice**, still
 pre-release (fork 2 holds both slices inside the window; the escape hatch
 REORDERS, it does not cancel). FA5 licensed that hatch and it is TAKEN; see
@@ -1576,9 +1578,9 @@ in FA1 and FA5 below ARE the record.
   PD). `afterCombine` becomes a per-forest ASIS rescale of the whole amplitude
   vector along the likelihood-invariant orbit, and it must RE-STATE the base
   virtual's contract rather than inherit it: the Doxygen at
-  `combiner.hpp:392-394` ("returns the scale its move applied (1.0 when it
+  `combiner.hpp:425-427` ("returns the scale its move applied (1.0 when it
   makes none)") is already false for the multinomial implementation, which
-  makes an additive move and returns 1.0 by convention (`:1151`, `:1196`).
+  makes an additive move and returns 1.0 by convention (`:1261`, `:1306`).
   BCF's K = 2 orthogonal case must come out bitwise, or its specialized
   two-scalar path is kept explicitly and the general path is gated
   statistically - that in-slice decision mechanism is unchanged. This is the
@@ -1633,6 +1635,29 @@ in FA1 and FA5 below ARE the record.
     correctness acceptance `bcf-exact` mode-2b stays exact AND a keepTrees BCF
     round-trip tracks. This is FA2's q-variate half, run as an M4.2-internal
     gate (see the falsifiers).
+
+  **Handoff from M4.1 (LANDED 1458328c/e48fc5de), recorded at the M4.1
+  landing.** Four items MANDATORY before M4.2 starts, each verified against
+  the live file:
+  (a) Where this section says "BCF's K = 2 orthogonal case must come out
+  bitwise": the summation-association constraint is now EXPLICIT, not
+  implicit - a re-association in `combinedFits` breaks
+  `bcf-equivalence-8b047f8b` on all 12 scenarios SILENTLY past the seam pins
+  (`combiner.hpp:617-632`, the load-bearing reverse accumulation at
+  `:624-629`); `testCombinedFitsAssociation`
+  (`tests/cpp/test_sampler.cpp:3206`) is the ONLY in-process guard.
+  (b) `BCFState`'s `a()`/`b0()`/`b1()` accessors hard-code amplitude indices
+  0/1/2 (`combiner.hpp:330-335`) - correct today, but they alias the wrong
+  forest's block the moment `q0 != 1`. M4.2 must move to per-forest offset
+  indexing (`glue_.amplitudeOffset`, already carried for exactly this).
+  (c) THREE accumulation conventions now coexist: `combinedFits`' reverse
+  accumulation (`:624-629`), `forestMultiplier`'s dot product forward
+  (`:833-835`), `formForestResponse`'s residual forward (`:592-593`). Only
+  the first is documented load-bearing; the other two become observable at
+  q > 1 / K > 2. M4.2 must decide and document each.
+  (d) `installTreatment` pins `basis.resize(2)` (`:855`) while `combinedFits`
+  is general in K - a K = 3 BCF chain would read `basis[2]` OOB.
+  Unconstructible today; M4.2 generalizes the sizing with the K-length spec.
 - **M4.3 (spec, factory, refusal relaxations). RE-SCOPED WHOLESALE
   2026-08-13** - most of what it was written to design has SHIPPED, and most of
   what remains it priced at zero.
@@ -1846,7 +1871,7 @@ surface.
   WITH: defaults - `a` free (half-Cauchy via `aVariance`), `b0`/`b1` free, the
   ASIS ridge move active on forest 0. WITHOUT: `forest(update.amplitude =
   FALSE)` on BOTH forests, which pins `a = 1, b0 = 0, b1 = 1` at their
-  constructed values (`combiner.hpp:297`), makes `drawGlue` consume NO rng
+  constructed values (`combiner.hpp:319`), makes `drawGlue` consume NO rng
   (both blocks gated at `:589` and `:609`) and makes `afterCombine` an
   immediate no-op (`:640`). The model is then `y = mu(x) + z tau(x) + eps` with
   FIXED leaf-scale hyperparameters - VCBART's parameterization exactly, at
@@ -2181,8 +2206,11 @@ and are now priced: M4.0's `tests/cpp` pins over both `afterCombine`
 overrides, plus the existing pins the relaxation rewrites. **M4.0 LANDED
 562ee684 and consumed ~348 of the ~350-450 tests band (reviewer-counted); the
 remainder is M4.3's rewrite share, which MUST be re-priced at its own
-pre-slice check before M4.3 starts, not assumed from this figure.** DOCS
-(M4.5) were
+pre-slice check before M4.3 starts, not assumed from this figure.** **M4.1
+LANDED 1458328c/e48fc5de and added ~98 tests; the band now reads ~446 of the
+~350-450 tests band consumed (M4.0 ~348 + M4.1 ~98) - at or past the top of
+the range, so the M4.3 re-price called for above is now MANDATORY, not a
+contingency.** DOCS (M4.5) were
 unpriced; `multiplier-combiner.md` is a NEW file. Plus one possible
 `bcf-equivalence` re-record, with its `equivalence.yaml` bump in the same
 commit. **Both scheduling preconditions are MET:** multiforest-predictor-
@@ -2952,3 +2980,60 @@ after the reshape, whose S1 - the arc's last header-touching slice - landed
 at ab3aa2fa, and whose S2 (consumer rebuilds and docs, moving no header) has
 now landed too - the reshape arc is complete
 (docs/plans/dbarts-h-reshape.md).
+
+M4.1 LANDED 1458328c, follow-up e48fc5de, both CI six-green sanitizers
+included. Engine: forestMultiplier -> dot(a_f, B_f[i,]), combinedFits -> K
+loop (general in K, no K=2 special case), BCF's two bases synthesized
+internally from z at installTreatment; 15 glue_.a/b0/b1 accessor sites
+converted; state serializeGlue/restoreGlue round-trip and the flat C
+bcfGlue/setForestBasis unchanged. Engine +48 net dense-equivalent, tests +98.
+
+The slice's defining event: the first implementer (killed mid-run by an API
+error) had a 12/12 bcf-equivalence divergence; the successor kept its patch,
+proved unmodified HEAD reproduces all 59 baseline scenarios on this box, and
+root-caused the divergence to FMA CONTRACTION ASSOCIATION - HEAD's
+single-expression a*mu[i] + b_z*tau[i] contracts forest 0's product into the
+closing add, a forward K-loop accumulator pre-rounds it instead (1 ulp on
+~30% of rows, chain contamination within ~40 sweeps). Fix: accumulate FROM
+THE LAST FOREST DOWN, leaving forest 0's product as the closing bare
+multiply - shape-guaranteed at any K. Verified with -ffp-contract=off and a
+three-way std::fma probe. The combination's summation association is now a
+LOAD-BEARING, baseline-gating property.
+
+Two tests added, each the SOLE guard on its fact: testCombinedFitsAssociation
+(20 of 64 rows discriminating; the M4.0 seam pin CANNOT see association -
+its reference expression inherits the test compiler's own contraction; the
+follow-up hardened the pin to classify fusionVisible rows and skip the
+direction assertion on never-contracting targets, hard-failing only on
+absorbing the last forest's product) and testForestBasisSynthesis (mid-life
+setTreatment rebuilds the basis, amplitudes preserved).
+
+Review verdict LAND, the association story independently reproduced end to
+end (forward accumulation -> 12/12 bcf mismatch with both seam pins green;
+HEAD's expression restored verbatim -> association pin passes, so the pin
+fixes the property, not the spelling). Reviewer's trap note, recorded as
+standing: a perturbed install WITHOUT --preclean reported bitwise identical
+- the no-header-tracking trap; every re-check must --preclean. Pins
+byte-identical at both revs (extracted and hashed). No stale-basis mutation
+route exists (all z routes funnel through installTreatment; setData/
+setWeights/setModel refused multi-forest; per-observation and transactional
+setPredictor touch x only - the bcf-equivalence per_observation scenarios
+are the evidence). Follow-up also corrected the setData refusal's mechanism
+comment (post-M4.1 only drawGlue indexes borrowed z; combinedFits/
+forestMultiplier read the install-time basis snapshot); no message pins were
+affected (the user-facing string is untouched, verified against its two
+pins).
+
+BENCH (VD-granted quiet window, 2026-08-14): B/A per-sweep ratios - bcf
+n=20000 1.0098 +/- 0.0051 (12/12 rounds slower), bcf n=2000 1.0105 +/- 0.0025
+(12/12), supplementary bcf n=200000 1.0112 +/- 0.0053 (4/4), single-forest
+control 1.0030 +/- 0.0123 (sign-split, neutral - methodology clean). The
+ratio is FLAT across 100x in n: per-element compute/indirection in the
+combiner, NOT bandwidth. VERDICT: the ~1% BCF-only cost is ACCEPTED as the
+price of the general multiplier; M4.2, which owns this code next, MAY claw
+it back but bitwise identity governs - no re-record for an optimization.
+Protocol/provenance: .claude/m4-basis-design/bench-m41-2026-08-14.md (12
+alternating rounds, loadavg 2.11-3.68, per-arm git-archive trees and
+privlibs; note there is NO checked-in armab script - armab is a protocol
+name, and bench-sampler.R carries no BCF scenarios, so the harness was
+written in its idiom, gitignored).
