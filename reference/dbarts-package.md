@@ -119,8 +119,9 @@ touching R's stream at all. See
 Calling the R interface needs no special linkage. A package that drives
 the sampler from C should declare `LinkingTo: dbarts` and use the flat C
 API declared in the installed header `dbarts/dbarts.h`, whose entry
-points are reached through `R_GetCCallable` and versioned by
-`DBARTS_C_API_VERSION`.
+points are reached through `R_GetCCallable` and versioned by the
+two-component handshake `DBARTS_C_API_MAJOR`/`DBARTS_C_API_MINOR`, with
+`dbarts_apiHash()` as an exact signature check.
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
 produces the specification objects that API's sampler constructor takes.
 The C++ interface of releases before 1.0-0, `dbarts/R_C_interface.hpp`,
