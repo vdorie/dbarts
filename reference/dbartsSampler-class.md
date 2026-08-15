@@ -66,6 +66,8 @@ getLatents(result)
 # S4 method for class 'dbartsSampler'
 getSumsOfSquaredResiduals(result)
 # S4 method for class 'dbartsSampler'
+getFitsWithoutOffset()
+# S4 method for class 'dbartsSampler'
 getForestFits(forest)
 # S4 method for class 'dbartsSampler'
 getForestAmplitudes(forest = NULL)
@@ -298,12 +300,18 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   sufficient statistic, branch log-likelihood, birth-scan weight total,
   leaf parameter draw, or family-level parameter update that sums over
   rows (residual degrees of freedom, a dispersion statistic, a group's
-  per-group sums, and so on). It still occupies its leaf for every
-  count-based accounting - `numObservations`, the empty-leaf veto, leaf
-  collapsing - and it still receives a fitted value: `run()$train`,
-  `getForestFits`, and `predict` report \\f(x_i)\\ at an inactive row
-  exactly as at an active one, which is what makes this channel worth
-  more than physically dropping the row.
+  per-group sums, and so on). It still occupies its leaf for COUNT-based
+  accounting - `numObservations`, the birth scan's own member count, and
+  leaf collapsing, which triggers on member count regardless of
+  weights - and it still receives a fitted value: `run()$train`,
+  `getForestFits`, `getFitsWithoutOffset`, and `predict` report
+  \\f(x_i)\\ at an inactive row exactly as at an active one, which is
+  what makes this channel worth more than physically dropping the row.
+  The empty-leaf VETO is the one exception, and it is conditional: it
+  counts POSITIVE-WEIGHT members rather than members, so it degenerates
+  to the member count exactly when no weight vector is installed - but a
+  mask IS a weight vector, so with one installed a leaf all of whose
+  rows are inactive is vetoed rather than counted as occupied.
 
   An inactive row's own latent draw is SKIPPED - no random numbers are
   consumed for it - for every family except Student-t, whose per-row
@@ -623,6 +631,49 @@ sampler is first created and then, in a separate instruction, run or
 modified. In this way, MCMC samplers can be constructed with BART
 components filling arbitrary roles.
 
+### Reading the fit
+
+Five methods report a fitted quantity and no two report the same one.
+They differ along three axes - the SCALE the values live on, whether the
+installed OFFSET is in them, and whether they answer from the CURRENT
+state or from stored draws:
+
+|  |  |  |  |
+|----|----|----|----|
+| **method** | **scale** | **offset** | **current or stored** |
+| `run()$train` | response (latent under a binary family) | included | one slab per recorded draw |
+| `$getFitsWithoutOffset()` | response (latent under a binary family) | excluded | current |
+| `$getForestFits(f)` | internal, and one forest only | excluded | current |
+| `$predict(x)` | response (latent under a binary family) | whatever you pass it | the saved samples under `keepTrees`, else the current trees |
+| `$getLatents()` | the family's own augmentation variable, which is a location for some families and a precision for others | not a fit; see ‘Value’ | current |
+
+The composition rule follows from the table: an outer block conditions
+on \\f(x_i)\\, so it reads `$getFitsWithoutOffset()` and adds back
+whatever offset it installed, rather than differencing `$getLatents()`
+against `run()$train`, which mixes an offset-bearing quantity with one
+that does not carry the offset.
+
+Where the boundary runs. These are the methods of the mutable sampler,
+and their audience is a model writer composing BART into a larger
+scheme: they return engine primitives on the engine's own terms. The R
+modelling conventions -
+[`fitted`](https://rdrr.io/r/stats/fitted.values.html),
+[`predict`](https://rdrr.io/r/stats/predict.html),
+[`extract`](https://vdorie.github.io/dbarts/reference/bart.md) - apply
+to FIT objects instead, the results of
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) and
+[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md). Those
+accessors read the stored `yhat.train`/`yhat.test` channels the engine
+already wrote the offset into, and no `type` arm removes it:
+`type = "bart"` returns those draws as they stand, `"ev"` maps them
+through the response transform, `"ppd"` samples from them, and
+`"loglik"` evaluates against them - all offset-inclusive. (`extract` on
+a `dbartsSampler` itself takes `type = "predictors"` only and returns
+the design matrix; it is not a fitted-value accessor.) So an offset-free
+fit is available from the sampler surface and nowhere on the fit-object
+surface, which is the division rather than an omission.
+
 ### Saving
 
 [`save`](https://rdrr.io/r/base/save.html)-ing and
@@ -841,11 +892,45 @@ location, so no residual sum of squares is defined - the `NaN` is
 deliberate, in place of the sum of squared category probabilities a bare
 substitution would have given.
 
-For `getLatents`, `NULL` when the model has no latent-variable
-representation (e.g. a gaussian response); otherwise the sampler's
-current latent values - a plain vector of length equal to the number of
-observations when there is a single chain, or an observations-by-chains
-matrix otherwise - written into `result` when one was supplied.
+For `getLatents`, `NULL` when the model augments nothing - a plain
+gaussian response, and a multinomial one; otherwise the sampler's
+current draw of the augmentation variable, a plain vector of length
+equal to the number of observations when there is a single chain, or an
+observations-by-chains matrix otherwise, written into `result` when one
+was supplied. **What that variable IS depends on the family and is not
+uniform.** It is a LOCATION, on the sampler's own latent scale, for
+`"probit"` (the truncated normal \\z_i\\), `"ordinal"` (the same \\z_i\\
+under the cut points) and `"aft"` (the imputed log survival time), all
+of which a host regresses on directly. It is a PRECISION, one per
+observation, for `"logistic"` and `"nbinom"` (the Polya-Gamma
+\\\omega_i\\) and for a Student-t residual distribution (the
+scale-mixing \\\lambda_i\\); these WEIGHT a working response and are not
+on the response scale at all, so differencing them against a fit is
+meaningless. Note the last case: a sampler whose `family` is
+`"gaussian"` but whose `resid.dist` is `student()` (see
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)) does
+report latents, and they are precisions.
+
+For `getFitsWithoutOffset`, the sampler's combined per-observation
+location on the response scale and *without* the installed offset, an
+n.observations x n.chains matrix. `run()$train` reports the same
+quantity with the offset folded in, so this value plus the installed
+offset is that one; there is deliberately no with-offset twin, since the
+offset is the caller's own. It is the read a host driving the sampler
+one sweep at a time needs: an incremental scheme updates its outer block
+against \\f(x_i)\\, and taking `getLatents()` minus `run()$train`
+instead is BIASED, because the training channel carries the offset the
+latent scale does not. On a multi-forest (`forests`) sampler this is the
+only route from R to the combined fit at all - `getForestFits` gives one
+forest's internal-scale totals and `predict` is refused. It is refused,
+naming the reason, on a multinomial sampler, whose reported channels are
+per-category softmax probabilities rather than one additive location;
+`predict(x)` serves that read, but reports the SAVED samples rather than
+the current state when the sampler was built with `keepTrees`. It is
+also refused on the host shell of a fit whose model lives elsewhere,
+where it would otherwise answer from the placeholder; the other readers
+on this class are deliberately not guarded that way (TODO
+`host-shell-read-guards`).
 
 For `getForestFits`, a multi-forest sampler's requested forest's current
 internal-scale fitted values, an n.observations x n.chains matrix. For
