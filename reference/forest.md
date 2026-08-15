@@ -69,8 +69,18 @@ forest(
   rescale the prior. Which of the two channels carries it depends on
   whether the forest has a `basis`: without one it is the half-Cauchy
   median of the forest's scalar amplitude, with one it scales the
-  forest's own node prior. The defaults are 2 for a forest with no basis
-  and 1 for one with.
+  forest's own node prior. The two channels default differently, and
+  neither default is a bare constant. A forest with NO basis takes `2`
+  under a gaussian response, where the unit is the response's own
+  \\\mathrm{sd}(y)\\ and a drawn \\\sigma\\ absorbs the difference, and
+  `1` under `"probit"` and `"logistic"`, where the unit is the link's
+  fixed error scale and nothing does. A forest WITH a basis takes
+  \\\sqrt{2/K}\\ in a model of \\K\\ forests, so that declaring more of
+  them does not widen the prior on the combined location without bound.
+  \\K = 2\\ is the fixed point of both statements, \\\sqrt{2/2} = 1\\. A
+  value declared here overrides its default and keeps its per-forest
+  reading at every \\K\\, so `sd = 1` on each basis forest recovers the
+  pre-\\K\\-aware model exactly.
 
 - interactions, blocks:
 
@@ -99,15 +109,17 @@ forest(
   carrying a basis, with \\s_f\\ read from
   `$getCalibration(f)[, "prior.scale"]` and \\v_f\\ this argument; a
   basis-free forest's own term is Cauchy and has no standard deviation.
-  Under `"probit"` and `"logistic"` that location IS the latent index
-  and \\\sigma\\ is pinned, so nothing in the sampler absorbs a
-  mis-scaled basis; under a gaussian response it is in
-  \\\mathrm{sd}(y)\\ units and a drawn \\\sigma\\ partly does. Every
-  input to that expression is readable off the fitted sampler: \\v_f\\
-  is the `amplitude.prior.variance` column of `$getCalibration(f)` and
-  \\B_f\\ is `data@bases[[f]]`, so the induced prior can be checked
-  against what is in force rather than against what the call asked for.
-  See the example below.
+  The budget that sum sits in is set by `sd`, whose default already
+  divides it among the \\K\\ forests, so raising this argument raises
+  the total rather than redistributing it. Under `"probit"` and
+  `"logistic"` that location IS the latent index and \\\sigma\\ is
+  pinned, so nothing in the sampler absorbs a mis-scaled basis; under a
+  gaussian response it is in \\\mathrm{sd}(y)\\ units and a drawn
+  \\\sigma\\ partly does. Every input to that expression is readable off
+  the fitted sampler: \\v_f\\ is the `amplitude.prior.variance` column
+  of `$getCalibration(f)` and \\B_f\\ is `data@bases[[f]]`, so the
+  induced prior can be checked against what is in force rather than
+  against what the call asked for. See the example below.
 
 - update.amplitude:
 
@@ -128,6 +140,25 @@ b_1)\\ joining them, read back with `$getForestAmplitudes`. Gaussian,
 combination is the index rather than the mean, on the link's own fixed
 scale, and `"aft"`, `"ordinal"` and `"nbinom"` are refused at creation
 naming what each is missing.
+
+What the defaults put on the combined location, since under a latent
+family that location IS the index and no drawn \\\sigma\\ stands between
+it and the fitted probabilities. At two forests of the shipped shape -
+one carrying no basis - a probit model's prior puts \\P(p \< 0.01
+\mathrm{~or~} p \> 0.99)\\ at 0.238, which is the shipped single-forest
+binary default's own 0.239; before the `sd` defaults above it was 0.376.
+The \\\sqrt{2/K}\\ factor is what holds that as \\K\\ grows, and it
+holds it in two different senses. When EVERY forest carries a basis the
+induced prior standard deviation of the index is 1.484 latent units at
+every \\K\\ - 0.989 of the classic \\k = 2\\ binary node-scale budget -
+because the whole location is then a sum of fixed-variance channels.
+When one forest carries none, its amplitude is Cauchy and has no
+variance to enter that budget with, so the fixed-variance part is
+BOUNDED by 1.484 rather than pinned at it, rising from 0.699 of the
+budget at \\K = 2\\ toward 0.989 and never reaching it; without the
+factor it would instead grow past twice the budget by ten forests. Read
+the values in force off `$getCalibration(f)`'s `node.scale.factor` and
+`amplitude.prior.scale` columns.
 
 Both forests' leaf scales come from the model's own calibration map
 rather than from the node prior, which is why a `k` hyperprior, a
