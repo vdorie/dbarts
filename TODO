@@ -511,11 +511,6 @@ items
     shipped-to-exact gap survives that fix. Opt-in grow path only,
     missing-bearing ordinal columns only. Own slice, draw-law
     change when taken.
-  plans-index-backfill: docs/plans/INDEX.md's consistency pass is
-    stale (2026-08-04): roughly 20 plans landed since then
-    (grow-from-root-categorical-scan, multiforest-extension-surface,
-    ...) have no row and the header's file count is off. Backfill
-    rows and re-verify statuses; a small records slice.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take

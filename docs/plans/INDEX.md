@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (126 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (147 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -16,17 +16,24 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | bcf-b-ridge.md | NO-GO | Treatment-scale (b) ridge interweaving move, the named suspect for the sigma residual; both controls clear it - shelved as an unimplemented future mixing win. |
+| bcf-public-surface.md | LANDED (S0-S6) | BCF reachable through public `dbarts(treatment=, moderators=, treatmentForest=)` (an ordinary `dbartsSampler`, not `bartcoreBCFSampler`), a C consumer via `dbarts_sampler_create`, per-draw mu/tau/glue reporting, and `$setTreatment` mirroring `data@treatment`; landed aa6978b (2026-08-11), argument names PROVISIONAL pending multiforest-extension-surface.md M2. |
 | bcf-ridge-interweaving.md | LANDED | Prognostic (a) ridge interweaving move, landed 9617c94; confirmed mixing win, sigma SBC flag persists and routes to bcf-sigma-residual. |
 | bcf-sigma-residual.md | RESOLVED (burn routing adopted) | Diagnoses the BCF sigma burn-in transient as slow forest-structure mixing, not a glue-scale defect; its recommended `burn = ceiling(72000/thin)` is live in benchmarks/R/sbc.R, and the extreme-tail engine remedy is the TODO door bcf-sigma-tail-mixing. |
 | bcf-testfits-guard.md | LANDED | Guards BCF test-fit/predict entry points that silently reported the bare prognostic forest instead of the combined a*mu+b*tau surface. |
+| zero-weight-exactness.md | LANDED (S0-S3, ARC COMPLETE), 2026-08-10 | A per-forest multiplier at or below R's almost-equal tolerance produces an exact zero response/weight instead of the +/-1e-9 floor-and-divide, so a row carrying no information about a forest contributes nothing to that forest's sufficient statistics; adds a caller-settable per-forest, per-observation weight for callers the glue cannot reach. |
 
 ## Forest / multi-forest infrastructure
 
 | file | STATUS | purpose |
 |---|---|---|
+| facade-shape.md | LANDED 40082c7, 2026-08-05 | Collapses SamplerBase's 21 nullary count/capability virtuals into one SamplerShape POD filled on demand by a single `shape()` virtual, so a new capability costs one field instead of declaration+forward+override; bitwise-neutral, no dbarts.h change. |
 | forest-combiner.md | LANDED, 2026-07-14 | Extracts BCF's hardcoded glue into a polymorphic `ForestCombiner<L>` so multinomial (and future models) can plug in without re-forking Chain. |
 | forest-split-bcf.md | LANDED (two phases) | Splits `Forest<L>` out of Chain and lands BCF as the first two-forest sampler (steps 1-5); a later "Phase 2 (post data-ownership-4)" wires BCF's moderators restriction - both phases complete, one file. |
 | multi-forest-models.md | LANDED (tracker; historical value only) | Queue/tracker for the multi-forest family (multinomial, heteroscedastic, hurdle); all three now correctly marked landed in-file. |
+| multiforest-extension-surface.md | LANDED (ARC COMPLETE, M0-M4.5), 2026-08-13/14 | Replaces BCF's hardcoded a*mu+b*tau glue with the general K-forest basis/amplitude family: `forests = list(forest(basis = ...))` creation (M2), `$setForestBasis` mirroring (M1), the flat mean channel folded into dbarts-h-reshape S1 (M3), and the general engine (M4, sub-sliced M4.0-M4.5) wired for gaussian/probit/logistic with aft/ordinal/nbinom refused by name; wrote docs/design/multiplier-combiner.md. |
+| multiforest-mutation-gaps.md | LANDED (4 commits), 2026-08-06 | Closes multinomial setOffset/setTreatment silent no-ops, the vacuously guarded BCF setWeights, and the setState/installForests leaf-scale sibling door surfaced by runsbcbcf-repair's survey and the design + critique. |
+| multiforest-predictor-mutation.md | LANDED (SL, S0-S4, ARC COMPLETE), 2026-08-10/11 | Retires every multi-forest transactional predictor-mutation refusal: BCF, multinomial and heteroscedastic samplers accept setPredictor/updatePredictor with rollback and the per-observation session under "no leaf empties in any tree of any ensemble", with the per-forest column mask as the opt-out; no dbarts.h change. |
+| multiforest-veto-rate-falsifier.md | RUN AND REPORTED (YELLOW both column types), 2026-08-09 | Prices the acceptance-rate cost of widening the transactional/per-observation empty-leaf veto from `forests_[0]` alone to every ensemble before multiforest-predictor-mutation opens; no KILL clause fired, decides that arc's straightforward-extension fork. |
 
 ## Multinomial cluster (pairs with docs/design/multinomial.md)
 
@@ -34,6 +41,7 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | multinomial.md | LANDED (ARC CLOSED, C1-C7) | Base K-forest interleaved-PG-softmax multinomial model (RNG-neutral seams + the model + bart2 surface); hub of the cluster, wrote docs/design/multinomial.md as its C6 commit. |
 | multinomial-counts.md | LANDED (C1-C3) | Generalizes to an n x K count matrix via PG(n_i,.) as a sum of PG(1,.) draws; single-trial reduction bitwise. |
+| multinomial-counts-mutation.md | LANDED (S1-S5, ARC COMPLETE), 2026-08-12 | Multinomial stops fixing its response at creation: a counts mutation channel at fixed n/K plus an n x K category offset (train, test, predict) let a softmax chain be a conditional inside a larger Gibbs/MH sampler; every channel that cannot carry the offset refuses rather than silently omitting it. |
 | multinomial-formula.md | LANDED (C1-C2) | Formula interface (factor LHS, cbind(...) count matrix) for bart2(family="multinomial"); RNG-neutral. |
 | multinomial-margins.md | LANDED | Rewrites per-sweep margin computation O(nK^2) -> O(nK); rounding-level divergence confined to multinomial channels. |
 | multinomial-test-surface.md | LANDED (C1-C2; C3 docs commit unconfirmed in-file) | Test-at-creation (x.test softmax probabilities) + predict-on-newdata (K-forest saved-tree replay). |
@@ -112,6 +120,7 @@ Columns: `file | STATUS | one-liner`.
 | sbc-ci-gate.md | LANDED | Weekly/manual non-blocking CI run of the gaussian SBC baseline. |
 | sbc-family-tiers.md | BUILT d094675 (2026-08-04) | Extends SBC to ordinal, nbinom (tightened k=8), robust-t, and multinomial: t + softmax ALL PASS, ordinal 9/10 (ridge mixing), nbinom identified-mu PASS with r/psi H-MIX; the raw-f_ik finding spun out to multinomial-level-centering.md. aft/hazard/hurdle excluded as ill-posed; heteroscedastic/monotone liftable. |
 | multinomial-level-centering.md | OPEN (memo first) | The SBC raw-f_ik arm implicates afterCombine's level-centering precision (counts observations where the exact per-forest-level conditional counts leaves); derive, quantify, then fix or prove inert. |
+| runsbcbcf-repair.md | LANDED 62caed0, 2026-08-05 | Diagnoses and repairs `runSbcBCF` (benchmarks/R/sbc.R) via FIX-B (a setModel guard precondition); acceptance PASS across thin=30/90/120. |
 
 ## Data-ownership program (pairs with docs/design/data-ownership.md)
 
@@ -142,6 +151,7 @@ Columns: `file | STATUS | one-liner`.
 | negative-binomial.md | LANDED (C1-C3) | family="nbinom" via PG augmentation; sweep-order and real-shape-PG issues caught pre-implementation, corrected to integer-dispersion-only. |
 | ordinal-outcomes.md | LANDED (C1-C3 + follow-up) | family="ordinal" via cumulative probit with Cowles-style cutpoints; auto-dispatches on ordered factors (fixed a pre-existing silent bart2 bug). |
 | robust-errors.md | LANDED (ARC CLOSED) | Student-t residuals via scale-mixture augmentation (resid.dist); both estimated-nu and fixed-nu modes shipped. |
+| variance-forest-mutation-routing.md | LANDED (S1-S5), 2026-08-08/09 | Fixes three memory-safety holes (an out-of-bounds setData heap write, an out-of-bounds cut-grid read after setCutPoints, and after setData), stops the global sigma being unpinnable behind the variance forest's back, and routes the heteroscedastic predictor-mutation surface correctly instead of accepting it and computing silently wrong; no dbarts.h change. |
 | weighted-binary.md | ACTIVE (parked memo, post-1.0 only) | Preserves analysis for integer-weight probit and arbitrary-real-weight logistic; deliberately not implemented in 1.0-0. |
 | weighted-binary-ppd.md | LANDED | Fixes weighted-binary posterior-predictive draws (was degenerate two-point, now coherent binomial); closes the last live path of issue #79. |
 
@@ -169,6 +179,8 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
+| cheap-uniformity.md | LANDED (S0-S4, ARC COMPLETE), 2026-08-08/09 | Closes three dense-only asymmetries: a sparse-valued setPredictor/updatePredictor mutates a sparse-backed design without densifying, a single x.test column of a container-backed test set can be replaced, and a sparse test set predicts without full n x p materialization (34.5x faster, 9.96x smaller peak RSS at n=1e5/p=1e4/density 0.01); fixes three live defects along the way (a transposed `dgCMatrix` misread as a mutation argument, a two-way-wrong missingness predicate, a reference-level container/predict() mismatch). |
+| csc-code-validation.md | LANDED df79f17, 2026-08-05 | Bounds categorical codes against the declared level count at every ingestion entrance - training and test, dense and CSC slice, reference code. |
 | cutpoints-shrink-orphan.md | LANDED | Fixes setCutPoints grid-shrink leaving an ordinal split indexing past the new grid. |
 | family-on-model.md | LANDED | Moves the response-family slot from dbartsControl to dbartsModel. |
 | flat-format-v2.md | LANDED | Replaces FlatNode's bit-cast mask encoding with a tagged value/mask/pool union; state format version bumped to 2. |
@@ -177,6 +189,7 @@ Columns: `file | STATUS | one-liner`.
 | state-continuation.md | LANDED | Drops bitwise-continuation-only state fields in favor of semantic restore. |
 | state-format-policy.md | LANDED | Saved states carry a format version + package provenance; incompatible loads refuse cleanly. |
 | test-data-parity.md | LANDED (CLOSED) | Test-side data store gains resident sparse storage (no densification); 1.83x-6.98x memory/code-shrink measured. |
+| typed-ingestion.md | LANDED (Slices 1, 2a, 2b-pre, 2b), 2026-08-06 | One borrowed typed PredictorSource view (dense-double \| dense-integer \| CSC; declared K) replaces SamplerOptions' 8 ingestion fields, the 7-arg setTestData, and the dense-only mutation entries; slice 0 spun out to csc-code-validation.md. No dbarts.h change. |
 
 ## API-surface cluster
 
@@ -243,13 +256,17 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | change-move-fix.md | LANDED | Fixes a detailed-balance violation in the change move for mixed ordinal/categorical splits. |
+| composition-mixing-probe.md | KILLED (harm clause fired), 2026-08-10 | Measures whether absorbing a smooth signal share into a parametric block improves the forest's own mixing (tree-mixing-proposals.md sec 4.1's top-ranked candidate); the registered harm clause fired, withdrawing that rank. v2 replaces v1 after eleven blind-critique findings were adopted. |
 | convergence-diagnostics.md | LANDED | Adds posterior-package-shaped draws plus an R-hat/ESS summary for multi-chain fits. |
 | empty-leaf-veto.md | LANDED (NO-GO on full removal) | Investigates replacing the -1e7 empty-leaf veto with occupancy-aware proposals; keep-and-document decision. |
 | grow-from-root.md | LANDED (memo phase) | XBART-style root-down tree sampling; GO on cut-scan-as-shared-primitive and warm-start use, NO-GO as a standalone posterior sampler. |
+| grow-from-root-categorical-scan.md | LANDED (S0a-S5, ARC CLOSED), 2026-08-12 | `growTreeFromRoot` places real categorical split rules weighted commensurably with the ordinal branch (exact below a cap, Fisher-prefix above it), inverting the v1 "categoricals never split here" contract; the pre-registered falsifier confirms the shipped/exact draw-law gap, and also finds scan.hpp's naCode split-vs-no-split asymmetry. |
+| grow-from-root-default-study.md | KILLED (measured, both strata), 2026-08-08 | Pre-registered study deciding whether bart2's grow-from-root init defaults on; KILLED in both size strata on a per-cell plateau RMSE cost concentrated in noise-heavy/large-n regimes a pooled aggregate hides, each confirmed by a mandated fresh-seed re-run; n.grow.sweeps stays opt-in. |
 | grow-from-root-warm-start.md | LANDED | Promotes the cut-scan kernel into an XBART-style root-down warm-start producer (n.grow.sweeps); byte-identical default path. |
 | interaction-constraints.md | LANDED f455d7c (2026-07-21) | Per-forest interaction constraints (max-order cap + hard co-occurrence deny/allow groups) via interactions(); post-landing BCF use-after-free fix 04ca425. |
 | interaction-constraints-p4.md | LANDED aadbbc8/103dbe2 (2026-07-21) | P4 follow-on: blocks() fixed-capacity per-tree block-additive prior plus the columnMask warm-start/setState feasibility gate (F1; follow-up 073d3db); soft path penalties and formal heredity stay deferred. |
 | monotone-prior-draw.md | LANDED 173a710 (2026-08-04) | samplePriorPredictive on a monotone fit drew unconstrained leaf values and left the chain monotone-infeasible; fixed by exact per-tree rejection from the constrained prior. Found by the SBC-extension blind critique. |
+| sampletreesfromprior-midchain.md | LANDED 1947b10, 2026-08-08 | Fixes mid-chain sampleTreesFromPrior leaving totalFits/leafOf out of sync with the reset muByTree (a permanent residual displacement and an ASAN-invisible out-of-capacity read); the reset is forest-only and lands the forest in the zero-fit state a freshly built chain carries. |
 | setpredictor-leafof-rebuild.md | OPEN (memo first) | Restores setPredictor-accept (+22-28% x86 regression from constant-leaf-fits' full leafOf rebuild on accepted mutations) via lazy/partial maintenance; embedded-Gibbs hot path. |
 | moves-degenerate-root-guard.md | LANDED | Fixes a segfault when a root-only tree has no available split variable. |
 | pointwise-loglik.md | LANDED | R-side per-observation/per-draw log-likelihood extract for loo/waic. |
