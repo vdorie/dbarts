@@ -1,11 +1,14 @@
 # Response-model feature matrix
 
-Status: living reference, anchors current at 55cc1756 (2026-08-14). The
+Status: living reference, anchors current at 63524e5e (2026-08-15). The
 "current at" commit stamps the ANCHORS and nothing else: the 2026-08-14 pass
-relocated every anchor by symbol and re-adjudicated no cell value. Carries no
-landing date and is not a design proposal - the orchestrator updates it in
-place at every landing that changes a cell, and VD uses it to schedule feature
-completion.
+relocated every anchor by symbol and re-adjudicated no cell value, and the
+2026-08-15 pass did the same, scoped to the files the
+`binary-kforest-prior-default` arc's three landing commits touched (every
+other anchor carries over from 2026-08-14 unmoved, since its host file is
+untouched by the arc). Carries no landing date and is not a design proposal -
+the orchestrator updates it in place at every landing that changes a cell, and
+VD uses it to schedule feature completion.
 
 What each shipped response model can and cannot do, one row per model and one
 column per capability that bears on scheduling. Every SHIPPED and REFUSED cell
@@ -24,7 +27,7 @@ guessed.
 | `-` | N/A. The concept does not apply to this row; the row footnote says why. |
 | `?` | UNVERIFIED. Constructs today with no refusal site, but no test, doc or adjudication backs it. Do not schedule against the cell until it is settled; every `?` is listed under "Gaps". |
 
-Path aliases used in anchors (line numbers are at 55cc1756, with no exception):
+Path aliases used in anchors (line numbers are at 63524e5e, with no exception):
 
     RIB   src/R_interface_bartcore.cpp      CAPI  inst/include/dbarts/dbarts.h
     MOD   src/bartcore/model.hpp            CH    src/bartcore/chain.hpp
@@ -49,6 +52,17 @@ rather than live and were left as written: [f36]'s "the earlier CH:1589" and
 a site. Cell values were NOT re-adjudicated - this pass moved anchors only, so
 a cell whose VALUE was wrong before it is wrong still.
 
+Anchor pass on record, 2026-08-15, SCOPED to the `binary-kforest-prior-default`
+arc's three landing commits (4dbf2dbc, 0faeb416, e623fbf3; branch tip
+63524e5e), not a whole-file walk. Only anchors targeting the files those three
+commits touched were re-located by symbol against 63524e5e: CH, CAPI, RIB,
+`C_interface.cpp`, `dbarts.R`, `bartcore.R`, `model.R`, `spec.R`, `A_class.R`,
+COM, and the test files the arc edited. MOD (`model.hpp`) was NOT touched by
+the arc and was not re-walked. Every anchor outside that set carries over from
+the 2026-08-14 whole-file pass unchanged - its host file is byte-identical
+between 55cc1756 and 63524e5e, so 55cc1756's numbers still hold. Cell values
+were again NOT re-adjudicated.
+
 ## Rows
 
 Thirteen rows. The first ten are response models proper; the last three are
@@ -67,9 +81,9 @@ and schedules against the same way, so they earn rows.
 | aft | AFT survival, log-normal (`AFTResponse` MOD:3766) |
 | hazard | Discrete-time hazard (person-period sugar, dbarts.R:435-484) |
 | hurdle | Hurdle / two-part semicontinuous (R-side composition, bart.R:1958) |
-| bcf | K-forest amplitude family, bcf's two forests being its K = 2 instance (`BCFForestCombiner` COM:704) |
+| bcf | K-forest amplitude family, bcf's two forests being its K = 2 instance (`BCFForestCombiner` COM:713) |
 | grouped | Grouped random intercepts (`GroupedResponse` MOD:4677) |
-| hetero | Heteroscedastic variance forest (CH:679) |
+| hetero | Heteroscedastic variance forest (CH:697) |
 
 The engine's `ResponseFamily` enum has only six tokens (MOD:2577: gaussian,
 probit, logistic, aft, ordinal, nbinom); student, hazard, hurdle, bcf, grouped
@@ -77,7 +91,7 @@ and hetero are all reached some other way, which is exactly why they need rows
 here rather than an enum read. That enum now REACHES the bcf row, which is why
 so much of that row is family-dependent below: since M4.4 the K-forest chain
 selects its response model off `BCFSpec::family` (COM:311, `switch (spec.family)`
-CH:710) instead of building an unconditional `GaussianResponse`, and the
+CH:728) instead of building an unconditional `GaussianResponse`, and the
 K-forest `Sampler` constructor takes `family_(spec.family)` (SAM:160) instead of
 pinning gaussian. Leaf models (constant, monotone, linear, GP) are
 an orthogonal axis and are not rows; where a leaf model gates a capability the
@@ -87,28 +101,28 @@ cell says so.
 
 | model | `bart()` | `bart2()` | `dbarts()` + R5 | `rbart_vi()` | `xbart()` | flat C `dbarts.h` |
 |---|---|---|---|---|---|---|
-| gaussian | S bart.R:2398 | S bart.R:559 | S dbarts.R:357 | S rbart.R:49 | S xbart.R:27 | S CAPI:489 |
+| gaussian | S bart.R:2398 | S bart.R:559 | S dbarts.R:357 | S rbart.R:49 | S xbart.R:27 | S CAPI:506 |
 | student | S bart.R:2301 | S bart.R:573 | S dbarts.R:341 | M rbart.R:60 | M xbart.R:9-38 | S RIB:2585 [f2] |
-| probit | S bart.Rd:151 | S bart.R:560 | S dbarts.R:358 | S data.R:523 | S xbart.R:27 | S CAPI:487 |
+| probit | S bart.Rd:151 | S bart.R:560 | S dbarts.R:358 | S data.R:523 | S xbart.R:27 | S CAPI:504 |
 | logistic | - [f1] | S bart.R:561 | S dbarts.R:359 | R rbart.R:49 | S xbart.R:27 | S RIB:1562 |
 | ordinal | R bart.R:2402 | S bart.R:564 | S dbarts.R:361 | R data.R:468 | R data.R:468 | S RIB:1570 [f3] |
 | nbinom | - [f1] | S bart.R:565 | S dbarts.R:362 | M rbart.R:49 | M xbart.R:27 | S RIB:1577 [f3] |
 | multinom | - [f1] | S bart.R:563 | R dbarts.R:355 | R data.R:468 | R data.R:468 | M [f4] |
-| aft | ? bart.R:2398 [f5] | S bart.R:562 | S dbarts.R:360 | S rbart.R:49 | M xbart.R:27 | S CAPI:490 |
+| aft | ? bart.R:2398 [f5] | S bart.R:562 | S dbarts.R:360 | S rbart.R:49 | M xbart.R:27 | S CAPI:507 |
 | hazard | - [f1] | S bart.R:566 | S dbarts.R:363 | M rbart.R:49 | M xbart.R:27 | M [f6] |
 | hurdle | - [f1] | S bart.R:569 | R dbarts.R:393 | M | M | M [f6] |
-| bcf | - [f1] | R bart.R:625 [f7] | S dbarts.R:350 | R rbart.R:60 | M | S CAPI:496-518 |
+| bcf | - [f1] | R bart.R:625 [f7] | S dbarts.R:350 | R rbart.R:60 | M | S CAPI:513-535 |
 | grouped | - [f1] | M [f8] | M [f8] | S rbart.R:367 | M | S RIB:1939 [f3] |
 | hetero | - [f1] | S bart.R:549 | S dbarts.R:346 | R rbart.R:60 | M | S RIB:2029 [f3] |
 
-`dbartsSpec()` (spec.R:589-597) resolves the seven single-forest tokens - auto,
+`dbartsSpec()` (spec.R:619-627) resolves the seven single-forest tokens - auto,
 gaussian, probit, logistic, aft, ordinal, nbinom - plus BCF through its
-`forests =` argument (spec.R:586, `forest(basis = ...)` replacing the removed
+`forests =` argument (spec.R:616, `forest(basis = ...)` replacing the removed
 `treatment =`, multiforest-extension-surface M2) and a variance forest through
-`variance =` (spec.R:582); it does not reach multinomial, hazard, hurdle or
+`variance =` (spec.R:612); it does not reach multinomial, hazard, hurdle or
 grouped. A `forests =` fit resolves **gaussian, probit or logistic** since M4.4;
 aft, ordinal and nbinom are refused there by name, each stating what it is
-missing (spec.R:419-441), with the same three-family gate at the bridge
+missing (spec.R:449-471), with the same three-family gate at the bridge
 (`refusedBCFFamilyReason` RIB:2294, called from both creation routes at
 RIB:2342 and RIB:3051) and at the factory (`createBCFSampler` FAC:792-795).
 
@@ -120,22 +134,22 @@ it rides on.
 
 | model | `setResponse` | `setOffset` | `updateScale = TRUE` | `setPredictor` (+ per-obs) | `setWeights` | `setSigma` | test surface |
 |---|---|---|---|---|---|---|---|
-| gaussian | S MOD:2807 | S MOD:2887 | S MOD:2887 | S RIB:4875, 5031 | S MOD:2856 | S RIB:2796 | S RIB:4570, 4623 |
-| student | S MOD:4082 | S MOD:4089 | S MOD:4089 | S RIB:4875 | S MOD:4106 | S RIB:2796 | S RIB:4570 |
-| probit | S MOD:3103 | S MOD:3109 | - [f9] | S RIB:4875 | R RIB:1638 | R RIB:2798 | S RIB:4570 |
-| logistic | S MOD:3577 | S MOD:3583 | - [f9] | S RIB:4875 | R RIB:1631 [f10] | R RIB:2798 | S RIB:4570 |
-| ordinal | S MOD:3240 | S MOD:3248 | - [f9] | S RIB:4875 | R RIB:1638 | R RIB:2798 | S RIB:4570 |
-| nbinom | S MOD:4377 | S MOD:4384 | - [f9] | S RIB:4875 | R RIB:1638 | R RIB:2798 | S RIB:4570 |
+| gaussian | S MOD:2807 | S MOD:2887 | S MOD:2887 | S RIB:4886, 5042 | S MOD:2856 | S RIB:2796 | S RIB:4581, 4634 |
+| student | S MOD:4082 | S MOD:4089 | S MOD:4089 | S RIB:4886 | S MOD:4106 | S RIB:2796 | S RIB:4581 |
+| probit | S MOD:3103 | S MOD:3109 | - [f9] | S RIB:4886 | R RIB:1638 | R RIB:2798 | S RIB:4581 |
+| logistic | S MOD:3577 | S MOD:3583 | - [f9] | S RIB:4886 | R RIB:1631 [f10] | R RIB:2798 | S RIB:4581 |
+| ordinal | S MOD:3240 | S MOD:3248 | - [f9] | S RIB:4886 | R RIB:1638 | R RIB:2798 | S RIB:4581 |
+| nbinom | S MOD:4377 | S MOD:4384 | - [f9] | S RIB:4886 | R RIB:1638 | R RIB:2798 | S RIB:4581 |
 | multinom | - dbarts.R:1113 [f11] | - [f11] | - [f11] | - [f11] | - [f11] | - [f11] | - [f11] |
-| aft | S MOD:3841 | S MOD:3854 | S MOD:3854 | S RIB:4875 | R RIB:1638 | S RIB:2796 | S RIB:4570 |
-| hazard | S MOD:3103 [f6] | S MOD:3109 | - [f9] | S RIB:4875 | R RIB:1638 | R RIB:2798 | S RIB:4570 |
+| aft | S MOD:3841 | S MOD:3854 | S MOD:3854 | S RIB:4886 | R RIB:1638 | S RIB:2796 | S RIB:4581 |
+| hazard | S MOD:3103 [f6] | S MOD:3109 | - [f9] | S RIB:4886 | R RIB:1638 | R RIB:2798 | S RIB:4581 |
 | hurdle | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] |
-| bcf | S CH:955 [f48] | S CH:955 [f48] | R bartcore.R:288, 309 [f48] | S RIB:4875, 5031 | S RIB:4719 [f48] | S RIB:4495 [f48] | R RIB:2768 |
-| grouped | R RIB:4476 [f13] | S MOD:4771 | S MOD:4771 | S RIB:4875 | S MOD:4785 [f14] | S RIB:2796 [f14] | S RIB:4570 |
-| hetero | S RIB:2703 | S RIB:2703 | R RIB:2703 | S RIB:4875, 5031 | S RIB:2698 | R RIB:2794 | S RIB:4570 |
+| bcf | S CH:995 [f48] | S CH:995 [f48] | R bartcore.R:288, 309 [f48] | S RIB:4886, 5042 | S RIB:4730 [f48] | S RIB:4506 [f48] | R RIB:2768 |
+| grouped | R RIB:4487 [f13] | S MOD:4771 | S MOD:4771 | S RIB:4886 | S MOD:4785 [f14] | S RIB:2796 [f14] | S RIB:4581 |
+| hetero | S RIB:2703 | S RIB:2703 | R RIB:2703 | S RIB:4886, 5042 | S RIB:2698 | R RIB:2794 | S RIB:4581 |
 
 `setData` (whole-data replacement, n free) is single-forest and dense-store
-only (RIB:4504-4505) and is refused for grouped (RIB:4506) and aft (RIB:4509);
+only (RIB:4515-4516) and is refused for grouped (RIB:4517) and aft (RIB:4520);
 BCF/multinomial whole-data `setData` stays undesigned by the model-space
 survey's verdict (model-space-survey.md doors 1 and 3).
 
@@ -143,40 +157,40 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 
 | model | zero-weight row subset | active-rows mask [f15] | `getLatents` | pointwise loglik | nameable calibration [f16] |
 |---|---|---|---|---|---|
-| gaussian | S sampler.Rd:147, MOD:2782 [f17] | S MOD:2867 | - RIB:5765 [f18] | S generics.R:48 | S dbarts.R:1468, 1473 [f16] |
+| gaussian | S sampler.Rd:147, MOD:2782 [f17] | S MOD:2867 | - RIB:5776 [f18] | S generics.R:48 | S dbarts.R:1468, 1473 [f16] |
 | student | S MOD:4062-4069 [f17] | S MOD:4117 | S MOD:4129 | ? generics.R:48 [f19] | S dbarts.R:1468, 1473 [f16] |
 | probit | R RIB:1609 | S MOD:3093 | S MOD:3129 | S generics.R:59 | S dbarts.R:1468, 1473 [f16] |
 | logistic | R RIB:1613 [f20] | S MOD:3529 | S MOD:3603 | S generics.R:59 | S dbarts.R:1468, 1473 [f16] |
 | ordinal | R RIB:2576 | S MOD:3225 | S MOD:3270 | M generics.R:86 | S dbarts.R:1468, 1473 [f16] |
 | nbinom | R RIB:2582 | S MOD:4357 | S MOD:4410 | M generics.R:86 | S dbarts.R:1468, 1473 [f16] |
-| multinom | R RIB:3117 | S COM:1612 [f21] | M MOD:3688 [f22] | M generics.R:86 | R [f23] |
+| multinom | R RIB:3117 | S COM:1621 [f21] | M MOD:3688 [f22] | M generics.R:86 | R [f23] |
 | aft | R RIB:2572 | S MOD:3823 | S MOD:3884 | S generics.R:64 | S dbarts.R:1468, 1473 [f16] |
 | hazard | R RIB:1609 [f6] | S MOD:3093 [f6] | S MOD:3129 | S generics.R:59 [f24] | S dbarts.R:1468, 1473 [f6] |
 | hurdle | R bart.R:944 | - [f12] | - [f12] | M generics.R:86 [f25] | - [f12] |
-| bcf | S COM:806, 849-853 [f17] [f48] | S MOD:2867, CH:1280 [f26] | S CH:1509 [f18] | M generics.R:86 | R [f23] |
+| bcf | S COM:815, 858-862 [f17] [f48] | S MOD:2867, CH:1334 [f26] | S CH:1563 [f18] | M generics.R:86 | R [f23] |
 | grouped | S MOD:4640-4662 | S MOD:4796 [f27] | S MOD:4805 | S generics.R:1396 | S MOD:4827 [f27] |
-| hetero | S CH:3755, MOD:306 | S CH:3750 [f27] | - [f18] | ? generics.R:48 [f28] | S test-calibration-prior-draws.R:251 [f29] |
+| hetero | S CH:3843, MOD:306 | S CH:3838 [f27] | - [f18] | ? generics.R:48 [f28] | S test-calibration-prior-draws.R:251 [f29] |
 
 ## 4. Model composition
 
 | model | variance forest | grouped ranef | DART | warm start | grow-from-root |
 |---|---|---|---|---|---|
-| gaussian | S FAC:707 | S CH:581 | S CH:525 | S bart.R:1014 | S dbarts.R:887 |
-| student | ? [f30] | S CH:581 | S CH:525 | S bart.R:1014 | S dbarts.R:887 |
-| probit | R spec.R:370 | S CH:581 | S CH:525 | S bart.R:1014 | S dbarts.R:887 |
-| logistic | R spec.R:370 | S CH:581 | S CH:525 | S bart.R:1014 | S dbarts.R:887 |
-| ordinal | R spec.R:370 | M RIB:2911 [f31] | S CH:525 | R bart.R:493 | R bart.R:493 |
-| nbinom | R spec.R:370 | M RIB:2916 [f31] | S CH:525 | R bart.R:493 | R bart.R:493 |
-| multinom | R FAC:808 | M RIB:1936 [f32] | M CH:4738 [f33] | R bart.R:493 | R bart.R:493 |
-| aft | R spec.R:370 | S CH:581 | S CH:525 | S bart.R:1014 | S dbarts.R:887 |
-| hazard | R spec.R:370 | M rbart.R:49 [f6] | S CH:525 | S bart.R:1014 | S dbarts.R:887 |
+| gaussian | S FAC:707 | S CH:599 | S CH:543 | S bart.R:1014 | S dbarts.R:887 |
+| student | ? [f30] | S CH:599 | S CH:543 | S bart.R:1014 | S dbarts.R:887 |
+| probit | R spec.R:370 | S CH:599 | S CH:543 | S bart.R:1014 | S dbarts.R:887 |
+| logistic | R spec.R:370 | S CH:599 | S CH:543 | S bart.R:1014 | S dbarts.R:887 |
+| ordinal | R spec.R:370 | M RIB:2911 [f31] | S CH:543 | R bart.R:493 | R bart.R:493 |
+| nbinom | R spec.R:370 | M RIB:2916 [f31] | S CH:543 | R bart.R:493 | R bart.R:493 |
+| multinom | R FAC:808 | M RIB:1936 [f32] | M CH:4826 [f33] | R bart.R:493 | R bart.R:493 |
+| aft | R spec.R:370 | S CH:599 | S CH:543 | S bart.R:1014 | S dbarts.R:887 |
+| hazard | R spec.R:370 | M rbart.R:49 [f6] | S CH:543 | S bart.R:1014 | S dbarts.R:887 |
 | hurdle | ? [f34] | M | S bart.R:1987, 1995 [f35] | R bart.R:493 | R bart.R:493 |
-| bcf | R FAC:787 [f48] | R RIB:2365 | R spec.R:451, 481-487 | S SAM:722 [f36] | S CH:1724 [f36] |
+| bcf | R FAC:787 [f48] | R RIB:2365 | R spec.R:481, 511-517 | S SAM:722 [f36] | S CH:1778 [f36] |
 | grouped | ? [f30] | - | S rbart.R:578 | M rbart.R:45-51 [f37] | M rbart.R:45-51 [f37] |
-| hetero | - | ? [f30] | S CH:525 [f38] | S SAM:722 | S CH:1719 |
+| hetero | - | ? [f30] | S CH:543 [f38] | S SAM:722 | S CH:1773 |
 
 Grow-from-root is gated by the LEAF model, not the family: linear and GP leaves
-are refused at dbarts.R:890-899 and no-op at CH:1702, so every family above
+are refused at dbarts.R:890-899 and no-op at CH:1756, so every family above
 reads "constant leaf" in that column.
 
 ## 5. Evidence
@@ -219,15 +233,15 @@ every non-gaussian family R-side at spec.R:307-313. The engine family stays
 shipped header: ordinal needs the `bartcore.n.categories` control attribute
 (RIB:446), nbinom `bartcore.dispersion` (RIB:459), grouped `bartcore.groups`
 (RIB:1939), heteroscedastic `bartcore.variance` (RIB:2029). The header's
-`family` documentation (CAPI:485-494, on `dbarts_sampler_create`; NOT
-CAPI:338-357, which is the `DBARTS_C_API_LIST` X-macro body and never carried
+`family` documentation (CAPI:502-511, on `dbarts_sampler_create`; NOT
+CAPI:355-374, which is the `DBARTS_C_API_LIST` X-macro body and never carried
 it) names only probit, logistic, gaussian and aft, and the K-forest paragraph
-beside it (CAPI:496-518) now names gaussian, probit and logistic, M4.4 having
-replaced its "Gaussian responses only" at CAPI:514-518.
+beside it (CAPI:513-535) now names gaussian, probit and logistic, M4.4 having
+replaced its "Gaussian responses only" at CAPI:531-535.
 
 [f4] Multinomial has no dbarts.h creation path at all; it is reached only by
 the R-internal `.Call` entries `C_dbarts_bartcore_createMultinomial` /
-`...Counts` (bartcore.R:829, 892).
+`...Counts` (bartcore.R:843, 906).
 
 [f5] A `Surv()` response passed to `bart()` auto-dispatches through `dbarts()`
 and nothing refuses it (bart.R:2398), but man/bart.Rd:151 does not document it.
@@ -267,8 +281,8 @@ the separate bartcore handle `$bc` (bart.R:1258, 1336). Every R5 mutator is
 refused by `refuseHostMutation` (dbarts.R:816-829). At the handle level:
 `setResponse` R RIB:2669 and `setOffset` R RIB:2666 (both redirect to the counts
 channel), `setWeights` R RIB:2676, `setSigma` R RIB:2798, `setTestOffset` R
-RIB:2440 (a flat offset leaves the simplex), `setPredictor` S RIB:4875,
-`setTestPredictor` S RIB:4570. Its own channels - `setCounts` RIB:3646,
+RIB:2440 (a flat offset leaves the simplex), `setPredictor` S RIB:4886,
+`setTestPredictor` S RIB:4581. Its own channels - `setCounts` RIB:3646,
 `setCategoryOffset` RIB:3724, `setCategoryTestOffset` RIB:3763 - are S at the
 bridge but unexported (`dbarts:::`) and absent from the R5 object.
 
@@ -278,7 +292,7 @@ fits - an occupancy probit (bart.R:1990) and a lognormal positive part
 (bart.R:1999) - glued at report time. The channel questions resolve on the
 probit and gaussian rows of the two components.
 
-[f13] Grouped samplers fix the response at creation (RIB:4476). The engine
+[f13] Grouped samplers fix the response at creation (RIB:4487). The engine
 method exists and delegates faithfully (MOD:4760), so this is an unbuilt door,
 not a model refusal - but it errors, so callers see a refusal.
 
@@ -294,7 +308,7 @@ change); **S1** the channel plus gaussian, Student-t, probit, ordinal; **S2**
 logistic, nbinom, aft; **S3** multinomial (global only); **S4** surface,
 records, baselines. S0 landed at dc11a805 (the pins, now
 inst/tinytest/test-active-rows-pins.R). S1 landed at 6db22aee: the engine
-channel - `Chain::setActiveRows` CH:1461, which owns the single validating and
+channel - `Chain::setActiveRows` CH:1515, which owns the single validating and
 normalizing scan, `Sampler` SAM:1216, the facade's pure virtual FAC:309 and its
 shape probe FAC:93 - plus gaussian, Student-t, probit and ordinal, the R5
 `$setActiveRows` (dbarts.R:1164) and the bridge entry (RIB:3882). S2 landed at
@@ -326,12 +340,12 @@ independence arm of its own beside the kernel-level coverage. S3 landed at
 rather than the response, which holds no precisions of its own -
 `MultinomialResponse::setActiveRows` (MOD:3724) is a pass-through that only
 advertises the capability (MOD:3723), and `Chain::setActiveRows` forwards the
-mask to `MultinomialForestCombiner::setActiveRows` (COM:1612) after the
-response's own install (`ForestCombiner::setActiveRows` COM:682 is the inert
+mask to `MultinomialForestCombiner::setActiveRows` (COM:1621) after the
+response's own install (`ForestCombiner::setActiveRows` COM:691 is the inert
 default every additive coupling relies on instead). An inactive row's K
 interleaved Polya-Gamma draws are SKIPPED, not drawn and discarded, in
-`drawForestGlue` (COM:1683), and its composed precision is zeroed in every
-category in `formForestResponse` (COM:1740-1741); the row keeps its leaf
+`drawForestGlue` (COM:1692), and its composed precision is zeroed in every
+category in `formForestResponse` (COM:1749-1750); the row keeps its leaf
 occupancy and its reported softmax probabilities, and omega is never zeroed
 since the working response divides by it. PER-FOREST masking is refused
 permanently on model grounds at the only reachable per-forest,
@@ -356,12 +370,12 @@ still reporting a simplex) and the `setForestWeights` model-grounds refusal
 two new equivalence.R scenarios (maskprobit, maskordinal) and one
 bcf-equivalence.R scenario (masked, pinning BCF - see [f26]). The
 flat-C entry, `dbarts_sampler_setActiveRows`, LANDED at dbarts-h-reshape
-S1 (ab3aa2fa, 2026-08-13; body `C_interface.cpp:890-899`): the
+S1 (ab3aa2fa, 2026-08-13; body `C_interface.cpp:902-911`): the
 capability probe on `shape.supportsActiveRows` runs first and never
 switches on family, so a probit sampler is reachable from C too - an
 amend over this section's own proposed probit refusal, since every
 `ResponseModel` subclass now reports `supportsActiveRows`
-(`inst/tinytest/test-capi.R:991-1030` pins a genuine mask, an all-ones
+(`inst/tinytest/test-capi.R:1034-1073` pins a genuine mask, an all-ones
 no-op, a fractional refusal, a NULL clear, and a probit mask moving
 draws). ARC FULLY COMPLETE, R and flat C alike.
 
@@ -375,29 +389,29 @@ d809b944 (+ a records correction, 7da36dc3); **S3** the flat-C half, LANDED
 inside dbarts-h-reshape S1 (ab3aa2fa). The R surface was already COMPLETE:
 `$getCalibration`/`$setCalibration` read and write every chain of any
 single-forest sampler, with a 1-based `forest` arg (`resolveForestIndex`,
-bartcore.R:1099) mapped onto the engine's 0-based one. S1 names the model's
+bartcore.R:1115) mapped onto the engine's 0-based one. S1 names the model's
 `prior.scale` slot (A_class.R:398), resolved from `node.prior`'s `scale =` /
 `sd =` spelling at `dbartsSpec()` (spec.R:298, `resolvePriorScale` in
 R/model.R), and converted against the response transform by a private
-`Chain::resolvedNodeScale` helper (CH:3555) shared by the single-forest
+`Chain::resolvedNodeScale` helper (CH:3613) shared by the single-forest
 constructor and every `setModel` reinstall, so a round trip through the model
 SEXP no longer reverts a named calibration. S2 adds the reader,
-`Chain::forestCalibration` (CH:1073) - the AUTHORITATIVE report of what is in
+`Chain::forestCalibration` (CH:1113) - the AUTHORITATIVE report of what is in
 force, independent of the model's recorded intent, so a `setResponse` /
 `setOffset` at `updateScale = TRUE` or a `setData` shows up as a move rather
-than staying silent - and the writer, `Chain::setForestPriorScale` (CH:1101),
-sharing one `priorScaleFactor` conversion (CH:3565) with the reader so neither
+than staying silent - and the writer, `Chain::setForestPriorScale` (CH:1155),
+sharing one `priorScaleFactor` conversion (CH:3623) with the reader so neither
 direction can drift from the other; both are total over the four leaf models
 and carry no family switch (facade FAC:295, 302; `Sampler` SAM:1194, 1203; R5
 `dbartsSampler$getCalibration`/`$setCalibration` dbarts.R:1468, 1473; bridge
-`bartcore_getCalibration`/`bartcore_setCalibration` RIB:3983, 4030). Refused
+`bartcore_getCalibration`/`bartcore_setCalibration` RIB:3983, 4041). Refused
 under a `k` hyperprior (the `sd` spelling only, since a sampled `k` has no
 single value to divide by, or once the chains' `k` have diverged) and for
 BCF/multinomial forests at creation and again mid-chain (see [f23]);
 `prior.mean` is refused as not writable, naming the `setOffset` recipe. `NaN`
 is refused as a malformed value rather than read as the unnamed spelling, both
-at creation (R/model.R:1267) and mid-chain (`validateLiveScale`,
-R/model.R:1276). Shipped tests: inst/tinytest/test-calibration-creation.R (two
+at creation (R/model.R:1332) and mid-chain (`validateLiveScale`,
+R/model.R:1341). Shipped tests: inst/tinytest/test-calibration-creation.R (two
 composed probit arms at construction ranges 16x apart agree to 1e-12 under a
 shared name, against 8.6 and 2.5 unnamed), inst/tinytest/test-calibration-prior-draws.R
 (what the named quantity means per leaf model - exact for the constant leaf,
@@ -418,7 +432,7 @@ tests/cpp/test_sampler.cpp:5893). **S3**, the flat C entries
 2026-08-13) - the R-user-facing capability above was already `S` before S3,
 since the flat-C gap never gated a `dbartsSampler` caller; S3 closes the
 flat-C gap itself, with the two carried items from S2 shipping alongside:
-the engine bounds check on `Chain::forestCalibration` (`chain.hpp:1078`,
+the engine bounds check on `Chain::forestCalibration` (`chain.hpp:1118`,
 returning a default-constructed calibration rather than reading past the
 last forest) and the `refuseBCFMutation` reorder in `$setCalibration`
 (`dbarts.R:1481-1501`, argument validation before the BCF refusal).
@@ -442,7 +456,7 @@ whose five buffers are left untouched), and `tests/cpp`
 `testBCFCalibrationMap`.
 
 [f17] Zero weights are accepted, not refused (A_class.R:578-582 errors only
-below zero and warns that zeros are ignored; bridge RIB:4724). The conditionals
+below zero and warns that zeros are ignored; bridge RIB:4735). The conditionals
 are exact - leaf suffstats multiply by `w` (MOD:314, 1175), and the sigma
 posterior counts only positive-weight rows (`numPositiveWeights_` MOD:2782,
 recounted on every install at MOD:2972, consumed MOD:2796-2800). The one named
@@ -461,10 +475,10 @@ creation, so the cell is family-dependent ([f48]).
 
 [f18] For gaussian and heteroscedastic no latent vector exists: both leave
 `ResponseModel::latents()` at its nullptr default (MOD:2689), and the bridge
-returns `R_NilValue` (RIB:5767). A K-forest sampler is no longer one of them.
-`Chain::latents()` (CH:1509) is a bare delegation to `response_->latents()`
+returns `R_NilValue` (RIB:5778). A K-forest sampler is no longer one of them.
+`Chain::latents()` (CH:1563) is a bare delegation to `response_->latents()`
 carrying no coupling gate and no family switch, and `bartcore_getLatents`
-(RIB:5765) gates only on that pointer being null, so since M4.4 a probit
+(RIB:5776) gates only on that pointer being null, so since M4.4 a probit
 K-forest reports its truncated normals (`ProbitResponse::latents` MOD:3129) and
 a logistic one its Polya-Gamma omegas (`LogisticResponse::latents` MOD:3603). A
 GAUSSIAN K-forest still reports none, which is why this cell is
@@ -488,11 +502,11 @@ rather than the response, which holds no precisions of its own to compose a
 mask into: `MultinomialResponse::setActiveRows` (MOD:3724) is a pass-through
 that only advertises the capability (`supportsActiveRows` MOD:3723), and
 `Chain::setActiveRows` forwards the mask to
-`MultinomialForestCombiner::setActiveRows` (COM:1612) after the response's own
+`MultinomialForestCombiner::setActiveRows` (COM:1621) after the response's own
 install. An inactive row's K interleaved Polya-Gamma draws are SKIPPED rather
-than drawn and discarded, in `drawForestGlue` (COM:1683), and its composed
+than drawn and discarded, in `drawForestGlue` (COM:1692), and its composed
 precision is zeroed in every category in `formForestResponse`
-(COM:1740-1741); the row keeps its leaf occupancy and its reported softmax
+(COM:1749-1750); the row keeps its leaf occupancy and its reported softmax
 probabilities, and omega is never zeroed since the working response divides
 by it. PER-FOREST masking stays REFUSED, permanently and on model grounds:
 the softmax margin is a log-sum-exp over the other K-1 forests, so a row
@@ -513,7 +527,7 @@ likelihood (see [f26]).
 CREATION and MID-CHAIN, by design - their per-forest leaf scales come from a
 calibration map that owns them (map at COM:263-288), so a named value has
 nowhere to land. Three creation-time refusal sites shipped at c2a7e89b: R-side
-`dbartsSpec()`'s BCF composition (spec.R:469, the `"a named 'prior.scale'"`
+`dbartsSpec()`'s BCF composition (spec.R:499, the `"a named 'prior.scale'"`
 entry of the `unsupported` vector; the earlier `spec.R:440` named the
 non-default-`k` entry instead), the engine's own
 BCF-composition gate (`refuseUnsupportedBCFComposition`, RIB:2359), and the
@@ -521,13 +535,13 @@ multinomial forest builder (`buildMultinomialSampler`, RIB:3168). S2
 (d809b944) adds the mid-chain refusals, at TWO independent sites rather than
 one shared gate: `$setCalibration`'s R5 method refuses BCF through
 `refuseBCFMutation` (dbarts.R:1496, MEASURED "two-forest calibration map",
-test-calibration-midchain.R:346-349) before ever reaching the bridge, and
+test-calibration-midchain.R:398-401) before ever reaching the bridge, and
 refuses a multinomial fit's host shell through `refuseHostMutation`
 (dbarts.R:1481, MEASURED "host sampler of a bart2", line 380-383); underneath
 both, the engine-level gate any DIRECT low-level call still hits -
 `Chain::setForestPriorScale` returning false whenever `combiner_ != nullptr`
-(CH:1101), surfaced as `Rf_error(...calibrationMapName...)` at the bridge
-(RIB:4041) - is what the unexported `dbarts:::bartcoreSetForestPriorScale`
+(CH:1155), surfaced as `Rf_error(...calibrationMapName...)` at the bridge
+(RIB:4052) - is what the unexported `dbarts:::bartcoreSetForestPriorScale`
 hits on a multinomial forest's low-level handle (MEASURED "softmax calibration
 map", line 361-364); the R5 layer never routes a BCF sampler there since
 `refuseBCFMutation` refuses first, so only the multinomial arm exercises the
@@ -543,10 +557,10 @@ gaussian) supports `extract(type = "loglik")` on its own.
 [f26] SHIPPED, pinned bitwise at mask S4 (93afd635). Nothing on the path gates
 on the coupling: the shape probe (FAC:93) reports `supportsActiveRows`, the
 mask composes into whatever precision the installed response owns, and then
-into the per-forest weights at `composeForestWeights` (CH:1280). M4.4
+into the per-forest weights at `composeForestWeights` (CH:1334). M4.4
 falsified the reason this footnote used to give - "a BCF sampler's response IS
 a `GaussianResponse`" - without touching the conclusion: the K-forest chain now
-builds a `ProbitResponse` or a `LogisticResponse` too (CH:710), and each
+builds a `ProbitResponse` or a `LogisticResponse` too (CH:728), and each
 overrides `setActiveRows` on its own terms (MOD:3093, MOD:3562) exactly as it
 does off a coupling, so [f15]'s S1 and S2 arms carry the latent K-forest with
 no edit of their own. Gaussian's composition into the case weights, which is
@@ -561,14 +575,14 @@ refused. PINNED at mask S4: `inst/tinytest/test-active-rows-pins.R:84-112`
 `bcf-equivalence.R` `masked` scenario, recorded in
 `bcf-equivalence-8b047f8b.rds`. A per-forest mask is refused as REDUNDANT rather
 than unbuilt: `setForestWeights` (RIB:3832) already expresses it - though note
-that channel is deliberately NOT row removal (CH:1030-1058: it does not remove
+that channel is deliberately NOT row removal (CH:1070-1098: it does not remove
 the row from occupancy, the combination or the sigma df; it DOES reach that
 forest's empty-leaf veto, which counts positive composed weights). It is now a
 PUBLIC R5 method, `dbartsSampler$setForestWeights` (dbarts.R:1187, landed
 multiforest-extension-surface M1, 05ac3b4b), 1-based via `resolveForestIndex`
 (a BCF basis forest is `2L`) and mirrored across re-creation on a
 `forestWeights` field re-applied at `getPointer`, `setState` and `copy`
-(dbarts.R:1539); the unexported `bartcoreSetForestWeights` (bartcore.R:1039)
+(dbarts.R:1539); the unexported `bartcoreSetForestWeights` (bartcore.R:1053)
 stays the 0-based internal wrapper the R5 method does not call.
 
 [f27] Delegating / decorating, and that is what 6db22aee landed for the
@@ -578,8 +592,8 @@ forwards `setActiveRows` to its base (MOD:4796) exactly as it forwards
 `drawGroupEffects` already weights its per-group sums by `workingWeights()`
 (MOD:4721), so an inactive row leaves its group's mean and precision and an
 all-inactive group falls back to its prior through the same formula. The
-heteroscedastic `formMeanWeights` (CH:3750-3757) reads
-`response_->workingWeights()` at CH:3753 - the COMPOSED `w * a` while a mask is
+heteroscedastic `formMeanWeights` (CH:3838-3845) reads
+`response_->workingWeights()` at CH:3841 - the COMPOSED `w * a` while a mask is
 installed - and divides by `s^2(x_i)`, so a zero stays a zero. Both are
 PINNED: grouped at tests/cpp/test_sampler.cpp:1703 (an entirely inactive group
 draws its effect from the prior, finite), heteroscedastic at
@@ -590,8 +604,8 @@ against a composed-weight sampler (test_sampler.cpp:1705-1708); heteroscedastic
 likewise for train and varcount (test-active-rows-pins.R:265-266). The same
 delegation carries BOTH halves of the
 nameable-calibration column for grouped: `GroupedResponse::fitScale()`/`fitShift()`
-forward to their base (MOD:4827), so `Chain::resolvedNodeScale` (CH:3555) at
-creation and `Chain::forestCalibration`/`setForestPriorScale` (CH:1073, 1101)
+forward to their base (MOD:4827), so `Chain::resolvedNodeScale` (CH:3613) at
+creation and `Chain::forestCalibration`/`setForestPriorScale` (CH:1113, 1155)
 mid-chain all convert a named `prior.scale` exactly as they do for the
 undecorated family, with no edit of grouped's own. Creation-time, grouped is
 one of the nine family/decoration paths c2a7e89b's own test measures
@@ -608,15 +622,15 @@ Same standing as [f19]: no guard, no doc, unadjudicated.
 [f29] The variance forest is a separate leaf model entirely, outside
 `forests_`, and is not addressable by the mid-chain `setCalibration`: a
 SHIPPED door (nameable-calibration synthesis 2.6 item 7), not an open one -
-`Chain::setForestPriorScale`'s bounds check `f >= forests_.size()` (CH:1101)
+`Chain::setForestPriorScale`'s bounds check `f >= forests_.size()` (CH:1155)
 never sees the variance forest, so a heteroscedastic sampler's
 `shape.numForests` is 1 and `forest = 2` is refused by the ORDINARY
 out-of-range check every single-forest sampler hits (`bartcore_getCalibration`
-RIB:3987, `bartcore_setCalibration` RIB:4035), not by a hetero-specific gate.
+RIB:3987, `bartcore_setCalibration` RIB:4046), not by a hetero-specific gate.
 The MEAN forest's own calibration - both halves - is not gated by that door:
-`Chain::resolvedNodeScale` (CH:3555) runs at forest.leaf.scale assignment
-(CH:588-590) before the variance-forest branch (CH:679), and the mid-chain
-reader/writer (`forestCalibration`/`setForestPriorScale`, CH:1073, 1101) read
+`Chain::resolvedNodeScale` (CH:3613) runs at forest.leaf.scale assignment
+(CH:606-608) before the variance-forest branch (CH:697), and the mid-chain
+reader/writer (`forestCalibration`/`setForestPriorScale`, CH:1113, 1155) read
 the same `response_->fitScale()`/`fitShift()` - none of the three reads any
 family flag. Creation-time it is now PINNED rather than merely constructing:
 7da36dc3 added a heteroscedastic arm, the tenth of
@@ -634,7 +648,7 @@ heteroscedastic arm of its own beyond that shared mechanism and the
 refuses a variance forest only for a non-gaussian family or monotone
 constraints, and a Student-t or grouped sampler still reports family
 `gaussian`, so `resid.dist = student()` + `variance =` and grouped + `variance =`
-both build (CH:581 decorates before CH:679 builds the variance forest). Whether
+both build (CH:599 decorates before CH:697 builds the variance forest). Whether
 two scale mixtures on the same precision channel is a model anyone wants is not
 adjudicated anywhere.
 
@@ -648,10 +662,10 @@ one site, RIB:2905, on the single-forest holder path, so `bartcore.groups` is
 never read for a multinomial sampler.
 
 [f33] DEFECT, not a refusal. `buildMultinomialForest` hard-sets
-`forest.useDart = false` (CH:4738) while `bart2Multinomial` accepts and threads
+`forest.useDart = false` (CH:4826) while `bart2Multinomial` accepts and threads
 `dart` through (bart.R:1219, 1235) and `buildMultinomialSampler` (RIB:3153-3195)
-refuses nothing - unlike BCF, which names the option it drops (spec.R:451,
-`buildBCFForest` CH:4673). A user passing `dart = TRUE` gets a non-DART model silently.
+refuses nothing - unlike BCF, which names the option it drops (spec.R:481,
+`buildBCFForest` CH:4761). A user passing `dart = TRUE` gets a non-DART model silently.
 multinomial.md does not mention DART.
 
 [f34] `bart2Hurdle` builds both component calls with `redirectCall`
@@ -666,7 +680,7 @@ which is an ordinary single-forest chain that takes it.
 
 [f36] No family gate: `installForests` checks shape, grid, DART and
 variance-forest presence only (SAM:690-740), matching donor forest counts at
-SAM:722, and `growForestFromRoot` loops every forest (CH:1724, the loop; the
+SAM:722, and `growForestFromRoot` loops every forest (CH:1778, the loop; the
 earlier CH:1589 named the variance-forest pre-step above it). Neither is
 exercised by a BCF test, and BCF has no `bart2()` surface, so both are reached
 only through the R5 `$installTrees` (dbarts.R:1612) / `$growFromRoot`
@@ -678,7 +692,7 @@ underlying R5 sampler carries no group gate on either path, so this is a surface
 gap, not an engine one.
 
 [f38] The MEAN forest keeps DART; the variance forest never takes it
-(`buildVarianceForest` CH:3714 never sets `useDart`, default false at CH:125).
+(`buildVarianceForest` CH:3802 never sets `useDart`, default false at CH:125).
 
 [f39] Current baselines: `equivalence-8b047f8b.rds` (37 scenarios),
 `bcf-equivalence-8b047f8b.rds` (12), `multinomial-equivalence-1027be5.rds` (10)
@@ -728,16 +742,16 @@ docs/plans/runsbcbcf-repair.md).
 [f48] The K-forest coupling's family reach, landed at
 multiforest-extension-surface M4.4 (625794fd). gaussian, probit and logistic
 build; aft, ordinal and nbinom are refused at all three creation routes, each
-naming what it is missing (spec.R:419-441, `refusedBCFFamilyReason` RIB:2294,
+naming what it is missing (spec.R:449-471, `refusedBCFFamilyReason` RIB:2294,
 `createBCFSampler` FAC:792-795 - the last sitting directly beside the
 variance-forest door FAC:787, which is unchanged and family-independent). The
-calibration map's anchor is now family-keyed, `latentScaleAnchor` (CH:4572):
+calibration map's anchor is now family-keyed, `latentScaleAnchor` (CH:4660):
 sd(y) under gaussian, 1 under probit, pi/sqrt(3) under logistic, and stated per
-unit of basis row norm (`basisRowNorm` CH:4601). Cell by cell in section 2:
+unit of basis row norm (`basisRowNorm` CH:4689). Cell by cell in section 2:
 `setResponse`/`setOffset` are OPEN under every family, because
-`Chain::setResponse` (CH:1489) now hands the response `combinedFits()` rather
+`Chain::setResponse` (CH:1543) now hands the response `combinedFits()` rather
 than forest 0's bare totals, which is what let the gaussian conjunct come off
-`Chain::supportsResponseMutation` (CH:955); the combiner's own opt-in (COM:994)
+`Chain::supportsResponseMutation` (CH:995); the combiner's own opt-in (COM:1003)
 is unchanged. `setWeights` and `setSigma` are REFUSED for probit and logistic
 and open only for gaussian, through the ORDINARY single-forest guards now that
 the sampler answers `shape.family` for itself (`refuseBinaryWeightChange`
@@ -751,7 +765,7 @@ carrying bases, never on the family, and the bridge's
 `refuseMultiForestResponseMutation` (RIB:2648) keys on `numForests >= 2`, so a
 probit K-forest is refused too, though its transform is the identity and the
 re-anchoring the refusal guards against cannot occur. PINNED, with the open
-conduit and both refusals above, at inst/tinytest/test-bcf-family.R:221-237.
+conduit and both refusals above, at inst/tinytest/test-bcf-family.R:406-422.
 That file is the whole of the latent K-forest's evidence: no equivalence
 scenario and no SBC arm reaches one.
 
@@ -826,7 +840,7 @@ no equivalence scenario, no SBC arm and no measured active-rows mask ([f48],
 **grouped.** `rbart_vi()`-only surface ([f8]): no `bart2()`, `dbarts()`,
 `xbart()` or `dbartsSpec()` reach, and no `warm.start` / `n.grow.sweeps` formals
 ([f37]) though the engine paths carry no group gate. `setResponse` is an unbuilt
-door (RIB:4476). Composition with a variance forest constructs unrefused and
+door (RIB:4487). Composition with a variance forest constructs unrefused and
 untested ([f30]).
 
 **heteroscedastic.** No `xbart()` reach. Pointwise loglik ignores the
