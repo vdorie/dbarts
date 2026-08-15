@@ -4,7 +4,7 @@ pkgdown_sha: ~
 articles:
   gibbs_sampler_mixture_model: gibbs_sampler_mixture_model.html
   working_with_saved_trees: working_with_saved_trees.html
-last_built: 2026-08-15T03:07Z
+last_built: 2026-08-15T06:07Z
 urls:
   reference: https://vdorie.github.io/dbarts/reference
   article: https://vdorie.github.io/dbarts/articles
