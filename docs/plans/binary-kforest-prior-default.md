@@ -1,9 +1,9 @@
 # binary-kforest-prior-default
 
-Status: SPECCED 2026-08-15, two blind critique rounds discharged (0 BLOCKER,
-  6 MAJOR, 13 MINOR, all adopted; see "Critique adjudication"). Owner forks 1
-  and 2 SETTLED by VD 2026-08-15 (see "Decisions"). S0, S1, S2 all PENDING;
-  nothing has landed. Design evidence is GIT-IGNORED session material under
+Status: IN FLIGHT. Specced 2026-08-15, two blind critique rounds discharged
+  (0 BLOCKER, 6 MAJOR, 13 MINOR, all adopted; see "Critique adjudication").
+  Owner forks 1 and 2 SETTLED by VD 2026-08-15 (see "Decisions"). S0 LANDED
+  4dbf2dbc; S1, S2 pending. Design evidence is GIT-IGNORED session material under
   `.claude/binary-kforest-prior/` (the verified census, and both critique
   rounds), cited the way M4's plan cites `.claude/m4-basis-design/`; every
   load-bearing number is carried HERE rather than pointed at, since this file
@@ -1581,3 +1581,43 @@ that count came from. Neither is pinned by a fixture, so nothing goes red.
 right.
 
 **FROZEN.** No further self-initiated edits to this document.
+
+## Landing note, S0 (appended 2026-08-15)
+
+LANDED as 4dbf2dbc, tests only, four files: test-bcf-family.R cell (d)
+(the product at a declared forest(sd =) under BOTH latent families),
+test-forest-basis-r5.R (the same fixture across a setForestBasis swap -
+the sole assertion that sees a stored factor lost on an install),
+test-bcf-creation.R (ragged transport under a latent family), and
+tests/cpp testBCFCalibrationMap (K = 3, nine all-distinct non-unit
+values, plus the row-norm convention arms), the first calibration-map
+coverage tests/cpp has carried. Budget ~161 dense-equivalent against
+the 120-190 band.
+
+Battery on the slice's own private lib: preclean install clean;
+tests/cpp all ok from make clean and again under ASAN+UBSAN
+(detect_container_overflow=0); full tinytest 4740 results 0 failures;
+equivalence trio BITWISE on all three baselines (equivalence-8b047f8b
+37/37, bcf-equivalence-8b047f8b 12/12, multinomial-equivalence-1027be5
+10/10 - no max-|z| line anywhere); air and lintr clean on the three
+touched R files; R CMD check --as-cran from a clean staged tarball
+Status OK 0/0/0. Independently re-verified by the orchestrator:
+tests/cpp re-run from make clean, diff-vs-plan review, oracle
+arithmetic re-derived by hand.
+
+Mutation proof (fresh mutated preclean install per arm; every arm run):
+factor dropped, factor misattributed, divisor dropped, row norm
+dropped, row norm misattributed, anchor dropped, stored-factor-lost-
+on-swap - each moved its named assertions; the anchor arm moved the
+LOGISTIC pins only, probit blind exactly as the plan states; the swap
+arm moved only the new r5 assertion. Nothing stayed green under its
+own falsifier.
+
+Deviations, both recorded: (a) the plan's logistic oracle for the
+tests/cpp third forest reads 2.116266; the correct value is 2.1160993
+(1.75/(0.25*6) * pi/sqrt(3)). The shipped test asserts the EXPRESSION,
+so no test value depends on the slip; the plan body stays frozen and
+this note is the correction of record. (b) Test-design cells 3 and 4
+ship as one testBCFCalibrationMap with two arms, and the row-norm
+convention arm runs under both families rather than probit alone -
+strictly more coverage, ~10 fewer lines.
