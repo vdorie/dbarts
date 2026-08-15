@@ -191,7 +191,7 @@ Accelerated failure time survival curves.
 
 ## Diagnostics
 
-Convergence summaries and posterior draw extraction.
+Convergence summaries, and calibration of a sampler composed around one.
 
 - [`summary(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   [`summary(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
@@ -201,6 +201,8 @@ Convergence summaries and posterior draw extraction.
   [`as_draws_df(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   [`as_draws_df(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
   : Convergence Diagnostics and Posterior-Package Draws for BART Fits
+- [`dbartsValidateComposition()`](https://vdorie.github.io/dbarts/reference/dbartsValidateComposition.md)
+  : Validate A Composed Sampler By Simulation-Based Calibration
 
 ## Utilities
 

@@ -71,7 +71,7 @@ sampler <- dbarts(y ~ x + g, df, control = dbartsControl(
   n.chains = 1L, n.threads = 1L, updateState = FALSE))
 predictors <- extract(sampler, "predictors")
 str(predictors)
-#>  num [1:50, 1:2] 0.1009 0.7313 0.9683 0.7249 0.0321 ...
+#>  num [1:50, 1:2] 0.2634 0.0624 0.0355 0.6437 0.433 ...
 #>  - attr(*, "dimnames")=List of 2
 #>   ..$ : NULL
 #>   ..$ : chr [1:2] "x" "g"
