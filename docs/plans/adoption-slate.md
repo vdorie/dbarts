@@ -1498,3 +1498,92 @@ Landed: 890efd3d, pushed 2026-08-15. Independent gate-runner CONFIRM
 (pre-amend tree; all nine gates, audits A-D including the budget audit
 above). No feature-matrix cell bears on the helpers; none updated. The
 arc-end scoped anchor refresh stays owed.
+
+## Landing note, S5 (appended 2026-08-15)
+
+R-ONLY, stated plainly: the commit touches NAMESPACE, `_pkgdown.yml`,
+`inst/NEWS.Rd` and three new files (`R/validateComposition.R`,
+`inst/tinytest/test-validate-composition.R`,
+`man/dbartsValidateComposition.Rd`); `src/` is absent from the diff, so the
+engine binary is e650ab8c's - the 33f6fdc precedent the MANIFEST records.
+
+The five properties, each verified in code by the independent gate-runner
+with line citations: (1) the ranked quantity is
+`functionals(init(theta0, simulate(theta0)))`, theta0 passed opaquely and
+never name-indexed; (2) `compositionFunctionals` errors on a length or name
+disagreement, checked at "at init" AND "after a step" against the FIRST
+replication's reference - later replications' inits are checked too, a
+strengthening over the letter that catches a host whose init is stochastic
+in shape; (3) `sbcDiscreteRank` ported and applied to every functional's
+rank; (4) the `withFixedSeed` guard restores `.Random.seed` via `on.exit`
+(error paths included) and REMOVES the seed it itself created when the
+caller had none; (5) Bonferroni over this call's functional count. The
+returned `dbartsCompositionValidation` carries the rank matrix, L, the
+verdicts frame and both alphas, with a registered S3 print method.
+
+**The spec's mutation-3 prediction was WRONG, and the correction is the
+note's headline**: the band is `quantile(nullMax, 1 - alpha)` compared as
+`observed <= band`, and `nullMax` - a max-absolute-ecdf-difference at
+R = L = 200 - is bounded near 0.15-0.2 under the null, so NO quantile of
+it, either tail, can reach the known-bad cell's 0.53 statistic. Taking the
+wrong tail SHRINKS the band and reddens the calibrated cells instead. Both
+directions are gated regardless: M3 as specced (wrong tail: 10 RED on
+known-good/derived/many-functional) plus M3b, added at implementation (band
+inflated 5x: 4 RED, three on the OVER-DISPERSED cell at 0.184 - the cell
+actually sensitive to a loose band; known-bad at 0.53 is out of reach of
+any null-shaped band). The gate-runner checked the algebra against sbc.R's
+identical band formula, confirmed the prediction unreachable, noted the one
+alternate reading (max -> min in the OBSERVED statistic) is a different bug
+locus than "quantile tail", and recommended accepting M3b as the intent
+realized. The tool-verified-claims discipline catches a third plan-stated
+behavioural prediction this arc (after S3's M1-b and S2's mutation-4
+wording).
+
+Other mutations, each built to its own lib, run, reverted, revert
+re-verified 55/55: (1) `<=` for `<` in the rank - 3 RED on the derived/atom
+cell including the mandated mean-rank-vs-L/2 assertion, which also reddens
+alone; (2) Bonferroni dropped - 4 RED, the many-functional cell only;
+(4) name-intersection against drawPrior's return - the derived cell aborts
+on an NA rank while the plain cell reproduces the clean run exactly, which
+is the spec's point about derived functionals being unrankable by name;
+(5) `.Random.seed` restore removed - 2 RED, the seed cell only (both its
+halves: restore-when-present and remove-when-absent).
+
+Oracle cells as specced, on the analytic conjugate normal-normal step, no
+dbarts sampler in tinytest: known-good PASSES every functional; known-bad
+(posterior mean as draw) FLAGS with `ecdf.diff > band` asserted, not just
+"ran"; over-dispersed (2x posterior sd) FLAGS - both directions; the
+derived-functional, many-functional (M = 8), seed and validation-error
+cells complete the set. Cell parameters carry their spec-assigned owners:
+`n.thin = 1L`/`n.burn = 0L` justified in the TEST FILE (exact-posterior
+step, exact init), the 200/200 defaults justified in the Rd (approximate
+hosts). Timings, measured: every ordinary cell under 0.15 s, the
+many-functional cell 0.36 s, the FILE 1.1 s against its 45 s budget (1.2 s
+inside R CMD check); the n.replications = 100L fallback was never needed.
+
+Budget, raw additions against e650ab8c: non-test 452 (R 297, Rd 141, NEWS
+8, NAMESPACE 3, pkgdown 3) - over the 280-380 band, UNDER the 525 stop;
+tests 267 against ~200, under the 300 stop. The overshoot is the
+11-argument Rd (141 vs ~70) and air's vertical formatting of the driver's
+signature and validation ladder; compaction ran before the report
+(R 316 -> 297), nothing dropped to fit. No stop crossed, no adjudication
+owed; the gate-runner's cell audit still traced all 55 assertions to the
+mandated set with one structural extra (unnamed-functional labeling,
+traceable to the documented labeling behavior).
+
+Battery, twice, separate libs (implementer /tmp/s5-lib, gate-runner
+/tmp/s5-gate-lib): install; tests/cpp from `make clean` 244 ok (no-change
+verification); tinytest 5186 results, 0 failures (5131 at S4 + 55); trio
+BITWISE, no re-record (equivalence-8b047f8b 37/37, bcf-equivalence-8b047f8b
+12/12, multinomial-equivalence-1027be5 10/10); air clean; lintr 0 on both
+new R files; NEWS parses by the corrected invocation (235 entries);
+`pkgdown::check_pkgdown` no problems, the entry under Diagnostics;
+`R CMD check --as-cran` from a git-archive tarball staged outside the
+tree, Status OK, 0/0/0. No ASAN leg owed (R-only), and the blind-spot
+sentence - a drawPrior/simulate mutual inconsistency is undetectable -
+ships in the Rd as mandated.
+
+Landed: 37d9ec81, pushed 2026-08-15. Independent gate-runner CONFIRM (all
+nine gates, audits A-D, M3-deviation algebra checked and accepted). No
+feature-matrix cell bears on the validator; none updated. The arc-end
+scoped anchor refresh stays owed.

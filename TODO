@@ -46,7 +46,9 @@ items
     mutated, falsifier did not fire; landing note in the plan), S4
     LANDED 890efd3d 2026-08-15 (dbartsDrawLatents +
     dbartsWorkingResponse, six families' augmentation draws off R's
-    stream; landing note in the plan), S5 composition-validator, S6
+    stream; landing note in the plan), S5 LANDED 37d9ec81 2026-08-15
+    (dbartsValidateComposition, SBC over a host-supplied step, R-only;
+    landing note in the plan), S6
     named-recipes
     plus embedding-page, S7 residue (nbinom magnitude cap, hostFor on
     both remaining bart2 hosts, the flat setWeights guard), S8 the
@@ -153,15 +155,13 @@ items
     in docs/plans/cheap-uniformity.md). Sparse-valued mutation,
     per-column x.test update, and engine-resident sparse predict all
     open; the dbarts.h reshape mirrors this final surface.
-  composition-validator: SPECCED as slice S5 of adoption-slate
-    (docs/plans/adoption-slate.md). dbartsValidateComposition runs SBC
-    over a HOST-supplied one-sweep step, catching the measured
-    posterior-mean-as-draws defect class. The plan supersedes this
-    entry's ~350 lines, which assumed reuse of benchmarks/R/sbc.R that
-    does not survive the inversion: only rankUniformity and
-    sbcDiscreteRank port (with .Random.seed hygiene), because
-    everything upstream draws theta0 from the SAMPLER's own prior while
-    the validator's prior is the host's. SCHEDULED, pre-release.
+  composition-validator: LANDED 37d9ec81 2026-08-15 as adoption-slate
+    S5 (landing note in docs/plans/adoption-slate.md).
+    dbartsValidateComposition runs SBC over a HOST-supplied one-sweep
+    step, catching the measured posterior-mean-as-draws defect class;
+    only rankUniformity and sbcDiscreteRank ported from
+    benchmarks/R/sbc.R (with .Random.seed hygiene), the host owning
+    the prior. R-only, engine binary identical.
   correlated-outcomes: multivariate/SUR outcomes SHIPPED as mvbart()
     in stan4bart with zero dbarts code (docs/design/correlated-
     outcomes.md). Open: AR-1 / serially-correlated errors
