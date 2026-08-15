@@ -1715,3 +1715,137 @@ the 55 code lines it documents are irreducible given five fields, three
 vectors, a flag and two install-site helpers. The tests figure is the
 mandated falsifier set - F4, F5, F6 and F8's four arms - which the
 100-160 band predates in its costing.
+
+## Landing note, S2 (appended 2026-08-15)
+
+LANDED. Both defaults, M4.4's documentation debt in cap-not-pin form,
+and Fork 6c's K = 1 fix. R: defaultAmplitudePriorScale(family) beside
+defaultNodeScale, forestParams(specs, hasBasis, family) taking
+sqrt(2/length(specs)) on the withBasis branch and the family helper on
+the other, R/spec.R passing family at its one call site,
+bartcoreBCFSampler's sd.control defaulting NULL with the model's family
+resolved ABOVE bcfParams (m3's two traps both honored). Engine:
+BCFSpec::aPriorScale stays 2.0 and says why in its comment - a fixture
+default no consumer reaches, and expandForestSpecs stays a pure
+re-spelling. No C twin for the new helper, with the reason in its
+comment.
+
+ONE DEVIATION, and it is a correction to Fork 6's trace rather than a
+choice. The plan says the data route's K = 1 error is applyBCFSpec's
+"at least two per-forest parameter vectors"; re-traced by running it,
+`dbartsData(x, y, bases = list(b))` never reaches the bridge - the
+dbartsData S4 VALIDITY function refuses first with "'bases' must be null
+or name at least two forests" (R/A_class.R), which validateForestBases
+(the symbol the plan opened) does not carry. That floor also swallows
+the forests route once forestBasisDeclarations' floor drops, since
+dbarts() writes the declaration through dbartsData(bases = ), so the
+designed refusal would have been reachable from dbartsSpec ALONE - which
+assigns data@bases directly and so bypasses validity - and gate 11's
+"both creation routes" would have failed. The floor therefore relaxes to
+one forest (a container may carry one basis; the refusal is a modelling
+statement, not a well-formedness one), and both routes now reach the
+single designed refusal in resolveSamplerSpec. Mutation arm H pins that
+this is load-bearing rather than tidying. Nothing pinned the old message.
+The refusal names the RESOLVED count and its source, per R2-m4: "the
+data object carries 1" where the count rode the data object, "this
+call's 'basis' declarations resolve to 1" where a declaration replaced
+it - so the length-1-over-a-two-basis-object case is not told it wrote
+one basis. The K = 1 ticket is named in the code comment rather than in
+the message; an R error naming an internal ticket would be worse
+vocabulary than the two-forest spelling it points at instead.
+
+One design detail the plan does not state and m3's trap requires:
+defaultAmplitudePriorScale is TOTAL over the package's six-family
+vocabulary (gaussian and aft 2, the four latent-scale families 1),
+mirroring defaultNodeScale's own shape, rather than defined on the three
+the multi-forest path builds. It still ERRORS on an unknown family, as
+specced; but a helper defined on three would have fired BEFORE the
+bridge on bartcoreBCFSampler(host, z, family = "aft") and replaced
+"BCF does not support an AFT" - a deliberately placed backstop pin
+(test-bcf-family.R) - with a worse message from the wrong layer.
+
+DRAW LAW, verified by building both trees and comparing draws rather
+than by argument. BITWISE across S2: gaussian K = 2 through the public
+forests route (F2), the same through bartcoreBCFSampler (F2, internal),
+and latent fits DECLARING forest(sd = 2) basis-free plus forest(sd = 1)
+per basis forest at K = 2 probit, K = 3 probit and K = 3 logistic (F3 -
+the composability claim, that the law is a default and a caller who
+states the old values gets the old model). MOVED, as the two named
+classes: probit K = 2 default, logistic K = 2 default, gaussian K = 3
+default. Nothing else.
+
+Battery on the slice's own private lib: preclean install clean;
+tests/cpp all ok from make clean (242 ok lines, unchanged from S1 - the
+cpp fixtures declare their scales explicitly and none moved) and again
+under ASAN+UBSAN (detect_container_overflow=0), no diagnostic; full
+tinytest 4872 results 0 failures; equivalence trio BITWISE on all three
+baselines (equivalence-8b047f8b 37 compared / 0 skipped under
+--strict-coverage, every scenario "identical draws (same RNG stream)";
+bcf-equivalence-8b047f8b 12/12 "identical (all 7|8 channels)";
+multinomial-equivalence-1027be5 10/10 identical - no max-|z| line
+anywhere, and no baseline re-recorded in this arc); bcf-exact.R quick
+OK as a confirmation, not a re-validation; air format --check clean;
+lintr clean on all seven touched R files; R CMD check --as-cran from a
+clean staged tarball outside the tree Status OK 0/0/0; NEWS.Rd parses
+(229 entries); pkgdown::check_pkgdown no problems, no new Rd topic.
+
+ASSERTIONS MOVED, all three the plan predicts and no others - the full
+suite went from 4826 results to 4872 with exactly these red:
+(1) test-bcf-family.R cell (c), the induced-index law, probit arm:
+1.04912 * sqrt(K) * s -> 1.04912 * sqrt(2) * s, a CONSTANT, and the loop
+gains K = 4 ("What S2 adds on top", first bullet); the value was
+1.81712914 and is 1.48367953. (2) the same cell's logistic arm,
+3.29590768 -> 2.69109698. (3) test-forest-basis-r5.R, F8(d)'s donor arm:
+mapColumn(recipient, 1, "amplitude.prior.scale") 2 -> 1, that fixture
+being probit with an undeclared basis-free forest. Values RE-DERIVED
+from the law rather than regenerated from a run. Every other latent
+K = 2 fixture either declares its sd or asserts an identity.
+
+ADDED, per "What S2 adds on top": the K-invariance loop at K = 2, 3, 4
+(a fourth unit-norm basis joins); the default-transport pins in their
+own slots, with the MANDATORY gaussian arm and m1's reason in its
+comment (slot 7 is 2 there and 1 under both latent families, and a
+latent-only fixture cannot discriminate positions 4-8, which are then
+all the literal 1); the K-aware slot-4 pins on BOTH shapes at K = 2, 3,
+4, the shipped shape's being what refutes Fork 2d - K - 1 basis forests
+take sqrt(2/K), not sqrt(2/(K-1)); the declared-sd override at K = 3 on
+both shapes; the internal-route agreement, prior.scale AND amplitude
+prior scale, plus its gaussian arm at 2; and the K = 1 refusal by
+message on all three surfaces with the count's source discriminated.
+The scaledBases cell keeps its LOAD-BEARING comment untouched.
+
+Mutation proof, fresh mutated --preclean install per arm into a separate
+library, the tree byte-verified restored after each:
+(A) defaultAmplitudePriorScale not family-aware, 2 everywhere -> 6 moved
+(the shipped-shape reader pin under both families, both latent slot-7
+transport pins, the internal-route pin, and r5's donor arm);
+(B) the K law dropped, factor default back to the literal 1 -> 16 moved
+(both families' K-invariance loops, and every slot-4 pin);
+(C) the law applied to the BASIS-FREE forest too -> 7 moved (the slot-4
+pins' factors[1] == 1 arm, and the declared-shape pin);
+(D) normalized on the BASIS count Kb rather than K, i.e. Fork 2d -> 15
+moved across three files, including test-bcf-creation's K = 2 transport
+pins and r5's staleness cell;
+(E) forestBasisDeclarations' floor back at < 2L, restoring the silent
+drop -> 4 moved (the forests-route refusal, the declaration-over-data
+case, and the basis+sd message change);
+(F) the designed refusal in R/spec.R removed -> 6 moved, i.e. every
+K = 1 assertion on all three surfaces;
+(G) bartcoreBCFSampler back to the literal sd.control = 2 -> 2 moved
+(the internal-route agreement, both halves);
+(H) the dbartsData validity floor left at two forests -> 4 moved, which
+is what makes the deviation above load-bearing rather than tidying.
+No arm stayed green.
+
+Budget, both readings, as S1's note established. RAW NET added lines:
+R 115, engine 9 (a comment block and one declaration), docs 124, tests
+204. Under the standing WRITTEN convention (dense ~ raw/2): R 58 (band
+16-32, stop 46), docs 62 (60-110), tests 102 (75-135) - only R over.
+Counting added NON-COMMENT non-blank lines instead: R 46 (exactly the
+stop), docs 153, tests 139. R is the leg that runs long either way, and
+the cause is enumerable: 18 of the 46 are the designed refusal's own
+message body as air formats it, and 12 are the family helper's switch -
+both mandated shapes, and the "four lines" the agent line prices was the
+defaults alone. feature-matrix.md: CHECKED, no cell moves - a default is
+not a capability, and no footnote enumerates one (the S1 pass on [f16]
+covers what $getCalibration reports).

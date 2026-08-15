@@ -42,8 +42,10 @@ seededControl <- function(...) {
 ones <- matrix(1, n, 1L)
 zBasis <- cbind(1 - z, z)
 gBasis <- unname(model.matrix(~ g - 1L))
+hBasis <- unname(model.matrix(~ factor(x[, 1L] > 0.5) - 1L))
 unitBases2 <- list(ones, zBasis)
 unitBases3 <- list(ones, zBasis, gBasis)
+unitBases4 <- list(ones, zBasis, gBasis, hBasis)
 # and one cell whose rows are NOT unit norm, which is what pins the map's
 # per-unit-of-row-norm divisor rather than assuming it. LOAD-BEARING: delete
 # the 4 and the dropped-divisor mutation goes green (M4.4's landing note).
@@ -117,13 +119,20 @@ for (family in names(anchors)) {
   )
 
   # (c) THE INDUCED INDEX: sqrt(sum_f prior.scale_f^2 v_f ||B_f(i,.)||^2) at
-  # the default amplitude prior variance and unit row norms, which the map
-  # disperses as 1.04912 sqrt(K)
-  for (bases in list(unitBases2, unitBases3)) {
+  # the default amplitude prior variance and unit row norms. The map itself
+  # still disperses as 1.04912 sqrt(K) - it carries no per-K renormalization and
+  # this slice added none - but the DEFAULT node scale factor is now sqrt(2/K),
+  # whose product with that sqrt(K) is sqrt(2) at every count. So the assertion
+  # is a CONSTANT rather than a function of K, which is strictly stronger and is
+  # the design statement itself: the all-basis index prior is 1.4837 s whether
+  # the caller writes the same model as two forests or as four. Three counts,
+  # because the claim is invariance in K rather than a value at one K, and K = 2
+  # is the fixed point every shipped configuration sits on.
+  for (bases in list(unitBases2, unitBases3, unitBases4)) {
     scales <- priorScales(basisSampler(yBalanced, bases, family))
     expect_equal(
       sqrt(sum(scales^2 * 0.5)),
-      1.04912 * sqrt(length(bases)) * s,
+      1.04912 * sqrt(2) * s,
       tolerance = 1e-4
     )
   }
@@ -235,6 +244,11 @@ for (fit in list(probit, logistic)) {
     c(1, 1, 1)
   )
   expect_equal(unname(free["amplitude.prior.scale"]), fitParams[[1L]][7L])
+  # and the median that reaches it is the FAMILY's own default, one anchor unit
+  # rather than gaussian's two: under a pinned sigma nothing absorbs the
+  # difference, and at 1 the induced index prior sits on the shipped
+  # single-forest binary default's coverage rather than 1.6x outside it
+  expect_equal(unname(free["amplitude.prior.scale"]), 1)
   expect_true(is.nan(free["amplitude.prior.variance"]))
   expect_equal(unname(carried["amplitude.prior.variance"]), fitParams[[2L]][6L])
   expect_true(is.nan(carried["amplitude.prior.scale"]))
@@ -248,6 +262,96 @@ for (fit in list(probit, logistic)) {
   expect_equal(length(fit$getLatents()), n)
 }
 expect_equal(length(kForest(yContinuous)$getLatents()), 0L)
+
+# --- THE TWO DEFAULTS THEMSELVES, in their own transport slots. Everything
+# above reads them only after the calibration map has folded factor, anchor,
+# divisor and row norm into one number, so a confusion between the two channels
+# or between the families would have to survive as a coincidence of products.
+#
+# The GAUSSIAN arm is MANDATORY rather than decorative: under a latent family a
+# basis-free forest's vector is now c(50, 0.25, 3, 1, 1, 1, 1, 1) - positions 4
+# through 8 all the literal 1 - so a latent-only fixture cannot see a transport
+# confusion among those slots at all. Only gaussian, where slot 7 is 2,
+# discriminates position. That is the arc's own "unit values silently vacate
+# pins" hazard arriving through this slice's own new default. ---
+transportParams <- function(y, bases, family, ...) {
+  attr(
+    dbartsSpec(
+      dbartsData(x, y, bases = bases),
+      seededControl(),
+      family = family,
+      ...
+    )$control,
+    "bartcore.bcf"
+  )$params
+}
+paramSlot <- function(params, index) {
+  vapply(params, function(vector) vector[index], numeric(1L))
+}
+freeBases2 <- list(NULL, zBasis)
+freeBases3 <- list(NULL, zBasis, gBasis)
+freeBases4 <- list(NULL, zBasis, gBasis, hBasis)
+
+# slot 7, the basis-free channel's half-Cauchy median, is the FAMILY's: 2 where
+# the anchor is the response's own sd and sigma is DRAWN, 1 where the anchor is
+# the link's error sd and sigma is PINNED
+expect_equal(
+  paramSlot(transportParams(yContinuous, freeBases2, "gaussian"), 7L)[1L],
+  2
+)
+expect_equal(
+  paramSlot(transportParams(yBalanced, freeBases2, "probit"), 7L)[1L],
+  1
+)
+expect_equal(
+  paramSlot(transportParams(yBalanced, freeBases2, "logistic"), 7L)[1L],
+  1
+)
+
+# slot 4, the fixed-variance channel's node scale factor, is K-AWARE - 1,
+# 0.816497, 0.707107 at K = 2, 3, 4 - on the RESOLVED forest count and NOT on
+# the count of basis forests: the shipped shape's K - 1 basis forests take
+# sqrt(2/K), so a law normalized on the basis count would read 1 at K = 3 here
+# rather than 0.816497, and would move the all-basis K = 2 arm the Option L
+# anchor was argued on. The basis-free forest keeps the literal 1 in that slot -
+# the law touches the withBasis branch only, a Cauchy channel having no finite
+# variance to enter the budget with.
+for (family in c("gaussian", "probit", "logistic")) {
+  response <- if (family == "gaussian") yContinuous else yBalanced
+  for (bases in list(unitBases2, unitBases3, unitBases4)) {
+    expect_equal(
+      paramSlot(transportParams(response, bases, family), 4L),
+      rep(sqrt(2 / length(bases)), length(bases))
+    )
+  }
+  for (bases in list(freeBases2, freeBases3, freeBases4)) {
+    factors <- paramSlot(transportParams(response, bases, family), 4L)
+    expect_equal(factors[1L], 1)
+    expect_equal(
+      factors[-1L],
+      rep(sqrt(2 / length(bases)), length(bases) - 1L)
+    )
+  }
+}
+
+# a DECLARED sd keeps its per-forest reading at every K: the law is a DEFAULT
+# and not map algebra, so a caller who states the previous values gets the
+# previous model back, bitwise, at any count
+declaredAll <- transportParams(
+  yBalanced,
+  unitBases3,
+  "probit",
+  forests = list(forest(sd = 1), forest(sd = 1), forest(sd = 1))
+)
+expect_equal(paramSlot(declaredAll, 4L), rep(1, 3L))
+declaredShape <- transportParams(
+  yBalanced,
+  freeBases3,
+  "probit",
+  forests = list(forest(sd = 2), forest(sd = 1), forest(sd = 1))
+)
+expect_equal(paramSlot(declaredShape, 4L), c(1, 1, 1))
+expect_equal(paramSlot(declaredShape, 7L)[1L], 2)
 
 # --- the two adjacent guards that fire on the plainest binary two-forest call
 # unless they are keyed to the family. Both are silent above, which is what
@@ -394,34 +498,75 @@ expect_error(
   "BCF does not support an AFT"
 )
 
+# and it takes the same FAMILY-AWARE default the public route does, which is
+# what the creation oracle's draw-for-draw comparison needs: a route that
+# resolved sd.control to a literal would build a model the public surface
+# cannot express. Both halves - the map's own product and the half-Cauchy
+# median beside it - read off each route's own reader.
+internalRow <- dbarts:::bartcoreForestCalibration(internalProbit, 0L)[1L, ]
+expect_equal(unname(internalRow["amplitude.prior.scale"]), 1)
+expect_equal(
+  unname(internalRow[c("prior.scale", "amplitude.prior.scale")]),
+  unname(probit$getCalibration(1L)[
+    1L,
+    c("prior.scale", "amplitude.prior.scale")
+  ])
+)
+# gaussian keeps 2 on this route as on the public one, which is why the
+# gate harness (bcf-equivalence, gaussian throughout) re-records nothing
+internalGaussian <- dbarts:::bartcoreBCFSampler(
+  dbarts(x, yContinuous, control = seededControl()),
+  z
+)
+expect_equal(
+  unname(
+    dbarts:::bartcoreForestCalibration(internalGaussian, 0L)[
+      1L,
+      "amplitude.prior.scale"
+    ]
+  ),
+  2
+)
+
 rm(
   anchors,
   balanced,
   basisSampler,
   bases,
   counts,
+  declaredAll,
+  declaredShape,
   doorSpec,
   eta,
+  factors,
   family,
   fit,
   forestParams,
+  freeBases2,
+  freeBases3,
+  freeBases4,
   g,
   gBasis,
+  hBasis,
   host,
+  internalGaussian,
   internalLogistic,
   internalProbit,
+  internalRow,
   kForest,
   logistic,
   medianRowNorm,
   n,
   ones,
   p,
+  paramSlot,
   params,
   pinBases,
   pinScales,
   priorScales,
   probit,
   rare,
+  response,
   result,
   s,
   scaled,
@@ -429,9 +574,11 @@ rm(
   scales,
   seededControl,
   spec,
+  transportParams,
   twoForests,
   unitBases2,
   unitBases3,
+  unitBases4,
   x,
   yBalanced,
   yContinuous,

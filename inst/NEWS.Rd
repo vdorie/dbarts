@@ -41,6 +41,16 @@
             Earlier versions always re-derived the prior location and
             scale from each new response; pass
             \code{updateScale = TRUE} for that behavior.
+      \item The prior defaults for a multi-forest model change, so seeded
+            results move for two classes of fit: a \code{"probit"} or
+            \code{"logistic"} model carrying a forest with no
+            \code{basis}, and any model of three or more forests under any
+            family. Declaring \code{forest(sd = )} on every forest - 2 on
+            a basis-free one and 1 on each basis one - reproduces the
+            previous model exactly.
+      \item A \code{forests} list of length one that declares a
+            \code{basis} is refused rather than fit as an ordinary
+            single-forest model with the declaration dropped.
     }
   }
   \subsection{NEW FEATURES}{
@@ -143,7 +153,25 @@
             one draw at a time. Neither element is present for any other
             model. \code{dbartsData} gains a \code{bases} argument naming the
             same matrices directly, replacing the \code{treatment} argument
-            and slot of the development series.
+            and slot of the development series. A list of length one is
+            refused by name rather than dropped: a lone forest has no
+            second ensemble for its amplitudes to distinguish it from.
+      \item The prior defaults a multi-forest model takes when a forest
+            says nothing are stated in the terms a caller can defend. A
+            forest with no \code{basis} takes a half-Cauchy median of 1
+            rather than 2 under \code{"probit"} and \code{"logistic"}
+            (unchanged at 2 under a gaussian response, where a drawn
+            \code{sigma} absorbs the difference), which puts the prior on
+            the latent index where the single-forest binary default
+            already puts it. A forest with a \code{basis} takes
+            \eqn{\sqrt{2/K}}{sqrt(2/K)} rather than 1 for \eqn{K}{K}
+            forests, so declaring more forests no longer widens the prior
+            on the combined location without bound: with every forest
+            carrying a basis it is now the same at every \eqn{K}{K}, and
+            otherwise it is bounded by that value instead of growing.
+            \code{forest(sd = )} overrides both and keeps its per-forest
+            reading at every \eqn{K}{K}; two forests is the fixed point of
+            the second, so nothing at two forests moves.
       \item Interaction constraints: the new \code{interactions} argument of
             \code{dbarts} and \code{bart2}, built with \code{\link{interactions}},
             restricts which predictors may jointly shape the fit.

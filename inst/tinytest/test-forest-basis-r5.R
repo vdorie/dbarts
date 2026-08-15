@@ -475,7 +475,10 @@ expect_equal(mapColumn(recipient, 1L, "node.scale.divisor"), 1)
 expect_equal(mapColumn(recipient, 2L, "amplitude.prior.variance"), 0.125)
 expect_true(is.nan(mapColumn(recipient, 2L, "amplitude.prior.scale")))
 expect_true(is.nan(mapColumn(recipient, 1L, "amplitude.prior.variance")))
-expect_equal(mapColumn(recipient, 1L, "amplitude.prior.scale"), 2)
+# neither sampler declares that forest's sd, so both carry the family's own
+# default median - 1 under this probit fixture, where the anchor is the link's
+# error sd and sigma is pinned, rather than gaussian's 2
+expect_equal(mapColumn(recipient, 1L, "amplitude.prior.scale"), 1)
 
 # (c) RE-IMPOSITION. $setForestBasis re-derives the leaf scale from the stored
 # factor and divisor, so both columns come back and the identity holds again -

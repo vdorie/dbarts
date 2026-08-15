@@ -94,7 +94,11 @@ bartCause expects bcf-like behavior:
 - Leaf scale: prognostic a half-Cauchy with median 2 sd(y), treatment a
   half-Normal with median sd(y) (`use_muscale` / `use_tauscale`) - adaptive scale
   hyperpriors, the role dbarts's `chi(1.25, Inf)` hyperprior on k plays for
-  binary responses (prior-defaults.md).
+  binary responses (prior-defaults.md). The 2 is bcf's and is GAUSSIAN's: the
+  unit is the response's own sd(y) and sigma is drawn. Under probit and
+  logistic the same slot's default is 1, the unit being the link's own fixed
+  error sd with nothing to absorb a mis-scaled prognostic total
+  (`binary-kforest-prior-default`, Fork 1c).
 
 Scale anchoring. The package range-anchors globally: y net of offset maps to
 [-0.5, 0.5] by observed min/max, every constant calibrated against that range so
@@ -270,8 +274,13 @@ s the sd(y) magnitude in internal units.
 
 - Prognostic. The mu forest's node scale is s, so the leaves of its
   trees sum to mu ~ N(0, s^2). The half-Cauchy scalar a has median
-  |a| = aPriorScale = sd.control (default 2), putting the prognostic
-  total a mu at a median sd.control sd(y) - bcf's use_muscale.
+  |a| = aPriorScale = sd.control, putting the prognostic
+  total a mu at a median sd.control sd(y) - bcf's use_muscale. The
+  DEFAULT sd.control is the family's rather than a literal: 2 under
+  gaussian, the value this paragraph's sd(y) reading is stated at, and 1
+  under probit and logistic, where s is the link's own fixed error sd,
+  sigma is pinned, and 2 s asserts the median prognostic signal is twice
+  the noise before any moderating forest is added.
 - Treatment. The tau forest's node scale is sd.moderate s / 0.674, so
   tau ~ N(0, (sd.moderate s / 0.674)^2). With b0, b1 ~ N(0, 1/2) the
   contrast b1 - b0 ~ N(0, 1) has half-normal median 0.674, so the
@@ -281,7 +290,10 @@ s the sd(y) magnitude in internal units.
   and k for mu, since the adaptive magnitude lives entirely in the glue.
 
 The R wrapper exposes sd.control and sd.moderate (the two magnitudes in
-sd(y) units) and converts internally. benchmarks/R/bcf-exact.R
+sd(y) units) and converts internally; a NULL sd.control takes the family
+default above, and sd.moderate's 1 is the K-aware default's own K = 2
+value, sqrt(2/2), so this two-forest spelling states it as the literal it
+has always been. benchmarks/R/bcf-exact.R
 reproduces the map and the range/sigma calibration to validate the
 implementation end to end.
 

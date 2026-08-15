@@ -616,7 +616,11 @@ bartcoreSamplerFromHandle <- function(
 # sd.moderate are the prognostic and effect magnitudes in units of the
 # family's own latent scale (sd(y) under gaussian, 1 under probit); the
 # calibration map converts them to the per-forest leaf scales at creation,
-# overriding the host model's node prior and k for the mu forest. update.a /
+# overriding the host model's node prior and k for the mu forest. A NULL
+# sd.control takes the family's own default median, 2 under gaussian and 1
+# under the latent families, exactly as the public route does; sd.moderate's 1
+# is the K-aware default's own K = 2 value, sqrt(2/2), so this two-forest
+# spelling states it as the literal it has always been. update.a /
 # update.b hold the matching glue block fixed when FALSE. moderators restricts
 # the treatment forest to a subset of the shared design's columns (a character
 # vector matched to colnames(data@x), or a 1-based numeric index vector; NULL =
@@ -637,7 +641,7 @@ bartcoreBCFSampler <- function(
   n.trees.treatment = 50L,
   treatment.base = 0.25,
   treatment.power = 3,
-  sd.control = 2,
+  sd.control = NULL,
   sd.moderate = 1,
   b.prior.variance = 0.5,
   update.a = TRUE,
@@ -649,6 +653,24 @@ bartcoreBCFSampler <- function(
   tau.blocks = NULL
 ) {
   moderators <- resolveModerators(moderators, sampler$data)
+  # the bridge derives the family from this model's own slot, so a supplied name
+  # is written into the copy this call hands it; an unknown one is refused
+  # there, against the response shape, as every other route's is. Resolved
+  # BEFORE the transport below rather than beside the .Call, because
+  # sd.control's default is the family's: a NULL left inside as.double(c(...))
+  # collapses that vector to length 7 and surfaces as the bridge's length-8
+  # refusal, naming a shape rather than the family.
+  model <- sampler$model
+  if (!is.null(family)) {
+    model@family <- family
+  }
+  if (is.null(sd.control)) {
+    # the same helper the public route takes (R/model.R), so the two routes
+    # stay on one set of defaults - which is what the creation oracle's
+    # draw-for-draw comparison exists to hold - and a family this route cannot
+    # build still meets the bridge's own refusal rather than one from here
+    sd.control <- defaultAmplitudePriorScale(model@family)
+  }
   # the K-length per-forest transport, at K = 2: the prognostic forest carries
   # a plain scalar amplitude under the half-Cauchy scale mixture sd.control is
   # the median of, and the treatment forest a fixed-variance amplitude pair
@@ -692,14 +714,6 @@ bartcoreBCFSampler <- function(
   # the engine gives it the implicit intercept its single amplitude scales
   z <- as.double(z != 0)
   bases <- list(NULL, cbind(1 - z, z))
-
-  # the bridge derives the family from this model's own slot, so a supplied
-  # name is written into the copy this call hands it; an unknown one is
-  # refused there, against the response shape, as every other route's is
-  model <- sampler$model
-  if (!is.null(family)) {
-    model@family <- family
-  }
 
   result <- new.env(parent = emptyenv())
   result$ptr <- .Call(
