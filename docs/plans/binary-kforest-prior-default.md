@@ -1,9 +1,10 @@
 # binary-kforest-prior-default
 
-Status: IN FLIGHT. Specced 2026-08-15, two blind critique rounds discharged
+Status: ARC COMPLETE 2026-08-15 (S0 4dbf2dbc, S1 0faeb416, S2 e623fbf3;
+  landing notes at EOF). Specced 2026-08-15, two blind critique rounds discharged
   (0 BLOCKER, 6 MAJOR, 13 MINOR, all adopted; see "Critique adjudication").
-  Owner forks 1 and 2 SETTLED by VD 2026-08-15 (see "Decisions"). S0 LANDED
-  4dbf2dbc, S1 LANDED 0faeb416; S2 pending. Design evidence is GIT-IGNORED session material under
+  Owner forks 1 and 2 SETTLED by VD 2026-08-15 (see "Decisions"). Design
+  evidence is GIT-IGNORED session material under
   `.claude/binary-kforest-prior/` (the verified census, and both critique
   rounds), cited the way M4's plan cites `.claude/m4-basis-design/`; every
   load-bearing number is carried HERE rather than pointed at, since this file
@@ -1718,7 +1719,7 @@ mandated falsifier set - F4, F5, F6 and F8's four arms - which the
 
 ## Landing note, S2 (appended 2026-08-15)
 
-LANDED. Both defaults, M4.4's documentation debt in cap-not-pin form,
+LANDED as e623fbf3. Both defaults, M4.4's documentation debt in cap-not-pin form,
 and Fork 6c's K = 1 fix. R: defaultAmplitudePriorScale(family) beside
 defaultNodeScale, forestParams(specs, hasBasis, family) taking
 sqrt(2/length(specs)) on the withBasis branch and the family helper on
