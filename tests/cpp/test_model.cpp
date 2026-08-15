@@ -2199,6 +2199,86 @@ static void testGroupedBinary(ext_rng* rng) {
   printf("ok: grouped binary families\n");
 }
 
+// The delegation the bridge's grouped response swap rests on. setResponse is
+// shiftFits, the base's own swap, then rebuildWorking, touching neither b nor
+// tau - so a same-length swap at the pinned scale must leave the group block
+// exactly where it stood and rebuild the working response against the NEW base
+// z. Nothing above this can see the second half: workingResponse_ is a vector
+// of the decorator's own that base_->setResponse never reaches, so a dropped
+// rebuild leaves it at z_old - b and only an elementwise read says so.
+static void testGroupedResponseSwap() {
+  // a privately seeded generator, so the cell consumes nothing from the
+  // shared stream the surrounding tests' fixed expectations are stated on
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  if (rng == NULL || ext_rng_setSeed(rng, 20260815u) != 0) {
+    check(false, "grouped response swap: rng creation");
+    return;
+  }
+  const size_t n = 60, numGroups = 4;
+  std::vector<double> y(n), yNew(n), offset(n);
+  std::vector<std::uint32_t> groups(n);
+  for (size_t i = 0; i < n; ++i) {
+    groups[i] = static_cast<std::uint32_t>(i % numGroups);
+    y[i] = 0.5 * ext_rng_simulateContinuousUniform(rng) +
+           static_cast<double>(groups[i]);
+    yNew[i] = 3.0 * ext_rng_simulateContinuousUniform(rng) - 1.0;
+    offset[i] = 0.1 * static_cast<double>(i % 3);
+  }
+  // a deliberately WIDER replacement, so an updateScale swap has a transform
+  // to move and the second half below is not vacuous
+  yNew[0] = -5.0;
+  yNew[1] = 5.0;
+  auto makeBase = [&]() {
+    return std::make_unique<GaussianResponse>(y.data(), offset.data(), nullptr,
+                                              n, 1.0, 3.0,
+                                              0.37804942330213542);
+  };
+
+  GroupedResponse grouped(makeBase(), n, groups.data(), numGroups,
+                          TauPriorKind::cauchy, 1.0, 3, rng);
+  std::vector<double> b(grouped.groupEffects(),
+                        grouped.groupEffects() + numGroups);
+  double tau = grouped.groupTau();
+  std::vector<double> fits(n, 0.0);
+  double sigma = 1.0;
+
+  grouped.setResponse(yNew.data(), rng, fits.data(), false, &sigma);
+  for (size_t j = 0; j < numGroups; ++j)
+    check(grouped.groupEffects()[j] == b[j],
+          "a pinned-scale grouped swap leaves the group effects untouched");
+  check(grouped.groupTau() == tau,
+        "a pinned-scale grouped swap leaves tau untouched");
+  check(sigma == 1.0, "a pinned-scale grouped swap leaves sigma untouched");
+
+  // the reference: the same base family taking the same swap with no
+  // decorator over it, so the expected working response is z_new - b exactly
+  auto reference = makeBase();
+  double referenceSigma = 1.0;
+  reference->setResponse(yNew.data(), rng, fits.data(), false,
+                         &referenceSigma);
+  const double* z = reference->workingResponse();
+  for (size_t i = 0; i < n; ++i)
+    check(grouped.workingResponse()[i] == z[i] - b[groups[i]],
+          "a grouped swap rebuilds the working response as the new z minus b");
+
+  // and the defect the bridge's updateScale refusal exists for, pinned rather
+  // than argued: the base re-anchors and converts sigma with it, while b and
+  // tau - held on that same internal scale - keep their numbers and so come to
+  // mean something else in response units
+  double scaleBefore = grouped.sigmaScale();
+  grouped.setResponse(yNew.data(), rng, fits.data(), true, &sigma);
+  check(grouped.sigmaScale() != scaleBefore,
+        "an updateScale grouped swap moves the base's response transform");
+  check(sigma != 1.0, "the base converts sigma to the new transform");
+  for (size_t j = 0; j < numGroups; ++j)
+    check(grouped.groupEffects()[j] == b[j],
+          "b is NOT converted with it, which is what the bridge refuses");
+  check(grouped.groupTau() == tau, "tau is NOT converted with it either");
+
+  ext_rng_destroy(rng);
+  printf("ok: grouped response swap\n");
+}
+
 static void testGroupedStateRoundTrip() {
   // grouped state (b, tau) rides the chain state: a restored sampler
   // continues bitwise identically, and mismatched effect vectors are
@@ -6810,6 +6890,7 @@ void runModelTests(ext_rng* rng) {
   testGroupedMath(rng);
   testGroupedEndToEnd(rng);
   testGroupedBinary(rng);
+  testGroupedResponseSwap();
   testGroupedStateRoundTrip();
   testAFTReduction(rng);
   testAFTCensoredMoments(rng);

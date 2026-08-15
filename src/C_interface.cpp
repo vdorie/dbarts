@@ -23,6 +23,7 @@ using std::size_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseBCFTestSurface;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
+using bartcore_bridge::refuseGroupedScaleUpdate;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refusePinnedSigmaChange;
@@ -462,6 +463,10 @@ void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
   refuseVarianceForestScaleUpdate(samplerOf(sampler),
                                   "dbarts_sampler_setResponse",
                                   ResponseConduit::response, updateScale);
+  // reachable here: this entry's control carries whatever bartcore.groups
+  // attribute the consumer put on it, so a flat-API sampler can be grouped
+  refuseGroupedScaleUpdate(samplerOf(sampler), "dbarts_sampler_setResponse",
+                           ResponseConduit::response, updateScale);
   // the one place minimal validation is not enough: an out-of-support y is a
   // silently garbage latent draw for probit/ordinal and, for nbinom, an
   // uncatchable crash inside the count histogram (see validateResponseSupport)
@@ -482,6 +487,8 @@ void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
   refuseVarianceForestScaleUpdate(samplerOf(sampler),
                                   "dbarts_sampler_setOffset",
                                   ResponseConduit::offset, updateScale);
+  refuseGroupedScaleUpdate(samplerOf(sampler), "dbarts_sampler_setOffset",
+                           ResponseConduit::offset, updateScale);
   samplerOf(sampler).setOffset(offset, updateScale != 0);
 }
 

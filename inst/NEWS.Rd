@@ -755,6 +755,21 @@
             \code{NULL} on every other family - a channel absent rather than
             an error - so a caller tests \code{!is.null()} rather than
             comparing.
+      \item A sampler carrying grouped random effects - the one
+            \code{\link{rbart_vi}} returns in \code{$fit} - accepts
+            \code{$setResponse} and \code{$setOffset} at the pinned scale
+            (\code{updateScale = FALSE}, the default) instead of refusing
+            every response-side swap, so a grouped BART fits inside a larger
+            Gibbs sampler on the same terms as an ungrouped one. The group
+            effects and their scale are carried across the swap as the Gibbs
+            block they are. \code{updateScale = TRUE} is now refused on a
+            gaussian, Student-t or \code{"aft"} grouped sampler, naming the
+            effects and their scale: it re-anchored the response transform
+            underneath both while converting neither, silently restating them
+            in response units - and on \code{$setOffset} it did so without
+            any refusal at all. A grouped \code{"probit"} or
+            \code{"logistic"} sampler still accepts \code{TRUE}, where it is
+            the no-op it has always been. \code{$setData} remains refused.
       \item \code{$getLatents} is documented per family. It reports a
             LOCATION for \code{"probit"}, \code{"ordinal"} and \code{"aft"}
             and a PRECISION for \code{"logistic"}, \code{"nbinom"} and a

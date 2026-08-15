@@ -13,6 +13,7 @@
 #   Rscript benchmarks/R/sbc.R probit  200 200 30
 #   Rscript benchmarks/R/sbc.R ordinal 200 150 30   # family tiers, plan
 #   Rscript benchmarks/R/sbc.R nbinom|t|multinom 200 150 30
+#   Rscript benchmarks/R/sbc.R grouped-gaussian-swap 200 200 30  # the swap arm
 #   Rscript benchmarks/R/sbc.R discrete-selfcheck   # the discrete-rank gate
 #   Rscript benchmarks/R/sbc.R burn-ordinal 20000 3 # the burn/cost ladder
 # Positional args: config R L thin. Or source() the file to reuse the API:
@@ -802,8 +803,9 @@ runSbcDart <- function(
 # response scale and stall the engine's tau slice sampler (stepping out by a
 # fixed width over a range up to 1e6+), making brute-force SBC intractable. The
 # gamma prior is light-tailed, engine-supported, and gives a clean well-posed
-# calibration. A grouped sampler fixes its response at creation (the bridge
-# refuses setResponse), so each replication rebuilds the fit. Groups are
+# calibration. The default arm REBUILDS the fit each replication; swap = TRUE
+# instead keeps one fit and swaps the response into it, the arm that gates the
+# bridge's grouped setResponse (see runSbcGrouped). Groups are
 # assigned independently of x so the smooth f and the categorical b_g stay
 # orthogonal -- the f/b partition is then clean regardless of the f-prior scale.
 
@@ -891,6 +893,20 @@ sbcMakeGroupedFit <- function(config, y0, L, thin) {
   suppressWarnings(do.call(dbarts, args))
 }
 
+# swap = TRUE is the calibration gate on the bridge's grouped setResponse: one
+# fit serves every replication, re-initialised through the STATE INSTALL rather
+# than rebuilt. state0 is the pristine post-build state - two lines, because
+# $storeState() returns invisible(NULL) and sbcMakeGroupedFit sets updateState =
+# FALSE, so the field is filled by nothing else - and it is the only channel
+# that returns b and tau to a y0-independent start (there is no $setTau). That
+# start is CONSTANT rather than a fresh prior draw for tau: SBC needs
+# independence from y0, not a prior draw, and the constancy is the one thing
+# this arm does not randomize. The fixed build response also pins the internal
+# scale for every replication, which is what setResponse(updateScale = FALSE)
+# keeps -- the same self-consistency runSbc gets from its reused sampler. The
+# state carries the chain rng too, so every replication restarts it at the same
+# point; the draws still differ, since each conditions on its own y0, and each
+# rank is marginally uniform, which is what rankUniformity tests.
 runSbcGrouped <- function(
   config,
   R = 200L,
@@ -901,12 +917,20 @@ runSbcGrouped <- function(
   # bcf-sigma-residual), so the default pins sweeps, not thinned units
   burn = as.integer(ceiling(72000 / thin)),
   seed = 20260709L,
-  report = 25L
+  report = 25L,
+  swap = FALSE
 ) {
   set.seed(seed)
   gen <- sbcMakeGroupGenerator(config)
   drawSigma <- sbcSigmaDraw(config$sigest, config$sigDf, config$sigQuant)
   drawTau <- sbcTauDraw(config$relScale)
+  fit <- NULL
+  state0 <- NULL
+  if (swap) {
+    fit <- sbcMakeGroupedFit(config, config$yBuild, L, thin)
+    fit$storeState()
+    state0 <- fit$state
+  }
   ranks <- NULL
   started <- proc.time()[["elapsed"]]
   for (r in seq_len(R)) {
@@ -923,7 +947,19 @@ runSbcGrouped <- function(
     cfgLocal$groupIntercepts <- b0
     y0 <- sbcSimulate(cfgLocal, f0Train, sig0)
 
-    fit <- sbcMakeGroupedFit(config, y0, L, thin)
+    if (swap) {
+      # the same overdispersed init the rebuild arm gets from a fresh sampler:
+      # a state install, then a second independent prior draw for the forest
+      fit$setState(state0)
+      fit$sampleTreesFromPrior()
+      fit$sampleNodeParametersFromPrior()
+      if (config$hasSigma) {
+        fit$setSigma(config$sigest)
+      }
+      fit$setResponse(y0, updateScale = FALSE)
+    } else {
+      fit <- sbcMakeGroupedFit(config, y0, L, thin)
+    }
     res <- fit$run(burn, L)
 
     row <- c(
@@ -2044,7 +2080,16 @@ if (sys.nframe() == 0L) {
 
   isDart <- which %in% c("dart", "dart-sparse")
   isWeighted <- which == "weighted"
-  isGrouped <- which %in% c("grouped-gaussian", "grouped-probit")
+  # "-swap" runs the same configuration through the response-swap arm; it is a
+  # one-time local adjudication of the bridge's grouped setResponse and is
+  # deliberately NOT in sbc.yaml's matrix
+  isGrouped <- which %in%
+    c(
+      "grouped-gaussian",
+      "grouped-probit",
+      "grouped-gaussian-swap",
+      "grouped-probit-swap"
+    )
   isBCF <- which %in% c("bcf", "bcf-weak")
   isLinear <- which %in%
     c("linear", "linear-na-leaf", "linear-na-split", "linear-weighted")
@@ -2067,8 +2112,8 @@ if (sys.nframe() == 0L) {
     cfg$weights <- rgamma(cfg$n, 2, 2) # known, positive, mean 1
     cfg
   } else if (isGrouped) {
-    base <- if (which == "grouped-probit") "probit" else "gaussian"
-    zw <- if (which == "grouped-gaussian") 0.2 else 0
+    base <- if (startsWith(which, "grouped-probit")) "probit" else "gaussian"
+    zw <- if (startsWith(which, "grouped-gaussian")) 0.2 else 0
     sbcAddGrouping(
       sbcConfig(family = base, n = 160L),
       nGroups = 8L,
@@ -2246,7 +2291,13 @@ if (sys.nframe() == 0L) {
   } else if (isDart) {
     runSbcDart(config, R = R, L = L, thin = thin)
   } else if (isGrouped) {
-    runSbcGrouped(config, R = R, L = L, thin = thin)
+    runSbcGrouped(
+      config,
+      R = R,
+      L = L,
+      thin = thin,
+      swap = endsWith(which, "-swap")
+    )
   } else if (isBCF) {
     runSbcBCF(config, R = R, L = L, thin = thin)
   } else {

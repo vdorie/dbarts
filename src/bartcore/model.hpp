@@ -4671,9 +4671,10 @@ inline void drawGroupEffects(ext_rng* rng, const double* z,
 /// scale families) and reported draws de-scale by sigmaScale(), like sigma.
 /// The weighted conjugate update deliberately replaces the R loop's
 /// unweighted group means, which is what makes Polya-Gamma logistic weights
-/// compose. Group structure is fixed at creation; the bridge refuses
-/// setResponse/setData on grouped samplers (the overrides below delegate
-/// faithfully for same-length replacements regardless).
+/// compose. Group structure is fixed at creation, so the bridge refuses
+/// setData; a same-length setResponse or setOffset delegates faithfully and is
+/// allowed, except at updateScale = TRUE under a re-anchoring base family,
+/// where b, tau and the tau prior scale would silently restate.
 class GroupedResponse final : public ResponseModel {
 public:
   /// tauPriorScale is the original-scale relative scale (sd(y) continuous,
@@ -4765,9 +4766,9 @@ public:
   }
 
   /// The base handles any scale re-anchoring; b and tau keep their values
-  /// against the new transform, so an updateScale offset change shifts what
-  /// they mean on the original scale. rbart_vi's in-core path never calls
-  /// this.
+  /// against the new transform, so an updateScale offset change would shift
+  /// what they mean on the original scale - which is why the bridge refuses
+  /// exactly that pair. rbart_vi's in-core path never calls this.
   void setOffset(const double* offset, bool updateScale,
                  double* sigmaInOut) override {
     base_->setOffset(offset, updateScale, sigmaInOut);
@@ -4775,7 +4776,8 @@ public:
   }
 
   /// Group indices are per-observation and fixed at creation, so only a
-  /// same-length replacement is coherent; the bridge refuses the call.
+  /// same-length replacement is coherent; the bridge refuses this whole-data
+  /// call outright, at every family and every scale.
   void setData(const double* y, const double* offset, const double* weights,
                std::size_t numObservations, double* sigmaInOut) override {
     base_->setData(y, offset, weights, numObservations, sigmaInOut);
