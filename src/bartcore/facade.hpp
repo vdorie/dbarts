@@ -56,6 +56,11 @@ struct SamplerShape {
   /// cutpoints channel, present only when nonzero; internal, invisible to
   /// dbarts.h.
   std::size_t numCutpoints;
+  /// Whether the response family carries a dispersion r (nbinom alone). The run
+  /// bridge reads it to decide whether the dispersion channel exists and the
+  /// mid-sweep read to decide whether it answers at all; internal, invisible to
+  /// dbarts.h.
+  bool carriesDispersion;
   /// Saved samples the tree store holds, 0 when keepTrees is off.
   std::size_t savedTreeCapacity;
   ResponseFamily family;
@@ -276,6 +281,11 @@ public:
   virtual const ColumnStore& data() const = 0;
   virtual const double* latents(std::size_t chainNum) const = 0;
   virtual double sigma(std::size_t chainNum) const = 0;
+  /// Chain chainNum's dispersion r in force - the same scalar the recorded
+  /// dispersion channel stores once per kept draw, read mid-sweep and without
+  /// serializing state. 0 off a family carrying one, so a caller gates on
+  /// SamplerShape::carriesDispersion rather than on the value.
+  virtual double dispersion(std::size_t chainNum) const = 0;
   /// The per-forest amplitude basis (docs/design/bcf.md): installs forest
   /// forestIndex's n x numColumns ROW-major basis, COPIED, in every chain;
   /// false, installing nothing, off a coupling that carries amplitudes, on an
@@ -372,6 +382,7 @@ public:
     s.numVariableCountForests = impl_.numVariableCountForests();
     s.numAmplitudes = impl_.totalAmplitudes();
     s.numCutpoints = impl_.numCutpoints();
+    s.carriesDispersion = impl_.carriesDispersion();
     s.savedTreeCapacity = impl_.savedTreeCapacity();
     s.family = impl_.family();
     s.leafModel = Sampler<L, ResidT>::leafModel();
@@ -543,6 +554,9 @@ public:
   }
   double sigma(std::size_t chainNum) const override {
     return impl_.sigma(chainNum);
+  }
+  double dispersion(std::size_t chainNum) const override {
+    return impl_.dispersion(chainNum);
   }
   bool setForestBasis(std::size_t forestIndex, const double* values,
                       std::size_t numColumns) override {

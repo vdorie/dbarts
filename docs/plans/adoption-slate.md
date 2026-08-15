@@ -1,7 +1,7 @@
 # adoption-slate
 
-Status: IN PROGRESS 2026-08-15 (S1 LANDED 5bedf923, S2-S8 pending; landing
-  notes at EOF). Two blind critique rounds and one
+Status: IN PROGRESS 2026-08-15 (S1 LANDED 5bedf923, S2 LANDED, S3-S8 pending;
+  landing notes at EOF). Two blind critique rounds and one
   fix-verification round discharged (5 BLOCKER, 15 MAJOR, 23 MINOR, all
   adopted). Owner fork F1 SETTLED by VD 2026-08-15; F2-F6 and the slice
   adoptions resolved under the delegated grant; see "Decisions". Design evidence is GIT-IGNORED session material
@@ -1142,3 +1142,129 @@ own lib (243/243 tests/cpp plain and ASAN, tinytest 4919/0 failures, trio
 bitwise 37/12/10, R CMD check --as-cran OK 0/0/0, provenance verified);
 orchestrator diff review against the spec found no deviation beyond those
 recorded above.
+
+## Landing note, S2 (appended 2026-08-15)
+
+Five layers, no `dbarts.h` touch (F2 = (C); the flat half stays S8's). Engine:
+`Results::dispersion`, a numSamples channel on the `Results::cutpoints`
+precedent (no `dbarts_results` counterpart, so no hash move); `Chain::dispersion`
+and `::carriesDispersion`, one-line forwards to `response_->` beside
+`numCutpoints`, and the `Sampler` pair; `Sampler::run`'s per-chain stride
+`+ c * numSamples`, sigma's own; and `Chain::storeSample`'s write, guarded
+`results.dispersion != nullptr && response_->carriesDispersion()`, placed after
+the cutpoint write and copying the `results.tau` shape. Nothing new is drawn -
+`NBResponse` already held r - so it is a pure read of state the sweep settled
+on. `SamplerShape::carriesDispersion` plus a `SamplerBase::dispersion(chainNum)`
+pure virtual and its `SamplerFacade` override carry it to the bridge
+(`SamplerFacade` is still the only implementer).
+
+Bridge, the bulk of the work: the slot inserts directly after the ordinal
+cutpoint slot, so `numResultSlots` gains its term and `varianceTrainSlot`,
+`varianceTestSlot`, `forestFitsSlot` and `glueSlot` each gain
+`(hasDispersion ? 1 : 0)`, with the keyed `SET_STRING_ELT` names following. No
+family carries both channels; the arithmetic composes regardless. Shape is
+sigma's. Plus `bartcore_getDispersion` on `bartcore_getSigmas`'s pattern,
+returning `R_NilValue` off a family carrying none, one prototype, one `DEF_FUNC`.
+
+R: `$getDispersion()`, argumentless, docstringed, beside `getSigmas` as its
+count analog, guarded by `refuseHostRead` on S1's precedent (a NEW read is
+guarded; the shipped four stay unguarded by ticket `host-shell-read-guards`).
+The non-nbinom answer is `NULL`, not an error, which is why the Rd states the
+`!is.null` law and every assertion in the test file leads with a shape check.
+
+**`bart2Negbin` WAS touched**, under the spec's conditional permission. Its
+one-kept-sample-at-a-time driver STAYS - the sweep structure is untouched and
+the `nbinom` equivalence scenario does not move - but its per-sweep read
+switched from `bartcoreStoreState(bc)` to the run's own `r$dispersion` row.
+Draw-neutral by construction (`bartcore_storeState` reaches `Sampler::getState`,
+which draws nothing and mutates nothing, and `state` was read for the dispersion
+and nothing else) and by measurement (the trio's `nbinom` scenario reports
+identical draws). Simpler by a line, and it removes a FULL tree-state
+serialization from every sweep of every `bart2(family = "nbinom")` fit, which is
+the channel's whole point: the package now reads it the way its documentation
+tells a host to. The stale comment above `bart2Negbin` ("the engine has no
+per-sample dispersion output channel") was corrected in place.
+
+Docs: the `run` `\value` paragraph gains the element with its shape, its two
+r-modes and the absent-not-NULL law; a `\value` entry for `getDispersion`; the
+alias and `\usage` line; one NEWS item.
+
+Budget, raw additions against 7e6a4a3e: non-test 116 + this note (total 244,
+band 160-215, stop 270), tests 293. Both overshoot, both for the same reason -
+cell count. The test oracle is {run slot, getter, state} x {fixed r, estimated
+r} x {1 chain, 2 chains}, twelve comparisons before the shape, NULL,
+multi-sample, ordinal-neighbour, BCF, heteroscedastic, host-shell and end-to-end
+cells, and `air`'s vertical call formatting inflates raw lines against a dense
+reading; the note carries four mutations and five deviations. The spec's
+"engine ~10" costed the `storeSample` write alone and not the shape flag, pure
+virtual and facade override the R5 getter it also mandates. No `tests/cpp`
+cell; the `cutpoints` precedent carries none either.
+
+Battery, all on the slice's private lib (`/tmp/s2-lib`, since `~/.Renviron`
+overrides `R_LIBS_USER`): `--preclean` install clean; `tests/cpp` from
+`make clean` 243 ok, all passed, and again under
+`OPT="-O2 -g -fsanitize=address,undefined"` with
+`ASAN_OPTIONS=detect_container_overflow=0`, 243 ok, no sanitizer diagnostic;
+full tinytest 4985 results, 0 failures, no snapshot re-pinned (4919 at S1 plus
+this file's 66, so no shipped count moved); equivalence trio BITWISE with no
+re-record (equivalence-8b047f8b 37 compared / 0 skipped, every scenario
+"identical draws (same RNG stream)" - the `nbinom` scenario among them, this
+slice's leak detector for the `bart2Negbin` read swap, reporting none;
+bcf-equivalence-8b047f8b identical on all 12; multinomial-equivalence-1027be5
+identical on all 10; no max-|z| line anywhere); `air format --check` clean;
+`lintr::lint_package()` 0 lints; `pkgdown::check_pkgdown` no problems (no new
+topic, so no `_pkgdown.yml` entry was owed); `R CMD check --as-cran` from a
+tarball staged outside the tree, Status OK, 0/0/0.
+
+Mutation proof, each applied, run, reverted and byte-verified by `cmp`.
+
+- (1) Write the dispersion one sample late (a cached previous r, lazily
+  initialized so the first store is still correct): EXACTLY TWO assertions
+  move, the estimated-r arm's `slot == state` comparisons at one and two
+  chains. Every fixed-r cell stays green, as specced - a repeated constant
+  cannot lag - which is why that arm is mandatory and carries the
+  at-least-two-distinct-values measurement. The GETTER cells stay green too,
+  and correctly: it reads live state and is a separate instrument. (A first
+  attempt left the cache uninitialized, moving ten assertions including the
+  fixed arm; that is a different defect, and the two above are the faithful count.)
+- (2) Fill the slot with the shipped grid's median (8.0): 8 assertions move,
+  all on the estimated arm (both `slot == state` cells, all three non-vacuity
+  cells, the multi-sample grid and distinctness cells, and the `bart2`
+  end-to-end `mu = r exp(psi)` cell), plus 3 in the shipped `test-nbinom.R`.
+  The fixed arm stays GREEN by construction - its r IS 8, which is why that
+  value was chosen for it.
+- (3) Off-by-one in the downstream slot indices (`varianceTrainSlot` and
+  `forestFitsSlot` each +1, `numResultSlots` left correct): the heteroscedastic
+  run errors "attempt to set index 10/10 in SET_STRING_ELT" and the BCF run
+  "attempt to set index 10/10 in SET_VECTOR_ELT", while the nbinom and gaussian
+  runs stay green and correctly named. Exactly why two models carrying no
+  dispersion at all are in this battery.
+- (4) Drop both guards so a gaussian run writes through the unallocated
+  channel: under `-fsanitize=address,undefined` UBSAN names it precisely -
+  "runtime error: store to null pointer of type 'double'" at `chain.hpp:5054` -
+  and ASAN follows with `SEGV on unknown address 0x0` after 35 ok lines.
+  **Deviation from the plan's wording:** it is not sanitizer-ONLY. The plain
+  binary also dies (exit 139) at the same write; the sanitizer leg adds the
+  file, line and diagnosis rather than a bare signal. "Caught by ASAN only"
+  would hold for an in-bounds-but-wrong write, not for a null one.
+
+Deviations and carried obligations.
+
+- `R CMD check --as-cran` flagged `\link{storeState}` as a missing link (it is
+  a reference-class method alias, not a topic); the sentence reads
+  `\code{storeState}`. Same shape as S1's `\link{student}` finding.
+- `bart2Negbin` was touched, with the reasoning and proof above; the driver
+  itself is unchanged.
+- `refuseHostRead` on `$getDispersion()` is not in the spec's letter. It
+  follows S1's precedent and will matter once S7 puts `hostFor` on bart2's
+  nbinom host, where an unguarded read would return the placeholder shell's r
+  as if it were the fit's.
+- The multi-sample cell's "last recorded draw equals the post-run state" did
+  NOT move under mutation 1 (r happened not to change on that final step). The
+  sample stride is gated instead by the grid-membership and distinctness
+  assertions over the whole slab, which do move; the per-sweep cells are the
+  load-bearing ones.
+- `docs/design/feature-matrix.md`'s file:line anchors into `R/dbarts.R`,
+  `R/bart.R` and `R_interface_bartcore.cpp` shifted again and were NOT
+  refreshed here, following S1 and the previous arc's one anchor-refresh commit
+  at the END of the arc. Owed before the arc closes.

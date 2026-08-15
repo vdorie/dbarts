@@ -1713,11 +1713,11 @@ negbinPpd <- function(mu, r) {
 # sections 4-5), reached from bart2's family = "nbinom" branch. A SINGLE forest
 # fits the log-odds latent psi = f(x) + o (like logistic under the Polya-Gamma
 # augmentation); the mean counts mu = r exp(psi) and the per-draw dispersion r
-# are synthesized here. The engine has no per-sample dispersion output channel -
-# r lives only in its state block - so the run is driven one kept sample at a
-# time (through the low-level bc) and r read from the state after each sweep,
-# aligned with that sweep's latent draw (a per-sample state-read driving pattern;
-# draw-neutral). dbarts(family = "nbinom") does the count validation, the fixed
+# are synthesized here. The run is driven one kept sample at a time (through the
+# low-level bc) because mu = r exp(psi) pairs each sweep's latent draw with that
+# sweep's r; r itself comes from the run's own per-draw dispersion channel, so no
+# state is serialized per sweep. dbarts(family = "nbinom") does the count
+# validation, the fixed
 # unit scale, and attaches the dispersion spec, so this reuses the standard
 # bart2 host-build machinery. The fit is class "bartNegbin", never "bart".
 bart2Negbin <- function(
@@ -1779,7 +1779,8 @@ bart2Negbin <- function(
   for (s in seq_len(n.samples)) {
     # the first kept sample absorbs the burn-in, so every run keeps one sample
     r <- bartcoreRun(bc, if (s == 1L) control@n.burn else 0L, 1L)
-    state <- bartcoreStoreState(bc)
+    # sigma-shaped, so a single-sample run's channel is exactly this row
+    dispersionRaw[s, ] <- r$dispersion
     if (is.null(varcountRaw)) {
       varWidth <- if (n.chains == 1L) {
         nrow(as.matrix(r$varcount))
@@ -1789,8 +1790,7 @@ bart2Negbin <- function(
       varcountRaw <- array(0, c(varWidth, n.samples, n.chains))
     }
     for (chain in seq_len(n.chains)) {
-      rDraw <- state[[chain]]$dispersion
-      dispersionRaw[s, chain] <- rDraw
+      rDraw <- dispersionRaw[s, chain]
       psiTrain <- channelColumn(r$train, 1L, chain, n.chains)
       latentTrain[, s, chain] <- psiTrain
       meanTrain[, s, chain] <- negbinMeanCounts(psiTrain, rDraw)

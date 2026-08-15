@@ -309,6 +309,8 @@ public:
           results.logLikelihood + c * numSamples * data_.numObservations;
       if (results.cutpoints != nullptr)
         r.cutpoints = results.cutpoints + c * numSamples * numCutpoints;
+      if (results.dispersion != nullptr)
+        r.dispersion = results.dispersion + c * numSamples;
       if (results.varianceFits != nullptr)
         r.varianceFits =
           results.varianceFits + c * numSamples * data_.numObservations;
@@ -1151,6 +1153,13 @@ public:
     return chains_[0]->numVariableCountForests();
   }
   size_t numCutpoints() const { return chains_[0]->numCutpoints(); }
+  /// Whether the response family carries a dispersion r; chain 0 answers for
+  /// all, as every chain carries the same family.
+  bool carriesDispersion() const { return chains_[0]->carriesDispersion(); }
+  /// Chain chainNum's dispersion r in force, 0 off a family carrying one.
+  double dispersion(size_t chainNum) const {
+    return chains_[chainNum]->dispersion();
+  }
   bool testFitsAreDefined() const {
     return chains_[0]->testFitsAreDefined();
   }
