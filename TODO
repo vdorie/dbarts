@@ -34,8 +34,12 @@ items
     Eight serialized slices: S1 LANDED 5bedf923 2026-08-15 (getLatents
     semantics on both surfaces plus $getFitsWithoutOffset, an engine
     accessor through the facade, storeSample refactored onto it,
-    bitwise across the trio; landing note in the plan), S2 the nbinom dispersion as a per-draw channel (R side only,
-    no dbarts.h touch), S3 the grouped setResponse relaxation gated
+    bitwise across the trio; landing note in the plan), S2 LANDED
+    da3c76f9 2026-08-15 (the nbinom dispersion as a per-draw channel:
+    run()$dispersion, $getDispersion(), bart2Negbin off its per-sweep
+    state serialization; R side only, no dbarts.h touch, bitwise
+    across the trio; landing note in the plan), S3 the grouped
+    setResponse relaxation gated
     two-way on gaussian/aft with a pre-registered SBC falsifier, S4
     augmentation-helpers, S5 composition-validator, S6 named-recipes
     plus embedding-page, S7 residue (nbinom magnitude cap, hostFor on

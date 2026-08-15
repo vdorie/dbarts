@@ -1,6 +1,7 @@
 # adoption-slate
 
-Status: IN PROGRESS 2026-08-15 (S1 LANDED 5bedf923, S2 LANDED, S3-S8 pending;
+Status: IN PROGRESS 2026-08-15 (S1 LANDED 5bedf923, S2 LANDED da3c76f9,
+  S3-S8 pending;
   landing notes at EOF). Two blind critique rounds and one
   fix-verification round discharged (5 BLOCKER, 15 MAJOR, 23 MINOR, all
   adopted). Owner fork F1 SETTLED by VD 2026-08-15; F2-F6 and the slice
@@ -1268,3 +1269,13 @@ Deviations and carried obligations.
   `R/bart.R` and `R_interface_bartcore.cpp` shifted again and were NOT
   refreshed here, following S1 and the previous arc's one anchor-refresh commit
   at the END of the arc. Owed before the arc closes.
+
+Landed: da3c76f9, pushed 2026-08-15. Independent gate-runner CONFIRM on its own
+lib (243/243 tests/cpp plain and ASAN, tinytest 4985/0 failures, trio bitwise
+37/12/10 incl. the nbinom scenario, R CMD check --as-cran OK 0/0/0, provenance
+verified; weak-gate and mandated-cell audits clean). Orchestrator adjudication
+of the test-budget overage (293 raw vs the ~150 estimate, past the nominal
+1.5x): ACCEPTED - every cell traces to the spec's mandated oracle grid or its
+mutation-3 index neighbors, and budgets size to the MANDATED ORACLE, not the
+estimate; the estimate was low the same way the memo prices this arc corrected
+were.
