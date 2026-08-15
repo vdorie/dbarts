@@ -41,9 +41,11 @@ reference:
   contents:
   - survivalProbabilities
 - title: Diagnostics
-  desc: Convergence summaries and posterior draw extraction.
+  desc: >
+    Convergence summaries, and calibration of a sampler composed around one.
   contents:
   - summary.bart
+  - dbartsValidateComposition
 - title: Utilities
   contents:
   - plotTree
