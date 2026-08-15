@@ -219,5 +219,5 @@ y <- x[, 1L] - x[, 2L] + rnorm(n, 0, 0.2)
 sampler <- dbarts(y ~ x, control = control)
 samples <- sampler$run()
 str(samples$train)
-#>  num [1:50, 1] -0.722 -0.251 0.633 -0.722 0.621 ...
+#>  num [1:50, 1] 0.153 -0.57 0.341 0.162 -0.57 ...
 ```
