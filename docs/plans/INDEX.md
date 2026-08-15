@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (147 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (148 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -26,6 +26,7 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
+| binary-kforest-prior-default.md | SPECCED (S0-S2 pending), 2026-08-15 | Family-aware aPriorScale default (2 gaussian / 1 probit+logistic), the sqrt(2/K) nodeScaleFactor dispersion default (all families, K = 2 the fixed point), five calibration observability columns at three layers, the nodeScaleFactor-times-anchor product pin (first tests/cpp calibration coverage), M4.4's diffuseness-doc debt in cap-not-pin form, and the K = 1 floor fix; argued on prior coverage after arm E refuted the mixing hypothesis; zero baseline re-records expected. |
 | facade-shape.md | LANDED 40082c7, 2026-08-05 | Collapses SamplerBase's 21 nullary count/capability virtuals into one SamplerShape POD filled on demand by a single `shape()` virtual, so a new capability costs one field instead of declaration+forward+override; bitwise-neutral, no dbarts.h change. |
 | forest-combiner.md | LANDED, 2026-07-14 | Extracts BCF's hardcoded glue into a polymorphic `ForestCombiner<L>` so multinomial (and future models) can plug in without re-forking Chain. |
 | forest-split-bcf.md | LANDED (two phases) | Splits `Forest<L>` out of Chain and lands BCF as the first two-forest sampler (steps 1-5); a later "Phase 2 (post data-ownership-4)" wires BCF's moderators restriction - both phases complete, one file. |
