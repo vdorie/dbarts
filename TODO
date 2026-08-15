@@ -28,12 +28,33 @@ under the enabling-value rule; its per-entry verdicts are folded into
 the entries below.
 
 items
-  augmentation-helpers: exported R helpers for the augmentation draws
-    dbarts already runs internally (Polya-Gamma, Albert-Chib,
-    scale-mixture), so a host composing dbarts inside a larger
-    Gibbs/MH sampler replicates them without re-deriving the math.
-    Value-lifted by the r-c-division adoption slate
-    (docs/design/r-c-division.md); ~240 lines. SCHEDULED, pre-release.
+  adoption-slate: SPECCED 2026-08-15; the plan
+    (docs/plans/adoption-slate.md) is the implementation record for the
+    whole r-c-division adoption slate and supersedes the per-item
+    prices in the entries it names. Eight serialized slices: S1
+    getLatents semantics on both surfaces plus $getFitsWithoutOffset
+    (an engine accessor through the facade, storeSample refactored onto
+    it), S2 the nbinom dispersion as a per-draw channel (R side only,
+    no dbarts.h touch), S3 the grouped setResponse relaxation gated
+    two-way on gaussian/aft with a pre-registered SBC falsifier, S4
+    augmentation-helpers, S5 composition-validator, S6 named-recipes
+    plus embedding-page, S7 residue (nbinom magnitude cap, hostFor on
+    both remaining bart2 hosts, the flat setWeights guard), S8 the
+    arc's ONE dbarts.h re-bake. Fork F1 settled by VD, the rest under
+    a delegated grant, 2026-08-15; three adversarial passes
+    discharged. Budgets are RAW ADDITIONS, a recorded arc-level
+    deviation from multiplier-combiner.md's dense convention. Zero
+    baseline re-records expected on any slice - the equivalence trio
+    is the arc's leak detector. BEFORE 1.0-0.
+  augmentation-helpers: SPECCED as slice S4 of adoption-slate
+    (docs/plans/adoption-slate.md). Exported dbartsDrawLatents and
+    dbartsWorkingResponse over the primitives the engine already runs,
+    drawing R's own stream via ext_rng_createDefault(TRUE) under
+    GetRNGstate/PutRNGstate, so a host composing probit, logistic,
+    ordinal, aft, nbinom or Student-t replicates the augmentation
+    without re-deriving it. The plan supersedes this entry's ~240
+    lines, which priced the item without its oracle. SCHEDULED,
+    pre-release.
   bcf-naming-generalization: the shipped K-forest amplitude family is
     spelled with BCF names at every layer - BCFSpec, BCFForestSpec,
     BCFState, BCFForestCombiner, createBCFSampler,
@@ -121,13 +142,15 @@ items
     in docs/plans/cheap-uniformity.md). Sparse-valued mutation,
     per-column x.test update, and engine-resident sparse predict all
     open; the dbarts.h reshape mirrors this final surface.
-  composition-validator: an SBC (simulation-based calibration) check
-    over a user-supplied one-sweep closure, so a host composing
-    dbarts inside a larger Gibbs/MH sampler can validate its own
-    composition rather than trust it. Value-lifted by the
-    r-c-division adoption slate: it is the item that catches the
-    measured posterior-mean-as-draws defect class
-    (docs/design/r-c-division.md). ~350 lines. SCHEDULED, pre-release.
+  composition-validator: SPECCED as slice S5 of adoption-slate
+    (docs/plans/adoption-slate.md). dbartsValidateComposition runs SBC
+    over a HOST-supplied one-sweep step, catching the measured
+    posterior-mean-as-draws defect class. The plan supersedes this
+    entry's ~350 lines, which assumed reuse of benchmarks/R/sbc.R that
+    does not survive the inversion: only rankUniformity and
+    sbcDiscreteRank port (with .Random.seed hygiene), because
+    everything upstream draws theta0 from the SAMPLER's own prior while
+    the validator's prior is the host's. SCHEDULED, pre-release.
   correlated-outcomes: multivariate/SUR outcomes SHIPPED as mvbart()
     in stan4bart with zero dbarts code (docs/design/correlated-
     outcomes.md). Open: AR-1 / serially-correlated errors
@@ -169,14 +192,14 @@ items
     intermediate cast (through a matching function-pointer typedef or
     void*) so a LinkingTo consumer's -Wextra build stays clean.
     Small, pre-release.
-  embedding-page: a visible, citable "embedding dbarts" pkgdown
-    page: the dbarts.h X-list surface, dbartsSpec, LinkingTo
-    mechanics, and cross-refs to the named recipes. Evidence: the
-    landscape survey's peer-perception finding
-    (docs/design/bart-landscape.md, synthesis point 5 - peer prose
-    misdescribes dbarts while the peer table is fairer; the gap is
-    documentation, not architecture). Folds with named-recipes at
-    the surface shakedown. ~80 lines. Pre-release at discretion.
+  embedding-page: SPECCED as part of slice S6 of adoption-slate
+    (docs/plans/adoption-slate.md), folded into named-recipes as the
+    ticket anticipated. Ships as an Rd topic (dbarts-embedding) rather
+    than a bare pkgdown page - it is reference material wanting links
+    and a ? entry point - with a _pkgdown.yml reference: entry under
+    Utilities, while the six recipes ship as a vignette. Evidence
+    unchanged: the landscape survey's peer-perception finding
+    (docs/design/bart-landscape.md, synthesis point 5). Pre-release.
   equivalence-harness-statistical-mode: bcf-equivalence.R and
     multinomial-equivalence.R compare via identical() only, so a
     cross-host run against the arm64-recorded baselines structurally
@@ -254,6 +277,25 @@ items
     ticketed: ordinal-scan-missing-rows (own entry); the multiforest
     fuzz op-mask door (OP_GROW rides it with OP_SET_COUNTS). The
     three S2 test-hardening items landed with M4.0.
+  host-shell-read-guards: bart2's multinomial (and, once
+    adoption-slate S7 lands, its ordinal and nbinom) fits carry a
+    placeholder $fit host sampler whose hostFor field makes MUTATION
+    refuse (refuseHostMutation, R/dbarts.R). READS do not:
+    $getLatents, $getForestFits, $getSigmas and $getCalibration all
+    answer from the shell, which carries the design and priors the fit
+    was built from but not its model. adoption-slate S1 adds a
+    read-side sibling for the ONE new accessor it introduces
+    ($getFitsWithoutOffset) and deliberately leaves the four shipped
+    readers alone, since changing a shipped reader is outside that
+    slice. The open question, carried to VD 2026-08-15 and TICKETED
+    rather than built: should every read on a host shell refuse, or
+    only those whose value is structurally wrong there? They are not
+    equal - $getSigmas returns a real sigma of a real sampler, just
+    not the one the user fit, while $getForestFits returns fits of a
+    forest that never participated. If "all": rename or generalize
+    refuseHostMutation, four call sites, four Rd sentences, four
+    cells, ~20 non-test / ~35 test raw additions. Pre-release at
+    discretion.
   hurdle-variance-forwarding: the feature matrix
     (docs/design/feature-matrix.md) records that a hurdle model
     forwards variance = to BOTH components while the occupancy
@@ -271,6 +313,26 @@ items
     for which dbarts already ships the hard-constraint half; soft
     path-dependent penalties, gate STANDS - no model surfaced.
     decision-gated.
+  latent-family-weight-channel: ADJUDICATED 2026-08-15 (r-c-division
+    census item G4, the one item the arc's itemization never
+    scheduled): PARTIAL BUILD. Logistic weights are observation counts
+    and the Polya-Gamma shape depends on them
+    (LogisticResponse::refreshLatents sums lround(weights_[i]) PG(1,
+    psi) draws), so a weight change is a model change with a defined
+    meaning and an outer sampler that cannot make it cannot vary
+    exposure; refuseBinaryWeightChange refuses it today. BUILD for
+    logistic: relax the refusal, refresh the latents against the new
+    counts on the swap (a stale omega is a wrong draw, not just a
+    stale one), keep the positive-integer validation on the mutation
+    path. DECLINE BY IDENTIFICATION for probit, ordinal, aft and
+    nbinom - no weighted latent form, a creation-fixed censoring
+    structure, and a y_i + r shape with no weight slot respectively -
+    and say so in the weights item of man/dbartsSampler-class.Rd
+    rather than leaving it an accident. Record in
+    docs/design/r-c-division.md, "The latent-family weight channel".
+    Memo price ~40 engine + ~60 test, to be re-derived in raw
+    additions at scoping. OUTSIDE the adoption-slate arc;
+    unscheduled, pre-release at discretion.
   latent-subset-mask: ARC FULLY COMPLETE - S0 dc11a805, S1 6db22aee,
     S2 87d370ea, S3 8b047f8b, S4 93afd635 LANDED, and the flat entry
     (dbarts_sampler_setActiveRows) LANDED at dbarts-h-reshape S1,
@@ -433,12 +495,15 @@ items
     bart2(family = "multinomial", variance = ...) likely crashes
     rather than errors (docs/design/feature-matrix.md). Reproduce,
     then refuse cleanly; small slice.
-  named-recipes: named, tested R compositions cross-referenced from
-    ?bart (probit/aft residualization, K-block splitting, and the
-    rest of the getting-started recipes the r-c-division demand
-    survey found missing), so the on-ramp is documentation rather
-    than a support burden. ~150 lines. SCHEDULED, pre-release
-    (surface shakedown).
+  named-recipes: SPECCED as slice S6 of adoption-slate
+    (docs/plans/adoption-slate.md), carrying embedding-page with it.
+    Six named compositions as a vignette, EACH with its own tinytest
+    cell - a vignette asserts nothing, so a recipe that runs and
+    produces a wrong answer would ship clean - and, where the recipe
+    has a one-sweep step, its own dbartsValidateComposition call. The
+    plan supersedes this entry's ~150 lines, which priced
+    cross-references rather than runnable tested recipes. SCHEDULED,
+    pre-release (surface shakedown).
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
@@ -515,7 +580,12 @@ items
     schedule pre-release under the recorded frame. Fork implications
     for multiforest-extension-surface (basis family pre-release not
     post-freeze, FA5 respec, KEEP setForestWeights, bcf() to
-    bartCause) are RESOLVED; see that entry.
+    bartCause) are RESOLVED; see that entry. THE SLATE IS SPECCED
+    2026-08-15 as docs/plans/adoption-slate.md, eight slices S1-S8;
+    the remaining defect-5 docs slice, G3 and G10 are its S1-S3. Two
+    items were adjudicated OUT of that arc and carry their own
+    entries: latent-family-weight-channel (census G4) and
+    host-shell-read-guards.
   r5-forest-indexing: LANDED a14040de (record in docs/plans/dbarts-h-
     reshape.md, Landing notes, item 9; implemented as 6189365f, amended
     during review). The last two 0-based methods, $getForestFits and
