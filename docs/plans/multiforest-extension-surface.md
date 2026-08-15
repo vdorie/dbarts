@@ -5112,3 +5112,213 @@ move by +3, the evidence re-derivation happened rather than arithmetic -
 and run the anchor pass LAST, after every content edit is final. The
 reviewer's own hand sample, checked the same way, was 62 citations across
 12 files with 60 landing exactly.
+
+M4.4 LANDED 4da3bd8a, 2026-08-14. The arc's last slice, and the one that
+makes the general K-forest basis/amplitude family non-Gaussian: `probit`
+and `logistic` now reach it, at creation and through every family-keyed
+predicate, leaving `aft`, `ordinal` and `nbinom` refused by name at the
+door. The calibration map gains `latentScaleAnchor(family)` - the settled
+Option L, `s = 1` under probit and `s = pi/sqrt(3)` under logistic, and
+`sd(y)` under gaussian - so the map's node scale is
+`nodeScaleFactor * s / (nodeScaleDivisor * basisRowNorm)` at every family
+rather than at one. Under a latent family the forests combine into the
+INDEX rather than the mean, sigma is pinned, the response transform is the
+identity, and there is no response standard deviation for a prior scale to
+be stated in; the "sd(y) units" phrasing was therefore a required edit and
+not a sweep, on the one shipped knob (`forest(sd = )`) above all. Folded in
+by VD decision rather than split out: the live `$getSumsOfSquaredResiduals()`
+defect, which read `forests_[0].totalFits` and so reported forest 0 bare
+with the amplitude never applied, 1 to 49 percent off and contradicting its
+own Rd. `dbarts.h` is comment-only, so no signature moved, no hash re-baked
+and no `structSize` moved; `SamplerFacade<ConstantGaussianLeaf>` is a LEAF
+instantiation and the family is runtime, so the slice adds no instantiation
+at all.
+
+ARM E, the slice's OWN statistical acceptance gate, PASSED and is written
+up in `.claude/m4-basis-design/arm-e-2026-08-14.md` (gitignored; the numbers
+below are the record). The native K-forest probit sampler AGREES with FA5's
+independent reference on all 12 functionals at max |z| = 1.46, and with arm
+B - the R-composed arm that FALSIFIED this slice's original headline
+justification - at max |z| = 1.73. Zero functionals over |z| = 3 on either
+comparison, so the pre-registered AMBIGUOUS branch is not entered and no
+4x-seed re-run is owed. The power precondition is MET with margin: arm A
+differs at |z| = 772.49, and at 588.64 re-standardized in arm E's OWN
+standard errors, so the verdict is not inherited from an arm that mixes
+differently. E0, the batch-vs-loop identity, holds. The open question arm E
+existed to answer is ANSWERED: the pinned sigma costs nothing measurable on
+the fixed-variance basis forest. Arm E's IACT is at or below arm B's on 8 of
+12 functionals (mean ratio 0.98) and 1.11x the reference's on average; the
+one lag, Etau3, is shared in equal measure by BOTH dbarts arms, so it is the
+MH tree move against the reference's exact enumerated conditional and not
+the engine path and not sigma. That is the mixing and coverage evidence
+`binary-kforest-prior-default` was ticketed to wait for, so its TRIGGER IS
+MET. What arm E does NOT establish, stated because a later reader will
+over-read it: it pins `sd` at exactly the point where the map returns
+N(0, 1) and then asserts the map returned it, so a map wrong everywhere
+except that point would pass it untouched; it exercises probit's anchor
+only, at basis row norm exactly 1, with `update.amplitude = FALSE` in every
+arm so no amplitude conditional and no ASIS ridge ever ran. Arm E is NOT the
+anchor's gate. The anchor's gate is checklist item 25, which ships in
+`test-bcf-family.R`.
+
+ITEM 25'S GATE STRENGTH IS SUBSTANTIATED, by mutation builds run
+independently rather than asserted: GREEN as shipped at exactly 76/76, and
+RED under all three mutations, each failing on the assertion designed to
+catch it and none failing incidentally - the naive anchor (every family
+taking the gaussian answer) moves 14 assertions, Option C moves 12, and a
+dropped row-norm divisor moves 4, all inside the anchor blocks. The three
+assertion types are non-redundant: Option C correctly does NOT trip base-rate
+invariance, since it is still a family constant, and is caught instead by the
+absolute anchor and the induced-index check. Two limits of the gate are
+recorded because a later reader will lean on it. First, the row-norm coverage
+hangs on ONE deliberately planted fixture cell, `scaledBases` carrying a
+`4 * zBasis` whose row norm is 4; delete that cell and the dropped-divisor
+mutation goes fully GREEN. That is the arc's own "unit-valued fixture factors
+silently vacate pins" lesson, defended against on purpose - do not let a
+later tidy-up remove it. Second, the naive anchor's LOGISTIC arm misses the
+absolute anchor by only 0.865 percent (2.66782 against 2.69110), so it is
+caught only by the 1e-12/1e-4 tolerances plus the 33.8 percent divergence in
+base-rate invariance; a looser tolerance would let the naive anchor through
+on that arm.
+
+GATES, re-run independently on the merged tree into a FRESH private library
+rather than the implementer's: `R CMD INSTALL --preclean` clean with no
+compiler warnings; `tests/cpp` 241 ok / 0 fail from `make clean`, and again
+241 ok under ASAN+UBSAN with zero sanitizer reports; tinytest 141 files,
+4732 tests, 0 failures; full `R CMD check` from a clean copy staged outside
+the tree, Status OK with 0 ERRORs, 0 WARNINGs and 0 NOTEs, examples,
+`tinytest.R` and the vignette rebuild included; `air format --check` clean
+tree-wide (with the checker itself proven live against a deliberately
+mis-formatted scratch file); `NEWS.Rd` parses; `pkgdown::check_pkgdown` finds
+no problems, and the slice adds no NEW exported Rd topic so no `_pkgdown.yml`
+entry was owed. **THE EQUIVALENCE TRIO IS BITWISE ON ALL THREE SUITES with
+NO "max |z|" line anywhere: `equivalence-8b047f8b` 37/37 identical draws at
+37 compared / 0 skipped, `bcf-equivalence-8b047f8b` 12/12 identical on every
+channel, `multinomial-equivalence-1027be5` 10/10 identical on every channel.
+No baseline was re-recorded.** So the answer the gates bullet demanded is
+recorded plainly for the next slice to inherit: M4.4 IS DRAW-NEUTRAL, proven
+at this commit, the folded-in residuals fix included - it moves a REPORTING
+path, not a draw path. `lintr` on `R/spec.R`, the only touched R file,
+reports NO LINTS against a private library carrying the slice's own build,
+identically on the working tree and on `git show HEAD:R/spec.R`; the nine
+`object_usage_linter` warnings an earlier run showed were the documented
+FALSE-POSITIVE class, reproduced only by linting against a stale installed
+dbarts that lacks `resolveForests`, `forestParams` and five more of this
+arc's own internals. Speed was deliberately NOT measured and no speed claim
+is made: the machine was loaded, and `bench-sampler` needs genuine quiet.
+
+BUDGET against item 9, measured by independent review in DENSE-EQUIVALENT
+non-comment net terms: engine 67 against a 49-82 band and a 123 stop, PASS;
+bridge about 33 dense against a 14-28 band and a 42 stop, OVER BAND and under
+the stop - and the currency matters here, because 42 is the bridge's RAW net
+and reporting it as dense would have put the slice AT its own halt condition
+on a figure in the wrong unit; R 27 against 18-38, PASS; flat C 0, PASS; docs
+about 100 (markdown at raw/2 = 74, Rd raw = 26) against 100-175, PASS; tests
+348 against a 155-260 band and a 390 stop, OVER BAND and under the stop. The
+two over-band layers are both the arc's known under-pricing of test and
+bridge work against a mandated oracle, not scope creep. Checklist items 1
+through 25 are all present and spec-conformant, item 14 correctly shipping no
+code. Two DELIBERATE deviations, recorded so neither reads as a miss: item
+21's helper is `basisRowNorm(const double*, numColumns, n)` rather than the
+specified `(const ForestSpec&, n)`, which item 22's call site requires; and
+item 7's row for `man/dbartsSampler-class.Rd:147` was NOT edited because the
+Rd's claim is not in fact falsified - post-creation `setWeights` is still
+gaussian-only and the page already defers to `dbarts` for creation-time rules
+- so the SPEC's row was wrong there, not the code. A weak spot in the new
+tests is recorded rather than papered over: no test exercises a non-default
+`forest(sd = )` under a latent family, so `nodeScaleFactor` is 1 throughout
+the anchor assertions and a factor-versus-anchor confusion would go unpinned.
+That is spec-conformant - item 25 specified this fixture - and it is added to
+`binary-kforest-prior-default`, which is the slice that will move `sd`.
+
+THIS PLAN'S OWN TEXT WAS WRONG IN NINE PLACES, all found by opening targets
+rather than by trusting the citation, and all corrected HERE rather than in
+the bullet, because `multiplier-combiner.md` carries eighteen citations into
+this file on seventeen lines and an in-place edit would falsify them. One is
+a behavioral prediction, not an anchor: item 7 predicted that
+`bcf` x `updateScale = TRUE` would take the shipped latent convention and be
+IGNORED rather than refused, since latent families have `fitScale() == 1`
+and `fitShift() == 0`. It is REFUSED, under every family. `refuseBCFMutation`
+keys on the sampler carrying bases and `refuseMultiForestResponseMutation` on
+`numForests >= 2`; neither has ever consulted the family, so the cell does
+not move and the reason is that the refusal was never family-keyed. M4.4's
+own new test already pins it. The other eight are anchors: item 7's
+"sd(y)-unit calibration" third instance is at `multiplier-combiner.md:28`,
+not `:25`; `man/dbartsSampler-class.Rd:147` is listed among the nine
+assertions M4.4 falsifies but is already FAMILY-scoped rather than
+forest-count-scoped, so it was correct as written and took no edit; 2d(a)'s
+`R/model.R:772-840`, `:799-806` and `:874` and
+`R_interface_bartcore.cpp:2207` are really `:810-878`, `:837-843`, `:915`
+and `:2208`; `[f23]`'s `spec.R:440` named the non-default-`k` entry rather
+than the `prior.scale` refusal; `[f36]`'s `CH:1589` is the variance-forest
+pre-step and not the forest loop; the DART refusal is at `spec.R:451` fired
+at `:481-487`, not `:441`/`:468-474`; and the header's family documentation
+is `dbarts.h:485-494` with the K-forest sentence M4.4 replaced at `:514-518`.
+
+A COMMENT-ONLY residue pass was folded in rather than ticketed, on the
+finding that six in-code sites still asserted what M4.4 falsifies - all
+outside the bullet's tabled nine, and all within about forty lines of edits
+the slice did make, which is the near-miss pattern this arc keeps producing.
+The one that mattered is `facade.hpp`'s `SamplerShape::supportsResponseMutation`
+docstring, a CAPABILITY docstring a `LinkingTo` host reads, still saying the
+flag is false for a non-gaussian response after the slice dropped exactly
+that conjunct. The others: `BCFForestSpec`'s "derives them from the response
+sd", the K-forest constructor's "at aPriorScale sd(y)" and "sits at
+sdModerate sd(y)", `BCFState`'s "y = a mu + b_z tau + eps", and two
+`R/spec.R` rationales stating leaf scales come from the response sd. Zero
+executable tokens moved: `git diff -U0` yields no changed non-comment line
+and each file's non-comment content is md5-identical to its pre-pass state.
+
+THE ANCHOR SWEEP FOUND ROT OLDER THAN THIS SLICE. Of about 199 code
+citations checked across the touched design docs, 105 changed, and roughly
+seventy of those in `multiplier-combiner.md` were ALREADY WRONG AT HEAD by
+up to +78 lines - the file was written against a pre-M4.4 `combiner.hpp` and
+no pass since M4.1 had swept it. Independent review then opened 50 of the
+moved citations across `combiner.hpp`, `chain.hpp`, `facade.hpp`, `R/spec.R`
+and `dbarts.h` and found ZERO mismatches. The deltas are not identical -
+fourteen distinct values in `multiplier-combiner.md` alone (+1, +2, +8, +15,
++16, +18, +19, +25, +26, +27, +31, +35, +78 and -4), twenty-two across both
+files, ten into `combiner.hpp` by itself - and endpoint deltas differ from
+start deltas inside untouched regions, so this was neither an offset pass nor
+a hunk-line-map pass. One anchor changed FILE (`COM:963` to `CH:955`), which
+no arithmetic could produce. **The sweep's own "31 citations left unmoved"
+figure did NOT reproduce and is struck**; measured, it is 18 unmoved in
+`multiplier-combiner.md` (4 of them into files this slice edited) and 423 in
+`feature-matrix.md` (66 into edited files). The review's re-count is what
+turned up the two anchors this slice itself BROKE (`COM:1581` and `COM:486`,
+correct at HEAD~1) and one the by-symbol pass had missed
+(`multiplier-combiner.md:403`), all three fixed here.
+`nameable-calibration.md`, the `man/` files and `inst/NEWS.Rd` carry no
+source line citations at all.
+
+`docs/design/feature-matrix.md` MOVED CELLS, discharging the standing
+mandate that M4.5 could only record as vacuous. Fourteen cells in the `bcf`
+row, seven footnotes rewritten (`[f3]`, `[f17]`, `[f18]`, `[f23]`, `[f26]`,
+`[f33]`, `[f36]`), a new `[f48]` carrying the whole family-reach story, and
+an "Exception on record" entry naming what was re-derived BY SYMBOL and what
+was not. `[f26]`'s premise - "a BCF sampler's response IS a
+`GaussianResponse`" - is falsified; its conclusion survives, with its
+measurements now flagged gaussian-only. The Status stamp was deliberately
+NOT bumped: the outstanding whole-file pass is still
+`feature-matrix-anchor-refresh`, whose remaining scope the sweep enumerated
+by anchor rather than leaving it as a count.
+
+TICKETED, NOT FOLDED IN: `R_interface_bartcore.cpp`'s `calibrationMapName`
+returns the literal "two-forest calibration map" for every non-softmax
+coupling, and it reaches a user through the `setForestPriorScale` refusal -
+a K = 5 sampler is told its scale comes from the two-forest map "which owns
+both halves of its calibration". Wrong for K != 2, but wrong since the
+general K-forest family shipped and not falsified BY M4.4, so it joins
+`bcf-naming-generalization` rather than widening this slice.
+
+THE STANDING LESSON, restated because this slice re-learned it in a new
+shape: M4.5's rule was that a slice editing files it also cites invalidates
+its own citations mid-flight. M4.4 found the CONCURRENCY corollary. Two docs
+agents were deriving anchors into `combiner.hpp`, `chain.hpp`, `facade.hpp`
+and `R/spec.R` at the same time a comment-only pass was editing those four
+files, so citations were correct when written and stale when read, and one
+file's anchors drifted twice inside a single session. The scheduling error
+was the orchestrator's. It cost one extra sweep and no correctness, because
+the anchor pass runs LAST by rule and the rule held - but the cheap fix is
+to serialize any pass that edits a cited file against any pass that cites
+it, rather than to rely on the final sweep to catch it.

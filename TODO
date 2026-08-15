@@ -44,8 +44,16 @@ items
     docs/design/multiplier-combiner.md. A rename is ENGINE work, not a
     docs edit: a --preclean, a structSize move on the state fixtures
     (common.cpp already tripped once, 272 -> 344), and a state-block key
-    change needing the same in-place re-encode M4.3 used. Pre-release,
-    unscheduled.
+    change needing the same in-place re-encode M4.3 used. ONE LEG IS
+    USER-VISIBLE, added 2026-08-14 off M4.4's residue audit:
+    calibrationMapName (R_interface_bartcore.cpp) returns the literal
+    "two-forest calibration map" for every non-softmax coupling, and it
+    reaches a user through setForestPriorScale's refusal, which tells a
+    K = 5 sampler its scale comes from the two-forest map "which owns
+    both halves of its calibration". Wrong for K != 2 since the general
+    family shipped, not falsified by M4.4, so it was deliberately NOT
+    folded into that slice. A string plus whatever test pins it.
+    Pre-release, unscheduled.
   bcf-public-surface: S0-S4 and S6 landed; the public creation
     surface exists (plan + landing notes in
     docs/plans/bcf-public-surface.md). REMAINING: S5 (bcf() and the
@@ -93,14 +101,29 @@ items
     sampler and by one shipped knob (forest(sd = )), which the basis
     forests' hardcoded fixed variance is not. VD 2026-08-14: OUT of M4.4,
     which must not move it and must document the diffuseness and point
-    here. TRIGGER: M4.4's arm E acceptance gate (the FA5 arm in
-    docs/plans/multiforest-extension-surface.md), whose mixing and
-    coverage verdict on the pinned sigma is the evidence this slice needs;
-    note that a too-tight FIXED-VARIANCE basis prior would argue for an
-    sd.moderate default above 1 rather than for moving this, since the
-    anchor multiplies both channels while sd.moderate is already the
-    per-forest knob. SCHEDULED after arm E and BEFORE 1.0-0: it is a
-    shipped prior default, so the release window locks it.
+    here. TRIGGER MET 2026-08-14: M4.4's arm E acceptance gate RAN and
+    PASSED at 4da3bd8a (findings in
+    .claude/m4-basis-design/arm-e-2026-08-14.md, GIT-IGNORED, so the
+    numbers are carried in the M4.4 landing note at the EOF of
+    docs/plans/multiforest-extension-surface.md). Its verdict on the
+    pinned sigma is the evidence this slice was waiting for, and it comes
+    back NEGATIVE for the mixing hypothesis: the pinned sigma costs
+    nothing measurable on the fixed-variance basis forest - arm E's IACT
+    is at or below arm B's on 8 of 12 functionals, mean ratio 0.98, and
+    the one lag is shared equally by both dbarts arms, so it is the MH
+    tree move and not sigma. So this slice must be argued on the PRIOR
+    COVERAGE numbers above, not on a mixing pathology, which no longer
+    exists to point at. Note that a too-tight FIXED-VARIANCE basis prior
+    would argue for an sd.moderate default above 1 rather than for moving
+    this, since the anchor multiplies both channels while sd.moderate is
+    already the per-forest knob. A THIRD ITEM JOINS THIS SLICE, from
+    M4.4's review: no test anywhere exercises a non-default forest(sd = )
+    under a latent family, so nodeScaleFactor is 1 throughout the anchor
+    assertions and a factor-versus-anchor confusion is unpinned. That is
+    spec-conformant for M4.4 (item 25 specified the fixture) but this is
+    the slice that will move sd, so it must pin the product rather than
+    the anchor alone. NOW UNBLOCKED, and BEFORE 1.0-0: it is a shipped
+    prior default, so the release window locks it.
     TWO MORE ITEMS JOIN THIS SLICE, added 2026-08-14 off the M4.4
     anchor-scale costing, and M4.4 must do NEITHER.
     (1) The sqrt(K) dispersion law. The map has no per-K
@@ -223,8 +246,20 @@ items
     and the multinom active-rows cell (COM:1581) - and recorded the
     exception in the file's alias-table paragraph. Everything else is
     unchecked, and the Status line's "current at" commit was
-    deliberately not bumped. Open: a full by-symbol re-anchor pass, at
-    which point the stamp can move. Pre-release.
+    deliberately not bumped. M4.4 (4da3bd8a) re-derived the WHOLE bcf row
+    by symbol against its own tree and recorded a second exception; its
+    anchors date to 4da3bd8a, not ab3aa2fa. The stamp was again NOT
+    bumped. That pass ENUMERATED the remaining scope instead of leaving
+    it as a count, so the refresh no longer starts blind. TWO WHOLE-COLUMN
+    FAULTS: every remaining CAPI anchor in the section-1 flat-C column is
+    wrong the way [f3]'s was, indexing the DBARTS_C_API_LIST X-macro body
+    rather than the prose it claims; and every MOD anchor still dates to
+    ab3aa2fa though M4.1-M4.3 moved model.hpp. Named stale anchors
+    outside the bcf row, each verified wrong at 4da3bd8a: FAC:284, :298,
+    :680, :771; COM:1007, :1064-1065; CH:946-965, :980, :1003,
+    :1341, :1567, :1577, :3416, :3426, :3575, :3611, :3611-3618, :3614,
+    :3615, :4524. Open: a full by-symbol re-anchor pass, at which point
+    the stamp can move. Pre-release.
   forest-ranef-interweaving: RESEARCHED, NO-GO now - record,
     permanent gate (benchmarks/R/grouped-mixing.R), and the
     VD-sign-off reopen clause in
