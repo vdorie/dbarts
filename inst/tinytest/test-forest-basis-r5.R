@@ -370,3 +370,25 @@ expect_identical(swapped$getForestFits(2L), twin$getForestFits(2L))
 expect_identical(swapped$getForestAmplitudes(), twin$getForestAmplitudes())
 expect_identical(swappedResult$sigma, twinResult$sigma)
 expect_identical(swappedResult$train, twinResult$train)
+
+# (iii) THE WHOLE PRODUCT, re-derived across the swap. (i) and (ii) both run at
+# the DEFAULT node scale factor - a literal 1 - so a swap that lost the stored
+# factor would pass them both; only a DECLARED forest(sd = ) can see it. Every
+# factor of sd_f * s / (0.674 c_f) discriminates here: sd in {2.5, 0.4}, c in
+# {3, 5} then 7, divisor 0.674, and s is probit's 1 (the anchor's own arm is
+# test-bcf-family.R's, which runs the same fixture under logistic too, where a
+# dropped anchor is a 81 percent miss).
+ones <- matrix(1, n, 1L)
+zBasis <- cbind(1 - z, z)
+declared <- dbarts(
+  dbartsData(x, yBinary, bases = list(3 * ones, 5 * zBasis)),
+  forests = list(forest(sd = 2.5), forest(sd = 0.4)),
+  control = seededControl()
+)
+expect_equal(priorScale(declared, 1L), 2.5 / (0.674 * 3), tolerance = 1e-12)
+expect_equal(priorScale(declared, 2L), 0.4 / (0.674 * 5), tolerance = 1e-12)
+declared$run(5L, 1L)
+declared$setForestBasis(2L, 7 * zBasis)
+# the new row norm enters and the DECLARED factor survives: 0.084781687156
+expect_equal(priorScale(declared, 2L), 0.4 / (0.674 * 7), tolerance = 1e-12)
+expect_equal(priorScale(declared, 1L), 2.5 / (0.674 * 3), tolerance = 1e-12)

@@ -45,8 +45,12 @@ gBasis <- unname(model.matrix(~ g - 1L))
 unitBases2 <- list(ones, zBasis)
 unitBases3 <- list(ones, zBasis, gBasis)
 # and one cell whose rows are NOT unit norm, which is what pins the map's
-# per-unit-of-row-norm divisor rather than assuming it
+# per-unit-of-row-norm divisor rather than assuming it. LOAD-BEARING: delete
+# the 4 and the dropped-divisor mutation goes green (M4.4's landing note).
 scaledBases <- list(ones, 4 * zBasis)
+# the product pin's own fixture, whose every factor discriminates; see (d)
+pinBases <- list(3 * ones, 5 * zBasis)
+pinScales <- list(forest(sd = 2.5), forest(sd = 0.4))
 
 basisSampler <- function(y, bases, family = "auto", ...) {
   dbarts(
@@ -131,6 +135,25 @@ for (family in names(anchors)) {
     sqrt(sum(scaled^2 * 0.5 * c(1, 4)^2)),
     1.04912 * sqrt(2) * s,
     tolerance = 1e-4
+  )
+
+  # (d) THE PRODUCT ITSELF, at a DECLARED forest(sd = ). Every assertion above
+  # runs at the default node scale factor, the literal 1, so three of the map's
+  # four factors are pinned and the fourth is vacated - the arc's own recorded
+  # hazard (unit values silently vacate pins) sitting on the expression whose
+  # default is about to move. Here each of the four discriminates: sd in
+  # {2.5, 0.4}, s in {1, 1.813799}, c in {3, 5}, divisor 0.674, no two equal
+  # and none 1. The oracle, re-derived: probit 1.236399604352 and
+  # 0.118694362018, logistic 2.242580816313 and 0.215287758366.
+  #
+  # BOTH families, because probit ALONE CANNOT SEE A DROPPED ANCHOR - s = 1
+  # there, so sd / (0.674 c) and sd s / (0.674 c) are the same number. Under
+  # logistic they differ by 81 percent. Deleting the logistic arm leaves the
+  # anchor unpinned, which is the near-miss M4.4 recorded.
+  expect_equal(
+    priorScales(basisSampler(yBalanced, pinBases, family, forests = pinScales)),
+    c(2.5, 0.4) * s / (0.674 * vapply(pinBases, medianRowNorm, numeric(1L))),
+    tolerance = 1e-12
   )
 }
 
@@ -336,6 +359,8 @@ rm(
   ones,
   p,
   params,
+  pinBases,
+  pinScales,
   priorScales,
   probit,
   rare,
