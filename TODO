@@ -237,29 +237,6 @@ items
     bitwise.
   facade-shape: LANDED (record in docs/plans/facade-shape.md);
     SamplerShape POD, oracled by tests/cpp test_shape.
-  feature-matrix-anchor-refresh: docs/design/feature-matrix.md's
-    line-number anchors date to ab3aa2fa, and M4.1-M4.3 moved
-    src/bartcore/combiner.hpp substantially, so the COM anchors are
-    stale by hundreds of lines. M4.5 re-verified FOUR by symbol against
-    its own tree - the bcf row label (COM:685), the two bcf response/offset
-    cells (COM:963), the bcf zero-weight-subset cell (COM:787, 823-827)
-    and the multinom active-rows cell (COM:1581) - and recorded the
-    exception in the file's alias-table paragraph. Everything else is
-    unchecked, and the Status line's "current at" commit was
-    deliberately not bumped. M4.4 (4da3bd8a) re-derived the WHOLE bcf row
-    by symbol against its own tree and recorded a second exception; its
-    anchors date to 4da3bd8a, not ab3aa2fa. The stamp was again NOT
-    bumped. That pass ENUMERATED the remaining scope instead of leaving
-    it as a count, so the refresh no longer starts blind. TWO WHOLE-COLUMN
-    FAULTS: every remaining CAPI anchor in the section-1 flat-C column is
-    wrong the way [f3]'s was, indexing the DBARTS_C_API_LIST X-macro body
-    rather than the prose it claims; and every MOD anchor still dates to
-    ab3aa2fa though M4.1-M4.3 moved model.hpp. Named stale anchors
-    outside the bcf row, each verified wrong at 4da3bd8a: FAC:284, :298,
-    :680, :771; COM:1007, :1064-1065; CH:946-965, :980, :1003,
-    :1341, :1567, :1577, :3416, :3426, :3575, :3611, :3611-3618, :3614,
-    :3615, :4524. Open: a full by-symbol re-anchor pass, at which point
-    the stamp can move. Pre-release.
   forest-ranef-interweaving: RESEARCHED, NO-GO now - record,
     permanent gate (benchmarks/R/grouped-mixing.R), and the
     VD-sign-off reopen clause in
