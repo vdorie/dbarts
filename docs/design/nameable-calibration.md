@@ -48,7 +48,9 @@ Mid-chain, over every chain:
 
     cal <- sampler$getCalibration(forest = 1L)
     # numeric matrix, one ROW per chain, columns prior.scale prior.sd
-    # prior.mean k k.has.hyperprior response.scale response.shift,
+    # prior.mean k k.has.hyperprior response.scale response.shift
+    # amplitude.prior.variance amplitude.prior.scale node.scale.factor
+    # node.scale.divisor basis.row.norm,
     # plus attr(, "leaf.model") in {constant, monotone, linear, gp}
 
     sampler$setCalibration(prior.scale = 3.0, forest = 1L, updateState = NA)
@@ -84,6 +86,24 @@ BASIS ROW NORM; under the two latent rows the index itself is in latent sd
 units with sigma PINNED, where the gaussian row's is `sd(y)` and a drawn sigma
 partly absorbs a mis-scaled basis. The induced index prior and its `sqrt(K)`
 dispersion law are docs/design/multiplier-combiner.md's map section.
+
+The five map columns are the same rows read one level down
+(`binary-kforest-prior-default` S1). On a mapped forest they carry the
+DECOMPOSITION of `prior.scale`, `factor * s / (divisor * rowNorm)`, so the
+anchor s - the one map quantity with no column, and data-dependent under
+gaussian - is recovered as `prior.scale * divisor * rowNorm / factor`; every
+other row above reports NaN in all five, which is a positive "not map-derived"
+signal rather than a neutral 1.0. Two of them are the amplitude PRIOR, in
+whichever of `ForestAmplitudePrior`'s two exclusive spellings the forest
+carries, and never the scale mixture's live variance auxiliary, which is state
+and rides `$state`'s `aVariance`. The engine reads its own retained spec, not
+the combiner, so no virtual joined `ForestCombiner` and no draw moved.
+
+| channel | the five map columns |
+|---|---|
+| `setForestBasis` | `basis.row.norm` re-derived from the new basis, the other four unchanged, and the two `node.scale` columns RESTORED if an install had cleared them |
+| `setState` / `installTrees` with a foreign leaf scale | `node.scale.factor` and `node.scale.divisor` go NaN (the stored pair no longer decomposes what is in force); `amplitude.prior.variance` FOLLOWS the state; `basis.row.norm` unchanged |
+| `setState` restoring a sampler's OWN state | unchanged, since the installed scale is bitwise the one in force |
 
 ## 3. What prior.sd means, per leaf model
 

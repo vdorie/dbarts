@@ -155,6 +155,43 @@ for (family in names(anchors)) {
     c(2.5, 0.4) * s / (0.674 * vapply(pinBases, medianRowNorm, numeric(1L))),
     tolerance = 1e-12
   )
+
+  # (e) THE FACTORS THEMSELVES, which the reader now reports beside the
+  # product. Each column against the value this fixture declares, and then the
+  # ANCHOR recovered by the identity the Rd states - prior.scale * divisor *
+  # row norm / factor - which is the only route to s and is what the
+  # decomposition exists for. The recovery is what the logistic arm
+  # discriminates: a map that dropped the anchor recovers 1 here rather than
+  # 1.813799, while probit cannot tell the two apart.
+  declaredMap <- basisSampler(
+    yBalanced,
+    pinBases,
+    family,
+    forests = pinScales
+  )
+  for (f in seq_along(pinBases)) {
+    reported <- declaredMap$getCalibration(f)[1L, ]
+    expect_equal(unname(reported["node.scale.factor"]), c(2.5, 0.4)[f])
+    expect_equal(unname(reported["node.scale.divisor"]), 0.674)
+    expect_equal(
+      unname(reported["basis.row.norm"]),
+      medianRowNorm(pinBases[[f]])
+    )
+    expect_equal(
+      unname(
+        reported["prior.scale"] *
+          reported["node.scale.divisor"] *
+          reported["basis.row.norm"] /
+          reported["node.scale.factor"]
+      ),
+      s,
+      tolerance = 1e-12
+    )
+    # every forest here carries a basis, so every one takes the fixed-variance
+    # channel and reports no half-Cauchy median
+    expect_equal(unname(reported["amplitude.prior.variance"]), 0.5)
+    expect_true(is.nan(reported["amplitude.prior.scale"]))
+  }
 }
 
 # --- positive builds on the shipped two-forest shape, where forest 1 carries
@@ -180,6 +217,27 @@ for (fit in list(probit, logistic)) {
   s <- anchors[[fit$model@family]]
   # forest 1 declares no basis, so its node scale stays at the anchor itself
   expect_equal(priorScales(fit), c(s, s / 0.674), tolerance = 1e-12)
+  # and the reader SHOWS that rather than leaving it to be inferred: factor,
+  # divisor and row norm are each 1 on that forest. The two amplitude columns
+  # are EXCLUSIVE - a basis-free forest carries the half-Cauchy scale mixture
+  # and reports its median, a basis forest the fixed variance - and which
+  # spelling a forest gets agrees with the transported per-forest params, so
+  # the reader and the creation route cannot disagree about the channel.
+  fitParams <- attr(fit$control, "bartcore.bcf")$params
+  free <- fit$getCalibration(1L)[1L, ]
+  carried <- fit$getCalibration(2L)[1L, ]
+  expect_equal(
+    unname(free[c(
+      "node.scale.factor",
+      "node.scale.divisor",
+      "basis.row.norm"
+    )]),
+    c(1, 1, 1)
+  )
+  expect_equal(unname(free["amplitude.prior.scale"]), fitParams[[1L]][7L])
+  expect_true(is.nan(free["amplitude.prior.variance"]))
+  expect_equal(unname(carried["amplitude.prior.variance"]), fitParams[[2L]][6L])
+  expect_true(is.nan(carried["amplitude.prior.scale"]))
   result <- fit$run(4L, 2L)
   expect_true(all(is.finite(result$train)))
   # sigma is pinned by the family, not merely fixed by a prior

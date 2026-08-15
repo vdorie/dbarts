@@ -73,6 +73,21 @@
             also re-pins \code{sigma} and refuses a DART sampler outright.
             Its \code{prior.sd} spelling meets the same sampled-\code{k}
             refusal as at creation.
+      \item \code{$getCalibration} also reports the five calibration-map
+            quantities a multi-forest model runs under and no surface showed:
+            the forest's amplitude prior variance or half-Cauchy scale
+            (\code{amplitude.prior.variance} and
+            \code{amplitude.prior.scale}, exclusive per forest), its
+            \code{node.scale.factor} and \code{node.scale.divisor}, and the
+            \code{basis.row.norm} the map divides out. The induced prior on a
+            multi-forest model's combined location can now be reconstructed
+            from the sampler rather than from the call, including after a
+            \code{$setForestBasis} swap re-derives the row norm; they are
+            \code{NaN} on a forest whose scale the map does not own. The flat
+            C \code{dbarts_forest_calibration} gains the matching fields,
+            appended below its documented field boundary, so a caller
+            compiled against the earlier struct reads as before and one that
+            recompiles picks them up.
       \item Multi-forest models: \code{dbarts} and \code{dbartsSpec} accept a
             \code{forests} list of \code{\link{forest}} specifications, which
             fits the mean as a weighted sum of the declared ensembles instead

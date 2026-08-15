@@ -5978,6 +5978,22 @@ static void testForestCalibration() {
           missing.responseScale == 0.0 && missing.responseShift == 0.0 &&
           !missing.kHasHyperprior,
         "calibration: an out-of-range forest reads as the empty calibration");
+  // and the five map quantities are NaN there and on the forest that DOES
+  // exist: a single-forest sampler's scale is not map-derived, which is a
+  // positive signal rather than a plausible 1.0 a caller would multiply by
+  check(std::isnan(missing.amplitudePriorVariance) &&
+          std::isnan(missing.amplitudePriorScale) &&
+          std::isnan(missing.nodeScaleFactor) &&
+          std::isnan(missing.nodeScaleDivisor) &&
+          std::isnan(missing.basisRowNorm),
+        "calibration: the empty calibration carries no map quantities");
+  ForestCalibration offMap = sampler.forestCalibration(0, 0);
+  check(std::isnan(offMap.amplitudePriorVariance) &&
+          std::isnan(offMap.amplitudePriorScale) &&
+          std::isnan(offMap.nodeScaleFactor) &&
+          std::isnan(offMap.nodeScaleDivisor) &&
+          std::isnan(offMap.basisRowNorm),
+        "calibration: a single-forest sampler reports no map quantities");
 
   {
     ext_rng* bcfRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -6019,6 +6035,12 @@ static void testForestCalibration() {
 /// under a latent family forestCalibration reports it exactly - fitScale is 1
 /// and priorScale's sqrt(m) cancels the map's, so the reported number IS the
 /// map's node scale rather than a transform of it.
+///
+/// The reader now reports the FACTORS as well as the product
+/// (docs/plans/binary-kforest-prior-default.md, leg (c)), so each is pinned
+/// against its literal here and the three together against the scale they
+/// decompose - a column filled from a neighbouring forest's buffer, or from
+/// the other member of the exclusive amplitude pair, cannot pass both.
 ///
 /// Fixture admissibility, in the comment because this is the third set of
 /// values: the first left two of the four factors at 1 and the second gave a
@@ -6065,6 +6087,14 @@ static void testBCFCalibrationMap() {
   const double factors[3] = {2.5, 0.4, 1.75};
   const double divisors[3] = {0.674, 0.8, 0.25};
   const double norms[3] = {3.0, 5.0, 6.0};
+  // the amplitude prior each forest carries, which the reader echoes beside
+  // the map's own two factors. EXCLUSIVE per forest: forest 0 takes the
+  // half-Cauchy scale mixture and reports a NaN variance, forests 1 and 2 the
+  // fixed variance and a NaN scale. All three values are distinct from each
+  // other and from the nine above, so a reader wired to the wrong forest or to
+  // the wrong member of the pair cannot pass.
+  const double halfCauchyScale = 1.5;
+  const double variances[3] = {0.0, 0.35, 0.125};
   const size_t trees[3] = {30, 15, 40};
   const double* bases[3] = {b0.data(), b1.data(), b2.data()};
   const size_t widths[3] = {1, 2, 2};
@@ -6089,6 +6119,10 @@ static void testBCFCalibrationMap() {
       spec.forests[f].nodeScaleDivisor = divisors[f];
       spec.forests[f].basis = bases[f];
       spec.forests[f].numBasisColumns = widths[f];
+      if (f == 0)
+        spec.forests[f].amplitudePriorScale = halfCauchyScale;
+      else
+        spec.forests[f].amplitudePriorVariance = variances[f];
     }
     std::unique_ptr<SamplerBase> sampler =
       createBCFSampler(x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
@@ -6104,6 +6138,33 @@ static void testBCFCalibrationMap() {
         check(calibration.responseScale == 1.0 && calibration.k == 1.0,
               "calibration map: a latent family reports the identity transform "
               "and k pinned at one");
+        // the map's own decomposition, reported per forest: each factor
+        // against its literal, and the three together against the scale they
+        // decompose, so a column filled from a neighbouring buffer is visible
+        check(calibration.nodeScaleFactor == factors[f] &&
+                calibration.nodeScaleDivisor == divisors[f],
+              "calibration map: the reported factor and divisor are the "
+              "forest's own");
+        checkNear(calibration.basisRowNorm, norms[f], 1.0e-12,
+                  "calibration map: the reported row norm is the forest's "
+                  "own");
+        checkNear(calibration.nodeScaleFactor * s /
+                    (calibration.nodeScaleDivisor * calibration.basisRowNorm),
+                  calibration.priorScale, 1.0e-12,
+                  "calibration map: the reported decomposition reproduces the "
+                  "reported scale");
+        // and the amplitude prior, in whichever of its two exclusive spellings
+        // the forest carries
+        if (f == 0)
+          check(calibration.amplitudePriorScale == halfCauchyScale &&
+                  std::isnan(calibration.amplitudePriorVariance),
+                "calibration map: a scale-mixture forest reports its "
+                "half-Cauchy median and no variance");
+        else
+          check(calibration.amplitudePriorVariance == variances[f] &&
+                  std::isnan(calibration.amplitudePriorScale),
+                "calibration map: a fixed-variance forest reports its variance "
+                "and no half-Cauchy median");
       }
     }
 
@@ -6135,6 +6196,12 @@ static void testBCFCalibrationMap() {
                 0.9 * s / (2.0 * 1.0), 1.0e-12,
                 "calibration map: an all-zero basis falls back to a unit row "
                 "norm and still reports a finite scale");
+      // and the convention is now READABLE rather than only inferable from the
+      // product: the reported norm is the median the map used
+      check(convention->forestCalibration(0, 0).basisRowNorm == 11.5 &&
+              convention->forestCalibration(0, 1).basisRowNorm == 1.0,
+            "calibration map: the reported row norm carries the median and "
+            "the all-zero fallback");
     }
 
     ext_rng_destroy(conventionRng);

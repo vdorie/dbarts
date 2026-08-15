@@ -398,6 +398,21 @@ other layout, which is how a caller learns it is not looking at bcf
 
 ## Surfaces
 
+The map is READABLE, at all three layers, and is the only route to any of its
+five quantities (`binary-kforest-prior-default` S1):
+`$getCalibration(f)` reports `amplitude.prior.variance` and
+`amplitude.prior.scale` - exclusive per forest, the fixed-variance and
+scale-mixture spellings of `ForestAmplitudePrior` - beside `node.scale.factor`,
+`node.scale.divisor` and `basis.row.norm`, NaN on any forest with no map entry;
+`bartcore_getCalibration` carries the five columns and
+`dbarts_forest_calibration` the five appended fields. The anchor s has no
+column and is recovered as `prior.scale * divisor * rowNorm / factor` whenever
+`node.scale.factor` is not NaN, which is exactly when the calibration in force
+is the map's: a `setState` or `installTrees` that brings a foreign leaf scale
+clears both `node.scale` columns (the amplitude prior follows the state, the
+row norm is unaffected - bases are not state) and `setForestBasis` re-imposes
+the map and restores them.
+
 R creation: `forests = list(forest(basis = ...))` plus the per-forest knob map
 (`resolveForests`, R/model.R), and `dbartsData(bases = )` for a numeric basis
 (R/spec.R:405-412, the `validateForestBases` install; the family gate it feeds
@@ -516,6 +531,27 @@ away. Equivalence trio bitwise on all three suites (bcf-equivalence,
 equivalence, multinomial-equivalence), no baseline re-records. Engine 67,
 bridge 33, R 27 dense-equivalent (the bridge's 42 is its RAW net, and
 reporting raw as dense would have put it at its own stop).
+
+**binary-kforest-prior-default S1 (the map becomes readable).** Not an M4
+slice, but it lands on the map this file owns, so its note is here.
+`ForestCalibration` gained five fields - the two exclusive amplitude-prior
+spellings, the node scale's factor and divisor, and the basis row norm the
+constructor already computed and discarded - surfaced as five
+`$getCalibration` columns and five appended `dbarts_forest_calibration`
+fields. DRAW-NEUTRAL by construction and confirmed: the engine echoes its own
+retained SPEC rather than reading the combiner, so no virtual joined
+`ForestCombiner<L, ResidT>` and the vtable did not move, and the leaf-scale
+expression keeps its written association with the row norm merely NAMED where
+it was previously an argument. Equivalence trio bitwise on all three
+baselines. The one non-echo is Fork 3b's truthfulness rule at the two state
+install sites: a donor leaf scale differing BITWISE from the one in force
+clears a per-forest `nodeScaleIsMapDerived_` flag, so the two `node.scale`
+columns read NaN rather than describing a decomposition of a number the chain
+no longer runs under, while the amplitude prior FOLLOWS the state under
+`restoreGlue`'s own guard (the existing `glueIsValid` virtual, no new one) and
+`setForestBasis` re-imposes the map. `sizeof(dbarts_forest_calibration)` moved,
+so a `LinkingTo` consumer recompiles; `dbarts_apiHash()` did not, the append
+being below the header's documented 1.0-0 boundary.
 
 **Budget units, as a standing convention** (plan :4985-4989). Slice bands on
 this arc are DENSE-EQUIVALENT lines - lines counted without blank-line and

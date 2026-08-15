@@ -9,6 +9,7 @@
 #define DBARTS_USE_STUBS
 #include <dbarts/dbarts.h>
 
+#include <math.h>   /* fabs */
 #include <stdio.h>  /* snprintf */
 #include <string.h> /* memcpy, strcmp */
 
@@ -771,15 +772,20 @@ SEXP capi_forest_amplitudes(SEXP ptrExpr, SEXP forestExpr) {
   return result;
 }
 
-/* one forest's calibration through the size-first output struct. partial
- * pins structSize below leafModel and poisons that member, the omitting
- * caller the presence test exists for; skipK leaves the k pointer null, the
- * null-member-skips half of the same contract. */
-SEXP capi_forest_calibration(SEXP ptrExpr, SEXP forestExpr, SEXP partialExpr,
+/* one forest's calibration through the size-first output struct. mode is the
+ * caller's structSize: 0 carries the whole struct, 1 stops below leafModel
+ * (the omitting caller the presence test exists for) and 2 stops at the
+ * calibration-map append boundary - a PRE-APPEND caller, compiled against the
+ * struct as it shipped before the five map fields, which must still read the
+ * eight original members and leave the five it does not carry alone. Every
+ * member past a mode's boundary is poisoned, so a fill that ignored structSize
+ * would write through 0x1 and crash rather than quietly pass. skipK leaves the
+ * k pointer null, the null-member-skips half of the same contract. */
+SEXP capi_forest_calibration(SEXP ptrExpr, SEXP forestExpr, SEXP modeExpr,
                              SEXP skipKExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   size_t numChains = dbarts_sampler_numChains(sampler);
-  int partial = Rf_asLogical(partialExpr) == TRUE;
+  int mode = Rf_asInteger(modeExpr);
   int skipK = Rf_asLogical(skipKExpr) == TRUE;
 
   SEXP priorScaleExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
@@ -790,11 +796,22 @@ SEXP capi_forest_calibration(SEXP ptrExpr, SEXP forestExpr, SEXP partialExpr,
   SEXP shiftExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
   SEXP hyperExpr = PROTECT(Rf_allocVector(INTSXP, (R_xlen_t) numChains));
   SEXP leafExpr = PROTECT(Rf_allocVector(INTSXP, (R_xlen_t) numChains));
+  SEXP aVarExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
+  SEXP aScaleExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
+  SEXP factorExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
+  SEXP divisorExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
+  SEXP rowNormExpr = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) numChains));
   for (size_t c = 0; c < numChains; ++c) {
     REAL(kExpr)[c] = -1.0;
     INTEGER(leafExpr)[c] = -1;
+    REAL(aVarExpr)[c] = -1.0;
+    REAL(aScaleExpr)[c] = -1.0;
+    REAL(factorExpr)[c] = -1.0;
+    REAL(divisorExpr)[c] = -1.0;
+    REAL(rowNormExpr)[c] = -1.0;
   }
 
+  double* poison = (double*) (uintptr_t) 0x1; /* never read, never written */
   dbarts_forest_calibration calibration = DBARTS_FOREST_CALIBRATION_INIT;
   calibration.priorScale = REAL(priorScaleExpr);
   calibration.priorSd = REAL(priorSdExpr);
@@ -803,18 +820,31 @@ SEXP capi_forest_calibration(SEXP ptrExpr, SEXP forestExpr, SEXP partialExpr,
   calibration.responseScale = REAL(scaleExpr);
   calibration.responseShift = REAL(shiftExpr);
   calibration.kHasHyperprior = INTEGER(hyperExpr);
-  if (partial) {
-    calibration.structSize = offsetof(dbarts_forest_calibration, leafModel);
-    calibration.leafModel = (int*) (uintptr_t) 0x1; /* poisoned: never read */
+  calibration.leafModel = mode == 1 ? (int*) (uintptr_t) 0x1
+                                    : INTEGER(leafExpr);
+  if (mode == 0) {
+    calibration.amplitudePriorVariance = REAL(aVarExpr);
+    calibration.amplitudePriorScale = REAL(aScaleExpr);
+    calibration.nodeScaleFactor = REAL(factorExpr);
+    calibration.nodeScaleDivisor = REAL(divisorExpr);
+    calibration.basisRowNorm = REAL(rowNormExpr);
   } else {
-    calibration.leafModel = INTEGER(leafExpr);
+    calibration.structSize =
+      mode == 1
+        ? offsetof(dbarts_forest_calibration, leafModel)
+        : offsetof(dbarts_forest_calibration, amplitudePriorVariance);
+    calibration.amplitudePriorVariance = poison;
+    calibration.amplitudePriorScale = poison;
+    calibration.nodeScaleFactor = poison;
+    calibration.nodeScaleDivisor = poison;
+    calibration.basisRowNorm = poison;
   }
 
   int accepted =
     dbarts_sampler_forestCalibration(sampler, (size_t) Rf_asInteger(forestExpr),
                                      &calibration);
 
-  SEXP result = PROTECT(Rf_allocVector(VECSXP, 9));
+  SEXP result = PROTECT(Rf_allocVector(VECSXP, 14));
   SET_VECTOR_ELT(result, 0, priorScaleExpr);
   SET_VECTOR_ELT(result, 1, priorSdExpr);
   SET_VECTOR_ELT(result, 2, priorMeanExpr);
@@ -823,8 +853,13 @@ SEXP capi_forest_calibration(SEXP ptrExpr, SEXP forestExpr, SEXP partialExpr,
   SET_VECTOR_ELT(result, 5, shiftExpr);
   SET_VECTOR_ELT(result, 6, hyperExpr);
   SET_VECTOR_ELT(result, 7, leafExpr);
-  SET_VECTOR_ELT(result, 8, Rf_ScalarInteger(accepted));
-  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 9));
+  SET_VECTOR_ELT(result, 8, aVarExpr);
+  SET_VECTOR_ELT(result, 9, aScaleExpr);
+  SET_VECTOR_ELT(result, 10, factorExpr);
+  SET_VECTOR_ELT(result, 11, divisorExpr);
+  SET_VECTOR_ELT(result, 12, rowNormExpr);
+  SET_VECTOR_ELT(result, 13, Rf_ScalarInteger(accepted));
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 14));
   SET_STRING_ELT(namesExpr, 0, Rf_mkChar("prior.scale"));
   SET_STRING_ELT(namesExpr, 1, Rf_mkChar("prior.sd"));
   SET_STRING_ELT(namesExpr, 2, Rf_mkChar("prior.mean"));
@@ -833,9 +868,14 @@ SEXP capi_forest_calibration(SEXP ptrExpr, SEXP forestExpr, SEXP partialExpr,
   SET_STRING_ELT(namesExpr, 5, Rf_mkChar("response.shift"));
   SET_STRING_ELT(namesExpr, 6, Rf_mkChar("k.has.hyperprior"));
   SET_STRING_ELT(namesExpr, 7, Rf_mkChar("leaf.model"));
-  SET_STRING_ELT(namesExpr, 8, Rf_mkChar("accepted"));
+  SET_STRING_ELT(namesExpr, 8, Rf_mkChar("amplitude.prior.variance"));
+  SET_STRING_ELT(namesExpr, 9, Rf_mkChar("amplitude.prior.scale"));
+  SET_STRING_ELT(namesExpr, 10, Rf_mkChar("node.scale.factor"));
+  SET_STRING_ELT(namesExpr, 11, Rf_mkChar("node.scale.divisor"));
+  SET_STRING_ELT(namesExpr, 12, Rf_mkChar("basis.row.norm"));
+  SET_STRING_ELT(namesExpr, 13, Rf_mkChar("accepted"));
   Rf_setAttrib(result, R_NamesSymbol, namesExpr);
-  UNPROTECT(10);
+  UNPROTECT(15);
   return result;
 }
 
@@ -1121,12 +1161,38 @@ static SEXP bcfLegBody(void* data) {
       dbarts_forest_calibration calibration = DBARTS_FOREST_CALIBRATION_INIT;
       calibration.priorScale = legs->out;
       calibration.k = legs->out + chains;
+      /* the calibration map's own three, which only a mapped sampler reports:
+       * the prognostic forest leaves all three at 1 and the treatment forest
+       * carries the half-normal median as its divisor over the synthesized
+       * (1 - z, z) pair, whose rows are unit norm */
+      calibration.nodeScaleFactor = legs->out + 2 * chains;
+      calibration.nodeScaleDivisor = legs->out + 3 * chains;
+      calibration.basisRowNorm = legs->out + 4 * chains;
       legs->accepted =
-        dbarts_sampler_forestCalibration(legs->sampler, 0, &calibration) &&
-        dbarts_sampler_forestCalibration(legs->sampler, 1, &calibration) &&
-        !dbarts_sampler_forestCalibration(legs->sampler, 2, &calibration) &&
-        !dbarts_sampler_setForestPriorScale(legs->sampler, 0, 2.5) &&
-        !dbarts_sampler_setForestPriorScale(legs->sampler, 1, 2.5);
+        dbarts_sampler_forestCalibration(legs->sampler, 0, &calibration);
+      double muAnchor = legs->out[0] * legs->out[3 * chains] *
+                        legs->out[4 * chains] / legs->out[2 * chains];
+      for (size_t c = 0; c < chains; ++c)
+        if (legs->out[2 * chains + c] != 1.0 ||
+            legs->out[3 * chains + c] != 1.0 ||
+            legs->out[4 * chains + c] != 1.0)
+          legs->accepted = 0;
+      if (!dbarts_sampler_forestCalibration(legs->sampler, 1, &calibration))
+        legs->accepted = 0;
+      for (size_t c = 0; c < chains; ++c)
+        if (legs->out[3 * chains + c] != 0.674 ||
+            legs->out[4 * chains + c] != 1.0)
+          legs->accepted = 0;
+      /* and the anchor the map states both node scales against is the same one
+       * either forest's decomposition recovers */
+      double tauAnchor = legs->out[0] * legs->out[3 * chains] *
+                         legs->out[4 * chains] / legs->out[2 * chains];
+      if (!(fabs(tauAnchor - muAnchor) <= 1.0e-12 * fabs(muAnchor)))
+        legs->accepted = 0;
+      if (dbarts_sampler_forestCalibration(legs->sampler, 2, &calibration) ||
+          dbarts_sampler_setForestPriorScale(legs->sampler, 0, 2.5) ||
+          dbarts_sampler_setForestPriorScale(legs->sampler, 1, 2.5))
+        legs->accepted = 0;
       for (size_t i = 0; i < 2 * chains; ++i)
         if (!R_FINITE(legs->out[i]) || legs->out[i] <= 0.0)
           legs->accepted = 0;

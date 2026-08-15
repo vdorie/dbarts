@@ -38,11 +38,12 @@ priorScaleOf <- function(sampler, forest = 1L) {
   sampler$getCalibration(forest)[, "prior.scale"]
 }
 
-# the reported shape: one row per chain, the seven documented columns, and the
-# leaf-model tag on an attribute
+# the reported shape: one row per chain, the twelve documented columns, and the
+# leaf-model tag on an attribute. The EXACT-SET form is what makes a reordering
+# visible; a subset check would not see one.
 plain <- dbarts(x, y, control = midControl())
 calibration <- plain$getCalibration()
-expect_equal(dim(calibration), c(2L, 7L))
+expect_equal(dim(calibration), c(2L, 12L))
 expect_identical(
   colnames(calibration),
   c(
@@ -52,10 +53,26 @@ expect_identical(
     "k",
     "k.has.hyperprior",
     "response.scale",
-    "response.shift"
+    "response.shift",
+    "amplitude.prior.variance",
+    "amplitude.prior.scale",
+    "node.scale.factor",
+    "node.scale.divisor",
+    "basis.row.norm"
   )
 )
 expect_identical(attr(calibration, "leaf.model"), "constant")
+# and the five calibration-map columns are NaN on a single-forest sampler: its
+# leaf scale is not map-derived, which the reader says positively rather than
+# by reporting a plausible 1 a caller would multiply by
+mapColumns <- c(
+  "amplitude.prior.variance",
+  "amplitude.prior.scale",
+  "node.scale.factor",
+  "node.scale.divisor",
+  "basis.row.norm"
+)
+expect_true(all(is.nan(calibration[, mapColumns])))
 # it reads the ENGINE, so an unnamed model reports the family-keyed default
 # converted to response units: node.scale 0.5 times the response range
 expect_equal(
@@ -337,12 +354,47 @@ bcf <- dbarts(
   control = midControl()
 )
 bcfCalibration <- bcf$getCalibration(1L)
-expect_equal(dim(bcfCalibration), c(2L, 7L))
+expect_equal(dim(bcfCalibration), c(2L, 12L))
 expect_true(all(bcfCalibration[, "prior.scale"] > 0))
 expect_true(all(bcf$getCalibration(2L)[, "prior.scale"] > 0))
 # BCF pins k at 1 per its map, which the sampler-wide option does not say
 expect_true(all(bcfCalibration[, "k"] == 1))
 expect_true(all(bcfCalibration[, "k.has.hyperprior"] == 0))
+# here the five map columns are the ones IN FORCE, and the two amplitude
+# columns are EXCLUSIVE per forest: forest 1 declares no basis, so it carries
+# the half-Cauchy scale mixture and reports no variance, and forest 2 the
+# reverse. Which one it is agrees with the transported params, so the reader
+# and the creation route cannot disagree about a forest's amplitude channel.
+bcfParams <- attr(bcf$control, "bartcore.bcf")$params
+expect_true(all(is.nan(bcfCalibration[, "amplitude.prior.variance"])))
+expect_equal(
+  unname(bcfCalibration[, "amplitude.prior.scale"]),
+  rep_len(bcfParams[[1L]][7L], 2L)
+)
+bcfCalibration2 <- bcf$getCalibration(2L)
+expect_equal(
+  unname(bcfCalibration2[, "amplitude.prior.variance"]),
+  rep_len(bcfParams[[2L]][6L], 2L)
+)
+expect_true(all(is.nan(bcfCalibration2[, "amplitude.prior.scale"])))
+# and the anchor s the map states every node scale against is recoverable from
+# the reported decomposition, which is the only route to it under gaussian,
+# where s is the data-dependent scaled response sd: the two forests recover
+# the SAME s, and it is the one the response transform implies
+recoveredAnchor <- function(row) {
+  unname(
+    row[, "prior.scale"] *
+      row[, "node.scale.divisor"] *
+      row[, "basis.row.norm"] /
+      row[, "node.scale.factor"]
+  )
+}
+expect_equal(
+  recoveredAnchor(bcfCalibration2),
+  recoveredAnchor(bcfCalibration),
+  tolerance = 1e-12
+)
+expect_true(all(recoveredAnchor(bcfCalibration) > 0))
 expect_error(
   bcf$setCalibration(prior.scale = 1.5),
   "multi-forest calibration map"
@@ -353,8 +405,11 @@ labels <- sample(0:2, n, replace = TRUE)
 host <- dbarts(x, y, control = midControl(n.chains = 1L))
 multinomial <- dbarts:::bartcoreMultinomialSampler(host, labels, K = 3L)
 multinomialCalibration <- dbarts:::bartcoreForestCalibration(multinomial, 0L)
-expect_equal(dim(multinomialCalibration), c(1L, 7L))
+expect_equal(dim(multinomialCalibration), c(1L, 12L))
 expect_true(multinomialCalibration[1L, "prior.scale"] > 0)
+# a K-forest sampler with no calibration map: the five map columns are NaN,
+# which a forest-count test would get wrong in the other direction
+expect_true(all(is.nan(multinomialCalibration[, mapColumns])))
 # the softmax map works on a unit-scale latent and fixes k
 expect_equal(unname(multinomialCalibration[1L, "response.scale"]), 1)
 expect_true(multinomialCalibration[1L, "k.has.hyperprior"] == 0)

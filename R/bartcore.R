@@ -1073,10 +1073,12 @@ bartcoreForestFits <- function(bcSampler, forest) {
 
 # A forest's leaf-prior calibration in RESPONSE units, one row per chain
 # (columns prior.scale, prior.sd, prior.mean, k, k.has.hyperprior,
-# response.scale, response.shift) with the leaf model on a "leaf.model"
-# attribute. Total over forests: a combiner's forests report the calibration
-# its own map fixed. Forest is 0-based here, as everywhere on this layer; the
-# R5 $getCalibration indexes from 1.
+# response.scale, response.shift, then the calibration map's own
+# amplitude.prior.variance, amplitude.prior.scale, node.scale.factor,
+# node.scale.divisor and basis.row.norm, NaN off the map) with the leaf model
+# on a "leaf.model" attribute. Total over forests: a combiner's forests report
+# the calibration its own map fixed. Forest is 0-based here, as everywhere on
+# this layer; the R5 $getCalibration indexes from 1.
 bartcoreForestCalibration <- function(bcSampler, forest) {
   .Call(C_dbarts_bartcore_getCalibration, bcSampler$ptr, as.integer(forest))
 }

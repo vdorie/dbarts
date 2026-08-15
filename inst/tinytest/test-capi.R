@@ -944,32 +944,75 @@ invisible(gc(FALSE))
 # the calibration surface from C: the reader fills only the members the caller
 # both carries (by structSize) and points somewhere, and the writer answers a
 # capability with a return value while a malformed value raises
-calibration <- CALL("capi_forest_calibration", ptrSrc, 0L, FALSE, FALSE)
+calibration <- CALL("capi_forest_calibration", ptrSrc, 0L, 0L, FALSE)
 expect_equal(calibration$accepted, 1L)
 expect_true(all(calibration$prior.scale > 0))
 expect_equal(calibration$prior.sd, calibration$prior.scale / calibration$k)
 expect_true(all(calibration$response.scale > 0))
 expect_equal(calibration$k.has.hyperprior, 0L)
 expect_equal(calibration$leaf.model, 0L) # DBARTS_LEAF_CONSTANT
+# the five calibration-map fields are filled, and on a single-forest sampler
+# what they carry is NaN - the same "not map-derived" signal the R matrix gives
+mapFields <- c(
+  "amplitude.prior.variance",
+  "amplitude.prior.scale",
+  "node.scale.factor",
+  "node.scale.divisor",
+  "basis.row.norm"
+)
+for (field in mapFields) {
+  expect_true(all(is.nan(calibration[[field]])), info = field)
+}
 # an index past the last forest touches nothing and answers 0
 expect_equal(
-  CALL("capi_forest_calibration", ptrSrc, 1L, FALSE, FALSE)$accepted,
+  CALL("capi_forest_calibration", ptrSrc, 1L, 0L, FALSE)$accepted,
   0L
 )
 # an omitting caller (structSize below leafModel, that member poisoned) and a
 # null member are both skipped, and everything else still fills
-calibrationPartial <- CALL("capi_forest_calibration", ptrSrc, 0L, TRUE, TRUE)
+calibrationPartial <- CALL("capi_forest_calibration", ptrSrc, 0L, 1L, TRUE)
 expect_equal(calibrationPartial$accepted, 1L)
 expect_equal(calibrationPartial$leaf.model, -1L)
 expect_equal(calibrationPartial$k, -1)
 expect_identical(calibrationPartial$prior.scale, calibration$prior.scale)
+# a PRE-APPEND caller: structSize pinned at the calibration-map boundary, the
+# five appended members poisoned. It still reads all EIGHT original fields, and
+# its five buffers keep the sentinel they went in with - which is what
+# DBARTS_HAS_FIELD promises a consumer compiled against the older struct, and
+# what lets sizeof(dbarts_forest_calibration) move without a source break.
+calibrationPreAppend <- CALL("capi_forest_calibration", ptrSrc, 0L, 2L, FALSE)
+expect_equal(calibrationPreAppend$accepted, 1L)
+expect_identical(calibrationPreAppend$prior.scale, calibration$prior.scale)
+expect_identical(calibrationPreAppend$prior.sd, calibration$prior.sd)
+expect_identical(calibrationPreAppend$prior.mean, calibration$prior.mean)
+expect_identical(calibrationPreAppend$k, calibration$k)
+expect_identical(
+  calibrationPreAppend$response.scale,
+  calibration$response.scale
+)
+expect_identical(
+  calibrationPreAppend$response.shift,
+  calibration$response.shift
+)
+expect_identical(
+  calibrationPreAppend$k.has.hyperprior,
+  calibration$k.has.hyperprior
+)
+expect_identical(calibrationPreAppend$leaf.model, calibration$leaf.model)
+for (field in mapFields) {
+  expect_equal(
+    calibrationPreAppend[[field]],
+    rep_len(-1, length(calibration[[field]])),
+    info = field
+  )
+}
 expect_error(
   CALL("capi_forest_calibration_zero_structsize", ptrSrc),
   "structSize"
 )
 expect_equal(CALL("capi_set_forest_prior_scale", ptrSrc, 0L, 2.5), 1L)
 expect_equal(
-  CALL("capi_forest_calibration", ptrSrc, 0L, FALSE, FALSE)$prior.scale,
+  CALL("capi_forest_calibration", ptrSrc, 0L, 0L, FALSE)$prior.scale,
   2.5,
   tolerance = 1e-12
 )

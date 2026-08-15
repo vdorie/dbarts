@@ -1621,3 +1621,97 @@ this note is the correction of record. (b) Test-design cells 3 and 4
 ship as one testBCFCalibrationMap with two arms, and the row-norm
 convention arm runs under both families rather than probit alone -
 strictly more coverage, ~10 fewer lines.
+
+## Landing note, S1 (appended 2026-08-14)
+
+LANDED. Five layers as specced. Engine: ForestCalibration gains the
+five map fields (quiet NaN by default), Chain gains
+amplitudePriorVariances_/amplitudePriorScales_/basisRowNorms_ and the
+nodeScaleIsMapDerived_ flag, forestCalibration fills the five under the
+f < nodeScaleFactors_.size() guard. Bridge: 12 columns. Flat C: five
+appended double* fields below the 1.0-0 boundary, five offsetof
+asserts, the sizeof assert at 13 pointers, five FILL lines - apiHash
+unmoved, sizeof moved. R: the $getCalibration docstring and
+bartcoreForestCalibration's. Both mandatory same-commit edits landed:
+test-calibration-midchain's dim/colnames pins moved to c(2L, 12L) and
+the twelve-name exact set (two further shape pins in the same file, the
+BCF c(2L, 7L) at :375 and the multinomial c(1L, 7L) at :391, moved with
+them - not in the plan's list, found by the gate), and consumer.c's new
+PRE-APPEND leg.
+
+Fork 3b's three truthfulness rules are engine work at the two install
+sites, as specced: noteInstalledLeafScale compares BEFORE the
+assignment (so a self-restore keeps its columns) and
+adoptInstalledAmplitudePriors runs under restoreGlue's own guard
+through the EXISTING glueIsValid virtual. One refinement the plan does
+not state and the exclusivity sub-decision requires: the amplitude
+update writes only forests whose stored variance is non-NaN, i.e. the
+FIXED-VARIANCE ones. A scale-mixture forest's serialized
+amplitudeVariance is the live inverse-gamma auxiliary, not a prior, so
+copying it would have reported a moving quantity under a prior's name
+and broken the two columns' exclusivity - the collision m5 was adopted
+to close.
+
+DRAW-NEUTRALITY, both written conditions honored and cited: (1) the
+leaf-scale expression keeps its exact written shape - the constructor
+computes `double c = basisRowNorm(...); basisRowNorms_[f] = c;` and
+passes `nodeScaleFactor * s / (nodeScaleDivisor * c)`, the same
+association and operand order, the call merely NAMED rather than
+recomputed; (2) setForestBasis writes the stored norm from the SAME
+call it already makes, not a second one. No virtual joined
+ForestCombiner, so F0's codegen branch stays empty by construction.
+
+Battery on the slice's own private lib: preclean install clean;
+tests/cpp all ok from make clean (242 ok lines) and again under
+ASAN+UBSAN (detect_container_overflow=0), no sanitizer diagnostic;
+full tinytest 4826 results 0 failures; equivalence trio BITWISE on all
+three baselines (equivalence-8b047f8b 37 compared / 0 skipped under
+--strict-coverage, every scenario "identical draws (same RNG stream)";
+bcf-equivalence-8b047f8b 12/12 identical on every channel;
+multinomial-equivalence-1027be5 10/10 identical on every channel - no
+max-|z| line anywhere); air format --check clean; lintr clean on every
+touched R file; R CMD check --as-cran from a clean staged tarball
+outside the tree Status OK 0/0/0. No Rd topic is new, so no
+_pkgdown.yml entry was owed.
+
+Mutation proof (fresh mutated --preclean install per arm; the tree
+restored and byte-verified after each): F8(a) foreign calibration, flag
+never cleared -> test-forest-basis-r5 :453, :454, :456-461 move (the
+two NaN columns and the non-computable anchor); F8(b) cleared on ANY
+install, the bitwise comparison dropped -> :468, :469 (forest 1's
+columns surviving a foreign install) and :508, :509, :511-518 (the
+self-restore arm) move; F8(c) setForestBasis's re-imposition removed ->
+:484, :485, :487-494 move; F8(d) adoptInstalledAmplitudePriors made a
+no-op -> :475 moves, the donor's 0.125 read back as the recipient's
+0.5. F6 in two arms, since its two halves fail differently: (i)
+DBARTS_HAS_FIELD's >= weakened to > inside the calibration FILL ->
+test-capi :963-965, :1001 and the flat-C BCF leg at :1123-1125 move;
+(ii) the size guard dropped from the five appended FILLs -> the
+poisoned pointers are dereferenced and R aborts (SIGSEGV, exit 139) at
+the omitting-caller leg. No arm stayed green.
+
+Weak-gate audit: tests/cpp's empty-calibration field enumeration
+(test_sampler.cpp) was extended with the five NaN checks, consumer.c's
+calibration leg with the five buffers and the BCF map read, and
+test-capi's partial-caller comparison with all eight originals. NOT
+extended, with the reason: test-calibration-midchain's
+$setCalibration-isolation comparison enumerates four columns on a
+SINGLE-FOREST sampler, where all five new columns are always NaN, so
+adding them would be a silent no-op; the NaN is pinned directly at the
+shape block instead. No R-level helper compares whole calibration
+matrices.
+
+Budget, both readings stated because the arc's two data points and its
+written rule disagree. RAW NET added lines: engine 97, bridge 11, flat
+C 39, R 2, docs 105, tests 413. Under the standing WRITTEN convention
+(raw ~ 2x dense, multiplier-combiner.md "Budget units"): engine 49
+(band 20-34, stop 48), bridge 6, flat C 20, R 1, docs 53, tests 207
+(stop 215) - only the engine is over its stop, at 1.02x. Under the
+ratio the S0 and M4.4 notes actually practiced (dense ~ 0.8 x raw):
+engine 78, tests 330, both over their stops. The engine overrun is
+Doxygen: the added block ran at 1.24 comment lines per code line
+against chain.hpp's own 0.51, and was trimmed to 0.87 before landing;
+the 55 code lines it documents are irreducible given five fields, three
+vectors, a flag and two install-site helpers. The tests figure is the
+mandated falsifier set - F4, F5, F6 and F8's four arms - which the
+100-160 band predates in its costing.

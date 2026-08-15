@@ -90,7 +90,11 @@ forest(
     location IS the latent index and \eqn{\sigma}{sigma} is pinned, so nothing
     in the sampler absorbs a mis-scaled basis; under a gaussian response it is
     in \eqn{\mathrm{sd}(y)}{sd(y)} units and a drawn \eqn{\sigma}{sigma}
-    partly does.
+    partly does. Every input to that expression is readable off the fitted
+    sampler: \eqn{v_f}{v_f} is the \code{amplitude.prior.variance} column of
+    \code{$getCalibration(f)} and \eqn{B_f}{B_f} is \code{data@bases[[f]]},
+    so the induced prior can be checked against what is in force rather than
+    against what the call asked for. See the example below.
   }
   \item{update.amplitude}{
     Whether this forest's amplitudes are redrawn each sweep, default
@@ -142,5 +146,13 @@ sampler <- dbarts(x, y,
                                           n.samples = 20L, n.burn = 20L))
 samples <- sampler$run(20L, 20L)
 amplitudes <- sampler$getForestAmplitudes()
+
+# the induced prior sd of the combined location, read off the sampler rather
+# than recomputed from the call: forest 2 is the one carrying a basis
+calibration <- sampler$getCalibration(2L)
+basis <- sampler$data@bases[[2L]]
+indexSd <- sqrt(calibration[1L, "prior.scale"]^2 *
+                calibration[1L, "amplitude.prior.variance"] *
+                rowSums(basis^2))
 }
 \keyword{models}
