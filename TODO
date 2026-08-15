@@ -237,6 +237,22 @@ items
     bitwise.
   facade-shape: LANDED (record in docs/plans/facade-shape.md);
     SamplerShape POD, oracled by tests/cpp test_shape.
+  feature-matrix-prose-staleness: three verified report-only findings
+    from the 2026-08-14 anchor-refresh pass (which fixed anchors only,
+    by design): (1) section-5 prose says test-capi.R drives grouped,
+    heteroscedastic and BCF "by control attribute" - true for the
+    first two, but BCF is reached through forests = list(forest(basis
+    = ...)) since M2/M4.3; (2) footnote [f23] quotes the BCF mid-chain
+    refusal as "two-forest calibration map" where the shipped message
+    and its test (test-calibration-midchain.R:346-349) say
+    "multi-forest calibration map" - note this is a DIFFERENT site
+    from calibrationMapName (R_interface_bartcore.cpp:3962), which
+    really does still return "two-forest calibration map" (the
+    bcf-naming-generalization leg; verify each site's live string
+    before editing either); (3) [f36]'s "the earlier CH:1589" and
+    [f23]'s "the earlier spec.R:440" are historical references to
+    superseded anchors, flagged in the file's pass record. Small docs
+    slice; batch with the next feature-matrix cell update.
   forest-ranef-interweaving: RESEARCHED, NO-GO now - record,
     permanent gate (benchmarks/R/grouped-mixing.R), and the
     VD-sign-off reopen clause in
