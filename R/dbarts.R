@@ -1451,6 +1451,12 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getSigmas, ptr)
     },
+    getDispersion = function() {
+      "Returns the negative-binomial dispersion r currently in force, one per chain, or NULL on every other family - the count analog of getSigmas(). It is the same scalar run()$dispersion records once per kept draw, read mid-sweep and without serializing state, so a host driving the sampler one sweep at a time reads it here instead of through storeState()$dispersion. Under a fixed dispersion it repeats the value the sampler was created with; otherwise it is that sweep's grid draw."
+      refuseHostRead("$getDispersion")
+      ptr <- getPointer()
+      .Call(C_dbarts_bartcore_getDispersion, ptr)
+    },
     getSumsOfSquaredResiduals = function(result) {
       "Return sum( (y - y.hat)^2 ) on original scale."
       ptr <- getPointer()

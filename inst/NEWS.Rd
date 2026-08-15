@@ -743,6 +743,18 @@
             \code{?dbartsSampler} gains a table of which method reports which
             scale, with or without the offset, and from the current state or
             from stored draws.
+      \item A \code{"nbinom"} sampler reports its dispersion \eqn{r}{r} as a
+            first-class per-draw channel: \code{run()} gains a
+            \code{dispersion} element, shaped exactly as \code{sigma}, and
+            \code{$getDispersion()} reads the value in force mid-sweep. Both
+            are pure reads of state the sweep already settled on, so neither
+            consumes random numbers or changes a draw. A host driving the
+            sampler one sweep at a time no longer has to serialize the whole
+            state block to recover \eqn{r}{r}, which is how
+            \code{bart2(family = "nbinom")} itself now reads it. Both are
+            \code{NULL} on every other family - a channel absent rather than
+            an error - so a caller tests \code{!is.null()} rather than
+            comparing.
       \item \code{$getLatents} is documented per family. It reports a
             LOCATION for \code{"probit"}, \code{"ordinal"} and \code{"aft"}
             and a PRECISION for \code{"logistic"}, \code{"nbinom"} and a

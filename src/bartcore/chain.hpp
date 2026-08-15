@@ -331,6 +331,12 @@ struct Results {
   // the response family carriesCutpoints() (ordinal's K-1 thresholds). Every
   // other family leaves it null and allocates nothing.
   double* cutpoints = nullptr;
+  // per-draw negative-binomial dispersion r, numSamples, or null; filled only
+  // when the response family carriesDispersion() (nbinom alone). A pure read of
+  // state the sweep already settled on - fixed r repeats the installed value,
+  // grid-estimated r reports that sweep's draw - so the channel consumes no rng.
+  // Every other family leaves it null and allocates nothing.
+  double* dispersion = nullptr;
   // heteroscedastic variance surface s^2(x), original response scale, or null:
   // varianceFits is numObservations x numSamples, varianceTestFits is
   // numTestObservations x numSamples. A SEPARATELY-typed-forest channel (not a
@@ -933,6 +939,12 @@ public:
   /// Per-sample cutpoints the recorded cutpoint channel carries: the response's
   /// K-1 for a cutpoint-carrying family (ordinal), 0 for every other.
   std::size_t numCutpoints() const { return response_->numCutpoints(); }
+  /// Whether the response family carries a dispersion r (nbinom alone) - the
+  /// gate the recorded dispersion channel and the mid-sweep read share.
+  bool carriesDispersion() const { return response_->carriesDispersion(); }
+  /// The dispersion r in force, 0 off a family carrying one. Fixed at creation
+  /// (options.dispersion > 0) or redrawn on the grid every sweep.
+  double dispersion() const { return response_->dispersion(); }
   /// Whether the recorded test-fit channel carries a defined value: true off any
   /// combiner (single forest) and for a combiner that blends a test surface
   /// (multinomial softmax), false for BCF (no test treatment vector). The bridge
@@ -5034,6 +5046,12 @@ private:
       std::memcpy(results.cutpoints + sampleNum * numCutpoints,
                   response_->cutpoints(), numCutpoints * sizeof(double));
     }
+
+    // the dispersion r this draw is conditioned on, the count analog of sigma;
+    // the grid draw ran inside refreshLatents before this store, so r is the
+    // value the recorded latents and fits are consistent with
+    if (results.dispersion != nullptr && response_->carriesDispersion())
+      results.dispersion[sampleNum] = response_->dispersion();
 
     if (results.logLikelihood != nullptr) {
       double* out = results.logLikelihood + sampleNum * n;

@@ -4180,12 +4180,19 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // computes nothing for them
   bool hasForestReporting = shape.forestReportingIsDefined;
   size_t numForests = shape.numForests;
-  int numResultSlots = 8 + (hasCutpoints ? 1 : 0) + (hasVariance ? 2 : 0) +
-                       (hasForestReporting ? 2 : 0);
-  int varianceTrainSlot = hasVariance ? 8 + (hasCutpoints ? 1 : 0) : -1;
+  // an nbinom sampler appends its per-draw dispersion r right after the ordinal
+  // cutpoint slot, so every later conditional slot shifts by it; no family
+  // carries both, but the arithmetic composes regardless of that
+  bool hasDispersion = shape.carriesDispersion;
+  int numResultSlots = 8 + (hasCutpoints ? 1 : 0) + (hasDispersion ? 1 : 0) +
+                       (hasVariance ? 2 : 0) + (hasForestReporting ? 2 : 0);
+  int dispersionSlot = hasDispersion ? 8 + (hasCutpoints ? 1 : 0) : -1;
+  int varianceTrainSlot =
+    hasVariance ? 8 + (hasCutpoints ? 1 : 0) + (hasDispersion ? 1 : 0) : -1;
   int varianceTestSlot = hasVariance ? varianceTrainSlot + 1 : -1;
   int forestFitsSlot = hasForestReporting
-    ? 8 + (hasCutpoints ? 1 : 0) + (hasVariance ? 2 : 0)
+    ? 8 + (hasCutpoints ? 1 : 0) + (hasDispersion ? 1 : 0) +
+        (hasVariance ? 2 : 0)
     : -1;
   int glueSlot = hasForestReporting ? forestFitsSlot + 1 : -1;
 
@@ -4270,6 +4277,14 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
                            numSamplesInt)
           : Rf_alloc3DArray(REALSXP, static_cast<int>(numCutpoints),
                             numSamplesInt, numChainsInt));
+  // one scalar per draw, so the dispersion channel takes sigma's own shape
+  SEXP dispersionExpr = !hasDispersion
+    ? R_NilValue
+    : installResult(
+        resultExpr, dispersionSlot,
+        numChains == 1
+          ? Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples))
+          : Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
   SEXP varianceTrainExpr = !hasVariance
     ? R_NilValue
     : installResult(
@@ -4330,6 +4345,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // cutpoint stride
   results.cutpoints = hasCutpoints ? REAL(cutpointsExpr) : NULL;
   results.numCutpoints = numCutpoints;
+  // the dispersion r each draw is conditioned on; null off nbinom, which is the
+  // guard storeSample's write shares
+  results.dispersion = hasDispersion ? REAL(dispersionExpr) : NULL;
   results.varianceFits = hasVariance ? REAL(varianceTrainExpr) : NULL;
   results.varianceTestFits =
     (hasVariance && numTestObservations > 0) ? REAL(varianceTestExpr) : NULL;
@@ -4369,6 +4387,8 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SET_STRING_ELT(namesExpr, 6, Rf_mkChar("tau"));
   SET_STRING_ELT(namesExpr, 7, Rf_mkChar("ranef"));
   if (hasCutpoints) SET_STRING_ELT(namesExpr, 8, Rf_mkChar("cutpoints"));
+  if (hasDispersion)
+    SET_STRING_ELT(namesExpr, dispersionSlot, Rf_mkChar("dispersion"));
   if (hasVariance) {
     SET_STRING_ELT(namesExpr, varianceTrainSlot, Rf_mkChar("variance"));
     SET_STRING_ELT(namesExpr, varianceTestSlot, Rf_mkChar("varianceTest"));
@@ -4891,6 +4911,24 @@ SEXP bartcore_getSigmas(SEXP ptrExpr) {
     PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numChains)));
   for (size_t c = 0; c < numChains; ++c)
     REAL(result)[c] = holder.sampler->sigma(c);
+  UNPROTECT(1);
+  return result;
+}
+
+// The dispersion r in force on each chain - the mid-sweep read of the scalar
+// the recorded dispersion channel stores once per kept draw, without
+// serializing state. NULL, rather than a filler value, off a family that
+// carries no dispersion: the caller then tests for the channel instead of
+// comparing against a number that would mean nothing.
+SEXP bartcore_getDispersion(SEXP ptrExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  if (!shape.carriesDispersion) return R_NilValue;
+  size_t numChains = shape.numChains;
+  SEXP result =
+    PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numChains)));
+  for (size_t c = 0; c < numChains; ++c)
+    REAL(result)[c] = holder.sampler->dispersion(c);
   UNPROTECT(1);
   return result;
 }

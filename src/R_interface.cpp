@@ -217,6 +217,7 @@ static R_CallMethodDef R_callMethods[] = {
            bartcore_updatePredictorPerObservationJointly, 3),
   DEF_FUNC("dbarts_bartcore_setCutPoints", bartcore_setCutPoints, 4),
   DEF_FUNC("dbarts_bartcore_getSigmas", bartcore_getSigmas, 1),
+  DEF_FUNC("dbarts_bartcore_getDispersion", bartcore_getDispersion, 1),
   DEF_FUNC("dbarts_bartcore_isValidPointer", bartcore_isValidPointer, 1),
   DEF_FUNC("dbarts_bartcore_getLatents", bartcore_getLatents, 2),
   DEF_FUNC("dbarts_bartcore_predict", bartcore_predict, 3),
