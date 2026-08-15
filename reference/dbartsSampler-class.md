@@ -62,6 +62,8 @@ getTrees(
 # S4 method for class 'dbartsSampler'
 getSigmas(result)
 # S4 method for class 'dbartsSampler'
+getDispersion()
+# S4 method for class 'dbartsSampler'
 getLatents(result)
 # S4 method for class 'dbartsSampler'
 getSumsOfSquaredResiduals(result)
@@ -824,7 +826,18 @@ carries the combination \\a \mu(x_i) + b\_{z_i} \tau(x_i)\\ on the
 response scale, or on the latent scale when the sampler was built under
 `"probit"` or `"logistic"`, and `test` is filled with `NaN` (there is no
 test treatment vector to combine off-sample). No other model reports
-either element. A run can be interrupted with `Ctrl-C`: it stops between
+either element. A `"nbinom"` sampler adds one of its own: `dispersion`,
+the negative-binomial \\r\\ each draw is conditioned on, shaped exactly
+as `sigma` (a length n.samples vector at one chain, an n.samples x
+n.chains matrix otherwise) because it is the count analog of it - fixed
+at the value the sampler was created with under a fixed `dispersion`,
+and that sweep's grid draw otherwise. It is written from the same state
+`storeState` serializes and consumes no random numbers, so reading it
+costs a run nothing. No other family carries the element at all: it is
+absent from the list, not `NULL` within it, so `run()$dispersion` is
+`NULL` on every non-`"nbinom"` sampler and a test of the channel must be
+`!is.null(...)` rather than a comparison, which `NULL` would satisfy
+vacuously. A run can be interrupted with `Ctrl-C`: it stops between
 iterations - joining any worker threads first - and signals an error,
 returning no samples from the interrupted run. The sampler's chains are
 left at the iteration they reached, which is a valid state to run again
@@ -874,6 +887,19 @@ slope on the internal standardized scale; internal nodes are `NA`.
 For `getSigmas`, a numeric vector of length equal to the number of
 chains, giving each chain's current residual standard deviation on the
 original response scale.
+
+For `getDispersion`, the negative-binomial dispersion \\r\\ currently in
+force, a numeric vector of length equal to the number of chains, and
+`NULL` on every other family - the count analog of `getSigmas`, and
+refused rather than answered on the host shell of a fit whose model
+lives elsewhere, as `getFitsWithoutOffset` is. It is the same scalar
+`run()$dispersion` records once per kept draw, read mid-sweep and
+without serializing state, so a host driving the sampler one sweep at a
+time reads it here rather than through `storeState()` and
+`state[[chain]]$dispersion`. Because the refusal for a family carrying
+no dispersion is a `NULL` and not an error, a caller distinguishing “no
+dispersion” from a value must test `!is.null(...)`; comparing to an
+expected number would pass vacuously.
 
 For `getSumsOfSquaredResiduals`, a numeric vector of length equal to the
 number of chains, giving each chain's residual sum of squares \\\sum
