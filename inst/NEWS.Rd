@@ -789,6 +789,17 @@
             row (reachable only through the active-row mask above) reported a
             finite value. Multinomial and Bayesian causal forest fits report no
             pointwise log-likelihood at all, with or without a mask.
+      \item The augmentation draws a non-gaussian family runs inside each
+            sweep are callable from R: \code{\link{dbartsDrawLatents}} draws
+            the latent at a supplied fit, and
+            \code{\link[=dbartsDrawLatents]{dbartsWorkingResponse}} turns it
+            into the quantity a host regresses on - which for
+            \code{"logistic"} and \code{"nbinom"} is not the latent at all,
+            those being precisions. The draws come from R's own stream, so
+            \code{\link{set.seed}} reproduces them and they compose with any
+            other R draw; a sampler's chain generator is untouched. The
+            \code{fit} argument is the location WITHOUT the offset, as
+            \code{$getFitsWithoutOffset()} reports it.
     }
   }
   \subsection{C API}{

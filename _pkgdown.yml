@@ -31,6 +31,7 @@ reference:
   - interactions
   - blocks
   - forest
+  - dbartsAugmentation
   - extract.dbartsSampler
   - samplePriorPredictive
   - sparseFactor

@@ -220,6 +220,8 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_getDispersion", bartcore_getDispersion, 1),
   DEF_FUNC("dbarts_bartcore_isValidPointer", bartcore_isValidPointer, 1),
   DEF_FUNC("dbarts_bartcore_getLatents", bartcore_getLatents, 2),
+  DEF_FUNC("dbarts_bartcore_drawLatents", bartcore_drawLatents, 9),
+  DEF_FUNC("dbarts_bartcore_workingResponse", bartcore_workingResponse, 6),
   DEF_FUNC("dbarts_bartcore_predict", bartcore_predict, 3),
   DEF_FUNC("dbarts_bartcore_getTrees", bartcore_getTrees, 8),
   DEF_FUNC("dbarts_bartcore_storeState", bartcore_storeState, 1),
