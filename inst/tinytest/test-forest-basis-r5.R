@@ -392,3 +392,127 @@ declared$setForestBasis(2L, 7 * zBasis)
 # the new row norm enters and the DECLARED factor survives: 0.084781687156
 expect_equal(priorScale(declared, 2L), 0.4 / (0.674 * 7), tolerance = 1e-12)
 expect_equal(priorScale(declared, 1L), 2.5 / (0.674 * 3), tolerance = 1e-12)
+
+# --- the row norm IN FORCE is reported rather than only divided out, and it
+# follows the swap. A stored-and-stale value is what this catches: the
+# construction-time norm was 5 and the swap makes it 7. The second install
+# carries the convention as well - zero rows excluded, an EVEN nonzero count
+# averaging the two central order statistics - which R's own median reproduces
+# from data@bases, so the assertion is against the R-side rule rather than
+# against a number copied out of the engine. ---
+mapColumn <- function(sampler, forest, column) {
+  unname(sampler$getCalibration(forest)[1L, column])
+}
+expect_equal(mapColumn(declared, 2L, "basis.row.norm"), 7)
+expect_equal(mapColumn(declared, 1L, "basis.row.norm"), 3)
+evenBasis <- matrix(c(rep(0, 4L), seq_len(n - 4L)), n, 1L)
+evenNorms <- sqrt(rowSums(evenBasis^2))
+declared$setForestBasis(2L, evenBasis)
+expect_equal(
+  mapColumn(declared, 2L, "basis.row.norm"),
+  median(evenNorms[evenNorms > 0])
+)
+expect_equal(
+  priorScale(declared, 2L),
+  0.4 / (0.674 * median(evenNorms[evenNorms > 0])),
+  tolerance = 1e-12
+)
+
+# --- the SPEC ECHO's truthfulness across a state install. $setState and
+# $installTrees both adopt the donor's leaf scale by design, so a reader that
+# echoed the recipient's own spec would print a decomposition of a number the
+# recipient no longer runs under. Three rules, four arms. ---
+donorForests <- function(sd, variance) {
+  dbarts(
+    x,
+    yBinary,
+    forests = list(
+      forest(),
+      forest(basis = ~ factor(z), sd = sd, amplitude.prior.variance = variance)
+    ),
+    control = seededControl()
+  )
+}
+donor <- donorForests(2, 0.125)
+recipient <- donorForests(0.5, 0.5)
+# the two really do differ in the calibration, which is what makes the install
+# foreign rather than a re-statement
+expect_true(priorScale(donor, 2L) != priorScale(recipient, 2L))
+donor$run(5L, 1L)
+donor$storeState()
+donorState <- donor$state
+donorScale <- priorScale(donor, 2L)
+
+# (a) FOREIGN CALIBRATION. The install is accepted - the widths and tree
+# counts agree, and neither the state gate nor the forest gate looks at a leaf
+# scale - so the recipient runs under the donor's scale. Its stored factor and
+# divisor no longer decompose it, and the reader says so with NaN rather than
+# printing a decomposition that would recover a wrong anchor.
+recipient$setState(donorState)
+expect_equal(priorScale(recipient, 2L), donorScale)
+expect_true(is.nan(mapColumn(recipient, 2L, "node.scale.factor")))
+expect_true(is.nan(mapColumn(recipient, 2L, "node.scale.divisor")))
+# the anchor is therefore NOT computable, which is the point of the NaN
+expect_true(is.nan(
+  mapColumn(recipient, 2L, "prior.scale") *
+    mapColumn(recipient, 2L, "node.scale.divisor") *
+    mapColumn(recipient, 2L, "basis.row.norm") /
+    mapColumn(recipient, 2L, "node.scale.factor")
+))
+# the row norm needs no rule - bases are not state, so the recipient's own is
+# still the one in force
+expect_equal(mapColumn(recipient, 2L, "basis.row.norm"), 1)
+# and forest 1's columns SURVIVE: both samplers calibrate it identically, so
+# the installed scale is bitwise the one in force. The rule compares before it
+# assigns, and a rule that cleared on every install would lose this.
+expect_equal(mapColumn(recipient, 1L, "node.scale.factor"), 1)
+expect_equal(mapColumn(recipient, 1L, "node.scale.divisor"), 1)
+
+# (d) THE AMPLITUDE PRIOR FOLLOWS THE STATE, which is what the next draw will
+# use: the recipient reports the DONOR's variance, not its own 0.5. Forest 1
+# carries the scale mixture, whose serialized variance is a live auxiliary
+# rather than a prior, so its two amplitude columns keep their exclusivity.
+expect_equal(mapColumn(recipient, 2L, "amplitude.prior.variance"), 0.125)
+expect_true(is.nan(mapColumn(recipient, 2L, "amplitude.prior.scale")))
+expect_true(is.nan(mapColumn(recipient, 1L, "amplitude.prior.variance")))
+expect_equal(mapColumn(recipient, 1L, "amplitude.prior.scale"), 2)
+
+# (c) RE-IMPOSITION. $setForestBasis re-derives the leaf scale from the stored
+# factor and divisor, so both columns come back and the identity holds again -
+# on the RECIPIENT's own calibration, since the map is what was re-imposed.
+recipient$setForestBasis(2L, 4 * zBasis)
+expect_equal(mapColumn(recipient, 2L, "node.scale.factor"), 0.5)
+expect_equal(mapColumn(recipient, 2L, "node.scale.divisor"), 0.674)
+expect_equal(mapColumn(recipient, 2L, "basis.row.norm"), 4)
+expect_equal(
+  mapColumn(recipient, 2L, "prior.scale") *
+    mapColumn(recipient, 2L, "node.scale.divisor") *
+    mapColumn(recipient, 2L, "basis.row.norm") /
+    mapColumn(recipient, 2L, "node.scale.factor"),
+  1,
+  tolerance = 1e-12
+)
+
+# (b) SELF-RESTORE. A store, a run and a restore of a sampler's OWN state
+# installs a bitwise-identical scale, so every column survives non-NaN and the
+# identity still holds. This is the arm that keeps the rule from being "clear
+# on any install".
+selfRestore <- donorForests(2, 0.125)
+selfRestore$run(5L, 1L)
+selfRestore$storeState()
+ownState <- selfRestore$state
+ownScale <- priorScale(selfRestore, 2L)
+selfRestore$run(0L, 1L)
+selfRestore$setState(ownState)
+expect_equal(priorScale(selfRestore, 2L), ownScale)
+expect_equal(mapColumn(selfRestore, 2L, "node.scale.factor"), 2)
+expect_equal(mapColumn(selfRestore, 2L, "node.scale.divisor"), 0.674)
+expect_equal(mapColumn(selfRestore, 2L, "amplitude.prior.variance"), 0.125)
+expect_equal(
+  mapColumn(selfRestore, 2L, "prior.scale") *
+    mapColumn(selfRestore, 2L, "node.scale.divisor") *
+    mapColumn(selfRestore, 2L, "basis.row.norm") /
+    mapColumn(selfRestore, 2L, "node.scale.factor"),
+  1,
+  tolerance = 1e-12
+)

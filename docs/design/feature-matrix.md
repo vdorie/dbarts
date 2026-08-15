@@ -422,6 +422,24 @@ the engine bounds check on `Chain::forestCalibration` (`chain.hpp:1078`,
 returning a default-constructed calibration rather than reading past the
 last forest) and the `refuseBCFMutation` reorder in `$setCalibration`
 (`dbarts.R:1481-1501`, argument validation before the BCF refusal).
+EXTENDED by `binary-kforest-prior-default` S1: the reader reports five further
+columns - `amplitude.prior.variance` and `amplitude.prior.scale` (exclusive
+per forest), `node.scale.factor`, `node.scale.divisor` and `basis.row.norm` -
+the multi-forest calibration map's own decomposition of `prior.scale`, NaN on
+every forest whose scale that map does not own, with the matching fields
+appended to `dbarts_forest_calibration` below its 1.0-0 boundary (`sizeof`
+moves, the apiHash does not). They are TRUE after a state install rather than
+a spec echo: a donor leaf scale differing bitwise from the one in force sends
+both `node.scale` columns to NaN until `$setForestBasis` re-imposes the map,
+while the amplitude prior follows the installed state. Carried by
+test-calibration-midchain.R (the exact 12-column shape, the off-map NaN on the
+single-forest and multinomial routes, and the anchor recovered by the
+identity), test-bcf-family.R (the factors themselves under both latent
+families, where only the logistic arm sees a dropped anchor),
+test-forest-basis-r5.R (the row norm following a swap, and the four
+truthfulness arms), test-capi.R (the appended fields, and a PRE-APPEND caller
+whose five buffers are left untouched), and `tests/cpp`
+`testBCFCalibrationMap`.
 
 [f17] Zero weights are accepted, not refused (A_class.R:578-582 errors only
 below zero and warns that zeros are ignored; bridge RIB:4724). The conditionals

@@ -267,6 +267,11 @@ struct ModelParameters {
 /// sweep under kHasHyperprior while priorScale does not. What priorSd bounds
 /// is leaf-model specific, exact only for the constant leaf
 /// (docs/design/nameable-calibration.md section 3).
+///
+/// The five below are the CALIBRATION MAP's own decomposition of priorScale
+/// (docs/plans/binary-kforest-prior-default.md, leg (c)), NaN on any forest
+/// with no map entry - every single-forest and every multinomial one - so a
+/// caller reads "not map-derived" rather than a plausible 1.0.
 struct ForestCalibration {
   double priorScale = 0.0;
   double priorSd = 0.0;
@@ -277,6 +282,19 @@ struct ForestCalibration {
   /// THIS forest's own k law, not the sampler-wide option: a combiner pins its
   /// forests' k and the two disagree on BCF and multinomial.
   bool kHasHyperprior = false;
+  /// The amplitude prior, the two spellings EXCLUSIVE (ForestAmplitudePrior's
+  /// own pair) and never the mixture's LIVE variance auxiliary, which is state.
+  double amplitudePriorVariance = std::numeric_limits<double>::quiet_NaN();
+  double amplitudePriorScale = std::numeric_limits<double>::quiet_NaN();
+  /// The map's two factors: priorScale is factor * s / (divisor * rowNorm), so
+  /// the anchor s is recoverable from these. Both go NaN when a state install
+  /// brings a calibration this map did not derive - the identity is then
+  /// unknown rather than wrong - and setForestBasis re-imposes the map.
+  double nodeScaleFactor = std::numeric_limits<double>::quiet_NaN();
+  double nodeScaleDivisor = std::numeric_limits<double>::quiet_NaN();
+  /// The median nonzero row norm of the basis IN FORCE, which setForestBasis
+  /// re-derives; unobservable by any other route.
+  double basisRowNorm = std::numeric_limits<double>::quiet_NaN();
 };
 
 /// Posterior draws on the original response scale; caller-owned storage.
@@ -761,16 +779,32 @@ public:
     std::vector<ForestSpec> forestSpecs = expandForestSpecs(spec);
     nodeScaleFactors_.resize(forestSpecs.size());
     nodeScaleDivisors_.resize(forestSpecs.size());
+    // the reader's echo of the map (leg (c)): the two exclusive amplitude
+    // spellings, and the row norm otherwise computed here and discarded. The
+    // flag says the map is still the decomposition in force.
+    amplitudePriorVariances_.resize(forestSpecs.size());
+    amplitudePriorScales_.resize(forestSpecs.size());
+    basisRowNorms_.resize(forestSpecs.size());
+    nodeScaleIsMapDerived_.assign(forestSpecs.size(), 1);
+    double notMapped = std::numeric_limits<double>::quiet_NaN();
     for (std::size_t f = 0; f < forestSpecs.size(); ++f) {
       const ForestSpec& forestSpec = forestSpecs[f];
       nodeScaleFactors_[f] = forestSpec.nodeScaleFactor;
       nodeScaleDivisors_[f] = forestSpec.nodeScaleDivisor;
+      bool scaleMixture = forestSpec.amplitudePriorScale > 0.0;
+      amplitudePriorVariances_[f] =
+        scaleMixture ? notMapped : forestSpec.amplitudePriorVariance;
+      amplitudePriorScales_[f] =
+        scaleMixture ? forestSpec.amplitudePriorScale : notMapped;
+      // the SAME call the node scale is derived from, NAMED rather than
+      // recomputed, and the expression below keeps its written association and
+      // operand order: that is what makes retaining the norm draw-free
+      double c = basisRowNorm(forestSpec.basis, forestSpec.numBasisColumns,
+                              data.numObservations);
+      basisRowNorms_[f] = c;
       buildBCFForest(forestSpec.forest,
                      forestSpec.nodeScaleFactor * s /
-                       (forestSpec.nodeScaleDivisor *
-                        basisRowNorm(forestSpec.basis,
-                                     forestSpec.numBasisColumns,
-                                     data.numObservations)));
+                       (forestSpec.nodeScaleDivisor * c));
     }
 
     combiner_ =
@@ -935,12 +969,18 @@ public:
                       std::size_t numColumns) {
     if (!combiner_ || !combiner_->setForestBasis(f, values, numColumns))
       return false;
-    if (f < nodeScaleFactors_.size())
+    if (f < nodeScaleFactors_.size()) {
+      // the retained norm comes from THIS call, for the constructor's reason
+      double c = basisRowNorm(values, numColumns, data_.numObservations);
+      basisRowNorms_[f] = c;
       forests_[f].leaf.scale =
         nodeScaleFactors_[f] * nodeScaleAnchor_ /
-        (nodeScaleDivisors_[f] *
-         basisRowNorm(values, numColumns, data_.numObservations)) /
+        (nodeScaleDivisors_[f] * c) /
         std::sqrt(static_cast<double>(forests_[f].numTrees));
+      // and this RE-IMPOSES the map, so a forest a state install made foreign
+      // reports its decomposition again
+      nodeScaleIsMapDerived_[f] = 1;
+    }
     return true;
   }
   /// Whether this chain's forest coupling permits the response-side conduit -
@@ -1085,6 +1125,20 @@ public:
     calibration.priorSd = calibration.priorScale / calibration.k;
     calibration.priorMean = calibration.responseShift;
     calibration.kHasHyperprior = forest.updateK;
+    // the map's own decomposition, sized only by the K-forest constructor, so
+    // every other sampler leaves the five at their NaN
+    if (f < nodeScaleFactors_.size()) {
+      calibration.amplitudePriorVariance = amplitudePriorVariances_[f];
+      calibration.amplitudePriorScale = amplitudePriorScales_[f];
+      calibration.basisRowNorm = basisRowNorms_[f];
+      // the two factors only while the scale in force is the map's: reporting
+      // a pair that no longer decomposes priorScale would make the identity
+      // false inside one returned reading
+      if (nodeScaleIsMapDerived_[f]) {
+        calibration.nodeScaleFactor = nodeScaleFactors_[f];
+        calibration.nodeScaleDivisor = nodeScaleDivisors_[f];
+      }
+    }
     return calibration;
   }
 
@@ -3232,6 +3286,7 @@ public:
       // installing the trees without it leaves a hybrid (donor units,
       // destination calibration). An absent block (0.0, or any non-positive or
       // non-finite value - k's posture, no new refusal) leaves construction's.
+      noteInstalledLeafScale(f, fs.leafScale);
       if (fs.leafScale > 0.0) forests_[f].leaf.scale = fs.leafScale;
     }
     setSigma(state.sigma);
@@ -3244,6 +3299,7 @@ public:
       forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
     }
     if (combiner_) combiner_->restoreGlue(state);
+    adoptInstalledAmplitudePriors(state);
     return true;
   }
 
@@ -3320,6 +3376,7 @@ public:
       // AFTER the last storeState no longer survives a save/load re-creation,
       // since the state's scale now wins - exactly the wart k already had,
       // applied consistently to both halves of the leaf prior.
+      noteInstalledLeafScale(f, fs.leafScale);
       if (fs.leafScale > 0.0) forest.leaf.scale = fs.leafScale;
     }
     setSigma(state.sigma);
@@ -3353,6 +3410,7 @@ public:
       forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
     }
     if (combiner_) combiner_->restoreGlue(state);
+    adoptInstalledAmplitudePriors(state);
     // heteroscedastic: rebuild the variance trees and recompute s^2(x) from the
     // restored positive factors (stateIsValid checked count, form, positivity)
     if (varianceForest_ && !rebuildVarianceForest(state.varianceTrees))
@@ -3565,6 +3623,36 @@ private:
   double priorScaleFactor(const Forest<L, ResidT>& forest) const {
     return response_->fitScale() *
            std::sqrt(static_cast<double>(forest.numTrees));
+  }
+
+  /// The map-decomposition half of the state-install truthfulness rule
+  /// (docs/plans/binary-kforest-prior-default.md, fork 3b): a state installing
+  /// a leaf scale differing BITWISE from the one in force leaves the stored
+  /// factor and divisor no longer its decomposition, so forestCalibration
+  /// reports NaN for both until setForestBasis re-imposes the map. Called
+  /// BEFORE the assignment, which lets a self-restore keep its columns; the
+  /// stored values stay, being what the re-imposition re-derives from.
+  void noteInstalledLeafScale(std::size_t f, double leafScale) {
+    if (f < nodeScaleIsMapDerived_.size() && leafScale > 0.0 &&
+        leafScale != forests_[f].leaf.scale)
+      nodeScaleIsMapDerived_[f] = 0;
+  }
+
+  /// The amplitude half of the same rule: the reported prior FOLLOWS an
+  /// installed state, under exactly the guard restoreGlue uses to reach its own
+  /// variance loop, so the reader cannot print the recipient's prior beside a
+  /// donor's amplitudes. Only a FIXED-VARIANCE forest is written - the
+  /// mixture's serialized variance is the live auxiliary, not a prior.
+  /// glueIsValid is the combiner's EXISTING virtual, which is what keeps this
+  /// slice off the vtable.
+  void adoptInstalledAmplitudePriors(const ChainStateData& state) {
+    if (!combiner_ || !state.hasBCF || state.amplitudeWidths.empty()) return;
+    if (!combiner_->glueIsValid(state)) return;
+    std::size_t numForests = std::min(amplitudePriorVariances_.size(),
+                                      state.amplitudeVariances.size());
+    for (std::size_t f = 0; f < numForests; ++f)
+      if (!std::isnan(amplitudePriorVariances_[f]))
+        amplitudePriorVariances_[f] = state.amplitudeVariances[f];
   }
 
   /// Composes forest f's installed per-observation weight into the precisions
@@ -4952,9 +5040,18 @@ private:
 
   // the calibration map's own inputs, retained per forest so setForestBasis
   // can re-derive a leaf scale from a new basis; empty off the K-forest
-  // constructor, which is the guard the recomputation reads
+  // constructor, which is the guard the recomputation reads, and the guard
+  // forestCalibration reads to leave the five reported map quantities NaN
   std::vector<double> nodeScaleFactors_, nodeScaleDivisors_;
   double nodeScaleAnchor_ = 1.0;
+  // what the map reports beside them, on the same sizing guard: the amplitude
+  // prior in whichever exclusive spelling the forest carries (the other NaN),
+  // and the row norm the constructor and setForestBasis already compute
+  std::vector<double> amplitudePriorVariances_, amplitudePriorScales_,
+    basisRowNorms_;
+  // whether the scale in force is still the map's product of the two stored
+  // factors, per forest (noteInstalledLeafScale)
+  std::vector<char> nodeScaleIsMapDerived_;
 
   // caller-supplied per-forest observation weights, one BORROWED pointer per
   // forest (null = none). Left EMPTY until the first install, which is the

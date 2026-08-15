@@ -314,11 +314,16 @@ static_assert(offsetof(dbarts_forest_calibration, responseScale) == sizeof(size_
 static_assert(offsetof(dbarts_forest_calibration, responseShift) == sizeof(size_t) + 5 * sizeof(double*));
 static_assert(offsetof(dbarts_forest_calibration, kHasHyperprior) == sizeof(size_t) + 6 * sizeof(double*));
 static_assert(offsetof(dbarts_forest_calibration, leafModel) == sizeof(size_t) + 7 * sizeof(double*));
+static_assert(offsetof(dbarts_forest_calibration, amplitudePriorVariance) == sizeof(size_t) + 8 * sizeof(double*));
+static_assert(offsetof(dbarts_forest_calibration, amplitudePriorScale) == sizeof(size_t) + 9 * sizeof(double*));
+static_assert(offsetof(dbarts_forest_calibration, nodeScaleFactor) == sizeof(size_t) + 10 * sizeof(double*));
+static_assert(offsetof(dbarts_forest_calibration, nodeScaleDivisor) == sizeof(size_t) + 11 * sizeof(double*));
+static_assert(offsetof(dbarts_forest_calibration, basisRowNorm) == sizeof(size_t) + 12 * sizeof(double*));
 // every member is a pointer so that an omitting caller's structSize cannot
 // land inside tail padding and make DBARTS_HAS_FIELD claim a field it does not
 // carry; the size assert is what forces an appending author back to the list
 static_assert(sizeof(dbarts_forest_calibration) ==
-                sizeof(size_t) + 8 * sizeof(double*),
+                sizeof(size_t) + 13 * sizeof(double*),
               "dbarts_forest_calibration layout changed; update these offsets, "
               "and bump DBARTS_C_API_MINOR if a field was appended after 1.0-0");
 
@@ -870,6 +875,13 @@ int dbarts_sampler_forestCalibration(const dbarts_sampler* sampler,
     FILL(responseShift, calibration.responseShift);
     FILL(kHasHyperprior, calibration.kHasHyperprior ? 1 : 0);
     FILL(leafModel, leafModel);
+    // the calibration map's five, appended below the 1.0-0 boundary: a
+    // pre-append caller's structSize stops here and its buffers are untouched
+    FILL(amplitudePriorVariance, calibration.amplitudePriorVariance);
+    FILL(amplitudePriorScale, calibration.amplitudePriorScale);
+    FILL(nodeScaleFactor, calibration.nodeScaleFactor);
+    FILL(nodeScaleDivisor, calibration.nodeScaleDivisor);
+    FILL(basisRowNorm, calibration.basisRowNorm);
 #undef FILL
   }
   return 1;

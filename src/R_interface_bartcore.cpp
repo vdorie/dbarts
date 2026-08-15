@@ -3986,9 +3986,15 @@ SEXP bartcore_getCalibration(SEXP ptrExpr, SEXP forestExpr) {
   size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
   if (forestIndex >= shape.numForests)
     Rf_error("forest index out of range");
+  // the seven reported since the reader shipped, then the five calibration-map
+  // quantities (docs/plans/binary-kforest-prior-default.md, leg (c)): NaN on a
+  // forest with no map entry, and the two amplitude columns exclusive per
+  // forest on one that has
   const char* const columnNames[] = {
     "prior.scale", "prior.sd", "prior.mean", "k",
-    "k.has.hyperprior", "response.scale", "response.shift"
+    "k.has.hyperprior", "response.scale", "response.shift",
+    "amplitude.prior.variance", "amplitude.prior.scale",
+    "node.scale.factor", "node.scale.divisor", "basis.row.norm"
   };
   size_t numColumns = sizeof columnNames / sizeof columnNames[0];
   size_t numChains = shape.numChains;
@@ -4005,6 +4011,11 @@ SEXP bartcore_getCalibration(SEXP ptrExpr, SEXP forestExpr) {
     result[c + 4 * numChains] = calibration.kHasHyperprior ? 1.0 : 0.0;
     result[c + 5 * numChains] = calibration.responseScale;
     result[c + 6 * numChains] = calibration.responseShift;
+    result[c + 7 * numChains] = calibration.amplitudePriorVariance;
+    result[c + 8 * numChains] = calibration.amplitudePriorScale;
+    result[c + 9 * numChains] = calibration.nodeScaleFactor;
+    result[c + 10 * numChains] = calibration.nodeScaleDivisor;
+    result[c + 11 * numChains] = calibration.basisRowNorm;
   }
   SEXP dimNamesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
   SET_VECTOR_ELT(dimNamesExpr, 0, R_NilValue);

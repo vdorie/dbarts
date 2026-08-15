@@ -265,6 +265,23 @@ typedef struct dbarts_forest_calibration_t {
   int*    leafModel;       ///< numChains; dbarts_leaf_model, qualifying
                            ///< priorSd and priorMean (see below)
   /* 1.0-0 field boundary: appends go below, never above. */
+  /* The multi-forest CALIBRATION MAP's decomposition of priorScale, which is
+   * factor * s / (divisor * rowNorm) at the family's latent anchor s: NaN on
+   * every forest with no map entry (any single-forest or multinomial sampler),
+   * so a caller reads "not map-derived" rather than a plausible 1.0. */
+  double* amplitudePriorVariance;  ///< numChains; the forest's amplitude prior
+                                   ///< variance, or NaN where the forest
+                                   ///< carries the half-Cauchy scale mixture
+                                   ///< instead - the two are EXCLUSIVE
+  double* amplitudePriorScale;     ///< numChains; the half-Cauchy median, or
+                                   ///< NaN on a fixed-variance forest
+  double* nodeScaleFactor;         ///< numChains; NaN once a state install has
+                                   ///< brought a leaf scale this map did not
+                                   ///< derive, until setForestBasis re-imposes
+                                   ///< it
+  double* nodeScaleDivisor;        ///< numChains; NaN on the same rule
+  double* basisRowNorm;            ///< numChains; median nonzero row norm of
+                                   ///< the forest's basis IN FORCE
 } dbarts_forest_calibration;
 
 /// Value-initializer: sets structSize (the leading member, offset 0) and
@@ -779,8 +796,18 @@ int dbarts_sampler_setForestWeights(dbarts_sampler* sampler, size_t forest,
 /// at k = 1, the quantity dbarts_sampler_setForestPriorScale writes), priorSd
 /// (priorScale / k at the chain's current k, which moves every sweep under
 /// kHasHyperprior while priorScale does not), priorMean, k, the response
-/// transform's multiplier and offset, this FOREST's own k law, and the leaf
-/// model tag.
+/// transform's multiplier and offset, this FOREST's own k law, the leaf
+/// model tag, and the multi-forest calibration map's own five: the forest's
+/// amplitude prior in whichever of its two EXCLUSIVE spellings it carries
+/// (amplitudePriorVariance or amplitudePriorScale, the other NaN), the node
+/// scale's factor and divisor, and the basis row norm the map divides out.
+/// Those five are NaN on every forest with no map entry - any single-forest
+/// or multinomial sampler - and the two node-scale members are NaN once a
+/// state install has brought a leaf scale the map did not derive, until
+/// dbarts_sampler_setForestBasis re-imposes it. They decompose priorScale as
+/// factor * s / (divisor * rowNorm), so the family's latent anchor s is
+/// recovered as priorScale * divisor * rowNorm / factor whenever
+/// nodeScaleFactor is not NaN.
 ///
 /// prior.scale and prior.sd describe the LEAF-PARAMETER scale of the forest
 /// total, which equals the prior sd of f(x) at every x for the constant leaf
