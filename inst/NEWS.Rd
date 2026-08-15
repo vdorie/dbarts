@@ -800,6 +800,14 @@
             other R draw; a sampler's chain generator is untouched. The
             \code{fit} argument is the location WITHOUT the offset, as
             \code{$getFitsWithoutOffset()} reports it.
+      \item \code{\link{dbartsValidateComposition}} runs simulation-based
+            calibration over a one-sweep step the caller supplies, for a model
+            the caller states as a prior draw and a simulation, and reports per
+            scalar functional whether the composed kernel targets the posterior
+            it claims. It catches the defect class in which a posterior mean is
+            reported where a draw belongs, and needs no sampler: the functionals
+            may be derived, the ranks are tie-broken, and the uniformity band is
+            corrected over the functionals ranked in the call.
     }
   }
   \subsection{C API}{
