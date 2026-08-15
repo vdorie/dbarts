@@ -379,6 +379,23 @@ expect_equal(
   attr(offSlot$control, "bartcore.bcf")$params,
   list(c(50, 0.25, 3, 1, 1, 1, 2, 1), c(50, 0.25, 3, 1, 0.674, 0.5, 0, 1))
 )
+# the same transport under a LATENT family, which no assertion in the arc has
+# run: `sd` still reaches slot 4 on a forest carrying a basis and slot 7 on one
+# carrying none, and the family reaches the model without disturbing either.
+# The two declared values DIFFER, and neither is 1, so a confusion between the
+# slots - or between a forest's own vector and its neighbour's - is visible;
+# both defaults are 1 in this stretch of the vector and would not be.
+latentSlots <- dbartsSpec(
+  dbartsData(x, as.double(y > median(y)), bases = list(NULL, zBasis)),
+  seededControl(),
+  forests = list(forest(sd = 3.5), forest(sd = 1.25)),
+  family = "logistic"
+)
+expect_equal(latentSlots$model@family, "logistic")
+expect_equal(
+  attr(latentSlots$control, "bartcore.bcf")$params,
+  list(c(50, 0.25, 3, 1, 1, 1, 3.5, 1), c(50, 0.25, 3, 1.25, 0.674, 0.5, 0, 1))
+)
 # and a basis declared alongside subset reaches dbartsData's own alignment
 subsetForests <- dbarts(
   x,

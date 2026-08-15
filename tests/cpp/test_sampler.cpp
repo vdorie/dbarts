@@ -6014,6 +6014,135 @@ static void testForestCalibration() {
          calibration.priorScale);
 }
 
+/// The calibration map's PRODUCT, which nothing in tests/cpp pinned: a forest's
+/// node scale is nodeScaleFactor * s / (nodeScaleDivisor * basisRowNorm), and
+/// under a latent family forestCalibration reports it exactly - fitScale is 1
+/// and priorScale's sqrt(m) cancels the map's, so the reported number IS the
+/// map's node scale rather than a transform of it.
+///
+/// Fixture admissibility, in the comment because this is the third set of
+/// values: the first left two of the four factors at 1 and the second gave a
+/// forest a denominator whose PRODUCT was 1 and a prior scale coincidentally
+/// equal to its own factor, so both vacated the pin they were built to close.
+/// All nine values are distinct and none is 1 - factors {2.5, 0.4, 1.75},
+/// divisors {0.674, 0.8, 0.25}, row norms {3, 5, 6}. The three denominators
+/// divisor * norm = {2.022, 4, 1.5} are distinct, none 1, and none equal to any
+/// of the nine. The prior scales they induce - probit {1.236400, 0.1,
+/// 1.166667}, logistic {2.242581, 0.181380, 2.116099} - are distinct from each
+/// other, from s, and each from its own forest's factor, divisor and norm. Tree
+/// counts differ per forest, so the sqrt(m) cancellation is read per forest
+/// rather than off forest 0's.
+///
+/// BOTH latent families, because probit ALONE CANNOT SEE A DROPPED ANCHOR:
+/// s = 1 there, so factor * s / (divisor * norm) and factor / (divisor * norm)
+/// are the same number. Under logistic they differ by 81 percent. That is the
+/// near-miss shape M4.4 recorded when a naive anchor missed its logistic arm by
+/// 0.865 percent, and it is why this loop is not probit-only.
+static void testBCFCalibrationMap() {
+  const size_t n = 24, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) y[i] = i % 2 == 0 ? 1.0 : 0.0;
+
+  // ROW-MAJOR per-forest bases at row norms 3, 5 and 6. Forest 3's rows are a
+  // genuine two-column (3.6, 4.8), so a norm formed from one column alone, or
+  // from the absolute values, would report 3.6 or 8.4 rather than 6.
+  std::vector<double> b0(n, 3.0), b1(2 * n, 0.0), b2(2 * n);
+  for (size_t i = 0; i < n; ++i) {
+    b1[2 * i + i % 2] = 5.0;
+    b2[2 * i] = 3.6;
+    b2[2 * i + 1] = 4.8;
+  }
+  // the row-norm CONVENTION, which no test anywhere exercised: 22 nonzero rows
+  // at norms 1..22 (an EVEN count, so the average-of-two-central-order-
+  // statistics branch runs, giving 11.5) and two ALL-ZERO rows, excluded rather
+  // than counted small. Counting the zeros would give 10.5, and returning the
+  // upper central order statistic alone 12. And an ALL-ZERO basis, whose norm
+  // falls back to 1 so the forest still reports a finite scale.
+  std::vector<double> even(n, 0.0), zeros(n, 0.0);
+  for (size_t i = 0; i + 2 < n; ++i) even[i] = static_cast<double>(i + 1);
+
+  const double factors[3] = {2.5, 0.4, 1.75};
+  const double divisors[3] = {0.674, 0.8, 0.25};
+  const double norms[3] = {3.0, 5.0, 6.0};
+  const size_t trees[3] = {30, 15, 40};
+  const double* bases[3] = {b0.data(), b1.data(), b2.data()};
+  const size_t widths[3] = {1, 2, 2};
+
+  const ResponseFamily families[2] = {ResponseFamily::probit,
+                                      ResponseFamily::logistic};
+  for (ResponseFamily family : families) {
+    const double s = family == ResponseFamily::probit
+                       ? 1.0
+                       : std::numbers::pi / std::sqrt(3.0);
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 9310);
+    SamplerOptions options;
+    options.numChains = 1;
+
+    BCFSpec spec;
+    spec.family = family;
+    spec.forests.resize(3);
+    for (size_t f = 0; f < 3; ++f) {
+      spec.forests[f].forest.numTrees = trees[f];
+      spec.forests[f].nodeScaleFactor = factors[f];
+      spec.forests[f].nodeScaleDivisor = divisors[f];
+      spec.forests[f].basis = bases[f];
+      spec.forests[f].numBasisColumns = widths[f];
+    }
+    std::unique_ptr<SamplerBase> sampler =
+      createBCFSampler(x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+                       0.37804942330213542, options, spec, &rng);
+    check(sampler != nullptr, "calibration map: the K = 3 fixture builds");
+    if (sampler != nullptr) {
+      for (size_t f = 0; f < 3; ++f) {
+        ForestCalibration calibration = sampler->forestCalibration(0, f);
+        checkNear(calibration.priorScale,
+                  factors[f] * s / (divisors[f] * norms[f]), 1.0e-12,
+                  "calibration map: the reported scale is the map's product");
+        // and what makes that read exact rather than up to a transform
+        check(calibration.responseScale == 1.0 && calibration.k == 1.0,
+              "calibration map: a latent family reports the identity transform "
+              "and k pinned at one");
+      }
+    }
+
+    ext_rng* conventionRng =
+      ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(conventionRng, 9311);
+    BCFSpec conventionSpec;
+    conventionSpec.family = family;
+    conventionSpec.forests.resize(2);
+    conventionSpec.forests[0].forest.numTrees = 20;
+    conventionSpec.forests[0].nodeScaleFactor = 1.25;
+    conventionSpec.forests[0].nodeScaleDivisor = 0.5;
+    conventionSpec.forests[0].basis = even.data();
+    conventionSpec.forests[1].forest.numTrees = 10;
+    conventionSpec.forests[1].nodeScaleFactor = 0.9;
+    conventionSpec.forests[1].nodeScaleDivisor = 2.0;
+    conventionSpec.forests[1].basis = zeros.data();
+    std::unique_ptr<SamplerBase> convention = createBCFSampler(
+      x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0, 0.37804942330213542,
+      options, conventionSpec, &conventionRng);
+    check(convention != nullptr, "calibration map: the convention fixture "
+                                 "builds");
+    if (convention != nullptr) {
+      checkNear(convention->forestCalibration(0, 0).priorScale,
+                1.25 * s / (0.5 * 11.5), 1.0e-12,
+                "calibration map: zero rows are excluded and an even nonzero "
+                "count averages the two central order statistics");
+      checkNear(convention->forestCalibration(0, 1).priorScale,
+                0.9 * s / (2.0 * 1.0), 1.0e-12,
+                "calibration map: an all-zero basis falls back to a unit row "
+                "norm and still reports a finite scale");
+    }
+
+    ext_rng_destroy(conventionRng);
+    ext_rng_destroy(rng);
+  }
+  printf("ok: BCF calibration map product\n");
+}
+
 void runSamplerTests(ext_rng* rng) {
   testForestColumnRestriction(rng);
   testForestColumnRestrictionAllNeutral();
@@ -6070,4 +6199,5 @@ void runSamplerTests(ext_rng* rng) {
   testMissingEndToEnd();
   testLogLikelihood();
   testForestCalibration();
+  testBCFCalibrationMap();
 }
