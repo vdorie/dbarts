@@ -488,6 +488,35 @@ with licensed successors (the treatment-coding refusal, replaced by
 length/finiteness refusals at creation). `consumer.c` `LEG_COUNT` 18 -> 19.
 Engine ~165 dense-equivalent.
 
+**M4.4, 4da3bd8a (the latent family).** `probit` and `logistic` wired
+through the K-forest constructor's response switch (chain.hpp:710-725), the
+calibration map re-based on `latentScaleAnchor` at the settled Option L
+anchor - probit s = 1, logistic s = pi/sqrt(3) - and closed by option E, the
+basis row-norm divisor (median of nonzero row norms, re-derived on
+`$setForestBasis` rather than left stale so a mid-sample swap cannot go
+stale). `$getSumsOfSquaredResiduals` fixed to read the COMBINED location
+rather than forest 0's bare total, per-family rather than by blind
+substitution (a multinomial's slab is K x n, not length n); draw-neutral,
+argued from full buffer overwrite, no in-sweep caller and no rng in the path,
+not from the getter's name. M4.4's own gate: FA5 arm E, the K-forest probit
+sampler, AGREES with leg P's INDEPENDENT reference - approximate by
+construction, carrying its own convergence gate at max R-hat 1.0003 against
+1.01, and never called exact - at max |z| = 1.46, and with decisive arm B at
+max |z| = 1.73 (threshold 3.0 on both, 12 functionals,
+`.claude/m4-basis-design/harness/fa5-latent-coupling.R`). The pinned sigma
+costs no measurable mixing: arm E's IACT is at or below arm B's on 8 of 12
+functionals. The anchor's own gate (checklist item 25, a prior-predictive
+exactness check) was SUBSTANTIATED by mutation builds rather than asserted -
+GREEN as shipped at 76/76, and RED under the naive cold-start anchor (14
+assertions move), under the rejected 3x-wider anchor in both families (12),
+and under a dropped row-norm divisor (4), each failing on the assertion built
+to catch it. That last arm's coverage rests on ONE planted fixture cell whose
+basis row norm is 4; remove it and the mutation goes green, so do not tidy it
+away. Equivalence trio bitwise on all three suites (bcf-equivalence,
+equivalence, multinomial-equivalence), no baseline re-records. Engine 67,
+bridge 33, R 27 dense-equivalent (the bridge's 42 is its RAW net, and
+reporting raw as dense would have put it at its own stop).
+
 **Budget units, as a standing convention** (plan :4985-4989). Slice bands on
 this arc are DENSE-EQUIVALENT lines - lines counted without blank-line and
 formatting inflation, which roughly doubles raw counts. M4.3's implementer
