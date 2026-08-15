@@ -38,9 +38,12 @@ items
     da3c76f9 2026-08-15 (the nbinom dispersion as a per-draw channel:
     run()$dispersion, $getDispersion(), bart2Negbin off its per-sweep
     state serialization; R side only, no dbarts.h touch, bitwise
-    across the trio; landing note in the plan), S3 the grouped
-    setResponse relaxation gated
-    two-way on gaussian/aft with a pre-registered SBC falsifier, S4
+    across the trio; landing note in the plan), S3 LANDED eeedc07c
+    2026-08-15 (grouped samplers accept setResponse/setOffset at the
+    pinned scale, updateScale != FALSE refused under gaussian/
+    Student-t/aft and a no-op under probit/logistic, flat C API
+    guarded too, setData unchanged; SBC swap arm run unmutated then
+    mutated, falsifier did not fire; landing note in the plan), S4
     augmentation-helpers, S5 composition-validator, S6 named-recipes
     plus embedding-page, S7 residue (nbinom magnitude cap, hostFor on
     both remaining bart2 hosts, the flat setWeights guard), S8 the
@@ -578,8 +581,9 @@ items
     plus R5 - in place of the bart2Negbin per-sweep state-read idiom)
     and G10 (relax the bridge-only refusal of setResponse on a
     GroupedResponse sampler - the model already delegates correctly,
-    a bridge nit this arc recorded) are small pre-release slices,
-    scheduled after the getLatents docs slice. No VD fork: every
+    a bridge nit this arc recorded) are LANDED: G3 at adoption-slate
+    S2 (da3c76f9; its dbarts.h half rides S8) and G10 at S3
+    (eeedc07c, setOffset gaining the sibling guard). No VD fork: every
     remaining item carries a surface and a nameable value, so all
     schedule pre-release under the recorded frame. Fork implications
     for multiforest-extension-surface (basis family pre-release not
