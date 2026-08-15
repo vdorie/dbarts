@@ -181,11 +181,11 @@ Surfaces:
    log-likelihood, birth-scan `sumWeights`, or leaf parameter draw. Mechanism:
    the family composes `a_i` into its own `workingWeights()`, so every consumer
    of that accessor inherits it (eighteen call sites in chain.hpp at writing).
-2. The row STILL OCCUPIES its leaf. `numObservations()` counts it, the veto sees
-   it (`logLikelihoodForBranch`, moves.hpp), the scan's `count` sees it,
-   `collapseEmptyNodes` merges by count when weights are null (tree.hpp).
-   Unchanged from today's zero-weight semantics; this is where
-   `empty-leaf-veto-fix` interacts.
+2. The row STILL OCCUPIES its leaf for COUNT-based accounting:
+   `numObservations()` counts it, the scan's `count` sees it, and
+   `collapseEmptyNodes` TRIGGERS on member count regardless of weights.
+   The empty-leaf VETO does NOT: since empty-leaf-veto-fix (21fc29c3) it
+   counts POSITIVE-WEIGHT members, so an all-inactive leaf IS vetoed.
 3. The row STILL RECEIVES A FIT. `totalFits` spans all n rows, so `run()$train`,
    `getForestFits` and `predict` report `f(x_i)` at an inactive row - the
    shipped zero-weight contract. This is what makes the channel worth more than
@@ -1220,3 +1220,9 @@ remaining obligation, the flat-C entry dbarts_sampler_setActiveRows,
 LANDED at dbarts-h-reshape S1 (ab3aa2fa, 2026-08-13) - see "The
 dbarts.h footprint" above. THE MASK ARC'S LAST OBLIGATION IS DONE;
 nothing here is owed forward.
+
+ERRATA 2026-08-15 (adoption-slate S3): rule 2 above was rewritten IN
+PLACE. It said the empty-leaf veto sees an inactive row; the veto has
+counted POSITIVE-WEIGHT members since empty-leaf-veto-fix (21fc29c3),
+so an all-inactive leaf IS vetoed. The rewrite preserves the line
+count, so every line number cited into this file still resolves.

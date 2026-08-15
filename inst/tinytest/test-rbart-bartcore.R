@@ -49,8 +49,15 @@ expect_equal(dim(fit$first.tau), c(2L, 4L))
 expect_true(all(is.finite(fit$tau)) && all(fit$tau > 0))
 expect_equal(dimnames(fit$ranef)[[3L]], levels(g))
 
-# grouped samplers fix the response and data at creation
-expect_error(fit$fit[[1L]]$setResponse(y), pattern = "grouped random effects")
+# the in-core sampler rbart_vi hands back is mutable on the response side at
+# the pinned scale; re-anchoring is refused, since b and tau are held against
+# the transform fixed at creation, and the whole-data conduit stays refused
+# (test-grouped-swap.R carries the family-by-family cells)
+expect_silent(fit$fit[[1L]]$setResponse(y))
+expect_error(
+  fit$fit[[1L]]$setResponse(y, updateScale = TRUE),
+  pattern = "tau"
+)
 expect_error(
   fit$fit[[1L]]$setData(dbarts::dbartsData(y ~ x)),
   pattern = "grouped random effects"

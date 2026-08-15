@@ -32,6 +32,7 @@ using std::uint32_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseBCFTestSurface;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
+using bartcore_bridge::refuseGroupedScaleUpdate;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refusePinnedSigmaChange;
@@ -2706,6 +2707,41 @@ void refuseVarianceForestScaleUpdate(const bartcore::SamplerBase& sampler,
            conduit == ResponseConduit::response ? "a response" : "an offset");
 }
 
+// The grouped analogue of the two scale pins above, and the one place the
+// random-intercept decorator is not scale-transparent: GroupedResponse holds b,
+// tau and the tau prior scale on the BASE MODEL'S INTERNAL scale (its class
+// comment, and the constructor's single division by sigmaScale), and its
+// setResponse/setOffset delegate to the base and rebuild the working response
+// without touching any of the three. At updateScale = TRUE a re-anchoring base
+// recomputes its range and converts exactly sigma and the residual prior scale,
+// so b and tau silently come to mean something else on the original scale while
+// nothing reports the move - the same defect class as the two guards above.
+// Keyed on the family for refusePinnedSigmaChange's reason and with its exact
+// two-way shape: gaussian and aft are the families whose transform is derived
+// from the data, ResponseFamily reports gaussian for a Student-t sampler (so it
+// is covered here without a member of its own), and probit and logistic have a
+// transform fixed by the link that updateScale does not touch at all, leaving a
+// grouped binary sampler's TRUE the documented no-op it already is. Anything
+// but FALSE is refused, the sibling guard's condition-keying: the two surfaces
+// convert to the engine's bool differently (the R bridge on == TRUE, the flat
+// API on != 0), so only the value both read as "pin it" is let through.
+// Weights carry no transform and never reach here. External linkage: the flat
+// C API reuses this guard on its own setResponse and setOffset entries.
+void refuseGroupedScaleUpdate(const bartcore::SamplerBase& sampler,
+                              const char* caller, ResponseConduit conduit,
+                              int updateScale) {
+  if (conduit == ResponseConduit::weights || updateScale == FALSE) return;
+  bartcore::SamplerShape shape = sampler.shape();
+  if (shape.numGroups == 0) return;
+  if (shape.family != bartcore::ResponseFamily::gaussian &&
+      shape.family != bartcore::ResponseFamily::aft) return;
+  Rf_error("%s: a grouped sampler holds its random intercepts b and their "
+           "scale tau against the response transform fixed at creation and "
+           "converts neither, so %s swap is supported only with "
+           "updateScale = FALSE, which pins it", caller,
+           conduit == ResponseConduit::response ? "a response" : "an offset");
+}
+
 // The post-creation half of the response-support policy the R surface applies
 // at creation (R/spec.R): mutation must accept exactly what creation does, or a
 // swap walks the sampler off its family's support. Two harms, both confirmed:
@@ -4514,6 +4550,8 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
                                     ResponseConduit::offset, updateScale);
   refuseVarianceForestScaleUpdate(*holder.sampler, "bartcore_setOffset",
                                   ResponseConduit::offset, updateScale);
+  refuseGroupedScaleUpdate(*holder.sampler, "bartcore_setOffset",
+                           ResponseConduit::offset, updateScale);
   if (!Rf_isNull(offsetExpr) &&
       (!Rf_isReal(offsetExpr) ||
        static_cast<size_t>(Rf_xlength(offsetExpr)) != shape.numObservations))
@@ -4532,9 +4570,8 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
                                     ResponseConduit::response, updateScale);
   refuseVarianceForestScaleUpdate(*holder.sampler, "bartcore_setResponse",
                                   ResponseConduit::response, updateScale);
-  if (shape.numGroups > 0)
-    Rf_error("grouped random effects fix the response at creation; make a "
-             "new sampler instead");
+  refuseGroupedScaleUpdate(*holder.sampler, "bartcore_setResponse",
+                           ResponseConduit::response, updateScale);
   if (!Rf_isReal(yExpr) ||
       static_cast<size_t>(Rf_xlength(yExpr)) != shape.numObservations)
     Rf_error("y must be of length equal to %lu",
