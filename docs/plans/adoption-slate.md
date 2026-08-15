@@ -1386,3 +1386,115 @@ Landed: eeedc07c, pushed 2026-08-15. Independent gate-runner CONFIRM (all nine
 gates, four audits: oracle traceability, weak-gate, rule-2 numstat, no
 docs/plans in code comments). feature-matrix.md's grouped-row cells updated in
 the records commit; the arc-end scoped anchor refresh stays owed.
+
+## Landing note, S4 (appended 2026-08-15)
+
+The API as specced: `dbartsDrawLatents` and `dbartsWorkingResponse` exported,
+`match.arg` over the six family names, `fit` offset-free per the engine's
+`totalFits` convention, the latent's quantity attribute, the two DEF_FUNC
+lines, one Rd topic `dbartsAugmentation` with per-function aliases, the
+`_pkgdown.yml` entry under "The mutable sampler", one NEWS item. The six draw
+laws and six working responses are RESTATED in the bridge, not shared with the
+response models (the spec's OUT OF SCOPE ban; the models run against a
+different generator), and `model.hpp` is absent from the diff entirely.
+
+The RNG contract and the first-caller obligations, all four discharged and
+independently audited: the per-call generator is init-captured as a
+`unique_ptr` with an `ext_rng_destroy` deleter INTO the house `unwindProtect`
+closure, whose R_UnwindProtect cleanup deletes the heap-held closure on
+Rf_error's longjmp as well as the normal return - ownership by mechanism, not
+by claim; the NULL-creation path errors after `PutRNGstate`; nothing is
+cached; the Rd carries the thread-safety sentence, both halves of the
+stream contract, and the offset-discrimination sentence.
+
+Implementation deviations, all adopted: no second enum - "student" maps to
+`ResponseFamily::gaussian`, which then NAMES the scale-mixture arm of both
+switches; `dbartsWorkingResponse` skips `validateResponseSupport` for ordinal
+only (y never enters that arm and there is no K to state support against);
+`sigma`, carrying a default, is refused off aft/student on `!missing(sigma)`
+rather than non-NULL; `weights` and `sigma` are refused off-family but
+OPTIONAL within it, while `dispersion`/`cutpoints`/`df` are two-way (their
+family REQUIRES them - the law has no fallback); the R layer adds
+positivity/wholeness/sortedness validation the spec implies but does not
+itemize, safe-over-fast.
+
+Oracles, measured (seed 5, N = 20000 per cell, threshold |z| < 4):
+truncated-normal moments at 10 probit points both tails, 4 aft points, and -
+added post-audit, see below - 2 ordinal points (two-sided category z = 2.553,
+one-sided z = -0.291), max |z| = 3.19, MC errors 0.0018-0.0067, variances
+within 2-5 percent; PG means at psi in {0, 0.5, 2, 5} for b = 1, 3, 5
+including the psi -> 0 limits b/4 and b/24, max |z| = 1.61; the Student-t
+Gamma mixer at df 3 and 10. Agreement: an Albert-Chib probit loop built ONLY
+from the two helpers against the engine's posterior, cor 0.9967 / latent rms
+0.057 / probability rms 0.016, plus a LOGISTIC arm (0.9963 / 0.081 / 0.012;
+worst over three more seeds 0.9952) - beyond the spec's probit-only letter,
+but mutation 4's kill ("identity for logistic - RED on the agreement arm
+only") is unreachable without it, so the spec's own mutation matrix requires
+the arm. Offset discrimination: latents `identical`, working responses
+differ, on a location AND a precision family.
+
+Mutations, each built to its own lib, run, reverted, revert verified: (1)
+wrong-side truncation - 32 RED, all probit moment and agreement cells, the
+Albert-Chib slope INVERTS (cor -0.993), logistic untouched; (2) PG shape
+ignored - 16 RED, exactly the weighted-logistic (weights 3) and nbinom
+(y = 2, r = 3 - the spec's y+r > 1 constraint honoured) cells, every shape-1
+cell green; (3) Get/PutRNGstate dropped - 1 RED, the stream-ADVANCE half
+only, the reproduce half stays green, which is why the cell asserts both;
+(4) logistic working response as identity - 5 RED, the logistic agreement
+cells plus the direct quotient identity; (5, added post-audit) ordinal
+interior arm drawn at mean 0 instead of psi - 1 RED, the new interior moment
+z moving +2.553 -> -8.305 while containment stays GREEN, which is precisely
+the gap the added cell closes.
+
+Post-audit amendment, one commit kept: the independent gate-runner flagged
+the ordinal law as the one cell instrumented by CONTAINMENT alone - true on
+any draw inside the interval - so a 16-line two-sided/one-sided moment cell
+was added under oracle 1's mandate, proven discriminating by mutation 5, and
+the commit AMENDED before push. Full tinytest and `R CMD check` re-ran on the
+amended tree; the C side did not change, so the ASAN and trio legs stand from
+the pre-amend run.
+
+Gate corrections this slice surfaced, both now standing battery text: the
+NEWS-parse invocation `tools:::.build_news_db("dbarts", ".")` is a SILENT
+NO-OP ("." binds to lib.loc; it returns NULL without parsing) - the working
+forms are `.build_news_db_from_package_NEWS_Rd("inst/NEWS.Rd")` or an
+explicit `lib.loc`, gated on a non-NULL entry count (234 here). And the
+spec's valgrind leg CANNOT run on this host or this branch - darwin/arm64
+has no valgrind, and valgrind.yaml, like every schedule/dispatch workflow,
+is unregistered off bartcore - so the memory-safety gate was the local ASAN
+tests/cpp leg plus the per-push CI sanitizers workflow (full tinytest, this
+file included, under two instrumented R builds), with the memcheck leg
+riding the first nightly after bartcore reaches main. Recorded, not waived.
+
+Budget, raw additions against f8e630fe, BOTH SIDES PAST THEIR STOPS -
+adjudicated, not slipped: non-test 517 (bridge 218 with the hpp and
+DEF_FUNC lines, R 164, Rd 122, NEWS 11, NAMESPACE 1, pkgdown 1) against the
+spec's ~336-with-records band 300-390 stop 505; tests 418 against ~230 stop
+345. Compaction was performed BEFORE the report (bridge 241 -> 211 dropping
+a second enum and a spec struct, tests 512 -> 402, R 192 -> 164), no
+assertion was dropped to fit. ADJUDICATED ACCEPTED on the gate-runner's
+line-complete audit: the bridge inventories to exactly the mandated content
+(two entries, family map, marshalling, six laws, six responses, RNG
+plumbing - no cache, no refactor, no extra export), and all 57 pre-amend
+test call sites trace to a mandated oracle, a mutation-kill arm the spec's
+own matrix requires, or a validation the shipped R code performs. The ~110
+bridge estimate was scaled from a five-way GUARD - which branches to a
+message - while this branches to six SAMPLING LAWS; the same
+estimate-vs-mandate correction as S2's, and the spec itself flagged its
+figure ("the honest total is ~566 raw").
+
+Battery, twice, separate libs (implementer /tmp/s4-lib, gate-runner
+/tmp/s4-gate-lib, pre-amend; the amend re-ran tinytest/air/lintr/check):
+`--preclean` install; tests/cpp from `make clean` 244 ok plain AND under
+ASAN/UBSAN, zero diagnostics; tinytest 5131 results, 0 failures (5012 at S3
++ 119 the new file); trio BITWISE, no re-record (equivalence-8b047f8b
+37/37, bcf-equivalence-8b047f8b 12/12, multinomial-equivalence-1027be5
+10/10); air clean; lintr 0 on both touched R files; NEWS parses (234
+entries, by the corrected invocation); `pkgdown::check_pkgdown` no problems
+with the new topic's entry verified in place; `R CMD check --as-cran` from
+a git-archive tarball staged outside the tree, Status OK, 0/0/0.
+
+Landed: 890efd3d, pushed 2026-08-15. Independent gate-runner CONFIRM
+(pre-amend tree; all nine gates, audits A-D including the budget audit
+above). No feature-matrix cell bears on the helpers; none updated. The
+arc-end scoped anchor refresh stays owed.
