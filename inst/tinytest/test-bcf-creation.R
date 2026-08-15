@@ -730,6 +730,60 @@ expect_error(
   dbarts(x, y, forests = list(forest(sd = 1.5)), control = control),
   "single-forest 'forests' has none"
 )
+
+# --- K = 1 THROUGH THE K-FOREST PATH. A lone forest CARRYING A BASIS is a
+# different declaration from the one just above, and until this slice the two
+# creation routes did different and separately wrong things with it: the data
+# route refused in the data object's own vocabulary, and the forests route
+# reached no error at all - forestBasisDeclarations' two-forest floor meant the
+# basis never reached data@bases, so an ordinary single-forest model was fit
+# with the declaration SILENTLY DROPPED. Both now reach one designed refusal at
+# the site both pass through, which is what lets it name the RESOLVED count and
+# where that count came from. ---
+expect_error(
+  dbarts(x, y, forests = list(forest(basis = ~ factor(z))), control = control),
+  "needs at least two forests"
+)
+expect_error(
+  dbarts(dbartsData(x, y, bases = list(zBasis)), control = control),
+  "needs at least two forests"
+)
+expect_error(
+  dbartsSpec(
+    dbartsData(x, y),
+    control,
+    forests = list(forest(basis = ~ factor(z)))
+  ),
+  "needs at least two forests"
+)
+# the count's SOURCE is named, because a length-1 declaration over a data object
+# already carrying two bases replaces them and resolves to one - telling that
+# caller they wrote one basis would be false
+expect_error(
+  dbartsSpec(
+    dbartsData(x, y, bases = list(NULL, zBasis)),
+    control,
+    forests = list(forest(basis = ~ factor(z)))
+  ),
+  "'basis' declarations resolve to 1"
+)
+expect_error(
+  dbarts(dbartsData(x, y, bases = list(zBasis)), control = control),
+  "data object carries 1"
+)
+# a length-1 forests carrying BOTH a basis and an amplitude knob now answers the
+# K = 1 refusal rather than "a single-forest 'forests' has none": hasBasis is
+# TRUE, so the amplitude-knob branch no longer fires. A message change, not an
+# acceptance change - the call was refused before and is refused now.
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(basis = ~ factor(z), sd = 1.5)),
+    control = control
+  ),
+  "needs at least two forests"
+)
 expect_error(
   dbarts(
     x,

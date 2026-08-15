@@ -84,8 +84,13 @@ its contribution `m_f f_f` to the combined index - `$getForestAmplitudes()`
 reports the multiplier, the other half of the pair. It is stated PER UNIT OF
 BASIS ROW NORM; under the two latent rows the index itself is in latent sd
 units with sigma PINNED, where the gaussian row's is `sd(y)` and a drawn sigma
-partly absorbs a mis-scaled basis. The induced index prior and its `sqrt(K)`
-dispersion law are docs/design/multiplier-combiner.md's map section.
+partly absorbs a mis-scaled basis. The induced index prior, the map's `sqrt(K)`
+dispersion and the `sqrt(2/K)` node scale factor default that cancels it are
+docs/design/multiplier-combiner.md's map section. Two of the five columns are
+therefore where a defaulting caller READS the shipped prior: after
+`binary-kforest-prior-default` S2, `node.scale.factor` prints `sqrt(2/K)` and
+`amplitude.prior.scale` prints the family's own half-Cauchy median, 2 under
+gaussian and 1 under the latent families.
 
 The five map columns are the same rows read one level down
 (`binary-kforest-prior-default` S1). On a mapped forest they carry the

@@ -62,8 +62,19 @@ forest(
     not silently rescale the prior. Which of the two channels carries it depends
     on whether the forest has a \code{basis}: without one it is the half-Cauchy
     median of the forest's scalar amplitude, with one it scales the forest's own
-    node prior. The defaults are 2 for a forest with no basis and 1 for one
-    with.
+    node prior. The two channels default differently, and neither default is a
+    bare constant. A forest with NO basis takes \code{2} under a gaussian
+    response, where the unit is the response's own
+    \eqn{\mathrm{sd}(y)}{sd(y)} and a drawn \eqn{\sigma}{sigma} absorbs the
+    difference, and \code{1} under \code{"probit"} and \code{"logistic"}, where
+    the unit is the link's fixed error scale and nothing does. A forest WITH a
+    basis takes \eqn{\sqrt{2/K}}{sqrt(2/K)} in a model of \eqn{K}{K} forests, so
+    that declaring more of them does not widen the prior on the combined
+    location without bound. \eqn{K = 2}{K = 2} is the fixed point of both
+    statements, \eqn{\sqrt{2/2} = 1}{sqrt(2/2) = 1}. A value declared here
+    overrides its default and keeps its per-forest reading at every \eqn{K}{K},
+    so \code{sd = 1} on each basis forest recovers the pre-\eqn{K}{K}-aware
+    model exactly.
   }
   \item{interactions, blocks}{
     Optional \code{\link{interactions}} and \code{\link{blocks}} constraints on
@@ -86,7 +97,9 @@ forest(
     ||B_f(i, .)||^2)} over the forests carrying a basis, with \eqn{s_f}{s_f}
     read from \code{$getCalibration(f)[, "prior.scale"]} and \eqn{v_f}{v_f}
     this argument; a basis-free forest's own term is Cauchy and has no
-    standard deviation. Under \code{"probit"} and \code{"logistic"} that
+    standard deviation. The budget that sum sits in is set by \code{sd}, whose
+    default already divides it among the \eqn{K}{K} forests, so raising this
+    argument raises the total rather than redistributing it. Under \code{"probit"} and \code{"logistic"} that
     location IS the latent index and \eqn{\sigma}{sigma} is pinned, so nothing
     in the sampler absorbs a mis-scaled basis; under a gaussian response it is
     in \eqn{\mathrm{sd}(y)}{sd(y)} units and a drawn \eqn{\sigma}{sigma}
@@ -115,6 +128,26 @@ forest(
   responses; under a latent family the combination is the index rather than
   the mean, on the link's own fixed scale, and \code{"aft"}, \code{"ordinal"}
   and \code{"nbinom"} are refused at creation naming what each is missing.
+
+  What the defaults put on the combined location, since under a latent family
+  that location IS the index and no drawn \eqn{\sigma}{sigma} stands between it
+  and the fitted probabilities. At two forests of the shipped shape - one
+  carrying no basis - a probit model's prior puts
+  \eqn{P(p < 0.01 \mathrm{~or~} p > 0.99)}{P(p < 0.01 or p > 0.99)} at 0.238,
+  which is the shipped single-forest binary default's own 0.239; before the
+  \code{sd} defaults above it was 0.376. The \eqn{\sqrt{2/K}}{sqrt(2/K)} factor
+  is what holds that as \eqn{K}{K} grows, and it holds it in two different
+  senses. When EVERY forest carries a basis the induced prior standard
+  deviation of the index is 1.484 latent units at every \eqn{K}{K} - 0.989 of
+  the classic \eqn{k = 2}{k = 2} binary node-scale budget - because the whole
+  location is then a sum of fixed-variance channels. When one forest carries
+  none, its amplitude is Cauchy and has no variance to enter that budget with,
+  so the fixed-variance part is BOUNDED by 1.484 rather than pinned at it,
+  rising from 0.699 of the budget at \eqn{K = 2}{K = 2} toward 0.989 and never
+  reaching it; without the factor it would instead grow past twice the budget
+  by ten forests. Read the values in force off
+  \code{$getCalibration(f)}'s \code{node.scale.factor} and
+  \code{amplitude.prior.scale} columns.
 
   Both forests' leaf scales come from the model's own calibration map rather
   than from the node prior, which is why a \code{k} hyperprior, a non-default

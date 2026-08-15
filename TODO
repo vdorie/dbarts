@@ -82,17 +82,37 @@ items
     arises with a stale build scale swapped against a new response
     inside a larger Gibbs loop (setResponse updateScale=FALSE).
     research-open, decision-gated.
-  binary-kforest-prior-default: IN FLIGHT; the plan
-    (docs/plans/binary-kforest-prior-default.md) supersedes this
-    entry's numbers, which its census found partially stale (mixed
-    comparator denominators). Owner forks settled by VD 2026-08-15:
-    family-aware aPriorScale (2 gaussian / 1 probit+logistic) and the
-    sqrt(2/K) nodeScaleFactor default at full scope, all families.
-    S0 (product pin) LANDED 4dbf2dbc; S1 (five observability
-    columns, three layers) LANDED 0faeb416; S2 (defaults + M4.4 doc
-    debt + K = 1 floor fix) pending; zero baseline
-    re-records expected, the equivalence trio is the arc's leak
-    detector. BEFORE 1.0-0.
+  binary-kforest-k1-reachability: K = 1 as a SHIPPED multi-forest
+    configuration - one varying-coefficient forest with no prognostic
+    partner, which is VCBART's shape (D4 of docs/design/model-space-
+    survey.md). Today it is a designed refusal (spec.R, added by
+    binary-kforest-prior-default S2). Priced live rather than
+    inherited: the engine already takes it - drawGlue dispatches
+    K != 2 to the general drawAmplitudes, synthesizeIndicatorBasis is
+    gated on numForests_ > 1, shippedShape() is simply false at K = 1,
+    and createBCFSampler imposes no count floor - so this is a bridge
+    (applyBCFSpec's Rf_xlength < 2) plus R change with tests, NOT
+    engine work. Gated on ACCEPTANCE EVIDENCE: a new shipped
+    configuration owes its own, which is why S2 refused rather than
+    opened it.
+  binary-kforest-prior-default: COMPLETE 2026-08-15 (S0 4dbf2dbc, S1
+    0faeb416, S2; plan + three landing notes in
+    docs/plans/binary-kforest-prior-default.md), superseding this
+    entry's former numbers, which its census found partially stale
+    (mixed comparator denominators). Shipped: family-aware
+    aPriorScale (2 gaussian / 1 probit+logistic), the sqrt(2/K)
+    nodeScaleFactor default at full scope, five calibration
+    observability columns at three layers, the product pin and the
+    first tests/cpp calibration coverage, M4.4's diffuseness-doc debt
+    in cap-not-pin form, and the K = 1 floor fix. Zero baselines
+    re-recorded. RECORDED DEVIATION: the entry's observability leg had
+    a fourth deliverable, an $getIndexPrior() reader returning
+    sd(eta_i) quantiles, which is DEFERRED as a door (Fork 3c) rather
+    than shipped - with every input to the formula now readable and
+    the formula itself in man/forest.Rd, a derived reader would have
+    to decide what to report when a basis-free forest makes the sd
+    undefined, which is a modelling statement belonging in prose.
+    binary-kforest-k1-reachability opens above.
   blocked-jacobi-trees: RESEARCHED, KILLED 2026-07-21 (df13c04 +
     77597cc) - full record, lesson, and reopen clause in
     docs/plans/blocked-jacobi-trees.md and

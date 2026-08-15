@@ -409,6 +409,44 @@ defaultNodeScale <- function(family) {
   )
 }
 
+## The half-Cauchy median a forest carrying NO basis takes when its `sd` is not
+## declared - the magnitude of its scalar amplitude, in units of the same latent
+## scale defaultNodeScale states above. FAMILY-AWARE, because the unit is not
+## the same quantity in the two cases. Under gaussian and aft the anchor is the
+## RESPONSE's own sd, which already contains the signal, and sigma is DRAWN, so
+## a prognostic total at a median 2 of them is both a statement about total
+## variation and one the sampler can correct; that is bcf's use_muscale
+## convention (docs/design/bcf.md). Under the latent families the anchor is the
+## LINK's own error sd and sigma is PINNED, so 2 asserts the median prognostic
+## signal is twice the noise before any other forest is added, and nothing
+## absorbs it: at 1 - one anchor unit, which is also what the Rd can state - the
+## induced index prior reproduces the shipped single-forest binary default's
+## tail mass to within 3.4 percent (P(p < 0.01 or p > 0.99) 0.2468 against
+## 0.2387, where 2 gave 0.3764).
+##
+## Total over the package's family vocabulary rather than over the three the
+## multi-forest path builds, so an unknown family ERRORS instead of returning
+## switch()'s invisible NULL: the internal bartcoreBCFSampler route has no
+## R-side family gate to borrow (its refusal is the bridge's), and a NULL there
+## collapses a length-8 transport vector to length 7. The families that route
+## refuses still resolve, so the refusal stays where it is written.
+##
+## No C twin, unlike defaultNodeScale: applyBCFSpec always receives explicit
+## per-forest parameter vectors, so there is no route on which this default
+## could be silently taken engine-side and nothing to backstop.
+defaultAmplitudePriorScale <- function(family) {
+  switch(
+    family,
+    gaussian = 2.0,
+    aft = 2.0,
+    probit = 1.0,
+    ordinal = 1.0,
+    nbinom = 1.0,
+    logistic = 1.0,
+    stop("no amplitude prior scale is defined for family \"", family, "\"")
+  )
+}
+
 ## Turn a normal prior's raw k into the model's node hyperprior: NULL is the
 ## family default (2 for continuous responses, chi(1.5, 2) for binary),
 ## a positive scalar is fixed, and a hyperprior object passes through. Under a
@@ -686,8 +724,17 @@ resolveModerators <- function(moderators, data, argument = "moderators") {
 ## NULL where a forest declares none, or NULL when there is no usable list at
 ## all. Read before the structural validation resolveForests does, so anything
 ## it cannot make sense of falls through as NULL to be refused there, by name.
+##
+## The floor is ONE forest, not two: a length-1 list declaring a basis has to
+## reach data@bases like every other one, or the declaration is dropped in
+## silence and an ordinary single-forest model is fit instead of the model the
+## caller wrote. What refuses it is the designed one-forest refusal in
+## resolveSamplerSpec, the site the dbartsData(bases = ) route reaches too. A
+## length-1 list declaring NO basis still expands to list(NULL), still fails the
+## any-non-null gate at both call sites, and still falls through to
+## resolveForests' own refusal by name.
 forestBasisDeclarations <- function(forests) {
-  if (!is.list(forests) || length(forests) < 2L) {
+  if (!is.list(forests) || length(forests) < 1L) {
     return(NULL)
   }
   if (!all(vapply(forests, inherits, logical(1L), "dbartsForest"))) {
@@ -895,13 +942,31 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 ## basis forest. The ANCHOR is the family's own latent scale: sd(y) under
 ## gaussian, 1 under probit and pi/sqrt(3) under logistic, per unit of basis
 ## row norm.
-## The defaults are the engine's, so a `forests` declaring nothing beyond its
-## basis and a data object carrying bases with no declaration at all resolve to
-## the same numbers.
-forestParams <- function(specs, hasBasis) {
+## Both defaults are stated here rather than engine-side, so a `forests`
+## declaring nothing beyond its basis and a data object carrying bases with no
+## declaration at all resolve to the same numbers.
+##
+## Each answers a question the caller did not. The basis-free channel's median
+## is the FAMILY's (defaultAmplitudePriorScale above). The fixed-variance
+## channel's node scale factor is K-AWARE, sqrt(2/K): the MAP carries no per-K
+## renormalization - ForestSpec is per forest and the calibration loop reads no
+## count - so at the literal 1 the all-basis index prior grew as
+## 1.04912 sqrt(K) s without bound, making the prior on the combined location
+## depend on how the caller DECOMPOSED the mean rather than on what they said
+## about it, the same model written as two forests or as four differing by
+## sqrt(2). sqrt(2/K) is that invariance, at K = 2 the identity, so bcf's own
+## convention is preserved rather than judged. A DEFAULT and not map algebra: a
+## declared `sd` keeps its per-forest reading at every K, and the basis-free
+## channel is untouched, a Cauchy having no finite variance to enter the budget
+## with - so the all-basis index prior is 1.4837 s at every K while the shipped
+## shape's fixed-variance channel is only CAPPED by it, rising from 0.699x of
+## the classic k = 2 budget toward 0.989x rather than passing 2x at K = 10.
+forestParams <- function(specs, hasBasis, family) {
   declared <- function(value, default) {
     if (is.null(value)) default else value
   }
+  nodeScaleDefault <- sqrt(2 / length(specs))
+  amplitudeScaleDefault <- defaultAmplitudePriorScale(family)
   lapply(seq_along(specs), function(index) {
     spec <- specs[[index]]
     withBasis <- hasBasis[index]
@@ -909,10 +974,10 @@ forestParams <- function(specs, hasBasis) {
       declared(spec$n.trees, 50L),
       declared(spec$base, 0.25),
       declared(spec$power, 3),
-      if (withBasis) declared(spec$sd, 1) else 1,
+      if (withBasis) declared(spec$sd, nodeScaleDefault) else 1,
       if (withBasis) 0.674 else 1,
       if (withBasis) declared(spec$amplitude.prior.variance, 0.5) else 1,
-      if (withBasis) 0 else declared(spec$sd, 2),
+      if (withBasis) 0 else declared(spec$sd, amplitudeScaleDefault),
       declared(spec$update.amplitude, TRUE)
     ))
   })

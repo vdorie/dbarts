@@ -586,8 +586,12 @@ methods::setValidity("dbartsData", function(object) {
     return("'offset' must be null or have length equal to that of 'y'")
   }
   if (!is.null(object@bases)) {
-    if (length(object@bases) < 2L) {
-      return("'bases' must be null or name at least two forests")
+    # a data object is a container, and one forest's basis is a well-formed
+    # thing to carry; what refuses a one-forest model is the designed refusal at
+    # spec resolution, which is the site both creation routes reach and the only
+    # one that can name where the count came from
+    if (length(object@bases) < 1L) {
+      return("'bases' must be null or name at least one forest")
     }
     for (basis in object@bases) {
       if (is.null(basis)) {

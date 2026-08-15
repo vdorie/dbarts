@@ -310,7 +310,16 @@ struct BCFSpec {
   // parameter list so a fixture that names none keeps bcf's own family.
   ResponseFamily family = ResponseFamily::gaussian;
   const double* z = nullptr;    // borrowed 0/1 treatment indicator per obs
-  double aPriorScale = 2.0;     // half-Cauchy median for the mu scalar a
+  // Half-Cauchy median for the mu scalar a. Deliberately NOT family-aware,
+  // unlike the R default it shadows (defaultAmplitudePriorScale, R/model.R,
+  // which is 1 under probit and logistic): this initializer is a FIXTURE
+  // default that no consumer reaches - createBCFSampler has no flat-C entry
+  // point, and the bridge fills spec.forests unconditionally - and the
+  // two-forest spelling it belongs to is gaussian bcf's, where 2 is correct.
+  // Branching on the family here would put one inside expandForestSpecs, the
+  // one adapter the "bcf as the K = 2 instance" contract requires to stay a
+  // pure re-spelling.
+  double aPriorScale = 2.0;
   double bPriorVariance = 0.5;  // N(0, .) prior variance for b0, b1
   double sdModerate = 1.0;      // treatment effect scale, in units of s above
   bool updateA = true, updateB = true;  // false fixes the matching glue block

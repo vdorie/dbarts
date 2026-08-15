@@ -411,6 +411,36 @@ resolveSamplerSpec <- function(
     )
   }
   if (!is.null(data@bases)) {
+    # the RESOLVED forest count, which is the data object's own bases or the
+    # declaration that replaced them just above, and which the refusal below
+    # names the source of: a length-1 declaration over a data object already
+    # carrying two bases resolves to one, and telling that caller they wrote
+    # one basis would be false
+    numForests <- length(data@bases)
+    # K = 1 is not a shipped configuration. Both creation routes reach here -
+    # the dbartsData(bases = ) one and the forests = one, whose declarations
+    # forestBasisDeclarations now carries down at any length - so this is the
+    # single site the refusal is owed at. What a lone amplitude forest is
+    # missing is the second ensemble its amplitudes would distinguish it from;
+    # reaching it as a configuration (VCBART's shape, D4 of
+    # docs/design/model-space-survey.md) owes acceptance evidence of its own and
+    # is ticketed as binary-kforest-k1-reachability.
+    if (numForests < 2L) {
+      stop(
+        "a multi-forest model needs at least two forests, and ",
+        if (is.null(bases)) {
+          "the data object carries "
+        } else {
+          "this call's 'basis' declarations resolve to "
+        },
+        numForests,
+        "; the amplitudes multiplying a forest's basis are what distinguish ",
+        "it from another forest, so one forest alone has nothing to be ",
+        "distinguished from. Declare a second - forests = list(forest(), ",
+        "forest(basis = ...)) is the two-forest spelling - or drop the basis ",
+        "for a single-forest model"
+      )
+    }
     # the families the calibration map has a latent scale to state its node
     # scales against, and whose own parameter block is shown to interleave with
     # the amplitude block. A fixed error scale is what makes the binary
@@ -486,9 +516,8 @@ resolveSamplerSpec <- function(
       )
     }
     # every forest resolves its own knobs; a data object carrying bases with no
-    # forests = declaration at all resolves to the engine's defaults, which is
-    # what keeps the dbartsData(bases = ) route a supported one
-    numForests <- length(data@bases)
+    # forests = declaration at all resolves to the same defaults, which is what
+    # keeps the dbartsData(bases = ) route a supported one
     specs <- if (is.null(forestSpec)) {
       rep(list(NULL), numForests)
     } else {
@@ -528,8 +557,9 @@ resolveSamplerSpec <- function(
       function(index) resolveModerators(specs[[index]]$vars, data, "vars")
     )
     attr(control, "bartcore.bcf") <- list(
-      # one length-8 numeric per forest
-      params = forestParams(specs, hasBasis),
+      # one length-8 numeric per forest; the family selects the basis-free
+      # channel's default median and the count the K-aware node scale factor
+      params = forestParams(specs, hasBasis, family),
       # resolved 1-based column indices per forest, or NULL for unrestricted
       vars = forestColumns,
       # the first forest takes the fit's own interactions()/blocks() arguments,
