@@ -61,6 +61,11 @@ SEXP bartcore_getSigmas(SEXP ptr);
 SEXP bartcore_getDispersion(SEXP ptr);
 SEXP bartcore_isValidPointer(SEXP ptr);
 SEXP bartcore_getLatents(SEXP ptr, SEXP result);
+SEXP bartcore_drawLatents(SEXP family, SEXP fit, SEXP y, SEXP weights,
+                          SEXP offset, SEXP sigma, SEXP dispersion,
+                          SEXP cutpoints, SEXP df);
+SEXP bartcore_workingResponse(SEXP family, SEXP latent, SEXP y, SEXP weights,
+                              SEXP offset, SEXP dispersion);
 SEXP bartcore_predict(SEXP ptr, SEXP x_test, SEXP offset_test);
 SEXP bartcore_getTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,
                        SEXP treeNums, SEXP current, SEXP newdata,
