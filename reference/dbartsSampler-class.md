@@ -211,7 +211,17 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   whatever its response family, the calibration map being pinned at
   creation whether or not there is a transform to re-anchor - and a
   heteroscedastic (`variance`) one, whose variance forest would
-  otherwise keep reporting \\s^2(x)\\ on the abandoned scale.
+  otherwise keep reporting \\s^2(x)\\ on the abandoned scale. A sampler
+  carrying grouped random effects (see
+  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)) is
+  refused on the same grounds, but only where there is a data-derived
+  transform to abandon: under a gaussian, Student-t
+  (`resid.dist = student`) or `"aft"` response the random intercepts
+  \\b\\ and their scale \\\tau\\ are held against the transform fixed at
+  creation and nothing converts them, so `TRUE` would silently restate
+  both in response units while `sigma` moved with the scale; under
+  `"probit"` or `"logistic"` the transform is the link's own and `TRUE`
+  is accepted as the no-op it already is.
 
 - offset.test:
 
@@ -772,6 +782,22 @@ the existing matrix in place and so keeps its dimnames rather than
 replacing the whole matrix, or call
 `updatePredictorPerObservationJointly` before the first whole-matrix
 replacement in a script that needs both.
+
+### Grouped random effects
+
+A sampler carrying grouped random intercepts - the one
+[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) returns
+in `$fit` when its prior is built in - is mutable on the response side.
+`setResponse` and `setOffset` accept a same-length replacement at the
+pinned scale (`updateScale = FALSE`, the default): the group effects and
+their scale are a Gibbs block the swap deliberately carries across,
+exactly as they are carried across a tree sweep, and the group indices
+are per-observation and unchanged, so every row stays in its group.
+`updateScale = TRUE` is refused under a re-anchoring family (see
+`updateScale` above). `setData` stays refused outright: it may change
+the number of rows, and the grouping is fixed at creation, so there is
+no coherent reading of the new rows' group membership - re-create the
+sampler instead.
 
 ### Warm starts
 
