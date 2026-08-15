@@ -44,7 +44,10 @@ items
     Student-t/aft and a no-op under probit/logistic, flat C API
     guarded too, setData unchanged; SBC swap arm run unmutated then
     mutated, falsifier did not fire; landing note in the plan), S4
-    augmentation-helpers, S5 composition-validator, S6 named-recipes
+    LANDED 890efd3d 2026-08-15 (dbartsDrawLatents +
+    dbartsWorkingResponse, six families' augmentation draws off R's
+    stream; landing note in the plan), S5 composition-validator, S6
+    named-recipes
     plus embedding-page, S7 residue (nbinom magnitude cap, hostFor on
     both remaining bart2 hosts, the flat setWeights guard), S8 the
     arc's ONE dbarts.h re-bake. Fork F1 settled by VD, the rest under
@@ -53,15 +56,16 @@ items
     deviation from multiplier-combiner.md's dense convention. Zero
     baseline re-records expected on any slice - the equivalence trio
     is the arc's leak detector. BEFORE 1.0-0.
-  augmentation-helpers: SPECCED as slice S4 of adoption-slate
-    (docs/plans/adoption-slate.md). Exported dbartsDrawLatents and
-    dbartsWorkingResponse over the primitives the engine already runs,
-    drawing R's own stream via ext_rng_createDefault(TRUE) under
-    GetRNGstate/PutRNGstate, so a host composing probit, logistic,
-    ordinal, aft, nbinom or Student-t replicates the augmentation
-    without re-deriving it. The plan supersedes this entry's ~240
-    lines, which priced the item without its oracle. SCHEDULED,
-    pre-release.
+  augmentation-helpers: LANDED 890efd3d 2026-08-15 as adoption-slate
+    S4 (landing note in docs/plans/adoption-slate.md). Exported
+    dbartsDrawLatents and dbartsWorkingResponse over the primitives
+    the engine already runs, drawing R's own stream via
+    ext_rng_createDefault(TRUE) under GetRNGstate/PutRNGstate. One
+    residue: the valgrind leg of the slice's gate could not run
+    (darwin/arm64, and valgrind.yaml is unregistered off bartcore) -
+    it rides the first nightly after bartcore reaches main, with the
+    per-push CI sanitizers workflow covering the new tinytest file
+    under instrumented R meanwhile.
   bcf-naming-generalization: the shipped K-forest amplitude family is
     spelled with BCF names at every layer - BCFSpec, BCFForestSpec,
     BCFState, BCFForestCombiner, createBCFSampler,
