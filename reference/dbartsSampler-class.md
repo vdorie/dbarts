@@ -394,6 +394,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `setForestBasis` accepts any forest of one that does. `getForestFits`
   and `getForestVariableCounts` accept `forest = 1` on any sampler - it
   selects the only forest - and refuse only an out-of-range index.
+  `getCalibration` is likewise served on every forest of a multi-forest
+  sampler, and its calibration-map columns are that forest's own.
 
 - prior.scale:
 
@@ -867,6 +869,39 @@ every sweep, in which case `prior.sd` moves every sweep while
 leaf model rides as a `"leaf.model"` attribute, one of `"constant"`,
 `"monotone"`, `"linear"`, or `"gp"`, and qualifies what `prior.sd`
 means.
+
+Five further columns report the multi-forest CALIBRATION MAP that fixed
+`prior.scale` on a sampler built with `forests =` or
+`dbartsData(bases = )` (see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), and
+are `NaN` on every forest whose scale that map does not own - any
+single-forest sampler, and a multinomial one, whose scale is not
+map-derived. `amplitude.prior.variance` and `amplitude.prior.scale` are
+EXCLUSIVE per forest: a forest whose amplitudes carry a fixed prior
+variance reports that variance and a `NaN` scale, and one whose
+amplitude carries the half-Cauchy scale mixture (a forest declaring no
+basis) reports its median and a `NaN` variance. Each is a prior the
+caller may set; neither moves with the scale mixture's own variance
+auxiliary, which is a drawn quantity rather than a prior.
+`node.scale.factor` and `node.scale.divisor` are the map's two factors
+and `basis.row.norm` the median nonzero row norm of the forest's basis
+IN FORCE, which `setForestBasis` re-derives.
+
+Together they decompose the reported scale as
+`prior.scale = node.scale.factor * s / (node.scale.divisor * basis.row.norm)`,
+so the family's own latent anchor \\s\\ - the only quantity of the map
+with no column of its own, and data-dependent under a gaussian
+response - is recovered as
+`prior.scale * node.scale.divisor * basis.row.norm / node.scale.factor`.
+That identity holds whenever `node.scale.factor` is not `NaN`. It
+becomes `NaN`, on both `node.scale` columns, when `setState` or
+`installTrees` installs a leaf scale differing from the one in force:
+the donor's trees arrive with the donor's calibration, and the stored
+factor and divisor no longer decompose it. The other three columns are
+unaffected - the amplitude prior FOLLOWS the installed state, and the
+bases are not state - and a `setForestBasis` on that forest re-imposes
+the map and restores both columns. Restoring a sampler's own state
+installs a bitwise-identical scale and so changes nothing.
 
 `prior.scale` and `prior.sd` describe the LEAF-PARAMETER scale of the
 forest total. They equal the prior standard deviation of \\f(x)\\ at
