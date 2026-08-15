@@ -1,6 +1,7 @@
 # adoption-slate
 
-Status: SPECCED 2026-08-15 (S1-S8 pending). Two blind critique rounds and one
+Status: IN PROGRESS 2026-08-15 (S1 LANDED, S2-S8 pending; landing notes at
+  EOF). Two blind critique rounds and one
   fix-verification round discharged (5 BLOCKER, 15 MAJOR, 23 MINOR, all
   adopted). Owner fork F1 SETTLED by VD 2026-08-15; F2-F6 and the slice
   adoptions resolved under the delegated grant; see "Decisions". Design evidence is GIT-IGNORED session material
@@ -1027,3 +1028,111 @@ argument is OFFSET-FREE; and two comparable figures were corrected under
 `git show --numstat` (0faeb416 tests 443, 33f6fdc non-test 245), which is what
 the raw-currency choice exists to make possible. Full per-finding records are
 in the gitignored `.claude/adoption-slate-design/revision-notes.md`.
+
+## Landing note, S1 (appended 2026-08-15)
+
+Five layers as specced, one virtual and one refusal site. Engine:
+`Chain::fitsWithoutOffset(double*)` public and non-const beside
+`forestTotalFits`, opening on `numReportedLocations() > 1` and writing
+`fitScale * combinedFits + fitShift`; `Sampler::fitsWithoutOffset(chainNum,
+double*)`; the `SamplerBase` pure virtual plus the `SamplerFacade` override on
+the `forestTotalFits` pattern (`SamplerFacade` is the only implementer, so the
+new pure virtual breaks nothing). `storeSample`'s training write splits on
+`numLocations == 1`: that branch calls the accessor and then adds the offset as
+a SEPARATE `misc_addVectorsInPlace` pass, never fused; the multi-location
+branch keeps the original loop verbatim. Bridge: `bartcore_getFitsWithoutOffset`
+(one arg), mapping the engine's `false` to a named error, one prototype, one
+`DEF_FUNC`; no second shape test. R: `$getFitsWithoutOffset()`,
+`bartcoreFitsWithoutOffset`, and `refuseHostRead`, a read-side sibling of
+`refuseHostMutation` called from the new method only. Shape: an
+n.observations x n.chains matrix always, `$getForestFits`'s convention rather
+than `$getLatents`'s single-chain vector.
+
+Docs: the per-family `getLatents` semantics on all three surfaces (Rd `\value`,
+R5 docstring, the comment above `dbarts_sampler_getLatents` - comment-only, no
+hash move), read off `model.hpp`'s overrides rather than asserted (locations
+`ProbitResponse::latents_`, `OrdinalResponse::latents_`, `AFTResponse::logT_`;
+precisions `LogisticResponse::omega_`, `NBResponse::omega_`,
+`TResponse::lambda_`; `GaussianResponse` and `MultinomialResponse` declare
+none). The fit-surface table and the boundary sentence went into a new
+`\subsection{Reading the fit}` of the Rd's `\details`. The BINDING INSTRUCTION
+was discharged: `extract.bart` (R/generics.R:211) reads `object$yhat.train` /
+`object$yhat.test` directly and NO `type` arm removes the offset - "bart"
+returns those stored draws as they stand, "ev" maps them through
+`probabilityFromLatents`, "ppd" samples from them, "loglik" evaluates against
+them - so every arm is offset-INCLUSIVE; `extract.dbartsSampler`
+(R/generics.R:1449) takes `type = "predictors"` only and returns the design
+matrix, not a fitted value. Both stale-doc corrections landed: the
+`\item{active}` veto clause is now conditional (count-based accounting is
+`numObservations`, the scan count and leaf collapsing; the veto counts
+POSITIVE-WEIGHT members, degenerating to the member count only with no weight
+vector installed - and a mask IS one), and `r-c-division.md`'s
+latent-subset-mask bullet names 93afd635 instead of "this slice".
+
+Budget, raw additions against 94747480: non-test 184 + this note, tests 362
+(tinytest 290, `tests/cpp` 72). Stops 389 / 518.
+
+Battery, all on the slice's private lib (`/tmp/s1-lib`, since `~/.Renviron`
+overrides `R_LIBS_USER`): `--preclean` install clean; `tests/cpp` from
+`make clean` 243 ok, all passed, and again under
+`OPT="-O2 -g -fsanitize=address,undefined"` with
+`ASAN_OPTIONS=detect_container_overflow=0`, no sanitizer diagnostic; full
+tinytest 4919 results, 0 failures, no snapshot re-pinned; equivalence trio
+BITWISE with no re-record (equivalence-8b047f8b 37 compared / 0 skipped, every
+scenario "identical draws (same RNG stream)"; bcf-equivalence-8b047f8b every
+channel identical on all 12 scenarios; multinomial-equivalence-1027be5 every
+channel identical on all 10 - no max-|z| line anywhere), which is this slice's
+leak detector for the `storeSample` refactor and reports none; `air format
+--check` clean; `lintr::lint_package()` 0 lints; `pkgdown::check_pkgdown` no
+problems (no new topic, so no `_pkgdown.yml` entry was owed); `R CMD check
+--as-cran` from a tarball staged outside the tree, Status OK, 0/0/0.
+
+Mutation proof, each applied, run, then reverted and byte-verified (the R
+identity cells are 11 value comparisons plus 22 shape/null assertions; the two
+refusal cells and the two recombination cells complete the 47).
+
+- (1a) Added offset at an ACCESSOR-ONLY site (the R5 method): 13 assertions
+  move - all 11 identity comparisons and both recombination cells. No fixture
+  is vacuous.
+- (1b) The same added offset inside `Chain::fitsWithoutOffset`, the SHARED
+  site: every identity cell stays GREEN, because `storeSample` then
+  double-adds and the identity holds. **This is the refactor's blind spot and
+  the plan's mutation-1 wording does not distinguish the two sites.** It is
+  caught anyway, by the arithmetic gates: both `tests/cpp` assertions and both
+  recombination cells go RED (plus the shipped "sums of squared residuals
+  descale" pin). The `tests/cpp` cell asserts the recorded training write
+  equals the accessor plus the offset precisely to cover this.
+- (2) Return the internal scale: all 13 identity cells GREEN as predicted; RED
+  on the `tests/cpp` cell, both recombination cells, and 22 other `tests/cpp`
+  pins (the training channel is engine-wide).
+- (3) Report forest 0's totals instead of the combiner blend: EXACTLY ONE
+  R assertion moves, the BCF recombination cell, plus the shipped
+  "BCF training fits are the a*mu + b_z*tau blend" cell in `tests/cpp`.
+  Identity cells, single-forest recombination and the new `tests/cpp` cell all
+  GREEN, confirming the BCF cell is load-bearing and must not be tidied away.
+- (4) Delete the `numReportedLocations() > 1` early return: exactly the two
+  multinomial refusal assertions move; `tests/cpp` fully green under ASAN too,
+  which is the point - the read is in-bounds and silent.
+- (4b) Delete the read-side `hostFor` guard: exactly the shell cell moves.
+- (5) Reverse the location/precision assignment in the Rd: caught by NO test,
+  as specced; verified by reading `model.hpp`'s `latents()` overrides.
+
+Deviations and carried obligations.
+
+- The Rd first drew a `\link{student}`, which `R CMD check --as-cran` flagged
+  as a missing link (`student` is unexported and has no topic); it reads
+  `\code{student()} (see \code{\link{dbarts}})` instead.
+- The identity helper cannot hold the expectations: `tinytest::expect_*` is
+  declined for registration ("Remove the 'tinytest::' prefix"), while an
+  UNQUALIFIED `expect_*` inside a helper is an `object_usage_linter` finding
+  under `lintr::lint_package()`. The helper therefore gathers and the three
+  assertions sit at top level. Note for later slices: the shipped
+  `tinytest::expect_identical` in `test-mutate-sparse-valued.R:48` is
+  unregistered for the same reason.
+- The `tests/cpp` cell carries one assertion beyond the plan's - the recorded
+  training write equals the accessor plus the offset - which is what makes
+  mutation 1b visible.
+- `docs/design/feature-matrix.md`'s file:line anchors into `R/dbarts.R` and
+  `R_interface_bartcore.cpp` shifted and were NOT refreshed here, following the
+  previous arc's pattern of one anchor-refresh commit at the END of the arc
+  (cd27822f). Owed before the arc closes.

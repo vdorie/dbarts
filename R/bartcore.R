@@ -1085,6 +1085,16 @@ bartcoreForestFits <- function(bcSampler, forest) {
   .Call(C_dbarts_bartcore_getForestFits, bcSampler$ptr, as.integer(forest))
 }
 
+# The combined per-observation location on the RESPONSE scale and without the
+# offset, n.observations x n.chains - the quantity the run's train channel
+# carries with the offset folded in. Refused on a multinomial handle, whose
+# reported channels are per-category softmax probabilities and not one additive
+# location; bartcorePredict(bc, x) serves that read instead, and reports the
+# saved samples rather than the current state under keepTrees.
+bartcoreFitsWithoutOffset <- function(bcSampler) {
+  .Call(C_dbarts_bartcore_getFitsWithoutOffset, bcSampler$ptr)
+}
+
 # A forest's leaf-prior calibration in RESPONSE units, one row per chain
 # (columns prior.scale, prior.sd, prior.mean, k, k.has.hyperprior,
 # response.scale, response.shift, then the calibration map's own

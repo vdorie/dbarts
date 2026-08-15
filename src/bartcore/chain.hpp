@@ -1194,6 +1194,30 @@ public:
                 data_.numObservations * sizeof(double));
   }
 
+  /// The chain's combined per-observation location on the RESPONSE scale and
+  /// WITHOUT the offset - fitScale * combinedFits + fitShift, numObservations
+  /// doubles - which is what storeSample's training write reports before the
+  /// offset add, and the quantity a host composing an outer block needs
+  /// offset-free. False, writing nothing, on a coupling reporting more than
+  /// one location (multinomial softmax): its channels are per-category
+  /// probabilities rather than one additive location, so nothing offset-free
+  /// is defined. This is the SOLE refusal site; the bridge maps false to its
+  /// own message rather than re-testing the shape.
+  ///
+  /// Non-const by CHOICE, not by compulsion: the read refills the combiner's
+  /// scratch buffer, so a const signature would lie about observable state.
+  /// forestTotalFits can stay const only because it is a memcpy of a resident
+  /// vector.
+  bool fitsWithoutOffset(double* out) {
+    if (numReportedLocations() > 1) return false;
+    const double* src = combinedFits();
+    double scale = response_->fitScale();
+    double shift = response_->fitShift();
+    for (std::size_t i = 0; i < data_.numObservations; ++i)
+      out[i] = scale * src[i] + shift;
+    return true;
+  }
+
   /// Forest f's per-predictor split usage, accumulated across its trees into
   /// out (numPredictors entries, zeroed here); the per-forest analog of the
   /// reported-forest variable-count channel storeSample records, addressing an
@@ -4886,23 +4910,32 @@ private:
 
     if (results.trainingFits != nullptr) {
       double* out = results.trainingFits + sampleNum * n * numLocations;
+      const double* offset = response_->offset();
       // the combiner owns the blend; recompute it against the post-glue scalars
       // this sweep settled on (combinedFits at the sweep top ran before the
       // glue draw). Off any combiner the reported forest's own fits are it.
-      const double* combined =
-        combiner_ ? combiner_->combinedFits(forests_) : forest.totalFits.data();
-      const double* offset = response_->offset();
-      for (size_t loc = 0; loc < numLocations; ++loc) {
-        double* dst = out + loc * n;
-        const double* src = combined + loc * n;
-        for (size_t i = 0; i < n; ++i)
-          dst[i] = scale * src[i] + shift;
+      // The single-location write IS fitsWithoutOffset, which the accessor
+      // shares, and the offset add stays a SEPARATE pass over the whole vector
+      // afterwards, never fused into the scale/shift loop: fusing would move
+      // the draws off their recorded bitwise class.
+      if (numLocations == 1) {
+        fitsWithoutOffset(out);
         // original-scale convention, matching the recorded test fits: any
-        // offset is part of the fit. A per-observation offset add would be
-        // wrong for a multi-location combiner writing probability channels
-        // (softmax) rather than an additive location, but multinomial creation
-        // carries no offset, so this stays null on that path.
-        if (offset != nullptr) misc_addVectorsInPlace(offset, n, dst);
+        // offset is part of the fit.
+        if (offset != nullptr) misc_addVectorsInPlace(offset, n, out);
+      } else {
+        // the branch fitsWithoutOffset refuses: a multi-location combiner
+        // writes probability channels (softmax) rather than an additive
+        // location, so a per-observation offset add would be wrong here, but
+        // multinomial creation carries no offset and the pointer stays null.
+        const double* combined = combiner_->combinedFits(forests_);
+        for (size_t loc = 0; loc < numLocations; ++loc) {
+          double* dst = out + loc * n;
+          const double* src = combined + loc * n;
+          for (size_t i = 0; i < n; ++i)
+            dst[i] = scale * src[i] + shift;
+          if (offset != nullptr) misc_addVectorsInPlace(offset, n, dst);
+        }
       }
     }
 

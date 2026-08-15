@@ -332,6 +332,14 @@ public:
   virtual bool amplitudes(std::size_t chainNum, double* out) const = 0;
   virtual void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
                                double* out) const = 0;
+  /// Chain chainNum's combined per-observation location on the RESPONSE scale
+  /// and WITHOUT the offset (numObservations doubles) - the quantity the
+  /// recorded training channel carries with the offset folded in. False,
+  /// writing nothing, on a coupling reporting more than one location
+  /// (multinomial softmax), which defines no single additive location; that
+  /// is the only refusal, and it lives in the engine. Non-const because the
+  /// read refills the combiner's scratch buffer.
+  virtual bool fitsWithoutOffset(std::size_t chainNum, double* out) = 0;
   /// Forest forestIndex's per-predictor split usage into out (numPredictors
   /// entries); the per-forest analog of the recorded variable-count channel.
   virtual void forestVariableCounts(std::size_t chainNum,
@@ -576,6 +584,9 @@ public:
   void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
                        double* out) const override {
     impl_.forestTotalFits(chainNum, forestIndex, out);
+  }
+  bool fitsWithoutOffset(std::size_t chainNum, double* out) override {
+    return impl_.fitsWithoutOffset(chainNum, out);
   }
   void forestVariableCounts(std::size_t chainNum, std::size_t forestIndex,
                             std::uint32_t* out) const override {

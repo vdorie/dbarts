@@ -208,7 +208,7 @@ budgets)
   the excess is the flat-C half, the leaf-model contract, the
   three creation refusals and the oracle.
 - A latent-family subset mask (TODO `latent-subset-mask`): SHIPPED, S0-S4
-  (dc11a805, 6db22aee, 87d370ea, 8b047f8b, this slice). This is the
+  (dc11a805, 6db22aee, 87d370ea, 8b047f8b, 93afd635). This was the
   row-subset door the corrected demand survey opened (see "Demand
   headlines") - Gaussian row subsetting already shipped via zero weights;
   `$setActiveRows` extends the same "row i is not in the data set this
