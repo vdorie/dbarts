@@ -82,78 +82,17 @@ items
     arises with a stale build scale swapped against a new response
     inside a larger Gibbs loop (setResponse updateScale=FALSE).
     research-open, decision-gated.
-  binary-kforest-prior-default: the K-forest amplitude family's
-    basis-free forest keeps bcf's half-Cauchy median aPriorScale = 2
-    (combiner.hpp BCFSpec; R/model.R forestParams' declared(spec$sd, 2)),
-    a default set for a gaussian response where a DRAWN sigma absorbs the
-    excess. Under probit and logistic sigma is pinned at 1 and it cannot.
-    Measured 2026-08-14 (2e6-draw prior predictive, seed 20260814;
-    .claude/m4-basis-design/pre-m44-anchor-simulation.md secs 3 and 9.1,
-    GIT-IGNORED, so the numbers are carried in the M4.4 bullet of
-    docs/plans/multiforest-extension-surface.md): the prognostic channel
-    a*mu alone has median |.| 1.175 and 95th percentile 20.17, so even
-    under M4.4's settled Option L anchor 38% of the K = 2 probit prior on
-    p lies outside (0.01, 0.99) and 16% within 1e-9 of a boundary, against
-    0.238 for the prior dbarts ships for single-forest binary BART. The
-    decision is independent of the anchor - the L/C ratio stays exactly 3
-    whatever this default becomes, and the decisive all-fixed-variance arm
-    does not involve aPriorScale at all - and it is correctable by the
-    sampler and by one shipped knob (forest(sd = )), which the basis
-    forests' hardcoded fixed variance is not. VD 2026-08-14: OUT of M4.4,
-    which must not move it and must document the diffuseness and point
-    here. TRIGGER MET 2026-08-14: M4.4's arm E acceptance gate RAN and
-    PASSED at 4da3bd8a (findings in
-    .claude/m4-basis-design/arm-e-2026-08-14.md, GIT-IGNORED, so the
-    numbers are carried in the M4.4 landing note at the EOF of
-    docs/plans/multiforest-extension-surface.md). Its verdict on the
-    pinned sigma is the evidence this slice was waiting for, and it comes
-    back NEGATIVE for the mixing hypothesis: the pinned sigma costs
-    nothing measurable on the fixed-variance basis forest - arm E's IACT
-    is at or below arm B's on 8 of 12 functionals, mean ratio 0.98, and
-    the one lag is shared equally by both dbarts arms, so it is the MH
-    tree move and not sigma. So this slice must be argued on the PRIOR
-    COVERAGE numbers above, not on a mixing pathology, which no longer
-    exists to point at. Note that a too-tight FIXED-VARIANCE basis prior
-    would argue for an sd.moderate default above 1 rather than for moving
-    this, since the anchor multiplies both channels while sd.moderate is
-    already the per-forest knob. A THIRD ITEM JOINS THIS SLICE, from
-    M4.4's review: no test anywhere exercises a non-default forest(sd = )
-    under a latent family, so nodeScaleFactor is 1 throughout the anchor
-    assertions and a factor-versus-anchor confusion is unpinned. That is
-    spec-conformant for M4.4 (item 25 specified the fixture) but this is
-    the slice that will move sd, so it must pin the product rather than
-    the anchor alone. NOW UNBLOCKED, and BEFORE 1.0-0: it is a shipped
-    prior default, so the release window locks it.
-    TWO MORE ITEMS JOIN THIS SLICE, added 2026-08-14 off the M4.4
-    anchor-scale costing, and M4.4 must do NEITHER.
-    (1) The sqrt(K) dispersion law. The map has no per-K
-    renormalization anywhere (ForestSpec carries the factor and divisor
-    per forest; expandForestSpecs never reads K), so the index
-    disperses as 1.04912 * sqrt(K) * s at unit basis row norms and the
-    shipped defaults - exponent exactly 1/2 analytically, 0.50025
-    simulated over K in {1,2,4,8,16} - i.e. 1.4837 s at K = 2 and
-    2.9674 s at K = 8, the latter 1.978x the fixed-k single-forest
-    comparator. NO basis-side option touches the exponent (options A,
-    C and E all leave it identical), and the only one that would
-    (normalizing the index rather than the forest) shrinks every
-    declared moderator's prior by 1/sqrt(K/2), which is wrong for a
-    varying-coefficient model, has no finite variance to sum on the
-    half-Cauchy channel, and forks the gaussian and latent maps. So
-    any K fix is a change of DEFAULTS - a K-aware default for sd or
-    amplitude.prior.variance - which is exactly this slice's shape.
-    M4.4 owes the exponent and the two endpoints in prose and no code.
-    (2) The observability gap (the costing study's option F). v_f, a
-    forest's amplitude.prior.variance, is readable from NO getter -
-    $getForestAmplitudes (R/dbarts.R:1450) returns draws and
-    $getCalibration (:1468) returns prior.scale and no amplitude prior
-    - so a user who took the default cannot reconstruct the induced
-    index prior sqrt(sum_f prior.scale_f^2 v_f ||B_f(i,.)||^2) from
-    the public surface at all. Extend $getCalibration, or add a
-    sibling reader, to report prior.scale_f, v_f, a basis row-norm
-    summary and the implied sd(eta_i) quantiles: R 8-14 dense, bridge
-    0-4 (v_f is already on the control attribute R-side). It fixes
-    nothing on its own and is the cheapest thing that makes any anchor
-    checkable by the person who gets it wrong.
+  binary-kforest-prior-default: SPECCED 2026-08-15; the plan
+    (docs/plans/binary-kforest-prior-default.md) supersedes this
+    entry's numbers, which its census found partially stale (mixed
+    comparator denominators). Owner forks settled by VD 2026-08-15:
+    family-aware aPriorScale (2 gaussian / 1 probit+logistic) and the
+    sqrt(2/K) nodeScaleFactor default at full scope, all families.
+    Slices S0 (product pin + first tests/cpp calibration coverage),
+    S1 (five observability columns, three layers), S2 (defaults +
+    M4.4 doc debt + K = 1 floor fix) pending; zero baseline
+    re-records expected, the equivalence trio is the arc's leak
+    detector. BEFORE 1.0-0.
   blocked-jacobi-trees: RESEARCHED, KILLED 2026-07-21 (df13c04 +
     77597cc) - full record, lesson, and reopen clause in
     docs/plans/blocked-jacobi-trees.md and
