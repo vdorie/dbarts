@@ -357,6 +357,24 @@ commit does not close.
   dispersion unreachable" gap are superseded per the critique
   (recorded here; the artifact is gitignored and left as written).
 
+## The latent-family weight channel (G4), adjudicated 2026-08-15
+
+The census's G4 - "decide the latent-family weight channel: either
+build it or record a considered decline; leaving it as an accident is
+what the principle forbids" - was never itemized into the adoption
+slate and never adjudicated. It is adjudicated here as a PARTIAL
+BUILD, ticketed outside that arc (TODO `latent-family-weight-channel`).
+Logistic is built: its weights are observation counts, the
+Polya-Gamma augmentation's shape is the sum of that many PG(1, psi)
+draws, so a weight swap is a model change with a defined meaning and
+varying exposure is a capability the channel would add. Probit,
+ordinal, aft and nbinom are DECLINED BY IDENTIFICATION - a weighted
+probit has no tractable latent form, ordinal inherits that, aft fixes
+its censoring structure at creation, and nbinom's shape parameter is
+y_i + r with no weight slot. Clause 1's identification parenthetical
+covers all four, and this is the record that makes the coverage
+deliberate rather than inherited.
+
 ## Honest limits
 
 The decisive composition experiments are single-DGP, single-machine

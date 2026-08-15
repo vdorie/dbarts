@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (148 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (149 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -196,6 +196,7 @@ Columns: `file | STATUS | one-liner`.
 
 | file | STATUS | purpose |
 |---|---|---|
+| adoption-slate.md | SPECCED (S1-S8 pending), 2026-08-15 | Ships the r-c-division adoption slate: per-family `getLatents` semantics on both surfaces plus `$getFitsWithoutOffset` (an engine accessor through the facade, with `storeSample` refactored onto it); the nbinom dispersion as a per-draw channel; the grouped `setResponse` relaxation, gated two-way on gaussian/aft with the correctness analysis and a pre-registered SBC falsifier; exported augmentation helpers on R's own RNG stream; `dbartsValidateComposition`, SBC over a host's one-sweep step; six tested recipes plus an embedding page; a residue slice; and the arc's ONE `dbarts.h` re-bake. Three adversarial passes discharged; fork F1 settled by VD, the rest under a delegated grant, 2026-08-15; budgets in RAW ADDITIONS (a recorded arc-level deviation from multiplier-combiner.md's dense convention); zero baseline re-records expected on any slice. |
 | c-api-growth.md | LANDED | Grows the C API with a size-first results struct, additive by-name state blocks, and a per-family loglik channel. |
 | capi-callbacks.md | LANDED | Adds a per-sweep conditioning callback and observer hook to the C API. |
 | capi-dispatch-table.md | LANDED (arc complete) | ABI-compatibility mechanism for LinkingTo consumers (X-macro single-source stubs + version/hash handshake); both dbarts and stan4bart landed. |
