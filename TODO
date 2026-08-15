@@ -82,15 +82,15 @@ items
     arises with a stale build scale swapped against a new response
     inside a larger Gibbs loop (setResponse updateScale=FALSE).
     research-open, decision-gated.
-  binary-kforest-prior-default: SPECCED 2026-08-15; the plan
+  binary-kforest-prior-default: IN FLIGHT; the plan
     (docs/plans/binary-kforest-prior-default.md) supersedes this
     entry's numbers, which its census found partially stale (mixed
     comparator denominators). Owner forks settled by VD 2026-08-15:
     family-aware aPriorScale (2 gaussian / 1 probit+logistic) and the
     sqrt(2/K) nodeScaleFactor default at full scope, all families.
-    Slices S0 (product pin + first tests/cpp calibration coverage),
-    S1 (five observability columns, three layers), S2 (defaults +
-    M4.4 doc debt + K = 1 floor fix) pending; zero baseline
+    S0 (product pin + first tests/cpp calibration coverage) LANDED
+    4dbf2dbc; S1 (five observability columns, three layers) and S2
+    (defaults + M4.4 doc debt + K = 1 floor fix) pending; zero baseline
     re-records expected, the equivalence trio is the arc's leak
     detector. BEFORE 1.0-0.
   blocked-jacobi-trees: RESEARCHED, KILLED 2026-07-21 (df13c04 +
