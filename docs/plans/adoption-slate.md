@@ -1279,3 +1279,110 @@ of the test-budget overage (293 raw vs the ~150 estimate, past the nominal
 mutation-3 index neighbors, and budgets size to the MANDATED ORACLE, not the
 estimate; the estimate was low the same way the memo prices this arc corrected
 were.
+
+## Landing note, S3 (appended 2026-08-15)
+
+One guard, stated once and called from four entries. `refuseGroupedScaleUpdate`
+(declared beside its two siblings in `R_interface_bartcore_common.hpp`, defined
+under `refuseVarianceForestScaleUpdate`) replaces `bartcore_setResponse`'s
+blanket numGroups refusal and is added to `bartcore_setOffset`, closing the
+unrefused decalibration `GroupedResponse::setOffset`'s own comment admitted.
+The predicate is the plan's - grouped, re-anchoring base (gaussian, which is
+Student-t's report, or aft) - with one keying deviation: ANYTHING BUT FALSE is
+refused, `refuseVarianceForestScaleUpdate`'s condition-keying, not the literal
+`== TRUE`. Reason: the two surfaces convert `updateScale` to the engine's bool
+differently (the R bridge on `== TRUE`, the flat API on `!= 0`), and FALSE/0
+is the only value both read as "pin it"; the sole behavioural delta is NA, now
+refused. Grouped probit and logistic take TRUE as the documented no-op;
+`setData` is untouched.
+
+**The flat C API is guarded too**, a scope addition the plan did not carry:
+`dbarts_sampler_create` reads the same `bartcore.groups` attribute, so a
+flat-API sampler can be grouped, and both sibling scale guards already guard
+both surfaces - guarding one layer would have left the identical defect open
+one layer down. `dbarts_sampler_setResponse` and `_setOffset` call the same
+function; no `dbarts.h` declaration moved, so no ABI or apiHash event.
+
+`model.hpp`: three comments asserted the blanket refusal this slice replaces
+and were corrected in place (the class comment, `::setOffset`'s,
+`::setData`'s), 9 raw lines - mandated by truthfulness, not the plan.
+
+The SBC swap arm. `runSbcGrouped(swap = TRUE)` builds ONE fit on
+`config$yBuild`, captures state0 by the two-line `storeState()`/`state` idiom
+the plan gives, and per replication installs state0, re-overdisperses
+(`sampleTreesFromPrior`, `sampleNodeParametersFromPrior`, `setSigma` where the
+family has one) and swaps y0 in at the pinned scale. CLI configs
+`grouped-gaussian-swap`/`grouped-probit-swap`; NOT in sbc.yaml's matrix, per
+the plan. The state install restarts the chain rng at the same point each
+replication, so each rank is a deterministic function of that replication's
+own iid (theta0, y0) draw - ranks stay iid across replications, recorded in
+the arm's comment.
+
+Wall-clock, measured: pilot at R = 10, swap arm 3.094 s/rep against 3.086
+rebuild and 2.746 ungrouped - decorator multiplier 1.13x, swap-vs-rebuild
+1.00x. The plan's 78000 sweeps/rep over-counts: the harness's burn default
+reaches `run()` as burn-in sweeps, so a replication is 8400 sweeps and the
+full arm ~11 minutes, not ~13+.
+
+Verdicts, in the pre-registered order. UNMUTATED first, R = 200: all 10
+functionals PASS, tau and b uniform - THE FALSIFIER DID NOT FIRE, the refusal
+stands as designed. Mutation 1 (predicate widened so the arm re-anchors),
+R = 200: 3 FLAGs against 0 - tau (ecdf 0.0975 over the 0.0917 band), sigma
+(0.2412, chisq 0.000) and f.star1. **The plan's prediction half-landed**: it
+said tau AND b go non-uniform; tau and sigma move, b does not, because the
+tau prior scale is converted exactly once at construction while b's conjugate
+conditional re-equilibrates against the new scale within the burn. The gate
+discriminates cleanly regardless; the tool-verified-claims discipline catches
+another plan-stated behavioural prediction.
+
+Other mutations, applied, run, reverted, source verified clean: (2) drop
+`rebuildWorking()` from `GroupedResponse::setResponse` - 60 RED, every one the
+tests/cpp elementwise "new z minus b" assertion, nothing else, the private
+mechanism the plan named; (3) predicate narrowed to gaussian - exactly the two
+grouped-aft error cells RED; (4) `setResponse` guarded but not `setOffset` -
+exactly the three `setOffset` error cells RED.
+
+Tests. tests/cpp `testGroupedResponseSwap` runs on a PRIVATELY seeded rng so
+the shared stream's downstream fixed expectations stay unmoved; it pins both
+halves - the pinned swap leaving b, tau and sigma untouched and rebuilding the
+working response as the reference base's new z minus b, exact equality, and
+the engine-level updateScale defect itself (sigmaScale moves, sigma converts,
+b and tau keep their numbers). tinytest `test-grouped-swap.R` (26 results):
+the pinned swap moves the fit TOWARD the new response (the correlation flips
+sign); refusals matched on "tau" AND "random intercepts b"; the probit no-op
+is a BITWISE two-sampler comparison at a fixed rngSeed, both conduits; the
+shipped `test-rbart-bartcore.R` cell replaced with its setData and save/load
+neighbours untouched. **The agreement cell deviates from the plan's letter to
+its own benefit**: the swapped sampler is created on a PERMUTATION of y2, not
+on a different y1, so sd and hence the creation transform, leaf calibration
+and tau prior scale are IDENTICAL across the pair and the two chains target
+exactly the same posterior; created-on-y1 would have compared two subtly
+different targets.
+
+Docs: the latent-subset-mask.md rule-2 block landed verbatim, 5 lines for 5,
+EOF errata only (numstat 11/5); the Rd's `updateScale` paragraph gains the
+grouped clause and a "Grouped random effects" subsection states the law; one
+NEWS item; the NEWS db builds.
+
+Budget, raw additions against 05a2b73a: non-test 104 + this note (band
+130-175, stop 220 - under; the plan's ~90 records allowance is this note);
+tests 316 against ~223, stop 335. Overage ADJUDICATED ACCEPTED: the
+independent gate-runner traced every cell to a mandated oracle or its direct
+extension (the second error-pattern check, post-swap ranef/tau finiteness,
+correlation-direction, pinned-offset-accept cells), none scope creep.
+
+Battery, twice, separate libs (implementer /tmp/s3-lib, gate-runner
+/tmp/s3-gate-lib): `--preclean` install; tests/cpp from `make clean` 244 ok
+plain AND under `-fsanitize=address,undefined` with
+`detect_container_overflow=0`, zero diagnostics; tinytest 5012 results, 0
+failures (4985 at S2 + 26 this file + 1 net from the replaced cell's split);
+trio BITWISE, no re-record (equivalence-8b047f8b 37/37, bcf-equivalence-
+8b047f8b 12/12, multinomial-equivalence-1027be5 10/10, no max-|z| line
+anywhere); air clean; lintr 0 on all three touched R files against the slice
+lib; pkgdown no problems (no new topic); `R CMD check --as-cran` from a
+git-archive tarball staged outside the tree, Status OK, 0/0/0.
+
+Landed: eeedc07c, pushed 2026-08-15. Independent gate-runner CONFIRM (all nine
+gates, four audits: oracle traceability, weak-gate, rule-2 numstat, no
+docs/plans in code comments). feature-matrix.md's grouped-row cells updated in
+the records commit; the arc-end scoped anchor refresh stays owed.

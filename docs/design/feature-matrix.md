@@ -27,7 +27,9 @@ guessed.
 | `-` | N/A. The concept does not apply to this row; the row footnote says why. |
 | `?` | UNVERIFIED. Constructs today with no refusal site, but no test, doc or adjudication backs it. Do not schedule against the cell until it is settled; every `?` is listed under "Gaps". |
 
-Path aliases used in anchors (line numbers are at 63524e5e, with no exception):
+Path aliases used in anchors (line numbers are at 63524e5e, except the
+grouped-row cells and [f13] re-anchored at eeedc07c by the adoption-slate S3
+cell update):
 
     RIB   src/R_interface_bartcore.cpp      CAPI  inst/include/dbarts/dbarts.h
     MOD   src/bartcore/model.hpp            CH    src/bartcore/chain.hpp
@@ -145,7 +147,7 @@ it rides on.
 | hazard | S MOD:3103 [f6] | S MOD:3109 | - [f9] | S RIB:4886 | R RIB:1638 | R RIB:2798 | S RIB:4581 |
 | hurdle | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] |
 | bcf | S CH:995 [f48] | S CH:995 [f48] | R bartcore.R:288, 309 [f48] | S RIB:4886, 5042 | S RIB:4730 [f48] | S RIB:4506 [f48] | R RIB:2768 |
-| grouped | R RIB:4487 [f13] | S MOD:4771 | S MOD:4771 | S RIB:4886 | S MOD:4785 [f14] | S RIB:2796 [f14] | S RIB:4581 |
+| grouped | S MOD:4761 [f13] | S MOD:4771 | R RIB:2730 [f13] | S RIB:4886 | S MOD:4785 [f14] | S RIB:2796 [f14] | S RIB:4581 |
 | hetero | S RIB:2703 | S RIB:2703 | R RIB:2703 | S RIB:4886, 5042 | S RIB:2698 | R RIB:2794 | S RIB:4581 |
 
 `setData` (whole-data replacement, n free) is single-forest and dense-store
@@ -292,9 +294,15 @@ fits - an occupancy probit (bart.R:1990) and a lognormal positive part
 (bart.R:1999) - glued at report time. The channel questions resolve on the
 probit and gaussian rows of the two components.
 
-[f13] Grouped samplers fix the response at creation (RIB:4487). The engine
-method exists and delegates faithfully (MOD:4760), so this is an unbuilt door,
-not a model refusal - but it errors, so callers see a refusal.
+[f13] Since adoption-slate S3 (eeedc07c) a grouped sampler accepts a
+same-length setResponse and setOffset at the pinned scale - faithful
+delegation, MOD:4761 - and refuseGroupedScaleUpdate (RIB:2730) refuses
+updateScale != FALSE only under a base family with a data-derived transform
+(gaussian, which is Student-t's report, and aft): b and tau are held on the
+base's internal scale and converted by nothing, so a re-anchoring swap would
+silently restate both in response units. Grouped probit and logistic take
+updateScale = TRUE as the no-op it always was. The flat C API guards through
+the same call (C_interface.cpp:468, 490). setData stays refused.
 
 [f14] Reads off the BASE family: grouped gaussian takes `setWeights` (MOD:4785)
 and `setSigma`; grouped probit is refused on both (RIB:1638, RIB:2798); grouped
