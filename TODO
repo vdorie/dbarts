@@ -96,7 +96,7 @@ items
     configuration owes its own, which is why S2 refused rather than
     opened it.
   binary-kforest-prior-default: COMPLETE 2026-08-15 (S0 4dbf2dbc, S1
-    0faeb416, S2; plan + three landing notes in
+    0faeb416, S2 e623fbf3; plan + three landing notes in
     docs/plans/binary-kforest-prior-default.md), superseding this
     entry's former numbers, which its census found partially stale
     (mixed comparator denominators). Shipped: family-aware
