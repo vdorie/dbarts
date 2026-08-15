@@ -590,9 +590,19 @@ void dbarts_sampler_setWeights(dbarts_sampler* sampler,
 /// Holds the residual standard deviation at sigma (original response scale)
 /// until the next call or gaussian draw; the Gibbs conditioning hook.
 void dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
-/// Copies the latent response values (numObservations x numChains) into
-/// out. Returns 1, or 0 without touching out when the family has no
-/// latents (gaussian).
+/// Copies the current draw of the augmentation variable (numObservations x
+/// numChains) into out. Returns 1, or 0 without touching out when the family
+/// augments nothing - a plain gaussian response, and a multinomial one.
+///
+/// WHAT the variable is depends on the family and is not uniform. A LOCATION,
+/// on the sampler's own latent scale, for probit (the truncated normal z),
+/// ordinal (the same z under the cut points) and aft (the imputed log survival
+/// time): a host regresses on these directly. A PRECISION, one per
+/// observation, for logistic and nbinom (the Polya-Gamma omega) and for a
+/// Student-t residual distribution (the scale-mixing lambda): these WEIGHT a
+/// working response and are not on the response scale at all. Note the last
+/// case - a sampler whose family is gaussian but whose residual distribution
+/// is Student-t DOES report latents, and they are precisions.
 int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out);
 
 /// Replaces the full predictor matrix from a borrowed source: x declares

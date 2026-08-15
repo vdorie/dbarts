@@ -827,6 +827,20 @@ dbartsSampler <- setRefClass(
         "bart2() to change the data"
       )
     },
+    refuseHostRead = function(what) {
+      "Errors when a read would answer from the host shell of a fit whose model lives elsewhere; the read-side sibling of refuseHostMutation. See the hostFor field."
+      if (length(hostFor) == 0L) {
+        return(invisible(NULL))
+      }
+      stop(
+        what,
+        " is not available on the host sampler of a ",
+        hostFor,
+        " fit: it carries the design and priors that fit was built from but ",
+        "not its model, so the value here is the placeholder shell's and not ",
+        "the fit's; read the fit's own surface instead"
+      )
+    },
     run = function(
       numBurnIn,
       numSamples,
@@ -1420,7 +1434,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     getLatents = function(result) {
-      "For binary models, returns the current value of the latent variable representation."
+      "Returns the current draw of the augmentation variable, whose meaning is per family and not uniform. A LOCATION, on the sampler's own latent scale, for probit (the truncated normal z), ordinal (the same z under the cut points) and aft (the imputed log survival time): these are regressed on directly. A PRECISION, one per observation, for logistic and nbinom (the Polya-Gamma omega) and Student-t (the scale-mixing lambda): these WEIGHT a working response and are not on the response scale at all. NULL for a plain gaussian sampler and for a multinomial one, neither of which augments. Note that a gaussian-family sampler built with resid.dist = student() DOES report latents, and they are precisions."
       resultIsMissing <- missing(result)
 
       ptr <- getPointer()
@@ -1446,6 +1460,12 @@ dbartsSampler <- setRefClass(
       "Returns a sampler's per-forest internal-scale fitted values (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.observations x n.chains. forest indexes from 1, as with setForestWeights/setForestBasis/getCalibration/setCalibration."
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getForestFits, ptr, resolveForestIndex(forest))
+    },
+    getFitsWithoutOffset = function() {
+      "Returns the sampler's combined per-observation location on the RESPONSE scale and WITHOUT the installed offset, an n.observations x n.chains matrix; run()$train reports the same quantity with the offset folded in, so getFitsWithoutOffset() plus the installed offset is that value. This is the incremental read: getLatents() minus run()$train is biased, because the two are not on the same footing. Refused on a multinomial sampler, whose reported channels are per-category softmax probabilities rather than one additive location. Contrast getForestFits, which reports ONE forest's INTERNAL-scale totals."
+      refuseHostRead("$getFitsWithoutOffset")
+      ptr <- getPointer()
+      .Call(C_dbarts_bartcore_getFitsWithoutOffset, ptr)
     },
     getForestAmplitudes = function(forest = NULL) {
       "Returns the named forest's amplitudes - the scalars its basis columns are multiplied by, one per column - as a q x n.chains matrix, or, at the default forest = NULL, every forest's stacked forest-major into a sum(q) x n.chains matrix, which is the row order the run's own glue channel carries. The vector is RAGGED, forest by forest, which is why a forest can be named: a Bayesian causal forest's forest 1 carries the single a on its implicit intercept and its forest 2 the pair (b0, b1) on its two level indicators, so the stacked read is its shipped (a, b0, b1). forest indexes from 1, as with setForestBasis/setForestWeights/getCalibration."

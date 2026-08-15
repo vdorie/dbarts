@@ -3957,6 +3957,34 @@ SEXP bartcore_getForestFits(SEXP ptrExpr, SEXP forestExpr) {
   return result;
 }
 
+// The combined per-observation location on the RESPONSE scale and WITHOUT the
+// offset, numObservations x numChains - what the recorded training channel
+// carries with the offset folded in, which is the read a host driving an outer
+// block one sweep at a time needs offset-free. The shape refusal is the
+// ENGINE'S, mapped here to a named error: a second test on this side would
+// make Chain::fitsWithoutOffset's own branch unreachable from R and from
+// tests/cpp alike, which is untested dead code.
+SEXP bartcore_getFitsWithoutOffset(SEXP ptrExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  size_t n = shape.numObservations;
+  size_t numChains = shape.numChains;
+  SEXP result = PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(n),
+                                       static_cast<int>(numChains)));
+  for (size_t c = 0; c < numChains; ++c) {
+    if (!holder.sampler->fitsWithoutOffset(c, REAL(result) + c * n)) {
+      UNPROTECT(1);
+      Rf_error("getFitsWithoutOffset: a multi-location sampler (multinomial) "
+               "reports one softmax probability channel per category and not a "
+               "single additive location, so it has no offset-free fit; use "
+               "predict(x) for the current state's probabilities, which "
+               "reports the saved samples instead when keepTrees is TRUE");
+    }
+  }
+  UNPROTECT(1);
+  return result;
+}
+
 // The calibration map that owns a combiner's leaf scales, named so a refusal
 // points at the thing that fixed them rather than at the refusal itself.
 static const char* calibrationMapName(const bartcore::SamplerShape& shape) {

@@ -6210,7 +6210,79 @@ static void testBCFCalibrationMap() {
   printf("ok: BCF calibration map product\n");
 }
 
+// Chain::fitsWithoutOffset against a hand-built fitScale * combined +
+// fitShift, and the recorded training write against that plus the offset.
+// SINGLE-FOREST necessarily: combinedFits stays private and the public
+// forestTotalFits equals it only off a combiner (the BCF leg of this gate is
+// the R recombination cell). This is one of the two ARITHMETIC gates - the R
+// identity cells cannot see inside the accessor, since the storeSample
+// refactor puts both sides of their identity on it - so the fixture carries a
+// NON-UNIT response range: at fitScale == 1 an accessor returning the internal
+// scale would pass here.
+static void testFitsWithoutOffset() {
+  // a local stream, so adding this test shifts neither the shared runif01()
+  // state nor the shared rng the hardcoded values downstream depend on
+  std::uint64_t state = 20260815u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+
+  const size_t n = 200, p = 3, numChains = 2, numTrees = 25;
+  std::vector<double> x(n * p), y(n), offset(n);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    y[i] = 100.0 + 40.0 * x[i] + 20.0 * x[i + n] + 2.0 * (unif() - 0.5);
+    offset[i] = 3.0 * (unif() - 0.5);
+  }
+
+  ext_rng* rngs[numChains];
+  for (size_t c = 0; c < numChains; ++c) {
+    rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngs[c], 4400 + static_cast<std::uint32_t>(c));
+  }
+
+  SamplerOptions options;
+  options.numTrees = numTrees;
+  options.numChains = numChains;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, offset.data(),
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, rngs);
+
+  std::vector<double> trainingFits(n * numChains);
+  Results results;
+  results.trainingFits = trainingFits.data();
+  sampler.run(5, 1, results);
+
+  check(std::fabs(sampler.fitScale() - 1.0) > 0.1,
+        "fitsWithoutOffset: the fixture's response scale is not 1");
+
+  std::vector<double> totals(n), actual(n);
+  for (size_t c = 0; c < numChains; ++c) {
+    ForestCalibration calibration = sampler.forestCalibration(c, 0);
+    sampler.forestTotalFits(c, 0, totals.data());
+    check(sampler.fitsWithoutOffset(c, actual.data()),
+          "fitsWithoutOffset: a single-location sampler reports");
+    bool matchesArithmetic = true, matchesRecorded = true;
+    for (size_t i = 0; i < n; ++i) {
+      double expected =
+        calibration.responseScale * totals[i] + calibration.responseShift;
+      if (actual[i] != expected) matchesArithmetic = false;
+      if (trainingFits[i + c * n] != expected + offset[i])
+        matchesRecorded = false;
+    }
+    check(matchesArithmetic,
+          "fitsWithoutOffset: response scale times the combined fit, shifted");
+    check(matchesRecorded,
+          "fitsWithoutOffset: the recorded training write is it plus offset");
+  }
+
+  for (size_t c = 0; c < numChains; ++c) ext_rng_destroy(rngs[c]);
+  printf("ok: fitsWithoutOffset (scale %.4f)\n", sampler.fitScale());
+}
+
 void runSamplerTests(ext_rng* rng) {
+  testFitsWithoutOffset();
   testForestColumnRestriction(rng);
   testForestColumnRestrictionAllNeutral();
   testBCFTauModeratorRestriction(rng);

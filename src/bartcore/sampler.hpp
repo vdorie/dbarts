@@ -1263,6 +1263,13 @@ public:
   void forestTotalFits(size_t chainNum, size_t forestIndex, double* out) const {
     chains_[chainNum]->forestTotalFits(forestIndex, out);
   }
+  /// Chain chainNum's combined per-observation location on the response scale
+  /// and without the offset; false, writing nothing, on a multi-location
+  /// coupling. Non-const: the read refills the combiner's scratch buffer
+  /// (Chain::fitsWithoutOffset states the choice).
+  bool fitsWithoutOffset(size_t chainNum, double* out) {
+    return chains_[chainNum]->fitsWithoutOffset(out);
+  }
   void forestVariableCounts(size_t chainNum, size_t forestIndex,
                             std::uint32_t* out) const {
     chains_[chainNum]->forestVariableCounts(forestIndex, out);

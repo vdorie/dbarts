@@ -730,6 +730,27 @@
             applies to every category at once; a per-category mask is
             refused, since the softmax margin reads every category's forest.
             \code{dbarts:::}-only; no public surface in this release.
+      \item A sampler reports its combined per-observation location on the
+            response scale WITHOUT the installed offset
+            (\code{$getFitsWithoutOffset()}), which is what an outer block
+            conditioning on \eqn{f(x)}{f(x)} needs: \code{run()$train}
+            carries the offset, so differencing it against
+            \code{$getLatents()} is biased. On a Bayesian causal forest it is
+            the only route from R to the combined fit at all. Refused on a
+            multinomial sampler, whose channels are per-category softmax
+            probabilities and not one additive location. There is no
+            with-offset twin; the caller adds back the offset it installed.
+            \code{?dbartsSampler} gains a table of which method reports which
+            scale, with or without the offset, and from the current state or
+            from stored draws.
+      \item \code{$getLatents} is documented per family. It reports a
+            LOCATION for \code{"probit"}, \code{"ordinal"} and \code{"aft"}
+            and a PRECISION for \code{"logistic"}, \code{"nbinom"} and a
+            Student-t residual distribution; the flat C API's
+            \code{dbarts_sampler_getLatents} comment said \dQuote{gaussian}
+            where it meant \dQuote{augments nothing}, and a gaussian-family
+            sampler with \code{resid.dist = student()} does report latents.
+            Documentation only; no value changes.
       \item The pointwise log-likelihood channel - the flat C API's
             \code{logLikelihood} results field, and, for a stored zero-weight
             \code{gaussian} fit, R's \code{pointwiseLogLikelihood}/
