@@ -1,7 +1,7 @@
 # adoption-slate
 
-Status: IN PROGRESS 2026-08-15 (S1 LANDED, S2-S8 pending; landing notes at
-  EOF). Two blind critique rounds and one
+Status: IN PROGRESS 2026-08-15 (S1 LANDED 5bedf923, S2-S8 pending; landing
+  notes at EOF). Two blind critique rounds and one
   fix-verification round discharged (5 BLOCKER, 15 MAJOR, 23 MINOR, all
   adopted). Owner fork F1 SETTLED by VD 2026-08-15; F2-F6 and the slice
   adoptions resolved under the delegated grant; see "Decisions". Design evidence is GIT-IGNORED session material
@@ -1136,3 +1136,9 @@ Deviations and carried obligations.
   `R_interface_bartcore.cpp` shifted and were NOT refreshed here, following the
   previous arc's pattern of one anchor-refresh commit at the END of the arc
   (cd27822f). Owed before the arc closes.
+
+Landed: 5bedf923, pushed 2026-08-15. Independent gate-runner CONFIRM on its
+own lib (243/243 tests/cpp plain and ASAN, tinytest 4919/0 failures, trio
+bitwise 37/12/10, R CMD check --as-cran OK 0/0/0, provenance verified);
+orchestrator diff review against the spec found no deviation beyond those
+recorded above.
