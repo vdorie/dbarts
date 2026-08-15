@@ -203,7 +203,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   during burn-in, as re-anchoring mid-run makes the fits across
   iterations no longer comparable. `TRUE` is refused by samplers whose
   leaf calibrations are stated against the transform fixed at creation
-  and are never restated: a two-forest (`forests`) sampler and a
+  and are never restated: a multi-forest (`forests`) sampler - refused
+  whatever its response family, the calibration map being pinned at
+  creation whether or not there is a transform to re-anchor - and a
   heteroscedastic (`variance`) one, whose variance forest would
   otherwise keep reporting \\s^2(x)\\ on the abandoned scale.
 
@@ -278,18 +280,19 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   equal to that with which the sampler was created, or `NULL`. Unlike
   `weights`, `setActiveRows` reaches families that refuse case weights
   entirely: gaussian, Student-t, `probit`, `ordinal`, `logistic`,
-  `nbinom`, and `aft` samplers all accept it, including a Bayesian
-  causal forest (its two forests share one gaussian response). It is
-  absolute and independent of `weights`, composing with it in either
-  call order (\\w_i \times a_i\\ in effect). `NULL` clears the mask
-  (every row active). Length and `NA` are validated as for `weights`;
-  the only legal values are exactly `0` and `1`, and a fractional
-  element refuses the WHOLE call and installs nothing. An all-ones
-  vector reports success but installs NOTHING, clearing any previously
-  installed mask - the OPPOSITE of `weights`, where an all-ones vector
-  installs and is measurably distinct from carrying no weights at all.
-  One channel states membership, the other precision, and the two
-  deliberately carry opposite degenerate-value policies.
+  `nbinom`, and `aft` samplers all accept it, including a multi-forest
+  (`forests`) sampler, whose forests share one response of whichever
+  family it was built under. It is absolute and independent of
+  `weights`, composing with it in either call order (\\w_i \times a_i\\
+  in effect). `NULL` clears the mask (every row active). Length and `NA`
+  are validated as for `weights`; the only legal values are exactly `0`
+  and `1`, and a fractional element refuses the WHOLE call and installs
+  nothing. An all-ones vector reports success but installs NOTHING,
+  clearing any previously installed mask - the OPPOSITE of `weights`,
+  where an all-ones vector installs and is measurably distinct from
+  carrying no weights at all. One channel states membership, the other
+  precision, and the two deliberately carry opposite degenerate-value
+  policies.
 
   An inactive row (`active[i] == 0`) contributes nothing to any leaf
   sufficient statistic, branch log-likelihood, birth-scan weight total,
@@ -765,9 +768,10 @@ through, stacked forest-major and as wide as each forest's own basis (a
 Bayesian causal forest's \\(a, b_0, b_1)\\, three rows), so both
 surfaces and their recombination come from a single call; `train`
 carries the combination \\a \mu(x_i) + b\_{z_i} \tau(x_i)\\ on the
-response scale, and `test` is filled with `NaN` (there is no test
-treatment vector to combine off-sample). No other model reports either
-element. A run can be interrupted with `Ctrl-C`: it stops between
+response scale, or on the latent scale when the sampler was built under
+`"probit"` or `"logistic"`, and `test` is filled with `NaN` (there is no
+test treatment vector to combine off-sample). No other model reports
+either element. A run can be interrupted with `Ctrl-C`: it stops between
 iterations - joining any worker threads first - and signals an error,
 returning no samples from the interrupted run. The sampler's chains are
 left at the iteration they reached, which is a valid state to run again
@@ -821,7 +825,19 @@ original response scale.
 For `getSumsOfSquaredResiduals`, a numeric vector of length equal to the
 number of chains, giving each chain's residual sum of squares \\\sum
 (y - \hat{y})^2\\ on the original response scale; a binary-response
-sampler reports on the latent scale instead.
+sampler reports on the latent scale instead. On a multi-forest
+(`forests`) sampler \\\hat{y}\\ is the COMBINED location \\\sum_f
+m_f(x_i) f_f(x_i)\\ - the same quantity `run()$train` records - and not
+any one forest's own total. Two qualifications, both keyed to the
+response family rather than to the forest count. A `logistic` sampler's
+working response is \\w_i(y_i - 1/2)/\omega_i - o_i\\ with \\\omega_i\\
+a Polya-Gamma variate redrawn every sweep, so what it reports is a
+function of that sweep's auxiliary variables and is not a residual sum
+of squares in any scale. A multinomial fit reports `NaN`: its coupling
+reports a category-by-observation probability slab rather than a
+location, so no residual sum of squares is defined - the `NaN` is
+deliberate, in place of the sum of squared category probabilities a bare
+substitution would have given.
 
 For `getLatents`, `NULL` when the model has no latent-variable
 representation (e.g. a gaussian response); otherwise the sampler's

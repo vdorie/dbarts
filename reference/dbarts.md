@@ -283,18 +283,23 @@ dbarts(
   prognostic forest \\\mu\\ over every predictor and a modulating forest
   \\\tau\\ over the columns its `vars` allows. Every forest past the
   first needs a `basis`, the amplitudes multiplying it being what
-  distinguish it from the first. Gaussian responses only. The result is
-  an ordinary `dbartsSampler`; per-forest fits and the per-forest
-  amplitudes are read off the sampler rather than from the run's
-  combined `train` channel. The columns a basis expands to are stored on
-  the data object, so they are subset by `subset` and survive a
-  sampler's re-creation. Options a two-forest model does not read -
-  `monotone`, `variance`, a DART tree prior, `split.probs`, a linear or
-  Gaussian-process node prior, a `k` hyperprior or non-default `k`, a
-  non-default `proposal.probs`, Student-t residuals, grouped random
-  effects, `storage = "single"`, per-column cut counts, and a `test`
-  set - are refused at creation rather than ignored, as is any
-  declaration the engine cannot honour.
+  distinguish it from the first. Gaussian, `"probit"` and `"logistic"`
+  responses: under a latent family the forests combine into the index
+  rather than into the mean, on the link's own fixed scale, so every
+  forest's `sd` is stated in latent standard deviations, `sigma` is
+  pinned and there is no response transform to re-anchor. `"aft"`,
+  `"ordinal"` and `"nbinom"` are refused at creation, each naming what
+  it is missing. The result is an ordinary `dbartsSampler`; per-forest
+  fits and the per-forest amplitudes are read off the sampler rather
+  than from the run's combined `train` channel. The columns a basis
+  expands to are stored on the data object, so they are subset by
+  `subset` and survive a sampler's re-creation. Options a two-forest
+  model does not read - `monotone`, `variance`, a DART tree prior,
+  `split.probs`, a linear or Gaussian-process node prior, a `k`
+  hyperprior or non-default `k`, a non-default `proposal.probs`,
+  Student-t residuals, grouped random effects, `storage = "single"`,
+  per-column cut counts, and a `test` set - are refused at creation
+  rather than ignored, as is any declaration the engine cannot honour.
 
 - n.trees.variance, power.variance, base.variance:
 

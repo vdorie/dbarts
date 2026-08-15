@@ -57,12 +57,20 @@ forest(
 
 - sd:
 
-  This forest's prior scale, in standard deviations of the response: the
-  total \\a\\f(x)\\ or \\(b_1 - b_0)f(x)\\ is placed at `sd` of them.
-  Which of the two channels carries it depends on whether the forest has
-  a `basis`: without one it is the half-Cauchy median of the forest's
-  scalar amplitude, with one it scales the forest's own node prior. The
-  defaults are 2 for a forest with no basis and 1 for one with.
+  This forest's prior scale, in units of the response family's own
+  latent scale and per unit of basis row norm: the total \\a\\f(x)\\ or
+  \\(b_1 - b_0)f(x)\\ is placed at `sd` of them. The unit is
+  \\\mathrm{sd}(y)\\ for a gaussian response, `1` for `"probit"` and
+  \\\pi/\sqrt{3}\\ for `"logistic"` - the standard deviation of the
+  link's own error law, a latent model having no response standard
+  deviation to name. A forest whose `basis` rows have median non-zero
+  norm \\c\\ contributes the scale named here, the calibration map
+  dividing \\c\\ out, so rescaling a basis column does not silently
+  rescale the prior. Which of the two channels carries it depends on
+  whether the forest has a `basis`: without one it is the half-Cauchy
+  median of the forest's scalar amplitude, with one it scales the
+  forest's own node prior. The defaults are 2 for a forest with no basis
+  and 1 for one with.
 
 - interactions, blocks:
 
@@ -85,7 +93,16 @@ forest(
   basis columns, default `0.5`. Legal only on a forest given a `basis`:
   a forest without one carries a plain scalar amplitude under the
   engine's half-Cauchy scale-mixture prior, whose median is `sd` rather
-  than a variance.
+  than a variance. It is a free multiplier on the induced prior: the
+  prior standard deviation of the combined location at row \\i\\ is
+  \\\sqrt{\sum_f s_f^2 v_f \\B_f(i,\cdot)\\^2}\\ over the forests
+  carrying a basis, with \\s_f\\ read from
+  `$getCalibration(f)[, "prior.scale"]` and \\v_f\\ this argument; a
+  basis-free forest's own term is Cauchy and has no standard deviation.
+  Under `"probit"` and `"logistic"` that location IS the latent index
+  and \\\sigma\\ is pinned, so nothing in the sampler absorbs a
+  mis-scaled basis; under a gaussian response it is in
+  \\\mathrm{sd}(y)\\ units and a drawn \\\sigma\\ partly does.
 
 - update.amplitude:
 
@@ -101,8 +118,11 @@ With two forests, the second carrying a two-level factor basis, this is
 the Bayesian causal forest \\y = a\\\mu(x) + b_z\\\tau(x) + \epsilon\\:
 a prognostic forest \\\mu\\ over every predictor, a modulating forest
 \\\tau\\ over the columns `vars` allows, and the amplitudes \\(a, b_0,
-b_1)\\ joining them, read back with `$getForestAmplitudes`. Gaussian
-responses only.
+b_1)\\ joining them, read back with `$getForestAmplitudes`. Gaussian,
+`"probit"` and `"logistic"` responses; under a latent family the
+combination is the index rather than the mean, on the link's own fixed
+scale, and `"aft"`, `"ordinal"` and `"nbinom"` are refused at creation
+naming what each is missing.
 
 Both forests' leaf scales come from the model's own calibration map
 rather than from the node prior, which is why a `k` hyperprior, a
