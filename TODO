@@ -88,9 +88,9 @@ items
     comparator denominators). Owner forks settled by VD 2026-08-15:
     family-aware aPriorScale (2 gaussian / 1 probit+logistic) and the
     sqrt(2/K) nodeScaleFactor default at full scope, all families.
-    S0 (product pin + first tests/cpp calibration coverage) LANDED
-    4dbf2dbc; S1 (five observability columns, three layers) and S2
-    (defaults + M4.4 doc debt + K = 1 floor fix) pending; zero baseline
+    S0 (product pin) LANDED 4dbf2dbc; S1 (five observability
+    columns, three layers) LANDED 0faeb416; S2 (defaults + M4.4 doc
+    debt + K = 1 floor fix) pending; zero baseline
     re-records expected, the equivalence trio is the arc's leak
     detector. BEFORE 1.0-0.
   blocked-jacobi-trees: RESEARCHED, KILLED 2026-07-21 (df13c04 +

@@ -3,7 +3,7 @@
 Status: IN FLIGHT. Specced 2026-08-15, two blind critique rounds discharged
   (0 BLOCKER, 6 MAJOR, 13 MINOR, all adopted; see "Critique adjudication").
   Owner forks 1 and 2 SETTLED by VD 2026-08-15 (see "Decisions"). S0 LANDED
-  4dbf2dbc; S1, S2 pending. Design evidence is GIT-IGNORED session material under
+  4dbf2dbc, S1 LANDED 0faeb416; S2 pending. Design evidence is GIT-IGNORED session material under
   `.claude/binary-kforest-prior/` (the verified census, and both critique
   rounds), cited the way M4's plan cites `.claude/m4-basis-design/`; every
   load-bearing number is carried HERE rather than pointed at, since this file
@@ -1622,9 +1622,9 @@ ship as one testBCFCalibrationMap with two arms, and the row-norm
 convention arm runs under both families rather than probit alone -
 strictly more coverage, ~10 fewer lines.
 
-## Landing note, S1 (appended 2026-08-14)
+## Landing note, S1 (appended 2026-08-15)
 
-LANDED. Five layers as specced. Engine: ForestCalibration gains the
+LANDED as 0faeb416. Five layers as specced. Engine: ForestCalibration gains the
 five map fields (quiet NaN by default), Chain gains
 amplitudePriorVariances_/amplitudePriorScales_/basisRowNorms_ and the
 nodeScaleIsMapDerived_ flag, forestCalibration fills the five under the
