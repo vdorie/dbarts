@@ -948,3 +948,12 @@ Two vocabulary corrections for a reader arriving here: S5's
 `treatment =`/`moderators =`/`treatmentForest =` were removed from dbarts at
 multiforest-extension-surface M2 and `dbartsData(treatment = )` at M4.3; and the
 engine creation route is `forests = list(forest(basis = ...))`.
+
+## S5 relocation: LANDED (addendum, appended 2026-08-16)
+
+The relocation arc CLOSED 2026-08-16. `bcf()` and the `bartBCF` fit class
+shipped in bartCause on its dbarts-1.0 branch at 34461ce (+8c07947
+trailing). The S5 contract above ships VERBATIM - including per-forest
+`varcount`, via dbarts' widened `run()$varcount` channel - rather than
+amended. Full landing notes: `docs/plans/bcf-bartcause-relocation.md`,
+Landing notes.
