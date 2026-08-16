@@ -53,7 +53,13 @@ items
     dbarts-embedding Rd topic; landing note in the plan), S7 LANDED
     cedf4c34 2026-08-15 (nbinom cap at 1e6, hostFor on the ordinal
     and nbinom hosts, the flat setWeights guard; landing note in the
-    plan), S8 the arc's ONE dbarts.h re-bake. Fork F1 settled by VD, the rest under
+    plan), S8 LANDED 13393350 2026-08-15 (the arc's ONE dbarts.h
+    re-bake: dbarts_results.dispersion, dbarts_sampler_dispersion,
+    dbarts_drawLatents/dbarts_workingResponse, hash ->
+    0x85bd1ef04beb3848, decision-8 carve-out at four sites; stan4bart
+    ABI gate run twice, suite 531/0; landing note in the plan). ALL
+    EIGHT SLICES LANDED; remaining arc obligation: the scoped
+    feature-matrix anchor refresh over the arc's touched files. Fork F1 settled by VD, the rest under
     a delegated grant, 2026-08-15; three adversarial passes
     discharged. Budgets are RAW ADDITIONS, a recorded arc-level
     deviation from multiplier-combiner.md's dense convention. Zero
@@ -580,8 +586,9 @@ items
     and G10 (relax the bridge-only refusal of setResponse on a
     GroupedResponse sampler - the model already delegates correctly,
     a bridge nit this arc recorded) are LANDED: G3 at adoption-slate
-    S2 (da3c76f9; its dbarts.h half rides S8) and G10 at S3
-    (eeedc07c, setOffset gaining the sibling guard). No VD fork: every
+    S2 (da3c76f9) with its dbarts.h half at S8 (13393350,
+    dbarts_results.dispersion + dbarts_sampler_dispersion) and G10
+    at S3 (eeedc07c, setOffset gaining the sibling guard). No VD fork: every
     remaining item carries a surface and a nameable value, so all
     schedule pre-release under the recorded frame. Fork implications
     for multiforest-extension-surface (basis family pre-release not
