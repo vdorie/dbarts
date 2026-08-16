@@ -492,11 +492,18 @@ typedef int (*dbarts_sampler_callback)(void* userData, dbarts_sampler* sampler,
 #define DBARTS_IIF_0(t, f) f
 #define DBARTS_IIF_1(t, f) t
 
+// The resolution retypes DL_FUNC (void *(*)(void)) to the entry's own
+// signature through void (*)(void), the universal function-pointer type the
+// -Wextra cast diagnostics exempt (gcc -Wcast-function-type, clang
+// -Wcast-function-type-mismatch): cast directly, and every consumer
+// translation unit warns once per list entry. The round trip is a retype
+// only and generates no code.
 #define DBARTS_API_STUB(ret, name, params, args) \
   static inline ret name params { \
     static ret (*dbarts_stub_fn) params = NULL; \
     if (dbarts_stub_fn == NULL) \
-      dbarts_stub_fn = (ret (*) params) R_GetCCallable("dbarts", #name); \
+      dbarts_stub_fn = \
+        (ret (*) params) (void (*)(void)) R_GetCCallable("dbarts", #name); \
     DBARTS_IIF(DBARTS_IS_VOID(ret))(dbarts_stub_fn args;, \
                                     return dbarts_stub_fn args;) \
   }
