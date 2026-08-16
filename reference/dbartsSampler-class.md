@@ -842,34 +842,46 @@ likewise `test` (or `NULL` if the sampler has no test data) and
 `varcount` are n.predictors x n.samples x n.chains; `sigma` is n.samples
 x n.chains. When `n.chains` is `1` the trailing chain dimension is
 dropped, so `train` is a plain n.obs x n.samples matrix and `sigma` a
-plain vector of length n.samples. A Bayesian causal forest adds two
-more: `forestFits`, an n.obs x n.forests x n.samples x n.chains array of
-each forest's fitted values on the internal scale (the prognostic
-\\\mu\\ first, the treatment \\\tau\\ second), and `glue`, a sum(q) x
-n.samples x n.chains array of the amplitudes each draw combines them
-through, stacked forest-major and as wide as each forest's own basis (a
-Bayesian causal forest's \\(a, b_0, b_1)\\, three rows), so both
-surfaces and their recombination come from a single call; `train`
-carries the combination \\a \mu(x_i) + b\_{z_i} \tau(x_i)\\ on the
-response scale, or on the latent scale when the sampler was built under
-`"probit"` or `"logistic"`, and `test` is filled with `NaN` (there is no
-test treatment vector to combine off-sample). No other model reports
-either element. A `"nbinom"` sampler adds one of its own: `dispersion`,
-the negative-binomial \\r\\ each draw is conditioned on, shaped exactly
-as `sigma` (a length n.samples vector at one chain, an n.samples x
-n.chains matrix otherwise) because it is the count analog of it - fixed
-at the value the sampler was created with under a fixed `dispersion`,
-and that sweep's grid draw otherwise. It is written from the same state
-`storeState` serializes and consumes no random numbers, so reading it
-costs a run nothing. No other family carries the element at all: it is
-absent from the list, not `NULL` within it, so `run()$dispersion` is
-`NULL` on every non-`"nbinom"` sampler and a test of the channel must be
-`!is.null(...)` rather than a comparison, which `NULL` would satisfy
-vacuously. A run can be interrupted with `Ctrl-C`: it stops between
-iterations - joining any worker threads first - and signals an error,
-returning no samples from the interrupted run. The sampler's chains are
-left at the iteration they reached, which is a valid state to run again
-from.
+plain vector of length n.samples. On a multi-forest (`forests`) sampler
+`varcount` gains a forest axis between the predictors and the samples -
+n.predictors x n.forests x n.samples x n.chains, forest-major within a
+draw and the prognostic forest first - so each forest's own per-draw
+split counts arrive from one call rather than only the reported
+forest's; a single-forest sampler's array keeps exactly its n.predictors
+x n.samples x n.chains shape, and the same widening is what a
+`family = "multinomial"` sampler's per-category counts ride. This is the
+RAW run shape; the packaged fit
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) builds
+reshapes it draws-first with the forest names on the trailing margin, as
+it does for the multinomial channel. `$getForestVariableCounts` reads
+the same quantity for the CURRENT state, one forest at a time. A
+Bayesian causal forest adds two more: `forestFits`, an n.obs x n.forests
+x n.samples x n.chains array of each forest's fitted values on the
+internal scale (the prognostic \\\mu\\ first, the treatment \\\tau\\
+second), and `glue`, a sum(q) x n.samples x n.chains array of the
+amplitudes each draw combines them through, stacked forest-major and as
+wide as each forest's own basis (a Bayesian causal forest's \\(a, b_0,
+b_1)\\, three rows), so both surfaces and their recombination come from
+a single call; `train` carries the combination \\a \mu(x_i) + b\_{z_i}
+\tau(x_i)\\ on the response scale, or on the latent scale when the
+sampler was built under `"probit"` or `"logistic"`, and `test` is filled
+with `NaN` (there is no test treatment vector to combine off-sample). No
+other model reports either element. A `"nbinom"` sampler adds one of its
+own: `dispersion`, the negative-binomial \\r\\ each draw is conditioned
+on, shaped exactly as `sigma` (a length n.samples vector at one chain,
+an n.samples x n.chains matrix otherwise) because it is the count analog
+of it - fixed at the value the sampler was created with under a fixed
+`dispersion`, and that sweep's grid draw otherwise. It is written from
+the same state `storeState` serializes and consumes no random numbers,
+so reading it costs a run nothing. No other family carries the element
+at all: it is absent from the list, not `NULL` within it, so
+`run()$dispersion` is `NULL` on every non-`"nbinom"` sampler and a test
+of the channel must be `!is.null(...)` rather than a comparison, which
+`NULL` would satisfy vacuously. A run can be interrupted with `Ctrl-C`:
+it stops between iterations - joining any worker threads first - and
+signals an error, returning no samples from the interrupted run. The
+sampler's chains are left at the iteration they reached, which is a
+valid state to run again from.
 
 For `setPredictor`, `TRUE`/`FALSE` depending on whether or not the
 operation was successful. The operation can fail if the new predictor
