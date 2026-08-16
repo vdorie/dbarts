@@ -21,7 +21,7 @@ xbart <- function(
   drop = TRUE,
   resid.prior = chisq,
   control = dbarts::dbartsControl(),
-  sigma = NA_real_,
+  sigest = NA_real_,
   seed = NA_integer_,
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic"),
@@ -39,7 +39,7 @@ xbart <- function(
     control,
     verbose,
     n.samples,
-    sigma
+    sigest
   )
   validateCall <- addCallArgument(validateCall, 1L, currEnv)
   validateCall <- addCallArgument(validateCall, 2L, xbart)
@@ -69,7 +69,7 @@ xbart <- function(
   )
   data <- eval(dataCall, evalEnv)
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
-  data@sigma <- sigma
+  data@sigma <- sigest
 
   family <- match.arg(family)
   # a factor/logical/character response is a classification; xbart cross-

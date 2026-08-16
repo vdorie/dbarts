@@ -85,7 +85,7 @@ The exact-posterior gates (aft-exact, bcf-exact[-weak, -restricted],
 categorical-exact, heteroscedastic-exact, linear-exact, multinomial-exact,
 negbin-exact, ordinal-exact, t-exact, logistic-reference, monotone-reference)
 and the detailed-balance gates (bd-balance = birth/death, change-balance =
-change, swap-balance = swap) each drive a long fixed-rngSeed MCMC run and
+change, swap-balance = swap) each drive a long fixed-seed MCMC run and
 compare the engine's draws to an analytic or brute-force-enumerated target with
 a z-score / tolerance bound computed IN-SCRIPT (no recorded baseline), then
 quit(status=1L) on deviation. Because the target is derived rather than a

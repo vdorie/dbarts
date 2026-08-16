@@ -30,7 +30,7 @@ seededControl <- function(...) {
     n.trees = 25L,
     n.samples = 6L,
     updateState = FALSE,
-    rngSeed = 41L,
+    seed = 41L,
     ...
   )
 }
@@ -249,7 +249,7 @@ treeCountControl <- function(numTrees) {
     n.trees = numTrees,
     n.samples = 6L,
     updateState = FALSE,
-    rngSeed = 41L
+    seed = 41L
   )
 }
 expect_silent(unevenTrees$setControl(treeCountControl(13L)))

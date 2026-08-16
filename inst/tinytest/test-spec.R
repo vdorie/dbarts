@@ -12,7 +12,7 @@ control <- dbarts::dbartsControl(
   n.burn = 5L,
   n.trees = 10L,
   n.threads = 1L,
-  rngSeed = 11L,
+  seed = 11L,
   updateState = FALSE
 )
 
@@ -141,9 +141,9 @@ expect_equal(
 ## an unset sigma is estimated during resolution, as it is for dbarts()
 expect_false(is.na(spec$data@sigma))
 
-## the seed argument mirrors dbartsControl(rngSeed = )
+## the seed argument mirrors dbartsControl(seed = )
 expect_equal(
-  dbarts::dbartsSpec(data, control = control, seed = 42L)$control@rngSeed,
+  dbarts::dbartsSpec(data, control = control, seed = 42L)$control@seed,
   42L
 )
-expect_equal(dbarts::dbartsSpec(data, control = control)$control@rngSeed, 11L)
+expect_equal(dbarts::dbartsSpec(data, control = control)$control@seed, 11L)

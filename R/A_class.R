@@ -243,7 +243,7 @@ methods::setClass(
     n.thin = "integer",
     printEvery = "integer",
     printCutoffs = "integer",
-    rngSeed = "integer",
+    seed = "integer",
     updateState = "logical",
     call = "language"
   ),
@@ -263,7 +263,7 @@ methods::setClass(
     n.thin = 1L,
     printEvery = 100L,
     printCutoffs = 0L,
-    rngSeed = NA_integer_,
+    seed = NA_integer_,
     updateState = TRUE,
     call = quote(call("NA"))
   )
@@ -312,8 +312,8 @@ methods::setValidity("dbartsControl", function(object) {
     return("'n.samples' must be of length 1")
   }
 
-  if (length(object@rngSeed) != 1L) {
-    return("'rngSeed' must be of length 1")
+  if (length(object@seed) != 1L) {
+    return("'seed' must be of length 1")
   }
 
   if (is.na(object@verbose)) {

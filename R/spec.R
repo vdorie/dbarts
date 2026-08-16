@@ -662,7 +662,7 @@ dbartsSpec <- function(
 
   seed <- coerceOrError(seed, "integer")
   if (!is.na(seed)) {
-    control@rngSeed <- seed
+    control@seed <- seed
   }
 
   # the control owns the cut-point count, as it does inside dbarts(), but a data

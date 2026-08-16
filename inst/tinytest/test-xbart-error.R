@@ -79,8 +79,8 @@ expect_error(dbarts::xbart(y ~ x, verbose = NA))
 
 expect_error(dbarts::xbart(y ~ x, resid.prior = NULL))
 
-expect_error(dbarts::xbart(y ~ x, sigma = -1))
-expect_error(dbarts::xbart(y ~ x, sigma = "not-a-numeric"))
+expect_error(dbarts::xbart(y ~ x, sigest = -1))
+expect_error(dbarts::xbart(y ~ x, sigest = "not-a-numeric"))
 
 
 rm(testData)

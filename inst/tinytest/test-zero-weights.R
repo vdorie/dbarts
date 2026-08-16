@@ -33,7 +33,7 @@ fitZeroWeight <- function(resp, nodePrior) {
     n.threads = 1L,
     n.trees = 25L,
     updateState = FALSE,
-    rngSeed = 5L
+    seed = 5L
   )
   args <- list(x, resp, weights = w, control = ctrl, sigma = 1.0)
   if (!is.null(nodePrior)) {

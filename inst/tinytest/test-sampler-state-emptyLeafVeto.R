@@ -28,7 +28,7 @@ control <- dbarts::dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
   updateState = TRUE,
-  rngSeed = 1L
+  seed = 1L
 )
 
 # fixed(1e-6): a tiny residual variance forces the veto-crossing regime at

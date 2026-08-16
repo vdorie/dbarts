@@ -539,10 +539,11 @@ partitioning entirely; a different library sharing only the tree structure).
    engine includes it - rbart's ranef Gibbs reads train - ranef, so the
    ranef re-entered the residual and diverged geometrically (the
    "hang"); fixed engine-side (ResponseModel::offset(), added back in
-   storeSample, symmetric with test fits). (2) control@rngSeed was
-   ignored: now a single chain seeds R's generator with it (classic
-   convention) and several chains draw their MT seeds from a dedicated
-   generator, leaving R's stream untouched; seeded results are
+   storeSample, symmetric with test fits). (2) control@seed (rngSeed
+   at the time) was ignored: now a single chain seeds R's generator
+   with it (classic convention) and several chains draw their MT
+   seeds from a dedicated generator, leaving R's stream untouched;
+   seeded results are
    thread-count independent (classic's were not; its unseeded
    multichain clock-seeding is NOT replicated - unseeded chains seed
    from R's stream so set.seed suffices). rngKind/rngNormalKind are

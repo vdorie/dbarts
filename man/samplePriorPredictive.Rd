@@ -67,17 +67,17 @@ samplePriorPredictive(
   draws that are already independent by construction.
 
   Seeding follows from the private sampler being constructed fresh on every call. When the
-  \code{\link[=dbartsControl]{control}}'s \code{rngSeed} is \code{NA} (the default), the engine RNG
+  \code{\link[=dbartsControl]{control}}'s \code{seed} is \code{NA} (the default), the engine RNG
   is seeded from R's random number stream at construction, so successive calls return independent
   draws, and a \code{\link{set.seed}} beforehand makes the whole draw - forests and observation
-  layer alike - reproducible. When the control fixes \code{rngSeed}, the engine stream is pinned:
+  layer alike - reproducible. When the control fixes \code{seed}, the engine stream is pinned:
   every call replays the identical forest sequence, with only the R-side \code{"ppd"} observation
   layer still governed by \code{set.seed}.
 
   To compare the prior at two or more covariate settings with paired forests - as for a treatment
   effect - stack the settings as rows of a single \code{x.test} and difference the corresponding
   columns of the result; see \sQuote{Examples}. Two separate calls draw independent sets of forests
-  (unless \code{rngSeed} is fixed, as above) and so cannot be differenced meaningfully.
+  (unless \code{seed} is fixed, as above) and so cannot be differenced meaningfully.
 }
 \value{
   A matrix with \code{n.samples} rows and one column per row of \code{x.test} (or of the training

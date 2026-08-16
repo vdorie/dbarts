@@ -179,7 +179,7 @@ baseControl <- function(ntree) {
     n.thin = 1L,
     keepTrees = FALSE,
     updateState = FALSE,
-    rngSeed = seed
+    seed = seed
   )
 }
 

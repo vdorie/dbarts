@@ -62,7 +62,7 @@ partA <- function() {
     n.threads = 1L,
     n.trees = 20L,
     updateState = FALSE,
-    rngSeed = 51L
+    seed = 51L
   )
 
   het <- dbarts(x, y, control = ctl, variance = TRUE, n.trees.variance = 1L)

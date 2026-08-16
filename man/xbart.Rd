@@ -12,7 +12,7 @@ xbart(
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, power = 2, base = 0.95,
     split.probs = NULL, dart = FALSE, drop = TRUE,
-    resid.prior = chisq, control = dbarts::dbartsControl(), sigma = NA_real_,
+    resid.prior = chisq, control = dbarts::dbartsControl(), sigest = NA_real_,
     seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
@@ -86,8 +86,8 @@ xbart(
    \item{control}{
      An object inheriting from \code{dbartsControl}, created by the \code{\link{dbartsControl}} function.
    }
-   \item{sigma}{
-     A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Same as \code{\link{dbarts}}'s \code{sigma}; the same concept is named \code{sigest} in \code{\link{bart}}/\code{bart2} and \code{\link{rbart_vi}}.
+   \item{sigest}{
+     A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Fitting functions (\code{xbart}, \code{\link{bart}}/\code{bart2}, \code{\link{rbart_vi}}) spell this \code{sigest}; sampler constructors (\code{\link{dbarts}}, \code{dbartsSpec}) spell the same concept \code{sigma}.
    }
    \item{seed}{
      Optional integer specifying the desired pRNG \link[=set.seed]{seed}. Results are reproducible for a fixed pair of \code{seed} and \code{n.threads}; the caller's random stream is left untouched when a seed is given. Without one, \code{\link{set.seed}} beforehand suffices.

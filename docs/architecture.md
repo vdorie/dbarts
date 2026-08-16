@@ -296,7 +296,7 @@ Every chain owns a dedicated Mersenne Twister (`ext_rng*`), created by
 `createChainRngs` (`src/R_interface_bartcore.cpp`) at sampler construction -
 including a single-chain sampler; there is no path where a chain samples
 directly off R's generator. Seeding is the only place the two streams meet:
-with an explicit `control@rngSeed`, a dedicated seed-generator (itself a
+with an explicit `control@seed`, a dedicated seed-generator (itself a
 fresh Mersenne Twister seeded from the control value) hands each chain a
 seed, so a single-chain run with seed S reproduces chain 0 of any
 multi-chain run with the same seed. Without an explicit seed, chain seeds

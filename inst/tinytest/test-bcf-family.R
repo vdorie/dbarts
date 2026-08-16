@@ -31,7 +31,7 @@ seededControl <- function(...) {
     n.trees = 25L,
     n.samples = 4L,
     updateState = FALSE,
-    rngSeed = 29L,
+    seed = 29L,
     ...
   )
 }

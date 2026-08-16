@@ -20,7 +20,7 @@ midControl <- function(n.chains = 2L, n.trees = 20L, ...) {
     n.trees = n.trees,
     n.samples = 10L,
     updateState = FALSE,
-    rngSeed = 23L,
+    seed = 23L,
     keepTrees = FALSE,
     ...
   )

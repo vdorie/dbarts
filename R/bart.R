@@ -688,9 +688,6 @@ bart2 <- function(
       envir = currentEnv
     )
   }
-  if (!is.na(seed)) {
-    controlCall[["rngSeed"]] <- seed
-  }
   control <- eval(controlCall, envir = callingEnv)
 
   control@call <- if (keepCall) matchedCall else call("NULL")
@@ -2443,7 +2440,7 @@ bart <- function(
     printEvery = printevery,
     printCutoffs = printcutoffs,
     n.cuts = numcut,
-    rngSeed = as.integer(seed)
+    seed = as.integer(seed)
   )
   matchedCall <- if (keepcall) match.call() else call("NULL")
   control@call <- matchedCall

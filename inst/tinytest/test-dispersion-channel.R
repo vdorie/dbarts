@@ -30,7 +30,7 @@ samplerControl <- function(n.chains = 1L, ...) {
     n.threads = 1L,
     n.trees = 20L,
     updateState = FALSE,
-    rngSeed = 77L,
+    seed = 77L,
     n.chains = n.chains,
     ...
   )

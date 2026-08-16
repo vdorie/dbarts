@@ -101,14 +101,14 @@ reconTrain <- reconstructTrain(bc, z)
 expect_equal(reconTrain, reconResult$train[, 1L], tolerance = 1e-10)
 
 # a per-sweep run loop is bitwise identical to one batched run of the same
-# length: with control@rngSeed set, each chain's rng is independent of R's
+# length: with control@seed set, each chain's rng is independent of R's
 # stream, so the two routes to the same posterior draws agree exactly.
 control.loop <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
   n.trees = 30L,
   updateState = FALSE,
-  rngSeed = 71L
+  seed = 71L
 )
 numSamples <- 10L
 

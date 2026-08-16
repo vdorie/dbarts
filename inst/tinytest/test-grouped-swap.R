@@ -25,7 +25,7 @@ y <- f + b[g] + rnorm(n, sd = 0.5)
 y2 <- -f + b[g] + rnorm(n, sd = 0.5)
 
 # rbart_vi's internal control attribute is the only route to a grouped
-# sampler; a fixed rngSeed makes each chain's generator deterministic, which
+# sampler; a fixed seed makes each chain's generator deterministic, which
 # the probit no-op cell compares bitwise
 groupedControl <- function(rel.scale = 1, ...) {
   ctrl <- dbartsControl(
@@ -33,7 +33,7 @@ groupedControl <- function(rel.scale = 1, ...) {
     n.threads = 1L,
     n.trees = 20L,
     updateState = FALSE,
-    rngSeed = 61L,
+    seed = 61L,
     ...
   )
   attr(ctrl, "bartcore.groups") <- list(

@@ -11,7 +11,7 @@ control <- dbarts::dbartsControl(
   n.threads = 1L,
   n.trees = 20L,
   updateState = FALSE,
-  rngSeed = 7L
+  seed = 7L
 )
 
 # Pin: $setWeights on a probit sampler refuses post-creation, unconditionally
@@ -277,7 +277,7 @@ gp <- dbarts::dbarts(
     n.threads = 1L,
     n.trees = 5L,
     updateState = FALSE,
-    rngSeed = 7L
+    seed = 7L
   ),
   sigma = 1,
   n.samples = 10L,

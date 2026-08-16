@@ -112,21 +112,15 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
 # 5 recorded); anything else gets a nearest-formal suggestion (agrep against
 # the function's own formals, first hit in formals() order - simple and
 # deterministic, no distance-ranking machinery).
-retiredDotsNames <- character()
-
-# 'rngSeed' is still dbartsControl's own slot/formal spelling until S5
-# renames it to 'seed' (fork 5 spans slices S4 and S5, section 7), so a
-# caller relying on the existing rngSeed-through-dots backdoor must keep
-# working through this slice - rejecting it now would be a regression S4
-# does not own, and it is not yet a retired name. It keeps flowing through
-# the same redirectCall/backfill machinery the 13 promoted names use. S5
-# deletes this passthrough and adds a "renamed to seed" row to
-# retiredDotsNames instead.
-controlOnlyPassthroughNames <- "rngSeed"
+#
+# The first row (S5, b1): 'rngSeed' was dbartsControl's own slot/formal
+# spelling through S4, so the passthrough that let it keep flowing through
+# '...' is gone now that the rename lands - this is the row it becomes.
+retiredDotsNames <- c(rngSeed = "'rngSeed' was renamed to 'seed'")
 
 rejectUnknownDotsArgs <- function(argNames, fn) {
   fnFormals <- names(formals(fn))
-  isKnown <- argNames %in% fnFormals | argNames %in% controlOnlyPassthroughNames
+  isKnown <- argNames %in% fnFormals
   if (all(isKnown)) {
     return(invisible(NULL))
   }

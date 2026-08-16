@@ -90,10 +90,10 @@ dbarts(
     An object inheriting from \code{dbartsControl}, created by the \code{\link{dbartsControl}} function.
   }
   \item{sigma}{
-    A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Same concept as \code{sigest} in \code{\link{bart}}/\code{bart2} and \code{\link{rbart_vi}}; \code{\link{xbart}} uses this function's \code{sigma} name directly.
+    A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Same concept as \code{sigest} in \code{\link{bart}}/\code{bart2}, \code{\link{xbart}}, and \code{\link{rbart_vi}}.
   }
   \item{seed}{
-    Optional integer seed for the random number generator, a convenience mirror of \code{dbartsControl(rngSeed = )}. When not \code{NA} it overrides the seed in \code{control}; the fitting-function wrappers (\code{\link{bart2}}, \code{\link{xbart}}) accept the same argument.
+    Optional integer seed for the random number generator, a convenience mirror of \code{dbartsControl(seed = )}. When not \code{NA} it overrides the seed in \code{control}; the fitting-function wrappers (\code{\link{bart2}}, \code{\link{xbart}}) accept the same argument.
   }
   \item{factors}{
     How factor columns in a data frame enter the model. The default \code{"categorical"} keeps each unordered factor as a single predictor whose splits send a subset of its levels (at most 65535) down each branch, and codes ordered factors as ordinal; level tables are retained so that test data are coded identically. The number of categories is the declared level table, not the levels the training rows happen to take, so a declared but unobserved level keeps its own bin and test or replacement data carrying it are accepted (\code{\link{droplevels}} beforehand to model only the observed levels). \code{"indicators"} expands each factor into binary indicator columns, as previous versions always did and as \code{\link{bart}} still does.
