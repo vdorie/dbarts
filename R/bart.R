@@ -604,6 +604,8 @@ bart2 <- function(
   dispersion = NA_real_,
   breaks = NULL,
   max.rows = 1e7,
+  storage = c("double", "single"),
+  updateState = TRUE,
   ...
 ) {
   matchedCall <- match.call()
@@ -652,17 +654,10 @@ bart2 <- function(
     }
   }
 
+  # Fork 5 (docs/plans/bart2-argument-consolidation.md 3.e): '...' is
+  # rejection-only - every dots name is diagnosed by name, never forwarded.
   argNames <- names(matchedCall)[-1L]
-  unknownArgs <- argNames %not_in%
-    names(formals(dbarts::bart2)) &
-    argNames %not_in% names(formals(dbarts::dbartsControl))
-  if (any(unknownArgs)) {
-    stop(
-      "unknown arguments: '",
-      paste0(argNames[unknownArgs], collapse = "', '"),
-      "'"
-    )
-  }
+  rejectUnknownDotsArgs(argNames, dbarts::bart2)
 
   # d1/D6 (docs/plans/bart2-argument-consolidation.md 3.d): factors/missing/
   # proposal.probs are forwarded formal defaults - redirectCall only carries
