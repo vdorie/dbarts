@@ -48,9 +48,10 @@ items
     dbartsWorkingResponse, six families' augmentation draws off R's
     stream; landing note in the plan), S5 LANDED 37d9ec81 2026-08-15
     (dbartsValidateComposition, SBC over a host-supplied step, R-only;
-    landing note in the plan), S6
-    named-recipes
-    plus embedding-page, S7 residue (nbinom magnitude cap, hostFor on
+    landing note in the plan), S6 LANDED 55811082 2026-08-15 (the
+    dbarts-as-a-component vignette's six tested recipes plus the
+    dbarts-embedding Rd topic; landing note in the plan), S7 residue
+    (nbinom magnitude cap, hostFor on
     both remaining bart2 hosts, the flat setWeights guard), S8 the
     arc's ONE dbarts.h re-bake. Fork F1 settled by VD, the rest under
     a delegated grant, 2026-08-15; three adversarial passes
@@ -203,14 +204,10 @@ items
     intermediate cast (through a matching function-pointer typedef or
     void*) so a LinkingTo consumer's -Wextra build stays clean.
     Small, pre-release.
-  embedding-page: SPECCED as part of slice S6 of adoption-slate
-    (docs/plans/adoption-slate.md), folded into named-recipes as the
-    ticket anticipated. Ships as an Rd topic (dbarts-embedding) rather
-    than a bare pkgdown page - it is reference material wanting links
-    and a ? entry point - with a _pkgdown.yml reference: entry under
-    Utilities, while the six recipes ship as a vignette. Evidence
-    unchanged: the landscape survey's peer-perception finding
-    (docs/design/bart-landscape.md, synthesis point 5). Pre-release.
+  embedding-page: LANDED 55811082 2026-08-15 inside adoption-slate S6
+    (landing note in docs/plans/adoption-slate.md). Ships as the Rd
+    topic dbarts-embedding with a _pkgdown.yml Utilities entry, the
+    six recipes as the dbarts-as-a-component vignette.
   equivalence-harness-statistical-mode: bcf-equivalence.R and
     multinomial-equivalence.R compare via identical() only, so a
     cross-host run against the arm64-recorded baselines structurally
@@ -506,15 +503,12 @@ items
     bart2(family = "multinomial", variance = ...) likely crashes
     rather than errors (docs/design/feature-matrix.md). Reproduce,
     then refuse cleanly; small slice.
-  named-recipes: SPECCED as slice S6 of adoption-slate
-    (docs/plans/adoption-slate.md), carrying embedding-page with it.
-    Six named compositions as a vignette, EACH with its own tinytest
-    cell - a vignette asserts nothing, so a recipe that runs and
-    produces a wrong answer would ship clean - and, where the recipe
-    has a one-sweep step, its own dbartsValidateComposition call. The
-    plan supersedes this entry's ~150 lines, which priced
-    cross-references rather than runnable tested recipes. SCHEDULED,
-    pre-release (surface shakedown).
+  named-recipes: LANDED 55811082 2026-08-15 as adoption-slate S6
+    (landing note in docs/plans/adoption-slate.md), carrying
+    embedding-page with it. Six named compositions in the
+    dbarts-as-a-component vignette, each with its own tinytest cell,
+    recipe 2 running dbartsValidateComposition end to end. R/docs
+    only, engine binary identical.
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
