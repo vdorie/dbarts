@@ -1270,6 +1270,22 @@
             \code{k} was ever read), so this is a documentation
             correction, not a behavior change; \code{man/rbart.Rd} is
             fixed to match.
+      \item \code{bart2} and \code{rbart_vi} now warn, by name, when a
+            supplied argument has no effect under the fit's resolved
+            family: the residual-scale trio \code{sigest}/\code{sigdf}/
+            \code{sigquant} off every fixed-scale family (\code{"probit"},
+            \code{"logistic"}, \code{"ordinal"}, \code{"nbinom"}, the
+            discrete-time hazard families, and \code{"multinomial"}),
+            \code{dispersion} off any family but \code{"nbinom"}, and
+            \code{breaks}/\code{max.rows} off any family but the
+            discrete-time hazard ones. Previously these arguments were
+            silently dropped. The warning is classed
+            \code{dbartsFamilyGatedWarning} (itself a
+            \code{dbartsWarning}), the package's first classed condition,
+            so a caller can catch, mute with
+            \code{suppressWarnings(classes = )}, or promote it with
+            \code{options(warn = 2)} without matching on message text.
+            \code{bart} never emits it.
     }
   }
 }
