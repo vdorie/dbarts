@@ -925,9 +925,6 @@ items
     prior-predictive draw; the setState variance COLUMN-MASK gap - a
     distinct, still-open check (columnMaskSubtreeIsValid has no
     variance-branch backstop), not the occupancy gap S3 closed.
-  warm-starts-doc-stale: docs/plans/warm-starts.md is stale on
-    cross-grid remap per the feature-matrix pass (one line); verify
-    and correct at the next records touch.
   weighted-binary: integer-weight probit via replicated latents;
     arbitrary real weights need a real-shape PG sampler (IPW is a
     pseudo-likelihood trap; the approximate-PG decision is shared
