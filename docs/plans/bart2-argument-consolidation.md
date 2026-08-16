@@ -1611,3 +1611,16 @@ Gates: implementer + independent runner both green (5353/0; trio
 37+12+10 bitwise; 11/11 behavior probes; mutation 8-of-16 fail
 exactly; A/B four configs identical; check OK with zero gated-warning
 hits in the log).
+
+S3 (inert defaults) LANDED 6f1ba79e, 2026-08-16. factors/missing
+match.arg-resolved in bart2's/rbart_vi's own frames and stamped onto
+matchedCall unconditionally AFTER the family-gating argNames snapshot
+(the S2 suppliedness contract holds - probe-verified both directions);
+proposal.probs default NULL -> dbarts()'s named 4-vector verbatim,
+always forwarded resolved. T-B lands in test-argument-surface.R with
+the plan's 6-row exceptions table (three rows inert until S7);
+mutation-proven (a reordered vector fails T-B naming proposal.probs).
+man/bart.Rd usage updated. Gates: implementer + independent runner
+green (5363/0; trio 37+12+10 bitwise; 9-config A/B incl. hurdle
+components identical; check OK twice after one transient
+environment flake disproven by reruns).
