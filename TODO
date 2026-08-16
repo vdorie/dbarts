@@ -79,13 +79,23 @@ items
     under instrumented R meanwhile.
   bcf-naming-generalization: the shipped K-forest amplitude family is
     spelled with BCF names at every layer - BCFSpec, BCFForestSpec,
-    BCFState, BCFForestCombiner, createBCFSampler,
+    BCFState, BCFForestCombiner, BCFSpecStorage, createBCFSampler,
     ChainStateData::hasBCF and the state format's "bcf" block - so each
     reads "BCF" where it means "carries amplitudes". The debt and its
     mitigation (every capability probe is totalAmplitudes() != 0, never
     a name or a forest count) are described in
-    docs/design/multiplier-combiner.md. A rename is ENGINE work, not a
-    docs edit: a --preclean, a structSize move on the state fixtures
+    docs/design/multiplier-combiner.md. BCFSpecStorage
+    (R_interface_bartcore.cpp:2128; used at :2165, :2233, :2262, :2953,
+    :3095) is the per-build backing store whose vectors a BCFSpec's
+    pointers borrow - each forest's column subset, interaction pairs,
+    block partition and transposed basis - one more BCF-prefixed name
+    for the same general capability. The R side carries the identical
+    tell: isBCFSampler (R/bartcore.R:24) and refuseBCFMutation
+    (R/bartcore.R:34), the latter's five call sites R/bartcore.R:289,
+    :310, :387 and R/dbarts.R:1067, :1522, every one of which reads or
+    gates on data@bases rather than a forest count or a name. A rename
+    is ENGINE work, not a docs edit: a --preclean, a structSize move on
+    the state fixtures
     (common.cpp already tripped once, 272 -> 344), and a state-block key
     change needing the same in-place re-encode M4.3 used. ONE LEG IS
     USER-VISIBLE, added 2026-08-14 off M4.4's residue audit:
@@ -182,27 +192,42 @@ items
   csc-code-validation: LANDED (record in
     docs/plans/csc-code-validation.md); categorical ingestion bounds
     codes against training-side K everywhere.
-  dbartsdata-treatment-slot-debt: dbartsData(treatment = ) and the
-    data@treatment slot deliberately SURVIVE multiforest-extension-surface
-    M2 (SETTLED 2026-08-13 pre-M2, docs/plans/multiforest-extension-
-    surface.md item 11) - the bridge reads the slot by name
-    (src/R_interface_bartcore.cpp:1112, length check :1117) and forests =
-    populates it internally, with exactly the values and at exactly the
-    point treatment = populated it before. The debt is the remaining
-    split: a forests = model whose basis column still arrives at
-    dbartsData() under a treatment = name. M3 (multiforest-extension-
-    surface, riding dbarts-h-reshape S1, ab3aa2fa) LANDED without
-    moving this slot - it re-signed the flat C names only - and the
-    dbarts-h-reshape re-bake window (this arc's one and only re-bake)
-    is now spent. Retires at M4 (whose n x q_f basis is the honest
-    carrier and would absorb it whole) or a later window. MANIFESTED
-    (dbarts-h-reshape S2, 2026-08-13): bartCause dbarts-1.0@695c603's
-    own tinytest suite is now red on it - 2 errors + 1 failure from
-    bartc() still passing treatment= through to the M2 treatment=
-    repurpose (64b13b98), plus one stale hardcoded value
-    (test-06-regression.R:52) - live sister-package breakage, not
-    theoretical. Raises this ticket's urgency; still no escalation
-    taken here, held for scheduling. Pre-release.
+  dbartsdata-treatment-slot-debt: CLOSED on the dbarts side by 9c63e9d8
+    (M4.3, "Wire the K-length forest spec surface", 2026-08-14).
+    Receipts: dbartsData()'s formals end bases = NULL
+    (R/data.R:700-711); the class carries a bases slot
+    (R/A_class.R:524, prototype :543, validity :588-610) and no
+    treatment slot; the bridge reads "bases", not "treatment"
+    (src/R_interface_bartcore.cpp:1153-1154) - this entry's former
+    :1112/:1117 anchors were already stale, since those lines parse
+    and dimension-check x.test, not any treatment or basis slot; the
+    capability probe migrated to isBCFSampler, which tests
+    data@bases (R/bartcore.R:24-26). The bartCause half is MEASURED
+    DEAD, not merely inert by inspection: a 533-assertion testthat
+    suite (bartCause dbarts-1.0@695c603) run under NOT_CRAN=true
+    against dbarts 231744a0 shows zero argument-passing errors - the
+    redirectCall leak this entry tracked needed a
+    dbartsData(treatment = ) formal to forward through, gone since
+    9c63e9d8. The only residue is one snapshot literal,
+    test-06-regression.R:52 (fitted(fit, "pate") expected
+    0.50402744431802, measured 0.44963899452561451), which the
+    bcf-s5-relocation arc's B0 slice lands. This closure was already
+    recorded, contradictorily, at the bcf-public-surface entry above
+    ("...and the dbartsData(treatment=) slot by the per-forest bases
+    list (M4.3)."); this entry was the stale half, now brought into
+    agreement. Also corrects this entry's former claim of bartCause's
+    "own tinytest suite" - bartCause uses testthat
+    (tests/testthat.R), not tinytest.
+  dead-bcf-init-capture: src/R_interface_bartcore.cpp's createHolder
+    carries an unused lambda init-capture, treatment =
+    std::vector<double>{}, at :2954 (the unwindProtect capture list
+    opens :2948, function body :2946-3086) - dead since 9c63e9d8
+    (M4.3) retired the R-side treatment= vocabulary the capture
+    existed to serve; the only other "treatment" token in the
+    function's scope is the unrelated error string at :3052 ("invalid
+    treatment forest specification"). Delete the capture. A src/
+    touch, so it rides the next engine-adjacent slice rather than a
+    records-only commit. Small, pre-release.
   dl-func-stub-cast: dbarts.h:455's DBARTS_API_STUB expansion casts the
     DL_FUNC R_GetCCallable returns straight to `ret (*) params` for
     every X-list entry, which trips -Wcast-function-type-mismatch
@@ -244,8 +269,9 @@ items
     refusal as "two-forest calibration map" where the shipped message
     and its test (test-calibration-midchain.R:346-349) say
     "multi-forest calibration map" - note this is a DIFFERENT site
-    from calibrationMapName (R_interface_bartcore.cpp:3962), which
-    really does still return "two-forest calibration map" (the
+    from calibrationMapName (R_interface_bartcore.cpp:4052-4055, the
+    literal at :4054, sole call site :4144), which really does still
+    return "two-forest calibration map" (the
     bcf-naming-generalization leg; verify each site's live string
     before editing either); (3) [f36]'s "the earlier CH:1589" and
     [f23]'s "the earlier spec.R:440" are historical references to
