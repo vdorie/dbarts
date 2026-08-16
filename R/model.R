@@ -872,7 +872,10 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 
   for (index in seq_len(numForests)) {
     spec <- resolved[[index]]
-    if (is.null(spec$basis) && !is.null(spec$amplitude.prior.variance)) {
+    excused <- length(hasBasis) >= index && hasBasis[index]
+    if (
+      is.null(spec$basis) && !excused && !is.null(spec$amplitude.prior.variance)
+    ) {
       stop(
         "'amplitude.prior.variance' is the prior on a basis forest's ",
         "amplitudes, and forest ",
@@ -880,7 +883,6 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
         " has no 'basis'"
       )
     }
-    excused <- length(hasBasis) >= index && hasBasis[index]
     if (index >= 2L && is.null(spec$basis) && !excused) {
       stop(
         "forest ",

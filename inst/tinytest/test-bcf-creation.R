@@ -1007,3 +1007,232 @@ expect_error(
   ),
   "carry no forest bases"
 )
+
+# --- D2: a basis declaration on 'forests' has nowhere to ride once 'formula'
+# is already a built dbartsData - dbarts() refuses that combination by name
+# rather than silently discarding the declaration and fitting a single-forest
+# model; dbartsSpec() is not touched, since its first argument is always a
+# dbartsData already; and the supported composition - bases on the data
+# object, a knob-only 'forests' - keeps working either way (FB13). ---
+prebuiltData <- dbartsData(x, y)
+
+# (i) the refusal fires by name, on every shape of a basis-declaring
+# 'forests' reaching an already-built data object
+expect_error(
+  dbarts(
+    prebuiltData,
+    forests = list(forest(), forest(basis = ~ factor(z))),
+    control = control
+  ),
+  "cannot reach a pre-built data object"
+)
+expect_error(
+  dbarts(
+    prebuiltData,
+    forests = list(forest(basis = ~ factor(z)), forest()),
+    control = control
+  ),
+  "cannot reach a pre-built data object"
+)
+expect_error(
+  dbarts(
+    prebuiltData,
+    forests = list(forest(basis = ~ factor(z)), forest(basis = ~ factor(z))),
+    control = control
+  ),
+  "cannot reach a pre-built data object"
+)
+expect_error(
+  dbarts(
+    prebuiltData,
+    forests = list(forest(basis = ~ factor(z))),
+    control = control
+  ),
+  "cannot reach a pre-built data object"
+)
+# the message names both doors out
+expect_error(
+  dbarts(
+    prebuiltData,
+    forests = list(forest(), forest(basis = ~ factor(z))),
+    control = control
+  ),
+  "dbartsSpec"
+)
+expect_error(
+  dbarts(
+    prebuiltData,
+    forests = list(forest(), forest(basis = ~ factor(z))),
+    control = control
+  ),
+  "dbartsData\\(bases = \\)"
+)
+# a knob-only 'forests' over a pre-built data object carrying NO bases at all
+# is the ordinary single-forest route and is unaffected: no basis is declared
+# for the predicate to catch
+expect_identical(
+  dbarts(prebuiltData, forests = list(forest()), control = control)$run(
+    0L,
+    3L
+  )$train,
+  dbarts(prebuiltData, control = control)$run(0L, 3L)$train
+)
+
+# (ii) dbartsSpec() takes the SAME declaration, untouched - its first argument
+# is always a dbartsData, so the predicate above is unconditionally true there
+# and would refuse the one route this surface exists to support
+specBuild <- dbartsSpec(
+  prebuiltData,
+  control,
+  forests = list(forest(), forest(basis = ~ factor(z)))
+)
+specSampler2 <- do.call(
+  function(control, model, data, family) {
+    new("dbartsSampler", control, model, data)
+  },
+  specBuild
+)
+specResult2 <- specSampler2$run(0L, 3L)
+expect_equal(dim(specResult2$forestFits), c(n, 2L, 3L, 2L))
+expect_equal(dim(specResult2$glue), c(3L, 3L, 2L))
+# and the declaration reaches the same model as the ordinary x/y route -
+# dbartsSpec() installs it rather than dropping it, bitwise
+expect_identical(
+  specResult2$train,
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z))),
+    control = control
+  )$run(0L, 3L)$train
+)
+# a basis on the first forest too, mirroring (i)'s second refusal, still
+# builds through dbartsSpec()
+firstForestSpecBuild <- dbartsSpec(
+  prebuiltData,
+  control,
+  forests = list(forest(basis = ~ factor(z)), forest(basis = ~ factor(z)))
+)
+expect_equal(firstForestSpecBuild$data@bases[[1L]], zBasis)
+# the K = 1 route reaches the pre-existing "needs at least two forests"
+# refusal here, not the D2 one - a different message, so the two refusals are
+# not conflated
+expect_error(
+  dbartsSpec(
+    prebuiltData,
+    control,
+    forests = list(forest(basis = ~ factor(z)))
+  ),
+  "needs at least two forests"
+)
+
+# (iii) the supported composition - bases already on the data object, a
+# knob-only 'forests' - is unaffected: forestBasisDeclarations() returns NULL
+# entries for a forest declaring no basis of its own
+supportedData <- dbartsData(x, y, bases = list(NULL, zBasis))
+supportedResult <- dbarts(
+  supportedData,
+  forests = list(forest(), forest()),
+  control = control
+)$run(0L, 3L)
+expect_true(!is.null(supportedResult$forestFits))
+expect_equal(dim(supportedResult$forestFits), c(n, 2L, 3L, 2L))
+expect_equal(dim(supportedResult$glue), c(3L, 3L, 2L))
+# and reaches the same model as declaring the basis directly, bitwise
+expect_identical(
+  supportedResult$train,
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = ~ factor(z))),
+    control = control
+  )$run(0L, 3L)$train
+)
+# a forests = declaration may still carry KNOBS over that composition - only
+# a basis is refused, not the whole argument
+supportedKnobSampler <- dbarts(
+  supportedData,
+  forests = list(forest(), forest(n.trees = 30L)),
+  control = control
+)
+expect_equal(
+  attr(supportedKnobSampler$control, "bartcore.bcf")$params[[2L]][1L],
+  30
+)
+
+# (iv) dbartsData()'s own ignored-argument warning now names 'bases' too
+expect_warning(
+  dbartsData(prebuiltData, bases = list(NULL, zBasis)),
+  "ignored"
+)
+expect_identical(
+  suppressWarnings(dbartsData(prebuiltData, bases = list(NULL, zBasis))),
+  prebuiltData
+)
+expect_silent(dbartsData(prebuiltData))
+expect_identical(dbartsData(prebuiltData), prebuiltData)
+# the warning is specific to the dbartsData-inherits branch; the ordinary
+# x/y route's own 'bases' handling is untouched by item 2
+expect_silent(dbartsData(x, y, bases = list(NULL, zBasis)))
+
+# (v) the amplitude-prior check now honours 'hasBasis', not only a forest's
+# own 'basis' argument: a forest excused by a basis that arrived through
+# dbartsData(bases = ) accepts 'amplitude.prior.variance', and one with no
+# basis anywhere is still refused
+dataBasisOnFirst <- dbartsData(x, y, bases = list(zBasis, zBasis))
+amplitudeExcused <- dbarts(
+  dataBasisOnFirst,
+  forests = list(forest(amplitude.prior.variance = 2), forest()),
+  control = control
+)
+expect_equal(
+  attr(amplitudeExcused$control, "bartcore.bcf")$params[[1L]][6L],
+  2
+)
+# forest 2's own default applies too, unaffected by forest 1's excuse
+expect_equal(
+  attr(amplitudeExcused$control, "bartcore.bcf")$params[[2L]][6L],
+  0.5
+)
+dataNoBasisOnFirst <- dbartsData(x, y, bases = list(NULL, zBasis))
+expect_error(
+  dbarts(
+    dataNoBasisOnFirst,
+    forests = list(forest(amplitude.prior.variance = 2), forest()),
+    control = control
+  ),
+  "forest 1 has no 'basis'"
+)
+# the excuse applies per forest, not only to the first: forest 2's own
+# amplitude.prior.variance is honoured too when ITS basis arrived via the
+# data object
+amplitudeExcusedBoth <- dbarts(
+  dataBasisOnFirst,
+  forests = list(forest(), forest(amplitude.prior.variance = 3)),
+  control = control
+)
+expect_equal(
+  attr(amplitudeExcusedBoth$control, "bartcore.bcf")$params[[2L]][6L],
+  3
+)
+# forest 1's excuse does not extend to a second forest that has no basis
+# anywhere either - the exclusion is per forest, not blanket
+dataBasisOnFirstOnly <- dbartsData(x, y, bases = list(zBasis, NULL))
+expect_error(
+  dbarts(
+    dataBasisOnFirstOnly,
+    forests = list(forest(amplitude.prior.variance = 2), forest()),
+    control = control
+  ),
+  "forest 2 needs a 'basis'"
+)
+# and an amplitude.prior.variance declared on THAT unexcused forest answers
+# the amplitude refusal instead, since the amplitude-prior check runs first
+expect_error(
+  dbarts(
+    dataBasisOnFirstOnly,
+    forests = list(forest(), forest(amplitude.prior.variance = 2)),
+    control = control
+  ),
+  "forest 2 has no 'basis'"
+)
