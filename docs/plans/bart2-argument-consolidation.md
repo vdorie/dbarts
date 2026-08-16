@@ -1571,3 +1571,23 @@ second precedent (F18); 5.6 item 6's vacuous example replaced (F20);
 `forest1..K` everywhere plus `forest.labels` (F21); `sample = "test"` refused
 (F22); N-new-1's two textual slips (F23); the amplitude-coupled predicate
 (F24). F25 found nothing to fix.
+
+---
+
+## Landing notes (append-only)
+
+S1 (defect batch) LANDED ebc57af7, 2026-08-16. D2: keepSampler retains
+$fit on multinomial/multinomial-counts/ordinal/nbinom independent of
+keepTrees ($bc and raw channels still keyTrees-gated); hurdle verified
+already-forwarding, untouched. D3: runWithBurnIn keys on
+control@n.burn, shared fix reaching bart(). D4: !is.null guard at the
+monotone proposal-probs comparison. D5: rbart_vi k default 2.0 -> NULL
++ man/rbart.Rd rewritten. Both unqualified formals() lookups
+qualified. Gates: implementer battery + independent gate-runner, both
+green (5337/0 tinytest; trio 37+12+10 bitwise; R CMD check OK; air +
+lintr clean; NEWS 246-entry parse). Mutation-proven: D2 reverts fail
+exactly the three new assertions with hurdle staying green; D4 revert
+reproduces the error. Draw-neutrality: equivalence trio bitwise plus
+four A/B arms (bart2 and bart() burn corners, binary rbart_vi, the
+two proposal.probs spellings) all identical() - the bart()-side
+corner arm was the gate-runner's own addition.
