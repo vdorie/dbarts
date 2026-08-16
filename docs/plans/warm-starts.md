@@ -23,7 +23,7 @@ workflows, and - if grow-from-root lands - XBART-init-then-BART-refine.
 - v1 scope: same predictors, same numTrees, donor fit has keepTrees
   or a stored state; each destination chain takes a donor sample
   (cycled or user-mapped). Cross-grid (new data) rides the existing
-  remap machinery and is the stretch step.
+  remap machinery; landed 2026-07-22 (see the status entry below).
 - Everything downstream (fits, totalFits, sigma init) rebuilds through
   the existing state-install paths; no new invariants.
 
