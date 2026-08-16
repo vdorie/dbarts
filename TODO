@@ -190,6 +190,20 @@ items
     test-multi-forest-seam.R: each retirement commit edited the
     assertion this arc wrote from REFUSE to ACCEPT in place, rather
     than deleting or duplicating it.
+    The relocation arc itself is docs/plans/bcf-bartcause-relocation.md
+    (D0 D2 D3 in dbarts, B0 B0b B1 in bartCause): D0 LANDED 42846863
+    (records), D2 LANDED 511ea2b3 (three R-surface guards on the
+    construction seam), D3 LANDED 6e3b9fb8 + baselines 6e3b9fb8 - the
+    arc's one ENGINE slice, which widens run()$varcount's forest axis
+    on a multi-forest sampler, gives storeSample the CALLER's declared
+    forest count (so the flat C API keeps its single prognostic slab
+    and dbarts_apiHash does not move), packages the widened channel
+    through shapeMultinomialChannel with n.forests on the fit, and
+    re-records bcf-equivalence SHAPE-ONLY against its own FB16 gate
+    (all 12 scenarios' draw channels bitwise; the two leak-detector
+    baselines, equivalence-8b047f8b and multinomial-equivalence-
+    1027be5, stayed bitwise and unrecorded). REMAINING in dbarts after
+    B1 lands: record S5 RELOCATED AND LANDED at bartCause dbarts-1.0.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). Open: the EXTREME
     tail (|a0| >= ~40, ~3% of the prior) is frozen-structure mixing
@@ -282,16 +296,13 @@ items
     agreement. Also corrects this entry's former claim of bartCause's
     "own tinytest suite" - bartCause uses testthat
     (tests/testthat.R), not tinytest.
-  dead-bcf-init-capture: src/R_interface_bartcore.cpp's createHolder
-    carries an unused lambda init-capture, treatment =
-    std::vector<double>{}, at :2954 (the unwindProtect capture list
-    opens :2948, function body :2946-3086) - dead since 9c63e9d8
-    (M4.3) retired the R-side treatment= vocabulary the capture
-    existed to serve; the only other "treatment" token in the
-    function's scope is the unrelated error string at :3052 ("invalid
-    treatment forest specification"). Delete the capture. A src/
-    touch, so it rides the next engine-adjacent slice rather than a
-    records-only commit. Small, pre-release.
+  dead-bcf-init-capture: CLOSED by 6e3b9fb8 (bcf-bartcause-relocation
+    D3, which it was parked to ride). The unused lambda init-capture
+    treatment = std::vector<double>{} is gone from createHolder's
+    unwindProtect capture list; it had been dead since 9c63e9d8 (M4.3)
+    retired the R-side treatment= vocabulary it served. The only
+    remaining "treatment" token in that function's scope is the
+    unrelated error string "invalid treatment forest specification".
   dl-func-stub-cast: dbarts.h:455's DBARTS_API_STUB expansion casts the
     DL_FUNC R_GetCCallable returns straight to `ret (*) params` for
     every X-list entry, which trips -Wcast-function-type-mismatch
