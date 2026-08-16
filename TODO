@@ -77,72 +77,16 @@ items
     it rides the first nightly after bartcore reaches main, with the
     per-push CI sanitizers workflow covering the new tinytest file
     under instrumented R meanwhile.
-  bart2-argument-consolidation: VD mandate 2026-08-15, PRE-RELEASE - bart2's
-    argument names and grouping are locked by the 1.0-0 window, so any
-    consolidation needs review before release. MEASURED against installed
-    dbarts @ 231744a0: bart2 carries 52 formals (R/bart.R:511-578, the last
-    named formal max.rows at :576, the dots at :577). Grouped for the
-    review's map (adjust as scoping proceeds): data/model - formula, data,
-    test, subset, weights, offset, offset.test (7); error-variance prior -
-    sigest, sigdf, sigquant (3); tree/leaf prior - k, prior.scale, power,
-    base, split.probs, dart (6); sampling dims - n.trees, n.samples, n.burn,
-    n.chains, n.threads, combineChains, n.thin (7); cut structure - n.cuts,
-    useQuantiles, breaks, max.rows (4); output/run control -
-    keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees,
-    keepCall, samplerOnly, seed (8); proposals/constraints - proposal.probs,
-    monotone, interactions, blocks (4); variance forest - variance,
-    n.trees.variance, power.variance, base.variance (4); sampler
-    retention/warm-start - keepSampler, warm.start, n.grow.sweeps (3);
-    response/data handling - factors, family, missing, resid.dist,
-    dispersion (5); plus the dots (1). Review candidates, to evaluate not
-    decide: (1) control-object grouping - bart2 does NOT take a control =
-    formal today (unlike xbart's control = dbarts::dbartsControl(),
-    R/xbart.R:23); it instead reconstructs one internally via
-    redirectCall(matchedCall, dbarts::dbartsControl) (R/bart.R:637),
-    backfilling any bart2 formal that shares a dbartsControl slot name from
-    bart2's own default (R/bart.R:638-650), and validates unknown
-    top-level args against the union of bart2's and dbartsControl's formals
-    (R/bart.R:626-628); 13 of the 52 (verbose, keepTrainingFits,
-    useQuantiles, keepTrees, n.samples, n.cuts, n.burn, n.trees, n.chains,
-    n.threads, n.thin, printEvery, printCutoffs) are already 1:1
-    dbartsControl slots by name, so a control = formal (xbart's shape) is
-    the most direct candidate. (2) prior/spec-object grouping - forest()'s
-    declaration vocabulary (R/model.R:1545-1572: basis, vars, n.trees,
-    base, power, sd, interactions, blocks, amplitude.prior.variance,
-    update.amplitude) already covers per-forest n.trees/base/power/
-    interactions/blocks generically; the variance forest's four flat args
-    (variance, n.trees.variance, power.variance, base.variance,
-    R/bart.R:549-552) are the in-package precedent for a flat quartet that
-    could become one object. (3) formula-carried structure - representing
-    constraints/priors as formula terms rather than flat arguments.
-    Interacts with the K-forest front-door DOOR: whether bart2 gains
-    multi-forest reach via a forests = flat formal or via formula-level
-    term syntax stays UNDECIDED per VD's 2026-08-15 bcf-bartcause-
-    relocation walkthrough (docs/plans/bcf-bartcause-relocation.md,
-    Doors held, "The K-forest batched front door", :1252-1270;
-    Resolutions item 2, :1297-1300). REPOINTED here: the former citation
-    (design-draft.md, critique-round1.md, both under the gitignored
-    .claude/bcf-s5-relocation/) no longer exists as a citable anchor now
-    that the arc's spec landed and closed (docs/plans/bcf-bartcause-
-    relocation.md, D1 schedules independently on dbarts' own merits).
-    LOCKSTEP COST: bartCause (dbarts-1.0 branch) forwards bartc()'s
-    arguments into dbarts::bart2 via redirectCall, keeping an argument IFF
-    its name matches a formal of the target function (bartCause
-    R/utility.R:88-110, decisive line :98: argsToKeep <-
-    names(call)[-1L] %in% names(formals(fn))) - every bart2 rename or
-    removal needs a paired bartCause-side migration in the same window;
-    stan4bart should be checked for analogous by-name forwarding during the
-    review's census. Sister packages migrate in lockstep pre-release;
-    compat is a migration cost to enumerate, never a design input. SCOPE:
-    bart() (the BayesTree-compatible interface, R/bart.R:2276-2310, "the
-    frozen BayesTree shim" per its own comment at :2327) is OUT of scope -
-    it exists to preserve the historical signature - but the review's
-    census should still list bart (33 formals), xbart (28 formals,
-    including its own control = dbarts::dbartsControl() formal at
-    R/xbart.R:23) and rbart_vi (42 formals, no control = formal but
-    validating unknown args against dbartsControl's formals too,
-    R/rbart.R:60-64) for the shared-argument picture. Unscheduled, review
-    before release.
+  bart2-argument-consolidation: DESIGNED, SPEC COMMITTED 2026-08-16 at
+    docs/plans/bart2-argument-consolidation.md (the record: all eight
+    walkthrough forks decided by VD + the formula term token; three
+    blind critique rounds, a conventions survey, and four verification
+    rounds, all findings closed; underdetermined list EMPTY).
+    Implementation = slices S1-S14 per the plan's section 7, each
+    independently gateable; per-slice gates specified in the plan
+    (the equivalence harness has NO bart2 gaussian/probit scenario, so
+    several slices carry in-slice bitwise A/B gates; a harness
+    coverage note rides the next baseline re-record). IN PROGRESS.
   bcf-naming-generalization: the shipped K-forest amplitude family is
     spelled with BCF names at every layer - BCFSpec, BCFForestSpec,
     BCFState, BCFForestCombiner, BCFSpecStorage, createBCFSampler,
