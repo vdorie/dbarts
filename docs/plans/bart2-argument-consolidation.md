@@ -1642,3 +1642,22 @@ on the same build. Gates: both runners green (5377/0; trio bitwise;
 mutation exactly 3 rejection tests; A/B incl. dots-vs-formal
 updateState identical; check OK). Note: storag= now partial-matches
 the storage formal by R's own semantics - inherent, recorded.
+
+S5 (naming) LANDED ba4f761d, 2026-08-16. rngSeed -> seed everywhere
+the 6.1 map lists plus live-call sites the sweep found beyond it
+(benchmarks/R harness scripts, vignette, workflow prose,
+docs/architecture.md); the two C string literals flipped, the
+internal ParsedControl::rngSeed field untouched (N2's scope); bart2's
+hand-rename block deleted; S4's passthrough retired into the first
+retiredDotsNames row ("'rngSeed' was renamed to 'seed'"). xbart sigma
+-> sigest with man/xbart.Rd restating the b2 rule; the shared
+validateArgumentsInEnvironment gained a parallel sigest formal so
+dbarts() keeps its own sigma validation (an implementation finding
+not in the map, recorded). T-A LANDS: control formals are a subset of
+bart2's and rbart_vi's, spelled identically - mutation-proven both
+runs. Gates: both runners green (5381/0; trio 37+12+10 bitwise
+canonical files; sweep verified per-area - 57 rngSeed remains, all
+policy areas: plans/NEWS/retired-row/struct-field/negative-test plus
+the two design-record in-place amendments; 4-config A/B identical
+across spellings; check OK). Lockstep pairs land next: bartCause
+bcf.R seed spelling, stan4bart test-02 spelling.
