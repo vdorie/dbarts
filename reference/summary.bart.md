@@ -93,7 +93,9 @@ summary(fit)
 #> Call:
 #> bart2(formula = y ~ x, data = data.frame(y = rnorm(100), x = rnorm(100)), 
 #>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, 
-#>     n.threads = 1L, verbose = FALSE)
+#>     n.threads = 1L, verbose = FALSE, factors = "categorical", 
+#>     missing = "incorporate", proposal.probs = c(birth_death = 0.5, 
+#>     swap = 0.1, change = 0.4, birth = 0.5))
 #> 
 #> # A tibble: 1 × 10
 #>   variable  mean median     sd    mad    q5   q95  rhat ess_bulk ess_tail

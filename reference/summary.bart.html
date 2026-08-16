@@ -152,7 +152,9 @@ as_draws_array and as_draws_df convert a fit's
 <span class="r-out co"><span class="r-pr">#&gt;</span> Call:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> bart2(formula = y ~ x, data = data.frame(y = rnorm(100), x = rnorm(100)), </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     n.trees = 5L, n.samples = 20L, n.burn = 20L, n.chains = 2L, </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     n.threads = 1L, verbose = FALSE)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     n.threads = 1L, verbose = FALSE, factors = "categorical", </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     missing = "incorporate", proposal.probs = c(birth_death = 0.5, </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     swap = 0.1, change = 0.4, birth = 0.5))</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 10</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   variable  mean median     sd    mad    q5   q95  rhat ess_bulk ess_tail</span>
