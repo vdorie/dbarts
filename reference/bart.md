@@ -72,6 +72,7 @@ bart2(
     resid.dist = gaussian,
     dispersion = NA_real_,
     breaks = NULL, max.rows = 1e7,
+    storage = c("double", "single"), updateState = TRUE,
     ...)
 
 # S3 method for class 'bart'
@@ -747,6 +748,26 @@ summary(object, ...)
   \\\log y\\ on the positive subset) under their own
   `extract`/`fitted`/`predict`/`residuals`/`print` methods.
 
+- storage:
+
+  `bart2` only, passed through to
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+  A character string selecting the precision of the internal running
+  residual; see `dbartsControl`'s `storage` for the full description.
+  The default `"double"` reproduces existing draws bitwise; `"single"`
+  changes the sampled values slightly in exchange for a bandwidth-bound
+  speedup, and is currently supported only for continuous (gaussian)
+  responses with constant leaves.
+
+- updateState:
+
+  `bart2` only, passed through to
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+  A logical setting the default behavior for many
+  [`sampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  methods with regards to the immediate updating of the cached state of
+  the object; see `dbartsControl`'s `updateState`.
+
 - formula:
 
   The same as `x.train`, the name reflecting that a formula object can
@@ -1378,7 +1399,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.216827
+#> total seconds in loop: 0.188096
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1444,7 +1465,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001377
+#> total seconds in loop: 0.001122
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

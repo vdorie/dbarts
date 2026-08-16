@@ -68,6 +68,7 @@
 <span>    factors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"categorical"</span>, <span class="st">"indicators"</span><span class="op">)</span>,</span>
 <span>    family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"gaussian"</span>, <span class="st">"aft"</span><span class="op">)</span>,</span>
 <span>    missing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"incorporate"</span>, <span class="st">"error"</span><span class="op">)</span>,</span>
+<span>    storage <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"double"</span>, <span class="st">"single"</span><span class="op">)</span>, updateState <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>    <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'rbart'</span></span>
@@ -123,7 +124,7 @@
   <dt id="arg-callback">callback<a class="anchor" aria-label="anchor" href="#arg-callback"></a></dt>
 <dd><p>Optional function of <code>trainFits</code>, <code>testFits</code>, <code>ranef</code>, <code>sigma</code>, and <code>tau</code>. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.</p></dd>
 
-  <dt id="arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-">formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, ...<a class="anchor" aria-label="anchor" href="#arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-"></a></dt>
+  <dt id="arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-storage-updatestate-">formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, storage, updateState, ...<a class="anchor" aria-label="anchor" href="#arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-storage-updatestate-"></a></dt>
 <dd><p>Same as in <code><a href="bart.html">bart2</a></code>, with one default difference: <code>keepTrees</code> defaults to <code>TRUE</code> here (<code>bart2</code>'s default is <code>FALSE</code>). With <code>dart</code>, split probability samples appear as <code>varprobs</code> on the fit. Unlike <code>bart2</code>, <code>rbart_vi</code> offers a reduced <code>family</code> set (see below) with no logistic option, and does not accept sparse (<code>Matrix::dgCMatrix</code>) predictors.</p></dd>
 
   <dt id="arg-k">k<a class="anchor" aria-label="anchor" href="#arg-k"></a></dt>
@@ -264,7 +265,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000303</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000413</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 1 2 2 2 3 5 1 3 5 2 2 2 3 2 2 3 </span>
@@ -277,7 +278,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001502</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001932</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 5 3 4 2 2 3 2 2 4 3 3 2 3 2 2 3 1 4 </span>
@@ -322,7 +323,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000414</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000515</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 </span>
@@ -335,7 +336,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001949</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002457</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 </span>
