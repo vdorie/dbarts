@@ -639,15 +639,21 @@ struct ForestCombiner {
   virtual std::size_t numReportedLocations() const { return 1; }
 
   /// The variable-count reporting set: how many forests the per-sample split-
-  /// usage channel records, and which forest slot j addresses. Every additive
-  /// combiner reports the single reported forest (count 1, slot 0 =
-  /// reportedForest, the exact current channel); a model whose K forests each
-  /// carry their own splits (multinomial) reports all K. storeSample loops its
-  /// varcount writes over the count, and the run bridge sizes the varcount
-  /// array by it; count 1 leaves the single-forest byte layout every existing
-  /// path relies on. Distinct from numReportedLocations (softmax output
-  /// channels): a future model's fits-location count may diverge from its
-  /// forest count, so the varcount axis is keyed on its own forest set.
+  /// usage channel CAN record, and which forest slot j addresses. A
+  /// single-forest model reports the reported forest alone (count 1, slot 0 =
+  /// reportedForest, this base); a model whose forests each carry their own
+  /// splits reports all of them, slot j = forest j - multinomial's category
+  /// forests and the multi-forest amplitude coupling's alike, so "additive"
+  /// does not decide it. This is a CEILING, not the width a run writes:
+  /// storeSample loops its varcount writes over the CALLER's declared
+  /// Results::numVariableCountForests, which Sampler::run clamps to this count
+  /// once and the run bridge sizes the varcount array by, so a caller
+  /// declaring 1 (the flat C API, rbart_vi's callback loop) still gets slot 0
+  /// and the single-forest byte layout its buffer is sized for. Distinct from
+  /// numReportedLocations (softmax output channels): a model's fits-location
+  /// count may diverge from its forest count - the amplitude coupling reports
+  /// one location and every forest - so the varcount axis is keyed on its own
+  /// forest set.
   virtual std::size_t numVariableCountForests() const { return 1; }
   virtual std::size_t variableCountForest(std::size_t) const {
     return reportedForest();
