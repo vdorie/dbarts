@@ -1591,3 +1591,23 @@ reproduces the error. Draw-neutrality: equivalence trio bitwise plus
 four A/B arms (bart2 and bart() burn corners, binary rbart_vi, the
 two proposal.probs spellings) all identical() - the bart()-side
 corner arm was the gate-runner's own addition.
+
+S2 (family gating) LANDED 2eb6a1a4, 2026-08-16. warnFamilyGatedArgs +
+a data-driven inventory (R/utility.R) wired at the six 3.c.4 sites;
+ONE classed warning per call (dbartsFamilyGatedWarning, a
+dbartsWarning), suppressWarnings(classes=)-silenceable; bart() silent
+by construction. Standard site and rbart_vi resolve "auto" locally
+(sampler$model@family strips hazard's remap;
+resolveClassificationFamily leaves numeric responses unresolved).
+Orchestrator review caught a hurdle leak: redirectCall forwarded
+gated names into both recursive component calls (false probit sigest
+warning; dispersion warned 3x) - fixed by stripping gated names from
+the component calls, trio kept on the live positive half; warning
+counts 0/1 mutation-proven (revert -> 1/3). prior.scale residual
+audit: MEASURED LIVE under probit/logistic/ordinal/nbinom - stays out
+of the inventory. T-D lands in inst/tinytest/test-argument-surface.R
+(the arc's maintained-contracts home; T-A/B/C/E ride their slices).
+Gates: implementer + independent runner both green (5353/0; trio
+37+12+10 bitwise; 11/11 behavior probes; mutation 8-of-16 fail
+exactly; A/B four configs identical; check OK with zero gated-warning
+hits in the log).
