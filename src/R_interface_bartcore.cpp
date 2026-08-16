@@ -31,6 +31,7 @@ using std::size_t;
 using std::uint32_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseBCFTestSurface;
+using bartcore_bridge::refuseBinaryWeightChange;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseGroupedScaleUpdate;
 using bartcore_bridge::refuseMultiForestMutation;
@@ -1619,27 +1620,6 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                  "model for continuous weights");
 }
 
-// The post-creation half of the policy: every family but gaussian refuses a
-// weight change outright, each for its creation-time reason - probit, ordinal,
-// aft and nbinom support no weights at all, and logistic weights are the
-// observation counts its Polya-Gamma latents were built from. Naming the actual
-// family matters: the one message this used to carry told an aft, ordinal or
-// nbinom caller about "a binary response" they had not asked for.
-void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
-  bartcore::ResponseFamily family = sampler.shape().family;
-  if (family == bartcore::ResponseFamily::gaussian) return;
-  if (family == bartcore::ResponseFamily::logistic)
-    Rf_error("logistic weights are the observation counts its latents were "
-             "built from and cannot be set after creation; make a new sampler "
-             "with the new counts instead");
-  const char* name = "probit";
-  if (family == bartcore::ResponseFamily::aft) name = "aft (survival)";
-  else if (family == bartcore::ResponseFamily::ordinal) name = "ordinal";
-  else if (family == bartcore::ResponseFamily::nbinom) name = "nbinom (count)";
-  Rf_error("%s models do not support case weights, so none can be set after "
-           "creation; fit a gaussian model for a weighted likelihood", name);
-}
-
 // Column j's dense slice of a parsed view, when a dense source serves it: the
 // plain matrix's own column, or the block column the source map names. Null
 // for a CSC-backed column (coded by its container, nothing contiguous to scan)
@@ -2742,6 +2722,43 @@ void refuseGroupedScaleUpdate(const bartcore::SamplerBase& sampler,
            conduit == ResponseConduit::response ? "a response" : "an offset");
 }
 
+// The post-creation half of the policy enforceBinaryWeightPolicy states at
+// creation: every family but gaussian refuses a weight change outright, each
+// for its creation-time reason - probit, ordinal, aft and nbinom support no
+// weights at all, and logistic weights are the observation counts its
+// Polya-Gamma latents were built from. Naming the actual family matters: the
+// one message this used to carry told an aft, ordinal or nbinom caller about
+// "a binary response" they had not asked for.
+// External linkage: the flat C API reuses this on dbarts_sampler_setWeights,
+// which otherwise dropped a probit/ordinal/aft/nbinom weight change silently
+// and let a negative logistic weight reach a division by zero.
+void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
+  bartcore::ResponseFamily family = sampler.shape().family;
+  if (family == bartcore::ResponseFamily::gaussian) return;
+  if (family == bartcore::ResponseFamily::logistic)
+    Rf_error("logistic weights are the observation counts its latents were "
+             "built from and cannot be set after creation; make a new sampler "
+             "with the new counts instead");
+  const char* name = "probit";
+  if (family == bartcore::ResponseFamily::aft) name = "aft (survival)";
+  else if (family == bartcore::ResponseFamily::ordinal) name = "ordinal";
+  else if (family == bartcore::ResponseFamily::nbinom) name = "nbinom (count)";
+  Rf_error("%s models do not support case weights, so none can be set after "
+           "creation; fit a gaussian model for a weighted likelihood", name);
+}
+
+// The largest count any surface accepts for nbinom. The bound is an ALLOCATION
+// bound: NBDispersionPrior::computeKernel sizes its count histogram as
+// maxCount + 1 doubles, 8 bytes per unit of the largest count, so y = 1e9 asks
+// for 8 GB where no R error can be raised, while this bound pins the request
+// at 8 * (1e6 + 1) = 8 MB and the kernel's rebuild at 13e6 multiply-adds -
+// trivially safe on every host, and orders of magnitude past any count a
+// negative-binomial regression is a sensible model for. The exact Polya-Gamma
+// augmentation's O(y + r) draw cost stays a recorded family cost above and
+// below the bound (docs/design/negative-binomial.md section 2); it is not what
+// this refuses.
+constexpr double maximumCount = 1.0e6;
+
 // The post-creation half of the response-support policy the R surface applies
 // at creation (R/spec.R): mutation must accept exactly what creation does, or a
 // swap walks the sampler off its family's support. Two harms, both confirmed:
@@ -2751,10 +2768,9 @@ void refuseGroupedScaleUpdate(const bartcore::SamplerBase& sampler,
 // static_cast<size_t>(lround(y)) into a ~1.8e19 histogram allocation - an
 // uncatchable crash, not an error. gaussian and aft impose nothing (aft's y is
 // a log survival time, any real), so they pass through; multinomial counts are
-// not reachable by this conduit. Magnitude is deliberately NOT bounded here:
-// creation bounds it nowhere either, and the exact Polya-Gamma augmentation's
-// O(y + r) cost is a recorded family cost (docs/design/negative-binomial.md
-// section 2), not a mutation-side defect.
+// not reachable by this conduit. Magnitude is bounded for the same allocation
+// reason the sign is (see maximumCount), at creation and at every mutation
+// alike.
 // External linkage: the creation prologue and the flat C API both call this, so
 // creation and every mutation conduit state one rule.
 void validateResponseSupport(bartcore::ResponseFamily family,
@@ -2780,10 +2796,16 @@ void validateResponseSupport(bartcore::ResponseFamily family,
                  static_cast<unsigned long>(numCategories));
     break;
   case bartcore::ResponseFamily::nbinom:
-    for (size_t i = 0; i < numObservations; ++i)
+    for (size_t i = 0; i < numObservations; ++i) {
       if (!std::isfinite(y[i]) || y[i] < 0.0 || y[i] != std::floor(y[i]))
         Rf_error("%s: family \"nbinom\" requires a non-negative integer "
                  "(count) response", caller);
+      if (y[i] > maximumCount)
+        Rf_error("%s: family \"nbinom\" requires counts no larger than %.0f; "
+                 "the dispersion grid's count histogram is sized from the "
+                 "largest count, so a larger one allocates without bound",
+                 caller, maximumCount);
+    }
     break;
   default:
     break; // gaussian and aft constrain nothing

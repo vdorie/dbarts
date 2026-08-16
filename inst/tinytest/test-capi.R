@@ -330,6 +330,55 @@ expect_error(
   "response family fixes the residual standard deviation"
 )
 
+# dbarts_sampler_setWeights carries the same family rule too, and used to carry
+# none: every family but gaussian refuses a weight change, so this entry
+# installed a vector a probit/ordinal/aft/nbinom sampler never reads and took a
+# logistic one's negative weight into a division by zero. ptr2 above is the
+# permitted case - a gaussian sampler taking weights mid-chain
+expect_error(
+  CALL("capi_set_weights", ptrBinary, rep(1, n)),
+  "probit models do not support case weights"
+)
+
+# the nbinom magnitude cap at the flat funnel, which has no R layer ahead of it
+# to state the rule: the dispersion grid's count histogram is sized from the
+# largest count, so the bound is an allocation bound, and creation and the one
+# conduit that swaps y here both carry it. The counts are built without drawing,
+# so the stream stays where the seeds above put it
+yCount <- as.double(seq_len(n) %% 7L)
+specCount <- dbarts(x, yCount, family = "nbinom", control = control)
+dataOverBound <- specCount$data
+dataOverBound@y <- replace(yCount, 1L, 1000001)
+capRefusal <- "counts no larger than 1000000"
+expect_error(
+  CALL(
+    "capi_create",
+    specCount$control,
+    specCount$model,
+    dataOverBound,
+    "nbinom"
+  ),
+  capRefusal
+)
+ptrCount <- CALL(
+  "capi_create",
+  specCount$control,
+  specCount$model,
+  specCount$data,
+  "nbinom"
+)
+expect_error(
+  CALL("capi_set_response", ptrCount, dataOverBound@y, FALSE),
+  capRefusal
+)
+# and the weight refusal under a second family, whose message names it
+expect_error(
+  CALL("capi_set_weights", ptrCount, rep(1, n)),
+  "nbinom \\(count\\) models do not support case weights"
+)
+rm(ptrCount, specCount, dataOverBound)
+invisible(gc(FALSE))
+
 # tree storage, prediction, and the state round trip stan4bart's
 # predict-after-reload uses
 CALL("capi_set_tree_storage", ptr1, TRUE, nSamples)

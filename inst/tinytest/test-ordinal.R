@@ -118,6 +118,17 @@ suppressMessages(
 )
 expect_error(predict(fitNoTrees, x.test), pattern = "keepTrees")
 
+# --- the retained $fit is a host shell, as a multinomial fit's is ---
+# bc holds the ordinal model; the host carries only the design and priors it
+# was built from, so every mutation through it used to be a silent no-op
+hostRefusal <- "host sampler of a bart2\\(family = \"ordinal\"\\) fit"
+expect_error(fit$fit$setResponse(as.double(codes)), hostRefusal)
+expect_error(fit$fit$setData(dbartsData(x, as.double(codes))), hostRefusal)
+expect_error(fit$fit$run(0L, 1L), hostRefusal)
+# the read surface predict() threads through is untouched
+expect_equal(ncol(fit$fit$data@x), ncol(x))
+expect_equal(predict(fit, x.test), fit$yhat.test)
+
 # --- multi-chain shapes, uncombined ---
 
 suppressMessages(

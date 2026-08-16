@@ -770,6 +770,28 @@
             any refusal at all. A grouped \code{"probit"} or
             \code{"logistic"} sampler still accepts \code{TRUE}, where it is
             the no-op it has always been. \code{$setData} remains refused.
+      \item A \code{"nbinom"} response is capped at \eqn{10^6}{1e6} and a
+            larger count refused, at creation and on every conduit that swaps
+            the response, on the R and the flat C surfaces alike. The
+            dispersion grid's count histogram is sized from the largest
+            count, so a bigger one allocated without bound - \code{y = 1e9}
+            asked for 8 GB and took the process down where no R error could
+            be raised. Counts at or under the bound draw exactly as before.
+      \item The \code{$fit} of a \code{bart2(family = "ordinal")} or
+            \code{bart2(family = "nbinom")} fit refuses mutation, as a
+            multinomial fit's already did. It is only the host shell of the
+            model - it carries the design and priors the model was built
+            from but none of the model itself - so \code{$setResponse},
+            \code{$run} and the rest used to change a sampler nothing reads.
+            \code{$getDispersion()} on the count shell is refused for the
+            same reason: the shell's own \eqn{r}{r} is not the fit's.
+      \item \code{dbarts_sampler_setWeights} refuses a weight change under
+            any family but gaussian, the rule the R sampler's
+            \code{$setWeights} and the header's own contract already stated.
+            A \code{"probit"}, \code{"ordinal"}, \code{"aft"} or
+            \code{"nbinom"} sampler installed a vector nothing reads, and a
+            \code{"logistic"} one carried a negative weight into a division
+            by zero in its working response.
       \item \code{$getLatents} is documented per family. It reports a
             LOCATION for \code{"probit"}, \code{"ordinal"} and \code{"aft"}
             and a PRECISION for \code{"logistic"}, \code{"nbinom"} and a

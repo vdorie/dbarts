@@ -560,7 +560,9 @@ void dbarts_sampler_setCallback(dbarts_sampler* sampler,
 
 /// y has numObservations values, which must lie in the family's support: 0/1
 /// for probit and logistic, an integer category index in [1, K] for ordinal, a
-/// finite non-negative integer count for nbinom. Out-of-support values are an
+/// finite non-negative integer count no larger than 1e6 for nbinom (the
+/// dispersion grid's count histogram is sized from the largest count, so a
+/// larger one allocates without bound). Out-of-support values are an
 /// error, as they are at creation; gaussian and aft (log survival times)
 /// constrain nothing. updateScale re-derives the internal response transform
 /// from the new response, as dbarts_sampler_setOffset's argument does (gaussian

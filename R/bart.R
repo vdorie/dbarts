@@ -1521,6 +1521,10 @@ bart2Ordinal <- function(
   n.samples <- control@n.samples
 
   bc <- bartcoreSampler(sampler, family = "ordinal")
+  # bc holds the fit's model; the host keeps only the design and priors it was
+  # built from, so a mutation through the returned $fit would change a sampler
+  # nothing reads. Mark it, as bart2Multinomial does
+  sampler$hostFor <- "bart2(family = \"ordinal\")"
 
   probsTrain <- array(0, c(n.obs, K, n.samples, n.chains))
   latentTrain <- array(0, c(n.obs, n.samples, n.chains))
@@ -1759,6 +1763,10 @@ bart2Negbin <- function(
   n.samples <- control@n.samples
 
   bc <- bartcoreSampler(sampler, family = "nbinom")
+  # the host owns no model past this point; see bart2Ordinal. It matters twice
+  # here: $getDispersion() on the shell would answer with the placeholder's own
+  # r rather than the fit's
+  sampler$hostFor <- "bart2(family = \"nbinom\")"
 
   latentTrain <- array(0, c(n.obs, n.samples, n.chains))
   meanTrain <- array(0, c(n.obs, n.samples, n.chains))
