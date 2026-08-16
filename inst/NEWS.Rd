@@ -808,6 +808,15 @@
             reported where a draw belongs, and needs no sampler: the functionals
             may be derived, the ranks are tie-broken, and the uniformity band is
             corrected over the functionals ranked in the call.
+      \item Six named compositions ship as a vignette,
+            \code{vignette("dbarts-as-a-component")}: data augmentation written
+            in R, an outer block on the offset channel and its calibration
+            check, a K-sampler decomposition sharing one prior budget, a latent
+            predictor shared across samplers, an outer-owned sigma, and the
+            incremental read. Each is a runnable outer sampler and each is also
+            a test cell. \code{\link{dbarts-embedding}} is the reference page
+            behind them: which channel an outer block writes, which fit it
+            reads back, and whose prior is in force after a swap.
     }
   }
   \subsection{C API}{

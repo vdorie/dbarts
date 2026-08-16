@@ -48,6 +48,7 @@ reference:
   - dbartsValidateComposition
 - title: Utilities
   contents:
+  - dbarts-embedding
   - plotTree
   - makeModelMatrixFromDataFrame
   - guessNumCores

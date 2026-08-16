@@ -492,6 +492,11 @@ Vincent Dorie: \email{vdorie@gmail.com}.
 }
 \seealso{
 \code{\link{pdbart}}
+
+\code{\link{dbarts-embedding}} and \code{vignette("dbarts-as-a-component", package = "dbarts")} for
+using BART as one block of a sampler you write, rather than as the whole fit: these functions own
+their own MCMC loop, while \code{\link{dbarts}} returns a
+\code{\linkS4class{dbartsSampler}} that runs one sweep at a time.
 }
 \examples{
 ## simulate data (example from Friedman MARS paper)

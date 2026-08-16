@@ -401,6 +401,8 @@
   \code{\link{updatePredictorPerObservationJointly}} for applying a shared per-observation predictor update across several samplers at once.
 
   \code{\link{samplePriorPredictive}} for repeated \code{sampleTreesFromPrior}/\code{sampleNodeParametersFromPrior}/\code{predict} draws on a private sampler, for calibrating priors before fitting.
+
+  \code{\link{dbarts-embedding}} for which channel an outer block writes, which fit it reads back, and whose prior is in force after a swap, and \code{vignette("dbarts-as-a-component", package = "dbarts")} for six worked compositions built from these methods.
 }
 \examples{
 # the embedded-Gibbs pattern: BART as a conditional model inside a larger
