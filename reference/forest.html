@@ -83,7 +83,13 @@
     is meaningful: the second level is the one \(b_1\) scales. A forest
     that declares none takes the implicit intercept its single amplitude
     \(a\) scales; every forest past the first needs one, since the
-    amplitudes multiplying it are what distinguish it from the first.</p></dd>
+    amplitudes multiplying it are what distinguish it from the first.
+    Reaching <code><a href="dbarts.html">dbarts</a></code> through an already-built <code>dbartsData</code>
+    <code>formula</code> is the one route that refuses this argument outright,
+    since the declaration would otherwise have nowhere to ride and be
+    silently discarded; <code><a href="dbartsSpec.html">dbartsSpec</a></code> always takes a pre-built
+    data object and installs the declaration instead, replacing whatever
+    bases it carried.</p></dd>
 
   <dt id="arg-vars">vars<a class="anchor" aria-label="anchor" href="#arg-vars"></a></dt>
 <dd><p>Optional restriction of this forest to a subset of the model matrix, by

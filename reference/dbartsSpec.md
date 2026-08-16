@@ -49,7 +49,12 @@ dbartsSpec(
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
   `basis` given as a one-sided formula is evaluated in `parentEnv`, this
   surface performing no data ingestion of its own; the data object's
-  rows are already whatever its own `subset` kept.
+  rows are already whatever its own `subset` kept. A `basis` declared
+  here always reaches the sampler: unlike
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md), which
+  refuses a basis declaration once `formula` is already a `dbartsData`,
+  this function's first argument is always one, so the declaration is
+  installed and REPLACES whatever bases the data object carried.
 
 - survival:
 

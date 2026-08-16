@@ -293,7 +293,15 @@ dbarts(
   fits and the per-forest amplitudes are read off the sampler rather
   than from the run's combined `train` channel. The columns a basis
   expands to are stored on the data object, so they are subset by
-  `subset` and survive a sampler's re-creation. Options a two-forest
+  `subset` and survive a sampler's re-creation. A basis declared here
+  has nowhere to ride when `formula` is already a `dbartsData` object:
+  `dbarts()` refuses that combination by name rather than silently
+  discarding the declaration and fitting a single-forest model - build
+  the data object with the bases already on it, `dbartsData(bases = )`,
+  or declare them through
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
+  which always takes a pre-built data object and installs the
+  declaration, replacing whatever bases it carried. Options a two-forest
   model does not read - `monotone`, `variance`, a DART tree prior,
   `split.probs`, a linear or Gaussian-process node prior, a `k`
   hyperprior or non-default `k`, a non-default `proposal.probs`,

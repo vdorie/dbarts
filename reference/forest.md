@@ -36,6 +36,14 @@ forest(
   that declares none takes the implicit intercept its single amplitude
   \\a\\ scales; every forest past the first needs one, since the
   amplitudes multiplying it are what distinguish it from the first.
+  Reaching
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+  through an already-built `dbartsData` `formula` is the one route that
+  refuses this argument outright, since the declaration would otherwise
+  have nowhere to ride and be silently discarded;
+  [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+  always takes a pre-built data object and installs the declaration
+  instead, replacing whatever bases it carried.
 
 - vars:
 
