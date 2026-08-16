@@ -921,3 +921,30 @@ identity pinned (scale*(a*mu + b_z*tau) + shift reconstructs train to
 batched run). Gates: tinytest 3810/0 (implementer) and the new file
 19/0 re-run independently by the orchestrator against a fresh install;
 air 0; lintr 0. No deviations from the pin list.
+
+## S5 disposition (appended 2026-08-16; the S5 section above is unedited on purpose)
+
+S5 is RELOCATED, not cancelled, and this note is appended rather than written
+into the S5 section because other documents cite line numbers into this file.
+
+`bcf()` and the `bartBCF` fit class ship in bartCause on its dbarts-1.0 branch,
+per multiforest-extension-surface's fork 4 (RESOLVED VD 2026-08-11). The
+relocation arc's plan is `docs/plans/bcf-bartcause-relocation.md`, which carries
+the slice specs, the resolved forks, the falsifiers and the gates.
+
+The S5 CONTRACT ships there VERBATIM - per-draw mu, tau, glue, sigma, per-forest
+varcount and both counterfactual surfaces `a*mu + b_z*tau` and
+`a*mu + b_{1-z}*tau`, forest-INDEXED, under the option-A element names. The one
+element that had no channel behind it, per-forest varcount, is BUILT rather than
+dropped (VD 2026-08-15, reversing the arc's own drop-and-ticket recommendation):
+the amplitude coupling gains the per-draw per-forest split-count channel the
+softmax coupling already uses, so `run()$varcount` on a multi-forest sampler
+carries a forest axis. `predict` on new rows stays COMPONENTS-only and therefore
+refuses in v1, the blended test surface stays refused, and per-forest saved-tree
+replay stays a DOOR - all as this file already states.
+
+Two vocabulary corrections for a reader arriving here: S5's
+`bcf(formula|x, y, treatment, ...)` names are bartCause-LOCAL now, since
+`treatment =`/`moderators =`/`treatmentForest =` were removed from dbarts at
+multiforest-extension-surface M2 and `dbartsData(treatment = )` at M4.3; and the
+engine creation route is `forests = list(forest(basis = ...))`.

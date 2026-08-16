@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (149 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (150 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -16,6 +16,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | bcf-b-ridge.md | NO-GO | Treatment-scale (b) ridge interweaving move, the named suspect for the sigma residual; both controls clear it - shelved as an unimplemented future mixing win. |
+| bcf-bartcause-relocation.md | SPECCED (D2/D3/B0/B0b/B1 pending), 2026-08-16 | Relocates bcf-public-surface's S5 - `bcf()` and the `bartBCF` fit class - to bartCause's dbarts-1.0 branch per multiforest-extension-surface fork 4 (VD 2026-08-11), and ships the dbarts side it needs: three R-surface guards on the multi-forest construction seam (D2), the per-draw per-forest varcount channel that makes S5's contract literal (D3, the arc's one engine slice, widening `varcount`'s forest axis with the caller's declared count authoritative so every caller-owned buffer keeps today's bytes), and in bartCause a snapshot refresh, a per-chain sigma fix and the fit function itself with its five S3 methods, the `method.rsp = "bcf"` arm and the propensity-score moderator exclusion; three blind critiques discharged, eight VD decisions recorded, one shape-only bcf-equivalence re-record expected and both other baselines bitwise. |
 | bcf-public-surface.md | LANDED (S0-S6) | BCF reachable through public `dbarts(treatment=, moderators=, treatmentForest=)` (an ordinary `dbartsSampler`, not `bartcoreBCFSampler`), a C consumer via `dbarts_sampler_create`, per-draw mu/tau/glue reporting, and `$setTreatment` mirroring `data@treatment`; landed aa6978b (2026-08-11), argument names PROVISIONAL pending multiforest-extension-surface.md M2. |
 | bcf-ridge-interweaving.md | LANDED | Prognostic (a) ridge interweaving move, landed 9617c94; confirmed mixing win, sigma SBC flag persists and routes to bcf-sigma-residual. |
 | bcf-sigma-residual.md | RESOLVED (burn routing adopted) | Diagnoses the BCF sigma burn-in transient as slow forest-structure mixing, not a glue-scale defect; its recommended `burn = ceiling(72000/thin)` is live in benchmarks/R/sbc.R, and the extreme-tail engine remedy is the TODO door bcf-sigma-tail-mixing. |
