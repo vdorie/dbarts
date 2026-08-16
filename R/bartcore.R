@@ -178,10 +178,20 @@ bartcoreSamplerSetPredictor <- function(
     # a sparseVector, any Matrix class the bridge does not ingest - keeps the
     # as.double path, as does a plain-matrix design.
     if (!(sparseSource && predictorSourceIsSparse(x))) {
+      # matrix(as.double(x), ...) strips every attribute, so the incoming
+      # dimnames would otherwise vanish; carry them onto the replacement,
+      # falling back to the sampler's current names when x supplies none -
+      # the shapes already agree by the checks above
+      xDimnames <- dimnames(x)
       x <- if (!is.null(xDim)) {
         matrix(as.double(x), xDim[1L])
       } else {
         matrix(as.double(x), nrow(sampler$data@x))
+      }
+      dimnames(x) <- if (!is.null(xDimnames)) {
+        xDimnames
+      } else {
+        dimnames(sampler$data@x)
       }
     }
     if (!sparseSource) {

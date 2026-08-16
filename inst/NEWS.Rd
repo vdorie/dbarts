@@ -1238,6 +1238,17 @@
             \code{0} is refused rather than silently naming the
             prognostic forest. The R5 sampler's forest index is now
             1-based everywhere.
+      \item A whole-matrix \code{setPredictor} call (\code{column}
+            missing) now carries column names onto the installed
+            \code{sampler$data@x}: the replacement's own \code{dimnames}
+            when it has them, the sampler's existing column names
+            otherwise. Previously the replacement was built as a bare
+            matrix with no names at all, so a later by-name column
+            reference on that sampler - \code{setPredictor}'s own
+            \code{column} argument, or
+            \code{\link{updatePredictorPerObservationJointly}}'s
+            shared-column match - failed even on a sampler created with
+            named columns.
     }
   }
 }
