@@ -1,0 +1,349 @@
+---
+title: "dbarts as a Component"
+author: "Vincent Dorie"
+date: "2026-08-15"
+output: pdf_document
+---
+
+<!--
+%\VignetteEngine{knitr::rmarkdown}
+%\VignetteIndexEntry{dbarts as a Component}
+-->
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dbarts, quietly = TRUE)
+```
+
+A `dbartsSampler` is a mutable object that runs one sweep at a time, so BART can be a conditional model inside a larger Gibbs or Metropolis-Hastings scheme rather than the whole of it. Six recipes follow. Each is a complete, runnable outer sampler; each answers the same three questions, which are the ones a composition gets wrong:
+
+* **which channel** the outer block writes -- response, offset, weights, sigma, or a predictor column;
+* **which fit** the outer block reads back, since the five reporting methods do not report the same quantity (`?dbartsSampler`, "Reading the fit");
+* **whose prior** is in force, since a swapped response does not re-anchor the leaf prior the sampler was built with.
+
+`?dbarts-embedding` is the reference page for the channels and the reads; this vignette is the worked set. Every recipe here is also a cell in the package's test suite, because a composition that runs to completion can still be sampling the wrong posterior.
+
+Throughout, `run(0L, 1L)` advances the sampler exactly one sweep, and every recipe builds its sampler the same way:
+
+```{r common}
+n <- 200L
+nBurn <- 100L
+nDraws <- 100L
+
+# a single seeded chain that serializes no state on a per-sweep mutation
+recipeControl <- function(seed) {
+  dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L,
+                updateState = FALSE, rngSeed = seed)
+}
+```
+
+## 1. Data augmentation written in R
+
+A binary response is fit by drawing a per-observation latent and regressing on it. `dbarts` will do this internally with `family = "probit"`, but a host that needs the latent for its own blocks -- a selection equation, a shared factor -- can run the Albert-Chib step itself with `dbartsDrawLatents` and `dbartsWorkingResponse` over an ordinary gaussian sampler.
+
+Two details make it correct rather than merely runnable. The sampler's residual standard deviation is pinned at 1 with `resid.prior = fixed(1)`, because the augmented model has no free residual scale. And the leaf prior is stated with `setCalibration`, because a gaussian sampler built on a cold-start vector would otherwise inherit its prior scale from that vector's range -- an accident of the starting values, not a modelling choice.
+
+```{r recipe1}
+set.seed(101L)
+x <- matrix(runif(n * 3L), n, 3L)
+fTrue <- 2 * (x[, 1L] - 0.5) + sin(2 * pi * x[, 2L])
+o <- rep(0.25, n)
+y <- rbinom(n, 1L, pnorm(fTrue + o))
+control <- recipeControl(31L)
+
+# the host: a gaussian sampler on the working response, sigma pinned at 1
+host <- dbarts(x, 2 * y - 1 - o, control = control, resid.prior = fixed(1))
+host$setCalibration(prior.scale = 2)
+
+composed <- matrix(0, n, nDraws)
+for (i in seq_len(nBurn + nDraws)) {
+  # the fit WITHOUT the offset is what the augmentation conditions on; both
+  # helpers form the linear predictor themselves as fit + offset
+  z <- dbartsDrawLatents("probit", host$getFitsWithoutOffset(), y, offset = o)
+  host$setResponse(dbartsWorkingResponse("probit", z, y, offset = o))
+  host$run(0L, 1L)
+  if (i > nBurn) composed[, i - nBurn] <- host$getFitsWithoutOffset()
+}
+
+# a native probit sampler, given the SAME leaf prior, targets the same posterior
+native <- dbarts(x, y, offset = o, family = "probit", control = control,
+                 node.prior = normal(k = 2, scale = 2))
+nativeFit <- rowMeans(native$run(nBurn, nDraws)$train) - o
+c(agreement = cor(rowMeans(composed), nativeFit),
+  signal = cor(rowMeans(composed), fTrue))
+```
+
+Agreement, not identity: these are two chains of one posterior, so they differ by Monte Carlo error. The package's tests state the tolerance.
+
+## 2. An outer block on the offset channel
+
+The offset is the channel for anything additive that another block owns. Here the model is partially linear, $y_i = f(x_i) + \alpha w_i + \epsilon_i$: BART holds $f$, a conjugate normal block holds $\alpha$, and each writes its own contribution into the other's conditioning through `setOffset`.
+
+The **seeding contract** is the whole of the correctness argument. The offset in force during a sweep must be the value the outer block currently holds, so the sampler is created with the initial offset installed and `setOffset` is called before `run`, never after. A sampler run once against a stale offset has drawn $f$ from the wrong conditional, and nothing later reports it.
+
+```{r recipe2}
+alphaTrue <- 1.25
+tau <- 2
+
+set.seed(11L)
+x <- matrix(runif(n * 3L), n, 3L)
+w <- rnorm(n)
+fTrue <- 3 * (x[, 1L] - 0.5)^2 + sin(2 * pi * x[, 2L])
+y <- rnorm(n, fTrue + alphaTrue * w, 0.5)
+
+alpha <- 0
+control <- recipeControl(8L)
+# created WITH the offset the loop's first sweep will run against
+sampler <- dbarts(x, y, offset = alpha * w, control = control)
+
+keepAlpha <- rep(NA_real_, nDraws)
+for (i in seq_len(nBurn + nDraws)) {
+  sampler$setOffset(alpha * w)              # install, then sweep
+  sampler$run(0L, 1L)
+  f <- as.numeric(sampler$getFitsWithoutOffset())
+  sigma <- as.numeric(sampler$getSigmas())
+  v <- 1 / (sum(w * w) / sigma^2 + 1 / tau^2)
+  alpha <- rnorm(1L, v * sum(w * (y - f)) / sigma^2, sqrt(v))
+  if (i > nBurn) keepAlpha[i - nBurn] <- alpha
+}
+
+c(mean = mean(keepAlpha), sd = sd(keepAlpha), truth = alphaTrue)
+```
+
+### Checking the composition
+
+Recovering the truth on one data set is not evidence that a sampler targets its posterior. `dbartsValidateComposition` runs simulation-based calibration over the same one-sweep step: it draws $\theta_0$ from the prior, simulates data at it, starts the chain there, and ranks each functional's value at $\theta_0$ among the retained draws. Uniform ranks are what a correct kernel produces.
+
+Stating the prior draw here means drawing $f$ from BART's own prior, which `sampleTreesFromPrior` and `sampleNodeParametersFromPrior` do on the sampler itself. The problem is deliberately small, since every replication runs a full chain.
+
+```{r recipe2_sbc}
+nSbc <- 60L
+sigma0 <- 1
+tauSbc <- 1
+
+set.seed(4L)
+xSbc <- matrix(runif(nSbc * 2L), nSbc, 2L)
+wSbc <- rnorm(nSbc)
+sbcControl <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 10L,
+                            updateState = FALSE)
+
+# the response the sampler is BUILT on fixes the response transform, and the
+# leaf prior is then stated outright, so every replication shares one prior
+newSampler <- function() {
+  s <- dbarts(xSbc, seq(-3, 3, length.out = nSbc), control = sbcControl,
+              resid.prior = fixed(sigma0^2))
+  s$setCalibration(prior.scale = 2)
+  s
+}
+
+drawPrior <- function() {
+  s <- newSampler()
+  s$sampleTreesFromPrior()
+  s$sampleNodeParametersFromPrior()
+  list(sampler = s, f = as.numeric(s$getFitsWithoutOffset()),
+       alpha = rnorm(1L, 0, tauSbc))
+}
+simulateData <- function(theta0)
+  rnorm(nSbc, theta0$f + theta0$alpha * wSbc, sigma0)
+initState <- function(theta0, data) {
+  theta0$sampler$setResponse(data)
+  list(sampler = theta0$sampler, y = data, f = theta0$f, alpha = theta0$alpha)
+}
+step <- function(state) {
+  state$sampler$setOffset(state$alpha * wSbc)
+  state$sampler$run(0L, 1L)
+  state$f <- as.numeric(state$sampler$getFitsWithoutOffset())
+  v <- 1 / (sum(wSbc * wSbc) / sigma0^2 + 1 / tauSbc^2)
+  state$alpha <- rnorm(1L, v * sum(wSbc * (state$y - state$f)) / sigma0^2,
+                       sqrt(v))
+  state
+}
+functionals <- function(state) c(alpha = state$alpha, f.mean = mean(state$f))
+
+dbartsValidateComposition(drawPrior, simulateData, initState, step,
+                          functionals, n.replications = 40L, n.draws = 50L,
+                          n.thin = 5L, n.burn = 20L, seed = 12L)
+```
+
+Reporting `v * sum(wSbc * (state$y - state$f)) / sigma0^2` in place of the draw -- the defect this diagnostic exists to catch -- flags `alpha` here, and is a test cell of its own.
+
+## 3. Several forests, one prior budget
+
+An additive decomposition $f(x) = \sum_{k=1}^K g_k(x)$ over $K$ samplers is ordinary backfitting: each sampler regresses on the partial residual through `setResponse`. What does not come for free is the prior. Each sampler was built on the full response, so each carries a leaf prior sized for the *whole* of $f$; their sum then has $\sqrt{K}$ times the prior standard deviation a single sampler would have, and nothing warns about it.
+
+`setCalibration(prior.scale = base / sqrt(K))` restates each forest's share of one budget. The check below draws from the composed prior directly -- `sampleTreesFromPrior` acts on the engine, so it sees what `setCalibration` wrote -- and compares it with a single sampler's.
+
+```{r recipe3}
+K <- 2L
+
+set.seed(21L)
+x <- matrix(runif(n * 4L), n, 4L)
+colnames(x) <- paste0("x", 1:4)
+fTrue <- 2 * sin(pi * x[, 1L]) + x[, 2L] + 3 * (x[, 3L] - 0.5)^2 - 2 * x[, 4L]
+y <- rnorm(n, fTrue, 0.5)
+
+control <- recipeControl(5L)
+blocks <- list(x[, 1:2, drop = FALSE], x[, 3:4, drop = FALSE])
+samplers <- lapply(blocks, function(xb) dbarts(xb, y, control = control))
+
+base <- samplers[[1L]]$getCalibration()[1L, "prior.scale"]
+for (s in samplers) s$setCalibration(prior.scale = base / sqrt(K))
+
+# the composed prior on the TOTAL, against a single sampler's
+priorSd <- function(samplers) {
+  draws <- replicate(200L, {
+    total <- 0
+    for (s in samplers) {
+      s$sampleTreesFromPrior()
+      s$sampleNodeParametersFromPrior()
+      total <- total + as.numeric(s$getFitsWithoutOffset())
+    }
+    total
+  })
+  mean(apply(draws, 1L, sd))
+}
+single <- dbarts(x, y, control = control)
+c(composed = priorSd(samplers), single = priorSd(list(single)))
+```
+
+```{r recipe3_fit}
+fits <- rep(list(rep(0, n)), K)
+total <- matrix(0, n, nDraws)
+for (i in seq_len(nBurn + nDraws)) {
+  for (k in seq_len(K)) {
+    samplers[[k]]$setResponse(y - Reduce(`+`, fits[-k]))
+    samplers[[k]]$run(0L, 1L)
+    fits[[k]] <- as.numeric(samplers[[k]]$getFitsWithoutOffset())
+  }
+  if (i > nBurn) total[, i - nBurn] <- Reduce(`+`, fits)
+}
+c(composed = cor(rowMeans(total), fTrue),
+  single = cor(rowMeans(single$run(nBurn, nDraws)$train), fTrue))
+```
+
+`setResponse` leaves the response transform where creation put it (`updateScale = FALSE`, the default), which is what makes a per-sweep swap coherent: every sweep's partial residual is read on one scale.
+
+## 4. A latent predictor shared by two samplers
+
+When the quantity being sampled is a *predictor* rather than a response -- a latent ability, a propensity, an unobserved dose -- it moves through `updatePredictorPerObservationJointly`, which installs each observation in every sampler or in none. An observation is declined when its new value would empty a leaf in any tree of any sampler.
+
+The returned mask is therefore **part of the Metropolis accept decision, not a diagnostic**. A declined observation was rolled back, so the log-likelihood read after the call is its *old* likelihood; treating the resulting ratio of 1 as an acceptance would move the host's copy of the latent away from what the samplers actually hold, silently and permanently.
+
+```{r recipe4}
+set.seed(404L)
+nJ <- 80L
+thetaTrue <- rnorm(nJ)
+d1 <- data.frame(theta = thetaTrue, u = runif(nJ))
+d1$y <- 1.5 * thetaTrue + rnorm(nJ, 0, 0.3)
+d2 <- data.frame(v = runif(nJ), theta = thetaTrue)
+d2$y <- rbinom(nJ, 1L, pnorm(thetaTrue))
+
+control <- recipeControl(44L)
+treePrior <- dbartsPriors$cgm(power = 0.5)
+sA <- dbarts(y ~ theta + u, d1, control = control, tree.prior = treePrior)
+sB <- dbarts(y ~ v + theta, d2, family = "probit", control = control,
+             tree.prior = treePrior)
+invisible(sA$run(0L, 20L))
+invisible(sB$run(0L, 20L))
+
+# per-observation log likelihood; with the trees held fixed, row i's fit is a
+# function of row i's predictors alone, so this factorizes
+logLik <- function() {
+  fA <- as.numeric(sA$getFitsWithoutOffset())
+  fB <- as.numeric(sB$getFitsWithoutOffset())
+  dnorm(d1$y, fA, as.numeric(sA$getSigmas()), log = TRUE) +
+    ifelse(d2$y == 1, pnorm(fB, log.p = TRUE), pnorm(-fB, log.p = TRUE))
+}
+
+current <- sA$data@x[, "theta"]
+llCurrent <- logLik() + dnorm(current, 0, 1, log = TRUE)
+proposal <- current + rnorm(nJ, 0, 0.5)
+
+installed <- updatePredictorPerObservationJointly(list(sA, sB), proposal,
+                                                  column = "theta")
+llProposal <- logLik() + dnorm(proposal, 0, 1, log = TRUE)
+# the conjunction: a declined observation is a REJECTED move
+accept <- installed & (log(runif(nJ)) < llProposal - llCurrent)
+theta <- ifelse(accept, proposal, current)
+reinstalled <- updatePredictorPerObservationJointly(list(sA, sB), theta,
+                                                    column = "theta")
+
+c(installed = sum(installed), accepted = sum(accept),
+  reinstalled = sum(reinstalled), n = nJ)
+```
+
+The second call returns every observation to the value the host settled on. It reverts rows to values the samplers already held, so it is expected to be total; check its mask rather than assume it, since a `FALSE` there would mean the samplers and the host disagree about the current state.
+
+## 5. An outer sampler that owns sigma
+
+`resid.prior = fixed(value)` holds the residual variance at `value` and suppresses the sampler's own draw, which is exactly what a host wants when sigma is drawn elsewhere -- from a hierarchical prior, jointly with another outcome, or from a scale shared across several samplers. `setSigma` then writes it, and it stays written.
+
+```{r recipe5}
+set.seed(505L)
+x <- matrix(runif(n * 3L), n, 3L)
+fTrue <- 2 * (x[, 1L] - 0.5) + sin(2 * pi * x[, 2L])
+y <- rnorm(n, fTrue, 0.75)
+
+sigma <- 1
+control <- recipeControl(55L)
+sampler <- dbarts(x, y, control = control, resid.prior = fixed(sigma^2))
+
+keepSigma <- rep(NA_real_, nDraws)
+for (i in seq_len(nBurn + nDraws)) {
+  sampler$setSigma(sigma)                   # the sampler will not redraw it
+  sampler$run(0L, 1L)
+  f <- as.numeric(sampler$getFitsWithoutOffset())
+  sigma <- sqrt(sum((y - f)^2) / rchisq(1L, n))
+  if (i > nBurn) keepSigma[i - nBurn] <- sigma
+}
+
+c(mean = mean(keepSigma), truth = 0.75)
+```
+
+The channel exists only where the model has a residual scale to own. A family that fixes it by definition refuses the write rather than accepting it and quietly rescaling every leaf posterior:
+
+```{r recipe5_guard, error=TRUE}
+probit <- dbarts(x, rbinom(n, 1L, 0.5), family = "probit", control = control)
+probit$setSigma(1)
+```
+
+## 6. Reading the fit an incremental scheme needs
+
+The last recipe is about a read, not a write. A host driving the sampler one sweep at a time conditions on $f(x_i)$, and `$getFitsWithoutOffset()` is the method that reports it. `run()$train` reports the same location with the installed offset folded in, and `$getLatents()` reports the augmentation variable, which carries no offset at all. Differencing the last two is the trap: `getLatents() - run()$train` is short by exactly the offset, so an outer block that regresses it on the offset's own covariate recovers a coefficient shrunk toward zero.
+
+```{r recipe6}
+gammaTrue <- 1.5
+
+set.seed(314L)
+x <- matrix(runif(n * 3L), n, 3L)
+v <- rnorm(n)
+fTrue <- 2 * (x[, 1L] - 0.5) + sin(2 * pi * x[, 2L])
+y <- rbinom(n, 1L, pnorm(fTrue + gammaTrue * v))
+
+gamma <- 0
+control <- recipeControl(20L)
+sampler <- dbarts(x, y, offset = gamma * v, family = "probit",
+                  control = control)
+
+keepGamma <- rep(NA_real_, nDraws)
+for (i in seq_len(nBurn + nDraws)) {
+  offset <- gamma * v
+  sampler$setOffset(offset)
+  train <- as.numeric(sampler$run(0L, 1L)$train)
+  z <- as.numeric(sampler$getLatents())
+  f <- as.numeric(sampler$getFitsWithoutOffset())
+  # z - f, NOT z - train: the training channel carries the offset already
+  vv <- 1 / (sum(v * v) + 1 / 4)
+  gamma <- rnorm(1L, vv * sum(v * (z - f)), sqrt(vv))
+  if (i > nBurn) keepGamma[i - nBurn] <- gamma
+}
+
+c(mean = mean(keepGamma), truth = gammaTrue,
+  shortfall = max(abs((z - train) - ((z - f) - offset))))
+```
+
+The last column is zero by construction, which is the point: `z - train` and `z - f` differ by the installed offset exactly. Substituting `train` for `f` above pulls the posterior mean of $\gamma$ from `r round(mean(keepGamma), 2)` to about 0.29, roughly seventeen oracle standard errors below the truth, on a run that reports no error at all.
+
+## Where to look next
+
+`?dbarts-embedding` collects the channels, the reads and the rules the recipes above apply. `?dbartsSampler` documents each method, including which quantity each reporting method returns; `?dbartsAugmentation` documents the two augmentation helpers; and `?dbartsValidateComposition` documents the calibration check.
