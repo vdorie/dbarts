@@ -256,6 +256,51 @@ void refuseSparseLeafCovariate(const bartcore::SamplerShape& shape,
 void validateTestContainerAgainstStore(const bartcore::ColumnStore& store,
                                        const bartcore::PredictorSource& view);
 
+/// What one per-observation augmentation step reads, from either surface. fit
+/// is the location WITHOUT the offset - the engine's own totalFits convention -
+/// so the linear predictor psi = fit + offset is formed inside and a null
+/// offset is zero; a working response reads its latent through the same member.
+/// weights are the logistic counts (null is unit), cutpoints the ordinal's
+/// K - 1, and the three scalars are read only by the family whose law names
+/// them.
+struct AugmentationInputs {
+  std::size_t numObservations;
+  const double* fit;
+  const double* y;
+  const double* weights;
+  const double* offset;
+  const double* cutpoints;
+  std::size_t numCutpoints;
+  double sigma;
+  double dispersion;
+  double df;
+};
+
+/// The family an augmentation helper's name selects: the law it draws AND the
+/// arm validateResponseSupport states the response's support with. "student"
+/// has no member of its own - a Student-t residual distribution is a gaussian
+/// response under a scale mixture - so it maps to gaussian, whose support arm
+/// constrains nothing and whose law IS the mixture. Errors on any other name.
+bartcore::ResponseFamily augmentationFamily(const char* name);
+
+/// One draw per observation into result, each the law its engine site draws,
+/// from a per-call generator seeded off R's own stream: main R thread only, and
+/// the bracket is taken here rather than by the caller. Both surfaces reach the
+/// stream through this one function, so a flat and an R call under one seed
+/// agree bitwise. caller labels the error a generator that cannot be created
+/// raises; every argument the law reads is the caller's to have validated.
+void drawAugmentation(bartcore::ResponseFamily family,
+                      const AugmentationInputs& in, double* result,
+                      const char* caller);
+
+/// The quantity a host regresses on given the drawn latent, read off the same
+/// engine sites: a Polya-Gamma family divides its kappa by the drawn precision,
+/// Student-t regresses on y (its latent weights the row instead), and a
+/// location family on the latent - each less the offset. Draws nothing.
+void computeWorkingResponse(bartcore::ResponseFamily family,
+                            const AugmentationInputs& in, const double* latent,
+                            double* result);
+
 } // namespace bartcore_bridge
 
 #endif // R_INTERFACE_BARTCORE_COMMON_HPP

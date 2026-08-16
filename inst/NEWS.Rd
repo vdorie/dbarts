@@ -892,6 +892,20 @@
             \code{dbarts_sampler_forestCalibration} and
             \code{dbarts_sampler_setForestPriorScale} reach the per-forest
             weight, active-row mask and leaf-prior calibration channels from C.
+      \item A C host reads the negative-binomial dispersion \eqn{r}{r} without
+            an R round trip: \code{dbarts_results} gains a \code{dispersion}
+            field shaped as \code{sigma}, and \code{dbarts_sampler_dispersion}
+            reads the value in force mid-sweep, returning 0 and touching
+            nothing off a family carrying none. The field is appended, so a
+            consumer compiled against the smaller struct is unaffected.
+      \item \code{dbarts_drawLatents} and \code{dbarts_workingResponse} mirror
+            \code{\link{dbartsDrawLatents}} and \code{dbartsWorkingResponse}
+            over caller-supplied arrays: the same laws, the same family rules
+            and response-support validation, drawn from R's own stream.
+      \item \code{DBARTS_C_API_HASH} is re-baked for the three entry points
+            above. They are append-only, so no existing call site changes, but
+            a consumer checking \code{dbarts_apiHash()} against the header
+            constant must be rebuilt - the lockstep handshake as designed.
     }
   }
   \subsection{BUG FIXES}{
