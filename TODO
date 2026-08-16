@@ -28,9 +28,11 @@ under the enabling-value rule; its per-entry verdicts are folded into
 the entries below.
 
 items
-  adoption-slate: IN PROGRESS; the plan (docs/plans/adoption-slate.md)
-    is the implementation record for the whole r-c-division adoption
-    slate and supersedes the per-item prices in the entries it names.
+  adoption-slate: ARC COMPLETE 2026-08-15 (closure note at the plan's
+    EOF; anchor refresh a118ca29 closed it). The plan
+    (docs/plans/adoption-slate.md) is the implementation record for
+    the whole r-c-division adoption slate and supersedes the per-item
+    prices in the entries it names.
     Eight serialized slices: S1 LANDED 5bedf923 2026-08-15 (getLatents
     semantics on both surfaces plus $getFitsWithoutOffset, an engine
     accessor through the facade, storeSample refactored onto it,

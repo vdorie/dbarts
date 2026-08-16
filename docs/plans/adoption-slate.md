@@ -1836,3 +1836,31 @@ Landed: 13393350, pushed 2026-08-15. Independent gate-runner CONFIRM (all
 ten gates including its own stan4bart leg; audits A-F). ALL EIGHT SLICES
 OF THE ARC ARE LANDED; the arc-end scoped feature-matrix anchor refresh is
 the one remaining arc obligation.
+
+## Arc closure (appended 2026-08-15)
+
+The scoped anchor refresh landed at a118ca29: 532 anchors accounted (108
+carried over from untouched files, 142 verified unmoved in touched files,
+279 moved across 27 DISTINCT deltas - the healthy-sweep signature - and
+one dead citation), stamp moved to c05322a8, the S3 header exception
+collapsed, the pass recorded in the file's own header. The orchestrator's
+sample verification opened seven moved anchors across five delta classes
+(including a -16, a +36 and the +1112 relocation) and every one resolved
+to its symbol. The one dead citation - the Gaps section still calling
+grouped setResponse "an unbuilt door" at the guard S3 deleted - was a
+VALUE fix outside the refresh's no-re-adjudication rule, made in the same
+commit by the orchestrator: the gap is recorded CLOSED at S3, pointing at
+the section-2 cell. CI: docs-only, fires nothing; gate evidence is
+built-package byte-identity to 13393350.
+
+THE ADOPTION-SLATE ARC IS COMPLETE: eight slices, every one landed with
+an implementer battery plus an independent gate-runner battery on
+separate libs, orchestrator diff review, and CI six-green; zero baseline
+re-records anywhere, exactly as designed - the trio stayed bitwise at
+every slice. Decision 6's slate is discharged in full. Residue living
+elsewhere: the freeze-time four-package re-verification (release
+checklist), the valgrind/memcheck and rchk legs riding the first
+scheduled runs after bartcore reaches main, ticket
+host-shell-read-guards, ticket latent-family-weight-channel, the raw
+ext_rng door, the grouped re-anchor door (F3 alternative (C)), and the
+doors this plan's "Doors held open" section records.
