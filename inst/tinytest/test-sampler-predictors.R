@@ -53,6 +53,61 @@ expect_equal(as.numeric(sampler$data@x), as.numeric(new.data))
 rm(new.data, new.z, new.x, z, n, sampler)
 
 
+# whole-matrix setPredictor dimnames (setpredictor-dimnames fix): matrix()
+# strips attributes, so the replacement used to lose column names even when
+# the sampler was built with them; distinctive names catch a fallback that
+# silently regressed to the sampler's own defaults
+set.seed(11)
+dimTrain <- data.frame(qux = testData$x, frob = testData$z, y = testData$y)
+dimControl <- dbarts::dbartsControl(
+  n.trees = 20L,
+  n.burn = 0L,
+  n.samples = 1L,
+  n.chains = 1L,
+  n.threads = 1L,
+  updateState = FALSE,
+  verbose = FALSE
+)
+dimSampler <- dbarts::dbarts(y ~ qux + frob, dimTrain, control = dimControl)
+invisible(dimSampler$run(50L, 1L)) # grow real splits, not just root leaves
+n <- testData$n
+
+# 1: a rejected transactional whole-matrix call (a degenerate, constant
+# design empties every non-root leaf) leaves the original data, names
+# included, untouched -- tried first, before any forced call below can
+# collapse the splits this relies on
+xBefore <- dimSampler$data@x
+accepted <- dimSampler$setPredictor(matrix(0, n, 2L), forceUpdate = FALSE)
+expect_false(isTRUE(accepted))
+expect_equal(dimSampler$data@x, xBefore)
+expect_equal(colnames(dimSampler$data@x), c("qux", "frob"))
+
+# 2: a NAMED replacement installs its OWN names, distinct from the
+# sampler's current ones -- pins that incoming names win rather than the
+# fallback below silently always applying
+namedX <- matrix(rnorm(2L * n), n, dimnames = list(NULL, c("zork", "gleep")))
+invisible(dimSampler$setPredictor(namedX))
+expect_equal(colnames(dimSampler$data@x), c("zork", "gleep"))
+
+# 3: an UNNAMED replacement falls back to the sampler's CURRENT names
+# (zork/gleep, installed by 2 above, not the original qux/frob) -- pins
+# that the fallback reads the live matrix, not some cached original
+unnamedX <- matrix(rnorm(2L * n), n)
+invisible(dimSampler$setPredictor(unnamedX))
+expect_equal(colnames(dimSampler$data@x), c("zork", "gleep"))
+
+# 4: by-name column resolution still works after both whole-matrix calls
+# above; forced so the assertion is about name lookup, not tree acceptance
+invisible(dimSampler$setPredictor(
+  numeric(n),
+  column = "gleep",
+  forceUpdate = TRUE
+))
+expect_equal(as.numeric(dimSampler$data@x[, "gleep"]), numeric(n))
+
+rm(dimTrain, dimControl, dimSampler, n, namedX, unnamedX, xBefore, accepted)
+
+
 # test that dbarts sampler shallow/deep copies
 ## train, test defined above
 sampler <- dbarts::dbarts(y ~ x + z, train, test, control = control)

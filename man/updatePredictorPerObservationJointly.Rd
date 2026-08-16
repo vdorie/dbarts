@@ -47,10 +47,9 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NA)
   sampler.
 
   A whole-matrix \code{setPredictor} call on one of the samplers, made earlier in the same script,
-  strips the column names from that sampler's \code{data@x} (see \sQuote{Multi-forest and
-  heteroscedastic predictor mutation}, \code{\link[=dbartsSampler-class]{dbartsSampler}}) and this
-  function's by-name \code{column} matching then fails on it. Either replace predictors a column at a
-  time on samplers this function will later reference, or call this function first.
+  keeps that sampler's column names (see \sQuote{Multi-forest and heteroscedastic predictor
+  mutation}, \code{\link[=dbartsSampler-class]{dbartsSampler}}), so this function's by-name
+  \code{column} matching continues to resolve against it afterward.
 }
 \value{
   A logical vector of length equal to the number of observations, \code{TRUE} where the observation's

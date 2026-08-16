@@ -163,9 +163,9 @@ xPinJitter <- pmin(
   pmax(xPin + matrix(rnorm(nPin * 3L, 0, 0.005), nPin), 0),
   1
 )
-# the joint entry resolves its column by NAME, and a whole-matrix replacement
-# leaves data@x without dimnames (pre-existing R-layer behavior, shared with
-# every other shape's transactional path), so it runs first
+# the joint entry resolves its column by NAME; runs before the whole-matrix
+# replacement below, which now keeps data@x's dimnames, so both orderings
+# would resolve - this one is simplest to seed
 installedJointly <- dbarts::updatePredictorPerObservationJointly(
   pinned,
   xPinJitter[, 3L],
