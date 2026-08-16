@@ -717,8 +717,8 @@ gap, not an engine one.
 (`buildVarianceForest` CH:3838 never sets `useDart`, default false at CH:125).
 
 [f39] Current baselines: `equivalence-8b047f8b.rds` (37 scenarios),
-`bcf-equivalence-8b047f8b.rds` (12), `multinomial-equivalence-1027be5.rds` (10)
-- benchmarks/baselines/MANIFEST:16, 42, 48. Scenario names are the keys in
+`bcf-equivalence-6e3b9fb8.rds` (12), `multinomial-equivalence-1027be5.rds` (10)
+- benchmarks/baselines/MANIFEST:16, 42, 49. Scenario names are the keys in
 `makeScenarios()`, benchmarks/R/equivalence.R:60.
 
 [f40] docs/plans/sbc-family-tiers.md (status BUILT) plus
