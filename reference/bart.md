@@ -661,8 +661,12 @@ summary(object, ...)
   e^{\psi}\\ at the stored per-draw dispersion (a log-exposure
   `offset.test` enters \\\psi\\ additively). `rbart_vi` and `xbart` do
   not fit count responses (grouped negative-binomial models, real
-  dispersion, and a Poisson family are recorded follow-ups). The fit's
-  class is `"bartNegbin"`, not `"bart"`: see ‘Value’ below.
+  dispersion, and a Poisson family are recorded follow-ups). `y.train`
+  is additionally capped at \\10^6\\: the dispersion grid's count
+  histogram is sized from the largest count, so a larger one allocates
+  without bound, and a count above it is refused at creation and at
+  every response swap alike. The fit's class is `"bartNegbin"`, not
+  `"bart"`: see ‘Value’ below.
 
   `family = "hazard"` and `family = "hazard.logistic"` fit a
   discrete-time survival hazard model as *ingestion sugar* over the
@@ -1212,7 +1216,11 @@ the posterior draws of the K - 1 finite thresholds \\(\gamma_1 = 0,
 analog of gaussian's `sigma`, from which probabilities at any latent
 value can be reconstructed - and `varcount`. `bc`, `fit`, and
 `cutpoints.raw` (the per-draw thresholds in the internal layout
-`predict` consumes) are present only under `keepTrees`.
+`predict` consumes) are present only under `keepTrees`. As for a
+multinomial fit, `fit` is only the host shell of the ordinal model: it
+carries the design and priors that model was built from but none of the
+model itself, so it refuses mutation (`$setResponse`, `$run`, and the
+rest) rather than accepting a change nothing would read.
 
 Generics for a `"bartOrdinal"` fit: `fitted(object)` returns the
 posterior-mean n \\\times\\ K probability matrix (columns named by
@@ -1238,6 +1246,9 @@ log-odds latent \\\psi = f(x) + o\\ - `dispersion` - the per-draw
 dispersion \\r\\, the count analog of gaussian's `sigma` - and
 `varcount`. `bc`, `fit`, and `dispersion.raw` (the per-draw \\r\\ in the
 internal layout `predict` consumes) are present only under `keepTrees`.
+`fit` is only the host shell of the count model, refusing mutation
+exactly as the ordinal and multinomial hosts do; `$getDispersion()` on
+it is refused too, since the shell's own \\r\\ is not the fit's.
 
 Generics for a `"bartNegbin"` fit: `fitted(object)` returns the
 posterior-mean count per observation; `fitted(object, type = "bart")`
@@ -1367,7 +1378,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.215573
+#> total seconds in loop: 0.220702
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1433,7 +1444,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001366
+#> total seconds in loop: 0.001406
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

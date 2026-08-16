@@ -172,7 +172,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   A numeric response vector of length equal to that with which the
   sampler was created, and lying in the response family's support: 0/1
   for `probit` and `logistic`, an integer category index in \\\[1, K\]\\
-  for `ordinal`, and a finite non-negative integer count for `nbinom`.
+  for `ordinal`, and a finite non-negative integer count no larger than
+  \\10^6\\ for `nbinom` (the dispersion grid's count histogram is sized
+  from the largest count, so a larger one allocates without bound).
   Values off the support are refused, as they are at creation;
   `gaussian` and `aft` (log survival times) constrain nothing.
 

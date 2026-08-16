@@ -406,12 +406,14 @@ dbarts(
   fits a log-odds latent \\\psi = f(x) + o\\ and \\y \sim \mathrm{NB}(r,
   \mathrm{plogis}(\psi))\\, with mean \\E\[y \mid x\] = r e^{\psi}\\, so
   the offset enters multiplicatively as a log-exposure. The response
-  must be a non-negative integer, and `"nbinom"` is never inferred - a
-  count carries no unambiguous class, so it must be requested
-  explicitly. The dispersion `r` is estimated by default (see
-  `dispersion`); like probit, the latent scale is fixed at 1, fits are
-  on the latent (log-odds) scale, and weights are not supported
-  (exposure belongs in the offset). `bart2` reports mean counts; see
+  must be a non-negative integer no larger than \\10^6\\ (the dispersion
+  grid's count histogram is sized from the largest count), and
+  `"nbinom"` is never inferred - a count carries no unambiguous class,
+  so it must be requested explicitly. The dispersion `r` is estimated by
+  default (see `dispersion`); like probit, the latent scale is fixed at
+  1, fits are on the latent (log-odds) scale, and weights are not
+  supported (exposure belongs in the offset). `bart2` reports mean
+  counts; see
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md).
 
   `"hazard"` and `"hazard.logistic"` fit a discrete-time survival hazard
