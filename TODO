@@ -50,10 +50,10 @@ items
     (dbartsValidateComposition, SBC over a host-supplied step, R-only;
     landing note in the plan), S6 LANDED 55811082 2026-08-15 (the
     dbarts-as-a-component vignette's six tested recipes plus the
-    dbarts-embedding Rd topic; landing note in the plan), S7 residue
-    (nbinom magnitude cap, hostFor on
-    both remaining bart2 hosts, the flat setWeights guard), S8 the
-    arc's ONE dbarts.h re-bake. Fork F1 settled by VD, the rest under
+    dbarts-embedding Rd topic; landing note in the plan), S7 LANDED
+    cedf4c34 2026-08-15 (nbinom cap at 1e6, hostFor on the ordinal
+    and nbinom hosts, the flat setWeights guard; landing note in the
+    plan), S8 the arc's ONE dbarts.h re-bake. Fork F1 settled by VD, the rest under
     a delegated grant, 2026-08-15; three adversarial passes
     discharged. Budgets are RAW ADDITIONS, a recorded arc-level
     deviation from multiplier-combiner.md's dense convention. Zero
@@ -613,20 +613,16 @@ items
     refuseVarianceForestScaleUpdate, both surfaces; refuseBinaryWeightChange
     is reworded per family; the multinomial bart2 $fit placeholder
     now refuses mutation via a hostFor field plus refuseHostMutation
-    on the R sampler class. DELIBERATE DEVIATION: no nbinom magnitude
-    cap - creation imposes none either, so y=1e9 still hangs on both
-    creation and mutation; a magnitude-cap or sparse-tally decision is
-    open, VD-facing, unscheduled. OPEN: defect 5 (getLatents
-    location-vs-precision semantics, the wrong "(gaussian)"
-    parenthetical in dbarts.h, run()$train CARRIES THE OFFSET
-    (incremental-use trap measured at 7-10 oracle SEs), the
-    offset-free fit accessor) remains a docs slice. OPEN FOLLOW-ONS,
-    same class, unscheduled: the flat C dbarts_sampler_setWeights
-    lacks refuseBinaryWeightChange (silent ignore on probit/ordinal/
-    aft/nbinom; logistic reaches a division by zero on a negative
-    weight); bart2's ordinal and nbinom hosts also retain a
-    disconnected $fit sampler carrying the real family - whether to
-    extend the hostFor guard to them is a VD question BY NAME.
+    on the R sampler class. ALL RESIDUE NOW CLOSED by adoption-slate:
+    the nbinom magnitude cap (1e6, derived from computeKernel's 8
+    bytes per count unit) landed at S7 cedf4c34, as did the flat C
+    dbarts_sampler_setWeights refuseBinaryWeightChange call and the
+    hostFor extension to bart2's ordinal and nbinom hosts (adopted at
+    the arc walkthrough); defect 5 (getLatents semantics, the
+    offset-free fit accessor, the incremental-use trap) landed at S1
+    5bedf923 with the vignette recipe at S6 55811082. The sparse-tally
+    alternative to the cap remains a recorded door with no named use
+    (adoption-slate design, nbinom-cap section).
   sampletreesfromprior-midchain: FIXED (defect record, shape decision,
     and landing note in docs/plans/sampletreesfromprior-midchain.md).
   sbc-family-tiers: BUILT (records in docs/plans/sbc-family-tiers.md

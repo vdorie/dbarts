@@ -1667,3 +1667,83 @@ the shipped Rd/landing-note record, tolerance recomputation on its own
 bitwise-identical run, deviation audits all clean). No feature-matrix
 cell bears on the recipes; none updated. The arc-end scoped anchor
 refresh stays owed.
+
+## Landing note, S7 (appended 2026-08-15)
+
+**The bound is 1e6, derived, not chosen**: `NBDispersionPrior::computeKernel`
+allocates its count histogram as `maxCount + 1` doubles - 8 bytes per unit of
+the largest count - so y = 1e9 requested 8 GB where no R error can be raised,
+while the bound pins the request at 8,000,008 bytes and the kernel rebuild at
+1.3e7 multiply-adds, measured at 0.02 s. The bytes-at-bound arithmetic lives
+in the guard comment; the bound is stated in the error message, three Rd
+files where the support rule already appears (bart.Rd, dbarts.Rd,
+dbartsSampler-class.Rd), `dbarts.h`'s setResponse comment and NEWS. The
+Polya-Gamma O(y + r) draw cost (0.63 s at the bound) is recorded as a family
+cost, deliberately NOT the refusal's reason. The comparison sits inside
+`validateResponseSupport`'s nbinom arm, so one edit covers creation and every
+y-swapping conduit on both surfaces - and, by the same channel, S4's
+`dbartsDrawLatents`/`dbartsWorkingResponse`, which share the O(y) hang;
+intended, no shipped cell moved. The gate-runner traced all six caller sites
+at HEAD; the flat surface has NO `dbarts_sampler_setData` (verified), so its
+conduit set is {creation, setResponse} and the spec's "both mutation
+conduits" reads R-side.
+
+`hostFor` now marks all FOUR bart2 placeholder hosts: the two new
+assignments (ordinal, nbinom) mirror the multinomial pair exactly - same
+field, same string shape, same placement after the bartcore sampler is
+built - and the shipped `refuseHostMutation`/`refuseHostRead` wiring does
+the rest, including `$getDispersion` on the count shell, whose placeholder
+r is not the fit's.
+
+`refuseBinaryWeightChange` left the R bridge's anonymous namespace for
+`bartcore_bridge` - the gate-runner diffed the two bodies byte-identical
+(only the comment gained an external-linkage note), confirmed exactly one
+definition remains, and read `dbarts_sampler_setWeights` end to end: the
+call lands after the multi-forest guard, before the install, and nothing
+else changed. Signature deliberately unchanged (no caller label; the
+messages name the FAMILY and four shipped cells match on that text).
+
+The `dbarts.h` touch, the slice's sharpest review point: a three-line
+comment edit on `dbarts_sampler_setResponse`'s Doxygen block, outside
+`DBARTS_C_API_LIST` (which carries only type/name/param tuples, no prose),
+so the FNV-1a hash CANNOT see it - and neutrality is GATED, not asserted:
+test-capi.R's `0xcd88efcd67de55d7` text-hash cell and its
+`matches.header` companion are untouched by the diff and green in both
+batteries, and the install's own `static_assert` held. NO apiHash move, no
+consumer-lockstep event.
+
+Mutations, each to its own lib, reverted, verified: bound raised to 2e6 -
+SIX cells go GREEN (R creation/$setResponse/$setData, flat
+creation/setResponse, the refused-swap pin), proving the fixture (1000001,
+with 1000000 accepted at-bound) sits just over; ordinal `hostFor` dropped -
+3 RED all ordinal, nbinom 79/79 green; nbinom `hostFor` dropped - 4 RED
+including `$getDispersion`, ordinal 80/80 green; flat call site dropped -
+2 RED both capi-side, every R-side cell green, which is the promotion's
+whole point. METHOD LESSON, now in the standing mechanics: restoring a
+mutated `.cpp` by `mv` preserves the old mtime, so `make` keeps the mutated
+object and the "clean" verification runs mutated code - `touch` after every
+revert (one mutation run was re-run after this was caught; the recorded
+table is the clean run).
+
+Budget, raw additions against ed04b6f3: non-test 113 as `numstat` counts
+it, of which 25 is the setWeights MOVE charged as additions (bodies
+byte-identical, verified) - net-new 89 against the ~65 estimate, inside
+the 55-95 band; NEWS is 22 for three user-visible refusals. Tests 112
+against ~105, inside. No stop approached.
+
+Battery, twice, separate libs (implementer /tmp/s7-lib, gate-runner
+/tmp/s7-gate-lib): install; tests/cpp from `make clean` 244 ok; tinytest
+5239 results, 0 failures (5218 at S6 + 21); trio BITWISE, no re-record
+(37/37, 12/12, 10/10 - all three fixes are refusals no harness scenario
+reaches); air clean; lintr 0 on all five touched R files; NEWS parses (239
+entries); `pkgdown::check_pkgdown` no problems, no topic owed;
+`R CMD check --as-cran` from a git-archive tarball staged outside the
+tree, Status OK, 0/0/0. No ASAN leg owed - no new engine code becomes
+reachable and the cap makes an existing path unreachable.
+
+Landed: cedf4c34, pushed 2026-08-15. Independent gate-runner CONFIRM (all
+eight gates, audits A-F all verified against source). This closes the
+response-support-validation entry's whole residue: the G1 landing's
+deliberate deviation (the cap), both of its open follow-ons (the flat
+setWeights guard, the hostFor extension), with defect 5 closed at S1/S6.
+The arc-end scoped anchor refresh stays owed; S8 is the arc's last slice.
