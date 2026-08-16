@@ -135,6 +135,8 @@ Convergence summaries, and calibration of a sampler composed around one.
 
 ## Utilities
 
+- [`dbarts-embedding`](https://vdorie.github.io/dbarts/reference/dbarts-embedding.md)
+  : Embedding dbarts In A Larger Sampler
 - [`plotTree()`](https://vdorie.github.io/dbarts/reference/plotTree.md)
   : Plot a Single Tree From a Fitted BART Model
 - [`makeModelMatrixFromDataFrame()`](https://vdorie.github.io/dbarts/reference/makeind.md)

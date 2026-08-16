@@ -1298,6 +1298,16 @@ Hugh Chipman: <hugh.chipman@gmail.com>, Robert McCulloch:
 
 [`pdbart`](https://vdorie.github.io/dbarts/reference/pdbart.md)
 
+[`dbarts-embedding`](https://vdorie.github.io/dbarts/reference/dbarts-embedding.md)
+and
+[`vignette("dbarts-as-a-component", package = "dbarts")`](https://vdorie.github.io/dbarts/articles/dbarts-as-a-component.md)
+for using BART as one block of a sampler you write, rather than as the
+whole fit: these functions own their own MCMC loop, while
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) returns
+a
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+that runs one sweep at a time.
+
 ## Examples
 
 ``` r
@@ -1357,7 +1367,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.217371
+#> total seconds in loop: 0.215573
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1423,7 +1433,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001427
+#> total seconds in loop: 0.001366
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

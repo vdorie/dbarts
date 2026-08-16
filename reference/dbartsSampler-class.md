@@ -1098,6 +1098,12 @@ for repeated
 `sampleTreesFromPrior`/`sampleNodeParametersFromPrior`/`predict` draws
 on a private sampler, for calibrating priors before fitting.
 
+[`dbarts-embedding`](https://vdorie.github.io/dbarts/reference/dbarts-embedding.md)
+for which channel an outer block writes, which fit it reads back, and
+whose prior is in force after a swap, and
+[`vignette("dbarts-as-a-component", package = "dbarts")`](https://vdorie.github.io/dbarts/articles/dbarts-as-a-component.md)
+for six worked compositions built from these methods.
+
 ## Examples
 
 ``` r

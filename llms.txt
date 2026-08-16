@@ -206,6 +206,8 @@ Convergence summaries, and calibration of a sampler composed around one.
 
 ## Utilities
 
+- [`dbarts-embedding`](https://vdorie.github.io/dbarts/reference/dbarts-embedding.md)
+  : Embedding dbarts In A Larger Sampler
 - [`plotTree()`](https://vdorie.github.io/dbarts/reference/plotTree.md)
   : Plot a Single Tree From a Fitted BART Model
 - [`makeModelMatrixFromDataFrame()`](https://vdorie.github.io/dbarts/reference/makeind.md)
@@ -219,6 +221,8 @@ Convergence summaries, and calibration of a sampler composed around one.
 
 ### All vignettes
 
+- [dbarts as a
+  Component](https://vdorie.github.io/dbarts/articles/dbarts-as-a-component.md):
 - [Building a Gibbs Sampler with
   dbarts](https://vdorie.github.io/dbarts/articles/gibbs_sampler_mixture_model.md):
 - [Working with dbarts Saved

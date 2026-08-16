@@ -30,7 +30,8 @@ bart2 fits further response families through its family argument, described belo
       <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/gibbs_sampler_mixture_model.html">Building a Gibbs Sampler with dbarts</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/dbarts-as-a-component.html">dbarts as a Component</a></li>
+    <li><a class="dropdown-item" href="../articles/gibbs_sampler_mixture_model.html">Building a Gibbs Sampler with dbarts</a></li>
     <li><a class="dropdown-item" href="../articles/working_with_saved_trees.html">Working with dbarts Saved Trees</a></li>
   </ul></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -505,7 +506,11 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="pdbart.html">pdbart</a></code></p></div>
+    <div class="dont-index"><p><code><a href="pdbart.html">pdbart</a></code></p>
+<p><code><a href="dbarts-embedding.html">dbarts-embedding</a></code> and <code><a href="../articles/dbarts-as-a-component.html">vignette("dbarts-as-a-component", package = "dbarts")</a></code> for
+using BART as one block of a sampler you write, rather than as the whole fit: these functions own
+their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns a
+<code><a href="dbartsSampler-class.html">dbartsSampler</a></code> that runs one sweep at a time.</p></div>
     </div>
 
     <div class="section level2">
@@ -566,7 +571,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.217371</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.215573</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -632,7 +637,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001427</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001366</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>
