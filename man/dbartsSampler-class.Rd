@@ -120,7 +120,7 @@
     An object inheriting from \code{\link{dbartsData}}.
   }
   \item{y}{
-    A numeric response vector of length equal to that with which the sampler was created, and lying in the response family's support: 0/1 for \code{probit} and \code{logistic}, an integer category index in \eqn{[1, K]}{[1, K]} for \code{ordinal}, and a finite non-negative integer count for \code{nbinom}. Values off the support are refused, as they are at creation; \code{gaussian} and \code{aft} (log survival times) constrain nothing.
+    A numeric response vector of length equal to that with which the sampler was created, and lying in the response family's support: 0/1 for \code{probit} and \code{logistic}, an integer category index in \eqn{[1, K]}{[1, K]} for \code{ordinal}, and a finite non-negative integer count no larger than \eqn{10^6}{1e6} for \code{nbinom} (the dispersion grid's count histogram is sized from the largest count, so a larger one allocates without bound). Values off the support are refused, as they are at creation; \code{gaussian} and \code{aft} (log survival times) constrain nothing.
   }
   \item{x}{
     A numeric predictor vector of length equal to that with which the sampler was created. Can be of a distinct number of rows for \code{setTestPredictor}.

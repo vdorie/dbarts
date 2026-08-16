@@ -22,6 +22,7 @@
 using std::size_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::refuseBCFTestSurface;
+using bartcore_bridge::refuseBinaryWeightChange;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseGroupedScaleUpdate;
 using bartcore_bridge::refuseMultiForestMutation;
@@ -498,6 +499,11 @@ void dbarts_sampler_setWeights(dbarts_sampler* sampler,
   refuseMultiForestResponseMutation(samplerOf(sampler),
                                     "dbarts_sampler_setWeights",
                                     ResponseConduit::weights, 0);
+  // and the family rule bartcore_setWeights states: every family but gaussian
+  // refuses a weight change, which this entry used to drop on the floor -
+  // probit/ordinal/aft/nbinom install a vector nothing reads, and a logistic
+  // one restates the Polya-Gamma counts under the drawn latents
+  refuseBinaryWeightChange(samplerOf(sampler));
   samplerOf(sampler).setWeights(weights);
 }
 

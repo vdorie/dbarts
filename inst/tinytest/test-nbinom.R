@@ -122,6 +122,19 @@ fitNoTrees <- bart2(
 )
 expect_error(predict(fitNoTrees, x.test), pattern = "keepTrees")
 
+# --- the retained $fit is a host shell, as a multinomial fit's is ---
+# bc holds the count model; the host carries only the design and priors it was
+# built from, so a mutation through it used to be a silent no-op and
+# $getDispersion() answered with the placeholder's own r
+hostRefusal <- "host sampler of a bart2\\(family = \"nbinom\"\\) fit"
+expect_error(fit$fit$setResponse(as.double(y)), hostRefusal)
+expect_error(fit$fit$setData(dbartsData(x, as.double(y))), hostRefusal)
+expect_error(fit$fit$run(0L, 1L), hostRefusal)
+expect_error(fit$fit$getDispersion(), hostRefusal)
+# the read surface predict() threads through is untouched
+expect_equal(ncol(fit$fit$data@x), ncol(x))
+expect_equal(predict(fit, x.test), fit$yhat.test)
+
 # --- print names the family and reports the dispersion ---
 
 printed <- capture.output(print(fit))
@@ -273,10 +286,9 @@ expect_true(all(after[[1L]]$latents > 0)) # omega are Polya-Gamma (positive)
 # the support rule creation applies is applied at mutation too. A negative
 # element is memory safety, not taste: it used to size the dispersion kernel's
 # count histogram through static_cast<size_t>(lround(y)), underflowing into a
-# ~1.8e19 allocation that took the process down uncatchably. Magnitude itself
-# is NOT bounded here - a large count is a legal count at creation too, and the
-# exact Polya-Gamma augmentation's O(y + r) cost is a recorded family cost -
-# but a non-finite one is refused with the rest.
+# ~1.8e19 allocation that took the process down uncatchably. Magnitude is the
+# same allocation defect from the other side (see the cap below); a non-finite
+# element is refused with the rest.
 countRefusal <- "family \"nbinom\" requires a non-negative integer"
 expect_error(
   sampler$setResponse(replace(as.double(yNew), 1L, -1)),
@@ -295,6 +307,42 @@ expect_error(
 expect_identical(sampler$data@y, as.double(yNew))
 sampler$setResponse(as.double(replace(yNew, 1L, yNew[1L] + 1L)))
 expect_identical(sampler$data@y, as.double(replace(yNew, 1L, yNew[1L] + 1L)))
+
+# --- the magnitude cap: 1e6, at creation and on both mutation conduits ---
+# NBDispersionPrior::computeKernel allocates maxCount + 1 doubles, 8 bytes per
+# unit of the largest count, so an unbounded y is the same allocation defect a
+# negative one is: y = 1e9 asks for 8 GB where no R error can be raised. The
+# bound pins that at 8 MB, and creation and every conduit that swaps y state it
+# alike (the flat C surface's half is in test-capi.R)
+capRefusal <- "counts no larger than 1000000"
+overBound <- as.double(replace(y, 1L, 1000001))
+expect_error(dbarts(x, overBound, family = "nbinom"), capRefusal)
+
+capSampler <- dbarts(
+  x,
+  as.double(y),
+  family = "nbinom",
+  control = control,
+  verbose = FALSE
+)
+expect_error(capSampler$setResponse(overBound), capRefusal)
+expect_error(capSampler$setData(dbartsData(x, overBound)), capRefusal)
+# a refused swap leaves the installed response alone, and both conduits still
+# take an in-bound one
+expect_identical(capSampler$data@y, as.double(y))
+capSampler$setResponse(as.double(replace(y, 1L, y[1L] + 1L)))
+capSampler$setData(dbartsData(x, as.double(y)))
+expect_identical(capSampler$data@y, as.double(y))
+# the bound itself is IN - the comparison is > and not >= - so a response whose
+# largest count is exactly 1e6 builds, at an 8 MB histogram
+atBound <- dbarts(
+  x,
+  as.double(replace(y, 1L, 1000000)),
+  family = "nbinom",
+  control = control,
+  verbose = FALSE
+)
+expect_equal(max(atBound$data@y), 1e6)
 
 # --- recovery: mean-count calibration and r, statistically ---
 

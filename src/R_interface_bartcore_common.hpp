@@ -181,17 +181,30 @@ void refuseGroupedScaleUpdate(const bartcore::SamplerBase& sampler,
                               const char* caller, ResponseConduit conduit,
                               int updateScale);
 
+/// Errors on a post-creation case-weight change under any family but gaussian,
+/// the mutation half of the policy enforceBinaryWeightPolicy states at
+/// creation: probit, ordinal, aft and nbinom support no weights at all, and
+/// logistic weights are the observation counts its Polya-Gamma latents were
+/// built from, so a swap would leave every latent stated against counts the
+/// sampler no longer holds (and a negative one divides by zero in the working
+/// response). The message names the actual family rather than "a binary
+/// response", which is the only thing an aft, ordinal or nbinom caller can act
+/// on. Both the R bridge and the flat C API guard with this, so the two
+/// surfaces cannot state different rules.
+void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler);
+
 /// Errors on a response value outside the family's support, the post-creation
 /// half of the rule the R surface (R/spec.R) enforces when the sampler is
 /// built: 0/1 for probit and logistic, an integer category index in [1, K] for
-/// ordinal, a finite non-negative integer count for nbinom. gaussian and aft
-/// (log survival times) constrain nothing, so they pass through. Memory safety,
-/// not only modelling: NBDispersionPrior::computeKernel sizes its count
-/// histogram from lround(max y), which a negative element underflows into a
-/// ~1.8e19 allocation. numCategories is K for ordinal and ignored otherwise; a
-/// null y is a no-op. Called at creation (so the flat C API, which has no R
-/// surface ahead of it, states the same rule) and on every conduit that swaps
-/// y. caller labels the error.
+/// ordinal, a finite non-negative integer count no larger than 1e6 for nbinom.
+/// gaussian and aft (log survival times) constrain nothing, so they pass
+/// through. Memory safety, not only modelling: NBDispersionPrior::computeKernel
+/// sizes its count histogram from lround(max y), which a negative element
+/// underflows into a ~1.8e19 allocation and an unbounded positive one grows
+/// linearly out of memory. numCategories is K for ordinal and ignored
+/// otherwise; a null y is a no-op. Called at creation (so the flat C API, which
+/// has no R surface ahead of it, states the same rule) and on every conduit
+/// that swaps y. caller labels the error.
 void validateResponseSupport(bartcore::ResponseFamily family,
                              std::size_t numCategories, const double* y,
                              std::size_t numObservations, const char* caller);
