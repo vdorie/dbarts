@@ -92,10 +92,9 @@
   example, a shared ability or trait in an item-response model) within a larger Gibbs/Metropolis
   sampler.</p>
 <p>A whole-matrix <code>setPredictor</code> call on one of the samplers, made earlier in the same script,
-  strips the column names from that sampler's <code>data@x</code> (see ‘Multi-forest and
-  heteroscedastic predictor mutation’, <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>) and this
-  function's by-name <code>column</code> matching then fails on it. Either replace predictors a column at a
-  time on samplers this function will later reference, or call this function first.</p>
+  keeps that sampler's column names (see ‘Multi-forest and heteroscedastic predictor
+  mutation’, <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>), so this function's by-name
+  <code>column</code> matching continues to resolve against it afterward.</p>
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>

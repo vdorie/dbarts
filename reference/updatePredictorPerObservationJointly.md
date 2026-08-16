@@ -67,12 +67,11 @@ common latent predictor (for example, a shared ability or trait in an
 item-response model) within a larger Gibbs/Metropolis sampler.
 
 A whole-matrix `setPredictor` call on one of the samplers, made earlier
-in the same script, strips the column names from that sampler's `data@x`
-(see ‘Multi-forest and heteroscedastic predictor mutation’,
-[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md))
-and this function's by-name `column` matching then fails on it. Either
-replace predictors a column at a time on samplers this function will
-later reference, or call this function first.
+in the same script, keeps that sampler's column names (see ‘Multi-forest
+and heteroscedastic predictor mutation’,
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
+so this function's by-name `column` matching continues to resolve
+against it afterward.
 
 ## Value
 

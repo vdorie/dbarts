@@ -763,27 +763,16 @@ installs only where it would remain valid in the union of every
 sampler's forests, and it is declined in all of them otherwise.
 
 Column names after a whole-matrix replacement: a transactional or forced
-whole-matrix `setPredictor(x, ...)` (`column` missing) installs `x` into
-`sampler$data@x` as a plain matrix, which does not carry `x`'s column
-names even when the sampler was originally built with named columns.
-Once that has happened, every later *by-name* column reference on that
-sampler fails: `setPredictor`'s own `column` argument, given as a
-character name, resolves it through `colnames(sampler$data@x)` (now
-`NULL`) and errors with “column names not specified at initialization”,
-and so does
+whole-matrix `setPredictor(x, ...)` (`column` missing) carries column
+names onto the installed `sampler$data@x`. When `x` itself has
+`dimnames`, those names are installed; when it does not (a bare matrix,
+or a vector reshaped through `dim`), the sampler's existing column names
+are kept instead. Either way, a later *by-name* column reference on that
+sampler - `setPredictor`'s own `column` argument given as a character
+string, or
 [`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md)'s
-shared-column match, whether its own `column` is given by name or by
-integer (it still resolves a shared name across every referenced
-sampler). An *integer* `column` to `setPredictor` itself is unaffected,
-since it skips the name lookup entirely. Two reliable workarounds: pass
-integer column indices to any later `setPredictor` call on the affected
-sampler; and, for `updatePredictorPerObservationJointly` specifically
-(integer `column` does not help there), either replace predictors a
-column at a time (`setPredictor(x, column = ...)`), which merges into
-the existing matrix in place and so keeps its dimnames rather than
-replacing the whole matrix, or call
-`updatePredictorPerObservationJointly` before the first whole-matrix
-replacement in a script that needs both.
+shared-column match - continues to resolve against
+`colnames(sampler$data@x)` as it did before the replacement.
 
 ### Grouped random effects
 
