@@ -37,6 +37,72 @@ announceAutoFamily <- function(responseType, nLevels, family) {
   )
 }
 
+# Family gating (docs/plans/bart2-argument-consolidation.md 3.c): an argument
+# supplied by name whose only effect is on a response family this fit did not
+# resolve to is diagnosed rather than silently dropped. Each row names the
+# arguments it covers, the families under which they DO act (every other
+# family gates them, "liveIn" being the complement of 3.c.2's "inert when"),
+# and why not; resolved once as data so a later slice (S7's resid.prior) adds
+# a row here rather than a new branch in warnFamilyGatedArgs.
+familyGatingInventory <- list(
+  list(
+    names = c("sigest", "sigdf", "sigquant"),
+    liveIn = c("gaussian", "aft", "hurdle.lognormal"),
+    reason = "the residual scale is fixed, not estimated"
+  ),
+  list(
+    names = "dispersion",
+    liveIn = "nbinom",
+    reason = "only family = \"nbinom\" estimates a count dispersion"
+  ),
+  list(
+    names = c("breaks", "max.rows"),
+    liveIn = c("hazard", "hazard.probit", "hazard.logistic"),
+    reason = "only a discrete-time hazard fit expands a time grid"
+  )
+)
+
+# Warns once, naming every argument this call's resolved 'family' cannot act
+# on, why, and the family itself (3.c.5's one-warning-per-call, classed
+# condition). suppliedNames is the caller's own argNames snapshot - the
+# matchedCall names taken before any family branch, so an unsupplied
+# (defaulted) argument never appears here. A no-op when nothing is gated.
+warnFamilyGatedArgs <- function(suppliedNames, family) {
+  hits <- Filter(
+    function(row) {
+      family %not_in% row$liveIn && any(row$names %in% suppliedNames)
+    },
+    familyGatingInventory
+  )
+  if (length(hits) == 0L) {
+    return(invisible(NULL))
+  }
+  clauses <- vapply(
+    hits,
+    function(row) {
+      gatedNames <- row$names[row$names %in% suppliedNames]
+      paste0(
+        paste0("'", gatedNames, "'", collapse = ", "),
+        " (",
+        row$reason,
+        ")"
+      )
+    },
+    character(1L)
+  )
+  warning(warningCondition(
+    paste0(
+      "family = \"",
+      family,
+      "\" has no use for ",
+      paste0(clauses, collapse = "; "),
+      "; ignored"
+    ),
+    class = c("dbartsFamilyGatedWarning", "dbartsWarning")
+  ))
+  invisible(NULL)
+}
+
 # Missingness predicate for a setPredictor/setTestPredictor/
 # setTestPredictorAndOffset argument. Never plain anyNA() on a
 # dbartsMixedMatrix: it is a plain list, and base anyNA on a list is TRUE

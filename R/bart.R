@@ -765,6 +765,7 @@ bart2 <- function(
       control,
       "there is no test surface to fall back on"
     )
+    warnFamilyGatedArgs(argNames, "multinomial")
     if (control@n.samples <= 0L) {
       stop("family = \"multinomial\" requires a positive 'n.samples'")
     }
@@ -914,6 +915,7 @@ bart2 <- function(
       control,
       "the category probabilities are built from the training latent fits"
     )
+    warnFamilyGatedArgs(argNames, "ordinal")
     return(bart2Ordinal(
       matchedCall,
       callingEnv,
@@ -944,6 +946,7 @@ bart2 <- function(
       control,
       "the mean counts are built from the training latent fits"
     )
+    warnFamilyGatedArgs(argNames, "nbinom")
     return(bart2Negbin(
       matchedCall,
       callingEnv,
@@ -975,6 +978,7 @@ bart2 <- function(
       control,
       "the combined mean is built from the two training fits"
     )
+    warnFamilyGatedArgs(argNames, "hurdle.lognormal")
     if (!missing(weights)) {
       stop("family = \"hurdle.lognormal\" does not support 'weights'")
     }
@@ -1026,6 +1030,19 @@ bart2 <- function(
   )
 
   sampler <- eval(samplerCall, envir = callingEnv)
+  # the hazard tokens remap to their underlying binary link before the model
+  # object is built (R/dbarts.R), so sampler$model@family can no longer say
+  # "hazard" - keep the caller's own explicit token for that case, and let
+  # sampler$model@family resolve everything family = "auto" left open
+  # otherwise (numeric/binary responses are not settled until dbarts() runs)
+  gatedFamily <- if (
+    family %in% c("hazard", "hazard.probit", "hazard.logistic")
+  ) {
+    family
+  } else {
+    sampler$model@family
+  }
+  warnFamilyGatedArgs(argNames, gatedFamily)
   if (isTRUE(samplerOnly)) {
     return(sampler)
   }
@@ -2040,7 +2057,21 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
     }
   }
 
+  # redirectCall forwards every bart2 formal the caller supplied, including
+  # names this outer site already diagnosed against "hurdle.lognormal"
+  # (3.c.4's table) - left alone, each component would re-diagnose them
+  # against ITS OWN forced family, both firing a warning where the outer
+  # site did not (dispersion/breaks/max.rows, inert on both components:
+  # a second and third copy of the same diagnosis) and, on the occupancy
+  # call, one the outer site correctly did NOT raise (sigest/sigdf/sigquant:
+  # genuinely live on the positive half, so a "probit" warning about them
+  # is a false diagnostic, not merely a redundant one). Strip what the
+  # outer site already covers before either component call runs.
+  gatedOnBoth <- c("dispersion", "breaks", "max.rows")
+  gatedOnOccupancyOnly <- c("sigest", "sigdf", "sigquant")
+
   occupancyCall <- redirectCall(matchedCall, dbarts::bart2)
+  occupancyCall[c(gatedOnBoth, gatedOnOccupancyOnly)] <- NULL
   occupancyCall$formula <- formula
   occupancyCall$data <- split$z
   occupancyCall$family <- "probit"
@@ -2049,6 +2080,7 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   occupancy <- eval(occupancyCall, callingEnv)
 
   positiveCall <- redirectCall(matchedCall, dbarts::bart2)
+  positiveCall[gatedOnBoth] <- NULL
   positiveCall$formula <- xPositive
   positiveCall$data <- split$logPositive
   positiveCall$test <- formula

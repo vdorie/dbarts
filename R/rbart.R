@@ -340,6 +340,22 @@ rbart_vi <- function(
     "rbart_vi",
     c("gaussian", "aft")
   )
+  # "auto" only survives resolveClassificationFamily on a numeric response
+  # (aft's own is already forced explicit above, a Surv/two-column response);
+  # a 0/1-coded numeric response is STILL a probit down in the per-chain
+  # dbarts() call (resolveSamplerSpec's own binary test, R/spec.R), so redo
+  # that test here rather than assume every unresolved "auto" is gaussian
+  gatedFamily <- if (identical(family, "auto")) {
+    uniqueY <- unique(data@y)
+    if (length(uniqueY) == 2L && all(sort(uniqueY) == c(0, 1))) {
+      "probit"
+    } else {
+      "gaussian"
+    }
+  } else {
+    family
+  }
+  warnFamilyGatedArgs(argNames, gatedFamily)
 
   rbartArgs <- namedList(
     group.by,
