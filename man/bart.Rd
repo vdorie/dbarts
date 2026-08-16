@@ -73,7 +73,7 @@ bart2(
     verbose = TRUE, keepTrees = FALSE, 
     keepCall = TRUE, samplerOnly = FALSE,
     seed = NA_integer_,
-    proposal.probs = NULL,
+    proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,

@@ -1,9 +1,8 @@
 # The bart2 argument-consolidation arc's maintained contracts
-# (docs/plans/bart2-argument-consolidation.md 4.6): T-A (dbartsControl
-# formal parity), T-B (shared-default text), T-C (bart -> bart2 concept
-# map) and T-E (the per-forest reconstruction identity) arrive with the
-# slices that build what they assert against (S1/S5, S3, S10, S11). This
-# file starts with T-D, S2's contract: family gating (3.c).
+# (docs/plans/bart2-argument-consolidation.md 4.6): T-D (S2, family gating)
+# and T-B (S3, shared-default text) already live here; T-A (dbartsControl
+# formal parity), T-C (bart -> bart2 concept map) and T-E (the per-forest
+# reconstruction identity) arrive with S5, S10, S11 respectively.
 
 # T-D. One diagnosis test per row of 3.c.2: the classed warning fires under
 # a family that ignores the argument and not under one that uses it; plus
@@ -12,7 +11,7 @@
 
 set.seed(101)
 n <- 40L
-x <- matrix(rnorm(n * 2L), n)
+x <- matrix(rnorm(n * 2L), n, dimnames = list(NULL, c("a", "b")))
 quick <- list(
   n.trees = 3L,
   n.samples = 5L,
@@ -158,3 +157,126 @@ expect_error(
   fit2(y.multi, family = "multinomial", prior.scale = 2),
   pattern = "prior.scale"
 )
+
+# T-B (S3). For every name shared by bart2 and dbarts, the deparsed default
+# expressions agree, except the table below - copied from the plan (4.6).
+# tree.prior/node.prior/resid.prior are not yet bart2 formals (S7); their
+# rows are inert until then, since the loop only walks names shared today.
+tbExceptions <- data.frame(
+  name = c(
+    "verbose",
+    "n.samples",
+    "family",
+    "tree.prior",
+    "node.prior",
+    "resid.prior"
+  ),
+  reason = c(
+    "fitters announce, constructors do not",
+    "different roles; semantics differ (d2)",
+    "multinomial is a bart2-only composition",
+    "bart2's NULL means \"build from the shorthands\"",
+    "same",
+    "same"
+  ),
+  stringsAsFactors = FALSE
+)
+bart2Formals <- formals(dbarts::bart2)
+dbartsFormals <- formals(dbarts::dbarts)
+sharedFormalNames <- setdiff(
+  intersect(names(bart2Formals), names(dbartsFormals)),
+  tbExceptions$name
+)
+diverged <- Filter(
+  function(nm) {
+    !identical(deparse(bart2Formals[[nm]]), deparse(dbartsFormals[[nm]]))
+  },
+  sharedFormalNames
+)
+expect_equal(diverged, character(0))
+
+# match.arg error messages for bad tokens: bart2 resolves factors/missing in
+# its own frame before forwarding (S3), so a bad token errors here, naming
+# the choices, same as R's own match.arg does for any other formal
+expect_error(fit2(y.gaussian, factors = "bogus"), pattern = "should be one of")
+expect_error(fit2(y.gaussian, missing = "bogus"), pattern = "should be one of")
+
+# S2 interaction: the suppliedNames snapshot (argNames, R/bart.R) precedes
+# the S3 resolve-and-forward step, so making factors/missing/proposal.probs
+# unconditionally forwarded does not make them look "supplied" to family
+# gating - a defaulted factors/missing call under a gating family stays
+# silent
+expect_silent(fit2(y.multi, family = "multinomial"))
+expect_silent(fit2(y.count, family = "nbinom"))
+
+# defaulted-vs-explicit equivalence (S3, D6): the resolved default is
+# exactly what dbarts() already applied, so forwarding it explicitly changes
+# no draw
+sameDraws <- function(a, b) {
+  identical(a$yhat.train, b$yhat.train) && identical(a$sigma, b$sigma)
+}
+defaultedProbs <- fit2(y.gaussian, seed = 77L)
+explicitProbs <- fit2(
+  y.gaussian,
+  proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
+  seed = 77L
+)
+expect_true(sameDraws(defaultedProbs, explicitProbs))
+
+dfFactor <- data.frame(
+  x1 = rnorm(n),
+  x2 = factor(sample(letters[1:3], n, replace = TRUE))
+)
+defaultedFactors <- do.call(
+  dbarts::bart2,
+  c(list(y.gaussian ~ ., dfFactor), quick, list(seed = 77L))
+)
+explicitFactors <- do.call(
+  dbarts::bart2,
+  c(
+    list(y.gaussian ~ ., dfFactor),
+    quick,
+    list(factors = "categorical", seed = 77L)
+  )
+)
+expect_true(sameDraws(defaultedFactors, explicitFactors))
+
+defaultedMissing <- fit2(y.gaussian, seed = 77L)
+explicitMissing <- fit2(y.gaussian, missing = "incorporate", seed = 77L)
+expect_true(sameDraws(defaultedMissing, explicitMissing))
+
+# D4's second half: proposal.probs' default is now the named vector, always
+# forwarded - a defaulted bart2 call still composes with monotone
+expect_silent(fit2(y.gaussian, monotone = c(a = "+")))
+
+# rbart_vi shares the pattern for factors/missing only (no proposal.probs
+# formal)
+defaultedRbart <- dbarts::rbart_vi(
+  x,
+  y.gaussian,
+  group.by = group,
+  n.trees = 3L,
+  n.samples = 5L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.thin = 1L,
+  verbose = FALSE,
+  seed = 77L
+)
+explicitRbart <- dbarts::rbart_vi(
+  x,
+  y.gaussian,
+  group.by = group,
+  n.trees = 3L,
+  n.samples = 5L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.thin = 1L,
+  verbose = FALSE,
+  seed = 77L,
+  factors = "categorical",
+  missing = "incorporate"
+)
+expect_true(sameDraws(defaultedRbart, explicitRbart))

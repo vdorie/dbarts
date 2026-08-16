@@ -1262,6 +1262,19 @@
             \code{suppressWarnings(classes = )}, or promote it with
             \code{options(warn = 2)} without matching on message text.
             \code{bart} never emits it.
+      \item \code{bart2}'s \code{factors}, \code{missing}, and
+            \code{proposal.probs} formals are now genuinely live: each is
+            resolved in \code{bart2}'s own frame and always forwarded to
+            \code{dbarts}, rather than being dropped from the call (and
+            \code{dbarts}'s own default silently applying instead) whenever
+            the caller left it unsupplied. \code{proposal.probs}'s default
+            is now stated directly in the signature - the named vector
+            \code{c(birth_death = 0.5, swap = 0.1, change = 0.4, birth =
+            0.5)} \code{dbarts} already used - rather than \code{NULL}.
+            \code{rbart_vi} forwards \code{factors}/\code{missing} the same
+            way; it has no \code{proposal.probs} formal. Every resolved
+            value already matched what applied before, so no fit's draws
+            change.
     }
   }
 }
