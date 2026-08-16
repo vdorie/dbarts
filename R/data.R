@@ -713,6 +713,7 @@ dbartsData <- function(
   testIsMissing <- missing(test)
   offsetIsMissing <- missing(offset)
   testOffsetIsMissing <- missing(offset.test)
+  basesIsMissing <- missing(bases)
   matchedCall <- match.call()
 
   # "indicators" dummy-expands factor columns as always; "categorical" keeps
@@ -744,7 +745,8 @@ dbartsData <- function(
       !dataIsMissing ||
         !testIsMissing ||
         !offsetIsMissing ||
-        !testOffsetIsMissing
+        !testOffsetIsMissing ||
+        !basesIsMissing
     ) {
       warning("if data supplied as dbartsData, remaining arguments are ignored")
     }

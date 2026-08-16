@@ -540,6 +540,29 @@ dbarts <- function(
   # mirror. Evaluated here, against this fit's own data, and handed to
   # dbartsData(), which is the one place that knows which rows 'subset' kept.
   basisDeclarations <- forestBasisDeclarations(forests)
+  # a basis declared on 'forests' has nowhere to ride once 'formula' is
+  # already a built dbartsData: dbartsData() drops an unmatched 'bases'
+  # argument in that case (its own ignored-args warning, R/data.R), so this
+  # combination used to fit an ordinary single-forest model with the
+  # declaration silently discarded. Refuse it by name instead. dbartsSpec() is
+  # not touched - its first argument must already be a dbartsData, so this
+  # predicate would be unconditionally true there and would refuse the
+  # supported route (R/spec.R installs the declaration rather than dropping
+  # it). The supported composition - a data object already carrying '@bases'
+  # plus a knob-only 'forests' - is unaffected: forestBasisDeclarations()
+  # returns NULL entries for a forest with no 'basis' of its own.
+  if (
+    !is.null(basisDeclarations) &&
+      any(!vapply(basisDeclarations, is.null, logical(1L))) &&
+      inherits(formula, "dbartsData")
+  ) {
+    stop(
+      "'forests' declares a 'basis' but 'formula' is already a dbartsData; ",
+      "a basis declaration cannot reach a pre-built data object through ",
+      "dbarts() - use dbartsSpec(), or put the bases on the object with ",
+      "dbartsData(bases = )"
+    )
+  }
   if (!is.null(basisDeclarations)) {
     # missing() reads this frame, so it is resolved here rather than inside the
     # per-forest closure below

@@ -32,6 +32,12 @@ forest(
     that declares none takes the implicit intercept its single amplitude
     \eqn{a}{a} scales; every forest past the first needs one, since the
     amplitudes multiplying it are what distinguish it from the first.
+    Reaching \code{\link{dbarts}} through an already-built \code{dbartsData}
+    \code{formula} is the one route that refuses this argument outright,
+    since the declaration would otherwise have nowhere to ride and be
+    silently discarded; \code{\link{dbartsSpec}} always takes a pre-built
+    data object and installs the declaration instead, replacing whatever
+    bases it carried.
   }
   \item{vars}{
     Optional restriction of this forest to a subset of the model matrix, by
