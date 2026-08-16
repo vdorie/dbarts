@@ -103,6 +103,50 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
   invisible(NULL)
 }
 
+# Fork 5 (docs/plans/bart2-argument-consolidation.md 3.e): '...' is a
+# rejection-only diagnostic channel on bart2/rbart_vi, not a value channel -
+# no name legitimately travels through it once storage/updateState are
+# formals (this slice, S4). Every dots name is diagnosed: a retired spelling
+# gets its own pointed message from the table below (data, so a later
+# retirement adds a row rather than a new branch - the sunset property fork
+# 5 recorded); anything else gets a nearest-formal suggestion (agrep against
+# the function's own formals, first hit in formals() order - simple and
+# deterministic, no distance-ranking machinery).
+retiredDotsNames <- character()
+
+# 'rngSeed' is still dbartsControl's own slot/formal spelling until S5
+# renames it to 'seed' (fork 5 spans slices S4 and S5, section 7), so a
+# caller relying on the existing rngSeed-through-dots backdoor must keep
+# working through this slice - rejecting it now would be a regression S4
+# does not own, and it is not yet a retired name. It keeps flowing through
+# the same redirectCall/backfill machinery the 13 promoted names use. S5
+# deletes this passthrough and adds a "renamed to seed" row to
+# retiredDotsNames instead.
+controlOnlyPassthroughNames <- "rngSeed"
+
+rejectUnknownDotsArgs <- function(argNames, fn) {
+  fnFormals <- names(formals(fn))
+  isKnown <- argNames %in% fnFormals | argNames %in% controlOnlyPassthroughNames
+  if (all(isKnown)) {
+    return(invisible(NULL))
+  }
+  name <- argNames[!isKnown][1L]
+  if (name %in% names(retiredDotsNames)) {
+    stop("unknown argument '", name, "': ", retiredDotsNames[[name]])
+  }
+  suggestion <- agrep(name, setdiff(fnFormals, "..."), value = TRUE)
+  if (length(suggestion) > 0L) {
+    stop(
+      "unknown argument '",
+      name,
+      "'; did you mean '",
+      suggestion[1L],
+      "'?"
+    )
+  }
+  stop("unknown argument '", name, "'")
+}
+
 # Missingness predicate for a setPredictor/setTestPredictor/
 # setTestPredictorAndOffset argument. Never plain anyNA() on a
 # dbartsMixedMatrix: it is a plain list, and base anyNA on a list is TRUE

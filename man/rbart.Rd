@@ -34,6 +34,7 @@ rbart_vi(
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "aft"),
     missing = c("incorporate", "error"),
+    storage = c("double", "single"), updateState = TRUE,
     \dots)
 
 \S3method{plot}{rbart}(
@@ -81,7 +82,7 @@ rbart_vi(
   \item{callback}{
     Optional function of \code{trainFits}, \code{testFits}, \code{ranef}, \code{sigma}, and \code{tau}. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.
   }
-  \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, \dots}{
+  \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, storage, updateState, \dots}{
     Same as in \code{\link{bart2}}, with one default difference: \code{keepTrees} defaults to \code{TRUE} here (\code{bart2}'s default is \code{FALSE}). With \code{dart}, split probability samples appear as \code{varprobs} on the fit. Unlike \code{bart2}, \code{rbart_vi} offers a reduced \code{family} set (see below) with no logistic option, and does not accept sparse (\code{Matrix::dgCMatrix}) predictors.
   }
   \item{k}{

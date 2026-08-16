@@ -280,3 +280,72 @@ explicitRbart <- dbarts::rbart_vi(
   missing = "incorporate"
 )
 expect_true(sameDraws(defaultedRbart, explicitRbart))
+
+# S4 (docs/plans/bart2-argument-consolidation.md 3.e, 4.1, 4.4): storage/
+# updateState are now real formals, appended at the end of both entry
+# points; '...' is rejection-only, diagnosed by a shared helper.
+
+lastTwoNamed <- function(fn) {
+  fnFormals <- names(formals(fn))
+  fnFormals[length(fnFormals) - c(2L, 1L)]
+}
+expect_equal(lastTwoNamed(dbarts::bart2), c("storage", "updateState"))
+expect_equal(lastTwoNamed(dbarts::rbart_vi), c("storage", "updateState"))
+
+# storage/updateState reach the control with explicit, non-default values
+explicitControl <- fit2(
+  y.gaussian,
+  storage = "single",
+  updateState = FALSE,
+  samplerOnly = TRUE
+)
+expect_equal(explicitControl$control@storage, "single")
+expect_equal(explicitControl$control@updateState, FALSE)
+defaultControl <- fit2(y.gaussian, samplerOnly = TRUE)
+expect_equal(defaultControl$control@storage, "double")
+expect_equal(defaultControl$control@updateState, TRUE)
+
+rbartControlFit <- dbarts::rbart_vi(
+  x,
+  y.gaussian,
+  group.by = group,
+  storage = "single",
+  updateState = FALSE,
+  rngSeed = 314L,
+  keepSampler = TRUE,
+  n.trees = 3L,
+  n.samples = 5L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.thin = 1L,
+  verbose = FALSE
+)
+rbartControl <- rbartControlFit$fit[[1L]]$control
+expect_equal(rbartControl@storage, "single")
+expect_equal(rbartControl@updateState, FALSE)
+expect_equal(rbartControl@rngSeed, 314L)
+
+# dots rejection: an unknown name errors naming itself and suggesting the
+# nearest formal; a name with no close match still errors, unsuggested
+expect_error(fit2(y.gaussian, n.tres = 5), pattern = "did you mean 'n.trees'")
+expect_error(
+  dbarts::rbart_vi(x, y.gaussian, group.by = group, n.tres = 5),
+  pattern = "did you mean 'n.trees'"
+)
+expect_error(fit2(y.gaussian, zzzznotarg = 5), pattern = "zzzznotarg")
+
+# rngSeed: still dbartsControl's own spelling until S5 (3.e) retires it, so
+# it keeps working through the legacy passthrough rather than erroring
+rngSeedFit <- fit2(y.gaussian, rngSeed = 99L, samplerOnly = TRUE)
+expect_equal(rngSeedFit$control@rngSeed, 99L)
+
+# partial matching still works for a real formal
+partialFit <- do.call(
+  dbarts::bart2,
+  c(
+    list(x, y.gaussian, n.sampl = 5L, samplerOnly = TRUE),
+    quick[setdiff(names(quick), "n.samples")]
+  )
+)
+expect_equal(partialFit$control@n.samples, 5L)

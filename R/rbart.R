@@ -48,26 +48,18 @@ rbart_vi <- function(
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "aft"),
   missing = c("incorporate", "error"),
+  storage = c("double", "single"),
+  updateState = TRUE,
   ...
 ) {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
   family <- match.arg(family)
 
-  # because we use a lot of trickery to redirect calls in the calling environment
-  # (for example, to get the data), we replicate some base mechanisms like complaining
-  # about unknown arguments
+  # Fork 5 (docs/plans/bart2-argument-consolidation.md 3.e): '...' is
+  # rejection-only - every dots name is diagnosed by name, never forwarded.
   argNames <- names(matchedCall)[-1L]
-  unknownArgs <- argNames %not_in%
-    names(formals(rbart_vi)) &
-    argNames %not_in% names(formals(dbarts::dbartsControl))
-  if (any(unknownArgs)) {
-    stop(
-      "unknown arguments: '",
-      paste0(argNames[unknownArgs], collapse = "', '"),
-      "'"
-    )
-  }
+  rejectUnknownDotsArgs(argNames, dbarts::rbart_vi)
 
   # d1/D6 (docs/plans/bart2-argument-consolidation.md 3.d): factors/missing
   # are forwarded formal defaults - redirectCall only carries a name into the

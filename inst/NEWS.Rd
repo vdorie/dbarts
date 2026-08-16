@@ -1299,6 +1299,22 @@
             way; it has no \code{proposal.probs} formal. Every resolved
             value already matched what applied before, so no fit's draws
             change.
+      \item \code{bart2} and \code{rbart_vi} gain \code{storage} and
+            \code{updateState} formals, appended at the end of each
+            signature, spelled and defaulted exactly as
+            \code{\link{dbartsControl}}'s own; both already reached the
+            control silently through \code{\dots} and now do so as ordinary,
+            documented arguments. \code{\dots} is otherwise rejection-only on
+            both: any other name it receives is now an error naming the
+            argument and, when one is close, suggesting the nearest formal
+            (\code{bart2(n.tres = 5)} suggests \code{n.trees}). Previously an
+            unknown name that happened to match a \code{dbartsControl}
+            formal was silently accepted and forwarded; now only
+            \code{storage}, \code{updateState}, and (until the
+            \code{rngSeed} -> \code{seed} rename) \code{rngSeed} are.
+            Because \code{updateState} is now a formal, the partial match
+            \code{u = } no longer resolves to \code{useQuantiles} on either
+            function.
     }
   }
 }
