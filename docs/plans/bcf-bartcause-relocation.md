@@ -1591,3 +1591,15 @@ subset-independent; it now fails as a validated length-1 logical with
 a method.trt = <vector> hint. FB11's bartc-arm caveat ("holds only via
 the literal path") is LIFTED for the data.frame path; supplying scores
 as a vector remains spelled method.trt = <vector> by design.
+
+2026-08-16, post-arc: the K-forest batched front door's spelling is
+DECIDED by the bart2-argument-consolidation review
+(docs/plans/bart2-argument-consolidation.md, section 5): formula-level
+terms with colon sugar - y ~ x1 + x2 + z:forest(x1 + x2), general
+named form forest(x1 + x2, basis = ~z) - chosen over a flat forests=
+formal (declined, kept as a door). The in-sample per-forest output
+channel (forestFits/glue packaging, extract(type = "forest")) builds
+in that arc as slices S11-S13; measurement there confirmed run()
+already emits both channels, so the R-side packaging is the whole
+slice. Out-of-sample per-forest replay (predict) remains doored on
+the engine-side saved-tree work recorded above.
