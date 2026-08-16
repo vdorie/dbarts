@@ -1747,3 +1747,92 @@ response-support-validation entry's whole residue: the G1 landing's
 deliberate deviation (the cap), both of its open follow-ons (the flat
 setWeights guard, the hostFor extension), with defect 5 closed at S1/S6.
 The arc-end scoped anchor refresh stays owed; S8 is the arc's last slice.
+
+## Landing note, S8 (appended 2026-08-15)
+
+**The hash moved by design: 0xcd88efcd67de55d7 -> 0x85bd1ef04beb3848**, for
+exactly three appended X-list entries - `dbarts_sampler_dispersion`,
+`dbarts_drawLatents`, `dbarts_workingResponse` - with the 44 pre-existing
+entries byte-identical (gate-runner diffed the list; nothing re-signed).
+`DBARTS_C_API_MAJOR`/`MINOR` stay 1/0; the decision-8 carve-out ("a
+pre-1.0-0 append extends the initial field set and moves no version
+constant") landed at the two mandated `dbarts.h` sites PLUS
+`C_interface.cpp`'s prose lock, which carried the same stale claim, PLUS -
+added at the review round - `dbarts_forest_calibration`'s marker, which the
+audit found unreconciled: its five S1-landed fields sit BELOW its marker,
+`dispersion` sits ABOVE `dbarts_results`', and the marker now states that
+both sides of the pre-1.0-0 line are the initial field set, so the next
+author has one rule instead of two precedents.
+
+Shipped: `dbarts_results.dispersion` as the struct's LAST field
+(offsetof/sizeof lock updated, one FILL line; structSize bounds the write,
+so a smaller-header consumer is never written past);
+`dbarts_sampler_dispersion` with the R5 getter's channel-test semantics
+(returns 0 without touching out off-family); the WRAPPED augmentation
+forms, drawing R's stream per-call under the S4 discipline - the raw
+`ext_rng` primitives stay internal, the recorded door. The S4 cores moved
+to `bartcore_bridge` (five entities, verbatim bodies, single definitions -
+audited) so both surfaces run one implementation.
+
+**The ABI hard gate ran TWICE, independently**: implementer and gate-runner
+each staged stan4bart (bartcore @ 7ce9a763) by `git archive` into scratch,
+compiled against the NEW header (clean), loaded through its
+`checkDbartsAPIVersion` hard-equality handshake (accepts the re-baked
+token; the implementer also proved the check LIVE - the same binary
+against the older user-lib dbarts fails at load), and ran its full suite:
+531 results, 0 failures, 21/21 files, both runs. An append-only re-bake
+costs zero consumer call sites, exactly as the plan priced; the
+four-package re-verification stays where the release checklist put it, at
+the freeze.
+
+Flat-path validation, audited adversarially: nothing reaches an OOB access
+or unbounded allocation (nbinom y is bounded by S7's cap through the shared
+validator; ordinal k-indexing is branch-safe). Three silent-degradation
+contracts the R surface validates and the flat surface CONTRACTS are now
+STATED in the Doxygen, added at the review round after the audit found them
+undisclosed: fractional dispersion is rounded into a different-shape
+Polya-Gamma draw, not refused; unordered cutpoints corrupt the draw
+silently (the rejection loop degrades to its fallback); a non-finite y
+under "aft"/"student" propagates NaN into out, per the same contract
+`dbarts_sampler_setResponse` states. Known-weak cell, recorded, no action:
+consumer.c's `disp$guarded` is TRUE-by-survival on the pre-existing
+`DBARTS_RESULTS_HAS`/structSize machinery, which no S8 mutation falsifies.
+
+Mutations: FILL line dropped - exactly 3 RED, all the dispersion-slot leg;
+flat draw ignoring offset - exactly 2 RED, the flat-vs-R agreement cell and
+the convention-discrimination cell (S4's oracle 3 mirrored); the appended
+field misplaced mid-struct - COMPILE FAILURE at
+`offsetof(dbarts_results, train)` ("24 == 16"), cascading through every
+downstream offset, which is the lock doing its job. Each reverted, touched
+(the S7 mtime lesson applied), re-verified 228/0.
+
+Post-audit amendment, one commit kept: the two comment-only header fixes
+above, proven comment-only by stripping comments (366 code lines before
+and after, IDENTICAL) and hash-gated unmoved (the static_assert compiled
+and test-capi.R's 0x85bd1ef04beb3848 cell passed on the amended tree);
+install, full tinytest and a fresh clean-copy `R CMD check` re-ran green.
+
+Budget, raw additions against d101ebc9: non-test 350 as numstat counts it,
+70 of it the verbatim promotion MOVE - net-own 280 against the 278 stop,
+the final +11 being the two ORCHESTRATOR-DIRECTED comment fixes.
+ADJUDICATED ACCEPTED: shortening a stated ABI rule to fit a line count
+would defeat the fix, and pre-amendment the slice sat at 269, inside.
+Tests 187 against the 188 stop. The spec's own comparable (ab3aa2fa)
+predicted the weight sits in the capi tests; it does (consumer.c 87,
+test-capi.R 100).
+
+Battery, twice, separate libs (implementer /tmp/s8-lib, gate-runner
+/tmp/s8-gate-lib): `--preclean` install, zero warnings; tests/cpp from
+`make clean` 244 ok plain AND under ASAN/UBSAN, zero diagnostics; tinytest
+5256 results, 0 failures (5239 at S7 + 17), test-capi.R 228/0 with
+consumer.c COMPILED AND RUN both times; trio BITWISE, no re-record (37/37,
+12/12, 10/10 - the augmentation entries call the cores alongside, never
+inside, the draw sites); air clean; lintr 0; NEWS parses (242 entries);
+pkgdown no problems (flat entries carry no R surface, no topic owed);
+`R CMD check --as-cran` from a git-archive tarball staged outside the
+tree, Status OK, 0/0/0, re-run on the final amended commit.
+
+Landed: 13393350, pushed 2026-08-15. Independent gate-runner CONFIRM (all
+ten gates including its own stan4bart leg; audits A-F). ALL EIGHT SLICES
+OF THE ARC ARE LANDED; the arc-end scoped feature-matrix anchor refresh is
+the one remaining arc obligation.
