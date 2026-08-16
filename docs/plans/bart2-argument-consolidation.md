@@ -1624,3 +1624,21 @@ man/bart.Rd usage updated. Gates: implementer + independent runner
 green (5363/0; trio 37+12+10 bitwise; 9-config A/B incl. hurdle
 components identical; check OK twice after one transient
 environment flake disproven by reruns).
+
+S4 (dots + promotions) LANDED ec59caf6, 2026-08-16. storage/
+updateState appended as formals on bart2 (54 incl. dots) and rbart_vi
+(44), flowing through the existing redirect/backfill machinery; both
+hand-written union checks replaced by shared rejectUnknownDotsArgs
+(R/utility.R): every dots name errors with a nearest-formal agrep
+suggestion; retired-name table starts empty (the fork-5 sunset
+mechanism); rngSeed keeps flowing via a passthrough S5 deletes.
+setdiff(control formals, bart2 formals) == "rngSeed" exactly - T-A
+ready, lands with S5. Gate anomaly resolved during the run: the
+implementer's equivalence deviation traced to comparing against the
+STALE equivalence-a825263.rds without --strict-coverage (pre
+empty-leaf-veto re-record; zeroweights moved legitimately at
+21fc29c3) - the canonical 8b047f8b run is 37/37 bitwise, 0 skipped,
+on the same build. Gates: both runners green (5377/0; trio bitwise;
+mutation exactly 3 rejection tests; A/B incl. dots-vs-formal
+updateState identical; check OK). Note: storag= now partial-matches
+the storage formal by R's own semantics - inherent, recorded.
