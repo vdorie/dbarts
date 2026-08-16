@@ -333,15 +333,6 @@ items
     retired the R-side treatment= vocabulary it served. The only
     remaining "treatment" token in that function's scope is the
     unrelated error string "invalid treatment forest specification".
-  dl-func-stub-cast: dbarts.h:455's DBARTS_API_STUB expansion casts the
-    DL_FUNC R_GetCCallable returns straight to `ret (*) params` for
-    every X-list entry, which trips -Wcast-function-type-mismatch
-    under a consumer building at -Wextra (seen, non-blocking, at the
-    treatSens dbarts-h-reshape S2 rebuild). Pre-existing header
-    property, not introduced by the reshape. Consider a conforming
-    intermediate cast (through a matching function-pointer typedef or
-    void*) so a LinkingTo consumer's -Wextra build stays clean.
-    Small, pre-release.
   embedding-page: LANDED 55811082 2026-08-15 inside adoption-slate S6
     (landing note in docs/plans/adoption-slate.md). Ships as the Rd
     topic dbarts-embedding with a _pkgdown.yml Utilities entry, the
