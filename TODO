@@ -230,7 +230,9 @@ items
     S5 contract ships VERBATIM, per-forest varcount included via D3's
     widened channel. Residues ticketed, own entries below/above:
     bartcause-subset-pscore, predict-bartcfit-propensity-collision,
-    getforestvariablecounts-dimnames.
+    getforestvariablecounts-dimnames. POST-ARC FOLLOW-UP: the
+    predict-bartcfit-propensity-collision ticket LANDED bartCause
+    d0e423c, 2026-08-16 (own entry above records the substance).
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). Open: the EXTREME
     tail (|a0| >= ~40, ~3% of the prior) is frozen-structure mixing
@@ -679,22 +681,26 @@ items
     shipped-to-exact gap survives that fix. Opt-in grow path only,
     missing-bearing ordinal columns only. Own slice, draw-law
     change when taken.
-  predict-bartcfit-propensity-collision: PRE-EXISTING bartCause defect,
-    ticketed by bcf-bartcause-relocation (VD walkthrough item 7,
-    docs/plans/bcf-bartcause-relocation.md:1308-1315): predict.bartcFit's
-    propensity-column name ladder (bartCause R/generics.R:110-112) can
-    resolve the WRONG column when a confounder's name collides with the
-    score's default spelling (MEASURED: a confounder named "psps"
-    against a score "ps" resolves to "psps", then :183 overwrites it
-    with predicted scores). VD-RESOLVED: land RIGHT AFTER the relocation
-    arc's B1 slice, not folded into it (a bart-path contract change does
-    not belong inside a bcf slice). The fix is mechanical now that B1
-    shipped: its response-fitter builders already RETURN the resolved
-    p.score name (bcf-bartcause-relocation.md B1.4); widen the namedList
-    contract at R/responseFit.R:286 across all four fitters plus
-    R/bartc.R:172-181 (~12 lines, five sites) so predict.bartcFit
-    CONSUMES the returned name instead of re-deriving it from its
-    ladder. bartCause-side, next slice.
+  predict-bartcfit-propensity-collision: CLOSED, LANDED bartCause
+    d0e423c (pushed, tip of dbarts-1.0), 2026-08-16, right after
+    bcf-bartcause-relocation's B1 as VD-resolved. Ticketed by that arc
+    (VD walkthrough item 7, docs/plans/bcf-bartcause-relocation.md
+    :1308-1315) against predict.bartcFit's propensity-column name ladder
+    (bartCause R/generics.R:110-112), which could resolve the WRONG
+    column when a confounder's name collided with the score's default
+    spelling. The fix widened the response-fitter contract at SIX
+    sites, not the ticketed five - getStan4BartResponseFit shares the
+    defect and was included. All six fitters now return the
+    builder-resolved name as name.p.score on the fit (threaded like
+    name.trt); predict.bartcFit CONSUMES it. The name ladder was
+    DELETED, not kept as a fallback - no released fits predate the
+    field, per the no-backwards-compat rule. Regression test in
+    bartCause test-08-predict.R proves both halves: with the ladder
+    restored, a normal call errors on the missing score column and a
+    collision call silently destroys the confounder. Implementer suite
+    718/0; independent gate-runner CONFIRMED with a two-hop decoy probe
+    (psps/pspsps) plus the uniquified complementary case (a confounder
+    named ps pushes the score to psps and the fit records psps).
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take
