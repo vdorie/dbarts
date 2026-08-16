@@ -48,7 +48,7 @@
 <span>    <span class="va">formula</span>, <span class="va">data</span>, <span class="va">test</span>, <span class="va">subset</span>, <span class="va">weights</span>, <span class="va">offset</span>, offset.test <span class="op">=</span> <span class="va">offset</span>,</span>
 <span>    <span class="va">group.by</span>, <span class="va">group.by.test</span>, prior <span class="op">=</span> <span class="va">cauchy</span>,</span>
 <span>    sigest <span class="op">=</span> <span class="cn">NA_real_</span>, sigdf <span class="op">=</span> <span class="fl">3.0</span>, sigquant <span class="op">=</span> <span class="fl">0.90</span>,</span>
-<span>    k <span class="op">=</span> <span class="fl">2.0</span>, prior.scale <span class="op">=</span> <span class="cn">NA_real_</span>,</span>
+<span>    k <span class="op">=</span> <span class="cn">NULL</span>, prior.scale <span class="op">=</span> <span class="cn">NA_real_</span>,</span>
 <span>    power <span class="op">=</span> <span class="fl">2.0</span>, base <span class="op">=</span> <span class="fl">0.95</span>,</span>
 <span>    split.probs <span class="op">=</span> <span class="fl">1</span> <span class="op">/</span> <span class="va">num.vars</span>,</span>
 <span>    dart <span class="op">=</span> <span class="cn">FALSE</span>,</span>
@@ -127,7 +127,7 @@
 <dd><p>Same as in <code><a href="bart.html">bart2</a></code>, with one default difference: <code>keepTrees</code> defaults to <code>TRUE</code> here (<code>bart2</code>'s default is <code>FALSE</code>). With <code>dart</code>, split probability samples appear as <code>varprobs</code> on the fit. Unlike <code>bart2</code>, <code>rbart_vi</code> offers a reduced <code>family</code> set (see below) with no logistic option, and does not accept sparse (<code>Matrix::dgCMatrix</code>) predictors.</p></dd>
 
   <dt id="arg-k">k<a class="anchor" aria-label="anchor" href="#arg-k"></a></dt>
-<dd><p>As in <code><a href="bart.html">bart2</a></code>, except that <code>rbart_vi</code> fixes the default at <code>2.0</code> for both continuous and binary responses; unlike <code>bart2</code>, a <code>NULL</code> default (and thus the <code>chi</code> hyperprior on binary fits) is not available here.</p></dd>
+<dd><p>As in <code><a href="bart.html">bart2</a></code>: <code>NULL</code> (the default) uses the value 2 for continuous responses and the <code>chi(1.5, 2)</code> hyperprior for binary ones; a supplied fixed value or hyperprior overrides that default.</p></dd>
 
   <dt id="arg-prior-scale">prior.scale<a class="anchor" aria-label="anchor" href="#arg-prior-scale"></a></dt>
 <dd><p>As in <code><a href="bart.html">bart2</a></code>: names the forest's leaf calibration in response units (the prior standard deviation of \(f\) at <code>k = 1</code>) instead of inheriting it from the response range. The group intercepts' own prior is a separate object and is unaffected. <code>NA</code> (the default) changes nothing.</p></dd>
@@ -264,7 +264,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000319</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000325</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 1 2 2 2 3 5 1 3 5 2 2 2 3 2 2 3 </span>
@@ -277,7 +277,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001494</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001495</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 5 3 4 2 2 3 2 2 4 3 3 2 3 2 2 3 1 4 </span>
@@ -322,7 +322,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000401</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000425</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 </span>
@@ -335,7 +335,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001983</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002029</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 </span>
