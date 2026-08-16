@@ -122,6 +122,23 @@ fitNoTrees <- bart2(
 )
 expect_error(predict(fitNoTrees, x.test), pattern = "keepTrees")
 
+# --- keepSampler retains $fit independent of keepTrees (D2) ---
+fitKeepSampler <- bart2(
+  x,
+  y,
+  family = "nbinom",
+  n.samples = 20L,
+  n.burn = 10L,
+  n.trees = n.trees,
+  n.chains = 1L,
+  verbose = FALSE,
+  keepSampler = TRUE,
+  keepTrees = FALSE
+)
+expect_false(is.null(fitKeepSampler$fit))
+expect_true(is.null(fitKeepSampler$bc))
+rm(fitKeepSampler)
+
 # --- the retained $fit is a host shell, as a multinomial fit's is ---
 # bc holds the count model; the host carries only the design and priors it was
 # built from, so a mutation through it used to be a silent no-op and

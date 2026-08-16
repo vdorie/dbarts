@@ -337,6 +337,24 @@ expect_error(fit3p$fit$setPredictor(x3[, 1L], 1L), hostRefusal)
 expect_equal(ncol(fit3p$fit$data@x), ncol(x3))
 expect_identical(predict(fit3p, x3.test), pred3p)
 
+# --- keepSampler retains $fit independent of keepTrees (D2) ---
+fit3ks <- bart2(
+  x3,
+  y3,
+  family = "multinomial",
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE,
+  keepSampler = TRUE,
+  keepTrees = FALSE
+)
+expect_false(is.null(fit3ks$fit))
+expect_true(is.null(fit3ks$bc))
+rm(fit3ks)
+
 # multi-chain predict threads the chain margin like the run channels
 set.seed(431)
 fit3pMulti <- bart2(

@@ -14,7 +14,7 @@ rbart_vi(
     formula, data, test, subset, weights, offset, offset.test = offset,
     group.by, group.by.test, prior = cauchy,
     sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
-    k = 2.0, prior.scale = NA_real_,
+    k = NULL, prior.scale = NA_real_,
     power = 2.0, base = 0.95,
     split.probs = 1 / num.vars,
     dart = FALSE,
@@ -85,7 +85,7 @@ rbart_vi(
     Same as in \code{\link{bart2}}, with one default difference: \code{keepTrees} defaults to \code{TRUE} here (\code{bart2}'s default is \code{FALSE}). With \code{dart}, split probability samples appear as \code{varprobs} on the fit. Unlike \code{bart2}, \code{rbart_vi} offers a reduced \code{family} set (see below) with no logistic option, and does not accept sparse (\code{Matrix::dgCMatrix}) predictors.
   }
   \item{k}{
-    As in \code{\link{bart2}}, except that \code{rbart_vi} fixes the default at \code{2.0} for both continuous and binary responses; unlike \code{bart2}, a \code{NULL} default (and thus the \code{chi} hyperprior on binary fits) is not available here.
+    As in \code{\link{bart2}}: \code{NULL} (the default) uses the value 2 for continuous responses and the \code{chi(1.5, 2)} hyperprior for binary ones; a supplied fixed value or hyperprior overrides that default.
   }
   \item{prior.scale}{
     As in \code{\link{bart2}}: names the forest's leaf calibration in response units (the prior standard deviation of \eqn{f} at \code{k = 1}) instead of inheriting it from the response range. The group intercepts' own prior is a separate object and is unaffected. \code{NA} (the default) changes nothing.

@@ -20,7 +20,7 @@ rbart_vi <- function(
   sigest = NA_real_,
   sigdf = 3.0,
   sigquant = 0.90,
-  k = 2.0,
+  k = NULL,
   prior.scale = NA_real_,
   power = 2.0,
   base = 0.95,
@@ -60,7 +60,7 @@ rbart_vi <- function(
   argNames <- names(matchedCall)[-1L]
   unknownArgs <- argNames %not_in%
     names(formals(rbart_vi)) &
-    argNames %not_in% names(formals(dbartsControl))
+    argNames %not_in% names(formals(dbarts::dbartsControl))
   if (any(unknownArgs)) {
     stop(
       "unknown arguments: '",

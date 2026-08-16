@@ -105,6 +105,41 @@ expect_error(
   "proposal.probs"
 )
 
+# an explicit proposal.probs = NULL is treated as absent (D4): it succeeds
+# under monotone and is bitwise identical to the defaulted call
+ctrlD4 <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 10L,
+  n.samples = 5L,
+  n.burn = 5L,
+  rngSeed = 55L
+)
+defaultedD4 <- dbarts::dbarts(x, y, monotone = c(a = "+"), control = ctrlD4)
+defaultedD4$sampleTreesFromPrior()
+samplesDefaultedD4 <- defaultedD4$run(0L, 5L)
+
+explicitNullD4 <- dbarts::dbarts(
+  x,
+  y,
+  monotone = c(a = "+"),
+  proposal.probs = NULL,
+  control = ctrlD4
+)
+explicitNullD4$sampleTreesFromPrior()
+samplesExplicitNullD4 <- explicitNullD4$run(0L, 5L)
+
+expect_identical(samplesDefaultedD4$train, samplesExplicitNullD4$train)
+expect_identical(samplesDefaultedD4$sigma, samplesExplicitNullD4$sigma)
+
+rm(
+  ctrlD4,
+  defaultedD4,
+  samplesDefaultedD4,
+  explicitNullD4,
+  samplesExplicitNullD4
+)
+
 rm(monotoneOf, forced, plain, x, y, xf, yf)
 
 # ---- recovery: a monotone truth is recovered with tighter intervals ----

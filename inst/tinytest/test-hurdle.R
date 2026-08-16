@@ -154,6 +154,25 @@ fitNoTrees <- bart2(
 )
 expect_error(predict(fitNoTrees, x.new), pattern = "keepTrees")
 
+# --- keepSampler retains $fit on both component fits, independent of
+# keepTrees (D2) ---
+fitKeepSampler <- bart2(
+  x,
+  y,
+  family = "hurdle.lognormal",
+  n.samples = 20L,
+  n.burn = 10L,
+  n.trees = 10L,
+  n.chains = 1L,
+  verbose = FALSE,
+  seed = 7L,
+  keepSampler = TRUE,
+  keepTrees = FALSE
+)
+expect_false(is.null(fitKeepSampler$occupancy$fit))
+expect_false(is.null(fitKeepSampler$positive$fit))
+rm(fitKeepSampler)
+
 # multi-chain draw alignment (chain-interleaved sigma vs chain-blocked fits) and
 # combineChains reshaping
 fit2c <- bart2(

@@ -275,7 +275,10 @@ resolveSamplerSpec <- function(
   # non-default one conflicts and errors.
   if (!is.null(monotoneDirections)) {
     defaultProbs <- c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)
-    if (!isTRUE(all.equal(proposal.probs[names(defaultProbs)], defaultProbs))) {
+    if (
+      !is.null(proposal.probs) &&
+        !isTRUE(all.equal(proposal.probs[names(defaultProbs)], defaultProbs))
+    ) {
       stop(
         "'monotone' forces birth/death-only proposals; a non-default ",
         "'proposal.probs' cannot be honored under the constraint"
