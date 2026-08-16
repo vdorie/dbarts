@@ -1385,3 +1385,196 @@ are indistinguishable).
   building the override and running the varcount arm under ASAN is the
   implementer's first step, and FB19's negative half (leg (i), the `tests/cpp`
   buffer) is written to reproduce it deliberately.
+
+## Landing notes
+
+ARC CLOSED 2026-08-16. All six slices landed: D0 42846863, D2 511ea2b3, D3
+6e3b9fb8 + 9a20bb4a + e8404d93 (dbarts), B0 d7c855f4, B0b e33b6f20, B1
+34461ce + 8c07947 (bartCause). Final tips: dbarts origin/bartcore e8404d93
+(CI six-green, sanitizers included, at both 511ea2b3 and e8404d93);
+bartCause origin/dbarts-1.0 8c07947. Walkthrough resolutions discharged:
+Fork A = (a), the driver (four calls, no per-sweep loop); Fork B = (a),
+both front doors (exported `bcf()` plus the `bartc()` arm over one
+`fitBCF` core); Fork C REVERSED the plan's own drop-and-ticket
+recommendation and BUILT THE CHANNEL NOW. Because of that reversal the S5
+contract ships VERBATIM rather than amended - per-draw mu, tau, glue,
+sigma, per-forest varcount and both counterfactual surfaces, forest-
+indexed - with per-forest varcount reaching `bartBCF` through D3's widened
+`run()$varcount` channel (`shapeMultinomialChannel`, `n.forests` recorded
+on the fit) rather than a documentation rider. Ticketed residues, by
+name: `bartcause-subset-pscore` (two pre-existing bartCause bugs surfaced
+in gate-running, neither caused by `bcf()`),
+`predict-bartcfit-propensity-collision` (VD-resolved to land right after
+this closure), `getforestvariablecounts-dimnames` (small, dbarts-side).
+Doors held, unchanged by this arc: `mu.blocks` (refusal ships, points at
+`tau.blocks`); the K-forest batched front door (spelling undecided, rides
+`bart2-argument-consolidation` - `TODO`'s own pointer into this arc cited
+gitignored design-session artifacts that no longer exist as citable
+anchors and is repointed at this plan's Doors held section instead);
+per-forest saved-tree replay (both `predict` refusals name it); grouped
+BCF (`setOffset`'s BCF refusal is the real guard).
+
+B1 LANDED 34461ce + trailing 8c07947 (bartCause; S5 proper - `bcf()`,
+`bartBCF`, five S3 methods, the `method.rsp = "bcf"` arm, the moderator
+exclusion; 14 files +1612/-12). `fitBCF` drives `dbarts(forests =
+list(forest(vars = muVars), forest(basis = cbind(1-z, z), vars =
+tauVars)))` -> `sampleTreesFromPrior` -> two batched `run()` calls, no
+per-sweep loop; exported `bcf()` plus x/y doors; print/fitted/extract/
+residuals defined and predict DEFINED AND REFUSING, naming the per-forest
+saved-tree replay door. `normalizeBCFSubset` handles all four subset
+kinds (logical/int-pos/int-neg/character); an empty-arm basis refuses by
+name. The moderator exclusion: builders now RETURN the resolved
+`pScoreName` (appended positionally, `massign`-safe); `tauVars =
+setdiff(design, c(treatment, score))`; a moderator naming the treatment
+or the score is REFUSED, not silently trimmed. `fit.rsp` carries
+`sigma`/`first.sigma` as `[n.chains, n.samples]` MATRICES at every chain
+count (B0b's reshape branches never fire); `missingRows` is length
+`n.obs` all-FALSE, a FIX over the bart arm's full-length vector, which
+misaligns with `sd.obs` under `subset` (gate-runner measured). `varcount`
+is a forest-indexed container off D3's channel. `man/bcf.Rd` (284 + 8
+trailing) carries the structural-zero rider; `test-14-bcf.R` has 173
+assertions, all falsifiers both halves; the trailing 8c07947 commit adds
+seven bookkeeping \value items, FB tags and the FB6 `plot_indiv` leg
+(test-05 122 -> 123).
+
+Battery: suite FAIL 0 PASS 711 (+173, exactly the new assertions; the
+parent baseline was rebuilt to prove no existing assertion moved). FB0
+(the load-bearing falsifier) is bitwise identical to a hand driver on
+mu/tau/glue/sigma/first.sigma/mu.hat.obs/varcount.tau; the negative half
+(an extra burn sweep) differs. FB1's offset reconstruction is exact to
+8.9e-16 (2.27 without the offset - non-vacuous). `check --as-cran`: the
+pre-existing Version/Date WARNING only. Gate-runner CONFIRMED with its
+OWN hand driver (seed 4242, x/y interface, identical on every channel),
+moderator varcount totals (tau z=0 ps=0, mu ps=5410 z=0; negative half
+all nonzero; the "psps" name collision resolves correctly - psps
+survives in tau at 109 while ps=0), the bartc arm end to end
+(summary/estimands finite, refit moves commonSup 120 -> 84, the binary
+probit arm clean, group.by's total row correct), all four subset kinds
+(n = 76/70/85/74), and reconstruction to 4.4e-16/8.9e-16. Seven
+deviations ALL CONCUR, one count corrected: EIGHT extra fit elements,
+not three, all load-bearing and documented. Doors this slice leaves
+held, unchanged: `mu.blocks` (refuses by name, points at `tau.blocks`
+and the door); component-predict replay (both `predict` refusals name
+it); grouped BCF (`setOffset`'s BCF refusal is the real guard). Residues
+recorded rather than fixed: two "runs without error" oracles in
+`test-14-bcf.R`, under the plan's cap of 8; and the
+`predict.bartcFit` propensity-collision fix, VD-resolved to land next
+(`predict-bartcfit-propensity-collision`, `TODO`).
+
+B0b LANDED e33b6f20 (bartCause, the per-chain sigma defect - not two
+tokens: the suite MIRRORED it). Three `byrow = TRUE` drops
+(`extract.bartcFit`'s sigma reshape, `R/generics.R`; `plot_sigma`'s
+sigma + first.sigma, `R/plot.R`); two comments corrected from
+chain-major to sample-major; two shipped test oracles re-derived
+(`test-05-generics.R`:46 now `expect_equal(sigma,
+as.vector(t(matrix(fit$fit.rsp$sigma, nrow = n.chains))))`;
+`test-12-plot.R`:54-55 with its comment at :31-35). FB12 added: a
+cross-check against a `bart2(combineChains = FALSE)` refit that never
+round-trips combine/uncombine - proven both halves, reverting `byrow`
+breaks it. NEWS BUG-FIXES bullet: `extract(type = "sigma")` now returns
+chain-major order, matching every other extracted quantity; previously
+multi-chain fits interleaved chains, mis-pairing sigma with the
+posterior predictive draws. Suite FAIL 0 PASS 538. Gate-runner CONFIRMED
+(pair battery):
+per-chain bit-identity vs a never-combined fit (max abs diff 0 0 0 0
+across 4 chains; the OLD reshape showed 0.191/0.173/0.197/0.267 -
+discriminating power); multi-chain `plot_sigma` clean; NEWS parses;
+`check --as-cran` 1 pre-existing WARNING (Version/Date, DESCRIPTION
+untouched).
+
+B0 LANDED d7c855f4 (bartCause, restore green against dbarts e8404d93).
+Pre-edit receipt: [FAIL 1 | WARN 9 | SKIP 10] default env, the NOT_CRAN
+set isolating the single failure - `test-06-regression.R`:52 expected
+0.50402744431802, actual 0.44963899452561451, identical to the
+231744a0-era measurement and proving D2/D3 draw-neutrality end to end (no
+leak). One literal changed, regenerated in-suite (a temporary `%.17g`
+print, removed after). After: FAIL 0 PASS 534.
+
+D3 LANDED 6e3b9fb8 (engine) + 9a20bb4a (records/baseline) + e8404d93
+(comment/pointer correction); CI six-green at e8404d93, sanitizers
+included. The arc's one ENGINE slice: `BCFForestCombiner` overrides
+`numVariableCountForests()` -> `numForests_` and `variableCountForest(j)`
+-> `j`; `Chain::numVariableCountForests` clamps the combiner's report to
+`forests_.size()` (the owed guard - the combiner rounds a one-forest
+amplitude spec up to two); `storeSample` reads
+`results.numVariableCountForests`; a single caller-count clamp in
+`Sampler::run`'s stride computation is exported into the shape at
+`facade.hpp`:382 so the R bridge sizes off it. Flat C NEVER sets the
+field (default 1), so it keeps byte-identical legacy prognostic-only
+bytes; `dbarts.h` gains one doc COMMENT only (token-stream proven, 2870
+identical tokens); `apiHash` UNMOVED at 0x85bd1ef04beb3848
+(static_assert + a compiled consumer + an independent `R_GetCCallable`
+probe). R packaging: a K>1 fit routes `varcount` through
+`shapeMultinomialChannel` (`forest1..forestK` on the trailing margin,
+predictor names leading), records `n.forests` when K>1, and the
+`fitSynopsis` arm reports the true kept-draw count; the K=1 path is
+UNTOUCHED (legacy `nameVarcount`). Riders: the dead init-capture
+(`treatment = std::vector<double>{}`) is deleted, closing
+`dead-bcf-init-capture`; `bartcore_runWithCallback` is pinned to 1 with
+an audit comment (the real guard is `setOffset`'s BCF refusal -
+`R/spec.R`:505 never reaches the buffer path, measured); six falsified
+comments corrected (the plan named four; the implementer found
+`chain.hpp`:305-312, the gate-runner found `combiner.hpp`:641-651, the
+latter fixed in e8404d93 along with two stale doc baseline pointers,
+line counts preserved - `feature-matrix.md` 882,
+`multiforest-extension-surface.md` 5324).
+
+Battery: 5318 tinytest FAILURES 0 (+34, additions only); `tests/cpp` 245
+ok from clean; ASAN negative half = the designed FB19 abort
+(heap-buffer-overflow WRITE of 16 at 0 bytes after a 64-byte region,
+`Chain::forestVariableCounts` `chain.hpp`:1256 via `storeSample` :5036);
+ASAN positive clean. equivalence 37/37 + multinomial 10/10 BITWISE (the
+leak detectors, unmoved). FB16: the old 2-D `varcount` (4x40) vs the new
+4x2x40 - forest-1 slab `identical()` on all 12 scenarios, slab 2's last
+draw equals the recorded live `varcount.tau`; the harness-vs-old-baseline
+mismatch set is EXACTLY the `varcount` channel, 12/12. SHAPE-ONLY
+re-record: `bcf-equivalence-6e3b9fb8.rds` (766813 bytes) with the
+four-place same-commit bookkeeping - `equivalence.yaml`:87; MANIFEST new
+current row :42, old row historical :43, multinomial row shifted :48 ->
+:49; TODO ledger "D3 LANDED 6e3b9fb8 + baselines 6e3b9fb8";
+`feature-matrix.md` [f39] renamed and repinned to MANIFEST:16,42,49.
+Gate-runner CONFIRMED with two independent probes: K=1 A/B
+BYTE-IDENTITY vs a base-build library (`varcount`, dimnames, sigma,
+`names(fit)` all identical; `n.forests` absent); K=2 raw 4x2x6x2 with
+live-read cross-checks and masked-forest structural zeros, packaged
+shapes/dimnames/synopsis correct both `combineChains` ways; `R CMD check
+--as-cran` Status OK.
+
+Deviations (adjudicated, adopted): two commits recorded, not one (the
+baseline names the commit whose behavior it records, repo precedent);
+the clamp is spelled in `Chain::numVariableCountForests`; FB18's negative
+half pins p (the unarmed 3-D branch reads the predictor count, not a
+doubled draw count); a fifth and sixth falsified comment found beyond
+the plan's four; the two stale doc pointers fixed in e8404d93. Residue
+found in gate-running, ticketed rather than folded in:
+`$getForestVariableCounts` (`R/dbarts.R`:1508) returns an UNNAMED matrix
+while the packaged channel it mirrors carries predictor names -
+`getforestvariablecounts-dimnames` (`TODO`).
+
+D2 LANDED 511ea2b3 (dbarts, three R-surface guards on the construction
+seam; CI six-green). `dbarts()` (only) refuses a basis-carrying forest
+declaration over a pre-built `dbartsData`, which was a silent
+single-forest fit before; `dbartsSpec()` is untouched, since it installs
+the declaration rather than discarding it. `dbartsData`'s ignored-args
+warning gains `bases`. `amplitude.prior.variance` is excused for
+`hasBasis` forests (`R/model.R`'s `excused` hoist moved above the basis
+test). Three Rd sentences added: `dbarts.Rd`'s forests item,
+`dbartsSpec.Rd`'s shared item stating declaration-REPLACES-bases,
+`forest.Rd`'s basis item. 28 assertions over FB13's five legs appended to
+`test-bcf-creation.R`. Battery: 5284 tinytest FAILURES 0; the trio all
+bitwise; air/lintr clean; `R CMD check --as-cran` OK (two pre-existing
+INFOs); `tests/cpp` green. Gate-runner CONFIRMED with two independent
+stop-condition probes: the supported composition is unaffected, and
+`dbartsSpec()`'s declaration-wins semantics measured (ncol 2 -> 3
+replacement).
+
+D0 LANDED 42846863 (dbarts, records/TODO only, no CI fired). Rewrote the
+treatment-slot ticket CLOSED against `dbartsdata-treatment-slot-debt`'s
+9c63e9d8 with live receipts plus the measured bartCause facts (a
+533-assertion NOT_CRAN run, zero argument-passing errors); added the
+`dead-bcf-init-capture` ticket (closed by D3 above); completed
+`bcf-naming-generalization`'s symbol list (`BCFSpecStorage` plus uses,
+`isBCFSampler`/`refuseBCFMutation` plus five call sites); re-pinned
+`calibrationMapName` (definition `R_interface_bartcore.cpp`:4052-4055,
+the literal at :4054, the call site at :4144); corrected a
+tinytest-vs-testthat mislabel.

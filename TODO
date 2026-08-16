@@ -116,13 +116,15 @@ items
     could become one object. (3) formula-carried structure - representing
     constraints/priors as formula terms rather than flat arguments.
     Interacts with the K-forest front-door DOOR: whether bart2 gains
-    multi-forest reach via a forests = flat formal (drafted as
-    bcf-s5-relocation's D1, "forests = NULL as a bart2 formal",
-    design-draft.md:848,853-856) or via formula-level term syntax is
-    undecided per VD's 2026-08-15 bcf-s5-relocation walkthrough (Fork A
-    CONCURs D1 schedules independently on dbarts' own merits,
-    critique-round1.md:622,629-631); arc records in
-    .claude/bcf-s5-relocation/, spec commit into docs/plans pending.
+    multi-forest reach via a forests = flat formal or via formula-level
+    term syntax stays UNDECIDED per VD's 2026-08-15 bcf-bartcause-
+    relocation walkthrough (docs/plans/bcf-bartcause-relocation.md,
+    Doors held, "The K-forest batched front door", :1252-1270;
+    Resolutions item 2, :1297-1300). REPOINTED here: the former citation
+    (design-draft.md, critique-round1.md, both under the gitignored
+    .claude/bcf-s5-relocation/) no longer exists as a citable anchor now
+    that the arc's spec landed and closed (docs/plans/bcf-bartcause-
+    relocation.md, D1 schedules independently on dbarts' own merits).
     LOCKSTEP COST: bartCause (dbarts-1.0 branch) forwards bartc()'s
     arguments into dbarts::bart2 via redirectCall, keeping an argument IFF
     its name matches a formal of the target function (bartCause
@@ -141,6 +143,19 @@ items
     validating unknown args against dbartsControl's formals too,
     R/rbart.R:60-64) for the shared-argument picture. Unscheduled, review
     before release.
+  bartcause-subset-pscore: two PRE-EXISTING bartCause bugs, found during
+    bcf-bartcause-relocation's B1 gate-running (MEASURED, all four
+    response methods): (1) bartc(..., data = <data.frame>,
+    subset = ...) with a p.score-producing method.trt errors
+    "replacement has N rows, data has M" at bartCause R/argParse.R:147
+    (a subset-length score assigned into the full-length frame); (2)
+    bartc(..., p.score = <vector>, subset = ...) errors "the condition
+    has length > 1" on both arms. Neither is caused by bcf() or by any
+    dbarts change - both reproduce on method.rsp = "bart". Consequence
+    recorded where it bites: bcf-bartcause-relocation.md's FB11
+    four-kind subset falsifier on the bartc arm holds only via the
+    literal (non-data.frame, non-vector-p.score) path until this is
+    fixed. bartCause-side fix, same ticket or a sibling for the two.
   bcf-naming-generalization: the shipped K-forest amplitude family is
     spelled with BCF names at every layer - BCFSpec, BCFForestSpec,
     BCFState, BCFForestCombiner, BCFSpecStorage, createBCFSampler,
@@ -173,25 +188,27 @@ items
     Pre-release, unscheduled.
   bcf-public-surface: S0-S4 and S6 landed; the public creation
     surface exists (plan + landing notes in
-    docs/plans/bcf-public-surface.md). REMAINING: S5 (bcf() and the
-    bartBCF fit class) is PAUSED and RELOCATED to bartCause, per VD's
+    docs/plans/bcf-public-surface.md). S5 (bcf() and the bartBCF fit
+    class) was PAUSED and RELOCATED to bartCause, per VD's
     extension-surface fork 4 (RESOLVED 2026-08-11: bartCause, on its
-    dbarts-1.0 branch). The provisional
-    treatment=/moderators=/treatmentForest= names are GONE, replaced
-    by forests = list(forest(basis = ...)) (multiforest-extension-
-    surface M2), the flat setTreatment/bcfGlue by
-    setForestBasis/numForestAmplitudes/forestAmplitudes (M3), and the
-    dbartsData(treatment=) slot by the per-forest bases list (M4.3).
-    Its S0 BCF transactional-setPredictor and per-observation-session pins
-    (bcf-public-surface.md:326-327) are INVERTED IN PLACE by
-    multiforest-predictor-mutation's S1 (the whole-matrix/column
-    entries) and S2 (the two per-observation entries), in
-    test-bcf-mutation-pins.R, test-bcf-r5-surface.R, and
+    dbarts-1.0 branch), and has now LANDED there (see below, and the
+    completion addendum at bcf-public-surface.md's EOF). The
+    provisional treatment=/moderators=/treatmentForest= names are
+    GONE, replaced by forests = list(forest(basis = ...))
+    (multiforest-extension-surface M2), the flat setTreatment/bcfGlue
+    by setForestBasis/numForestAmplitudes/forestAmplitudes (M3), and
+    the dbartsData(treatment=) slot by the per-forest bases list
+    (M4.3). Its S0 BCF transactional-setPredictor and
+    per-observation-session pins (bcf-public-surface.md:326-327) are
+    INVERTED IN PLACE by multiforest-predictor-mutation's S1 (the
+    whole-matrix/column entries) and S2 (the two per-observation
+    entries), in test-bcf-mutation-pins.R, test-bcf-r5-surface.R, and
     test-multi-forest-seam.R: each retirement commit edited the
     assertion this arc wrote from REFUSE to ACCEPT in place, rather
     than deleting or duplicating it.
     The relocation arc itself is docs/plans/bcf-bartcause-relocation.md
-    (D0 D2 D3 in dbarts, B0 B0b B1 in bartCause): D0 LANDED 42846863
+    (D0 D2 D3 in dbarts, B0 B0b B1 in bartCause), ARC CLOSED 2026-08-16
+    (full landing notes at the plan's EOF): D0 LANDED 42846863
     (records), D2 LANDED 511ea2b3 (three R-surface guards on the
     construction seam), D3 LANDED 6e3b9fb8 + baselines 6e3b9fb8 - the
     arc's one ENGINE slice, which widens run()$varcount's forest axis
@@ -202,8 +219,18 @@ items
     re-records bcf-equivalence SHAPE-ONLY against its own FB16 gate
     (all 12 scenarios' draw channels bitwise; the two leak-detector
     baselines, equivalence-8b047f8b and multinomial-equivalence-
-    1027be5, stayed bitwise and unrecorded). REMAINING in dbarts after
-    B1 lands: record S5 RELOCATED AND LANDED at bartCause dbarts-1.0.
+    1027be5, stayed bitwise and unrecorded); B0 LANDED d7c855f4
+    (bartCause, one snapshot literal against dbarts D2/D3, restoring
+    FAIL 0 PASS 534); B0b LANDED e33b6f20 (bartCause, the per-chain
+    sigma byrow defect the suite mirrored, FAIL 0 PASS 538, own NEWS
+    bullet); B1 LANDED 34461ce + trailing 8c07947 (bartCause, bcf(),
+    bartBCF, five S3 methods, the method.rsp = "bcf" arm and the
+    moderator exclusion, FAIL 0 PASS 711). Final tips: dbarts
+    origin/bartcore e8404d93, bartCause origin/dbarts-1.0 8c07947. The
+    S5 contract ships VERBATIM, per-forest varcount included via D3's
+    widened channel. Residues ticketed, own entries below/above:
+    bartcause-subset-pscore, predict-bartcfit-propensity-collision,
+    getforestvariablecounts-dimnames.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). Open: the EXTREME
     tail (|a0| >= ~40, ~3% of the prior) is frozen-structure mixing
@@ -289,7 +316,8 @@ items
     9c63e9d8. The only residue is one snapshot literal,
     test-06-regression.R:52 (fitted(fit, "pate") expected
     0.50402744431802, measured 0.44963899452561451), which the
-    bcf-s5-relocation arc's B0 slice lands. This closure was already
+    bcf-bartcause-relocation arc's B0 slice LANDED (d7c855f4, FAIL 0
+    PASS 534). This closure was already
     recorded, contradictorily, at the bcf-public-surface entry above
     ("...and the dbartsData(treatment=) slot by the per-forest bases
     list (M4.3)."); this entry was the stale half, now brought into
@@ -356,6 +384,15 @@ items
     permanent gate (benchmarks/R/grouped-mixing.R), and the
     VD-sign-off reopen clause in
     docs/design/forest-ranef-interweaving.md. decision-gated.
+  getforestvariablecounts-dimnames: small dbarts-side asymmetry, found
+    during bcf-bartcause-relocation's D3 gate-running: the live
+    $getForestVariableCounts(forest) read (R/dbarts.R:1508) returns an
+    UNNAMED matrix while the packaged run()$varcount channel it mirrors
+    carries predictor names on its leading margin (docs/plans/
+    bcf-bartcause-relocation.md, D3 items 3-4). FB18's tinytest fixture
+    is deliberately colname-free because of it. Small R-layer fix:
+    carry the predictor names onto the live read's dimnames. Not
+    scheduled; small slice.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost) and low-rank kernels. Value gate lifted by the
     model-space survey: GP-leaf BART as a surrogate for sequential
@@ -642,6 +679,22 @@ items
     shipped-to-exact gap survives that fix. Opt-in grow path only,
     missing-bearing ordinal columns only. Own slice, draw-law
     change when taken.
+  predict-bartcfit-propensity-collision: PRE-EXISTING bartCause defect,
+    ticketed by bcf-bartcause-relocation (VD walkthrough item 7,
+    docs/plans/bcf-bartcause-relocation.md:1308-1315): predict.bartcFit's
+    propensity-column name ladder (bartCause R/generics.R:110-112) can
+    resolve the WRONG column when a confounder's name collides with the
+    score's default spelling (MEASURED: a confounder named "psps"
+    against a score "ps" resolves to "psps", then :183 overwrites it
+    with predicted scores). VD-RESOLVED: land RIGHT AFTER the relocation
+    arc's B1 slice, not folded into it (a bart-path contract change does
+    not belong inside a bcf slice). The fix is mechanical now that B1
+    shipped: its response-fitter builders already RETURN the resolved
+    p.score name (bcf-bartcause-relocation.md B1.4); widen the namedList
+    contract at R/responseFit.R:286 across all four fitters plus
+    R/bartc.R:172-181 (~12 lines, five sites) so predict.bartcFit
+    CONSUMES the returned name instead of re-deriving it from its
+    ladder. bartCause-side, next slice.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take
