@@ -18,10 +18,12 @@
 #     (bartcoreForestVariableCounts 1).
 # train and varcount are the only bitwise guard on storeSample's BCF report
 # branches; the per-forest fits and glue guard the combining math and the
-# coupling draw. result$varcount is the reported channel, which for a BCF
-# sampler is the PROGNOSTIC forest alone, so varcount.tau is the only guard on
-# the treatment forest's tree structure - without it a change that moved tau's
-# splits but not mu's would read as a leaf-value change.
+# coupling draw. result$varcount carries a FOREST AXIS (p x n.forests x
+# n.samples here, single chain), slab 1 the prognostic forest and slab 2 the
+# treatment forest, so it guards both forests' tree structure per draw;
+# varcount.tau stays as the live-read cross-check against slab 2's last draw.
+# Before bcf-bartcause-relocation D3 this channel was the prognostic forest
+# alone and varcount.tau was the only guard on tau's splits.
 #
 # A getState -> setState continuation is deliberately NOT recorded: restore is
 # structural by contract (the dropped accumulation history is not reproduced,

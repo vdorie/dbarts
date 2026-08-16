@@ -985,6 +985,17 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// recombines them, so a consumer reads both surfaces off one run.
   bool forestReportingIsDefined() const override { return true; }
 
+  /// Each forest records its own splits, as the softmax coupling's do: the
+  /// per-sample varcount channel is numForests_ wide, slot j addressing forest
+  /// j, so the prognostic forest keeps slot 0 (the exact bytes a caller
+  /// declaring one forest still gets) and the treatment forest follows it.
+  /// Chain::numVariableCountForests clamps this to the chain's own forest
+  /// count: the constructor rounds numForests_ UP to two, so a combiner built
+  /// standalone below that would otherwise report a forest the chain has not
+  /// got and storeSample would index past forests_.
+  std::size_t numVariableCountForests() const override { return numForests_; }
+  std::size_t variableCountForest(std::size_t j) const override { return j; }
+
   /// BCF admits the scale-pinned response and offset swaps on two conditions,
   /// both of which hold for every family the coupling is built with. FIRST,
   /// the response re-maps y and touches no forest, so every leaf calibration

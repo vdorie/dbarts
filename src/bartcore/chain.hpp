@@ -304,8 +304,11 @@ struct ForestCalibration {
 ///
 /// Under BCF (two forests) trainingFits carries the a * mu + b_z * tau blend,
 /// but testFits is filled with NaN (no test treatment vector to blend), and
-/// k, variableCounts, and splitProbabilities report the PROGNOSTIC (mu) forest
-/// only; the treatment forest is reached through the per-forest channels
+/// k and splitProbabilities report the PROGNOSTIC (mu) forest only;
+/// variableCounts reports as many forests as the CALLER declared through
+/// numVariableCountForests, prognostic first, so a caller leaving it at 1 gets
+/// that same prognostic slab and nothing else. The treatment forest's own fit
+/// is reached through the per-forest channels
 /// (forestTotalFits + bcfGlue, docs/design/bcf.md). logLikelihood is likewise
 /// NaN-filled under BCF (the blended per-observation location is not visible
 /// to the response model).
@@ -314,8 +317,10 @@ struct Results {
   double* trainingFits = nullptr;   // numObservations x numSamples, or null
   double* testFits = nullptr;       // numTestObservations x numSamples, or null
   // numPredictors x numVariableCountForests x numSamples, or null; the forest
-  // dimension is 1 for every additive model (the exact numPredictors x
-  // numSamples layout), numCategories for multinomial's per-category channels
+  // dimension is 1 for a single-forest model (the exact numPredictors x
+  // numSamples layout), numCategories for multinomial's per-category channels,
+  // and the forest count for a multi-forest amplitude model (BCF), whose slab
+  // 0 is the prognostic forest
   std::uint32_t* variableCounts = nullptr;
   double* k = nullptr;              // numSamples, or null; only when k sampled
   // numPredictors x numSamples, or null; filled only under DART
@@ -359,10 +364,16 @@ struct Results {
   // combiner. The run bridge sizes the fits buffers by it and Sampler strides
   // per chain by it; storeSample reads the count from the combiner directly.
   std::size_t numReportedLocations = 1;
-  // per-sample forests the variableCounts array carries: 1 for every additive
-  // model (the exact current layout), numCategories for multinomial. The run
-  // bridge sizes variableCounts by it and Sampler strides per chain by it;
-  // storeSample reads the count from the combiner directly.
+  // per-sample forests the variableCounts array carries, and the CALLER's
+  // authority over the channel's width: 1 for a single-forest model (the exact
+  // current layout), and up to the model's own forest count for multinomial and
+  // for a multi-forest amplitude model (BCF). The run bridge sizes
+  // variableCounts by it, Sampler strides per chain by it, and storeSample
+  // writes exactly this many slabs per sample, so a caller that leaves it at 1
+  // - the flat C API, rbart_vi's callback loop - keeps the single-slab layout
+  // its buffer is sized for and reads the reported (prognostic) forest.
+  // Sampler::run clamps it to the combiner's own count once, up front, so the
+  // stride and the writes cannot disagree.
   std::size_t numVariableCountForests = 1;
   // per-sample cutpoints the cutpoints array carries: 0 for every family but
   // ordinal (K-1). The run bridge sizes cutpoints by it and Sampler strides per
@@ -931,10 +942,16 @@ public:
     return combiner_ ? combiner_->numReportedLocations() : 1;
   }
   /// Per-sample forests the recorded split-usage channel carries: the
-  /// combiner's forest count (1 for every additive combiner, BCF included),
-  /// 1 off any combiner. The run bridge reads it to size the varcount array.
+  /// combiner's forest count (1 for a single-forest model, K for multinomial
+  /// and for a multi-forest amplitude model), 1 off any combiner, CLAMPED to
+  /// this chain's own forest count. The clamp is the one guard the count owes:
+  /// BCFForestCombiner rounds its forest count up to two, so a combiner handed
+  /// fewer would otherwise report a forest forests_ has not got and
+  /// storeSample's forestVariableCounts would index past it. The run bridge
+  /// reads this to size the varcount array.
   std::size_t numVariableCountForests() const {
-    return combiner_ ? combiner_->numVariableCountForests() : 1;
+    std::size_t count = combiner_ ? combiner_->numVariableCountForests() : 1;
+    return count > forests_.size() ? forests_.size() : count;
   }
   /// Per-sample cutpoints the recorded cutpoint channel carries: the response's
   /// K-1 for a cutpoint-carrying family (ordinal), 0 for every other.
@@ -5003,12 +5020,15 @@ private:
     }
 
     if (results.variableCounts != nullptr) {
-      // one varcount slab per reported forest, forest-major within a sample so
-      // count 1 (single forest and BCF) is the exact current byte layout; a
-      // multi-forest combiner (multinomial) records each category forest's
-      // splits into slot j = variableCountForest(j)
-      std::size_t numVCForests =
-        combiner_ ? combiner_->numVariableCountForests() : 1;
+      // one varcount slab per DECLARED forest, forest-major within a sample, so
+      // count 1 is the exact single-slab byte layout and slot j takes forest
+      // variableCountForest(j) - the reported (prognostic) forest at j = 0 for
+      // every coupling, each category's own forest for multinomial, each
+      // forest's own for a multi-forest amplitude model. The count is the
+      // CALLER's, not the combiner's: it is what sized the buffer and what
+      // Sampler::run strides per chain by, and Sampler::run has already clamped
+      // it to the combiner's count.
+      std::size_t numVCForests = results.numVariableCountForests;
       for (std::size_t j = 0; j < numVCForests; ++j) {
         std::size_t f =
           combiner_ ? combiner_->variableCountForest(j) : reportedIndex;

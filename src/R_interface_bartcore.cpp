@@ -2951,7 +2951,6 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                  survivalStatus = std::vector<double>{},
                  varianceColumns = std::vector<std::size_t>{},
                  bcfStorage = BCFSpecStorage{},
-                 treatment = std::vector<double>{},
                  rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
@@ -4213,8 +4212,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // a multi-location combiner (multinomial: K softmax channels) inserts a
   // location dimension between the observations and the samples
   size_t numLocations = shape.numReportedLocations;
-  // the varcount channel widens on its own forest axis (multinomial: K category
-  // forests), inserting a forest dimension between the predictors and the
+  // the varcount channel widens on its own forest axis (K for multinomial's
+  // category forests and for a multi-forest amplitude model's, prognostic
+  // first), inserting a forest dimension between the predictors and the
   // samples exactly as the fits seam inserts locations
   size_t numVCForests = shape.numVariableCountForests;
 
@@ -4400,8 +4400,11 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // additive model, K for multinomial. The location stride drives the
   // chain-major slabbing (multiple chains).
   results.numReportedLocations = numLocations;
-  // one varcount slab per reported forest; 1 for every additive model, K for
-  // multinomial's per-category counts. Drives the chain-major varcount stride.
+  // one varcount slab per reported forest; 1 for a single-forest model, K for
+  // multinomial's per-category counts and for a multi-forest amplitude model's
+  // per-forest counts. Drives the chain-major varcount stride. The R run bridge
+  // is the surface that OPTS IN to the widened channel; a caller leaving the
+  // field at its default 1 (the flat C API) keeps the single prognostic slab.
   results.numVariableCountForests = numVCForests;
   // K-1 cutpoints per sample for ordinal, none otherwise; drives the chain-major
   // cutpoint stride
@@ -4507,9 +4510,15 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   // single chain here, so the location stride only shapes the fits buffers the
   // caller allocated; 1 for every model today (n x numSamples)
   results.numReportedLocations = shape.numReportedLocations;
-  // rbart_vi's caller-owned varcount buffer is single-forest (rbart is never
-  // multinomial); 1 keeps the aliased numPredictors-per-sweep layout
-  results.numVariableCountForests = shape.numVariableCountForests;
+  // rbart_vi's caller-owned varcount buffer is single-slab (R/rbart.R sizes it
+  // numPredictors x n.samples), so the count is PINNED to 1 here rather than
+  // read off the shape: the layout is then true at this site whatever a future
+  // slice widens upstream, and the two guards that keep a multi-forest sampler
+  // off this path - setOffset's BCF refusal on the R-loop path, and the grouped
+  // refusal in R/spec.R on the in-core one - stop being load-bearing for
+  // MEMORY SAFETY. A multi-forest sampler that ever reached here would report
+  // its prognostic forest, exactly as the flat C API does.
+  results.numVariableCountForests = 1;
 
   bool callbackErrored = false;  // an error escaped the closure (R_tryEval)
   bool closureStopped = false;   // the closure returned TRUE (self-caught stop)

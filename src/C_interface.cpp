@@ -388,6 +388,11 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
   // the internal location stride (invisible to the frozen dbarts_results ABI):
   // 1 for every dbarts.h-created sampler, since the flat C API builds no
   // multi-location model, so the caller's n x numSamples train/test hold
+  //
+  // numVariableCountForests is deliberately NOT set: dbarts_results declares no
+  // forest count, so the field stays at its default 1 and the engine writes the
+  // single numPredictors slab per sample this struct documents - the reported
+  // (prognostic) forest - even on the BCF samplers this entry point can create
   engineResults.numReportedLocations = shape.numReportedLocations;
   // A zero structSize means the caller forgot to set it (see DBARTS_RESULTS_INIT):
   // reject loudly instead of silently skipping every field and handing back an

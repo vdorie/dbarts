@@ -273,10 +273,16 @@ public:
     // (one everywhere but a multi-location combiner), so the per-chain slab
     // stride folds it in; L = 1 leaves the exact current chain-major stride
     size_t numLocations = results.numReportedLocations;
-    // the per-sample varcount slab carries numVariableCountForests forests
-    // (1 everywhere but multinomial), so the per-chain varcount stride folds it
-    // in; count 1 leaves the exact current chain-major stride
+    // the per-sample varcount slab carries numVariableCountForests forests (1
+    // for a single-forest model, up to K for multinomial and for a multi-forest
+    // amplitude model), so the per-chain varcount stride folds it in; count 1
+    // leaves the exact current chain-major stride. The caller declares it, and
+    // the clamp to what the coupling can actually report happens HERE, once:
+    // the stride below and storeSample's writes both read this one value, so
+    // they agree by construction and storeSample needs no clamp of its own.
     size_t numVarCountForests = results.numVariableCountForests;
+    if (numVarCountForests > numVariableCountForests())
+      numVarCountForests = numVariableCountForests();
     // the per-sample cutpoint slab carries numCutpoints thresholds (0 off
     // ordinal), so the per-chain cutpoint stride folds it in
     size_t numCutpoints = results.numCutpoints;

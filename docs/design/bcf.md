@@ -368,6 +368,19 @@ forest, basis, numColumns)` and `bcfGlue` replaced by the ragged
 both forests' fits and the combining glue for every draw (S4, 1df9c0c)
 instead of one call per sweep.
 
+Per-forest SPLIT COUNTS joined them (bcf-bartcause-relocation D3): the
+amplitude coupling now overrides `numVariableCountForests`/
+`variableCountForest`, so `run()$varcount` carries a forest axis
+(`n.predictors x n.forests x n.samples x n.chains`, forest-major, prognostic
+first) rather than the prognostic forest alone - the same axis multinomial's
+per-category counts already rode. The axis is the CALLER's to ask for:
+`storeSample` writes as many slabs as `Results::numVariableCountForests`
+declares (clamped once to the coupling's own count in `Sampler::run`), so the
+R run bridge, which sets it from the shape, opts in while the flat C API,
+whose `dbarts_results` has no such field, keeps the single prognostic slab it
+always got. `$getForestVariableCounts` is unchanged and is the live-state read
+the channel's last kept draw agrees with.
+
 Two corrections to this document as originally written: **"C exposure stays
 internal first"** (Mutation surface, above) was accurate then; S3 made it
 public. **"bartCause is the intended consumer, driving from R over the

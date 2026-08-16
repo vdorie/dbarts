@@ -137,6 +137,12 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// the response model to score - any sampler whose forests combine through
 /// amplitudes, at any forest count, and the multinomial softmax - and skipping
 /// it (null or absent-by-size) elides all of its computation.
+/// varcount reports the sampler's REPORTED forest, which on a multi-forest
+/// model is the prognostic forest (the first): this struct declares no forest
+/// count, so the engine writes exactly the numPredictors x numSamples x
+/// numChains slab documented below whatever the sampler's forest count is. A
+/// caller wanting every forest's split counts drives the sampler from R, whose
+/// run channel carries a forest axis.
 /// Value-initialize with DBARTS_RESULTS_INIT (sets structSize, zeroes the rest):
 ///   dbarts_results results = DBARTS_RESULTS_INIT;
 typedef struct dbarts_results_t {
