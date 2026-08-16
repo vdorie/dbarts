@@ -200,12 +200,33 @@ packageBartResults <- function(
     )
   }
 
-  varcount <- nameVarcount(
-    samples$varcount,
-    colnames(fit$data@x),
-    n.chains,
-    combineChains
-  )
+  # a multi-forest sampler's varcount channel carries a forest axis (raw
+  # p x n.forests x n.samples (x n.chains), prognostic first), which the
+  # single-forest reshape cannot see: it would fold the forest margin into the
+  # draws margin when chains are combined and error inside aperm when they are
+  # not. shapeMultinomialChannel is the K-margin reshape that already handles
+  # all three cases, so the forest axis lands on the trailing margin exactly as
+  # multinomial's category axis does, named in ENGINE vocabulary. The forest
+  # count comes from the sampler rather than the array's rank, which is
+  # ambiguous (a single-forest multi-chain channel is 3-D too); data@bases is
+  # the same probe isBCFSampler uses.
+  numForests <- if (!is.null(fit$data@bases)) length(fit$data@bases) else 1L
+  varcount <- if (numForests > 1L) {
+    shapeMultinomialChannel(
+      samples$varcount,
+      paste0("forest", seq_len(numForests)),
+      n.chains,
+      combineChains,
+      leadNames = colnames(fit$data@x)
+    )
+  } else {
+    nameVarcount(
+      samples$varcount,
+      colnames(fit$data@x),
+      n.chains,
+      combineChains
+    )
+  }
 
   # heteroscedastic variance surface s(x) = sqrt(s^2(x)), train and test, on the
   # original scale (docs/design/heteroscedastic.md); NULL for a homoscedastic fit
@@ -296,6 +317,15 @@ packageBartResults <- function(
   # dispatches its hazard branch on THIS marker instead. NULL - and so the
   # element stays absent - for every non-hazard fit.
   result$periods <- attr(fit$control, "bartcore.hazard.periods")
+
+  # the forest count the widened varcount channel's trailing margin carries,
+  # the multi-forest analog of the multinomial packager's K; absent at one
+  # forest, so every single-forest fit keeps exactly the elements it had.
+  # fitSynopsis reads it to tell a forest margin from a chain margin, which
+  # the packaged rank alone cannot do
+  if (numForests > 1L) {
+    result$n.forests <- numForests
+  }
 
   if (keepSampler) {
     result$fit <- fit

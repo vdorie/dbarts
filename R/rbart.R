@@ -607,6 +607,15 @@ rbart_vi_run <- function(
   # varcount aliases integer storage the engine writes as uint32 (see the
   # bridge entry point). Channels no read needs are left null so the engine
   # skips them.
+  #
+  # varcount is SINGLE-SLAB, numPredictors x n.samples, and stays so on a
+  # multi-forest sampler: bartcore_runWithCallback pins the engine's declared
+  # forest count to 1, so the layout here is a property of the call rather than
+  # of who can reach it. Two guards keep a multi-forest sampler off rbart_vi
+  # anyway, and neither is the same one - this R-loop path dies at the pre-run
+  # rescale's setOffset(updateScale = TRUE), which refuseBCFMutation refuses,
+  # while the in-core path (which owns no buffer) dies at the grouped x
+  # multi-forest refusal in R/spec.R.
   raw <- list(
     sigma = numeric(n.samples),
     train = matrix(0.0, numObservations, n.samples)

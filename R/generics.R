@@ -1744,10 +1744,23 @@ fitSynopsis <- function(x) {
   }
 
   varcountDims <- dim(x[["varcount"]])
+  # a multi-forest fit's varcount carries a trailing forest margin (the
+  # shapeMultinomialChannel shape: draws x p x n.forests), so its rank is one
+  # higher throughout and the single-forest arms below would read the predictor
+  # count as the draw count. n.forests, not the rank, is what separates the two
+  # - a single-forest uncombined varcount is rank 3 as well. The arithmetic is
+  # print.bartMultinomial's, which is why a multinomial fit never needed this
+  n.forests <- x[["n.forests"]]
   n.kept <- if (!is.null(control)) {
     control@n.samples
   } else if (is.null(varcountDims)) {
     NA_integer_
+  } else if (!is.null(n.forests) && n.forests > 1L) {
+    if (length(varcountDims) == 4L) {
+      varcountDims[2L]
+    } else {
+      varcountDims[1L] %/% n.chains
+    }
   } else if (length(varcountDims) == 3L) {
     varcountDims[2L]
   } else if (n.chains > 1L) {

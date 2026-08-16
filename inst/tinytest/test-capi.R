@@ -1270,6 +1270,42 @@ for (leg in names(bcfLegs)) {
 rBCF <- CALL("capi_run", ptrBCF, 0L, 3L, TRUE, FALSE)
 expect_true(all(is.finite(rBCF$train)))
 
+# the varcount contract on a two-forest sampler, from the consumer's side.
+# dbarts_results declares no forest count, so the engine writes exactly the
+# numPredictors x numSamples x numChains slab the consumer sized - the widened
+# per-forest channel belongs to the R run bridge, which declares one - and the
+# bytes are the PROGNOSTIC forest's. The length alone cannot falsify that (the
+# consumer computes it from p, samples and chains), so the value is pinned
+# against the same model's live per-forest read at the same seed: a fresh flat
+# sampler and a fresh R5 sampler over the identical (control, model, data),
+# each run 5 burn-in and 3 kept draws, must agree on forest 1's counts
+pBCF <- ncol(xBCF)
+expect_equal(length(rBCF$varcount), pBCF * 3L * 2L)
+
+ptrBCFCounts <- CALL(
+  "capi_create",
+  specBCF$control,
+  specBCF$model,
+  specBCF$data,
+  ""
+)
+rBCFCounts <- CALL("capi_run", ptrBCFCounts, 5L, 3L, FALSE, FALSE)
+r5BCF <- new("dbartsSampler", specBCF$control, specBCF$model, specBCF$data)
+r5Counts <- r5BCF$run(5L, 3L)
+flatCounts <- matrix(rBCFCounts$varcount, pBCF)
+for (chain in seq_len(2L)) {
+  expect_equal(
+    flatCounts[, chain * 3L],
+    as.integer(r5BCF$getForestVariableCounts(1L)[, chain])
+  )
+}
+# and the whole flat slab is the R5 channel's forest-1 slab, so what the flat
+# caller gets is a projection of the widened channel rather than a third thing
+expect_equal(
+  as.integer(flatCounts),
+  as.integer(r5Counts$varcount[, 1L, , ])
+)
+
 # forest addressing on a two-forest sampler, which is what the index is FOR:
 # the tree queries name the forest they read instead of silently answering for
 # forest 0, and each reads its own forest's tree count

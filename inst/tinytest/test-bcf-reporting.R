@@ -145,3 +145,187 @@ mn <- dbarts:::bartcoreMultinomialSampler(mnHost, labels, K = 3L)
 mnResult <- dbarts:::bartcoreRun(mn, 0L, 2L)
 expect_null(mnResult$forestFits)
 expect_null(mnResult$glue)
+
+# --- the per-draw per-forest VARIABLE-COUNT channel: on a multi-forest sampler
+# run()$varcount carries a forest axis between the predictors and the samples
+# (n.predictors x n.forests x n.samples x n.chains, forest-major within a
+# sample, prognostic first), the same axis the multinomial coupling's per-
+# category counts ride. $getForestVariableCounts reads the CURRENT state; this
+# channel is the draw history it never was, and the two meet at the last kept
+# draw ---
+counting <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z))),
+  control = reportingControl(n.chains = 2L, n.thin = 1L)
+)
+countingResult <- counting$run(0L, numSamples)
+
+expect_equal(dim(countingResult$varcount), c(p, 2L, numSamples, 2L))
+expect_true(all(countingResult$varcount >= 0L))
+
+# F14, positive half: with n.thin = 1 and no sweep since the last storeSample,
+# the last kept draw's slab IS the live read, forest by forest and chain by
+# chain - so the forest axis is really keyed on the forest and not transposed
+expect_identical(
+  countingResult$varcount[, 1L, numSamples, ],
+  counting$getForestVariableCounts(1L)
+)
+expect_identical(
+  countingResult$varcount[, 2L, numSamples, ],
+  counting$getForestVariableCounts(2L)
+)
+# and the two forests genuinely differ, so the pin above could fail
+expect_false(
+  identical(
+    counting$getForestVariableCounts(1L),
+    counting$getForestVariableCounts(2L)
+  )
+)
+
+# F14, NEGATIVE half: one more sweep and the equality must break, which is what
+# separates a draw history from a repeated live read
+invisible(counting$run(0L, 1L))
+expect_false(
+  identical(
+    cbind(
+      countingResult$varcount[, 1L, numSamples, ],
+      countingResult$varcount[, 2L, numSamples, ]
+    ),
+    cbind(
+      counting$getForestVariableCounts(1L),
+      counting$getForestVariableCounts(2L)
+    )
+  )
+)
+
+# F15: a column the treatment forest is masked off is structurally zero in
+# EVERY draw of its slab, while the prognostic forest is unrestricted - the
+# mask reaches the per-draw channel, not merely the live read
+restrictedCounts <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z), vars = c(3L, 4L))),
+  control = reportingControl(n.chains = 2L)
+)
+restrictedResult <- restrictedCounts$run(0L, numSamples)
+expect_true(all(restrictedResult$varcount[1:2, 2L, , ] == 0L))
+expect_true(sum(restrictedResult$varcount[3:4, 2L, , ]) > 0L)
+expect_true(sum(restrictedResult$varcount[1:2, 1L, , ]) > 0L)
+
+# F15, NEGATIVE half: at the same seed, without the mask, the masked columns
+# are non-zero in the treatment forest's slab
+unrestrictedCounts <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z))),
+  control = reportingControl(n.chains = 2L)
+)
+unrestrictedResult <- unrestrictedCounts$run(0L, numSamples)
+expect_true(sum(unrestrictedResult$varcount[1:2, 2L, , ]) > 0L)
+
+# --- and the channel is UNCHANGED on a single-forest sampler: the forest axis
+# appears only when there is more than one forest to report, so every existing
+# caller's n.predictors x n.samples x n.chains array is what it always was ---
+plainCounts <- dbarts(x, y, control = reportingControl(n.chains = 2L))
+plainCountsResult <- plainCounts$run(0L, numSamples)
+expect_equal(dim(plainCountsResult$varcount), c(p, numSamples, 2L))
+expect_identical(
+  plainCountsResult$varcount[, numSamples, ],
+  plainCounts$getForestVariableCounts(1L)
+)
+
+# --- F18: the bart2 packaging path. A dbartsData carrying bases reaches bart2
+# today, and its varcount is the one channel that widens, so it is packaged
+# through the same K-margin reshape multinomial's per-category counts take:
+# draws-first, predictor names on the lead margin, engine-vocabulary forest
+# names on the trailing one. n.forests records the count the packaged rank
+# alone cannot recover ---
+bcfData <- dbartsData(x, y, bases = list(NULL, model.matrix(~ factor(z) - 1)))
+bcfFitArgs <- list(
+  formula = bcfData,
+  n.samples = numSamples,
+  n.burn = 3L,
+  n.trees = 20L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 51L
+)
+combinedFit <- do.call(bart2, c(bcfFitArgs, list(n.chains = 2L)))
+uncombinedFit <- do.call(
+  bart2,
+  c(bcfFitArgs, list(n.chains = 2L, combineChains = FALSE))
+)
+oneChainFit <- do.call(bart2, c(bcfFitArgs, list(n.chains = 1L)))
+
+expect_equal(dim(combinedFit$varcount), c(2L * numSamples, p, 2L))
+expect_equal(dim(uncombinedFit$varcount), c(2L, numSamples, p, 2L))
+expect_equal(dim(oneChainFit$varcount), c(numSamples, p, 2L))
+expect_identical(
+  dimnames(combinedFit$varcount),
+  list(NULL, colnames(bcfData@x), c("forest1", "forest2"))
+)
+expect_identical(
+  dimnames(uncombinedFit$varcount),
+  list(NULL, NULL, colnames(bcfData@x), c("forest1", "forest2"))
+)
+expect_identical(combinedFit$n.forests, 2L)
+expect_identical(uncombinedFit$n.forests, 2L)
+expect_null(
+  bart2(
+    x,
+    y,
+    n.samples = 2L,
+    n.burn = 2L,
+    n.trees = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    seed = 51L
+  )$n.forests
+)
+
+# the forest-1 slab really is the prognostic forest's, and the combined chain
+# margin folds chain-major (chain c's last draw is row c * n.samples), pinned
+# against the live per-forest read of the sampler that produced it
+keptFit <- do.call(
+  bart2,
+  c(bcfFitArgs, list(n.chains = 2L, keepSampler = TRUE))
+)
+for (chain in seq_len(2L)) {
+  expect_identical(
+    keptFit$varcount[chain * numSamples, , 1L],
+    keptFit$fit$getForestVariableCounts(1L)[, chain]
+  )
+  expect_identical(
+    keptFit$varcount[chain * numSamples, , 2L],
+    keptFit$fit$getForestVariableCounts(2L)[, chain]
+  )
+}
+
+# the synopsis reports the TRUE per-chain kept-draw count on a fit with no
+# kept sampler, where the count can only come off the varcount dimensions
+expect_true(any(grepl(
+  paste0("kept draws \\(per chain\\): ", numSamples),
+  capture.output(print(combinedFit))
+)))
+expect_true(any(grepl(
+  paste0("kept draws \\(per chain\\): ", numSamples),
+  capture.output(print(uncombinedFit))
+)))
+expect_true(any(grepl(
+  paste0("kept draws \\(per chain\\): ", numSamples),
+  capture.output(print(oneChainFit))
+)))
+
+# F18, NEGATIVE half: without the n.forests arm the synopsis would take the
+# single-forest branch on the same dimensions and report the PREDICTOR count
+# instead of the draw count, so the assertions above pin the arm rather than
+# the arithmetic
+unarmed <- function(fit, n.chains) {
+  d <- dim(fit[["varcount"]])
+  if (length(d) == 3L) d[2L] else d[1L] %/% n.chains
+}
+expect_identical(unarmed(combinedFit, 2L), p)
+expect_false(unarmed(combinedFit, 2L) == numSamples)
+expect_false(unarmed(uncombinedFit, 2L) == numSamples)

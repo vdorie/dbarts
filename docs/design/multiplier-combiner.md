@@ -454,6 +454,17 @@ K-forest multinomial defeats a `numForests` test, and the shipped code states
 that rule in two independent places (src/C_interface.cpp:764-770,
 src/R_interface_bartcore.cpp:3796-3801).
 
+Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the
+combiner overrides `numVariableCountForests` to its own forest count and
+`variableCountForest(j)` to `j`, so `run()$varcount` is
+`n.predictors x n.forests x n.samples x n.chains`, forest-major and prognostic
+first - the multinomial coupling's channel, at a coupling whose
+`numReportedLocations` stays 1, which is exactly why the two axes are keyed
+separately. The width a run actually writes is the CALLER's declared
+`Results::numVariableCountForests`, clamped once to this count in
+`Sampler::run`; a caller declaring one (the flat C API, rbart_vi's callback
+loop) gets slot 0, the reported forest, byte for byte as before.
+
 ## What this family does not do
 
 - `aft`, `ordinal` and `nbinom` responses - refused at creation, naming what

@@ -275,6 +275,12 @@ void testBCF(ShapeFixture& fixture) {
   check(shape.numTrees == spec.mu.numTrees,
         "shape: bcf numTrees addresses the prognostic forest");
   check(shape.numReportedLocations == 1, "shape: bcf reports one location");
+  // the varcount axis, asserted against the sampler's OWN forest count rather
+  // than a literal two: every forest records its own splits, so a K-forest
+  // amplitude model widens this channel exactly as multinomial does while its
+  // location count stays one - the two axes are keyed separately
+  check(shape.numVariableCountForests == shape.numForests,
+        "shape: bcf counts variables over every forest");
   check(shape.supportsForestWeights,
         "shape: bcf admits a per-forest weight");
   // the counts probe is a capability, not a forest count: bcf carries two
@@ -290,8 +296,85 @@ void testBCF(ShapeFixture& fixture) {
   printf("ok: shape matches the typed impl, bcf\n");
 }
 
-// Multinomial: the only path that widens the reported-location and
-// variable-count-forest channels past 1.
+// The LEGACY varcount contract on a multi-forest sampler (FB19 legs (i) and
+// (ii)): a caller that declares no forest count - the flat C API, whose
+// dbarts_results has no field for one, and rbart_vi's callback loop - must get
+// exactly the single prognostic slab per sample its buffer is sized for. The
+// buffer here is a std::vector, so it is malloc'd, redzoned and container-
+// annotated: a storeSample that took the count from the COMBINER instead would
+// write two slabs per sample into it and abort under ASAN, which is what makes
+// this the overflow detector rather than the capi test (whose R_alloc block is
+// served from R's small-vector pages).
+void testBCFLegacyVarcount(ShapeFixture& fixture) {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 8150);
+
+  SamplerOptions options;
+  BCFSpec spec;
+  spec.mu.numTrees = 10;
+  spec.tau.numTrees = 5;
+  spec.z = fixture.z.data();
+
+  SamplerFacade<ConstantGaussianLeaf> facade(
+    fixture.x.data(), fixture.y.data(), ShapeFixture::n, ShapeFixture::p,
+    nullptr, nullptr, 1.0, 3.0, 0.37804942330213542, options, spec, &rng);
+
+  const size_t p = ShapeFixture::p, numSamples = 4;
+  // sized for ONE forest, exactly as consumer.c sizes its own
+  std::vector<std::uint32_t> variableCounts(p * numSamples);
+  std::vector<double> sigma(numSamples);
+
+  Results results;
+  results.sigma = sigma.data();
+  results.variableCounts = variableCounts.data();
+  // numVariableCountForests deliberately left at its default 1
+  facade.run(5, numSamples, results);
+
+  // leg (i): the bytes are the prognostic forest's. storeSample is a sweep's
+  // final act, so the trees are unchanged since it wrote the last sample's
+  // slab and the live read is the oracle for it.
+  std::vector<std::uint32_t> liveCounts(p);
+  facade.forestVariableCounts(0, 0, liveCounts.data());
+  bool prognostic = true;
+  for (size_t j = 0; j < p; ++j)
+    prognostic &= variableCounts[(numSamples - 1) * p + j] == liveCounts[j];
+  check(prognostic,
+        "shape: a caller declaring one forest gets the prognostic forest's "
+        "varcount");
+  // and it is NOT the treatment forest's, so the assertion above could fail
+  std::vector<std::uint32_t> treatmentCounts(p);
+  facade.forestVariableCounts(0, 1, treatmentCounts.data());
+  check(liveCounts != treatmentCounts,
+        "shape: the two forests' varcounts differ, so the slab identifies one");
+
+  ext_rng_destroy(rng);
+
+  // leg (ii): the reported count never exceeds the chain's own forest count.
+  // BCFForestCombiner rounds ITS count up to two, so a one-forest spec is the
+  // construction where an unclamped report would name a forest the chain has
+  // not got and storeSample would read past forests_.
+  ext_rng* rngOne = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngOne, 8151);
+  BCFSpec oneForest;
+  oneForest.forests.resize(1);
+  oneForest.forests[0].forest.numTrees = 10;
+  SamplerFacade<ConstantGaussianLeaf> single(
+    fixture.x.data(), fixture.y.data(), ShapeFixture::n, ShapeFixture::p,
+    nullptr, nullptr, 1.0, 3.0, 0.37804942330213542, options, oneForest,
+    &rngOne);
+  SamplerShape oneShape = single.shape();
+  check(oneShape.numForests == 1, "shape: a one-forest amplitude spec builds one forest");
+  check(oneShape.numVariableCountForests <= oneShape.numForests,
+        "shape: the reported varcount forest count never exceeds the chain's");
+  ext_rng_destroy(rngOne);
+
+  printf("ok: the legacy single-slab varcount contract holds on a bcf sampler\n");
+}
+
+// Multinomial: the only path that widens the reported-LOCATION channel past 1.
+// The variable-count-forest channel widens on every multi-forest coupling, bcf
+// included (above); the two axes are keyed separately, which is why this
+// coupling can carry K of each while bcf carries K forests and one location.
 void testMultinomial(ShapeFixture& fixture) {
   const size_t K = 3;
   std::vector<int> counts(ShapeFixture::n * K, 0), trials(ShapeFixture::n, 1);
@@ -365,5 +448,6 @@ void runShapeTests(ext_rng*) {
   testLeafCovariateSamplers(fixture);
   testResponseSurfaces(fixture);
   testBCF(fixture);
+  testBCFLegacyVarcount(fixture);
   testMultinomial(fixture);
 }

@@ -669,6 +669,21 @@ forestCalibration` reading past the last forest) shipped alongside, at
   initial contract. Post-release, unchanged: a REPLACED signature bumps
   MAJOR, an APPENDED one bumps MINOR, and stan4bart's Depends/LinkingTo
   floor moves in the same lockstep release (TODO, release checklist).
+- **A varcount FOREST COUNT on `dbarts_results`** - a RESERVED WIDENING, not
+  built (bcf-bartcause-relocation D3, 2026-08-16). The engine's varcount
+  channel gained a forest axis for every multi-forest coupling (BCF now, as
+  multinomial already had), and `Results::numVariableCountForests` is the
+  CALLER's declaration of how many slabs to write. `dbarts_results` declares
+  none, so the field stays at its default 1 and the flat surface keeps today's
+  exact `numPredictors x numSamples x numChains` slab, the reported
+  (prognostic) forest's - byte-identical, with no X-list entry moved and
+  `DBARTS_C_API_HASH` unchanged (the slice's only `dbarts.h` edit is the doc
+  comment saying so, which the token cannot see). Whenever a flat caller wants
+  the widened channel, the growth path is the one Part 1 already provides: a
+  `size_t numVariableCountForests` APPENDED below the 1.0-0 field boundary,
+  read through `DBARTS_HAS_FIELD` and defaulted to 1 when absent-by-size, so
+  an older consumer's buffer is still sized correctly. That is a size-guarded
+  append, never a signature change.
 - **`dbarts_apiHash()` is blind to struct layout, measured**: three headers
   differing only in `dbarts_results`' layout (including a hard ABI-breaking
   field retype) all hash identically. `structSize` plus the exact-offset

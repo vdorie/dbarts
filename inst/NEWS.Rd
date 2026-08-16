@@ -151,7 +151,15 @@
             forest-major (sum(q) x n.samples), so a caller reads every surface
             and the amplitudes from one call instead of driving the sampler
             one draw at a time. Neither element is present for any other
-            model. \code{dbartsData} gains a \code{bases} argument naming the
+            model. The \code{varcount} element widens on the same principle:
+            on a multi-forest sampler it carries a forest axis between the
+            predictors and the samples (n.predictors x n.forests x
+            n.samples), forest-major within a draw and the prognostic forest
+            first, where it reported that forest alone before. A
+            single-forest sampler's array is unchanged, and so is the flat C
+            API's, whose \code{dbarts_results} declares no forest count and
+            still receives the prognostic forest's counts.
+            \code{dbartsData} gains a \code{bases} argument naming the
             same matrices directly, replacing the \code{treatment} argument
             and slot of the development series. A list of length one is
             refused by name rather than dropped: a lone forest has no
