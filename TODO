@@ -796,22 +796,6 @@ items
     vector is bitwise inert), rather than signature-only treatment -
     closing the gap TBAFTcure (mixture-cure AFT;
     docs/design/bart-landscape.md, grade B) hung on. Nothing remains.
-  setpredictor-dimnames: a whole-matrix transactional (or forced)
-    setPredictor(x, ...) installs x into sampler$data@x as a plain
-    matrix, dropping x's column names even when the sampler was built
-    with named columns (pre-existing since
-    docs/plans/multiforest-predictor-mutation.md S1). Breaks by-name
-    column resolution on every later call that resolves a column by
-    name against that sampler - most visibly
-    updatePredictorPerObservationJointly's shared-column match.
-    Workaround documented (man/dbartsSampler-class.Rd,
-    man/updatePredictorPerObservationJointly.Rd): mutate a column at a
-    time (setPredictor(x, column = ...)), which preserves dimnames via
-    installPredictorColumns' in-place assignment, or order any joint
-    call before the whole-matrix replacement. Small R-layer fix:
-    carry the incoming x's dimnames (or fall back to the existing
-    matrix's) when building the replacement. Not scheduled; small
-    slice, no plan doc yet.
   setpredictor-leafof-rebuild: CLOSED; the gather door taken
     roll-only. Record, memo corrections, and the DECLINED
     do-not-re-propose list in
