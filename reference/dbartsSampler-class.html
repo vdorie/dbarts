@@ -152,7 +152,7 @@
 <dd><p>A logical determining if the copy should retain the underlying data of the sampler (<code>TRUE</code>) or have its own copies (<code>FALSE</code>).</p></dd>
 
   <dt id="arg-control">control<a class="anchor" aria-label="anchor" href="#arg-control"></a></dt>
-<dd><p>An object inheriting from <code><a href="dbartsControl.html">dbartsControl</a></code>. When passed to <code>setControl</code>, it cannot change <code>n.trees</code>, <code>n.chains</code>, <code>useQuantiles</code>, or <code>rngSeed</code> from the values the sampler was created with, and cannot set <code>keepTrees = TRUE</code> without also giving <code>n.samples</code>; either is an error.</p></dd>
+<dd><p>An object inheriting from <code><a href="dbartsControl.html">dbartsControl</a></code>. When passed to <code>setControl</code>, it cannot change <code>n.trees</code>, <code>n.chains</code>, <code>useQuantiles</code>, or <code>seed</code> from the values the sampler was created with, and cannot set <code>keepTrees = TRUE</code> without also giving <code>n.samples</code>; either is an error.</p></dd>
 
   <dt id="arg-model">model<a class="anchor" aria-label="anchor" href="#arg-model"></a></dt>
 <dd><p>An object inheriting from <code>dbartsModel</code>. When passed to <code>setModel</code>, it cannot switch a DART tree prior on or off relative to the sampler's creation-time model; recreate the sampler instead.</p></dd>

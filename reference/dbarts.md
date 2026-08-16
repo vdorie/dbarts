@@ -326,15 +326,14 @@ dbarts(
   A positive numeric estimate of the residual standard deviation. If
   `NA`, a linear model is used with all of the predictors to obtain one.
   Same concept as `sigest` in
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`
-  and [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md);
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) uses
-  this function's `sigma` name directly.
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`,
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md), and
+  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md).
 
 - seed:
 
   Optional integer seed for the random number generator, a convenience
-  mirror of `dbartsControl(rngSeed = )`. When not `NA` it overrides the
+  mirror of `dbartsControl(seed = )`. When not `NA` it overrides the
   seed in `control`; the fitting-function wrappers
   ([`bart2`](https://vdorie.github.io/dbarts/reference/bart.md),
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)) accept

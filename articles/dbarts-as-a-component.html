@@ -104,7 +104,7 @@ sweep, and every recipe builds its sampler the same way:</p>
 <span><span class="co"># a single seeded chain that serializes no state on a per-sweep mutation</span></span>
 <span><span class="va">recipeControl</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">seed</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="../reference/dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>, n.trees <span class="op">=</span> <span class="fl">25L</span>,</span>
-<span>                updateState <span class="op">=</span> <span class="cn">FALSE</span>, rngSeed <span class="op">=</span> <span class="va">seed</span><span class="op">)</span></span>
+<span>                updateState <span class="op">=</span> <span class="cn">FALSE</span>, seed <span class="op">=</span> <span class="va">seed</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>
 <div class="section level2">
 <h2 id="data-augmentation-written-in-r">1. Data augmentation written in R<a class="anchor" aria-label="anchor" href="#data-augmentation-written-in-r"></a>

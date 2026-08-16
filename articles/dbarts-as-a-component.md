@@ -32,7 +32,7 @@ nDraws <- 100L
 # a single seeded chain that serializes no state on a per-sweep mutation
 recipeControl <- function(seed) {
   dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L,
-                updateState = FALSE, rngSeed = seed)
+                updateState = FALSE, seed = seed)
 }
 ```
 

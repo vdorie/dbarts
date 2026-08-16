@@ -16,7 +16,7 @@ xbart(
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, power = 2, base = 0.95,
     split.probs = NULL, dart = FALSE, drop = TRUE,
-    resid.prior = chisq, control = dbarts::dbartsControl(), sigma = NA_real_,
+    resid.prior = chisq, control = dbarts::dbartsControl(), sigest = NA_real_,
     seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
@@ -198,15 +198,16 @@ xbart(
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   function.
 
-- sigma:
+- sigest:
 
   A positive numeric estimate of the residual standard deviation. If
   `NA`, a linear model is used with all of the predictors to obtain one.
-  Same as
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-  `sigma`; the same concept is named `sigest` in
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`
-  and [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md).
+  Fitting functions (`xbart`,
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`,
+  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md))
+  spell this `sigest`; sampler constructors
+  ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+  `dbartsSpec`) spell the same concept `sigma`.
 
 - seed:
 

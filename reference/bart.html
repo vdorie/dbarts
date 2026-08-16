@@ -189,7 +189,7 @@ bart2 fits further response families through its family argument, described belo
 <dd><p>Explanatory variables for test (out of sample) data. Should have same column structure as <code>x.train</code>. <code>bart</code> will generate draws of \(f(x)\) for each \(x\) which is a row of <code>x.test</code>.</p></dd>
 
    <dt id="arg-sigest">sigest<a class="anchor" aria-label="anchor" href="#arg-sigest"></a></dt>
-<dd><p>For continuous response models, an estimate of the residual standard deviation (residual standard error), \(\sigma\), used to calibrate an inverse-chi-squared prior on the error variance. If not supplied, the least-squares estimate is derived instead. See <code>sigquant</code> for more information. Not applicable when \(y\) is binary. Same concept as <code>sigma</code> in <code><a href="dbarts.html">dbarts</a></code> and <code><a href="xbart.html">xbart</a></code>.</p></dd>
+<dd><p>For continuous response models, an estimate of the residual standard deviation (residual standard error), \(\sigma\), used to calibrate an inverse-chi-squared prior on the error variance. If not supplied, the least-squares estimate is derived instead. See <code>sigquant</code> for more information. Not applicable when \(y\) is binary. Same concept as <code>sigma</code> in <code><a href="dbarts.html">dbarts</a></code>; <code><a href="xbart.html">xbart</a></code> spells it <code>sigest</code> too.</p></dd>
 
    <dt id="arg-sigdf">sigdf<a class="anchor" aria-label="anchor" href="#arg-sigdf"></a></dt>
 <dd><p>Degrees of freedom for error variance prior. Not applicable when \(y\) is binary. Default 3, Chipman, George, and McCulloch's calibration (see References); an aggressive choice rather than a derived one.</p></dd>
@@ -578,7 +578,7 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.188096</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.217450</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -644,7 +644,7 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001122</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001374</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>

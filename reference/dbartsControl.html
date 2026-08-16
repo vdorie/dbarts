@@ -50,7 +50,7 @@
 <span>    n.samples <span class="op">=</span> <span class="cn">NA_integer_</span>,</span>
 <span>    n.cuts <span class="op">=</span> <span class="fl">100L</span>, n.burn <span class="op">=</span> <span class="fl">200L</span>, n.trees <span class="op">=</span> <span class="fl">75L</span>, n.chains <span class="op">=</span> <span class="fl">4L</span>,</span>
 <span>    n.threads <span class="op">=</span> <span class="fu">dbarts</span><span class="fu">::</span><span class="fu"><a href="guessNumCores.html">guessNumCores</a></span><span class="op">(</span><span class="op">)</span>, n.thin <span class="op">=</span> <span class="fl">1L</span>, printEvery <span class="op">=</span> <span class="fl">100L</span>,</span>
-<span>    printCutoffs <span class="op">=</span> <span class="fl">0L</span>, rngSeed <span class="op">=</span> <span class="cn">NA_integer_</span>, updateState <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<span>    printCutoffs <span class="op">=</span> <span class="fl">0L</span>, seed <span class="op">=</span> <span class="cn">NA_integer_</span>, updateState <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -98,7 +98,7 @@
    <dt id="arg-printcutoffs">printCutoffs<a class="anchor" aria-label="anchor" href="#arg-printcutoffs"></a></dt>
 <dd><p>A non-negative integer specifying how many of the decision rules for a variable are printed in verbose mode.</p></dd>
 
-   <dt id="arg-rngseed">rngSeed<a class="anchor" aria-label="anchor" href="#arg-rngseed"></a></dt>
+   <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
 <dd><p>Random number generator seed. Every chain runs its own generator; the seed drives a dedicated generator that in turn hands each chain its own seed, leaving R's stream untouched. Seeded results do not depend on the thread count, and a single-chain run with a given seed reproduces the first chain of a multi-chain run with the same seed. If equal to <code>NA</code>, chain generators are seeded from R's stream at creation, so <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code> beforehand suffices for reproducibility; sampling itself never advances R's stream.</p></dd>
 
    <dt id="arg-updatestate">updateState<a class="anchor" aria-label="anchor" href="#arg-updatestate"></a></dt>
@@ -120,7 +120,7 @@
 <span class="r-in"><span><span class="co">## larger Gibbs loop: one sample per run(), no burn-in, state cached on demand</span></span></span>
 <span class="r-in"><span><span class="va">control</span> <span class="op">&lt;-</span> <span class="fu">dbartsControl</span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>,</span></span>
 <span class="r-in"><span>                         n.burn <span class="op">=</span> <span class="fl">0L</span>, n.samples <span class="op">=</span> <span class="fl">1L</span>,</span></span>
-<span class="r-in"><span>                         n.trees <span class="op">=</span> <span class="fl">25L</span>, rngSeed <span class="op">=</span> <span class="fl">7L</span>,</span></span>
+<span class="r-in"><span>                         n.trees <span class="op">=</span> <span class="fl">25L</span>, seed <span class="op">=</span> <span class="fl">7L</span>,</span></span>
 <span class="r-in"><span>                         updateState <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">control</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> An object of class "dbartsControl"</span>
@@ -169,7 +169,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> Slot "printCutoffs":</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "rngSeed":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "seed":</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 7</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Slot "updateState":</span>

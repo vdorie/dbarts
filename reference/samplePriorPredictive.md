@@ -95,20 +95,19 @@ draws that are already independent by construction.
 Seeding follows from the private sampler being constructed fresh on
 every call. When the
 [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)'s
-`rngSeed` is `NA` (the default), the engine RNG is seeded from R's
-random number stream at construction, so successive calls return
-independent draws, and a
-[`set.seed`](https://rdrr.io/r/base/Random.html) beforehand makes the
-whole draw - forests and observation layer alike - reproducible. When
-the control fixes `rngSeed`, the engine stream is pinned: every call
-replays the identical forest sequence, with only the R-side `"ppd"`
-observation layer still governed by `set.seed`.
+`seed` is `NA` (the default), the engine RNG is seeded from R's random
+number stream at construction, so successive calls return independent
+draws, and a [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand
+makes the whole draw - forests and observation layer alike -
+reproducible. When the control fixes `seed`, the engine stream is
+pinned: every call replays the identical forest sequence, with only the
+R-side `"ppd"` observation layer still governed by `set.seed`.
 
 To compare the prior at two or more covariate settings with paired
 forests - as for a treatment effect - stack the settings as rows of a
 single `x.test` and difference the corresponding columns of the result;
 see ‘Examples’. Two separate calls draw independent sets of forests
-(unless `rngSeed` is fixed, as above) and so cannot be differenced
+(unless `seed` is fixed, as above) and so cannot be differenced
 meaningfully.
 
 ## Value

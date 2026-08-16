@@ -12,7 +12,7 @@ dbartsControl(
     n.samples = NA_integer_,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
     n.threads = dbarts::guessNumCores(), n.thin = 1L, printEvery = 100L,
-    printCutoffs = 0L, rngSeed = NA_integer_, updateState = TRUE)
+    printCutoffs = 0L, seed = NA_integer_, updateState = TRUE)
 ```
 
 ## Arguments
@@ -118,7 +118,7 @@ dbartsControl(
   A non-negative integer specifying how many of the decision rules for a
   variable are printed in verbose mode.
 
-- rngSeed:
+- seed:
 
   Random number generator seed. Every chain runs its own generator; the
   seed drives a dedicated generator that in turn hands each chain its
@@ -154,7 +154,7 @@ An object of class `dbartsControl`.
 ## larger Gibbs loop: one sample per run(), no burn-in, state cached on demand
 control <- dbartsControl(n.chains = 1L, n.threads = 1L,
                          n.burn = 0L, n.samples = 1L,
-                         n.trees = 25L, rngSeed = 7L,
+                         n.trees = 25L, seed = 7L,
                          updateState = FALSE)
 control
 #> An object of class "dbartsControl"
@@ -203,7 +203,7 @@ control
 #> Slot "printCutoffs":
 #> [1] 0
 #> 
-#> Slot "rngSeed":
+#> Slot "seed":
 #> [1] 7
 #> 
 #> Slot "updateState":

@@ -177,8 +177,9 @@ summary(object, ...)
   least-squares estimate is derived instead. See `sigquant` for more
   information. Not applicable when \\y\\ is binary. Same concept as
   `sigma` in
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
-  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md).
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md);
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) spells
+  it `sigest` too.
 
 - sigdf:
 
@@ -1399,7 +1400,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.188096
+#> total seconds in loop: 0.217450
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1465,7 +1466,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001122
+#> total seconds in loop: 0.001374
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
