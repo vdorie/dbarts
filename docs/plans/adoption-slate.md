@@ -1587,3 +1587,83 @@ Landed: 37d9ec81, pushed 2026-08-15. Independent gate-runner CONFIRM (all
 nine gates, audits A-D, M3-deviation algebra checked and accepted). No
 feature-matrix cell bears on the validator; none updated. The arc-end
 scoped anchor refresh stays owed.
+
+## Landing note, S6 (appended 2026-08-15)
+
+R/docs-ONLY: the commit touches `_pkgdown.yml`, `inst/NEWS.Rd`,
+`man/bart.Rd`, `man/dbartsSampler-class.Rd` (the two `\seealso` legs) and
+three new files (`vignettes/dbarts-as-a-component.Rmd`,
+`man/dbarts-embedding.Rd`, `inst/tinytest/test-embedding-recipes.R`);
+`src/` and `inst/include/` are absent from the diff, so the engine binary
+is 8a15d0ad's. NAMESPACE is untouched, correctly - the page and the
+vignette export nothing.
+
+The six recipes ship as specced, each with its tinytest cell, all six
+traced by the gate-runner with none under-asserting: (1) AUGMENTATION,
+the Albert-Chib loop over S4's helpers against the engine's probit
+posterior; (2) OFFSET BLOCK, both blocks' truth plus the seeding-contract
+identity cell, AND the recipe's own `dbartsValidateComposition` run -
+clean PASS, mean-substituted FLAG - which is the end-to-end proof S5
+works on a real composition; (3) K-FOREST with the sqrt(K)
+`$setCalibration` rescale; (4) LATENT COVARIATE, the install mask read as
+an MH accept mask; (5) OUTER-OWNED SIGMA, the pin surviving a sweep and
+the guard message; (6) INCREMENTAL USE, closing defect 5's measured trap -
+the vignette pins `z - train = (z - f) - offset` numerically and the cell
+gates the slope bias at 6 oracle SEs.
+
+Non-vacuity, measured where the spec demanded it and once more where it
+did not: M1's carrier MOVED as a result. The posterior-fit comparison at
+n = 200 is likelihood-dominated and separates a dropped sqrt(K) rescale
+by only ~1.2x, so the single-sampler fit cell ships green as specced but
+the MUTATION rides the composed PRIOR sd (clean ratio 0.9706, mutated
+1.3726 against sqrt(2) = 1.414; tolerance 0.15 set AFTER measurement,
+margins 5.1x below and 2.5x over). `samplePriorPredictive` was rejected
+as the instrument - it reads the model object, which `setCalibration`
+never rewrites, so it is blind to the lever. Recipe 4 runs at n = 80
+with `cgm(power = 0.5)` because at n = 200 the install mask goes
+all-TRUE and the cell would be vacuous; the cell asserts its own
+non-vacuity as a hard conjunction, so an all-TRUE mask FAILS rather than
+silently passing.
+
+Mutations: M1 above (2 RED); M2, `run()$train` for
+`$getFitsWithoutOffset()` - 2 RED, clean -3.17 SE vs mutated -16.78 SE
+against the 6 SE threshold, 13.6 SE separation (the plan predicted 7-10;
+the direction and the gate hold, the magnitude was larger); M3, posterior
+mean for a draw in recipe 2's outer block - the validator FLAGS
+(ecdf.diff 0.0863 -> 0.3824 against band 0.2225), 2 RED; M4, a broken
+`\link{}` - caught by `R CMD check`'s cross-reference leg only, invisible
+to tinytest, run on a staged copy, never the worktree. M1-M3 live in the
+test file's own recipe copies, so no mutated install was needed; every
+revert verified 32/32 green.
+
+One documentation-only gap, recorded not fixed: recipe 6's prose quotes
+the MUTATED variant's numbers ("about 0.29, roughly seventeen oracle
+standard errors"), which the gate-runner reproduced exactly (0.2856,
+16.78 SE) but which no shipped test pins - the mutated variant never
+runs in CI. A future RNG-stream change can drift those two hedged words;
+the mechanism itself stays gated by the recipe's 6-SE cell.
+
+Budget, raw additions against 8a15d0ad: non-test 474 (vignette 349,
+embedding Rd 108, NEWS 9, `\seealso` 7, pkgdown 1) - over the 300-400
+band, UNDER the 555 stop; tests 428 against ~360, under the 540 stop.
+The overshoot is the vignette: the plan's ~210 priced six recipes but
+not recipe 2's SBC harness (45 lines) that the spec itself mandates. No
+stop crossed, no adjudication owed.
+
+Battery, twice, separate libs (implementer /tmp/s6-lib, gate-runner
+/tmp/s6-gate-lib): install; tests/cpp from `make clean` 244 ok
+(no-change verification); tinytest 5218 results, 0 failures (5186 at S5
++ 32); trio BITWISE, no re-record (37/37, 12/12, 10/10); air clean;
+lintr 0 (`.lintr` excludes vignettes/ at directory level, so the new Rmd
+is handled exactly as the two shipped ones); NEWS parses (236 entries);
+`pkgdown::check_pkgdown` no problems, `- dbarts-embedding` under
+Utilities; `R CMD check --as-cran` from a git-archive tarball staged
+outside the tree WITH vignettes, Status OK, 0/0/0. Vignette build 5.16 s
+(implementer) / 3.4 s (gate-runner) against the 60 s target.
+
+Landed: 55811082, pushed 2026-08-15. Independent gate-runner CONFIRM
+(all nine gates; recipe traceability, statistical-prose audit against
+the shipped Rd/landing-note record, tolerance recomputation on its own
+bitwise-identical run, deviation audits all clean). No feature-matrix
+cell bears on the recipes; none updated. The arc-end scoped anchor
+refresh stays owed.
