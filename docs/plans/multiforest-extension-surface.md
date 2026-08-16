@@ -1568,10 +1568,10 @@ in FA1 and FA5 below ARE the record.
   producing exactly today's column, so `expandForestBasis`
   (`R/model.R:686-708`) must not move here. This is the whole architectural
   risk, isolated. ABORT on any divergence in the gating trio, whose CURRENT
-  baselines are `bcf-equivalence-8b047f8b.rds` (12 scenarios,
+  baselines are `bcf-equivalence-6e3b9fb8.rds` (12 scenarios,
   `benchmarks/baselines/MANIFEST:42`), `equivalence-8b047f8b.rds` (37
   scenarios, `MANIFEST:16`) and `multinomial-equivalence-1027be5.rds` (10
-  scenarios, `MANIFEST:48`) - the last of these is a GATING baseline for M4.1
+  scenarios, `MANIFEST:49`) - the last of these is a GATING baseline for M4.1
   and M4.2 alongside `bcf-equivalence`, because the multinomial combiner is a
   live K-forest model overriding the same virtuals.
 - **M4.2 (engine). Scope CONFIRMED IN FULL, re-scoped 2026-08-13 on the probe

@@ -594,8 +594,8 @@ accepted; on a sampler carrying `w` the mask is BITWISE `setWeights(w * a)` in
 `train` and in `sigma`; an all-zeros mask runs finite; a fractional element is
 refused. PINNED at mask S4: `inst/tinytest/test-active-rows-pins.R:84-112`
 (masked-bcf, bitwise vs `setWeights(w * a)` on train and sigma) and the
-`bcf-equivalence.R` `masked` scenario, recorded in
-`bcf-equivalence-8b047f8b.rds`. A per-forest mask is refused as REDUNDANT rather
+`bcf-equivalence.R` `masked` scenario, carried by the current
+`bcf-equivalence-6e3b9fb8.rds`. A per-forest mask is refused as REDUNDANT rather
 than unbuilt: `setForestWeights` (RIB:3894) already expresses it - though note
 that channel is deliberately NOT row removal (CH:1082-1110: it does not remove
 the row from occupancy, the combination or the sigma df; it DOES reach that
