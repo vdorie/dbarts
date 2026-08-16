@@ -44,14 +44,14 @@ control <- dbarts::dbartsControl(
   n.threads = 1L,
   verbose = FALSE,
   updateState = FALSE,
-  rngSeed = 1234L
+  seed = 1234L
 )
 sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 seedOnlyResults <- sampler$run(0L, 5L)
 
 expect_equal(builtInResults$train, seedOnlyResults$train)
 
-# the dbarts() seed argument mirrors dbartsControl(rngSeed = ) and, when
+# the dbarts() seed argument mirrors dbartsControl(seed = ) and, when
 # given, overrides a seed already set in the control
 control <- dbarts::dbartsControl(
   n.trees = 5L,
@@ -64,7 +64,7 @@ sampler <- dbarts::dbarts(y ~ x, testData, control = control, seed = 1234L)
 seedArgResults <- sampler$run(0L, 5L)
 expect_equal(seedArgResults$train, seedOnlyResults$train)
 
-control@rngSeed <- 999L
+control@seed <- 999L
 sampler <- dbarts::dbarts(y ~ x, testData, control = control, seed = 1234L)
 overrideResults <- sampler$run(0L, 5L)
 expect_equal(overrideResults$train, seedOnlyResults$train)

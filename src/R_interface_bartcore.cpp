@@ -438,9 +438,9 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
 
   // rngKind and rngNormalKind are not consumed by this engine; the R side
   // refuses them before creation, so they are not read here
-  REPROTECT_SLOT(slotExpr, controlExpr, "rngSeed", slotIndex);
+  REPROTECT_SLOT(slotExpr, controlExpr, "seed", slotIndex);
   if (rc_getLength(slotExpr) != 1)
-    Rf_error("slot 'rngSeed' must be of length 1");
+    Rf_error("slot 'seed' must be of length 1");
   control.haveRngSeed = INTEGER(slotExpr)[0] != NA_INTEGER;
   if (control.haveRngSeed)
     control.rngSeed = static_cast<std::uint_least32_t>(INTEGER(slotExpr)[0]);

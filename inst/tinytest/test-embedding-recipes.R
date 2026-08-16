@@ -17,7 +17,7 @@ recipeControl <- function(seed, n.trees = 25L) {
     n.threads = 1L,
     n.trees = n.trees,
     updateState = FALSE,
-    rngSeed = seed
+    seed = seed
   )
 }
 

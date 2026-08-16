@@ -40,7 +40,7 @@ fit1 <- dbarts::bart2(
   n.burn = 0L,
   n.threads = 2L,
   n.chains = 2L,
-  rngSeed = 99L,
+  seed = 99L,
   verbose = FALSE
 )
 fit2 <- dbarts::bart2(
@@ -51,7 +51,7 @@ fit2 <- dbarts::bart2(
   n.burn = 0L,
   n.threads = 2L,
   n.chains = 2L,
-  rngSeed = 99L,
+  seed = 99L,
   verbose = FALSE
 )
 expect_equal(fit1$yhat.train, fit2$yhat.train)

@@ -1315,6 +1315,30 @@
             Because \code{updateState} is now a formal, the partial match
             \code{u = } no longer resolves to \code{useQuantiles} on either
             function.
+      \item \code{dbartsControl}'s \code{rngSeed} argument and slot are
+            renamed \code{seed}, matching \code{dbarts}, \code{bart2},
+            \code{xbart}, and \code{rbart_vi}, which already spelled it that
+            way; \code{dbarts}'s own convenience \code{seed} argument
+            (which overrides the control's) is unchanged. A direct
+            \code{dbartsControl(rngSeed = )} call now gets an
+            unused-argument error. \code{bart2}/\code{rbart_vi}'s
+            \code{\dots} still recognizes \code{rngSeed} by name, but only
+            to refuse it - the first row of the retired-name table:
+            \code{"unknown argument 'rngSeed': 'rngSeed' was renamed to
+            'seed'"}. A consumer that forwards its own arguments through a
+            \code{formals()}-derived accept filter - stan4bart's
+            \code{bart_args}, and CRAN packages such as WeightIt and
+            MatchIt that expose the dbarts surface the same way - drops a
+            user's \code{rngSeed} silently instead: the filter no longer
+            recognizes the name, so the seed is never forwarded and the fit
+            falls back to an unseeded stream.
+      \item \code{xbart}'s \code{sigma} argument is renamed \code{sigest},
+            matching \code{bart2} and \code{rbart_vi}: the fitting
+            functions all spell the starting residual-scale estimate
+            \code{sigest}, while the sampler constructors (\code{dbarts},
+            \code{dbartsSpec}) keep \code{sigma}. A caller still naming
+            \code{sigma} now gets an unused-argument error from
+            \code{xbart}.
     }
   }
 }

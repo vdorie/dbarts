@@ -108,7 +108,7 @@ baseControl <- function(ntree) {
     keepTrainingFits = TRUE,
     keepTrees = FALSE,
     updateState = FALSE,
-    rngSeed = seed
+    seed = seed
   )
 }
 

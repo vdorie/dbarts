@@ -47,7 +47,7 @@ makeSampler <- function(y, x, seed, ntree = 1L) {
     n.burn = 0L,
     updateState = FALSE,
     verbose = FALSE,
-    rngSeed = seed
+    seed = seed
   )
   s <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
   invisible(s$run(40L, 1L))
@@ -252,7 +252,7 @@ ctrl <- dbarts::dbartsControl(
   n.burn = 0L,
   updateState = FALSE,
   verbose = FALSE,
-  rngSeed = 3L
+  seed = 3L
 )
 A <- dbarts::dbarts(
   y ~ theta + w,
@@ -333,7 +333,7 @@ rctrl <- dbarts::dbartsControl(
   updateState = FALSE,
   keepTrees = FALSE,
   verbose = FALSE,
-  rngSeed = 44L
+  seed = 44L
 )
 RA <- dbarts::dbarts(
   y ~ theta,

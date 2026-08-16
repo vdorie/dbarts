@@ -20,7 +20,7 @@ reportingControl <- function(...) {
     n.threads = 1L,
     n.trees = 40L,
     updateState = FALSE,
-    rngSeed = 47L,
+    seed = 47L,
     ...
   )
 }

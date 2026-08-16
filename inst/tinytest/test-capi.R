@@ -78,7 +78,7 @@ control <- dbartsControl(
   n.threads = 1L,
   n.trees = 25L,
   updateState = FALSE,
-  rngSeed = 99L
+  seed = 99L
 )
 spec <- dbarts(x, y, test = x.test, control = control)
 
@@ -193,7 +193,7 @@ controlVar <- dbartsControl(
   n.threads = 1L,
   n.trees = 8L,
   updateState = FALSE,
-  rngSeed = 5L
+  seed = 5L
 )
 specVar <- dbarts(
   xVar,
@@ -574,7 +574,7 @@ controlMT <- dbartsControl(
   n.threads = 2L,
   n.trees = 25L,
   updateState = FALSE,
-  rngSeed = 99L
+  seed = 99L
 )
 specMT <- dbarts(x, y, control = controlMT)
 ptrMT <- CALL("capi_create", specMT$control, specMT$model, specMT$data, "")
@@ -622,7 +622,7 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
       n.threads = 1L,
       n.trees = 10L,
       updateState = FALSE,
-      rngSeed = 11L
+      seed = 11L
     )
   )
   ptrSparse <- CALL(
@@ -719,7 +719,7 @@ controlSrc <- dbartsControl(
   n.threads = 1L,
   n.trees = 20L,
   updateState = FALSE,
-  rngSeed = 17L
+  seed = 17L
 )
 specSrc <- dbarts(frameSrc, ySrc, control = controlSrc)
 ptrSrc <- CALL("capi_create", specSrc$control, specSrc$model, specSrc$data, "")
@@ -1039,7 +1039,7 @@ controlLeaf <- dbartsControl(
   n.threads = 1L,
   n.trees = 10L,
   updateState = FALSE,
-  rngSeed = 23L
+  seed = 23L
 )
 specLeaf <- dbarts(xLeaf, yLeaf, node.prior = linear(1L), control = controlLeaf)
 xTestLeaf <- matrix(rnorm(12L * 2L), 12L, 2L)
@@ -1241,7 +1241,7 @@ specBCF <- dbartsSpec(
     n.trees = 25L,
     n.samples = 3L,
     updateState = FALSE,
-    rngSeed = 41L
+    seed = 41L
   ),
   forests = list(forest(), forest(basis = ~ factor(zBCF), n.trees = 15L))
 )

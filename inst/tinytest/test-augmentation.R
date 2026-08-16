@@ -188,7 +188,7 @@ augControl <- function() {
     n.trees = 50L,
     n.chains = 1L,
     updateState = FALSE,
-    rngSeed = 917L
+    seed = 917L
   )
 }
 

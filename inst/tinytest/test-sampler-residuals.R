@@ -31,7 +31,7 @@ kForestControl <- dbartsControl(
   n.threads = 1L,
   n.trees = 25L,
   updateState = FALSE,
-  rngSeed = 12L
+  seed = 12L
 )
 zBasis <- cbind(1 - testData$z, testData$z)
 for (bases in list(

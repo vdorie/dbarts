@@ -2,7 +2,7 @@
 # gates (birth/death, change, swap detailed balance) and the exact-posterior /
 # reference gates (aft, bcf, categorical, heteroscedastic, linear, multinomial,
 # negbin, ordinal, t, logistic, monotone). Each script drives a long MCMC run
-# with a fixed rngSeed and compares the engine's draws to an analytic or
+# with a fixed seed and compares the engine's draws to an analytic or
 # brute-force-enumerated target with a z-score / tolerance bound it computes
 # IN-SCRIPT (no recorded baseline), then quit(status=1L) on deviation. That
 # makes them deterministic regression detectors that catch engine-math

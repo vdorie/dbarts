@@ -226,7 +226,7 @@ dbartsControl <- function(
   n.thin = 1L,
   printEvery = 100L,
   printCutoffs = 0L,
-  rngSeed = NA_integer_,
+  seed = NA_integer_,
   updateState = TRUE
 ) {
   storage <- match.arg(storage)
@@ -246,7 +246,7 @@ dbartsControl <- function(
     n.thin = coerceOrError(n.thin, "integer"),
     printEvery = coerceOrError(printEvery, "integer"),
     printCutoffs = coerceOrError(printCutoffs, "integer"),
-    rngSeed = coerceOrError(rngSeed, "integer"),
+    seed = coerceOrError(seed, "integer"),
     updateState = as.logical(updateState)
   )
 }
@@ -258,7 +258,8 @@ validateArgumentsInEnvironment <- function(
   control,
   verbose,
   n.samples,
-  sigma
+  sigma,
+  sigest
 ) {
   controlIsMissing <- missing(control)
 
@@ -322,6 +323,29 @@ validateArgumentsInEnvironment <- function(
     }
 
     envir$sigma <- sigma
+  }
+
+  # b2 (docs/plans/bart2-argument-consolidation.md 3.b): fitting functions
+  # (xbart) spell this 'sigest'; sampler constructors (dbarts) keep 'sigma'.
+  # Both route through this one validator under their own name, since the
+  # two callers are matched here by argument name (redirectCall) and cannot
+  # share a single formal without one silently dropping the other's value.
+  if (!missing(sigest) && !is.na(sigest)) {
+    tryCatch(sigest <- as.double(sigest), warning = function(e) {
+      stop(
+        "'sigest' argument to ",
+        funcName,
+        " must be coercible to numeric type"
+      )
+    })
+    if (length(sigest) != 1L) {
+      stop("'sigest' must be of length 1")
+    }
+    if (is.null(sigest) || sigest <= 0.0) {
+      stop("'sigest' argument to ", funcName, " must be positive")
+    }
+
+    envir$sigest <- sigest
   }
 }
 
@@ -527,11 +551,11 @@ dbarts <- function(
     control@call <- matchedCall
   }
   control@verbose <- verbose
-  # a convenience mirror of dbartsControl(rngSeed = ), as the wrappers expose;
+  # a convenience mirror of dbartsControl(seed = ), as the wrappers expose;
   # an explicit seed overrides the control's, NA leaves it untouched
   seed <- coerceOrError(seed, "integer")
   if (!is.na(seed)) {
-    control@rngSeed <- seed
+    control@seed <- seed
   }
 
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
@@ -682,7 +706,7 @@ samplePriorPredictive <- function(
   # a fresh sampler, not sampler$copy(): copy() installs the caller's saved
   # state - including the engine RNG - so successive calls would replay one
   # frozen stream. Fresh creation seeds the chain RNGs from R's stream when
-  # control@rngSeed is NA (or pins them when it is set), giving independent
+  # control@seed is NA (or pins them when it is set), giving independent
   # draws across calls by default with set.seed governing reproducibility.
   # The prior draws overwrite all tree state, so no donor state is needed.
   # keepTrees is forced off: it makes predict() serve saved posterior
@@ -1061,7 +1085,7 @@ dbartsSampler <- setRefClass(
         "n.trees",
         "n.chains",
         "useQuantiles",
-        "rngSeed"
+        "seed"
       )) {
         if (!identical(slot(newControl, slotName), slot(control, slotName))) {
           stop(

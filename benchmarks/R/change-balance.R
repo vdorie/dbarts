@@ -414,7 +414,7 @@ runEngine <- function(x, y, nCutsVec) {
     n.burn = nBurn,
     n.thin = nThin,
     updateState = TRUE,
-    rngSeed = engineSeed,
+    seed = engineSeed,
     n.cuts = nCutsVec
   )
   s <- dbarts(

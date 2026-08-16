@@ -163,7 +163,7 @@ ctl <- dbartsControl(
   n.burn = nBurn,
   n.thin = nThin,
   updateState = TRUE,
-  rngSeed = engineSeed,
+  seed = engineSeed,
   n.cuts = K - 1L
 )
 sampler <- dbarts(

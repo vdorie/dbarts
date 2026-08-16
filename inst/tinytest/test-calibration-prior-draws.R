@@ -28,7 +28,7 @@ priorControl <- function() {
     n.trees = 20L,
     n.samples = 1L,
     updateState = FALSE,
-    rngSeed = 13L,
+    seed = 13L,
     keepTrees = FALSE
   )
 }

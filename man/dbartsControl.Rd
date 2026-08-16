@@ -11,7 +11,7 @@ dbartsControl(
     n.samples = NA_integer_,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
     n.threads = dbarts::guessNumCores(), n.thin = 1L, printEvery = 100L,
-    printCutoffs = 0L, rngSeed = NA_integer_, updateState = TRUE)
+    printCutoffs = 0L, seed = NA_integer_, updateState = TRUE)
 }
 \arguments{
    \item{verbose}{
@@ -56,7 +56,7 @@ dbartsControl(
    \item{printCutoffs}{
      A non-negative integer specifying how many of the decision rules for a variable are printed in verbose mode.
    }
-   \item{rngSeed}{
+   \item{seed}{
      Random number generator seed. Every chain runs its own generator; the seed drives a dedicated generator that in turn hands each chain its own seed, leaving R's stream untouched. Seeded results do not depend on the thread count, and a single-chain run with a given seed reproduces the first chain of a multi-chain run with the same seed. If equal to \code{NA}, chain generators are seeded from R's stream at creation, so \code{\link[=Random]{set.seed}} beforehand suffices for reproducibility; sampling itself never advances R's stream.
    }
    \item{updateState}{
@@ -74,7 +74,7 @@ dbartsControl(
 ## larger Gibbs loop: one sample per run(), no burn-in, state cached on demand
 control <- dbartsControl(n.chains = 1L, n.threads = 1L,
                          n.burn = 0L, n.samples = 1L,
-                         n.trees = 25L, rngSeed = 7L,
+                         n.trees = 25L, seed = 7L,
                          updateState = FALSE)
 control
 

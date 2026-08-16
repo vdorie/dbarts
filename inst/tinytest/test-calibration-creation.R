@@ -42,7 +42,7 @@ composeProbit <- function(
       n.trees = numTrees,
       n.samples = 1L,
       updateState = FALSE,
-      rngSeed = 29L,
+      seed = 29L,
       keepTrees = FALSE
     ),
     node.prior = if (is.na(priorScale)) {
@@ -151,7 +151,7 @@ nativeSampler <- dbarts(
     n.trees = 50L,
     n.samples = 1L,
     updateState = FALSE,
-    rngSeed = 29L,
+    seed = 29L,
     keepTrees = FALSE
   ),
   node.prior = dbartsPriors$normal(k = 2)
@@ -185,7 +185,7 @@ refControl <- function(...) {
     n.trees = 20L,
     n.samples = 10L,
     updateState = FALSE,
-    rngSeed = 17L,
+    seed = 17L,
     ...
   )
 }
@@ -360,7 +360,7 @@ roundTripControl <- dbartsControl(
   n.trees = 20L,
   n.samples = 10L,
   updateState = FALSE,
-  rngSeed = 17L,
+  seed = 17L,
   keepTrees = FALSE
 )
 withoutSetModel <- dbarts(

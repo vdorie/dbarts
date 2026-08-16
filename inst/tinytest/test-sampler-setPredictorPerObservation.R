@@ -52,7 +52,7 @@ ctrl <- dbarts::dbartsControl(
   n.burn = 0L,
   updateState = FALSE,
   verbose = FALSE,
-  rngSeed = 7L
+  seed = 7L
 )
 sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
 invisible(sampler$run(20L, 1L))
@@ -83,7 +83,7 @@ ctrl <- dbarts::dbartsControl(
   n.burn = 0L,
   updateState = FALSE,
   verbose = FALSE,
-  rngSeed = 7L
+  seed = 7L
 )
 sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
 invisible(sampler$run(40L, 1L))
@@ -182,7 +182,7 @@ ctrl <- dbarts::dbartsControl(
   n.burn = 0L,
   updateState = FALSE,
   verbose = FALSE,
-  rngSeed = 3L
+  seed = 3L
 )
 sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
 invisible(sampler$run(30L, 1L))
@@ -229,7 +229,7 @@ ctrl <- dbarts::dbartsControl(
   updateState = FALSE,
   keepTrees = FALSE,
   verbose = FALSE,
-  rngSeed = 22L
+  seed = 22L
 )
 sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
 invisible(sampler$run(50L, 1L))
@@ -275,7 +275,7 @@ ctrl <- dbarts::dbartsControl(
   n.burn = 0L,
   updateState = FALSE,
   verbose = FALSE,
-  rngSeed = 9L
+  seed = 9L
 )
 sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
 invisible(sampler$run(40L, 1L))
@@ -344,7 +344,7 @@ ctrl <- dbarts::dbartsControl(
   n.burn = 0L,
   updateState = FALSE,
   verbose = FALSE,
-  rngSeed = 1L
+  seed = 1L
 )
 sampler <- dbarts::dbarts(
   y ~ x1 + x2,

@@ -159,7 +159,7 @@ makeSampler <- function(keepTrees) {
     updateState = TRUE,
     keepTrees = keepTrees,
     verbose = FALSE,
-    rngSeed = 9L
+    seed = 9L
   )
   sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
   invisible(sampler$run(30L, 5L))
@@ -211,7 +211,7 @@ ctrl <- dbarts::dbartsControl(
   updateState = TRUE,
   keepTrees = TRUE,
   verbose = FALSE,
-  rngSeed = 3L
+  seed = 3L
 )
 keptSampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
 invisible(keptSampler$run(30L, 5L))

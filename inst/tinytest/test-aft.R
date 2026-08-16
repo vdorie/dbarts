@@ -19,7 +19,7 @@ control <- dbartsControl(
   n.threads = 1L,
   n.trees = 50L,
   updateState = FALSE,
-  rngSeed = 271L
+  seed = 271L
 )
 
 aftSampler <- function(y, status, weights = NULL, groups = NULL) {

@@ -113,7 +113,7 @@ ctrlD4 <- dbarts::dbartsControl(
   n.trees = 10L,
   n.samples = 5L,
   n.burn = 5L,
-  rngSeed = 55L
+  seed = 55L
 )
 defaultedD4 <- dbarts::dbarts(x, y, monotone = c(a = "+"), control = ctrlD4)
 defaultedD4$sampleTreesFromPrior()

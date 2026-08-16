@@ -57,7 +57,7 @@ runSampler <- function(
     keepTrees = TRUE,
     n.samples = batch,
     updateState = TRUE,
-    rngSeed = seed,
+    seed = seed,
     n.cuts = length(unique(x)) - 1L
   )
   monotone <- c(1L)

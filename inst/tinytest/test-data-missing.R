@@ -126,7 +126,7 @@ control.mv <- dbartsControl(
   n.threads = 1L,
   n.trees = 50L,
   updateState = FALSE,
-  rngSeed = 3L
+  seed = 3L
 )
 sampler.mv <- dbarts(y.mv ~ x1 + x2, df.mv, control = control.mv)
 fits.before <- rowMeans(sampler.mv$run(200L, 200L)$train)

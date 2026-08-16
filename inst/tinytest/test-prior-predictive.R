@@ -68,7 +68,7 @@ expect_identical(sampler.gauss$getSigmas(), sigmasBefore)
 
 # (c) seeding semantics. Successive calls are independent by default: each
 # call constructs its private sampler fresh, seeding the engine RNG from
-# R's stream when the control's rngSeed is NA
+# R's stream when the control's seed is NA
 indep1 <- samplePriorPredictive(sampler.gauss, n.samples = 20L, type = "ev")
 indep2 <- samplePriorPredictive(sampler.gauss, n.samples = 20L, type = "ev")
 expect_false(identical(indep1, indep2))
@@ -88,13 +88,13 @@ repeatBinary2 <-
   samplePriorPredictive(sampler.binary, n.samples = 20L, type = "ppd")
 expect_identical(repeatBinary1, repeatBinary2)
 
-# a control-fixed rngSeed pins the engine stream instead, so two ev calls
+# a control-fixed seed pins the engine stream instead, so two ev calls
 # repeat identically without any set.seed
 control.pinned <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
   n.trees = 15L,
-  rngSeed = 99L
+  seed = 99L
 )
 sampler.pinned <- dbarts(y ~ x, control = control.pinned)
 pinned1 <- samplePriorPredictive(sampler.pinned, n.samples = 20L, type = "ev")

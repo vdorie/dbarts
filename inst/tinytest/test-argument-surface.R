@@ -1,8 +1,8 @@
 # The bart2 argument-consolidation arc's maintained contracts
-# (docs/plans/bart2-argument-consolidation.md 4.6): T-D (S2, family gating)
-# and T-B (S3, shared-default text) already live here; T-A (dbartsControl
-# formal parity), T-C (bart -> bart2 concept map) and T-E (the per-forest
-# reconstruction identity) arrive with S5, S10, S11 respectively.
+# (docs/plans/bart2-argument-consolidation.md 4.6): T-D (S2, family gating),
+# T-B (S3, shared-default text), and T-A (S5, dbartsControl formal parity)
+# already live here; T-C (bart -> bart2 concept map) and T-E (the per-forest
+# reconstruction identity) arrive with S10, S11 respectively.
 
 # T-D. One diagnosis test per row of 3.c.2: the classed warning fires under
 # a family that ignores the argument and not under one that uses it; plus
@@ -311,7 +311,7 @@ rbartControlFit <- dbarts::rbart_vi(
   group.by = group,
   storage = "single",
   updateState = FALSE,
-  rngSeed = 314L,
+  seed = 314L,
   keepSampler = TRUE,
   n.trees = 3L,
   n.samples = 5L,
@@ -324,7 +324,7 @@ rbartControlFit <- dbarts::rbart_vi(
 rbartControl <- rbartControlFit$fit[[1L]]$control
 expect_equal(rbartControl@storage, "single")
 expect_equal(rbartControl@updateState, FALSE)
-expect_equal(rbartControl@rngSeed, 314L)
+expect_equal(rbartControl@seed, 314L)
 
 # dots rejection: an unknown name errors naming itself and suggesting the
 # nearest formal; a name with no close match still errors, unsuggested
@@ -335,10 +335,18 @@ expect_error(
 )
 expect_error(fit2(y.gaussian, zzzznotarg = 5), pattern = "zzzznotarg")
 
-# rngSeed: still dbartsControl's own spelling until S5 (3.e) retires it, so
-# it keeps working through the legacy passthrough rather than erroring
-rngSeedFit <- fit2(y.gaussian, rngSeed = 99L, samplerOnly = TRUE)
-expect_equal(rngSeedFit$control@rngSeed, 99L)
+# rngSeed (S5, b1/fork 5): dbartsControl's own spelling through S4; the
+# passthrough that let it keep flowing through '...' is gone now that the
+# rename lands, and it is the first retiredDotsNames row instead - a named
+# refusal pointing at the rename, not a nearest-formal guess
+expect_error(
+  fit2(y.gaussian, rngSeed = 99L, samplerOnly = TRUE),
+  pattern = "unknown argument 'rngSeed': 'rngSeed' was renamed to 'seed'"
+)
+expect_error(
+  dbarts::rbart_vi(x, y.gaussian, group.by = group, rngSeed = 99L),
+  pattern = "unknown argument 'rngSeed': 'rngSeed' was renamed to 'seed'"
+)
 
 # partial matching still works for a real formal
 partialFit <- do.call(
@@ -349,3 +357,38 @@ partialFit <- do.call(
   )
 )
 expect_equal(partialFit$control@n.samples, 5L)
+
+# T-A (S5, 4.6): every dbartsControl formal is a bart2 formal, spelled
+# identically - an explicit list of the 16 slots as of 1.0-0, a freeze-time
+# snapshot rather than a ratchet (10.7 r2 M8): a dbartsControl formal added
+# after 1.0-0 does not silently enlarge what this test checks.
+controlFormals1_0_0 <- c(
+  "verbose",
+  "keepTrainingFits",
+  "useQuantiles",
+  "keepTrees",
+  "storage",
+  "n.samples",
+  "n.cuts",
+  "n.burn",
+  "n.trees",
+  "n.chains",
+  "n.threads",
+  "n.thin",
+  "printEvery",
+  "printCutoffs",
+  "seed",
+  "updateState"
+)
+expect_equal(
+  sort(names(formals(dbarts::dbartsControl))),
+  sort(controlFormals1_0_0)
+)
+expect_true(setequal(
+  intersect(controlFormals1_0_0, names(formals(dbarts::bart2))),
+  controlFormals1_0_0
+))
+expect_true(setequal(
+  intersect(controlFormals1_0_0, names(formals(dbarts::rbart_vi))),
+  controlFormals1_0_0
+))

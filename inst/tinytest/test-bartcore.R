@@ -843,8 +843,8 @@ control.bad <- control.sc
 control.bad@n.chains <- 2L
 expect_error(sampler.sc$setControl(control.bad), pattern = "n.chains")
 control.bad <- control.sc
-control.bad@rngSeed <- 71L
-expect_error(sampler.sc$setControl(control.bad), pattern = "rngSeed")
+control.bad@seed <- 71L
+expect_error(sampler.sc$setControl(control.bad), pattern = "seed")
 
 # thinning through setControl matches creating with the rate
 control.thin <- dbartsControl(

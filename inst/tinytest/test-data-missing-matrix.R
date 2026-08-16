@@ -60,7 +60,7 @@ control <- dbartsControl(
   n.threads = 1L,
   n.trees = 20L,
   updateState = FALSE,
-  rngSeed = 5L
+  seed = 5L
 )
 sampler.matrix <- dbarts::dbarts(xMat, y, control = control)
 sampler.formula <- dbarts::dbarts(y ~ x1 + x2, df, control = control)

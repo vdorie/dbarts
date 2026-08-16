@@ -24,7 +24,7 @@ seededControl <- function(...) {
     n.trees = 50L,
     n.samples = 10L,
     updateState = FALSE,
-    rngSeed = 17L,
+    seed = 17L,
     ...
   )
 }
@@ -36,7 +36,7 @@ handleOf <- function(sampler) list(ptr = sampler$getPointer())
 # a second one whose two-level factor basis carries the (b0, b1) amplitudes
 twoForests <- list(forest(), forest(basis = ~ factor(z)))
 
-# --- FS1, positive half: with control@rngSeed set every chain's generator is
+# --- FS1, positive half: with control@seed set every chain's generator is
 # independent of R's stream, so the public path and the internal one receive
 # identical seeds from identical specifications and must agree bitwise on all
 # six channels the bcf-equivalence fixture reports. The removed treatment =
@@ -220,7 +220,7 @@ disagreeingControl <- dbartsControl(
   n.trees = 100L,
   n.samples = 10L,
   updateState = FALSE,
-  rngSeed = 17L
+  seed = 17L
 )
 sevenTreeControl <- dbartsControl(
   n.chains = 2L,
@@ -228,7 +228,7 @@ sevenTreeControl <- dbartsControl(
   n.trees = 7L,
   n.samples = 10L,
   updateState = FALSE,
-  rngSeed = 17L
+  seed = 17L
 )
 expect_identical(
   dbarts(
@@ -295,7 +295,7 @@ twentyTrees <- dbartsControl(
   n.trees = 20L,
   n.samples = 10L,
   updateState = FALSE,
-  rngSeed = 17L
+  seed = 17L
 )
 expect_identical(
   dbarts(
