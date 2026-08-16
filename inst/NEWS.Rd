@@ -1249,6 +1249,27 @@
             \code{\link{updatePredictorPerObservationJointly}}'s
             shared-column match - failed even on a sampler created with
             named columns.
+      \item \code{keepSampler} is now honoured on the alternate-family
+            \code{bart2} fits (\code{family = "multinomial"},
+            \code{"ordinal"}, \code{"nbinom"}, and \code{"hurdle.lognormal"}):
+            \code{keepSampler = TRUE} retains \code{$fit} even when
+            \code{keepTrees} is left \code{FALSE}. Previously these
+            families keyed \code{$fit} on \code{keepTrees} alone, so
+            \code{keepSampler} had no effect. \code{keepTrees} still also
+            retains \code{$bc} and the family's raw draw channels, as
+            before.
+      \item \code{monotone} combined with an explicit
+            \code{proposal.probs = NULL} no longer errors; it is now
+            treated the same as an omitted \code{proposal.probs} and
+            forced to the birth/death-only proposal set the constraint
+            requires.
+      \item \code{rbart_vi}'s \code{k} formal now defaults to \code{NULL},
+            matching \code{bart2}: a binary fit with no \code{k} takes the
+            \code{chi(1.5, 2)} node hyperprior, not a fixed \code{k = 2}.
+            The old \code{k = 2.0} default was inert (only an explicit
+            \code{k} was ever read), so this is a documentation
+            correction, not a behavior change; \code{man/rbart.Rd} is
+            fixed to match.
     }
   }
 }

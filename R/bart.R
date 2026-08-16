@@ -462,10 +462,10 @@ buildHostSamplerCall <- function(
 # after burn when requested. The sequence of sampler$run() calls - and thus the
 # draw stream - is identical to the inline form it replaces. Returns the kept
 # samples plus the burn-in sigma/k channels.
-runWithBurnIn <- function(sampler, control, keepTrees, n.burn) {
+runWithBurnIn <- function(sampler, control, keepTrees) {
   burnInSigma <- NULL
   burnInK <- NULL
-  if (n.burn > 0L) {
+  if (control@n.burn > 0L) {
     oldX.test <- sampler$data@x.test
     oldOffset.test <- sampler$data@offset.test
 
@@ -665,15 +665,15 @@ bart2 <- function(
   }
 
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
-  missingDefaultArgs <- names(formals(bart2))[
-    names(formals(bart2)) %in%
+  missingDefaultArgs <- names(formals(dbarts::bart2))[
+    names(formals(dbarts::bart2)) %in%
       names(formals(dbarts::dbartsControl)) &
-      names(formals(bart2)) %not_in% names(matchedCall)
+      names(formals(dbarts::bart2)) %not_in% names(matchedCall)
   ]
   if (length(missingDefaultArgs) > 0L) {
     currentEnv <- sys.frame(sys.nframe())
     controlCall[missingDefaultArgs] <- lapply(
-      formals(bart2)[missingDefaultArgs],
+      formals(dbarts::bart2)[missingDefaultArgs],
       eval,
       envir = currentEnv
     )
@@ -855,7 +855,8 @@ bart2 <- function(
         dart,
         combineChains,
         offset = multinomialOffset,
-        prior.scale = prior.scale
+        prior.scale = prior.scale,
+        keepSampler = keepSampler
       ))
     }
     if (is.character(y)) {
@@ -894,7 +895,8 @@ bart2 <- function(
       dart,
       combineChains,
       offset = multinomialOffset,
-      prior.scale = prior.scale
+      prior.scale = prior.scale,
+      keepSampler = keepSampler
     ))
   }
 
@@ -922,7 +924,8 @@ bart2 <- function(
       sigquant,
       dart,
       combineChains,
-      prior.scale = prior.scale
+      prior.scale = prior.scale,
+      keepSampler = keepSampler
     ))
   }
 
@@ -951,7 +954,8 @@ bart2 <- function(
       sigquant,
       dart,
       combineChains,
-      prior.scale = prior.scale
+      prior.scale = prior.scale,
+      keepSampler = keepSampler
     ))
   }
 
@@ -1049,7 +1053,7 @@ bart2 <- function(
     sampler$sampleTreesFromPrior(updateState = FALSE)
   }
 
-  burn <- runWithBurnIn(sampler, control, keepTrees, n.burn)
+  burn <- runWithBurnIn(sampler, control, keepTrees)
   samples <- burn$samples
   burnInSigma <- burn$burnInSigma
   burnInK <- burn$burnInK
@@ -1249,7 +1253,8 @@ bart2Multinomial <- function(
   dart,
   combineChains,
   offset = NULL,
-  prior.scale = NA_real_
+  prior.scale = NA_real_,
+  keepSampler = FALSE
 ) {
   K <- nlevels(y)
   labels <- as.integer(y) - 1L
@@ -1301,8 +1306,12 @@ bart2Multinomial <- function(
   # holds every one of the K forests' saved trees (the sampling sweeps wrote
   # them regardless), and the host sampler's coded design (sampler@data@x) codes
   # newdata to the training columns. Without keepTrees neither survives the call.
+  # keepSampler retains $fit on its own, independent of keepTrees, so a caller
+  # can see the host sampler without paying for the K forests' saved trees.
   if (control@keepTrees) {
     result$bc <- bc
+  }
+  if (control@keepTrees || keepSampler) {
     result$fit <- sampler
   }
   result
@@ -1334,7 +1343,8 @@ bart2MultinomialCounts <- function(
   dart,
   combineChains,
   offset = NULL,
-  prior.scale = NA_real_
+  prior.scale = NA_real_,
+  keepSampler = FALSE
 ) {
   K <- ncol(y)
 
@@ -1377,6 +1387,8 @@ bart2MultinomialCounts <- function(
   )
   if (control@keepTrees) {
     result$bc <- bc
+  }
+  if (control@keepTrees || keepSampler) {
     result$fit <- sampler
   }
   result
@@ -1520,7 +1532,8 @@ bart2Ordinal <- function(
   sigquant,
   dart,
   combineChains,
-  prior.scale = NA_real_
+  prior.scale = NA_real_,
+  keepSampler = FALSE
 ) {
   priors <- buildSamplerPriors(
     matchedCall,
@@ -1636,8 +1649,10 @@ bart2Ordinal <- function(
   # latent draws, so no re-run is needed.
   if (control@keepTrees) {
     result$bc <- bc
-    result$fit <- sampler
     result$cutpoints.raw <- cutpointsRawFull
+  }
+  if (control@keepTrees || keepSampler) {
+    result$fit <- sampler
   }
   result
 }
@@ -1764,7 +1779,8 @@ bart2Negbin <- function(
   sigquant,
   dart,
   combineChains,
-  prior.scale = NA_real_
+  prior.scale = NA_real_,
+  keepSampler = FALSE
 ) {
   priors <- buildSamplerPriors(
     matchedCall,
@@ -1870,8 +1886,10 @@ bart2Negbin <- function(
   # n.samples x n.chains layout that pairs with the replayed latent draws.
   if (control@keepTrees) {
     result$bc <- bc
-    result$fit <- sampler
     result$dispersion.raw <- dispersionRaw
+  }
+  if (control@keepTrees || keepSampler) {
+    result$fit <- sampler
   }
   result
 }
@@ -2450,7 +2468,7 @@ bart <- function(
 
   control <- sampler$control
 
-  burn <- runWithBurnIn(sampler, control, keeptrees, nskip)
+  burn <- runWithBurnIn(sampler, control, keeptrees)
   samples <- burn$samples
   burnInSigma <- burn$burnInSigma
   burnInK <- burn$burnInK
