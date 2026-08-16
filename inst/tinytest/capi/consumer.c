@@ -519,6 +519,93 @@ SEXP capi_get_latents(SEXP ptrExpr) {
   return haveLatents ? result : R_NilValue;
 }
 
+/* the dispersion channel a count host reads, both spellings. The recorded slot
+ * is NA-poisoned before the run, so a library that never fills it reads back as
+ * NA rather than as a plausible number, and the second run pins structSize
+ * below the appended field over a poisoned pointer: a size-blind write would
+ * dereference it on the one family that HAS a dispersion to write. */
+SEXP capi_run_dispersion(SEXP ptrExpr, SEXP numBurnInExpr,
+                         SEXP numSamplesExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
+  size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
+  size_t length = numSamples * dbarts_sampler_numChains(sampler);
+
+  SEXP recorded = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
+  for (size_t i = 0; i < length; ++i) REAL(recorded)[i] = NA_REAL;
+  double* sigma = (double*) R_alloc(length, sizeof(double));
+
+  dbarts_results older = DBARTS_RESULTS_INIT;
+  older.structSize = offsetof(dbarts_results, dispersion);
+  older.sigma = sigma;
+  older.dispersion = (double*) (uintptr_t) 0x1;
+  dbarts_sampler_run(sampler, numBurnIn, numSamples, &older);
+
+  /* second, so the state the getter reads afterwards is this run's last draw */
+  dbarts_results results = DBARTS_RESULTS_INIT;
+  results.sigma = sigma;
+  results.dispersion = REAL(recorded);
+  dbarts_sampler_run(sampler, 0, numSamples, &results);
+
+  SEXP result = PROTECT(Rf_allocVector(VECSXP, 3));
+  SET_VECTOR_ELT(result, 0, recorded);
+  SET_VECTOR_ELT(
+    result, 1, Rf_ScalarLogical(DBARTS_RESULTS_HAS(&results, dispersion)));
+  SET_VECTOR_ELT(result, 2, Rf_ScalarLogical(1));
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 3));
+  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("recorded"));
+  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("present"));
+  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("guarded"));
+  Rf_setAttrib(result, R_NamesSymbol, namesExpr);
+  UNPROTECT(3);
+  return result;
+}
+
+/* the mid-sweep getter, on the capability contract every reader here follows:
+ * NULL stands for the 0 return a family carrying no dispersion answers with */
+SEXP capi_dispersion(SEXP ptrExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  SEXP result = PROTECT(
+    Rf_allocVector(REALSXP, (R_xlen_t) dbarts_sampler_numChains(sampler)));
+  int carries = dbarts_sampler_dispersion(sampler, REAL(result));
+  UNPROTECT(1);
+  return carries ? result : R_NilValue;
+}
+
+/* the wrapped augmentation entries, over caller-supplied arrays: an R NULL is
+ * the absent argument, and a scalar's NA is the one no law reads */
+static const double* optionalReal(SEXP x) {
+  return Rf_isNull(x) ? NULL : REAL(x);
+}
+
+SEXP capi_draw_latents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
+                       SEXP weightsExpr, SEXP offsetExpr, SEXP sigmaExpr,
+                       SEXP dispersionExpr, SEXP cutpointsExpr, SEXP dfExpr) {
+  size_t n = (size_t) Rf_xlength(fitExpr);
+  SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) n));
+  dbarts_drawLatents(CHAR(STRING_ELT(familyExpr, 0)), n, REAL(fitExpr),
+                     REAL(yExpr), optionalReal(weightsExpr),
+                     optionalReal(offsetExpr), Rf_asReal(sigmaExpr),
+                     Rf_asReal(dispersionExpr), optionalReal(cutpointsExpr),
+                     (size_t) Rf_xlength(cutpointsExpr), Rf_asReal(dfExpr),
+                     REAL(result));
+  UNPROTECT(1);
+  return result;
+}
+
+SEXP capi_working_response(SEXP familyExpr, SEXP latentExpr, SEXP yExpr,
+                           SEXP weightsExpr, SEXP offsetExpr,
+                           SEXP dispersionExpr) {
+  size_t n = (size_t) Rf_xlength(latentExpr);
+  SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) n));
+  dbarts_workingResponse(CHAR(STRING_ELT(familyExpr, 0)), n, REAL(latentExpr),
+                         REAL(yExpr), optionalReal(weightsExpr),
+                         optionalReal(offsetExpr), Rf_asReal(dispersionExpr),
+                         REAL(result));
+  UNPROTECT(1);
+  return result;
+}
+
 /* the dense spelling every wrapper below hands the entries: the header's own
  * constructor over an R matrix */
 static dbarts_predictor_source denseSource(SEXP xExpr) {

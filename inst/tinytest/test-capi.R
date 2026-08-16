@@ -49,14 +49,15 @@ CALL <- function(name, ...) .Call(getNativeSymbolInfo(name, dll), ...)
 hashes <- CALL("capi_hash")
 expect_true(hashes$raw.agrees)
 expect_true(hashes$matches.header)
-# and the token really moved when the surface was re-signed: this is the
-# literal the pre-reshape header baked, so a token blind to the change would
-# still read it
+# and the token really moved on each re-signing: these are the literals the
+# pre-reshape header and reshape S1 baked, so a token blind to either change
+# would still read one of them
 expect_false(identical(hashes$text, "0x1a911c00bb26dcd7"))
-# and it did NOT move for M4.3, whose only dbarts.h edit was doc text outside
-# DBARTS_C_API_LIST (the basis layout resolved to the engine's row-major
-# reality): the token is the literal reshape S1 baked
-expect_identical(hashes$text, "0xcd88efcd67de55d7")
+expect_false(identical(hashes$text, "0xcd88efcd67de55d7"))
+# and it does NOT move for doc text outside DBARTS_C_API_LIST, which the token
+# cannot see: this is the literal baked for the three entry points appended
+# after the reshape - the dispersion getter and the two augmentation forms
+expect_identical(hashes$text, "0x85bd1ef04beb3848")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -376,8 +377,100 @@ expect_error(
   CALL("capi_set_weights", ptrCount, rep(1, n)),
   "nbinom \\(count\\) models do not support case weights"
 )
+
+# the dispersion channel from C: the results slot appended to dbarts_results
+# and the mid-sweep getter. The slot is NA-poisoned before the run, so an
+# unfilled channel cannot pass for a filled one
+disp <- CALL("capi_run_dispersion", ptrCount, 2L, 3L)
+expect_true(disp$present)
+expect_equal(length(disp$recorded), 3L)
+expect_true(all(is.finite(disp$recorded)))
+expect_true(all(disp$recorded > 0))
+# a caller whose structSize predates the field is never written past, on the
+# one family that HAS a dispersion to write
+expect_true(disp$guarded)
+# the getter reads the same scalar mid-sweep, without serializing state
+live <- CALL("capi_dispersion", ptrCount)
+expect_equal(length(live), 1L)
+expect_equal(live, disp$recorded[3L])
+# and it is ABSENT off the family: the entry answers 0, reported here as NULL
+expect_null(CALL("capi_dispersion", ptr1))
+
 rm(ptrCount, specCount, dataOverBound)
 invisible(gc(FALSE))
+
+# the wrapped augmentation entries, the flat twins of dbartsDrawLatents and
+# dbartsWorkingResponse: one implementation behind two surfaces, drawing from
+# R's own stream, so under one seed they agree bitwise. The stream is restored
+# after the block so later draws in this file are unaffected
+drawFlat <- function(family, fit, y, offset = NULL, r = NULL, cuts = NULL) {
+  CALL("capi_draw_latents", family, fit, y, NULL, offset, 1, r, cuts, NULL)
+}
+workFlat <- function(family, latent, y, offset = NULL, r = NULL) {
+  CALL("capi_working_response", family, latent, y, NULL, offset, r)
+}
+
+augFit <- as.vector(0.4 * scale(y))
+augOffset <- rep_len(c(-0.3, 0.2), n)
+yDouble <- as.double(yBinary)
+augSeed <- .Random.seed
+set.seed(11)
+flatLatent <- drawFlat("probit", augFit, yDouble, offset = augOffset)
+set.seed(11)
+rLatent <- dbartsDrawLatents("probit", augFit, yDouble, offset = augOffset)
+expect_equal(flatLatent, as.vector(rLatent))
+
+# the two arguments the flat forms carry that the R surface derives for itself:
+# a scalar its family's law requires, and the cut points with their own length
+yOrdinal <- 1 + (seq_len(n) %% 3L)
+cuts <- c(-0.5, 0.7)
+set.seed(14)
+flatCount <- drawFlat("nbinom", augFit, yCount, r = 3)
+flatOrdinal <- drawFlat("ordinal", augFit, yOrdinal, cuts = cuts)
+set.seed(14)
+rCount <- dbartsDrawLatents("nbinom", augFit, yCount, dispersion = 3)
+rOrdinal <- dbartsDrawLatents("ordinal", augFit, yOrdinal, cutpoints = cuts)
+expect_equal(flatCount, as.vector(rCount))
+expect_equal(flatOrdinal, as.vector(rOrdinal))
+
+# the offset convention is load-bearing and the flat form carries it: 'fit' is
+# the location WITHOUT the offset, so drawing at (fit, offset) must reproduce
+# drawing at (fit + offset, none) - an entry that dropped the argument would
+# agree with neither
+set.seed(12)
+withOffset <- drawFlat("probit", augFit, yDouble, offset = augOffset)
+set.seed(12)
+folded <- drawFlat("probit", augFit + augOffset, yDouble)
+expect_identical(withOffset, folded)
+
+# the working response, deterministic given the latent: the flat form matches
+# the R helper on a PRECISION family, where the quantity is not the latent
+set.seed(13)
+omega <- as.vector(dbartsDrawLatents(
+  "logistic",
+  augFit,
+  yDouble,
+  offset = augOffset
+))
+expect_equal(
+  workFlat("logistic", omega, yDouble, offset = augOffset),
+  as.vector(dbartsWorkingResponse(
+    "logistic",
+    omega,
+    yDouble,
+    offset = augOffset
+  ))
+)
+
+# and the flat forms carry the guard rail rather than exporting the sharp edge:
+# a law's required parameter has no default, a Polya-Gamma working response
+# divides by its latent, and the support rule is the shared one
+expect_error(drawFlat("ordinal", augFit, yOrdinal), "requires cut points")
+expect_error(workFlat("logistic", rep(0, n), yDouble), "must be positive")
+expect_error(drawFlat("probit", augFit, rep(2, n)), "must be coded 0 or 1")
+assign(".Random.seed", augSeed, envir = globalenv())
+rm(augFit, augOffset, yDouble, yOrdinal, cuts, omega, augSeed)
+rm(drawFlat, workFlat)
 
 # tree storage, prediction, and the state round trip stan4bart's
 # predict-after-reload uses

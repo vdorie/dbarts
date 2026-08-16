@@ -31,12 +31,12 @@
 /// - Invalid arguments raise R errors (Rf_error), which longjmp through the
 ///   caller's frames; call from contexts that are safe to unwind.
 /// - Functions that draw (creation, run, the prior samplers, predictor
-///   updates) manage R's RNG state internally and must be called from the
-///   main R thread. Do not wrap them in a GetRNGstate/PutRNGstate bracket
-///   that spans your own draws through R's API. dbarts_sampler_predict and
-///   dbarts_sampler_setTestPredictors are main-R-thread-only for a separate
-///   reason: both are R_alloc-backed internally, and R_alloc is unsafe off
-///   that thread.
+///   updates, dbarts_drawLatents) manage R's RNG state internally and must be
+///   called from the main R thread. Do not wrap them in a GetRNGstate/
+///   PutRNGstate bracket that spans your own draws through R's API.
+///   dbarts_sampler_predict and dbarts_sampler_setTestPredictors are
+///   main-R-thread-only for a separate reason: both are R_alloc-backed
+///   internally, and R_alloc is unsafe off that thread.
 /// - Creation preserves the data specification object against garbage
 ///   collection for the sampler's lifetime, and the engine borrows its
 ///   predictors only to quantize them into owned codes at construction; the
@@ -98,7 +98,7 @@
 /// The layout contract is each struct's leading structSize plus the exact
 /// offset locks dbarts's own build asserts, so a struct layout change is not
 /// self-detecting and is announced to consumers by hand.
-#define DBARTS_C_API_HASH 0xcd88efcd67de55d7ULL
+#define DBARTS_C_API_HASH 0x85bd1ef04beb3848ULL
 
 #ifdef __cplusplus
 extern "C" {
@@ -119,13 +119,16 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// the library fills only fields whose end offset falls within structSize,
 /// so a caller built against an older (smaller) header is never written
 /// past. Fields append monotonically below the marked boundary and never
-/// reorder across releases; an append bumps DBARTS_C_API_MINOR. A field is
+/// reorder across releases; an append after 1.0-0 bumps DBARTS_C_API_MINOR,
+/// while a pre-1.0-0 append extends the initial field set and moves no version
+/// constant. A field is
 /// filled only when both present-by-size and non-null: a null member skips
 /// that quantity, and a zero or unset structSize makes dbarts_sampler_run error
 /// rather than silently produce no output. k requires a k
 /// hyperprior (dbarts_sampler_kIsSampled), varprobs a DART tree prior
-/// (dbarts_sampler_usesDart), and tau/groupEffects a grouped
-/// random-intercept sampler; each is left untouched otherwise. logLikelihood
+/// (dbarts_sampler_usesDart), tau/groupEffects a grouped
+/// random-intercept sampler, and dispersion a count (nbinom) response; each is
+/// left untouched otherwise. logLikelihood
 /// carries the per-draw training-data log-likelihood for the gaussian,
 /// binary, and aft families; aft reports the log density for events and the
 /// log survival tail for right-censored observations, and a grouped
@@ -147,8 +150,10 @@ typedef struct dbarts_results_t {
   double* tau;        ///< numSamples x numChains
   double* groupEffects; ///< numGroups x numSamples x numChains
   double* logLikelihood; ///< numObservations x numSamples x numChains
+  double* dispersion;    ///< numSamples x numChains, the nbinom r per draw
   /* 1.0-0 field boundary: every future append goes below this line, never
-     above, and bumps DBARTS_C_API_MINOR. */
+     above. An append after 1.0-0 bumps DBARTS_C_API_MINOR; a pre-1.0-0 one
+     extends the initial field set above it and moves no version constant. */
 } dbarts_results;
 
 /// True when the caller's struct (per structSize) actually carries `field`.
@@ -264,7 +269,12 @@ typedef struct dbarts_forest_calibration_t {
                            ///< disagrees on BCF and multinomial)
   int*    leafModel;       ///< numChains; dbarts_leaf_model, qualifying
                            ///< priorSd and priorMean (see below)
-  /* 1.0-0 field boundary: appends go below, never above. */
+  /* 1.0-0 field boundary. An append after 1.0-0 goes below this line and bumps
+     DBARTS_C_API_MINOR; a pre-1.0-0 append extends the initial field set and
+     moves no version constant. The five fields below were appended pre-1.0-0,
+     before that rule was written down, so both sides of this marker are the
+     initial field set - which is why dbarts_results carries its own pre-1.0-0
+     append above its marker instead. */
   /* The multi-forest CALIBRATION MAP's decomposition of priorScale, which is
    * factor * s / (divisor * rowNorm) at the family's latent anchor s: NaN on
    * every forest with no map entry (any single-forest or multinomial sampler),
@@ -430,7 +440,21 @@ typedef int (*dbarts_sampler_callback)(void* userData, dbarts_sampler* sampler,
     (dbarts_sampler* sampler, size_t forest, double priorScale), \
     (sampler, forest, priorScale)) \
   X(int, dbarts_sampler_setActiveRows, \
-    (dbarts_sampler* sampler, const double* active), (sampler, active))
+    (dbarts_sampler* sampler, const double* active), (sampler, active)) \
+  X(int, dbarts_sampler_dispersion, \
+    (const dbarts_sampler* sampler, double* out), (sampler, out)) \
+  X(void, dbarts_drawLatents, \
+    (const char* family, size_t numObservations, const double* fit, \
+     const double* y, const double* weights, const double* offset, \
+     double sigma, double dispersion, const double* cutpoints, \
+     size_t numCutpoints, double df, double* out), \
+    (family, numObservations, fit, y, weights, offset, sigma, dispersion, \
+     cutpoints, numCutpoints, df, out)) \
+  X(void, dbarts_workingResponse, \
+    (const char* family, size_t numObservations, const double* latent, \
+     const double* y, const double* weights, const double* offset, \
+     double dispersion, double* out), \
+    (family, numObservations, latent, y, weights, offset, dispersion, out))
 
 /// One stringized "returnType name(parameterList);" per list entry, adjacent
 /// string literals that concatenate into the full declaration text the
@@ -606,6 +630,16 @@ void dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
 /// case - a sampler whose family is gaussian but whose residual distribution
 /// is Student-t DOES report latents, and they are precisions.
 int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out);
+
+/// Copies the dispersion r in force on each chain (numChains values) into out:
+/// the same scalar dbarts_results::dispersion records once per kept draw, read
+/// mid-sweep and without serializing state, so a host composing a count block
+/// reads it between sweeps instead of through dbarts_sampler_storeState.
+/// Returns 1, or 0 without touching out when the response family carries no
+/// dispersion - every family but nbinom - so a caller tests the channel rather
+/// than a filler value. Under a fixed dispersion it repeats the value the
+/// sampler was created with; otherwise it is that sweep's grid draw.
+int dbarts_sampler_dispersion(const dbarts_sampler* sampler, double* out);
 
 /// Replaces the full predictor matrix from a borrowed source: x declares
 /// numRows == numObservations and numColumns == numPredictors, and any source
@@ -874,6 +908,48 @@ int dbarts_sampler_setForestPriorScale(dbarts_sampler* sampler, size_t forest,
 /// dbarts_sampler_setWeights for that).
 int dbarts_sampler_setActiveRows(dbarts_sampler* sampler,
                                  const double* active);
+
+/// Draws the augmentation variable a family's sweep draws, at a caller's fit
+/// rather than inside a sampler, and writes numObservations values into out.
+/// family is one of "probit", "logistic", "ordinal", "aft", "nbinom" or
+/// "student"; WHAT the draw is per family is dbarts_sampler_getLatents's own
+/// contract, a location for the first three plus aft and a precision for the
+/// rest. fit is the location WITHOUT the offset (the convention
+/// dbarts_results::train reports), so the linear predictor is fit + offset and
+/// a null offset is zero.
+///
+/// Each remaining argument belongs to one family's law, which has no default to
+/// fall back on: weights are the logistic observation counts (null is unit),
+/// sigma the aft and student scale, dispersion the nbinom r (a positive WHOLE
+/// number - a fractional one is rounded into a different-shape draw, not
+/// refused), cutpoints the ordinal's numCutpoints strictly increasing interior
+/// cut points (unordered ones corrupt the draw silently, the rejection loop
+/// degrading to its fallback rather than erroring), and df the Student-t
+/// degrees of freedom. Omitting what a family's law requires is an error; what
+/// it does not read is ignored. Out-of-support y raises, as it does at
+/// dbarts_sampler_setResponse - and, by the same rule, y is checked only where
+/// the family's support constrains it, so under "aft" and "student" a
+/// non-finite y propagates NaN into out.
+///
+/// The draw comes from R's own stream through a per-call generator, so set.seed
+/// reproduces it and it advances the stream for whatever R draws next, while a
+/// sampler's chain generators are untouched.
+void dbarts_drawLatents(const char* family, size_t numObservations,
+                        const double* fit, const double* y,
+                        const double* weights, const double* offset,
+                        double sigma, double dispersion,
+                        const double* cutpoints, size_t numCutpoints, double df,
+                        double* out);
+/// Turns a drawn latent into the quantity a host regresses on, numObservations
+/// values into out: for "logistic" and "nbinom" the Polya-Gamma kappa divided
+/// by the drawn precision (which must be positive), for "student" the response
+/// itself (its latent weights the row instead), and for the location families
+/// the latent - each less the offset. Draws nothing; the arguments carry the
+/// meanings dbarts_drawLatents states.
+void dbarts_workingResponse(const char* family, size_t numObservations,
+                            const double* latent, const double* y,
+                            const double* weights, const double* offset,
+                            double dispersion, double* out);
 
 #endif // DBARTS_USE_STUBS
 

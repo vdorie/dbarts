@@ -29,7 +29,11 @@
 
 using std::size_t;
 using std::uint32_t;
+using bartcore_bridge::AugmentationInputs;
+using bartcore_bridge::augmentationFamily;
 using bartcore_bridge::BartcoreHolder;
+using bartcore_bridge::computeWorkingResponse;
+using bartcore_bridge::drawAugmentation;
 using bartcore_bridge::refuseBCFTestSurface;
 using bartcore_bridge::refuseBinaryWeightChange;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
@@ -5930,45 +5934,11 @@ SEXP bartcore_getLatents(SEXP ptrExpr, SEXP resultExpr) {
 
 // ---- the exported augmentation helpers, dbartsDrawLatents and
 // dbartsWorkingResponse: the per-sweep augmentation draws, run against R's own
-// stream on a caller's fit rather than inside a sampler. The draw laws are
-// RESTATED here rather than shared with the response models, which run against
-// a different generator (docs/design/r-c-division.md).
+// stream on a caller's fit rather than inside a sampler. The laws themselves
+// live in bartcore_bridge, which the flat C API's wrapped forms call too.
 
-/// The family a helper's name selects: the law it draws AND the arm
-/// validateResponseSupport states the response's support with. "student" has
-/// no member of its own - a Student-t residual distribution is a gaussian
-/// response under a scale mixture - so it maps to gaussian, whose support arm
-/// constrains nothing, and gaussian is the mixture arm of the switches below.
-/// R's match.arg has already refused anything else.
-static bartcore::ResponseFamily augmentationFamily(SEXP familyExpr) {
-  const char* name = CHAR(STRING_ELT(familyExpr, 0));
-  using RF = bartcore::ResponseFamily;
-  if (std::strcmp(name, "probit") == 0) return RF::probit;
-  if (std::strcmp(name, "logistic") == 0) return RF::logistic;
-  if (std::strcmp(name, "ordinal") == 0) return RF::ordinal;
-  if (std::strcmp(name, "aft") == 0) return RF::aft;
-  if (std::strcmp(name, "nbinom") == 0) return RF::nbinom;
-  if (std::strcmp(name, "student") != 0)
-    Rf_error("unrecognized augmentation family \"%s\"", name);
-  return RF::gaussian;
-}
-
-/// The inputs both helpers read off R. fit is the location WITHOUT the offset
-/// - the engine's own totalFits convention - so the linear predictor
-/// psi = fit + offset is formed here, and a null offset is zero.
-struct AugmentationInputs {
-  size_t numObservations;
-  const double* fit;        // or, for a working response, the latent's length
-  const double* y;
-  const double* weights;    // logistic counts; null is unit
-  const double* offset;
-  const double* cutpoints;  // ordinal, K - 1 of them
-  size_t numCutpoints;
-  double sigma;
-  double dispersion;
-  double df;
-};
-
+/// The inputs both helpers read off R; the flat forms fill the same struct
+/// from their own arguments.
 static AugmentationInputs augmentationInputs(SEXP fitExpr, SEXP yExpr,
                                              SEXP weightsExpr, SEXP offsetExpr,
                                              SEXP cutpointsExpr, SEXP sigmaExpr,
@@ -5988,6 +5958,76 @@ static AugmentationInputs augmentationInputs(SEXP fitExpr, SEXP yExpr,
   return in;
 }
 
+// R/augmentation.R has validated every length, every family's applicable
+// arguments and the scalars' ranges; the response support is stated HERE, by
+// the same function every conduit that swaps a y calls.
+SEXP bartcore_drawLatents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
+                          SEXP weightsExpr, SEXP offsetExpr, SEXP sigmaExpr,
+                          SEXP dispersionExpr, SEXP cutpointsExpr,
+                          SEXP dfExpr) {
+  bartcore::ResponseFamily family =
+    augmentationFamily(CHAR(STRING_ELT(familyExpr, 0)));
+  AugmentationInputs in =
+    augmentationInputs(fitExpr, yExpr, weightsExpr, offsetExpr, cutpointsExpr,
+                       sigmaExpr, dispersionExpr, dfExpr);
+  validateResponseSupport(family, in.numCutpoints + 1, in.y,
+                          in.numObservations, "dbartsDrawLatents");
+  // everything that can longjmp runs BEFORE the generator exists, the result
+  // vector included, so the draw loop cannot strand it
+  SEXP result =
+    PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(in.numObservations)));
+  using RF = bartcore::ResponseFamily;
+  bool precision = family == RF::logistic || family == RF::nbinom ||
+                   family == RF::gaussian;
+  drawAugmentation(family, in, REAL(result), "dbartsDrawLatents");
+  Rf_setAttrib(result, Rf_install("quantity"),
+               Rf_mkString(precision ? "precision" : "location"));
+  UNPROTECT(1);
+  return result;
+}
+
+SEXP bartcore_workingResponse(SEXP familyExpr, SEXP latentExpr, SEXP yExpr,
+                              SEXP weightsExpr, SEXP offsetExpr,
+                              SEXP dispersionExpr) {
+  bartcore::ResponseFamily family =
+    augmentationFamily(CHAR(STRING_ELT(familyExpr, 0)));
+  AugmentationInputs in =
+    augmentationInputs(latentExpr, yExpr, weightsExpr, offsetExpr, R_NilValue,
+                       R_NilValue, dispersionExpr, R_NilValue);
+  // the ordinal working response is the latent less the offset, so y never
+  // enters it and there is no category count here to state its support against
+  if (family != bartcore::ResponseFamily::ordinal)
+    validateResponseSupport(family, 0, in.y, in.numObservations,
+                            "dbartsWorkingResponse");
+  SEXP result =
+    PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(in.numObservations)));
+  computeWorkingResponse(family, in, REAL(latentExpr), REAL(result));
+  UNPROTECT(1);
+  return result;
+}
+
+} // extern "C"
+
+namespace bartcore_bridge {
+
+// ---- the augmentation cores, called by both surfaces: the R helpers
+// dbartsDrawLatents/dbartsWorkingResponse above and the flat
+// dbarts_drawLatents/dbarts_workingResponse (C_interface.cpp). The laws are
+// RESTATED here rather than shared with the response models, which run against
+// a different generator (docs/design/r-c-division.md).
+
+bartcore::ResponseFamily augmentationFamily(const char* name) {
+  using RF = bartcore::ResponseFamily;
+  if (std::strcmp(name, "probit") == 0) return RF::probit;
+  if (std::strcmp(name, "logistic") == 0) return RF::logistic;
+  if (std::strcmp(name, "ordinal") == 0) return RF::ordinal;
+  if (std::strcmp(name, "aft") == 0) return RF::aft;
+  if (std::strcmp(name, "nbinom") == 0) return RF::nbinom;
+  if (std::strcmp(name, "student") != 0)
+    Rf_error("unrecognized augmentation family \"%s\"", name);
+  return RF::gaussian;
+}
+
 /// A per-call generator drawing R's stream, held BY an unwindProtect closure:
 /// its cleanup runs this deleter on Rf_error's longjmp as well as on the
 /// normal return, where a bare local's destructor would not. Never cached -
@@ -6001,8 +6041,8 @@ typedef std::unique_ptr<ext_rng, NativeRngDeleter> NativeRng;
 /// (ProbitResponse::refreshLatents, OrdinalResponse::drawLatents,
 /// AFTResponse::refreshLatents, LogisticResponse::refreshLatents,
 /// NBResponse::drawOmega, TResponse::refreshLatents), NaN fallbacks included.
-static void drawAugmentation(ext_rng* rng, bartcore::ResponseFamily family,
-                             const AugmentationInputs& in, double* result) {
+static void drawAugmentationLaws(ext_rng* rng, bartcore::ResponseFamily family,
+                                 const AugmentationInputs& in, double* result) {
   using RF = bartcore::ResponseFamily;
   for (size_t i = 0; i < in.numObservations; ++i) {
     double psi = in.fit[i] + (in.offset != NULL ? in.offset[i] : 0.0);
@@ -6062,13 +6102,27 @@ static void drawAugmentation(ext_rng* rng, bartcore::ResponseFamily family,
   }
 }
 
-/// The quantity a host regresses on given the drawn latent, read off the same
-/// engine sites: a Polya-Gamma family divides its kappa by the drawn
-/// precision, Student-t regresses on y (its latent weights the row instead),
-/// and a location family on the latent - each less the offset.
-static void computeWorkingResponse(bartcore::ResponseFamily family,
-                                   const AugmentationInputs& in,
-                                   const double* latent, double* result) {
+void drawAugmentation(bartcore::ResponseFamily family,
+                      const AugmentationInputs& in, double* result,
+                      const char* caller) {
+  // the caller has already allocated result, so nothing that can longjmp runs
+  // while the generator is alive
+  GetRNGstate();
+  unwindProtect([&, rng = NativeRng(ext_rng_createDefault(true))]()
+                  mutable -> SEXP {
+    if (rng == nullptr) {
+      PutRNGstate();
+      Rf_error("%s: could not create a random number generator", caller);
+    }
+    drawAugmentationLaws(rng.get(), family, in, result);
+    PutRNGstate();
+    return R_NilValue;
+  });
+}
+
+void computeWorkingResponse(bartcore::ResponseFamily family,
+                            const AugmentationInputs& in, const double* latent,
+                            double* result) {
   using RF = bartcore::ResponseFamily;
   for (size_t i = 0; i < in.numObservations; ++i) {
     double value;
@@ -6082,66 +6136,6 @@ static void computeWorkingResponse(bartcore::ResponseFamily family,
     result[i] = value - (in.offset != NULL ? in.offset[i] : 0.0);
   }
 }
-
-// R/augmentation.R has validated every length, every family's applicable
-// arguments and the scalars' ranges; the response support is stated HERE, by
-// the same function every conduit that swaps a y calls.
-SEXP bartcore_drawLatents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
-                          SEXP weightsExpr, SEXP offsetExpr, SEXP sigmaExpr,
-                          SEXP dispersionExpr, SEXP cutpointsExpr,
-                          SEXP dfExpr) {
-  bartcore::ResponseFamily family = augmentationFamily(familyExpr);
-  AugmentationInputs in =
-    augmentationInputs(fitExpr, yExpr, weightsExpr, offsetExpr, cutpointsExpr,
-                       sigmaExpr, dispersionExpr, dfExpr);
-  validateResponseSupport(family, in.numCutpoints + 1, in.y,
-                          in.numObservations, "dbartsDrawLatents");
-  // everything that can longjmp runs BEFORE the generator exists, the result
-  // vector included, so the draw loop cannot strand it
-  SEXP result =
-    PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(in.numObservations)));
-  using RF = bartcore::ResponseFamily;
-  bool precision = family == RF::logistic || family == RF::nbinom ||
-                   family == RF::gaussian;
-  GetRNGstate();
-  unwindProtect([&, rng = NativeRng(ext_rng_createDefault(true))]()
-                  mutable -> SEXP {
-    if (rng == nullptr) {
-      PutRNGstate();
-      Rf_error("dbartsDrawLatents: could not create a random number generator");
-    }
-    drawAugmentation(rng.get(), family, in, REAL(result));
-    PutRNGstate();
-    return R_NilValue;
-  });
-  Rf_setAttrib(result, Rf_install("quantity"),
-               Rf_mkString(precision ? "precision" : "location"));
-  UNPROTECT(1);
-  return result;
-}
-
-SEXP bartcore_workingResponse(SEXP familyExpr, SEXP latentExpr, SEXP yExpr,
-                              SEXP weightsExpr, SEXP offsetExpr,
-                              SEXP dispersionExpr) {
-  bartcore::ResponseFamily family = augmentationFamily(familyExpr);
-  AugmentationInputs in =
-    augmentationInputs(latentExpr, yExpr, weightsExpr, offsetExpr, R_NilValue,
-                       R_NilValue, dispersionExpr, R_NilValue);
-  // the ordinal working response is the latent less the offset, so y never
-  // enters it and there is no category count here to state its support against
-  if (family != bartcore::ResponseFamily::ordinal)
-    validateResponseSupport(family, 0, in.y, in.numObservations,
-                            "dbartsWorkingResponse");
-  SEXP result =
-    PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(in.numObservations)));
-  computeWorkingResponse(family, in, REAL(latentExpr), REAL(result));
-  UNPROTECT(1);
-  return result;
-}
-
-} // extern "C"
-
-namespace bartcore_bridge {
 
 // Provenance stamp for the on-disk layout storeState/setState exchange. The
 // shipped format (version 1) folds in two pre-release iterations that never

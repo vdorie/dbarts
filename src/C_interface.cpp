@@ -20,7 +20,11 @@
 #include "R_interface_bartcore_common.hpp"
 
 using std::size_t;
+using bartcore_bridge::AugmentationInputs;
+using bartcore_bridge::augmentationFamily;
 using bartcore_bridge::BartcoreHolder;
+using bartcore_bridge::computeWorkingResponse;
+using bartcore_bridge::drawAugmentation;
 using bartcore_bridge::refuseBCFTestSurface;
 using bartcore_bridge::refuseBinaryWeightChange;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
@@ -264,7 +268,8 @@ int leafModelTag(bartcore::LeafModelKind kind) {
 // caller's. Every field's exact offset is pinned (all trailing members are
 // pointer-sized), so a mid-struct insertion shifts a downstream offset and
 // fails here, a reorder fails at the swapped pair, and the size assert forces
-// an author who appends a field to update it (and bump DBARTS_C_API_MINOR).
+// an author who appends a field to update it (and, once 1.0-0 has shipped,
+// bump DBARTS_C_API_MINOR).
 static_assert(offsetof(dbarts_results, structSize) == 0);
 static_assert(offsetof(dbarts_results, sigma) == sizeof(size_t) + 0 * sizeof(double*));
 static_assert(offsetof(dbarts_results, train) == sizeof(size_t) + 1 * sizeof(double*));
@@ -275,7 +280,8 @@ static_assert(offsetof(dbarts_results, varprobs) == sizeof(size_t) + 5 * sizeof(
 static_assert(offsetof(dbarts_results, tau) == sizeof(size_t) + 6 * sizeof(double*));
 static_assert(offsetof(dbarts_results, groupEffects) == sizeof(size_t) + 7 * sizeof(double*));
 static_assert(offsetof(dbarts_results, logLikelihood) == sizeof(size_t) + 8 * sizeof(double*));
-static_assert(sizeof(dbarts_results) == sizeof(size_t) + 9 * sizeof(double*),
+static_assert(offsetof(dbarts_results, dispersion) == sizeof(size_t) + 9 * sizeof(double*));
+static_assert(sizeof(dbarts_results) == sizeof(size_t) + 10 * sizeof(double*),
               "dbarts_results layout changed; update these offsets, and bump "
               "DBARTS_C_API_MINOR if a field was appended after 1.0-0");
 
@@ -406,6 +412,7 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
     FILL(tau, tau);
     FILL(groupEffects, groupEffects);
     FILL(logLikelihood, logLikelihood);
+    FILL(dispersion, dispersion);
 #undef FILL
   }
 
@@ -524,6 +531,16 @@ int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out) {
   for (size_t c = 0; c < shape.numChains; ++c)
     std::memcpy(out + c * numObservations, engine.latents(c),
                 numObservations * sizeof(double));
+  return 1;
+}
+
+int dbarts_sampler_dispersion(const dbarts_sampler* sampler, double* out) {
+  const bartcore::SamplerBase& engine(samplerOf(sampler));
+  bartcore::SamplerShape shape = engine.shape();
+  // the capability answer is the return value, as it is for the R bridge's
+  // NULL: the value itself would mean nothing off a family carrying one
+  if (!shape.carriesDispersion) return 0;
+  for (size_t c = 0; c < shape.numChains; ++c) out[c] = engine.dispersion(c);
   return 1;
 }
 
@@ -921,6 +938,88 @@ int dbarts_sampler_setActiveRows(dbarts_sampler* sampler,
   // restated here
   if (!engine.shape().supportsActiveRows) return 0;
   return engine.setActiveRows(active) ? 1 : 0;
+}
+
+// Resolves the family and applies the rules R/augmentation.R applies ahead of
+// the R helpers, which the wrapped forms below have no R layer to inherit. Only
+// the half a wrong argument cannot survive: the parameter each law REQUIRES,
+// there being no default to fall back on (the ordinal arm indexes its cut
+// points unconditionally, and the Polya-Gamma working response divides by its
+// latent), and the logistic counts. A parameter no law reads is IGNORED rather
+// than refused by name as R refuses it, a C caller having no way to leave one
+// out. drawing selects the draw's own scalars.
+static bartcore::ResponseFamily augmentationArguments(
+  const char* family, const AugmentationInputs& in, bool drawing,
+  const char* caller) {
+  using RF = bartcore::ResponseFamily;
+  if (family == NULL) Rf_error("%s: 'family' is NULL", caller);
+  RF resolved = augmentationFamily(family);
+  if (in.fit == NULL || in.y == NULL)
+    Rf_error("%s: the %s and response vectors are required", caller,
+             drawing ? "fit" : "latent");
+  if (drawing && resolved == RF::ordinal &&
+      (in.cutpoints == NULL || in.numCutpoints == 0))
+    Rf_error("%s: family \"ordinal\" requires cut points", caller);
+  if (drawing && (resolved == RF::aft || resolved == RF::gaussian) &&
+      !(R_FINITE(in.sigma) && in.sigma > 0.0))
+    Rf_error("%s: the aft and student laws require a positive 'sigma'", caller);
+  if (drawing && resolved == RF::gaussian &&
+      !(R_FINITE(in.df) && in.df > 0.0))
+    Rf_error("%s: family \"student\" requires positive 'df'", caller);
+  if (resolved == RF::nbinom &&
+      !(R_FINITE(in.dispersion) && in.dispersion > 0.0))
+    Rf_error("%s: family \"nbinom\" requires a positive 'dispersion'", caller);
+
+  bool precisionLatent =
+    !drawing && (resolved == RF::logistic || resolved == RF::nbinom);
+  if (in.weights == NULL && !precisionLatent) return resolved;
+  for (size_t i = 0; i < in.numObservations; ++i) {
+    if (in.weights != NULL && (!(in.weights[i] > 0.0) ||
+                               in.weights[i] != std::floor(in.weights[i])))
+      Rf_error("%s: 'weights' are observation counts: positive whole numbers",
+               caller);
+    if (precisionLatent && !(in.fit[i] > 0.0))
+      Rf_error("%s: 'latent' is the precision the working response divides by: "
+               "it must be positive", caller);
+  }
+  return resolved;
+}
+
+void dbarts_drawLatents(const char* family, size_t numObservations,
+                        const double* fit, const double* y,
+                        const double* weights, const double* offset,
+                        double sigma, double dispersion,
+                        const double* cutpoints, size_t numCutpoints, double df,
+                        double* out) {
+  AugmentationInputs in{.numObservations = numObservations, .fit = fit, .y = y,
+                        .weights = weights, .offset = offset,
+                        .cutpoints = cutpoints, .numCutpoints = numCutpoints,
+                        .sigma = sigma, .dispersion = dispersion, .df = df};
+  bartcore::ResponseFamily resolved =
+    augmentationArguments(family, in, true, "dbarts_drawLatents");
+  if (out == NULL) Rf_error("dbarts_drawLatents: 'out' is NULL");
+  // the same support rule every conduit that swaps a y states
+  validateResponseSupport(resolved, in.numCutpoints + 1, in.y,
+                          in.numObservations, "dbarts_drawLatents");
+  drawAugmentation(resolved, in, out, "dbarts_drawLatents");
+}
+
+void dbarts_workingResponse(const char* family, size_t numObservations,
+                            const double* latent, const double* y,
+                            const double* weights, const double* offset,
+                            double dispersion, double* out) {
+  AugmentationInputs in{.numObservations = numObservations, .fit = latent,
+                        .y = y, .weights = weights, .offset = offset,
+                        .dispersion = dispersion};
+  bartcore::ResponseFamily resolved =
+    augmentationArguments(family, in, false, "dbarts_workingResponse");
+  if (out == NULL) Rf_error("dbarts_workingResponse: 'out' is NULL");
+  // the ordinal working response is the latent less the offset, so y never
+  // enters it and there is no category count here to state its support against
+  if (resolved != bartcore::ResponseFamily::ordinal)
+    validateResponseSupport(resolved, 0, in.y, in.numObservations,
+                            "dbarts_workingResponse");
+  computeWorkingResponse(resolved, in, latent, out);
 }
 
 // Provider-side binding: each real function's address must
