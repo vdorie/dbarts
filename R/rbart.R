@@ -69,6 +69,19 @@ rbart_vi <- function(
     )
   }
 
+  # d1/D6 (docs/plans/bart2-argument-consolidation.md 3.d): factors/missing
+  # are forwarded formal defaults - redirectCall only carries a name into the
+  # host dbartsData() call when the caller supplied it, so an unsupplied one
+  # used to silently take dbartsData()'s own default rather than the token
+  # this signature advertises. Resolve here, in rbart_vi's own frame, and
+  # stamp the resolved value onto matchedCall unconditionally so the call
+  # built from it below forwards it explicitly. T-B keeps the default texts
+  # identical, so this is draw-neutral.
+  factors <- match.arg(factors)
+  missing <- match.arg(missing)
+  matchedCall$factors <- factors
+  matchedCall$missing <- missing
+
   n.chains <- coerceOrError(n.chains, "integer")[1L]
   if (is.na(n.chains) || n.chains < 1L) {
     stop("'n.chains' must be a positive integer")

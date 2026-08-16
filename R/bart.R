@@ -572,7 +572,7 @@ bart2 <- function(
   keepCall = TRUE,
   samplerOnly = FALSE,
   seed = NA_integer_,
-  proposal.probs = NULL,
+  proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
   monotone = NULL,
   interactions = NULL,
   blocks = NULL,
@@ -663,6 +663,21 @@ bart2 <- function(
       "'"
     )
   }
+
+  # d1/D6 (docs/plans/bart2-argument-consolidation.md 3.d): factors/missing/
+  # proposal.probs are forwarded formal defaults - redirectCall only carries
+  # a name into the host dbarts() call when the caller supplied it, so an
+  # unsupplied one used to silently take dbarts()'s own default rather than
+  # the token/value this signature advertises. Resolve here, in bart2's own
+  # frame, and stamp the resolved value onto matchedCall unconditionally so
+  # every call built from it below forwards it explicitly. T-B keeps the
+  # default texts identical to dbarts()'s, so this is draw-neutral: the
+  # resolved value is exactly what dbarts() would already have chosen.
+  factors <- match.arg(factors)
+  missing <- match.arg(missing)
+  matchedCall$factors <- factors
+  matchedCall$missing <- missing
+  matchedCall$proposal.probs <- proposal.probs
 
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
   missingDefaultArgs <- names(formals(dbarts::bart2))[
