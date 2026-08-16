@@ -1578,3 +1578,16 @@ treatment-slot ticket CLOSED against `dbartsdata-treatment-slot-debt`'s
 `calibrationMapName` (definition `R_interface_bartcore.cpp`:4052-4055,
 the literal at :4054, the call site at :4144); corrected a
 tinytest-vs-testthat mislabel.
+
+2026-08-16, post-arc: the bartcause-subset-pscore residue landed at
+bartCause 45c7397 (dbarts-1.0). The data.frame + subset misassignment
+was fixed by placing the subset-fitted score at the resolved subset
+positions of a full-length column (verification found the worse
+variant: when the subset length divides nrow(data), the old assignment
+silently RECYCLED and the response model trained on a misaligned ps
+column). The p.score = <vector> failure was re-diagnosed: bartc has no
+p.score formal, so the vector partial-matched p.scoreAsCovariate -
+subset-independent; it now fails as a validated length-1 logical with
+a method.trt = <vector> hint. FB11's bartc-arm caveat ("holds only via
+the literal path") is LIFTED for the data.frame path; supplying scores
+as a vector remains spelled method.trt = <vector> by design.

@@ -143,19 +143,6 @@ items
     validating unknown args against dbartsControl's formals too,
     R/rbart.R:60-64) for the shared-argument picture. Unscheduled, review
     before release.
-  bartcause-subset-pscore: two PRE-EXISTING bartCause bugs, found during
-    bcf-bartcause-relocation's B1 gate-running (MEASURED, all four
-    response methods): (1) bartc(..., data = <data.frame>,
-    subset = ...) with a p.score-producing method.trt errors
-    "replacement has N rows, data has M" at bartCause R/argParse.R:147
-    (a subset-length score assigned into the full-length frame); (2)
-    bartc(..., p.score = <vector>, subset = ...) errors "the condition
-    has length > 1" on both arms. Neither is caused by bcf() or by any
-    dbarts change - both reproduce on method.rsp = "bart". Consequence
-    recorded where it bites: bcf-bartcause-relocation.md's FB11
-    four-kind subset falsifier on the bartc arm holds only via the
-    literal (non-data.frame, non-vector-p.score) path until this is
-    fixed. bartCause-side fix, same ticket or a sibling for the two.
   bcf-naming-generalization: the shipped K-forest amplitude family is
     spelled with BCF names at every layer - BCFSpec, BCFForestSpec,
     BCFState, BCFForestCombiner, BCFSpecStorage, createBCFSampler,
@@ -232,7 +219,14 @@ items
     bartcause-subset-pscore, predict-bartcfit-propensity-collision,
     getforestvariablecounts-dimnames. POST-ARC FOLLOW-UP: the
     predict-bartcfit-propensity-collision ticket LANDED bartCause
-    d0e423c, 2026-08-16 (own entry above records the substance).
+    d0e423c, 2026-08-16 (own entry above records the substance). The
+    bartcause-subset-pscore ticket LANDED bartCause 45c7397,
+    2026-08-16: subset-position placement for the data.frame path
+    (the silent-recycling variant found at verification was the worse
+    half); the p.score= half re-diagnosed as partial matching to
+    p.scoreAsCovariate (subset-independent), now a validated length-1
+    logical with a method.trt = <vector> hint. FB11's literal-path-only
+    caveat lifted for the data.frame path (plan EOF note).
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). Open: the EXTREME
     tail (|a0| >= ~40, ~3% of the prior) is frozen-structure mixing
