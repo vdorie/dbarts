@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (150 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (151 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) as of
@@ -241,6 +241,7 @@ Columns: `file | STATUS | one-liner`.
 | correctness-audit.md | REFERENCE | Re-derives every acceptance ratio / conjugate update term-by-term across 7 blocks; all CONFIRMED. |
 | package-review-remediation.md | LANDED | Remediation of the 2026-07-17 seven-reviewer package review; zero high-severity engine findings. |
 | readability-review.md | LANDED | Retroactive maintainer-readability pass over the whole bartcore branch diff. |
+| release-candidate-review.md | SPECCED (2026-08-17, in execution) | Pre-RC review program: census-derived slate over the two families the slice gates cannot see (baseline-rightness and accumulation); six waves plus a parallel oracle lane under a freeze protocol; six VD forks. |
 | retrospective-reviews.md | LANDED (program complete) | Umbrella for a six-review retrospective program; totals: 4 engine defects, 1 calibration defect, roadmap re-ranked. |
 | review-perf-followups.md | LANDED (ARC CLOSED) | Lands Tier 5 perf findings + Tier 4 engine notes from the package review. |
 | roadmap-survey.md | LANDED (survey delivered) | 15-year BART ecosystem survey vs. dbarts's feature set/backlog; survival promoted to first tier. |
