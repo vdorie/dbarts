@@ -18,7 +18,7 @@ R_LDFLAGS := $(shell R CMD config --ldflags)
 SOURCES := main.cpp assert.cpp common.cpp test_data.cpp test_tree.cpp \
            test_scan.cpp test_grow.cpp test_moves.cpp test_interaction.cpp \
            test_model.cpp test_sampler.cpp test_shape.cpp test_state.cpp \
-           test_fuzz.cpp
+           test_ensemble.cpp test_fuzz.cpp
 OBJECTS := $(SOURCES:.cpp=.o)
 DEPS := $(SOURCES:.cpp=.d)
 
