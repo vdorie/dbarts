@@ -444,9 +444,13 @@ summary(object, ...)
   object, which additionally sets the variance forest's own tree count
   and tree-structure prior (defaulting to `40` trees and the mean
   forest's `tree.prior`, exactly as the plain selector does). Gaussian
-  responses only. The fit gains `s.train`/`s.test` (posterior draws of
-  \\s(x)\\), and `predict` attaches an `"s"` attribute carrying \\s(x)\\
-  for new data.
+  responses only; `resid.dist = student()` residuals and a grouped
+  ([`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)) fit
+  are refused with it too, unadjudicated rather than unsupported by
+  design (see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
+  fit gains `s.train`/`s.test` (posterior draws of \\s(x)\\), and
+  `predict` attaches an `"s"` attribute carrying \\s(x)\\ for new data.
 
 - keepSampler:
 
@@ -1179,7 +1183,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001429
+#> total seconds in loop: 0.001110
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
@@ -1226,7 +1230,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001660
+#> total seconds in loop: 0.001292
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 2 3 2 

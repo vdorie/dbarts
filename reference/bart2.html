@@ -223,7 +223,7 @@
 <dd><p>Optional block-additive constraint, passed through to <code><a href="dbarts.html">dbarts</a></code>; see its <code>blocks</code> argument and <code><a href="blocks.html">blocks</a></code>. Built with <code>blocks(groups = , trees.per.group = )</code>: confine each whole tree to one declared group of predictors so the ensemble is exactly a sum of per-group functions. The groups must form a total, disjoint partition of the predictors, validated at fit time. <code>NULL</code> (the default) fits the ordinary model.</p></dd>
 
    <dt id="arg-variance">variance<a class="anchor" aria-label="anchor" href="#arg-variance"></a></dt>
-<dd><p>Heteroscedastic BART (Pratola et al. 2020): passed through to <code><a href="dbarts.html">dbarts</a></code>. Declares a second forest modeling the residual variance surface \(s^2(x)\) as a product of scaled-inverse-chi-squared leaves, coupled to the mean forest through the per-observation precision. Either the plain selector naming which predictors drive the variance - a one-sided formula or column selector (<code>~ x1 + x2</code>), <code>TRUE</code> for every predictor, or <code>NULL</code> (the default) for a homoscedastic fit - or a <code><a href="varianceForest.html">varianceForest</a>(vars = , n.trees = , base = , power = )</code> object, which additionally sets the variance forest's own tree count and tree-structure prior (defaulting to <code>40</code> trees and the mean forest's <code>tree.prior</code>, exactly as the plain selector does). Gaussian responses only. The fit gains <code>s.train</code>/<code>s.test</code> (posterior draws of \(s(x)\)), and <code>predict</code> attaches an <code>"s"</code> attribute carrying \(s(x)\) for new data.</p></dd>
+<dd><p>Heteroscedastic BART (Pratola et al. 2020): passed through to <code><a href="dbarts.html">dbarts</a></code>. Declares a second forest modeling the residual variance surface \(s^2(x)\) as a product of scaled-inverse-chi-squared leaves, coupled to the mean forest through the per-observation precision. Either the plain selector naming which predictors drive the variance - a one-sided formula or column selector (<code>~ x1 + x2</code>), <code>TRUE</code> for every predictor, or <code>NULL</code> (the default) for a homoscedastic fit - or a <code><a href="varianceForest.html">varianceForest</a>(vars = , n.trees = , base = , power = )</code> object, which additionally sets the variance forest's own tree count and tree-structure prior (defaulting to <code>40</code> trees and the mean forest's <code>tree.prior</code>, exactly as the plain selector does). Gaussian responses only; <code>resid.dist = student()</code> residuals and a grouped (<code><a href="rbart.html">rbart_vi</a></code>) fit are refused with it too, unadjudicated rather than unsupported by design (see <code><a href="dbarts.html">dbarts</a></code>). The fit gains <code>s.train</code>/<code>s.test</code> (posterior draws of \(s(x)\)), and <code>predict</code> attaches an <code>"s"</code> attribute carrying \(s(x)\) for new data.</p></dd>
 
    <dt id="arg-keepsampler">keepSampler<a class="anchor" aria-label="anchor" href="#arg-keepsampler"></a></dt>
 <dd><p>Logical that can be used to save the underlying <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code> object even if <code>keepTrees</code> is false.</p></dd>
@@ -374,7 +374,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001429</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001110</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>
@@ -421,7 +421,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001660</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001292</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 2 2 2 3 2 </span>
