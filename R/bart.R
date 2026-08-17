@@ -871,6 +871,38 @@ bart2 <- function(
         "family = \"multinomial\" does not support 'subset'"
       )
     }
+    # buildMultinomialForest fixes its own CGM tree prior and copies only
+    # power/base/proposal-probability fields from the host sampler it briefly
+    # builds, so none of the following reach the K-forest engine: a DART
+    # flag on either formal ('tree.prior' is resolved with the same prior
+    # vocabulary parsePriors, R/model.R, uses, so 'tree.prior = dart()' is
+    # caught the same way 'tree.prior = dbartsPriors$dart()' is), fixed
+    # split probabilities, the monotone direction constraints (only their
+    # proposal-probability rewrite is copied), and a variance forest (the
+    # host sampler that would resolve one is discarded).
+    treePrior <- if (missing(tree.prior)) {
+      NULL
+    } else {
+      eval(
+        matchedCall[["tree.prior"]],
+        list2env(dbartsPriors, parent = callingEnv)
+      )
+    }
+    unsupported <- c(
+      "'dart' or a DART 'tree.prior'" = !isFALSE(dart) ||
+        inherits(treePrior, "dbartsDartPrior"),
+      "'split.probs'" = !is.null(split.probs),
+      "'monotone'" = !is.null(monotone),
+      "'variance'" = !is.null(variance)
+    )
+    if (any(unsupported)) {
+      stop(
+        "family = \"multinomial\" does not support ",
+        paste0(names(unsupported)[unsupported], collapse = ", "),
+        ": the K-forest engine copies only power/base/proposal-probability ",
+        "fields from the host sampler it briefly builds"
+      )
+    }
     checkFamilyUnsupportedArgs(
       "multinomial",
       samplerOnly,

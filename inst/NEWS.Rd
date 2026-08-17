@@ -1463,6 +1463,16 @@
             \code{forests =} argument alongside a term - is refused by name.
             \code{bart2} gains no \code{forests =} formal; the formula term
             is its only route to a second forest.
+      \item \code{bart2(family = "multinomial")} now refuses \code{dart}
+            (or a DART \code{tree.prior}), \code{split.probs},
+            \code{monotone}, and \code{variance} by name. The K-forest
+            engine copies only power/base/proposal-probability fields out
+            of the host sampler these resolve against, so a DART tree
+            prior, fixed split probabilities, and a variance forest
+            previously reached no slot in it at all; \code{monotone} was
+            worse than dropped, since its proposal-probability rewrite did
+            reach the forest while the direction constraints did not,
+            silently fitting a birth/death-only model nobody asked for.
     }
   }
   \subsection{BUG FIXES}{

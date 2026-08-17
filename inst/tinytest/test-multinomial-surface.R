@@ -891,6 +891,38 @@ expect_error(
   "response family fixes the residual standard deviation"
 )
 rm(samplerSigma, bcSigma)
+
+# --- argument leaks (docs/design/multinomial.md): buildMultinomialSampler
+# copies only power/base/proposal-probability fields into the K-forest
+# engine, so DART (on either formal), split.probs, monotone, and variance
+# are refused by name rather than silently dropped. The refusal sits ahead
+# of the factor/count-matrix dispatch and of any sampler creation, so no
+# n.trees/n.burn/n.samples are needed to reach it; 'dart' is checked on
+# both entry shapes to confirm that, the rest on the factor shape only.
+multinomialRefuses <- function(x, y, pattern, ...) {
+  # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
+  expect_error(bart2(x, y, family = "multinomial", ...), pattern)
+}
+multinomialRefuses(x2, y2, "'dart'", dart = TRUE)
+multinomialRefuses(x3c, counts3c, "'dart'", dart = TRUE)
+multinomialRefuses(x2, y2, "'dart'", dart = dbartsPriors$dart())
+# tree.prior = dart() is the second, formerly-unrefused route to DART; a
+# direct call (not the '...'-forwarding helper above, which would itself
+# break dart()'s deferred resolution)
+expect_error(
+  bart2(x2, y2, family = "multinomial", tree.prior = dart()),
+  "tree.prior"
+)
+multinomialRefuses(x2, y2, "split.probs", split.probs = c(0.5, 0.5))
+# monotone is half-applied upstream (its proposal.probs rewrite reaches the
+# engine, the directions do not), so it is refused rather than silently fit
+# as an unintended birth/death-only model
+multinomialRefuses(x2, y2, "monotone", monotone = c(1, 0))
+# K = 3 (not x2/y2): the host sampler's own auto-resolved family for a
+# 2-level response is probit, which already refuses a variance forest for
+# an unrelated reason; K = 3 isolates the multinomial-specific refusal
+multinomialRefuses(x3, y3, "variance", variance = TRUE)
+
 expect_error(extract(fit3, type = "bart"), "non-identified")
 expect_error(fitted(fit3, type = "bart"), "'arg' should be one of")
 # fit3 was built WITHOUT keepTrees, so it has no saved trees to replay
