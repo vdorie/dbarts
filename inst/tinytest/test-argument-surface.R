@@ -709,6 +709,82 @@ expect_false(identical(
   hurdleDefaultTree$positive$yhat.train,
   hurdleOtherTree$positive$yhat.train
 ))
+
+# T-E (S11, 4.6): the per-forest reconstruction identity
+# yhat = response.shift + sum_k (basis_k %*% glue_k) * forestFits_k holds to
+# < 1e-12 - the tolerance test-bcf-reporting.R's own assertion of this
+# identity uses - on a binary basis and a 3-level-factor basis. Not bitwise:
+# the engine associates the sum differently from any R-side re-derivation.
+# forestFits_k already carries response.scale (docs/design/bcf.md), so the
+# identity needs no further scaling. Built directly off dbarts() plus the
+# internal packager, since a term is not this arc's route into a multi-forest
+# fit (that is S12's).
+
+set.seed(8104)
+teN <- 60L
+tex <- matrix(runif(teN * 3L), teN, 3L)
+tez <- rbinom(teN, 1L, 0.5)
+tey <- 2 *
+  sin(pi * tex[, 1L]) +
+  tex[, 2L] +
+  tez * (1 + 2 * tex[, 3L]) +
+  rnorm(teN, sd = 0.2)
+tezf <- factor(sample(c("lo", "mid", "hi"), teN, replace = TRUE))
+
+teControl <- dbarts::dbartsControl(
+  n.threads = 1L,
+  n.trees = 10L,
+  n.chains = 1L,
+  n.samples = 8L,
+  n.burn = 2L,
+  updateState = FALSE,
+  seed = 8104L
+)
+
+fitMultiForest <- function(basis) {
+  sampler <- dbarts::dbarts(
+    tex,
+    tey,
+    forests = list(dbarts::forest(), dbarts::forest(basis = basis)),
+    control = teControl
+  )
+  burn <- dbarts:::runWithBurnIn(sampler, sampler$control, FALSE)
+  fit <- dbarts:::packageBartResults(
+    sampler,
+    burn$samples,
+    burn$burnInSigma,
+    burn$burnInK,
+    TRUE,
+    FALSE
+  )
+  list(sampler = sampler, fit = fit)
+}
+
+reconstructionIdentityError <- function(res) {
+  shift <- res$sampler$getCalibration(1L)[1L, "response.shift"]
+  forestNames <- dimnames(res$fit$forestFits)[[3L]]
+  glueForest <- attr(res$fit$glue, "forest")
+  err <- 0
+  for (s in seq_len(nrow(res$fit$glue))) {
+    recon <- rep(shift, ncol(res$fit$yhat.train))
+    for (k in seq_along(forestNames)) {
+      basis <- res$fit$bases[[k]]
+      if (is.null(basis)) {
+        basis <- matrix(1, ncol(res$fit$yhat.train), 1L)
+      }
+      g <- res$fit$glue[s, glueForest == forestNames[k]]
+      recon <- recon + as.vector(basis %*% g) * res$fit$forestFits[s, , k]
+    }
+    err <- max(err, max(abs(recon - res$fit$yhat.train[s, ])))
+  }
+  err
+}
+
+binaryBasisFit <- fitMultiForest(~ factor(tez))
+expect_true(reconstructionIdentityError(binaryBasisFit) < 1e-12)
+
+factorBasisFit <- fitMultiForest(~tezf)
+expect_true(reconstructionIdentityError(factorBasisFit) < 1e-12)
 expect_true(any(grepl("base\\s*= 0.9", formatted)))
 
 # S8 (docs/plans/bart2-argument-consolidation.md 3.f, 4.3, 6.2): xbart loses

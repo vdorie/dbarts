@@ -210,9 +210,11 @@ predict.bart <- function(
 
 extract.bart <- function(
   object,
-  type = c("ev", "ppd", "bart", "loglik", "trees"),
+  type = c("ev", "ppd", "bart", "loglik", "trees", "forest"),
   sample = c("train", "test"),
   combineChains = TRUE,
+  forest = NULL,
+  contribution = FALSE,
   ...
 ) {
   type <- validateType(type, eval(formals(extract.bart)$type))
@@ -249,6 +251,10 @@ extract.bart <- function(
     )
   }
   sample <- sample[1L]
+
+  if (type == "forest") {
+    return(extractForest(object, sample, combineChains, forest, contribution))
+  }
 
   # the log-likelihood is against the stored training response; there is no
   # test response to evaluate
@@ -309,6 +315,87 @@ extract.bart <- function(
   }
 
   result
+}
+
+# Selects one or more forests from a per-forest channel's trailing margin, by
+# 1-based index or by the shipped forest1..forestK vocabulary (5.8.2); NULL
+# selects every forest, in margin order. A declaration's own forest.labels are
+# not a selector - they are a display attribute, not a second vocabulary.
+resolveForestSelection <- function(forest, forestNames) {
+  if (is.null(forest)) {
+    return(seq_along(forestNames))
+  }
+  if (is.character(forest)) {
+    idx <- match(forest, forestNames)
+    if (anyNA(idx)) {
+      stop(
+        "'forest' must name one of '",
+        paste0(forestNames, collapse = "', '"),
+        "'"
+      )
+    }
+    return(idx)
+  }
+  idx <- suppressWarnings(as.integer(forest))
+  if (anyNA(idx) || any(idx < 1L | idx > length(forestNames))) {
+    stop("'forest' index must be between 1 and ", length(forestNames))
+  }
+  idx
+}
+
+# extract(type = "forest"): the packaged per-forest response-scale raw total
+# by default (docs/design/bcf.md; forestFits already carries response.scale),
+# or its per-observation contribution under contribution = TRUE, computed on
+# demand as (basis %*% glue) * raw rather than stored. The selected forests
+# always keep the trailing forest margin, even at length one. Refuses by name
+# on a fit without forest reporting (the amplitude coupling, not the forest
+# count) and on sample = "test" (an amplitude-coupled fit has no test fits).
+extractForest <- function(object, sample, combineChains, forest, contribution) {
+  if (is.null(object[["forestFits"]])) {
+    stop(
+      "type = \"forest\" is only available on a fit with per-forest ",
+      "reporting (an amplitude-coupled multi-forest fit); this fit has none"
+    )
+  }
+  if (sample == "test") {
+    stop(
+      "sample = \"test\" is not available for type = \"forest\": an ",
+      "amplitude-coupled fit does not support test predictors"
+    )
+  }
+  n.chains <- if (!is.null(object[["fit"]])) {
+    object$fit$control@n.chains
+  } else {
+    object$n.chains
+  }
+
+  fits <- reshapeChainedChannel(object$forestFits, n.chains, TRUE, 2L)
+  forestNames <- dimnames(fits)[[3L]]
+  idx <- resolveForestSelection(forest, forestNames)
+
+  if (!contribution) {
+    result <- fits[,, idx, drop = FALSE]
+    return(reshapeChainedChannel(result, n.chains, combineChains, 2L))
+  }
+
+  glue <- reshapeChainedChannel(object$glue, n.chains, TRUE, 1L)
+  glueForest <- attr(object$glue, "forest")
+  n.obs <- dim(fits)[2L]
+  result <- array(
+    0,
+    c(dim(fits)[1L], n.obs, length(idx)),
+    dimnames = list(NULL, NULL, forestNames[idx])
+  )
+  for (j in seq_along(idx)) {
+    k <- idx[j]
+    basis <- object$bases[[k]]
+    if (is.null(basis)) {
+      basis <- matrix(1, n.obs, 1L)
+    }
+    g <- glue[, glueForest == forestNames[k], drop = FALSE]
+    result[,, j] <- (g %*% t(basis)) * fits[,, k]
+  }
+  reshapeChainedChannel(result, n.chains, combineChains, 2L)
 }
 
 fitted.bart <- function(

@@ -584,12 +584,24 @@ resolveSamplerSpec <- function(
       seq_len(numForests),
       function(index) resolveModerators(specs[[index]]$vars, data, "vars")
     )
+    # a declaration's own per-forest names (forests = list(prognostic = ...,
+    # treatment = ...)), distinct from the packaged channels' own
+    # forest1..forestK vocabulary; NULL when the caller named none, "" for a
+    # forest left unnamed among named siblings or reached only through
+    # data@bases
+    forestLabels <- names(forests)
+    if (!is.null(forestLabels)) {
+      length(forestLabels) <- numForests
+      forestLabels[is.na(forestLabels)] <- ""
+    }
     attr(control, "bartcore.bcf") <- list(
       # one length-8 numeric per forest; the family selects the basis-free
       # channel's default median and the count the K-aware node scale factor
       params = forestParams(specs, hasBasis, family),
       # resolved 1-based column indices per forest, or NULL for unrestricted
       vars = forestColumns,
+      # the declaration's own names, or NULL; see forestLabels above
+      labels = forestLabels,
       # the first forest takes the fit's own interactions()/blocks() arguments,
       # already resolved above; the rest take their own, resolved against the
       # columns they may split on

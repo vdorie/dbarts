@@ -1402,6 +1402,16 @@
             \code{bart2}, rather than falling through to
             \code{\link{match.arg}}'s generic \dQuote{should be one of}
             message. No existing \code{bart} abbreviation is affected.
+      \item A multi-forest fit built through \code{\link{dbarts}}'s
+            \code{forests =} now packages per-forest channels onto the
+            returned fit: \code{forestFits} (RESPONSE-scale raw totals,
+            trailing \code{forest1}..\code{forestK} margin), the ragged
+            \code{glue} amplitudes, and the expanded \code{bases}, which
+            together reconstruct the training fit (see \code{\link{bart}}'s
+            \sQuote{Value}). \code{extract(type = "forest", forest = ,
+            contribution = )} reads them, raw or as each forest's
+            contribution; refused by name on any other fit or with
+            \code{sample = "test"}.
     }
   }
 }
