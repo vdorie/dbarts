@@ -557,6 +557,44 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### Wave 0b - suite repairs: P3i + P4 in-repo halves + build guard (f6c8979d, 2026-08-17)
+
+statesAgree() now asserts PER FIELD: inst/common/stateContinuation.R
+emits an info-labeled expect_identical per compared field (plus the
+sigma expect_equal at 1e-8), fails by name on zero-length input, and
+keeps a silent boolean mode via expect = FALSE for the one
+negative-sense caller; all 11 source() sites pass local = TRUE
+(LOAD-BEARING - tinytest collects helper-nested expectations only
+under a local source; the census's premise-false claim was half
+right and the implementer measured the real contract before writing
+code) and all 17 call sites (11 files - the census's 18/15 was
+miscounted) drop their expect_true wrappers. THE NULL RESULT
+MATTERS: with the vacuous boolean replaced by genuine comparison,
+zero call sites fail - the vacuity was real but masked no live
+state disagreement. Suite grows 5591 -> 5799, the +208 reconciled
+per-file exactly by the gate-runner (586 -> 794 across the touched
+files). Skip accounting: tests/tinytest.R hard-fails under CI when
+tinytest is missing; test-capi.R's SHLIB failure hard-fails under CI
+(compiler output included) and exit_files off-CI; test-simd.R
+exit_files when no non-scalar SIMD is detected instead of passing at
+zero assertions; survival added to Suggests (gate-runner correction:
+3 of test-aft.R's 51 assertions were survival-gated, not 51 - they
+run and pass). New tools/check-build-freshness.R guards the
+stale-install hazard: compares the installed package's Built stamp
+(not Packaged - unpopulated by the in-place install path, measured)
+against source mtimes under R/, src/, inst/, excluding
+configure-generated and compiled outputs (they legitimately postdate
+the stamp on a fresh build); exercised both directions. The
+workflow-side floors and exact-gates additions are the next slice.
+Gates run twice (implementer + independent gate-runner, own libs):
+tinytest 5799/0; equivalence trio bitwise (37/37 identical-draws
+lines, 12/12, 10/10); air clean; lintr zero on five touched files;
+R CMD check --as-cran Status OK, Suggests addition NOTE-free;
+discrimination - zero-length and per-field attribution probes fail
+on the slice build and pass vacuously/opaquely on base; CI=1 run of
+tests/tinytest.R from the staged copy runs the full suite. No
+trailers; 17-file stat reconciled to the four parts.
+
 ### I3 - getForestVariableCounts dimnames (cd918d9a, 2026-08-17)
 
 The live R5 read $getForestVariableCounts(forest) now names its rows
