@@ -1699,3 +1699,29 @@ draw-identical against the dbarts() route. Two more abbreviations
 break (t=, resid.=), asserted + NEWS. Gates: both runners green
 (5415/0; trio 37+12+10 bitwise; mutation isolates exactly the 4
 collision tests; 5-config A/B identical incl. warn-count parity).
+
+S8 (xbart) LANDED d54c2791, 2026-08-16. control= removed; n.cuts/
+useQuantiles/n.thin/storage appended spelled and defaulted exactly as
+dbartsControl's (four, not six, per f1) plus tree.prior = NULL; 32
+formals, no dots, control= now a native unused-argument error. xbart
+builds its control internally - the knobs land where the flat values
+landed (the S6 precedent), the six forced fields set at construction,
+the validate call carrying the constructed object explicitly.
+tree.prior follows the grid-axis-overrides-the-object rule node.prior/
+k established: power/base/k stay legal alongside it (grids override
+the object per cell, proven byte-identical against an object naming
+different power/base), while dart/split.probs collide by name - a
+deliberate divergence from bart2's collision set, where power/base
+are ordinary scalars (recorded in code comment + NEWS).
+Implementation findings: the unnamed-n.trees-from-control fallback
+deleted as unreachable once control= is gone (A/B-covered); storage =
+"single" is unconditionally refused on xbart's shared per-fold
+data-handle path regardless of family (pre-existing engine fact,
+error identical on both A/B arms; man/xbart.Rd states this plainly
+rather than echoing dbartsControl's gaussian-only wording). n.th=
+abbreviation breaks (6.8), asserted + NEWS. Gates: both runners green
+(5440/0; trio 37+12+10 bitwise canonical files; 9-config implementer
+A/B + 7-probe gate-runner A/B all identical incl. old-vs-new
+spellings per arm; mutation isolates exactly the n.thin plumbing,
+n.cuts shape-check, and grid-override assertions; air/lintr clean;
+NEWS 254-entry parse; check OK twice).
