@@ -1659,5 +1659,10 @@ runs. Gates: both runners green (5381/0; trio 37+12+10 bitwise
 canonical files; sweep verified per-area - 57 rngSeed remains, all
 policy areas: plans/NEWS/retired-row/struct-field/negative-test plus
 the two design-record in-place amendments; 4-config A/B identical
-across spellings; check OK). Lockstep pairs land next: bartCause
-bcf.R seed spelling, stan4bart test-02 spelling.
+across spellings; check OK). Lockstep pairs LANDED same
+day: bartCause a3aa98d (bcf.R + two test dbartsControl calls; suite
+green, 1 recorded environmental stan4bart-ABI error untouched by the
+diff), stan4bart 54e157b (test-02 spelling + a NEWS breaking-changes
+bullet on the rename and the bart_args silent-drop consequence; full
+455-result suite green against a rebuilt S5 dbarts - a whole-ABI
+validation in passing).
