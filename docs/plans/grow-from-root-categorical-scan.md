@@ -1110,3 +1110,23 @@ three S2 test-hardening items; the multiforest fuzz op-mask door
 scheduled: the above-cap mass-spread bias direction (reopening
 trigger and remedy in Open items); grow-from-root default stays
 closed by measurement.
+
+## Correction, 2026-08-17
+
+Lines ~575-579 above assert that .github/workflows/exact-gates.yaml
+runs categorical-exact.R and multinomial-exact.R's six arms on every
+push, making the exact grid a CI net as well as a local step. That is
+false as measured 2026-08-17: git ls-tree origin/main .github/ returns
+check-standard.yaml alone - GitHub Actions only registers workflows
+that exist on a repository's default branch, and exact-gates.yaml has
+never lived there, so no exact gate has ever run in CI. No slice in
+this arc actually relied on the missing net (each states its
+exact-gate run explicitly), but the sentence itself is wrong and
+should not be echoed forward. Until the coordinated bartcore merge
+registers the workflows on the default branch
+(docs/plans/release-candidate-review.md, section 4 resolutions), the
+local runner (Rscript benchmarks/R/categorical-exact.R /
+benchmarks/R/multinomial-exact.R) is the only path that keeps the
+exact grid honest. Full finding in the 2026-08-17 baseline-provenance
+audit (untracked working notes,
+.claude/rc-review-p10-baseline-provenance-2026-08-17.md).
