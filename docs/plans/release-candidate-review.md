@@ -448,6 +448,47 @@ the program's premise and they precede the slices that gate on it.
    (heteroscedastic-robust and heteroscedastic-grouped regression
    are nameable capabilities; the door stays open).
 
+### Resolutions (VD, 2026-08-17)
+
+All six forks answered the day the plan landed:
+
+1. Binary xbart k axis: MATCH GAUSSIAN - the binary default becomes a
+   genuine fixed-k grid mirroring the gaussian arm's semantics
+   (option a). Slice F implements; grid values derived from the
+   gaussian arm's shape at slice time.
+2. Student-t loglik: T MARGINAL (option c). The wave-0 guard ships
+   first; the post-K2 channel slice adds the per-draw df channel
+   (nbinom dispersion precedent) and evaluates the t marginal.
+3. bairrtt: IN THE MAINTAINED BUNDLE. It is a candidate to merge
+   into stan4bart, and until that is decided it stays compatible
+   with the bartcore branch. P12's reality check covers four
+   downstream packages: stan4bart, bartCause, treatSens, bairrtt.
+4. Default-branch commit: DEFERRED TO THE COORDINATED MERGE. When
+   the release candidate is ready and the four downstream packages
+   are ready, all bartcore work merges into the mains simultaneously
+   - workflow registration happens then, not before. Consequences:
+   rchk and valgrind have NO leg for the duration of this program
+   (recorded limitation; error-path leak coverage waits with them);
+   P2 is local-only; P11's schedule half, P14's CI leg, P15's CI
+   half, P17's mechanization, and equivalence-statistical-mode's CI
+   legs all land at or after the merge. Their local halves proceed.
+5. Message rule: FOLLOW BEST PRACTICES FROM HIGHLY REGARDED R
+   PACKAGES. The 0a draft (which codified the in-repo majority) gets
+   a revision pass against published, tool-verified conventions
+   (the tidyverse error-style guide, base R's own practice, and
+   exemplar base-style packages of dbarts's kind); where external
+   practice speaks it wins, where it is silent the in-repo majority
+   stands. The revised rule is the one slices write against and the
+   wave-2 sweep executes; its delta from the draft is reported to
+   VD before the sweep runs.
+6. FX2: REFUSE WITH A DOOR MEMO (option a), with a binding shape
+   constraint: no interface friction for adding support
+   post-release - the variance formal stays, the refusal is a
+   validation error only, its message says the composition is not
+   supported (never "cannot be"), and the door memo records that
+   support arrives by adjudication plus refusal-removal with no new
+   surface.
+
 ## 5. Gate classes for this program
 
 - Behavior-affecting R slices: full battery (private-lib install,
@@ -492,3 +533,36 @@ the program's premise and they precede the slices that gate on it.
   by the critique, no plan-sized counterfactual found beyond what
   P5b covers; error-path leaks ride the valgrind leg once
   registered.
+
+## Landing notes
+
+### I1 - multinomial silent-drop refusals (a39da5d9, 2026-08-17)
+
+bart2(family = "multinomial") now refuses by name the five arguments
+it previously accepted and silently dropped through the
+gaussian-resolved host-sampler seam: dart (flag or object), a DART
+tree.prior (resolved with the same prior vocabulary parsePriors
+uses, so tree.prior = dart() is caught), split.probs, variance, and
+monotone - the last was HALF-applied (its proposal-probability
+rewrite reached the engine while the direction constraints did not,
+so draws moved). One refusal block in R/bart.R's multinomial branch
+ahead of the factor/count-matrix dispatch; one man/bart2.Rd
+sentence; feature-matrix multinom DART and variance cells re-pointed
+at the refusal (the variance cell's R FAC:833 was a recorded value
+fault - dropped at the R seam, never refused at the factory) with
+[f33] rewritten past-tense and its stale engine anchors corrected
+during orchestrator review (CH:4878/4813 live); a
+docs/design/multinomial.md limitation sentence; one NEWS item; seven
+tinytest assertions via a multinomialRefuses helper, dart covered on
+both entry shapes, variance probed at K = 3 (the K = 2 host
+auto-resolves probit, whose own variance refusal masks the
+multinomial one - recorded so a tidy-up cannot "simplify" the
+fixture back). Gates, run twice (implementer, then independent
+gate-runner on the rebased commit): tinytest 5588/0 FAILURES;
+equivalence trio bitwise (37/0 strict, 12/12, 10/10); air clean;
+lintr clean on both touched R files; NEWS parse 261 entries; R CMD
+check OK from a clean-staged tarball; discrimination re-proof - all
+seven probes error by name on the slice build and silently fit on
+the base build (monotone did not fail differently on base: it
+silently fit). Commit hygiene verified: no trailers, six files
+exactly, no plan references on added lines.

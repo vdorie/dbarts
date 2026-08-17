@@ -598,16 +598,23 @@ items
     on Chain::forestCalibration, and the refuseBCFMutation reorder in
     $setCalibration. Nothing remains. V1-V10 adopted 2026-08-12
     under VD's proceed-at-discretion grant.
-  multinomial-dart-drop: bart2(family = "multinomial") accepts a
-    DART request and silently drops it (the chain never routes it;
-    see docs/design/feature-matrix.md for the anchors), unlike BCF
-    which refuses by name. Add the refusal or the routing; small
-    slice, verify the matrix's anchors at scoping.
-  multinomial-variance-crash: buildMultinomialSampler does not
-    null-check the factory before setTestPredictors, so
-    bart2(family = "multinomial", variance = ...) likely crashes
-    rather than errors (docs/design/feature-matrix.md). Reproduce,
-    then refuse cleanly; small slice.
+  multinomial-dart-drop: LANDED a39da5d9 with
+    multinomial-variance-crash as ONE slice (release-candidate-review
+    wave 0d, I1; landing note in docs/plans/release-candidate-
+    review.md). Scope grew at verification: FIVE silently-leaking
+    arguments refused by name (dart flag or object, a DART
+    tree.prior - a route S7's formal opened, split.probs, variance,
+    and monotone, which was HALF-applied: its proposal-probability
+    rewrite reached the K-forest engine while the directions did
+    not, so draws moved). Feature-matrix cells and [f33] corrected
+    (the R FAC:833 variance cell was a value fault - the request was
+    dropped at the R seam, never refused at the factory).
+  multinomial-variance-crash: REFUTED as a crash, LANDED as a drop
+    fix at a39da5d9 (one slice with multinomial-dart-drop, above).
+    The factory nullptr return is unreachable on the multinomial
+    path (numVarianceTrees is only ever set on the single-forest/BCF
+    route); the real defect was silent acceptance through the
+    gaussian-resolved host sampler, now refused by name.
   named-recipes: LANDED 55811082 2026-08-15 as adoption-slate S6
     (landing note in docs/plans/adoption-slate.md), carrying
     embedding-page with it. Six named compositions in the
