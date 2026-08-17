@@ -196,6 +196,15 @@ diverged <- Filter(
 )
 expect_equal(diverged, character(0))
 
+# S9 (3.d, d4). split.probs is not a T-B exception (nor a candidate row):
+# dbarts() has no split.probs formal of its own (its tree.prior = cgm takes
+# the value through the object instead), so the T-B loop above never
+# compares it. bart2/rbart_vi's own default text moves to NULL, identical by
+# construction to the old 1 / num.vars (resolveSplitProbabilities treats a
+# NULL spec and a length-one spec the same way: uniform, dropped).
+expect_identical(formals(dbarts::bart2)[["split.probs"]], NULL)
+expect_identical(formals(dbarts::rbart_vi)[["split.probs"]], NULL)
+
 # match.arg error messages for bad tokens: bart2 resolves factors/missing in
 # its own frame before forwarding (S3), so a bad token errors here, naming
 # the choices, same as R's own match.arg does for any other formal

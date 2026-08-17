@@ -61,7 +61,7 @@ bart2(
     formula, data, test, subset, weights, offset, offset.test = offset,
     sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
     k = NULL, prior.scale = NA_real_,
-    power = 2.0, base = 0.95, split.probs = 1 / num.vars,
+    power = 2.0, base = 0.95, split.probs = NULL,
     dart = FALSE,
     n.trees = 75L,
     n.samples = 500L, n.burn = 500L,
