@@ -51,6 +51,15 @@ familyGatingInventory <- list(
     reason = "the residual scale is fixed, not estimated"
   ),
   list(
+    # S7 (docs/plans/bart2-argument-consolidation.md 3.c.2, 4.2): a
+    # fixed-unit-scale family overwrites a supplied resid.prior with
+    # fixed(1) regardless (R/spec.R's fixedUnitScale branch), which was
+    # silent before bart2 could forward a resid.prior object at all
+    names = "resid.prior",
+    liveIn = c("gaussian", "aft", "hurdle.lognormal"),
+    reason = "the residual scale is fixed, not estimated"
+  ),
+  list(
     names = "dispersion",
     liveIn = "nbinom",
     reason = "only family = \"nbinom\" estimates a count dispersion"
