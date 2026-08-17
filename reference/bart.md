@@ -17,6 +17,13 @@ constrained by a prior to be a weak learner.
   a cumulative probit), negative-binomial counts (`family = "nbinom"`),
   and semicontinuous two-part responses (`family = "hurdle.lognormal"`).
 
+- `bart` is the BayesTree-compatible surface: besides the default
+  gaussian/probit response it reaches `family = "logistic"` and
+  `family = "aft"` directly (below), each packaging as an ordinary
+  `"bart"` object. `bart2`'s remaining own-class families stay there;
+  naming one of them to `bart`'s `family` is refused, pointing at
+  `bart2`.
+
 ## Usage
 
 ``` r
@@ -35,13 +42,16 @@ bart(
     seed = NA_integer_,
     proposalprobs = NULL,
     keepsampler = keeptrees,
-    resid.dist = gaussian)
+    resid.dist = gaussian,
+    subset = NULL,
+    storage = c("double", "single"),
+    family = c("auto", "logistic", "aft"))
 
 bart2(
     formula, data, test, subset, weights, offset, offset.test = offset,
     sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
     k = NULL, prior.scale = NA_real_,
-    power = 2.0, base = 0.95, split.probs = 1 / num.vars,
+    power = 2.0, base = 0.95, split.probs = NULL,
     dart = FALSE,
     n.trees = 75L,
     n.samples = 500L, n.burn = 500L,
@@ -92,9 +102,11 @@ extract(object, ...)
 # S3 method for class 'bart'
 extract(
     object,
-    type = c("ev", "ppd", "bart", "loglik", "trees"),
+    type = c("ev", "ppd", "bart", "loglik", "trees", "forest"),
     sample = c("train", "test"),
-    combineChains = TRUE, ...)
+    combineChains = TRUE,
+    forest = NULL,
+    contribution = FALSE, ...)
 
 # S3 method for class 'bart'
 fitted(
@@ -241,12 +253,12 @@ summary(object, ...)
   is internally scaled to range from \\-0.5\\ to \\0.5\\. For binary
   \\y\\ fit with the default probit link, `k` is the number of prior
   standard deviations \\f(x)\\ is away from \\\pm 3\\, the probit
-  reference scale; `family = "logistic"` (`bart2` only) widens this to
-  \\\pm \pi \sqrt{3}\\, which is three standard deviations of the
-  standard logistic latent variable (\\\pi / \sqrt{3}\\ each), the same
-  three-sd span probit's \\\pm 3\\ covers. In both cases, the bigger
-  \\k\\ is, the more conservative the fitting will be. The value can be
-  either a fixed number, or a *hyperprior* of the form
+  reference scale; `family = "logistic"` widens this to \\\pm \pi
+  \sqrt{3}\\, which is three standard deviations of the standard
+  logistic latent variable (\\\pi / \sqrt{3}\\ each), the same three-sd
+  span probit's \\\pm 3\\ covers. In both cases, the bigger \\k\\ is,
+  the more conservative the fitting will be. The value can be either a
+  fixed number, or a *hyperprior* of the form
   `chi(degreesOfFreedom = 1.5, scale = 2)`. For `bart2`, the default of
   `NULL` uses the value 2 for continuous responses and the `chi(1.5, 2)`
   hyperprior for binary ones, which centers the sampled `k` near the
@@ -319,8 +331,8 @@ summary(object, ...)
   Used for binary \\y\\. When present, the model is \\P(Y = 1 \mid x) =
   \Phi(f(x) + \mathrm{binaryOffset})\\, allowing fits with probabilities
   shrunk towards values other than \\0.5\\. \\\Phi\\ is the link for the
-  default probit family; `bart2` fits with `family = "logistic"` use
-  `plogis` instead, as noted in the value section below.
+  default probit family; a `family = "logistic"` fit uses `plogis`
+  instead, as noted in the value section below.
 
 - weights:
 
@@ -329,9 +341,9 @@ summary(object, ...)
   N(f(x), \sigma^2 / w)\\, where \\f(x)\\ is the unknown function. A
   probit fit (`bart`, or `bart2` with the default binary family) does
   not support weights, except that weights identically 1 are treated as
-  absent; `bart2` with `family = "logistic"` treats them as observation
-  counts and requires positive integers. For a weighted logistic fit,
-  the `"ppd"` draw at an observation with weight \\w\\ is the number of
+  absent; a `family = "logistic"` fit treats them as observation counts
+  and requires positive integers. For a weighted logistic fit, the
+  `"ppd"` draw at an observation with weight \\w\\ is the number of
   successes among \\w\\ trials, \\\mathrm{Binomial}(w, p)\\ with \\p\\
   the fitted probability.
 
@@ -534,13 +546,31 @@ summary(object, ...)
 
 - factors, family, missing:
 
-  As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md);
-  `bart2` only. `bart` keeps the historical behavior: factors always
-  expand into indicator columns (`bart2`'s default, `"categorical"`,
-  instead keeps each unordered factor as a single predictor - a
-  different model-matrix representation, so a factor-predictor fit
-  changes if moved from one interface to the other), binary responses
-  are probit, and missing data are rejected.
+  As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
+  `factors` and `missing` are `bart2` only: `bart` keeps the historical
+  behavior of expanding every factor into indicator columns (`bart2`'s
+  default, `"categorical"`, instead keeps each unordered factor as a
+  single predictor - a different model-matrix representation, so a
+  factor-predictor fit changes if moved from one interface to the other)
+  and rejecting missing data.
+
+  `bart`'s own `family` is a narrower, appended formal,
+  `c("auto", "logistic", "aft")`: the first-token default `"auto"`
+  reproduces today's behavior exactly (a binary `y.train` still resolves
+  to probit), and `"logistic"`/`"aft"` are newly reachable directly,
+  both packaging as an ordinary `"bart"` object (`"aft"` needs a
+  [`Surv`](https://rdrr.io/pkg/survival/man/Surv.html) or two-column
+  `(time, status)` `y.train`, as below). The other ten `bart2` tokens
+  are refused BY NAME rather than falling through to
+  [`match.arg`](https://rdrr.io/r/base/match.arg.html)'s generic “should
+  be one of” message, which names neither the token nor `bart2`:
+  `"multinomial"`, `"ordinal"`, `"nbinom"`, and `"hurdle.lognormal"`
+  package as their own S3 class or compose two samplers, so
+  `bart2(x.train, y.train, family = ...)` is where they are fit;
+  `"gaussian"`, `"probit"`, and `"hazard.probit"` are already reachable
+  through `family = "auto"` plus the response, so they add no capability
+  as separate `bart` tokens; and `"hazard"`/`"hazard.logistic"` need
+  `breaks`/`max.rows`, which `bart` does not have.
 
   `family = "multinomial"` fits a K-category softmax classifier: K
   forests, one per category, coupled through an interleaved Polya-Gamma
@@ -777,12 +807,13 @@ summary(object, ...)
 
 - storage:
 
-  `bart2` only, passed through to
-  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
-  A character string selecting the precision of the internal running
-  residual; see `dbartsControl`'s `storage` for the full description.
-  The default `"double"` reproduces existing draws bitwise; `"single"`
-  changes the sampled values slightly in exchange for a bandwidth-bound
+  Passed through to
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md);
+  a formal on both `bart` and `bart2`. A character string selecting the
+  precision of the internal running residual; see `dbartsControl`'s
+  `storage` for the full description. The default `"double"` reproduces
+  existing draws bitwise; `"single"` changes the numbers a fit returns -
+  the sampled values shift slightly - in exchange for a bandwidth-bound
   speedup, and is currently supported only for continuous (gaussian)
   responses with constant leaves.
 
@@ -811,8 +842,11 @@ summary(object, ...)
 
 - subset:
 
-  A vector of logicals or indices used to subset of the data. Can be
-  missing.
+  A vector of logicals or indices used to subset of the data. For
+  `bart2` can be missing; `bart`'s own `subset` is an appended formal
+  defaulting to `NULL` (today's behavior, unchanged), forwarded to
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) the
+  same way.
 
 - offset:
 
@@ -865,32 +899,56 @@ summary(object, ...)
   family) for binary ones, `"ppd"` - samples from the posterior
   predictive distribution, `"loglik"` - for `extract` only, the
   log-likelihood of each training observation at each posterior draw,
-  and `"trees"` - a data frame with tree information for when model was
-  fit with `keepTrees` equal to `TRUE`. For `"ppd"`, a weighted logistic
-  fit draws the number of successes among the observation-count weight,
-  \\\mathrm{Binomial}(w_i, p_i)\\ (see `weights`), and an aft (survival)
-  fit draws on the log-time scale (the fit models \\\log T\\). For
-  `"loglik"`, gaussian fits evaluate \\y_i \mid x_i \sim N(\hat{f}(x_i),
-  \sigma^2 / w_i)\\ in logs at each draw of \\f\\ and \\\sigma\\, binary
-  fits evaluate the Bernoulli log-likelihood of the fitted probability,
-  multiplied for a weighted logistic fit by the observation-count weight
-  \\w_i\\, and an aft fit contributes the log density for an event and
-  the log survival tail \\\log P(T \> C)\\ for a right-censored
-  observation, both on the log-time scale. When chains are combined the
-  result is a samples-by-observations matrix directly consumable by
-  WAIC/PSIS-LOO implementations such as those in the loo package; the
-  chains-first convention is kept, so a per-chain array
-  (`combineChains = FALSE`, dimension chains-by-samples-by-observations)
-  is reordered to the draws-by-chains-by-observations that
-  `loo::relative_eff` expects with `aperm(x, c(2, 1, 3))`. To synergize
-  with [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
+  `"trees"` - a data frame with tree information for when model was fit
+  with `keepTrees` equal to `TRUE`, and `"forest"` - for `extract` only,
+  the per-forest channels of an amplitude-coupled multi-forest fit (see
+  `forest`, `contribution`, and the `forestFits`/`glue`/`bases`
+  components under ‘Value’); an error naming the reason on any other
+  fit. For `"ppd"`, a weighted logistic fit draws the number of
+  successes among the observation-count weight, \\\mathrm{Binomial}(w_i,
+  p_i)\\ (see `weights`), and an aft (survival) fit draws on the
+  log-time scale (the fit models \\\log T\\). For `"loglik"`, gaussian
+  fits evaluate \\y_i \mid x_i \sim N(\hat{f}(x_i), \sigma^2 / w_i)\\ in
+  logs at each draw of \\f\\ and \\\sigma\\, binary fits evaluate the
+  Bernoulli log-likelihood of the fitted probability, multiplied for a
+  weighted logistic fit by the observation-count weight \\w_i\\, and an
+  aft fit contributes the log density for an event and the log survival
+  tail \\\log P(T \> C)\\ for a right-censored observation, both on the
+  log-time scale. When chains are combined the result is a
+  samples-by-observations matrix directly consumable by WAIC/PSIS-LOO
+  implementations such as those in the loo package; the chains-first
+  convention is kept, so a per-chain array (`combineChains = FALSE`,
+  dimension chains-by-samples-by-observations) is reordered to the
+  draws-by-chains-by-observations that `loo::relative_eff` expects with
+  `aperm(x, c(2, 1, 3))`. To synergize with
+  [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
   `"response"` can be used as a synonym for `"ev"` and `"link"` can be
   used as a synonym for `"bart"`. For information on extracting trees,
   see the subsection below.
 
 - sample:
 
-  Either `"train"` or `"test"`.
+  Either `"train"` or `"test"`. `"test"` is refused, by name, when
+  `type` is `"forest"`: an amplitude-coupled fit has no test fits (see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  `forests =`).
+
+- forest:
+
+  For `extract(type = "forest")` only: which forest(s) to return, by
+  1-based index or by margin name (`"forest1"`, `"forest2"`, ...);
+  `NULL` (the default) returns every forest. The returned array always
+  keeps the trailing forest margin, subset to the requested forests,
+  even when only one is selected.
+
+- contribution:
+
+  For `extract(type = "forest")` only: `FALSE` (the default) returns the
+  raw per-forest total `forestFits` already carries (see ‘Value’).
+  `TRUE` instead returns each selected forest's per-observation
+  CONTRIBUTION to the fit, \\(\mathrm{basis}\_k \\ \mathrm{glue}\_k)
+  \times \mathrm{forestFits}\_k\\, computed on demand from the stored
+  `forestFits`, `glue`, and `bases` rather than stored itself.
 
 - ci.level:
 
@@ -1106,6 +1164,33 @@ numeric \\y\\ case, the list has components:
   Present only under a DART prior: the sampled split-variable
   probabilities, in the same layout as `varcount`. Each draw sums to one
   across variables.
+
+- `forestFits`, `glue`, `bases`, `n.forests`:
+
+  Present only for an amplitude-coupled multi-forest fit (a Bayesian
+  causal forest built through
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  `forests =`; not reachable from `bart`/`bart2` directly). `n.forests`
+  is the forest count K. `forestFits` is a (`n.chains` \\\times\\, when
+  uncombined) `n.samples` \\\times\\ number of training observations
+  \\\times\\ K array: forest k's own RESPONSE-scale raw total at each
+  draw, i.e. \\\mathrm{response.scale} \times f_k(x)\\, with NO
+  amplitude (`glue`) folded in - the same quantity the sampler's
+  `$getForestFits` reports, up to that one scalar. The trailing margin
+  is named `forest1`, ..., `forestK`; a declaration's own names
+  (`names(forests)`) ride separately as a `"forest.labels"` attribute on
+  the fit object when given. `glue` is the ragged (`n.chains`
+  \\\times\\, when uncombined) `n.samples` \\\times\\ sum(q_k) matrix of
+  amplitudes multiplying each forest's basis columns, forest-major (the
+  layout `$getForestAmplitudes` documents); its `"forest"` attribute
+  names each column's forest. `bases` is a length-K list of each
+  forest's expanded basis matrix (no draw axis; `NULL` for a forest with
+  no declared basis, whose amplitude then scales an implicit all-ones
+  column). Together they reconstruct the training fit exactly: \\\hat y
+  = \mathrm{response.shift} + \sum_k (\mathrm{bases}\_k \\
+  \mathrm{glue}\_k) \times \mathrm{forestFits}\_k\\, with
+  `response.scale`/`response.shift` read from the sampler's
+  `$getCalibration`. See `extract`'s `type = "forest"`.
 
 - `sigest`:
 
@@ -1426,7 +1511,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.217494
+#> total seconds in loop: 0.218401
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1492,7 +1577,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001323
+#> total seconds in loop: 0.001452
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
