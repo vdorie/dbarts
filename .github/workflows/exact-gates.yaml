@@ -85,6 +85,7 @@ jobs:
             categorical-exact.R heteroscedastic-exact.R linear-exact.R
             multinomial-exact.R negbin-exact.R ordinal-exact.R t-exact.R
             logistic-reference.R monotone-reference.R
+            hazard-reduction.R hurdle-reduction.R
           "
           fail=0
           for g in $gates; do

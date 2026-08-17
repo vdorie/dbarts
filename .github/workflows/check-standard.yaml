@@ -102,4 +102,15 @@ jobs:
         run: Rscript -e 'stopifnot(R.version$arch %in% c("aarch64", "arm64", "arm"), .Call(dbarts:::C_dbarts_getMaxSIMDInstructionSet) >= 1L)'
 
       - name: Run the SIMD reproducibility test
-        run: Rscript -e 'res <- tinytest::run_test_file(system.file("tinytest", "test-simd.R", package = "dbarts")); print(res); stopifnot(length(res) > 0L, all(sapply(res, isTRUE)))'
+        # Floor raised from the bare length(res) > 0L existence check to the
+        # exact count test-simd.R produces once NEON presence is proven (the
+        # prior step): one expect_equal from the short-data block plus one
+        # from the long-data block, measured 2026-08-17 locally on arm64.
+        # This is the only leg in this workflow with an R-level tinytest
+        # results object to assert on - the R-CMD-check matrix below runs
+        # tests opaquely inside r-lib/actions/check-r-package (R CMD check
+        # invokes tests/tinytest.R itself; no results object reaches this
+        # YAML without re-running the suite), so it does not gain a
+        # whole-suite floor here. That whole-suite floor already runs on
+        # every push/PR via sanitizers.yaml.
+        run: Rscript -e 'res <- tinytest::run_test_file(system.file("tinytest", "test-simd.R", package = "dbarts")); print(res); stopifnot(length(res) >= 2L, all(sapply(res, isTRUE)))'

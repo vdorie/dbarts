@@ -77,6 +77,55 @@ jobs:
             print(res)
             ok <- vapply(res, function(t) isTRUE(as.logical(t)[1]), logical(1))
             if (length(ok) == 0L || !all(ok)) quit(status = 1L, save = "no")
+
+            # Total-count floor: guards against a refactor that silently
+            # empties whole test files (a passing suite of zero assertions
+            # looks green). Baseline measured 2026-08-17 at f6c8979d: 5799
+            # results, 0 failures. Floor set at 5200 (~10% headroom under the
+            # baseline) - routine suite growth does not trip it, a refactor
+            # that empties whole files does.
+            if (length(ok) < 5200L) {
+              cat(sprintf(
+                "::error::tinytest produced only %d results, expected >= 5200\n",
+                length(ok)
+              ))
+              quit(status = 1L, save = "no")
+            }
+
+            # Per-file floors for the highest-value files (measured
+            # 2026-08-17 at f6c8979d: test-capi.R 232,
+            # test-bcf-r5-surface.R 45, test-multinomial-surface.R 126,
+            # test-argument-surface.R 96, test-bartcore.R 250; floors are
+            # ~60-65% of the measured count, so routine growth does not trip
+            # them but a file-emptying regression does). test-simd.R
+            # legitimately exit_file()s with zero assertions on a
+            # scalar-only host; run_test_dir() in tinytest unlist()s
+            # per-file results, so an exit_file()d file contributes nothing
+            # to `res` with no marker distinguishing it from silent
+            # breakage (verified locally: run_test_file() on an exit_file()d
+            # script returns a zero-length "tinytests" object with no skip
+            # attribute) - so its floor is a documented no-op; real SIMD
+            # coverage is the NEON-forced arm64 leg in check-standard.yaml,
+            # which pins bitwise equality rather than a count.
+            byFile <- table(vapply(res, function(t) attr(t, "file"), character(1)))
+            floors <- c(
+              "test-capi.R" = 150L,
+              "test-simd.R" = 0L,
+              "test-bcf-r5-surface.R" = 30L,
+              "test-multinomial-surface.R" = 80L,
+              "test-argument-surface.R" = 60L,
+              "test-bartcore.R" = 160L
+            )
+            for (f in names(floors)) {
+              n <- if (f %in% names(byFile)) byFile[[f]] else 0L
+              if (n < floors[[f]]) {
+                cat(sprintf(
+                  "::error::%s produced only %d results, expected >= %d\n",
+                  f, n, floors[[f]]
+                ))
+                quit(status = 1L, save = "no")
+              }
+            }
           ' 2>&1 | tee sanitizer-tests.log
           # a sanitizer finding that does not fail an assertion (e.g. a UBSAN
           # "runtime error:" printed during an otherwise-passing test) still fails
