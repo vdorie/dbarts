@@ -6,7 +6,10 @@
 # semantics (r kept), and a seeded statistical recovery smoke. The
 # exact-posterior gate lives in benchmarks/R/negbin-exact.R.
 
-source(system.file("common", "stateContinuation.R", package = "dbarts"))
+source(
+  system.file("common", "stateContinuation.R", package = "dbarts"),
+  local = TRUE
+)
 
 set.seed(99)
 n <- 200L
@@ -269,7 +272,7 @@ samplerB <- dbarts(x, y, family = "nbinom", control = control, verbose = FALSE)
 samplerC <- dbarts(x, y, family = "nbinom", control = control, verbose = FALSE)
 samplerB$setState(saved)
 samplerC$setState(saved)
-expect_true(statesAgree(samplerB$state, saved))
+statesAgree(samplerB$state, saved)
 expect_identical(samplerB$state[[1L]]$dispersion, saved[[1L]]$dispersion)
 rB <- samplerB$run(0L, 5L)
 rC <- samplerC$run(0L, 5L)

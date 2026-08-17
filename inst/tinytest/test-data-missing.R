@@ -138,7 +138,10 @@ expect_true(mean(fits.after[m2.mv]) - mean(fits.after[!m2.mv]) > 2)
 expect_true(all(is.finite(run.after$train)))
 expect_equal(which(is.na(sampler.mv$data@x[, "x1"])), which(m2.mv))
 
-source(system.file("common", "stateContinuation.R", package = "dbarts"))
+source(
+  system.file("common", "stateContinuation.R", package = "dbarts"),
+  local = TRUE
+)
 # state serialization carries the missing directions: a restored sampler
 # reproduces the model
 control.state <- dbartsControl(
@@ -154,7 +157,7 @@ sampler.state$storeState()
 sampler.restored <- dbarts(y ~ x1 + x2 + g, df, control = control.state)
 sampler.restored$setState(sampler.state$state)
 sampler.restored$storeState()
-expect_true(statesAgree(sampler.restored$state, sampler.state$state))
+statesAgree(sampler.restored$state, sampler.state$state)
 
 # xbart's folds gather the reserved codes through the data handle
 xval <- xbart(

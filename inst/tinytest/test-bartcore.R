@@ -666,7 +666,10 @@ expect_true(any(grepl("sample [12]$", print.keep2)))
 # ulp of its accumulation history. statesAgree gates the structural round trip
 # (identical trees, sigma to within the original-scale round trip); the
 # version-refusal case below adds a statistical continuation gate.
-source(system.file("common", "stateContinuation.R", package = "dbarts"))
+source(
+  system.file("common", "stateContinuation.R", package = "dbarts"),
+  local = TRUE
+)
 
 # state serialization: a restored sampler continues an equivalent chain;
 # multiple chains run on their own generators, so no seed sync is needed
@@ -686,7 +689,7 @@ expect_inherits(state, "bartcoreState")
 sampler.restored <- dbarts(x, y, control = control.state)
 sampler.restored$setState(state)
 sampler.restored$storeState()
-expect_true(statesAgree(sampler.restored$state, state))
+statesAgree(sampler.restored$state, state)
 
 # a single chain's state carries its generator like any other, so a restored
 # sampler reproduces the model without any R-stream synchronization
@@ -698,7 +701,7 @@ expect_true(length(sampler.state1$state[[1L]]$rng.state) > 0L)
 sampler.restored1 <- dbarts(x, y, control = control.bc)
 sampler.restored1$setState(state1)
 sampler.restored1$storeState()
-expect_true(statesAgree(sampler.restored1$state, state1))
+statesAgree(sampler.restored1$state, state1)
 
 # save/load: runs store state by default (updateState), and getPointer
 # transparently re-creates the sampler from it after deserialization
@@ -719,7 +722,7 @@ sampler.loaded <- readRDS(serialized)
 # storeState forces it and must reproduce the saved model, and a run confirms
 # the re-created sampler is live
 sampler.loaded$storeState()
-expect_true(statesAgree(sampler.loaded$state, state.us))
+statesAgree(sampler.loaded$state, state.us)
 expect_silent(invisible(sampler.loaded$run(0L, 1L)))
 unlink(serialized)
 
@@ -761,7 +764,7 @@ sampler.reference$setState(state.goodVersion)
 # diverge in the last ulp then chaotically, so the window means must only agree
 # inside a generous Monte Carlo band, not draw for draw.
 sampler.reference$storeState()
-expect_true(statesAgree(sampler.reference$state, state.goodVersion))
+statesAgree(sampler.reference$state, state.goodVersion)
 cont.a <- sampler.version$run(0L, 200L, updateState = FALSE)
 cont.b <- sampler.reference$run(0L, 200L, updateState = FALSE)
 mcse <- sd(cont.a$sigma) / sqrt(length(cont.a$sigma))
@@ -1004,7 +1007,7 @@ dbarts:::bartcoreSetState(bc.sc2, state.sc)
 # the restored handle reproduces the saved trees and the moved scale, and its
 # live-tree predictions match the source before either handle continues
 reState.sc <- dbarts:::bartcoreStoreState(bc.sc2)
-expect_true(statesAgree(reState.sc, state.sc))
+statesAgree(reState.sc, state.sc)
 expect_identical(reState.sc[[1L]]$fit.scale, state.sc[[1L]]$fit.scale)
 
 pred.sc <- dbarts:::bartcorePredict(bc.sc, x[1:5, , drop = FALSE])

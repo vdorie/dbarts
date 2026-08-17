@@ -8,6 +8,12 @@ architectureIsArm <- R.version$arch %in% c("aarch64", "arm", "arm64")
 # test that basic Friedman example gets same result with various SIMD sets
 maxSIMDLevel <- .Call(dbarts:::C_dbarts_getMaxSIMDInstructionSet)
 
+if (maxSIMDLevel == 0L) {
+  # no non-scalar instruction set detected: neither section below asserts
+  # anything, so say so explicitly rather than exiting quietly at 0 tests
+  exit_file("no non-scalar SIMD instruction set detected at runtime")
+}
+
 if (maxSIMDLevel > 0L) {
   n.burn <- 0L
   n.sims <- 10L

@@ -4,7 +4,10 @@
 # sampler built over the ORIGINAL data then takes the same mutation and the
 # stored state and must reproduce the same model. Covered for linear and gp
 # leaves, plus the default constant leaf.
-source(system.file("common", "stateContinuation.R", package = "dbarts"))
+source(
+  system.file("common", "stateContinuation.R", package = "dbarts"),
+  local = TRUE
+)
 
 set.seed(99)
 n <- 150L
@@ -45,7 +48,7 @@ cold.lin <- dbarts(
 cold.lin$setPredictor(x2.new, "x2", forceUpdate = TRUE)
 cold.lin$setState(warm.lin$state)
 cold.lin$storeState()
-expect_true(statesAgree(cold.lin$state, warm.lin$state))
+statesAgree(cold.lin$state, warm.lin$state)
 
 # gp leaf: same flow
 warm.gp <- dbarts(
@@ -68,7 +71,7 @@ cold.gp <- dbarts(
 cold.gp$setPredictor(x2.new, "x2", forceUpdate = TRUE)
 cold.gp$setState(warm.gp$state)
 cold.gp$storeState()
-expect_true(statesAgree(cold.gp$state, warm.gp$state))
+statesAgree(cold.gp$state, warm.gp$state)
 
 # default constant leaf: the mutation-then-restore flow with the base prior
 warm.const <- dbarts(y ~ x1 + x2 + x3, df, control = control)
@@ -81,7 +84,7 @@ cold.const <- dbarts(y ~ x1 + x2 + x3, df, control = control)
 cold.const$setPredictor(x2.new, "x2", forceUpdate = TRUE)
 cold.const$setState(warm.const$state)
 cold.const$storeState()
-expect_true(statesAgree(cold.const$state, warm.const$state))
+statesAgree(cold.const$state, warm.const$state)
 
 rm(
   warm.lin,
