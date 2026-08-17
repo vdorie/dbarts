@@ -557,6 +557,45 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### capi-winfix - the ABI contract test runs on x64 Windows (9a299af6, 2026-08-17)
+
+The fix for the finding below: test-capi.R now writes a Makevars
+file into its build dir (PKG_CPPFLAGS = -I"<include>") instead of
+passing the flag through system2's env= (platform-variant on
+Windows), and probes for dbarts/dbarts.h under the include dir
+BEFORE compiling (CI: stop naming the path; off-CI: exit_file) so a
+missing header and a broken flag are distinguishable forever after.
+The CI hard-fail on compile failure stays. One file, +13/-1. Local
+gates: tinytest 5799/0 with test-capi.R at 232/232 through the new
+path; Makevars confirmed tempdir-only; air/lintr clean; R CMD check
+--as-cran Status OK from a clean-staged tarball; negative probe
+(bogus include dir under CI=1) fails naming the path. CI: SIX GREEN
+- R-CMD-check's windows-latest leg passes with the hard-fail live,
+which by construction means the 201-assertion shipped-ABI contract
+executed on x64 Windows for the first time in the leg's history.
+
+### Wave 0b first CI catch - the ABI contract test never ran on x64 Windows (2026-08-17)
+
+f6c8979d's first CI outing turned P4's hard-fail into a finding: the
+windows-latest (x64) R-CMD-check leg ERRORS in test-capi.R -
+"consumer.c:10:10: fatal error: dbarts/dbarts.h: No such file or
+directory" - while windows-11-arm compiles and runs all the C API
+assertions. The mechanism: test-capi.R passes PKG_CPPFLAGS via
+system2(env = ...), whose child-environment handling is
+platform-variant on Windows; the -I flag evidently never reached the
+x64 compiler, so the shipped-ABI contract test (201 assertions, the
+whole dbarts.h surface stan4bart/treatSens link against) has been
+silently exit_file-skipping on that platform for as long as the leg
+has existed - green checks, zero contract coverage. Exactly the
+silent-skip class P4 was built to expose, caught on its first run.
+Fix (next slice, jumps the queue - every push reds this leg until it
+lands): replace the env= passing with a Makevars file in the build
+dir carrying PKG_CPPFLAGS = -I"<include>" (R CMD SHLIB reads it
+natively; mechanism verified locally), plus a pre-compile
+header-exists probe so future failures distinguish a missing header
+from a broken flag. The five other legs (three Ubuntu, macOS, ARM
+Windows) stayed green.
+
 ### Wave 0b - suite repairs: P3i + P4 in-repo halves + build guard (f6c8979d, 2026-08-17)
 
 statesAgree() now asserts PER FIELD: inst/common/stateContinuation.R
