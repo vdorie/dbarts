@@ -99,3 +99,49 @@ expect_error(
   ),
   "variance forest requires"
 )
+
+# ---- Student-t residuals and a grouped fit: unadjudicated with 'variance' ----
+# (docs/design/heteroscedastic.md section 15). resid.dist is NSE (parsed in
+# dbarts's own vocabulary), so these stay literal calls rather than do.call.
+expect_error(
+  bart2(
+    xHom,
+    yHom,
+    resid.dist = student(3),
+    variance = TRUE,
+    n.samples = 2L,
+    n.burn = 2L,
+    n.chains = 1L,
+    verbose = FALSE
+  ),
+  "variance forest does not support"
+)
+expect_inherits(
+  bart2(
+    xHom,
+    yHom,
+    resid.dist = student(3),
+    n.samples = 2L,
+    n.burn = 2L,
+    n.chains = 1L,
+    verbose = FALSE
+  ),
+  "bart"
+)
+g <- factor(rep(c("a", "b"), length.out = n))
+opts2 <- list(
+  n.samples = 1L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+# rbart_vi declares no 'variance' formal: already refused by name rejection
+expect_error(
+  do.call(rbart_vi, c(list(yHom ~ xHom, group.by = g, variance = TRUE), opts2)),
+  "unknown argument"
+)
+expect_inherits(
+  do.call(rbart_vi, c(list(yHom ~ xHom, group.by = g, n.trees = 10L), opts2)),
+  "rbart"
+)

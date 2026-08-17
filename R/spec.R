@@ -395,6 +395,16 @@ resolveSamplerSpec <- function(
         "own the precision channel it routes through"
       )
     }
+    # the scale-mixture reweighting (docs/design/robust-errors.md) and the
+    # variance forest's weight-channel routing (docs/design/heteroscedastic.md
+    # section 5) are unadjudicated together; refuse rather than silently fit
+    # an uncomposed model
+    if (!is.null(residDf)) {
+      stop(
+        "a variance forest does not support Student-t residuals: the two ",
+        "are not yet shown to compose"
+      )
+    }
     if (!is.null(monotoneDirections)) {
       stop("a variance forest is not supported with monotone constraints")
     }
