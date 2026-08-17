@@ -19,12 +19,24 @@ dir.create(buildDir)
 file.copy(consumerSource, file.path(buildDir, "consumer.c"))
 
 includeDir <- system.file("include", package = "dbarts")
+headerPath <- file.path(includeDir, "dbarts", "dbarts.h")
+if (!nzchar(includeDir) || !file.exists(headerPath)) {
+  msg <- paste0("dbarts.h not found under includeDir '", includeDir, "'")
+  if (nzchar(Sys.getenv("CI", ""))) stop(msg) else exit_file(msg)
+}
+
+# system2's env= is not reliably passed through to the child process on
+# Windows; a Makevars in the build dir is the portable channel for
+# PKG_CPPFLAGS across all platforms including Rtools.
+writeLines(
+  sprintf('PKG_CPPFLAGS = -I"%s"', includeDir),
+  file.path(buildDir, "Makevars")
+)
 owd <- setwd(buildDir)
 compileOutput <- tryCatch(
   suppressWarnings(system2(
     file.path(R.home("bin"), "R"),
     c("CMD", "SHLIB", "consumer.c"),
-    env = paste0("PKG_CPPFLAGS=-I", shQuote(includeDir)),
     stdout = TRUE,
     stderr = TRUE
   )),
