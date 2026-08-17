@@ -2680,6 +2680,12 @@ bart <- function(
     control@keepTrees <- FALSE
   }
   ndpost <- ndpost %/% control@n.thin
+  # a zero (or thinned-to-zero) sample count would otherwise fault deeper, in
+  # the empty-array reshape (dim(X) has no positive length); mirrors bart2's
+  # same-shaped guard on control@n.samples
+  if (isTRUE(ndpost <= 0L)) {
+    stop("'ndpost' must be a positive integer")
+  }
 
   priors <- buildSamplerPriors(
     matchedCall,
@@ -2750,6 +2756,16 @@ bart <- function(
     combinechains,
     keepsampler
   )
+  # needed to extract ppd; mirrors bart2's packageBartResults
+  if (!is.null(sampler$data@weights) && length(sampler$data@weights) > 0L) {
+    result$weights <- sampler$data@weights
+    if (
+      !is.null(sampler$data@weights.test) &&
+        length(sampler$data@weights.test) > 0L
+    ) {
+      result$weights.test <- sampler$data@weights.test
+    }
+  }
 
   result
 }
