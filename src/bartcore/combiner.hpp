@@ -1730,10 +1730,12 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// Under a category offset the response carries an extra - o_if: the latent
   /// is f_if + o_if, so the forest is asked for the residual part. This is the
   /// one train-side reader that cannot go through the offset fits, since it
-  /// SUBTRACTS the offset rather than adding it; the branch is hoisted out of
-  /// the loop so the null path runs today's statement unchanged. The subtraction
-  /// also keeps totalFits offset-free (finalizeTotalFits sums this response's
-  /// own tree fits), which is the invariant the offset fits are built on.
+  /// SUBTRACTS the offset rather than adding it. The branch is hoisted out of
+  /// the loop, so INVARIANT: the offset-free arm carries neither a per-row test
+  /// nor an offset term - its arithmetic is the plain PG reduction, with no
+  /// residual dependence on offset_. The subtraction also keeps totalFits
+  /// offset-free (finalizeTotalFits sums this response's own tree fits), which
+  /// is the invariant the offset fits are built on.
   ForestResponse formForestResponse(std::size_t f,
       const std::vector<Forest<L, ResidT>>& forests, const double* /*y*/,
       const double* /*w*/) override {
@@ -1795,12 +1797,13 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// after the combiner is built (setTestPredictors); off the sweep hot path.
   ///
   /// Under a TEST offset the blend reads the offset test fits instead, through
-  /// the same rawTestFits/rawFits split the train side uses, so off one the
-  /// gathered pointer is exactly today's totalTestFits and the reported test
-  /// channel is byte-identical. Rematerializing here rather than at the install
-  /// is what keeps the two sides symmetric: totalTestFits is rewritten by every
-  /// sweep and by a predictor mutation, and this is the only point that reports
-  /// it.
+  /// the same rawTestFits/rawFits split the train side uses. INVARIANT: off a
+  /// test offset the pointer the blend gathers IS forest k's own
+  /// totalTestFits - rawTest_ is never sized or written, so the reported test
+  /// channel is the forests' fits themselves rather than a copy of them.
+  /// Rematerializing here rather than at the install is what keeps the two
+  /// sides symmetric: totalTestFits is rewritten by every sweep and by a
+  /// predictor mutation, and this is the only point that reports it.
   const double* combinedTestFits(
       const std::vector<Forest<L, ResidT>>& forests) override {
     std::size_t nTest = data_.numTestObservations;
@@ -1902,8 +1905,9 @@ private:
   /// f_k + o_k under one. Every train-side reader goes through it - the suffix
   /// fold, the prefix seed and its continuation, the drawn category's own fits,
   /// and the reported blend - so there is one place where the offset enters the
-  /// latent, and on the null path it yields exactly today's pointer, which is
-  /// what makes an offset-free run bit-for-bit unchanged.
+  /// latent. INVARIANT: off an offset this returns forest k's own totalFits
+  /// buffer, so no train-side reader sees a copy and raw_ stays empty; the
+  /// offset costs an offset-free run neither an allocation nor an addition.
   const double* rawFits(std::size_t k,
                         const std::vector<Forest<L, ResidT>>& forests) const {
     if (offset_ == nullptr) return forests[k].totalFits.data();
@@ -1930,8 +1934,8 @@ private:
 
   /// rawFits' test twin: forest k's own totalTestFits off a test offset, and
   /// the offset column f_test_k + o_test_k under one. The single definition of
-  /// "the test fit the reported softmax sees", so off an offset the blend
-  /// gathers exactly the pointer it gathers today.
+  /// "the test fit the reported softmax sees", on rawFits' invariant: off a
+  /// test offset it returns the forest's own buffer, never a copy of it.
   const double* rawTestFits(
       std::size_t k, const std::vector<Forest<L, ResidT>>& forests) const {
     if (testOffset_ == nullptr) return forests[k].totalTestFits.data();

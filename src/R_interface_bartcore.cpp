@@ -4256,10 +4256,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     : -1;
   int glueSlot = hasForestReporting ? forestFitsSlot + 1 : -1;
 
-  // several chains add a trailing chain dimension, as the classic engine's
-  // results do. Every column roots in the protected container the moment it
-  // is allocated (installResult), so there is no hand-counted PROTECT stack
-  // to keep in sync with the slot list.
+  // several chains add a trailing chain dimension. Every column roots in the
+  // protected container the moment it is allocated (installResult), so there
+  // is no hand-counted PROTECT stack to keep in sync with the slot list.
   SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, numResultSlots));
   SEXP sigmaExpr = installResult(
     resultExpr, 0,
@@ -4435,10 +4434,8 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // free the copied-out counts before the names block, which can OOM-longjmp
   std::vector<std::uint32_t>().swap(variableCounts);
 
-  // named as the classic engine's run results are, so the engines are
-  // drop-in replacements for each other; varprobs, tau, and ranef are
-  // bartcore extensions. The names vector roots through the container's
-  // attribute before the mkChar allocations fill it.
+  // The names vector roots through the container's attribute before the
+  // mkChar allocations fill it.
   SEXP namesExpr = Rf_allocVector(STRSXP, numResultSlots);
   Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
   SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
@@ -4836,9 +4833,10 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
   return R_NilValue;
 }
 
-// Case weights, like the classic engine's setWeights: a pointer swap with
-// nothing rescaled; refused for binary responses, whose reference-engine
-// weighting was incorrect and was stripped rather than ported.
+// Case weights: a pointer swap with nothing rescaled. Only a gaussian
+// response accepts them; refuseBinaryWeightChange refuses every other family,
+// whose weights either mean something else (the logistic counts its latents
+// were built from) or have no role in its likelihood.
 SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
@@ -4858,9 +4856,9 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   return R_NilValue;
 }
 
-// Between-run reconfiguration, the classic engine's setControl. The R side
-// refuses changes to the engine, rng, and cut settings; chain and tree
-// counts shape live storage, so they are re-checked here.
+// Between-run reconfiguration. The R side refuses changes to the engine, rng,
+// and cut settings; chain and tree counts shape live storage, so they are
+// re-checked here.
 SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
@@ -4889,8 +4887,8 @@ SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
   return R_NilValue;
 }
 
-/// Prior replacement, the classic engine's setModel; installing a model
-/// before any run matches creating with it.
+/// Prior replacement; installing a model before any run matches creating
+/// with it.
 SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
                        SEXP dataExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
@@ -5016,8 +5014,8 @@ SEXP bartcore_getSumsOfSquaredResiduals(SEXP ptrExpr) {
 
 // Predictor mutation. The sampler borrows a full replacement matrix
 // (R/bartcore.R retains it on success); column and per-observation updates
-// write in place into the matrix the sampler currently borrows, aliasing the
-// R-side data like the classic engine does.
+// write in place into the matrix the sampler currently borrows, so they
+// alias the R-side data.
 
 SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
                            SEXP updateCutPointsExpr) {
@@ -5713,10 +5711,10 @@ SEXP predictFromSource(bartcore::SamplerBase& sampler,
   return resultExpr;
 }
 
-// Fits for new data on the original response scale (binary responses give
-// the latent scale, as the classic engine does). With keepTrees the saved
-// trees produce numTestObservations x numSamples (x numChains) fits; without,
-// the live trees produce a single set per chain. A multi-location combiner
+// Fits for new data on the original response scale (a binary response gives
+// the latent scale). With keepTrees the saved trees produce
+// numTestObservations x numSamples (x numChains) fits; without, the live
+// trees produce a single set per chain. A multi-location combiner
 // (multinomial: K softmax channels) inserts the K dimension between the rows
 // and the samples, matching the run's test channel. offset, when non-null, is
 // added to every sample's fits - or, on a multi-location surface, is the
@@ -5907,8 +5905,8 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
   });
 }
 
-// resultExpr, when non-null, is a preallocated numeric filled in place (the
-// classic engine's storeLatents contract, which rbart_vi relies on).
+// resultExpr, when non-null, is a preallocated numeric filled in place rather
+// than a fresh allocation, which is what rbart_vi's per-sweep loop relies on.
 SEXP bartcore_getLatents(SEXP ptrExpr, SEXP resultExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   if (holder.sampler->latents(0) == NULL) return R_NilValue;
@@ -7201,7 +7199,7 @@ void emitTreeColumn(SEXP resultExpr, SEXP namesExpr, R_xlen_t columnNum,
   SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar(name));
 }
 
-// Builds the classic-format data.frame from a gather: ([chain,] [sample,]
+// Builds the R-visible getTrees data.frame from a gather: ([chain,] [sample,]
 // tree, n, var, value[, directions][, missing][, beta.*]).
 SEXP emitTreeDataFrame(const GatheredTrees& gathered) {
   R_xlen_t totalNumNodes = static_cast<R_xlen_t>(gathered.value.size());
@@ -7267,7 +7265,7 @@ SEXP emitTreeDataFrame(const GatheredTrees& gathered) {
   return resultExpr;
 }
 
-// A data.frame of tree structure in the classic engine's format: pre-order
+// A data.frame of tree structure in the R-visible getTrees format: pre-order
 // rows of ([chain,] [sample,] tree, n, var, value), var 1-based with -1
 // marking leaves, an ordinal rule's value its cut point, leaf values on the
 // engine's internal response scale. A categorical rule carries no data value:
