@@ -77,16 +77,42 @@ items
     it rides the first nightly after bartcore reaches main, with the
     per-push CI sanitizers workflow covering the new tinytest file
     under instrumented R meanwhile.
-  bart2-argument-consolidation: DESIGNED, SPEC COMMITTED 2026-08-16 at
-    docs/plans/bart2-argument-consolidation.md (the record: all eight
-    walkthrough forks decided by VD + the formula term token; three
-    blind critique rounds, a conventions survey, and four verification
-    rounds, all findings closed; underdetermined list EMPTY).
-    Implementation = slices S1-S14 per the plan's section 7, each
-    independently gateable; per-slice gates specified in the plan
-    (the equivalence harness has NO bart2 gaussian/probit scenario, so
-    several slices carry in-slice bitwise A/B gates; a harness
-    coverage note rides the next baseline re-record). IN PROGRESS.
+  bart2-argument-consolidation: ARC COMPLETE 2026-08-17 (closure note at
+    the plan's EOF, docs/plans/bart2-argument-consolidation.md - the
+    record: eight walkthrough forks plus the formula term token decided
+    by VD; three blind critique rounds, a conventions survey, four
+    verification rounds). Fourteen serialized slices, each
+    independently gated, CI six-green: S1 ebc57af7 (defect batch), S2
+    2eb6a1a4 (family gating), S3 6f1ba79e (inert defaults live), S4
+    ec59caf6 (dots + promotions), S5 ba4f761d (rngSeed -> seed, xbart
+    sigma -> sigest; lockstep bartCause a3aa98d, stan4bart 54e157b), S6
+    5aa4d292 (varianceForest() collapse), S7 de2212bc (tree.prior/
+    node.prior/resid.prior formals), S8 d54c2791 (xbart's control=
+    removed for flat knobs; lockstep bartCause 31519d22), S9 8b263ae5
+    (split.probs default NULL), S10 726dab10 (bart() subset/storage/
+    family parity), S11 00abf336 (per-forest forestFits/glue channel +
+    extract(type = "forest")) - S9/S10/S11 landed as a batch, each
+    own-base gated then the merged tree reverified at S11's tip - S12
+    4b179585 (forest() formula terms, colon sugar), S13 172523e6
+    (formula-path bases subsetting under subset), S14 9031b348
+    (man/bart2.Rd split out, formula terms documented). The comment
+    sweep, dcc8262e, closed the arc's scaffolding per the owner's
+    comments-state-constraints rule, prior arcs' residue (multiforest-
+    extension-surface, binary-kforest-prior-default, bcf-b-ridge.md)
+    included. Recorded for later, not resolved: dbartsData(bases =)'s
+    count-only contract stays ambiguous at the lower-level constructor,
+    by scoping (S13 note); forest 1's sd/update.amplitude have no term
+    spelling, the cost of the declined forests= formal (5.7, the 5.5.3
+    door); the K-forest front-door spelling door
+    docs/plans/bcf-bartcause-relocation.md left riding this review is
+    now ANSWERED there (formula terms, no forests= formal) by that
+    plan's own post-arc addendum; out-of-sample per-forest replay stays
+    a door (N8; predict() untouched); the equivalence harness's missing
+    bart2 gaussian/probit/two-forest scenarios ride the next baseline
+    re-record. One follow-up from the sweep: door memos whose rationale
+    shipped code still relies on (docs/plans/bcf-b-ridge.md's exponent
+    rule) may deserve promotion to docs/design; routed to the
+    release-candidate-review program rather than decided here.
   bcf-naming-generalization: the shipped K-forest amplitude family is
     spelled with BCF names at every layer - BCFSpec, BCFForestSpec,
     BCFState, BCFForestCombiner, BCFSpecStorage, createBCFSampler,
@@ -384,9 +410,11 @@ items
   hurdle-variance-forwarding: the feature matrix
     (docs/design/feature-matrix.md) records that a hurdle model
     forwards variance = to BOTH components while the occupancy
-    probit would refuse it, contradicting man/bart.Rd's hurdle
-    text. Verify which side is wrong and fix (behavior or doc);
-    small slice.
+    probit would refuse it, contradicting man/bart2.Rd's hurdle
+    text (moved from man/bart.Rd by bart2-argument-consolidation
+    S14, 9031b348 - anchor only, the contradiction itself is
+    unverified and stays open). Verify which side is wrong and fix
+    (behavior or doc); small slice.
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. A memory win, not speed; integer -> double
     is exact in range so the slice MUST be trio-bitwise. Split out of

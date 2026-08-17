@@ -79,6 +79,32 @@ carries over from the 2026-08-15 `binary-kforest-prior-default` pass
 unchanged - its host file is byte-identical between 63524e5e and c05322a8, so
 63524e5e's numbers still hold. Cell values were again NOT re-adjudicated.
 
+Value audit on record, 2026-08-17, SCOPED to the `bart2-argument-consolidation`
+arc's fourteen landing commits (ebc57af7..9031b348, S1-S14) plus the dcc8262e
+comment sweep - unlike the two anchor-only passes above, this pass
+RE-ADJUDICATED (not just re-located) the cells the arc could plausibly have
+changed: `bart()`/`bart2()`/`xbart()`/`rbart_vi()` argument surface, prior
+objects, variance forest spelling, the per-forest output channel, formula
+terms, multi-forest declaration routes. Findings and fixes: `bart()` gained a
+narrow `family` formal (S10), which changed section 1's `bart()` column at
+logistic and aft (R/`?` to `S`) and at multinomial/nbinom/hurdle (`-` to `R`,
+the concept now applies and is refused rather than absent), plus footnotes
+f1/f5 and the logistic/aft Gaps entries; `bart2()`'s formula interface (S12)
+now reaches the bcf row's general K-forest amplitude capability through a
+`forest()` term, changing that row's `bart2()` cell, footnote f7, the bcf Gaps
+paragraph, and adding a note after the section-1 table and to footnote f48
+(the in-sample per-forest output channel, S11). Prior objects (S7), variance
+forest spelling (S6, the `variance =` argument name itself is unchanged - only
+its former sub-formals collapsed into `varianceForest()`) and S13's
+formula-path bases-subsetting behavior change introduced no stale claims found
+in this file. This pass did NOT re-walk every anchor into the arc's touched
+files (`bart.R`, `dbarts.R`, `rbart.R`, `xbart.R`, `spec.R`, `model.R` shifted
+substantially across fourteen commits touching them repeatedly) - unlike the
+two passes above, it is not a line-accurate anchor refresh, and the `Status`
+line above is deliberately NOT advanced to this arc's tip; a scoped anchor-only
+pass over these files, on the `binary-kforest-prior-default`/`adoption-slate`
+pattern, remains owed.
+
 ## Rows
 
 Thirteen rows. The first ten are response models proper; the last three are
@@ -120,14 +146,14 @@ cell says so.
 | gaussian | S bart.R:2406 | S bart.R:559 | S dbarts.R:357 | S rbart.R:49 | S xbart.R:27 | S CAPI:530 |
 | student | S bart.R:2309 | S bart.R:573 | S dbarts.R:341 | M rbart.R:60 | M xbart.R:9-38 | S RIB:2570 [f2] |
 | probit | S bart.Rd:151 | S bart.R:560 | S dbarts.R:358 | S data.R:523 | S xbart.R:27 | S CAPI:528 |
-| logistic | - [f1] | S bart.R:561 | S dbarts.R:359 | R rbart.R:49 | S xbart.R:27 | S RIB:1568 |
-| ordinal | R bart.R:2410 | S bart.R:564 | S dbarts.R:361 | R data.R:468 | R data.R:468 | S RIB:1576 [f3] |
-| nbinom | - [f1] | S bart.R:565 | S dbarts.R:362 | M rbart.R:49 | M xbart.R:27 | S RIB:1583 [f3] |
-| multinom | - [f1] | S bart.R:563 | R dbarts.R:355 | R data.R:468 | R data.R:468 | M [f4] |
-| aft | ? bart.R:2406 [f5] | S bart.R:562 | S dbarts.R:360 | S rbart.R:49 | M xbart.R:27 | S CAPI:531 |
+| logistic | S bart.R:2581 [f1] | S bart.R:561 | S dbarts.R:359 | R rbart.R:49 | S xbart.R:27 | S RIB:1568 |
+| ordinal | R bart.R:2590, 2621 [f1] | S bart.R:564 | S dbarts.R:361 | R data.R:468 | R data.R:468 | S RIB:1576 [f3] |
+| nbinom | R bart.R:2590 [f1] | S bart.R:565 | S dbarts.R:362 | M rbart.R:49 | M xbart.R:27 | S RIB:1583 [f3] |
+| multinom | R bart.R:2590 [f1] | S bart.R:563 | R dbarts.R:355 | R data.R:468 | R data.R:468 | M [f4] |
+| aft | S bart.R:2581 [f1] [f5] | S bart.R:562 | S dbarts.R:360 | S rbart.R:49 | M xbart.R:27 | S CAPI:531 |
 | hazard | - [f1] | S bart.R:566 | S dbarts.R:363 | M rbart.R:49 | M xbart.R:27 | M [f6] |
-| hurdle | - [f1] | S bart.R:569 | R dbarts.R:393 | M | M | M [f6] |
-| bcf | - [f1] | R bart.R:625 [f7] | S dbarts.R:350 | R rbart.R:60 | M | S CAPI:537-559 |
+| hurdle | R bart.R:2590 [f1] | S bart.R:569 | R dbarts.R:393 | M | M | M [f6] |
+| bcf | - [f1] | S R/formulaTerms.R (ingestFormulaTerms) [f7] | S dbarts.R:350 | R rbart.R:60 | M | S CAPI:537-559 |
 | grouped | - [f1] | M [f8] | M [f8] | S rbart.R:367 | M | S RIB:1924 [f3] |
 | hetero | - [f1] | S bart.R:549 | S dbarts.R:346 | R rbart.R:60 | M | S RIB:2014 [f3] |
 
@@ -141,6 +167,15 @@ aft, ordinal and nbinom are refused there by name, each stating what it is
 missing (spec.R:449-471), with the same three-family gate at the bridge
 (`refusedBCFFamilyReason` RIB:2279, called from both creation routes at
 RIB:2327 and RIB:3113) and at the factory (`createBCFSampler` FAC:817-820).
+
+Since S12 (`bart2-argument-consolidation`), `bart2()`'s formula interface
+reaches the same `forests =` machinery through a `forest()` term rather than a
+formal of its own - VD decided the term route as an XOR against a flat
+`forests =` on `bart2`, recorded as a declined-but-addable door (that plan's
+5.5.3) - so this is a THIRD construction route into the bcf row, alongside
+`dbarts()`/`dbartsSpec()`'s `forests =` and bartCause's `bcf()`; the family gate
+is identical (gaussian, probit or logistic only) since it resolves through the
+same `forests =` machinery. See [f7].
 
 ## 2. Mutation channels on the R5 `dbartsSampler`
 
@@ -234,11 +269,23 @@ are reachable through dbarts.h and untested there.
 
 ## Footnotes
 
-[f1] `bart()` carries no `family` formal (bart.R:2276-2311); the family is
-inferred from the response (numeric -> gaussian, 2-level -> probit) and
-`resid.dist` is its only response-law lever. Families needing an explicit token
-are out of reach by signature, not by refusal. Ordinal is the exception: it is
-explicitly backstopped at bart.R:2410.
+[f1] Since S10 (`bart2-argument-consolidation`, 726dab10) `bart()` carries a
+narrow, appended `family` formal, `c("auto", "logistic", "aft")` (`bart.R`,
+`bart`'s formals), forwarded to `dbarts()` verbatim; `"auto"` (the default)
+still infers gaussian/probit from the response, and `resid.dist` remains the
+separate Student-t lever, untouched by `family`. Four bart2-own-class tokens -
+`"multinomial"`, `"ordinal"`, `"nbinom"`, `"hurdle.lognormal"` - are refused BY
+NAME ahead of `match.arg`'s generic message, by the shared
+`refuseBartOwnClassFamily`/`bartOwnClassFamilies` (`bart.R`); ordinal's own
+auto-detection off an ordered-factor response routes through the same helper
+now, no longer a hand-rolled backstop. The remaining six tokens - `"gaussian"`,
+`"probit"`, `"hazard.probit"`, `"hazard"`, `"hazard.logistic"`, `"twopart"` -
+are simply not in the formal's vocabulary at all and fall to `match.arg`'s
+generic "should be one of" message if typed: the first three add no capability
+`"auto"` does not already give, and `"hazard"`/`"hazard.logistic"` need
+`breaks`/`max.rows`, which `bart()` does not have (both reasons stated in
+man/bart.Rd's `family` item). `bcf`, `grouped` and `hetero` are not `family`
+tokens at all and stay out of reach by signature, unaffected by S10.
 
 [f2] Student-t is not a token anywhere. It is selected by a finite `resid.df`
 attribute on the model SEXP (RIB:2570-2581, gaussian-only gate) and refused for
@@ -259,9 +306,12 @@ replaced its "Gaussian responses only" at CAPI:555-559.
 the R-internal `.Call` entries `C_dbarts_bartcore_createMultinomial` /
 `...Counts` (bartcore.R:843, 906).
 
-[f5] A `Surv()` response passed to `bart()` auto-dispatches through `dbarts()`
-and nothing refuses it (bart.R:2406), but man/bart.Rd:151 does not document it.
-Reachable, undocumented, intent unadjudicated.
+[f5] SUPERSEDED by S10 (`bart2-argument-consolidation`, 726dab10) and S14
+(9031b348): `family = "aft"` is now an explicit, appended token on `bart()`
+(`c("auto", "logistic", "aft")`), documented in man/bart.Rd's `family` item,
+rather than an undocumented `Surv()` auto-dispatch quirk - see [f1]. The
+underlying `Surv()`/two-column-`y.train` detection this footnote used to flag
+is unchanged.
 
 [f6] `family = "hazard"` / `"hazard.probit"` / `"hazard.logistic"` is
 person-period ingestion sugar: dbarts.R:435-484 expands the design and remaps
@@ -271,12 +321,27 @@ equals the probit (or logistic) row, and the fit records `family = "probit"`.
 No engine code, hence no C-API token and no SBC arm. Refusals inside the
 expander: no formula interface (:436), no `subset` (:451), no `test` (:454).
 
-[f7] `treatment` is not a `bart2()` formal, so the unknown-argument check at
-bart.R:625-635 kills it. BCF's public creation surface is `dbarts()` /
-`dbartsSpec()`; `bcf()` and `bartBCF` ship in **bartCause**, not dbarts
+[f7] `treatment` is still not a `bart2()` formal - it is refused as an unknown
+dots argument by the shared `rejectUnknownDotsArgs` (bart.R, called on bart2's
+own dots). But since S12 (`bart2-argument-consolidation`, 4b179585) the general
+K-forest amplitude capability this row names IS reachable from `bart2()`'s
+FORMULA interface: a `forest()` term - `z:forest(x1 + x2)`, or the general
+`forest(x1 + x2, basis = ~z)` form - rewrites the formula and feeds the same
+`forests = list(forest(), forest(basis = ))` channel `dbarts()`/`dbartsSpec()`
+already used (`ingestFormulaTerms`, `R/formulaTerms.R`, called from `dbarts()`'s
+formula path; `bart2` dispatches through it for every family except
+multinomial, which refuses a `forest()` term by name since it has no
+amplitude-coupled slot). A two-forest fit built this way carries the same
+`bartcore.bcf` control attribute as one built through `forests =`
+(inst/tinytest/test-formula-terms.R Block B, byte-identical at the same seed).
+What remains absent is the NAMED causal verb, not the general capability:
+`bcf()` and `bartBCF` still ship in **bartCause**, not dbarts
 (bcf-public-surface.md:483-496, fork 4 RESOLVED VD 2026-08-11; echoed
-bcf.md:370-396). This row therefore tracks the engine capability, not a dbarts
-user-facing verb.
+bcf.md:370-396). `forests =` on `bart2` itself was considered and declined as a
+second spelling (bart2-argument-consolidation 5.5.3) - the formula route is the
+only one bart2 gets; forest 1's `sd`/`update.amplitude` have no term spelling
+(same plan, 5.7), which is why `bart2()`'s own knobs still don't reach a term's
+forest the way `forests =` on `dbarts()` would.
 
 [f8] `bartcore.groups` is written at exactly one site, rbart.R:367, and no other
 entry point carries a `group.by` formal, so grouped random effects are an
@@ -791,6 +856,23 @@ conduit and both refusals above, at inst/tinytest/test-bcf-family.R:406-422.
 That file is the whole of the latent K-forest's evidence: no equivalence
 scenario and no SBC arm reaches one.
 
+The IN-SAMPLE per-forest OUTPUT channel (as opposed to construction, above)
+LANDED at bart2-argument-consolidation S11 (00abf336): `packageBartResults`
+packages `forestFits`/`glue` - response-scale raw per-forest totals and the
+ragged multiplier channel - onto any bcf-shaped fit regardless of how it was
+built, with `forest1..K` names and a `forest.labels` attribute, and
+`extract(type = "forest", forest =, contribution = )` serves it (raw slice or
+the on-demand `basis %*% glue` contribution) under both `combineChains`
+conventions; refused by name on a fit without forest reporting or with
+`sample = "test"`. S12/S13 add `inst/tinytest/test-formula-terms.R`'s own
+identity checks (Block B: a term-built two-forest fit is byte-identical to the
+equivalent `forests =` one at the same seed) as further bitwise evidence for
+the gaussian/probit/logistic construction route, though it is not an
+equivalence-harness scenario and does not change the counts in table 5.
+Out-of-sample per-forest replay (`predict()`) remains a door - S11 did not open
+it (bart2-argument-consolidation N8; `docs/plans/bcf-bartcause-relocation.md`
+:1271-1273).
+
 ## Gaps
 
 Every MISSING (`M`) and UNVERIFIED (`?`) cell above, as candidate work items,
@@ -810,9 +892,8 @@ dedicated tinytest file.
 
 **probit.** None.
 
-**logistic.** No `bart()` reach ([f1] - by signature). No `rbart_vi()` token
-(rbart.R:49), so grouped logistic is engine-reachable but not R-reachable. No
-flat-C test coverage.
+**logistic.** No `rbart_vi()` token (rbart.R:49), so grouped logistic is
+engine-reachable but not R-reachable. No flat-C test coverage.
 
 **ordinal.** No `xbart()` or `rbart_vi()` reach (both refused at data.R:468 as
 unsupported response shapes). Pointwise log-likelihood unbuilt
@@ -838,7 +919,7 @@ absence. SBC raw `f_ik` OPEN.
 **aft.** No `xbart()` token. Pointwise loglik ships, but `setWeights` is refused
 and the censoring status is fixed at creation, which is also what keeps AFT out
 of the SBC matrix - a status setter is the named enabler ([f45]). No standalone
-equivalence scenario ([f44]). `bart()` reach is undocumented ([f5]).
+equivalence scenario ([f44]).
 
 **hazard.** No flat-C token and no engine code of its own ([f6]); no
 `rbart_vi()`, `xbart()` or `dbartsSpec()` reach. Out of SBC by design. One
@@ -850,8 +931,10 @@ dedicated tinytest file.
 code path and the documentation ([f34]) - resolve before scheduling anything
 that depends on it.
 
-**bcf.** No `bart2()` surface, by the resolved fork that puts `bcf()` in
-bartCause ([f7]). No pointwise loglik. Warm start and
+**bcf.** No `bart2()` surface for the NAMED `bcf()` causal verb, by the
+resolved fork that puts it in bartCause; the general K-forest amplitude
+capability itself IS reachable from `bart2()`'s formula interface via a
+`forest()` term since S12 ([f7]). No pointwise loglik. Warm start and
 grow-from-root are unrefused and untested for two forests ([f36]). Whole-data
 `setData` stays undesigned (door 1 of the model-space survey).
 `setForestWeights` now has a public R5 method (multiforest-extension-surface

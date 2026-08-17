@@ -1898,3 +1898,68 @@ no contradiction; pkgdown clean; NEWS 260-entry parse; check
 REFUTED by a byte-identical base-vs-slice log diff - its own
 library scope lacked the vignette toolchain). ARC SLICES S1-S14
 COMPLETE; closure records and the comment sweep follow.
+
+## ARC CLOSURE, 2026-08-17
+
+S1-S14 all LANDED, each independently gated by an implementer plus an
+independent runner, every gate CI six-green: S1 ebc57af7, S2 2eb6a1a4,
+S3 6f1ba79e, S4 ec59caf6, S5 ba4f761d, S6 5aa4d292, S7 de2212bc,
+S8 d54c2791, S9 8b263ae5, S10 726dab10, S11 00abf336 (S9+S10+S11 landed
+as a batch under the shared merged-tree battery clause, own-base gated
+first, merged tree re-verified at S11's tip - batch note above), S12
+4b179585, S13 172523e6, S14 9031b348. The comment sweep dcc8262e closed
+the arc's scaffolding per the owner's comments-state-constraints rule
+(records may cite docs/plans; shipped code may not) - it swept both this
+arc's own plan/slice tags (S4-S11 tags in R/utility.R, R/bart.R,
+R/rbart.R, R/xbart.R, T-A..T-E citations in the tinytest files) AND
+prior arcs' residue left standing in the same files it touched:
+multiforest-extension-surface's M4.1/M4.3/M4.4 comments, binary-kforest-
+prior-default's leg-(c)/fork-3b comments, and bcf-b-ridge.md's derivation
+citations (its exponent rule, its b-move rationale) in R/bartcore.R and
+the bartcore headers.
+
+Lockstep consumer state: bartCause dbarts-1.0 = 31519d22 (S8's xbart
+control= removal - bayesOpt.R's move-into-control block replaced by a
+formals()-driven drop filter, own probe pair, suite green), which is
+also bartCause's current dbarts-1.0 tip. The S5-era pairs already
+recorded above: bartCause a3aa98d (rngSeed -> seed at bcf.R + two test
+dbartsControl calls), stan4bart 54e157b (rngSeed -> seed at test-02 plus
+a NEWS breaking-changes bullet).
+
+Items the arc RECORDED for later rather than resolving:
+
+- `dbartsData(bases =)`'s count-only contract at the lower-level
+  constructor stays ambiguous at equal-but-not-full row counts, by
+  SCOPING rather than by fix - the formula path's own ambiguity closed
+  at S13, this one did not (S13 note above).
+- Forest 1's `sd` and `update.amplitude` have no term spelling (5.7):
+  the cost of VD's XOR against a `forests =` formal, which remains
+  addable later and is recorded as a door rather than taken (5.5.3).
+- The K-forest front-door spelling door `docs/plans/bcf-bartcause-
+  relocation.md`'s Doors held section left riding this arc's review is
+  now ANSWERED: formula-level terms with colon sugar, no `forests =`
+  formal (5.2, 10.11) - that plan's own 2026-08-16 post-arc addendum
+  already records this against section 5 of this plan, so nothing
+  further is owed there.
+- Out-of-sample per-forest replay (N8) stays a door: S11 shipped only
+  the in-sample half (`extract(type = "forest")`); `predict()` needs the
+  engine-side per-forest saved-tree replay door recorded at
+  `docs/plans/bcf-bartcause-relocation.md`:1271-1273, which this arc did
+  not open. 5.8.6 says that door's language is updated "at the records
+  commit" - recorded here rather than by editing that file, which is
+  outside this closure's scope.
+- The harness coverage note: the equivalence harness has no bart2
+  gaussian/probit scenario and no two-forest-via-formula scenario, so
+  several slices carried their own in-slice bitwise A/B gates instead;
+  a harness coverage note rides the next baseline re-record (1.3's own
+  text, unchanged by this closure).
+
+One recommendation surfaced by the sweep: a handful of door memos in
+`docs/plans/` carry rationale that SHIPPED code still relies on
+(`docs/plans/bcf-b-ridge.md`'s exponent rule was cited from a live
+comment until this sweep removed the citation, not the reliance) -
+these read more like standing design records than closed proposals.
+Promoting the load-bearing ones to `docs/design/` (or cross-referencing
+them from the relevant design doc) would give them the durability
+`docs/design/*.md` is for; route this to the release-candidate-review
+program rather than deciding it here.
