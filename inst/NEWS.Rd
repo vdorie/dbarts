@@ -1382,6 +1382,10 @@
             does collide with \code{dart}/\code{split.probs}, which would
             only duplicate it. Every default reproduces prior behavior;
             \code{n.th=} no longer partial-matches \code{n.threads}.
+      \item \code{bart2} and \code{rbart_vi}'s \code{split.probs} formal now
+            defaults to \code{NULL} rather than \code{1 / num.vars}; both
+            spellings already resolved to the same uniform prior, so this
+            is a default respelling with no change to any fit's draws.
     }
   }
 }

@@ -597,7 +597,7 @@ bart2 <- function(
   prior.scale = NA_real_,
   power = 2.0,
   base = 0.95,
-  split.probs = 1 / num.vars,
+  split.probs = NULL,
   dart = FALSE,
   n.trees = 75L,
   n.samples = 500L,
