@@ -557,6 +557,29 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### C - the cross-file-checked stale-prose sweep opens wave 1 (5f2ced48, 2026-08-17)
+
+Five sediment findings, each verified still-stale against the live
+tree then corrected as prose only: R/bartcore.R's comment asserting
+the logistic family and categorical ingestion are unreachable
+capabilities (both shipped - bart2's public family argument, the
+data constructor's factors = "categorical" default - the comment
+now states the shipped reality); its "future multinomial creation
+route" (shipped); rbart.R's "we're are" typo; the NEWS rngSeed
+advertisement corrected to seed (that one line only - the wholesale
+consolidation is H's); utility.R's "now that the rename lands"
+tense. The enforced rule, stated for the record: a comment
+asserting a capability's ABSENCE must be checked against the file
+that would PROVIDE it - the class both the landed readability
+review and the dcc8262e sweep missed by reading files in isolation.
+No finding needed a code change. Neutrality: parse-tree identity
+(keep.source = FALSE) on all three touched R files, proven by the
+implementer and INDEPENDENTLY re-derived by the orchestrator; full
+battery green (tinytest 5825/0, trio bitwise 37/37 12/12 10/10,
+air/lintr clean, NEWS parses at 267, R CMD check --as-cran OK).
+13 insertions / 12 deletions. Landing gated on B2's six-green
+(sanitizers included), which arrived first.
+
 ### B2 - the shared container-metadata check; WAVE 0 CLOSES (0a1d56fe, 2026-08-17)
 
 One file-local requireCscReferenceMeta helper in the bridge
