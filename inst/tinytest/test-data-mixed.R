@@ -392,3 +392,29 @@ fit.all.sparse <- bart2(
   verbose = FALSE
 )
 expect_equal(length(fitted(fit.all.sparse)), n)
+
+# METADATA: a container whose per-sparse-column reference metadata does not
+# describe its sparse block is refused where it arrives - creation validates
+# the pair exactly as the mutation entrances do, rather than ignoring it and
+# leaving the same object to be refused at the next entrance
+data.short <- data.mixed
+data.short@x$sparseReference <- data.short@x$sparseReference[1L]
+expect_error(
+  dbarts(data.short, control = alignControl),
+  pattern = "malformed mixed predictor container"
+)
+data.no.count <- data.mixed
+data.no.count@x$sparseCategoryCount <- NULL
+expect_error(
+  dbarts(data.no.count, control = alignControl),
+  pattern = "malformed mixed predictor container"
+)
+
+sampler.meta <- dbarts(x.frame, y, control = alignControl)
+expect_error(
+  sampler.meta$setPredictor(data.short@x, forceUpdate = TRUE),
+  pattern = "malformed mixed predictor container"
+)
+# the well-formed container of the same design still installs and runs
+expect_silent(sampler.meta$setPredictor(data.mixed@x, forceUpdate = TRUE))
+expect_true(all(is.finite(sampler.meta$run()$sigma)))
