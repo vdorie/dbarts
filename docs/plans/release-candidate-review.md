@@ -557,6 +557,33 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### A - bart() weights parity and zero-draw guard (f3f6c80c, 2026-08-17)
+
+bart()'s tail now attaches $weights/$weights.test exactly as bart2's
+does, fixing a silent wrong answer: on a weighted bart() fit the
+loglik/ppd machinery computed UNWEIGHTED quantities - the
+gate-runner's probe showed the base build matching the unweighted
+gaussian density exactly where the slice matches
+dnorm(y, ev, sigma/sqrt(w)) bit-identically. A zero (or
+thinned-to-zero) draw count now refuses as "'ndpost' must be a
+positive integer" (bart2's guard mirrored in this surface's own
+formal spelling) instead of faulting deep in the empty-array reshape
+("dim(X) must have a positive length", reproduced verbatim on base).
+One NEWS BUG FIXES item; no Rd edit (no surface documents the
+internal $weights component - checked bart2.Rd/rbart.Rd too); no
+feature-matrix cell records the gap - checked. Two observations
+recorded for later waves, not fixed here: rbart_vi's thinning guard
+diverges from bart2's (== 0L vs <= 0L, different message - slice
+F/L material), and bart()/bart2() draws diverge at matched settings
+(surface-coherence question for wave 4, no contract claims
+otherwise). Test file test-bart-weights-parity.R: 6 assertions
+incl. the exact weighted-density pin. Gates twice (implementer +
+independent gate-runner): tinytest 5805/0; trio bitwise (37/37,
+12/12, 10/10); air/lintr clean; NEWS 264 entries; R CMD check
+--as-cran OK; discrimination three-way clean. Test dense count ran
+over budget on assertion formatting density - flagged by the
+implementer, accepted as precision rather than scope.
+
 ### P1a - the ensemble-scale sum-invariance oracle (6bfe46bc, 2026-08-17)
 
 tests/cpp gains test_ensemble.cpp: 200 trees x 503 observations x 30
