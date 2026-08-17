@@ -166,7 +166,10 @@ expect_error(
 )
 
 # SAME TIER: a state saved by another declared-table sampler restores
-source(system.file("common", "stateContinuation.R", package = "dbarts"))
+source(
+  system.file("common", "stateContinuation.R", package = "dbarts"),
+  local = TRUE
+)
 state.declared <- sampler.declared$state
 sampler.restore <- dbarts(
   data.frame(z = z.wide, g = g.declared),
@@ -175,7 +178,7 @@ sampler.restore <- dbarts(
 )
 sampler.restore$setState(state.declared)
 sampler.restore$storeState()
-expect_true(statesAgree(sampler.restore$state, state.declared))
+statesAgree(sampler.restore$state, state.declared)
 
 rm(
   sampler.gap,

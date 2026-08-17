@@ -32,7 +32,8 @@ Suggests:
   rmarkdown,
   tinytest,
   Matrix,
-  posterior
+  posterior,
+  survival
 VignetteBuilder: knitr, rmarkdown
 Config/Needs/check: rcmdcheck
 Config/Needs/dev: lintr, languageserver

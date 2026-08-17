@@ -34,6 +34,12 @@ setwd(owd)
 
 sharedLib <- file.path(buildDir, paste0("consumer", .Platform$dynlib.ext))
 if (!file.exists(sharedLib)) {
+  if (nzchar(Sys.getenv("CI", ""))) {
+    stop(
+      "could not compile the C API consumer under CI:\n",
+      paste(compileOutput, collapse = "\n")
+    )
+  }
   exit_file("could not compile the C API consumer")
 }
 

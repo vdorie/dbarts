@@ -75,7 +75,10 @@ predictions <- sampler$predict(df[seq_len(50L), c("g", "h", "z")])
 expect_equal(dim(predictions), dim(samples$test))
 expect_true(max(abs(predictions - samples$test)) < 1e-10)
 
-source(system.file("common", "stateContinuation.R", package = "dbarts"))
+source(
+  system.file("common", "stateContinuation.R", package = "dbarts"),
+  local = TRUE
+)
 # the state round-trips, mask channels included
 invisible(sampler$storeState())
 state <- sampler$state
@@ -92,7 +95,7 @@ sampler2 <- dbarts(
 )
 sampler2$setState(state)
 sampler2$storeState()
-expect_true(statesAgree(sampler2$state, state))
+statesAgree(sampler2$state, state)
 for (ci in seq_along(state)) {
   expect_identical(
     sampler2$state[[ci]]$forests[[1L]]$tree.masks,
