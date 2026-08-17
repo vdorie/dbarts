@@ -153,6 +153,10 @@ void runModelTests(ext_rng* rng);
 void runSamplerTests(ext_rng* rng);
 void runShapeTests(ext_rng* rng);
 void runStateTests(ext_rng* rng);
+// no rng argument on purpose: the ensemble oracle owns its generator and
+// restores the shared runif01 stream, so it neither shifts nor is shifted by
+// any other suite's draws
+void runEnsembleTests();
 void runFuzzTests(int numSeeds);
 
 #endif  // TESTS_CPP_COMMON_HPP

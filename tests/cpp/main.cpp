@@ -3,9 +3,9 @@
 //
 // Usage: test_bartcore [seed-count] [suite]
 //   seed-count  an integer: the mutation fuzzer's seed count (default 3)
-//   suite       a name prefix (data, tree, moves, model, sampler, shape,
-//               state, fuzz) selecting only that suite; both arguments may
-//               appear in either order
+//   suite       a name prefix (data, tree, scan, grow, moves, interaction,
+//               model, sampler, shape, state, ensemble, fuzz) selecting only
+//               that suite; both arguments may appear in either order
 
 #include "common.hpp"
 
@@ -74,6 +74,9 @@ int main(int argc, char** argv) {
   if (suiteSelected(filter, "sampler")) runSamplerTests(rng);
   if (suiteSelected(filter, "shape")) runShapeTests(rng);
   if (suiteSelected(filter, "state")) runStateTests(rng);
+  // takes no shared rng and restores rngState, so it can sit anywhere here
+  // without moving a downstream suite's draws
+  if (suiteSelected(filter, "ensemble")) runEnsembleTests();
 
   ext_rng_destroy(rng);
 
