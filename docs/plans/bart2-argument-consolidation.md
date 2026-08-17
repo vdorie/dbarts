@@ -1843,3 +1843,32 @@ came from a respawned runner re-running the WHOLE battery after a
 usage-limit kill mid-mutation; its audit found and restored the
 predecessor's half-applied mutation before rebuilding its libs from
 scratch.
+
+S13 (fork 6c, formula-path bases subsetting) LANDED 172523e6,
+2026-08-17. The decided BEHAVIOR CHANGE: on dbarts()'s formula path
+with subset present, a forests= basis (raw matrix or formula-
+evaluated) must be FULL-DATA length and is subset by the same index
+the model frame uses (resolveFormulaBasisSubset reads the count from
+the formula's own variables and the index by model.frame's subscript
+reading; alignForestBasisToSubset applies it); the equal-count-but-
+not-full-length shape a count-only check once silently row-aligned
+is refused naming the forest and both counts; any OTHER count still
+falls through to the pre-existing length-of-basis error.
+Implementation finding: basis FORMULAS were evaluated eagerly
+against the full pre-subset data all along, so under subset the old
+count check made every formula basis UNUSABLE (always errored) - the
+slice makes exactly the full-length shape work, for matrices and
+formulas alike, converging on the term route's post-subset rule.
+Scope containment verified: validateForestBases untouched at all
+three call sites; the x/y interface ALREADY subset full-length bases
+correctly (the asymmetry was formula-path-only - regression-
+asserted); direct dbartsData(bases =) keeps its count-only contract
+BY SCOPING, regression-asserted - the ambiguous shape survives on
+that lower-level constructor, recorded for the arc review; the S12
+term route is bitwise unchanged. NEWS carries the behavior change.
+Gates: both runners green (5581/0; trio 37+12+10 bitwise canonical;
+the six-cell behavioral matrix verified base-vs-slice on matrices
+AND formulas; edge probes: all-rows-subset identity, neither-count
+fallthrough, negative-index alignment vs a manual fit; mutation
+isolates exactly the 2 refusal assertions; NEWS 259; check OK
+twice).
