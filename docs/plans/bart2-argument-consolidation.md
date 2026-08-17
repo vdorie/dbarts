@@ -1802,3 +1802,44 @@ block replaced by a formals()-driven drop filter; probe pair proves
 old-errors/new-completes; suite 724 pass with only the recorded
 environmental stan4bart-ABI failure, proven pre-existing by an
 identical-baseline check).
+
+S12 (fork 6b, formula-term ingestion) LANDED 4b179585, 2026-08-17.
+forest() is now a formula term on the shared dbarts()/bart2 formula
+path: R/formulaTerms.R carries the both-sides AST walk with
+whole-ancestor-chain legality (only +/:/*/~ above a hit; LHS,
+removals, I(), ^, any other call refuse by name), hit detection for
+bare additive terms and :/* nodes with a forest operand including the
+dbarts::-qualified head, recursion into non-forest operands (both-
+sides heads found), AST surgery preserving intercept/offset()/
+back-ticks/environment by construction, the 5.2.1a closed left-
+operand grammar with the desugar targets ~ z / ~ factor(z) /
+~ cbind(a, b) through the shipped evaluateForestBasis channel, the
+symbolic unnamed slot (never evaluated, subset-of-the-rewritten-RHS,
+factor names expanding to all indicator columns via
+resolveTermColumns), post-subset basis evaluation via a dedicated
+model frame, the family matrix refused at resolution time (hazard*,
+multinomial, hurdle.lognormal via bart2-side guards, aft/ordinal/
+nbinom uniformly reworded), test= and pre-built-data refusals, both
+5.5.2 collisions, the y ~ 1 / y ~ 0 residues, and the all-zero
+basis-column refusal (in expandForestBasis, so the forests= route
+gains it too - a shared-enforcement finding). TWO REVIEW-DRIVEN
+ADDITIONS: a term-bearing formula given TOGETHER with forests= is a
+by-name collision refusal (the plan left the combination
+unspecified; recorded here as the resolution), and nested colon
+chains in BOTH associativity directions (forest(x1):z:a,
+a:(b:forest(x1))) refuse by name rather than falling to
+model.frame's generic error - the walk originally skipped legal-
+context :/* nodes without a direct forest operand. bart2 gains NO
+forests= formal (the decided XOR). Docs: a term-context paragraph in
+man/forest.Rd; the full bart2 term documentation rides the docs
+slice. Gates: implementer + independent runner green (5569/0 full
+suite, 80/80 term file; block A 9-10 cells cross-build identical;
+block B 8 cells byte-identical on data@bases + bartcore.bcf +
+draws; block C 30+ named refusals incl. the nested-chain pair;
+subset-semantics draws identical to pre-subsetted fits; trio
+37+12+10 bitwise canonical; mutation isolates exactly the ancestor-
+chain/desugar/RHS-subset cells; NEWS 258; check OK). The final PASS
+came from a respawned runner re-running the WHOLE battery after a
+usage-limit kill mid-mutation; its audit found and restored the
+predecessor's half-applied mutation before rebuilding its libs from
+scratch.
