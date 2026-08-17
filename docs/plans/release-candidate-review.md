@@ -557,6 +557,38 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### K3 - bridge/engine sediment sweep (28ead6e2, 2026-08-17)
+
+Comment-only, 54/54 lines across six files, all five findings
+re-derived live. The ten present-tense "classic engine" mentions in
+the bridge are gone (grep returns zero): the two describing the
+real getTrees data.frame format reworded keeping the substance, the
+two-engine invariant dropped outright, and the undefined
+"reference-engine" claim replaced by refuseBinaryWeightChange's
+actual predicate. The five comparison-to-a-vanished-baseline
+comments (combiner.hpp x4, data.hpp) are now DERIVED INVARIANTS a
+reader can check against the adjacent code - e.g. "yields exactly
+today's pointer" became "off an offset this returns forest k's own
+totalFits buffer, so no train-side reader sees a copy and raw_
+stays empty; the offset costs an offset-free run neither an
+allocation nor an addition". bartcore.hpp's header prose refreshed
+to the shipped family/leaf roster (verified against
+ResponseFamily/LeafModelKind); dbarts.h's 1.0-0 field-boundary
+marker moved below the fields it governs with its apology deleted,
+declarations byte-untouched; the 2016 rc/bounds.h TODO deleted -
+the tree-wide marker grep over src/ and inst/include/ now returns
+ZERO. Two candidates adjudicated OUT with reasons that sharpen the
+kind: model.hpp's "classic form" is textbook algebra, and nine
+surviving "today" statements have their right-hand side IN the
+tree (checkable current-set claims, not vanished baselines).
+Neutrality: clang -E -P identity on six TUs base-vs-slice - the
+full engine via bartcore.hpp, the bridge, combiner, data, the
+shipped header as -x c (the LinkingTo view), bounds - all
+byte-identical, zero __LINE__ shifts. Battery: tests/cpp clean;
+tinytest 5825/0; trio bitwise 37/37 12/12 10/10; R CMD check OK
+from a built tarball (raw-directory check trips on Authors@R -
+staging artifact, build-then-check is the recorded procedure).
+
 ### C - the cross-file-checked stale-prose sweep opens wave 1 (5f2ced48, 2026-08-17)
 
 Five sediment findings, each verified still-stale against the live
