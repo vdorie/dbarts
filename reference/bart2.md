@@ -704,18 +704,17 @@ summary(object, ...)
   non-negative and finite and must carry at least one exact zero and one
   positive value (a response with no zeros, or none positive, is refused
   by name). By default `predict`/`fitted`/`extract` report the NATURAL
-  (response) scale via posterior-predictive Monte Carlo,
-  heteroscedasticity-aware: \\E\[y \mid x\] = P(y \> 0 \mid
-  x)\\e^{f(x) + \sigma^2 / 2}\\ computed per posterior draw, consuming
-  the positive part's per-observation \\\sigma(x)\\ when a
-  heteroscedastic `variance = ~x` surface is enabled on it (a single
-  \\\sigma\\ per draw otherwise). `type = "prob"` returns the occupancy
-  probability \\\pi(x)\\ through the probit link;
-  `type = "link"`/`"log"` the positive part's log-scale linear predictor
-  \\f(x)\\; `type = "ppd"` draws the proper BIMODAL predictive - a
-  Bernoulli(\\\pi\\) spike at zero, else a lognormal draw - which the
-  plain gaussian ppd path cannot produce. Fits currently use the matrix
-  interface only
+  (response) scale via posterior-predictive Monte Carlo: \\E\[y \mid x\]
+  = P(y \> 0 \mid x)\\e^{f(x) + \sigma^2 / 2}\\ computed per posterior
+  draw from the positive part's single \\\sigma\\ per draw, recycled
+  across observations (the positive part is always homoscedastic; a
+  heteroscedastic positive part is not reachable, see the recorded
+  limitation above). `type = "prob"` returns the occupancy probability
+  \\\pi(x)\\ through the probit link; `type = "link"`/`"log"` the
+  positive part's log-scale linear predictor \\f(x)\\; `type = "ppd"`
+  draws the proper BIMODAL predictive - a Bernoulli(\\\pi\\) spike at
+  zero, else a lognormal draw - which the plain gaussian ppd path cannot
+  produce. Fits currently use the matrix interface only
   (`bart2(x.train, y.train, family = "hurdle.lognormal")`); `weights`,
   `subset`, `offset`/`offset.test`, and `test` are all refused with an
   error naming the limitation - the positive-part fit is instead given
@@ -1180,7 +1179,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001365
+#> total seconds in loop: 0.001370
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
@@ -1227,7 +1226,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001541
+#> total seconds in loop: 0.001609
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 2 3 2 

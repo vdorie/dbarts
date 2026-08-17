@@ -459,8 +459,8 @@ dbarts(
   at least one exact zero and one positive value. By default,
   predictions report the natural (response) scale via
   posterior-predictive Monte Carlo, \\E\[y \mid x\] = P(y \> 0 \mid
-  x)\\e^{f(x) + \sigma^2 / 2}\\, heteroscedasticity-aware when the
-  positive part carries a `variance = ~x` surface; see
+  x)\\e^{f(x) + \sigma^2 / 2}\\, using the positive part's single
+  \\\sigma\\ per draw (the positive part is always homoscedastic); see
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) for the
   full `type` options (`"prob"`, `"link"`/`"log"`, the bimodal `"ppd"`)
   and the refusal list (`weights`, `subset`, `offset`, and `test` are
