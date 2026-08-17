@@ -557,6 +557,37 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### P1a - the ensemble-scale sum-invariance oracle (6bfe46bc, 2026-08-17)
+
+tests/cpp gains test_ensemble.cpp: 200 trees x 503 observations x 30
+sweeps, asserting after EVERY sweep over EVERY observation that
+totalFits sums the per-tree fits and that the rolled residual equals
+the working response minus every tree but the last - two independent
+gates on different code (totalFits is rebuilt as y - treeY +
+fits_last, so a finalize reading the wrong tree breaks the first
+alone), plus a non-degeneracy check. Real symbols re-derived from
+the live engine (the plan's names were descriptions):
+Chain::totalFits/treeFits/residualForTesting/
+workingResponseForTesting; the sweep's only aggregate writer is
+finalizeTotalFits, which never sums trees - exactly why the oracle
+compares against a fresh tree-order sum. Tolerance 1e-11 absolute,
+not bitwise (incremental roll vs fresh sum legitimately reassociate;
+worst measured deviation 1.17e-15, four orders of headroom, nine
+below one leaf value). Own seeded generator, shared-stream neutral
+(full-run diff shows only the one added line), green standalone
+under its own filter; ~30-50 ms, full suite 15.6 -> 16.1 s. POISON
+PROOF, both directions with hash-verified reverts and post-revert
+touch+rebuild: (A) a 1e-3 residual drift at tree 150 fails 60
+checks compounding across sweeps; (B) finalizeTotalFits reading
+last-1 at numTrees > 100 fails 59 totalFits checks while sweep 0's
+residual check stays green (the independence claim demonstrated).
+UNDER BOTH POISONS EVERY PRE-EXISTING GATE STAYED GREEN - the
+census's B1 blind spot confirmed experimentally, now closed.
+Orchestrator re-ran make clean + full suite + standalone filter
+independently, reproducing the reported worst deviations exactly.
+71 dense lines vs ~80 budget. Landed by rebase onto 0ddc233e
+(docs-only).
+
 ### CI hardening - reduction gates and assertion floors (5e1ee0a1, 2026-08-17)
 
 Three workflow files, package untouched. exact-gates.yaml gains
