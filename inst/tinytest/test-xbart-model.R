@@ -116,6 +116,110 @@ expect_error(
   pattern = "does not equal number of columns"
 )
 
+# S8 (docs/plans/bart2-argument-consolidation.md 3.f, 4.3, f2, f4): the four
+# flat knobs and tree.prior. Fits stay tiny; each assertion shows a knob
+# demonstrably reaches the fit, a bad value is refused, or tree.prior's
+# grid-override/collision rules hold.
+quickXbart <- function(...) {
+  dbarts::xbart(
+    x,
+    y,
+    n.reps = 2L,
+    n.samples = 6L,
+    n.burn = c(10L, 5L, 1L),
+    n.threads = 1L,
+    ...
+  )
+}
+
+# each knob moves the fit at a fixed seed: n.cuts changes the cut grid,
+# useQuantiles changes rule placement, n.thin changes which sweeps are
+# recorded, storage changes the residual's working precision
+expect_false(identical(
+  quickXbart(seed = 11L, n.cuts = 5L),
+  quickXbart(seed = 11L, n.cuts = 90L)
+))
+expect_false(identical(
+  quickXbart(seed = 12L, useQuantiles = FALSE),
+  quickXbart(seed = 12L, useQuantiles = TRUE)
+))
+expect_false(identical(
+  quickXbart(seed = 13L, n.thin = 1L),
+  quickXbart(seed = 13L, n.thin = 3L)
+))
+# storage: xbart always creates its per-fold samplers over a shared data
+# handle (bartcoreDataHandle/bartcoreSamplerFromHandle), a path the engine
+# keeps fp64-only regardless of family (reduced-precision-storage.md sec 6);
+# "single" reaching the fit is demonstrated by it reaching that refusal
+# rather than being silently dropped, while the "double" default still runs
+expect_silent(quickXbart(seed = 14L, storage = "double"))
+expect_error(
+  quickXbart(seed = 14L, storage = "single"),
+  pattern = "storage = \"single\" is not supported"
+)
+
+# shape-check refusals (f2), mirroring dbartsControl's own validity messages
+expect_error(
+  quickXbart(n.cuts = 0L),
+  pattern = "'n.cuts' must be a positive integer"
+)
+expect_error(
+  quickXbart(n.cuts = NA_integer_),
+  pattern = "'n.cuts' must be a positive integer"
+)
+expect_error(
+  quickXbart(useQuantiles = NA),
+  pattern = "'useQuantiles' must be TRUE/FALSE"
+)
+expect_error(
+  quickXbart(n.thin = -1L),
+  pattern = "'n.thin' must be a positive integer"
+)
+expect_error(quickXbart(storage = "half"), pattern = "should be one of")
+
+# tree.prior grid-override (f4): power/base are xbart's grid axes, so a
+# supplied cgm's own power/base are overridden every cell regardless of what
+# it names - a call that sweeps the grid directly is byte-identical to the
+# same sweep routed through an object naming DIFFERENT power/base
+gridDirect <- quickXbart(seed = 21L, power = c(1.5, 3), base = c(0.6, 0.9))
+gridViaObject <- quickXbart(
+  seed = 21L,
+  power = c(1.5, 3),
+  base = c(0.6, 0.9),
+  tree.prior = dbarts::dbartsPriors$cgm(power = 10, base = 0.1)
+)
+expect_identical(gridDirect, gridViaObject)
+
+# dart-prior-via-tree.prior equals dart = <the same object>
+dartObj <- dbarts::dbartsPriors$dart(a = 1)
+expect_identical(
+  quickXbart(seed = 22L, dart = dartObj),
+  quickXbart(seed = 22L, tree.prior = dartObj)
+)
+
+# collision refusals: dart/split.probs would only duplicate what a supplied
+# tree.prior already specifies; power/base/k stay legal alongside it, since
+# they are grid axes, not duplicates (unlike bart2's tree.prior)
+expect_error(
+  quickXbart(tree.prior = dbarts::dbartsPriors$cgm(), dart = TRUE),
+  pattern = "'tree.prior' cannot be combined with 'dart'"
+)
+expect_error(
+  quickXbart(
+    tree.prior = dbarts::dbartsPriors$cgm(),
+    split.probs = c(5, rep(1, p - 1L))
+  ),
+  pattern = "'tree.prior' cannot be combined with 'split.probs'"
+)
+expect_silent(quickXbart(
+  tree.prior = dbarts::dbartsPriors$cgm(),
+  power = c(1, 2),
+  base = 0.9,
+  k = 2
+))
+
+rm(quickXbart, gridDirect, gridViaObject, dartObj)
+
 rm(p, n.trees, k, y, x)
 
 rm(testData)
