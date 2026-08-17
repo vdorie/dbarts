@@ -557,6 +557,32 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### CI hardening - reduction gates and assertion floors (5e1ee0a1, 2026-08-17)
+
+Three workflow files, package untouched. exact-gates.yaml gains
+hazard-reduction.R and hurdle-reduction.R (the only checks those two
+shipped families have; ~0.3s each; neither reads commandArgs, so the
+mode argument passes harmlessly in quick and full). sanitizers.yaml's
+result post-processing gains a 5200-result total floor (~10% headroom
+under the measured 5799 baseline, derivation dated in the yaml) plus
+per-file floors set at 60-80% of measured counts (capi 150/232,
+bcf-r5 30/45, multinomial-surface 80/126, argument-surface 60/96,
+bartcore 160/250; test-simd floored at 0 with the reason recorded -
+MEASURED: an exit_file'd script yields a zero-length results object
+indistinguishable in aggregate from a silently dropped file, so the
+real SIMD floor lives on check-standard's NEON-forced arm64 leg,
+raised to the exact >= 2). Judgment call ACCEPTED at review: no
+duplicate floor inside the five-leg check matrix - those legs run
+tests opaquely inside rcmdcheck, a floor there would need a second
+install+suite per leg, and the same-push sanitizers floor already
+catches the class; redundancy, not blindness. Local gates: YAML
+valid under two parsers; floor expressions dry-run against the real
+5799-result object and shown tripping on subsets and on a bumped
+literal; both reduction scripts exercised exactly as invoked;
+paths-ignore/concurrency blocks unchanged (exact-gates' deliberate
+benchmarks/** non-ignore preserved). CI: SIX GREEN on its own push -
+the new gates and floors executed live and passed.
+
 ### capi-winfix - the ABI contract test runs on x64 Windows (9a299af6, 2026-08-17)
 
 The fix for the finding below: test-capi.R now writes a Makevars
