@@ -235,7 +235,7 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | multinom | R bart.R:891 | M RIB:1921 [f32] | R bart.R:891 [f33] | R bart.R:493 | R bart.R:493 |
 | aft | R spec.R:370 | S CH:605 | S CH:549 | S bart.R:1014 | S dbarts.R:901 |
 | hazard | R spec.R:370 | M rbart.R:49 [f6] | S CH:549 | S bart.R:1014 | S dbarts.R:901 |
-| hurdle | ? [f34] | M | S bart.R:1995, 2003 [f35] | R bart.R:493 | R bart.R:493 |
+| hurdle | R spec.R:392 [f34] | M | S bart.R:1995, 2003 [f35] | R bart.R:493 | R bart.R:493 |
 | bcf | R FAC:812 [f48] | R RIB:2350 | R spec.R:481, 511-517 | S SAM:724 [f36] | S CH:1814 [f36] |
 | grouped | ? [f30] | - | S rbart.R:578 | M rbart.R:45-51 [f37] | M rbart.R:45-51 [f37] |
 | hetero | - | ? [f30] | S CH:549 [f38] | S SAM:724 | S CH:1809 |
@@ -757,11 +757,14 @@ never reached the K-forest engine. `bart2` now refuses both routes by name
 `buildBCFForest` CH:4813) before either reaches the host sampler.
 
 [f34] `bart2Hurdle` builds both component calls with `redirectCall`
-(bart.R:1995, 2003), so a user's `variance =` is forwarded to BOTH - including
-the occupancy component, which then sets `family = "probit"` and would hit the
-non-gaussian variance refusal at spec.R:370. bart.Rd:281 nonetheless describes
-consuming the positive part's per-observation `sigma(x)`. The two readings are
-in tension; unresolved.
+(bart.R:2266, 2275), so a user's `variance =` is forwarded to BOTH - including
+the occupancy component, which then sets `family = "probit"` and hits the
+non-gaussian variance refusal at spec.R:392 before either component fits.
+That refusal is deliberate, not a bug: `hurdleSigmaVec`'s comment
+(generics.R:989-996, definition :997) states the positive fit is always
+homoscedastic because the gate makes a heteroscedastic component
+unreachable. The Rd side was the wrong one and is now corrected
+(bart2.Rd:224, dbarts.Rd:108) to match.
 
 [f35] `dart` is forwarded to both components (bart.R:1995, 2003), each of
 which is an ordinary single-forest chain that takes it.
@@ -928,9 +931,8 @@ dedicated tinytest file.
 
 **hurdle.** No `dbarts()` sampler by construction ([f12]); no `rbart_vi()`,
 `xbart()` or flat-C reach. No top-level pointwise loglik ([f25]). No warm start
-/ grow-from-root. Composition with a variance forest is in tension between the
-code path and the documentation ([f34]) - resolve before scheduling anything
-that depends on it.
+/ grow-from-root. A heteroscedastic positive part is REFUSED via the occupancy
+component's own gate, deliberately, not a partial feature ([f34]).
 
 **bcf.** No `bart2()` surface for the NAMED `bcf()` causal verb, by the
 resolved fork that puts it in bartCause; the general K-forest amplitude

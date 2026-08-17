@@ -1460,6 +1460,16 @@
             reused directly, any other length refused by name), matching
             the \code{offset.test = offset} formal default. Documentation
             only; no behavior changes.
+      \item \code{bart2}'s (and \code{dbarts}'s) \code{family =
+            "hurdle.lognormal"} documentation described the
+            posterior-predictive mean as consuming the positive part's
+            per-observation \eqn{\sigma(x)} when a heteroscedastic
+            \code{variance = ~x} surface was enabled on it; that state is
+            not reachable (a variance forest requires \code{family =
+            "gaussian"}, and the hurdle's occupancy component is always
+            \code{"probit"}), and the positive part has always been
+            homoscedastic, one \eqn{\sigma} per draw recycled across
+            observations. Documentation only; no behavior changes.
     }
   }
 }
