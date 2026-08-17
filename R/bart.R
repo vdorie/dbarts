@@ -211,10 +211,15 @@ packageBartResults <- function(
   # ambiguous (a single-forest multi-chain channel is 3-D too); data@bases is
   # the same probe isBCFSampler uses.
   numForests <- if (!is.null(fit$data@bases)) length(fit$data@bases) else 1L
+  forestNames <- if (numForests > 1L) {
+    paste0("forest", seq_len(numForests))
+  } else {
+    NULL
+  }
   varcount <- if (numForests > 1L) {
     shapeMultinomialChannel(
       samples$varcount,
-      paste0("forest", seq_len(numForests)),
+      forestNames,
       n.chains,
       combineChains,
       leadNames = colnames(fit$data@x)
@@ -226,6 +231,44 @@ packageBartResults <- function(
       n.chains,
       combineChains
     )
+  }
+
+  # the per-forest in-sample channels (docs/design/bcf.md; S11): forestFits is
+  # each forest's own RESPONSE-scale raw total (response.scale * f_k, no glue
+  # folded in - $getForestFits' meaning up to that one scalar) and glue the
+  # multiplier channel unchanged, so yhat = response.shift +
+  # sum_k (basis_k %*% glue_k) * forestFits_k reconstructs train exactly. The
+  # response transform is fixed at data creation and shared by every chain, so
+  # one chain's reading of it is the whole fit's. Gated on the COUPLING, not
+  # the forest count: forestReportingIsDefined() is true only for the
+  # amplitude-coupled combiner, so a K-forest multinomial run has numForests
+  # > 1 but samples$forestFits NULL (it packages through its own reshaper),
+  # and samples$forestFits's presence is this R-side shadow of that predicate.
+  forestFits <- NULL
+  glue <- NULL
+  hasForestReporting <- numForests > 1L && !is.null(samples$forestFits)
+  if (hasForestReporting) {
+    responseScale <- fit$getCalibration(1L)[1L, "response.scale"]
+    forestFits <- shapeMultinomialChannel(
+      samples$forestFits * responseScale,
+      forestNames,
+      n.chains,
+      combineChains
+    )
+    glue <- convertSamplesFromDbartsToBart(
+      samples$glue,
+      n.chains,
+      combineChains
+    )
+    # the ragged margin's forest-major width per forest (a basis-less forest's
+    # implicit intercept is one column), the same layout $getForestAmplitudes()
+    # documents
+    widths <- vapply(
+      fit$data@bases,
+      function(basis) if (is.null(basis)) 1L else ncol(basis),
+      integer(1L)
+    )
+    attr(glue, "forest") <- rep(forestNames, widths)
   }
 
   # heteroscedastic variance surface s(x) = sqrt(s^2(x)), train and test, on the
@@ -325,6 +368,18 @@ packageBartResults <- function(
   # the packaged rank alone cannot do
   if (numForests > 1L) {
     result$n.forests <- numForests
+  }
+  if (hasForestReporting) {
+    result$forestFits <- forestFits
+    result$glue <- glue
+    # the expanded per-forest bases, no draw axis (docs/design/bcf.md): what
+    # makes the reconstruction identity evaluable from the fit alone, since
+    # neither run() channel carries them
+    result$bases <- fit$data@bases
+    forestLabels <- attr(fit$control, "bartcore.bcf")$labels
+    if (!is.null(forestLabels)) {
+      attr(result, "forest.labels") <- forestLabels
+    }
   }
 
   if (keepSampler) {
@@ -1496,6 +1551,40 @@ shapeMultinomialChannel <- function(
   }
   dimnames(out) <- dn
   out
+}
+
+# Re-derives a K-margined packaged channel's requested combineChains shape
+# from however it is currently stored: forestFits' trailing n/forest pair
+# (trailing = 2) or glue's trailing ragged margin (trailing = 1), generalizing
+# combineOrUncombineChains (a single trailing margin) to what
+# shapeMultinomialChannel widens. Used by extract(type = "forest") to serve
+# either convention regardless of the fit's own packaged combineChains, the
+# same on-demand reshape yhat.train already gets there. n.chains <= 1 is a
+# no-op, as it is for every other channel: one chain carries no separate axis
+# to fold or split. Round-trips bitwise with shapeMultinomialChannel's own
+# combine/uncombine forms (MEASURED against the reshape it inverts).
+reshapeChainedChannel <- function(x, n.chains, combine, trailing) {
+  d <- dim(x)
+  storedCombined <- length(d) == trailing + 1L
+  if (n.chains <= 1L || storedCombined == combine) {
+    return(x)
+  }
+  dn <- dimnames(x)
+  trailIdx <- seq_len(trailing) + 2L
+  if (combine) {
+    a <- aperm(x, c(2L, 1L, trailIdx))
+    dim(a) <- c(d[1L] * d[2L], d[trailIdx])
+    if (!is.null(dn)) {
+      dimnames(a) <- c(list(NULL), dn[trailIdx])
+    }
+  } else {
+    a <- array(x, c(d[1L] %/% n.chains, n.chains, d[trailIdx - 1L]))
+    a <- aperm(a, c(2L, 1L, trailIdx))
+    if (!is.null(dn)) {
+      dimnames(a) <- c(list(NULL, NULL), dn[trailIdx - 1L])
+    }
+  }
+  a
 }
 
 # Reshapes one bartcoreRun() result into a bart2(family = "multinomial") fit.
