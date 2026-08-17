@@ -810,6 +810,68 @@ expandForestBasis <- function(basis) {
   basis
 }
 
+## The full (pre-'subset') row count of a formula fit's data, and the exact
+## rows 'subset' keeps in it: the length of any one variable the formula
+## names ('.' names no single column, so it is skipped for a real one), and
+## that same expression read as an ordinary vector subscript into the full
+## row sequence - the reading stats::model.frame() itself gives 'subset'.
+## NULL when there is no rule to apply: not a formula, or no 'subset' given.
+resolveFormulaBasisSubset <- function(formula, data, subsetExpr) {
+  if (!is.formula(formula) || is.null(subsetExpr)) {
+    return(NULL)
+  }
+  vars <- setdiff(all.vars(formula), ".")
+  if (length(vars) == 0L) {
+    return(NULL)
+  }
+  env <- environment(formula)
+  hasData <- is.data.frame(data) || is.list(data) || is.environment(data)
+  evalHere <- if (hasData) {
+    function(expr) eval(expr, data, env)
+  } else {
+    function(expr) eval(expr, env)
+  }
+  full <- NROW(evalHere(as.name(vars[1L])))
+  list(full = full, index = seq_len(full)[evalHere(subsetExpr)])
+}
+
+## Align one forest() declaration's evaluated basis to 'subsetRows'
+## (resolveFormulaBasisSubset's result). A NULL basis, or a NULL 'subsetRows'
+## (no rule to apply - the x/y interface, or no 'subset'), passes through
+## unchanged: the basis was already validated against the un-subset data at
+## the count dbartsData() checks it against, its previous contract. A basis
+## at the FULL data's row count is restricted to the same rows the model
+## frame keeps, the alignment 'weights' and every predictor column already
+## get. A basis at the SUBSET's row count instead - matching the kept-row
+## count but not the full data's - is the ambiguous shape a count-only check
+## once accepted by silent positional alignment; it is refused by name,
+## naming the forest and both counts, rather than guessed at.
+alignForestBasisToSubset <- function(basis, forestIndex, subsetRows) {
+  if (is.null(basis) || is.null(subsetRows)) {
+    return(basis)
+  }
+  n <- NROW(basis)
+  if (n == subsetRows$full) {
+    return(basis[subsetRows$index, , drop = FALSE])
+  }
+  if (n == length(subsetRows$index)) {
+    stop(
+      "forest ",
+      forestIndex,
+      "'s 'basis' has ",
+      n,
+      " rows, matching ",
+      "'subset' (",
+      length(subsetRows$index),
+      ") but not the full data (",
+      subsetRows$full,
+      " rows); a 'basis' must cover the full data and is ",
+      "subset with it"
+    )
+  }
+  basis
+}
+
 ## Validate the knobs one forest() declares. Only a declared (non-NULL) knob is
 ## checked; an omitted one keeps its NULL, so the caller can tell "not
 ## declared" from "declared at the default" - which is what makes the

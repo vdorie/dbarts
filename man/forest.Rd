@@ -37,7 +37,14 @@ forest(
     since the declaration would otherwise have nowhere to ride and be
     silently discarded; \code{\link{dbartsSpec}} always takes a pre-built
     data object and installs the declaration instead, replacing whatever
-    bases it carried.
+    bases it carried. On the formula interface, an already-evaluated vector or
+    matrix must have one row per observation of the FULL \code{data} - the
+    same rule a formula's own evaluation already follows - and is then
+    restricted to the rows \code{subset} keeps, exactly as a predictor column
+    is; a value already restricted to those rows instead, matching the
+    subset's count rather than the full data's, is refused by name rather
+    than aligned to them by position. With no \code{subset}, or one that
+    keeps every row, the two counts agree and nothing changes.
   }
   \item{vars}{
     Optional restriction of this forest to a subset of the model matrix, by
@@ -180,8 +187,10 @@ forest(
   must be among the formula's own right-hand-side terms; a factor name
   expands to every indicator column derived from it. A term's basis is
   evaluated against the fit's model frame, after \code{subset} and any row
-  selection - unlike a \code{basis} declared directly on \code{forests =},
-  which is evaluated against the raw \code{data}.
+  selection; a \code{basis} declared directly on \code{forests =} is instead
+  evaluated against the raw \code{data} and then restricted to the same
+  rows - the two routes reach the same rows by different timing, so a
+  \code{subset} lines them up either way.
 }
 \value{
   A \code{dbartsForest} specification object, resolved when a sampler is built.

@@ -51,6 +51,15 @@
       \item A \code{forests} list of length one that declares a
             \code{basis} is refused rather than fit as an ordinary
             single-forest model with the declaration dropped.
+      \item On the formula interface, a \code{forests =} \code{basis}
+            declared alongside \code{subset} must now cover the full,
+            un-subset data: it is evaluated against that data as before and
+            then restricted to the same rows the model frame keeps, rather
+            than checked only by row count. A basis at the \code{subset}'s
+            row count instead of the full data's - previously accepted and
+            aligned to the kept rows by position alone - is refused, naming
+            the forest and both counts. \code{dbartsData(bases = )} and the
+            \code{x.train}/\code{y.train} interface are unchanged.
     }
   }
   \subsection{NEW FEATURES}{

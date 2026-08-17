@@ -590,8 +590,11 @@ dbarts <- function(
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
   # a forests = declaration's bases are conditioning DATA (docs/design/bcf.md),
   # so the columns they expand to ride the data object beside the weights they
-  # mirror. Evaluated here, against this fit's own data, and handed to
-  # dbartsData(), which is the one place that knows which rows 'subset' kept.
+  # mirror. Evaluated here, against this fit's own (pre-subset) data, since
+  # dbartsData() has no index of its own to restrict a raw 'bases' entry by;
+  # on the formula path, with 'subset' present, each one is then aligned to
+  # the same rows the model frame will keep (resolveFormulaBasisSubset/
+  # alignForestBasisToSubset, R/model.R).
   basisDeclarations <- forestBasisDeclarations(forests)
   # a basis declared on 'forests' has nowhere to ride once 'formula' is
   # already a built dbartsData: dbartsData() drops an unmatched 'bases'
@@ -620,12 +623,19 @@ dbarts <- function(
     # missing() reads this frame, so it is resolved here rather than inside the
     # per-forest closure below
     basisData <- if (missing(data)) NULL else data
-    expanded <- lapply(
-      basisDeclarations,
-      function(declaration) {
-        expandForestBasis(evaluateForestBasis(declaration, basisData))
-      }
+    # NULL on the x/y interface or with no 'subset' - both leave every basis
+    # untouched, below, exactly as before this rule existed
+    subsetRows <- resolveFormulaBasisSubset(
+      formula,
+      basisData,
+      matchedCall$subset
     )
+    expanded <- lapply(seq_along(basisDeclarations), function(i) {
+      basis <- expandForestBasis(
+        evaluateForestBasis(basisDeclarations[[i]], basisData)
+      )
+      alignForestBasisToSubset(basis, i, subsetRows)
+    })
     # a list in which no forest declares a basis is not a multi-forest
     # declaration at all - it names K ensembles with nothing to tell them
     # apart - so it falls through to resolveForests' own refusal by name
