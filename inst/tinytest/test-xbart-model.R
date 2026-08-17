@@ -38,6 +38,32 @@ expect_silent(
   )
 )
 
+# xbart's own resid.prior default is the literal chisq() object - it has no
+# sigdf/sigquant shorthands for bart2's NULL-triggers-shorthand sentinel to
+# build from - so an unsupplied resid.prior is byte-identical to naming the
+# default explicitly
+expect_identical(
+  dbarts::xbart(
+    x,
+    y,
+    n.reps = 2L,
+    n.samples = 6L,
+    n.burn = c(10L, 5L, 1L),
+    n.threads = 1L,
+    seed = 15L
+  ),
+  dbarts::xbart(
+    x,
+    y,
+    n.reps = 2L,
+    n.samples = 6L,
+    n.burn = c(10L, 5L, 1L),
+    n.threads = 1L,
+    seed = 15L,
+    resid.prior = chisq()
+  )
+)
+
 n.trees <- c(5L, 10L)
 expect_silent(
   dbarts::xbart(
@@ -296,6 +322,37 @@ expect_error(
   ),
   pattern = "requires a response coded 0/1"
 )
+
+# the tree.prior grid-axis-override rule (f4) holds under a binary family
+# too: a supplied cgm's own power/base are still overridden by the swept
+# grid every cell, regardless of control@binary
+gridDirect.bin <- dbarts::xbart(
+  x,
+  z,
+  family = "probit",
+  n.reps = 1L,
+  n.threads = 1L,
+  n.samples = 5L,
+  n.burn = c(3L, 2L, 1L),
+  seed = 31L,
+  power = c(1.5, 3),
+  base = c(0.6, 0.9)
+)
+gridViaObject.bin <- dbarts::xbart(
+  x,
+  z,
+  family = "probit",
+  n.reps = 1L,
+  n.threads = 1L,
+  n.samples = 5L,
+  n.burn = c(3L, 2L, 1L),
+  seed = 31L,
+  power = c(1.5, 3),
+  base = c(0.6, 0.9),
+  tree.prior = dbarts::dbartsPriors$cgm(power = 10, base = 0.1)
+)
+expect_identical(gridDirect.bin, gridViaObject.bin)
+rm(gridDirect.bin, gridViaObject.bin)
 
 rm(xval.logistic, xval.gaussian, power, n.reps, z, x)
 
