@@ -3,7 +3,7 @@
 # families are doors that refuse by name. What is pinned here is (i) the
 # ALL-BASIS shape, in which every forest is fixed-variance and nothing in the
 # sampler can absorb a mis-stated prior, (ii) the CALIBRATION ANCHOR itself,
-# which is the only number in the slice that a running, mixing sampler cannot
+# which is the only number here that a running, mixing sampler cannot
 # reveal to be wrong, (iii) the guards that fire on the plainest possible
 # binary two-forest call unless they are keyed to the family, and (iv) the
 # family-keyed refusals that flip the moment the sampler reports its own
@@ -48,7 +48,7 @@ unitBases3 <- list(ones, zBasis, gBasis)
 unitBases4 <- list(ones, zBasis, gBasis, hBasis)
 # and one cell whose rows are NOT unit norm, which is what pins the map's
 # per-unit-of-row-norm divisor rather than assuming it. LOAD-BEARING: delete
-# the 4 and the dropped-divisor mutation goes green (M4.4's landing note).
+# the 4 and the dropped-divisor mutation goes green.
 scaledBases <- list(ones, 4 * zBasis)
 # the product pin's own fixture, whose every factor discriminates; see (d)
 pinBases <- list(3 * ones, 5 * zBasis)
@@ -120,8 +120,8 @@ for (family in names(anchors)) {
 
   # (c) THE INDUCED INDEX: sqrt(sum_f prior.scale_f^2 v_f ||B_f(i,.)||^2) at
   # the default amplitude prior variance and unit row norms. The map itself
-  # still disperses as 1.04912 sqrt(K) - it carries no per-K renormalization and
-  # this slice added none - but the DEFAULT node scale factor is now sqrt(2/K),
+  # still disperses as 1.04912 sqrt(K) - it carries no per-K renormalization -
+  # but the DEFAULT node scale factor is now sqrt(2/K),
   # whose product with that sqrt(K) is sqrt(2) at every count. So the assertion
   # is a CONSTANT rather than a function of K, which is strictly stronger and is
   # the design statement itself: the all-basis index prior is 1.4837 s whether
@@ -148,7 +148,7 @@ for (family in names(anchors)) {
 
   # (d) THE PRODUCT ITSELF, at a DECLARED forest(sd = ). Every assertion above
   # runs at the default node scale factor, the literal 1, so three of the map's
-  # four factors are pinned and the fourth is vacated - the arc's own recorded
+  # four factors are pinned and the fourth is vacated - a recorded
   # hazard (unit values silently vacate pins) sitting on the expression whose
   # default is about to move. Here each of the four discriminates: sd in
   # {2.5, 0.4}, s in {1, 1.813799}, c in {3, 5}, divisor 0.674, no two equal
@@ -158,7 +158,7 @@ for (family in names(anchors)) {
   # BOTH families, because probit ALONE CANNOT SEE A DROPPED ANCHOR - s = 1
   # there, so sd / (0.674 c) and sd s / (0.674 c) are the same number. Under
   # logistic they differ by 81 percent. Deleting the logistic arm leaves the
-  # anchor unpinned, which is the near-miss M4.4 recorded.
+  # anchor unpinned, which is the near-miss this test guards against.
   expect_equal(
     priorScales(basisSampler(yBalanced, pinBases, family, forests = pinScales)),
     c(2.5, 0.4) * s / (0.674 * vapply(pinBases, medianRowNorm, numeric(1L))),
@@ -272,8 +272,8 @@ expect_equal(length(kForest(yContinuous)$getLatents()), 0L)
 # basis-free forest's vector is now c(50, 0.25, 3, 1, 1, 1, 1, 1) - positions 4
 # through 8 all the literal 1 - so a latent-only fixture cannot see a transport
 # confusion among those slots at all. Only gaussian, where slot 7 is 2,
-# discriminates position. That is the arc's own "unit values silently vacate
-# pins" hazard arriving through this slice's own new default. ---
+# discriminates position. That is the same "unit values silently vacate
+# pins" hazard arriving through the new default introduced here. ---
 transportParams <- function(y, bases, family, ...) {
   attr(
     dbartsSpec(

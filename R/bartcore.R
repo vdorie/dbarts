@@ -15,7 +15,7 @@
 
 # A public dbartsSampler created through the forests = spec branch
 # (docs/design/bcf.md) carries its forests' amplitude bases on data@bases,
-# mirroring data@weights; this is the R5-layer capability probe, cheaper than
+# mirroring data@weights; this is the R-level capability probe, cheaper than
 # a round trip through the bridge's own (totalAmplitudes-based) one. It is a
 # CAPABILITY test - "carries amplitudes" - and deliberately not a forest count:
 # a K-forest multinomial carries several forests and no amplitudes at all, so a
@@ -37,9 +37,9 @@ refuseBCFMutation <- function(sampler, what, ...) {
   }
 }
 
-# Drives a dbartsSampler (the R5 sampler layer), reading its control defaults
-# and delegating through its external pointer; cf. bartcoreRun, which drives a
-# low-level bartcore handle directly.
+# Drives a dbartsSampler (the R-level sampler layer), reading its control
+# defaults and delegating through its external pointer; cf. bartcoreRun,
+# which drives a low-level bartcore handle directly.
 bartcoreSamplerRun <- function(sampler, numBurnIn, numSamples) {
   control <- sampler$control
   if (is.na(numBurnIn)) {
@@ -81,8 +81,8 @@ bartcoreSamplerSetPredictor <- function(
 
   # no BCF pre-check on the partial path either: the session's cell guard
   # caches every forest, pruned to the trees the column can move, so a row
-  # installs only if it empties no leaf anywhere and a two-forest sampler takes
-  # it (docs/plans/multiforest-predictor-mutation.md)
+  # installs only if it empties no leaf anywhere and a two-forest sampler
+  # takes it
   partialUpdate <- !is.null(forceUpdate) &&
     is.character(forceUpdate) &&
     length(forceUpdate) == 1L &&
@@ -152,9 +152,8 @@ bartcoreSamplerSetPredictor <- function(
 
   # no BCF pre-check here: a transactional whole-matrix or column update
   # revalidates every forest and rolls the whole change back if any leaf of any
-  # tree of any forest would empty, so a two-forest sampler takes it
-  # (docs/plans/multiforest-predictor-mutation.md). The per-observation session
-  # above is the one that still refuses.
+  # tree of any forest would empty, so a two-forest sampler takes it. The
+  # per-observation session above is the one that still refuses.
 
   # dim(), not is.matrix(): the latter is FALSE for every Matrix class, so a
   # transposed dgCMatrix argument (same total length, wrong shape) fell
@@ -512,8 +511,8 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
   }
 
   # install the new test set R-side, then roll back if the bridge refuses it
-  # (a container whose leaf-covariate column is CSC-backed), keeping the R5
-  # object and the engine's prior test store consistent
+  # (a container whose leaf-covariate column is CSC-backed), keeping the
+  # R-level object and the engine's prior test store consistent
   oldX.test <- sampler$data@x.test
   oldOffset.test <- sampler$data@offset.test
   sampler$data@x.test <- x.test
@@ -1112,7 +1111,7 @@ bartcoreFitsWithoutOffset <- function(bcSampler) {
 # node.scale.divisor and basis.row.norm, NaN off the map) with the leaf model
 # on a "leaf.model" attribute. Total over forests: a combiner's forests report
 # the calibration its own map fixed. Forest is 0-based here, as everywhere on
-# this layer; the R5 $getCalibration indexes from 1.
+# this layer; the R-level $getCalibration indexes from 1.
 bartcoreForestCalibration <- function(bcSampler, forest) {
   .Call(C_dbarts_bartcore_getCalibration, bcSampler$ptr, as.integer(forest))
 }
@@ -1130,8 +1129,8 @@ bartcoreSetForestPriorScale <- function(bcSampler, forest, prior.scale) {
   ))
 }
 
-# The R5 calibration surface indexes forests from 1, as R indexes; the bridge
-# and the flat C entries count from 0, as the engine does.
+# The R-level calibration surface indexes forests from 1, as R indexes; the
+# bridge and the flat C entries count from 0, as the engine does.
 resolveForestIndex <- function(forest) {
   forest <- as.integer(forest)
   if (length(forest) != 1L || is.na(forest) || forest < 1L) {
@@ -1161,7 +1160,7 @@ bartcoreSetModel <- function(bcSampler, model, control, data) {
 }
 
 # Drives a low-level bartcore handle (a bcSampler env holding $ptr) directly,
-# not a dbartsSampler; cf. bartcoreSamplerRun, the R5 sampler-layer entry.
+# not a dbartsSampler; cf. bartcoreSamplerRun, the R-level sampler-layer entry.
 bartcoreRun <- function(bcSampler, numBurnIn = 0L, numSamples = 1L) {
   .Call(
     C_dbarts_bartcore_run,

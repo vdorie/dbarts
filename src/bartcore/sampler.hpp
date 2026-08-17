@@ -182,7 +182,8 @@ public:
 
   /// A K-forest multinomial (softmax) sampler over dense predictors
   /// (docs/design/multinomial.md): constant leaf only, no response/weights/
-  /// offset (the category labels ride the spec, single-trial this arc). The
+  /// offset (the category labels ride the spec; only single-trial is
+  /// supported here). The
   /// CSC/mixed and view ingestion paths are not offered here.
   Sampler(const double* x, size_t numObservations, size_t numPredictors,
           const SamplerOptions& options, const MultinomialSpec& spec,

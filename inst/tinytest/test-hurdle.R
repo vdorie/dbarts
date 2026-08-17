@@ -1,5 +1,5 @@
 # The hurdle.lognormal combine + retransformation generics
-# (docs/design/hurdle.md sections 6, 13; docs/plans/hurdle.md C2). The
+# (docs/design/hurdle.md sections 6, 13). The
 # load-bearing gate is the ANALYTIC ORACLE: a bartHurdle stubbed from hand-set
 # component draws whose combined natural-scale mean, prob/link channels, and a
 # seeded bimodal ppd draw are checked against their closed forms to machine
@@ -155,7 +155,7 @@ fitNoTrees <- bart2(
 expect_error(predict(fitNoTrees, x.new), pattern = "keepTrees")
 
 # --- keepSampler retains $fit on both component fits, independent of
-# keepTrees (D2) ---
+# keepTrees ---
 fitKeepSampler <- bart2(
   x,
   y,

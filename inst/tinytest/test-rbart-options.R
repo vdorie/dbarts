@@ -65,7 +65,7 @@ expect_inherits(
 )
 rm(k)
 
-# a binary fit with no k carries the chi(1.5, 2) node hyperprior (D5): the
+# a binary fit with no k carries the chi(1.5, 2) node hyperprior: the
 # formal default is NULL, not the inert 2.0 it used to be
 yBinary <- testData$y > median(testData$y)
 fitBinaryK <- dbarts::rbart_vi(

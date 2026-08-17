@@ -37,9 +37,9 @@ xbart <- function(
   currEnv <- sys.frame(sys.nframe())
   evalEnv <- parent.frame(1L)
 
-  # the four flat knobs (docs/plans/bart2-argument-consolidation.md 3.f, f2):
-  # shape-checked at the surface, mirroring dbartsControl's own validity
-  # messages, then folded into the control xbart builds for itself below
+  # the four flat knobs: shape-checked at the surface, mirroring
+  # dbartsControl's own validity messages, then folded into the control
+  # xbart builds for itself below
   n.cuts <- coerceOrError(n.cuts, "integer")
   if (is.na(n.cuts) || n.cuts <= 0L) {
     stop("'n.cuts' must be a positive integer")
@@ -54,10 +54,10 @@ xbart <- function(
   }
   storage <- match.arg(storage)
 
-  # control = is no longer a formal (3.f/4.3): xbart builds its own control,
-  # the knobs above landing where the flat formals' values landed (the S6
-  # precedent), alongside six fields xbart has always forced regardless of
-  # what a caller-supplied control carried. n.trees/n.burn are xbart's own
+  # control = is no longer a formal: xbart builds its own control, the
+  # knobs above landing where the flat formals' values landed, alongside
+  # six fields xbart has always forced regardless of what a caller-supplied
+  # control carried. n.trees/n.burn are xbart's own
   # grid axes (cellControl/cellModel overwrite them per cell below), seed is
   # handled by xbart's own RNG block, and printEvery/printCutoffs are inert
   # under verbose = FALSE, so control's copies of those five fields are left

@@ -1,5 +1,5 @@
 # Grouped (random-intercept) AFT survival surface on rbart_vi
-# (docs/design/survival.md, docs/plans/survival-grouped-surface.md). The
+# (docs/design/survival.md). The
 # engine composition GroupedResponse(AFTResponse) is exercised here through
 # the R surface: a Surv / two-column response on the formula LHS with
 # family = "aft", and survivalProbabilities.rbart that includes the drawn

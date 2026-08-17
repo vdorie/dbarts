@@ -105,7 +105,7 @@ expect_error(
   "proposal.probs"
 )
 
-# an explicit proposal.probs = NULL is treated as absent (D4): it succeeds
+# an explicit proposal.probs = NULL is treated as absent: it succeeds
 # under monotone and is bitwise identical to the defaulted call
 ctrlD4 <- dbarts::dbartsControl(
   n.chains = 1L,

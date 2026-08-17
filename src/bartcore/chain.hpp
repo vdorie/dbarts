@@ -268,9 +268,9 @@ struct ModelParameters {
 /// is leaf-model specific, exact only for the constant leaf
 /// (docs/design/nameable-calibration.md section 3).
 ///
-/// The five below are the CALIBRATION MAP's own decomposition of priorScale
-/// (docs/plans/binary-kforest-prior-default.md, leg (c)), NaN on any forest
-/// with no map entry - every single-forest and every multinomial one - so a
+/// The five below are the CALIBRATION MAP's own decomposition of priorScale,
+/// NaN on any forest with no map entry - every single-forest and every
+/// multinomial one - so a
 /// caller reads "not map-derived" rather than a plausible 1.0.
 struct ForestCalibration {
   double priorScale = 0.0;
@@ -796,7 +796,7 @@ public:
     std::vector<ForestSpec> forestSpecs = expandForestSpecs(spec);
     nodeScaleFactors_.resize(forestSpecs.size());
     nodeScaleDivisors_.resize(forestSpecs.size());
-    // the reader's echo of the map (leg (c)): the two exclusive amplitude
+    // the reader's echo of the map: the two exclusive amplitude
     // spellings, and the row norm otherwise computed here and discarded. The
     // flag says the map is still the decomposition in force.
     amplitudePriorVariances_.resize(forestSpecs.size());
@@ -3678,9 +3678,9 @@ private:
            std::sqrt(static_cast<double>(forest.numTrees));
   }
 
-  /// The map-decomposition half of the state-install truthfulness rule
-  /// (docs/plans/binary-kforest-prior-default.md, fork 3b): a state installing
-  /// a leaf scale differing BITWISE from the one in force leaves the stored
+  /// The map-decomposition half of the state-install truthfulness rule: a
+  /// state installing a leaf scale differing BITWISE from the one in force
+  /// leaves the stored
   /// factor and divisor no longer its decomposition, so forestCalibration
   /// reports NaN for both until setForestBasis re-imposes the map. Called
   /// BEFORE the assignment, which lets a self-restore keep its columns; the
@@ -4156,8 +4156,7 @@ private:
   /// iteration, so every element is bit-for-bit what the rolled form writes.
   /// ResidT = float deliberately keeps the rolled loop: clang already
   /// vectorizes it with NEON lane-insert gathers, and the unroll would only
-  /// bolt a scalar prologue onto that. Measured x86 run -3.0 to -3.9%; see
-  /// docs/plans/setpredictor-leafof-rebuild.md.
+  /// bolt a scalar prologue onto that. Measured x86 run -3.0 to -3.9%.
   ///
   /// leaf and leafPrev are two rows of one allocation; __restrict is sound on
   /// them because both are read-only through the block, not because the rows
@@ -4766,7 +4765,7 @@ private:
   /// Variant A block-additive install (docs/design/interaction-constraints.md):
   /// confine each whole tree to one declared group of predictors so the ensemble
   /// is exactly f = sum_G f_G. Build the numBlocks group-membership rows (each
-  /// intersected with any base columnMask already on the forest - the F3 BCF-tau
+  /// intersected with any base columnMask already on the forest - the BCF-tau
   /// case, so the moderator restriction is never lost), assign trees to groups by
   /// the deterministic contiguous capacity (trees [0, c0) -> group 0, [c0, c0+c1)
   /// -> group 1, ...; NO rng), and point every tree's column mask at its group's
@@ -4851,7 +4850,7 @@ private:
     }
 
     // Variant A block-additive constraint (mu / tau independent): the block rows
-    // intersect tau's moderator columnMask installed above (F3), so a restricted
+    // intersect tau's moderator columnMask installed above, so a restricted
     // tau's per-tree mask is group AND moderators. numBlocks 0 leaves it unchanged.
     installBlockMasks(forest, data_.numPredictors, spec.numBlocks,
                       spec.blockOfColumn, spec.blockTreeCounts);

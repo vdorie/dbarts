@@ -41,9 +41,8 @@ rm(bart2Fit, bartFit, n.sims, n.burn)
 
 rm(testData)
 
-# S10 (docs/plans/bart2-argument-consolidation.md 4.5, 8.7): bart() gains
-# subset, storage, and family, appended and forwarded to dbarts(). Each is
-# exercised tiny.
+# bart() gains subset, storage, and family, appended and forwarded to
+# dbarts(). Each is exercised tiny.
 
 set.seed(202)
 nS10 <- 30L
@@ -123,7 +122,7 @@ expect_error(
   pattern = "\"nbinom\""
 )
 
-# the appended formals break no existing bart() abbreviation (6.8)
+# the appended formals break no existing bart() abbreviation
 abbrevFit1 <- dbarts::bart(
   xS10,
   yS10,

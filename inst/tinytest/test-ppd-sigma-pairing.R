@@ -4,7 +4,7 @@
 # reshaped (not redrawn) with the package's own combineChains() - the same
 # helper the stored draws themselves go through - so a combined and a split
 # ppd draw from the same seed agree bit-for-bit after accounting for row
-# order. See docs/plans/ppd-sigma-pairing.md.
+# order.
 
 # 1. layout invariance: a combined ppd draw equals the split ppd draw
 # reshaped by combineChains(), same seed, same fit

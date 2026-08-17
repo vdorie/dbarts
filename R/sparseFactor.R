@@ -3,8 +3,8 @@
 # positions carrying x's levels and every other row the implicit reference
 # level. The class is recognized by ingestion but refused at data
 # construction until sparse-categorical (CSC over level codes) engine
-# support lands (docs/plans/data-ownership-5-sparse.md); it exists so data
-# sets can be assembled ahead of engine support.
+# support lands; it exists so data sets can be assembled ahead of engine
+# support.
 #
 # The 'length' argument shadows base::length inside the constructor, so
 # every internal length is written base::length (the Matrix::sparseVector

@@ -6,7 +6,7 @@
 # refactor both sides of getFitsWithoutOffset() == run()$train - offset
 # evaluate the same Chain::fitsWithoutOffset, so a defect inside it moves both
 # sides and the identity stays green. What they do gate is the bridge entry,
-# the R5 method, the R/bartcore.R wrapper, the per-chain indexing, the return
+# the R-level method, the R/bartcore.R wrapper, the per-chain indexing, the return
 # shape, the two refusals, and the OFFSET ADD - the one step the two sides do
 # not share.
 # (b) The ARITHMETIC gates are two, neither sharing the site: a tests/cpp cell
@@ -218,7 +218,7 @@ expect_equal(cell$fits + offGauss, cell$train)
 
 # --- the two refusals ------------------------------------------------------
 
-# multinomial: the refusal is not writable on the R5 surface, since a
+# multinomial: the refusal is not writable on the R-level surface, since a
 # multinomial sampler is never a dbartsSampler - it is a bare environment
 # carrying $ptr/$x/$K - so the cell runs against the internal wrapper.
 makeMultinomial <- getFromNamespace("bartcoreMultinomialSampler", "dbarts")
@@ -267,7 +267,7 @@ expect_equal(
 
 # BCF: response.scale * (a * mu + b_z * tau) + response.shift, the
 # recombination refuseBCFTestSurface's own message directs BCF consumers to.
-# This is the ONLY cell in the slice that moves when the accessor reports
+# This is the ONLY cell here that moves when the accessor reports
 # forest 0's totals rather than the combiner blend, so it must not be tidied
 # away: the identity cells move together and the tests/cpp cell is
 # single-forest, where forest 0's totals ARE the combined fit.

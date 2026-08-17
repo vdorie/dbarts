@@ -50,8 +50,8 @@ hashes <- CALL("capi_hash")
 expect_true(hashes$raw.agrees)
 expect_true(hashes$matches.header)
 # and the token really moved on each re-signing: these are the literals the
-# pre-reshape header and reshape S1 baked, so a token blind to either change
-# would still read one of them
+# pre-reshape header and the post-reshape header baked, so a token blind to
+# either change would still read one of them
 expect_false(identical(hashes$text, "0x1a911c00bb26dcd7"))
 expect_false(identical(hashes$text, "0xcd88efcd67de55d7"))
 # and it does NOT move for doc text outside DBARTS_C_API_LIST, which the token
@@ -597,10 +597,10 @@ expect_true(all(is.finite(rG$tau)) && all(rG$tau > 0))
 expect_equal(length(rG$ranef), numGroups * 4L)
 expect_true(all(is.finite(rG$ranef)))
 
-# the predictor entries take a design carrying a CSC-backed CATEGORICAL column
-# (docs/plans/typed-ingestion.md slice 2a): the engine keys the replacement's
-# nonzero pattern on {i : code != refCode}, so a whole-column swap through the
-# flat API lands the same codes a dense factor of those values would
+# the predictor entries take a design carrying a CSC-backed CATEGORICAL
+# column: the engine keys the replacement's nonzero pattern on
+# {i : code != refCode}, so a whole-column swap through the flat API lands
+# the same codes a dense factor of those values would
 if (requireNamespace("Matrix", quietly = TRUE)) {
   set.seed(808L)
   nSparse <- 120L
@@ -1276,7 +1276,7 @@ expect_true(all(is.finite(rBCF$train)))
 # bytes are the PROGNOSTIC forest's. The length alone cannot falsify that (the
 # consumer computes it from p, samples and chains), so the value is pinned
 # against the same model's live per-forest read at the same seed: a fresh flat
-# sampler and a fresh R5 sampler over the identical (control, model, data),
+# sampler and a fresh R-level sampler over the identical (control, model, data),
 # each run 5 burn-in and 3 kept draws, must agree on forest 1's counts
 pBCF <- ncol(xBCF)
 expect_equal(length(rBCF$varcount), pBCF * 3L * 2L)
@@ -1298,7 +1298,7 @@ for (chain in seq_len(2L)) {
     as.integer(r5BCF$getForestVariableCounts(1L)[, chain])
   )
 }
-# and the whole flat slab is the R5 channel's forest-1 slab, so what the flat
+# and the whole flat slab is the R-level channel's forest-1 slab, so what the flat
 # caller gets is a projection of the widened channel rather than a third thing
 expect_equal(
   as.integer(flatCounts),
@@ -1388,7 +1388,7 @@ expect_identical(
 
 # the amplitude pair from C, ragged by construction: the basis forest carries
 # two amplitudes and the intercept forest one, and the values agree with the
-# R5 reader on the same draws
+# R-level reader on the same draws
 amplitudes0 <- CALL("capi_forest_amplitudes", ptrW2, 0L)
 amplitudes1 <- CALL("capi_forest_amplitudes", ptrW2, 1L)
 expect_equal(amplitudes0$count, 1L)

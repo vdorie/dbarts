@@ -1,5 +1,5 @@
-# package-review-remediation T2a/C3: the bartMultinomial generics that used
-# to fall through to a "bart"/default method (print's per-chain arithmetic,
+# The bartMultinomial generics that used to fall through to a "bart"/default
+# method (print's per-chain arithmetic,
 # residuals, plot, summary) or had no type argument (predict).
 
 parseKeptDraws <- function(printed) {

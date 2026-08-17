@@ -1,5 +1,5 @@
 # The ordinal (cumulative-probit) R surface (docs/design/ordinal.md sections
-# 5-6; docs/plans/ordinal-outcomes.md steps 2-3): family dispatch and
+# 5-6): family dispatch and
 # refusals, fit-object shapes and the level round-trip, prediction, state
 # save/load through the R surface, setResponse mutation semantics, and a
 # seeded statistical recovery smoke. The exact-posterior gate lives in
@@ -118,7 +118,7 @@ suppressMessages(
 )
 expect_error(predict(fitNoTrees, x.test), pattern = "keepTrees")
 
-# --- keepSampler retains $fit independent of keepTrees (D2) ---
+# --- keepSampler retains $fit independent of keepTrees ---
 suppressMessages(
   fitKeepSampler <- bart2(
     x,

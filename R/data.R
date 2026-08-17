@@ -136,8 +136,8 @@ validateXTest <- function(x.test, x.train) {
   if (inherits(x.test, "dbartsMixedMatrix") && !is.null(factorLevels)) {
     x.test <- alignContainerFactorLevels(x.test, predictorNames, factorLevels)
   }
-  # the A6 pin: a sparse column's declared reference level means one thing to
-  # this function's own densification (as.matrix.dbartsMixedMatrix, gated only
+  # a sparse column's declared reference level means one thing to this
+  # function's own densification (as.matrix.dbartsMixedMatrix, gated only
   # on is.na) and another to the engine (referenceCodeOf ignored for a
   # non-categorical column); refuse the mismatch here rather than let the two
   # disagree silently

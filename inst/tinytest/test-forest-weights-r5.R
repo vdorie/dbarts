@@ -1,12 +1,11 @@
-# M1 of docs/plans/multiforest-extension-surface.md: the R5
-# $setForestWeights(forest, weights) surface over the engine channel
+# The $setForestWeights(forest, weights) surface over the engine channel
 # test-forest-weights.R already pins end to end. Not re-pinned here: the
 # capability probe, the sigma degrees of freedom, and the substituted-response
 # invariance of excluded rows. Covered here instead: the 1-based boundary
 # conversion at resolveForestIndex, the mirror-and-reapply field at all THREE
-# re-creation sites (getPointer, setState, and copy), FW2 (the channel never
-# moves the reported mean), and the two refusals reachable through the public
-# R5 route (a multinomial engine is never reachable this way - see
+# re-creation sites (getPointer, setState, and copy), that the channel never
+# moves the reported mean, and the two refusals reachable through the public
+# route (a multinomial engine is never reachable this way - see
 # test-active-rows-pins.R for its internal-route pin, which this does not
 # duplicate).
 
@@ -78,7 +77,7 @@ expect_false(identical(result.r5.0$train, result.r5.1$train))
 
 expect_error(build()$setForestWeights(0L, wt), "positive integer")
 
-# --- FW1: the mirror, both halves, at all THREE re-creation sites. The
+# --- the mirror, both halves, at all THREE re-creation sites. The
 # correct oracle is the SAME (reloaded or restated) object compared against
 # itself with the mirror switched off, not a weighted build against a
 # different plain build - that comparison is satisfied by the stored-state
@@ -160,7 +159,7 @@ expect_false(identical(
   dupeOff$run(0L, 1L)$train
 ))
 
-# --- FW2: the channel is a leaf-conditional precision, never a multiplier on
+# --- the channel is a leaf-conditional precision, never a multiplier on
 # the reported location - with s = 0 on every row of the treatment forest,
 # train still reconstructs exactly from the forest fits and the glue, so
 # forest 1's full (data-uninformed but nonzero) contribution is still summed
@@ -183,7 +182,7 @@ expect_equal(
 )
 expect_true(abs(mean(tau0)) > 0.1)
 
-# --- the two R5-route refusals reachable through the public method: an
+# --- the two refusals reachable through the public method: an
 # ordinary (non-BCF) sampler, and the host shell of a multinomial fit, whose
 # generic host-mutation refusal fires before the weights or forest are ever
 # looked at ---

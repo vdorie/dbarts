@@ -248,8 +248,7 @@ struct ArithmeticMerge {
 /// would average over GM-natural quantities and bias the merged s^2 high;
 /// exp of a finite mean of logs is positive by construction, which is what
 /// keeps stateIsValid's strict positivity and formMeanWeights' division safe
-/// structurally (docs/plans/variance-forest-mutation-routing.md, "Collapse
-/// semantics"). Every h_b a live tree holds is a drawn scale, hence positive.
+/// structurally. Every h_b a live tree holds is a drawn scale, hence positive.
 struct GeometricMerge {
   static double toMergeSpace(double param) { return std::log(param); }
   static double fromMergeSpace(double merged) { return std::exp(merged); }

@@ -1,6 +1,6 @@
-# The combined-output location-count seam and the multi-forest mutation guard
-# (docs/plans/multinomial.md, C2). The location count is 1 for every model
-# today, so the recorded train/test fits keep their single-location shape; this
+# The combined-output location-count seam and the multi-forest mutation
+# guard. The location count is 1 for every model today, so the recorded
+# train/test fits keep their single-location shape; this
 # file is the shape guard the bitwise anchors do not provide (equivalence reads
 # only summaries and never the train shape). It also pins the mutation guard
 # that closes a latent BCF hazard: a whole-data mutation rebuilds forest 0 only.
@@ -76,8 +76,7 @@ bc.bcf <- dbarts:::bartcoreBCFSampler(
 )
 
 # refused for memory safety too, not only staleness: the combiner indexes
-# borrowed z over the live n, and setData has no z channel (see
-# docs/plans/runsbcbcf-repair.md "setData door survey")
+# borrowed z over the live n, and setData has no z channel
 expect_error(
   dbarts:::bartcoreSetData(bc.bcf, sampler.bcf.host$data),
   "multi-forest"
@@ -357,7 +356,7 @@ expect_silent(
 )
 expect_true(dbarts:::bartcoreSetPredictor(bc.one, x + 0))
 
-# --- the per-forest variable-count query (C3). On a single-forest sampler the
+# --- the per-forest variable-count query. On a single-forest sampler the
 # reported forest is forest 0, so the current-state query equals the recorded
 # varcount channel of a length-1 run: with n.thin = 1 the run leaves the trees
 # at the recorded sample's state (no sweep past the last storeSample). The

@@ -116,9 +116,8 @@ expect_error(
   pattern = "does not equal number of columns"
 )
 
-# S8 (docs/plans/bart2-argument-consolidation.md 3.f, 4.3, f2, f4): the four
-# flat knobs and tree.prior. Fits stay tiny; each assertion shows a knob
-# demonstrably reaches the fit, a bad value is refused, or tree.prior's
+# The four flat knobs and tree.prior. Fits stay tiny; each assertion shows a
+# knob demonstrably reaches the fit, a bad value is refused, or tree.prior's
 # grid-override/collision rules hold.
 quickXbart <- function(...) {
   dbarts::xbart(

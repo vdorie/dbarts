@@ -31,7 +31,7 @@ control <- function() {
   )
 }
 
-# --- T1b: dbarts formula + 2-level factor fits probit, matching x/y bit for
+# --- dbarts formula + 2-level factor fits probit, matching x/y bit for
 # bit at the same seed (formerly "range not meaningful for factors") ---
 set.seed(7)
 s.form <- suppressMessages(dbarts(yf2 ~ x1 + x2 + x3, df, control = control()))
@@ -80,7 +80,7 @@ expect_error(
   "cannot fit a factor response"
 )
 
-# --- T1c: a 3+-level factor errors informatively in the single-forest
+# --- a 3+-level factor errors informatively in the single-forest
 # entry points (never a silent gaussian on the integer level codes) ---
 expect_error(dbarts(x, y3, control = control()), "multinomial")
 expect_error(

@@ -1640,8 +1640,7 @@ forest <- function(
   )
 }
 
-## The heteroscedastic variance forest's own specification (fork 2b,
-## docs/plans/bart2-argument-consolidation.md 3.b b3, 4.2), passed as the
+## The heteroscedastic variance forest's own specification, passed as the
 ## SAME variance = argument of dbarts()/dbartsSpec()/bart2() that already
 ## takes the plain selector (NULL/FALSE for none, TRUE/a one-sided formula/
 ## character or index vector for the column subset the variance forest

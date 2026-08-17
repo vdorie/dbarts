@@ -325,8 +325,8 @@ validateArgumentsInEnvironment <- function(
     envir$sigma <- sigma
   }
 
-  # b2 (docs/plans/bart2-argument-consolidation.md 3.b): fitting functions
-  # (xbart) spell this 'sigest'; sampler constructors (dbarts) keep 'sigma'.
+  # Fitting functions (xbart) spell this 'sigest'; sampler constructors
+  # (dbarts) keep 'sigma'.
   # Both route through this one validator under their own name, since the
   # two callers are matched here by argument name (redirectCall) and cannot
   # share a single formal without one silently dropping the other's value.

@@ -1,4 +1,4 @@
-# T4: dbartsSampler's seven mutators (setData, setResponse, setOffset,
+# dbartsSampler's seven mutators (setData, setResponse, setOffset,
 # setWeights, setSigma, setPredictor, setCutPoints) wire updateState as an
 # opt-in store: explicit TRUE calls storeState() after a successful
 # mutation; NA (the default) and FALSE store nothing, even when the

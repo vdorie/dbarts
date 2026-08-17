@@ -1,13 +1,13 @@
 # The three hand-picked 1e-10 almost-equal checks on user-supplied
-# probability vectors (docs/plans/zero-weight-exactness.md S3 item 5): the
-# tree-prior rule proposal probabilities (R/A_class.R dbartsModel validity
+# probability vectors: the tree-prior rule proposal probabilities
+# (R/A_class.R dbartsModel validity
 # and the bartcore bridge's parseModel) and the split probabilities (the
 # bridge only) move to the conventional almost-equal tolerance,
 # sqrt(DBL_EPSILON) - R's own all.equal default. A vector mis-normalized by
 # 1e-9 (refused before this change) is now ACCEPTED; one off by 1e-7 stays
 # refused. Error messages are unchanged. The CGM prior's own splitProbabilities
 # simplex check (R/A_class.R, dbartsCGMPrior validity) is a separate,
-# untouched 1e-10 check out of this arc's scope; the bridge sites below are
+# untouched 1e-10 check outside this file's scope; the bridge sites below are
 # reached by direct slot assignment, which bypasses R validity entirely and
 # so cannot trip it.
 

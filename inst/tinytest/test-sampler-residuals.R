@@ -18,7 +18,7 @@ expect_equal(
   sum((testData$y - samples$train[, 1L])^2)
 )
 
-# M4.4: on a K-forest the fitted value is the COMBINED location
+# On a K-forest the fitted value is the COMBINED location
 # sum_f m_f(i) f_f(x_i), not forest 0's own total, and this getter reported the
 # latter. storeSample routes the recorded train channel through that same
 # combination and runs last in the sweep, so the recorded draw is the oracle -

@@ -2,8 +2,7 @@
 # log-likelihood of the training response: for draw s and observation i,
 # gaussian fits evaluate dnorm(y_i, ev_si, sigma_s / sqrt(w_i), log = TRUE)
 # and binary fits w_i * dbinom(y_i, 1, p_si, log = TRUE). Checks below are
-# bit-agreement with those forms on the stored draws, not statistical. See
-# docs/plans/pointwise-loglik.md.
+# bit-agreement with those forms on the stored draws, not statistical.
 
 # 1. gaussian, unweighted, single chain: entries match dnorm on the stored
 # draws; the S x n shape matches "ev" and feeds loo/WAIC directly

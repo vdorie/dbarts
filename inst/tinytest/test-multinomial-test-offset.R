@@ -151,7 +151,7 @@ expect_identical(
 # --- The simplex invariant with a test offset installed: the offset enters
 # BEFORE the softmax, so the reported test values are still K probabilities per
 # row. Added after the blend they would not be - the failure a test offset once
-# produced on this same coupling (docs/plans/multiforest-mutation-gaps.md). ---
+# produced on this same coupling. ---
 expect_true(all(is.finite(arm.build$test)))
 expect_true(all(arm.build$test >= 0 & arm.build$test <= 1))
 expect_equal(

@@ -1,5 +1,5 @@
 # The public bart2(family = "hurdle.lognormal") surface (docs/design/
-# hurdle.md sections 0-1, 13; docs/plans/hurdle.md C3): family-token routing
+# hurdle.md sections 0-1, 13): family-token routing
 # (both spellings), the y >= 0 / require-a-zero / require-a-positive
 # validation errors, and the family-vector refusals shared with every
 # composed family (dbarts() cannot express two samplers; xbart and rbart_vi

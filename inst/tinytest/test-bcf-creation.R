@@ -36,7 +36,8 @@ handleOf <- function(sampler) list(ptr = sampler$getPointer())
 # a second one whose two-level factor basis carries the (b0, b1) amplitudes
 twoForests <- list(forest(), forest(basis = ~ factor(z)))
 
-# --- FS1, positive half: with control@seed set every chain's generator is
+# --- the creation-reproduction contract, positive half: with control@seed
+# set every chain's generator is
 # independent of R's stream, so the public path and the internal one receive
 # identical seeds from identical specifications and must agree bitwise on all
 # six channels the bcf-equivalence fixture reports. The removed treatment =
@@ -91,7 +92,8 @@ expect_equal(
 expect_true(all(is.finite(publicResult$train)))
 expect_true(all(publicResult$sigma > 0))
 
-# --- FS1, negative half, arm 1: the expansion's level ORDER is load-bearing.
+# --- the creation-reproduction contract, negative half, arm 1: the
+# expansion's level ORDER is load-bearing.
 # Swapping the two indicator columns swaps which rows b1 scales, so a sampler
 # built from the reversed factor must NOT reproduce the oracle. Without this a
 # silently transposed basis would pass the positive half on symmetry alone. ---
@@ -113,7 +115,8 @@ expect_false(identical(
   internalResult$train
 ))
 
-# --- FS1, negative half, arm 2: UNSEEDED, the internal route builds and
+# --- the creation-reproduction contract, negative half, arm 2: UNSEEDED,
+# the internal route builds and
 # discards a host engine first, which draws n.chains unif_rand()s off R's
 # stream, so the two routes must NOT agree. Written explicitly so a divergence
 # here is read as the expected stream offset rather than as a creation bug. ---
@@ -139,7 +142,8 @@ expect_false(identical(unseededPublic$train, unseededInternal$train))
 
 # --- the reported draws really are the two-forest blend: the amplitudes and
 # the per-forest fits reconstruct the recorded train draw through the stored
-# response transform (the S0 pin's identity, now on a public sampler) ---
+# response transform (the identity a low-level pin already established, now
+# on a public sampler) ---
 glue <- dbarts:::bartcoreForestAmplitudes(handleOf(publicSampler))
 muFits <- dbarts:::bartcoreForestFits(handleOf(publicSampler), 0L)[, 1L]
 tauFits <- dbarts:::bartcoreForestFits(handleOf(publicSampler), 1L)[, 1L]
@@ -246,7 +250,7 @@ expect_identical(
   )$run(0L, 5L)$train
 )
 
-# FD4's public fit, pinned positively: update.amplitude = FALSE on both
+# The pinned-amplitude public fit: update.amplitude = FALSE on both
 # forests is the pinned-amplitude model (y = mu + z tau exactly) the on-ramp
 # vignette's continuity falsifier composes against, and it must reproduce the
 # internal route's update.a = update.b = FALSE draw for draw
@@ -271,7 +275,7 @@ expect_identical(
   dbarts:::bartcoreRun(pinnedInternal, 0L, 10L)$train
 )
 
-# --- FS3: forests = NULL is byte-neutral, and a single-forest declaration is
+# --- forests = NULL is byte-neutral, and a single-forest declaration is
 # the same fit with its structural knobs restated ---
 plainResult <- dbarts(x, y, control = seededControl())$run(0L, 5L)
 expect_identical(
@@ -379,7 +383,7 @@ expect_equal(
   attr(offSlot$control, "bartcore.bcf")$params,
   list(c(50, 0.25, 3, 1, 1, 1, 2, 1), c(50, 0.25, 3, 1, 0.674, 0.5, 0, 1))
 )
-# the same transport under a LATENT family, which no assertion in the arc has
+# the same transport under a LATENT family, which no assertion above has
 # run: `sd` still reaches slot 4 on a forest carrying a basis and slot 7 on one
 # carrying none, and the family reaches the model without disturbing either.
 # The two declared values DIFFER, and neither is 1, so a confusion between the
@@ -480,9 +484,10 @@ tauBlockAttr <- attr(tauBlocksSpec$control, "bartcore.bcf")$blocks[[2L]]
 expect_equal(tauBlockAttr$block.of.column, c(0L, 0L, 1L, 1L))
 expect_equal(tauBlockAttr$block.tree.counts, c(25L, 25L))
 
-# --- FS2, inherited half: every option the two-forest chain does not read
-# refuses at creation, one assertion each. A silently accepted one is the
-# failure mode this creation route exists to prevent. ---
+# --- the creation-refusal contract, inherited half: every option the
+# two-forest chain does not read refuses at creation, one assertion each. A
+# silently accepted one is the failure mode this creation route exists to
+# prevent. ---
 expect_error(
   dbarts(x, y, forests = twoForests, tree.prior = dart, control = control),
   "DART tree prior"
@@ -618,13 +623,14 @@ expect_error(
   "does not support family \"nbinom\""
 )
 
-# --- FS2, new half: every declaration today's engine cannot honour refuses at
-# creation, one assertion each, on the same refuse-rather-than-drop discipline
-# the inherited set above enforces ---
-# --- M4.3 relaxations: six of FS2's refusals become POSITIVE routes. Each is
-# asserted by what it now BUILDS - the forest count, the basis widths, and the
-# ragged amplitude vector those widths imply - so a relaxation that admitted
-# the declaration while dropping it silently would still fail here ---
+# --- the creation-refusal contract, new half: every declaration today's
+# engine cannot honour refuses at creation, one assertion each, on the same
+# refuse-rather-than-drop discipline the inherited set above enforces ---
+# --- six of the new half's refusals have since become POSITIVE routes.
+# Each is asserted by what it now BUILDS - the forest count, the basis
+# widths, and the ragged amplitude vector those widths imply - so a
+# relaxation that admitted the declaration while dropping it silently would
+# still fail here ---
 threeForests <- dbarts(
   x,
   y,
@@ -732,8 +738,8 @@ expect_error(
 )
 
 # --- K = 1 THROUGH THE K-FOREST PATH. A lone forest CARRYING A BASIS is a
-# different declaration from the one just above, and until this slice the two
-# creation routes did different and separately wrong things with it: the data
+# different declaration from the one just above, and the two creation routes
+# used to do different and separately wrong things with it: the data
 # route refused in the data object's own vocabulary, and the forests route
 # reached no error at all - forestBasisDeclarations' two-forest floor meant the
 # basis never reached data@bases, so an ordinary single-forest model was fit
@@ -943,7 +949,7 @@ expect_error(
   "must be one-sided"
 )
 
-# --- F5: a creation the factory would refuse raises an R condition, and no
+# --- a creation the factory would refuse raises an R condition, and no
 # usable handle escapes. Driven past the R-layer refusal by hand-attaching the
 # variance attribute to an already-resolved BCF spec, so the bridge's own
 # backstop is what answers. ---
@@ -982,7 +988,7 @@ expect_error(
   "non-default node scale"
 )
 
-# --- F7: the two halves of the specification are cross-checked in BOTH
+# --- the two halves of the specification are cross-checked in BOTH
 # directions, so a stripped one is a loud refusal naming the missing piece
 # rather than a silent single-forest fit ---
 strippedConfig <- resolved
@@ -1008,12 +1014,13 @@ expect_error(
   "carry no forest bases"
 )
 
-# --- D2: a basis declaration on 'forests' has nowhere to ride once 'formula'
-# is already a built dbartsData - dbarts() refuses that combination by name
-# rather than silently discarding the declaration and fitting a single-forest
-# model; dbartsSpec() is not touched, since its first argument is always a
-# dbartsData already; and the supported composition - bases on the data
-# object, a knob-only 'forests' - keeps working either way (FB13). ---
+# --- the pre-built-data refusal: a basis declaration on 'forests' has
+# nowhere to ride once 'formula' is already a built dbartsData - dbarts()
+# refuses that combination by name rather than silently discarding the
+# declaration and fitting a single-forest model; dbartsSpec() is not
+# touched, since its first argument is always a dbartsData already; and the
+# supported composition - bases on the data object, a knob-only 'forests' -
+# keeps working either way. ---
 prebuiltData <- dbartsData(x, y)
 
 # (i) the refusal fires by name, on every shape of a basis-declaring
@@ -1115,8 +1122,8 @@ firstForestSpecBuild <- dbartsSpec(
 )
 expect_equal(firstForestSpecBuild$data@bases[[1L]], zBasis)
 # the K = 1 route reaches the pre-existing "needs at least two forests"
-# refusal here, not the D2 one - a different message, so the two refusals are
-# not conflated
+# refusal here, not the pre-built-data one - a different message, so the two
+# refusals are not conflated
 expect_error(
   dbartsSpec(
     prebuiltData,
@@ -1172,7 +1179,7 @@ expect_identical(
 expect_silent(dbartsData(prebuiltData))
 expect_identical(dbartsData(prebuiltData), prebuiltData)
 # the warning is specific to the dbartsData-inherits branch; the ordinary
-# x/y route's own 'bases' handling is untouched by item 2
+# x/y route's own 'bases' handling is untouched
 expect_silent(dbartsData(x, y, bases = list(NULL, zBasis)))
 
 # (v) the amplitude-prior check now honours 'hasBasis', not only a forest's

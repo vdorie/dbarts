@@ -214,7 +214,7 @@ expect_true(all(is.finite(sampler.mutable$run(0L, 2L)$variance)))
 
 # resid.prior calibrates the variance forest's scale leaf rather than a sigma
 # that is not a parameter here, so setModel recalibrates the leaf from the
-# incoming triple instead of refusing it (S5 replacing S1's refusal). A prior
+# incoming triple instead of refusing it. A prior
 # this tight swamps the residuals: every leaf factor is drawn at essentially
 # its prior value, so the surface collapses onto sigest^2 * scale wherever the
 # data would have put it (it sat 20% below that pin beforehand).
@@ -264,7 +264,7 @@ expect_error(
   "shape-compatible"
 )
 # two heteroscedastic samplers agree on the shape, and the donor's variance
-# trees now ride the install (S5); the state-level gate is in tests/cpp
+# trees now ride the install; the state-level gate is in tests/cpp
 expect_silent(sampler.variance$installTrees(donor.variance))
 
 # The response-side conduits carry the same scale pin the transactional

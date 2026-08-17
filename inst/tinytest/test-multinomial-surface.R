@@ -1,9 +1,8 @@
-# The public bart2(family = "multinomial") surface (docs/plans/multinomial.md
-# C7). The REPRODUCTION GATE below is the abort condition the brief calls
-# for: bart2's fit path must reproduce, bit for bit, the internal
-# bartcoreMultinomialSampler/bartcoreRun pattern benchmarks/R/
-# multinomial-equivalence.R exercises, on the same data and seed. Everything
-# else is level-threading, shape, and refusal coverage.
+# The public bart2(family = "multinomial") surface. The REPRODUCTION GATE
+# below is the condition that matters most: bart2's fit path must reproduce,
+# bit for bit, the internal bartcoreMultinomialSampler/bartcoreRun pattern
+# benchmarks/R/multinomial-equivalence.R exercises, on the same data and
+# seed. Everything else is level-threading, shape, and refusal coverage.
 
 # The internal-path comparator: mirrors benchmarks/R/multinomial-equivalence.R
 # exactly (host dbarts() sampler, then bartcoreMultinomialSampler, then one
@@ -118,7 +117,7 @@ expect_true(all(fit2$yhat.train >= 0 & fit2$yhat.train <= 1))
 expect_true(all(abs(apply(fit3$yhat.train, c(1L, 2L), sum) - 1) < 1e-8))
 expect_true(all(abs(apply(fit2$yhat.train, c(1L, 2L), sum) - 1) < 1e-8))
 
-# --- per-category varcount channel (C1): shape, levels, reproduction ---
+# --- per-category varcount channel: shape, levels, reproduction ---
 # varcount reshapes the run's per-sample per-category split-usage channel to
 # n.samples x p x K with levels on the trailing K margin, mirroring yhat.train.
 expect_equal(dim(fit3$varcount), c(n.samples, p, 3L))
@@ -216,7 +215,7 @@ fitMultiSplit <- bart2(
 expect_equal(dim(fitMultiSplit$yhat.train), c(2L, 5L, n, 3L))
 expect_equal(dim(fitMultiSplit$varcount), c(2L, 5L, p, 3L))
 
-# --- test data at creation (C1): K = 3 reproduction gate, shape, levels ---
+# --- test data at creation: K = 3 reproduction gate, shape, levels ---
 # test rows reuse train rows 1:20, so the test channel is well-defined and,
 # by softmax invariance to the common level shift, matches those train columns
 x3.test <- x3[seq_len(20L), , drop = FALSE]
@@ -270,7 +269,7 @@ ppd3t <- extract(fit3t, type = "ppd", sample = "test")
 expect_equal(dim(ppd3t), c(n.samples, 20L))
 expect_true(all(ppd3t %in% seq_len(3L)))
 
-# --- test data at creation (C1): K = 2 ---
+# --- test data at creation: K = 2 ---
 x2.test <- x2[seq_len(15L), , drop = FALSE]
 set.seed(seed2)
 fit2t <- bart2(
@@ -337,7 +336,7 @@ expect_error(fit3p$fit$setPredictor(x3[, 1L], 1L), hostRefusal)
 expect_equal(ncol(fit3p$fit$data@x), ncol(x3))
 expect_identical(predict(fit3p, x3.test), pred3p)
 
-# --- keepSampler retains $fit independent of keepTrees (D2) ---
+# --- keepSampler retains $fit independent of keepTrees ---
 fit3ks <- bart2(
   x3,
   y3,
@@ -374,7 +373,7 @@ expect_equal(dim(predMulti), c(10L, 20L, 3L))
 predMultiSplit <- predict(fit3pMulti, x3.test, combineChains = FALSE)
 expect_equal(dim(predMultiSplit), c(2L, 5L, 20L, 3L))
 
-# --- count-matrix response (C2): an n x K count matrix beside the factor
+# --- count-matrix response: an n x K count matrix beside the factor
 # path, both routed through bart2's multinomial branch. The internal-path
 # comparator mirrors internalMultinomialFit above, substituting
 # bartcoreMultinomialCountSampler for bartcoreMultinomialSampler.
@@ -687,7 +686,7 @@ fit3Char <- bart2(
 )
 expect_equal(fit3Char$levels, sort(levels(y3)))
 
-# --- category offset (S5): bart2's own n x K matrix 'offset', threaded to
+# --- category offset: bart2's own n x K matrix 'offset', threaded to
 # the internal creator's own offset argument, never to the host dbarts()
 # call (whose flat offset stays refused separately, below). The
 # reproduction gate extends to it on both response forms: a public offset
@@ -807,7 +806,7 @@ expect_error(
   "already expressible as row-wise count replication"
 )
 # a flat vector stays refused - it is the softmax's own null direction and
-# identically inert (S5: only an n x K matrix carries a meaningful offset)
+# identically inert (only an n x K matrix carries a meaningful offset)
 expect_error(
   bart2(
     x2,

@@ -1,8 +1,7 @@
 # A heteroscedastic sampler's variance forest lives outside the forest vector
 # the mutation helpers loop, so a predictor or cut-grid change used to leave
 # s^2(x) routing observations by the predictors the forest was built with.
-# The forced predictor paths and setCutPoints now re-route it
-# (docs/plans/variance-forest-mutation-routing.md, slice S3).
+# The forced predictor paths and setCutPoints now re-route it.
 
 set.seed(29, sample.kind = "Rejection")
 
@@ -80,7 +79,7 @@ sScratch <- sqrt(apply(scratch$run(150L, 100L)$variance, 1L, mean))
 expect_true(cor(sMutated, sScratch) > 0.9)
 expect_true(abs(mean(sMutated) / mean(sScratch) - 1) < 0.15)
 
-# ---- setData: a replacement data set, observation count included (S4) ----
+# ---- setData: a replacement data set, observation count included ----
 # Seven n-sized allocations are pinned at creation n - meanWeights_ and the
 # variance forest's indexBuffer, factorByTree, combinedVariance, meanResidual,
 # divisor and treeResidual - so a changed count used to overrun them. setData

@@ -1,4 +1,4 @@
-# S11: packaging the per-forest in-sample channels (forestFits, glue) and
+# Packaging the per-forest in-sample channels (forestFits, glue) and
 # extract(type = "forest") on top of the sampler-level reporting
 # test-bcf-reporting.R already exercises (docs/design/bcf.md).
 
@@ -77,7 +77,7 @@ expect_equal(dim(byIndex), c(6L, n, 1L))
 expect_identical(dimnames(byIndex)[[3L]], "forest2")
 
 # contribution = (basis %*% glue) * forestFits, computed on demand rather
-# than stored (5.8.4); re-derived here from the packaged elements alone, one
+# than stored; re-derived here from the packaged elements alone, one
 # draw, both forests
 contrib <- extract(fit, type = "forest", contribution = TRUE)
 expect_equal(dim(contrib), dim(fit$forestFits))

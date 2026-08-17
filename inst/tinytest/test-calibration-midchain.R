@@ -89,7 +89,7 @@ expect_true(all(calibration[, "k.has.hyperprior"] == 0))
 # and a named model reports what it named, not the range
 expect_equal(unname(priorScaleOf(namedSampler())), c(1.5, 1.5))
 
-# --- O4a: a get-then-set is BITWISE inert. The setter derives the internal
+# --- a get-then-set is BITWISE inert. The setter derives the internal
 # leaf scale from the value handed back and SKIPS the write when either that
 # scale or the prior.scale the getter would report reproduces what is in
 # force, so a round trip cannot perturb the last bit and move a draw. ---
@@ -130,12 +130,12 @@ inertE <- namedSampler()
 inertE$setCalibration(prior.scale = 1.5 * (1 + 1e-9))
 expect_false(identical(inertA$run(20L, 10L)$train, inertE$run(20L, 10L)$train))
 
-# --- O4b: set-then-get fidelity, on EVERY chain. This is the only member with
+# --- set-then-get fidelity, on EVERY chain. This is the only member with
 # power against a setter error that is a fixed function of the named value: a
 # sqrt(m)-forgetting setter reports 10.6066 for a requested 1.5 and passes the
 # arm-vs-arm oracles of test-calibration-creation.R untouched.
 #
-# DEVIATION from the plan's "bitwise": the reported value is the internal
+# DEVIATION from an expected "bitwise" round trip: the reported value is the internal
 # scale times the transform, and the internal scale is the requested value
 # DIVIDED by that transform, so exactness is a property of the particular
 # (value, transform) pair rather than of the implementation. MEASURED:
@@ -182,7 +182,7 @@ expect_true(
   max(abs(fidelity$getCalibration()[, "prior.sd"] / 0.75 - 1)) < 1e-14
 )
 
-# --- O4c: the static m falsifier. Two arms at DIFFERENT tree counts are not
+# --- the static m falsifier. Two arms at DIFFERENT tree counts are not
 # bitwise comparable even under a correct implementation, so this shape - one
 # number read twice, and one drawn twice - is what has power over m. The read
 # and the write share a single conversion helper by construction, which makes
@@ -244,7 +244,7 @@ staticDrawn <- vapply(
 )
 expect_true(max(abs(staticDrawn / 0.75 - 1)) < 0.1)
 
-# --- O4d: chains that have diverged are REFUSED, not flattened. The write
+# --- chains that have diverged are REFUSED, not flattened. The write
 # itself is total - one prior.scale is one statement in response units and
 # every chain takes it - but the prior.sd sugar divides by a per-chain k, and
 # once the chains disagree about k there is no single answer. ---
@@ -275,7 +275,7 @@ expect_equal(unname(priorScaleOf(divergedScale)), c(1.5, 3))
 divergedScale$setCalibration(prior.scale = 1.5)
 expect_true(max(abs(priorScaleOf(divergedScale) / 1.5 - 1)) < 1e-14)
 
-# --- O5, the mid-chain half of the refusal matrix. ---
+# --- the calibration refusal matrix, mid-chain half. ---
 
 # a value that is not a positive finite number is an ERROR, not a refusal
 badValues <- namedSampler()
@@ -316,7 +316,8 @@ expect_true(grepl("prior.mean", meanRefusal, fixed = TRUE))
 # the lever the message names is the offset channel, and the reported quantity
 # is the transform's shift: an offset issued at the default updateScale = FALSE
 # shifts the modelled quantity while leaving the reported mean pinned, which is
-# exactly the contract test-calibration-creation.R's O1b exercises end to end.
+# exactly the contract test-calibration-creation.R's offset-recipe test
+# exercises end to end.
 recipe <- namedSampler()
 recipeMean <- recipe$getCalibration()[1L, "prior.mean"]
 expect_equal(unname(recipeMean), (max(y) + min(y)) / 2)
@@ -473,7 +474,7 @@ for (tag in names(leafArms)) {
   expect_true(all(is.finite(sampler$run(10L, 5L)$train)), info = tag)
 }
 
-# --- O6, the mid-chain half of the mutation table. Each row is one assertion
+# --- the mid-chain half of the mutation table. Each row is one assertion
 # about what the reported prior.scale does. ---
 
 # the AUTHORITY RULE: the model slot records the named INTENT and the engine
