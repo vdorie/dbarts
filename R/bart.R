@@ -811,6 +811,14 @@ bart2 <- function(
   # mirror). Every refusal below names the limitation rather than silently
   # reshaping around it.
   if (family == "multinomial") {
+    # a K-forest softmax has no amplitude-coupled slot for a forest() term to
+    # declare; caught here since this arc never reaches the shared dbarts()
+    # ingestion (R/formulaTerms.R) that catches every other family
+    if (formulaHasForestTerm(formula)) {
+      stop(
+        "family = \"multinomial\" does not support a forest() formula term"
+      )
+    }
     if (!missing(weights)) {
       stop(
         "family = \"multinomial\" does not support 'weights': a non-integer ",
@@ -1076,6 +1084,16 @@ bart2 <- function(
   # distinct. family is always explicit: a semicontinuous response has no
   # unambiguous auto class.
   if (family == "hurdle.lognormal") {
+    # the two-sampler composition has no amplitude-coupled slot for a forest()
+    # term either; caught here for the same reason as the multinomial guard
+    # above, and before the matrix-interface-only check below would otherwise
+    # name neither the family's real reason nor the term
+    if (formulaHasForestTerm(formula)) {
+      stop(
+        "family = \"hurdle.lognormal\" does not support a forest() formula ",
+        "term"
+      )
+    }
     checkFamilyUnsupportedArgs(
       "hurdle.lognormal",
       samplerOnly,

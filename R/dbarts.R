@@ -404,6 +404,38 @@ dbarts <- function(
   if (identical(family, "twopart")) {
     family <- "hurdle.lognormal"
   }
+
+  # a forest() formula term declares an additional amplitude-coupled forest
+  # (R/formulaTerms.R); checked against the requested family HERE, before any
+  # family-specific remap or dispatch below can make the token unrecoverable
+  # (hazard) or divert away from this function entirely (bart2's own
+  # multinomial/hurdle.lognormal arcs, which carry the identical check)
+  termIngestion <- ingestFormulaTerms(
+    formula,
+    family,
+    if (missing(data)) NULL else data,
+    missing(subset),
+    matchedCall$subset,
+    evalEnv
+  )
+  if (!is.null(termIngestion)) {
+    if (!is.null(forests)) {
+      stop(
+        "'formula' declares a forest() term and 'forests' is also given; a ",
+        "multi-forest model can only be declared one way - drop one"
+      )
+    }
+    if (!missing(test)) {
+      stop(
+        "a forest() formula term does not support 'test': an amplitude-",
+        "coupled fit has no test-basis channel; drop the term or fit a ",
+        "single-forest model"
+      )
+    }
+    formula <- termIngestion$formula
+    matchedCall$formula <- formula
+  }
+
   if (identical(family, "hurdle.lognormal")) {
     # a hurdle fit composes TWO independent samplers (an occupancy probit and
     # a positive-part gaussian, docs/design/hurdle.md section 2); dbarts()
@@ -603,6 +635,15 @@ dbarts <- function(
       basisDeclarations <- NULL
     }
   }
+  # a forest() term's bases were already evaluated against the model frame
+  # (R/formulaTerms.R), post-subset, unlike the pre-subset raw-data channel
+  # basisDeclarations above; 'forests' being NULL here is enforced by the
+  # collision refusal above, so this never collides with it
+  if (!is.null(termIngestion)) {
+    # data@bases is read positionally against the forests it distinguishes
+    # (forest 1 first); a term never speaks for forest 1, which has none
+    dataCall$bases <- c(list(NULL), termIngestion$bases)
+  }
   data <- if (is.null(basisDeclarations)) {
     eval(dataCall, evalEnv)
   } else {
@@ -625,6 +666,13 @@ dbarts <- function(
 
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigma
+
+  # a term's symbolic vars slot names design columns, which exist only now
+  # (R/formulaTerms.R); forest 1 is the fit's own and reads every column, as
+  # it does with no term at all
+  if (!is.null(termIngestion)) {
+    forests <- finalizeTermForests(termIngestion$pending, data)
+  }
 
   spec <- resolveSamplerSpec(
     matchedCall,

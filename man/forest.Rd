@@ -161,13 +161,34 @@ forest(
   second forest is declared. Every value here is validated at fit time, and
   anything today's engine cannot honour is refused there by name rather than
   dropped.
+
+  A \code{forest()} call written INSIDE a \code{\link{bart2}}/\code{\link{dbarts}}
+  formula - bare, or as one operand of \code{:} - declares a second forest
+  without a separate \code{forests =} list: \code{z:forest(x1 + x2)} and
+  \code{factor(z):forest(x1 + x2)} desugar to
+  \code{forest(x1 + x2, basis = ~ z)} and
+  \code{forest(x1 + x2, basis = ~ factor(z))}, a \code{(a + b):forest(x1)}
+  compound left operand (every member numeric or logical) desugars to one
+  forest with the two-column basis \code{~ cbind(a, b)}, and
+  \code{z * forest(x1)} is refused, naming both explicit spellings. In this
+  position \code{forest()}'s UNNAMED slot is a symbolic predictor SET, not
+  \code{basis}: \code{forest(x1 + x2)} means \code{vars = c("x1", "x2")},
+  read from the call and never evaluated, so the docs always spell
+  \code{basis =} by name inside a term. Every other named argument -
+  including \code{basis} itself, for the general form
+  \code{forest(x1 + x2, basis = ~ z)} - evaluates normally. A symbolic name
+  must be among the formula's own right-hand-side terms; a factor name
+  expands to every indicator column derived from it. A term's basis is
+  evaluated against the fit's model frame, after \code{subset} and any row
+  selection - unlike a \code{basis} declared directly on \code{forests =},
+  which is evaluated against the raw \code{data}.
 }
 \value{
   A \code{dbartsForest} specification object, resolved when a sampler is built.
 }
 \seealso{
-  \code{\link{dbarts}}, \code{\link{dbartsSpec}}, \code{\link{interactions}},
-  \code{\link{blocks}}
+  \code{\link{dbarts}}, \code{\link{bart2}}, \code{\link{dbartsSpec}},
+  \code{\link{interactions}}, \code{\link{blocks}}
 }
 \examples{
 set.seed(0)
