@@ -2407,6 +2407,34 @@ survivalProbabilities.rbart <- function(
   )
 }
 
+# bart2 is the door to the own-class families: multinomial and ordinal
+# package as their own S3 class, nbinom needs a count response bart() cannot
+# express, and hurdle.lognormal composes two samplers. match.arg's generic
+# "'arg' should be one of ..." names neither bart2 nor why (8.7), so all four
+# are refused BY NAME here - whether the token was typed explicitly (the
+# family formal) or, for ordinal alone, implied by an ordered-factor
+# response the matrix/formula interface detects before/after the dbarts()
+# call.
+bartOwnClassFamilies <- c(
+  "multinomial",
+  "ordinal",
+  "nbinom",
+  "hurdle.lognormal"
+)
+
+refuseBartOwnClassFamily <- function(family, callForm = "x.train, y.train") {
+  stop(
+    "bart() does not fit family = \"",
+    family,
+    "\"; use ",
+    "bart2(",
+    callForm,
+    ", family = \"",
+    family,
+    "\")"
+  )
+}
+
 bart <- function(
   x.train,
   y.train,
@@ -2440,8 +2468,22 @@ bart <- function(
   seed = NA_integer_,
   proposalprobs = NULL,
   keepsampler = keeptrees,
-  resid.dist = gaussian
+  resid.dist = gaussian,
+  subset = NULL,
+  storage = c("double", "single"),
+  family = c("auto", "logistic", "aft")
 ) {
+  # by-name refusal for the four own-class families (8.7), ahead of
+  # match.arg's generic message, which names neither the token nor bart2
+  if (
+    is.character(family) &&
+      length(family) == 1L &&
+      family %in% bartOwnClassFamilies
+  ) {
+    refuseBartOwnClassFamily(family)
+  }
+  family <- match.arg(family)
+
   # forwarded to dbarts() unevaluated (as the prior expressions are), so a bare
   # gaussian()/student() resolves in dbarts()'s residual-distribution vocabulary
   residDist <- substitute(resid.dist)
@@ -2469,16 +2511,14 @@ bart <- function(
       is.ordered(y.train) &&
       nlevels(y.train) >= 3L
   ) {
-    stop(
-      "bart() does not fit ordinal (ordered-factor) responses; use ",
-      "bart2(x.train, y.train, family = \"ordinal\")"
-    )
+    refuseBartOwnClassFamily("ordinal")
   }
 
   control <- dbartsControl(
     keepTrainingFits = as.logical(keeptrainfits),
     useQuantiles = as.logical(usequants),
     keepTrees = FALSE,
+    storage = storage,
     n.burn = nskip,
     n.trees = ntree,
     n.chains = nchain,
@@ -2517,12 +2557,15 @@ bart <- function(
   node.prior <- priors$node.prior
   resid.prior <- priors$resid.prior
 
-  # the frozen BayesTree-compatibility shim keeps dummy expansion
+  # the frozen BayesTree-compatibility shim keeps dummy expansion. subset is
+  # left OUT of the list rather than forwarded as an explicit NULL: an
+  # ordinary fit treats missing(subset) and is.null(subset) identically, but
+  # an aft/Surv response does not (dbarts() refuses a non-missing subset on
+  # one), so an explicit NULL would silently foreclose family = "aft"
   args <- list(
     formula = x.train,
     data = y.train,
     test = x.test,
-    subset = NULL,
     weights = weights,
     offset = binaryOffset,
     verbose = as.logical(verbose),
@@ -2535,17 +2578,18 @@ bart <- function(
     control = control,
     sigma = as.numeric(sigest),
     factors = "indicators",
-    missing = "error"
+    missing = "error",
+    family = family
   )
+  if (!is.null(subset)) {
+    args$subset <- subset
+  }
   sampler <- do.call(dbarts::dbarts, args, envir = parent.frame(1L))
 
   # formula-response backstop for the pre-check above: dbarts() auto-dispatched
   # an ordered-factor response to ordinal, which bart() cannot package
   if (identical(sampler$model@family, "ordinal")) {
-    stop(
-      "bart() does not fit ordinal (ordered-factor) responses; use ",
-      "bart2(..., family = \"ordinal\")"
-    )
+    refuseBartOwnClassFamily("ordinal", callForm = "...")
   }
 
   if (sampleronly) {
