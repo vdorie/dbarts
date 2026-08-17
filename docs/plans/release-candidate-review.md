@@ -557,6 +557,32 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### FX2 - unadjudicated heteroscedastic compositions refused (35b2b92d, 2026-08-17)
+
+Reproduction first, per the mandate, and it halved the scope:
+resid.dist = student() alongside variance = CONSTRUCTED AND RAN
+silently on dbarts() and bart2() (no warning, class as normal) -
+now a construction-time validation error ("a variance forest does
+not support Student-t residuals: the two are not yet shown to
+compose", fork 6's shape: formal stays, "does not support", fires
+in 17 ms before any sampling) at the single resolveSamplerSpec site
+all three construction routes share; the grouped x variance
+composition is NOT REACHABLE at all (rbart_vi declares no variance
+formal and its dots are rejection-only) - documented, not
+dead-refused. The door memo is docs/design/heteroscedastic.md
+section 15: support arrives by adjudicating the weight-channel
+divisor against the scale-mixture weights (or, for grouped, adding
+the same formal plus the existing collision check) and dropping the
+refusal - no new surface either way. One NEWS item; one sentence in
+each of man/dbarts.Rd and man/bart2.Rd, worded unadjudicated-not-
+by-design. Four test arms: two refusal pins, two alive-neighbor
+pins (gaussian+variance and student-sans-variance both stay legal -
+and the harness's hetforce and student scenarios, which exercise
+exactly those two halves, stayed bitwise). Gates twice: tinytest
+5814/0; trio bitwise (37/37, 12/12, 10/10); air/lintr clean; NEWS
+266 entries; R CMD check --as-cran OK; discrimination five-way
+clean including construction-time verification.
+
 ### FX1-guard - student fits stop scoring gaussian (4975c20b, 2026-08-17)
 
 Every packaged bart/bart2 fit now records a resid.dist token
