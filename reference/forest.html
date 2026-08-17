@@ -210,6 +210,26 @@
   second forest is declared. Every value here is validated at fit time, and
   anything today's engine cannot honour is refused there by name rather than
   dropped.</p>
+<p>A <code>forest()</code> call written INSIDE a <code><a href="bart.html">bart2</a></code>/<code><a href="dbarts.html">dbarts</a></code>
+  formula - bare, or as one operand of <code>:</code> - declares a second forest
+  without a separate <code>forests =</code> list: <code>z:forest(x1 + x2)</code> and
+  <code>factor(z):forest(x1 + x2)</code> desugar to
+  <code>forest(x1 + x2, basis = ~ z)</code> and
+  <code>forest(x1 + x2, basis = ~ factor(z))</code>, a <code>(a + b):forest(x1)</code>
+  compound left operand (every member numeric or logical) desugars to one
+  forest with the two-column basis <code>~ cbind(a, b)</code>, and
+  <code>z * forest(x1)</code> is refused, naming both explicit spellings. In this
+  position <code>forest()</code>'s UNNAMED slot is a symbolic predictor SET, not
+  <code>basis</code>: <code>forest(x1 + x2)</code> means <code>vars = c("x1", "x2")</code>,
+  read from the call and never evaluated, so the docs always spell
+  <code>basis =</code> by name inside a term. Every other named argument -
+  including <code>basis</code> itself, for the general form
+  <code>forest(x1 + x2, basis = ~ z)</code> - evaluates normally. A symbolic name
+  must be among the formula's own right-hand-side terms; a factor name
+  expands to every indicator column derived from it. A term's basis is
+  evaluated against the fit's model frame, after <code>subset</code> and any row
+  selection - unlike a <code>basis</code> declared directly on <code>forests =</code>,
+  which is evaluated against the raw <code>data</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -217,8 +237,8 @@
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code>, <code><a href="interactions.html">interactions</a></code>,
-  <code><a href="blocks.html">blocks</a></code></p></div>
+    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart2</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code>,
+  <code><a href="interactions.html">interactions</a></code>, <code><a href="blocks.html">blocks</a></code></p></div>
     </div>
 
     <div class="section level2">

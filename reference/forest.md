@@ -175,6 +175,26 @@ when a second forest is declared. Every value here is validated at fit
 time, and anything today's engine cannot honour is refused there by name
 rather than dropped.
 
+A `forest()` call written INSIDE a
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)/[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+formula - bare, or as one operand of `:` - declares a second forest
+without a separate `forests =` list: `z:forest(x1 + x2)` and
+`factor(z):forest(x1 + x2)` desugar to `forest(x1 + x2, basis = ~ z)`
+and `forest(x1 + x2, basis = ~ factor(z))`, a `(a + b):forest(x1)`
+compound left operand (every member numeric or logical) desugars to one
+forest with the two-column basis `~ cbind(a, b)`, and `z * forest(x1)`
+is refused, naming both explicit spellings. In this position
+`forest()`'s UNNAMED slot is a symbolic predictor SET, not `basis`:
+`forest(x1 + x2)` means `vars = c("x1", "x2")`, read from the call and
+never evaluated, so the docs always spell `basis =` by name inside a
+term. Every other named argument - including `basis` itself, for the
+general form `forest(x1 + x2, basis = ~ z)` - evaluates normally. A
+symbolic name must be among the formula's own right-hand-side terms; a
+factor name expands to every indicator column derived from it. A term's
+basis is evaluated against the fit's model frame, after `subset` and any
+row selection - unlike a `basis` declared directly on `forests =`, which
+is evaluated against the raw `data`.
+
 ## Value
 
 A `dbartsForest` specification object, resolved when a sampler is built.
@@ -182,6 +202,7 @@ A `dbartsForest` specification object, resolved when a sampler is built.
 ## See also
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md),
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
 [`interactions`](https://vdorie.github.io/dbarts/reference/interactions.md),
 [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md)
