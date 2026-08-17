@@ -69,6 +69,7 @@ bart2(
     resid.dist = gaussian,
     dispersion = NA_real_,
     breaks = NULL, max.rows = 1e7,
+    tree.prior = NULL, node.prior = NULL, resid.prior = NULL,
     storage = c("double", "single"), updateState = TRUE,
     ...)
 
@@ -748,6 +749,32 @@ summary(object, ...)
   \\\log y\\ on the positive subset) under their own
   `extract`/`fitted`/`predict`/`residuals`/`print` methods.
 
+- tree.prior, node.prior, resid.prior:
+
+  `bart2` only. The full
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) prior
+  objects, forwarded unevaluated so a bare
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
+  vocabulary name inside them (`cgm`, `dart`, `normal`, `linear`, `gp`,
+  `chisq`, `fixed`) resolves exactly as it does for `dbarts`:
+  `node.prior = linear(columns = 1:3)`, `gp(...)`, and
+  `resid.prior = fixed(1)` are reachable this way. `NULL` (the default
+  for all three) instead builds the tree/node/residual priors from
+  `power`/`base`/`split.probs`/`dart`, `k`/`prior.scale`, and
+  `sigdf`/`sigquant` respectively, exactly as before this argument
+  existed. Supplying an object alongside a shorthand that would
+  otherwise help build the same prior is an error naming both:
+  `tree.prior` collides with any of `power`/`base`/`split.probs`/`dart`;
+  `node.prior` with `k`/`prior.scale`; `resid.prior` with
+  `sigdf`/`sigquant`/`sigest`. A supplied `resid.prior` under a
+  fixed-unit-scale family (`"probit"`, `"logistic"`, `"ordinal"`,
+  `"nbinom"`, the hazard families, `"multinomial"`) is diagnosed the
+  same way `sigest`/`sigdf`/`sigquant` already are - a
+  `dbartsFamilyGatedWarning`, since the family overwrites it with
+  `fixed(1)` regardless. `tree.prior`/`node.prior` are honored on every
+  family, including both component fits of
+  `family = "hurdle.lognormal"`.
+
 - storage:
 
   `bart2` only, passed through to
@@ -1399,7 +1426,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.189109
+#> total seconds in loop: 0.217913
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1465,7 +1492,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001123
+#> total seconds in loop: 0.001503
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
