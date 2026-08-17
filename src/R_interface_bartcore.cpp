@@ -241,8 +241,9 @@ struct ParsedData {
   std::vector<std::int32_t> columnSources;
   // per sparse column of a mixed container: the reference level's 0-based
   // code and the level count K, borrowed from the container (null unless it
-  // carries the metadata). Resolved per predictor into cscReferenceCodes /
-  // categoryCounts once varTypes marks the CSC-backed categorical columns.
+  // carries a sparse block, whose metadata the parse validates). Resolved per
+  // predictor into cscReferenceCodes / categoryCounts once varTypes marks the
+  // CSC-backed categorical columns.
   const int* cscReferenceMeta = NULL;
   const int* cscCategoryCountMeta = NULL;
   size_t numSparseColumns = 0;
@@ -626,6 +627,28 @@ void resolveCscCategoricalReferences(
   }
 }
 
+// Validate a mixed container's per-sparse-column reference metadata and borrow
+// it: both fields must be integer vectors of one entry per CSC column, in the
+// sparse block's column order - how every consumer indexes them. Shared by all
+// three container funnels (creation and either mutation), each passing its own
+// \p malformedMessage, so a container carrying a sparse block is refused where
+// it arrives rather than taken at one entrance and refused at the next. The
+// borrowed pointers ride the container, valid as long as it is protected.
+void requireCscReferenceMeta(SEXP containerExpr, size_t numCscColumns,
+                             const int*& referenceMeta,
+                             const int*& categoryCountMeta,
+                             const char* malformedMessage) {
+  SEXP referenceExpr = getListElement(containerExpr, "sparseReference");
+  SEXP categoryCountExpr =
+    getListElement(containerExpr, "sparseCategoryCount");
+  if (!Rf_isInteger(referenceExpr) || !Rf_isInteger(categoryCountExpr) ||
+      static_cast<size_t>(rc_getLength(referenceExpr)) != numCscColumns ||
+      static_cast<size_t>(rc_getLength(categoryCountExpr)) != numCscColumns)
+    Rf_error("%s", malformedMessage);
+  referenceMeta = INTEGER(referenceExpr);
+  categoryCountMeta = INTEGER(categoryCountExpr);
+}
+
 // Parse an R-side mixed test container (a dbartsMixedMatrix as x.test) against
 // the training cut grid the engine already holds: assemble the transient dense
 // block (factors carrying zero-based codes), gather the CSC slices, and resolve
@@ -680,18 +703,11 @@ void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
   // gated on a categorical column existing among this container's columns.
   const int* referenceMeta = nullptr;
   const int* categoryCountMeta = nullptr;
-  if (hasSparse) {
-    SEXP referenceExpr = getListElement(containerExpr, "sparseReference");
-    SEXP categoryCountExpr =
-      getListElement(containerExpr, "sparseCategoryCount");
-    if (!Rf_isInteger(referenceExpr) || !Rf_isInteger(categoryCountExpr) ||
-        static_cast<size_t>(rc_getLength(referenceExpr)) != numCscColumns ||
-        static_cast<size_t>(rc_getLength(categoryCountExpr)) != numCscColumns)
-      Rf_error("sparse categorical test predictor columns require reference "
-               "metadata");
-    referenceMeta = INTEGER(referenceExpr);
-    categoryCountMeta = INTEGER(categoryCountExpr);
-  }
+  if (hasSparse)
+    requireCscReferenceMeta(containerExpr, numCscColumns, referenceMeta,
+                            categoryCountMeta,
+                            "sparse categorical test predictor columns require "
+                            "reference metadata");
   // a non-NA reference against a store-ORDINAL column is refused
   // here, for every parseTestContainer caller (creation, setTestPredictor,
   // setTestPredictorAndOffset) alike, since columnTypes is the STORE's types
@@ -802,14 +818,8 @@ bool parseMutationSource(ParsedMutationSource& out, SEXP xExpr, size_t numRows,
       out.view.cscColumnPointers = csc.pointers;
       out.view.cscRowIndices = csc.rows;
       out.view.cscValues = csc.values;
-      SEXP referenceExpr = getListElement(xExpr, "sparseReference");
-      SEXP countExpr = getListElement(xExpr, "sparseCategoryCount");
-      if (!Rf_isInteger(referenceExpr) || !Rf_isInteger(countExpr) ||
-          static_cast<size_t>(rc_getLength(referenceExpr)) != csc.numColumns ||
-          static_cast<size_t>(rc_getLength(countExpr)) != csc.numColumns)
-        Rf_error("%s", mutationContainerMessage);
-      out.referenceMeta = INTEGER(referenceExpr);
-      out.categoryCountMeta = INTEGER(countExpr);
+      requireCscReferenceMeta(xExpr, csc.numColumns, out.referenceMeta,
+                              out.categoryCountMeta, mutationContainerMessage);
       out.numSparseColumns = csc.numColumns;
     }
     UNPROTECT(3);
@@ -1013,20 +1023,12 @@ void parseData(ParsedData& data, SEXP dataExpr) {
       data.predictors.cscRowIndices = csc.rows;
       data.predictors.cscValues = csc.values;
 
-      // borrow the per-sparse-column reference metadata (a CSC-backed
-      // categorical column needs it); it rides the container, so stays valid
-      // while dataExpr is protected
-      SEXP referenceExpr = getListElement(slotExpr, "sparseReference");
-      SEXP categoryCountExpr = getListElement(slotExpr, "sparseCategoryCount");
-      if (Rf_isInteger(referenceExpr) && Rf_isInteger(categoryCountExpr) &&
-          static_cast<size_t>(rc_getLength(referenceExpr)) ==
-            csc.numColumns &&
-          static_cast<size_t>(rc_getLength(categoryCountExpr)) ==
-            csc.numColumns) {
-        data.cscReferenceMeta = INTEGER(referenceExpr);
-        data.cscCategoryCountMeta = INTEGER(categoryCountExpr);
-        data.numSparseColumns = csc.numColumns;
-      }
+      // the per-sparse-column reference metadata a CSC-backed categorical
+      // column needs, borrowed from the container (protected via dataExpr)
+      requireCscReferenceMeta(slotExpr, csc.numColumns, data.cscReferenceMeta,
+                              data.cscCategoryCountMeta,
+                              "malformed mixed predictor container");
+      data.numSparseColumns = csc.numColumns;
     }
     UNPROTECT(3);
   } else {
@@ -1061,7 +1063,8 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   if (data.xIsMixed && data.anyCategorical) {
     // a CSC-backed categorical column reaches the engine only with its level
     // count K and reference code, resolved here per predictor from the
-    // container's per-sparse-column metadata; without it, refuse cleanly
+    // container's per-sparse-column metadata - which the parse above required
+    // of every container carrying a sparse block, so it is present here
     bool anyCscCategorical = false;
     for (size_t j = 0; j < data.numPredictors; ++j)
       if (data.columnTypes[j] == bartcore::ColumnType::categorical &&
@@ -1070,9 +1073,6 @@ void parseData(ParsedData& data, SEXP dataExpr) {
         break;
       }
     if (anyCscCategorical) {
-      if (data.cscReferenceMeta == NULL || data.cscCategoryCountMeta == NULL)
-        Rf_error("sparse categorical predictor columns require reference "
-                 "metadata");
       resolveCscCategoricalReferences(
         data.columnTypes.data(), data.columnSources.data(),
         data.numPredictors, data.cscReferenceMeta, data.cscCategoryCountMeta,
