@@ -1339,6 +1339,32 @@
             \code{dbartsSpec}) keep \code{sigma}. A caller still naming
             \code{sigma} now gets an unused-argument error from
             \code{xbart}.
+      \item \code{variance}'s three companion knobs - \code{n.trees.variance},
+            \code{power.variance}, and \code{base.variance} - are removed
+            from \code{bart2}, \code{dbarts}, and \code{dbartsSpec}, replaced
+            by a new \code{\link{varianceForest}(vars = , n.trees = , base =
+            , power = )} constructor. \code{variance} now accepts either its
+            existing shorthand (\code{NULL}/\code{FALSE} for none,
+            \code{TRUE}/a one-sided formula/a character or integer column
+            selector for the predictors) or a \code{varianceForest} object,
+            whose \code{vars} resolves through the SAME selector the
+            shorthand uses and whose \code{n.trees}/\code{base}/\code{power}
+            replace the shorthand path's own defaults (\code{40} trees, the
+            mean forest's tree-structure prior). \code{variance = TRUE,
+            n.trees.variance = 10} becomes \code{variance =
+            varianceForest(n.trees = 10)}; a restricted \code{variance = ~
+            x1, n.trees.variance = 10} becomes \code{variance =
+            varianceForest(vars = ~ x1, n.trees = 10)}. A caller who wrote
+            any of the three removed names now gets an unused-argument
+            error (\code{bart2}'s \code{\dots} reports \code{"unknown
+            argument"} for these three, with no nearest-formal suggestion, since
+            none of the surviving formal names is close enough for
+            \code{agrep} to propose one). A \code{formals()}-derived accept
+            filter - stan4bart's \code{bart_args}, and CRAN packages such as
+            WeightIt and MatchIt that expose the dbarts surface the same way
+            - drops a user's \code{n.trees.variance}/\code{power.variance}/
+            \code{base.variance} silently instead, since the filter no
+            longer recognizes the names.
     }
   }
 }

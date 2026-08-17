@@ -148,8 +148,7 @@ sampler.variance <- dbarts::dbarts(
   y ~ x + z,
   train,
   control = control,
-  variance = TRUE,
-  n.trees.variance = 10L
+  variance = dbarts::varianceForest(n.trees = 10L)
 )
 expect_error(
   sampler.variance$setSigma(2),
@@ -191,8 +190,7 @@ sampler.mutable <- dbarts::dbarts(
   y ~ x + z,
   train,
   control = control,
-  variance = TRUE,
-  n.trees.variance = 10L
+  variance = dbarts::varianceForest(n.trees = 10L)
 )
 xVariance <- as.matrix(train[, c("x", "z")])
 xReplacement <- xVariance
@@ -252,8 +250,7 @@ donor.variance <- dbarts::dbarts(
   y ~ x + z,
   train,
   control = control,
-  variance = TRUE,
-  n.trees.variance = 10L
+  variance = dbarts::varianceForest(n.trees = 10L)
 )
 invisible(donor.variance$run(0L, 1L))
 donor.homoscedastic <- dbarts::dbarts(y ~ x + z, train, control = control)

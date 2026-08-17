@@ -190,8 +190,7 @@ expect_equal(dim(rOrdinal$cutpoints), c(2L, 2L))
 samplerVariance <- dbarts(
   x,
   yGauss,
-  variance = TRUE,
-  n.trees.variance = 10L,
+  variance = varianceForest(n.trees = 10L),
   control = samplerControl(),
   verbose = FALSE
 )

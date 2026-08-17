@@ -251,8 +251,7 @@ anchorSamplers <- list(
   heteroscedastic = anchorSampler(
     y,
     control = priorControl(),
-    variance = ~x1,
-    n.trees.variance = 5L
+    variance = varianceForest(vars = ~x1, n.trees = 5L)
   )
 )
 for (familyName in names(anchorSamplers)) {

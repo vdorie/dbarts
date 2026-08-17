@@ -194,8 +194,7 @@ cell <- fitIdentity(dbarts(
   x,
   yGauss,
   offset = offGauss,
-  variance = TRUE,
-  n.trees.variance = 10L,
+  variance = varianceForest(n.trees = 10L),
   control = samplerControl()
 ))
 expect_true(!is.null(cell$fits))

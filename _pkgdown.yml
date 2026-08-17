@@ -31,6 +31,7 @@ reference:
   - interactions
   - blocks
   - forest
+  - varianceForest
   - dbartsAugmentation
   - extract.dbartsSampler
   - samplePriorPredictive

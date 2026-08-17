@@ -392,3 +392,130 @@ expect_true(setequal(
   intersect(controlFormals1_0_0, names(formals(dbarts::rbart_vi))),
   controlFormals1_0_0
 ))
+
+# S6 (docs/plans/bart2-argument-consolidation.md 3.b b3, 4.2, 6.3): the
+# variance quartet collapses to a dedicated varianceForest() constructor;
+# variance = keeps its shorthand (NULL/FALSE/TRUE/formula/character/index)
+# and additionally accepts a varianceForest object (fork 2b). The flat
+# n.trees.variance/power.variance/base.variance formals are gone from
+# bart2/dbarts/dbartsSpec; the base-vs-HEAD byte-identity gate for the
+# removed flat spelling rides an out-of-tree A/B probe (a second installed
+# build is needed to exercise a formal this build no longer has), recorded
+# in the landing notes. What lives here runs entirely against HEAD.
+
+varN <- 40L
+varX <- matrix(
+  rnorm(varN * 2L),
+  varN,
+  dimnames = list(NULL, c("x1", "x2"))
+)
+varY <- rnorm(varN)
+varControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.trees = 3L,
+  n.samples = 5L,
+  n.burn = 2L,
+  n.threads = 1L,
+  verbose = FALSE,
+  updateState = FALSE
+)
+varianceAttr <- function(variance, factors = "categorical") {
+  attr(
+    dbarts::dbarts(
+      varX,
+      varY,
+      control = varControl,
+      variance = variance,
+      factors = factors
+    )$control,
+    "bartcore.variance"
+  )
+}
+
+# round-trip identity (b3, one argument two accepted types): a varianceForest
+# with no knobs declared resolves BYTE-IDENTICALLY to the shorthand it wraps,
+# both when it reads every column and when it is restricted
+expect_identical(varianceAttr(TRUE), varianceAttr(dbarts::varianceForest()))
+expect_identical(
+  varianceAttr(~x1),
+  varianceAttr(dbarts::varianceForest(vars = ~x1))
+)
+
+# a declared n.trees/base/power on the object is honored and distinguishes it
+# from the plain shorthand's own defaults
+objectAttr <- varianceAttr(
+  dbarts::varianceForest(vars = ~x1, n.trees = 20L, base = 0.9, power = 1.5)
+)
+expect_equal(objectAttr$n.trees, 20L)
+expect_equal(objectAttr$base, 0.9)
+expect_equal(objectAttr$power, 1.5)
+expect_false(identical(objectAttr, varianceAttr(~x1)))
+
+# factor-term expansion through vars = ~z under factors = "indicators" (the
+# b3 selector requirement - vars resolves through the SAME resolveVarianceColumns
+# the shorthand uses, so a factor term expands identically through either route)
+dfFactorVar <- data.frame(
+  x1 = rnorm(varN),
+  z = factor(sample(letters[1:3], varN, replace = TRUE))
+)
+attrShorthandZ <- attr(
+  dbarts::dbarts(
+    y ~ x1 + z,
+    data.frame(y = varY, dfFactorVar),
+    control = varControl,
+    variance = ~z,
+    factors = "indicators"
+  )$control,
+  "bartcore.variance"
+)
+attrObjectZ <- attr(
+  dbarts::dbarts(
+    y ~ x1 + z,
+    data.frame(y = varY, dfFactorVar),
+    control = varControl,
+    variance = dbarts::varianceForest(vars = ~z),
+    factors = "indicators"
+  )$control,
+  "bartcore.variance"
+)
+expect_identical(attrShorthandZ, attrObjectZ)
+expect_equal(attrShorthandZ$columns, 2:4) # z's 3 indicator columns
+
+# variance = NULL/FALSE still declare no variance forest (the object's own
+# NULL vars means "every column", the opposite of variance = NULL's meaning,
+# by construction - only reachable through the object)
+expect_null(varianceAttr(NULL))
+expect_null(varianceAttr(FALSE))
+
+# collision rule (3): the three removed formal spellings are now simply
+# unknown arguments - bart2's dots rejection names each, unsuggested (none of
+# the surviving formal names is close enough for agrep's default distance)
+expect_error(
+  fit2(y.gaussian, n.trees.variance = 10L),
+  pattern = "^unknown argument 'n.trees.variance'$"
+)
+expect_error(
+  fit2(y.gaussian, power.variance = 1),
+  pattern = "^unknown argument 'power.variance'$"
+)
+expect_error(
+  fit2(y.gaussian, base.variance = 1),
+  pattern = "^unknown argument 'base.variance'$"
+)
+# dbarts()/dbartsSpec() have no dots at all, so R's own unused-argument
+# refusal fires instead
+expect_error(
+  dbarts::dbarts(varX, varY, control = varControl, n.trees.variance = 10L),
+  pattern = "unused argument"
+)
+
+# print/format smoke
+printed <- capture.output(print(dbarts::varianceForest(n.trees = 20L)))
+expect_true(any(grepl("variance forest", printed)))
+expect_true(any(grepl("n.trees = 20", printed, fixed = TRUE)))
+expect_true(any(grepl("<all columns>", printed, fixed = TRUE)))
+formatted <- format(
+  dbarts::varianceForest(vars = ~x1, n.trees = 20L, base = 0.9, power = 1.5)
+)
+expect_true(is.character(formatted))
+expect_true(any(grepl("base\\s*= 0.9", formatted)))

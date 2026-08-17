@@ -249,8 +249,7 @@ heteroSampler <- function(weights) {
     x,
     y,
     weights = weights,
-    variance = TRUE,
-    n.trees.variance = 10L,
+    variance = dbarts::varianceForest(n.trees = 10L),
     control = control,
     sigma = 1,
     n.samples = 10L

@@ -65,7 +65,7 @@ partA <- function() {
     seed = 51L
   )
 
-  het <- dbarts(x, y, control = ctl, variance = TRUE, n.trees.variance = 1L)
+  het <- dbarts(x, y, control = ctl, variance = varianceForest(n.trees = 1L))
   rHet <- het$run(nburn, ndpost)
   s2Post <- mean(rHet$variance)
 
@@ -314,10 +314,7 @@ partB <- function() {
       control = ctl,
       tree.prior = cgm(power, base),
       resid.prior = chisq(sigdf, sigquant),
-      variance = TRUE,
-      n.trees.variance = 2L,
-      power.variance = power,
-      base.variance = base
+      variance = varianceForest(n.trees = 2L, base = base, power = power)
     )
     sigest <- sampler$data@sigma
     r <- sampler$run(nburn, ndpost)

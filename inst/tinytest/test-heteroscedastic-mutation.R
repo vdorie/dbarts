@@ -20,8 +20,7 @@ buildVarianceSampler <- function(predictors, response) {
     predictors,
     response,
     control = control,
-    variance = TRUE,
-    n.trees.variance = 10L
+    variance = dbarts::varianceForest(n.trees = 10L)
   )
 }
 # distinct reported values, quantized well below any routing difference: the

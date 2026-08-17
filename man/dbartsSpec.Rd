@@ -12,8 +12,7 @@ dbartsSpec(
     proposal.probs = c(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     monotone = NULL, interactions = NULL, blocks = NULL,
-    variance = NULL, n.trees.variance = 40L,
-    power.variance = NULL, base.variance = NULL,
+    variance = NULL,
     forests = NULL,
     sigma = NA_real_, seed = NA_integer_,
     family = c("auto", "gaussian", "probit", "logistic", "aft",
@@ -25,7 +24,7 @@ dbartsSpec(
   \item{data}{
     A \code{dbartsData} object, as built by \code{\link{dbartsData}}. Unlike \code{\link{dbarts}}, this function does no response ingestion of its own: the response must already be materialized.
   }
-  \item{control, tree.prior, node.prior, resid.prior, resid.dist, proposal.probs, monotone, interactions, blocks, variance, n.trees.variance, power.variance, base.variance, forests, sigma, seed, family, dispersion}{
+  \item{control, tree.prior, node.prior, resid.prior, resid.dist, proposal.probs, monotone, interactions, blocks, variance, forests, sigma, seed, family, dispersion}{
     As in \code{\link{dbarts}}. The prior arguments are evaluated in dbarts's own prior vocabulary, so bare expressions such as \code{normal(k = chi(1.25, Inf))} resolve regardless of what the caller has attached. A \code{\link{forest}} \code{basis} given as a one-sided formula is evaluated in \code{parentEnv}, this surface performing no data ingestion of its own; the data object's rows are already whatever its own \code{subset} kept. A \code{basis} declared here always reaches the sampler: unlike \code{\link{dbarts}}, which refuses a basis declaration once \code{formula} is already a \code{dbartsData}, this function's first argument is always one, so the declaration is installed and REPLACES whatever bases the data object carried.
   }
   \item{survival}{
