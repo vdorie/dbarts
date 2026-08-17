@@ -1412,6 +1412,24 @@
             contribution = )} reads them, raw or as each forest's
             contribution; refused by name on any other fit or with
             \code{sample = "test"}.
+      \item A \code{\link{forest}} call written inside a
+            \code{\link{bart2}}/\code{\link{dbarts}} formula declares a
+            second, amplitude-coupled forest without a separate
+            \code{forests =} list: \code{z:forest(x1 + x2)} and
+            \code{factor(z):forest(x1 + x2)} modulate the forest by
+            \code{z}, a \code{(a + b):forest(x1)} compound operand (numeric
+            or logical members only) gives it a two-column basis, and
+            \code{forest(x1 + x2, basis = ~ z)} is the general named form
+            the sugar rewrites to; \code{z * forest(x1)} is refused, naming
+            both explicit spellings. Inside a term \code{forest()}'s unnamed
+            slot is the split-variable set, symbolically, rather than
+            \code{basis}. Every other shape - a term outside a top-level
+            additive position or a \code{:} operand, a family the
+            multiplier model does not support, \code{test} on a term-bearing
+            formula, both a sugar and an explicit \code{basis =}, and a
+            \code{forests =} argument alongside a term - is refused by name.
+            \code{bart2} gains no \code{forests =} formal; the formula term
+            is its only route to a second forest.
     }
   }
 }
