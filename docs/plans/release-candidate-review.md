@@ -557,6 +557,57 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### B2 - the shared container-metadata check; WAVE 0 CLOSES (0a1d56fe, 2026-08-17)
+
+One file-local requireCscReferenceMeta helper in the bridge
+validates a mixed container's sparseReference/sparseCategoryCount
+(integer, one entry per CSC column) and borrows the pointers; all
+three funnels call it - parseTestContainer, parseMutationSource,
+parseData - each keeping its own message and side outputs (the
+critique's amendment honored: the shared part is the predicate,
+never one function). Creation, which silently IGNORED all six
+malformation classes both mutation paths refused (two fields x
+absent/wrong-type/wrong-length), now refuses at arrival: measured
+on base, a malformed all-ordinal-CSC container CONSTRUCTED AND RAN
+(finite, statistically fine - ordinal columns never consume the
+metadata) while the identical object was refused at every mutation
+entrance; a categorical-CSC malformed container was already caught
+by a downstream presence check, now dead and deleted (its message
+becomes the shared one; nothing pinned the old string). Gates
+twice, src-slice battery: tests/cpp clean AND under ASAN/UBSAN
+(zero diagnostics; the implementer additionally ran an
+INSTRUMENTED R PACKAGE build - probes clean); tinytest 5825/0 with
+all six sparse/mixed files confirmed run at exact per-file counts
+(69/15/44/16/20/137); trio bitwise and recorded as a NON-GATE for
+the parse (no harness constructs a dbartsMixedMatrix); R CMD check
+--as-cran OK; discrimination 3/3 corruption classes (base silent
+construct-and-run vs slice refusal), well-formed fixed-seed sparse
+fit bitwise across builds. RESIDUAL recorded, not fixed: deleting
+sparseReference and then calling setPredictor errors through a
+pre-existing R-side short-circuit ("argument is of length zero",
+R/mixedMatrix.R predictorSourceColumn) instead of the container
+message - one malformation class, one path, naming-only; wave-3
+refusal-census material. NEWS deliberately deferred to slice H's
+1.0-0 consolidation (this item rides that rewrite).
+
+WAVE 0 IS COMPLETE. Landed, in order: I1 multinomial refusals, I2
+hurdle doc fix, I3 varcount dimnames, the SBC ensemble premise
+oracle (PASS, freeze protocol dormant), P10 provenance audit +
+MANIFEST corrections + P17 rule, suite repairs (statesAgree
+per-field, skip accounting, build-freshness guard), the capi
+Windows fix (the ABI contract's first-ever x64 Windows execution),
+CI hardening (reduction gates + floors), P1a (the ensemble
+sum-invariance oracle, census B1 closed), A (bart() weights
+parity), FX1-guard (student loglik+ppd), FX2 (hetero refusals +
+door), B (xbart shared helpers), B2 (this slice). Every code
+commit six-green; the message rule adopted and merit-rebased; the
+orphaned scripts adjudicated; the equivalence recipe executed for
+the first time. Open wave-0 residue: the grouped-mixing.R ratio
+discrepancy (oracle-lane verification item) and the mixedMatrix
+naming residual above. Wave 1 (accumulation cleanups) begins in
+the recommended order C, K3, D, K2, K4, K5, G, E, K, F (fork 1:
+fixed-k grid matching gaussian), H, I, J.
+
 ### B - xbart through the shared validation helpers (ef7730a7, 2026-08-17)
 
 The four drifts closed by extracting three helpers into R/spec.R -
