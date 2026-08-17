@@ -97,9 +97,6 @@ bart2 fits further response families through its family argument, described belo
 <span>    interactions <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    blocks <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    variance <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    n.trees.variance <span class="op">=</span> <span class="fl">40L</span>,</span>
-<span>    power.variance <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    base.variance <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    keepSampler <span class="op">=</span> <span class="va">keepTrees</span>,</span>
 <span>    warm.start <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    n.grow.sweeps <span class="op">=</span> <span class="fl">0L</span>,</span>
@@ -290,8 +287,8 @@ bart2 fits further response families through its family argument, described belo
    <dt id="arg-blocks">blocks<a class="anchor" aria-label="anchor" href="#arg-blocks"></a></dt>
 <dd><p>Optional block-additive constraint, passed through to <code><a href="dbarts.html">dbarts</a></code>; see its <code>blocks</code> argument and <code><a href="blocks.html">blocks</a></code>. Built with <code>blocks(groups = , trees.per.group = )</code>: confine each whole tree to one declared group of predictors so the ensemble is exactly a sum of per-group functions. The groups must form a total, disjoint partition of the predictors, validated at fit time. <code>NULL</code> (the default) fits the ordinary model.</p></dd>
 
-   <dt id="arg-variance-n-trees-variance-power-variance-base-variance">variance, n.trees.variance, power.variance, base.variance<a class="anchor" aria-label="anchor" href="#arg-variance-n-trees-variance-power-variance-base-variance"></a></dt>
-<dd><p>Heteroscedastic BART (Pratola et al. 2020): passed through to <code><a href="dbarts.html">dbarts</a></code>. <code>variance</code> declares a second forest modeling the residual variance surface \(s^2(x)\) as a product of scaled-inverse-chi-squared leaves, coupled to the mean forest through the per-observation precision. It is a one-sided formula or column selector naming which predictors drive the variance (<code>~ x1 + x2</code>), <code>TRUE</code> for every predictor, or <code>NULL</code> (the default) for a homoscedastic fit. <code>n.trees.variance</code> is the number of variance trees; <code>power.variance</code>/<code>base.variance</code> their tree-structure prior (defaulting to the mean forest's). Gaussian responses only. The fit gains <code>s.train</code>/<code>s.test</code> (posterior draws of \(s(x)\)), and <code>predict</code> attaches an <code>"s"</code> attribute carrying \(s(x)\) for new data.</p></dd>
+   <dt id="arg-variance">variance<a class="anchor" aria-label="anchor" href="#arg-variance"></a></dt>
+<dd><p>Heteroscedastic BART (Pratola et al. 2020): passed through to <code><a href="dbarts.html">dbarts</a></code>. Declares a second forest modeling the residual variance surface \(s^2(x)\) as a product of scaled-inverse-chi-squared leaves, coupled to the mean forest through the per-observation precision. Either the plain selector naming which predictors drive the variance - a one-sided formula or column selector (<code>~ x1 + x2</code>), <code>TRUE</code> for every predictor, or <code>NULL</code> (the default) for a homoscedastic fit - or a <code><a href="varianceForest.html">varianceForest</a>(vars = , n.trees = , base = , power = )</code> object, which additionally sets the variance forest's own tree count and tree-structure prior (defaulting to <code>40</code> trees and the mean forest's <code>tree.prior</code>, exactly as the plain selector does). Gaussian responses only. The fit gains <code>s.train</code>/<code>s.test</code> (posterior draws of \(s(x)\)), and <code>predict</code> attaches an <code>"s"</code> attribute carrying \(s(x)\) for new data.</p></dd>
 
    <dt id="arg-keepsampler-keepsampler">keepsampler, keepSampler<a class="anchor" aria-label="anchor" href="#arg-keepsampler-keepsampler"></a></dt>
 <dd><p>Logical that can be used to save the underlying <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code> object even if <code>keepTrees</code> is false.</p></dd>
@@ -578,7 +575,7 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.217450</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.189109</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -644,7 +641,7 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001374</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001123</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>

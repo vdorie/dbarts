@@ -16,8 +16,7 @@ dbartsSpec(
     proposal.probs = c(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     monotone = NULL, interactions = NULL, blocks = NULL,
-    variance = NULL, n.trees.variance = 40L,
-    power.variance = NULL, base.variance = NULL,
+    variance = NULL,
     forests = NULL,
     sigma = NA_real_, seed = NA_integer_,
     family = c("auto", "gaussian", "probit", "logistic", "aft",
@@ -38,9 +37,8 @@ dbartsSpec(
   already be materialized.
 
 - control, tree.prior, node.prior, resid.prior, resid.dist,
-  proposal.probs, monotone, interactions, blocks, variance,
-  n.trees.variance, power.variance, base.variance, forests, sigma, seed,
-  family, dispersion:
+  proposal.probs, monotone, interactions, blocks, variance, forests,
+  sigma, seed, family, dispersion:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
   The prior arguments are evaluated in dbarts's own prior vocabulary, so

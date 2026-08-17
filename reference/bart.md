@@ -58,9 +58,6 @@ bart2(
     interactions = NULL,
     blocks = NULL,
     variance = NULL,
-    n.trees.variance = 40L,
-    power.variance = NULL,
-    base.variance = NULL,
     keepSampler = keepTrees,
     warm.start = NULL,
     n.grow.sweeps = 0L,
@@ -477,18 +474,20 @@ summary(object, ...)
   partition of the predictors, validated at fit time. `NULL` (the
   default) fits the ordinary model.
 
-- variance, n.trees.variance, power.variance, base.variance:
+- variance:
 
   Heteroscedastic BART (Pratola et al. 2020): passed through to
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
-  `variance` declares a second forest modeling the residual variance
-  surface \\s^2(x)\\ as a product of scaled-inverse-chi-squared leaves,
-  coupled to the mean forest through the per-observation precision. It
-  is a one-sided formula or column selector naming which predictors
-  drive the variance (`~ x1 + x2`), `TRUE` for every predictor, or
-  `NULL` (the default) for a homoscedastic fit. `n.trees.variance` is
-  the number of variance trees; `power.variance`/`base.variance` their
-  tree-structure prior (defaulting to the mean forest's). Gaussian
+  Declares a second forest modeling the residual variance surface
+  \\s^2(x)\\ as a product of scaled-inverse-chi-squared leaves, coupled
+  to the mean forest through the per-observation precision. Either the
+  plain selector naming which predictors drive the variance - a
+  one-sided formula or column selector (`~ x1 + x2`), `TRUE` for every
+  predictor, or `NULL` (the default) for a homoscedastic fit - or a
+  [`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md)`(vars = , n.trees = , base = , power = )`
+  object, which additionally sets the variance forest's own tree count
+  and tree-structure prior (defaulting to `40` trees and the mean
+  forest's `tree.prior`, exactly as the plain selector does). Gaussian
   responses only. The fit gains `s.train`/`s.test` (posterior draws of
   \\s(x)\\), and `predict` attaches an `"s"` attribute carrying \\s(x)\\
   for new data.
@@ -1400,7 +1399,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.217450
+#> total seconds in loop: 0.189109
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1466,7 +1465,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001374
+#> total seconds in loop: 0.001123
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

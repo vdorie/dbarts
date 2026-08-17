@@ -17,8 +17,7 @@ dbarts(
     monotone = NULL,
     interactions = NULL,
     blocks = NULL,
-    variance = NULL, n.trees.variance = 40L,
-    power.variance = NULL, base.variance = NULL,
+    variance = NULL,
     forests = NULL,
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
@@ -256,12 +255,18 @@ dbarts(
   the residual variance surface \\s^2(x)\\ as a product of
   scaled-inverse-chi-squared (multiplicative) leaves, so \\y_i =
   f(x_i) + s(x_i)\epsilon_i\\, coupled to the mean forest through the
-  per-observation precision. `variance` selects which predictors drive
-  the variance: a one-sided formula or character/integer column selector
-  (`~ x1 + x2`), `TRUE` for every predictor, or `NULL` (the default) for
-  the ordinary homoscedastic fit. Gaussian responses and constant leaves
-  only; monotone constraints and the latent families are not supported.
-  The per-tree leaf prior is calibrated from the residual
+  per-observation precision. `variance` is either the plain selector
+  naming which predictors drive the variance - a one-sided formula or
+  character/integer column selector (`~ x1 + x2`), `TRUE` for every
+  predictor, or `NULL` (the default) for the ordinary homoscedastic
+  fit - or a
+  [`varianceForest`](https://vdorie.github.io/dbarts/reference/varianceForest.md)
+  object, which additionally sets the variance forest's own tree count
+  (default `40`) and tree-structure prior (default the mean forest's
+  `tree.prior` `base`/`power`); a `varianceForest` with no `vars` reads
+  every predictor, matching `TRUE`. Gaussian responses and constant
+  leaves only; monotone constraints and the latent families are not
+  supported. The per-tree leaf prior is calibrated from the residual
   (`resid.prior`) hyperparameters so that a constant variance surface
   reproduces the homoscedastic `sigma` posterior. The fit gains
   posterior draws `s.train`/`s.test` of \\s(x)\\, and `predict` attaches
@@ -308,12 +313,6 @@ dbarts(
   Student-t residuals, grouped random effects, `storage = "single"`,
   per-column cut counts, and a `test` set - are refused at creation
   rather than ignored, as is any declaration the engine cannot honour.
-
-- n.trees.variance, power.variance, base.variance:
-
-  The number of variance trees (default `40`) and their tree-structure
-  prior. `power.variance` and `base.variance` default to the mean
-  forest's `tree.prior` values. Read only when `variance` is supplied.
 
 - control:
 

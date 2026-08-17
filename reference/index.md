@@ -99,6 +99,8 @@ weights can change between draws, for use inside larger MCMC schemes.
   Block-Additive Constraints for BART
 - [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) :
   Forest Specification for Multi-Forest Models
+- [`varianceForest()`](https://vdorie.github.io/dbarts/reference/varianceForest.md)
+  : Variance Forest Specification for Heteroscedastic BART
 - [`dbartsDrawLatents()`](https://vdorie.github.io/dbarts/reference/dbartsAugmentation.md)
   [`dbartsWorkingResponse()`](https://vdorie.github.io/dbarts/reference/dbartsAugmentation.md)
   : Augmentation Draws For A Composed Sampler
