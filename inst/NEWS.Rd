@@ -1494,6 +1494,11 @@
             \code{"probit"}), and the positive part has always been
             homoscedastic, one \eqn{\sigma} per draw recycled across
             observations. Documentation only; no behavior changes.
+      \item \code{$getForestVariableCounts} now names its rows from
+            \code{data@x}'s column names when the training matrix carries
+            them; previously the read was always unnamed regardless of the
+            sampler's own predictor names. \code{run()$varcount} is
+            unaffected.
     }
   }
 }

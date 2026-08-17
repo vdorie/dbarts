@@ -1582,13 +1582,18 @@ dbartsSampler <- setRefClass(
       )
     },
     getForestVariableCounts = function(forest) {
-      "Returns a sampler's per-forest predictor split counts (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.predictors x n.chains. forest indexes from 1, as with setForestWeights/setForestBasis/getCalibration/setCalibration."
+      "Returns a sampler's per-forest predictor split counts (a Bayesian causal forest's 1 = prognostic, 2 = treatment; an ordinary sampler's only forest is 1), n.predictors x n.chains, with rows named by the predictor columns when data@x carries colnames. forest indexes from 1, as with setForestWeights/setForestBasis/getCalibration/setCalibration."
       ptr <- getPointer()
-      .Call(
+      counts <- .Call(
         C_dbarts_bartcore_getForestVariableCounts,
         ptr,
         resolveForestIndex(forest)
       )
+      predictorNames <- colnames(data@x)
+      if (!is.null(predictorNames)) {
+        rownames(counts) <- predictorNames
+      }
+      counts
     },
     getCalibration = function(forest = 1L) {
       "Returns the leaf-prior calibration in force, one row per chain and one column of prior.scale (the forest total's prior standard deviation at k = 1, in response units), prior.sd (prior.scale / k), prior.mean, k, k.has.hyperprior, response.scale, and response.shift, then the five multi-forest calibration-map quantities: amplitude.prior.variance and amplitude.prior.scale (exclusive - a forest carries a fixed amplitude variance or a half-Cauchy scale mixture, and the other reads NaN), node.scale.factor, node.scale.divisor, and basis.row.norm, which decompose prior.scale as factor * anchor / (divisor * row norm). All five are NaN on a forest whose scale the map does not own, and the two node.scale columns go NaN after a state install brings a foreign calibration, until setForestBasis re-imposes the map. The leaf model rides on a 'leaf.model' attribute and qualifies prior.sd: an equality only for the constant leaf. This is the authoritative reader of the calibration - model@prior.scale records the named intent, which a channel that re-anchors the response transform leaves untouched while moving what is in force."
