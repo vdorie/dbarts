@@ -473,14 +473,16 @@ All six forks answered the day the plan landed:
    half, P17's mechanization, and equivalence-statistical-mode's CI
    legs all land at or after the merge. Their local halves proceed.
 5. Message rule: FOLLOW BEST PRACTICES FROM HIGHLY REGARDED R
-   PACKAGES. The 0a draft (which codified the in-repo majority) gets
-   a revision pass against published, tool-verified conventions
-   (the tidyverse error-style guide, base R's own practice, and
-   exemplar base-style packages of dbarts's kind); where external
-   practice speaks it wins, where it is silent the in-repo majority
-   stands. The revised rule is the one slices write against and the
-   wave-2 sweep executes; its delta from the draft is reported to
-   VD before the sweep runs.
+   PACKAGES, refined same day: VD dislikes tidyverse in general, so
+   its guides carry NO authority weight - a tidyverse-originated
+   practice is adopted only on its own scrutinized merits. Evidence
+   precedence in the revised rule (docs/design/error-style.md): the
+   measured practice of highly regarded base-style packages (base,
+   stats, Matrix, survival, lme4, mgcv) wins where it clearly
+   speaks; guide-originated adoptions each state their own merit
+   case; otherwise the in-repo majority stands. The revised rule is
+   the one slices write against and the wave-2 sweep executes; its
+   delta from the draft is reported to VD before the sweep runs.
 6. FX2: REFUSE WITH A DOOR MEMO (option a), with a binding shape
    constraint: no interface friction for adding support
    post-release - the variance formal stays, the refusal is a
