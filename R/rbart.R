@@ -482,7 +482,7 @@ rbart_vi <- function(
     } else {
       if (!is.na(seed)) {
         # We draw sequentially from the given seed, one for each thread. To be polite
-        # (more to match bart), we set the seed back when we're are done.
+        # (more to match bart), we set the seed back when we're done.
         oldSeed <- .GlobalEnv[[".Random.seed"]]
 
         set.seed(seed)
