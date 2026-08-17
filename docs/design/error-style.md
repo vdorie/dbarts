@@ -2,12 +2,14 @@
 
 Status: ADOPTED for new messages 2026-08-17 (release-candidate-review
 wave 0a; VD resolved Fork 5 as "follow best practices from highly
-regarded R packages", and this revision applies that direction - the
-draft codified the in-repo majority, then published best practice and
-the measured practice of base, stats, Matrix, survival, lme4, and mgcv
-were given precedence wherever they speak). The wave-2 L sweep of the
-existing corpus runs after VD sees the delta summary. Governs every
-`stop()` in `R/` and every
+regarded R packages" and refined it the same day: tidyverse practices
+carry no authority weight and are adopted only on their own scrutinized
+merits. This revision applies both - the draft codified the in-repo
+majority, the measured practice of base, stats, Matrix, survival, lme4,
+and mgcv takes precedence wherever it clearly speaks, and each
+guide-originated adoption states its own merit case). The wave-2 L
+sweep of the existing corpus runs after VD sees the delta summary.
+Governs every `stop()` in `R/` and every
 `Rf_error`/`ext_throwError` in `src/`. Every NEW message from this point on
 follows this rule; slice L (repo-wide, ~120 strings) rewrites the existing
 corpus against it in one sweep, deliberately last among the message-touching
@@ -19,20 +21,23 @@ Evidence: 546 `stop()` in `R/`, 351 `Rf_error()` in `src/R_interface_bartcore.cp
 + `src/C_interface.cpp` + `src/R_interface.cpp`, 1 `ext_throwError` in
 `src/bartcore/chain.hpp:1922`. Each rule states the majority it codifies, or
 says plainly that it invents (no majority existed). Frequencies in the
-appendix. Every rule below was additionally checked against: the tidyverse
-style guide's error chapter (published best practice for the R ecosystor's
-`rlang`/`cli` tradition); rlang's `abort()` documentation; Writing R
-Extensions (WRE); and a direct source-level survey of `stop()` in base,
-stats, Matrix, survival, lme4, and mgcv (the observable practice of
-highly-regarded base-style packages - the tradition dbarts actually belongs
-to, since it ships no rlang/cli/tidyverse dependency and never will).
-Full method and citations are in the **External evidence appendix** at the
-end of this document. Per the project lead's standing instruction, external
-evidence wins over the in-repo majority wherever it clearly speaks; where it
-is silent or the two named external sources (published guidance vs.
-observable package practice) themselves conflict without one clearly
-outweighing the other, the in-repo majority stands. Each rule below is
-tagged **CONFIRMED**, **OVERRIDDEN**, or **SILENT-KEPT**.
+appendix. Every rule below was additionally checked against: a direct
+source-level survey of `stop()` in base, stats, Matrix, survival, lme4,
+and mgcv (the observable practice of highly-regarded base-style packages -
+the tradition dbarts actually belongs to, since it ships no
+rlang/cli/tidyverse dependency and never will); Writing R Extensions
+(WRE); and, scrutinized rather than deferred to, the tidyverse style
+guide's error chapter and rlang's `abort()` documentation. Full method and
+citations are in the **External evidence appendix** at the end of this
+document. Evidence precedence, per the project lead's direction
+(2026-08-17): the measured practice of the highly-regarded base-style
+packages wins over the in-repo majority wherever it clearly speaks; the
+tidyverse/rlang guides carry NO authority weight of their own - a practice
+that originates there is adopted only when it stands on its own
+demonstrated merits under scrutiny (each such adoption below states that
+merit case explicitly); where all of that is silent or conflicting, the
+in-repo majority stands. Each rule below is tagged **CONFIRMED**,
+**OVERRIDDEN**, or **SILENT-KEPT**.
 
 ## R1. Argument/formal-name quoting: single quotes — CONFIRMED
 
@@ -354,28 +359,26 @@ essentially no extra cost - encouraged, not mandated (see R11/R12 for why the
 same qualifier applies to all three "state the actual value" enrichments
 uniformly).
 
-**External evidence.** Published best practice speaks directly and
-explicitly here, more explicitly than anywhere else in this document:
-"If the cause of the problem is clear (e.g. an incorrect type or size), use
-'**must**': `n` must be a numeric vector, not a character vector." That's a
-named, worked example matching R10's exact scenario. Observable practice
-doesn't contradict it, but it also doesn't embrace it: of ~25 type-mismatch
-messages sampled directly and ~3,400 calls scanned for the co-occurring
-pattern, the only genuine `"must be X, not Y"` type-mismatch instance found
-anywhere in the six packages is `stop("'data' must be a data.frame, not a
-matrix or an array")`, used twice, verbatim, in stats
-(`get_all_vars`/`model.frame.default`) - real, base-style precedent, but
-rare (2 hits in ~3,400 calls). **Verdict: OVERRIDDEN.** The base shape (bare
-`"must be a/an <type>"`) is unchanged, because that's what both the majority
-of dbarts's own corpus and the majority of the external corpus already write.
-But published best practice states an explicit, well-formed rule for the
-enrichment, backs it with a worked example, and the one real external
-precedent found is exactly base-style (lowercase, single-quote-free since it
-names no argument, comma-then-`not`) - cheap enough to add, with a clear
-rule behind it, that "encouraged when in hand" is the right strength: not
-mandatory (observable practice doesn't demand it and slice L's budget
-doesn't afford re-deriving `class(x)` at every site that lacks it already),
-but no longer merely a maybe.
+**External evidence and the merit case.** The enrichment is adopted ON ITS
+OWN MERITS, not on any guide's authority: a type-mismatch report that names
+what was actually received converts "what did I pass?" from a debugging
+round trip into a one-read diagnosis, at essentially zero cost when the
+class is already in hand at the call site - that diagnostic value is the
+whole argument, and it stands without citing anyone. Genuine base-style
+precedent exists and shows the clause reads naturally in this tradition:
+`stop("'data' must be a data.frame, not a matrix or an array")`, used
+twice, verbatim, in stats (`get_all_vars`/`model.frame.default`) - real,
+but rare (2 hits in ~3,400 calls), which is why the clause is encouraged
+rather than required. (The tidyverse guide recommends the same "must be X,
+not Y" shape; under the project lead's direction that recommendation
+carries no weight of its own and is recorded here only as corroboration.)
+**Verdict: OVERRIDDEN, on merits.** The base shape (bare `"must be a/an
+<type>"`) is unchanged, because that's what both the majority of dbarts's
+own corpus and the majority of the external corpus already write; the
+enrichment is "encouraged when in hand" - not mandatory (observable
+practice doesn't demand it and slice L's budget doesn't afford re-deriving
+`class(x)` at every site that lacks it already), but no longer merely a
+maybe.
 
 - Old: `"'<name>' must be a/an <type description>"` only.
 - New: same, `+ ", not <actual>"` when the actual type is already available.
@@ -398,11 +401,9 @@ R12, which found the identical pattern.
 ("no existing [in-repo] template names both the expected length and the
 actual (got) length"), so there was no in-repo majority to protect here in
 the first place - this rule was always going to be set by outside judgment,
-which is exactly what makes the external check decisive. Published best
-practice's general "must be X, not Y" principle would extend naturally to
-length ("must have length 3, not 5"), though the tidyverse guide's own
-worked example is about type, not length, specifically. Observable practice
-answers the length question directly and says no: of ~90 length-related
+and under the evidence precedence that judgment is the measured base-style
+practice. Observable practice answers the length question directly and
+says no: of ~90 length-related
 messages sampled across all six packages (`"must have [the same] length"`,
 `"length mismatch"`, `"lengths ... match"`, etc.), not one names the actual
 received length - representative: `stop("'x' and 'y' must have the same
@@ -654,11 +655,12 @@ CRAN builds installed in this environment's R library.
    is encouraged, not mandated" - turned out, once R10 and R12 were checked
    against external evidence, to be the *general* answer for every "should
    this message echo the actual/received value" question in this document,
-   not just this one. Published best practice (tidyverse) recommends stating
-   the actual value; observable practice across six highly-regarded
-   base-style packages (~3,400 `stop()` calls) essentially never does (0
-   instances for length or enum rejection, 2 for type). Rather than resolve
-   that tension differently in four different places, R10, R11, and R12 all
+   not just this one. Echoing the received value has real diagnostic merit
+   (it is the enrichment's own case, R10); observable practice across six
+   highly-regarded base-style packages (~3,400 `stop()` calls) essentially
+   never does it (0 instances for length or enum rejection, 2 for type).
+   Rather than resolve that tension differently in four different places -
+   merit says sometimes, tradition says rarely - R10, R11, and R12 all
    now use the identical resolution this open point already proposed for
    out-of-range: state the expected value/type/choices as the required
    minimum; append the actual/received value when it's already in hand,
