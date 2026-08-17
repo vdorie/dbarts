@@ -508,7 +508,7 @@
             exact signature check.
             It replaces the removed C++ interface in
             \code{dbarts/R_C_interface.hpp}.
-      \item Every chain runs its own generator. \code{rngSeed} makes results
+      \item Every chain runs its own generator. \code{seed} makes results
             reproducible for any number of chains without touching R's
             stream, seeded results no longer depend on the thread
             count, and a single-chain run with a given seed reproduces

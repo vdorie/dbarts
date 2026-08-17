@@ -121,7 +121,7 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
 #
 # The first row: 'rngSeed' was dbartsControl's own slot/formal spelling
 # through S4, so the passthrough that let it keep flowing through '...' is
-# gone now that the rename lands - this is the row it becomes.
+# gone now that the rename has landed - this is the row it becomes.
 retiredDotsNames <- c(rngSeed = "'rngSeed' was renamed to 'seed'")
 
 rejectUnknownDotsArgs <- function(argNames, fn) {

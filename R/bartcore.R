@@ -27,10 +27,10 @@ isBCFSampler <- function(sampler) {
 
 # BCF-specific wording for a mutation the bridge refuses through a guard
 # shared with every multi-forest model (refuseMultiForestMutation and its
-# siblings in R_interface_bartcore.cpp also cover a future multinomial
-# creation route, so their own message cannot name BCF by itself). Raised
-# R-side, before the .Call, so a BCF sampler never reaches the bridge's
-# generic "multi-forest" phrasing.
+# siblings in R_interface_bartcore.cpp also cover the multinomial creation
+# route, so their own message cannot name BCF by itself). Raised R-side,
+# before the .Call, so a BCF sampler never reaches the bridge's generic
+# "multi-forest" phrasing.
 refuseBCFMutation <- function(sampler, what, ...) {
   if (isBCFSampler(sampler)) {
     stop(what, " does not support a BCF sampler: ", ...)
@@ -541,11 +541,12 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
 # bartcore handle is constructed from the validated control/model/data of an
 # existing dbartsSampler regardless of that sampler's own engine. family
 # selects the response model for binary responses ("probit", the default,
-# or "logistic"); it is the only access to the logistic sampler until the
-# new public surface lands. Likewise, columns marked CATEGORICAL (1L) in
-# data@varTypes split by category subset rather than by threshold - a
-# bartcore-only capability with no public ingestion path yet, so callers
-# flip the type by hand; values must be integer codes 0..K-1, K <= 32.
+# or "logistic"), the same choice bart2's own family argument exposes
+# publicly. Columns marked CATEGORICAL (1L) in data@varTypes split by
+# category subset rather than by threshold; factors = "categorical", the
+# default on the public data constructor, sets this directly, so callers
+# no longer need to flip the type by hand. Values must be integer codes
+# 0..K-1, K <= 32.
 
 bartcoreSampler <- function(sampler, family = "") {
   result <- new.env(parent = emptyenv())
