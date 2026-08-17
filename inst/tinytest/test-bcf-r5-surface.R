@@ -73,6 +73,23 @@ expect_identical(
 expect_error(sampler$getForestFits(0L), "single positive integer")
 expect_error(sampler$getForestVariableCounts(0L), "single positive integer")
 
+# getForestVariableCounts names its rows from data@x's colnames when present
+# (x above carries none, the no-op guard) and leaves the values themselves
+# unchanged from the unnamed path
+expect_null(dimnames(muCounts))
+namedX <- x
+colnames(namedX) <- paste0("v", seq_len(p))
+namedSampler <- dbarts(
+  namedX,
+  y,
+  forests = list(forest(), forest(basis = ~ factor(z))),
+  control = seededControl()
+)
+namedSampler$run(0L, 5L)
+namedCounts <- namedSampler$getForestVariableCounts(1L)
+expect_identical(rownames(namedCounts), colnames(namedX))
+expect_identical(unname(namedCounts), muCounts)
+
 sampler$storeState()
 fitScale <- sampler$state[[1L]]$fit.scale
 scale <- fitScale[2L] - fitScale[1L]
