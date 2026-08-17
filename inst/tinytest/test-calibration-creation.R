@@ -81,7 +81,7 @@ composeProbit <- function(
   if (length(kept) == 1L) kept[[1L]] else do.call(rbind, kept)
 }
 
-# --- O1a: arms built CENTERED (so the transform's shift matches by
+# --- arms built CENTERED (so the transform's shift matches by
 # construction) at ranges 16x apart, naming the same prior.scale. The tolerance
 # is pinned, not deferred: measured 1.0e-14 at the 120 sweeps shipped here and
 # 4.3e-14 at 2000, growing like sqrt(sweeps), so 1e-12 holds with margin. ---
@@ -97,7 +97,7 @@ bareB <- composeProbit(x, yBinary, 24, 0, NA_real_, sweeps)
 expect_true(max(abs(bareA - bareB)) > 1)
 expect_true(sd(bareB) / sd(bareA) > 3)
 
-# O1 SCOPE, stated here as it is in the help: both arms run at the same number
+# Scope, stated here as it is in the help: both arms run at the same number
 # of trees, so they see only fitScale-dependent errors and are BLIND to a
 # calibration error that is a fixed function of the named value (one forgetting
 # sqrt(m) passes this while reporting the wrong scale). That error is caught
@@ -106,7 +106,7 @@ expect_true(sd(bareB) / sd(bareA) > 3)
 # conversion fails outright, and test-calibration-midchain.R's set-then-get
 # fidelity and static-m oracles pin the same error on the write path.
 
-# --- O1b: the same arms NOT centered, each applying the documented offset
+# --- the same arms NOT centered, each applying the documented offset
 # recipe. This is the only test exercising the named scale and the location
 # lever as one contract. ---
 armA <- composeProbit(x, yBinary, 1.5, 3, 1.5, sweeps, useRecipe = TRUE)
@@ -119,7 +119,7 @@ armA <- composeProbit(x, yBinary, 1.5, 3, 1.5, sweeps)
 armB <- composeProbit(x, yBinary, 24, -7, 1.5, sweeps)
 expect_true(max(abs(armA - armB)) > 1)
 
-# --- O2: a named composition targets the same posterior as the engine's own
+# --- a named composition targets the same posterior as the engine's own
 # probit. The engine's probit anchor is node.scale 3.0 on a unit-scale latent,
 # so prior.scale = 3.0 is the composition's statement of the same prior. ---
 set.seed(21)
@@ -170,7 +170,7 @@ inherited <- composeO2(24, NA_real_)
 expect_true(postSd(inherited) / postSd(native) > 1.5)
 expect_true(rmse(inherited) / rmse(native) > 1.5)
 
-# --- O5, creation half: the refusal matrix. ---
+# --- the calibration refusal matrix, creation half. ---
 set.seed(31)
 nRef <- 120L
 xRef <- matrix(runif(nRef * 4L), nRef, 4L)
@@ -336,7 +336,7 @@ expect_equal(
   1.5
 )
 
-# --- O6: the channels the named calibration must survive. ---
+# --- the channels the named calibration must survive. ---
 
 # the model slot records the INTENT and nothing else writes it
 plain <- dbarts(xRef, yRef, control = refControl())
@@ -396,9 +396,9 @@ expect_false(identical(
   reverted$run(20L, 10L)$train
 ))
 
-# --- O6, xbart rows: a named calibration is held across cells, in the branch
+# --- xbart rows: a named calibration is held across cells, in the branch
 # that creates a sampler and in the branch that re-models one. xbart forces
-# n.chains/n.threads/updateState itself (control = is no longer a formal, S8),
+# n.chains/n.threads/updateState itself (control = is no longer a formal),
 # so nothing here needs to name them. ---
 xbartArgs <- list(
   formula = xRef,

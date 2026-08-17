@@ -325,9 +325,9 @@ struct BCFSpec {
   bool updateA = true, updateB = true;  // false fixes the matching glue block
   // Whether each forest's amplitude block travels its own likelihood-invariant
   // ASIS ridge after the combination (BCFForestCombiner::afterCombine). mu's is
-  // bcf's shipped a-move. tau's is the b-move docs/plans/bcf-b-ridge.md derives
-  // and the general rescale implements; it is OFF here because switching it on
-  // consumes a GIG draw per sweep, which re-records bcf-equivalence.
+  // bcf's shipped a-move; tau's is the b-move the general rescale implements.
+  // It is OFF here because switching it on consumes a GIG draw per sweep,
+  // which re-records bcf-equivalence.
   bool ridgeA = true, ridgeB = false;
   // Whether the shipped K = 2 shape draws its amplitudes through the general
   // q-variate conditional rather than through the two-scalar path it shipped
@@ -412,7 +412,7 @@ struct MultinomialSpec {
 /// all-ones column to special-case - a forest whose multiplier is a plain
 /// amplitude carries the ones column densely and reaches it by the same
 /// contraction every other forest does. That is what leaves exactly one
-/// multiplier path (docs/plans/multiforest-extension-surface.md, M4.1).
+/// multiplier path.
 struct ForestBasis {
   std::vector<double> values;
   std::size_t numColumns = 0;
@@ -539,8 +539,7 @@ struct ForestCombiner {
   /// false, installing nothing, off a coupling that carries no amplitudes or on
   /// a basis this one refuses. It is the SOLE basis-mutation route: synthesis
   /// is construction-only, so there is no second operation whose ordering
-  /// against this one would have to be specified
-  /// (docs/plans/multiforest-extension-surface.md, M4.3). Inert in the base.
+  /// against this one would have to be specified. Inert in the base.
   virtual bool setForestBasis(std::size_t, const double*, std::size_t) {
     return false;
   }
@@ -730,8 +729,7 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// column when it carries none; under bcf's two-forest spelling forest 1
   /// takes the (1 - z, z) indicator pair z implies. There is deliberately no
   /// mid-life synthesis route: setForestBasis is the only mutator, so the
-  /// question of which of two operations wins does not arise
-  /// (docs/plans/multiforest-extension-surface.md, M4.3).
+  /// question of which of two operations wins does not arise.
   BCFForestCombiner(const ColumnStore& data, const BCFSpec& spec,
                     std::size_t numForests = 2)
       : data_(data), numForests_(numForests < 2 ? 2 : numForests),
@@ -923,7 +921,7 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// statement and fuses, while the b block's per-row products are formed
   /// before a branch and accumulated inside it, which fuses unevenly.
   ///
-  /// The measured split, against the general loop on this slice's fixtures,
+  /// The measured split, against the general loop on the equivalence fixtures,
   /// because this comment is the trigger for deleting the branch below and a
   /// re-measurement has to be able to check it: ALL FOUR PRECISIONS reproduce
   /// bitwise, weighted and unweighted; the divergence is in the two MOMENTS -
@@ -959,14 +957,14 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// The forests are travelled in index order, one GIG draw each; the blocks
   /// are DISJOINT, so the moves commute and each is an exact Gibbs update given
   /// the rest, and the order is a stream convention rather than a modelling
-  /// choice (docs/plans/bcf-b-ridge.md sec 3a). Returns the scale applied to
+  /// choice. Returns the scale applied to
   /// the forest this combiner reports - 1.0 if that forest held, which does not
   /// say that no forest moved.
   ///
   /// Instantiated at bcf's prognostic forest (q = 1, the scale mixture) this is
   /// the shipped a-move exactly, and at its treatment forest (q = 2, a fixed
-  /// prior variance) it is the b-move docs/plans/bcf-b-ridge.md derives - one
-  /// mechanism, not two, by that memo's own general exponent rule (:192-194).
+  /// prior variance) it is the b-move - one mechanism, not two, by the same
+  /// general exponent rule.
   double afterCombine(std::vector<Forest<L, ResidT>>& forests, bool record,
                       std::size_t sampleNum, ext_rng* rng) override {
     double reported = 1.0;
@@ -1257,11 +1255,11 @@ private:
   /// Forest f's ASIS ridge: draw c and travel (a_f, leaves) -> (a_f/c, c
   /// leaves). c = sqrt(v), v ~ GIG((L - q)/2, M/leafVar, ||a_f||^2/priorVar)
   /// with L and M the count and squared sum of f's OCCUPIED leaves. The
-  /// exponent is docs/plans/bcf-b-ridge.md's general rule (:192-194) -
-  /// rescaling k leaf parameters against d glue scalars gives p = (k - d)/2, so
+  /// exponent follows a general rule: rescaling k leaf parameters against d
+  /// glue scalars gives p = (k - d)/2, so
   /// q = 1 is the shipped (L - 1)/2 and q = 2 the b-move's (L - 2)/2; the naive
   /// move-map Jacobian's (L - q + 1)/2 is off by one and its prototype rejects
-  /// it at KS 1.6e-21 (:166-171, :329-357). B reads the LIVE prior variance,
+  /// it at KS 1.6e-21. B reads the LIVE prior variance,
   /// which for a scale mixture is the auxiliary this move conditions on
   /// (refreshing it here would re-randomize the coordinate just conditioned on
   /// and measurably throttle the mixing gain - IACT 69 -> 196 on |a|, recorded
@@ -1372,7 +1370,7 @@ private:
   /// SYNTHESIZES forest f's basis from a 0/1 indicator: the two-column
   /// (control, treated) pair, which is that indicator's two-level factor basis
   /// and whose amplitudes are exactly (b0, b1). Called from the CONSTRUCTOR
-  /// only - basis synthesis is construction-only under M4.3, so a widening
+  /// only - basis synthesis is construction-only, so a widening
   /// cannot be silently reset by a later data swap. A null indicator installs
   /// the all-control basis, matching the constructed b0.
   ///
@@ -1849,7 +1847,7 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// is well defined only because a multinomial chain is ConstantGaussianLeaf-
   /// only (a leaf value IS the fit). totalTestFits is deliberately untouched -
   /// the softmax blend is invariant to the common shift. keepTrees is out of
-  /// scope this arc, so the saved (flattened) tree leaves are not touched.
+  /// scope here, so the saved (flattened) tree leaves are not touched.
   /// Returns 1.0 (no multiplicative scale; the return feeds only BCF's test).
   double afterCombine(std::vector<Forest<L, ResidT>>& forests, bool /*record*/,
                       std::size_t /*sampleNum*/, ext_rng* rng) override {

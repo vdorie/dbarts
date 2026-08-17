@@ -806,11 +806,11 @@ expect_inherits(
 )
 
 # MUTATION LIFT: a design carrying a sparse CATEGORICAL column takes
-# column-granular mutation (docs/plans/typed-ingestion.md slice 2a). The engine
-# keys the replacement's nonzero pattern on the column's kind - {i : code !=
-# refCode} for a categorical column, not the ordinal {i : value != 0} - and the
-# R5 layer mirrors it into data@x, leaving the reference and the declared level
-# count creation-pinned.
+# column-granular mutation. The engine keys the replacement's nonzero
+# pattern on the column's kind - {i : code != refCode} for a categorical
+# column, not the ordinal {i : value != 0} - and the R side mirrors it into
+# data@x, leaving the reference and the declared level count
+# creation-pinned.
 codes.bound <- as.matrix(sampler.bound$data@x)[, 2L]
 new.codes <- (codes.bound + 1) %% 3
 expect_silent(
@@ -1039,7 +1039,7 @@ expect_error(
   pattern = levelMessage
 )
 
-# A6 PIN: a container's declared sparse reference level meant one thing to
+# the reference-level pin: a container's declared sparse reference level meant one thing to
 # predict()'s R-side densification (as.matrix.dbartsMixedMatrix, gated only on
 # is.na) and another to the engine (a reference is read only for a
 # store-categorical column, 0 otherwise) - reachable by training with an

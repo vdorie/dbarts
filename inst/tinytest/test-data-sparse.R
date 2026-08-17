@@ -209,9 +209,9 @@ xval <- xbart(
 expect_true(all(is.finite(xval)))
 
 # a bare dgCMatrix 'test' set: accepted symmetrically with a bare dgCMatrix
-# 'x' (docs/plans/r-ingestion-cleanups.md finding 2) - it stays resident as
-# an all-sparse mixed container instead of silently densifying, taking
-# exactly the path a mixed container's own sparse test columns already do
+# 'x' - it stays resident as an all-sparse mixed container instead of
+# silently densifying, taking exactly the path a mixed container's own
+# sparse test columns already do
 x.test.dense <- x.dense[1:20, , drop = FALSE]
 x.test.sparse <- x.sparse[1:20, , drop = FALSE]
 

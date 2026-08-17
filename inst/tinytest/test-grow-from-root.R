@@ -141,13 +141,13 @@ expect_false(statesAgree(store$state, initialState))
 
 rm(nostore, optin, store, initialState)
 
-## a heteroscedastic sampler grows against the variance-weighted precisions
-## (docs/plans/variance-forest-mutation-routing.md, slice S5). Under a variance
-## forest the global sigma is pinned at 1 on the working scale, so a scan
-## reading unit precisions prices every split against a residual variance the
-## data does not have. The homoscedastic control is the reference: its sigma
-## carries the scale, so its own scan was always right, and it is fit to the
-## same data by the same recipe. Reweighting by 1/s^2(x) is more efficient
+## a heteroscedastic sampler grows against the variance-weighted precisions.
+## Under a variance forest the global sigma is pinned at 1 on the working
+## scale, so a scan reading unit precisions prices every split against a
+## residual variance the data does not have. The homoscedastic control is
+## the reference: its sigma carries the scale, so its own scan was always
+## right, and it is fit to the same data by the same recipe. Reweighting by
+## 1/s^2(x) is more efficient
 ## where the noise varies 900-fold in variance, so the heteroscedastic init
 ## must beat it - and does, once the pre-step is there (cor 0.96 vs the
 ## control's 0.86; without the pre-step it was 0.14, and the quiet region's

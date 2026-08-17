@@ -1,5 +1,5 @@
 # The negative-binomial (count) R surface (docs/design/negative-binomial.md
-# sections 4-5; docs/plans/negative-binomial.md C3): explicit family dispatch
+# sections 4-5): explicit family dispatch
 # and refusals, response and dispersion validation, fit-object shapes, the
 # dispersion draws and mean-count reporting, prediction, offset (log-exposure)
 # semantics, state save/load through the R surface, setResponse mutation
@@ -122,7 +122,7 @@ fitNoTrees <- bart2(
 )
 expect_error(predict(fitNoTrees, x.test), pattern = "keepTrees")
 
-# --- keepSampler retains $fit independent of keepTrees (D2) ---
+# --- keepSampler retains $fit independent of keepTrees ---
 fitKeepSampler <- bart2(
   x,
   y,

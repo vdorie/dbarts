@@ -692,7 +692,7 @@ void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
     referenceMeta = INTEGER(referenceExpr);
     categoryCountMeta = INTEGER(categoryCountExpr);
   }
-  // the A6 pin: a non-NA reference against a store-ORDINAL column is refused
+  // a non-NA reference against a store-ORDINAL column is refused
   // here, for every parseTestContainer caller (creation, setTestPredictor,
   // setTestPredictorAndOffset) alike, since columnTypes is the STORE's types
   // at mutation and the being-built types at creation
@@ -1712,8 +1712,7 @@ double trainingCategoryBound(const ParsedData& data, size_t j) {
 // inferred from them). Each test view is then bounded by that count, whatever
 // backs it - the x.test matrix, a container's dense slice, a container's CSC
 // slice, or the reference code its implicit rows read. An unbounded code would
-// mis-bin, shift past a tree's category mask, or over-read a pooled bitmap
-// (docs/plans/typed-ingestion.md Survey).
+// mis-bin, shift past a tree's category mask, or over-read a pooled bitmap.
 void validateCategoricalPredictors(const ParsedData& data) {
   for (size_t j = 0; j < data.numPredictors; ++j) {
     if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
@@ -2157,8 +2156,8 @@ SEXP forestListElement(SEXP listExpr, size_t f) {
 // A forest travels its amplitude's likelihood-invariant ASIS ridge exactly
 // when its prior is a SCALE MIXTURE. That reproduces bcf - the a-move on, the
 // b-move off - and it is the honest general rule: the fixed-variance ridge is
-// the held-off door docs/plans/bcf-b-ridge.md owns, whose cost is a GIG draw
-// per sweep and whose acceptance gate has not been run.
+// a held-off door, whose cost is a GIG draw per sweep and whose acceptance
+// gate has not been run.
 void applyBCFSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
                   SEXP blocksExpr, const ParsedModel& model, size_t numTrees,
                   size_t numPredictors, bartcore::BCFSpec& spec,
@@ -2597,8 +2596,7 @@ namespace bartcore_bridge {
 // reparameterization and the amplitude conditional all index it per row, so a
 // per-forest applyNewData that grew n would over-read every basis and a
 // fixed-n one would silently re-pair the old bases with new rows - a lifted
-// refusal must take the bases in the same call
-// (docs/plans/runsbcbcf-repair.md "setData door survey").
+// refusal must take the bases in the same call.
 // Refuse it; a multi-forest sampler
 // fixes its data and prior at creation, as grouped/sparse/aft samplers do.
 // setForestBasis, the one supported multi-forest data swap, routes through the
@@ -3094,9 +3092,10 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
                  storage = BCFSpecStorage{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     // the family is read off the model this route was handed rather than
-    // threaded beside it, which is what makes the two agree structurally: the
-    // R5 route already resolves dbartsModel@family away from "auto" and maps
-    // that lone remaining case to the bridge's own "" dispatch, so every
+    // threaded beside it, which is what makes the two agree structurally:
+    // the R-level route already resolves dbartsModel@family away from
+    // "auto" and maps that lone remaining case to the bridge's own ""
+    // dispatch, so every
     // existing caller derives exactly what it derived before
     SEXP familyExpr = Rf_getAttrib(modelExpr, Rf_install("family"));
     const char* familyName =
@@ -4076,9 +4075,8 @@ SEXP bartcore_getCalibration(SEXP ptrExpr, SEXP forestExpr) {
   if (forestIndex >= shape.numForests)
     Rf_error("forest index out of range");
   // the seven reported since the reader shipped, then the five calibration-map
-  // quantities (docs/plans/binary-kforest-prior-default.md, leg (c)): NaN on a
-  // forest with no map entry, and the two amplitude columns exclusive per
-  // forest on one that has
+  // quantities: NaN on a forest with no map entry, and the two amplitude
+  // columns exclusive per forest on one that has
   const char* const columnNames[] = {
     "prior.scale", "prior.sd", "prior.mean", "k",
     "k.has.hyperprior", "response.scale", "response.shift",
@@ -4563,8 +4561,8 @@ SEXP bartcore_sampleNodeParametersFromPrior(SEXP ptrExpr) {
 SEXP bartcore_growFromRoot(SEXP ptrExpr, SEXP numSweepsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
-  // constant leaf only in v1 (the scan's closed-form marginal); the R5 method
-  // refuses first, this is the engine-side backstop
+  // constant leaf only in v1 (the scan's closed-form marginal); the R-level
+  // method refuses first, this is the engine-side backstop
   if (shape.numLeafCovariates != 0 || shape.usesFunctionLeaves)
     Rf_error("grow-from-root warm start is only available for the "
              "constant-leaf model");

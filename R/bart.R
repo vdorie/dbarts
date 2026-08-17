@@ -233,7 +233,7 @@ packageBartResults <- function(
     )
   }
 
-  # the per-forest in-sample channels (docs/design/bcf.md; S11): forestFits is
+  # the per-forest in-sample channels (docs/design/bcf.md): forestFits is
   # each forest's own RESPONSE-scale raw total (response.scale * f_k, no glue
   # folded in - $getForestFits' meaning up to that one scalar) and glue the
   # multiplier channel unchanged, so yhat = response.shift +
@@ -427,8 +427,8 @@ buildSamplerPriors <- function(
 ) {
   priorScale <- validateNamedScale(priorScale, "prior.scale")
 
-  # S7 (docs/plans/bart2-argument-consolidation.md 4.2): a caller-supplied
-  # tree.prior/node.prior/resid.prior object fully replaces the flat build
+  # A caller-supplied tree.prior/node.prior/resid.prior object fully
+  # replaces the flat build
   # below and is forwarded UNEVALUATED, exactly as k already is (nodeK), so a
   # bare vocabulary name inside it (linear(), gp(), fixed(), ...) resolves in
   # the caller's own frame, not here. A shorthand that would otherwise help
@@ -753,20 +753,20 @@ bart2 <- function(
     }
   }
 
-  # Fork 5 (docs/plans/bart2-argument-consolidation.md 3.e): '...' is
-  # rejection-only - every dots name is diagnosed by name, never forwarded.
+  # '...' is rejection-only - every dots name is diagnosed by name, never
+  # forwarded.
   argNames <- names(matchedCall)[-1L]
   rejectUnknownDotsArgs(argNames, dbarts::bart2)
 
-  # d1/D6 (docs/plans/bart2-argument-consolidation.md 3.d): factors/missing/
-  # proposal.probs are forwarded formal defaults - redirectCall only carries
-  # a name into the host dbarts() call when the caller supplied it, so an
-  # unsupplied one used to silently take dbarts()'s own default rather than
-  # the token/value this signature advertises. Resolve here, in bart2's own
-  # frame, and stamp the resolved value onto matchedCall unconditionally so
-  # every call built from it below forwards it explicitly. T-B keeps the
-  # default texts identical to dbarts()'s, so this is draw-neutral: the
-  # resolved value is exactly what dbarts() would already have chosen.
+  # factors/missing/proposal.probs are forwarded formal defaults -
+  # redirectCall only carries a name into the host dbarts() call when the
+  # caller supplied it, so an unsupplied one used to silently take
+  # dbarts()'s own default rather than the token/value this signature
+  # advertises. Resolve here, in bart2's own frame, and stamp the resolved
+  # value onto matchedCall unconditionally so every call built from it below
+  # forwards it explicitly. bart2's formal defaults are kept textually
+  # identical to dbarts()'s, so this is draw-neutral: the resolved value is
+  # exactly what dbarts() would already have chosen.
   factors <- match.arg(factors)
   missing <- match.arg(missing)
   matchedCall$factors <- factors
@@ -812,8 +812,8 @@ bart2 <- function(
   # reshaping around it.
   if (family == "multinomial") {
     # a K-forest softmax has no amplitude-coupled slot for a forest() term to
-    # declare; caught here since this arc never reaches the shared dbarts()
-    # ingestion (R/formulaTerms.R) that catches every other family
+    # declare; caught here since multinomial never reaches the shared
+    # dbarts() ingestion (R/formulaTerms.R) that catches every other family
     if (formulaHasForestTerm(formula)) {
       stop(
         "family = \"multinomial\" does not support a forest() formula term"
@@ -2225,7 +2225,7 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   # resid.prior: genuinely live on the positive half, so a "probit" warning
   # about them is a false diagnostic, not merely a redundant one). Strip what
   # the outer site already covers before either component call runs.
-  # tree.prior/node.prior are NOT stripped from either list (S7): they are
+  # tree.prior/node.prior are NOT stripped from either list: they are
   # live on both components, so they flow to both exactly as power/base/dart/
   # k/prior.scale already do.
   gatedOnBoth <- c("dispersion", "breaks", "max.rows")
@@ -2517,7 +2517,7 @@ survivalProbabilities.rbart <- function(
 # bart2 is the door to the own-class families: multinomial and ordinal
 # package as their own S3 class, nbinom needs a count response bart() cannot
 # express, and hurdle.lognormal composes two samplers. match.arg's generic
-# "'arg' should be one of ..." names neither bart2 nor why (8.7), so all four
+# "'arg' should be one of ..." names neither bart2 nor why, so all four
 # are refused BY NAME here - whether the token was typed explicitly (the
 # family formal) or, for ordinal alone, implied by an ordered-factor
 # response the matrix/formula interface detects before/after the dbarts()
@@ -2580,7 +2580,7 @@ bart <- function(
   storage = c("double", "single"),
   family = c("auto", "logistic", "aft")
 ) {
-  # by-name refusal for the four own-class families (8.7), ahead of
+  # by-name refusal for the four own-class families, ahead of
   # match.arg's generic message, which names neither the token nor bart2
   if (
     is.character(family) &&

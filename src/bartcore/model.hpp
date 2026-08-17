@@ -245,7 +245,7 @@ struct ConstantVarianceLeaf {
   double degreesOfFreedom = 3.0;  // nu'
   double scale = 1.0;             // lambda'^2, variance scale
 
-  /// Section-3.4 per-tree calibration from the homoscedastic sigma prior
+  /// Per-tree calibration from the homoscedastic sigma prior
   /// (nu, scale) over m' variance trees, mean-matching the leaf product's
   /// prior to chi^-2(nu, scale): lambda'^2 = scale^(1/m') and
   /// nu' = 2 / [1 - (1 - 2/nu)^(1/m')]. At m' = 1 this returns (nu, scale).
@@ -2967,8 +2967,7 @@ public:
 
 private:
   /// The one write path to the served precisions: every install recounts the
-  /// positive ones, so the sigma posterior's df can never lag the weights
-  /// (docs/plans/sigma-df-zero-weights.md is the defect this closes).
+  /// positive ones, so the sigma posterior's df can never lag the weights.
   void installWeights(const double* weights) {
     weights_ = weights;
     numPositiveWeights_ = countPositiveWeights(weights, numObservations_);
@@ -4732,8 +4731,7 @@ public:
       // Exact Makalic-Schmidt two-block conjugate draw: a fixed 2 gamma draws
       // per sweep. The cauchy branch no longer consumes sliceSteps_ or the
       // slice's step-out cap (both stay live for the gamma branch below, which
-      // admits no exact draw as parameterized - see docs/plans/tau-slice-
-      // review.md 4b).
+      // admits no exact draw as parameterized).
       tau_ = drawTauCauchyExactIG(rng, numGroups, sumSquaredEffects,
                                   priorScale_, tau_);
     } else {

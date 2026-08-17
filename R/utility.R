@@ -37,13 +37,12 @@ announceAutoFamily <- function(responseType, nLevels, family) {
   )
 }
 
-# Family gating (docs/plans/bart2-argument-consolidation.md 3.c): an argument
-# supplied by name whose only effect is on a response family this fit did not
-# resolve to is diagnosed rather than silently dropped. Each row names the
-# arguments it covers, the families under which they DO act (every other
-# family gates them, "liveIn" being the complement of 3.c.2's "inert when"),
-# and why not; resolved once as data so a later slice (S7's resid.prior) adds
-# a row here rather than a new branch in warnFamilyGatedArgs.
+# Family gating: an argument supplied by name whose only effect is on a
+# response family this fit did not resolve to is diagnosed rather than
+# silently dropped. Each row names the arguments it covers, the families
+# under which they DO act ("liveIn"; every other family gates them), and why
+# not; resolved once as data so each gated argument - resid.prior included -
+# is a row here rather than a branch in warnFamilyGatedArgs.
 familyGatingInventory <- list(
   list(
     names = c("sigest", "sigdf", "sigquant"),
@@ -51,8 +50,7 @@ familyGatingInventory <- list(
     reason = "the residual scale is fixed, not estimated"
   ),
   list(
-    # S7 (docs/plans/bart2-argument-consolidation.md 3.c.2, 4.2): a
-    # fixed-unit-scale family overwrites a supplied resid.prior with
+    # A fixed-unit-scale family overwrites a supplied resid.prior with
     # fixed(1) regardless (R/spec.R's fixedUnitScale branch), which was
     # silent before bart2 could forward a resid.prior object at all
     names = "resid.prior",
@@ -72,7 +70,7 @@ familyGatingInventory <- list(
 )
 
 # Warns once, naming every argument this call's resolved 'family' cannot act
-# on, why, and the family itself (3.c.5's one-warning-per-call, classed
+# on, why, and the family itself (one warning per call, a classed
 # condition). suppliedNames is the caller's own argNames snapshot - the
 # matchedCall names taken before any family branch, so an unsupplied
 # (defaulted) argument never appears here. A no-op when nothing is gated.
@@ -112,19 +110,18 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
   invisible(NULL)
 }
 
-# Fork 5 (docs/plans/bart2-argument-consolidation.md 3.e): '...' is a
-# rejection-only diagnostic channel on bart2/rbart_vi, not a value channel -
-# no name legitimately travels through it once storage/updateState are
-# formals (this slice, S4). Every dots name is diagnosed: a retired spelling
-# gets its own pointed message from the table below (data, so a later
-# retirement adds a row rather than a new branch - the sunset property fork
-# 5 recorded); anything else gets a nearest-formal suggestion (agrep against
-# the function's own formals, first hit in formals() order - simple and
-# deterministic, no distance-ranking machinery).
+# '...' is a rejection-only diagnostic channel on bart2/rbart_vi, not a
+# value channel - no name legitimately travels through it once
+# storage/updateState are formals. Every dots name is diagnosed: a retired
+# spelling gets its own pointed message from the table below (data, so a
+# later retirement adds a row rather than a new branch - the sunset
+# property this preserves); anything else gets a nearest-formal suggestion
+# (agrep against the function's own formals, first hit in formals() order -
+# simple and deterministic, no distance-ranking machinery).
 #
-# The first row (S5, b1): 'rngSeed' was dbartsControl's own slot/formal
-# spelling through S4, so the passthrough that let it keep flowing through
-# '...' is gone now that the rename lands - this is the row it becomes.
+# The first row: 'rngSeed' was dbartsControl's own slot/formal spelling
+# through S4, so the passthrough that let it keep flowing through '...' is
+# gone now that the rename lands - this is the row it becomes.
 retiredDotsNames <- c(rngSeed = "'rngSeed' was renamed to 'seed'")
 
 rejectUnknownDotsArgs <- function(argNames, fn) {
@@ -771,9 +768,8 @@ alignContainerFactorLevels <- function(x.test, predictorNames, factorLevels) {
 ## container's as.matrix (mixedMatrix.R) takes that column's implicit rows to
 ## be the reference whenever it is non-NA, but the engine takes them to be the
 ## reference only for a store-CATEGORICAL column and 0 otherwise - two
-## different densifications of the same container (the A6 pin,
-## docs/plans/cheap-uniformity.md). Positions match the way validateXTest's
-## later reorder does: by name when both sides carry unique names, by position
+## different densifications of the same container. Positions match the way
+## validateXTest's later reorder does: by name when both sides carry unique names, by position
 ## otherwise. The reverse mismatch (no reference against a store-categorical
 ## column) is refused downstream, inside resolveCscCategoricalReferences.
 refuseSparseTestReferenceAgainstTrainTypes <- function(

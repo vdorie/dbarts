@@ -51,7 +51,8 @@ internalTrain <- function(sampler, train, chain = 1L) {
   (train - (scale * 0.5 + fitScale[1L])) / scale
 }
 
-# F8: a * mu + b_z * tau over the recorded channels reproduces the recorded
+# the reconstruction identity: a * mu + b_z * tau over the recorded channels
+# reproduces the recorded
 # internal-scale train draw for EVERY sample, not only the last one the live
 # per-forest accessors can still see.
 reconstructionError <- function(fits, glue, train, zVec) {
@@ -164,9 +165,10 @@ countingResult <- counting$run(0L, numSamples)
 expect_equal(dim(countingResult$varcount), c(p, 2L, numSamples, 2L))
 expect_true(all(countingResult$varcount >= 0L))
 
-# F14, positive half: with n.thin = 1 and no sweep since the last storeSample,
-# the last kept draw's slab IS the live read, forest by forest and chain by
-# chain - so the forest axis is really keyed on the forest and not transposed
+# the per-draw varcount contract, positive half: with n.thin = 1 and no
+# sweep since the last storeSample, the last kept draw's slab IS the live
+# read, forest by forest and chain by chain - so the forest axis is really
+# keyed on the forest and not transposed
 expect_identical(
   countingResult$varcount[, 1L, numSamples, ],
   counting$getForestVariableCounts(1L)
@@ -183,8 +185,9 @@ expect_false(
   )
 )
 
-# F14, NEGATIVE half: one more sweep and the equality must break, which is what
-# separates a draw history from a repeated live read
+# the per-draw varcount contract, NEGATIVE half: one more sweep and the
+# equality must break, which is what separates a draw history from a
+# repeated live read
 invisible(counting$run(0L, 1L))
 expect_false(
   identical(
@@ -199,9 +202,10 @@ expect_false(
   )
 )
 
-# F15: a column the treatment forest is masked off is structurally zero in
-# EVERY draw of its slab, while the prognostic forest is unrestricted - the
-# mask reaches the per-draw channel, not merely the live read
+# the mask-reaches-the-channel contract: a column the treatment forest is
+# masked off is structurally zero in EVERY draw of its slab, while the
+# prognostic forest is unrestricted - the mask reaches the per-draw channel,
+# not merely the live read
 restrictedCounts <- dbarts(
   x,
   y,
@@ -213,8 +217,9 @@ expect_true(all(restrictedResult$varcount[1:2, 2L, , ] == 0L))
 expect_true(sum(restrictedResult$varcount[3:4, 2L, , ]) > 0L)
 expect_true(sum(restrictedResult$varcount[1:2, 1L, , ]) > 0L)
 
-# F15, NEGATIVE half: at the same seed, without the mask, the masked columns
-# are non-zero in the treatment forest's slab
+# the mask-reaches-the-channel contract, NEGATIVE half: at the same seed,
+# without the mask, the masked columns are non-zero in the treatment
+# forest's slab
 unrestrictedCounts <- dbarts(
   x,
   y,
@@ -235,7 +240,8 @@ expect_identical(
   plainCounts$getForestVariableCounts(1L)
 )
 
-# --- F18: the bart2 packaging path. A dbartsData carrying bases reaches bart2
+# --- the multi-forest varcount packaging: the bart2 packaging path. A
+# dbartsData carrying bases reaches bart2
 # today, and its varcount is the one channel that widens, so it is packaged
 # through the same K-margin reshape multinomial's per-category counts take:
 # draws-first, predictor names on the lead margin, engine-vocabulary forest
@@ -318,7 +324,8 @@ expect_true(any(grepl(
   capture.output(print(oneChainFit))
 )))
 
-# F18, NEGATIVE half: without the n.forests arm the synopsis would take the
+# the multi-forest varcount packaging, NEGATIVE half: without the n.forests
+# arm the synopsis would take the
 # single-forest branch on the same dimensions and report the PREDICTOR count
 # instead of the draw count, so the assertions above pin the arm rather than
 # the arithmetic

@@ -2,7 +2,7 @@
 # successes among w iid bernoulli trials (binomial(w, p)), not a bernoulli
 # draw multiplied by w - that older code gave a degenerate {0, w} PPD whose
 # mean was coincidentally right but whose intervals/quantiles were not. See
-# issue #79 and docs/plans/weighted-binary-ppd.md.
+# issue #79.
 
 set.seed(2, sample.kind = "Rejection")
 n <- 200L

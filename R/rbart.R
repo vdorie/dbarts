@@ -56,19 +56,19 @@ rbart_vi <- function(
   callingEnv <- parent.frame()
   family <- match.arg(family)
 
-  # Fork 5 (docs/plans/bart2-argument-consolidation.md 3.e): '...' is
-  # rejection-only - every dots name is diagnosed by name, never forwarded.
+  # '...' is rejection-only - every dots name is diagnosed by name, never
+  # forwarded.
   argNames <- names(matchedCall)[-1L]
   rejectUnknownDotsArgs(argNames, dbarts::rbart_vi)
 
-  # d1/D6 (docs/plans/bart2-argument-consolidation.md 3.d): factors/missing
-  # are forwarded formal defaults - redirectCall only carries a name into the
-  # host dbartsData() call when the caller supplied it, so an unsupplied one
-  # used to silently take dbartsData()'s own default rather than the token
-  # this signature advertises. Resolve here, in rbart_vi's own frame, and
-  # stamp the resolved value onto matchedCall unconditionally so the call
-  # built from it below forwards it explicitly. T-B keeps the default texts
-  # identical, so this is draw-neutral.
+  # factors/missing are forwarded formal defaults - redirectCall only
+  # carries a name into the host dbartsData() call when the caller supplied
+  # it, so an unsupplied one used to silently take dbartsData()'s own
+  # default rather than the token this signature advertises. Resolve here,
+  # in rbart_vi's own frame, and stamp the resolved value onto matchedCall
+  # unconditionally so the call built from it below forwards it explicitly.
+  # rbart_vi's formal defaults are kept textually identical to
+  # dbartsData()'s, so this is draw-neutral.
   factors <- match.arg(factors)
   missing <- match.arg(missing)
   matchedCall$factors <- factors

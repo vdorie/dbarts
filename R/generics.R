@@ -318,7 +318,7 @@ extract.bart <- function(
 }
 
 # Selects one or more forests from a per-forest channel's trailing margin, by
-# 1-based index or by the shipped forest1..forestK vocabulary (5.8.2); NULL
+# 1-based index or by the shipped forest1..forestK vocabulary; NULL
 # selects every forest, in margin order. A declaration's own forest.labels are
 # not a selector - they are a display attribute, not a second vocabulary.
 resolveForestSelection <- function(forest, forestNames) {

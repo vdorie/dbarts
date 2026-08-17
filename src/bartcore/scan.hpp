@@ -158,7 +158,7 @@ struct CategoricalScanScratch {
 /// Present-category count above which the exact enumeration gives way to the
 /// sorted-prefix family. 2^(P-1) - 1 = 511 candidates already cover every
 /// factor an R user constructs, and raising the cap relocates the boundary
-/// rather than removing it (docs/plans/grow-from-root-categorical-scan.md).
+/// rather than removing it.
 inline constexpr std::size_t categoricalExhaustiveCap = 10;
 
 /// How many candidates the enumeration emits for P present categories: the

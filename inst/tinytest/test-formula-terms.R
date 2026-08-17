@@ -59,8 +59,8 @@ refuses <- function(formula, pattern, ...) {
 
 ## --- Block A: a formula with no forest() call is untouched -----------------
 ## (this file's own draw-level check; the cross-build byte-identity gate is
-## an external in-slice A/B script run at both the pre- and post-slice
-## revisions, since the slice touches no baseline the harness already covers)
+## an external A/B script run at both the pre- and post-change revisions,
+## since the change touches no baseline the harness already covers)
 expect_true(is.null(dbarts:::walkFormulaTerms(y ~ a + b)))
 expect_true(is.null(dbarts:::walkFormulaTerms(y ~ .)))
 expect_true(is.null(dbarts:::walkFormulaTerms(y ~ . - z)))

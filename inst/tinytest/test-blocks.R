@@ -78,7 +78,7 @@ expect_true(allConfined(extract(fitSplit, type = "trees"), groups))
 fitIdx <- doFit(blocks(groups = list(1L, c(2L, 3L))))
 expect_true(allConfined(extract(fitIdx, type = "trees"), groups))
 
-# ---- a never-split tree (C3) is a subset of all blocks, not a violation -------
+# ---- a never-split tree is a subset of all blocks, not a violation -------
 
 # x4 carries no signal, so at least one tree confined to its own block stays a
 # stump (root leaf, no split) after burn-in; allConfined must accept the empty
@@ -301,8 +301,8 @@ expect_error(
 # whose block 0 confines 15 of its 20 trees to {x1} alone almost certainly
 # receives a donor tree that splits outside that mask, and
 # columnMaskStateFeasible (chain.hpp) must refuse the whole install before
-# touching any live state (F1, commit 103dbe2 + 073d3db) - the same mechanism
-# and error text as the BCF columnMask refusal test in test-interactions.R.
+# touching any live state - the same mechanism and error text as the BCF
+# columnMask refusal test in test-interactions.R.
 wsControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,

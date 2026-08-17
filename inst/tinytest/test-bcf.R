@@ -33,7 +33,7 @@ expect_equal(dim(muFits), c(n, 1L))
 expect_true(all(is.finite(muFits)) && all(is.finite(tauFits)))
 expect_true(sum(muFits^2) > 0 && sum(tauFits^2) > 0)
 
-# the per-forest variable-count query (C3) works on both BCF forests: each
+# the per-forest variable-count query works on both BCF forests: each
 # forest's counts are nonnegative integers whose total is that forest's split
 # count - positive here, both forests grew splits over the run
 vcMu <- dbarts:::bartcoreForestVariableCounts(bcSampler, 0L)
@@ -141,13 +141,12 @@ expect_equal(dim(result.pi$train), c(n, 20L))
 expect_true(all(is.finite(result.pi$train)))
 expect_true(all(result.pi$sigma > 0))
 
-# --- interweaving glue-ridge move (docs/plans/bcf-ridge-interweaving.md) ---
+# --- interweaving glue-ridge move ---
 # The move rescales (a, mu) -> (a/c, c mu) along the likelihood ridge after
 # every glue draw under update.a = TRUE (the default), so the runs above
 # already exercise it. It is posterior-preserving; these checks pin its
 # behaviour through the R stack. The off path (update.a = FALSE) consumes no
-# rng and was verified bitwise identical to the pre-change build cross-build
-# (docs/plans/bcf-ridge-interweaving.md Status); update.a = FALSE sanity is
+# rng and was verified bitwise identical to the pre-change build cross-build; update.a = FALSE sanity is
 # covered by bcFixed above. The exact invariance and keepTrees saved-slot
 # correctness are the C++ gates (tests/cpp).
 set.seed(101)
@@ -220,7 +219,8 @@ expect_error(
   "no column names"
 )
 
-# (b) a restricted forest carries the run; sanity only, C2 owns the posterior
+# (b) a restricted forest carries the run; sanity only, posterior correctness
+# is checked elsewhere
 bcMod <- dbarts:::bartcoreBCFSampler(
   sampler.mod,
   z,
@@ -289,7 +289,7 @@ expect_error(
   "out of range"
 )
 
-# the tau forest's variable-count query (C3) sees the same column restriction
+# the tau forest's variable-count query sees the same column restriction
 # the getTrees selector does: counts outside the moderator subset {x1, x3}
 # (columns 1, 3; R rows 1, 3) are exactly zero, a sharp mask assertion, while
 # the unrestricted mu forest is free to split outside it (mu depends on x2)
@@ -346,9 +346,9 @@ expect_true(
 )
 expect_true(mean(abs(arm.swap$fits - arm.keep$fits)) > 0.5)
 
-# --- the per-forest leaf scale rides the state (docs/plans/multiforest-
-# mutation-gaps.md item 3). BCF derives both forests' leaf scales from the
-# response's SHAPE (the sd of the range-scaled y), so a destination built on a
+# --- the per-forest leaf scale rides the state. BCF derives both forests'
+# leaf scales from the response's SHAPE (the sd of the range-scaled y), so a
+# destination built on a
 # differently shaped response calibrates differently; the state now carries the
 # scale like it already carried k, and both restore paths install it. ---
 set.seed(11)

@@ -134,8 +134,8 @@ expect_inherits(xval, "array")
 rm(testData)
 
 
-# control = is removed (S8): the driver runs fine without it, and passing
-# it now hits R's own unused-argument error, since xbart has no dots
+# control = is removed: the driver runs fine without it, and passing it now
+# hits R's own unused-argument error, since xbart has no dots
 xval <- dbarts::xbart(
   x,
   y,

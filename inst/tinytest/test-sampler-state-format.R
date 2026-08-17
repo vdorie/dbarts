@@ -74,9 +74,9 @@ noRng[[1L]][["rng.state"]] <- NULL
 bartFit$fit$setState(noRng)
 expect_equal(predict(bartFit, testData$x), preds)
 
-# leaf.scale: the newest OPTIONAL per-forest block (multiforest-mutation-gaps
-# item 3). Pin its name, that an absent block still loads - the append-only
-# contract, and what it now installs.
+# leaf.scale: the newest OPTIONAL per-forest block. Pin its name, that an
+# absent block still loads - the append-only contract, and what it now
+# installs.
 forest1 <- state[[1L]][["forests"]][[1L]]
 expect_true("leaf.scale" %in% names(forest1))
 expect_true(is.numeric(forest1[["leaf.scale"]]))

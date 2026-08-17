@@ -1,7 +1,7 @@
-# M4.3 of docs/plans/multiforest-extension-surface.md: the K-length forest
-# spec surface. setTreatment has retired as a mutator - basis synthesis is
-# construction-only and $setForestBasis is the SOLE mutation route - so what is
-# pinned here is what that leaves: both orderings of a widen and a swap at the
+# The K-length forest spec surface. setTreatment has retired as a mutator -
+# basis synthesis is construction-only and $setForestBasis is the SOLE
+# mutation route - so what is pinned here is what that leaves: both
+# orderings of a widen and a swap at the
 # surface (arm 6), the persistence contract across a re-creation with the
 # amplitude VALUES asserted rather than the surviving width (arm 7), the ragged
 # state block's per-forest widths, the ragged run-result glue slot at K > 2,
@@ -324,7 +324,7 @@ expect_error(
   "forests carry amplitudes"
 )
 
-# --- M4.4: the leaf scale a swap leaves behind. The calibration map divides
+# --- the leaf scale a swap leaves behind. The calibration map divides
 # out the median nonzero row norm of each forest's basis, and that divisor is
 # otherwise a construction-time constant - no mutation re-derives a K-forest
 # leaf scale - so $setForestBasis owns the staleness. Pinned on a PROBIT

@@ -111,7 +111,7 @@ expect_identical(draws.masked.bcf$train, draws.composed.bcf$train)
 expect_identical(draws.masked.bcf$sigma, draws.composed.bcf$sigma)
 rm(masked.bcf, composed.bcf, draws.masked.bcf, draws.composed.bcf, z.bcf)
 
-# The all-ones normalizer, on BOTH R-facing surfaces - the R5 method and the
+# The all-ones normalizer, on BOTH R-facing surfaces - the R-level method and the
 # dbarts::: bridge entry. The normalizer is in the ENGINE, so neither surface
 # can be the one that is right. (The flat entry is the third surface; it
 # lands with the dbarts.h reshape.)
@@ -429,7 +429,7 @@ expect_identical(
 # --- multinomial, GLOBAL only -----------------------------------------
 # The mask lands on the softmax COUPLING, not on the response, which holds no
 # precisions of its own: an inactive row's K interleaved Polya-Gamma draws are
-# skipped and its composed precision is zero in every category. The R5 object
+# skipped and its composed precision is zero in every category. The R-level object
 # never builds a multinomial sampler, so every arm here drives the dbarts:::
 # handle, which is the surface this family's mask ships on.
 K.mn <- 3L

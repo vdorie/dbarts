@@ -50,7 +50,7 @@ resolveSamplerSpec <- function(
   # ordinal (cumulative probit, docs/design/ordinal.md): a single-forest fixed-
   # unit-scale model like probit, but K-level. Recode the response to the
   # 1-based category codes the engine reads, and attach K on the control
-  # attribute the bridge (C2) reads to select OrdinalResponse (the
+  # attribute the bridge reads to select OrdinalResponse (the
   # bartcore.survival precedent below). The resolved ordered levels ride the
   # data object for the round-trip.
   if (identical(family, "ordinal")) {
@@ -366,7 +366,7 @@ resolveSamplerSpec <- function(
   # rides the control attribute the C bridge reads. Gaussian + constant leaf
   # only (the C factory refuses otherwise; a friendly R check for the family).
   # `variance` accepts either the plain shorthand (NULL/FALSE/TRUE/formula/
-  # character/index) or a varianceForest() object (fork 2b): its `vars`
+  # character/index) or a varianceForest() object: its `vars`
   # slot routes through the SAME resolveVarianceColumns the shorthand uses -
   # one selector vocabulary - and its n.trees/base/power knobs land exactly
   # where the removed flat n.trees.variance/power.variance/base.variance

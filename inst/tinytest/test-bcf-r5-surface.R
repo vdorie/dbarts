@@ -1,5 +1,5 @@
-# The R5 dbartsSampler surface over a public Bayesian causal forest
-# (docs/design/bcf.md, S1 landing a1dbde7): $setForestBasis mirrors the engine
+# The dbartsSampler surface over a public Bayesian causal forest
+# (docs/design/bcf.md): $setForestBasis mirrors the engine
 # and data@bases, $getForestFits/$getForestAmplitudes/
 # $getForestVariableCounts read the per-forest channels the low-level
 # bartcoreForestFits/bartcoreForestAmplitudes
@@ -29,8 +29,8 @@ seededControl <- function(...) {
 }
 
 # --- getForestFits/getForestAmplitudes/getForestVariableCounts read the same
-# the low-level route does, and the driver-loop identity (the S0 pin's
-# reconstruction) holds through the R5 accessors too ---
+# the low-level route does, and the driver-loop reconstruction identity
+# holds through the R-level accessors too ---
 sampler <- dbarts(
   x,
   y,
@@ -52,8 +52,8 @@ expect_equal(dim(muCounts), c(p, 1L))
 expect_equal(dim(tauCounts), c(p, 1L))
 expect_true(all(is.finite(muFits)) && all(is.finite(tauFits)))
 
-# identical to the same low-level readers on the same live pointer: the R5
-# methods add no computation of their own, and their forest index is 1-based
+# identical to the same low-level readers on the same live pointer: the
+# R-level methods add no computation of their own, and their forest index is 1-based
 # (1 = prognostic, 2 = treatment) against the low-level route's 0-based one
 lowLevel <- list(ptr = sampler$getPointer())
 expect_identical(muFits, dbarts:::bartcoreForestFits(lowLevel, 0L))
@@ -84,7 +84,7 @@ expect_equal(
   tolerance = 1e-10
 )
 
-# --- BCF-specific messages on the refused mutations: an R5 BCF sampler names
+# --- BCF-specific messages on the refused mutations: an R-level BCF sampler names
 # BCF rather than surfacing the bridge's generic "multi-forest" wording ---
 refused <- dbarts(
   x,
@@ -138,13 +138,13 @@ expect_equal(nrow(refused$getForestAmplitudes(1L)), 2L)
 expect_error(refused$setForestBasis(0L, factor(z)), "single positive integer")
 expect_error(refused$setForestBasis(3L, factor(z)), "out of range")
 
-# the test surface's refusal already named BCF before this slice (S1's
-# refuseBCFTestSurface); light regression coverage on the R5 path, which S0
-# pinned only on the low-level handle. setTestOffset is not exercised here:
-# with no test matrix (a BCF sampler can never install one - setTestPredictor
-# is refused above), the R5 method's own "test matrix is NULL" precondition
-# fires before the .Call, so the bridge's BCF message is unreachable through
-# this method - a pre-existing, non-BCF-specific check S2 does not touch.
+# the test surface's refusal already named BCF (refuseBCFTestSurface);
+# light regression coverage on the R-level path, previously pinned only on
+# the low-level handle. setTestOffset is not exercised here: with no test
+# matrix (a BCF sampler can never install one - setTestPredictor is refused
+# above), the R-level method's own "test matrix is NULL" precondition fires
+# before the .Call, so the bridge's BCF message is unreachable through this
+# method - a pre-existing, non-BCF-specific check untouched here.
 expect_error(refused$predict(x[1:5, , drop = FALSE]), "BCF")
 expect_error(refused$setTestPredictor(x[1:5, , drop = FALSE]), "BCF")
 
@@ -153,9 +153,9 @@ expect_error(refused$setTestPredictor(x[1:5, , drop = FALSE]), "BCF")
 plain <- dbarts(x, y, control = seededControl())
 expect_silent(plain$setResponse(y, updateScale = TRUE))
 
-# --- F3, both halves: $setForestBasis mirrors the engine AND data@bases,
-# and a save/load round trip continues from the mirrored assignment rather
-# than the one the sampler was created with ---
+# --- the basis-mirror contract, both halves: $setForestBasis mirrors the
+# engine AND data@bases, and a save/load round trip continues from the
+# mirrored assignment rather than the one the sampler was created with ---
 mirror <- dbarts(
   x,
   y,
@@ -204,12 +204,12 @@ expect_true(diffZ2 < 1e-4)
 diffOriginalZ <- max(abs(reconstructTrain(z) - reloadedResult$train[, 1L]))
 expect_true(diffOriginalZ > 1e-6)
 
-# --- F6, BCF leg: setControl preserves attr(control, "bartcore.bcf"), so
+# --- BCF leg: setControl preserves attr(control, "bartcore.bcf"), so
 # getPointer()'s re-creation after a save/load round trip succeeds and
 # carries the same bases. Pre-fix, this raised "the data carry forest bases
 # but no basis forest was configured": setControl replaced control wholesale,
 # dropping the attribute, so createHolder saw data@bases with no matching
-# forest configuration (the bidirectional cross-check from S1, firing on the
+# forest configuration (the bidirectional cross-check firing on the
 # half setControl silently orphaned). ---
 controlled <- dbarts(
   x,
@@ -234,11 +234,11 @@ expect_equal(
 rerunControlled <- reloadedControlled$run(0L, 1L)
 expect_true(all(is.finite(rerunControlled$train)))
 
-# --- F6, heteroscedastic leg: the same fix, on the model type whose defect
-# the plan's own measurement names ("state is not consistent with this
-# sampler" - setState's forest-block-count check, since a variance forest has
-# no data-side vector to cross-check against, so the mismatch was silent
-# until the state, not the creation, was pushed) ---
+# --- heteroscedastic leg: the same fix, on the model type whose defect
+# shows up as "state is not consistent with this sampler" - setState's
+# forest-block-count check, since a variance forest has no data-side vector
+# to cross-check against, so the mismatch was silent until the state, not
+# the creation, was pushed ---
 varControl <- seededControl()
 varSampler <- dbarts(
   x,

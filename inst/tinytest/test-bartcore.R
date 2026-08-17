@@ -525,7 +525,7 @@ expect_error(
 
 # setData accepts categorical predictors (regression: a leftover ordinal-only
 # check refused them) and refuses invalid codes; the internal handle skips
-# the R5 slot fixups, so the type flip and cut counts carry over by hand
+# the R-level slot fixups, so the type flip and cut counts carry over by hand
 x.cat2 <- cbind(as.double(rep(c(1, 3, 0, 2), length.out = n)), runif(n))
 data.cat2 <- dbartsData(x.cat2, mu.cat + 2 * x.cat2[, 2L])
 data.cat2@n.cuts <- sampler.cat.host$data@n.cuts
