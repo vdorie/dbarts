@@ -29,6 +29,10 @@ for (i in c(1L, 37L, 100L)) {
   expect_identical(ll[, i], dnorm(y[i], ev[, i], fit$sigma, log = TRUE))
 }
 
+# every packaged fit carries resid.dist, gaussian fits included (a field
+# present only on student fits would be its own silent-wrong-answer risk)
+expect_identical(fit$resid.dist, "gaussian")
+
 # 7. the type is extract-only: predict and fitted reject it with their
 # standard vocabulary error, and there is no test response to evaluate
 expect_error(predict(fit, x, type = "loglik"), pattern = "type must be in")
@@ -321,3 +325,59 @@ expect_error(
   dbarts:::pointwiseLogLikelihood(fakeFit, array(0, c(2L, 3L))),
   pattern = "log-likelihood not available for family"
 )
+
+# 10. resid.dist:
+# a student() fit records its own token, and a present non-"gaussian"
+# token refuses pointwiseLogLikelihood and the ppd draw rather than
+# silently scoring/drawing gaussian - the t marginal needs a per-draw df
+# channel not yet stored
+set.seed(3, sample.kind = "Rejection")
+n.t <- 60L
+x.t <- matrix(runif(n.t * 2L), n.t, 2L)
+y.t <- x.t[, 1L] - x.t[, 2L] + rt(n.t, 4) * 0.5
+
+fit.t <- bart2(
+  y.t ~ x.t,
+  resid.dist = student(df = 4),
+  n.samples = 20L,
+  n.burn = 20L,
+  n.trees = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(fit.t$resid.dist, "student")
+expect_error(
+  extract(fit.t, type = "loglik"),
+  pattern = "pointwise log-likelihood does not support student residuals"
+)
+expect_error(
+  extract(fit.t, type = "ppd"),
+  pattern = "posterior predictive sampling does not support student residuals"
+)
+
+rm(fit.t, x.t, y.t, n.t)
+
+# 11. absent resid.dist (a fit predating the field) reads as gaussian, the
+# historical behavior, and is not refused by the guard
+fakeFit.legacy <- list(
+  y = c(0.1, -0.2, 0.3),
+  family = "gaussian",
+  sigma = c(1, 2),
+  yhat.train = array(0, c(2L, 3L)),
+  n.chains = 1L
+)
+class(fakeFit.legacy) <- "bart"
+expect_equal(
+  dbarts:::pointwiseLogLikelihood(fakeFit.legacy, array(0, c(2L, 3L))),
+  array(
+    dnorm(
+      rep(fakeFit.legacy$y, each = 2L),
+      0,
+      rep(fakeFit.legacy$sigma, 3L),
+      log = TRUE
+    ),
+    c(2L, 3L)
+  )
+)
+rm(fakeFit.legacy)
