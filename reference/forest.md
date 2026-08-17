@@ -43,7 +43,15 @@ forest(
   have nowhere to ride and be silently discarded;
   [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
   always takes a pre-built data object and installs the declaration
-  instead, replacing whatever bases it carried.
+  instead, replacing whatever bases it carried. On the formula
+  interface, an already-evaluated vector or matrix must have one row per
+  observation of the FULL `data` - the same rule a formula's own
+  evaluation already follows - and is then restricted to the rows
+  `subset` keeps, exactly as a predictor column is; a value already
+  restricted to those rows instead, matching the subset's count rather
+  than the full data's, is refused by name rather than aligned to them
+  by position. With no `subset`, or one that keeps every row, the two
+  counts agree and nothing changes.
 
 - vars:
 
@@ -192,8 +200,10 @@ general form `forest(x1 + x2, basis = ~ z)` - evaluates normally. A
 symbolic name must be among the formula's own right-hand-side terms; a
 factor name expands to every indicator column derived from it. A term's
 basis is evaluated against the fit's model frame, after `subset` and any
-row selection - unlike a `basis` declared directly on `forests =`, which
-is evaluated against the raw `data`.
+row selection; a `basis` declared directly on `forests =` is instead
+evaluated against the raw `data` and then restricted to the same rows -
+the two routes reach the same rows by different timing, so a `subset`
+lines them up either way.
 
 ## Value
 
