@@ -187,6 +187,10 @@ dbarts(
   the marginal residual variance is \\\sigma^2\\\nu/(\nu-2)\\, not
   \\\sigma^2\\. See “Response scaling” below - robust errors mitigate an
   outlier's leverage but not the range compression that outlier causes.
+  A `student()` fit's pointwise log-likelihood
+  (`extract(type = "loglik")`) and posterior-predictive draws
+  (`type = "ppd"`) are not currently supported and are refused; only
+  gaussian residuals are scored.
 
 - proposal.probs:
 
