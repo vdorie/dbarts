@@ -407,14 +407,17 @@ items
     refuseHostMutation, four call sites, four Rd sentences, four
     cells, ~20 non-test / ~35 test raw additions. Pre-release at
     discretion.
-  hurdle-variance-forwarding: the feature matrix
-    (docs/design/feature-matrix.md) records that a hurdle model
-    forwards variance = to BOTH components while the occupancy
-    probit would refuse it, contradicting man/bart2.Rd's hurdle
-    text (moved from man/bart.Rd by bart2-argument-consolidation
-    S14, 9031b348 - anchor only, the contradiction itself is
-    unverified and stays open). Verify which side is wrong and fix
-    (behavior or doc); small slice.
+  hurdle-variance-forwarding: LANDED 4c2cdb9a (release-candidate-
+    review wave 0d, I2; landing note in docs/plans/release-candidate-
+    review.md). The DOC side was the wrong one: R/generics.R's
+    hurdleSigmaVec comment documents the homoscedastic positive part
+    as deliberate (the occupancy probit's variance refusal fires
+    before either component fits), so the per-observation sigma(x)
+    promise - found in TWO files, man/bart2.Rd AND a missed second
+    copy in man/dbarts.Rd - was corrected in both; feature-matrix
+    hurdle/variance cell flipped ? -> R with [f34] rewritten as
+    resolved. A heteroscedastic positive part remains a recorded
+    follow-up (the Rd limitation list), not a promise.
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. A memory win, not speed; integer -> double
     is exact in range so the slice MUST be trio-bitwise. Split out of
