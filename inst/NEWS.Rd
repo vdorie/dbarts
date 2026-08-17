@@ -1509,6 +1509,14 @@
             name a call whose sample count thins to zero (e.g.
             \code{ndpost} smaller than \code{keepevery}), rather than
             faulting deep in the result-array reshape.
+      \item Every fit built through \code{bart}/\code{bart2} now records
+            its residual law (\code{$resid.dist}, \code{"gaussian"} or
+            \code{"student"}). \code{pointwiseLogLikelihood}
+            (\code{extract(type = "loglik")}) and the posterior-predictive
+            draw (\code{type = "ppd"}) refuse a \code{student()} fit by
+            name instead of silently scoring the gaussian density and
+            drawing gaussian noise regardless of \code{resid.dist}. A fit
+            predating the field is read as gaussian, unaffected.
     }
   }
 }

@@ -313,10 +313,24 @@ packageBartResults <- function(
       combineChains
     )
   }
+
+  # the residual-distribution token every packaged fit carries, not only
+  # student ones. student() residuals are refused unless family ==
+  # "gaussian" (R/spec.R),
+  # so the model's resid.df attribute (residDistDf, R/model.R) being non-NULL
+  # is already the honest, cheapest record of which law was fit; read it
+  # straight rather than inventing a second representation.
+  residDist <- if (is.null(attr(fit$model, "resid.df"))) {
+    "gaussian"
+  } else {
+    "student"
+  }
+
   if (responseIsBinary) {
     result <- list(
       call = fit$control@call,
       family = fit$model@family,
+      resid.dist = residDist,
       yhat.train = yhat.train,
       yhat.test = yhat.test,
       varcount = varcount,
@@ -329,6 +343,7 @@ packageBartResults <- function(
     result <- list(
       call = fit$control@call,
       family = fit$model@family,
+      resid.dist = residDist,
       first.sigma = burnInSigma,
       sigma = sigma,
       sigest = fit$data@sigma,

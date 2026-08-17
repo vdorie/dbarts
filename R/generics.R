@@ -46,6 +46,21 @@ pointwiseLogLikelihood <- function(object, ev) {
   y <- rep(y, each = n.draws)
 
   if (identical(family, "gaussian")) {
+    # resid.dist records the fitted residual law; a fit predating the field
+    # carries no element at all and is read as gaussian, the historical
+    # behavior, so old serialized fits keep working. A present non-"gaussian"
+    # token (student residuals) is refused here rather than silently scored
+    # against the gaussian density: the t marginal needs a per-draw df
+    # channel this fit does not carry (the nbinom dispersion channel is the
+    # precedent) and is not computed yet.
+    residDist <- object[["resid.dist"]]
+    if (!is.null(residDist) && !identical(residDist, "gaussian")) {
+      stop(
+        "pointwise log-likelihood does not support ",
+        residDist,
+        " residuals"
+      )
+    }
     sd <- rep_len(as.vector(object$sigma), length(ev))
     if (!is.null(weights)) {
       sd <- sd / rep(sqrt(weights), each = n.draws)
@@ -1704,6 +1719,21 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
   }
 
   responseIsBinary <- is.null(object$sigma)
+
+  # the noise added below is always gaussian (rnorm); resid.dist is absent
+  # for a fit predating the field or a binary fit and reads as gaussian, the
+  # historical behavior; a present non-"gaussian" token (student residuals)
+  # means that noise is wrong, the same defect pointwiseLogLikelihood guards
+  if (!responseIsBinary) {
+    residDist <- object[["resid.dist"]]
+    if (!is.null(residDist) && !identical(residDist, "gaussian")) {
+      stop(
+        "posterior predictive sampling does not support ",
+        residDist,
+        " residuals"
+      )
+    }
+  }
 
   if (is.null(weights)) {
     if (responseIsBinary) {
