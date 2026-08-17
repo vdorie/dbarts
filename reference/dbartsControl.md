@@ -64,6 +64,13 @@ dbartsControl(
   instead, and can be overridden on a per-use basis whenever the sampler
   is
   [`run`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
+  This is a per-`run()` RETURN count, unaffected by `n.thin` - unlike
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s (and
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  `ndpost`, and
+  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)'s)
+  same-named argument, which is a one-shot sweep budget divided by
+  thinning; see `bart2`'s `n.samples` item for the full boundary.
 
 - n.cuts:
 

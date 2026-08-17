@@ -5,7 +5,7 @@ fit to one declared group of predictors, so the ensemble is exactly a
 sum of per-group functions \\f = \sum_G f_G\\ (a functional-ANOVA /
 grouped-GAMI decomposition). Pass the result as the `blocks` argument of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md). The
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md). The
 constraint is applied per forest, so in a multi-forest model each forest
 can carry its own partition.
 
@@ -72,7 +72,7 @@ A `dbartsBlocks` specification object, resolved when a sampler is built.
 
 [`interactions`](https://vdorie.github.io/dbarts/reference/interactions.md),
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
 
 ## Examples
 

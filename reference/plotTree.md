@@ -2,7 +2,7 @@
 
 Minimalist visualization of the branching and leaf contents of one tree
 in a fitted
-[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
 or [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)
 model, or in a
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
@@ -31,7 +31,7 @@ plotTree(object, ...)
 
   A fitted model of class `bart` (from
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)) or
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)) or
   `rbart` (from
   [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)), or
   a

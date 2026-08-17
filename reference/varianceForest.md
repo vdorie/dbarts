@@ -5,7 +5,7 @@ Pratola, Chipman, George, and McCulloch 2020). Pass the result as the
 `variance` argument of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
-or [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) - the
+or [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) - the
 same argument that already accepts the plain selector (`NULL`/`FALSE`
 for none, `TRUE`/a one-sided formula/a character or integer column
 selector for the predictors driving the variance). This constructor is
@@ -65,7 +65,7 @@ Computational and Graphical Statistics*, **29**(2), 405–417.
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
 
 ## Examples
 

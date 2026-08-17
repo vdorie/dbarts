@@ -2,12 +2,12 @@
 
 Posterior draws of the survival probability \\S(t \mid x)\\ from a
 survival fit: an accelerated failure time (AFT) log-normal fit produced
-by [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) (or
+by [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) (or
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) with
 `family = "aft"`, the grouped (random-intercept) AFT fit produced by
 [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) with
 `family = "aft"`, or a discrete-time hazard fit produced by
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) with
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) with
 `family = "hazard"` (or `"hazard.logistic"`).
 
 ## Usage
@@ -119,7 +119,7 @@ training data when `newdata` is `NULL`.
 
 ## See also
 
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md),
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md),
 [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md),
 [`predict`](https://vdorie.github.io/dbarts/reference/bart.md),
 [`extract`](https://vdorie.github.io/dbarts/reference/bart.md)

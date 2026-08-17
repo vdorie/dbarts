@@ -4,7 +4,7 @@ Build an interaction-constraint specification restricting which
 predictors may jointly shape a BART fit. Pass the result as the
 `interactions` argument of
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) or
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md). The
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md). The
 constraint is applied per forest, so in a multi-forest model one forest
 can be held additive-or-low-order while another stays free.
 
@@ -83,7 +83,7 @@ built.
 ## See also
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md),
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md),
 [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md)
 
 ## Examples

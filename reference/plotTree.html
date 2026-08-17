@@ -50,7 +50,7 @@
 
     <div class="ref-description section level2">
     <p>Minimalist visualization of the branching and leaf contents of one tree
-  in a fitted <code><a href="bart.html">bart</a></code>/<code><a href="bart.html">bart2</a></code> or
+  in a fitted <code><a href="bart.html">bart</a></code>/<code><a href="bart2.html">bart2</a></code> or
   <code><a href="rbart.html">rbart_vi</a></code> model, or in a <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>.
   A fit-level convenience wrapper around the sampler's <code>plotTree</code>
   method, so the trees can be plotted without reaching into the sampler
@@ -76,7 +76,7 @@
     <p></p>
 <dl><dt id="arg-object">object<a class="anchor" aria-label="anchor" href="#arg-object"></a></dt>
 <dd><p>A fitted model of class <code>bart</code> (from <code><a href="bart.html">bart</a></code> or
-    <code><a href="bart.html">bart2</a></code>) or <code>rbart</code> (from <code><a href="rbart.html">rbart_vi</a></code>), or a
+    <code><a href="bart2.html">bart2</a></code>) or <code>rbart</code> (from <code><a href="rbart.html">rbart_vi</a></code>), or a
     <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>. Fits must have been made with the
     trees kept (<code>keeptrees</code>/<code>keepTrees</code> equal to <code>TRUE</code>).</p></dd>
 
@@ -129,7 +129,7 @@
 <span class="r-in"><span><span class="va">Ey</span> <span class="op">&lt;-</span> <span class="fu">f</span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">y</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="va">Ey</span>, <span class="va">sigma</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart2</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>, n.samples <span class="op">=</span> <span class="fl">40L</span>, n.burn <span class="op">=</span> <span class="fl">10L</span>, n.trees <span class="op">=</span> <span class="fl">25L</span>,</span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart2.html">bart2</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>, n.samples <span class="op">=</span> <span class="fl">40L</span>, n.burn <span class="op">=</span> <span class="fl">10L</span>, n.trees <span class="op">=</span> <span class="fl">25L</span>,</span></span>
 <span class="r-in"><span>             n.chains <span class="op">=</span> <span class="fl">1L</span>, keepTrees <span class="op">=</span> <span class="cn">TRUE</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="fu">plotTree</span><span class="op">(</span><span class="va">fit</span>, treeNum <span class="op">=</span> <span class="fl">1L</span>, sampleNum <span class="op">=</span> <span class="fl">40L</span><span class="op">)</span></span></span>

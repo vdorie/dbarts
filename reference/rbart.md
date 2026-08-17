@@ -114,8 +114,8 @@ residuals(object, type = "ev", ...)
   ...:
 
   Same as in
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md), with one
-  default difference: `keepTrees` defaults to `TRUE` here (`bart2`'s
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md), with
+  one default difference: `keepTrees` defaults to `TRUE` here (`bart2`'s
   default is `FALSE`). With `dart`, split probability samples appear as
   `varprobs` on the fit. Unlike `bart2`, `rbart_vi` offers a reduced
   `family` set (see below) with no logistic option, and does not accept
@@ -123,14 +123,14 @@ residuals(object, type = "ev", ...)
 
 - k:
 
-  As in [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md):
+  As in [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md):
   `NULL` (the default) uses the value 2 for continuous responses and the
   `chi(1.5, 2)` hyperprior for binary ones; a supplied fixed value or
   hyperprior overrides that default.
 
 - prior.scale:
 
-  As in [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md):
+  As in [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md):
   names the forest's leaf calibration in response units (the prior
   standard deviation of \\f\\ at `k = 1`) instead of inheriting it from
   the response range. The group intercepts' own prior is a separate
@@ -149,7 +149,7 @@ residuals(object, type = "ev", ...)
   failure time (AFT) log-normal survival model, \\\log T_i = f(x_i) +
   \alpha\_{g\[i\]} + \sigma \epsilon_i\\ with \\\epsilon_i \sim N(0,
   1)\\, adding random intercepts to the model of
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s
   `family = "aft"`. The survival response enters through the formula's
   left-hand side as a
   [`survival::Surv`](https://rdrr.io/pkg/survival/man/Surv.html) object
@@ -157,7 +157,7 @@ residuals(object, type = "ev", ...)
   event/censoring time and the 0/1 event indicator; a `Surv` response
   selects `"aft"` on its own from `"auto"`, while a bare two-column
   response needs `family = "aft"` explicitly. As in
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md),
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md),
   `predict`, `extract`, and `fitted` then return the linear predictor
   \\E\[\log T \mid x, g\]\\ on the LOG-TIME scale (never the time
   scale), and
@@ -361,7 +361,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000320
+#> total seconds in loop: 0.000306
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 1 2 2 2 3 5 1 3 5 2 2 2 3 2 2 3 
@@ -374,7 +374,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001500
+#> total seconds in loop: 0.001505
 #> 
 #> Tree sizes, last iteration:
 #> [1] 5 3 4 2 2 3 2 2 4 3 3 2 3 2 2 3 1 4 
@@ -419,7 +419,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000393
+#> total seconds in loop: 0.000420
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 
@@ -432,7 +432,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001942
+#> total seconds in loop: 0.001964
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 

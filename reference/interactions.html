@@ -49,7 +49,7 @@
     <div class="ref-description section level2">
     <p>Build an interaction-constraint specification restricting which predictors
   may jointly shape a BART fit. Pass the result as the <code>interactions</code>
-  argument of <code><a href="dbarts.html">dbarts</a></code> or <code><a href="bart.html">bart2</a></code>. The constraint is
+  argument of <code><a href="dbarts.html">dbarts</a></code> or <code><a href="bart2.html">bart2</a></code>. The constraint is
   applied per forest, so in a multi-forest model one forest can be held
   additive-or-low-order while another stays free.</p>
     </div>
@@ -119,7 +119,7 @@
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart2</a></code>, <code><a href="blocks.html">blocks</a></code></p></div>
+    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart2.html">bart2</a></code>, <code><a href="blocks.html">blocks</a></code></p></div>
     </div>
 
     <div class="section level2">
@@ -131,14 +131,14 @@
 <span class="r-in"><span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="va">y</span>, <span class="va">x</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co">## additive fit: no tree splits on more than one predictor on any path</span></span></span>
-<span class="r-in"><span><span class="va">fit.additive</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
+<span class="r-in"><span><span class="va">fit.additive</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart2.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
 <span class="r-in"><span>                      interactions <span class="op">=</span> <span class="fu">interactions</span><span class="op">(</span>max.order <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>                      n.trees <span class="op">=</span> <span class="fl">25L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>
 <span class="r-in"><span>                      n.chains <span class="op">=</span> <span class="fl">1L</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co">## forbid x1 and x2 from ever interacting, but allow order-2 interactions</span></span></span>
 <span class="r-in"><span><span class="co">## among the rest</span></span></span>
-<span class="r-in"><span><span class="va">fit.forbid</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
+<span class="r-in"><span><span class="va">fit.forbid</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart2.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
 <span class="r-in"><span>                    interactions <span class="op">=</span> <span class="fu">interactions</span><span class="op">(</span>max.order <span class="op">=</span> <span class="fl">2</span>,</span></span>
 <span class="r-in"><span>                                                forbid <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"x1"</span>, <span class="st">"x2"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>                    n.trees <span class="op">=</span> <span class="fl">25L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>

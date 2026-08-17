@@ -22,7 +22,7 @@ sampler to completion and returns posterior draws.
   trees, one chain, factors expanded to indicator columns, binary
   responses probit, missing data rejected).
 
-- [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) - the
+- [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) - the
   current interface, taking a formula or matrices and reaching the full
   feature set, including every response `family`. This is the one to
   reach for first.
@@ -71,7 +71,7 @@ packages that embed dbarts and supply their own design matrix.
 ## Model features
 
 Reached through
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) and
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) and
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) unless
 noted.
 
@@ -140,7 +140,7 @@ McCulloch. See `citation("dbarts")` for how to cite the package.
 
 ## See also
 
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) to fit a
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) to fit a
 model, [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
 to build a sampler, and the package vignettes:
 [`vignette("gibbs_sampler_mixture_model", package = "dbarts")`](https://vdorie.github.io/dbarts/articles/gibbs_sampler_mixture_model.md)

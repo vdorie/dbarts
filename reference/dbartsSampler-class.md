@@ -676,7 +676,7 @@ modelling conventions -
 [`extract`](https://vdorie.github.io/dbarts/reference/bart.md) - apply
 to FIT objects instead, the results of
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) and
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) and
 [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md). Those
 accessors read the stored `yhat.train`/`yhat.test` channels the engine
 already wrote the offset into, and no `type` arm removes it:

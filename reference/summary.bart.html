@@ -99,7 +99,7 @@ as_draws_array and as_draws_df convert a fit's
     <p></p>
 <dl><dt id="arg-object-x">object, x<a class="anchor" aria-label="anchor" href="#arg-object-x"></a></dt>
 <dd><p>An object of class <code>bart</code> or <code>rbart</code>, as returned by
-    <code><a href="bart.html">bart</a></code>, <code><a href="bart.html">bart2</a></code>, or <code><a href="rbart.html">rbart_vi</a></code>.</p></dd>
+    <code><a href="bart.html">bart</a></code>, <code><a href="bart2.html">bart2</a></code>, or <code><a href="rbart.html">rbart_vi</a></code>.</p></dd>
 
   <dt id="arg-vars">vars<a class="anchor" aria-label="anchor" href="#arg-vars"></a></dt>
 <dd><p>Character vector of fields to gather. Requested fields absent from
@@ -144,7 +144,7 @@ as_draws_array and as_draws_df convert a fit's
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># \donttest{</span></span></span>
-<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span>, x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span><span class="op">)</span>, n.chains <span class="op">=</span> <span class="fl">2L</span>,</span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart2.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span>, x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span><span class="op">)</span>, n.chains <span class="op">=</span> <span class="fl">2L</span>,</span></span>
 <span class="r-in"><span>             n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>, n.trees <span class="op">=</span> <span class="fl">5L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>,</span></span>
 <span class="r-in"><span>             verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></span>

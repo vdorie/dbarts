@@ -53,10 +53,10 @@
     <div class="ref-description section level2">
     <p>Posterior draws of the survival probability \(S(t \mid x)\) from a survival
   fit: an accelerated failure time (AFT) log-normal fit produced by
-  <code><a href="bart.html">bart2</a></code> (or <code><a href="bart.html">bart</a></code>) with <code>family = "aft"</code>, the
+  <code><a href="bart2.html">bart2</a></code> (or <code><a href="bart.html">bart</a></code>) with <code>family = "aft"</code>, the
   grouped (random-intercept) AFT fit produced by <code><a href="rbart.html">rbart_vi</a></code> with
   <code>family = "aft"</code>, or a discrete-time hazard fit produced by
-  <code><a href="bart.html">bart2</a></code> with <code>family = "hazard"</code> (or
+  <code><a href="bart2.html">bart2</a></code> with <code>family = "hazard"</code> (or
   <code>"hazard.logistic"</code>).</p>
     </div>
 
@@ -160,7 +160,7 @@
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="bart.html">bart2</a></code>, <code><a href="rbart.html">rbart_vi</a></code>,
+    <div class="dont-index"><p><code><a href="bart2.html">bart2</a></code>, <code><a href="rbart.html">rbart_vi</a></code>,
   <code><a href="bart.html">predict</a></code>, <code><a href="bart.html">extract</a></code></p></div>
     </div>
     <div class="section level2">
@@ -178,7 +178,7 @@
 <span class="r-in"><span><span class="va">status</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">eventTime</span> <span class="op">&lt;=</span> <span class="va">censorTime</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">observedTime</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">pmin</a></span><span class="op">(</span><span class="va">eventTime</span>, <span class="va">censorTime</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart2</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart2.html">bart2</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="va">x</span>,</span></span>
 <span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="va">observedTime</span>, <span class="va">status</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  family <span class="op">=</span> <span class="st">"aft"</span>,</span></span>

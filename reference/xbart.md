@@ -170,10 +170,11 @@ xbart(
 - split.probs:
 
   Prior probabilities that a variable is used in a splitting rule, as in
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md). A single
-  value or `NULL` yields the uniform default; a named or unnamed vector
-  assigns per-column probabilities. Fixed for the whole crossvalidation,
-  not part of the swept grid. Cannot be combined with `dart`.
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md). A
+  single value or `NULL` yields the uniform default; a named or unnamed
+  vector assigns per-column probabilities. Fixed for the whole
+  crossvalidation, not part of the swept grid. Cannot be combined with
+  `dart`.
 
 - dart:
 

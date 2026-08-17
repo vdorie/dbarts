@@ -115,7 +115,7 @@
 <dd><p>A vector of real numbers in \((0, 1)\), setting the BART hyperparameter for the tree prior's growth probability.</p></dd>
 
    <dt id="arg-split-probs">split.probs<a class="anchor" aria-label="anchor" href="#arg-split-probs"></a></dt>
-<dd><p>Prior probabilities that a variable is used in a splitting rule, as in <code><a href="bart.html">bart2</a></code>. A single value or <code>NULL</code> yields the uniform default; a named or unnamed vector assigns per-column probabilities. Fixed for the whole crossvalidation, not part of the swept grid. Cannot be combined with <code>dart</code>.</p></dd>
+<dd><p>Prior probabilities that a variable is used in a splitting rule, as in <code><a href="bart2.html">bart2</a></code>. A single value or <code>NULL</code> yields the uniform default; a named or unnamed vector assigns per-column probabilities. Fixed for the whole crossvalidation, not part of the swept grid. Cannot be combined with <code>dart</code>.</p></dd>
 
    <dt id="arg-dart">dart<a class="anchor" aria-label="anchor" href="#arg-dart"></a></dt>
 <dd><p>Use the DART sparsity-inducing prior of Linero (2018) instead of a fixed <code>split.probs</code>. <code>TRUE</code> enables it with default hyperparameters; a prior created by <code>dbartsPriors$dart</code> supplies its own. The split probabilities are then sampled rather than fixed, while <code>power</code> and <code>base</code> are still swept.</p></dd>

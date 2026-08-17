@@ -58,7 +58,7 @@
     <p>Build the specification of the heteroscedastic variance forest (HBART;
   Pratola, Chipman, George, and McCulloch 2020). Pass the result as the
   <code>variance</code> argument of <code><a href="dbarts.html">dbarts</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code>,
-  or <code><a href="bart.html">bart2</a></code> - the same argument that already accepts the plain
+  or <code><a href="bart2.html">bart2</a></code> - the same argument that already accepts the plain
   selector (<code>NULL</code>/<code>FALSE</code> for none, <code>TRUE</code>/a one-sided
   formula/a character or integer column selector for the predictors driving
   the variance). This constructor is the other accepted type of that one
@@ -115,7 +115,7 @@
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code>, <code><a href="bart.html">bart2</a></code></p></div>
+    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="dbartsSpec.html">dbartsSpec</a></code>, <code><a href="bart2.html">bart2</a></code></p></div>
     </div>
 
     <div class="section level2">
@@ -127,13 +127,13 @@
 <span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fl">2</span> <span class="op">*</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span> <span class="op">+</span> <span class="va">s</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co">## every predictor drives the variance, 20 variance trees</span></span></span>
-<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart2</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>,</span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart2.html">bart2</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>,</span></span>
 <span class="r-in"><span>             variance <span class="op">=</span> <span class="fu">varianceForest</span><span class="op">(</span>n.trees <span class="op">=</span> <span class="fl">20L</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>             n.trees <span class="op">=</span> <span class="fl">25L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>
 <span class="r-in"><span>             n.chains <span class="op">=</span> <span class="fl">1L</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co">## restricted to x1, with its own tree-structure prior</span></span></span>
-<span class="r-in"><span><span class="va">fit.restricted</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart2</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>,</span></span>
+<span class="r-in"><span><span class="va">fit.restricted</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart2.html">bart2</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>,</span></span>
 <span class="r-in"><span>                        variance <span class="op">=</span> <span class="fu">varianceForest</span><span class="op">(</span>vars <span class="op">=</span> <span class="op">~</span><span class="va">x1</span>, n.trees <span class="op">=</span> <span class="fl">20L</span>,</span></span>
 <span class="r-in"><span>                                                  base <span class="op">=</span> <span class="fl">0.9</span>, power <span class="op">=</span> <span class="fl">1.5</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>                        n.trees <span class="op">=</span> <span class="fl">25L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>

@@ -334,7 +334,7 @@ dbarts(
   Optional integer seed for the random number generator, a convenience
   mirror of `dbartsControl(seed = )`. When not `NA` it overrides the
   seed in `control`; the fitting-function wrappers
-  ([`bart2`](https://vdorie.github.io/dbarts/reference/bart.md),
+  ([`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md),
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)) accept
   the same argument.
 
@@ -362,7 +362,7 @@ dbarts(
   fit as probit, reporting the choice in a one-line message, while a
   factor (or character) response with three or more levels is an error
   directing to
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s
   `family = "multinomial"` (which `dbarts` does not fit). An explicit
   family that a factor response cannot support (e.g. `"gaussian"`) is
   also an error rather than a silent fit of the integer level codes.
@@ -405,7 +405,7 @@ dbarts(
   Like probit, the latent scale is fixed at 1, fits are on the latent
   scale, and weights are not supported. `bart2` reports ordinal fits as
   \\n \times K\\ category probabilities; see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md).
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md).
 
   `"nbinom"` fits a non-negative integer (count) response by a
   negative-binomial model with the Polya-Gamma augmentation: the forest
@@ -420,7 +420,7 @@ dbarts(
   1, fits are on the latent (log-odds) scale, and weights are not
   supported (exposure belongs in the offset). `bart2` reports mean
   counts; see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md).
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md).
 
   `"hazard"` and `"hazard.logistic"` fit a discrete-time survival hazard
   model by person-period expansion (`"hazard.probit"` is an accepted
@@ -461,14 +461,14 @@ dbarts(
   posterior-predictive Monte Carlo, \\E\[y \mid x\] = P(y \> 0 \mid
   x)\\e^{f(x) + \sigma^2 / 2}\\, heteroscedasticity-aware when the
   positive part carries a `variance = ~x` surface; see
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) for the
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) for the
   full `type` options (`"prob"`, `"link"`/`"log"`, the bimodal `"ppd"`)
   and the refusal list (`weights`, `subset`, `offset`, and `test` are
   all unsupported this arc). `dbarts()` does not fit this family: it
   composes two samplers, which only
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) builds,
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) builds,
   so requesting it here is an error directing to
-  [`bart2()`](https://vdorie.github.io/dbarts/reference/bart.md).
+  [`bart2()`](https://vdorie.github.io/dbarts/reference/bart2.md).
 
 - dispersion:
 
@@ -572,7 +572,7 @@ response units: it is the prior standard deviation of the forest total
 for the latent-scale families). `normal(sd = )` names the same quantity
 at the resolved `k`, and is refused under a `k` hyperprior.
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md), and
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md), and
 [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) take it
 as a `prior.scale` argument directly. Unset, nothing changes.
 

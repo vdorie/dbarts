@@ -40,7 +40,7 @@ as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
 
   An object of class `bart` or `rbart`, as returned by
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md), or
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md), or
   [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md).
 
 - vars:

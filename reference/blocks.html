@@ -53,7 +53,7 @@
   one declared group of predictors, so the ensemble is exactly a sum of
   per-group functions \(f = \sum_G f_G\) (a functional-ANOVA / grouped-GAMI
   decomposition). Pass the result as the <code>blocks</code> argument of
-  <code><a href="dbarts.html">dbarts</a></code> or <code><a href="bart.html">bart2</a></code>. The constraint is applied per
+  <code><a href="dbarts.html">dbarts</a></code> or <code><a href="bart2.html">bart2</a></code>. The constraint is applied per
   forest, so in a multi-forest model each forest can carry its own partition.</p>
     </div>
 
@@ -110,7 +110,7 @@
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="interactions.html">interactions</a></code>, <code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart.html">bart2</a></code></p></div>
+    <div class="dont-index"><p><code><a href="interactions.html">interactions</a></code>, <code><a href="dbarts.html">dbarts</a></code>, <code><a href="bart2.html">bart2</a></code></p></div>
     </div>
 
     <div class="section level2">
@@ -122,13 +122,13 @@
 <span class="r-in"><span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="va">y</span>, <span class="va">x</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co">## block-additive fit: f(x) = f1(x1) + f2(x2, x3), no tree mixing the blocks</span></span></span>
-<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
+<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart2.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
 <span class="r-in"><span>             blocks <span class="op">=</span> <span class="fu">blocks</span><span class="op">(</span>groups <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"x1"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"x2"</span>, <span class="st">"x3"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>             n.trees <span class="op">=</span> <span class="fl">20L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>
 <span class="r-in"><span>             n.chains <span class="op">=</span> <span class="fl">1L</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co">## split the 20 trees explicitly: 5 to the first block, 15 to the second</span></span></span>
-<span class="r-in"><span><span class="va">fit.split</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
+<span class="r-in"><span><span class="va">fit.split</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart2.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>, <span class="va">df</span>,</span></span>
 <span class="r-in"><span>                   blocks <span class="op">=</span> <span class="fu">blocks</span><span class="op">(</span>groups <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"x1"</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"x2"</span>, <span class="st">"x3"</span><span class="op">)</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>                                   trees.per.group <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">5L</span>, <span class="fl">15L</span><span class="op">)</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>                   n.trees <span class="op">=</span> <span class="fl">20L</span>, n.samples <span class="op">=</span> <span class="fl">20L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>,</span></span>

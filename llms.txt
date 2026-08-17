@@ -81,19 +81,21 @@ was removed in 1.0-0.
 Fit BART models to fixed data.
 
 - [`bart()`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`bart2()`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`plot(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`predict(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`extract()`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`fitted(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
   [`residuals(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`fitted(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`predict(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`print(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`residuals(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`plot(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
-  [`summary(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart.md)
   : Bayesian Additive Regression Trees
+- [`bart2()`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`extract(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`fitted(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`predict(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`print(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`residuals(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`plot(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`summary(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  : Bayesian Additive Regression Trees with Extended Response Families
 - [`rbart_vi()`](https://vdorie.github.io/dbarts/reference/rbart.md)
   [`plot(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)
   [`fitted(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)

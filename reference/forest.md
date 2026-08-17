@@ -184,7 +184,7 @@ time, and anything today's engine cannot honour is refused there by name
 rather than dropped.
 
 A `forest()` call written INSIDE a
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)/[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)/[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
 formula - bare, or as one operand of `:` - declares a second forest
 without a separate `forests =` list: `z:forest(x1 + x2)` and
 `factor(z):forest(x1 + x2)` desugar to `forest(x1 + x2, basis = ~ z)`
@@ -212,10 +212,15 @@ A `dbartsForest` specification object, resolved when a sampler is built.
 ## See also
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-[`bart2`](https://vdorie.github.io/dbarts/reference/bart.md),
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md),
 [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md),
 [`interactions`](https://vdorie.github.io/dbarts/reference/interactions.md),
 [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md)
+
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s ‘Formula
+Terms’ section is the full term grammar - colon sugar, the factor forms,
+the symbolic unnamed slot, and the refusal list - of which the ‘Details’
+paragraph above is the constructor-side summary.
 
 ## Examples
 
