@@ -1501,6 +1501,22 @@
             name instead of silently scoring the gaussian density and
             drawing gaussian noise regardless of \code{resid.dist}. A fit
             predating the field is read as gaussian, unaffected.
+      \item \code{xbart} now enforces the binary weight policy at the R
+            level, matching \code{dbarts}/\code{bart2}/\code{rbart_vi}
+            instead of falling through to the C bridge's own backstop. A
+            \code{family = "probit"} run with weights identically 1 is now
+            correctly treated as unweighted; previously it was refused,
+            since the bridge backstop that caught it has no such courtesy.
+            Other weighted probit calls, and non-integer-count
+            \code{family = "logistic"} weights, still refuse but now
+            report the message the other fitting functions use rather
+            than the bridge's own wording. A binary-family run whose
+            starting sigma cannot be estimated reports that same shared
+            message (\dQuote{unable to obtain a starting estimate of
+            sigma; provide one instead}) instead of a bare \code{lm}
+            error, and a \code{resid.prior} supplied under a binary family
+            is now always overridden to \code{fixed(1)} rather than only
+            when left unsupplied.
     }
   }
 }

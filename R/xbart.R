@@ -124,14 +124,18 @@ xbart <- function(
       stop("family \"", family, "\" requires a response coded 0/1")
     }
   }
-  control@binary <- family != "gaussian"
+  control@binary <- isBinaryFamily(family)
+
+  # the shared weight policy (R/spec.R's enforceWeightPolicy): a probit has
+  # no tractable weighted latent-variable form and is refused (an all-ones
+  # courtesy excepted), a logistic model requires positive integer count
+  # weights, and a gaussian fit is unrestricted. xbart's own family is always
+  # gaussian/probit/logistic, so the function's ordinal/nbinom branches never
+  # fire here - the same function every other entry point reaches them with.
+  data <- enforceWeightPolicy(data, family)
 
   if (is.na(data@sigma) && !control@binary) {
-    data@sigma <- estimateSigmaFromLinearModel(data)
-  }
-
-  if (control@binary && is.null(matchedCall[["resid.prior"]])) {
-    matchedCall[["resid.prior"]] <- quote(fixed(1))
+    data@sigma <- estimateStartingSigma(data)
   }
 
   if (
@@ -312,17 +316,24 @@ xbart <- function(
   # hyperprior), as before the priors became objects
   node.hyperprior <- resolveNodeHyperprior(node.prior@k, binary = FALSE)
 
-  resid.prior <-
-    if (
-      !is.null(matchedCall$resid.prior) || "resid.prior" %in% names(matchedCall)
-    ) {
-      env <- new.env(parent = evalEnv)
-      env[["chisq"]] <- getNamespace("dbarts")[["chisq"]]
-      env[["fixed"]] <- getNamespace("dbarts")[["fixed"]]
-      eval(matchedCall$resid.prior, env)
-    } else {
-      eval(formals(xbart)$resid.prior, getNamespace("dbarts"))()
-    }
+  # a binary family runs on a fixed unit latent scale (R/spec.R's
+  # fixedUnitScale rule): any supplied resid.prior is overridden, not just a
+  # missing one, matching the shared resolver, so a caller cannot silently
+  # fit an unfixed residual scale under a family that has none. The DEFAULT
+  # value stays chisq rather than bart2's NULL-triggers-shorthand sentinel -
+  # xbart has no sigdf/sigquant shorthands for a NULL to build from.
+  resid.prior <- if (control@binary) {
+    fixed(1)
+  } else if (
+    !is.null(matchedCall$resid.prior) || "resid.prior" %in% names(matchedCall)
+  ) {
+    env <- new.env(parent = evalEnv)
+    env[["chisq"]] <- getNamespace("dbarts")[["chisq"]]
+    env[["fixed"]] <- getNamespace("dbarts")[["fixed"]]
+    eval(matchedCall$resid.prior, env)
+  } else {
+    eval(formals(xbart)$resid.prior, getNamespace("dbarts"))()
+  }
   if (is.call(resid.prior)) {
     resid.prior <- eval(resid.prior, getNamespace("dbarts"))
   }

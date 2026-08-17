@@ -10,6 +10,84 @@
 ## formals, and parsePriors evaluates the argument expressions in evalEnv.
 ## `matchedCall` must therefore be the CALLER's, not this function's.
 ##
+## Binary latent-variable families: probit and logistic draw a fixed-unit-
+## scale latent index rather than an ordinary continuous response, which is
+## what control@binary, the weight policy, and the resid.prior override below
+## all key off. Shared so no entry point's own family gate can drift from
+## this one - xbart once carried the weaker `family != "gaussian"`.
+isBinaryFamily <- function(family) {
+  family %in% c("probit", "logistic")
+}
+
+## Wraps estimateSigmaFromLinearModel so every caller needing a starting sigma
+## estimate raises the same failure message instead of a bare lm() error.
+estimateStartingSigma <- function(data) {
+  tryResult <- tryCatch(
+    estimateSigmaFromLinearModel(data),
+    error = function(e) e
+  )
+  if (inherits(tryResult, "error")) {
+    stop("unable to obtain a starting estimate of sigma; provide one instead")
+  }
+  tryResult
+}
+
+## The binary/ordinal/nbinom weight policy, shared by every entry point that
+## can reach these families: a probit has no tractable weighted latent-
+## variable form and is refused, except that weights identically 1 are the
+## unweighted likelihood and are treated as absent (SuperLearner-style
+## callers pass obsWeights = rep(1, n) unconditionally); a logistic model
+## treats weights as observation counts (its Polya-Gamma latent is a sum of
+## per-copy draws), so they must be positive integers; ordinal refuses for
+## probit's reason, with the same all-ones courtesy; nbinom refuses outright
+## (exposure belongs in the offset, not observation replication). Gaussian
+## weights are unrestricted and reach here as a no-op.
+enforceWeightPolicy <- function(data, family) {
+  if (is.null(data@weights)) {
+    return(data)
+  }
+  if (family == "probit") {
+    if (all(data@weights == 1)) {
+      data@weights <- NULL
+    } else {
+      stop(
+        "probit models do not support weights: a weighted probit has no ",
+        "tractable latent-variable form. Integer count weights can be ",
+        "fit exactly with family = \"logistic\"; for continuous weights, ",
+        "model the latents directly."
+      )
+    }
+  } else if (family == "logistic") {
+    w <- data@weights
+    if (anyNA(w) || any(w <= 0) || any(w != round(w))) {
+      stop(
+        "logistic weights are observation counts and must be positive ",
+        "integers; drop zero-count rows, and use a gaussian model for ",
+        "continuous weights."
+      )
+    }
+  } else if (family == "ordinal") {
+    if (all(data@weights == 1)) {
+      data@weights <- NULL
+    } else {
+      stop(
+        "ordinal models do not support weights: a weighted truncated-normal ",
+        "latent likelihood is not a coherent model."
+      )
+    }
+  } else if (family == "nbinom") {
+    if (all(data@weights == 1)) {
+      data@weights <- NULL
+    } else {
+      stop(
+        "nbinom (count) models do not support weights: exposure belongs in ",
+        "the offset as a log-exposure term."
+      )
+    }
+  }
+  data
+}
+
 ## survivalStatus and hazardPeriods carry the two survival markers the entry
 ## point resolved from the raw response; both are NULL for every other family.
 resolveSamplerSpec <- function(
@@ -89,7 +167,7 @@ resolveSamplerSpec <- function(
   }
   # aft draws sigma and rescales like gaussian; only the binary families are
   # latent-variable models on a fixed unit scale
-  control@binary <- family %in% c("probit", "logistic")
+  control@binary <- isBinaryFamily(family)
   # ordinal (cumulative probit) shares probit's fixed unit latent scale - sigma
   # fixed at 1, resid.prior fixed(1), no sigma estimate, node.scale 3.0 - but is
   # NOT binary: the bridge selects it by the bartcore.n.categories attribute
@@ -102,75 +180,15 @@ resolveSamplerSpec <- function(
     identical(family, "ordinal") ||
     identical(family, "nbinom")
 
-  # binary weight policy, enforced here in the R layer (the bridge keeps the
-  # same checks as a backstop for direct-API consumers): a probit has no
-  # tractable weighted latent-variable form and is refused, except that
-  # weights identically 1 are the unweighted likelihood and are treated as
-  # absent (SuperLearner-style callers pass obsWeights = rep(1, n)
-  # unconditionally); a logistic model treats weights as observation counts
-  # (its Polya-Gamma latent is a sum of per-copy draws), so they must be
-  # positive integers. Gaussian weights, including a gaussian fit of a 0/1
-  # response, are unrestricted.
-  if (!is.null(data@weights)) {
-    if (family == "probit") {
-      if (all(data@weights == 1)) {
-        data@weights <- NULL
-      } else {
-        stop(
-          "probit models do not support weights: a weighted probit has no ",
-          "tractable latent-variable form. Integer count weights can be ",
-          "fit exactly with family = \"logistic\"; for continuous weights, ",
-          "model the latents directly."
-        )
-      }
-    }
-    if (family == "logistic") {
-      w <- data@weights
-      if (anyNA(w) || any(w <= 0) || any(w != round(w))) {
-        stop(
-          "logistic weights are observation counts and must be positive ",
-          "integers; drop zero-count rows, and use a gaussian model for ",
-          "continuous weights."
-        )
-      }
-    }
-    # ordinal refuses weights for probit's reason (a weighted truncated-normal
-    # latent likelihood is not a coherent model), with the same all-ones-are-
-    # absent courtesy the probit path extends to SuperLearner-style callers
-    if (family == "ordinal") {
-      if (all(data@weights == 1)) {
-        data@weights <- NULL
-      } else {
-        stop(
-          "ordinal models do not support weights: a weighted truncated-normal ",
-          "latent likelihood is not a coherent model."
-        )
-      }
-    }
-    # nbinom refuses weights in v1 (docs/design/negative-binomial.md section 4):
-    # the usual count "weight" is exposure, which belongs in the offset as a
-    # log-exposure term, not in observation replication. The R refusal mirrors
-    # the bridge's backstop, with the probit all-ones-are-absent courtesy.
-    if (family == "nbinom") {
-      if (all(data@weights == 1)) {
-        data@weights <- NULL
-      } else {
-        stop(
-          "nbinom (count) models do not support weights: exposure belongs in ",
-          "the offset as a log-exposure term."
-        )
-      }
-    }
-  }
+  # binary/ordinal/nbinom weight policy, enforced here in the R layer (the
+  # bridge keeps the same checks as a backstop for direct-API consumers) -
+  # see enforceWeightPolicy's own doc comment for the rule each family
+  # follows. Gaussian weights, including a gaussian fit of a 0/1 response,
+  # are unrestricted and pass through untouched.
+  data <- enforceWeightPolicy(data, family)
 
   if (is.na(data@sigma) && !fixedUnitScale) {
-    tryResult <- tryCatch(
-      data@sigma <- estimateSigmaFromLinearModel(data),
-      error = function(e) e
-    )
-    if (inherits(tryResult, "error")) {
-      stop("unable to obtain a starting estimate of sigma; provide one instead")
-    }
+    data@sigma <- estimateStartingSigma(data)
   }
 
   # bart will passthrough with offset == something no matter what, which we
