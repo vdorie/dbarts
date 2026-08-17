@@ -997,8 +997,7 @@ single \\a\\ on its implicit intercept and its forest `2` the pair
 \\(b_0, b_1)\\, so the stacked read is the \\(a, b_0, b_1)\\ of \\y = a
 \mu(x) + b_z \tau(x) + \epsilon\\. For `getForestVariableCounts`, the
 requested forest's current per-predictor split counts, an n.predictors x
-n.chains integer matrix; its rows are named by the training matrix's
-column names when that matrix carries them, and left unnamed otherwise.
+n.chains integer matrix.
 
 For `getCalibration`, the leaf-prior calibration a forest currently runs
 under, as a numeric matrix with one row per chain and the columns
