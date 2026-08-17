@@ -134,7 +134,8 @@ expect_inherits(xval, "array")
 rm(testData)
 
 
-# the driver accepts an explicit control
+# control = is removed (S8): the driver runs fine without it, and passing
+# it now hits R's own unused-argument error, since xbart has no dots
 xval <- dbarts::xbart(
   x,
   y,
@@ -144,10 +145,19 @@ xval <- dbarts::xbart(
   n.test = 5,
   n.reps = 2L,
   k = c(1, 4),
-  n.threads = 1L,
-  control = dbarts::dbartsControl()
+  n.threads = 1L
 )
 expect_equal(dim(xval), c(2L, 2L))
 expect_true(all(is.finite(xval)))
+expect_error(
+  dbarts::xbart(
+    x,
+    y,
+    n.reps = 1L,
+    n.threads = 1L,
+    control = dbarts::dbartsControl()
+  ),
+  pattern = "unused argument"
+)
 
 rm(xval, k, y, x)

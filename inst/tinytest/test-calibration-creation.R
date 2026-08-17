@@ -397,12 +397,9 @@ expect_false(identical(
 ))
 
 # --- O6, xbart rows: a named calibration is held across cells, in the branch
-# that creates a sampler and in the branch that re-models one. ---
-xbartControl <- dbartsControl(
-  n.chains = 1L,
-  n.threads = 1L,
-  updateState = FALSE
-)
+# that creates a sampler and in the branch that re-models one. xbart forces
+# n.chains/n.threads/updateState itself (control = is no longer a formal, S8),
+# so nothing here needs to name them. ---
 xbartArgs <- list(
   formula = xRef,
   data = yRef,
@@ -412,7 +409,6 @@ xbartArgs <- list(
   n.trees = 25L,
   n.threads = 1L,
   seed = 5L,
-  control = xbartControl,
   verbose = FALSE
 )
 # xbart reports one loss per replication per cell; average the replications

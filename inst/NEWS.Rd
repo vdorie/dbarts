@@ -1369,6 +1369,19 @@
             working: \code{t=} (ambiguous between \code{test} and
             \code{tree.prior}) and \code{resid.=} (ambiguous between
             \code{resid.dist} and \code{resid.prior}).
+      \item \code{xbart} loses its \code{control} argument; \code{n.cuts},
+            \code{useQuantiles}, \code{n.thin}, and \code{storage} become
+            ordinary formals instead, spelled and defaulted exactly as
+            \code{\link{dbartsControl}}'s own (\code{xbart(control = )} is now
+            an unused-argument error). A new \code{tree.prior} formal takes
+            the same \code{cgm}/DART objects \code{dbarts} does; unlike
+            \code{bart2}'s, it does not collide with \code{power}/\code{base}
+            - they are \code{xbart}'s own swept grid, overriding a supplied
+            object's \code{power}/\code{base} every cell exactly as \code{k}
+            already overrides a supplied \code{node.prior}'s \code{k} - but
+            does collide with \code{dart}/\code{split.probs}, which would
+            only duplicate it. Every default reproduces prior behavior;
+            \code{n.th=} no longer partial-matches \code{n.threads}.
     }
   }
 }

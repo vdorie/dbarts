@@ -701,3 +701,32 @@ expect_false(identical(
   hurdleOtherTree$positive$yhat.train
 ))
 expect_true(any(grepl("base\\s*= 0.9", formatted)))
+
+# S8 (docs/plans/bart2-argument-consolidation.md 3.f, 4.3, 6.2): xbart loses
+# control = entirely; n.cuts/useQuantiles/n.thin/storage/tree.prior are
+# appended flat formals instead. xbart has no dots (fork 5's rejection-only
+# channel never reached it), so control = is a native unused-argument error.
+xbartKnobs <- c("n.cuts", "useQuantiles", "n.thin", "storage")
+expect_true(setequal(
+  intersect(xbartKnobs, names(formals(dbarts::xbart))),
+  xbartKnobs
+))
+for (knob in xbartKnobs) {
+  expect_equal(
+    deparse(formals(dbarts::xbart)[[knob]]),
+    deparse(formals(dbarts::dbartsControl)[[knob]])
+  )
+}
+expect_false("control" %in% names(formals(dbarts::xbart)))
+expect_false("..." %in% names(formals(dbarts::xbart)))
+expect_equal(length(formals(dbarts::xbart)), 32L)
+expect_error(
+  dbarts::xbart(
+    x,
+    y.gaussian,
+    control = dbarts::dbartsControl(),
+    n.reps = 1L,
+    n.threads = 1L
+  ),
+  pattern = "unused argument"
+)

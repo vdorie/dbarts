@@ -20,23 +20,64 @@ xbart <- function(
   dart = FALSE,
   drop = TRUE,
   resid.prior = chisq,
-  control = dbarts::dbartsControl(),
   sigest = NA_real_,
   seed = NA_integer_,
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic"),
   missing = c("incorporate", "error"),
-  node.prior = NULL
+  node.prior = NULL,
+  n.cuts = 100L,
+  useQuantiles = FALSE,
+  n.thin = 1L,
+  storage = c("double", "single"),
+  tree.prior = NULL
 ) {
   matchedCall <- match.call()
 
   currEnv <- sys.frame(sys.nframe())
   evalEnv <- parent.frame(1L)
 
+  # the four flat knobs (docs/plans/bart2-argument-consolidation.md 3.f, f2):
+  # shape-checked at the surface, mirroring dbartsControl's own validity
+  # messages, then folded into the control xbart builds for itself below
+  n.cuts <- coerceOrError(n.cuts, "integer")
+  if (is.na(n.cuts) || n.cuts <= 0L) {
+    stop("'n.cuts' must be a positive integer")
+  }
+  useQuantiles <- coerceOrError(useQuantiles, "logical")
+  if (is.na(useQuantiles)) {
+    stop("'useQuantiles' must be TRUE/FALSE")
+  }
+  n.thin <- coerceOrError(n.thin, "integer")
+  if (is.na(n.thin) || n.thin <= 0L) {
+    stop("'n.thin' must be a positive integer")
+  }
+  storage <- match.arg(storage)
+
+  # control = is no longer a formal (3.f/4.3): xbart builds its own control,
+  # the knobs above landing where the flat formals' values landed (the S6
+  # precedent), alongside six fields xbart has always forced regardless of
+  # what a caller-supplied control carried. n.trees/n.burn are xbart's own
+  # grid axes (cellControl/cellModel overwrite them per cell below), seed is
+  # handled by xbart's own RNG block, and printEvery/printCutoffs are inert
+  # under verbose = FALSE, so control's copies of those five fields are left
+  # at dbartsControl()'s own defaults.
+  control <- dbartsControl(
+    useQuantiles = useQuantiles,
+    storage = storage,
+    n.cuts = n.cuts,
+    n.thin = n.thin,
+    n.chains = 1L,
+    n.threads = 1L,
+    keepTrees = FALSE,
+    keepTrainingFits = FALSE,
+    updateState = FALSE,
+    verbose = FALSE
+  )
+
   validateCall <- redirectCall(
     matchedCall,
     quoteInNamespace(validateArgumentsInEnvironment),
-    control,
     verbose,
     n.samples,
     sigest
@@ -44,17 +85,12 @@ xbart <- function(
   validateCall <- addCallArgument(validateCall, 1L, currEnv)
   validateCall <- addCallArgument(validateCall, 2L, xbart)
   validateCall <- addCallArgument(validateCall, 3L, "xbart")
+  validateCall <- addCallArgument(validateCall, "control", control)
   eval(validateCall, evalEnv, getNamespace("dbarts"))
 
   if (control@call != call("NA")[[1L]]) {
     control@call <- matchedCall
   }
-  control@n.chains <- 1L
-  control@n.threads <- 1L
-  control@keepTrees <- FALSE
-  control@keepTrainingFits <- FALSE
-  control@updateState <- FALSE
-  control@verbose <- FALSE
 
   dataCall <- redirectCall(
     matchedCall,
@@ -135,11 +171,9 @@ xbart <- function(
     }
   }
 
-  if (is.null(matchedCall$n.trees) && "n.trees" %not_in% names(matchedCall)) {
-    n.trees <- control@n.trees
-  } else {
-    n.trees <- coerceOrError(n.trees, "integer")
-  }
+  # a custom control could once supply an n.trees a caller left unnamed;
+  # control = is gone, so this grid always comes from the formal itself
+  n.trees <- coerceOrError(n.trees, "integer")
   if (anyNA(n.trees) || any(n.trees <= 0L)) {
     stop("'n.trees' must contain only positive integers")
   }
@@ -187,12 +221,40 @@ xbart <- function(
     stop("'base' must contain only values in (0, 1)")
   }
 
-  # the tree structure prior. DART (dart = TRUE or a dart() spec) samples its
-  # own split probabilities; cgm takes a fixed split.probs. power and base are
-  # xbart's grid axes, so the prior is built at the grid's first values and
-  # every cell overrides them (see cellModel); a supplied dart() spec
-  # contributes its Dirichlet hyperparameters, with power and base still swept.
-  if (inherits(dart, "dbartsDartPrior")) {
+  # tree.prior (3.f, f4): follows the same grid-axis-overrides-the-object
+  # rule as node.prior/k above - power and base are xbart's grid axes, so
+  # cellModel overwrites them on the object every cell regardless of what is
+  # supplied here, while the object's non-grid content (a cgm's split.probs,
+  # a dart's Dirichlet hyperparameters) rides every cell unchanged. dart/
+  # split.probs would only duplicate what a supplied tree.prior already
+  # specifies, so they collide with it; power/base/k do not, since they are
+  # grid axes rather than duplicates - this deliberately differs from
+  # bart2's tree.prior, which does collide with power/base (R/bart.R's
+  # buildSamplerPriors), because there they are ordinary scalars, not a grid.
+  if (!is.null(matchedCall[["tree.prior"]])) {
+    collidingNames <- c("dart", "split.probs")
+    hit <- collidingNames[collidingNames %in% names(matchedCall)]
+    if (length(hit) > 0L) {
+      stop(
+        "'tree.prior' cannot be combined with '",
+        hit[1L],
+        "': supply the tree prior either as an object or through its ",
+        "shorthand arguments, not both"
+      )
+    }
+    priorEnv <- new.env(parent = evalEnv)
+    priorEnv[["cgm"]] <- getNamespace("dbarts")[["cgm"]]
+    priorEnv[["dart"]] <- getNamespace("dbarts")[["dart"]]
+    tree.prior <- eval(matchedCall[["tree.prior"]], priorEnv)
+    if (is.function(tree.prior)) {
+      tree.prior <- tree.prior()
+    }
+    if (!is(tree.prior, "dbartsTreePrior")) {
+      stop(
+        "'tree.prior' must be a tree prior specification; see ?dbartsPriors"
+      )
+    }
+  } else if (inherits(dart, "dbartsDartPrior")) {
     tree.prior <- dart
   } else if (isTRUE(dart)) {
     if ("split.probs" %in% names(matchedCall)) {

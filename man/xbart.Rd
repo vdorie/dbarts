@@ -12,12 +12,13 @@ xbart(
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, power = 2, base = 0.95,
     split.probs = NULL, dart = FALSE, drop = TRUE,
-    resid.prior = chisq, control = dbarts::dbartsControl(), sigest = NA_real_,
+    resid.prior = chisq, sigest = NA_real_,
     seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
     missing = c("incorporate", "error"),
-    node.prior = NULL)
+    node.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
+    storage = c("double", "single"), tree.prior = NULL)
 }
 \arguments{
   \item{formula}{
@@ -83,9 +84,6 @@ xbart(
    \item{resid.prior}{
      An expression of the form \code{chisq} or \code{chisq(df, quant)} that sets the prior used on the residual/error variance.
    }
-   \item{control}{
-     An object inheriting from \code{dbartsControl}, created by the \code{\link{dbartsControl}} function.
-   }
    \item{sigest}{
      A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Fitting functions (\code{xbart}, \code{\link{bart}}/\code{bart2}, \code{\link{rbart_vi}}) spell this \code{sigest}; sampler constructors (\code{\link{dbarts}}, \code{dbartsSpec}) spell the same concept \code{sigma}.
    }
@@ -105,6 +103,21 @@ xbart(
      An optional expression of the form \code{normal(k)}, \code{linear(columns, k)}, or \code{gp(columns, k, ...)} selecting the leaf model, as in \code{\link{dbarts}}. The default fits constant leaves. A \code{k} given inside the prior stands in for a missing \code{k} argument; the \code{k} argument otherwise drives the crossvalidation grid as usual.
 
      A named leaf calibration (\code{normal(scale = )}, and likewise for \code{linear} and \code{gp}) is NOT a grid axis: it is held fixed across every cell, so the \code{k} grid sweeps the prior standard deviation \code{scale / k} about a fixed anchor rather than about whatever the response range happened to imply. It is honored in cells that re-use a sampler as well as in cells that create one, so the loss surface does not depend on the order the cells run in. The \code{sd} spelling meets the same refusal here as everywhere when \code{k} is a hyperprior.
+   }
+   \item{n.cuts}{
+     A positive integer giving the number of decision rules used for each predictor, as in \code{\link{dbartsControl}}.
+   }
+   \item{useQuantiles}{
+     Logical; as in \code{\link{dbartsControl}}, determines whether decision rules are placed at the empirical quantiles of each predictor's values rather than spaced uniformly through its range.
+   }
+   \item{n.thin}{
+     A positive integer; as in \code{\link{dbartsControl}}, thins each cell's chain against serial correlation. \code{n.samples} are still returned regardless.
+   }
+   \item{storage}{
+     A character string selecting the precision of the internal running residual, spelled and defaulted as in \code{\link{dbartsControl}}. Every cell's sampler is created over a shared per-fold data handle, a path the engine keeps in double precision regardless of family or leaf model; \code{"single"} is refused rather than silently ignored.
+   }
+   \item{tree.prior}{
+     An expression of the form \code{cgm} or \code{cgm(power, base, split.probs)} that sets the tree structure prior, or a prior object built with \code{\link{dbartsPriors}} - \code{cgm(...)} or \code{dbartsPriors$dart(...)}. \code{power} and \code{base} are xbart's grid axes, so a supplied object's own \code{power}/\code{base} are replaced by the swept grid values every cell exactly as the \code{k} argument replaces a supplied \code{node.prior}'s \code{k}; the object's other content - a \code{cgm} object's \code{split.probs}, a DART object's Dirichlet hyperparameters - rides every cell unchanged. Because \code{power}/\code{base} are grid axes here rather than ordinary scalars, they may be supplied alongside \code{tree.prior}; \code{dart} and \code{split.probs} would only duplicate what a supplied \code{tree.prior} already specifies, so combining either with it is an error naming both.
    }
 }
 \details{
