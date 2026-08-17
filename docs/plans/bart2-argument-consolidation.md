@@ -1666,3 +1666,19 @@ diff), stan4bart 54e157b (test-02 spelling + a NEWS breaking-changes
 bullet on the rename and the bart_args silent-drop consequence; full
 455-result suite green against a rebuilt S5 dbarts - a whole-ABI
 validation in passing).
+
+S6 (variance collapse) LANDED 5aa4d292, 2026-08-16. varianceForest(
+vars, n.trees, base, power) exported beside forest() with print/
+format; the three .variance formals removed from bart2/dbarts/
+dbartsSpec; the resolver's object branch routes vars through the
+SHARED resolveVarianceColumns (object vars=NULL -> every column,
+distinct from variance=NULL's no-forest - the two NULLs are
+opposites, translated before the shared resolver); knobs land where
+the flat formals' values landed. 12 test files + 2 benchmark scripts
+migrated - the harness's own het scenarios now spell varianceForest
+and still compare BITWISE against the untouched baseline, the
+strongest round-trip proof available. New Rd + _pkgdown.yml +
+pkgdown check; C error strings reworded off the retired names.
+Gates: both runners green (5400/0; trio 37+12+10 bitwise; byte-
+identity grid incl. full-knob attr verbatim; mutation exactly 2;
+check OK).
