@@ -1,0 +1,667 @@
+# Error-message style: design
+
+Status: ADOPTED for new messages 2026-08-17 (release-candidate-review
+wave 0a; VD resolved Fork 5 as "follow best practices from highly
+regarded R packages", and this revision applies that direction - the
+draft codified the in-repo majority, then published best practice and
+the measured practice of base, stats, Matrix, survival, lme4, and mgcv
+were given precedence wherever they speak). The wave-2 L sweep of the
+existing corpus runs after VD sees the delta summary. Governs every
+`stop()` in `R/` and every
+`Rf_error`/`ext_throwError` in `src/`. Every NEW message from this point on
+follows this rule; slice L (repo-wide, ~120 strings) rewrites the existing
+corpus against it in one sweep, deliberately last among the message-touching
+slices so nothing is reworded twice. Text only - no function is renamed, no
+predicate changes (predicate reconciliation, e.g. `any(w < 0)` vs
+`!(w >= 0.0)`, is slice K6, scheduled after this lands).
+
+Evidence: 546 `stop()` in `R/`, 351 `Rf_error()` in `src/R_interface_bartcore.cpp`
++ `src/C_interface.cpp` + `src/R_interface.cpp`, 1 `ext_throwError` in
+`src/bartcore/chain.hpp:1922`. Each rule states the majority it codifies, or
+says plainly that it invents (no majority existed). Frequencies in the
+appendix. Every rule below was additionally checked against: the tidyverse
+style guide's error chapter (published best practice for the R ecosystor's
+`rlang`/`cli` tradition); rlang's `abort()` documentation; Writing R
+Extensions (WRE); and a direct source-level survey of `stop()` in base,
+stats, Matrix, survival, lme4, and mgcv (the observable practice of
+highly-regarded base-style packages - the tradition dbarts actually belongs
+to, since it ships no rlang/cli/tidyverse dependency and never will).
+Full method and citations are in the **External evidence appendix** at the
+end of this document. Per the project lead's standing instruction, external
+evidence wins over the in-repo majority wherever it clearly speaks; where it
+is silent or the two named external sources (published guidance vs.
+observable package practice) themselves conflict without one clearly
+outweighing the other, the in-repo majority stands. Each rule below is
+tagged **CONFIRMED**, **OVERRIDDEN**, or **SILENT-KEPT**.
+
+## R1. Argument/formal-name quoting: single quotes — CONFIRMED
+
+Wrap an argument, formal, or slot name in `'...'`. Never backtick, never bare,
+never `sQuote`/`dQuote`/`gettextf` (0 uses of any of these on either side -
+do not introduce them now).
+
+- Conformance: `"length of 'weights' must equal length of 'y'"` (`R/data.R:621`).
+- Violation: `"chainNum must be a single chain index in [1, ...]"`
+  (`R/generics.R:1668`) - bare.
+
+A value drawn from a closed set of choices (family name, class name used as an
+echoed value) is quoted the same way; a descriptive category noun used as the
+sentence's own subject stays bare - `"probit models do not support weights"`
+(`src/R_interface_bartcore.cpp:1616`), not `"'probit' models"`.
+
+**External evidence.** The two external sources disagree, and the disagreement
+is the crux of this rule. Published best practice (tidyverse style guide):
+"Surround the names of arguments in backticks, e.g. `` `x` ``. Use 'column'
+to disambiguate columns and arguments: `` Column `x` ``." That is an explicit,
+unambiguous rule for backticks. Observable practice of highly-regarded
+base-style packages says the opposite, and says it almost unanimously: across
+~3,400 sampled `stop()` calls in base, stats, Matrix, survival, lme4, and mgcv,
+backtick-quoted names appear in exactly 26 messages (0 in base, 0 in stats, 0
+in Matrix, 1 in survival, 0 in lme4, 25 in mgcv - and even within mgcv,
+single-quoted names still outnumber backtick-quoted ones 67 to 25). Base R
+itself - the most authoritative "highly regarded package" of all, and the one
+whose error-message idiom dbarts already imitates throughout this document -
+uses single quotes in 703 of its own quote-pairs and backticks in 0.
+Representative: `stop("'input' must be a character vector or 'NULL'")`
+(`base::system`); `stop("'shape' must be one of \"g\", \"t\", \"s\"")`
+(`Matrix::.sparseDiagonal`).
+
+Resolution: the backtick convention in the tidyverse guide is not a
+free-standing typographic preference - it exists because rlang/cli render
+backtick-quoted spans specially (monospacing, sometimes color) in a
+multi-line bulleted display. Lifted out of that rendering context into a
+plain `stop()` string, a backtick is just a character with a second, older,
+competing meaning in R itself: it denotes a non-syntactic name *in code*
+(`` `my var` <- 1 ``), which is exactly the kind of confusion a reader
+skimming a one-line error should not have to resolve. Per the task framing
+("adopt textual/structural conventions only insofar as they translate to
+plain stop()/Rf_error strings"), the backtick rule does not survive
+translation; single-quote is the shape that does, and it is also what every
+sampled highly-regarded base-style package - most authoritatively base R
+itself - actually writes. **R1 is CONFIRMED unchanged.**
+
+One more corroborating data point: base R's own quoting helpers, `sQuote()`/
+`dQuote()`, are used 119 times across the six sampled packages (70 in base
+alone) but were already excluded by the in-repo majority (0 uses in dbarts).
+That exclusion is now doubly justified: `sQuote`/`dQuote` render *fancy*
+(locale-dependent, non-ASCII) quote glyphs by default
+(`getOption("useFancyQuotes")`), which would violate R4. Literal ASCII
+`'...'` is the correct base-R-flavored quoting *without* the fancy-quote
+liability - keep it exactly as R1 already specifies.
+
+## R2. Sentence case: lowercase-initial — CONFIRMED
+
+Begin the message lowercase, unless the first token is an established acronym
+or proper noun always capitalized on its own (BCF, DART, R, PG) - keep its
+natural casing rather than force `"bcf does not support"`.
+
+- Conformance: 546/546 `stop()` bodies are lowercase-initial
+  (`grep 'stop("[A-Z]' R/*.R` -> 0).
+- Violation: `src/R_interface_bartcore.cpp:2575` ("Student-t residuals ...")
+  is a genuine outlier, not an acronym - reword under the sweep. `:3112`,
+  `:3114`, `:7024` (BCF, BCF, DART) are the acronym exception and stay as-is.
+
+**External evidence.** Published best practice (tidyverse): "Errors should be
+written in sentence case ... make sure to capitalise the first word (unless
+it's an argument or column name)." That directly contradicts R2. Observable
+practice again disagrees with the published rule and agrees with the draft:
+lowercase-initial is the overwhelming majority in every sampled package -
+base 559/584 (95.7%), stats 880/916 (96.0%), Matrix 177/193 (91.7%), lme4
+186/211 (88.2%), mgcv 391/509 (76.8%), survival 595/921 (64.6%, the weakest
+but still a clear majority). Base R and stats, the two most authoritative
+samples, are both above 95%. **R2 is CONFIRMED unchanged**, on the same
+tradition-membership reasoning given in full under R3 below (R2 and R3 are
+one design decision, not two).
+
+## R3. Terminal period: never — CONFIRMED
+
+No message ends in `.`. Already 348/351 on the C side, 543/546 on the R side;
+the three exceptions are one refusal, restated three times.
+
+- Conformance: any `Rf_error` call (all 351 are period-free).
+- Violation: `R/spec.R:123`, `:146`, `:160` (probit/ordinal/nbinom weight
+  refusals) - drop the trailing period from all three.
+
+**External evidence.** This is the rule where the two traditions most
+plainly conflict, and where the task asks for a one-paragraph resolution.
+Published best practice (tidyverse): errors "should end in a full stop,"
+matching sentence case (R2) and a bulleted, hint-terminated, multi-line
+structure - full-sentence punctuation is part of one coherent rendering
+package (rlang's structured condition + cli's colored bullets). Observable
+practice of highly-regarded base-style packages is the mirror image, and
+overwhelmingly so: no terminal period in 581/585 base messages (99.3%),
+903/915 stats (98.7%), 191/193 Matrix (99.0%), 906/913 survival (99.2%),
+206/211 lme4 (97.6%), 465/508 mgcv (91.5%) - the *weakest* of the six
+packages still clears 91%, and the two most authoritative samples (base,
+stats) both clear 98.7%. **Resolution (R3 CONFIRMED unchanged):** dbarts
+belongs to the base-R tradition of terse, lowercase, unpunctuated error
+fragments that lean on R's own `Error in call: ...` framing to supply the
+sentence's subject and full stop, not the tidyverse/rlang/cli tradition of
+self-contained, fully punctuated, multi-bullet messages - and a package with
+no rlang/cli dependency (and no plan to add one) cannot half-adopt the
+tidyverse convention, because full-sentence punctuation is only legible as
+its *own* tradition when paired with the bulleted, hint-terminated structure
+it was designed for; borrowing the period without the bullets produces a
+message that reads as neither house style, and every highly-regarded
+base-style package sampled - independently, consistently, above 91% in the
+weakest case - has made the same choice dbarts's own corpus already made.
+R2 and R3 are CONFIRMED together on this reasoning.
+
+## R4. ASCII only — CONFIRMED, reinforced
+
+Restates the house rule (`CLAUDE.local.md`): `-` not an en/em dash, `->` not
+an arrow glyph, no smart quotes. Measured 0 non-ASCII bytes in any message
+body today - already fully conformant; stated here only because the sweep is
+about to retype ~120 of these strings by hand, the easiest way to reintroduce
+one.
+
+**External evidence.** Neither the tidyverse guide, rlang docs, nor WRE state
+an ASCII rule (this is a house convention, not an ecosystem one - published
+best practice is silent). Observable practice, however, corroborates it
+independently: a byte-level scan of all ~3,400 sampled `stop()` calls in
+base, stats, Matrix, survival, lme4, and mgcv found 0 lines with any
+non-ASCII byte in any of the six packages. **R4 is CONFIRMED unchanged**,
+now on two legs instead of one: it was already dbarts's own house rule, and
+it also turns out to be exactly what R-core's own error-message corpus does.
+(See also the sQuote/dQuote note under R1: the one place base R's own
+machinery *could* emit non-ASCII output - fancy quotes - is a runtime,
+locale-dependent rendering choice, not literal source text, and dbarts's
+avoidance of `sQuote`/`dQuote` sidesteps it entirely.)
+
+## R5. Placeholder / value formatting — SILENT-KEPT
+
+R: interpolate via `stop()`'s own `...` concatenation, with the placeholder's
+quote marks (R1) typed directly into the adjacent string literal - the
+majority form (43 of ~120 sampled interpolating calls) over `sprintf()` (15).
+Keep `sprintf()` as the accepted alternate when one clause interpolates two or
+more values (`R/augmentation.R:18`); do not introduce `paste0()`/`gettextf()`
+(0 uses of either today). Conformance:
+`stop("invalid monotone direction '", value, "'; use -1, 0, or +1")`
+(`R/model.R:508`; reworded under R12, but the interpolation shape survives).
+
+C: `Rf_error`'s only mechanism is its own printf placeholders (`%s`, `%d`,
+`%zu`) - no alternative exists. Quote `%s` in `'...'` when it echoes a name or
+a user-supplied choice; leave it bare for a descriptive phrase (`"BCF does not
+support %s"`, `src/R_interface_bartcore.cpp:3112`, where `refused` is a phrase
+like `"a DART tree prior"`, not a name).
+
+**External evidence.** Neither tidyverse nor rlang docs address the choice
+between comma-concatenation and `sprintf()` for a base `stop()` call - that
+choice only exists outside the rlang/glue-string world they're written for
+(rlang messages are glue-interpolated, a mechanism dbarts does not use and
+this document does not propose). WRE is silent on interpolation mechanism
+entirely. Observable practice is not silent, but it answers a different
+question than the one this rule asks: `gettextf()` is the dominant
+interpolation mechanism in base (161 hits), stats (110), Matrix (82), and
+lme4 (33) - overwhelmingly paired with `domain = NA`, which marks the string
+for translation via R's own message-catalog (`.po`) machinery. That is an
+internationalization infrastructure decision (a translatable-message
+catalog, `po/` directory, `tools::update_pkg_po()`), not a text-style
+decision, and it is out of scope for this document by the same
+translatability filter used throughout: dbarts ships no message catalog and
+this document does not propose adding one. survival, notably, uses
+`gettextf()` almost never (1 hit) and leans on `paste()` (35 hits) instead -
+so even setting the i18n question aside, there is no single external
+convention for *which* interpolation mechanism to use, only for *whether* to
+route it through a translation catalog. **R5 is SILENT-KEPT**: the in-repo
+majority (comma-concatenation, `sprintf()` for the multi-value case) stands.
+
+## R6. Multi-clause shape: main clause + one explanatory/remedy clause, max — CONFIRMED
+
+One main clause stating the refusal, optionally followed by ONE more clause
+(`:` for an explanation, `;` for a remedy) - not both.
+
+- Conformance: `"%s: a multi-forest sampler fixes its data at creation; make
+  a new sampler instead"` (`src/R_interface_bartcore.cpp:2611`) - main +
+  one remedy clause.
+- Violation: `refuseHostMutation`'s message (`R/dbarts.R:920-927`) chains
+  three - refusal, explanation, remedy; trim one under the sweep, not both.
+  `R/spec.R:119-124` (probit weights) is the same shape (refusal + mechanism +
+  two-part remedy); collapse to refusal + single remedy, matching the C
+  twin's already-shorter form (`src/R_interface_bartcore.cpp:1616-1618`).
+
+**External evidence.** Published best practice's general philosophy agrees
+with R6's spirit: "An error message should start with a general statement of
+the problem then give a concise description of what went wrong" - a lead
+clause plus one (or a small number of) elaborations, not a sprawl. But its
+*mechanism* for the elaboration is a multi-line bulleted list (`x`/`i`
+markers, an optional hint bullet) - a structure that has no plain-`stop()`
+equivalent and is explicitly out of scope by the translatability filter (a
+bulleted list concatenated into one string reads as a run-on, not as
+bullets). With the structural half of the tidyverse rule excluded, what's
+left to check against is observable practice, which independently supports
+brevity: average length of the first string literal across the ~3,400
+sampled calls was 36-40 characters per package (base 36.5, stats 36.6, Matrix
+38.3, survival 36.4, lme4 36.6, mgcv 39.5) - short, and a spot check of the
+samples (`sample_*.txt`) shows the overwhelming majority are single-clause.
+**R6 is CONFIRMED unchanged**: the general concision principle is reinforced
+by both sources; the specific "max one extra clause" threshold remains
+dbarts's own reasonable translation of that principle into a single string,
+since no external source dictates an exact clause count for a non-bulleted
+message.
+
+## R7. C-side caller-name prefixing: three call-site kinds, one convention each — SILENT-KEPT
+
+Measured: of 351 `Rf_error` calls, 259 (74%) carry no caller-name prefix, 69
+(20%) carry a dynamic `"%s..."` prefix fed a `caller` parameter, 23 (7%) carry
+a hardcoded literal entry-point name. These track three distinct call-site
+kinds, confirmed by reading the call graph, not three competing dialects at
+the same sites:
+
+- **Default - no prefix.** Raised directly in a `.Call` bridge entry point's
+  own body (or a helper it alone reaches); R's `Error in .Call(...)` frame
+  already attributes it. E.g. `"forest weight length must match the number of
+  observations"` (`src/R_interface_bartcore.cpp:3916`).
+- **Flat C API entry points** (`src/C_interface.cpp`, `src/R_interface.cpp`,
+  the `dbarts.h` ABI) **- hardcoded literal self-name.** Reachable by a
+  `LinkingTo: dbarts` consumer with no R call frame to consult, so the message
+  must self-identify. All 23 hardcoded instances are a `dbarts_sampler_*`
+  function naming itself (`src/C_interface.cpp:402`: `"dbarts_sampler_run:
+  results.structSize is 0..."`). Always follow the name with `:`.
+- **Shared bridge helpers reached from multiple `.Call` entry points -
+  dynamic `"%s: ..."`.** `caller` can't be hardcoded since it varies per call
+  site (`refuseMultiForestMutation`, called from `bartcore_setData` and
+  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4634`/`:4899`).
+  Standardize on `%s: ` (colon) - the majority sub-style (38 of 69 vs 31
+  without), e.g. `:2611`. Reword the 31 no-colon instances (`:130`: `"%s
+  requires a numeric matrix..."`) to add the colon.
+
+**External evidence.** WRE's C-API chapter has a section titled "Error
+signaling" in its table of contents, but the fetched manual text did not
+include that section's body, and the surrounding chapters that *were*
+fetched contain no guidance on caller-name prefixing or on identifying the
+raising function in a C-level message (this is flagged, not glossed over -
+see the appendix for exactly what was and wasn't reachable). None of the six
+sampled R packages ship a public, `LinkingTo`-callable flat C ABI header
+comparable to `inst/include/dbarts/dbarts.h` reachable with no R call frame
+on the stack, so there is no comparable observable practice to check R7
+against - this is architecture dbarts alone has among the sampled set, not a
+convention any of them chose for or against. **R7 is SILENT-KEPT**: the
+in-repo, call-graph-derived three-kind convention stands as written.
+
+## R8. Cross-language policy: R canonical, C backstops deliberately distinct — SILENT-KEPT
+
+When the same rule is guarded on both sides (R validates, the bridge
+re-validates as a backstop for direct `.Call`/C-API callers bypassing R), the
+R message is canonical - the one users see, the one docs/tests quote; the
+C-side message is independently worded against this rule, not copied.
+Verbatim-identical strings across the boundary already failed once: `"forest
+weights must be finite and non-negative"` is byte-identical at
+`R/bartcore.R:1064` / `src/R_interface_bartcore.cpp:3919`, but the very next
+guard in the same pair, the length check, drifted apart with no R counterpart
+to stay in sync with (`"forest weight length must match the number of
+observations"`, C-only). A string shared across two languages by hand is
+identical by discipline, not by construction, and the discipline already
+lapsed once. Every C-side backstop should carry a one-line comment naming it
+as direct-API defense in depth, on the model of `src/C_interface.cpp:630-636`
+(`"defense in depth, since validateTestSource has already raised it"`). This
+is the message policy K6 reconciles predicates toward; K6 remains free to
+decide, guard by guard, whether a given C-side backstop is worth keeping.
+
+**External evidence.** None of the four external sources (tidyverse, rlang,
+WRE, the six-package survey) address a package with dual-language validation
+of the same argument, an R layer plus an independently linkable C ABI - this
+is, again, dbarts's own architecture, not a question the R error-message
+ecosystem has occasion to answer. **R8 is SILENT-KEPT**: the draft's
+recommendation stands as the final rule (this also closes open point 2
+below - see there for the explicit sign-off).
+
+## R9. Missing required argument — CONFIRMED (both sub-shapes), one open point now closed
+
+Two sub-shapes, tracking two different R predicates. **Value present but
+NULL** (`is.null(x)` / C `ptr == NULL`): `"'<name>' cannot be NULL"`.
+Conformance: `"x.test cannot be NULL"` (`R/dbarts.R:1078`). **Argument omitted
+from the call** (R `missing(x)`, no C analogue): `"'<name>' must be
+specified"`. Conformance: `"'group.by' must be specified to use rbart_vi"`
+(`R/rbart.R:130`). Violation: `"'group.by' must be supplied when 'newdata' is
+given"` (`R/bart.R:2495`) - `supplied` -> `specified`.
+
+**External evidence, omitted-argument sub-case.** Neither tidyverse nor rlang
+prescribe a specific verb here. Observable practice across the six packages
+tallies `"must be specified"` 12 times (base 7, stats 1, lme4 1, mgcv 3),
+`"must be given"` 6 times (stats 4, survival 2), `"must be supplied"` 3 times
+(stats 1, mgcv 2) - `specified` is the external plurality too, and it's
+attested repeatedly in base itself (`base::seq.Date` x3, `seq.POSIXt`,
+`globalCallingHandlers`, `tryCatch`). **CONFIRMED, reinforced** - `specified`
+was already the in-repo choice; external practice independently agrees.
+
+**External evidence, NULL-present sub-case (was open point 1).** This is
+where the external record has nothing to say. The literal phrase `"cannot be
+NULL"` occurs 0 times across all six sampled packages (~3,400 calls). Related
+phrasings exist but don't converge on one: `lme4::getStart`/`updateStart` use
+`"'start' is not NULL, a numeric vector, or a list"` (a different predicate -
+enumerating an allowed set that happens to include NULL, not rejecting a bare
+NULL); `mgcv::uniquecombs`/`uniquecombs0` use the bare, unquoted, informal
+`"x is null"` (2 hits, one package, lowercase `null`). Neither published
+guidance nor observable practice speaks clearly enough to move the needle.
+**Open point 1 is CLOSED, not merely recommended: external evidence is
+silent, so the draft's own tie-breaking reasoning governs** - `"'<name>'
+cannot be NULL"`, matching the `must be`/`cannot be` spine every other rule
+in this document uses. This sub-shape of R9 is final.
+
+## R10. Type/class mismatch — OVERRIDDEN (enrichment added, base shape unchanged)
+
+`"'<name>' must be a/an <type description>[, not <actual>]"` - the bare shape
+without the bracketed clause is dominant already (~25 sampled type-mismatch
+messages, only 2 use a different verb) and stays the required minimum.
+Conformance: `"'weights' must be a numeric vector"` (`R/data.R:614`).
+Violation: `"'weights' must be of type numeric"` (`R/data.R:901`) - reword to
+match `:614` exactly; both guard the same argument in the same file.
+
+The bracketed `, not <actual>` clause is new: append it when the actual
+type/class is already in hand as a short noun (`class(x)[1]`, `typeof(x)`) at
+essentially no extra cost - encouraged, not mandated (see R11/R12 for why the
+same qualifier applies to all three "state the actual value" enrichments
+uniformly).
+
+**External evidence.** Published best practice speaks directly and
+explicitly here, more explicitly than anywhere else in this document:
+"If the cause of the problem is clear (e.g. an incorrect type or size), use
+'**must**': `n` must be a numeric vector, not a character vector." That's a
+named, worked example matching R10's exact scenario. Observable practice
+doesn't contradict it, but it also doesn't embrace it: of ~25 type-mismatch
+messages sampled directly and ~3,400 calls scanned for the co-occurring
+pattern, the only genuine `"must be X, not Y"` type-mismatch instance found
+anywhere in the six packages is `stop("'data' must be a data.frame, not a
+matrix or an array")`, used twice, verbatim, in stats
+(`get_all_vars`/`model.frame.default`) - real, base-style precedent, but
+rare (2 hits in ~3,400 calls). **Verdict: OVERRIDDEN.** The base shape (bare
+`"must be a/an <type>"`) is unchanged, because that's what both the majority
+of dbarts's own corpus and the majority of the external corpus already write.
+But published best practice states an explicit, well-formed rule for the
+enrichment, backs it with a worked example, and the one real external
+precedent found is exactly base-style (lowercase, single-quote-free since it
+names no argument, comma-then-`not`) - cheap enough to add, with a clear
+rule behind it, that "encouraged when in hand" is the right strength: not
+mandatory (observable practice doesn't demand it and slice L's budget
+doesn't afford re-deriving `class(x)` at every site that lacks it already),
+but no longer merely a maybe.
+
+- Old: `"'<name>' must be a/an <type description>"` only.
+- New: same, `+ ", not <actual>"` when the actual type is already available.
+
+## R11. Length mismatch — OVERRIDDEN (mandatory `got` dropped to encouraged)
+
+Against a fixed/derived count: `"'<name>' must have length <N>"`. Against
+another argument's length: `"'<name>' must have the same length as
+'<reference>' (<N>)"`. Closest precedent (names the reference but not the
+numbers): `sprintf("'%s' must have length %d, that of '%s'", name, n,
+reference)` (`R/augmentation.R:18`) - keep its shape. Furthest: `"length of
+new x does not match old"` (`R/bartcore.R:172`) - names neither argument nor
+either length.
+
+Appending the actual (got) length - `"; got <got>"` - is now encouraged, not
+mandated, when the value is already in hand; see the shared reasoning under
+R12, which found the identical pattern.
+
+**External evidence.** The draft's own R11 already flagged this as invented
+("no existing [in-repo] template names both the expected length and the
+actual (got) length"), so there was no in-repo majority to protect here in
+the first place - this rule was always going to be set by outside judgment,
+which is exactly what makes the external check decisive. Published best
+practice's general "must be X, not Y" principle would extend naturally to
+length ("must have length 3, not 5"), though the tidyverse guide's own
+worked example is about type, not length, specifically. Observable practice
+answers the length question directly and says no: of ~90 length-related
+messages sampled across all six packages (`"must have [the same] length"`,
+`"length mismatch"`, `"lengths ... match"`, etc.), not one names the actual
+received length - representative: `stop("'x' and 'y' must have the same
+length")` (`base::formatDL`), `stop("'model$order' must be of length 3")`
+(`stats::arima.sim`), `stop(sprintf("length mismatch in %s (%d != %d)", nm,
+length(x), expected_len))` (`lme4::setParams` - the one place a package
+*does* echo two numbers, and even there it echoes both current *and*
+expected, not a bare "got"). A direct grep for any "length ... got" pattern
+across the full corpus returned zero hits. **Verdict: OVERRIDDEN** - the
+invented mandatory `"; got <got>"` suffix is dropped as a requirement; the
+expected-length-only shape (already what most of dbarts's own corpus does
+where it names a number at all) becomes the required minimum, with the
+`got` value permitted and encouraged when cheap, exactly mirroring R10 and
+R12. This also folds in and generalizes what was open point 3 (out-of-range
+enrichment scope) - see that entry below.
+
+- Old (invented): `"'<name>' must have length <N>; got <got>"` (mandatory).
+- New: `"'<name>' must have length <N>"` required; `"; got <got>"` encouraged
+  when the value is already in hand, never required.
+
+## R12. Enum/choice rejection — OVERRIDDEN (shape confirmed, mandatory `got` dropped)
+
+`"'<name>' must be one of <c1>, <c2>, ..."` - retires all four competing
+adjectives (`invalid`/`unknown`/`unsupported`/`unrecognized`, no majority:
+4/2/5/3 sampled hits, and `unsupported` is already claimed by R13). `"must be
+one of"` matches base R's own `match.arg()` wording, which already governs 30
+enum checks here with no hand-written message at all - the closed-choice
+family's real majority convention is "let `match.arg` say it"; this template
+is for checks that can't use it (non-character enums, C-side class dispatch).
+Appending `"; got '<value>'"` is now encouraged, not mandated (see below).
+
+Conformance (shape): `"'forest' must name one of '", paste0(..., collapse =
+"', '"), "'"` (`R/generics.R:332`). Violation: `"invalid monotone direction
+'", value, "'; use -1, 0, or +1"` (`R/model.R:508`) - reword to `"'direction'
+must be one of -1, 0, 1"` (`got` value appended only if cheap at that call
+site). `"unrecognized response family for a binary response"`
+(`src/R_interface_bartcore.cpp:1572`) - names no choices at all.
+
+**External evidence.** The `"must be one of"` shape itself is directly
+attested in base R: `stop("'origin' must be one of 'start', 'current' or
+'end'")` (`base::seek.connection`); also `stop("'shape' must be one of \"g\",
+\"t\", \"s\"")` (`Matrix::.sparseDiagonal`), `stop(gettextf("view variables
+must be one of %s", ...))` (`mgcv::vis.gam`) - **CONFIRMED** for the base
+shape, now with a base-R precedent the original draft didn't have (it
+inferred the shape only from `match.arg()`'s wording, not from a hand-written
+`stop()` using it). The four competing rejected adjectives remain genuinely
+mixed externally too (`"unknown"` and `"unrecognized"` both appear repeatedly
+across the six packages, e.g. `stats::density.default`: `"unknown bandwidth
+rule"`; `survival::cox.zph`: `"Unrecognized transform"`) - no external
+convention picks a winner among them either, so retiring all four in favor of
+`"must be one of"` remains the right call. But none of the three external
+`"must be one of"` examples just quoted appends the value that was actually
+received - not `seek.connection`, not `.sparseDiagonal`, not `vis.gam`. A
+targeted search across the full six-package corpus for any `"must be one
+of"`/`"should be one of"` call that also echoes the offending value found
+zero. **Verdict: OVERRIDDEN on the `got` clause only** - same reasoning and
+same resolution as R11: mandatory got-value is dropped, `"must be one of
+<choices>"` is the required minimum, `"; got '<value>'"` is encouraged, not
+mandated, when cheap.
+
+- Old: `"'<name>' must be one of <c1>, <c2>, ...; got '<value>'"` (mandatory).
+- New: `"'<name>' must be one of <c1>, <c2>, ..."` required; `"; got
+  '<value>'"` encouraged when the value is already in hand, never required.
+
+## R13. Unsupported-under-family/composition refusal — SILENT-KEPT
+
+`"<subject> does not support <feature>[: <reason>]"` - clear majority (26 of
+37 R + 16 C "not support" hits use this exact verb). Conformance: `"BCF does
+not support %s"` (`src/R_interface_bartcore.cpp:3112`); `"probit models do
+not support weights: a weighted probit has no tractable latent-variable
+form"` (`R/spec.R:119-121`, trimmed per R6). Violation: `"sample = \"test\" is
+not available for type = \"forest\": an ..."` (`R/generics.R:362`) - reword to
+`"type = \"forest\" does not support sample = \"test\": ..."`.
+
+**External evidence.** Checked hard, because this looked like a plausible
+override going in. Neither tidyverse nor rlang address "unsupported feature"
+phrasing at all - published best practice is silent. Observable practice is
+not silent, but it's genuinely split and, if anything, leans the other way on
+raw frequency: across the six packages, the passive constructions `"not
+available"` (46 hits: base 2, stats 8, survival 9, lme4 2, mgcv 25) and `"not
+supported"` (31 hits: base 4, stats 2, survival 17, mgcv 8) both outnumber
+the active `"does not support"` (2 hits total: `stats::logLik.lm`,
+`survival::survreg`). That's a real signal, but not a decisive one: no
+package has an internal majority for any single verb (survival alone has both
+17 `"not supported"` hits and its own `"does not support"` instance), no
+published rule addresses the choice, and in-repo already has an unusually
+strong, self-consistent 42-hit majority for the active form across both R and
+C. Active-vs-passive voice for this one phrase is exactly the kind of
+question the task's "split -> in-repo majority stands" clause is for.
+**R13 is SILENT-KEPT**: `"does not support"` remains the rule, on the
+strength of the in-repo majority, with the caveat now on record that
+`"not available"`/`"not supported"` are the more common constructions in the
+wild if a future revision wants to reopen this.
+
+## R14. Mutation-guard refusal — CONFIRMED, reinforced
+
+R-canonical shape (per R8): `"<operation> is not available on <context>[:
+<reason>]"` - already the shape `refuseHostMutation` gives 20 call sites
+(`R/dbarts.R:915-927`), the single most call-site-heavy exact wording in the
+corpus. C-side backstops keep their own idiom under R7/R8 (`"%s: a
+multi-forest sampler fixes its data at creation; make a new sampler
+instead"`, `src/R_interface_bartcore.cpp:2611`). Conformance:
+`refuseHostMutation`'s callers, e.g. `R/dbarts.R:1107` (`$setControl`).
+Violation: `"setModel cannot change a DART tree prior; recreate the sampler"`
+(`R/dbarts.R:1178`) - same file as the canonical helper, a different verb.
+Reword: `"changing a DART tree prior is not available on an existing sampler:
+recreate it instead"`.
+
+**External evidence.** R14 happens to already use the phrase the R13 survey
+just found to be the *more* common external construction: `"not available"`
+was attested 46 times across the six packages, more than `"does not
+support"`'s 2. That's a coincidental but welcome alignment - R14's existing
+wording needed no change to already match the more common external idiom for
+this family of refusal. **R14 is CONFIRMED unchanged**, reinforced by the
+same data set that left R13 SILENT-KEPT.
+
+---
+
+## Measured current state (appendix)
+
+Corpus: 546 `stop()` (`R/`), 351 `Rf_error()` (`src/*.cpp`), 1
+`ext_throwError()` (`src/bartcore/chain.hpp:1922`, the only user of that
+fourth mechanism, not part of this drift). 0 uses anywhere of `gettextf`,
+`sQuote`, `dQuote`, backtick-quoted names, or non-ASCII bytes.
+
+| dimension | finding |
+|---|---|
+| argument quoting | single-quote majority (96 direct R hits, 8 C hits on a stricter regex); backtick/sQuote/dQuote: 0/0 |
+| terminal period | period-free: 348/351 C, 543/546 R; all 3 R exceptions are one restated refusal (`R/spec.R:123,146,160`) |
+| sentence case | lowercase-initial: 546/546 R, 347/351 C; C's 4 outliers are 3 acronyms (BCF x2, DART) + 1 genuine miss (`:2575`) |
+| hyphenation | `non-negative` 27 (R 20 + C 7) vs `nonnegative` 14 (R 9 + C 5) - `non-negative` is majority |
+| out-of-range shape | `"... out of range"` 47 combined vs `"must be between"` 1 - bare `out of range` is majority for index/discrete bounds |
+| composition-refusal verb | `"does not support"` 26 vs `"is not available for"`/`"incompatible with"` ~9 |
+| missing-arg (NULL sub-case) | `"cannot be NULL"` 8 vs `"is NULL"` 9 - near tie, closed by external silence (see R9) |
+| missing-arg (omitted sub-case) | `"must be specified"` 4, `"must be supplied"` 3, `"must be given"` 0 - `specified` wins, and external practice agrees (see R9) |
+| enum-rejection verb | `invalid` 4, `unknown` 2, `unsupported` 5 (claimed by R13), `unrecognized` 3 - no majority, invented (R12); shape now has a base-R precedent |
+| C caller-name prefix | no-prefix 259 (74%), dynamic `%s`+caller 69 (20%, colon 38 / no-colon 31), hardcoded literal 23 (7%) - all three map to distinct call-site kinds (R7) |
+| length-mismatch templates | 6 distinct templates measured (`R/bartcore.R:172`, `R/data.R:621`, `R/dbarts.R:1247`, `R/rbart.R:317`, `R/generics.R:1229`, `R/augmentation.R:18`); none names both expected and got - invented (R11), and external practice confirms omitting `got` is the norm |
+| R interpolation | comma-concatenated `stop()` args majority (43 sampled) vs `sprintf()` (15); `paste0()`/`gettextf()`: 0 |
+
+## External evidence appendix
+
+Method: (1) fetched the tidyverse style guide's error-messages chapter and
+rlang's `abort()` reference documentation directly; (2) fetched Writing R
+Extensions (CRAN r-release build) and searched it for message-style guidance,
+including a direct attempt at its "Error signaling" section; (3) extracted
+every `stop()` call's source text from six installed, highly-regarded
+base-style packages by walking each package namespace and deparsing every
+function body (not `grep` over installed sources, which are lazy-loaded
+databases with no plain-text `.R` files on disk for an installed package) -
+script and raw per-package call dumps are in the scratchpad
+(`extract_stops.R`, `analyze_stops.R`, `stops_<pkg>.txt`,
+`sample_<pkg>.txt`). Versions: R 4.6.1; Matrix 1.7.5; survival 3.8.6; lme4
+2.0.1 (Rcpp/RcppEigen-backed, no rlang/cli message dependency); mgcv 1.9.4;
+rlang 1.2.0 (docs only, not adopted). All package/version pairs are from the
+CRAN builds installed in this environment's R library.
+
+1. **Tidyverse style guide, error-messages chapter**
+   (https://style.tidyverse.org/errors.html, fetched 2026-08-17). Governs
+   rlang/cli-based packages; source of the structure this document
+   deliberately does not adopt wholesale.
+   > "An error message should start with a general statement of the problem
+   > then give a concise description of what went wrong... If the cause of
+   > the problem is clear (e.g. an incorrect type or size), use 'must': `n`
+   > must be a numeric vector, not a character vector... Errors should be
+   > written in sentence case, and should end in a full stop... Surround the
+   > names of arguments in backticks, e.g. `x`."
+
+2. **rlang `abort()` reference** (https://rlang.r-lib.org/reference/abort.html,
+   rlang 1.2.0, fetched 2026-08-17). Confirms what does *not* translate to
+   plain `stop()`: the bullet-marker system and the message/body/footer
+   split have no base-R equivalent and are excluded by this document's
+   translatability filter.
+   > "Elements named `\"*\"`, `\"i\"`, `\"v\"`, `\"x\"`, and `\"!\"` are
+   > formatted as regular, info, success, failure, and error bullets
+   > respectively... The first element is displayed as an alert bullet
+   > prefixed with `!` by default."
+   The docs give no prose guidance on phrasing, capitalization, or
+   punctuation beyond the bullet mechanics themselves - that guidance lives
+   in the tidyverse style guide (source 1), not here.
+
+3. **Writing R Extensions** (CRAN r-release,
+   https://cran.r-project.org/doc/manuals/r-release/R-exts.html, fetched
+   2026-08-17). Searched for style guidance on `stop()`/`error()`/`warning()`
+   message composition, including a direct fetch attempt at the "Error
+   signaling" anchor (present in the manual's table of contents but not
+   retrievable as fetched text in this environment - flagged as **not
+   reachable**, not glossed over). Conclusion, stated plainly per the
+   instruction not to invent guidance that isn't there: **WRE contains no
+   style guidance on error-message wording, capitalization, punctuation, or
+   quoting anywhere in the sections that were reachable.** Its message-related
+   content is confined to translatability/internationalization mechanics
+   (`gettext`, message catalogs), which is why R5's `gettextf()` question is
+   resolved as an infrastructure decision, not a style one.
+
+4. **base + stats** (R 4.6.1, installed base distribution). 602 + 927 =
+   1,529 `stop()` calls extracted; 585 + 917 = 1,502 carried a literal
+   string. The single most authoritative sample - base R's own error-message
+   corpus governs every other rule in this document by extension, since
+   dbarts's whole house style already imitates it.
+   > `stop("'x' and 'y' must have the same length")` (`base::formatDL`)
+
+5. **Matrix 1.7.5**. 199 `stop()` calls, 193 with a literal string. Chosen
+   as a highly-regarded numerical/linear-algebra base-style package, the
+   closest analog to dbarts's own domain among the four candidates.
+   > `stop("'shape' must be one of \"g\", \"t\", \"s\"")`
+   (`Matrix::.sparseDiagonal`).
+
+6. **survival 3.8.6**. 926 `stop()` calls, 922 with a literal string. The
+   package with the weakest (but still clear) majority on both R2 and R3,
+   and the most frequent user of Title Case among the six.
+   > `stop("Argument lengths do not match")` (`survival::coxph.wtest`).
+
+7. **lme4 2.0.1**. 224 `stop()` calls, 211 with a literal string.
+   > `stop(sprintf("length mismatch in %s (%d != %d)", nm, length(x),
+   > expected_len))` (`lme4::setParams`) - the one package-internal instance
+   found anywhere in the six-package survey of a length-mismatch message
+   naming both the expected and the actual length.
+
+8. **mgcv 1.9.4**. 511 `stop()` calls, 509 with a literal string. The
+   heaviest external user of backtick-quoted names (25 hits) and of
+   terminal periods (43 hits) among the six - still a minority within its
+   own corpus on both counts, but the closest any sampled package comes to
+   the tidyverse convention.
+   > `` stop(gettextf("view variables must be one of %s", paste(v.names, `` \
+   > `` collapse = ", "))) `` (`mgcv::vis.gam`).
+
+## Open points for sign-off
+
+1. **CLOSED. Missing-argument NULL-case verb: `"cannot be NULL"` vs `"is
+   NULL"`.** External evidence is silent (see R9): 0/6 sampled packages use
+   `"cannot be NULL"` or any single converged alternative for this exact
+   predicate. With no external signal to weigh, the draft's own tie-breaking
+   reasoning stands as final: `"cannot be NULL"` - matches the `must be`/
+   `cannot be` spine every other rule in this document uses, rather than `is
+   NULL`'s descriptive voice, which reads oddly once R9-R14 are all phrased
+   as requirements.
+
+2. **CLOSED. Cross-language canonical side (R8).** External evidence is
+   silent - no sampled package has a comparable dual-language (R +
+   independently linkable C ABI) validation architecture to check this
+   against (see R8). The draft's recommendation is adopted as final: R
+   canonical, C-side deliberately distinct and comment-justified, over
+   verbatim-identical strings kept in sync by hand. This gates how K6 is
+   written; it now has an explicit yes.
+
+3. **CLOSED, and generalized. Out-of-range enrichment scope (R11).** The
+   draft's own instinct here - "bare is the required minimum... enrichment
+   is encouraged, not mandated" - turned out, once R10 and R12 were checked
+   against external evidence, to be the *general* answer for every "should
+   this message echo the actual/received value" question in this document,
+   not just this one. Published best practice (tidyverse) recommends stating
+   the actual value; observable practice across six highly-regarded
+   base-style packages (~3,400 `stop()` calls) essentially never does (0
+   instances for length or enum rejection, 2 for type). Rather than resolve
+   that tension differently in four different places, R10, R11, and R12 all
+   now use the identical resolution this open point already proposed for
+   out-of-range: state the expected value/type/choices as the required
+   minimum; append the actual/received value when it's already in hand,
+   never as a mandatory re-derivation. `"'forest' index must be between 1
+   and <N>"` (`R/generics.R:341`) remains the model example; it was right
+   the first time.

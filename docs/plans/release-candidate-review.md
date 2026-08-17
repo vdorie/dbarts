@@ -536,6 +536,56 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Wave 0c - ensemble-scale gaussian SBC, the premise oracle (2026-08-17)
+
+The provenance audit's named highest-value action ran at the tip:
+Rscript benchmarks/R/sbc.R gaussian 200 200 30 (R = 200
+replications, L = 200 retained draws, thin = 30), against the
+a39da5d9 build (d60057b1 is records-only, binary identical), with
+SBC_FAIL_ON_FLAG=1. ALL SEVEN FUNCTIONALS PASS: avg.f chisq p 0.294
+/ ks 0.442, f.star1-5 chisq p 0.255-0.849 / ks 0.051-0.688, sigma
+chisq 0.962 / ks 0.998; every ecdf-diff (0.026-0.094) inside the
+0.132 simultaneous band; the sigma side-check P(sigma < sigest) =
+0.8998 vs target 0.90. Exit 0. Consequences: the freeze protocol
+does not trigger; the cleanup lane is clear; the audit's residue R1
+(the fused roll+suffstat pass, oracle-checked only at single-tree
+scale since c8f661a) is RETIRED at this tip, and R2's cutover-window
+re-anchor is refreshed - the un-retired remainder is unchanged
+(gp/wtgp/quants/missing/sparse/setdata have no varying arm; the
+xbart pin still has no oracle, P16's job). Log preserved untracked
+at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
+
+### I2 - hurdle variance doc fix (4c2cdb9a, 2026-08-17)
+
+The hurdle docs promised natural-scale predictions consume the
+positive part's per-observation sigma(x) under a heteroscedastic
+variance surface - a state no bart2 call reaches (the occupancy
+probit's variance refusal, live at R/spec.R:392, fires before either
+component fits) and one the code documents as DELIBERATE
+(hurdleSigmaVec's comment, R/generics.R:989-996). Doc-side fix, both
+copies: man/bart2.Rd's hurdle \item and the independent copy in
+man/dbarts.Rd now state the always-homoscedastic contract (one sigma
+per draw, recycled), with the heteroscedastic positive part kept in
+the recorded-limitation list as a follow-up, not a promise.
+feature-matrix hurdle/variance cell ? -> R spec.R:392, [f34]
+rewritten as resolved, the Gaps bullet updated. One NEWS BUG FIXES
+item (implementer found live precedent for recording doc-only
+corrections - the offset.test entry - overriding the no-NEWS
+expectation, correctly). Gates: tinytest 5588/0; R CMD check OK from
+a clean-staged tarball; built package differs from base only in
+NEWS.Rd + the two Rd files; NEWS parses at 262 entries
+(re-verified independently); no R code touched so no
+equivalence/lintr legs. Orchestrator note: the interleavables
+re-verification's spec.R:370 anchor was loose - the live stop is
+:392; other feature-matrix rows citing :370 for the same shared
+refusal are stale by the same delta and ride the wave-4 full-
+namespace resync. Prior-slice CI: five green on a39da5d9 plus
+exact-gates green on the build-identical d60057b1 (the records push
+fired exact-gates - its paths-ignore deliberately omits
+benchmarks/** - and cancel-in-progress killed a39da5d9's own run;
+an infra-flake rerun, codeload 429s, is recorded in the run
+history).
+
 ### I1 - multinomial silent-drop refusals (a39da5d9, 2026-08-17)
 
 bart2(family = "multinomial") now refuses by name the five arguments
