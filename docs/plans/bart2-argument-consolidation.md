@@ -1725,3 +1725,80 @@ A/B + 7-probe gate-runner A/B all identical incl. old-vs-new
 spellings per arm; mutation isolates exactly the n.thin plumbing,
 n.cuts shape-check, and grid-override assertions; air/lintr clean;
 NEWS 254-entry parse; check OK twice).
+
+S9 (split.probs default) LANDED 8b263ae5, 2026-08-16. bart2's and
+rbart_vi's split.probs default respelled 1 / num.vars -> NULL (d4:
+identical by construction). T-B disposition: dbarts() has no
+split.probs formal of its own (tree.prior = cgm carries it), so T-B
+never compared the name - no exception row exists or is needed; slice
+coverage asserts both NULL formals. Usage blocks updated; the shared
+Rd prose already documented NULL. Gates: both runners green (5417/0
+own-base; trio 37+12+10 bitwise; 4/5-cell A/B bitwise with the
+process-unique sampler pointer excluded; mutation isolates exactly
+the bart2 assertion, rbart_vi's stays green; check OK twice). Landed
+rebased onto the S8 chain (own-base gated sha c96af760).
+
+S10 (bart() parity) LANDED 726dab10, 2026-08-16. subset = NULL,
+storage = c("double", "single"), family = c("auto", "logistic",
+"aft") appended - 36 formals - and forwarded through the literal
+dbarts() list; family's first token "auto" (F1), the binary bart()
+regression pair bitwise in both runners. Implementation finding
+beyond the migration map: the literal list forwarded subset = NULL
+EXPLICITLY, and dbarts()'s survival path refuses on bare
+!missing(subset) (R/dbarts.R:472/:530), which would have foreclosed
+the family = "aft" close - subset is now omitted from the list unless
+non-NULL so missing() propagates; aft completes, aft + subset still
+refuses cleanly. The four own-class families refused BY NAME pointing
+at bart2 through one shared helper; both ordinal-response sites
+(matrix pre-check, formula post-check) route through it, so the
+refusal vocabulary is uniform. T-C lands: 8.7's disposition table as
+a data.frame with totality, CLOSE-formal-existence, and token-set
+assertions. No abbreviation breaks (asserted live). Gates: both
+runners green (5437/0 own-base; trio 37+12+10 bitwise; F1 pair +
+subset==manual-presubset bitwise; mutation isolates family-order/
+ordinal-refusal/subset-forwarding exactly; check OK twice). Landed
+rebased (own-base gated sha 6f0eb9c5).
+
+S11 (fork 6a, per-forest output channel) LANDED 00abf336,
+2026-08-16. packageBartResults packages forestFits - the
+RESPONSE-scale raw totals response.scale * f_k, no shift, no glue
+folded in - through shapeMultinomialChannel with the forest margin
+LAST and forest1..K names, and glue as the ragged multiplier channel
+with a forest-major `forest` attribute; the expanded bases ride the
+fit so the 5.8.5 identity is evaluable from the fit alone;
+declaration labels (names(forests)) ride as a forest.labels
+attribute, display-only, never a second selector vocabulary.
+extract(type = "forest", forest =, contribution =) serves the raw
+slice or the on-demand contribution (basis %*% glue) * raw under
+both combineChains conventions via the new reshapeChainedChannel
+(round-trip verified against shapeMultinomialChannel's own forms);
+refusals by name on fits without forest reporting and on sample =
+"test"; predict() untouched (N8). Orchestrator review caught the
+packaging gating on the forest COUNT where 5.1's predicate is the
+COUPLING (a K-forest multinomial run carries neither channel) -
+amended to numForests > 1 && !is.null(samples$forestFits), the
+count/coupling split proven by a defect-reproduction probe on a
+nulled-channel two-forest sampler. T-E LANDS: the reconstruction
+identity < 1e-12 on binary AND 3-level-factor bases (8.9e-16 both,
+independently re-derived by the gate-runner from the identity alone).
+Gates: both runners green (5440/0 own-base; trio 37+12+10 bitwise;
+single-forest, multinomial, bart(), rbart_vi fits bitwise unchanged;
+two-forest pre-existing channels bitwise; mutation isolates
+scale/margin/bases exactly; check OK twice).
+
+BATCH NOTE. S9+S10+S11 landed as a batch under the shared
+merged-tree battery clause, each slice individually gated on its own
+base 3a5d1dc0 by implementer plus independent runner first. Merged
+tree at 00abf336: 5489/0 tinytest; trio 37+12+10 bitwise; cross-slice
+A/B vs the landed S8 tip 0adbf59a (binary/continuous bart(), bart2,
+rbart_vi, xbart, two-forest channels, subset==manual, T-E 4.44e-16)
+clean; NEWS 257-entry parse; check OK. S8's OWN CI was six-green
+before the batch pushed. Pre-existing anomaly recorded, NOT
+batch-caused: an S6-era print/format assertion sits displaced at
+test-argument-surface.R:788 (present in 0adbf59a verbatim) - fold
+into the arc-closure comment sweep. bartCause lockstep for S8 landed
+same day: 31519d22 on dbarts-1.0 (bayesOpt.R's move-into-control
+block replaced by a formals()-driven drop filter; probe pair proves
+old-errors/new-completes; suite 724 pass with only the recorded
+environmental stan4bart-ABI failure, proven pre-existing by an
+identical-baseline check).
