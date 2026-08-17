@@ -16,12 +16,13 @@ xbart(
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, power = 2, base = 0.95,
     split.probs = NULL, dart = FALSE, drop = TRUE,
-    resid.prior = chisq, control = dbarts::dbartsControl(), sigest = NA_real_,
+    resid.prior = chisq, sigest = NA_real_,
     seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
     missing = c("incorporate", "error"),
-    node.prior = NULL)
+    node.prior = NULL, n.cuts = 100L, useQuantiles = FALSE, n.thin = 1L,
+    storage = c("double", "single"), tree.prior = NULL)
 ```
 
 ## Arguments
@@ -192,12 +193,6 @@ xbart(
   An expression of the form `chisq` or `chisq(df, quant)` that sets the
   prior used on the residual/error variance.
 
-- control:
-
-  An object inheriting from `dbartsControl`, created by the
-  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
-  function.
-
 - sigest:
 
   A positive numeric estimate of the residual standard deviation. If
@@ -256,6 +251,52 @@ xbart(
   well as in cells that create one, so the loss surface does not depend
   on the order the cells run in. The `sd` spelling meets the same
   refusal here as everywhere when `k` is a hyperprior.
+
+- n.cuts:
+
+  A positive integer giving the number of decision rules used for each
+  predictor, as in
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+
+- useQuantiles:
+
+  Logical; as in
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md),
+  determines whether decision rules are placed at the empirical
+  quantiles of each predictor's values rather than spaced uniformly
+  through its range.
+
+- n.thin:
+
+  A positive integer; as in
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md),
+  thins each cell's chain against serial correlation. `n.samples` are
+  still returned regardless.
+
+- storage:
+
+  A character string selecting the precision of the internal running
+  residual, spelled and defaulted as in
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+  Every cell's sampler is created over a shared per-fold data handle, a
+  path the engine keeps in double precision regardless of family or leaf
+  model; `"single"` is refused rather than silently ignored.
+
+- tree.prior:
+
+  An expression of the form `cgm` or `cgm(power, base, split.probs)`
+  that sets the tree structure prior, or a prior object built with
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md) -
+  `cgm(...)` or `dbartsPriors$dart(...)`. `power` and `base` are xbart's
+  grid axes, so a supplied object's own `power`/`base` are replaced by
+  the swept grid values every cell exactly as the `k` argument replaces
+  a supplied `node.prior`'s `k`; the object's other content - a `cgm`
+  object's `split.probs`, a DART object's Dirichlet hyperparameters -
+  rides every cell unchanged. Because `power`/`base` are grid axes here
+  rather than ordinary scalars, they may be supplied alongside
+  `tree.prior`; `dart` and `split.probs` would only duplicate what a
+  supplied `tree.prior` already specifies, so combining either with it
+  is an error naming both.
 
 ## Details
 

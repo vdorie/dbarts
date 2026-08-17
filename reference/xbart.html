@@ -51,12 +51,13 @@
 <span>    loss <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"rmse"</span>, <span class="st">"log"</span>, <span class="st">"mcr"</span><span class="op">)</span>, n.threads <span class="op">=</span> <span class="fu">dbarts</span><span class="fu">::</span><span class="fu"><a href="guessNumCores.html">guessNumCores</a></span><span class="op">(</span><span class="op">)</span>, n.trees <span class="op">=</span> <span class="fl">75L</span>,</span>
 <span>    k <span class="op">=</span> <span class="cn">NULL</span>, power <span class="op">=</span> <span class="fl">2</span>, base <span class="op">=</span> <span class="fl">0.95</span>,</span>
 <span>    split.probs <span class="op">=</span> <span class="cn">NULL</span>, dart <span class="op">=</span> <span class="cn">FALSE</span>, drop <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>    resid.prior <span class="op">=</span> <span class="va">chisq</span>, control <span class="op">=</span> <span class="fu">dbarts</span><span class="fu">::</span><span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span><span class="op">)</span>, sigest <span class="op">=</span> <span class="cn">NA_real_</span>,</span>
+<span>    resid.prior <span class="op">=</span> <span class="va">chisq</span>, sigest <span class="op">=</span> <span class="cn">NA_real_</span>,</span>
 <span>    seed <span class="op">=</span> <span class="cn">NA_integer_</span>,</span>
 <span>    factors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"categorical"</span>, <span class="st">"indicators"</span><span class="op">)</span>,</span>
 <span>    family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"gaussian"</span>, <span class="st">"probit"</span>, <span class="st">"logistic"</span><span class="op">)</span>,</span>
 <span>    missing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"incorporate"</span>, <span class="st">"error"</span><span class="op">)</span>,</span>
-<span>    node.prior <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+<span>    node.prior <span class="op">=</span> <span class="cn">NULL</span>, n.cuts <span class="op">=</span> <span class="fl">100L</span>, useQuantiles <span class="op">=</span> <span class="cn">FALSE</span>, n.thin <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>    storage <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"double"</span>, <span class="st">"single"</span><span class="op">)</span>, tree.prior <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -125,9 +126,6 @@
    <dt id="arg-resid-prior">resid.prior<a class="anchor" aria-label="anchor" href="#arg-resid-prior"></a></dt>
 <dd><p>An expression of the form <code>chisq</code> or <code>chisq(df, quant)</code> that sets the prior used on the residual/error variance.</p></dd>
 
-   <dt id="arg-control">control<a class="anchor" aria-label="anchor" href="#arg-control"></a></dt>
-<dd><p>An object inheriting from <code>dbartsControl</code>, created by the <code><a href="dbartsControl.html">dbartsControl</a></code> function.</p></dd>
-
    <dt id="arg-sigest">sigest<a class="anchor" aria-label="anchor" href="#arg-sigest"></a></dt>
 <dd><p>A positive numeric estimate of the residual standard deviation. If <code>NA</code>, a linear model is used with all of the predictors to obtain one. Fitting functions (<code>xbart</code>, <code><a href="bart.html">bart</a></code>/<code>bart2</code>, <code><a href="rbart.html">rbart_vi</a></code>) spell this <code>sigest</code>; sampler constructors (<code><a href="dbarts.html">dbarts</a></code>, <code>dbartsSpec</code>) spell the same concept <code>sigma</code>.</p></dd>
 
@@ -146,6 +144,21 @@
    <dt id="arg-node-prior">node.prior<a class="anchor" aria-label="anchor" href="#arg-node-prior"></a></dt>
 <dd><p>An optional expression of the form <code>normal(k)</code>, <code>linear(columns, k)</code>, or <code>gp(columns, k, ...)</code> selecting the leaf model, as in <code><a href="dbarts.html">dbarts</a></code>. The default fits constant leaves. A <code>k</code> given inside the prior stands in for a missing <code>k</code> argument; the <code>k</code> argument otherwise drives the crossvalidation grid as usual.</p>
 <p>A named leaf calibration (<code>normal(scale = )</code>, and likewise for <code>linear</code> and <code>gp</code>) is NOT a grid axis: it is held fixed across every cell, so the <code>k</code> grid sweeps the prior standard deviation <code>scale / k</code> about a fixed anchor rather than about whatever the response range happened to imply. It is honored in cells that re-use a sampler as well as in cells that create one, so the loss surface does not depend on the order the cells run in. The <code>sd</code> spelling meets the same refusal here as everywhere when <code>k</code> is a hyperprior.</p></dd>
+
+   <dt id="arg-n-cuts">n.cuts<a class="anchor" aria-label="anchor" href="#arg-n-cuts"></a></dt>
+<dd><p>A positive integer giving the number of decision rules used for each predictor, as in <code><a href="dbartsControl.html">dbartsControl</a></code>.</p></dd>
+
+   <dt id="arg-usequantiles">useQuantiles<a class="anchor" aria-label="anchor" href="#arg-usequantiles"></a></dt>
+<dd><p>Logical; as in <code><a href="dbartsControl.html">dbartsControl</a></code>, determines whether decision rules are placed at the empirical quantiles of each predictor's values rather than spaced uniformly through its range.</p></dd>
+
+   <dt id="arg-n-thin">n.thin<a class="anchor" aria-label="anchor" href="#arg-n-thin"></a></dt>
+<dd><p>A positive integer; as in <code><a href="dbartsControl.html">dbartsControl</a></code>, thins each cell's chain against serial correlation. <code>n.samples</code> are still returned regardless.</p></dd>
+
+   <dt id="arg-storage">storage<a class="anchor" aria-label="anchor" href="#arg-storage"></a></dt>
+<dd><p>A character string selecting the precision of the internal running residual, spelled and defaulted as in <code><a href="dbartsControl.html">dbartsControl</a></code>. Every cell's sampler is created over a shared per-fold data handle, a path the engine keeps in double precision regardless of family or leaf model; <code>"single"</code> is refused rather than silently ignored.</p></dd>
+
+   <dt id="arg-tree-prior">tree.prior<a class="anchor" aria-label="anchor" href="#arg-tree-prior"></a></dt>
+<dd><p>An expression of the form <code>cgm</code> or <code>cgm(power, base, split.probs)</code> that sets the tree structure prior, or a prior object built with <code><a href="dbartsPriors.html">dbartsPriors</a></code> - <code>cgm(...)</code> or <code>dbartsPriors$dart(...)</code>. <code>power</code> and <code>base</code> are xbart's grid axes, so a supplied object's own <code>power</code>/<code>base</code> are replaced by the swept grid values every cell exactly as the <code>k</code> argument replaces a supplied <code>node.prior</code>'s <code>k</code>; the object's other content - a <code>cgm</code> object's <code>split.probs</code>, a DART object's Dirichlet hyperparameters - rides every cell unchanged. Because <code>power</code>/<code>base</code> are grid axes here rather than ordinary scalars, they may be supplied alongside <code>tree.prior</code>; <code>dart</code> and <code>split.probs</code> would only duplicate what a supplied <code>tree.prior</code> already specifies, so combining either with it is an error naming both.</p></dd>
 
 </dl></div>
     <div class="section level2">
