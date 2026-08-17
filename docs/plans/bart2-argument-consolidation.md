@@ -1872,3 +1872,29 @@ AND formulas; edge probes: all-rows-subset identity, neither-count
 fallthrough, negative-index alignment vs a manual fit; mutation
 isolates exactly the 2 refusal assertions; NEWS 259; check OK
 twice).
+
+S14 (docs) LANDED 9031b348, 2026-08-17. man/bart2.Rd split out of
+man/bart.Rd (363 lines, ~210 moved family/Value text + ~150 written:
+the Formula Terms section, the reworked argument items, one runnable
+example); bart.Rd 609 -> 434 keeping bart and the shared generics;
+every base alias still resolves (124/124 audited) and ?bart2 is its
+own topic. _pkgdown.yml gains bart2; pkgdown clean. The d2
+n.samples boundary documented on both sides (dbartsControl's
+per-run return count vs the fitters' thinned sweep budget).
+forest.Rd seealso points at the full term grammar. Accuracy-pass
+findings fixed while splitting: offset.test was documented as NULL
+but has always tracked offset (NEWS bug-fix entry); the bart.Rd dots
+item claimed dbartsControl forwarding (actually plot/getTrees); the
+Value section's "forestFits not reachable from bart2" sentence was
+stale since the term route landed. Verified already-done, not
+duplicated: varianceForest.Rd, rbart.Rd's k item, T-C-is-a-test.
+Gates: both runners green (scope man/+pkgdown+NEWS only; tinytest
+5581/0 unchanged; usage-vs-formals audit exact on
+bart2/rbart_vi/xbart/dbarts/dbartsControl/forest/varianceForest,
+bart's 11 integer-literal cosmetic mismatches proven pre-existing
+byte-identical to base; content spot-checks vs the landed code found
+no contradiction; pkgdown clean; NEWS 260-entry parse; check
+--as-cran Status OK with the implementer's vignette-warning claim
+REFUTED by a byte-identical base-vs-slice log diff - its own
+library scope lacked the vignette toolchain). ARC SLICES S1-S14
+COMPLETE; closure records and the comment sweep follow.
