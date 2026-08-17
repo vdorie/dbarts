@@ -698,6 +698,40 @@ items
     setForestWeights, setForestBasis, getCalibration, setCalibration,
     getForestFits, getForestVariableCounts). A BCF sampler's
     prognostic forest is 1, its treatment forest 2; 0 is refused.
+  release-candidate-review: the pre-RC review program (VD 2026-08-16):
+    an orchestrated review wave before declaring a release candidate
+    for serious human review, targeting the two defect families the
+    per-slice gate structure cannot see. Family 1, correctness beyond
+    the gates' reach - the slice batteries prove diffs neutral against
+    agent-recorded baselines, never that the baselines were right.
+    Seed classes: math-vs-history oracles (exact-posterior and
+    Geweke-style joint checks, deeper SBC per family - the
+    sbc-family-tiers machinery exists); test-suite strength
+    (vacuous-assertion audit, package-scale sampled mutation,
+    coverage of never-executed branches); whole-surface coherence
+    once the surface is frozen (naming, defaults, Rd-vs-behavior,
+    examples, plan-vs-landed audit); a fresh adversarial whole-branch
+    review; the consumer-bundle re-run plus .win-variant drift; and
+    the analysis legs this host cannot run (rchk/valgrind workflows
+    exist but bind to the default branch - see the note below;
+    TSAN/gctorture have no leg anywhere). Family 2, accumulation -
+    agent-written slices breed edit-history sediment, missed
+    factorization across the five fitting surfaces, surface and
+    feature inconsistency, dialect drift, and over-complication.
+    Seed review kinds: sediment (blame-informed hunt for code whose
+    justification names a state that no longer exists); factorization
+    (semantic duplication, with docs/design the arbiter of
+    INTENTIONAL divergence); justify-this-element simplicity; style
+    normalization. Findings land as behavior-neutral cleanup slices
+    under the standard bitwise battery - cheap only while the
+    no-compat window is open. The seed lists are a floor, not a
+    bound: this item's orchestrator re-derives the slate first and is
+    expected to find classes this entry overlooks. Load-bearing
+    ordering only: run after bart2-argument-consolidation closes;
+    land accumulation cleanups BEFORE the coverage/mutation/coherence
+    passes (reshaping invalidates them); behavior-level oracles may
+    run in parallel with anything. RC declaration itself stays
+    VD-held.
   repo-modernization: standing hygiene bundle. Open: optional roxygen2
     and NEWS.md migrations (do not start unasked).
   response-support-validation: LANDED 33f6fdc (defects 1-4 and 6 of
