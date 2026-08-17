@@ -557,6 +557,37 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### B - xbart through the shared validation helpers (ef7730a7, 2026-08-17)
+
+The four drifts closed by extracting three helpers into R/spec.R -
+isBinaryFamily, estimateStartingSigma (one shared "unable to obtain
+a starting estimate of sigma; provide one instead" failure),
+enforceWeightPolicy (the whole binary/ordinal/nbinom policy with
+the all-ones courtesy) - called symmetrically from
+resolveSamplerSpec and xbart(): the weaker binary predicate, the
+bare lm() error, the absent weight policy, and the
+override-only-when-unsupplied resid.prior are all gone. FULL
+resolver routing was deliberately NOT taken: resolveSamplerSpec's
+parsePriors path would run resolveNodeHyperprior on xbart's binary
+k and silently move the k-grid - slice F's fenced decision - so the
+helper extraction is the correct mechanism, not a compromise. The
+census's "silent-acceptance hole" framing was CORRECTED by
+measurement: the C bridge's backstop already refused every weighted
+binary xbart call, in its own dialect and with NO all-ones
+courtesy - so the live defects were a WRONG refusal of unit weights
+(now legally run, the courtesy applied R-side) and a cross-language
+dialect split (the R policy now fires first; unification is K6/L's;
+both dialects quoted in the gate record) - census kind 9 observed
+in the wild. Defended divergences pinned by construction and test:
+the chisq resid.prior default, the tree-prior grid-axes-override
+rule, and binary always-override to fixed(1) even against an
+explicit user prior. Gates twice: tinytest 5820/0; trio bitwise
+(37/37, 12/12, 10/10); air/lintr clean; NEWS 267; R CMD check
+--as-cran OK; discrimination five-way clean incl. the fixed-seed
+gaussian draw-identity pin (bitwise across builds) and the
+substituted sigma-failure probe (p >= n silently NaNs rather than
+erroring - measured - an Inf column used instead).
+
 ### FX2 - unadjudicated heteroscedastic compositions refused (35b2b92d, 2026-08-17)
 
 Reproduction first, per the mandate, and it halved the scope:
