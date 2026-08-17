@@ -557,6 +557,62 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### I3 - getForestVariableCounts dimnames (cd918d9a, 2026-08-17)
+
+The live R5 read $getForestVariableCounts(forest) now names its rows
+from colnames(data@x) when the training matrix carries them (five
+dense lines in the method body); the raw run()$varcount channel is
+deliberately untouched (the recorded separate decision). One
+man/dbartsSampler-class.Rd sentence, one NEWS BUG FIXES item (the
+implementer matched the file's existing "$X now Y" phrasing), and a
+test block in test-bcf-r5-surface.R whose named fixture pins BOTH
+halves: rownames equal the colnames AND the numeric counts are
+identical to the unnamed sampler's (names added, values untouched),
+plus the colname-free no-op guard. Gates run twice (implementer,
+then independent gate-runner in its own lib): tinytest 5591/0;
+equivalence trio bitwise - 37/37 "identical draws" lines with zero
+max-|z| lines on the main harness, 12/12 and 10/10 on the other two;
+air clean; lintr zero on both R files; NEWS parses at 263 entries;
+R CMD check --as-cran Status OK from a clean-staged tarball;
+discrimination re-proof - rownames appear only on the slice build,
+values bitwise-identical across builds. Process note recorded in the
+runbook: the main harness's terminal "statistically
+indistinguishable" line prints even on fully-bitwise runs and is
+never evidence; the per-scenario identical-draws COUNT is. Landed by
+rebase onto 51c8f43f (docs-only, gated build byte-identical). CI
+fired into the GitHub outage - backfill pending with the rest.
+
+### Wave 0f - orphaned scripts and the first equivalence-leg run (2026-08-17)
+
+Twelve benchmarks/R scripts belong to no workflow; all ran (private
+lib at the a39da5d9 build, <2 min each): 8 PASS, 3 BROKEN, 1 not
+standalone (bartcore-shim.R, a sourced helper). hazard-reduction.R
+and hurdle-reduction.R both PASS bitwise ("reduces bitwise to the
+binary fit (both links)" / "to its two standalone component fits") -
+they are the only checks those two shipped families have, run under
+half a second each, and are RECOMMENDED for the exact-gates.yaml
+gate list (queued behind the GitHub outage; a workflow edit fires
+full CI and lands only when CI can actually run). BROKEN, all
+permanently absent their inputs: change-fix-instrumentation.R and
+change-fix-stage2.R read CSVs only a reverted-before-commit
+instrumentation patch ever wrote; parallel-falsifiers.R exits 0 with
+zero data (its BC_FALSIFIER_* env hooks are inert, self-declared).
+Their disposition (document-as-manual vs delete) routes to the
+wave-1 accumulation lane. FLAG for the oracle lane: grouped-mixing.R
+runs clean but measures the forest-ranef confounding ratio at
+3.3x (K = 3) / 1.9x (K = 10), well below its own header's cited
+~25x / ~3x from the prior review - 6-8 seed averages, not obviously
+noise; a small verification item should decide whether behavior
+moved or the header's provenance differs. The statistical-equivalence
+leg (equivalence.yaml's recipe, executed for the FIRST time
+anywhere): all three jobs reproduced locally, all three baselines
+bitwise-identical on every scenario (37/12/10) despite 21/4/32
+intervening src-touching commits - the MANIFEST's current
+classifications corroborated. The YAML parses cleanly; the
+main-has-no-benchmarks red-schedule hazard is CONFIRMED for the
+merge-time shim design. Full report untracked at
+.claude/rc-review-orphan-legs-2026-08-17.md.
+
 ### I2 - hurdle variance doc fix (4c2cdb9a, 2026-08-17)
 
 The hurdle docs promised natural-scale predictions consume the
