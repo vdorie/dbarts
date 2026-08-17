@@ -557,6 +557,36 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### FX1-guard - student fits stop scoring gaussian (4975c20b, 2026-08-17)
+
+Every packaged bart/bart2 fit now records a resid.dist token
+("gaussian"/"student", read from the model's resid.df attribute in
+packageBartResults - the single choke point; both response branches,
+so the field can never be a student-only vacuity). Consumers guard:
+pointwiseLogLikelihood's gaussian branch and sampleFromPPD (shared
+by predict/extract for bart AND rbart) refuse a present
+non-"gaussian" token - the ppd half was the mandated check finding
+its own defect: rnorm noise drawn unconditionally, the same silent
+class, guarded in the same shape. An ABSENT field reads as gaussian
+so pre-field serialized fits keep working. The t-marginal compute
+stays post-K2 per fork 2; surfaces verified: dbarts()/dbartsSpec()
+return samplers, not packaged fits (guards unreachable); rbart_vi
+has no resid.dist formal. Discrimination (gate-runner's own probes):
+base's student-fit loglik succeeded IDENTICAL to the hand gaussian
+density and its ppd drew silently; slice refuses both by name;
+gaussian fits bitwise-unaffected; the deleted-field legacy shape
+runs. Gates twice: tinytest 5810/0; trio bitwise (37/37 incl. the
+student scenario, 12/12, 10/10); air/lintr clean; NEWS 265 entries;
+R CMD check OK (the gate-runner's first WARNING was its own
+--no-build-vignettes flag, not the slice). Process note: the
+gate-runner FAILED the slice on hygiene - a docs/plans reference on
+an added test-file line the orchestrator's own strip had missed -
+fixed by a one-comment amend (4975c20b vs the gated 2a8082c4;
+comment-byte delta, gates 1-7 evidence carries, the touched file
+re-run 39/39). Budget overage (~4x on R lines) flagged by the
+implementer and accepted: two guard sites and rationale comments,
+in-mandate scope.
+
 ### A - bart() weights parity and zero-draw guard (f3f6c80c, 2026-08-17)
 
 bart()'s tail now attaches $weights/$weights.test exactly as bart2's
