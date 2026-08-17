@@ -198,7 +198,12 @@ the K-widened arrays; its fit path reproduces the internal pattern bit for
 bit (test-multinomial-surface.R pins it). Unsupported surface is refused by
 name, never silently reshaped: weights and the latent type always, and a
 flat offset - it is the softmax's own null direction (a common
-per-observation shift) and is identically inert. An n x K numeric matrix
+per-observation shift) and is identically inert. The host sampler bart2
+builds to resolve its own tree prior is discarded after
+buildMultinomialSampler copies only power/base/proposal-probability fields
+out of it, so DART (via either the dart argument or a DART tree.prior),
+split.probs, monotone, and variance are refused by name too, rather than
+silently reaching no K-forest engine slot. An n x K numeric matrix
 offset IS accepted (landed with the mutation channel below,
 docs/plans/multinomial-counts-mutation.md S5): a creation-time argument on
 bart2's one-shot fit, threaded to the internal creator's own offset

@@ -232,7 +232,7 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | logistic | R spec.R:370 | S CH:605 | S CH:549 | S bart.R:1014 | S dbarts.R:901 |
 | ordinal | R spec.R:370 | M RIB:2973 [f31] | S CH:549 | R bart.R:493 | R bart.R:493 |
 | nbinom | R spec.R:370 | M RIB:2978 [f31] | S CH:549 | R bart.R:493 | R bart.R:493 |
-| multinom | R FAC:833 | M RIB:1921 [f32] | M CH:4862 [f33] | R bart.R:493 | R bart.R:493 |
+| multinom | R bart.R:891 | M RIB:1921 [f32] | R bart.R:891 [f33] | R bart.R:493 | R bart.R:493 |
 | aft | R spec.R:370 | S CH:605 | S CH:549 | S bart.R:1014 | S dbarts.R:901 |
 | hazard | R spec.R:370 | M rbart.R:49 [f6] | S CH:549 | S bart.R:1014 | S dbarts.R:901 |
 | hurdle | ? [f34] | M | S bart.R:1995, 2003 [f35] | R bart.R:493 | R bart.R:493 |
@@ -748,12 +748,13 @@ the dispersion block (RIB:2975-2979, negative-binomial.md section 7).
 one site, RIB:2967, on the single-forest holder path, so `bartcore.groups` is
 never read for a multinomial sampler.
 
-[f33] DEFECT, not a refusal. `buildMultinomialForest` hard-sets
-`forest.useDart = false` (CH:4862) while `bart2Multinomial` accepts and threads
-`dart` through (bart.R:1219, 1235) and `buildMultinomialSampler` (RIB:3215-3257)
-refuses nothing - unlike BCF, which names the option it drops (spec.R:481,
-`buildBCFForest` CH:4797). A user passing `dart = TRUE` gets a non-DART model silently.
-multinomial.md does not mention DART.
+[f33] Formerly a defect: `buildMultinomialForest` hard-sets
+`forest.useDart = false` (CH:4878), and `buildMultinomialSampler`
+(RIB:3213-3269) copies only power/base/proposal-probability fields, so a DART
+tree prior built from either the `dart` argument or a `tree.prior` object
+never reached the K-forest engine. `bart2` now refuses both routes by name
+(bart.R:891), matching BCF's own named refusal (spec.R:509,
+`buildBCFForest` CH:4813) before either reaches the host sampler.
 
 [f34] `bart2Hurdle` builds both component calls with `redirectCall`
 (bart.R:1995, 2003), so a user's `variance =` is forwarded to BOTH - including
@@ -912,9 +913,9 @@ dispersion remains a recorded door (TODO `negbin-real-dispersion`).
 `dbartsSampler` - only a host shell ([f11]) - and its three real channels
 (`setCounts`, `setCategoryOffset`, `setCategoryTestOffset`) are unexported with
 no R5 methods. No `getLatents` ([f22]). No pointwise loglik. No grouped surface
-([f32]). No warm start / grow-from-root. **DART is accepted and silently
-dropped** ([f33]) - the only cell in this matrix that is a defect rather than an
-absence. SBC raw `f_ik` OPEN.
+([f32]). No warm start / grow-from-root. DART, `split.probs`, `monotone`, and
+`variance` are all refused by name rather than silently dropped ([f33]).
+SBC raw `f_ik` OPEN.
 
 **aft.** No `xbart()` token. Pointwise loglik ships, but `setWeights` is refused
 and the censoring status is fixed at creation, which is also what keeps AFT out
