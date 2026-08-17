@@ -198,6 +198,11 @@ forest(
 \seealso{
   \code{\link{dbarts}}, \code{\link{bart2}}, \code{\link{dbartsSpec}},
   \code{\link{interactions}}, \code{\link{blocks}}
+
+  \code{\link{bart2}}'s \sQuote{Formula Terms} section is the full term
+  grammar - colon sugar, the factor forms, the symbolic unnamed slot, and
+  the refusal list - of which the \sQuote{Details} paragraph above is the
+  constructor-side summary.
 }
 \examples{
 set.seed(0)

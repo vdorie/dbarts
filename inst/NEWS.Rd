@@ -1441,6 +1441,17 @@
             is its only route to a second forest.
     }
   }
+  \subsection{BUG FIXES}{
+    \itemize{
+      \item \code{bart2}'s (and \code{rbart_vi}'s, \code{dbarts}'s)
+            \code{offset.test} argument was documented as defaulting to
+            \code{NULL}; it has always defaulted to tracking \code{offset}
+            (a scalar, or a vector already matching the test row count, is
+            reused directly, any other length refused by name), matching
+            the \code{offset.test = offset} formal default. Documentation
+            only; no behavior changes.
+    }
+  }
 }
 \section{CHANGES IN VERSION 0.9-31}{
   \subsection{NEW FEATURES}{
