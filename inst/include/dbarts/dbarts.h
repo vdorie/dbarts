@@ -275,12 +275,6 @@ typedef struct dbarts_forest_calibration_t {
                            ///< disagrees on BCF and multinomial)
   int*    leafModel;       ///< numChains; dbarts_leaf_model, qualifying
                            ///< priorSd and priorMean (see below)
-  /* 1.0-0 field boundary. An append after 1.0-0 goes below this line and bumps
-     DBARTS_C_API_MINOR; a pre-1.0-0 append extends the initial field set and
-     moves no version constant. The five fields below were appended pre-1.0-0,
-     before that rule was written down, so both sides of this marker are the
-     initial field set - which is why dbarts_results carries its own pre-1.0-0
-     append above its marker instead. */
   /* The multi-forest CALIBRATION MAP's decomposition of priorScale, which is
    * factor * s / (divisor * rowNorm) at the family's latent anchor s: NaN on
    * every forest with no map entry (any single-forest or multinomial sampler),
@@ -298,6 +292,9 @@ typedef struct dbarts_forest_calibration_t {
   double* nodeScaleDivisor;        ///< numChains; NaN on the same rule
   double* basisRowNorm;            ///< numChains; median nonzero row norm of
                                    ///< the forest's basis IN FORCE
+  /* 1.0-0 field boundary: every future append goes below this line, never
+     above. An append after 1.0-0 bumps DBARTS_C_API_MINOR; a pre-1.0-0 one
+     extends the initial field set above it and moves no version constant. */
 } dbarts_forest_calibration;
 
 /// Value-initializer: sets structSize (the leading member, offset 0) and

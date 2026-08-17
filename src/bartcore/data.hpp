@@ -529,8 +529,10 @@ struct ColumnStore {
   std::vector<std::uint32_t> numCuts;
   std::vector<std::uint32_t> maxNumCuts;  // cap on quantile-induced counts
   // per column, whether any training value is missing; gates the extra
-  // missing-direction draw in rules and the NA-aware partition kernel, so
-  // NA-free columns keep today's draws and code paths exactly
+  // missing-direction draw in rules and the NA-aware partition kernel.
+  // INVARIANT: a column flagged 0 consumes no missing-direction draw from the
+  // rng and takes the plain partition path, so missingness support costs an
+  // NA-free column neither a draw nor a branch of its own.
   std::vector<std::uint8_t> hasMissing;
   // categorical tier flag, fixed once category counts are (they never change
   // after build): pooled columns (> 63 levels) need the per-tree mask pool

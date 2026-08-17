@@ -1,10 +1,12 @@
 #ifndef BARTCORE_BARTCORE_HPP
 #define BARTCORE_BARTCORE_HPP
 
-// Header-only conjugate BART MCMC engine: constant, linear, and
+// Header-only conjugate BART MCMC engine: constant, monotone, linear, and
 // Gaussian-process leaves; ordinal and categorical split rules; Gaussian,
-// probit, and logistic response families; grouped random intercepts; DART
-// split-variable selection; BCF two-forest samplers; and sparse-column
+// probit, logistic, AFT (survival), ordinal, and negative-binomial response
+// families, with Student-t continuous errors by scale mixture; heteroscedastic
+// variance forests; grouped random intercepts; DART split-variable selection;
+// BCF two-forest and multinomial softmax forest couplings; and sparse-column
 // ingestion. See docs/design/core-generalization.md.
 
 // IWYU pragma: begin_exports

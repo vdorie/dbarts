@@ -44,9 +44,6 @@ void rc_assertIntConstraints(SEXP x, const char* name, ...);
 void rc_assertDoubleConstraints(SEXP x, const char* name, ...);
 void rc_assertBoolConstraints(SEXP x, const char* name, ...);
 
-// TODO: write functions that don't throw errors, like ...
-// const char* rc_checkInts(SEXP x, ...);
-
 // Value constraints are matched in-order to dims themselves. A lack of length
 // constraint allows missing dims. RC_NA skips the dim, regardless of the value
 // (equiv to value >= 0). e.g.
