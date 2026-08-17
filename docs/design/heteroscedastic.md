@@ -675,3 +675,22 @@ docs/design/empty-leaf-veto.md for why that criterion is not new, and
 docs/plans/multiforest-predictor-mutation.md for the full mechanism, the
 falsifiers that gate it (F9, F10 cover the variance-specific rollback and
 recovery-ordering claims), and the equivalence baselines.
+
+## 15. Post-landing: Student-t residuals and grouped random effects refused (2026-08-17)
+
+Two more gaussian-family compositions reach a variance forest's construction
+path unadjudicated, since neither the scale-mixture reweighting `student()`
+installs nor rbart_vi's per-group Gibbs blocks were checked against the
+variance forest's weight-channel routing (section 5) when either landed:
+`resid.dist = student()` residuals declared alongside `variance` constructed
+and ran on the pre-refusal build and is now a validation error at the family
+gate's site (R/spec.R); a grouped (rbart_vi) fit alongside `variance` was
+already unreachable (rbart_vi declares no `variance` formal and its `...` is
+rejection-only), so no new refusal was needed there. Both are validation
+errors only, not a withdrawal of the `variance` formal from any surface -
+support arrives by adjudicating whether the weight-channel divisor composes
+with the scale-mixture weights or the grouped Gibbs blocks and then dropping
+the corresponding refusal (or, for grouped, adding `variance` to rbart_vi's
+formals); no new surface is needed for either, since the formal already
+exists on dbarts()/bart2() and rbart_vi needs only the same formal plus the
+collision check section 5 already applies to the latent families.

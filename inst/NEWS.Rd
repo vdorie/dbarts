@@ -1473,6 +1473,14 @@
             worse than dropped, since its proposal-probability rewrite did
             reach the forest while the direction constraints did not,
             silently fitting a birth/death-only model nobody asked for.
+      \item A gaussian-family sampler now refuses \code{variance} together
+            with \code{resid.dist = student()} residuals: the two
+            previously constructed and ran with no adjudication of whether
+            the variance forest's weight-channel routing composes with the
+            scale-mixture reweighting \code{student()} installs. A
+            \code{\link{rbart_vi}} (grouped) fit was already unreachable
+            with \code{variance}, since it declares no such formal; see
+            \code{docs/design/heteroscedastic.md}.
     }
   }
   \subsection{BUG FIXES}{
