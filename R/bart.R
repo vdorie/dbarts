@@ -371,7 +371,43 @@ buildSamplerPriors <- function(
   splitProbsDefault = NULL
 ) {
   priorScale <- validateNamedScale(priorScale, "prior.scale")
-  if (inherits(dart, "dbartsDartPrior")) {
+
+  # S7 (docs/plans/bart2-argument-consolidation.md 4.2): a caller-supplied
+  # tree.prior/node.prior/resid.prior object fully replaces the flat build
+  # below and is forwarded UNEVALUATED, exactly as k already is (nodeK), so a
+  # bare vocabulary name inside it (linear(), gp(), fixed(), ...) resolves in
+  # the caller's own frame, not here. A shorthand that would otherwise help
+  # build the same prior is a collision, refused by name before anything is
+  # built. Only bart2 itself ever puts these three names in matchedCall - not
+  # bart(), not rbart_vi(), and not the alternate-family arcs' own recursive
+  # dbarts()/bart2() calls, which carry bart2's original matchedCall through
+  # unchanged - so this is a no-op at every other call site. Presence, not an
+  # explicit-NULL value, is what makes a shorthand a collision (matching the
+  # dart/split.probs precedent below); an explicit `tree.prior = NULL` is
+  # itself NULL here (match.call() stores a literal NULL as NULL), so it is
+  # indistinguishable from not supplying one at all.
+  refuseColliding <- function(objectName, shorthands) {
+    hit <- shorthands[shorthands %in% names(matchedCall)]
+    if (length(hit) > 0L) {
+      stop(
+        "'",
+        objectName,
+        "' cannot be combined with '",
+        hit[1L],
+        "': supply the prior either as an object or through its shorthand ",
+        "arguments, not both"
+      )
+    }
+  }
+
+  treePriorObj <- matchedCall[["tree.prior"]]
+  nodePriorObj <- matchedCall[["node.prior"]]
+  residPriorObj <- matchedCall[["resid.prior"]]
+
+  if (!is.null(treePriorObj)) {
+    refuseColliding("tree.prior", c("power", "base", splitProbsName, "dart"))
+    tree.prior <- treePriorObj
+  } else if (inherits(dart, "dbartsDartPrior")) {
     # a full spec overrides the power/base arguments with its own
     tree.prior <- dart
   } else if (isTRUE(dart)) {
@@ -398,10 +434,13 @@ buildSamplerPriors <- function(
     }
   }
 
-  # a named prior.scale needs a node prior to ride even when k is left to the
-  # family default, so it builds one; the k slot then drops out of the call and
-  # dbarts() resolves k exactly as it would have with no node prior at all
-  if (!is.null(nodeK) || !is.na(priorScale)) {
+  if (!is.null(nodePriorObj)) {
+    refuseColliding("node.prior", c("k", "prior.scale"))
+    node.prior <- nodePriorObj
+    # a named prior.scale needs a node prior to ride even when k is left to the
+    # family default, so it builds one; the k slot then drops out of the call and
+    # dbarts() resolves k exactly as it would have with no node prior at all
+  } else if (!is.null(nodeK) || !is.na(priorScale)) {
     node.prior <- quote(normal(k))
     node.prior[[2L]] <- nodeK
     if (!is.na(priorScale)) {
@@ -411,9 +450,14 @@ buildSamplerPriors <- function(
     node.prior <- NULL
   }
 
-  resid.prior <- quote(chisq(sigdf, sigquant))
-  resid.prior[[2L]] <- sigdf
-  resid.prior[[3L]] <- sigquant
+  if (!is.null(residPriorObj)) {
+    refuseColliding("resid.prior", c("sigdf", "sigquant", "sigest"))
+    resid.prior <- residPriorObj
+  } else {
+    resid.prior <- quote(chisq(sigdf, sigquant))
+    resid.prior[[2L]] <- sigdf
+    resid.prior[[3L]] <- sigquant
+  }
 
   list(
     tree.prior = tree.prior,
@@ -601,6 +645,9 @@ bart2 <- function(
   dispersion = NA_real_,
   breaks = NULL,
   max.rows = 1e7,
+  tree.prior = NULL,
+  node.prior = NULL,
+  resid.prior = NULL,
   storage = c("double", "single"),
   updateState = TRUE,
   ...
@@ -2067,12 +2114,15 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   # against ITS OWN forced family, both firing a warning where the outer
   # site did not (dispersion/breaks/max.rows, inert on both components:
   # a second and third copy of the same diagnosis) and, on the occupancy
-  # call, one the outer site correctly did NOT raise (sigest/sigdf/sigquant:
-  # genuinely live on the positive half, so a "probit" warning about them
-  # is a false diagnostic, not merely a redundant one). Strip what the
-  # outer site already covers before either component call runs.
+  # call, one the outer site correctly did NOT raise (sigest/sigdf/sigquant/
+  # resid.prior: genuinely live on the positive half, so a "probit" warning
+  # about them is a false diagnostic, not merely a redundant one). Strip what
+  # the outer site already covers before either component call runs.
+  # tree.prior/node.prior are NOT stripped from either list (S7): they are
+  # live on both components, so they flow to both exactly as power/base/dart/
+  # k/prior.scale already do.
   gatedOnBoth <- c("dispersion", "breaks", "max.rows")
-  gatedOnOccupancyOnly <- c("sigest", "sigdf", "sigquant")
+  gatedOnOccupancyOnly <- c("sigest", "sigdf", "sigquant", "resid.prior")
 
   occupancyCall <- redirectCall(matchedCall, dbarts::bart2)
   occupancyCall[c(gatedOnBoth, gatedOnOccupancyOnly)] <- NULL

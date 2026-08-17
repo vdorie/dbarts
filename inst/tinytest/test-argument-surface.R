@@ -160,8 +160,9 @@ expect_error(
 
 # T-B (S3). For every name shared by bart2 and dbarts, the deparsed default
 # expressions agree, except the table below - copied from the plan (4.6).
-# tree.prior/node.prior/resid.prior are not yet bart2 formals (S7); their
-# rows are inert until then, since the loop only walks names shared today.
+# tree.prior/node.prior/resid.prior became bart2 formals at S7, so the loop
+# now walks all three; they stay excepted because bart2's NULL means "build
+# from the shorthands" while dbarts's own defaults are the bare constructors.
 tbExceptions <- data.frame(
   name = c(
     "verbose",
@@ -518,4 +519,185 @@ formatted <- format(
   dbarts::varianceForest(vars = ~x1, n.trees = 20L, base = 0.9, power = 1.5)
 )
 expect_true(is.character(formatted))
+
+# S7 (docs/plans/bart2-argument-consolidation.md 4.1, 4.2, 6.8): tree.prior/
+# node.prior/resid.prior are now bart2 formals (NULL, appended after
+# breaks/max.rows). A supplied object forwards unevaluated - exactly as k
+# already does - and a shorthand that would otherwise build the same prior is
+# a collision, refused by name; no object leaves the flat shorthand build
+# untouched.
+
+# reachability: node.prior = linear()/gp() and resid.prior = fixed() were
+# unreachable from bart2 before S7 (no route existed to hand dbarts() a
+# prior OBJECT). samplerOnly = TRUE returns bart2's sampler before any tree
+# initialization, so it is a fair byte-identity comparison against a fresh
+# dbarts() sampler built with the same object and control at the same seed -
+# the real G3-closure evidence, not merely "it does not error".
+reachSeed <- 909L
+dfLeaf <- data.frame(x1 = rnorm(n), x2 = rnorm(n), x3 = rnorm(n))
+yLeaf <- rnorm(n)
+
+samplerViaBart2Linear <- dbarts::bart2(
+  yLeaf ~ x1 + x2 + x3,
+  dfLeaf,
+  node.prior = dbarts::dbartsPriors$linear("x2"),
+  n.trees = 5L,
+  n.samples = 5L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = reachSeed,
+  verbose = FALSE,
+  samplerOnly = TRUE
+)
+samplerViaDbartsLinear <- dbarts::dbarts(
+  yLeaf ~ x1 + x2 + x3,
+  dfLeaf,
+  node.prior = dbarts::dbartsPriors$linear("x2"),
+  control = dbarts::dbartsControl(
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 0L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = reachSeed,
+    verbose = FALSE
+  )
+)
+samplesViaBart2Linear <- samplerViaBart2Linear$run()
+samplesViaDbartsLinear <- samplerViaDbartsLinear$run()
+expect_identical(samplesViaBart2Linear$train, samplesViaDbartsLinear$train)
+expect_identical(samplesViaBart2Linear$sigma, samplesViaDbartsLinear$sigma)
+
+samplerViaBart2Fixed <- dbarts::bart2(
+  x,
+  y.gaussian,
+  resid.prior = dbarts::dbartsPriors$fixed(1),
+  n.trees = 3L,
+  n.samples = 5L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = reachSeed,
+  verbose = FALSE,
+  samplerOnly = TRUE
+)
+samplerViaDbartsFixed <- dbarts::dbarts(
+  x,
+  y.gaussian,
+  resid.prior = dbarts::dbartsPriors$fixed(1),
+  control = dbarts::dbartsControl(
+    n.trees = 3L,
+    n.samples = 5L,
+    n.burn = 0L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = reachSeed,
+    verbose = FALSE
+  )
+)
+samplesViaBart2Fixed <- samplerViaBart2Fixed$run()
+samplesViaDbartsFixed <- samplerViaDbartsFixed$run()
+expect_identical(samplesViaBart2Fixed$train, samplesViaDbartsFixed$train)
+expect_identical(samplesViaBart2Fixed$sigma, samplesViaDbartsFixed$sigma)
+# fixed(1) holds the residual VARIANCE at 1, not sigma bit-exactly at 1 (the
+# rescale to/from the response's internal [-0.5, 0.5] coding is floating
+# point), so the sanity check is a tolerance, not '=='
+expect_true(all(abs(samplesViaBart2Fixed$sigma - 1) < 1e-8))
+
+# collision refusals (4.2): a prior object plus a shorthand that would build
+# it errors naming both, matching the dart/split.probs precedent's shape
+expect_error(
+  fit2(y.gaussian, tree.prior = dbarts::dbartsPriors$cgm(), power = 3),
+  pattern = "'tree.prior' cannot be combined with 'power'"
+)
+expect_error(
+  fit2(y.gaussian, node.prior = dbarts::dbartsPriors$normal(), k = 3),
+  pattern = "'node.prior' cannot be combined with 'k'"
+)
+expect_error(
+  fit2(y.gaussian, resid.prior = dbarts::dbartsPriors$fixed(1), sigdf = 5),
+  pattern = "'resid.prior' cannot be combined with 'sigdf'"
+)
+# the m6 disposition: sigest collides too, even though it is not built into
+# resid.prior by buildSamplerPriors (it rides dbarts()'s separate 'sigma')
+expect_error(
+  fit2(y.gaussian, resid.prior = dbarts::dbartsPriors$fixed(1), sigest = 2),
+  pattern = "'resid.prior' cannot be combined with 'sigest'"
+)
+
+# family gating (3.c.2's new row): resid.prior joins the sigest/sigdf/
+# sigquant trio - inert (silently overwritten with fixed(1), R/spec.R) under
+# a fixed-unit-scale family, now diagnosed instead of silent
+expect_warning(
+  fit2(
+    y.binary,
+    family = "probit",
+    resid.prior = dbarts::dbartsPriors$fixed(2)
+  ),
+  pattern = "resid.prior",
+  class = "dbartsFamilyGatedWarning"
+)
+expect_equal(
+  countWarnings(
+    fit2(
+      y.binary,
+      family = "probit",
+      resid.prior = dbarts::dbartsPriors$fixed(2)
+    ),
+    "dbartsFamilyGatedWarning"
+  ),
+  1L
+)
+
+# abbreviation breaks (4.1's table, 6.8): 'tree.prior' now collides with
+# 'test' on 't=', and 'resid.prior' with 'resid.dist' on 'resid.='; R's own
+# ambiguous partial-match error fires, not a package one
+expect_error(
+  dbarts::bart2(
+    x,
+    y.gaussian,
+    t = 3L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  pattern = "matches multiple formal arguments"
+)
+expect_error(
+  dbarts::bart2(
+    x,
+    y.gaussian,
+    resid. = 1,
+    n.trees = 3L,
+    n.samples = 5L,
+    n.burn = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  pattern = "matches multiple formal arguments"
+)
+
+# tree.prior/node.prior are live on BOTH hurdle components, unlike the
+# resid.prior/sigest quartet (positive half only): a differing tree.prior
+# changes both components' draws relative to the default (a cheap liveness
+# check, not a value-level assertion)
+hurdleDefaultTree <- fit2(y.hurdle, family = "hurdle.lognormal", seed = 55L)
+hurdleOtherTree <- fit2(
+  y.hurdle,
+  family = "hurdle.lognormal",
+  tree.prior = dbarts::dbartsPriors$cgm(power = 4),
+  seed = 55L
+)
+expect_false(identical(
+  hurdleDefaultTree$occupancy$yhat.train,
+  hurdleOtherTree$occupancy$yhat.train
+))
+expect_false(identical(
+  hurdleDefaultTree$positive$yhat.train,
+  hurdleOtherTree$positive$yhat.train
+))
 expect_true(any(grepl("base\\s*= 0.9", formatted)))

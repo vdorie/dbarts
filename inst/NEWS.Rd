@@ -1365,6 +1365,34 @@
             - drops a user's \code{n.trees.variance}/\code{power.variance}/
             \code{base.variance} silently instead, since the filter no
             longer recognizes the names.
+      \item \code{bart2} gains \code{tree.prior}, \code{node.prior}, and
+            \code{resid.prior} formals (\code{NULL} by default, appended
+            after \code{breaks}/\code{max.rows}), taking the same full
+            \code{\link{dbartsPriors}} objects \code{\link{dbarts}} already
+            does: \code{node.prior = linear(columns = )} or \code{gp(...)}
+            leaf models and \code{resid.prior = fixed(value)} are now
+            reachable from \code{bart2}, not only from \code{dbarts}.
+            Supplying one of these alongside a shorthand argument that would
+            otherwise help build the same prior is now an error naming both:
+            \code{tree.prior} with any of \code{power}/\code{base}/
+            \code{split.probs}/\code{dart}; \code{node.prior} with \code{k}/
+            \code{prior.scale}; \code{resid.prior} with \code{sigdf}/
+            \code{sigquant}/\code{sigest}. Leaving all three \code{NULL}
+            builds the priors from the shorthand arguments exactly as
+            before this change, so no existing call's draws move.
+            \code{resid.prior} joins the \code{sigest}/\code{sigdf}/
+            \code{sigquant} family-gating row: supplied under a
+            fixed-unit-scale family, it is silently overwritten with
+            \code{fixed(1)} regardless (unchanged engine behavior) and now
+            warns, classed \code{dbartsFamilyGatedWarning}, instead of
+            saying nothing. \code{tree.prior}/\code{node.prior} are honored
+            on every family, including both component fits of
+            \code{family = "hurdle.lognormal"}. \code{rbart_vi} does not
+            gain these three formals (its model-surface gap is a separate,
+            recorded ticket). Two more \code{bart2} abbreviations stop
+            working: \code{t=} (ambiguous between \code{test} and
+            \code{tree.prior}) and \code{resid.=} (ambiguous between
+            \code{resid.dist} and \code{resid.prior}).
     }
   }
 }
