@@ -1682,3 +1682,20 @@ pkgdown check; C error strings reworded off the retired names.
 Gates: both runners green (5400/0; trio 37+12+10 bitwise; byte-
 identity grid incl. full-knob attr verbatim; mutation exactly 2;
 check OK).
+
+S7 (prior objects) LANDED de2212bc, 2026-08-16. tree.prior/node.prior/
+resid.prior = NULL on bart2 in 4.1's literal ordering (after
+max.rows); forwarded UNEVALUATED through buildSamplerPriors'
+matchedCall reads (the k/nodeK idiom - bare linear()/gp()/fixed()
+resolve in the caller's frame); presence-based collision refusals at
+four sites (resid.prior's set includes sigest per m6); explicit NULL
+behaves as absent, documented in place. resid.prior joined the
+family-gating inventory as a data row (liveIn gaussian/aft/
+hurdle.lognormal); hurdle strips it occupancy-side, tree/node priors
+flow to BOTH components (liveness-verified). rbart_vi deliberately
+unchanged (rbart-model-surface-parity ticket). G3 CLOSED for the
+prior family: linear()/gp()/fixed() reachable from bart2, verified
+draw-identical against the dbarts() route. Two more abbreviations
+break (t=, resid.=), asserted + NEWS. Gates: both runners green
+(5415/0; trio 37+12+10 bitwise; mutation isolates exactly the 4
+collision tests; 5-config A/B identical incl. warn-count parity).
