@@ -24,9 +24,6 @@ resolveSamplerSpec <- function(
   interactions,
   blocks,
   variance,
-  n.trees.variance,
-  power.variance,
-  base.variance,
   survivalStatus,
   hazardPeriods,
   bases,
@@ -368,7 +365,29 @@ resolveSamplerSpec <- function(
   # `variance` selector installs a second forest modeling s^2(x); its config
   # rides the control attribute the C bridge reads. Gaussian + constant leaf
   # only (the C factory refuses otherwise; a friendly R check for the family).
-  varianceColumns <- resolveVarianceColumns(variance, data)
+  # `variance` accepts either the plain shorthand (NULL/FALSE/TRUE/formula/
+  # character/index) or a varianceForest() object (fork 2b): its `vars`
+  # slot routes through the SAME resolveVarianceColumns the shorthand uses -
+  # one selector vocabulary - and its n.trees/base/power knobs land exactly
+  # where the removed flat n.trees.variance/power.variance/base.variance
+  # formals' values used to, byte-identically.
+  varianceSpec <- if (inherits(variance, "dbartsVarianceForest")) {
+    variance
+  } else {
+    NULL
+  }
+  # vars = NULL on the OBJECT means every column (resolveVarianceColumns'
+  # TRUE reading), unlike variance = NULL's "no variance forest" - the two
+  # NULLs mean opposite things, so the object's own NULL is translated to
+  # TRUE before it reaches the shared resolver rather than passed through
+  varianceSelector <- if (is.null(varianceSpec)) {
+    variance
+  } else if (is.null(varianceSpec$vars)) {
+    TRUE
+  } else {
+    varianceSpec$vars
+  }
+  varianceColumns <- resolveVarianceColumns(varianceSelector, data)
   if (!is.null(varianceColumns)) {
     if (family != "gaussian") {
       stop(
@@ -380,17 +399,23 @@ resolveSamplerSpec <- function(
       stop("a variance forest is not supported with monotone constraints")
     }
     allColumns <- setequal(varianceColumns, seq_len(ncol(data@x)))
+    varianceNTrees <- if (is.null(varianceSpec)) NULL else varianceSpec$n.trees
+    varianceBase <- if (is.null(varianceSpec)) NULL else varianceSpec$base
+    variancePower <- if (is.null(varianceSpec)) NULL else varianceSpec$power
     attr(control, "bartcore.variance") <- list(
-      n.trees = coerceOrError(n.trees.variance, "integer"),
-      base = if (is.null(base.variance)) {
+      n.trees = coerceOrError(
+        if (is.null(varianceNTrees)) 40L else varianceNTrees,
+        "integer"
+      ),
+      base = if (is.null(varianceBase)) {
         model@tree.prior@base
       } else {
-        as.double(base.variance)
+        as.double(varianceBase)
       },
-      power = if (is.null(power.variance)) {
+      power = if (is.null(variancePower)) {
         model@tree.prior@power
       } else {
-        as.double(power.variance)
+        as.double(variancePower)
       },
       columns = if (allColumns) NULL else as.integer(varianceColumns)
     )
@@ -613,9 +638,6 @@ dbartsSpec <- function(
   interactions = NULL,
   blocks = NULL,
   variance = NULL,
-  n.trees.variance = 40L,
-  power.variance = NULL,
-  base.variance = NULL,
   forests = NULL,
   sigma = NA_real_,
   seed = NA_integer_,
@@ -709,9 +731,6 @@ dbartsSpec <- function(
     interactions = interactions,
     blocks = blocks,
     variance = variance,
-    n.trees.variance = n.trees.variance,
-    power.variance = power.variance,
-    base.variance = base.variance,
     survivalStatus = survival,
     hazardPeriods = NULL,
     bases = basis,

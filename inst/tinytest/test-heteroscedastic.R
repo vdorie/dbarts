@@ -15,8 +15,7 @@ y <- fTrue + sTrue * rnorm(n)
 fit <- bart2(
   x,
   y,
-  variance = TRUE,
-  n.trees.variance = 25L,
+  variance = varianceForest(n.trees = 25L),
   n.trees = 50L,
   n.samples = 400L,
   n.burn = 400L,
@@ -59,8 +58,7 @@ yHom <- 2 * xHom + 0.8 * rnorm(n)
 fitHom <- bart2(
   xHom,
   yHom,
-  variance = TRUE,
-  n.trees.variance = 25L,
+  variance = varianceForest(n.trees = 25L),
   n.trees = 50L,
   n.samples = 400L,
   n.burn = 400L,

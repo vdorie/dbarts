@@ -199,8 +199,7 @@ specVar <- dbarts(
   xVar,
   yVar,
   control = controlVar,
-  variance = TRUE,
-  n.trees.variance = 4L
+  variance = varianceForest(n.trees = 4L)
 )
 ptrVar <- CALL("capi_create", specVar$control, specVar$model, specVar$data, "")
 CALL("capi_sample_trees_from_prior", ptrVar)

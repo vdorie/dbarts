@@ -78,9 +78,6 @@ bart2(
     interactions = NULL,
     blocks = NULL,
     variance = NULL,
-    n.trees.variance = 40L,
-    power.variance = NULL,
-    base.variance = NULL,
     keepSampler = keepTrees,
     warm.start = NULL,
     n.grow.sweeps = 0L,
@@ -256,8 +253,8 @@ extract(object, \dots)
    \item{blocks}{
      Optional block-additive constraint, passed through to \code{\link{dbarts}}; see its \code{blocks} argument and \code{\link{blocks}}. Built with \code{blocks(groups = , trees.per.group = )}: confine each whole tree to one declared group of predictors so the ensemble is exactly a sum of per-group functions. The groups must form a total, disjoint partition of the predictors, validated at fit time. \code{NULL} (the default) fits the ordinary model.
    }
-   \item{variance, n.trees.variance, power.variance, base.variance}{
-     Heteroscedastic BART (Pratola et al. 2020): passed through to \code{\link{dbarts}}. \code{variance} declares a second forest modeling the residual variance surface \eqn{s^2(x)} as a product of scaled-inverse-chi-squared leaves, coupled to the mean forest through the per-observation precision. It is a one-sided formula or column selector naming which predictors drive the variance (\code{~ x1 + x2}), \code{TRUE} for every predictor, or \code{NULL} (the default) for a homoscedastic fit. \code{n.trees.variance} is the number of variance trees; \code{power.variance}/\code{base.variance} their tree-structure prior (defaulting to the mean forest's). Gaussian responses only. The fit gains \code{s.train}/\code{s.test} (posterior draws of \eqn{s(x)}), and \code{predict} attaches an \code{"s"} attribute carrying \eqn{s(x)} for new data.
+   \item{variance}{
+     Heteroscedastic BART (Pratola et al. 2020): passed through to \code{\link{dbarts}}. Declares a second forest modeling the residual variance surface \eqn{s^2(x)} as a product of scaled-inverse-chi-squared leaves, coupled to the mean forest through the per-observation precision. Either the plain selector naming which predictors drive the variance - a one-sided formula or column selector (\code{~ x1 + x2}), \code{TRUE} for every predictor, or \code{NULL} (the default) for a homoscedastic fit - or a \code{\link{varianceForest}(vars = , n.trees = , base = , power = )} object, which additionally sets the variance forest's own tree count and tree-structure prior (defaulting to \code{40} trees and the mean forest's \code{tree.prior}, exactly as the plain selector does). Gaussian responses only. The fit gains \code{s.train}/\code{s.test} (posterior draws of \eqn{s(x)}), and \code{predict} attaches an \code{"s"} attribute carrying \eqn{s(x)} for new data.
    }
    \item{keepsampler, keepSampler}{
      Logical that can be used to save the underlying \code{\link{dbartsSampler-class}} object even if \code{keepTrees} is false.

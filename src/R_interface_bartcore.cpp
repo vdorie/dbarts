@@ -2024,10 +2024,10 @@ void applyVarianceAttributes(SEXP controlExpr, size_t numPredictors,
     Rf_error("malformed variance forest specification");
 
   int numTrees = INTEGER(nTreesExpr)[0];
-  if (numTrees < 1) Rf_error("n.trees.variance must be a positive integer");
+  if (numTrees < 1) Rf_error("variance n.trees must be a positive integer");
   double base = REAL(baseExpr)[0], power = REAL(powerExpr)[0];
-  if (!(base > 0.0 && base < 1.0)) Rf_error("base.variance must be in (0, 1)");
-  if (!(power > 0.0)) Rf_error("power.variance must be positive");
+  if (!(base > 0.0 && base < 1.0)) Rf_error("variance base must be in (0, 1)");
+  if (!(power > 0.0)) Rf_error("variance power must be positive");
   options.numVarianceTrees = static_cast<size_t>(numTrees);
   options.varianceBase = base;
   options.variancePower = power;

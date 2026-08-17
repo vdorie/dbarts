@@ -1573,6 +1573,49 @@ forest <- function(
   )
 }
 
+## The heteroscedastic variance forest's own specification (fork 2b,
+## docs/plans/bart2-argument-consolidation.md 3.b b3, 4.2), passed as the
+## SAME variance = argument of dbarts()/dbartsSpec()/bart2() that already
+## takes the plain selector (NULL/FALSE for none, TRUE/a one-sided formula/
+## character or index vector for the column subset the variance forest
+## reads). vars resolves through the identical resolveVarianceColumns the
+## shorthand uses - one selector vocabulary - with vars = NULL on THIS
+## object meaning every column, distinct from variance = NULL's "no
+## variance forest". n.trees/base/power default to NULL, "not declared",
+## matching forest(); resolveSamplerSpec falls each back to what the old
+## flat n.trees.variance/power.variance/base.variance formals defaulted to
+## (40 trees; the mean forest's tree.prior base/power) when NULL. Validated
+## at fit time. Exported, like forest().
+varianceForest <- function(
+  vars = NULL,
+  n.trees = NULL,
+  base = NULL,
+  power = NULL
+) {
+  structure(
+    list(vars = vars, n.trees = n.trees, base = base, power = power),
+    class = "dbartsVarianceForest"
+  )
+}
+
+format.dbartsVarianceForest <- function(x, ...) {
+  describe <- function(value, default) {
+    if (is.null(value)) default else paste(deparse(value), collapse = " ")
+  }
+  c(
+    paste0("vars    = ", describe(x$vars, "<all columns>")),
+    paste0("n.trees = ", describe(x$n.trees, "<default 40>")),
+    paste0("base    = ", describe(x$base, "<mean forest's>")),
+    paste0("power   = ", describe(x$power, "<mean forest's>"))
+  )
+}
+
+print.dbartsVarianceForest <- function(x, ...) {
+  cat("dbarts variance forest specification\n")
+  cat(paste0("  ", format(x)), sep = "\n")
+  invisible(x)
+}
+
 ## The exported face of the prior constructors: one object, so that no
 ## generic name (normal, chisq, fixed, chi) enters the search path to be
 ## masked by or to mask another package by attach order. Inside the

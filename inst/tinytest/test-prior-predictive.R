@@ -124,8 +124,7 @@ expect_error(
 sampler.variance <- dbarts(
   y ~ x,
   control = control.plain,
-  variance = TRUE,
-  n.trees.variance = 5L
+  variance = varianceForest(n.trees = 5L)
 )
 expect_error(
   samplePriorPredictive(sampler.variance, n.samples = 5L, type = "ppd"),

@@ -243,8 +243,7 @@ varControl <- seededControl()
 varSampler <- dbarts(
   x,
   y,
-  variance = TRUE,
-  n.trees.variance = 10L,
+  variance = varianceForest(n.trees = 10L),
   control = varControl
 )
 varSampler$run(0L, 5L)

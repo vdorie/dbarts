@@ -240,8 +240,7 @@ fit.var <- bart2(
   n.threads = 1L,
   keepTrees = TRUE,
   verbose = FALSE,
-  variance = TRUE,
-  n.trees.variance = 10L
+  variance = varianceForest(n.trees = 10L)
 )
 pred.var.dense <- predict(fit.var, test.dense)
 pred.var.sparse <- predict(fit.var, test.sparse)
