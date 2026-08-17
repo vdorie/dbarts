@@ -726,7 +726,11 @@ items
     setForestWeights, setForestBasis, getCalibration, setCalibration,
     getForestFits, getForestVariableCounts). A BCF sampler's
     prognostic forest is 1, its treatment forest 2; 0 is refused.
-  release-candidate-review: the pre-RC review program (VD 2026-08-16):
+  release-candidate-review: SPECCED 2026-08-17 - the derived slate is
+    docs/plans/release-candidate-review.md (fresh censuses + a blind
+    critique whose eleven amendments are applied; six VD forks are
+    batched in its section 4; execution underway). This entry remains
+    the charter. Original charter text (VD 2026-08-16):
     an orchestrated review wave before declaring a release candidate
     for serious human review, targeting the two defect families the
     per-slice gate structure cannot see. Family 1, correctness beyond
