@@ -341,15 +341,16 @@ items
     permanent gate (benchmarks/R/grouped-mixing.R), and the
     VD-sign-off reopen clause in
     docs/design/forest-ranef-interweaving.md. decision-gated.
-  getforestvariablecounts-dimnames: small dbarts-side asymmetry, found
-    during bcf-bartcause-relocation's D3 gate-running: the live
-    $getForestVariableCounts(forest) read (R/dbarts.R:1508) returns an
-    UNNAMED matrix while the packaged run()$varcount channel it mirrors
-    carries predictor names on its leading margin (docs/plans/
-    bcf-bartcause-relocation.md, D3 items 3-4). FB18's tinytest fixture
-    is deliberately colname-free because of it. Small R-layer fix:
-    carry the predictor names onto the live read's dimnames. Not
-    scheduled; small slice.
+  getforestvariablecounts-dimnames: LANDED cd918d9a
+    (release-candidate-review wave 0d, I3; landing note in
+    docs/plans/release-candidate-review.md). The live read names its
+    rows from colnames(data@x) when present; the 2026-08-17
+    re-verification corrected the ticket's comparand - the raw
+    run()$varcount is ALSO unnamed and stays so by a recorded
+    separate decision (naming it would touch the C bridge and FB14's
+    pins); only the packaged bart2 fit carried names, on the
+    TRAILING margin. New named-fixture test pins names-added AND
+    values-bitwise-unchanged.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost) and low-rank kernels. Value gate lifted by the
     model-space survey: GP-leaf BART as a surrogate for sequential
