@@ -551,17 +551,21 @@ summary(object, ...)
   resolves to probit, and a numeric response is unchanged. A
   count-matrix (`cbind(c1, ..., cK) ~ x`) response is only ever
   multinomial when `family = "multinomial"` is given explicitly - it is
-  never inferred. `weights`, `subset`, `samplerOnly`, `warm.start`, and
-  `n.grow.sweeps` are all refused with an error naming the limitation
-  (an integer weight is already expressible as row-wise count
-  replication in the response, and a non-integer one has no exact
-  augmentation sampler). `offset` is accepted only as an n x K numeric
-  matrix, entering the K forests' raw fits before the softmax, one
-  column per category, in the same layout as a count-matrix `y.train`; a
-  flat (length-n) offset is refused by name, since a common
-  per-observation shift is the softmax's own null direction and is
-  identically inert. `offset` is a TRAIN-side argument only:
-  `offset.test` is refused by name too, and `yhat.test` is always
+  never inferred. `weights`, `subset`, `samplerOnly`, `warm.start`,
+  `n.grow.sweeps`, `dart` (or a DART `tree.prior`), `split.probs`,
+  `monotone`, and `variance` are all refused with an error naming the
+  limitation (an integer weight is already expressible as row-wise count
+  replication in the response, a non-integer one has no exact
+  augmentation sampler, and the K-forest engine copies only
+  power/base/proposal-probability fields from the host sampler it
+  briefly builds, so DART, fixed split probabilities, monotone direction
+  constraints, and a variance forest never reach it). `offset` is
+  accepted only as an n x K numeric matrix, entering the K forests' raw
+  fits before the softmax, one column per category, in the same layout
+  as a count-matrix `y.train`; a flat (length-n) offset is refused by
+  name, since a common per-observation shift is the softmax's own null
+  direction and is identically inert. `offset` is a TRAIN-side argument
+  only: `offset.test` is refused by name too, and `yhat.test` is always
   computed WITHOUT any category offset, even when `offset` was supplied
   for training - a caller comparing an offset-fitted `yhat.train`
   against `yhat.test` should keep this asymmetry in mind. A category
@@ -1176,7 +1180,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001431
+#> total seconds in loop: 0.001365
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
@@ -1223,7 +1227,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001646
+#> total seconds in loop: 0.001541
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 2 3 2 
