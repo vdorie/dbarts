@@ -1475,6 +1475,16 @@
             them; previously the read was always unnamed regardless of the
             sampler's own predictor names. \code{run()$varcount} is
             unaffected.
+      \item \code{bart} now attaches \code{$weights} (and
+            \code{$weights.test}, when given) to its returned fit,
+            matching \code{bart2} and \code{rbart_vi}. Previously a
+            weighted \code{bart} fit carried no \code{$weights}, so
+            \code{pointwiseLogLikelihood} and \code{extract(type =
+            "ppd")} silently computed an unweighted likelihood or
+            predictive distribution. \code{bart} also now refuses by
+            name a call whose sample count thins to zero (e.g.
+            \code{ndpost} smaller than \code{keepevery}), rather than
+            faulting deep in the result-array reshape.
     }
   }
 }
