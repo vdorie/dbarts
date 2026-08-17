@@ -1,8 +1,8 @@
 # The bart2 argument-consolidation arc's maintained contracts
 # (docs/plans/bart2-argument-consolidation.md 4.6): T-D (S2, family gating),
-# T-B (S3, shared-default text), and T-A (S5, dbartsControl formal parity)
-# already live here; T-C (bart -> bart2 concept map) and T-E (the per-forest
-# reconstruction identity) arrive with S10, S11 respectively.
+# T-B (S3, shared-default text), T-A (S5, dbartsControl formal parity), and
+# T-C (S10, bart -> bart2 concept map) live here; T-E (the per-forest
+# reconstruction identity) arrives with S11.
 
 # T-D. One diagnosis test per row of 3.c.2: the classed warning fires under
 # a family that ignores the argument and not under one that uses it; plus
@@ -739,3 +739,63 @@ expect_error(
   ),
   pattern = "unused argument"
 )
+# T-C (S10, docs/plans/bart2-argument-consolidation.md 4.6, 8.7). The
+# bart -> bart2 concept map: 8.7's disposition table, transcribed as a
+# data.frame. 'formal' names the underlying bart()/bart2() argument a row
+# concerns, NA where the row is not one appended-formal-shaped capability.
+conceptMap <- data.frame(
+  capability = c(
+    "subset",
+    "storage",
+    "family = \"logistic\"",
+    "family = \"aft\"",
+    "family = \"gaussian\"/\"probit\"/\"hazard.probit\"",
+    "family = \"hazard\"/\"hazard.logistic\"",
+    "family = \"multinomial\"/\"ordinal\"/\"nbinom\"/\"hurdle.lognormal\"",
+    "offset.test/factors/missing/updateState",
+    "dart/monotone/interactions/blocks/variance/warm.start/n.grow.sweeps/dispersion/tree.prior/node.prior/resid.prior/forests"
+  ),
+  formal = c(
+    "subset",
+    "storage",
+    "family",
+    "family",
+    NA_character_,
+    NA_character_,
+    NA_character_,
+    NA_character_,
+    NA_character_
+  ),
+  disposition = c(
+    "CLOSE",
+    "CLOSE",
+    "CLOSE",
+    "CLOSE",
+    "LEAVE",
+    "LEAVE",
+    "LEAVE",
+    "LEAVE",
+    "LEAVE"
+  ),
+  stringsAsFactors = FALSE
+)
+
+# totality (1): every row has a disposition
+expect_true(all(
+  !is.na(conceptMap$disposition) & nzchar(conceptMap$disposition)
+))
+expect_true(all(conceptMap$disposition %in% c("CLOSE", "LEAVE")))
+
+# totality (2): every CLOSE row's formal exists on bart(), spelled identically
+closeFormals <- unique(conceptMap$formal[conceptMap$disposition == "CLOSE"])
+expect_true(all(closeFormals %in% names(formals(dbarts::bart))))
+
+# the CLOSE family tokens are the ones bart()'s own family formal offers
+expect_true(all(
+  c("logistic", "aft") %in% eval(formals(dbarts::bart)$family)
+))
+# the LEAVE own-class tokens are refused by name, not offered as choices
+expect_false(any(
+  c("multinomial", "ordinal", "nbinom", "hurdle.lognormal") %in%
+    eval(formals(dbarts::bart)$family)
+))

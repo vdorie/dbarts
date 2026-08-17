@@ -1410,6 +1410,22 @@
             defaults to \code{NULL} rather than \code{1 / num.vars}; both
             spellings already resolved to the same uniform prior, so this
             is a default respelling with no change to any fit's draws.
+      \item \code{bart} gains \code{subset}, \code{storage}, and
+            \code{family} formals, appended at the end of its signature and
+            forwarded to \code{\link{dbarts}}; \code{subset} and
+            \code{storage} replace what \code{bart} already hardcoded
+            (\code{NULL} and \code{"double"} respectively), so no fit's
+            draws change by default. \code{family} is \code{c("auto",
+            "logistic", "aft")}, first-token default \code{"auto"} exactly
+            as before this formal existed; \code{bart} newly reaches
+            \code{family = "logistic"} and \code{family = "aft"} directly,
+            both packaging as an ordinary \code{"bart"} object. The four
+            own-class families - \code{"multinomial"}, \code{"ordinal"},
+            \code{"nbinom"}, and \code{"hurdle.lognormal"} - are refused by
+            \code{bart} BY NAME, naming the token and pointing to
+            \code{bart2}, rather than falling through to
+            \code{\link{match.arg}}'s generic \dQuote{should be one of}
+            message. No existing \code{bart} abbreviation is affected.
     }
   }
 }
