@@ -557,6 +557,36 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### E - withFixedSeed adoption (1fd22c6f, 2026-08-17)
+
+The six open-coded .Random.seed save/restore sites route through
+the on.exit-based withFixedSeed (xbart's chunk seeds - the one
+already-correct copy - plus bart2's hurdle component seeds and four
+rbart sites: the per-thread seed draw, the single-threaded chain
+loop via a local fitChains closure whose returned list reassigns
+the caller's, rbart_vi_fit_bartcore's whole
+sampler-creation-through-run region as a block passed by promise
+through a local seed-conditional delegate so its bindings land in
+the function frame, and packageRbartResults' recorded seed). Two
+deliberate behavior changes, both the leak the census named: an
+error inside the fixed-seed window now restores the caller's
+.Random.seed instead of leaving the fixed state, and a call that
+CREATED .Random.seed removes it on exit (the helper's documented
+leave-no-trace contract; the old open-coded sites skipped restore
+when no seed pre-existed). Success path draw-identical. One NEWS
+item. Discriminating test at the single-threaded chain loop: a
+custom prior function that stops routes rbart_vi through the R
+callback fit path so the error surfaces inside the window;
+.Random.seed asserted equal to its pre-call state. Battery twice
+(implementer, then independent gate-runner on the
+patch-id-verified rebase onto the CI-guard tip): tinytest 5827/0;
+trio bitwise 37/37 12/12 10/10 (the rbart_vi scenarios are the
+leak detector); air clean; lintr clean; NEWS parses at 269; R CMD
+check OK from a clean-staged tarball; discrimination both ways -
+base fails the restore assertion (1/6) and leaves a created
+.Random.seed behind, slice passes 6/6 and removes it. Prior-slice
+CI: ci-hang-guards six-green, pkgdown inside its normal window.
+
 ### CI hang guards - job timeouts everywhere (6000efb7, 2026-08-17)
 
 VD-directed after two same-day hangs. Diagnosis from the cancelled
