@@ -3797,8 +3797,9 @@ static void testGeneralAmplitudeRidge() {
   // The likelihood is constant on the orbit, so the move preserves the
   // posterior IFF it preserves the prior's along-orbit conditional: draw
   // (b0, b1, leaves) from the prior, apply ONE move, and the pushed sample must
-  // still be a prior draw. This is docs/plans/bcf-b-ridge.md's prototype (5a)
-  // in the engine, on second moments rather than KS - at L = 3 and q = 2 the
+  // still be a prior draw. This is the pure-R prototype from
+  // docs/design/multiplier-combiner.md, "The exponent rule", run in the
+  // engine instead, on second moments rather than KS - at L = 3 and q = 2 the
   // exponent is (L - q)/2 = 0.5, and the off-by-one (L - q + 1)/2 the naive
   // move-map Jacobian gives inflates the leaves by more than 10%.
   const size_t replicates = 20000;

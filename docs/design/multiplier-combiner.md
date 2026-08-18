@@ -175,10 +175,10 @@ Forest f's `L + q` scale coordinates travel the likelihood-invariant orbit
 `(a_f, leaves) -> (a_f/c, c leaves)` with `c = sqrt(v)` and
 `v ~ GIG((L - q)/2, M/leafVar, ||a_f||^2/priorVar)`, L and M the count and
 squared sum of that forest's OCCUPIED leaves (combiner.hpp:1231-1248,
-:1258-1291). The exponent is docs/plans/bcf-b-ridge.md:192-194's general rule
-`p = (k - d)/2` for rescaling k leaf parameters against d glue scalars; the
-naive move-map Jacobian's `(L - q + 1)/2` is off by one and that memo's
-prototype rejects it at KS 1.6e-21 (:166-171, :329-357).
+:1258-1291). The exponent follows the general rule `p = (k - d)/2` for
+rescaling k leaf parameters against d glue scalars; the naive move-map
+Jacobian's `(L - q + 1)/2` is off by one and the b-move's prototype (q = 2)
+rejects it at KS 1.6e-21 - derived and evidenced below, "The exponent rule".
 
 **One mechanism, not two.** Instantiated at q = 1 it IS bcf's shipped a-move
 bitwise; at q = 2 with a fixed prior variance it IS the b-move
@@ -196,11 +196,103 @@ The rescale-consistency set the move must carry, or a stored
 `totalTestFits`/`currTestFits` under `record`, and the keepTrees flattened slot
 (combiner.hpp:1296-1317).
 
+## The exponent rule
+
+The rule is worked here at bcf's treatment forest (q = 2, `b0`, `b1` the two
+glue scalars, `Lt`/`Mt` that forest's occupied-leaf count/squared sum,
+`leafVar_tau` the leaf prior variance, `bPriorVariance` the fixed b prior
+variance) - moved from docs/plans/bcf-b-ridge.md secs 2.2-2.3 and 5a; its
+Gibbs-block invariance argument (why rescaling `(b0, b1, tau)` on this orbit
+is a legitimate sub-block update at all) stays there, sec 2.1, as BCF-specific
+bookkeeping rather than exponent evidence. That argument ends at `b0`'s full
+conditional given the orbit's invariants `(r = b1/b0, psi_l = b0 tau_l)`:
+
+    q(b0) prop exp(-(b0^2+b1^2)/(2 sB2)) * exp(-S_psi/(2 leafVar_tau b0^2)) * |b0|^{1-Lt}.  (*)
+
+**In terms of c (operational form).** Set `b0 = b0_0/c`, `c > 0`, `b0_0` =
+current b0. Then `S_psi = b0_0^2 Mt`, `(1+r^2) b0_0^2 = b0_0^2 + b1_0^2`,
+`db0 = -(b0_0/c^2) dc`. Substituting into (*) and folding constant `|b0_0|`
+powers into the normalizer:
+
+    exp(-(1+r^2)b0^2/(2 sB2))    -> exp(-(b0_0^2+b1_0^2)/(2 sB2 c^2))
+    exp(-S_psi/(2 leafVar_tau b0^2)) -> exp(-Mt c^2/(2 leafVar_tau))
+    |b0|^{1-Lt}                  -> |b0_0|^{1-Lt} c^{Lt-1}
+    |db0/dc|                     -> |b0_0| c^{-2}
+
+    q_c(c) prop c^{Lt-3} * exp( - Mt c^2/(2 leafVar_tau)
+                                - (b0_0^2+b1_0^2)/(2 sB2 c^2) ).   (**)
+
+The `c^{Lt-3}` (vs the a-move's `c^{L-2}`) is the operational fingerprint of
+the second glue scalar: ONE fewer power of c. [The naive "move-map Jacobian"
+shortcut -- `q(c) prop pi(T_c(x)) |det T_c'|` with `|det T_c'| = c^{Lt-2}` --
+gives the WRONG `c^{Lt-2}`; it is off by one, exactly as it would be off by
+one for the a-move (`c^{L-1}` vs the correct `c^{L-2}`). The prototype below
+adjudicates decisively in favour of `c^{Lt-3}`.]
+
+**Result: c^2 is Generalized Inverse Gaussian.** Substitute `v = c^2`
+(`c^{Lt-3} dc = (1/2) v^{(Lt-4)/2} dv`):
+
+    q_v(v) prop v^{(Lt-4)/2} exp(-alpha v - beta/v),
+      alpha = Mt/(2 leafVar_tau),   beta = (b0_0^2+b1_0^2)/(2 sB2).
+
+Matching the GIG density `prop v^{p-1} exp(-(A v + B/v)/2)`:
+
+    -------------------------------------------------------------------------
+    v = c^2 ~ GIG( p = (Lt-2)/2,  A = Mt/leafVar_tau,  B = (b0^2+b1^2)/bPriorVariance )
+    -------------------------------------------------------------------------
+      p = (Lt - 2) / 2
+      A = Mt / leafVar_tau = Mt * (k/leaf.scale_tau)^2   (= Mt * P_tau)
+      B = (b0^2 + b1^2) / bPriorVariance
+    then  c = sqrt(v),  b0 <- b0/c,  b1 <- b1/c,  tau_l <- c * tau_l.
+
+Contrast the a-move `GIG((L-1)/2, M/leafVar, a^2/aVariance)`. Two differences,
+both structural and both prototype-confirmed:
+  (i) p = (Lt-2)/2, NOT (Lt-1)/2 -- two glue scalars remove one more half-df
+      than the one-scalar a-move. General rule: rescaling k leaf params by c
+      against d glue scalars by 1/c gives p = (k-d)/2  (a: k=L,d=1; b: k=Lt,d=2).
+  (ii) B = (b0^2+b1^2)/bPriorVariance with a FIXED prior variance -- no
+      auxiliary, no conditioning, no lag. Both b coordinates enter B.
+
+GIG generator: `ext_rng_simulateGeneralizedInverseGaussian(rng, p, A, B)`
+ALREADY SHIPS (density `x^(p-1) exp(-(A x + B/x)/2)`; Dagpunar noshift
+ratio-of-uniforms; the a-move added it, external/random.{h,c}). The b-move
+reuses it verbatim -- no new RNG. `B=0 -> Gamma(p, rate A/2)`,
+`A=0 -> inverse-gamma`. A single GIG draw covers every regime below.
+
+**Pure-R prototype (adversarial check on the algebra) -- PASSED.**
+`/Users/vdorie/.claude/jobs/7fe13675/tmp/proto-b.R`. Same logic as the a-memo:
+the likelihood is constant along the orbit, so the move preserves the posterior
+IFF it preserves the PRIOR's along-orbit conditional. Draw `(b0,b1,tau)` from
+the prior (`b0,b1 ~ N(0,sB2)`, `tau_l ~ N(0,leafVar_tau)` iid), apply ONE move
+(draw c from its conditional, rescale), test the pushed sample still has the
+prior law (KS on marginals). Two independent parameterizations -- a vectorized
+log-grid inverse-CDF on GIG(p=(Lt-2)/2, A=Mt/vT, B=(b0^2+b1^2)/sB2) via v=c^2,
+and one on the operational form (**) in c directly. Results (N=20000):
+
+    Lt=3  (p=0.5): GIG KS  b0=.113 b1=.061 tau1=.710 tauLast=.523 Mt=.340
+                   oper KS b0=.051 b1=.208 tau1=.623   sign preserved TRUE
+    Lt=8  (p=3.0): GIG KS  b0=.804 b1=.914 tau1=.900 tauLast=.497 Mt=.428
+                   oper KS b0=.644 b1=.899 tau1=.995   sign preserved TRUE
+    Lt=20 (p=9.0): GIG KS  b0=.785 b1=.887 tau1=.814 tauLast=.967 Mt=.752
+                   oper KS b0=.773 b1=.978 tau1=.970   sign preserved TRUE
+
+    DISCRIMINATION (wrong exponent -> prior NOT preserved, KS -> 0):
+      p=(Lt-1)/2 [+0.5], Lt=3: tau1 KS = 1.6e-21 ; Lt=8: 2.7e-05
+      p=Lt/2     [+1.0], Lt=8: tau1 KS = 7e-15
+    combined-fit invariance: both arms 4.4e-16 ; all-treated 1.1e-16
+
+All KS p-values non-significant across THREE Lt and TWO parameterizations
+(cannot reject prior preservation); sign preserved; combined fit invariant to
+machine precision including the all-treated edge. The discrimination arm shows
+the check is SHARP: the off-by-one exponent p=(Lt-1)/2 (what the naive move-map
+Jacobian gives) is rejected at KS=1.6e-21. This CONFIRMS p=(Lt-2)/2. The GIG
+parameterization the implementer will code is the one validated. PASSES.
+
 ## ridgeB is code that is OFF
 
 The b-move ships, but `BCFSpec::ridgeB = false` (combiner.hpp:322). Enabling it
 costs a GIG draw per sweep, which re-records `bcf-equivalence`, and its own
-acceptance gate (docs/plans/bcf-b-ridge.md:495-506 - IACT payoff, bcf-exact
+acceptance gate (docs/plans/bcf-b-ridge.md:438-449 - IACT payoff, bcf-exact
 mode-2b, keepTrees round trip) was not run. It is a DOOR, not a fork: it flips
 only on a named measured mixing case, plus that gate, plus a re-record with the
 `equivalence.yaml` bump in the same commit.
