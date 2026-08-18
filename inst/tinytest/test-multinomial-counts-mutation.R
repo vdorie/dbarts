@@ -258,11 +258,11 @@ counts.negative <- countsA
 counts.negative[1L, 1L] <- -1L
 expect_error(
   dbarts:::bartcoreSetCounts(bc.mn, counts.negative),
-  "nonnegative"
+  "non-negative"
 )
 expect_error(
   .Call(dbarts:::C_dbarts_bartcore_setCounts, bc.mn$ptr, counts.negative),
-  "nonnegative"
+  "non-negative"
 )
 # NA needs no test of its own C-side: NA_INTEGER is INT_MIN, so the
 # nonnegativity check catches it. Pinned anyway.
@@ -271,7 +271,7 @@ counts.na[2L, 1L] <- NA_integer_
 expect_error(dbarts:::bartcoreSetCounts(bc.mn, counts.na), "missing values")
 expect_error(
   .Call(dbarts:::C_dbarts_bartcore_setCounts, bc.mn$ptr, counts.na),
-  "nonnegative"
+  "non-negative"
 )
 # an empty row: PG(0, .) is a point mass at zero and the working response
 # divides by omega, so a zero row sum is refused rather than fit

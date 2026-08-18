@@ -552,15 +552,14 @@ parseMonotoneSign <- function(value) {
       "dec" = -1L,
       "0" = 0L,
       stop(
-        "invalid monotone direction '",
-        value,
-        "'; use '+'/'-', 'increasing'/'decreasing', or +1/-1"
+        "'direction' must be one of '+'/'-', 'increasing'/'decreasing', ",
+        "or +1/-1"
       )
     )
   } else {
     direction <- as.integer(round(as.numeric(value)))
     if (is.na(direction) || direction < -1L || direction > 1L) {
-      stop("invalid monotone direction '", value, "'; use -1, 0, or +1")
+      stop("'direction' must be one of -1, 0, 1")
     }
     direction
   }

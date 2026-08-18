@@ -119,9 +119,9 @@ pointwiseLogLikelihood <- function(object, ev) {
     )
   } else {
     stop(
-      "log-likelihood not available for family \"",
+      "family '",
       if (is.null(family)) "NULL" else family,
-      "\""
+      "' does not support the log-likelihood"
     )
   }
   array(result, dim(ev))
@@ -299,7 +299,7 @@ extract.bart <- function(
 
   if (sample == "test" && is.null(object[["yhat.test"]])) {
     stop(
-      "cannot extract test sample predictions if no test data exists; use `predict` instead"
+      "cannot extract test sample predictions if no test data exists; use 'predict' instead"
     )
   }
   if (sample == "train" && is.null(object[["yhat.train"]])) {
@@ -394,7 +394,7 @@ extractForest <- function(object, sample, combineChains, forest, contribution) {
   }
   if (sample == "test") {
     stop(
-      "sample = \"test\" is not available for type = \"forest\": an ",
+      "type = \"forest\" does not support sample = \"test\": an ",
       "amplitude-coupled fit does not support test predictors"
     )
   }
@@ -500,9 +500,9 @@ extract.bartMultinomial <- function(
   sample <- match.arg(sample)
   if (type == "bart") {
     stop(
-      "type = \"bart\" is not available for multinomial fits: the run ",
-      "records only the identified softmax probabilities; the raw ",
-      "per-category latent fits are non-identified and unrecorded"
+      "multinomial fits do not support type = \"bart\": the run records ",
+      "only the identified softmax probabilities; the raw per-category ",
+      "latent fits are non-identified and unrecorded"
     )
   }
 
@@ -1294,7 +1294,7 @@ predict.rbart <- function(
       warning(
         "test includes random effect levels not present in training (",
         paste0(ranefNames.test[!measuredLevels], collapse = ", "),
-        "); ranef estimates default to draws from their latent distribution parameterized by the posterior of its variance; draws may not be the same across future calls to 'predict'"
+        "); ranef estimates default to draws from their latent distribution parameterized by the posterior of its variance, and may not be the same across future calls to 'predict'"
       )
       n.unmeasured <- sum(!measuredLevels)
       if (n.chains > 1L) {
@@ -1487,7 +1487,7 @@ extract.rbart <- function(
 
   if (sample == "test" && is.null(object[["yhat.test"]])) {
     stop(
-      "cannot extract test sample predictions if no test data exists; use `predict` instead"
+      "cannot extract test sample predictions if no test data exists; use 'predict' instead"
     )
   }
 
@@ -1700,7 +1700,7 @@ plotTree.rbart <- function(
       chainNum < 1L ||
       chainNum > n.chains
   ) {
-    stop("chainNum must be a single chain index in [1, ", n.chains, "]")
+    stop("'chainNum' must be a single chain index in [1, ", n.chains, "]")
   }
   # the in-core Gibbs path keeps one multi-chain sampler (select the chain
   # through its own chainNum); the R-loop path keeps one sampler per chain

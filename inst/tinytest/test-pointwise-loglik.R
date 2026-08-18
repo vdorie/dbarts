@@ -323,7 +323,7 @@ fakeFit <- list(
 class(fakeFit) <- "bart"
 expect_error(
   dbarts:::pointwiseLogLikelihood(fakeFit, array(0, c(2L, 3L))),
-  pattern = "log-likelihood not available for family"
+  pattern = "does not support the log-likelihood"
 )
 
 # 10. resid.dist: a student() fit records its own token AND the per-draw

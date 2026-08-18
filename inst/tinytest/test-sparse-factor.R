@@ -108,7 +108,7 @@ df.formula <- df
 df.formula$y <- y
 expect_error(
   dbartsData(y ~ x1 + sf, df.formula),
-  pattern = "sparse categorical predictors must be supplied through the x/y interface"
+  pattern = "sparse categorical predictors must be specified through the x/y interface"
 )
 
 # indicator expansion cannot dummy-code a sparse factor without densifying it

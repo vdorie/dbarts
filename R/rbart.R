@@ -308,7 +308,7 @@ rbart_vi <- function(
 
   if (length(group.by) != length(data@y)) {
     stop(
-      "'group.by' not of length equal to that of data; check for NAs in original data, and for name collisions with `data` argument and calling environment"
+      "'group.by' not of length equal to that of data; check for NAs in original data, and for name collisions with 'data' argument and calling environment"
     )
   }
   group.by <- droplevels(as.factor(group.by))

@@ -810,9 +810,8 @@ bart2 <- function(
     if (!missing(offset)) {
       if (!is.matrix(offset)) {
         stop(
-          "family = \"multinomial\" does not support a flat 'offset': a ",
-          "common per-observation shift is the softmax's own null direction ",
-          "and is identically inert; pass an n x K numeric matrix instead"
+          "family = \"multinomial\" does not support a flat 'offset'; pass ",
+          "an n x K numeric matrix instead"
         )
       }
       if (!is.numeric(offset)) {
@@ -942,7 +941,7 @@ bart2 <- function(
         )
       }
       if (any(y < 0)) {
-        stop("family = \"multinomial\" count response must be nonnegative")
+        stop("family = \"multinomial\" count response must be non-negative")
       }
       if (any(y != round(y))) {
         stop("family = \"multinomial\" count response must be whole numbers")
@@ -1262,7 +1261,7 @@ extractMultinomialFormulaData <- function(
     for (variableName in intersect(all.vars(formula), names(data))) {
       if (methods::is(data[[variableName]], "sparseFactor")) {
         stop(
-          "sparse categorical predictors must be supplied through the x/y ",
+          "sparse categorical predictors must be specified through the x/y ",
           "interface; '",
           variableName,
           "' is a sparseFactor"
@@ -2491,7 +2490,7 @@ survivalProbabilities.rbart <- function(
     extract(object, type = "ev", sample = "train", combineChains = FALSE)
   } else {
     if (missing(group.by)) {
-      stop("'group.by' must be supplied when 'newdata' is given")
+      stop("'group.by' must be specified when 'newdata' is given")
     }
     # predict.rbart maps intercepts through the factor levels (an unseen
     # level draws from N(0, tau)); coerce as rbart_vi does its group.by

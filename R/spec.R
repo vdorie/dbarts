@@ -52,9 +52,9 @@ enforceWeightPolicy <- function(data, family) {
     } else {
       stop(
         "probit models do not support weights: a weighted probit has no ",
-        "tractable latent-variable form. Integer count weights can be ",
-        "fit exactly with family = \"logistic\"; for continuous weights, ",
-        "model the latents directly."
+        "tractable latent-variable form; fit integer count weights with ",
+        "family = \"logistic\", or model continuous weights' latents ",
+        "directly"
       )
     }
   } else if (family == "logistic") {
@@ -63,7 +63,7 @@ enforceWeightPolicy <- function(data, family) {
       stop(
         "logistic weights are observation counts and must be positive ",
         "integers; drop zero-count rows, and use a gaussian model for ",
-        "continuous weights."
+        "continuous weights"
       )
     }
   } else if (family == "ordinal") {
@@ -72,7 +72,7 @@ enforceWeightPolicy <- function(data, family) {
     } else {
       stop(
         "ordinal models do not support weights: a weighted truncated-normal ",
-        "latent likelihood is not a coherent model."
+        "latent likelihood is not a coherent model"
       )
     }
   } else if (family == "nbinom") {
@@ -81,7 +81,7 @@ enforceWeightPolicy <- function(data, family) {
     } else {
       stop(
         "nbinom (count) models do not support weights: exposure belongs in ",
-        "the offset as a log-exposure term."
+        "the offset as a log-exposure term"
       )
     }
   }
@@ -366,7 +366,7 @@ resolveSamplerSpec <- function(
   # attribute (the bartcore.groups precedent); the C bridge validates it
   if (!is.null(survivalStatus)) {
     if (length(survivalStatus) != length(data@y)) {
-      stop("survival status length does not match the response")
+      stop("survival status must have length ", length(data@y))
     }
     attr(control, "bartcore.survival") <- survivalStatus
   }

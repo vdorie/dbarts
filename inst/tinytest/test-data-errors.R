@@ -46,7 +46,7 @@ expect_error(
     testData_df,
     weights = rep("not-a-number", nrow(testData_df))
   ),
-  "'weights' must be of type numeric"
+  "'weights' must be a numeric vector"
 )
 expect_error(
   dbarts::dbartsData(modelFormula, testData_df, weights = offset),

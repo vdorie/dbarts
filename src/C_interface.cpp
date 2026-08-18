@@ -103,7 +103,8 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
                                  const dbarts_predictor_source* source,
                                  const size_t* columns, size_t numColumns,
                                  size_t numRowsRequired, const char* caller) {
-  if (source == NULL) Rf_error("%s: the predictor source is NULL", caller);
+  if (source == NULL)
+    Rf_error("%s: the predictor source cannot be NULL", caller);
   // as dbarts_sampler_run's results do: a zero structSize means the caller
   // forgot to set it, and reading every member as absent would silently make a
   // null source of a populated one
@@ -590,7 +591,7 @@ int dbarts_sampler_updatePredictor(dbarts_sampler* sampler,
   size_t numObservations = shape.numObservations;
   for (size_t k = 0; k < numColumns; ++k)
     if (columns[k] >= shape.numPredictors)
-      Rf_error("dbarts_sampler_updatePredictor column out of range");
+      Rf_error("dbarts_sampler_updatePredictor: column out of range");
 
   void* scratch = vmaxget();
   // the source's columns are in ARGUMENT order, so column k of the source is
@@ -689,7 +690,7 @@ SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler,
                              const size_t* treeIndices, size_t numTreeIndices,
                              int useLiveTrees, size_t forest) {
   if (forest >= samplerOf(sampler).shape().numForests)
-    Rf_error("dbarts_sampler_getTrees forest index out of range");
+    Rf_error("dbarts_sampler_getTrees: forest index out of range");
   // the n column replays the retained creation spec's predictors through each
   // saved tree; the engine keeps no matrix, and a caller that mutated
   // predictors since creation sees the pre-mutation spec
@@ -714,20 +715,20 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
   // over safe), so this is the only thing between a caller's index and a read
   // past the last forest
   if (forest >= shape.numForests)
-    Rf_error("dbarts_sampler_printTrees forest index out of range");
+    Rf_error("dbarts_sampler_printTrees: forest index out of range");
   for (size_t i = 0; i < numChainIndices; ++i) {
     if (chainIndices[i] >= shape.numChains)
-      Rf_error("dbarts_sampler_printTrees chain number out of range");
+      Rf_error("dbarts_sampler_printTrees: chain number out of range");
   }
   for (size_t i = 0; i < numSampleIndices; ++i) {
     if (sampleIndices[i] >= shape.savedTreeCapacity)
-      Rf_error("dbarts_sampler_printTrees sample number out of range");
+      Rf_error("dbarts_sampler_printTrees: sample number out of range");
   }
   // against the NAMED forest's own count, which a multi-forest sampler states
   // per forest (shape.numTrees is forest 0's)
   for (size_t i = 0; i < numTreeIndices; ++i) {
     if (treeIndices[i] >= engine.numTreesInForest(forest))
-      Rf_error("dbarts_sampler_printTrees tree number out of range");
+      Rf_error("dbarts_sampler_printTrees: tree number out of range");
   }
   engine.printTrees(chainIndices, numChainIndices, sampleIndices,
                     numSampleIndices, treeIndices, numTreeIndices, forest);
@@ -780,7 +781,7 @@ size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler, size_t forest) {
   // a size_t probe carries no refusal channel, so an out-of-range forest
   // errors: a 0 tree count is indistinguishable from a legitimate answer
   if (forest >= engine.shape().numForests)
-    Rf_error("dbarts_sampler_numTrees forest index out of range");
+    Rf_error("dbarts_sampler_numTrees: forest index out of range");
   return engine.numTreesInForest(forest);
 }
 
@@ -810,7 +811,7 @@ int dbarts_sampler_setForestBasis(dbarts_sampler* sampler, size_t forest,
   if (engine.totalAmplitudes() == 0) return 0;
   if (forest >= shape.numForests) return 0;
   if (basis == NULL)
-    Rf_error("dbarts_sampler_setForestBasis: 'basis' is NULL");
+    Rf_error("dbarts_sampler_setForestBasis: 'basis' cannot be NULL");
   if (numColumns == 0)
     Rf_error("dbarts_sampler_setForestBasis: a basis needs at least one "
              "column");
@@ -838,7 +839,7 @@ size_t dbarts_sampler_numForestAmplitudes(const dbarts_sampler* sampler,
   const bartcore::SamplerBase& engine(samplerOf(sampler));
   // a size_t probe carries no refusal channel; see dbarts_sampler_numTrees
   if (forest >= engine.shape().numForests)
-    Rf_error("dbarts_sampler_numForestAmplitudes forest index out of range");
+    Rf_error("dbarts_sampler_numForestAmplitudes: forest index out of range");
   // the amplitude vector is ragged by construction: as wide as the forest's
   // own basis, which every forest carries independently
   return engine.numForestAmplitudes(forest);
@@ -959,7 +960,7 @@ static bartcore::ResponseFamily augmentationArguments(
   const char* family, const AugmentationInputs& in, bool drawing,
   const char* caller) {
   using RF = bartcore::ResponseFamily;
-  if (family == NULL) Rf_error("%s: 'family' is NULL", caller);
+  if (family == NULL) Rf_error("%s: 'family' cannot be NULL", caller);
   RF resolved = augmentationFamily(family);
   if (in.fit == NULL || in.y == NULL)
     Rf_error("%s: the %s and response vectors are required", caller,
@@ -1004,7 +1005,7 @@ void dbarts_drawLatents(const char* family, size_t numObservations,
                         .sigma = sigma, .dispersion = dispersion, .df = df};
   bartcore::ResponseFamily resolved =
     augmentationArguments(family, in, true, "dbarts_drawLatents");
-  if (out == NULL) Rf_error("dbarts_drawLatents: 'out' is NULL");
+  if (out == NULL) Rf_error("dbarts_drawLatents: 'out' cannot be NULL");
   // the same support rule every conduit that swaps a y states
   validateResponseSupport(resolved, in.numCutpoints + 1, in.y,
                           in.numObservations, "dbarts_drawLatents");
@@ -1020,7 +1021,7 @@ void dbarts_workingResponse(const char* family, size_t numObservations,
                         .dispersion = dispersion};
   bartcore::ResponseFamily resolved =
     augmentationArguments(family, in, false, "dbarts_workingResponse");
-  if (out == NULL) Rf_error("dbarts_workingResponse: 'out' is NULL");
+  if (out == NULL) Rf_error("dbarts_workingResponse: 'out' cannot be NULL");
   // the ordinal working response is the latent less the offset, so y never
   // enters it and there is no category count here to state its support against
   if (resolved != bartcore::ResponseFamily::ordinal)

@@ -192,11 +192,11 @@ validateXTest <- function(x.test, x.train) {
         collapse = ", "
       )
       warning(
-        "'test' is unnamed but 'x' had named predictors; columns of 'test' ",
-        "are matched to 'x' by position (",
+        "'test' is unnamed but 'x' had named predictors, matched to 'x' by ",
+        "position (",
         mapping,
         if (numPredictors > shown) ", ..." else "",
-        "). Supply 'test' with column names to match by name instead."
+        "); supply 'test' with column names to match by name instead"
       )
     } else if (
       (!xIsNamed && testIsNamed) ||
@@ -850,7 +850,7 @@ dbartsData <- function(
       for (variableName in intersect(all.vars(formula), names(data))) {
         if (methods::is(data[[variableName]], "sparseFactor")) {
           stop(
-            "sparse categorical predictors must be supplied through the ",
+            "sparse categorical predictors must be specified through the ",
             "x/y interface; '",
             variableName,
             "' is a sparseFactor"
@@ -898,7 +898,7 @@ dbartsData <- function(
     weights <- as.vector(model.weights(modelFrame))
     if (!is.null(weights)) {
       if (!is.numeric(weights)) {
-        stop("'weights' must be of type numeric")
+        stop("'weights' must be a numeric vector")
       }
       weights <- as.double(weights)
     }

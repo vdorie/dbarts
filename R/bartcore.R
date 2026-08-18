@@ -180,7 +180,7 @@ bartcoreSamplerSetPredictor <- function(
         stop("dimension of x must be equal to ", nrow(sampler$data@x))
       }
     } else if (length(x) != prod(dim(sampler$data@x))) {
-      stop("length of new x does not match old")
+      stop("'x' must have length ", prod(dim(sampler$data@x)))
     }
     # a sparse-valued argument onto a sparse-backed design rides to the bridge
     # as supplied: it materializes there, under the store's own implicit rule,
@@ -262,16 +262,13 @@ bartcoreSamplerSetPredictor <- function(
     # argument falls back to the total-length check
     if (!is.null(xDim)) {
       if (xDim[2L] != length(column)) {
-        stop(
-          "number of columns of new x does not match length of columns to ",
-          "replace"
-        )
+        stop("'x' must have ", length(column), " column(s)")
       }
       if (xDim[1L] != nrow(sampler$data@x)) {
-        stop("length of new x does not match y")
+        stop("'x' must have ", nrow(sampler$data@x), " row(s)")
       }
     } else if (length(x) != nrow(sampler$data@x) * length(column)) {
-      stop("length of new x does not match y")
+      stop("'x' must have length ", nrow(sampler$data@x) * length(column))
     }
     if (!(sparseSource && predictorSourceIsSparse(x))) {
       x <- as.double(x)
@@ -480,12 +477,13 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
     }
     xTestDim <- dim(x.test)
     if (!is.null(xTestDim) && xTestDim[2L] != length(column)) {
-      stop(
-        "number of columns of new x does not match length of columns to replace"
-      )
+      stop("'x.test' must have ", length(column), " column(s)")
     }
     if (length(x.test) != nrow(sampler$data@x.test) * length(column)) {
-      stop("length of new x does not match old x.test")
+      stop(
+        "'x.test' must have length ",
+        nrow(sampler$data@x.test) * length(column)
+      )
     }
     if (inherits(sampler$data@x.test, "dbartsMixedMatrix")) {
       # a container's per-column storage decision (dense vs CSC-backed) is
@@ -836,7 +834,7 @@ bartcoreMultinomialSampler <- function(
     stop("multinomial labels must be integer category codes 0..K-1")
   }
   if (any(labels < 0L)) {
-    stop("multinomial labels must be nonnegative category codes 0..K-1")
+    stop("multinomial labels must be non-negative category codes 0..K-1")
   }
   if (is.null(K)) {
     K <- max(labels) + 1L
@@ -879,13 +877,13 @@ bartcoreMultinomialCountSampler <- function(
 ) {
   counts <- as.matrix(counts)
   if (!is.numeric(counts)) {
-    stop("multinomial counts must be a numeric matrix of nonnegative integers")
+    stop("multinomial counts must be a numeric matrix of non-negative integers")
   }
   if (anyNA(counts)) {
     stop("multinomial counts must not contain missing values")
   }
   if (any(counts < 0)) {
-    stop("multinomial counts must be nonnegative")
+    stop("multinomial counts must be non-negative")
   }
   if (any(counts != round(counts))) {
     stop("multinomial counts must be whole numbers")
@@ -944,13 +942,13 @@ bartcoreMultinomialCountSampler <- function(
 bartcoreSetCounts <- function(bcSampler, counts) {
   counts <- as.matrix(counts)
   if (!is.numeric(counts)) {
-    stop("multinomial counts must be a numeric matrix of nonnegative integers")
+    stop("multinomial counts must be a numeric matrix of non-negative integers")
   }
   if (anyNA(counts)) {
     stop("multinomial counts must not contain missing values")
   }
   if (any(counts < 0)) {
-    stop("multinomial counts must be nonnegative")
+    stop("multinomial counts must be non-negative")
   }
   if (any(counts != round(counts))) {
     stop("multinomial counts must be whole numbers")

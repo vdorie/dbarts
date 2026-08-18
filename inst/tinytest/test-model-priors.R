@@ -160,7 +160,7 @@ expect_null(dbarts(y.dart ~ x.dart, control = control.bc)$run(0L, 5L)$varprobs)
 # the Dirichlet machinery is fixed at creation
 expect_error(
   sampler.dart$setModel(sampler.dart$model),
-  pattern = "cannot change a DART tree prior"
+  pattern = "changing a DART tree prior is not available"
 )
 
 # bart2 exposes DART through the dart flag and packages varprobs

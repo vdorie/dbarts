@@ -542,7 +542,7 @@ negCounts <- badCounts
 negCounts[1L, 1L] <- -1L
 expect_error(
   bart2(x2, negCounts, family = "multinomial"),
-  "nonnegative"
+  "non-negative"
 )
 fracCounts <- badCounts + 0.0
 fracCounts[1L, 1L] <- 1.5

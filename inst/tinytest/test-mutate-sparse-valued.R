@@ -273,7 +273,7 @@ expectTwinsAgree(x.a, y.a, na.column, as.double(na.column), column = 1L)
 # carries no column layout, so it can only fill one column's worth of rows
 expect_error(
   sampler.strict$setPredictor(a.vector, column = c(1L, 2L), forceUpdate = TRUE),
-  pattern = "does not match"
+  pattern = "'x' must have length"
 )
 expect_error(
   sampler.strict$setPredictor(a.one, column = integer(0), forceUpdate = TRUE),
