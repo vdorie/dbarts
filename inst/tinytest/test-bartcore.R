@@ -89,11 +89,14 @@ expect_true(all(is.finite(result.mut$train)))
 x.jitter <- x.mut[, 2L] + rnorm(n, 0, 1e-4)
 expect_true(dbarts:::bartcoreUpdatePredictor(bcSampler.mut, x.jitter, 2L))
 expect_false(dbarts:::bartcoreUpdatePredictor(bcSampler.mut, rep(0.5, n), 2L))
-expect_error(dbarts:::bartcoreUpdatePredictor(
-  bcSampler.mut,
-  rep(0.5, n),
-  p + 1L
-))
+expect_error(
+  dbarts:::bartcoreUpdatePredictor(
+    bcSampler.mut,
+    rep(0.5, n),
+    p + 1L
+  ),
+  "bartcore_updatePredictor: column out of range"
+)
 
 # per-observation update: extreme values install except where an observation
 # is the last occupant of a leaf
@@ -280,6 +283,12 @@ installed.engine <- sampler.engine$setPredictor(
 expect_equal(length(installed.engine), n)
 
 sampler.engine$setCutPoints(list(c(0.25, 0.5, 0.75)), 1L)
+# one cut point vector is required per named column - a length mismatch is
+# refused rather than recycled
+expect_error(
+  sampler.engine$setCutPoints(list(c(0.25, 0.5, 0.75)), 1:2),
+  "one cut point vector per column"
+)
 sampler.engine$setTestPredictor(matrix(runif(10L * p), 10L, p))
 sampler.engine$setTestPredictor(runif(10L), 2L)
 expect_true(all(is.finite(sampler.engine$run(0L, 2L)$test)))
@@ -421,6 +430,15 @@ expect_error(
 )
 expect_identical(sampler.setdata$data@y, y.saved)
 expect_true(all(is.finite(sampler.setdata$run(0L, 1L)$train)))
+
+# same column count, but a column's type changes (continuous to categorical)
+x2.typed <- as.data.frame(x2)
+x2.typed[[1L]] <- factor(sample(1:3, n2, replace = TRUE))
+expect_error(
+  sampler.setdata$setData(dbartsData(x2.typed, y2)),
+  pattern = "same predictor types"
+)
+expect_identical(sampler.setdata$data@y, y.saved)
 
 # whole-data replacement carries a test offset into the recorded test fits
 sampler.setdata$setData(dbartsData(x2, y2 + 0.5, test = x.test, offset = 0.5))

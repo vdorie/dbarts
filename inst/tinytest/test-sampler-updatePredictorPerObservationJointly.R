@@ -288,28 +288,50 @@ inst2 <- updatePredictorPerObservationJointly(
 expect_true(all(inst2))
 
 # argument checking
-expect_error(updatePredictorPerObservationJointly(list(A, B), xnew)) # column missing
-expect_error(updatePredictorPerObservationJointly(
-  list(A, B),
-  xnew,
-  c("theta", "w")
-)) # not a single column
-expect_error(updatePredictorPerObservationJointly(list(A, 1), xnew, "theta")) # non-sampler in samplers
-expect_error(updatePredictorPerObservationJointly(list(), xnew, "theta")) # empty sampler list
+expect_error(
+  updatePredictorPerObservationJointly(list(A, B), xnew),
+  "joint updates require a single 'column' to be specified"
+) # column missing
+expect_error(
+  updatePredictorPerObservationJointly(
+    list(A, B),
+    xnew,
+    c("theta", "w")
+  ),
+  "joint updates can only be applied to a single column"
+) # not a single column
+expect_error(
+  updatePredictorPerObservationJointly(list(A, 1), xnew, "theta"),
+  "'samplers' must be a dbartsSampler or list of dbartsSampler objects"
+) # non-sampler in samplers
+expect_error(
+  updatePredictorPerObservationJointly(list(), xnew, "theta"),
+  "'samplers' must be a dbartsSampler or non-empty list of dbartsSampler objects"
+) # empty sampler list
 C <- dbarts::dbarts(
   y ~ q,
   data.frame(q = rnorm(n), y = rnorm(n)),
   control = ctrl
 )
 invisible(C$run(5L, 1L))
-expect_error(updatePredictorPerObservationJointly(list(A, C), xnew, "theta")) # column absent in a sampler
+expect_error(
+  updatePredictorPerObservationJointly(list(A, C), xnew, "theta"),
+  "column name 'theta' not found in names of X for sampler 2"
+) # column absent in a sampler
 D <- dbarts::dbarts(
   y ~ theta,
   data.frame(theta = rnorm(n + 5L), y = rnorm(n + 5L)),
   control = ctrl
 )
 invisible(D$run(5L, 1L))
-expect_error(updatePredictorPerObservationJointly(list(A, D), xnew, "theta")) # observation count mismatch
+expect_error(
+  updatePredictorPerObservationJointly(list(A, D), xnew, "theta"),
+  "bartcore_updatePredictorPerObservationJointly: requires index-aligned samplers"
+) # observation count mismatch
+expect_error(
+  updatePredictorPerObservationJointly(list(A, B), xnew[1:5], "theta"),
+  "requires one value per observation"
+) # replacement value shorter than the samplers' shared observation count
 
 rm(A, B, C, D, x, w, v, n, ctrl, xnew, inst, inst2)
 

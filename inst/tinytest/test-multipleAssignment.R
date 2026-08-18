@@ -13,14 +13,17 @@ rm(a, b)
 
 massign[a, ] <- rh
 expect_equal(a, 2)
-expect_error(b)
+expect_error(b, "object 'b' not found")
 rm(a)
 massign[, b] <- rh
 expect_equal(b, 5)
-expect_error(a)
+expect_error(a, "object 'a' not found")
 rm(b)
 
-expect_warning(massign[a = b, ] <- rh)
+expect_warning(
+  massign[a = b, ] <- rh,
+  "right-hand-side of assignment is unnamed; using position only"
+)
 rm(a)
 
 rm(rh)
@@ -30,23 +33,32 @@ rh <- c(a = 2, b = 5)
 massign[a, c = b] <- rh
 expect_equal(a, 2)
 expect_equal(c, 5)
-expect_error(b)
+expect_error(b, "object 'b' not found")
 rm(a, c)
 
 massign[c = a, ] <- rh
 expect_equal(c, 2)
 
-expect_error(massign[c = d, ] <- rh)
+expect_error(
+  massign[c = d, ] <- rh,
+  "'d' not present in right-hand-side of assignment"
+)
 
 massign[c = a, d = a] <- rh
 expect_equal(c, 2)
 expect_equal(d, 2)
 
-expect_warning(massign[c = a, c = b] <- rh)
+expect_warning(
+  massign[c = a, c = b] <- rh,
+  "names on left-hand-side of assignment appear more than once: c"
+)
 rm(c)
 
 rh <- c(a = 2, a = 5)
-expect_warning(massign[b = a, c] <- rh)
+expect_warning(
+  massign[b = a, c] <- rh,
+  "'a' present multiple times in right-hand-side of assignment"
+)
 expect_equal(b, 2)
 expect_equal(c, 5)
 rm(b, c)
@@ -68,7 +80,7 @@ rm(a, b)
 rh <- c(a = 2, c = 5)
 unpack[a, b] <- rh
 expect_equal(a, 2)
-expect_error(b)
+expect_error(b, "object 'b' not found")
 rm(a)
 
 rm(rh)
