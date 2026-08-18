@@ -447,23 +447,11 @@ xbart <- function(
   # a supplied seed drives every chunk deterministically and leaves the
   # caller's stream untouched; results are reproducible for a fixed
   # (seed, n.threads) pair, since the chunking changes with the latter
-  if (!is.na(seed)) {
-    oldSeed <- if (exists(".Random.seed", globalenv())) {
-      get(".Random.seed", globalenv())
-    } else {
-      NULL
-    }
-    on.exit(
-      if (!is.null(oldSeed)) {
-        assign(".Random.seed", oldSeed, envir = globalenv())
-      } else if (exists(".Random.seed", globalenv())) {
-        rm(".Random.seed", envir = globalenv())
-      },
-      add = TRUE
-    )
-    set.seed(seed)
+  chunkSeeds <- if (!is.na(seed)) {
+    withFixedSeed(seed, sample.int(.Machine$integer.max, numChunks))
+  } else {
+    sample.int(.Machine$integer.max, numChunks)
   }
-  chunkSeeds <- sample.int(.Machine$integer.max, numChunks)
 
   if (verbose) {
     cat(
