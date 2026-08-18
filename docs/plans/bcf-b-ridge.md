@@ -149,57 +149,23 @@ nor b1 nor any tau leaf ever flips sign -- a valid Gibbs step conditioning on
 the ancillary sign coordinate the move holds fixed. `(b1-b0)` stays
 sign-ill-posed by design (A4b), as for the a-move. [checks 5a]
 
-### 2.2 In terms of c (operational form)
+### 2.2 In terms of c (operational form) -- MOVED
 
-Set `b0 = b0_0/c`, `c > 0`, `b0_0` = current b0. Then `S_psi = b0_0^2 Mt`,
-`(1+r^2) b0_0^2 = b0_0^2 + b1_0^2`, `db0 = -(b0_0/c^2) dc`. Substituting into
-(*) and folding constant `|b0_0|` powers into the normalizer:
+Moved to docs/design/multiplier-combiner.md, "The exponent rule": the
+substitution `b0 = b0_0/c` into 2.1's `(*)`, the resulting `q_c(c) prop
+c^{Lt-3} * exp(...)`, and the naive move-map Jacobian's off-by-one `c^{Lt-2}`
+contrast. It backs the general `p = (k-d)/2` rule "The ASIS ridge" states, so
+it belongs there, not here.
 
-    exp(-(1+r^2)b0^2/(2 sB2))    -> exp(-(b0_0^2+b1_0^2)/(2 sB2 c^2))
-    exp(-S_psi/(2 leafVar_tau b0^2)) -> exp(-Mt c^2/(2 leafVar_tau))
-    |b0|^{1-Lt}                  -> |b0_0|^{1-Lt} c^{Lt-1}
-    |db0/dc|                     -> |b0_0| c^{-2}
+### 2.3 Result: c^2 is Generalized Inverse Gaussian -- MOVED
 
-    q_c(c) prop c^{Lt-3} * exp( - Mt c^2/(2 leafVar_tau)
-                                - (b0_0^2+b1_0^2)/(2 sB2 c^2) ).   (**)
-
-The `c^{Lt-3}` (vs the a-move's `c^{L-2}`) is the operational fingerprint of
-the second glue scalar: ONE fewer power of c. [The naive "move-map Jacobian"
-shortcut -- `q(c) prop pi(T_c(x)) |det T_c'|` with `|det T_c'| = c^{Lt-2}` --
-gives the WRONG `c^{Lt-2}`; it is off by one, exactly as it would be off by
-one for the a-move (`c^{L-1}` vs the correct `c^{L-2}`). The prototype (5a)
-adjudicates decisively in favour of `c^{Lt-3}`.]
-
-### 2.3 Result: c^2 is Generalized Inverse Gaussian
-
-Substitute `v = c^2` (`c^{Lt-3} dc = (1/2) v^{(Lt-4)/2} dv`):
-
-    q_v(v) prop v^{(Lt-4)/2} exp(-alpha v - beta/v),
-      alpha = Mt/(2 leafVar_tau),   beta = (b0_0^2+b1_0^2)/(2 sB2).
-
-Matching the GIG density `prop v^{p-1} exp(-(A v + B/v)/2)`:
-
-    -------------------------------------------------------------------------
-    v = c^2 ~ GIG( p = (Lt-2)/2,  A = Mt/leafVar_tau,  B = (b0^2+b1^2)/bPriorVariance )
-    -------------------------------------------------------------------------
-      p = (Lt - 2) / 2
-      A = Mt / leafVar_tau = Mt * (k/leaf.scale_tau)^2   (= Mt * P_tau)
-      B = (b0^2 + b1^2) / bPriorVariance
-    then  c = sqrt(v),  b0 <- b0/c,  b1 <- b1/c,  tau_l <- c * tau_l.
-
-Contrast the a-move `GIG((L-1)/2, M/leafVar, a^2/aVariance)`. Two differences,
-both structural and both prototype-confirmed:
-  (i) p = (Lt-2)/2, NOT (Lt-1)/2 -- two glue scalars remove one more half-df
-      than the one-scalar a-move. General rule: rescaling k leaf params by c
-      against d glue scalars by 1/c gives p = (k-d)/2  (a: k=L,d=1; b: k=Lt,d=2).
-  (ii) B = (b0^2+b1^2)/bPriorVariance with a FIXED prior variance -- no
-      auxiliary, no conditioning, no lag (1.2). Both b coordinates enter B.
-
-GIG generator: `ext_rng_simulateGeneralizedInverseGaussian(rng, p, A, B)`
-ALREADY SHIPS (density `x^(p-1) exp(-(A x + B/x)/2)`; Dagpunar noshift
-ratio-of-uniforms; the a-move added it, external/random.{h,c}). The b-move
-reuses it verbatim -- no new RNG. `B=0 -> Gamma(p, rate A/2)`,
-`A=0 -> inverse-gamma`. A single GIG draw covers every regime below.
+Moved to docs/design/multiplier-combiner.md, "The exponent rule": the `v =
+c^2` substitution, the GIG match giving `p = (Lt-2)/2`, and the general rule
+`p = (k-d)/2` for k leaf params against d glue scalars. Section 4 below still
+uses the result directly: `gigP` = `(Lt-2)/2`, `gigB` =
+`(b0^2+b1^2)/bPriorVariance`. `ext_rng_simulateGeneralizedInverseGaussian`
+already ships (the a-move added it, external/random.{h,c}); the b-move reuses
+it verbatim.
 
 ### 2.4 No aVariance analogue -- nothing to condition on or refresh
 
@@ -326,35 +292,12 @@ scalar(s), and (p,A,B).
 
 ## 5. Verification plan
 
-### 5a. Pure-R prototype (RUN -- adversarial check on the algebra) -- PASSED
+### 5a. Pure-R prototype (RUN -- adversarial check on the algebra) -- PASSED, MOVED
 
-`/Users/vdorie/.claude/jobs/7fe13675/tmp/proto-b.R`. Same logic as the a-memo:
-the likelihood is constant along the orbit, so the move preserves the posterior
-IFF it preserves the PRIOR's along-orbit conditional. Draw `(b0,b1,tau)` from
-the prior (`b0,b1 ~ N(0,sB2)`, `tau_l ~ N(0,leafVar_tau)` iid), apply ONE move
-(draw c from its conditional, rescale), test the pushed sample still has the
-prior law (KS on marginals). Two independent parameterizations -- a vectorized
-log-grid inverse-CDF on GIG(p=(Lt-2)/2, A=Mt/vT, B=(b0^2+b1^2)/sB2) via v=c^2,
-and one on the operational form (**) in c directly. Results (N=20000):
-
-    Lt=3  (p=0.5): GIG KS  b0=.113 b1=.061 tau1=.710 tauLast=.523 Mt=.340
-                   oper KS b0=.051 b1=.208 tau1=.623   sign preserved TRUE
-    Lt=8  (p=3.0): GIG KS  b0=.804 b1=.914 tau1=.900 tauLast=.497 Mt=.428
-                   oper KS b0=.644 b1=.899 tau1=.995   sign preserved TRUE
-    Lt=20 (p=9.0): GIG KS  b0=.785 b1=.887 tau1=.814 tauLast=.967 Mt=.752
-                   oper KS b0=.773 b1=.978 tau1=.970   sign preserved TRUE
-
-    DISCRIMINATION (wrong exponent -> prior NOT preserved, KS -> 0):
-      p=(Lt-1)/2 [+0.5], Lt=3: tau1 KS = 1.6e-21 ; Lt=8: 2.7e-05
-      p=Lt/2     [+1.0], Lt=8: tau1 KS = 7e-15
-    combined-fit invariance: both arms 4.4e-16 ; all-treated 1.1e-16
-
-All KS p-values non-significant across THREE Lt and TWO parameterizations
-(cannot reject prior preservation); sign preserved; combined fit invariant to
-machine precision including the all-treated edge. The discrimination arm shows
-the check is SHARP: the off-by-one exponent p=(Lt-1)/2 (what the naive move-map
-Jacobian gives) is rejected at KS=1.6e-21. This CONFIRMS p=(Lt-2)/2. The GIG
-parameterization the implementer will code is the one validated. PASSES.
+Moved to docs/design/multiplier-combiner.md, "The exponent rule": the
+`proto-b.R` run (N=20000, two parameterizations, three `Lt`), its DISCRIMINATION
+block, and the KS 1.6e-21 rejection of the off-by-one exponent that CONFIRMS
+`p=(Lt-2)/2`. PASSES stands; 5b-5d below read it as established.
 
 ### 5b. Existing gates (expected, by the same argument as the a-move)
 

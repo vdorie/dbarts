@@ -1259,11 +1259,12 @@ private:
   /// glue scalars gives p = (k - d)/2, so
   /// q = 1 is the shipped (L - 1)/2 and q = 2 the b-move's (L - 2)/2; the naive
   /// move-map Jacobian's (L - q + 1)/2 is off by one and its prototype rejects
-  /// it at KS 1.6e-21. B reads the LIVE prior variance,
-  /// which for a scale mixture is the auxiliary this move conditions on
-  /// (refreshing it here would re-randomize the coordinate just conditioned on
-  /// and measurably throttle the mixing gain - IACT 69 -> 196 on |a|, recorded
-  /// at docs/design/multiplier-combiner.md, "The ASIS ridge"); the one-sweep
+  /// it at KS 1.6e-21 (derivation and prototype at
+  /// docs/design/multiplier-combiner.md, "The exponent rule"). B reads the
+  /// LIVE prior variance, which for a scale mixture is the auxiliary this
+  /// move conditions on (refreshing it here would re-randomize the coordinate
+  /// just conditioned on and measurably throttle the mixing gain - IACT 69 ->
+  /// 196 on |a|, recorded at the same doc's "The ASIS ridge"); the one-sweep
   /// lag is benign, the next drawGlue refreshing it | a_new.
   ///
   /// A no-op consuming no rng below two occupied leaves or at a zero leaf sum,

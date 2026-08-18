@@ -1605,19 +1605,20 @@ in FA1 and FA5 below ARE the record.
   `docs/plans/bcf-b-ridge.md` derives - not a second mechanism M4.2 adds, but a
   design consequence of the generalization. The memo's own general rule makes
   the identity exact: "rescaling k leaf params by c against d glue scalars by
-  1/c gives p = (k-d)/2 (a: k=L, d=1; b: k=Lt, d=2)" (`:192-194`), which IS
-  M4.2's q-variate exponent, with `B = ||a_f||^2 / priorVar_f` for a
-  fixed-variance amplitude prior and `a^2/aVariance` for the scale mixture
-  (`:183-196`). Instantiated at BCF's forest 1 (q = 2, `bPriorVariance` fixed
-  at `combiner.hpp:300`) the general move is the b-move exactly. Three
-  consequences:
+  1/c gives p = (k-d)/2 (a: k=L, d=1; b: k=Lt, d=2)" (docs/design/multiplier-
+  combiner.md, "The exponent rule" - moved there from this memo's `:192-194`
+  since), which IS M4.2's q-variate exponent, with `B = ||a_f||^2 / priorVar_f`
+  for a fixed-variance amplitude prior and `a^2/aVariance` for the scale
+  mixture (same section, moved from `:183-196`). Instantiated at BCF's forest
+  1 (q = 2, `bPriorVariance` fixed at `combiner.hpp:300`) the general move is
+  the b-move exactly. Three consequences:
   - **The sigma-motivated build stays REJECTED.** `bcf-b-ridge.md`'s own
-    controls settle it: `:429-438` (control (a), fixed-b) "EXONERATES the
+    controls settle it: `:372-381` (control (a), fixed-b) "EXONERATES the
     b-ridge as the carrier of the residual sigma bias: the a-only memo's
-    'prime suspect' is WRONG"; `:453-463` (control (b), burn-2x) "The residual
-    sigma bias is a BURN TRANSIENT, confirmed"; `:477-478` "ROUTE: FIX
+    'prime suspect' is WRONG"; `:396-406` (control (b), burn-2x) "The residual
+    sigma bias is a BURN TRANSIENT, confirmed"; `:420-421` "ROUTE: FIX
     INITIALIZATION / BURN, do NOT implement the b-move for the sigma flag";
-    `:509-511` "Do not gate the b-move on sigma, and do not expect the b-move
+    `:452-454` "Do not gate the b-move on sigma, and do not expect the b-move
     to substitute for the burn/init fix." `bcf-sigma-residual` is RESOLVED
     (that plan's `:2-6`, `INDEX.md:20`); the only survivor is
     `TODO`'s `bcf-sigma-tail-mixing` OPTIONAL research door, which routes to
@@ -1625,19 +1626,21 @@ in FA1 and FA5 below ARE the record.
     sigma ticket and claims no sigma payoff.**
   - **`bcf-b-ridge.md` is an M4.2 INPUT, and prices the slice DOWN.** It
     already delivers, for free, three of M4.2's most expensive deliverables:
-    the general `p = (k-d)/2` exponent (`:192-194`) with the naive move-map
-    shortcut identified as off by one (`:166-171`); a PASSED adversarial R
-    prototype across three `Lt` and two parameterizations, whose
-    DISCRIMINATION arm rejects the off-by-one exponent at KS = 1.6e-21
-    (`:329-357`); and the complete rescale-consistency checklist - `treeFits`,
-    `totalFits`, `totalTestFits`/`currTestFits`, and the keepTrees
-    flattened-slot sharp edge (`:280-323`) - each of which the shipped
-    `afterCombine` implements at `combiner.hpp:680-707` and each of which the
-    q-variate generalization must re-derive. Cite sections 2.3, 4 and 5a as the
-    derivation and prototype, not merely as evidence that a move is unbuilt.
+    the general `p = (k-d)/2` exponent (docs/design/multiplier-combiner.md,
+    "The exponent rule") with the naive move-map shortcut identified as off by
+    one (same section); a PASSED adversarial R prototype across three `Lt` and
+    two parameterizations, whose DISCRIMINATION arm rejects the off-by-one
+    exponent at KS = 1.6e-21 (same section); and the complete
+    rescale-consistency checklist - `treeFits`, `totalFits`,
+    `totalTestFits`/`currTestFits`, and the keepTrees flattened-slot sharp
+    edge (`bcf-b-ridge.md:246-289`) - each of which the shipped `afterCombine`
+    implements at `combiner.hpp:680-707` and each of which the q-variate
+    generalization must re-derive. Cite docs/design/multiplier-combiner.md's
+    "The exponent rule" and bcf-b-ridge.md section 4 as the derivation and
+    prototype, not merely as evidence that a move is unbuilt.
     The GIG generator (`ext_rng_simulateGeneralizedInverseGaussian`) already
     ships.
-  - **The move's acceptance is its OWN, per that memo's `:495-506`:** judge it
+  - **The move's acceptance is its OWN, per that memo's `:438-449`:** judge it
     on its own IACT payoff (`|b1-b0|` or tau-amplitude IACT on a
     strong-treatment-signal DGP, mirroring the a-move's `|a|` IACT 2.5x), with
     correctness acceptance `bcf-exact` mode-2b stays exact AND a keepTrees BCF
@@ -3804,7 +3807,7 @@ and it is an M4.2-INTERNAL gate, not a pre-arc probe:** run it with the
 per-forest move in and out, on the same two-build method the a-move used. Its
 acceptance question is its OWN IACT payoff (`|b1-b0|` or tau-amplitude IACT on
 a strong-treatment-signal DGP) plus `bcf-exact` mode-2b staying exact and a
-keepTrees BCF round-trip tracking, per `bcf-b-ridge.md:495-506`. **The
+keepTrees BCF round-trip tracking, per `bcf-b-ridge.md:438-449`. **The
 `bcf-sigma-residual` acceptance question is STRUCK** - that flag is RESOLVED
 and the move was exonerated as its carrier (see M4.2).
 
@@ -4873,7 +4876,7 @@ one-line switch a future re-record flips. NO baseline moved.
 
 The b-move ships as code, held OFF for BCF (BCFSpec::ridgeB): enabling costs
 a GIG draw/sweep = a re-record, and its own acceptance gate
-(bcf-b-ridge.md:495-506 - IACT payoff, bcf-exact mode-2b, keepTrees
+(bcf-b-ridge.md:438-449 - IACT payoff, bcf-exact mode-2b, keepTrees
 round-trip) was not run here. DOOR, not a fork: flips only if a measured
 mixing case is named; bcf-equivalence's 12/12 bitwise on the glue channel is
 the standing pin that no GIG draw entered the BCF stream. Reviewer concurred

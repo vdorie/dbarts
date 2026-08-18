@@ -343,7 +343,7 @@ restated here. bcf's TREATMENT forest now has its own move available
 in that same code (the b-move, docs/plans/bcf-b-ridge.md), but it
 ships OFF: `BCFSpec::ridgeB = false`, because enabling it consumes a
 GIG draw per sweep - a `bcf-equivalence` re-record - and the b-move's
-own acceptance gate (bcf-b-ridge.md:495-506) has not been run.
+own acceptance gate (bcf-b-ridge.md:438-449) has not been run.
 
 ## Public creation surface (2026-08-10 to 2026-08-11)
 
