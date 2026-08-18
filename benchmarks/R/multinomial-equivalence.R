@@ -38,6 +38,15 @@
 # structural by contract (omega is redrawn on the first restored sweep), so a
 # bitwise assertion there would be a false gate.
 #
+# A scenario whose bitwise compare fails falls through to equivalence.R's
+# statistical mode (docs/design/core-generalization.md): per-summary Welch
+# z-scores over each statChannels entry's draws, against the baseline's
+# recorded summaries, |z| >= 4 fails. A channel with no draws axis (a
+# category's raw fit/varcount snapshot, a transaction's accept/reject
+# verdict) has no statistical fallback and gates its mismatch directly, same
+# as today. A baseline recorded before this mode existed carries no
+# summaries and degrades loudly rather than silently passing.
+#
 # Usage:
 #   Rscript multinomial-equivalence.R record [out.rds]
 #   Rscript multinomial-equivalence.R compare baseline.rds
@@ -80,8 +89,25 @@ makeControl <- function() {
 # channels stay bitwise because widening the varcount write reads existing tree
 # state (no draw) and supplying x.test consumes no rng. varcount below is the
 # CUMULATIVE final-state per-category query (a different quantity), untouched.
+#
+# Channels a statistical compare can Welch-z: each carries a trailing draws
+# axis (result$train/test/varcount, per bartcore_run's channel shape).
+# forestFits and varcount are POINT-IN-TIME state queries with no repeated-
+# draw axis to summarize, as are any accept/reject or install verdict.
+statChannels <- c("train", "test", "runVarcount")
+
+# Posterior mean/var over a channel's trailing (draws) axis, one cell per
+# leading-index combination - the reduction equivalence.R's fitSummaries
+# performs by hand per channel, generalized over an arbitrary channel shape.
+drawSummary <- function(a) {
+  d <- dim(a)
+  n <- if (is.null(d)) length(a) else d[length(d)]
+  m <- matrix(a, ncol = n)
+  list(mean = rowMeans(m), var = apply(m, 1L, var), n = n)
+}
+
 recordChannels <- function(bc, result, K) {
-  list(
+  ch <- list(
     train = result$train,
     test = result$test,
     forestFits = lapply(
@@ -94,6 +120,8 @@ recordChannels <- function(bc, result, K) {
     ),
     runVarcount = result$varcount
   )
+  ch$summaries <- lapply(ch[statChannels], drawSummary)
+  ch
 }
 
 runScenarios <- function() {
@@ -484,6 +512,7 @@ if (mode == "record") {
 
   results <- runScenarios()
   anyFailure <- FALSE
+  usedStatistical <- FALSE
   for (name in names(baseline$results)) {
     a <- baseline$results[[name]]
     b <- results[[name]]
@@ -491,7 +520,7 @@ if (mode == "record") {
       cat(sprintf("%-6s skipped (not produced this run)\n", name))
       next
     }
-    channels <- names(a)
+    channels <- setdiff(names(a), "summaries")
     ok <- vapply(
       channels,
       function(ch) identical(a[[ch]], b[[ch]]),
@@ -504,12 +533,64 @@ if (mode == "record") {
         length(channels),
         paste(channels, collapse = ", ")
       ))
-    } else {
+      next
+    }
+    usedStatistical <- TRUE
+    # No baseline summaries at all (recorded before this mode existed): there
+    # is nothing to Welch-z against, so this degrades loudly rather than
+    # silently passing a possibly-real divergence.
+    if (is.null(a[["summaries"]])) {
       anyFailure <- TRUE
       cat(sprintf(
-        "%-6s MISMATCH in: %s\n",
+        "%-6s statistical compare unsupported by this baseline (recorded before summaries)\n",
+        name
+      ))
+      next
+    }
+    bSummaries <- lapply(b[statChannels], drawSummary)
+    z <- unlist(Map(
+      function(sa, sb) {
+        (sa$mean - sb$mean) / sqrt(sa$var / sa$n + sb$var / sb$n)
+      },
+      a$summaries,
+      bSummaries
+    ))
+    n.warn <- sum(abs(z) > 3, na.rm = TRUE)
+    n.fail <- sum(abs(z) > 4, na.rm = TRUE)
+    cat(sprintf(
+      "%-6s %d summaries, max |z| = %.2f%s%s\n",
+      name,
+      length(z),
+      max(abs(z), na.rm = TRUE),
+      if (n.warn > 0L) sprintf(", %d with |z| > 3", n.warn) else "",
+      if (n.fail > 0L) sprintf(", %d with |z| > 4 <- FAIL", n.fail) else ""
+    ))
+    if (n.fail > 0L) {
+      anyFailure <- TRUE
+      failed <- which(abs(z) > 4)
+      cat(
+        "  worst offenders:",
+        paste0(
+          names(z)[failed],
+          " (z=",
+          round(z[failed], 2L),
+          ")",
+          collapse = ", "
+        ),
+        "\n"
+      )
+    }
+    # A mismatch outside statChannels (a point-in-time snapshot, or a
+    # transaction's accept/reject verdict) has no draws to Welch-z, so it
+    # gates independently of the z-verdict above - never let a clean z-score
+    # silently pass a real divergence the z gate cannot see at all.
+    pointMismatch <- setdiff(channels[!ok], statChannels)
+    if (length(pointMismatch) > 0L) {
+      anyFailure <- TRUE
+      cat(sprintf(
+        "%-6s also MISMATCH in %s (no statistical fallback) <- FAIL\n",
         name,
-        paste(channels[!ok], collapse = ", ")
+        paste(pointMismatch, collapse = ", ")
       ))
     }
   }
@@ -518,7 +599,11 @@ if (mode == "record") {
     quit(status = 1L)
   }
   cat(
-    "\nOK: every multinomial channel bitwise identical across every scenario\n"
+    if (usedStatistical) {
+      "\nOK: every multinomial channel identical, or statistically indistinguishable (|z| < 4)\n"
+    } else {
+      "\nOK: every multinomial channel bitwise identical across every scenario\n"
+    }
   )
 } else {
   stop("unknown mode '", mode, "'; use record or compare")

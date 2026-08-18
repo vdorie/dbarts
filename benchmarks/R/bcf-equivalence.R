@@ -29,6 +29,15 @@
 # structural by contract (the dropped accumulation history is not reproduced,
 # test-bcf.R), so a bitwise assertion there would be a false gate.
 #
+# A scenario whose bitwise compare fails falls through to equivalence.R's
+# statistical mode (docs/design/core-generalization.md): per-summary Welch
+# z-scores over each statChannels entry's draws, against the baseline's
+# recorded summaries, |z| >= 4 fails. A channel with no draws axis (a forest's
+# raw fit/amplitude/varcount snapshot, a transaction's accept/reject verdict)
+# has no statistical fallback and gates its mismatch directly, same as today.
+# A baseline recorded before this mode existed carries no summaries and
+# degrades loudly rather than silently passing.
+#
 # Usage:
 #   Rscript bcf-equivalence.R record [out.rds]
 #   Rscript bcf-equivalence.R compare baseline.rds
@@ -91,9 +100,28 @@ makeControl <- function() {
   )
 }
 
-# The full recorded channel set for one BCF sampler at its current state.
+# Channels a statistical compare can Welch-z: each carries a trailing draws
+# axis (result$sigma/train/varcount, per bartcore_run's channel shape).
+# Everything else recordChannels stores is a POINT-IN-TIME state query (a
+# forest's raw fit/amplitude/varcount snapshot, a transaction's accept/reject
+# verdict) with no repeated-draw axis to summarize.
+statChannels <- c("sigma", "train", "varcount")
+
+# Posterior mean/var over a channel's trailing (draws) axis, one cell per
+# leading-index combination - the reduction equivalence.R's fitSummaries
+# performs by hand per channel, generalized over an arbitrary channel shape.
+drawSummary <- function(a) {
+  d <- dim(a)
+  n <- if (is.null(d)) length(a) else d[length(d)]
+  m <- matrix(a, ncol = n)
+  list(mean = rowMeans(m), var = apply(m, 1L, var), n = n)
+}
+
+# The full recorded channel set for one BCF sampler at its current state,
+# plus the draws-axis summaries a statistical compare needs (statChannels
+# entries only).
 recordChannels <- function(bcSampler, result) {
-  list(
+  ch <- list(
     mu = dbarts:::bartcoreForestFits(bcSampler, 0L),
     tau = dbarts:::bartcoreForestFits(bcSampler, 1L),
     glue = dbarts:::bartcoreForestAmplitudes(bcSampler),
@@ -102,6 +130,8 @@ recordChannels <- function(bcSampler, result) {
     varcount = result$varcount,
     varcount.tau = dbarts:::bartcoreForestVariableCounts(bcSampler, 1L)
   )
+  ch$summaries <- lapply(ch[statChannels], drawSummary)
+  ch
 }
 
 runScenarios <- function() {
@@ -438,6 +468,7 @@ if (mode == "record") {
 
   results <- runScenarios()
   anyFailure <- FALSE
+  usedStatistical <- FALSE
   for (name in names(baseline$results)) {
     a <- baseline$results[[name]]
     b <- results[[name]]
@@ -445,7 +476,7 @@ if (mode == "record") {
       cat(sprintf("%-14s skipped (not produced this run)\n", name))
       next
     }
-    channels <- names(a)
+    channels <- setdiff(names(a), "summaries")
     ok <- vapply(
       channels,
       function(ch) identical(a[[ch]], b[[ch]]),
@@ -458,12 +489,64 @@ if (mode == "record") {
         length(channels),
         paste(channels, collapse = ", ")
       ))
-    } else {
+      next
+    }
+    usedStatistical <- TRUE
+    # No baseline summaries at all (recorded before this mode existed): there
+    # is nothing to Welch-z against, so this degrades loudly rather than
+    # silently passing a possibly-real divergence.
+    if (is.null(a[["summaries"]])) {
       anyFailure <- TRUE
       cat(sprintf(
-        "%-14s MISMATCH in: %s\n",
+        "%-14s statistical compare unsupported by this baseline (recorded before summaries)\n",
+        name
+      ))
+      next
+    }
+    bSummaries <- lapply(b[statChannels], drawSummary)
+    z <- unlist(Map(
+      function(sa, sb) {
+        (sa$mean - sb$mean) / sqrt(sa$var / sa$n + sb$var / sb$n)
+      },
+      a$summaries,
+      bSummaries
+    ))
+    n.warn <- sum(abs(z) > 3, na.rm = TRUE)
+    n.fail <- sum(abs(z) > 4, na.rm = TRUE)
+    cat(sprintf(
+      "%-14s %d summaries, max |z| = %.2f%s%s\n",
+      name,
+      length(z),
+      max(abs(z), na.rm = TRUE),
+      if (n.warn > 0L) sprintf(", %d with |z| > 3", n.warn) else "",
+      if (n.fail > 0L) sprintf(", %d with |z| > 4 <- FAIL", n.fail) else ""
+    ))
+    if (n.fail > 0L) {
+      anyFailure <- TRUE
+      failed <- which(abs(z) > 4)
+      cat(
+        "  worst offenders:",
+        paste0(
+          names(z)[failed],
+          " (z=",
+          round(z[failed], 2L),
+          ")",
+          collapse = ", "
+        ),
+        "\n"
+      )
+    }
+    # A mismatch outside statChannels (a point-in-time snapshot, or a
+    # transaction's accept/reject verdict) has no draws to Welch-z, so it
+    # gates independently of the z-verdict above - never let a clean z-score
+    # silently pass a real divergence the z gate cannot see at all.
+    pointMismatch <- setdiff(channels[!ok], statChannels)
+    if (length(pointMismatch) > 0L) {
+      anyFailure <- TRUE
+      cat(sprintf(
+        "%-14s also MISMATCH in %s (no statistical fallback) <- FAIL\n",
         name,
-        paste(channels[!ok], collapse = ", ")
+        paste(pointMismatch, collapse = ", ")
       ))
     }
   }
@@ -471,7 +554,13 @@ if (mode == "record") {
   if (anyFailure) {
     quit(status = 1L)
   }
-  cat("\nOK: every BCF channel bitwise identical across every scenario\n")
+  cat(
+    if (usedStatistical) {
+      "\nOK: every BCF channel identical, or statistically indistinguishable (|z| < 4)\n"
+    } else {
+      "\nOK: every BCF channel bitwise identical across every scenario\n"
+    }
+  )
 } else {
   stop("unknown mode '", mode, "'; use record or compare")
 }
