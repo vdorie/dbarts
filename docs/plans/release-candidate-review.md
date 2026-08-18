@@ -557,6 +557,31 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### K - calibration-map refusal above K = 2 (ceffd276, 2026-08-17)
+
+The bcf-naming-generalization ledger item's one user-visible leg,
+landed alone as scoped. calibrationMapName (4 lines + comment)
+deleted; its ternary hoisted into bartcore_setCalibration's single
+Rf_error as a three-way on the coupling: softmax and K = 2 keep
+byte-identical text, K >= 3 now names the multi-forest calibration
+map - the same noun the R layer's refuseBCFMutation refusal uses,
+so the two routes agree while staying independently worded. The
+surviving "owns both halves of its calibration" clause is
+K-independent by the engine's own vocabulary (chain.hpp: BCF and
+multinomial "derive both halves from their own maps"; softmax
+carried the clause at K >= 3 all along). Three pins in
+test-calibration-midchain.R reach the engine message past the R
+guard through the low-level handle: two-forest text at K = 2 via
+bcf, multi-forest presence and two-forest absence on a
+three-forest sampler. No NEWS: the wrong text and its fix are both
+inside the unreleased cycle. Battery twice (implementer, then
+independent gate-runner): tests/cpp clean from make clean;
+tinytest 5830/0; trio bitwise 37/37 12/12 10/10; air clean; lintr
+clean; R CMD check Status OK from a clean-staged tarball (standard
+invocation, manual built); discrimination - base fails exactly the
+two K >= 3 assertions, slice 125/125. TODO trimmed to the rename
+remainder in this records commit. Prior-slice CI: E six-green.
+
 ### E - withFixedSeed adoption (1fd22c6f, 2026-08-17)
 
 The six open-coded .Random.seed save/restore sites route through

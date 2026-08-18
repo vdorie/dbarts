@@ -133,16 +133,10 @@ items
     is ENGINE work, not a docs edit: a --preclean, a structSize move on
     the state fixtures
     (common.cpp already tripped once, 272 -> 344), and a state-block key
-    change needing the same in-place re-encode M4.3 used. ONE LEG IS
-    USER-VISIBLE, added 2026-08-14 off M4.4's residue audit:
-    calibrationMapName (R_interface_bartcore.cpp) returns the literal
-    "two-forest calibration map" for every non-softmax coupling, and it
-    reaches a user through setForestPriorScale's refusal, which tells a
-    K = 5 sampler its scale comes from the two-forest map "which owns
-    both halves of its calibration". Wrong for K != 2 since the general
-    family shipped, not falsified by M4.4, so it was deliberately NOT
-    folded into that slice. A string plus whatever test pins it.
-    Pre-release, unscheduled.
+    change needing the same in-place re-encode M4.3 used. The formerly listed
+    user-visible leg (calibrationMapName's two-forest literal reaching
+    setForestPriorScale's refusal) landed on its own; only the rename
+    remains here. Pre-release, unscheduled.
   bcf-public-surface: S0-S4 and S6 landed; the public creation
     surface exists (plan + landing notes in
     docs/plans/bcf-public-surface.md). S5 (bcf() and the bartBCF fit
