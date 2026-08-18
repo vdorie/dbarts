@@ -559,6 +559,26 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### P7 - branch-reach one-shot; measurement only (2026-08-18)
+
+Nothing committed to the package by design. llvm-cov over an
+instrumented --preclean install plus instrumented tests/cpp, both
+suites run under instrumentation (tests/cpp 246/246, tinytest
+5871/0 - coverage did not perturb behavior), scoped to the
+project's own sources. Headline: 11,902 regions 91.10% hit, 7,735
+branches 83.36%; engine 93.34%/89.47%; the bridge is the laggard
+at 87.63%/74.59% with R_interface_bartcore.cpp worst. All 411
+never-hit function-level clusters classified against the P8
+census: 372 UNTESTED-PATH (the P6 mutation-target feed - the two
+largest clusters in the codebase are bartcore_bridge::setState and
+readWarmStartState, a systemic state-restore gap beyond the
+census's spot checks), 16 DEAD-CANDIDATE (incl. one non-census
+find: bartcore::Tree::rightChildOf has zero callers in-tree - a
+Family 2 removal candidate), 23 GUARD (expected-unexecuted refusal
+paths). Full classified report at
+rc-review-artifacts-2026-08-18/p7-branch-reach.md. Explicitly not
+a coverage gate.
+
 ### P5 - executable composition matrix (7997e50c, 2026-08-18)
 
 benchmarks/R/composition-matrix.R (740 lines): parses
