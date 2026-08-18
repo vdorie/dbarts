@@ -557,6 +557,31 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### CI hang guards - job timeouts everywhere (6000efb7, 2026-08-17)
+
+VD-directed after two same-day hangs. Diagnosis from the cancelled
+attempts' logs: pkgdown run 32086436327 (2h20m) and lint run
+32096324117 (~40m) both stalled inside r-lib/actions/setup-r's
+"Updating system package data" step - apt-get update announced
+Get:5 noble-security InRelease from the azure.archive.ubuntu.com
+mirror and never completed the fetch; a same-day non-hung pkgdown
+run hit the identical mirror throttling on package installs and
+took 76 minutes to self-resolve, corroborating the class (mirror
+stall, not an R download). Guard: job-level timeout-minutes on
+every job of the eight workflow files that lacked one (12
+insertions; revdep-smoke, sbc, valgrind already carried reasoned
+timeouts), sized ~3x normal wall time, minimum 15: R-CMD-check 80 /
+NEON leg 15, cpp-tests 15, exact-gates 25, lint+format 15,
+sanitizers 40, pkgdown 90 (sized above the observed 76m benign
+throttled run, not 3x the 16m reference), and generous bounds for
+the not-yet-registered equivalence (120/90/90) and rchk (120) so
+they carry the guard when the default-branch merge registers them.
+Push events read the pushed ref's workflow file, so the guard is
+live on bartcore now. Gates: all eleven files parse
+(yaml.safe_load); the landing push itself fires all six live
+workflows as the in-vivo check. Patch-id-verified rebase from base
+75d82925 onto eb8c292d. Prior-slice CI: G six-green, no hangs.
+
 ### G - dead elements (99f98043, 2026-08-17)
 
 xbart's n.burn narrowed to two non-negative integers (the third was
