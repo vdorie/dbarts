@@ -540,6 +540,53 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### P6 - the repeatable mutation harness lands (b46c0704, 2026-08-18)
+
+The durable asset the July poison sweep never committed:
+benchmarks/R/mutation-battery.R, a self-contained driver (modes
+list / verify-anchors / run all|ids, --keep-going) holding 23
+entries - the 16 poisons re-derived BY SYMBOL against the current
+tree (16/16 still live; the BCF glue pair followed the relocation
+into combiner.hpp), four R/-level mutations with tinytest killers,
+and three SURVIVE_DOCUMENTED entries from P7's untested-path feed
+(bartcore_bridge::setState currentSampleNum and dart-skip
+negative-checks, readWarmStartState's k length-check) that document
+the measured state-restore gap executably. Every mutation lands on
+a fresh git-archive copy - the working tree is never touched -
+builds --preclean into a per-run lib, passes the wave-0
+build-freshness guard, then runs its DESIGNATED killers
+(equivalence kills via EQUIVALENCE_SCENARIOS subsets); kill
+verdicts come from completed killer exits with harness errors
+distinguished and retried, and each entry's copy is discarded
+before the next. Demonstrated run: 23 entries, 20 KILL_EXPECTED
+killed, 3 SURVIVE_DOCUMENTED survived, 0 unexpected, ~23 min
+(p6-run.log preserved in the artifacts dir).
+
+Honest deviations and finds. Budget: 423.5 dense vs the spec's
+~250 - the estimate underweighted the mutation list's data rows;
+the implementer trimmed genuinely, stopped at the cap, and
+over-reported rather than gamed. Two first-attempt mutations
+survived their designated killers and were re-targeted with the
+reason recorded in-file: poison 3's forward-correction drop must
+target the single-sided ordinal/categorical branch change-balance's
+MIXED arm actually exercises AND needs change-balance FULL - quick
+mode's Monte Carlo error is too loose to kill it, a live
+reduced-power datum carried into P11; two R/ candidates were
+C++-backstopped or logically undetectable and were replaced by
+purely R-level checks. The implementer also caught a real driver
+bug mid-build (R's system2(env=) wants "NAME=value" strings, not
+named vectors) that had equivalence kills passing vacuously via
+subprocess crashes - fixed, and the verifier's audit confirms kills
+now read the harness's own completed exit. Verification: my diff
+review, then an independent cold-start pass - inventory 23,
+verify-anchors clean, subset rerun (m10 equivalence-kill, m17
+tinytest-kill, m21 documented-survival) all as designed, worktree
+untouched before and after, air/lintr clean. Landed at b46c0704
+after a clean rebase (patch byte-identical) with verify-anchors
+re-run at the rebased HEAD - the anchors survive compose's
+combiner.hpp additions. Benchmarks-only: no NEWS, no baseline
+motion; CI legs that fire are exact-gates and lint.
+
 ### Compose slice - per-forest veto weights reach the prior initializer (1e020abb, 2026-08-18)
 
 The residue VD routed at the fix landing, widened by its blind
