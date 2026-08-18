@@ -559,6 +559,47 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### Prior-initializer fix PREPARED, NOT LANDED (ccf4b687 on wt/prior-init-fix, 2026-08-18)
+
+The adjudicated fix implemented and fully gated in the preserved
+worktree .claude/worktrees/prior-init-fix; LANDING IS VD-HELD
+because every prior-initializing fit's stream moves (re-record
+class). Engine delta ~21 dense lines: Chain::sampleTreesFromPrior
+regrows each tree whole until Tree::bottomNodesHaveWeight (new,
+the veto's own leafHasNoWeight law, distinguished in its comment
+from the restore path's membership law) accepts it - rejection,
+not projection, whole-tree so the conditioning tilts the parent's
+rule draw; priorTreeDrawMaxAttempts = 10000 faults loudly and is
+unreachable unless the conditioning event is empty (acceptance
+bounded below by P(bare root) = 1 - base). The mid-chain collapse
+sites are repair, not prior draws, and keep the member count -
+left alone. DECISIVE GATES: geweke-mc full exits 0 with every
+tree-shaped z inside |1.2| (was |3.7-6.6|); backfit-exact PASS
+byte-identical to its landing note; bcf-exact quick at the
+documented gaps. Trio vs canonical: 33/37 bitwise, the four
+movers are exactly the prior-initializing fits (grouped,
+grouped_aft, hazard, hurdle; max |z| 3.01 on 1 of 85 summaries -
+posteriors statistically unmoved); BCF 12/12 and multinomial
+10/10 bitwise. Candidate baselines recorded and self-compared
+bitwise 37/37 12/12 10/10, preserved with the run logs and sweep
+classifications at .claude/rc-review-artifacts-2026-08-18/.
+Snapshots regenerated (test-reproducibility-rbart.R via the tool;
+test-rbart-loop-callback.R's 15 literals by hand - MANIFEST wants
+this sha at landing); the calibration non-vacuity bar sat ON its
+statistic at 3.0 and moves to 2.5 with the measurement recorded.
+New pin test-prior-init-empty-leaves.R: 0/13,225 forbidden leaves
+under a zero-weight half-space, non-vacuity arm 3,062. Full
+battery otherwise green (tests/cpp 246, ASAN zero, tinytest
+5855/0, air/lintr clean, NEWS 269 parses, R CMD check OK).
+RESIDUE FOR VD, deliberately outside the adjudicated shape: the
+predicate reads workingWeights, so per-forest setForestWeights
+zeroes can still leave a from-prior leaf that forest's veto
+forbids; composing it is one line but an all-zero forest weight
+is a legal tested state whose conditioning event is EMPTY, so it
+needs an empty-set-guard adjudication first. At landing the fix
+rebases over the message sweep (NEWS append point conflicts,
+trivial) and the re-record carries the four-place obligation.
+
 ### P9 - Geweke marginal-conditional oracle lands FIRING; diagnosis CONFIRMED (2278c929, 2026-08-18)
 
 benchmarks/R/geweke-mc.R (644 lines, 2:57 full / 16s quick) lands
