@@ -480,19 +480,12 @@ rbart_vi <- function(
       )
       runSingleThreaded <- TRUE
     } else {
-      if (!is.na(seed)) {
-        # We draw sequentially from the given seed, one for each thread. To be polite
-        # (more to match bart), we set the seed back when we're done.
-        oldSeed <- .GlobalEnv[[".Random.seed"]]
-
-        set.seed(seed)
-        randomSeeds <- sample.int(.Machine$integer.max, n.chains)
-
-        if (!is.null(oldSeed)) {
-          .GlobalEnv$.Random.seed <- oldSeed
-        }
+      # We draw sequentially from the given seed, one for each thread. To be polite
+      # (more to match bart), we set the seed back when we're done.
+      randomSeeds <- if (!is.na(seed)) {
+        withFixedSeed(seed, sample.int(.Machine$integer.max, n.chains))
       } else {
-        randomSeeds <- rep.int(NA_integer_, n.chains)
+        rep.int(NA_integer_, n.chains)
       }
 
       clusterExport(
@@ -526,25 +519,24 @@ rbart_vi <- function(
   }
 
   if (runSingleThreaded) {
-    if (!is.na(seed)) {
-      # If the seed was passed in, a set.seed drives the chain seeds drawn
-      # at sampler creation and any R-level draws; set the stream back when
-      # done.
-      oldSeed <- .GlobalEnv[[".Random.seed"]]
-      set.seed(seed)
+    # If the seed was passed in, a set.seed drives the chain seeds drawn
+    # at sampler creation and any R-level draws; set the stream back when
+    # done.
+    fitChains <- function() {
+      for (chainNum in seq_len(n.chains)) {
+        chainResults[[chainNum]] <- rbart_vi_fit(
+          1L,
+          NA_integer_,
+          samplerArgs,
+          rbartArgs
+        )
+      }
+      chainResults
     }
-
-    for (chainNum in seq_len(n.chains)) {
-      chainResults[[chainNum]] <- rbart_vi_fit(
-        1L,
-        NA_integer_,
-        samplerArgs,
-        rbartArgs
-      )
-    }
-
-    if (exists("oldSeed") && !is.null(oldSeed)) {
-      .GlobalEnv$.Random.seed <- oldSeed
+    chainResults <- if (!is.na(seed)) {
+      withFixedSeed(seed, fitChains())
+    } else {
+      fitChains()
     }
   }
   packageRbartResults(
@@ -790,43 +782,40 @@ rbart_vi_run <- function(
 # and the results split into the per-chain shapes rbart_vi_fit produces so
 # the packaging is shared.
 rbart_vi_fit_bartcore <- function(samplerArgs, rbartArgs, groupLevels, seed) {
-  if (!is.na(seed)) {
-    oldSeed <- .GlobalEnv[[".Random.seed"]]
-    # a single chain draws through R's generator; several chains seed their
-    # own generators from R's stream at creation - reproducible either way
-    set.seed(seed)
+  # a single chain draws through R's generator; several chains seed their
+  # own generators from R's stream at creation - reproducible either way
+  withSeedIfGiven <- function(expr) {
+    if (is.na(seed)) expr else withFixedSeed(seed, expr)
   }
 
-  sampler <- do.call(dbarts::dbarts, samplerArgs)
-  sampler$control@call <- samplerArgs$control@call
+  withSeedIfGiven({
+    sampler <- do.call(dbarts::dbarts, samplerArgs)
+    sampler$control@call <- samplerArgs$control@call
 
-  control <- sampler$control
-  kIsModeled <- inherits(sampler$model@node.hyperprior, "dbartsChiHyperprior")
+    control <- sampler$control
+    kIsModeled <- inherits(sampler$model@node.hyperprior, "dbartsChiHyperprior")
 
-  sampler$sampleTreesFromPrior(updateState = FALSE)
+    sampler$sampleTreesFromPrior(updateState = FALSE)
 
-  firstTau <- firstSigma <- firstK <- NULL
-  if (control@n.burn > 0L) {
-    warmupControl <- control
-    warmupControl@keepTrees <- FALSE
-    warmupControl@keepTrainingFits <- FALSE
-    sampler$setControl(warmupControl)
-    warmupSamples <- sampler$run(0L, control@n.burn, updateState = FALSE)
-    firstTau <- warmupSamples$tau
-    if (!control@binary) {
-      firstSigma <- warmupSamples$sigma
+    firstTau <- firstSigma <- firstK <- NULL
+    if (control@n.burn > 0L) {
+      warmupControl <- control
+      warmupControl@keepTrees <- FALSE
+      warmupControl@keepTrainingFits <- FALSE
+      sampler$setControl(warmupControl)
+      warmupSamples <- sampler$run(0L, control@n.burn, updateState = FALSE)
+      firstTau <- warmupSamples$tau
+      if (!control@binary) {
+        firstSigma <- warmupSamples$sigma
+      }
+      if (kIsModeled) {
+        firstK <- warmupSamples$k
+      }
+      sampler$setControl(control)
     }
-    if (kIsModeled) {
-      firstK <- warmupSamples$k
-    }
-    sampler$setControl(control)
-  }
 
-  samples <- sampler$run(0L, control@n.samples)
-
-  if (!is.na(seed) && !is.null(oldSeed)) {
-    .GlobalEnv$.Random.seed <- oldSeed
-  }
+    samples <- sampler$run(0L, control@n.samples)
+  })
 
   # per-chain slices in the shapes rbart_vi_fit produces
   chainMatrix <- function(x, i) {
@@ -1310,18 +1299,13 @@ packageRbartResults <- function(
     result$n.chains <- n.chains
   }
 
-  if (!is.na(seed)) {
-    oldSeed <- .GlobalEnv[[".Random.seed"]]
-
-    set.seed(seed)
-    result$seed <- .GlobalEnv$.Random.seed
-
-    .GlobalEnv$.Random.seed <- oldSeed
+  result$seed <- if (!is.na(seed)) {
+    withFixedSeed(seed, .GlobalEnv$.Random.seed)
   } else {
     if (!exists(".Random.seed", .GlobalEnv)) {
       runif(1L)
     }
-    result$seed <- .GlobalEnv$.Random.seed
+    .GlobalEnv$.Random.seed
   }
 
   class(result) <- "rbart"

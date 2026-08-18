@@ -2203,17 +2203,13 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   split <- splitHurdleResponse(data)
   xPositive <- formula[split$positive, , drop = FALSE]
 
-  seeds <- c(NA_integer_, NA_integer_)
-  if (!is.na(seed)) {
-    # independent per-component seeds derived deterministically from the
-    # user's seed (the per-chain seed derivation rbart_vi uses); politely
-    # restore the caller's RNG stream afterward
-    oldSeed <- .GlobalEnv[[".Random.seed"]]
-    set.seed(seed)
-    seeds <- sample.int(.Machine$integer.max, 2L)
-    if (!is.null(oldSeed)) {
-      .GlobalEnv$.Random.seed <- oldSeed
-    }
+  # independent per-component seeds derived deterministically from the
+  # user's seed (the per-chain seed derivation rbart_vi uses); politely
+  # restore the caller's RNG stream afterward
+  seeds <- if (!is.na(seed)) {
+    withFixedSeed(seed, sample.int(.Machine$integer.max, 2L))
+  } else {
+    c(NA_integer_, NA_integer_)
   }
 
   # redirectCall forwards every bart2 formal the caller supplied, including

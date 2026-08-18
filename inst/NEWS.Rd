@@ -1546,6 +1546,11 @@
             read. A length-3 (or longer) call still runs, its extra
             elements silently dropped, matching how \code{n.test} has
             always been reduced to its first element regardless of length.
+      \item \code{bart2}, \code{xbart}, and \code{rbart_vi} now restore the
+            caller's \code{.Random.seed} when a call given a \code{seed}
+            argument errors partway through. Previously the error left
+            \code{.Random.seed} set from the fixed seed instead of the
+            caller's own stream; a successful call was already unaffected.
     }
   }
 }
