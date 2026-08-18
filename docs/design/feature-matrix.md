@@ -227,7 +227,7 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | model | variance forest | grouped ranef | DART | warm start | grow-from-root |
 |---|---|---|---|---|---|
 | gaussian | S FAC:732 | S CH:605 | S CH:549 | S bart.R:1014 | S dbarts.R:901 |
-| student | ? [f30] | S CH:605 | S CH:549 | S bart.R:1014 | S dbarts.R:901 |
+| student | R spec.R:423 [f30] | S CH:605 | S CH:549 | S bart.R:1014 | S dbarts.R:901 |
 | probit | R spec.R:370 | S CH:605 | S CH:549 | S bart.R:1014 | S dbarts.R:901 |
 | logistic | R spec.R:370 | S CH:605 | S CH:549 | S bart.R:1014 | S dbarts.R:901 |
 | ordinal | R spec.R:370 | M RIB:2973 [f31] | S CH:549 | R bart.R:493 | R bart.R:493 |
@@ -731,12 +731,14 @@ mechanism as every other single-forest family, with no dedicated
 heteroscedastic arm of its own beyond that shared mechanism and the
 `forest = 2` refusal above.
 
-[f30] Constructs today with no refusal site and no test. `spec.R:369-377`
-refuses a variance forest only for a non-gaussian family or monotone
-constraints, and a Student-t or grouped sampler still reports family
-`gaussian`, so `resid.dist = student()` + `variance =` and grouped + `variance =`
-both build (CH:605 decorates before CH:703 builds the variance forest). Whether
-two scale mixtures on the same precision channel is a model anyone wants is not
+[f30] Split verdicts, measured by benchmarks/R/composition-matrix.R.
+`resid.dist = student()` + `variance =` now REFUSES at `spec.R:423` ("a
+variance forest does not support Student-t residuals: the two are not yet
+shown to compose") - a validation error only, the formal stays, and the door
+memo records that adjudicating the composition of two scale mixtures on the
+same precision channel reopens it. grouped + `variance =` and hetero +
+grouped still CONSTRUCT (CH:605 decorates before CH:703 builds the variance
+forest); whether those compositions are models anyone wants is not
 adjudicated anywhere.
 
 [f31] Recorded but UNBUILT doors, refused with that reason in the comment:
@@ -891,7 +893,7 @@ inexactness (zero-weight rows survived the empty-leaf veto) closed at
 **student (Gaussian + Student-t residuals).** No `rbart_vi()` surface
 (rbart.R:60); no `xbart()` surface (xbart.R:9-38). Pointwise loglik evaluates
 the Gaussian density, not the t marginal, with no guard ([f19]). Composition
-with a variance forest constructs unrefused and untested ([f30]). Only one
+with a variance forest is refused by name ([f30]). Only one
 dedicated tinytest file.
 
 **probit.** None.

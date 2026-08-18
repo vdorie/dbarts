@@ -559,6 +559,28 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### P5 - executable composition matrix (7997e50c, 2026-08-18)
+
+benchmarks/R/composition-matrix.R (740 lines): parses
+feature-matrix.md's tables 1-4 programmatically (header/row-order
+drift fails loudly), executes all 180 S and ? cells across the 13
+families with minimal seeded fixtures (n.threads = 1L throughout),
+classifies CONSTRUCTS / REFUSES / ERRORS, and exits nonzero on any
+disagreement with the matrix's claim. First run: 175 confirmations,
+ZERO disagreements, five ? resolutions - four match their footnotes'
+expectations (the two silently-wrong pointwiseLoglik cells per
+f19/f28, both grouped/hetero constructions per f30) and ONE
+corrected stale doc prose: student + variance REFUSES at spec.R:423
+(the wave-0 FX2 refusal) where footnote f30 still claimed
+"constructs today with no refusal site". This records commit
+updates the cell to R spec.R:423, rewrites f30 to the measured
+split verdict, and fixes the student-section prose - the runner's
+Rd-vs-behavior coherence role exercised on its first run. Gates:
+runner end-to-end clean from a fresh Rscript; air/lintr clean; diff
+was the one new file; tinytest unchanged 5871/0 after the run (no
+fixture state leaked). Run log preserved at
+rc-review-artifacts-2026-08-18/p5-run.log. Prior CI: P8 six-green.
+
 ### P8 - refusal census + anti-vacuity pass (5d06f641, 2026-08-18)
 
 Wave 3 opens. Census over 912 sites (887 refusals, 25 warnings;
