@@ -557,6 +557,34 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### G - dead elements (99f98043, 2026-08-17)
+
+xbart's n.burn narrowed to two non-negative integers (the third was
+never read; formal default, rep_len, the stale prose comment, the
+man/xbart.Rd compat sentence and its example all updated). Posture
+toward a longer vector is silent truncation, matched to the
+measured sibling posture - n.test is unconditionally reduced to
+n.test[1L] regardless of supplied length - and pinned by a surface
+assertion that a length-3 call still runs and equals the length-2
+call, plus a default-formals pin that discriminates against base.
+One NEWS item. convertSamplesFromBartsToDbarts deleted with its
+only exercises (its inverse keeps its many callers); validateObject
+inlined at its sole caller; xbartRunChunk's family == "auto" branch
+dropped after live verification that xbart forces the family before
+the model is built. F-J5 NOT CUT: its census premise is FALSE by
+live instrumentation - a plain dbarts(formula, data) call, control
+omitted, reaches validateArgumentsInEnvironment's func-reading
+branch because match.call drops unsupplied arguments; the formal
+stays. Battery twice (implementer, then independent gate-runner
+with base-vs-slice probes): tinytest 5825/0; trio bitwise 37/37
+12/12 10/10; air clean; lintr clean on all six touched files; NEWS
+parses at 268 entries; R CMD check OK from a clean-staged tarball;
+base runs length-3 n.burn identically, slice lacks the deleted
+helper. Prior-slice CI: K5 six-green - its lint job hung at
+setup-r past 40 minutes and was cancelled and re-run to green, the
+second same-day r-lib-action hang after K4's pkgdown; the
+timeout-minutes guard slice was queued in response.
+
 ### K5 - vendored getListElement, setModel arity (71691eb7, 2026-08-17)
 
 The bridge's local getListElement shadowed the in-scope
