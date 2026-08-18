@@ -557,6 +557,29 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### K4 - bridge indirection trim (1e229a77, 2026-08-17)
+
+Deletions and inlinings, net -29 (-54 pure code; 25 of the
+additions are doc comments relocated out of the shared header):
+refuseRequantizeWithoutSource inlined into its three callers with
+its constraint folded into refuseMutationOnView's comment; the
+three refusal names consolidated onto two predicates
+(refusePredictorMutation on acceptsNewRawPredictors,
+refuseMutationOnView on hasRequantizeSource);
+rawTrainingColumn/rawParsedTestColumn folded into rawViewColumn and
+the one-field DataHandle dropped for a raw ColumnStore*;
+createBCFHolder and installForests moved out of the shared header
+after grep-verifying zero C_interface.cpp consumers (installForests
+needed a forward declaration in the bridge TU - the one
+non-pure-deletion, recorded); rc/bounds.h's dead clang-11 disjunct
+replaced by the honest C++20 predicate with the comment restated
+(CXX20 in both Makevars, so the clause could never decide); K2's
+single-caller installResult folded into installChannel. Battery:
+tests/cpp clean and under ASAN/UBSAN (zero diagnostics); tinytest
+5825/0 with test-capi.R's 232 contract assertions confirmed run;
+trio bitwise 37/37 12/12 10/10; R CMD check OK from a built
+tarball.
+
 ### K2 - run-result packaging compaction (447b8c81, 2026-08-17)
 
 The bridge's packaging region (live :4188-4462, 161 lines of channel
