@@ -1,8 +1,16 @@
-# Monthly smoke test against the two tightest reverse dependencies:
-# stan4bart (the only compiled-boundary dbarts.h consumer; lockstep
-# releases, same maintainer) and bartCause (same maintainer). Between
-# releases nothing else watches them; this surfaces breakage before the
-# next lockstep release rather than at the full manual revdep sweep.
+# Monthly smoke test against the three reverse dependencies dev dbarts is
+# most likely to break: stan4bart and treatSens, the two compiled-boundary
+# dbarts.h consumers (LinkingTo: dbarts), and bartCause, the same-maintainer
+# R-surface consumer. Between releases nothing else watches them; this
+# surfaces breakage before the next lockstep release rather than at the full
+# manual revdep sweep.
+#
+# Sources come from each repo's compat branch, not CRAN: the CRAN releases
+# predate the bartcore rework and cannot pair with the dev dbarts installed
+# from this checkout. Branches: stan4bart bartcore, bartCause dbarts-1.0,
+# treatSens dbarts-1.0. Once the coordinated lockstep release ships, the
+# branch refs in the matrix below flip to each repo's main.
+#
 # stan4bart's build against dbarts.h takes tens of minutes, hence the
 # generous timeout and monthly (not per-push) cadence.
 #
@@ -28,7 +36,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [stan4bart, bartCause]
+        package: [stan4bart, bartCause, treatSens]
+        include:
+          - package: stan4bart
+            branch: bartcore
+          - package: bartCause
+            branch: dbarts-1.0
+          - package: treatSens
+            branch: dbarts-1.0
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -50,13 +65,10 @@ jobs:
       - name: Install dev dbarts from this checkout
         run: R CMD INSTALL .
 
-      - name: Fetch ${{ matrix.package }} source from CRAN
+      - name: Fetch ${{ matrix.package }} from its compat branch
         run: |
-          Rscript -e '
-            path <- download.packages("${{ matrix.package }}", destdir = ".",
-              repos = "https://cloud.r-project.org", type = "source")[, 2]
-            untar(path, exdir = ".")
-          '
+          git clone --depth 1 --branch "${{ matrix.branch }}" \
+            "https://github.com/vdorie/${{ matrix.package }}.git" "${{ matrix.package }}"
 
       # hard dependencies only: suggested packages are skipped by the check
       # (_R_CHECK_FORCE_SUGGESTS_), and bartCause suggests stan4bart, whose
