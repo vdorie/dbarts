@@ -557,6 +557,29 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### I - core-generalization.md current-state extraction (a55be8b5, 2026-08-17)
+
+The arbiter doc's 533-line Phases DONE-log and the pre-rewrite
+Starting-point constraints section move below the architecture, so
+the body reads as current state: Current architecture -> Goals ->
+Architecture -> Extensions -> Performance -> Validation -> Risks,
+then the quarantined history. Destination is a same-file appendix
+with the Phases heading renamed Landing notes - the convention
+every sibling multi-phase design doc uses (forest-combiner, bcf,
+multiplier-combiner, sparse-columns, grow-from-root) and
+docs/README.md defines - not a docs/plans/ file, which no sibling
+precedent supports. The move is a verified pure permutation: the
+sorted-multiset diff of the file is exactly the one heading rename
+(orchestrator re-ran it independently), 802 lines before and
+after. All 56 repo-wide citations of the file resolve unchanged -
+none anchor by line or literal section heading; the phase-number
+citations and the one exact-quote "Wave 2 models" citation are
+preserved verbatim inside the moved block, and
+state-continuation.md's pre-existing "landing notes" phrasing is
+now literally true. Docs-only: fires no CI; the built package is
+byte-identical to the gated F tree. Prior-slice CI: F's six legs
+in flight at landing, watched.
+
 ### F - prior-ladder factorization and the Fork 1 binary-k repair (621da478, 2026-08-17)
 
 refuseColliding promoted to R/model.R taking (matchedCall,
