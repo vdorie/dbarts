@@ -303,6 +303,27 @@ as direct-API defense in depth, on the model of `src/C_interface.cpp:630-636`
 is the message policy K6 reconciles predicates toward; K6 remains free to
 decide, guard by guard, whether a given C-side backstop is worth keeping.
 
+**K6 addendum (predicate parity).** Ownership of the *message* (above) is a
+separate question from parity of the *predicate*: whichever side is not
+canonical must still accept and reject the identical input set, or a value
+can cross the boundary having passed one guard's wording only to be caught
+(or worse, missed) by the other's. This is not hypothetical: `dbartsSampler$
+setForestWeights` checked `anyNA(w) || any(w < 0)` R-side while the bridge
+checked `!R_FINITE(w) || w < 0.0` - an `Inf` forest weight passed the R guard
+and was refused three frames deep in a `tryCatch` rethrow instead of cleanly
+at the surface. Two rules follow. First, the C-side guard stays even when the
+R-side front door already makes it unreachable on the normal path: dbarts
+exposes low-level `bartcore*` `.Call` entries (see `R/bartcore.R`'s header)
+that construct and mutate a sampler directly, skipping every R-level check,
+so the C guard is load-bearing for that route regardless of what the front
+door does. Second, an R-side predicate touching a value that can be `NA`/
+`NaN` must be written to refuse it deterministically in one guard -
+`weights < 0.0` alone is not equivalent to the bridge's `!(w >= 0.0)`,
+because `NA_real_ >= 0.0` is itself `NA` in R and `if (NA)` raises an
+unnamed error rather than the intended message; write `is.na(w) | w < 0.0`
+(or `!is.finite(w) | w < 0.0` when the bridge also requires finiteness), not
+a separate `anyNA` pre-check relying on evaluation order to paper over it.
+
 **External evidence.** None of the four external sources (tidyverse, rlang,
 WRE, the six-package survey) address a package with dual-language validation
 of the same argument, an R layer plus an independently linkable C ABI - this

@@ -1243,10 +1243,10 @@ dbartsSampler <- setRefClass(
       if (length(weights) != length(data@y)) {
         stop("'weights' must have length equal to that of 'y'")
       }
-      if (anyNA(weights)) {
-        stop("'weights' cannot be NA")
-      }
-      if (any(weights < 0.0)) {
+      # NA/NaN and negative share one refusal, matching the bridge's
+      # !(w >= 0.0) (is.na() is checked explicitly since NA_real_ >= 0.0
+      # is itself NA in R, not FALSE)
+      if (any(is.na(weights) | weights < 0.0)) {
         stop("'weights' must all be non-negative")
       }
 
@@ -1301,11 +1301,10 @@ dbartsSampler <- setRefClass(
       if (length(weights) != length(data@y)) {
         stop("'weights' must have length equal to that of 'y'")
       }
-      if (anyNA(weights)) {
-        stop("'weights' cannot be NA")
-      }
-      if (any(weights < 0.0)) {
-        stop("'weights' must all be non-negative")
+      # matches the bridge's !R_FINITE(w) || w < 0.0: a forest weight, unlike
+      # a case weight, must also be finite, not merely non-negative
+      if (!all(is.finite(weights)) || any(weights < 0.0)) {
+        stop("'weights' must be finite and non-negative")
       }
 
       index <- resolveForestIndex(forest)
