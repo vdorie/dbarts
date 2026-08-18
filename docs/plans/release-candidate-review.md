@@ -559,6 +559,40 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### P8 - refusal census + anti-vacuity pass (5d06f641, 2026-08-18)
+
+Wave 3 opens. Census over 912 sites (887 refusals, 25 warnings;
+L's 941-row enumeration reconciled by content): 749 refusals
+PINNED by a message-matching assertion, 138 unreached - 32 DEAD
+(foreclosed by earlier checks or self-documented unreachable), 30
+HARD (interrupt/alloc/raw-entry/rethrow), 79 GENUINE GAPS, the
+real finding, concentrated in the bridge's entry validation and
+R/generics.R's per-generic argument checks; unreached verdicts
+verified by two independent read-only passes with 2 hand
+corrections. Census preserved at
+.claude/rc-review-artifacts-2026-08-18/p8-census.md, including a
+5b wrong-message finding (xbart's n.samples = 0 path errors about
+'x' dimensions). The 73 live bare expect_error assertions (77 had
+drifted) all gain literal patterns from their sites' captured
+messages, plus 6 bare expect_warning the new gate flagged and 10
+opportunistic pins at trivially-reachable gap sites. .lintr gains
+bare_expect_pattern_linter (XPath, both named and positional
+pattern absence) - repo-wide lint clean with zero nolint
+exceptions. Strengthening proven twice on disjoint samples (5 + 4
+broken messages -> patterned assertions fail, bare ones had
+passed). Gate-runner's --as-cran check caught one
+environment-fragile pin - xbart's auto n.threads trips CRAN's
+core limit before the target validation - fixed with an explicit
+n.threads = 1L and the as-cran-for-thread-spawning-tests lesson
+recorded in the runbook. Battery: tinytest 5871/0 (with and
+without _R_CHECK_LIMIT_CORES_); diff touches only inst/tinytest/
+and .lintr; air clean; NEWS untouched parses 270; R CMD check
+--as-cran Status OK. The 79 genuine gaps are the follow-up ledger
+for the remaining wave-3 passes. Prior CI: K6 six-green (its
+exact-gates hit the NEW 25-minute timeout on a mirror stall at
+setup-r-dependencies - the guard's first live catch - and went
+green on rerun).
+
 ### K6 - boundary guard reconciliation; WAVE 2 CLOSES (ee249420, 2026-08-18)
 
 The predicate-parity policy lands as error-style.md's R8 addendum
