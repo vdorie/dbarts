@@ -1635,14 +1635,6 @@ const double* rawViewColumn(const bartcore::PredictorSource& view, size_t j) {
   return view.denseValues + static_cast<size_t>(source) * view.numRows;
 }
 
-const double* rawTrainingColumn(const ParsedData& data, size_t j) {
-  return rawViewColumn(data.predictors, j);
-}
-
-const double* rawParsedTestColumn(const ParsedData& data, size_t j) {
-  return rawViewColumn(data.testPredictors, j);
-}
-
 // The two refusal texts the categorical entrances share - the training side
 // reporting representability, the test side membership in the training levels.
 // The dense entrances have always spelled them this way and the CSC views
@@ -1695,7 +1687,7 @@ double declaredCategoryCount(const ParsedData& data, size_t j) {
 double trainingCategoryBound(const ParsedData& data, size_t j) {
   double declared = declaredCategoryCount(data, j);
   if (data.predictors.sourceOf(j) < 0) return declared;
-  const double* column = rawTrainingColumn(data, j);
+  const double* column = rawViewColumn(data.predictors, j);
   double maxValue = -1.0;
   for (size_t i = 0; i < data.numObservations; ++i) {
     double value = column[i];
@@ -1734,7 +1726,7 @@ void validateCategoricalPredictors(const ParsedData& data) {
     // representable
     double declared = declaredCategoryCount(data, j);
     refuseInvalidCategoryCodes(
-      rawTrainingColumn(data, j), data.numObservations,
+      rawViewColumn(data.predictors, j), data.numObservations,
       declared > 0.0 ? declared : static_cast<double>(bartcore::maxCategories),
       categoricalTrainingMessage);
   }
@@ -1753,7 +1745,7 @@ void validateCategoricalPredictors(const ParsedData& data) {
       refuseInvalidCategoryCodes(&reference, 1, bound, categoricalTestMessage);
       continue;
     }
-    const double* testColumn = rawParsedTestColumn(data, j);
+    const double* testColumn = rawViewColumn(data.testPredictors, j);
     if (testColumn == NULL) continue;  // no test view of this column
     refuseInvalidCategoryCodes(testColumn, data.numTestObservations, bound,
                                categoricalTestMessage);
@@ -2384,24 +2376,16 @@ void refusePredictorMutation(const bartcore::SamplerBase& sampler,
 // per-observation sessions) re-quantizes columns from a new dense column, so
 // unlike whole-data setData it runs on CSC/mixed stores too (they retain their
 // slices; a mutated column repoints at engine-owned nonzeros -
-// docs/design/sparse-columns.md extension (i)). Only a data-handle view, which
-// keeps no raw source at all, is refused here; a per-observation caller
-// additionally refuses a CSC-backed target column by name below.
+// docs/design/sparse-columns.md extension (i)). Cut installation and state
+// restore re-quantize from those same retained slices, so they share this guard
+// rather than carrying one of their own. Only a data-handle view, which keeps
+// no raw source at all, is refused here; a per-observation caller additionally
+// refuses a CSC-backed target column by name below.
 void refuseMutationOnView(const bartcore::SamplerBase& sampler,
                           const char* caller) {
   if (!sampler.data().hasRequantizeSource())
     Rf_error("%s requires a sampler that owns its predictors; data-handle "
              "views hold none", caller);
-}
-
-// Unlike views, CSC-built samplers re-quantize from their retained slices,
-// so cut installation and state restore stay available on them. The executable
-// guard (identical predicate and message) is the one refuseMutationOnView
-// carries; delegate to it so the two call families keep their distinct names
-// without duplicating the check.
-void refuseRequantizeWithoutSource(const bartcore::SamplerBase& sampler,
-                                   const char* caller) {
-  refuseMutationOnView(sampler, caller);
 }
 
 // storeSample adds the test offset to every reported channel AFTER the forests
@@ -2499,32 +2483,24 @@ void refuseStaleCategoryTestOffset(bool hasCategoryTestOffset,
            "offset before replacing those rows", caller);
 }
 
-// A built column store (cuts + codes) shared by row-subset view samplers
-// (public-surface.md section 5; internal). The external pointer's
-// protection slot pins the data expression whose x the store borrows.
-struct DataHandle {
-  bartcore::ColumnStore store;
-};
-
+// A data handle is a built column store (cuts + codes) shared by row-subset
+// view samplers (public-surface.md section 5; internal), held by external
+// pointer. The pointer's protection slot pins the data expression whose x the
+// store borrows.
 void dataHandleFinalizer(SEXP ptrExpr) {
-  DataHandle* handle = static_cast<DataHandle*>(R_ExternalPtrAddr(ptrExpr));
-  if (handle == NULL) return;
-  delete handle;
+  bartcore::ColumnStore* store =
+    static_cast<bartcore::ColumnStore*>(R_ExternalPtrAddr(ptrExpr));
+  if (store == NULL) return;
+  delete store;
   R_ClearExternalPtr(ptrExpr);
 }
 
-DataHandle& dataHandleFromExpression(SEXP ptrExpr) {
-  DataHandle* handle = static_cast<DataHandle*>(R_ExternalPtrAddr(ptrExpr));
-  if (handle == NULL)
+bartcore::ColumnStore& dataHandleFromExpression(SEXP ptrExpr) {
+  bartcore::ColumnStore* store =
+    static_cast<bartcore::ColumnStore*>(R_ExternalPtrAddr(ptrExpr));
+  if (store == NULL)
     Rf_error("data handle function called on NULL external pointer");
-  return *handle;
-}
-
-// Roots a freshly allocated result column in its protected container and
-// hands it back, so run-result assembly needs no per-column PROTECT.
-SEXP installResult(SEXP resultExpr, int slot, SEXP value) {
-  SET_VECTOR_ELT(resultExpr, slot, value);
-  return value;
+  return *store;
 }
 
 // Shared parse/validate prologue of the two sampler-creation paths: fills
@@ -3083,6 +3059,16 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   return holder;
 }
 
+/// A BCF two-forest sampler (docs/design/bcf.md): the model spec supplies the
+/// prognostic forest, bcfParams (length 8: tau tree count, base, power;
+/// aPriorScale; sdModerate; bPriorVariance; updateA and updateB flags) the
+/// treatment forest and glue, z the 0/1 treatment. moderators holds the
+/// treatment forest's optional 1-based column restriction, and the four
+/// trailing expressions the per-forest interactions() and blocks() lists (mu
+/// is the prognostic forest, tau the treatment forest); each may be null.
+/// Gaussian only; raises R errors otherwise. The public creation route reaches
+/// the same build through createHolder, which reads the same pieces off a
+/// control attribute, and is the only route the flat C API has here.
 BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
                                 SEXP dataExpr, SEXP basesExpr,
                                 SEXP bcfParamsExpr, SEXP varsExpr,
@@ -3397,6 +3383,14 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
   return holder;
 }
 
+/// Warm start: seed the sampler's live forests from a donor "bartcoreState"
+/// over the same predictors. samplesExpr, when non-null, maps each chain to a
+/// 1-based donor-sample index; NULL spreads chains across the donor pool.
+/// Raises R errors on malformed states or an incompatible donor. Declared here
+/// because its one caller precedes the state readers it is defined among.
+void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
+                    SEXP samplesExpr);
+
 } // namespace bartcore_bridge
 
 extern "C" {
@@ -3446,15 +3440,15 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
       }
     }
 
-    DataHandle* handle = new DataHandle;
+    bartcore::ColumnStore* handle = new bartcore::ColumnStore;
     // the handle owns raw only for the declared leaf-covariate columns of a
     // DENSE build; a mapped build's dense-backed columns already serve raw
     // from the store's own block, and its CSC-backed ones serve none
     if (data.predictors.isMapped()) gatherColumns.clear();
-    handle->store.build(data.predictors, data.maxNumCuts.data(), 0,
-                        control.useQuantiles,
-                        gatherColumns.empty() ? NULL : gatherColumns.data(),
-                        gatherColumns.size());
+    handle->build(data.predictors, data.maxNumCuts.data(), 0,
+                  control.useQuantiles,
+                  gatherColumns.empty() ? NULL : gatherColumns.data(),
+                  gatherColumns.size());
 
     SEXP result = PROTECT(R_MakeExternalPtr(handle, R_NilValue, dataExpr));
     R_RegisterCFinalizerEx(result, dataHandleFinalizer,
@@ -3476,8 +3470,7 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
                                SEXP dataExpr, SEXP handleExpr,
                                SEXP trainRowsExpr, SEXP testRowsExpr,
                                SEXP familyExpr, SEXP columnsExpr) {
-  const bartcore::ColumnStore& parent =
-    dataHandleFromExpression(handleExpr).store;
+  const bartcore::ColumnStore& parent = dataHandleFromExpression(handleExpr);
   const char* familyName =
     Rf_isNull(familyExpr) ? "" : CHAR(STRING_ELT(familyExpr, 0));
 
@@ -4255,7 +4248,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
                        (hasVariance ? 2 : 0) + (hasForestReporting ? 2 : 0);
 
   // several chains add a trailing chain dimension. Every column roots in the
-  // protected container the moment it is allocated (installResult), so there
+  // protected container the moment it is allocated (installChannel), so there
   // is no hand-counted PROTECT stack to keep in sync with the slot list.
   SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, numResultSlots));
   // The names vector roots through the container's attribute before the mkChar
@@ -4268,7 +4261,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   auto installChannel = [&](const char* name, SEXP value) -> SEXP {
     // the value roots first: it is unprotected until it is in the container,
     // and mkChar allocates
-    installResult(resultExpr, slot, value);
+    SET_VECTOR_ELT(resultExpr, slot, value);
     SET_STRING_ELT(namesExpr, slot++, Rf_mkChar(name));
     return value;
   };
@@ -5050,7 +5043,7 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
                         numCutPoints = std::vector<std::uint32_t>{},
                         columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
-    refuseRequantizeWithoutSource(*holder.sampler, "bartcore_setCutPoints");
+    refuseMutationOnView(*holder.sampler, "bartcore_setCutPoints");
     size_t numPredictors = holder.sampler->shape().numPredictors;
     // dense columns re-quantize from the supplied data@x; CSC/mixed columns
     // read their retained slices, so a non-matrix source is passed as null
@@ -5507,7 +5500,7 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
                        SEXP currentPredictorsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   // restoring cut points re-quantizes from raw values, which views lack
-  refuseRequantizeWithoutSource(*holder.sampler, "bartcore_setState");
+  refuseMutationOnView(*holder.sampler, "bartcore_setState");
   // a cross-grid restore re-quantizes dense columns from the supplied data@x;
   // a same-spec continuation skips per column, so a null source is harmless
   const double* currentPredictors =
@@ -5519,7 +5512,7 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
 SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
                              SEXP samplesExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refuseRequantizeWithoutSource(*holder.sampler, "bartcore_installForests");
+  refuseMutationOnView(*holder.sampler, "bartcore_installForests");
   bartcore_bridge::installForests(*holder.sampler, donorStateExpr, samplesExpr);
   return R_NilValue;
 }

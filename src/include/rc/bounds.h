@@ -55,9 +55,9 @@ void rc_assertBoolConstraints(SEXP x, const char* name, ...);
 //                          RC_END);
 void rc_assertDimConstraints(SEXP x, const char* name, ...);
 
-// if standard is > C++17 (i.e. C++20), bit-wise operations on enums has been deprecated
-// we can use constexprs since C++11, but are only doing so if the compiler would complain 
-#if defined(__cplusplus) && (__cplusplus > 201703L || (__cplusplus >= 201103L && defined(__clang__) && __clang_major__ >= 11))
+// C++20 deprecates bit-wise operations on enums, so a C++ translation unit
+// takes constexpr constants instead; the enum arm below serves the C ones
+#if defined(__cplusplus) && __cplusplus > 201703L
 
 typedef unsigned char rc_constraintType;
 constexpr unsigned char RC_END    = 0x0;
