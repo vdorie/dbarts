@@ -559,6 +559,43 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### P9 ORACLE FIRE - initializer/prior inconsistency (2026-08-18, ADJUDICATION IN FLIGHT)
+
+The Geweke marginal-conditional oracle (benchmarks/R/geweke-mc.R,
+built and run on wt/geweke-mc at da018e3f, NOT yet landed) FIRED on
+the tree-shaped functionals while the response side and both exact
+pivots stayed clean in both arms: n.leaves z = -4.41/-6.62,
+leaf.depth -3.66/-5.79 against the band. The implementer's
+adjudication: sampleTreesFromPrior does not realize the
+forest-structure law the Metropolis moves price. An in-script
+probe at sigma pinned to 1e4 (structure-move likelihood ratios ~1)
+reads the gap directly - initializer expected leaves 19.650 vs
+sweep-stationary 19.504 at m = 10 - and a scaling probe shows the
+relative gap tracking the incidence of prior draws carrying a
+leaf of <= 2 observations (-1.11% at n = 30 shrinking to z =
+-0.12 at n = 1600). Mechanism HYPOTHESIS, unproven:
+growSubtreeFromPrior grows into empty children by rule-based
+availability and collapseEmptyNodes projects them out - a
+projection of the unrestricted law, where the birth/death moves
+price a restricted-and-renormalized one. An INDEPENDENT
+adversarial adjudicator (own code reading + own standalone probe)
+is running; P9's landing waits for its verdict.
+
+FREEZE SCOPE APPLIED (orchestrator judgment under VD's AFK
+discretion grant, FLAGGED for VD review): the fire impeaches the
+initializer's distributional claim, not the sweep (response side +
+exact pivots clean) and not any recorded baseline - every landed
+neutrality evidence item is bitwise determinism against recorded
+streams, and the exact-posterior gates run past burn-in where
+initialization bias decays; therefore NO landed slice re-gates and
+the message lane (L, K6 - string edits with no engine interaction)
+CONTINUES. SBC-deepening is FROZEN: its theta0 draws come from the
+impeached initializer, so tree-shaped SBC evidence generated now
+would be against a known-slightly-wrong prior sampler. The FIX is
+an engine change that moves draws (baseline re-record class) and
+is VD-HELD: direction (initializer -> moves' law vs both -> the
+documented prior) rides the adjudicator's report to VD.
+
 ### FX1-channel - per-draw Student-t df and the t marginal (c3af16a1, 2026-08-18)
 
 Fork 2 executed. The engine's df dynamics were verified FIRST: nu
