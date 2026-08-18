@@ -540,6 +540,53 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### P16 - xbart hardening; the loss plumbing gets its oracle (f009eff8, 2026-08-18)
+
+The least-verified surface hardened. inst/tinytest/test-xbart-oracle.R
+(16 assertions): a capturing loss records the exact (y.test,
+testSamples, weights) triples xbart hands its loss, and rmse /
+weighted rmse / log / mcr are transcribed BY HAND from those triples
+and fold-averaged outside xbart, plus two pure-arithmetic fold-size
+pins (12 rows -> 4,4,4 avg 4; 3,3,2,2,2 avg 2.4). Discrimination
+proven twice: the implementer's planted mutations (fold-count
+off-by-one kills 6/16; swapped log branches + reversed rmse rows
+kills exactly the right 3/16 with mcr unaffected) and the
+independent gate-runner's own re-plant (6/16). Weights pins: non-unit
+weights move the loss (max abs draw gap 1.19); unit-vs-absent is
+equal only to re-association (measured 4.4e-16 draws / 6.8e-16
+loss), pinned at 1e-10 with an exact fold-partition identity.
+n.samples = 0 now refused by name in R/xbart.R (census 5b closed;
+the stale array-dimension pattern in test-xbart-error.R moved with
+it; NEWS item, 272 entries parse). The xbart equivalence scenario
+lands per the re-scope: fitViaXbart drives the k-fold loop over a
+(n.trees x k) grid, loss array as the recorded channel, sizes
+literal, settingsList() untouched.
+
+SPEC DEVIATION, measured and stopped per instruction: the mandated
+1-thread == n-thread pin CANNOT exist. xbart seeds per chunk
+(chunkSeeds = sample.int over numChunks = min(n.threads, n.reps)),
+so at n.reps > 1 results are thread-count-dependent BY DESIGN
+(measured: rep 1 reproduces across 1/2/4 threads, rep 2 diverges);
+the design is documented in R/xbart.R and already gated as an
+inequality in test-xbart-reproducibility.R. The reproducibility
+contract is (seed, n.threads) pairs. DOOR, not designed here:
+per-replication seeding would make xbart thread-invariant at an
+RNG-stream cost - a surface-behavior call for VD if wanted before
+1.0-0. Also discharged by drift: the spec's "patterns for the 50
+bare errors" was already landed by P8's repo-wide pinning.
+
+Gates: implementer battery green (tinytest 5890/0; trio vs
+31e52644/6e3b9fb8/1027be5 = 37 identical + xbart uncovered / 12/12
+/ 10/10; scenario record+self-compare 38/38 strict; air/lintr clean
+with only equivalence.R's two pre-existing warnings; R CMD check
+--as-cran with _R_CHECK_LIMIT_CORES_=TRUE Status: OK) and re-run
+INDEPENDENTLY by a separate gate-runner from its own fresh build,
+ALL GREEN. Landed at f009eff8 (R-only; engine binary is 31e52644's).
+This records commit installs equivalence-f009eff8.rds (the
+gate-runner's fresh-build recording, self-compared 38/38) as
+canonical with the four-place obligation; the xbart scenario's P17
+oracle is the hand-computed loss oracle landed in the same commit.
+
 ### Prior-initializer fix LANDS (31e52644, 2026-08-18) + main-baseline re-record
 
 VD's decisions recorded: LAND the prepared fix; the setForestWeights
