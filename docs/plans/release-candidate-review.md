@@ -540,6 +540,71 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Wave-4 batch - harness extension, statistical mode, P13 (4a42620a, 2026-08-18)
+
+Three individually-gated slices stacked and pushed under the batch
+clause (disjoint files; one merged-tree battery re-ran everything on
+the stack).
+
+HARNESS EXTENSION (the re-scoped rider, discharged): equivalence.R
+gains four scenarios - bart2gauss (formula bart2 with non-default
+weights + subset, unreachable from the x/y family scenarios),
+bart2probit (offset/offset.test + two pooled chains), bart2twoforest
+(the canonical zf:forest(x1 + x2) term sugar, K = 2
+amplitude-coupled, recording forestFits/glue/forest-widened
+varcount), and mixedmatrix (a dbartsMixedMatrix dense+sparse
+container through the sampler API, train/test/varcount). Seeds and
+sizes literal outside the guarded settings (settingsList()
+unchanged); the implementer also caught and fixed a presence-only
+yhat.train guard that would have leaked a new channel into every
+bart()-routed existing scenario - the 38/38 neutrality compare is
+the proof it did not. Recording at the landed sha becomes
+equivalence-4a42620a.rds (42 scenarios), self-compared 42/42 strict
+and cross-checked bitwise against the implementer's own-build
+recording; four places bumped in this commit. Budget honestly over
+(175 dense vs ~90 - four scenarios plus three fitters; the estimate
+was low, the same class as P6's data-row underweighting).
+
+STATISTICAL MODE (TODO ledger item, local half): bcf-equivalence.R
+and multinomial-equivalence.R now fall through from a bitwise
+mismatch to equivalence.R's shape - Welch z per summary over each
+scenario's draws-axis statChannels (BCF sigma/train/varcount;
+multinomial train/test/runVarcount) against baseline-recorded
+summaries, |z| >= 4 fails; the record path writes the summaries
+forward. Snapshot channels (live-sampler mu/tau/glue/varcount
+reads, accept/install verdicts) have no distribution to test and
+keep gating bitwise. LOUD degradation when a baseline predates
+summaries - never a silent pass. Verified: this host's verdicts
+byte-identical (12/12, 10/10, identical stdout); mutation-proven on
+both harnesses (BCF glue-precision mutant max |z| 42.6, multinomial
+omega mutant 12.9-61.7, both exiting through the statistical
+verdict against summaries-carrying scratch baselines). The TODO
+entry records the two-part residual honestly: the pinned baselines
+predate summaries (re-record only valid from the recording host),
+AND a re-record alone cannot make a cross-host run pass - the
+snapshot channels mismatch across hosts by construction, so
+cross-host needs a design decision (exempt-under-flag vs
+draws-axis conversion) not taken here. CI legs stay
+default-branch-gated.
+
+P13 (.win drift guard, local half): tools/check-win-drift.R checks
+the six checked-in Windows variants - version literals against
+DESCRIPTION, and each config header's macro nameset against its .in
+template under a RECORDED 38-entry expected-absent table (zero
+UNKNOWN reasons; every gap traced to a use site). No real drift at
+HEAD; the guard was self-tested against four injected drift classes
+(version mismatch, new-check-missing, stale-now-defined,
+stale-dropped-from-.in), all caught. CI half default-branch-gated.
+
+Merged battery on the stack: all eight gates green from a
+fresh build (tinytest 5991/0; the win-drift guard exit 0; 38/38
+neutrality vs f009eff8; the 42/42 record self-compare AND a 42/42
+bitwise cross-check against the implementer's own-build recording;
+bcf 12/12 and multinomial 10/10 with the fallback code inert;
+air/lintr with zero new lints, the two equivalence.R shifts
+confirmed as moved-not-new; tarball builds). CI watched to
+six-green at the sha before this records push.
+
 ### P5b - mutation-sequence composition arms; WAVE 3 CLOSES (61310e0e, 2026-08-18)
 
 inst/tinytest/test-composition-sequences.R (82 assertions), seeded
