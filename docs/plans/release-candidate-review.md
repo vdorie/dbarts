@@ -557,6 +557,41 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### H - NEWS 1.0-0 consolidation; WAVE 1 CLOSES (7623af19, 2026-08-17)
+
+The unreleased section now reads as the delta from 0.9-31: 155
+items -> 153 (149 kept as already-final surface descriptions, 6
+trimmed of branch-time narration or stale spellings, 2
+supersession chains merged to final state - rngSeed -> seed and
+the retired variance companion knobs -> varianceForest(), 3
+dropped as intra-branch churn by their own admission, 1 added: the
+deferred B2 item, dbartsMixedMatrix reference metadata validated
+at creation to the mutation standard, wording verified against
+requireCscReferenceMeta). The accreted duplicate subsection blocks
+merge to one UPGRADING / NEW FEATURES / C API / BUG FIXES set. The
+rngSeed rename disclosure stays IN FULL as the correctly-worded
+final-state record of a real 0.9-31 breaking change (the
+consumer-gotcha item); the census's actual complaint - rngSeed
+advertised as the current spelling - is dead. Item-by-item
+classification preserved untracked at
+.claude/../scratchpad/himpl-classification.md (session scratch);
+prior-release sections verified byte-untouched by the orchestrator;
+every kept "gains" item verified to name a live surface. Gates
+twice (implementer, then independent gate-runner on the
+patch-id-verified rebase): parse 268 entries; rngSeed confined to
+the disclosure item plus the historical 0.9-19 section; R CMD
+check Status OK from a clean-staged tarball; diff touches only
+inst/NEWS.Rd.
+
+WAVE 1 COMPLETE: C, K3, D, K2, K4, K5, G, E, K, F, I, J, H landed
+plus the VD-directed CI hang-guard slice; every code commit
+six-green (H's legs in flight at landing, watched). Open residue
+riding forward: grouped-mixing ratio flag (oracle lane),
+mixedMatrix predictorSourceColumn naming residual (wave-3 refusal
+census), the wave-2 L sweep gated on VD signing the revised
+message rule, and FX1-channel now UNBLOCKED (Fork 2 resolved, K2
+landed - the per-draw df channel is a one-line add).
+
 ### J - exponent-rule promotion (76be5e5b, 2026-08-17)
 
 The ledgered door-memo follow-up discharged: the b-move Jacobian
