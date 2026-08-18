@@ -21,7 +21,7 @@ expect_error(
 
 expect_error(
   dbarts::xbart(y ~ x, n.samples = 0L, n.threads = 1L),
-  "'x' must be an array of at least two dimensions"
+  "'n.samples' must be a positive integer"
 )
 expect_error(
   dbarts::xbart(y ~ x, n.samples = "not-a-integer"),

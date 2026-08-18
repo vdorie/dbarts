@@ -88,6 +88,13 @@ xbart <- function(
   validateCall <- addCallArgument(validateCall, "control", control)
   eval(validateCall, evalEnv, getNamespace("dbarts"))
 
+  # the shared validator admits n.samples = 0 - a sampler is free to run
+  # without keeping draws - but a cell scored on an empty sample matrix
+  # would fault deeper, inside the loss
+  if (control@n.samples <= 0L) {
+    stop("'n.samples' must be a positive integer")
+  }
+
   if (control@call != call("NA")[[1L]]) {
     control@call <- matchedCall
   }

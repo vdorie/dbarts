@@ -808,6 +808,24 @@ makeScenarios <- function() {
     mutate = list(partial = list(index = 6L, values = runif(400L)))
   )
 
+  # xbart's crossvalidation loop, the only scenario that drives it: each
+  # replication draws a fold partition, every parameter cell is fit on the
+  # training folds and scored on the held-out one, and the reported loss is
+  # the fold average. The recorded channel is that loss array, so a build
+  # that moved the draws shows up through the scoring rather than through a
+  # fit's own summaries. Its budget is LITERAL, kept out of the guarded
+  # ndpost/nskip/ntree, so settingsList() stays identical to the earlier
+  # baselines and the neutrality compare against them still runs; the
+  # k3counts/set_predictor precedent in the sister harnesses.
+  set.seed(5134L)
+  x <- matrix(runif(150L * 5L), 150L)
+  result$xbart <- list(
+    x = x,
+    y = friedman(x) + rnorm(150L),
+    binary = FALSE,
+    xbartFit = TRUE
+  )
+
   result
 }
 
@@ -1057,6 +1075,28 @@ fitViaHurdle <- function(scenario) {
   )
 }
 
+# runs xbart's k-fold crossvalidation over a (n.trees x k) grid. Sizes are
+# this scenario's own literals rather than the guarded ndpost/nskip/ntree,
+# and n.threads = 1L keeps the whole sweep in this process, under the
+# harness's own fork-level parallelism. The result is a loss array, not a
+# fit, so this fitter returns the finished summary vector itself.
+fitViaXbart <- function(scenario) {
+  loss <- xbart(
+    scenario$x,
+    scenario$y,
+    n.samples = 25L,
+    n.burn = c(20L, 5L),
+    method = "k-fold",
+    n.test = 4,
+    n.reps = 2L,
+    n.trees = c(10L, 25L),
+    k = c(1, 3),
+    n.threads = 1L,
+    verbose = FALSE
+  )
+  setNames(as.vector(loss), paste0("loss.", seq_along(loss)))
+}
+
 # runs rbart_vi's in-core grouped path (built-in tau prior, no callback):
 # single chain, no thinning, the harness's global budget. Draw matrices come
 # back sample-major except varcount (predictor x sample), transposed here so
@@ -1129,6 +1169,11 @@ fitSummaries <- function(scenario, seed) {
   # Test-data weights are irrelevant here (no posterior-predictive use);
   # muffle only that warning so real ones stay visible.
   splitprobs <- scenario$splitprobs
+  # xbart reports a loss array rather than a fit, and carries none of the
+  # channels assembled below, so it returns its own summary vector whole
+  if (!is.null(scenario$xbartFit)) {
+    return(fitViaXbart(scenario))
+  }
   fit <- if (!is.null(scenario$rbart)) {
     fitViaRbart(scenario)
   } else if (!is.null(scenario$ordinalFit)) {
