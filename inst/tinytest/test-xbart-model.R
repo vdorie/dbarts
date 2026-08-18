@@ -131,11 +131,14 @@ expect_error(
     dart = TRUE,
     split.probs = c(5, rep(1, p - 1L))
   ),
-  pattern = "cannot be combined with 'dart'"
+  pattern = paste0(
+    "'split.probs' cannot be combined with 'dart': a DART prior samples ",
+    "its split probabilities"
+  )
 )
 expect_error(
   dbarts::xbart(x, y, n.reps = 1L, n.threads = 1L, dart = "yes"),
-  pattern = "must be TRUE, FALSE"
+  pattern = "'dart' must be TRUE, FALSE, or a prior created by dbartsPriors"
 )
 expect_error(
   dbarts::xbart(x, y, n.reps = 1L, n.threads = 1L, split.probs = c(1, 2)),
@@ -227,14 +230,17 @@ expect_identical(
 # they are grid axes, not duplicates (unlike bart2's tree.prior)
 expect_error(
   quickXbart(tree.prior = dbarts::dbartsPriors$cgm(), dart = TRUE),
-  pattern = "'tree.prior' cannot be combined with 'dart'"
+  pattern = paste0(
+    "'tree.prior' cannot be combined with 'dart': supply the prior either ",
+    "as an object or through its shorthand arguments, not both"
+  )
 )
 expect_error(
   quickXbart(
     tree.prior = dbarts::dbartsPriors$cgm(),
     split.probs = c(5, rep(1, p - 1L))
   ),
-  pattern = "'tree.prior' cannot be combined with 'split.probs'"
+  pattern = "'tree.prior' cannot be combined with 'split.probs': supply the"
 )
 expect_silent(quickXbart(
   tree.prior = dbarts::dbartsPriors$cgm(),
@@ -251,7 +257,7 @@ rm(testData)
 
 source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 
-# test that runs with binary data and k hyperprior
+# test that runs with binary data
 x <- testData$X
 z <- testData$Z
 
@@ -282,6 +288,33 @@ expect_equal(
 )
 
 rm(xval)
+
+# the binary grid default is the same FIXED k the continuous arm defaults to
+# (2), not bart2's chi hyperprior: a hyperprior is held rather than swept and
+# is drawn every sweep, so it would collapse the k axis onto a single cell.
+# A default binary run is therefore identical to the same run naming k = 2 -
+# a hyperprior reaching a cell would draw and move the stream - and reports
+# the k axis under drop = FALSE exactly as a continuous run does
+binaryCV <- function(...) {
+  dbarts::xbart(
+    x,
+    z,
+    n.samples = 5L,
+    n.burn = c(3L, 2L),
+    method = "k-fold",
+    n.test = 5,
+    n.reps = 1L,
+    n.threads = 1L,
+    seed = 41L,
+    drop = FALSE,
+    ...
+  )
+}
+binaryDefault <- binaryCV()
+expect_identical(binaryDefault, binaryCV(k = 2))
+expect_identical(dimnames(binaryDefault)[["k"]], "2")
+expect_identical(dimnames(binaryCV(family = "gaussian"))[["k"]], "2")
+rm(binaryCV, binaryDefault)
 
 # family routes through to the folds: logistic and forced-gaussian fit 0/1
 # responses, binary families reject continuous ones

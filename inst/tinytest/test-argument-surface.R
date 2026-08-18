@@ -614,7 +614,10 @@ expect_true(all(abs(samplesViaBart2Fixed$sigma - 1) < 1e-8))
 # errors naming both, matching the dart/split.probs precedent's shape
 expect_error(
   fit2(y.gaussian, tree.prior = dbarts::dbartsPriors$cgm(), power = 3),
-  pattern = "'tree.prior' cannot be combined with 'power'"
+  pattern = paste0(
+    "'tree.prior' cannot be combined with 'power': supply the prior either ",
+    "as an object or through its shorthand arguments, not both"
+  )
 )
 expect_error(
   fit2(y.gaussian, node.prior = dbarts::dbartsPriors$normal(), k = 3),

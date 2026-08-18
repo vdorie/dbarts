@@ -64,7 +64,7 @@ xbart(
      A vector of positive integers setting the BART hyperparameter for the number of trees in the sum-of-trees formulation. See \code{\link{bart}}.
    }
    \item{k}{
-     A vector of positive real numbers, setting the BART hyperparameter for the node-mean prior standard deviation. If \code{NULL}, the default of \code{bart2} will be used - 2 for continuous response and a Chi hyperprior for binary. Hyperprior crossvalidation not possible at this time. A hyperprior \code{k} is held, not swept, and is DRAWN every sweep in every cell, so the reported loss is computed under a shrinkage that moves within each fit rather than under the named value.
+     A vector of positive real numbers, setting the BART hyperparameter for the node-mean prior standard deviation. If \code{NULL}, the grid default of 2 is used for every response family. Binary responses do not inherit \code{bart2}'s Chi hyperprior default: a hyperprior is not a grid, so taking it here would leave the \code{k} axis a single cell. Hyperprior crossvalidation not possible at this time. A hyperprior \code{k} is held, not swept, and is DRAWN every sweep in every cell, so the reported loss is computed under a shrinkage that moves within each fit rather than under the named value.
    }
    \item{power}{
      A vector of real numbers greater than one, setting the BART hyperparameter for the tree prior's growth probability, given by \eqn{{base} / (1 + depth)^{power}}.

@@ -184,9 +184,15 @@ expect_equal(
 )
 expect_error(
   bart2(y.dart ~ x.dart, dart = TRUE, split.probs = rep(0.1, 10L)),
-  pattern = "cannot be combined"
+  pattern = paste0(
+    "'split.probs' cannot be combined with 'dart': a DART prior samples ",
+    "its split probabilities"
+  )
 )
-expect_error(bart2(y.dart ~ x.dart, dart = 2), pattern = "must be TRUE, FALSE")
+expect_error(
+  bart2(y.dart ~ x.dart, dart = 2),
+  pattern = "'dart' must be TRUE, FALSE, or a prior created by dbartsPriors"
+)
 expect_null(
   bart2(
     y.dart ~ x.dart,

@@ -203,11 +203,15 @@ xbart <- function(
     }
   }
 
+  # the grid default is a fixed k for every family, binary included: a
+  # hyperprior k is held rather than swept and is drawn every sweep, so
+  # defaulting binary fits to bart2's chi hyperprior would collapse the k
+  # axis onto a single cell whose shrinkage moves within the fit
   if (is.null(matchedCall[["k"]])) {
     k <- if (!is.null(node.spec) && !is.null(node.spec@k)) {
       node.spec@k
     } else {
-      eval(eval(quoteInNamespace(.kDefault)))
+      2
     }
   }
   kIsGrid <- is.numeric(k)
@@ -236,16 +240,7 @@ xbart <- function(
   # bart2's tree.prior, which does collide with power/base (R/bart.R's
   # buildSamplerPriors), because there they are ordinary scalars, not a grid.
   if (!is.null(matchedCall[["tree.prior"]])) {
-    collidingNames <- c("dart", "split.probs")
-    hit <- collidingNames[collidingNames %in% names(matchedCall)]
-    if (length(hit) > 0L) {
-      stop(
-        "'tree.prior' cannot be combined with '",
-        hit[1L],
-        "': supply the tree prior either as an object or through its ",
-        "shorthand arguments, not both"
-      )
-    }
+    refuseColliding(matchedCall, "tree.prior", c("dart", "split.probs"))
     priorEnv <- new.env(parent = evalEnv)
     priorEnv[["cgm"]] <- getNamespace("dbarts")[["cgm"]]
     priorEnv[["dart"]] <- getNamespace("dbarts")[["dart"]]
@@ -258,19 +253,14 @@ xbart <- function(
         "'tree.prior' must be a tree prior specification; see ?dbartsPriors"
       )
     }
-  } else if (inherits(dart, "dbartsDartPrior")) {
-    tree.prior <- dart
-  } else if (isTRUE(dart)) {
-    if ("split.probs" %in% names(matchedCall)) {
-      stop(
-        "'split.probs' cannot be combined with 'dart': a DART prior samples its split probabilities"
-      )
-    }
-    tree.prior <- dbartsPriors$dart(power[1L], base[1L])
-  } else if (!isFALSE(dart)) {
-    stop("'dart' must be TRUE, FALSE, or a prior created by dbartsPriors$dart")
   } else {
-    tree.prior <- cgm(power[1L], base[1L], split.probs)
+    tree.prior <- resolveDartShorthand(
+      dart,
+      "split.probs" %in% names(matchedCall),
+      "split.probs",
+      function() dbartsPriors$dart(power[1L], base[1L]),
+      function() cgm(power[1L], base[1L], split.probs)
+    )
   }
   tree.prior <- resolveSplitProbabilities(tree.prior, data)
 
@@ -312,8 +302,9 @@ xbart <- function(
       normal(kValue, namedSd, namedScale)
     }
   }
-  # xbart cells always run a fixed k (the default 2, not the binary
-  # hyperprior), as before the priors became objects
+  # xbart cells run a fixed k unless a hyperprior is named explicitly: the
+  # grid default is 2 for every family, so the binary family default is never
+  # taken here
   node.hyperprior <- resolveNodeHyperprior(node.prior@k, binary = FALSE)
 
   # a binary family runs on a fixed unit latent scale (R/spec.R's
