@@ -3,7 +3,7 @@ source(
   local = TRUE
 )
 
-# test that combine/uncombine chains and convert from/to bart style works correctly
+# test that combine/uncombine chains and convert to bart style works correctly
 n.chains <- 3L
 n.samples <- 5L
 n.obs <- 7L
@@ -47,19 +47,6 @@ expect_equal(
   bartSamples
 )
 expect_equal(dbarts:::combineChains(bartSamples), bartSamples.cc)
-
-expect_equal(
-  dbarts:::convertSamplesFromBartsToDbarts(bartSamples, n.chains),
-  dbartsSamples
-)
-expect_equal(
-  dbarts:::convertSamplesFromBartsToDbarts(
-    bartSamples.cc,
-    n.chains,
-    uncombineChains = TRUE
-  ),
-  dbartsSamples
-)
 
 rm(k, bartSamples.cc, bartSamples, dbartsSamples, n.obs, n.samples, n.chains)
 

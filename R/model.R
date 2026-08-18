@@ -383,7 +383,7 @@ resolveSplitProbabilities <- function(prior, data) {
 
   prior@splitProbabilities <- split.probs
   prior@splitProbabilitiesSpec <- NULL
-  validateObject(prior)
+  tryCatch(validObject(prior), error = rethrowValidityError)
   prior
 }
 

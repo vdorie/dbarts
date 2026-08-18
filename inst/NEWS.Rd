@@ -1517,6 +1517,11 @@
             error, and a \code{resid.prior} supplied under a binary family
             is now always overridden to \code{fixed(1)} rather than only
             when left unsupplied.
+      \item \code{xbart}'s \code{n.burn} takes one or two non-negative
+            integers instead of up to three; its third element was never
+            read. A length-3 (or longer) call still runs, its extra
+            elements silently dropped, matching how \code{n.test} has
+            always been reduced to its first element regardless of length.
     }
   }
 }

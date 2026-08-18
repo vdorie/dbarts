@@ -15,11 +15,6 @@ newValidated <- function(Class, ...) {
   tryCatch(new(Class, ...), error = rethrowValidityError)
 }
 
-validateObject <- function(object) {
-  tryCatch(validObject(object), error = rethrowValidityError)
-  invisible(object)
-}
-
 # One-line verdict when family = "auto" resolves a categorical response to a
 # non-default family: probit for a 2-level response, multinomial for a 3+-level
 # UNORDERED factor/character, ordinal for a 3+-level ORDERED factor (the level

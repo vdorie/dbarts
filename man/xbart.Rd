@@ -8,7 +8,7 @@
 xbart(
     formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
     method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
-    n.reps = 40L, n.burn = c(200L, 150L, 50L),
+    n.reps = 40L, n.burn = c(200L, 150L),
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, power = 2, base = 0.95,
     split.probs = NULL, dart = FALSE, drop = TRUE,
@@ -52,7 +52,7 @@ xbart(
     A positive integer setting the number of cross validation steps that will be taken. For \code{"k-fold"}, each replication corresponds to fitting each of the \eqn{K} folds in turn, while for \code{"random subsample"} a replication is a single fit.
   }
   \item{n.burn}{
-    Unlike the single-scalar \code{n.burn} of \code{\link{dbarts}}, \code{bart2}, and \code{rbart_vi}, here it is between one and three non-negative integers, specifying 1) the burn-in when a chain is freshly started against a data split and 2) the burn-in when moving from one parameter setting to another over the same split. Chains are never carried between data splits or folds - the held-out observations of one were training observations of the previous, so continuing a chain lets slowly-mixing settings score against data they have effectively seen. A third element is accepted for backwards compatibility and ignored.
+    Unlike the single-scalar \code{n.burn} of \code{\link{dbarts}}, \code{bart2}, and \code{rbart_vi}, here it is one or two non-negative integers, specifying 1) the burn-in when a chain is freshly started against a data split and 2) the burn-in when moving from one parameter setting to another over the same split. Chains are never carried between data splits or folds - the held-out observations of one were training observations of the previous, so continuing a chain lets slowly-mixing settings score against data they have effectively seen.
   }
   \item{loss}{
     Either one of the pre-set loss functions as character-strings (\code{mcr} - misclassification rate for binary responses, \code{rmse} - root-mean-squared-error for continuous response), \code{log} - negative log-loss for binary response (\code{rmse} serves this purpose for continuous responses), a function, or a function-evaluation environment list-pair. Functions should have prototypes of the form \code{function(y.test, y.test.hat, weights)}, where \code{y.test} is the held out test subsample, \code{y.test.hat} is a matrix of dimension \code{length(y.test)} \eqn{\times}{*} \code{n.samples}, and \code{weights} are an optional vector of user-supplied weights. See examples.
@@ -159,7 +159,7 @@ mad <- function(y.test, y.test.hat, weights) {
 
 
 ## low iteration numbers to to run quickly
-xval <- xbart(x, y, n.samples = 15L, n.reps = 4L, n.burn = c(10L, 3L, 1L),
+xval <- xbart(x, y, n.samples = 15L, n.reps = 4L, n.burn = c(10L, 3L),
               n.trees = c(5L, 7L),
               k = c(1, 2, 4),
               power = c(1.5, 2),
