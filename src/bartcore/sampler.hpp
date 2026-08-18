@@ -318,6 +318,8 @@ public:
         r.cutpoints = results.cutpoints + c * numSamples * numCutpoints;
       if (results.dispersion != nullptr)
         r.dispersion = results.dispersion + c * numSamples;
+      if (results.residualDf != nullptr)
+        r.residualDf = results.residualDf + c * numSamples;
       if (results.varianceFits != nullptr)
         r.varianceFits =
           results.varianceFits + c * numSamples * data_.numObservations;
@@ -1167,6 +1169,9 @@ public:
   double dispersion(size_t chainNum) const {
     return chains_[chainNum]->dispersion();
   }
+  /// Whether the response family carries a residual df nu; chain 0 answers for
+  /// all, as every chain carries the same error law.
+  bool carriesResidualDf() const { return chains_[0]->carriesResidualDf(); }
   bool testFitsAreDefined() const {
     return chains_[0]->testFitsAreDefined();
   }

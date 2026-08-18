@@ -127,7 +127,8 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// rather than silently produce no output. k requires a k
 /// hyperprior (dbarts_sampler_kIsSampled), varprobs a DART tree prior
 /// (dbarts_sampler_usesDart), tau/groupEffects a grouped
-/// random-intercept sampler, and dispersion a count (nbinom) response; each is
+/// random-intercept sampler, dispersion a count (nbinom) response, and
+/// residualDf a Student-t residual law; each is
 /// left untouched otherwise. logLikelihood
 /// carries the per-draw training-data log-likelihood for the gaussian,
 /// binary, and aft families; aft reports the log density for events and the
@@ -157,6 +158,7 @@ typedef struct dbarts_results_t {
   double* groupEffects; ///< numGroups x numSamples x numChains
   double* logLikelihood; ///< numObservations x numSamples x numChains
   double* dispersion;    ///< numSamples x numChains, the nbinom r per draw
+  double* residualDf;    ///< numSamples x numChains, the Student-t nu per draw
   /* 1.0-0 field boundary: every future append goes below this line, never
      above. An append after 1.0-0 bumps DBARTS_C_API_MINOR; a pre-1.0-0 one
      extends the initial field set above it and moves no version constant. */

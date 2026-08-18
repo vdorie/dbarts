@@ -342,6 +342,13 @@ struct Results {
   // grid-estimated r reports that sweep's draw - so the channel consumes no rng.
   // Every other family leaves it null and allocates nothing.
   double* dispersion = nullptr;
+  // per-draw Student-t residual degrees of freedom nu, numSamples, or null;
+  // filled only when the response family carriesResidualDf() (a Student-t error
+  // law). A pure read of state the sweep already settled on - a fixed nu repeats
+  // the installed value, an estimated nu reports that sweep's grid draw - so the
+  // channel consumes no rng. Every other error law leaves it null and allocates
+  // nothing.
+  double* residualDf = nullptr;
   // heteroscedastic variance surface s^2(x), original response scale, or null:
   // varianceFits is numObservations x numSamples, varianceTestFits is
   // numTestObservations x numSamples. A SEPARATELY-typed-forest channel (not a
@@ -962,6 +969,9 @@ public:
   /// The dispersion r in force, 0 off a family carrying one. Fixed at creation
   /// (options.dispersion > 0) or redrawn on the grid every sweep.
   double dispersion() const { return response_->dispersion(); }
+  /// Whether the response family carries a residual df nu (a Student-t error
+  /// law) - the gate the recorded df channel and the serialized state share.
+  bool carriesResidualDf() const { return response_->carriesResidualDf(); }
   /// Whether the recorded test-fit channel carries a defined value: true off any
   /// combiner (single forest) and for a combiner that blends a test surface
   /// (multinomial softmax), false for BCF (no test treatment vector). The bridge
@@ -5071,6 +5081,12 @@ private:
     // value the recorded latents and fits are consistent with
     if (results.dispersion != nullptr && response_->carriesDispersion())
       results.dispersion[sampleNum] = response_->dispersion();
+
+    // the residual df nu this draw is conditioned on, the t analog of the
+    // dispersion r; the grid draw ran inside refreshLatents before this store,
+    // so nu is the value the recorded latents and fits are consistent with
+    if (results.residualDf != nullptr && response_->carriesResidualDf())
+      results.residualDf[sampleNum] = response_->residualDf();
 
     if (results.logLikelihood != nullptr) {
       double* out = results.logLikelihood + sampleNum * n;

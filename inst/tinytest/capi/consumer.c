@@ -561,6 +561,48 @@ SEXP capi_run_dispersion(SEXP ptrExpr, SEXP numBurnInExpr,
   return result;
 }
 
+/* the Student-t df channel a robust host reads: the results slot appended to
+ * dbarts_results after the dispersion one. Same discipline as the dispersion
+ * shim above - the recorded slot is NA-poisoned before the run, so an error law
+ * that never fills it reads back as NA rather than as a plausible number, and
+ * the first run pins structSize below the appended field over a poisoned
+ * pointer, which a size-blind write would dereference. */
+SEXP capi_run_residual_df(SEXP ptrExpr, SEXP numBurnInExpr,
+                          SEXP numSamplesExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
+  size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
+  size_t length = numSamples * dbarts_sampler_numChains(sampler);
+
+  SEXP recorded = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
+  for (size_t i = 0; i < length; ++i) REAL(recorded)[i] = NA_REAL;
+  double* sigma = (double*) R_alloc(length, sizeof(double));
+
+  dbarts_results older = DBARTS_RESULTS_INIT;
+  older.structSize = offsetof(dbarts_results, residualDf);
+  older.sigma = sigma;
+  older.residualDf = (double*) (uintptr_t) 0x1;
+  dbarts_sampler_run(sampler, numBurnIn, numSamples, &older);
+
+  dbarts_results results = DBARTS_RESULTS_INIT;
+  results.sigma = sigma;
+  results.residualDf = REAL(recorded);
+  dbarts_sampler_run(sampler, 0, numSamples, &results);
+
+  SEXP result = PROTECT(Rf_allocVector(VECSXP, 3));
+  SET_VECTOR_ELT(result, 0, recorded);
+  SET_VECTOR_ELT(
+    result, 1, Rf_ScalarLogical(DBARTS_RESULTS_HAS(&results, residualDf)));
+  SET_VECTOR_ELT(result, 2, Rf_ScalarLogical(1));
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 3));
+  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("recorded"));
+  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("present"));
+  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("guarded"));
+  Rf_setAttrib(result, R_NamesSymbol, namesExpr);
+  UNPROTECT(3);
+  return result;
+}
+
 /* the mid-sweep getter, on the capability contract every reader here follows:
  * NULL stands for the 0 return a family carrying no dispersion answers with */
 SEXP capi_dispersion(SEXP ptrExpr) {

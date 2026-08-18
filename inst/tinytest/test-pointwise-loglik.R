@@ -326,11 +326,11 @@ expect_error(
   pattern = "log-likelihood not available for family"
 )
 
-# 10. resid.dist:
-# a student() fit records its own token, and a present non-"gaussian"
-# token refuses pointwiseLogLikelihood and the ppd draw rather than
-# silently scoring/drawing gaussian - the t marginal needs a per-draw df
-# channel not yet stored
+# 10. resid.dist: a student() fit records its own token AND the per-draw
+# degrees of freedom it conditioned each draw on, and its log-likelihood is
+# the marginal t density at that draw's (ev, sigma, df) - the quantity
+# loo/waic are defined on - rather than the gaussian density. The ppd draw
+# stays refused: its noise is drawn gaussian regardless of resid.dist.
 set.seed(3, sample.kind = "Rejection")
 n.t <- 60L
 x.t <- matrix(runif(n.t * 2L), n.t, 2L)
@@ -347,16 +347,94 @@ fit.t <- bart2(
   verbose = FALSE
 )
 expect_identical(fit.t$resid.dist, "student")
-expect_error(
-  extract(fit.t, type = "loglik"),
-  pattern = "pointwise log-likelihood does not support student residuals"
-)
+# the df channel takes sigma's own shape, one scalar per draw, and a FIXED
+# df repeats the value supplied to student()
+expect_identical(dim(fit.t$resid.df), dim(fit.t$sigma))
+expect_identical(length(fit.t$resid.df), 20L)
+expect_identical(unique(as.vector(fit.t$resid.df)), 4)
+
+ll.t <- extract(fit.t, type = "loglik")
+ev.t <- extract(fit.t, type = "ev")
+expect_identical(dim(ll.t), dim(ev.t))
+for (i in c(1L, 29L, 60L)) {
+  expect_identical(
+    ll.t[, i],
+    dt((y.t[i] - ev.t[, i]) / fit.t$sigma, fit.t$resid.df, log = TRUE) -
+      log(fit.t$sigma)
+  )
+}
+# and it is NOT the gaussian density the guard used to stand in front of
+expect_false(isTRUE(all.equal(
+  ll.t[, 1L],
+  dnorm(y.t[1L], ev.t[, 1L], fit.t$sigma, log = TRUE)
+)))
+
 expect_error(
   extract(fit.t, type = "ppd"),
   pattern = "posterior predictive sampling does not support student residuals"
 )
 
-rm(fit.t, x.t, y.t, n.t)
+# an ESTIMATED df moves draw to draw, so the pairing is per draw and not a
+# constant folded out: two chains, and the same identity across both margins
+set.seed(11, sample.kind = "Rejection")
+fit.te <- bart2(
+  y.t ~ x.t,
+  resid.dist = student(),
+  n.samples = 15L,
+  n.burn = 15L,
+  n.trees = 10L,
+  n.chains = 2L,
+  n.threads = 1L,
+  verbose = FALSE,
+  combineChains = FALSE
+)
+expect_identical(dim(fit.te$resid.df), dim(fit.te$sigma))
+expect_true(length(unique(as.vector(fit.te$resid.df))) > 1L)
+expect_true(all(fit.te$resid.df > 0))
+ll.te <- extract(fit.te, type = "loglik", combineChains = FALSE)
+ev.te <- extract(fit.te, type = "ev", combineChains = FALSE)
+for (i in c(2L, 44L)) {
+  expect_identical(
+    ll.te[,, i],
+    dt(
+      (y.t[i] - ev.te[,, i]) / fit.te$sigma,
+      fit.te$resid.df,
+      log = TRUE
+    ) -
+      log(fit.te$sigma)
+  )
+}
+
+# a student fit serialized before the df channel existed carries the token
+# but not the draws: refused by name rather than scored at a guessed df
+fit.nodf <- fit.t
+fit.nodf$resid.df <- NULL
+expect_error(
+  dbarts:::pointwiseLogLikelihood(fit.nodf, ev.t),
+  pattern = "does not store the per-draw residual degrees of freedom"
+)
+
+# an unrecognized residual law is still refused rather than scored
+fit.other <- fit.t
+fit.other$resid.dist <- "laplace"
+expect_error(
+  dbarts:::pointwiseLogLikelihood(fit.other, ev.t),
+  pattern = "pointwise log-likelihood does not support laplace residuals"
+)
+
+rm(
+  fit.t,
+  fit.te,
+  fit.nodf,
+  fit.other,
+  ll.t,
+  ev.t,
+  ll.te,
+  ev.te,
+  x.t,
+  y.t,
+  n.t
+)
 
 # 11. absent resid.dist (a fit predating the field) reads as gaussian, the
 # historical behavior, and is not refused by the guard

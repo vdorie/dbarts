@@ -516,9 +516,13 @@ static void testStateRoundTripStudentT(ext_rng* /*rng*/) {
     // then chaotically, but the restored chain tracks the same sigma posterior
     // well inside Monte Carlo error
     const size_t window = 500;
-    std::vector<double> sigmaA(window), sigmaB(window);
+    std::vector<double> sigmaA(window), sigmaB(window), nuA(window, -1.0);
     Results resultsA, resultsB;
     resultsA.sigma = sigmaA.data();
+    // the recorded per-draw df, the run-channel twin of the state's nu: it is
+    // written from settled state, so the last draw must be the nu the sampler
+    // now holds and a fixed nu must repeat exactly
+    resultsA.residualDf = nuA.data();
     resultsB.sigma = sigmaB.data();
     original.run(0, window, resultsA);
     restored.run(0, window, resultsB);
@@ -532,6 +536,16 @@ static void testStateRoundTripStudentT(ext_rng* /*rng*/) {
     double mcse = std::sqrt((sumSqA / window - meanA * meanA) / window);
     check(std::fabs(meanA - meanB) < 8.0 * mcse,
           "restored t chain continues the same posterior");
+
+    bool dfRecorded = true;
+    for (size_t i = 0; i < window; ++i)
+      if (!(nuA[i] > 0.0) || (!estimated && nuA[i] != residualDf))
+        dfRecorded = false;
+    check(dfRecorded, "the df channel records a positive nu every draw");
+    SamplerStateData postState;
+    original.getState(postState);
+    check(nuA[window - 1] == postState.chains[0].residualDf,
+          "the last recorded df is the nu the sampler holds");
 
     ext_rng_destroy(rngB);
     ext_rng_destroy(rngA);
@@ -570,6 +584,17 @@ static void testStateRoundTripStudentT(ext_rng* /*rng*/) {
                           0.37804942330213542, tOptions, &rngT);
   check(!tSampler.setState(gaussState, nullptr),
         "a t sampler refuses a gaussian state");
+
+  // the df write is gated on the response, not on the caller: a gaussian
+  // sampler handed the channel leaves it exactly as it found it
+  std::vector<double> nuG(4, -7.0);
+  Results gaussChannel;
+  gaussChannel.residualDf = nuG.data();
+  gaussian.run(0, 4, gaussChannel);
+  bool dfUntouched = true;
+  for (size_t i = 0; i < nuG.size(); ++i)
+    if (nuG[i] != -7.0) dfUntouched = false;
+  check(dfUntouched, "a gaussian sampler leaves the df channel untouched");
 
   ext_rng_destroy(rngT);
   ext_rng_destroy(rngG);
