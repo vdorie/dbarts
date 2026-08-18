@@ -169,10 +169,9 @@
             API's, whose \code{dbarts_results} declares no forest count and
             still receives the prognostic forest's counts.
             \code{dbartsData} gains a \code{bases} argument naming the
-            same matrices directly, replacing the \code{treatment} argument
-            and slot of the development series. A list of length one is
-            refused by name rather than dropped: a lone forest has no
-            second ensemble for its amplitudes to distinguish it from.
+            same matrices directly. A list of length one is refused by
+            name rather than dropped: a lone forest has no second
+            ensemble for its amplitudes to distinguish it from.
       \item The prior defaults a multi-forest model takes when a forest
             says nothing are stated in the terms a caller can defend. A
             forest with no \code{basis} takes a half-Cauchy median of 1
@@ -266,9 +265,12 @@
             \code{variance = TRUE}) in \code{dbarts} and \code{bart2}
             adds a second forest modeling the residual variance surface
             \eqn{s^2(x)} as a product of scaled-inverse-chi-squared
-            leaves (HBART; Pratola, Chipman, George, and McCulloch 2020),
-            with \code{n.trees.variance}, \code{power.variance}, and
-            \code{base.variance} controlling it. The fit gains
+            leaves (HBART; Pratola, Chipman, George, and McCulloch 2020).
+            The shorthand takes 40 trees under the mean forest's own
+            tree-structure prior; a \code{\link{varianceForest}(vars = ,
+            n.trees = , base = , power = )} object in its place
+            overrides any of them, its \code{vars} resolved through the
+            same column selector the shorthand uses. The fit gains
             \code{s.train}/\code{s.test} draws of \eqn{s(x)}, and
             \code{predict} returns \eqn{s(x)} on new data. Gaussian
             responses only.
@@ -489,13 +491,10 @@
             versions cannot be restored.
       \item Sampling is faster: the benchmark run scenarios take 25 to
             30 percent less time per iteration than the pre-1.0 engine,
-            the gap widening with the number of observations. The final
-            restructurings - the run loop keeps a running residual
-            across each sweep, and change and swap proposals score the
-            tree prior on the modified subtree alone - reorder floating
-            point for speed, trading bit-for-bit reproducibility with
-            earlier development builds of this version for posteriors
-            that are statistically identical.
+            the gap widening with the number of observations. The run
+            loop keeps a running residual across each sweep, and change
+            and swap proposals score the tree prior on the modified
+            subtree alone.
       \item A flat C interface for packages compiling against dbarts,
             \code{dbarts/dbarts.h}: an opaque sampler handle over the rewritten
             engine, created from the R specification objects, with entry
@@ -593,7 +592,7 @@
             wider prediction interval that carries the residual noise, and
             \code{"bart"} a credible interval on the latent scale.
       \item \code{dbarts} gains a \code{seed} argument mirroring
-            \code{dbartsControl(rngSeed = )}; \code{residuals} gains a \code{type} argument
+            \code{dbartsControl(seed = )}; \code{residuals} gains a \code{type} argument
             that reaches \code{fitted}, so link-scale residuals are available;
             and \code{plotTree} is now a generic that plots a tree from a kept
             \code{bart} or \code{rbart} fit directly rather than through the stored
@@ -884,12 +883,6 @@
             per-model rules as their R counterparts: a two-forest sampler takes
             a scale-pinned response, offset or weight swap and refuses its whole
             test surface.
-      \item The \code{x_test} and \code{offset_test} parameters of
-            \code{dbarts_sampler_setTestPredictors}, \code{dbarts_sampler_setTestOffset},
-            and \code{dbarts_sampler_predict} are renamed \code{xTest} and \code{offsetTest}
-            for the header's camelCase convention. Parameter names are not part
-            of the ABI, so callers are unaffected; the rename is baked into the
-            1.0-0 signature hash and does not change the version.
       \item The flat C API's predictor entries
             (\code{dbarts_sampler_setPredictor},
             \code{dbarts_sampler_updatePredictor},
@@ -955,13 +948,7 @@
             \code{sparseFactor} columns previously honored their declared
             table. Designs whose factors observe every level are unaffected
             and draw identically. Call \code{\link{droplevels}} before
-            fitting to model only the observed levels. One consequence for
-            states saved by an earlier development build: a factor whose
-            declared level count crosses the 63/64 inline/pooled rule-mask
-            boundary (64 or more declared, fewer observed) now pools its
-            masks, and restoring such a state reports a missing
-            \code{'tree.masks'} block; states whose tier is unchanged
-            restore correctly.
+            fitting to model only the observed levels.
       \item \code{setPredictor} on a mixed or \code{dgCMatrix} design now
             refuses a whole-matrix replacement argument whose shape
             disagrees with the design instead of reinterpreting it
@@ -969,6 +956,15 @@
             a \code{Matrix} class) had their dimensions checked, so a
             transposed argument of the same total length was silently
             accepted.
+      \item A \code{dbartsMixedMatrix}'s per-sparse-column reference
+            metadata (\code{sparseReference}, \code{sparseCategoryCount})
+            is now validated at creation to the same standard
+            \code{setPredictor}/\code{updatePredictor} always enforced:
+            a container whose fields are missing, non-integer, or not
+            sized one entry per sparse column is refused by name
+            (\dQuote{malformed mixed predictor container}) when the
+            sampler is built, rather than only once a later mutation
+            or a resolved categorical column reads it.
       \item \code{missing = "error"} on \code{setPredictor},
             \code{setTestPredictor}, and \code{setTestPredictorAndOffset}
             now inspects a mixed or sparse container's actual values rather
@@ -998,8 +994,6 @@
       \item Seeded parallel \code{rbart_vi} now restores R's stream after
             drawing its chain seeds; the restore assigned a local
             variable instead of the global state.
-      \item Fixed reading a saved tree back from binary IO, which recursed with
-            the writing routine instead of the reading one.
       \item The sampler's \code{getSumsOfSquaredResiduals} method now returns
             residual sums of squares on the original response scale as
             documented; it previously descaled by a single factor of the
@@ -1125,8 +1119,7 @@
             installed only if no leaf of any tree of any forest of any
             chain would empty; otherwise the whole change rolls back and
             the call reports \code{FALSE}, exactly as on a single-forest
-            sampler. Multinomial's rejection rate was measured as ungated
-            stress rather than covered by a verdict.
+            sampler.
       \item The per-observation update session, including
             \code{updatePredictorPerObservationJointly} and
             \code{$setPredictor(forceUpdate = "partial")}, accepts BCF and
@@ -1295,9 +1288,8 @@
             (\code{bart2(n.tres = 5)} suggests \code{n.trees}). Previously an
             unknown name that happened to match a \code{dbartsControl}
             formal was silently accepted and forwarded; now only
-            \code{storage}, \code{updateState}, and (until the
-            \code{rngSeed} -> \code{seed} rename) \code{rngSeed} are.
-            Because \code{updateState} is now a formal, the partial match
+            \code{storage} and \code{updateState} are. Because
+            \code{updateState} is now a formal, the partial match
             \code{u = } no longer resolves to \code{useQuantiles} on either
             function.
       \item \code{dbartsControl}'s \code{rngSeed} argument and slot are
@@ -1324,32 +1316,6 @@
             \code{dbartsSpec}) keep \code{sigma}. A caller still naming
             \code{sigma} now gets an unused-argument error from
             \code{xbart}.
-      \item \code{variance}'s three companion knobs - \code{n.trees.variance},
-            \code{power.variance}, and \code{base.variance} - are removed
-            from \code{bart2}, \code{dbarts}, and \code{dbartsSpec}, replaced
-            by a new \code{\link{varianceForest}(vars = , n.trees = , base =
-            , power = )} constructor. \code{variance} now accepts either its
-            existing shorthand (\code{NULL}/\code{FALSE} for none,
-            \code{TRUE}/a one-sided formula/a character or integer column
-            selector for the predictors) or a \code{varianceForest} object,
-            whose \code{vars} resolves through the SAME selector the
-            shorthand uses and whose \code{n.trees}/\code{base}/\code{power}
-            replace the shorthand path's own defaults (\code{40} trees, the
-            mean forest's tree-structure prior). \code{variance = TRUE,
-            n.trees.variance = 10} becomes \code{variance =
-            varianceForest(n.trees = 10)}; a restricted \code{variance = ~
-            x1, n.trees.variance = 10} becomes \code{variance =
-            varianceForest(vars = ~ x1, n.trees = 10)}. A caller who wrote
-            any of the three removed names now gets an unused-argument
-            error (\code{bart2}'s \code{\dots} reports \code{"unknown
-            argument"} for these three, with no nearest-formal suggestion, since
-            none of the surviving formal names is close enough for
-            \code{agrep} to propose one). A \code{formals()}-derived accept
-            filter - stan4bart's \code{bart_args}, and CRAN packages such as
-            WeightIt and MatchIt that expose the dbarts surface the same way
-            - drops a user's \code{n.trees.variance}/\code{power.variance}/
-            \code{base.variance} silently instead, since the filter no
-            longer recognizes the names.
       \item \code{bart2} gains \code{tree.prior}, \code{node.prior}, and
             \code{resid.prior} formals (\code{NULL} by default, appended
             after \code{breaks}/\code{max.rows}), taking the same full
@@ -1466,10 +1432,6 @@
             \code{\link{rbart_vi}} (grouped) fit was already unreachable
             with \code{variance}, since it declares no such formal; see
             \code{docs/design/heteroscedastic.md}.
-    }
-  }
-  \subsection{BUG FIXES}{
-    \itemize{
       \item \code{bart2}'s (and \code{rbart_vi}'s, \code{dbarts}'s)
             \code{offset.test} argument was documented as defaulting to
             \code{NULL}; it has always defaulted to tracking \code{offset}
