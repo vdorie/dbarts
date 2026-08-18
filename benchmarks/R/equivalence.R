@@ -826,6 +826,123 @@ makeScenarios <- function() {
     xbartFit = TRUE
   )
 
+  # bart2() gaussian on a formula (bart2-argument-consolidation.md section 7):
+  # equivalence.R otherwise reaches bart2 only through the four
+  # alternate-family fitters above, all called on the x/y matrix convenience
+  # form with no data =, so the consolidated surface's own FORMULA parsing has
+  # no equivalence eyes. Non-default args, both formula-interface-only and
+  # untouched by every fitter above: weights and subset (350 of 400 rows
+  # kept).
+  set.seed(5135L)
+  x <- matrix(runif(400L * 10L), 400L)
+  d <- as.data.frame(x)
+  d$y <- friedman(x) + rnorm(400L)
+  result$bart2gauss <- list(
+    data = d,
+    formula = reformulate(colnames(d)[1:10], response = "y"),
+    weights = runif(400L, 0.5, 2),
+    subsetIdx = sort(sample.int(400L, 350L)),
+    x.test = as.data.frame(matrix(runif(n.test * 10L), n.test)),
+    binary = FALSE,
+    bart2GaussFit = TRUE
+  )
+
+  # ditto, probit: offset (formula-interface-only, unreachable without
+  # data =) and TWO pooled chains (n.chains = 2L, combineChains = TRUE) -
+  # every fitter above pins n.chains = 1L, so bart2's own chain pooling has no
+  # other anchor.
+  set.seed(5136L)
+  x <- matrix(runif(400L * 10L), 400L)
+  d <- as.data.frame(x)
+  d$y <- rbinom(400L, 1L, pnorm(scale(friedman(x))))
+  x.test.bp <- matrix(runif(n.test * 10L), n.test)
+  result$bart2probit <- list(
+    data = d,
+    formula = reformulate(colnames(d)[1:10], response = "y"),
+    offset = as.vector(0.3 * scale(x[, 6L])),
+    offsetTest = as.vector(0.3 * scale(x.test.bp[, 6L])),
+    x.test = as.data.frame(x.test.bp),
+    binary = TRUE,
+    bart2ProbitFit = TRUE
+  )
+
+  # an amplitude-coupled two-forest bart2 fit through the S12 term route
+  # (bart2-argument-consolidation.md section 5): the canonical
+  # `zf:forest(x1 + x2)` sugar declares a second forest, modulated by a
+  # 3-level factor's own indicator basis, alongside the main x1 + x2 forest -
+  # the surface's only path to a K > 1 amplitude-coupled fit from bart2's
+  # formula interface, and the B2 landing's own per-forest reporting channels
+  # (forestFits, glue) have no equivalence anchor at all. Sizes are this
+  # scenario's own literals, not the guarded ndpost/nskip/ntree.
+  set.seed(5137L)
+  n.tf <- 100L
+  x1.tf <- runif(n.tf)
+  x2.tf <- runif(n.tf)
+  zf.tf <- factor(sample(c("a", "b", "c"), n.tf, replace = TRUE))
+  d.tf <- data.frame(x1 = x1.tf, x2 = x2.tf, zf = zf.tf)
+  d.tf$y <- 10 *
+    sin(pi * x1.tf * x2.tf) +
+    as.numeric(zf.tf == "b") * (1 + x2.tf) +
+    rnorm(n.tf, sd = 0.3)
+  result$bart2twoforest <- list(
+    data = d.tf,
+    formula = y ~ x1 + x2 + zf:forest(x1 + x2),
+    binary = FALSE,
+    twoforestFit = TRUE
+  )
+
+  # a dbartsMixedMatrix container (R/mixedMatrix.R, R/data.R;
+  # inst/tinytest/test-data-mixed.R): a data frame holding dense numeric and
+  # factor columns alongside a Matrix::sparseVector and a two-column
+  # dgCMatrix, which dbartsData assembles into ONE mixed dense/sparse
+  # container - the B2 landing's own predictor container, which no scenario
+  # in this file drives (the "sparse" scenario above is all-sparse, never
+  # mixed). Records both TRAIN (fhat.train, the container's column routing on
+  # the rows the trees actually split on) and TEST (fhat.test, the
+  # predict-time densification path) plus varcount, so the routing is
+  # draw-guarded on both legs. Skipped when Matrix is unavailable, as
+  # "sparse" already is.
+  if (requireNamespace("Matrix", quietly = TRUE)) {
+    set.seed(5138L)
+    n.mm <- 200L
+    x1.mm <- rnorm(n.mm)
+    f.mm <- factor(sample(c("a", "b", "c"), n.mm, replace = TRUE))
+    sv.mm <- Matrix::sparseVector(
+      x = 0.5 + runif(30L),
+      i = sort(sample.int(n.mm, 30L)),
+      length = n.mm
+    )
+    sm.dense.mm <- matrix(0, n.mm, 2L)
+    for (j in 1:2) {
+      nz <- runif(n.mm) < 0.1
+      sm.dense.mm[nz, j] <- 0.5 + runif(sum(nz))
+    }
+    sm.mm <- methods::as(sm.dense.mm, "CsparseMatrix")
+    x.frame.mm <- data.frame(x1 = x1.mm, f = f.mm)
+    x.frame.mm$sv <- sv.mm
+    x.frame.mm$sm <- sm.mm
+    y.mm <- 2 *
+      as.double(sv.mm) -
+      1.5 * x1.mm +
+      0.5 * (f.mm == "b") +
+      rowSums(sm.dense.mm) +
+      rnorm(n.mm, sd = 0.3)
+    x.test.mm <- data.frame(
+      x1 = x1.mm[seq_len(n.test)],
+      f = f.mm[seq_len(n.test)]
+    )
+    x.test.mm$sv <- as.double(sv.mm)[seq_len(n.test)]
+    x.test.mm$sm <- sm.dense.mm[seq_len(n.test), , drop = FALSE]
+    result$mixedmatrix <- list(
+      x = x.frame.mm,
+      y = y.mm,
+      x.test = x.test.mm,
+      binary = FALSE,
+      samplerApi = TRUE,
+      recordTrain = TRUE
+    )
+  }
+
   result
 }
 
@@ -946,7 +1063,16 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
     # and so unsummarized - for every other sampler, which leaves the existing
     # scenarios' summary vectors untouched
     variance.test = if (!is.null(r$varianceTest)) poolChains(r$varianceTest),
-    verdict = if (isTRUE(scenario$recordVerdict)) as.double(verdict)
+    verdict = if (isTRUE(scenario$recordVerdict)) as.double(verdict),
+    # the in-sample fit, for a scenario that asks for it (recordTrain): the
+    # mixedmatrix scenario's dbartsMixedMatrix container routes dense and
+    # sparse columns alike on the rows the trees actually split on, which the
+    # densified test-row predict path below does not exercise. Absent - and
+    # so unsummarized - for every scenario recorded before this channel
+    # existed.
+    yhat.train = if (isTRUE(scenario$recordTrain) && !is.null(r$train)) {
+      poolChains(r$train)
+    }
   )
 }
 
@@ -1075,6 +1201,108 @@ fitViaHurdle <- function(scenario) {
   )
 }
 
+# runs bart2's gaussian path through its own FORMULA interface
+# (bart2-argument-consolidation.md section 7): the four family fitters above
+# all call bart2 on the x/y matrix convenience form with no data =, so the
+# consolidated surface's formula parsing has no equivalence eyes at all. Two
+# non-default args, both formula-interface-only and untouched by every
+# fitter above: weights and subset (350 of 400 rows kept).
+fitViaBart2Gauss <- function(scenario) {
+  # model.frame() evaluates 'weights =' and 'subset =' in the FORMULA's own
+  # environment (its default 'env', per ?model.frame.default), which is
+  # wherever makeScenarios() created it - not this frame - so scenario$...
+  # would resolve there and fail; rebase it to this call site.
+  formula <- scenario$formula
+  environment(formula) <- environment()
+  withCallingHandlers(
+    bart2(
+      formula,
+      data = scenario$data,
+      test = scenario$x.test,
+      weights = scenario$weights,
+      subset = scenario$subsetIdx,
+      n.samples = ndpost,
+      n.burn = nskip,
+      n.trees = ntree,
+      n.chains = 1L,
+      n.threads = 1L,
+      combineChains = TRUE,
+      verbose = FALSE
+    ),
+    warning = muffleBenignWarning
+  )
+}
+
+# ditto, probit: offset (formula-interface-only, unreachable without data =)
+# and TWO pooled chains (n.chains = 2L, combineChains = TRUE) - every family
+# fitter above pins n.chains = 1L, so bart2's own chain pooling has no other
+# anchor.
+fitViaBart2Probit <- function(scenario) {
+  # see fitViaBart2Gauss: rebase the formula's environment to this call site
+  # so 'offset =' resolves scenario here rather than in makeScenarios().
+  formula <- scenario$formula
+  environment(formula) <- environment()
+  withCallingHandlers(
+    bart2(
+      formula,
+      data = scenario$data,
+      test = scenario$x.test,
+      offset = scenario$offset,
+      offset.test = scenario$offsetTest,
+      family = "probit",
+      n.samples = ndpost,
+      n.burn = nskip,
+      n.trees = ntree,
+      n.chains = 2L,
+      n.threads = 1L,
+      combineChains = TRUE,
+      verbose = FALSE
+    ),
+    warning = muffleBenignWarning
+  )
+}
+
+# an amplitude-coupled two-forest bart2 fit through the S12 term route
+# (bart2-argument-consolidation.md section 5): the canonical `zf:forest(x1 +
+# x2)` sugar declares a second forest, modulated by a 3-level factor's own
+# indicator basis (no reference dropped), alongside the main x1 + x2 forest -
+# the only path in this file to a K > 1 amplitude-coupled fit off bart2's
+# formula interface. Such a fit refuses test = by name (section 5.4), so
+# there is no held-out leg; instead this records the in-sample per-forest
+# channels the fit exposes - forestFits (each forest's own response-scale raw
+# total), glue (the ragged per-observation multiplier) and the
+# forest-widened varcount - none of which any other scenario reaches. Sizes
+# are this scenario's own literals, not the guarded ndpost/nskip/ntree.
+fitViaBart2TwoForest <- function(scenario) {
+  fit <- bart2(
+    scenario$formula,
+    data = scenario$data,
+    n.samples = ndpost,
+    n.burn = nskip,
+    n.trees = ntree,
+    n.chains = 1L,
+    n.threads = 1L,
+    combineChains = TRUE,
+    verbose = FALSE
+  )
+  forestMeans <- apply(fit$forestFits, c(2L, 3L), mean)
+  glueMeans <- as.vector(colMeans(fit$glue))
+  vprop <- function(f) {
+    colMeans(fit$varcount[,, f] / rowSums(fit$varcount[,, f]))
+  }
+  c(
+    setNames(
+      as.vector(forestMeans),
+      paste0("forestfit.", seq_along(forestMeans))
+    ),
+    setNames(glueMeans, paste0("glue.", seq_along(glueMeans))),
+    setNames(vprop(1L), paste0("vprop.forest1.", seq_len(ncol(fit$varcount)))),
+    setNames(vprop(2L), paste0("vprop.forest2.", seq_len(ncol(fit$varcount)))),
+    sigma.mean = mean(fit$sigma),
+    sigma.sd = sd(fit$sigma)
+  )
+}
+
 # runs xbart's k-fold crossvalidation over a (n.trees x k) grid. Sizes are
 # this scenario's own literals rather than the guarded ndpost/nskip/ntree,
 # and n.threads = 1L keeps the whole sweep in this process, under the
@@ -1174,6 +1402,12 @@ fitSummaries <- function(scenario, seed) {
   if (!is.null(scenario$xbartFit)) {
     return(fitViaXbart(scenario))
   }
+  # a two-forest fit refuses 'test =' (section 5.4), so it carries no
+  # yhat.test/varcount pair in the common shape below; it returns its own
+  # summary vector whole, the xbart precedent.
+  if (!is.null(scenario$twoforestFit)) {
+    return(fitViaBart2TwoForest(scenario))
+  }
   fit <- if (!is.null(scenario$rbart)) {
     fitViaRbart(scenario)
   } else if (!is.null(scenario$ordinalFit)) {
@@ -1184,6 +1418,10 @@ fitSummaries <- function(scenario, seed) {
     fitViaHazard(scenario)
   } else if (!is.null(scenario$hurdleFit)) {
     fitViaHurdle(scenario)
+  } else if (!is.null(scenario$bart2GaussFit)) {
+    fitViaBart2Gauss(scenario)
+  } else if (!is.null(scenario$bart2ProbitFit)) {
+    fitViaBart2Probit(scenario)
   } else if (!is.null(scenario$samplerApi)) {
     fitViaSamplerApi(scenario, useNewEngine)
   } else if (useNewEngine) {
@@ -1349,6 +1587,20 @@ fitSummaries <- function(scenario, seed) {
   if (!is.null(fit[["verdict"]])) {
     v <- fit[["verdict"]]
     result <- c(result, setNames(v, paste0("verdict.", seq_along(v))))
+  }
+  # the in-sample fit, mixedmatrix only. Gated on recordTrain itself, not
+  # merely on fit$yhat.train's presence: a raw bart2()/bart() fit object
+  # (fitViaBart2Gauss/Probit, or the plain bart() branches) always carries
+  # yhat.train under the default keepTrainingFits, so a presence-only guard
+  # would have added this channel to scenarios that never asked for it.
+  if (isTRUE(scenario$recordTrain) && !is.null(fit[["yhat.train"]])) {
+    result <- c(
+      result,
+      setNames(
+        colMeans(fit[["yhat.train"]]),
+        paste0("fhat.train.", seq_len(ncol(fit[["yhat.train"]])))
+      )
+    )
   }
   result
 }
