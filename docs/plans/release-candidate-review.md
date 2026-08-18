@@ -540,6 +540,128 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Compose slice - per-forest veto weights reach the prior initializer (1e020abb, 2026-08-18)
+
+The residue VD routed at the fix landing, widened by its blind
+critique, closed in one slice. Chain::sampleTreesFromPrior now
+conditions each forest's rejection draw on the vector that forest's
+OWN moves veto against: a new weights-only combiner virtual,
+formForestVetoWeights (BCF: w * m^2 under the near-zero snap, so
+creation glue b0 = 0 zeroes every control row; multinomial:
+omega * activeRows against its null global vector), composed with
+setForestWeights' per-forest channel inside the loop - NOT
+formForestResponse, whose documented invariant owes an immediately
+preceding drawForestGlue no initializer performs. The empty
+conditioning event is settled UNCONDITIONALLY before the tree loop
+by one O(n) scan: a forest whose composed vector carries no positive
+entry takes bare roots with zero parameters (the unique structure no
+later weight restore can strand a member-empty leaf in), which
+removes the live fault the critique measured at the fix's tip
+(setActiveRows all-zero + sampleTreesFromPrior exhausted the attempt
+cap on a legal state); the cap stays as the backstop, its comment
+rewritten - exhaustion now means the scan and the predicate
+disagree. growTreeFromRoot's occupancy law moved from member count
+to positive weight in the scans it reads (scanOrdinalCuts,
+scanCategoricalPartitions), so $growFromRoot can no longer land the
+illegal states the prior-init fix closed; the scans are reachable
+ONLY from grow-from-root, so no MH stream moves. sbc.R's BCF theta0
+generator now draws AND INSTALLS the glue (state round-trip) before
+drawing prior trees - under the composed law the tree prior is
+glue-dependent, and the old order drew theta0 from two inconsistent
+priors.
+
+NOT re-record class, confirmed twice: no recorded baseline scenario
+calls sampleTreesFromPrior or growFromRoot, and the trio is bitwise
+at the landed tree - 38/38 (xbart included) / 12/12 / 10/10.
+Mutation evidence, one deviation from the spec's plan: the mandated
+intersection-law mutation is PROVABLY INERT rather than undetected -
+every combiner forms its per-forest weights by multiplying the
+chain's, so composed support is a SUBSET of global support in every
+shipped configuration and the intersection IS the composed set
+(draw digests byte-identical over four fixtures); the implementer
+substituted two mutations that discriminate for real regressions:
+conditioning on the global vector alone (the pre-slice law) is
+killed by the composed-law arm's tauUnreached = 0 against 670
+forbidden leaves, and reverting the scan occupancy to member count
+is killed by grownUnreached = 0 against 1839/1900. The >= scan
+mutation and the forestWeights-only scan mutation are killed by the
+attempt-cap fault arms. New tests: test-prior-init-composed-law.R
+(default-glue BCF fixture - creation amplitudes (1, 0, 1) make the
+defect the DEFAULT construction - per-forest oracle through the
+internal reader, both forests' tree priors stated so the prior
+cannot stand in for the law) plus tests/cpp extensions to
+test_grow/test_scan.
+
+Gates: implementer battery green, then ALL 12 re-run independently
+on the rebase (1e020abb) by a separate gate-runner from its own
+fresh build: tests/cpp 246/246, ASAN zero reports, tinytest 5909/0,
+trio bitwise as above, geweke-mc FULL exit 0 (largest |z| 1.90),
+backfit-exact PASS, bcf-exact quick OK, sbc BCF smoke end-to-end,
+law arms 19/19 and 3/3 with their non-vacuity contrasts, air/lintr
+clean, NEWS parses at 273, R CMD check --as-cran Status: OK. CI at the
+sha: five green (sanitizers included - the engine-landing watch);
+pkgdown stalled at 68 minutes in the known mirror-stall class,
+cancelled and rerun live (attempt 2), concluding under the standing
+timeout guards. The setForestWeights residue and the critique's four
+findings are all DISCHARGED; the empty-leaf-veto design doc carries
+the composed-law and bare-root-guard paragraphs.
+
+### SBC-deepening - nbinom third ladder point flags; adjudicated MIXING, mechanism demonstrated (2026-08-18)
+
+The owed family-tiers item, unfrozen by the prior-init fix and run
+at the corrected theta0 law: sbc.R nbinom R = 200, L = 150, thin =
+300 (10x spacing; 9009s wall). avg.mu PASSES cleanly (ecdf-diff
+0.058 in the 0.128 band); r and agg.psi STILL FLAG (ecdf-diff
+0.1519 / 0.1419, chisq p 0.000, agg.psi with a 3.6x bottom-rank
+spike). The earlier "crosses into the band at 5x spacing" reading
+rested on reduced-R ladder points with wider bands - at full R the
+failure is spacing-invariant, which strained the recorded H-MIX
+adjudication enough to route it, per the multinomial f_ik
+precedent, to an exact-conditional derivation rather than more SBC.
+
+The adjudication (independent Opus pass, everything tool-verified)
+came back MIXING - the H-MIX reading CONFIRMED and upgraded from
+hypothesis to demonstrated mechanism, with NO defect anywhere:
+(1) the r conditional is a 13-point capped integer grid (NBResponse
+/ NBDispersionPrior, model.hpp), and the code matches the
+derivation term by term - kernel lgamma sums, collapsed
+-log1pexp statistic, grid prior, current-not-stale conditioning
+(refreshLatents draws r, then omega at the NEW r, then trees);
+(2) the SBC generator is exact - sbc.R's grid and weights are
+bit-for-bit the engine's, the likelihood transcription matches to
+5e-14, and burn is 24000 SWEEPS at both thins, so the ladder was a
+fair test; (3) negbin-exact.R PASSES on the tip (max grid gap
+0.0100 vs tol 0.025) and it DOES gate the full grid r posterior -
+at single-tree two-cell scale; (4) the mechanism: at n = 150 the
+r-vs-psi ridge is effectively NON-ERGODIC - integrated
+autocorrelation 2199-6359 sweeps for r (ESS ~7-21 in the thin=300
+window, ~1-2 at thin=30), and two chains on one dataset held
+DISJOINT basins (r in {10,12,15} vs r pinned at 50) for 100000
+sweeps with identical avg.mu - zero crossings, so thinning cannot
+manufacture transitions that never occur; the cold start at the
+grid median makes the rank error one-sided exactly as observed
+(large r0 -> rank at L, small r0 -> ties -> uniform); (5) the
+CONTROL: the identical harness at n = 20, where tau(r) is 35-157,
+passes EVERYTHING at R = 200 (r ecdf-diff 0.0360, all in the
+0.0924 band, no end spikes). avg.mu = r e^psi is the identified
+coordinate and mixes at lag ~1, which is why it is clean at every
+spacing.
+
+RECORDED CONSEQUENCES: the nbinom r/agg.psi flag is a KNOWN MIXING
+LIMITATION at ensemble n, not a correctness bug; the honest SBC
+gate for nbinom calibration is the small-n configuration. DOOR
+(VD-timed, evidence in hand, not designed unprompted): the joint
+ridge move the sweep lacks - propose r' from the grid with a
+compensating psi shift -log(r'/r) on the ensemble, MH-accepted -
+the same remedy family the tiers plan already named for this ridge
+and ordinal's; re-record class if built. Freeze protocol NOT
+invoked (pre-existing recorded flag, no baseline neutrality
+evidence rests on these functionals, and the adjudication found no
+defect) - orchestrator judgment, flagged for VD. Logs:
+rc-review-artifacts-2026-08-18/sbc-nbinom-thin300.log; the
+adjudicator's rank/trace artifacts under the session scratchpad
+(nbderiv-*).
+
 ### P16 - xbart hardening; the loss plumbing gets its oracle (f009eff8, 2026-08-18)
 
 The least-verified surface hardened. inst/tinytest/test-xbart-oracle.R
