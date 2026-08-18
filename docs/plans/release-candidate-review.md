@@ -559,6 +559,35 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### L - the error-message sweep under the signed rule (efdfa74a, 2026-08-18)
+
+Wave 2 opens. Enumeration: 941 reachable messages (570 R stop/
+warning, 344 C Rf_error/Rf_warning, 27 indirect C literal
+definitions traced to their defining sites); 111 REWRITTEN (46 R,
+65 C), 830 already conform - the census's ~120 estimate matched
+the rewrite bucket, not the corpus. Rewrite classes: quoting,
+lowercase-initial, no terminal period, at most one explanatory or
+remedy clause (3-clause messages trimmed with the remedy kept),
+consistent C-side caller-colon (41 hardcoded-literal sites - the
+multinomial mutation channel predated the rule - plus 9 dynamic
+prefixes), settled templates for the six recurring shapes, and
+already-in-hand value enrichments where the rule's templates name
+the expected quantity. Per-message classification preserved at
+.claude/rc-review-artifacts-2026-08-18/limpl-classification.md.
+14 message-pinned assertions updated across 10 test files; one
+NEWS item (269 parse). Battery twice (implementer, then
+independent gate-runner whose LOAD-BEARING gate was text-only
+verification: R side by parse-tree comparison with stop/warning
+string literals normalized to placeholders - every divergence
+confined inside those calls' argument lists, zero control-flow or
+condition changes; C side by reading all 53 hunks - format-string
+text and wrapping only): install --preclean; tests/cpp clean;
+tinytest 5852/0; trio bitwise 37/37 12/12 10/10; air clean; lintr
+clean; R CMD check --as-cran Status OK; 20-message style
+spot-audit all conforming. Prior CI: FX1-channel and both oracle
+pushes fully green (P1b's cancelled lint covered by FX1's
+containment).
+
 ### Prior-initializer fix PREPARED, NOT LANDED (ccf4b687 on wt/prior-init-fix, 2026-08-18)
 
 The adjudicated fix implemented and fully gated in the preserved
