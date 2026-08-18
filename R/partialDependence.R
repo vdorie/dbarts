@@ -28,9 +28,10 @@ pdbart.getAndInitializeSampler <- function(bartCall, evalEnv) {
 }
 
 # Shared preamble for pdbart/pd2bart: obtain a sampler (and any accompanying
-# bart fit) from whatever form of 'x.train' was supplied. 'name' is the caller
-# name ("pdbart"/"pd2bart") used only in the diagnostic messages.
-pdbart.getSampler <- function(x.train, matchedCall, callingEnv, name) {
+# bart fit) from whatever form of 'x.train' was supplied, for use predicting
+# from or running with a total prediction matrix. 'name' is the caller name
+# ("pdbart"/"pd2bart") used only in the diagnostic messages.
+pdbart.prologue <- function(x.train, matchedCall, callingEnv, name) {
   sampler <- fit <- NULL
   if (is.matrix(x.train) || is.data.frame(x.train) || is.formula(x.train)) {
     bartCall <- redirectCall(matchedCall, dbarts::bart)
@@ -196,10 +197,8 @@ pdbart <- function(
 
   callingEnv <- parent.frame()
 
-  # get a sampler object that we can use to either predict or run with total
-  # prediction matrix
   sampler <- fit <- NULL ## for R CMD check (massign assigns these below)
-  massign[sampler, fit] <- pdbart.getSampler(
+  massign[sampler, fit] <- pdbart.prologue(
     x.train,
     matchedCall,
     callingEnv,
@@ -312,10 +311,8 @@ pd2bart <- function(
 
   callingEnv <- parent.frame()
 
-  # get a sampler object that we can use to either predict or run with total
-  # prediction matrix
   sampler <- fit <- NULL ## for R CMD check (massign assigns these below)
-  massign[sampler, fit] <- pdbart.getSampler(
+  massign[sampler, fit] <- pdbart.prologue(
     x.train,
     matchedCall,
     callingEnv,
