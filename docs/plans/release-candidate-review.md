@@ -540,6 +540,81 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Full-namespace anchor resync - WAVE 4 CLOSES (f953127c, 2026-08-18)
+
+The whole-file walk the matrix's value audit recorded as owed: every
+anchor in docs/design/feature-matrix.md re-located by symbol against
+8e1e674c (the walked tree; the landing rebased onto 142a50b6, which
+touches no anchored file, so the stamp stays truthful). MOV, four
+byte-identical design docs, and tests/cpp/test_model.cpp carried
+over by byte-identity; the bart2.Rd -> man/bart2.Rd alias was added
+(man/bart2.Rd postdated the alias table); NO anchor changed file;
+two [f15] test_model.cpp anchors stale at c05322a8 itself were
+corrected; the two historical numbers stay as written; no cell value
+re-adjudicated. Guard exits 0 at the new tip (502 anchors resolved).
+
+Orchestrator verification (the mandated sampling, per the anchor
+discipline): per-alias delta histograms show the healthy signature -
+RIB 12+ distinct deltas in both signs, data.R correctly unmoved, MOD
+uniformly -1 past its single small edit - and ~40 anchors were
+opened by content across every alias class. The sampling caught two
+defect families the implementer's own two "converged" passes both
+missed, fixed before landing: COM:723 cited BCFForestCombiner's doc
+comment rather than the declaration (true line 731), and the seven
+loglik M-cell refusal anchors plus both ranges were one line short
+(generics.R:120 -> 121, 120-125 -> 121-126; the file's own
+convention cites the stop() refusal site, not the enclosing else,
+while the S-cells of the same dispatch chain cite the branch-guard
+lines). Process note for the runbook: the implementer spawned a
+subagent that exceeded its remit and raced it on the branch;
+convergence of two entangled passes is NOT independent verification
+- the orchestrator sampling pass stays load-bearing.
+
+### P12 consumer bundle + revdep-smoke repoint (142a50b6, 2026-08-18)
+
+All four downstream packages (Fork 3 puts bairrtt in the bundle)
+built and checked against tip 8e1e674c, each agent in its own
+private lib from a pristine git-archive stage:
+
+- stan4bart bartcore@54e157b: --preclean install with zero dbarts.h
+  diagnostics, no C-API version mismatch on load, tinytest 531/531
+  (it ships tinytest, not testthat), R CMD check OK - zero E/W/N.
+- treatSens dbarts-1.0@1d7c697 (its dbarts-1.0 worktree): compile
+  clean, testthat 186/186, a runtime smoke over the eight flat-C
+  entries finite and correctly shaped, --as-cran matching the
+  2026-07-22 baseline (pre-existing compilation-flags WARNING and
+  CRAN-history NOTE only; an ERROR manifests only when NOT_CRAN=true
+  is forced past a skip_on_cran guarding CRAN's 2-core cap).
+- bairrtt main@6167423: all nine dbarts touchpoints inventoried and
+  signature-stable at the tip, including the joint per-observation
+  mutation path that is its distinguishing dependency; tinytest
+  206/206; needs NOTHING - no compat branch, no fix-list.
+- bartCause dbarts-1.0: the sweep's only real findings, neither a
+  dbarts regression. (1) Three test-06-regression snapshots stale
+  from 31e52644's intentional prior-init draw shift - regenerated
+  in-suite against the tip and pushed to the compat branch
+  (bartCause 1b37f91; suite FAIL 0, with an unchanged constant
+  reproduced exactly as the fidelity control). (2) The
+  stan4bart-dependent test's garbage-column ABI error traced to the
+  user lib's July-built stan4bart 0.0-14, not to the tip: with the
+  tip-built stan4bart on the lib path, test-11 runs 24/24 green.
+  Standing flag: any installed stan4bart predating the dbarts.h
+  reshapes needs a --preclean rebuild.
+
+revdep-smoke.yaml now shallow-clones each consumer's compat branch
+(stan4bart bartcore, bartCause dbarts-1.0, and treatSens dbarts-1.0
+- ADDED, because the header's "stan4bart is the only
+compiled-boundary consumer" rationale was stale; treatSens crosses
+the boundary with eight entries) instead of fetching CRAN sources
+that cannot pair with dev dbarts; the matrix branch refs flip to the
+repos' mains at the lockstep merge. Validated by YAML parse and live
+clone sanity of all three branch/URL pairs. One registration fact
+learned: workflow_dispatch requires the workflow file on the DEFAULT
+branch, so the smoke is fully dark - not even manually dispatchable
+- until the merge registers it (the header's "workflow_dispatch
+only" note was optimistic). CI on 142a50b6 itself: all six green.
+
+
 ### P15 + P14 - freshness gate and vignette leg; WAVE 4's content closes (60c92fa8, 2026-08-18)
 
 P15 (local half): tools/check-doc-freshness.R - INDEX completeness
