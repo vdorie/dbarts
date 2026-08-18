@@ -77,6 +77,30 @@ expect_false(identical(result.r5.0$train, result.r5.1$train))
 
 expect_error(build()$setForestWeights(0L, wt), "positive integer")
 
+# NA, NaN, Inf, and negative forest weights are refused at the R surface,
+# not only downstream by the bridge's !R_FINITE(w) || w < 0.0 backstop
+wt.bad <- wt
+wt.bad[1L] <- NA_real_
+expect_error(
+  build()$setForestWeights(1L, wt.bad),
+  "'weights' must be finite and non-negative"
+)
+wt.bad[1L] <- NaN
+expect_error(
+  build()$setForestWeights(1L, wt.bad),
+  "'weights' must be finite and non-negative"
+)
+wt.bad[1L] <- Inf
+expect_error(
+  build()$setForestWeights(1L, wt.bad),
+  "'weights' must be finite and non-negative"
+)
+wt.bad[1L] <- -1
+expect_error(
+  build()$setForestWeights(1L, wt.bad),
+  "'weights' must be finite and non-negative"
+)
+
 # --- the mirror, both halves, at all THREE re-creation sites. The
 # correct oracle is the SAME (reloaded or restated) object compared against
 # itself with the mirror switched off, not a weighted build against a

@@ -1531,6 +1531,15 @@
             consistent style (argument quoting, capitalization,
             punctuation, and refusal phrasing); their information content
             is unchanged.
+      \item \code{sampler$setWeights} and \code{sampler$setForestWeights}
+            now refuse an \code{NA} or \code{NaN} weight at the R surface by
+            the same guard (and, for \code{setForestWeights}, the same
+            guard as an infinite weight) that already refused a negative
+            one, matching the bridge's own validation. Previously an
+            \code{NA}/\code{NaN} case weight was still refused, but by a
+            separate check reporting \dQuote{'weights' cannot be NA}; an
+            infinite forest weight was not refused until the bridge, deep
+            inside an internal \code{tryCatch}.
     }
   }
 }

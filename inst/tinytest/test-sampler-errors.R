@@ -81,9 +81,23 @@ expect_error(
 )
 expect_identical(sampler$data@weights, weightsBefore)
 
+# NA, NaN, and negative case weights are refused by the same guard and the
+# same message (predicate reconciled to the bridge's !(w >= 0.0), which also
+# rejects NaN); the direct-.Call route below keeps its own C-side refusal.
 weightsBad <- rep(1, n)
-weightsBad[1L] <- NA
-expect_error(sampler$setWeights(weightsBad), "'weights' cannot be NA")
+weightsBad[1L] <- NA_real_
+expect_error(
+  sampler$setWeights(weightsBad),
+  "'weights' must all be non-negative"
+)
+expect_identical(sampler$data@weights, weightsBefore)
+
+weightsBad <- rep(1, n)
+weightsBad[1L] <- NaN
+expect_error(
+  sampler$setWeights(weightsBad),
+  "'weights' must all be non-negative"
+)
 expect_identical(sampler$data@weights, weightsBefore)
 
 weightsBad <- rep(1, n)
@@ -91,6 +105,16 @@ weightsBad[1L] <- -1
 expect_error(
   sampler$setWeights(weightsBad),
   "'weights' must all be non-negative"
+)
+expect_identical(sampler$data@weights, weightsBefore)
+
+expect_error(
+  .Call(
+    dbarts:::C_dbarts_bartcore_setWeights,
+    sampler$getPointer(),
+    c(NaN, rep(1, n - 1L))
+  ),
+  "weights must be non-negative"
 )
 expect_identical(sampler$data@weights, weightsBefore)
 
