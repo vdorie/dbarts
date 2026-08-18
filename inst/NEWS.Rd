@@ -1527,6 +1527,11 @@
             separate check reporting \dQuote{'weights' cannot be NA}; an
             infinite forest weight was not refused until the bridge, deep
             inside an internal \code{tryCatch}.
+      \item \code{xbart} now refuses a non-positive \code{n.samples} by
+            name, as the other entry points do, instead of running a cell
+            with no draws and failing in the loss on an empty sample
+            matrix (\dQuote{'x' must be an array of at least two
+            dimensions}).
     }
   }
 }
