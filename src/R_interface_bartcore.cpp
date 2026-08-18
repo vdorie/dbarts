@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 #include <memory>
 #include <numbers>
 #include <string>
@@ -3849,6 +3850,15 @@ SEXP bartcore_setCategoryTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
   });
 }
 
+// Forest addressing on the entry points that name one: 0-based and
+// unconverted, so the bound is the sampler's own forest count.
+static size_t forestIndexFrom(SEXP forestExpr,
+                              const bartcore::SamplerShape& shape) {
+  size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
+  if (forestIndex >= shape.numForests) Rf_error("forest index out of range");
+  return forestIndex;
+}
+
 SEXP bartcore_setForestBasis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
@@ -3861,9 +3871,7 @@ SEXP bartcore_setForestBasis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr) {
   if (holder.sampler->totalAmplitudes() == 0)
     Rf_error("a forest basis requires a sampler whose forests carry "
              "amplitudes");
-  size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
-  if (forestIndex >= shape.numForests)
-    Rf_error("forest index out of range");
+  size_t forestIndex = forestIndexFrom(forestExpr, shape);
   if (!Rf_isReal(basisExpr) || Rf_xlength(basisExpr) == 0 || n == 0 ||
       Rf_xlength(basisExpr) % static_cast<R_xlen_t>(n) != 0)
     Rf_error("basis length must be a multiple of the number of observations");
@@ -3907,9 +3915,7 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
                "category's likelihood alone");
     Rf_error("bartcore_setForestWeights requires a BCF sampler");
   }
-  size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
-  if (forestIndex >= shape.numForests)
-    Rf_error("forest index out of range");
+  size_t forestIndex = forestIndexFrom(forestExpr, shape);
   size_t n = shape.numObservations;
   if (!Rf_isReal(weightsExpr) ||
       static_cast<size_t>(Rf_xlength(weightsExpr)) != n)
@@ -3976,10 +3982,7 @@ SEXP bartcore_getForestAmplitudes(SEXP ptrExpr, SEXP forestExpr) {
   if (total == 0)
     Rf_error("forest amplitudes require a sampler whose forests carry them");
   bool wholeVector = Rf_isNull(forestExpr);
-  size_t forestIndex =
-    wholeVector ? 0 : static_cast<size_t>(Rf_asInteger(forestExpr));
-  if (forestIndex >= shape.numForests)
-    Rf_error("forest index out of range");
+  size_t forestIndex = wholeVector ? 0 : forestIndexFrom(forestExpr, shape);
   size_t offset = 0;
   if (!wholeVector)
     for (size_t f = 0; f < forestIndex; ++f)
@@ -4004,9 +4007,7 @@ SEXP bartcore_getForestAmplitudes(SEXP ptrExpr, SEXP forestExpr) {
 SEXP bartcore_getForestFits(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
-  size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
-  if (forestIndex >= shape.numForests)
-    Rf_error("forest index out of range");
+  size_t forestIndex = forestIndexFrom(forestExpr, shape);
   size_t n = shape.numObservations;
   size_t numChains = shape.numChains;
   SEXP result = PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(n),
@@ -4071,9 +4072,7 @@ static const char* leafModelName(bartcore::LeafModelKind kind) {
 SEXP bartcore_getCalibration(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
-  size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
-  if (forestIndex >= shape.numForests)
-    Rf_error("forest index out of range");
+  size_t forestIndex = forestIndexFrom(forestExpr, shape);
   // the seven reported since the reader shipped, then the five calibration-map
   // quantities: NaN on a forest with no map entry, and the two amplitude
   // columns exclusive per forest on one that has
@@ -4129,9 +4128,7 @@ SEXP bartcore_setCalibration(SEXP ptrExpr, SEXP forestExpr,
                              SEXP priorScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
-  size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
-  if (forestIndex >= shape.numForests)
-    Rf_error("forest index out of range");
+  size_t forestIndex = forestIndexFrom(forestExpr, shape);
   double priorScale = Rf_asReal(priorScaleExpr);
   if (!std::isfinite(priorScale) || priorScale <= 0.0)
     Rf_error("'prior.scale' must be a positive finite number");
@@ -4145,9 +4142,7 @@ SEXP bartcore_setCalibration(SEXP ptrExpr, SEXP forestExpr,
 SEXP bartcore_getForestVariableCounts(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
-  size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
-  if (forestIndex >= shape.numForests)
-    Rf_error("forest index out of range");
+  size_t forestIndex = forestIndexFrom(forestExpr, shape);
   size_t numPredictors = shape.numPredictors;
   size_t numChains = shape.numChains;
   // counts alias R integers: variable-use counts never approach 2^31
@@ -4185,27 +4180,39 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   size_t numChains = shape.numChains;
   int numSamplesInt = static_cast<int>(numSamples);
   int numChainsInt = static_cast<int>(numChains);
-  // One recorded channel that widens on an inner per-sample axis: a leading
-  // dimension, the axis it widens on, the samples, and a trailing chain
-  // dimension when there is more than one chain. An inner dimension of 1 keeps
-  // the exact leadingDim x numSamples (x numChains) shape and byte layout every
-  // unwidened model relies on.
-  auto allocChannelArray = [&](SEXPTYPE type, size_t leadingDim,
-                               size_t innerDim) -> SEXP {
+  // One recorded channel: its leading dimensions, then the samples, then a
+  // trailing chain dimension when there is more than one chain. A per-draw
+  // scalar on a single chain lands as a bare vector - one dimension carries no
+  // dim attribute - which is the shape and byte layout every consumer relies
+  // on.
+  auto allocChannel = [&](SEXPTYPE type,
+                          std::initializer_list<size_t> leading) -> SEXP {
     int dims[4];
     int numDims = 0;
-    dims[numDims++] = static_cast<int>(leadingDim);
-    dims[numDims++] = static_cast<int>(innerDim);
+    for (size_t extent : leading) dims[numDims++] = static_cast<int>(extent);
     dims[numDims++] = numSamplesInt;
     if (numChains > 1) dims[numDims++] = numChainsInt;
     R_xlen_t total = 1;
     for (int d = 0; d < numDims; ++d) total *= dims[d];
     SEXP arr = PROTECT(Rf_allocVector(type, total));
-    SEXP dimExpr = Rf_allocVector(INTSXP, numDims);
-    for (int d = 0; d < numDims; ++d) INTEGER(dimExpr)[d] = dims[d];
-    Rf_setAttrib(arr, R_DimSymbol, dimExpr);
+    if (numDims > 1) {
+      SEXP dimExpr = Rf_allocVector(INTSXP, numDims);
+      for (int d = 0; d < numDims; ++d) INTEGER(dimExpr)[d] = dims[d];
+      Rf_setAttrib(arr, R_DimSymbol, dimExpr);
+    }
     UNPROTECT(1);
     return arr;
+  };
+  // one scalar per draw
+  auto allocScalarChannel = [&]() { return allocChannel(REALSXP, {}); };
+  // A channel that widens on an inner per-sample axis carries that axis
+  // between its leading dimension and the samples. An inner extent of 1 drops
+  // the axis, keeping the exact leadingDim x numSamples (x numChains) shape
+  // every unwidened model relies on.
+  auto allocWideChannel = [&](SEXPTYPE type, size_t leadingDim,
+                              size_t innerDim) -> SEXP {
+    return innerDim > 1 ? allocChannel(type, {leadingDim, innerDim})
+                        : allocChannel(type, {leadingDim});
   };
   // a multi-location combiner (multinomial: K softmax channels) inserts a
   // location dimension between the observations and the samples
@@ -4246,140 +4253,79 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   bool hasDispersion = shape.carriesDispersion;
   int numResultSlots = 8 + (hasCutpoints ? 1 : 0) + (hasDispersion ? 1 : 0) +
                        (hasVariance ? 2 : 0) + (hasForestReporting ? 2 : 0);
-  int dispersionSlot = hasDispersion ? 8 + (hasCutpoints ? 1 : 0) : -1;
-  int varianceTrainSlot =
-    hasVariance ? 8 + (hasCutpoints ? 1 : 0) + (hasDispersion ? 1 : 0) : -1;
-  int varianceTestSlot = hasVariance ? varianceTrainSlot + 1 : -1;
-  int forestFitsSlot = hasForestReporting
-    ? 8 + (hasCutpoints ? 1 : 0) + (hasDispersion ? 1 : 0) +
-        (hasVariance ? 2 : 0)
-    : -1;
-  int glueSlot = hasForestReporting ? forestFitsSlot + 1 : -1;
 
   // several chains add a trailing chain dimension. Every column roots in the
   // protected container the moment it is allocated (installResult), so there
   // is no hand-counted PROTECT stack to keep in sync with the slot list.
   SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, numResultSlots));
-  SEXP sigmaExpr = installResult(
-    resultExpr, 0,
-    numChains == 1
-      ? Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples))
-      : Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
-  SEXP trainExpr = installResult(
-    resultExpr, 1,
-    !holder.keepTrainingFits
-      ? R_NilValue
-      : numLocations > 1
-        ? allocChannelArray(REALSXP, numObservations, numLocations)
-        : numChains == 1
-          ? Rf_allocMatrix(REALSXP, static_cast<int>(numObservations),
-                           numSamplesInt)
-          : Rf_alloc3DArray(REALSXP, static_cast<int>(numObservations),
-                            numSamplesInt, numChainsInt));
-  SEXP testExpr = installResult(
-    resultExpr, 2,
-    numTestObservations == 0
-      ? R_NilValue
-      : numLocations > 1
-        ? allocChannelArray(REALSXP, numTestObservations, numLocations)
-        : numChains == 1
-          ? Rf_allocMatrix(REALSXP, static_cast<int>(numTestObservations),
-                           numSamplesInt)
-          : Rf_alloc3DArray(REALSXP, static_cast<int>(numTestObservations),
-                            numSamplesInt, numChainsInt));
-  SEXP varcountExpr = installResult(
-    resultExpr, 3,
-    numVCForests > 1
-      ? allocChannelArray(INTSXP, numPredictors, numVCForests)
-      : numChains == 1
-        ? Rf_allocMatrix(INTSXP, static_cast<int>(numPredictors), numSamplesInt)
-        : Rf_alloc3DArray(INTSXP, static_cast<int>(numPredictors),
-                          numSamplesInt, numChainsInt));
-  SEXP kExpr = installResult(
-    resultExpr, 4,
-    !shape.kIsSampled
-      ? R_NilValue
-      : numChains == 1
-        ? Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples))
-        : Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
-  SEXP varprobsExpr = installResult(
-    resultExpr, 5,
-    !shape.usesDart
-      ? R_NilValue
-      : numChains == 1
-        ? Rf_allocMatrix(REALSXP, static_cast<int>(numPredictors),
-                         numSamplesInt)
-        : Rf_alloc3DArray(REALSXP, static_cast<int>(numPredictors),
-                          numSamplesInt, numChainsInt));
+  // The names vector roots through the container's attribute before the mkChar
+  // allocations fill it. Slot order IS install order: a channel claims the next
+  // slot and names it in the same step, so the conditional channels need no
+  // slot arithmetic and the names cannot drift from the values.
+  SEXP namesExpr = Rf_allocVector(STRSXP, numResultSlots);
+  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
+  int slot = 0;
+  auto installChannel = [&](const char* name, SEXP value) -> SEXP {
+    // the value roots first: it is unprotected until it is in the container,
+    // and mkChar allocates
+    installResult(resultExpr, slot, value);
+    SET_STRING_ELT(namesExpr, slot++, Rf_mkChar(name));
+    return value;
+  };
+
+  SEXP sigmaExpr = installChannel("sigma", allocScalarChannel());
+  SEXP trainExpr = installChannel(
+    "train", !holder.keepTrainingFits
+               ? R_NilValue
+               : allocWideChannel(REALSXP, numObservations, numLocations));
+  SEXP testExpr = installChannel(
+    "test", numTestObservations == 0
+              ? R_NilValue
+              : allocWideChannel(REALSXP, numTestObservations, numLocations));
+  SEXP varcountExpr = installChannel(
+    "varcount", allocWideChannel(INTSXP, numPredictors, numVCForests));
+  SEXP kExpr =
+    installChannel("k", !shape.kIsSampled ? R_NilValue : allocScalarChannel());
+  SEXP varprobsExpr = installChannel(
+    "varprobs",
+    !shape.usesDart ? R_NilValue : allocChannel(REALSXP, {numPredictors}));
   size_t numGroups = shape.numGroups;
-  SEXP tauExpr = installResult(
-    resultExpr, 6,
-    numGroups == 0
-      ? R_NilValue
-      : numChains == 1
-        ? Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples))
-        : Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
-  SEXP ranefExpr = installResult(
-    resultExpr, 7,
-    numGroups == 0
-      ? R_NilValue
-      : numChains == 1
-        ? Rf_allocMatrix(REALSXP, static_cast<int>(numGroups), numSamplesInt)
-        : Rf_alloc3DArray(REALSXP, static_cast<int>(numGroups),
-                          numSamplesInt, numChainsInt));
+  SEXP tauExpr =
+    installChannel("tau", numGroups == 0 ? R_NilValue : allocScalarChannel());
+  SEXP ranefExpr = installChannel(
+    "ranef", numGroups == 0 ? R_NilValue : allocChannel(REALSXP, {numGroups}));
   SEXP cutpointsExpr = !hasCutpoints
     ? R_NilValue
-    : installResult(
-        resultExpr, 8,
-        numChains == 1
-          ? Rf_allocMatrix(REALSXP, static_cast<int>(numCutpoints),
-                           numSamplesInt)
-          : Rf_alloc3DArray(REALSXP, static_cast<int>(numCutpoints),
-                            numSamplesInt, numChainsInt));
+    : installChannel("cutpoints", allocChannel(REALSXP, {numCutpoints}));
   // one scalar per draw, so the dispersion channel takes sigma's own shape
   SEXP dispersionExpr = !hasDispersion
     ? R_NilValue
-    : installResult(
-        resultExpr, dispersionSlot,
-        numChains == 1
-          ? Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples))
-          : Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
-  SEXP varianceTrainExpr = !hasVariance
-    ? R_NilValue
-    : installResult(
-        resultExpr, varianceTrainSlot,
-        numChains == 1
-          ? Rf_allocMatrix(REALSXP, static_cast<int>(numObservations),
-                           numSamplesInt)
-          : Rf_alloc3DArray(REALSXP, static_cast<int>(numObservations),
-                            numSamplesInt, numChainsInt));
-  SEXP varianceTestExpr = (!hasVariance || numTestObservations == 0)
-    ? R_NilValue
-    : installResult(
-        resultExpr, varianceTestSlot,
-        numChains == 1
-          ? Rf_allocMatrix(REALSXP, static_cast<int>(numTestObservations),
-                           numSamplesInt)
-          : Rf_alloc3DArray(REALSXP, static_cast<int>(numTestObservations),
-                            numSamplesInt, numChainsInt));
-  // the forest axis is always present here (the channel exists only for a
-  // multi-forest coupling), so this is n x numForests x numSamples (x numChains)
-  SEXP forestFitsExpr = !hasForestReporting
-    ? R_NilValue
-    : installResult(resultExpr, forestFitsSlot,
-                    allocChannelArray(REALSXP, numObservations, numForests));
-  // the glue axis is the RAGGED amplitude vector, sum_f q_f long, forest-major
-  // within a draw; bcf's q = (1, 2) makes it the 3 rows (a, b0, b1) it shipped
-  // with
-  int numAmplitudesInt = static_cast<int>(shape.numAmplitudes);
-  SEXP glueExpr = !hasForestReporting
-    ? R_NilValue
-    : installResult(
-        resultExpr, glueSlot,
-        numChains == 1
-          ? Rf_allocMatrix(REALSXP, numAmplitudesInt, numSamplesInt)
-          : Rf_alloc3DArray(REALSXP, numAmplitudesInt, numSamplesInt,
-                            numChainsInt));
+    : installChannel("dispersion", allocScalarChannel());
+  // the test half keeps its slot and its name with no test rows to fill it
+  SEXP varianceTrainExpr = R_NilValue;
+  SEXP varianceTestExpr = R_NilValue;
+  if (hasVariance) {
+    varianceTrainExpr =
+      installChannel("variance", allocChannel(REALSXP, {numObservations}));
+    varianceTestExpr = installChannel(
+      "varianceTest", numTestObservations == 0
+                        ? R_NilValue
+                        : allocChannel(REALSXP, {numTestObservations}));
+  }
+  SEXP forestFitsExpr = R_NilValue;
+  SEXP glueExpr = R_NilValue;
+  if (hasForestReporting) {
+    // the forest axis is always present here (the channel exists only for a
+    // multi-forest coupling), so this is n x numForests x numSamples
+    // (x numChains)
+    forestFitsExpr = installChannel(
+      "forestFits", allocChannel(REALSXP, {numObservations, numForests}));
+    // the glue axis is the RAGGED amplitude vector, sum_f q_f long,
+    // forest-major within a draw; bcf's q = (1, 2) makes it the 3 rows
+    // (a, b0, b1) it shipped with
+    glueExpr =
+      installChannel("glue", allocChannel(REALSXP, {shape.numAmplitudes}));
+  }
 
   std::vector<std::uint32_t> variableCounts(numPredictors * numVCForests *
                                             numSamples * numChains);
@@ -4427,36 +4373,11 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     Rf_error("sampler run interrupted");
   }
 
+  // nothing past the copy-out allocates, so the counts need no early free
   int* varcountOut = INTEGER(varcountExpr);
   for (size_t i = 0; i < numPredictors * numVCForests * numSamples * numChains;
        ++i)
     varcountOut[i] = static_cast<int>(variableCounts[i]);
-  // free the copied-out counts before the names block, which can OOM-longjmp
-  std::vector<std::uint32_t>().swap(variableCounts);
-
-  // The names vector roots through the container's attribute before the
-  // mkChar allocations fill it.
-  SEXP namesExpr = Rf_allocVector(STRSXP, numResultSlots);
-  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
-  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
-  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("train"));
-  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("test"));
-  SET_STRING_ELT(namesExpr, 3, Rf_mkChar("varcount"));
-  SET_STRING_ELT(namesExpr, 4, Rf_mkChar("k"));
-  SET_STRING_ELT(namesExpr, 5, Rf_mkChar("varprobs"));
-  SET_STRING_ELT(namesExpr, 6, Rf_mkChar("tau"));
-  SET_STRING_ELT(namesExpr, 7, Rf_mkChar("ranef"));
-  if (hasCutpoints) SET_STRING_ELT(namesExpr, 8, Rf_mkChar("cutpoints"));
-  if (hasDispersion)
-    SET_STRING_ELT(namesExpr, dispersionSlot, Rf_mkChar("dispersion"));
-  if (hasVariance) {
-    SET_STRING_ELT(namesExpr, varianceTrainSlot, Rf_mkChar("variance"));
-    SET_STRING_ELT(namesExpr, varianceTestSlot, Rf_mkChar("varianceTest"));
-  }
-  if (hasForestReporting) {
-    SET_STRING_ELT(namesExpr, forestFitsSlot, Rf_mkChar("forestFits"));
-    SET_STRING_ELT(namesExpr, glueSlot, Rf_mkChar("glue"));
-  }
 
   UNPROTECT(1);
   return resultExpr;
