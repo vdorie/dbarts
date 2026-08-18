@@ -1391,6 +1391,15 @@
             does collide with \code{dart}/\code{split.probs}, which would
             only duplicate it. Every default reproduces prior behavior;
             \code{n.th=} no longer partial-matches \code{n.threads}.
+      \item \code{xbart}'s default \code{k} is the fixed value 2 for every
+            response family. Binary responses previously inherited
+            \code{bart2}'s Chi hyperprior, which is held rather than swept
+            and is drawn every sweep, so the \code{k} axis collapsed to a
+            single cell scored under a shrinkage that moved within the fit;
+            with \code{drop = FALSE} the result now carries the length-one
+            \code{k} dimension those fits omitted. Binary crossvalidations
+            that name \code{k} are unaffected, as is \code{bart2}'s own
+            binary default.
       \item \code{bart2} and \code{rbart_vi}'s \code{split.probs} formal now
             defaults to \code{NULL} rather than \code{1 / num.vars}; both
             spellings already resolved to the same uniform prior, so this

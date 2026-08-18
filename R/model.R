@@ -447,6 +447,61 @@ defaultAmplitudePriorScale <- function(family) {
   )
 }
 
+## Refuses a prior object supplied together with a shorthand argument that
+## would have built the same prior, naming both. The collision set is data
+## because it differs by entry point: bart2 collides tree.prior with
+## power/base, xbart deliberately does not, since there they are grid axes
+## that override any supplied object every cell (man/xbart.Rd). Presence in
+## the matched call, not an explicit-NULL value, is what collides.
+refuseColliding <- function(matchedCall, objectName, shorthands) {
+  hit <- shorthands[shorthands %in% names(matchedCall)]
+  if (length(hit) > 0L) {
+    stop(
+      "'",
+      objectName,
+      "' cannot be combined with '",
+      hit[1L],
+      "': supply the prior either as an object or through its shorthand ",
+      "arguments, not both"
+    )
+  }
+  invisible(NULL)
+}
+
+## The dart/cgm tree-prior shorthand ladder shared by bart2 and xbart: a full
+## dart() spec overrides the power/base arguments with its own, dart = TRUE
+## builds one from them, FALSE takes the cgm default, and anything else is
+## refused. buildDart/buildCgm construct the prior in the caller's own
+## currency - an unevaluated call for bart2, which forwards its priors to
+## dbarts() for evaluation in the caller's frame, an object for xbart, which
+## fits with them directly.
+resolveDartShorthand <- function(
+  dart,
+  splitProbsSupplied,
+  splitProbsName,
+  buildDart,
+  buildCgm
+) {
+  if (inherits(dart, "dbartsDartPrior")) {
+    return(dart)
+  }
+  if (isTRUE(dart)) {
+    if (splitProbsSupplied) {
+      stop(
+        "'",
+        splitProbsName,
+        "' cannot be combined with 'dart': a DART prior samples its split ",
+        "probabilities"
+      )
+    }
+    return(buildDart())
+  }
+  if (!isFALSE(dart)) {
+    stop("'dart' must be TRUE, FALSE, or a prior created by dbartsPriors$dart")
+  }
+  buildCgm()
+}
+
 ## Turn a normal prior's raw k into the model's node hyperprior: NULL is the
 ## family default (2 for continuous responses, chi(1.5, 2) for binary),
 ## a positive scalar is fixed, and a hyperprior object passes through. Under a

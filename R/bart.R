@@ -373,8 +373,6 @@ packageBartResults <- function(
   invisible(result)
 }
 
-.kDefault <- quote(if (control@binary) quote(chi(1.5, 2.0)) else 2)
-
 ## Builds the quoted tree/node/resid prior calls that bart, bart2, and
 ## rbart_vi hand to dbarts. nodeK is the node prior's k argument exactly as
 ## it should enter the call - unevaluated for functions that redirect their
@@ -405,61 +403,47 @@ buildSamplerPriors <- function(
   # built. Only bart2 itself ever puts these three names in matchedCall - not
   # bart(), not rbart_vi(), and not the alternate-family arcs' own recursive
   # dbarts()/bart2() calls, which carry bart2's original matchedCall through
-  # unchanged - so this is a no-op at every other call site. Presence, not an
-  # explicit-NULL value, is what makes a shorthand a collision (matching the
-  # dart/split.probs precedent below); an explicit `tree.prior = NULL` is
-  # itself NULL here (match.call() stores a literal NULL as NULL), so it is
-  # indistinguishable from not supplying one at all.
-  refuseColliding <- function(objectName, shorthands) {
-    hit <- shorthands[shorthands %in% names(matchedCall)]
-    if (length(hit) > 0L) {
-      stop(
-        "'",
-        objectName,
-        "' cannot be combined with '",
-        hit[1L],
-        "': supply the prior either as an object or through its shorthand ",
-        "arguments, not both"
-      )
-    }
-  }
-
+  # unchanged - so this is a no-op at every other call site. An explicit
+  # `tree.prior = NULL` is itself NULL here (match.call() stores a literal
+  # NULL as NULL), so it is indistinguishable from not supplying one at all.
   treePriorObj <- matchedCall[["tree.prior"]]
   nodePriorObj <- matchedCall[["node.prior"]]
   residPriorObj <- matchedCall[["resid.prior"]]
 
   if (!is.null(treePriorObj)) {
-    refuseColliding("tree.prior", c("power", "base", splitProbsName, "dart"))
+    refuseColliding(
+      matchedCall,
+      "tree.prior",
+      c("power", "base", splitProbsName, "dart")
+    )
     tree.prior <- treePriorObj
-  } else if (inherits(dart, "dbartsDartPrior")) {
-    # a full spec overrides the power/base arguments with its own
-    tree.prior <- dart
-  } else if (isTRUE(dart)) {
-    if (splitProbsName %in% names(matchedCall)) {
-      stop(
-        "'",
-        splitProbsName,
-        "' cannot be combined with 'dart': a DART prior samples its split probabilities"
-      )
-    }
-    tree.prior <- quote(dart(power, base))
-    tree.prior[[2L]] <- power
-    tree.prior[[3L]] <- base
-  } else if (!isFALSE(dart)) {
-    stop("'dart' must be TRUE, FALSE, or a prior created by dbartsPriors$dart")
   } else {
-    tree.prior <- quote(cgm(power, base, split.probs))
-    tree.prior[[2L]] <- power
-    tree.prior[[3L]] <- base
-    if (splitProbsName %in% names(matchedCall)) {
-      tree.prior[[4L]] <- matchedCall[[splitProbsName]]
-    } else {
-      tree.prior[[4L]] <- splitProbsDefault
-    }
+    tree.prior <- resolveDartShorthand(
+      dart,
+      splitProbsName %in% names(matchedCall),
+      splitProbsName,
+      function() {
+        priorCall <- quote(dart(power, base))
+        priorCall[[2L]] <- power
+        priorCall[[3L]] <- base
+        priorCall
+      },
+      function() {
+        priorCall <- quote(cgm(power, base, split.probs))
+        priorCall[[2L]] <- power
+        priorCall[[3L]] <- base
+        priorCall[[4L]] <- if (splitProbsName %in% names(matchedCall)) {
+          matchedCall[[splitProbsName]]
+        } else {
+          splitProbsDefault
+        }
+        priorCall
+      }
+    )
   }
 
   if (!is.null(nodePriorObj)) {
-    refuseColliding("node.prior", c("k", "prior.scale"))
+    refuseColliding(matchedCall, "node.prior", c("k", "prior.scale"))
     node.prior <- nodePriorObj
     # a named prior.scale needs a node prior to ride even when k is left to the
     # family default, so it builds one; the k slot then drops out of the call and
@@ -475,7 +459,11 @@ buildSamplerPriors <- function(
   }
 
   if (!is.null(residPriorObj)) {
-    refuseColliding("resid.prior", c("sigdf", "sigquant", "sigest"))
+    refuseColliding(
+      matchedCall,
+      "resid.prior",
+      c("sigdf", "sigquant", "sigest")
+    )
     resid.prior <- residPriorObj
   } else {
     resid.prior <- quote(chisq(sigdf, sigquant))
