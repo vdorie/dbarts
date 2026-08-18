@@ -368,7 +368,13 @@
             scale (marginal residual variance
             \eqn{\sigma^2\nu/(\nu-2)}{sigma^2 nu / (nu - 2)}), and that a
             flexible tree-forest mean partially confounds tail inference,
-            so an estimated \eqn{\nu}{nu} should be posterior-checked.
+            so an estimated \eqn{\nu}{nu} should be posterior-checked. The
+            degrees of freedom in force at each draw are recorded on the fit
+            as \code{$resid.df} (\code{run()$resid.df} on a sampler, and
+            \code{dbarts_results::residualDf} in the C API), and
+            \code{extract(type = "loglik")} scores the marginal
+            \eqn{t_\nu}{t_nu} density from it - the observation-level
+            likelihood WAIC and PSIS-LOO are defined on.
       \item Sparse predictor matrices: the x/y interfaces of
             \code{dbarts}, \code{dbartsData}, \code{bart}, \code{bart2},
             and \code{xbart} accept a \code{Matrix::dgCMatrix}. Columns
@@ -1490,12 +1496,11 @@
             faulting deep in the result-array reshape.
       \item Every fit built through \code{bart}/\code{bart2} now records
             its residual law (\code{$resid.dist}, \code{"gaussian"} or
-            \code{"student"}). \code{pointwiseLogLikelihood}
-            (\code{extract(type = "loglik")}) and the posterior-predictive
-            draw (\code{type = "ppd"}) refuse a \code{student()} fit by
-            name instead of silently scoring the gaussian density and
-            drawing gaussian noise regardless of \code{resid.dist}. A fit
-            predating the field is read as gaussian, unaffected.
+            \code{"student"}). The posterior-predictive draw
+            (\code{extract(type = "ppd")}) refuses a \code{student()} fit
+            by name instead of silently drawing gaussian noise regardless of
+            \code{resid.dist}. A fit predating the field is read as
+            gaussian, unaffected.
       \item \code{xbart} now enforces the binary weight policy at the R
             level, matching \code{dbarts}/\code{bart2}/\code{rbart_vi}
             instead of falling through to the C bridge's own backstop. A

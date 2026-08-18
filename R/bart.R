@@ -316,6 +316,20 @@ packageBartResults <- function(
     result$varprobs <- varprobs
   }
 
+  # the per-draw residual degrees of freedom a student() fit conditions each
+  # draw on - a fixed nu repeats, an estimated one is that sweep's grid draw -
+  # in sigma's own layout, since it is one scalar per draw as sigma is. The
+  # channel is absent (not NULL) off a Student-t error law, so a gaussian fit
+  # keeps exactly the elements it had; pointwiseLogLikelihood reads it as the
+  # t marginal's df.
+  if (!is.null(samples[["resid.df"]])) {
+    result[["resid.df"]] <- convertSamplesFromDbartsToBart(
+      samples[["resid.df"]],
+      n.chains,
+      combineChains
+    )
+  }
+
   # the per-observation censoring status an aft (survival) fit needs so its
   # log-likelihood can take the survival tail on censored rows; the survival
   # ingestion parks it on the control attribute, and it is NULL (so the

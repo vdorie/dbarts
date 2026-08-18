@@ -27,7 +27,8 @@ probabilityFromLatents <- function(latents, object) {
 # recycling. Dispatch is on object$family, not on the presence of sigma, so a
 # new family cannot silently reuse a formula that does not fit it (an aft fit
 # has non-null sigma but is not gaussian): gaussian evaluates the normal
-# density with weights as precision (y | x ~ N(f(x), sigma^2 / w)); probit and
+# density with weights as precision (y | x ~ N(f(x), sigma^2 / w)), and a
+# student() residual law the t marginal at the same location and scale; probit and
 # logistic the bernoulli mass on the y scale, weights being trial counts for
 # logistic (probit never stores weights); aft the log density for events and
 # the log survival tail for right-censored rows, mirroring the engine's
@@ -48,13 +49,17 @@ pointwiseLogLikelihood <- function(object, ev) {
   if (identical(family, "gaussian")) {
     # resid.dist records the fitted residual law; a fit predating the field
     # carries no element at all and is read as gaussian, the historical
-    # behavior, so old serialized fits keep working. A present non-"gaussian"
-    # token (student residuals) is refused here rather than silently scored
-    # against the gaussian density: the t marginal needs a per-draw df
-    # channel this fit does not carry (the nbinom dispersion channel is the
-    # precedent) and is not computed yet.
+    # behavior, so old serialized fits keep working. "student" scores the
+    # MARGINAL t density - the observation-level likelihood loo/waic are
+    # defined on, and the density the engine itself reports - rather than the
+    # gaussian working likelihood conditional on the latent precisions, which
+    # is a different quantity. Any other token is refused rather than silently
+    # scored against a formula that does not fit it.
     residDist <- object[["resid.dist"]]
-    if (!is.null(residDist) && !identical(residDist, "gaussian")) {
+    isStudent <- identical(residDist, "student")
+    if (
+      !is.null(residDist) && !isStudent && !identical(residDist, "gaussian")
+    ) {
       stop(
         "pointwise log-likelihood does not support ",
         residDist,
@@ -65,7 +70,22 @@ pointwiseLogLikelihood <- function(object, ev) {
     if (!is.null(weights)) {
       sd <- sd / rep(sqrt(weights), each = n.draws)
     }
-    result <- dnorm(y, as.vector(ev), sd, log = TRUE)
+    if (isStudent) {
+      # sigma is the CONDITIONAL scale under the scale mixture, so the marginal
+      # is a location-scale t_nu with that scale: sqrt(w) (y - f(x)) / sigma ~
+      # t_nu. The df is one scalar per draw, as sigma is, so it pairs by the
+      # same recycling.
+      df <- object[["resid.df"]]
+      if (is.null(df)) {
+        stop(
+          "cannot compute the log-likelihood; fit does not store the per-draw residual degrees of freedom"
+        )
+      }
+      df <- rep_len(as.vector(df), length(ev))
+      result <- dt((y - as.vector(ev)) / sd, df, log = TRUE) - log(sd)
+    } else {
+      result <- dnorm(y, as.vector(ev), sd, log = TRUE)
+    }
     # a zero-weight row is not in the model, so the channel flags it as
     # unavailable rather than reporting the -Inf an infinite sd would give
     if (!is.null(weights)) {
@@ -1723,7 +1743,7 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
   # the noise added below is always gaussian (rnorm); resid.dist is absent
   # for a fit predating the field or a binary fit and reads as gaussian, the
   # historical behavior; a present non-"gaussian" token (student residuals)
-  # means that noise is wrong, the same defect pointwiseLogLikelihood guards
+  # means that noise is wrong, so the draw is refused rather than taken
   if (!responseIsBinary) {
     residDist <- object[["resid.dist"]]
     if (!is.null(residDist) && !identical(residDist, "gaussian")) {

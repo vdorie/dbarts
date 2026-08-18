@@ -281,7 +281,8 @@ static_assert(offsetof(dbarts_results, tau) == sizeof(size_t) + 6 * sizeof(doubl
 static_assert(offsetof(dbarts_results, groupEffects) == sizeof(size_t) + 7 * sizeof(double*));
 static_assert(offsetof(dbarts_results, logLikelihood) == sizeof(size_t) + 8 * sizeof(double*));
 static_assert(offsetof(dbarts_results, dispersion) == sizeof(size_t) + 9 * sizeof(double*));
-static_assert(sizeof(dbarts_results) == sizeof(size_t) + 10 * sizeof(double*),
+static_assert(offsetof(dbarts_results, residualDf) == sizeof(size_t) + 10 * sizeof(double*));
+static_assert(sizeof(dbarts_results) == sizeof(size_t) + 11 * sizeof(double*),
               "dbarts_results layout changed; update these offsets, and bump "
               "DBARTS_C_API_MINOR if a field was appended after 1.0-0");
 
@@ -418,6 +419,7 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
     FILL(groupEffects, groupEffects);
     FILL(logLikelihood, logLikelihood);
     FILL(dispersion, dispersion);
+    FILL(residualDf, residualDf);
 #undef FILL
   }
 

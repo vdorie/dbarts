@@ -4233,8 +4233,12 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // cutpoint slot, so every later conditional slot shifts by it; no family
   // carries both, but the arithmetic composes regardless of that
   bool hasDispersion = shape.carriesDispersion;
+  // a Student-t error law appends its per-draw df nu next, on the same
+  // arithmetic; no response carries both, but the count composes regardless
+  bool hasResidualDf = shape.carriesResidualDf;
   int numResultSlots = 8 + (hasCutpoints ? 1 : 0) + (hasDispersion ? 1 : 0) +
-                       (hasVariance ? 2 : 0) + (hasForestReporting ? 2 : 0);
+                       (hasResidualDf ? 1 : 0) + (hasVariance ? 2 : 0) +
+                       (hasForestReporting ? 2 : 0);
 
   // several chains add a trailing chain dimension. Every column roots in the
   // protected container the moment it is allocated (installChannel), so there
@@ -4283,6 +4287,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SEXP dispersionExpr = !hasDispersion
     ? R_NilValue
     : installChannel("dispersion", allocScalarChannel());
+  // likewise one scalar per draw, so the df channel takes sigma's shape too
+  SEXP residualDfExpr = !hasResidualDf
+    ? R_NilValue
+    : installChannel("resid.df", allocScalarChannel());
   // the test half keeps its slot and its name with no test rows to fill it
   SEXP varianceTrainExpr = R_NilValue;
   SEXP varianceTestExpr = R_NilValue;
@@ -4338,6 +4346,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // the dispersion r each draw is conditioned on; null off nbinom, which is the
   // guard storeSample's write shares
   results.dispersion = hasDispersion ? REAL(dispersionExpr) : NULL;
+  // the residual df nu each draw is conditioned on; null off a Student-t error
+  // law, the guard storeSample's write shares
+  results.residualDf = hasResidualDf ? REAL(residualDfExpr) : NULL;
   results.varianceFits = hasVariance ? REAL(varianceTrainExpr) : NULL;
   results.varianceTestFits =
     (hasVariance && numTestObservations > 0) ? REAL(varianceTestExpr) : NULL;

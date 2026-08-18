@@ -61,6 +61,10 @@ struct SamplerShape {
   /// mid-sweep read to decide whether it answers at all; internal, invisible to
   /// dbarts.h.
   bool carriesDispersion;
+  /// Whether the response family carries a residual df nu (a Student-t error
+  /// law). The run bridge reads it to decide whether the per-draw df channel
+  /// exists; internal, invisible to dbarts.h.
+  bool carriesResidualDf;
   /// Saved samples the tree store holds, 0 when keepTrees is off.
   std::size_t savedTreeCapacity;
   ResponseFamily family;
@@ -383,6 +387,7 @@ public:
     s.numAmplitudes = impl_.totalAmplitudes();
     s.numCutpoints = impl_.numCutpoints();
     s.carriesDispersion = impl_.carriesDispersion();
+    s.carriesResidualDf = impl_.carriesResidualDf();
     s.savedTreeCapacity = impl_.savedTreeCapacity();
     s.family = impl_.family();
     s.leafModel = Sampler<L, ResidT>::leafModel();

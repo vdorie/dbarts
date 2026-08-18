@@ -39,6 +39,7 @@ void checkShapeMatchesImpl(const SamplerFacade<L, ResidT>& facade,
   CHECK_SHAPE_FIELD(numReportedLocations);
   CHECK_SHAPE_FIELD(numVariableCountForests);
   CHECK_SHAPE_FIELD(numCutpoints);
+  CHECK_SHAPE_FIELD(carriesResidualDf);
   CHECK_SHAPE_FIELD(savedTreeCapacity);
   CHECK_SHAPE_FIELD(family);
   CHECK_SHAPE_FIELD(leafModel);

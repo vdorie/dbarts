@@ -1419,6 +1419,28 @@ expect_error(
   "forest index out of range"
 )
 
+# the Student-t df channel from C: the results slot appended to
+# dbarts_results after the dispersion one, on a sampler whose error law is
+# selected by the model's resid.dist rather than by the family string. The
+# slot is NA-poisoned before the run, so an unfilled channel cannot pass for
+# a filled one
+specT <- dbarts(x, y, resid.dist = student(df = 5), control = control)
+ptrT <- CALL("capi_create", specT$control, specT$model, specT$data, "")
+dfT <- CALL("capi_run_residual_df", ptrT, 2L, 3L)
+expect_true(dfT$present)
+expect_equal(length(dfT$recorded), 3L)
+# a FIXED df repeats the value the sampler was created with, every draw
+expect_equal(dfT$recorded, rep(5, 3L))
+# a caller whose structSize predates the field is never written past, on the
+# one error law that HAS a df to write
+expect_true(dfT$guarded)
+# and it is ABSENT off the error law: a gaussian sampler handed the buffer
+# leaves the poisoned slot exactly as it found it
+dfG <- CALL("capi_run_residual_df", ptr1, 2L, 3L)
+expect_true(all(is.na(dfG$recorded)))
+rm(specT, ptrT, dfT, dfG)
+invisible(gc(FALSE))
+
 # destruction runs through the finalizer
 rm(ptr1, ptr2, ptr3, ptrBinary, ptrFixed, ptrLL)
 rm(ptrCbA, ptrCbB, ptrStop, ptrMT, ptrG, ptrBCF, ptrW1, ptrW2, ptrW3)
