@@ -557,6 +557,25 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### D - column-resolution and pdbart-prologue extractions (3158d96e, 2026-08-17)
+
+Two pure extractions, net -8 lines. resolveColumnIndex(source,
+column, what) collapses the three near-identical resolution blocks
+in R/bartcore.R (setPredictor/setCutPoints/setTestPredictor), the
+per-site not-found messages preserved via the what parameter; the
+pdbart/pd2bart prologue collapse renames the existing
+pdbart.getSampler to pdbart.prologue and folds the duplicated
+comment into it. One correctly-refused non-extraction, recorded:
+match.call()/parent.frame() are frame-sensitive and stay inline at
+each call site - moving them into the helper would capture the
+wrong frame. Neutrality: a per-site probe table with (ok, value,
+message) triples identical base-vs-slice for every success AND
+error path (bad name, out-of-range index, unnamed source, bad
+x.train type); tinytest 5825/0; trio bitwise 37/37 12/12 10/10;
+air clean; lintr - partialDependence.R zero, bartcore.R's seven
+object_usage warnings proven pre-existing and identical on base;
+R CMD check --as-cran OK from a built tarball.
+
 ### K3 - bridge/engine sediment sweep (28ead6e2, 2026-08-17)
 
 Comment-only, 54/54 lines across six files, all five findings
