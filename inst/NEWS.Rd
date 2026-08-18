@@ -932,6 +932,17 @@
             was treated as occupied and drew its value from the prior. Fits
             with no weights, or with strictly positive weights, draw exactly
             as before.
+      \item Trees drawn from the prior - by \code{sampleTreesFromPrior},
+            \code{samplePriorPredictive}, the C API's
+            \code{dbarts_sampler_sampleTreesFromPrior}, and the initial
+            forest every fit starts from - now realize the sampler's actual
+            tree prior, the Chipman-George-McCulloch law conditioned on
+            carrying no empty leaf, which is what the tree moves price.
+            Previously they were an unrestricted draw with its empty leaves
+            collapsed away afterward, a different distribution that also
+            admitted leaves holding only zero-weight observations, out of
+            which a birth scored \code{NaN} and was silently rejected.
+            Seeded results move with the initial forest.
       \item Mutating a dense-backed column of a mixed dense/sparse predictor
             container now updates the values the sampler re-reads, not only
             its bins. Cut point installation (\code{setCutPoints}), a state

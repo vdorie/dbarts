@@ -1,7 +1,7 @@
 # The custom-tau-prior path drives every kept sample through a per-sweep R
 # callback fired inside one sampler run. It reproduces, draw for draw, the
 # run(0, 1)-per-sample loop it replaced (verified bitwise against that loop
-# before it was deleted); these pinned values are that loop's output, so a
+# before it was deleted); these pinned values are this path's output, so a
 # change that shifts the interleaving of R and sampler draws breaks them.
 # n.thin = 2 exercises the thinning block logic (offset held, last sweep read).
 
@@ -48,28 +48,28 @@ runFit <- function() {
 
 fit <- runFit()
 
-# pinned draws from the deleted loop, recorded on one platform; SIMD/BLAS
-# reduction order shifts the last bits elsewhere, hence the 1e-8 tolerance
+# pinned draws, recorded on one platform; SIMD/BLAS reduction order shifts
+# the last bits elsewhere, hence the 1e-8 tolerance
 tau5 <- c(
-  0.21628278043120369,
-  0.20047547119909329,
-  0.32913812354043182,
-  0.35773866054527825,
-  0.91264300337336657
+  0.25350576723975499,
+  0.1994617344160402,
+  0.33240955025431451,
+  0.39769612962340517,
+  0.72421486213629427
 )
 ranefRow1 <- c(
-  0.015987791671226256,
-  0.10784937712177424,
-  0.12426941670434739,
-  -0.0095328924289627675,
-  -0.11437761177305054
+  -0.4651749097643611,
+  0.52600409272605797,
+  -0.030143638997090095,
+  -0.17111246838635474,
+  -0.065924004272584713
 )
 yhatMeans <- c(
-  11.016945998901775,
-  5.1840338407402182,
-  3.2384066799854754,
-  19.67567655250734,
-  0.16391455705265764
+  11.000869444900928,
+  3.2816086045316273,
+  2.8900771664095188,
+  20.130880107281119,
+  -0.091306244084821533
 )
 
 expect_equal(unname(fit$tau[1:5]), tau5, tolerance = 1e-8)

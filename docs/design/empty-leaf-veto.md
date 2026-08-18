@@ -60,8 +60,11 @@ leaf (it collapses two children into their non-empty parent).
 
 ## Is vetoed-vs-vetoed reachable?
 
-No. Because the chain state maintains the no-empty-leaf invariant, the
-current tree is always non-empty, so its branch score is always finite;
+No. Because the chain state maintains the no-empty-leaf invariant - the
+initializer included, since Chain::sampleTreesFromPrior draws the CGM prior
+CONDITIONED on the empty-leaf-free set by per-tree rejection on this same
+predicate, rather than projecting an unrestricted draw onto it - the current
+tree is always non-empty, so its branch score is always finite;
 a move can only propose *into* a vetoed state, giving a finite-vs-vetoed
 comparison, never vetoed-vs-vetoed. The one path that ever produced two
 vetoed scores was the original GP-leaf over-cap guardrail, where the

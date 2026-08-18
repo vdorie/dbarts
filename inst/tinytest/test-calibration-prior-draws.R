@@ -58,7 +58,9 @@ expect_true(max(abs(apply(constantDraws, 2L, sd) / priorSd - 1)) < 0.06)
 expect_true(max(abs(colMeans(constantDraws) - priorMean)) < 0.15 * priorSd)
 
 # non-vacuity: the same fit without the name inherits the response range, which
-# on this y is several times the named scale
+# on this y is about three times the named scale (measured 3.02 over 4000
+# draws; the 400 draws below carry a Monte Carlo se near 0.1 in these units,
+# so the bar sits clear of the value rather than on it)
 inheritedSampler <- dbarts(
   x,
   y,
@@ -67,7 +69,7 @@ inheritedSampler <- dbarts(
 )
 set.seed(3)
 inheritedDraws <- priorDraws(inheritedSampler, x[1:4, , drop = FALSE], 400L)
-expect_true(mean(apply(inheritedDraws, 2L, sd)) / priorSd > 3)
+expect_true(mean(apply(inheritedDraws, 2L, sd)) / priorSd > 2.5)
 
 # --- linear leaf: prior.sd is a LOWER bound, attained at the standardized
 # covariate origin, with sd(f(x)) = prior.sd * sqrt(1 + ||z(x)||^2). The rows

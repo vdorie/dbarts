@@ -1725,8 +1725,19 @@ public:
     return result * response_->sigmaScale() * response_->sigmaScale();
   }
 
+  /// Attempt cap for sampleTreesFromPrior's per-tree rejection draw.
+  /// Acceptance is bounded below by the probability of the bare root, 1 - base,
+  /// positive on every legal prior (base lies in (0, 1)); even at base = 0.99
+  /// exhausting the cap has probability 4e-44, so exhaustion says the
+  /// conditioning event is EMPTY - no row carries positive weight, hence no
+  /// tree at all is admissible - rather than reporting an unlucky run, and a
+  /// fault is the honest answer. Measured rejection under the default prior:
+  /// ~9% per tree at n = 30, ~1.3% at n = 400.
+  static constexpr int priorTreeDrawMaxAttempts = 10000;
+
   /// Replace every tree's structure with a draw from the tree prior over the
-  /// current cut grid, empty leaves collapsed, and return the forest to the
+  /// current cut grid - the law the move kernels price, so the CGM prior
+  /// CONDITIONED on carrying no empty leaf - and return the forest to the
   /// zero-fit state a freshly constructed chain carries: every tree's leaf
   /// parameters are zero, hence every tree's fit is identically zero,
   /// totalFits and totalTestFits are zero, and the constant leaf's obs-to-leaf
@@ -1762,13 +1773,30 @@ public:
     size_t n = data_.numObservations;
     const double* y = response_->workingResponse();
     const double* weights = response_->workingWeights();
-    std::vector<double> paramByNode;
     for (Forest<L, ResidT>& forest : forests_) {
       for (size_t t = 0; t < forest.numTrees; ++t) {
-        forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
-        growSubtreeFromPrior(forest, forest.trees[t], 0, y, weights);
-        paramByNode.assign(forest.trees[t].nodes.size(), 0.0);
-        forest.trees[t].collapseEmptyNodes(data_, weights, paramByNode);
+        Tree& tree(forest.trees[t]);
+        // Rejection, not projection: the moves price the CGM prior restricted
+        // and renormalized to the trees carrying no empty leaf
+        // (logLikelihoodForBranch's veto, docs/design/empty-leaf-veto.md), and
+        // collapsing the empty leaves out of an unrestricted draw is a
+        // different distribution - it maps the rejected mass onto smaller trees
+        // instead of removing it. The retry is WHOLE-TREE because the
+        // conditioning tilts every draw the recursion made, the parent's rule
+        // included; regrowing only the offending subtree would leave that rule
+        // at its unconditioned law. The predicate is the veto's own, so a leaf
+        // of only zero-weight rows - which the collapse's member count spares
+        // and the veto forbids - is rejected here too.
+        int rejected = 0;
+        while (true) {
+          tree.initialize(forest.indexBuffer.data() + t * n, n);
+          growSubtreeFromPrior(forest, tree, 0, y, weights);
+          if (tree.bottomNodesHaveWeight(weights)) break;
+          if (++rejected == priorTreeDrawMaxAttempts)
+            ext_throwError("tree prior draw: every one of %d draws left an "
+                           "empty leaf; no tree is admissible against this "
+                           "weight vector", priorTreeDrawMaxAttempts);
+        }
         // fresh structures carry zero parameter blocks until the next draw
         if constexpr (L::hasVectorParams)
           forest.paramsByTree[t].assign(
@@ -3777,10 +3805,10 @@ private:
     for (size_t i = 0; i < numTest; ++i) fn(i);
   }
 
-  /// Recursive growth from the prior: growth is Bernoulli in the
+  /// Recursive growth from the UNRESTRICTED prior: growth is Bernoulli in the
   /// depth-decayed prior probability, rules come from the prior, and empty
-  /// children keep growing (availability is rule-based) until the caller
-  /// collapses them.
+  /// children keep growing (availability is rule-based). The caller owns the
+  /// no-empty-leaf conditioning and applies it by rejecting the whole draw.
   void growSubtreeFromPrior(Forest<L, ResidT>& forest, Tree& tree, int32_t nodeIndex,
                             const double* y, const double* weights) {
     double growthProbability =

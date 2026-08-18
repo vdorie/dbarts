@@ -910,6 +910,15 @@ public:
     return bottomNodesAreOccupiedBelow(0);
   }
 
+  /// Whether the tree is in the set the branch log-likelihood's veto admits:
+  /// no bottom node fails leafHasNoWeight. This is the emptiness law of the
+  /// move kernels (docs/design/empty-leaf-veto.md), not the membership law
+  /// bottomNodesAreOccupied answers for state restore; the two agree exactly
+  /// when no weight vector is installed.
+  bool bottomNodesHaveWeight(const double* weights) const {
+    return bottomNodesHaveWeightBelow(0, weights);
+  }
+
   /// Repartition a subtree after its rule changed, recomputing leaf stats.
   template <typename ResidT>
   void refreshSubtree(const ColumnStore& data, int32_t nodeIndex, const ResidT* y,
@@ -1224,6 +1233,12 @@ private:
     if (at(i).isBottom()) return at(i).numObservations() > 0;
     return bottomNodesAreOccupiedBelow(at(i).leftChild) &&
            bottomNodesAreOccupiedBelow(at(i).leftChild + 1);
+  }
+
+  bool bottomNodesHaveWeightBelow(int32_t i, const double* weights) const {
+    if (at(i).isBottom()) return !leafHasNoWeight(i, weights);
+    return bottomNodesHaveWeightBelow(at(i).leftChild, weights) &&
+           bottomNodesHaveWeightBelow(at(i).leftChild + 1, weights);
   }
 
   void collapseSubtreeToLeaf(int32_t nodeIndex) {
