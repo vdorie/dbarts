@@ -64,6 +64,26 @@ bartcoreSamplerRun <- function(sampler, numBurnIn, numSamples) {
   result
 }
 
+# Resolves a character 'column' against source's colnames into a 1-based
+# integer index (or indices); NULL or an already-numeric 'column' passes
+# through unchanged. 'what' names source for the not-found message.
+resolveColumnIndex <- function(source, column, what) {
+  if (is.null(column) || !is.character(column)) {
+    return(column)
+  }
+  if (is.null(colnames(source))) {
+    stop(
+      "column names not specified at initialization, so cannot be ",
+      "replaced by name"
+    )
+  }
+  column <- match(column, colnames(source))
+  if (anyNA(column)) {
+    stop("column name not found in names of ", what)
+  }
+  column
+}
+
 bartcoreSamplerSetPredictor <- function(
   sampler,
   x,
@@ -89,16 +109,7 @@ bartcoreSamplerSetPredictor <- function(
     !is.na(forceUpdate) &&
     forceUpdate == "partial"
 
-  if (!is.null(column) && is.character(column)) {
-    if (is.null(colnames(sampler$data@x))) {
-      stop(
-        "column names not specified at initialization, so cannot be ",
-        "replaced by name"
-      )
-    }
-    column <- match(column, colnames(sampler$data@x))
-    if (anyNA(column)) stop("column name not found in names of current X")
-  }
+  column <- resolveColumnIndex(sampler$data@x, column, "current X")
 
   ptr <- sampler$getPointer()
 
@@ -425,16 +436,7 @@ bartcoreSamplerSetData <- function(sampler, newData) {
 }
 
 bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
-  if (!is.null(column) && is.character(column)) {
-    if (is.null(colnames(sampler$data@x))) {
-      stop(
-        "column names not specified at initialization, so cannot be ",
-        "replaced by name"
-      )
-    }
-    column <- match(column, colnames(sampler$data@x))
-    if (anyNA(column)) stop("column name not found in names of current X")
-  }
+  column <- resolveColumnIndex(sampler$data@x, column, "current X")
   if (is.null(column)) {
     column <- seq_len(ncol(sampler$data@x))
   }
@@ -456,18 +458,11 @@ bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
 }
 
 bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
-  if (!is.null(column) && is.character(column)) {
-    if (is.null(colnames(sampler$data@x.test))) {
-      stop(
-        "column names not specified at initialization, so cannot be ",
-        "replaced by name"
-      )
-    }
-    column <- match(column, colnames(sampler$data@x.test))
-    if (anyNA(column)) {
-      stop("column name not found in names of current test predictor matrix")
-    }
-  }
+  column <- resolveColumnIndex(
+    sampler$data@x.test,
+    column,
+    "current test predictor matrix"
+  )
 
   if (is.null(column)) {
     # NULL removes the test data; a frame/sparse input becomes a container the
