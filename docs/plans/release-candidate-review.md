@@ -540,6 +540,36 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### P11 - reduced-power-gate audit; two quick gates retuned (2b30ba95, 2026-08-18)
+
+The audit ran as a measurement pass against 87bf44af using the P6
+driver's poison list: of the 16 poisons, 15 have a quick-capable
+killer (tests/cpp has no quick concept). Five kill under quick
+(m01, m02, m04, m14, m15). Eight are N-A BY DESIGN: the equivalence
+family's compare mode refuses a quick run against a full-recorded
+baseline loudly - the settings-identity guard stops before touching
+any scenario (verified live: exit 1, "baseline was recorded with
+different settings") - so quick equivalence cannot silently
+underpower, which was itself worth confirming. Exactly TWO were
+MIS-TUNED, each confirmed killed at full power on the same mutated
+build (no new gate gap): change-balance quick at nKept 100000 read
+|z| = 3.6 on the poison-3 forward-correction drop against its own
+|z| < 4 gate, and bcf-exact-weak quick's toleranceProb 0.05 sat
+above the poison-13 a-glue-precision gap of 0.0314. Full table at
+rc-review-artifacts-2026-08-18/p11-reduced-power.md.
+
+The follow-through landed as 2b30ba95: nKept 100000 -> 125000
+(z scales ~sqrt(n)) and quick toleranceProb 0.05 -> 0.03, comments
+stating the kill constraint with the measured margins. Gated
+measured, not assumed: clean-tip pass at the new settings with
+comfortable margins (largest clean |z| 1.1 against the 4 gate; clean
+gap 0.0141 against 0.03), and both mutated builds now KILLED under
+quick (m03 |z| = 4.5 exit 1; m13 gap 0.0314 > 0.03 exit 1), builds
+verified fresh through the build-freshness guard. air/lintr clean,
+diff confined to the two gate scripts. P11's weekly full-mode CI
+schedule half stays deferred on the default-branch gate, as
+specified.
+
 ### P6 - the repeatable mutation harness lands (b46c0704, 2026-08-18)
 
 The durable asset the July poison sweep never committed:
