@@ -540,6 +540,57 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### P5b - mutation-sequence composition arms; WAVE 3 CLOSES (61310e0e, 2026-08-18)
+
+inst/tinytest/test-composition-sequences.R (82 assertions), seeded
+from the gate-blindspot audit's uncovered combinations with every
+cell's openness RE-DERIVED against the current suite first (the
+Step-0 table with per-cell citations is in the implementer report;
+covered-since cells were cited, not retested). What landed, each
+with a draw-level oracle and a non-vacuity arm: per-observation
+setPredictor on probit AND logistic fits (accepted and rolled-back
+sessions, continuation checked against an uninterrupted control);
+installTrees warm starts on multi-chain, linear-leaf, and
+missing-data samplers plus the BCF refusal; setCutPoints composed
+with BCF, leaf-covariate columns, and missing data (grid actually
+in force, with the still-drawable count as the non-vacuity arm);
+multi-chain-reproduces-single-chain draw-level oracles for BCF,
+DART, linear and GP (converting shape tests into posterior ones);
+BCF between-sweep mutation axes at the R5 surface; and the
+round-trip DEPTH arms - fresh-sampler setState continuation on all
+five model classes, asserting the move sequence EXACTLY and the
+numbers to 1e-9 relative.
+
+Two behaviors pinned that no test stated: (i) continuation past a
+fresh-sampler restore is SEMANTIC, not bitwise - train diverges at
+1e-15 on the first post-restore sweep from the canonical fit resum
+while varcount stays bitwise on all five classes - which is the
+SETTLED 2026-07-06 state-continuation decision, so the spec's
+"non-bitwise is a finding" clause was superseded by the recorded
+design, not weakened; (ii) setPredictor's per-observation path
+advances the chain generator even on a complete no-op (it draws
+the scan-order permutation before any row decision) where the
+whole-column path does not - a Gibbs host reading the mask as an
+MH accept mask inherits that advance; pinned, and worth an Rd
+sentence when the mutation surface's docs are next touched
+(ledgered).
+
+The mutation evidence is the headline: reversing the order
+createChainRngs seeds per-chain generators is INVISIBLE to the
+entire pre-existing suite - 5909 results, all passing - and the
+new multi-chain oracles kill it (8 failures, bcf/dart/linear/gp,
+train and sigma pins each). Independently re-planted and confirmed
+by the gate-runner: blindness half 5909/5909, kill half 8/82. The
+rng-restore mutation is killed by both old and new arms; P6's
+m21-m23 documented survivals remain survivals (their guards fire
+only on hand-corrupted states no continuation arm constructs - as
+P6's note predicted). Budget 231 dense vs ~220. Gates green twice
+(implementer + independent gate-runner, fresh builds): tinytest
+5991/0, the file 82/82 standalone, trio bitwise 38/38 / 12/12 /
+10/10, air/lintr clean, R CMD check --as-cran with the core limit
+Status: OK. Tests-only; no NEWS. WAVE 3 IS COMPLETE: P8, P5, P7,
+P16, P6, P5b, P11 all landed.
+
 ### P11 - reduced-power-gate audit; two quick gates retuned (2b30ba95, 2026-08-18)
 
 The audit ran as a measurement pass against 87bf44af using the P6
