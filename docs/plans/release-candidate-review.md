@@ -559,6 +559,39 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### K6 - boundary guard reconciliation; WAVE 2 CLOSES (ee249420, 2026-08-18)
+
+The predicate-parity policy lands as error-style.md's R8 addendum
+(R8 had already set message ownership - R canonical, C
+independently-worded backstop - and deferred predicates here): the
+non-canonical side must accept and reject the identical input set;
+the C backstop stays because the low-level bartcore* .Call entries
+skip R validation entirely; an R predicate over a possibly-NA/NaN
+value refuses it deterministically in ONE guard, never a separate
+anyNA pre-check relying on evaluation order (NA_real_ >= 0.0 is NA
+and if (NA) raises the wrong error). Census correction by content:
+the case-weight NaN "gap" was stale - a separate NA guard already
+refused it, now merged into one bridge-matching predicate
+(any(is.na(w) | w < 0.0)); the REAL gap was setForestWeights
+admitting Inf past the R guard to fail three frames deep in a
+tryCatch rethrow - now !all(is.finite(w)) || any(w < 0.0) refuses
+at the surface with the finiteness named. Audit of the other
+boundary pairs (setActiveRows, multinomial counts/labels/
+category-offset, survival-time): R-only or already
+parity-conforming. Case-weight Inf is ACCEPTED on both routes -
+parity holds; its semantic sense rides the wave-3 refusal census.
+Eight pins; one NEWS item (270). Battery twice (implementer, then
+independent gate-runner with its own route x value parity matrix
+on both libs): tests/cpp clean; tinytest 5860/0; trio bitwise
+37/37 12/12 10/10; air/lintr clean; R CMD check Status OK;
+discrimination - base's Inf forest weight errors in doTryCatch
+three frames deep, slice refuses at the surface frame. Prior CI:
+L six-green.
+
+WAVE 2 COMPLETE: L (941 messages, 111 rewritten under the signed
+rule) + K6. Wave 3 opens with P8, pinning against settled text as
+the ordering rationale prescribed.
+
 ### L - the error-message sweep under the signed rule (efdfa74a, 2026-08-18)
 
 Wave 2 opens. Enumeration: 941 reachable messages (570 R stop/
