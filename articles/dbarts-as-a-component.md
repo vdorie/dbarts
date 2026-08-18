@@ -213,8 +213,8 @@ dbartsValidateComposition(drawPrior, simulateData, initState, step,
     ## band alpha 0.05 over 2 functional(s) is 0.025; uniform mean rank 25.0
     ## 
     ##  functional mean.rank ecdf.diff  band chisq.p  ks.p verdict
-    ##       alpha      25.2    0.0863 0.223   0.886 0.829    PASS
-    ##      f.mean      22.4    0.1310 0.223   0.590 0.437    PASS
+    ##       alpha      24.9    0.0843 0.223   0.723 0.884    PASS
+    ##      f.mean      23.0    0.1310 0.223   0.066 0.416    PASS
 
 Reporting `v * sum(wSbc * (state$y - state$f)) / sigma0^2` in place of
 the draw – the defect this diagnostic exists to catch – flags `alpha`
@@ -270,7 +270,7 @@ c(composed = priorSd(samplers), single = priorSd(list(single)))
 ```
 
     ## composed   single 
-    ## 1.397296 1.439639
+    ## 1.315185 1.411570
 
 ``` r
 
@@ -289,7 +289,7 @@ c(composed = cor(rowMeans(total), fTrue),
 ```
 
     ##  composed    single 
-    ## 0.9655108 0.9550686
+    ## 0.9673845 0.9557477
 
 `setResponse` leaves the response transform where creation put it
 (`updateScale = FALSE`, the default), which is what makes a per-sweep

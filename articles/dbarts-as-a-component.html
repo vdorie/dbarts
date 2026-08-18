@@ -282,8 +282,8 @@ chain.</p>
 <span><span class="co">## band alpha 0.05 over 2 functional(s) is 0.025; uniform mean rank 25.0</span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">##  functional mean.rank ecdf.diff  band chisq.p  ks.p verdict</span></span>
-<span><span class="co">##       alpha      25.2    0.0863 0.223   0.886 0.829    PASS</span></span>
-<span><span class="co">##      f.mean      22.4    0.1310 0.223   0.590 0.437    PASS</span></span></code></pre>
+<span><span class="co">##       alpha      24.9    0.0843 0.223   0.723 0.884    PASS</span></span>
+<span><span class="co">##      f.mean      23.0    0.1310 0.223   0.066 0.416    PASS</span></span></code></pre>
 <p>Reporting <code>v * sum(wSbc * (state$y - state$f)) / sigma0^2</code>
 in place of the draw – the defect this diagnostic exists to catch –
 flags <code>alpha</code> here, and is a test cell of its own.</p>
@@ -342,7 +342,7 @@ it with a single sampler’s.</p>
 <span><span class="va">single</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span>, control <span class="op">=</span> <span class="va">control</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>composed <span class="op">=</span> <span class="fu">priorSd</span><span class="op">(</span><span class="va">samplers</span><span class="op">)</span>, single <span class="op">=</span> <span class="fu">priorSd</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">single</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">## composed   single </span></span>
-<span><span class="co">## 1.397296 1.439639</span></span></code></pre>
+<span><span class="co">## 1.315185 1.411570</span></span></code></pre>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fits</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">0</span>, <span class="va">n</span><span class="op">)</span><span class="op">)</span>, <span class="va">K</span><span class="op">)</span></span>
 <span><span class="va">total</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fl">0</span>, <span class="va">n</span>, <span class="va">nDraws</span><span class="op">)</span></span>
@@ -357,7 +357,7 @@ it with a single sampler’s.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>composed <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">total</span><span class="op">)</span>, <span class="va">fTrue</span><span class="op">)</span>,</span>
 <span>  single <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">single</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="va">nBurn</span>, <span class="va">nDraws</span><span class="op">)</span><span class="op">$</span><span class="va">train</span><span class="op">)</span>, <span class="va">fTrue</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##  composed    single </span></span>
-<span><span class="co">## 0.9655108 0.9550686</span></span></code></pre>
+<span><span class="co">## 0.9673845 0.9557477</span></span></code></pre>
 <p><code>setResponse</code> leaves the response transform where creation
 put it (<code>updateScale = FALSE</code>, the default), which is what
 makes a per-sweep swap coherent: every sweep’s partial residual is read
