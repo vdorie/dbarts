@@ -694,7 +694,7 @@ xbartRunChunk <- function(spec, repIndices, chunkSeed) {
         currentTrees <- spec$n.trees[cells$iTrees[cell]]
         numBurnIn <- spec$n.burn[1L]
       } else {
-        bartcoreSetModel(sampler, cellModel(cell), cellControl, data)
+        bartcoreSetModel(sampler, cellModel(cell), data)
         numBurnIn <- spec$n.burn[2L]
       }
 

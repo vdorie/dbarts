@@ -136,15 +136,6 @@ size_t validatePredictorMatrix(const bartcore::SamplerBase& sampler,
   return numRows;
 }
 
-SEXP getListElement(SEXP listExpr, const char* name) {
-  SEXP namesExpr = Rf_getAttrib(listExpr, R_NamesSymbol);
-  if (Rf_isNull(namesExpr)) return R_NilValue;
-  for (R_xlen_t i = 0; i < Rf_xlength(listExpr); ++i)
-    if (std::strcmp(CHAR(STRING_ELT(namesExpr, i)), name) == 0)
-      return VECTOR_ELT(listExpr, i);
-  return R_NilValue;
-}
-
 // The subset of the R specification objects (dbartsControl, dbartsData,
 // dbartsModel) the engine consumes. Pointers borrow from the expressions;
 // error paths may leak the parse vectors - Rf_error longjmps past
@@ -639,9 +630,9 @@ void requireCscReferenceMeta(SEXP containerExpr, size_t numCscColumns,
                              const int*& referenceMeta,
                              const int*& categoryCountMeta,
                              const char* malformedMessage) {
-  SEXP referenceExpr = getListElement(containerExpr, "sparseReference");
+  SEXP referenceExpr = rc_getListElement(containerExpr, "sparseReference");
   SEXP categoryCountExpr =
-    getListElement(containerExpr, "sparseCategoryCount");
+    rc_getListElement(containerExpr, "sparseCategoryCount");
   if (!Rf_isInteger(referenceExpr) || !Rf_isInteger(categoryCountExpr) ||
       static_cast<size_t>(rc_getLength(referenceExpr)) != numCscColumns ||
       static_cast<size_t>(rc_getLength(categoryCountExpr)) != numCscColumns)
@@ -661,13 +652,13 @@ void requireCscReferenceMeta(SEXP containerExpr, size_t numCscColumns,
 void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
                         size_t numPredictors,
                         const bartcore::ColumnType* columnTypes) {
-  SEXP denseExpr = PROTECT(getListElement(containerExpr, "dense"));
-  SEXP sparseExpr = PROTECT(getListElement(containerExpr, "sparse"));
-  SEXP mapExpr = PROTECT(getListElement(containerExpr, "map"));
+  SEXP denseExpr = PROTECT(rc_getListElement(containerExpr, "dense"));
+  SEXP sparseExpr = PROTECT(rc_getListElement(containerExpr, "sparse"));
+  SEXP mapExpr = PROTECT(rc_getListElement(containerExpr, "map"));
   if (!Rf_isInteger(mapExpr) ||
       static_cast<size_t>(rc_getLength(mapExpr)) != numPredictors)
     Rf_error("number of columns in 'x.test' must equal that of 'x'");
-  SEXP numObsExpr = getListElement(containerExpr, "numObservations");
+  SEXP numObsExpr = rc_getListElement(containerExpr, "numObservations");
   if (!Rf_isInteger(numObsExpr) || rc_getLength(numObsExpr) != 1 ||
       INTEGER(numObsExpr)[0] < 0)
     Rf_error("malformed mixed test container");
@@ -799,9 +790,9 @@ bool parseMutationSource(ParsedMutationSource& out, SEXP xExpr, size_t numRows,
     out.view.cscRowIndices = csc.rows;
     out.view.cscValues = csc.values;
   } else if (Rf_inherits(xExpr, "dbartsMixedMatrix")) {
-    SEXP denseExpr = PROTECT(getListElement(xExpr, "dense"));
-    SEXP sparseExpr = PROTECT(getListElement(xExpr, "sparse"));
-    SEXP mapExpr = PROTECT(getListElement(xExpr, "map"));
+    SEXP denseExpr = PROTECT(rc_getListElement(xExpr, "dense"));
+    SEXP sparseExpr = PROTECT(rc_getListElement(xExpr, "sparse"));
+    SEXP mapExpr = PROTECT(rc_getListElement(xExpr, "map"));
     if (!Rf_isInteger(mapExpr) ||
         static_cast<size_t>(rc_getLength(mapExpr)) != numColumns)
       Rf_error("%s", shapeMessage);
@@ -969,9 +960,9 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     data.predictors.cscRowIndices = csc.rows;
     data.predictors.cscValues = csc.values;
   } else if (Rf_inherits(slotExpr, "dbartsMixedMatrix")) {
-    SEXP denseExpr = PROTECT(getListElement(slotExpr, "dense"));
-    SEXP sparseExpr = PROTECT(getListElement(slotExpr, "sparse"));
-    SEXP mapExpr = PROTECT(getListElement(slotExpr, "map"));
+    SEXP denseExpr = PROTECT(rc_getListElement(slotExpr, "dense"));
+    SEXP sparseExpr = PROTECT(rc_getListElement(slotExpr, "sparse"));
+    SEXP mapExpr = PROTECT(rc_getListElement(slotExpr, "map"));
     if (!Rf_isInteger(mapExpr) || rc_getLength(mapExpr) == 0)
       Rf_error("malformed mixed predictor container");
     if (TYPEOF(denseExpr) == VECSXP && Rf_isNull(sparseExpr)) {
@@ -1916,11 +1907,11 @@ void applyGroupAttribute(SEXP controlExpr, size_t numObservations,
   SEXP groupsExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.groups"));
   if (Rf_isNull(groupsExpr)) return;
 
-  SEXP indicesExpr = getListElement(groupsExpr, "indices");
-  SEXP numGroupsExpr = getListElement(groupsExpr, "n.groups");
-  SEXP priorExpr = getListElement(groupsExpr, "prior");
-  SEXP scaleExpr = getListElement(groupsExpr, "rel.scale");
-  SEXP stepsExpr = getListElement(groupsExpr, "n.steps");
+  SEXP indicesExpr = rc_getListElement(groupsExpr, "indices");
+  SEXP numGroupsExpr = rc_getListElement(groupsExpr, "n.groups");
+  SEXP priorExpr = rc_getListElement(groupsExpr, "prior");
+  SEXP scaleExpr = rc_getListElement(groupsExpr, "rel.scale");
+  SEXP stepsExpr = rc_getListElement(groupsExpr, "n.steps");
   if (!Rf_isInteger(indicesExpr) ||
       static_cast<size_t>(Rf_xlength(indicesExpr)) != numObservations ||
       !Rf_isInteger(numGroupsExpr) || Rf_xlength(numGroupsExpr) != 1 ||
@@ -2006,10 +1997,10 @@ void applyVarianceAttributes(SEXP controlExpr, size_t numPredictors,
   SEXP varExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.variance"));
   if (Rf_isNull(varExpr)) return;
 
-  SEXP nTreesExpr = getListElement(varExpr, "n.trees");
-  SEXP baseExpr = getListElement(varExpr, "base");
-  SEXP powerExpr = getListElement(varExpr, "power");
-  SEXP columnsExpr = getListElement(varExpr, "columns");
+  SEXP nTreesExpr = rc_getListElement(varExpr, "n.trees");
+  SEXP baseExpr = rc_getListElement(varExpr, "base");
+  SEXP powerExpr = rc_getListElement(varExpr, "power");
+  SEXP columnsExpr = rc_getListElement(varExpr, "columns");
   if (!Rf_isInteger(nTreesExpr) || Rf_xlength(nTreesExpr) != 1 ||
       !Rf_isReal(baseExpr) || Rf_xlength(baseExpr) != 1 ||
       !Rf_isReal(powerExpr) || Rf_xlength(powerExpr) != 1)
@@ -2050,12 +2041,12 @@ void applyBCFInteractions(SEXP listExpr, size_t numPredictors,
                           bartcore::BCFForestSpec& spec,
                           std::vector<size_t>& storage) {
   if (Rf_isNull(listExpr)) return;
-  SEXP maxOrderExpr = getListElement(listExpr, "max.order");
+  SEXP maxOrderExpr = rc_getListElement(listExpr, "max.order");
   if (!Rf_isNull(maxOrderExpr) && Rf_xlength(maxOrderExpr) == 1) {
     int order = Rf_asInteger(maxOrderExpr);
     if (order > 0) spec.interactionMaxOrder = static_cast<size_t>(order);
   }
-  SEXP forbiddenExpr = getListElement(listExpr, "forbidden");
+  SEXP forbiddenExpr = rc_getListElement(listExpr, "forbidden");
   if (!Rf_isNull(forbiddenExpr) && Rf_xlength(forbiddenExpr) > 0) {
     if (!Rf_isInteger(forbiddenExpr))
       Rf_error("bcf interaction forbidden pairs must be resolved integers");
@@ -2085,8 +2076,8 @@ void applyBCFBlocks(SEXP listExpr, size_t numPredictors, size_t numTrees,
                     std::vector<std::int32_t>& groupStore,
                     std::vector<size_t>& countStore) {
   if (Rf_isNull(listExpr)) return;
-  SEXP groupExpr = getListElement(listExpr, "block.of.column");
-  SEXP countExpr = getListElement(listExpr, "block.tree.counts");
+  SEXP groupExpr = rc_getListElement(listExpr, "block.of.column");
+  SEXP countExpr = rc_getListElement(listExpr, "block.tree.counts");
   if (Rf_isNull(groupExpr) || Rf_isNull(countExpr)) return;
   if (!Rf_isInteger(groupExpr) || !Rf_isInteger(countExpr))
     Rf_error("bcf block spec must hold resolved integers");
@@ -2254,10 +2245,10 @@ bool applyBCFAttributes(SEXP controlExpr, const ParsedModel& model,
                         bartcore::BCFSpec& spec, BCFSpecStorage& storage) {
   SEXP bcfExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.bcf"));
   if (Rf_isNull(bcfExpr)) return false;
-  applyBCFSpec(getListElement(bcfExpr, "params"),
-               getListElement(bcfExpr, "vars"),
-               getListElement(bcfExpr, "interactions"),
-               getListElement(bcfExpr, "blocks"), model, numTrees,
+  applyBCFSpec(rc_getListElement(bcfExpr, "params"),
+               rc_getListElement(bcfExpr, "vars"),
+               rc_getListElement(bcfExpr, "interactions"),
+               rc_getListElement(bcfExpr, "blocks"), model, numTrees,
                numPredictors, spec, storage);
   return true;
 }
@@ -4401,12 +4392,12 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   size_t numBurnIn = static_cast<size_t>(Rf_asInteger(numBurnInExpr));
   size_t numSamples = static_cast<size_t>(Rf_asInteger(numSamplesExpr));
 
-  SEXP sigmaExpr = getListElement(resultsExpr, "sigma");
-  SEXP trainExpr = getListElement(resultsExpr, "train");
-  SEXP testExpr = getListElement(resultsExpr, "test");
-  SEXP varcountExpr = getListElement(resultsExpr, "varcount");
-  SEXP kExpr = getListElement(resultsExpr, "k");
-  SEXP varprobsExpr = getListElement(resultsExpr, "varprobs");
+  SEXP sigmaExpr = rc_getListElement(resultsExpr, "sigma");
+  SEXP trainExpr = rc_getListElement(resultsExpr, "train");
+  SEXP testExpr = rc_getListElement(resultsExpr, "test");
+  SEXP varcountExpr = rc_getListElement(resultsExpr, "varcount");
+  SEXP kExpr = rc_getListElement(resultsExpr, "k");
+  SEXP varprobsExpr = rc_getListElement(resultsExpr, "varprobs");
 
   bartcore::Results results;
   results.sigma = Rf_isNull(sigmaExpr) ? NULL : REAL(sigmaExpr);
@@ -4803,8 +4794,7 @@ SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
 
 /// Prior replacement; installing a model before any run matches creating
 /// with it.
-SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
-                       SEXP dataExpr) {
+SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   bartcore::SamplerShape shape = sampler.shape();
@@ -4813,8 +4803,6 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
   if (!Rf_inherits(modelExpr, "dbartsModel"))
     Rf_error("'model' argument to bartcore_setModel not of class "
              "'dbartsModel'");
-
-  (void) controlExpr; // arity fixed by the call table; nothing read from it
 
   return unwindProtect([&, model = ParsedModel{}]() mutable -> SEXP {
     parseModel(model, modelExpr, shape.numPredictors);
@@ -6072,7 +6060,7 @@ void computeWorkingResponse(bartcore::ResponseFamily family,
 // Registry rule for evolving the format (docs/design/public-surface.md 2):
 // block names are APPEND-ONLY and a shipped name's on-disk encoding is FROZEN.
 // A new capability adds a NEW optional block name; setState reads blocks by
-// name (getListElement), defaults an absent OPTIONAL block, and refuses -
+// name (rc_getListElement), defaults an absent OPTIONAL block, and refuses -
 // naming the block - only when a REQUIRED (or config-conditionally-required)
 // block is missing. So an ADDITIVE block addition does NOT bump the version
 // (an old reader ignores the unknown name; a new reader defaults it), and MUST
@@ -6433,7 +6421,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     SEXP chainExpr = VECTOR_ELT(stateExpr, static_cast<R_xlen_t>(c));
     bartcore::ChainStateData& chainState(state.chains[c]);
 
-    SEXP forestsExpr = getListElement(chainExpr, "forests");
+    SEXP forestsExpr = rc_getListElement(chainExpr, "forests");
     if (Rf_isNull(forestsExpr)) {
       errorMessage = missingBlock("forests");
       break;
@@ -6451,52 +6439,52 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
       SEXP forestExpr = VECTOR_ELT(forestsExpr, static_cast<R_xlen_t>(f));
       bartcore::ForestStateData& fs(chainState.forests[f]);
 
-      if (Rf_isNull(getListElement(forestExpr, "tree.vars"))) {
+      if (Rf_isNull(rc_getListElement(forestExpr, "tree.vars"))) {
         errorMessage = missingBlock("tree.vars");
         break;
       }
-      if (!readFlatTrees(getListElement(forestExpr, "tree.vars"),
-                         getListElement(forestExpr, "tree.values"),
-                         getListElement(forestExpr, "tree.sizes"),
-                         getListElement(forestExpr, "tree.flags"),
+      if (!readFlatTrees(rc_getListElement(forestExpr, "tree.vars"),
+                         rc_getListElement(forestExpr, "tree.values"),
+                         rc_getListElement(forestExpr, "tree.sizes"),
+                         rc_getListElement(forestExpr, "tree.flags"),
                          sampler.data(), fs.trees, &errorMessage))
         break;
-      SEXP savedSizesExpr = getListElement(forestExpr, "saved.sizes");
+      SEXP savedSizesExpr = rc_getListElement(forestExpr, "saved.sizes");
       if (!Rf_isNull(savedSizesExpr) &&
-          !readFlatTrees(getListElement(forestExpr, "saved.vars"),
-                         getListElement(forestExpr, "saved.values"),
+          !readFlatTrees(rc_getListElement(forestExpr, "saved.vars"),
+                         rc_getListElement(forestExpr, "saved.values"),
                          savedSizesExpr,
-                         getListElement(forestExpr, "saved.flags"),
+                         rc_getListElement(forestExpr, "saved.flags"),
                          sampler.data(), fs.savedTrees, &errorMessage))
         break;
 
       // linear-leaf states must carry their slope arrays; function-valued
       // states carry fits slabs and variable-length saved blocks instead
       if (shape.usesFunctionLeaves) {
-        if (Rf_isNull(getListElement(forestExpr, "tree.params"))) {
+        if (Rf_isNull(rc_getListElement(forestExpr, "tree.params"))) {
           errorMessage = missingBlock("tree.params");
           break;
         }
-        if (!readFunctionTreeParams(getListElement(forestExpr, "tree.params"),
-                                    fs.trees.size(), shape.numObservations,
-                                    fs.treeParams, &errorMessage))
+        if (!readFunctionTreeParams(
+              rc_getListElement(forestExpr, "tree.params"), fs.trees.size(),
+              shape.numObservations, fs.treeParams, &errorMessage))
           break;
         if (!fs.savedTrees.empty() &&
-            !readFunctionSavedParams(getListElement(forestExpr, "saved.params"),
-                                     fs.savedTrees, numLeafCovariates,
-                                     fs.savedTreeParams, &errorMessage))
+            !readFunctionSavedParams(
+              rc_getListElement(forestExpr, "saved.params"), fs.savedTrees,
+              numLeafCovariates, fs.savedTreeParams, &errorMessage))
           break;
       } else if (numLeafCovariates > 0) {
-        if (Rf_isNull(getListElement(forestExpr, "tree.params"))) {
+        if (Rf_isNull(rc_getListElement(forestExpr, "tree.params"))) {
           errorMessage = missingBlock("tree.params");
           break;
         }
-        if (!readTreeParams(getListElement(forestExpr, "tree.params"),
+        if (!readTreeParams(rc_getListElement(forestExpr, "tree.params"),
                             fs.trees, numLeafCovariates, fs.treeParams,
                             &errorMessage))
           break;
         if (!fs.savedTrees.empty() &&
-            !readTreeParams(getListElement(forestExpr, "saved.params"),
+            !readTreeParams(rc_getListElement(forestExpr, "saved.params"),
                             fs.savedTrees, numLeafCovariates,
                             fs.savedTreeParams, &errorMessage))
           break;
@@ -6504,21 +6492,22 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
       // pooled-categorical states must carry their mask channels
       if (sampler.data().hasPooledCategorical) {
-        if (Rf_isNull(getListElement(forestExpr, "tree.masks"))) {
+        if (Rf_isNull(rc_getListElement(forestExpr, "tree.masks"))) {
           errorMessage = missingBlock("tree.masks");
           break;
         }
-        if (!readTreeMasks(getListElement(forestExpr, "tree.masks"), fs.trees,
-                           sampler.data(), fs.treeMasks, &errorMessage))
+        if (!readTreeMasks(
+              rc_getListElement(forestExpr, "tree.masks"), fs.trees,
+              sampler.data(), fs.treeMasks, &errorMessage))
           break;
         if (!fs.savedTrees.empty() &&
-            !readTreeMasks(getListElement(forestExpr, "saved.masks"),
+            !readTreeMasks(rc_getListElement(forestExpr, "saved.masks"),
                            fs.savedTrees, sampler.data(), fs.savedTreeMasks,
                            &errorMessage))
           break;
       }
 
-      SEXP kExpr = getListElement(forestExpr, "k");
+      SEXP kExpr = rc_getListElement(forestExpr, "k");
       if (Rf_isNull(kExpr)) {
         errorMessage = missingBlock("k");
         break;
@@ -6536,7 +6525,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
       // non-positive VALUE is NOT refused - it falls through the restore
       // paths' > 0.0 guard as absent, matching k's permissive posture rather
       // than inventing a stricter one.
-      SEXP leafScaleExpr = getListElement(forestExpr, "leaf.scale");
+      SEXP leafScaleExpr = rc_getListElement(forestExpr, "leaf.scale");
       if (!Rf_isNull(leafScaleExpr)) {
         if (!Rf_isReal(leafScaleExpr) || Rf_xlength(leafScaleExpr) != 1) {
           errorMessage = malformedBlock("leaf.scale");
@@ -6547,7 +6536,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     }
     if (errorMessage != NULL) break;
 
-    SEXP sigmaExpr = getListElement(chainExpr, "sigma");
+    SEXP sigmaExpr = rc_getListElement(chainExpr, "sigma");
     if (Rf_isNull(sigmaExpr)) {
       errorMessage = missingBlock("sigma");
       break;
@@ -6561,16 +6550,16 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     // heteroscedastic variance forest: an optional block, absent (empty) off a
     // variance state. stateIsValid refuses a variance sampler lacking it and a
     // homoscedastic sampler carrying it (the additive-block contract).
-    SEXP varianceVarsExpr = getListElement(chainExpr, "variance.vars");
+    SEXP varianceVarsExpr = rc_getListElement(chainExpr, "variance.vars");
     if (!Rf_isNull(varianceVarsExpr) &&
         !readFlatTrees(varianceVarsExpr,
-                       getListElement(chainExpr, "variance.values"),
-                       getListElement(chainExpr, "variance.sizes"),
-                       getListElement(chainExpr, "variance.flags"),
+                       rc_getListElement(chainExpr, "variance.values"),
+                       rc_getListElement(chainExpr, "variance.sizes"),
+                       rc_getListElement(chainExpr, "variance.flags"),
                        sampler.data(), chainState.varianceTrees, &errorMessage))
       break;
 
-    SEXP fitScaleExpr = getListElement(chainExpr, "fit.scale");
+    SEXP fitScaleExpr = rc_getListElement(chainExpr, "fit.scale");
     if (Rf_isNull(fitScaleExpr)) {
       errorMessage = missingBlock("fit.scale");
       break;
@@ -6582,7 +6571,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     chainState.fitMin = REAL(fitScaleExpr)[0];
     chainState.fitMax = REAL(fitScaleExpr)[1];
 
-    SEXP latentsExpr = getListElement(chainExpr, "latents");
+    SEXP latentsExpr = rc_getListElement(chainExpr, "latents");
     if (!Rf_isNull(latentsExpr)) {
       if (!Rf_isReal(latentsExpr)) {
         errorMessage = "malformed latents in bartcore state";
@@ -6592,9 +6581,9 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
         REAL(latentsExpr), REAL(latentsExpr) + Rf_xlength(latentsExpr));
     }
 
-    SEXP ranefExpr = getListElement(chainExpr, "ranef");
+    SEXP ranefExpr = rc_getListElement(chainExpr, "ranef");
     if (!Rf_isNull(ranefExpr)) {
-      SEXP tauExpr = getListElement(chainExpr, "tau");
+      SEXP tauExpr = rc_getListElement(chainExpr, "tau");
       if (!Rf_isReal(ranefExpr) || !Rf_isReal(tauExpr) ||
           Rf_xlength(tauExpr) != 1) {
         errorMessage = "malformed grouped effects in bartcore state";
@@ -6606,11 +6595,11 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     }
 
     SEXP dartProbabilitiesExpr =
-      getListElement(chainExpr, "dart.probabilities");
+      rc_getListElement(chainExpr, "dart.probabilities");
     if (!Rf_isNull(dartProbabilitiesExpr)) {
-      SEXP dartAlphaExpr = getListElement(chainExpr, "dart.alpha");
+      SEXP dartAlphaExpr = rc_getListElement(chainExpr, "dart.alpha");
       SEXP dartSkippedExpr =
-        getListElement(chainExpr, "dart.updates.skipped");
+        rc_getListElement(chainExpr, "dart.updates.skipped");
       if (!Rf_isReal(dartProbabilitiesExpr) || !Rf_isReal(dartAlphaExpr) ||
           Rf_xlength(dartAlphaExpr) != 1 || !Rf_isInteger(dartSkippedExpr) ||
           Rf_xlength(dartSkippedExpr) != 1 || INTEGER(dartSkippedExpr)[0] < 0) {
@@ -6625,7 +6614,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
         static_cast<size_t>(INTEGER(dartSkippedExpr)[0]);
     }
 
-    SEXP rngStateExpr = getListElement(chainExpr, "rng.state");
+    SEXP rngStateExpr = rc_getListElement(chainExpr, "rng.state");
     if (!Rf_isNull(rngStateExpr)) {
       if (!Rf_isInteger(rngStateExpr)) {
         errorMessage = "malformed rng state in bartcore state";
@@ -6637,7 +6626,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
                   chainState.rngState.size());
     }
 
-    SEXP bcfExpr = getListElement(chainExpr, "bcf");
+    SEXP bcfExpr = rc_getListElement(chainExpr, "bcf");
     if (!Rf_isNull(bcfExpr)) {
       if (!readAmplitudeGlue(bcfExpr, chainState)) {
         errorMessage = "malformed bcf glue in bartcore state";
@@ -6647,7 +6636,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
     // additive t-only block: absent (an old or gaussian state) leaves the NaN
     // default, which stateIsValid refuses only for a t sampler
-    SEXP residDfExpr = getListElement(chainExpr, "resid.df");
+    SEXP residDfExpr = rc_getListElement(chainExpr, "resid.df");
     if (!Rf_isNull(residDfExpr)) {
       if (!Rf_isReal(residDfExpr) || Rf_xlength(residDfExpr) != 1) {
         errorMessage = malformedBlock("resid.df");
@@ -6658,7 +6647,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
     // additive ordinal-only block: absent (an old or non-ordinal state) leaves
     // the vector empty, which stateIsValid refuses only for an ordinal sampler
-    SEXP cutpointsExpr = getListElement(chainExpr, "cutpoints");
+    SEXP cutpointsExpr = rc_getListElement(chainExpr, "cutpoints");
     if (!Rf_isNull(cutpointsExpr)) {
       if (!Rf_isReal(cutpointsExpr)) {
         errorMessage = malformedBlock("cutpoints");
@@ -6670,7 +6659,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
     // additive nbinom-only block: absent (an old or non-count state) leaves the
     // NaN default, which stateIsValid refuses only for an NB sampler
-    SEXP dispersionExpr = getListElement(chainExpr, "dispersion");
+    SEXP dispersionExpr = rc_getListElement(chainExpr, "dispersion");
     if (!Rf_isNull(dispersionExpr)) {
       if (!Rf_isReal(dispersionExpr) || Rf_xlength(dispersionExpr) != 1) {
         errorMessage = malformedBlock("dispersion");
@@ -6727,7 +6716,7 @@ static const char* readWarmStartState(SEXP stateExpr,
     SEXP chainExpr = VECTOR_ELT(stateExpr, static_cast<R_xlen_t>(c));
     bartcore::ChainStateData& chainState(state.chains[c]);
 
-    SEXP forestsExpr = getListElement(chainExpr, "forests");
+    SEXP forestsExpr = rc_getListElement(chainExpr, "forests");
     if (Rf_isNull(forestsExpr) || TYPEOF(forestsExpr) != VECSXP) {
       errorMessage = "malformed forests in warm-start donor";
       break;
@@ -6738,50 +6727,51 @@ static const char* readWarmStartState(SEXP stateExpr,
       SEXP forestExpr = VECTOR_ELT(forestsExpr, static_cast<R_xlen_t>(f));
       bartcore::ForestStateData& fs(chainState.forests[f]);
 
-      if (!readFlatTrees(getListElement(forestExpr, "tree.vars"),
-                         getListElement(forestExpr, "tree.values"),
-                         getListElement(forestExpr, "tree.sizes"),
-                         getListElement(forestExpr, "tree.flags"),
+      if (!readFlatTrees(rc_getListElement(forestExpr, "tree.vars"),
+                         rc_getListElement(forestExpr, "tree.values"),
+                         rc_getListElement(forestExpr, "tree.sizes"),
+                         rc_getListElement(forestExpr, "tree.flags"),
                          sampler.data(), fs.trees, &errorMessage))
         break;
-      SEXP savedSizesExpr = getListElement(forestExpr, "saved.sizes");
+      SEXP savedSizesExpr = rc_getListElement(forestExpr, "saved.sizes");
       if (!functionLeaves && !Rf_isNull(savedSizesExpr) &&
-          !readFlatTrees(getListElement(forestExpr, "saved.vars"),
-                         getListElement(forestExpr, "saved.values"),
-                         savedSizesExpr, getListElement(forestExpr,
+          !readFlatTrees(rc_getListElement(forestExpr, "saved.vars"),
+                         rc_getListElement(forestExpr, "saved.values"),
+                         savedSizesExpr, rc_getListElement(forestExpr,
                          "saved.flags"), sampler.data(), fs.savedTrees,
                          &errorMessage))
         break;
 
       if (functionLeaves) {
-        if (!readFunctionTreeParams(getListElement(forestExpr, "tree.params"),
-                                    fs.trees.size(), shape.numObservations,
-                                    fs.treeParams, &errorMessage))
+        if (!readFunctionTreeParams(
+              rc_getListElement(forestExpr, "tree.params"), fs.trees.size(),
+              shape.numObservations, fs.treeParams, &errorMessage))
           break;
       } else if (numLeafCovariates > 0) {
-        if (!readTreeParams(getListElement(forestExpr, "tree.params"),
+        if (!readTreeParams(rc_getListElement(forestExpr, "tree.params"),
                             fs.trees, numLeafCovariates, fs.treeParams,
                             &errorMessage))
           break;
         if (!fs.savedTrees.empty() &&
-            !readTreeParams(getListElement(forestExpr, "saved.params"),
+            !readTreeParams(rc_getListElement(forestExpr, "saved.params"),
                             fs.savedTrees, numLeafCovariates,
                             fs.savedTreeParams, &errorMessage))
           break;
       }
 
       if (sampler.data().hasPooledCategorical) {
-        if (!readTreeMasks(getListElement(forestExpr, "tree.masks"), fs.trees,
-                           sampler.data(), fs.treeMasks, &errorMessage))
+        if (!readTreeMasks(
+              rc_getListElement(forestExpr, "tree.masks"), fs.trees,
+              sampler.data(), fs.treeMasks, &errorMessage))
           break;
         if (!fs.savedTrees.empty() &&
-            !readTreeMasks(getListElement(forestExpr, "saved.masks"),
+            !readTreeMasks(rc_getListElement(forestExpr, "saved.masks"),
                            fs.savedTrees, sampler.data(), fs.savedTreeMasks,
                            &errorMessage))
           break;
       }
 
-      SEXP kExpr = getListElement(forestExpr, "k");
+      SEXP kExpr = rc_getListElement(forestExpr, "k");
       if (!Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1) {
         errorMessage = "malformed parameters in warm-start donor";
         break;
@@ -6790,7 +6780,7 @@ static const char* readWarmStartState(SEXP stateExpr,
 
       // optional as in the setState parser above; installForest adopts it
       // alongside k, so a donor's leaf calibration seeds the warm start
-      SEXP leafScaleExpr = getListElement(forestExpr, "leaf.scale");
+      SEXP leafScaleExpr = rc_getListElement(forestExpr, "leaf.scale");
       if (!Rf_isNull(leafScaleExpr)) {
         if (!Rf_isReal(leafScaleExpr) || Rf_xlength(leafScaleExpr) != 1) {
           errorMessage = "malformed parameters in warm-start donor";
@@ -6801,8 +6791,8 @@ static const char* readWarmStartState(SEXP stateExpr,
     }
     if (errorMessage != NULL) break;
 
-    SEXP sigmaExpr = getListElement(chainExpr, "sigma");
-    SEXP fitScaleExpr = getListElement(chainExpr, "fit.scale");
+    SEXP sigmaExpr = rc_getListElement(chainExpr, "sigma");
+    SEXP fitScaleExpr = rc_getListElement(chainExpr, "fit.scale");
     if (!Rf_isReal(sigmaExpr) || Rf_xlength(sigmaExpr) != 1 ||
         !Rf_isReal(fitScaleExpr) || Rf_xlength(fitScaleExpr) != 2) {
       errorMessage = "malformed parameters in warm-start donor";
@@ -6813,10 +6803,11 @@ static const char* readWarmStartState(SEXP stateExpr,
     chainState.fitMax = REAL(fitScaleExpr)[1];
 
     SEXP dartProbabilitiesExpr =
-      getListElement(chainExpr, "dart.probabilities");
+      rc_getListElement(chainExpr, "dart.probabilities");
     if (!Rf_isNull(dartProbabilitiesExpr)) {
-      SEXP dartAlphaExpr = getListElement(chainExpr, "dart.alpha");
-      SEXP dartSkippedExpr = getListElement(chainExpr, "dart.updates.skipped");
+      SEXP dartAlphaExpr = rc_getListElement(chainExpr, "dart.alpha");
+      SEXP dartSkippedExpr =
+        rc_getListElement(chainExpr, "dart.updates.skipped");
       if (!Rf_isReal(dartProbabilitiesExpr) || !Rf_isReal(dartAlphaExpr) ||
           Rf_xlength(dartAlphaExpr) != 1 || !Rf_isInteger(dartSkippedExpr) ||
           Rf_xlength(dartSkippedExpr) != 1 || INTEGER(dartSkippedExpr)[0] < 0) {
@@ -6831,7 +6822,7 @@ static const char* readWarmStartState(SEXP stateExpr,
         static_cast<size_t>(INTEGER(dartSkippedExpr)[0]);
     }
 
-    SEXP bcfExpr = getListElement(chainExpr, "bcf");
+    SEXP bcfExpr = rc_getListElement(chainExpr, "bcf");
     if (!Rf_isNull(bcfExpr)) {
       if (!readAmplitudeGlue(bcfExpr, chainState)) {
         errorMessage = "malformed bcf glue in warm-start donor";
@@ -6842,12 +6833,12 @@ static const char* readWarmStartState(SEXP stateExpr,
     // the variance trees ride four chain-level slots, as in the setState
     // parser. installForests does not install them, but it compares the
     // donor's against this sampler's shape, so they must be read faithfully.
-    SEXP varianceVarsExpr = getListElement(chainExpr, "variance.vars");
+    SEXP varianceVarsExpr = rc_getListElement(chainExpr, "variance.vars");
     if (!Rf_isNull(varianceVarsExpr) &&
         !readFlatTrees(varianceVarsExpr,
-                       getListElement(chainExpr, "variance.values"),
-                       getListElement(chainExpr, "variance.sizes"),
-                       getListElement(chainExpr, "variance.flags"),
+                       rc_getListElement(chainExpr, "variance.values"),
+                       rc_getListElement(chainExpr, "variance.sizes"),
+                       rc_getListElement(chainExpr, "variance.flags"),
                        sampler.data(), chainState.varianceTrees, &errorMessage))
       break;
   }
