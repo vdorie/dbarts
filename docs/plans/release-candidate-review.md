@@ -557,6 +557,39 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### F - prior-ladder factorization and the Fork 1 binary-k repair (621da478, 2026-08-17)
+
+refuseColliding promoted to R/model.R taking (matchedCall,
+objectName, shorthands) - the collision set stays caller data, so
+bart2's tree.prior collides with power/base while xbart's
+doc-defended grid-axes divergence survives untouched; xbart's
+drifted "the tree prior" wording is gone. The dart/cgm ladder is
+one resolveDartShorthand with buildDart/buildCgm constructor
+closures, because the callers build in different currencies (bart2
+an unevaluated call forwarded to dbarts(), xbart a live object);
+both formerly-duplicated literals now have one source. A_class.R's
+third phrasing stays: it is a setValidity object invariant, not an
+argument-shorthand collision. FORK 1 EXECUTED: xbart's grid
+default k is the fixed value 2 for every family - .kDefault
+deleted (it reached control out of the caller's frame and
+duplicated resolveNodeHyperprior, whose chi(1.5, 2) binary default
+remains the bart family's single source, dissolving
+chi-hyperprior-df.md's lockstep concern); the once-false fixed-k
+comment is now true; man/xbart.Rd rewritten; one NEWS item (270
+parse) also records the side effect that drop = FALSE binary
+results carry the length-one k dimension gaussian always had.
+Orchestrator review caught the new test using a length-3 n.burn
+against the just-narrowed surface; amended before gating. Battery
+twice (implementer, then independent gate-runner on the
+patch-id-verified rebase): tinytest 5833/0; trio bitwise 37/37
+12/12 10/10 (the no-bart-family-contamination gate); air clean;
+lintr clean on all six files; R CMD check Status OK from a
+clean-staged tarball; discrimination three ways - default binary
+xbart carries dbartsChiHyperprior on base and fixed k = 2 on the
+slice, bart2's binary default is chi on BOTH (the non-change
+gate), and the slice's test file fails 3 on base / 0 on slice.
+Prior-slice CI: K six-green.
+
 ### K - calibration-map refusal above K = 2 (ceffd276, 2026-08-17)
 
 The bcf-naming-generalization ledger item's one user-visible leg,
