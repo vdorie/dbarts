@@ -559,6 +559,55 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### P9 - Geweke marginal-conditional oracle lands FIRING; diagnosis CONFIRMED (2278c929, 2026-08-18)
+
+benchmarks/R/geweke-mc.R (644 lines, 2:57 full / 16s quick) lands
+recording a REAL defect, so its full run exits 1 against this tip
+by design. Design: iid prior draws with simulated y versus a
+stationary chain alternating one sweep with a between-sweep
+setResponse refresh - stationary from step 0, no burn-in
+assumption; prior source is the engine's own machinery
+(sampleTreesFromPrior + sampleNodeParametersFromPrior; sigma
+transcribed via sbc.R's sbcSigmaDraw); 11 functionals with two
+exact pivots; sbc.R band machinery; 2000 chains x 200 steps x 2
+arms. Teeth measured: three poisons fire at |z| 8-23, and the
+skip-refresh negative control correctly does not. Response side
+CLEAN everywhere; the tree-shaped functionals FIRE.
+
+DIAGNOSIS (independent adversarial adjudication, own code reading
++ own probe, CONFIRMED): sampleTreesFromPrior draws the
+unrestricted CGM prior then PROJECTS via collapseEmptyNodesBelow,
+while the moves price the CGM prior RESTRICTED and renormalized to
+the empty-leaf-free set (logLikelihoodForBranch's leafHasNoWeight
+veto, docs/design/empty-leaf-veto.md) - projection != conditioning.
+Sharpest signature: P(single-leaf tree) = 0.04993 from the
+initializer vs 0.05492 from the sweep against theory 0.0500 /
+0.0552 (z = 17.61). The sweep realizes the DOCUMENTED deliberate
+target; the initializer realizes a third, undocumented law - the
+initializer is the deviant. KERNEL PURITY: Chain::run never calls
+the initializer path; the mid-chain collapse sites are forced
+data-mutation repair outside the kernel; converged posteriors are
+unaffected. BLAST RADIUS: fit initialization + rbart_vi warmup +
+n.grow.sweeps (init-only, benign); samplePriorPredictive and the
+$sampleTreesFromPrior surface R AND C API (directly wrong as
+prior-draw products); SBC theta0 (~1% assumption violation, below
+SBC's resolution). Baselines and landed neutrality evidence NOT
+impeached (build-vs-build determinism; law-level correctness never
+enters). SECONDARY DEFECT, same path: collapse triggers on
+numObservations() == 0 but the veto on positive WEIGHT, so under a
+zero-weight half-space 1954/2000 from-prior forests hold a leaf
+the moves forbid (0/2000) and a birth from it compares -HUGE_VAL
+to -HUGE_VAL - a NaN ratio that rejects and never faults. FIX
+SHAPE (adjudicated, NOT implemented here): per-tree rejection loop
+on Tree::leafHasNoWeight - exactly p(T | no empty leaf) because
+the event factorizes over the recursion - fixing both findings;
+reject rate ~9% at n=30, ~1.3% at n=400; moves the initial
+forest's RNG stream everywhere (snapshot + baseline re-record
+class, posterior summaries unchanged). The fix slice is being
+prepared GATED IN A WORKTREE with candidate baselines; LANDING IS
+VD-HELD. Freeze scope stands as recorded in the fire note;
+SBC-deepening remains frozen until the fix lands.
+
 ### P9 ORACLE FIRE - initializer/prior inconsistency (2026-08-18, ADJUDICATION IN FLIGHT)
 
 The Geweke marginal-conditional oracle (benchmarks/R/geweke-mc.R,
