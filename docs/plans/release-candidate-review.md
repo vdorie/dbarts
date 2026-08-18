@@ -557,6 +557,29 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### K5 - vendored getListElement, setModel arity (71691eb7, 2026-08-17)
+
+The bridge's local getListElement shadowed the in-scope
+rc_getListElement and read the names attribute unprotected across
+the lookup; the vendored copy is contract-identical (R_NilValue on
+a missing names attribute or an absent name, first match wins) and
+holds the PROTECT, so the shadow is deleted and its 100 call sites
+routed to rc_getListElement (zero stragglers by grep; every other
+hunk in the bridge TU is line-rewrap from the longer name).
+bartcore_setModel never read its control argument: dropped from the
+entry point, the header declaration, the call-table arity (4 -> 3),
+both R callers (dbarts.R's setModel method including its
+error-rewriting quote(), bartcore.R's wrapper), xbart's call site,
+and three tinytest files; xbart's cellControl stays live at sampler
+creation. Battery (independent gate-runner, own lib): --preclean
+install fresh by Built stamp; tests/cpp from make clean; tinytest
+5825/0; trio bitwise 37/37 12/12 10/10; air clean; lintr clean on
+all six touched files; R CMD check OK from a clean-staged tarball.
+Prior-slice CI: K4 six-green - its pkgdown job hung past 2h and was
+cancelled and re-run to green (run 32086436327); K2's cancelled
+R-CMD-check is covered by containment (K4's green check builds the
+superset tree).
+
 ### K4 - bridge indirection trim (1e229a77, 2026-08-17)
 
 Deletions and inlinings, net -29 (-54 pure code; 25 of the
