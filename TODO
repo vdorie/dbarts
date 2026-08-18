@@ -109,10 +109,10 @@ items
     plan's own post-arc addendum; out-of-sample per-forest replay stays
     a door (N8; predict() untouched); the equivalence harness's missing
     bart2 gaussian/probit/two-forest scenarios ride the next baseline
-    re-record. One follow-up from the sweep: door memos whose rationale
-    shipped code still relies on (docs/plans/bcf-b-ridge.md's exponent
-    rule) may deserve promotion to docs/design; routed to the
-    release-candidate-review program rather than decided here.
+    re-record. The sweep's door-memo follow-up (the
+    bcf-b-ridge exponent rule) is DONE: its derivation and prototype
+    evidence live at docs/design/multiplier-combiner.md, "The exponent
+    rule", with pointer stubs in the plan file.
   bcf-naming-generalization: the shipped K-forest amplitude family is
     spelled with BCF names at every layer - BCFSpec, BCFForestSpec,
     BCFState, BCFForestCombiner, BCFSpecStorage, createBCFSampler,

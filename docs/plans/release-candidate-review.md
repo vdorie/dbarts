@@ -557,6 +557,32 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### J - exponent-rule promotion (76be5e5b, 2026-08-17)
+
+The ledgered door-memo follow-up discharged: the b-move Jacobian
+exponent rule's derivation and prototype evidence (the operational
+c-form substitution, the GIG match giving the general p = (k - d)/2,
+and the proto-b.R run rejecting the naive Jacobian at KS 1.6e-21)
+move from docs/plans/bcf-b-ridge.md sections 2.2/2.3/5a into
+docs/design/multiplier-combiner.md, "The exponent rule", placed
+after "The ASIS ridge". The plan keeps its BCF-specific invariance
+argument, edge cases, and routing narrative, with MOVED pointer
+stubs at the three sections (the composition-mixing-probe stub
+convention). combiner.hpp's ASIS-ridge comment now cites the
+design doc for BOTH facts, and test_sampler.cpp's shipped comment
+sheds its docs/plans reference for the same citation. Repo-wide
+citation sweep verified by orchestrator sampling per the anchor
+discipline: mixed deltas (-34 between the moved sections, -57
+below them, both spot-verified line-exact), in-move cites
+redirected to the design doc with origin notes, and the one
+seemingly-off recompute traced to a pre-existing loose range whose
+semantics the recompute preserved. Gates: R CMD INSTALL --preclean
+clean (comment-only src edit compiles); tests/cpp from make clean
+all pass; line counts reconcile (bcf-b-ridge 530 -> 473,
+multiplier-combiner 604 -> 696, glue accounted). TODO's follow-up
+sentence resolved in this records commit. Prior-slice CI: F
+six-green.
+
 ### I - core-generalization.md current-state extraction (a55be8b5, 2026-08-17)
 
 The arbiter doc's 533-line Phases DONE-log and the pre-rewrite
