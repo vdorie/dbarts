@@ -66,21 +66,6 @@ struct BartcoreHolder {
 BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                              const char* familyName);
 
-/// A BCF two-forest sampler (docs/design/bcf.md): the model spec supplies the
-/// prognostic forest, bcfParams (length 8: tau tree count, base, power;
-/// aPriorScale; sdModerate; bPriorVariance; updateA and updateB flags) the
-/// treatment forest and glue, z the 0/1 treatment. moderators holds the
-/// treatment forest's optional 1-based column restriction, and the four
-/// trailing expressions the per-forest interactions() and blocks() lists (mu
-/// is the prognostic forest, tau the treatment forest); each may be null.
-/// Gaussian only; raises R errors otherwise. The public creation route reaches
-/// the same build through createHolder, which reads the same pieces off a
-/// control attribute.
-BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
-                                SEXP dataExpr, SEXP basesExpr,
-                                SEXP bcfParamsExpr, SEXP varsExpr,
-                                SEXP interactionsExpr, SEXP blocksExpr);
-
 /// The complete sampler state as a serializable R object of class
 /// "bartcoreState"; unprotected on return.
 SEXP storeState(bartcore::SamplerBase& sampler);
@@ -92,13 +77,6 @@ SEXP storeState(bartcore::SamplerBase& sampler);
 /// same-spec continuation, which re-quantizes nothing.
 void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
               const double* currentPredictors);
-
-/// Warm start: seed the sampler's live forests from a donor "bartcoreState"
-/// over the same predictors. samplesExpr, when non-null, maps each chain to a
-/// 1-based donor-sample index; NULL spreads chains across the donor pool.
-/// Raises R errors on malformed states or an incompatible donor.
-void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
-                    SEXP samplesExpr);
 
 /// A data.frame of tree structure over 0-based index arrays; unprotected on
 /// return. Reads saved trees unless useLiveTrees (sample indices are then
