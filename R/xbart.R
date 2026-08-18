@@ -9,7 +9,7 @@ xbart <- function(
   method = c("k-fold", "random subsample"),
   n.test = c(5, 0.2),
   n.reps = 40L,
-  n.burn = c(200L, 150L, 50L),
+  n.burn = c(200L, 150L),
   loss = c("rmse", "log", "mcr"),
   n.threads = dbarts::guessNumCores(),
   n.trees = 75L,
@@ -385,7 +385,7 @@ xbart <- function(
   if (is.na(n.reps) || n.reps <= 0L) {
     stop("'n.reps' must be a positive integer")
   }
-  n.burn <- rep_len(coerceOrError(n.burn, "integer"), 3L)
+  n.burn <- rep_len(coerceOrError(n.burn, "integer"), 2L)
   if (anyNA(n.burn) || any(n.burn < 0L)) {
     stop("'n.burn' must contain non-negative integers")
   }
@@ -624,7 +624,7 @@ xbartLossFunction <- function(loss, control, family) {
 ## fresh sampler burned n.burn[1] iterations; the remaining parameter cells
 ## sweep warm off it with n.burn[2] iterations each, sound because the
 ## training data is unchanged. Chains never carry over between splits, whose
-## held-out rows the previous training set contained; n.burn[3] is unused.
+## held-out rows the previous training set contained.
 ## Returns a (reps x cells) x numResults matrix, cells in spec$cells order.
 xbartRunChunk <- function(spec, repIndices, chunkSeed) {
   set.seed(chunkSeed)
@@ -634,7 +634,7 @@ xbartRunChunk <- function(spec, repIndices, chunkSeed) {
   numCells <- nrow(cells)
   numObservations <- length(data@y)
   hasWeights <- !is.null(data@weights)
-  family <- if (spec$model@family == "auto") "" else spec$model@family
+  family <- spec$model@family
 
   # linear and gp node priors read raw covariate values, fixed across cells;
   # the handle must own raw for them so each fold view can gather them

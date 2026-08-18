@@ -43,6 +43,32 @@ expect_error(dbarts::xbart(y ~ x, n.burn = "not-a-integer"))
 expect_error(dbarts::xbart(y ~ x, n.burn = NULL))
 expect_error(dbarts::xbart(y ~ x, n.burn = NA_integer_))
 
+expect_equal(eval(formals(dbarts::xbart)$n.burn), c(200L, 150L))
+# a length-3 n.burn is still accepted; the third element is silently
+# dropped, mirroring n.test's own truncate-to-length posture
+expect_equal(
+  dbarts::xbart(
+    y ~ x,
+    method = "k-fold",
+    n.reps = 1L,
+    n.samples = 4L,
+    n.burn = c(2L, 1L),
+    n.test = 5,
+    n.threads = 1L,
+    seed = 0L
+  ),
+  dbarts::xbart(
+    y ~ x,
+    method = "k-fold",
+    n.reps = 1L,
+    n.samples = 4L,
+    n.burn = c(2L, 1L, 99L),
+    n.test = 5,
+    n.threads = 1L,
+    seed = 0L
+  )
+)
+
 expect_error(dbarts::xbart(y ~ x, loss = "unknown-loss"))
 expect_error(dbarts::xbart(y ~ x, loss = 2))
 expect_error(dbarts::xbart(y ~ x, loss = function(x) x))

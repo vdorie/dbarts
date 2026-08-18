@@ -37,52 +37,6 @@ convertSamplesFromDbartsToBart <-
     }
   }
 
-# expects n.chains x n.samples x n.pars or (n.chains x n.samples) x n.pars
-# returns n.pars x n.samples x n.chains or n.pars x (n.samples x n.chains)
-convertSamplesFromBartsToDbarts <- function(
-  samples,
-  n.chains,
-  uncombineChains = FALSE
-) {
-  if (!uncombineChains) {
-    ifelse_3(
-      is.null(dim(samples)),
-      is.matrix(samples),
-      samples,
-      t(samples),
-      aperm(samples, c(3L, 2L, 1L))
-    )
-  } else {
-    x <- NULL
-    if (is.null(dim(samples))) {
-      res <- if (n.chains == 1L) {
-        samples
-      } else {
-        matrix(samples, length(samples) %/% n.chains, n.chains)
-      }
-      evalx(
-        dimnames(samples),
-        if (!is.null(x)) dimnames(res) <- list(x[[length(x)]], NULL)
-      )
-      res
-    } else {
-      res <- if (n.chains == 1L) {
-        samples
-      } else {
-        array(
-          t(samples),
-          c(ncol(samples), nrow(samples) %/% n.chains, n.chains)
-        )
-      }
-      evalx(
-        dimnames(samples),
-        if (!is.null(x)) dimnames(res) <- list(x[[length(x)]], NULL, NULL)
-      )
-      res
-    }
-  }
-}
-
 # input n.samples x n.chains x n.pars, or n.samples x n.pars when n.chains = 1
 # output (n.samples * n.chains) x n.pars
 combineChains <- function(samples) {
