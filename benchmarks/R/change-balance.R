@@ -50,8 +50,11 @@ args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 
 # three engine arms x two scenarios share this budget; 300k keeps the variant
-# arms' |z| < 4 a tight test while the current arm's failure stays z >> 10
-nKept <- if (quick) 100000L else 300000L
+# arms' |z| < 4 a tight test while the current arm's failure stays z >> 10.
+# quick must still kill the change move's forward-correction bug on its own:
+# that poison measured MIXED |z| = 3.6 at nKept 100000, under the |z| < 4
+# gate (undetected). z scales ~sqrt(n); 125000 clears the gate with margin.
+nKept <- if (quick) 125000L else 300000L
 batchSize <- if (quick) 25000L else 50000L
 nThin <- 20L
 nBurn <- 2000L

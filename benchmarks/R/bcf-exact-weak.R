@@ -36,7 +36,10 @@ nSeeds <- if (quick) 2L else 4L
 ndpost <- if (quick) 1500L else 3000L
 thin <- if (quick) 8L else 15L
 toleranceMean <- if (quick) 0.05 else 0.02 # E[a mu], E[tau] (internal x range)
-toleranceProb <- if (quick) 0.05 else 0.025 # P(|a| <= q)
+# quick must still kill the BCF a-glue prior-precision-drop bug on its own:
+# that poison's gap measured 0.0314, under the prior 0.05 quick tolerance
+# (undetected). Tightened to 0.03 to clear the gap with margin.
+toleranceProb <- if (quick) 0.03 else 0.025 # P(|a| <= q)
 
 # ---- fixed design: small n, weak mu, real tau ----
 
