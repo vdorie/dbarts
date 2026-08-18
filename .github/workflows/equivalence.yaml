@@ -59,7 +59,7 @@ jobs:
       - name: Run the statistical equivalence gate
         run: |
           Rscript benchmarks/R/equivalence.R compare \
-            benchmarks/baselines/equivalence-31e52644.rds --strict-coverage
+            benchmarks/baselines/equivalence-f009eff8.rds --strict-coverage
 
   bcf-equivalence:
     runs-on: ubuntu-latest
