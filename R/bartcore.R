@@ -1145,14 +1145,8 @@ bartcoreForestVariableCounts <- function(bcSampler, forest) {
   )
 }
 
-bartcoreSetModel <- function(bcSampler, model, control, data) {
-  invisible(.Call(
-    C_dbarts_bartcore_setModel,
-    bcSampler$ptr,
-    model,
-    control,
-    data
-  ))
+bartcoreSetModel <- function(bcSampler, model, data) {
+  invisible(.Call(C_dbarts_bartcore_setModel, bcSampler$ptr, model, data))
 }
 
 # Drives a low-level bartcore handle (a bcSampler env holding $ptr) directly,

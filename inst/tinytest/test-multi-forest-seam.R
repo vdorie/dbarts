@@ -111,7 +111,6 @@ expect_error(
   dbarts:::bartcoreSetModel(
     bc.bcf,
     sampler.bcf.host$model,
-    sampler.bcf.host$control,
     sampler.bcf.host$data
   ),
   "multi-forest"
@@ -347,12 +346,7 @@ expect_silent(
   dbarts:::bartcoreSetOffset(bc.one, rep(0.2, n), updateScale = TRUE)
 )
 expect_silent(
-  dbarts:::bartcoreSetModel(
-    bc.one,
-    sampler.one$model,
-    sampler.one$control,
-    sampler.one$data
-  )
+  dbarts:::bartcoreSetModel(bc.one, sampler.one$model, sampler.one$data)
 )
 expect_true(dbarts:::bartcoreSetPredictor(bc.one, x + 0))
 

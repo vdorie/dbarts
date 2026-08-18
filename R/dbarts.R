@@ -1184,14 +1184,13 @@ dbartsSampler <- setRefClass(
       oldModel <- model
       selfEnv$model <- newModel
       tryResult <- tryCatch(
-        .Call(C_dbarts_bartcore_setModel, ptr, selfEnv$model, control, data),
+        .Call(C_dbarts_bartcore_setModel, ptr, selfEnv$model, data),
         error = function(e) {
           selfEnv$model <- oldModel
           e$call <- quote(.Call(
             C_dbarts_bartcore_setModel,
             ptr,
             selfEnv$model,
-            control,
             data
           ))
           e
