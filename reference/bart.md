@@ -467,19 +467,21 @@ residuals(object, type = "ev", ...)
   p_i)\\ (see `weights`), and an aft (survival) fit draws on the
   log-time scale (the fit models \\\log T\\). For `"loglik"`, gaussian
   fits evaluate \\y_i \mid x_i \sim N(\hat{f}(x_i), \sigma^2 / w_i)\\ in
-  logs at each draw of \\f\\ and \\\sigma\\, binary fits evaluate the
-  Bernoulli log-likelihood of the fitted probability, multiplied for a
-  weighted logistic fit by the observation-count weight \\w_i\\, and an
-  aft fit contributes the log density for an event and the log survival
-  tail \\\log P(T \> C)\\ for a right-censored observation, both on the
-  log-time scale. When chains are combined the result is a
-  samples-by-observations matrix directly consumable by WAIC/PSIS-LOO
-  implementations such as those in the loo package; the chains-first
-  convention is kept, so a per-chain array (`combineChains = FALSE`,
-  dimension chains-by-samples-by-observations) is reordered to the
-  draws-by-chains-by-observations that `loo::relative_eff` expects with
-  `aperm(x, c(2, 1, 3))`. To synergize with
-  [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
+  logs at each draw of \\f\\ and \\\sigma\\, a `resid.dist = student()`
+  fit the corresponding marginal \\t\_\nu\\ density at that draw's
+  \\\nu\\ (the fit's `$resid.df`) rather than the normal one, binary
+  fits evaluate the Bernoulli log-likelihood of the fitted probability,
+  multiplied for a weighted logistic fit by the observation-count weight
+  \\w_i\\, and an aft fit contributes the log density for an event and
+  the log survival tail \\\log P(T \> C)\\ for a right-censored
+  observation, both on the log-time scale. When chains are combined the
+  result is a samples-by-observations matrix directly consumable by
+  WAIC/PSIS-LOO implementations such as those in the loo package; the
+  chains-first convention is kept, so a per-chain array
+  (`combineChains = FALSE`, dimension chains-by-samples-by-observations)
+  is reordered to the draws-by-chains-by-observations that
+  `loo::relative_eff` expects with `aperm(x, c(2, 1, 3))`. To synergize
+  with [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
   `"response"` can be used as a synonym for `"ev"` and `"link"` can be
   used as a synonym for `"bart"`. For information on extracting trees,
   see the subsection below.
@@ -766,6 +768,16 @@ returned. In the numeric \\y\\ case, the list has components:
 
   The rough error standard deviation (\\\sigma\\) used in the prior.
 
+- `resid.dist`, `resid.df`:
+
+  The residual error law the fit was made under, `"gaussian"` or
+  `"student"` (see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  `resid.dist`). `resid.df` is present only for a `student()` fit: the
+  degrees of freedom \\\nu\\ each draw was conditioned on, in `sigma`'s
+  layout - a fixed \\\nu\\ repeats its value, an estimated one gives
+  that draw's grid value. `extract(type = "loglik")` reads both.
+
 - `y`:
 
   The input dependent vector of values for the dependent variable. This
@@ -935,7 +947,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.216620
+#> total seconds in loop: 0.216949
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

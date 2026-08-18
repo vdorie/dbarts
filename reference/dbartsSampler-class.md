@@ -866,11 +866,17 @@ so reading it costs a run nothing. No other family carries the element
 at all: it is absent from the list, not `NULL` within it, so
 `run()$dispersion` is `NULL` on every non-`"nbinom"` sampler and a test
 of the channel must be `!is.null(...)` rather than a comparison, which
-`NULL` would satisfy vacuously. A run can be interrupted with `Ctrl-C`:
-it stops between iterations - joining any worker threads first - and
-signals an error, returning no samples from the interrupted run. The
-sampler's chains are left at the iteration they reached, which is a
-valid state to run again from.
+`NULL` would satisfy vacuously. A sampler built with
+`resid.dist = student()` adds `resid.df` on exactly the same terms - the
+degrees of freedom \\\nu\\ each draw is conditioned on, shaped as
+`sigma`, written from settled state and consuming no random numbers,
+absent from the list under any other error law - fixed at the value
+supplied to `student(df = )`, and that sweep's grid draw when the
+degrees of freedom are estimated. A run can be interrupted with
+`Ctrl-C`: it stops between iterations - joining any worker threads
+first - and signals an error, returning no samples from the interrupted
+run. The sampler's chains are left at the iteration they reached, which
+is a valid state to run again from.
 
 For `setPredictor`, `TRUE`/`FALSE` depending on whether or not the
 operation was successful. The operation can fail if the new predictor
