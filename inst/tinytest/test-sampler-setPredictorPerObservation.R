@@ -354,19 +354,33 @@ sampler <- dbarts::dbarts(
 invisible(sampler$run(5L, 1L))
 
 # partial requires a single column
-expect_error(sampler$setPredictor(x2, forceUpdate = "partial"))
-expect_error(sampler$setPredictor(
-  cbind(x1, x2),
-  c(1L, 2L),
-  forceUpdate = "partial"
-))
+expect_error(
+  sampler$setPredictor(x2, forceUpdate = "partial"),
+  "partial updates require a single 'column' to be specified"
+)
+expect_error(
+  sampler$setPredictor(
+    cbind(x1, x2),
+    c(1L, 2L),
+    forceUpdate = "partial"
+  ),
+  "partial updates can only be applied to a single column"
+)
 # partial cannot also update cut points
-expect_error(sampler$setPredictor(
-  x2,
-  1L,
-  forceUpdate = "partial",
-  updateCutPoints = TRUE
-))
+expect_error(
+  sampler$setPredictor(
+    x2,
+    1L,
+    forceUpdate = "partial",
+    updateCutPoints = TRUE
+  ),
+  "partial updates cannot also update cut points"
+)
+# a partial update needs one value per observation, not per some other count
+expect_error(
+  sampler$setPredictor(x2[1:5], "x1", forceUpdate = "partial"),
+  "requires one value per observation"
+)
 # referring to the column by name works
 inst <- sampler$setPredictor(x2, "x1", forceUpdate = "partial")
 expect_equal(length(inst), n)

@@ -45,7 +45,8 @@ expect_warning(
     n.trees = 25L,
     n.threads = 1L,
     verbose = FALSE
-  )
+  ),
+  "weights specified but not found in test data - ignoring"
 )
 expect_inherits(rbartFit, "rbart")
 

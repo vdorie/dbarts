@@ -155,7 +155,10 @@ rm(r5.ones, bc.plain, bc.ones, returned, cleared)
 # again, so a partial application would show up by leaving the fused path.
 for (bad in list(replace(a, 2L, 0.5), replace(a, 2L, NA_real_), a[-1L])) {
   refused <- makeSampler()
-  expect_error(refused$setActiveRows(bad))
+  expect_error(
+    refused$setActiveRows(bad),
+    "'active' (must be all 0 or 1|cannot be NA|must have length equal to that of 'y')"
+  )
   expect_identical(refused$run(20L, 10L)$train, draws.plain$train)
 }
 rm(refused, bad)

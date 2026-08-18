@@ -1,33 +1,68 @@
-linters: linters_with_defaults(
-    # Layout is owned by the air formatter (air.toml, line-width = 80). These
-    # linters are disabled where they contradict air's output rather than
-    # fighting the formatter: line width (air breaks what it can; the remaining
-    # long lines are unbreakable strings and comments), commas (air keeps
-    # `x[,, i]` without a space after an empty subscript), and continuation-line
-    # indentation.
-    line_length_linter = NULL,
-    commas_linter = NULL,
-    indentation_linter = NULL,
-    # Allowed name styles. The base three (camelCase, dotted.case, symbols)
-    # plus snake_case (exported names like rbart_vi) and UPPERCASE (matrix and
-    # constant names like X, A, ORDINAL_VARIABLE). The mixedDottedCase regex
-    # admits the test-suite convention of a camelCase or snake_case head with
-    # dotted suffixes (e.g. bcSampler.binary, x.jointA, testData_df, df.allNA).
-    object_name_linter(
-      styles = c("camelCase", "dotted.case", "symbols", "snake_case", "UPPERCASE"),
-      regexes = c(
-        mixedDottedCase = "^[.]?[[:alpha:]][[:alnum:]_]*([.][[:alnum:]_]+)*$"
-      )
-    ),
-    # Several internal helper names are longer than the 30-char default and
-    # cannot be renamed (e.g. bartcoreUpdatePredictorPerObservationJointly, 44).
-    object_length_linter(length = 45L),
-    commented_code_linter = NULL,
-    # <<- is used deliberately for closure state (rbart_vi's chain-loop
-    # closures, test callbacks); pin the permission explicitly so a lintr
-    # release changing the default does not re-flag it.
-    assignment_linter(operator = c("<-", "<<-"))
-  )
+linters: local({
+    # A bare expect_error()/expect_warning() call (no 'pattern', named or
+    # positional) defaults to tinytest's pattern = ".*" and so passes on any
+    # error or warning at all, pinning nothing about the message. Flag it the
+    # same way whether the missing argument is absent entirely or shadowed by
+    # an unrelated named argument (info=, class=) with no positional pattern.
+    bare_expect_pattern_linter <- function() {
+      xpath <- "
+        parent::expr[
+          not(SYMBOL_SUB[text() = 'pattern'])
+          and count(
+            expr[preceding-sibling::expr][
+              not(preceding-sibling::*[1][self::EQ_SUB])
+            ]
+          ) < 2
+        ]
+      "
+      lintr::Linter(linter_level = "expression", function(source_expression) {
+        calls <- source_expression$xml_find_function_calls(
+          c("expect_error", "expect_warning")
+        )
+        bad_expr <- xml2::xml_find_all(calls, xpath)
+        lintr::xml_nodes_to_lints(
+          bad_expr,
+          source_expression,
+          lint_message = paste(
+            "expect_error()/expect_warning() needs a 'pattern': a bare call",
+            "passes on any error or warning and pins nothing"
+          ),
+          type = "warning"
+        )
+      })
+    }
+    linters_with_defaults(
+      bare_expect_pattern_linter = bare_expect_pattern_linter(),
+      # Layout is owned by the air formatter (air.toml, line-width = 80). These
+      # linters are disabled where they contradict air's output rather than
+      # fighting the formatter: line width (air breaks what it can; the remaining
+      # long lines are unbreakable strings and comments), commas (air keeps
+      # `x[,, i]` without a space after an empty subscript), and continuation-line
+      # indentation.
+      line_length_linter = NULL,
+      commas_linter = NULL,
+      indentation_linter = NULL,
+      # Allowed name styles. The base three (camelCase, dotted.case, symbols)
+      # plus snake_case (exported names like rbart_vi) and UPPERCASE (matrix and
+      # constant names like X, A, ORDINAL_VARIABLE). The mixedDottedCase regex
+      # admits the test-suite convention of a camelCase or snake_case head with
+      # dotted suffixes (e.g. bcSampler.binary, x.jointA, testData_df, df.allNA).
+      object_name_linter(
+        styles = c("camelCase", "dotted.case", "symbols", "snake_case", "UPPERCASE"),
+        regexes = c(
+          mixedDottedCase = "^[.]?[[:alpha:]][[:alnum:]_]*([.][[:alnum:]_]+)*$"
+        )
+      ),
+      # Several internal helper names are longer than the 30-char default and
+      # cannot be renamed (e.g. bartcoreUpdatePredictorPerObservationJointly, 44).
+      object_length_linter(length = 45L),
+      commented_code_linter = NULL,
+      # <<- is used deliberately for closure state (rbart_vi's chain-loop
+      # closures, test callbacks); pin the permission explicitly so a lintr
+      # release changing the default does not re-flag it.
+      assignment_linter(operator = c("<-", "<<-"))
+    )
+  })
 encoding: "UTF-8"
 # Vignette code chunks are formatted for prose exposition, not lint compliance
 # (indentation, line width, combined naming); exclude them from the package lint.

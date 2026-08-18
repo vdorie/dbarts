@@ -231,9 +231,13 @@ expect_error(
     family = "nbinom",
     n.samples = 10L,
     n.burn = 5L
-  )
+  ),
+  "'arg' should be one of"
 )
-expect_error(xbart(x, y, family = "nbinom", n.samples = 10L, n.reps = 1L))
+expect_error(
+  xbart(x, y, family = "nbinom", n.samples = 10L, n.reps = 1L),
+  "'arg' should be one of"
+)
 
 # --- dbarts()-direct sampler: coding, attribute, node.scale, and state ---
 
@@ -281,7 +285,10 @@ expect_identical(rB$train, rC$train)
 # an nbinom sampler refuses a state lacking its dispersion/latents block
 gaussSampler <- dbarts(x, as.double(y), verbose = FALSE)
 invisible(gaussSampler$run(5L, 2L))
-expect_error(samplerB$setState(gaussSampler$state))
+expect_error(
+  samplerB$setState(gaussSampler$state),
+  "'state' length must equal number of chains"
+)
 
 # --- mutation semantics: setResponse keeps r, redraws omega ---
 

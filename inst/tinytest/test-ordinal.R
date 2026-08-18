@@ -288,7 +288,10 @@ expect_identical(rB$train, rC$train)
 # an ordinal sampler refuses a state lacking its cutpoint block
 probitSampler <- dbarts(x, as.double(codes == 3L), verbose = FALSE)
 invisible(probitSampler$run(5L, 2L))
-expect_error(samplerB$setState(probitSampler$state))
+expect_error(
+  samplerB$setState(probitSampler$state),
+  "'state' length must equal number of chains"
+)
 
 # --- mutation semantics: setResponse keeps cutpoints, redraws z ---
 

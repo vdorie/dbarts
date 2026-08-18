@@ -271,7 +271,18 @@ for (t in unique(replayedSaved$tree)) {
 }
 
 # a mismatched column count is rejected
-expect_error(liveSampler$getTrees(newdata = matrix(rnorm(20L), ncol = 2L)))
+expect_error(
+  liveSampler$getTrees(newdata = matrix(rnorm(20L), ncol = 2L)),
+  "number of columns in 'test' must be equal to that of 'x'"
+)
+
+# out-of-range chain/sample/tree indices are rejected, not silently dropped
+expect_error(liveSampler$getTrees(chainNums = 999L), "'chainNums' must be in")
+expect_error(
+  keptSampler$getTrees(sampleNums = 999L),
+  "'sampleNums' must be in"
+)
+expect_error(liveSampler$getTrees(treeNums = 999L), "'treeNums' must be in")
 
 # exact ties: an observation equal to a split value routes left (x <= split), a
 # boundary random continuous newdata never exercises. Take a tree whose root

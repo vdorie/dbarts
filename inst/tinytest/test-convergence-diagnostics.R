@@ -105,7 +105,10 @@ expect_null(noScalarFit[["sigma"]])
 expect_null(noScalarFit[["k"]])
 s0 <- summary(noScalarFit)
 expect_null(s0$stats)
-expect_error(dbarts:::bartDrawsArray(noScalarFit, c("sigma", "k", "tau")))
+expect_error(
+  dbarts:::bartDrawsArray(noScalarFit, c("sigma", "k", "tau")),
+  "none of 'vars' \\(sigma, k, tau\\) are present on this fit"
+)
 
 # rbart_vi contributes tau alongside sigma
 # combineChains = FALSE pinned deliberately, same reason as the bart2 fit

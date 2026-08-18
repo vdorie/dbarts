@@ -80,7 +80,8 @@ expect_equal(
 # samplerOnly = TRUE still warns (the standard-site reordering)
 expect_warning(
   fit2(y.binary, family = "probit", sigest = 5, samplerOnly = TRUE),
-  class = "dbartsFamilyGatedWarning"
+  class = "dbartsFamilyGatedWarning",
+  "family = \"probit\" has no use for 'sigest'"
 )
 
 # hurdle.lognormal: sigest is live on the positive half, so the rule's own
@@ -140,7 +141,8 @@ expect_warning(
     n.threads = 1L,
     verbose = FALSE
   ),
-  class = "dbartsFamilyGatedWarning"
+  class = "dbartsFamilyGatedWarning",
+  "family = \"probit\" has no use for 'sigest'"
 )
 
 # monotonicity: already-loud refusals keep their severity and message

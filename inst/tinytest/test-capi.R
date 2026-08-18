@@ -595,7 +595,10 @@ controlMT <- dbartsControl(
 )
 specMT <- dbarts(x, y, control = controlMT)
 ptrMT <- CALL("capi_create", specMT$control, specMT$model, specMT$data, "")
-expect_error(CALL("capi_run_with_callback", ptrMT, 0L, 2L, NULL, -1L))
+expect_error(
+  CALL("capi_run_with_callback", ptrMT, 0L, 2L, NULL, -1L),
+  "dbarts_sampler_setCallback: a per-sweep callback requires chains to run inline"
+)
 
 # tau/groupEffects on a grouped random-intercept fit, configured through the
 # internal control attribute rbart_vi's in-core path sets

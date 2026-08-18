@@ -31,4 +31,22 @@ expect_error(
   "out of bounds"
 )
 
+# a non-scalar source is rejected once the index names every dimension
+expect_error(
+  .Call(assignInPlace, target, c(1L, 1L), c(1, 2)),
+  "source must be a scalar"
+)
+
+# an index naming neither all dimensions nor all but the first is rejected
+expect_error(
+  .Call(assignInPlace, target, c(1L, 1L, 1L), c(1, 2, 3)),
+  "all but the first array dimension"
+)
+
+# an integer source against a double target is rejected, not coerced
+expect_error(
+  .Call(assignInPlace, flat, 1L, 1L),
+  "must be double"
+)
+
 rm(assignInPlace, target, flat)
