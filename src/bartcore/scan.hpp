@@ -35,10 +35,12 @@ inline constexpr double cutScanEmptySentinel =
   -std::numeric_limits<double>::infinity();
 
 /// Constant-leaf histogram bin: the (count, sum w, sum wz) reduction the
-/// ConstantGaussianLeaf marginal consumes. count is the member tally driving
-/// the occupancy contract (never the weight, which a zero-weight member does
-/// not zero). A matrix-valued leaf (linear, GP) replaces this triple with its
-/// (U'WU, U'Wz) block without touching the scan's control flow.
+/// ConstantGaussianLeaf marginal consumes. count is the member tally, the
+/// histogram's own census; the occupancy contract reads sumWeights, since the
+/// emptiness law the move kernels hold counts positive WEIGHT and a bin of
+/// zero-weight members carries positive count with none. A matrix-valued leaf
+/// (linear, GP) replaces this triple with its (U'WU, U'Wz) block without
+/// touching the scan's control flow.
 struct ConstantLeafScanBin {
   double count = 0.0;
   double sumWeights = 0.0;
@@ -61,9 +63,10 @@ struct ConstantLeafScanBin {
 /// logLikelihood: entry k scores the split "codes <= k go left" of the node's
 /// NON-MISSING members as leaf.logIntegratedLikelihood(left) +
 /// logIntegratedLikelihood(right), or cutScanEmptySentinel when either side
-/// has zero members. Missing values (naCode) are excluded from the split scan;
-/// grow-from-root routes them by the birth-time missing-direction coin, and
-/// occupancy on the non-missing counts alone keeps both children non-empty.
+/// carries no positive weight. Missing values (naCode) are excluded from the
+/// split scan; grow-from-root routes them by the birth-time missing-direction
+/// coin, and occupancy on the non-missing weights alone keeps both children
+/// weighted, since a routed member only adds weight to the side it joins.
 ///
 /// binScratch is caller-owned reused storage (numCuts[variable] + 1 bins).
 /// The marginal carries no sum wz^2: that per-node total is identical under
@@ -106,11 +109,20 @@ void scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
   ConstantLeafScanBin left;
   for (std::size_t cut = 0; cut + 1 < numBins; ++cut) {
     left.addBin(binScratch[cut]);  // codes 0..cut go left
-    if (left.count == 0.0 || left.count == total.count) {
-      logLikelihood[cut] = cutScanEmptySentinel;  // occupancy: never selected
+    double rightWeights = total.sumWeights - left.sumWeights;
+    // Occupancy is the MOVES' emptiness law - positive weight on each side,
+    // not positive member count (docs/design/empty-leaf-veto.md) - so a cut
+    // isolating none but zero-weight members is undrawable rather than a leaf
+    // a later birth would have to compare -inf against -inf out of. It
+    // subsumes the member count, weights being nonnegative: a side with no
+    // member sums to zero. Off an installed weight vector every member counts
+    // 1.0 and the two laws are the same numbers, so the candidate set is
+    // unchanged there; the subtraction is exact where it decides, a suffix of
+    // exactly-zero bins leaving the total untouched.
+    if (left.sumWeights <= 0.0 || rightWeights <= 0.0) {
+      logLikelihood[cut] = cutScanEmptySentinel;  // never selected
       continue;
     }
-    double rightWeights = total.sumWeights - left.sumWeights;
     double rightWeightedResponse =
       total.sumWeightedResponse - left.sumWeightedResponse;
     logLikelihood[cut] =
@@ -271,12 +283,12 @@ std::size_t scanCategoryHistogram(const ColumnStore& data, std::size_t variable,
 /// it cancels against both.
 ///
 /// Below the cap the enumeration is exact over the present partitions; above it
-/// the sorted prefixes stand in for the family. The count-based sentinel is one
-/// compare per candidate and the enumeration domain makes it unreachable, which
-/// is the point - it converts a recipe bug into an undrawable candidate rather
-/// than an empty leaf. It cannot be replaced by reasoning about the score:
-/// logIntegratedLikelihood returns 0.0 at sumWeights == 0, so a legal
-/// all-zero-weight side and an illegal empty side score identically.
+/// the sorted prefixes stand in for the family. The sentinel is one compare per
+/// candidate on each side's WEIGHT, the moves' emptiness law: the enumeration
+/// domain already rules out a member-empty side, so what the compare still
+/// catches is a side of members that carry no weight, which scores identically
+/// to an empty one (logIntegratedLikelihood returns 0.0 at sumWeights == 0)
+/// and which a later birth out of would compare -inf against -inf.
 template <ScalarLeafModel L, typename ResidT = double>
 std::size_t scanCategoricalPartitions(const ColumnStore& data,
                                       std::size_t variable,
@@ -299,7 +311,7 @@ std::size_t scanCategoricalPartitions(const ColumnStore& data,
 
   auto score = [&](const ConstantLeafScanBin& left,
                    const ConstantLeafScanBin& right) {
-    return left.count == 0.0 || left.count == total.count
+    return left.sumWeights <= 0.0 || right.sumWeights <= 0.0
       ? cutScanEmptySentinel
       : leaf.logIntegratedLikelihood(k, residualVariance, left.sumWeights,
                                      left.sumWeightedResponse) +

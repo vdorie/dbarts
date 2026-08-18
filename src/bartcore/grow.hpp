@@ -160,10 +160,14 @@ void growCategoricalRule(const ColumnStore& data, const L& leaf, ext_rng* rng,
 /// Occupancy (scan.hpp) subsumes the ancestor split interval - members
 /// violating an ancestor cut have codes confined to the interval, so
 /// out-of-interval cuts have an empty side and are already zeroed - and keeps
-/// both children non-empty, so the built tree satisfies MH's structural
-/// invariants. The categorical branch's enumeration domain does the same by
-/// construction, and its mask comes out nonzero, a strict subset of the node's
-/// reachable set and unequal to it, which is buildFromFlat's gauge.
+/// both children carrying positive WEIGHT against the vector passed here, so
+/// the built tree satisfies the same structural invariant the MH moves veto on
+/// (docs/design/empty-leaf-veto.md). That vector is the caller's composed one,
+/// per-forest under a coupling, which is why the law can be read off the scan's
+/// own sums rather than off member counts. The categorical branch's enumeration
+/// domain rules out an empty side by construction, and its mask comes out
+/// nonzero, a strict subset of the node's reachable set and unequal to it,
+/// which is buildFromFlat's gauge.
 template <ScalarLeafModel L, typename ResidT = double>
 void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
                       const L& leaf, ext_rng* rng, Tree& tree,

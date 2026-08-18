@@ -63,8 +63,9 @@ leaf (it collapses two children into their non-empty parent).
 No. Because the chain state maintains the no-empty-leaf invariant - the
 initializer included, since Chain::sampleTreesFromPrior draws the CGM prior
 CONDITIONED on the empty-leaf-free set by per-tree rejection on this same
-predicate, rather than projecting an unrestricted draw onto it - the current
-tree is always non-empty, so its branch score is always finite;
+predicate, per forest and against the same composed vector that forest's own
+moves veto with, rather than projecting an unrestricted draw onto it - the
+current tree is always non-empty, so its branch score is always finite;
 a move can only propose *into* a vetoed state, giving a finite-vs-vetoed
 comparison, never vetoed-vs-vetoed. The one path that ever produced two
 vetoed scores was the original GP-leaf over-cap guardrail, where the
@@ -74,6 +75,18 @@ delegate their marginal and their draw to ConstantGaussianLeaf
 (model.hpp, "Leaves larger than maxLeafSize score and draw as constant
 leaves"), and there is no -1e7 anywhere in model.hpp. Vetoed-vs-vetoed
 is therefore unreachable in the shipped engine.
+
+One state has no conditional law to draw from at all: a forest whose composed
+vector is entirely zero. It is reachable with no coupling, through an all-zero
+active-row mask, and with one through a zero per-forest weight or a zero
+amplitude. Every tree is vetoed there, so the initializer takes the BARE ROOT,
+which is the unique structure no later weight restore can strand a
+member-empty leaf in - every row sits in its one leaf. An unrestricted-grown
+tree carries no such guarantee: restore a vector that reaches only part of the
+data and some leaf of that partition can hold none of it, which is a vetoed
+CURRENT state and vetoed-vs-vetoed from then on. Faulting instead was
+rejected: the masking state itself is legal and runs
+(inst/tinytest/test-active-rows-pins.R), so the draw owes it an answer.
 
 A corollary: since only finite-vs-vetoed comparisons occur, exp of the
 difference is well defined in both orientations, so -HUGE_VAL does not
@@ -215,10 +228,6 @@ keeps the member count, and each is right to (docs/plans/latent-subset-mask.md,
 "Semantics of inactive" rule 2, which depends on this and is written against
 it):
 
-- The birth scan's `count` (scan.hpp) sentinels a bin's membership; its
-  `sumWeights` is a separate field and the marginal it feeds already returns
-  `0.0` at `sumWeights == 0`. Occupancy and weight are two facts there, kept
-  apart on purpose.
 - `Tree::collapseEmptyNodesBelow` merges on `numObservations() == 0` (its
   weighted merge WEIGHT is a weight sum, but the trigger is the count). It runs
   on structure that must be legal after a data or cut-grid change, where a
@@ -235,6 +244,23 @@ it):
 The fix therefore changes which branches are VETOED, not which are CREATED, and
 it does NOT align a masked or zero-weighted sampler's occupancy with a compacted
 one's; that claim is struck in the subset-mask plan and is not made here.
+
+### Grow-from-root joins the law (2026-08-18)
+
+The birth scan's occupancy sentinel (scan.hpp) used to belong on the list
+above: it read the bin `count`, leaving a zero-weight-only side of a cut
+scored rather than vetoed. That was wrong for the one caller it has.
+`growTreeFromRoot` builds a LIVE forest the exact sweeps then own, so its
+children must be legal exactly where the moves' are, and the scan is the only
+place that is decided - the sentinel now reads `sumWeights` on each side. The
+vector it reads is the caller's composed one, per forest under a coupling
+(`growForestFromRoot` composes before the tree loop), so the two initializers
+condition on the same thing. `count` stays as the histogram's own census;
+off an installed weight vector it and `sumWeights` are the same numbers, so
+the unweighted candidate set - every fit that installs no weight - is
+unchanged, and with strictly positive weights the two laws agree row for row.
+Nothing else moved: the sentinel has no other caller, and no MH move consumes
+the scan.
 
 ### Measured effect
 

@@ -1037,6 +1037,23 @@ runSbcGrouped <- function(
   "C_dbarts_bartcore_sampleNodeParametersFromPrior",
   "dbarts"
 )
+.bcfStoreState <- getFromNamespace("bartcoreStoreState", "dbarts")
+.bcfSetState <- getFromNamespace("bartcoreSetState", "dbarts")
+
+# Install a drawn (a, b0, b1) as the sampler's LIVE glue. The tree prior is
+# glue-dependent: each forest's prior trees are drawn conditioned on the
+# no-empty-leaf set of that forest's own veto vector, w * b_z^2 for the
+# treatment forest, so trees drawn before the glue is installed come from a
+# different law than the theta0 that reports them. Round-tripped through the
+# state, whose bcf block is [K, q_1..q_K, amplitudes, K prior variances] - here
+# K = 2 with widths (1, 2) - and which is re-installed exactly as stored in
+# every other respect, the rng included.
+sbcInstallBCFGlue <- function(bcf, glue) {
+  state <- .bcfStoreState(bcf)
+  state[[1L]][["bcf"]][4:6] <- c(glue$a, glue$b0, glue$b1)
+  .bcfSetState(bcf, state)
+  invisible(NULL)
+}
 
 sbcBCFGlueDraw <- function(aPriorScale, bPriorVariance) {
   function() {
@@ -1160,12 +1177,16 @@ runSbcBCF <- function(
   ranks <- NULL
   started <- proc.time()[["elapsed"]]
   for (r in seq_len(R)) {
-    # theta0: forests from the engine prior, glue + sigma drawn in R
+    # theta0: glue + sigma drawn in R, forests from the engine prior. The glue
+    # is drawn and INSTALLED FIRST - the forest prior is conditioned on it (see
+    # sbcInstallBCFGlue), so the order is what keeps theta0 a draw from one
+    # joint prior rather than from two inconsistent ones.
+    g0 <- drawGlue()
+    sbcInstallBCFGlue(bcf, g0)
     .Call(.bcfPriorTrees, bcf$ptr)
     .Call(.bcfPriorNodes, bcf$ptr)
     mu0 <- .bcfForest(bcf, 0L)[, 1]
     tau0 <- .bcfForest(bcf, 1L)[, 1]
-    g0 <- drawGlue()
     sig0 <- drawSigma(1L)
     bz0 <- ifelse(config$z != 0, g0$b1, g0$b0)
     internal0 <- g0$a * mu0 + bz0 * tau0

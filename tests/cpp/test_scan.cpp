@@ -197,10 +197,11 @@ void testHistogramTotals() {
 // The bin's split, pinned at a fixture where it bites: count tallies MEMBERS,
 // sumWeights sums their weights, so a bin made entirely of zero-weight members
 // carries positive count and zero sumWeights at once (ConstantLeafScanBin,
-// scan.hpp). The scan's own occupancy gate (scanOrdinalCuts' left.count == 0.0
-// test) reads count only, never sumWeights, so a cut isolating such a bin is
-// scored - not vetoed with the sentinel - and its scored side lands on
-// ConstantGaussianLeaf::logIntegratedLikelihood at sumWeights == 0.0.
+// scan.hpp). The occupancy gate reads sumWeights, the emptiness law the move
+// kernels hold (docs/design/empty-leaf-veto.md), so a cut isolating such a bin
+// is VETOED with the sentinel rather than scored - it would otherwise land a
+// leaf whose every member is invisible to the likelihood, out of which a birth
+// compares -inf against -inf.
 void testCountWeightSplit() {
   // a saved snapshot of the shared runif01 stream keeps the seed-pinned suites
   // downstream of this TU bitwise intact
@@ -238,18 +239,23 @@ void testCountWeightSplit() {
   check(sawSplit, "every code below the boundary carries positive count and "
                   "zero sumWeights");
 
-  // the scan over the same fixture: the cut isolating those codes is occupied
-  // by count and is scored, not vetoed
+  // the scan over the same fixture: the cut isolating those codes carries no
+  // weight on one side and is vetoed, while a cut with weight on both sides
+  // still scores - the veto is the weight law, not a blanket refusal
   size_t isolatingCut = static_cast<size_t>(boundaryCode) - 1;
   ConstantGaussianLeaf leaf{0.5};
   std::vector<ConstantLeafScanBin> binScratch;
   std::vector<double> scan(numCuts);
   scanOrdinalCuts(store, 0, members.data(), n, y.data(), w.data(), leaf, 2.0,
                   0.7, binScratch, scan.data());
-  check(scan[isolatingCut] != cutScanEmptySentinel,
-        "a zero-weight-only side is occupied by count, not vetoed");
-  check(std::isfinite(scan[isolatingCut]),
-        "the zero-weight side's marginal scores finite, so the cut does too");
+  check(scan[isolatingCut] == cutScanEmptySentinel,
+        "a zero-weight-only side is vetoed, member count notwithstanding");
+  size_t weightedCut = static_cast<size_t>(store.codeAt(0, n / 2));
+  check(weightedCut > static_cast<size_t>(boundaryCode) &&
+          weightedCut + 1 < numCuts,
+        "the fixture leaves a cut with weight on both sides");
+  check(std::isfinite(scan[weightedCut]),
+        "a cut carrying weight on both sides still scores");
 
   rngState = savedRngState;
   printf("ok: scan count/sumWeights split\n");
