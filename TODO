@@ -299,17 +299,35 @@ items
     (landing note in docs/plans/adoption-slate.md). Ships as the Rd
     topic dbarts-embedding with a _pkgdown.yml Utilities entry, the
     six recipes as the dbarts-as-a-component vignette.
-  equivalence-harness-statistical-mode: bcf-equivalence.R and
-    multinomial-equivalence.R compare via identical() only, so a
-    cross-host run against the arm64-recorded baselines structurally
-    fails (measured 2026-08-12 on the returned x86 box: all-MISMATCH
-    exit 1, while equivalence.R's statistical mode passes cleanly).
-    With the equivalence CI jobs unregistered from bartcore, the box
-    is the only cross-platform equivalence net, and it covers one
-    harness of three. Give both harnesses equivalence.R's null-gated
-    statistical (|z|) fallback so x86 legs can cover the bcf and
-    multinomial channels. Harness-only, no engine change, no baseline
-    re-record. Pre-release at discretion.
+  equivalence-harness-statistical-mode: LOCAL HALF LANDED 2026-08-18
+    (sha in the release-candidate-review landing note) -
+    bcf-equivalence.R and multinomial-equivalence.R now fall through
+    to equivalence.R's shape on a bitwise mismatch: per-summary Welch
+    z over each scenario's statChannels draws against the baseline's
+    recorded summaries, |z| >= 4 fails, a mismatch outside
+    statChannels (a point-in-time snapshot, an accept/reject verdict)
+    has no statistical fallback and gates directly. recordChannels
+    now writes those summaries; a baseline recorded before this slice
+    carries none and degrades loudly instead of silently passing.
+    Verified: unchanged bitwise verdict against the pinned CI
+    baselines (12/12, 10/10, exit 0, identical stdout); a planted
+    engine mutation (BCF glue precision, multinomial omega
+    composition) killed bitwise as before and, against a freshly
+    recorded scratch baseline carrying summaries, killed through the
+    statistical verdict with a reported max |z|. REMAINING: the
+    pinned CI baselines (bcf-equivalence-6e3b9fb8.rds, multinomial-
+    equivalence-1027be5.rds) predate summaries, so a cross-host x86 CI
+    run still degrades loudly rather than passing statistically until
+    they are re-recorded (not done in this slice, since a re-record
+    is only valid from the recording host); AND a re-record alone is
+    not sufficient: the non-statChannels entries (mu, tau, glue,
+    varcount, varcount.tau; forestFits, varcount, accepted,
+    installed) are live-sampler final-state snapshots that mismatch
+    bitwise across hosts by construction, so a cross-host pass needs
+    a further design decision - exempt snapshot channels under an
+    explicit cross-host flag, or convert them to draws-axis
+    recordings at a re-record - neither taken here. CI legs stay
+    default-branch-gated regardless.
   empty-leaf-veto-fix: LANDED (records in
     docs/design/empty-leaf-veto.md, "What counts as empty", and
     docs/plans/empty-leaf-veto.md); the veto counts POSITIVE-WEIGHT
