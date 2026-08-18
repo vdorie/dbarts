@@ -25,6 +25,7 @@ permissions: read-all
 jobs:
   R-CMD-check:
     runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 80
 
     name: ${{ matrix.config.os }} (${{ matrix.config.r }})
 
@@ -73,6 +74,7 @@ jobs:
   # source, so a full check would let unrelated flakiness mask the signal.
   windows-arm64-neon:
     runs-on: windows-11-arm
+    timeout-minutes: 15
 
     name: windows-11-arm (release, NEON)
 

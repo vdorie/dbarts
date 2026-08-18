@@ -23,6 +23,7 @@ permissions: read-all
 jobs:
   pkgdown:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     concurrency:
       group: pkgdown-${{ github.event_name != 'pull_request' || github.run_id }}
     env:

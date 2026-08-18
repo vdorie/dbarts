@@ -29,6 +29,7 @@ permissions: read-all
 jobs:
   equivalence:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -62,6 +63,7 @@ jobs:
 
   bcf-equivalence:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -88,6 +90,7 @@ jobs:
 
   multinomial-equivalence:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
