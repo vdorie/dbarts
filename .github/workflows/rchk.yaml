@@ -18,6 +18,7 @@ permissions: read-all
 jobs:
   rchk:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}

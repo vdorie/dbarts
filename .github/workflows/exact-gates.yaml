@@ -53,6 +53,7 @@ permissions: read-all
 jobs:
   exact-gates:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}

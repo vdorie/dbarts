@@ -29,6 +29,7 @@ permissions: read-all
 jobs:
   cpp-tests:
     runs-on: macos-latest
+    timeout-minutes: 15
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
