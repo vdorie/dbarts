@@ -559,6 +559,34 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### P1b - backfit conditional-exactness oracle; PASS (ded60c1d, 2026-08-18)
+
+benchmarks/R/backfit-exact.R, 345 lines, 11.4s full / 3s quick.
+Design: nothing frozen by hand - the sweep's own ordering supplies
+the conditioning (entering tree j the running residual holds trees
+1..j-1 at this sweep and j+1..m at the last, both carried by
+consecutive keepTrees records), so EVERY tree is checked, not one.
+Each recorded leaf value is standardized by the re-derived
+ConstantGaussianLeaf posterior (precision (k sqrt(m)/node.scale)^2
++ sum w_i/sigma^2) into the exact standard normal the engine
+consumed; iid across leaves/trees/sweeps, so moment and KS tests
+are exact, with the prior-informed small-leaf stratum reported
+apart. VERDICT: PASS on every functional, both arms - A at
+ensemble scale (200 trees x 1000 obs x 400 sweeps, 193,141 leaf
+draws; routing counts exact, fit-sum 8.97e-14) and B under case
+weights + offset (all |z| <= 1.51); a borderline arm-A KS p =
+0.047 dissolved under four extra seeds pooled to 568,647 draws
+(p = 0.66, kurtosis 3.00001, per-tree-position chi-square p 0.64).
+Teeth measured by poisoning the REFERENCE: a stale residual reads
+z(var) +434, a dropped sqrt(m) z(mean) -9.3 pooled / -19.3 on
+prior-informed leaves. Not seen by design: the tree-structure MH
+step (the exact-posterior gates' job), the sigma/k draws, non-
+gaussian families, non-constant leaves. Freeze protocol DORMANT.
+Gates: fresh-Rscript clean run; air clean; lintr clean; diff is
+the one new file (benchmarks push - fires exact-gates only,
+watched). Run log preserved at the session scratchpad
+p1bimpl-run.log.
+
 ### H - NEWS 1.0-0 consolidation; WAVE 1 CLOSES (7623af19, 2026-08-17)
 
 The unreleased section now reads as the delta from 0.9-31: 155
