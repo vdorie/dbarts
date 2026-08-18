@@ -12,7 +12,7 @@ sets.
 xbart(
     formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
     method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
-    n.reps = 40L, n.burn = c(200L, 150L, 50L),
+    n.reps = 40L, n.burn = c(200L, 150L),
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, power = 2, base = 0.95,
     split.probs = NULL, dart = FALSE, drop = TRUE,
@@ -107,14 +107,13 @@ xbart(
 
   Unlike the single-scalar `n.burn` of
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
-  `bart2`, and `rbart_vi`, here it is between one and three non-negative
-  integers, specifying 1) the burn-in when a chain is freshly started
-  against a data split and 2) the burn-in when moving from one parameter
-  setting to another over the same split. Chains are never carried
-  between data splits or folds - the held-out observations of one were
-  training observations of the previous, so continuing a chain lets
-  slowly-mixing settings score against data they have effectively seen.
-  A third element is accepted for backwards compatibility and ignored.
+  `bart2`, and `rbart_vi`, here it is one or two non-negative integers,
+  specifying 1) the burn-in when a chain is freshly started against a
+  data split and 2) the burn-in when moving from one parameter setting
+  to another over the same split. Chains are never carried between data
+  splits or folds - the held-out observations of one were training
+  observations of the previous, so continuing a chain lets slowly-mixing
+  settings score against data they have effectively seen.
 
 - loss:
 
@@ -367,7 +366,7 @@ mad <- function(y.test, y.test.hat, weights) {
 
 
 ## low iteration numbers to to run quickly
-xval <- xbart(x, y, n.samples = 15L, n.reps = 4L, n.burn = c(10L, 3L, 1L),
+xval <- xbart(x, y, n.samples = 15L, n.reps = 4L, n.burn = c(10L, 3L),
               n.trees = c(5L, 7L),
               k = c(1, 2, 4),
               power = c(1.5, 2),
