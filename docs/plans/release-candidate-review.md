@@ -540,6 +540,43 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### P15 + P14 - freshness gate and vignette leg; WAVE 4's content closes (60c92fa8, 2026-08-18)
+
+P15 (local half): tools/check-doc-freshness.R - INDEX completeness
+both directions for docs/design and docs/plans, every
+feature-matrix anchor resolved against the live tree through the
+matrix's own alias table (file exists, line in range, cited symbol
+still present, with a Class::member fallback), and the [f39]
+scenario counts recomputed from the harnesses. A dead-reference and
+drifted-count detector by design, not a semantic reviewer. At HEAD
+it found exactly ONE real drift across the living references:
+bart2-argument-consolidation.md had no row in docs/plans/INDEX.md
+(fixed in this records commit; the guard now exits 0 - 46 design
+docs, 152 plan docs, 498 anchors, 37 symbols, 3 count claims).
+Self-tested against an injected phantom row, dead-symbol anchor,
+and dead-file anchor - all caught, no false positives. The
+inventory feeding the resync pass is at
+rc-review-artifacts-2026-08-18/p15-staleness-inventory.md; note its
+signal is symbol-adjacent presence, so moved-but-alive line numbers
+remain the resync's job. CI half default-branch-gated.
+
+P14 (local half): NO-COMMIT - all three vignettes execute cleanly
+everywhere exercised. R CMD build knits all three (47.6s), R CMD
+check --as-cran re-builds vignette outputs OK, and direct renders
+run 2.5-4.2s each with no warnings. CENSUS CORRECTED: the claim
+"vignettes are never built or executed in any CI leg" is stale -
+pkgdown.yaml has knitted all three as articles on every push since
+the site build landed; the real, deliberate gap is
+check-standard.yaml's --no-build-vignettes, whose flip is the CI
+half, default-branch-gated. A local gotcha recorded for the
+runbook: plain R CMD INSTALL on a source tree silently skips
+vignettes (no inst/doc), so tarball-based checks are the only local
+executions. Run log at
+rc-review-artifacts-2026-08-18/p14-vignette-run.log.
+
+With these, wave 4's content items are done; what remains of the
+wave is the FULL-NAMESPACE anchor resync, deliberately last.
+
 ### Wave-4 batch - harness extension, statistical mode, P13 (4a42620a, 2026-08-18)
 
 Three individually-gated slices stacked and pushed under the batch
