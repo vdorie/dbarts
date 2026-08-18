@@ -483,6 +483,8 @@ All six forks answered the day the plan landed:
    case; otherwise the in-repo majority stands. The revised rule is
    the one slices write against and the wave-2 sweep executes; its
    delta from the draft is reported to VD before the sweep runs.
+   SIGNED BY VD 2026-08-17: the wave-2 L sweep and K6 are unblocked;
+   L queues behind the in-flight FX1-channel landing (file overlap).
 6. FX2: REFUSE WITH A DOOR MEMO (option a), with a binding shape
    constraint: no interface friction for adding support
    post-release - the variance formal stays, the refusal is a
