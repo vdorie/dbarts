@@ -43,31 +43,6 @@ Decisions:
   correlated observations/random effects, and GP leaves are designed-for but
   implemented later.
 
-## Starting-point constraints (the pre-rewrite engine, since deleted)
-
-- Predictors are quantized once into per-column integer codes
-  (`xint_t`, configure-selected width, default uint16); all tree-structure
-  work is integer comparison. Hot loops are per-column: partitioning takes a
-  column pointer and an integer cut (src/dbarts/node.cpp, partition kernels
-  in src/misc/partition_body.c), and leaf sufficient statistics are vector
-  reductions (src/misc/moments.c).
-- SIMD kernels are compiled per-ISA in separate translation units and
-  dispatched through function pointers set at load (src/misc/simd.c). This is
-  why the core is header-*first*, not header-only: per-ISA compilation cannot
-  move into consumers' translation units.
-- The Gaussian conjugacy is behind a virtual interface
-  (`EndNodePrior::computeLogIntegratedLikelihood`/`drawFromPosterior`,
-  inst/include/dbarts/model.hpp) but its signature hardcodes the sufficient
-  statistic as (mean, effective count, variance).
-- Categorical rules exist (`Rule::categoryDirections` bitmask,
-  src/dbarts/node.hpp; drawn in src/dbarts/treePrior.cpp) but are outside the
-  active flow and capped at 32 categories.
-- The response model is the least factored part: `responseIsBinary` is
-  special-cased inline in the chain loop; y-rescaling, sigma draws, and probit
-  latents are scattered rather than owned by a model object.
-- `Data` borrows R memory directly (`REAL(slot)`); the quantized codes are a
-  derived cache rebuilt from it.
-
 ## Architecture
 
 Layers, bottom to top:
@@ -250,7 +225,49 @@ partitioning entirely; a different library sharing only the tree structure).
    RNG-shifting changes).
 4. The zero-regression benchmark gate (benchmarks/).
 
-## Phases
+## Risks
+
+- Instantiation bloat / compile times / .so size: bounded by the small
+  matrix; measure from phase 2.
+- Sparse partitioning performance is open; prototype before committing to a
+  representation (order-preserving partition likely needed). RESOLVED
+  2026-07-04: the prototype (docs/design/sparse-columns.md) settled on a
+  rank-bitmap layout at dense-kernel parity in a tenth the memory, and
+  order preservation turned out NOT to be needed - the merge approach
+  that wanted it collapses on small nodes and was rejected.
+- Polya-Gamma draw cost (one per observation per iteration) dominates
+  logistic; choose sampler variant by benchmark.
+- setPredictor/rollback semantics for factors and sparse patterns need
+  careful per-column-type definitions (phase 4).
+- MATCH_BAYES_TREE and similar compat flags: DECIDED (Vincent, 2026-07-02)
+  - not preserved; they remain old-engine-only and die at cutover.
+
+## Starting-point constraints (the pre-rewrite engine, since deleted)
+
+- Predictors are quantized once into per-column integer codes
+  (`xint_t`, configure-selected width, default uint16); all tree-structure
+  work is integer comparison. Hot loops are per-column: partitioning takes a
+  column pointer and an integer cut (src/dbarts/node.cpp, partition kernels
+  in src/misc/partition_body.c), and leaf sufficient statistics are vector
+  reductions (src/misc/moments.c).
+- SIMD kernels are compiled per-ISA in separate translation units and
+  dispatched through function pointers set at load (src/misc/simd.c). This is
+  why the core is header-*first*, not header-only: per-ISA compilation cannot
+  move into consumers' translation units.
+- The Gaussian conjugacy is behind a virtual interface
+  (`EndNodePrior::computeLogIntegratedLikelihood`/`drawFromPosterior`,
+  inst/include/dbarts/model.hpp) but its signature hardcodes the sufficient
+  statistic as (mean, effective count, variance).
+- Categorical rules exist (`Rule::categoryDirections` bitmask,
+  src/dbarts/node.hpp; drawn in src/dbarts/treePrior.cpp) but are outside the
+  active flow and capped at 32 categories.
+- The response model is the least factored part: `responseIsBinary` is
+  special-cased inline in the chain loop; y-rescaling, sigma draws, and probit
+  latents are scattered rather than owned by a model object.
+- `Data` borrows R memory directly (`REAL(slot)`); the quantized codes are a
+  derived cache rebuilt from it.
+
+## Landing notes
 
 0. **Groundwork** (DONE 2026-07-02): benchmark + equivalence harness
    (benchmarks/); kernel vocabulary documented as a stable interface.
@@ -783,20 +800,3 @@ partitioning entirely; a different library sharing only the tree structure).
    engine deleted, and the flat C API (`dbarts.h`) published for LinkingTo -
    the full record is under phase 4 above, "Classic removal, C++ deletion
    (... THE CUTOVER IS COMPLETE)".
-
-## Risks
-
-- Instantiation bloat / compile times / .so size: bounded by the small
-  matrix; measure from phase 2.
-- Sparse partitioning performance is open; prototype before committing to a
-  representation (order-preserving partition likely needed). RESOLVED
-  2026-07-04: the prototype (docs/design/sparse-columns.md) settled on a
-  rank-bitmap layout at dense-kernel parity in a tenth the memory, and
-  order preservation turned out NOT to be needed - the merge approach
-  that wanted it collapses on small nodes and was rejected.
-- Polya-Gamma draw cost (one per observation per iteration) dominates
-  logistic; choose sampler variant by benchmark.
-- setPredictor/rollback semantics for factors and sparse patterns need
-  careful per-column-type definitions (phase 4).
-- MATCH_BAYES_TREE and similar compat flags: DECIDED (Vincent, 2026-07-02)
-  - not preserved; they remain old-engine-only and die at cutover.
