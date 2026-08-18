@@ -118,9 +118,7 @@ desugarBasisOperand <- function(expr) {
   stop(
     "'",
     deparse(expr),
-    "' is not a supported forest() modulator: a bare ",
-    "variable, factor(<variable>), or a (a + b + ...) group of numeric/",
-    "logical variables is expected; use forest(X, basis = ~ ",
+    "' is not a supported forest() modulator; use forest(X, basis = ~ ",
     deparse(expr),
     ") directly for anything else"
   )
@@ -331,9 +329,8 @@ processHit <- function(hit, env) {
       stop(
         "'",
         deparse(args[[unnamedIndex]]),
-        "' is not a supported forest() ",
-        "vars expression: a bare variable or a '+' chain of them is ",
-        "expected; use vars = for anything else"
+        "' is not a supported forest() vars expression; use vars = for ",
+        "anything else"
       )
     }
   }

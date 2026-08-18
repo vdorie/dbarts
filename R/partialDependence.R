@@ -73,7 +73,8 @@ pdbart.prologue <- function(x.train, matchedCall, callingEnv, name) {
     }
   } else {
     stop(
-      "x.train must be a matrix, data.frame, formula, fitted bart model, or dbartsSampler"
+      "'x.train' must be a matrix, data.frame, formula, fitted bart model, ",
+      "or dbartsSampler"
     )
   }
   namedList(sampler, fit)

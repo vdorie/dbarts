@@ -213,7 +213,11 @@ refuses(
   "all zeros"
 )
 # (28) 'test' with a term
-refuses(y ~ x1 + x2 + z:forest(x1 + x2), "no test-basis channel", test = d)
+refuses(
+  y ~ x1 + x2 + z:forest(x1 + x2),
+  "forest\\(\\) formula term does not support 'test'",
+  test = d
+)
 # (29) restates the existing forests = collision with a pre-built dbartsData
 dd <- dbarts::dbartsData(y ~ x1 + x2, d)
 expect_error(

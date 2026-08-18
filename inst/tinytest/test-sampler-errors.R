@@ -30,7 +30,7 @@ expect_error(
 )
 expect_error(
   sampler$setPredictor(numeric(0L), 1L),
-  "length of new x does not match y"
+  paste0("'x' must have length ", nrow(train))
 )
 expect_error(
   sampler$setPredictor(testData$z, 3L),
@@ -38,7 +38,7 @@ expect_error(
 )
 expect_error(
   sampler$setTestPredictor(numeric(0L), 1L),
-  "length of new x does not match old x.test"
+  paste0("'x.test' must have length ", nrow(test))
 )
 expect_error(
   sampler$setTestPredictor(numeric(0L)),
@@ -60,7 +60,7 @@ expect_error(
 )
 expect_error(
   sampler$setPredictor(matrix(numeric(n * 2L), n), 1L),
-  "number of columns of new x does not match length of columns to replace"
+  "'x' must have 1 column"
 )
 
 # setResponse/setWeights/setOffset/setSigma reject the same class of bad

@@ -346,7 +346,7 @@ xbart <- function(
     n.test <- coerceOrError(n.test, "integer")
     if (n.test < 2L || n.test > numObservations) {
       stop(
-        "for k-fold crossvalidation, n.test must be an integer in [2, ",
+        "for k-fold crossvalidation, 'n.test' must be an integer in [2, ",
         numObservations,
         "]"
       )
@@ -363,7 +363,9 @@ xbart <- function(
       n.test <- n.test / numObservations
     }
     if (n.test <= 0 || n.test >= 1) {
-      stop("for random subsample crossvalidation, n.test must be in (0, 1)")
+      stop(
+        "for random subsample crossvalidation, 'n.test' must be in (0, 1)"
+      )
     }
     numTest <- max(
       1L,

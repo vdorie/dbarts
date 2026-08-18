@@ -95,7 +95,7 @@ expect_error(
 )
 expect_error(
   plotTree(pt.rbart, treeNum = 1L, chainNum = 5L),
-  pattern = "chainNum must be a single chain index"
+  pattern = "'chainNum' must be a single chain index"
 )
 
 # the print methods summarize a fit to the console, and keep doing so with

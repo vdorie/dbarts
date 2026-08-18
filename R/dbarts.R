@@ -427,9 +427,8 @@ dbarts <- function(
     }
     if (!missing(test)) {
       stop(
-        "a forest() formula term does not support 'test': an amplitude-",
-        "coupled fit has no test-basis channel; drop the term or fit a ",
-        "single-forest model"
+        "a forest() formula term does not support 'test'; drop the term or ",
+        "fit a single-forest model"
       )
     }
     formula <- termIngestion$formula
@@ -921,9 +920,7 @@ dbartsSampler <- setRefClass(
         what,
         " is not available on the host sampler of a ",
         hostFor,
-        " fit: it carries the design and priors that fit was built from but ",
-        "not its model, so the change would never reach the fit; refit with ",
-        "bart2() to change the data"
+        " fit; refit with bart2() to change the data"
       )
     },
     refuseHostRead = function(what) {
@@ -935,9 +932,7 @@ dbartsSampler <- setRefClass(
         what,
         " is not available on the host sampler of a ",
         hostFor,
-        " fit: it carries the design and priors that fit was built from but ",
-        "not its model, so the value here is the placeholder shell's and not ",
-        "the fit's; read the fit's own surface instead"
+        " fit; read the fit's own surface instead"
       )
     },
     run = function(
@@ -1012,7 +1007,7 @@ dbartsSampler <- setRefClass(
       }
       n.sweeps <- as.integer(n.sweeps)
       if (length(n.sweeps) != 1L || is.na(n.sweeps) || n.sweeps <= 0L) {
-        stop("n.sweeps must be a single positive integer")
+        stop("'n.sweeps' must be a single positive integer")
       }
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_growFromRoot, ptr, n.sweeps)
@@ -1175,7 +1170,10 @@ dbartsSampler <- setRefClass(
         is(newModel@tree.prior, "dbartsDartPrior") ||
           is(model@tree.prior, "dbartsDartPrior")
       ) {
-        stop("setModel cannot change a DART tree prior; recreate the sampler")
+        stop(
+          "changing a DART tree prior is not available on an existing ",
+          "sampler: recreate it instead"
+        )
       }
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
@@ -1829,16 +1827,16 @@ dbartsSampler <- setRefClass(
       treeNums <- as.integer(treeNums)
 
       if (any(chainNums <= 0 | chainNums > control@n.chains)) {
-        stop("chainNums must be in [1, ", control@n.chains, "]")
+        stop("'chainNums' must be in [1, ", control@n.chains, "]")
       }
       if (
         useSaved &&
           any(sampleNums <= 0 | sampleNums > control@n.samples)
       ) {
-        stop("sampleNums must be in [1, ", control@n.samples, "]")
+        stop("'sampleNums' must be in [1, ", control@n.samples, "]")
       }
       if (any(treeNums <= 0 | treeNums > control@n.trees)) {
-        stop("treeNums must be in [1, ", control@n.trees, "]")
+        stop("'treeNums' must be in [1, ", control@n.trees, "]")
       }
 
       # route new data through the trees so 'n' counts that data instead of the

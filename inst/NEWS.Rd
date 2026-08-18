@@ -1527,6 +1527,10 @@
             argument errors partway through. Previously the error left
             \code{.Random.seed} set from the fixed seed instead of the
             caller's own stream; a successful call was already unaffected.
+      \item Error and warning messages across the package now follow one
+            consistent style (argument quoting, capitalization,
+            punctuation, and refusal phrasing); their information content
+            is unchanged.
     }
   }
 }
