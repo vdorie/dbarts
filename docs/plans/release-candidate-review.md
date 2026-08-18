@@ -559,6 +559,46 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### FX1-channel - per-draw Student-t df and the t marginal (c3af16a1, 2026-08-18)
+
+Fork 2 executed. The engine's df dynamics were verified FIRST: nu
+is sampled per sweep in grid mode (TResponse::refreshLatents draws
+every lambda then nu from the two lambda statistics; fixed mode
+holds the creation value), so the plan's per-draw shape is right.
+The channel mirrors the nbinom dispersion channel at all four
+layers - Results::residualDf with the storeSample write gated on
+carriesResidualDf (a pure read of state the sweep settled, after
+refreshLatents, so no RNG is consumed), the per-chain slice, the
+SamplerShape bit, and the bridge's installChannel("resid.df") -
+K2's one-line-add promise held. dbarts.h gains double* residualDf
+appended above the documented 1.0-0 field boundary per that
+boundary's own rule (no version constant moves; offset
+static_assert added, size assert 10 -> 11; the signature token is
+layout-invisible and unmoved); capi contract 232 -> 237 with a
+capi_run_residual_df shim. pointwiseLogLikelihood's student branch
+scores the marginal location-scale t (dt((y - ev)/sd, nu) -
+log(sd), sd = sigma/sqrt(w), df recycled on sigma's axis; a
+student fit predating the channel refuses by name). sampleFromPPD
+stays refusing; DOOR: with $resid.df the t draw is sd * rt(n, df)
+in the gaussian arm's shape - one branch, no new state. NEWS: the
+student item extended AND the refusal item corrected in place (it
+claimed loglik refuses student, which this slice makes false).
+Budget overran (~194 dense vs ~105 cap), flagged by the
+implementer and accepted on review: the overage is the capi C shim
+the local idiom requires plus mandated-oracle assertions, each
+mapped to a mandate clause. Battery twice (implementer, then
+independent gate-runner): install --preclean; tests/cpp 69 checks
+incl. 3 student state round-trips; ASAN/UBSAN zero diagnostics;
+tinytest 5852/0 with capi 237 confirmed run; trio bitwise 37/37
+12/12 10/10 with the student scenario among the 37; air/lintr
+clean; NEWS 268 parses; R CMD check Status OK; discrimination -
+base has no $resid.df and refuses loglik by name, slice matches an
+independently written dt() computation exactly, ppd refuses on
+both. Patch-id-verified rebase over the P1b landing. Prior-slice
+CI: H six-green, which also covers J's concurrency-cancelled
+exact-gates/sanitizers by containment (recorded here as promised);
+P1b's benchmarks push went exact-gates green.
+
 ### P1b - backfit conditional-exactness oracle; PASS (ded60c1d, 2026-08-18)
 
 benchmarks/R/backfit-exact.R, 345 lines, 11.4s full / 3s quick.
