@@ -4030,13 +4030,6 @@ SEXP bartcore_getFitsWithoutOffset(SEXP ptrExpr) {
   return result;
 }
 
-// The calibration map that owns a combiner's leaf scales, named so a refusal
-// points at the thing that fixed them rather than at the refusal itself.
-static const char* calibrationMapName(const bartcore::SamplerShape& shape) {
-  return shape.supportsCountsMutation ? "softmax calibration map"
-                                      : "two-forest calibration map";
-}
-
 static const char* leafModelName(bartcore::LeafModelKind kind) {
   switch (kind) {
   case bartcore::LeafModelKind::monotone: return "monotone";
@@ -4116,10 +4109,15 @@ SEXP bartcore_setCalibration(SEXP ptrExpr, SEXP forestExpr,
   double priorScale = Rf_asReal(priorScaleExpr);
   if (!std::isfinite(priorScale) || priorScale <= 0.0)
     Rf_error("'prior.scale' must be a positive finite number");
+  // The map is named so the refusal points at what fixed the scale rather than
+  // at the refusal itself. Only the K = 2 coupling is a two-forest map; above
+  // it the same map spans K forests, and naming it two-forest would be false.
   if (!holder.sampler->setForestPriorScale(forestIndex, priorScale))
     Rf_error("this forest's leaf scale comes from the %s, which owns both "
              "halves of its calibration; make a new sampler instead",
-             calibrationMapName(shape));
+             shape.supportsCountsMutation ? "softmax calibration map"
+             : shape.numForests == 2      ? "two-forest calibration map"
+                                          : "multi-forest calibration map");
   return R_NilValue;
 }
 

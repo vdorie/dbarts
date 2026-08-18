@@ -400,6 +400,30 @@ expect_error(
   bcf$setCalibration(prior.scale = 1.5),
   "multi-forest calibration map"
 )
+# the engine's own refusal, which the low-level route reaches past the R
+# guard, names the map by its coupling: the two-forest map at K = 2, and a
+# generic one above it, where no two-forest map owns the scale
+handleOf <- function(sampler) list(ptr = sampler$getPointer())
+expect_error(
+  dbarts:::bartcoreSetForestPriorScale(handleOf(bcf), 0L, 1.5),
+  "two-forest calibration map"
+)
+threeForests <- dbarts(
+  x,
+  yBCF,
+  forests = list(
+    forest(),
+    forest(basis = ~ factor(zBCF)),
+    forest(basis = x[, 3L])
+  ),
+  control = midControl()
+)
+threeRefusal <- tryCatch(
+  dbarts:::bartcoreSetForestPriorScale(handleOf(threeForests), 0L, 1.5),
+  error = function(e) conditionMessage(e)
+)
+expect_true(grepl("multi-forest calibration map", threeRefusal, fixed = TRUE))
+expect_false(grepl("two-forest", threeRefusal, fixed = TRUE))
 
 # the multinomial coupling, through the low-level handle its forests live on
 labels <- sample(0:2, n, replace = TRUE)
