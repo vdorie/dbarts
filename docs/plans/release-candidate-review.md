@@ -540,6 +540,74 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Prior-initializer fix LANDS (31e52644, 2026-08-18) + main-baseline re-record
+
+VD's decisions recorded: LAND the prepared fix; the setForestWeights
+residue COMPOSES with an empty-set guard (the all-zero-forest-weight
+case adjudicated below, slice in flight); the P9 freeze scope as
+applied during the fire is RATIFIED as recorded - no landed slice
+re-gates. ccf4b687 rebased onto c98e5c14 with zero conflicts as
+31e52644; the rebased patch is hunk-for-hunk byte-identical (only
+inst/NEWS.Rd's base blob moved - intervening entries sit outside the
+fix's hunks). The full battery re-ran INDEPENDENTLY on the rebase:
+install, tests/cpp 246/246, ASAN clean, tinytest 5874/0 (the new
+pin: 0/13225 forbidden leaves, non-vacuity arm 3062), trio partition
+exactly as prepared (33/37 bitwise; movers grouped 2.26 /
+grouped_aft 1.24 / hazard 2.30 / hurdle 3.01, all under 4; BCF
+12/12, multinomial 10/10 bitwise), geweke-mc FULL exit 0 (largest
+tree-shaped |z| 1.90 vs the pre-rebase run's 1.2 - the trio's
+bitwise match shows the build's draws are identical, so the spread
+is the oracle harness's own run-to-run variance, inside its bands),
+backfit-exact PASS, bcf-exact quick OK (gaps <= 0.0009), air/lintr
+clean, NEWS parses at 271, R CMD check --as-cran Status: OK. CI
+six-green at the sha (pkgdown, lint, cpp-tests, exact-gates,
+R-CMD-check, sanitizers).
+
+Re-record at the final sha under P17's oracle-naming rule:
+equivalence-31e52644.rds recorded from a fresh --preclean build,
+self-compare 37/37 under --strict-coverage, bitwise-identical to the
+pre-rebase candidate 37/37, partition vs 8b047f8b as above.
+bcf-equivalence-6e3b9fb8 and multinomial-equivalence-1027be5 are NOT
+re-recorded: both bitwise at this tip (12/12, 10/10), and the
+MANIFEST convention (the 21fc29c precedent) keeps unmoved baselines
+current with neutrality noted - the three-baseline obligation is
+discharged as fresh record+compare evidence for all three with only
+the moved harness renamed. Four places bumped in this commit:
+equivalence.yaml main line, MANIFEST (new current row, 8b047f8b
+superseded), TODO, feature-matrix f39. The riding scenario additions
+do NOT ride this re-record: bart2 gaussian/probit/two-forest plus
+the B2 mixed-matrix scenario become a dedicated harness-extension
+slice (harness extensions self-record at their own sha, the 33f6fdc
+S0 precedent; queued behind the compose slice), the xbart scenario
+stays with P16 - TODO updated so nothing drops.
+
+The compose adjudication ran ahead of its slice: an independent
+blind critique (own code reading, own probes) CONFIRMED the residue
+and WIDENED it. (1) The empty conditioning event is reachable at
+THIS tip with no combiner at all - setActiveRows all-zero plus an
+explicit sampleTreesFromPrior exhausts priorTreeDrawMaxAttempts and
+throws, on a state test-active-rows-pins.R documents as
+accepted-and-runs - so the guard must be UNCONDITIONAL, and the
+attempt-cap comment's "unreachable" claim is wrong until the compose
+slice lands. (2) BCF's creation-default amplitudes are {1, 0, 1}, so
+the DEFAULT dbarts(forests=) build zeroes control rows in the
+treatment forest's veto vector - measured 8/1263 forbidden leaves
+over 50 prior draws. (3) growTreeFromRoot still enforces
+non-emptiness by MEMBER COUNT while growForestFromRoot hands it the
+composed vector, so $growFromRoot can land the illegal states this
+fix closed. (4) sbc.R's BCF theta0 generator must draw AND install
+glue before the prior trees once the tree prior is glue-dependent.
+None of it blocks this landing (no test or consumer reaches the
+fault; the primary law is strictly better) and none of it is
+re-record class (no recorded baseline scenario calls
+sampleTreesFromPrior or growFromRoot - they drive bartcoreRun from a
+bare-root start). The all-zero adjudication: BARE ROOT with zero
+parameters - the conditional law does not exist over an empty event,
+the kernel freezes structure under an all-zero vector and recovers
+on restore (both measured), and the bare root is the unique
+structure legal under ANY later weight restore. Slice spec critiqued
+and in flight. UNFROZEN by this landing: SBC-deepening, P16, P6.
+
 ### Wave 0c - ensemble-scale gaussian SBC, the premise oracle (2026-08-17)
 
 The provenance audit's named highest-value action ran at the tip:
