@@ -557,6 +557,35 @@ re-anchor is refreshed - the un-retired remainder is unchanged
 xbart pin still has no oracle, P16's job). Log preserved untracked
 at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
 
+### K2 - run-result packaging compaction (447b8c81, 2026-08-17)
+
+The bridge's packaging region (live :4188-4462, 161 lines of channel
+assembly) becomes 87: thirteen hand-rolled chain-ternary allocations
+collapse onto one allocChannel(type, {leading dims}) lambda (a
+single-chain per-draw scalar stays a bare dim-less vector - the
+byte layout every consumer relies on - by construction) with scalar
+and widening wrappers beside it; the four recomputed prefix sums
+and the trailing 19-line names block become a running slot counter
+plus installChannel(name, value), names attaching as slots are
+claimed - which also retires the old free-the-counts-before-the-
+names-block OOM-longjmp ordering dance; seven verbatim forest-index
+reads become forestIndexFrom (the census said eight - the getTrees
+variant keeps its own out-of-range message deliberately). Net
+-79 lines. The enabling value, demonstrated: a new channel is now
+one installChannel line plus one term in the slot sum, versus the
+four-slot prefix-sum audit plus a names-block edit (the post-K2
+Student-t df channel rides this). Neutrality, the strongest stack
+yet: 14/14 full-result identical() probes covering every channel
+(gaussian 1/2-chain, nulls, chi-k, DART varprobs, variance with
+and without test, ordinal cutpoints, nbinom dispersion, BCF
+forestFits/glue/widened varcount, multinomial train/test, grouped
+tau/ranef, zero-sample NULL); trio bitwise 37/37 12/12 10/10;
+tests/cpp clean AND under ASAN/UBSAN; the instrumented R-package
+ASAN leg ran all 14 probes clean (ULP-level value drift vs the
+plain build is instrumented-codegen artifact; names/dims/types
+identical); tinytest 5825/0; R CMD check --as-cran OK. K4 note
+recorded: installResult now has exactly one caller.
+
 ### D - column-resolution and pdbart-prologue extractions (3158d96e, 2026-08-17)
 
 Two pure extractions, net -8 lines. resolveColumnIndex(source,
