@@ -1145,12 +1145,13 @@ struct CategoricalGrowFixture {
   std::uint32_t numObserved;  // fewer, so categories stay reachable but absent
   bool missing;
   size_t numIterations;
-  // every row of category 0 leaves with weight zero. Occupancy is on integer
-  // counts, so the category is PRESENT at every node holding one of its rows -
-  // a histogram bin the partition places and never an absent position - while
-  // a whole side of that partition can carry no mass at all. The count-based
-  // empty sentinel must not fire on such a side, and the coin census must
-  // count the category exactly as it does under uniform weights.
+  // every row of category 0 leaves with weight zero. The category is PRESENT
+  // at every node holding one of its rows - a histogram bin the partition
+  // places and never an absent position - so a whole side of that partition
+  // can carry members and no mass at all. That side is what occupancy vetoes,
+  // the emptiness law being positive WEIGHT (docs/design/empty-leaf-veto.md),
+  // while the coin census must count the category exactly as it does under
+  // uniform weights: the veto removes candidates, never draws.
   bool zeroWeightCategory = false;
 };
 
@@ -1275,7 +1276,7 @@ void testCategoricalGrowGaugeAndCoins() {
     std::vector<double> params, rebuiltParams;
     std::vector<FlatNode> flat;
     std::vector<std::int32_t> internal;
-    size_t expectedUniforms = 0, weightlessLeaves = 0;
+    size_t expectedUniforms = 0, weightlessLeaves = 0, mixedLeaves = 0;
     std::vector<std::int32_t> bottom;
     std::clock_t started = std::clock();
 
@@ -1287,14 +1288,18 @@ void testCategoricalGrowGaugeAndCoins() {
       expectedUniforms += positiveGrowthNodeCount(tree, store, prior);
       tally.occupied &= tree.bottomNodesAreOccupied();
       if (weights != nullptr) {
-        // the side the count-based sentinel exists to let through: occupied,
-        // so not empty, and carrying no mass at all
+        // the side occupancy vetoes: occupied, so not member-empty, and
+        // carrying no mass at all. mixedLeaves is the non-vacuity - the
+        // weightless rows are in the tree, absorbed into leaves that carry
+        // weight, rather than absent from the fixture
         bottom.clear();
         tree.fillBottom(0, bottom);
-        for (std::int32_t node : bottom)
-          if (tree.at(node).numObservations() > 0 &&
-              tree.at(node).sumWeights == 0.0)
-            ++weightlessLeaves;
+        for (std::int32_t node : bottom) {
+          if (tree.at(node).numObservations() == 0) continue;
+          if (tree.at(node).sumWeights == 0.0) { ++weightlessLeaves; continue; }
+          for (size_t j = tree.at(node).begin; j < tree.at(node).end; ++j)
+            if (weights[tree.indices[j]] == 0.0) { ++mixedLeaves; break; }
+        }
       }
       internal.clear();  // fillNotBottom appends
       tree.fillNotBottom(0, internal);
@@ -1365,10 +1370,14 @@ void testCategoricalGrowGaugeAndCoins() {
       check(tally.missingPresent > 0 && tally.missingAbsent > 0,
             "the missing pseudo-category is placed as a bin at some nodes and "
             "drawn as an absent position at others");
-    if (fixture.zeroWeightCategory)
-      check(weightlessLeaves > 0,
-            "a weightless present category is partitioned into leaves of its "
-            "own rather than sentineled away");
+    if (fixture.zeroWeightCategory) {
+      check(weightlessLeaves == 0,
+            "no leaf of a grown tree holds a weightless present category "
+            "alone");
+      check(mixedLeaves > 0,
+            "the weightless rows are in the grown trees, sharing leaves with "
+            "rows that carry weight");
+    }
   }
 
   printf("ok: grow categorical gauge, legality and coin count\n");

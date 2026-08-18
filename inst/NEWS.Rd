@@ -943,6 +943,24 @@
             admitted leaves holding only zero-weight observations, out of
             which a birth scored \code{NaN} and was silently rejected.
             Seeded results move with the initial forest.
+      \item That conditioning is now applied per forest, against the weights
+            the forest's own tree moves veto with - the coupling's
+            per-observation multipliers and any weight installed by
+            \code{$setForestWeights} - rather than the sampler's shared
+            weights. A Bayesian causal forest is the case that moves by
+            default: its treatment forest enters with amplitudes
+            \code{(b0, b1) = (0, 1)}, so a control row carries no weight
+            there, and its initial trees held leaves that no treated row
+            reached. \code{$growFromRoot} keeps the same law, its scan
+            having admitted a split whose side carried members but no weight.
+            Where that vector is entirely zero - an all-zero
+            \code{$setActiveRows} mask, or an all-zero
+            \code{$setForestWeights} - there is no distribution to draw
+            from, and the forest now initializes to single-leaf trees with
+            zero parameters, the one structure that stays legal whatever
+            weights are restored afterward. Drawing from the prior in that
+            state previously signalled an error, on a sampler that was
+            otherwise accepted and could be run.
       \item Mutating a dense-backed column of a mixed dense/sparse predictor
             container now updates the values the sampler re-reads, not only
             its bins. Cut point installation (\code{setCutPoints}), a state

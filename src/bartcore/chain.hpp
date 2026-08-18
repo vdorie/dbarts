@@ -1728,11 +1728,13 @@ public:
   /// Attempt cap for sampleTreesFromPrior's per-tree rejection draw.
   /// Acceptance is bounded below by the probability of the bare root, 1 - base,
   /// positive on every legal prior (base lies in (0, 1)); even at base = 0.99
-  /// exhausting the cap has probability 4e-44, so exhaustion says the
-  /// conditioning event is EMPTY - no row carries positive weight, hence no
-  /// tree at all is admissible - rather than reporting an unlucky run, and a
-  /// fault is the honest answer. Measured rejection under the default prior:
-  /// ~9% per tree at n = 30, ~1.3% at n = 400.
+  /// exhausting the cap has probability 4e-44, so exhaustion never reports an
+  /// unlucky run. The one state that could exhaust it - an empty conditioning
+  /// event, where no row carries positive weight - is settled before the loop
+  /// by a scan that takes the bare root instead, so reaching the cap now says
+  /// that scan and this predicate disagree, a bug worth faulting on. Measured
+  /// rejection under the default prior: ~9% per tree at n = 30, ~1.3% at
+  /// n = 400.
   static constexpr int priorTreeDrawMaxAttempts = 10000;
 
   /// Replace every tree's structure with a draw from the tree prior over the
@@ -1773,7 +1775,34 @@ public:
     size_t n = data_.numObservations;
     const double* y = response_->workingResponse();
     const double* weights = response_->workingWeights();
-    for (Forest<L, ResidT>& forest : forests_) {
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      Forest<L, ResidT>& forest = forests_[f];
+      // The conditioning event is FOREST f's OWN. Its moves veto against the
+      // composed precisions - the coupling's per-forest weights carrying the
+      // glue, times any weight installed for f - so conditioning every forest
+      // on the chain's global weights would draw from a law no forest holds:
+      // under bcf's creation glue (b0 = 0) the treatment forest reaches no
+      // control row at all. The WEIGHTS-ONLY path is required, not an
+      // optimization: formForestResponse owes an immediately preceding
+      // drawForestGlue for the same f, which no initializer performs.
+      // Composed inside the loop because the scratch is chain-owned, so a
+      // hoisted pointer would alias the next forest's composition.
+      const double* forestWeights =
+        combiner_ != nullptr ? combiner_->formForestVetoWeights(f, weights)
+                             : weights;
+      forestWeights = composeForestWeights(f, forestWeights);
+      // One O(n) scan settles the EMPTY EVENT for the whole forest: with no
+      // row carrying positive weight no tree is admissible, so the conditional
+      // law does not exist and every tree takes the bare root - the unique
+      // structure no later weight restore can strand a member-empty leaf in,
+      // since every row sits in its one leaf. UNCONDITIONAL, coupling or not:
+      // an all-zero active-row mask composes into the global weights and is a
+      // legal state a host whose stratum emptied reaches. The attempt cap
+      // stays the backstop, where exhaustion now means this scan and the
+      // predicate disagree.
+      bool anyWeight = forestWeights == nullptr;
+      for (size_t i = 0; !anyWeight && i < n; ++i)
+        if (forestWeights[i] > 0.0) anyWeight = true;
       for (size_t t = 0; t < forest.numTrees; ++t) {
         Tree& tree(forest.trees[t]);
         // Rejection, not projection: the moves price the CGM prior restricted
@@ -1787,15 +1816,19 @@ public:
         // at its unconditioned law. The predicate is the veto's own, so a leaf
         // of only zero-weight rows - which the collapse's member count spares
         // and the veto forbids - is rejected here too.
+        // y stays the chain's working response under a coupling: no structural
+        // draw reads it, only the node statistics birth caches, which the next
+        // sweep recomputes against the per-forest residual.
         int rejected = 0;
         while (true) {
           tree.initialize(forest.indexBuffer.data() + t * n, n);
-          growSubtreeFromPrior(forest, tree, 0, y, weights);
-          if (tree.bottomNodesHaveWeight(weights)) break;
+          if (!anyWeight) break;
+          growSubtreeFromPrior(forest, tree, 0, y, forestWeights);
+          if (tree.bottomNodesHaveWeight(forestWeights)) break;
           if (++rejected == priorTreeDrawMaxAttempts)
             ext_throwError("tree prior draw: every one of %d draws left an "
-                           "empty leaf; no tree is admissible against this "
-                           "weight vector", priorTreeDrawMaxAttempts);
+                           "empty leaf, against a weight vector carrying a "
+                           "positive entry", priorTreeDrawMaxAttempts);
         }
         // fresh structures carry zero parameter blocks until the next draw
         if constexpr (L::hasVectorParams)
