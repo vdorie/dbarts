@@ -2967,6 +2967,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                  groupIndices = std::vector<std::uint32_t>{},
                  survivalStatus = std::vector<double>{},
                  varianceColumns = std::vector<std::size_t>{},
+                 bcfSpec = bartcore::BCFSpec{},
                  bcfStorage = BCFSpecStorage{},
                  rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
@@ -3026,7 +3027,8 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // directions, so a half stripped in transit (a setControl that drops the
     // attribute, a data object rebuilt without the slot) is a loud refusal
     // naming the missing piece rather than a silent single-forest fit.
-    bartcore::BCFSpec bcfSpec;
+    // the spec's forests vector owns its storage, so it rides the closure
+    // beside the buffers it borrows: the refusals below jump past every local
     bool isBCF = applyBCFAttributes(controlExpr, model, options.numTrees,
                                     data.numPredictors, bcfSpec, bcfStorage);
     if (isBCF && data.bases.empty())
@@ -3119,6 +3121,7 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
   BartcoreHolder* holder = nullptr;
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
+                 spec = bartcore::BCFSpec{},
                  storage = BCFSpecStorage{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     // the family is read off the model this route was handed rather than
@@ -3149,7 +3152,6 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
     if (options.fp32Residual)
       Rf_error("%s", storageSingleUnsupportedMessage);
 
-    bartcore::BCFSpec spec;
     spec.family = family;
     applyBCFSpec(bcfParamsExpr, varsExpr, interactionsExpr, blocksExpr, model,
                  options.numTrees, data.numPredictors, spec, storage);
