@@ -1,11 +1,13 @@
 #!/usr/bin/env Rscript
 
 # Exact-posterior gate for the bartcore multinomial (softmax) sampler
-# (docs/design/multinomial.md). Six arms, each matching the sampler's
-# posterior mean of the IDENTIFIED softmax probabilities to a closed-form
-# quadrature, to Monte Carlo error. A failure means the softmax coupling, the
-# interleaved one-vs-rest Polya-Gamma draw, the level-centering move, or the
-# log-sum-exp margin formation is wrong - fix the model, never loosen the gate.
+# (docs/design/multinomial.md). Arms 1-6 each match the sampler's posterior
+# mean of the IDENTIFIED softmax probabilities to a closed-form quadrature, to
+# Monte Carlo error; arm 7 gates the one quantity they cannot see, the
+# NON-identified level the centering move draws. A failure means the softmax
+# coupling, the interleaved one-vs-rest Polya-Gamma draw, the level-centering
+# move, or the log-sum-exp margin formation is wrong - fix the model, never
+# loosen the gate.
 # Arm 4 reuses arm 3's fit with two test rows duplicating the two cells and
 # gates that the TEST channel (combinedTestFits) equals the same quadrature
 # target as the train channel - the softmax-invariance correctness fact. Arm 5
@@ -13,7 +15,10 @@
 # PG(n_i) summing draw and the (y - n_i/2) working response. Arm 6 is arm 1
 # under a fixed category offset, the only oracle that catches a consistently
 # wrong sign or placement for it: a create-vs-swap parity cannot, since both of
-# its arms would make the same error.
+# its arms would make the same error. Arm 7 reads the grand level itself
+# against the marginal N(0, tau^2/K) the move is an exact independence sampler
+# from at the intercept-only configuration - the only arm that sees the scale
+# of the shift rather than the direction it leaves alone.
 #
 # The sampler's per-forest total-fit prior is symmetric N(0, tau^2)^K with
 #   tau = nodeScale / k,  nodeScale = pi*sqrt(3)/sqrt(2),  k = 2
@@ -585,6 +590,75 @@ armOffset <- function() {
   report("  arm6 category offset", max(abs(fit - exact)), tolerance)
 }
 
+# ---------------------------------------------------------------------------
+# Arm 7: the level-centering move's own conditional (the NON-identified level)
+# ---------------------------------------------------------------------------
+
+# Arms 1-6 all compare IDENTIFIED softmax probabilities, so none of them sees
+# the scale of the level-centering shift itself - only its likelihood-invariant
+# direction. This arm reads the level directly. At the intercept-only
+# configuration every tree is a root, so the move reduces to an exact
+# INDEPENDENCE sampler drawing the grand level from its marginal N(0, tau^2/K)
+# (docs/design/multinomial.md): each sweep's level is an independent draw with
+# sd tau/sqrt(K), whatever n.trees is - the identity that fixes the per-leaf
+# prior sd the conditional is written on. Run one sweep at a time and read the
+# raw per-category fits, which the query returns AFTER the move.
+#
+# The gate is a Monte Carlo band: the sample sd of N draws has se ~ sd/sqrt(2N),
+# and the tolerance is 3 se. The second line is the independence half of the
+# claim, at the 3/sqrt(N) band for a lag-1 autocorrelation of white noise.
+armLevel <- function() {
+  ndpost <- if (quick) 1000L else 3000L
+  nburn <- 200L
+  K <- 3L
+  n <- 60L
+  target <- tau / sqrt(K)
+
+  set.seed(2027L)
+  labels <- sample.int(K, n, replace = TRUE) - 1L
+  x <- matrix(0.5, n, 1L) # constant: no valid cut points, every tree a root
+
+  set.seed(5027L)
+  control <- dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 75L,
+    updateState = FALSE
+  )
+  host <- dbarts(x, as.double(labels), control = control)
+  bc <- dbarts:::bartcoreMultinomialSampler(host, labels, K = K)
+  dbarts:::bartcoreRun(bc, nburn, 1L)
+  level <- vapply(
+    seq_len(ndpost),
+    function(i) {
+      dbarts:::bartcoreRun(bc, 0L, 1L)
+      mean(vapply(
+        seq_len(K) - 1L,
+        function(k) mean(dbarts:::bartcoreForestFits(bc, k)),
+        numeric(1L)
+      ))
+    },
+    numeric(1L)
+  )
+  observed <- sd(level)
+  acf1 <- cor(level[-ndpost], level[-1L])
+
+  cat("Arm 7 (level-centering conditional, intercept-only K = 3):\n")
+  cat(sprintf(
+    "  marginal sd  %.6f  target tau/sqrt(K) %.6f  (N = %d)\n",
+    observed,
+    target,
+    ndpost
+  ))
+  cat(sprintf("  lag-1 acf    %+.4f  (band %.4f)\n", acf1, 3 / sqrt(ndpost)))
+  report(
+    "  arm7 level sd",
+    abs(observed - target),
+    3 * target / sqrt(2 * ndpost)
+  )
+  report("  arm7 level acf1", abs(acf1), 3 / sqrt(ndpost))
+}
+
 arm1()
 cat("\n")
 arm2()
@@ -594,6 +668,8 @@ cat("\n")
 armCount()
 cat("\n")
 armOffset()
+cat("\n")
+armLevel()
 cat("\n")
 
 if (anyFailure) {

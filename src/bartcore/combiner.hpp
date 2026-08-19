@@ -1875,10 +1875,13 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// and biasing the softmax probabilities (a Jensen bias, confirmed against the
   /// exact gate) - so it is deliberately NOT used.
   ///
-  /// The prior lives on LEAF VALUES (per-leaf sd
-  /// s_k = leaf.scale_k / (k_k sqrt(m_k))), not on the total fits, so with L_k
-  /// and S_k the count and value sum of forest k's OCCUPIED leaves over ALL its
-  /// trees, the exact conditional of the uniformly absorbed shift is
+  /// The prior lives on LEAF VALUES, not on the total fits: the per-leaf sd is
+  /// s_k = leaf.scale_k / k_k, and leaf.scale ALREADY carries the 1/sqrt(m_k)
+  /// (ConstantGaussianLeaf::scale is nodeScale/sqrt(numTrees)), so dividing by
+  /// sqrt(m_k) again here would count that factor twice and draw the shift from
+  /// a variance m_k too small. With L_k and S_k the count and value sum of
+  /// forest k's OCCUPIED leaves over ALL its trees, the exact conditional of
+  /// the uniformly absorbed shift is
   ///   prec = sum_k L_k / (m_k^2 s_k^2),  num = sum_k S_k / (m_k s_k^2),
   ///   c = -num/prec + N(0, 1)/sqrt(prec).
   /// Empty leaves are skipped: they carry no fit (sampleNodeParametersFromPrior
@@ -1904,7 +1907,7 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
       Forest<L, ResidT>& forest = forests[k];
       double m = static_cast<double>(forest.numTrees);
       if (!(m > 0.0)) continue;
-      double s = forest.leaf.scale / (forest.k * std::sqrt(m));
+      double s = forest.leaf.scale / forest.k;
       double invV = s > 0.0 ? 1.0 / (s * s) : 0.0;
       double leafCount = 0.0, leafSum = 0.0;
       // the bottom lists are left in each tree's scratch for the apply pass

@@ -16,8 +16,9 @@
 # Each scenario drives an internal multinomial creation surface (R/bartcore.R;
 # docs/design/multinomial.md) - the single-trial label path
 # (bartcoreMultinomialSampler) for k3/k2, the grouped-count path
-# (bartcoreMultinomialCountSampler) for k3counts - at a fixed seed, single
-# chain, one thread, and records:
+# (bartcoreMultinomialCountSampler) for k3counts and its mid-chain response
+# swap for k3countsswap - at a fixed seed, single chain, one thread, and
+# records:
 #   - result$train, the K softmax-probability channels (n x K x n.samples),
 #   - result$test, the same K softmax channels on a held-out x.test slice
 #     (n.test x K x n.samples) - the C1 test-at-creation addition,
@@ -450,6 +451,53 @@ runScenarios <- function() {
     dbarts:::bartcoreSetCategoryTestOffset(bc, offset.test2)
     res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
     recordChannels(bc, res, d$K)
+  })
+
+  # (k) K = 3 GROUPED COUNTS with a mid-chain RESPONSE swap: create on one n x K
+  # count matrix, run, replace the whole response through bartcoreSetCounts -
+  # the trees carry over, fitted to the previous counts, and the next run forms
+  # every category's working response against the new ones - then run again and
+  # record the post-swap state. The swap stream was only TRANSITIVELY pinned
+  # before this scenario (test-multinomial-counts-mutation.R pins swap ==
+  # rebuild bitwise, and k3counts pins the rebuild against the frozen
+  # baseline), and that identity dissolves silently under a slice which
+  # deliberately revises swap semantics and regenerates it as expected; the
+  # recorded draws pin it directly. Its seeds are LITERALS kept out of the
+  # guarded `seeds` vector, as (c)-(j)'s are, so settingsList() stays identical
+  # to the 1027be5 baseline and the compare against it runs at all; it runs last
+  # with its own set.seed, so it perturbs none of the scenarios above.
+  result$k3countsswap <- local({
+    set.seed(6011L)
+    K <- 3L
+    x <- matrix(runif(n * p), n, p)
+    eta <- cbind(
+      2 * (x[, 1L] - 0.5),
+      x[, 2L] - x[, 3L],
+      1.5 * (x[, 4L] - 0.5)
+    )
+    probs <- exp(eta) / rowSums(exp(eta))
+    drawCounts <- function() {
+      trials <- sample(2:6, n, replace = TRUE)
+      t(vapply(
+        seq_len(n),
+        function(i) rmultinom(1L, trials[i], probs[i, ])[, 1L],
+        integer(K)
+      ))
+    }
+    counts <- drawCounts()
+    counts2 <- drawCounts()
+    sampler <- dbarts(
+      x,
+      as.double(counts[, 1L]),
+      test = x[seq_len(25L), , drop = FALSE],
+      control = makeControl()
+    )
+    set.seed(7011L)
+    bc <- dbarts:::bartcoreMultinomialCountSampler(sampler, counts, K = K)
+    dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    dbarts:::bartcoreSetCounts(bc, counts2)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    recordChannels(bc, res, K)
   })
 
   result
