@@ -958,7 +958,31 @@ items
     fixing it moves warm-start draws - own decision). (7)
     error-style residue: R/spec.R:53 (R6), R/dbarts.R:1138 (R14),
     stale appendix counts in docs/design/error-style.md, R11
-    template layer unswept (7 competing length templates).
+    template layer unswept (7 competing length templates). (8) NEON
+    dead-code kernels - four with no dispatch entry (addVectors/
+    subtractVectors/addVectorsWithMultiplier/
+    addAlignedVectorsInPlaceWithMultiplier _neon) and three
+    bound-but-never-called (addAlignedVectorsInPlace/
+    subtractAlignedVectorsInPlace/transposeMatrix _neon) - remove or
+    reach. (9) tests/cpp fuzz-config change to reach the aggregate
+    untouched-variance-tree assertion (w5test m1). (10) count-blind
+    warning assertions, 17 sites (w5test m3). (11) flat-C version
+    handshake blind to struct appends - fold layouts into
+    DBARTS_C_API_HASH or add a sizeof entry point (surface decision)
+    + rebuild both consumer branches before RC (w5capi INFO 13).
+    (12) stan4bart lockstep owes: verify its create path supplies
+    resolved sigma (new hard-error) + --preclean rebuild vs the
+    user-lib ABI staleness. (13) feature-matrix CH: line-anchor
+    resync (drifted since the hetero landing; check-doc-freshness
+    range-checks pass so its OK is not evidence). (14) monotone
+    leaf: double branch-fill on the scoring path (bench arm per veto
+    critique N6) and equal-rank-1 path has analysis-only coverage.
+    None of (1)-(7) are discharged by the hetero-state-carry,
+    veto-rank, multinomial-prior, r-surface, flat-C-guards or
+    test-repair slices that landed since this ledger opened (checked
+    each against git log): (5) and (6) are the same doors, restated
+    as still open by the veto-rank and hetero-state-carry commits
+    themselves; (1)-(4) and (7) are untouched by any of the six.
 
   weighted-binary: integer-weight probit via replicated latents;
     arbitrary real weights need a real-shape PG sampler (IPW is a
