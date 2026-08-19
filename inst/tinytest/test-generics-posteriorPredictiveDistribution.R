@@ -23,30 +23,43 @@ samples.ppd <- extract(bartFit, type = "ppd")
 set.seed(0L)
 samples.pm <- extract(bartFit)
 # combined rows are chain blocks (all of chain 1's samples, then chain 2's);
-# the noise is drawn in bartFit$sigma's own chain-fastest order and then
-# reshaped (not redrawn) to match, mirroring sampleFromPPD
+# bartFit$sigma is stored in that same combined, chain-major order, so it
+# is normalized to the split (n.chains x n.samples) matrix first - its
+# as.vector() is chain-fastest, the order the noise is drawn in before
+# being reshaped (not redrawn) back to combined, mirroring sampleFromPPD
+sigma.split <- dbarts:::uncombineChains(bartFit$sigma, n.chains)
 for (i in seq_len(n.obs)) {
   noise <- rnorm(
     n.samples * n.chains,
     0,
-    rep_len(bartFit$sigma, n.samples * n.chains)
+    rep_len(as.vector(sigma.split), n.samples * n.chains)
   )
   noise <- dbarts:::combineChains(array(noise, c(n.chains, n.samples, 1L)))
   expect_equal(samples.pm[, i] + as.vector(noise), samples.ppd[, i])
 }
+rm(sigma.split)
 
 set.seed(0L)
 samples.ppd <- extract(bartFit, type = "ppd", combineChains = FALSE)
 
 set.seed(0L)
 samples.pm <- extract(bartFit, combineChains = FALSE)
+# bartFit$sigma is stored combined (chain-major: chain 1's whole run, then
+# chain 2's); normalized to the split (n.chains x n.samples) matrix, its
+# as.vector() is chain-fastest - the order sampleFromPPD recycles sd in
+# when ev already arrives split, as it does here
+sigma.split <- dbarts:::uncombineChains(bartFit$sigma, n.chains)
 for (i in seq_len(n.obs)) {
   expect_equal(
     samples.pm[,, i] +
-      matrix(rnorm(n.samples * n.chains, 0, bartFit$sigma), nrow = n.chains),
+      matrix(
+        rnorm(n.samples * n.chains, 0, as.vector(sigma.split)),
+        nrow = n.chains
+      ),
     samples.ppd[,, i]
   )
 }
+rm(sigma.split)
 
 rm(i, noise, samples.pm, samples.ppd, bartFit, n.obs, n.chains, n.samples)
 

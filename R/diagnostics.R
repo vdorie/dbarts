@@ -26,8 +26,12 @@ fitNChains <- function(object) {
 # flattened to a vector/matrix when combineChains was requested at fit time
 # - to posterior's (iteration, chain, variable) array. uncombineChains
 # already knows how to invert the flattening; only the trailing transpose
-# is new here.
-toDrawsArray <- function(x, n.chains) {
+# is new here. isScalar disambiguates the two shapes a combined,
+# multi-chain, 2-D field can have: a scalar field (sigma/k/tau) stores
+# uncombined as (n.chains, n.samples); a per-variable field (varcount,
+# yhat.train, ranef, ...) stores COMBINED (the default) as
+# (n.chains * n.samples, n.vars) - dim length 2 either way.
+toDrawsArray <- function(x, n.chains, isScalar) {
   d <- dim(x)
   if (n.chains <= 1L) {
     if (is.null(d)) {
@@ -41,9 +45,12 @@ toDrawsArray <- function(x, n.chains) {
     mat <- uncombineChains(x, n.chains) # n.chains x n.samples
     arr <- array(t(mat), c(ncol(mat), n.chains, 1L))
     varNames <- NULL
-  } else if (length(d) == 2L) {
+  } else if (length(d) == 2L && isScalar) {
     arr <- array(t(x), c(d[2L], d[1L], 1L))
     varNames <- NULL
+  } else if (length(d) == 2L) {
+    arr <- aperm(uncombineChains(x, n.chains), c(2L, 1L, 3L))
+    varNames <- dimnames(x)[[2L]]
   } else {
     arr <- aperm(x, c(2L, 1L, 3L))
     varNames <- dimnames(x)[[3L]]
@@ -59,7 +66,15 @@ toDrawsArray <- function(x, n.chains) {
 # fields with no per-variable axis; every other requested field (varcount,
 # varprobs, yhat.train, yhat.test, ranef, ...) contributes one draws
 # variable per column/observation, named "field[inner]"
-scalarFields <- c("sigma", "k", "tau")
+scalarFields <- c(
+  "sigma",
+  "k",
+  "tau",
+  "first.sigma",
+  "first.k",
+  "first.tau",
+  "resid.df"
+)
 
 # gathers one or more chain-dimensioned fields off a bart/bart2/rbart fit
 # into a single (iteration, chain, variable) base array
@@ -75,7 +90,7 @@ bartDrawsArray <- function(object, vars) {
     )
   }
   pieces <- lapply(present, function(v) {
-    piece <- toDrawsArray(object[[v]], n.chains)
+    piece <- toDrawsArray(object[[v]], n.chains, v %in% scalarFields)
     dimnames(piece)[[3L]] <- if (v %in% scalarFields) {
       v
     } else {

@@ -53,7 +53,18 @@ validateXTest <- function(x.test, x.train) {
   if (is.numeric(x.test) && NCOL(x.test) == 0L) {
     return(NULL)
   }
+  testFactorLevels <- NULL
   if (is.data.frame(x.test)) {
+    # captured before any re-expansion below: on the indicators route
+    # (factorLevels NULL, e.g. bart()'s x/y interface, which stores no
+    # level table) a test factor with different levels re-expands to a
+    # different column count than training's, and the mismatch is
+    # otherwise reported as a bare column-count error naming neither the
+    # factor nor its levels
+    isFactorCol <- vapply(x.test, is.factor, FALSE)
+    if (any(isFactorCol)) {
+      testFactorLevels <- lapply(x.test[isFactorCol], levels)
+    }
     if (any(vapply(x.test, isSparseDataFrameColumn, FALSE))) {
       # sparse columns ride to the engine unexpanded, coded over the training
       # level table; the resulting container is preserved below (the model
@@ -171,6 +182,27 @@ validateXTest <- function(x.test, x.train) {
   }
 
   if (!identical(NCOL(x.test), numPredictors)) {
+    if (is.null(factorLevels) && !is.null(testFactorLevels)) {
+      mismatched <- Filter(
+        function(nm) {
+          !identical(
+            length(resolveTermColumns(nm, predictorNames, termLabels)),
+            length(resolveTermColumns(nm, colnames(x.test), termLabels))
+          )
+        },
+        names(testFactorLevels)
+      )
+      if (length(mismatched) > 0L) {
+        stop(
+          "'test' factor '",
+          mismatched[1L],
+          "' does not match training's indicator columns ('test' levels: ",
+          toString(testFactorLevels[[mismatched[1L]]]),
+          "); use bart2() or dbarts(), which track levels across predict ",
+          "by default"
+        )
+      }
+    }
     stop("number of columns in 'test' must be equal to that of 'x'")
   }
   if (numPredictors > 1) {
@@ -1191,8 +1223,18 @@ dbartsData <- function(
   # missingness is a predictor-only feature: rules route NAs in x, but the
   # response side must be complete. In a sparse x, NAs live only among the
   # stored entries and implicit zeros are observed values, so the checks
-  # work off the slots without densifying.
+  # work off the slots without densifying. An out-of-range 'subset' is one
+  # way to reach this silently: data.frame row-indexing pads unmatched rows
+  # with NA rather than erroring, so a NA response here can be that instead
+  # of a genuinely incomplete row - naming 'subset' when it was given is a
+  # cheap, cause-agnostic hint rather than a claim of certainty.
   if (anyNA(y)) {
+    if (!is.null(matchedCall$subset)) {
+      stop(
+        "response contains missing values; check that 'subset' selects ",
+        "rows within range"
+      )
+    }
     stop("response contains missing values")
   }
   # Inf/-Inf survive the anyNA check (NaN does not), then poison the

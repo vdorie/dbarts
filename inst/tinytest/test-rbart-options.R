@@ -65,6 +65,28 @@ expect_inherits(
 )
 rm(k)
 
+# prior.scale alone (no explicit prior =) must resolve through exact-name
+# matching on the matched call, not $'s unique-partial-match onto
+# prior.scale itself (which used to send 'prior' to could-not-find-function
+# "prior"); called out literally, no wrapper, so the promise is the real one
+expect_inherits(
+  dbarts::rbart_vi(
+    y ~ x,
+    testData,
+    group.by = g,
+    prior.scale = 1.5,
+    n.samples = 2L,
+    n.burn = 0L,
+    n.thin = 2L,
+    n.chains = 1L,
+    n.trees = 3L,
+    n.threads = 1L,
+    keepTrainingFits = FALSE,
+    verbose = FALSE
+  ),
+  "rbart"
+)
+
 # a binary fit with no k carries the chi(1.5, 2) node hyperprior: the
 # formal default is NULL, not the inert 2.0 it used to be
 yBinary <- testData$y > median(testData$y)

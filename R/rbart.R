@@ -210,16 +210,16 @@ rbart_vi <- function(
     }
   }
 
-  if (is.null(matchedCall$prior)) {
-    matchedCall$prior <- formals(rbart_vi)$prior
+  if (is.null(matchedCall[["prior"]])) {
+    matchedCall[["prior"]] <- formals(rbart_vi)$prior
   }
 
-  builtinTauPrior <- (is.symbol(matchedCall$prior) ||
-    is.character(matchedCall$prior)) &&
-    any(names(rbart.priors) == as.character(matchedCall$prior))
+  builtinTauPrior <- (is.symbol(matchedCall[["prior"]]) ||
+    is.character(matchedCall[["prior"]])) &&
+    any(names(rbart.priors) == as.character(matchedCall[["prior"]]))
   if (builtinTauPrior) {
     prior <- rbart.priors[[which(
-      names(rbart.priors) == as.character(matchedCall$prior)
+      names(rbart.priors) == as.character(matchedCall[["prior"]])
     )]]
   }
 
@@ -388,7 +388,7 @@ rbart_vi <- function(
     attr(control, "bartcore.groups") <- list(
       indices = as.integer(group.by),
       n.groups = nlevels(group.by),
-      prior = as.character(matchedCall$prior),
+      prior = as.character(matchedCall[["prior"]]),
       rel.scale = rel.scale,
       n.steps = control@n.thin
     )

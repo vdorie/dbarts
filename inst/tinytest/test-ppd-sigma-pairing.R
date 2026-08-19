@@ -62,16 +62,32 @@ ev.vol <- extract(fit.vol, type = "ev")
 
 n.chains <- 4L
 n.samples <- 12L
+# fit.vol$sigma is stored combined (chain-major); normalized to the split
+# (n.chains x n.samples) matrix, its as.vector() is chain-fastest - the
+# order sampleFromPPD draws noise in before re-combining to match a
+# combined ev, exactly as below
+sigma.split <- dbarts:::uncombineChains(fit.vol$sigma, n.chains)
 set.seed(4L)
 noise.vol <- rnorm(
   n * n.chains * n.samples,
   0,
-  rep_len(fit.vol$sigma, n * n.chains * n.samples)
+  rep_len(as.vector(sigma.split), n * n.chains * n.samples)
 )
 noise.vol <- dbarts:::combineChains(array(noise.vol, c(n.chains, n.samples, n)))
 expect_identical(ev.vol + noise.vol, ppd.vol)
 
-rm(fit.vol, ppd.vol, ev.vol, noise.vol, n.chains, n.samples, x, y, n)
+rm(
+  fit.vol,
+  ppd.vol,
+  ev.vol,
+  noise.vol,
+  sigma.split,
+  n.chains,
+  n.samples,
+  x,
+  y,
+  n
+)
 
 # 3. single chain: unaffected by the fix, matches ev + rnorm(sigma) exactly
 # (no chain dimension to reorder)
@@ -127,14 +143,28 @@ ev.w <- extract(fit.w, type = "ev")
 
 n.chains <- 3L
 n.samples <- 15L
+sigma.split.w <- dbarts:::uncombineChains(fit.w$sigma, n.chains)
 set.seed(6L)
-sd.w <- rep_len(fit.w$sigma, n * n.chains * n.samples) *
+sd.w <- rep_len(as.vector(sigma.split.w), n * n.chains * n.samples) *
   rep(sqrt(1 / w), each = n.chains * n.samples)
 noise.w <- rnorm(n * n.chains * n.samples, 0, sd.w)
 noise.w <- dbarts:::combineChains(array(noise.w, c(n.chains, n.samples, n)))
 expect_identical(ev.w + noise.w, ppd.w)
 
-rm(fit.w, ppd.w, ev.w, sd.w, noise.w, n.chains, n.samples, x, y, w, n)
+rm(
+  fit.w,
+  ppd.w,
+  ev.w,
+  sd.w,
+  noise.w,
+  sigma.split.w,
+  n.chains,
+  n.samples,
+  x,
+  y,
+  w,
+  n
+)
 
 # 5. rbart_vi: multi-chain ppd shape and the same layout invariance
 set.seed(5, sample.kind = "Rejection")
@@ -229,3 +259,41 @@ rm(
   y.b,
   n
 )
+
+# 7. chain-major order pin: this is the one assertion in this file that
+# checks the combined sigma vector against an independent ground truth
+# (a same-seed uncombined fit) rather than against combineChains()/
+# uncombineChains() themselves, which would pass under any layout those two
+# helpers happen to agree on. Chain 1's whole run must come first.
+set.seed(7, sample.kind = "Rejection")
+n <- 30L
+x <- matrix(runif(n * 2L), n, 2L)
+y <- x[, 1L] + rnorm(n, 0, 0.5)
+
+n.chains <- 3L
+n.samples <- 8L
+fit.comb <- bart2(
+  y ~ x,
+  n.samples = n.samples,
+  n.burn = 5L,
+  n.trees = 8L,
+  n.chains = n.chains,
+  n.threads = 1L,
+  combineChains = TRUE,
+  seed = 123L,
+  verbose = FALSE
+)
+fit.split <- bart2(
+  y ~ x,
+  n.samples = n.samples,
+  n.burn = 5L,
+  n.trees = 8L,
+  n.chains = n.chains,
+  n.threads = 1L,
+  combineChains = FALSE,
+  seed = 123L,
+  verbose = FALSE
+)
+expect_identical(fit.comb$sigma[seq_len(n.samples)], fit.split$sigma[1L, ])
+
+rm(fit.comb, fit.split, x, y, n, n.chains, n.samples)
