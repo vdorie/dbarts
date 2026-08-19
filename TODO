@@ -930,6 +930,32 @@ items
     prior-predictive draw; the setState variance COLUMN-MASK gap - a
     distinct, still-open check (columnMaskSubtreeIsValid has no
     variance-branch backstop), not the occupancy gap S3 closed.
+  wave5-review-followups: ledger of small survivals out of the
+    2026-08-18 adversarial review + its fix arc (evidence in
+    .claude/rc-review-artifacts-2026-08-18/, verdict in
+    release-candidate-review.md wave-5a landing note). (1) sigest
+    silently falls back to sd(y) when any sparse column mixes with
+    dense ones - warn or keep the lm fit on the dense part
+    (documented truthfully at ea630c21). (2) sparseVector/dgCMatrix
+    formula-interface columns die with a raw S4 type error - extend
+    sparseFactor's guarded refusal to them. (3) NEWS.Rd owes an
+    entry for 5b6e4825's binary-k default change (chi(1.5, Inf) ->
+    chi(1.5, 2.0)); dbartsPriors.Rd is already correct. (4) C API
+    struct APPENDS move neither version constant nor the FNV hash
+    (residualDf at c3af16a1 is a live instance): a newer-header
+    consumer passes the handshake with its channel silently
+    unwritten - extend the hash over struct layouts or bump on
+    append. (5) veto-arc doors from the w5dB critique cycle:
+    per-sweep vetoed-leaf diagnostics counter (R-readable);
+    sampleTreesFromPrior all-zero bare-root branch alignment with
+    the mutate-path semantics (own scoped decision). (6) hetero
+    slot-sourced installTrees does not pair slot k's mean forest
+    with slot k's variance surface (constraint comment at the site;
+    fixing it moves warm-start draws - own decision). (7)
+    error-style residue: R/spec.R:53 (R6), R/dbarts.R:1138 (R14),
+    stale appendix counts in docs/design/error-style.md, R11
+    template layer unswept (7 competing length templates).
+
   weighted-binary: integer-weight probit via replicated latents;
     arbitrary real weights need a real-shape PG sampler (IPW is a
     pseudo-likelihood trap; the approximate-PG decision is shared

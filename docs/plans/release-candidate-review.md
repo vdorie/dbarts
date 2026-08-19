@@ -540,6 +540,54 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Wave-5b docs-coherence slice (ea630c21, 2026-08-18)
+
+Fix-queue item 8, docs-only. All six MAJOR doc-review findings fixed
+plus the minors: makeind.Rd tells the truth about dbartsMixedMatrix
+returns; a NEW man/dbartsMixedMatrix.Rd documents the container (its
+four S3 methods, supported vs unsupported operations, the as.matrix
+escape, the row-not-linear single-index quirk) with its _pkgdown.yml
+entry; pdbart.Rd/pd2bart carry the real field lists (bartcall rename,
+dropped fields); sparseFactor.Rd states the silent sigest fallback;
+dbartsData.Rd scopes the sparse-ordinal formula-path failure; dead
+docs/design pointers dropped from shipped help text (docs/ never
+installs); getTrees chain-column conditionality; interactions.Rd
+wording + bare-vector shorthand; NEWS gains the posterior-integration
+entry. Gates: NEWS parses (274 entries), check_pkgdown green,
+R CMD check --as-cran from a clean-copy tarball Status OK, tinytest
+green, six CI workflows green. Behavioral follow-ups handed to the
+ledger (TODO wave5-review-followups): sigest silent fallback should
+warn or keep the lm fit; sparseVector/dgCMatrix formula columns need
+the sparseFactor-style guard; NEWS owes an entry for 5b6e4825's
+binary-k default change.
+
+### Wave-5b bridge-guards slice (613d59b9, 2026-08-18)
+
+Fix-queue item 1. Closes review BLOCKERs 4-5 of 10 (the two bridge
+crashes) plus three MAJORs and five MINORs, all draw-neutral. An
+ordinal column now carries >= 1 cut: the quantile grid's constant-
+column case floors to one degenerate cut at the observed value
+(exactly what the uniform grid places), closing both the
+printCutoffs unsigned-wrap segfault and the unrestorable-state
+$copy() failure; setCutPoints refuses an empty grid; the summary
+skips zero-cut columns defensively. The model-matrix builder
+validates factor codes: NA codes flow into the missing-data route
+(indicator rows go NA, bart() reports the canonical missing-values
+refusal, missing="incorporate" models it) and out-of-table codes are
+refused by column name - no more wild writes. Warm-start zero-forest
+donors refused; assignInPlace requires a non-empty index; the five
+minors (unwindProtect on the basis buffer, bounded map negation,
+interned attribute symbols, ordered lastIndex test, R_alloc for the
+column-type array). Six new/rewritten tinytest files; mutation
+proofs on both guard families (planted reverts caught). Gates: full
+battery green, ASAN clean, equivalence trio BITWISE (42/12/10
+identical-draws lines, zero max-z lines), six CI workflows green
+incl. sanitizers. A consequence recorded in
+test-sampler-degenerate-cuts.R: zero-cut stores are no longer
+R-reachable, so the moves-level degenerate-root guard is now reached
+via a single-level factor.
+
+
 ### Wave 5a - adversarial whole-branch review; NO COMMIT (review record, 2026-08-18)
 
 Six independent refute-posture reviewers against 13a8867c (engine
@@ -582,8 +630,10 @@ state round-tripping, guard-less boundaries, and reporting layers.
 FIX QUEUE (wave 5b), serialized: (1) bridge crash guards
 (in flight at this writing); (2) hetero saved-variance state carry;
 (3) veto weight-law enforcement at the mutators; (4) multinomial
-level-shift fix + baseline re-record (carries the queued bart2/
-xbart/mixed-matrix scenarios under P17 naming); (5) R-surface
+level-shift fix + baseline re-record (multinomial baseline ONLY,
+carrying the k3countsswap rider; the bart2/xbart/mixed-matrix
+riders were already discharged at 4a42620a/f009eff8 - this note
+originally said otherwise; P17 = the MANIFEST oracle-naming rule); (5) R-surface
 fixes (diagnostics layout, prior.scale match.call partial-match,
 keeptrees/keepsampler, bart() route gaps); (6) flat-C guards +
 header doc truth; (7) test-adequacy repairs (expectTwinsAgree
