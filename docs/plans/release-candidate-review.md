@@ -540,6 +540,51 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Wave-5b veto-law enforcement + main-baseline re-record (d15a2bfb + 9ba57750, 2026-08-19)
+
+Fix-queue item 3, the queue's last slice - WAVE 5B CLOSES. Closes
+the veto BLOCKER (empty-leaf weight law unenforced by setWeights/
+setActiveRows: a grown forest froze bitwise with NaN ratios). The
+design memo's 3-valued branch veto rank ships as specified with all
+three critique amendments binding: Tree::leafVetoRank (2 member-
+empty / 1 weight-vetoed / 0 admissible, degenerating to the old
+count test with null weights), moves.hpp::logLikelihoodForBranch
+returning BranchScore with the rank taken over fillBottom and only
+rank-0 leaves summed (A3), and resolveVetoRank feeding the moves'
+EXISTING single exp expressions - the worse rank substitutes
+-HUGE_VAL, so rank-0 pairs reproduce the old operands bit for bit
+(A1; no factoring, no re-association). Review verdict LAND with
+every claim reproduced: operand provenance verified by code
+reading; both mutations re-run (dropping the rank gate fails 9
+tests + an assert; collapsing rank 2 into 1 fails 6 incl. the
+masked state round trip - rank 2 is load-bearing); RNG discipline
+confirmed (rejections consume the same draws); the monotone leaf's
+weight-law early return safely dropped (feasibility sentinel kept,
+the NaN path now explicitly rejected). The adjudication (A2) was
+REPRODUCED with an independent counter build: draw shifts land
+exactly where an equal-rank comparison is realized - maskprobit 2
+realizations / maskordinal 1, all controls zero despite 54k-79k
+vetoed scores each, bcf (masked included) and multinomial zero
+across their harnesses - so ONLY the main baseline re-records; bcf
+and multinomial stand. The new bd-balance veto arm is the oracle:
+target derived by R-side enumeration over the restricted posterior,
+never the engine's ratio; pre-fix the stranded start NEVER absorbs
+in 20000 sweeps, post-fix it absorbs in 1, zero vetoed-partition
+visits in 300000 draws, max |z| = 1.8; default arm unchanged.
+Records commit 9ba57750: equivalence-d15a2bfb.rds (verified 42/42
+strict-bitwise; old-baseline cross-check reproduces exactly 40/42
+plus maskprobit 0.48 / maskordinal 0.65), MANIFEST supersession
+(c7546233 historical, draw-shifting note with the realization
+counts), equivalence.yaml, feature-matrix, and the follow-ups
+ledger reconciled (all seven prior items verified still open;
+seven residues appended: NEON dead-code kernels, fuzz-config
+reach, count-blind warnings, the flat-C struct-append hash gap,
+the stan4bart lockstep obligations, feature-matrix anchor resync,
+monotone-leaf double-fill + equal-rank-1 coverage). Gates on the
+rebased tree: main 40/42 with exactly the two adjudicated lines,
+bcf 12/12, multinomial 11/11, tinytest 6407/0, tests/cpp + ASAN
+clean, R CMD check --as-cran OK, check-doc-freshness OK, CI green.
+
 ### Wave-5b test-adequacy repairs (03b97db7, 2026-08-18)
 
 Fix-queue item 7, test-only (production code untouched; two hand-
