@@ -6962,11 +6962,12 @@ static const char* readWarmStartState(SEXP stateExpr,
       }
     }
 
-    // the LIVE variance trees and their mask channel, as in the setState
-    // parser; installForests installs these. The SAVED variance blocks are
-    // deliberately NOT read: installForests pairs a slot-sourced mean forest
-    // with the donor's current scale surface, so parsing a capacity-sized
-    // buffer it discards would be pure allocation.
+    // the LIVE and SAVED variance trees with their mask channels, as in the
+    // setState parser: installForests installs the live pair for a
+    // live-sourced start and slices the saved buffer for a slot-sourced one.
+    // Both blocks stay OPTIONAL here - a donor lacking the saved one is
+    // adjudicated by installForests, which knows the slot the caller asked
+    // for; the parser cannot.
     SEXP varianceVarsExpr = rc_getListElement(chainExpr, "variance.vars");
     if (!Rf_isNull(varianceVarsExpr)) {
       if (!readFlatTrees(varianceVarsExpr,
@@ -6980,6 +6981,22 @@ static const char* readWarmStartState(SEXP stateExpr,
           !readTreeMasks(rc_getListElement(chainExpr, "variance.masks"),
                          chainState.varianceTrees, sampler.data(),
                          chainState.varianceTreeMasks, &errorMessage))
+        break;
+    }
+    SEXP varianceSavedVarsExpr =
+      rc_getListElement(chainExpr, "variance.saved.vars");
+    if (!Rf_isNull(varianceSavedVarsExpr)) {
+      if (!readFlatTrees(varianceSavedVarsExpr,
+                         rc_getListElement(chainExpr, "variance.saved.values"),
+                         rc_getListElement(chainExpr, "variance.saved.sizes"),
+                         rc_getListElement(chainExpr, "variance.saved.flags"),
+                         sampler.data(), chainState.savedVarianceTrees,
+                         &errorMessage))
+        break;
+      if (sampler.data().hasPooledCategorical &&
+          !readTreeMasks(rc_getListElement(chainExpr, "variance.saved.masks"),
+                         chainState.savedVarianceTrees, sampler.data(),
+                         chainState.savedVarianceTreeMasks, &errorMessage))
         break;
     }
   }
@@ -7078,9 +7095,15 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                "restricted variance forest) in force here");
     case bartcore::WarmStartResult::varianceMismatch:
       Rf_error("warm-start donor's variance trees cannot be installed on this "
-               "sampler's data (a rebuilt variance tree leaves a leaf empty, "
-               "or a flat tree failed to rebuild); the donor's variance "
-               "surface is incompatible with this sampler");
+               "sampler's data (a rebuilt variance tree leaves a leaf empty, a "
+               "scale leaf is not positive, or a flat tree failed to rebuild); "
+               "the donor's variance surface is incompatible with this "
+               "sampler");
+    case bartcore::WarmStartResult::varianceSlotMismatch:
+      Rf_error("warm-start donor's saved variance buffer does not hold the "
+               "requested sample; a warm start from a saved sample installs "
+               "that sample's own scale surface, and this donor's is missing "
+               "or does not match its variance forest");
     case bartcore::WarmStartResult::shapeMismatch:
       Rf_error("warm-start donor is not shape-compatible with this sampler "
                "(number of trees, forests, or predictors differ, or only one "

@@ -734,7 +734,8 @@ Semantics:
   destination's own identity fill and report a plausible constant s(x) where the
   defect it replaces at least reported an obvious zero. The same size gate
   refuses a capacity mismatch, as the mean side already does. `installForests`
-  does not route through `stateIsValid`, so warm start is unaffected.
+  does not route through `stateIsValid`, so it carries its own gate on the same
+  posture (below).
 - The default fill is now the MULTIPLICATIVE identity 1.0. A 0.0 leaf is
   user-visible with no round trip at all - `predict()` over a slot no sweep has
   written yet multiplies a zero into the product - and, once validation applies
@@ -744,12 +745,31 @@ Semantics:
   positivity, but NOT to the occupancy pass section 14 added for the live trees.
   A saved slot is a historical replay target routed over NEW rows, never over
   this sampler's partition; the mean side does not occupancy-check its saved
-  trees either.
+  trees either. A slot-sourced warm start is the one path that makes a saved
+  slot LIVE, and it is occupancy-checked there, by `installVarianceForest` -
+  so a donor that kept sweeps and then had its rows moved can hold a slot the
+  destination refuses. Refusing is right: an unoccupied scale leaf reports a
+  scale the data never supported.
 - `setTreeStorage` re-runs `initializeSavedTrees` and resets the sample counter,
   so a capacity change followed by `$setState` refuses under the size gate -
   already the mean-side behavior.
 
-DEFERRED: `installForests` still pairs a slot-sourced mean forest with the
-donor's LIVE variance surface rather than slot k's saved one. Slot-paired scale
-surfaces would move the warm start's starting position and hence every
-downstream draw; the constraint is recorded at the reassembly site.
+Warm start pairs the two halves at ONE sample. `installForests` slices the
+donor's saved variance buffer at the slot its mean forests come from, so
+`samples = k` means sample k's mean forest AND sample k's scale surface; the two
+buffers are index-aligned by construction (one slot base drives both, and both
+index by the sample number), so the pairing is exact rather than nominal. A
+live-sourced start (slot < 0, the pool a keepTrees = FALSE donor offers) takes
+the donor's live pair, unchanged. This matters most where the argument is
+`samples = NULL`: the chains spread across the donor pool for overdispersion,
+which the old reassembly delivered on the mean half while handing every chain
+the same final scale surface.
+
+The buffer must cover the named sample, and its STRIDE must be the donor's own
+variance tree count: a state whose live variance block was replaced by a shorter
+one would otherwise slice across two sweeps' trees and still present the right
+count downstream. Both are refused as `varianceSlotMismatch`, before any live
+state is touched. The sliced trees are additionally held to the scale-leaf
+positivity law state validation applies to a saved slot - the fix multiplies the
+hand-buildable surface by capacity, and a rebuild scatters the leaf straight
+into a divisor.

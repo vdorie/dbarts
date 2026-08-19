@@ -268,8 +268,8 @@ expect_true(
   any(sampler.homoscedastic$run(0L, 5L)$sigma != homoscedasticSigma)
 )
 
-# a warm start carries no variance trees, so a donor and destination that
-# disagree on the variance forest are refused in both directions
+# a warm start carries the donor's variance trees, so a donor and destination
+# that disagree on the variance forest are refused in both directions
 donor.variance <- dbarts::dbarts(
   y ~ x + z,
   train,

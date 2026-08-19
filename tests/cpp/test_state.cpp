@@ -1431,6 +1431,140 @@ static void testVarianceSavedTreeState() {
   printf("ok: variance-forest saved-tree state\n");
 }
 
+// A warm start from a SAVED sample takes that sample's own scale surface, not
+// the donor's live one: the mean and variance saved buffers are index-aligned
+// by construction (one slot base drives both, both index by the sample number),
+// so the destination's live variance trees after the install are exactly the
+// donor's saved slice. State-level for the reason testVarianceWarmStart's gate
+// is. Four refusals ride the same fixture: a buffer that does not cover the
+// named slot, an absent one, one whose STRIDE disagrees with the donor's
+// variance tree count (the only way a slice can cross slot boundaries, and
+// invisible to any check downstream, which sees a correctly sized vector), and
+// a saved slot carrying a non-positive scale leaf.
+static void testVarianceWarmStartSlot() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 727272u;
+
+  const size_t n = 300, p = 2, numTrees = 20, numVarianceTrees = 5;
+  const size_t numSamples = 4;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y[i] = 3.0 * x[i] + (x[i + n] < 0.5 ? 0.2 : 1.4) * z;
+  }
+
+  std::vector<ext_rng*> rngs;
+  auto makeSampler = [&](std::uint32_t seed) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numVarianceTrees = numVarianceTrees;
+    options.keepTrees = true;
+    options.numSamplesToStore = numSamples;
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+      3.0, 0.37804942330213542, options, &r);
+  };
+  std::vector<double> sigma(numSamples);
+  Results results;
+  results.sigma = sigma.data();
+
+  auto donor = makeSampler(1717);
+  donor->run(60, numSamples, results);
+  SamplerStateData donorState;
+  donor->getState(donorState);
+  const std::vector<std::vector<FlatNode>>& savedVariance(
+    donorState.chains[0].savedVarianceTrees);
+  check(savedVariance.size() == numSamples * numVarianceTrees,
+        "variance slot warm start: the donor's saved block is capacity x trees");
+  auto slotTrees = [&](const SamplerStateData& state, size_t slot) {
+    const std::vector<std::vector<FlatNode>>& block(
+      state.chains[0].savedVarianceTrees);
+    return std::vector<std::vector<FlatNode>>(
+      block.begin() + slot * numVarianceTrees,
+      block.begin() + (slot + 1) * numVarianceTrees);
+  };
+
+  // the first and last slots both install their own surface; the first is also
+  // the discriminating one, since the last sweep's saved trees are the live
+  // ones and would pass even under the old live-copy reassembly
+  for (size_t slot : {size_t(0), numSamples - 1}) {
+    auto dest = makeSampler(3434 + static_cast<std::uint32_t>(slot));
+    dest->run(60, numSamples, results);
+    SamplerStateData before;
+    dest->getState(before);
+    check(!sameFlatTrees(before.chains[0].varianceTrees,
+                         slotTrees(donorState, slot)),
+          "variance slot warm start: the destination's own surface differs "
+          "first");
+    std::vector<std::pair<size_t, int>> slotMap = {{0, static_cast<int>(slot)}};
+    check(dest->installForests(donorState, slotMap) == WarmStartResult::ok,
+          "variance slot warm start: a slot-sourced heteroscedastic donor "
+          "installs");
+    SamplerStateData after;
+    dest->getState(after);
+    check(sameFlatTrees(after.chains[0].varianceTrees,
+                        slotTrees(donorState, slot)),
+          "variance slot warm start: the named sample's scale surface is the "
+          "destination's");
+    if (slot == 0)
+      check(!sameFlatTrees(after.chains[0].varianceTrees,
+                           donorState.chains[0].varianceTrees),
+            "variance slot warm start: and it is not the donor's live surface");
+  }
+
+  auto target = makeSampler(5656);
+  target->run(60, numSamples, results);
+  SamplerStateData untouched;
+  target->getState(untouched);
+
+  // a one-short buffer: the last slot is the one it strands, so name it
+  SamplerStateData shortBuffer = donorState;
+  shortBuffer.chains[0].savedVarianceTrees.pop_back();
+  std::vector<std::pair<size_t, int>> lastMap = {
+    {0, static_cast<int>(numSamples - 1)}};
+  check(target->installForests(shortBuffer, lastMap) ==
+          WarmStartResult::varianceSlotMismatch,
+        "variance slot warm start: a short saved buffer is refused");
+
+  SamplerStateData noBlock = donorState;
+  noBlock.chains[0].savedVarianceTrees.clear();
+  check(target->installForests(noBlock, lastMap) ==
+          WarmStartResult::varianceSlotMismatch,
+        "variance slot warm start: an absent saved buffer is refused");
+
+  // stride: a live block shorter than the buffer's stride would slice across
+  // two sweeps' trees and still hand installVarianceForest the right COUNT
+  SamplerStateData spliced = donorState;
+  spliced.chains[0].varianceTrees.resize(numVarianceTrees - 2);
+  check(target->installForests(spliced, lastMap) ==
+          WarmStartResult::varianceSlotMismatch,
+        "variance slot warm start: a stride the live block contradicts is "
+        "refused");
+
+  // the positivity law the saved buffer is held to on the state side: a zero
+  // scale leaf annihilates the product a rebuild forms
+  SamplerStateData nonPositive = donorState;
+  nonPositive.chains[0].savedVarianceTrees[0].back().value = 0.0;
+  std::vector<std::pair<size_t, int>> firstMap = {{0, 0}};
+  check(target->installForests(nonPositive, firstMap) ==
+          WarmStartResult::varianceMismatch,
+        "variance slot warm start: a non-positive saved scale leaf is refused");
+  // and the refusal is SLOT-specific: the same state installs from any slot
+  // whose own trees are intact
+  check(target->installForests(nonPositive, lastMap) == WarmStartResult::ok,
+        "variance slot warm start: another slot of the same state installs");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: variance-forest slot-sourced warm start\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -1446,6 +1580,7 @@ void runStateTests(ext_rng* rng) {
   testBlockAdditiveConfinement();
   testCrossGridWarmStart();
   testVarianceWarmStart();
+  testVarianceWarmStartSlot();
   testVarianceSavedTreeState();
   testStateLeafScale(rng);
 }
