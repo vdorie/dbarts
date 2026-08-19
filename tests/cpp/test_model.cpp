@@ -6865,6 +6865,71 @@ static void testMonotoneCInflation() {
          sigmaMu * sigmaMu);
 }
 
+// The shipped flat-C API (inst/include/dbarts/dbarts.h) resolves a family
+// token to one of these ResponseFamily values; gaussian, probit and nbinom
+// each have a create-path test elsewhere in this suite, but logistic,
+// ordinal and aft do not. Each cell here builds the minimal valid data for
+// its family, confirms the factory accepts it, and runs a few sweeps.
+static void testFlatFamilyCreatePaths() {
+  uint64_t savedRngState = rngState;  // leave the shared draw stream in place
+  const size_t n = 60, p = 2;
+  std::vector<double> x(n * p);
+  for (size_t i = 0; i < n * p; ++i) x[i] = runif01();
+
+  SamplerOptions options;
+  options.numTrees = 10;
+
+  {
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i) y[i] = x[i] > 0.5 ? 1.0 : 0.0;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 4001u);
+    std::unique_ptr<SamplerBase> sampler = createSampler(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::logistic,
+      1.0, 3.0, 0.378, options, &rng);
+    check(sampler != nullptr, "flat-C family create path: logistic accepted");
+    Results empty;
+    if (sampler != nullptr) sampler->run(5, 5, empty);
+    ext_rng_destroy(rng);
+  }
+
+  {
+    const size_t K = 3;
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i) y[i] = static_cast<double>(1 + i % K);
+    SamplerOptions ordinalOptions = options;
+    ordinalOptions.numCategories = K;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 4002u);
+    std::unique_ptr<SamplerBase> sampler = createSampler(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::ordinal,
+      1.0, 3.0, 0.378, ordinalOptions, &rng);
+    check(sampler != nullptr, "flat-C family create path: ordinal accepted");
+    Results empty;
+    if (sampler != nullptr) sampler->run(5, 5, empty);
+    ext_rng_destroy(rng);
+  }
+
+  {
+    std::vector<double> logT(n), status(n, 1.0);
+    for (size_t i = 0; i < n; ++i) logT[i] = x[i] + 0.1 * (double) (i % 3);
+    SamplerOptions aftOptions = options;
+    aftOptions.survivalStatus = status.data();
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 4003u);
+    std::unique_ptr<SamplerBase> sampler = createSampler(
+      x.data(), logT.data(), n, p, nullptr, nullptr, ResponseFamily::aft,
+      1.0, 3.0, 0.378, aftOptions, &rng);
+    check(sampler != nullptr, "flat-C family create path: aft accepted");
+    Results empty;
+    if (sampler != nullptr) sampler->run(5, 5, empty);
+    ext_rng_destroy(rng);
+  }
+
+  rngState = savedRngState;
+  printf("ok: flat-C family create paths (logistic, ordinal, aft)\n");
+}
+
 void runModelTests(ext_rng* rng) {
   testLeafSeamDispatch();
   testUnitLowerFactorization();
@@ -6949,4 +7014,5 @@ void runModelTests(ext_rng* rng) {
   testVarianceEmptyBottomStateRoundTrip();
   testVarianceSavedPredict();
   testVarianceM1Reduction();
+  testFlatFamilyCreatePaths();
 }

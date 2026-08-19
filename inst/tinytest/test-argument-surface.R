@@ -203,6 +203,11 @@ expect_equal(diverged, character(0))
 # above never compares it. bart2/rbart_vi's own default text moves to NULL,
 # identical by construction to the old 1 / num.vars (resolveSplitProbabilities
 # treats a NULL spec and a length-one spec the same way: uniform, dropped).
+# existence asserted before the value: formals(f)[["nosuch"]] is also NULL,
+# so the identity check alone would pass just as well if the formal were
+# removed outright
+expect_true("split.probs" %in% names(formals(dbarts::bart2)))
+expect_true("split.probs" %in% names(formals(dbarts::rbart_vi)))
 expect_identical(formals(dbarts::bart2)[["split.probs"]], NULL)
 expect_identical(formals(dbarts::rbart_vi)[["split.probs"]], NULL)
 

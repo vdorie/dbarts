@@ -45,7 +45,8 @@ expectTwinsAgree <- function(design, y, sparse.arg, dense.arg, column = NULL) {
       }
     }
   }
-  tinytest::expect_identical(
+  # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
+  expect_identical(
     mutatedState(design, y, mutate(sparse.arg)),
     mutatedState(design, y, mutate(dense.arg))
   )

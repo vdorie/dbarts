@@ -1515,3 +1515,80 @@ rm(ptr1, ptr2, ptr3, ptrBinary, ptrFixed, ptrLL)
 rm(ptrCbA, ptrCbB, ptrStop, ptrMT, ptrG, ptrBCF, ptrW1, ptrW2, ptrW3)
 invisible(gc(FALSE))
 rm(offsetBCF, weightsBCF, yBCF, zBCF, weightsForest, onesForest)
+
+# ---------------------------------------------------------------------------
+# Flat-C family create-path cells: logistic, ordinal, aft. "" and "probit"
+# are already driven above (ptr1/ptrBinary), nbinom via ptrCount - these three
+# had no create-path test on the shipped ABI. Each builds family-appropriate
+# data, creates through dbarts_sampler_create with the matching family token,
+# runs a few samples, and checks finite, correctly-shaped output.
+
+yLogisticFlat <- rbinom(n, 1L, plogis(scale(y)))
+specLogisticFlat <- dbarts(
+  x,
+  yLogisticFlat,
+  family = "logistic",
+  control = control
+)
+ptrLogisticFlat <- CALL(
+  "capi_create",
+  specLogisticFlat$control,
+  specLogisticFlat$model,
+  specLogisticFlat$data,
+  "logistic"
+)
+rLogisticFlat <- CALL("capi_run", ptrLogisticFlat, 3L, 4L, TRUE, FALSE)
+expect_equal(dim(matrix(rLogisticFlat$train, n)), c(n, 4L))
+expect_true(all(is.finite(rLogisticFlat$train)))
+
+yOrdinalFlat <- 1L + (seq_len(n) %% 3L)
+specOrdinalFlat <- dbarts(
+  x,
+  yOrdinalFlat,
+  family = "ordinal",
+  control = control
+)
+ptrOrdinalFlat <- CALL(
+  "capi_create",
+  specOrdinalFlat$control,
+  specOrdinalFlat$model,
+  specOrdinalFlat$data,
+  "ordinal"
+)
+rOrdinalFlat <- CALL("capi_run", ptrOrdinalFlat, 3L, 4L, TRUE, FALSE)
+expect_equal(dim(matrix(rOrdinalFlat$train, n)), c(n, 4L))
+expect_true(all(is.finite(rOrdinalFlat$train)))
+
+# positive times, logged for the y the aft response reads
+logTimesFlat <- log(rexp(n, rate = 1))
+specAftFlat <- dbarts(x, logTimesFlat, control = control)
+ctrlAftFlat <- specAftFlat$control
+attr(ctrlAftFlat, "bartcore.survival") <- rep(1, n) # every observation an event
+ptrAftFlat <- CALL(
+  "capi_create",
+  ctrlAftFlat,
+  specAftFlat$model,
+  specAftFlat$data,
+  "aft"
+)
+rAftFlat <- CALL("capi_run", ptrAftFlat, 3L, 4L, TRUE, FALSE)
+expect_equal(dim(matrix(rAftFlat$train, n)), c(n, 4L))
+expect_true(all(is.finite(rAftFlat$train)))
+expect_true(all(rAftFlat$sigma > 0))
+
+rm(
+  yLogisticFlat,
+  specLogisticFlat,
+  ptrLogisticFlat,
+  rLogisticFlat,
+  yOrdinalFlat,
+  specOrdinalFlat,
+  ptrOrdinalFlat,
+  rOrdinalFlat,
+  logTimesFlat,
+  specAftFlat,
+  ctrlAftFlat,
+  ptrAftFlat,
+  rAftFlat
+)
+invisible(gc(FALSE))

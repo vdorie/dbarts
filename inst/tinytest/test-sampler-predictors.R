@@ -151,18 +151,28 @@ rm(deepCopy, n, sampler)
 # extract() after a per-observation partial mutation, and a shallow copy
 # taken before it: extends the full-column case above to the partial path
 # (does not duplicate it - the divergence there is already covered)
+set.seed(1L) # a seed under which the flip below declines at least one row
 sampler <- dbarts::dbarts(y ~ x + z, train, test, control = control)
 n <- testData$n
 
 partialCopy <- sampler$copy(shallow = TRUE)
 origZ <- as.numeric(sampler$data@x[, 2L])
 
+# fitted trees first, so the flip below can genuinely decline a row (an empty
+# leaf), not just report an install mask that is trivially all-TRUE on a
+# freshly created sampler
+invisible(sampler$run(50L, 1L))
+
 installed <- sampler$setPredictor(1 - origZ, 2L, forceUpdate = "partial")
+expect_true(any(!installed)) # not vacuous: some row is actually declined
 
 predictors <- extract(sampler, "predictors")
 expect_equal(predictors, as.matrix(sampler$data@x))
-expect_equal(predictors[installed, 2L], (1 - origZ)[installed])
-expect_equal(predictors[!installed, 2L], origZ[!installed])
+# unname(): a single-row selection carries the column name as a names
+# attribute, which the origZ side never has - a shape artifact of `[`, not a
+# value difference
+expect_equal(unname(predictors[installed, 2L]), (1 - origZ)[installed])
+expect_equal(unname(predictors[!installed, 2L]), origZ[!installed])
 
 expect_equal(extract(partialCopy, "predictors")[, 2L], origZ)
 expect_false(isTRUE(all.equal(
