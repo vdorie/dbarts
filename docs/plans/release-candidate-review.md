@@ -540,6 +540,72 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Flat-C ABI token layout fold + enforced handshake (ad4a131b, 2026-08-19)
+
+Closes the flat-C struct-append surface decision (VD: fold the
+layouts, 2026-08-19) and the ledger's hash half of items 4/11.
+DBARTS_C_API_HASH (now 0x6c9776ae1197e8f5) folds, beyond the
+entry-point signatures: each ABI struct's size and per-field
+name+offset in pointer units (one macro token feeds both, so name
+and offset cannot drift; offsets are compiler-reported, never
+hand-kept layout text), the two ABI enums' stringized enumerator
+lists (the enum bodies are X-macro generated, so an added enumerator
+cannot escape the fold), and the callback's hoisted parameter list.
+Integers enter FNV-1a via shift-based byte extraction (endian-proof);
+a private signature-only literal stays in C_interface.cpp so a
+failed build names WHICH half moved. The stubs now ENFORCE the
+handshake on first symbol resolution (Rf_error naming the cure),
+replacing the opt-in consumer check; test-capi.R re-pins the token,
+demotes the layout-blind literal to the must-not-equal list, and
+adds a NEGATIVE test: a consumer compiled with a forced-wrong token
+(the header's #ifndef guard is the only door) fails at create.
+Design memo critiqued blind, verdict SOUND-WITH-AMENDMENTS; all
+five mandatory amendments bound and implemented (field names not
+field sizes; X-macro enums; pointer-unit normalization instead of a
+64-bit guard; shift-based bytes; enforced + negatively-tested
+handshake). Documented residue: same-width in-place field type
+swaps only. Gates dual-run (implementer + independent runner):
+flip-digit re-bake proof; mutation probes discriminate (struct
+append, field swap, enum addition, callback change -> combined
+assert only; signature change -> both asserts); tinytest 6409/0
+(test-capi.R 254 incl. the negative test); equivalence bitwise
+42/42, 12/12, 11/11 with zero max |z| lines; air and lintr clean; R
+CMD check from an out-of-tree tarball Status OK. tests/cpp does not
+link C_interface.cpp: the CI sanitizers leg on this commit is the
+ASAN evidence for the stub path. CONSEQUENCE: both consumer
+branches (stan4bart bartcore, treatSens dbarts-1.0) now REQUIRE a
+--preclean rebuild at lockstep - the token moved and the stubs
+enforce it.
+
+### CI hardening - apt stall diagnosis and bounds (887787fd, 2026-08-19)
+
+VD-prioritized mid-arc. The recurring "cancelled" CI runs were
+TIMEOUTS misread as the concurrency quirk: job logs show apt-get
+update/install (inside setup-r and setup-r-dependencies) emitting
+zero output until the job limit, on three consecutive lint attempts,
+two exact-gates attempts, pkgdown and three ubuntu R-CMD-check legs.
+apt has no default network timeout, so a stalled connection to the
+Ubuntu archive mirror waits forever. Not suite creep, not R-package
+cache loss (cache hits resolved in seconds). Fix: an apt.conf.d
+drop-in (Acquire::Retries 3, http/https Timeout 15s) written before
+any apt call in the four exposed workflows; step-level
+timeout-minutes on setup-r (12; 15 on the check matrix) and
+setup-r-dependencies (15; 20 on the check matrix); job timeouts
+resized from hang-sized to observed duration plus headroom (lint
+15->20, exact-gates 25->30, pkgdown 90->30, check-standard 80->30).
+No gate's checks changed; package tree byte-identical to 77349d29's
+gated build. Validated the same afternoon against a live Canonical
+incident: the drop-in skipped the dead azure.archive.ubuntu.com farm
+in ~23s of retries, the archive.ubuntu.com fallback then trickled
+past the 15s inactivity timeout, and the step bound killed it at
+exactly 12 minutes with the step named - a silent 25-90 minute burn
+became a fast attributed failure. Known residue: no native step
+retry exists (reruns stay manual); setup-r's own R-download curl is
+outside the apt conf; actions are pinned to moving major tags;
+earlier genuine cancel-at-creation events (zero steps run) remain a
+separate unexplained phenomenon. The apt-immune legs (cpp-tests,
+sanitizers) stayed green throughout the incident.
+
 ### Arc-close comment sweep, residual pass (77349d29, 2026-08-19)
 
 The reading-pass sweep owed at arc close, before the RC call. The
