@@ -23,7 +23,7 @@ permissions: read-all
 jobs:
   pkgdown:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
     concurrency:
       group: pkgdown-${{ github.event_name != 'pull_request' || github.run_id }}
     env:
@@ -33,13 +33,26 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # apt-get has been observed to stall indefinitely against the Ubuntu
+      # archive mirror on hosted runners (both inside setup-r below and
+      # inside the system requirements install); bounded retries turn a
+      # stall into a fast failure instead of one that burns the whole job
+      # timeout.
+      - name: Bound apt network stalls
+        run: |
+          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/99-ci-retry
+          echo 'Acquire::http::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
+          echo 'Acquire::https::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
+
       - uses: r-lib/actions/setup-pandoc@v2
 
       - uses: r-lib/actions/setup-r@v2
+        timeout-minutes: 12
         with:
           use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2
+        timeout-minutes: 15
         with:
           extra-packages: any::pkgdown, local::.
           needs: website
