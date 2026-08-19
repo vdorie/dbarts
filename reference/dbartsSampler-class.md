@@ -256,10 +256,16 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   A numeric vector of non-negative case weights, of length equal to that
   with which the sampler was created. Weights of zero exclude an
   observation from the likelihood while keeping its fitted values.
-  `setWeights` only applies to a gaussian-family sampler; calling it on
-  a probit- or logistic-family sampler is refused, since a weighted
-  probit has no tractable latent-variable form and logistic weights
-  (observation counts) are fixed when the sampler is created. See
+  Installed BETWEEN samples on a forest that has already grown, a vector
+  of zeros can leave leaves that no positive-weight row reaches - the
+  trees were drawn before it existed, and weights are not part of the
+  saved `state` - which is a legal, transient state rather than an
+  error: such a tree keeps moving under the tree prior at a constant
+  likelihood and returns to leaves the likelihood reaches. `setWeights`
+  only applies to a gaussian-family sampler; calling it on a probit- or
+  logistic-family sampler is refused, since a weighted probit has no
+  tractable latent-variable form and logistic weights (observation
+  counts) are fixed when the sampler is created. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
   the family-specific weight rules that apply at creation time.
 
@@ -325,7 +331,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   counts POSITIVE-WEIGHT members rather than members, so it degenerates
   to the member count exactly when no weight vector is installed - but a
   mask IS a weight vector, so with one installed a leaf all of whose
-  rows are inactive is vetoed rather than counted as occupied.
+  rows are inactive is vetoed rather than counted as occupied. A mask
+  installed mid-run on a grown forest can therefore strand a leaf the
+  trees were drawn without it: the affected tree keeps moving under the
+  tree prior at a constant likelihood and is absorbed back into the
+  vetoed-free set as those leaves clear. With every row inactive that is
+  the whole forest, which is the exact sense in which it “sits at its
+  prior” - a distribution over structures, not a frozen one.
 
   An inactive row's own latent draw is SKIPPED - no random numbers are
   consumed for it - for every family except Student-t, whose per-row
