@@ -2829,9 +2829,9 @@ static bool sameStreamPosition(const ext_rng* a, const ext_rng* b) {
   return stateA == stateB;
 }
 
-static ext_rng* makeSeamRng() {
+static ext_rng* makeSeamRng(unsigned int seed = 20260813u) {
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
-  ext_rng_setSeed(rng, 20260813u);
+  ext_rng_setSeed(rng, seed);
   return rng;
 }
 
@@ -4694,13 +4694,49 @@ static void testMultinomial(ext_rng* rng) {
   printf("ok: multinomial softmax sampler\n");
 }
 
+// K constant-leaf forests for the level-centering seam: forest k gets
+// leaves[k].size() stump trees carrying one occupied leaf apiece at the given
+// value, a shared leaf scale and leaf k, and the supplied per-row total fits.
+// Each tree points into its forest's own index buffer, so the forests are
+// filled in place rather than returned by value.
+static void buildSeamForests(std::vector<Forest<ConstantGaussianLeaf>>& forests,
+                             const std::vector<std::vector<double>>& leaves,
+                             const std::vector<std::vector<double>>& fits,
+                             double scale, double leafK, size_t n) {
+  size_t K = leaves.size();
+  forests.clear();
+  forests.resize(K);
+  for (size_t k = 0; k < K; ++k) {
+    size_t numTrees = leaves[k].size();
+    forests[k].numTrees = numTrees;
+    forests[k].leaf.scale = scale;
+    forests[k].k = leafK;
+    forests[k].totalFits = fits[k];
+    forests[k].indexBuffer.assign(n * numTrees, 0);
+    forests[k].trees.resize(numTrees);
+    forests[k].muByTree.assign(numTrees, std::vector<double>(1, 0.0));
+    for (size_t t = 0; t < numTrees; ++t) {
+      forests[k].trees[t].initialize(forests[k].indexBuffer.data() + t * n, n);
+      forests[k].muByTree[t][0] = leaves[k][t];
+    }
+  }
+}
+
 // The SECOND live override of the same post-combine virtual (combiner.hpp,
 // MultinomialForestCombiner::afterCombine), pinned at the same seam as BCF's
 // because M4.2 redefines the virtual for both. Its convention is the opposite
 // one: the move is a dataset-wide ADDITIVE shift, drawn from a single standard
 // normal, and the returned 1.0 is a constant that says nothing about whether a
 // move was made - the base virtual's "the scale its move applied" is already
-// false here. Dyadic fixture values, so the reference shift is exact.
+// false here. Dyadic fixture values, so the reference arithmetic is exact.
+//
+// Both conditional arms carry a reference the routine cannot supply: arm A the
+// documented closed form (docs/design/multinomial.md - at the intercept-only
+// configuration the move is an exact independence sampler from the level's
+// marginal N(0, tau^2/K)), arm B a precision and numerator computed BY HAND off
+// the fixture. Re-deriving the routine's own per-leaf sd here would pin
+// nothing: the fixture sets leaf.scale directly, so an oracle written that way
+// shares with the routine whatever it does with that scale.
 static void testMultinomialCombinerSeam() {
   const size_t n = 4, K = 3;
   std::vector<double> xDummy(n, 0.0);
@@ -4715,68 +4751,104 @@ static void testMultinomialCombinerSeam() {
   spec.trials = trials.data();
   MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
 
-  // one occupied leaf per tree, at leaf scale 2 and k 2. Forest 0 carries TWO
-  // trees on purpose: the move's four per-tree factors - the leaf sd's
-  // sqrt(m), the conditional's m^2 and m divisors, and the uniform absorption
-  // c/m - are all invisible at a fixture where every m is 1
+  // Arm A, the documented identity. Every forest is a stump ensemble of m = 4
+  // trees at leaf scale 1 and leaf k 2, so the per-leaf sd is s = 1/2 and the
+  // per-forest total-fit sd is tau = s sqrt(m) = 1: the move must land the
+  // grand level at exactly z tau/sqrt(K) for its one standard normal z,
+  // WHATEVER the level was before. Each forest's totalFits is seeded to its own
+  // leaf sum, which is what a stump ensemble actually fits, because the
+  // conditional's mean is built from leaf sums and any other seeding reads a
+  // level the identity does not describe; and the pre-move level is
+  // deliberately NONZERO, so the single assertion pins the conditional's mean
+  // and its sd together.
+  {
+    const std::vector<std::vector<double>> leaves = {{0.5, -0.25, 0.125, 0.0625},
+                                                     {-0.75, 0.25, 0.5, -0.125},
+                                                     {1.0, -0.5, 0.25, 0.375}};
+    std::vector<std::vector<double>> fits(K);
+    double preLevel = 0.0;
+    for (size_t k = 0; k < K; ++k) {
+      double leafSum = 0.0;
+      for (double value : leaves[k]) leafSum += value;
+      fits[k].assign(n, leafSum);
+      preLevel += leafSum / static_cast<double>(K);
+    }
+    std::vector<Forest<ConstantGaussianLeaf>> forests;
+    buildSeamForests(forests, leaves, fits, 1.0, 2.0, n);
+    ext_rng* live = makeSeamRng();
+    ext_rng* reference = makeSeamRng();
+    combiner.afterCombine(forests, false, 0, live);
+    double z = ext_rng_simulateStandardNormal(reference);
+    double tau = 1.0;  // (leaf scale / leaf k) * sqrt(m) = (1/2) * 2
+    double level = 0.0;
+    for (size_t k = 0; k < K; ++k)
+      level += forests[k].totalFits[0] / static_cast<double>(K);
+    check(std::fabs(preLevel) > 0.1,
+          "the identity arm enters at a level the move has to remove");
+    checkNear(level, z * tau / std::sqrt(static_cast<double>(K)), 1e-13,
+              "the intercept-only move draws the level from N(0, tau^2/K), "
+              "independent of the level it found");
+    ext_rng_destroy(reference);
+    ext_rng_destroy(live);
+  }
+
+  // Arm B, the asymmetric conditional. Forest 0 carries TWO trees on purpose:
+  // the move's per-tree factors - the conditional's m^2 and m divisors and the
+  // uniform c/m absorption - are all invisible at a fixture where every m is 1,
+  // and only unequal m makes the MEAN sensitive to a per-forest mis-scaling.
+  // HAND-COMPUTED at leaf scale 2 and leaf k 2, so the per-leaf sd is s = 1:
+  //   prec = 2/(2^2 * 1) + 1/(1 * 1) + 1/(1 * 1)         = 2.5,
+  //   num  = (0.5 - 0.125)/2 + (-0.25)/1 + 0.75/1        = 0.6875,
+  //   mean = -num/prec = -0.275,   sd = 1/sqrt(2.5) = 0.6324555.
+  // Two seams at two seeds solve the mean and the sd out of the OUTPUT shift,
+  // against those decimal targets, in a shape that shares no expression with
+  // the routine; the exact reference below then pins the absorption bitwise.
   const std::vector<std::vector<double>> leaves = {{0.5, -0.125},
                                                    {-0.25},
                                                    {0.75}};
   const std::vector<std::vector<double>> fits = {{0.25, -0.5, 1.0, 0.125},
                                                  {0.5, 0.25, -0.75, 1.5},
                                                  {-1.0, 0.75, 0.5, -0.25}};
-  std::vector<Forest<ConstantGaussianLeaf>> forests(K);
-  for (size_t k = 0; k < K; ++k) {
-    size_t numTrees = leaves[k].size();
-    forests[k].numTrees = numTrees;
-    forests[k].leaf.scale = 2.0;
-    forests[k].k = 2.0;
-    forests[k].totalFits = fits[k];
-    forests[k].indexBuffer.assign(n * numTrees, 0);
-    forests[k].trees.resize(numTrees);
-    forests[k].muByTree.assign(numTrees, std::vector<double>(1, 0.0));
-    for (size_t t = 0; t < numTrees; ++t) {
-      forests[k].trees[t].initialize(forests[k].indexBuffer.data() + t * n, n);
-      forests[k].muByTree[t][0] = leaves[k][t];
-    }
-  }
   check(leaves[0].size() > 1 && leaves[1].size() == 1,
         "the seam fixture carries forests of unequal tree count");
-
-  ext_rng* live = makeSeamRng();
-  ext_rng* reference = makeSeamRng();
-  double returned = combiner.afterCombine(forests, false, 0, live);
-  // the conditional, in the shipped order: the per-leaf sd carries sqrt(m), the
-  // precision m^2 and the numerator m, so an m that is 1 everywhere would leave
-  // all three - and the c/m absorption below - unmeasured
-  double precision = 0.0, numerator = 0.0;
-  for (size_t k = 0; k < K; ++k) {
-    double m = static_cast<double>(leaves[k].size());
-    double s = 2.0 / (2.0 * std::sqrt(m));  // leaf scale / (k sqrt(m))
-    double inverseVariance = 1.0 / (s * s);
-    double leafSum = 0.0;
-    for (double value : leaves[k]) leafSum += value;
-    precision += m * inverseVariance / (m * m);
-    numerator += leafSum * inverseVariance / m;
+  const unsigned int seamSeeds[2] = {20260813u, 20260901u};
+  double shift[2] = {0.0, 0.0}, normal[2] = {0.0, 0.0};
+  double returned = 0.0, c = 0.0;
+  bool streamPinned = true, additive = true;
+  std::vector<Forest<ConstantGaussianLeaf>> forests;
+  for (size_t r = 0; r < 2; ++r) {
+    buildSeamForests(forests, leaves, fits, 2.0, 2.0, n);
+    ext_rng* live = makeSeamRng(seamSeeds[r]);
+    ext_rng* reference = makeSeamRng(seamSeeds[r]);
+    returned = combiner.afterCombine(forests, false, 0, live);
+    normal[r] = ext_rng_simulateStandardNormal(reference);
+    streamPinned &= sameStreamPosition(live, reference);
+    shift[r] = forests[0].totalFits[0] - fits[0][0];
+    c = -0.6875 / 2.5 + normal[r] / std::sqrt(2.5);
+    for (size_t k = 0; k < K; ++k) {
+      double perTree = c / static_cast<double>(leaves[k].size());
+      for (size_t t = 0; t < leaves[k].size(); ++t)
+        additive &= forests[k].muByTree[t][0] == leaves[k][t] + perTree;
+      for (size_t i = 0; i < n; ++i)
+        additive &= forests[k].totalFits[i] == fits[k][i] + c;
+    }
+    ext_rng_destroy(reference);
+    ext_rng_destroy(live);
   }
-  double c = -numerator / precision +
-             ext_rng_simulateStandardNormal(reference) / std::sqrt(precision);
   check(returned == 1.0,
         "the multinomial post-combine move returns 1.0 having moved");
-  check(sameStreamPosition(live, reference),
+  check(streamPinned,
         "the level-centering shift is one standard normal and nothing else");
-  bool additive = true;
-  for (size_t k = 0; k < K; ++k) {
-    double perTree = c / static_cast<double>(leaves[k].size());
-    for (size_t t = 0; t < leaves[k].size(); ++t)
-      additive &= forests[k].muByTree[t][0] == leaves[k][t] + perTree;
-    for (size_t i = 0; i < n; ++i)
-      additive &= forests[k].totalFits[i] == fits[k][i] + c;
-  }
   check(additive,
         "every forest's fits take the whole c while its leaves absorb c/m");
-  ext_rng_destroy(reference);
-  ext_rng_destroy(live);
+  check(std::fabs(normal[0] - normal[1]) > 0.1,
+        "the two seams' standard normals are separated enough to solve on");
+  double sd = (shift[0] - shift[1]) / (normal[0] - normal[1]);
+  double mean = shift[0] - sd * normal[0];
+  checkNear(mean, -0.275, 1e-12,
+            "the asymmetric conditional centers at -num/prec");
+  checkNear(sd, 0.632455532033676, 1e-12,
+            "the asymmetric conditional's sd is 1/sqrt(prec)");
 
   // the no-move path returns the SAME 1.0 as the move above, which is exactly
   // why the return value cannot be read as this combiner's move indicator

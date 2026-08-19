@@ -87,8 +87,10 @@ sum-of-tree-fits invariant is therefore preserved to rounding
 (m_k * fl(c/m_k) is not exactly c).
 
 The conditional is exact in LEAF space, which is where the prior lives: each
-leaf value is a priori N(0, s_k^2) with per-leaf sd s_k = nodeScale/(k sqrt(m_k))
-(NOT N(0, tau^2) on the total fit - that would treat the n*K fits as independent
+leaf value is a priori N(0, s_k^2) with per-leaf sd s_k = nodeScale/(k sqrt(m_k)),
+which is `leaf.scale_k / k` in code - `leaf.scale` already carries the
+1/sqrt(m_k), so the combiner divides by k and nothing else (NOT N(0, tau^2) on
+the total fit - that would treat the n*K fits as independent
 prior draws and both over-count the precision and, worse, hand the move a mean
 that subtracts the whole level every sweep). With L_k and S_k the count and value
 sum of forest k's occupied leaves over all its trees,
@@ -129,7 +131,8 @@ per-leaf scale is nodeScale/sqrt(numTrees) (buildMultinomialForest), and the
 per-forest total-fit prior sd is tau = nodeScale/k, with k = 2 the default, so
 tau = pi*sqrt(3)/sqrt(2)/2 ~ 1.9238 - the sd the exact gate reads. The centering
 conditional reads the per-LEAF sd s = nodeScale/(k sqrt(numTrees)) = tau/sqrt(m)
-instead, since that is the scale its prior term is written on.
+instead, since that is the scale its prior term is written on; in code that is
+`leaf.scale / k`, the 1/sqrt(numTrees) already being inside `leaf.scale`.
 
 The margin C_ik makes the effective prior K-DEPENDENT: the softmax is a coupled
 nonlinear map of the K forests, so no single per-forest scale matches the binary
