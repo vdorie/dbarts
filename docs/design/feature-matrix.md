@@ -464,7 +464,8 @@ the same call (C_interface.cpp:585, 607). setData stays refused.
 and `setSigma`; grouped probit is refused on both (RIB:2763, RIB:2873); grouped
 aft takes `setSigma` and refuses `setWeights`.
 
-[f15] Arc `latent-subset-mask` (TODO:469), design FINAL, ARC COMPLETE (S0
+[f15] Arc `latent-subset-mask` (docs/plans/latent-subset-mask.md), design
+FINAL, ARC COMPLETE (S0
 through S4 LANDED); artifacts .claude/latent-subset-mask-design/. A first-class
 0/1 `setActiveRows` channel each family composes into its own precision vector,
 with the latent draw skipped for inactive rows. Slices: **S0** pins (no engine
@@ -543,8 +544,8 @@ amend over this section's own proposed probit refusal, since every
 no-op, a fractional refusal, a NULL clear, and a probit mask moving
 draws). ARC FULLY COMPLETE, R and flat C alike.
 
-[f16] Arc `nameable-calibration` (TODO:611), design AMENDED FINAL, ARC
-COMPLETE; artifacts .claude/nameable-calibration-design/. Names the
+[f16] Arc `nameable-calibration` (docs/plans/nameable-calibration.md), design
+AMENDED FINAL, ARC COMPLETE; artifacts .claude/nameable-calibration-design/. Names the
 per-forest prior ANCHOR (`prior.scale`, the forest-total prior scale at k = 1,
 in response units) rather than an sd, with a `$getCalibration` /
 `$setCalibration` pair. Slices: **S0** signature freeze, LANDED 4c866286;

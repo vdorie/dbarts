@@ -392,11 +392,11 @@ the program's premise and they precede the slices that gate on it.
   bridge guards beyond the ticketed floor. An evidence memo may be
   commissioned during waves 1-3; the open/keep-refusing call is VD's.
 - M0 component-contract doc stays deferred at discretion.
-- The next baseline re-record carries: bart2 gaussian/probit/
-  two-forest scenarios (bart2-argument-consolidation.md section 7
-  preamble), an xbart scenario (P16), and a mixed-matrix scenario
-  (B2) - and it happens under P17's oracle-naming rule, which is why
-  that rule lands in wave 0c.
+- The baseline re-record carrying the xbart scenario (P16, f009eff8)
+  and the bart2 gaussian/probit/two-forest and mixed-matrix (B2)
+  scenarios (wave-4 batch, 4a42620a; equivalence-4a42620a.rds, 42
+  scenarios) LANDED, under P17's oracle-naming rule as spec'd; see
+  the landing notes below.
 
 ## 4. Forks for VD (batched; recommendations attached)
 
