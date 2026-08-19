@@ -115,6 +115,9 @@ validateXTest <- function(x.test, x.train) {
         )
         x.test <- makeCategoricalModelMatrix(x.test)
       } else {
+        if (is.list(drop) && length(drop) == length(x.test)) {
+          refuseWiderTestColumns(x.test, drop)
+        }
         x.test <- makeModelMatrixFromDataFrame(
           x.test,
           if (!is.null(drop)) drop else TRUE

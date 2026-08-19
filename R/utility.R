@@ -678,6 +678,49 @@ mapFactorColumnsToTrainingLevels <- function(
   x.test
 }
 
+## The indicators route stores no level table; it replays the training drop
+## pattern positionally, and that pattern is sized by the table each training
+## column carried - a factor's per-level instance counts, a matrix's per-column
+## flags. A test column whose table is longer indexes off the end of it, so the
+## disagreement is named here rather than left to the column count the replay
+## happens to produce. The shorter direction indexes in bounds and is left to
+## the column-count and name checks downstream: a training level the data never
+## observed contributes no column, so a test frame that simply lacks it still
+## aligns.
+refuseWiderTestColumns <- function(x.test, drop) {
+  for (j in seq_along(x.test)) {
+    column <- x.test[[j]]
+    trained <- length(drop[[j]])
+    if (is.character(column)) {
+      column <- as.factor(column)
+    }
+    if (is.factor(column)) {
+      if (nlevels(column) > trained) {
+        stop(
+          "'test' factor '",
+          names(x.test)[j],
+          "' declares ",
+          nlevels(column),
+          " levels but the training design declared ",
+          trained,
+          "; use bart2() or dbarts(), which track levels across predict ",
+          "by default"
+        )
+      }
+    } else if (!is.null(dim(column)) && ncol(column) > trained) {
+      stop(
+        "'test' column '",
+        names(x.test)[j],
+        "' has ",
+        ncol(column),
+        " columns but the training design expanded ",
+        trained
+      )
+    }
+  }
+  invisible(NULL)
+}
+
 ## Re-code an assembled predictor container's factor columns against the
 ## training level tables, so a container built elsewhere - carrying whatever
 ## level order its own data implied - means by each code what the training
