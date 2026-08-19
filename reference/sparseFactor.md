@@ -26,6 +26,20 @@ ingestion. `predict` and `getTrees(newdata = )` code it the same way and
 then materialize it to a dense matrix at the call boundary, since those
 entry points evaluate already-built trees on resolved values.
 
+Mixing a `sparseFactor` (or any sparse ordinal) column with ordinary
+dense columns changes how a default starting `sigma` is estimated,
+silently. The unmixed case fits an
+[`lm`](https://rdrr.io/r/stats/lm.html) on the training design and uses
+its residual standard deviation; as soon as *any* column is
+sparse-backed, the design is not densified for this purpose and the
+estimate falls back to the unconditional `sd(y)` instead - discarding
+every dense column's information along with the sparse one's, with no
+warning. This is current behavior, not a documented guarantee; supply
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+`sigma` (`sigest` in
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md))
+explicitly if the default matters to you.
+
 ## Usage
 
 ``` r

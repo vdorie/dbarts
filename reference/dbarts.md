@@ -277,13 +277,14 @@ dbarts(
   leaves only; monotone constraints and the latent families are not
   supported. `resid.dist = student()` residuals and a grouped
   ([`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)) fit
-  are also refused together with `variance`, unadjudicated rather than
-  unsupported by design (`docs/design/heteroscedastic.md`). The per-tree
-  leaf prior is calibrated from the residual (`resid.prior`)
-  hyperparameters so that a constant variance surface reproduces the
-  homoscedastic `sigma` posterior. The fit gains posterior draws
-  `s.train`/`s.test` of \\s(x)\\, and `predict` attaches an `"s"`
-  attribute with \\s(x)\\ at new predictors (requires `keepTrees`).
+  are also refused together with `variance` - unadjudicated (whether the
+  variance forest's weight-channel routing composes with either) rather
+  than unsupported by design. The per-tree leaf prior is calibrated from
+  the residual (`resid.prior`) hyperparameters so that a constant
+  variance surface reproduces the homoscedastic `sigma` posterior. The
+  fit gains posterior draws `s.train`/`s.test` of \\s(x)\\, and
+  `predict` attaches an `"s"` attribute with \\s(x)\\ at new predictors
+  (requires `keepTrees`).
 
 - forests:
 

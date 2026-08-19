@@ -526,8 +526,11 @@ summary(object, ...)
 
   `family = "multinomial"` fits a K-category softmax classifier: K
   forests, one per category, coupled through an interleaved Polya-Gamma
-  one-vs-rest augmentation (see `docs/design/multinomial.md`). `y.train`
-  must be a factor (or character, coerced with
+  one-vs-rest augmentation. When `formula` is a formula, `data` is
+  required (not optional as for every other family):
+  `bart2(y ~ x1 + x2, family = "multinomial", ...)` with no `data`
+  errors by name rather than resolving `y`/`x1`/`x2` from the calling
+  environment. `y.train` must be a factor (or character, coerced with
   [`factor`](https://rdrr.io/r/base/factor.html)) with at least two
   levels and no `NA`s or `NA` levels; `K = nlevels(y.train)` is
   inferred, never given explicitly, and `levels(y.train)` is captured at
@@ -1183,7 +1186,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001422
+#> total seconds in loop: 0.001211
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1230,7 +1233,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001516
+#> total seconds in loop: 0.001216
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 2 2 2 1 3 2 2 4 

@@ -53,7 +53,7 @@
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <p></p>
 <dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
-<dd><p>Data frame of explanatory variables.</p></dd>
+<dd><p>Data frame of explanatory variables. A column may be a <code><a href="https://rdrr.io/pkg/Matrix/man/sparseVector.html" class="external-link">Matrix::sparseVector</a></code>, <code>dgCMatrix</code>, or <code><a href="sparseFactor.html">sparseFactor</a></code> (assigned into the frame; such columns do not survive <code>data.frame(...)</code> or <code><a href="https://rdrr.io/r/base/AsIs.html" class="external-link">I()</a></code>); see ‘Value’.</p></dd>
 
   <dt id="arg-drop">drop<a class="anchor" aria-label="anchor" href="#arg-drop"></a></dt>
 <dd><p>Logical or list controlling whether or not columns that are constants or factor levels with no instances are omitted from the result. When a list, must be of length equal to <code>x</code>. Elements correspond to <code>x</code> according to:</p><ul><li><p>vector - single logical</p></li>
@@ -80,6 +80,7 @@
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A matrix with columns corresponding to the elements of the data frame. If <code>drop = TRUE</code> or is a list, the attribute <code>drop</code> on the result is set to the list used when creating the matrix.</p>
+<p>If any column of <code>x</code> is sparse-backed (a <code><a href="https://rdrr.io/pkg/Matrix/man/sparseVector.html" class="external-link">Matrix::sparseVector</a></code>, <code>dgCMatrix</code>, or <code><a href="sparseFactor.html">sparseFactor</a></code>), the result is instead an object of class <code><a href="dbartsMixedMatrix.html">dbartsMixedMatrix</a></code> - not a matrix (<code><a href="https://rdrr.io/r/base/matrix.html" class="external-link">is.matrix()</a></code> is <code>FALSE</code>) - which keeps sparse columns unexpanded rather than densifying them. Call <code>as.matrix</code> on it to obtain an ordinary dense matrix.</p>
     </div>
     <div class="section level2">
     <h2 id="author">Author<a class="anchor" aria-label="anchor" href="#author"></a></h2>

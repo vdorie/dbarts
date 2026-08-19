@@ -75,13 +75,15 @@
     every other pair of named predictors is forbidden. Predictors named in no
     group are unconstrained. Each set is a character vector of model-matrix
     column names (a bare factor term name expands to its indicator columns) or
-    a numeric vector of column indices.</p></dd>
+    a numeric vector of column indices. A single vector (rather than a list)
+    is taken as one group.</p></dd>
 
   <dt id="arg-forbid">forbid<a class="anchor" aria-label="anchor" href="#arg-forbid"></a></dt>
 <dd><p>Optional co-occurrence deny-list: a list whose entries each name two or
     more predictors barred from ever sharing a root-to-leaf path (an entry of
     more than two forbids every pair within it). Columns are named or indexed
-    as for <code>groups</code>.</p></dd>
+    as for <code>groups</code>. A single vector (rather than a list) is taken as one
+    forbidden set.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -96,7 +98,9 @@
 <p>Names and indices resolve against the model matrix at fit time, where every
   value is validated: an unrecognized name, an empty group, a <code>max.order</code>
   below 1, and a reference to a column dropped from the design are each an
-  error. Supplying none of the three arguments is an error.</p>
+  error there. Supplying none of the three arguments is instead an error
+  immediately, at construction: <code>interactions()</code> with no arguments never
+  produces an object to pass to <code><a href="dbarts.html">dbarts</a></code>/<code><a href="bart2.html">bart2</a></code>.</p>
 <p>Monotone constraints (see <code><a href="dbarts.html">dbarts</a></code>'s <code>monotone</code>) and
   interaction constraints are orthogonal and may be combined.</p>
 <p>A <code>groups</code> partition that is both <em>disjoint</em> and <em>total</em>

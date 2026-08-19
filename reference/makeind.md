@@ -18,7 +18,13 @@ makeTestModelMatrix(data, newdata)
 
 - x:
 
-  Data frame of explanatory variables.
+  Data frame of explanatory variables. A column may be a
+  [`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html),
+  `dgCMatrix`, or
+  [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
+  (assigned into the frame; such columns do not survive
+  `data.frame(...)` or [`I()`](https://rdrr.io/r/base/AsIs.html)); see
+  ‘Value’.
 
 - drop:
 
@@ -71,6 +77,16 @@ packages that separate the creation of training from test data.
 A matrix with columns corresponding to the elements of the data frame.
 If `drop = TRUE` or is a list, the attribute `drop` on the result is set
 to the list used when creating the matrix.
+
+If any column of `x` is sparse-backed (a
+[`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html),
+`dgCMatrix`, or
+[`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)),
+the result is instead an object of class
+[`dbartsMixedMatrix`](https://vdorie.github.io/dbarts/reference/dbartsMixedMatrix.md) -
+not a matrix ([`is.matrix()`](https://rdrr.io/r/base/matrix.html) is
+`FALSE`) - which keeps sparse columns unexpanded rather than densifying
+them. Call `as.matrix` on it to obtain an ordinary dense matrix.
 
 ## Author
 

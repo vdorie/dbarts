@@ -186,10 +186,20 @@ returned by `pd2bart` is assigned class `pd2bart`.
   A vector of character strings which are the plotting labels used for
   the variables.
 
-The remaining components returned in the list are the same as in the
-value of [`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
-They are simply passed on from the BART run used to create the partial
-dependence plot. The function
+The remaining components are passed on from the BART run used to create
+the partial dependence plot, under
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s own names
+(see its ‘Value’ section) with one rename and several omissions - the
+fit's matched call is under `bartcall` rather than `call`, and not every
+`bart` component is carried over. For a continuous response the
+remaining components are `bartcall`, `yhat.train`, `first.sigma`,
+`sigma`, `yhat.train.mean`, `sigest`, `y`, and `fit`; `call`, `family`,
+`resid.dist`, `yhat.test`, `yhat.test.mean`, `s.train`, `s.test`,
+`varcount`, and `n.chains` are not present. For a binary response only
+`bartcall`, `yhat.train`, `y`, and `fit` are present; `first.sigma`,
+`sigma`, `yhat.train.mean`, `sigest`, and `binaryOffset` are absent as
+well, on top of the continuous-case omissions. `pd2bart` follows the
+same rules. The function
 [`plot.bart`](https://vdorie.github.io/dbarts/reference/bart.md) can be
 applied to the object returned by `pdbart` or `pd2bart` to examine the
 BART run.

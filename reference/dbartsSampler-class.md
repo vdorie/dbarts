@@ -901,23 +901,24 @@ full-Bayes sampler. This would typically be followed by a call to
 `setPredictor` if the step is accepted.
 
 For `getTrees`, a `data.frame` with one row per tree node in
-depth-first, left-hand-side pre-order, with columns `chain`, `sample`
-(present only for saved samples), `tree`, `n` (the number of
-observations in the node), `var` (the splitting variable, or -1 at a
-leaf), and `value` (the split value, or the leaf prediction). An ordinal
-rule's value is its cut point and observations with values less than or
-equal to it go left; a categorical rule carries no data value (its
-`value` is `NA`) and its split is reported in the `directions` column
-instead. When the sampler has any categorical predictors the result
-gains a `directions` column decoding each categorical rule into one
-`"L"`/`"R"` character per level, in level order (level `k` goes right
-when its character is `"R"`); ordinal rules and leaves are `NA`. When
-any predictor contains missing values the result gains a `missing`
-column giving the branch (`"L"`/`"R"`) each rule sends missing values
-down; rules on complete columns and leaves are `NA`. Under a `linear`
-node prior each leaf's `value` is its intercept and the result gains one
-`beta.<column>` column per designated covariate holding that leaf's
-slope on the internal standardized scale; internal nodes are `NA`.
+depth-first, left-hand-side pre-order, with columns `chain` (present
+only when `n.chains > 1`), `sample` (present only for saved samples),
+`tree`, `n` (the number of observations in the node), `var` (the
+splitting variable, or -1 at a leaf), and `value` (the split value, or
+the leaf prediction). An ordinal rule's value is its cut point and
+observations with values less than or equal to it go left; a categorical
+rule carries no data value (its `value` is `NA`) and its split is
+reported in the `directions` column instead. When the sampler has any
+categorical predictors the result gains a `directions` column decoding
+each categorical rule into one `"L"`/`"R"` character per level, in level
+order (level `k` goes right when its character is `"R"`); ordinal rules
+and leaves are `NA`. When any predictor contains missing values the
+result gains a `missing` column giving the branch (`"L"`/`"R"`) each
+rule sends missing values down; rules on complete columns and leaves are
+`NA`. Under a `linear` node prior each leaf's `value` is its intercept
+and the result gains one `beta.<column>` column per designated covariate
+holding that leaf's slope on the internal standardized scale; internal
+nodes are `NA`.
 
 For `getSigmas`, a numeric vector of length equal to the number of
 chains, giving each chain's current residual standard deviation on the

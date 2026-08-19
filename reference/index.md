@@ -147,5 +147,10 @@ Convergence summaries, and calibration of a sampler composed around one.
   [`makeind()`](https://vdorie.github.io/dbarts/reference/makeind.md)
   [`makeTestModelMatrix()`](https://vdorie.github.io/dbarts/reference/makeind.md)
   : Make Model Matrix from Data Frame
+- [`dim(`*`<dbartsMixedMatrix>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsMixedMatrix.md)
+  [`dimnames(`*`<dbartsMixedMatrix>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsMixedMatrix.md)
+  [`` `[`( ``*`<dbartsMixedMatrix>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsMixedMatrix.md)
+  [`as.matrix(`*`<dbartsMixedMatrix>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsMixedMatrix.md)
+  : Mixed Dense/Sparse Predictor Container
 - [`guessNumCores()`](https://vdorie.github.io/dbarts/reference/guessNumCores.md)
   : Guess Number of Cores

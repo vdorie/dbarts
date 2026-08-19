@@ -65,7 +65,14 @@ Data frame columns - through the formula interface or a frame passed as
 - [`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html)
   and `dgCMatrix` columns (assigned into the frame; they do not survive
   `data.frame(...)` or [`I()`](https://rdrr.io/r/base/AsIs.html)) enter
-  as sparse ordinal predictors;
+  as sparse ordinal predictors. Only the x/y interface accepts them for
+  training: a bare S4 column does not survive
+  [`model.frame`](https://rdrr.io/r/stats/model.frame.html), so a sparse
+  ordinal column named in `formula` raw-errors with an uninformative
+  “invalid type (S4)” rather than the guarded message
+  [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
+  columns get (see below). `test`/`x.test` accepts them under either
+  interface, since a test set is never run through `model.frame`;
 
 - [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
   columns enter as a single sparse categorical predictor, coded and

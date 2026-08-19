@@ -31,14 +31,16 @@ interactions(max.order = NULL, groups = NULL, forbid = NULL)
   both; every other pair of named predictors is forbidden. Predictors
   named in no group are unconstrained. Each set is a character vector of
   model-matrix column names (a bare factor term name expands to its
-  indicator columns) or a numeric vector of column indices.
+  indicator columns) or a numeric vector of column indices. A single
+  vector (rather than a list) is taken as one group.
 
 - forbid:
 
   Optional co-occurrence deny-list: a list whose entries each name two
   or more predictors barred from ever sharing a root-to-leaf path (an
   entry of more than two forbids every pair within it). Columns are
-  named or indexed as for `groups`.
+  named or indexed as for `groups`. A single vector (rather than a list)
+  is taken as one forbidden set.
 
 ## Details
 
@@ -54,7 +56,10 @@ fit is unaffected.
 Names and indices resolve against the model matrix at fit time, where
 every value is validated: an unrecognized name, an empty group, a
 `max.order` below 1, and a reference to a column dropped from the design
-are each an error. Supplying none of the three arguments is an error.
+are each an error there. Supplying none of the three arguments is
+instead an error immediately, at construction: `interactions()` with no
+arguments never produces an object to pass to
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)/[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md).
 
 Monotone constraints (see
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
