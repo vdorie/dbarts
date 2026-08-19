@@ -945,11 +945,10 @@ items
     sparseFactor's guarded refusal to them. (3) NEWS.Rd owes an
     entry for 5b6e4825's binary-k default change (chi(1.5, Inf) ->
     chi(1.5, 2.0)); dbartsPriors.Rd is already correct. (4) C API
-    struct APPENDS move neither version constant nor the FNV hash
-    (residualDf at c3af16a1 is a live instance): a newer-header
-    consumer passes the handshake with its channel silently
-    unwritten - extend the hash over struct layouts or bump on
-    append. (5) veto-arc doors from the w5dB critique cycle:
+    struct APPENDS move neither version constant nor the FNV hash -
+    DISCHARGED at ad4a131b: the token now folds struct layouts, ABI
+    enums and the callback signature, and the stubs enforce the
+    handshake at first resolution. (5) veto-arc doors from the w5dB critique cycle:
     per-sweep vetoed-leaf diagnostics counter (R-readable);
     sampleTreesFromPrior all-zero bare-root branch alignment with
     the mutate-path semantics (own scoped decision). (6) hetero
@@ -967,9 +966,11 @@ items
     reach. (9) tests/cpp fuzz-config change to reach the aggregate
     untouched-variance-tree assertion (w5test m1). (10) count-blind
     warning assertions, 17 sites (w5test m3). (11) flat-C version
-    handshake blind to struct appends - fold layouts into
-    DBARTS_C_API_HASH or add a sizeof entry point (surface decision)
-    + rebuild both consumer branches before RC (w5capi INFO 13).
+    handshake blind to struct appends (w5capi INFO 13) - hash half
+    DISCHARGED at ad4a131b (VD decided the layout fold over a sizeof
+    entry point). REMAINS: rebuild both consumer branches (stan4bart
+    bartcore, treatSens dbarts-1.0) before RC - now mandatory, the
+    token moved and the stubs enforce it.
     (12) stan4bart lockstep owes: verify its create path supplies
     resolved sigma (new hard-error) + --preclean rebuild vs the
     user-lib ABI staleness. (13) feature-matrix CH: line-anchor
