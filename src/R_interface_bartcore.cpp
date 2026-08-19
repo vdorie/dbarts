@@ -226,7 +226,7 @@ struct ParsedData {
   // field below, as each owning buffer becomes final.
   bartcore::PredictorSource predictors;
   // the storage FLAVOR the parse saw, kept for the refusal texts and the
-  // slice-0 memory-safety gates that must not key on the map
+  // CSC code-validation memory-safety gates that must not key on the map
   // (docs/design/sparse-columns.md)
   bool xIsSparse = false;
   bool xIsMixed = false;

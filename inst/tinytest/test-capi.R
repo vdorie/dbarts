@@ -1446,10 +1446,10 @@ rm(ptrBCFSaved)
 invisible(gc(FALSE))
 
 # the per-forest precision weight from C: 1 = accepted, 0 = refused - the
-# shipped polarity, which two landed plans recorded inverted - and an accepted
-# non-degenerate weight really installs, while an all-ones one is bitwise inert
-# and a refused call leaves the sampler where it was. The weights are BORROWED,
-# so these vectors outlive the samplers below
+# shipped polarity this test pins - and an accepted non-degenerate weight
+# really installs, while an all-ones one is bitwise inert and a refused call
+# leaves the sampler where it was. The weights are BORROWED, so these vectors
+# outlive the samplers below
 weightsForest <- rep(c(0.25, 1.75), length.out = nBCF)
 onesForest <- rep(1, nBCF)
 ptrW1 <- CALL("capi_create", specBCF$control, specBCF$model, specBCF$data, "")

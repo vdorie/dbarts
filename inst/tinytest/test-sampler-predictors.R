@@ -118,15 +118,15 @@ n <- testData$n
 
 # a shallow copy shares the creation-time predictor object, but the engine
 # keeps no matrix to write through: a mutation on one sampler is maintained
-# R-side (copy-on-write) and no longer propagates to the copy (design plan 1)
+# R-side (copy-on-write) and no longer propagates to the copy
 x.shared <- shallowCopy$data@x
 invisible(sampler$setPredictor(numeric(n), 2L))
 expect_equal(shallowCopy$data@x, x.shared)
 expect_equal(as.numeric(sampler$data@x[, 2L]), numeric(n))
 
 # extract() is the on-demand materializer of the current data@x, on both
-# the mutated original and the copy it no longer follows (data@x contract,
-# design/data-ownership.md plan 3)
+# the mutated original and the copy it no longer follows (the data@x
+# contract, docs/design/data-ownership.md)
 expect_equal(extract(sampler, "predictors"), as.matrix(sampler$data@x))
 expect_equal(extract(shallowCopy, "predictors"), as.matrix(x.shared))
 expect_false(isTRUE(all.equal(
