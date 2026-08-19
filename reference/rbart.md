@@ -266,7 +266,13 @@ the elements:
   posterior samples. The \\(k, l, j)\\ value is the \\l\\th draw of the
   posterior of the random effect for group \\j\\ (i.e. \\\alpha^\*\_j\\)
   corresponding to chain \\k\\. When `n.chains` is one or
-  `combineChains` is `TRUE`, the result is collapsed down to a matrix.
+  `combineChains` is `TRUE`, the result is collapsed down to a matrix:
+  with \\m = \\`n.samples %/% n.thin` draws kept per chain, row \\r\\ is
+  chain \\1 + (r - 1) \\/\\ m\\'s draw \\1 + (r - 1) \\\\ m\\ - chain
+  1's whole run first, then chain 2's (chain-major), not interleaved
+  draw by draw. Every collapsed field the fit returns (`sigma`, `tau`,
+  `yhat.train`, ...) shares this row order, so row \\r\\ of one pairs
+  with row \\r\\ of another.
 
 - ranef.mean:
 
@@ -278,7 +284,8 @@ the elements:
   Matrix of posterior samples of `tau`, the standard deviation of the
   random effects. Dimensions are equal to the number of chains times the
   number of samples unless `n.chains` is one or `combineChains` is
-  `TRUE`.
+  `TRUE`, in which case it collapses to a vector in `ranef`'s
+  chain-major order (see above).
 
 - `first.tau`:
 
@@ -361,7 +368,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000293
+#> total seconds in loop: 0.000287
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 2 2 2 1 3 2 2 3 2 2 2 4 3 
@@ -374,7 +381,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001535
+#> total seconds in loop: 0.001532
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 2 2 2 3 2 2 2 4 2 2 3 2 3 
@@ -419,7 +426,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000407
+#> total seconds in loop: 0.000404
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 
@@ -432,7 +439,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002094
+#> total seconds in loop: 0.001991
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 

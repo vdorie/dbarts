@@ -177,13 +177,13 @@
     <p>An object of class <code>rbart</code>. Contains all of the same elements of an object of class <code><a href="bart.html">bart</a></code>, as well as the elements:</p>
 <p></p>
 <dl><dt>ranef</dt>
-<dd><p>Samples from the posterior of the random effects. A array/matrix of posterior samples. The \((k, l, j)\) value is the \(l\)th draw of the posterior of the random effect for group \(j\) (i.e. \(\alpha^*_j\)) corresponding to chain \(k\). When <code>n.chains</code> is one or <code>combineChains</code> is <code>TRUE</code>, the result is collapsed down to a matrix.</p></dd>
+<dd><p>Samples from the posterior of the random effects. A array/matrix of posterior samples. The \((k, l, j)\) value is the \(l\)th draw of the posterior of the random effect for group \(j\) (i.e. \(\alpha^*_j\)) corresponding to chain \(k\). When <code>n.chains</code> is one or <code>combineChains</code> is <code>TRUE</code>, the result is collapsed down to a matrix: with \(m = \)<code>n.samples %/% n.thin</code> draws kept per chain, row \(r\) is chain \(1 + (r - 1) \%/\% m\)'s draw \(1 + (r - 1) \%\% m\) - chain 1's whole run first, then chain 2's (chain-major), not interleaved draw by draw. Every collapsed field the fit returns (<code>sigma</code>, <code>tau</code>, <code>yhat.train</code>, ...) shares this row order, so row \(r\) of one pairs with row \(r\) of another.</p></dd>
 
   <dt>ranef.mean</dt>
 <dd><p>Posterior mean of random effects, derived by taking mean across group index of samples.</p></dd>
 
   <dt>tau</dt>
-<dd><p>Matrix of posterior samples of <code>tau</code>, the standard deviation of the random effects. Dimensions are equal to the number of chains times the number of samples unless <code>n.chains</code> is one or <code>combineChains</code> is <code>TRUE</code>.</p></dd>
+<dd><p>Matrix of posterior samples of <code>tau</code>, the standard deviation of the random effects. Dimensions are equal to the number of chains times the number of samples unless <code>n.chains</code> is one or <code>combineChains</code> is <code>TRUE</code>, in which case it collapses to a vector in <code>ranef</code>'s chain-major order (see above).</p></dd>
 
   <dt><code>first.tau</code></dt>
 <dd><p>Burn-in draws of <code>tau</code>.</p></dd>
@@ -265,7 +265,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000293</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000287</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 2 2 2 2 1 3 2 2 3 2 2 2 4 3 </span>
@@ -278,7 +278,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001535</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001532</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 3 2 2 2 3 2 2 2 4 2 2 3 2 3 </span>
@@ -323,7 +323,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000407</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000404</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 </span>
@@ -336,7 +336,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002094</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001991</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 </span>

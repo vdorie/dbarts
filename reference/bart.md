@@ -693,7 +693,13 @@ returned. In the numeric \\y\\ case, the list has components:
   \\j\\th draw of the posterior of \\f\\ evaluated at the \\k\\th row of
   `x.train` (i.e. \\f^\*(x_k)\\) corresponding to chain \\i\\. When
   `nchain` is one or `combinechains` is `TRUE`, the result is collapsed
-  down to a matrix.
+  down to a matrix: with \\m = \\`ndpost %/% keepevery` draws kept per
+  chain, row \\r\\ is chain \\1 + (r - 1) \\/\\ m\\'s draw \\1 + (r - 1)
+  \\\\ m\\ - chain 1's whole run first, then chain 2's, and so on
+  (chain-major), not interleaved draw by draw. Every collapsed field a
+  fit returns (`sigma`, `k`, `tau`, `varcount`, `ranef`, ...) uses this
+  same row order, so row \\r\\ of one pairs with row \\r\\ of another -
+  e.g. `sigma[r]` is the residual scale that produced `yhat.train[r, ]`.
 
 - `yhat.test`:
 
@@ -712,7 +718,10 @@ returned. In the numeric \\y\\ case, the list has components:
 
   Matrix of posterior samples of `sigma`, the residual/error standard
   deviation. Dimensions are equal to the number of chains times the
-  number of samples unless `nchain` is one or `combinechains` is `TRUE`.
+  number of samples unless `nchain` is one or `combinechains` is `TRUE`,
+  in which case it collapses to a vector in the same chain-major order
+  as `yhat.train` (see above), so combined `sigma[r]` pairs with
+  combined `yhat.train[r, ]`.
 
 - `first.sigma`:
 
@@ -723,7 +732,8 @@ returned. In the numeric \\y\\ case, the list has components:
   A matrix with number of rows equal to the number of kept draws and
   each column corresponding to a training variable. Contains the total
   count of the number of times that variable is used in a tree decision
-  rule (over all trees).
+  rule (over all trees). Row order (when combined) is `yhat.train`'s
+  chain-major order (see above).
 
 - `varprobs`:
 
@@ -797,7 +807,8 @@ returned. In the numeric \\y\\ case, the list has components:
 - `k`:
 
   Optional matrix of posterior samples of `k`. Only present when `k` is
-  modeled, i.e. there is a hyperprior.
+  modeled, i.e. there is a hyperprior. Collapses (when combined) in
+  `sigma`'s chain-major order.
 
 - `first.k`:
 
@@ -947,7 +958,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.219572
+#> total seconds in loop: 0.219681
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
