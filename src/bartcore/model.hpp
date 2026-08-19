@@ -728,16 +728,19 @@ struct MonotoneConstantGaussianLeaf {
   // ---- the constrained (truncated) birth/death marginal (ParamScoringLeafModel)
   double logLikelihoodForBranchWithParams(const Tree& tree,
                                           std::int32_t branchIndex,
-                                          const double*, const double* weights,
+                                          const double*, const double*,
                                           double k, double residualVariance,
                                           const double* mu) const {
     scratch.branch.clear();
     tree.fillBottom(branchIndex, scratch.branch);
-    // this branch owns the whole marginal, so logLikelihoodForBranch's veto
-    // (moves.hpp) never runs for a constrained leaf; the same emptiness law
-    // applies here (docs/design/empty-leaf-veto.md)
-    for (std::int32_t leaf : scratch.branch)
-      if (tree.leafHasNoWeight(leaf, weights)) return -HUGE_VAL;
+    // The empty-leaf veto is NOT applied here even though this branch owns the
+    // whole marginal: it is the caller's branch RANK (moves.hpp), taken over
+    // the same leaves for every leaf model, so that two vetoed branches stay
+    // comparable (docs/design/empty-leaf-veto.md). What survives below is the
+    // FEASIBILITY sentinel, a different -HUGE_VAL: an empty constraint cone
+    // has no draw at all. A zero-weight leaf's conditional is its prior
+    // truncated to the neighbor bounds, which is finite and is what the
+    // constrained forest should sit at where it has nothing to fit.
     scratch.allBottoms.clear();
     tree.fillBottom(0, scratch.allBottoms);
 

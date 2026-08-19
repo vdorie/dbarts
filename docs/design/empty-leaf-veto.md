@@ -58,45 +58,78 @@ So the veto is the single, uniform backstop for ordinal and categorical
 proposals across birth, change, and swap. Death cannot create an empty
 leaf (it collapses two children into their non-empty parent).
 
-## Is vetoed-vs-vetoed reachable?
+## Is vetoed-vs-vetoed reachable? Yes; the veto is a RANK (2026-08-18)
 
-No. Because the chain state maintains the no-empty-leaf invariant - the
-initializer included, since Chain::sampleTreesFromPrior draws the CGM prior
-CONDITIONED on the empty-leaf-free set by per-tree rejection on this same
-predicate, per forest and against the same composed vector that forest's own
-moves veto with, rather than projecting an unrestricted draw onto it - the
-current tree is always non-empty, so its branch score is always finite;
-a move can only propose *into* a vetoed state, giving a finite-vs-vetoed
-comparison, never vetoed-vs-vetoed. The one path that ever produced two
-vetoed scores was the original GP-leaf over-cap guardrail, where the
-root itself was over-cap and a birth compared one veto against two. That
-path was superseded at the GP stage-1 landing: over-cap leaves now
-delegate their marginal and their draw to ConstantGaussianLeaf
-(model.hpp, "Leaves larger than maxLeafSize score and draw as constant
-leaves"), and there is no -1e7 anywhere in model.hpp. Vetoed-vs-vetoed
-is therefore unreachable in the shipped engine.
+This section used to answer "no", on the argument that the chain state
+maintains the no-empty-leaf invariant, so the current branch always scores
+finite and every comparison is finite-vs-vetoed. The premise holds of the
+STATE and fails of the SCORE: the score's predicate reads WEIGHTS, and weights
+do not ride the tree. Every install that can zero the vector a grown forest is
+scored against reaches a vetoed CURRENT state - `Chain::setWeights`,
+`setActiveRows`, `setForestWeights`, `setForestBasis` (the multiplier is a veto
+weight), `setState`/`installForests` and the predictor transaction's
+revalidation (which enforce the COUNT law, not this one), `setData` and the
+donor rebuild through `collapseEmptyNodes` (count law again), and with no
+install at all the BCF per-sweep zero-multiplier snap and `formMeanWeights`'
+`w_i / s^2(x_i)` underflow. No install-time gate can be total, and the
+documented, tested all-zero mask says so outright.
 
-One state has no conditional law to draw from at all: a forest whose composed
-vector is entirely zero. It is reachable with no coupling, through an all-zero
-active-row mask, and with one through a zero per-forest weight or a zero
-amplitude. Every tree is vetoed there, so the initializer takes the BARE ROOT,
-which is the unique structure no later weight restore can strand a
-member-empty leaf in - every row sits in its one leaf. An unrestricted-grown
-tree carries no such guarantee: restore a vector that reaches only part of the
-data and some leaf of that partition can hold none of it, which is a vetoed
-CURRENT state and vetoed-vs-vetoed from then on. Faulting instead was
-rejected: the masking state itself is legal and runs
-(inst/tinytest/test-active-rows-pins.R), so the draw owes it an answer.
+Left as two infinite penalties, that state is not merely unpriced: the
+comparison is `exp(-inf - (-inf)) = NaN`, every comparison against it is false,
+and the affected branch is frozen for the rest of the run (measured: a grown
+forest under an all-zero mask, structurally unchanged after 300 sweeps, 25 of
+25 trees; 766 of 2000 jumps reporting a NaN acceptance probability).
 
-A corollary: since only finite-vs-vetoed comparisons occur, exp of the
-difference is well defined in both orientations, so -HUGE_VAL does not
-produce a NaN in the move code (a vetoed proposal against a finite
-current branch gives exp(-inf) = 0, a clean rejection). -HUGE_VAL is the
-correct penalty precisely because a finite one cannot dominate a branch
-score that is itself unbounded below; only an infinite penalty vetoes at
-every scale. Should a future non-conjugate path reintroduce a
-vetoed-vs-vetoed comparison, that path must supply its own finite
-resolution rather than lean on this constant.
+The veto is therefore a lexicographic RANK on branches, compared ahead of the
+likelihood (`Tree::leafVetoRank`, `moves.hpp`'s `BranchScore` and
+`resolveVetoRank`):
+
+    rank(branch) = max over its leaves of
+                   2  the leaf holds no member,
+                   1  it holds members but no positive-weight member,
+                   0  a likelihood term reaches it.
+
+Worse rank loses outright (ratio exactly 0.0, today's double); better rank wins
+outright (+inf inside the same product, today's double); EQUAL rank takes
+today's arithmetic on the finite parts, where the finite part now SKIPS the
+vetoed leaves rather than summing marginals for them - the conjugate leaves
+return exactly 0.0 there, but a linear or GP leaf does not, and a leaf with
+nothing to estimate should contribute nothing. Equal rank at level 1 is the
+only changed comparison, and it is what unfreezes the forest: the tree mixes
+under prior x transition at a constant likelihood, and any move clearing the
+veto is a rank decrease, accepted outright. Level 2 stays separate so the
+MEMBERSHIP law - what `bottomNodesAreOccupied`, state export/restore and the
+predictor surface all require - is never violated from a vetoed state.
+
+Stationarity. The target is the CGM prior x marginal restricted to the
+admissible set S and renormalized, which IS the veto's definition. On S x S the
+acceptance is arithmetically identical to before, so the exact-posterior gates
+carry unchanged; from S no proposal outside S is ever accepted, so S is
+absorbing and the target is invariant. Outside S the kernel is off-support and
+free, and needs only to return: a death never raises a branch's rank (the
+parent's members are the children's union), and every equal-rank move has
+strictly positive acceptance, so the tree collapses back into S with positive
+probability per sweep. Under an ALL-zero vector S is empty and the kernel
+degenerates to the standard CGM structure kernel at constant likelihood - which
+is exactly what "the forest sits at its prior" was always meant to say. A host
+that rewrites the mask every sweep is not passing through a burn-in but living
+off support; the alternative there is a frozen forest, so the ranked kernel
+still dominates.
+
+The initializer keeps its own asymmetry, and it is now the only one. A forest
+whose composed vector is entirely zero has no conditional law to draw from, so
+`Chain::sampleTreesFromPrior` takes the BARE ROOT there - the unique structure
+no later weight restore can strand a member-empty leaf in, since every row sits
+in its one leaf - while the same state under the MOVES is a prior draw over
+structures. Init and mutate now disagree about one law, deliberately: aligning
+them is a separate decision (no baseline reaches the branch).
+
+The finite-vs-vetoed corollary survives where it was doing work: -HUGE_VAL is
+the correct penalty because a finite one cannot dominate a branch score that is
+itself unbounded below. What is gone is the claim that it never meets itself.
+The one -HUGE_VAL that is NOT the veto - a constrained leaf model's FEASIBILITY
+sentinel, an empty monotone cone - can still meet itself, and `resolveVetoRank`
+rejects that pair explicitly rather than reporting NaN.
 
 ## Why not make the proposals occupancy-aware
 
@@ -191,7 +224,10 @@ Two sites carry the predicate, because the branch marginal has two owners:
   the count test; it now takes the same weight law. Monotone directions compose
   with weights on any family (facade.hpp dispatches on the direction vector
   alone), so leaving it behind would have kept one reachable configuration on
-  the old law.
+  the old law. (Superseded 2026-08-18: with the veto a RANK, `logLikelihoodForBranch`
+  takes it over the same leaves for EVERY leaf model, branch-owning ones
+  included, so the second copy is gone and only the constrained model's own
+  feasibility sentinel remains there.)
 
 Both call `Tree::leafHasNoWeight(i, weights)`: with `weights == nullptr` it IS
 `numObservations() == 0`, so the unweighted path - the overwhelmingly common one
@@ -283,3 +319,30 @@ the scan.
 - Cost: the added work is one gather and compare per leaf per branch score, and
   only when a weight vector is installed; the unweighted path compiles to the
   same count test it ran before.
+
+### Measured effect of the rank (2026-08-18)
+
+- `benchmarks/R/equivalence.R` against `equivalence-4a42620a.rds`
+  (`--strict-coverage`): 40 of 42 scenarios BITWISE. The two movers are
+  `maskprobit` and `maskordinal` - the two that install a PARTIAL mask
+  mid-chain on a grown forest - at max |z| 0.48 and 0.65 over 37 and 35
+  summaries. `bcf-equivalence-6e3b9fb8` (12 scenarios, its `masked` scenario
+  included) and `multinomial-equivalence-4d9a3337` (11) are bitwise on every
+  channel. Adjudicated with a counter build: a scenario deviates exactly when
+  it REALIZES an equal-rank comparison on its RNG path - 2 in `maskprobit`, 1
+  in `maskordinal`, 0 in every bitwise scenario measured (`zeroweights`,
+  `wtoffset`, `weighted`, and the whole BCF and multinomial harnesses, which
+  score 1603 and 3378 vetoed branches between them without one).
+- Oracle: `benchmarks/R/bd-balance.R veto` - the enumerable birth/death gate
+  run from OUTSIDE S. Two adjacent cells are zeroed on a grown tree that holds
+  them as SIBLING leaves, so the collapse repairing it is an equal-rank
+  comparison and is the tree's only death. The chain absorbs in 1 sweep, never
+  revisits a vetoed partition in 300000 draws, and matches the exact
+  restricted posterior at max |z| = 1.8. Against the pre-rank build the same
+  arm never re-enters S at all (20000 sweeps).
+- tests/cpp: a tree grown under positive weights and then handed an all-zero
+  vector takes no NaN acceptance probability and changes structure ~1300 times
+  in 2000 jumps (frozen before); stranding 5 of its 10 leaves, it is absorbed
+  back into S by sweep 98. At the sampler surface a 25-tree forest masked
+  whole keeps moving, exports and restores its state, and a partial mask's 13
+  stranded leaves clear within 200 sweeps.

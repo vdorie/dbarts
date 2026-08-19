@@ -350,6 +350,19 @@ public:
       if (weights[indices[j]] > 0.0) return false;
     return true;
   }
+  /// The leaf's rank under the branch veto: 2 when it holds no member at all,
+  /// 1 when it holds members but none of positive weight, 0 when a likelihood
+  /// term reaches it. The two vetoed levels stay apart because they answer to
+  /// different laws. Level 2 is the MEMBERSHIP law every site outside the move
+  /// kernels enforces (bottomNodesAreOccupied), so no move may install one
+  /// even from a state that is already vetoed; level 1 is the move kernels'
+  /// own law and IS reachable in the current state, since weights do not ride
+  /// the tree and any weight install can strand a leaf, so a move out of such
+  /// a state must be priced rather than compared against a like penalty.
+  int leafVetoRank(int32_t i, const double* weights) const {
+    if (at(i).numObservations() == 0) return 2;
+    return leafHasNoWeight(i, weights) ? 1 : 0;
+  }
   int32_t rightChildOf(int32_t i) const { return at(i).leftChild + 1; }
   bool hasSingleNode() const { return at(0).isBottom(); }
 
@@ -914,7 +927,10 @@ public:
   /// no bottom node fails leafHasNoWeight. This is the emptiness law of the
   /// move kernels (docs/design/empty-leaf-veto.md), not the membership law
   /// bottomNodesAreOccupied answers for state restore; the two agree exactly
-  /// when no weight vector is installed.
+  /// when no weight vector is installed. leafVetoRank splits the failure into
+  /// the two levels the moves order lexicographically: a tree can leave this
+  /// set through a weight install (rank 1, transient - the moves price their
+  /// way out) but never through a move (rank 2 is refused absolutely).
   bool bottomNodesHaveWeight(const double* weights) const {
     return bottomNodesHaveWeightBelow(0, weights);
   }

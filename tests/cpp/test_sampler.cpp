@@ -1754,6 +1754,109 @@ static void testActiveRows() {
   printf("ok: active rows at the sampler surface\n");
 }
 
+// The mask installed on a GROWN forest, which is where the veto's weight law
+// has no gate to hold it: masking rows a tree already split on leaves leaves
+// no likelihood term reaches. The forest must keep moving there (the promise
+// setActiveRows makes: it sits at its PRIOR, which is a distribution, not a
+// freeze), must never install a member-empty leaf while it does - the state
+// law export and restore require - and must recover an admissible forest once
+// the mask lifts.
+static void testActiveRowsOnGrownForest() {
+  const size_t n = 300, numSamples = 4;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::vector<double> zeros(n, 0.0), partial(n, 1.0);
+  for (size_t i = 0; i < n; ++i)
+    if (x[i] < 0.5) partial[i] = 0.0;  // a half-space of x0, so leaves fall in
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 20260818u);
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+  std::vector<double> sigma(numSamples), train(n * numSamples);
+  Results results;
+  results.sigma = sigma.data();
+  results.trainingFits = train.data();
+  sampler.run(100, 0, results);  // grow the forest under no mask at all
+
+  auto forestSignature = [&]() {
+    std::uint64_t hash = 0;
+    for (size_t t = 0; t < options.numTrees; ++t)
+      hash ^= treeStructureSignature(sampler.chain(0).tree(t)) +
+              static_cast<std::uint64_t>(t);
+    return hash;
+  };
+  auto countVetoed = [&](const double* weights) {
+    size_t vetoed = 0;
+    for (size_t t = 0; t < options.numTrees; ++t) {
+      const Tree& tree(sampler.chain(0).tree(t));
+      std::vector<std::int32_t> bottoms;
+      tree.fillBottom(0, bottoms);
+      for (std::int32_t b : bottoms)
+        vetoed += tree.leafVetoRank(b, weights) != 0 ? 1 : 0;
+    }
+    return vetoed;
+  };
+  auto occupied = [&]() {
+    bool all = true;
+    for (size_t t = 0; t < options.numTrees; ++t)
+      all = all && sampler.chain(0).tree(t).bottomNodesAreOccupied();
+    return all;
+  };
+
+  // ---- the whole forest stranded ----
+  check(sampler.setActiveRows(zeros.data()), "an all-zeros mask installs");
+  size_t strandedLeaves = countVetoed(zeros.data());
+  std::uint64_t before = forestSignature();
+  sampler.run(100, numSamples, results);
+  check(forestSignature() != before,
+        "a fully masked grown forest keeps moving, rather than freezing");
+  check(occupied(),
+        "no move installs a member-empty leaf while the forest is masked");
+  bool finite = true;
+  for (double v : train) finite = finite && std::isfinite(v);
+  for (double v : sigma) finite = finite && v > 0.0;
+  check(finite, "a fully masked grown forest reports finite draws throughout");
+
+  // the state law is what export and restore gate on, and it still holds
+  SamplerStateData state;
+  sampler.getState(state);
+  ext_rng* rng2 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng2, 4242);
+  ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
+                               ResponseFamily::gaussian, 1.0, 3.0,
+                               0.37804942330213542, options, &rng2);
+  check(restored.setState(state, nullptr),
+        "a state drawn under a full mask restores");
+  checkStructuralRoundTrip(state, restored,
+                           "the masked state reproduces the model");
+  ext_rng_destroy(rng2);
+
+  // ---- the mask lifts: every leaf must be admissible again ----
+  check(sampler.setActiveRows(nullptr), "the mask clears");
+  sampler.run(0, numSamples, results);
+  check(countVetoed(nullptr) == 0,
+        "the forest is admissible again once the mask lifts");
+
+  // ---- a PARTIAL mask on the grown forest is absorbed back into the set ----
+  check(sampler.setActiveRows(partial.data()), "a partial mask installs");
+  size_t strandedPartial = countVetoed(partial.data());
+  check(strandedPartial > 0,
+        "non-vacuity: the partial mask strands leaves of the grown forest");
+  sampler.run(200, 0, results);
+  check(countVetoed(partial.data()) == 0,
+        "the partially masked forest is absorbed back into the admissible set");
+  check(occupied(), "and installs no member-empty leaf getting there");
+
+  ext_rng_destroy(rng);
+  printf("ok: active rows on a grown forest (%zu leaves stranded by the full "
+         "mask, %zu by the partial one)\n",
+         strandedLeaves, strandedPartial);
+}
+
 static void testSetWeightsAndTestOffset() {
   const size_t n = 200, nTest = 20;
   std::vector<double> x, y;
@@ -6406,6 +6509,7 @@ void runSamplerTests(ext_rng* rng) {
   testWideCategorical(rng);
   testPooledMaskSampler(rng);
   testActiveRows();
+  testActiveRowsOnGrownForest();
   testSetWeightsAndTestOffset();
   testSetControlAndModel();
   testMissingEndToEnd();
