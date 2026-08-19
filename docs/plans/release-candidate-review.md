@@ -540,6 +540,119 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### rchk gate: triage and defensive PROTECTs (69de27ac, 2026-08-19)
+
+rc-gate (e)'s rchk half ran locally (kalibera/rchk docker under amd64
+emulation, ~5 min/run; the CI workflow cannot register until the
+branch reaches main). Initial verdict FAIL per the workflow's own gate
+grep: 11 [UP], 0 [PB], clean maacheck, 2 analysis bailouts on
+bartcore_bridge::setState.
+
+Independent triage found ALL 11 false positives, each with a
+mechanism: ordinalExpr/dimsExpr are attributes of rooted .Call
+arguments (rchk classifies Rf_isInteger allocating because R's
+isInteger calls inherits()); xExpr is an attribute of the
+R_PreserveObject'd data spec, the rooting dbarts.h ships as the flat-C
+contract; the seven installChannel flags miss that SET_VECTOR_ELT into
+the PROTECTed result runs BEFORE Rf_mkChar - rchk does not model
+rooting by container assignment. The setState bailouts are analyzer
+capacity on a pure reader off the rooted stateExpr (balanced PROTECT
+pairs, refusals defer through errorMessage so no longjmp crosses
+them). All four sites confirmed empirically under gctorture(TRUE)
+including the flat C API legs (capi_get_trees, capi_set_state restored
+prediction bit-identical).
+
+DECISION (orchestrator): apply a 10-line defensive PROTECT patch
+anyway - CRAN publishes rchk output and standing false positives would
+blind this gate's next real finding; the sites are one-time bridge
+paths, so the sampling loop pays nothing. Landed as 69de27ac (+19/-3,
+each hunk carrying a constraint comment naming the real rooting).
+
+Gates on its own base: tinytest 6413/0, tests/cpp full pass,
+equivalence trio bitwise 42/12/11 identical-draws lines. Merged-tree
+gate stacked on 8dbc0ce9: tinytest 6427/0, tests/cpp 252 ok, main
+equivalence 42/42, and a fresh rchk over the merged tree CLEAN -
+"Analyzed 13502 functions, traversed 3049440 states", 0 [UP], 0 [PB],
+empty maacheck, only the 5 expected bailouts. Logs under
+.claude/rc-egate-2026-08-19/rchk/ (initial, postfix experiments,
+merged-tip).
+
+GATE LESSON, durable: an empty [UP] grep PASSES on an OOM-killed
+analyzer (observed: "Killed" mid-analysis left an empty .bcheck) - the
+gate must also require the "Analyzed N functions" completion line and
+the absence of "Killed".
+
+The valgrind half of (e) also ran (native arm64 ubuntu:24.04 container
+fallback, stock R 4.3.3, the r-hub amd64 image crashes under
+emulation; VALGRIND_OPTS matching the workflow): zero invalid
+reads/writes, zero uninitialised uses, but ONE definite leak (2464
+bytes in 7 blocks) allocated at applyBCFSpec
+(R_interface_bartcore.cpp:2173, spec.forests.assign) via
+createHolder's unwindProtect lambda on the BCF creation path - fix
+slice in flight; and on that R 4.3.3 the test-bart-bart2.R
+extra-factor-level expect_error did not fire, halting tinytest partway
+(in-contract divergence, DESCRIPTION floor is R >= 4.0.0;
+investigation in flight; CI oldrel-1 R 4.4 is green). Full-suite
+valgrind re-run on the fixed tip remains the gate.
+
+### rc-gate (d): slot-sourced heteroscedastic warm starts pair the sample's own scale surface (8dbc0ce9, 2026-08-19)
+
+VD decision 2026-08-19 fix-now (decision brief verified in advance
+that no equivalence scenario or RNG-pinned test reaches hetero
+slot-sourced installTrees, so the draw-moving-in-principle fix
+re-records nothing). Design memo -> independent blind critique verdict
+SOUND-WITH-AMENDMENTS -> implementation with amendments binding.
+
+A1: the guard is stride equality - savedVarianceTrees.size() must
+equal capacity * nvt (capacity from the mean side's saved/live ratio,
+the same quantity that bounds slot) plus the base bound; a size-only
+guard would let a state whose live variance block was replaced by a
+shorter one slice ACROSS slot boundaries and install a cross-slot
+mixture presenting the right count.
+
+A2: a saved slot is exempt from the state-side occupancy pass but
+becomes occupancy-checked where it turns live, so a donor that kept
+sweeps then moved its rows can hold a slot the destination rightly
+refuses - heteroscedastic.md's two contrary statements rewritten, the
+varianceMismatch message extended with the scale-leaf positivity
+clause.
+
+A3's premise was CORRECTED in implementation: the enum value landed on
+an existing line so no wholesale anchor shift occurred; moved anchors
+re-derived by content with distinct deltas and one deliberately
+unmoved.
+
+Mechanics: readWarmStartState now parses the variance.saved.* blocks
+(optional - adjudication belongs to installForests, which knows the
+slot); slot >= 0 slices savedVarianceTrees and the pooled-categorical
+mask channel at slot*nvt; the sliced trees are held to the scale-leaf
+positivity law (hand-buildable surface multiplied by capacity, and a
+rebuild scatters a leaf straight into a divisor); new
+WarmStartResult::varianceSlotMismatch with its own bridge error.
+
+Tests: new inst/tinytest/test-heteroscedastic-warm-start.R (s-surface
+state pin at slot k with expected values computed R-side from the
+donor's saved blocks, pooled-mask arm at slot 0 where the expectation
+is a buffer prefix, refusal arm at k = capacity-1 - the only slot a
+one-short buffer trips, live-sourced regression arm, occupancy-edge
+arm), plus testVarianceWarmStartSlot in tests/cpp/test_state.cpp with
+the stride arm. Five mutations all killed: live-copy revert fails 5 R
+assertions, parse-discard refuses the positive arm, constant-slot-0
+fails 2 C++ assertions, mask-slice-to-live fails the pooled rebuild,
+stride-to-bound-only fails the C++ stride arm (A1's own proof).
+
+Gates: tinytest 6427/0; tests/cpp + ASAN/UBSAN clean; equivalence trio
+BITWISE 42/12/11 identical-draws lines - zero re-records, the brief's
+prediction confirmed in practice; R CMD check --as-cran from a
+clean-copy tarball Status OK; air/lintr clean; NEWS parses at 280.
+
+RESIDUE, verified stale AT BASE and left untouched (the 95f6fd7f
+full-namespace resync missed them): data-store.md:198/201/206/214
+(constructs sit ~320 lines below the cited sampler.hpp lines),
+grow-from-root-default.md:141, model-space-survey.md:71 (quoted text
+absent from the cited file), within-chain-threading.md:204's :675-702
+half, data-ownership.md:213 (names deleted code) - ledgered below.
+
 ### rc-gate wave 1: NEWS binary-k, sigest sparse surface, equal-rank-1 coverage (105f2bd6 + 3d5d2ed5 + b9c3f313, 2026-08-19)
 
 rc-gate items (a), (b) and (c) landed as three commits; (b) and (c)
