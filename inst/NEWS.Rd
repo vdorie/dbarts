@@ -535,6 +535,18 @@
             each unordered factor stays a single predictor with subset
             splits instead of expanding into indicator columns. Pass
             \code{factors = "indicators"} for the previous behavior.
+      \item The binary default for \code{k} - used by \code{dbarts},
+            \code{bart2}, and \code{xbart} when \code{k} is left
+            unspecified - is now \code{chi(1.5, 2)} rather than the
+            improper \code{chi(1.5, Inf)}, centering the sampled \code{k}
+            near the field-standard fixed value of 2 (prior median 1.9)
+            while still adapting to the data. \code{chi()}'s own
+            \code{scale} argument default moves the same way, so a bare
+            \code{chi(df)} call is proper unless \code{Inf} is passed
+            explicitly. \code{rbart_vi}'s separate fixed \code{k = 2}
+            default is unaffected. Pass \code{k = chi(1.5, Inf)} for the
+            old prior; seeded default binary fits otherwise draw
+            differently.
       \item Prior specifications are ordinary objects built by the
             constructors in the new exported list \code{dbartsPriors} (\code{cgm},
             \code{dart}, \code{normal}, \code{chi}, \code{chisq}, \code{fixed}), usable
