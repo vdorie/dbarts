@@ -622,7 +622,12 @@ void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
   // passes (refuseBCFTestSurface, not the forest count)
   refuseBCFTestSurface(engine, "dbarts_sampler_setTestPredictors");
   if (xTest == NULL) {
+    // removal is the whole no-test-data state, the offset included: the engine
+    // preserves a test offset across a test-store REBUILD (the caller keeps the
+    // two lengths consistent) but a removal leaves it describing rows that no
+    // longer exist, and the next install would silently re-adopt it
     engine.setTestPredictors(NULL, 0);
+    engine.setTestOffset(NULL);
     return;
   }
   void* scratch = vmaxget();
@@ -630,6 +635,13 @@ void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
     translateSource(engine.data(), xTest, NULL, engine.shape().numPredictors, 0,
                     "dbarts_sampler_setTestPredictors");
   validateTestSource(engine, source);
+  // and a rebuild at a different row count would read the caller's offset past
+  // its end on every recorded test fit, since nothing downstream re-checks the
+  // two against each other; the pair moves together
+  if (engine.data().testOffset != NULL &&
+      source.view.numRows != engine.shape().numTestObservations)
+    Rf_error("dbarts_sampler_setTestPredictors: test offset length would no "
+             "longer match; set the predictors and offset together");
   // the store build answers the leaf-covariate refusal with a false return;
   // defense in depth, since validateTestSource has already raised it - a
   // discarded false would leave the store holding its PREVIOUS rows and report
@@ -980,10 +992,14 @@ static bartcore::ResponseFamily augmentationArguments(
 
   bool precisionLatent =
     !drawing && (resolved == RF::logistic || resolved == RF::nbinom);
-  if (in.weights == NULL && !precisionLatent) return resolved;
+  // the counts rule belongs to the logistic law alone, which is the only one
+  // that reads a weight (as its Polya-Gamma copy count); a family that does not
+  // read them ignores them, as this entry's contract states
+  bool readsWeights = in.weights != NULL && resolved == RF::logistic;
+  if (!readsWeights && !precisionLatent) return resolved;
   for (size_t i = 0; i < in.numObservations; ++i) {
-    if (in.weights != NULL && (!(in.weights[i] > 0.0) ||
-                               in.weights[i] != std::floor(in.weights[i])))
+    if (readsWeights && (!(in.weights[i] > 0.0) ||
+                         in.weights[i] != std::floor(in.weights[i])))
       Rf_error("%s: 'weights' are observation counts: positive whole numbers",
                caller);
     if (precisionLatent && !(in.fit[i] > 0.0))
