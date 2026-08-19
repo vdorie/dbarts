@@ -540,6 +540,46 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Wave-5b R-surface fixes + main-baseline re-record (c7546233 + 178d1491, 2026-08-18)
+
+Fix-queue item 5. Closes the summary()/as_draws BLOCKER (silently
+wrong on combined multi-chain fits for non-scalar vars) via the
+diagnostics reshape, plus the Fork-1 chain-major collapse sweep
+(combined multi-chain scalar fields now collapse chain-major to
+match yhat.train/varcount/ranef; rbart.R verified to need no change -
+all packaging routes through convertSamplesFromDbartsToBart and the
+unmeasured-ranef draw uses per-chain raw tau; a naive dnorm loglik
+now matches extract("loglik") exactly where the old order was 2.72
+off), matchedCall[["prior"]] partial-match, keepsampler||keeptrees,
+named factor-level mismatch, truthful missing message, and the
+subset misreport. Review verdict LAND-WITH-FIXES; the fix round
+closed the review's own regression find (scalarFields omitted
+first.sigma/first.k/first.tau/resid.df - mis-split chain margins on
+multi-chain fits; failed 4/4 pre-fix), corrected both Rd row-order
+formulas to kept-draws-per-chain, made combineChains' 2-D branch
+invert the new vector branch with a round-trip test, added a
+chain-major order pin that fails on the interleaved base, and made
+the factor-mismatch advice truthful. The NaN-sigma minor was handed
+back (C-side; discharged by the flat-C guards slice). Every fix
+carries a fail-on-pre-fix proof. THE ADJUDICATION: the main harness
+fell to 41/42 with `bart2probit 37 summaries, max |z| = 0.00` - the
+only scenario pairing adaptive k with pooled multi-chain output.
+Independent per-channel verification (20 seeds x 37 channels):
+every RNG-stream channel bitwise identical; only k.mean/k.sd moved,
+<= 7 ULP, pure accumulation reassociation from the chain-major k
+reorder. Decision: draw-neutral RE-RECORD over a permanent
+fallback, because bart2probit is the sole tripwire for exactly the
+configuration this work touches and |z| < 4 is far too loose there.
+Records commit 178d1491: equivalence-c7546233.rds (42 scenarios,
+verified 42/42 strict-bitwise; old-baseline cross-check reproduces
+the adjudicated profile exactly), MANIFEST supersession row
+(4a42620a historical, draw-neutral note), equivalence.yaml,
+feature-matrix pointers; check-doc-freshness OK. Gates on the
+rebased tree: trio 41/42+adjudicated / 12 / 11, tinytest 6361/0,
+R CMD check --as-cran OK, air/lintr clean, CI green. Next owed:
+the bartCause lockstep slice (sample-major -> chain-major sigma
+reshape, consumer gotcha 2).
+
 ### Wave-5b hetero saved-variance state carry (73e14af4, 2026-08-18)
 
 Fix-queue item 2. Closes the hetero BLOCKER: getState/setState kept
