@@ -113,6 +113,18 @@ struct ChainStateData {
   // the flat format (the value semantics and validation differ from a Gaussian
   // leaf - it must be positive). Rebuild recomputes s^2(x) from the product.
   std::vector<std::vector<FlatNode>> varianceTrees;
+  // the SAVED (keepTrees) variance trees, slot-major capacity x numTrees - the
+  // replay targets predict routes new rows through. Carried so a re-created
+  // sampler reports the recorded s(x) instead of its own identity fill; a
+  // sibling field for the reason varianceTrees is one, and with no capacity
+  // scalar, since the size against a construction-fixed tree count implies it.
+  std::vector<std::vector<FlatNode>> savedVarianceTrees;
+  // pooled categorical side channels, one per LIVE and one per SAVED variance
+  // tree, empty off a pooled store. A wide rule's words live outside the flat
+  // record, so a variance tree splitting on a >63-level column has no state
+  // without them.
+  std::vector<std::vector<std::uint64_t>> varianceTreeMasks;
+  std::vector<std::vector<std::uint64_t>> savedVarianceTreeMasks;
 };
 
 /// One ensemble of the backfitting sampler: its trees, their fits and working

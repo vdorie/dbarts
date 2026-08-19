@@ -80,8 +80,9 @@ conflict resolutions and two overturns this plan encodes.
   `combinedVariance`, `meanResidual`, `divisor`, `treeResidual`
   (`VarianceForest::initialize`, `buildVarianceForest`). `resizeTestStorage`
   DOES cover `combinedVarianceTest`, and `initializeSavedTrees` /
-  `setSavedSlotBase` DO cover the saved variance trees - the gap is the
-  train-side mutation surface only.
+  `setSavedSlotBase` DO cover the saved variance trees' ALLOCATION - the gap is
+  the train-side mutation surface only. (Their SERIALIZATION was a separate gap,
+  closed later: docs/design/heteroscedastic.md section 16.)
 - `Tree::flattenBelow` reads `data.cutPoints[j][rule.splitIndex()]` with no
   bound check. `ruleIsUnrepresentable` exists for exactly this and its only
   caller is `collapseEmptyNodesBelow`, which no variance tree reaches.

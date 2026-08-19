@@ -56,7 +56,7 @@ bool sameFlatTrees(const std::vector<std::vector<FlatNode>>& a,
 // are let through rather than guessed at. Honest, not airtight - a small field
 // can hide in existing padding - which is why the table-driven coverage test
 // beside the fuzz snapshot exists as well.
-static_assert(sizeof(void*) != 8 || sizeof(ChainStateData) == 344,
+static_assert(sizeof(void*) != 8 || sizeof(ChainStateData) == 416,
               "ChainStateData gained or lost a field; add its comparison to "
               "statesAgree below and update this size");
 static_assert(sizeof(void*) != 8 || sizeof(ForestStateData) == 160,
@@ -82,10 +82,18 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
           xf.leafScale != yf.leafScale)
         return false;
     }
-    // the variance forest sits outside forests_, so its flat trees are a
-    // sibling field rather than a ForestStateData member; a homoscedastic state
-    // carries none on either side and agrees vacuously
-    if (!sameFlatTrees(x.varianceTrees, y.varianceTrees)) return false;
+    // the variance forest sits outside forests_, so its flat trees are
+    // sibling fields rather than ForestStateData members; a homoscedastic state
+    // carries none on either side and agrees vacuously. The SAVED buffer is
+    // compared too: it is the only record of the kept samples' scale surface,
+    // and a restore that rebuilt the live trees alone would predict off the
+    // destination's identity fill unnoticed.
+    if (!sameFlatTrees(x.varianceTrees, y.varianceTrees) ||
+        !sameFlatTrees(x.savedVarianceTrees, y.savedVarianceTrees))
+      return false;
+    if (x.varianceTreeMasks != y.varianceTreeMasks ||
+        x.savedVarianceTreeMasks != y.savedVarianceTreeMasks)
+      return false;
     if (x.latents != y.latents || x.groupEffects != y.groupEffects ||
         x.dartProbabilities != y.dartProbabilities ||
         x.rngState != y.rngState)

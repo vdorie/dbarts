@@ -6158,7 +6158,10 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
     SLOT_RNG_STATE, SLOT_BCF, SLOT_RESID_DF, SLOT_CUTPOINTS, SLOT_DISPERSION,
     SLOT_VARIANCE_VARS, SLOT_VARIANCE_VALUES, SLOT_VARIANCE_SIZES,
-    SLOT_VARIANCE_FLAGS,
+    SLOT_VARIANCE_FLAGS, SLOT_VARIANCE_MASKS,
+    SLOT_VARIANCE_SAVED_VARS, SLOT_VARIANCE_SAVED_VALUES,
+    SLOT_VARIANCE_SAVED_SIZES, SLOT_VARIANCE_SAVED_FLAGS,
+    SLOT_VARIANCE_SAVED_MASKS,
     SLOT_COUNT
   };
   static const char* slotNames[SLOT_COUNT] = {
@@ -6166,7 +6169,10 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     "latents", "ranef", "tau",
     "dart.probabilities", "dart.alpha", "dart.updates.skipped",
     "rng.state", "bcf", "resid.df", "cutpoints", "dispersion",
-    "variance.vars", "variance.values", "variance.sizes", "variance.flags"
+    "variance.vars", "variance.values", "variance.sizes", "variance.flags",
+    "variance.masks",
+    "variance.saved.vars", "variance.saved.values", "variance.saved.sizes",
+    "variance.saved.flags", "variance.saved.masks"
   };
 
   SEXP resultExpr =
@@ -6213,13 +6219,28 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     SET_VECTOR_ELT(chainExpr, SLOT_FORESTS, forestsExpr);
     UNPROTECT(1);
 
-    // heteroscedastic variance forest: its flattened trees ride four chain-level
-    // slots (no param/mask side channels - scale leaves and ordinal/inline
-    // splits only). Empty off a variance forest, so the slots stay R_NilValue.
-    if (!chainState.varianceTrees.empty())
+    // heteroscedastic variance forest: its flattened LIVE trees ride four
+    // chain-level slots and its SAVED (keepTrees) buffer four more, each with a
+    // pooled-categorical mask channel - a scale leaf carries no leaf params,
+    // but nothing confines a variance tree to narrow columns. Empty off a
+    // variance forest, so the slots stay R_NilValue.
+    if (!chainState.varianceTrees.empty()) {
       storeFlatTrees(chainExpr, SLOT_VARIANCE_VARS, SLOT_VARIANCE_VALUES,
                      SLOT_VARIANCE_SIZES, SLOT_VARIANCE_FLAGS,
                      chainState.varianceTrees);
+      if (!chainState.varianceTreeMasks.empty())
+        storeTreeMasks(chainExpr, SLOT_VARIANCE_MASKS,
+                       chainState.varianceTreeMasks);
+    }
+    if (!chainState.savedVarianceTrees.empty()) {
+      storeFlatTrees(chainExpr, SLOT_VARIANCE_SAVED_VARS,
+                     SLOT_VARIANCE_SAVED_VALUES, SLOT_VARIANCE_SAVED_SIZES,
+                     SLOT_VARIANCE_SAVED_FLAGS,
+                     chainState.savedVarianceTrees);
+      if (!chainState.savedVarianceTreeMasks.empty())
+        storeTreeMasks(chainExpr, SLOT_VARIANCE_SAVED_MASKS,
+                       chainState.savedVarianceTreeMasks);
+    }
 
     SET_VECTOR_ELT(chainExpr, SLOT_SIGMA, Rf_ScalarReal(chainState.sigma));
 
@@ -6589,17 +6610,51 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     }
     chainState.sigma = REAL(sigmaExpr)[0];
 
-    // heteroscedastic variance forest: an optional block, absent (empty) off a
-    // variance state. stateIsValid refuses a variance sampler lacking it and a
-    // homoscedastic sampler carrying it (the additive-block contract).
+    // heteroscedastic variance forest: optional blocks, absent (empty) off a
+    // variance state. stateIsValid refuses a variance sampler lacking them and
+    // a homoscedastic sampler carrying them (the additive-block contract), and
+    // pairs the saved buffer's size against the live capacity. readFlatTrees
+    // and readTreeMasks carry no name channel, so their generic refusals are
+    // re-stated here against the block that failed.
     SEXP varianceVarsExpr = rc_getListElement(chainExpr, "variance.vars");
-    if (!Rf_isNull(varianceVarsExpr) &&
-        !readFlatTrees(varianceVarsExpr,
-                       rc_getListElement(chainExpr, "variance.values"),
-                       rc_getListElement(chainExpr, "variance.sizes"),
-                       rc_getListElement(chainExpr, "variance.flags"),
-                       sampler.data(), chainState.varianceTrees, &errorMessage))
-      break;
+    if (!Rf_isNull(varianceVarsExpr)) {
+      if (!readFlatTrees(varianceVarsExpr,
+                         rc_getListElement(chainExpr, "variance.values"),
+                         rc_getListElement(chainExpr, "variance.sizes"),
+                         rc_getListElement(chainExpr, "variance.flags"),
+                         sampler.data(), chainState.varianceTrees,
+                         &errorMessage)) {
+        errorMessage = malformedBlock("variance.vars");
+        break;
+      }
+      if (sampler.data().hasPooledCategorical &&
+          !readTreeMasks(rc_getListElement(chainExpr, "variance.masks"),
+                         chainState.varianceTrees, sampler.data(),
+                         chainState.varianceTreeMasks, &errorMessage)) {
+        errorMessage = malformedBlock("variance.masks");
+        break;
+      }
+    }
+    SEXP varianceSavedVarsExpr =
+      rc_getListElement(chainExpr, "variance.saved.vars");
+    if (!Rf_isNull(varianceSavedVarsExpr)) {
+      if (!readFlatTrees(varianceSavedVarsExpr,
+                         rc_getListElement(chainExpr, "variance.saved.values"),
+                         rc_getListElement(chainExpr, "variance.saved.sizes"),
+                         rc_getListElement(chainExpr, "variance.saved.flags"),
+                         sampler.data(), chainState.savedVarianceTrees,
+                         &errorMessage)) {
+        errorMessage = malformedBlock("variance.saved.vars");
+        break;
+      }
+      if (sampler.data().hasPooledCategorical &&
+          !readTreeMasks(rc_getListElement(chainExpr, "variance.saved.masks"),
+                         chainState.savedVarianceTrees, sampler.data(),
+                         chainState.savedVarianceTreeMasks, &errorMessage)) {
+        errorMessage = malformedBlock("variance.saved.masks");
+        break;
+      }
+    }
 
     SEXP fitScaleExpr = rc_getListElement(chainExpr, "fit.scale");
     if (Rf_isNull(fitScaleExpr)) {
@@ -6878,17 +6933,26 @@ static const char* readWarmStartState(SEXP stateExpr,
       }
     }
 
-    // the variance trees ride four chain-level slots, as in the setState
-    // parser. installForests does not install them, but it compares the
-    // donor's against this sampler's shape, so they must be read faithfully.
+    // the LIVE variance trees and their mask channel, as in the setState
+    // parser; installForests installs these. The SAVED variance blocks are
+    // deliberately NOT read: installForests pairs a slot-sourced mean forest
+    // with the donor's current scale surface, so parsing a capacity-sized
+    // buffer it discards would be pure allocation.
     SEXP varianceVarsExpr = rc_getListElement(chainExpr, "variance.vars");
-    if (!Rf_isNull(varianceVarsExpr) &&
-        !readFlatTrees(varianceVarsExpr,
-                       rc_getListElement(chainExpr, "variance.values"),
-                       rc_getListElement(chainExpr, "variance.sizes"),
-                       rc_getListElement(chainExpr, "variance.flags"),
-                       sampler.data(), chainState.varianceTrees, &errorMessage))
-      break;
+    if (!Rf_isNull(varianceVarsExpr)) {
+      if (!readFlatTrees(varianceVarsExpr,
+                         rc_getListElement(chainExpr, "variance.values"),
+                         rc_getListElement(chainExpr, "variance.sizes"),
+                         rc_getListElement(chainExpr, "variance.flags"),
+                         sampler.data(), chainState.varianceTrees,
+                         &errorMessage))
+        break;
+      if (sampler.data().hasPooledCategorical &&
+          !readTreeMasks(rc_getListElement(chainExpr, "variance.masks"),
+                         chainState.varianceTrees, sampler.data(),
+                         chainState.varianceTreeMasks, &errorMessage))
+        break;
+    }
   }
   return errorMessage;
 }

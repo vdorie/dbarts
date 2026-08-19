@@ -783,10 +783,14 @@ public:
       dst.amplitudes = src.amplitudes;
       dst.amplitudeVariances = src.amplitudeVariances;
       // the donor's LIVE variance trees, whatever slot the mean forests come
-      // from: the state format carries no saved variance channel, so a
-      // slot-sourced warm start pairs a saved mean forest with the donor's
-      // current scale surface rather than cold-starting it
+      // from: a slot-sourced warm start pairs a saved mean forest with the
+      // donor's current scale surface rather than cold-starting it.
+      // CONSTRAINT: the state DOES carry a saved variance channel, so a C++
+      // getState donor hands over a populated savedVarianceTrees this
+      // reassembly deliberately drops - slot-paired scale surfaces would move
+      // the starting position of every downstream draw.
       dst.varianceTrees = src.varianceTrees;
+      dst.varianceTreeMasks = src.varianceTreeMasks;
     }
 
     // containment (design "Containment"): a donor grown under a different (or
@@ -827,6 +831,7 @@ public:
     for (size_t c = 0; c < chains_.size(); ++c)
       if (chains_[c]->hasVarianceForest() &&
           !chains_[c]->installVarianceForest(install[c].varianceTrees,
+                                             install[c].varianceTreeMasks,
                                              donorGridPtr, &data_))
         return WarmStartResult::varianceMismatch;
     currentSampleNum_ = 0;

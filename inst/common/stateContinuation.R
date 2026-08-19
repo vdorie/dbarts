@@ -41,6 +41,26 @@ statesAgree <- function(reState, saved, expect = TRUE) {
     "k",
     "leaf.scale"
   )
+  # chain-level blocks the per-forest loop cannot reach: the variance forest
+  # sits outside the forests list, so its LIVE and SAVED trees are siblings of
+  # it. The saved buffer is the only record of the kept samples' scale surface,
+  # and a restore that rebuilt the live trees alone would leave predict
+  # replaying the destination's identity fill unnoticed. variance.values IS
+  # compared: a scale leaf's value is the surface itself, not a reporting mean.
+  # A homoscedastic pair reads NULL on both sides and compares vacuously, so
+  # the loop only bites for a heteroscedastic caller.
+  chainFields <- c(
+    "variance.vars",
+    "variance.values",
+    "variance.sizes",
+    "variance.flags",
+    "variance.masks",
+    "variance.saved.vars",
+    "variance.saved.values",
+    "variance.saved.sizes",
+    "variance.saved.flags",
+    "variance.saved.masks"
+  )
   for (ci in seq_along(saved)) {
     reForests <- reState[[ci]]$forests
     savedForests <- saved[[ci]]$forests
@@ -58,6 +78,13 @@ statesAgree <- function(reState, saved, expect = TRUE) {
           paste(label, field)
         )
       }
+    }
+    for (field in chainFields) {
+      isField(
+        reState[[ci]][[field]],
+        saved[[ci]][[field]],
+        sprintf("chain %d %s", ci, field)
+      )
     }
     sigmaLabel <- sprintf("chain %d sigma", ci)
     agree <- agree &&

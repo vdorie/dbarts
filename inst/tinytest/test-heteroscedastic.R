@@ -51,6 +51,125 @@ expect_equal(dim(s), c(400L, 2L))
 sNew <- apply(s, 2L, mean)
 expect_true(sNew[2L] > 2 * sNew[1L]) # x = 0.75 noisier than x = 0.25
 
+# ---- the SAVED variance trees survive a state round trip ----
+# predict addresses the saved variance buffer, never the live trees, so a
+# re-created sampler that restored only the live ones replays the identity fill
+# and reports s(x) == 0 (docs/design/heteroscedastic.md section 16).
+fit$fit$storeState()
+expect_false(is.null(fit$fit$state[[1L]][["variance.saved.vars"]]))
+
+stateFile <- tempfile()
+saveRDS(fit, stateFile)
+fitLoaded <- readRDS(stateFile)
+predLoaded <- predict(fitLoaded, xNew)
+expect_identical(predLoaded, pred)
+expect_identical(attr(predLoaded, "s"), s)
+expect_true(all(attr(predLoaded, "s") > 0))
+unlink(stateFile)
+
+fitCopy <- fit
+fitCopy$fit <- fit$fit$copy()
+predCopy <- predict(fitCopy, xNew)
+expect_identical(predCopy, pred)
+expect_identical(attr(predCopy, "s"), s)
+
+# the state-comparison helper reaches the chain-level variance blocks; every
+# other caller is homoscedastic, where both sides read NULL and the comparison
+# is vacuous
+source(
+  system.file("common", "stateContinuation.R", package = "dbarts"),
+  local = TRUE
+)
+fitCopy$fit$storeState()
+statesAgree(fitCopy$fit$state, fit$fit$state)
+# and it bites: one perturbed saved variance leaf is detected
+mutatedState <- fit$fit$state
+mutatedState[[1L]][["variance.saved.values"]][1:8] <- as.raw(0L)
+expect_false(statesAgree(mutatedState, fit$fit$state, expect = FALSE))
+
+# an ABSENT saved block against a live capacity can only be a state written
+# before the channel existed; restoring it would substitute the identity fill
+# for the recorded surface and report a plausible constant s(x)
+strippedState <- fit$fit$state
+for (block in c("vars", "values", "sizes", "flags")) {
+  strippedState[[1L]][[paste0("variance.saved.", block)]] <- NULL
+}
+expect_error(
+  fit$fit$setState(strippedState),
+  "state is not consistent with this sampler"
+)
+
+# a PRESENT but malformed block is named rather than reported generically
+badSavedState <- fit$fit$state
+badSavedState[[1L]][["variance.saved.sizes"]] <- c(1L, 2L)
+expect_error(
+  fit$fit$setState(badSavedState),
+  "block 'variance.saved.vars' is malformed"
+)
+
+# ---- a keepTrees state stored before any recorded sweep is legal ----
+# the unwritten slots hold the MULTIPLICATIVE identity 1.0: a 0-valued leaf
+# would both annihilate the product predict forms and fail the positivity law
+# validation applies to every saved variance tree.
+preData <- data.frame(x = x, y = y)
+preControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 10L,
+  n.samples = 4L,
+  keepTrees = TRUE,
+  updateState = FALSE
+)
+makePre <- function() {
+  dbarts(
+    y ~ x,
+    preData,
+    variance = varianceForest(n.trees = 5L),
+    control = preControl
+  )
+}
+preDonor <- makePre()
+preDonor$storeState()
+preDest <- makePre()
+preDest$setState(preDonor$state)
+preDest$storeState()
+statesAgree(preDest$state, preDonor$state)
+
+# ---- a wide (pooled) categorical predictor under a variance forest ----
+# a variance tree splitting on a >63-level column keeps its rule's words in a
+# side channel rather than the flat record, so flatten, rebuild, validation and
+# replay each need it - and the saved buffer carries its own copy.
+set.seed(21, sample.kind = "Rejection")
+nWide <- 400L
+wideData <- data.frame(
+  g = factor(sample(80L, nWide, replace = TRUE)),
+  z = runif(nWide)
+)
+wideSd <- ifelse(wideData$z < 0.5, 0.3, 1.2)
+wideData$y <- as.numeric(wideData$g) / 40 + wideData$z + wideSd * rnorm(nWide)
+fitWide <- bart2(
+  y ~ g + z,
+  wideData,
+  variance = varianceForest(n.trees = 8L),
+  n.trees = 20L,
+  n.samples = 15L,
+  n.burn = 15L,
+  n.chains = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+wideNew <- wideData[1:5, c("g", "z")]
+predWide <- predict(fitWide, wideNew)
+expect_true(all(attr(predWide, "s") > 0))
+fitWide$fit$storeState()
+wideFile <- tempfile()
+saveRDS(fitWide, wideFile)
+fitWideLoaded <- readRDS(wideFile)
+predWideLoaded <- predict(fitWideLoaded, wideNew)
+expect_identical(predWideLoaded, predWide)
+expect_identical(attr(predWideLoaded, "s"), attr(predWide, "s"))
+unlink(wideFile)
+
 # ---- a homoscedastic truth does not manufacture heteroscedasticity ----
 set.seed(11, sample.kind = "Rejection")
 xHom <- runif(n)

@@ -1171,6 +1171,19 @@
             \code{resid.prior} recalibrates the variance forest's scale
             leaf, where it addresses the residual scale, rather than being
             silently ignored.
+      \item \code{predict} on a heteroscedastic fit restored from a saved
+            state - \code{saveRDS}/\code{readRDS}, a new session, or
+            \code{$copy()} - reports the fitted \code{s(x)} again. The
+            variance forest's saved trees were not part of the serialized
+            state, so a re-created sampler replayed empty slots and returned
+            \code{s(x)} of exactly zero, with the mean fit unaffected and no
+            error or warning. A state whose saved variance block is absent
+            while the sampler keeps trees is now refused rather than restored
+            from those empty slots.
+      \item A variance forest over a predictor with more than 63 levels no
+            longer crashes when its trees are flattened, which a
+            \code{keepTrees} run did every recorded sample and
+            \code{$storeState} did on any heteroscedastic sampler.
       \item \code{$installTrees} refuses a donor and destination that
             disagree on whether they carry a variance forest.
       \item A warm start carries the donor's variance trees instead of
