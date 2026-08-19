@@ -1181,6 +1181,17 @@
             precisions. A donor variance tree that splits outside a
             restricted destination's \code{variance = ~ x} columns, or that
             leaves a leaf empty on the destination's data, is refused.
+      \item A warm start from a donor's saved sample now installs that
+            sample's own variance surface. \code{$installTrees(donor,
+            samples = k)}, and \code{bart2}'s \code{warm.start} on a donor
+            fit with \code{keepTrees = TRUE}, paired sample \code{k}'s mean
+            forest with the donor's FINAL variance surface whatever
+            \code{k} named, so a heteroscedastic warm start kept only half
+            the promise the \code{samples} argument makes, and every chain
+            of a multi-chain start began from one shared scale surface
+            instead of the overdispersed spread. A donor whose saved
+            variance block does not cover the named sample is refused
+            rather than falling back to its live one.
       \item \code{samplePriorPredictive(type = "ppd")} refuses a
             heteroscedastic sampler rather than returning a homoscedastic
             prior predictive; \code{type = "ev"} is unaffected.

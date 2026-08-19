@@ -313,9 +313,9 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | aft | R spec.R:410 | S CH:626 | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
 | hazard | R spec.R:410 | M rbart.R:49 [f6] | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
 | hurdle | R spec.R:410 [f34] | M | S bart.R:2247, 2256 [f35] | R bart.R:608 | R bart.R:608 |
-| bcf | R FAC:817 [f48] | R RIB:2352 | R spec.R:537, 567-573 | S SAM:733 [f36] | S CH:1926 [f36] |
+| bcf | R FAC:817 [f48] | R RIB:2352 | R spec.R:537, 567-573 | S SAM:735 [f36] | S CH:1926 [f36] |
 | grouped | ? [f30] | - | S rbart.R:591 | M rbart.R:45-51 [f37] | M rbart.R:45-51 [f37] |
-| hetero | - | ? [f30] | S CH:570 [f38] | S SAM:733 | S CH:1921 |
+| hetero | - | ? [f30] | S CH:570 [f38] | S SAM:735 | S CH:1921 |
 
 Grow-from-root is gated by the LEAF model, not the family: linear and GP leaves
 are refused at dbarts.R:998-1007 and no-op at CH:1904, so every family above
@@ -474,7 +474,7 @@ logistic, nbinom, aft; **S3** multinomial (global only); **S4** surface,
 records, baselines. S0 landed at dc11a805 (the pins, now
 inst/tinytest/test-active-rows-pins.R). S1 landed at 6db22aee: the engine
 channel - `Chain::setActiveRows` CH:1602, which owns the single validating and
-normalizing scan, `Sampler` SAM:1242, the facade's pure virtual FAC:323 and its
+normalizing scan, `Sampler` SAM:1275, the facade's pure virtual FAC:323 and its
 shape probe FAC:102 - plus gaussian, Student-t, probit and ordinal, the R5
 `$setActiveRows` (dbarts.R:1274) and the bridge entry (RIB:3988). S2 landed at
 87d370ea: logistic (`workingWeights()` MOD:3531) and nbinom
@@ -567,7 +567,7 @@ force, independent of the model's recorded intent, so a `setResponse` /
 than staying silent - and the writer, `Chain::setForestPriorScale` (CH:1207),
 sharing one `priorScaleFactor` conversion (CH:3865) with the reader so neither
 direction can drift from the other; both are total over the four leaf models
-and carry no family switch (facade FAC:309, 316; `Sampler` SAM:1220, 1229; R5
+and carry no family switch (facade FAC:309, 316; `Sampler` SAM:1253, 1262; R5
 `dbartsSampler$getCalibration`/`$setCalibration` dbarts.R:1594, 1599; bridge
 `bartcore_getCalibration`/`bartcore_setCalibration` RIB:4105, 4160). Refused
 under a `k` hyperprior (the `sd` spelling only, since a sampled `k` has no
@@ -851,10 +851,10 @@ unreachable. The Rd side was the wrong one and is now corrected
 [f35] `dart` is forwarded to both components (bart.R:2247, 2256), each of
 which is an ordinary single-forest chain that takes it.
 
-[f36] No family gate: `installForests` checks shape, grid, DART and
-variance-forest presence only (SAM:701-751), matching donor forest counts at
-SAM:733, and `growForestFromRoot` loops every forest (CH:1926, the loop; the
-earlier CH:1589 named the variance-forest pre-step above it). Neither is
+[f36] No family gate: `installForests` checks shape, grid, DART, and the
+variance forest's presence and saved slot (SAM:703-753), matching donor forest
+counts at SAM:735, and `growForestFromRoot` loops every forest (CH:1926, the
+loop; the earlier CH:1589 named the variance-forest pre-step above it). Neither is
 exercised by a BCF test, and BCF has no `bart2()` surface, so both are reached
 only through the R5 `$installTrees` (dbarts.R:1738) / `$growFromRoot`
 (dbarts.R:995).

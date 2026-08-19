@@ -74,7 +74,7 @@ struct SamplerStateData {
 /// forest can seed several chains, so the donor's chain count need not match.
 enum class WarmStartResult {
   ok, shapeMismatch, gridMismatch, dartMismatch, interactionMismatch,
-  columnMaskMismatch, varianceMismatch
+  columnMaskMismatch, varianceMismatch, varianceSlotMismatch
 };
 
 /// A sequential per-observation predictor update: stage one observation's
@@ -694,10 +694,12 @@ public:
   /// the donor chain's live trees, else its saved slot (slot-major, one forest
   /// per slot). Only trees, sigma, k, and DART transfer - rng and auxiliary
   /// state stay fresh, so each chain evolves independently from its own
-  /// stream. A donor on a different cut grid has its splits remapped onto this
-  /// sampler's grid (starved splits collapse), as setData remaps a data
-  /// replacement; the donor must still share this sampler's per-forest tree
-  /// counts and DART mode. On any mismatch nothing is touched.
+  /// stream. Under a variance forest the scale surface rides along, taken from
+  /// the same slot as the mean forest. A donor on a different cut grid has its
+  /// splits remapped onto this sampler's grid (starved splits collapse), as
+  /// setData remaps a data replacement; the donor must still share this
+  /// sampler's per-forest tree counts and DART mode. On any mismatch nothing is
+  /// touched.
   WarmStartResult installForests(
       const SamplerStateData& donor,
       const std::vector<std::pair<size_t, int>>& sampleMap) {
@@ -782,15 +784,46 @@ public:
       dst.amplitudeWidths = src.amplitudeWidths;
       dst.amplitudes = src.amplitudes;
       dst.amplitudeVariances = src.amplitudeVariances;
-      // the donor's LIVE variance trees, whatever slot the mean forests come
-      // from: a slot-sourced warm start pairs a saved mean forest with the
-      // donor's current scale surface rather than cold-starting it.
-      // CONSTRAINT: the state DOES carry a saved variance channel, so a C++
-      // getState donor hands over a populated savedVarianceTrees this
-      // reassembly deliberately drops - slot-paired scale surfaces would move
-      // the starting position of every downstream draw.
-      dst.varianceTrees = src.varianceTrees;
-      dst.varianceTreeMasks = src.varianceTreeMasks;
+      // The scale surface travels with the mean forest it was drawn beside: a
+      // slot-sourced install takes that slot of the donor's saved variance
+      // buffer, index-aligned with the mean slice above because one slot base
+      // drives both buffers and both index by the sample number. A live-sourced
+      // install takes the donor's live pair.
+      if (slot < 0) {
+        dst.varianceTrees = src.varianceTrees;
+        dst.varianceTreeMasks = src.varianceTreeMasks;
+      } else if (!src.varianceTrees.empty()) {
+        // The saved buffer's STRIDE is the donor's own variance tree count, so
+        // a size-only bound would let a state whose live block is shorter than
+        // the stride slice ACROSS slot boundaries and install a mixture of two
+        // sweeps' trees - which the count check downstream cannot see. Require
+        // the buffer to be exactly capacity x stride, capacity being the mean
+        // side's, the quantity that bounds slot.
+        size_t nvt = src.varianceTrees.size();
+        size_t capacity =
+          src.forests[0].savedTrees.size() / src.forests[0].trees.size();
+        size_t base = static_cast<size_t>(slot) * nvt;
+        if (src.savedVarianceTrees.size() != capacity * nvt ||
+            base + nvt > src.savedVarianceTrees.size())
+          return WarmStartResult::varianceSlotMismatch;
+        dst.varianceTrees.assign(src.savedVarianceTrees.begin() + base,
+                                 src.savedVarianceTrees.begin() + base + nvt);
+        if (!src.savedVarianceTreeMasks.empty()) {
+          if (src.savedVarianceTreeMasks.size() != src.savedVarianceTrees.size())
+            return WarmStartResult::varianceSlotMismatch;
+          dst.varianceTreeMasks.assign(
+            src.savedVarianceTreeMasks.begin() + base,
+            src.savedVarianceTreeMasks.begin() + base + nvt);
+        }
+        // the scale-leaf positivity law state validation holds a saved slot to,
+        // applied here for the reason it applies there: the buffer is
+        // hand-buildable and a rebuild scatters the leaf straight into a
+        // divisor
+        for (const std::vector<FlatNode>& tree : dst.varianceTrees)
+          for (const FlatNode& node : tree)
+            if (flatKindOf(node) == FlatKind::leaf && !(node.value > 0.0))
+              return WarmStartResult::varianceMismatch;
+      }
     }
 
     // containment (design "Containment"): a donor grown under a different (or
