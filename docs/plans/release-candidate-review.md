@@ -540,6 +540,31 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Consumer lockstep rebuilds against the new ABI token (no dbarts commit, 2026-08-19)
+
+The rebuild obligation the ABI-token fold created (ledger items 11
+remainder and 12), discharged with ZERO consumer source changes -
+the fold was rebuild-only for consumers, as designed. stan4bart
+(bartcore @ 54e157b): --preclean rebuild clean; resolved-sigma
+obligation VERIFIED SUPPLIED (stan4bart_fit.R sets data.bart@sigma
+from the lmer/lm init before create, dbarts's spec layer fills only
+when NA so the value survives, and init.cpp calls setSigma after
+create); gates green - tinytest 531/0 under NOT_CRAN,
+compare-posterior all tiers pass vs its MANIFEST baseline row,
+recompute-exactness 3/3 at 7e-14. treatSens (dbarts-1.0 @ 1d7c697):
+rebuild clean, its own load-time hash check passes, testthat 186/0,
+--as-cran with only machine-flag noise. USER LIBRARY refreshed:
+dbarts, stan4bart, treatSens, bartCause all rebuilt 2026-08-19
+against the tip; stan4bart fit+predict smoke clean; bartCause's
+suite 0 failures - the ledgered stan4bart-ABI-staleness test error
+is CURED. One durable finding from the stale-binary probe: the
+enforced handshake is NOT retroactive - a consumer binary compiled
+BEFORE the enforcement never runs the check (a pre-migration
+stan4bart loaded and fit silently, failing only inside reshaped
+entries on dbarts's own range checks), so pre-enforcement binaries
+must be assumed silently wrong and cured by rebuild; binaries built
+at or after the enforcement fail loudly at create.
+
 ### Full-namespace anchor resync, pre-RC pass (95f6fd7f, 2026-08-19)
 
 The wave-4 precedent (f953127c) repeated over the FINAL content
