@@ -568,6 +568,14 @@ estimateSigmaFromLinearModel <- function(data) {
   # container (a frame with factors) still fits lm; only CSC-backed columns
   # fall back to the marginal estimate.
   if (predictorSourceIsSparse(x)) {
+    warning(warningCondition(
+      paste0(
+        "starting sigma estimate falls back to the marginal response sd: ",
+        "'x' has sparse-backed predictor columns, so a linear-model ",
+        "estimate is not attempted"
+      ),
+      class = c("dbartsSparseSigmaFallbackWarning", "dbartsWarning")
+    ))
     residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
     return(sd(residual))
   }

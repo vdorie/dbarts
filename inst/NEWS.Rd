@@ -1585,6 +1585,16 @@
             with no draws and failing in the loss on an empty sample
             matrix (\dQuote{'x' must be an array of at least two
             dimensions}).
+      \item The starting \code{sigest} estimate now warns when it falls back
+            to the marginal response sd because the predictor set has
+            sparse-backed columns (a \code{Matrix::dgCMatrix}, or a data
+            frame mixing dense columns with \code{Matrix::sparseVector}/
+            \code{dgCMatrix} ones); the fallback estimate itself is
+            unchanged.
+      \item A \code{Matrix::sparseVector} or \code{dgCMatrix} column named
+            in a \code{formula} now refuses cleanly - the same guarded
+            message \code{\link{sparseFactor}} columns already get -
+            instead of raw-erroring inside \code{\link{model.frame}}.
     }
   }
 }

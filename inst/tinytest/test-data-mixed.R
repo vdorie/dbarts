@@ -64,6 +64,19 @@ data.subset <- dbartsData(x.frame, y, subset = 1:200)
 expect_equal(length(data.subset@y), 200L)
 expect_equal(nrow(data.subset@x), 200L)
 
+# the formula path refuses sparseVector/dgCMatrix columns explicitly,
+# matching sparseFactor's guard, instead of raw-erroring inside model.frame
+df.formula <- x.frame
+df.formula$y <- y
+expect_error(
+  dbartsData(y ~ x1 + sv, df.formula),
+  pattern = "sparse predictors must be specified through the x/y interface; 'sv' is a sparseVector"
+)
+expect_error(
+  dbartsData(y ~ x1 + sm, df.formula),
+  pattern = "sparse predictors must be specified through the x/y interface; 'sm' is a dgCMatrix"
+)
+
 # a mixed fit recovers the signal a fully dense fit of the same values
 # finds; sigma estimates differ by construction (marginal fallback), so the
 # comparison is on fit quality
@@ -96,6 +109,45 @@ expect_true(sse.mixed < 2.0 * sse.dense + 1.0)
 
 # variable names ride through to varcount
 expect_equal(colnames(fit.mixed$varcount), colnames(mm))
+
+# a missing sigest on a mixed sparse/dense predictor set warns once that
+# the starting estimate is the marginal fallback, not a linear-model fit;
+# a fully dense set of the same shape gets no such warning
+countWarnings <- function(expr, class) {
+  count <- 0L
+  withCallingHandlers(
+    expr,
+    warning = function(w) {
+      if (inherits(w, class)) {
+        count <<- count + 1L
+      }
+      invokeRestart("muffleWarning")
+    }
+  )
+  count
+}
+quick <- list(
+  n.samples = 5L,
+  n.burn = 2L,
+  n.trees = 3L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_equal(
+  countWarnings(
+    do.call(bart2, c(list(x.frame, y), quick)),
+    "dbartsSparseSigmaFallbackWarning"
+  ),
+  1L
+)
+expect_equal(
+  countWarnings(
+    do.call(bart2, c(list(x.dense.equiv, y), quick)),
+    "dbartsSparseSigmaFallbackWarning"
+  ),
+  0L
+)
 
 # the indicators surface composes too
 fit.bart <- bart(
