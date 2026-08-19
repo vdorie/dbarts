@@ -1321,6 +1321,116 @@ static void testStateLeafScale(ext_rng* rng) {
   printf("ok: per-forest leaf scale rides the state\n");
 }
 
+// The variance forest's SAVED (keepTrees) trees ride the state: a re-created
+// sampler must replay the recorded s^2(x) slot for slot rather than the
+// multiplicative identity initializeSavedTrees left in the buffer. The live
+// trees alone are not enough - predict addresses the saved buffer, never them.
+static void testVarianceSavedTreeState() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 828282u;
+
+  const size_t n = 300, p = 2, numTrees = 20, numVarianceTrees = 5;
+  const size_t numSamples = 4, nTest = 6;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    // signal in the mean (x0) and in the scale (x1), so both forests split
+    y[i] = 3.0 * x[i] + (x[i + n] < 0.5 ? 0.2 : 1.4) * z;
+  }
+  std::vector<double> xTest(nTest * p);
+  for (size_t i = 0; i < nTest; ++i) {
+    xTest[i] = static_cast<double>(i) / (nTest - 1.0);
+    xTest[i + nTest] = static_cast<double>(nTest - 1 - i) / (nTest - 1.0);
+  }
+
+  std::vector<ext_rng*> rngs;  // each Sampler holds its rng; outlive them all
+  auto makeSampler = [&](std::uint32_t seed, size_t numVariance) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numVarianceTrees = numVariance;
+    options.keepTrees = true;
+    options.numSamplesToStore = numSamples;
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+      3.0, 0.37804942330213542, options, &r);
+  };
+
+  std::vector<double> sigma(numSamples);
+  Results results;
+  results.sigma = sigma.data();
+
+  auto donor = makeSampler(3131, numVarianceTrees);
+  donor->run(60, numSamples, results);
+  std::vector<double> before(nTest * numSamples);
+  donor->predictVariance(xTest.data(), nTest, before.data());
+  bool positive = true;
+  for (double v : before) positive = positive && v > 0.0;
+  check(positive, "variance saved state: the donor's replay is positive");
+
+  SamplerStateData state;
+  donor->getState(state);
+  check(state.chains[0].savedVarianceTrees.size() ==
+          numSamples * numVarianceTrees,
+        "variance saved state: the block is capacity x variance trees");
+
+  auto dest = makeSampler(6262, numVarianceTrees);
+  dest->run(60, numSamples, results);
+  std::vector<double> own(nTest * numSamples);
+  dest->predictVariance(xTest.data(), nTest, own.data());
+  check(own != before,
+        "variance saved state: the destination's own surface differs first");
+  check(dest->setState(state, nullptr),
+        "variance saved state: a heteroscedastic state installs");
+  std::vector<double> after(nTest * numSamples);
+  dest->predictVariance(xTest.data(), nTest, after.data());
+  check(after == before,
+        "variance saved state: the restored slots replay bitwise");
+  checkStructuralRoundTrip(state, *dest,
+                           "variance saved state: the re-captured state agrees");
+
+  // refusals, each leaving the destination untouched
+  SamplerStateData nonPositive = state;
+  // the LAST record of a pre-order tree is always a leaf
+  nonPositive.chains[0].savedVarianceTrees[0].back().value = 0.0;
+  check(!dest->setState(nonPositive, nullptr),
+        "variance saved state: a non-positive saved leaf is refused");
+  SamplerStateData malformed = state;
+  malformed.chains[0].savedVarianceTrees[1].clear();
+  check(!dest->setState(malformed, nullptr),
+        "variance saved state: a malformed saved tree is refused");
+  SamplerStateData truncated = state;
+  truncated.chains[0].savedVarianceTrees.pop_back();
+  check(!dest->setState(truncated, nullptr),
+        "variance saved state: a truncated saved block is refused");
+  // an EMPTY block against a live capacity can only be a state written before
+  // the channel existed; accepting it would restore the identity fill and
+  // report a plausible constant s(x)
+  SamplerStateData noBlock = state;
+  noBlock.chains[0].savedVarianceTrees.clear();
+  check(!dest->setState(noBlock, nullptr),
+        "variance saved state: an empty block under a live capacity is "
+        "refused");
+  std::vector<double> unchanged(nTest * numSamples);
+  dest->predictVariance(xTest.data(), nTest, unchanged.data());
+  check(unchanged == after,
+        "variance saved state: a refused install changes nothing");
+
+  // and a homoscedastic sampler refuses a state carrying the block
+  auto plain = makeSampler(9393, 0);
+  check(!plain->setState(state, nullptr),
+        "variance saved state: a homoscedastic sampler refuses the block");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: variance-forest saved-tree state\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -1336,5 +1446,6 @@ void runStateTests(ext_rng* rng) {
   testBlockAdditiveConfinement();
   testCrossGridWarmStart();
   testVarianceWarmStart();
+  testVarianceSavedTreeState();
   testStateLeafScale(rng);
 }

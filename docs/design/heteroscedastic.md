@@ -288,7 +288,8 @@ through every leaf marginal/draw):
   the product's geometric mean.
 - Prediction: the mean fit f(x) is unperturbed; s(x) is the variance forest's own
   combined fit, reported on its own channel (section 6). Both replay from saved
-  trees independently.
+  trees independently (the saved variance trees became part of the serialized
+  state in section 16; before that they replayed only through a live pointer).
 
 ## 6. Decision - two leaf types in one Chain, and the coupling owner
 
@@ -694,3 +695,61 @@ the corresponding refusal (or, for grouped, adding `variance` to rbart_vi's
 formals); no new surface is needed for either, since the formal already
 exists on dbarts()/bart2() and rbart_vi needs only the same formal plus the
 collision check section 5 already applies to the latent families.
+
+## 16. Post-landing: the saved variance trees ride the state (2026-08-18)
+
+Section 5's "both replay from saved trees independently" was true of a LIVE
+sampler only. `Chain::getState`/`setState` carried the variance forest's LIVE
+trees and not its SAVED (keepTrees) buffer, so any state round trip -
+`storeState()` + `saveRDS`/`readRDS`, a new session, or `$copy()` - left a
+re-created sampler predicting from whatever `initializeSavedTrees` had put in
+the slots. That fill was a leaf of 0.0, and `predictVarianceFromSavedSample`
+forms s^2(x) as a PRODUCT over the variance trees, so every restored slot
+reported s(x) == 0 with no error and no warning while yhat survived bitwise.
+
+What now rides the state, in `ChainStateData` beside `varianceTrees` (the
+variance forest sits outside `forests_`, so these are siblings rather than a
+`ForestStateData` entry, and they carry no capacity scalar - the block size
+against a construction-fixed tree count already implies it):
+
+- `savedVarianceTrees`, slot-major capacity x numTrees, serialized as the
+  append-only chain-level blocks `variance.saved.vars/.values/.sizes/.flags`.
+- `varianceTreeMasks` / `savedVarianceTreeMasks`, the pooled categorical side
+  channels for the live and saved trees, as `variance.masks` and
+  `variance.saved.masks`. `Tree::flatten` requires a channel whenever the store
+  holds a pooled column, and the variance forest was passing none: a variance
+  tree splitting on a >63-level factor crashed inside `storeVarianceSavedTrees`
+  under keepTrees and inside `Chain::getState` without it. The channel now runs
+  end to end - flatten, rebuild, validation, warm-start install, and both
+  replay paths.
+
+Blocks were APPENDED, so neither `stateFormatVersion` nor
+`minReadableStateFormatVersion` moved (the registry rule at their declaration).
+
+Semantics:
+
+- An ABSENT saved block against a live capacity > 0 is REFUSED. `getState`
+  fills the block whenever keepTrees is on, so an empty one can only be a state
+  written before the channel existed; accepting it would restore the
+  destination's own identity fill and report a plausible constant s(x) where the
+  defect it replaces at least reported an obvious zero. The same size gate
+  refuses a capacity mismatch, as the mean side already does. `installForests`
+  does not route through `stateIsValid`, so warm start is unaffected.
+- The default fill is now the MULTIPLICATIVE identity 1.0. A 0.0 leaf is
+  user-visible with no round trip at all - `predict()` over a slot no sweep has
+  written yet multiplies a zero into the product - and, once validation applies
+  the scale-leaf positivity law to saved trees, it would make the engine's own
+  `storeState` emit a state its own `stateIsValid` rejects.
+- Saved trees are held to form (`flatTreeIsWellFormed`, masks included) and leaf
+  positivity, but NOT to the occupancy pass section 14 added for the live trees.
+  A saved slot is a historical replay target routed over NEW rows, never over
+  this sampler's partition; the mean side does not occupancy-check its saved
+  trees either.
+- `setTreeStorage` re-runs `initializeSavedTrees` and resets the sample counter,
+  so a capacity change followed by `$setState` refuses under the size gate -
+  already the mean-side behavior.
+
+DEFERRED: `installForests` still pairs a slot-sourced mean forest with the
+donor's LIVE variance surface rather than slot k's saved one. Slot-paired scale
+surfaces would move the warm start's starting position and hence every
+downstream draw; the constraint is recorded at the reassembly site.

@@ -426,6 +426,9 @@ struct VarianceForest {
   // saved-sample flattened variance trees (keepTrees), a circular buffer of
   // capacity slots x numTrees, slot-major, for posterior predict on new data
   std::vector<std::vector<FlatNode>> savedTrees;
+  // pooled categorical mask words, one channel per saved tree; empty off a
+  // pooled store, as the mean forest's savedTreeMasks is
+  std::vector<std::vector<std::uint64_t>> savedTreeMasks;
   std::size_t savedTreeCapacity = 0, savedSlotBase = 0;
   MoveScratch scratch;
 
@@ -905,9 +908,11 @@ public:
     std::vector<std::size_t> blockOffsets;
     std::vector<double> treeFit(numTest);
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
+      const std::uint64_t* masks = data_.hasPooledCategorical
+        ? vf.savedTreeMasks[slot * vf.numTrees + j].data() : nullptr;
       misc_setVectorToConstant(treeFit.data(), numTest, 0.0);
       addFlatPredictions(vf.savedTrees[slot * vf.numTrees + j], nullptr,
-                         nullptr, columns, numTest, indices, blockOffsets,
+                         masks, columns, numTest, indices, blockOffsets,
                          treeFit.data());
       for (std::size_t i = 0; i < numTest; ++i) out[i] *= treeFit[i];
     }
@@ -932,11 +937,17 @@ public:
     std::vector<std::size_t> blockOffsets;
     std::vector<double> leafValues, treeFit(numTest);
     std::vector<FlatNode> flat;
+    // a pooled categorical rule keeps its words outside the record, so flatten
+    // must be handed a channel or it dereferences a null one
+    std::vector<std::uint64_t> masks;
+    bool pooled = data_.hasPooledCategorical;
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       recoverVarianceLeafValues(vf, j, leafValues);
-      vf.trees[j].flatten(data_, leafValues.data(), flat);
+      vf.trees[j].flatten(data_, leafValues.data(), flat, nullptr, 1, nullptr,
+                          pooled ? &masks : nullptr);
       misc_setVectorToConstant(treeFit.data(), numTest, 0.0);
-      addFlatPredictions(flat, nullptr, nullptr, columns, numTest, indices,
+      addFlatPredictions(flat, nullptr, pooled ? masks.data() : nullptr,
+                         columns, numTest, indices,
                          blockOffsets, treeFit.data());
       for (std::size_t i = 0; i < numTest; ++i) out[i] *= treeFit[i];
     }
@@ -2521,9 +2532,20 @@ public:
 
   void initializeSavedTrees(size_t capacity) {
     if (varianceForest_) {
+      // a scale leaf's default is the MULTIPLICATIVE identity 1.0, not the
+      // mean side's additive 0.0: predictVarianceFromSavedSample forms s^2 as
+      // a product, so a 0-valued unwritten slot annihilates it and reports
+      // s(x) == 0 - and a 0 leaf fails the positivity law state validation
+      // applies to every saved variance tree
+      FlatNode identity;
+      identity.value = 1.0;
       varianceForest_->savedTreeCapacity = capacity;
       varianceForest_->savedTrees.assign(
-        capacity * varianceForest_->numTrees, std::vector<FlatNode>(1));
+        capacity * varianceForest_->numTrees,
+        std::vector<FlatNode>(1, identity));
+      if (data_.hasPooledCategorical)
+        varianceForest_->savedTreeMasks.assign(
+          capacity * varianceForest_->numTrees, std::vector<std::uint64_t>());
     }
     for (Forest<L, ResidT>& forest : forests_) {
       forest.savedTreeCapacity = capacity;
@@ -2968,14 +2990,27 @@ public:
     // leaf factors (working scale); empty off a variance forest
     if (varianceForest_) {
       VarianceForest& vf = *varianceForest_;
+      bool pooled = data_.hasPooledCategorical;
       state.varianceTrees.resize(vf.numTrees);
+      state.varianceTreeMasks.resize(pooled ? vf.numTrees : 0);
       std::vector<double> leafValues;
       for (std::size_t j = 0; j < vf.numTrees; ++j) {
         recoverVarianceLeafValues(vf, j, leafValues);
-        vf.trees[j].flatten(data_, leafValues.data(), state.varianceTrees[j]);
+        vf.trees[j].flatten(data_, leafValues.data(), state.varianceTrees[j],
+                            nullptr, 1, nullptr,
+                            pooled ? &state.varianceTreeMasks[j] : nullptr);
       }
+      // the SAVED buffer rides along verbatim, as the mean side's does: it is
+      // the only record of the kept samples' scale surface, and a re-created
+      // sampler that rebuilds only the live trees predicts off its identity
+      // fill instead
+      state.savedVarianceTrees = vf.savedTrees;
+      state.savedVarianceTreeMasks = vf.savedTreeMasks;
     } else {
       state.varianceTrees.clear();
+      state.varianceTreeMasks.clear();
+      state.savedVarianceTrees.clear();
+      state.savedVarianceTreeMasks.clear();
     }
   }
 
@@ -3116,13 +3151,38 @@ public:
     // with every bottom occupied against this sampler's data, the criterion the
     // mean branch above imposes tree by tree. Without the occupancy pass an
     // installed variance tree could report a scale no row supports, which is
-    // exactly what the transactional veto refuses to create.
+    // exactly what the transactional veto refuses to create. The SAVED buffer
+    // is held to form and positivity only (see below).
     if (varianceForest_) {
       if (state.varianceTrees.size() != varianceForest_->numTrees) return false;
+      // mask channels pair one-to-one with their flat trees when present;
+      // trees holding wide rules without a channel fail the builds below
+      if (!state.varianceTreeMasks.empty() &&
+          state.varianceTreeMasks.size() != state.varianceTrees.size())
+        return false;
+      // SIZE, not presence, separates "never saved" (capacity 0, both empty)
+      // from "saved but dropped": initializeSavedTrees allocates the whole
+      // buffer up front, so a keepTrees sampler's block is full even before a
+      // sweep records into it. Accepting an empty block against a live capacity
+      // would restore the destination's own identity fill and report a
+      // plausible constant s(x) - strictly harder to notice than the zero it
+      // replaces.
+      if (state.savedVarianceTrees.size() != varianceForest_->savedTrees.size())
+        return false;
+      if (!state.savedVarianceTreeMasks.empty() &&
+          state.savedVarianceTreeMasks.size() !=
+            state.savedVarianceTrees.size())
+        return false;
       const std::uint8_t* varianceMask = varianceForest_->columnMask.empty()
         ? nullptr : varianceForest_->columnMask.data();
-      for (const std::vector<FlatNode>& tree : state.varianceTrees) {
-        if (!flatTreeIsWellFormed(data_, tree.data(), tree.size(), nullptr, 0))
+      for (size_t j = 0; j < state.varianceTrees.size(); ++j) {
+        const std::vector<FlatNode>& tree(state.varianceTrees[j]);
+        const std::uint64_t* masks = state.varianceTreeMasks.empty()
+          ? nullptr : state.varianceTreeMasks[j].data();
+        size_t numMaskWords = state.varianceTreeMasks.empty()
+          ? 0 : state.varianceTreeMasks[j].size();
+        if (!flatTreeIsWellFormed(data_, tree.data(), tree.size(), masks,
+                                  numMaskWords))
           return false;
         for (const FlatNode& node : tree)
           if (flatKindOf(node) == FlatKind::leaf && !(node.value > 0.0))
@@ -3132,12 +3192,31 @@ public:
         // mean loop's, which the shared scratch would otherwise still hold
         scratch.setInteractionConstraint(nullptr);
         scratch.setColumnMask(varianceMask);
-        if (!scratch.buildFromFlat(data_, tree.data(), tree.size(), params))
+        if (!scratch.buildFromFlat(data_, tree.data(), tree.size(), params, 1,
+                                   nullptr, masks, numMaskWords))
           return false;
         scratch.repartitionSubtree(data_, 0);
         if (!scratch.bottomNodesAreOccupied()) return false;
       }
-    } else if (!state.varianceTrees.empty()) {
+      // the saved trees: form and the scale-leaf positivity law, but NOT the
+      // occupancy pass. A saved slot is a historical replay target routed over
+      // NEW rows, never over this sampler's partition - which is why the mean
+      // side does not occupancy-check its saved trees either.
+      for (size_t s = 0; s < state.savedVarianceTrees.size(); ++s) {
+        const std::vector<FlatNode>& saved(state.savedVarianceTrees[s]);
+        const std::uint64_t* masks = state.savedVarianceTreeMasks.empty()
+          ? nullptr : state.savedVarianceTreeMasks[s].data();
+        size_t numMaskWords = state.savedVarianceTreeMasks.empty()
+          ? 0 : state.savedVarianceTreeMasks[s].size();
+        if (!flatTreeIsWellFormed(data_, saved.data(), saved.size(), masks,
+                                  numMaskWords))
+          return false;
+        for (const FlatNode& node : saved)
+          if (flatKindOf(node) == FlatKind::leaf && !(node.value > 0.0))
+            return false;
+      }
+    } else if (!state.varianceTrees.empty() ||
+               !state.savedVarianceTrees.empty()) {
       return false;
     }
     return true;
@@ -3232,10 +3311,16 @@ public:
     // forest (no mask).
     if (varianceForest_ && !varianceForest_->columnMask.empty() &&
         state.varianceTrees.size() == varianceForest_->numTrees) {
-      for (const std::vector<FlatNode>& flat : state.varianceTrees) {
+      for (size_t j = 0; j < state.varianceTrees.size(); ++j) {
+        const std::vector<FlatNode>& flat(state.varianceTrees[j]);
+        const std::uint64_t* masks = state.varianceTreeMasks.empty()
+          ? nullptr : state.varianceTreeMasks[j].data();
+        size_t numMaskWords = state.varianceTreeMasks.empty()
+          ? 0 : state.varianceTreeMasks[j].size();
         scratch.initialize(scratchIndices.data(), n);
         scratch.setColumnMask(varianceForest_->columnMask.data());
-        if (!scratch.buildFromFlat(data_, flat.data(), flat.size(), params))
+        if (!scratch.buildFromFlat(data_, flat.data(), flat.size(), params, 1,
+                                   nullptr, masks, numMaskWords))
           continue;
         if (!scratch.columnMaskSubtreeIsValid(0)) return false;
       }
@@ -3443,13 +3528,14 @@ public:
   /// cross-grid remap collapses empty nodes.
   bool installVarianceForest(
       const std::vector<std::vector<FlatNode>>& trees,
+      const std::vector<std::vector<std::uint64_t>>& masks,
       const std::vector<std::vector<double>>* donorCutPoints,
       ColumnStore* store) {
     VarianceForest& vf = *varianceForest_;
     std::size_t n = data_.numObservations;
     if (trees.size() != vf.numTrees) return false;
     if (donorCutPoints == nullptr) {
-      if (!rebuildVarianceForest(trees)) return false;
+      if (!rebuildVarianceForest(trees, masks)) return false;
     } else {
       TreeParameters recovered(vf.numTrees);
       {
@@ -3457,8 +3543,12 @@ public:
         for (std::size_t j = 0; j < vf.numTrees; ++j) {
           Tree& tree = vf.trees[j];
           tree.initialize(vf.indexBuffer.data() + j * n, n);
+          const std::uint64_t* maskWords =
+            masks.empty() ? nullptr : masks[j].data();
+          std::size_t numMaskWords = masks.empty() ? 0 : masks[j].size();
           if (!tree.buildFromFlat(*store, trees[j].data(), trees[j].size(),
-                                  recovered[j]))
+                                  recovered[j], 1, nullptr, maskWords,
+                                  numMaskWords))
             return false;
         }
       }
@@ -3537,8 +3627,23 @@ public:
     adoptInstalledAmplitudePriors(state);
     // heteroscedastic: rebuild the variance trees and recompute s^2(x) from the
     // restored positive factors (stateIsValid checked count, form, positivity)
-    if (varianceForest_ && !rebuildVarianceForest(state.varianceTrees))
-      return false;
+    if (varianceForest_) {
+      if (!rebuildVarianceForest(state.varianceTrees, state.varianceTreeMasks))
+        return false;
+      // the mean side's shape: an empty block carries nothing, which off
+      // keepTrees is the only thing there is to carry
+      if (!state.savedVarianceTrees.empty()) {
+        VarianceForest& vf = *varianceForest_;
+        vf.savedTrees = state.savedVarianceTrees;
+        if (data_.hasPooledCategorical) {
+          if (state.savedVarianceTreeMasks.empty())
+            vf.savedTreeMasks.assign(vf.savedTrees.size(),
+                                     std::vector<std::uint64_t>());
+          else
+            vf.savedTreeMasks = state.savedVarianceTreeMasks;
+        }
+      }
+    }
     // a serialized generator of a different kind (a single-chain state
     // riding R's stream restored into a dedicated-generator chain, say)
     // cannot be installed; the destination keeps its own stream, which
@@ -4071,7 +4176,11 @@ private:
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       recoverVarianceLeafValues(vf, j, leafValues);
       vf.trees[j].flatten(data_, leafValues.data(),
-                          vf.savedTrees[slot * vf.numTrees + j]);
+                          vf.savedTrees[slot * vf.numTrees + j], nullptr, 1,
+                          nullptr,
+                          data_.hasPooledCategorical
+                            ? &vf.savedTreeMasks[slot * vf.numTrees + j]
+                            : nullptr);
     }
   }
 
@@ -4097,7 +4206,9 @@ private:
   /// Rebuild the variance forest from a flat state's variance trees: rebuild
   /// each tree, scatter its positive leaf factors to the per-observation slab
   /// through the restored partition, then recompute s^2(x) as the product.
-  bool rebuildVarianceForest(const std::vector<std::vector<FlatNode>>& trees) {
+  bool rebuildVarianceForest(
+      const std::vector<std::vector<FlatNode>>& trees,
+      const std::vector<std::vector<std::uint64_t>>& masks) {
     VarianceForest& vf = *varianceForest_;
     std::size_t n = data_.numObservations;
     if (trees.size() != vf.numTrees) return false;
@@ -4106,8 +4217,11 @@ private:
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       Tree& tree = vf.trees[j];
       tree.initialize(vf.indexBuffer.data() + j * n, n);
+      const std::uint64_t* maskWords =
+        masks.empty() ? nullptr : masks[j].data();
+      std::size_t numMaskWords = masks.empty() ? 0 : masks[j].size();
       if (!tree.buildFromFlat(data_, trees[j].data(), trees[j].size(),
-                              leafValues))
+                              leafValues, 1, nullptr, maskWords, numMaskWords))
         return false;
       tree.repartitionSubtree(data_, 0);
       double* factor = vf.factorByTree.data() + j * n;
