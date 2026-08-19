@@ -540,6 +540,47 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Wave-5b flat-C guards + header truth (61ca56d2, 2026-08-18)
+
+Fix-queue item 6, draw-neutral, no dbarts.h signature changes (zero
+consumer migration; stan4bart/treatSens call none of the touched
+entries today). Closes the three flat-C BLOCKERs:
+setTestPredictors(NULL) now clears the test offset (the header's
+promise made true - the pointer is the whole state); a test-row-count
+change under a standing offset is refused with the R bridge's message
+at the ONLY entry that can resize test rows, killing the OOB read;
+and requireResolvedSigmaEstimate at the three creation paths that
+hand sigmaEstimate to the engine (createHolder, createBCFHolder,
+createFromHandle) closes the silent NA-sigma NaN-draw path - review
+re-derived the family law (only gaussian/T/aft read sigmaEstimate;
+the multinomial builder takes none; sigmaIsFixed resolves before the
+gate) and confirmed the gating exact. Both header-truth MAJORs
+rewritten: the ownership preamble now names the retaining setters
+(setTestOffset included, which the original audit missed) with a
+per-setter ownership sentence on every raw-array setter, and the
+state-continuation promise is semantic-not-bitwise, matching
+stateContinuation.R. Minors 6-12 all fixed (8 in code: the counts
+rule scoped to logistic, the only law reading a weight; 11 verified
+field-by-field and by -Wall -Wextra consumer compiles); INFO 13
+(the version handshake cannot see struct appends) handed to the
+ledger - the remedy re-bakes the API-hash token and is a surface
+decision. Review verdict LAND-WITH-FIXES; the fix round corrected
+four untrue text claims (ownership "each doc states it", the
+every-sweep read claim - gaussian/aft bake buffers at set time, the
+sigma rule restated family-keyed, a wrong refusePinnedSigmaChange
+cross-reference) and put the BCF family refusal ahead of the sigma
+gate. Mutation proofs on every guard (review re-ran two: the
+row-count widening and the sigma gate both bite). Migration note:
+a gaussian/aft spec with NA @sigma now hard-errors where it silently
+drew NaN; in-tree R paths all resolve sigma; stan4bart's create path
+owes a verification at its lockstep rebuild (ledgered). Sanitizer
+coverage note: tests/cpp never links C_interface.cpp, so the local
+ASAN leg cannot reach the guards; the CI sanitizers workflow runs
+the full suite (test-capi.R floor 150) against the instrumented
+package and covers them. Gates on the rebased tree: trio bitwise
+42/12/11 (post-re-record baselines), tinytest 6369/0, ASAN leg
+clean, R CMD check --as-cran OK, CI green.
+
 ### Wave-5b R-surface fixes + main-baseline re-record (c7546233 + 178d1491, 2026-08-18)
 
 Fix-queue item 5. Closes the summary()/as_draws BLOCKER (silently
