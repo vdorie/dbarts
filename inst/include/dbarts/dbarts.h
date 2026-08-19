@@ -28,8 +28,16 @@
 /// reason, in the other direction.
 ///
 /// Contracts common to all entry points:
-/// - Invalid arguments raise R errors (Rf_error), which longjmp through the
-///   caller's frames; call from contexts that are safe to unwind.
+/// - Validation is deliberately partial: consumers are compiled packages, so
+///   what an entry checks is what the engine's invariants or the caller's own
+///   buffers depend on - a struct's structSize, a source's declared shape, a
+///   response value outside its family's support, a categorical code the
+///   sampler does not hold, a capability the model does not carry. What is NOT
+///   checked is the plain pointer: the sampler handle, an output buffer, and a
+///   required input vector are dereferenced as handed, so a null (or destroyed,
+///   or short) one crashes rather than raising. Where an entry does refuse, it
+///   raises an R error (Rf_error), which longjmps through the caller's frames;
+///   call from contexts that are safe to unwind.
 /// - Functions that draw (creation, run, the prior samplers, predictor
 ///   updates, dbarts_drawLatents) manage R's RNG state internally and must be
 ///   called from the main R thread. Do not wrap them in a GetRNGstate/
@@ -42,18 +50,33 @@
 ///   predictors only to quantize them into owned codes at construction; the
 ///   preserved data object is thereafter the sampler's own predictor GC anchor
 ///   and the call-time raw source for saved-tree replay and state restore.
-///   Raw-array setters borrow for the call's duration only: setResponse,
-///   setOffset, setWeights and setForestWeights keep the array alive until
-///   replaced; the predictor setters re-quantize the borrow and retain no
-///   pointer, as setActiveRows consumes its mask, and setForestBasis copies
-///   the basis columns it is handed.
+///   The raw-array setters do NOT agree on what they retain, and each one's own
+///   doc states which it is. setResponse, setOffset, setTestOffset, setWeights
+///   and setForestWeights RETAIN the pointer they are handed: the caller owns
+///   the array and must keep it alive, and unmodified except where it means to
+///   condition the sampler, until it is replaced or the sampler is destroyed.
+///   That lifetime rule is the whole promise: a value changed by writing
+///   through the retained pointer is NOT guaranteed to be seen before the next
+///   call - gaussian bakes the response into its own working scale at set
+///   time and aft copies it into its own buffer at set time - so condition
+///   the sampler on new values by calling the setter again, not by mutating
+///   the array in place. The others borrow for the call alone: the
+///   predictor setters re-quantize into owned codes and retain no pointer, as
+///   setActiveRows consumes its mask, and setForestBasis copies the basis
+///   columns it is handed.
 /// - Matrices are column-major. Result and prediction layouts put samples
 ///   and then chains in trailing dimensions.
 
 #include <stddef.h> // size_t
 #include <stdint.h> // uint32_t
 
-// imports Rinternals.h for SEXP while doing the least to pollute namespaces
+// Imports Rinternals.h for SEXP, under R_NO_REMAP so that this header's own
+// arrival brings no unprefixed R name (length, error, ...) into a consumer's
+// translation unit. INCLUDE ORDER MATTERS, because Rinternals.h has an include
+// guard and so is processed exactly once: a consumer that wants the unprefixed
+// spellings must include <Rinternals.h> ITSELF FIRST, or this header's include
+// of it wins and every later use of allocVector/isNull/asReal in that unit
+// fails to compile. Including <Rinternals.h> first is otherwise harmless here.
 #include <Rversion.h>
 #if R_VERSION >= R_Version(3, 6, 2)
 #  define USE_FC_LEN_T
@@ -177,9 +200,14 @@ typedef struct dbarts_results_t {
 
 /// Value-initializer: sets structSize (the leading member, offset 0) and zeroes
 /// the field pointers. Prefer it to hand-setting structSize - dbarts_sampler_run
-/// rejects a zero structSize rather than silently producing no output.
+/// rejects a zero structSize rather than silently producing no output. Every
+/// member is spelled out so a consumer building under -Wextra sees no
+/// missing-field-initializer warning pointing into this header; an appended
+/// field extends this list too.
 ///   dbarts_results results = DBARTS_RESULTS_INIT;
-#define DBARTS_RESULTS_INIT { sizeof(dbarts_results) }
+#define DBARTS_RESULTS_INIT \
+  { sizeof(dbarts_results), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, \
+    NULL, NULL, NULL }
 
 /// A predictor column's type. Ordinal columns are cut on their values;
 /// categorical ones carry 0-based category codes.
@@ -210,6 +238,14 @@ typedef enum {
 /// values), and a CSC column's absent rows read its declared reference code
 /// when the sampler holds that column categorical, 0 otherwise.
 ///
+/// columnTypes and categoryCounts describe the view's own typing, and every
+/// entry that takes this struct is a mutation or a test/replay path, where the
+/// SAMPLER's store already fixes both for each column it names. They are
+/// therefore checked for well-formedness and otherwise IGNORED: no column's
+/// type or category count is ever taken from the argument, and declaring them
+/// against a sampler that holds otherwise changes nothing. referenceCodes, by
+/// contrast, IS read - it is what a CSC column's absent rows decode to.
+///
 /// Value-initialize with DBARTS_PREDICTOR_SOURCE_INIT (sets structSize, zeroes
 /// the rest), or build the dense case with dbarts_dense_predictor_source():
 ///   dbarts_predictor_source x = DBARTS_PREDICTOR_SOURCE_INIT;
@@ -223,8 +259,9 @@ typedef struct dbarts_predictor_source_t {
   const int* cscRowIndices;
   const double* cscValues;
   const int32_t* columnSources;   ///< NULL = identity; >= 0 dense col; < 0 CSC col ~v
-  const int32_t* columnTypes;     ///< dbarts_column_type per column; NULL = all ordinal
-  const uint32_t* categoryCounts; ///< declared K per column; NULL/0 = infer
+  const int32_t* columnTypes;     ///< dbarts_column_type per column; declared,
+                                  ///< not read (see above)
+  const uint32_t* categoryCounts; ///< declared K per column; declared, not read
   const int32_t* referenceCodes;  ///< per column; < 0 = declared none
   /* 1.0-0 field boundary: appends go below, never above. */
 } dbarts_predictor_source;
@@ -300,8 +337,11 @@ typedef struct dbarts_forest_calibration_t {
 } dbarts_forest_calibration;
 
 /// Value-initializer: sets structSize (the leading member, offset 0) and
-/// zeroes the field pointers, so a caller fills in only what it wants.
-#define DBARTS_FOREST_CALIBRATION_INIT { sizeof(dbarts_forest_calibration) }
+/// zeroes the field pointers, so a caller fills in only what it wants. Every
+/// member is spelled out, on DBARTS_RESULTS_INIT's reason.
+#define DBARTS_FOREST_CALIBRATION_INIT \
+  { sizeof(dbarts_forest_calibration), NULL, NULL, NULL, NULL, NULL, NULL, \
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL }
 
 /// Per-sweep conditioning callback. dbarts_sampler_run invokes it on the
 /// calling thread before every sweep - each of the (numBurnIn + numSamples) x
@@ -546,6 +586,20 @@ uint64_t dbarts_apiHash(void);
 /// control's "bartcore.survival" attribute. A verbose control prints the
 /// initial summary here.
 ///
+/// The data object's @sigma is a REQUIRED input for the gaussian (Student-t
+/// and heteroscedastic variants included) and aft families - keyed on family,
+/// not on whether a scalar sigma is drawn: a heteroscedastic gaussian's
+/// variance forest owns the residual variance row by row and draws no scalar
+/// sigma, yet is refused an unresolved @sigma exactly as its homoscedastic
+/// sibling is, because both read it at creation to seed sigma and to
+/// calibrate the residual-variance prior's scale. dbartsData() leaves it
+/// NA_real_ and only R's own resolution layer fills it (dbarts() and
+/// dbartsSpec() estimate it from a linear fit), so a consumer assembling a
+/// specification by hand must supply a positive value; an unresolved one is
+/// refused here rather than turned into NaN draws that no later
+/// dbarts_sampler_setSigma can repair. The fixed-unit-scale families (probit,
+/// logistic, ordinal, nbinom) never read it and take the NA as it stands.
+///
 /// The K-forest amplitude family (docs/design/multiplier-combiner.md) is
 /// created through this same entry point. Each forest carries its own basis,
 /// whose row contracts with that forest's own amplitude vector into the scalar
@@ -574,10 +628,15 @@ dbarts_sampler* dbarts_sampler_create(SEXP control, SEXP model, SEXP data,
 void dbarts_sampler_destroy(dbarts_sampler* sampler);
 
 /// Runs numBurnIn discarded then numSamples recorded iterations per chain,
-/// recording into results (which may be null when numSamples is 0). Set
-/// results->structSize before calling; fields whose end offset exceeds it
-/// are skipped (never read, never written). Thinning applies within
-/// recorded iterations at the rate the control set.
+/// recording into results. Set results->structSize before calling; fields whose
+/// end offset exceeds it are skipped (never read, never written). Thinning
+/// applies within recorded iterations at the rate the control set.
+///
+/// A null results is legal at any numSamples and records NOTHING: the sweeps
+/// still run and the chains advance, which is how a host advances a sampler it
+/// is not reading this round. It is not an error, so a null passed by mistake
+/// under a positive numSamples returns cleanly with the caller's buffers
+/// untouched.
 void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results);
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);
@@ -607,14 +666,16 @@ void dbarts_sampler_setCallback(dbarts_sampler* sampler,
 /// calibrations are stated against the transform it was built with, and on a
 /// heteroscedastic one, whose variance forest is calibrated the same way. The
 /// swap itself is refused outright on a coupling that caches per-forest state
-/// across sweeps rather than re-deriving it.
+/// across sweeps rather than re-deriving it. Retained, not copied, on the
+/// raw-array setters' rule above.
 void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                                 int updateScale);
 /// offset has numObservations values or is null to remove. updateScale
 /// rescales the internal response transform to the offset-adjusted range
 /// (gaussian only); pass false once burnt in so fits stay comparable. A
 /// multi-forest sampler, at any forest count, or a heteroscedastic one refuses
-/// true (see setResponse).
+/// true (see setResponse). Retained, not copied, on the raw-array setters'
+/// rule above.
 void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
                               int updateScale);
 /// weights has numObservations values. Post-creation weight changes are for
@@ -622,11 +683,18 @@ void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
 /// fixed at creation - but a logistic sampler accepts positive integer counts
 /// AT creation, at any forest count. There is no scale to pin, so a
 /// multi-forest sampler takes this as it stands, at any forest count, provided
-/// its coupling admits the conduit at all.
+/// its coupling admits the conduit at all. Retained, not copied, on the
+/// raw-array setters' rule above.
 void dbarts_sampler_setWeights(dbarts_sampler* sampler,
                                const double* weights);
 /// Holds the residual standard deviation at sigma (original response scale)
-/// until the next call or gaussian draw; the Gibbs conditioning hook.
+/// until the next call or gaussian draw; the Gibbs conditioning hook. Only a
+/// sampler that HAS a residual sd to set takes it: gaussian (Student-t
+/// included) and aft. The fixed-unit-scale families (probit, logistic, ordinal,
+/// nbinom) pin it at 1 by their own definition and a heteroscedastic sampler's
+/// variance forest owns it row by row, so both raise rather than accept a value
+/// nothing would read - test the family before calling on a sampler whose
+/// family the caller did not choose.
 void dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
 /// Copies the current draw of the augmentation variable (numObservations x
 /// numChains) into out. Returns 1, or 0 without touching out when the family
@@ -684,9 +752,20 @@ int dbarts_sampler_updatePredictor(dbarts_sampler* sampler,
 /// test blend is undefined - the predicate is the blend, not the forest count,
 /// so a multi-forest model whose test location IS defined passes through (see
 /// dbarts_sampler_create).
+///
+/// The test offset and the test rows it describes move TOGETHER, so this entry
+/// carries the pairing rule. A null xTest removes the test data whole, the
+/// offset included, and the next install starts from no offset. A non-null one
+/// declaring a different numRows while an offset is installed is refused, that
+/// offset having exactly the old row count's values: clear the offset first
+/// (dbarts_sampler_setTestOffset with null), then install the rows, then
+/// install the offset the new rows call for. A same-count replacement keeps the
+/// standing offset, which is the swap a per-sweep conditioning loop makes.
 void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
                                       const dbarts_predictor_source* xTest);
-/// offsetTest has numTestObservations values or is null to remove.
+/// offsetTest has numTestObservations values - the count in force when it is
+/// installed - or is null to remove. Retained, not copied, on the raw-array
+/// setters' rule above.
 void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
                                   const double* offsetTest);
 
@@ -744,12 +823,20 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
 
 /// A serializable R object holding the complete sampler state (trees,
 /// parameters, latents, rng); the caller must protect it. Restoring into a
-/// sampler created from the same specification continues bitwise
-/// identically; use for save/load and predict-after-reload. States are one
-/// R list element per chain, so single-chain states may be gathered into a
-/// multi-chain restore; a stored generator of a different kind than the
-/// destination chain's is then left unrestored (the destination keeps its
-/// own stream), which only forfeits cross-kind bitwise continuation.
+/// sampler created from the same specification continues the chain
+/// SEMANTICALLY, not bitwise: the restore reconstructs the model exactly - tree
+/// structure and leaf parameters - and the chain then draws the same moves in
+/// the same order from the same stream, but sigma rides the original response
+/// scale across the round trip and the fitted values are rebuilt by resumming
+/// the restored trees rather than carried over from the accumulator they were
+/// drawn against, so a continued chain's numbers agree with an uninterrupted
+/// one only to within those two reconstructions (last-bit differences, which
+/// do not accumulate). Use it for save/load and predict-after-reload; do not
+/// gate a reproducibility check on bitwise equality across a restore. States
+/// are one R list element per chain, so single-chain states may be gathered
+/// into a multi-chain restore; a stored generator of a different kind than the
+/// destination chain's is then left unrestored, and that chain keeps its own
+/// stream instead of continuing the stored one at all.
 ///
 /// dbarts_sampler_setState enforces an encoding floor: a state whose format
 /// version predates the running library's minimum readable version is refused

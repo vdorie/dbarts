@@ -2570,6 +2570,32 @@ bartcore::ResponseFamily parseSamplerSpecification(
   return family;
 }
 
+// The starting residual sd is a REQUIRED input of every creation path that
+// hands one to the engine: it seeds sigma and calibrates the residual-variance
+// prior's scale (initialSigma_ and sigmaSqPrior_.scale), so an unresolved
+// NA_real_ makes both NaN and every draw after them NaN - silently, and past
+// repair, since setSigma writes the value but not the poisoned prior scale.
+// dbartsData's @sigma defaults to NA and only the R resolution layer fills it
+// (estimateStartingSigma), so this is the gate for a caller that arrives with a
+// raw specification - the flat C API, which has no layer ahead of it. Keyed on
+// the family alone: gaussian and aft read sigmaEstimate at chain construction,
+// buildVarianceForest included - it calibrates the variance forest's own
+// scale leaf from the same value before pinning the scalar sigma at 1, so a
+// heteroscedastic sampler needs a resolved @sigma too - while the
+// fixed-unit-scale families (probit, logistic, ordinal, nbinom) never read
+// the value and keep the NA their R path leaves them.
+void requireResolvedSigmaEstimate(bartcore::ResponseFamily family,
+                                  double sigmaEstimate) {
+  if (family != bartcore::ResponseFamily::gaussian &&
+      family != bartcore::ResponseFamily::aft)
+    return;
+  if (std::isfinite(sigmaEstimate) && sigmaEstimate > 0.0) return;
+  Rf_error("sampler creation: a gaussian or aft sampler calibrates its "
+           "residual variance prior from a starting estimate of sigma, which "
+           "the data specification leaves unresolved (data@sigma is NA); "
+           "supply a positive value, as dbarts() and dbartsSpec() do");
+}
+
 } // namespace
 
 namespace bartcore_bridge {
@@ -2944,6 +2970,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       controlExpr, modelExpr, dataExpr, familyName, control, model, data,
       sigmaIsFixed);
     validateCategoricalPredictors(data);
+    requireResolvedSigmaEstimate(family, data.sigmaEstimate);
 
     bartcore::SamplerOptions options =
       optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
@@ -3109,6 +3136,7 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
     validateCategoricalPredictors(data);
     if (const char* refused = refusedBCFFamilyReason(family))
       Rf_error("BCF does not support %s", refused);
+    requireResolvedSigmaEstimate(family, data.sigmaEstimate);
     if (!data.predictors.isDenseBlock())
       Rf_error("BCF requires dense predictors");
 
@@ -3502,6 +3530,7 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
     bartcore::ResponseFamily family = parseSamplerSpecification(
       controlExpr, modelExpr, dataExpr, familyName, control, model, data,
       sigmaIsFixed);
+    requireResolvedSigmaEstimate(family, data.sigmaEstimate);
 
     if (data.numObservations != parent.numObservations ||
         data.numPredictors != parent.numPredictors)

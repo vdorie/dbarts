@@ -303,6 +303,53 @@ CALL("capi_set_test_offset", ptrC, NULL)
 rm(ptrC, testOffset, weights)
 invisible(gc(FALSE))
 
+# the test offset and the rows it describes move together, a pairing only
+# these entries enforce: nothing downstream re-checks the two against each
+# other, so a stale offset is added to whatever test rows are in force.
+# Removing the test predictors removes the offset with them.
+ptrTP <- CALL("capi_create", spec$control, spec$model, spec$data, "")
+staleOffset <- rep(1000, 20L) # borrowed until replaced
+CALL("capi_set_test_offset", ptrTP, staleOffset)
+CALL("capi_set_test_predictors", ptrTP, NULL)
+expect_equal(CALL("capi_dims", ptrTP)[3L], 0L)
+CALL("capi_set_test_predictors", ptrTP, x.test)
+rReinstalled <- CALL("capi_run", ptrTP, 3L, 2L, FALSE, TRUE)
+# an offset surviving the removal would sit on every one of these fits
+expect_true(max(abs(rReinstalled$test)) < 100)
+ptrFresh <- CALL("capi_create", spec$control, spec$model, spec$data, "")
+rFresh <- CALL("capi_run", ptrFresh, 3L, 2L, FALSE, TRUE)
+expect_equal(rReinstalled$test, rFresh$test)
+
+# and replacing the test rows under a standing offset is refused, rather than
+# reading the caller's 20 values across 40 rows on every recorded test fit
+ptrWide <- CALL("capi_create", spec$control, spec$model, spec$data, "")
+CALL("capi_set_test_offset", ptrWide, staleOffset)
+x.testWide <- rbind(x.test, x.test) # 40 rows, drawing nothing
+expect_error(
+  CALL("capi_set_test_predictors", ptrWide, x.testWide),
+  "test offset length"
+)
+expect_equal(CALL("capi_dims", ptrWide)[3L], 20L)
+# clearing the offset first is the repair the refusal names
+CALL("capi_set_test_offset", ptrWide, NULL)
+CALL("capi_set_test_predictors", ptrWide, x.testWide)
+expect_equal(CALL("capi_dims", ptrWide)[3L], 40L)
+rm(ptrTP, ptrFresh, ptrWide, staleOffset)
+invisible(gc(FALSE))
+
+# a starting sigma is a required creation input wherever sigma is drawn: the
+# NA_real_ dbartsData() leaves would calibrate the residual variance prior
+# with NaN and poison every draw after it, past repair by setSigma. The
+# probit sampler created below is the rule's other half - a fixed-unit-scale
+# family never reads the value and creates with the NA as it stands.
+dataNoSigma <- spec$data
+dataNoSigma@sigma <- NA_real_
+expect_error(
+  CALL("capi_create", spec$control, spec$model, dataNoSigma, ""),
+  "starting estimate of sigma"
+)
+rm(dataNoSigma)
+
 # latents: absent for gaussian, sign-locked to the response for probit
 expect_null(CALL("capi_get_latents", ptr1))
 
@@ -436,6 +483,25 @@ flatLatent <- drawFlat("probit", augFit, yDouble, offset = augOffset)
 set.seed(11)
 rLatent <- dbartsDrawLatents("probit", augFit, yDouble, offset = augOffset)
 expect_equal(flatLatent, as.vector(rLatent))
+
+# each law reads the arguments it names and IGNORES the rest, a C caller
+# having no way to leave one out: the counts rule belongs to the logistic
+# law, so a fractional weight under probit is neither refused nor read - the
+# draw is the one above, bit for bit
+set.seed(11)
+flatWeightIgnored <- CALL(
+  "capi_draw_latents",
+  "probit",
+  augFit,
+  yDouble,
+  rep(0.5, n),
+  augOffset,
+  1,
+  NULL,
+  NULL,
+  NULL
+)
+expect_identical(flatWeightIgnored, flatLatent)
 
 # the two arguments the flat forms carry that the R surface derives for itself:
 # a scalar its family's law requires, and the cut points with their own length
