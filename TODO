@@ -389,16 +389,19 @@ items
     (c) LANDED 2026-08-19 (b9c3f313): executing test coverage for the
         equal-rank-1 veto path. The monotone double-fill BENCH half
         stays post-RC (perf only).
-    (d) hetero slot-sourced installTrees pairs slot k's mean forest
-        with the wrong variance surface on warm starts. VD DECIDED
-        2026-08-19: FIX NOW; empty-saved-block posture REFUSE. Slice
-        in flight - design memo + blind critique cycle underway.
+    (d) LANDED 2026-08-19 (8dbc0ce9): slot-sourced heteroscedastic
+        warm starts now pair the sample's own scale surface (decision
+        fix-now; equivalence trio bitwise, zero re-records).
     (e) RC-criteria gap: one local rchk pass and one local valgrind
         pass against the tip (those CI legs register only at the
         coordinated merge; ASAN/UBSAN do not cover PROTECT errors).
-        rchk half RAN and FAILED - 11 [UP] unprotected-variable
-        findings, all in the .Call bridge; fix slice in flight; logs
-        .claude/rc-egate-2026-08-19/rchk/. Valgrind half in flight.
+        rchk half DONE at 69de27ac (triage: 11/11 FP; defensive
+        PROTECTs; merged-tip rchk clean with completion-line gate).
+        Valgrind half RAN with three open residues gating it: the
+        applyBCFSpec definite leak (fix in flight), the R 4.3.3
+        extra-level expect_error divergence (investigation in flight;
+        in-contract, floor is 4.0.0), and the full-suite re-run on
+        the fixed tip.
     DURING THE SOAK, not gating declaration: count-blind warning
     assertion sweep (17 sites), oracle lane P1b/P9/SBC-deepening,
     bairrtt bartcore-compat check (gates the coordinated MERGE, not
@@ -527,6 +530,11 @@ items
     warning assertions, 17 sites (w5test m3). (14) monotone leaf:
     double branch-fill on the scoring path (bench arm per veto
     critique N6), perf only, post-RC.
+    (15) stale design-doc anchors: data-store.md:198/201/206/214,
+    grow-from-root-default.md:141, model-space-survey.md:71,
+    within-chain-threading.md:204's :675-702 half,
+    data-ownership.md:213 - verified stale at 95f6fd7f's own target
+    content; the resync missed them; sweep at the next anchor pass.
 
   weighted-binary: integer-weight probit via replicated latents;
     arbitrary real weights need a real-shape PG sampler (IPW is a
