@@ -861,6 +861,17 @@
             a test cell. \code{\link{dbarts-embedding}} is the reference page
             behind them: which channel an outer block writes, which fit it
             reads back, and whose prior is in force after a swap.
+      \item \code{\link{summary.bart}} (and \code{summary.rbart}) reports a
+            per-variable posterior summary of a fit's scalar parameters
+            (\code{sigma}, \code{k}, \code{tau} for \code{\link{rbart_vi}}),
+            with split-\eqn{\hat{R}}{Rhat} and effective sample size when the
+            \pkg{posterior} package is installed, and a built-in fallback
+            summary when it is not. \code{as_draws_array} and
+            \code{as_draws_df} methods for \code{bart}/\code{rbart} fits
+            convert a fit's chain-dimensioned draws to \pkg{posterior}'s
+            array/data frame conventions; both are registered only when
+            \pkg{posterior} is installed, a \code{Suggests} rather than a
+            hard dependency.
     }
   }
   \subsection{C API}{
@@ -1465,8 +1476,7 @@
             the variance forest's weight-channel routing composes with the
             scale-mixture reweighting \code{student()} installs. A
             \code{\link{rbart_vi}} (grouped) fit was already unreachable
-            with \code{variance}, since it declares no such formal; see
-            \code{docs/design/heteroscedastic.md}.
+            with \code{variance}, since it declares no such formal.
       \item \code{bart2}'s (and \code{rbart_vi}'s, \code{dbarts}'s)
             \code{offset.test} argument was documented as defaulting to
             \code{NULL}; it has always defaulted to tracking \code{offset}

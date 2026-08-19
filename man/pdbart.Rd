@@ -98,7 +98,7 @@ pd2bart(
     A vector of character strings which are the plotting labels used for the variables.
   }
    
-  The remaining components returned in the list are the same as in the value of \code{\link{bart}}. They are simply passed on from the BART run used to create the partial dependence plot. The function \code{\link{plot.bart}} can be applied to the object returned by \code{pdbart} or \code{pd2bart} to examine the BART run.
+  The remaining components are passed on from the BART run used to create the partial dependence plot, under \code{\link{bart}}'s own names (see its \sQuote{Value} section) with one rename and several omissions - the fit's matched call is under \code{bartcall} rather than \code{call}, and not every \code{bart} component is carried over. For a continuous response the remaining components are \code{bartcall}, \code{yhat.train}, \code{first.sigma}, \code{sigma}, \code{yhat.train.mean}, \code{sigest}, \code{y}, and \code{fit}; \code{call}, \code{family}, \code{resid.dist}, \code{yhat.test}, \code{yhat.test.mean}, \code{s.train}, \code{s.test}, \code{varcount}, and \code{n.chains} are not present. For a binary response only \code{bartcall}, \code{yhat.train}, \code{y}, and \code{fit} are present; \code{first.sigma}, \code{sigma}, \code{yhat.train.mean}, \code{sigest}, and \code{binaryOffset} are absent as well, on top of the continuous-case omissions. \code{pd2bart} follows the same rules. The function \code{\link{plot.bart}} can be applied to the object returned by \code{pdbart} or \code{pd2bart} to examine the BART run.
 }
 \references{
 Chipman, H., George, E., and McCulloch, R. (2010)
