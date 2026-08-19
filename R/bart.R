@@ -1270,19 +1270,11 @@ extractMultinomialFormulaData <- function(
     )
   }
 
-  # a sparseFactor predictor dies inside model.frame with a bare S4 type
-  # error; refuse it explicitly first, as the standard formula path does
+  # a sparseVector/dgCMatrix/sparseFactor predictor dies inside model.frame
+  # with a bare S4 type error; refuse it explicitly first, as the standard
+  # formula path does
   if (is.list(data) || is.environment(data)) {
-    for (variableName in intersect(all.vars(formula), names(data))) {
-      if (methods::is(data[[variableName]], "sparseFactor")) {
-        stop(
-          "sparse categorical predictors must be specified through the x/y ",
-          "interface; '",
-          variableName,
-          "' is a sparseFactor"
-        )
-      }
-    }
+    refuseSparseFormulaColumns(formula, data)
   }
 
   modelFrameCall <- matchedCall

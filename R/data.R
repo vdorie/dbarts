@@ -875,20 +875,11 @@ dbartsData <- function(
       modelFrameCall$offset <- offset
     }
 
-    # a sparseFactor column would die inside model.frame with a bare S4
-    # type error; refuse it explicitly first (the formula path takes plain
-    # data-frame columns only, not S4 predictors)
+    # a sparseVector/dgCMatrix/sparseFactor column would die inside
+    # model.frame with a bare S4 type error; refuse it explicitly first (the
+    # formula path takes plain data-frame columns only, not S4 predictors)
     if (!dataIsMissing && (is.list(data) || is.environment(data))) {
-      for (variableName in intersect(all.vars(formula), names(data))) {
-        if (methods::is(data[[variableName]], "sparseFactor")) {
-          stop(
-            "sparse categorical predictors must be specified through the ",
-            "x/y interface; '",
-            variableName,
-            "' is a sparseFactor"
-          )
-        }
-      }
+      refuseSparseFormulaColumns(formula, data)
     }
 
     modelFrame <- eval(modelFrameCall, parent.frame())

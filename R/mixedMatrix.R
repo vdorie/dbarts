@@ -25,6 +25,28 @@ isSparseDataFrameColumn <- function(column) {
       methods::is(column, "sparseFactor"))
 }
 
+## None of sparseVector, dgCMatrix, or sparseFactor survive stats::model.frame
+## (a bare S4 column raw-errors there); refuse any of them explicitly, ahead
+## of model.frame, for every formula-ingestion entry point.
+refuseSparseFormulaColumns <- function(formula, data) {
+  for (variableName in intersect(all.vars(formula), names(data))) {
+    column <- data[[variableName]]
+    if (isSparseDataFrameColumn(column)) {
+      kind <- if (methods::is(column, "sparseVector")) {
+        "sparseVector"
+      } else {
+        class(column)[1L]
+      }
+      stop(
+        "sparse predictors must be specified through the x/y interface; '",
+        variableName,
+        "' is a ",
+        kind
+      )
+    }
+  }
+}
+
 ## The 0-based row indices and values of each predictor column a sparse
 ## data-frame column contributes - a sparseVector or sparseFactor
 ## contributes one, a dgCMatrix its columns. Missing entries are stored
