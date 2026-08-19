@@ -478,9 +478,9 @@ resolveSamplerSpec <- function(
     # forestBasisDeclarations now carries down at any length - so this is the
     # single site the refusal is owed at. What a lone amplitude forest is
     # missing is the second ensemble its amplitudes would distinguish it from;
-    # reaching it as a configuration (VCBART's shape, D4 of
-    # docs/design/model-space-survey.md) owes acceptance evidence of its own and
-    # is ticketed as binary-kforest-k1-reachability.
+    # reaching it as a configuration is VCBART's shape (the general per-forest
+    # multiplier door of docs/design/model-space-survey.md), which owes
+    # acceptance evidence of its own before it could be opened.
     if (numForests < 2L) {
       stop(
         "a multi-forest model needs at least two forests, and ",

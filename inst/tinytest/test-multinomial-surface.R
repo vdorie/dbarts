@@ -464,8 +464,7 @@ expect_equal(dimnames(fit3c$yhat.train)[[3L]], c("lo", "mid", "hi"))
 expect_equal(dimnames(fit3c$varcount)[[3L]], c("lo", "mid", "hi"))
 expect_identical(fit3c$y, counts3c)
 
-# an unnamed count matrix falls back to as.character(seq_len(K)) index
-# levels (Q4 of docs/design/multinomial.md)
+# an unnamed count matrix falls back to as.character(seq_len(K)) index levels
 unnamedCounts3c <- counts3c
 colnames(unnamedCounts3c) <- NULL
 set.seed(seed3c)
