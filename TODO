@@ -974,8 +974,9 @@ items
     (12) stan4bart lockstep owes: verify its create path supplies
     resolved sigma (new hard-error) + --preclean rebuild vs the
     user-lib ABI staleness. (13) feature-matrix CH: line-anchor
-    resync (drifted since the hetero landing; check-doc-freshness
-    range-checks pass so its OK is not evidence). (14) monotone
+    resync - DISCHARGED at 95f6fd7f: full-namespace pass over the
+    final content tree, 535 anchors incl. comma-list continuations,
+    230 moved, 0 mismatches. (14) monotone
     leaf: double branch-fill on the scoring path (bench arm per veto
     critique N6) and equal-rank-1 path has analysis-only coverage.
     None of (1)-(7) are discharged by the hetero-state-carry,
