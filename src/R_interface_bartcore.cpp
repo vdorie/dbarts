@@ -453,12 +453,16 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
   // surface attaches for an ordered-factor response, read raw and guarded
   // like resid.df. Absent (the default) leaves a non-ordinal response, so every
   // existing family parses byte-for-byte unchanged.
+  // An attribute of the rooted controlExpr cannot be collected, so the PROTECT
+  // is redundant to that rooting; it is what the PROTECT-balance analyzer reads,
+  // which sees only that Rf_isInteger may allocate (it tests for a factor).
   SEXP ordinalExpr =
-    Rf_getAttrib(controlExpr, Rf_install("bartcore.n.categories"));
+    PROTECT(Rf_getAttrib(controlExpr, Rf_install("bartcore.n.categories")));
   if (Rf_isInteger(ordinalExpr) && Rf_xlength(ordinalExpr) == 1 &&
       INTEGER(ordinalExpr)[0] >= 2)
     control.numOrdinalCategories =
       static_cast<size_t>(INTEGER(ordinalExpr)[0]);
+  UNPROTECT(1);
 
   // optional count shape (docs/design/negative-binomial.md section 4): a length-1
   // real the R surface attaches for a count response, guarded like
@@ -3758,13 +3762,17 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
     // NA_INTEGER is INT_MIN, so the nonnegativity test below catches NA too.
     // The DIMENSIONS are checked, not just the length: a transposed matrix has
     // exactly n*K entries and would install every count in the wrong cell
-    SEXP dimsExpr = Rf_getAttrib(countsExpr, R_DimSymbol);
+    // dims is an attribute of the rooted countsExpr, so the PROTECT is
+    // redundant to that rooting and is what the PROTECT-balance analyzer reads;
+    // the refusal below longjmps, which unwinds the stack past it
+    SEXP dimsExpr = PROTECT(Rf_getAttrib(countsExpr, R_DimSymbol));
     if (!Rf_isInteger(countsExpr) || Rf_xlength(dimsExpr) != 2 ||
         static_cast<size_t>(INTEGER(dimsExpr)[0]) != n ||
         static_cast<size_t>(INTEGER(dimsExpr)[1]) != K)
       Rf_error("bartcore_setCounts: requires an integer matrix of %lu "
                "observations x %lu categories",
                static_cast<unsigned long>(n), static_cast<unsigned long>(K));
+    UNPROTECT(1);
     const int* src = INTEGER(countsExpr);
     counts.assign(src, src + n * K);
     trials.assign(n, 0);
@@ -4309,9 +4317,13 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   int slot = 0;
   auto installChannel = [&](const char* name, SEXP value) -> SEXP {
     // the value roots first: it is unprotected until it is in the container,
-    // and mkChar allocates
+    // and mkChar allocates. That ordering is what keeps it alive; the PROTECT
+    // is redundant to it and is what the PROTECT-balance analyzer reads, which
+    // does not model rooting by container assignment.
+    PROTECT(value);
     SET_VECTOR_ELT(resultExpr, slot, value);
     SET_STRING_ELT(namesExpr, slot++, Rf_mkChar(name));
+    UNPROTECT(1);
     return value;
   };
 

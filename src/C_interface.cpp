@@ -63,7 +63,11 @@ const double* predictorsFromDataExpr(SEXP dataExpr) {
   if (dataExpr == NULL || Rf_isNull(dataExpr)) return NULL;
   SEXP xExpr = Rf_getAttrib(dataExpr, Rf_install("x"));
   if (!Rf_isReal(xExpr)) return NULL;
+  // an attribute of the preserved spec cannot be collected, so the PROTECT is
+  // redundant to that rooting and is what the PROTECT-balance analyzer reads
+  PROTECT(xExpr);
   SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
+  UNPROTECT(1);
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2) return NULL;
   return REAL(xExpr);
 }
