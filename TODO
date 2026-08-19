@@ -381,28 +381,24 @@ items
     docs/plans/release-candidate-review.md landing notes). Organizing
     test: RC closes the cheap window for public-surface changes and
     for draw-moving fixes; sort every open item against that test.
-    (a) NEWS.Rd entry for 5b6e4825's binary-k default change
-        (chi(1.5, Inf) -> chi(1.5, 2.0)); dbartsPriors.Rd is already
-        correct. Trivial, non-negotiable (release artifact).
-    (b) R-surface pair, one slice: sigest's silent sd(y) fallback on
-        mixed sparse/dense predictors gains a WARNING (the
-        dense-part-lm improvement stays a door - it moves draws and
-        can land later with a numerics note); sparseVector/dgCMatrix
-        formula columns get sparseFactor's guarded refusal instead of
-        the raw S4 type error.
-    (c) Executing test coverage for the equal-rank-1 veto path
-        (currently analysis-only) - a candidate must not carry an
-        untested branch of its own flagship correctness fix. The
-        monotone double-fill BENCH half stays post-RC (perf only).
-    (d) VD DECISION, then likely a draw-moving slice: hetero
-        slot-sourced installTrees pairs slot k's mean forest with the
-        wrong variance surface on warm starts. Orchestrator lean: FIX
-        NOW (the last cheap moment for draw-moving fixes; the
-        re-record machinery is well-oiled); the alternative is
-        document-as-semantics and ride.
+    (a) LANDED 2026-08-19 (105f2bd6): NEWS.Rd entry for 5b6e4825's
+        binary-k default change (chi(1.5, Inf) -> chi(1.5, 2.0)).
+    (b) LANDED 2026-08-19 (3d5d2ed5): sigest's silent sd(y) fallback
+        on sparse-backed predictors gains a warning; sparseVector/
+        dgCMatrix formula columns get sparseFactor's guarded refusal.
+    (c) LANDED 2026-08-19 (b9c3f313): executing test coverage for the
+        equal-rank-1 veto path. The monotone double-fill BENCH half
+        stays post-RC (perf only).
+    (d) hetero slot-sourced installTrees pairs slot k's mean forest
+        with the wrong variance surface on warm starts. VD DECIDED
+        2026-08-19: FIX NOW; empty-saved-block posture REFUSE. Slice
+        in flight - design memo + blind critique cycle underway.
     (e) RC-criteria gap: one local rchk pass and one local valgrind
         pass against the tip (those CI legs register only at the
         coordinated merge; ASAN/UBSAN do not cover PROTECT errors).
+        rchk half RAN and FAILED - 11 [UP] unprotected-variable
+        findings, all in the .Call bridge; fix slice in flight; logs
+        .claude/rc-egate-2026-08-19/rchk/. Valgrind half in flight.
     DURING THE SOAK, not gating declaration: count-blind warning
     assertion sweep (17 sites), oracle lane P1b/P9/SBC-deepening,
     bairrtt bartcore-compat check (gates the coordinated MERGE, not
@@ -513,7 +509,8 @@ items
     .claude/rc-review-artifacts-2026-08-18/, verdict in
     release-candidate-review.md wave-5a landing note). 4, 11-13
     discharged; see release-candidate-review.md landing notes. 1, 2,
-    3, 6 and 14's test half now belong to the rc-gate entry above.
+    3 and 6's test half now belong to the rc-gate entry above; 14's
+    test half is DONE (b9c3f313).
     (5) veto-arc doors from the w5dB critique cycle: per-sweep
     vetoed-leaf diagnostics counter (R-readable); sampleTreesFromPrior
     all-zero bare-root branch alignment with the mutate-path semantics

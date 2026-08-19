@@ -540,6 +540,77 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### rc-gate wave 1: NEWS binary-k, sigest sparse surface, equal-rank-1 coverage (105f2bd6 + 3d5d2ed5 + b9c3f313, 2026-08-19)
+
+rc-gate items (a), (b) and (c) landed as three commits; (b) and (c)
+were built in parallel worktrees off db5f88ae/105f2bd6, stacked by
+rebase, and gated by one shared merged-tree battery per the batch
+clause.
+
+(a) 105f2bd6: inst/NEWS.Rd entry for 5b6e4825's binary-k default
+change (chi(1.5, Inf) -> chi(1.5, 2.0)) in the 1.0-0 NEW FEATURES
+subsection; man/dbartsPriors.Rd verified already correct, untouched;
+the entry's "prior median 1.9" claim reproduced numerically
+(2*sqrt(qchisq(0.5, 1.5)) = 1.906). Gates: NEWS parse 277 entries;
+clean-copy tarball check (vignette-flag warnings only, from
+--no-build-vignettes).
+
+(b) 3d5d2ed5: sigest's silent sd(y) fallback on sparse-backed
+predictors now warns - a classed warning
+(dbartsSparseSigmaFallbackWarning, dbartsWarning) at
+estimateSigmaFromLinearModel's predictorSourceIsSparse branch,
+fallback estimate unchanged. sparseVector/dgCMatrix formula columns
+get sparseFactor's guarded refusal via a new shared
+refuseSparseFormulaColumns helper (R/mixedMatrix.R), replacing the
+sparseFactor-only inline loops in dbartsData's formula path and
+extractMultinomialFormulaData (a census-found second duplicate);
+refusal message widened to all sparse kinds ("sparse predictors must
+be specified through the x/y interface"), sparseVector normalized off
+its concrete subclass; man/dbartsData.Rd corrected (had described the
+raw S4 error verbatim); two NEWS BUG FIXES items. test-data-mixed.R:
+two message-content expect_error arms plus a warning-count pin (1
+mixed, 0 dense control); anti-vacuity: 4 new-assertion failures
+pre-change, green after. Gates: tinytest 6413/0, equivalence 42/42
+with no max |z| line, R CMD check tarball Status OK, air clean, lintr
+0 on all six touched files, NEWS parse 278.
+
+(c) b9c3f313: tests/cpp only, zero production change -
+testEqualRankOneComparison in test_moves.cpp (206 lines, local ext_rng
+so filtered runs stay clean). Fixture: a one-cut binary split column
+under an all-zero weight vector puts root, split branch and every leaf
+at veto rank 1, so birth/death/change realize ONLY equal-rank-1
+comparisons and each acceptance is a hand-derived prior x transition
+constant (birth/death alpha 0.25/0.75 bitwise, change alpha 1.0),
+invariant to response, sigma, k and leaf model; the vetoed branch
+score is pinned 0.0 bitwise under LinearGaussianLeaf whose naive
+vetoed-marginal sum is 8.882e-16; law cited to
+docs/design/empty-leaf-veto.md. A dev-time counter (removed before
+commit) proved execution: 7 equal-rank-1 resolutions (4 birth, 2
+death, 1 change), zero unequal-rank realizations. Mutation proofs:
+equal-nonzero-ranks-as-unequal fails 9 checks; -HUGE_VAL both sides
+fails 10; dropping the vetoed-leaf skip in logLikelihoodForBranch
+fails 3, all in the new test. Suite 251 ok (was 250); ASAN/UBSAN
+clean. Discharges the rc-gate requirement that the flagship veto fix
+carry no untested branch.
+
+Batch gate on the merged tree: tinytest 6413/0, tests/cpp 251 ok, NEWS
+parse 279, air clean, conflict-marker sweep clean. CI on 105f2bd6: a
+live Ubuntu-mirror incident stalled setup-r on pkgdown, exact-gates
+and the three ubuntu R-CMD-check jobs - each failed fast at the named
+step's 12-minute bound exactly as the 887787fd hardening intends, and
+bounded reruns cured all three (one to two cycles); macOS/Windows legs
+stayed green throughout.
+
+Also this session, for continuity: rc-gate (e)'s rchk leg RAN locally
+(kalibera/rchk docker under amd64 emulation, ~5 min): verdict FAIL, 11
+[UP] unprotected-variable findings all in the .Call bridge (a
+bartcore_run result-assembly cluster, parseControl,
+predictorsFromDataExpr, bartcore_setCounts) plus two analysis bailouts
+on setState; logs in .claude/rc-egate-2026-08-19/rchk/; a
+triage-and-fix slice is in flight. The valgrind leg and the
+VD-approved installTrees hetero pairing fix (decision 2026-08-19: fix
+now) are in flight, own notes to come.
+
 ### Consumer lockstep rebuilds against the new ABI token (no dbarts commit, 2026-08-19)
 
 The rebuild obligation the ABI-token fold created (ledger items 11
