@@ -269,7 +269,7 @@ extract(object, \dots)
     The matched call, or \code{call("NULL")} when the fit was made with \code{keepcall}/\code{keepCall} equal to \code{FALSE}.
   }
   \item{\code{yhat.train}}{
-    A array/matrix of posterior samples. The \eqn{(i, j, k)} value is the \eqn{j}th draw of the posterior of \eqn{f} evaluated at the \eqn{k}th row of \code{x.train} (i.e. \eqn{f^*(x_k)}{f(x_k)}) corresponding to chain \eqn{i}. When \code{nchain} is one or \code{combinechains} is \code{TRUE}, the result is collapsed down to a matrix.
+    A array/matrix of posterior samples. The \eqn{(i, j, k)} value is the \eqn{j}th draw of the posterior of \eqn{f} evaluated at the \eqn{k}th row of \code{x.train} (i.e. \eqn{f^*(x_k)}{f(x_k)}) corresponding to chain \eqn{i}. When \code{nchain} is one or \code{combinechains} is \code{TRUE}, the result is collapsed down to a matrix: with \eqn{m = }\code{ndpost \%/\% keepevery} draws kept per chain, row \eqn{r} is chain \eqn{1 + (r - 1) \%/\% m}'s draw \eqn{1 + (r - 1) \%\% m} - chain 1's whole run first, then chain 2's, and so on (chain-major), not interleaved draw by draw. Every collapsed field a fit returns (\code{sigma}, \code{k}, \code{tau}, \code{varcount}, \code{ranef}, ...) uses this same row order, so row \eqn{r} of one pairs with row \eqn{r} of another - e.g. \code{sigma[r]} is the residual scale that produced \code{yhat.train[r, ]}.
   }
   \item{\code{yhat.test}}{
     Same as \code{yhat.train} but now the \eqn{x}s are the rows of the test data.
@@ -281,13 +281,13 @@ extract(object, \dots)
     Vector of means of \code{yhat.test} across columns and chains.
   }
   \item{\code{sigma}}{
-    Matrix of posterior samples of \code{sigma}, the residual/error standard deviation. Dimensions are equal to the number of chains times the number of samples unless \code{nchain} is one or \code{combinechains} is \code{TRUE}.
+    Matrix of posterior samples of \code{sigma}, the residual/error standard deviation. Dimensions are equal to the number of chains times the number of samples unless \code{nchain} is one or \code{combinechains} is \code{TRUE}, in which case it collapses to a vector in the same chain-major order as \code{yhat.train} (see above), so combined \code{sigma[r]} pairs with combined \code{yhat.train[r, ]}.
   }
   \item{\code{first.sigma}}{
     Burn-in draws of \code{sigma}.
   }
   \item{\code{varcount}}{
-    A matrix with number of rows equal to the number of kept draws and each column corresponding to a training variable. Contains the total count of the number of times that variable is used in a tree decision rule (over all trees).
+    A matrix with number of rows equal to the number of kept draws and each column corresponding to a training variable. Contains the total count of the number of times that variable is used in a tree decision rule (over all trees). Row order (when combined) is \code{yhat.train}'s chain-major order (see above).
   }
   \item{\code{varprobs}}{
     Present only under a DART prior: the sampled split-variable probabilities, in the same layout as \code{varcount}. Each draw sums to one across variables.
@@ -311,7 +311,7 @@ extract(object, \dots)
     Information that can be lost if \code{combinechains} is \code{TRUE} is tracked here.
   }
   \item{\code{k}}{
-    Optional matrix of posterior samples of \code{k}. Only present when \code{k} is modeled, i.e. there is a hyperprior.
+    Optional matrix of posterior samples of \code{k}. Only present when \code{k} is modeled, i.e. there is a hyperprior. Collapses (when combined) in \code{sigma}'s chain-major order.
   }
   \item{\code{first.k}}{
     Burn-in draws of \code{k}, if modeled.

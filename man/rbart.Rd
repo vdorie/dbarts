@@ -135,13 +135,13 @@ For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_
   An object of class \code{rbart}. Contains all of the same elements of an object of class \code{\link{bart}}, as well as the elements:
 
   \item{ranef}{
-    Samples from the posterior of the random effects. A array/matrix of posterior samples. The \eqn{(k, l, j)} value is the \eqn{l}th draw of the posterior of the random effect for group \eqn{j} (i.e. \eqn{\alpha^*_j}{\alpha*_j}) corresponding to chain \eqn{k}. When \code{n.chains} is one or \code{combineChains} is \code{TRUE}, the result is collapsed down to a matrix.
+    Samples from the posterior of the random effects. A array/matrix of posterior samples. The \eqn{(k, l, j)} value is the \eqn{l}th draw of the posterior of the random effect for group \eqn{j} (i.e. \eqn{\alpha^*_j}{\alpha*_j}) corresponding to chain \eqn{k}. When \code{n.chains} is one or \code{combineChains} is \code{TRUE}, the result is collapsed down to a matrix: with \eqn{m = }\code{n.samples \%/\% n.thin} draws kept per chain, row \eqn{r} is chain \eqn{1 + (r - 1) \%/\% m}'s draw \eqn{1 + (r - 1) \%\% m} - chain 1's whole run first, then chain 2's (chain-major), not interleaved draw by draw. Every collapsed field the fit returns (\code{sigma}, \code{tau}, \code{yhat.train}, ...) shares this row order, so row \eqn{r} of one pairs with row \eqn{r} of another.
   }
   \item{ranef.mean}{
     Posterior mean of random effects, derived by taking mean across group index of samples.
   }
   \item{tau}{
-    Matrix of posterior samples of \code{tau}, the standard deviation of the random effects. Dimensions are equal to the number of chains times the number of samples unless \code{n.chains} is one or \code{combineChains} is \code{TRUE}.
+    Matrix of posterior samples of \code{tau}, the standard deviation of the random effects. Dimensions are equal to the number of chains times the number of samples unless \code{n.chains} is one or \code{combineChains} is \code{TRUE}, in which case it collapses to a vector in \code{ranef}'s chain-major order (see above).
   }
   \item{\code{first.tau}}{
     Burn-in draws of \code{tau}.

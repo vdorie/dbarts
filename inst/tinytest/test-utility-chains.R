@@ -48,6 +48,23 @@ expect_equal(
 )
 expect_equal(dbarts:::combineChains(bartSamples), bartSamples.cc)
 
-rm(k, bartSamples.cc, bartSamples, dbartsSamples, n.obs, n.samples, n.chains)
+# scalar/vector path: uncombineChains's chain-major vector branch and
+# combineChains's 2-D branch must invert each other
+v <- seq_len(n.chains * n.samples) # chain-major: chain 1's block, then chain 2's, ...
+m <- dbarts:::uncombineChains(v, n.chains)
+expect_equal(dim(m), c(n.chains, n.samples))
+expect_equal(dbarts:::combineChains(m), v)
+
+rm(
+  k,
+  bartSamples.cc,
+  bartSamples,
+  dbartsSamples,
+  n.obs,
+  n.samples,
+  n.chains,
+  v,
+  m
+)
 
 rm(testData)

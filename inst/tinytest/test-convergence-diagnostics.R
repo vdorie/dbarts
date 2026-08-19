@@ -229,3 +229,115 @@ rm(
   goodFit,
   havePosterior
 )
+
+# summary()/as_draws_*() on a COMBINED (default) multi-chain fit must
+# reconstruct a non-scalar field's chain axis from its combined
+# (n.chains * n.samples) x n.vars layout, not the (n.chains, n.samples)
+# layout an uncombined scalar field has - the two 2-D shapes are otherwise
+# indistinguishable, and mistaking one for the other silently collapses
+# every variable but the first. Ground truth: the same fit, uncombined,
+# must produce an identical per-variable table.
+combinedVc <- dbarts::bart(
+  testData$x,
+  testData$y,
+  ndpost = 20L,
+  nskip = 5L,
+  ntree = 5L,
+  nchain = 3L,
+  nthread = 1L,
+  combinechains = TRUE,
+  verbose = FALSE,
+  seed = 11L
+)
+uncombinedVc <- dbarts::bart(
+  testData$x,
+  testData$y,
+  ndpost = 20L,
+  nskip = 5L,
+  ntree = 5L,
+  nchain = 3L,
+  nthread = 1L,
+  combinechains = FALSE,
+  verbose = FALSE,
+  seed = 11L
+)
+sVcCombined <- summary(combinedVc, vars = "varcount")$stats
+sVcUncombined <- summary(uncombinedVc, vars = "varcount")$stats
+expect_equal(nrow(sVcCombined), ncol(testData$x))
+expect_equal(sVcCombined, sVcUncombined)
+rm(combinedVc, uncombinedVc, sVcCombined, sVcUncombined)
+
+# same defect, rbart_vi's ranef: one variable per group, not one pooled
+# across every draw and every group
+n.g2 <- 6L
+g2 <- factor(rep(seq_len(n.g2), each = 10L))
+x2 <- rnorm(length(g2))
+y2 <- x2 + rnorm(n.g2, 0, 1)[g2] + rnorm(length(g2), 0, 0.5)
+rCombined <- dbarts::rbart_vi(
+  y2 ~ x2,
+  group.by = g2,
+  n.samples = 6L,
+  n.burn = 4L,
+  n.thin = 1L,
+  n.trees = 5L,
+  n.chains = 3L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 8L
+)
+rUncombined <- dbarts::rbart_vi(
+  y2 ~ x2,
+  group.by = g2,
+  n.samples = 6L,
+  n.burn = 4L,
+  n.thin = 1L,
+  n.trees = 5L,
+  n.chains = 3L,
+  n.threads = 1L,
+  verbose = FALSE,
+  seed = 8L,
+  combineChains = FALSE
+)
+sRanefCombined <- summary(rCombined, vars = "ranef")$stats
+sRanefUncombined <- summary(rUncombined, vars = "ranef")$stats
+expect_equal(nrow(sRanefCombined), n.g2)
+expect_equal(sRanefCombined, sRanefUncombined)
+# posterior::as_draws_df is the other documented reader of the same shape
+if (requireNamespace("posterior", quietly = TRUE)) {
+  ddfCombined <- posterior::as_draws_df(rCombined, vars = c("sigma", "ranef"))
+  expect_equal(sum(grepl("^ranef\\[", names(ddfCombined))), n.g2)
+}
+rm(n.g2, g2, x2, y2, rCombined, rUncombined, sRanefCombined, sRanefUncombined)
+if (exists("ddfCombined")) {
+  rm(ddfCombined)
+}
+
+# scalarFields must list every scalar-per-draw field, not just sigma/k/tau:
+# on a multi-chain, uncombined fit, first.sigma and resid.df are stored
+# (n.chains, n) exactly as sigma is. Mistaking that shape for a
+# per-variable field's (n.chains * n, n.vars) layout mis-splits the chain
+# margin into one spurious variable per sample.
+studentFit <- dbarts::bart2(
+  testData$y ~ testData$x,
+  resid.dist = student(5),
+  n.chains = 3L,
+  n.samples = 10L,
+  n.burn = 6L,
+  n.thin = 1L,
+  n.trees = 5L,
+  n.threads = 1L,
+  combineChains = FALSE,
+  verbose = FALSE
+)
+expect_equal(dim(studentFit$first.sigma), c(3L, 6L))
+expect_equal(dim(studentFit$resid.df), c(3L, 10L))
+
+sFirstSigma <- summary(studentFit, vars = "first.sigma")$stats
+expect_equal(nrow(sFirstSigma), 1L)
+expect_equal(sFirstSigma$mean, mean(studentFit$first.sigma))
+
+sResidDf <- summary(studentFit, vars = "resid.df")$stats
+expect_equal(nrow(sResidDf), 1L)
+expect_equal(sResidDf$mean, 5)
+
+rm(studentFit, sFirstSigma, sResidDf)

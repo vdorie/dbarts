@@ -21,13 +21,17 @@ probabilityFromLatents <- function(latents, object) {
 
 # per-draw, per-observation log-likelihood of the stored training response.
 # ev enters with chains split ((n.chains x) n.samples x n.obs), so that
-# as.vector(ev) enumerates draws chain-fastest - the order as.vector on the
-# stored sigma yields in both of its layouts (n.chains x n.samples matrix or
-# chain-interleaved combined vector) - and the sigma draws pair by plain
-# recycling. Dispatch is on object$family, not on the presence of sigma, so a
-# new family cannot silently reuse a formula that does not fit it (an aft fit
-# has non-null sigma but is not gaussian): gaussian evaluates the normal
-# density with weights as precision (y | x ~ N(f(x), sigma^2 / w)), and a
+# as.vector(ev) enumerates draws chain-fastest. A scalar-per-draw field
+# (sigma, resid.df) may be STORED combined (a flat, chain-major vector -
+# chain 1's whole run, then chain 2's, ...) or split ((n.chains x)
+# n.samples matrix, chain-fastest); chainFastest below normalizes either
+# storage to the split matrix, so as.vector() on it always yields the
+# chain-fastest order ev's own as.vector() does, and the two pair by plain
+# recycling regardless of how the fit itself was combined. Dispatch is on
+# object$family, not on the presence of sigma, so a new family cannot
+# silently reuse a formula that does not fit it (an aft fit has non-null
+# sigma but is not gaussian): gaussian evaluates the normal density with
+# weights as precision (y | x ~ N(f(x), sigma^2 / w)), and a
 # student() residual law the t marginal at the same location and scale; probit and
 # logistic the bernoulli mass on the y scale, weights being trial counts for
 # logistic (probit never stores weights); aft the log density for events and
@@ -45,6 +49,10 @@ pointwiseLogLikelihood <- function(object, ev) {
   weights <- object[["weights"]]
   n.draws <- length(ev) %/% length(y)
   y <- rep(y, each = n.draws)
+  n.chains <- fitNChains(object)
+  chainFastest <- function(x) {
+    if (is.null(dim(x))) uncombineChains(as.vector(x), n.chains) else x
+  }
 
   if (identical(family, "gaussian")) {
     # resid.dist records the fitted residual law; a fit predating the field
@@ -66,7 +74,7 @@ pointwiseLogLikelihood <- function(object, ev) {
         " residuals"
       )
     }
-    sd <- rep_len(as.vector(object$sigma), length(ev))
+    sd <- rep_len(as.vector(chainFastest(object$sigma)), length(ev))
     if (!is.null(weights)) {
       sd <- sd / rep(sqrt(weights), each = n.draws)
     }
@@ -81,7 +89,7 @@ pointwiseLogLikelihood <- function(object, ev) {
           "cannot compute the log-likelihood; fit does not store the per-draw residual degrees of freedom"
         )
       }
-      df <- rep_len(as.vector(df), length(ev))
+      df <- rep_len(as.vector(chainFastest(df)), length(ev))
       result <- dt((y - as.vector(ev)) / sd, df, log = TRUE) - log(sd)
     } else {
       result <- dnorm(y, as.vector(ev), sd, log = TRUE)
@@ -106,7 +114,7 @@ pointwiseLogLikelihood <- function(object, ev) {
     # sigma and y are on the log-time scale (y is log event time for an event,
     # log censoring time for a censored row); events keep the normal density,
     # censored rows take the log upper survival tail log P(log T > log C)
-    sd <- rep_len(as.vector(object$sigma), length(ev))
+    sd <- rep_len(as.vector(chainFastest(object$sigma)), length(ev))
     location <- as.vector(ev)
     result <- dnorm(y, location, sd, log = TRUE)
     censored <- rep(status, each = n.draws) == 0
@@ -1024,12 +1032,18 @@ hurdleNChains <- function(object) {
 # The positive part's per-observation sigma as a flat vector aligned, draw for
 # draw, with the fit draws' as.vector order (chain-fastest, then sample, then
 # observation - the layout pointwiseLogLikelihood and sampleFromPPD pair sigma
-# with fits in). The positive fit is always homoscedastic (a variance forest
-# requires family = "gaussian", so the probit occupancy fit rejects it and the
-# hurdle never builds a heteroscedastic component), carrying one sigma_s per
-# draw, which rep_len recycles across the n.obs draw-blocks so each observation
+# with fits in); sigma may be stored combined (flat, chain-major) or split
+# ((n.chains x) n.samples matrix, chain-fastest), so it is normalized to the
+# split matrix first, exactly as chainFastest does in pointwiseLogLikelihood.
+# The positive fit is always homoscedastic (a variance forest requires
+# family = "gaussian", so the probit occupancy fit rejects it and the hurdle
+# never builds a heteroscedastic component), carrying one sigma_s per draw,
+# which rep_len recycles across the n.obs draw-blocks so each observation
 # reuses its draw's sigma.
-hurdleSigmaVec <- function(sigma, n.total) {
+hurdleSigmaVec <- function(sigma, n.chains, n.total) {
+  if (is.null(dim(sigma))) {
+    sigma <- uncombineChains(as.vector(sigma), n.chains)
+  }
   rep_len(as.vector(sigma), n.total)
 }
 
@@ -1079,7 +1093,11 @@ hurdleParts <- function(object, newdata) {
       combineChains = FALSE
     )
   }
-  sigmaVec <- hurdleSigmaVec(object$positive$sigma, length(f))
+  sigmaVec <- hurdleSigmaVec(
+    object$positive$sigma,
+    hurdleNChains(object),
+    length(f)
+  )
   list(pi = as.vector(pi), f = as.vector(f), sigma = sigmaVec, shape = dim(f))
 }
 
@@ -1298,12 +1316,21 @@ predict.rbart <- function(
       )
       n.unmeasured <- sum(!measuredLevels)
       if (n.chains > 1L) {
+        # object$tau may be stored combined (flat, chain-major) or split
+        # ((n.chains x) n.samples matrix, chain-fastest); normalize to the
+        # split matrix once, then flatten to whichever order this call's
+        # own (un)combined 'ranef' needs below
+        tauMat <- if (is.null(dim(object$tau))) {
+          uncombineChains(as.vector(object$tau), n.chains)
+        } else {
+          object$tau
+        }
         if (!combineChains) {
           unmeasuredRanef <- array(
             rnorm(
               n.chains * n.samples * n.unmeasured,
               0,
-              rep.int(object$tau, n.unmeasured)
+              rep.int(as.vector(tauMat), n.unmeasured)
             ),
             c(n.chains, n.samples, n.unmeasured),
             dimnames = list(NULL, NULL, ranefNames.test[!measuredLevels])
@@ -1313,7 +1340,7 @@ predict.rbart <- function(
             rnorm(
               n.chains * n.samples * n.unmeasured,
               0,
-              rep.int(object$tau, n.unmeasured)
+              rep.int(as.vector(t(tauMat)), n.unmeasured)
             ),
             n.chains * n.samples,
             n.unmeasured,
@@ -1725,12 +1752,14 @@ plotTree.rbart <- function(
 # then reshapes to the caller's shape with the same combineChains() helper
 # the stored draws go through, so a combined and a split ppd draw from the
 # same seed agree bit-for-bit after accounting for row order. Gaussian draws
-# noise in object$sigma's native (chain-fastest) order - matching both of its
-# storage layouts - and adds it (reshaped when ev is combined); binary draws
-# rbinom against the split-order probabilities and reshapes the outcome,
-# since the draw depends on ev and cannot be reshaped after the fact. Single
-# chain and already-split ev take the flat path unchanged. n.chains is needed
-# only to perform that reshape.
+# noise in sigma's chain-fastest order, normalized below from whichever of
+# its two storage layouts the fit used (combined: flat, chain-major; split:
+# (n.chains x) n.samples matrix, already chain-fastest) - and adds it
+# (reshaped when ev is combined); binary draws rbinom against the
+# split-order probabilities and reshapes the outcome, since the draw
+# depends on ev and cannot be reshaped after the fact. Single chain and
+# already-split ev take the flat path unchanged. n.chains is needed only to
+# perform that reshape.
 sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
   oldSeed <- NULL
   if (!is.null(object[["seed"]])) {
@@ -1739,6 +1768,10 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
   }
 
   responseIsBinary <- is.null(object$sigma)
+  sigma <- object$sigma
+  if (!responseIsBinary && is.null(dim(sigma))) {
+    sigma <- uncombineChains(as.vector(sigma), n.chains)
+  }
 
   # the noise added below is always gaussian (rnorm); resid.dist is absent
   # for a fit predating the field or a binary fit and reads as gaussian, the
@@ -1783,11 +1816,11 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
       }
     } else {
       n.obs <- dim(ev)[length(dim(ev))]
-      n.draws <- length(object$sigma)
+      n.draws <- length(sigma)
       noise <- rnorm(
         n.obs * n.draws,
         0,
-        rep_len(object$sigma, n.obs * n.draws)
+        rep_len(as.vector(sigma), n.obs * n.draws)
       )
       if (n.chains > 1L && length(dim(ev)) < 3L) {
         noise <- combineChains(array(
@@ -1830,8 +1863,8 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
       }
     } else {
       n.obs <- dim(ev)[length(dim(ev))]
-      n.draws <- length(object$sigma)
-      sd <- rep_len(object$sigma, n.obs * n.draws) *
+      n.draws <- length(sigma)
+      sd <- rep_len(as.vector(sigma), n.obs * n.draws) *
         rep(sqrt(1 / weights), each = n.draws)
       noise <- rnorm(n.obs * n.draws, 0, sd)
       if (n.chains > 1L && length(dim(ev)) < 3L) {

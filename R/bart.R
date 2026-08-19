@@ -4,6 +4,11 @@
 # for quantities such as yhat.train, n.pars is n.obs; for sigma, it is 1
 # and the dimension is dropped
 #
+# when combineChains is TRUE and n.chains > 1, the chain margin collapses
+# chain-major regardless of n.pars: chain 1's whole run, then chain 2's,
+# and so on - so a combined draw index means the same thing for every
+# field a fit returns (sigma, k, tau, yhat.train, varcount, ranef, ...)
+#
 # preserves the per-parameter dimnames if they exist (for ranef)
 convertSamplesFromDbartsToBart <-
   function(
@@ -24,7 +29,10 @@ convertSamplesFromDbartsToBart <-
         is.null(dim(samples)),
         length(dim(samples)) == 2L,
         samples,
-        if (n.chains <= 1L) t(samples) else as.vector(t(samples)),
+        # chain-major: chain 1's whole run, then chain 2's, ... - the same
+        # order the n.pars > 1 branch below produces, so a combined sigma[i]
+        # pairs with a combined yhat.train[i, ]
+        if (n.chains <= 1L) t(samples) else as.vector(samples),
         {
           x <- NULL
           res <- evalx(dim(samples), t(matrix(samples, x[1L], prod(x[-1L]))))
@@ -44,7 +52,10 @@ combineChains <- function(samples) {
     is.null(dim(samples)),
     length(dim(samples)) == 2L,
     samples,
-    as.vector(samples),
+    # chain-major, inverting uncombineChains' vector branch: samples is
+    # (n.chains, n.samples), so transpose before flattening to get chain
+    # 1's whole run first, then chain 2's, ...
+    as.vector(t(samples)),
     {
       x <- NULL
       res <- evalx(
@@ -64,7 +75,11 @@ uncombineChains <- function(samples, n.chains) {
     if (n.chains == 1L) {
       samples
     } else {
-      matrix(samples, n.chains, length(samples) %/% n.chains)
+      # samples is chain-major (chain 1's whole run, then chain 2's, ...,
+      # convertSamplesFromDbartsToBart's combined scalar-field order);
+      # filling n.samples x n.chains column-major, then transposing, lands
+      # each chain's contiguous block in its own row
+      t(matrix(samples, length(samples) %/% n.chains, n.chains))
     }
   } else {
     res <- if (n.chains == 1L) {
@@ -2638,7 +2653,10 @@ bart <- function(
   control@call <- matchedCall
   control@n.burn <- control@n.burn %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
-  keepsampler <- keepsampler || control@keepTrees
+  # control@keepTrees is still FALSE here regardless of 'keeptrees' (set
+  # below, once burn-in is known); read the user's own argument, as bart2
+  # does through its differently-sequenced control construction
+  keepsampler <- keepsampler || keeptrees
   if (control@n.burn == 0L && keeptrees == TRUE) {
     control@keepTrees <- TRUE
   }
@@ -2695,7 +2713,28 @@ bart <- function(
   if (!is.null(subset)) {
     args$subset <- subset
   }
-  sampler <- do.call(dbarts::dbarts, args, envir = parent.frame(1L))
+  # bart() always builds with missing = "error" (above) and has no
+  # 'missing' formal of its own, so dbarts()'s stock remedy - naming an
+  # argument bart() rejects - is rewritten to point at the front doors that
+  # actually take it
+  sampler <- tryCatch(
+    do.call(dbarts::dbarts, args, envir = parent.frame(1L)),
+    error = function(e) {
+      msg <- conditionMessage(e)
+      if (grepl("missing = \"incorporate\" to model them", msg, fixed = TRUE)) {
+        stop(
+          sub(
+            "; use missing = \"incorporate\" to model them",
+            "; use bart2() or dbarts(), which support missing = \"incorporate\", to model them",
+            msg,
+            fixed = TRUE
+          ),
+          call. = FALSE
+        )
+      }
+      stop(e)
+    }
+  )
 
   # formula-response backstop for the pre-check above: dbarts() auto-dispatched
   # an ordered-factor response to ordinal, which bart() cannot package
