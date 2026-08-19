@@ -540,6 +540,31 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Arc-close comment sweep, residual pass (77349d29, 2026-08-19)
+
+The reading-pass sweep owed at arc close, before the RC call. The
+bulk sweep landed at dcc8262e (2026-08-17); this pass covers what
+wave 5 added afterward plus what that sweep missed: 8 sites in 6
+files (+19/-19, comments only). Every site keeps its rule text and
+its docs/design citations; only provenance went: plan slice tags
+dropped from two docs/design section citations (the files remain
+cited, one codenamed heading unpacked to its descriptive name),
+"slice-0" renamed to CSC code-validation in the bridge, the
+test-capi polarity comment now pins the shipped polarity without
+the landed-plans history, a dangling "Q4" citation into
+docs/design/multinomial.md (the label exists only in the plan)
+dropped with its self-contained rule kept, and a ticket name
+removed from R/spec.R's kforest refusal comment. Tree-wide scans
+after the pass: zero docs/plans references and zero slice
+codenames remain in shipped files (R/, src/, inst/, man/).
+Implementer battery and an INDEPENDENT gate-runner battery both
+green: tinytest 6407/0, equivalence bitwise 42/42 + 12/12 + 11/11
+with zero max |z| lines, tests/cpp clean, air format clean, lintr
+clean on all five touched R files, R CMD check from an
+out-of-tree tarball Status OK. The arc-close sweep obligation is
+discharged; the feature-matrix anchor resync (content edits now
+final) is the remaining pre-RC step.
+
 ### Wave-5b veto-law enforcement + main-baseline re-record (d15a2bfb + 9ba57750, 2026-08-19)
 
 Fix-queue item 3, the queue's last slice - WAVE 5B CLOSES. Closes
