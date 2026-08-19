@@ -540,6 +540,34 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Full-namespace anchor resync, pre-RC pass (95f6fd7f, 2026-08-19)
+
+The wave-4 precedent (f953127c) repeated over the FINAL content
+tree, closing ledger item 13 and the queue's last pre-RC step.
+Whole-file walk of docs/design/feature-matrix.md: 535 anchors
+checked (502 base citations + 29 comma-list continuations the
+freshness checker's regex drops + 4 bare no-token continuations
+found by hand) - 230 moved, 305 unchanged, 0 file-changed, 0
+content mismatches; the two historical "the earlier X" citations
+left per the file's own convention. Every anchor re-derived BY
+CONTENT against the live tree from the 8e1e674c baseline blobs,
+never by offset; deltas region-dependent, from +1 (TODO) and +3
+(chain.hpp head) through +73..+119 (dbarts.h, the ABI-token
+reshape) to +127 (chain.hpp tail - the hetero-state-carry drift
+item 13 named) and +175 (test_sampler.cpp). Verification was
+contested and therefore strong: concurrent passes cross-audited
+the same file and surfaced and fixed real errors in each other
+(range endpoints, duplicated values, a missed range), and an
+independent sample re-derivation settled the one remaining
+disagreement (the buildMultinomialSampler span starts at its doc
+comment, 3238-3294, preserving the old span's length and
+semantics) and confirmed the +73 CAPI delta against the true
+8e1e674c baseline rather than the intervening tree. Gate:
+check-doc-freshness OK (505 anchors, 37 symbols, 3 scenario-count
+claims) on the slice base and again on the rebased tree. Docs-only
+(+250/-197, one file); package byte-identical to ad4a131b's fully
+gated build.
+
 ### Flat-C ABI token layout fold + enforced handshake (ad4a131b, 2026-08-19)
 
 Closes the flat-C struct-append surface decision (VD: fold the
