@@ -13,7 +13,7 @@ makeTestModelMatrix(data, newdata)
 }
 \arguments{
   \item{x}{
-    Data frame of explanatory variables.
+    Data frame of explanatory variables. A column may be a \code{Matrix::sparseVector}, \code{dgCMatrix}, or \code{\link{sparseFactor}} (assigned into the frame; such columns do not survive \code{data.frame(...)} or \code{I()}); see \sQuote{Value}.
   }
   \item{drop}{Logical or list controlling whether or not columns that are constants or factor levels with no instances are omitted from the result. When a list, must be of length equal to \code{x}. Elements correspond to \code{x} according to:
     \itemize{
@@ -41,6 +41,8 @@ makeTestModelMatrix(data, newdata)
 }
 \value{
   A matrix with columns corresponding to the elements of the data frame. If \code{drop = TRUE} or is a list, the attribute \code{drop} on the result is set to the list used when creating the matrix.
+
+  If any column of \code{x} is sparse-backed (a \code{Matrix::sparseVector}, \code{dgCMatrix}, or \code{\link{sparseFactor}}), the result is instead an object of class \code{\link{dbartsMixedMatrix}} - not a matrix (\code{is.matrix()} is \code{FALSE}) - which keeps sparse columns unexpanded rather than densifying them. Call \code{as.matrix} on it to obtain an ordinary dense matrix.
 }
 \author{
   Vincent Dorie: \email{vdorie@gmail.com}.

@@ -25,13 +25,15 @@ interactions(max.order = NULL, groups = NULL, forbid = NULL)
     every other pair of named predictors is forbidden. Predictors named in no
     group are unconstrained. Each set is a character vector of model-matrix
     column names (a bare factor term name expands to its indicator columns) or
-    a numeric vector of column indices.
+    a numeric vector of column indices. A single vector (rather than a list)
+    is taken as one group.
   }
   \item{forbid}{
     Optional co-occurrence deny-list: a list whose entries each name two or
     more predictors barred from ever sharing a root-to-leaf path (an entry of
     more than two forbids every pair within it). Columns are named or indexed
-    as for \code{groups}.
+    as for \code{groups}. A single vector (rather than a list) is taken as one
+    forbidden set.
   }
 }
 \details{
@@ -46,7 +48,9 @@ interactions(max.order = NULL, groups = NULL, forbid = NULL)
   Names and indices resolve against the model matrix at fit time, where every
   value is validated: an unrecognized name, an empty group, a \code{max.order}
   below 1, and a reference to a column dropped from the design are each an
-  error. Supplying none of the three arguments is an error.
+  error there. Supplying none of the three arguments is instead an error
+  immediately, at construction: \code{interactions()} with no arguments never
+  produces an object to pass to \code{\link{dbarts}}/\code{\link{bart2}}.
 
   Monotone constraints (see \code{\link{dbarts}}'s \code{monotone}) and
   interaction constraints are orthogonal and may be combined.
