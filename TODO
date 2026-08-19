@@ -314,11 +314,12 @@ items
     composition) killed bitwise as before and, against a freshly
     recorded scratch baseline carrying summaries, killed through the
     statistical verdict with a reported max |z|. REMAINING: the
-    pinned CI baselines (bcf-equivalence-6e3b9fb8.rds, multinomial-
-    equivalence-1027be5.rds) predate summaries, so a cross-host x86 CI
-    run still degrades loudly rather than passing statistically until
-    they are re-recorded (not done in this slice, since a re-record
-    is only valid from the recording host); AND a re-record alone is
+    multinomial half closed at the level-centering fix -
+    multinomial-equivalence-4d9a3337.rds carries summaries - but
+    bcf-equivalence-6e3b9fb8.rds still predates them, so a cross-host
+    x86 CI run on THAT gate degrades loudly rather than passing
+    statistically until it is re-recorded (a re-record is only valid
+    from the recording host); AND a re-record alone is
     not sufficient: the non-statChannels entries (mu, tau, glue,
     varcount, varcount.tau; forestFits, varcount, accepted,
     installed) are live-sampler final-state snapshots that mismatch
@@ -600,10 +601,13 @@ items
     multinomial-equivalence-1027be5, S5 69b28a3e public bart2
     train-side matrix offset + messages + docs). The multinomial
     family is now a full conditional inside a larger Gibbs/MH
-    sampler. Doors recorded there: k3countsswap scenario at the
-    next multinomial re-record; no test-side bartcoreForestFits
-    analog; ConfigSpec OP_SET_COUNTS rides the general multi-forest
-    fuzz-arm gap.
+    sampler. Doors recorded there: k3countsswap DISCHARGED at the
+    level-centering re-record (the scenario ships in
+    multinomial-equivalence.R and is recorded in
+    multinomial-equivalence-4d9a3337.rds, so the counts-swap stream
+    is pinned directly rather than transitively); no test-side
+    bartcoreForestFits analog; ConfigSpec OP_SET_COUNTS rides the
+    general multi-forest fuzz-arm gap.
   nameable-calibration: ARC COMPLETE - S0 freeze 4c866286, S1
     creation c2a7e89b, S2 mid-chain d809b944+7da36dc3, S3 flat C
     LANDED at dbarts-h-reshape S1, ab3aa2fa (landing notes in
