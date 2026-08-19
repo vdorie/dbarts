@@ -540,6 +540,37 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Wave-5b multinomial prior fix + baseline re-record (4d9a3337 + 509b68cc, 2026-08-18)
+
+Fix-queue item 4, the queue's only draw-shifting slice. Closes the
+multinomial BLOCKER: the level-shift combiner divided the prior sd by
+sqrt(m) twice. It now draws from the conditional the leaf prior
+states - with per-leaf prior sd scale/k (ConstantGaussianLeaf::
+drawFromPrior), shifting forest k's occupied leaves by c/m_k gives
+prec = sum_k L_k/(m_k^2 s_k^2); the old form's precision was a factor
+m too large (intercept-only case: tau^2/(K m) where the design doc
+states N(0, tau^2/K)). docs/design/multinomial.md updated to state
+the conditional. Verification at review was independent end to end:
+the reviewer re-derived the conditional from the prior, hand-
+recomputed the C++ oracle's constants (arm B solves mean and sd out
+of the OUTPUT shift at two seeds, sharing no expression with
+combiner.hpp), and re-proved discrimination by mutation (re-inserting
+the old divisor fails 5 checks with exactly the MANIFEST's numbers).
+The permanent prior-predictive arm 7 - the only arm reading the
+non-identified level - shows 8.3x separation against a pre-fix
+install; the k3countsswap scenario rider is DISCHARGED. Records
+commit 509b68cc: multinomial-equivalence-4d9a3337.rds (11 scenarios),
+MANIFEST current row naming both P17 oracles with 1027be5 demoted to
+historical under a draw-shifting supersession note, equivalence.yaml
+baseline line, feature-matrix [f39]=11, TODO trims - nothing else.
+The baseline's embedded meta$rev is the pre-rebase sha cd5efd97;
+MANIFEST discloses it (the two trees are byte-identical outside TODO
+and this plan file). Gates re-run by the reviewer in an independent
+lib: multinomial 11/11 identical, gaussian 42/42 --strict-coverage,
+bcf 12/12, zero max-z lines anywhere; tests/cpp 246 ok; tinytest
+6028 passed, FAILURES 0; multinomial-exact all 7 arms in band. CI
+green on both pushes.
+
 ### Wave-5b docs-coherence slice (ea630c21, 2026-08-18)
 
 Fix-queue item 8, docs-only. All six MAJOR doc-review findings fixed
