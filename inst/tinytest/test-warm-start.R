@@ -88,6 +88,26 @@ expect_error(
 expect_error(dest$installTrees(list(1, 2, 3)), "must be a dbarts sampler")
 expect_error(dest$installTrees(donor, samples = c(1L, 2L)), "one per chain")
 
+# a raw state donor is read block by block, and a chain declaring no forests at
+# all is refused by name: the donor pool reads each chain's first forest
+liveSampler <- dbarts::dbarts(
+  x,
+  y,
+  control = dbarts::dbartsControl(n.trees = 8L, n.chains = 1L, n.threads = 1L)
+)
+invisible(liveSampler$run(5L, 5L))
+rawState <- liveSampler$state
+expect_silent(dest$installTrees(rawState))
+emptyForests <- rawState
+emptyForests[[1L]]$forests <- list()
+expect_error(
+  dest$installTrees(emptyForests),
+  "donor chain holds no forests"
+)
+# the refused donor left the destination running on the state it had
+expect_true(all(is.finite(dest$run(0L, 3L)$sigma)))
+rm(liveSampler, rawState, emptyForests)
+
 ## DART state transfers between two DART fits
 donorDart <- dbarts::bart2(
   x,

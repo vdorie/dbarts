@@ -409,6 +409,20 @@ expect_error(
   dbarts(data.no.count, control = alignControl),
   pattern = "malformed mixed predictor container"
 )
+# a map entry that names no block at all - NA included, which is the negative
+# extreme of the integer type the sparse arm reads - is refused the same way
+data.na.map <- data.mixed
+data.na.map@x$map[1L] <- NA_integer_
+expect_error(
+  dbarts(data.na.map, control = alignControl),
+  pattern = "malformed mixed predictor container"
+)
+data.wild.map <- data.mixed
+data.wild.map@x$map[1L] <- -100L
+expect_error(
+  dbarts(data.wild.map, control = alignControl),
+  pattern = "malformed mixed predictor container"
+)
 
 sampler.meta <- dbarts(x.frame, y, control = alignControl)
 expect_error(

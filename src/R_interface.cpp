@@ -113,6 +113,10 @@ extern "C" {
 static SEXP assignInPlace(SEXP targetExpr, SEXP indexExpr, SEXP sourceExpr) {
   if (!Rf_isInteger(indexExpr))
     Rf_error("assignInPlace: 'index' must be integer");
+  // every arm below reads at least the leading index element, and the flat
+  // arm's bounds test would admit whatever a read past the end yielded
+  if (XLENGTH(indexExpr) < 1)
+    Rf_error("assignInPlace: 'index' must be non-empty");
 
   if (Rf_isReal(targetExpr)) {
     if (!Rf_isReal(sourceExpr))
