@@ -1606,6 +1606,20 @@
             in a \code{formula} now refuses cleanly - the same guarded
             message \code{\link{sparseFactor}} columns already get -
             instead of raw-erroring inside \code{\link{model.frame}}.
+      \item Under \code{factors = "indicators"} - \code{bart}'s \code{x}/
+            \code{y} interface, \code{bart2(factors = "indicators")}, and
+            \code{predict} on such a fit - a test factor declaring more
+            levels than the training one is now refused by name. The
+            expansion replays the training column's per-level table
+            positionally, and the extra levels indexed past the end of it:
+            whether the refusal fired at all depended on the values that
+            read back, so the same data could be rejected on one run and
+            silently fit on the next, with the undeclared levels' rows
+            carrying indicators no training row ever showed. Matrix columns
+            wider than the training design's are refused the same way, and
+            \code{makeModelMatrixFromDataFrame} refuses either directly when
+            handed a mismatching \code{drop} pattern. A test factor with
+            fewer levels is unaffected.
     }
   }
 }

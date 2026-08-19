@@ -40,11 +40,12 @@ static void fillFactorIndicator(const int* codes, size_t numRows, int level, dou
 static void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPatternExpr, bool createDropPattern, size_t* result);
 static int createMatrix(SEXP x, size_t numRows, SEXP result, const column_type* columnTypes, SEXP dropPatternExpr);
 static int setFactorColumnName(SEXP dfNames, size_t dfIndex, SEXP levelNames, size_t levelIndex, SEXP resultNames, size_t resultIndex);
+static void validateDropPatternLength(SEXP dropPatternExpr, SEXP names, size_t colIndex, size_t tableLength, bool isFactor);
 
 // shared bodies for the REAL_MATRIX and INTEGER/LOGICAL_MATRIX arms, which are
 // identical apart from the element accessor and constant-check predicate
 // (isReal selects between them)
-static void countMatrixColumns_matrix(SEXP col, size_t colIndex, SEXP dropPatternExpr, bool createDropPattern, bool isReal, size_t* result);
+static void countMatrixColumns_matrix(SEXP col, size_t colIndex, SEXP dropPatternExpr, SEXP names, bool createDropPattern, bool isReal, size_t* result);
 static void createMatrix_matrix(SEXP col, size_t colIndex, size_t numRows, double* result, size_t* resultCol, SEXP names, SEXP resultNames, SEXP dropPatternExpr, bool isReal);
 static void setMatrixColumnName(SEXP dfNames, size_t dfIndex, SEXP colNames, size_t colIndex, SEXP resultNames, size_t resultIndex);
 
@@ -183,6 +184,28 @@ static void validateFactorCodes(SEXP x, const column_type* columnTypes)
   }
 }
 
+// A stored drop pattern is replayed positionally and is sized by the table the
+// column carried when it was built - a factor's per-level instance counts, a
+// matrix's per-column flags. A column whose table is longer indexes off the
+// end of it, so the two tables disagreeing is refused rather than read. The
+// shorter direction is left alone: it indexes in bounds, and a level the
+// training data never observed contributes no column, so a column that simply
+// lacks it still aligns.
+static void validateDropPatternLength(SEXP dropPatternExpr, SEXP names, size_t colIndex,
+                                      size_t tableLength, bool isFactor)
+{
+  size_t patternLength = rc_getLength(VECTOR_ELT(dropPatternExpr, colIndex));
+  if (tableLength <= patternLength) return;
+
+  const char* kind = isFactor ? "factor" : "matrix";
+  const char* unit = isFactor ? "levels" : "columns";
+  if (names != R_NilValue)
+    Rf_error("%s column '%s' has %zu %s but its drop pattern was built for %zu",
+             kind, CHAR(STRING_ELT(names, colIndex)), tableLength, unit, patternLength);
+  Rf_error("%s column %zu has %zu %s but its drop pattern was built for %zu",
+           kind, colIndex + 1, tableLength, unit, patternLength);
+}
+
 static void tableFactor(SEXP x, int* instanceCounts)
 {
   SEXP levelsExpr = rc_getLevels(x);
@@ -231,7 +254,7 @@ static bool integerVectorIsConstant(const int* i, size_t n) {
   return true;
 }
 
-static void countMatrixColumns_matrix(SEXP col, size_t colIndex, SEXP dropPatternExpr, bool createDropPattern, bool isReal, size_t* result)
+static void countMatrixColumns_matrix(SEXP col, size_t colIndex, SEXP dropPatternExpr, SEXP names, bool createDropPattern, bool isReal, size_t* result)
 {
   int* dims = INTEGER(rc_getDims(col));
   size_t numRows = dims[0], numCols = dims[1];
@@ -249,6 +272,7 @@ static void countMatrixColumns_matrix(SEXP col, size_t colIndex, SEXP dropPatter
         if (!dropColumn) *result += 1;
       }
     } else {
+      validateDropPatternLength(dropPatternExpr, names, colIndex, numCols, false);
       int* dropPattern = LOGICAL(VECTOR_ELT(dropPatternExpr, colIndex));
       for (size_t j = 0; j < numCols; ++j)
         if (dropPattern[j] == 0) *result += 1;
@@ -261,6 +285,7 @@ static void countMatrixColumns_matrix(SEXP col, size_t colIndex, SEXP dropPatter
 void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPatternExpr, bool createDropPattern, size_t* result)
 {
   size_t numColumns = rc_getLength(x);
+  SEXP names = rc_getNames(x);
   bool dropColumn;
   for (size_t i = 0; i < numColumns; ++i) {
     SEXP col = VECTOR_ELT(x, i);
@@ -287,12 +312,12 @@ void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPattern
       break;
       
       case REAL_MATRIX:
-      countMatrixColumns_matrix(col, i, dropPatternExpr, createDropPattern, true, result);
+      countMatrixColumns_matrix(col, i, dropPatternExpr, names, createDropPattern, true, result);
       break;
 
       case INTEGER_MATRIX:
       case LOGICAL_MATRIX:
-      countMatrixColumns_matrix(col, i, dropPatternExpr, createDropPattern, false, result);
+      countMatrixColumns_matrix(col, i, dropPatternExpr, names, createDropPattern, false, result);
       break;
       case FACTOR:
       {
@@ -306,6 +331,7 @@ void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPattern
             factorInstanceCounts = INTEGER(VECTOR_ELT(dropPatternExpr, i));
             tableFactor(col, factorInstanceCounts);
           } else {
+            validateDropPatternLength(dropPatternExpr, names, i, numLevels, true);
             factorInstanceCounts = INTEGER(VECTOR_ELT(dropPatternExpr, i));
           }
           
@@ -350,6 +376,8 @@ static void createMatrix_matrix(SEXP col, size_t colIndex, size_t numRows, doubl
 {
   size_t numElementCols = INTEGER(rc_getDims(col))[1];
   SEXP colNames = rc_getDimNames(col) == R_NilValue ? R_NilValue : VECTOR_ELT(rc_getDimNames(col), 1);
+  if (dropPatternExpr != R_NilValue)
+    validateDropPatternLength(dropPatternExpr, names, colIndex, numElementCols, false);
   int* dropPattern = dropPatternExpr == R_NilValue ? NULL : INTEGER(VECTOR_ELT(dropPatternExpr, colIndex));
 
   for (size_t j = 0; j < numElementCols; ++j) {
@@ -441,6 +469,7 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
           }
         } else {
           numLevelsPerFactor = 0;
+          validateDropPatternLength(dropPatternExpr, names, i, levelsLength, true);
           int* factorInstanceCounts = INTEGER(VECTOR_ELT(dropPatternExpr, i));
           for (size_t j = 0; j < levelsLength; ++j) if (factorInstanceCounts[j] > 0) ++numLevelsPerFactor;
           

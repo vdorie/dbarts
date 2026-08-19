@@ -222,10 +222,15 @@ expect_error(
     verbose = FALSE,
     seed = 4L
   ),
-  pattern = "'test' factor 'f'"
+  pattern = "'test' factor 'f' does not match training's indicator columns"
 )
+# a test factor declaring MORE levels than training's is named by the level
+# tables themselves, before the drop-pattern replay indexes past its end;
+# the count of undeclared levels is unbounded and does not change the refusal
 teExtra <- dF[41:60, c("x1", "f")]
 teExtra$f <- factor(teExtra$f, levels = c("a", "b", "c", "d"))
+teMany <- dF[41:60, c("x1", "f")]
+teMany$f <- factor(teMany$f, levels = c("a", "b", "c", paste0("z", 1:5000)))
 expect_error(
   dbarts::bart(
     trF,
@@ -238,9 +243,56 @@ expect_error(
     verbose = FALSE,
     seed = 4L
   ),
-  pattern = "'test' factor 'f'"
+  pattern = "'test' factor 'f' declares 4 levels but the training design declared 3"
 )
-rm(nF, dF, trF, ytrF, teFewer, teExtra)
+expect_error(
+  dbarts::bart(
+    trF,
+    ytrF,
+    teMany,
+    ndpost = 5L,
+    nskip = 4L,
+    ntree = 5L,
+    nchain = 1L,
+    verbose = FALSE,
+    seed = 4L
+  ),
+  pattern = "'test' factor 'f' declares 5003 levels"
+)
+# predict() reaches the same funnel with the fit's stored drop pattern
+fitF <- dbarts::bart(
+  trF,
+  ytrF,
+  ndpost = 5L,
+  nskip = 4L,
+  ntree = 5L,
+  nchain = 1L,
+  verbose = FALSE,
+  seed = 4L,
+  keeptrees = TRUE
+)
+expect_error(
+  predict(fitF, teExtra),
+  pattern = "'test' factor 'f' declares 4 levels but the training design declared 3"
+)
+expect_error(
+  predict(fitF, teMany),
+  pattern = "'test' factor 'f' declares 5003 levels"
+)
+expect_error(
+  predict(fitF, teFewer),
+  pattern = "'test' factor 'f' does not match training's indicator columns"
+)
+# a character test column is expanded as a factor, so its distinct values
+# are compared to the training table the same way
+teChar <- dF[41:60, c("x1", "f")]
+teChar$f <- as.character(teChar$f)
+teChar$f[1L] <- "d"
+expect_error(
+  predict(fitF, teChar),
+  pattern = "'test' factor 'f' declares 4 levels but the training design declared 3"
+)
+rm(nF, dF, trF, ytrF, teFewer, teExtra, teMany, teChar, fitF)
 
 # bart()'s missing-predictor refusal cannot advise an argument bart()
 # itself rejects (missing = "incorporate", bart2()/dbarts() only); it

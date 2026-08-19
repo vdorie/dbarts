@@ -421,6 +421,74 @@ expect_error(
   pattern = "factor column 2 has a level code outside its level table"
 )
 
+# a replayed drop pattern is sized by the table the training column carried,
+# and is indexed positionally: a column whose table is longer is refused at
+# the entry point rather than read past the end of the pattern. This is the
+# builder's own guard, independent of the level comparison validateXTest makes
+# on the same route.
+set.seed(2718)
+train <- data.frame(z = rnorm(20L), f = factor(rep_len(c("a", "b", "c"), 20L)))
+drop <- attr(dbarts::makeModelMatrixFromDataFrame(train, TRUE), "drop")
+test <- data.frame(
+  z = rnorm(5L),
+  f = factor(c("a", "b", "c", "a", "b"), levels = c("a", "b", "c", "d"))
+)
+expect_error(
+  dbarts::makeModelMatrixFromDataFrame(test, drop),
+  pattern = "factor column 'f' has 4 levels but its drop pattern was built for 3"
+)
+names(test) <- NULL
+expect_error(
+  dbarts::makeModelMatrixFromDataFrame(as.data.frame(test), drop),
+  pattern = "factor column 2 has 4 levels but its drop pattern was built for 3"
+)
+# the walk off the end is unbounded in the number of undeclared levels
+test <- data.frame(
+  z = rnorm(5L),
+  f = factor(
+    c("a", "b", "c", "a", "b"),
+    levels = c("a", "b", "c", paste0("z", 1:5000))
+  )
+)
+expect_error(
+  dbarts::makeModelMatrixFromDataFrame(test, drop),
+  pattern = "factor column 'f' has 5003 levels"
+)
+# a matrix column's pattern is one flag per training column, indexed the same way
+train <- data.frame(z = rnorm(20L))
+train$m <- matrix(rnorm(60L), 20L, 3L, dimnames = list(NULL, c("p", "q", "r")))
+drop <- attr(dbarts::makeModelMatrixFromDataFrame(train, TRUE), "drop")
+test <- data.frame(z = rnorm(5L))
+test$m <- matrix(
+  rnorm(20L),
+  5L,
+  4L,
+  dimnames = list(NULL, c("p", "q", "r", "s"))
+)
+expect_error(
+  dbarts::makeModelMatrixFromDataFrame(test, drop),
+  pattern = "matrix column 'm' has 4 columns but its drop pattern was built for 3"
+)
+# the shorter direction indexes in bounds and stays accepted: a training level
+# the data never observed contributes no column, so a test frame that lacks it
+# expands to exactly the training columns
+train <- data.frame(
+  f = factor(c("a", "b", "c", "a", "b", "c"), levels = c("a", "b", "c", "d")),
+  z = rnorm(6L)
+)
+drop <- attr(dbarts::makeModelMatrixFromDataFrame(train, TRUE), "drop")
+expect_equal(drop$f, c(2L, 2L, 2L, 0L))
+test <- data.frame(
+  f = factor(c("a", "c"), levels = c("a", "b", "c")),
+  z = rnorm(2L)
+)
+expect_equal(
+  colnames(dbarts::makeModelMatrixFromDataFrame(test, drop)),
+  c("f.a", "f.b", "f.c", "z")
+)
+
+rm(train, test, drop)
+
 # a frame with no columns names its own emptiness
 expect_error(
   dbarts::makeModelMatrixFromDataFrame(data.frame()),
