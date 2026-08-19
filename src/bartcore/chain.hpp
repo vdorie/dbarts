@@ -1128,7 +1128,9 @@ public:
   /// f, and its leaves stay well-defined prior draws. It DOES reach forest f's
   /// empty-leaf veto, which counts positive composed weights
   /// (docs/design/empty-leaf-veto.md): forest f cannot hold a leaf whose every
-  /// member has s_i = 0, since no likelihood term of that forest reaches it.
+  /// member has s_i = 0, since no likelihood term of that forest reaches it -
+  /// installed on a grown forest it can strand one, which the moves then price
+  /// their way out of rather than freeze on.
   ///
   /// It is a WORKING precision under every family, which is what keeps it off
   /// the observation weight's family-specific meaning: by the time the
@@ -1559,6 +1561,12 @@ public:
   void setOffset(const double* offset, bool updateScale) {
     response_->setOffset(offset, updateScale, &sigma_);
   }
+  /// Weights do not ride the tree state, so a vector zeroing rows a GROWN
+  /// forest already split on can leave leaves the moves veto
+  /// (docs/design/empty-leaf-veto.md). That is a legal state, not an error:
+  /// the veto ranks such a branch below an admissible one, so the tree keeps
+  /// moving under prior x transition and any move clearing the veto is
+  /// accepted outright. No check here refuses it.
   void setWeights(const double* weights) {
     weights_ = weights;
     response_->setWeights(weights);
@@ -1582,7 +1590,12 @@ public:
   /// (the opposite of setWeights, where an all-ones vector installs and
   /// measurably leaves the fused path - one channel is membership, the other
   /// precision). An all-ZEROS mask is accepted and runs: the forest sits at
-  /// its prior and every row still receives a fit.
+  /// its prior and every row still receives a fit. Literally so, on a grown
+  /// forest as on a fresh one - every branch is vetoed there, and the veto
+  /// ranks equals, so the structure keeps moving under the CGM prior x the
+  /// transition at constant likelihood (docs/design/empty-leaf-veto.md); a
+  /// PARTIAL mask strands only the leaves it empties and the trees absorb
+  /// back into the admissible set as those leaves clear.
   ///
   /// The scan lives here rather than in a host because the engine is the only
   /// site under every surface; a flat caller inherits it.

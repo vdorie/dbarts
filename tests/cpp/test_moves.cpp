@@ -906,15 +906,19 @@ static void testEmptyLeafVetoCountsWeight() {
 
   MoveContext zeroCtx{store,      prior, 0.5, 0.1, 0.5,
                       zeroed.data(), k,   scratch};
-  check(logLikelihoodForBranch(zeroCtx, leaf, tree, 0, y.data(), sigma) ==
-          -HUGE_VAL,
+  BranchScore zeroScore =
+    logLikelihoodForBranch(zeroCtx, leaf, tree, 0, y.data(), sigma);
+  check(zeroScore.rank == 1,
         "a leaf of only zero-weight rows vetoes its branch");
+  check(std::isfinite(zeroScore.logLikelihood),
+        "the vetoed branch's finite part skips the vetoed leaf");
 
   buildSplit(positive.data());
   MoveContext positiveCtx{store,           prior, 0.5, 0.1, 0.5,
                           positive.data(), k,     scratch};
-  check(std::isfinite(
-          logLikelihoodForBranch(positiveCtx, leaf, tree, 0, y.data(), sigma)),
+  BranchScore positiveScore =
+    logLikelihoodForBranch(positiveCtx, leaf, tree, 0, y.data(), sigma);
+  check(positiveScore.rank == 0 && std::isfinite(positiveScore.logLikelihood),
         "the same leaf under positive weights scores finite");
 
   // the no-weights path: the same branch, scored with no weight vector, is
@@ -929,8 +933,8 @@ static void testEmptyLeafVetoCountsWeight() {
     reference +=
       leaf.logIntegratedLikelihoodForNode(tree, y.data(), nullptr, k,
                                           sigma * sigma, b);
-  check(logLikelihoodForBranch(nullCtx, leaf, tree, 0, y.data(), sigma) ==
-          reference,
+  check(logLikelihoodForBranch(nullCtx, leaf, tree, 0, y.data(), sigma)
+            .logLikelihood == reference,
         "the no-weights branch score is bitwise the leaf marginals");
   bool countLaw = true;
   for (size_t i = 0; i < tree.nodes.size(); ++i)
@@ -940,8 +944,8 @@ static void testEmptyLeafVetoCountsWeight() {
 
   Node saved = tree.at(left);
   tree.at(left).end = tree.at(left).begin;  // strand the leaf outright
-  check(logLikelihoodForBranch(nullCtx, leaf, tree, 0, y.data(), sigma) ==
-          -HUGE_VAL,
+  check(logLikelihoodForBranch(nullCtx, leaf, tree, 0, y.data(), sigma).rank ==
+          2,
         "a member-empty leaf still vetoes with no weights");
   tree.at(left) = saved;
 
@@ -979,6 +983,154 @@ static void testEmptyLeafVetoCountsWeight() {
   printf("ok: empty-leaf veto counts weight (%zu count-law leaves of only "
          "zero-weight rows, %zu under the weight law)\n",
          counted.first, weighted.first);
+}
+
+// ---------------------------------------------------------------------------
+// Weights do not ride the tree, so a vector installed on a GROWN tree can
+// leave leaves the veto refuses - a CURRENT state outside the admissible set,
+// which the veto owes a law. The rank supplies it: two vetoed branches compare
+// by rank before likelihood, so no acceptance ratio is NaN, the structure
+// keeps moving (under prior x transition, at constant likelihood), no move
+// installs a MEMBER-empty leaf (the state law the rest of the engine enforces,
+// which the second rank level keeps absolute), and a partially stranded tree
+// is absorbed back into the admissible set. Total zeroing is the frozen-forest
+// case outright; the partial arm is the one a masking host actually reaches.
+// ---------------------------------------------------------------------------
+static void testVetoRankUnfreezesStrandedTree() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 20260817u);
+  // continuous predictors on a fine grid, deliberately NOT the lattice the
+  // veto-predicate fixture above uses: a cut interval is constrained by the
+  // ancestors, never by occupancy, so a small node here has cuts on both sides
+  // of its whole member set and MEMBER-empty proposals are common. That is
+  // what makes the rank's second level testable at all.
+  const size_t n = 256, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = ext_rng_simulateContinuousUniform(rng);
+    x[i + n] = ext_rng_simulateContinuousUniform(rng);
+    y[i] = 2.0 * x[i] - x[i + n] + 0.1 * ext_rng_simulateStandardNormal(rng);
+  }
+  ColumnStore store;
+  store.build(x.data(), n, p, 40);
+
+  CGMTreePrior prior;
+  prior.base = 0.95;
+  prior.power = 1.5;
+  ConstantGaussianLeaf leaf{2.0};
+  MoveScratch scratch;
+  const double sigma = 0.25, k = 2.0;
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+
+  std::vector<double> ones(n, 1.0), zeros(n, 0.0);
+
+  // every arm starts from the same tree, grown under positive weights
+  auto growTree = [&](unsigned seed) {
+    ext_rng_setSeed(rng, seed);
+    tree.initialize(indexBuffer.data(), n);
+    tree.computeLeafStats(0, y.data(), ones.data());
+    MoveContext ctx{store, prior, 0.5, 0.1, 0.5, ones.data(), k, scratch};
+    for (int iter = 0; iter < 3000; ++iter) {
+      bool stepTaken = false;
+      StepType stepType;
+      metropolisJumpForTree(ctx, leaf, rng, tree, y.data(), sigma, &stepTaken,
+                            &stepType);
+    }
+  };
+
+  auto countVetoed = [&](const double* weights) {
+    std::vector<int32_t> bottoms;
+    tree.fillBottom(0, bottoms);
+    size_t vetoed = 0;
+    for (int32_t b : bottoms)
+      vetoed += tree.leafVetoRank(b, weights) != 0 ? 1 : 0;
+    return vetoed;
+  };
+
+  struct Driven {
+    size_t nanAlpha = 0;
+    size_t structureChanges = 0;
+    size_t memberEmpty = 0;
+    size_t vetoedAtEnd = 0;
+    int absorbed = -1;  // first sweep at which no leaf is vetoed
+  };
+  auto drive = [&](const double* weights, int iterations) {
+    MoveContext ctx{store, prior, 0.5, 0.1, 0.5, weights, k, scratch};
+    Driven driven;
+    std::uint64_t signature = treeStructureSignature(tree);
+    std::vector<int32_t> bottoms;
+    for (int iter = 0; iter < iterations; ++iter) {
+      bool stepTaken = false;
+      StepType stepType;
+      double alpha = metropolisJumpForTree(ctx, leaf, rng, tree, y.data(),
+                                           sigma, &stepTaken, &stepType);
+      if (std::isnan(alpha)) ++driven.nanAlpha;
+      std::uint64_t next = treeStructureSignature(tree);
+      if (next != signature) {
+        ++driven.structureChanges;
+        signature = next;
+      }
+      bottoms.clear();
+      tree.fillBottom(0, bottoms);
+      size_t vetoed = 0;
+      for (int32_t b : bottoms) {
+        // membership is read straight off the node, not through the rank: the
+        // state law must hold even if the rank is the thing that is wrong
+        if (tree.at(b).numObservations() == 0) ++driven.memberEmpty;
+        if (tree.leafVetoRank(b, weights) != 0) ++vetoed;
+      }
+      if (vetoed == 0 && driven.absorbed < 0) driven.absorbed = iter;
+      driven.vetoedAtEnd = vetoed;
+    }
+    return driven;
+  };
+
+  // ---- every leaf stranded: the whole tree is out of the admissible set ----
+  growTree(20260818u);
+  check(!tree.hasSingleNode(), "the stranded-tree fixture grows past the root");
+  std::vector<int32_t> grownBottoms;
+  tree.fillBottom(0, grownBottoms);
+  check(countVetoed(zeros.data()) == grownBottoms.size(),
+        "non-vacuity: an all-zero vector strands every leaf of the grown tree");
+  Driven stranded = drive(zeros.data(), 2000);
+  check(stranded.nanAlpha == 0,
+        "a wholly stranded tree reports no NaN acceptance probability");
+  check(stranded.structureChanges > 0,
+        "a wholly stranded tree keeps moving rather than freezing");
+  check(stranded.memberEmpty == 0,
+        "no move installs a member-empty leaf from a stranded state");
+
+  // ---- partially stranded: the tree must find its way back to the set ----
+  // strand every third leaf by construction, zeroing exactly its members: the
+  // worst case of the install a masking host makes, and non-vacuous by
+  // construction rather than by luck of the grown partition
+  growTree(20260819u);
+  std::vector<double> partial(n, 1.0);
+  std::vector<int32_t> toStrand;
+  tree.fillBottom(0, toStrand);
+  for (size_t b = 0; b < toStrand.size(); b += 3) {
+    const Node& node(tree.at(toStrand[b]));
+    for (size_t j = node.begin; j < node.end; ++j)
+      partial[tree.indices[j]] = 0.0;
+  }
+  size_t strandedLeaves = countVetoed(partial.data());
+  check(strandedLeaves > 0,
+        "non-vacuity: the half-space vector strands part of the grown tree");
+  Driven partialDriven = drive(partial.data(), 2000);
+  check(partialDriven.nanAlpha == 0,
+        "a partially stranded tree reports no NaN acceptance probability");
+  check(partialDriven.absorbed >= 0 && partialDriven.vetoedAtEnd == 0,
+        "a partially stranded tree is absorbed back into the admissible set");
+  check(partialDriven.memberEmpty == 0,
+        "no move installs a member-empty leaf while stranded");
+
+  ext_rng_destroy(rng);
+  printf("ok: veto rank unfreezes a stranded tree (%zu leaves, %zu structure "
+         "changes while wholly stranded; %zu leaves stranded by the partial "
+         "vector, absorbed at sweep %d)\n",
+         grownBottoms.size(), stranded.structureChanges, strandedLeaves,
+         partialDriven.absorbed);
 }
 
 static void testLinearLeafMutation(ext_rng* rng) {
@@ -1280,4 +1432,5 @@ void runMovesTests(ext_rng* rng) {
   testCategoricalMutation(rng);
   testLinearLeafMutation(rng);
   testEmptyLeafVetoCountsWeight();
+  testVetoRankUnfreezesStrandedTree();
 }

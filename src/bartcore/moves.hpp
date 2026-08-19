@@ -46,38 +46,87 @@ struct MoveContext {
   const double* leafParams = nullptr;
 };
 
-template <MoveScorableLeafModel L, typename ResidT = double>
-double logLikelihoodForBranch(const MoveContext& ctx, const L& leaf, Tree& tree,
-                              int32_t branchIndex, const ResidT* y, double sigma) {
-  // a leaf whose score reads M owns the branch marginal outright (the
-  // constrained joint over the touched leaves given frozen neighbors); the
-  // conjugate leaves fall through to the per-leaf marginal sum unchanged.
-  if constexpr (ParamScoringLeafModel<L>)
-    return leaf.logLikelihoodForBranchWithParams(tree, branchIndex, y,
-                                                 ctx.weights, ctx.k,
-                                                 sigma * sigma, ctx.leafParams);
+/// A branch's score: the veto rank the moves compare FIRST, then the
+/// log-likelihood of the leaves that rank admits.
+///
+/// rank is the worst of the branch's leaves under Tree::leafVetoRank (2 a
+/// member-empty leaf, 1 a leaf of only zero-weight rows, 0 all admissible),
+/// and logLikelihood sums only the rank-0 leaves. A vetoed leaf enters no
+/// likelihood term of its forest, so its marginal is not part of the branch's
+/// score; the conjugate leaves return exactly 0.0 there anyway, but a leaf
+/// model with a prior normalization (linear, GP) does not, and paying its
+/// factorization for a leaf that has nothing to estimate is both wrong and
+/// wasteful. Skipping makes an all-vetoed branch score prior x transition
+/// exactly.
+struct BranchScore {
+  int rank;
+  double logLikelihood;
+};
 
+template <MoveScorableLeafModel L, typename ResidT = double>
+BranchScore logLikelihoodForBranch(const MoveContext& ctx, const L& leaf,
+                                   Tree& tree, int32_t branchIndex,
+                                   const ResidT* y, double sigma) {
   std::vector<int32_t>& bottoms(tree.bottomScratch);
   bottoms.clear();
   tree.fillBottom(branchIndex, bottoms);
 
+  // The rank is leaf-model independent - it reads membership and weight only -
+  // so it is taken here for every leaf model, the branch-owning ones included.
+  int rank = 0;
   double result = 0.0;
   for (int32_t i : bottoms) {
-    // vetoing any branch with an empty leaf keeps empty leaves out of the
-    // chain state (docs/design/empty-leaf-veto.md), empty meaning "holds no
-    // positive-weight member" - the count alone would let a leaf of only
-    // zero-weight rows, which no likelihood term reaches, pass as occupied.
-    // The penalty must beat any finite branch score: a valid branch's
-    // log-likelihood is unbounded below (it scales with centeredSumOfSquares /
-    // residualVariance, large for a big node or a small sigma), so a fixed
-    // constant would be out-penalized at scale and the empty leaf accepted.
-    // -HUGE_VAL vetoes unconditionally; vetoed-vs-vetoed never arises, so exp
-    // of the difference stays 0, not NaN.
-    if (tree.leafHasNoWeight(i, ctx.weights)) return -HUGE_VAL;
-    result += leaf.logIntegratedLikelihoodForNode(tree, y, ctx.weights, ctx.k,
-                                                  sigma * sigma, i);
+    int leafRank = tree.leafVetoRank(i, ctx.weights);
+    if (leafRank > rank) rank = leafRank;
+    // a leaf whose score reads M owns the branch marginal outright (the
+    // constrained joint over the touched leaves given frozen neighbors); the
+    // conjugate leaves take the per-leaf marginal sum.
+    if constexpr (!ParamScoringLeafModel<L>)
+      if (leafRank == 0)
+        result += leaf.logIntegratedLikelihoodForNode(tree, y, ctx.weights,
+                                                      ctx.k, sigma * sigma, i);
   }
-  return result;
+
+  if constexpr (ParamScoringLeafModel<L>)
+    return {rank, leaf.logLikelihoodForBranchWithParams(tree, branchIndex, y,
+                                                        ctx.weights, ctx.k,
+                                                        sigma * sigma,
+                                                        ctx.leafParams)};
+  return {rank, result};
+}
+
+/// Resolves a (current, proposal) score pair into the two log-likelihoods the
+/// move's acceptance expression consumes, applying the veto lexicographically:
+/// the branch of worse rank takes -HUGE_VAL and the comparison is decided
+/// there, ranks equal it is today's arithmetic on the finite parts.
+///
+/// This keeps empty leaves out of the chain state (docs/design/
+/// empty-leaf-veto.md) at every scale - a valid branch's log-likelihood is
+/// unbounded below, so a finite penalty would be out-penalized by a big node
+/// or a small sigma and the empty leaf accepted - while leaving a chain whose
+/// CURRENT state is vetoed a law to move under. Weights do not ride the tree,
+/// so any weight or mask install can strand a leaf that was fine when it was
+/// grown; comparing two vetoed branches by their penalties alone gave NaN,
+/// which rejects every proposal and freezes the forest permanently. Ranked,
+/// such a chain mixes under prior x transition at constant likelihood and any
+/// move clearing the veto is accepted outright, so the promise that a forest
+/// with nothing to fit "sits at its prior" holds. Rank 2 keeps the membership
+/// law absolute: a weight-vetoed state can still never install a member-empty
+/// leaf, which state export and the predictor surface both require.
+inline void resolveVetoRank(const BranchScore& current,
+                            const BranchScore& proposal,
+                            double* currentLogLikelihood,
+                            double* proposalLogLikelihood) {
+  *currentLogLikelihood =
+    current.rank > proposal.rank ? -HUGE_VAL : current.logLikelihood;
+  *proposalLogLikelihood =
+    proposal.rank > current.rank ? -HUGE_VAL : proposal.logLikelihood;
+  // -HUGE_VAL on both sides is the leaf model's own FEASIBILITY sentinel (the
+  // monotone empty cone), not the veto; the difference would be NaN, which
+  // rejects by comparison but reports an acceptance probability of 1. Reject
+  // explicitly instead.
+  if (*currentLogLikelihood == -HUGE_VAL && *proposalLogLikelihood == -HUGE_VAL)
+    *currentLogLikelihood = 0.0;
 }
 
 inline double probabilityOfBirthStep(const MoveContext& ctx, const Tree& tree,
@@ -183,7 +232,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     double parentPriorGrowthProbability =
       ctx.treePrior.growthProbability(tree, ctx.data, nodeToChange);
     double oldPriorProbability = 1.0 - parentPriorGrowthProbability;
-    double oldLogLikelihood =
+    BranchScore oldScore =
       logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
     // The proposal rule is drawn from the prior, so its density cancels with
@@ -201,7 +250,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
                                  (1.0 - leftPriorGrowthProbability) *
                                  (1.0 - rightPriorGrowthProbability);
 
-    double newLogLikelihood =
+    BranchScore newScore =
       logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
     double transitionProbabilityOfDeathStep =
@@ -213,6 +262,8 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     double transitionRatio =
       (transitionProbabilityOfDeathStep * transitionProbabilityOfSelectingNodeForDeath) /
       (transitionProbabilityOfBirthStep * transitionProbabilityOfSelectingNodeForBirth);
+    double oldLogLikelihood, newLogLikelihood;
+    resolveVetoRank(oldScore, newScore, &oldLogLikelihood, &newLogLikelihood);
     double likelihoodRatio = std::exp(newLogLikelihood - oldLogLikelihood);
 
     ratio = priorRatio * likelihoodRatio * transitionRatio;
@@ -251,13 +302,13 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
       tree, ctx.data, tree.at(nodeToChange).leftChild);
     double rightPriorGrowthProbability = ctx.treePrior.growthProbability(
       tree, ctx.data, tree.at(nodeToChange).leftChild + 1);
-    double oldLogLikelihood =
+    BranchScore oldScore =
       logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
     Node oldNode = tree.at(nodeToChange);
     tree.orphanChildren(nodeToChange);
 
-    double newLogLikelihood =
+    BranchScore newScore =
       logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
     double transitionProbabilityOfBirthStepReverse =
       probabilityOfBirthStep(ctx, tree, true);
@@ -273,6 +324,8 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     double transitionRatio =
       (transitionProbabilityOfBirthStepReverse * reverseTransitionProbabilityOfSelectingNodeForBirth) /
       (transitionProbabilityOfDeathStep * transitionProbabilityOfSelectingNodeForDeath);
+    double oldLogLikelihood, newLogLikelihood;
+    resolveVetoRank(oldScore, newScore, &oldLogLikelihood, &newLogLikelihood);
     double likelihoodRatio = std::exp(newLogLikelihood - oldLogLikelihood);
 
     ratio = priorRatio * likelihoodRatio * transitionRatio;
@@ -535,7 +588,8 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
   double belowX =
     ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild) +
     ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild + 1);
-  double xLogL = logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
+  BranchScore xScore =
+    logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
   tree.snapshotSubtree(nodeToChange, ctx.scratch.snapshot);
 
@@ -545,8 +599,14 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
   double belowY =
     ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild) +
     ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild + 1);
-  double yLogL = logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
+  BranchScore yScore =
+    logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
+  // the veto gates the one exp the acceptance has always taken: the resolved
+  // pair reproduces its exact argument wherever the ranks differ or agree at
+  // 0, and supplies the finite difference where both branches are vetoed
+  double xLogL, yLogL;
+  resolveVetoRank(xScore, yScore, &xLogL, &yLogL);
   double alpha =
     std::exp((belowY - belowX) + (yLogL - xLogL) + logProposalCorrection);
   alpha = alpha > 1.0 ? 1.0 : alpha;
@@ -749,15 +809,20 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 
   // as in changeMove, prior terms outside the swapped subtree cancel
   double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
-  double xLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
+  BranchScore xScore =
+    logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
 
   tree.snapshotSubtree(parent, ctx.scratch.snapshot);
   applySwap();
   tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
 
   double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
-  double yLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
+  BranchScore yScore =
+    logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
 
+  // as in changeMove, the veto gates the existing single exp
+  double xLogL, yLogL;
+  resolveVetoRank(xScore, yScore, &xLogL, &yLogL);
   alpha = std::exp(yLogPi + yLogL - xLogPi - xLogL);
   alpha = alpha > 1.0 ? 1.0 : alpha;
 

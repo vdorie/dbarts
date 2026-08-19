@@ -27,12 +27,24 @@
 # sigma = 1 / range, constant-leaf conjugate marginal with
 # priorPrecision = (k / scale)^2, scale = node.scale / sqrt(ntree) = 0.5.
 #
-# Usage: Rscript bd-balance.R [quick]
+# The veto arm (Rscript bd-balance.R veto) replaces the exact arm with the
+# same gate run from OUTSIDE the admissible set: a weight vector installed
+# between samples zeroes one cell's rows, so every partition isolating that
+# cell holds a leaf no likelihood term reaches and is vetoed. The exact target
+# is then this enumeration restricted to the admissible partitions and
+# renormalized, with the leaf marginals taken over the positive-weight rows
+# alone (docs/design/empty-leaf-veto.md). The chain is started STRANDED - grown
+# under positive weights until it holds the offending cut, then handed the
+# zeroing vector - so the arm also measures the absorption time and checks that
+# the admissible set is absorbing thereafter.
+#
+# Usage: Rscript bd-balance.R [quick] [veto]
 
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
+vetoArm <- "veto" %in% args
 
 nKept <- if (quick) 100000L else 300000L
 batchSize <- if (quick) 25000L else 50000L
@@ -73,8 +85,15 @@ logSumExp <- function(v) {
 # ---- integrated likelihood, verbatim from ConstantGaussianLeaf ----
 
 priorPrecision <- (kLeaf / nodeScale)^2
+# a zero weight is absence: the row leaves the leaf's sufficient statistics
+# outright, exactly as it leaves the veto's count. Two ADJACENT cells are
+# zeroed rather than one so that the stranded start below is vetoed on both
+# sides of a split - the comparison the veto rank exists for. One zeroed cell
+# would only ever strand a leaf beside a live sibling, whose collapse is a
+# rank DECREASE and was already accepted before the rank existed.
+kept <- if (vetoArm) cell == 1L | cell == K else rep(TRUE, n)
 logIL <- function(cells) {
-  idx <- cell >= cells[1L] & cell <= cells[2L]
+  idx <- cell >= cells[1L] & cell <= cells[2L] & kept
   z <- zScaled[idx]
   nLeaf <- length(z)
   posteriorPrecision <- nLeaf / residVar
@@ -133,19 +152,38 @@ signatureOf <- function(cutIndices) {
   paste(sort(cutIndices), collapse = "+")
 }
 
+# the veto's own definition of the target: a tree is admissible when every one
+# of its leaves holds a positive-weight row, and the target is the enumeration
+# restricted to those and renormalized
+isAdmissible <- function(leaves) {
+  all(vapply(
+    leaves,
+    function(range) any(kept & cell >= range[1L] & cell <= range[2L]),
+    TRUE
+  ))
+}
+
 logW <- numeric(length(trees))
 signatures <- character(length(trees))
 for (t in seq_along(trees)) {
+  signatures[t] <- signatureOf(trees[[t]]$cutsUsed)
+  if (!isAdmissible(trees[[t]]$leaves)) {
+    logW[t] <- -Inf
+    next
+  }
   lw <- trees[[t]]$logPrior
   for (cellRange in trees[[t]]$leaves) {
     lw <- lw + logIL(cellRange)
   }
   logW[t] <- lw
-  signatures[t] <- signatureOf(trees[[t]]$cutsUsed)
 }
 w <- exp(logW - logSumExp(logW))
 exactPartition <- vapply(split(w, signatures), sum, 0)
-partitionNames <- names(sort(exactPartition, decreasing = TRUE))
+vetoedNames <- names(exactPartition)[exactPartition == 0]
+partitionNames <- names(sort(
+  exactPartition[exactPartition > 0],
+  decreasing = TRUE
+))
 
 # ---- engine arm: pure birth/death kernel ----
 
@@ -171,6 +209,60 @@ sampler <- dbarts(
   proposal.probs = c(birth_death = 0.99, swap = 0, change = 0.01, birth = 0.5)
 )
 stopifnot(is.null(sampler$data@offset))
+
+# ---- the stranded start ----
+#
+# Grow under positive weights until the live tree splits the cells that are
+# about to be zeroed apart from each other, then install the zeroing vector.
+# The current state is now outside the admissible set - the state no
+# install-time gate can prevent, since weights do not ride the tree - and it is
+# stranded on BOTH sides of a split, so the collapse that repairs it is an
+# equal-rank comparison. That comparison is NaN without the rank, and a chain
+# that reaches it never leaves.
+absorbed <- NA_integer_
+if (vetoArm) {
+  cutsHeld <- function() {
+    live <- sampler$getTrees(current = TRUE)
+    match(live$value[live$var == 1L], cuts)
+  }
+  partitionHeld <- function() signatureOf(cutsHeld())
+  # The one shape that makes the two zeroed cells SIBLINGS: the cuts in
+  # depth-first order are 1, then 3, then 2, so the leaves holding cells 2 and
+  # 3 are the children of one parent whose own range is entirely zero-weight.
+  # Their collapse is then an EQUAL-rank comparison - the one the veto rank
+  # decides and the one that is NaN without it - and it is the tree's only
+  # death, so a chain that cannot take it cannot leave this partition at all.
+  strandedShape <- c(1L, 3L, 2L)
+  stranded <- FALSE
+  for (sweep in seq_len(20000L)) {
+    invisible(sampler$run(1L, 1L))
+    if (identical(cutsHeld(), strandedShape)) {
+      stranded <- TRUE
+      break
+    }
+  }
+  if (!stranded) {
+    cat("\nFAIL: could not grow the tree the arm strands\n")
+    quit(status = 1L)
+  }
+  sampler$setWeights(as.double(kept))
+  for (sweep in seq_len(20000L)) {
+    invisible(sampler$run(0L, 1L))
+    if (partitionHeld() %in% partitionNames) {
+      absorbed <- sweep
+      break
+    }
+  }
+  if (is.na(absorbed)) {
+    cat("\nFAIL: the stranded chain never re-entered the admissible set\n")
+    quit(status = 1L)
+  }
+  cat(sprintf(
+    "stranded with cells %s zeroed as siblings, absorbed after %d sweeps\n",
+    paste(which(!kept[seq_len(K) * nPer]), collapse = "+"),
+    absorbed
+  ))
+}
 
 nBatch <- as.integer(ceiling(nKept / batchSize))
 engineSignatures <- character(0L)
@@ -213,6 +305,17 @@ cat(sprintf(
 ))
 
 anyFailure <- FALSE
+if (vetoArm) {
+  # the admissible set is absorbing: from inside it, a vetoed partition has
+  # acceptance exactly zero, so the run must contain none at all
+  visits <- sum(engineSignatures %in% vetoedNames)
+  cat(sprintf(
+    "vetoed partitions (%s): %d visits after absorption\n",
+    paste(vetoedNames, collapse = ", "),
+    visits
+  ))
+  anyFailure <- visits > 0L
+}
 for (name in partitionNames) {
   engineProb <- mean(engineSignatures == name)
   se <- batchMeanSE(engineSignatures == name)

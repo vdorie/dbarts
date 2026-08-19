@@ -39,6 +39,26 @@ static_assert(sizeof(index_t) == sizeof(misc_index_t),
               "tests/cpp index buffers feed the misc.a kernels; index_t and "
               "misc_index_t must be the same width");
 
+// A canonical fingerprint of a tree's live structure alone (which nodes are
+// split and on what), so a chain that MOVES can be told from one that only
+// redraws its leaf parameters.
+inline std::uint64_t treeStructureSignature(const Tree& tree) {
+  std::vector<std::int32_t> subtree;
+  tree.fillSubtree(0, subtree);
+  std::uint64_t hash = 1469598103934665603ull;
+  auto mix = [&hash](std::uint64_t value) {
+    hash = (hash ^ value) * 1099511628211ull;
+  };
+  for (std::int32_t i : subtree) {
+    const Node& node(tree.at(i));
+    mix(node.isBottom() ? 0ull : 1ull);
+    if (node.isBottom()) continue;
+    mix(static_cast<std::uint64_t>(node.rule.variableIndex));
+    mix(static_cast<std::uint64_t>(node.rule.splitIndex()));
+  }
+  return hash;
+}
+
 // Structural round-trip gate for the state tests. With bitwise continuation
 // dropped, a restored sampler must reconstruct the model - trees, leaf
 // parameters, saved trees, latents, dart, rng - exactly, sigma to within the

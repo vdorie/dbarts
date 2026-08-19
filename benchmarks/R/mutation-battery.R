@@ -106,7 +106,7 @@ mutations <- list(
     paste0(
       "    Node oldNode = tree.at(nodeToChange);\n",
       "    tree.orphanChildren(nodeToChange);\n\n",
-      "    double newLogLikelihood =\n",
+      "    BranchScore newScore =\n",
       "      logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);\n",
       "    double transitionProbabilityOfBirthStepReverse =\n",
       "      probabilityOfBirthStep(ctx, tree, true);\n",
@@ -118,7 +118,7 @@ mutations <- list(
       "    double reverseTransitionProbabilityOfSelectingNodeForBirth =\n",
       "      probabilityOfSelectingNodeForBirth(ctx, tree);\n",
       "    tree.orphanChildren(nodeToChange);\n\n",
-      "    double newLogLikelihood =\n",
+      "    BranchScore newScore =\n",
       "      logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);\n",
       "    double transitionProbabilityOfBirthStepReverse =\n",
       "      probabilityOfBirthStep(ctx, tree, true);"
