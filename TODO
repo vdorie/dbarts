@@ -966,14 +966,20 @@ items
     reach. (9) tests/cpp fuzz-config change to reach the aggregate
     untouched-variance-tree assertion (w5test m1). (10) count-blind
     warning assertions, 17 sites (w5test m3). (11) flat-C version
-    handshake blind to struct appends (w5capi INFO 13) - hash half
-    DISCHARGED at ad4a131b (VD decided the layout fold over a sizeof
-    entry point). REMAINS: rebuild both consumer branches (stan4bart
-    bartcore, treatSens dbarts-1.0) before RC - now mandatory, the
-    token moved and the stubs enforce it.
+    handshake blind to struct appends (w5capi INFO 13) - DISCHARGED
+    IN FULL: hash fold at ad4a131b (VD decided the fold over a
+    sizeof entry point); both consumer branches rebuilt and verified
+    2026-08-19 (stan4bart 531/0 + compare-posterior all tiers,
+    treatSens 186/0), zero source changes needed, user lib refreshed.
+    Known limit, recorded: the enforced handshake is not retroactive
+    - a binary compiled before the enforcement never runs the check.
     (12) stan4bart lockstep owes: verify its create path supplies
-    resolved sigma (new hard-error) + --preclean rebuild vs the
-    user-lib ABI staleness. (13) feature-matrix CH: line-anchor
+    resolved sigma + --preclean rebuild vs the user-lib ABI
+    staleness - DISCHARGED 2026-08-19: sigma verified SUPPLIED
+    (stan4bart_fit.R sets data.bart@sigma from the lmer/lm init
+    before create; init.cpp setSigma after create as belt-and-
+    braces); user-lib rebuild done, bartCause's staleness test
+    error gone (suite 0 failures). (13) feature-matrix CH: line-anchor
     resync - DISCHARGED at 95f6fd7f: full-namespace pass over the
     final content tree, 535 anchors incl. comma-list continuations,
     230 moved, 0 mismatches. (14) monotone
