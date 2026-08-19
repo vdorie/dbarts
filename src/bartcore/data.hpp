@@ -730,8 +730,13 @@ struct ColumnStore {
       grid.sortedUnique.end());
 
     size_t numUnique = grid.sortedUnique.size();
-    if (numUnique <= 1) {  // constant or fully missing column
-      grid.inducedNumCuts = 0;
+    if (numUnique <= 1) {
+      // A constant or fully missing column induces no interior split, but a
+      // column with no cut at all is a state neither the store's own validator
+      // nor its consumers admit; one degenerate cut at the observed value is
+      // what a uniform grid places over the same column, and it splits
+      // nothing for the same reason.
+      grid.inducedNumCuts = 1;
     } else if (numUnique <= static_cast<size_t>(maxNumCuts[j]) + 1) {
       grid.inducedNumCuts = static_cast<std::uint32_t>(numUnique - 1);
     } else {
@@ -767,6 +772,11 @@ struct ColumnStore {
 
   void fillCutsFromQuantileGrid(size_t j, const QuantileGrid& grid) {
     cutPoints[j].resize(numCuts[j]);
+    if (grid.sortedUnique.size() < 2) {  // degenerate: no midpoint to take
+      double value = grid.sortedUnique.empty() ? 0.0 : grid.sortedUnique[0];
+      std::fill(cutPoints[j].begin(), cutPoints[j].end(), value);
+      return;
+    }
     for (std::uint32_t k = 0; k < numCuts[j]; ++k) {
       size_t index = std::min(static_cast<size_t>(k) * grid.step + grid.offset,
                               grid.sortedUnique.size() - 2);

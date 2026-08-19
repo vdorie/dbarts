@@ -353,6 +353,17 @@ SEXP unwindProtect(Body body) {
   return result;
 }
 
+// Attach \p value under the attribute named \p name. Interning a name the
+// process has not seen allocates, and C++ leaves the evaluation order of a
+// call's arguments unspecified, so a freshly allocated value passed as a
+// sibling argument of Rf_install could be collected before it is attached;
+// rooting it here orders the two.
+void setAttribByName(SEXP target, const char* name, SEXP value) {
+  PROTECT(value);
+  Rf_setAttrib(target, Rf_install(name), value);
+  UNPROTECT(1);
+}
+
 void parseControl(ParsedControl& control, SEXP controlExpr) {
   SEXP slotExpr;
   PROTECT_INDEX slotIndex;
@@ -546,9 +557,11 @@ void mapColumnSources(std::vector<std::int32_t>& out, const int* map,
                       size_t numCscColumns, const char* malformedMessage) {
   out.resize(numPredictors);
   for (size_t j = 0; j < numPredictors; ++j) {
+    // NA_INTEGER is INT_MIN, whose negation overflows, so the CSC arm bounds
+    // the entry before it flips the sign rather than after
     if (map[j] > 0 && static_cast<size_t>(map[j]) <= numDenseColumns)
       out[j] = map[j] - 1;
-    else if (map[j] < 0 && static_cast<size_t>(-map[j]) <= numCscColumns)
+    else if (map[j] < 0 && map[j] >= -static_cast<std::int64_t>(numCscColumns))
       out[j] = map[j];
     else
       Rf_error("%s", malformedMessage);
@@ -1509,6 +1522,12 @@ void printInitialSummary(const ParsedControl& control,
     for (size_t j = 0; j < store.numPredictors; ++j) {
       if (store.types[j] == bartcore::ColumnType::categorical) continue;
       ext_printf("x(%lu) cutoffs: ", static_cast<unsigned long>(j + 1));
+      // numCuts is unsigned and every index below is taken relative to the
+      // last cut, so a column carrying none prints nothing rather than wraps
+      if (store.numCuts[j] == 0) {
+        ext_printf("\n");
+        continue;
+      }
 
       size_t k;
       for (k = 0;
@@ -3862,22 +3881,25 @@ SEXP bartcore_setForestBasis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr) {
       Rf_xlength(basisExpr) % static_cast<R_xlen_t>(n) != 0)
     Rf_error("basis length must be a multiple of the number of observations");
   size_t numColumns = static_cast<size_t>(Rf_xlength(basisExpr)) / n;
-  // R holds a matrix COLUMN-major and the engine reads a basis ROW-major (the
-  // contraction with the forest's amplitude vector is its only read), so the
-  // transposition happens here, once, on the way in
-  std::vector<double> rowMajor(n * numColumns);
-  const double* values = REAL(basisExpr);
-  for (size_t i = 0; i < n; ++i)
-    for (size_t j = 0; j < numColumns; ++j) {
-      double value = values[j * n + i];
-      if (!R_FINITE(value)) Rf_error("a forest basis value is not finite");
-      rowMajor[i * numColumns + j] = value;
-    }
-  // defense in depth: the probe and the two checks above already cover the
-  // engine's own refusal conditions
-  if (!holder.sampler->setForestBasis(forestIndex, rowMajor.data(), numColumns))
-    Rf_error("bartcore_setForestBasis: refused by the sampler");
-  return R_NilValue;
+  return unwindProtect([&, rowMajor = std::vector<double>{}]() mutable -> SEXP {
+    // R holds a matrix COLUMN-major and the engine reads a basis ROW-major (the
+    // contraction with the forest's amplitude vector is its only read), so the
+    // transposition happens here, once, on the way in
+    rowMajor.resize(n * numColumns);
+    const double* values = REAL(basisExpr);
+    for (size_t i = 0; i < n; ++i)
+      for (size_t j = 0; j < numColumns; ++j) {
+        double value = values[j * n + i];
+        if (!R_FINITE(value)) Rf_error("a forest basis value is not finite");
+        rowMajor[i * numColumns + j] = value;
+      }
+    // defense in depth: the probe and the two checks above already cover the
+    // engine's own refusal conditions
+    if (!holder.sampler->setForestBasis(forestIndex, rowMajor.data(),
+                                        numColumns))
+      Rf_error("bartcore_setForestBasis: refused by the sampler");
+    return R_NilValue;
+  });
 }
 
 // A caller-supplied per-forest, per-observation weight: a multiplicative
@@ -4094,8 +4116,8 @@ SEXP bartcore_getCalibration(SEXP ptrExpr, SEXP forestExpr) {
                    Rf_mkChar(columnNames[j]));
   SET_VECTOR_ELT(dimNamesExpr, 1, columnNamesExpr);
   Rf_setAttrib(resultExpr, R_DimNamesSymbol, dimNamesExpr);
-  Rf_setAttrib(resultExpr, Rf_install("leaf.model"),
-               Rf_mkString(leafModelName(shape.leafModel)));
+  setAttribByName(resultExpr, "leaf.model",
+                  Rf_mkString(leafModelName(shape.leafModel)));
   UNPROTECT(3);
   return resultExpr;
 }
@@ -5075,6 +5097,11 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       R_xlen_t numCuts = Rf_xlength(cutsExpr);
       if (numCuts > 65535)  // codes must fit xint_t, including numCuts itself
         Rf_error("bartcore_setCutPoints: cut point vector too long");
+      // an ordinal column with no cut point is not a state the store can hold:
+      // its own validator refuses one, so the sampler could not restore itself
+      if (numCuts < 1)
+        Rf_error("bartcore_setCutPoints: requires at least one cut point per "
+                 "column");
       const double* cuts = REAL(cutsExpr);
       for (R_xlen_t i = 1; i < numCuts; ++i)
         if (cuts[i] <= cuts[i - 1])
@@ -5903,8 +5930,8 @@ SEXP bartcore_drawLatents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
   bool precision = family == RF::logistic || family == RF::nbinom ||
                    family == RF::gaussian;
   drawAugmentation(family, in, REAL(result), "dbartsDrawLatents");
-  Rf_setAttrib(result, Rf_install("quantity"),
-               Rf_mkString(precision ? "precision" : "location"));
+  setAttribByName(result, "quantity",
+                  Rf_mkString(precision ? "precision" : "location"));
   UNPROTECT(1);
   return result;
 }
@@ -6302,13 +6329,12 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
                 state.cutPoints[j].data(),
                 state.cutPoints[j].size() * sizeof(double));
   }
-  Rf_setAttrib(resultExpr, Rf_install("cutPoints"), cutPointsExpr);
-  Rf_setAttrib(resultExpr, Rf_install("currentSampleNum"),
-               Rf_ScalarInteger(static_cast<int>(state.currentSampleNum)));
-  Rf_setAttrib(resultExpr, Rf_install("formatVersion"),
-               Rf_ScalarInteger(stateFormatVersion));
-  Rf_setAttrib(resultExpr, Rf_install("packageVersion"),
-               Rf_mkString(PACKAGE_VERSION));
+  setAttribByName(resultExpr, "cutPoints", cutPointsExpr);
+  setAttribByName(resultExpr, "currentSampleNum",
+                  Rf_ScalarInteger(static_cast<int>(state.currentSampleNum)));
+  setAttribByName(resultExpr, "formatVersion",
+                  Rf_ScalarInteger(stateFormatVersion));
+  setAttribByName(resultExpr, "packageVersion", Rf_mkString(PACKAGE_VERSION));
   SEXP classExpr = PROTECT(Rf_mkString("bartcoreState"));
   Rf_setAttrib(resultExpr, R_ClassSymbol, classExpr);
 
@@ -6738,6 +6764,12 @@ static const char* readWarmStartState(SEXP stateExpr,
       break;
     }
     size_t numForests = static_cast<size_t>(Rf_xlength(forestsExpr));
+    if (numForests == 0) {
+      // the donor pool reads each chain's first forest, and a chain that
+      // declares none never reaches the engine's own shape check
+      errorMessage = "warm-start donor chain holds no forests";
+      break;
+    }
     chainState.forests.resize(numForests);
     for (size_t f = 0; f < numForests && errorMessage == NULL; ++f) {
       SEXP forestExpr = VECTOR_ELT(forestsExpr, static_cast<R_xlen_t>(f));

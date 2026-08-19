@@ -49,4 +49,15 @@ expect_error(
   "must be double"
 )
 
+# an empty index carries no element to read as a subscript, on either the
+# dimensioned or the flat target
+expect_error(
+  .Call(assignInPlace, flat, integer(0), 1),
+  "must be non-empty"
+)
+expect_error(
+  .Call(assignInPlace, target, integer(0), c(1, 2, 3)),
+  "must be non-empty"
+)
+
 rm(assignInPlace, target, flat)

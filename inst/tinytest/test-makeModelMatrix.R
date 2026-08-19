@@ -343,3 +343,88 @@ expect_error(
 )
 
 rm(mm, newdata, data, df)
+
+
+# A missing factor level expands to a missing indicator value on every column
+# of that factor's block - the same value the unexpanded categorical coding
+# gives it - so the frame's missingness survives the expansion rather than
+# reading as "none of the levels".
+set.seed(42)
+df <- data.frame(
+  f = factor(c("a", "b", "c", NA, "a", "b", NA, "c", "a", "b")),
+  z = rnorm(10L)
+)
+mm <- dbarts::makeModelMatrixFromDataFrame(df)
+expect_equal(colnames(mm), c("f.a", "f.b", "f.c", "z"))
+expect_equal(which(is.na(mm[, "f.a"])), c(4L, 7L))
+expect_equal(mm[, "f.a"], ifelse(is.na(df$f), NA_real_, (df$f == "a") * 1))
+expect_equal(mm[, "f.b"], ifelse(is.na(df$f), NA_real_, (df$f == "b") * 1))
+expect_equal(mm[, "f.c"], ifelse(is.na(df$f), NA_real_, (df$f == "c") * 1))
+expect_equal(mm[, "z"], df$z)
+
+# the level counts that pick the retained columns count observed levels only
+expect_equal(attr(mm, "drop")$f, c(3L, 3L, 2L))
+
+# a two-level factor keeps its single indicator, missing where the code is
+mm <- dbarts::makeModelMatrixFromDataFrame(
+  data.frame(g = factor(c("a", "b", NA, "a", "b", "a")))
+)
+expect_equal(colnames(mm), "g.b")
+expect_equal(as.vector(mm), c(0, 1, NA, 0, 1, 0))
+
+# an entirely missing factor observes no level and contributes no column
+mm <- dbarts::makeModelMatrixFromDataFrame(
+  data.frame(g = factor(c(NA, NA, NA), levels = c("a", "b")), z = rnorm(3L))
+)
+expect_equal(colnames(mm), "z")
+
+# the expansion drives the same missingness policy the unexpanded coding does:
+# bart() rejects it by name, and "incorporate" models it
+set.seed(6)
+n <- 40L
+df <- data.frame(
+  f = factor(sample(c("a", "b", "c", NA), n, TRUE)),
+  z = rnorm(n)
+)
+expect_error(
+  dbarts::bart(
+    df,
+    rnorm(n),
+    ndpost = 10L,
+    nskip = 5L,
+    ntree = 5L,
+    nthread = 1L,
+    verbose = FALSE
+  ),
+  pattern = "predictors contain missing values"
+)
+data <- dbarts::dbartsData(
+  rnorm(n) ~ f + z,
+  df,
+  factors = "indicators",
+  missing = "incorporate"
+)
+expect_true(anyNA(data@x))
+expect_equal(ncol(data@x), 4L)
+
+# a factor code outside its own level table is refused by column, rather than
+# counted into the per-level table it does not index
+df <- data.frame(z = rnorm(4L))
+df$f <- structure(c(1L, 2L, 7L, 1L), levels = c("a", "b"), class = "factor")
+expect_error(
+  dbarts::makeModelMatrixFromDataFrame(df),
+  pattern = "factor column 'f' has a level code outside its level table"
+)
+names(df) <- NULL
+expect_error(
+  dbarts::makeModelMatrixFromDataFrame(as.data.frame(df)),
+  pattern = "factor column 2 has a level code outside its level table"
+)
+
+# a frame with no columns names its own emptiness
+expect_error(
+  dbarts::makeModelMatrixFromDataFrame(data.frame()),
+  pattern = "at least one column"
+)
+
+rm(mm, data, df, n)

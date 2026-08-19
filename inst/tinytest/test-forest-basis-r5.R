@@ -519,3 +519,21 @@ expect_equal(
   1,
   tolerance = 1e-12
 )
+
+# The C entry re-checks what the R method already refuses, and it holds an
+# owning transposition buffer while it does: a non-finite value is rejected
+# part way through, and the sampler it left untouched still runs.
+direct <- twoForests()
+direct$run(5L, 2L)
+badBasis <- cbind(rep(1, n), c(rep(0, n - 1L), Inf))
+expect_error(
+  .Call(
+    dbarts:::C_dbarts_bartcore_setForestBasis,
+    direct$getPointer(),
+    1L,
+    badBasis
+  ),
+  pattern = "not finite"
+)
+expect_true(all(is.finite(direct$run(0L, 2L)$sigma)))
+expect_equal(ncol(direct$data@bases[[2L]]), 2L)

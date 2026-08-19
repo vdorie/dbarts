@@ -34,7 +34,9 @@ static bool integerVectorIsConstant(const int* i, size_t n);
 static size_t getNumRowsForDataFrame(SEXP x);
 
 static void getColumnTypes(SEXP x, column_type* columnTypes);
+static void validateFactorCodes(SEXP x, const column_type* columnTypes);
 static void tableFactor(SEXP x, int* instanceCount);
+static void fillFactorIndicator(const int* codes, size_t numRows, int level, double* target);
 static void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPatternExpr, bool createDropPattern, size_t* result);
 static int createMatrix(SEXP x, size_t numRows, SEXP result, const column_type* columnTypes, SEXP dropPatternExpr);
 static int setFactorColumnName(SEXP dfNames, size_t dfIndex, SEXP levelNames, size_t levelIndex, SEXP resultNames, size_t resultIndex);
@@ -59,9 +61,14 @@ SEXP dbarts_makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
   size_t numInputColumns = rc_getLength(x);
   size_t numOutputColumns = 0;
   
-  column_type columnTypes[numInputColumns];
+  if (numInputColumns == 0) Rf_error("'x' must have at least one column");
+  
+  // transient rather than a stack array: the column count is the caller's, so
+  // a wide frame would otherwise size an unbounded local
+  column_type* columnTypes = (column_type*) R_alloc(numInputColumns, sizeof(column_type));
   
   getColumnTypes(x, columnTypes);
+  validateFactorCodes(x, columnTypes);
   
   bool createDropPattern = false;
   if (Rf_isLogical(dropColumnsExpr)) {
@@ -103,7 +110,10 @@ mkmm_cleanup:
     return R_NilValue;
   }
   
-  if (dropPatternExpr != NULL) Rf_setAttrib(result, Rf_install("drop"), dropPatternExpr);
+  // interning a name allocates, and argument evaluation order is unspecified,
+  // so the symbol is taken before the attribute set rather than inside it
+  SEXP dropSymbol = Rf_install("drop");
+  if (dropPatternExpr != NULL) Rf_setAttrib(result, dropSymbol, dropPatternExpr);
   
   if (protectCount > 0) UNPROTECT(protectCount);
   
@@ -146,6 +156,33 @@ static void getColumnTypes(SEXP x, column_type* columnTypes)
 }
 
 
+// A factor's codes index its own level table, and the per-level counts below
+// are sized by that table; a code outside it would run off them. NA is
+// admitted - it expands to a missing indicator value, not to a level.
+static void validateFactorCodes(SEXP x, const column_type* columnTypes)
+{
+  SEXP names = rc_getNames(x);
+  size_t numColumns = rc_getLength(x);
+  for (size_t i = 0; i < numColumns; ++i) {
+    if (columnTypes[i] != FACTOR) continue;
+    
+    SEXP col = VECTOR_ELT(x, i);
+    int numLevels = (int) rc_getLength(rc_getLevels(col));
+    const int* codes = INTEGER(col);
+    size_t columnLength = rc_getLength(col);
+    for (size_t j = 0; j < columnLength; ++j) {
+      if (codes[j] == NA_INTEGER) continue;
+      if (codes[j] < 1 || codes[j] > numLevels) {
+        if (names != R_NilValue)
+          Rf_error("factor column '%s' has a level code outside its level table",
+                   CHAR(STRING_ELT(names, i)));
+        Rf_error("factor column %d has a level code outside its level table",
+                 (int) i + 1);
+      }
+    }
+  }
+}
+
 static void tableFactor(SEXP x, int* instanceCounts)
 {
   SEXP levelsExpr = rc_getLevels(x);
@@ -155,7 +192,20 @@ static void tableFactor(SEXP x, int* instanceCounts)
     
   int* columnData = INTEGER(x);
   size_t columnLength = rc_getLength(x);
-  for (size_t i = 0; i < columnLength; ++i) ++instanceCounts[columnData[i] - 1];
+  // a missing code is no level's instance, so an all-missing factor counts
+  // no levels and contributes no column
+  for (size_t i = 0; i < columnLength; ++i)
+    if (columnData[i] != NA_INTEGER) ++instanceCounts[columnData[i] - 1];
+}
+
+// One indicator column of a factor expansion: 1 where the code is the named
+// level, 0 where it is another, and missing where the code is - the same value
+// an unexpanded categorical column carries for a missing level, which the
+// trees route by their own learned rules.
+static void fillFactorIndicator(const int* codes, size_t numRows, int level, double* target)
+{
+  for (size_t i = 0; i < numRows; ++i)
+    target[i] = codes[i] == NA_INTEGER ? NA_REAL : (codes[i] == level ? 1.0 : 0.0);
 }
 
 static bool numericVectorIsConstant(SEXP x, column_type t) {
@@ -379,12 +429,12 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
           numLevelsPerFactor = levelsLength;
           if (numLevelsPerFactor <= 2) {
             int levelToKeep = numLevelsPerFactor == 2 ? 2 : 1;
-            for (size_t j = 0; j < numRows; ++j) result[j + numRows * resultCol] = (colData[j] == levelToKeep ? 1.0 : 0.0);
+            fillFactorIndicator(colData, numRows, levelToKeep, result + numRows * resultCol);
             if (setFactorColumnName(names, i, levels, levelToKeep - 1, resultNames, resultCol) != 0) { UNPROTECT(protectCount); return ENOMEM; }
             ++resultCol;
           } else {
             for (int j = 0; j < (int) levelsLength; ++j) {
-              for (size_t k = 0; k < numRows; ++k) result[k + numRows * resultCol] = (colData[k] == (j + 1) ? 1.0 : 0.0);
+              fillFactorIndicator(colData, numRows, j + 1, result + numRows * resultCol);
               if (setFactorColumnName(names, i, levels, j, resultNames, resultCol) != 0) { UNPROTECT(protectCount); return ENOMEM; }
               ++resultCol;
             }
@@ -397,16 +447,16 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
           if (numLevelsPerFactor == 2) {
             int lastIndex;
             // skip until we find the last level that is actually in the column, make that 1
-            for (lastIndex = (int) levelsLength - 1; factorInstanceCounts[lastIndex] == 0 && lastIndex >= 0; --lastIndex) { /* */ }
+            for (lastIndex = (int) levelsLength - 1; lastIndex >= 0 && factorInstanceCounts[lastIndex] == 0; --lastIndex) { /* */ }
             // R has factors coded with 1 based indexing
             ++lastIndex;
-            for (size_t j = 0; j < numRows; ++j) result[j + numRows * resultCol] = (colData[j] == lastIndex ? 1.0 : 0.0);
+            fillFactorIndicator(colData, numRows, lastIndex, result + numRows * resultCol);
             if (setFactorColumnName(names, i, levels, lastIndex - 1, resultNames, resultCol) != 0) { UNPROTECT(protectCount); return ENOMEM; }
             ++resultCol;
           } else if (numLevelsPerFactor > 2) {
             for (int j = 0; j < (int) levelsLength; ++j) {
               if (factorInstanceCounts[j] > 0) {
-                for (size_t k = 0; k < numRows; ++k) result[k + numRows * resultCol] = (colData[k] == (j + 1) ? 1.0 : 0.0);
+                fillFactorIndicator(colData, numRows, j + 1, result + numRows * resultCol);
                 if (setFactorColumnName(names, i, levels, j, resultNames, resultCol) != 0) { UNPROTECT(protectCount); return ENOMEM; }
                 ++resultCol;
               }
