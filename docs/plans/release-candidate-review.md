@@ -540,6 +540,37 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Wave-5b hetero saved-variance state carry (73e14af4, 2026-08-18)
+
+Fix-queue item 2. Closes the hetero BLOCKER: getState/setState kept
+the variance forest's live trees but dropped its saved (keepTrees)
+buffer, so predict on a sampler re-created from stored state replayed
+the identity fill and reported s(x) == 0. The carry now round-trips
+the saved variance trees and their mask channels, including the
+>63-level mask case (an 80-level fixture stores and round-trips
+nonzero live and saved mask bytes bitwise). The critique's A1 landed
+STRONGER than specified - a size-equality gate at the restore door
+subsumes the presence check and D2 - and its A5 guard, A6 comment,
+and D3 identity fill are all in place; a pooled saved tree with no
+mask channel is refused at both doors, so the empty-mask assign is
+unreachable. statesAgree gained the saved-variance fields and the
+extension is proven biting: review re-ran both mutation proofs
+independently (dropping the chainFields loop flips the agree pin;
+deleting the saved-tree assign fails 10 tinytest assertions on the
+1.0 identity fill plus two tests/cpp arms). Review verdict LAND;
+its no-op name-presence pin was strengthened to a non-NULL check at
+the amend. Recorded residues: the memo's O4 test_fuzz mutator family
+for saved variance leaves was dropped (test_state's four refusal
+arms cover the ground more directly); O5's pins live in
+test-heteroscedastic.R rather than test-sampler-state-format.R with
+equal-or-better coverage; feature-matrix CH: line anchors have
+drifted and wait for the next full resync (check-doc-freshness
+range-checks pass, so its OK is not evidence there). Gates on the
+rebased tree (independent lib): trio bitwise 42/12/11 against the
+post-re-record baselines, tests/cpp green, tinytest 6338/0, ASAN
+clean, R CMD check --as-cran from a clean-copy tarball Status OK,
+NEWS parses via the check. CI green.
+
 ### Wave-5b multinomial prior fix + baseline re-record (4d9a3337 + 509b68cc, 2026-08-18)
 
 Fix-queue item 4, the queue's only draw-shifting slice. Closes the
