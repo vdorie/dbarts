@@ -1133,6 +1133,211 @@ static void testVetoRankUnfreezesStrandedTree() {
          partialDriven.absorbed);
 }
 
+// ---------------------------------------------------------------------------
+// EQUAL RANK 1 - both compared branches weight-vetoed - is the veto rank's one
+// CHANGED comparison and the one that unfreezes a stranded forest. Its law
+// (docs/design/empty-leaf-veto.md, "Is vetoed-vs-vetoed reachable?"): equal
+// rank takes the acceptance arithmetic unchanged on the finite parts, and the
+// finite part SKIPS the vetoed leaves rather than summing their marginals, so a
+// wholly vetoed pair contributes exactly 1 and the tree mixes under prior x
+// transition at constant likelihood.
+//
+// The fixture puts that law in closed form. One binary split column carries
+// exactly one cut, so the only rule the prior can draw halves the members and
+// neither child can split again; an all-zero weight vector then puts the root,
+// the split branch and every leaf of both at rank 1, which the checks below
+// read directly off the fixture. No comparison in the move arms can therefore
+// be anything but equal rank 1 - the current state is occupied and weightless
+// whatever the move does, and so is the one proposal available - and each
+// prior x transition ratio is a hand-derived constant. A local generator
+// leaves the shared stream untouched for the suites that follow.
+// ---------------------------------------------------------------------------
+static void testEqualRankOneComparison() {
+  const size_t n = 64, p = 1;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % 2);
+    y[i] = 0.3 * x[i] + 0.01 * static_cast<double>(i) - 0.5;
+  }
+  ColumnStore store;
+  // the store owns a raw copy of column 0, which the linear leaf below reads
+  // as its covariate through rawColumn
+  size_t leafGather[] = {0};
+  store.build(x.data(), n, p, 1, false, nullptr, leafGather, 1);
+  check(store.numCuts[0] == 1,
+        "equal-rank fixture: the split column carries exactly one cut");
+
+  std::vector<double> zeros(n, 0.0);
+  const double sigma = 1.3, k = 2.0;
+  ConstantGaussianLeaf constant{0.7};
+  // the same branch under a leaf model whose zero-weight marginal is NOT zero:
+  // over p parameters the linear leaf's is 0.5 p log(ridge) - p log(sqrt(ridge)),
+  // which cancels in exact arithmetic and does not in doubles
+  LinearGaussianLeaf linear;
+  linear.scale = 0.7;
+  size_t covariates[] = {0};
+  linear.initialize(store, covariates, 1);
+
+  CGMTreePrior growPrior;  // birth arm: prior ratio 0.25 / 0.75
+  growPrior.base = 0.25;
+  growPrior.power = 2.0;
+  CGMTreePrior prunePrior;  // death arm: the same ratio, inverted
+  prunePrior.base = 0.75;
+  prunePrior.power = 2.0;
+
+  MoveScratch scratch;
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  auto buildRoot = [&]() {
+    tree.initialize(indexBuffer.data(), n);
+    tree.computeLeafStats(0, y.data(), zeros.data());
+  };
+  auto buildSplit = [&]() {
+    buildRoot();
+    Rule rule;
+    rule.variableIndex = 0;
+    rule.setSplitIndex(0);
+    tree.birth(store, 0, rule, y.data(), zeros.data());
+  };
+
+  // ---- the resolution: equal rank hands the move its own operands ----
+  double currentLogL, proposalLogL, rank0Current, rank0Proposal;
+  resolveVetoRank({1, -2.5}, {1, 4.25}, &currentLogL, &proposalLogL);
+  check(currentLogL == -2.5 && proposalLogL == 4.25,
+        "equal rank 1 passes both operands through unchanged");
+  resolveVetoRank({0, -2.5}, {0, 4.25}, &rank0Current, &rank0Proposal);
+  check(currentLogL == rank0Current && proposalLogL == rank0Proposal,
+        "equal rank 1 resolves bitwise as equal rank 0 does");
+  resolveVetoRank({1, -2.5}, {0, 4.25}, &currentLogL, &proposalLogL);
+  check(currentLogL == -HUGE_VAL && proposalLogL == 4.25,
+        "a vetoed current against an admissible proposal loses outright");
+  resolveVetoRank({0, -2.5}, {1, 4.25}, &currentLogL, &proposalLogL);
+  check(currentLogL == -2.5 && proposalLogL == -HUGE_VAL,
+        "a vetoed proposal against an admissible current loses outright");
+  resolveVetoRank({1, -2.5}, {2, 4.25}, &currentLogL, &proposalLogL);
+  check(currentLogL == -2.5 && proposalLogL == -HUGE_VAL,
+        "a member-empty proposal loses to a weight-vetoed current");
+  // the one -HUGE_VAL pair that is not the veto: a constrained leaf model's
+  // feasibility sentinel on both sides rejects rather than reporting NaN
+  resolveVetoRank({1, -HUGE_VAL}, {1, -HUGE_VAL}, &currentLogL, &proposalLogL);
+  check(currentLogL == 0.0 && proposalLogL == -HUGE_VAL,
+        "two sentinels at equal rank reject rather than differencing to NaN");
+
+  // ---- the finite parts the equal-rank comparison differences ----
+  buildSplit();
+  int32_t leftChild = tree.at(0).leftChild;
+  check(tree.at(leftChild).numObservations() == n / 2 &&
+          tree.at(leftChild + 1).numObservations() == n / 2,
+        "equal-rank fixture: the one rule halves the members");
+  check(tree.leafVetoRank(leftChild, zeros.data()) == 1 &&
+          tree.leafVetoRank(leftChild + 1, zeros.data()) == 1,
+        "equal-rank fixture: both children are weight-vetoed, neither empty");
+
+  MoveContext ctx{store, growPrior, 1.0, 0.0, 0.5, zeros.data(), k, scratch};
+  BranchScore splitScore =
+    logLikelihoodForBranch(ctx, constant, tree, 0, y.data(), sigma);
+  check(splitScore.rank == 1 && splitScore.logLikelihood == 0.0,
+        "a wholly vetoed branch scores rank 1 and exactly zero");
+  double naive = linear.logIntegratedLikelihoodForNode(
+                   tree, y.data(), zeros.data(), k, sigma * sigma, leftChild) +
+                 linear.logIntegratedLikelihoodForNode(
+                   tree, y.data(), zeros.data(), k, sigma * sigma,
+                   leftChild + 1);
+  check(naive != 0.0,
+        "non-vacuity: the linear leaf's zero-weight marginals do not sum to 0");
+  BranchScore linearScore =
+    logLikelihoodForBranch(ctx, linear, tree, 0, y.data(), sigma);
+  check(linearScore.rank == 1 && linearScore.logLikelihood == 0.0,
+        "the skip holds for a leaf model whose vetoed marginal is not zero");
+
+  buildRoot();
+  BranchScore rootScore =
+    logLikelihoodForBranch(ctx, constant, tree, 0, y.data(), sigma);
+  check(rootScore.rank == 1 && rootScore.logLikelihood == 0.0,
+        "the undivided branch is vetoed too, and scores exactly zero");
+  resolveVetoRank(rootScore, splitScore, &currentLogL, &proposalLogL);
+  check(std::exp(proposalLogL - currentLogL) == 1.0,
+        "an equal-rank-1 pair contributes exactly 1 to the acceptance ratio");
+
+  // ---- the moves, whose comparisons the fixture forces to equal rank 1 ----
+  // From the root the birth step is forced (a single-node tree births with
+  // probability 1) and the reverse death is forced back (the split tree has no
+  // birthable node), so transitionRatio is exactly 1 and priorRatio is
+  // base (1 - 0)(1 - 0) / (1 - base) - neither child can split again. At
+  // base = 0.25 that is 0.25 / 0.75, and the equal-rank-1 likelihood is the
+  // only remaining factor: prior x transition is the whole acceptance.
+  const double expected = 0.25 / 0.75;
+  struct MoveOutcome {
+    double alpha;
+    bool stepTaken;
+    bool wasBirth;
+  };
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  auto runBirth = [&](const auto& leafModel, const double* response,
+                      double leafSigma, double leafK) {
+    ext_rng_setSeed(rng, 20260819u);
+    buildRoot();
+    MoveContext armCtx{store,        growPrior, 1.0, 0.0, 0.5,
+                       zeros.data(), leafK,     scratch};
+    MoveOutcome out{0.0, false, false};
+    out.alpha = birthOrDeathMove(armCtx, leafModel, rng, tree, response,
+                                 leafSigma, &out.stepTaken, &out.wasBirth);
+    return out;
+  };
+
+  MoveOutcome birth = runBirth(constant, y.data(), sigma, k);
+  check(birth.wasBirth, "the equal-rank birth arm takes a birth step");
+  check(birth.alpha == expected,
+        "an equal-rank-1 birth accepts on prior x transition alone");
+  std::vector<double> shifted(n);
+  for (size_t i = 0; i < n; ++i) shifted[i] = 100.0 * y[i] + 7.0;
+  check(runBirth(constant, shifted.data(), sigma, k).alpha == expected,
+        "the equal-rank-1 acceptance does not read the response");
+  check(runBirth(constant, y.data(), 4.0 * sigma, 0.5 * k).alpha == expected,
+        "the equal-rank-1 acceptance does not read sigma or k");
+  check(runBirth(linear, y.data(), sigma, k).alpha == expected,
+        "the equal-rank-1 acceptance does not read the leaf model");
+
+  // The death of a parent whose children are BOTH weight-vetoed inherits their
+  // veto (its members are their union), so the collapse that repairs a stranded
+  // pair is an equal-rank-1 comparison, not a rank improvement. Same closed
+  // form with the prior inverted: 0.25 / 0.75 again at base = 0.75.
+  auto runDeath = [&](const auto& leafModel) {
+    ext_rng_setSeed(rng, 20260820u);
+    buildSplit();
+    MoveContext armCtx{store,        prunePrior, 1.0, 0.0, 0.5,
+                       zeros.data(), k,          scratch};
+    MoveOutcome out{0.0, false, false};
+    out.alpha = birthOrDeathMove(armCtx, leafModel, rng, tree, y.data(), sigma,
+                                 &out.stepTaken, &out.wasBirth);
+    return out;
+  };
+  MoveOutcome death = runDeath(constant);
+  check(!death.wasBirth, "the equal-rank death arm takes a death step");
+  check(death.alpha == expected,
+        "an equal-rank-1 death accepts on prior x transition alone");
+  check(runDeath(linear).alpha == expected,
+        "the equal-rank-1 death does not read the leaf model either");
+
+  // the change move's own resolution: the single available rule is the current
+  // one, so the subtree prior and the proposal correction both cancel and the
+  // acceptance is the equal-rank-1 likelihood by itself
+  ext_rng_setSeed(rng, 20260821u);
+  buildSplit();
+  MoveContext changeCtx{store,        growPrior, 0.0, 0.0, 0.0,
+                        zeros.data(), k,         scratch};
+  bool changeTaken = false;
+  double changeAlpha = changeMove(changeCtx, constant, rng, tree, y.data(),
+                                  sigma, &changeTaken);
+  check(changeAlpha == 1.0,
+        "an equal-rank-1 change move scores exactly 1, not 0 and not NaN");
+
+  ext_rng_destroy(rng);
+  printf("ok: equal-rank-1 veto comparison (birth and death alpha %.17g, "
+         "change 1.0, linear-leaf vetoed marginals %.3e)\n",
+         expected, naive);
+}
+
 static void testLinearLeafMutation(ext_rng* rng) {
   const size_t n = 200, p = 3;
   std::vector<double> x(n * p), y(n);
@@ -1433,4 +1638,5 @@ void runMovesTests(ext_rng* rng) {
   testLinearLeafMutation(rng);
   testEmptyLeafVetoCountsWeight();
   testVetoRankUnfreezesStrandedTree();
+  testEqualRankOneComparison();
 }
