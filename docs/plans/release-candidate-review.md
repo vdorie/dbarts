@@ -540,6 +540,45 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Wave-5b test-adequacy repairs (03b97db7, 2026-08-18)
+
+Fix-queue item 7, test-only (production code untouched; two hand-
+backs below). Closes the vacuity BLOCKER: expectTwinsAgree's
+assertions were invisible to tinytest because namespace-qualified
+tinytest::expect_* resolves past the runner's locally-masked
+capturing wrappers to the raw namespace copy whose return value is
+discarded; dropping the prefix registers all 13
+(test-mutate-sparse-valued.R 16 -> 29 assertions; the original
+sabotage now fails 13, restored green). Review swept the whole tree
+for the hazard class: zero other namespace-qualified expect_* calls,
+and every inst/tinytest source() passes local=TRUE, so no helper
+escapes the masked env. SIMD gate: reach extended 3 -> 7 of 14 NEON
+kernels - all seven that are live (review verified the other seven
+dead by dispatch-table + caller audit: four have no dispatch entry,
+three are bound but never called from src/; ledgered as production
+dead code) - and, after the review caught reach-without-gating (the
+planted tail off-by-one passed the extended test while 47 other
+assertions failed), the fix round routed a genuine nonzero offset
+through the kernel into compared channels; the same mutation now
+fails test-simd.R directly (1/12), restored green. Flat-C family
+coverage: logistic/ordinal/aft create+short-run cells added at the
+SHIPPED ABI (dbarts_sampler_create -> resolveFamily via the
+compiled test-capi.R consumer; a wrong family token demonstrably
+refused), after the review found the first version tested only the
+engine factory - that engine-level arm is kept for its independent
+value, with rngState save/restore verified correct and matching
+house idiom. Minors m2 (declined-row slice now genuinely declines,
+anti-vacuity assertion, plus an unname() fix for a real base-R
+subsetting artifact it exposed) and m5 (formal-existence checks
+before NULL pins) fixed; m1 (fuzz-config reach) and m3 (count-blind
+warning assertions, a 17-site tinytest semantic limit) handed back
+to the ledger; m4 was the hetero slice's statesAgree extension,
+landed there. Suite grows 6028 -> 6045 assertions on its base.
+Gates on the rebased tree: trio bitwise 42/12/11, tinytest 6402/0
+(test-capi.R 252 with both this slice's cells and the flat-C
+guards), tests/cpp green, R CMD check --as-cran (core-limited)
+Status OK, both mutation proofs re-verified post-rebase, CI green.
+
 ### Wave-5b flat-C guards + header truth (61ca56d2, 2026-08-18)
 
 Fix-queue item 6, draw-neutral, no dbarts.h signature changes (zero
