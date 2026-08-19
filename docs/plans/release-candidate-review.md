@@ -540,6 +540,58 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Wave 5a - adversarial whole-branch review; NO COMMIT (review record, 2026-08-18)
+
+Six independent refute-posture reviewers against 13a8867c (engine
+numerics, bridge/memory safety, R surface, flat-C contract, test
+adequacy, docs coherence), each with build/run probes in a private
+lib from a pristine archive stage. Full evidence in
+rc-review-artifacts-2026-08-18/w5{eng,bridge,rsurf,capi,test,docs}-
+findings.md; every orchestrator re-verification (nine findings
+re-run or code-walked independently) CONFIRMED the reviewer claim -
+zero false positives observed.
+
+VERDICT: not RC-clean. Ten BLOCKERs, ~19 MAJORs, ~25 MINORs.
+BLOCKERs: hetero predict s(x)==0 after any state round-trip (saved
+variance trees not carried by get/setState); empty-leaf veto weight
+law unenforced by setWeights/setActiveRows (grown forest freezes
+bitwise, NaN ratios); multinomial level-shift sd divided by sqrt(m)
+twice (prior defect in the tree-structure marginal - the FIX SHIFTS
+DRAWS, so it rides a multinomial baseline re-record);
+printCutoffs+useQuantiles zero-cut segfault (bart/bart2/dbarts);
+NA-factor wild write aborting R via makeModelMatrixFromDataFrame
+and bart(df,y); summary()/as_draws_*() silently wrong on combined
+multi-chain fits for non-scalar vars; flat-C setTestPredictors(NULL)
+leaves a stale test offset (contra header); flat-C test-row-count
+change with installed offset reads heap garbage (R bridge refuses
+it, C path does not); flat-path gaussian NA data@sigma yields silent
+all-NaN draws (consumer gotcha 4 formalized); the sparse-mutation
+pin file's central assertion never registers with tinytest (13
+call sites vacuous - proven by surviving sabotage).
+
+Countervailing positive evidence, also part of the record: an
+independently coded exact-posterior gate validated the MH tree
+kernel to 2.1e-14 with large-sample stationarity at 3.8e-4-7.2e-4
+across ordinal/categorical/missing probes; birth/death detailed
+balance hand-derived clean; PROTECT balance walked whole-bridge;
+the C API signature/hash discipline cannot drift; all 4352 R
+expect sites and 52 S3 methods execute; examples and vignettes
+reproduce. The core sampler is sound; the defects cluster in
+state round-tripping, guard-less boundaries, and reporting layers.
+
+FIX QUEUE (wave 5b), serialized: (1) bridge crash guards
+(in flight at this writing); (2) hetero saved-variance state carry;
+(3) veto weight-law enforcement at the mutators; (4) multinomial
+level-shift fix + baseline re-record (carries the queued bart2/
+xbart/mixed-matrix scenarios under P17 naming); (5) R-surface
+fixes (diagnostics layout, prior.scale match.call partial-match,
+keeptrees/keepsampler, bart() route gaps); (6) flat-C guards +
+header doc truth; (7) test-adequacy repairs (expectTwinsAgree
+registration, SIMD gate reach, flat-C family coverage); (8) docs
+coherence sweep. Draw-shifting: item 4 ONLY; all others gate
+bitwise on the canonical trio.
+
+
 ### Full-namespace anchor resync - WAVE 4 CLOSES (f953127c, 2026-08-18)
 
 The whole-file walk the matrix's value audit recorded as owed: every
