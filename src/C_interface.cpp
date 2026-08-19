@@ -288,9 +288,9 @@ static_assert(sizeof(dbarts_results) == sizeof(size_t) + 11 * sizeof(double*),
               "DBARTS_C_API_MINOR if a field was appended after 1.0-0");
 
 // The same lock for the two structs a CALLER fills, whose structSize is read
-// against the library's offsets rather than written to the caller's. The API
-// token is blind to struct layout (it hashes signatures), so these asserts
-// plus structSize are the whole layout contract.
+// against the library's offsets rather than written to the caller's. These
+// asserts state the layout a reader can check by eye; the token fold below
+// carries the same offsets to the consumer's runtime handshake.
 static_assert(offsetof(dbarts_predictor_source, structSize) == 0);
 static_assert(offsetof(dbarts_predictor_source, numRows) == 1 * sizeof(size_t));
 static_assert(offsetof(dbarts_predictor_source, numColumns) == 2 * sizeof(size_t));
@@ -337,30 +337,131 @@ static_assert(sizeof(dbarts_forest_calibration) ==
               "dbarts_forest_calibration layout changed; update these offsets, "
               "and bump DBARTS_C_API_MINOR if a field was appended after 1.0-0");
 
-// Compile-time signature token: FNV-1a over the stringized
-// DBARTS_C_API_LIST, checked against the baked DBARTS_C_API_HASH. A changed
-// signature moves the hash and fails this assert until DBARTS_C_API_HASH is
-// re-baked - the mechanical acknowledgment that the ABI surface changed.
+// Compile-time ABI token, checked against the baked DBARTS_C_API_HASH: FNV-1a
+// over the stringized DBARTS_C_API_LIST signatures, then the two ABI enums'
+// enumerator lists, then dbarts_sampler_callback's parameter list, then the
+// layout the compiler gives the three structs that cross the ABI. Anything it
+// covers moving fails this assert until DBARTS_C_API_HASH is re-baked - the
+// mechanical acknowledgment that the ABI changed - and the consumer stubs
+// raise on the mismatch at runtime until the consumer is rebuilt.
 //
 // To re-check that the assert still bites: flip one digit of
 // DBARTS_C_API_HASH in inst/include/dbarts/dbarts.h and rebuild; the build
-// must stop here. It sees SIGNATURES only, never struct layout, which is what
-// the exact-offset locks above carry.
+// must stop here.
 namespace {
-constexpr std::uint64_t dbarts_fnv1a(const char* text) {
-  std::uint64_t hash = 0xcbf29ce484222325ULL; // FNV-1a 64-bit offset basis
+constexpr std::uint64_t dbarts_fnv1aPrime = 0x100000001b3ULL;
+constexpr std::uint64_t dbarts_fnv1aBasis = 0xcbf29ce484222325ULL;
+
+constexpr std::uint64_t dbarts_fnv1a(std::uint64_t hash, const char* text) {
   while (*text != '\0') {
     hash ^= static_cast<std::uint64_t>(static_cast<unsigned char>(*text));
-    hash *= 0x100000001b3ULL; // FNV-1a 64-bit prime
+    hash *= dbarts_fnv1aPrime;
     ++text;
   }
   return hash;
 }
+constexpr std::uint64_t dbarts_fnv1a(const char* text) {
+  return dbarts_fnv1a(dbarts_fnv1aBasis, text);
+}
+// Integers enter the state a byte at a time, low byte first, extracted by
+// SHIFTING and never by reading the object representation: the token is one
+// number across hosts, so a big-endian one must fold the same bytes in the
+// same order as a little-endian one.
+constexpr std::uint64_t dbarts_fnv1aValue(std::uint64_t hash,
+                                          std::uint64_t value) {
+  for (int i = 0; i != 8; ++i) {
+    hash ^= (value >> (8 * i)) & 0xffULL;
+    hash *= dbarts_fnv1aPrime;
+  }
+  return hash;
+}
+
+// The ABI structs' fields, in declaration order, for the layout fold. Each
+// field's NAME and OFFSET are folded from one token, so the two cannot drift
+// apart and a rename moves the token as surely as a reorder does; offsets and
+// sizes fold in POINTER UNITS, identical on ILP32, LP64 and LLP64, which is
+// what keeps a platform out of the token. Every member of all three is
+// pointer-width, which the alignment asserts hold a future author to.
+#define DBARTS_RESULTS_FIELDS(X) \
+  X(structSize) X(sigma) X(train) X(test) X(varcount) X(k) X(varprobs) \
+  X(tau) X(groupEffects) X(logLikelihood) X(dispersion) X(residualDf)
+#define DBARTS_PREDICTOR_SOURCE_FIELDS(X) \
+  X(structSize) X(numRows) X(numColumns) X(denseValues) X(numCscColumns) \
+  X(cscColumnPointers) X(cscRowIndices) X(cscValues) X(columnSources) \
+  X(columnTypes) X(categoryCounts) X(referenceCodes)
+#define DBARTS_FOREST_CALIBRATION_FIELDS(X) \
+  X(structSize) X(priorScale) X(priorSd) X(priorMean) X(k) X(responseScale) \
+  X(responseShift) X(kHasHyperprior) X(leafModel) X(amplitudePriorVariance) \
+  X(amplitudePriorScale) X(nodeScaleFactor) X(nodeScaleDivisor) X(basisRowNorm)
+
+#define DBARTS_ALIGN_ASSERT(type, field) \
+  static_assert(offsetof(type, field) % sizeof(void*) == 0, \
+                "flat C API field is not pointer-aligned; the token folds " \
+                "offsets in pointer units and would divide it away");
+#define X(field) DBARTS_ALIGN_ASSERT(dbarts_results, field)
+DBARTS_RESULTS_FIELDS(X)
+#undef X
+#define X(field) DBARTS_ALIGN_ASSERT(dbarts_predictor_source, field)
+DBARTS_PREDICTOR_SOURCE_FIELDS(X)
+#undef X
+#define X(field) DBARTS_ALIGN_ASSERT(dbarts_forest_calibration, field)
+DBARTS_FOREST_CALIBRATION_FIELDS(X)
+#undef X
+
+#define DBARTS_FOLD_STRUCT(hash, type) \
+  dbarts_fnv1aValue(dbarts_fnv1a(hash, #type), sizeof(type) / sizeof(void*))
+#define DBARTS_FOLD_FIELD(hash, type, field) \
+  dbarts_fnv1aValue(dbarts_fnv1a(hash, #field), \
+                    offsetof(type, field) / sizeof(void*))
+
+constexpr std::uint64_t dbarts_foldLayout(std::uint64_t hash) {
+  hash = DBARTS_FOLD_STRUCT(hash, dbarts_results);
+#define X(field) hash = DBARTS_FOLD_FIELD(hash, dbarts_results, field);
+  DBARTS_RESULTS_FIELDS(X)
+#undef X
+  hash = DBARTS_FOLD_STRUCT(hash, dbarts_predictor_source);
+#define X(field) hash = DBARTS_FOLD_FIELD(hash, dbarts_predictor_source, field);
+  DBARTS_PREDICTOR_SOURCE_FIELDS(X)
+#undef X
+  hash = DBARTS_FOLD_STRUCT(hash, dbarts_forest_calibration);
+#define X(field) \
+  hash = DBARTS_FOLD_FIELD(hash, dbarts_forest_calibration, field);
+  DBARTS_FOREST_CALIBRATION_FIELDS(X)
+#undef X
+  return hash;
+}
+
+// "NAME=VALUE;" per enumerator, and the callback's parameter list as the
+// header spells it (stringizing an expanded macro takes the usual two steps).
+#define DBARTS_ENUMERATOR_TEXT(name, value) #name "=" #value ";"
+#define DBARTS_STRINGIZE_(text) #text
+#define DBARTS_STRINGIZE(text) DBARTS_STRINGIZE_(text)
+
+// The signature half alone, baked privately so a failed build says WHICH half
+// moved: both asserts firing means the entry-point list changed, the combined
+// one alone means the ABI moved underneath unchanged signatures (a struct's
+// layout, an enumerator, the callback's parameters).
+constexpr std::uint64_t dbarts_apiSignatureToken =
+  dbarts_fnv1a(DBARTS_C_API_DECLS);
+
+constexpr std::uint64_t dbarts_apiToken() {
+  std::uint64_t hash = dbarts_apiSignatureToken;
+  hash = dbarts_fnv1a(hash, DBARTS_COLUMN_TYPE_LIST(DBARTS_ENUMERATOR_TEXT));
+  hash = dbarts_fnv1a(hash, DBARTS_LEAF_MODEL_LIST(DBARTS_ENUMERATOR_TEXT));
+  hash = dbarts_fnv1a(hash, DBARTS_STRINGIZE(DBARTS_SAMPLER_CALLBACK_PARAMS));
+  return dbarts_foldLayout(hash);
+}
 } // namespace
-static_assert(dbarts_fnv1a(DBARTS_C_API_DECLS) == DBARTS_C_API_HASH,
-              "dbarts.h C API signatures changed; re-bake DBARTS_C_API_HASH in "
-              "inst/include/dbarts/dbarts.h (and bump DBARTS_C_API_MAJOR or "
-              "DBARTS_C_API_MINOR as the change warrants)");
+static_assert(dbarts_apiSignatureToken == 0x85bd1ef04beb3848ULL,
+              "dbarts.h C API signatures moved (the entry-point list, not the "
+              "layout fold); re-bake this literal here and DBARTS_C_API_HASH "
+              "with it");
+static_assert(dbarts_apiToken() == DBARTS_C_API_HASH,
+              "dbarts.h C ABI changed - a signature, a struct's layout, an ABI "
+              "enumerator, or the callback's parameters; re-bake "
+              "DBARTS_C_API_HASH in inst/include/dbarts/dbarts.h (and bump "
+              "DBARTS_C_API_MAJOR or DBARTS_C_API_MINOR as the change "
+              "warrants)");
 
 extern "C" {
 

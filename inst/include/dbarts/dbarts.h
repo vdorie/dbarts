@@ -18,7 +18,7 @@
 /// The version is two components: check dbarts_apiMajorVersion() ==
 /// DBARTS_C_API_MAJOR && dbarts_apiMinorVersion() >= DBARTS_C_API_MINOR at load
 /// time (major = incompatible change, minor = additive). dbarts_apiHash() adds
-/// an exact signature token beside that handshake, for a consumer that wants
+/// an exact ABI token beside that handshake, for a consumer that wants
 /// lockstep rather than compatibility. The interface only ever grows: names and
 /// signatures below are stable and function additions arrive under new names (a
 /// minor bump), while dbarts_results grows in place by appending fields - its
@@ -103,25 +103,44 @@
 #define DBARTS_C_API_MAJOR 1
 #define DBARTS_C_API_MINOR 0
 
-/// FNV-1a hash of the stringized DBARTS_C_API_LIST signatures, baked here and
+/// FNV-1a token over the ABI this header declares, baked here and
 /// static_assert'd against a recomputation in dbarts's own C++ build. Any
-/// signature change in the list fails dbarts's compile until this literal is
-/// re-baked; that re-bake is the mechanical acknowledgment of an ABI change.
-/// Plain hex literal, usable from C.
+/// change it covers fails dbarts's compile until this literal is re-baked;
+/// that re-bake is the mechanical acknowledgment of an ABI change. Plain hex
+/// literal, usable from C.
 ///
-/// dbarts_apiHash() == DBARTS_C_API_HASH is the exact-signature check: while
-/// the constants above do not move, it is the only runtime signal that
+/// It folds, in fixed order: the stringized DBARTS_C_API_LIST signatures
+/// (return types, names, parameter lists), the two ABI enums' enumerator names
+/// and values, dbarts_sampler_callback's parameter list, and the LAYOUT of
+/// every struct that crosses the ABI - dbarts_results,
+/// dbarts_predictor_source, dbarts_forest_calibration - as the compiler
+/// reports it: each struct's size, and each field's name paired with its
+/// offset, both in pointer units so the token is one number on every supported
+/// platform. So a field appended, removed, reordered or retyped to a different
+/// width, a renamed field, a renumbered or added enumerator, and a changed
+/// callback signature all move it. What it still does not see is an in-place
+/// type swap of the SAME width (double* -> int64_t* under an unchanged name),
+/// which moves no offset and no name; that residue is announced to consumers
+/// by hand.
+///
+/// dbarts_apiHash() == DBARTS_C_API_HASH is the exact-ABI check: while the
+/// constants above do not move, it is the only runtime signal that
 /// distinguishes a consumer binary built against a different header from one
-/// built against this one, so a lockstep consumer checks it alongside the
-/// major/minor handshake.
+/// built against this one. A DBARTS_USE_STUBS consumer has it enforced - the
+/// first stub resolution raises on a mismatch - and one that resolves symbols
+/// by hand checks it alongside the major/minor handshake.
 ///
-/// The token covers the entry-point SIGNATURES - return types, names and
-/// parameter lists - and NOT the layout of the structs those signatures name:
-/// two headers differing only in a dbarts_results field's type hash the same.
-/// The layout contract is each struct's leading structSize plus the exact
-/// offset locks dbarts's own build asserts, so a struct layout change is not
-/// self-detecting and is announced to consumers by hand.
-#define DBARTS_C_API_HASH 0x85bd1ef04beb3848ULL
+/// It moves on ADDITIVE changes too, since an append moves a struct's size:
+/// after 1.0-0 such an append bumps DBARTS_C_API_MINOR and re-bakes this token
+/// together, so a consumer that wants append-COMPATIBILITY gates on
+/// major-equality plus a minor floor (plus each struct's structSize contract),
+/// and reserves hash equality for the lockstep EXACTNESS check.
+///
+/// A consumer may pre-define it to force a mismatch; nothing but a test of the
+/// handshake itself has reason to.
+#ifndef DBARTS_C_API_HASH
+#  define DBARTS_C_API_HASH 0x6c9776ae1197e8f5ULL
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -211,10 +230,17 @@ typedef struct dbarts_results_t {
 
 /// A predictor column's type. Ordinal columns are cut on their values;
 /// categorical ones carry 0-based category codes.
-typedef enum {
-  DBARTS_COLUMN_ORDINAL = 0,
-  DBARTS_COLUMN_CATEGORICAL = 1
-} dbarts_column_type;
+///
+/// Both ABI enums are generated from a list macro, which is also what the
+/// compile-time token folds: an enumerator ADDED to the enum body directly
+/// would be invisible to a hand-kept fold, while one added to the list cannot
+/// be. DBARTS_ENUMERATOR is the shared body emitter, #undef'd after the last
+/// list below.
+#define DBARTS_COLUMN_TYPE_LIST(X) \
+  X(DBARTS_COLUMN_ORDINAL, 0) \
+  X(DBARTS_COLUMN_CATEGORICAL, 1)
+#define DBARTS_ENUMERATOR(name, value) name = value,
+typedef enum { DBARTS_COLUMN_TYPE_LIST(DBARTS_ENUMERATOR) } dbarts_column_type;
 
 /// A borrowed, self-describing view of predictor values: what the four
 /// predictor entries take instead of a bare pointer. The caller MUST set
@@ -286,12 +312,13 @@ dbarts_dense_predictor_source(const double* values, size_t numRows,
 
 /// The leaf model a sampler's forests carry, which qualifies what a reported
 /// prior sd means (see dbarts_sampler_forestCalibration).
-typedef enum {
-  DBARTS_LEAF_CONSTANT = 0,
-  DBARTS_LEAF_MONOTONE = 1,
-  DBARTS_LEAF_LINEAR   = 2,
-  DBARTS_LEAF_GP       = 3
-} dbarts_leaf_model;
+#define DBARTS_LEAF_MODEL_LIST(X) \
+  X(DBARTS_LEAF_CONSTANT, 0) \
+  X(DBARTS_LEAF_MONOTONE, 1) \
+  X(DBARTS_LEAF_LINEAR, 2) \
+  X(DBARTS_LEAF_GP, 3)
+typedef enum { DBARTS_LEAF_MODEL_LIST(DBARTS_ENUMERATOR) } dbarts_leaf_model;
+#undef DBARTS_ENUMERATOR
 
 /// Caller-owned output buffers for dbarts_sampler_forestCalibration, on the
 /// dbarts_results contract: set structSize; EVERY member is a pointer and is
@@ -352,9 +379,15 @@ typedef struct dbarts_forest_calibration_t {
 /// trip; return 0 to stop the run early (the results filled so far are then
 /// undefined). It fires before dbarts_sampler_setSigma's held sigma or the
 /// gaussian sigma draw enters the sweep, so a value set here conditions it.
-typedef int (*dbarts_sampler_callback)(void* userData, dbarts_sampler* sampler,
-                                       size_t chainIndex, size_t sweepIndex,
-                                       int isBurnIn);
+///
+/// The parameter list is hoisted into a macro the compile-time token folds
+/// alongside the entry-point signatures: only the typedef's NAME reaches those,
+/// and a callback whose parameters moved is stack corruption inside a
+/// consumer-defined function rather than a field left unfilled.
+#define DBARTS_SAMPLER_CALLBACK_PARAMS \
+  (void* userData, dbarts_sampler* sampler, size_t chainIndex, \
+   size_t sweepIndex, int isBurnIn)
+typedef int (*dbarts_sampler_callback) DBARTS_SAMPLER_CALLBACK_PARAMS;
 
 // ---------------------------------------------------------------------------
 // The single source of truth for the entry-point surface. Each
@@ -516,6 +549,32 @@ typedef int (*dbarts_sampler_callback)(void* userData, dbarts_sampler* sampler,
 // DBARTS_USE_STUBS to opt in, and then never restates a signature.
 #include <R_ext/Rdynload.h> // R_GetCCallable, DL_FUNC
 
+/// The ABI handshake, enforced. Every stub runs this once, on the resolution
+/// branch it already has, so it covers every path a stubs consumer can take
+/// into the library and costs nothing after the first call of each entry
+/// point. A consumer built against a header the installed dbarts does not
+/// carry has the wrong struct layouts, enumerator values and signatures
+/// inlined here, so it raises through the same R error path a failed
+/// R_GetCCallable resolution takes rather than reading fields the library
+/// never wrote. A consumer that wants to negotiate on the major/minor
+/// handshake instead of failing resolves those two entries by hand.
+static inline void dbarts_stub_checkApiHash(void) {
+  static int dbarts_stub_hashChecked = 0;
+  uint64_t (*apiHash)(void);
+  uint64_t installed;
+  if (dbarts_stub_hashChecked) return;
+  apiHash = (uint64_t (*)(void)) (void (*)(void))
+    R_GetCCallable("dbarts", "dbarts_apiHash");
+  installed = apiHash();
+  if (installed != (uint64_t) DBARTS_C_API_HASH)
+    Rf_error("dbarts C ABI mismatch: this package was built against token "
+             "0x%016llx, the installed dbarts reports 0x%016llx; rebuild this "
+             "package against the installed dbarts",
+             (unsigned long long) DBARTS_C_API_HASH,
+             (unsigned long long) installed);
+  dbarts_stub_hashChecked = 1;
+}
+
 // void-return detection: ISO C forbids `return <expr>;` in a void function, so
 // a void stub must forward without `return`. These helpers pick the right body
 // from the entry's return type; all are #undef'd right after the expansion so
@@ -540,9 +599,11 @@ typedef int (*dbarts_sampler_callback)(void* userData, dbarts_sampler* sampler,
 #define DBARTS_API_STUB(ret, name, params, args) \
   static inline ret name params { \
     static ret (*dbarts_stub_fn) params = NULL; \
-    if (dbarts_stub_fn == NULL) \
+    if (dbarts_stub_fn == NULL) { \
+      dbarts_stub_checkApiHash(); \
       dbarts_stub_fn = \
         (ret (*) params) (void (*)(void)) R_GetCCallable("dbarts", #name); \
+    } \
     DBARTS_IIF(DBARTS_IS_VOID(ret))(dbarts_stub_fn args;, \
                                     return dbarts_stub_fn args;) \
   }
@@ -569,10 +630,14 @@ int dbarts_apiMajorVersion(void);
 /// at least the caller's for a usable library).
 int dbarts_apiMinorVersion(void);
 /// Returns the installed package's DBARTS_C_API_HASH: the FNV-1a token over
-/// the entry-point signatures. Equality with the caller's DBARTS_C_API_HASH
-/// says the two were built from the same declared surface - the lockstep
-/// check, and the only runtime signal that moves while the version constants
-/// do not. It sees signatures, never struct layout (see DBARTS_C_API_HASH).
+/// the entry-point signatures, the callback's parameters, the ABI enums'
+/// enumerators, and the ABI structs' compiler-reported layout. Equality with
+/// the caller's DBARTS_C_API_HASH says the two were built from the same ABI -
+/// the lockstep check, and the only runtime signal that moves while the
+/// version constants do not. It moves on additive appends as well, so
+/// append-compatibility gates on major/minor and structSize instead (see
+/// DBARTS_C_API_HASH). A DBARTS_USE_STUBS consumer does not call it: the stubs
+/// check it on their first resolution.
 uint64_t dbarts_apiHash(void);
 
 /// Creates a sampler from the R specification objects (dbartsControl,

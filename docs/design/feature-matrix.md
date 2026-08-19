@@ -553,7 +553,9 @@ per forest), `node.scale.factor`, `node.scale.divisor` and `basis.row.norm` -
 the multi-forest calibration map's own decomposition of `prior.scale`, NaN on
 every forest whose scale that map does not own, with the matching fields
 appended to `dbarts_forest_calibration` below its 1.0-0 boundary (`sizeof`
-moves, the apiHash does not). They are TRUE after a state install rather than
+moves, and so, since the token folds every ABI struct's layout, does the
+apiHash - it did not when this landed). They are TRUE after a state install
+rather than
 a spec echo: a donor leaf scale differing bitwise from the one in force sends
 both `node.scale` columns to NaN until `$setForestBasis` re-imposes the map,
 while the amplitude prior follows the installed state. Carried by

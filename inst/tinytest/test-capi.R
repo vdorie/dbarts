@@ -72,10 +72,13 @@ expect_true(hashes$matches.header)
 # either change would still read one of them
 expect_false(identical(hashes$text, "0x1a911c00bb26dcd7"))
 expect_false(identical(hashes$text, "0xcd88efcd67de55d7"))
-# and it does NOT move for doc text outside DBARTS_C_API_LIST, which the token
-# cannot see: this is the literal baked for the three entry points appended
-# after the reshape - the dispersion getter and the two augmentation forms
-expect_identical(hashes$text, "0x85bd1ef04beb3848")
+# the layout-blind token, back when the fold covered the entry-point signatures
+# alone: a token that still could not see a struct's layout, an ABI enumerator
+# or the callback's parameters would read this one
+expect_false(identical(hashes$text, "0x85bd1ef04beb3848"))
+# and it does NOT move for doc text outside what it folds, which the token
+# cannot see
+expect_identical(hashes$text, "0x6c9776ae1197e8f5")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -1592,3 +1595,54 @@ rm(
   rAftFlat
 )
 invisible(gc(FALSE))
+
+# The handshake is ENFORCED, not merely offered. The same consumer, compiled
+# with its expected token forced wrong - the header's #ifndef guard is the only
+# way to override it, so no consumer reaches this by accident - must fail on
+# its first stub resolution rather than drive a library whose structs, enum
+# values and signatures are not the ones inlined into it. Same compile pattern
+# as the consumer above, so it skips wherever that one skips.
+staleDir <- tempfile("capi-stale")
+dir.create(staleDir)
+file.copy(consumerSource, file.path(staleDir, "stale.c"))
+writeLines(
+  sprintf(
+    'PKG_CPPFLAGS = -I"%s" -DDBARTS_C_API_HASH=0x0123456789abcdefULL',
+    includeDir
+  ),
+  file.path(staleDir, "Makevars")
+)
+owd <- setwd(staleDir)
+staleOutput <- tryCatch(
+  suppressWarnings(system2(
+    file.path(R.home("bin"), "R"),
+    c("CMD", "SHLIB", "stale.c"),
+    stdout = TRUE,
+    stderr = TRUE
+  )),
+  error = function(e) e
+)
+setwd(owd)
+
+staleLib <- file.path(staleDir, paste0("stale", .Platform$dynlib.ext))
+if (!file.exists(staleLib)) {
+  if (nzchar(Sys.getenv("CI", ""))) {
+    stop(
+      "could not compile the stale-token C API consumer under CI:\n",
+      paste(staleOutput, collapse = "\n")
+    )
+  }
+} else {
+  staleDll <- dyn.load(staleLib)
+  expect_error(
+    .Call(
+      getNativeSymbolInfo("capi_create", staleDll),
+      spec$control,
+      spec$model,
+      spec$data,
+      ""
+    ),
+    "dbarts C ABI mismatch"
+  )
+  dyn.unload(staleLib)
+}
