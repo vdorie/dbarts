@@ -25,7 +25,7 @@ permissions: read-all
 jobs:
   R-CMD-check:
     runs-on: ${{ matrix.config.os }}
-    timeout-minutes: 80
+    timeout-minutes: 30
 
     name: ${{ matrix.config.os }} (${{ matrix.config.r }})
 
@@ -49,15 +49,30 @@ jobs:
 
       - uses: actions/checkout@v7
 
+      # apt-get has been observed to stall indefinitely against the Ubuntu
+      # archive mirror on hosted runners (both inside setup-r below and
+      # inside the system requirements install); bounded retries turn a
+      # stall into a fast failure instead of one that burns the whole job
+      # timeout. Linux-only: the matrix also runs on macOS and Windows,
+      # which have no apt.
+      - name: Bound apt network stalls
+        if: runner.os == 'Linux'
+        run: |
+          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/99-ci-retry
+          echo 'Acquire::http::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
+          echo 'Acquire::https::Timeout "15";' | sudo tee -a /etc/apt/apt.conf.d/99-ci-retry
+
       - uses: r-lib/actions/setup-pandoc@v2
 
       - uses: r-lib/actions/setup-r@v2
+        timeout-minutes: 15
         with:
           r-version: ${{ matrix.config.r }}
           http-user-agent: ${{ matrix.config.http-user-agent }}
           use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2
+        timeout-minutes: 20
         with:
           needs: check
 
