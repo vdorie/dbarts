@@ -90,7 +90,7 @@ counts, entering kappa directly), so fitScale = 1, fitShift = 0, sigmaScale = 1,
 initialSigma = 1, and sigma stays fixed at 1 (drawSigma returns sigma), exactly
 LogisticResponse (model.hpp:2595-2598). Leaf-prior calibration therefore rides
 node.scale, not a response range. psi is a log-odds, so v1 reuses **logistic's
-node.scale = pi*sqrt(3)** (R/dbarts.R:461; the logistic-latent sd pi/sqrt(3)
+node.scale = pi*sqrt(3)** (R/model.R:408; the logistic-latent sd pi/sqrt(3)
 times probit's 3.0), giving a total-fit prior sd node.scale/k = pi*sqrt(3)/2 ~
 2.72 that admits a plausible several-unit swing in the log-odds. Honest caveat
 (the ordinal scheme-C / robust-errors k analog): the induced prior on the MEAN
@@ -416,11 +416,11 @@ token dbarts otherwise leans on. The ecosystem alternatives are `"negbinomial"`
 (brms, VGAM) and `"negative.binomial"` (MASS); `"negbin"` (the task's working
 name) is an abbreviation no major package uses. Recommend `"nbinom"` for the
 R-core `dnbinom` alignment; `"negbinomial"` is the runner-up if brms-alignment is
-valued over R-core. Added to the dbarts and bart2 family vectors (R/dbarts.R:195,
-R/bart.R:378) and to the A_class whitelist (R/A_class.R:405-413).
+valued over R-core. Added to the dbarts and bart2 family vectors (R/dbarts.R:383,
+R/bart.R:378) and to the A_class whitelist (R/A_class.R:450-471).
 
 **Response validation.** y must be non-negative integers. The check belongs in
-the numeric-response branch of the family resolution (R/dbarts.R:319-330, where
+the numeric-response branch of the family resolution (R/spec.R:155-166, where
 the binary families run their 0/1 test): a "nbinom" arm beside the binary check,
 refusing a non-integer or negative response by name with a message like
 `family "nbinom" requires a non-negative integer (count) response`. This is a
@@ -443,7 +443,7 @@ non-positive estimates" carries over) threaded through the options struct as
 residualDf and numCategories are (R_interface_bartcore.cpp:1228, 1231).
 
 **Offset.** o_i = log(exposure_i), entering the mean multiplicatively (section 1);
-a fixed-unit-scale family keeps its zero offset meaningful (R/dbarts.R:398-410),
+a fixed-unit-scale family keeps its zero offset meaningful (R/spec.R:193-205),
 as probit/logistic/ordinal do. No response de-scaling of the offset (fitShift = 0).
 
 **Weights: refused in v1.** A frequency/case weight replicating an observation
@@ -453,7 +453,7 @@ multiplies the count histogram into the grid kernel and the exposure question
 into the likelihood, and the usual "weight" a count modeler reaches for is
 EXPOSURE, which belongs in the offset (log-exposure), not in replication. v1
 refuses weights by name at ingestion, beside the probit/logistic/ordinal weight
-policy (R/dbarts.R:350-386), keeping the surface honest rather than guessing
+policy (R/spec.R:45-88), keeping the surface honest rather than guessing
 which weighting the user meant. Door: integer frequency weights are EXACT under
 fork (A) and cheap to add later (weight the grid statistics and the PG shape);
 continuous weights inherit the real-shape question and wait on the section 7

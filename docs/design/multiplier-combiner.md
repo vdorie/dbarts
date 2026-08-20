@@ -12,7 +12,7 @@ K = 2 instance. Posterior-defining: `BCFForestCombiner<L>`
 (chain.hpp:694-780), `expandForestSpecs` (combiner.hpp:341), the R resolution
 (R/model.R `resolveForests`, R/spec.R), and the gates
 (benchmarks/R/bcf-equivalence.R, bcf-exact{,-restricted,-weak}.R). Scope:
-GAUSSIAN, PROBIT and LOGISTIC responses (R/spec.R:419-441 admits those three
+GAUSSIAN, PROBIT and LOGISTIC responses (R/spec.R:504-526 admits those three
 and refuses each other family by name, chain.hpp:710-725 builds the matching
 response model, facade.hpp:792-795 the engine-side door), and CONSTANT leaves
 only (combiner.hpp:701-702). Under a latent family the combination is the
@@ -377,7 +377,7 @@ a hand-written K = 2 READING only, non-authoritative, read exactly when
 than by a combiner (combiner.hpp:103-109, :1031-1042).
 
 The bases ride CREATION, on `data@bases` (a LIST, R/A_class.R:514-524,
-validated by `validateForestBases`, R/data.R:635-655), the way the design
+validated by `validateForestBases`, R/data.R:670-702), the way the design
 matrix does. That is how RESTORE-THEN-WIDEN is met with no fourth reapply hook:
 a widening applied after a restore preserves and remaps the RESTORED amplitudes
 rather than the constructed ones (combiner.hpp:1009-1012; plan :1958-1978, landed
@@ -533,10 +533,10 @@ the map and restores them.
 
 R creation: `forests = list(forest(basis = ...))` plus the per-forest knob map
 (`resolveForests`, R/model.R), and `dbartsData(bases = )` for a numeric basis
-(R/spec.R:405-412, the `validateForestBases` install; the family gate it feeds
-is :419-441). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1223) and
-`$getForestAmplitudes(forest)` (R/dbarts.R:1450), both 1-based via
-`resolveForestIndex` (R/bartcore.R:1099). Flat C:
+(R/spec.R:460-467, the `validateForestBases` install; the family gate it feeds
+is :504-526). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1332) and
+`$getForestAmplitudes(forest)` (R/dbarts.R:1571), both 1-based via
+`resolveForestIndex` (R/bartcore.R:1128). Flat C:
 `dbarts_sampler_setForestBasis`, `dbarts_sampler_numForestAmplitudes` and
 `dbarts_sampler_forestAmplitudes`, ragged and ROW-major
 (inst/include/dbarts/dbarts.h:715-759).
@@ -566,7 +566,7 @@ loop) gets slot 0, the reported forest, byte for byte as before.
   (combiner.hpp:967-972), so `setTestPredictors`, `setTestOffset` and
   `predict` refuse - through `refuseBCFTestSurface`, gated on
   `testFitsAreDefined` rather than on the forest count
-  (src/R_interface_bartcore_common.hpp:185-189) - and no log-likelihood is
+  (src/R_interface_bartcore_common.hpp:195-199) - and no log-likelihood is
   reported. Unchanged by M4.4.
 - A per-draw amplitude channel in flat C. `dbarts_results` carries none
   (dbarts.h:139-152); DECLINED at plan :1521-1531, a `DBARTS_C_API_MINOR` bump

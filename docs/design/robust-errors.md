@@ -102,13 +102,13 @@ the grid is its natural home.
 ## 5. R surface: candidates (recommendation per option; no global pick)
 
 (a) A family value, family = "t". Precedent: family already resolves
-gaussian/probit/logistic/aft (dbarts.R:194, bart.R:378). Cost: a scalar
+gaussian/probit/logistic/aft (dbarts.R:378-381, bart.R:378). Cost: a scalar
 match.arg cannot carry nu, so it needs a companion resid.df arg, splitting one
 concept in two. Recommend only paired with (b)/(c) for the df.
 
 (b) A residual-distribution constructor, resid.dist = student(df = 4), default
 gaussian(). Precedent: the priors-as-objects vocabulary (tree.prior = cgm,
-node.prior = normal, resid.prior = chisq; dbarts.R:186-188) resolved by
+node.prior = normal, resid.prior = chisq; dbarts.R:362-364) resolved by
 parsePriors (model.R:89) from dbartsPriors (model.R:493). student() composes df
 now and a sampled-nu spec later with no new top-level argument. Do NOT overload
 resid.prior -- that is the sigma^2 PRIOR (chisq/fixed, model.R:443-449),

@@ -255,7 +255,7 @@ across the two fits, and predict on new data.
 ## 6. The R surface
 
 - **How the user asks.** family = "hurdle" (v1: probit occupancy + lognormal positive
-  part), added to the dbarts and bart2 family vectors (R/dbarts.R:349-360, R/bart.R
+  part), added to the dbarts and bart2 family vectors (R/dbarts.R:387-388, R/bart.R
   around :413). Following the dbarts token convention (families are tokens, not
   arguments - aft, ordinal, nbinom, hazard all extended the vector, survival.md),
   future variants are further tokens: "hurdle.logistic" (logistic occupancy),

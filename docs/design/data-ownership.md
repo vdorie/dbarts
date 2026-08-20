@@ -210,7 +210,7 @@ first multi-model consumer (forest-split-bcf).
 The PROT_* protection-slot machinery is deleted wholesale: a
 construction-only borrow needs no lifetime pin, and the R data object is
 the GC anchor instead. The const_cast writers and the rollback write-back
-(sampler.hpp:684, 869) are deleted along with the write-through they
+(sampler.hpp) are deleted along with the write-through they
 served.
 
 dbarts.h's freeze was LIFTED for this program specifically (VD): stan4bart

@@ -195,23 +195,23 @@ source at all - `refuseRequantizeWithoutSource`).
 
 Mutation is transactional and lives in the sampler, not the store: the
 store exposes primitive re-quantize/rollback methods, and
-`runPredictorTransaction` (`sampler.hpp:1111`) sequences them. Two
+`runPredictorTransaction` (`sampler.hpp:1512`) sequences them. Two
 strategies parameterize it:
 
-- `WholeMatrixUpdate` (`sampler.hpp:1038`), driving `setPredictor`: moves
+- `WholeMatrixUpdate` (`sampler.hpp:1392`), driving `setPredictor`: moves
   the whole live `train.codes` aside into `oldCodes`, rebuilds into fresh
   storage, snapshots `hasMissing` and (if cuts refresh) `cutPoints`. A
   reject swaps the codes back by move; an accept drops them. No
   whole-matrix copy survives.
-- `SubsetUpdate` (`sampler.hpp:1064`), driving `updatePredictor`:
+- `SubsetUpdate` (`sampler.hpp:1448`), driving `updatePredictor`:
   journals each touched column cell-by-cell via `setColumnJournaled`,
   recording each changed cell's old code into a `ColumnCodeRollback`
-  (`data.hpp:1120`). Past a quarter of the column changed, the journal
+  (`data.hpp:1705`). Past a quarter of the column changed, the journal
   falls back to a whole pre-change column copy and stops journaling. Per
   column it also snapshots `hasMissing[j]` and (if cuts refresh)
   `cutPoints[j]`.
 
-The transaction sequence (`sampler.hpp:1111`):
+The transaction sequence (`sampler.hpp:1512`):
 
 1. Precheck every column with `cutsWouldRemainValid` - quantile
    feasibility for ordinals when cuts refresh, categorical code validity

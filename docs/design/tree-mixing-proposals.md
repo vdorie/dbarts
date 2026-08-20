@@ -108,7 +108,7 @@ else                                 -> changeMove         (moves.hpp:420)
 ```
 
 Shipped mixture `birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5`
-(`R/model.R:5-10`, `R/dbarts.R:342`, engine defaults `chain.hpp:52-55`).
+(`R/model.R:5-10`, `R/dbarts.R:366`, engine defaults `chain.hpp:52-55`).
 `StepType` is `{birth, death, swap, change}` (`moves.hpp:771`): the
 "four-move set" is three kernels with four labels. The sweep is
 Gauss-Seidel over trees; the variance forest runs the identical kernel
@@ -658,7 +658,7 @@ because every arm already exists.**
 | BART alone | `bart()` | shipped |
 | outer composition, HMC parametric block | `stan4bart` (WALNUTS + dbarts exchanging offsets) | exists and runs; 0.0.14 installed here |
 | outer composition, conjugate block | `rbart_vi` / in-engine `GroupedResponse` | shipped |
-| outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` (`R/dbarts.R:1008`), and `dbarts_sampler_setOffset` in the shipped C API (`dbarts.h:366`) | shipped, supported |
+| outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` (`R/dbarts.R:1230`), and `dbarts_sampler_setOffset` in the shipped C API (`dbarts.h:366`) | shipped, supported |
 | inner composition | `node.prior = linear(columns)` / `gp(columns)` (`R/model.R:886`, `:897`) | shipped |
 
 The probes exist too: `benchmarks/R/grouped-mixing.R` (the autocorrelation
@@ -1618,7 +1618,7 @@ be verified directly rather than toward citations.
 |---|---|
 | `docs/design/forest-ranef-interweaving.md` sec 0, 2, 5, 6, 9 | Read in full at `d3cb94b`. The 56.1 / 9.3 / 114.6 prototype table, the with-f/no-f attribution, the "no cheap ASIS/PX" structural argument, and section 9's authoritative corrections are all quoted from it directly. This is the load-bearing evidence for the hazard. |
 | `model.hpp:1023-1040` (linear leaf integrated likelihood) | Read. Confirms the inner variant marginalizes leaf coefficients out of the structural score. |
-| `R/dbarts.R:1008`, `dbarts.h:366`, `R/model.R:886,897`, `R/rbart.R:639` | Read. Confirms the composition surface is public on both the R and C sides, and that rbart_vi's loop is 1:1 alternation. |
+| `R/dbarts.R:1230`, `dbarts.h:366`, `R/model.R:886,897`, `R/rbart.R:639` | Read. Confirms the composition surface is public on both the R and C sides, and that rbart_vi's loop is 1:1 alternation. |
 | `inst/common/friedmanData.R` | Read. Confirms the probe DGP decomposes into one interaction plus three separable terms. |
 | stan4bart `src/init.cpp:642,654`, `docs/design/walnuts.md` | Read in the live tree (0.0.14 installed). Confirms the 1:1 two-block Gibbs alternation and that no mixing diagnostic is reported. |
 | Hahn, Carvalho, Puelz, He, Bayesian Analysis 13(1):163-182, 2018 | Full text (arXiv 1602.02176v3): the RIC definition, the competing-criteria mechanism, the closed-form bias (2.3), the reparameterization (2.5)-(2.6), and the appendix's extra alpha step added "to improve mixing". |
@@ -1940,7 +1940,7 @@ instrumentation, falsifiable in both directions.
   or relabels trees (verified by search). The *posterior* is
   label-exchangeable; the *chain* never exercises the symmetry.
 - **`getTrees` is necessary but not sufficient.** It returns "a data.frame
-  containing the internal state of the trees" (`R/dbarts.R:1329`) - flat
+  containing the internal state of the trees" (`R/dbarts.R:1792`) - flat
   node structure with leaf values, decoded categorical directions and
   missing routes - not per-tree fitted vectors. The census must walk trees
   in R itself (the package walks trees in R only in

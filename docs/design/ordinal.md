@@ -55,7 +55,7 @@ invariant to (i) a common location shift of all gamma and eta and (ii) a common
 positive rescaling of all gamma, eta, and the latent sd sigma. A cumulative
 probit needs one anchor for each. The BART mean f is a flexible location that
 floats, softly shrunk toward the offset by the leaf prior (total-fit prior sd
-nodeScale/k; probit sets nodeScale = 3.0, R/dbarts.R:421-427), so f carries the
+nodeScale/k; probit sets nodeScale = 3.0, R/model.R:405), so f carries the
 location that an explicit intercept would in a linear model.
 
 **Scheme A (recommend): sigma = 1 fixed, gamma_1 = 0 fixed; free interior
@@ -285,8 +285,8 @@ drew no objection.
 
 **Family surface (recommend family = "ordinal" as the primitive, with
 auto-dispatch on ordered factors, announced).** family = "ordinal" is added to the
-bart2 and dbarts family vectors (R/bart.R:378, R/dbarts.R:195) and routed through
-resolveClassificationFamily (R/data.R:404). The response must be an ordered
+bart2 and dbarts family vectors (R/bart.R:378, R/dbarts.R:382) and routed through
+resolveClassificationFamily (R/data.R:472). The response must be an ordered
 factor (is.ordered); the level ORDER defines the category order. An unordered
 factor or character under family = "ordinal" is accepted with an informational
 message that order is taken from the level order (factor default: alphabetical -
@@ -298,12 +298,12 @@ today takes two different paths. bart2(family = "auto") routes it through
 detectAutoMultinomial, whose type match includes "ordered factor" at
 n.levels >= 3 (R/bart.R:850-855), and SILENTLY fits an unordered multinomial,
 discarding the ordering. The single-forest entries (dbarts, xbart, rbart_vi)
-error in resolveClassificationFamily's K >= 3 refusal (R/data.R:416-449). So
+error in resolveClassificationFamily's K >= 3 refusal (R/data.R:503-557). So
 EVERY option below - explicit-only included - must split ordered factors out of
 detectAutoMultinomial, and bart2's behavior on ordered responses changes
 whichever option wins; there is no zero-behavior-change choice. The detection
 hook already exists: classifyResponse tags "ordered factor" as its own response
-type (R/data.R:359).
+type (R/data.R:416).
 
 The fork on auto-dispatch - a genuine decision point for VD, with the internal
 and external precedents on OPPOSITE sides:
@@ -314,7 +314,7 @@ and external precedents on OPPOSITE sides:
   multinomial; explicit family = "ordinal" is the primitive and forces the model
   on any response. The INTERNAL precedent is squarely here: dbarts's own binary
   handling auto-dispatches probit from the unambiguous 2-level signal via
-  announceAutoFamily (R/data.R:451-453), and bart2's auto already routes
+  announceAutoFamily (R/utility.R:23-33), and bart2's auto already routes
   unordered K >= 3 factors to multinomial - under explicit-only, ordered factors
   would become the ONE factor response family = "auto" refuses, incoherent with
   the package's own auto concept. is.ordered(y) is an unambiguous type signal,
@@ -360,7 +360,7 @@ cutpoints, a two-argument transform that does not fit that seam, so ordinal gets
 its own transform beside it rather than a generalization of it.
 
 **Levels round-trip.** Single-forest probit currently DISCARDS the factor levels
-(codeResponse, R/data.R:375-383). Ordinal must persist the ordered levels on the
+(codeResponse, R/data.R:436-451). Ordinal must persist the ordered levels on the
 fit object to label the K probability columns and map argmax back - as
 bartMultinomial persists $levels (R/bart.R:1090-1091). Give ordinal its own S3
 class bartOrdinal (mirroring bartMultinomial, R/bart.R:1110) carrying $levels and

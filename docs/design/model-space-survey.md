@@ -68,7 +68,7 @@ The baseline every door is a delta over. Verified by reading at 39451b1.
 
 **Single-forest samplers.** `setData` already replaces predictors, response,
 weights, offset and test data **with n free to change**
-(src/bartcore/sampler.hpp:891-920, "with a possibly different number of
+(src/bartcore/sampler.hpp:1028-1038, "with a possibly different number of
 observations"; the predictor count is fixed). It rebuilds the cut grid, remaps
 existing splits onto value-nearest new cuts via `Tree::mapOldCutPointsOntoNew`,
 and collapses whatever is left invalid (src/bartcore/chain.hpp:1553-1611). Dense
@@ -442,8 +442,8 @@ creation entry, `dbarts_sampler_create` (src/C_interface.cpp:107), routes
 through `bartcore_bridge::createHolder`, which now dispatches to BCF
 creation itself when the data carries a treatment vector
 (src/R_interface_bartcore.cpp:2580-2655) - `createBCFHolder` is no longer
-the only path in, and `dbarts:::bartcoreBCFSampler` (R/bartcore.R:629,
-corrected from this section's stale :536) is no longer the only R entry.
+the only path in, and `dbarts:::bartcoreBCFSampler` (R/bartcore.R:644,
+corrected from this section's stale :629) is no longer the only R entry.
 `bcf()` stays a comment (R/model.R:1102, 1120), expected to ship in
 bartCause instead (docs/plans/multiforest-extension-surface.md fork 4). The
 R5 surface (S2, 339aeb0), the flat C surface (S3, 1622eb9) and per-draw
@@ -469,7 +469,7 @@ mutation and persistence contracts and its bitwise contracts are
 docs/design/multiplier-combiner.md; the arc is
 docs/plans/multiforest-extension-surface.md M4. **Gaussian, probit and logistic
 responses** (M4.4) - the creation surface admits those three and refuses `aft`,
-`ordinal` and `nbinom` by name (R/spec.R:419-441), and the K-forest chain builds
+`ordinal` and `nbinom` by name (R/spec.R:504-526), and the K-forest chain builds
 the matching response model (chain.hpp:710-725) - so every class below is
 expressible for a continuous outcome and for a binary one, where the forests
 combine into the INDEX rather than the mean and sigma is pinned.
