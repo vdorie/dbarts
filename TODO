@@ -228,12 +228,14 @@ items
     shipped - the missing piece is the documented contract; the
     declarative per-forest BASIS is the model-carrying surface, with the
     non-Gaussian case as its engine justification, and forests = is now the
-    only public creation route to it. M0 (the on-ramp docs/vignette slice)
-    stays DEFERRED, orchestrator discretion - and is the ONLY piece
-    still open: M3 and the general basis family M4 (M4.0 through
-    M4.5) have ALL LANDED (the plan's landing notes are the record;
-    FA1/FA2 ran as design-informing probes per fork 1, VD
-    2026-08-11). ALL FOUR VD FORKS RESOLVED
+    only public creation route to it. M0 LANDED cf4a290c (docs/design/
+    bart-as-a-component.md + the Gibbs vignette's K-forest section;
+    every measured claim re-derived, three older figures corrected in
+    place - see release-candidate-review.md's soak wave 2 landing
+    note), so the ARC IS COMPLETE: M3 and the general basis family M4
+    (M4.0 through M4.5) had all landed earlier (the plan's landing
+    notes are the record; FA1/FA2 ran as design-informing probes per
+    fork 1, VD 2026-08-11). ALL FOUR VD FORKS RESOLVED
     2026-08-11, per the R/C-division review (docs/design/
     r-c-division.md): build the general basis family, pre-release
     (fork 1); probit and logistic in the family's v1, other families
@@ -396,15 +398,16 @@ items
         clean -
         .claude/rc-egate-2026-08-19/valgrind/valgrind-final-7be7a126.log).
     RC declaration VD-HELD.
-    DURING THE SOAK, not gating declaration: count-blind warning
-    assertion sweep (17 sites), error-style residue, M0 doc; the
-    oracle lane's remainder is a hazard + hurdle posterior-oracle
-    disposition, fork WITH VD (P1b/P9 landed; SBC owed nowhere -
-    scoping record in the soak wave 1 landing note). DONE: bairrtt
-    bartcore-compat check (COMPATIBLE, 206/206 against 3e9ef3aa -
-    the coordinated-merge gate is clear), NEON dead-kernel removal
-    (4a6acdbc), tests/cpp fuzz-config reach (15e1174a). RC
-    DECLARATION ITSELF IS VD-HELD.
+    DURING THE SOAK, not gating declaration: error-style residue
+    (now also carrying two stale comments the M0 verification found -
+    see ledger item 7); the oracle lane's remainder is a hazard +
+    hurdle posterior-oracle disposition, fork WITH VD (P1b/P9 landed;
+    SBC owed nowhere - scoping record in the soak wave 1 landing
+    note). DONE: bairrtt bartcore-compat check (COMPATIBLE, 206/206
+    against 3e9ef3aa - the coordinated-merge gate is clear), NEON
+    dead-kernel removal (4a6acdbc), tests/cpp fuzz-config reach
+    (15e1174a), count-blind warning sweep (c4971bbb), M0 doc
+    (cf4a290c). RC DECLARATION ITSELF IS VD-HELD.
   release-candidate-review: SPECCED 2026-08-17 - the derived slate is
     docs/plans/release-candidate-review.md (fresh censuses + a blind
     critique whose eleven amendments are applied; six VD forks are
@@ -518,12 +521,18 @@ items
     (own scoped decision). (7) error-style residue: R/spec.R:53 (R6),
     R/dbarts.R:1138 (R14), stale appendix counts in
     docs/design/error-style.md, R11 template layer unswept (7
-    competing length templates). (8) DISCHARGED 4a6acdbc - the seven
+    competing length templates); plus two stale comments the M0
+    verification found - R/bartcore.R:167 still claims the
+    per-observation session refuses on multi-forest (retired), and
+    src/R_interface_bartcore_common.hpp:105-108 lists setResponse/
+    setWeights under refuseMultiForestMutation where they moved to
+    refuseMultiForestResponseMutation. (8) DISCHARGED 4a6acdbc - the seven
     unreachable NEON kernels removed; see release-candidate-review.md
     landing notes. (9) DISCHARGED 15e1174a - fourth fuzz shape makes
     the whole-variance-forest assertion fire (4x, counter-gated); see
-    the landing note. (10) count-blind
-    warning assertions, 17 sites (w5test m3). (14) monotone leaf:
+    the landing note. (10) DISCHARGED c4971bbb - all 17 sites
+    count-exact via inst/common/captureWarnings.R; see the soak wave
+    2 landing note. (14) monotone leaf:
     double branch-fill on the scoring path (bench arm per veto
     critique N6), perf only, post-RC.
     (15) stale design-doc anchors: data-store.md:198/201/206/214,

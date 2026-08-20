@@ -540,6 +540,83 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Soak wave 2: count-exact warning assertions + the M0 component contract (c4971bbb + cf4a290c, 2026-08-19)
+
+Two slices land under the batch clause (each implemented and
+independently gate-run on 3e9ef3aa; one merged-tree battery on
+cf4a290c - tinytest 6462/0, trio bitwise 42/12/11, R CMD check
+Status OK with the new vignette chunk building, air clean - gated
+the push).
+
+c4971bbb (ledger item 10): all 17 expect_warning sites converted to
+count-exact assertions. tinytest's expect_warning(expr, pattern) was
+verified to pass with an extra unrelated warning (either order), a
+doubled match, or an interleaved message; no site asserted a count.
+inst/common/captureWarnings.R (withCallingHandlers, muffle+record,
+returns every warning condition in emission order) now backs each
+site: expect_equal on the exact count plus expect_match on
+conditionMessage (and class where checked), all unqualified.
+Discrimination proven three ways: synthetic probes (old form TRUE /
+new form counts 2 under injected extras), the implementer's two
+real-site injections (test-bcf-creation, test-multipleAssignment:
+"Expected '1', got '2'" where the old assertion still passed), and
+the gate-runner's own re-plant at a THIRD site (test-rbart-weights
+via R/data.R's train-only-weights warning). +24 assertions
+(6438 -> 6462).
+
+cf4a290c (M0, closing the multiforest-extension-surface arc): the
+on-ramp contract ships. docs/design/bart-as-a-component.md is the
+internal layer (driver-loop bitwise identity, the multi-forest
+mutation-predicate matrix entry by entry, what state a mutation does
+not carry vs who reinstalls it, the two sweep-boundary hooks, flat
+graduation debt, a Measured section);
+vignettes/gibbs_sampler_mixture_model.Rmd gains the K-forest
+multiplier-composition section (runnable backfitting recipe with the
+exact-zero snap, cost with its denominator, five honest losses, the
+graduation remedies). EVERY measured claim re-derived on this tip -
+and three of the older notes' figures did NOT survive: the R
+composition tax is 1.9-2.1x at K = 2 rising roughly linearly to
+4.6-5.2x at K = 8 against one matched-tree batched sampler (not
+5.1-5.4x flat in K); the unremedied two-route CATE divergence is
+11.9 percent pointwise (not ~9), falling to 3.4 percent pointwise /
+rms-inside-Monte-Carlo-error with the remedies; the excluding-weight
+rebuild divergence is 0.057 against a fit range of 0.035. The doc
+ships the measured values with methodology. Anchor drift recorded as
+it now stands: the transactional multi-forest guard is retired (the
+predictor surface is open at every entry BY DESIGN),
+Chain::supportsResponseMutation carries no family conjunct, and z
+rides data@bases - there is no treatment slot. Bitwise driver-loop
+identity was verified twice (implementer, then the gate-runner's own
+independent probe, all identical() TRUE with the n.thin-mismatch
+negative half discriminating). Residue for the error-style slice:
+two stale comments found in existing files (R/bartcore.R:167;
+src/R_interface_bartcore_common.hpp:105-108 predicate listing).
+
+CI FIRE AND CURE: cf4a290c went red on the three ubuntu R-CMD-check
+jobs and both sanitizer jobs - one site, test-boundary-inputs.R's
+constant-response pin, "Expected '1', got '2'" - while macOS and
+both Windows jobs passed. Diagnosis (container-reproduced on amd64
+R 4.6.1 + OpenBLAS, the CI configuration; native arm64 Debian
+r-base does NOT reproduce): the starting-sigma lm on a constant
+response leaves residual variance within a factor of two of
+summary.lm's 1e-30 essentially-perfect-fit threshold, and which
+side the least-squares solve lands on is a BLAS/architecture
+property - OpenBLAS falls below (second, leaked base-R warning),
+Accelerate and reference BLAS stay above. The count-exact pin did
+its job: the old pattern-only assertion was blind to this leak on
+every platform. CURE 07b02f06: the site partitions by pattern -
+exactly one degenerate-response warning, at most one perfect-fit
+warning, total must equal the two matched counts - verified on
+macOS (6463/0) and in the amd64 container pre/post. cf4a290c's two
+red workflows stay red in history by design; 07b02f06 carries the
+green. OPEN QUESTION for VD (not taken here): whether
+estimateSigmaFromLinearModel should muffle base R's leaked
+"essentially perfect fit" condition at the source - it is an
+internal implementation detail whose text means nothing to a
+dbarts user, and the degenerate-response signal is already carried
+by dbarts's own warning; muffling would restore an exact count on
+every platform.
+
 ### Soak wave 1: NEON dead kernels + fuzz reach; bairrtt compatible; oracle-lane scoping (4a6acdbc + 15e1174a, 2026-08-19)
 
 Two ledger slices land under the batch clause (each implemented and
