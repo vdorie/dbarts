@@ -31,6 +31,16 @@
       \item `copy` now works for samplers with a stored state.
       \item Fixed reading a saved tree back from binary IO, which recursed with
             the writing routine instead of the reading one.
+      \item Fixed installation under R-devel, where \code{RNGkind} gained an
+            additional \code{binom.kind} argument and the code that parsed
+            its body via \code{deparse} produced invalid R once the
+            deparsed header spanned two lines. Fix thanks to Brian King
+            (PR #81).
+      \item Replaced a \code{std::bit_cast} cast used when registering the
+            \code{.Call} interface with a plain \code{DL_FUNC} cast; Apple
+            clang 14.0.3 on Intel macOS accepts \code{-std=gnu++20} but its
+            libc++ lacks \code{std::bit_cast}, so compilation failed. Fix
+            thanks to Brian King (PR #81).
     }
   }
 }
