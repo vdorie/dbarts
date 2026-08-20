@@ -398,16 +398,21 @@ items
         clean -
         .claude/rc-egate-2026-08-19/valgrind/valgrind-final-7be7a126.log).
     RC declaration VD-HELD.
-    DURING THE SOAK, not gating declaration: error-style residue
-    (now also carrying two stale comments the M0 verification found -
-    see ledger item 7); the oracle lane's remainder is a hazard +
-    hurdle posterior-oracle disposition, fork WITH VD (P1b/P9 landed;
-    SBC owed nowhere - scoping record in the soak wave 1 landing
-    note). DONE: bairrtt bartcore-compat check (COMPATIBLE, 206/206
-    against 3e9ef3aa - the coordinated-merge gate is clear), NEON
-    dead-kernel removal (4a6acdbc), tests/cpp fuzz-config reach
-    (15e1174a), count-blind warning sweep (c4971bbb), M0 doc
-    (cf4a290c). RC DECLARATION ITSELF IS VD-HELD.
+    DURING THE SOAK: every coded item is DONE - bairrtt
+    bartcore-compat check (COMPATIBLE, 206/206 against 3e9ef3aa -
+    the coordinated-merge gate is clear), NEON dead-kernel removal
+    (4a6acdbc), tests/cpp fuzz-config reach (15e1174a), count-blind
+    warning sweep (c4971bbb; its Linux-only warning-count fire cured
+    at 07b02f06 - see the soak wave 2 landing note's fire-and-cure
+    record), M0 doc (cf4a290c), error-style residue (49b8cac3),
+    cross-arch dead kernels (ded1f54e). TWO FORKS WITH VD: (i) the
+    oracle lane's remainder - hazard + hurdle posterior-oracle
+    disposition (P1b/P9 landed; SBC owed nowhere - scoping record in
+    the soak wave 1 landing note); (ii) whether
+    estimateSigmaFromLinearModel should muffle base R's leaked
+    "essentially perfect fit" warning at the source (soak wave 2
+    landing note, fire-and-cure record). Plus ledger item 15's
+    anchor sweep, next. RC DECLARATION ITSELF IS VD-HELD.
   release-candidate-review: SPECCED 2026-08-17 - the derived slate is
     docs/plans/release-candidate-review.md (fresh censuses + a blind
     critique whose eleven amendments are applied; six VD forks are
@@ -518,15 +523,11 @@ items
     (5) veto-arc doors from the w5dB critique cycle: per-sweep
     vetoed-leaf diagnostics counter (R-readable); sampleTreesFromPrior
     all-zero bare-root branch alignment with the mutate-path semantics
-    (own scoped decision). (7) error-style residue: R/spec.R:53 (R6),
-    R/dbarts.R:1138 (R14), stale appendix counts in
-    docs/design/error-style.md, R11 template layer unswept (7
-    competing length templates); plus two stale comments the M0
-    verification found - R/bartcore.R:167 still claims the
-    per-observation session refuses on multi-forest (retired), and
-    src/R_interface_bartcore_common.hpp:105-108 lists setResponse/
-    setWeights under refuseMultiForestMutation where they moved to
-    refuseMultiForestResponseMutation. (8) DISCHARGED 4a6acdbc - the seven
+    (own scoped decision). (7) DISCHARGED 49b8cac3 - R6/R14 fixed,
+    the R11 length-template layer unified (13 sites, 9 pins), the
+    appendix counts re-derived, and the two stale comments from the
+    M0 verification corrected; see the soak wave 3 landing note.
+    (8) DISCHARGED 4a6acdbc - the seven
     unreachable NEON kernels removed; see release-candidate-review.md
     landing notes. (9) DISCHARGED 15e1174a - fourth fuzz shape makes
     the whole-variance-forest assertion fire (4x, counter-gated); see
@@ -540,11 +541,9 @@ items
     within-chain-threading.md:204's :675-702 half,
     data-ownership.md:213 - verified stale at 95f6fd7f's own target
     content; the resync missed them; sweep at the next anchor pass.
-    (16) cross-arch dead kernel families, out of item 8's caller map:
-    the *AlignedVectorsInPlace and transposeMatrix families are
-    callerless on every arch (generic + sse2 + avx + _c, plus
-    misc_simd_alignment, whose only consumers were the aligned
-    variants) - a follow-on dead-code slice when taken.
+    (16) DISCHARGED ded1f54e - the callerless kernel families removed
+    on every arch (misc_subtractVectors kept, live caller); see the
+    soak wave 3 landing note.
 
   weighted-binary: integer-weight probit via replicated latents;
     arbitrary real weights need a real-shape PG sampler (IPW is a
