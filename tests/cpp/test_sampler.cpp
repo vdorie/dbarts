@@ -2729,18 +2729,25 @@ static void testBCFInterweaveKeepTrees(ext_rng* rng) {
 // This is therefore its only gate: build the two-forest sampler, grow every
 // forest from the root, and pin the combined output - both forests finite and
 // off zero, glue finite, and a recorded characteristic value of the combined
-// internal fit a*mu + b_z*tau. A local rng plus a snapshot/restore of the
-// shared runif01 stream keep this test neutral to every downstream test's draws.
+// internal fit a*mu + b_z*tau.
 static void testBCFGrowForestFromRoot() {
-  uint64_t savedRngState = rngState;
+  // A local stream and locally owned generator, so this test neither reads nor
+  // shifts the shared runif01() state: its fixture, and so its hardcoded
+  // characteristic value, is the same whether or not earlier suites ran.
+  std::uint64_t state = 20260819u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+
   const size_t n = 400, p = 3;
   std::vector<double> x(n * p), y(n), z(n);
-  for (double& v : x) v = runif01();
+  for (double& v : x) v = unif();
   for (size_t i = 0; i < n; ++i) {
-    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    z[i] = unif() < 0.5 ? 1.0 : 0.0;
     double mu = std::sin(3.0 * x[i]) + x[i + n];
     double tau = 1.0 + 2.0 * x[i + 2 * n];
-    y[i] = mu + z[i] * tau + 0.2 * (runif01() - 0.5);
+    y[i] = mu + z[i] * tau + 0.2 * (unif() - 0.5);
   }
 
   SamplerOptions options;
@@ -2778,18 +2785,18 @@ static void testBCFGrowForestFromRoot() {
         "BCF grow-from-root glue is finite");
 
   // characteristic value: the mean combined internal fit over the grown
-  // two-forest state. Deterministic given localRng seed 90210; a relocation
+  // two-forest state. Deterministic given the local fixture stream and
+  // localRng seed 90210, in a filtered run as in a full one; a relocation
   // that shifts the grow sweep's draw order or the coupling moves it far past
   // the tolerance, while it survives benign cross-build FP reassociation.
   double combinedMean = 0.0;
   for (size_t i = 0; i < n; ++i)
     combinedMean += a * muFits[i] + (z[i] != 0.0 ? b1 : b0) * tauFits[i];
   combinedMean /= static_cast<double>(n);
-  checkNear(combinedMean, -0.060352757243346378, 1e-6,
+  checkNear(combinedMean, -0.028618738206336595, 1e-6,
             "BCF grow-from-root combined fit characteristic value");
 
   ext_rng_destroy(localRng);
-  rngState = savedRngState;
   printf("ok: BCF grow-from-root sweep\n");
 }
 
