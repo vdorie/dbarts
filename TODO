@@ -381,27 +381,21 @@ items
     docs/plans/release-candidate-review.md landing notes). Organizing
     test: RC closes the cheap window for public-surface changes and
     for draw-moving fixes; sort every open item against that test.
-    (a) LANDED 2026-08-19 (105f2bd6): NEWS.Rd entry for 5b6e4825's
-        binary-k default change (chi(1.5, Inf) -> chi(1.5, 2.0)).
-    (b) LANDED 2026-08-19 (3d5d2ed5): sigest's silent sd(y) fallback
-        on sparse-backed predictors gains a warning; sparseVector/
-        dgCMatrix formula columns get sparseFactor's guarded refusal.
-    (c) LANDED 2026-08-19 (b9c3f313): executing test coverage for the
-        equal-rank-1 veto path. The monotone double-fill BENCH half
-        stays post-RC (perf only).
-    (d) LANDED 2026-08-19 (8dbc0ce9): slot-sourced heteroscedastic
-        warm starts now pair the sample's own scale surface (decision
-        fix-now; equivalence trio bitwise, zero re-records).
-    (e) RC-criteria gap: one local rchk pass and one local valgrind
-        pass against the tip (those CI legs register only at the
-        coordinated merge; ASAN/UBSAN do not cover PROTECT errors).
-        rchk half DONE at 69de27ac (triage: 11/11 FP; defensive
-        PROTECTs; merged-tip rchk clean with completion-line gate).
-        Valgrind half RAN with three open residues gating it: the
-        applyBCFSpec definite leak (fix in flight), the R 4.3.3
-        extra-level expect_error divergence (investigation in flight;
-        in-contract, floor is 4.0.0), and the full-suite re-run on
-        the fixed tip.
+    Slate COMPLETE 2026-08-19 (one-liners per item, shas):
+    (a) 105f2bd6: NEWS.Rd entry for 5b6e4825's binary-k default
+        change.
+    (b) 3d5d2ed5: sigest sparse sd(y)-fallback warning; sparse
+        formula-column refusal widened.
+    (c) b9c3f313: equal-rank-1 veto path test coverage (monotone
+        double-fill bench stays post-RC, perf only).
+    (d) 8dbc0ce9: slot-sourced heteroscedastic warm starts pair the
+        sample's own scale surface.
+    (e) 69de27ac: rchk DONE (11/11 FP triaged, defensive PROTECTs,
+        merged-tip clean). 7e42dc93 + 7be7a126: valgrind DONE (BCF
+        spec leak + model-matrix OOB read fixed; full-suite memcheck
+        clean -
+        .claude/rc-egate-2026-08-19/valgrind/valgrind-final-7be7a126.log).
+    RC declaration VD-HELD.
     DURING THE SOAK, not gating declaration: count-blind warning
     assertion sweep (17 sites), oracle lane P1b/P9/SBC-deepening,
     bairrtt bartcore-compat check (gates the coordinated MERGE, not
