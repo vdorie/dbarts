@@ -246,12 +246,8 @@ extern void misc_addVectorsInPlace_neon(const double* restrict x, misc_size_t le
 extern void misc_subtractVectorsInPlace_neon(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_addVectorsInPlaceWithMultiplier_neon(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
 
-extern void misc_addAlignedVectorsInPlace_neon(const double* restrict x, misc_size_t length, double* restrict y);
-extern void misc_subtractAlignedVectorsInPlace_neon(const double* restrict x, misc_size_t length, double* restrict y);
-
 extern void misc_addScalarToVectorInPlace_neon(double* x, misc_size_t length, double alpha);
 extern void misc_setVectorToConstant_neon(double* x, misc_size_t length, double alpha);
-extern void misc_transposeMatrix_neon(const double* restrict x, misc_size_t numRows, misc_size_t numCols, double* restrict y);
 #endif
 
 // partition
@@ -362,8 +358,8 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
 #ifdef COMPILER_SUPPORTS_NEON
   if (i >= MISC_INST_NEON) {
     misc_simd_alignment = 64;
-    misc_addAlignedVectorsInPlace = &misc_addAlignedVectorsInPlace_neon;
-    misc_subtractAlignedVectorsInPlace = &misc_subtractAlignedVectorsInPlace_neon;
+    misc_addAlignedVectorsInPlace = &misc_addVectorsInPlace_neon;
+    misc_subtractAlignedVectorsInPlace = &misc_subtractVectorsInPlace_neon;
     
     misc_addVectorsInPlace = &misc_addVectorsInPlace_neon;
     misc_subtractVectorsInPlace = &misc_subtractVectorsInPlace_neon;
@@ -371,7 +367,7 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
     
     misc_addScalarToVectorInPlace = & misc_addScalarToVectorInPlace_neon;
     misc_setVectorToConstant = &misc_setVectorToConstant_neon;
-    misc_transposeMatrix = &misc_transposeMatrix_neon;
+    misc_transposeMatrix = &misc_transposeMatrix_c;
   } else
 #endif
   {
