@@ -540,6 +540,45 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Soak wave 3: cross-arch dead kernel families + error-style residue (ded1f54e + 49b8cac3, 2026-08-19)
+
+Two slices land under the batch clause (each independently
+implemented and gate-run; one merged-tree battery on the stack -
+tests/cpp clean, tinytest 6463/0, trio bitwise 42/12/11, R CMD check
+Status OK, air clean; rebase onto the records tip verified
+patch-id-identical to the gated commits).
+
+ded1f54e (ledger item 16, opened and closed same-day out of item 8's
+caller map): the callerless kernel families are gone on every arch -
+misc_addVectors, misc_addVectorsWithMultiplier, the two
+*AlignedVectorsInPlace dispatch generics (whose per-arch entries were
+already mere rebinds), misc_transposeMatrix with its _c/_sse2/_avx
+implementations and static block-transpose helpers, and
+misc_simd_alignment (its only readers were the aligned bindings; its
+documented consumer, misc/memalign.h, was deleted in an earlier
+pruning). misc_subtractVectors stays - the engine's response rescale
+calls it. 314 deleted / 12 added; docs/design/kernel-vocabulary.md
+corrected to match. x86 verification: both x86 files syntax-compiled
+via clang --target=x86_64-apple-darwin against a doctored config
+defining the x86 ISA macros (implementer and gate-runner each
+re-derived this independently); full x86 compilation rides CI.
+
+49b8cac3 (ledger item 7): the error-style residue clears. R6:
+spec.R's probit-weights refusal collapses to refusal plus one remedy.
+R14: setControl's per-slot refusal takes the rule's verb shape. R11:
+the seven competing length-mismatch templates unify onto the rule's
+own settled shape across 13 sites (augmentation.R's sprintf form
+stays as the rule's named exception), with 9 message pins updated;
+error-style.md's corpus and appendix counts re-derived against the
+live tree (stop 549, Rf_error 348, ext_throwError 2 - the
+gate-runner's independent recount matched exactly). The two stale
+comments the M0 verification flagged are fixed (R/bartcore.R's
+predictor-session comment; refuseMultiForestMutation's docstring no
+longer lists the response conduits its sibling governs). Text-only
+proven twice by parse-tree comparison with string literals
+normalized (implementer, then gate-runner: every divergence confined
+to string literals and comments).
+
 ### Soak wave 2: count-exact warning assertions + the M0 component contract (c4971bbb + cf4a290c, 2026-08-19)
 
 Two slices land under the batch clause (each implemented and
