@@ -1127,8 +1127,13 @@ struct MultiForestFixture {
   // columns 0 and 1, which leaves columns 2 and 3 reachable by the variance
   // forest ALONE - the shape in which the variance forest is the only ensemble
   // that can veto, and the only one whose partition a transaction moves.
+  // restrictVariance is the mirror: the VARIANCE forest is confined instead, so
+  // columns 2 and 3 are reachable by no variance tree at any tree count or
+  // depth - the shape in which a transaction leaves the whole variance forest
+  // untouched.
   void buildHeteroscedastic(size_t n_, size_t p_, size_t numChains,
-                            std::uint32_t seed, bool restrictMean = false) {
+                            std::uint32_t seed, bool restrictMean = false,
+                            bool restrictVariance = false) {
     n = n_;
     p = p_;
     x.resize(n * p);
@@ -1148,6 +1153,10 @@ struct MultiForestFixture {
     if (restrictMean) {
       options.forestColumns = moderators.data();
       options.numForestColumns = moderators.size();
+    }
+    if (restrictVariance) {
+      options.varianceForestColumns = moderators.data();
+      options.numVarianceForestColumns = moderators.size();
     }
     makeRngs(numChains, seed);
     sampler = std::make_unique<Sampler<ConstantGaussianLeaf>>(
@@ -1429,13 +1438,18 @@ static F6Capture f6Capture(Sampler<ConstantGaussianLeaf>& s) {
 // measurement of it - not a bug.
 static void testUntouchedTreeExactness() {
   size_t skipped = 0, forestZeroTotalMoves = 0, varianceSkipped = 0;
-  for (int shape = 0; shape < 3; ++shape) {
+  size_t varianceForestsSkipped = 0;
+  for (int shape = 0; shape < 4; ++shape) {
     rngState = 0x6C1F3A55D0027Bull + static_cast<uint64_t>(shape);
     const size_t n = 240, p = 4;
     MultiForestFixture fixture;
     if (shape == 0) fixture.buildBCF(n, p, 2, 4400u);
     else if (shape == 1) fixture.buildMultinomial(n, p, 1, 4500u);
-    else fixture.buildHeteroscedastic(n, p, 1, 4700u);
+    else if (shape == 2) fixture.buildHeteroscedastic(n, p, 1, 4700u);
+    // an unrestricted variance forest of any useful size splits somewhere on
+    // every column, so the aggregate claim below needs the confined shape to
+    // have a case at all
+    else fixture.buildHeteroscedastic(n, p, 2, 4750u, false, true);
     Sampler<ConstantGaussianLeaf>& s(*fixture.sampler);
 
     ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -1495,10 +1509,12 @@ static void testUntouchedTreeExactness() {
                   "an untouched variance tree's leaf factors are bitwise "
                   "unchanged");
           }
-          if (varianceUntouched)
+          if (varianceUntouched) {
+            ++varianceForestsSkipped;
             check(before.combinedVariance[c] == after.combinedVariance[c],
                   "a variance forest no touched column reaches keeps "
                   "s^2(x) bitwise");
+          }
         }
         // the measured asymmetry, reported rather than asserted
         for (size_t i = 0; i < n; ++i)
@@ -1510,9 +1526,12 @@ static void testUntouchedTreeExactness() {
   }
   check(skipped > 0, "the pruning actually skipped trees");
   check(varianceSkipped > 0, "the pruning skipped variance trees too");
+  check(varianceForestsSkipped > 0,
+        "the pruning skipped a whole variance forest");
   printf("ok: untouched-tree exactness (%zu pruned trees checked, %zu of them "
-         "variance; forest 0's unpruned round trip moved totalFits on %zu "
-         "rows)\n", skipped, varianceSkipped, forestZeroTotalMoves);
+         "variance, %zu whole variance forests; forest 0's unpruned round trip "
+         "moved totalFits on %zu rows)\n", skipped, varianceSkipped,
+         varianceForestsSkipped, forestZeroTotalMoves);
 }
 
 // ---------------------------------------------------------------------------
