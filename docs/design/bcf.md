@@ -149,15 +149,16 @@ of scope.
 ### The multiplier snap and the per-forest weight (2026-08-10)
 
 Forming forest f's own leaf conditionals divides the residual by its scale
-multiplier (a for mu, b_z for tau). `BCFForestCombiner::formForestResponse`
-(combiner.hpp) snaps a multiplier with `|m_f| < sqrt(DBL_EPSILON)` (2^-26) to
-exactly zero rather than flooring it and dividing: both the reparameterized
-response and the weight are written as exact 0.0, so a row that carries no
-information about forest f (the common case is `b0 = 0` at control rows under
-the fixed glue `(1, 0, 1)`) contributes nothing to that forest's sufficient
-statistics instead of an amplified-and-cancelled near-zero contribution. The
-snap is local to the reparameterization: `combinedFits` and `drawGlue` keep the
-exact `b0`, and no snapped value is written back into the glue
+multiplier (a for mu, b_z for tau).
+`AmplitudeForestCombiner::formForestResponse` (combiner.hpp) snaps a multiplier
+with `|m_f| < sqrt(DBL_EPSILON)` (2^-26) to exactly zero rather than flooring
+it and dividing: both the reparameterized response and the weight are written
+as exact 0.0, so a row that carries no information about forest f (the common
+case is `b0 = 0` at control rows under the fixed glue `(1, 0, 1)`) contributes
+nothing to that forest's sufficient statistics instead of an
+amplified-and-cancelled near-zero contribution. The snap is local to the
+reparameterization: `combinedFits` and `drawGlue` keep the exact `b0`, and no
+snapped value is written back into the glue
 (docs/plans/zero-weight-exactness.md).
 
 A caller-settable per-forest, per-observation weight composes with this
@@ -341,7 +342,7 @@ rescale-consistency set - is
 docs/design/multiplier-combiner.md, "The ASIS ridge", and is not
 restated here. bcf's TREATMENT forest now has its own move available
 in that same code (the b-move, docs/plans/bcf-b-ridge.md), but it
-ships OFF: `BCFSpec::ridgeB = false`, because enabling it consumes a
+ships OFF: `AmplitudeSpec::ridgeB = false`, because enabling it consumes a
 GIG draw per sweep - a `bcf-equivalence` re-record - and the b-move's
 own acceptance gate (bcf-b-ridge.md:438-449) has not been run.
 
@@ -352,7 +353,7 @@ BCF stopped being reachable only through `dbarts:::bartcoreBCFSampler`
 forest(basis = ~ factor(z), vars = ...)))`/`dbartsSpec()` build an ordinary
 `dbartsSampler` (S1, a1dbde7): z rides `data@treatment` (R/A_class.R,
 the `weights` precedent) and the treatment forest's configuration rides
-`attr(control, "bartcore.bcf")` (R/spec.R:624-656, the `bartcore.variance`
+`attr(control, "bartcore.forests")` (R/spec.R:624-656, the `bartcore.variance`
 precedent), cross-checked in both directions at creation
 (src/R_interface_bartcore.cpp:2648-2655). `$setForestBasis`, `$getForestFits`,
 `$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
@@ -404,7 +405,7 @@ arrive in bartCause the same way, through a `bcf()` fit function.
 `$getForestAmplitudes()`. The S1/S2 mechanism above survived the re-skinning
 unchanged, which is what let M2 gate itself bitwise against the internal
 constructor: a `forests =` fit resolves to exactly the `data@treatment` plus
-`attr(control, "bartcore.bcf")` the removed arguments resolved to, with the
+`attr(control, "bartcore.forests")` the removed arguments resolved to, with the
 factor basis expanded to its level indicators in R so the bridge sees what it
 always saw.
 

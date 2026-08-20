@@ -5,11 +5,11 @@ special case (bcf_, drawGlue, combinedFits, formForestResponse,
 forestMultiplier, the if(bcf_) sweep branches - the shape bcf.md's Forest
 split shipped in) into a polymorphic ForestCombiner<L> hierarchy beside
 Forest<L> (src/bartcore/combiner.hpp since the multinomial extraction below;
-src/bartcore/chain.hpp at this refactor's own landing). BCFForestCombiner<L> is
-its first instance, the math it carried unchanged from bcf.md and
-bcf-ridge-interweaving's landing at the time - since GENERALIZED to the K-forest
-basis/amplitude family, whose math is docs/design/multiplier-combiner.md's;
-MultinomialForestCombiner<L>
+src/bartcore/chain.hpp at this refactor's own landing).
+AmplitudeForestCombiner<L> is its first instance, the math it carried unchanged
+from bcf.md and bcf-ridge-interweaving's landing at the time - since
+GENERALIZED to the K-forest basis/amplitude family, whose math is
+docs/design/multiplier-combiner.md's; MultinomialForestCombiner<L>
 (docs/design/multinomial.md) is now the second. docs/plans/forest-combiner.md carries the
 step plan, its binding contracts, and its resolved Open questions; this note
 records the shape as landed and what it does and does not anticipate.
@@ -74,11 +74,12 @@ the BCF constructor. The landed virtual surface:
   reporting for free.
 - `serializeGlue(ChainStateData&)` / `restoreGlue(const ChainStateData&)` -
   glue (de)serialization into the state wire format. The base no-ops leave
-  `ChainStateData::hasBCF` untouched; Chain sets it false before calling
+  `ChainStateData::hasAmplitudes` untouched; Chain sets it false before calling
   serializeGlue, so a combiner that owns no such flag never marks it true.
-  BCFForestCombiner's serializeGlue is the sole writer of hasBCF = true - the
-  serialize side owns the marker, matching the getState/setState/installForest
-  contract (three glue sites, all delegating through this pair - see below).
+  AmplitudeForestCombiner's serializeGlue is the sole writer of hasAmplitudes =
+  true - the serialize side owns the marker, matching the
+  getState/setState/installForest contract (three glue sites, all delegating
+  through this pair - see below).
 - `setTreatment(const double*)` / `bcfGlue(double&, double&, double&) const` -
   the BCF-shaped query/mutation surface `Chain::setTreatment` and
   `Chain::bcfGlue` forward to. Both are inert/false by default; bcfGlue's
@@ -90,7 +91,7 @@ the BCF constructor. The landed virtual surface:
   which bcf's three scalars are a named non-virtual reading. See
   docs/design/multiplier-combiner.md, "One mutation route".)
 
-BCFForestCombiner<L> is static_assert-gated to `!L::hasVectorParams &&
+AmplitudeForestCombiner<L> is static_assert-gated to `!L::hasVectorParams &&
 !L::hasFunctionParams` - constant leaf only, mirroring the constraint the
 two-forest Chain constructor already carried before this refactor (BCF is a
 constant-leaf model end to end).
@@ -119,7 +120,7 @@ residual divide in formForestResponse, the blend in combinedFits, the glue's
 Gaussian full conditionals in drawGlue) run inside one virtual call per sweep,
 never inside the per-observation partition/suffstat kernels.
 
-## BCFForestCombiner<L>: the first instance
+## AmplitudeForestCombiner<L>: the first instance
 
 **GENERALIZED SINCE (M4.0-M4.3, 2026-08-13 to 2026-08-14). The math this
 section carried is now docs/design/multiplier-combiner.md's, and this section
@@ -128,16 +129,16 @@ two-forest object: it is the general K-forest basis/amplitude family, each
 forest contributing `m_{f,i} f_f(x_i)` with `m_{f,i} = dot(a_f, B_f(i, .))` a
 contraction of that forest's own n x q_f row-major basis with its own amplitude
 vector, of which bcf's `a mu + b_z tau` is the K = 2 instance
-(combiner.hpp:685, chain.hpp:687-689, facade.hpp:774-776). The SPELLING is
-still bcf's at every layer, which is recorded as debt in that design note.
+(combiner.hpp:685, chain.hpp:687-689, facade.hpp:774-776). The SPELLING
+followed: see that design note's discharged naming debt.
 
 What is combiner-hierarchy content, and stays here:
 
-- It holds `BCFState` (the per-forest bases and their canonical flags, the flat
-  ragged amplitude vector and its offsets, the per-forest amplitude priors, and
-  the per-sweep combined/forestResponse/forestWeights scratch) plus a
-  `const ColumnStore&` for the observation count and, in afterCombine, the data
-  the ridge move touches. Built from `(data, spec, numForests)` by Chain's
+- It holds `AmplitudeState` (the per-forest bases and their canonical flags,
+  the flat ragged amplitude vector and its offsets, the per-forest amplitude
+  priors, and the per-sweep combined/forestResponse/forestWeights scratch) plus
+  a `const ColumnStore&` for the observation count and, in afterCombine, the
+  data the ridge move touches. Built from `(data, spec, numForests)` by Chain's
   K-forest constructor.
 - It is `static_assert`-gated to a constant leaf - a hierarchy constraint, not a
   model choice. The chain it is built by was Gaussian-only; M4.4 lifted that to
@@ -150,7 +151,7 @@ What is combiner-hierarchy content, and stays here:
   `supportsForestWeights` both true, each with its own recorded reason), and
   which it declines (`combinedTestFits`, the counts/offset trio,
   `setActiveRows`, all left at the base's refusing default).
-- `serializeGlue` is the sole writer of `hasBCF = true`, per the marker
+- `serializeGlue` is the sole writer of `hasAmplitudes = true`, per the marker
   contract above; `restoreGlue` is a no-op on a state carrying no glue, and
   `glueIsValid` - a THIRD wire virtual, added after this refactor - refuses a
   state whose per-forest widths differ from the live ones even at an equal
@@ -209,20 +210,21 @@ multiplier family the fourth - leaving hurdle's the only one standing:
   it is not a property the combiner API constrains. STILL OPEN, and see
   "Anticipated" below for why hurdle no longer asks for it.
 - `ChainStateData`'s glue fields were BCF-shaped (a/aVariance/b0/b1). RESOLVED
-  by the multiplier family (M4.3): they are now `hasBCF`, `amplitudeWidths`,
-  `amplitudes` and `amplitudeVariances` - RAGGED, with the widths travelling
-  because a TOTAL IS NOT A LAYOUT, `q = (1, 3)` and `q = (2, 2)` both carrying
-  four amplitudes (combiner.hpp:92-102) - and the four named scalars survive
-  only as a hand-written K = 2 reading, non-authoritative (:103-109). The
-  bullet's CONCLUSION is what the arc vindicated and it stands: a non-BCF
-  combiner overrides `serializeGlue`/`restoreGlue` rather than reaching for an
-  accessor, so the interface point was already right. It need not always write
-  anything: the multinomial combiner serializes NOTHING (docs/design/
-  multinomial.md), redrawing its per-sweep Polya-Gamma latents against the
-  restored forests structurally, so restore is structural, not bitwise. The
-  interface point did grow a THIRD virtual, `glueIsValid` (combiner.hpp:675,
-  :1018-1028), the layout check `stateIsValid` routes through so a same-total
-  different-layout state cannot be written through the live offsets.
+  by the multiplier family (M4.3): they are now `hasAmplitudes`,
+  `amplitudeWidths`, `amplitudes` and `amplitudeVariances` - RAGGED, with the
+  widths travelling because a TOTAL IS NOT A LAYOUT, `q = (1, 3)` and `q = (2,
+  2)` both carrying four amplitudes (combiner.hpp:92-102) - and the four named
+  scalars survive only as a hand-written K = 2 reading, non-authoritative
+  (:103-109). The bullet's CONCLUSION is what the arc vindicated and it stands:
+  a non-BCF combiner overrides `serializeGlue`/`restoreGlue` rather than
+  reaching for an accessor, so the interface point was already right. It need
+  not always write anything: the multinomial combiner serializes NOTHING
+  (docs/design/ multinomial.md), redrawing its per-sweep Polya-Gamma latents
+  against the restored forests structurally, so restore is structural, not
+  bitwise. The interface point did grow a THIRD virtual, `glueIsValid`
+  (combiner.hpp:675, :1018-1028), the layout check `stateIsValid` routes
+  through so a same-total different-layout state cannot be written through the
+  live offsets.
 
 ### What the multiplier family closed, and what it opened
 
@@ -250,14 +252,16 @@ What still does NOT generalize, after M4:
 - (i) The single-leaf-type forest vector, unchanged (third bullet above).
 - (ii) Non-Gaussian. The K-forest constructor hardcodes `GaussianResponse` and
   `family_ = ResponseFamily::gaussian` (chain.hpp:702-705), and
-  `createBCFSampler` carries a single `SamplerFacade<ConstantGaussianLeaf>`
-  instantiation (facade.hpp:786-788). That is M4.4.
-- (iii) The NAMING. The general family is spelled `BCFSpec` /
-  `BCFForestCombiner` / `ChainStateData::hasBCF` / the `"bcf"` state block, so
-  every layer reads "BCF" where it means "carries amplitudes". Recorded as debt
-  (root TODO `bcf-naming-generalization`, described in
-  docs/design/multiplier-combiner.md); its mitigation is the capability-probe
-  rule above, which keeps no consumer-visible answer keyed on the name.
+  `createAmplitudeSampler` carries a single
+  `SamplerFacade<ConstantGaussianLeaf>` instantiation (facade.hpp:786-788).
+  That is M4.4.
+- (iii) The NAMING. Was the debt: every layer read "BCF" where it meant
+  "carries amplitudes". DISCHARGED - the family is spelled `AmplitudeSpec` /
+  `AmplitudeForestCombiner` / `ChainStateData::hasAmplitudes` / the `"glue"`
+  state block (docs/design/multiplier-combiner.md records the discharge and
+  what its two mispriced costs actually were). The capability-probe rule above
+  is what kept the debt from reaching any consumer-visible answer while it
+  stood.
 
 ## Anticipated (multinomial now built)
 
@@ -343,9 +347,10 @@ FlatNodes directly, so a combiner.hpp would either fight chain.hpp's include
 order or force a Forest<L> extraction this neutral refactor had no reason to
 carry. Extraction to src/bartcore/combiner.hpp DID land with the second combiner
 (multinomial, docs/design/multinomial.md): Forest<L>, ForestResponse,
-ForestCombiner<L>, BCFForestCombiner<L>, and the serializable state/spec structs
-moved there as pure motion and chain.hpp includes it - the second consumer
-shaped the split, as intended, rather than a guess made against one case.
+ForestCombiner<L>, AmplitudeForestCombiner<L>, and the serializable state/spec
+structs moved there as pure motion and chain.hpp includes it - the second
+consumer shaped the split, as intended, rather than a guess made against one
+case.
 
 ## Verification
 
@@ -385,22 +390,23 @@ full tinytest unchanged + tests/cpp (grown) + the new fixture identical to
 itself.
 
 Commit 2 = 691697b. Introduce the forest combiner and relocate the combining
-math (engine, byte-identical). ForestCombiner<L> and BCFForestCombiner<L>
+math (engine, byte-identical). ForestCombiner<L> and AmplitudeForestCombiner<L>
 introduced; combiner_ replaces bcf_; forestMultiplier/formForestResponse/
-combinedFits moved into BCFForestCombiner. DEVIATION recorded: renaming the
-owner forced every glue reader (storeSample, getState/setState/installForest,
-setTreatment, bcfGlue) to be mechanically rewritten to read through combiner_
-in this step rather than step 4, since there was no other byte-identical way
-to keep the no-mu/tau-hardcoding contract while bcf_ no longer existed;
-storeSample's combinedFits() call was pulled forward here for the same
-reason. The rewrite went through a transitional `glueState()` virtual
-accessor (returning `BCFState*`/`const BCFState*`) added to ForestCombiner<L>
-so Chain's still-resident drawGlue/interweaveGlueRidge/storeSample/getState/
-setState bodies could reach BCFForestCombiner's internal glue struct directly;
-this was acknowledged as transitional and fully retired in commit 4, once
-drawGlue/afterCombine/serializeGlue/restoreGlue took over its call sites.
-Gate: equivalence 22/22 + BCF fixture identical + tests/cpp + bcf-exact.R
-quick + full tinytest.
+combinedFits moved into AmplitudeForestCombiner. DEVIATION recorded: renaming
+the owner forced every glue reader (storeSample,
+getState/setState/installForest, setTreatment, bcfGlue) to be mechanically
+rewritten to read through combiner_ in this step rather than step 4, since
+there was no other byte-identical way to keep the no-mu/tau-hardcoding contract
+while bcf_ no longer existed; storeSample's combinedFits() call was pulled
+forward here for the same reason. The rewrite went through a transitional
+`glueState()` virtual accessor (returning `AmplitudeState*`/`const
+AmplitudeState*`) added to ForestCombiner<L> so Chain's still-resident
+drawGlue/interweaveGlueRidge/storeSample/getState/ setState bodies could reach
+AmplitudeForestCombiner's internal glue struct directly; this was acknowledged
+as transitional and fully retired in commit 4, once
+drawGlue/afterCombine/serializeGlue/restoreGlue took over its call sites. Gate:
+equivalence 22/22 + BCF fixture identical + tests/cpp + bcf-exact.R quick +
+full tinytest.
 
 Commit 3 = b8b0b4c. Move the coupling draw and ridge move into the combiner
 (engine, byte-identical). drawGlue and interweaveGlueRidge (the ridge rescale)
@@ -425,11 +431,11 @@ combiner (engine, byte-identical). storeSample's forest selection and channel
 definedness, getState/setState/installForest's glue (de)serialization, and
 setTreatment/bcfGlue all moved onto the virtual surface
 (reportedForest/testFitsAreDefined/logLikelihoodIsDefined/serializeGlue/
-restoreGlue/setTreatment/bcfGlue); ChainStateData.hasBCF is now set by
+restoreGlue/setTreatment/bcfGlue); ChainStateData.hasAmplitudes is now set by
 Chain before calling serializeGlue and owned on the serialize side.
 No deviation from the plan text: the transitional glueState() accessor from
 commit 2 was retired in full (every call site now goes through the named
-virtuals), and Chain no longer names BCFState anywhere. Gate: equivalence
+virtuals), and Chain no longer names AmplitudeState anywhere. Gate: equivalence
 22/22 + BCF fixture identical + tests/cpp (incl. the state fuzzer) +
 bcf-exact.R quick + full tinytest 2832, no regen.
 

@@ -97,13 +97,13 @@ pointer to.
 
 Selection of `L` happens exactly once, in the free factory functions at the
 bottom of facade.hpp - `createSampler`, `createSamplerOverStore`,
-`createConstantLeafSampler`, `createBCFSampler` - called from the bridge at
-sampler creation (`src/R_interface_bartcore.cpp`, `bartcore::createSampler(...)`
-and siblings). `createSampler` refuses a variance-forest request
-(`options.numVarianceTrees > 0`) for anything but a gaussian response with
-a plain constant leaf, picks `MonotoneConstantGaussianLeaf` when a
-monotone constraint is active without leaf covariates,
-`ConstantGaussianLeaf` when no leaf covariates are designated,
+`createConstantLeafSampler`, `createAmplitudeSampler` - called from the bridge
+at sampler creation (`src/R_interface_bartcore.cpp`,
+`bartcore::createSampler(...)` and siblings). `createSampler` refuses a
+variance-forest request (`options.numVarianceTrees > 0`) for anything but a
+gaussian response with a plain constant leaf, picks
+`MonotoneConstantGaussianLeaf` when a monotone constraint is active without
+leaf covariates, `ConstantGaussianLeaf` when no leaf covariates are designated,
 `GPGaussianLeaf` when covariates are designated and `options.gpLeaves` is
 set, otherwise `LinearGaussianLeaf`. Every call
 after construction goes through the chosen `SamplerFacade<L>` and pays one
