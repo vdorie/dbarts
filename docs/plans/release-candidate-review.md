@@ -593,6 +593,31 @@ dead in-tree (the only caller passes useNative = true) and the new
 guard now rejects rather than mis-mapping, so it waits for the next
 randomBase.c edit.
 
+Addendum, same day: VD redirected on rchk - CRAN's additional-issues
+report gets preempted, not risked at the incoming inspection. Main
+gained three more commits (tip cb290550): a defensive-PROTECT pass
+over every function CRAN's rchk flags (REPROTECT_SLOT idiom in
+R_interface_common.cpp mirroring bartcore's own earlier pass;
+createMatrix, rbart_getFitted, the two randomBase.c getDefault
+readers) plus a follow-up making the crossvalidation UNPROTECT
+counts constant (rchk abandons functions with computed counts) and
+protecting the custom-loss closure temporaries. Verified with the
+kalibera/rchk container itself: baseline 48 [UP] findings, fixed
+tree ZERO real findings (two "address taken ... results will be
+incomplete" analyzer coverage notes on fitFinalizer/isValidPointer
+remain by design - they are unfixable without re-keying the pointer
+registry and CRAN's own rchk revision does not emit them). Bitwise
+A/B across 27 draw channels identical; tinytest 1714/0; --as-cran
+clean; all five main CI legs green. The submission tarball is
+rebuilt from cb290550. bartcore re-rebased on top (1181 commits, 5
+stops, log md5 preserved): the port audit found bartcore ALREADY
+carried every protection (its pass landed first; main's is the
+mirror), so the only tree delta vs the prior bartcore tip is the
+one NEWS item. Hash map for this note's citations after the
+replay: the port commit d3acbdc1 -> e75a2c79, the NEWS split
+0b424eeb -> f04e8686; the records commit rides at a4e6033d. The
+pre-rebase tag still anchors the original line.
+
 ### Cleanup wave 2: the amplitude family sheds its BCF spelling (8215a53c + be1d06e4, 2026-08-20)
 
 The bcf-naming-generalization item executes under the full arc
