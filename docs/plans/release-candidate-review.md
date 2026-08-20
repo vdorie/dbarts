@@ -540,6 +540,73 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### rc-gate (e) valgrind: BCF spec leak, model-matrix OOB read, and the clean full-suite pass (7e42dc93 + 7be7a126, 2026-08-19)
+
+The first full-suite local memcheck (native arm64 ubuntu:24.04
+container, stock R 4.3.3, VALGRIND_OPTS matching valgrind.yaml - the
+r-hub amd64 image crashes under Rosetta emulation on this host)
+against db5f88ae found exactly two defects: zero invalid reads/writes,
+zero uninitialised uses.
+
+Defect 1, caught by memcheck directly: a definite leak, 2464 bytes in
+7 blocks, at applyBCFSpec's forests.assign - bartcore::BCFSpec, a
+stack local inside createHolder's unwindProtect closure BODY; cleanup
+frees the closure's CAPTURES only, and an Rf_error longjmp skips body
+locals, leaking the spec's vector once per bridge refusal raised after
+the assign. Census matched: 7 expected-refusal BCF creations == 7
+blocks (R refuses most bad compositions before C; only
+hand-built-object backstops reach the hole). Fix (7e42dc93): the spec
+joins the capture list beside the storage it borrows, both creation
+routes (createBCFHolder preventive, its family door fires before the
+assign). Targeted proof: a 3-refusal repro leaks 1056 bytes/3 blocks
+unfixed, 0/0 fixed. Gates: tinytest 6427/0, tests/cpp full pass,
+equivalence bitwise 42/12/11, CI green all six; no NEWS entry (pattern
+new in 1.0-0, never shipped).
+
+Defect 2, not caught by memcheck (reports nothing - R carves nodes
+from its own arena) but by valgrind CHANGING THE HEAP: under
+zero-filled pages the extra-factor-level expect_error in
+test-bart-bart2.R stopped firing, halting the suite. Investigation
+(.claude/rc-egate-2026-08-19/r43-divergence/FINDINGS.txt) found a live
+out-of-bounds heap read on every R version since 802daf36 (2015),
+pre-bartcore: on the indicators route (bart() x/y, bart2
+factors=indicators, predict) the replay indexes TRAINING-sized
+per-level counts by the TEST column's level count at four sites in
+makeModelMatrixFromDataFrame.c; the documented extra-level refusal
+fired only when the garbage read was positive. A masked accept fits
+silently wrong (mean |yhat-y| 1.60 on phantom-level rows vs 0.435
+elsewhere; unbounded - 5003 test levels emitted 4623 garbage columns),
+the flip pure heap state even on R 4.6.1 (repeated calls gave ncol
+4,4,4,4,6,6,6,6); categorical route unaffected (real level check),
+fewer-levels factors index in bounds.
+
+Fix (7be7a126), two layers since LinkingTo consumers reach the .Call
+entry directly: refuseWiderTestColumns in validateXTest (factor,
+character, matrix columns) BEFORE the replay, plus a shared
+validateDropPatternLength at all four C read sites. Both refuse the
+WIDER direction only - a training level declared but never observed
+contributes no column, so a test frame lacking it still aligns and
+predicts correctly (verified pre-fix); a != guard would have broken
+that. Extra-level pin kept and tightened (distinct messages,
+extra-level vs fewer-levels); +11 tests including a 5000-extra-level
+arm and direct-.Call C-guard arms; mutation proofs per layer (R guard
+dropped: C still refuses every route; C dropped: R refuses every
+R-level route, direct .Call accepts - the hole C closes). Gates:
+tinytest 6438/0, tests/cpp full pass, equivalence bitwise 42/12/11,
+air/lintr clean, R CMD check --as-cran OK, NEWS parses at 281 (shipped
+bug, gets the entry), CI green all six incl. Windows; tests/cpp does
+not compile makeModelMatrixFromDataFrame.c, so local ASAN carries no
+signal here by construction.
+
+Final full-suite memcheck against 7be7a126: COMPLETE - "All ok, 6419
+results (1h 47m)" (platform-skips account for the count vs 6438 on the
+dev host), ERROR SUMMARY 0 errors, all lost bytes 0, zero invalid or
+uninitialised accesses, applyBCFSpec absent. Log:
+.claude/rc-egate-2026-08-19/valgrind/valgrind-final-7be7a126.log.
+rc-gate (e) is discharged in full (rchk clean at the merged tip per
+the prior note; valgrind clean full-suite at the tip), and with it the
+whole rc-gate slate (a)-(e). RC declaration remains VD-held.
+
 ### rchk gate: triage and defensive PROTECTs (69de27ac, 2026-08-19)
 
 rc-gate (e)'s rchk half ran locally (kalibera/rchk docker under amd64
