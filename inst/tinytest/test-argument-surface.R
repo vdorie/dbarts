@@ -8,6 +8,11 @@
 # under one that uses it; plus monotonicity assertions that already-loud
 # refusals keep their severity and message.
 
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(101)
 n <- 40L
 x <- matrix(rnorm(n * 2L), n, dimnames = list(NULL, c("a", "b")))
@@ -32,21 +37,26 @@ fit2 <- function(y, ...) {
 }
 
 # one inventory row x one representative family/site each, class asserted
-expect_warning(
-  fit2(y.multi, family = "multinomial", sigest = 5),
-  pattern = "sigest",
-  class = "dbartsFamilyGatedWarning"
+warnings.multiSigest <- captureWarnings(
+  fit2(y.multi, family = "multinomial", sigest = 5)
 )
-expect_warning(
-  fit2(y.ordinal, family = "ordinal", dispersion = 2),
-  pattern = "dispersion",
-  class = "dbartsFamilyGatedWarning"
+expect_equal(length(warnings.multiSigest), 1L)
+expect_match(conditionMessage(warnings.multiSigest[[1L]]), "sigest")
+expect_inherits(warnings.multiSigest[[1L]], "dbartsFamilyGatedWarning")
+
+warnings.ordinalDispersion <- captureWarnings(
+  fit2(y.ordinal, family = "ordinal", dispersion = 2)
 )
-expect_warning(
-  fit2(y.count, family = "nbinom", breaks = 5),
-  pattern = "breaks",
-  class = "dbartsFamilyGatedWarning"
+expect_equal(length(warnings.ordinalDispersion), 1L)
+expect_match(conditionMessage(warnings.ordinalDispersion[[1L]]), "dispersion")
+expect_inherits(warnings.ordinalDispersion[[1L]], "dbartsFamilyGatedWarning")
+
+warnings.nbinomBreaks <- captureWarnings(
+  fit2(y.count, family = "nbinom", breaks = 5)
 )
+expect_equal(length(warnings.nbinomBreaks), 1L)
+expect_match(conditionMessage(warnings.nbinomBreaks[[1L]]), "breaks")
+expect_inherits(warnings.nbinomBreaks[[1L]], "dbartsFamilyGatedWarning")
 
 # counter-tests: live families stay silent
 expect_silent(fit2(y.gaussian, family = "gaussian", sigest = 5))
@@ -78,11 +88,15 @@ expect_equal(
 )
 
 # samplerOnly = TRUE still warns (the standard-site reordering)
-expect_warning(
-  fit2(y.binary, family = "probit", sigest = 5, samplerOnly = TRUE),
-  class = "dbartsFamilyGatedWarning",
+warnings.samplerOnly <- captureWarnings(
+  fit2(y.binary, family = "probit", sigest = 5, samplerOnly = TRUE)
+)
+expect_equal(length(warnings.samplerOnly), 1L)
+expect_match(
+  conditionMessage(warnings.samplerOnly[[1L]]),
   "family = \"probit\" has no use for 'sigest'"
 )
+expect_inherits(warnings.samplerOnly[[1L]], "dbartsFamilyGatedWarning")
 
 # hurdle.lognormal: sigest is live on the positive half, so the rule's own
 # scoping ("an argument whose only effect is on a family this fit is not")
@@ -108,11 +122,15 @@ expect_equal(
   ),
   1L
 )
-expect_warning(
-  fit2(y.hurdle, family = "hurdle.lognormal", dispersion = 2),
-  pattern = "hurdle.lognormal",
-  class = "dbartsFamilyGatedWarning"
+warnings.hurdleDispersion <- captureWarnings(
+  fit2(y.hurdle, family = "hurdle.lognormal", dispersion = 2)
 )
+expect_equal(length(warnings.hurdleDispersion), 1L)
+expect_match(
+  conditionMessage(warnings.hurdleDispersion[[1L]]),
+  "hurdle.lognormal"
+)
+expect_inherits(warnings.hurdleDispersion[[1L]], "dbartsFamilyGatedWarning")
 
 # bart() never calls the helper - silence is preserved by construction
 expect_silent(dbarts::bart(
@@ -127,7 +145,7 @@ expect_silent(dbarts::bart(
 
 # rbart_vi warns on its resolved probit path
 group <- factor(rep(1:4, length.out = n))
-expect_warning(
+warnings.rbartProbit <- captureWarnings(
   dbarts::rbart_vi(
     x,
     factor(y.binary),
@@ -140,10 +158,14 @@ expect_warning(
     n.chains = 1L,
     n.threads = 1L,
     verbose = FALSE
-  ),
-  class = "dbartsFamilyGatedWarning",
+  )
+)
+expect_equal(length(warnings.rbartProbit), 1L)
+expect_match(
+  conditionMessage(warnings.rbartProbit[[1L]]),
   "family = \"probit\" has no use for 'sigest'"
 )
+expect_inherits(warnings.rbartProbit[[1L]], "dbartsFamilyGatedWarning")
 
 # monotonicity: already-loud refusals keep their severity and message
 expect_error(
@@ -644,15 +666,16 @@ expect_error(
 # family gating: resid.prior joins the sigest/sigdf/sigquant trio - inert
 # (silently overwritten with fixed(1), R/spec.R) under a fixed-unit-scale
 # family, now diagnosed instead of silent
-expect_warning(
+warnings.residPrior <- captureWarnings(
   fit2(
     y.binary,
     family = "probit",
     resid.prior = dbarts::dbartsPriors$fixed(2)
-  ),
-  pattern = "resid.prior",
-  class = "dbartsFamilyGatedWarning"
+  )
 )
+expect_equal(length(warnings.residPrior), 1L)
+expect_match(conditionMessage(warnings.residPrior[[1L]]), "resid.prior")
+expect_inherits(warnings.residPrior[[1L]], "dbartsFamilyGatedWarning")
 expect_equal(
   countWarnings(
     fit2(

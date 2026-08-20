@@ -4,6 +4,11 @@
 # either produces a finite fit or refuses at the R level with a clear error;
 # none crash or return NaN.
 
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
+
 control <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
@@ -35,10 +40,11 @@ expect_error(dbarts(y.n2 ~ x.n2, control = control), pattern = "sigma estimate")
 set.seed(1)
 x.const <- matrix(runif(n * 2L), n, 2L)
 y.const <- rep(3.0, n)
-expect_warning(
-  sampler.const <- dbarts(y.const ~ x.const, control = control),
-  pattern = "indistinguishable"
+warnings.const <- captureWarnings(
+  sampler.const <- dbarts(y.const ~ x.const, control = control)
 )
+expect_equal(length(warnings.const), 1L)
+expect_match(conditionMessage(warnings.const[[1L]]), "indistinguishable")
 samples.const <- sampler.const$run(30L, 30L)
 expect_true(all(is.finite(samples.const$train)))
 expect_true(all(is.finite(samples.const$sigma)))

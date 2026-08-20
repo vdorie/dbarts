@@ -6,6 +6,11 @@
 # ulps, ~1e-15 relative), while low-cardinality data the ratio does not
 # flag is legitimately discrete and fits cleanly after standardization.
 
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(0)
 n <- 200L
 x <- matrix(runif(n * 2), n)
@@ -13,10 +18,9 @@ x <- matrix(runif(n * 2), n)
 # the review-6 case: y in [1e15, 1e15 + 1e-3] collapses to a single
 # representable double
 y.huge <- 1e15 + runif(n) * 1e-3
-expect_warning(
-  dbarts::dbartsData(x, y.huge),
-  pattern = "indistinguishable"
-)
+warnings.huge <- captureWarnings(dbarts::dbartsData(x, y.huge))
+expect_equal(length(warnings.huge), 1L)
+expect_match(conditionMessage(warnings.huge[[1L]]), "indistinguishable")
 expect_true(length(unique(y.huge)) < n)
 
 # a merely large, but not precision-degenerate, response does not warn:
@@ -38,10 +42,9 @@ expect_silent(dbarts::dbartsData(x, y.ok))
 
 # a constant, but not all-zero, response is caught by the range/scale ratio
 y.const <- rep_len(5, n)
-expect_warning(
-  dbarts::dbartsData(x, y.const),
-  pattern = "indistinguishable"
-)
+warnings.constResp <- captureWarnings(dbarts::dbartsData(x, y.const))
+expect_equal(length(warnings.constResp), 1L)
+expect_match(conditionMessage(warnings.constResp[[1L]]), "indistinguishable")
 
 # an all-zero response is guarded against the 0/0 division and is not
 # itself a precision artifact (it is exactly constant, not approximately
