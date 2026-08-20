@@ -273,7 +273,7 @@ it rides on.
 | aft | S MOD:3843 | S MOD:3856 | S MOD:3856 | S RIB:4989 | R RIB:2763 | S RIB:2871 | S RIB:4666 |
 | hazard | S MOD:3105 [f6] | S MOD:3111 | - [f9] | S RIB:4989 | R RIB:2763 | R RIB:2873 | S RIB:4666 |
 | hurdle | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] |
-| bcf | S CH:1045 [f48] | S CH:1045 [f48] | R bartcore.R:305, 326 [f48] | S RIB:4989, 5150 | S RIB:4816 [f48] | S RIB:4591 [f48] | R RIB:2843 |
+| bcf | S CH:1045 [f48] | S CH:1045 [f48] | R bartcore.R:305, 326 [f48] | S RIB:4989, 5150 | S RIB:4816 [f48] | S RIB:4591 [f48] | R RIB:2843 [f49] |
 | grouped | S MOD:4762 [f13] | S MOD:4773 | R RIB:2727 [f13] | S RIB:4989 | S MOD:4788 [f14] | S RIB:2871 [f14] | S RIB:4666 |
 | hetero | S RIB:2701 | S RIB:2701 | R RIB:2701 | S RIB:4989, 5150 | S RIB:2696 | R RIB:2869 | S RIB:4666 |
 
@@ -944,6 +944,20 @@ with the open conduit and both refusals above, at
 inst/tinytest/test-bcf-family.R:406-422. That file is the whole of the latent
 K-forest's evidence: no equivalence scenario and no SBC arm reaches one.
 
+[f49] The test-surface cell stays `R` after `predict-replay`, and truthfully:
+what landed is the PER-FOREST replay (`bartcore_predictPerForest` RIB:5814,
+`Chain::predictPerForestFromSavedSample` CH:2897), not a test surface. The
+resident test store, `run()$yhat.test` and the combined `predict()` remain
+refused through `refuseUndefinedTestFits` (RIB:2849) because the blend
+`sum_f dot(a_f, B_f(i, .)) f_f(x_i)` needs an off-sample basis the sampler does
+not have; the new entry sidesteps that by reporting the `f_f(x_i)` alone and
+leaving the contraction to the caller, whose bases they are. Evidence:
+`inst/tinytest/test-predict-forest.R` (the replay-at-training-rows identity
+against the in-sample channel at 1e-12, the recombination identity against
+`yhat.train`, and the offset / no-reporting / multinomial refusals) plus
+`tests/cpp/test_sampler.cpp`'s `testAmplitudePerForestReplay` (both replay
+routes against `forestTotalFits`, and the raw-scale pin against `predict`).
+
 The IN-SAMPLE per-forest OUTPUT channel (as opposed to construction, above)
 LANDED at bart2-argument-consolidation S11 (00abf336): `packageBartResults`
 packages `forestFits`/`glue` - response-scale raw per-forest totals and the
@@ -957,9 +971,15 @@ identity checks (Block B: a term-built two-forest fit is byte-identical to the
 equivalent `forests =` one at the same seed) as further bitwise evidence for
 the gaussian/probit/logistic construction route, though it is not an
 equivalence-harness scenario and does not change the counts in table 5.
-Out-of-sample per-forest replay (`predict()`) remains a door - S11 did not open
-it (bart2-argument-consolidation N8; `docs/plans/bcf-bartcause-relocation.md`
-:1604-1605).
+Out-of-sample per-forest replay LANDED at `predict-replay` ([f49]): a new engine
+entry replays every forest at new rows RAW - no `fitScale`, no `fitShift`, no
+offset - and `predict(type = "forest", forest =)` and the R5
+`$predictForests()` serve it, gated on `forestReportingIsDefined` like the
+in-sample channel. It does NOT open the test-basis door: the resident test
+surface, `run()$yhat.test` and `extract(type = "forest", sample = "test")` stay
+refused for an amplitude coupling, since the RECOMBINATION off the training rows
+needs bases only the caller has (bart2-argument-consolidation:883-901). The
+section-2 `bcf` test-surface cell is unchanged for that reason.
 
 ## Gaps
 

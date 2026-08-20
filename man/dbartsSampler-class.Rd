@@ -10,6 +10,7 @@
 \alias{\S4method{copy}{dbartsSampler}}
 \alias{\S4method{show}{dbartsSampler}}
 \alias{\S4method{predict}{dbartsSampler}}
+\alias{\S4method{predictForests}{dbartsSampler}}
 \alias{\S4method{setControl}{dbartsSampler}}
 \alias{\S4method{setModel}{dbartsSampler}}
 \alias{\S4method{setData}{dbartsSampler}}
@@ -57,6 +58,7 @@
 \S4method{copy}{dbartsSampler}(shallow = FALSE)
 \S4method{show}{dbartsSampler}()
 \S4method{predict}{dbartsSampler}(x.test, offset.test, n.threads = control@n.threads)
+\S4method{predictForests}{dbartsSampler}(x.test, offset.test)
 \S4method{setControl}{dbartsSampler}(control)
 \S4method{setModel}{dbartsSampler}(model)
 \S4method{setData}{dbartsSampler}(data)
@@ -126,7 +128,7 @@
     A numeric predictor vector of length equal to that with which the sampler was created. Can be of a distinct number of rows for \code{setTestPredictor}.
   }
   \item{x.test}{
-    A new matrix, data frame, or sparse-bearing test set (the column types accepted by \code{\link{dbartsData}}), of the number of columns equal to that in the current model. A data-frame/sparse \code{x.test} is coded against the training levels; \code{setTestPredictor} and \code{setTestPredictorAndOffset} then install it as a resident, whole-object replacement of the test set (see \code{column}), while \code{predict} materializes it to a numeric matrix before evaluating.
+    A new matrix, data frame, or sparse-bearing test set (the column types accepted by \code{\link{dbartsData}}), of the number of columns equal to that in the current model. A data-frame/sparse \code{x.test} is coded against the training levels; \code{setTestPredictor} and \code{setTestPredictorAndOffset} then install it as a resident, whole-object replacement of the test set (see \code{column}), while \code{predict} and \code{predictForests} materialize it to a numeric matrix before evaluating, retaining nothing.
   }
   \item{offset}{
     A numeric vector of length equal to that with which the sampler was created, or \code{NULL}. If \code{offset.test} was set from \code{offset}, will attempt to update that as well.
@@ -135,7 +137,7 @@
     Logical indicating whether BART's internal scale should re-anchor to the new offset (\code{setOffset}) or response (\code{setResponse}). Defaults to \code{FALSE}, locking the scale set at creation; should only be \code{TRUE} during burn-in, as re-anchoring mid-run makes the fits across iterations no longer comparable. \code{TRUE} is refused by samplers whose leaf calibrations are stated against the transform fixed at creation and are never restated: a multi-forest (\code{forests}) sampler - refused whatever its response family, the calibration map being pinned at creation whether or not there is a transform to re-anchor - and a heteroscedastic (\code{variance}) one, whose variance forest would otherwise keep reporting \eqn{s^2(x)}{s^2(x)} on the abandoned scale. A sampler carrying grouped random effects (see \code{\link{rbart_vi}}) is refused on the same grounds, but only where there is a data-derived transform to abandon: under a gaussian, Student-t (\code{resid.dist = student}) or \code{"aft"} response the random intercepts \eqn{b}{b} and their scale \eqn{\tau}{tau} are held against the transform fixed at creation and nothing converts them, so \code{TRUE} would silently restate both in response units while \code{sigma} moved with the scale; under \code{"probit"} or \code{"logistic"} the transform is the link's own and \code{TRUE} is accepted as the no-op it already is.
   }
   \item{offset.test}{
-    A numeric vector of length equal to that of the test matrix, or \code{NULL}. Can be missing for \code{setTestPredictorAndOffset}.
+    A numeric vector of length equal to that of the test matrix, or \code{NULL}. Can be missing for \code{setTestPredictorAndOffset}. Refused, by name, for \code{predictForests}: an offset shifts the combination of the forests, exactly as the response transform's shift does, and neither is any one forest's own total.
   }
   \item{n.threads}{
     Currently has no effect: \code{run} and \code{predict} both execute
@@ -318,7 +320,7 @@
   A \code{dbartsSampler} is a mutable object which contains information pertaining to fitting a Bayesian additive regression tree model. The sampler is first created and then, in a separate instruction, run or modified. In this way, MCMC samplers can be constructed with BART components filling arbitrary roles.
 
   \subsection{Reading the fit}{
-    Five methods report a fitted quantity and no two report the same one. They differ along three axes - the SCALE the values live on, whether the installed OFFSET is in them, and whether they answer from the CURRENT state or from stored draws:
+    Six methods report a fitted quantity and no two report the same one. They differ along three axes - the SCALE the values live on, whether the installed OFFSET is in them, and whether they answer from the CURRENT state or from stored draws:
 
     \tabular{llll}{
       \strong{method} \tab \strong{scale} \tab \strong{offset} \tab \strong{current or stored} \cr
@@ -326,6 +328,7 @@
       \code{$getFitsWithoutOffset()} \tab response (latent under a binary family) \tab excluded \tab current \cr
       \code{$getForestFits(f)} \tab internal, and one forest only \tab excluded \tab current \cr
       \code{$predict(x)} \tab response (latent under a binary family) \tab whatever you pass it \tab the saved samples under \code{keepTrees}, else the current trees \cr
+      \code{$predictForests(x)} \tab internal, one channel per forest \tab excluded, and refused if passed \tab the saved samples under \code{keepTrees}, else the current trees \cr
       \code{$getLatents()} \tab the family's own augmentation variable, which is a location for some families and a precision for others \tab not a fit; see \sQuote{Value} \tab current
     }
 
@@ -382,6 +385,8 @@
   For \code{getFitsWithoutOffset}, the sampler's combined per-observation location on the response scale and \emph{without} the installed offset, an n.observations x n.chains matrix. \code{run()$train} reports the same quantity with the offset folded in, so this value plus the installed offset is that one; there is deliberately no with-offset twin, since the offset is the caller's own. It is the read a host driving the sampler one sweep at a time needs: an incremental scheme updates its outer block against \eqn{f(x_i)}{f(x_i)}, and taking \code{getLatents()} minus \code{run()$train} instead is BIASED, because the training channel carries the offset the latent scale does not. On a multi-forest (\code{forests}) sampler this is the only route from R to the combined fit at all - \code{getForestFits} gives one forest's internal-scale totals and \code{predict} is refused. It is refused, naming the reason, on a multinomial sampler, whose reported channels are per-category softmax probabilities rather than one additive location; \code{predict(x)} serves that read, but reports the SAVED samples rather than the current state when the sampler was built with \code{keepTrees}. It is also refused on the host shell of a fit whose model lives elsewhere, where it would otherwise answer from the placeholder; the other readers on this class are deliberately not guarded that way (TODO \code{host-shell-read-guards}).
 
   For \code{getForestFits}, a multi-forest sampler's requested forest's current internal-scale fitted values, an n.observations x n.chains matrix. For \code{getForestAmplitudes}, the named forest's amplitudes - one per basis column - as a q x n.chains matrix, or, at the default \code{forest = NULL}, every forest's stacked forest-major into a sum(q) x n.chains matrix. The vector is \emph{ragged}: a Bayesian causal forest's forest \code{1} carries the single \eqn{a}{a} on its implicit intercept and its forest \code{2} the pair \eqn{(b_0, b_1)}{(b0, b1)}, so the stacked read is the \eqn{(a, b_0, b_1)}{(a, b0, b1)} of \eqn{y = a \mu(x) + b_z \tau(x) + \epsilon}{y = a mu(x) + b_z tau(x) + eps}. For \code{getForestVariableCounts}, the requested forest's current per-predictor split counts, an n.predictors x n.chains integer matrix; its rows are named by the training matrix's column names when that matrix carries them, and left unnamed otherwise.
+
+  For \code{predictForests}, the off-sample twin of \code{getForestFits}: every forest replayed separately at \code{x.test}, as an n.test x n.forests x n.samples (x n.chains) array on the forests' internal scale, forest-major within a draw. It reports the saved samples when the sampler was built with \code{keepTrees}, and the current trees otherwise, exactly as \code{predict} does. Nothing but the forests' own totals is in it: no amplitude glue, no response transform and no offset, the last refused rather than ignored. That is the point of the channel rather than an omission - an amplitude coupling's location is \code{response.shift} + \eqn{\sum_f (B_f a_f) \times (\mathrm{response.scale} \times f_f)}{sum_f (B_f a_f) * (response.scale * f_f)}, and off the training rows only the caller knows the bases \eqn{B_f}{B_f}, so the whole recombination is theirs, with \code{$getForestAmplitudes()} and \code{$getCalibration()} supplying the rest. Only a sampler that composes its forests through scalar amplitude glue reports per-forest fits; every other one is refused by name, a multinomial sampler included, whose raw per-category totals are perfectly well defined but whose reported quantity is a softmax probability that \code{predict} serves.
 
   For \code{getCalibration}, the leaf-prior calibration a forest currently runs under, as a numeric matrix with one row per chain and the columns \code{prior.scale} (the prior standard deviation of the forest total at \code{k = 1}, in response units), \code{prior.sd} (\code{prior.scale / k}), \code{prior.mean}, \code{k}, \code{k.has.hyperprior} (1 when this forest's \code{k} is drawn every sweep, in which case \code{prior.sd} moves every sweep while \code{prior.scale} does not), \code{response.scale}, and \code{response.shift}. The leaf model rides as a \code{"leaf.model"} attribute, one of \code{"constant"}, \code{"monotone"}, \code{"linear"}, or \code{"gp"}, and qualifies what \code{prior.sd} means.
 

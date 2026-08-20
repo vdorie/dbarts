@@ -233,6 +233,15 @@ public:
   virtual void predict(const PredictorSource& source,
                        std::size_t numTestObservations,
                        const double* categoryOffset, double* out) = 0;
+  /// Per-forest RAW fits for new rows of a borrowed predictor view: forest f's
+  /// own internal-scale total into out + f * numTestObservations, with no
+  /// amplitude glue, no response transform and no offset folded in - all three
+  /// belong to the combination, which off the training rows is the caller's.
+  /// out is numTestObservations x numForests x savedTreeCapacity x numChains.
+  /// SamplerShape::forestReportingIsDefined gates it.
+  virtual void predictPerForest(const PredictorSource& source,
+                                std::size_t numTestObservations,
+                                double* out) = 0;
   /// Heteroscedastic variance surface s^2(x) on new rows (original scale);
   /// SamplerShape::hasVarianceForest gates it.
   virtual void predictVariance(const PredictorSource& source,
@@ -502,6 +511,11 @@ public:
   void predict(const PredictorSource& source, std::size_t numTestObservations,
                const double* categoryOffset, double* out) override {
     impl_.predict(source, numTestObservations, categoryOffset, out);
+  }
+  void predictPerForest(const PredictorSource& source,
+                        std::size_t numTestObservations,
+                        double* out) override {
+    impl_.predictPerForest(source, numTestObservations, out);
   }
   void predictVariance(const PredictorSource& source,
                        std::size_t numTestObservations, double* out) override {

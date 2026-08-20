@@ -184,10 +184,11 @@ predict.bart <- function(
   newdata,
   offset,
   weights,
-  type = c("ev", "ppd", "bart"),
+  type = c("ev", "ppd", "bart", "forest"),
   combineChains = TRUE,
   n.threads = object$fit$control@n.threads,
   ci.level = NULL,
+  forest = NULL,
   ...
 ) {
   if (missing(offset)) {
@@ -206,6 +207,13 @@ predict.bart <- function(
   }
 
   type <- validateType(type, eval(formals(predict.bart)$type))
+
+  # the per-forest arm answers off the sampler's own replay and shares none of
+  # the combined arms' machinery below: there is no ci.level band, no latent
+  # transform and no s(x) attribute on a raw per-forest total
+  if (type == "forest") {
+    return(predictForest(object, newdata, offset, combineChains, forest))
+  }
 
   n.threads <- as.integer(n.threads)[1L]
 
@@ -402,8 +410,10 @@ extractForest <- function(object, sample, combineChains, forest, contribution) {
   }
   if (sample == "test") {
     stop(
-      "type = \"forest\" does not support sample = \"test\": an ",
-      "amplitude-coupled fit does not support test predictors"
+      "type = \"forest\" does not support sample = \"test\": no test-sample ",
+      "per-forest channel is stored, since an amplitude-coupled fit takes no ",
+      "test predictors; predict(type = \"forest\") replays the forests at new ",
+      "rows instead"
     )
   }
   n.chains <- if (!is.null(object[["fit"]])) {
@@ -439,6 +449,40 @@ extractForest <- function(object, sample, combineChains, forest, contribution) {
     result[,, j] <- (g %*% t(basis)) * fits[,, k]
   }
   reshapeChainedChannel(result, n.chains, combineChains, 2L)
+}
+
+# predict(type = "forest"): the out-of-sample twin of extract(type = "forest")'s
+# raw slice - each selected forest's own RESPONSE-scale total at newdata,
+# replayed from the saved trees (the current trees without keepTrees, as every
+# other predict arm does). The engine reports the forests on their internal
+# scale, so response.scale is applied here exactly as packageBartResults applies
+# it to the in-sample channel; the amplitude glue, the response shift and any
+# offset are deliberately NOT folded in, because the recombination needs the
+# caller's own bases at the new rows (man/bart.Rd states the idiom). Refuses by
+# name on a fit without per-forest reporting, off the same stored channel
+# extract reads, and there is no contribution = arm for the same reason.
+predictForest <- function(object, newdata, offset, combineChains, forest) {
+  if (is.null(object[["forestFits"]])) {
+    stop(
+      "type = \"forest\" is only available on a fit with per-forest ",
+      "reporting (an amplitude-coupled multi-forest fit); this fit has none"
+    )
+  }
+  n.chains <- object$fit$control@n.chains
+  responseScale <- object$fit$getCalibration(1L)[1L, "response.scale"]
+  raw <- object$fit$predictForests(newdata, offset) * responseScale
+  # forestFits carries the fit's own combineChains shape (3-d combined, 4-d
+  # split across chains), so the forest margin is always the LAST axis rather
+  # than a fixed index
+  forestNames <- dimnames(object$forestFits)[[length(dim(object$forestFits))]]
+  idx <- resolveForestSelection(forest, forestNames)
+  result <- shapeMultinomialChannel(raw, forestNames, n.chains, TRUE)
+  reshapeChainedChannel(
+    result[,, idx, drop = FALSE],
+    n.chains,
+    combineChains,
+    2L
+  )
 }
 
 fitted.bart <- function(

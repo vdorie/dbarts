@@ -67,6 +67,7 @@ SEXP bartcore_drawLatents(SEXP family, SEXP fit, SEXP y, SEXP weights,
 SEXP bartcore_workingResponse(SEXP family, SEXP latent, SEXP y, SEXP weights,
                               SEXP offset, SEXP dispersion);
 SEXP bartcore_predict(SEXP ptr, SEXP x_test, SEXP offset_test);
+SEXP bartcore_predictPerForest(SEXP ptr, SEXP x_test, SEXP offset_test);
 SEXP bartcore_getTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,
                        SEXP treeNums, SEXP current, SEXP newdata,
                        SEXP trainingData, SEXP forest);

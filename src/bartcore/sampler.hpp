@@ -566,6 +566,49 @@ public:
     }
   }
 
+  /// Per-forest RAW fits for new rows of a borrowed predictor view: forest f's
+  /// own internal-scale total, with no amplitude glue, no response transform
+  /// and no offset (Chain::predictPerForestFromSavedSample states why). out is
+  /// numTestObservations x numForests x savedTreeCapacity x numChains,
+  /// chain-major like predict's; without saved trees, one slab per chain from
+  /// the live trees. Nothing resident is read or retained: the rows and the
+  /// recombination both belong to the caller.
+  void predictPerForest(const PredictorSource& source,
+                        size_t numTestObservations, double* out) {
+    if (source.isDenseBlock())
+      predictPerForestColumns(
+        DenseColumns{source.denseValues, numTestObservations},
+        numTestObservations, out);
+    else
+      predictPerForestColumns(PredictorSourceColumns(source, data_.types.data()),
+                              numTestObservations, out);
+  }
+
+  /// Dense convenience spelling: a plain column-major block of new rows.
+  void predictPerForest(const double* x_test, size_t numTestObservations,
+                        double* out) {
+    predictPerForestColumns(DenseColumns{x_test, numTestObservations},
+                            numTestObservations, out);
+  }
+
+  template <typename Columns>
+  void predictPerForestColumns(const Columns& columns,
+                               size_t numTestObservations, double* out) {
+    size_t capacity = savedTreeCapacity();
+    size_t slab = numTestObservations * numForests();
+    for (size_t c = 0; c < chains_.size(); ++c) {
+      if (capacity > 0) {
+        for (size_t slot = 0; slot < capacity; ++slot)
+          chains_[c]->predictPerForestFromSavedSample(
+            slot, columns, numTestObservations,
+            out + (c * capacity + slot) * slab);
+      } else {
+        chains_[c]->predictPerForestFromCurrentTrees(
+          columns, numTestObservations, out + c * slab);
+      }
+    }
+  }
+
   /// Whether this sampler carries a heteroscedastic variance forest, and its
   /// tree count; the run/predict bridges gate the s(x) channels on this.
   bool hasVarianceForest() const { return chains_[0]->hasVarianceForest(); }

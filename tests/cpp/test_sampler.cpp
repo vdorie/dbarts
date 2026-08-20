@@ -2800,6 +2800,117 @@ static void testBCFGrowForestFromRoot() {
   printf("ok: BCF grow-from-root sweep\n");
 }
 
+// Per-forest replay: predictPerForest at the TRAINING rows reproduces each
+// forest's own resident totalFits (forestTotalFits), forest by forest. That is
+// the whole contract - RAW, forest-major, no fitScale, no fitShift, no offset -
+// and it is stated as a tolerance rather than an equality on purpose: the
+// amplitude ridge rescales totalFits as c * sum(mu_t) while it rescales the
+// saved leaves themselves, so the replay re-sums sum(c * mu_t) and the two
+// associate differently (combiner.hpp's rescale move).
+//
+// Both replay routes are gated: the saved-slot one under keepTrees, whose LAST
+// slot is the run's final recorded sweep and so the live position, and the
+// live-tree one without it. A local fixture stream plus a locally owned
+// generator keep this neutral to the shared runif01() state.
+static void testAmplitudePerForestReplay() {
+  std::uint64_t state = 20260820u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+
+  const size_t n = 250, p = 3, numSamples = 4;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = unif() < 0.5 ? 1.0 : 0.0;
+    double mu = std::sin(3.0 * x[i]) + x[i + n];
+    double tau = 1.0 + 2.0 * x[i + 2 * n];
+    y[i] = mu + z[i] * tau + 0.2 * (unif() - 0.5);
+  }
+
+  AmplitudeSpec spec;
+  spec.mu.numTrees = 30;
+  spec.tau.numTrees = 15;  // ragged tree counts: each forest drives its own loop
+  spec.z = z.data();
+
+  // the two forests' resident totals, and the replayed channels to match them
+  std::vector<double> live(n), replayed(n * 2 * numSamples);
+
+  auto maxPerForestGap = [&](Sampler<ConstantGaussianLeaf>& sampler,
+                             const double* slab) {
+    double worst = 0.0;
+    for (size_t f = 0; f < 2; ++f) {
+      sampler.forestTotalFits(0, f, live.data());
+      for (size_t i = 0; i < n; ++i)
+        worst = std::max(worst, std::fabs(slab[i + f * n] - live[i]));
+    }
+    return worst;
+  };
+
+  {
+    SamplerOptions options;
+    options.keepTrees = true;
+    options.numSamplesToStore = numSamples;
+    ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(localRng, 5150u);
+    Sampler<ConstantGaussianLeaf> sampler(
+      x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+      0.37804942330213542, options, spec, &localRng);
+
+    Results results;
+    sampler.run(120, numSamples, results);
+    sampler.predictPerForest(x.data(), n, replayed.data());
+
+    const double* lastSlot = replayed.data() + (numSamples - 1) * n * 2;
+    check(maxPerForestGap(sampler, lastSlot) < 1.0e-12,
+          "saved-slot per-forest replay reproduces each forest's own total");
+
+    // the RAW convention, pinned against the one channel that does carry the
+    // transform: predict replays forest 0 as fitScale * mu + fitShift, so its
+    // difference from the raw forest-0 replay is a constant (the shift) for
+    // every row. A scale applied inside the per-forest entry would make that
+    // difference row-dependent.
+    std::vector<double> combined(n * numSamples);
+    sampler.predict(x.data(), n, combined.data());
+    double scale = sampler.fitScale();
+    const double* lastCombined = combined.data() + (numSamples - 1) * n;
+    double shift = lastCombined[0] - scale * lastSlot[0];
+    double maxShiftSpread = 0.0;
+    for (size_t i = 0; i < n; ++i)
+      maxShiftSpread = std::max(
+        maxShiftSpread,
+        std::fabs((lastCombined[i] - scale * lastSlot[i]) - shift));
+    check(maxShiftSpread < 1.0e-12,
+          "the per-forest channel carries no fit scale of its own");
+
+    bool slotsFinite = true;
+    for (double v : replayed) slotsFinite &= std::isfinite(v);
+    check(slotsFinite, "every saved per-forest slot is finite");
+
+    ext_rng_destroy(localRng);
+  }
+
+  {
+    SamplerOptions options;  // keepTrees off: the live-tree route
+    ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(localRng, 5151u);
+    Sampler<ConstantGaussianLeaf> sampler(
+      x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+      0.37804942330213542, options, spec, &localRng);
+
+    Results results;
+    sampler.run(120, 1, results);
+    sampler.predictPerForest(x.data(), n, replayed.data());
+    check(maxPerForestGap(sampler, replayed.data()) < 1.0e-12,
+          "live-tree per-forest replay reproduces each forest's own total");
+
+    ext_rng_destroy(localRng);
+  }
+
+  printf("ok: amplitude per-forest replay\n");
+}
+
 // A forest multiplier that is zero - or indistinguishable from zero at the
 // tolerance R's own almost-equal comparisons default to - excludes the row from
 // that forest's leaf conditionals exactly. A constructed BCF combiner carries
@@ -6477,6 +6588,7 @@ void runSamplerTests(ext_rng* rng) {
   testBCFInterweave(rng);
   testBCFInterweaveKeepTrees(rng);
   testBCFGrowForestFromRoot();
+  testAmplitudePerForestReplay();
   testBCFZeroMultiplierSnap();
   testBCFCombinerSeam();
   testCombinedFitsAssociation();

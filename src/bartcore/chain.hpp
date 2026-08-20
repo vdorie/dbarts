@@ -742,7 +742,7 @@ public:
         const AmplitudeSpec& spec, ext_rng* rng)
     : options_(options), data_(data), weights_(weights), rng_(rng) {
     static_assert(!L::hasVectorParams && !L::hasFunctionParams,
-                  "BCF is a constant-leaf model");
+                  "an amplitude coupling is a constant-leaf model");
     options_.maxNumCutsPerVariable = nullptr;
     options_.predictors = {};
     // the per-forest restriction arrives via ForestStructureSpec instead
@@ -2881,6 +2881,64 @@ public:
       misc_addVectorsInPlace(categoryOffset, numTestObservations * K,
                              raw.data());
     softmaxLocationMajor(raw.data(), numTestObservations, K, out);
+  }
+
+  /// Per-forest RAW replay of one saved sample: forest f's own total at the new
+  /// rows into out + f * numTestObservations, forest-major. On the forests'
+  /// INTERNAL scale, with NO fitScale, NO fitShift and no offset - the
+  /// combination carries all three, and off the training rows the bases it
+  /// contracts against are the caller's, not the sampler's. This is the
+  /// off-sample twin of forestTotalFits: a caller recombines as
+  /// shift + sum_f dot(a_f, B_f(i, .)) * (scale * f_f(x_i)).
+  ///
+  /// Per-forest tree counts may differ, so each forest's own numTrees drives
+  /// its loop rather than the chain's first.
+  template <typename Columns>
+  void predictPerForestFromSavedSample(size_t slot, const Columns& columns,
+                                       size_t numTestObservations,
+                                       double* out) const {
+    std::vector<size_t> indices(numTestObservations);
+    std::vector<size_t> blockOffsets;
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      const Forest<L, ResidT>& forest = forests_[f];
+      double* forestRaw = out + f * numTestObservations;
+      misc_setVectorToConstant(forestRaw, numTestObservations, 0.0);
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        const std::uint64_t* masks = data_.hasPooledCategorical
+          ? forest.savedTreeMasks[slot * forest.numTrees + t].data() : nullptr;
+        const std::vector<double>* sideChannel = forest.savedTreeParams.empty()
+          ? nullptr : &forest.savedTreeParams[slot * forest.numTrees + t];
+        addFlatPredictions(forest.savedTrees[slot * forest.numTrees + t],
+                           sideChannel, masks, columns, numTestObservations,
+                           indices, blockOffsets, forestRaw);
+      }
+    }
+  }
+
+  /// The same per-forest raw replay from the live trees, flattened on the fly;
+  /// reached when keepTrees is off, where the current position is all there is.
+  template <typename Columns>
+  void predictPerForestFromCurrentTrees(const Columns& columns,
+                                        size_t numTestObservations,
+                                        double* out) {
+    std::vector<size_t> indices(numTestObservations);
+    std::vector<size_t> blockOffsets;
+    std::vector<double> slopes;
+    std::vector<std::uint32_t> counts;
+    std::vector<FlatNode> flat;
+    std::vector<std::uint64_t> maskBuffer;
+    std::vector<std::uint64_t>* masks =
+      data_.hasPooledCategorical ? &maskBuffer : nullptr;
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      double* forestRaw = out + f * numTestObservations;
+      misc_setVectorToConstant(forestRaw, numTestObservations, 0.0);
+      for (size_t t = 0; t < forests_[f].numTrees; ++t) {
+        flattenTree(t, flat, counts, &slopes, masks, f);
+        addFlatPredictions(flat, &slopes, maskBuffer.data(), columns,
+                           numTestObservations, indices, blockOffsets,
+                           forestRaw);
+      }
+    }
   }
 
   // Chain state serialization. getState captures everything the posterior

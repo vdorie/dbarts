@@ -2851,8 +2851,9 @@ void refuseUndefinedTestFits(const bartcore::SamplerBase& sampler,
   bartcore::SamplerShape shape = sampler.shape();
   if (shape.numForests >= 2 && !shape.testFitsAreDefined)
     Rf_error("%s: this sampler's forest amplitudes have no off-sample basis, "
-             "so its test fits are undefined; predict per forest with "
-             "getForestFits and the amplitude glue instead", caller);
+             "so its combined test fits are undefined; replay the forests "
+             "separately and recombine them with the amplitude glue instead",
+             caller);
 }
 
 // A sampler whose residual sd is not a free parameter has none to set:
@@ -5763,6 +5764,86 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
     bartcore::densePredictorSource(REAL(xTestExpr), numTestObservations,
                                    shape.numPredictors),
     offsetExpr);
+}
+
+// The allocation/replay tail of bartcore_predictPerForest. It cannot reuse
+// predictFromSource: the forest margin changes the result's dim vector, and
+// there is no offset to add. An amplitude coupling's location is
+// shift + sum_f (B_f a_f) * (scale * f_f), so the response transform AND the
+// offset both belong to the combination, never to one forest's own total.
+//
+// The result is numTestObservations x numForests x numSamples (x numChains) -
+// the layout the run's own per-forest channel carries, with numSamples the
+// saved capacity, or 1 off keepTrees, where the live trees replay instead.
+SEXP predictPerForestFromSource(bartcore::SamplerBase& sampler,
+                                const bartcore::SamplerShape& shape,
+                                const bartcore::PredictorSource& source) {
+  size_t numTestObservations = source.numRows;
+  if (numTestObservations == 0)
+    Rf_error("bartcore_predictPerForest: requires rows");
+
+  size_t capacity = shape.savedTreeCapacity;
+  size_t numSamples = capacity > 0 ? capacity : 1;
+
+  int dims[4];
+  int numDims = 0;
+  dims[numDims++] = static_cast<int>(numTestObservations);
+  dims[numDims++] = static_cast<int>(shape.numForests);
+  dims[numDims++] = static_cast<int>(numSamples);
+  if (shape.numChains > 1) dims[numDims++] = static_cast<int>(shape.numChains);
+  R_xlen_t total = 1;
+  for (int d = 0; d < numDims; ++d) total *= dims[d];
+  SEXP resultExpr = PROTECT(Rf_allocVector(REALSXP, total));
+  SEXP dimExpr = Rf_allocVector(INTSXP, numDims);
+  for (int d = 0; d < numDims; ++d) INTEGER(dimExpr)[d] = dims[d];
+  Rf_setAttrib(resultExpr, R_DimSymbol, dimExpr);
+
+  sampler.predictPerForest(source, numTestObservations, REAL(resultExpr));
+  UNPROTECT(1);
+  return resultExpr;
+}
+
+// Each forest's own RAW fits for new data, on the forests' INTERNAL scale and
+// without any offset - the off-sample twin of bartcore_getForestFits. Gated on
+// forestReportingIsDefined, the same predicate the run's forestFits channel
+// exists under, so an ordinary single-forest sampler and a multinomial one are
+// both refused: the latter's raw per-category fits ARE defined, but its
+// reported quantity is a softmax probability and its off-sample surface is
+// bartcore_predict, which reports that. Sparse test sources replay resident,
+// exactly as they do there.
+SEXP bartcore_predictPerForest(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerBase& sampler(*holder.sampler);
+  bartcore::SamplerShape shape = sampler.shape();
+
+  if (!shape.forestReportingIsDefined)
+    Rf_error("bartcore_predictPerForest: this sampler reports no per-forest "
+             "fits; only a coupling that composes its forests through scalar "
+             "amplitude glue carries them");
+  // A per-forest raw fit takes no offset: an offset shifts the COMBINATION,
+  // exactly as the response transform's shift does, and neither is any one
+  // forest's. Refused rather than ignored, so a caller who means to shift the
+  // recombination is told where the shift belongs.
+  if (!Rf_isNull(offsetExpr))
+    Rf_error("bartcore_predictPerForest: a per-forest fit takes no offset, "
+             "which shifts the recombination rather than any one forest's own "
+             "total; add it there instead");
+
+  if (testSourceIsSparse(xTestExpr))
+    return unwindProtect([&, parsed = ParsedTestContainer{}]() mutable -> SEXP {
+      parseTestSource(parsed, xTestExpr, shape.numPredictors,
+                      sampler.data().types.data());
+      validateTestContainerAgainstStore(sampler.data(), parsed.view);
+      refuseSparseLeafCovariate(shape, parsed.view);
+      return predictPerForestFromSource(sampler, shape, parsed.view);
+    });
+
+  size_t numTestObservations =
+    validatePredictorMatrix(sampler, xTestExpr, "bartcore_predictPerForest");
+  return predictPerForestFromSource(
+    sampler, shape,
+    bartcore::densePredictorSource(REAL(xTestExpr), numTestObservations,
+                                   shape.numPredictors));
 }
 
 // index conversion around bartcore_bridge::getTrees, which describes the

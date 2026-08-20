@@ -1354,6 +1354,28 @@ bartcorePredict <- function(bcSampler, x.test, offset.test = NULL) {
   .Call(C_dbarts_bartcore_predict, bcSampler$ptr, x.test, offset.test)
 }
 
+# Each forest's own RAW fits at new rows: an n.new x n.forests x n.samples
+# (x n.chains) array on the forests' INTERNAL scale, the off-sample twin of
+# bartcoreForestFits. No amplitude glue, no response transform and no offset are
+# folded in - an amplitude coupling's location is
+# shift + sum_f (basis_f %*% glue_f) * (scale * f_f), and off the training rows
+# only the caller knows the bases, so the whole recombination is theirs.
+# offset.test exists to be refused by name, since a shift belongs to that
+# recombination rather than to any one forest's total. Refused on a handle whose
+# coupling reports no per-forest fits, which is every single-forest sampler and
+# a multinomial one (its raw f_k are defined, but bartcorePredict reports the
+# softmax probabilities that handle's surface is stated in).
+bartcorePredictPerForest <- function(bcSampler, x.test, offset.test = NULL) {
+  x.test <- as.matrix(x.test)
+  storage.mode(x.test) <- "double"
+  .Call(
+    C_dbarts_bartcore_predictPerForest,
+    bcSampler$ptr,
+    x.test,
+    offset.test
+  )
+}
+
 bartcoreGetTrees <- function(
   bcSampler,
   chainNums,

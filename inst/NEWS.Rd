@@ -172,6 +172,20 @@
             same matrices directly. A list of length one is refused by
             name rather than dropped: a lone forest has no second
             ensemble for its amplitudes to distinguish it from.
+      \item A multi-forest fit predicts forest by forest at new rows:
+            \code{predict(fit, newdata, type = "forest", forest = )}
+            replays each forest's saved trees and reports its own
+            response-scale total, the out-of-sample twin of
+            \code{extract(type = "forest")}, and the sampler's
+            \code{$predictForests} serves the same read on the internal
+            scale. Neither folds in the amplitude glue, the response
+            shift, or an offset - off the training rows the bases the
+            amplitudes multiply are the caller's, so the recombination
+            \code{shift + sum_k (basis_k \%*\% glue_k) * forest_k} is
+            theirs too, with a basis of their choosing. An offset is
+            refused rather than silently dropped. The combined
+            \code{predict} on such a fit stays refused for the same
+            reason, as does test data.
       \item The prior defaults a multi-forest model takes when a forest
             says nothing are stated in the terms a caller can defend. A
             forest with no \code{basis} takes a half-Cauchy median of 1
