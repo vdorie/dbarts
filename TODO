@@ -36,30 +36,25 @@ items
     unregistered off bartcore) - rides the first nightly after
     bartcore reaches main; per-push CI sanitizers cover the new
     tinytest file under instrumented R meanwhile.
-  bcf-naming-generalization: the shipped K-forest amplitude family is
-    spelled with BCF names at every layer - BCFSpec, BCFForestSpec,
-    BCFState, BCFForestCombiner, BCFSpecStorage, createBCFSampler,
-    ChainStateData::hasBCF and the state format's "bcf" block - so each
-    reads "BCF" where it means "carries amplitudes". The debt and its
-    mitigation (every capability probe is totalAmplitudes() != 0, never
-    a name or a forest count) are described in
-    docs/design/multiplier-combiner.md. BCFSpecStorage
-    (R_interface_bartcore.cpp:2128; used at :2165, :2233, :2262, :2953,
-    :3095) is the per-build backing store whose vectors a BCFSpec's
-    pointers borrow - each forest's column subset, interaction pairs,
-    block partition and transposed basis - one more BCF-prefixed name
-    for the same general capability. The R side carries the identical
-    tell: isBCFSampler (R/bartcore.R:24) and refuseBCFMutation
-    (R/bartcore.R:34), the latter's five call sites R/bartcore.R:306,
-    :327, :404 and R/dbarts.R:1161, :1622, every one of which reads or
-    gates on data@bases rather than a forest count or a name. A rename
-    is ENGINE work, not a docs edit: a --preclean, a structSize move on
-    the state fixtures
-    (common.cpp already tripped once, 272 -> 344), and a state-block key
-    change needing the same in-place re-encode M4.3 used. The formerly listed
-    user-visible leg (calibrationMapName's two-forest literal reaching
-    setForestPriorScale's refusal) landed on its own; only the rename
-    remains here. Pre-release, unscheduled.
+  bcf-naming-generalization: DISCHARGED 8215a53c + be1d06e4 (design
+    memo + adversarial critique + two-commit execution; the cleanup
+    wave 2 landing note in release-candidate-review.md is the
+    record). The amplitude family now spells its capability:
+    AmplitudeSpec, ForestStructureSpec, AmplitudeState,
+    AmplitudeForestCombiner, createAmplitudeSampler, hasAmplitudes,
+    samplerCarriesAmplitudes, refuseAmplitudeMutation,
+    refuseUndefinedTestFits, ~21 error texts, state key "glue" with
+    stateFormatVersion and the readable floor both at 2 (a v1 state
+    refuses by version - the rename made an absent OPTIONAL block a
+    silent misread otherwise), control attribute bartcore.forests.
+    Kept as genuine BCF-model references: bcfGlue,
+    bartcoreBCFSampler, bartcore_createBCF/createBCFHolder, the
+    test-bcf-*.R file names, benchmarks/R/bcf-*.R and their
+    baselines (no re-record - verified channel-by-channel), and
+    docs prose about the model. Trio bitwise 42/12/11. RESIDUE, tiny:
+    two never-emitted static_assert strings still read "BCF is a
+    constant-leaf model" (combiner.hpp, chain.hpp) - sweep
+    opportunistically with the next edit to those files.
   bcf-sigma-tail-mixing: OPTIONAL research door (docs/plans/bcf-sigma-
     residual.md sec 4 item 2; no separate plan doc). Open: the EXTREME
     tail (|a0| >= ~40, ~3% of the prior) is frozen-structure mixing
