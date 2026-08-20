@@ -1,7 +1,7 @@
 ---
 title: "Building a Gibbs Sampler with dbarts"
 author: "Vincent Dorie"
-date: "2026-07-25"
+date: "2026-08-19"
 output: pdf_document
 ---
 
@@ -194,6 +194,143 @@ legend("topright", c("true func", "est func", "group 0", "group 1",
        col = c("black", "red", "black", "gray", "black", "gray"),
        cex = 0.8, box.col = "white", bg = "white")
 ```
+
+## Several Forests with Multipliers
+
+The sampler above holds one function. A model may want several, each entering
+the response through a multiplier the outer loop knows:
+
+$$Y_i \sim \mathrm{N}\left(\sum_{f=1}^{K} m_{f,i}\, g_f(x_i),\ \sigma^2\right),$$
+
+where $g_1, \ldots, g_K$ are separate sums of trees and $m_{f,i}$ is a known
+per-observation scalar - an exposure, a dose, a treatment indicator, a group
+loading. Bayesian causal forests is the $K = 2$ case with $m_1 \equiv 1$ and
+$m_2 = z$.
+
+One `dbartsSampler` per forest composes this in R, and the composition is
+ordinary backfitting once the multiplier is folded in. Given the residual
+$r_i = y_i - \sum_{g \neq f} m_{g,i} g_g(x_i)$, forest $f$'s leaf conditionals
+want response $r_i / m_{f,i}$ and precision weight $w_i m_{f,i}^2$; those are
+the two channels the loop writes, with `setSigma` for the third and
+`run(0L, 1L)` to advance one sweep. `updateScale = FALSE` (the default) is
+what makes the swap coherent: every sweep's residual is read on the scale
+creation fixed, so the leaf prior keeps meaning what it meant.
+
+A multiplier at or near zero says the row carries no information about that
+forest. Divide anyway and the response is amplified without bound, so the
+recipe snaps such a row to an exactly zero response paired with its exactly
+zero weight - which is what the engine does internally, at
+$\sqrt{\texttt{.Machine\$double.eps}}$.
+
+```{r kforest}
+set.seed(919)
+n.mf <- 200L
+x.mf <- matrix(runif(n.mf * 3L), n.mf, 3L)
+z.mf <- rbinom(n.mf, 1L, 0.5)
+g1.true <- 2 * sin(pi * x.mf[, 1L])
+g2.true <- 1 + 2 * x.mf[, 2L]
+y.mf <- g1.true + z.mf * g2.true + rnorm(n.mf, 0, 0.5)
+
+# the known per-observation multipliers, one vector per forest
+m <- list(rep(1, n.mf), as.double(z.mf))
+K <- length(m)
+
+control.mf <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L,
+                            updateState = FALSE)
+# every sampler is built on the SAME response, with k fixed and sigma owned
+# by the outer loop
+samplers <- lapply(seq_len(K), function(f)
+    dbarts(x.mf, y.mf, control = control.mf, node.prior = normal(k = 1),
+           resid.prior = fixed(1)))
+# one prior budget divided among the forests, rather than K copies of the
+# budget for the whole of the sum
+base.mf <- samplers[[1L]]$getCalibration()[1L, "prior.scale"]
+for (s in samplers) s$setCalibration(prior.scale = base.mf / sqrt(K))
+
+g <- rep(list(rep(0, n.mf)), K)
+sigma.mf <- 1
+n.keep <- 200L
+keep.g2 <- matrix(0, n.mf, n.keep)
+
+for (i in seq_len(100L + n.keep)) {
+  for (f in seq_len(K)) {
+    r <- y.mf - Reduce(`+`, Map(`*`, m[-f], g[-f]))
+    zero <- abs(m[[f]]) < sqrt(.Machine$double.eps)
+    samplers[[f]]$setResponse(ifelse(zero, 0, r / ifelse(zero, 1, m[[f]])),
+                              updateScale = FALSE)
+    samplers[[f]]$setWeights(m[[f]]^2)
+    samplers[[f]]$setSigma(sigma.mf)
+    samplers[[f]]$run(0L, 1L)
+    g[[f]] <- as.numeric(samplers[[f]]$getFitsWithoutOffset())
+  }
+  # sigma is drawn in R, against the COMBINED residual
+  resid.mf <- y.mf - Reduce(`+`, Map(`*`, m, g))
+  sigma.mf <- sqrt(sum(resid.mf^2) / rchisq(1L, n.mf))
+  if (i > 100L) keep.g2[, i - 100L] <- g[[2L]]
+}
+
+c(recovery = cor(rowMeans(keep.g2), g2.true), sigma = sigma.mf, truth = 0.5)
+```
+
+### What it costs
+
+Measured on one machine against a single batched engine sampler at matched
+total trees - the denominator matters, and a price quoted without one says
+nothing - K samplers driven a sweep at a time cost about 1.9-2.1 times that
+sampler at $K = 2$ and 4.6-5.2 times at $K = 8$, growing roughly linearly in
+$K$: each sampler pays its own per-sweep response install, weight install and
+result allocation over the full data. Driving one sampler a sweep at a time
+rather than in a batch is a separate and much smaller charge, about 1.1x.
+
+### Five things the recipe does not get
+
+* **No joint move on the multipliers.** If the outer loop also draws the
+  $m_f$, it draws them in a block alternating with the forests. A sampler that
+  holds both can interweave them instead, and the two mix differently whenever
+  a forest and its multiplier are jointly weakly identified.
+* **The division is yours.** The caller forms $r / m_f$ and so owns the
+  conditioning, including the snap above.
+* **$K$ quantized predictor stores and $K$ sampler states**, where one
+  sampler holding $K$ forests keeps one of each.
+* **$K$ leaf calibrations to state**, one per sampler, rather than a single
+  calibration stated across the forests at creation.
+* **A serial outer loop.** The forests are drawn one after another in R, so
+  the composition cannot spread them across threads.
+
+### Graduating to a multi-forest sampler
+
+`dbarts(..., forests = list(forest(), forest(basis = ~ factor(z))))` fits this
+model in one sampler, and the question a prototype should be able to ask is
+whether moving to it changes the posterior being targeted.
+
+The additive decomposition ports exactly. What does not port by itself is
+prior shape. The two routes agree only if the caller
+
+1. centres $y$ at its midrange, or absorbs the response transform's shift with
+   `setOffset`: each single-forest sampler's reported fit carries that shift,
+   so the composition attributes it once per forest where the sampler
+   attributes it once;
+2. pins the leaf prior identically - `node.prior = normal(k)` with $k$ fixed,
+   every sampler built on a common $y$, and `updateScale = FALSE` throughout;
+3. accepts that with a multiplier far from 1 the internal response a forest
+   sees leaves the band its leaf prior was calibrated for.
+
+Without (1) and (2) the two routes are different priors that agree closely.
+With them the remaining difference is the leaf calibration alone. Measured on
+a pinned two-forest sampler against the recipe above, at $n = 400$ over eight
+chains: with the remedies the posterior mean conditional effect agreed to
+3.4% pointwise, inside Monte Carlo error in root-mean-square; without them the
+difference was 11.9% pointwise and several times Monte Carlo error. Both
+recovered the truth about equally well, which is the point - the difference is
+a prior, not a defect.
+
+State equally plainly what the recipe does not reach and never will: a
+response family, link or latent structure the sampler does not provide, and a
+leaf or hyperprior law it does not provide. Those are selected by argument,
+not composed in R. `forest()` carries the same scale knobs the composition
+sets by hand, and `$setForestBasis`, `$setForestWeights` and
+`$getForestAmplitudes` are the post-creation routes into a multi-forest
+sampler, so a prototype ports without changing the model it targets.
 
 ## Response Families
 
