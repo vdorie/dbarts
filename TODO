@@ -393,14 +393,14 @@ items
     warning sweep (c4971bbb; its Linux-only warning-count fire cured
     at 07b02f06 - see the soak wave 2 landing note's fire-and-cure
     record), M0 doc (cf4a290c), error-style residue (49b8cac3),
-    cross-arch dead kernels (ded1f54e). TWO FORKS WITH VD: (i) the
-    oracle lane's remainder - hazard + hurdle posterior-oracle
-    disposition (P1b/P9 landed; SBC owed nowhere - scoping record in
-    the soak wave 1 landing note); (ii) whether
-    estimateSigmaFromLinearModel should muffle base R's leaked
-    "essentially perfect fit" warning at the source (soak wave 2
-    landing note, fire-and-cure record). Ledger item 15's anchor
-    sweep is DONE (662a7ef8). RC DECLARATION ITSELF IS VD-HELD.
+    cross-arch dead kernels (ded1f54e). BOTH FORKS RESOLVED under
+    VD's 2026-08-19 discretion grant, recommendations taken: (i)
+    hazard + hurdle exact-posterior oracles BUILT and gated
+    (0787b8e3; independently adjudicated, first live CI run green -
+    every shipped family now carries SBC or a gated posterior
+    oracle); (ii) the perfect-fit muffle LANDED (b1559457, cleanup
+    wave 1). Ledger item 15's anchor sweep is DONE (662a7ef8). RC
+    DECLARATION ITSELF IS VD-HELD.
   release-candidate-review: SPECCED 2026-08-17 - the derived slate is
     docs/plans/release-candidate-review.md (fresh censuses + a blind
     critique whose eleven amendments are applied; six VD forks are
