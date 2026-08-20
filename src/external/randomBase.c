@@ -388,11 +388,16 @@ ext_rng_algorithm_t ext_rng_getDefaultAlgorithmType(void)
   }
   if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = Rf_eval(R_SeedsSymbol, R_GlobalEnv);
   
-  if (seedsExpr == R_UnboundValue || !Rf_isInteger(seedsExpr))
+  if (seedsExpr == R_UnboundValue) return EXT_RNG_ALGORITHM_MERSENNE_TWISTER;
+  PROTECT(seedsExpr);
+  if (!Rf_isInteger(seedsExpr)) {
+    UNPROTECT(1);
     return EXT_RNG_ALGORITHM_MERSENNE_TWISTER;
-  
+  }
+
   uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
-  
+  UNPROTECT(1);
+
   return (ext_rng_algorithm_t) (seed0 % 100);
 }
 
@@ -406,11 +411,16 @@ ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType(void)
   }
   if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = Rf_eval(R_SeedsSymbol, R_GlobalEnv);
   
-  if (seedsExpr == R_UnboundValue || !Rf_isInteger(seedsExpr))
+  if (seedsExpr == R_UnboundValue) return EXT_RNG_STANDARD_NORMAL_INVERSION;
+  PROTECT(seedsExpr);
+  if (!Rf_isInteger(seedsExpr)) {
+    UNPROTECT(1);
     return EXT_RNG_STANDARD_NORMAL_INVERSION;
-  
+  }
+
   uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
-  
+  UNPROTECT(1);
+
   int major, minor, revision;
   if (rc_getRuntimeVersion(&major, &minor, &revision) != 0) {
 #if R_VERSION < R_Version(3,6,0)

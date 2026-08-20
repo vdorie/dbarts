@@ -60,6 +60,12 @@ namespace {
   };
 }
 
+// Slot temporaries feed rc_ validators and further attribute reads, both of
+// which can allocate; reprotecting each read keeps the temporary live over
+// its use window without per-site protection stack churn.
+#define REPROTECT_SLOT(target, parent, sym, index) \
+  REPROTECT((target) = Rf_getAttrib((parent), (sym)), (index))
+
 namespace dbarts {
   
   void deleteFit(BARTFit* fit) {
@@ -94,56 +100,60 @@ namespace dbarts {
   {
     int i_temp;
     
-    SEXP slotExpr = Rf_getAttrib(controlExpr, Rf_install("binary"));
+    SEXP slotExpr;
+    PROTECT_INDEX slotIndex;
+    PROTECT_WITH_INDEX(R_NilValue, &slotIndex);
+
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("binary"), slotIndex);
     control.responseIsBinary = rc_getBool(slotExpr, "binary response signifier", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_END);
     
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("verbose"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("verbose"), slotIndex);
     control.verbose = rc_getBool(slotExpr, "verbose", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_END);
     
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("keepTrainingFits"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("keepTrainingFits"), slotIndex);
     control.keepTrainingFits = rc_getBool(slotExpr, "keep training fits", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_END);
     
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("useQuantiles"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("useQuantiles"), slotIndex);
     control.useQuantiles = rc_getBool(slotExpr, "use quantiles", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_END);
     
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("keepTrees"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("keepTrees"), slotIndex);
     if (rc_getLength(slotExpr) != 1) Rf_error("slot 'keepTrees' must be of length 1");
     control.keepTrees = rc_getBool(slotExpr, "keep trees", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_END);
 
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.samples"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("n.samples"), slotIndex);
     i_temp = rc_getInt(slotExpr, "number of samples", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END);
     control.defaultNumSamples = static_cast<size_t>(i_temp);
   
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.burn"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("n.burn"), slotIndex);
     i_temp = rc_getInt(slotExpr, "number of burn-in steps", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END);
     control.defaultNumBurnIn = static_cast<size_t>(i_temp);
             
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.trees"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("n.trees"), slotIndex);
     i_temp = rc_getInt(slotExpr, "number of trees", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
     control.numTrees = static_cast<size_t>(i_temp);
     
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.chains"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("n.chains"), slotIndex);
     i_temp = rc_getInt(slotExpr, "number of chains", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
     control.numChains = static_cast<size_t>(i_temp);
     
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.threads"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("n.threads"), slotIndex);
     i_temp = rc_getInt(slotExpr, "number of threads", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
     control.numThreads = static_cast<size_t>(i_temp);
             
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.thin"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("n.thin"), slotIndex);
     i_temp = rc_getInt(slotExpr, "tree thinning rate", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END);
     control.treeThinningRate = static_cast<uint32_t>(i_temp);
         
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("printEvery"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("printEvery"), slotIndex);
     i_temp = rc_getInt(slotExpr, "print every", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_NA | RC_YES, RC_END);
     if (i_temp != NA_INTEGER) control.printEvery = static_cast<uint32_t>(i_temp);
     
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("printCutoffs"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("printCutoffs"), slotIndex);
     i_temp = rc_getInt(slotExpr, "print cutoffs", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES, RC_END);
     if (i_temp == NA_INTEGER) i_temp = 0;
     control.printCutoffs = static_cast<uint32_t>(i_temp);
     
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("rngKind"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("rngKind"), slotIndex);
     size_t slotLength = rc_getLength(slotExpr);
     if (slotLength != 1) Rf_error("slot 'rngKind' must be of length 1");
     const char* rngKindName = CHAR(STRING_ELT(slotExpr, 0));
@@ -156,7 +166,7 @@ namespace dbarts {
     control.rng_algorithm = static_cast<rng_algorithm_t>(rngKindNumber);
     
     
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("rngNormalKind"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("rngNormalKind"), slotIndex);
     slotLength = rc_getLength(slotExpr);
     if (slotLength != 1) Rf_error("slot 'rngNormalKind' must be of length 1");
     const char* rngNormalKindName = CHAR(STRING_ELT(slotExpr, 0));
@@ -168,12 +178,14 @@ namespace dbarts {
     
     control.rng_standardNormal = static_cast<rng_standardNormal_t>(rngNormalKindNumber);
     
-    slotExpr = Rf_getAttrib(controlExpr, Rf_install("rngSeed"));
+    REPROTECT_SLOT(slotExpr, controlExpr, Rf_install("rngSeed"), slotIndex);
     slotLength = rc_getLength(slotExpr);
     if (slotLength != 1) Rf_error("slot 'rngSeed' must be of length 1");
     i_temp = INTEGER(slotExpr)[0];
     if (i_temp == NA_INTEGER) i_temp = DBARTS_CONTROL_INVALID_SEED;
     control.rng_seed = static_cast<uint_least32_t>(i_temp);
+
+    UNPROTECT(1);
   }
   
 #ifdef SUPPRESS_ENUM_CONVERSION_WARNING
@@ -213,17 +225,24 @@ namespace dbarts {
     
     ModelStackDeconstructor stackModel;
     
-    SEXP slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.birth_death"));
+    SEXP slotExpr;
+    PROTECT_INDEX slotIndex;
+    PROTECT_WITH_INDEX(R_NilValue, &slotIndex);
+    SEXP priorExpr;
+    PROTECT_INDEX priorIndex;
+    PROTECT_WITH_INDEX(R_NilValue, &priorIndex);
+
+    REPROTECT_SLOT(slotExpr, modelExpr, Rf_install("p.birth_death"), slotIndex);
     model.birthOrDeathProbability =
       rc_getDouble(slotExpr, "probability of birth/death rule", RC_LENGTH | RC_EQ, rc_asRLength(1),
                    RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
     
-    slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.swap"));
+    REPROTECT_SLOT(slotExpr, modelExpr, Rf_install("p.swap"), slotIndex);
     model.swapProbability =
       rc_getDouble(slotExpr, "probability of swap rule", RC_LENGTH | RC_EQ, rc_asRLength(1),
                    RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
     
-    slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.change"));
+    REPROTECT_SLOT(slotExpr, modelExpr, Rf_install("p.change"), slotIndex);
     model.changeProbability =
       rc_getDouble(slotExpr, "probability of change rule", RC_LENGTH | RC_EQ, rc_asRLength(1),
                    RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
@@ -231,32 +250,32 @@ namespace dbarts {
     if (std::fabs(model.birthOrDeathProbability + model.swapProbability + model.changeProbability - 1.0) >= 1.0e-10)
       Rf_error("rule proposal probabilities must sum to 1.0");
     
-    slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.birth"));
+    REPROTECT_SLOT(slotExpr, modelExpr, Rf_install("p.birth"), slotIndex);
     model.birthProbability =
       rc_getDouble(slotExpr, "probability of birth in birth/death rule", RC_LENGTH | RC_EQ, rc_asRLength(1),
                    RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
     
-    slotExpr = Rf_getAttrib(modelExpr, Rf_install("node.scale"));
+    REPROTECT_SLOT(slotExpr, modelExpr, Rf_install("node.scale"), slotIndex);
     model.nodeScale = 
       rc_getDouble(slotExpr, "scale of node prior", RC_LENGTH | RC_EQ, rc_asRLength(1),
                    RC_VALUE | RC_GT, 0.0, RC_END);
     
     
-    SEXP priorExpr = Rf_getAttrib(modelExpr, Rf_install("tree.prior"));
+    REPROTECT_SLOT(priorExpr, modelExpr, Rf_install("tree.prior"), priorIndex);
     CGMPrior* treePrior = new CGMPrior;
     stackModel.treePrior = treePrior;
     
-    slotExpr = Rf_getAttrib(priorExpr, Rf_install("power"));
+    REPROTECT_SLOT(slotExpr, priorExpr, Rf_install("power"), slotIndex);
     treePrior->power =
       rc_getDouble(slotExpr, "tree prior power", RC_LENGTH | RC_EQ, rc_asRLength(1),
                    RC_VALUE | RC_GT, 0.0, RC_END);
       
-    slotExpr = Rf_getAttrib(priorExpr, Rf_install("base"));
+    REPROTECT_SLOT(slotExpr, priorExpr, Rf_install("base"), slotIndex);
     treePrior->base =
       rc_getDouble(slotExpr, "tree prior base", RC_LENGTH | RC_EQ, rc_asRLength(1),
                    RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
 
-    slotExpr = Rf_getAttrib(priorExpr, Rf_install("splitProbabilities"));
+    REPROTECT_SLOT(slotExpr, priorExpr, Rf_install("splitProbabilities"), slotIndex);
     if (rc_getLength(slotExpr) == 0) {
       treePrior->splitProbabilities = NULL;
     } else {
@@ -278,7 +297,7 @@ namespace dbarts {
     // priorExpr = Rf_getAttrib(modelExpr, Rf_install("node.prior"));
     stackModel.muPrior = new NormalPrior(control, model);
       
-    priorExpr = Rf_getAttrib(modelExpr, Rf_install("node.hyperprior"));
+    REPROTECT_SLOT(priorExpr, modelExpr, Rf_install("node.hyperprior"), priorIndex);
     SEXP classExpr = rc_getClass(priorExpr);
     const char* classStr = CHAR(STRING_ELT(classExpr, 0));
     errorCode = misc_str_matchInVArray(classStr, &priorType, "dbartsChiHyperprior", "dbartsFixedHyperprior", NULL);
@@ -288,12 +307,14 @@ namespace dbarts {
     switch (priorType) {
       case 0:
       {
+        REPROTECT_SLOT(slotExpr, priorExpr, Rf_install("degreesOfFreedom"), slotIndex);
         double degreesOfFreedom =
-          rc_getDouble(Rf_getAttrib(priorExpr, Rf_install("degreesOfFreedom")), "degreesOfFreedom",
+          rc_getDouble(slotExpr, "degreesOfFreedom",
                        RC_LENGTH | RC_EQ, rc_asRLength(1),
                        RC_VALUE | RC_GT, 0.0, RC_END);
+        REPROTECT_SLOT(slotExpr, priorExpr, Rf_install("scale"), slotIndex);
         double scale =
-          rc_getDouble(Rf_getAttrib(priorExpr, Rf_install("scale")), "scale",
+          rc_getDouble(slotExpr, "scale",
                        RC_LENGTH | RC_EQ, rc_asRLength(1),
                        RC_VALUE | RC_GT, 0.0, RC_END);
         stackModel.kPrior = new ChiHyperprior(degreesOfFreedom, scale);
@@ -301,15 +322,16 @@ namespace dbarts {
       break;
       default:
       {
+        REPROTECT_SLOT(slotExpr, priorExpr, Rf_install("k"), slotIndex);
         double k =
-          rc_getDouble(Rf_getAttrib(priorExpr, Rf_install("k")), "k",
+          rc_getDouble(slotExpr, "k",
                        RC_LENGTH | RC_EQ, rc_asRLength(1),
                        RC_VALUE | RC_GT, 0.0, RC_END);
         stackModel.kPrior = new FixedHyperprior(k);
       }
     }
     
-    priorExpr = Rf_getAttrib(modelExpr, Rf_install("resid.prior"));
+    REPROTECT_SLOT(priorExpr, modelExpr, Rf_install("resid.prior"), priorIndex);
     classExpr = rc_getClass(priorExpr);
     classStr = CHAR(STRING_ELT(classExpr, 0));
     errorCode = misc_str_matchInVArray(classStr, &priorType, "dbartsChiSqPrior", "dbartsFixedPrior", NULL);
@@ -319,12 +341,12 @@ namespace dbarts {
     switch (priorType) {
       case 0:
       {
-        slotExpr = Rf_getAttrib(priorExpr, Rf_install("df"));
+        REPROTECT_SLOT(slotExpr, priorExpr, Rf_install("df"), slotIndex);
         double sigmaPriorDf =
           rc_getDouble(slotExpr, "sigma prior degrees of freedom", RC_LENGTH | RC_EQ, rc_asRLength(1),
                      RC_VALUE | RC_GT, 0.0, RC_END);
         
-        slotExpr = Rf_getAttrib(priorExpr, Rf_install("quantile"));
+        REPROTECT_SLOT(slotExpr, priorExpr, Rf_install("quantile"), slotIndex);
         double sigmaPriorQuantile =
           rc_getDouble(slotExpr, "sigma prior quantile", RC_LENGTH | RC_EQ, rc_asRLength(1),
                      RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
@@ -333,7 +355,7 @@ namespace dbarts {
       }
       break;
       default:
-      slotExpr = Rf_getAttrib(priorExpr, Rf_install("value"));
+      REPROTECT_SLOT(slotExpr, priorExpr, Rf_install("value"), slotIndex);
       stackModel.sigmaSqPrior = new FixedPrior(
           rc_getDouble(slotExpr, "residual variance prior fixed value", RC_LENGTH | RC_EQ, rc_asRLength(1),
                        RC_VALUE | RC_GT, 0.0, RC_END));
@@ -344,6 +366,8 @@ namespace dbarts {
     model.sigmaSqPrior = stackModel.sigmaSqPrior; stackModel.sigmaSqPrior = NULL;
     model.muPrior      = stackModel.muPrior;      stackModel.muPrior = NULL;
     model.treePrior    = stackModel.treePrior;    stackModel.treePrior = NULL;
+
+    UNPROTECT(2);
   }
   
 #ifdef SUPPRESS_ENUM_CONVERSION_WARNING
@@ -388,28 +412,34 @@ namespace dbarts {
     
     int* dims;
     
-    SEXP slotExpr = Rf_getAttrib(dataExpr, Rf_install("y"));
+    SEXP slotExpr;
+    PROTECT_INDEX slotIndex;
+    PROTECT_WITH_INDEX(R_NilValue, &slotIndex);
+
+    REPROTECT_SLOT(slotExpr, dataExpr, Rf_install("y"), slotIndex);
     if (!Rf_isReal(slotExpr)) Rf_error("y must be of type real");
     if (rc_getLength(slotExpr) <= 0) Rf_error("length of y must be greater than 0");
     data.y = REAL(slotExpr);
     data.numObservations = rc_getLength(slotExpr);
     
-    slotExpr = Rf_getAttrib(dataExpr, Rf_install("x"));
+    REPROTECT_SLOT(slotExpr, dataExpr, Rf_install("x"), slotIndex);
     if (!Rf_isReal(slotExpr)) Rf_error("x must be of type real");
     rc_assertDimConstraints(slotExpr, "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2), RC_VALUE | RC_EQ, static_cast<int>(data.numObservations), RC_END);
-    dims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
+    SEXP dimsExpr = PROTECT(Rf_getAttrib(slotExpr, R_DimSymbol));
+    dims = INTEGER(dimsExpr);
     
     data.x = REAL(slotExpr);
     data.numPredictors = static_cast<size_t>(dims[1]);
+    UNPROTECT(1);
     
-    slotExpr = Rf_getAttrib(dataExpr, Rf_install("varTypes"));
+    REPROTECT_SLOT(slotExpr, dataExpr, Rf_install("varTypes"), slotIndex);
     rc_assertIntConstraints(slotExpr, "variable types", RC_LENGTH | RC_EQ, rc_asRLength(data.numPredictors), RC_END);
     int* i_variableTypes = INTEGER(slotExpr);
     stackData.variableTypes = new VariableType[data.numPredictors];
     for (size_t i = 0; i < data.numPredictors; ++i) stackData.variableTypes[i] = (i_variableTypes[i] == 0 ? ORDINAL : CATEGORICAL);
     data.variableTypes = stackData.variableTypes;
     
-    slotExpr = Rf_getAttrib(dataExpr, Rf_install("x.test"));
+    REPROTECT_SLOT(slotExpr, dataExpr, Rf_install("x.test"), slotIndex);
     if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) || rc_getLength(slotExpr) == 0) {
       data.x_test = NULL;
       data.numTestObservations = 0;
@@ -417,13 +447,15 @@ namespace dbarts {
       if (!Rf_isReal(slotExpr)) Rf_error("x.test must be of type real");
       rc_assertDimConstraints(slotExpr, "dimensions of x.test", RC_LENGTH | RC_EQ, rc_asRLength(2),
                     RC_NA, RC_VALUE | RC_EQ, static_cast<int>(data.numPredictors), RC_END);
-      dims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
+      SEXP testDimsExpr = PROTECT(Rf_getAttrib(slotExpr, R_DimSymbol));
+      dims = INTEGER(testDimsExpr);
       
       data.x_test = REAL(slotExpr);
       data.numTestObservations = static_cast<size_t>(dims[0]);
+      UNPROTECT(1);
     }
     
-    slotExpr = Rf_getAttrib(dataExpr, Rf_install("weights"));
+    REPROTECT_SLOT(slotExpr, dataExpr, Rf_install("weights"), slotIndex);
     if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) || rc_getLength(slotExpr) == 0) {
       data.weights = NULL;
     } else {
@@ -431,7 +463,7 @@ namespace dbarts {
       data.weights = REAL(slotExpr);
     }
     
-    slotExpr = Rf_getAttrib(dataExpr, Rf_install("offset"));
+    REPROTECT_SLOT(slotExpr, dataExpr, Rf_install("offset"), slotIndex);
     if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) || rc_getLength(slotExpr) == 0) {
       data.offset = NULL;
     } else {
@@ -439,7 +471,7 @@ namespace dbarts {
       data.offset = REAL(slotExpr);
     }
     
-    slotExpr = Rf_getAttrib(dataExpr, Rf_install("offset.test"));
+    REPROTECT_SLOT(slotExpr, dataExpr, Rf_install("offset.test"), slotIndex);
     if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) || rc_getLength(slotExpr) == 0) {
       data.testOffset = NULL;
     } else {
@@ -447,11 +479,11 @@ namespace dbarts {
       data.testOffset = REAL(slotExpr);
     }
     
-    slotExpr = Rf_getAttrib(dataExpr, Rf_install("sigma"));
+    REPROTECT_SLOT(slotExpr, dataExpr, Rf_install("sigma"), slotIndex);
     data.sigmaEstimate = rc_getDouble(slotExpr, "sigma estimate", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_YES, RC_VALUE | RC_GT, 0.0, RC_END);
     
     
-    slotExpr = Rf_getAttrib(dataExpr, Rf_install("n.cuts"));
+    REPROTECT_SLOT(slotExpr, dataExpr, Rf_install("n.cuts"), slotIndex);
     rc_assertIntConstraints(slotExpr, "maximum number of cuts", RC_LENGTH | RC_EQ, rc_asRLength(data.numPredictors), RC_END);
     int* i_maxNumCuts = INTEGER(slotExpr);
     uint32_t* maxNumCuts = new uint32_t[data.numPredictors];
@@ -459,6 +491,8 @@ namespace dbarts {
     data.maxNumCuts = maxNumCuts;
     
     stackData.variableTypes = NULL;
+
+    UNPROTECT(1);
   }
   
 #ifdef SUPPRESS_ENUM_CONVERSION_WARNING
@@ -577,24 +611,30 @@ namespace dbarts {
     if (rc_getLength(stateExpr) != control.numChains)
       Rf_error("length of state list not equal to number of chains");
     
-    SEXP slotExpr = Rf_getAttrib(stateExpr, Rf_install("runningTime"));
+    SEXP slotExpr;
+    PROTECT_INDEX slotIndex;
+    PROTECT_WITH_INDEX(R_NilValue, &slotIndex);
+
+    REPROTECT_SLOT(slotExpr, stateExpr, Rf_install("runningTime"), slotIndex);
     REAL(slotExpr)[0] = fit.runningTime;
     
-    slotExpr = Rf_getAttrib(stateExpr, Rf_install("currentNumSamples"));
+    REPROTECT_SLOT(slotExpr, stateExpr, Rf_install("currentNumSamples"), slotIndex);
     INTEGER(slotExpr)[0] = static_cast<int>(fit.currentNumSamples);
     
-    slotExpr = Rf_getAttrib(stateExpr, Rf_install("currentSampleNum"));
+    REPROTECT_SLOT(slotExpr, stateExpr, Rf_install("currentSampleNum"), slotIndex);
     INTEGER(slotExpr)[0] = static_cast<int>(fit.currentSampleNum);
     
-    slotExpr = Rf_getAttrib(stateExpr, Rf_install("numCuts"));
+    REPROTECT_SLOT(slotExpr, stateExpr, Rf_install("numCuts"), slotIndex);
     if (rc_getLength(slotExpr) != data.numPredictors) {
       rc_allocateInSlot2(slotExpr, stateExpr, Rf_install("numCuts"), INTSXP, data.numPredictors);
+      REPROTECT(slotExpr, slotIndex);
       int* numCuts = INTEGER(slotExpr);
       for (size_t j = 0; j < data.numPredictors; ++j) numCuts[j] = static_cast<int>(fit.numCutsPerVariable[j]);
     }
-    slotExpr = Rf_getAttrib(stateExpr, Rf_install("cutPoints"));
+    REPROTECT_SLOT(slotExpr, stateExpr, Rf_install("cutPoints"), slotIndex);
     if (rc_getLength(slotExpr) != data.numPredictors) {
       rc_allocateInSlot2(slotExpr, stateExpr, Rf_install("cutPoints"), VECSXP, data.numPredictors);
+      REPROTECT(slotExpr, slotIndex);
       for (size_t j = 0; j < data.numPredictors; ++j) {
         SEXP cutPointsExpr = PROTECT(rc_newReal(rc_asRLength(fit.numCutsPerVariable[j])));
         std::memcpy(REAL(cutPointsExpr), fit.cutPoints[j], fit.numCutsPerVariable[j] * sizeof(double));
@@ -623,21 +663,24 @@ namespace dbarts {
         Rf_error("'state' not of class 'dbartsState'");
       
       
-      slotExpr = Rf_getAttrib(stateExpr_i, treeFitsSym);
-      SEXP dimsExpr = rc_getDims(slotExpr);
+      REPROTECT_SLOT(slotExpr, stateExpr_i, treeFitsSym, slotIndex);
+      SEXP dimsExpr = PROTECT(rc_getDims(slotExpr));
       if (rc_getLength(dimsExpr) != 2) Rf_error("dimensions of state@treeFits indicate that it is not a matrix");
       int* dims = INTEGER(dimsExpr);
        
       if (static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees) {
         rc_allocateInSlot2(slotExpr, stateExpr_i, treeFitsSym, REALSXP, rc_asRLength(data.numObservations * control.numTrees));
+        REPROTECT(slotExpr, slotIndex);
         rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), -1);
       }
+      UNPROTECT(1);
       
       size_t treeStateLength = state[chainNum].getSerializedTreesLength(fit) / sizeof(int);
       rc_allocateInSlot2(slotExpr, stateExpr_i, treesSym, INTSXP, rc_asRLength(treeStateLength));
+      REPROTECT(slotExpr, slotIndex);
       state[chainNum].serializeTrees(fit, INTEGER(slotExpr));
            
-      slotExpr = Rf_getAttrib(stateExpr_i, treeFitsSym);
+      REPROTECT_SLOT(slotExpr, stateExpr_i, treeFitsSym, slotIndex);
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
         std::memcpy(REAL(slotExpr) + treeNum * data.numObservations,
                     state[chainNum].treeFits + treeNum * state[chainNum].treeFitsStride,
@@ -646,25 +689,30 @@ namespace dbarts {
       if (control.keepTrees) {
         treeStateLength = state[chainNum].getSerializedSavedTreesLength(fit) / sizeof(int);
         rc_allocateInSlot2(slotExpr, stateExpr_i, savedTreesSym, INTSXP, rc_asRLength(treeStateLength));
+        REPROTECT(slotExpr, slotIndex);
         state[chainNum].serializeSavedTrees(fit, INTEGER(slotExpr));
       } else {
         rc_allocateInSlot(stateExpr_i, savedTreesSym, INTSXP, 0);
       }
             
-      slotExpr = Rf_getAttrib(stateExpr_i, sigmaSym);
+      REPROTECT_SLOT(slotExpr, stateExpr_i, sigmaSym, slotIndex);
       REAL(slotExpr)[0] = state[chainNum].sigma;
       
       if (model.kPrior != NULL) {
-        slotExpr = Rf_getAttrib(stateExpr_i, kSym);
+        REPROTECT_SLOT(slotExpr, stateExpr_i, kSym, slotIndex);
         REAL(slotExpr)[0] = state[chainNum].k;
       }
       
       size_t rngStateLength = ext_rng_getSerializedStateLength(state[chainNum].rng) / sizeof(int);
-      slotExpr = Rf_getAttrib(stateExpr_i, rngStateSym);
-      if (rc_getLength(slotExpr) != rngStateLength)
+      REPROTECT_SLOT(slotExpr, stateExpr_i, rngStateSym, slotIndex);
+      if (rc_getLength(slotExpr) != rngStateLength) {
         rc_allocateInSlot2(slotExpr, stateExpr_i, rngStateSym, INTSXP, rc_asRLength(rngStateLength));
+        REPROTECT(slotExpr, slotIndex);
+      }
       ext_rng_writeSerializedState(state[chainNum].rng, INTEGER(slotExpr));
     }
+
+    UNPROTECT(1);
   }
   
   void initializeStateFromExpression(BARTFit& fit, SEXP stateExpr)
