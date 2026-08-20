@@ -52,6 +52,9 @@
             \code{RNGkind} cannot be read no longer fails in a session that has
             yet to use the random number generator, and now restores the
             generator's state and all of its kinds afterwards.
+      \item Slot and attribute temporaries in the \code{.Call} interface are now
+            protected across the calls that can allocate, as reported by
+            \code{rchk}'s static analysis of the protection stack.
     }
   }
 }
