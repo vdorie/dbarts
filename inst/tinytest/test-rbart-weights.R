@@ -2,6 +2,10 @@ source(
   system.file("common", "friedmanData.R", package = "dbarts"),
   local = TRUE
 )
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 
 n.g <- 5L
 if (getRversion() >= "3.6.0") {
@@ -30,7 +34,7 @@ trainData <- data[seq_len(n.train), ]
 trainData$w <- 1 / nrow(trainData)
 
 # check that predict works when we've fit with missing levels
-expect_warning(
+warnings.trainOnlyWeights <- captureWarnings(
   rbartFit <- dbarts::rbart_vi(
     y ~ x.1 + x.2 + x.3 + x.4 + x.5 + x.6 + x.7 + x.8 + x.9 + x.10,
     data = trainData,
@@ -45,7 +49,11 @@ expect_warning(
     n.trees = 25L,
     n.threads = 1L,
     verbose = FALSE
-  ),
+  )
+)
+expect_equal(length(warnings.trainOnlyWeights), 1L)
+expect_match(
+  conditionMessage(warnings.trainOnlyWeights[[1L]]),
   "weights specified but not found in test data - ignoring"
 )
 expect_inherits(rbartFit, "rbart")

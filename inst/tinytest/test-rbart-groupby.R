@@ -2,6 +2,10 @@ source(
   system.file("common", "friedmanData.R", package = "dbarts"),
   local = TRUE
 )
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 
 n.g <- 5L
 if (getRversion() >= "3.6.0") {
@@ -126,10 +130,9 @@ expect_equal(pred.c, pred.f)
 # genuinely-new level draws from the prior, names the level, stays finite
 g.new <- as.integer(g.t1a)
 g.new[seq_len(5L)] <- 99L
-expect_warning(
-  predict(fit.t1a, df.t1a, group.by = g.new),
-  "99"
-)
+warnings.newLevel <- captureWarnings(predict(fit.t1a, df.t1a, group.by = g.new))
+expect_equal(length(warnings.newLevel), 1L)
+expect_match(conditionMessage(warnings.newLevel[[1L]]), "99")
 pred.new <- suppressWarnings(predict(fit.t1a, df.t1a, group.by = g.new))
 expect_true(all(is.finite(pred.new)))
 

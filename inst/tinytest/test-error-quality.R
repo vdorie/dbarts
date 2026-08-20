@@ -2,6 +2,10 @@ source(
   system.file("common", "friedmanData.R", package = "dbarts"),
   local = TRUE
 )
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 
 # (a) a non-finite (Inf/-Inf) response is named, alongside the pre-existing
 # missing-value message that NaN still receives
@@ -58,9 +62,10 @@ expect_error(
 xNamed <- testData$x[, 1:3]
 colnames(xNamed) <- c("aa", "bb", "cc")
 testUnnamed <- unname(testData$x[1:5, 1:3])
-expect_warning(
-  dbarts::dbartsData(xNamed, testData$y, test = testUnnamed),
-  "column 1 = 'aa'"
+warnings.unnamedTest <- captureWarnings(
+  dbarts::dbartsData(xNamed, testData$y, test = testUnnamed)
 )
+expect_equal(length(warnings.unnamedTest), 1L)
+expect_match(conditionMessage(warnings.unnamedTest[[1L]]), "column 1 = 'aa'")
 
 rm(testData)

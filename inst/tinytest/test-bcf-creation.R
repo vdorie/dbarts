@@ -7,6 +7,11 @@
 # the two-forest chain does not read, and every declaration today's engine
 # cannot honour, must refuse at creation rather than be dropped in silence.
 
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(3)
 n <- 300L
 p <- 4L
@@ -1168,10 +1173,11 @@ expect_equal(
 )
 
 # (iv) dbartsData()'s own ignored-argument warning now names 'bases' too
-expect_warning(
-  dbartsData(prebuiltData, bases = list(NULL, zBasis)),
-  "ignored"
+warnings.bases <- captureWarnings(
+  dbartsData(prebuiltData, bases = list(NULL, zBasis))
 )
+expect_equal(length(warnings.bases), 1L)
+expect_match(conditionMessage(warnings.bases[[1L]]), "ignored")
 expect_identical(
   suppressWarnings(dbartsData(prebuiltData, bases = list(NULL, zBasis))),
   prebuiltData

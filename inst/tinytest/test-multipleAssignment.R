@@ -4,6 +4,11 @@ massign <- dbarts:::massign
 unpack <- dbarts:::unpack
 "[<-.named_lval" <- dbarts:::"[<-.named_lval"
 
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
+
 # test that multiple assignment works with missing arguments
 rh <- c(2, 5)
 massign[a, b] <- rh
@@ -20,8 +25,10 @@ expect_equal(b, 5)
 expect_error(a, "object 'a' not found")
 rm(b)
 
-expect_warning(
-  massign[a = b, ] <- rh,
+warnings.unnamedRhs <- captureWarnings(massign[a = b, ] <- rh)
+expect_equal(length(warnings.unnamedRhs), 1L)
+expect_match(
+  conditionMessage(warnings.unnamedRhs[[1L]]),
   "right-hand-side of assignment is unnamed; using position only"
 )
 rm(a)
@@ -48,15 +55,19 @@ massign[c = a, d = a] <- rh
 expect_equal(c, 2)
 expect_equal(d, 2)
 
-expect_warning(
-  massign[c = a, c = b] <- rh,
+warnings.dupLhs <- captureWarnings(massign[c = a, c = b] <- rh)
+expect_equal(length(warnings.dupLhs), 1L)
+expect_match(
+  conditionMessage(warnings.dupLhs[[1L]]),
   "names on left-hand-side of assignment appear more than once: c"
 )
 rm(c)
 
 rh <- c(a = 2, a = 5)
-expect_warning(
-  massign[b = a, c] <- rh,
+warnings.dupRhs <- captureWarnings(massign[b = a, c] <- rh)
+expect_equal(length(warnings.dupRhs), 1L)
+expect_match(
+  conditionMessage(warnings.dupRhs[[1L]]),
   "'a' present multiple times in right-hand-side of assignment"
 )
 expect_equal(b, 2)
