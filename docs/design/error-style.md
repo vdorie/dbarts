@@ -120,12 +120,12 @@ one design decision, not two).
 
 ## R3. Terminal period: never — CONFIRMED
 
-No message ends in `.`. Already 348/351 on the C side, 543/546 on the R side;
-the three exceptions are one refusal, restated three times.
+No message ends in `.`: 348/348 on the C side, 549/549 on the R side. The
+former exception - one refusal restated three times, each copy ending in a
+period - is fixed: `R/spec.R:53-58`, `:72-76`, `:81-85` (probit/ordinal/nbinom
+weight refusals).
 
-- Conformance: any `Rf_error` call (all 351 are period-free).
-- Violation: `R/spec.R:123`, `:146`, `:160` (probit/ordinal/nbinom weight
-  refusals) - drop the trailing period from all three.
+- Conformance: any `Rf_error` call (all 348 are period-free).
 
 **External evidence.** This is the rule where the two traditions most
 plainly conflict, and where the task asks for a one-paragraph resolution.
@@ -219,11 +219,10 @@ One main clause stating the refusal, optionally followed by ONE more clause
 - Conformance: `"%s: a multi-forest sampler fixes its data at creation; make
   a new sampler instead"` (`src/R_interface_bartcore.cpp:2611`) - main +
   one remedy clause.
-- Violation: `refuseHostMutation`'s message (`R/dbarts.R:920-927`) chains
-  three - refusal, explanation, remedy; trim one under the sweep, not both.
-  `R/spec.R:119-124` (probit weights) is the same shape (refusal + mechanism +
-  two-part remedy); collapse to refusal + single remedy, matching the C
-  twin's already-shorter form (`src/R_interface_bartcore.cpp:1616-1618`).
+- Both prior violations are now fixed: `refuseHostMutation`'s message
+  (`R/dbarts.R:914-925`) is refusal plus one remedy clause, and `R/spec.R:53-58`
+  (probit weights) collapsed to the same shape, matching the C twin's
+  already-shorter form (`src/R_interface_bartcore.cpp:1616-1618`).
 
 **External evidence.** Published best practice's general philosophy agrees
 with R6's spirit: "An error message should start with a general statement of
@@ -292,7 +291,7 @@ R message is canonical - the one users see, the one docs/tests quote; the
 C-side message is independently worded against this rule, not copied.
 Verbatim-identical strings across the boundary already failed once: `"forest
 weights must be finite and non-negative"` is byte-identical at
-`R/bartcore.R:1064` / `src/R_interface_bartcore.cpp:3919`, but the very next
+`R/bartcore.R:1059` / `src/R_interface_bartcore.cpp:3919`, but the very next
 guard in the same pair, the length check, drifted apart with no R counterpart
 to stay in sync with (`"forest weight length must match the number of
 observations"`, C-only). A string shared across two languages by hand is
@@ -336,7 +335,7 @@ below - see there for the explicit sign-off).
 
 Two sub-shapes, tracking two different R predicates. **Value present but
 NULL** (`is.null(x)` / C `ptr == NULL`): `"'<name>' cannot be NULL"`.
-Conformance: `"x.test cannot be NULL"` (`R/dbarts.R:1078`). **Argument omitted
+Conformance: `"x.test cannot be NULL"` (`R/dbarts.R:1073`). **Argument omitted
 from the call** (R `missing(x)`, no C analogue): `"'<name>' must be
 specified"`. Conformance: `"'group.by' must be specified to use rbart_vi"`
 (`R/rbart.R:130`). Violation: `"'group.by' must be supplied when 'newdata' is
@@ -370,9 +369,8 @@ in this document uses. This sub-shape of R9 is final.
 `"'<name>' must be a/an <type description>[, not <actual>]"` - the bare shape
 without the bracketed clause is dominant already (~25 sampled type-mismatch
 messages, only 2 use a different verb) and stays the required minimum.
-Conformance: `"'weights' must be a numeric vector"` (`R/data.R:614`).
-Violation: `"'weights' must be of type numeric"` (`R/data.R:901`) - reword to
-match `:614` exactly; both guard the same argument in the same file.
+Conformance: `"'weights' must be a numeric vector"` (`R/data.R:649`,
+`R/data.R:927`) - both guards in the same file now read exactly alike.
 
 The bracketed `, not <actual>` clause is new: append it when the actual
 type/class is already in hand as a short noun (`class(x)[1]`, `typeof(x)`) at
@@ -410,9 +408,11 @@ Against a fixed/derived count: `"'<name>' must have length <N>"`. Against
 another argument's length: `"'<name>' must have the same length as
 '<reference>' (<N>)"`. Closest precedent (names the reference but not the
 numbers): `sprintf("'%s' must have length %d, that of '%s'", name, n,
-reference)` (`R/augmentation.R:18`) - keep its shape. Furthest: `"length of
-new x does not match old"` (`R/bartcore.R:172`) - names neither argument nor
-either length.
+reference)` (`R/augmentation.R:18`) - keep its shape, the sweep's one named
+exception. The prior furthest outlier, `R/bartcore.R`'s `"length of new x
+does not match old"` (naming neither argument nor either length), is fixed:
+`R/bartcore.R:183` now reads `"'x' must have length <N>"`, matching this
+rule.
 
 Appending the actual (got) length - `"; got <got>"` - is now encouraged, not
 mandated, when the value is already in hand; see the shared reasoning under
@@ -494,8 +494,9 @@ mandated, when cheap.
 `"<subject> does not support <feature>[: <reason>]"` - clear majority (26 of
 37 R + 16 C "not support" hits use this exact verb). Conformance: `"BCF does
 not support %s"` (`src/R_interface_bartcore.cpp:3112`); `"probit models do
-not support weights: a weighted probit has no tractable latent-variable
-form"` (`R/spec.R:119-121`, trimmed per R6). Violation: `"sample = \"test\" is
+not support weights; fit integer count weights with family = \"logistic\",
+or model continuous weights' latents directly"` (`R/spec.R:53-58`).
+Violation: `"sample = \"test\" is
 not available for type = \"forest\": an ..."` (`R/generics.R:362`) - reword to
 `"type = \"forest\" does not support sample = \"test\": ..."`.
 
@@ -522,16 +523,15 @@ wild if a future revision wants to reopen this.
 ## R14. Mutation-guard refusal — CONFIRMED, reinforced
 
 R-canonical shape (per R8): `"<operation> is not available on <context>[:
-<reason>]"` - already the shape `refuseHostMutation` gives 20 call sites
-(`R/dbarts.R:915-927`), the single most call-site-heavy exact wording in the
+<reason>]"` - already the shape `refuseHostMutation` gives 22 call sites
+(`R/dbarts.R:914-925`), the single most call-site-heavy exact wording in the
 corpus. C-side backstops keep their own idiom under R7/R8 (`"%s: a
 multi-forest sampler fixes its data at creation; make a new sampler
 instead"`, `src/R_interface_bartcore.cpp:2611`). Conformance:
-`refuseHostMutation`'s callers, e.g. `R/dbarts.R:1107` (`$setControl`).
-Violation: `"setModel cannot change a DART tree prior; recreate the sampler"`
-(`R/dbarts.R:1178`) - same file as the canonical helper, a different verb.
-Reword: `"changing a DART tree prior is not available on an existing sampler:
-recreate it instead"`.
+`refuseHostMutation`'s callers, e.g. `R/dbarts.R:1102` (`$setControl`); also
+`setModel`'s DART-tree-prior refusal (`R/dbarts.R:1173-1176`), now reworded
+to `"changing a DART tree prior is not available on an existing sampler:
+recreate it instead"`, matching this rule.
 
 **External evidence.** R14 happens to already use the phrase the R13 survey
 just found to be the *more* common external construction: `"not available"`

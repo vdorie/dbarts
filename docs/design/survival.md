@@ -246,7 +246,7 @@ load-bearing - a threshold cut groups CONTIGUOUS periods, so adjacent
 periods share leaves and the leaf prior borrows strength across time,
 giving a smooth baseline rather than K independent hazards. Leaf-prior
 calibration is inherited from the chosen binary family (node.scale 3.0
-probit / pi*sqrt(3) logistic, R/dbarts.R:502/509); nothing new is
+probit / pi*sqrt(3) logistic, R/model.R:405/408); nothing new is
 calibrated.
 
 The classical model instead uses a saturated set of K per-period intercepts
@@ -374,20 +374,20 @@ users via surv.bart, plus the dbarts house default).
 **What the user passes (reuse AFT's response shapes).** The response is the
 SAME (time, status) AFT takes - a survival::Surv object or a two-column
 (time, status) matrix / data frame - parsed by the existing
-extractSurvivalResponse (R/dbarts.R:17), or a thin sibling of it that skips
-the log() transform (R/dbarts.R:56) and returns the raw times and status for
+extractSurvivalResponse (R/dbarts.R:62), or a thin sibling of it that skips
+the log() transform (R/dbarts.R:67) and returns the raw times and status for
 expansion. Everything extractSurvivalResponse already enforces carries over
 (right-censoring only, status 0/1 or logical, the factor-status "mright"
 hint, positive times). A Surv response cannot AUTO-dispatch to the hazard
 model - family = "auto" with a Surv already selects aft (the auto-dispatch
-at R/dbarts.R:252-266) - so the discrete-time model is always requested
+at R/dbarts.R:553-567) - so the discrete-time model is always requested
 explicitly by family, and the Surv conflict guard must admit the hazard
 tokens (the remap block below).
 
 **The remap (settled; required whatever naming wins).** A hazard token
 CANNOT flow through the family-keyed resolution unchanged - verified
 against the code: node.scale is a switch(family, ...) with NO default
-(R/dbarts.R:498-510), so an unknown token yields NULL; control@binary
+(R/model.R:400-410), so an unknown token yields NULL; control@binary
 keys on family %in% c("probit", "logistic") (:359), so the binary
 machinery would stay off; fixedUnitScale excludes it (:368-370), so sigma
 would be ESTIMATED and the 0/1 response fit as gaussian; and the weight
@@ -408,7 +408,7 @@ after the remap there is nothing left to switch on.
 
 The Surv conflict guard extends to admit the hazard tokens: today
 responseIsSurv errors for any explicit family outside "auto"/"aft"
-(R/dbarts.R:229-235), so Surv + a hazard family would be refused as a
+(R/dbarts.R:468-474), so Surv + a hazard family would be refused as a
 conflict. The guard's whitelist gains the hazard tokens - a Surv response
 declares survival, and the family then picks WHICH survival model
 (family = "auto" keeps selecting aft, the landed default; a hazard token
@@ -417,7 +417,7 @@ edit, so it differentiates none of them.
 
 **DECISION (open for VD; entangled with section 3) - naming.** probit and
 logistic are already two family tokens for one Bernoulli model under two
-links (R/dbarts.R:198-199); the hazard model, being sugar over exactly
+links (R/dbarts.R:379-380); the hazard model, being sugar over exactly
 those, can be named the same way:
 
 - Recommend: two tokens, family = "hazard" (probit link, the house binary
@@ -455,14 +455,14 @@ for. Strongest counter, upgraded by the survey: the one shipped
 discrete-time BART picks its link by argument (type = "pbart"/"lbart"),
 so a surv.bart migrant would find Alternative A the familiar shape. The
 tokens are added to the dbarts and bart2 family vectors
-(R/dbarts.R:195-203, R/bart.R:378-386) and remapped as above; xbart and
+(R/dbarts.R:384-386, R/bart.R:378-386) and remapped as above; xbart and
 rbart_vi omit them (their match.arg vectors, R/xbart.R:27, R/rbart.R:48,
 ARE the refusal, the ordinal/nbinom precedent) - grouped hazard is
 section 6.
 
 **Where expansion happens (settled: an R helper at ingest).** The
 person-period expander is a pure R transform invoked during ingestion,
-exactly where extractSurvivalResponse is (R/dbarts.R:252-266), BEFORE
+exactly where extractSurvivalResponse is (R/dbarts.R:553-567), BEFORE
 dbartsData builds the model matrix. It consumes (x, time, status, grid) and
 emits an ordinary (X', y') binary problem: X' is x replicated down each
 subject's at-risk periods with the ordinal period column appended, y' the
@@ -473,7 +473,7 @@ engine, the bridge (resolveFamily, applyGroupAttribute,
 applySurvivalAttribute - src/R_interface_bartcore.cpp:1110/1393/1449), and
 the ResponseModels never learn the rows are person-periods; there is no
 bartcore.hazard attribute and no status vector to C++ (unlike aft,
-R/dbarts.R:530-537) - the censoring is already baked into y'.
+R/spec.R:364-371) - the censoring is already baked into y'.
 
 **The memory story (be honest).** The expanded design is
 N' = sum_i t_i = n * mean(t_i) rows by (p + 1) columns, and x is REPLICATED
@@ -491,8 +491,8 @@ Genuinely discrete data with a modest K never sees the guard.
 inherit the binary policy).** A per-subject offset o_i is a link-scale
 hazard shift replicated to all of subject i's rows; a per-subject weight
 likewise replicates and then follows the CHOSEN binary family's existing
-policy unchanged - probit refuses non-unit weights (R/dbarts.R:382-393),
-logistic requires positive integer counts (:394-403). No new offset or
+policy unchanged - probit refuses non-unit weights (R/spec.R:49-58),
+logistic requires positive integer counts (R/spec.R:59-67). No new offset or
 weight semantics are introduced; they are whatever the underlying binary fit
 already does, applied to the replicated rows. A time-VARYING offset (a
 distinct o_ik per period row) is the natural person-period generalization,
@@ -520,7 +520,7 @@ correctness, and the reduction gate (section 5) holds for either.
   type = "pbart" - the PROBIT link - so the only shipped discrete-time
   BART defaults to probit, and a BART user arriving from it gets exactly
   what they expect; probit is also dbarts's house binary default
-  (auto -> probit, R/dbarts.R:350; node.scale 3.0, :502), aligning the
+  (auto -> probit, R/spec.R:159-160; node.scale 3.0, R/model.R:405), aligning the
   family with the package's other fixed-unit-scale defaults.
 - Counter: the applied discrete-time-hazard literature is logit-dominant
   (Allison 1982; Singer-Willett 2003, logistic throughout - the survey's

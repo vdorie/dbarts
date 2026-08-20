@@ -350,13 +350,13 @@ own acceptance gate (bcf-b-ridge.md:438-449) has not been run.
 BCF stopped being reachable only through `dbarts:::bartcoreBCFSampler`
 (docs/plans/bcf-public-surface.md). `dbarts(x, y, forests = list(forest(),
 forest(basis = ~ factor(z), vars = ...)))`/`dbartsSpec()` build an ordinary
-`dbartsSampler` (S1, a1dbde7): z rides `data@treatment` (R/A_class.R:477-482,
+`dbartsSampler` (S1, a1dbde7): z rides `data@treatment` (R/A_class.R,
 the `weights` precedent) and the treatment forest's configuration rides
-`attr(control, "bartcore.bcf")` (R/spec.R:421-434, the `bartcore.variance`
+`attr(control, "bartcore.bcf")` (R/spec.R:624-656, the `bartcore.variance`
 precedent), cross-checked in both directions at creation
 (src/R_interface_bartcore.cpp:2648-2655). `$setForestBasis`, `$getForestFits`,
 `$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
-339aeb0; R/dbarts.R:1078-1092, 1283-1296). `dbarts_sampler_create` reaches
+339aeb0; R/dbarts.R:1332-1370, 1560-1593). `dbarts_sampler_create` reaches
 the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/
 `forestFits`/`numForestAmplitudes`/`forestAmplitudes` are public `dbarts.h`
 entries (inst/include/dbarts/dbarts.h:389-402), and `setResponse` takes an

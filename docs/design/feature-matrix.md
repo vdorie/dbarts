@@ -222,11 +222,11 @@ cell says so.
 |---|---|---|---|---|---|---|
 | gaussian | S bart.R:2721 | S bart.R:671 | S dbarts.R:378 | S rbart.R:49 | S xbart.R:26 | S CAPI:647 |
 | student | S bart.R:2591 | S bart.R:685 | S dbarts.R:365 | M rbart.R:62 | M xbart.R:2-33 | S RIB:2558 [f2] |
-| probit | S bart.Rd:76 | S bart.R:672 | S dbarts.R:379 | S data.R:555 | S xbart.R:26 | S CAPI:645 |
+| probit | S bart.Rd:76 | S bart.R:672 | S dbarts.R:379 | S data.R:558 | S xbart.R:26 | S CAPI:645 |
 | logistic | S bart.R:2594 [f1] | S bart.R:673 | S dbarts.R:380 | R rbart.R:49 | S xbart.R:26 | S RIB:1579 |
-| ordinal | R bart.R:2603, 2634 [f1] | S bart.R:676 | S dbarts.R:382 | R data.R:500 | R data.R:500 | S RIB:1587 [f3] |
+| ordinal | R bart.R:2603, 2634 [f1] | S bart.R:676 | S dbarts.R:382 | R data.R:503 | R data.R:503 | S RIB:1587 [f3] |
 | nbinom | R bart.R:2603 [f1] | S bart.R:677 | S dbarts.R:383 | M rbart.R:49 | M xbart.R:26 | S RIB:1594 [f3] |
-| multinom | R bart.R:2603 [f1] | S bart.R:675 | R dbarts.R:376 | R data.R:500 | R data.R:500 | M [f4] |
+| multinom | R bart.R:2603 [f1] | S bart.R:675 | R dbarts.R:376 | R data.R:503 | R data.R:503 | M [f4] |
 | aft | S bart.R:2594 [f1] [f5] | S bart.R:674 | S dbarts.R:381 | S rbart.R:49 | M xbart.R:26 | S CAPI:648 |
 | hazard | - [f1] | S bart.R:678 | S dbarts.R:384 | M rbart.R:49 | M xbart.R:26 | M [f6] |
 | hurdle | R bart.R:2603 [f1] | S bart.R:681 | R dbarts.R:445 | M | M | M [f6] |
@@ -234,14 +234,14 @@ cell says so.
 | grouped | - [f1] | M [f8] | M [f8] | S rbart.R:388 | M | S RIB:1926 [f3] |
 | hetero | - [f1] | S bart.R:664 | S dbarts.R:370 | R rbart.R:62 | M | S RIB:2016 [f3] |
 
-`dbartsSpec()` (spec.R:684-692) resolves the seven single-forest tokens - auto,
+`dbartsSpec()` (spec.R:683-691) resolves the seven single-forest tokens - auto,
 gaussian, probit, logistic, aft, ordinal, nbinom - plus BCF through its
-`forests =` argument (spec.R:681, `forest(basis = ...)` replacing the removed
+`forests =` argument (spec.R:680, `forest(basis = ...)` replacing the removed
 `treatment =`, multiforest-extension-surface M2) and a variance forest through
-`variance =` (spec.R:680); it does not reach multinomial, hazard, hurdle or
+`variance =` (spec.R:679); it does not reach multinomial, hazard, hurdle or
 grouped. A `forests =` fit resolves **gaussian, probit or logistic** since M4.4;
 aft, ordinal and nbinom are refused there by name, each stating what it is
-missing (spec.R:505-527), with the same three-family gate at the bridge
+missing (spec.R:504-526), with the same three-family gate at the bridge
 (`refusedBCFFamilyReason` RIB:2281, called from both creation routes at
 RIB:2329 and RIB:3137) and at the factory (`createBCFSampler` FAC:822-825).
 
@@ -304,16 +304,16 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | model | variance forest | grouped ranef | DART | warm start | grow-from-root |
 |---|---|---|---|---|---|
 | gaussian | S FAC:737 | S CH:626 | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
-| student | R spec.R:423 [f30] | S CH:626 | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
-| probit | R spec.R:410 | S CH:626 | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
-| logistic | R spec.R:410 | S CH:626 | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
-| ordinal | R spec.R:410 | M RIB:2986 [f31] | S CH:570 | R bart.R:608 | R bart.R:608 |
-| nbinom | R spec.R:410 | M RIB:2991 [f31] | S CH:570 | R bart.R:608 | R bart.R:608 |
+| student | R spec.R:422 [f30] | S CH:626 | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
+| probit | R spec.R:409 | S CH:626 | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
+| logistic | R spec.R:409 | S CH:626 | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
+| ordinal | R spec.R:409 | M RIB:2986 [f31] | S CH:570 | R bart.R:608 | R bart.R:608 |
+| nbinom | R spec.R:409 | M RIB:2991 [f31] | S CH:570 | R bart.R:608 | R bart.R:608 |
 | multinom | R bart.R:876 | M RIB:1923 [f32] | R bart.R:876 [f33] | R bart.R:608 | R bart.R:608 |
-| aft | R spec.R:410 | S CH:626 | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
-| hazard | R spec.R:410 | M rbart.R:49 [f6] | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
-| hurdle | R spec.R:410 [f34] | M | S bart.R:2247, 2256 [f35] | R bart.R:608 | R bart.R:608 |
-| bcf | R FAC:817 [f48] | R RIB:2352 | R spec.R:537, 567-573 | S SAM:735 [f36] | S CH:1926 [f36] |
+| aft | R spec.R:409 | S CH:626 | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
+| hazard | R spec.R:409 | M rbart.R:49 [f6] | S CH:570 | S bart.R:1206 | S dbarts.R:995 |
+| hurdle | R spec.R:409 [f34] | M | S bart.R:2247, 2256 [f35] | R bart.R:608 | R bart.R:608 |
+| bcf | R FAC:817 [f48] | R RIB:2352 | R spec.R:536, 566-572 | S SAM:735 [f36] | S CH:1926 [f36] |
 | grouped | ? [f30] | - | S rbart.R:591 | M rbart.R:45-51 [f37] | M rbart.R:45-51 [f37] |
 | hetero | - | ? [f30] | S CH:570 [f38] | S SAM:735 | S CH:1921 |
 
@@ -366,7 +366,7 @@ tokens at all and stay out of reach by signature, unaffected by S10.
 
 [f2] Student-t is not a token anywhere. It is selected by a finite `resid.df`
 attribute on the model SEXP (RIB:2558-2569, gaussian-only gate) and refused for
-every non-gaussian family R-side at spec.R:325-331. The engine family stays
+every non-gaussian family R-side at spec.R:324-330. The engine family stays
 `gaussian`, which is why the whole gaussian row applies to it in tables 2-4.
 
 [f3] Reachable through `dbarts_sampler_create` but not discoverable from the
@@ -556,7 +556,7 @@ inside dbarts-h-reshape S1 (ab3aa2fa). The R surface was already COMPLETE:
 single-forest sampler, with a 1-based `forest` arg (`resolveForestIndex`,
 bartcore.R:1128) mapped onto the engine's 0-based one. S1 names the model's
 `prior.scale` slot (A_class.R:398), resolved from `node.prior`'s `scale =` /
-`sd =` spelling at `dbartsSpec()` (spec.R:316, `resolvePriorScale` in
+`sd =` spelling at `dbartsSpec()` (spec.R:315, `resolvePriorScale` in
 R/model.R), and converted against the response transform by a private
 `Chain::resolvedNodeScale` helper (CH:3855) shared by the single-forest
 constructor and every `setModel` reinstall, so a round trip through the model
@@ -659,7 +659,7 @@ doc, no TODO covers this - flagged, unadjudicated.
 
 [f20] Weights on logistic are PG copy counts and a zero count is refused by
 name at creation ("drop zero-count rows", RIB:1630-1635; R mirror
-spec.R:61-69), so zero-weight subsetting is foreclosed for this family by the
+spec.R:59-67), so zero-weight subsetting is foreclosed for this family by the
 weight semantics themselves - it is exactly the hole `latent-subset-mask` S2
 filled (87d370ea), by the mid-chain `setActiveRows` channel rather than by any
 change to the zero-count creation refusal, which stands.
@@ -694,7 +694,7 @@ likelihood (see [f26]).
 CREATION and MID-CHAIN, by design - their per-forest leaf scales come from a
 calibration map that owns them (map at COM:275-300), so a named value has
 nowhere to land. Three creation-time refusal sites shipped at c2a7e89b: R-side
-`dbartsSpec()`'s BCF composition (spec.R:555, the `"a named 'prior.scale'"`
+`dbartsSpec()`'s BCF composition (spec.R:554, the `"a named 'prior.scale'"`
 entry of the `unsupported` vector; the earlier `spec.R:440` named the
 non-default-`k` entry instead), the engine's own
 BCF-composition gate (`refuseUnsupportedBCFComposition`, RIB:2346), and the
@@ -812,7 +812,7 @@ heteroscedastic arm of its own beyond that shared mechanism and the
 `forest = 2` refusal above.
 
 [f30] Split verdicts, measured by benchmarks/R/composition-matrix.R.
-`resid.dist = student()` + `variance =` now REFUSES at `spec.R:423` ("a
+`resid.dist = student()` + `variance =` now REFUSES at `spec.R:422` ("a
 variance forest does not support Student-t residuals: the two are not yet
 shown to compose") - a validation error only, the formal stays, and the door
 memo records that adjudicating the composition of two scale mixtures on the
@@ -835,13 +835,13 @@ never read for a multinomial sampler.
 (RIB:3238-3294) copies only power/base/proposal-probability fields, so a DART
 tree prior built from either the `dart` argument or a `tree.prior` object
 never reached the K-forest engine. `bart2` now refuses both routes by name
-(bart.R:876), matching BCF's own named refusal (spec.R:537,
+(bart.R:876), matching BCF's own named refusal (spec.R:536,
 `buildBCFForest` CH:5027) before either reaches the host sampler.
 
 [f34] `bart2Hurdle` builds both component calls with `redirectCall`
 (bart.R:2247, 2256), so a user's `variance =` is forwarded to BOTH - including
 the occupancy component, which then sets `family = "probit"` and hits the
-non-gaussian variance refusal at spec.R:410 before either component fits.
+non-gaussian variance refusal at spec.R:409 before either component fits.
 That refusal is deliberate, not a bug: `hurdleSigmaVec`'s comment
 (generics.R:1032-1042, definition :1043) states the positive fit is always
 homoscedastic because the gate makes a heteroscedastic component
@@ -915,7 +915,7 @@ docs/plans/runsbcbcf-repair.md).
 [f48] The K-forest coupling's family reach, landed at
 multiforest-extension-surface M4.4 (625794fd). gaussian, probit and logistic
 build; aft, ordinal and nbinom are refused at all three creation routes, each
-naming what it is missing (spec.R:505-527, `refusedBCFFamilyReason` RIB:2281,
+naming what it is missing (spec.R:504-526, `refusedBCFFamilyReason` RIB:2281,
 `createBCFSampler` FAC:822-825 - the last sitting directly beside the
 variance-forest door FAC:817, which is unchanged and family-independent). The
 calibration map's anchor is now family-keyed, `latentScaleAnchor` (CH:4910):
@@ -981,7 +981,7 @@ dedicated tinytest file.
 **logistic.** No `rbart_vi()` token (rbart.R:49), so grouped logistic is
 engine-reachable but not R-reachable. No flat-C test coverage.
 
-**ordinal.** No `xbart()` or `rbart_vi()` reach (both refused at data.R:500 as
+**ordinal.** No `xbart()` or `rbart_vi()` reach (both refused at data.R:503 as
 unsupported response shapes). Pointwise log-likelihood unbuilt
 (generics.R:129-134). Grouped ordinal is a recorded unbuilt door (RIB:2986).
 `warm.start` and `n.grow.sweeps` unbuilt for the arc (bart.R:608). Its selecting

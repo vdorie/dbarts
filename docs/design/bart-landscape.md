@@ -201,7 +201,7 @@ engine. Its own paper's Table 1 gives the "C/C++ API" row exactly one check
 (its own) and the "Random effects" row exactly one, and its prose calls dbarts
 "a limited interface for interchanging a forest MCMC step with other
 samplers"; dbarts ships `inst/include/dbarts/dbarts.h` (39 entries in
-`DBARTS_C_API_LIST`) and `rbart_vi`. *Verified:* `R/data.R:193-280`,
+`DBARTS_C_API_LIST`) and `rbart_vi`. *Verified:* `R/data.R:229-318`,
 `R/model.R:93-133`, `R/bart.R:187-207`,
 `src/include/stochtree/leaf_model.h:352-358`, NAMESPACE; arXiv 2512.12051v1
 Section 1.2 and Table 1 fetched and converted to text.
@@ -267,7 +267,7 @@ split-probability channel narrower than `setModel` (dbarts issue #67,
 "Feature request: more convenient updates of splitting probabilities", open
 since 2024-03-14) and the validator. *Verified:* `R/separate_bart.R:4-21`,
 `src/single_bart.cpp`, `src/separate_bart.cpp`; this worktree's
-`R/dbarts.R:1000-1011` and `man/dbartsSampler-class.Rd:103`.
+`R/dbarts.R:1155-1166` and `man/dbartsSampler-class.Rd:103`.
 
 **VCBART 1.2.5** (Deshpande, Bai, Balocchi, Starling, Weiss; CRAN,
 2026-04-21; 135/mo). Varying-coefficient models `y = sum_j beta_j(x) z_j`,
