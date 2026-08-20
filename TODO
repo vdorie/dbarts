@@ -120,23 +120,11 @@ items
     explicit cross-host flag, or convert them to draws-axis
     recordings at a re-record - neither taken here. CI legs stay
     default-branch-gated regardless.
-  feature-matrix-prose-staleness: three verified report-only findings
-    from the 2026-08-14 anchor-refresh pass (which fixed anchors only,
-    by design): (1) section-5 prose says test-capi.R drives grouped,
-    heteroscedastic and BCF "by control attribute" - true for the
-    first two, but BCF is reached through forests = list(forest(basis
-    = ...)) since M2/M4.3; (2) footnote [f23] quotes the BCF mid-chain
-    refusal as "two-forest calibration map" where the shipped message
-    and its test (test-calibration-midchain.R:346-349) say
-    "multi-forest calibration map" - note this is a DIFFERENT site
-    from calibrationMapName (R_interface_bartcore.cpp:4052-4055, the
-    literal at :4054, sole call site :4144), which really does still
-    return "two-forest calibration map" (the
-    bcf-naming-generalization leg; verify each site's live string
-    before editing either); (3) [f36]'s "the earlier CH:1589" and
-    [f23]'s "the earlier spec.R:440" are historical references to
-    superseded anchors, flagged in the file's pass record. Small docs
-    slice; batch with the next feature-matrix cell update.
+  feature-matrix-prose-staleness: DISCHARGED 6d82ac86 - all three
+    findings fixed in place (BCF reach attribution, the [f23]
+    multi-forest quote, both historical back-references re-derived);
+    the cleanup wave 1 landing note in release-candidate-review.md is
+    the record.
   forest-ranef-interweaving: RESEARCHED, NO-GO now - record,
     permanent gate (benchmarks/R/grouped-mixing.R), and the
     VD-sign-off reopen clause in
@@ -477,17 +465,11 @@ items
     a cloglog binary family), grouped frailty, time-varying covariates
     in the auto-expander, continuous-time models (gate stands - that
     is AFT, which ships). low-ranked.
-  test-bartcore-filtered-run-false-fail: `./test_bartcore sampler` run
-    alone (a single-suite filtered run) fails the hardcoded "BCF
-    grow-from-root combined fit characteristic value" check, because
-    filtering shifts the shared runif01() stream the hardcoded value
-    depends on; NOT a regression - pre-existing, reconfirmed against
-    the parent commit during the dbarts-h-reshape S0 review
-    (landed a262cd26). The full unfiltered run is, and remains, the
-    gate, and it is clean. Give the affected test its own locally
-    seeded stream (the testPrintTreesForest precedent, a262cd26) so a
-    filtered run stops false-failing. Harness-only, no engine change.
-    Pre-release at discretion.
+  test-bartcore-filtered-run-false-fail: DISCHARGED e74380f7 - the
+    test's fixture now comes from a local stream, its characteristic
+    value re-derived and bit-identical in filtered and full runs,
+    zero downstream pins moved; the cleanup wave 1 landing note is
+    the record.
   tree-mixing-proposals: research door - how is the BART posterior
     sticky, and what proposal mechanisms beyond the shipped four-move
     set would help? RESEARCH COMPLETE; durable record
