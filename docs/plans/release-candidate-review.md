@@ -540,6 +540,26 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Soak wave 3 addendum: the anchor sweep (662a7ef8, 2026-08-19)
+
+Ledger item 15 discharges, run LAST after every content edit per the
+serialization rule. The five known-stale sites re-derived by content
+(data-store.md's transaction anchors, grow-from-root-default.md's
+growFromRoot, model-space-survey.md's setData,
+within-chain-threading.md's fan-out half, data-ownership.md's
+citation of deleted const_cast code - rewritten to cite the file
+without a line, the doc's own convention for deleted content). Drift
+sweep over every file this session's landings moved: ~150 anchor
+instances across 48 design docs checked, ~100 re-derived, ~50
+confirmed unmoved; deltas non-uniform throughout, one content
+move across files (data.R -> R/utility.R), and error-style.md's
+"Violation" examples rewritten where the violations had since been
+fixed in code. The sweeper self-caught three of its own
+manual-counting errors on range endpoints; orchestrator audit
+re-opened a sample and every sampled anchor landed on its named
+content. Docs-only; fires no CI; the built package is byte-identical
+to 49b8cac3's.
+
 ### Soak wave 3: cross-arch dead kernel families + error-style residue (ded1f54e + 49b8cac3, 2026-08-19)
 
 Two slices land under the batch clause (each independently
