@@ -41,6 +41,17 @@
             clang 14.0.3 on Intel macOS accepts \code{-std=gnu++20} but its
             libc++ lacks \code{std::bit_cast}, so compilation failed. Fix
             thanks to Brian King (PR #81).
+      \item Fixed multi-chain and multi-threaded runs under R-devel, which
+            warned that \code{.Random.seed} was not a valid integer and fell
+            back to seeding from the clock, so that \code{set.seed} no longer
+            controlled their results. R's new \code{binom.kind} field pushed
+            the encoded value past the bound used to validate it; the uniform
+            and standard normal kinds that dbarts uses are now validated
+            individually and any further fields R encodes are ignored.
+      \item The fallback used to validate \code{rngKind} when the arguments of
+            \code{RNGkind} cannot be read no longer fails in a session that has
+            yet to use the random number generator, and now restores the
+            generator's state and all of its kinds afterwards.
     }
   }
 }
