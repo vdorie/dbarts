@@ -7,31 +7,9 @@ void (*misc_addVectorsInPlace)(const double* restrict x, size_t length, double* 
 void (*misc_subtractVectorsInPlace)(const double* restrict x, size_t length, double* restrict y) = 0;
 void (*misc_addVectorsInPlaceWithMultiplier)(const double* restrict x, size_t length, double alpha, double* restrict y) = 0;
 
-void (*misc_addAlignedVectorsInPlace)(const double* restrict x, size_t length, double* restrict y) = 0;
-void (*misc_subtractAlignedVectorsInPlace)(const double* restrict x, size_t length, double* restrict y) = 0;
-
 void (*misc_addScalarToVectorInPlace)(double* x, size_t length, double alpha) = 0;
 void (*misc_setVectorToConstant)(double* x, size_t length, double alpha) = 0;
 
-void (*misc_transposeMatrix)(const double* restrict x, size_t numRows, size_t numCols, double* restrict xt) = 0;
-
-
-void misc_addVectors(const double* restrict x, size_t length, const double* restrict y, double* restrict z)
-{
-  if (length == 0) return;
-  
-  size_t i = 0;
-  size_t lengthMod4 = length % 4;
-  
-  for ( ; i < lengthMod4; ++i) z[i] = y[i] + x[i];
-  
-  for ( ; i < length; i += 4) {
-    z[i    ] = y[i    ] + x[i    ];
-    z[i + 1] = y[i + 1] + x[i + 1];
-    z[i + 2] = y[i + 2] + x[i + 2];
-    z[i + 3] = y[i + 3] + x[i + 3];
-  }
-}
 
 void misc_subtractVectors(const double* restrict x, size_t length, const double* restrict y, double* restrict z)
 {
@@ -47,23 +25,6 @@ void misc_subtractVectors(const double* restrict x, size_t length, const double*
     z[i + 1] = y[i + 1] - x[i + 1];
     z[i + 2] = y[i + 2] - x[i + 2];
     z[i + 3] = y[i + 3] - x[i + 3];
-  }
-}
-
-void misc_addVectorsWithMultiplier(const double* restrict x, size_t length, double alpha, const double* restrict y, double* restrict z)
-{
-  if (length == 0 || alpha == 0.0) return;
-  
-  size_t i = 0;
-  size_t lengthMod4 = length % 4;
-  
-  for ( ; i < lengthMod4; ++i) z[i] = y[i] + alpha * x[i];
-  
-  for ( ; i < length; i += 4) {
-    z[i    ] = y[i    ] + alpha * x[i    ];
-    z[i + 1] = y[i + 1] + alpha * x[i + 1];
-    z[i + 2] = y[i + 2] + alpha * x[i + 2];
-    z[i + 3] = y[i + 3] + alpha * x[i + 3];
   }
 }
 
@@ -291,19 +252,6 @@ double misc_sumIndexedVectorElements(const double* x, const misc_index_t* indice
   }
   
   return result;
-}
-
-void misc_transposeMatrix_c(const double* restrict x, size_t numRows, size_t numCols, double* restrict xt)
-{
-  if (numRows == 0 || numCols == 0) return;
-
-  size_t colOffset = 0;
-  for (size_t col = 0; col < numCols; ++col) {
-    for (size_t row = 0; row < numRows; ++row) {
-      xt[row * numCols + col] = x[row + colOffset];
-    }
-    colOffset += numRows;
-  }
 }
 
 void misc_multiplyMatrixIntoVector(const double* restrict matrix, size_t numRows, size_t numCols, int useTranspose,
