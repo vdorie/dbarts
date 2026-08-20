@@ -540,6 +540,43 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The oracle lane closes: hazard and hurdle exact-posterior gates (0787b8e3, 2026-08-20)
+
+The fork taken as recommended under VD's discretion grant.
+benchmarks/R/hazard-exact.R and hurdle-exact.R gate the two families
+whose only prior evidence was bitwise reduction - blind by
+construction to transformation defects - against exact posteriors
+derived independently of the package's expander and splitter, on the
+original data scale.
+
+hazard: 2 covariate cells x 3 periods, single tree, tree space
+enumerated exactly (62 trees, prior mass sums to 1); the reference
+collapses the subject-level discrete-hazard likelihood to per-cell
+Bernoulli factors read straight off (x, time, status) - no
+person-period expansion anywhere in the reference. PASS, max gaps
+0.0008/0.0005 vs tol 0.004. hurdle: split re-derived from y alone,
+occupancy by quadrature, positive factor conjugate on the engine's
+internal rescaling, all three channels gated. PASS,
+0.0002/0.0000/0.0002. Teeth measured on BOTH axes per family -
+reference poisons AND transformation-semantics poisons (the
+wrong-censoring-convention risk set fires at 0.69; the y > 1 split
+fires at 0.20-0.32) - the second axis is exactly what the reduction
+gates cannot see. INDEPENDENT ADJUDICATION (own re-derivations to 6
+dp by different methods, own poisons, tolerance audit: margins
+2.5-8x over measured seed spread, no detectable bias at a 12-seed
+mean) CONFIRMED both derivations; its three comment/format amends
+are applied, including honest-scope headers (the hazard survival
+channel's moment refinement and hurdle's structure-prior terms are
+exercised but not discriminated at these designs - stated, not
+implied away). Wired into exact-gates.yaml's exact-posterior group;
+first live CI run GREEN on this commit (all six workflows).
+Design finding recorded in the script headers: a constant filler
+column is NOT inert on this engine - a non-quantile grid gives a
+degenerate column its full cut complement and availability is
+index-based, so it shifts the tree prior; both gates keep every
+column live. Every shipped family now carries SBC or a gated
+posterior oracle, or both.
+
 ### Cleanup wave 1: perfect-fit muffle, filtered-run fixture, feature-matrix prose (6d82ac86 + e74380f7 + b1559457, 2026-08-19/20)
 
 The RC soak is VD-paused for a CRAN patch on main; the window goes to
