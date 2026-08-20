@@ -162,7 +162,7 @@ all bump.
 
 Landed (2026-07-10, c-api-growth): the format version stamp is demoted
 from an equality gate to an encoding FLOOR (minReadableStateFormatVersion,
-currently 3), so state evolution is additive rather than orphaning. setState
+currently 2), so state evolution is additive rather than orphaning. setState
 already reads every per-chain block BY NAME (getListElement) and defaults an
 absent OPTIONAL block, so the registry rule is: block names are append-only
 and a shipped name's on-disk encoding is FROZEN; a new capability adds a NEW
@@ -503,14 +503,16 @@ outside its numbered proposals. Landed 2026-08-10 to 2026-08-11
 (docs/plans/bcf-public-surface.md S1-S4) and re-skinned into engine vocabulary
 2026-08-13 (docs/plans/multiforest-extension-surface.md M2):
 `dbarts(forests = list(forest(), forest(basis = ~ factor(z), vars =
-)))`/`dbartsSpec()` build an ordinary `dbartsSampler`; the 0/1 column the
-factor basis expands to rides `data@treatment` (the `weights` precedent) and
-the second forest's configuration rides `attr(control, "bartcore.bcf")` (the
-`bartcore.variance` precedent), cross-checked both directions at creation.
+)))`/`dbartsSpec()` build an ordinary `dbartsSampler`; the (1 - z, z) pair the
+factor basis expands to rides the K-length `data@bases` list (the `weights`
+precedent) and the forests' configuration rides
+`attr(control, "bartcore.forests")` (the `bartcore.variance` precedent),
+cross-checked both directions at creation.
 `$setForestBasis`/`$getForestFits`/`$getForestAmplitudes`/`$getForestVariableCounts`
-are R5 methods; `dbarts_sampler_numForests`/`setTreatment`/`forestFits`/
-`bcfGlue` reach the same sampler from C (inst/include/dbarts/dbarts.h:264-271);
-a run reports both forests' fits and the amplitudes for every draw. Full detail
+are R5 methods; `dbarts_sampler_numForests`/`setForestBasis`/`forestFits`/
+`numForestAmplitudes`/`forestAmplitudes` reach the same sampler from C
+(inst/include/dbarts/dbarts.h:495-507); a run reports every forest's fits and
+the amplitudes for every draw. Full detail
 and anchors: docs/design/bcf.md, "Public creation surface".
 
 **One knob per forest.** `forest()` carries `basis`, `vars`, `n.trees`,

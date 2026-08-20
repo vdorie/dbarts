@@ -39,30 +39,30 @@ multi-forest, and all live in the bridge's shared header so the R bridge and
 the flat C API cannot state different rules
 (`src/R_interface_bartcore_common.hpp`).
 
-`refuseMultiForestMutation` (`src/R_interface_bartcore.cpp:2627`) fires on a
+`refuseMultiForestMutation` (`src/R_interface_bartcore.cpp:2629`) fires on a
 bare `numForests >= 2` and covers the whole-object conduits, which would
 rebuild or reprice forest 0 alone: `bartcore_setData`, `bartcore_setModel`,
 and the flat `dbarts_sampler_setTestOffset`.
 
-`refuseMultiForestResponseMutation` (`:2650`) is the one multi-forest family
+`refuseMultiForestResponseMutation` (`:2652`) is the one multi-forest family
 that is opt-in rather than refused. It passes a single-forest sampler
 unconditionally, then asks the coupling whether it can express a response
-swap at all - `Chain::supportsResponseMutation` (`chain.hpp:1045`), which is
-the combiner's own answer and nothing else. `BCFForestCombiner` returns true
-(`combiner.hpp:1059`); the base `ForestCombiner` and the multinomial coupling
-return false, the latter because its response is an n x K count matrix that
-no flat conduit can carry, so its refusal names `bartcore_setCounts` instead.
-There is no `family_ == gaussian` conjunct: it was removed when `setResponse`
-began passing `combinedFits()` rather than forest 0's bare totals, so a latent
-family refreshes its latents against the combined location and the reason for
-the conjunct went with it. What remains is the scale clause: a response or
-offset swap is admitted only at `updateScale == FALSE`, which pins the
-response transform the per-forest leaf calibrations are stated against. The
-test is `updateScale != FALSE`, so NA refuses too; the R5 methods default the
-argument to FALSE. The weight conduit has no scale to pin and skips the
-clause.
+swap at all - `Chain::supportsResponseMutation` (`chain.hpp:1046`), which is
+the combiner's own answer and nothing else. `AmplitudeForestCombiner` returns
+true (`combiner.hpp:1060`); the base `ForestCombiner` and the multinomial
+coupling return false, the latter because its response is an n x K count matrix
+that no flat conduit can carry, so its refusal names `bartcore_setCounts`
+instead. There is no `family_ == gaussian` conjunct: it was removed when
+`setResponse` began passing `combinedFits()` rather than forest 0's bare
+totals, so a latent family refreshes its latents against the combined location
+and the reason for the conjunct went with it. What remains is the scale clause:
+a response or offset swap is admitted only at `updateScale == FALSE`, which
+pins the response transform the per-forest leaf calibrations are stated
+against. The test is `updateScale != FALSE`, so NA refuses too; the R5 methods
+default the argument to FALSE. The weight conduit has no scale to pin and skips
+the clause.
 
-`refuseBCFTestSurface` (`:2847`) closes the test surface, gated on
+`refuseUndefinedTestFits` (`:2849`) closes the test surface, gated on
 `numForests >= 2 && !testFitsAreDefined` rather than on the forest count, so a
 coupling whose test blend IS defined passes through. It guards
 `setTestPredictor`, `setTestOffset`, `setTestPredictorAndOffset` and `predict`
@@ -71,7 +71,7 @@ on the bridge, and `dbarts_sampler_setTestPredictors` and
 installed, the whole surface is closed rather than partly closed.
 
 R5 raises its own wording ahead of the bridge for a sampler carrying
-amplitudes (`refuseBCFMutation`, `R/bartcore.R:34`), on
+amplitudes (`refuseAmplitudeMutation`, `R/bartcore.R:36`), on
 `setResponse`/`setOffset` at `updateScale = TRUE`, on `setData`, `setModel`
 and `setCalibration`. The probe is `!is.null(data@bases)` - a capability test,
 deliberately not a forest count, because a K-forest multinomial carries

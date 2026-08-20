@@ -103,8 +103,10 @@ natural casing rather than force `"bcf does not support"`.
 - Conformance: 546/546 `stop()` bodies are lowercase-initial
   (`grep 'stop("[A-Z]' R/*.R` -> 0).
 - Violation: `src/R_interface_bartcore.cpp:2575` ("Student-t residuals ...")
-  is a genuine outlier, not an acronym - reword under the sweep. `:3112`,
-  `:3114`, `:7024` (BCF, BCF, DART) are the acronym exception and stay as-is.
+  is a genuine outlier, not an acronym - reword under the sweep. `:7113`
+  (DART) is the acronym exception and stays as-is; the two BCF-initial
+  messages that sat beside it were reworded when the amplitude family took
+  amplitude-rooted names, leaving DART the only one.
 
 **External evidence.** Published best practice (tidyverse): "Errors should be
 written in sentence case ... make sure to capitalise the first word (unless
@@ -186,9 +188,9 @@ more values (`R/augmentation.R:18`); do not introduce `paste0()`/`gettextf()`
 
 C: `Rf_error`'s only mechanism is its own printf placeholders (`%s`, `%d`,
 `%zu`) - no alternative exists. Quote `%s` in `'...'` when it echoes a name or
-a user-supplied choice; leave it bare for a descriptive phrase (`"BCF does not
-support %s"`, `src/R_interface_bartcore.cpp:3112`, where `refused` is a phrase
-like `"a DART tree prior"`, not a name).
+a user-supplied choice; leave it bare for a descriptive phrase (`"a treatment
+forest does not support %s"`, `src/R_interface_bartcore.cpp:2337`, where
+`refused` is a phrase like `"a DART tree prior"`, not a name).
 
 **External evidence.** Neither tidyverse nor rlang docs address the choice
 between comma-concatenation and `sprintf()` for a base `stop()` call - that
@@ -492,8 +494,9 @@ mandated, when cheap.
 ## R13. Unsupported-under-family/composition refusal — SILENT-KEPT
 
 `"<subject> does not support <feature>[: <reason>]"` - clear majority (26 of
-37 R + 16 C "not support" hits use this exact verb). Conformance: `"BCF does
-not support %s"` (`src/R_interface_bartcore.cpp:3112`); `"probit models do
+37 R + 16 C "not support" hits use this exact verb). Conformance: `"a
+treatment forest does not support %s"`
+(`src/R_interface_bartcore.cpp:2337`); `"probit models do
 not support weights; fit integer count weights with family = \"logistic\",
 or model continuous weights' latents directly"` (`R/spec.R:53-58`).
 Violation: `"sample = \"test\" is
@@ -554,7 +557,7 @@ fourth mechanism, not part of this drift). 0 uses anywhere of `gettextf`,
 |---|---|
 | argument quoting | single-quote opens the message (177 R, 14 C); backtick/sQuote/dQuote: 0/0 |
 | terminal period | period-free: 348/348 C, 549/549 R - the sweep's three restated-refusal exceptions are gone |
-| sentence case | lowercase-initial: 534/534 R bodies that carry a literal (15 more rethrow a caught error object and carry none), 345/348 C; C's 3 outliers are the BCF x2/DART acronym exception - the prior genuine miss is fixed |
+| sentence case | lowercase-initial: 534/534 R bodies that carry a literal (15 more rethrow a caught error object and carry none), 347/348 C; C's one remaining outlier is the DART acronym exception - the prior genuine miss is fixed, and the two BCF-initial messages were reworded with the amplitude rename |
 | hyphenation | `non-negative` 24 (R 16 + C 8) vs `nonnegative` 0 - `non-negative` is now unanimous |
 | out-of-range shape | `"... out of range"` 42 combined (R 8 + C 34) vs `"must be between"` 1 - bare `out of range` remains majority for index/discrete bounds |
 | composition-refusal verb | `"does not support"` 33 (R 28 + C 5) vs `"incompatible with"` 3 (C) / `"is not available for"` 0 |

@@ -200,7 +200,7 @@ and schedules against the same way, so they earn rows.
 | aft | AFT survival, log-normal (`AFTResponse` MOD:3768) |
 | hazard | Discrete-time hazard (person-period sugar, dbarts.R:487-536) |
 | hurdle | Hurdle / two-part semicontinuous (R-side composition, bart.R:2206) |
-| bcf | K-forest amplitude family, bcf's two forests being its K = 2 instance (`BCFForestCombiner` COM:743) |
+| bcf | K-forest amplitude family, bcf's two forests being its K = 2 instance (`AmplitudeForestCombiner` COM:744) |
 | grouped | Grouped random intercepts (`GroupedResponse` MOD:4680) |
 | hetero | Heteroscedastic variance forest (CH:724) |
 
@@ -209,10 +209,10 @@ probit, logistic, aft, ordinal, nbinom); student, hazard, hurdle, bcf, grouped
 and hetero are all reached some other way, which is exactly why they need rows
 here rather than an enum read. That enum now REACHES the bcf row, which is why
 so much of that row is family-dependent below: since M4.4 the K-forest chain
-selects its response model off `BCFSpec::family` (COM:323, `switch (spec.family)`
-CH:755) instead of building an unconditional `GaussianResponse`, and the
-K-forest `Sampler` constructor takes `family_(spec.family)` (SAM:160) instead of
-pinning gaussian. Leaf models (constant, monotone, linear, GP) are
+selects its response model off `AmplitudeSpec::family` (COM:324, `switch
+(spec.family)` CH:755) instead of building an unconditional `GaussianResponse`,
+and the K-forest `Sampler` constructor takes `family_(spec.family)` (SAM:160)
+instead of pinning gaussian. Leaf models (constant, monotone, linear, GP) are
 an orthogonal axis and are not rows; where a leaf model gates a capability the
 cell says so.
 
@@ -242,8 +242,9 @@ gaussian, probit, logistic, aft, ordinal, nbinom - plus BCF through its
 grouped. A `forests =` fit resolves **gaussian, probit or logistic** since M4.4;
 aft, ordinal and nbinom are refused there by name, each stating what it is
 missing (spec.R:504-526), with the same three-family gate at the bridge
-(`refusedBCFFamilyReason` RIB:2281, called from both creation routes at
-RIB:2329 and RIB:3137) and at the factory (`createBCFSampler` FAC:822-825).
+(`refusedAmplitudeFamilyReason` RIB:2287, called from both creation routes at
+RIB:2334 and RIB:3151) and at the factory (`createAmplitudeSampler`
+FAC:809-826).
 
 Since S12 (`bart2-argument-consolidation`), `bart2()`'s formula interface
 reaches the same `forests =` machinery through a `forest()` term rather than a
@@ -410,7 +411,7 @@ already used (`ingestFormulaTerms`, `R/formulaTerms.R`, called from `dbarts()`'s
 formula path; `bart2` dispatches through it for every family except
 multinomial, which refuses a `forest()` term by name since it has no
 amplitude-coupled slot). A two-forest fit built this way carries the same
-`bartcore.bcf` control attribute as one built through `forests =`
+`bartcore.forests` control attribute as one built through `forests =`
 (inst/tinytest/test-formula-terms.R Block B, byte-identical at the same seed).
 What remains absent is the NAMED causal verb, not the general capability:
 `bcf()` and `bartBCF` still ship in **bartCause**, not dbarts
@@ -600,7 +601,7 @@ since the flat-C gap never gated a `dbartsSampler` caller; S3 closes the
 flat-C gap itself, with the two carried items from S2 shipping alongside:
 the engine bounds check on `Chain::forestCalibration` (`chain.hpp:1170`,
 returning a default-constructed calibration rather than reading past the
-last forest) and the `refuseBCFMutation` reorder in `$setCalibration`
+last forest) and the `refuseAmplitudeMutation` reorder in `$setCalibration`
 (`dbarts.R:1607-1627`, argument validation before the BCF refusal).
 EXTENDED by `binary-kforest-prior-default` S1: the reader reports five further
 columns - `amplitude.prior.variance` and `amplitude.prior.scale` (exclusive
@@ -698,12 +699,12 @@ nowhere to land. Three creation-time refusal sites shipped at c2a7e89b: R-side
 `dbartsSpec()`'s BCF composition (spec.R:554, the `"a named 'prior.scale'"`
 entry of the `unsupported` vector; the non-default-`k` entry sits at
 spec.R:542), the engine's own
-BCF-composition gate (`refuseUnsupportedBCFComposition`, RIB:2346), and the
-multinomial forest builder (`buildMultinomialSampler`, RIB:3255). S2
+BCF-composition gate (`refuseUnsupportedAmplitudeComposition`, RIB:3045), and
+the multinomial forest builder (`buildMultinomialSampler`, RIB:3255). S2
 (d809b944) adds the mid-chain refusals, at TWO independent sites rather than
 one shared gate: `$setCalibration`'s R5 method refuses BCF through
-`refuseBCFMutation` (dbarts.R:1622, MEASURED "multi-forest calibration map",
-test-calibration-midchain.R:399-402) before ever reaching the bridge, and
+`refuseAmplitudeMutation` (dbarts.R:1623, MEASURED "multi-forest calibration
+map", test-calibration-midchain.R:399-402) before ever reaching the bridge, and
 refuses a multinomial fit's host shell through `refuseHostMutation`
 (dbarts.R:1607, MEASURED "host sampler of a bart2", line 460-463); underneath
 both, the engine-level gate any DIRECT low-level call still hits -
@@ -712,8 +713,8 @@ both, the engine-level gate any DIRECT low-level call still hits -
 (RIB:4172) - is what the unexported `dbarts:::bartcoreSetForestPriorScale`
 hits on a multinomial forest's low-level handle (MEASURED "softmax calibration
 map", line 441-444); the R5 layer never routes a BCF sampler there since
-`refuseBCFMutation` refuses first, so only the multinomial arm exercises the
-bridge gate directly. These cells stay `R`.
+`refuseAmplitudeMutation` refuses first, so only the multinomial arm exercises
+the bridge gate directly. These cells stay `R`.
 
 [f24] Evaluated per PERSON-PERIOD row, not per subject, since the fit's
 response is the expanded binary indicator.
@@ -837,7 +838,7 @@ never read for a multinomial sampler.
 tree prior built from either the `dart` argument or a `tree.prior` object
 never reached the K-forest engine. `bart2` now refuses both routes by name
 (bart.R:876), matching BCF's own named refusal (spec.R:536,
-`buildBCFForest` CH:5027) before either reaches the host sampler.
+`buildSpecifiedForest` CH:5003) before either reaches the host sampler.
 
 [f34] `bart2Hurdle` builds both component calls with `redirectCall`
 (bart.R:2247, 2256), so a user's `variance =` is forwarded to BOTH - including
@@ -916,32 +917,32 @@ docs/plans/runsbcbcf-repair.md).
 [f48] The K-forest coupling's family reach, landed at
 multiforest-extension-surface M4.4 (625794fd). gaussian, probit and logistic
 build; aft, ordinal and nbinom are refused at all three creation routes, each
-naming what it is missing (spec.R:504-526, `refusedBCFFamilyReason` RIB:2281,
-`createBCFSampler` FAC:822-825 - the last sitting directly beside the
-variance-forest door FAC:817, which is unchanged and family-independent). The
-calibration map's anchor is now family-keyed, `latentScaleAnchor` (CH:4910):
-sd(y) under gaussian, 1 under probit, pi/sqrt(3) under logistic, and stated per
-unit of basis row norm (`basisRowNorm` CH:4939). Cell by cell in section 2:
-`setResponse`/`setOffset` are OPEN under every family, because
-`Chain::setResponse` (CH:1630) now hands the response `combinedFits()` rather
-than forest 0's bare totals, which is what let the gaussian conjunct come off
-`Chain::supportsResponseMutation` (CH:1045); the combiner's own opt-in (COM:1059)
-is unchanged. `setWeights` and `setSigma` are REFUSED for probit and logistic
-and open only for gaussian, through the ORDINARY single-forest guards now that
-the sampler answers `shape.family` for itself (`refuseBinaryWeightChange`
-RIB:2752, `refusePinnedSigmaChange` RIB:2865); at creation the shared
-`enforceBinaryWeightPolicy` (RIB:1616) refuses a probit weight outright and
-holds a logistic one to positive integer counts, which is what makes the
-zero-weight-subset cell family-dependent too. `updateScale = TRUE` stays
-REFUSED under EVERY family - NOT the latent convention `- [f9]` M4.4's own plan
-bullet predicted: `refuseBCFMutation` (bartcore.R:34) keys on the sampler
-carrying bases, never on the family, and the bridge's
-`refuseMultiForestResponseMutation` (RIB:2646) keys on `numForests >= 2`, so a
-probit K-forest is refused too, though its transform is the identity and the
-re-anchoring the refusal guards against cannot occur. PINNED, with the open
-conduit and both refusals above, at inst/tinytest/test-bcf-family.R:406-422.
-That file is the whole of the latent K-forest's evidence: no equivalence
-scenario and no SBC arm reaches one.
+naming what it is missing (spec.R:504-526, `refusedAmplitudeFamilyReason`
+RIB:2287, `createAmplitudeSampler` FAC:809-826 - the last sitting directly
+beside the variance-forest door FAC:817, which is unchanged and
+family-independent). The calibration map's anchor is now family-keyed,
+`latentScaleAnchor` (CH:4910): sd(y) under gaussian, 1 under probit, pi/sqrt(3)
+under logistic, and stated per unit of basis row norm (`basisRowNorm` CH:4939).
+Cell by cell in section 2: `setResponse`/`setOffset` are OPEN under every
+family, because `Chain::setResponse` (CH:1630) now hands the response
+`combinedFits()` rather than forest 0's bare totals, which is what let the
+gaussian conjunct come off `Chain::supportsResponseMutation` (CH:1045); the
+combiner's own opt-in (COM:1059) is unchanged. `setWeights` and `setSigma` are
+REFUSED for probit and logistic and open only for gaussian, through the
+ORDINARY single-forest guards now that the sampler answers `shape.family` for
+itself (`refuseBinaryWeightChange` RIB:2752, `refusePinnedSigmaChange`
+RIB:2865); at creation the shared `enforceBinaryWeightPolicy` (RIB:1616)
+refuses a probit weight outright and holds a logistic one to positive integer
+counts, which is what makes the zero-weight-subset cell family-dependent too.
+`updateScale = TRUE` stays REFUSED under EVERY family - NOT the latent
+convention `- [f9]` M4.4's own plan bullet predicted: `refuseAmplitudeMutation`
+(bartcore.R:36) keys on the sampler carrying bases, never on the family, and
+the bridge's `refuseMultiForestResponseMutation` (RIB:2652) keys on `numForests
+>= 2`, so a probit K-forest is refused too, though its transform is the
+identity and the re-anchoring the refusal guards against cannot occur. PINNED,
+with the open conduit and both refusals above, at
+inst/tinytest/test-bcf-family.R:406-422. That file is the whole of the latent
+K-forest's evidence: no equivalence scenario and no SBC arm reaches one.
 
 The IN-SAMPLE per-forest OUTPUT channel (as opposed to construction, above)
 LANDED at bart2-argument-consolidation S11 (00abf336): `packageBartResults`

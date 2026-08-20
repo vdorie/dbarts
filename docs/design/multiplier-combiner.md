@@ -7,7 +7,7 @@ commit), with the landing records at e7708b7c and 54e114ff
 basis/amplitude family: each forest carries its own basis, its row contracts
 with that forest's amplitude vector into a per-observation scalar, and the
 forest enters the combination scaled by it. bcf's `a mu + b_z tau` is the
-K = 2 instance. Posterior-defining: `BCFForestCombiner<L>`
+K = 2 instance. Posterior-defining: `AmplitudeForestCombiner<L>`
 (src/bartcore/combiner.hpp:704), the K-forest chain constructor
 (chain.hpp:694-780), `expandForestSpecs` (combiner.hpp:341), the R resolution
 (R/model.R `resolveForests`, R/spec.R), and the gates
@@ -28,18 +28,27 @@ instance - propensity, the moderator subset, tree-count and prior defaults, the
 calibration map's gaussian defaults, the exact-posterior gate, the burn-in
 study, and the public creation history. Neither restates the math below.
 
-**The naming debt, recorded and not acted on.** The family is general; the
-SPELLING is bcf's. `BCFSpec`, `BCFForestSpec`, `BCFState`, `BCFForestCombiner`,
-`createBCFSampler`, `ChainStateData::hasBCF` and the state format's `"bcf"`
-block all read "BCF" where they mean "carries amplitudes", and the code's own
-Doxygen has already re-described them as general (facade.hpp:775-778,
-chain.hpp:687-689). A rename is ENGINE work, not a docs edit: it costs a
-`--preclean`, a `structSize` move on the state fixtures (`common.cpp` already
-tripped once at 272 -> 344, plan :4953-4955), and a state-block key change
-needing the same in-place re-encode M4.3 used. Tracked as the root TODO's
-`bcf-naming-generalization`. The mitigation that makes the debt survivable is
-that no consumer-facing PROBE is keyed on the name or on a forest count:
-capability is `totalAmplitudes() != 0` throughout (below, "Surfaces").
+**The naming debt, DISCHARGED.** The family is general and so, now, is the
+spelling: `AmplitudeSpec`, `ForestStructureSpec` (the tree/structure block,
+which carries no amplitude), `AmplitudeState`, `AmplitudeForestCombiner`,
+`createAmplitudeSampler`, `ChainStateData::hasAmplitudes`, and the state
+format's `"glue"` block - each of which used to read "BCF" where it meant
+"carries amplitudes". R follows with `samplerCarriesAmplitudes` and
+`refuseAmplitudeMutation`, and the control attribute is `bartcore.forests`.
+Two costs this paragraph priced were wrong. `structSize` did NOT move: the
+assert is `sizeof(ChainStateData) == 416` (`tests/cpp/common.cpp`), the M4.3
+trip from 272 -> 344 was field ADDITION, and `hasAmplitudes` is the same `bool`
+`hasBCF` was, so the only fixture edit was the field name in `statesAgree`. The
+state-block change was a KEY rename, not M4.3's in-place re-encode, and a
+rename is non-additive in the opposite direction: a reader looking up an absent
+name defaults an OPTIONAL block in silence, leaving the amplitudes at their
+construction values. So `stateFormatVersion` and
+`minReadableStateFormatVersion` both went 1 -> 2, and a state carrying the old
+key is refused by version before any block is read. No baseline was
+re-recorded and all three equivalence suites stayed bitwise. The mitigation
+that made the debt survivable in the meantime, and still holds, is that no
+consumer-facing PROBE is keyed on the name or on a forest count: capability is
+`totalAmplitudes() != 0` throughout (below, "Surfaces").
 
 ## The model
 
@@ -155,8 +164,9 @@ weighted and unweighted; the divergence is in the MOMENTS - unweighted, n1
 reproduces and n0 differs; weighted, both differ. No single accumulation shape
 reproduces both blocks, over 21 variants tried (combiner.hpp:911-920). So the
 general path CANNOT be bitwise on bcf, and the specialized one is kept until a
-`bcf-equivalence` re-record is authorized. `BCFSpec::generalAmplitudeDraw` is
-the one-line switch that re-record flips (combiner.hpp:323-328).
+`bcf-equivalence` re-record is authorized.
+`AmplitudeSpec::generalAmplitudeDraw` is the one-line switch that re-record
+flips (combiner.hpp:323-328).
 
 ## The ASIS ridge
 
@@ -290,12 +300,12 @@ parameterization the implementer will code is the one validated. PASSES.
 
 ## ridgeB is code that is OFF
 
-The b-move ships, but `BCFSpec::ridgeB = false` (combiner.hpp:322). Enabling it
-costs a GIG draw per sweep, which re-records `bcf-equivalence`, and its own
-acceptance gate (docs/plans/bcf-b-ridge.md:438-449 - IACT payoff, bcf-exact
-mode-2b, keepTrees round trip) was not run. It is a DOOR, not a fork: it flips
-only on a named measured mixing case, plus that gate, plus a re-record with the
-`equivalence.yaml` bump in the same commit.
+The b-move ships, but `AmplitudeSpec::ridgeB = false` (combiner.hpp:344).
+Enabling it costs a GIG draw per sweep, which re-records `bcf-equivalence`, and
+its own acceptance gate (docs/plans/bcf-b-ridge.md:438-449 - IACT payoff,
+bcf-exact mode-2b, keepTrees round trip) was not run. It is a DOOR, not a fork:
+it flips only on a named measured mixing case, plus that gate, plus a re-record
+with the `equivalence.yaml` bump in the same commit.
 
 **No silent enablement is possible** (resolved at M4.3 review, plan
 :4967-4975). On every creation route the scale mixture holds if and only if a
@@ -504,7 +514,7 @@ mandate, discharged here in its successor form.
 `expandForestSpecs` (combiner.hpp:335-356) is the thin adapter between bcf's
 two-forest spelling and the K-length vector every other layer works in, and it
 is LOAD-BEARING rather than courtesy: 25 `tests/cpp` fixtures and
-benchmarks/R/bcf-equivalence.R drive through the `BCFSpec` spelling (plan
+benchmarks/R/bcf-equivalence.R drive through the `AmplitudeSpec` spelling (plan
 :1785-1791, :2182-2184). Forest 0 takes the half-Cauchy amplitude over the
 implicit intercept and leaves its node scale at s; forest 1 takes the
 fixed-variance pair over the treatment indicator basis and carries `sdModerate`
@@ -564,14 +574,14 @@ loop) gets slot 0, the reported forest, byte for byte as before.
 - The test surface, for EVERY family including the two M4.4 added.
   `testFitsAreDefined` and `logLikelihoodIsDefined` are both false
   (combiner.hpp:967-972), so `setTestPredictors`, `setTestOffset` and
-  `predict` refuse - through `refuseBCFTestSurface`, gated on
+  `predict` refuse - through `refuseUndefinedTestFits`, gated on
   `testFitsAreDefined` rather than on the forest count
   (src/R_interface_bartcore_common.hpp:195-199) - and no log-likelihood is
   reported. Unchanged by M4.4.
 - A per-draw amplitude channel in flat C. `dbarts_results` carries none
   (dbarts.h:139-152); DECLINED at plan :1521-1531, a `DBARTS_C_API_MINOR` bump
   binding decision 8 forbids.
-- A variance forest. `createBCFSampler` refuses `numVarianceTrees > 0`
+- A variance forest. `createAmplitudeSampler` refuses `numVarianceTrees > 0`
   (facade.hpp:784-787).
 - Nameable leaf-prior calibration. The map owns it, so the write is refused on
   ANY combining sampler: `Chain::setForestPriorScale` returns `false` on
@@ -624,13 +634,13 @@ the constructor-only `synthesizeIndicatorBasis`; `installForestBasis` became
 the sole mutator; `glue_.z` DELETED; draw-path selection moved onto the
 per-forest canonical VALUE predicate; `bcfGlue` re-signed to
 `totalAmplitudes`/`numForestAmplitudes`/`amplitudes` with a K = 2 thin adapter;
-`BCFSpec` gained its K-length `forests` vector with `expandForestSpecs`, all 25
-BCFSpec fixtures untouched; `data@treatment` retired for a `data@bases` LIST
-riding creation. Refusal ledger as the review re-derived it: 5 relax, 3
-restate, 4 rewritten by the slot retirement, 33 stand, and ONE dropped outright
-with licensed successors (the treatment-coding refusal, replaced by
-length/finiteness refusals at creation). `consumer.c` `LEG_COUNT` 18 -> 19.
-Engine ~165 dense-equivalent.
+`AmplitudeSpec` gained its K-length `forests` vector with `expandForestSpecs`,
+all 25 AmplitudeSpec fixtures untouched; `data@treatment` retired for a
+`data@bases` LIST riding creation. Refusal ledger as the review re-derived it:
+5 relax, 3 restate, 4 rewritten by the slot retirement, 33 stand, and ONE
+dropped outright with licensed successors (the treatment-coding refusal,
+replaced by length/finiteness refusals at creation). `consumer.c` `LEG_COUNT`
+18 -> 19. Engine ~165 dense-equivalent.
 
 **M4.4, 4da3bd8a (the latent family).** `probit` and `logistic` wired
 through the K-forest constructor's response switch (chain.hpp:710-725), the
@@ -693,4 +703,4 @@ reported raw nets against a dense band and appeared over budget when it was
 LANDED, gaussian, probit and logistic. M4.4 discharged the header's former
 "Gaussian responses only" - dbarts.h:514-515 now names gaussian, probit and
 logistic, with aft, ordinal and nbinom refused by name at creation. The ridgeB door is
-shut. The naming debt is recorded above and in the root TODO.
+shut. The naming debt is discharged; see above.

@@ -341,7 +341,7 @@ both supported (below).
   setCutPoints) is unguarded by forest count - the multiforest-predictor-
   mutation arc opened it for every multi-forest sampler, multinomial
   included, out of this arc's scope - and the TEST predictor family is a
-  separate gate, refuseBCFTestSurface, keyed on testFitsAreDefined()
+  separate gate, refuseUndefinedTestFits, keyed on testFitsAreDefined()
   rather than forest count, so it passes multinomial through and refuses
   only BCF.
 - State carries NO combiner wire blocks. The K forests serialize through the
