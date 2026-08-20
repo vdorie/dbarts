@@ -178,7 +178,7 @@ packageBartResults <- function(
   # multinomial's category axis does, named in ENGINE vocabulary. The forest
   # count comes from the sampler rather than the array's rank, which is
   # ambiguous (a single-forest multi-chain channel is 3-D too); data@bases is
-  # the same probe isBCFSampler uses.
+  # the same probe samplerCarriesAmplitudes uses.
   numForests <- if (!is.null(fit$data@bases)) length(fit$data@bases) else 1L
   forestNames <- if (numForests > 1L) {
     paste0("forest", seq_len(numForests))
@@ -374,7 +374,7 @@ packageBartResults <- function(
     # makes the reconstruction identity evaluable from the fit alone, since
     # neither run() channel carries them
     result$bases <- fit$data@bases
-    forestLabels <- attr(fit$control, "bartcore.bcf")$labels
+    forestLabels <- attr(fit$control, "bartcore.forests")$labels
     if (!is.null(forestLabels)) {
       attr(result, "forest.labels") <- forestLabels
     }

@@ -84,7 +84,7 @@ for (bases in list(unitBases2, unitBases3, scaledBases)) {
       dbartsData(x, yContinuous, bases = bases),
       seededControl()
     )$control,
-    "bartcore.bcf"
+    "bartcore.forests"
   )$params
   expect_equal(length(params), length(bases))
   for (forestParams in params) {
@@ -232,7 +232,7 @@ for (fit in list(probit, logistic)) {
   # and reports its median, a basis forest the fixed variance - and which
   # spelling a forest gets agrees with the transported per-forest params, so
   # the reader and the creation route cannot disagree about the channel.
-  fitParams <- attr(fit$control, "bartcore.bcf")$params
+  fitParams <- attr(fit$control, "bartcore.forests")$params
   free <- fit$getCalibration(1L)[1L, ]
   carried <- fit$getCalibration(2L)[1L, ]
   expect_equal(
@@ -282,7 +282,7 @@ transportParams <- function(y, bases, family, ...) {
       family = family,
       ...
     )$control,
-    "bartcore.bcf"
+    "bartcore.forests"
   )$params
 }
 paramSlot <- function(params, index) {
@@ -417,7 +417,7 @@ for (fit in list(probit, logistic)) {
   expect_error(fit$setResponse(yContinuous), "must be coded 0 or 1")
   expect_error(
     fit$setOffset(rep(0.1, n), updateScale = TRUE),
-    "does not support a BCF sampler"
+    "does not support a sampler that carries forest amplitudes"
   )
 }
 
@@ -495,7 +495,7 @@ expect_error(
     z,
     family = "aft"
   ),
-  "BCF does not support an AFT"
+  "a treatment forest does not support an AFT"
 )
 
 # and it takes the same FAMILY-AWARE default the public route does, which is

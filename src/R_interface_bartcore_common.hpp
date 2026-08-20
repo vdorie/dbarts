@@ -189,14 +189,15 @@ void validateResponseSupport(bartcore::ResponseFamily family,
                              std::size_t numCategories, const double* y,
                              std::size_t numObservations, const char* caller);
 
-/// Errors on a BCF sampler (numForests >= 2 and its test fits undefined),
-/// whose test surface has no meaning without a test treatment vector: a blend
-/// a * mu + b_z * tau is ill-defined, so the engine would fall back to the bare
-/// prognostic forest and silently misreport. Gated on testFitsAreDefined rather
-/// than the forest count, so a multi-forest model whose test blend IS defined
-/// (the multinomial softmax) passes through. caller labels the error.
-void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
-                          const char* caller);
+/// Errors on a multi-forest sampler (numForests >= 2) whose test fits are
+/// undefined, its amplitudes having no off-sample basis to multiply: the
+/// combined location is ill-defined off the training rows, so the engine would
+/// fall back to the bare first forest and silently misreport. Gated on
+/// testFitsAreDefined rather than the forest count, so a multi-forest model
+/// whose test blend IS defined (the multinomial softmax) passes through.
+/// caller labels the error.
+void refuseUndefinedTestFits(const bartcore::SamplerBase& sampler,
+                             const char* caller);
 
 /// Errors on a sampler whose residual sd is structurally pinned - a family
 /// that fixes it by definition (probit, logistic, multinomial, ordinal,

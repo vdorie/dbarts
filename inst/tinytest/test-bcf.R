@@ -62,16 +62,16 @@ expect_true(all(is.finite(result.control$train)))
 # out-of-range forest index errors
 expect_error(dbarts:::bartcoreForestFits(bcSampler, 2L), "out of range")
 
-# the single-forest test-fit and prediction surface is undefined under BCF (no
-# test treatment vector): setTestPredictor and predict are refused, pointing at
-# the per-forest channels (bcf-testfits-guard)
+# the single-forest test-fit and prediction surface is undefined here (the
+# amplitudes have no off-sample basis): setTestPredictor and predict are
+# refused, pointing at the per-forest channels
 expect_error(
   dbarts:::bartcoreSetTestPredictor(bcSampler, x[1:5, , drop = FALSE]),
-  "BCF"
+  "have no off-sample basis"
 )
 expect_error(
   dbarts:::bartcorePredict(bcSampler, x[1:5, , drop = FALSE]),
-  "BCF"
+  "have no off-sample basis"
 )
 
 # state round-trip: store, restore into a fresh BCF sampler, continue
@@ -80,7 +80,7 @@ dbarts:::bartcoreRun(bcSampler, 0L, 5L)
 state <- dbarts:::bartcoreStoreState(bcSampler)
 expect_equal(length(state), 1L)
 expect_equal(length(state[[1L]]$forests), 2L)
-expect_false(is.null(state[[1L]]$bcf))
+expect_false(is.null(state[[1L]]$glue))
 
 glueBefore <- dbarts:::bartcoreForestAmplitudes(bcSampler)
 muBefore <- dbarts:::bartcoreForestFits(bcSampler, 0L)

@@ -21,9 +21,10 @@
 // The multi-forest coupling: the per-forest ensemble Forest<L, ResidT>, the (response,
 // precision) pair a combiner forms per forest (ForestResponse), the
 // ForestCombiner<L> base a multi-forest Chain delegates to, and its first
-// instance BCFForestCombiner<L>. The serializable per-forest and per-chain
-// state (ForestStateData, ChainStateData) and BCF's spec/glue structs live here
-// too, so a combiner owns its wire format beside its logic.
+// instance AmplitudeForestCombiner<L>. The serializable per-forest and
+// per-chain state (ForestStateData, ChainStateData) and the amplitude family's
+// spec/glue structs live here too, so a combiner owns its wire format beside
+// its logic.
 
 namespace bartcore {
 
@@ -96,7 +97,7 @@ struct ChainStateData {
   // blocks. amplitudes is forest-major, block f at the widths' prefix sum;
   // amplitudeVariances is one prior variance per forest, live only where a
   // scale mixture refreshes it.
-  bool hasBCF = false;
+  bool hasAmplitudes = false;
   std::vector<std::size_t> amplitudeWidths;
   std::vector<double> amplitudes;
   std::vector<double> amplitudeVariances;
@@ -236,7 +237,7 @@ struct Forest {
 /// (ForestSpec below) derives them from the family's own latent scale at
 /// construction, and the adaptive magnitude lives in the glue (a for mu,
 /// b0/b1 for tau).
-struct BCFForestSpec {
+struct ForestStructureSpec {
   std::size_t numTrees = 200;
   double base = 0.95, power = 2.0;
   double birthOrDeathProbability = 0.5, swapProbability = 0.1,
@@ -269,8 +270,8 @@ struct BCFForestSpec {
 };
 
 /// One forest's entry in the K-length spec a general combining chain is built
-/// from: its tree/structure configuration (BCFForestSpec, unchanged) plus the
-/// amplitude channel it enters the combination through.
+/// from: its tree/structure configuration (ForestStructureSpec, unchanged) plus
+/// the amplitude channel it enters the combination through.
 ///
 /// The CALIBRATION MAP is stated here rather than in the chain, and is general
 /// in K: the node scale is nodeScaleFactor * s / (nodeScaleDivisor * c), with s
@@ -299,7 +300,7 @@ struct BCFForestSpec {
 /// and COPIED at construction; null synthesizes the dense all-ones column whose
 /// contraction is the amplitude itself.
 struct ForestSpec {
-  BCFForestSpec forest;
+  ForestStructureSpec forest;
   double nodeScaleFactor = 1.0, nodeScaleDivisor = 1.0;
   double amplitudePriorVariance = 1.0;
   double amplitudePriorScale = 0.0;  // half-Cauchy median; 0 = fixed variance
@@ -314,8 +315,8 @@ struct ForestSpec {
 /// route construct, and the K-LENGTH forests vector, which supersedes it
 /// whenever it is non-empty. expandForestSpecs is the thin adapter between
 /// them, so there is exactly one shape the chain and the combiner read.
-struct BCFSpec {
-  BCFForestSpec mu, tau;
+struct AmplitudeSpec {
+  ForestStructureSpec mu, tau;
   // The response family the K forests are combined under. gaussian, probit and
   // logistic are built; the rest are refused by the factory, which is where the
   // reason for each door lives. It rides the spec rather than the constructor's
@@ -325,8 +326,8 @@ struct BCFSpec {
   // Half-Cauchy median for the mu scalar a. Deliberately NOT family-aware,
   // unlike the R default it shadows (defaultAmplitudePriorScale, R/model.R,
   // which is 1 under probit and logistic): this initializer is a FIXTURE
-  // default that no consumer reaches - createBCFSampler has no flat-C entry
-  // point, and the bridge fills spec.forests unconditionally - and the
+  // default that no consumer reaches - createAmplitudeSampler has no flat-C
+  // entry point, and the bridge fills spec.forests unconditionally - and the
   // two-forest spelling it belongs to is gaussian bcf's, where 2 is correct.
   // Branching on the family here would put one inside expandForestSpecs, the
   // one adapter the "bcf as the K = 2 instance" contract requires to stay a
@@ -336,16 +337,16 @@ struct BCFSpec {
   double sdModerate = 1.0;      // treatment effect scale, in units of s above
   bool updateA = true, updateB = true;  // false fixes the matching glue block
   // Whether each forest's amplitude block travels its own likelihood-invariant
-  // ASIS ridge after the combination (BCFForestCombiner::afterCombine). mu's is
-  // bcf's shipped a-move; tau's is the b-move the general rescale implements.
-  // It is OFF here because switching it on consumes a GIG draw per sweep,
-  // which re-records bcf-equivalence.
+  // ASIS ridge after the combination (AmplitudeForestCombiner::afterCombine).
+  // mu's is bcf's shipped a-move; tau's is the b-move the general rescale
+  // implements. It is OFF here because switching it on consumes a GIG draw per
+  // sweep, which re-records bcf-equivalence.
   bool ridgeA = true, ridgeB = false;
   // Whether the shipped K = 2 shape draws its amplitudes through the general
   // q-variate conditional rather than through the two-scalar path it shipped
   // with. The two agree in exact arithmetic and differ only in where the
-  // compiler forms fused multiply-adds (BCFForestCombiner::drawGlue), so this
-  // is off by default to hold bcf-equivalence bitwise.
+  // compiler forms fused multiply-adds (AmplitudeForestCombiner::drawGlue), so
+  // this is off by default to hold bcf-equivalence bitwise.
   bool generalAmplitudeDraw = false;
   // The K-length reading. EMPTY leaves the mu/tau pair above authoritative and
   // the treatment forest's basis synthesized from z; non-empty supersedes both,
@@ -359,7 +360,7 @@ struct BCFSpec {
 /// s; tau takes the fixed-variance amplitude pair (b0, b1) over the treatment
 /// indicator basis and carries sdModerate in its node scale. A spec that
 /// already carries its own forests vector is returned as it stands.
-inline std::vector<ForestSpec> expandForestSpecs(const BCFSpec& spec) {
+inline std::vector<ForestSpec> expandForestSpecs(const AmplitudeSpec& spec) {
   if (!spec.forests.empty()) return spec.forests;
   std::vector<ForestSpec> forests(2);
   forests[0].forest = spec.mu;
@@ -455,7 +456,7 @@ struct ForestAmplitudePrior {
 /// conditionals and the wire format that still speak it. They index THROUGH
 /// amplitudeOffset rather than at 0/1/2: forest 1's block starts wherever
 /// forest 0's ends, so a prognostic basis wider than one column moves it.
-struct BCFState {
+struct AmplitudeState {
   std::vector<ForestBasis> basis;
   /// Per-forest IS-CANONICAL flag: whether basis[f] is still exactly one of the
   /// constructor's synthesized shapes - a dense all-ones column, or a
@@ -740,7 +741,7 @@ struct ForestCombiner {
 /// and the sweep's per-forest scratch. Constant leaf only, as the whole BCF
 /// chain is.
 template <IntegrableLeafModel L, typename ResidT = double>
-struct BCFForestCombiner : ForestCombiner<L, ResidT> {
+struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   static_assert(!L::hasVectorParams && !L::hasFunctionParams,
                 "BCF is a constant-leaf model");
 
@@ -755,7 +756,7 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// takes the (1 - z, z) indicator pair z implies. There is deliberately no
   /// mid-life synthesis route: setForestBasis is the only mutator, so the
   /// question of which of two operations wins does not arise.
-  BCFForestCombiner(const ColumnStore& data, const BCFSpec& spec,
+  AmplitudeForestCombiner(const ColumnStore& data, const AmplitudeSpec& spec,
                     std::size_t numForests = 2)
       : data_(data), numForests_(numForests < 2 ? 2 : numForests),
         generalAmplitudeDraw_(spec.generalAmplitudeDraw) {
@@ -970,7 +971,7 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// accumulation shape reproduces both blocks (21 variants tried), so the
   /// general path CANNOT be bitwise on bcf and the specialized one is kept
   /// until a bcf-equivalence re-record is authorized, at which point
-  /// BCFSpec::generalAmplitudeDraw becomes the default and this branch is
+  /// AmplitudeSpec::generalAmplitudeDraw becomes the default and this branch is
   /// deleted.
   ///
   /// Path selection is a per-forest IS-CANONICAL VALUE predicate, not a width
@@ -1065,7 +1066,7 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
 
   /// The amplitude block into and out of the ragged wire format: the per-forest
   /// widths, the flat amplitude vector, and each forest's prior variance.
-  /// serializeGlue owns the hasBCF flag (the "carries glue" marker);
+  /// serializeGlue owns the hasAmplitudes flag (the "carries glue" marker);
   /// restoreGlue is a no-op on a state that carries none, so a mismatched
   /// restore leaves the glue at its constructed values, and glueIsValid has
   /// already refused a state whose LAYOUT differs - a total is not a layout,
@@ -1076,7 +1077,7 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
   /// arrive at CONSTRUCTION - so a widening applied after a restore preserves
   /// and remaps the RESTORED amplitudes rather than the constructed ones.
   void serializeGlue(ChainStateData& state) const override {
-    state.hasBCF = true;
+    state.hasAmplitudes = true;
     std::size_t numForests = glue_.basis.size();
     state.amplitudeWidths.resize(numForests);
     state.amplitudeVariances.resize(numForests);
@@ -1094,7 +1095,7 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
     }
   }
   void restoreGlue(const ChainStateData& state) override {
-    if (!state.hasBCF) return;
+    if (!state.hasAmplitudes) return;
     if (state.amplitudeWidths.empty()) {
       // a hand-written bcf-shaped state: the four named scalars are the whole
       // block, and only on the layout they name
@@ -1112,7 +1113,7 @@ struct BCFForestCombiner : ForestCombiner<L, ResidT> {
     refreshCanonical();
   }
   bool glueIsValid(const ChainStateData& state) const override {
-    if (!state.hasBCF || state.amplitudeWidths.empty()) return true;
+    if (!state.hasAmplitudes || state.amplitudeWidths.empty()) return true;
     std::size_t numForests = glue_.basis.size();
     if (state.amplitudeWidths.size() != numForests ||
         state.amplitudeVariances.size() != numForests ||
@@ -1507,7 +1508,7 @@ private:
   const ColumnStore& data_;
   const std::size_t numForests_;
   const bool generalAmplitudeDraw_;
-  BCFState glue_;
+  AmplitudeState glue_;
 };
 
 /// Softmax over K location-major raw fits (raw[k*n + i] is category k's value

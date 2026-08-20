@@ -767,12 +767,12 @@ static void testVarianceForestRefusal() {
   options.numLeafCovariates = 0;
   std::vector<double> z(n, 0.0);
   for (size_t i = n / 2; i < n; ++i) z[i] = 1.0;
-  BCFSpec bcfSpec;
+  AmplitudeSpec bcfSpec;
   bcfSpec.mu.numTrees = 5;
   bcfSpec.tau.numTrees = 5;
   bcfSpec.z = z.data();
-  check(createBCFSampler(x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
-                         0.378, options, bcfSpec, rngs) == nullptr,
+  check(createAmplitudeSampler(x.data(), y.data(), n, p, nullptr, nullptr, 1.0,
+                               3.0, 0.378, options, bcfSpec, rngs) == nullptr,
         "variance forest refused at the bcf factory");
   const size_t K = 2;
   std::vector<int> counts(n * K, 0), trials(n, 1);

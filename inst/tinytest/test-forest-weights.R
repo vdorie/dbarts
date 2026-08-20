@@ -187,7 +187,7 @@ expect_error(
 bc.single <- dbarts:::bartcoreSampler(sampler)
 expect_error(
   dbarts:::bartcoreSetForestWeights(bc.single, 0L, rep(1, n)),
-  "BCF"
+  "requires a sampler that carries forest amplitudes"
 )
 set.seed(4007)
 labels <- rbinom(n, 2L, 0.5)

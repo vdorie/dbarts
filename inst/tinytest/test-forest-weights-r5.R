@@ -211,7 +211,10 @@ expect_true(abs(mean(tau0)) > 0.1)
 # generic host-mutation refusal fires before the weights or forest are ever
 # looked at ---
 plain <- dbarts(x, y, control = seededControl())
-expect_error(plain$setForestWeights(1L, wt), "requires a BCF sampler")
+expect_error(
+  plain$setForestWeights(1L, wt),
+  "requires a sampler that carries forest amplitudes"
+)
 
 set.seed(83)
 labels <- factor(rbinom(n, 1L, 0.5))

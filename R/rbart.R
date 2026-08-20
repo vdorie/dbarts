@@ -626,7 +626,7 @@ rbart_vi_run <- function(
   # forest count to 1, so the layout here is a property of the call rather than
   # of who can reach it. Two guards keep a multi-forest sampler off rbart_vi
   # anyway, and neither is the same one - this R-loop path dies at the pre-run
-  # rescale's setOffset(updateScale = TRUE), which refuseBCFMutation refuses,
+  # rescale's setOffset(updateScale = TRUE), which refuseAmplitudeMutation refuses,
   # while the in-core path (which owns no buffer) dies at the grouped x
   # multi-forest refusal in R/spec.R.
   raw <- list(

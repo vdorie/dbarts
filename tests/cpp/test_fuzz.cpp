@@ -721,7 +721,7 @@ static void fuzzRunBCF(const ConfigSpec& spec, std::uint32_t seed, int numOps) {
   options.numChains = spec.numChains;
   options.predictors.columnTypes = types.data();
   std::vector<size_t> moderators = {0, 1};
-  BCFSpec bcf;
+  AmplitudeSpec bcf;
   bcf.mu.numTrees = 15;
   bcf.tau.numTrees = 10;
   bcf.tau.base = 0.25;
@@ -924,7 +924,7 @@ static void testSnapshotCoversEveryFamily() {
   {
     SamplerOptions options;
     options.numChains = 2;
-    BCFSpec spec;
+    AmplitudeSpec spec;
     spec.mu.numTrees = 10;
     spec.tau.numTrees = 8;
     spec.z = z.data();
@@ -1080,7 +1080,7 @@ struct MultiForestFixture {
     moderators = {0, 2};
     SamplerOptions options;
     options.numChains = numChains;
-    BCFSpec spec;
+    AmplitudeSpec spec;
     spec.mu.numTrees = 10;
     spec.tau.numTrees = 8;
     spec.tau.columns = moderators.data();

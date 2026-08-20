@@ -806,11 +806,12 @@ inline std::unique_ptr<SamplerBase> createSamplerOverStore(
 /// being its K = 2 instance: constant-leaf only, so the single instantiation -
 /// the family rides the spec and selects a runtime response model, exactly as
 /// it does on the single-forest path. rngs supplies one generator per chain.
-inline std::unique_ptr<SamplerBase> createBCFSampler(
+inline std::unique_ptr<SamplerBase> createAmplitudeSampler(
   const double* x, const double* y, std::size_t numObservations,
   std::size_t numPredictors, const double* weights, const double* offset,
   double sigmaEstimate, double sigmaDf, double sigmaRawScale,
-  const SamplerOptions& options, const BCFSpec& spec, ext_rng* const* rngs) {
+  const SamplerOptions& options, const AmplitudeSpec& spec,
+  ext_rng* const* rngs) {
   // only the single-forest chain builds a variance forest, so accepting the
   // option at these two factories would drop it silently; refuse it as
   // createSampler does
@@ -835,7 +836,8 @@ inline std::unique_ptr<SamplerBase> createMultinomialSampler(
   const double* x, std::size_t numObservations, std::size_t numPredictors,
   const SamplerOptions& options, const MultinomialSpec& spec,
   ext_rng* const* rngs) {
-  if (options.numVarianceTrees > 0) return nullptr;  // as createBCFSampler
+  // as createAmplitudeSampler
+  if (options.numVarianceTrees > 0) return nullptr;
   return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
     x, numObservations, numPredictors, options, spec, rngs);
 }

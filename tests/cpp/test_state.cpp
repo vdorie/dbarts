@@ -1253,7 +1253,7 @@ static void testStateLeafScale(ext_rng* rng) {
   y2[n - 1] = hi;
 
   SamplerOptions options;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = 20;
   spec.tau.numTrees = 10;
   spec.z = z.data();

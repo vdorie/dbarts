@@ -256,7 +256,7 @@ void testBCF(ShapeFixture& fixture) {
   ext_rng_setSeed(rng, 8130);
 
   SamplerOptions options;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = 10;
   spec.tau.numTrees = 5;
   spec.z = fixture.z.data();
@@ -311,7 +311,7 @@ void testBCFLegacyVarcount(ShapeFixture& fixture) {
   ext_rng_setSeed(rng, 8150);
 
   SamplerOptions options;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = 10;
   spec.tau.numTrees = 5;
   spec.z = fixture.z.data();
@@ -351,12 +351,12 @@ void testBCFLegacyVarcount(ShapeFixture& fixture) {
   ext_rng_destroy(rng);
 
   // leg (ii): the reported count never exceeds the chain's own forest count.
-  // BCFForestCombiner rounds ITS count up to two, so a one-forest spec is the
-  // construction where an unclamped report would name a forest the chain has
-  // not got and storeSample would read past forests_.
+  // AmplitudeForestCombiner rounds ITS count up to two, so a one-forest spec is
+  // the construction where an unclamped report would name a forest the chain
+  // has not got and storeSample would read past forests_.
   ext_rng* rngOne = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rngOne, 8151);
-  BCFSpec oneForest;
+  AmplitudeSpec oneForest;
   oneForest.forests.resize(1);
   oneForest.forests[0].forest.numTrees = 10;
   SamplerFacade<ConstantGaussianLeaf> single(

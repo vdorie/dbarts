@@ -266,7 +266,7 @@ expect_equal(
 )
 
 # BCF: response.scale * (a * mu + b_z * tau) + response.shift, the
-# recombination refuseBCFTestSurface's own message directs BCF consumers to.
+# recombination refuseUndefinedTestFits's own message directs BCF consumers to.
 # This is the ONLY cell here that moves when the accessor reports
 # forest 0's totals rather than the combiner blend, so it must not be tidied
 # away: the identity cells move together and the tests/cpp cell is

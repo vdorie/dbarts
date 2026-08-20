@@ -155,7 +155,7 @@ public:
   Sampler(const double* x, const double* y, size_t numObservations,
           size_t numPredictors, const double* weights, const double* offset,
           double sigmaEstimate, double sigmaDf, double sigmaRawScale,
-          const SamplerOptions& options, const BCFSpec& spec,
+          const SamplerOptions& options, const AmplitudeSpec& spec,
           ext_rng* const* rngs)
     : options_(options), family_(spec.family) {
     data_.build(denseCreationPredictorSource(options.predictors, x,
@@ -780,7 +780,7 @@ public:
       dst.dartProbabilities = src.dartProbabilities;
       dst.dartAlpha = src.dartAlpha;
       dst.dartNumUpdatesSkipped = src.dartNumUpdatesSkipped;
-      dst.hasBCF = src.hasBCF;
+      dst.hasAmplitudes = src.hasAmplitudes;
       dst.amplitudeWidths = src.amplitudeWidths;
       dst.amplitudes = src.amplitudes;
       dst.amplitudeVariances = src.amplitudeVariances;

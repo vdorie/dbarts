@@ -208,7 +208,7 @@ knobs <- dbartsSpec(
 # rides the node scale through the half-normal median and its
 # amplitude.prior.variance is the fixed prior on the block
 expect_equal(
-  attr(knobs$control, "bartcore.bcf")$params,
+  attr(knobs$control, "bartcore.forests")$params,
   list(
     c(30, 0.7, 1.5, 1, 1, 1, 2.5, 0),
     c(15, 0.4, 2, 1.25, 0.674, 0.75, 0, 0)
@@ -385,7 +385,7 @@ offSlot <- dbartsSpec(
 # vector for the pair - and which magnitude channel `sd` reaches is decided by
 # whether the forest carries a basis
 expect_equal(
-  attr(offSlot$control, "bartcore.bcf")$params,
+  attr(offSlot$control, "bartcore.forests")$params,
   list(c(50, 0.25, 3, 1, 1, 1, 2, 1), c(50, 0.25, 3, 1, 0.674, 0.5, 0, 1))
 )
 # the same transport under a LATENT family, which no assertion above has
@@ -402,7 +402,7 @@ latentSlots <- dbartsSpec(
 )
 expect_equal(latentSlots$model@family, "logistic")
 expect_equal(
-  attr(latentSlots$control, "bartcore.bcf")$params,
+  attr(latentSlots$control, "bartcore.forests")$params,
   list(c(50, 0.25, 3, 1, 1, 1, 3.5, 1), c(50, 0.25, 3, 1.25, 0.674, 0.5, 0, 1))
 )
 # and a basis declared alongside subset reaches dbartsData's own alignment
@@ -425,7 +425,10 @@ sdViaHasBasis <- dbartsSpec(
   seededControl(),
   forests = list(forest(sd = 3.5))
 )
-expect_equal(attr(sdViaHasBasis$control, "bartcore.bcf")$params[[1L]][7L], 3.5)
+expect_equal(
+  attr(sdViaHasBasis$control, "bartcore.forests")$params[[1L]][7L],
+  3.5
+)
 
 noUpdateViaHasBasis <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
@@ -433,7 +436,7 @@ noUpdateViaHasBasis <- dbartsSpec(
   forests = list(forest(update.amplitude = FALSE))
 )
 expect_equal(
-  attr(noUpdateViaHasBasis$control, "bartcore.bcf")$params[[1L]][8L],
+  attr(noUpdateViaHasBasis$control, "bartcore.forests")$params[[1L]][8L],
   0
 )
 
@@ -445,7 +448,7 @@ noBasisSecondForest <- dbartsSpec(
   forests = list(forest(), forest(n.trees = 25L))
 )
 expect_equal(
-  attr(noBasisSecondForest$control, "bartcore.bcf")$params[[2L]][1L],
+  attr(noBasisSecondForest$control, "bartcore.forests")$params[[2L]][1L],
   25
 )
 
@@ -457,10 +460,9 @@ muInteractionsSpec <- dbartsSpec(
   seededControl(),
   forests = list(forest(interactions = interactions(max.order = 1L)))
 )
-expect_equal(
-  attr(muInteractionsSpec$control, "bartcore.bcf")$interactions[[1L]]$max.order,
-  1L
-)
+muInteractionAttr <-
+  attr(muInteractionsSpec$control, "bartcore.forests")$interactions[[1L]]
+expect_equal(muInteractionAttr$max.order, 1L)
 
 tauInteractionsSpec <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
@@ -470,12 +472,9 @@ tauInteractionsSpec <- dbartsSpec(
     forest(interactions = interactions(max.order = 2L))
   )
 )
-expect_equal(
-  attr(tauInteractionsSpec$control, "bartcore.bcf")$interactions[[
-    2L
-  ]]$max.order,
-  2L
-)
+tauInteractionAttr <-
+  attr(tauInteractionsSpec$control, "bartcore.forests")$interactions[[2L]]
+expect_equal(tauInteractionAttr$max.order, 2L)
 
 tauBlocksSpec <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
@@ -485,7 +484,7 @@ tauBlocksSpec <- dbartsSpec(
     forest(blocks = blocks(groups = list(c("x1", "x2"), c("x3", "x4"))))
   )
 )
-tauBlockAttr <- attr(tauBlocksSpec$control, "bartcore.bcf")$blocks[[2L]]
+tauBlockAttr <- attr(tauBlocksSpec$control, "bartcore.forests")$blocks[[2L]]
 expect_equal(tauBlockAttr$block.of.column, c(0L, 0L, 1L, 1L))
 expect_equal(tauBlockAttr$block.tree.counts, c(25L, 25L))
 
@@ -692,7 +691,7 @@ firstForestVars <- dbarts(
   control = control
 )
 expect_equal(
-  attr(firstForestVars$control, "bartcore.bcf")$vars[[1L]],
+  attr(firstForestVars$control, "bartcore.forests")$vars[[1L]],
   1L
 )
 
@@ -708,7 +707,7 @@ priorOnFirst <- dbarts(
   control = control
 )
 expect_equal(
-  attr(priorOnFirst$control, "bartcore.bcf")$params[[1L]][6L],
+  attr(priorOnFirst$control, "bartcore.forests")$params[[1L]][6L],
   1
 )
 expect_error(
@@ -997,7 +996,7 @@ expect_error(
 # directions, so a stripped one is a loud refusal naming the missing piece
 # rather than a silent single-forest fit ---
 strippedConfig <- resolved
-attr(strippedConfig$control, "bartcore.bcf") <- NULL
+attr(strippedConfig$control, "bartcore.forests") <- NULL
 expect_error(
   new(
     "dbartsSampler",
@@ -1168,7 +1167,7 @@ supportedKnobSampler <- dbarts(
   control = control
 )
 expect_equal(
-  attr(supportedKnobSampler$control, "bartcore.bcf")$params[[2L]][1L],
+  attr(supportedKnobSampler$control, "bartcore.forests")$params[[2L]][1L],
   30
 )
 
@@ -1199,12 +1198,12 @@ amplitudeExcused <- dbarts(
   control = control
 )
 expect_equal(
-  attr(amplitudeExcused$control, "bartcore.bcf")$params[[1L]][6L],
+  attr(amplitudeExcused$control, "bartcore.forests")$params[[1L]][6L],
   2
 )
 # forest 2's own default applies too, unaffected by forest 1's excuse
 expect_equal(
-  attr(amplitudeExcused$control, "bartcore.bcf")$params[[2L]][6L],
+  attr(amplitudeExcused$control, "bartcore.forests")$params[[2L]][6L],
   0.5
 )
 dataNoBasisOnFirst <- dbartsData(x, y, bases = list(NULL, zBasis))
@@ -1225,7 +1224,7 @@ amplitudeExcusedBoth <- dbarts(
   control = control
 )
 expect_equal(
-  attr(amplitudeExcusedBoth$control, "bartcore.bcf")$params[[2L]][6L],
+  attr(amplitudeExcusedBoth$control, "bartcore.forests")$params[[2L]][6L],
   3
 )
 # forest 1's excuse does not extend to a second forest that has no basis

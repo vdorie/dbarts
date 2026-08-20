@@ -187,7 +187,7 @@ expect_error(threeForests$getForestAmplitudes(4L), "out of range")
 expect_error(threeForests$getForestAmplitudes(0L), "single positive integer")
 
 # --- the per-forest ASIS ridge is DERIVED from the amplitude prior's kind at
-# the transport's own site (R_interface_bartcore.cpp applyBCFSpec:
+# the transport's own site (R_interface_bartcore.cpp applyAmplitudeSpec:
 # forest.ridge = forest.amplitudePriorScale > 0.0), which is what reproduces
 # bcf's a-move on and b-move off. Two halves. First the transported scale
 # itself: a forest carrying a basis has a FIXED-variance amplitude, so its
@@ -198,7 +198,7 @@ ridgeSpec <- dbartsSpec(
   seededControl(),
   forests = list(forest(sd = 2.5), forest(sd = 1.25))
 )
-ridgeParams <- attr(ridgeSpec$control, "bartcore.bcf")$params
+ridgeParams <- attr(ridgeSpec$control, "bartcore.forests")$params
 # forest 1: no basis -> variance 1, half-Cauchy median 2.5 -> ridge ON
 expect_equal(ridgeParams[[1L]][6:7], c(1, 2.5))
 # forest 2: a basis -> fixed variance 0.5, scale 0 -> ridge OFF
@@ -214,11 +214,11 @@ buildFromSpec <- function(spec) {
 baseline <- buildFromSpec(ridgeSpec)$run(0L, 4L)$train
 
 ridgeOnBasis <- ridgeSpec
-attr(ridgeOnBasis$control, "bartcore.bcf")$params[[2L]][7L] <- 2
+attr(ridgeOnBasis$control, "bartcore.forests")$params[[2L]][7L] <- 2
 expect_false(identical(buildFromSpec(ridgeOnBasis)$run(0L, 4L)$train, baseline))
 
 ridgeOffFirst <- ridgeSpec
-attr(ridgeOffFirst$control, "bartcore.bcf")$params[[1L]][7L] <- 0
+attr(ridgeOffFirst$control, "bartcore.forests")$params[[1L]][7L] <- 0
 expect_false(identical(
   buildFromSpec(ridgeOffFirst)$run(0L, 4L)$train,
   baseline
@@ -296,9 +296,9 @@ expect_true(continuousError < 1e-12)
 # --- the capability probe that succeeds data@treatment: it reads "carries
 # amplitudes", and is deliberately NOT a forest count, which a K-forest
 # multinomial (which carries no amplitudes at all) would defeat ---
-expect_true(dbarts:::isBCFSampler(threeForests))
+expect_true(dbarts:::samplerCarriesAmplitudes(threeForests))
 plain <- dbarts(x, y, control = seededControl())
-expect_false(dbarts:::isBCFSampler(plain))
+expect_false(dbarts:::samplerCarriesAmplitudes(plain))
 # the five refusals it gates stay red on a multi-forest sampler
 expect_error(threeForests$setResponse(y, updateScale = TRUE), "does not supp")
 expect_error(

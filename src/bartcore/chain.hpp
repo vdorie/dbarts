@@ -735,17 +735,18 @@ public:
   /// and eps carries a drawn sigma; under probit and logistic it is the latent
   /// index, on the link's own fixed scale. Constant leaves only; each forest
   /// reads the full store unless its spec carries a column subset in
-  /// BCFForestSpec.columns (the default, no list, restricts nothing).
+  /// ForestStructureSpec.columns (the default, no list, restricts nothing).
   Chain(const ColumnStore& data, const double* y, const double* weights,
         const double* offset, double sigmaEstimate, double sigmaDf,
         double sigmaRawScale, const SamplerOptions& options,
-        const BCFSpec& spec, ext_rng* rng)
+        const AmplitudeSpec& spec, ext_rng* rng)
     : options_(options), data_(data), weights_(weights), rng_(rng) {
     static_assert(!L::hasVectorParams && !L::hasFunctionParams,
                   "BCF is a constant-leaf model");
     options_.maxNumCutsPerVariable = nullptr;
     options_.predictors = {};
-    options_.forestColumns = nullptr;  // BCF restriction arrives via BCFForestSpec
+    // the per-forest restriction arrives via ForestStructureSpec instead
+    options_.forestColumns = nullptr;
     // the families the coupling is built for; the factory refuses the rest
     // ahead of this, so nothing but gaussian reaches the default arm. Not
     // lifted out of the single-forest constructor's six-arm switch: three of
@@ -829,13 +830,13 @@ public:
       double c = basisRowNorm(forestSpec.basis, forestSpec.numBasisColumns,
                               data.numObservations);
       basisRowNorms_[f] = c;
-      buildBCFForest(forestSpec.forest,
+      buildSpecifiedForest(forestSpec.forest,
                      forestSpec.nodeScaleFactor * s /
                        (forestSpec.nodeScaleDivisor * c));
     }
 
     combiner_ =
-      std::make_unique<BCFForestCombiner<L, ResidT>>(data, spec,
+      std::make_unique<AmplitudeForestCombiner<L, ResidT>>(data, spec,
                                                      forests_.size());
     resizeTestStorage();
   }
@@ -963,8 +964,8 @@ public:
   /// combiner's forest count (1 for a single-forest model, K for multinomial
   /// and for a multi-forest amplitude model), 1 off any combiner, CLAMPED to
   /// this chain's own forest count. The clamp is the one guard the count owes:
-  /// BCFForestCombiner rounds its forest count up to two, so a combiner handed
-  /// fewer would otherwise report a forest forests_ has not got and
+  /// AmplitudeForestCombiner rounds its forest count up to two, so a combiner
+  /// handed fewer would otherwise report a forest forests_ has not got and
   /// storeSample's forestVariableCounts would index past it. The run bridge
   /// reads this to size the varcount array.
   std::size_t numVariableCountForests() const {
@@ -1301,8 +1302,8 @@ public:
   }
 
   /// Fires the combiner's post-combine move (BCF: the per-forest interweaving
-  /// amplitude-ridge rescale, BCFForestCombiner<L>::afterCombine) outside a
-  /// sweep, for the component tests; returns whatever that override reports,
+  /// amplitude-ridge rescale, AmplitudeForestCombiner<L>::afterCombine) outside
+  /// a sweep, for the component tests; returns whatever that override reports,
   /// which is NOT a moved/did-not-move flag (ForestCombiner::afterCombine
   /// states each convention).
   double interweaveGlueRidge(bool record = false, std::size_t sampleNum = 0) {
@@ -2994,9 +2995,9 @@ public:
     state.rngState.resize(ext_rng_getSerializedStateLength(rng_));
     if (!state.rngState.empty())
       ext_rng_writeSerializedState(rng_, state.rngState.data());
-    // the combiner fills the BCF-shaped glue wire format (hasBCF included); a
-    // single-forest chain carries no combiner and leaves it off
-    state.hasBCF = false;
+    // the combiner fills the amplitude glue wire format (hasAmplitudes
+    // included); a single-forest chain carries no combiner and leaves it off
+    state.hasAmplitudes = false;
     if (combiner_) combiner_->serializeGlue(state);
 
     // heteroscedastic: flatten every variance tree with its recovered positive
@@ -3888,7 +3889,8 @@ private:
   /// glueIsValid is the combiner's EXISTING virtual, which is what keeps this
   /// slice off the vtable.
   void adoptInstalledAmplitudePriors(const ChainStateData& state) {
-    if (!combiner_ || !state.hasBCF || state.amplitudeWidths.empty()) return;
+    if (!combiner_ || !state.hasAmplitudes || state.amplitudeWidths.empty())
+      return;
     if (!combiner_->glueIsValid(state)) return;
     std::size_t numForests = std::min(amplitudePriorVariances_.size(),
                                       state.amplitudeVariances.size());
@@ -4998,7 +5000,7 @@ private:
   /// (covered by the draw-for-draw equivalence benchmark) is untouched:
   /// constant leaf, fixed k = 1 (the map's convention), no DART. nodeScale is
   /// the map-derived total.
-  void buildBCFForest(const BCFForestSpec& spec, double nodeScale) {
+  void buildSpecifiedForest(const ForestStructureSpec& spec, double nodeScale) {
     std::size_t n = data_.numObservations;
     forests_.emplace_back();
     Forest<L, ResidT>& forest = forests_.back();

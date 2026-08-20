@@ -114,7 +114,8 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
         x.groupTau != y.groupTau || x.dartAlpha != y.dartAlpha ||
         x.dartNumUpdatesSkipped != y.dartNumUpdatesSkipped)
       return false;
-    if (x.hasBCF != y.hasBCF || x.amplitudeWidths != y.amplitudeWidths ||
+    if (x.hasAmplitudes != y.hasAmplitudes ||
+        x.amplitudeWidths != y.amplitudeWidths ||
         x.amplitudes != y.amplitudes ||
         x.amplitudeVariances != y.amplitudeVariances)
       return false;
