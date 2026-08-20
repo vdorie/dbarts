@@ -43,8 +43,25 @@ y.const <- rep(3.0, n)
 warnings.const <- captureWarnings(
   sampler.const <- dbarts(y.const ~ x.const, control = control)
 )
-expect_equal(length(warnings.const), 1L)
-expect_match(conditionMessage(warnings.const[[1L]]), "indistinguishable")
+# The starting-sigma linear fit of a constant response leaves residuals at
+# the rounding floor, and summary.lm adds "essentially perfect fit" when
+# their variance drops below 1e-30 * (mean(fitted)^2 + var(fitted)). Here
+# that ratio lands within a factor of two of the threshold, so which side of
+# it the solve falls on is a property of the BLAS and the architecture, not
+# of dbarts: macOS and Windows stay above it and warn once, Linux builds fall
+# below it and warn twice. Both fits are correct, so partition the warnings
+# by pattern rather than fixing a count: the
+# degenerate-response warning must fire exactly once, the perfect-fit one may
+# fire, and nothing else may.
+messages.const <- vapply(warnings.const, conditionMessage, character(1L))
+degenerate.const <- grepl("indistinguishable", messages.const)
+perfectFit.const <- grepl("essentially perfect fit", messages.const)
+expect_equal(sum(degenerate.const), 1L)
+expect_true(sum(perfectFit.const) <= 1L)
+expect_equal(
+  length(messages.const),
+  sum(degenerate.const) + sum(perfectFit.const)
+)
 samples.const <- sampler.const$run(30L, 30L)
 expect_true(all(is.finite(samples.const$train)))
 expect_true(all(is.finite(samples.const$sigma)))
