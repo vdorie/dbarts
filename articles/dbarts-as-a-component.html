@@ -362,6 +362,15 @@ it with a single sampler’s.</p>
 put it (<code>updateScale = FALSE</code>, the default), which is what
 makes a per-sweep swap coherent: every sweep’s partial residual is read
 on one scale.</p>
+<p>This is the case where every forest enters the response with a
+multiplier of one.
+<code><a href="../articles/gibbs_sampler_mixture_model.html">vignette("gibbs_sampler_mixture_model", package = "dbarts")</a></code>
+carries the general form, where forest
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>f</mi><annotation encoding="application/x-tex">f</annotation></semantics></math>
+enters through a known per-observation
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>m</mi><mrow><mi>f</mi><mo>,</mo><mi>i</mi></mrow></msub><annotation encoding="application/x-tex">m_{f,i}</annotation></semantics></math>,
+along with its measured price and what it costs to reach the same
+posterior a <code>forests =</code> sampler targets.</p>
 </div>
 <div class="section level2">
 <h2 id="a-latent-predictor-shared-by-two-samplers">4. A latent predictor shared by two samplers<a class="anchor" aria-label="anchor" href="#a-latent-predictor-shared-by-two-samplers"></a>

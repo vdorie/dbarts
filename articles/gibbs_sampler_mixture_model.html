@@ -61,7 +61,7 @@
                         <h4 data-toc-skip class="author">Vincent
 Dorie</h4>
             
-            <h4 data-toc-skip class="date">2026-07-25</h4>
+            <h4 data-toc-skip class="date">2026-08-19</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/vdorie/dbarts/blob/bartcore/vignettes/gibbs_sampler_mixture_model.Rmd" class="external-link"><code>vignettes/gibbs_sampler_mixture_model.Rmd</code></a></small>
       <div class="d-none name"><code>gibbs_sampler_mixture_model.Rmd</code></div>
@@ -327,6 +327,189 @@ points start to be mislabeled.</p>
 <p><img src="gibbs_sampler_mixture_model_files/figure-html/result_visualization-1.png" class="r-plt" alt="" width="700"></p>
 </div>
 <div class="section level2">
+<h2 id="several-forests-with-multipliers">Several Forests with Multipliers<a class="anchor" aria-label="anchor" href="#several-forests-with-multipliers"></a>
+</h2>
+<p>The sampler above holds one function. A model may want several, each
+entering the response through a multiplier the outer loop knows:</p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>Y</mi><mi>i</mi></msub><mo>∼</mo><mi mathvariant="normal">N</mi><mrow><mo stretchy="true" form="prefix">(</mo><munderover><mo>∑</mo><mrow><mi>f</mi><mo>=</mo><mn>1</mn></mrow><mi>K</mi></munderover><msub><mi>m</mi><mrow><mi>f</mi><mo>,</mo><mi>i</mi></mrow></msub><mspace width="0.167em"></mspace><msub><mi>g</mi><mi>f</mi></msub><mo stretchy="false" form="prefix">(</mo><msub><mi>x</mi><mi>i</mi></msub><mo stretchy="false" form="postfix">)</mo><mo>,</mo><mspace width="0.222em"></mspace><msup><mi>σ</mi><mn>2</mn></msup><mo stretchy="true" form="postfix">)</mo></mrow><mo>,</mo></mrow><annotation encoding="application/x-tex">Y_i \sim \mathrm{N}\left(\sum_{f=1}^{K} m_{f,i}\, g_f(x_i),\ \sigma^2\right),</annotation></semantics></math></p>
+<p>where
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>g</mi><mn>1</mn></msub><mo>,</mo><mi>…</mi><mo>,</mo><msub><mi>g</mi><mi>K</mi></msub></mrow><annotation encoding="application/x-tex">g_1, \ldots, g_K</annotation></semantics></math>
+are separate sums of trees and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>m</mi><mrow><mi>f</mi><mo>,</mo><mi>i</mi></mrow></msub><annotation encoding="application/x-tex">m_{f,i}</annotation></semantics></math>
+is a known per-observation scalar - an exposure, a dose, a treatment
+indicator, a group loading. Bayesian causal forests is the
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>K</mi><mo>=</mo><mn>2</mn></mrow><annotation encoding="application/x-tex">K = 2</annotation></semantics></math>
+case with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>m</mi><mn>1</mn></msub><mo>≡</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">m_1 \equiv 1</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>m</mi><mn>2</mn></msub><mo>=</mo><mi>z</mi></mrow><annotation encoding="application/x-tex">m_2 = z</annotation></semantics></math>.</p>
+<p>One <code>dbartsSampler</code> per forest composes this in R, and the
+composition is ordinary backfitting once the multiplier is folded in.
+Given the residual
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>r</mi><mi>i</mi></msub><mo>=</mo><msub><mi>y</mi><mi>i</mi></msub><mo>−</mo><msub><mo>∑</mo><mrow><mi>g</mi><mo>≠</mo><mi>f</mi></mrow></msub><msub><mi>m</mi><mrow><mi>g</mi><mo>,</mo><mi>i</mi></mrow></msub><msub><mi>g</mi><mi>g</mi></msub><mo stretchy="false" form="prefix">(</mo><msub><mi>x</mi><mi>i</mi></msub><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">r_i = y_i - \sum_{g \neq f} m_{g,i} g_g(x_i)</annotation></semantics></math>,
+forest
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>f</mi><annotation encoding="application/x-tex">f</annotation></semantics></math>’s
+leaf conditionals want response
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>r</mi><mi>i</mi></msub><mi>/</mi><msub><mi>m</mi><mrow><mi>f</mi><mo>,</mo><mi>i</mi></mrow></msub></mrow><annotation encoding="application/x-tex">r_i / m_{f,i}</annotation></semantics></math>
+and precision weight
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>w</mi><mi>i</mi></msub><msubsup><mi>m</mi><mrow><mi>f</mi><mo>,</mo><mi>i</mi></mrow><mn>2</mn></msubsup></mrow><annotation encoding="application/x-tex">w_i m_{f,i}^2</annotation></semantics></math>;
+those are the two channels the loop writes, with <code>setSigma</code>
+for the third and <code>run(0L, 1L)</code> to advance one sweep.
+<code>updateScale = FALSE</code> (the default) is what makes the swap
+coherent: every sweep’s residual is read on the scale creation fixed, so
+the leaf prior keeps meaning what it meant.</p>
+<p>A multiplier at or near zero says the row carries no information
+about that forest. Divide anyway and the response is amplified without
+bound, so the recipe snaps such a row to an exactly zero response paired
+with its exactly zero weight - which is what the engine does internally,
+at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msqrt><mtext mathvariant="monospace">.𝙼𝚊𝚌𝚑𝚒𝚗𝚎$𝚍𝚘𝚞𝚋𝚕𝚎.𝚎𝚙𝚜</mtext></msqrt><annotation encoding="application/x-tex">\sqrt{\texttt{.Machine\$double.eps}}</annotation></semantics></math>.</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">919</span><span class="op">)</span></span>
+<span><span class="va">n.mf</span> <span class="op">&lt;-</span> <span class="fl">200L</span></span>
+<span><span class="va">x.mf</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n.mf</span> <span class="op">*</span> <span class="fl">3L</span><span class="op">)</span>, <span class="va">n.mf</span>, <span class="fl">3L</span><span class="op">)</span></span>
+<span><span class="va">z.mf</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">n.mf</span>, <span class="fl">1L</span>, <span class="fl">0.5</span><span class="op">)</span></span>
+<span><span class="va">g1.true</span> <span class="op">&lt;-</span> <span class="fl">2</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/Trig.html" class="external-link">sin</a></span><span class="op">(</span><span class="va">pi</span> <span class="op">*</span> <span class="va">x.mf</span><span class="op">[</span>, <span class="fl">1L</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="va">g2.true</span> <span class="op">&lt;-</span> <span class="fl">1</span> <span class="op">+</span> <span class="fl">2</span> <span class="op">*</span> <span class="va">x.mf</span><span class="op">[</span>, <span class="fl">2L</span><span class="op">]</span></span>
+<span><span class="va">y.mf</span> <span class="op">&lt;-</span> <span class="va">g1.true</span> <span class="op">+</span> <span class="va">z.mf</span> <span class="op">*</span> <span class="va">g2.true</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n.mf</span>, <span class="fl">0</span>, <span class="fl">0.5</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># the known per-observation multipliers, one vector per forest</span></span>
+<span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span>, <span class="va">n.mf</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/double.html" class="external-link">as.double</a></span><span class="op">(</span><span class="va">z.mf</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">K</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">m</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">control.mf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>, n.trees <span class="op">=</span> <span class="fl">25L</span>,</span>
+<span>                            updateState <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="co"># every sampler is built on the SAME response, with k fixed and sigma owned</span></span>
+<span><span class="co"># by the outer loop</span></span>
+<span><span class="va">samplers</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">K</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">f</span><span class="op">)</span></span>
+<span>    <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">x.mf</span>, <span class="va">y.mf</span>, control <span class="op">=</span> <span class="va">control.mf</span>, node.prior <span class="op">=</span> <span class="fu">normal</span><span class="op">(</span>k <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
+<span>           resid.prior <span class="op">=</span> <span class="fu">fixed</span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co"># one prior budget divided among the forests, rather than K copies of the</span></span>
+<span><span class="co"># budget for the whole of the sum</span></span>
+<span><span class="va">base.mf</span> <span class="op">&lt;-</span> <span class="va">samplers</span><span class="op">[[</span><span class="fl">1L</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="fu">getCalibration</span><span class="op">(</span><span class="op">)</span><span class="op">[</span><span class="fl">1L</span>, <span class="st">"prior.scale"</span><span class="op">]</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">s</span> <span class="kw">in</span> <span class="va">samplers</span><span class="op">)</span> <span class="va">s</span><span class="op">$</span><span class="fu">setCalibration</span><span class="op">(</span>prior.scale <span class="op">=</span> <span class="va">base.mf</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">K</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">g</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">0</span>, <span class="va">n.mf</span><span class="op">)</span><span class="op">)</span>, <span class="va">K</span><span class="op">)</span></span>
+<span><span class="va">sigma.mf</span> <span class="op">&lt;-</span> <span class="fl">1</span></span>
+<span><span class="va">n.keep</span> <span class="op">&lt;-</span> <span class="fl">200L</span></span>
+<span><span class="va">keep.g2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fl">0</span>, <span class="va">n.mf</span>, <span class="va">n.keep</span><span class="op">)</span></span>
+<span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">i</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fl">100L</span> <span class="op">+</span> <span class="va">n.keep</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="kw">for</span> <span class="op">(</span><span class="va">f</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">K</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">r</span> <span class="op">&lt;-</span> <span class="va">y.mf</span> <span class="op">-</span> <span class="fu"><a href="https://rdrr.io/r/base/funprog.html" class="external-link">Reduce</a></span><span class="op">(</span><span class="va">`+`</span>, <span class="fu"><a href="https://rdrr.io/r/base/funprog.html" class="external-link">Map</a></span><span class="op">(</span><span class="va">`*`</span>, <span class="va">m</span><span class="op">[</span><span class="op">-</span><span class="va">f</span><span class="op">]</span>, <span class="va">g</span><span class="op">[</span><span class="op">-</span><span class="va">f</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
+<span>    <span class="va">zero</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">m</span><span class="op">[[</span><span class="va">f</span><span class="op">]</span><span class="op">]</span><span class="op">)</span> <span class="op">&lt;</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">.Machine</span><span class="op">$</span><span class="va">double.eps</span><span class="op">)</span></span>
+<span>    <span class="va">samplers</span><span class="op">[[</span><span class="va">f</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="fu">setResponse</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">zero</span>, <span class="fl">0</span>, <span class="va">r</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">zero</span>, <span class="fl">1</span>, <span class="va">m</span><span class="op">[[</span><span class="va">f</span><span class="op">]</span><span class="op">]</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>                              updateScale <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span>    <span class="va">samplers</span><span class="op">[[</span><span class="va">f</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="fu">setWeights</span><span class="op">(</span><span class="va">m</span><span class="op">[[</span><span class="va">f</span><span class="op">]</span><span class="op">]</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span></span>
+<span>    <span class="va">samplers</span><span class="op">[[</span><span class="va">f</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="fu">setSigma</span><span class="op">(</span><span class="va">sigma.mf</span><span class="op">)</span></span>
+<span>    <span class="va">samplers</span><span class="op">[[</span><span class="va">f</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="fl">0L</span>, <span class="fl">1L</span><span class="op">)</span></span>
+<span>    <span class="va">g</span><span class="op">[[</span><span class="va">f</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">samplers</span><span class="op">[[</span><span class="va">f</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="fu">getFitsWithoutOffset</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span>  <span class="co"># sigma is drawn in R, against the COMBINED residual</span></span>
+<span>  <span class="va">resid.mf</span> <span class="op">&lt;-</span> <span class="va">y.mf</span> <span class="op">-</span> <span class="fu"><a href="https://rdrr.io/r/base/funprog.html" class="external-link">Reduce</a></span><span class="op">(</span><span class="va">`+`</span>, <span class="fu"><a href="https://rdrr.io/r/base/funprog.html" class="external-link">Map</a></span><span class="op">(</span><span class="va">`*`</span>, <span class="va">m</span>, <span class="va">g</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="va">sigma.mf</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">resid.mf</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/stats/Chisquare.html" class="external-link">rchisq</a></span><span class="op">(</span><span class="fl">1L</span>, <span class="va">n.mf</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="va">i</span> <span class="op">&gt;</span> <span class="fl">100L</span><span class="op">)</span> <span class="va">keep.g2</span><span class="op">[</span>, <span class="va">i</span> <span class="op">-</span> <span class="fl">100L</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="va">g</span><span class="op">[[</span><span class="fl">2L</span><span class="op">]</span><span class="op">]</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">keep.g2</span><span class="op">)</span>, <span class="va">g2.true</span><span class="op">)</span>, sigma <span class="op">=</span> <span class="va">sigma.mf</span>, truth <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></code></pre></div>
+<pre><code><span><span class="co">##  recovery     sigma     truth </span></span>
+<span><span class="co">## 0.8833036 0.4429644 0.5000000</span></span></code></pre>
+<div class="section level3">
+<h3 id="what-it-costs">What it costs<a class="anchor" aria-label="anchor" href="#what-it-costs"></a>
+</h3>
+<p>Measured on one machine against a single batched engine sampler at
+matched total trees - the denominator matters, and a price quoted
+without one says nothing - K samplers driven a sweep at a time cost
+about 1.9-2.1 times that sampler at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>K</mi><mo>=</mo><mn>2</mn></mrow><annotation encoding="application/x-tex">K = 2</annotation></semantics></math>
+and 4.6-5.2 times at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>K</mi><mo>=</mo><mn>8</mn></mrow><annotation encoding="application/x-tex">K = 8</annotation></semantics></math>,
+growing roughly linearly in
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>K</mi><annotation encoding="application/x-tex">K</annotation></semantics></math>:
+each sampler pays its own per-sweep response install, weight install and
+result allocation over the full data. Driving one sampler a sweep at a
+time rather than in a batch is a separate and much smaller charge, about
+1.1x.</p>
+</div>
+<div class="section level3">
+<h3 id="five-things-the-recipe-does-not-get">Five things the recipe does not get<a class="anchor" aria-label="anchor" href="#five-things-the-recipe-does-not-get"></a>
+</h3>
+<ul>
+<li>
+<strong>No joint move on the multipliers.</strong> If the outer loop
+also draws the
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>m</mi><mi>f</mi></msub><annotation encoding="application/x-tex">m_f</annotation></semantics></math>,
+it draws them in a block alternating with the forests. A sampler that
+holds both can interweave them instead, and the two mix differently
+whenever a forest and its multiplier are jointly weakly identified.</li>
+<li>
+<strong>The division is yours.</strong> The caller forms
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>r</mi><mi>/</mi><msub><mi>m</mi><mi>f</mi></msub></mrow><annotation encoding="application/x-tex">r / m_f</annotation></semantics></math>
+and so owns the conditioning, including the snap above.</li>
+<li>
+<strong><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>K</mi><annotation encoding="application/x-tex">K</annotation></semantics></math>
+quantized predictor stores and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>K</mi><annotation encoding="application/x-tex">K</annotation></semantics></math>
+sampler states</strong>, where one sampler holding
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>K</mi><annotation encoding="application/x-tex">K</annotation></semantics></math>
+forests keeps one of each.</li>
+<li>
+<strong><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>K</mi><annotation encoding="application/x-tex">K</annotation></semantics></math>
+leaf calibrations to state</strong>, one per sampler, rather than a
+single calibration stated across the forests at creation.</li>
+<li>
+<strong>A serial outer loop.</strong> The forests are drawn one
+after another in R, so the composition cannot spread them across
+threads.</li>
+</ul>
+</div>
+<div class="section level3">
+<h3 id="graduating-to-a-multi-forest-sampler">Graduating to a multi-forest sampler<a class="anchor" aria-label="anchor" href="#graduating-to-a-multi-forest-sampler"></a>
+</h3>
+<p><code>dbarts(..., forests = list(forest(), forest(basis = ~ factor(z))))</code>
+fits this model in one sampler, and the question a prototype should be
+able to ask is whether moving to it changes the posterior being
+targeted.</p>
+<p>The additive decomposition ports exactly. What does not port by
+itself is prior shape. The two routes agree only if the caller</p>
+<ol style="list-style-type: decimal">
+<li>centres
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>y</mi><annotation encoding="application/x-tex">y</annotation></semantics></math>
+at its midrange, or absorbs the response transform’s shift with
+<code>setOffset</code>: each single-forest sampler’s reported fit
+carries that shift, so the composition attributes it once per forest
+where the sampler attributes it once;</li>
+<li>pins the leaf prior identically -
+<code>node.prior = normal(k)</code> with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>k</mi><annotation encoding="application/x-tex">k</annotation></semantics></math>
+fixed, every sampler built on a common
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>y</mi><annotation encoding="application/x-tex">y</annotation></semantics></math>,
+and <code>updateScale = FALSE</code> throughout;</li>
+<li>accepts that with a multiplier far from 1 the internal response a
+forest sees leaves the band its leaf prior was calibrated for.</li>
+</ol>
+<p>Without (1) and (2) the two routes are different priors that agree
+closely. With them the remaining difference is the leaf calibration
+alone. Measured on a pinned two-forest sampler against the recipe above,
+at
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>400</mn></mrow><annotation encoding="application/x-tex">n = 400</annotation></semantics></math>
+over eight chains: with the remedies the posterior mean conditional
+effect agreed to 3.4% pointwise, inside Monte Carlo error in
+root-mean-square; without them the difference was 11.9% pointwise and
+several times Monte Carlo error. Both recovered the truth about equally
+well, which is the point - the difference is a prior, not a defect.</p>
+<p>State equally plainly what the recipe does not reach and never will:
+a response family, link or latent structure the sampler does not
+provide, and a leaf or hyperprior law it does not provide. Those are
+selected by argument, not composed in R. <code><a href="../reference/forest.html">forest()</a></code> carries
+the same scale knobs the composition sets by hand, and
+<code>$setForestBasis</code>, <code>$setForestWeights</code> and
+<code>$getForestAmplitudes</code> are the post-creation routes into a
+multi-forest sampler, so a prototype ports without changing the model it
+targets.</p>
+</div>
+</div>
+<div class="section level2">
 <h2 id="response-families">Response Families<a class="anchor" aria-label="anchor" href="#response-families"></a>
 </h2>
 <p>Everything above fits a continuous response, <code>dbarts</code>’s
@@ -354,7 +537,7 @@ probit’s, so the leaf-value prior widens to match
 probit’s <code>3</code>, keeping the same span of
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>f</mi><mo stretchy="false" form="prefix">(</mo><mi>x</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">f(x)</annotation></semantics></math>
 relative to the response).</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">11</span><span class="op">)</span></span>
 <span><span class="va">n.fam</span> <span class="op">&lt;-</span> <span class="fl">60</span></span>
 <span><span class="va">x.fam</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n.fam</span><span class="op">)</span></span>
@@ -374,7 +557,7 @@ rest. <code>tree.prior = dart(...)</code> replaces it with a Dirichlet
 prior over split-variable probabilities (Linero 2018): the sampler
 learns which variables matter and increasingly proposes splits on them,
 which doubles as a variable-importance diagnostic.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">12</span><span class="op">)</span></span>
 <span><span class="va">n.dart</span> <span class="op">&lt;-</span> <span class="fl">60</span></span>
 <span><span class="va">x.dart</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n.dart</span> <span class="op">*</span> <span class="fl">8</span><span class="op">)</span>, <span class="va">n.dart</span><span class="op">)</span></span>
@@ -415,7 +598,7 @@ missing follows that rule’s direction (“Missing Incorporated in
 Attributes”, Twala et al. 2008), estimated jointly with the rest of the
 tree. <code>missing = "error"</code> instead rejects predictors
 containing <code>NA</code>, matching older versions.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">13</span><span class="op">)</span></span>
 <span><span class="va">n.miss</span> <span class="op">&lt;-</span> <span class="fl">60</span></span>
 <span><span class="va">g</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"a"</span>, <span class="st">"b"</span>, <span class="st">"c"</span><span class="op">)</span>, <span class="va">n.miss</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>

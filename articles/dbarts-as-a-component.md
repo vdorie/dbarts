@@ -295,6 +295,13 @@ c(composed = cor(rowMeans(total), fTrue),
 (`updateScale = FALSE`, the default), which is what makes a per-sweep
 swap coherent: every sweep’s partial residual is read on one scale.
 
+This is the case where every forest enters the response with a
+multiplier of one.
+[`vignette("gibbs_sampler_mixture_model", package = "dbarts")`](https://vdorie.github.io/dbarts/articles/gibbs_sampler_mixture_model.md)
+carries the general form, where forest $`f`$ enters through a known
+per-observation $`m_{f,i}`$, along with its measured price and what it
+costs to reach the same posterior a `forests =` sampler targets.
+
 ## 4. A latent predictor shared by two samplers
 
 When the quantity being sampled is a *predictor* rather than a response
