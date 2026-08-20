@@ -589,7 +589,21 @@ estimateSigmaFromLinearModel <- function(data) {
       }
     }
   }
-  summary(lm(data@y ~ x, weights = data@weights, offset = data@offset))$sigma
+  # summary.lm's "essentially perfect fit" warning is a BLAS/architecture
+  # property of this internal fit (residual variance can land within a
+  # factor of two of its 1e-30 threshold), leaks an implementation detail
+  # meaningless at the dbarts() call site, and duplicates the user-facing
+  # signal dbarts already gives for a degenerate response (the
+  # "response values are indistinguishable..." warning in R/data.R). Muffle
+  # only that exact condition; everything else passes through.
+  withCallingHandlers(
+    summary(lm(data@y ~ x, weights = data@weights, offset = data@offset))$sigma,
+    warning = function(w) {
+      if (grepl("essentially perfect fit", conditionMessage(w), fixed = TRUE)) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
 }
 
 ## Recode a sparseFactor test column over the training level table, keeping
