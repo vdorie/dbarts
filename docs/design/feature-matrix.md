@@ -340,9 +340,10 @@ reads "constant leaf" in that column.
 | hetero | `hetforce`, `hetswap`, `hetpartial` | OUT [f47] | test-heteroscedastic.R, -mutation.R |
 
 Flat-C test coverage is thinner than family reach: inst/tinytest/test-capi.R
-drives only the `""`/`"probit"` tokens plus grouped (:672), heteroscedastic
-(:223) and BCF (:1335) by control attribute. logistic, aft, ordinal and nbinom
-are reachable through dbarts.h and untested there.
+drives only the `""`/`"probit"` tokens plus grouped (:672) and heteroscedastic
+(:223) by control attribute, and BCF (:1335) through `forests =
+list(forest(basis = ...))`. logistic, aft, ordinal and nbinom are reachable
+through dbarts.h and untested there.
 
 ## Footnotes
 
@@ -695,13 +696,13 @@ CREATION and MID-CHAIN, by design - their per-forest leaf scales come from a
 calibration map that owns them (map at COM:275-300), so a named value has
 nowhere to land. Three creation-time refusal sites shipped at c2a7e89b: R-side
 `dbartsSpec()`'s BCF composition (spec.R:554, the `"a named 'prior.scale'"`
-entry of the `unsupported` vector; the earlier `spec.R:440` named the
-non-default-`k` entry instead), the engine's own
+entry of the `unsupported` vector; the non-default-`k` entry sits at
+spec.R:542), the engine's own
 BCF-composition gate (`refuseUnsupportedBCFComposition`, RIB:2346), and the
 multinomial forest builder (`buildMultinomialSampler`, RIB:3255). S2
 (d809b944) adds the mid-chain refusals, at TWO independent sites rather than
 one shared gate: `$setCalibration`'s R5 method refuses BCF through
-`refuseBCFMutation` (dbarts.R:1622, MEASURED "two-forest calibration map",
+`refuseBCFMutation` (dbarts.R:1622, MEASURED "multi-forest calibration map",
 test-calibration-midchain.R:399-402) before ever reaching the bridge, and
 refuses a multinomial fit's host shell through `refuseHostMutation`
 (dbarts.R:1607, MEASURED "host sampler of a bart2", line 460-463); underneath
@@ -854,7 +855,7 @@ which is an ordinary single-forest chain that takes it.
 [f36] No family gate: `installForests` checks shape, grid, DART, and the
 variance forest's presence and saved slot (SAM:703-753), matching donor forest
 counts at SAM:735, and `growForestFromRoot` loops every forest (CH:1926, the
-loop; the earlier CH:1589 named the variance-forest pre-step above it). Neither is
+loop; the variance-forest pre-step above it sits at CH:1921-1924). Neither is
 exercised by a BCF test, and BCF has no `bart2()` surface, so both are reached
 only through the R5 `$installTrees` (dbarts.R:1738) / `$growFromRoot`
 (dbarts.R:995).
