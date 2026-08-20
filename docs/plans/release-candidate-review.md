@@ -540,6 +540,59 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The 0.9-34 CRAN patch lands on main; bartcore rebases onto it (main b9d42948; bartcore d3acbdc1 + 0b424eeb, 2026-08-20)
+
+CRAN broke 0.9-33 on six flavors: R-devel's RNGkind gained a
+binom.kind argument, so the deparse-based kind extraction in
+A_class.R's validity method left invalid R at install time, and Apple
+clang 14 on Intel macOS accepts -std=gnu++20 while its libc++ lacks
+std::bit_cast. Main took PR #81 (Brian King) by rebase-merge plus
+five follow-ups: dead bit_cast-shim removal, release prep (Date,
+NEWS), a per-field .Random.seed validity check in
+external/randomBase.c replacing the seed0 > 11000 bound (R-devel
+encodes binom.kind at the 100000s digit, pushing the default first
+element to ~110403, so every non-native RNG creation warned and
+clock-seeded), and an install-time hardening of the validity
+fallback (it read .Random.seed before it exists and restored the
+seed into a local). Gated: two independent --as-cran runs clean,
+tinytest 1714/0, lintr delta zero, and an R-devel container leg
+(baseline reproduces both CRAN failures; fixed tree installs;
+1716/1716; guard discrimination shown in both directions), then all
+five main CI legs green (one r-hub setup-r infrastructure rerun).
+dbarts_0.9-34.tar.gz staged for submission. stan4bart needs no
+release: all six of its CRAN errors trace to dbarts, and its CXX17
+build routes around the bit_cast landmine.
+
+bartcore then rebased onto the new main to restore
+fast-forwardability: 1178 commits replayed, 8 conflict stops all
+resolving to the bartcore side, author/subject md5 identical across
+the range; range-diff shows 10 commits with modified diffs (the 8
+stops plus two context shifts). d3acbdc1 ports what the rewrite
+would otherwise lose: the last std::bit_cast in the registration
+tables becomes a (DL_FUNC) cast (include <bit> dropped from the
+bridge; the engine's remaining <bit> uses are popcount/countr_zero,
+not affected), and the per-field seed validation lands against
+bartcore's own trimmed sentinels. 0b424eeb splits the released
+0.9-34 section back out of 1.0-0's NEWS (the four fix items plus
+verbatim-duplicated feature items move to history; 1.0-0's section
+now reads relative to 0.9-34). Full battery on the rebased tip:
+tinytest 6463/0 locally and 6480/0 in the R-devel container (which
+also shows unseeded nchain=2/nthread=2 runs bit-identical - the
+0.9-x ambient-seed race is closed by the rewrite, as the UPGRADING
+notes claim), tests/cpp full and sampler-filtered green, trio
+bitwise 42/12/11 identical-draw counts with no max |z| lines,
+--as-cran Status OK. HISTORY NOTE: every bartcore hash cited in
+docs/plans and docs/design below this note predates the rebase; the
+old history remains reachable at tag bartcore-pre-cran-rebase (old
+tip fc2af5ce).
+
+Residue, recorded not fixed: ext_rng_createDefault decodes
+seed0 % 100 against R's kind numbering while bartcore's trimmed
+ext_rng_algorithm_t renumbers (MERSENNE_TWISTER = 0); the path is
+dead in-tree (the only caller passes useNative = true) and the new
+guard now rejects rather than mis-mapping, so it waits for the next
+randomBase.c edit.
+
 ### Cleanup wave 2: the amplitude family sheds its BCF spelling (8215a53c + be1d06e4, 2026-08-20)
 
 The bcf-naming-generalization item executes under the full arc
