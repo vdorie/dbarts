@@ -25,7 +25,7 @@ using bartcore_bridge::augmentationFamily;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::computeWorkingResponse;
 using bartcore_bridge::drawAugmentation;
-using bartcore_bridge::refuseBCFTestSurface;
+using bartcore_bridge::refuseUndefinedTestFits;
 using bartcore_bridge::refuseBinaryWeightChange;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseGroupedScaleUpdate;
@@ -722,10 +722,10 @@ int dbarts_sampler_updatePredictor(dbarts_sampler* sampler,
 void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
                                       const dbarts_predictor_source* xTest) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
-  // BCF's test blend is undefined without a test treatment vector, and its
-  // whole test surface is refused; a multi-forest model whose blend IS defined
-  // passes (refuseBCFTestSurface, not the forest count)
-  refuseBCFTestSurface(engine, "dbarts_sampler_setTestPredictors");
+  // an amplitude coupling's test blend is undefined without an off-sample
+  // basis, and its whole test surface is refused; a multi-forest model whose
+  // blend IS defined passes (refuseUndefinedTestFits, not the forest count)
+  refuseUndefinedTestFits(engine, "dbarts_sampler_setTestPredictors");
   if (xTest == NULL) {
     // removal is the whole no-test-data state, the offset included: the engine
     // preserves a test offset across a test-store REBUILD (the caller keeps the
@@ -769,9 +769,10 @@ void dbarts_sampler_predict(dbarts_sampler* sampler,
                             const dbarts_predictor_source* xTest,
                             const double* offsetTest, double* out) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
-  // predictColumns opens forests_[0] alone, so on BCF a caller would receive
-  // mu(x) labelled as the fit; see dbarts_sampler_setTestPredictors
-  refuseBCFTestSurface(engine, "dbarts_sampler_predict");
+  // predictColumns opens forests_[0] alone, so a caller would receive the
+  // first forest's fit labelled as the whole; see
+  // dbarts_sampler_setTestPredictors
+  refuseUndefinedTestFits(engine, "dbarts_sampler_predict");
   bartcore::SamplerShape shape = engine.shape();
   void* scratch = vmaxget();
   TranslatedSource source = translateSource(

@@ -21,19 +21,25 @@
 # a K-forest multinomial carries several forests and no amplitudes at all, so a
 # numForests probe would misfire on it, as the bridge and the flat C entry each
 # record independently.
-isBCFSampler <- function(sampler) {
+samplerCarriesAmplitudes <- function(sampler) {
   !is.null(sampler$data@bases)
 }
 
-# BCF-specific wording for a mutation the bridge refuses through a guard
+# Capability-specific wording for a mutation the bridge refuses through a guard
 # shared with every multi-forest model (refuseMultiForestMutation and its
 # siblings in R_interface_bartcore.cpp also cover the multinomial creation
-# route, so their own message cannot name BCF by itself). Raised R-side,
-# before the .Call, so a BCF sampler never reaches the bridge's generic
-# "multi-forest" phrasing.
-refuseBCFMutation <- function(sampler, what, ...) {
-  if (isBCFSampler(sampler)) {
-    stop(what, " does not support a BCF sampler: ", ...)
+# route, so their own message cannot name the amplitudes by itself). Raised
+# R-side, before the .Call, so an amplitude-carrying sampler never reaches the
+# bridge's generic "multi-forest" phrasing. The message names the CAPABILITY
+# rather than the argument that declared it: dbartsData(bases = ) reaches the
+# same samplers without a forests = declaration.
+refuseAmplitudeMutation <- function(sampler, what, ...) {
+  if (samplerCarriesAmplitudes(sampler)) {
+    stop(
+      what,
+      " does not support a sampler that carries forest amplitudes: ",
+      ...
+    )
   }
 }
 
@@ -303,7 +309,7 @@ bartcoreSamplerSetResponse <- function(sampler, y, updateScale = FALSE) {
     stop("response contains missing values")
   }
   if (isTRUE(updateScale)) {
-    refuseBCFMutation(
+    refuseAmplitudeMutation(
       sampler,
       "setResponse(updateScale = TRUE)",
       "every forest keeps its leaf calibration stated against the anchor ",
@@ -324,7 +330,7 @@ bartcoreSamplerSetResponse <- function(sampler, y, updateScale = FALSE) {
 
 bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
   if (isTRUE(updateScale)) {
-    refuseBCFMutation(
+    refuseAmplitudeMutation(
       sampler,
       "setOffset(updateScale = TRUE)",
       "every forest keeps its leaf calibration stated against the anchor ",
@@ -401,7 +407,7 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   if (!inherits(newData, "dbartsData")) {
     stop("'data' must inherit from dbartsData")
   }
-  refuseBCFMutation(
+  refuseAmplitudeMutation(
     sampler,
     "setData",
     "every forest is calibrated against the data at creation; make a new ",

@@ -92,7 +92,7 @@ expect_silent(dbarts::bart2(
 ))
 
 ## --- Block B: sugar desugars to exactly the general named form -------------
-bcfAttr <- function(result) attr(result$fit$control, "bartcore.bcf")
+bcfAttr <- function(result) attr(result$fit$control, "bartcore.forests")
 expectSameForest <- function(sugarFormula, namedFormula, ...) {
   s <- fit(sugarFormula, ...)
   h <- fit(namedFormula, ...)

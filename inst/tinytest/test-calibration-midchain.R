@@ -366,7 +366,7 @@ expect_true(all(bcfCalibration[, "k.has.hyperprior"] == 0))
 # the half-Cauchy scale mixture and reports no variance, and forest 2 the
 # reverse. Which one it is agrees with the transported params, so the reader
 # and the creation route cannot disagree about a forest's amplitude channel.
-bcfParams <- attr(bcf$control, "bartcore.bcf")$params
+bcfParams <- attr(bcf$control, "bartcore.forests")$params
 expect_true(all(is.nan(bcfCalibration[, "amplitude.prior.variance"])))
 expect_equal(
   unname(bcfCalibration[, "amplitude.prior.scale"]),

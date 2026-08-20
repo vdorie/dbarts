@@ -35,7 +35,7 @@ using bartcore_bridge::augmentationFamily;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::computeWorkingResponse;
 using bartcore_bridge::drawAugmentation;
-using bartcore_bridge::refuseBCFTestSurface;
+using bartcore_bridge::refuseUndefinedTestFits;
 using bartcore_bridge::refuseBinaryWeightChange;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
 using bartcore_bridge::refuseGroupedScaleUpdate;
@@ -2056,13 +2056,13 @@ void applyVarianceAttributes(SEXP controlExpr, size_t numPredictors,
 
 // Read a resolved interactions() list (the resolveInteractions output: a
 // max.order scalar and a 2 x k integer matrix of 0-based forbidden pairs) into
-// one BCF forest's spec. A NULL list leaves the forest unconstrained. The pair
+// one forest's spec. A NULL list leaves the forest unconstrained. The pair
 // stream is appended to `storage` (which must outlive the sampler build and be
 // distinct per forest, so the borrowed pointer stays stable) and borrowed by
 // the spec.
-void applyBCFInteractions(SEXP listExpr, size_t numPredictors,
-                          bartcore::BCFForestSpec& spec,
-                          std::vector<size_t>& storage) {
+void applyForestInteractions(SEXP listExpr, size_t numPredictors,
+                             bartcore::ForestStructureSpec& spec,
+                             std::vector<size_t>& storage) {
   if (Rf_isNull(listExpr)) return;
   SEXP maxOrderExpr = rc_getListElement(listExpr, "max.order");
   if (!Rf_isNull(maxOrderExpr) && Rf_xlength(maxOrderExpr) == 1) {
@@ -2072,15 +2072,15 @@ void applyBCFInteractions(SEXP listExpr, size_t numPredictors,
   SEXP forbiddenExpr = rc_getListElement(listExpr, "forbidden");
   if (!Rf_isNull(forbiddenExpr) && Rf_xlength(forbiddenExpr) > 0) {
     if (!Rf_isInteger(forbiddenExpr))
-      Rf_error("bcf interaction forbidden pairs must be resolved integers");
+      Rf_error("forest interaction forbidden pairs must be resolved integers");
     R_xlen_t numEntries = Rf_xlength(forbiddenExpr);
     if (numEntries % 2 != 0)
-      Rf_error("bcf interaction forbidden pairs must come in (a, b) pairs");
+      Rf_error("forest interaction forbidden pairs must come in (a, b) pairs");
     const int* forbidden = INTEGER(forbiddenExpr);
     storage.resize(static_cast<size_t>(numEntries));
     for (R_xlen_t j = 0; j < numEntries; ++j) {
       if (forbidden[j] < 0 || static_cast<size_t>(forbidden[j]) >= numPredictors)
-        Rf_error("bcf interaction forbidden pair column out of range");
+        Rf_error("forest interaction forbidden pair column out of range");
       storage[static_cast<size_t>(j)] = static_cast<size_t>(forbidden[j]);
     }
     spec.interactionForbiddenPairs = storage.data();
@@ -2089,49 +2089,49 @@ void applyBCFInteractions(SEXP listExpr, size_t numPredictors,
 }
 
 // Read a resolved blocks() list (the resolveBlocks output: a per-column 0-based
-// group index and a per-group tree capacity) into one BCF forest's spec. A NULL
+// group index and a per-group tree capacity) into one forest's spec. A NULL
 // list leaves the forest unrestricted. The group and capacity buffers are stored
 // in `groupStore` / `countStore` (distinct per forest, outliving the sampler
 // build) and borrowed by the spec. The capacity must sum to the forest's tree
 // count (the R surface guarantees it; a defensive backstop here).
-void applyBCFBlocks(SEXP listExpr, size_t numPredictors, size_t numTrees,
-                    bartcore::BCFForestSpec& spec,
-                    std::vector<std::int32_t>& groupStore,
-                    std::vector<size_t>& countStore) {
+void applyForestBlocks(SEXP listExpr, size_t numPredictors, size_t numTrees,
+                       bartcore::ForestStructureSpec& spec,
+                       std::vector<std::int32_t>& groupStore,
+                       std::vector<size_t>& countStore) {
   if (Rf_isNull(listExpr)) return;
   SEXP groupExpr = rc_getListElement(listExpr, "block.of.column");
   SEXP countExpr = rc_getListElement(listExpr, "block.tree.counts");
   if (Rf_isNull(groupExpr) || Rf_isNull(countExpr)) return;
   if (!Rf_isInteger(groupExpr) || !Rf_isInteger(countExpr))
-    Rf_error("bcf block spec must hold resolved integers");
+    Rf_error("forest block spec must hold resolved integers");
   if (static_cast<size_t>(Rf_xlength(groupExpr)) != numPredictors)
-    Rf_error("bcf block column groups must have one entry per predictor");
+    Rf_error("forest block column groups must have one entry per predictor");
   R_xlen_t numBlocks = Rf_xlength(countExpr);
   const int* counts = INTEGER(countExpr);
   size_t sum = 0;
   countStore.resize(static_cast<size_t>(numBlocks));
   for (R_xlen_t g = 0; g < numBlocks; ++g) {
-    if (counts[g] <= 0) Rf_error("bcf block tree counts must be positive");
+    if (counts[g] <= 0) Rf_error("forest block tree counts must be positive");
     countStore[static_cast<size_t>(g)] = static_cast<size_t>(counts[g]);
     sum += static_cast<size_t>(counts[g]);
   }
   if (sum != numTrees)
-    Rf_error("bcf block tree counts must sum to the forest's tree count");
+    Rf_error("forest block tree counts must sum to the forest's tree count");
   const int* groups = INTEGER(groupExpr);
   groupStore.assign(groups, groups + numPredictors);
   for (int32_t group : groupStore)
     if (group >= static_cast<int32_t>(numBlocks))
-      Rf_error("bcf block column group index out of range");
+      Rf_error("forest block column group index out of range");
   spec.numBlocks = static_cast<size_t>(numBlocks);
   spec.blockOfColumn = groupStore.data();
   spec.blockTreeCounts = countStore.data();
 }
 
-/// Backing storage for the pointers a BCFSpec borrows: each forest's column
-/// subset, its forbidden-interaction pair stream, and its block partition. One
-/// instance per sampler build, outliving it. RAGGED - one entry per forest of
-/// the spec, so nothing is keyed on bcf's two.
-struct BCFSpecStorage {
+/// Backing storage for the pointers an AmplitudeSpec borrows: each forest's
+/// column subset, its forbidden-interaction pair stream, and its block
+/// partition. One instance per sampler build, outliving it. RAGGED - one entry
+/// per forest of the spec, so nothing is keyed on bcf's two.
+struct AmplitudeSpecStorage {
   std::vector<std::vector<size_t>> columns, pairs, blockCounts;
   std::vector<std::vector<std::int32_t>> blockGroups;
   // the per-forest bases, transposed from R's column-major into the engine's
@@ -2165,13 +2165,14 @@ SEXP forestListElement(SEXP listExpr, size_t f) {
 // b-move off - and it is the honest general rule: the fixed-variance ridge is
 // a held-off door, whose cost is a GIG draw per sweep and whose acceptance
 // gate has not been run.
-void applyBCFSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
-                  SEXP blocksExpr, const ParsedModel& model, size_t numTrees,
-                  size_t numPredictors, bartcore::BCFSpec& spec,
-                  BCFSpecStorage& storage) {
+void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
+                        SEXP blocksExpr, const ParsedModel& model,
+                        size_t numTrees, size_t numPredictors,
+                        bartcore::AmplitudeSpec& spec,
+                        AmplitudeSpecStorage& storage) {
   if (Rf_isNull(paramsExpr) || !Rf_isNewList(paramsExpr) ||
       Rf_xlength(paramsExpr) < 2)
-    Rf_error("bcf parameters must be a list of at least two per-forest "
+    Rf_error("forest parameters must be a list of at least two per-forest "
              "parameter vectors");
   size_t numForests = static_cast<size_t>(Rf_xlength(paramsExpr));
   spec.forests.assign(numForests, bartcore::ForestSpec{});
@@ -2183,7 +2184,7 @@ void applyBCFSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
   for (size_t f = 0; f < numForests; ++f) {
     SEXP forestParamsExpr = VECTOR_ELT(paramsExpr, static_cast<R_xlen_t>(f));
     if (!Rf_isReal(forestParamsExpr) || Rf_xlength(forestParamsExpr) != 8)
-      Rf_error("bcf parameters must be a length-8 numeric vector per forest");
+      Rf_error("forest parameters must be a length-8 numeric vector per forest");
     const double* params = REAL(forestParamsExpr);
     bartcore::ForestSpec& forest = spec.forests[f];
     // node scales come from the calibration map, not the host model
@@ -2204,14 +2205,13 @@ void applyBCFSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
     SEXP forestVarsExpr = forestListElement(varsExpr, f);
     if (!Rf_isNull(forestVarsExpr)) {
       if (!Rf_isInteger(forestVarsExpr))
-        Rf_error("bcf forest variables must be resolved integer column "
-                 "indices");
+        Rf_error("forest variables must be resolved integer column indices");
       R_xlen_t numColumns = Rf_xlength(forestVarsExpr);
       storage.columns[f].resize(static_cast<size_t>(numColumns));
       for (R_xlen_t j = 0; j < numColumns; ++j) {
         int column = INTEGER(forestVarsExpr)[j];
         if (column < 1 || static_cast<size_t>(column) > numPredictors)
-          Rf_error("bcf forest variable column out of range");
+          Rf_error("forest variable column out of range");
         storage.columns[f][static_cast<size_t>(j)] =
           static_cast<size_t>(column - 1);
       }
@@ -2223,11 +2223,11 @@ void applyBCFSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
     // causal use) and block-additive partitions: each forest resolves its own
     // prior R-side over the columns it may split on, and the engine intersects
     // a restricted forest's block rows with its column mask at install
-    applyBCFInteractions(forestListElement(interactionsExpr, f), numPredictors,
-                         forest.forest, storage.pairs[f]);
-    applyBCFBlocks(forestListElement(blocksExpr, f), numPredictors,
-                   forest.forest.numTrees, forest.forest,
-                   storage.blockGroups[f], storage.blockCounts[f]);
+    applyForestInteractions(forestListElement(interactionsExpr, f),
+                            numPredictors, forest.forest, storage.pairs[f]);
+    applyForestBlocks(forestListElement(blocksExpr, f), numPredictors,
+                      forest.forest.numTrees, forest.forest,
+                      storage.blockGroups[f], storage.blockCounts[f]);
   }
 }
 
@@ -2235,8 +2235,8 @@ void applyBCFSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
 // into the engine's ROW-major contract and borrows them onto the spec, which
 // the chains copy at construction. A forest the list does not reach, or whose
 // entry is null, keeps the dense all-ones column the engine synthesizes.
-void applyForestBases(const ParsedData& data, bartcore::BCFSpec& spec,
-                      BCFSpecStorage& storage) {
+void applyForestBases(const ParsedData& data, bartcore::AmplitudeSpec& spec,
+                      AmplitudeSpecStorage& storage) {
   size_t n = data.numObservations;
   storage.bases.resize(spec.forests.size());
   for (size_t f = 0; f < spec.forests.size() && f < data.bases.size(); ++f) {
@@ -2257,22 +2257,24 @@ void applyForestBases(const ParsedData& data, bartcore::BCFSpec& spec,
   }
 }
 
-// The BCF twin of applyVarianceAttributes: the forests' configuration arrives
-// on the internal control attribute `bartcore.bcf`, a list carrying the
-// K-length params list and the parallel per-forest vars/interactions()/
-// blocks() lists. Absent leaves the fit single-forest and returns false, so
-// every existing creation path reads one attribute and moves on. The bases
-// themselves ride the data object; createHolder cross-checks the two halves.
-bool applyBCFAttributes(SEXP controlExpr, const ParsedModel& model,
-                        size_t numTrees, size_t numPredictors,
-                        bartcore::BCFSpec& spec, BCFSpecStorage& storage) {
-  SEXP bcfExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.bcf"));
-  if (Rf_isNull(bcfExpr)) return false;
-  applyBCFSpec(rc_getListElement(bcfExpr, "params"),
-               rc_getListElement(bcfExpr, "vars"),
-               rc_getListElement(bcfExpr, "interactions"),
-               rc_getListElement(bcfExpr, "blocks"), model, numTrees,
-               numPredictors, spec, storage);
+// The multi-forest twin of applyVarianceAttributes: the forests' configuration
+// arrives on the internal control attribute `bartcore.forests`, a list
+// carrying the K-length params list and the parallel per-forest
+// vars/interactions()/blocks() lists. Absent leaves the fit single-forest and
+// returns false, so every existing creation path reads one attribute and moves
+// on. The bases themselves ride the data object; createHolder cross-checks the
+// two halves.
+bool applyForestAttributes(SEXP controlExpr, const ParsedModel& model,
+                           size_t numTrees, size_t numPredictors,
+                           bartcore::AmplitudeSpec& spec,
+                           AmplitudeSpecStorage& storage) {
+  SEXP forestsExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.forests"));
+  if (Rf_isNull(forestsExpr)) return false;
+  applyAmplitudeSpec(rc_getListElement(forestsExpr, "params"),
+                     rc_getListElement(forestsExpr, "vars"),
+                     rc_getListElement(forestsExpr, "interactions"),
+                     rc_getListElement(forestsExpr, "blocks"), model, numTrees,
+                     numPredictors, spec, storage);
   return true;
 }
 
@@ -2282,7 +2284,7 @@ bool applyBCFAttributes(SEXP controlExpr, const ParsedModel& model,
 // on the family's own parameter block being shown to interleave with the
 // amplitude block. The two creation routes ask this separately rather than
 // sharing a gate, since only one runs the whole offender cascade below.
-const char* refusedBCFFamilyReason(bartcore::ResponseFamily family) {
+const char* refusedAmplitudeFamilyReason(bartcore::ResponseFamily family) {
   switch (family) {
   case bartcore::ResponseFamily::gaussian:
   case bartcore::ResponseFamily::probit:
@@ -2318,19 +2320,18 @@ double defaultNodeScale(bartcore::ResponseFamily family) {
   }
 }
 
-// Every option the BCF chain constructor does not read, refused rather than
-// dropped in silence: the calibration map fixes both forests' leaf scales and
-// k, buildBCFForest takes no DART or split probabilities, the constant leaf is
-// the single instantiation, the grouped decorator and the variance forest are
-// built only by the single-forest constructor, the cut cap and the test
-// surface are left undefined, and the gaussian response law is not the
-// Student-t mixture. The R surface refuses the same list ahead of this
+// Every option the amplitude chain constructor does not read, refused rather
+// than dropped in silence: the calibration map fixes every forest's leaf scale
+// and k, buildSpecifiedForest takes no DART or split probabilities, the
+// constant leaf is the single instantiation, the grouped decorator and the
+// variance forest are built only by the single-forest constructor, the cut cap
+// and the test surface are left undefined, and the gaussian response law is
+// not the Student-t mixture. The R surface refuses the same list ahead of this
 // backstop, which is what a direct dbarts.h consumer meets.
-void refuseUnsupportedBCFComposition(bartcore::ResponseFamily family,
-                                     const ParsedModel& model,
-                                     const ParsedData& data,
-                                     const bartcore::SamplerOptions& options) {
-  if (const char* refused = refusedBCFFamilyReason(family))
+void refuseUnsupportedAmplitudeComposition(
+    bartcore::ResponseFamily family, const ParsedModel& model,
+    const ParsedData& data, const bartcore::SamplerOptions& options) {
+  if (const char* refused = refusedAmplitudeFamilyReason(family))
     Rf_error("a treatment forest does not support %s", refused);
   if (!data.predictors.isDenseBlock())
     Rf_error("a treatment forest requires dense predictors");
@@ -2358,7 +2359,7 @@ void refuseUnsupportedBCFComposition(bartcore::ResponseFamily family,
   else if (options.fp32Residual) offender = "single-precision storage";
   else if (data.numTestObservations > 0) offender = "test predictors";
   if (offender == NULL) {
-    // a uniform cut cap is the only one the BCF chain keeps; it nulls the
+    // a uniform cut cap is the only one the amplitude chain keeps; it nulls the
     // per-variable vector outright
     for (size_t j = 1; j < data.numPredictors; ++j)
       if (data.maxNumCuts[j] != data.maxNumCuts[0]) {
@@ -2407,7 +2408,8 @@ void refuseMutationOnView(const bartcore::SamplerBase& sampler,
 // (the multinomial softmax) it would shift the reported probabilities off the
 // simplex rather than shift any latent. parseMultinomialData refuses a test
 // offset at creation; refuse the post-creation install to match. Ordered after
-// refuseBCFTestSurface at every call site, so BCF keeps its own message.
+// refuseUndefinedTestFits at every call site, so an amplitude coupling keeps
+// its own message.
 //
 // The flat vector stays refused on the softmax coupling FOREVER, and truthfully
 // - after the blend it leaves the simplex, and before it a common
@@ -2833,24 +2835,24 @@ void validateResponseSupport(bartcore::ResponseFamily family,
   }
 }
 
-// The single-forest test-fit and prediction surface has no meaning under BCF:
-// with two forests and no test treatment vector, a blend a * mu + b_z * tau is
-// ill-defined, so the engine would fall back to the bare prognostic forest and
-// silently misreport. Reject test data and out-of-sample prediction on a BCF
-// sampler; consumers recombine per forest via getForestFits + the BCF glue
-// (docs/design/bcf.md). Gated on testFitsAreDefined rather than the forest
-// count so a multi-forest model whose test blend IS defined (multinomial
-// softmax over the K forests' totalTestFits) is allowed through; only BCF, the
-// one multi-forest model that leaves the channel undefined, is refused.
-// External linkage: the flat C API reuses this guard on its own predict and
-// test-predictor entries.
-void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
-                          const char* caller) {
+// The single-forest test-fit and prediction surface has no meaning on a
+// coupling whose amplitudes have no off-sample basis to multiply: the blend
+// sum_f dot(a_f, B_f(i,.)) f_f(x_i) is ill-defined off the training rows, so
+// the engine would fall back to the bare first forest and silently misreport.
+// Reject test data and out-of-sample prediction there; consumers recombine per
+// forest via getForestFits + the amplitude glue (docs/design/bcf.md). Gated on
+// testFitsAreDefined rather than the forest count so a multi-forest model
+// whose test blend IS defined (multinomial softmax over the K forests'
+// totalTestFits) is allowed through; only the couplings that leave the channel
+// undefined are refused. External linkage: the flat C API reuses this guard on
+// its own predict and test-predictor entries.
+void refuseUndefinedTestFits(const bartcore::SamplerBase& sampler,
+                             const char* caller) {
   bartcore::SamplerShape shape = sampler.shape();
   if (shape.numForests >= 2 && !shape.testFitsAreDefined)
-    Rf_error("%s: a BCF sampler carries no test treatment vector, so its test "
-             "fits are undefined; predict per forest with getForestFits and "
-             "the BCF glue instead", caller);
+    Rf_error("%s: this sampler's forest amplitudes have no off-sample basis, "
+             "so its test fits are undefined; predict per forest with "
+             "getForestFits and the amplitude glue instead", caller);
 }
 
 // A sampler whose residual sd is not a free parameter has none to set:
@@ -2967,8 +2969,8 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                  groupIndices = std::vector<std::uint32_t>{},
                  survivalStatus = std::vector<double>{},
                  varianceColumns = std::vector<std::size_t>{},
-                 bcfSpec = bartcore::BCFSpec{},
-                 bcfStorage = BCFSpecStorage{},
+                 amplitudeSpec = bartcore::AmplitudeSpec{},
+                 amplitudeStorage = AmplitudeSpecStorage{},
                  rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
@@ -3029,25 +3031,27 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // naming the missing piece rather than a silent single-forest fit.
     // the spec's forests vector owns its storage, so it rides the closure
     // beside the buffers it borrows: the refusals below jump past every local
-    bool isBCF = applyBCFAttributes(controlExpr, model, options.numTrees,
-                                    data.numPredictors, bcfSpec, bcfStorage);
-    if (isBCF && data.bases.empty())
+    bool carriesAmplitudes =
+      applyForestAttributes(controlExpr, model, options.numTrees,
+                            data.numPredictors, amplitudeSpec,
+                            amplitudeStorage);
+    if (carriesAmplitudes && data.bases.empty())
       Rf_error("a basis forest was configured but the data carry no forest "
                "bases");
-    if (!isBCF && !data.bases.empty())
+    if (!carriesAmplitudes && !data.bases.empty())
       Rf_error("the data carry forest bases but no basis forest was "
                "configured; build the sampler through dbarts() or dbartsSpec()");
-    if (isBCF) {
-      refuseUnsupportedBCFComposition(family, model, data, options);
-      bcfSpec.family = family;
-      if (data.bases.size() != bcfSpec.forests.size())
+    if (carriesAmplitudes) {
+      refuseUnsupportedAmplitudeComposition(family, model, data, options);
+      amplitudeSpec.family = family;
+      if (data.bases.size() != amplitudeSpec.forests.size())
         Rf_error("the data carry %lu forest bases but %lu forests were "
                  "configured",
                  static_cast<unsigned long>(data.bases.size()),
-                 static_cast<unsigned long>(bcfSpec.forests.size()));
+                 static_cast<unsigned long>(amplitudeSpec.forests.size()));
       // the chains COPY every basis at construction, so this row-major
       // transposition need only outlive the build
-      applyForestBases(data, bcfSpec, bcfStorage);
+      applyForestBases(data, amplitudeSpec, amplitudeStorage);
     }
 
     rngs = createChainRngs(control, options.numChains);
@@ -3055,21 +3059,22 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // dispatches on the leaf model: a linear node prior's designated columns
     // select the linear-leaf instantiation, everything else the constant leaf
     std::unique_ptr<bartcore::SamplerBase> sampler =
-      isBCF ? bartcore::createBCFSampler(
-                data.predictors.denseValues, data.y, data.numObservations,
-                data.numPredictors, data.weights, data.offset,
-                data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
-                bcfSpec, rngs.data())
-            : bartcore::createSampler(
-                data.predictors.denseValues, data.y, data.numObservations,
-                data.numPredictors, data.weights, data.offset, family,
-                data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
-                rngs.data());
+      carriesAmplitudes
+        ? bartcore::createAmplitudeSampler(
+            data.predictors.denseValues, data.y, data.numObservations,
+            data.numPredictors, data.weights, data.offset, data.sigmaEstimate,
+            model.sigmaDf, model.sigmaRawScale, options, amplitudeSpec,
+            rngs.data())
+        : bartcore::createSampler(
+            data.predictors.denseValues, data.y, data.numObservations,
+            data.numPredictors, data.weights, data.offset, family,
+            data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
+            rngs.data());
     if (sampler == NULL) {
       // R-side resolution validates first, so only an invariant breach lands
       for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
-      Rf_error("%s", isBCF ? "invalid treatment forest specification"
-                           : "invalid leaf covariate designation");
+      Rf_error("%s", carriesAmplitudes ? "invalid forest specification"
+                                       : "invalid leaf covariate designation");
     }
 
     if (data.numTestObservations > 0) {
@@ -3097,23 +3102,25 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // one empty per-forest weight slot per forest keeps the engine's
     // pass-through until a caller installs one; nothing else is owned here,
     // since every basis was copied into the chains at construction
-    if (isBCF)
+    if (carriesAmplitudes)
       holder->ownedForestWeights.resize(holder->sampler->shape().numForests);
     return R_NilValue;
   });
   return holder;
 }
 
-/// A BCF two-forest sampler (docs/design/bcf.md): the model spec supplies the
-/// prognostic forest, bcfParams (length 8: tau tree count, base, power;
-/// aPriorScale; sdModerate; bPriorVariance; updateA and updateB flags) the
-/// treatment forest and glue, z the 0/1 treatment. moderators holds the
-/// treatment forest's optional 1-based column restriction, and the four
-/// trailing expressions the per-forest interactions() and blocks() lists (mu
-/// is the prognostic forest, tau the treatment forest); each may be null.
-/// Gaussian only; raises R errors otherwise. The public creation route reaches
-/// the same build through createHolder, which reads the same pieces off a
-/// control attribute, and is the only route the flat C API has here.
+/// A K-forest amplitude sampler reached from the internal bcf constructor
+/// (docs/design/bcf.md): bases supplies each forest's amplitude basis and
+/// bcfParams the K-length list of length-8 parameter vectors (tree count, base,
+/// power; the node-scale factor and divisor; the amplitude prior's variance and
+/// half-Cauchy scale; the amplitude update flag), the first forest taking its
+/// tree count and structure prior from the model spec instead. vars holds each
+/// forest's optional 1-based column restriction, and the two trailing
+/// expressions the per-forest interactions() and blocks() lists; each may be
+/// null. Family admission is refusedAmplitudeFamilyReason's. The public
+/// creation route reaches the same build through createHolder, which reads the
+/// same pieces off a control attribute, and is the only route the flat C API
+/// has here.
 BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
                                 SEXP dataExpr, SEXP basesExpr,
                                 SEXP bcfParamsExpr, SEXP varsExpr,
@@ -3121,8 +3128,8 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
   BartcoreHolder* holder = nullptr;
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
-                 spec = bartcore::BCFSpec{},
-                 storage = BCFSpecStorage{}]() mutable -> SEXP {
+                 spec = bartcore::AmplitudeSpec{},
+                 storage = AmplitudeSpecStorage{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     // the family is read off the model this route was handed rather than
     // threaded beside it, which is what makes the two agree structurally:
@@ -3141,11 +3148,11 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
       parseSamplerSpecification(controlExpr, modelExpr, dataExpr, familyName,
                                 control, model, data, sigmaIsFixed);
     validateCategoricalPredictors(data);
-    if (const char* refused = refusedBCFFamilyReason(family))
-      Rf_error("BCF does not support %s", refused);
+    if (const char* refused = refusedAmplitudeFamilyReason(family))
+      Rf_error("a treatment forest does not support %s", refused);
     requireResolvedSigmaEstimate(family, data.sigmaEstimate);
     if (!data.predictors.isDenseBlock())
-      Rf_error("BCF requires dense predictors");
+      Rf_error("a treatment forest requires dense predictors");
 
     bartcore::SamplerOptions options =
       optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
@@ -3153,8 +3160,9 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
       Rf_error("%s", storageSingleUnsupportedMessage);
 
     spec.family = family;
-    applyBCFSpec(bcfParamsExpr, varsExpr, interactionsExpr, blocksExpr, model,
-                 options.numTrees, data.numPredictors, spec, storage);
+    applyAmplitudeSpec(bcfParamsExpr, varsExpr, interactionsExpr, blocksExpr,
+                       model, options.numTrees, data.numPredictors, spec,
+                       storage);
     // the bases arrive as an argument here rather than on the data object, so
     // they are read into the same ParsedData channel the public route fills
     // and transposed by the same helper
@@ -3167,10 +3175,11 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
 
     rngs = createChainRngs(control, options.numChains);
 
-    std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createBCFSampler(
-      data.predictors.denseValues, data.y, data.numObservations,
-      data.numPredictors, data.weights, data.offset, data.sigmaEstimate,
-      model.sigmaDf, model.sigmaRawScale, options, spec, rngs.data());
+    std::unique_ptr<bartcore::SamplerBase> sampler =
+      bartcore::createAmplitudeSampler(
+        data.predictors.denseValues, data.y, data.numObservations,
+        data.numPredictors, data.weights, data.offset, data.sigmaEstimate,
+        model.sigmaDf, model.sigmaRawScale, options, spec, rngs.data());
     // the factory returns null on a composition it cannot build; storing that
     // unchecked would hand back a live external pointer wrapping a null
     // sampler, which every entry dereferences
@@ -3960,7 +3969,8 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
       Rf_error("a multinomial mask applies to every category: the softmax "
                "margin reads all K forests, so a row cannot leave one "
                "category's likelihood alone");
-    Rf_error("bartcore_setForestWeights: requires a BCF sampler");
+    Rf_error("bartcore_setForestWeights: requires a sampler that carries "
+             "forest amplitudes");
   }
   size_t forestIndex = forestIndexFrom(forestExpr, shape);
   size_t n = shape.numObservations;
@@ -4689,7 +4699,7 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
     retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
     return R_NilValue;
   }
-  refuseBCFTestSurface(*holder.sampler, "bartcore_setTestPredictor");
+  refuseUndefinedTestFits(*holder.sampler, "bartcore_setTestPredictor");
   refuseStaleCategoryTestOffset(!holder.ownedCategoryTestOffset.empty(),
                                 "bartcore_setTestPredictor");
   if (Rf_inherits(xTestExpr, "dbartsMixedMatrix"))
@@ -4737,7 +4747,7 @@ SEXP bartcore_setTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
     retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
     return R_NilValue;
   }
-  refuseBCFTestSurface(*holder.sampler, "bartcore_setTestOffset");
+  refuseUndefinedTestFits(*holder.sampler, "bartcore_setTestOffset");
   refuseMultiForestTestOffset(*holder.sampler, "bartcore_setTestOffset");
   size_t numTestObservations = holder.sampler->shape().numTestObservations;
   if (numTestObservations == 0)
@@ -4767,7 +4777,8 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
     retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
     return R_NilValue;
   }
-  refuseBCFTestSurface(*holder.sampler, "bartcore_setTestPredictorAndOffset");
+  refuseUndefinedTestFits(*holder.sampler,
+                          "bartcore_setTestPredictorAndOffset");
   refuseStaleCategoryTestOffset(!holder.ownedCategoryTestOffset.empty(),
                                 "bartcore_setTestPredictorAndOffset");
   if (!Rf_isNull(offsetExpr))
@@ -5715,10 +5726,10 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   bartcore::SamplerBase& sampler(*holder.sampler);
   bartcore::SamplerShape shape = sampler.shape();
 
-  // predict() sums only the prognostic forest, so a BCF prediction would drop
-  // the treatment forest and the glue; refuse it for the same reason recorded
-  // BCF test fits are undefined.
-  refuseBCFTestSurface(sampler, "bartcore_predict");
+  // predict() sums only the first forest, so an amplitude coupling's
+  // prediction would drop every other forest and the glue; refuse it for the
+  // same reason its recorded test fits are undefined.
+  refuseUndefinedTestFits(sampler, "bartcore_predict");
   // The rows are the CALLER's, so the offset must be too: predict never reads
   // the sampler's resident category offsets, whose rows are other rows, and a
   // row-count coincidence between them is not consent. A sampler that models a
@@ -6131,7 +6142,7 @@ void computeWorkingResponse(bartcore::ResponseFamily family,
 }
 
 // Provenance stamp for the on-disk layout storeState/setState exchange. The
-// shipped format (version 1) folds in two pre-release iterations that never
+// shipped format (version 2) folds in three pre-release iterations that never
 // shipped on their own. An early step tagged each flat node and stored its
 // payload as a raw word - an inline categorical mask no longer bit-casts
 // through a double - so the side channel holds only pooled masks (past 63
@@ -6140,8 +6151,8 @@ void computeWorkingResponse(bartcore::ResponseFamily family,
 // element): restore rebuilds them from the trees, and sigma rides on the
 // original response scale. A later step gave each chain's tree channels a
 // forest dimension (docs/design/bcf.md): the tree/saved/param/mask/k slots
-// move into a per-chain "forests" list, and BCF adds a "bcf" glue slot
-// (a, aVariance, b0, b1). A single-forest state is a length-1 forest list.
+// move into a per-chain "forests" list, and an amplitude-carrying chain adds
+// a "glue" slot. A single-forest state is a length-1 forest list.
 //
 // Registry rule for evolving the format (docs/design/public-surface.md 2):
 // block names are APPEND-ONLY and a shipped name's on-disk encoding is FROZEN.
@@ -6152,18 +6163,21 @@ void computeWorkingResponse(bartcore::ResponseFamily family,
 // (an old reader ignores the unknown name; a new reader defaults it), and MUST
 // NOT bump minReadableStateFormatVersion. Only a non-additive change to an
 // existing block's encoding - one that cannot be expressed as a new name -
-// bumps both.
-static const int stateFormatVersion = 1;
+// bumps both. RENAMING a block is such a change, and a silent one: the reader
+// would find the old name absent and default an OPTIONAL block rather than
+// error, leaving the amplitudes at their construction values. Version 2 is the
+// glue block's rename from "bcf", and the floor moves with it so a state
+// carrying the old name is refused by version before any block is read.
+static const int stateFormatVersion = 2;
 
 // The oldest ENCODING this reader still understands: additive block additions
-// leave it here; only a non-additive encoding change raises it. Currently 1:
+// leave it here; only a non-additive encoding change raises it. Currently 2:
 // the 1.0-0 encoding is the FIRST shipped format, so the pre-release
-// development increments (the forests-list/BCF restructure included) are
-// collapsed into it - no released reader or writer ever saw them. Pre-1.0
-// states are not a compat target and cannot structurally reach the by-name
-// reader (they lack the "forests" block); a state with no version attribute
-// reads as 0 and is refused at the floor.
-static const int minReadableStateFormatVersion = 1;
+// development increments (the forests-list restructure included) are collapsed
+// into version 1, which the glue rename then supersedes - no released reader
+// or writer ever saw either. Pre-1.0 states are not a compat target; a state
+// with no version attribute reads as 0 and is refused at the floor.
+static const int minReadableStateFormatVersion = 2;
 
 SEXP storeState(bartcore::SamplerBase& sampler) {
   bartcore::SamplerStateData state;
@@ -6199,7 +6213,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     SLOT_FORESTS = 0, SLOT_SIGMA, SLOT_FIT_SCALE, SLOT_LATENTS,
     SLOT_RANEF, SLOT_TAU,
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
-    SLOT_RNG_STATE, SLOT_BCF, SLOT_RESID_DF, SLOT_CUTPOINTS, SLOT_DISPERSION,
+    SLOT_RNG_STATE, SLOT_GLUE, SLOT_RESID_DF, SLOT_CUTPOINTS, SLOT_DISPERSION,
     SLOT_VARIANCE_VARS, SLOT_VARIANCE_VALUES, SLOT_VARIANCE_SIZES,
     SLOT_VARIANCE_FLAGS, SLOT_VARIANCE_MASKS,
     SLOT_VARIANCE_SAVED_VARS, SLOT_VARIANCE_SAVED_VALUES,
@@ -6211,7 +6225,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     "forests", "sigma", "fit.scale",
     "latents", "ranef", "tau",
     "dart.probabilities", "dart.alpha", "dart.updates.skipped",
-    "rng.state", "bcf", "resid.df", "cutpoints", "dispersion",
+    "rng.state", "glue", "resid.df", "cutpoints", "dispersion",
     "variance.vars", "variance.values", "variance.sizes", "variance.flags",
     "variance.masks",
     "variance.saved.vars", "variance.saved.values", "variance.saved.sizes",
@@ -6336,20 +6350,20 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     // layout - q = (1, 3) and q = (2, 2) carry four amplitudes each - so the
     // widths travel with the values, and both readers reconstruct the layout
     // from them rather than from a length.
-    if (chainState.hasBCF) {
+    if (chainState.hasAmplitudes) {
       size_t numForests = chainState.amplitudeWidths.size();
       size_t numAmplitudes = chainState.amplitudes.size();
-      SET_VECTOR_ELT(chainExpr, SLOT_BCF,
+      SET_VECTOR_ELT(chainExpr, SLOT_GLUE,
                      Rf_allocVector(REALSXP, static_cast<R_xlen_t>(
                        1 + 2 * numForests + numAmplitudes)));
-      double* bcf = REAL(VECTOR_ELT(chainExpr, SLOT_BCF));
-      bcf[0] = static_cast<double>(numForests);
+      double* glue = REAL(VECTOR_ELT(chainExpr, SLOT_GLUE));
+      glue[0] = static_cast<double>(numForests);
       for (size_t f = 0; f < numForests; ++f)
-        bcf[1 + f] = static_cast<double>(chainState.amplitudeWidths[f]);
+        glue[1 + f] = static_cast<double>(chainState.amplitudeWidths[f]);
       for (size_t j = 0; j < numAmplitudes; ++j)
-        bcf[1 + numForests + j] = chainState.amplitudes[j];
+        glue[1 + numForests + j] = chainState.amplitudes[j];
       for (size_t f = 0; f < numForests; ++f)
-        bcf[1 + numForests + numAmplitudes + f] =
+        glue[1 + numForests + numAmplitudes + f] =
           chainState.amplitudeVariances[f];
     }
 
@@ -6413,33 +6427,33 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
 // sampler at Chain::stateIsValid, because a total is not a layout: q = (1, 3)
 // and q = (2, 2) are both four amplitudes, and restoreGlue writes through the
 // live offsets.
-bool readAmplitudeGlue(SEXP bcfExpr, bartcore::ChainStateData& chainState) {
-  if (!Rf_isReal(bcfExpr) || Rf_xlength(bcfExpr) < 1) return false;
-  const double* bcf = REAL(bcfExpr);
-  double numForestsValue = bcf[0];
+bool readAmplitudeGlue(SEXP glueExpr, bartcore::ChainStateData& chainState) {
+  if (!Rf_isReal(glueExpr) || Rf_xlength(glueExpr) < 1) return false;
+  const double* glue = REAL(glueExpr);
+  double numForestsValue = glue[0];
   if (!(numForestsValue >= 1.0) ||
       numForestsValue != std::floor(numForestsValue))
     return false;
   size_t numForests = static_cast<size_t>(numForestsValue);
-  if (static_cast<size_t>(Rf_xlength(bcfExpr)) < 1 + 2 * numForests)
+  if (static_cast<size_t>(Rf_xlength(glueExpr)) < 1 + 2 * numForests)
     return false;
   size_t numAmplitudes = 0;
   chainState.amplitudeWidths.resize(numForests);
   for (size_t f = 0; f < numForests; ++f) {
-    double width = bcf[1 + f];
+    double width = glue[1 + f];
     if (!(width >= 1.0) || width != std::floor(width)) return false;
     chainState.amplitudeWidths[f] = static_cast<size_t>(width);
     numAmplitudes += chainState.amplitudeWidths[f];
   }
-  if (static_cast<size_t>(Rf_xlength(bcfExpr)) !=
+  if (static_cast<size_t>(Rf_xlength(glueExpr)) !=
       1 + 2 * numForests + numAmplitudes)
     return false;
-  chainState.hasBCF = true;
-  chainState.amplitudes.assign(bcf + 1 + numForests,
-                               bcf + 1 + numForests + numAmplitudes);
+  chainState.hasAmplitudes = true;
+  chainState.amplitudes.assign(glue + 1 + numForests,
+                               glue + 1 + numForests + numAmplitudes);
   chainState.amplitudeVariances.assign(
-    bcf + 1 + numForests + numAmplitudes,
-    bcf + 1 + 2 * numForests + numAmplitudes);
+    glue + 1 + numForests + numAmplitudes,
+    glue + 1 + 2 * numForests + numAmplitudes);
   return true;
 }
 
@@ -6766,10 +6780,10 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
                   chainState.rngState.size());
     }
 
-    SEXP bcfExpr = rc_getListElement(chainExpr, "bcf");
-    if (!Rf_isNull(bcfExpr)) {
-      if (!readAmplitudeGlue(bcfExpr, chainState)) {
-        errorMessage = "malformed bcf glue in bartcore state";
+    SEXP glueExpr = rc_getListElement(chainExpr, "glue");
+    if (!Rf_isNull(glueExpr)) {
+      if (!readAmplitudeGlue(glueExpr, chainState)) {
+        errorMessage = "malformed amplitude glue in bartcore state";
         break;
       }
     }
@@ -6823,7 +6837,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 // Parses a "bartcoreState" donor into a SamplerStateData for a warm start,
 // validating flat trees against the destination sampler's data. Only the
 // channels a warm start consumes are read (trees, leaf params, masks, k,
-// sigma, the fit scale, DART, and BCF glue); latents, group effects, and the
+// sigma, the fit scale, DART, and the amplitude glue); latents, group effects,
 // rng are left for the destination to redraw. Function-leaf donors seed from
 // their live trees, so their saved channel is skipped. The donor's own chain
 // count is honored (a short donor may seed many chains). Returns an error
@@ -6968,10 +6982,10 @@ static const char* readWarmStartState(SEXP stateExpr,
         static_cast<size_t>(INTEGER(dartSkippedExpr)[0]);
     }
 
-    SEXP bcfExpr = rc_getListElement(chainExpr, "bcf");
-    if (!Rf_isNull(bcfExpr)) {
-      if (!readAmplitudeGlue(bcfExpr, chainState)) {
-        errorMessage = "malformed bcf glue in warm-start donor";
+    SEXP glueExpr = rc_getListElement(chainExpr, "glue");
+    if (!Rf_isNull(glueExpr)) {
+      if (!readAmplitudeGlue(glueExpr, chainState)) {
+        errorMessage = "malformed amplitude glue in warm-start donor";
         break;
       }
     }
@@ -7105,8 +7119,8 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
     case bartcore::WarmStartResult::columnMaskMismatch:
       Rf_error("warm-start donor holds a tree that splits on a variable outside "
                "this forest's allowed column set; the donor's fit is "
-               "incompatible with the column restriction (BCF moderators or a "
-               "restricted variance forest) in force here");
+               "incompatible with the column restriction (a forest's own "
+               "column subset or a restricted variance forest) in force here");
     case bartcore::WarmStartResult::varianceMismatch:
       Rf_error("warm-start donor's variance trees cannot be installed on this "
                "sampler's data (a rebuilt variance tree leaves a leaf empty, a "

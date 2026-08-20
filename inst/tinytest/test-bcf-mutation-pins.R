@@ -30,13 +30,19 @@ expect_error(
   "multi-forest"
 )
 
-# --- refuses: the test surface is undefined without a test treatment vector
-expect_error(dbarts:::bartcorePredict(bc, x[1:5, , drop = FALSE]), "BCF")
+# --- refuses: the test surface is undefined without an off-sample basis
+expect_error(
+  dbarts:::bartcorePredict(bc, x[1:5, , drop = FALSE]),
+  "have no off-sample basis"
+)
 expect_error(
   dbarts:::bartcoreSetTestPredictor(bc, x[1:5, , drop = FALSE]),
-  "BCF"
+  "have no off-sample basis"
 )
-expect_error(dbarts:::bartcoreSetTestOffset(bc, rep(0, n)), "BCF")
+expect_error(
+  dbarts:::bartcoreSetTestOffset(bc, rep(0, n)),
+  "have no off-sample basis"
+)
 
 # --- succeeds: a transactional predictor update revalidates every forest and
 # installs under the empty-leaf veto, rolling the whole change back and

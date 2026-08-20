@@ -210,7 +210,7 @@ resolveSamplerSpec <- function(
   # this fit's own - its tree count is control@n.trees and its structure prior
   # is tree.prior - so they are applied to those here, before anything reads
   # them; its interactions/blocks are the top-level arguments of those names,
-  # which is why declaring both refuses. The rest ride the BCF control
+  # which is why declaring both refuses. The rest ride the forests control
   # attribute below.
   # PER FOREST, not one flag for the model: forest f is excused from declaring
   # a basis only when one reaches it some other way, the dbartsData(bases = )
@@ -524,7 +524,7 @@ resolveSamplerSpec <- function(
         )
       )
     }
-    # The BCF chain builds every forest from its own calibration map (fixed
+    # The amplitude chain builds every forest from its own calibration map (fixed
     # k = 1, leaf scales from the family's own latent scale) and reads neither
     # the DART machinery, the split probabilities, the monotone directions, a
     # non-constant leaf, the grouped decorator, a variance forest, an fp32
@@ -621,7 +621,7 @@ resolveSamplerSpec <- function(
       length(forestLabels) <- numForests
       forestLabels[is.na(forestLabels)] <- ""
     }
-    attr(control, "bartcore.bcf") <- list(
+    attr(control, "bartcore.forests") <- list(
       # one length-8 numeric per forest; the family selects the basis-free
       # channel's default median and the count the K-aware node scale factor
       params = forestParams(specs, hasBasis, family),

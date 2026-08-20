@@ -406,7 +406,7 @@ static void testFusedSuffstatDeclines(ext_rng* rng) {
       z[i] = runif01() < 0.5 ? 1.0 : 0.0;
       yBcf[i] = 2.0 * x[i] + z[i] * (1.0 + x[i + n]) + 0.2 * (runif01() - 0.5);
     }
-    BCFSpec spec;
+    AmplitudeSpec spec;
     spec.mu.numTrees = 20; spec.mu.base = 0.95; spec.mu.power = 2.0;
     spec.tau.numTrees = 15; spec.tau.base = 0.95; spec.tau.power = 2.0;
     spec.z = z.data();
@@ -2226,7 +2226,7 @@ static void testBCFTwoForest(ext_rng* rng) {
   }
 
   SamplerOptions options;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = 50; spec.mu.base = 0.95; spec.mu.power = 2.0;
   spec.tau.numTrees = 25; spec.tau.base = 0.25; spec.tau.power = 3.0;
   spec.z = z.data();
@@ -2347,7 +2347,7 @@ static void testBCFResponseSwap() {
   }
 
   SamplerOptions options;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = muTrees; spec.mu.base = 0.95; spec.mu.power = 2.0;
   spec.tau.numTrees = tauTrees; spec.tau.base = 0.25; spec.tau.power = 3.0;
   spec.z = z.data();
@@ -2464,7 +2464,7 @@ static void testBCFInteractionLifetime() {
   }
 
   SamplerOptions options;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = 40; spec.mu.base = 0.95; spec.mu.power = 2.0;
   spec.mu.interactionMaxOrder = 1;  // constrains the FIRST-built (mu) forest
   spec.tau.numTrees = 20; spec.tau.base = 0.25; spec.tau.power = 3.0;
@@ -2513,7 +2513,7 @@ static void testBCFFixedGlue(ext_rng* rng) {
   }
 
   SamplerOptions options;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = 20; spec.mu.base = 0.95; spec.mu.power = 2.0;
   spec.tau.numTrees = 10; spec.tau.base = 0.25; spec.tau.power = 3.0;
   spec.updateA = false; spec.updateB = false;
@@ -2556,7 +2556,7 @@ static void testBCFInterweave(ext_rng* rng) {
   }
 
   SamplerOptions options;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = 50;
   spec.tau.numTrees = 25;
   spec.z = z.data();
@@ -2635,7 +2635,7 @@ static void testBCFInterweaveKeepTrees(ext_rng* rng) {
   SamplerOptions options;
   options.keepTrees = true;
   options.numSamplesToStore = 1;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = 40;
   spec.tau.numTrees = 20;
   spec.z = z.data();
@@ -2682,7 +2682,7 @@ static void testBCFInterweaveKeepTrees(ext_rng* rng) {
     optionsThin.keepTrees = true;
     optionsThin.numSamplesToStore = numSlots;
     optionsThin.numThin = thin;
-    BCFSpec specThin;
+    AmplitudeSpec specThin;
     specThin.mu.numTrees = 40;
     specThin.tau.numTrees = 20;
     specThin.z = zThin.data();
@@ -2751,7 +2751,7 @@ static void testBCFGrowForestFromRoot() {
   }
 
   SamplerOptions options;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = 50; spec.mu.base = 0.95; spec.mu.power = 2.0;
   spec.tau.numTrees = 25; spec.tau.base = 0.25; spec.tau.power = 3.0;
   spec.z = z.data();
@@ -2825,9 +2825,9 @@ static void testBCFZeroMultiplierSnap() {
     tauFits[i] = 0.9 - 0.2 * t;
   }
 
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.z = z.data();
-  BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+  AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
 
   std::vector<Forest<ConstantGaussianLeaf>> forests(2);
   for (size_t f = 0; f < 2; ++f) {
@@ -2866,7 +2866,7 @@ static void testBCFZeroMultiplierSnap() {
   // snaps whichever sign it carries, 2^-26 is the band itself and 2^-25 is
   // outside it, where the reparameterization is the plain division.
   ChainStateData glued;
-  glued.hasBCF = true;
+  glued.hasAmplitudes = true;
   glued.a = 1.0;
   glued.b1 = 1.0;
   for (int sign = -1; sign <= 1; sign += 2) {
@@ -2970,11 +2970,11 @@ static void testBCFCombinerSeam() {
     // other, or swaps the treated and control coefficients, cannot pass
     const double a = 1.5, b0 = -0.5, b1 = 0.25;
 
-    BCFSpec spec;
+    AmplitudeSpec spec;
     spec.z = z.data();
-    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
     ChainStateData glue;
-    glue.hasBCF = true;
+    glue.hasAmplitudes = true;
     glue.a = a;
     glue.b0 = b0;
     glue.b1 = b1;
@@ -3058,7 +3058,7 @@ static void testBCFCombinerSeam() {
     std::vector<double> y = {0.5, -0.25, 1.0, 0.75};
     std::vector<double> zeros(n, 0.0);
 
-    BCFSpec spec;
+    AmplitudeSpec spec;
     spec.z = z.data();
     spec.bPriorVariance = 1.0;
 
@@ -3070,7 +3070,7 @@ static void testBCFCombinerSeam() {
     };
 
     {
-      BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+      AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
       std::vector<Forest<ConstantGaussianLeaf>> forests;
       zeroForests(forests);
       ext_rng* live = makeSeamRng();
@@ -3099,9 +3099,9 @@ static void testBCFCombinerSeam() {
     // the a block's skip takes NO draws, so b0 and b1 are the stream's first
     // two normals; the b block's skip stops the stream after aVariance
     {
-      BCFSpec noA = spec;
+      AmplitudeSpec noA = spec;
       noA.updateA = false;
-      BCFForestCombiner<ConstantGaussianLeaf> combiner(data, noA);
+      AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, noA);
       std::vector<Forest<ConstantGaussianLeaf>> forests;
       zeroForests(forests);
       ext_rng* live = makeSeamRng();
@@ -3118,9 +3118,9 @@ static void testBCFCombinerSeam() {
       ext_rng_destroy(live);
     }
     {
-      BCFSpec noB = spec;
+      AmplitudeSpec noB = spec;
       noB.updateB = false;
-      BCFForestCombiner<ConstantGaussianLeaf> combiner(data, noB);
+      AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, noB);
       std::vector<Forest<ConstantGaussianLeaf>> forests;
       zeroForests(forests);
       ext_rng* live = makeSeamRng();
@@ -3152,10 +3152,10 @@ static void testBCFCombinerSeam() {
     const double leafA = 0.5, leafB = 0.25, tauLeaf = 0.125;
     const double a0 = 1.5, aVariance = 4.0;  // distinct, so a^2/aVariance bites
 
-    BCFSpec spec;
+    AmplitudeSpec spec;
     spec.z = z.data();
     ChainStateData glue;
-    glue.hasBCF = true;
+    glue.hasAmplitudes = true;
     glue.a = a0;
     glue.aVariance = aVariance;
 
@@ -3187,7 +3187,7 @@ static void testBCFCombinerSeam() {
       forests[1].muByTree.assign(1, std::vector<double>(1, tauLeaf));
     };
 
-    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
     combiner.restoreGlue(glue);
     std::vector<Forest<ConstantGaussianLeaf>> forests;
     build(forests, {leafA, leafB});
@@ -3236,9 +3236,9 @@ static void testBCFCombinerSeam() {
                           {"a single occupied leaf", {leafA}, true},
                           {"an all-zero leaf sum", {0.0, 0.0}, true}};
     for (const Skip& skip : skips) {
-      BCFSpec skipSpec = spec;
+      AmplitudeSpec skipSpec = spec;
       skipSpec.updateA = skip.updateA;
-      BCFForestCombiner<ConstantGaussianLeaf> skipped(data, skipSpec);
+      AmplitudeForestCombiner<ConstantGaussianLeaf> skipped(data, skipSpec);
       skipped.restoreGlue(glue);
       std::vector<Forest<ConstantGaussianLeaf>> skipForests;
       build(skipForests, skip.leaves);
@@ -3277,7 +3277,7 @@ static void testBCFCombinerSeam() {
     }
 
     SamplerOptions options;
-    BCFSpec spec;
+    AmplitudeSpec spec;
     spec.mu.numTrees = 10;
     spec.tau.numTrees = 5;
     spec.updateA = false;
@@ -3338,11 +3338,11 @@ static void testCombinedFitsAssociation() {
   // associations agree everywhere and the pin says nothing
   const double a = 1.0834712, b0 = -0.31274, b1 = 0.9124367;
 
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.z = z.data();
-  BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+  AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
   ChainStateData glue;
-  glue.hasBCF = true;
+  glue.hasAmplitudes = true;
   glue.a = a;
   glue.b0 = b0;
   glue.b1 = b1;
@@ -3435,9 +3435,9 @@ static void testForestBasisOrdering() {
   std::vector<double> y = {2.0, -1.0, 0.5, 3.0, -2.5, 1.25};
   const double a = 1.5, b0 = -0.5, b1 = 0.25;
 
-  auto build = [&](BCFForestCombiner<ConstantGaussianLeaf>& combiner) {
+  auto build = [&](AmplitudeForestCombiner<ConstantGaussianLeaf>& combiner) {
     ChainStateData glue;
-    glue.hasBCF = true;
+    glue.hasAmplitudes = true;
     glue.a = a;
     glue.b0 = b0;
     glue.b1 = b1;
@@ -3448,7 +3448,7 @@ static void testForestBasisOrdering() {
   forests[0].totalFits = mu;
   forests[1].totalFits = tau;
 
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.z = z.data();
 
   // --- Arm 1, widen then swap. The widening survives the swap, the prognostic
@@ -3456,7 +3456,7 @@ static void testForestBasisOrdering() {
   // forest's own block is bitwise what it was. RED under a route that
   // re-synthesizes forest 0 on any install.
   {
-    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
     build(combiner);
     check(combiner.installForestBasis(0, wide.data(), 2),
           "a wider prognostic basis installs");
@@ -3489,7 +3489,7 @@ static void testForestBasisOrdering() {
   // --- Arm 2, swap then widen. The swapped values survive the layout move and
   // the swapped forest's coordinates are carried bitwise to their new offsets.
   {
-    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
     build(combiner);
     check(combiner.installForestBasis(1, swapped.data(), 2),
           "the swap installs first");
@@ -3516,7 +3516,7 @@ static void testForestBasisOrdering() {
   // on every amplitude. This is the pin between M4.3 and a bcf-equivalence
   // re-record: the shipped mid-life z swap is exactly this install.
   {
-    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
     build(combiner);
     ChainStateData before;
     combiner.serializeGlue(before);
@@ -3562,13 +3562,13 @@ static void testForestBasisOrdering() {
       flippedBasis[2 * i] = grouped[i];
       flippedBasis[2 * i + 1] = 1.0 - grouped[i];
     }
-    BCFSpec groupedSpec;
+    AmplitudeSpec groupedSpec;
     groupedSpec.z = grouped.data();
     groupedSpec.updateA = false;  // isolate the b block
 
     auto drawPair = [&](const std::vector<double>& basis, double& out0,
                         double& out1) {
-      BCFForestCombiner<ConstantGaussianLeaf> combiner(data, groupedSpec);
+      AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, groupedSpec);
       build(combiner);
       check(combiner.installForestBasis(1, basis.data(), 2),
             "the grouped basis installs");
@@ -3606,7 +3606,7 @@ static void testForestBasisOrdering() {
     std::vector<double> weights = {0.5, 1.5, 2.0, 0.25, 1.0, 3.0};
     auto draw = [&](const std::vector<double>* prognostic,
                     const std::vector<double>* treatment) {
-      BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+      AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
       build(combiner);
       if (prognostic != nullptr)
         check(combiner.installForestBasis(0, prognostic->data(), 2),
@@ -3709,15 +3709,15 @@ static void testGeneralAmplitudeConditional() {
 
   // ---- the conditional recovers its own closed form ----
   {
-    BCFSpec spec;
+    AmplitudeSpec spec;
     spec.z = z.data();
     spec.updateA = false;  // pin forest 0, so forest 1's block is all that moves
     spec.bPriorVariance = priorVariance;
     spec.generalAmplitudeDraw = true;
-    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+    AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
     combiner.installForestBasis(1, wide.data(), 2);
     ChainStateData glue;
-    glue.hasBCF = true;
+    glue.hasAmplitudes = true;
     glue.a = aFixed;
     glue.b0 = 0.0;
     glue.b1 = 0.0;
@@ -3784,15 +3784,15 @@ static void testGeneralAmplitudeConditional() {
   // which fuses unevenly against a straight-line loop), so this asserts what
   // is true - one conditional, one rng stream, agreeing to rounding.
   {
-    BCFSpec shipped;
+    AmplitudeSpec shipped;
     shipped.z = z.data();
     shipped.bPriorVariance = priorVariance;
-    BCFSpec general = shipped;
+    AmplitudeSpec general = shipped;
     general.generalAmplitudeDraw = true;
 
     double drawn[2][4];
     for (size_t arm = 0; arm < 2; ++arm) {
-      BCFForestCombiner<ConstantGaussianLeaf> combiner(
+      AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
         data, arm == 0 ? shipped : general);
       std::vector<Forest<ConstantGaussianLeaf>> forests(2);
       forests[0].totalFits = mu;
@@ -3828,10 +3828,10 @@ static void testGeneralAmplitudeConditional() {
   // Before the K-length sizing the basis vector held bcf's two entries however
   // many forests the chain carried, and forest 2's multiplier read past it.
   {
-    BCFSpec spec;
+    AmplitudeSpec spec;
     spec.z = z.data();
     spec.bPriorVariance = priorVariance;
-    BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec, 3);
+    AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec, 3);
     std::vector<Forest<ConstantGaussianLeaf>> forests(3);
     forests[0].totalFits = mu;
     forests[1].totalFits = tau;
@@ -3874,12 +3874,12 @@ static void testGeneralAmplitudeRidge() {
   const double leafVariance = (leafScale / k) * (leafScale / k);
   const double priorVariance = 0.75;
 
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.z = z.data();
   spec.bPriorVariance = priorVariance;
   spec.updateA = false;   // forest 0 holds, so the treatment ridge is alone
   spec.ridgeB = true;     // the b-move: OFF for bcf, ON here
-  BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+  AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
 
   std::vector<Forest<ConstantGaussianLeaf>> forests(2);
   std::vector<double> indices(0);
@@ -3915,7 +3915,7 @@ static void testGeneralAmplitudeRidge() {
   const size_t replicates = 20000;
   double amplitudeSquares = 0.0, leafSquares = 0.0;
   ChainStateData drawnGlue;
-  drawnGlue.hasBCF = true;
+  drawnGlue.hasAmplitudes = true;
   drawnGlue.a = 1.0;
   for (size_t r = 0; r < replicates; ++r) {
     double priorSd = std::sqrt(priorVariance);
@@ -4005,16 +4005,16 @@ static void testAmplitudeOffsetIndexing() {
   // four DISTINCT amplitudes, so an accessor off by one coordinate cannot pass
   const double a = 1.5, b0 = -0.5, b1 = 0.25;
 
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.z = z.data();
-  BCFForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+  AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
   combiner.installForestBasis(0, wide.data(), 2);
 
   // the RAGGED spelling, which is the only one that can name this layout: the
   // widened prognostic block's second coordinate is where the retired
   // three-scalar reading put b0
   ChainStateData glue;
-  glue.hasBCF = true;
+  glue.hasAmplitudes = true;
   glue.amplitudeWidths = {2, 2};
   glue.amplitudes = {a, 1.0, b0, b1};
   glue.amplitudeVariances = {1.0, 1.0};
@@ -4112,9 +4112,9 @@ static void testForestWeights() {
 
     ColumnStore store;
     store.build(xs.data(), m, 1, 20);
-    BCFSpec spec;
+    AmplitudeSpec spec;
     spec.z = zs.data();
-    BCFForestCombiner<ConstantGaussianLeaf> combiner(store, spec);
+    AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(store, spec);
     std::vector<Forest<ConstantGaussianLeaf>> forests(2);
     forests[0].totalFits = muFits;
     forests[1].totalFits = tauFits;
@@ -4181,7 +4181,7 @@ static void testForestWeights() {
 
   SamplerOptions options;
   options.numTrees = 20;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = 20;
   spec.tau.numTrees = 10;
   spec.z = z.data();
@@ -5944,7 +5944,7 @@ static void testBCFTauModeratorRestriction(ext_rng* rng) {
 
   const std::vector<size_t> allowed = {0};
   SamplerOptions options;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = 50; spec.mu.base = 0.95; spec.mu.power = 2.0;
   spec.tau.numTrees = 40; spec.tau.base = 0.95; spec.tau.power = 2.0;
   spec.tau.columns = allowed.data();
@@ -6010,7 +6010,7 @@ static void testPrintTreesForest() {
   SamplerOptions options;
   options.keepTrees = true;
   options.numSamplesToStore = 2;
-  BCFSpec spec;
+  AmplitudeSpec spec;
   spec.mu.numTrees = 30;
   spec.tau.numTrees = 20;
   spec.tau.columns = moderators.data();
@@ -6182,7 +6182,7 @@ static void testForestCalibration() {
     ext_rng* bcfRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     ext_rng_setSeed(bcfRng, 9210);
     SamplerOptions bcfOptions;
-    BCFSpec spec;
+    AmplitudeSpec spec;
     spec.mu.numTrees = 30;
     spec.tau.numTrees = 15;
     spec.z = z.data();
@@ -6293,7 +6293,7 @@ static void testBCFCalibrationMap() {
     SamplerOptions options;
     options.numChains = 1;
 
-    BCFSpec spec;
+    AmplitudeSpec spec;
     spec.family = family;
     spec.forests.resize(3);
     for (size_t f = 0; f < 3; ++f) {
@@ -6308,8 +6308,8 @@ static void testBCFCalibrationMap() {
         spec.forests[f].amplitudePriorVariance = variances[f];
     }
     std::unique_ptr<SamplerBase> sampler =
-      createBCFSampler(x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
-                       0.37804942330213542, options, spec, &rng);
+      createAmplitudeSampler(x.data(), y.data(), n, p, nullptr, nullptr, 1.0,
+                             3.0, 0.37804942330213542, options, spec, &rng);
     check(sampler != nullptr, "calibration map: the K = 3 fixture builds");
     if (sampler != nullptr) {
       for (size_t f = 0; f < 3; ++f) {
@@ -6354,7 +6354,7 @@ static void testBCFCalibrationMap() {
     ext_rng* conventionRng =
       ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     ext_rng_setSeed(conventionRng, 9311);
-    BCFSpec conventionSpec;
+    AmplitudeSpec conventionSpec;
     conventionSpec.family = family;
     conventionSpec.forests.resize(2);
     conventionSpec.forests[0].forest.numTrees = 20;
@@ -6365,7 +6365,7 @@ static void testBCFCalibrationMap() {
     conventionSpec.forests[1].nodeScaleFactor = 0.9;
     conventionSpec.forests[1].nodeScaleDivisor = 2.0;
     conventionSpec.forests[1].basis = zeros.data();
-    std::unique_ptr<SamplerBase> convention = createBCFSampler(
+    std::unique_ptr<SamplerBase> convention = createAmplitudeSampler(
       x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0, 0.37804942330213542,
       options, conventionSpec, &conventionRng);
     check(convention != nullptr, "calibration map: the convention fixture "

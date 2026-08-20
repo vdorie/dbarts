@@ -1115,9 +1115,10 @@ dbartsSampler <- setRefClass(
       # carry them forward exactly as binary/call are. Without this, a
       # legitimate setControl silently orphans the model configuration the
       # stored state's forest counts were built against, and the next
-      # getPointer() re-creation refuses loudly instead (a BCF sampler: "the
-      # data carry forest bases but no basis forest was configured"; a
-      # heteroscedastic one: "state is not consistent with this sampler").
+      # getPointer() re-creation refuses loudly instead (a multi-forest
+      # sampler: "the data carry forest bases but no basis forest was
+      # configured"; a heteroscedastic one: "state is not consistent with this
+      # sampler").
       for (attrName in grep(
         "^bartcore\\.",
         names(attributes(control)),
@@ -1158,7 +1159,7 @@ dbartsSampler <- setRefClass(
       if (!inherits(newModel, "dbartsModel")) {
         stop("'model' must inherit from dbartsModel")
       }
-      refuseBCFMutation(
+      refuseAmplitudeMutation(
         .self,
         "setModel",
         "every forest's node and tree priors are calibrated at creation; ",
@@ -1619,7 +1620,7 @@ dbartsSampler <- setRefClass(
       }
       # after the argument checks above, so a malformed call is answered on its
       # own terms rather than by the refusal that would follow a well-formed one
-      refuseBCFMutation(
+      refuseAmplitudeMutation(
         .self,
         "setCalibration",
         "every forest's leaf scale comes from the multi-forest calibration ",

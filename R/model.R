@@ -431,7 +431,7 @@ defaultNodeScale <- function(family) {
 ## collapses a length-8 transport vector to length 7. The families that route
 ## refuses still resolve, so the refusal stays where it is written.
 ##
-## No C twin, unlike defaultNodeScale: applyBCFSpec always receives explicit
+## No C twin, unlike defaultNodeScale: applyAmplitudeSpec always receives explicit
 ## per-forest parameter vectors, so there is no route on which this default
 ## could be silently taken engine-side and nothing to backstop.
 defaultAmplitudePriorScale <- function(family) {
@@ -1047,7 +1047,7 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   resolved
 }
 
-## The eight doubles attr(control, "bartcore.bcf")$params carries FOR EACH
+## The eight doubles attr(control, "bartcore.forests")$params carries FOR EACH
 ## FOREST, in the order the C bridge reads them: the forest's tree count and
 ## structure prior, the node-scale factor and divisor the calibration map
 ## reads, the amplitude prior's variance and half-Cauchy scale, and the

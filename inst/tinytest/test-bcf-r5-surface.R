@@ -102,7 +102,8 @@ expect_equal(
 )
 
 # --- BCF-specific messages on the refused mutations: an R-level BCF sampler names
-# BCF rather than surfacing the bridge's generic "multi-forest" wording ---
+# the amplitude capability rather than surfacing the bridge's generic
+# "multi-forest" wording ---
 refused <- dbarts(
   x,
   y,
@@ -110,10 +111,16 @@ refused <- dbarts(
   control = seededControl()
 )
 
-expect_error(refused$setData(refused$data), "BCF")
-expect_error(refused$setModel(refused$model), "BCF")
-expect_error(refused$setResponse(y, updateScale = TRUE), "BCF")
-expect_error(refused$setOffset(rep(0, n), updateScale = TRUE), "BCF")
+expect_error(refused$setData(refused$data), "carries forest amplitudes")
+expect_error(refused$setModel(refused$model), "carries forest amplitudes")
+expect_error(
+  refused$setResponse(y, updateScale = TRUE),
+  "carries forest amplitudes"
+)
+expect_error(
+  refused$setOffset(rep(0, n), updateScale = TRUE),
+  "carries forest amplitudes"
+)
 # the transactional column update is no longer refused: revalidateAllChains
 # loops both forests, so it installs under the empty-leaf veto and reports a
 # logical rather than erroring. Replacing a column with its own values cannot
@@ -155,17 +162,24 @@ expect_equal(nrow(refused$getForestAmplitudes(1L)), 2L)
 expect_error(refused$setForestBasis(0L, factor(z)), "single positive integer")
 expect_error(refused$setForestBasis(3L, factor(z)), "out of range")
 
-# the test surface's refusal already named BCF (refuseBCFTestSurface);
-# light regression coverage on the R-level path, previously pinned only on
-# the low-level handle. setTestOffset is not exercised here: with no test
-# matrix (a BCF sampler can never install one - setTestPredictor is refused
-# above), the R-level method's own "test matrix is NULL" precondition fires
-# before the .Call, so the bridge's BCF message is unreachable through this
-# method - a pre-existing, non-BCF-specific check untouched here.
-expect_error(refused$predict(x[1:5, , drop = FALSE]), "BCF")
-expect_error(refused$setTestPredictor(x[1:5, , drop = FALSE]), "BCF")
+# the test surface's own refusal (refuseUndefinedTestFits); light regression
+# coverage on the R-level path, previously pinned only on the low-level
+# handle. setTestOffset is not exercised here: with no test matrix (this
+# sampler can never install one - setTestPredictor is refused above), the
+# R-level method's own "test matrix is NULL" precondition fires before the
+# .Call, so the bridge's message is unreachable through this method - a
+# pre-existing, capability-independent check untouched here.
+expect_error(
+  refused$predict(x[1:5, , drop = FALSE]),
+  "have no off-sample basis"
+)
+expect_error(
+  refused$setTestPredictor(x[1:5, , drop = FALSE]),
+  "have no off-sample basis"
+)
 
-# regression canary: the new pre-checks are BCF-only and must not reach an
+# regression canary: the new pre-checks fire on the capability alone and must
+# not reach an
 # ordinary single-forest sampler (exercised at scale by the rest of the suite)
 plain <- dbarts(x, y, control = seededControl())
 expect_silent(plain$setResponse(y, updateScale = TRUE))
@@ -221,7 +235,7 @@ expect_true(diffZ2 < 1e-4)
 diffOriginalZ <- max(abs(reconstructTrain(z) - reloadedResult$train[, 1L]))
 expect_true(diffOriginalZ > 1e-6)
 
-# --- BCF leg: setControl preserves attr(control, "bartcore.bcf"), so
+# --- BCF leg: setControl preserves attr(control, "bartcore.forests"), so
 # getPointer()'s re-creation after a save/load round trip succeeds and
 # carries the same bases. Pre-fix, this raised "the data carry forest bases
 # but no basis forest was configured": setControl replaced control wholesale,
