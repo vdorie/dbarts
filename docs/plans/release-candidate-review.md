@@ -540,6 +540,48 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Cleanup wave 2: the amplitude family sheds its BCF spelling (8215a53c + be1d06e4, 2026-08-20)
+
+The bcf-naming-generalization item executes under the full arc
+discipline: Opus design memo (census, vocabulary, state-key
+migration, baseline-impact analysis; .claude/bcf-naming-design/) ->
+independent blind critique (verdict EXECUTE WITH AMENDMENTS; it
+refuted the memo's error-text census as 4x undercounted and its
+one-assertion version-bump claim as three, amended the refusal
+message's wording off a factually-false forests = phrasing, and
+CONFIRMED everything load-bearing: the bump is genuinely required
+because a renamed OPTIONAL block would silently default, structSize
+does not move, no baseline re-record, no consumer reach across all
+four sister packages, "glue" wins the key name on shipped-vocabulary
+precedent) -> two-commit execution -> independent gate-run.
+
+8215a53c: 20 identifiers renamed across engine/bridge/R/tests
+(AmplitudeSpec, ForestStructureSpec, AmplitudeState,
+AmplitudeForestCombiner, createAmplitudeSampler, hasAmplitudes,
+samplerCarriesAmplitudes, refuseAmplitudeMutation,
+refuseUndefinedTestFits and kin), ~21 error texts rewritten to the
+amplitude vocabulary, state key "bcf" -> "glue" with
+stateFormatVersion AND minReadableStateFormatVersion 1 -> 2, control
+attribute bartcore.forests. The v1 refusal was verified LIVE twice
+(implementer and gate-runner, the latter through the public
+forests = route): "state encoding version 1 ... predates the oldest
+this dbarts (2) can read", fired before any block read. Three named
+assertion moves in test-sampler-state-format.R plus one added
+v1-refusal test. Zero old-name residue (three independent greps).
+The KEEP class held: bcfGlue and bartcoreBCFSampler (semantics ARE
+two-forest BCF), bartcore_createBCF/createBCFHolder, test file
+names, harness files and baselines - NO baseline re-record, trio
+bitwise 42/12/11 on both independent batteries, tinytest 6463/0,
+R CMD check --as-cran OK twice.
+
+be1d06e4: docs/design + architecture re-pointed (11 files);
+multiplier-combiner.md's debt paragraph records the discharge AND
+corrects its own two mispriced claims (structSize; the M4.3
+re-encode analogy); check-doc-freshness green (503 anchors, 35
+symbols). Residue, recorded: two never-emitted static_assert
+strings still say "BCF is a constant-leaf model" (combiner.hpp,
+chain.hpp) - swept opportunistically with the next edit there.
+
 ### The oracle lane closes: hazard and hurdle exact-posterior gates (0787b8e3, 2026-08-20)
 
 The fork taken as recommended under VD's discretion grant.
