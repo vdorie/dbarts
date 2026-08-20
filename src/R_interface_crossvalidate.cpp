@@ -462,9 +462,9 @@ namespace {
     SEXP y_testExpr      = PROTECT(Rf_allocVector(REALSXP, numTestObservations));
     SEXP testSamplesExpr = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples));
     rc_setDims(testSamplesExpr, static_cast<int>(numTestObservations), static_cast<int>(numSamples), -1);
-    SEXP weightsExpr = R_NilValue;
-    if (hasWeights)
-      weightsExpr = PROTECT(Rf_allocVector(REALSXP, numTestObservations));
+    // protected unconditionally, with R_NilValue standing in when there are
+    // no weights, so that the matching unprotect count is a constant
+    SEXP weightsExpr = PROTECT(hasWeights ? Rf_allocVector(REALSXP, numTestObservations) : R_NilValue);
             
     result->y_test      = REAL(y_testExpr);
     result->testSamples = REAL(testSamplesExpr);
@@ -481,15 +481,13 @@ namespace {
       SET_VECTOR_ELT(def.scratch, assignmentIndex++, weightsExpr);
     SET_VECTOR_ELT(def.scratch, assignmentIndex++, result->closure);
     
-    UNPROTECT(3 + (hasWeights ? 1 : 0));
+    UNPROTECT(4);
     
     if (method == K_FOLD) {
       y_testExpr      = PROTECT(Rf_allocVector(REALSXP, numTestObservations - 1));
       testSamplesExpr = PROTECT(Rf_allocVector(REALSXP, (numTestObservations - 1) * numSamples));
       rc_setDims(testSamplesExpr, static_cast<int>(numTestObservations - 1), static_cast<int>(numSamples), -1);
-      weightsExpr = R_NilValue;
-      if (hasWeights)
-        weightsExpr = PROTECT(Rf_allocVector(REALSXP, numTestObservations - 1));
+      weightsExpr = PROTECT(hasWeights ? Rf_allocVector(REALSXP, numTestObservations - 1) : R_NilValue);
       
       result->y_testNM1      = REAL(y_testExpr);
       result->testSamplesNM1 = REAL(testSamplesExpr);
@@ -503,7 +501,7 @@ namespace {
         SET_VECTOR_ELT(def.scratch, assignmentIndex++, weightsExpr);
       SET_VECTOR_ELT(def.scratch, assignmentIndex, result->closureNM1);
       
-      UNPROTECT(3 + (hasWeights ? 1 : 0));
+      UNPROTECT(4);
     }
     
     return result;
@@ -581,8 +579,8 @@ namespace {
       break;
       case CUSTOM:
       {
-        SEXP function    = VECTOR_ELT(lossTypeExpr, 0);
-        SEXP environment = VECTOR_ELT(lossTypeExpr, 1);
+        SEXP function    = PROTECT(VECTOR_ELT(lossTypeExpr, 0));
+        SEXP environment = PROTECT(VECTOR_ELT(lossTypeExpr, 1));
         
         CustomLossFunctorDefinition* c_result = new CustomLossFunctorDefinition;
         result = c_result;
@@ -593,7 +591,7 @@ namespace {
         SEXP tempY_test      = PROTECT(Rf_allocVector(REALSXP, numTestObservations));
         SEXP tempTestSamples = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples));
         rc_setDims(tempTestSamples, static_cast<int>(numTestObservations), static_cast<int>(numSamples), -1);
-        SEXP tempWeights     = hasWeights ? PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples)) : R_NilValue;
+        SEXP tempWeights     = PROTECT(hasWeights ? Rf_allocVector(REALSXP, numTestObservations * numSamples) : R_NilValue);
         // set some values to not all be the same so that they have an SD != 0
         REAL(tempY_test)[0] = 1.0;
         misc_setVectorToConstant(REAL(tempY_test) + 1, numTestObservations - 1, 0.0);
@@ -606,7 +604,7 @@ namespace {
         SEXP tempClosure = PROTECT(Rf_lang4(function, tempY_test, tempTestSamples, tempWeights));
         
         result->numResults = rc_getLength(Rf_eval(tempClosure, environment));
-        UNPROTECT(3 + (hasWeights ? 1 : 0));
+        UNPROTECT(4);
         
         result->displayString = lossTypeNames[CUSTOM];
         result->requiresMutex = true;
@@ -617,6 +615,8 @@ namespace {
         c_result->function = function;
         c_result->environment = environment;
         c_result->scratch = scratch;
+
+        UNPROTECT(2);
       }
       break;
       case INVALID:
