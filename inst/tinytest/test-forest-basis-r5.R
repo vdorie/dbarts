@@ -255,11 +255,11 @@ treeCountControl <- function(numTrees) {
 expect_silent(unevenTrees$setControl(treeCountControl(13L)))
 expect_error(
   unevenTrees$setControl(treeCountControl(31L)),
-  "cannot change .n.trees. on an existing sampler"
+  "changing .n.trees. is not available on an existing sampler"
 )
 expect_error(
   unevenTrees$setControl(treeCountControl(7L)),
-  "cannot change .n.trees. on an existing sampler"
+  "changing .n.trees. is not available on an existing sampler"
 )
 
 # --- dbartsData(bases = ) takes a CONTINUOUS basis, the positive route the

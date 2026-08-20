@@ -103,9 +103,11 @@ void validateColumnValues(const bartcore::ColumnStore& store,
                           std::size_t numValues);
 
 /// Errors on a multi-forest sampler (BCF, numForests >= 2): a whole-data or
-/// whole-model mutation (setData, setResponse, setWeights, setModel)
-/// rebuilds or reprices only forest 0, leaving the rest against stale data
-/// or an uncalibrated prior. caller labels the error.
+/// whole-model mutation (setData, setModel) rebuilds or reprices only
+/// forest 0, leaving the rest against stale data or an uncalibrated prior.
+/// setResponse and setWeights are governed by
+/// refuseMultiForestResponseMutation below, not this guard. caller labels
+/// the error.
 void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
                                const char* caller);
 

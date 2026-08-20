@@ -217,7 +217,7 @@ pdbart <- function(
   if (is.null(levs)) {
     levs <- pdbart.defaultLevs(x, xind, levquants, numVariables, `<`)
   } else if (length(levs) != numVariables) {
-    stop("length of 'levs' must equal that of 'xind'")
+    stop("'levs' must have the same length as 'xind'")
   }
 
   numLevels <- sapply(levs, length)

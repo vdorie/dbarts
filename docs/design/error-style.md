@@ -17,9 +17,9 @@ slices so nothing is reworded twice. Text only - no function is renamed, no
 predicate changes (predicate reconciliation, e.g. `any(w < 0)` vs
 `!(w >= 0.0)`, is slice K6, scheduled after this lands).
 
-Evidence: 546 `stop()` in `R/`, 351 `Rf_error()` in `src/R_interface_bartcore.cpp`
-+ `src/C_interface.cpp` + `src/R_interface.cpp`, 1 `ext_throwError` in
-`src/bartcore/chain.hpp:1922`. Each rule states the majority it codifies, or
+Evidence: 549 `stop()` in `R/`, 348 `Rf_error()` in `src/R_interface_bartcore.cpp`
++ `src/C_interface.cpp` + `src/R_interface.cpp`, 2 `ext_throwError` in
+`src/bartcore/chain.hpp:1853,2017`. Each rule states the majority it codifies, or
 says plainly that it invents (no majority existed). Frequencies in the
 appendix. Every rule below was additionally checked against: a direct
 source-level survey of `stop()` in base, stats, Matrix, survival, lme4,
@@ -45,7 +45,7 @@ Wrap an argument, formal, or slot name in `'...'`. Never backtick, never bare,
 never `sQuote`/`dQuote`/`gettextf` (0 uses of any of these on either side -
 do not introduce them now).
 
-- Conformance: `"length of 'weights' must equal length of 'y'"` (`R/data.R:621`).
+- Conformance: `"'weights' must have the same length as 'y'"` (`R/data.R:656`).
 - Violation: `"chainNum must be a single chain index in [1, ...]"`
   (`R/generics.R:1668`) - bare.
 
@@ -545,25 +545,25 @@ same data set that left R13 SILENT-KEPT.
 
 ## Measured current state (appendix)
 
-Corpus: 546 `stop()` (`R/`), 351 `Rf_error()` (`src/*.cpp`), 1
-`ext_throwError()` (`src/bartcore/chain.hpp:1922`, the only user of that
+Corpus: 549 `stop()` (`R/`), 348 `Rf_error()` (`src/*.cpp`), 2
+`ext_throwError()` (`src/bartcore/chain.hpp:1853,2017`, the only user of that
 fourth mechanism, not part of this drift). 0 uses anywhere of `gettextf`,
-`sQuote`, `dQuote`, backtick-quoted names, or non-ASCII bytes.
+`sQuote`, `dQuote`, backtick-quoted argument names, or non-ASCII bytes.
 
 | dimension | finding |
 |---|---|
-| argument quoting | single-quote majority (96 direct R hits, 8 C hits on a stricter regex); backtick/sQuote/dQuote: 0/0 |
-| terminal period | period-free: 348/351 C, 543/546 R; all 3 R exceptions are one restated refusal (`R/spec.R:123,146,160`) |
-| sentence case | lowercase-initial: 546/546 R, 347/351 C; C's 4 outliers are 3 acronyms (BCF x2, DART) + 1 genuine miss (`:2575`) |
-| hyphenation | `non-negative` 27 (R 20 + C 7) vs `nonnegative` 14 (R 9 + C 5) - `non-negative` is majority |
-| out-of-range shape | `"... out of range"` 47 combined vs `"must be between"` 1 - bare `out of range` is majority for index/discrete bounds |
-| composition-refusal verb | `"does not support"` 26 vs `"is not available for"`/`"incompatible with"` ~9 |
-| missing-arg (NULL sub-case) | `"cannot be NULL"` 8 vs `"is NULL"` 9 - near tie, closed by external silence (see R9) |
-| missing-arg (omitted sub-case) | `"must be specified"` 4, `"must be supplied"` 3, `"must be given"` 0 - `specified` wins, and external practice agrees (see R9) |
-| enum-rejection verb | `invalid` 4, `unknown` 2, `unsupported` 5 (claimed by R13), `unrecognized` 3 - no majority, invented (R12); shape now has a base-R precedent |
-| C caller-name prefix | no-prefix 259 (74%), dynamic `%s`+caller 69 (20%, colon 38 / no-colon 31), hardcoded literal 23 (7%) - all three map to distinct call-site kinds (R7) |
-| length-mismatch templates | 6 distinct templates measured (`R/bartcore.R:172`, `R/data.R:621`, `R/dbarts.R:1247`, `R/rbart.R:317`, `R/generics.R:1229`, `R/augmentation.R:18`); none names both expected and got - invented (R11), and external practice confirms omitting `got` is the norm |
-| R interpolation | comma-concatenated `stop()` args majority (43 sampled) vs `sprintf()` (15); `paste0()`/`gettextf()`: 0 |
+| argument quoting | single-quote opens the message (177 R, 14 C); backtick/sQuote/dQuote: 0/0 |
+| terminal period | period-free: 348/348 C, 549/549 R - the sweep's three restated-refusal exceptions are gone |
+| sentence case | lowercase-initial: 534/534 R bodies that carry a literal (15 more rethrow a caught error object and carry none), 345/348 C; C's 3 outliers are the BCF x2/DART acronym exception - the prior genuine miss is fixed |
+| hyphenation | `non-negative` 24 (R 16 + C 8) vs `nonnegative` 0 - `non-negative` is now unanimous |
+| out-of-range shape | `"... out of range"` 42 combined (R 8 + C 34) vs `"must be between"` 1 - bare `out of range` remains majority for index/discrete bounds |
+| composition-refusal verb | `"does not support"` 33 (R 28 + C 5) vs `"incompatible with"` 3 (C) / `"is not available for"` 0 |
+| missing-arg (NULL sub-case) | `"cannot be NULL"` 13 (R 8 + C 5) vs `"is NULL"` 4 (R 3 + C 1) - `cannot be NULL` is now the clear majority (settled by R9) |
+| missing-arg (omitted sub-case) | `"must be specified"` 5, `"must be supplied"` 0, `"must be given"` 0 - `specified` is now unanimous |
+| enum-rejection verb | messages opening on `invalid` 2 (C), `unknown` 3 (R), `unsupported` 2 (R 0 + C 2, claimed by R13), `unrecognized` 5 (R 2 + C 3); `"must be one of"` 2 - still no majority among the four rejected adjectives, migration to the settled shape is gradual |
+| C caller-name prefix | no-prefix 259 (74%), dynamic `%s`+caller 69 (20%, colon 47 / no-colon 22), hardcoded literal 20 (6%) - all three map to distinct call-site kinds (R7) |
+| length-mismatch templates | unified: 1 template (R11's `'<name>' must have the same length as '<reference>'` / `'<name>' must have length <N>`), applied at 14 call sites across `R/data.R`, `R/A_class.R`, `R/dbarts.R`, and `R/partialDependence.R`; `R/augmentation.R:18`'s `sprintf()` form is R11's one named, kept exception. Was 6 competing templates at this table's prior revision, drifted to 7 before this sweep |
+| R interpolation | comma-concatenated `stop()` args majority (43 sampled) vs `sprintf()` (15); `paste0()`/`gettextf()` as the sole message wrapper: 0 (inline `paste0(..., collapse = ...)` for an enum/choice list, e.g. R12's own template, is not this and is unaffected) |
 
 ## External evidence appendix
 

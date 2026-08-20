@@ -77,7 +77,7 @@ expect_identical(sampler$data@y, yBefore)
 weightsBefore <- sampler$data@weights
 expect_error(
   sampler$setWeights(rep(1, n - 1L)),
-  "'weights' must have length equal to that of 'y'"
+  "'weights' must have the same length as 'y'"
 )
 expect_identical(sampler$data@weights, weightsBefore)
 

@@ -335,7 +335,10 @@ offset.explicit <- seq_len(10L) / 10
 sampler.offset$setTestOffset(offset.explicit)
 expect_identical(sampler.offset$data@testUsesRegularOffset, FALSE)
 expect_equal(sampler.offset$data@offset.test, offset.explicit)
-expect_error(sampler.offset$setTestOffset(rep(0, 3L)), pattern = "length")
+expect_error(
+  sampler.offset$setTestOffset(rep(0, 3L)),
+  pattern = "same number of rows"
+)
 
 # recorded test fits carry exactly the test offset: the same creation seed
 # with and without an offset differs by it alone

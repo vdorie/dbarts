@@ -147,7 +147,7 @@ expect_error(
     forests = list(forest(), forest(basis = zBasis[idx, ])),
     control = seededControl()
   ),
-  "length of 'basis'"
+  "'basis' must have the same length"
 )
 
 ## --- regression: dbartsData(bases = ) called directly keeps its own,
