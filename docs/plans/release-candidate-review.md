@@ -540,6 +540,44 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Cleanup wave 1: perfect-fit muffle, filtered-run fixture, feature-matrix prose (6d82ac86 + e74380f7 + b1559457, 2026-08-19/20)
+
+The RC soak is VD-paused for a CRAN patch on main; the window goes to
+cleanup at orchestrator discretion, VD's grant covering the two open
+forks.
+
+b1559457 (the muffle fork, taken as recommended):
+estimateSigmaFromLinearModel muffles base R's "essentially perfect
+fit" condition at the source - only that condition, everything else
+passes through - and test-boundary-inputs.R's constant-response pin
+re-tightens to an exact count of one. Container-verified on the
+configuration that warns (amd64 R 4.6.1 + OpenBLAS: 2 warnings
+before, exactly 1 after; the fixed test file 13/13 there). CI's
+ubuntu legs green on the landed commit confirm cross-platform.
+
+e74380f7 (TODO test-bartcore-filtered-run-false-fail, discharged):
+testBCFGrowForestFromRoot builds its fixture from a local xorshift
+stream instead of the shared runif01() state, so its hardcoded
+characteristic value (re-derived, -0.028618738206336595) is
+bit-identical in filtered and full runs; `./test_bartcore sampler`
+alone now passes. Zero downstream pinned values moved - the old code
+already restored the shared state it consumed, so isolation shifts
+nothing behind it.
+
+6d82ac86 (TODO feature-matrix-prose-staleness, discharged): the
+three verified findings fixed in place - test-capi.R's BCF reach
+correctly attributed to forests = list(forest(basis = ...)); [f23]
+quotes the multi-forest calibration-map string its cited test
+actually pins (the "two-forest" literal survives at the separate
+direct-engine-gate site by design); both historical back-references
+re-derived to live locations.
+
+Batch mechanics: feature-matrix landed alone (docs-only, fires
+nothing); the muffle and fixture slices landed under the batch
+clause with one merged-tree battery (tests/cpp full AND filtered
+modes, tinytest 6462/0, trio bitwise 42/12/11, R CMD check --as-cran
+Status OK), CI six-green on b1559457.
+
 ### Soak wave 3 addendum: the anchor sweep (662a7ef8, 2026-08-19)
 
 Ledger item 15 discharges, run LAST after every content edit per the
