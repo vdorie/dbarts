@@ -17,8 +17,8 @@ where the engine calls into this vocabulary, see docs/architecture.md.
 - `misc_simd_setSIMDInstructionSet(i)` reinstalls pointers for a given level
   (not thread safe; benchmarking/testing use only).
   `misc_simd_getMaxSIMDInstructionSet()` reports the host's ceiling.
-- `misc_simd_alignment` is the required alignment for `*Aligned*` variants;
-  aligned allocations come from misc/memalign.h.
+- Every kernel handles unaligned input; there is no aligned-only variant and
+  no alignment contract for callers to satisfy.
 
 ## Types
 
@@ -101,13 +101,14 @@ for standalone callers.
 
 Backfitting state maintenance (`totalFits` updates), all over `double`:
 
-- axpy family: `misc_addVectors[WithMultiplier]`, `misc_subtractVectors`,
-  in-place and `*Aligned*` in-place variants (dispatched pointers).
+- axpy family: `misc_subtractVectors`, plus the in-place
+  `misc_addVectorsInPlace[WithMultiplier]` and
+  `misc_subtractVectorsInPlace` (dispatched pointers).
 - scalar ops: `misc_addScalarToVectorInPlace`, `misc_setVectorToConstant`,
   `misc_setIndexedVectorToConstant`, scalar multiply.
 - elementwise: `misc_hadamardMultiplyVectors[InPlace]`.
 - reductions: `misc_sumVectorElements`, `misc_sumIndexedVectorElements`.
-- layout: `misc_transposeMatrix` (dispatched), `misc_multiplyMatrixIntoVector`.
+- layout: `misc_multiplyMatrixIntoVector`.
 
 ### Support (not hot-path)
 
