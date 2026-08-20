@@ -158,8 +158,10 @@ methods::setValidity("dbartsControl",
     }
     
     if (length(rngKinds) == 0L || length(rngNormalKinds) == 0L) {
-      oldKind <- RNGkind()
-      oldSeed <- .Random.seed
+      ## NULL when the session has yet to initialize its generator
+      oldSeed <- NULL
+      if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE))
+        oldSeed <- .GlobalEnv[[".Random.seed"]]
       
       tryResult <- tryCatch(RNGkind(object@rngKind, object@rngNormalKind), error = function(e) e)
       if (inherits(tryResult, "error")) return(paste0("unrecognized rng kind ('", object@rngKind, "', '", object@rngNormalKind, "')"))
@@ -168,8 +170,13 @@ methods::setValidity("dbartsControl",
       object@rngKind       <- RNGkind()[1L]
       object@rngNormalKind <- RNGkind()[2L]
       
-      RNGkind(oldKind[1L], oldKind[2L])
-      .Random.seed <- oldSeed
+      ## .Random.seed carries the kinds as well as the state, so putting it back
+      ## undoes the probe; without one, leave the generator uninitialized
+      if (!is.null(oldSeed)) {
+        .GlobalEnv[[".Random.seed"]] <- oldSeed
+      } else {
+        suppressWarnings(rm(list = ".Random.seed", envir = .GlobalEnv))
+      }
     } else {
       if (!(object@rngKind %in% rngKinds)) return(paste0("unrecognized rng kind '", object@rngKind, "'"))
       if (!(object@rngNormalKind %in% rngNormalKinds)) return(paste0("unrecognized rng normal kind '", object@rngNormalKind, "'"))
