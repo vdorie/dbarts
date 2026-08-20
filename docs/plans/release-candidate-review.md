@@ -540,6 +540,68 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Soak wave 1: NEON dead kernels + fuzz reach; bairrtt compatible; oracle-lane scoping (4a6acdbc + 15e1174a, 2026-08-19)
+
+Two ledger slices land under the batch clause (each implemented and
+independently gate-run on 3e9ef3aa; one merged-tree battery on
+15e1174a - tests/cpp clean full run, tinytest 6438/0, trio bitwise
+42/12/11 - gated the push), plus two report-only outcomes.
+
+4a6acdbc (ledger item 8): the seven unreachable NEON kernels are
+gone. Four (addVectors, subtractVectors, addVectorsWithMultiplier,
+addAlignedVectorsInPlaceWithMultiplier _neon) had no dispatch entry -
+their generics are plain scalar functions, so nothing could reach
+them; three (addAlignedVectorsInPlace, subtractAlignedVectorsInPlace,
+transposeMatrix _neon) were bound in misc_simd_setSIMDInstructionSet
+but their generics have zero callers anywhere in the tree. The NEON
+branch now binds the aligned generics to the unaligned NEON kernels -
+exactly what the AVX and SSE2 branches already do - and
+transposeMatrix to the scalar kernel. 418 deleted / 3 added; both
+batteries (implementer, then independent gate-runner from a fresh
+--preclean build) fully green with the trio bitwise. FOLLOW-UP
+(ledger item 16): the *AlignedVectorsInPlace and transposeMatrix
+families are provably callerless on EVERY arch - generic, sse2, avx
+and _c variants alike, plus misc_simd_alignment whose only consumers
+were the aligned variants - a clean cross-arch dead-code slice when
+taken.
+
+15e1174a (ledger item 9): the whole-variance-forest exactness
+assertion in tests/cpp/test_fuzz.cpp (formerly never executed - 0
+fires at 3 and at 40 seeds) is reachable: a fourth heteroscedastic
+shape confines the variance forest by column mask to columns 0-1, so
+columns 2-3 are untouched by construction, and the site now fires 4
+times (2 columns x 2 chains) at the default entry. A permanent
+varianceForestsSkipped > 0 gate keeps the branch from going dark
+silently. Teeth proven twice (implementer, then gate-runner's own
+probe): inverting the comparison fails exactly 4 times at that check
+string and nowhere else. Existing shapes 0-2 keep their seeds and
+streams; fuzz-suite runtime delta below noise (0.281 -> 0.276 s/run).
+
+bairrtt compat check (report-only, no commit): bairrtt main @ 6167423
+against tip 3e9ef3aa in a private lib - dbarts and bairrtt both
+install clean, tinytest 206/206 across all six files, every consumed
+surface exercised live (dbarts(), dbartsControl, setCutPoints,
+sampleTreesFromPrior, run, predict, setPredictor(forceUpdate=TRUE),
+updatePredictorPerObservationJointly across the response/assignment
+pair, extract). VERDICT compatible; no migration cost, nothing
+resembling a dbarts regression. The coordinated-merge gate for
+bairrtt is clear.
+
+Oracle-lane scoping (report-only): of the five families the
+SBC-deepening item targeted (aft, hazard, hurdle, heteroscedastic,
+monotone), three - aft, heteroscedastic, monotone - have carried
+gated exact-posterior oracles in exact-gates.yaml since e22ed536
+(2026-07-24, predating the item's spec), and SBC is structurally
+ill-posed for hazard/hurdle as designed (person-period/positive-
+subset DGP depends on y, breaking exchangeability;
+sbc-family-tiers.md). Their reduction gates prove family ==
+target-family-on-expanded-data bitwise but are blind to expander
+defects by construction. The lane's real remainder is a hazard and a
+hurdle posterior oracle; the fork (accept reduction-plus-target-
+oracle composition vs build small exact-conditional oracles on the
+original data scale, recommendation build) is WITH VD. No SBC runs
+are owed; nbinom's deepening was discharged 2026-08-18.
+
 ### rc-gate (e) valgrind: BCF spec leak, model-matrix OOB read, and the clean full-suite pass (7e42dc93 + 7be7a126, 2026-08-19)
 
 The first full-suite local memcheck (native arm64 ubuntu:24.04

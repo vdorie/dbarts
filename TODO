@@ -397,10 +397,14 @@ items
         .claude/rc-egate-2026-08-19/valgrind/valgrind-final-7be7a126.log).
     RC declaration VD-HELD.
     DURING THE SOAK, not gating declaration: count-blind warning
-    assertion sweep (17 sites), oracle lane P1b/P9/SBC-deepening,
-    bairrtt bartcore-compat check (gates the coordinated MERGE, not
-    the RC), NEON dead-kernel removal, tests/cpp fuzz-config reach,
-    error-style residue, M0 doc. RC DECLARATION ITSELF IS VD-HELD.
+    assertion sweep (17 sites), error-style residue, M0 doc; the
+    oracle lane's remainder is a hazard + hurdle posterior-oracle
+    disposition, fork WITH VD (P1b/P9 landed; SBC owed nowhere -
+    scoping record in the soak wave 1 landing note). DONE: bairrtt
+    bartcore-compat check (COMPATIBLE, 206/206 against 3e9ef3aa -
+    the coordinated-merge gate is clear), NEON dead-kernel removal
+    (4a6acdbc), tests/cpp fuzz-config reach (15e1174a). RC
+    DECLARATION ITSELF IS VD-HELD.
   release-candidate-review: SPECCED 2026-08-17 - the derived slate is
     docs/plans/release-candidate-review.md (fresh censuses + a blind
     critique whose eleven amendments are applied; six VD forks are
@@ -514,13 +518,11 @@ items
     (own scoped decision). (7) error-style residue: R/spec.R:53 (R6),
     R/dbarts.R:1138 (R14), stale appendix counts in
     docs/design/error-style.md, R11 template layer unswept (7
-    competing length templates). (8) NEON dead-code kernels - four
-    with no dispatch entry (addVectors/subtractVectors/
-    addVectorsWithMultiplier/addAlignedVectorsInPlaceWithMultiplier
-    _neon) and three bound-but-never-called (addAlignedVectorsInPlace/
-    subtractAlignedVectorsInPlace/transposeMatrix _neon) - remove or
-    reach. (9) tests/cpp fuzz-config change to reach the aggregate
-    untouched-variance-tree assertion (w5test m1). (10) count-blind
+    competing length templates). (8) DISCHARGED 4a6acdbc - the seven
+    unreachable NEON kernels removed; see release-candidate-review.md
+    landing notes. (9) DISCHARGED 15e1174a - fourth fuzz shape makes
+    the whole-variance-forest assertion fire (4x, counter-gated); see
+    the landing note. (10) count-blind
     warning assertions, 17 sites (w5test m3). (14) monotone leaf:
     double branch-fill on the scoring path (bench arm per veto
     critique N6), perf only, post-RC.
@@ -529,6 +531,11 @@ items
     within-chain-threading.md:204's :675-702 half,
     data-ownership.md:213 - verified stale at 95f6fd7f's own target
     content; the resync missed them; sweep at the next anchor pass.
+    (16) cross-arch dead kernel families, out of item 8's caller map:
+    the *AlignedVectorsInPlace and transposeMatrix families are
+    callerless on every arch (generic + sse2 + avx + _c, plus
+    misc_simd_alignment, whose only consumers were the aligned
+    variants) - a follow-on dead-code slice when taken.
 
   weighted-binary: integer-weight probit via replicated latents;
     arbitrary real weights need a real-shape PG sampler (IPW is a
