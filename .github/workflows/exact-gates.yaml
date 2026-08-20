@@ -1,15 +1,15 @@
 # Deterministic correctness gates for the bartcore MCMC engine: the balance
 # gates (birth/death, change, swap detailed balance) and the exact-posterior /
-# reference gates (aft, bcf, categorical, heteroscedastic, linear, multinomial,
-# negbin, ordinal, t, logistic, monotone). Each script drives a long MCMC run
-# with a fixed seed and compares the engine's draws to an analytic or
-# brute-force-enumerated target with a z-score / tolerance bound it computes
-# IN-SCRIPT (no recorded baseline), then quit(status=1L) on deviation. That
-# makes them deterministic regression detectors that catch engine-math
-# breakage without false-alarming, so they gate push / pull_request -- unlike
-# the STATISTICAL gates (sbc.yaml, equivalence.yaml) whose rank-uniformity /
-# z-mode tests occasionally false-alarm at the nominal level and stay
-# schedule / workflow_dispatch only.
+# reference gates (aft, bcf, categorical, hazard, heteroscedastic, hurdle,
+# linear, multinomial, negbin, ordinal, t, logistic, monotone). Each script
+# drives a long MCMC run with a fixed seed and compares the engine's draws to
+# an analytic or brute-force-enumerated target with a z-score / tolerance bound
+# it computes IN-SCRIPT (no recorded baseline), then quit(status=1L) on
+# deviation. That makes them deterministic regression detectors that catch
+# engine-math breakage without false-alarming, so they gate push /
+# pull_request -- unlike the STATISTICAL gates (sbc.yaml, equivalence.yaml)
+# whose rank-uniformity / z-mode tests occasionally false-alarm at the nominal
+# level and stay schedule / workflow_dispatch only.
 #
 # Because the target is derived in-script (not a machine-specific recorded
 # draw), the gates are host-portable, so this runs on the cheaper
@@ -96,6 +96,7 @@ jobs:
             bd-balance.R change-balance.R swap-balance.R
             aft-exact.R bcf-exact.R bcf-exact-weak.R bcf-exact-restricted.R
             categorical-exact.R heteroscedastic-exact.R linear-exact.R
+            hazard-exact.R hurdle-exact.R
             multinomial-exact.R negbin-exact.R ordinal-exact.R t-exact.R
             logistic-reference.R monotone-reference.R
             hazard-reduction.R hurdle-reduction.R
