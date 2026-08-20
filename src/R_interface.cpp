@@ -295,51 +295,6 @@ pointer");
   }*/
 }
 
-#if __cplusplus >= 202002L
-#  include <bit>
-#else
-
-namespace std {
-
-#  if __cplusplus >= 201103L
-#    include <type_traits>
-
-  // From https://en.cppreference.com/w/cpp/numeric/bit_cast
-  template <class To, class From>
-  typename std::enable_if<
-    sizeof(To) == sizeof(From) && std::is_trivially_copyable<From>::value &&
-      std::is_trivially_copyable<To>::value,
-    To>::type
-  // constexpr support needs compiler magic
-  bit_cast(const From& src) noexcept {
-    static_assert(
-      std::is_trivially_constructible<To>::value,
-      "This implementation additionally requires destination type to be "
-      "trivially constructible"
-    );
-
-    To dst;
-    std::memcpy(&dst, &src, sizeof(To));
-    return dst;
-  }
-
-#  else
-
-  // We are only using this to cast function pointers, which are trivially
-  // copiable. is_trivially_copyable is compiler specific and isn't worth trying
-  // to reimplement in c++98.
-  template <class To, class From> To bit_cast(const From& src) {
-    To dst;
-    std::memcpy(&dst, &src, sizeof(To));
-    return dst;
-  }
-
-#  endif
-
-} // namespace std
-
-#endif
-
 extern "C" {
 #define DEF_FUNC(_N_, _F_, _A_) {_N_, (DL_FUNC) &(_F_), _A_}
 
