@@ -656,18 +656,6 @@
             with binary responses, and \code{setControl} changes to settings
             fixed at creation (chain/tree counts, generators, the cut
             grid).
-      \item \code{setPredictor} accepts \code{forceUpdate = "partial"}, installing a column
-            one observation at a time and rolling back only those that would empty
-            a node.
-      \item \code{updatePredictorPerObservationJointly} applies a \code{"partial"}-style update across several
-            samplers at once, installing an observation only when it keeps every
-            sampler's nodes non-empty.
-      \item The \code{getTrees} method of a sampler accepts \code{current = TRUE} to return
-            the live working trees (the current sampler position) even when
-            \code{keepTrees} is \code{TRUE}, rather than the saved samples.
-      \item \code{getTrees} and \code{extract(., "trees")} accept a \code{newdata} matrix, routing
-            those observations through each tree so the \code{n} column counts them
-            instead of the training data.
       \item A warm start (\code{bart2}'s \code{warm.start}, or a sampler's
             \code{installTrees}) accepts a donor fit on a different cut grid
             (differing in \code{n.cuts}, \code{useQuantiles}, or its predictor
@@ -1048,34 +1036,9 @@
             mixed test set through the trees off its own storage; neither
             materializes the full dense test matrix any more. A designated
             leaf covariate column must still arrive dense.
-      \item \code{copy} now works for samplers with a stored state.
       \item Seeded parallel \code{rbart_vi} now restores R's stream after
             drawing its chain seeds; the restore assigned a local
             variable instead of the global state.
-      \item Fixed installation under R-devel, where \code{RNGkind} gained an
-            additional \code{binom.kind} argument and the code that parsed
-            its body via \code{deparse} produced invalid R once the
-            deparsed header spanned two lines. Fix thanks to Brian King
-            (PR #81).
-      \item Replaced a \code{std::bit_cast} cast used when registering the
-            \code{.Call} interface with a plain \code{DL_FUNC} cast; Apple
-            clang 14.0.3 on Intel macOS accepts \code{-std=gnu++20} but its
-            libc++ lacks \code{std::bit_cast}, so compilation failed. Fix
-            thanks to Brian King (PR #81).
-      \item Fixed multi-chain and multi-threaded runs under R-devel, which
-            warned that \code{.Random.seed} was not a valid integer and fell
-            back to seeding from the clock, so that \code{set.seed} no longer
-            controlled their results. R's new \code{binom.kind} field pushed
-            the encoded value past the bound used to validate it; the uniform
-            and standard normal kinds that dbarts uses are now validated
-            individually and any further fields R encodes are ignored.
-      \item The fallback used to validate \code{rngKind} when the arguments of
-            \code{RNGkind} cannot be read no longer fails in a session that has
-            yet to use the random number generator, and now restores the
-            generator's state and all of its kinds afterwards.
-      \item Slot and attribute temporaries in the \code{.Call} interface are now
-            protected across the calls that can allocate, as reported by
-            \code{rchk}'s static analysis of the protection stack.
       \item The sampler's \code{getSumsOfSquaredResiduals} method now returns
             residual sums of squares on the original response scale as
             documented; it previously descaled by a single factor of the
@@ -1644,6 +1607,63 @@
             \code{makeModelMatrixFromDataFrame} refuses either directly when
             handed a mismatching \code{drop} pattern. A test factor with
             fewer levels is unaffected.
+    }
+  }
+}
+\section{CHANGES IN VERSION 0.9-34}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item `setPredictor` accepts `forceUpdate = "partial"`, installing a column
+            one observation at a time and rolling back only those that would empty
+            a node.
+      \item `updatePredictorPerObservationJointly` applies a `"partial"`-style update across several
+            samplers at once, installing an observation only when it keeps every
+            sampler's nodes non-empty.
+      \item The `getTrees` method of a sampler accepts `current = TRUE` to return
+            the live working trees (the current sampler position) even when
+            `keepTrees` is `TRUE`, rather than the saved samples.
+      \item `getTrees` and `extract(., "trees")` accept a `newdata` matrix, routing
+            those observations through each tree so the `n` column counts them
+            instead of the training data.
+    }
+  }
+  \subsection{C API}{
+    \itemize{
+      \item Added `dbarts_getTreesCountingData`, which routes a supplied matrix
+            through the trees for the `newdata` feature above.
+      \item `dbarts_getTrees` gained a trailing `useLiveTrees` argument (for the
+            `current = TRUE` feature); callers linking to dbarts must update.
+    }
+  }
+  \subsection{BUG FIXES}{
+    \itemize{
+      \item `copy` now works for samplers with a stored state.
+      \item Fixed reading a saved tree back from binary IO, which recursed with
+            the writing routine instead of the reading one.
+      \item Fixed installation under R-devel, where \code{RNGkind} gained an
+            additional \code{binom.kind} argument and the code that parsed
+            its body via \code{deparse} produced invalid R once the
+            deparsed header spanned two lines. Fix thanks to Brian King
+            (PR #81).
+      \item Replaced a \code{std::bit_cast} cast used when registering the
+            \code{.Call} interface with a plain \code{DL_FUNC} cast; Apple
+            clang 14.0.3 on Intel macOS accepts \code{-std=gnu++20} but its
+            libc++ lacks \code{std::bit_cast}, so compilation failed. Fix
+            thanks to Brian King (PR #81).
+      \item Fixed multi-chain and multi-threaded runs under R-devel, which
+            warned that \code{.Random.seed} was not a valid integer and fell
+            back to seeding from the clock, so that \code{set.seed} no longer
+            controlled their results. R's new \code{binom.kind} field pushed
+            the encoded value past the bound used to validate it; the uniform
+            and standard normal kinds that dbarts uses are now validated
+            individually and any further fields R encodes are ignored.
+      \item The fallback used to validate \code{rngKind} when the arguments of
+            \code{RNGkind} cannot be read no longer fails in a session that has
+            yet to use the random number generator, and now restores the
+            generator's state and all of its kinds afterwards.
+      \item Slot and attribute temporaries in the \code{.Call} interface are now
+            protected across the calls that can allocate, as reported by
+            \code{rchk}'s static analysis of the protection stack.
     }
   }
 }
