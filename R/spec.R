@@ -51,9 +51,8 @@ enforceWeightPolicy <- function(data, family) {
       data@weights <- NULL
     } else {
       stop(
-        "probit models do not support weights: a weighted probit has no ",
-        "tractable latent-variable form; fit integer count weights with ",
-        "family = \"logistic\", or model continuous weights' latents ",
+        "probit models do not support weights; fit integer count weights ",
+        "with family = \"logistic\", or model continuous weights' latents ",
         "directly"
       )
     }

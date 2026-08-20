@@ -161,10 +161,10 @@ bartcoreSamplerSetPredictor <- function(
   }
   updateCutPoints <- coerceOrError(updateCutPoints, "logical")
 
-  # no BCF pre-check here: a transactional whole-matrix or column update
-  # revalidates every forest and rolls the whole change back if any leaf of any
-  # tree of any forest would empty, so a two-forest sampler takes it. The
-  # per-observation session above is the one that still refuses.
+  # no BCF pre-check here either: a transactional whole-matrix or column
+  # update revalidates every forest and rolls the whole change back if any
+  # leaf of any tree of any forest would empty, so a two-forest sampler takes
+  # it - the same as the per-observation session above.
 
   # dim(), not is.matrix(): the latter is FALSE for every Matrix class, so a
   # transposed dgCMatrix argument (same total length, wrong shape) fell

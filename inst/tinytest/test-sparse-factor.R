@@ -559,7 +559,7 @@ expect_identical(result.pao.dense$test, result.pao.sparse$test)
 
 expect_error(
   sampler.pao.sparse$setTestPredictorAndOffset(test.mix.sparse, off.mtest[-1L]),
-  pattern = "length of test offset"
+  pattern = "'offset.test' must have the same number of rows as 'x.test'"
 )
 
 # LEAF-COVARIATE REFUSAL ON MUTATION: swapping in a container whose leaf

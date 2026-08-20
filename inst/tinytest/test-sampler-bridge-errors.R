@@ -38,7 +38,7 @@ expect_error(
     n.trees = 10L,
     updateState = FALSE
   )),
-  pattern = "cannot change 'n.chains'"
+  pattern = "changing 'n.chains'"
 )
 expect_error(
   sampler$setControl(dbartsControl(
@@ -47,7 +47,7 @@ expect_error(
     n.trees = 20L,
     updateState = FALSE
   )),
-  pattern = "cannot change 'n.trees'"
+  pattern = "changing 'n.trees'"
 )
 expect_error(
   sampler$setControl(dbartsControl(
@@ -57,7 +57,7 @@ expect_error(
     useQuantiles = TRUE,
     updateState = FALSE
   )),
-  pattern = "cannot change 'useQuantiles'"
+  pattern = "changing 'useQuantiles'"
 )
 
 # retaining trees needs an explicit sample count

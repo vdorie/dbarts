@@ -1085,7 +1085,7 @@ dbartsSampler <- setRefClass(
 
         if (!identical(length(offset.test), nrow(x.test))) {
           stop(
-            "length of test offset must be equal to number of rows in test matrix"
+            "'offset.test' must have the same number of rows as 'x.test'"
           )
         }
       }
@@ -1136,9 +1136,9 @@ dbartsSampler <- setRefClass(
       )) {
         if (!identical(slot(newControl, slotName), slot(control, slotName))) {
           stop(
-            "the bartcore engine cannot change '",
+            "changing '",
             slotName,
-            "' on an existing sampler"
+            "' is not available on an existing sampler"
           )
         }
       }
@@ -1241,7 +1241,7 @@ dbartsSampler <- setRefClass(
       refuseHostMutation("$setWeights")
       weights <- as.double(weights)
       if (length(weights) != length(data@y)) {
-        stop("'weights' must have length equal to that of 'y'")
+        stop("'weights' must have the same length as 'y'")
       }
       # NA/NaN and negative share one refusal, matching the bridge's
       # !(w >= 0.0) (is.na() is checked explicitly since NA_real_ >= 0.0
@@ -1277,7 +1277,7 @@ dbartsSampler <- setRefClass(
       if (!is.null(active)) {
         active <- as.double(active)
         if (length(active) != length(data@y)) {
-          stop("'active' must have length equal to that of 'y'")
+          stop("'active' must have the same length as 'y'")
         }
         if (anyNA(active)) {
           stop("'active' cannot be NA")
@@ -1299,7 +1299,7 @@ dbartsSampler <- setRefClass(
       refuseHostMutation("$setForestWeights")
       weights <- as.double(weights)
       if (length(weights) != length(data@y)) {
-        stop("'weights' must have length equal to that of 'y'")
+        stop("'weights' must have the same length as 'y'")
       }
       # matches the bridge's !R_FINITE(w) || w < 0.0: a forest weight, unlike
       # a case weight, must also be finite, not merely non-negative
@@ -1461,7 +1461,7 @@ dbartsSampler <- setRefClass(
         }
         if (!identical(length(offset.test), nrow(x.test))) {
           stop(
-            "length of test offset must be equal to number of rows in test matrix"
+            "'offset.test' must have the same number of rows as 'x.test'"
           )
         }
       }
@@ -1509,7 +1509,7 @@ dbartsSampler <- setRefClass(
         }
         if (length(offset.test) != nrow(data@x.test)) {
           stop(
-            "length of test offset must be equal to number of rows in test matrix"
+            "'offset.test' must have the same number of rows as 'x.test'"
           )
         }
       }

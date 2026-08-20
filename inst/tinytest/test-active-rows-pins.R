@@ -157,7 +157,7 @@ for (bad in list(replace(a, 2L, 0.5), replace(a, 2L, NA_real_), a[-1L])) {
   refused <- makeSampler()
   expect_error(
     refused$setActiveRows(bad),
-    "'active' (must be all 0 or 1|cannot be NA|must have length equal to that of 'y')"
+    "'active' (must be all 0 or 1|cannot be NA|must have the same length as 'y')"
   )
   expect_identical(refused$run(20L, 10L)$train, draws.plain$train)
 }

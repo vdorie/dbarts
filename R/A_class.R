@@ -555,7 +555,7 @@ methods::setValidity("dbartsData", function(object) {
     return("'x' must be a matrix, a Matrix::dgCMatrix, or a mixed container")
   }
   if (nrow(object@x) != numObservations) {
-    return("number of rows of 'x' must equal length of 'y'")
+    return("'x' must have the same length as 'y'")
   }
 
   if (
@@ -639,7 +639,7 @@ methods::setValidity("dbartsData", function(object) {
     }
   }
   if (!anyNA(object@n.cuts) && length(object@n.cuts) != ncol(object@x)) {
-    return("length of 'n.cuts' must equal number of columns in 'x'")
+    return(paste0("'n.cuts' must have length ", ncol(object@x)))
   }
 
   if (!is.na(object@sigma) && object@sigma <= 0.0) {

@@ -342,11 +342,11 @@ subsetData <- dbartsData(x, y, subset = 1:100, bases = list(NULL, zBasis))
 expect_equal(subsetData@bases[[2L]], zBasis[1:100, ])
 expect_error(
   dbartsData(x, y, bases = list(NULL, cbind(NA_real_, 1))),
-  "must equal length of 'y'"
+  "must have the same length as 'y'"
 )
 expect_error(
   dbartsData(x, y, bases = list(NULL, zBasis[1:10, ])),
-  "length of 'bases'"
+  "'bases' must have the same length"
 )
 # a non-finite value is refused rather than reaching the multiplier
 expect_error(
@@ -362,11 +362,11 @@ expect_error(
     seededControl(),
     forests = list(forest(), forest(basis = ~ factor(z[1:10])))
   ),
-  "length of 'basis'"
+  "'basis' must have the same length"
 )
 expect_error(
   dbarts(x, y, forests = list(forest(), forest(basis = ~ factor(z[1:10])))),
-  "length of 'basis'"
+  "'basis' must have the same length"
 )
 expect_error(
   dbarts(
@@ -375,7 +375,7 @@ expect_error(
     control = seededControl(),
     forests = list(forest(), forest(basis = ~ factor(z)))
   )$setForestBasis(2L, ~ factor(z[1:10])),
-  "length of 'basis'"
+  "'basis' must have the same length"
 )
 offSlot <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),

@@ -653,7 +653,7 @@ validateXYWeights <- function(weights, initialNumObservations, subset) {
     weights <- rep_len(weights, initialNumObservations)
   }
   if (length(weights) != initialNumObservations) {
-    stop("length of 'weights' must equal length of 'y'")
+    stop("'weights' must have the same length as 'y'")
   }
   weights[subset]
 }
@@ -689,7 +689,7 @@ validateForestBases <- function(
     basis <- as.matrix(basis)
     storage.mode(basis) <- "double"
     if (nrow(basis) != initialNumObservations) {
-      stop("length of '", argument, "' must equal length of 'y'")
+      stop("'", argument, "' must have the same length as 'y'")
     }
     if (!is.null(subset)) {
       basis <- basis[subset, , drop = FALSE]
@@ -725,7 +725,7 @@ validateXYOffset <- function(
       offsetGivenAsScalar <- FALSE
     }
     if (length(offset) != initialNumObservations) {
-      stop("length of 'offset' must equal length of 'y'")
+      stop("'offset' must have the same length as 'y'")
     }
     offset <- offset[subset]
   }
@@ -840,7 +840,7 @@ dbartsData <- function(
           !isTRUE(offsetGivenAsScalar) &&
           length(offset) != dataLength
       ) {
-        stop("length of 'offset' must equal length of 'y'")
+        stop("'offset' must have the same length as 'y'")
       }
       if (!missing(weights)) {
         weightsCall <- matchedCall[c(
@@ -858,7 +858,7 @@ dbartsData <- function(
           error = function(e) NULL
         )
         if (!is.null(weightsValue) && length(weightsValue) != dataLength) {
-          stop("length of 'weights' must equal length of 'y'")
+          stop("'weights' must have the same length as 'y'")
         }
       }
     }
