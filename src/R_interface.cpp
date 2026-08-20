@@ -174,8 +174,6 @@ static SEXP getMaxSIMDInstructionSet() {
 
 }
 
-#include <bit>
-
 extern "C" {
 #define DEF_FUNC(_N_, _F_, _A_) {_N_, (DL_FUNC) &(_F_), _A_}
 
@@ -270,7 +268,7 @@ typedef struct {
 // dbarts's binding asserts expand the same list, so this table cannot drift from
 // the declared surface.
 #define DBARTS_API_REGISTER(_R_, _N_, _P_, _A_) \
-  {#_N_, std::bit_cast<DL_FUNC>(&_N_)},
+  {#_N_, (DL_FUNC) &_N_},
 
 static C_CallMethodDef C_callMethods[] = {
   // the flat C API (inst/include/dbarts/dbarts.h), registered under the

@@ -236,17 +236,25 @@ ext_rng* ext_rng_createDefault(bool useNative)
   
   uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
   
-  if (seed0 == (uint_least32_t) NA_INTEGER || seed0 > 11000) {
+  ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
+
+  ext_rng_standardNormal_t stdNormalType = stdNormalTypeFromSeed0(seed0);
+
+  // Only the uniform and standard normal kinds are meaningful to this
+  // generator, so validate those two fields individually against the kinds it
+  // implements. R packs further method selectors into the higher digits of the
+  // encoded seed (sample.kind, binom.kind, and whatever it adds next); those
+  // are deliberately ignored, as a bound on the encoded value as a whole would
+  // reject seeds that are perfectly usable here.
+  if (seed0 == (uint_least32_t) NA_INTEGER ||
+      algorithmType >= EXT_RNG_ALGORITHM_INVALID ||
+      stdNormalType >= EXT_RNG_STANDARD_NORMAL_INVALID) {
     ext_issueWarning("'.Random.seed' is not a valid integer, so ignored");
     result = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     if (result != NULL) ext_rng_setSeedFromClock(result);
     UNPROTECT(1);
     return result;
   }
-  
-  ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
-
-  ext_rng_standardNormal_t stdNormalType = stdNormalTypeFromSeed0(seed0);
 
   void* state = (void*) (1 + INTEGER(seedsExpr));
   UNPROTECT(1);
