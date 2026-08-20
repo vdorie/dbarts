@@ -411,8 +411,8 @@ items
     the soak wave 1 landing note); (ii) whether
     estimateSigmaFromLinearModel should muffle base R's leaked
     "essentially perfect fit" warning at the source (soak wave 2
-    landing note, fire-and-cure record). Plus ledger item 15's
-    anchor sweep, next. RC DECLARATION ITSELF IS VD-HELD.
+    landing note, fire-and-cure record). Ledger item 15's anchor
+    sweep is DONE (662a7ef8). RC DECLARATION ITSELF IS VD-HELD.
   release-candidate-review: SPECCED 2026-08-17 - the derived slate is
     docs/plans/release-candidate-review.md (fresh censuses + a blind
     critique whose eleven amendments are applied; six VD forks are
@@ -536,11 +536,11 @@ items
     2 landing note. (14) monotone leaf:
     double branch-fill on the scoring path (bench arm per veto
     critique N6), perf only, post-RC.
-    (15) stale design-doc anchors: data-store.md:198/201/206/214,
-    grow-from-root-default.md:141, model-space-survey.md:71,
-    within-chain-threading.md:204's :675-702 half,
-    data-ownership.md:213 - verified stale at 95f6fd7f's own target
-    content; the resync missed them; sweep at the next anchor pass.
+    (15) DISCHARGED 662a7ef8 - the five known-stale sites re-derived
+    plus a drift sweep over every file this session's landings moved
+    (~150 anchors checked, ~100 re-derived by content with
+    non-uniform deltas, audited); see the soak wave 3 landing note's
+    addendum.
     (16) DISCHARGED ded1f54e - the callerless kernel families removed
     on every arch (misc_subtractVectors kept, live caller); see the
     soak wave 3 landing note.
