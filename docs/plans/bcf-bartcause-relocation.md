@@ -1270,7 +1270,8 @@ DENSE-EQUIVALENT (one assertion per line).
   are repointed at this file and this door section.
 - **Per-forest saved-tree replay** (out-of-sample mu(x), tau(x)), needed by
   `predict.bartBCF` and by bairrtt (bcf-public-surface.md:660-662). Engine
-  slice, unpriced here.
+  slice, unpriced here. LANDED 2026-08-20 at dbarts 63df524e - see the
+  landing note at the end of this file.
 - **A test treatment vector / test basis**, which would retire
   `refuseBCFTestSurface` (:666) and is the only thing that would restore
   missing-response handling to bcf(). A modelling decision first.
@@ -1603,3 +1604,42 @@ in that arc as slices S11-S13; measurement there confirmed run()
 already emits both channels, so the R-side packaging is the whole
 slice. Out-of-sample per-forest replay (predict) remains doored on
 the engine-side saved-tree work recorded above.
+
+2026-08-20: the per-forest replay door DISCHARGED at dbarts 63df524e
+("Replay each forest separately at new rows"). Engine:
+`Chain::predictPerForestFromSavedSample` plus a live-tree twin sum one
+forest's trees at caller rows into a forest-major slab, RAW - no
+fitScale, no fitShift, no offset - with each forest's own numTrees
+driving its loop (ragged counts safe); `Sampler::predictPerForest`
+fans over chains and saved slots through one new `SamplerBase`
+virtual. Bridge: `bartcore_predictPerForest` gates on
+`forestReportingIsDefined` and receives-and-refuses an offset by name
+(a per-forest total takes no offset for the same reason it takes no
+shift). Surface: `predict(fit, newdata, type = "forest", forest = )`
+reusing extract's forest vocabulary on the response scale, and the
+sampler's `$predictForests` on the internal scale. The combined
+predict on an amplitude coupling stays refused, message now pointing
+at replay-and-recombine; `inst/include/dbarts/dbarts.h` untouched; no
+state-format bump. 15 files, +651/-18; new test file
+test-predict-forest.R so no existing file's RNG history moved.
+Gating: independent Opus diff review (verdict LAND-WITH-FIXES; its
+one bug - the forest-name margin read a hardcoded axis 3 and returned
+a zero-width margin under n.chains > 1 with combineChains = FALSE -
+fixed pre-landing with a regression case verified to fail on the
+unfixed code, and its sparse-newdata coverage gap closed with a
+dgCMatrix case pinned to 1e-12 dense agreement) plus an independent
+gate battery: tinytest 6494/0; trio bitwise 42/12/11 identical draws,
+zero max|z| lines; tests/cpp full + sampler green; ASAN/UBSAN zero
+findings; mutation proofs M1 and M4 re-run independently and
+discriminating; R CMD check --as-cran Status OK; air/lintr/NEWS/
+doc-freshness clean. The compiled-code gates ran on a pre-amend tree
+whose src/ is byte-identical to the landed commit (the fix was
+R-and-test only); the R-side gates were re-run on the amended tree.
+Known accepted narrowings, recorded not fixed: `predict(type =
+"forest")` silently ignores ci.level/weights/n.threads (the spec's
+sanctioned bypass), and the `$bc`-handle R wrapper for the bridge
+entry exists to plant mutation M3 and is unreachable from the public
+families until the multinomial mutation arc replaces the host shell.
+The binding spec lived at gitignored scratch/
+predict-replay-slice-spec.md (critique-amended); this note is the
+durable record.
