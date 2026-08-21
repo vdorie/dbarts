@@ -1052,6 +1052,11 @@ dbartsSampler <- setRefClass(
       # lets this skip getPointer's re-creation branch
       dupe$forestWeights <- forestWeights
       dupe$reapplyForestWeights(dupe$pointer)
+      # $new() always resets hostFor to character(0L) (see initialize); a
+      # copy of a host shell must carry the guard forward, or the copy
+      # accepts the very mutations the original refuses on an engine
+      # nothing reads back
+      dupe$hostFor <- hostFor
       dupe
     },
     show = function() {

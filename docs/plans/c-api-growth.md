@@ -691,6 +691,35 @@ forestCalibration` reading past the last forest) shipped alongside, at
   the layout contract; a layout change is NOT self-detecting and must be
   announced to the sister packages by hand.
 
+### Reserved, not built: a flat multinomial creation surface (multinomial-mutation-arc Fork C, reserved 2026-08-20)
+
+`bart2(family = "multinomial")`'s K-forest engine has no `dbarts.h` creation
+path today - `dbarts_sampler_create` has no multinomial branch to reach one
+from, the same fact that grounded `setCounts`/`setOffsetMatrix` as reserved
+appends above rather than built entries. This reservation adds the two
+pieces those two setters still need to be reachable: a creation entry
+(`dbarts_sampler_createMultinomial`, labels or count-matrix response,
+matching `bartcoreMultinomialSampler`/`...CountSampler`) and a K-aware
+`predict` returning the n x K softmax array (distinct from the forest-
+indexed `predict` door above, which is single-forest; this one is K-forest
+by construction).
+
+**Decision: reserve now, build post-RC.** Cost of opening, corrected against
+an earlier "one hash cell edit" estimate: appending to `DBARTS_C_API_DECLS`
+moves the signature half too, so opening this door is TWO literal re-bakes -
+`DBARTS_C_API_HASH` (`dbarts.h:142`, today `0x6c9776ae1197e8f5ULL`) AND
+`dbarts_apiSignatureToken` (`C_interface.cpp:459`, today
+`0x85bd1ef04beb3848ULL`) - plus `inst/tinytest/test-capi.R:81`'s
+`expect_identical(hashes$text, "0x6c9776ae1197e8f5")`, which must change,
+and a new `expect_false` for the superseded literal alongside the existing
+ones at `:73-74`, `:78`. Priced at ~260 non-test / ~200 test
+(multinomial-mutation-arc.md Door 2). Not spent now: the named consumer is
+stan4bart, on its own branch with its own release, so nothing is blocked by
+deferring; multinomial stays R-only in the meantime, exactly as it is
+today. `DBARTS_C_API_MAJOR`/`MINOR` stay 1/0 either way, per the
+pre-release carve-out (`dbarts.h:100-104`). Open this door when stan4bart
+asks, not on spec.
+
 ## Verification
 
 Gates run from a worktree against a private library (per the repo's install

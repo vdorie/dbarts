@@ -943,6 +943,38 @@ makeScenarios <- function() {
     )
   }
 
+  # bart2's multinomial path (docs/design/multinomial.md): the K-forest
+  # softmax classifier, reachable only under an explicit family =
+  # "multinomial" token (family = "auto" never reaches it). No scenario
+  # above touches it, so this is the surface's first anchor in this file -
+  # the engine-level bitwise gate lives in
+  # benchmarks/R/multinomial-equivalence.R. Runs LAST, with its own literal
+  # seed continuing the file's own literal-seed sequence, after every
+  # scenario above has already re-seeded for its own data, so it perturbs
+  # nothing above it.
+  set.seed(5139L)
+  n.mn <- 200L
+  x.mn <- matrix(runif(n.mn * 4L), n.mn, 4L)
+  eta.mn <- cbind(
+    2 * (x.mn[, 1L] - 0.5),
+    x.mn[, 2L] - x.mn[, 3L],
+    1.5 * (x.mn[, 4L] - 0.5)
+  )
+  probs.mn <- exp(eta.mn) / rowSums(exp(eta.mn))
+  labels.mn <- vapply(
+    seq_len(n.mn),
+    function(i) sample.int(3L, 1L, prob = probs.mn[i, ]) - 1L,
+    integer(1L)
+  )
+  y.mn <- factor(c("a", "b", "c")[labels.mn + 1L], levels = c("a", "b", "c"))
+  result$bart2multinom <- list(
+    x = x.mn,
+    y = y.mn,
+    x.test = matrix(runif(n.test * 4L), n.test, 4L),
+    binary = FALSE,
+    multinomialFit = TRUE
+  )
+
   result
 }
 
@@ -1303,6 +1335,50 @@ fitViaBart2TwoForest <- function(scenario) {
   )
 }
 
+# runs bart2's multinomial path (docs/design/multinomial.md): family =
+# "multinomial" explicitly - the only route to a K-forest softmax classifier
+# ("auto" never reaches it, section 1.2). Unlike the two-forest fit above,
+# multinomial DOES accept test =, so this records the posterior-mean
+# K-category test probabilities - the standard fhat.test channel's
+# K-widened shape - and each category forest's own per-draw split-usage
+# proportions; there is no sigma and no k, the softmax having neither. The
+# shape does not match the common yhat.test/varcount pair fitSummaries
+# accumulates below, so this fitter returns its own finished summary
+# vector, the xbart/twoforest precedent.
+fitViaBart2Multinomial <- function(scenario) {
+  fit <- bart2(
+    scenario$x,
+    scenario$y,
+    test = scenario$x.test,
+    family = "multinomial",
+    n.samples = ndpost,
+    n.burn = nskip,
+    n.trees = ntree,
+    n.chains = 1L,
+    n.threads = 1L,
+    combineChains = TRUE,
+    verbose = FALSE
+  )
+  probMeans <- apply(fit$yhat.test, c(2L, 3L), mean)
+  K <- dim(fit$yhat.test)[3L]
+  vpropForest <- function(k) {
+    vc <- fit$varcount[,, k]
+    colMeans(vc / rowSums(vc))
+  }
+  c(
+    setNames(
+      as.vector(probMeans),
+      paste0("prob.test.", seq_along(probMeans))
+    ),
+    unlist(lapply(seq_len(K), function(k) {
+      setNames(
+        vpropForest(k),
+        paste0("vprop.forest", k, ".", seq_len(ncol(fit$varcount)))
+      )
+    }))
+  )
+}
+
 # runs xbart's k-fold crossvalidation over a (n.trees x k) grid. Sizes are
 # this scenario's own literals rather than the guarded ndpost/nskip/ntree,
 # and n.threads = 1L keeps the whole sweep in this process, under the
@@ -1407,6 +1483,12 @@ fitSummaries <- function(scenario, seed) {
   # summary vector whole, the xbart precedent.
   if (!is.null(scenario$twoforestFit)) {
     return(fitViaBart2TwoForest(scenario))
+  }
+  # a multinomial fit's yhat.test carries a K margin the common
+  # yhat.test/varcount pair below has no shape for; it returns its own
+  # summary vector whole, the twoforest precedent just above.
+  if (!is.null(scenario$multinomialFit)) {
+    return(fitViaBart2Multinomial(scenario))
   }
   fit <- if (!is.null(scenario$rbart)) {
     fitViaRbart(scenario)

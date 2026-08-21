@@ -1621,6 +1621,20 @@
             \code{makeModelMatrixFromDataFrame} refuses either directly when
             handed a mismatching \code{drop} pattern. A test factor with
             fewer levels is unaffected.
+      \item \code{copy()} on the sampler that is a
+            \code{bart2(family = "multinomial"/"ordinal"/"nbinom")} fit's
+            host shell now carries that status forward: previously the copy
+            always reported itself as an ordinary sampler and so accepted
+            \code{$setResponse}, \code{$run}, and the rest of the mutations
+            the original correctly refuses, taking effect on an engine
+            nothing reads back.
+      \item \code{man/bart2.Rd} said \code{$bc} and \code{$fit} were both
+            present only under \code{keepTrees}, for a multinomial, ordinal,
+            or negative-binomial fit. \code{$fit}, the host sampler, is in
+            fact present whenever \code{keepTrees} is \code{TRUE}
+            \emph{or} \code{keepSampler} is set, exactly as it always has
+            been; only \code{$bc} needs \code{keepTrees}. Documentation
+            correction, not a behavior change.
     }
   }
 }
