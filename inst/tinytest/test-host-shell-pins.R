@@ -298,8 +298,10 @@ pinSaveReloadFailure <- function(fit, xtest) {
   saveRDS(fit, tempFile)
   reloaded <- readRDS(tempFile)
   unlink(tempFile)
+  # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
   expect_error(predict(reloaded, xtest), "NULL external pointer")
   reloaded$fit$storeState()
+  # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
   expect_error(predict(reloaded, xtest), "NULL external pointer")
 }
 pinSaveReloadFailure(fit3, x3[1:5, ])
