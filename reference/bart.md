@@ -53,10 +53,11 @@ plot(
 # S3 method for class 'bart'
 predict(
     object, newdata, offset, weights,
-    type = c("ev", "ppd", "bart"),
+    type = c("ev", "ppd", "bart", "forest"),
     combineChains = TRUE,
     n.threads,
     ci.level = NULL,
+    forest = NULL,
     ...)
 
 extract(object, ...)
@@ -424,7 +425,10 @@ residuals(object, type = "ev", ...)
   For `predict`: an optional offset for `newdata`, applied the same way
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   `offset.test` is at fit time. `NULL` (the default, when missing)
-  applies none.
+  applies none. Refused, by name, with `type = "forest"`: an offset
+  shifts the recombination of the forests, never any one forest's own
+  total, so it belongs to the arithmetic under ‘Value’ rather than to
+  what comes back.
 
 - sampleronly:
 
@@ -458,30 +462,34 @@ residuals(object, type = "ev", ...)
   predictive distribution, `"loglik"` - for `extract` only, the
   log-likelihood of each training observation at each posterior draw,
   `"trees"` - a data frame with tree information for when model was fit
-  with `keepTrees` equal to `TRUE`, and `"forest"` - for `extract` only,
-  the per-forest channels of an amplitude-coupled multi-forest fit (see
-  `forest`, `contribution`, and the `forestFits`/`glue`/`bases`
-  components under ‘Value’); an error naming the reason on any other
-  fit. For `"ppd"`, a weighted logistic fit draws the number of
-  successes among the observation-count weight, \\\mathrm{Binomial}(w_i,
-  p_i)\\ (see `weights`), and an aft (survival) fit draws on the
-  log-time scale (the fit models \\\log T\\). For `"loglik"`, gaussian
-  fits evaluate \\y_i \mid x_i \sim N(\hat{f}(x_i), \sigma^2 / w_i)\\ in
-  logs at each draw of \\f\\ and \\\sigma\\, a `resid.dist = student()`
-  fit the corresponding marginal \\t\_\nu\\ density at that draw's
-  \\\nu\\ (the fit's `$resid.df`) rather than the normal one, binary
-  fits evaluate the Bernoulli log-likelihood of the fitted probability,
-  multiplied for a weighted logistic fit by the observation-count weight
-  \\w_i\\, and an aft fit contributes the log density for an event and
-  the log survival tail \\\log P(T \> C)\\ for a right-censored
-  observation, both on the log-time scale. When chains are combined the
-  result is a samples-by-observations matrix directly consumable by
-  WAIC/PSIS-LOO implementations such as those in the loo package; the
-  chains-first convention is kept, so a per-chain array
-  (`combineChains = FALSE`, dimension chains-by-samples-by-observations)
-  is reordered to the draws-by-chains-by-observations that
-  `loo::relative_eff` expects with `aperm(x, c(2, 1, 3))`. To synergize
-  with [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
+  with `keepTrees` equal to `TRUE`, and `"forest"` - for `extract` and
+  `predict`, the per-forest channels of an amplitude-coupled
+  multi-forest fit (see `forest`, `contribution`, and the
+  `forestFits`/`glue`/`bases` components under ‘Value’); an error naming
+  the reason on any other fit. `extract(type = "forest")` reads the
+  stored in-sample channel, while `predict(type = "forest")` replays
+  each forest at `newdata`; both report the raw per-forest total,
+  leaving the recombination to the caller. For `"ppd"`, a weighted
+  logistic fit draws the number of successes among the observation-count
+  weight, \\\mathrm{Binomial}(w_i, p_i)\\ (see `weights`), and an aft
+  (survival) fit draws on the log-time scale (the fit models \\\log
+  T\\). For `"loglik"`, gaussian fits evaluate \\y_i \mid x_i \sim
+  N(\hat{f}(x_i), \sigma^2 / w_i)\\ in logs at each draw of \\f\\ and
+  \\\sigma\\, a `resid.dist = student()` fit the corresponding marginal
+  \\t\_\nu\\ density at that draw's \\\nu\\ (the fit's `$resid.df`)
+  rather than the normal one, binary fits evaluate the Bernoulli
+  log-likelihood of the fitted probability, multiplied for a weighted
+  logistic fit by the observation-count weight \\w_i\\, and an aft fit
+  contributes the log density for an event and the log survival tail
+  \\\log P(T \> C)\\ for a right-censored observation, both on the
+  log-time scale. When chains are combined the result is a
+  samples-by-observations matrix directly consumable by WAIC/PSIS-LOO
+  implementations such as those in the loo package; the chains-first
+  convention is kept, so a per-chain array (`combineChains = FALSE`,
+  dimension chains-by-samples-by-observations) is reordered to the
+  draws-by-chains-by-observations that `loo::relative_eff` expects with
+  `aperm(x, c(2, 1, 3))`. To synergize with
+  [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
   `"response"` can be used as a synonym for `"ev"` and `"link"` can be
   used as a synonym for `"bart"`. For information on extracting trees,
   see the subsection below.
@@ -495,11 +503,11 @@ residuals(object, type = "ev", ...)
 
 - forest:
 
-  For `extract(type = "forest")` only: which forest(s) to return, by
-  1-based index or by margin name (`"forest1"`, `"forest2"`, ...);
-  `NULL` (the default) returns every forest. The returned array always
-  keeps the trailing forest margin, subset to the requested forests,
-  even when only one is selected.
+  For `extract(type = "forest")` and `predict(type = "forest")`: which
+  forest(s) to return, by 1-based index or by margin name (`"forest1"`,
+  `"forest2"`, ...); `NULL` (the default) returns every forest. The
+  returned array always keeps the trailing forest margin, subset to the
+  requested forests, even when only one is selected.
 
 - contribution:
 
@@ -772,7 +780,19 @@ returned. In the numeric \\y\\ case, the list has components:
   (\mathrm{bases}\_k \\ \mathrm{glue}\_k) \times
   \mathrm{forestFits}\_k\\, with `response.scale`/`response.shift` read
   from the sampler's `$getCalibration`. See `extract`'s
-  `type = "forest"`.
+  `type = "forest"`. `predict(object, newdata, type = "forest")` reports
+  the same quantity at NEW rows - an (`n.chains` \\\times\\, when
+  uncombined) `n.samples` \\\times\\ `nrow(newdata)` \\\times\\ K array,
+  same trailing margin, same `forest` selection - replayed from the
+  saved trees, and so requiring `keeptrees`/`keepTrees`. It carries no
+  `glue`, no `response.shift` and no offset either, because off the
+  training rows the bases are the caller's: the identity above becomes
+  the caller's own three-line recombination, with each `bases` entry
+  replaced by the basis that forest's amplitudes multiply at the new
+  rows (for a Bayesian causal forest, the \\(1 - z^\*, z^\*)\\ indicator
+  pair of whichever assignment is being predicted under). An offset is
+  refused there rather than folded in, and there is no `contribution`
+  argument for the same reason.
 
 - `sigest`:
 
@@ -887,6 +907,11 @@ Hugh Chipman: <hugh.chipman@gmail.com>, Robert McCulloch:
 formula-first interface, further response families, and formula-term
 multi-forest models.
 
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
+`$predictForests` for the same per-forest replay from a mutable sampler,
+which is what `predict(type = "forest")` reads and what
+`extract(type = "forest")` reports in sample.
+
 [`pdbart`](https://vdorie.github.io/dbarts/reference/pdbart.md)
 
 [`dbarts-embedding`](https://vdorie.github.io/dbarts/reference/dbarts-embedding.md)
@@ -958,7 +983,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.221477
+#> total seconds in loop: 0.220528
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

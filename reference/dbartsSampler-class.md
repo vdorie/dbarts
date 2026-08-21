@@ -24,6 +24,8 @@ show()
 # S4 method for class 'dbartsSampler'
 predict(x.test, offset.test, n.threads = control@n.threads)
 # S4 method for class 'dbartsSampler'
+predictForests(x.test, offset.test)
+# S4 method for class 'dbartsSampler'
 setControl(control)
 # S4 method for class 'dbartsSampler'
 setModel(model)
@@ -193,7 +195,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   data-frame/sparse `x.test` is coded against the training levels;
   `setTestPredictor` and `setTestPredictorAndOffset` then install it as
   a resident, whole-object replacement of the test set (see `column`),
-  while `predict` materializes it to a numeric matrix before evaluating.
+  while `predict` and `predictForests` materialize it to a numeric
+  matrix before evaluating, retaining nothing.
 
 - offset:
 
@@ -228,7 +231,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - offset.test:
 
   A numeric vector of length equal to that of the test matrix, or
-  `NULL`. Can be missing for `setTestPredictorAndOffset`.
+  `NULL`. Can be missing for `setTestPredictorAndOffset`. Refused, by
+  name, for `predictForests`: an offset shifts the combination of the
+  forests, exactly as the response transform's shift does, and neither
+  is any one forest's own total.
 
 - n.threads:
 
@@ -659,7 +665,7 @@ components filling arbitrary roles.
 
 ### Reading the fit
 
-Five methods report a fitted quantity and no two report the same one.
+Six methods report a fitted quantity and no two report the same one.
 They differ along three axes - the SCALE the values live on, whether the
 installed OFFSET is in them, and whether they answer from the CURRENT
 state or from stored draws:
@@ -671,6 +677,7 @@ state or from stored draws:
 | `$getFitsWithoutOffset()` | response (latent under a binary family) | excluded | current |
 | `$getForestFits(f)` | internal, and one forest only | excluded | current |
 | `$predict(x)` | response (latent under a binary family) | whatever you pass it | the saved samples under `keepTrees`, else the current trees |
+| `$predictForests(x)` | internal, one channel per forest | excluded, and refused if passed | the saved samples under `keepTrees`, else the current trees |
 | `$getLatents()` | the family's own augmentation variable, which is a location for some families and a precision for others | not a fit; see ‘Value’ | current |
 
 The composition rule follows from the table: an outer block conditions
@@ -1018,6 +1025,24 @@ single \\a\\ on its implicit intercept and its forest `2` the pair
 requested forest's current per-predictor split counts, an n.predictors x
 n.chains integer matrix; its rows are named by the training matrix's
 column names when that matrix carries them, and left unnamed otherwise.
+
+For `predictForests`, the off-sample twin of `getForestFits`: every
+forest replayed separately at `x.test`, as an n.test x n.forests x
+n.samples (x n.chains) array on the forests' internal scale,
+forest-major within a draw. It reports the saved samples when the
+sampler was built with `keepTrees`, and the current trees otherwise,
+exactly as `predict` does. Nothing but the forests' own totals is in it:
+no amplitude glue, no response transform and no offset, the last refused
+rather than ignored. That is the point of the channel rather than an
+omission - an amplitude coupling's location is `response.shift` +
+\\\sum_f (B_f a_f) \times (\mathrm{response.scale} \times f_f)\\, and
+off the training rows only the caller knows the bases \\B_f\\, so the
+whole recombination is theirs, with `$getForestAmplitudes()` and
+`$getCalibration()` supplying the rest. Only a sampler that composes its
+forests through scalar amplitude glue reports per-forest fits; every
+other one is refused by name, a multinomial sampler included, whose raw
+per-category totals are perfectly well defined but whose reported
+quantity is a softmax probability that `predict` serves.
 
 For `getCalibration`, the leaf-prior calibration a forest currently runs
 under, as a numeric matrix with one row per chain and the columns
