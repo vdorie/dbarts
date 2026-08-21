@@ -998,14 +998,14 @@ training-observation margin replaced by the test one. `varcount` is the
 per-sample per-category split-usage channel: each category forest's
 per-draw variable counts, dimensioned like `yhat.train` but with the
 number of training predictors in place of the number of observations,
-and `colnames(x.train)` (when present) named on that margin. `bc` and
-`fit` are present only under `keepTrees` - the K-forest sampler handle
-and the host sampler `predict.bartMultinomial` replays through; absent
-`keepTrees`, neither survives the call and `predict` errors. `fit` is
-only that host shell: it carries the design and priors the K-forest
-model was built from but none of the model, so it refuses mutation
-(`$setResponse`, `$run`, and the rest) rather than accepting a change
-nothing would read.
+and `colnames(x.train)` (when present) named on that margin. `bc`, the
+K-forest sampler handle `predict.bartMultinomial` replays through, is
+present only under `keepTrees`; absent it, `predict` errors. `fit`, the
+host sampler, is present whenever `keepTrees` is `TRUE` *or*
+`keepSampler` is set, independent of `keepTrees`; it is only that host
+shell: it carries the design and priors the K-forest model was built
+from but none of the model, so it refuses mutation (`$setResponse`,
+`$run`, and the rest) rather than accepting a change nothing would read.
 
 Generics for a `"bartMultinomial"` fit: `fitted(object)` (`type = "ev"`,
 the default) returns the posterior-mean n \\\times\\ K probability
@@ -1050,13 +1050,15 @@ probit scale, shaped like a binary family's `yhat.train` - `cutpoints` -
 the posterior draws of the K - 1 finite thresholds \\(\gamma_1 = 0,
 \gamma_2, \ldots)\\, dimensioned draws \\\times\\ (K - 1), the ordinal
 analog of gaussian's `sigma`, from which probabilities at any latent
-value can be reconstructed - and `varcount`. `bc`, `fit`, and
-`cutpoints.raw` (the per-draw thresholds in the internal layout
-`predict` consumes) are present only under `keepTrees`. As for a
-multinomial fit, `fit` is only the host shell of the ordinal model: it
-carries the design and priors that model was built from but none of the
-model itself, so it refuses mutation (`$setResponse`, `$run`, and the
-rest) rather than accepting a change nothing would read.
+value can be reconstructed - and `varcount`. `bc` and `cutpoints.raw`
+(the per-draw thresholds in the internal layout `predict` consumes) are
+present only under `keepTrees`. `fit`, the host sampler, is present
+whenever `keepTrees` is `TRUE` *or* `keepSampler` is set, independent of
+`keepTrees`. As for a multinomial fit, `fit` is only the host shell of
+the ordinal model: it carries the design and priors that model was built
+from but none of the model itself, so it refuses mutation
+(`$setResponse`, `$run`, and the rest) rather than accepting a change
+nothing would read.
 
 Generics for a `"bartOrdinal"` fit: `fitted(object)` returns the
 posterior-mean n \\\times\\ K probability matrix (columns named by
@@ -1080,11 +1082,13 @@ e^{f(x) + o}\\, shaped like a binary family's `yhat.train` -
 `latent.train` (and `latent.test`) - the corresponding draws of the
 log-odds latent \\\psi = f(x) + o\\ - `dispersion` - the per-draw
 dispersion \\r\\, the count analog of gaussian's `sigma` - and
-`varcount`. `bc`, `fit`, and `dispersion.raw` (the per-draw \\r\\ in the
+`varcount`. `bc` and `dispersion.raw` (the per-draw \\r\\ in the
 internal layout `predict` consumes) are present only under `keepTrees`.
-`fit` is only the host shell of the count model, refusing mutation
-exactly as the ordinal and multinomial hosts do; `$getDispersion()` on
-it is refused too, since the shell's own \\r\\ is not the fit's.
+`fit`, the host sampler, is present whenever `keepTrees` is `TRUE` *or*
+`keepSampler` is set, independent of `keepTrees`; it is only the host
+shell of the count model, refusing mutation exactly as the ordinal and
+multinomial hosts do; `$getDispersion()` on it is refused too, since the
+shell's own \\r\\ is not the fit's.
 
 Generics for a `"bartNegbin"` fit: `fitted(object)` returns the
 posterior-mean count per observation; `fitted(object, type = "bart")`
@@ -1186,7 +1190,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001796
+#> total seconds in loop: 0.001478
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1233,7 +1237,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001642
+#> total seconds in loop: 0.001658
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 
