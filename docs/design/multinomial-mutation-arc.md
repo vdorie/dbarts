@@ -979,3 +979,56 @@ reserve), S1a (pointer adoption), S2+S3 (the multinomial surface), S4/F1
 (direct construction and guard deletion) - at ~1700 non-test / ~1650 test
 raw additions, with five priced doors deferred. Only S4 moves a draw, and
 it moves exactly the one scenario S0 creates for it to move.
+
+## Landing notes (appended per slice, oldest first)
+
+**S0 LANDED 5e586587** (2026-08-20). All five scope items shipped in one
+commit: the pins (inst/tinytest/test-host-shell-pins.R, 307 lines), the
+man/bart2.Rd correction (three paragraphs now state $fit rides
+keepTrees-or-keepSampler while $bc needs keepTrees), the bart2multinom
+scenario appended last in benchmarks/R/equivalence.R with its own literal
+seed, the $copy() hostFor transfer, and Fork C3's reserve section in
+docs/plans/c-api-growth.md (inst/include/dbarts/dbarts.h untouched).
+Price: 5 non-test dense (budget 120) + 389 test-and-harness dense
+(stop 390); docs/NEWS/MANIFEST/CI uncounted per convention.
+
+One census correction against section 1.4: predict-replay (63df524e,
+landed after this design was written) added `predictForests`, a
+fourteenth substantive unguarded method, so the live census is
+22/2/14/6 of 44 own methods, not 22/2/13/6 of 43. The pin reads each
+method's own body rather than hardcoding the split, which is how the
+drift was caught and why the next addition will be caught too. The
+other S0-relevant anchors in section 1 were re-verified exact; the
+test-capi.R literals in Fork C had drifted by one line and the reserve
+doc carries live-verified numbers.
+
+BASELINE RE-RECORD, the program's first: equivalence-00474606.rds, 43
+scenarios, named for the commit's own parent (a single combined commit
+cannot cite its own hash; S0 adds no src/ file, so the engine binary IS
+00474606's). Neutrality partition: all 42 pre-existing scenarios
+reproduce equivalence-d15a2bfb.rds bitwise in a non-strict compare
+(bart2multinom skipped as not-in-baseline, zero max|z| lines); the new
+baseline reproduces itself 43/43 under --strict-coverage;
+bcf-equivalence-6e3b9fb8.rds 12/12 and multinomial-equivalence-4d9a3337
+.rds 11/11 stay bitwise on every channel. Four-place obligation
+discharged in the same commit (equivalence.yaml, MANIFEST, feature-
+matrix [f39]; TODO cites no affected baseline name).
+
+Gating: orchestrator diff review (LAND) plus an independent gate
+battery: tinytest 6526/0; the full equivalence sequence above re-run;
+tests/cpp full + sampler green; --as-cran Status OK; air/lintr/pkgdown/
+checkRd/NEWS (292)/doc-freshness clean; the copy-fix pin re-verified to
+bite (reverting the one-line fix fails exactly the five copy-laundering
+assertions, clean restore passes 32/32). No ASAN owed (no engine code);
+no bench.
+
+One CI fire-and-cure: 5e586587's lint leg went red - lint_package()
+cannot see tinytest's run-time attachment of expect_* inside a helper
+function body, so the two save/reload assertions linted as undefined
+globals, while every local pass had loaded tinytest first and was
+clean. Cured comment-only at 288ae9e7 with the nolint annotation
+test-formula-terms.R already uses; the other five workflows were green
+on 5e586587 itself.
+
+Next: S1a (pointer adoption), expected trio 43/43, 12/12, 11/11 bitwise
+with NO re-record.
