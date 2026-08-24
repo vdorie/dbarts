@@ -218,8 +218,110 @@ set.seed(4401)
 ppdFromPredict <- predict(fitKeep, x.test, type = "ppd")
 expect_identical(ppdFromExtract, ppdFromPredict)
 
-# type is validated like every other type= argument in the package
-expect_error(predict(fitKeep, x.test, type = "bart"), "'arg' should be one of")
+# type is validated like every other type= argument in the package, and the
+# latent-scale request is refused by NAME rather than by an enum message
+expect_error(
+  predict(fitKeep, x.test, type = "bart"),
+  "non-identified and unrecorded"
+)
+
+# ---- fix 6: the type= register runs through validateType, so the
+# predict.glm synonyms reach these methods, and the two latent-scale values
+# they name only to refuse say why.
+
+expect_identical(predict(fitKeep, x.test, type = "response"), predEv)
+expect_identical(
+  extract(fitKeep, type = "response"),
+  extract(fitKeep, type = "ev")
+)
+expect_identical(fitted(fitKeep, type = "response"), fitted(fitKeep))
+
+latentReason <- paste0(
+  "multinomial fits do not support type = \"bart\": the run records ",
+  "only the identified softmax probabilities; the raw per-category ",
+  "latent fits are non-identified and unrecorded"
+)
+forestReason <- paste0(
+  "multinomial fits do not support type = \"forest\": a category's ",
+  "forest is a latent whose level is reproducibly structured yet not ",
+  "identified, so a raw replay reads as signal; the identified content ",
+  "is the log-ratio of the probabilities predict() reports"
+)
+# "link" folds onto "bart", so it lands on that value's own refusal
+expect_error(
+  predict(fitKeep, x.test, type = "link"),
+  latentReason,
+  fixed = TRUE
+)
+expect_error(extract(fitKeep, type = "link"), latentReason, fixed = TRUE)
+expect_error(fitted(fitKeep, type = "bart"), latentReason, fixed = TRUE)
+expect_error(
+  predict(fitKeep, x.test, type = "forest"),
+  forestReason,
+  fixed = TRUE
+)
+expect_error(extract(fitKeep, type = "forest"), forestReason, fixed = TRUE)
+# a value no multinomial method offers refuses against the set it does
+expect_error(extract(fitKeep, type = "loglik"), "type must be in 'ev'")
+
+# ---- fix 7: predict on a fit trained with an n x K category offset.
+# The predicted rows are the caller's, so no resident offset describes them:
+# the shift rides its own argument, and the fit requires it.
+
+set.seed(5501)
+categoryOffset <- matrix(rnorm(n * 3L, sd = 0.4), n, 3L)
+fitOffset <- bart2(
+  x,
+  y,
+  family = "multinomial",
+  offset = categoryOffset,
+  keepTrees = TRUE,
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+expect_error(
+  predict(fitOffset, x.test),
+  "'offset.category.test' is required on a multinomial fit trained with a",
+  fixed = TRUE
+)
+expect_error(
+  predict(
+    fitOffset,
+    x.test,
+    offset.category.test = matrix(0, nrow(x.test), 2L)
+  ),
+  "must be a 20 x 3 matrix"
+)
+# ORACLE: the training rows under the training offset ARE the training
+# channel, replayed draw for draw out of the saved trees (measured 3.9e-15)
+expect_equal(
+  predict(fitOffset, x, offset.category.test = categoryOffset),
+  fitOffset$yhat.train,
+  tolerance = 1e-12
+)
+# an all-zero matrix asks for the offset-free surface on purpose
+predFree <- predict(
+  fitOffset,
+  x.test,
+  offset.category.test = matrix(0, nrow(x.test), 3L)
+)
+expect_equal(dim(predFree), c(n.samples, nrow(x.test), 3L))
+expect_true(max(abs(apply(predFree, c(1L, 2L), sum) - 1)) < 1e-12)
+# a fit trained without one defaults to NULL, and still takes an explicit
+# matrix: the shift enters the raw fits, so it moves the reported surface
+expect_identical(predict(fitKeep, x.test), predEv)
+expect_false(identical(
+  predict(
+    fitKeep,
+    x.test,
+    offset.category.test = matrix(c(1, 0, 0), nrow(x.test), 3L, byrow = TRUE)
+  ),
+  predEv
+))
 
 rm(
   parseKeptDraws,
@@ -258,5 +360,10 @@ rm(
   seedBeforePpd,
   predPpd,
   ppdFromExtract,
-  ppdFromPredict
+  ppdFromPredict,
+  latentReason,
+  forestReason,
+  categoryOffset,
+  fitOffset,
+  predFree
 )

@@ -828,15 +828,19 @@ residuals.bart <- function(object, type = "ev", ...) {
 # unrecorded. type = "ppd" draws one category per posterior draw from its
 # probability vector, returned as integer codes (1-based, indexing
 # object$levels) in an array shaped like "ev" minus the K margin - the same
-# "ppd keeps ev's shape" convention the binary families use.
-extract.bartMultinomial <- function(
-  object,
-  type = c("ev", "ppd", "bart"),
-  sample = c("train", "test"),
-  ...
-) {
-  type <- match.arg(type)
-  sample <- match.arg(sample)
+# "ppd keeps ev's shape" convention the binary families use. type flows
+# through validateType, as it does on a "bart" fit, so "response" and "link"
+# are the predict.glm synonyms here too.
+
+# The two latent-scale requests a multinomial fit refuses, by name and with
+# the reason, from extract, fitted and predict alike: type = "bart", the raw
+# per-category fits the run does not record, and type = "forest", the same
+# fits replayed at new rows. Both are the one non-identification: the softmax
+# is invariant to a common per-observation shift, so each row's level is free,
+# and it is not noise either - the backfit reproduces it as a function of x -
+# so a latent surface would be read as signal it is not. What IS identified is
+# the log-ratio, which the logs of the reported probabilities carry exactly.
+refuseMultinomialLatentType <- function(type) {
   if (type == "bart") {
     stop(
       "multinomial fits do not support type = \"bart\": the run records ",
@@ -844,6 +848,26 @@ extract.bartMultinomial <- function(
       "latent fits are non-identified and unrecorded"
     )
   }
+  if (type == "forest") {
+    stop(
+      "multinomial fits do not support type = \"forest\": a category's ",
+      "forest is a latent whose level is reproducibly structured yet not ",
+      "identified, so a raw replay reads as signal; the identified content ",
+      "is the log-ratio of the probabilities predict() reports"
+    )
+  }
+  invisible(NULL)
+}
+
+extract.bartMultinomial <- function(
+  object,
+  type = c("ev", "ppd", "bart", "forest"),
+  sample = c("train", "test"),
+  ...
+) {
+  type <- validateType(type, eval(formals(extract.bartMultinomial)$type))
+  sample <- match.arg(sample)
+  refuseMultinomialLatentType(type)
 
   probs <- if (sample == "test") {
     if (is.null(object$yhat.test)) {
@@ -880,8 +904,13 @@ multinomialPpdFromProbs <- function(probs) {
 # The posterior-mean n x K probability matrix (colnames = levels(y)), or
 # (type = "class") the argmax category of that mean as a factor over the
 # original levels - the class-prediction convenience.
-fitted.bartMultinomial <- function(object, type = c("ev", "class"), ...) {
-  type <- match.arg(type)
+fitted.bartMultinomial <- function(
+  object,
+  type = c("ev", "class", "bart"),
+  ...
+) {
+  type <- validateType(type, eval(formals(fitted.bartMultinomial)$type))
+  refuseMultinomialLatentType(type)
   probs <- extract.bartMultinomial(object, type = "ev", sample = "train")
   d <- dim(probs)
   numDims <- length(d)
@@ -931,27 +960,58 @@ residuals.bartMultinomial <- function(object, ...) {
 # unchanged and draw-neutral. The replay reads through $fit's own pointer:
 # $fit is the K-forest sampler that actually ran, so getPointer() can
 # re-create it from stored state after a save/reload.
+#
+# offset.category.test is the per-category shift at the PREDICTED rows,
+# spelled as dbartsData's own test-side channel: an nNew x K matrix entering
+# the raw fits before the softmax. It is never taken from the fit, because
+# these rows are not the fit's rows, so a fit trained under a category offset
+# requires one here rather than being served the offset-free surface by
+# default - an all-zero matrix asks for that surface on purpose. Passing the
+# training offset back at the training rows reproduces yhat.train.
 predict.bartMultinomial <- function(
   object,
   newdata,
-  type = c("ev", "ppd"),
+  type = c("ev", "ppd", "bart", "forest"),
+  offset.category.test = NULL,
   combineChains = TRUE,
   ...
 ) {
-  type <- match.arg(type)
+  type <- validateType(type, eval(formals(predict.bartMultinomial)$type))
+  refuseMultinomialLatentType(type)
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
     stop(
       "predict requires bart2(family = \"multinomial\") to be called with ",
       "'keepTrees' == TRUE"
     )
   }
+  newdata <- validateXTest(newdata, object$fit$data@x)
   if (is.null(newdata)) {
     stop("newdata cannot be NULL")
   }
+  if (is.null(offset.category.test)) {
+    if (!is.null(object$fit$data@offset.category)) {
+      stop(
+        "'offset.category.test' is required on a multinomial fit trained ",
+        "with a category offset: the predicted rows are not the training ",
+        "rows, so pass their own ",
+        nrow(newdata),
+        " x ",
+        object$K,
+        " matrix, all-zero for the offset-free surface"
+      )
+    }
+  } else {
+    offset.category.test <- validateCategoryOffset(
+      offset.category.test,
+      nrow(newdata),
+      object$K,
+      "'offset.category.test'"
+    )
+  }
   # raw is n.new x K x n.samples (x n.chains), the run's test-channel shape;
-  # $fit$predict codes newdata to the training columns itself (the same
-  # validateXTest path every family's predict uses)
-  raw <- object$fit$predict(newdata)
+  # $fit$predict re-validates the coded newdata (idempotently) and shapes the
+  # offset against the same rows
+  raw <- object$fit$predict(newdata, offset.category.test)
   probs <- shapeMultinomialChannel(
     raw,
     object$levels,
@@ -1014,7 +1074,7 @@ extract.bartOrdinal <- function(
   sample = c("train", "test"),
   ...
 ) {
-  type <- match.arg(type)
+  type <- validateType(type, eval(formals(extract.bartOrdinal)$type))
   sample <- match.arg(sample)
   if (type == "bart") {
     latent <- if (sample == "test") {
@@ -1051,7 +1111,7 @@ extract.bartOrdinal <- function(
 # (type = "class") the argmax category as an ordered factor over the original
 # levels, or (type = "bart") the posterior-mean latent eta per observation.
 fitted.bartOrdinal <- function(object, type = c("ev", "class", "bart"), ...) {
-  type <- match.arg(type)
+  type <- validateType(type, eval(formals(fitted.bartOrdinal)$type))
   if (type == "bart") {
     latent <- object$latent.train
     return(apply(latent, length(dim(latent)), mean))
@@ -1099,7 +1159,7 @@ predict.bartOrdinal <- function(
   combineChains = TRUE,
   ...
 ) {
-  type <- match.arg(type)
+  type <- validateType(type, eval(formals(predict.bartOrdinal)$type))
   if (is.null(object[["cutpoints.raw"]])) {
     stop(
       "predict requires bart2(family = \"ordinal\") to be called with ",
@@ -1180,7 +1240,7 @@ extract.bartNegbin <- function(
   sample = c("train", "test"),
   ...
 ) {
-  type <- match.arg(type)
+  type <- validateType(type, eval(formals(extract.bartNegbin)$type))
   sample <- match.arg(sample)
   latent <- if (sample == "test") object$latent.test else object$latent.train
   mu <- if (sample == "test") object$yhat.test else object$yhat.train
@@ -1204,7 +1264,7 @@ extract.bartNegbin <- function(
 # array's last dimension in every chain layout, so we take the mean over that
 # observation margin.
 fitted.bartNegbin <- function(object, type = c("ev", "bart"), ...) {
-  type <- match.arg(type)
+  type <- validateType(type, eval(formals(fitted.bartNegbin)$type))
   channel <- if (type == "bart") object$latent.train else object$yhat.train
   apply(channel, length(dim(channel)), mean)
 }
@@ -1233,7 +1293,7 @@ predict.bartNegbin <- function(
   combineChains = TRUE,
   ...
 ) {
-  type <- match.arg(type)
+  type <- validateType(type, eval(formals(predict.bartNegbin)$type))
   if (is.null(object[["dispersion.raw"]])) {
     stop(
       "predict requires bart2(family = \"nbinom\") to be called with ",

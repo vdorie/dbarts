@@ -951,7 +951,7 @@ multinomialRefuses(x2, y2, "monotone", monotone = c(1, 0))
 multinomialRefuses(x3, y3, "variance", variance = TRUE)
 
 expect_error(extract(fit3, type = "bart"), "non-identified")
-expect_error(fitted(fit3, type = "bart"), "'arg' should be one of")
+expect_error(fitted(fit3, type = "bart"), "non-identified")
 # fit3 was built WITHOUT keepTrees, so it has no saved trees to replay
 expect_error(predict(fit3, x3), "keepTrees")
 expect_error(

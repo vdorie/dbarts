@@ -354,3 +354,20 @@ fitRec <- bart2(
 phatRec <- fitted(fitRec)
 expect_true(mean(abs(phatRec - trueProbs)) < 0.08)
 expect_true(abs(mean(fitRec$cutpoints[, 2L]) - 0.8) < 0.35)
+
+# --- type synonyms: "response" and "link" are the predict.glm spellings of
+# "ev" and "bart", accepted here exactly as on a "bart" fit ---
+
+expect_identical(extract(fit, type = "response"), extract(fit, type = "ev"))
+expect_identical(extract(fit, type = "link"), extract(fit, type = "bart"))
+expect_identical(fitted(fit, type = "link"), fitted(fit, type = "bart"))
+expect_identical(
+  predict(fit, x.test, type = "response"),
+  predict(fit, x.test, type = "ev")
+)
+expect_identical(
+  predict(fit, x.test, type = "link"),
+  predict(fit, x.test, type = "bart")
+)
+# a value this family does not offer refuses against the set it does
+expect_error(predict(fit, x.test, type = "forest"), "type must be in 'ev'")

@@ -392,3 +392,20 @@ muHat <- fitted(fitRec)
 # mean counts track the truth, and the estimated dispersion brackets rTrue = 5
 expect_true(mean(abs(muHat - muRec)) < 0.6)
 expect_true(abs(mean(fitRec$dispersion) - rTrue) < 3)
+
+# --- type synonyms: "response" and "link" are the predict.glm spellings of
+# "ev" and "bart", accepted here exactly as on a "bart" fit ---
+
+expect_identical(extract(fit, type = "response"), extract(fit, type = "ev"))
+expect_identical(extract(fit, type = "link"), extract(fit, type = "bart"))
+expect_identical(fitted(fit, type = "link"), fitted(fit, type = "bart"))
+expect_identical(
+  predict(fit, x.test, type = "response"),
+  predict(fit, x.test, type = "ev")
+)
+expect_identical(
+  predict(fit, x.test, type = "link"),
+  predict(fit, x.test, type = "bart")
+)
+# a value this family does not offer refuses against the set it does
+expect_error(predict(fit, x.test, type = "forest"), "type must be in 'ev'")

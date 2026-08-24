@@ -911,6 +911,15 @@
             array/data frame conventions; both are registered only when
             \pkg{posterior} is installed, a \code{Suggests} rather than a
             hard dependency.
+      \item \code{predict} on a \code{bart2(family = "multinomial")} fit
+            gains \code{offset.category.test}, the per-category shift at the
+            predicted rows: an \code{nrow(newdata)} x K matrix entering the
+            raw fits before the softmax, spelled as
+            \code{\link{dbartsData}}'s channel of the same name. A fit
+            trained with an \code{offset} requires it - the predicted rows
+            are not the training rows, so no resident offset describes them -
+            and passing the training offset back at the training rows
+            reproduces \code{yhat.train}.
     }
   }
   \subsection{C API}{
@@ -976,6 +985,19 @@
   }
   \subsection{BUG FIXES}{
     \itemize{
+      \item The \code{\link{predict.glm}} synonyms documented for \code{type}
+            work on the \code{bart2} extended-family generics: \code{extract},
+            \code{fitted} and \code{predict} for \code{bartMultinomial},
+            \code{bartOrdinal} and \code{bartNegbin} fits take
+            \code{"response"} for \code{"ev"} and \code{"link"} for
+            \code{"bart"}, as the \code{bart} methods always have. Previously
+            each refused both, naming only the types it accepted.
+      \item \code{type = "bart"} and \code{type = "forest"} on a multinomial
+            fit error naming the reason - a category's forest is a latent
+            whose level is reproducibly structured yet not identified, so the
+            identified content is the log-ratio of the reported probabilities
+            - on \code{predict} and \code{fitted} as well as \code{extract},
+            which alone gave a reason before.
       \item A leaf containing only observations of weight zero now counts as
             empty for the tree-move vetoes, so no tree can keep a leaf that
             no observation in the likelihood reaches. Previously such a leaf
