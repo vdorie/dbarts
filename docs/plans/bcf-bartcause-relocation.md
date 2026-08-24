@@ -1274,7 +1274,12 @@ DENSE-EQUIVALENT (one assertion per line).
   landing note at the end of this file.
 - **A test treatment vector / test basis**, which would retire
   `refuseUndefinedTestFits` (:666) and is the only thing that would restore
-  missing-response handling to bcf(). A modelling decision first.
+  missing-response handling to bcf(). A modelling decision first. The
+  PREDICT-TIME half - the combined blend at new rows for an already-fit
+  amplitude coupling - LANDED 2026-08-24 at dbarts 139a1976 (`bases =`, or
+  the bart2 `forest()` term auto-route); see the landing note at the end of
+  this file. What is still doored is the FIT-TIME channel: a resident test
+  basis, `yhat.test`, NA-y rows - the modelling decision above.
 - **First-forest `blocks` against its own column mask.** `forestColumns` is
   computed at `R/spec.R`:555-558 inside the `data@bases` branch while
   `blockSpec` is resolved at :341 outside it; the door is hoisting the forest-1
@@ -1644,3 +1649,44 @@ families until the multinomial mutation arc replaced the host shell:
 The binding spec lived at gitignored scratch/
 predict-replay-slice-spec.md (critique-amended); this note is the
 durable record.
+
+2026-08-24: the combined-predict door DISCHARGED at dbarts 139a1976 ("Blend the
+per-forest replay into combined predictions at new rows"). R-only, 792 raw added /
+26 removed over 12 files: R/generics.R 243, test-predict-blend.R 371 new,
+R/model.R 52, R/formulaTerms.R 38, feature-matrix.md 32, NEWS.Rd 18, R/dbarts.R
+14, man/bart.Rd 7, R/bart.R 7, R/data.R 5, bart-as-a-component.md 4,
+dbartsSampler-class.Rd 1 - over the 630 stop, accepted on the dense-equivalent
+discount: air's one-fragment-per-line formatting of five refusal messages costs
+~90 lines for ~25 of message, and the oracle needed six fixture configs, not one.
+Interface: `predict(type = "ev"/"ppd"/"bart")` on an amplitude-coupled fit blends
+`eta = shift + sum_k (glue_k %*% t(B_k)) * F_k + offset`, link after. New `bases`
+formal, after `forest`: length-K list, or a bare value when one forest carries a
+basis; refused on single-forest fits and `type = "forest"`; overrides the bart2
+auto-route, which derives each basis from `newdata` via `basis.terms` (formula +
+xlev + evaluated levels), stashed on `attr(spec$control, "bartcore.forests")`
+after `resolveSamplerSpec` and copied to the fit. `expandForestBasis(atPrediction
+= TRUE)` skips the all-zero-column/single-level-factor checks - unamended, they'd
+refuse the z = 0 counterfactual. `validateForestBases` gains a `rows` noun:
+predict names 'newdata', not 'y'. Both amplitude arms now gate on `keepTrees`;
+`type = "forest"` lacked it, silently returning one draw before. `offset` is
+accepted on the blend, validated after the `type = "forest"` early return, keeping
+the C-side `refuseUndefinedTestFits` pin reachable. man/bart.Rd:297's "term's own
+text" labels claim is fixed: labels are NULL on the term route. Critique blocker:
+bart2's `z:forest(x)` yields a ONE-column basis, not (1-z, z); tests use each
+route's own shape. Oracle: in-sample identity vs `yhat.train` at 1e-12, gaussian
+(shift/scale non-unit), probit, logistic, two-chain uncombined, q = 3,
+forest-1-with-basis; bitwise identity with the documented recombination on both
+counterfactual arms, plus the exact arm difference (forest 2's total moved between
+amplitudes). Mutations: M1 drop shift, 7 fails (binary green, as predicted); M2
+glue positional, 8; M3 basis ignored, 13; M4 double-scale, 9. Gates: tinytest
+6721/0; trio bitwise 43/12/11, no max|z|; --as-cran 1 NOTE (days since update);
+lintr/air clean; NEWS 294 rows; freshness OK. Anchor pass re-derived ~60
+docs/design citations by content; multinomial-mutation-arc.md left as a dated
+transcript. Side finding, ticketed, not fixed here: the saved-tree store's
+sampler-level write cursor carries across recorded `run()` calls while
+`predict`/`predictPerForest`/`predictVariance`/`getTrees` walk slots
+0..capacity-1, so a hand-driven `keepTrees` sampler with two recorded runs gets
+rotated draws. Still open, unchanged: the FIT-TIME test-basis channel (a
+`dbartsData` slot, a `forest()` formal, `$setTestBasis`, `yhat.test`, NA-y rows,
+flat C entries) is the maintainer-held modelling decision; the sampler-level
+`refuseUndefinedTestFits` stands.
