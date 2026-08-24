@@ -20,9 +20,16 @@ static size_t fuzzInt(ext_rng* r, size_t k) {
 // outlive a whole sweep regardless of which op installed them.
 struct FuzzArena {
   std::vector<std::unique_ptr<std::vector<double>>> bufs;
+  // the count matrix and its trials are borrowed int buffers, on the same
+  // lifetime rule as the double ones
+  std::vector<std::unique_ptr<std::vector<int>>> intBufs;
   double* keep(std::vector<double>&& v) {
     bufs.push_back(std::make_unique<std::vector<double>>(std::move(v)));
     return bufs.back()->data();
+  }
+  int* keep(std::vector<int>&& v) {
+    intBufs.push_back(std::make_unique<std::vector<int>>(std::move(v)));
+    return intBufs.back()->data();
   }
 };
 
@@ -199,7 +206,7 @@ static bool fuzzTreeRoutesCorrectly(const Tree& t, const ColumnStore& data,
 }
 
 template <typename S>
-static const char* fuzzInvariantViolation(S& s) {
+static const char* fuzzInvariantViolation(S& s, const double* z) {
   size_t n = s.numObservations();
   for (size_t c = 0; c < s.numChains(); ++c) {
     const auto& ch(s.chain(c));
@@ -228,6 +235,46 @@ static const char* fuzzInvariantViolation(S& s) {
       }
     }
     if (!(std::isfinite(s.sigma(c)))) return "sigma not finite";
+    // I2, amplitude parts identity: the combined location the accessor reports
+    // IS sum_f m_f(i) * forest f's totals, on the response scale. Selection is
+    // EXACT rather than a min over the amplitude block - forest 0 carries the
+    // synthesized all-ones basis, whose multiplier is its single amplitude, an
+    // indicator forest the complementary 0/1 pair, b0 on control and b1 on
+    // treated - so a z-indexing defect that swapped the two shows here, where
+    // a min over candidates would absorb it. Accumulating from the LAST forest
+    // DOWN matches combinedFits, so fma contraction lands on the same product
+    // on both sides. It discriminates a combination gone stale against the
+    // forests and amplitudes it summarizes - a cached blend, a dropped forest
+    // - and is blind by construction to everything UPSTREAM of them. The same
+    // identity is pinned at a fixed scenario in test-fits-without-offset.R;
+    // new here is holding it after every op of a random mutation stream.
+    if (z != nullptr && s.totalAmplitudes() > 0 &&
+        s.numReportedLocations() == 1) {
+      size_t numForests = ch.numForests(), last = numForests - 1;
+      std::vector<double> amplitude(s.totalAmplitudes()), combined(n);
+      std::vector<size_t> block(numForests + 1, 0);
+      for (size_t f = 0; f < numForests; ++f)
+        block[f + 1] = block[f] + s.numForestAmplitudes(f);
+      if (!s.amplitudes(c, amplitude.data())) return "amplitudes refused";
+      if (!s.fitsWithoutOffset(c, combined.data()))
+        return "fitsWithoutOffset refused a single-location coupling";
+      ForestCalibration calibration = s.forestCalibration(c, 0);
+      auto multiplier = [&](size_t f, size_t i) {
+        return s.numForestAmplitudes(f) == 1
+                 ? amplitude[block[f]]
+                 : amplitude[block[f] + (z[i] != 0.0 ? 1 : 0)];
+      };
+      for (size_t i = 0; i < n; ++i) {
+        double location = multiplier(last, i) * ch.totalFitsInForest(last)[i];
+        for (size_t f = last; f-- > 0;)
+          location += multiplier(f, i) * ch.totalFitsInForest(f)[i];
+        double expected =
+          calibration.responseScale * location + calibration.responseShift;
+        if (std::fabs(combined[i] - expected) >
+            1e-9 * (1.0 + std::fabs(expected)))
+          return "fitsWithoutOffset != the amplitude blend of forest totals";
+      }
+    }
     std::vector<int32_t> owner;
     for (size_t f = 0; f < ch.numForests(); ++f)
       for (size_t t = 0; t < ch.numTreesInForest(f); ++t)
@@ -262,16 +309,26 @@ static const char* fuzzInvariantViolation(S& s) {
 enum FuzzOp {
   OP_SET_PREDICTOR, OP_UPDATE_COLUMNS, OP_PER_OBS, OP_SESSION_ABANDON,
   OP_SET_DATA, OP_SET_CUTS, OP_SET_SIGMA, OP_SET_RESPONSE, OP_SET_WEIGHTS,
-  OP_SET_OFFSET, OP_SET_TEST, OP_RUN, OP_STATE, OP_GROW, OP_COUNT
+  OP_SET_OFFSET, OP_SET_TEST, OP_RUN, OP_STATE, OP_GROW, OP_SET_COUNTS,
+  OP_SET_CATEGORY_OFFSET, OP_COUNT
 };
 
 static const char* const fuzzOpName[OP_COUNT] = {
   "setPredictor", "updateColumns", "perObs", "sessionAbandon", "setData",
   "setCuts", "setSigma", "setResponse", "setWeights", "setOffset", "setTest",
-  "run", "state", "grow"};
+  "run", "state", "grow", "setCounts", "setCategoryOffset"};
 
 static const int fuzzOpWeight[OP_COUNT] = {5, 5, 4, 3, 2, 3, 2, 2, 2, 2, 2,
-                                           3, 2, 2};
+                                           3, 2, 2, 3, 3};
+
+// The multinomial response-side ops. fuzzPickOp divides a running total over
+// the SET bits, so admitting these into a config that does not want them
+// re-deals its whole op sequence and silently discards the sequences it
+// explores today; single-forest configs name the complement, not all ones.
+static const unsigned fuzzCountsOps =
+  (1u << OP_SET_COUNTS) | (1u << OP_SET_CATEGORY_OFFSET);
+static const unsigned fuzzAllSingleForestOps =
+  ((1u << OP_COUNT) - 1) & ~fuzzCountsOps;
 
 static int fuzzPickOp(ext_rng* r, unsigned mask) {
   int total = 0;
@@ -361,10 +418,13 @@ static void fuzzFillResponse(ext_rng* r, ResponseFamily fam, const double* x,
 // for a CSC-backed sampler. The engine keeps no matrix, so the driver tracks
 // the current predictors itself (as the R layer does) to seed candidate columns
 // and feed the re-quantize ops (setCutPoints, setState) their raw values.
+// treatmentZ is the 0/1 indicator an amplitude coupling's forest 1 basis was
+// synthesized from, or null; it selects I2's exact multiplier and nothing else.
 template <typename S>
 static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
                       ext_rng* opRng, std::uint32_t seed, int numOps,
-                      const double* initialX) {
+                      const double* initialX,
+                      const double* treatmentZ = nullptr) {
   std::vector<std::string> trace;
   char line[128];
   bool ok = true;
@@ -394,6 +454,12 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
   auto curAll = [&]() -> const double* {
     return currentX.empty() ? nullptr : currentX.data();
   };
+  // the borrowed multinomial response-side buffers currently installed: the
+  // counts to re-install for the self-swap flavor, the offset so I1 can
+  // recompute the reported softmax against the same shift the combiner blends
+  const int* liveCounts = nullptr;
+  const int* liveTrials = nullptr;
+  const double* liveCategoryOffset = nullptr;
 
   for (op = 0; op < numOps && ok; ++op) {
     size_t n = s.numObservations();
@@ -577,10 +643,57 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         bool finite = true;
         for (double v : tf) finite &= std::isfinite(v);
         for (double v : sig) finite &= std::isfinite(v);
+        // I3, liveness: every reported draw is finite. It discriminates the
+        // reporting slab that was never sized or never written - the coarsest
+        // of the four, and the only one that fires before a value is
+        // comparable to anything at all.
         if (!finite) fail("run produced non-finite draws");
         if (spec.family == ResponseFamily::gaussian)
           for (double v : sig)
             if (!(v > 0.0)) fail("run produced non-positive sigma");
+        // I1, multinomial parts identity: the reported channel IS softmax over
+        // the live per-category totals plus the installed category offset,
+        // mirroring softmaxLocationMajor's max-subtraction so the two agree to
+        // a few ulps rather than to exp()'s own absolute error. It
+        // discriminates a reporting blend gone stale against the forests it
+        // summarizes - a per-column refresh, a cached slab, a dropped offset -
+        // none of which the simplex half alone would see; it is blind by
+        // construction to everything UPSTREAM of totalFits, so a wrong draw
+        // reported faithfully passes. The same identity is pinned at fixed
+        // scenarios in test-multinomial-counts-mutation.R and
+        // test-multinomial-category-offset.R; new here is holding it across a
+        // random 40-op stream, multi-chain, under ASAN. Sampler::run slabs
+        // trainingFits chain-major at c * numSamples * n * L, location-major
+        // within a sample, so the chain stride is n * L at numSamples 1.
+        std::vector<const double*> total(numLocations);
+        for (size_t c = 0; ok && numLocations > 1 && c < nc; ++c) {
+          const auto& ch(s.chain(c));
+          for (size_t k = 0; k < numLocations; ++k)
+            total[k] = ch.totalFitsInForest(k).data();
+          const double* rep = tf.data() + c * n * numLocations;
+          for (size_t i = 0; ok && i < n; ++i) {
+            auto raw = [&](size_t k) {
+              return total[k][i] + (liveCategoryOffset != nullptr
+                                      ? liveCategoryOffset[k * n + i] : 0.0);
+            };
+            double maxRaw = raw(0), sumExp = 0.0, rowSum = 0.0;
+            for (size_t k = 1; k < numLocations; ++k)
+              maxRaw = std::max(maxRaw, raw(k));
+            for (size_t k = 0; k < numLocations; ++k)
+              sumExp += std::exp(raw(k) - maxRaw);
+            for (size_t k = 0; ok && k < numLocations; ++k) {
+              double q = std::exp(raw(k) - maxRaw) / sumExp;
+              double got = rep[k * n + i];
+              rowSum += got;
+              if (!(got >= 0.0 && got <= 1.0))
+                fail("reported channel outside [0, 1]");
+              else if (std::fabs(got - q) > 1e-12 * (1.0 + std::fabs(q)))
+                fail("reported channel != softmax of the category totals");
+            }
+            if (ok && std::fabs(rowSum - 1.0) > 1e-12)
+              fail("reported channel row does not sum to 1");
+          }
+        }
         break;
       }
       case OP_STATE: {
@@ -621,12 +734,114 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         }
         break;
       }
+      // The count-matrix swap: the multinomial response-side channel, and the
+      // only route by which Sampler::setCounts' per-chain fan-out is reached
+      // from a test. Only VALID counts are generated - non-negative small
+      // whole cells, every row's trials the recomputed sum and at least 1 -
+      // because the contract is host-enforced and the engine is a two-pointer
+      // swap; the hostile-input arm belongs at the bridge, which probes it.
+      // n and K are read from the LIVE sampler at op time, so a later widening
+      // of the multi-forest mask admitting setData could not meet a
+      // stale-sized buffer here. NEITHER new op has an oracle for its own
+      // EFFECT: the draws move and the fuzz compares draws to nothing, so
+      // these are REACHABILITY ops whose oracles are I1, the ASAN leg, and
+      // I4 - the counts ride no wire block, so a later OP_STATE in the same
+      // stream is the state round trip across a swap.
+      case OP_SET_COUNTS: {
+        if (!s.supportsCountsMutation()) {
+          record("op setCounts (skipped)");
+          break;
+        }
+        size_t K = s.numReportedLocations();
+        // flavors: 0 unit one-hot (the creation shape), 1 grouped multi-trial,
+        // 2 a self-swap of the resident pointers, which must be BITWISE inert -
+        // near-vacuous against today's plain assignment, and the only tripwire
+        // that would survive a later count-derived cache
+        int flavor = static_cast<int>(
+          fuzzInt(opRng, liveCounts == nullptr ? 2 : 3));
+        if (flavor == 2) {
+          FuzzSnapshot<S> before = fuzzCapture(s);
+          bool swapped = s.setCounts(liveCounts, liveTrials);
+          record("op setCounts self-swap");
+          if (!swapped) fail("setCounts refused on a counts-owning coupling");
+          else if (!fuzzSnapshotsEqual(before, fuzzCapture(s)))
+            fail("self setCounts mutated state");
+          break;
+        }
+        std::vector<int> counts(n * K, 0), trials(n, 0);
+        for (size_t i = 0; i < n; ++i) {
+          if (flavor == 0) {
+            counts[fuzzInt(opRng, K) * n + i] = 1;
+          } else {
+            for (size_t k = 0; k < K; ++k)
+              counts[k * n + i] = static_cast<int>(fuzzInt(opRng, 3));
+          }
+          int rowSum = 0;
+          for (size_t k = 0; k < K; ++k) rowSum += counts[k * n + i];
+          if (rowSum == 0) {
+            counts[fuzzInt(opRng, K) * n + i] = 1;
+            rowSum = 1;
+          }
+          trials[i] = rowSum;
+        }
+        liveCounts = arena.keep(std::move(counts));
+        liveTrials = arena.keep(std::move(trials));
+        if (!s.setCounts(liveCounts, liveTrials))
+          fail("setCounts refused on a counts-owning coupling");
+        snprintf(line, sizeof line, "op%d setCounts flavor=%d", op, flavor);
+        record(line);
+        break;
+      }
+      // The n x K category offset, installed or cleared. The driver keeps the
+      // live pointer because I1 has to recompute the reported softmax against
+      // the same shift the combiner blends. OP_SET_CATEGORY_TEST_OFFSET has no
+      // op here: these configs never set test predictors (OP_SET_TEST is
+      // outside fuzzMultiForestMask), so numTestObservations is 0 and a test
+      // offset would install a pointer nothing reads.
+      case OP_SET_CATEGORY_OFFSET: {
+        if (!s.supportsCountsMutation()) {
+          record("op setCategoryOffset (skipped)");
+          break;
+        }
+        size_t K = s.numReportedLocations();
+        bool clear = fuzzUnif(opRng) < 0.3;
+        const double* offset = nullptr;
+        if (!clear) {
+          std::vector<double> values(n * K);
+          for (size_t m = 0; m < n * K; ++m)
+            values[m] = 0.8 * (fuzzUnif(opRng) - 0.5);
+          offset = arena.keep(std::move(values));
+        }
+        if (!s.setCategoryOffset(offset))
+          fail("setCategoryOffset refused on a counts-owning coupling");
+        liveCategoryOffset = offset;
+        snprintf(line, sizeof line, "op%d setCategoryOffset clear=%d", op,
+                 clear);
+        record(line);
+        break;
+      }
       default: break;
     }
     if (ok) {
-      const char* v = fuzzInvariantViolation(s);
+      const char* v = fuzzInvariantViolation(s, treatmentZ);
       if (v) fail(v);
     }
+  }
+  // A deterministic fingerprint of the whole op stream: every op path records
+  // a line carrying its index, its drawn sizes and its accept/reject outcome,
+  // so this digest moves if op SELECTION moves or if any op's rng consumption
+  // shifts. Off unless DBARTS_FUZZ_TRACE is set, because the fuzzer's normal
+  // output is one line per run; a diff of these across a change to the op
+  // vocabulary is the gate that the existing configs' streams are untouched.
+  if (std::getenv("DBARTS_FUZZ_TRACE") != nullptr) {
+    std::uint64_t digest = 1469598103934665603ull;
+    for (const std::string& text : trace)
+      for (char c : text) {
+        digest ^= static_cast<unsigned char>(c);
+        digest *= 1099511628211ull;
+      }
+    printf("trace [%s] seed %u ops %zu digest %016llx\n", spec.name, seed,
+           trace.size(), static_cast<unsigned long long>(digest));
   }
   return ok;
 }
@@ -739,7 +954,7 @@ static void fuzzRunBCF(const ConfigSpec& spec, std::uint32_t seed, int numOps) {
                                   fuzzRawScale, options, bcf, rngs.data());
   Results empty;
   s.run(12, 0, empty);
-  fuzzDrive(s, spec, arena, opRng, seed, numOps, xb);
+  fuzzDrive(s, spec, arena, opRng, seed, numOps, xb, zb);
 
   for (size_t c = 0; c < spec.numChains; ++c) ext_rng_destroy(rngs[c]);
   ext_rng_destroy(opRng);
@@ -747,8 +962,11 @@ static void fuzzRunBCF(const ConfigSpec& spec, std::uint32_t seed, int numOps) {
 
 // A K-forest multinomial (softmax) sampler (docs/design/multinomial.md): the
 // other shape the widened revalidation lifts, and the one with the largest
-// j-splitting tree count. Its response is the borrowed one-hot count matrix,
-// so the response-side ops stay out for that reason as well.
+// j-splitting tree count. Its response is the borrowed count matrix, which
+// OP_SET_COUNTS swaps under the running sampler and OP_SET_CATEGORY_OFFSET
+// shifts. spec.family is NOT inert on this runner: fuzzDrive reads it to
+// decide whether to demand a positive sigma after a run, and logistic is what
+// correctly suppresses that demand on a softmax sampler.
 static void fuzzRunMultinomial(const ConfigSpec& spec, std::uint32_t seed,
                                int numOps) {
   FuzzArena arena;
@@ -804,7 +1022,7 @@ static void fuzzRunLinear(std::uint32_t seed, int numOps) {
   size_t n0 = 160, p = 3;
   ConfigSpec spec{"linear", ResponseFamily::gaussian,
                   {ColSpec{}, ColSpec{}, ColSpec{}}, 1,
-                  (1u << OP_COUNT) - 1};
+                  fuzzAllSingleForestOps};
   ext_rng* opRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(opRng, seed * 2u + 7u);
 
@@ -1687,13 +1905,13 @@ static void testMutationFuzzer(int numSeeds) {
   ColSpec cat3Miss{ColumnType::categorical, 3, 0.2};
   std::vector<ConfigSpec> configs = {
     {"gaussian", ResponseFamily::gaussian, {ord, ord, ord}, 1,
-     (1u << OP_COUNT) - 1},
+     fuzzAllSingleForestOps},
     {"categorical", ResponseFamily::gaussian, {cat4, ord, ord}, 1,
-     (1u << OP_COUNT) - 1},
+     fuzzAllSingleForestOps},
     {"missing", ResponseFamily::gaussian, {ordMiss, cat3Miss, ord}, 1,
-     (1u << OP_COUNT) - 1},
+     fuzzAllSingleForestOps},
     {"multichain", ResponseFamily::gaussian, {ord, ord, ord}, 2,
-     (1u << OP_COUNT) - 1},
+     fuzzAllSingleForestOps},
     {"probit", ResponseFamily::probit, {ord, ord, ord}, 1,
      (1u << OP_SET_PREDICTOR) | (1u << OP_UPDATE_COLUMNS) | (1u << OP_PER_OBS) |
        (1u << OP_SESSION_ABANDON) | (1u << OP_SET_DATA) | (1u << OP_SET_CUTS) |
@@ -1724,10 +1942,18 @@ static void testMutationFuzzer(int numSeeds) {
                  fuzzMultiForestMask};
   ConfigSpec bcfCat{"bcf-categorical", ResponseFamily::gaussian,
                     {ord, cat4, ord}, 2, fuzzMultiForestMask};
+  // the multinomial rows carry the response-side ops on top of that mask;
+  // the two-chain row is what drives Sampler::setCounts' and
+  // setCategoryOffset's per-chain fan-out and I1's chain stride
   ConfigSpec multinomial{"multinomial", ResponseFamily::logistic,
-                         {ord, ord, ord}, 1, fuzzMultiForestMask};
+                         {ord, ord, ord}, 1,
+                         fuzzMultiForestMask | fuzzCountsOps};
   ConfigSpec multinomialMiss{"multinomial-missing", ResponseFamily::logistic,
-                             {ordMiss, cat3Miss, ord}, 1, fuzzMultiForestMask};
+                             {ordMiss, cat3Miss, ord}, 1,
+                             fuzzMultiForestMask | fuzzCountsOps};
+  ConfigSpec multinomialChains{"multinomial-multichain",
+                               ResponseFamily::logistic, {ord, ord, ord}, 2,
+                               fuzzMultiForestMask | fuzzCountsOps};
 
   const int numOps = 40;
   for (int sd = 0; sd < numSeeds; ++sd) {
@@ -1738,6 +1964,7 @@ static void testMutationFuzzer(int numSeeds) {
     fuzzRunBCF(bcfCat, seed, numOps);
     fuzzRunMultinomial(multinomial, seed, numOps);
     fuzzRunMultinomial(multinomialMiss, seed, numOps);
+    fuzzRunMultinomial(multinomialChains, seed, numOps);
     fuzzRunLinear(seed, numOps);
     fuzzRunSparse(seed, numOps);
   }
