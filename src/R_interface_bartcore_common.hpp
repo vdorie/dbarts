@@ -210,6 +210,15 @@ void validateResponseSupport(bartcore::ResponseFamily family,
 void refuseUndefinedTestFits(const bartcore::SamplerBase& sampler,
                              const char* caller);
 
+/// Errors on a saved-tree read against a store holding no RECORDED draws -
+/// keepTrees on, nothing run since the last reset (creation, setTreeStorage,
+/// a warm-start install). Its slots hold zero-leaf trees, which replay as a
+/// legitimate constant surface, so the read is refused rather than answered.
+/// A sampler without tree storage passes through: it replays its live trees.
+/// caller labels the error.
+void refuseEmptyTreeStore(const bartcore::SamplerBase& sampler,
+                          const char* caller);
+
 /// Errors on a sampler whose residual sd is structurally pinned - a family
 /// that fixes it by definition (probit, logistic, multinomial, ordinal,
 /// nbinom) or a heteroscedastic variance forest - where a change would

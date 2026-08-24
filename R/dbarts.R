@@ -1880,12 +1880,10 @@ dbartsSampler <- setRefClass(
       if (is.null(matchedCall$chainNums)) {
         chainNums <- seq_len(control@n.chains)
       }
+      # NULL asks the engine for every RECORDED draw: a store still filling
+      # holds fewer than n.samples, and only the engine knows how many
       if (is.null(matchedCall$sampleNums)) {
-        sampleNums <- if (control@keepTrees) {
-          seq_len(control@n.samples)
-        } else {
-          NULL
-        }
+        sampleNums <- NULL
       } else {
         if (!control@keepTrees) {
           warning("sampleNums ignored if keepTrees is FALSE")
@@ -1923,12 +1921,10 @@ dbartsSampler <- setRefClass(
       if (is.null(matchedCall$chainNums)) {
         chainNums <- seq_len(control@n.chains)
       }
+      # as for printTrees: NULL is every recorded draw, which only the engine
+      # counts
       if (is.null(matchedCall$sampleNums)) {
-        sampleNums <- if (useSaved) {
-          seq_len(control@n.samples)
-        } else {
-          NULL
-        }
+        sampleNums <- NULL
       } else {
         if (!useSaved) {
           warning(

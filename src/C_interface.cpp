@@ -29,6 +29,7 @@ using bartcore_bridge::drawAugmentation;
 using bartcore_bridge::refuseUndefinedTestFits;
 using bartcore_bridge::refuseBinaryWeightChange;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
+using bartcore_bridge::refuseEmptyTreeStore;
 using bartcore_bridge::refuseGroupedScaleUpdate;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
@@ -777,6 +778,7 @@ void dbarts_sampler_predict(dbarts_sampler* sampler,
   // first forest's fit labelled as the whole; see
   // dbarts_sampler_setTestPredictors
   refuseUndefinedTestFits(engine, "dbarts_sampler_predict");
+  refuseEmptyTreeStore(engine, "dbarts_sampler_predict");
   bartcore::SamplerShape shape = engine.shape();
   void* scratch = vmaxget();
   TranslatedSource source = translateSource(
@@ -792,7 +794,7 @@ void dbarts_sampler_predict(dbarts_sampler* sampler,
 
   if (offsetTest != NULL) {
     size_t capacity = shape.savedTreeCapacity;
-    size_t numSamples = capacity > 0 ? capacity : 1;
+    size_t numSamples = capacity > 0 ? shape.numSavedDraws : 1;
     for (size_t slab = 0; slab < numSamples * shape.numChains; ++slab)
       misc_addVectorsInPlace(offsetTest, numTestObservations,
                              out + slab * numTestObservations);
@@ -838,12 +840,14 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
   // past the last forest
   if (forest >= shape.numForests)
     Rf_error("dbarts_sampler_printTrees: forest index out of range");
+  refuseEmptyTreeStore(engine, "dbarts_sampler_printTrees");
   for (size_t i = 0; i < numChainIndices; ++i) {
     if (chainIndices[i] >= shape.numChains)
       Rf_error("dbarts_sampler_printTrees: chain number out of range");
   }
+  // sample numbers address RECORDED DRAWS, oldest first, as getTrees does
   for (size_t i = 0; i < numSampleIndices; ++i) {
-    if (sampleIndices[i] >= shape.savedTreeCapacity)
+    if (sampleIndices[i] >= shape.numSavedDraws)
       Rf_error("dbarts_sampler_printTrees: sample number out of range");
   }
   // against the NAMED forest's own count, which a multi-forest sampler states
@@ -908,7 +912,7 @@ size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler, size_t forest) {
 }
 
 size_t dbarts_sampler_numSavedSamples(const dbarts_sampler* sampler) {
-  return samplerOf(sampler).shape().savedTreeCapacity;
+  return samplerOf(sampler).shape().numSavedDraws;
 }
 
 int dbarts_sampler_kIsSampled(const dbarts_sampler* sampler) {

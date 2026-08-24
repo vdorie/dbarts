@@ -840,8 +840,12 @@ void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
 /// the latent scale), from a borrowed source declaring numPredictors columns
 /// over the rows to predict. With tree storage out is xTest->numRows x
 /// numSavedSamples x numChains from the saved trees; without, one set per
-/// chain from the live trees. offsetTest, when non-null, is added to
-/// every sample's fits. A CSC-backed source routes its rows resident, without
+/// chain from the live trees. The saved draws come out OLDEST FIRST - the
+/// numSavedSamples most recent recorded draws, however many runs recorded
+/// them - so the draw axis is chronological and pairs with the run channels
+/// that recorded it, and a store the sampler has recorded nothing into is
+/// refused rather than answered from its unwritten slots. offsetTest, when
+/// non-null, is added to every sample's fits. A CSC-backed source routes its rows resident, without
 /// a dense materialization. Refused on any sampler whose blend is undefined -
 /// the predicate is the blend, not the forest count (see
 /// dbarts_sampler_create): read the forests separately with
@@ -852,6 +856,8 @@ void dbarts_sampler_predict(dbarts_sampler* sampler,
 
 /// Turns saved-tree storage on or off; numSamplesToStore sizes the buffer
 /// when on. Turn on for recorded iterations to predict from them later.
+/// Changing either discards what the store held: its recorded-draw count
+/// returns to 0.
 void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
                                    size_t numSamplesToStore);
 /// A data.frame of tree structure: pre-order rows of ([chain,] [sample,]
@@ -859,6 +865,10 @@ void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
 /// the engine's internal response scale. Indices are 0-based here. Saved
 /// trees are read unless useLiveTrees; sampleIndices is ignored when
 /// reading live trees. The caller must protect the result.
+///
+/// sampleIndices address RECORDED DRAWS on predict's oldest-first axis, in
+/// [0, dbarts_sampler_numSavedSamples), not store slots;
+/// dbarts_sampler_printTrees numbers its output the same way.
 ///
 /// forest is a 0-based index in [0, dbarts_sampler_numForests(sampler)), so 0
 /// is the only legal value on a single-forest sampler (on a two-forest bcf one,
@@ -927,8 +937,11 @@ size_t dbarts_sampler_numChains(const dbarts_sampler* sampler);
 /// dbarts_sampler_numForests is an error, since a size_t probe carries no
 /// refusal a caller could tell from a legitimate answer.
 size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler, size_t forest);
-/// The saved-tree buffer size, 0 without tree storage; the sample count
-/// predict produces.
+/// The recorded draws the saved-tree store holds - 0 without tree storage,
+/// and 0 until a run records into it. The sample count predict produces and
+/// the bound on getTrees' and printTrees' sample indices. It stops at the
+/// buffer size: the store is circular, so a longer run keeps the most recent
+/// draws.
 size_t dbarts_sampler_numSavedSamples(const dbarts_sampler* sampler);
 int dbarts_sampler_kIsSampled(const dbarts_sampler* sampler);
 int dbarts_sampler_usesDart(const dbarts_sampler* sampler);

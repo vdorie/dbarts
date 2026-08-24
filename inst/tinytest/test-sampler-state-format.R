@@ -23,13 +23,13 @@ preds <- predict(bartFit, testData$x)
 
 state <- bartFit$fit$state
 expect_inherits(state, "bartcoreState")
-expect_equal(attr(state, "formatVersion"), 2L)
+expect_equal(attr(state, "formatVersion"), 3L)
 
 # anti-orphan: a FUTURE additive version still loads. The floor is >=, and the
 # reader looks blocks up by name, so an unknown future block would just be
 # ignored - an additive release never orphans an older reader's states.
 future <- state
-attr(future, "formatVersion") <- 3L
+attr(future, "formatVersion") <- 4L
 bartFit$fit$setState(future)
 expect_equal(predict(bartFit, testData$x), preds)
 
@@ -39,7 +39,7 @@ old <- state
 attr(old, "formatVersion") <- 0L
 expect_error(
   bartFit$fit$setState(old),
-  pattern = "encoding version 0.*oldest this dbarts \\(2\\)"
+  pattern = "encoding version 0.*oldest this dbarts \\(3\\)"
 )
 
 # the floor is what makes a BLOCK RENAME safe. Version 1 spelled the amplitude
@@ -52,7 +52,7 @@ priorEncoding[[1L]][["bcf"]] <- c(1, 1, 1, 1)
 attr(priorEncoding, "formatVersion") <- 1L
 expect_error(
   bartFit$fit$setState(priorEncoding),
-  pattern = "encoding version 1.*oldest this dbarts \\(2\\)"
+  pattern = "encoding version 1.*oldest this dbarts \\(3\\)"
 )
 
 # naming: a missing REQUIRED per-chain block is refused, naming the block.

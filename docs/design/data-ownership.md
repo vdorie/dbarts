@@ -47,7 +47,7 @@ stored raw values was tracked down and given an explicit, narrow home:
 - Linear/gp leaves: gather owned standardized copies at (re)initialize only
   (model.hpp:210,231,498,523); no per-draw raw reads. Leaves can own a raw
   gather too (q <= 8 columns), removing store dependence.
-- getTrees saved-tree replay reads store.x (R_interface_bartcore.cpp:5934);
+- getTrees saved-tree replay reads store.x (R_interface_bartcore.cpp:5956);
   routable from codes while the cut grid is unchanged since save.
 - dbarts.h exposes no raw-x getter; the C ABI is unaffected.
 

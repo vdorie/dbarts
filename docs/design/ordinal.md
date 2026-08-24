@@ -263,10 +263,10 @@ addition with its own component test (section 7).
 to the enum (model.hpp:1778) and a case to the chain's family switch constructing
 OrdinalResponse(y, offset, K, ...). No leaf-model change - ordinal is a
 ConstantGaussianLeaf single-forest model like probit, so it composes with the
-existing SamplerFacade instantiations (facade.hpp:429+) unchanged; K threads in
+existing SamplerFacade instantiations (facade.hpp:440+) unchanged; K threads in
 through the same options struct the survival status and group indices use
 (chain.hpp:322-336). The bridge is NOT a string addition: resolveFamily
-(src/R_interface_bartcore.cpp:1581-1610) branches on the boolean
+(src/R_interface_bartcore.cpp:1582-1611) branches on the boolean
 control.responseIsBinary and refuses every family but gaussian/aft for a
 non-binary response, so ordinal needs a third response-shape channel - a K-level
 categorical flag plus K itself - plumbed through ParsedControl beside

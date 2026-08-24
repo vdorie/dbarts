@@ -129,7 +129,7 @@ two-forest object: it is the general K-forest basis/amplitude family, each
 forest contributing `m_{f,i} f_f(x_i)` with `m_{f,i} = dot(a_f, B_f(i, .))` a
 contraction of that forest's own n x q_f row-major basis with its own amplitude
 vector, of which bcf's `a mu + b_z tau` is the K = 2 instance
-(combiner.hpp:685, chain.hpp:687-689, facade.hpp:774-776). The SPELLING
+(combiner.hpp:685, chain.hpp:687-689, facade.hpp:833-836). The SPELLING
 followed: see that design note's discharged naming debt.
 
 What is combiner-hierarchy content, and stays here:
@@ -245,7 +245,7 @@ it is the sentence worth landing: **each is a CAPABILITY predicate defaulting
 to the REFUSING answer, so a future combiner stays refused at the bridge until
 it is audited** (combiner.hpp:526-528, :634-638, :645-647). And never a
 forest-count test, because a K-forest multinomial defeats one - which is why
-the bridge probes `totalAmplitudes() != 0` instead (C_interface.cpp:768-774).
+the bridge probes `totalAmplitudes() != 0` instead (C_interface.cpp:934-937).
 
 What still does NOT generalize, after M4:
 
@@ -253,7 +253,7 @@ What still does NOT generalize, after M4:
 - (ii) Non-Gaussian. The K-forest constructor hardcodes `GaussianResponse` and
   `family_ = ResponseFamily::gaussian` (chain.hpp:702-705), and
   `createAmplitudeSampler` carries a single
-  `SamplerFacade<ConstantGaussianLeaf>` instantiation (facade.hpp:786-788).
+  `SamplerFacade<ConstantGaussianLeaf>` instantiation (facade.hpp:855-857).
   That is M4.4.
 - (iii) The NAMING. Was the debt: every layer read "BCF" where it meant
   "carries amplitudes". DISCHARGED - the family is spelled `AmplitudeSpec` /

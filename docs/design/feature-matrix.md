@@ -475,7 +475,7 @@ updateScale != FALSE only under a base family with a data-derived transform
 base's internal scale and converted by nothing, so a re-anchoring swap would
 silently restate both in response units. Grouped probit and logistic take
 updateScale = TRUE as the no-op it always was. The flat C API guards through
-the same call (C_interface.cpp:586, 608). setData stays refused.
+the same call (C_interface.cpp:591, 613). setData stays refused.
 
 [f14] Reads off the BASE family: grouped gaussian takes `setWeights` (MOD:4818)
 and `setSigma`; grouped probit is refused on both (RIB:2766, RIB:2872); grouped

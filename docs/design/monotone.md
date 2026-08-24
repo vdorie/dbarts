@@ -74,7 +74,7 @@ per-predictor direction vector, values in {-1, 0, +1}, carried to the engine as 
 new `SamplerOptions` field beside the other per-column designations
 (`columnTypes` chain.hpp:51, `leafCovariateColumns` chain.hpp:82) and consumed
 once at construction. A nonzero entry on any column selects the constrained
-instantiation at the factory (`createSampler`, facade.hpp:469); an all-zero
+instantiation at the factory (`createSampler`, facade.hpp:769-771); an all-zero
 vector is treated as null and selects the existing constant-leaf path unchanged
 (section 8). This mirrors how the linear-leaf designation rides and dispatches,
 and keeps the constraint out of the data container - the same data can be fit
@@ -111,7 +111,7 @@ not matching dbarts's `lower.case.dotted` R style.
 factor (category codes 0..K-1 carry no order; core-generalization.md). A
 nonzero direction on a categorical column is refused at spec time in R and,
 defensively, at the factory (the categorical-refusal already guarding leaf
-covariates, facade.hpp:456). ORDERED factors and numeric columns are stored as
+covariates, facade.hpp:743). ORDERED factors and numeric columns are stored as
 ordinal `ColumnType` (core-generalization.md) and DO accept the constraint -
 their codes are ordered, so `splitInterval` and the neighbor test are meaningful.
 So "categorical refuses" is precisely "unordered factors refuse; ordinal columns
@@ -410,7 +410,7 @@ the chi-k posterior is a documented follow-up, not v1 scope.
   at construction like `columnTypes`. No dbarts.h / ABI change in v1 (the
   robust-errors/ordinal precedent) - monotone is reachable only through the R
   surface and internal bridge, so no LinkingTo consumer sees it.
-- **Factory (facade.hpp:469):** any nonzero direction selects the monotone
+- **Factory (facade.hpp:769-771):** any nonzero direction selects the monotone
   constant-leaf instantiation (`MonotoneConstantGaussianLeaf` +
   `ConstrainedConjugateMove`); all-zero selects the existing constant-leaf path
   verbatim (section 8).

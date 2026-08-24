@@ -1706,6 +1706,23 @@
             than two - so an unseeded multinomial fit made with this version
             will not reproduce one made with an earlier version; every other
             family is unaffected.
+      \item Saved trees are now read oldest draw first, counting back from the
+            store's write position, by \code{$predict},
+            \code{$predictForests}, \code{$getTrees}, \code{$printTrees}, and
+            the \code{installTrees}/\code{warm.start} donor pool. Previously
+            every reader walked the circular store in slot order, so a
+            hand-driven sampler that recorded more than one \code{$run} - a
+            burn-in \code{$run(0, n.burn)} followed by
+            \code{$run(0, n.samples)} with \code{keepTrees} left on - replayed
+            its draws rotated against the \code{train}, \code{sigma} and
+            \code{glue} channels those runs returned. A store holding fewer
+            draws than \code{n.samples} now reports the draws it holds instead
+            of padding the sample axis with slots nothing wrote, and one
+            holding none is refused rather than answered with a constant
+            surface. \code{bart}, \code{bart2} and \code{rbart_vi} fits were
+            never affected. Sampler states carry the store's draw count and so
+            move to format version 3; states written by earlier development
+            versions are refused.
     }
   }
 }

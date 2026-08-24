@@ -430,7 +430,7 @@ draw is only defined for integer y_i. Unlike the binary check, counts are
 unbounded, so validation is integrality + non-negativity, not a two-value test.
 
 **A third response-shape channel (the ordinal precedent).** resolveFamily
-(src/R_interface_bartcore.cpp:1581-1610) branches on control.responseIsBinary and
+(src/R_interface_bartcore.cpp:1582-1611) branches on control.responseIsBinary and
 control.numOrdinalCategories; a count response is neither, so - exactly as ordinal
 added a K-level channel (docs/design/ordinal.md section 4) - NB needs a `count`
 response-shape flag plumbed through ParsedControl beside responseIsBinary, with
@@ -440,7 +440,7 @@ and the chain family switch (chain.hpp:314-347) a case constructing
 NBResponse(y, offset, numObservations, rSpec), with the r spec (a fixed integer,
 or the grid-estimate flag; the residualDf convention of "positive fixes,
 non-positive estimates" carries over) threaded through the options struct as
-residualDf and numCategories are (R_interface_bartcore.cpp:1757, 1760).
+residualDf and numCategories are (R_interface_bartcore.cpp:1758, 1761).
 
 **Offset.** o_i = log(exposure_i), entering the mean multiplicatively (section 1);
 a fixed-unit-scale family keeps its zero offset meaningful (R/spec.R:193-205),
@@ -491,9 +491,9 @@ ChainStateData gains an `r` field near its residualDf field (chain.hpp:~142);
 getState writes it when carriesR() (chain.hpp:~1629, the residualDf line);
 stateIsValid refuses an NB state with a non-finite/non-positive r
 (chain.hpp:~1750); setState restoreR()s it (chain.hpp:~1873). The bridge adds a
-SLOT_R enum + `"r"` name to slotNames (R_interface_bartcore.cpp:6319-6331), a
-conditional write when finite (:3937-3939, the resid.df line), and a by-name
-read tolerating absence (:4257-4264). Old states omit the slot and load
+SLOT_R enum + `"r"` name to slotNames (R_interface_bartcore.cpp:6349-6361), a
+conditional write when finite (:6505-6507, the resid.df line), and a by-name
+read tolerating absence (:6942-6949). Old states omit the slot and load
 unchanged - the whole point of the additive by-name block; no
 state-format-version bump (additive, per the :3779-3788 rule).
 

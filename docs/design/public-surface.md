@@ -162,7 +162,7 @@ all bump.
 
 Landed (2026-07-10, c-api-growth): the format version stamp is demoted
 from an equality gate to an encoding FLOOR (minReadableStateFormatVersion,
-currently 2), so state evolution is additive rather than orphaning. setState
+currently 3), so state evolution is additive rather than orphaning. setState
 already reads every per-chain block BY NAME (getListElement) and defaults an
 absent OPTIONAL block, so the registry rule is: block names are append-only
 and a shipped name's on-disk encoding is FROZEN; a new capability adds a NEW

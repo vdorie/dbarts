@@ -431,7 +431,10 @@ record, serialize, restore), and the prior re-anchors on every
 range change; state store/restore is symmetric and validates cuts
 and occupancy all-or-none before mutating (semantic, documented
 non-bitwise); keepTrees flatten/unflatten indexing is uniform
-across store, read, and predict including circular wrap; the
+across store, read, and predict including circular wrap, every
+read walking the ring from the write cursor over the recorded
+draws (before 1.0-0 the readers walked raw slot order, which
+rotated a store two recorded runs had written); the
 per-sweep callback observes the previous sweep's fully-coherent
 end state.
 

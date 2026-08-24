@@ -201,7 +201,7 @@ fit, and index buffers; they never call into R. This is the existing worker rule
 (the ProgressSink pattern, sampler.hpp), satisfied trivially here.
 
 INTERACTION WITH THE CROSS-CHAIN LAYER AND THE BUDGET SPLIT. Cross-chain
-parallelism (sampler.hpp:265-336, :956-986) fans numChains across
+parallelism (sampler.hpp:349-350, :1039-1040) fans numChains across
 numWorkers = min(numThreads, numChains) raw std::thread workers. Two cases:
 
 - SINGLE CHAIN (numChains = 1): numWorkers = 1, the cross-chain layer is inert

@@ -67,6 +67,11 @@ struct SamplerShape {
   bool carriesResidualDf;
   /// Saved samples the tree store holds, 0 when keepTrees is off.
   std::size_t savedTreeCapacity;
+  /// Recorded draws the store retains, capped at savedTreeCapacity and 0
+  /// before the first recorded run. The extent of every saved-tree read, and
+  /// the range its draw indices are checked against; internal, though
+  /// dbarts_sampler_numSavedSamples reports it.
+  std::size_t numSavedDraws;
   ResponseFamily family;
   /// The leaf model the forests carry, which qualifies what the calibration
   /// surface's reported prior sd means (equality for the constant leaf, a
@@ -200,6 +205,11 @@ public:
   virtual std::unique_ptr<PredictorUpdateSession> beginPredictorUpdate(
     const double* newColumn, std::size_t column) = 0;
   virtual std::size_t currentSampleNum() const = 0;
+  /// The store slot holding output draw drawIndex, in [0,
+  /// shape().numSavedDraws): the retained draws oldest first, ending at the
+  /// slot before the write cursor. Every saved-tree reader maps through this,
+  /// so no caller reproduces the ring arithmetic.
+  virtual std::size_t savedSlotForDraw(std::size_t drawIndex) const = 0;
   /// forestIndex selects the forest to read (0 for every non-BCF sampler,
   /// 1 for the BCF treatment forest).
   virtual const std::vector<FlatNode>& savedTree(
@@ -398,6 +408,7 @@ public:
     s.carriesDispersion = impl_.carriesDispersion();
     s.carriesResidualDf = impl_.carriesResidualDf();
     s.savedTreeCapacity = impl_.savedTreeCapacity();
+    s.numSavedDraws = impl_.filledSavedDraws();
     s.family = impl_.family();
     s.leafModel = Sampler<L, ResidT>::leafModel();
     s.hasVarianceForest = impl_.hasVarianceForest();
@@ -479,6 +490,9 @@ public:
   }
   std::size_t currentSampleNum() const override {
     return impl_.currentSampleNum();
+  }
+  std::size_t savedSlotForDraw(std::size_t drawIndex) const override {
+    return impl_.savedSlotForDraw(drawIndex);
   }
   const std::vector<FlatNode>& savedTree(
     std::size_t chainNum, std::size_t slot, std::size_t treeNum,

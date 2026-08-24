@@ -267,7 +267,7 @@ split-probability channel narrower than `setModel` (dbarts issue #67,
 "Feature request: more convenient updates of splitting probabilities", open
 since 2024-03-14) and the validator. *Verified:* `R/separate_bart.R:4-21`,
 `src/single_bart.cpp`, `src/separate_bart.cpp`; this worktree's
-`R/dbarts.R:1169-1180` and `man/dbartsSampler-class.Rd:103`.
+`R/dbarts.R:1229-1238` and `man/dbartsSampler-class.Rd:103`.
 
 **VCBART 1.2.5** (Deshpande, Bai, Balocchi, Starling, Weiss; CRAN,
 2026-04-21; 135/mo). Varying-coefficient models `y = sum_j beta_j(x) z_j`,

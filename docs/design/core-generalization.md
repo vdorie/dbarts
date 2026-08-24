@@ -680,7 +680,15 @@ partitioning entirely; a different library sharing only the tree structure).
    the engine's code-based routing exactly. keepTrees mirrors the classic
    circular buffer: capacity = n.samples at creation, trees flattened
    inside the tree loop while the freshly drawn parameters are live,
-   currentSampleNum advancing per run. getTrees/predict are drop-in
+   currentSampleNum advancing per run. Every read indexes FROM that
+   cursor: output draw i is slot (currentSampleNum + capacity - filled
+   + i) mod capacity over the filled = min(recorded draws, capacity)
+   most recent draws, oldest first, so successive recorded runs replay
+   chronologically, a short run reports the draws it made rather than
+   padding with unwritten slots, and a store nothing was recorded into
+   refuses. The count rides SamplerStateData beside the cursor
+   (stateFormatVersion 3): it cannot be inferred, an unwritten slot
+   holding a zero-leaf tree that replays as a legitimate draw. getTrees/predict are drop-in
    classic formats (pre-order n/var/value rows, var 1-based with -1
    leaves, internal-scale leaf values; predictions numTest x samples x
    chains with keepTrees, else per-chain live-tree fits; saved trees

@@ -611,6 +611,13 @@ perSample <- do.call(
 row.names(perSample) <- row.names(trees)
 expect_equal(trees, perSample)
 
+# a SECOND recorded run against the same store: the flat predict reports the
+# recorded draws oldest first, so the second run's draws are the last of them
+r5 <- CALL("capi_run", ptr1, 0L, 2L, FALSE, TRUE)
+pred5 <- CALL("capi_predict", ptr1, x.test, NULL)
+expect_equal(length(pred5), 20L * nSamples)
+expect_equal(tail(pred5, 20L * 2L), as.double(r5$test))
+
 # a per-sweep callback that sets sigma reproduces the setSigma + run(0, 1)
 # loop bitwise (fixed residual prior, so a set sigma is held and recorded)
 sigmas <- runif(6L, 0.2, 0.9)

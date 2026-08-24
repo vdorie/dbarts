@@ -39,6 +39,7 @@ using bartcore_bridge::enforceBinaryWeightPolicy;
 using bartcore_bridge::refuseUndefinedTestFits;
 using bartcore_bridge::refuseBinaryWeightChange;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
+using bartcore_bridge::refuseEmptyTreeStore;
 using bartcore_bridge::refuseGroupedScaleUpdate;
 using bartcore_bridge::refuseMultiForestMutation;
 using bartcore_bridge::refuseMultiForestResponseMutation;
@@ -2864,6 +2865,14 @@ void refuseUndefinedTestFits(const bartcore::SamplerBase& sampler,
              caller);
 }
 
+void refuseEmptyTreeStore(const bartcore::SamplerBase& sampler,
+                          const char* caller) {
+  bartcore::SamplerShape shape = sampler.shape();
+  if (shape.savedTreeCapacity > 0 && shape.numSavedDraws == 0)
+    Rf_error("%s: the saved-tree store holds no recorded draws; run the "
+             "sampler with keepTrees on before reading from it", caller);
+}
+
 // A sampler whose residual sd is not a free parameter has none to set:
 // Chain::setSigma installs the value unconditionally and the constant-leaf
 // draws divide by sigma_ * sigma_, but sigmaIsFixed_ gates off the redraw that
@@ -5636,9 +5645,13 @@ SEXP predictFromSource(bartcore::SamplerBase& sampler,
   size_t numTestObservations = source.numRows;
   if (numTestObservations == 0) Rf_error("bartcore_predict: requires rows");
 
+  refuseEmptyTreeStore(sampler, "bartcore_predict");
+
   size_t capacity = shape.savedTreeCapacity;
   size_t numChains = shape.numChains;
-  size_t numSamples = capacity > 0 ? capacity : 1;
+  // the draw axis is what the store has RECORDED, oldest first, not its
+  // capacity: a run short of capacity reports the draws it made
+  size_t numSamples = capacity > 0 ? shape.numSavedDraws : 1;
   size_t numLocations = shape.numReportedLocations;
 
   // The offset takes the shape of the surface. A multi-location (multinomial
@@ -5690,9 +5703,9 @@ SEXP predictFromSource(bartcore::SamplerBase& sampler,
   } else if (capacity > 0) {
     resultExpr = numChains == 1
       ? PROTECT(Rf_allocMatrix(REALSXP, numTestInt,
-                               static_cast<int>(capacity)))
+                               static_cast<int>(numSamples)))
       : PROTECT(Rf_alloc3DArray(REALSXP, numTestInt,
-                                static_cast<int>(capacity),
+                                static_cast<int>(numSamples),
                                 static_cast<int>(numChains)));
   } else {
     resultExpr = numChains == 1
@@ -5804,8 +5817,10 @@ SEXP predictPerForestFromSource(bartcore::SamplerBase& sampler,
   if (numTestObservations == 0)
     Rf_error("bartcore_predictPerForest: requires rows");
 
+  refuseEmptyTreeStore(sampler, "bartcore_predictPerForest");
+
   size_t capacity = shape.savedTreeCapacity;
-  size_t numSamples = capacity > 0 ? capacity : 1;
+  size_t numSamples = capacity > 0 ? shape.numSavedDraws : 1;
 
   int dims[4];
   int numDims = 0;
@@ -5896,12 +5911,19 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
       chainIndices[i] = static_cast<size_t>(chainNum - 1);
     }
     if (useSaved) {
-      sampleIndices.resize(static_cast<size_t>(Rf_xlength(sampleNumsExpr)));
-      for (size_t i = 0; i < sampleIndices.size(); ++i) {
-        int sampleNum = INTEGER(sampleNumsExpr)[i];
-        if (sampleNum < 1)
-          Rf_error("bartcore_getTrees: sample number out of range");
-        sampleIndices[i] = static_cast<size_t>(sampleNum - 1);
+      // a null sample list is every RECORDED draw, oldest first, as for
+      // printTrees: the caller cannot count them, the engine can
+      if (Rf_isNull(sampleNumsExpr)) {
+        for (size_t i = 0; i < shape.numSavedDraws; ++i)
+          sampleIndices.push_back(i);
+      } else {
+        sampleIndices.resize(static_cast<size_t>(Rf_xlength(sampleNumsExpr)));
+        for (size_t i = 0; i < sampleIndices.size(); ++i) {
+          int sampleNum = INTEGER(sampleNumsExpr)[i];
+          if (sampleNum < 1)
+            Rf_error("bartcore_getTrees: sample number out of range");
+          sampleIndices[i] = static_cast<size_t>(sampleNum - 1);
+        }
       }
     }
     treeIndices.resize(static_cast<size_t>(Rf_xlength(treeNumsExpr)));
@@ -5963,6 +5985,7 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
     bartcore::SamplerShape shape = sampler.shape();
 
     size_t capacity = shape.savedTreeCapacity;
+    if (capacity > 0) refuseEmptyTreeStore(sampler, "bartcore_printTrees");
 
     if (Rf_isNull(chainNumsExpr)) {
       for (size_t i = 0; i < shape.numChains; ++i) chainIndices.push_back(i);
@@ -5975,12 +5998,14 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
       }
     }
     if (capacity > 0) {
+      // sample numbers are DRAWS, oldest first, exactly as getTrees reads them
+      size_t numDraws = shape.numSavedDraws;
       if (Rf_isNull(sampleNumsExpr)) {
-        for (size_t i = 0; i < capacity; ++i) sampleIndices.push_back(i);
+        for (size_t i = 0; i < numDraws; ++i) sampleIndices.push_back(i);
       } else {
         for (R_xlen_t i = 0; i < Rf_xlength(sampleNumsExpr); ++i) {
           int sampleNum = INTEGER(sampleNumsExpr)[i];
-          if (sampleNum < 1 || static_cast<size_t>(sampleNum) > capacity)
+          if (sampleNum < 1 || static_cast<size_t>(sampleNum) > numDraws)
             Rf_error("bartcore_printTrees: sample number out of range");
           sampleIndices.push_back(static_cast<size_t>(sampleNum - 1));
         }
@@ -6271,16 +6296,21 @@ void computeWorkingResponse(bartcore::ResponseFamily family,
 // error, leaving the amplitudes at their construction values. Version 2 is the
 // glue block's rename from "bcf", and the floor moves with it so a state
 // carrying the old name is refused by version before any block is read.
-static const int stateFormatVersion = 2;
+// Version 3 adds the saved-tree store's recorded-draw count beside its write
+// cursor. It is REQUIRED and not defaultable: a version-2 state carries no
+// count, and every value one could infer is a misread - capacity promotes a
+// partly filled store to full and replays slots nothing wrote, 0 discards a
+// full one - so the floor moves with it too.
+static const int stateFormatVersion = 3;
 
 // The oldest ENCODING this reader still understands: additive block additions
-// leave it here; only a non-additive encoding change raises it. Currently 2:
+// leave it here; only a non-additive encoding change raises it. Currently 3:
 // the 1.0-0 encoding is the FIRST shipped format, so the pre-release
 // development increments (the forests-list restructure included) are collapsed
-// into version 1, which the glue rename then supersedes - no released reader
-// or writer ever saw either. Pre-1.0 states are not a compat target; a state
+// into version 1, which the glue rename and then the recorded-draw count
+// supersede - no released reader or writer ever saw any of the three. Pre-1.0 states are not a compat target; a state
 // with no version attribute reads as 0 and is refused at the floor.
-static const int minReadableStateFormatVersion = 2;
+static const int minReadableStateFormatVersion = 3;
 
 SEXP storeState(bartcore::SamplerBase& sampler) {
   bartcore::SamplerStateData state;
@@ -6513,6 +6543,9 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   setAttribByName(resultExpr, "cutPoints", cutPointsExpr);
   setAttribByName(resultExpr, "currentSampleNum",
                   Rf_ScalarInteger(static_cast<int>(state.currentSampleNum)));
+  // the cursor alone does not say how much of the ring is real; both travel
+  setAttribByName(resultExpr, "recordedDraws",
+                  Rf_ScalarInteger(static_cast<int>(state.recordedDraws)));
   setAttribByName(resultExpr, "formatVersion",
                   Rf_ScalarInteger(stateFormatVersion));
   setAttribByName(resultExpr, "packageVersion", Rf_mkString(PACKAGE_VERSION));
@@ -6637,6 +6670,19 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
       errorMessage = "malformed sample number in bartcore state";
     else
       state.currentSampleNum = static_cast<size_t>(INTEGER(sampleNumExpr)[0]);
+  }
+  UNPROTECT(1);
+
+  SEXP recordedDrawsExpr =
+    PROTECT(Rf_getAttrib(stateExpr, Rf_install("recordedDraws")));
+  if (errorMessage == NULL) {
+    if (!Rf_isInteger(recordedDrawsExpr) ||
+        Rf_xlength(recordedDrawsExpr) != 1 ||
+        INTEGER(recordedDrawsExpr)[0] < 0)
+      errorMessage = "malformed recorded draw count in bartcore state";
+    else
+      state.recordedDraws =
+        static_cast<size_t>(INTEGER(recordedDrawsExpr)[0]);
   }
   UNPROTECT(1);
 
@@ -6965,6 +7011,17 @@ static const char* readWarmStartState(SEXP stateExpr,
                               REAL(cutsExpr) + Rf_xlength(cutsExpr));
   }
 
+  // the donor pool is addressed by DRAW, so the donor's own write position and
+  // draw count are read here rather than left to setState
+  SEXP sampleNumExpr = Rf_getAttrib(stateExpr, Rf_install("currentSampleNum"));
+  SEXP recordedDrawsExpr = Rf_getAttrib(stateExpr, Rf_install("recordedDraws"));
+  if (!Rf_isInteger(sampleNumExpr) || Rf_xlength(sampleNumExpr) != 1 ||
+      INTEGER(sampleNumExpr)[0] < 0 || !Rf_isInteger(recordedDrawsExpr) ||
+      Rf_xlength(recordedDrawsExpr) != 1 || INTEGER(recordedDrawsExpr)[0] < 0)
+    return "malformed sample position in warm-start donor";
+  state.currentSampleNum = static_cast<size_t>(INTEGER(sampleNumExpr)[0]);
+  state.recordedDraws = static_cast<size_t>(INTEGER(recordedDrawsExpr)[0]);
+
   const char* errorMessage = NULL;
   state.chains.resize(numChains);
   size_t numLeafCovariates = shape.numLeafCovariates;
@@ -7156,16 +7213,23 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
   // the longjmp cannot leak them.
   bartcore::WarmStartResult result = bartcore::WarmStartResult::ok;
   {
-    // Donor pool of (chain, slot): every saved slot when the donor kept trees,
-    // otherwise each donor chain's live forest (slot -1).
+    // Donor pool of (chain, slot): the donor's RECORDED draws, oldest first -
+    // the order predict and getTrees report, so 'samples' names the same draw
+    // they do - or each donor chain's live forest (slot -1) when it kept no
+    // trees, or kept a store nothing was recorded into.
     std::vector<std::pair<size_t, int>> pool;
     if (errorMessage == NULL) {
       for (size_t dc = 0; dc < donor.chains.size(); ++dc) {
         const bartcore::ForestStateData& f0 = donor.chains[dc].forests[0];
-        if (!f0.savedTrees.empty() && !f0.trees.empty()) {
-          size_t capacity = f0.savedTrees.size() / f0.trees.size();
-          for (size_t s = 0; s < capacity; ++s)
-            pool.emplace_back(dc, static_cast<int>(s));
+        size_t capacity = !f0.savedTrees.empty() && !f0.trees.empty()
+          ? f0.savedTrees.size() / f0.trees.size() : 0;
+        size_t filled = donor.recordedDraws < capacity ? donor.recordedDraws
+                                                       : capacity;
+        if (filled > 0) {
+          size_t cursor = donor.currentSampleNum % capacity;
+          for (size_t i = 0; i < filled; ++i)
+            pool.emplace_back(dc, static_cast<int>(
+              (cursor + capacity - filled + i) % capacity));
         } else {
           pool.emplace_back(dc, -1);
         }
@@ -7289,6 +7353,9 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
     size_t chainNum = chainIndices[i];
     for (size_t j = 0; j < numSampleIndices; ++j) {
       size_t sampleNum = useSaved ? sampleIndices[j] : 0;
+      // the reported sample number is the DRAW, the read is of the slot
+      // holding it
+      size_t slot = useSaved ? sampler.savedSlotForDraw(sampleNum) : 0;
       for (size_t k = 0; k < numTreeIndices; ++k) {
         size_t treeNum = treeIndices[k];
 
@@ -7296,12 +7363,12 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
         const std::vector<double>* slopes = NULL;
         const std::vector<std::uint64_t>* masks = NULL;
         if (useSaved) {
-          nodes = &sampler.savedTree(chainNum, sampleNum, treeNum, forestIndex);
+          nodes = &sampler.savedTree(chainNum, slot, treeNum, forestIndex);
           if (out.numSlopes > 0)
-            slopes = &sampler.savedTreeSlopes(chainNum, sampleNum, treeNum,
+            slopes = &sampler.savedTreeSlopes(chainNum, slot, treeNum,
                                               forestIndex);
           if (anyPooled)
-            masks = &sampler.savedTreeMasks(chainNum, sampleNum, treeNum,
+            masks = &sampler.savedTreeMasks(chainNum, slot, treeNum,
                                             forestIndex);
         } else {
           sampler.flattenTree(chainNum, treeNum, liveNodes, counts,
@@ -7489,14 +7556,16 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
 
   bool useSaved = shape.savedTreeCapacity > 0 && !useLiveTrees;
   if (!useSaved) numSampleIndices = 1;
+  if (useSaved) refuseEmptyTreeStore(sampler, caller);
 
   for (size_t i = 0; i < numChainIndices; ++i) {
     if (chainIndices[i] >= shape.numChains)
       Rf_error("%s: chain number out of range", caller);
   }
   if (useSaved) {
+    // sample numbers address RECORDED DRAWS, oldest first, not store slots
     for (size_t i = 0; i < numSampleIndices; ++i) {
-      if (sampleIndices[i] >= shape.savedTreeCapacity)
+      if (sampleIndices[i] >= shape.numSavedDraws)
         Rf_error("%s: sample number out of range", caller);
     }
   }

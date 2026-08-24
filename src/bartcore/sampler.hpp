@@ -62,12 +62,17 @@ enum class PredictorUpdateResult {
 };
 
 /// A whole sampler's serializable state: per-chain states, the store's cut
-/// points (setCutPoints may have replaced the ones creation induces), and
-/// the saved-tree write position.
+/// points (setCutPoints may have replaced the ones creation induces), the
+/// saved-tree write position, and the draw count that position is read
+/// against.
 struct SamplerStateData {
   std::vector<ChainStateData> chains;
   std::vector<std::vector<double>> cutPoints;  // empty vector per categorical column
   size_t currentSampleNum = 0;
+  /// Recorded draws the store retains, capped at its capacity. Required: it
+  /// cannot be inferred from the buffer, whose unwritten slots hold zero-leaf
+  /// trees that read as legitimate draws.
+  size_t recordedDraws = 0;
 };
 
 /// Why a warm start (installForests) refused; ok on success. A single donor
@@ -425,8 +430,11 @@ public:
       std::chrono::steady_clock::now() - startTime).count();
 
     size_t capacity = savedTreeCapacity();
-    if (capacity > 0 && numSamples > 0)
+    if (capacity > 0 && numSamples > 0) {
       currentSampleNum_ = (currentSampleNum_ + numSamples) % capacity;
+      recordedDraws_ = recordedDraws_ + numSamples < capacity
+        ? recordedDraws_ + numSamples : capacity;
+    }
 
     if (options_.verbose) printTerminalSummary();
     return false;
@@ -475,6 +483,22 @@ public:
   }
   size_t currentSampleNum() const { return currentSampleNum_; }
   void setCurrentSampleNum(size_t sampleNum) { currentSampleNum_ = sampleNum; }
+  /// Recorded draws the store retains: min(draws recorded since the last
+  /// reset, capacity). Every saved-tree read reports exactly this many draws,
+  /// so a store still filling reports what it holds instead of padding with
+  /// slots nothing has written - which read as zero-leaf trees, not as an
+  /// absence.
+  size_t filledSavedDraws() const { return recordedDraws_; }
+  /// The slot holding output draw drawIndex, in [0, filledSavedDraws()). The
+  /// retained draws are read OLDEST FIRST, ending at the slot before the write
+  /// cursor, so the order is chronological however many run() calls filled the
+  /// ring; on a full store this is (currentSampleNum + drawIndex) % capacity.
+  size_t savedSlotForDraw(size_t drawIndex) const {
+    size_t capacity = savedTreeCapacity();
+    if (capacity == 0) return 0;
+    return (currentSampleNum_ + capacity - recordedDraws_ + drawIndex) %
+      capacity;
+  }
 
   const std::vector<FlatNode>& savedTree(size_t chainNum, size_t slot,
                                          size_t treeNum,
@@ -507,9 +531,9 @@ public:
 
   /// Fits for raw column-major test rows, on the original response scale
   /// (offsets are the caller's problem). With saved trees, out is
-  /// numTestObservations (x numReportedLocations) x savedTreeCapacity x
-  /// numChains, chain-major like Results; without, one slab per chain from the
-  /// live trees. A multi-location combiner (multinomial: K softmax channels)
+  /// numTestObservations (x numReportedLocations) x filledSavedDraws() x
+  /// numChains, chain-major like Results, the retained draws oldest first;
+  /// without, one slab per chain from the live trees. A multi-location combiner (multinomial: K softmax channels)
   /// inserts the K location dimension between the observations and the slots;
   /// L = 1 keeps the exact numTestObservations-per-slot byte layout.
   void predict(const double* x_test, size_t numTestObservations, double* out) {
@@ -541,12 +565,14 @@ public:
   void predictColumns(const Columns& columns, size_t numTestObservations,
                       const double* categoryOffset, double* out) {
     size_t capacity = savedTreeCapacity();
+    size_t numDraws = recordedDraws_;
     size_t numLocations = numReportedLocations();
     size_t slab = numTestObservations * numLocations;
     for (size_t c = 0; c < chains_.size(); ++c) {
       if (capacity > 0) {
-        for (size_t slot = 0; slot < capacity; ++slot) {
-          double* dst = out + (c * capacity + slot) * slab;
+        for (size_t i = 0; i < numDraws; ++i) {
+          size_t slot = savedSlotForDraw(i);
+          double* dst = out + (c * numDraws + i) * slab;
           if (numLocations > 1)
             chains_[c]->predictFromSavedSampleMulti(slot, columns,
                                                     numTestObservations,
@@ -569,9 +595,9 @@ public:
   /// Per-forest RAW fits for new rows of a borrowed predictor view: forest f's
   /// own internal-scale total, with no amplitude glue, no response transform
   /// and no offset (Chain::predictPerForestFromSavedSample states why). out is
-  /// numTestObservations x numForests x savedTreeCapacity x numChains,
-  /// chain-major like predict's; without saved trees, one slab per chain from
-  /// the live trees. Nothing resident is read or retained: the rows and the
+  /// numTestObservations x numForests x filledSavedDraws() x numChains,
+  /// chain-major like predict's and in the same oldest-first draw order;
+  /// without saved trees, one slab per chain from the live trees. Nothing resident is read or retained: the rows and the
   /// recombination both belong to the caller.
   void predictPerForest(const PredictorSource& source,
                         size_t numTestObservations, double* out) {
@@ -595,13 +621,14 @@ public:
   void predictPerForestColumns(const Columns& columns,
                                size_t numTestObservations, double* out) {
     size_t capacity = savedTreeCapacity();
+    size_t numDraws = recordedDraws_;
     size_t slab = numTestObservations * numForests();
     for (size_t c = 0; c < chains_.size(); ++c) {
       if (capacity > 0) {
-        for (size_t slot = 0; slot < capacity; ++slot)
+        for (size_t i = 0; i < numDraws; ++i)
           chains_[c]->predictPerForestFromSavedSample(
-            slot, columns, numTestObservations,
-            out + (c * capacity + slot) * slab);
+            savedSlotForDraw(i), columns, numTestObservations,
+            out + (c * numDraws + i) * slab);
       } else {
         chains_[c]->predictPerForestFromCurrentTrees(
           columns, numTestObservations, out + c * slab);
@@ -622,8 +649,9 @@ public:
   }
 
   /// The variance surface s^2(x) for raw column-major new rows, original scale,
-  /// mirroring predict: out is numTestObservations x savedTreeCapacity x
-  /// numChains, chain-major. Requires saved trees (keepTrees).
+  /// mirroring predict: out is numTestObservations x filledSavedDraws() x
+  /// numChains, chain-major, same draw order. Requires saved trees
+  /// (keepTrees).
   void predictVariance(const double* x_test, size_t numTestObservations,
                        double* out) {
     predictVarianceColumns(DenseColumns{x_test, numTestObservations},
@@ -645,12 +673,12 @@ public:
   template <typename Columns>
   void predictVarianceColumns(const Columns& columns,
                               size_t numTestObservations, double* out) {
-    size_t capacity = savedTreeCapacity();
+    size_t numDraws = recordedDraws_;
     for (size_t c = 0; c < chains_.size(); ++c)
-      for (size_t slot = 0; slot < capacity; ++slot)
+      for (size_t i = 0; i < numDraws; ++i)
         chains_[c]->predictVarianceFromSavedSample(
-          slot, columns, numTestObservations,
-          out + (c * capacity + slot) * numTestObservations);
+          savedSlotForDraw(i), columns, numTestObservations,
+          out + (c * numDraws + i) * numTestObservations);
   }
 
   // State serialization: getState captures everything needed to reconstruct
@@ -664,6 +692,7 @@ public:
       chains_[c]->getState(state.chains[c]);
     state.cutPoints = data_.cutPoints;
     state.currentSampleNum = currentSampleNum_;
+    state.recordedDraws = recordedDraws_;
   }
 
   /// currentPredictors is the call-time predictor matrix a cross-grid column
@@ -729,6 +758,8 @@ public:
       if (!chains_[c]->setState(state.chains[c])) return false;
     size_t capacity = savedTreeCapacity();
     currentSampleNum_ = capacity > 0 ? state.currentSampleNum % capacity : 0;
+    recordedDraws_ =
+      state.recordedDraws < capacity ? state.recordedDraws : capacity;
     return true;
   }
 
@@ -910,7 +941,11 @@ public:
                                              install[c].varianceTreeMasks,
                                              donorGridPtr, &data_))
         return WarmStartResult::varianceMismatch;
+    // the store itself is left alone, so the draws it holds belong to the
+    // donor's fit, not this one's: drop them rather than let a read replay
+    // another sampler's posterior
     currentSampleNum_ = 0;
+    recordedDraws_ = 0;
     return WarmStartResult::ok;
   }
 
@@ -969,6 +1004,7 @@ public:
     options_.numSamplesToStore = numSamplesToStore;
     for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
     currentSampleNum_ = 0;
+    recordedDraws_ = 0;
   }
 
   /// Install a replacement prior on every chain; see ModelParameters.
@@ -1032,8 +1068,9 @@ public:
 
   /// Info dump of forest forestIndex; the per-node output format is R-visible
   /// and pinned by tests. Without keepTrees the live trees print and sample
-  /// indices are ignored; with it, the requested saved slots print in the
-  /// saved-tree format. treeIndices are read against the NAMED forest's tree
+  /// indices are ignored; with it, sampleIndices are DRAW numbers on the same
+  /// oldest-first axis predict and getTrees report, and the draws they name
+  /// print in the saved-tree format. treeIndices are read against the NAMED forest's tree
   /// count, which a multi-forest sampler states per forest; range-checking is
   /// the bridge's, as everywhere here.
   void printTrees(const size_t* chainIndices, size_t numChainIndices,
@@ -1058,8 +1095,9 @@ public:
                        static_cast<unsigned long>(sampleNum + 1));
             indent += 2;
           }
+          size_t slot = savedSlotForDraw(sampleNum);
           for (size_t k = 0; k < numTreeIndices; ++k)
-            chains_[chainNum]->printSavedTree(sampleNum, treeIndices[k], indent,
+            chains_[chainNum]->printSavedTree(slot, treeIndices[k], indent,
                                               forestIndex);
           if (numSampleIndices > 1)
             indent -= 2;
@@ -1724,6 +1762,8 @@ private:
   ColumnStore data_;
   std::vector<std::unique_ptr<Chain<L, ResidT>>> chains_;
   size_t currentSampleNum_ = 0;  // next saved-tree slot, wrapping circularly
+  size_t recordedDraws_ = 0;     // slots written since the last reset, capped
+                                 // at capacity; the extent of every read
   double runningTime_ = 0.0;     // seconds accumulated across runs
 };
 

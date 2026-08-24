@@ -222,26 +222,102 @@ static void testKeepTrees(ext_rng* rng) {
   sampler.predict(xTest.data(), nTest, predicted.data());
   check(predicted == testFits, "saved-tree predictions equal the run's test fits");
 
-  // a partial run overwrites the oldest slots and leaves the rest
+  // a second recorded run overwrites the OLDEST slots, and the read walks the
+  // ring from the write cursor: the draws that survive come first, in the
+  // order they were drawn, and the new ones land at the tail
   std::vector<double> sigma2(2), testFits2(nTest * 2);
   Results results2;
   results2.sigma = sigma2.data();
   results2.testFits = testFits2.data();
   sampler.run(0, 2, results2);
   check(sampler.currentSampleNum() == 2, "a partial run advances the slot");
+  check(sampler.filledSavedDraws() == numSamples,
+        "a full store stays full across a partial run");
 
   std::vector<double> predicted2(nTest * numSamples);
   sampler.predict(xTest.data(), nTest, predicted2.data());
-  bool overwritten = std::equal(testFits2.begin(), testFits2.end(),
-                                predicted2.begin());
   bool preserved = std::equal(predicted.begin() + nTest * 2, predicted.end(),
-                              predicted2.begin() + nTest * 2);
-  check(overwritten, "new samples overwrite the oldest slots");
-  check(preserved, "later slots survive a partial run");
+                              predicted2.begin());
+  bool overwritten = std::equal(testFits2.begin(), testFits2.end(),
+                                predicted2.begin() + nTest * 2);
+  check(preserved, "the surviving draws lead, in the order they were drawn");
+  check(overwritten, "the new draws land at the tail");
   check(sampler.savedTreeCapacity() == numSamples,
         "keepTrees capacity comes from the options");
 
   printf("ok: keepTrees\n");
+}
+
+// The saved-tree read map, at the two shapes testKeepTrees does not reach: a
+// store still filling, and one a run wrapped past. Output draw i is slot
+// (currentSampleNum + capacity - filled + i) % capacity over the filled most
+// recent recorded draws, oldest first.
+static void testSavedDrawOrder(ext_rng* rng) {
+  const size_t n = 200, nTest = 20, capacity = 4;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::vector<double> xTest(nTest * 2);
+  for (double& v : xTest) v = runif01();
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.keepTrees = true;
+  options.numSamplesToStore = capacity;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+  sampler.setTestPredictors(xTest.data(), nTest);
+
+  check(sampler.filledSavedDraws() == 0, "a fresh store holds no draws");
+
+  // partial fill: three draws in a store of four, read at the head
+  std::vector<double> sigma1(3), testFits1(nTest * 3);
+  Results results1;
+  results1.sigma = sigma1.data();
+  results1.testFits = testFits1.data();
+  sampler.run(10, 3, results1);
+  check(sampler.currentSampleNum() == 3 && sampler.filledSavedDraws() == 3,
+        "a short run fills three of four slots");
+  bool headMap = true;
+  for (size_t i = 0; i < 3; ++i)
+    headMap &= sampler.savedSlotForDraw(i) == i;
+  check(headMap, "a partly filled store reads from slot 0");
+
+  std::vector<double> predicted1(nTest * 3);
+  sampler.predict(xTest.data(), nTest, predicted1.data());
+  check(predicted1 == testFits1,
+        "a partly filled store replays its own draws, and only those");
+
+  // wrapping: three more draws past the capacity boundary
+  std::vector<double> sigma2(3), testFits2(nTest * 3);
+  Results results2;
+  results2.sigma = sigma2.data();
+  results2.testFits = testFits2.data();
+  sampler.run(0, 3, results2);
+  check(sampler.currentSampleNum() == 2 && sampler.filledSavedDraws() == 4,
+        "wrapping past capacity fills the store and moves the cursor");
+  bool wrappedMap = sampler.savedSlotForDraw(0) == 2 &&
+                    sampler.savedSlotForDraw(1) == 3 &&
+                    sampler.savedSlotForDraw(2) == 0 &&
+                    sampler.savedSlotForDraw(3) == 1;
+  check(wrappedMap, "a wrapped store reads from the cursor, oldest first");
+
+  std::vector<double> predicted2(nTest * 4);
+  sampler.predict(xTest.data(), nTest, predicted2.data());
+  check(std::equal(testFits2.begin(), testFits2.end(),
+                   predicted2.begin() + nTest),
+        "the second run's draws are the three most recent, in order");
+  check(std::equal(testFits1.begin() + nTest * 2, testFits1.end(),
+                   predicted2.begin()),
+        "the one surviving draw of the first run leads");
+
+  // the store's draws belong to the fit that recorded them: resizing it drops
+  // them, and so does a read of the emptied store
+  sampler.setTreeStorage(true, capacity + 1);
+  check(sampler.filledSavedDraws() == 0 && sampler.currentSampleNum() == 0,
+        "resizing the store discards what it held");
+
+  printf("ok: saved draw order\n");
 }
 
 static void testPredictCurrentTrees(ext_rng* rng) {
@@ -363,8 +439,9 @@ static void testStateRoundTrip() {
 
   SamplerStateData state;
   original.getState(state);
-  check(state.chains.size() == numChains && state.currentSampleNum == 2,
-        "state captures every chain and the slot position");
+  check(state.chains.size() == numChains && state.currentSampleNum == 2 &&
+          state.recordedDraws == 2,
+        "state captures every chain, the slot position and the draw count");
 
   // different seeds on purpose: the serialized rng state must win
   std::vector<ext_rng*> rngs2(numChains, nullptr);
@@ -1569,6 +1646,7 @@ void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
   testKeepTrees(rng);
+  testSavedDrawOrder(rng);
   testPredictCurrentTrees(rng);
   testStateRoundTrip();
   testStateRoundTripScaledOffset();

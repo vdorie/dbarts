@@ -251,10 +251,13 @@
     missing, all chains are returned.
   }
   \item{sampleNums}{
-    An integer vector listing the saved samples to return from \code{getTrees}.
-    Applies only when \code{keepTrees} is \code{TRUE} and \code{current} is
-    \code{FALSE}; otherwise the live working trees have no sample dimension and
-    it is ignored.
+    An integer vector listing the saved samples to return from \code{getTrees}
+    or print from \code{printTrees}. Applies only when \code{keepTrees} is
+    \code{TRUE} and \code{current} is \code{FALSE}; otherwise the live working
+    trees have no sample dimension and it is ignored. Sample numbers address
+    recorded DRAWS on the oldest-first axis \code{predict} reports - \code{1} to
+    the number of draws recorded, at most \code{control@n.samples} - and not
+    the store's internal slots.
   }
   \item{current}{
     For \code{getTrees}, a logical; when \code{TRUE} the live working trees (the
@@ -322,7 +325,7 @@
       A \code{\link{dbartsData}} holding the current predictors, response, test data, weights, and offset. Its \code{x} slot is stored columnar for data-frame input and so need not be a plain matrix; use \code{\link[=extract.dbartsSampler]{extract}(sampler, "predictors")} for the numeric predictor matrix, which is what tree replay and \code{getTrees} count against. Replace with \code{setData}, or a piece at a time with the other \code{set*} methods.
     }
     \item{\code{state}}{
-      The cached, serializable engine state, or \code{NULL} until one is materialized. Reading it forces the sampler's \emph{current} state; \code{storeState} refreshes it on demand and \code{updateState} governs when the methods do so themselves. It is the only field \code{\link{save}} needs, and restoring one requires \code{setState} - see \sQuote{Saving}.
+      The cached, serializable engine state, or \code{NULL} until one is materialized. The saved-tree store's write position and the number of draws it has recorded both ride it, so \code{predict} after a \code{setState} reports the same draws, in the same order, as before the store. Reading it forces the sampler's \emph{current} state; \code{storeState} refreshes it on demand and \code{updateState} governs when the methods do so themselves. It is the only field \code{\link{save}} needs, and restoring one requires \code{setState} - see \sQuote{Saving}.
     }
     \item{\code{pointer}}{
       The external pointer to the C++ engine. Internal; never manipulate it directly.
@@ -385,9 +388,11 @@
 
   For \code{setPredictor}, \code{TRUE}/\code{FALSE} depending on whether or not the operation was successful. The operation can fail if the new predictor results in an empty leaf-node in any tree of any forest of the sampler (see \sQuote{Multi-forest and heteroscedastic predictor mutation}). If only single columns were replaced, the update is rolled back so that the sampler remains in a valid state. When \code{forceUpdate} is \code{"partial"}, instead returns a logical vector of length equal to the number of observations, \code{TRUE} where that observation's new value was installed and \code{FALSE} where it was rolled back to its previous value to keep every tree of every forest valid.
 
+  Under \code{keepTrees} the draws \code{predict}, \code{predictForests}, \code{getTrees} and \code{printTrees} report come out OLDEST FIRST: the store keeps the most recent \code{control@n.samples} recorded draws, so a sampler driven through several recorded \code{run} calls replays them in the order they were drawn and lines up draw for draw with the \code{train}/\code{sigma} channels those runs returned. A sampler that has recorded fewer draws than that reports only the draws it holds, and one that has recorded none - \code{keepTrees} set but nothing run since creation, a \code{setControl} that resized the store, or an \code{installTrees} warm start - is refused rather than answered from slots nothing has written.
+
   \code{predict} keeps the current test matrix in place and uses the current set of tree splits. This function has two use cases. The first is when \code{keepTrees} of \code{\link{dbartsControl}} is \code{TRUE}, in which case the sampler should be run to completion and the function can be used to interrogate the existing fit. When \code{keepTrees} is \code{FALSE}, the function can be used to obtain the likelihood as part of a proposed new set of covariates in a Metropolis-Hastings step in a full-Bayes sampler. This would typically be followed by a call to \code{setPredictor} if the step is accepted.
 
-  For \code{getTrees}, a \code{data.frame} with one row per tree node in depth-first, left-hand-side pre-order, with columns \code{chain} (present only when \code{n.chains > 1}), \code{sample} (present only for saved samples), \code{tree}, \code{n} (the number of observations in the node), \code{var} (the splitting variable, or -1 at a leaf), and \code{value} (the split value, or the leaf prediction). An ordinal rule's value is its cut point and observations with values less than or equal to it go left; a categorical rule carries no data value (its \code{value} is \code{NA}) and its split is reported in the \code{directions} column instead. When the sampler has any categorical predictors the result gains a \code{directions} column decoding each categorical rule into one \code{"L"}/\code{"R"} character per level, in level order (level \code{k} goes right when its character is \code{"R"}); ordinal rules and leaves are \code{NA}. When any predictor contains missing values the result gains a \code{missing} column giving the branch (\code{"L"}/\code{"R"}) each rule sends missing values down; rules on complete columns and leaves are \code{NA}. Under a \code{linear} node prior each leaf's \code{value} is its intercept and the result gains one \code{beta.<column>} column per designated covariate holding that leaf's slope on the internal standardized scale; internal nodes are \code{NA}.
+  For \code{getTrees}, a \code{data.frame} with one row per tree node in depth-first, left-hand-side pre-order, with columns \code{chain} (present only when \code{n.chains > 1}), \code{sample} (present only for saved samples, and reporting the draw number asked for), \code{tree}, \code{n} (the number of observations in the node), \code{var} (the splitting variable, or -1 at a leaf), and \code{value} (the split value, or the leaf prediction). An ordinal rule's value is its cut point and observations with values less than or equal to it go left; a categorical rule carries no data value (its \code{value} is \code{NA}) and its split is reported in the \code{directions} column instead. When the sampler has any categorical predictors the result gains a \code{directions} column decoding each categorical rule into one \code{"L"}/\code{"R"} character per level, in level order (level \code{k} goes right when its character is \code{"R"}); ordinal rules and leaves are \code{NA}. When any predictor contains missing values the result gains a \code{missing} column giving the branch (\code{"L"}/\code{"R"}) each rule sends missing values down; rules on complete columns and leaves are \code{NA}. Under a \code{linear} node prior each leaf's \code{value} is its intercept and the result gains one \code{beta.<column>} column per designated covariate holding that leaf's slope on the internal standardized scale; internal nodes are \code{NA}.
 
   For \code{getSigmas}, a numeric vector of length equal to the number of chains, giving each chain's current residual standard deviation on the original response scale.
 

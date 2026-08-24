@@ -658,7 +658,7 @@ because every arm already exists.**
 | BART alone | `bart()` | shipped |
 | outer composition, HMC parametric block | `stan4bart` (WALNUTS + dbarts exchanging offsets) | exists and runs; 0.0.14 installed here |
 | outer composition, conjugate block | `rbart_vi` / in-engine `GroupedResponse` | shipped |
-| outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` (`R/dbarts.R:1303`), and `dbarts_sampler_setOffset` in the shipped C API (`dbarts.h:366`) | shipped, supported |
+| outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` (`R/dbarts.R:1303`), and `dbarts_sampler_setOffset` in the shipped C API (`dbarts.h:744`) | shipped, supported |
 | inner composition | `node.prior = linear(columns)` / `gp(columns)` (`R/model.R:1436`, `:1454`) | shipped |
 
 The probes exist too: `benchmarks/R/grouped-mixing.R` (the autocorrelation
@@ -1940,7 +1940,7 @@ instrumentation, falsifiable in both directions.
   or relabels trees (verified by search). The *posterior* is
   label-exchangeable; the *chain* never exercises the symmetry.
 - **`getTrees` is necessary but not sufficient.** It returns "a data.frame
-  containing the internal state of the trees" (`R/dbarts.R:1917`) - flat
+  containing the internal state of the trees" (`R/dbarts.R:1915`) - flat
   node structure with leaf values, decoded categorical directions and
   missing routes - not per-tree fitted vectors. The census must walk trees
   in R itself (the package walks trees in R only in
@@ -2008,7 +2008,7 @@ tau = nodeScale / (k sqrt(m)),   timescale ~ n_leaf nodeScale^2 / (m k^2 s^2)
 ```
 
 a factor `k^2 = 4` smaller at the default `k = 2`. With `nodeScale = 0.5`
-(`src/R_interface_bartcore.cpp:280`), `tau = 0.0289` at `m = 75`, not
+(`src/R_interface_bartcore.cpp:281`), `tau = 0.0289` at `m = 75`, not
 `0.0577`. `k` is the shipped knob that enters the prediction **squared**
 while `n`, `m` and `sigma` enter linearly, and it is itself sampled when
 `updateK` is on (`chain.hpp:1106-1109`), which the caricature assumes

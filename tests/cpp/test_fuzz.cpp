@@ -170,6 +170,7 @@ static bool fuzzSnapshotsEqual(const FuzzSnapshot<S>& a,
   // here, where a rollback must restore both.
   return a.codes == b.codes && a.state.cutPoints == b.state.cutPoints &&
          a.state.currentSampleNum == b.state.currentSampleNum &&
+         a.state.recordedDraws == b.state.recordedDraws &&
          statesAgree(a.state, b.state) && a.geom == b.geom;
 }
 
@@ -1167,6 +1168,8 @@ static void testSnapshotCoversEveryFamily() {
       {"a cut point", [](FuzzSnap& t) { t.state.cutPoints[0][0] += 1.0; }},
       {"the saved-tree write position",
        [](FuzzSnap& t) { ++t.state.currentSampleNum; }},
+      {"the saved-tree draw count",
+       [](FuzzSnap& t) { ++t.state.recordedDraws; }},
       {"sigma", [](FuzzSnap& t) { t.state.chains[0].sigma += 1.0; }},
       {"the BCF glue",
        [](FuzzSnap& t) { t.state.chains[0].amplitudes[0] += 1.0; }},
