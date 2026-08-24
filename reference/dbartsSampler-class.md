@@ -317,19 +317,36 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - weights:
 
-  A numeric vector of non-negative case weights, of length equal to that
-  with which the sampler was created. Weights of zero exclude an
-  observation from the likelihood while keeping its fitted values.
-  Installed BETWEEN samples on a forest that has already grown, a vector
-  of zeros can leave leaves that no positive-weight row reaches - the
-  trees were drawn before it existed, and weights are not part of the
-  saved `state` - which is a legal, transient state rather than an
-  error: such a tree keeps moving under the tree prior at a constant
-  likelihood and returns to leaves the likelihood reaches. `setWeights`
-  only applies to a gaussian-family sampler; calling it on a probit- or
-  logistic-family sampler is refused, since a weighted probit has no
-  tractable latent-variable form and logistic weights (observation
-  counts) are fixed when the sampler is created. See
+  A numeric vector of case weights, of length equal to that with which
+  the sampler was created. What a weight MEANS is family-specific: for a
+  gaussian-family sampler it is a precision, non-negative, and a weight
+  of zero excludes an observation from the likelihood while keeping its
+  fitted values; for a `logistic`-family sampler it is an observation
+  COUNT and must be a positive integer, a zero count being a dropped row
+  rather than a down-weighted one (`active` is the supported way to take
+  a row out of the data set for a sweep). Installed BETWEEN samples on a
+  forest that has already grown, a vector of zeros can leave leaves that
+  no positive-weight row reaches - the trees were drawn before it
+  existed, and weights are not part of the saved `state` - which is a
+  legal, transient state rather than an error: such a tree keeps moving
+  under the tree prior at a constant likelihood and returns to leaves
+  the likelihood reaches. `setWeights` applies to gaussian- and
+  `logistic`-family samplers. A logistic swap is a model change with a
+  defined meaning rather than a reweighting: the counts are the shape of
+  the Polya-Gamma latents, which are redrawn against the new counts
+  before the call returns - from the sampler's own generators, not R's
+  stream - so an outer sampler can vary exposure between runs. `probit`,
+  `ordinal`, `aft` and `nbinom` refuse it by identification: a weighted
+  probit has no tractable latent-variable form, `ordinal` inherits that,
+  `aft` fixes its censoring structure at creation, and `nbinom`'s
+  Polya-Gamma shape is \\y_i + r\\ with no weight slot. `setData`
+  carries the same rule on the whole-data conduit, and redraws the
+  latents against the counts the replacement data carries; replacement
+  data given without weights is single-trial, as at creation, so a
+  logistic sampler built with counts and handed weightless data becomes
+  an unweighted one. Under an installed mask a swap redraws only the
+  ACTIVE rows - an inactive row consumes no random numbers and returns
+  to its deterministic cold start against the new count. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
   the family-specific weight rules that apply at creation time.
 
@@ -363,12 +380,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   A numeric vector of per-observation 0/1 membership indicators - "row
   \\i\\ is not in the data set for this sampler this sweep" - of length
-  equal to that with which the sampler was created, or `NULL`. Unlike
-  `weights`, `setActiveRows` reaches families that refuse case weights
-  entirely: gaussian, Student-t, `probit`, `ordinal`, `logistic`,
-  `nbinom`, and `aft` samplers all accept it, including a multi-forest
-  (`forests`) sampler, whose forests share one response of whichever
-  family it was built under. It is absolute and independent of
+  equal to that with which the sampler was created, or `NULL`.
+  `setActiveRows` reaches every family, the four that refuse case
+  weights entirely included: gaussian, Student-t, `probit`, `ordinal`,
+  `logistic`, `nbinom`, and `aft` samplers all accept it, including a
+  multi-forest (`forests`) sampler, whose forests share one response of
+  whichever family it was built under. It is absolute and independent of
   `weights`, composing with it in either call order (\\w_i \times a_i\\
   in effect). `NULL` clears the mask (every row active). Length and `NA`
   are validated as for `weights`; the only legal values are exactly `0`
