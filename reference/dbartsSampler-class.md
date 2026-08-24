@@ -1124,11 +1124,16 @@ omission - an amplitude coupling's location is `response.shift` +
 \\\sum_f (B_f a_f) \times (\mathrm{response.scale} \times f_f)\\, and
 off the training rows only the caller knows the bases \\B_f\\, so the
 whole recombination is theirs, with `$getForestAmplitudes()` and
-`$getCalibration()` supplying the rest. Only a sampler that composes its
-forests through scalar amplitude glue reports per-forest fits; every
-other one is refused by name, a multinomial sampler included, whose raw
-per-category totals are perfectly well defined but whose reported
-quantity is a softmax probability that `predict` serves.
+`$getCalibration()` supplying the rest. At the fit level it is packaged:
+`predict` on a
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md) object with
+`type = "ev"`, `"ppd"` or `"bart"` performs the same recombination off
+this replay, taking the bases at the predicted rows through its own
+`bases` argument. Only a sampler that composes its forests through
+scalar amplitude glue reports per-forest fits; every other one is
+refused by name, a multinomial sampler included, whose raw per-category
+totals are perfectly well defined but whose reported quantity is a
+softmax probability that `predict` serves.
 
 For `getCalibration`, the leaf-prior calibration a forest currently runs
 under, as a numeric matrix with one row per chain and the columns

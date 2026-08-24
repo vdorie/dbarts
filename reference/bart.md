@@ -58,6 +58,7 @@ predict(
     n.threads,
     ci.level = NULL,
     forest = NULL,
+    bases = NULL,
     ...)
 
 extract(object, ...)
@@ -428,7 +429,10 @@ residuals(object, type = "ev", ...)
   applies none. Refused, by name, with `type = "forest"`: an offset
   shifts the recombination of the forests, never any one forest's own
   total, so it belongs to the arithmetic under ‘Value’ rather than to
-  what comes back.
+  what comes back. On an amplitude-coupled fit's combined arms
+  (`type = "ev"`, `"ppd"`, `"bart"`) it is that recombination, and
+  enters the sum of trees before the family's link, exactly as it does
+  for a single forest.
 
 - sampleronly:
 
@@ -469,27 +473,28 @@ residuals(object, type = "ev", ...)
   the reason on any other fit. `extract(type = "forest")` reads the
   stored in-sample channel, while `predict(type = "forest")` replays
   each forest at `newdata`; both report the raw per-forest total,
-  leaving the recombination to the caller. For `"ppd"`, a weighted
-  logistic fit draws the number of successes among the observation-count
-  weight, \\\mathrm{Binomial}(w_i, p_i)\\ (see `weights`), and an aft
-  (survival) fit draws on the log-time scale (the fit models \\\log
-  T\\). For `"loglik"`, gaussian fits evaluate \\y_i \mid x_i \sim
-  N(\hat{f}(x_i), \sigma^2 / w_i)\\ in logs at each draw of \\f\\ and
-  \\\sigma\\, a `resid.dist = student()` fit the corresponding marginal
-  \\t\_\nu\\ density at that draw's \\\nu\\ (the fit's `$resid.df`)
-  rather than the normal one, binary fits evaluate the Bernoulli
-  log-likelihood of the fitted probability, multiplied for a weighted
-  logistic fit by the observation-count weight \\w_i\\, and an aft fit
-  contributes the log density for an event and the log survival tail
-  \\\log P(T \> C)\\ for a right-censored observation, both on the
-  log-time scale. When chains are combined the result is a
-  samples-by-observations matrix directly consumable by WAIC/PSIS-LOO
-  implementations such as those in the loo package; the chains-first
-  convention is kept, so a per-chain array (`combineChains = FALSE`,
-  dimension chains-by-samples-by-observations) is reordered to the
-  draws-by-chains-by-observations that `loo::relative_eff` expects with
-  `aperm(x, c(2, 1, 3))`. To synergize with
-  [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
+  leaving the recombination to the caller, where the combined arms
+  (`"ev"`, `"ppd"`, `"bart"`) perform it given the bases at those rows
+  (see `bases`). For `"ppd"`, a weighted logistic fit draws the number
+  of successes among the observation-count weight,
+  \\\mathrm{Binomial}(w_i, p_i)\\ (see `weights`), and an aft (survival)
+  fit draws on the log-time scale (the fit models \\\log T\\). For
+  `"loglik"`, gaussian fits evaluate \\y_i \mid x_i \sim N(\hat{f}(x_i),
+  \sigma^2 / w_i)\\ in logs at each draw of \\f\\ and \\\sigma\\, a
+  `resid.dist = student()` fit the corresponding marginal \\t\_\nu\\
+  density at that draw's \\\nu\\ (the fit's `$resid.df`) rather than the
+  normal one, binary fits evaluate the Bernoulli log-likelihood of the
+  fitted probability, multiplied for a weighted logistic fit by the
+  observation-count weight \\w_i\\, and an aft fit contributes the log
+  density for an event and the log survival tail \\\log P(T \> C)\\ for
+  a right-censored observation, both on the log-time scale. When chains
+  are combined the result is a samples-by-observations matrix directly
+  consumable by WAIC/PSIS-LOO implementations such as those in the loo
+  package; the chains-first convention is kept, so a per-chain array
+  (`combineChains = FALSE`, dimension chains-by-samples-by-observations)
+  is reordered to the draws-by-chains-by-observations that
+  `loo::relative_eff` expects with `aperm(x, c(2, 1, 3))`. To synergize
+  with [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
   `"response"` can be used as a synonym for `"ev"` and `"link"` can be
   used as a synonym for `"bart"`. For information on extracting trees,
   see the subsection below.
@@ -508,6 +513,31 @@ residuals(object, type = "ev", ...)
   `"forest2"`, ...); `NULL` (the default) returns every forest. The
   returned array always keeps the trailing forest margin, subset to the
   requested forests, even when only one is selected.
+
+- bases:
+
+  For `predict` on an amplitude-coupled multi-forest fit: the bases each
+  forest's amplitudes multiply AT the predicted rows, which off the
+  training rows only the caller knows. A length-K list, entry k either
+  `NULL` (for a forest that declared no basis, whose amplitude
+  multiplies an implicit all-ones column) or anything
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
+  `basis` accepts as a value - a numeric vector or matrix, a factor, a
+  character or a logical vector - expanded by the same rule and required
+  to have `nrow(newdata)` rows and the width that forest's amplitudes
+  take. When exactly one forest carries a basis the bare value may be
+  given on its own, without the list: for a Bayesian causal forest,
+  `bases = cbind(1 - zstar, zstar)` is the counterfactual arm being
+  predicted under. Unlike at fit time, a column of all zeros and a
+  single-level factor are accepted, since a constant arm is the point of
+  a counterfactual. `NULL` (the default) re-derives each basis from
+  `newdata` when the fit declared it as a
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
+  (which then needs the variables that term names, coded against the
+  fit's own factor levels), and is otherwise an error naming the forest.
+  Refused on a single-forest fit, and with `type = "forest"`, which
+  reports each forest's total before any basis.
 
 - contribution:
 
@@ -773,32 +803,44 @@ returned. In the numeric \\y\\ case, the list has components:
   is named `forest1`, ..., `forestK`; a declaration's own names
   (`names(forests)` on the
   [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-  route, or a term's own text on the `bart2` route) ride separately as a
-  `"forest.labels"` attribute on the fit object when given. `glue` is
-  the ragged (`n.chains` \\\times\\, when uncombined) `n.samples`
-  \\\times\\ sum(q_k) matrix of amplitudes multiplying each forest's
-  basis columns, forest-major (the layout `$getForestAmplitudes`
-  documents); its `"forest"` attribute names each column's forest.
-  `bases` is a length-K list of each forest's expanded basis matrix (no
-  draw axis; `NULL` for a forest with no declared basis, whose amplitude
-  then scales an implicit all-ones column). Together they reconstruct
-  the training fit exactly: \\\hat y = \mathrm{response.shift} + \sum_k
-  (\mathrm{bases}\_k \\ \mathrm{glue}\_k) \times
-  \mathrm{forestFits}\_k\\, with `response.scale`/`response.shift` read
-  from the sampler's `$getCalibration`. See `extract`'s
-  `type = "forest"`. `predict(object, newdata, type = "forest")` reports
-  the same quantity at NEW rows - an (`n.chains` \\\times\\, when
-  uncombined) `n.samples` \\\times\\ `nrow(newdata)` \\\times\\ K array,
-  same trailing margin, same `forest` selection - replayed from the
-  saved trees, and so requiring `keeptrees`/`keepTrees`. It carries no
-  `glue`, no `response.shift` and no offset either, because off the
-  training rows the bases are the caller's: the identity above becomes
-  the caller's own three-line recombination, with each `bases` entry
-  replaced by the basis that forest's amplitudes multiply at the new
-  rows (for a Bayesian causal forest, the \\(1 - z^\*, z^\*)\\ indicator
-  pair of whichever assignment is being predicted under). An offset is
-  refused there rather than folded in, and there is no `contribution`
-  argument for the same reason.
+  route; a `bart2`
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
+  supplies none) ride separately as a `"forest.labels"` attribute on the
+  fit object when given. `glue` is the ragged (`n.chains` \\\times\\,
+  when uncombined) `n.samples` \\\times\\ sum(q_k) matrix of amplitudes
+  multiplying each forest's basis columns, forest-major (the layout
+  `$getForestAmplitudes` documents); its `"forest"` attribute names each
+  column's forest. `bases` is a length-K list of each forest's expanded
+  basis matrix (no draw axis; `NULL` for a forest with no declared
+  basis, whose amplitude then scales an implicit all-ones column).
+  Together they reconstruct the training fit exactly: \\\hat y =
+  \mathrm{response.shift} + \sum_k (\mathrm{bases}\_k \\
+  \mathrm{glue}\_k) \times \mathrm{forestFits}\_k\\, with
+  `response.scale`/`response.shift` read from the sampler's
+  `$getCalibration`. See `extract`'s `type = "forest"`.
+  `predict(object, newdata, type = "forest")` reports the same quantity
+  at NEW rows - an (`n.chains` \\\times\\, when uncombined) `n.samples`
+  \\\times\\ `nrow(newdata)` \\\times\\ K array, same trailing margin,
+  same `forest` selection - replayed from the saved trees, and so
+  requiring `keeptrees`/`keepTrees`. It carries no `glue`, no
+  `response.shift` and no offset either, because off the training rows
+  the bases are the caller's, so an offset is refused there rather than
+  folded in and there is no `contribution` argument for the same reason.
+  The identity itself is what `predict(object, newdata, type = "ev")`
+  (or `"ppd"`, or `"bart"`) performs at those rows in one call, taking
+  each `bases` entry's replacement - the basis that forest's amplitudes
+  multiply at the new rows, for a Bayesian causal forest the \\(1 -
+  z^\*, z^\*)\\ indicator pair of whichever assignment is being
+  predicted under - through its own `bases` argument, or re-derived from
+  `newdata` on the
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
+  route. Written out by hand it remains the fallback for a caller
+  holding only these components and no sampler. A fit built through a
+  [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
+  additionally carries `basis.terms`, the length-K list of declaring
+  formulas and fit-time factor levels that re-derivation reads; it is
+  absent when the bases arrived as values.
 
 - `sigest`:
 
@@ -989,7 +1031,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.219705
+#> total seconds in loop: 0.218509
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
