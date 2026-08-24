@@ -554,9 +554,16 @@ Multi-chain: every chain sees the swap.
   leaf value is the unweighted mean; it is redrawn on the next sweep, so the
   blast radius is the reported fits between the mutation and the next draw.
   Pre-existing, out of arc. `setCutPoints` carries the same exposure.
-- **The tests/cpp `ConfigSpec` multi-forest fuzz arm.** `ConfigSpec` has never
-  covered ANY multi-forest sampler, BCF included, so scope it as the general
-  gap plus an `OP_SET_COUNTS` op, not as a multinomial follow-up.
+- **The tests/cpp `ConfigSpec` multi-forest fuzz arm.** DISCHARGED at
+  `53525f4d` (see Landing notes). This bullet was stale on arrival:
+  `8afd6eac` (2026-08-11) had already landed `fuzzRunBCF`/
+  `fuzzRunMultinomial` and four multi-forest configs before this text was
+  written on a descendant commit, never re-anchored - `ConfigSpec` has
+  covered multi-forest samplers since `8afd6eac`. The genuine gap was
+  narrower: `Sampler::setCounts`/`setCategoryOffset` had no tests/cpp
+  coverage and no invariant tied a multi-forest sampler's combined output
+  to its parts. `53525f4d` adds `OP_SET_COUNTS`/`OP_SET_CATEGORY_OFFSET`
+  plus the two parts identities I1/I2.
 - **A `k3countsswap` equivalence scenario, at the next multinomial
   re-record.** The counts-swap stream is transitively pinned today
   (test-multinomial-counts-mutation.R pins swap == rebuild bitwise on all five
@@ -937,3 +944,39 @@ family: counts mutate at fixed n and K, train and test category
 offsets install and clear mid-chain, predict replays honor a
 per-call offset, no reported channel silently omits the offset,
 and the one public surface is bart2's train-side matrix offset.
+
+Fuzz-arm ops LANDED 53525f4d, 2026-08-24. Premise correction: the
+"Doors held open" bullet and TODO's entry were half stale - 8afd6eac (2026-08-11)
+landed fuzzRunBCF/fuzzRunMultinomial before this door text was
+written on a descendant commit and never re-anchored. The real gap:
+setCounts/setCategoryOffset had no tests/cpp callers, and no
+invariant tied combined output to parts; both existed only as
+fixed-scenario R pins. Landed: OP_SET_COUNTS (unit one-hot, grouped
+multi-trial, self-swap asserted bitwise inert) and
+OP_SET_CATEGORY_OFFSET (install or clear), guarded on
+supportsCountsMutation; a multinomial-multichain (2-chain) config
+drives the per-chain fan-out. Two parts identities run after every
+op: I1, reported channel == softmax of the per-category totals plus
+the installed offset, chain-strided, 1e-12 relative (mirrors
+softmaxLocationMajor's max-subtraction, ulps apart; absolute 1e-12
+vacuous at ~1e-16); I2, an amplitude coupling's fitsWithoutOffset
+== the exact-z blend of forest totals, last-forest-down, via
+forestCalibration's responseScale/responseShift, 1e-9 relative. I3
+(finiteness), I4 (state round trip) pre-existed. Discrimination, by
+planting: P-A drop raw_.resize -> SEGV under ASAN
+(refreshRawColumn), I3 never runs; P-B conditional
+materializeRawFits -> I1 fails, 18; P-C cache glue_.combined -> I2
+fails, 24; P-D drop trials_=trials -> NOT caught here; caught by
+the R identity pin (test-multinomial-counts-mutation.R) - honest
+non-catch; P-E setCategoryOffset ignores a clear -> I1 fails, 12,
+SEQUENCE-ONLY (install, clear, run) - the only tinytest offset
+clear (test-multinomial-r5-surface.R:296) never sweeps after.
+Single-forest streams unchanged (opt-in DBARTS_FUZZ_TRACE FNV-1a
+digest, 108 lines, 9 configs x 12 seeds, diffed pre/post). Gates:
+tests/cpp full green 15.7s; fuzz 0.270s -> 0.281s (3 seeds), 0.604s
+-> 0.703s (12 seeds, mostly the 2-chain config); ASAN/UBSAN clean;
+R build byte-identical (tests/cpp outside the package), so the
+equivalence trio is trivially bitwise, no re-record. Residual door:
+bartcore_predictPerForest's forestReportingIsDefined gate still
+refuses per-forest off-sample replay on multinomial - a separate
+surface item, recorded in TODO.

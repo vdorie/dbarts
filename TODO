@@ -301,9 +301,12 @@ items
     predictor channel is already open; the gap is response-side only.
     COMPLETE 2026-08-12 (S1-S5; docs/plans/multinomial-counts-
     mutation.md). The multinomial family is now a full conditional
-    inside a larger Gibbs/MH sampler. Open: no test-side
-    bartcoreForestFits analog; ConfigSpec OP_SET_COUNTS rides the
-    general multi-forest fuzz-arm gap.
+    inside a larger Gibbs/MH sampler.
+    OP_SET_COUNTS/OP_SET_CATEGORY_OFFSET fuzzed at 53525f4d;
+    bartcoreForestFits already serves multinomial. Doors, unscheduled:
+    predictPerForest's forestReportingIsDefined gate (per-forest
+    off-sample replay on multinomial); OP_GROW still outside
+    fuzzMultiForestMask (grow-from-root-categorical-scan.md).
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
