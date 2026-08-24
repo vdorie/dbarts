@@ -540,6 +540,95 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Residue burn-down and value-scan defect fixes (a0eaf348..044a9098, 2026-08-24)
+
+Two independent censuses - scratch/backlog-value-scan-2026-08-24.md and its blind
+critique - re-verified every open TODO entry against live code and found four
+undocketed defects (heteroscedastic loglik/PPD, the variance setState column mask,
+dbartsData(bases=)/dbarts() alignment, no summary method for ordinal/nbinom/hurdle).
+Three memo/critique arcs (weights-saved-state, multinomial-forest-replay,
+fuzz-grow-mask) plus one independent adjudication of the ordinal draw-law change
+round out nine slices: design memo -> blind critique -> implementer spec ->
+orchestrator diff review -> (adjudication, for the draw-law change) -> cherry-picked
+stack, five hand-merged append-point conflicts -> one merged-tree gate battery.
+
+a0eaf348: getPointer/setState bound a re-created engine to selfEnv$pointer
+BEFORE its state installed, so a refused install left a live unfitted engine that
+the next run sampled from and storeState overwrote the fit with. Fix binds only
+after install succeeds (test-sampler-state-format.R, 67 lines).
+
+221ec7af: loglik, ppd, and summary all scored a heteroscedastic fit at the
+scalar sigma - fixed, no posterior content - instead of s(x): measured summed loglik
+-3592.1 reported vs -2031.7 correct. Fix scores/draws at s(x)/sqrt(w), reports
+mean.s, and refuses ppd at test rows with no s.test (214-line test file).
+
+c95a5e83: setState held only mean forests to installForests' column-mask rule;
+reproduced, 32 forbidden variance splits installed, 12 still live 5 sweeps later.
+Fix shares columnMaskStateFeasible across every forest (C++ and R pins: refused with
+installTrees' own text, recipient left unchanged).
+
+99317fec: multinomial/ordinal/nbinom generics used bare match.arg instead of
+validateType, so type=response/link gave reason-free errors; multinomial's
+type=bart/forest refusal now names itself on predict/fitted too, and
+predict.bartMultinomial gains offset.category.test. Closes the
+multinomial-forest-replay door as a DECISION - every candidate use collapses to
+log(predict(...)) to 1e-13 or needs a declined identification; re-open trigger is a
+level-sensitive K-latent composition.
+
+b4b9119d + 044a9098: the ordinal scan dropped missing rows from
+the split likelihood while the no-split term kept them, biasing toward not-splitting
+under n.grow.sweeps; fixed by scoring each missing direction over the rows it seats.
+Independently adjudicated to a max abs diff of 1.53e-16 against an R re-derivation
+across five fixtures, chi-square rejecting both the dropped and halved-mass laws.
+The adjudication also caught a sentinel gap the passing suite never saw - it
+segfaults a deep-grow probe - closed in the amendment.
+
+47cdb96a: dbartsData(bases=)'s formula path checked the post-subset row count,
+dbarts()'s the full-data count; at equal counts the two silently accepted different
+bases for one call - dbartsData now applies the dbarts() rule. 1583140b:
+ordinal, nbinom and hurdle.lognormal fits fell through to summary.default's
+Length/Class/Mode table; they now get real summaries.
+
+d788bfef: OP_GROW was absent from five multi-forest and four single-forest
+fuzz configs. Widening the mask alone is vacuous - the op ends in a
+getState/setState round trip that heals corruption first - so the fix checks
+invariants before that round trip. A planted defect is caught at seed 1 on all five
+multi-forest configs, missed by the stock mask; a legal reordering control stays
+green at 60 seeds.
+
+da82ec23: logistic's PG latents are weight-shaped but no state carried the
+weights that shaped them, so a restore paired stale latents with new counts for one
+sweep. Fix: a weights.digest (byte hash, since moments collide on unequal weight
+vectors) rides the state; setState re-derives latents through setWeights on a
+mismatch, gated so a matched restore stays the identity. Deleting the write, the
+compare, or digesting the wrong side each turns a distinct mutation pin red;
+dbarts.h changed in prose only.
+
+Gates, final merged-tree battery at 044a9098: tinytest 6946/0; tests/cpp 257/0 full,
+sampler filter, and 200-seed fuzz green; ASAN+UBSAN full suite 0 diagnostics;
+--as-cran 1 expected NOTE; pkgdown and doc-freshness clean; every slice trio-bitwise (43/12/11), no baseline re-recorded.
+
+Decisions (VD, 2026-08-24): residue burn-down first, then a second adversarial
+whole-branch review (discussed first), then the review-tour refresh. Fit-time test
+basis DEFERRED POST-1.0 - bartCause's counterfactual arms are already served at fit
+time, unlocking nothing new. group.by, survival entry=, sparse-extensions' two
+halves, and rbart_vi's logistic token deferred post-1.0, window not lock-in.
+Approximate Polya-Gamma DECLINED for 1.0; hurdle samplerOnly stays refused; the
+twin-create deletion is STRUCK as a relitigation.
+
+Doors left: the active-row mask still does not ride saved state (bounded,
+documented, not the hybrid closed here); per-forest multinomial replay stays
+refused, re-open trigger above; the four additive items above; fit-time test basis,
+post-1.0; variance-forest-mutation-routing.md's other two doors (scale-leaf
+staleness, prior-predictive) untouched.
+
+Lessons: append-point conflicts concentrated in inst/NEWS.Rd, long Rd lines, and
+R/diagnostics.R. The sentinel gap is a reminder that a passing suite is not
+evidence of an assertion's reach - found only by building a probe the landed tests
+had no reason to write. The value-scan pattern - scan, then a critique that REFUTES
+rather than confirms - surfaced four silently-wrong exported channels no per-slice
+gate had reason to look for.
+
 ### Pre-RC burn-down (2026-08-24)
 
 The RC gate exists to prepare for the serious human review the charter

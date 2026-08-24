@@ -291,10 +291,15 @@ items
     mutation.md). The multinomial family is now a full conditional
     inside a larger Gibbs/MH sampler.
     OP_SET_COUNTS/OP_SET_CATEGORY_OFFSET fuzzed at 53525f4d;
-    bartcoreForestFits already serves multinomial. Doors, unscheduled:
-    predictPerForest's forestReportingIsDefined gate (per-forest
-    off-sample replay on multinomial); OP_GROW still outside
-    fuzzMultiForestMask (grow-from-root-categorical-scan.md).
+    bartcoreForestFits already serves multinomial.
+    predictPerForest's forestReportingIsDefined gate: DECIDED REFUSE,
+    named by reason rather than opened, 99317fec - every
+    candidate use of per-forest off-sample replay either is already
+    served by log(predict(...)) to 1e-13 or needs a reference-category
+    identification this model already declined; re-open trigger is a
+    level-sensitive composition of the K latents. OP_GROW joined
+    fuzzMultiForestMask, d788bfef - the
+    grow-from-root-categorical-scan.md door is closed.
   negbin-real-dispersion: recorded door out of the negative-binomial
     landing (docs/plans/negative-binomial.md; design sec 2 carries fork
     B's spec). Real-valued dispersion needs a non-integer-shape
@@ -304,21 +309,17 @@ items
     opt-in; the same decision gates weighted-binary's fractional
     weights. The engine seams are in place. Poisson family and grouped
     NB are companion doors (design sec 7). decision-gated.
-  ordinal-scan-missing-rows: the grow-from-root ordinal scan drops
-    missing rows from the split likelihood (scan.hpp skips naCode)
-    while the no-split term counts them (grow.hpp takes the full
-    node's stats), so a split score is short the missing rows' leaf
-    marginal - the SECOND inconsistency the categorical-scan S0a
-    falsifier surfaced and its verifier confirmed from code
-    (2026-08-12; docs/plans/grow-from-root-categorical-scan.md S0a
-    landing note). Two components: the dropped weighted
-    sum-of-squares no longer cancels split-vs-no-split (monotone in
-    the missing rows' sum w y^2: TV 0.017 -> 0.59 as it goes 0 ->
-    32), and the missing weight never inflates child precision (the
-    floor). Independent of the log 2 fork - 39 percent of the
-    shipped-to-exact gap survives that fix. Opt-in grow path only,
-    missing-bearing ordinal columns only. Own slice, draw-law
-    change when taken.
+  ordinal-scan-missing-rows: DISCHARGED b4b9119d +
+    044a9098 - the scan now routes each missing
+    direction's rows into the child it seats and scores them
+    separately, so the no-split term's full-node stats compare
+    against a split score that includes them too. Independently
+    adjudicated to a max abs diff of 1.53e-16 against an R
+    re-derivation across five fixtures, chi-square rejecting both the
+    dropped and halved-mass laws; its sentinel-assertion amendment
+    (a deep-grow segfault the passing suite never caught) landed with
+    it. Own slice, draw-law change taken; the residue burn-down
+    landing note in release-candidate-review.md is the record.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge, so a pybind11 facade wrapper is prototype-scale. Horizon,
     likely out-of-repo. Two contracts a non-R host would have to take
@@ -460,11 +461,14 @@ items
     entry routes the variance forest correctly or refuses cleanly
     (docs/plans/variance-forest-mutation-routing.md, which also
     records the transactional/per-observation door closed via
-    multiforest-predictor-mutation S3). Doors still open, recorded
-    there: scale-leaf staleness under updateScale; heteroscedastic
-    prior-predictive draw; the setState variance COLUMN-MASK gap - a
-    distinct, still-open check (columnMaskSubtreeIsValid has no
-    variance-branch backstop), not the occupancy gap S3 closed.
+    multiforest-predictor-mutation S3). The setState variance
+    COLUMN-MASK gap - columnMaskSubtreeIsValid had no variance-branch
+    backstop, so setState could install a variance tree splitting on
+    a column its own mask forbids - is DISCHARGED, c95a5e83: both
+    tree-install entries now hold the variance forest to the same
+    containment predicate as every mean forest. Doors still open,
+    recorded there: scale-leaf staleness under updateScale;
+    heteroscedastic prior-predictive draw.
   wave5-review-followups: ledger of small survivals out of the
     2026-08-18 adversarial review + its fix arc (evidence in
     .claude/rc-review-artifacts-2026-08-18/, verdict in
