@@ -161,26 +161,12 @@ items
     for which dbarts already ships the hard-constraint half; soft
     path-dependent penalties, gate STANDS - no model surfaced.
     decision-gated.
-  latent-family-weight-channel: ADJUDICATED 2026-08-15 (r-c-division
-    census item G4, the one item the arc's itemization never
-    scheduled): PARTIAL BUILD. Logistic weights are observation counts
-    and the Polya-Gamma shape depends on them
-    (LogisticResponse::refreshLatents sums lround(weights_[i]) PG(1,
-    psi) draws), so a weight change is a model change with a defined
-    meaning and an outer sampler that cannot make it cannot vary
-    exposure; refuseBinaryWeightChange refuses it today. BUILD for
-    logistic: relax the refusal, refresh the latents against the new
-    counts on the swap (a stale omega is a wrong draw, not just a
-    stale one), keep the positive-integer validation on the mutation
-    path. DECLINE BY IDENTIFICATION for probit, ordinal, aft and
-    nbinom - no weighted latent form, a creation-fixed censoring
-    structure, and a y_i + r shape with no weight slot respectively -
-    and say so in the weights item of man/dbartsSampler-class.Rd
-    rather than leaving it an accident. Record in
-    docs/design/r-c-division.md, "The latent-family weight channel".
-    Memo price ~40 engine + ~60 test, to be re-derived in raw
-    additions at scoping. OUTSIDE the adoption-slate arc;
-    unscheduled, pre-release at discretion.
+  latent-family-weight-channel: DISCHARGED d0701a6a - logistic setWeights
+    and setData redraw omega, the working response and masked composite
+    against new counts; probit, ordinal, aft, nbinom stay refused by
+    identification (Rd). Weightless setData is single-trial, as at creation.
+    DOOR: weights never ride the saved state, so a restore can pair a stale
+    omega with a different count vector - pre-existing, unscheduled.
   multiforest-extension-surface: M1 LANDED 05ac3b4b, M2 LANDED 64b13b98 -
     forests = list(forest(...)) on dbarts()/dbartsSpec() replaces the
     removed treatment =/moderators =/treatmentForest =, with

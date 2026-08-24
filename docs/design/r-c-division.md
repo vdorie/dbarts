@@ -383,31 +383,33 @@ y_i + r with no weight slot. Clause 1's identification parenthetical
 covers all four, and this is the record that makes the coverage
 deliberate rather than inherited.
 
-LANDED, logistic build. A swap replaces omega (the count is the PG
-SHAPE, so a stale one is a WRONG draw, not an old one), the working
-response, the masked composite, and the borrowed weight pointer - the
-last making the family override mandatory, since the bridge frees the
-previous vector as it retains the new one. The refresh is IMMEDIATE: a
+LANDED d0701a6a (2026-08-24), logistic build. A swap replaces omega (the
+count is the PG SHAPE, so a stale one is a WRONG draw, not an old one),
+the working response, the masked composite, and the borrowed weight
+pointer - the last making the family override mandatory, since the bridge
+frees the previous vector as it retains the new one. `GroupedResponse`
+delegates the swap against f + b without drawing its own group effects or
+tau block, those staying a sweep concern. The refresh is IMMEDIATE: a
 sweep draws its TREES first and refreshes after, so an outer sampler at
 run(0, 1) per iteration would otherwise move every tree under the
-previous counts. It draws from the CHAIN generators in a serial
-per-chain fan-out, so consumption is independent of n.threads and R's
-stream never moves. Under a mask only ACTIVE rows are drawn for -
-variates for an inactive row would desynchronize the stream against a
-sampler built on the retained rows - and the rest return to the
-deterministic cold start against the NEW counts, so none reactivates on
-a shape the sampler no longer holds. A zero count stays refused for a
-better reason than first recorded: `leafVetoRank` counts positive
-WORKING weights and a zero-count row still carries omega > 0, so it
-does not drop the row a zero gaussian weight drops; the mask is the
-only spelling that does. `enforceBinaryWeightPolicy` states the
-admissible values once, at creation and on both mutation conduits, so
-the R bridge and the flat C entry cannot disagree, and `setData`
-hands the replacement counts through the SAME conduit, so its latents
-are drawn rather than cold-started; replacement data given without
-weights is single-trial, as at creation. STILL OPEN, predating
-this: weights never rode the saved state, so a state stored under one
-count vector restores a stale omega against another.
+previous counts. It draws from the CHAIN generators in a serial per-chain
+fan-out, so consumption is independent of n.threads and R's stream never
+moves. Under a mask only ACTIVE rows are drawn for - variates for an
+inactive row would desynchronize the stream against a sampler built on
+the retained rows - and the rest return to the deterministic cold start
+against the NEW counts, so none reactivates on a shape the sampler no
+longer holds. A zero count stays refused for a better reason than first
+recorded: `leafVetoRank` counts positive WORKING weights and a zero-count
+row still carries omega > 0, so it does not drop the row a zero gaussian
+weight drops; the mask is the only spelling that does.
+`enforceBinaryWeightPolicy` states the admissible values once, at
+creation and on both mutation conduits, so the R bridge and the flat C
+entry cannot disagree, and `setData` hands the replacement counts through
+the SAME conduit, so its latents are drawn rather than cold-started;
+replacement data given without weights is single-trial, as at creation.
+STILL OPEN, predating this: weights never rode the saved state, so a
+state stored under one count vector restores a stale omega against
+another.
 
 ## Honest limits
 
