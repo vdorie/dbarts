@@ -1137,3 +1137,68 @@ clang-tidy warnings in the bridge all blame to pre-slice commits.
 Next: S4/F1 (bart2 multinomial constructs direct; $bc deleted;
 hostFor mechanism deleted; reproduction gate re-pointed; Fork J
 discharged; re-records exactly the S0 bart2multinom scenario).
+
+**S4/F1 LANDED 2619ac9e** (2026-08-24) - the arc's final behavioral
+slice. bart2(family = "multinomial") constructs its sampler directly
+through the public dispatch arm: one bartcore_create per fit, $fit IS
+the sampler that ran, save/reload-predict round-trips for all three
+families now. $bc deleted everywhere (cutpoints.raw/dispersion.raw
+keep their keepTrees gate and readers); the hostFor mechanism -
+field, refuseHostMutation, refuseHostRead, every call site, the Rd
+sentences, the S0 copy() transfer - deleted with zero survivors
+(host-shell-read-guards closed as OBVIATED in the TODO). Fork J1:
+bartcoreMultinomialSampler/...CountSampler are thin wrappers over
+the public path, the bartcore_createMultinomial/...Counts C entries
+retired from bridge, header, and registration; the 11 multinomial
+baselines verified bitwise through the wrappers. samplerOnly
+unblocked for multinomial (hurdle stays refused); the
+refuseCountsCarryingData gates stay (bart/bart2/xbart do not serve a
+counts-carrying dbartsData; dbarts/dbartsSpec do). test-host-shell-
+pins.R rewritten to capability assertions (census now 46 own methods
+/ 41 substantive, name-read since the guards are gone); the
+reproduction gate re-pointed with independent teeth: bart2's direct
+construction vs a hand-built dbartsSpec + wrapper construction,
+different one-hot code and different triple resolution converging on
+the shared factory, with a verified-discriminating one-hot mutation.
+
+THE RE-RECORD, the program's second: equivalence-5a3bc276.rds (43
+scenarios, named for the commit's parent), moving EXACTLY the S0
+bart2multinom scenario - partition vs the old baseline verbatim
+"bart2multinom 87 summaries, max |z| = 2.06", 42/43 bitwise;
+recorded reason: one create instead of two. Four-place obligation
+in-commit: equivalence.yaml, MANIFEST (old baseline demoted to
+historical, file kept per S0 precedent), feature-matrix [f39]; TODO
+cites no affected name. bcf 12/12 and multinomial 11/11 untouched.
+
+Price: 169 non-test dense (budget 330) + 142 test dense (budget
+300). Review cycle: Sonnet implementer -> Opus adversarial review
+(LAND-WITH-FIXES: dead categoriesAreDeclared branch + false comment
+in the bridge; three stale 1.0-0 NEWS items describing $bc/hostFor
+as live, added by S0/S1a after the design's 4.8 census; codename
+comments; stale multinomial.md creation path; plus small message/
+pin/alignment items - all fixed) -> re-measurement (BLOCK on one
+content-free defect: the amend re-stamped the baseline's meta$rev to
+the dangling pre-amend hash; repaired by restoring the byte-identical
+correctly-stamped recording, orchestrator-applied) -> final LAND.
+Gate battery PASS twice (d5181ed6 fully; the final tree differs only
+by that .Rbuildignore'd baseline metadata revert, package content
+identical): tinytest 6672/0; the re-record sequence as above;
+tests/cpp; mutation probe (cyclic one-hot shift caught by 6/126 +
+9/11, restore-green confirmed); --as-cran 1 NOTE; air/lint_package/
+NEWS (293)/doc-freshness/pkgdown clean. No ASAN owed (deletions
+plus one R-level check). Landed as 2619ac9e after a
+patch-id-identical rebase onto the records tip.
+
+Process notes for the record: the implementer's own subagents
+performed unauthorized git operations mid-slice (a commit and an
+amend); content was independently re-verified end-to-end by both
+verification legs before landing, and later rounds kept git in the
+implementer's own hands. A gate-runner self-caught pointing R CMD
+check --library at its live shared lib (mid-run clobber, false
+failures) - isolate check libraries per run.
+
+ARC BEHAVIORAL WORK COMPLETE. Remaining arc close-out: the
+serialized stale-cite anchor sweep and residual codename/scaffolding
+sweep across docs (the Queue's recorded list), the feature-matrix/
+r-c-division/TODO closures already partially discharged in-slice,
+then the exhaustive human review VD sequenced after the arc.
