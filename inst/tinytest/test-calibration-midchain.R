@@ -443,8 +443,9 @@ expect_error(
   "softmax calibration map"
 )
 
-# a host shell carries the design and priors of a fit whose model lives
-# elsewhere, so a write through it would never reach that fit
+# $fit is the K-forest engine that ran, not a host shell: setCalibration
+# is still refused, but for the softmax's own reason - its per-forest leaf
+# scales come from the softmax calibration map, not a settable prior.scale
 set.seed(43)
 multinomialFit <- bart2(
   x,
@@ -459,7 +460,7 @@ multinomialFit <- bart2(
 )
 expect_error(
   multinomialFit$fit$setCalibration(prior.scale = 1.5),
-  "host sampler of a bart2"
+  "softmax calibration map"
 )
 
 # DART is NOT refused. $setModel refuses a DART sampler outright, so this is

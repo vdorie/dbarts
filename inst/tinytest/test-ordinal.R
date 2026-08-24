@@ -136,12 +136,10 @@ suppressMessages(
   )
 )
 expect_false(is.null(fitKeepSampler$fit))
-expect_true(is.null(fitKeepSampler$bc))
 rm(fitKeepSampler)
 
 # --- the retained $fit is the engine that ran, adopted from the abandoned
 # first-created host: reads and mutations succeed ---
-expect_true(length(fit$fit$hostFor) == 0L)
 expect_equal(ncol(fit$fit$data@x), ncol(x))
 expect_equal(predict(fit, x.test), fit$yhat.test)
 expect_silent(fit$fit$setResponse(as.double(codes)))

@@ -339,6 +339,11 @@ confirmed)
    sampler class. NEW OPEN ITEM: bart2's ordinal and nbinom hosts
    retain the same disconnected-$fit shape; whether to extend the
    `hostFor` guard to them is a VD question BY NAME, unscheduled.
+   CLOSED: the multinomial mutation arc replaced the area, as the
+   guard's own comment anticipated. S1a pointer-adopts ordinal/nbinom's
+   engine; S4 constructs multinomial's sampler directly. $fit is the
+   sampler that ran for all three, $bc is gone, and the `hostFor`
+   field/guard is deleted - nothing is left to guard.
 
 Recommended sequencing, as landed: items 1-4 and 6 were one stop-loss
 slice at 33f6fdc (the SL/VF S1 pattern: refusals first, no draw-law

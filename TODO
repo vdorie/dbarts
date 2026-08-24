@@ -147,25 +147,9 @@ items
     study.md; docs/design/grow-from-root-default.md, which also
     records the still-INCONSISTENT family-support gate). n.grow.sweeps
     stays opt-in; unscheduled.
-  host-shell-read-guards: bart2's multinomial, ordinal and nbinom
-    fits (the latter two since adoption-slate S7) carry a
-    placeholder $fit host sampler whose hostFor field makes MUTATION
-    refuse (refuseHostMutation, R/dbarts.R). READS do not:
-    $getLatents, $getForestFits, $getSigmas and $getCalibration all
-    answer from the shell, which carries the design and priors the fit
-    was built from but not its model. adoption-slate S1 adds a
-    read-side sibling for the ONE new accessor it introduces
-    ($getFitsWithoutOffset) and deliberately leaves the four shipped
-    readers alone, since changing a shipped reader is outside that
-    slice. The open question, carried to VD 2026-08-15 and TICKETED
-    rather than built: should every read on a host shell refuse, or
-    only those whose value is structurally wrong there? They are not
-    equal - $getSigmas returns a real sigma of a real sampler, just
-    not the one the user fit, while $getForestFits returns fits of a
-    forest that never participated. If "all": rename or generalize
-    refuseHostMutation, four call sites, four Rd sentences, four
-    cells, ~20 non-test / ~35 test raw additions. Pre-release at
-    discretion.
+  host-shell-read-guards: OBVIATED - every bart2 alternate-family fit
+    constructs its sampler directly now, so no host shell exists to
+    guard.
   integer-predictor-storage: dense-INTEGER storage in the
     PredictorSource view. A memory win, not speed; integer -> double
     is exact in range so the slice MUST be trio-bitwise. Split out of

@@ -169,10 +169,6 @@ expect_inherits(warnings.rbartProbit[[1L]], "dbartsFamilyGatedWarning")
 
 # monotonicity: already-loud refusals keep their severity and message
 expect_error(
-  fit2(y.multi, family = "multinomial", samplerOnly = TRUE),
-  pattern = "does not support 'samplerOnly'"
-)
-expect_error(
   fit2(y.multi, family = "multinomial", weights = rep(1, n)),
   pattern = "does not support 'weights'"
 )
@@ -187,16 +183,23 @@ expect_error(
 samplerOrdinal <- fit2(y.ordinal, family = "ordinal", samplerOnly = TRUE)
 expect_inherits(samplerOrdinal, "dbartsSampler")
 expect_equal(samplerOrdinal$model@family, "ordinal")
-expect_true(length(samplerOrdinal$hostFor) == 0L)
 rOrdinal <- samplerOrdinal$run()
 expect_equal(dim(rOrdinal$train), c(n, quick$n.samples))
 
 samplerNbinom <- fit2(y.count, family = "nbinom", samplerOnly = TRUE)
 expect_inherits(samplerNbinom, "dbartsSampler")
 expect_equal(samplerNbinom$model@family, "nbinom")
-expect_true(length(samplerNbinom$hostFor) == 0L)
 rNbinom <- samplerNbinom$run()
 expect_equal(dim(rNbinom$train), c(n, quick$n.samples))
+
+# samplerOnly: unblocked for multinomial too - direct construction means
+# the returned sampler IS the K-forest engine bart2 would have run, not a
+# discarded host
+samplerMultinomial <- fit2(y.multi, family = "multinomial", samplerOnly = TRUE)
+expect_inherits(samplerMultinomial, "dbartsSampler")
+expect_equal(samplerMultinomial$model@family, "multinomial")
+rMultinomial <- samplerMultinomial$run()
+expect_equal(dim(rMultinomial$train), c(n, 3L, quick$n.samples))
 
 # The shared-default-text contract. For every name shared by bart2 and
 # dbarts, the deparsed default expressions agree, except the table below.

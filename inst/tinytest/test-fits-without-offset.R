@@ -216,11 +216,13 @@ expect_true(!is.null(cell$fits))
 expect_equal(dim(cell$fits), cell$shape)
 expect_equal(cell$fits + offGauss, cell$train)
 
-# --- the two refusals ------------------------------------------------------
+# --- the refusal -----------------------------------------------------------
 
-# multinomial: the refusal is not writable on the R-level surface, since a
-# multinomial sampler is never a dbartsSampler - it is a bare environment
-# carrying $ptr/$x/$K - so the cell runs against the internal wrapper.
+# multinomial: exercised directly against the bridge-level refusal, through
+# the low-level handle bartcoreMultinomialSampler builds (a bare $ptr/$x/$K
+# environment) - the same C entry a real dbartsSampler's own
+# $getFitsWithoutOffset() reaches, so this cell pins that backstop without
+# needing a full bart2(family = "multinomial") fit.
 makeMultinomial <- getFromNamespace("bartcoreMultinomialSampler", "dbarts")
 fitsWithoutOffset <- getFromNamespace("bartcoreFitsWithoutOffset", "dbarts")
 multinomialHost <- dbarts(x, yGauss, control = samplerControl())
@@ -232,19 +234,6 @@ expect_error(
 # the caveat rides the message: predict reports the SAVED samples, not the
 # current state, once the sampler keeps trees
 expect_error(fitsWithoutOffset(multinomial), pattern = "keepTrees")
-
-# the host shell: a gaussian sampler whose numReportedLocations is 1, so
-# without the read-side guard the new read answers from the placeholder
-samplerShell <- dbarts(x, yGauss, control = samplerControl())
-samplerShell$hostFor <- "bart2(family = \"multinomial\")"
-expect_error(
-  samplerShell$getFitsWithoutOffset(),
-  pattern = "host sampler of a bart2"
-)
-# the four shipped readers stay unguarded, deliberately and by ticket
-# (host-shell-read-guards); this pins the asymmetry as a decision
-expect_silent(samplerShell$getSigmas())
-expect_silent(samplerShell$getForestFits(1L))
 
 # --- the ARITHMETIC gates: recombination through the independent read path --
 

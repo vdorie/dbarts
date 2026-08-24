@@ -149,7 +149,7 @@ multiFit <- bart2(
   verbose = FALSE
 )
 expect_error(
-  dbarts:::bartcorePredictPerForest(multiFit$bc, xNew),
+  multiFit$fit$predictForests(xNew),
   pattern = "no per-forest fits"
 )
 

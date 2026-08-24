@@ -1,24 +1,21 @@
-# The dbartsSampler host-shell guard (docs/design/multinomial-mutation-arc.md
-# section 1): today's census of hostFor-guarded vs unguarded methods, the
-# placeholder host's degenerate predict, its K-dependent resolved family, and
-# the save/reload failure the three K-forest/host-shell families
-# (multinomial, ordinal, nbinom) share. These assertions exist to MOVE - a
-# later change that gives one of these families a real public surface should
-# invert or delete the corresponding one here, not leave it standing
-# unnoticed.
+# The dbartsSampler surface, post host-shell removal
+# (docs/design/multinomial-mutation-arc.md). Pointer adoption for
+# ordinal/nbinom and direct construction for multinomial mean every
+# bart2() alternate-family fit's $fit is now the sampler that actually
+# ran: no hostFor field, no refuseHostMutation/refuseHostRead guards, no
+# host-shell save/reload defect. This file used to pin those defects; it
+# now pins the census (the drift detector: any method added or removed
+# from dbartsSampler should be caught here) and the capabilities that
+# replaced them.
 
-# --- the census: every own method of dbartsSampler, classified by which
-# guard (if either) its body calls first. Read the SOURCE rather than probe
-# each of the 22 mutators by call, since most need contrived arguments this
-# file has no stake in constructing; a spot check below confirms the guard
-# still fires at runtime, not just in text.
+# --- the census: every own method of dbartsSampler. Read the SOURCE rather
+# than probe each mutator by call, since most need contrived arguments this
+# file has no stake in constructing.
 gen <- getRefClass("dbartsSampler")
 ownMethods <- gen$def@refMethods
 infrastructure <- c(
   "initialize",
   "adoptPointer",
-  "refuseHostMutation",
-  "refuseHostRead",
   "reapplyForestWeights",
   "getPointer",
   "show"
@@ -41,34 +38,14 @@ inherited <- c(
   "usingMethods"
 )
 own <- setdiff(names(ownMethods), inherited)
+substantiveMethods <- sort(setdiff(own, infrastructure))
 
-classifyGuard <- function(name) {
-  text <- paste(deparse(body(ownMethods[[name]])), collapse = "\n")
-  if (grepl("refuseHostMutation(", text, fixed = TRUE)) {
-    return("mutation")
-  }
-  if (grepl("refuseHostRead(", text, fixed = TRUE)) {
-    return("read")
-  }
-  "unguarded"
-}
-guard <- vapply(own, classifyGuard, character(1L))
-
-hostMutationMethods <- sort(own[guard == "mutation"])
-hostReadMethods <- sort(own[guard == "read"])
-substantiveUnguardedMethods <- sort(setdiff(
-  own[guard == "unguarded"],
-  infrastructure
-))
-
-expect_equal(length(own), 48L)
-expect_equal(length(hostMutationMethods), 25L)
-expect_equal(length(hostReadMethods), 2L)
-expect_equal(length(substantiveUnguardedMethods), 14L)
-expect_equal(length(infrastructure), 7L)
+expect_equal(length(own), 46L)
+expect_equal(length(infrastructure), 5L)
+expect_equal(length(substantiveMethods), 41L)
 
 expect_identical(
-  hostMutationMethods,
+  substantiveMethods,
   sort(c(
     "run",
     "sampleTreesFromPrior",
@@ -94,16 +71,9 @@ expect_identical(
     "setTestOffset",
     "setCalibration",
     "setState",
-    "installTrees"
-  ))
-)
-expect_identical(
-  hostReadMethods,
-  sort(c("getDispersion", "getFitsWithoutOffset"))
-)
-expect_identical(
-  substantiveUnguardedMethods,
-  sort(c(
+    "installTrees",
+    "getDispersion",
+    "getFitsWithoutOffset",
     "copy",
     "predict",
     "predictForests",
@@ -121,8 +91,10 @@ expect_identical(
   ))
 )
 
-# --- spot check: the guard fires at runtime, on an actual host shell,
-# consistent with the source-level classification above ---
+# --- spot check: a multinomial fit's $fit is the K-forest engine that ran,
+# not a placeholder - mutation succeeds where the softmax gives it meaning
+# and refuses (by a model reason, never a host-shell one) where it does not;
+# predict reports real, non-degenerate probabilities ---
 set.seed(94011)
 nSpot <- 60L
 xSpot <- matrix(runif(nSpot * 2L), nSpot, 2L)
@@ -142,15 +114,14 @@ fitSpot <- bart2(
   verbose = FALSE,
   keepTrees = TRUE
 )
-hostRefusalSpot <- "host sampler of a bart2\\(family = \"multinomial\"\\) fit"
-expect_error(fitSpot$fit$setResponse(rnorm(nSpot)), hostRefusalSpot)
-expect_error(fitSpot$fit$getDispersion(), hostRefusalSpot)
-# unguarded: answers (however uselessly), never the host-shell refusal
+expect_error(fitSpot$fit$setResponse(rnorm(nSpot)), "\\$setCounts")
+expect_null(fitSpot$fit$getDispersion())
 predSpot <- fitSpot$fit$predict(xSpot)
-expect_true(is.numeric(predSpot))
+expect_equal(dim(predSpot), c(nSpot, 3L, 2L))
+expect_equal(apply(predSpot[,, 1L], 1L, sum), rep(1.0, nSpot))
 
 # --- fixtures for the remaining pins: one multinomial K = 3, one K = 2, one
-# ordinal, one nbinom, each with a host shell retained via keepTrees ---
+# ordinal, one nbinom, each with $fit retained via keepTrees ---
 n.trees <- 15L
 n.burn <- 15L
 n.samples <- 15L
@@ -240,37 +211,36 @@ fitNb <- bart2(
   keepTrees = TRUE
 )
 
-# --- $copy() no longer launders the host-shell guard: hostFor transfers,
-# so the copy refuses exactly as the original does ---
-expect_true(length(fit3$fit$hostFor) == 1L)
-dupe3 <- fit3$fit$copy()
-expect_identical(dupe3$hostFor, fit3$fit$hostFor)
-expect_error(dupe3$setResponse(rnorm(n3)), hostRefusalSpot)
-expect_error(dupe3$run(0L, 1L), hostRefusalSpot)
+# --- $copy() carries an independent, running K-forest engine: mutating one
+# side leaves the other untouched ---
+dupe3 <- fit3$fit$copy(shallow = TRUE)
+originalCounts3 <- fit3$fit$data@counts
+swappedCounts3 <- originalCounts3[c(2:n3, 1L), , drop = FALSE]
+dupe3$setCounts(swappedCounts3)
+expect_identical(dupe3$data@counts, swappedCounts3)
+expect_identical(fit3$fit$data@counts, originalCounts3)
+expect_silent(invisible(fit3$fit$run(0L, 1L)))
 
-# --- ordinal's $fit is no longer a host shell (pointer adoption): hostFor
-# stays empty, on the original and its copy alike, and a mutation through
-# either succeeds ---
-expect_true(length(fitOrd$fit$hostFor) == 0L)
+# --- ordinal's $fit accepts mutation on the original and its copy alike ---
 dupeOrd <- fitOrd$fit$copy(shallow = TRUE)
-expect_identical(dupeOrd$hostFor, fitOrd$fit$hostFor)
 expect_silent(dupeOrd$setData(dbartsData(xOrd, as.double(codesOrd))))
 
-# --- the K = 3 host is created and never run: predict answers a single,
-# constant value with no error - a plausible-looking number, not a warning ---
+# --- $fit is the K-forest engine that ran: predict reports real,
+# non-degenerate softmax probabilities, not a constant placeholder ---
 predHost3 <- fit3$fit$predict(x3)
-expect_true(is.numeric(predHost3))
-expect_equal(length(unique(as.vector(predHost3))), 1L)
+expect_equal(dim(predHost3), c(n3, 3L, n.samples))
+expect_true(length(unique(round(predHost3[, 1L, 1L], 6L))) > 1L)
 
-# --- the resolved host family is K-dependent, and only reachable under an
-# explicit family = "multinomial" token: K = 2 is probit, K >= 3 is
-# gaussian, and family = "auto" on a 2-level factor never reaches either -
-# it announces probit directly and returns class "bart" ---
-expect_equal(fit3$fit$model@family, "gaussian")
+# --- $fit is now an ordinary multinomial K-forest sampler regardless of K:
+# no more K-dependent placeholder family (gaussian at K >= 3, probit at
+# K = 2) - both resolve to "multinomial" directly ---
+expect_equal(fit3$fit$model@family, "multinomial")
 expect_false(fit3$fit$control@binary)
-expect_equal(fit2$fit$model@family, "probit")
-expect_true(fit2$fit$control@binary)
+expect_equal(fit2$fit$model@family, "multinomial")
+expect_false(fit2$fit$control@binary)
 
+# --- family = "auto" on a 2-level factor still never reaches multinomial -
+# it announces probit directly and returns class "bart" ---
 autoWarnings <- 0L
 fitAuto <- withCallingHandlers(
   bart2(
@@ -293,27 +263,10 @@ expect_equal(autoWarnings, 1L)
 expect_identical(class(fitAuto), "bart")
 expect_false(inherits(fitAuto, "bartMultinomial"))
 
-# --- save/reload: multinomial's $fit is still a host shell, so predict
-# still fails the same way and the documented bart escape
-# ($fit$storeState(), man/bart.Rd) still does not help - predict reaches
-# through $bc, which storeState never touches ---
-pinSaveReloadFailure <- function(fit, xtest) {
-  fit$fit$storeState()
-  tempFile <- tempfile()
-  saveRDS(fit, tempFile)
-  reloaded <- readRDS(tempFile)
-  unlink(tempFile)
-  # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
-  expect_error(predict(reloaded, xtest), "NULL external pointer")
-  reloaded$fit$storeState()
-  # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
-  expect_error(predict(reloaded, xtest), "NULL external pointer")
-}
-pinSaveReloadFailure(fit3, x3[1:5, ])
-
-# --- ordinal/nbinom's $fit is the engine that ran (pointer adoption), so
-# predict now routes through it and getPointer's re-creation branch rebuilds
-# the engine from the stored state: save/reload/predict round-trips ---
+# --- save/reload/predict round-trips for all three host-shell families now:
+# $fit is the sampler whose engine actually ran, so getPointer's
+# re-creation branch rebuilds it from stored state and predict replays
+# through it ---
 checkSaveReloadPredicts <- function(fit, xtest) {
   before <- predict(fit, xtest)
   fit$fit$storeState()
@@ -324,5 +277,7 @@ checkSaveReloadPredicts <- function(fit, xtest) {
   # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
   expect_equal(predict(reloaded, xtest), before)
 }
+checkSaveReloadPredicts(fit3, x3[1:5, ])
+checkSaveReloadPredicts(fit2, x2[1:5, ])
 checkSaveReloadPredicts(fitOrd, xOrd[1:5, ])
 checkSaveReloadPredicts(fitNb, xNb[1:5, ])

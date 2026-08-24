@@ -435,16 +435,16 @@ built from, so they cannot change after creation (RIB:2756). This is the one
 weight refusal that is "unbuilt" rather than "incoherent": creation accepts
 positive-integer weights at RIB:1630.
 
-[f11] `bart2(family = "multinomial")` returns a `dbartsSampler` that is only a
-HOST SHELL - it carries the design and priors but not the model, which lives on
-the separate bartcore handle `$bc` (bart.R:1451, 1534). Every R5 mutator is
-refused by `refuseHostMutation` (dbarts.R:914-925). At the handle level:
-`setResponse` R RIB:2667 and `setOffset` R RIB:2664 (both redirect to the counts
-channel), `setWeights` R RIB:2674, `setSigma` R RIB:2873, `setTestOffset` R
-RIB:2419 (a flat offset leaves the simplex), `setPredictor` S RIB:4989,
-`setTestPredictor` S RIB:4666. Its own channels - `setCounts` RIB:3741,
-`setCategoryOffset` RIB:3819, `setCategoryTestOffset` RIB:3858 - are S at the
-bridge but unexported (`dbarts:::`) and absent from the R5 object.
+[f11] `bart2(family = "multinomial")` builds its `dbartsSampler` directly
+(multinomial-mutation-arc.md S4): `$fit` is the K-forest engine that ran, one
+`bartcore_create`, no host shell and no `$bc`. `setResponse`, `setOffset`,
+`setWeights`, `setSigma`, `setCalibration`, `setForestWeights`,
+`setForestBasis` and `getFitsWithoutOffset` are refused by name, naming the
+capability and the channel that serves the caller where one exists
+(R/bart.R's shared multinomial guard). `setCounts`, `setCategoryOffset` and
+`setCategoryTestOffset` are the three response channels, public R5 methods
+(R/dbarts.R). `setPredictor`, `setCutPoints`, `setTestPredictor` and the
+global `setActiveRows` stay open.
 
 [f12] Hurdle has no sampler of its own: `dbarts()` refuses construction at
 dbarts.R:445 and `bart2Hurdle` (bart.R:2206) composes two ordinary `bart2()`
@@ -704,9 +704,10 @@ the multinomial forest builder (`buildMultinomialSampler`, RIB:3255). S2
 (d809b944) adds the mid-chain refusals, at TWO independent sites rather than
 one shared gate: `$setCalibration`'s R5 method refuses BCF through
 `refuseAmplitudeMutation` (dbarts.R:1623, MEASURED "multi-forest calibration
-map", test-calibration-midchain.R:399-402) before ever reaching the bridge, and
-refuses a multinomial fit's host shell through `refuseHostMutation`
-(dbarts.R:1607, MEASURED "host sampler of a bart2", line 460-463); underneath
+map", test-calibration-midchain.R:399-402) before ever reaching the bridge; a
+multinomial fit's `$fit` refuses the same call the same way, for the same
+softmax-calibration-map reason - not a host-shell one, since S4 deleted that
+mechanism (multinomial-mutation-arc.md); underneath
 both, the engine-level gate any DIRECT low-level call still hits -
 `Chain::setForestPriorScale` returning false whenever `combiner_ != nullptr`
 (CH:1207), surfaced as `Rf_error(...calibrationMapName...)` at the bridge
@@ -869,7 +870,7 @@ gap, not an engine one.
 [f38] The MEAN forest keeps DART; the variance forest never takes it
 (`buildVarianceForest` CH:4044 never sets `useDart`, default false at CH:125).
 
-[f39] Current baselines: `equivalence-00474606.rds` (43 scenarios),
+[f39] Current baselines: `equivalence-5a3bc276.rds` (43 scenarios),
 `bcf-equivalence-6e3b9fb8.rds` (12), `multinomial-equivalence-4d9a3337.rds` (11)
 - benchmarks/baselines/MANIFEST. Scenario names are the keys in
 `makeScenarios()`, benchmarks/R/equivalence.R:60.
@@ -1016,12 +1017,15 @@ loglik unbuilt. Header attribute undocumented. One dedicated tinytest file. SBC
 `r`/`agg.psi` flag standing (H-MIX read, third ladder point owed). Real-valued
 dispersion remains a recorded door (TODO `negbin-real-dispersion`).
 
-**multinomial.** No flat-C creation path at all ([f4]). No mutable
-`dbartsSampler` - only a host shell ([f11]) - and its three real channels
-(`setCounts`, `setCategoryOffset`, `setCategoryTestOffset`) are unexported with
-no R5 methods. No `getLatents` ([f22]). No pointwise loglik. No grouped surface
-([f32]). No warm start / grow-from-root. DART, `split.probs`, `monotone`, and
-`variance` are all refused by name rather than silently dropped ([f33]).
+**multinomial.** No flat-C creation path at all ([f4]); `dbarts()`,
+`dbartsSpec()` and `bart2()` all build the R5 `dbartsSampler` directly
+(multinomial-mutation-arc.md S2+S3/S4), one `bartcore_create`, `$fit` the
+engine that ran - no host shell, no `$bc` ([f11]). Its three response
+channels (`setCounts`, `setCategoryOffset`, `setCategoryTestOffset`) are
+public R5 methods. No `getLatents` ([f22]). No pointwise loglik. No grouped
+surface ([f32]). No warm start / grow-from-root. DART, `split.probs`,
+`monotone`, and `variance` are all refused by name rather than silently
+dropped ([f33]).
 SBC raw `f_ik` OPEN.
 
 **aft.** No `xbart()` token. Pointwise loglik ships, but `setWeights` is refused

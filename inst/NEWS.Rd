@@ -823,14 +823,6 @@
             count, so a bigger one allocated without bound - \code{y = 1e9}
             asked for 8 GB and took the process down where no R error could
             be raised. Counts at or under the bound draw exactly as before.
-      \item The \code{$fit} of a \code{bart2(family = "ordinal")} or
-            \code{bart2(family = "nbinom")} fit refuses mutation, as a
-            multinomial fit's already did. It is only the host shell of the
-            model - it carries the design and priors the model was built
-            from but none of the model itself - so \code{$setResponse},
-            \code{$run} and the rest used to change a sampler nothing reads.
-            \code{$getDispersion()} on the count shell is refused for the
-            same reason: the shell's own \eqn{r}{r} is not the fit's.
       \item \code{dbarts_sampler_setWeights} refuses a weight change under
             any family but gaussian, the rule the R sampler's
             \code{$setWeights} and the header's own contract already stated.
@@ -1294,13 +1286,6 @@
             \code{logistic} weights are the observation counts its latents
             were built from - instead of telling every one of them about
             "a binary response".
-      \item The sampler retained as \code{$fit} by
-            \code{bart2(family = "multinomial", keepTrees = TRUE)} refuses
-            mutation. It is only the host shell of the fit, carrying the
-            design and priors the K-forest model was built from but none
-            of the model, so \code{$setResponse}, \code{$run} and the rest
-            silently changed nothing about the fit; its read surface,
-            which \code{predict} uses, is unaffected.
       \item \code{$getForestFits} and \code{$getForestVariableCounts} now
             index \code{forest} from \code{1}, as
             \code{$setForestWeights}, \code{$setForestBasis}, and
@@ -1327,8 +1312,9 @@
             \code{keepTrees} is left \code{FALSE}. Previously these
             families keyed \code{$fit} on \code{keepTrees} alone, so
             \code{keepSampler} had no effect. \code{keepTrees} still also
-            retains \code{$bc} and the family's raw draw channels, as
-            before.
+            retains the saved forests \code{predict} replays through, and
+            ordinal's/nbinom's own \code{cutpoints.raw}/\code{dispersion.raw}
+            channels, as before.
       \item \code{monotone} combined with an explicit
             \code{proposal.probs = NULL} no longer errors; it is now
             treated the same as an omitted \code{proposal.probs} and
@@ -1631,20 +1617,6 @@
             \code{makeModelMatrixFromDataFrame} refuses either directly when
             handed a mismatching \code{drop} pattern. A test factor with
             fewer levels is unaffected.
-      \item \code{copy()} on the sampler that is a
-            \code{bart2(family = "multinomial"/"ordinal"/"nbinom")} fit's
-            host shell now carries that status forward: previously the copy
-            always reported itself as an ordinary sampler and so accepted
-            \code{$setResponse}, \code{$run}, and the rest of the mutations
-            the original correctly refuses, taking effect on an engine
-            nothing reads back.
-      \item \code{man/bart2.Rd} said \code{$bc} and \code{$fit} were both
-            present only under \code{keepTrees}, for a multinomial, ordinal,
-            or negative-binomial fit. \code{$fit}, the host sampler, is in
-            fact present whenever \code{keepTrees} is \code{TRUE}
-            \emph{or} \code{keepSampler} is set, exactly as it always has
-            been; only \code{$bc} needs \code{keepTrees}. Documentation
-            correction, not a behavior change.
       \item The \code{$fit} of a \code{bart2(family = "ordinal")} or
             \code{bart2(family = "nbinom")} fit is no longer a host shell:
             it is now the sampler whose engine actually ran, so
@@ -1657,10 +1629,7 @@
             failed with a NULL external pointer error for all three
             host-shell families, with no workaround.
             \code{samplerOnly} is supported for these
-            two families too, returning the same sampler unrun. A
-            \code{bart2(family = "multinomial")} fit's \code{$fit} is
-            unchanged: it remains a host shell, and \code{samplerOnly}
-            remains refused for it.
+            two families too, returning the same sampler unrun.
       \item \code{dbarts} accepts \code{family = "multinomial"}, returning an
             ordinary \code{\link{dbartsSampler}} over the K-category softmax
             model that only \code{bart2} could reach before, and only as a
@@ -1694,6 +1663,26 @@
             \code{$setTestPredictor}) and the global \code{$setActiveRows}
             stay open; per-forest masking is permanently refused, since a
             category's margin is a log-sum-exp over the other K - 1.
+      \item \code{bart2(family = "multinomial")} now constructs its sampler
+            directly, through the same \code{bartcore_create} dispatch
+            \code{dbarts(family = "multinomial")} reaches: one create instead
+            of a discarded host sampler plus a second, real K-forest engine.
+            \code{$fit} is no longer a host shell for any of the three
+            alternate families - it is now the sampler whose engine actually
+            ran, mutable and readable on the same terms as a direct
+            \code{dbarts(family = "multinomial")} sampler, and
+            \code{samplerOnly} is supported (returning that sampler unrun).
+            \code{$bc} is removed from all three families' fit objects
+            (\code{cutpoints.raw} and \code{dispersion.raw} keep their
+            \code{keepTrees} gate); \code{predict.bartMultinomial} now reads
+            through \code{$fit}, so save/reload/predict round-trips for
+            multinomial fits the same way it already does for ordinal and
+            nbinom ones. This moves the seeded draw stream for
+            \code{bart2(family = "multinomial")} fits only - one
+            \code{bartcore_create} call consumes R's RNG stream differently
+            than two - so an unseeded multinomial fit made with this version
+            will not reproduce one made with an earlier version; every other
+            family is unaffected.
     }
   }
 }

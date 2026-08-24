@@ -207,9 +207,8 @@ expect_equal(
 expect_true(abs(mean(tau0)) > 0.1)
 
 # --- the two refusals reachable through the public method: an
-# ordinary (non-BCF) sampler, and the host shell of a multinomial fit, whose
-# generic host-mutation refusal fires before the weights or forest are ever
-# looked at ---
+# ordinary (non-BCF) sampler, and a multinomial fit's $fit, whose per-forest
+# leaf scales come from a log-sum-exp margin rather than an amplitude ---
 plain <- dbarts(x, y, control = seededControl())
 expect_error(
   plain$setForestWeights(1L, wt),
@@ -232,5 +231,5 @@ fitMN <- bart2(
 )
 expect_error(
   fitMN$fit$setForestWeights(1L, rep(1, n)),
-  "host sampler of a bart2"
+  "log-sum-exp"
 )

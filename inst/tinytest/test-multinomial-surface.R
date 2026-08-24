@@ -2,13 +2,26 @@
 # below is the condition that matters most: bart2's fit path must reproduce,
 # bit for bit, the internal bartcoreMultinomialSampler/bartcoreRun pattern
 # benchmarks/R/multinomial-equivalence.R exercises, on the same data and
-# seed. Everything else is level-threading, shape, and refusal coverage.
+# seed. bart2 makes exactly one bartcore_create, so a comparator that first
+# builds and discards a throwaway host sampler (a SECOND create) no longer
+# shares its draw stream, no matter how carefully the two are seeded
+# together - that is precisely the bug this gate exists to catch, so the
+# comparator must not paper over it by construction. internalMultinomialFit
+# below resolves its (control, model, data) triple through dbartsSpec()
+# instead, which creates no engine at all, so bartcoreMultinomialSampler's
+# own create is the comparator's ONLY one too - independently reached
+# (dbartsSpec never runs bart2's own code), through the same bartcore_create
+# dispatch. What the gate now proves: bart2's direct construction and a
+# hand-built dbartsSpec()-then-handle construction resolve the identical
+# engine from the identical inputs. Everything else is level-threading,
+# shape, and refusal coverage.
 
-# The internal-path comparator: mirrors benchmarks/R/multinomial-equivalence.R
-# exactly (host dbarts() sampler, then bartcoreMultinomialSampler, then one
-# bartcoreRun call - no reseed in between, unlike the fixture script's
-# cross-scenario isolation) so a single set.seed() before each of the two
-# constructions is expected to agree bit for bit.
+# The internal-path comparator: resolves control/model/data (dbartsSpec, no
+# bartcore_create) and hands the triple to bartcoreMultinomialSampler, which
+# creates the one K-forest engine through the SAME bartcore_create dispatch
+# bart2's direct construction reaches. No throwaway host, so a single
+# set.seed() before each of the two constructions is expected to agree bit
+# for bit.
 internalMultinomialFit <- function(
   x,
   labels,
@@ -23,15 +36,17 @@ internalMultinomialFit <- function(
     n.chains = 1L,
     n.threads = 1L,
     n.trees = n.trees,
+    n.samples = n.samples,
     updateState = FALSE
   )
-  sampler <- if (is.null(test)) {
-    dbarts(x, as.double(labels), control = control)
+  data <- if (is.null(test)) {
+    dbartsData(x, as.double(labels))
   } else {
-    dbarts(x, as.double(labels), test = test, control = control)
+    dbartsData(x, as.double(labels), test = test)
   }
+  spec <- dbartsSpec(data, control = control)
   bc <- dbarts:::bartcoreMultinomialSampler(
-    sampler,
+    spec,
     labels,
     K = K,
     offset = offset
@@ -323,15 +338,18 @@ pred3train <- predict(fit3p, x3)
 expect_equal(dim(pred3train), c(n.samples, n, 3L))
 expect_true(max(abs(pred3train - fit3p$yhat.train)) < 1e-6)
 
-# --- the retained $fit is a host shell: mutating it errors, reading does not ---
-# it carries the design and priors the K-forest engine ($bc) was built from but
-# none of the model, so every mutation through it used to be a silent no-op
-hostRefusal <- "host sampler of a bart2"
-expect_error(fit3p$fit$setResponse(rnorm(n)), hostRefusal)
-expect_error(fit3p$fit$setOffset(rep(0.5, n)), hostRefusal)
-expect_error(fit3p$fit$setSigma(2), hostRefusal)
-expect_error(fit3p$fit$run(0L, 1L), hostRefusal)
-expect_error(fit3p$fit$setPredictor(x3[, 1L], 1L), hostRefusal)
+# --- $fit is the K-forest engine that ran, not a host shell: the
+# channels the softmax gives no meaning to stay refused, for the SAME reason
+# a direct dbarts(family = "multinomial") sampler refuses them (never a
+# host-shell reason); run() and setPredictor(), which are meaningful, now
+# succeed. Exercised on a copy, so fit3p$fit stays untouched for the
+# self-consistency check below. ---
+expect_error(fit3p$fit$setResponse(rnorm(n)), "\\$setCounts")
+expect_error(fit3p$fit$setOffset(rep(0.5, n)), "\\$setCategoryOffset")
+expect_error(fit3p$fit$setSigma(2), "no residual scale")
+mutableCopy <- fit3p$fit$copy()
+expect_silent(invisible(mutableCopy$run(0L, 1L)))
+expect_silent(mutableCopy$setPredictor(x3[, 1L], 1L))
 # the read surface predict() threads through is untouched
 expect_equal(ncol(fit3p$fit$data@x), ncol(x3))
 expect_identical(predict(fit3p, x3.test), pred3p)
@@ -351,7 +369,6 @@ fit3ks <- bart2(
   keepTrees = FALSE
 )
 expect_false(is.null(fit3ks$fit))
-expect_true(is.null(fit3ks$bc))
 rm(fit3ks)
 
 # multi-chain predict threads the chain margin like the run channels
@@ -391,15 +408,17 @@ internalMultinomialCountFit <- function(
     n.chains = 1L,
     n.threads = 1L,
     n.trees = n.trees,
+    n.samples = n.samples,
     updateState = FALSE
   )
-  sampler <- if (is.null(test)) {
-    dbarts(x, as.double(counts[, 1L]), control = control)
+  data <- if (is.null(test)) {
+    dbartsData(x, as.double(counts[, 1L]))
   } else {
-    dbarts(x, as.double(counts[, 1L]), test = test, control = control)
+    dbartsData(x, as.double(counts[, 1L]), test = test)
   }
+  spec <- dbartsSpec(data, control = control)
   bc <- dbarts:::bartcoreMultinomialCountSampler(
-    sampler,
+    spec,
     counts,
     K = K,
     offset = offset
@@ -760,8 +779,9 @@ dimnames(probs3co.fit) <- NULL
 expect_identical(probs3co.fit, aperm(internal3co$train, c(3L, 1L, 2L)))
 expect_false(isTRUE(all.equal(fit3co$yhat.train, fit3c$yhat.train)))
 
-# a wrong-shape matrix refuses naming n and K (validateCategoryOffset,
-# reached through bartcoreMultinomialSampler)
+# a wrong-shape matrix refuses naming K (bart2 installs the offset through
+# $setCategoryOffset, post-construction, so this is that channel's own
+# refusal - the same one a direct sampler's $setCategoryOffset gives)
 expect_error(
   bart2(
     x3,
@@ -772,7 +792,7 @@ expect_error(
     n.burn = 2L,
     n.samples = 2L
   ),
-  "150 x 3 matrix"
+  "3 categories"
 )
 # a non-numeric matrix refuses by name, before it ever reaches validation
 expect_error(
@@ -888,6 +908,14 @@ bcSigma <- dbarts:::bartcoreMultinomialSampler(samplerSigma, labels2, K = 2L)
 expect_error(
   .Call(dbarts:::C_dbarts_bartcore_setSigma, bcSigma$ptr, 5),
   "response family fixes the residual standard deviation"
+)
+# an out-of-range label (>= K) is refused by name, not a bare R indexing
+# error off the one-hot matrix it would otherwise build
+badLabels2 <- labels2
+badLabels2[1L] <- 2L
+expect_error(
+  dbarts:::bartcoreMultinomialSampler(samplerSigma, badLabels2, K = 2L),
+  "label out of range"
 )
 rm(samplerSigma, bcSigma)
 

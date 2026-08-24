@@ -241,7 +241,7 @@ extract(object, \dots)
   }
 
   \subsection{Saving}{
-    \code{\link{save}}ing and \code{\link{load}}ing a fitted BART object for use with \code{predict} requires that it be fit with \code{keeptrees}/\code{keepTrees} as \code{TRUE}, and that the sampler's tree state be captured before saving by calling \code{storeState()} on the sampler: \code{bartFit$fit$storeState()} (for \code{rbart_vi}, on each element of \code{fit}: \code{lapply(rbartFit$fit, function(f) f$storeState())}). The state is not captured automatically because it duplicates the trees on the R side and can exceed the fit's own sample blocks; it is materialized only on request. A fit saved without it reloads, but \code{predict} stops with an error naming \code{storeState()}.
+    \code{\link{save}}ing and \code{\link{load}}ing a fitted BART object for use with \code{predict} requires that it be fit with \code{keeptrees}/\code{keepTrees} as \code{TRUE}, and that the sampler's tree state be captured before saving by calling \code{storeState()} on the sampler: \code{bartFit$fit$storeState()} (for \code{rbart_vi}, on each element of \code{fit}: \code{lapply(rbartFit$fit, function(f) f$storeState())}). The state is not captured automatically because it duplicates the trees on the R side and can exceed the fit's own sample blocks; it is materialized only on request. A fit saved without it reloads, but \code{predict} stops with an error naming \code{storeState()}. The same convention covers \code{\link{bart2}}'s own-class families - \code{family = "multinomial"}, \code{"ordinal"}, and \code{"nbinom"} - whose \code{$fit} is the sampler (K-forest or single-forest) that actually ran; see \code{\link{bart2}}'s Value section for each.
   }
 
   \subsection{Reproducibility}{

@@ -189,10 +189,14 @@ the tolerances bound MC plus quadrature error and are never widened to pass.
 
 ## The surface
 
-Creation runs through bartcoreMultinomialSampler (R/bartcore.R) ->
-C_dbarts_bartcore_createMultinomial -> createMultinomialHolder
+Creation runs through C_dbarts_bartcore_create's "multinomial" dispatch arm
+-> createMultinomialDataHolder -> createMultinomialCountsHolder
 (src/R_interface_bartcore.cpp), which builds a MultinomialSpec and calls
-createMultinomialSampler (a single ConstantGaussianLeaf instantiation, as BCF).
+createMultinomialSampler (a single ConstantGaussianLeaf instantiation, as BCF);
+data@counts and both category offsets ride the data object's own slots. The
+low-level bartcoreMultinomialSampler/bartcoreMultinomialCountSampler
+(R/bartcore.R) are thin wrappers over the same dispatch, for callers that
+already hold a plain host sampler (the equivalence/SBC harnesses).
 The public entry is bart2(family = "multinomial") (R/bart.R): a factor
 response, K from levels(y), the level names threaded onto every K-shaped
 output, probability-scale generics with an argmax class convenience, and a
@@ -271,7 +275,7 @@ both supported (below).
   reproduction gate extended to the formula surface
   (test-multinomial-surface.R).
 - Test fits are DEFINED (testFitsAreDefined() true): test data supplied at
-  creation (x.test, wired by createMultinomialHolder before the run) flows to
+  creation (x.test, wired by createMultinomialCountsHolder before the run) flows to
   all K forests, and combinedTestFits (MultinomialForestCombiner<L>,
   src/bartcore/combiner.hpp) blends their totalTestFits into the same K
   softmax combinedFits already applies to totalFits, reported in the run's

@@ -3331,69 +3331,6 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   return sampler;
 }
 
-// A K-forest multinomial (softmax) sampler; internal, constant-leaf only
-// (docs/design/multinomial.md). The single-trial label entry: the category codes
-// (0..K-1, one per observation) become a one-hot n x K count matrix with every
-// trial 1, the exact n_i = 1 reduction of the count-native combiner.
-// categoryOffsetExpr is the optional n x K category offset (null for none) and
-// categoryTestOffsetExpr its optional nTest x K test twin, which requires test
-// rows to describe.
-BartcoreHolder* createMultinomialHolder(SEXP controlExpr, SEXP modelExpr,
-                                        SEXP dataExpr, SEXP labelsExpr,
-                                        SEXP numCategoriesExpr,
-                                        SEXP categoryOffsetExpr,
-                                        SEXP categoryTestOffsetExpr) {
-  BartcoreHolder* holder = nullptr;
-  unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
-                 model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
-                 counts = std::vector<int>{}, trials = std::vector<int>{},
-                 offset = std::vector<double>{},
-                 testOffset = std::vector<double>{}]() mutable -> SEXP {
-    bool sigmaIsFixed;
-    size_t numCategories = static_cast<size_t>(Rf_asInteger(numCategoriesExpr));
-    parseMultinomialData(controlExpr, modelExpr, dataExpr, control, model, data,
-                         sigmaIsFixed, numCategories);
-
-    if (!Rf_isInteger(labelsExpr) ||
-        static_cast<size_t>(Rf_xlength(labelsExpr)) != data.numObservations)
-      Rf_error("multinomial labels must be an integer code per observation");
-    size_t n = data.numObservations;
-    parseCategoryOffset(categoryOffsetExpr, n, numCategories, offset,
-                        "multinomial category offset");
-    parseCategoryTestOffset(categoryTestOffsetExpr, data.numTestObservations,
-                            numCategories, testOffset,
-                            "multinomial category test offset");
-    // one-hot category-major counts (column k contiguous at k*n) with unit
-    // trials: at n_i = 1 the combiner's PG summing loop and (y - n_i/2) working
-    // response reduce byte-identically to the label path
-    counts.assign(n * numCategories, 0);
-    trials.assign(n, 1);
-    const int* src = INTEGER(labelsExpr);
-    for (size_t i = 0; i < n; ++i) {
-      if (src[i] < 0 || static_cast<size_t>(src[i]) >= numCategories)
-        Rf_error("multinomial label out of range 0..K-1");
-      counts[static_cast<size_t>(src[i]) * n + i] = 1;
-    }
-
-    std::unique_ptr<bartcore::SamplerBase> sampler = buildMultinomialSampler(
-      control, model, data, modelExpr, sigmaIsFixed, numCategories,
-      counts.data(), trials.data(),
-      offset.empty() ? NULL : offset.data(),
-      testOffset.empty() ? NULL : testOffset.data(), rngs);
-
-    holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits};
-    // moving keeps the buffers, so the combiner's borrowed counts/trials and
-    // both category offsets stay valid
-    holder->ownedCounts = std::move(counts);
-    holder->ownedTrials = std::move(trials);
-    holder->ownedCategoryOffset = std::move(offset);
-    holder->ownedCategoryTestOffset = std::move(testOffset);
-    return R_NilValue;
-  });
-  return holder;
-}
-
 // A K-forest multinomial (softmax) sampler over a GROUPED-COUNT response: Y is
 // an n x K nonnegative integer matrix, category-major (R column-major = the
 // combiner's counts_ layout, so the buffer copies directly), and the trials
@@ -3403,15 +3340,13 @@ BartcoreHolder* createMultinomialHolder(SEXP controlExpr, SEXP modelExpr,
 // optional n x K category offset (null for none) and categoryTestOffsetExpr its
 // optional nTest x K test twin, which requires test rows to describe.
 //
-// numCategories is taken as a value rather than an expression because the two
-// callers derive it differently: the internal entry is handed one, and the
-// public spec route reads it off the count matrix's own column count -
-// categoriesAreDeclared says which, so the shape refusal states only what is
-// independently known (a route that DERIVED K cannot be told its K is wrong).
+// numCategories is taken as a value rather than an expression because it is
+// the count matrix's own column count, read by the one caller
+// (createMultinomialDataHolder) off countsExpr's dim attribute before this
+// is reached - so it is already known to match and needs no re-check here.
 BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
                                               SEXP dataExpr, SEXP countsExpr,
                                               size_t numCategories,
-                                              bool categoriesAreDeclared,
                                               SEXP categoryOffsetExpr,
                                               SEXP categoryTestOffsetExpr) {
   BartcoreHolder* holder = nullptr;
@@ -3442,14 +3377,6 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
       Rf_error("multinomial counts must have one row per observation: %lu are "
                "needed and the matrix is %d x %d",
                static_cast<unsigned long>(n), numRowsGiven, numColumnsGiven);
-    // only a route that was HANDED K can be told its column count is wrong;
-    // the public route defines K as that column count
-    if (categoriesAreDeclared &&
-        static_cast<size_t>(numColumnsGiven) != numCategories)
-      Rf_error("multinomial counts must have one column per category: %lu are "
-               "declared and the matrix is %d x %d",
-               static_cast<unsigned long>(numCategories), numRowsGiven,
-               numColumnsGiven);
     const int* src = INTEGER(countsExpr);
     counts.assign(src, src + n * numCategories);
     trials.assign(n, 0);
@@ -3523,7 +3450,7 @@ BartcoreHolder* createMultinomialDataHolder(SEXP controlExpr, SEXP modelExpr,
     Rf_error("multinomial counts must be an n x K integer matrix");
   return createMultinomialCountsHolder(
     controlExpr, modelExpr, dataExpr, countsExpr,
-    static_cast<size_t>(INTEGER(dimsExpr)[1]), false,
+    static_cast<size_t>(INTEGER(dimsExpr)[1]),
     readNullableSlot(dataExpr, "offset.category"),
     readNullableSlot(dataExpr, "offset.category.test"));
 }
@@ -3801,36 +3728,6 @@ SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     return bartcore_bridge::createBCFHolder(controlExpr, modelExpr, dataExpr,
                                             basesExpr, bcfParamsExpr, varsExpr,
                                             interactionsExpr, blocksExpr);
-  });
-}
-
-// A K-forest multinomial (softmax) sampler; internal, constant-leaf only
-// (docs/design/multinomial.md). labels are the 0..K-1 category codes;
-// categoryOffset is the optional n x K category offset and categoryTestOffset
-// its optional nTest x K test twin.
-SEXP bartcore_createMultinomial(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-                                SEXP labelsExpr, SEXP numCategoriesExpr,
-                                SEXP categoryOffsetExpr,
-                                SEXP categoryTestOffsetExpr) {
-  return createExternalHolder(dataExpr, [&]() {
-    return bartcore_bridge::createMultinomialHolder(
-      controlExpr, modelExpr, dataExpr, labelsExpr, numCategoriesExpr,
-      categoryOffsetExpr, categoryTestOffsetExpr);
-  });
-}
-
-// The grouped-count entry: counts is an n x K nonnegative integer matrix, the
-// trials n_i = sum_k counts_ik derived C-side (docs/design/multinomial.md).
-SEXP bartcore_createMultinomialCounts(SEXP controlExpr, SEXP modelExpr,
-                                      SEXP dataExpr, SEXP countsExpr,
-                                      SEXP numCategoriesExpr,
-                                      SEXP categoryOffsetExpr,
-                                      SEXP categoryTestOffsetExpr) {
-  return createExternalHolder(dataExpr, [&]() {
-    return bartcore_bridge::createMultinomialCountsHolder(
-      controlExpr, modelExpr, dataExpr, countsExpr,
-      static_cast<size_t>(Rf_asInteger(numCategoriesExpr)), true,
-      categoryOffsetExpr, categoryTestOffsetExpr);
   });
 }
 

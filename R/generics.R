@@ -631,16 +631,19 @@ residuals.bartMultinomial <- function(object, ...) {
 }
 
 # Out-of-sample softmax probabilities by replaying the K forests' saved trees
-# (docs/design/multinomial.md). Requires a fit kept with keepTrees, whose bc
-# holds every forest's saved trees and whose host sampler codes newdata to the
-# training columns. Returns a levels-named (n.chains x) n.samples x n.new x K
-# probability array, the yhat.test/train convention. type = "bart" (the raw
-# per-category latent scale) stays unavailable, as it is for extract: only the
-# identified probabilities are recoverable. type = "ppd" draws one category
-# per posterior draw from that probability vector via the exact same
-# construction extract.bartMultinomial's ppd uses (multinomialPpdFromProbs),
-# so the two agree on semantics and encoding; it is the only branch that
-# touches the RNG, so the default type = "ev" is unchanged and draw-neutral.
+# (docs/design/multinomial.md). Requires a fit kept with keepTrees: a kept
+# $fit alone is not enough, since a sampler kept ONLY via keepSampler carries
+# no saved trees to replay. Returns a levels-named (n.chains x) n.samples x
+# n.new x K probability array, the yhat.test/train convention. type = "bart"
+# (the raw per-category latent scale) stays unavailable, as it is for
+# extract: only the identified probabilities are recoverable. type = "ppd"
+# draws one category per posterior draw from that probability vector via the
+# exact same construction extract.bartMultinomial's ppd uses
+# (multinomialPpdFromProbs), so the two agree on semantics and encoding; it
+# is the only branch that touches the RNG, so the default type = "ev" is
+# unchanged and draw-neutral. The replay reads through $fit's own pointer:
+# $fit is the K-forest sampler that actually ran, so getPointer() can
+# re-create it from stored state after a save/reload.
 predict.bartMultinomial <- function(
   object,
   newdata,
@@ -649,24 +652,19 @@ predict.bartMultinomial <- function(
   ...
 ) {
   type <- match.arg(type)
-  if (is.null(object[["bc"]])) {
+  if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
     stop(
       "predict requires bart2(family = \"multinomial\") to be called with ",
       "'keepTrees' == TRUE"
     )
   }
-  # code newdata to the training columns exactly as the fit-time design was
-  # (the validated path every family's predict uses): data-frame factors expand
-  # against the retained level table, a bare matrix passes through column-checked
-  newdata <- validateXTest(newdata, object$fit$data@x)
   if (is.null(newdata)) {
     stop("newdata cannot be NULL")
   }
-  if (!is.matrix(newdata)) {
-    newdata <- as.matrix(newdata)
-  }
-  # raw is n.new x K x n.samples (x n.chains), the run's test-channel shape
-  raw <- bartcorePredict(object$bc, newdata)
+  # raw is n.new x K x n.samples (x n.chains), the run's test-channel shape;
+  # $fit$predict codes newdata to the training columns itself (the same
+  # validateXTest path every family's predict uses)
+  raw <- object$fit$predict(newdata)
   probs <- shapeMultinomialChannel(
     raw,
     object$levels,
@@ -802,9 +800,11 @@ residuals.bartOrdinal <- function(object, ...) {
 # per-draw cutpoints (docs/design/ordinal.md). Requires a fit kept with
 # keepTrees. type = "bart" returns the replayed latent eta; type = "ppd" draws
 # one category per posterior draw. Only ppd touches the RNG, so type = "ev" is
-# draw-neutral. The replay reads through $fit's own pointer rather than $bc's:
-# $fit is the sampler whose engine actually ran, so getPointer() can re-create
-# it from stored state after a save/reload, which $bc's raw handle cannot.
+# draw-neutral. The replay reads through $fit's own pointer: $fit is the
+# sampler whose engine actually ran, so getPointer() can re-create it from
+# stored state after a save/reload. The presence gate re-points to
+# cutpoints.raw, which this function already reads below and which rides the
+# same keepTrees gate a deleted $bc field used to.
 predict.bartOrdinal <- function(
   object,
   newdata,
@@ -813,7 +813,7 @@ predict.bartOrdinal <- function(
   ...
 ) {
   type <- match.arg(type)
-  if (is.null(object[["bc"]])) {
+  if (is.null(object[["cutpoints.raw"]])) {
     stop(
       "predict requires bart2(family = \"ordinal\") to be called with ",
       "'keepTrees' == TRUE"
@@ -934,9 +934,10 @@ residuals.bartNegbin <- function(object, ...) {
 # additively, the fit-time convention. Requires a fit kept with keepTrees.
 # type = "bart" returns the replayed latent; type = "ppd" draws one count per
 # posterior draw. Only ppd touches the RNG, so type = "ev" is draw-neutral. The
-# replay reads through $fit's own pointer rather than $bc's: $fit is the
-# sampler whose engine actually ran, so getPointer() can re-create it from
-# stored state after a save/reload, which $bc's raw handle cannot.
+# replay reads through $fit's own pointer: $fit is the sampler whose engine
+# actually ran, so getPointer() can re-create it from stored state after a
+# save/reload. The presence gate re-points to dispersion.raw, which is read
+# below and rides the same keepTrees gate a deleted $bc field used to.
 predict.bartNegbin <- function(
   object,
   newdata,
@@ -946,7 +947,7 @@ predict.bartNegbin <- function(
   ...
 ) {
   type <- match.arg(type)
-  if (is.null(object[["bc"]])) {
+  if (is.null(object[["dispersion.raw"]])) {
     stop(
       "predict requires bart2(family = \"nbinom\") to be called with ",
       "'keepTrees' == TRUE"

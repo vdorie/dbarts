@@ -804,11 +804,12 @@ bart2 <- function(
   # multinomial (docs/design/multinomial.md): a K-forest softmax model over
   # a factor response or an n x K count matrix, validated and dispatched
   # here rather than threaded through the rest of bart2 - it bypasses the
-  # standard single-forest dbarts()/run() path entirely
-  # (bartcoreMultinomialSampler/bartcoreMultinomialCountSampler each build a
-  # separate K-forest engine; see benchmarks/R/multinomial-equivalence.R for
-  # the exact call sequences bart2Multinomial/bart2MultinomialCounts
-  # mirror). Every refusal below names the limitation rather than silently
+  # standard single-forest packaging entirely, though bart2Multinomial/
+  # bart2MultinomialCounts build their sampler through dbarts()'s own
+  # family = "multinomial" dispatch, the same one bartcoreMultinomialSampler/
+  # bartcoreMultinomialCountSampler now route through
+  # (benchmarks/R/multinomial-equivalence.R exercises that internal path
+  # directly). Every refusal below names the limitation rather than silently
   # reshaping around it.
   if (family == "multinomial") {
     # a K-forest softmax has no amplitude-coupled slot for a forest() term to
@@ -908,7 +909,8 @@ bart2 <- function(
       warm.start,
       n.grow.sweeps,
       control,
-      "there is no test surface to fall back on"
+      "there is no test surface to fall back on",
+      allow.samplerOnly = TRUE
     )
     warnFamilyGatedArgs(argNames, "multinomial")
     if (control@n.samples <= 0L) {
@@ -1002,7 +1004,8 @@ bart2 <- function(
         combineChains,
         offset = multinomialOffset,
         prior.scale = prior.scale,
-        keepSampler = keepSampler
+        keepSampler = keepSampler,
+        samplerOnly = samplerOnly
       ))
     }
     if (is.character(y)) {
@@ -1042,7 +1045,8 @@ bart2 <- function(
       combineChains,
       offset = multinomialOffset,
       prior.scale = prior.scale,
-      keepSampler = keepSampler
+      keepSampler = keepSampler,
+      samplerOnly = samplerOnly
     ))
   }
 
@@ -1408,23 +1412,21 @@ detectAutoOrdinal <- function(formula, data, dataIsMissing, callingEnv) {
 
 # The multinomial (softmax) fit path (docs/design/multinomial.md), reached
 # from bart2's family = "multinomial" branch after ingestion validation. y is
-# the validated factor response; labels (0-based, as the engine wants them)
-# and K = nlevels(y) follow from it. The host sampler is built through
-# bart2's usual tree.prior/node.prior/resid.prior/control machinery so that
-# n.trees, n.chains, the tree prior, and k (the only host-model quantity the
-# multinomial engine reads; see ?bart2) match what a non-multinomial bart2
-# call would build - but its response is the label vector, never y itself,
-# and its resolved family (whatever "auto" picks for that placeholder) is
-# irrelevant and never surfaced. bartcoreMultinomialSampler then builds a
-# separate K-forest engine; benchmarks/R/multinomial-equivalence.R exercises
-# the identical sequence (host creation, then bartcoreMultinomialSampler,
-# then one bartcoreRun call) for the bitwise reproduction gate in
-# test-multinomial-surface.R. No warm start and no two-phase burn-in/sample
-# split: both are skipped so the RNG stream matches that internal pattern
-# exactly for a given seed. offset, when non-NULL, is the validated n x K
-# category offset (bart2's own matrix-only surface, above); it is threaded to
-# bartcoreMultinomialSampler's own offset argument, never to the host sampler
-# call, whose 'offset' matchedCall has already had cleared.
+# the validated factor response; K = nlevels(y) follows from it. The sampler
+# is built DIRECTLY through dbarts()'s own family = "multinomial" dispatch -
+# the same public construction path dbarts(x, y, family = "multinomial")
+# reaches - so bart2's usual tree.prior/node.prior/resid.prior/control
+# machinery resolves n.trees, n.chains, the tree prior and k exactly as it
+# would for any other family, and one bartcore_create builds the K-forest
+# engine $fit wraps: no abandoned host, no second engine.
+# benchmarks/R/multinomial-equivalence.R's own scenarios still exercise the
+# lower-level bartcoreMultinomialSampler path directly, which is now a thin
+# wrapper over the same factory (see R/bartcore.R). No warm start and no
+# two-phase burn-in/sample split: both are skipped, as bartcoreRun's single
+# call needs neither. offset, when non-NULL, is the validated n x K category
+# offset (bart2's own matrix-only surface, above); it is installed on the
+# constructed sampler through $setCategoryOffset, before the run - never
+# through the host dbarts() call's own flat offset argument.
 bart2Multinomial <- function(
   matchedCall,
   callingEnv,
@@ -1439,10 +1441,10 @@ bart2Multinomial <- function(
   combineChains,
   offset = NULL,
   prior.scale = NA_real_,
-  keepSampler = FALSE
+  keepSampler = FALSE,
+  samplerOnly = FALSE
 ) {
   K <- nlevels(y)
-  labels <- as.integer(y) - 1L
 
   priors <- buildSamplerPriors(
     matchedCall,
@@ -1456,27 +1458,32 @@ bart2Multinomial <- function(
     splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
   )
 
-  # the host sampler: identical machinery to bart2's normal path, but its
-  # response is the integer label vector (as doubles - a placeholder the
-  # multinomial engine never reads, since the category labels ride
-  # separately) and no 'family' is forwarded (dbarts() does not know
-  # "multinomial"; whatever "auto" resolves the placeholder to is immaterial)
+  # one bartcore_create, through the public multinomial dispatch: the factor
+  # response IS the count-matrix declaration (dbarts()'s own
+  # resolveMultinomialCounts one-hot expands it against the response y is
+  # already validated to be)
   samplerCall <- buildHostSamplerCall(
     matchedCall,
     control,
     priors,
-    family = NULL,
+    family = "multinomial",
     sigest = sigest
   )
-  samplerCall$data <- as.double(labels)
+  samplerCall$data <- y
 
   sampler <- eval(samplerCall, envir = callingEnv)
+  if (!is.null(offset)) {
+    sampler$setCategoryOffset(offset)
+  }
+  if (isTRUE(samplerOnly)) {
+    return(sampler)
+  }
 
-  bc <- bartcoreMultinomialSampler(sampler, labels, K = K, offset = offset)
-  # from here the host owns no model: bc does. Mark it, so a mutation through
-  # the fit's $fit errors instead of silently changing a sampler nothing reads
-  sampler$hostFor <- "bart2(family = \"multinomial\")"
-  samples <- bartcoreRun(bc, control@n.burn, control@n.samples)
+  samples <- bartcoreRun(
+    list(ptr = sampler$getPointer()),
+    control@n.burn,
+    control@n.samples
+  )
 
   result <- packageMultinomialResults(
     control,
@@ -1487,15 +1494,11 @@ bart2Multinomial <- function(
     combineChains,
     predictorNames = colnames(sampler$data@x)
   )
-  # keepTrees retains the handles predict.bartMultinomial replays through: bc
-  # holds every one of the K forests' saved trees (the sampling sweeps wrote
-  # them regardless), and the host sampler's coded design (sampler@data@x) codes
-  # newdata to the training columns. Without keepTrees neither survives the call.
-  # keepSampler retains $fit on its own, independent of keepTrees, so a caller
-  # can see the host sampler without paying for the K forests' saved trees.
-  if (control@keepTrees) {
-    result$bc <- bc
-  }
+  # keepTrees retains the saved trees predict.bartMultinomial replays
+  # through (the sampling sweeps wrote them regardless), and the sampler's
+  # coded design (sampler@data@x) codes newdata to the training columns.
+  # keepSampler retains $fit on its own, independent of keepTrees, so a
+  # caller can see the sampler without paying for the K forests' saved trees.
   if (control@keepTrees || keepSampler) {
     result$fit <- sampler
   }
@@ -1505,15 +1508,14 @@ bart2Multinomial <- function(
 # The grouped-count analog of bart2Multinomial: y is the validated n x K
 # count matrix (bart2's count-matrix branch above) and levels are the
 # resolved category names (colnames(y), or the index fallback). Mirrors
-# bart2Multinomial's host-sampler construction exactly - same priors,
-# same redirectCall/override sequence - substituting
-# bartcoreMultinomialCountSampler for bartcoreMultinomialSampler and a
-# placeholder response column of y (as doubles, never read by the engine)
-# for the label vector. A one-hot y with every row sum 1 is therefore the
-# same draw stream as bart2Multinomial on the equivalent factor (the
-# single-trial reduction; see benchmarks/R/multinomial-equivalence.R's
-# k3counts scenario). offset, as for bart2Multinomial, is the validated n x K
-# category offset threaded to bartcoreMultinomialCountSampler's own argument.
+# bart2Multinomial's direct construction exactly - same priors, same one
+# bartcore_create through dbarts()'s own family = "multinomial" dispatch -
+# with y itself, already an n x K matrix, as the response:
+# resolveMultinomialCounts passes a matrix straight through. A one-hot y
+# with every row sum 1 is therefore the same draw stream as bart2Multinomial
+# on the equivalent factor (the single-trial reduction; see
+# benchmarks/R/multinomial-equivalence.R's k3counts scenario). offset, as
+# for bart2Multinomial, is installed through $setCategoryOffset.
 bart2MultinomialCounts <- function(
   matchedCall,
   callingEnv,
@@ -1529,7 +1531,8 @@ bart2MultinomialCounts <- function(
   combineChains,
   offset = NULL,
   prior.scale = NA_real_,
-  keepSampler = FALSE
+  keepSampler = FALSE,
+  samplerOnly = FALSE
 ) {
   K <- ncol(y)
 
@@ -1549,17 +1552,24 @@ bart2MultinomialCounts <- function(
     matchedCall,
     control,
     priors,
-    family = NULL,
+    family = "multinomial",
     sigest = sigest
   )
-  samplerCall$data <- as.double(y[, 1L])
+  samplerCall$data <- y
 
   sampler <- eval(samplerCall, envir = callingEnv)
+  if (!is.null(offset)) {
+    sampler$setCategoryOffset(offset)
+  }
+  if (isTRUE(samplerOnly)) {
+    return(sampler)
+  }
 
-  bc <- bartcoreMultinomialCountSampler(sampler, y, K = K, offset = offset)
-  # the host owns no model past this point; see bart2Multinomial
-  sampler$hostFor <- "bart2(family = \"multinomial\")"
-  samples <- bartcoreRun(bc, control@n.burn, control@n.samples)
+  samples <- bartcoreRun(
+    list(ptr = sampler$getPointer()),
+    control@n.burn,
+    control@n.samples
+  )
 
   result <- packageMultinomialResults(
     control,
@@ -1570,9 +1580,6 @@ bart2MultinomialCounts <- function(
     combineChains,
     predictorNames = colnames(sampler$data@x)
   )
-  if (control@keepTrees) {
-    result$bc <- bc
-  }
   if (control@keepTrees || keepSampler) {
     result$fit <- sampler
   }
@@ -1866,13 +1873,12 @@ bart2Ordinal <- function(
     varcountRaw,
     combineChains
   )
-  # keepTrees retains the handles predict.bartOrdinal replays through: bc holds
-  # the saved trees (the sweeps wrote them), and the sampler codes newdata to
-  # the training columns. cutpoints.raw supplies predict's per-draw thresholds
-  # in the raw (K-1) x n.samples x n.chains layout that pairs with the replayed
+  # keepTrees retains the saved trees predict.bartOrdinal replays through (the
+  # sweeps wrote them regardless), and the sampler codes newdata to the
+  # training columns. cutpoints.raw supplies predict's per-draw thresholds in
+  # the raw (K-1) x n.samples x n.chains layout that pairs with the replayed
   # latent draws, so no re-run is needed.
   if (control@keepTrees) {
-    result$bc <- bc
     result$cutpoints.raw <- cutpointsRawFull
   }
   if (control@keepTrees || keepSampler) {
@@ -2110,11 +2116,11 @@ bart2Negbin <- function(
     varcountRaw,
     combineChains
   )
-  # keepTrees retains the handles predict.bartNegbin replays through: bc holds
-  # the saved trees, and dispersion.raw supplies predict's per-draw r in the raw
-  # n.samples x n.chains layout that pairs with the replayed latent draws.
+  # keepTrees retains the saved trees predict.bartNegbin replays through (the
+  # sweeps wrote them regardless), and dispersion.raw supplies predict's
+  # per-draw r in the raw n.samples x n.chains layout that pairs with the
+  # replayed latent draws.
   if (control@keepTrees) {
-    result$bc <- bc
     result$dispersion.raw <- dispersionRaw
   }
   if (control@keepTrees || keepSampler) {

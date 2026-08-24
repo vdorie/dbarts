@@ -924,6 +924,13 @@ validateCategoryTestOffset <- function(offset.test, sampler, K) {
 # installs; offset.test the nTest x K one bartcoreSetCategoryTestOffset
 # installs over the host data object's x.test. See those two for the semantics
 # and for what they refuse.
+#
+# A thin shim: one-hot expands labels into counts and routes through
+# bartcoreMultinomialDataSampler, the same public bartcore_create dispatch a
+# direct bart2(family = "multinomial") fit reaches (one create), rather than
+# a dedicated creation entry - internal callers (the equivalence/SBC
+# harnesses, this file's own test fixtures) and bart2 now build through one
+# factory.
 bartcoreMultinomialSampler <- function(
   sampler,
   labels,
@@ -941,26 +948,15 @@ bartcoreMultinomialSampler <- function(
   if (is.null(K)) {
     K <- max(labels) + 1L
   }
-  offset <- validateCategoryOffset(offset, length(labels), K)
-  offset.test <- validateCategoryTestOffset(offset.test, sampler, K)
-  result <- new.env(parent = emptyenv())
-  result$ptr <- .Call(
-    C_dbarts_bartcore_createMultinomial,
-    sampler$control,
-    sampler$model,
-    sampler$data,
-    labels,
-    as.integer(K),
-    offset,
-    offset.test
-  )
-  # the engine keeps no predictor matrix; track it R-side for the re-quantize
-  # surface, as the other dense-predictor wrappers do
-  result$x <- rawPredictorMatrix(sampler$data@x)
-  # K, so the response-side entries can state the expected shape R-side; the
-  # engine reads its own (numReportedLocations) and re-checks
-  result$K <- as.integer(K)
-  result
+  K <- as.integer(K)
+  if (any(labels >= K)) {
+    stop("multinomial label out of range 0..K-1")
+  }
+  # one-hot, category-major: the n_i = 1 special case of the grouped-count
+  # combiner, byte-identical to it (benchmarks/R/multinomial-equivalence.R)
+  counts <- matrix(0L, length(labels), K)
+  counts[cbind(seq_along(labels), labels + 1L)] <- 1L
+  bartcoreMultinomialDataSampler(sampler, counts, K, offset, offset.test)
 }
 
 # The grouped-count analog of bartcoreMultinomialSampler (docs/design/
@@ -969,7 +965,8 @@ bartcoreMultinomialSampler <- function(
 # trials n_i = sum_k counts[i, k] (>= 1). K defaults to the column count. Same
 # K-forest softmax engine; the single-trial label path is the special case of a
 # one-hot matrix with every trial 1. Validated R-side (safe over fast); the
-# engine re-derives the trials and re-checks the invariants.
+# engine re-derives the trials and re-checks the invariants. A thin shim;
+# see bartcoreMultinomialSampler.
 bartcoreMultinomialCountSampler <- function(
   sampler,
   counts,
@@ -1002,27 +999,52 @@ bartcoreMultinomialCountSampler <- function(
   if (any(rowSums(counts) < 1)) {
     stop("every multinomial count row must have at least one trial (n_i >= 1)")
   }
-  counts <- asCountMatrix(counts)
-  offset <- validateCategoryOffset(offset, nrow(counts), K)
-  offset.test <- validateCategoryTestOffset(offset.test, sampler, K)
-  result <- new.env(parent = emptyenv())
-  # counts is column-major (category-major), the layout the combiner reads
-  result$ptr <- .Call(
-    C_dbarts_bartcore_createMultinomialCounts,
-    sampler$control,
-    sampler$model,
-    sampler$data,
-    counts,
+  bartcoreMultinomialDataSampler(
+    sampler,
+    asCountMatrix(counts),
     as.integer(K),
     offset,
     offset.test
+  )
+}
+
+# Shared factory for the two shims above: builds a counts-carrying copy of
+# sampler's own data object and creates the K-forest engine through
+# bartcore_create's public multinomial dispatch
+# (src/R_interface_bartcore.cpp createMultinomialDataHolder), the same entry
+# dbarts(family = "multinomial") and getPointer's re-creation branch reach.
+# counts is already validated, category-major (n x K), integer-typed.
+# offset/offset.test are validated here, against the same creation-time
+# checks the retired dedicated entries used, so their messages are
+# unchanged.
+bartcoreMultinomialDataSampler <- function(
+  sampler,
+  counts,
+  K,
+  offset,
+  offset.test
+) {
+  offset <- validateCategoryOffset(offset, nrow(counts), K)
+  offset.test <- validateCategoryTestOffset(offset.test, sampler, K)
+  newData <- sampler$data
+  newData@counts <- counts
+  newData@y <- as.double(rowSums(counts))
+  newData@offset.category <- offset
+  newData@offset.category.test <- offset.test
+  result <- new.env(parent = emptyenv())
+  result$ptr <- .Call(
+    C_dbarts_bartcore_create,
+    sampler$control,
+    sampler$model,
+    newData,
+    "multinomial"
   )
   # the engine keeps no predictor matrix; track it R-side for the re-quantize
   # surface, as the other dense-predictor wrappers do
   result$x <- rawPredictorMatrix(sampler$data@x)
   # K, so the response-side entries can state the expected shape R-side; the
   # engine reads its own (numReportedLocations) and re-checks
-  result$K <- as.integer(K)
+  result$K <- K
   result
 }
 

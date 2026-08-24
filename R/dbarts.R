@@ -877,12 +877,6 @@ dbartsSampler <- setRefClass(
     model = "dbartsModel",
     data = "dbartsData",
     state = "ANY", # is either a list of states, or a promise to evaluate
-    # Non-empty when this sampler is only the HOST SHELL of a fit whose model
-    # lives elsewhere - bart2(family = "multinomial"), whose K-forest engine
-    # rides the fit's $bc and reads nothing back from here. The string names
-    # that fit and appears in the refusals below; empty for every sampler a
-    # user builds, which is every sampler that owns its own model.
-    hostFor = "character",
     # The per-forest, per-observation precision weight installed by
     # setForestWeights, mirrored here because it does not ride the engine's
     # saved state: forestWeights[[forest]] (1-based) holds the last vector
@@ -904,7 +898,6 @@ dbartsSampler <- setRefClass(
       .self$control <- control
       .self$model <- model
       .self$data <- data
-      .self$hostFor <- character(0L)
       .self$forestWeights <- list()
 
       # "auto" (a hand-built model) keeps the bridge's own dispatch
@@ -946,30 +939,6 @@ dbartsSampler <- setRefClass(
       selfEnv$pointer <- ptr
       invisible(NULL)
     },
-    refuseHostMutation = function(what) {
-      "Errors when this sampler is only the host shell of a fit whose model lives elsewhere; see the hostFor field."
-      if (length(hostFor) == 0L) {
-        return(invisible(NULL))
-      }
-      stop(
-        what,
-        " is not available on the host sampler of a ",
-        hostFor,
-        " fit; refit with bart2() to change the data"
-      )
-    },
-    refuseHostRead = function(what) {
-      "Errors when a read would answer from the host shell of a fit whose model lives elsewhere; the read-side sibling of refuseHostMutation. See the hostFor field."
-      if (length(hostFor) == 0L) {
-        return(invisible(NULL))
-      }
-      stop(
-        what,
-        " is not available on the host sampler of a ",
-        hostFor,
-        " fit; read the fit's own surface instead"
-      )
-    },
     run = function(
       numBurnIn,
       numSamples,
@@ -977,7 +946,6 @@ dbartsSampler <- setRefClass(
       n.threads = control@n.threads
     ) {
       "Runs the posterior sampler and returns a list with the results."
-      refuseHostMutation("$run")
       if (missing(numBurnIn)) {
         numBurnIn <- NA_integer_
       }
@@ -999,7 +967,6 @@ dbartsSampler <- setRefClass(
     },
     sampleTreesFromPrior = function(updateState = NA) {
       "Draws tree structure from prior"
-      refuseHostMutation("$sampleTreesFromPrior")
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_sampleTreesFromPrior, ptr)
 
@@ -1014,7 +981,6 @@ dbartsSampler <- setRefClass(
     },
     sampleNodeParametersFromPrior = function(updateState = NA) {
       "Draws end node parameters from prior; does not update tree structure."
-      refuseHostMutation("$sampleNodeParametersFromPrior")
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_sampleNodeParametersFromPrior, ptr)
 
@@ -1029,7 +995,6 @@ dbartsSampler <- setRefClass(
     },
     growFromRoot = function(n.sweeps = 2L, updateState = NA) {
       "Builds an initial forest by XBART-style grow-from-root (He, Yalov and Hahn 2019) as a warm start, running n.sweeps grow sweeps in place; the exact MCMC sampler owns the forest once run() begins. Constant-leaf models only. See ?dbartsSampler."
-      refuseHostMutation("$growFromRoot")
       if (
         is(model@node.prior, "dbartsLinearPrior") ||
           is(model@node.prior, "dbartsGPPrior")
@@ -1087,11 +1052,6 @@ dbartsSampler <- setRefClass(
       # lets this skip getPointer's re-creation branch
       dupe$forestWeights <- forestWeights
       dupe$reapplyForestWeights(dupe$pointer)
-      # $new() always resets hostFor to character(0L) (see initialize); a
-      # copy of a host shell must carry the guard forward, or the copy
-      # accepts the very mutations the original refuses on an engine
-      # nothing reads back
-      dupe$hostFor <- hostFor
       dupe
     },
     show = function() {
@@ -1182,7 +1142,6 @@ dbartsSampler <- setRefClass(
     },
     setControl = function(newControl) {
       "Sets the control object for the sampler to a new one. Preserves the call() slot and any bartcore.* control attributes."
-      refuseHostMutation("$setControl")
       if (!inherits(newControl, "dbartsControl")) {
         stop("'control' must inherit from dbartsControl")
       }
@@ -1238,7 +1197,6 @@ dbartsSampler <- setRefClass(
     },
     setModel = function(newModel) {
       "Sets the model object for the sampler to a new one."
-      refuseHostMutation("$setModel")
       refuseCountsMutation(
         .self,
         "$setModel",
@@ -1292,7 +1250,6 @@ dbartsSampler <- setRefClass(
     },
     setData = function(newData, updateState = NA) {
       "Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots. updateState is opt-in: only explicit TRUE stores state afterwards (NA/FALSE store nothing) - mutators are called per-sweep in Gibbs loops, so the default must stay free of that cost; contrast run()'s NA -> control@updateState convention."
-      refuseHostMutation("$setData")
       refuseCountsMutation(
         .self,
         "$setData",
@@ -1316,7 +1273,6 @@ dbartsSampler <- setRefClass(
     },
     setResponse = function(y, updateScale = FALSE, updateState = NA) {
       "Changes the response against which the sampler is fitted. updateState is opt-in; see setData."
-      refuseHostMutation("$setResponse")
       refuseCountsMutation(
         .self,
         "$setResponse",
@@ -1332,7 +1288,6 @@ dbartsSampler <- setRefClass(
     },
     setOffset = function(offset, updateScale = FALSE, updateState = NA) {
       "Changes the offset slot used to adjust the response. updateState is opt-in; see setData."
-      refuseHostMutation("$setOffset")
       refuseCountsMutation(
         .self,
         "$setOffset",
@@ -1348,7 +1303,6 @@ dbartsSampler <- setRefClass(
     },
     setWeights = function(weights, updateState = NA) {
       "Changes the weights with which the sampler is fitted. updateState is opt-in; see setData."
-      refuseHostMutation("$setWeights")
       refuseCountsMutation(
         .self,
         "$setWeights",
@@ -1389,7 +1343,6 @@ dbartsSampler <- setRefClass(
     },
     setCounts = function(counts, updateState = NA) {
       "Replaces a multinomial sampler's response: the n x K matrix of non-negative integer counts whose column k holds category k's successes, with trials n_i = sum_k counts[i, k] at least 1. n and K are fixed at creation - every combiner buffer is sized by n, and K is the forest count - so only the values change. The trees carry over, fitted to the previous counts exactly as setResponse leaves a single-forest sampler's, and the next run forms every category's working response against the new matrix. The matrix is mirrored into data@counts, and its row sums into data@y, so getPointer's transparent re-creation after save/load carries the current response rather than the one the sampler was created with. The sweep draws n_i Polya-Gamma variates per observation per category, so replacing single-trial labels with grouped counts multiplies sweep cost by mean(n_i). updateState is opt-in; see setData."
-      refuseHostMutation("$setCounts")
       requireCountsCapability(.self, "$setCounts")
       ptr <- bartcoreSamplerSetCounts(.self, counts)
       if (identical(updateState, TRUE)) {
@@ -1399,7 +1352,6 @@ dbartsSampler <- setRefClass(
     },
     setCategoryOffset = function(offset, updateState = NA) {
       "Installs, or at NULL clears, a multinomial sampler's n x K category offset: the latent becomes f_ik + o_ik, so the offset enters the log-sum-exp margins, every category's working response and the reported softmax probabilities, and never a leaf value. This is the response-side counterpart of setCounts rather than of setOffset, whose flat shift is added after the categories are blended - the wrong side of the nonlinearity - and is the softmax's own null direction besides. Only the row-centred part is identified: adding a constant to a whole row leaves every reported probability unchanged, and the entrance leaves the matrix as given rather than re-centring it. It shifts the TRAIN latent only; the test rows are other rows and carry their own (setCategoryTestOffset), and predict takes its own matrix per call. Mirrored into data@offset.category, so a re-created sampler carries it. updateState is opt-in; see setData."
-      refuseHostMutation("$setCategoryOffset")
       requireCountsCapability(.self, "$setCategoryOffset")
       ptr <- bartcoreSamplerSetCategoryOffset(.self, offset)
       if (identical(updateState, TRUE)) {
@@ -1409,7 +1361,6 @@ dbartsSampler <- setRefClass(
     },
     setCategoryTestOffset = function(offset.test, updateState = NA) {
       "Installs, or at NULL clears, a multinomial sampler's nTest x K category test offset: the recorded test channel becomes softmax(f_test + o_test), formed where the train blend forms softmax(f + o). The test fits enter no likelihood, so this moves the reported test probabilities and nothing else - no draw, no working response, no train channel. Its rows are the CURRENT test rows, so replacing those rows while it is installed is refused rather than silently reinterpreted; clear it first. Out-of-sample predict does not read it at all, taking its own matrix for the rows it is given. Mirrored into data@offset.category.test, so a re-created sampler carries it. updateState is opt-in; see setData."
-      refuseHostMutation("$setCategoryTestOffset")
       requireCountsCapability(.self, "$setCategoryTestOffset")
       ptr <- bartcoreSamplerSetCategoryTestOffset(.self, offset.test)
       if (identical(updateState, TRUE)) {
@@ -1419,7 +1370,6 @@ dbartsSampler <- setRefClass(
     },
     setActiveRows = function(active, updateState = NA) {
       "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. NULL clears, and an all-ones mask installs nothing. updateState is opt-in; see setData."
-      refuseHostMutation("$setActiveRows")
       if (!is.null(active)) {
         active <- as.double(active)
         if (length(active) != length(data@y)) {
@@ -1442,7 +1392,6 @@ dbartsSampler <- setRefClass(
     },
     setForestWeights = function(forest, weights, updateState = NA) {
       "Sets a per-forest, per-observation weight: a multiplicative precision factor on the named forest's own leaf conditionals, composing with weights and active as (w_i * a_i) * m_f^2 * s_i rather than widening either channel. Only applies to a Bayesian causal forest built with forests = (see dbarts); forest indexes from 1, as with getCalibration/setCalibration (the basis forest is 2). The weight does not ride the sampler's saved state; it is mirrored on an R5 field that getPointer and setState both reinstall on every re-creation. updateState is opt-in; see setData."
-      refuseHostMutation("$setForestWeights")
       refuseCountsMutation(
         .self,
         "$setForestWeights",
@@ -1483,7 +1432,6 @@ dbartsSampler <- setRefClass(
     },
     setForestBasis = function(forest, basis, updateState = NA) {
       "Changes the basis the named forest's amplitudes multiply, at any forest and any width. forest indexes from 1, as with setForestWeights and getCalibration/setCalibration (a Bayesian causal forest's basis forest is 2). A factor (or a one-sided formula naming one) expands to its level indicators, one amplitude per level, with no reference level dropped; a numeric vector or matrix is already those columns. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState is opt-in; see setData."
-      refuseHostMutation("$setForestBasis")
       refuseCountsMutation(
         .self,
         "$setForestBasis",
@@ -1528,7 +1476,6 @@ dbartsSampler <- setRefClass(
     },
     setSigma = function(sigma, updateState = NA) {
       "Changes the residual standard deviation parameter for each chain. updateState is opt-in; see setData."
-      refuseHostMutation("$setSigma")
       refuseCountsMutation(
         .self,
         "$setSigma",
@@ -1557,7 +1504,6 @@ dbartsSampler <- setRefClass(
       updateState = NA
     ) {
       "Changes a single column of the predictor matrix, or the entire matrix if column is missing. updateState is opt-in; see setData."
-      refuseHostMutation("$setPredictor")
 
       checkMissingPolicy(data, sourceAnyNA(x), "predictors")
       result <- bartcoreSamplerSetPredictor(
@@ -1576,7 +1522,6 @@ dbartsSampler <- setRefClass(
     },
     setCutPoints = function(cuts, column, updateState = NA) {
       "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty. updateState is opt-in; see setData."
-      refuseHostMutation("$setCutPoints")
 
       bartcoreSamplerSetCutPoints(
         .self,
@@ -1590,7 +1535,6 @@ dbartsSampler <- setRefClass(
     },
     setTestPredictor = function(x.test, column) {
       "Changes a single column of the test predictor matrix."
-      refuseHostMutation("$setTestPredictor")
 
       checkMissingPolicy(data, sourceAnyNA(x.test), "test predictors")
       bartcoreSamplerSetTestPredictor(
@@ -1601,7 +1545,6 @@ dbartsSampler <- setRefClass(
     },
     setTestPredictorAndOffset = function(x.test, offset.test) {
       "Changes the test predictor matrix, and optionally the test offset."
-      refuseHostMutation("$setTestPredictorAndOffset")
       checkMissingPolicy(
         data,
         !is.null(x.test) && sourceAnyNA(x.test),
@@ -1658,7 +1601,6 @@ dbartsSampler <- setRefClass(
     },
     setTestOffset = function(offset.test) {
       "Changes the test offset."
-      refuseHostMutation("$setTestOffset")
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
@@ -1711,7 +1653,6 @@ dbartsSampler <- setRefClass(
     },
     getDispersion = function() {
       "Returns the negative-binomial dispersion r currently in force, one per chain, or NULL on every other family - the count analog of getSigmas(). It is the same scalar run()$dispersion records once per kept draw, read mid-sweep and without serializing state, so a host driving the sampler one sweep at a time reads it here instead of through storeState()$dispersion. Under a fixed dispersion it repeats the value the sampler was created with; otherwise it is that sweep's grid draw."
-      refuseHostRead("$getDispersion")
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getDispersion, ptr)
     },
@@ -1727,7 +1668,6 @@ dbartsSampler <- setRefClass(
     },
     getFitsWithoutOffset = function() {
       "Returns the sampler's combined per-observation location on the RESPONSE scale and WITHOUT the installed offset, an n.observations x n.chains matrix; run()$train reports the same quantity with the offset folded in, so getFitsWithoutOffset() plus the installed offset is that value. This is the incremental read: getLatents() minus run()$train is biased, because the two are not on the same footing. Refused on a multinomial sampler, whose reported channels are per-category softmax probabilities rather than one additive location. Contrast getForestFits, which reports ONE forest's INTERNAL-scale totals."
-      refuseHostRead("$getFitsWithoutOffset")
       refuseCountsMutation(
         .self,
         "$getFitsWithoutOffset",
@@ -1773,7 +1713,6 @@ dbartsSampler <- setRefClass(
       updateState = NA
     ) {
       "Restates a forest's leaf prior on every chain so that the forest total's prior standard deviation at k = 1 is prior.scale, in response units; prior.sd is the same statement at the current k and is refused when k is drawn from a hyperprior. Exactly one of the two is given. Nothing else moves - not k, not the response transform, not sigma, not the tree prior - and the write takes effect on the next sweep, reinterpreting no leaf value already drawn. updateState is opt-in; see setData."
-      refuseHostMutation("$setCalibration")
       refuseCountsMutation(
         .self,
         "$setCalibration",
@@ -1879,7 +1818,6 @@ dbartsSampler <- setRefClass(
     },
     setState = function(newState) {
       "Sets the internal state from a cache."
-      refuseHostMutation("$setState")
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
       }
@@ -1913,7 +1851,6 @@ dbartsSampler <- setRefClass(
       "Warm-starts the forests from a donor sampler or bart fit over the same
        predictors. 'samples' maps each chain to a 1-based donor-sample index;
        NULL spreads the chains across the donor's kept samples."
-      refuseHostMutation("$installTrees")
       donorState <- warmStartState(donor)
       if (!is.null(samples)) {
         samples <- as.integer(samples)

@@ -264,13 +264,6 @@ expect_equal(
   )
 )
 
-# --- the host shell of a fit whose model lives elsewhere answers from the
-# placeholder, so the read is refused there as $getFitsWithoutOffset() is
-
-samplerShell <- nbinomSampler(1L)
-samplerShell$hostFor <- "bart2(family = \"multinomial\")"
-expect_error(samplerShell$getDispersion(), pattern = "host sampler of a bart2")
-
 # --- end to end: bart2(family = "nbinom") reads the channel rather than
 # serializing state per sweep, and its reported draws still pair with the
 # latent psi through mu = r exp(psi)
