@@ -1074,3 +1074,66 @@ touched); no bench.
 
 Next: S2+S3 (multinomial surface); ASAN owed for the bridge dispatch
 arm.
+
+**S2+S3 LANDED 5a3bc276** (2026-08-24, one merged commit). The public
+multinomial sampler surface: dbartsData gains counts/offset.category/
+offset.category.test slots constrained in the validity method, data@y
+derived as the trials vector so the two cannot disagree (Fork G1/G1a);
+dbarts(x, y, family = "multinomial") accepts a counts matrix or a
+factor/character/integer-code vector (one-hot expanded), matrix
+interface only, and counts-carrying data resolves from family =
+"auto"; the bridge creation arm builds from the spec triple so
+re-creation mirroring is free - the slots ARE what creation reads, no
+reapply path (the design's own G1 rationale, delivered); the three R5
+methods setCounts/setCategoryOffset/setCategoryTestOffset ride the
+existing internal channels; the K-matrix predict arm; the Fork B
+refusal matrix with capability-named messages (H3 repoint executed;
+the weights conduit has its own arm); B1's getLatents decline written
+into dbartsSampler-class.Rd and multinomial.md, scoped to the
+augmentation families with AFT's imputed log-time read preserved.
+Host-shell census now 48 own methods / 25 host-mutation-guarded.
+Beyond-spec, kept: nine R-side refusals for compositions the
+multinomial factory silently drops (monotone, DART, split.probs,
+linear/GP leaves, k hyperprior, named prior.scale, groups,
+storage = "single", variance forest) and a bridge nullptr backstop
+for the variance-forest case, which previously crashed latent.
+
+Price: 576 non-test dense (budget 1060, stop 1590) + 428 test dense
+(budget 830, stop 1245). Under budget because G1's mirroring-for-free
+held exactly as designed.
+
+Review cycle, three rounds: Opus implementer -> Opus adversarial
+review (BLOCK: bart2()/xbart() accepted a counts-carrying dbartsData
+through family = "auto" resolution and silently returned a
+mis-reshaped single-forest fit - zero warnings; plus formula-LHS
+silently discarded at the data layer, a dead .hasSlot guard inside
+the validity method, creation-side bridge checks weaker than
+mutation's, an NA-sentinel predict edge regressed, two codename
+comments) -> fixes -> reviewer re-measurement (residual: bart() still
+accepted the same object through the passthrough branch; bridge
+refusal misreported K on the public route) -> fixes -> reviewer LAND
+(all cures re-measured; empirical entry sweep: every exported
+single-location packager refuses a counts-carrying dbartsData -
+bart/bart2/xbart by the new gate, its mutation proof failing exactly
+the 5 pins, rbart_vi by the groups gate now pinned, pdbart by its
+type check). The lesson the pin carries: family = "auto" resolution
+makes a new family reachable from EVERY dbartsData-accepting entry,
+not just the ones the slice built.
+
+Gating on the final tree (1d790a36; landed as 5a3bc276 after a
+patch-id-identical rebase onto the docs-only records tip): two
+independent legs. Gate battery PASS: tinytest 6686/0; trio 43/43
+strict (43 compared / 0 skipped), 12/12, 11/11 identical-draws lines,
+zero max|z| - the dispatch arm is unreachable from shipped paths
+until S4, verified not asserted; tests/cpp full + sampler; ASAN/UBSAN
+39 files zero reports (macOS mechanics: sanitizer flags via
+R_MAKEVARS_USER, run through bin/exec/R with DYLD_INSERT_LIBRARIES -
+the bin/R wrapper strips the insert under SIP); --as-cran 1 NOTE
+(days-since-update); air/lint_package/pkgdown/NEWS (296)/
+doc-freshness clean. Reviewer leg re-ran both equivalence harnesses
+and eight multinomial-adjacent test files independently, same counts.
+clang-tidy warnings in the bridge all blame to pre-slice commits.
+
+Next: S4/F1 (bart2 multinomial constructs direct; $bc deleted;
+hostFor mechanism deleted; reproduction gate re-pointed; Fork J
+discharged; re-records exactly the S0 bart2multinom scenario).
