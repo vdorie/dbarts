@@ -73,14 +73,51 @@ scalarFields <- c(
   "first.sigma",
   "first.k",
   "first.tau",
-  "resid.df"
+  "resid.df",
+  "mean.s"
 )
+
+# One draws field by name: a stored channel, or the synthetic "mean.s" of a
+# heteroscedastic fit - the mean of s(x) over the training observations, one
+# value per draw, in sigma's own (n.chains, n.samples) scalar-field layout.
+# The variance surface has no scalar to summarize (summarizing every
+# observation's draws would swamp the table), so its convergence is read off
+# that pooled mean, as bartMultinomial's is off meanProb.
+drawsField <- function(object, v) {
+  if (!identical(v, "mean.s")) {
+    return(object[[v]])
+  }
+  s <- object[["s.train"]]
+  if (is.null(s)) {
+    return(NULL)
+  }
+  s <- combineOrUncombineChains(s, fitNChains(object), FALSE)
+  apply(s, seq_len(length(dim(s)) - 1L), mean)
+}
+
+# "sigma" names the residual scale, which a heteroscedastic fit does not have
+# as a scalar: the sigma it stores is the variance forest parameterization's
+# fixed unit residual times the response range, constant across draws and
+# carrying no posterior content. The token resolves to the fit's own scale
+# channel there instead, so nothing reports that constant as a parameter.
+resolveDrawsVars <- function(object, vars) {
+  if (is.null(object[["s.train"]])) {
+    return(vars)
+  }
+  replace(vars, vars == "sigma", "mean.s")
+}
+
+# the requested fields this fit actually carries, in the requested order
+presentDrawsVars <- function(object, vars) {
+  vars <- resolveDrawsVars(object, vars)
+  vars[!vapply(vars, function(v) is.null(drawsField(object, v)), logical(1L))]
+}
 
 # gathers one or more chain-dimensioned fields off a bart/bart2/rbart fit
 # into a single (iteration, chain, variable) base array
 bartDrawsArray <- function(object, vars) {
   n.chains <- fitNChains(object)
-  present <- vars[!vapply(vars, function(v) is.null(object[[v]]), logical(1L))]
+  present <- presentDrawsVars(object, vars)
   if (length(present) == 0L) {
     stop(
       "none of 'vars' (",
@@ -90,7 +127,7 @@ bartDrawsArray <- function(object, vars) {
     )
   }
   pieces <- lapply(present, function(v) {
-    piece <- toDrawsArray(object[[v]], n.chains, v %in% scalarFields)
+    piece <- toDrawsArray(drawsField(object, v), n.chains, v %in% scalarFields)
     dimnames(piece)[[3L]] <- if (v %in% scalarFields) {
       v
     } else {
@@ -134,7 +171,7 @@ quantileSummary <- function(arr) {
 # rhat > 1.01 is noted in the printed summary, not enforced: dbarts does not
 # refuse to summarize a non-converged fit
 summary.bart <- function(object, vars = c("sigma", "k", "tau"), ...) {
-  present <- vars[!vapply(vars, function(v) is.null(object[[v]]), logical(1L))]
+  present <- presentDrawsVars(object, vars)
   havePosterior <- length(present) > 0L && posteriorAvailable()
   stats <- if (length(present) == 0L) {
     NULL

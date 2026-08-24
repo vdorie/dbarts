@@ -19,6 +19,20 @@ probabilityFromLatents <- function(latents, object) {
   }
 }
 
+# A heteroscedastic fit's residual scale is the per-observation surface s(x)
+# (docs/design/heteroscedastic.md), stored - like the draw channels it is laid
+# out as - either combined or split. This normalizes whichever storage the fit
+# used to the split, chain-fastest layout, so as.vector() on it enumerates
+# draws in the order as.vector() on the split fits does and the two pair
+# element for element. s(x) is already on the response scale (the working
+# surface times the response range), so it REPLACES the scalar sigma rather
+# than scaling it: under this parameterization sigma is a fixed unit residual
+# times that same range, a constant carrying no posterior content. NULL passes
+# through, marking a homoscedastic fit, whose scale is that scalar.
+heteroscedasticScale <- function(s, n.chains) {
+  if (is.null(s)) NULL else combineOrUncombineChains(s, n.chains, FALSE)
+}
+
 # per-draw, per-observation log-likelihood of the stored training response.
 # ev enters with chains split ((n.chains x) n.samples x n.obs), so that
 # as.vector(ev) enumerates draws chain-fastest. A scalar-per-draw field
@@ -37,7 +51,8 @@ probabilityFromLatents <- function(latents, object) {
 # logistic (probit never stores weights); aft the log density for events and
 # the log survival tail for right-censored rows, mirroring the engine's
 # AFTResponse::computeLogLikelihood. Any other family errors rather than
-# reporting a wrong number.
+# reporting a wrong number. A heteroscedastic gaussian fit scores at its own
+# per-observation s(x) instead of the scalar (heteroscedasticScale below).
 pointwiseLogLikelihood <- function(object, ev) {
   y <- object[["y"]]
   if (is.null(y)) {
@@ -74,7 +89,17 @@ pointwiseLogLikelihood <- function(object, ev) {
         " residuals"
       )
     }
-    sd <- rep_len(as.vector(chainFastest(object$sigma)), length(ev))
+    # s(x) is one value per draw AND observation, so it pairs with ev directly
+    # rather than recycling across the observation margin as sigma does; a
+    # length mismatch means the two channels were not written by the same run
+    s <- heteroscedasticScale(object[["s.train"]], n.chains)
+    sd <- if (is.null(s)) {
+      rep_len(as.vector(chainFastest(object$sigma)), length(ev))
+    } else if (length(s) != length(ev)) {
+      stop("the fit's 's.train' draws do not match its fitted draws")
+    } else {
+      as.vector(s)
+    }
     if (!is.null(weights)) {
       sd <- sd / rep(sqrt(weights), each = n.draws)
     }
@@ -291,7 +316,21 @@ predict.bart <- function(
     }
 
     if (type == "ppd") {
-      result <- sampleFromPPD(result, object, weights, n.chains)
+      # the replayed s(x) above IS the noise scale at these rows; a
+      # heteroscedastic fit whose sampler replays none cannot be drawn from
+      if (is.null(s) && !is.null(object[["s.train"]])) {
+        stop(
+          "posterior predictive sampling is not available on a ",
+          "heteroscedastic fit whose sampler replays no variance surface"
+        )
+      }
+      result <- sampleFromPPD(
+        result,
+        object,
+        weights,
+        n.chains,
+        heteroscedasticScale(s, n.chains)
+      )
     }
   }
 
@@ -413,7 +452,20 @@ extract.bart <- function(
   }
 
   if (type == "ppd") {
-    result <- sampleFromPPD(result, object, weights, n.chains)
+    s <- if (sample == "train") object[["s.train"]] else object[["s.test"]]
+    if (is.null(s) && !is.null(object[["s.train"]])) {
+      stop(
+        "posterior predictive sampling is not available at the test rows of a ",
+        "heteroscedastic fit that stores no 's.test' draws"
+      )
+    }
+    result <- sampleFromPPD(
+      result,
+      object,
+      weights,
+      n.chains,
+      heteroscedasticScale(s, n.chains)
+    )
   }
 
   result
@@ -2034,6 +2086,26 @@ plotTree.rbart <- function(
 }
 
 
+# The gaussian posterior predictive's noise scale, in the split layout's
+# chain-fastest order sampleFromPPD draws in: the per-draw scalar sigma
+# recycled across the observation margin, or a heteroscedastic fit's own
+# per-observation s(x), which is already on the response scale and so stands
+# in for sigma rather than scaling it. A case weight is a precision multiplier
+# on whichever of the two it is, giving sd_i = scale_i / sqrt(w_i).
+ppdNoiseScale <- function(sigma, s, weights, n.obs, n.draws) {
+  sd <- if (is.null(s)) {
+    rep_len(as.vector(sigma), n.obs * n.draws)
+  } else if (length(s) != n.obs * n.draws) {
+    stop("the fit's 's(x)' draws do not match its predicted draws")
+  } else {
+    as.vector(s)
+  }
+  if (!is.null(weights)) {
+    sd <- sd * rep(sqrt(1 / weights), each = n.draws)
+  }
+  sd
+}
+
 # ev (expected value) enters in the caller's requested layout: chains split
 # ((n.chains x) n.samples x n.obs, obs last) or chains combined ((n.chains *
 # n.samples) x n.obs, chain-blocked rows - all of chain 1's samples, then
@@ -2048,8 +2120,10 @@ plotTree.rbart <- function(
 # split-order probabilities and reshapes the outcome, since the draw
 # depends on ev and cannot be reshaped after the fact. Single chain and
 # already-split ev take the flat path unchanged. n.chains is needed only to
-# perform that reshape.
-sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
+# perform that reshape. s carries a heteroscedastic fit's per-observation
+# residual scale in that same split layout (heteroscedasticScale); it is NULL
+# for a homoscedastic fit, whose scale is the per-draw scalar sigma.
+sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
   oldSeed <- NULL
   if (!is.null(object[["seed"]])) {
     oldSeed <- .GlobalEnv$.Random.seed
@@ -2109,7 +2183,7 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
       noise <- rnorm(
         n.obs * n.draws,
         0,
-        rep_len(as.vector(sigma), n.obs * n.draws)
+        ppdNoiseScale(sigma, s, NULL, n.obs, n.draws)
       )
       if (n.chains > 1L && length(dim(ev)) < 3L) {
         noise <- combineChains(array(
@@ -2153,8 +2227,7 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
     } else {
       n.obs <- dim(ev)[length(dim(ev))]
       n.draws <- length(sigma)
-      sd <- rep_len(as.vector(sigma), n.obs * n.draws) *
-        rep(sqrt(1 / weights), each = n.draws)
+      sd <- ppdNoiseScale(sigma, s, weights, n.obs, n.draws)
       noise <- rnorm(n.obs * n.draws, 0, sd)
       if (n.chains > 1L && length(dim(ev)) < 3L) {
         noise <- combineChains(array(

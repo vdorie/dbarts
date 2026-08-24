@@ -12,7 +12,9 @@
   parameters (\code{sigma}, \code{k}, and, for \code{\link{rbart_vi}}
   fits, \code{tau}) of a \code{bart}/\code{bart2}/\code{rbart_vi} fit,
   along with split-\eqn{\hat{R}}{Rhat} and effective sample size when
-  the \pkg{posterior} package is installed.
+  the \pkg{posterior} package is installed. A heteroscedastic fit
+  (\code{\link{dbarts}}'s \code{variance}) has no scalar residual scale
+  and reports \code{mean.s} in place of \code{sigma}; see \code{vars}.
 
   \code{as_draws_array} and \code{as_draws_df} convert a fit's
   chain-dimensioned draws to \pkg{posterior}'s array/data frame
@@ -47,6 +49,15 @@
     column, named \code{"field[column]"}. \eqn{f(x)} draws
     (\code{yhat.*}) are reachable this way but are not summarized
     automatically, as they carry one variable per observation.
+
+    On a heteroscedastic fit the \code{sigma} token resolves to
+    \code{mean.s}: the mean over the training observations of that
+    draw's variance surface \eqn{s(x)}, one value per draw. The
+    \code{sigma} such a fit stores is the variance forest
+    parameterization's fixed unit residual times the range of the
+    response, a constant with no posterior content, so it is not
+    reported as a parameter. \code{s.train} itself is reachable by
+    name, contributing one variable per observation.
   }
   \item{\dots}{Unused.}
 }

@@ -1155,6 +1155,32 @@
             refusal happens
             before any live state is touched, so the destination sampler is
             unaffected and usable afterward.
+      \item \code{extract(type = "loglik")} and the posterior predictive
+            draws of \code{extract(type = "ppd")} and \code{predict(type =
+            "ppd")} evaluate a heteroscedastic fit (\code{variance = ~ x})
+            at its own per-observation \eqn{s(x)}, so
+            \eqn{y_i \sim N(f(x_i), s^2(x_i) / w_i)} throughout. All three
+            used the scalar \code{sigma}, which under the variance forest's
+            parameterization is a fixed unit residual times the range of the
+            response - a constant carrying no posterior content - so the
+            reported log-likelihood was wrong by a factor that grew with the
+            spread of the variance surface, and posterior predictive draws
+            added homoscedastic noise at the wrong level. Log-likelihoods
+            feeding \code{loo}/\code{waic} and posterior predictive checks on
+            such a fit move accordingly; homoscedastic fits are unchanged,
+            draw for draw. \code{predict(type = "ppd")} already carried
+            \eqn{s(x)} on its \code{"s"} attribute and now draws at it.
+            Posterior predictive sampling at test rows of a heteroscedastic
+            fit that stores no \code{s.test} is refused rather than drawn at
+            the constant.
+      \item \code{summary} on a heteroscedastic fit reports \code{mean.s},
+            the mean of \eqn{s(x)} over the training observations for each
+            draw, in place of \code{sigma}. It previously printed one
+            \code{sigma} row holding that same constant, with a posterior
+            standard deviation of exactly zero and an undefined R-hat, and
+            said nothing about the variance surface. \code{as_draws_array}
+            and \code{as_draws_df} resolve the \code{"sigma"} token the same
+            way. Homoscedastic fits still summarize \code{sigma}.
       \item A heteroscedastic sampler (\code{variance = TRUE}) accepts
             transactional and per-observation predictor mutation, which it
             refused rather than silently reporting a variance surface
