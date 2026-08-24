@@ -1686,7 +1686,8 @@ transcript. Side finding, ticketed, not fixed here: the saved-tree store's
 sampler-level write cursor carries across recorded `run()` calls while
 `predict`/`predictPerForest`/`predictVariance`/`getTrees` walk slots
 0..capacity-1, so a hand-driven `keepTrees` sampler with two recorded runs gets
-rotated draws. Still open, unchanged: the FIT-TIME test-basis channel (a
+rotated draws, fixed at 124259d0 (see release-candidate-review.md's burn-down
+note). Still open, unchanged: the FIT-TIME test-basis channel (a
 `dbartsData` slot, a `forest()` formal, `$setTestBasis`, `yhat.test`, NA-y rows,
 flat C entries) is the maintainer-held modelling decision; the sampler-level
 `refuseUndefinedTestFits` stands.

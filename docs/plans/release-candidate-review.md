@@ -540,6 +540,52 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Pre-RC burn-down (2026-08-24)
+
+The RC gate exists to prepare for the serious human review the charter
+names in section 1, so before the coverage/mutation/coherence passes,
+the content-heavy backlog went first. Four slices landed: 53525f4d,
+the multinomial fuzz arm (docs/plans/multinomial-counts-mutation.md);
+139a1976, the predict-time blend
+(docs/plans/bcf-bartcause-relocation.md, 2026-08-24 note); d0701a6a,
+the logistic weight channel (docs/design/r-c-division.md's "The
+latent-family weight channel"; TODO's latent-family-weight-channel
+entry); and 124259d0 + 41661523, the saved-tree store cursor fix plus
+pdbart, recorded here (no plan file owns the pair).
+
+The store's write cursor carries across `run()` calls; all six readers
+- predict, predictPerForest, predictVariance, getTrees, printTrees,
+the warm-start donor pool - walked slots 0..capacity-1, so a second
+RECORDED run replayed draws rotated against the recorded-draw channels
+(burn-in itself is never recorded; scratch/tree-store-burnin-memo.md
+has the corrected mechanism). Fix: draw i = slot (cursor + capacity -
+filled + i) mod capacity, filled = min(recorded, capacity), oldest
+first; a store with no recorded draws refuses. recordedDraws is now a
+required state field (format 3, readable floor 3); numSavedSamples
+reports recorded draws, not capacity; dbarts.h changed in prose only.
+Option C (reset the cursor per run) was rejected - bart2's nbinom
+records each kept draw in its own `run(0, 1)`, depending on the carry.
+`pdbart(keeptrees=TRUE, nskip=0)` hit the same bug:
+`bart(sampleronly=TRUE)` hands back an unrun sampler and pdbart's
+keepTrees branch never ran the sampling phase, returning a flat
+surface; fixed in the shared prologue, both surfaces now bitwise
+identical at a seed. Price 253/335 raw (+ pdbart 6/63); mutations
+M1/M2/M3 (11/3/2 fails) discriminate; gates tinytest 6814/0, trio
+43/12/11 bitwise no re-record, tests/cpp + ASAN clean, --as-cran 1
+expected NOTE.
+
+Doors left: the fit-time test-basis channel (VD-held modelling
+decision); weights never ride saved state (logistic); per-forest
+off-sample replay on multinomial and OP_GROW outside the multi-forest
+fuzz mask (fuzz-arm doors); scratch/bartcore-review-tour.md, stale
+(2026-08-04, pre-rebase), due a refresh before the review runs.
+Consumer facts: stan4bart is compatible with numSavedSamples' new
+meaning (resets storage per iteration, reads the count after its
+loop); bartCause's `bcf(keepTrees=TRUE)` was rotated before the fix
+and is cured by it, no bartCause change; its `predict.bartBCF` error
+text is now stale too - it claims dbarts lacks per-forest replay,
+shipped at 63df524e - a bartCause-side follow-up.
+
 ### The 0.9-34 CRAN patch lands on main; bartcore rebases onto it (main b9d42948; bartcore d3acbdc1 + 0b424eeb, 2026-08-20)
 
 CRAN broke 0.9-33 on six flavors: R-devel's RNGkind gained a
