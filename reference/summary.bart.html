@@ -3,7 +3,9 @@
   parameters (sigma, k, and, for rbart_vi
   fits, tau) of a bart/bart2/rbart_vi fit,
   along with split-\(\hat{R}\) and effective sample size when
-  the posterior package is installed.
+  the posterior package is installed. A heteroscedastic fit
+  (dbarts's variance) has no scalar residual scale
+  and reports mean.s in place of sigma; see vars.
 as_draws_array and as_draws_df convert a fit's
   chain-dimensioned draws to posterior's array/data frame
   conventions. Both are methods for posterior's generics and so
@@ -14,7 +16,9 @@ as_draws_array and as_draws_df convert a fit's
   parameters (sigma, k, and, for rbart_vi
   fits, tau) of a bart/bart2/rbart_vi fit,
   along with split-\(\hat{R}\) and effective sample size when
-  the posterior package is installed.
+  the posterior package is installed. A heteroscedastic fit
+  (dbarts's variance) has no scalar residual scale
+  and reports mean.s in place of sigma; see vars.
 as_draws_array and as_draws_df convert a fit's
   chain-dimensioned draws to posterior's array/data frame
   conventions. Both are methods for posterior's generics and so
@@ -65,7 +69,9 @@ as_draws_array and as_draws_df convert a fit's
   parameters (<code>sigma</code>, <code>k</code>, and, for <code><a href="rbart.html">rbart_vi</a></code>
   fits, <code>tau</code>) of a <code>bart</code>/<code>bart2</code>/<code>rbart_vi</code> fit,
   along with split-\(\hat{R}\) and effective sample size when
-  the <span class="pkg">posterior</span> package is installed.</p>
+  the <span class="pkg">posterior</span> package is installed. A heteroscedastic fit
+  (<code><a href="dbarts.html">dbarts</a></code>'s <code>variance</code>) has no scalar residual scale
+  and reports <code>mean.s</code> in place of <code>sigma</code>; see <code>vars</code>.</p>
 <p><code>as_draws_array</code> and <code>as_draws_df</code> convert a fit's
   chain-dimensioned draws to <span class="pkg">posterior</span>'s array/data frame
   conventions. Both are methods for <span class="pkg">posterior</span>'s generics and so
@@ -110,7 +116,15 @@ as_draws_array and as_draws_df convert a fit's
     <code>yhat.test</code>, <code>ranef</code>) contributes one variable per
     column, named <code>"field[column]"</code>. \(f(x)\) draws
     (<code>yhat.*</code>) are reachable this way but are not summarized
-    automatically, as they carry one variable per observation.</p></dd>
+    automatically, as they carry one variable per observation.</p>
+<p>On a heteroscedastic fit the <code>sigma</code> token resolves to
+    <code>mean.s</code>: the mean over the training observations of that
+    draw's variance surface \(s(x)\), one value per draw. The
+    <code>sigma</code> such a fit stores is the variance forest
+    parameterization's fixed unit residual times the range of the
+    response, a constant with no posterior content, so it is not
+    reported as a parameter. <code>s.train</code> itself is reachable by
+    name, contributing one variable per observation.</p></dd>
 
   <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Unused.</p></dd>

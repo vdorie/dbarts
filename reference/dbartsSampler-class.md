@@ -346,7 +346,17 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   logistic sampler built with counts and handed weightless data becomes
   an unweighted one. Under an installed mask a swap redraws only the
   ACTIVE rows - an inactive row consumes no random numbers and returns
-  to its deterministic cold start against the new count. See
+  to its deterministic cold start against the new count. The weights
+  themselves are not part of the saved `state`, but a digest of the ones
+  in force when it was stored is: `setState` compares it against the
+  destination's own weights and, where the two disagree, re-derives the
+  weight-dependent latents against the DESTINATION's - so a restore
+  lands where the same `setWeights` call would rather than pairing one
+  vector's latents with another's counts, silently and off the restored
+  generators. A matched round trip re-derives nothing and installs the
+  stored state unchanged. Only a family whose augmentation is stated
+  against the weights moves under it (`logistic`); for gaussian,
+  Student-t and every weight-refusing family it is a no-op. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
   the family-specific weight rules that apply at creation time.
 
@@ -457,13 +467,17 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   The mask does not ride a sampler's saved `state`: a sampler rebuilt
   with `setState` from a stored state silently drops the mask and
   computes different draws while `statesAgree` still reports agreement.
-  Conversely, the latents DO ride the state, and under an installed mask
-  they are stale at every inactive row for a skipping family, so two
-  samplers at the same posterior state but different mask histories
-  carry different stored latents and `statesAgree` correctly reports
-  DISAGREEMENT; a Student-t sampler is affected the same way, since an
-  inactive row's stored \\\lambda_i\\ is drawn from a conditional its
-  own data no longer informs.
+  It is DROPPED rather than reconciled, which is where it parts from the
+  case weights: a destination that never had a mask has no other mask
+  for the restore to re-derive against, only an absent channel, so a
+  caller that wants one reinstalls it by hand. Conversely, the latents
+  DO ride the state, and under an installed mask they are stale at every
+  inactive row for a skipping family, so two samplers at the same
+  posterior state but different mask histories carry different stored
+  latents and `statesAgree` correctly reports DISAGREEMENT; a Student-t
+  sampler is affected the same way, since an inactive row's stored
+  \\\lambda_i\\ is drawn from a conditional its own data no longer
+  informs.
 
   On a sampler with grouped random effects, a group all of whose rows
   are inactive draws its effect from the PRIOR through the group-effect
@@ -832,11 +846,22 @@ model, or restore the state with the `dbarts` release that wrote it.
 To restore a saved state into a sampler, call `setState(newState)`: it
 validates that `newState` inherits from `bartcoreState`, re-creates the
 underlying engine if needed, pushes the state into it, and caches it on
-the `state` field. Assigning the field directly
-(`sampler$state <- newState`) does *not* restore the sampler - it only
-overwrites the R-side cache, leaving the engine untouched, so the next
-run continues from the engine's own state rather than the assigned one.
-Always route a restore through `setState`.
+the `state` field. Validation covers every forest the state carries: a
+state whose trees split outside the recipient forest's allowed columns -
+a `blocks`-constrained or moderator-restricted mean forest, or a
+`variance = ~ x1 + x2` variance forest - is refused with the message
+`installTrees` gives the same donor, the two entries sharing one rule so
+neither admits what the other refuses. Every check runs before any live
+state is touched, so a refused restore leaves the sampler exactly as it
+was. Assigning the field directly (`sampler$state <- newState`) does
+*not* restore the sampler - it only overwrites the R-side cache, leaving
+the engine untouched, so the next run continues from the engine's own
+state rather than the assigned one. Always route a restore through
+`setState`. The case weights are not in the state, so a restore is
+reconciled against the DESTINATION's own rather than governed by the
+source's: where they differ from the weights the state was stored under,
+the weight-dependent latents are re-derived against the destination's
+before `setState` returns (see `weights` above).
 
 ### Mutation cost
 
@@ -1167,7 +1192,12 @@ this replay, taking the bases at the predicted rows through its own
 scalar amplitude glue reports per-forest fits; every other one is
 refused by name, a multinomial sampler included, whose raw per-category
 totals are perfectly well defined but whose reported quantity is a
-softmax probability that `predict` serves.
+softmax probability that `predict` serves. The refusal is off-sample
+only: `getForestFits` is not gated the same way, so those same
+per-category totals stay readable AT the training rows, for the current
+trees and one draw, and it is the off-sample replay - which would have
+to hand back a level nothing identifies at rows the sampler never saw -
+that has no counterpart.
 
 For `getCalibration`, the leaf-prior calibration a forest currently runs
 under, as a numeric matrix with one row per chain and the columns

@@ -95,6 +95,10 @@ Fit BART models to fixed data.
   [`residuals(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
   [`plot(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
   [`summary(`*`<bartMultinomial>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`summary(`*`<bartOrdinal>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`summary(`*`<bartNegbin>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`summary(`*`<bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  [`print(`*`<summary.bartHurdle>`*`)`](https://vdorie.github.io/dbarts/reference/bart2.md)
   : Bayesian Additive Regression Trees with Extended Response Families
 - [`rbart_vi()`](https://vdorie.github.io/dbarts/reference/rbart.md)
   [`plot(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/rbart.md)

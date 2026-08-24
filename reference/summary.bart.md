@@ -4,7 +4,11 @@
 parameters (`sigma`, `k`, and, for
 [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) fits,
 `tau`) of a `bart`/`bart2`/`rbart_vi` fit, along with split-\\\hat{R}\\
-and effective sample size when the posterior package is installed.
+and effective sample size when the posterior package is installed. A
+heteroscedastic fit
+([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+`variance`) has no scalar residual scale and reports `mean.s` in place
+of `sigma`; see `vars`.
 
 `as_draws_array` and `as_draws_df` convert a fit's chain-dimensioned
 draws to posterior's array/data frame conventions. Both are methods for
@@ -53,6 +57,14 @@ as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
   column, named `"field[column]"`. \\f(x)\\ draws (`yhat.*`) are
   reachable this way but are not summarized automatically, as they carry
   one variable per observation.
+
+  On a heteroscedastic fit the `sigma` token resolves to `mean.s`: the
+  mean over the training observations of that draw's variance surface
+  \\s(x)\\, one value per draw. The `sigma` such a fit stores is the
+  variance forest parameterization's fixed unit residual times the range
+  of the response, a constant with no posterior content, so it is not
+  reported as a parameter. `s.train` itself is reachable by name,
+  contributing one variable per observation.
 
 - ...:
 

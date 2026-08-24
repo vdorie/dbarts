@@ -470,17 +470,27 @@ residuals(object, type = "ev", ...)
   `predict`, the per-forest channels of an amplitude-coupled
   multi-forest fit (see `forest`, `contribution`, and the
   `forestFits`/`glue`/`bases` components under ‘Value’); an error naming
-  the reason on any other fit. `extract(type = "forest")` reads the
-  stored in-sample channel, while `predict(type = "forest")` replays
-  each forest at `newdata`; both report the raw per-forest total,
-  leaving the recombination to the caller, where the combined arms
-  (`"ev"`, `"ppd"`, `"bart"`) perform it given the bases at those rows
-  (see `bases`). For `"ppd"`, a weighted logistic fit draws the number
-  of successes among the observation-count weight,
-  \\\mathrm{Binomial}(w_i, p_i)\\ (see `weights`), and an aft (survival)
-  fit draws on the log-time scale (the fit models \\\log T\\). For
-  `"loglik"`, gaussian fits evaluate \\y_i \mid x_i \sim N(\hat{f}(x_i),
-  \sigma^2 / w_i)\\ in logs at each draw of \\f\\ and \\\sigma\\, a
+  the reason on any other fit, a
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  multinomial one included, whose K forests are per-category latents
+  rather than additive components of one location.
+  `extract(type = "forest")` reads the stored in-sample channel, while
+  `predict(type = "forest")` replays each forest at `newdata`; both
+  report the raw per-forest total, leaving the recombination to the
+  caller, where the combined arms (`"ev"`, `"ppd"`, `"bart"`) perform it
+  given the bases at those rows (see `bases`). For `"ppd"`, a weighted
+  logistic fit draws the number of successes among the observation-count
+  weight, \\\mathrm{Binomial}(w_i, p_i)\\ (see `weights`), an aft
+  (survival) fit draws on the log-time scale (the fit models \\\log
+  T\\), and a heteroscedastic fit
+  ([`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  `variance`) draws its noise at that observation's own
+  \\s(x_i)/\sqrt{w_i}\\; the scalar `sigma` such a fit reports is a
+  fixed unit residual times the range of the response and is not its
+  residual scale. For `"loglik"`, gaussian fits evaluate \\y_i \mid x_i
+  \sim N(\hat{f}(x_i), \sigma^2 / w_i)\\ in logs at each draw of \\f\\
+  and \\\sigma\\ - or, for a heteroscedastic fit, \\y_i \mid x_i \sim
+  N(\hat{f}(x_i), s^2(x_i) / w_i)\\ at each draw of \\f\\ and \\s\\, a
   `resid.dist = student()` fit the corresponding marginal \\t\_\nu\\
   density at that draw's \\\nu\\ (the fit's `$resid.df`) rather than the
   normal one, binary fits evaluate the Bernoulli log-likelihood of the
@@ -496,8 +506,11 @@ residuals(object, type = "ev", ...)
   `loo::relative_eff` expects with `aperm(x, c(2, 1, 3))`. To synergize
   with [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
   `"response"` can be used as a synonym for `"ev"` and `"link"` can be
-  used as a synonym for `"bart"`. For information on extracting trees,
-  see the subsection below.
+  used as a synonym for `"bart"`; the
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
+  extended-family methods take the same two synonyms, each against its
+  own set of types. For information on extracting trees, see the
+  subsection below.
 
 - sample:
 
@@ -1031,7 +1044,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.218229
+#> total seconds in loop: 0.168572
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

@@ -285,7 +285,12 @@ dbarts(
   variance surface reproduces the homoscedastic `sigma` posterior. The
   fit gains posterior draws `s.train`/`s.test` of \\s(x)\\, and
   `predict` attaches an `"s"` attribute with \\s(x)\\ at new predictors
-  (requires `keepTrees`).
+  (requires `keepTrees`). \\s(x)\\ is the fit's residual scale wherever
+  one is reported or drawn at: `extract(type = "loglik")` scores at
+  \\s(x_i)/\sqrt{w_i}\\, `type = "ppd"` draws its noise there, and
+  [`summary.bart`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
+  summarizes `mean.s` in place of `sigma`, which under this
+  parameterization is held fixed and carries no posterior content.
 
 - forests:
 
