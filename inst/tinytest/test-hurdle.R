@@ -154,6 +154,14 @@ fitNoTrees <- bart2(
 )
 expect_error(predict(fitNoTrees, x.new), pattern = "keepTrees")
 
+# samplerOnly stays refused: its $fit is a PAIR of samplers, a composition
+# checkFamilyUnsupportedArgs's per-caller allow.samplerOnly flag does not
+# unblock
+expect_error(
+  bart2(x, y, family = "hurdle.lognormal", samplerOnly = TRUE),
+  pattern = "does not support 'samplerOnly'"
+)
+
 # --- keepSampler retains $fit on both component fits, independent of
 # keepTrees ---
 fitKeepSampler <- bart2(

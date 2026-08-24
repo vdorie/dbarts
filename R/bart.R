@@ -590,18 +590,22 @@ runWithBurnIn <- function(sampler, control, keepTrees) {
 }
 
 # The alternate-family bart2 arcs (multinomial/ordinal/nbinom/hurdle.lognormal)
-# all refuse samplerOnly, warm.start/n.grow.sweeps, and keepTrainingFits = FALSE,
-# differing only in the family name and the keepTrainingFits reason (which
-# completes "requires keepTrainingFits = TRUE (the default): ").
+# all refuse warm.start/n.grow.sweeps and keepTrainingFits = FALSE, differing
+# only in the family name and the keepTrainingFits reason (which completes
+# "requires keepTrainingFits = TRUE (the default): "). samplerOnly is refused
+# by default too, but allow.samplerOnly lets a caller whose returned sampler
+# is load-bearing (ordinal, nbinom) opt back in; hurdle.lognormal's $fit is a
+# PAIR of samplers, so it stays refused.
 checkFamilyUnsupportedArgs <- function(
   family,
   samplerOnly,
   warm.start,
   n.grow.sweeps,
   control,
-  reason
+  reason,
+  allow.samplerOnly = FALSE
 ) {
-  if (isTRUE(samplerOnly)) {
+  if (isTRUE(samplerOnly) && !allow.samplerOnly) {
     stop("family = \"", family, "\" does not support 'samplerOnly'")
   }
   grownSweeps <- as.integer(n.grow.sweeps)[1L]
@@ -1044,7 +1048,8 @@ bart2 <- function(
       warm.start,
       n.grow.sweeps,
       control,
-      "the category probabilities are built from the training latent fits"
+      "the category probabilities are built from the training latent fits",
+      allow.samplerOnly = TRUE
     )
     warnFamilyGatedArgs(argNames, "ordinal")
     return(bart2Ordinal(
@@ -1058,7 +1063,8 @@ bart2 <- function(
       dart,
       combineChains,
       prior.scale = prior.scale,
-      keepSampler = keepSampler
+      keepSampler = keepSampler,
+      samplerOnly = samplerOnly
     ))
   }
 
@@ -1075,7 +1081,8 @@ bart2 <- function(
       warm.start,
       n.grow.sweeps,
       control,
-      "the mean counts are built from the training latent fits"
+      "the mean counts are built from the training latent fits",
+      allow.samplerOnly = TRUE
     )
     warnFamilyGatedArgs(argNames, "nbinom")
     return(bart2Negbin(
@@ -1089,7 +1096,8 @@ bart2 <- function(
       dart,
       combineChains,
       prior.scale = prior.scale,
-      keepSampler = keepSampler
+      keepSampler = keepSampler,
+      samplerOnly = samplerOnly
     ))
   }
 
@@ -1717,7 +1725,8 @@ bart2Ordinal <- function(
   dart,
   combineChains,
   prior.scale = NA_real_,
-  keepSampler = FALSE
+  keepSampler = FALSE,
+  samplerOnly = FALSE
 ) {
   priors <- buildSamplerPriors(
     matchedCall,
@@ -1739,6 +1748,9 @@ bart2Ordinal <- function(
   )
 
   sampler <- eval(samplerCall, envir = callingEnv)
+  if (isTRUE(samplerOnly)) {
+    return(sampler)
+  }
 
   K <- attr(sampler$control, "bartcore.n.categories")
   levels <- sampler$data@response.levels
@@ -1748,10 +1760,11 @@ bart2Ordinal <- function(
   n.samples <- control@n.samples
 
   bc <- bartcoreSampler(sampler, family = "ordinal")
-  # bc holds the fit's model; the host keeps only the design and priors it was
-  # built from, so a mutation through the returned $fit would change a sampler
-  # nothing reads. Mark it, as bart2Multinomial does
-  sampler$hostFor <- "bart2(family = \"ordinal\")"
+  # bc's engine is the one that runs below; adopt it into sampler so $fit
+  # becomes an R5 wrapper around the engine that actually ran, not the
+  # abandoned first-created host. Both bartcore_create calls above still
+  # happen in the same order, so no draw moves.
+  sampler$adoptPointer(bc$ptr)
 
   probsTrain <- array(0, c(n.obs, K, n.samples, n.chains))
   latentTrain <- array(0, c(n.obs, n.samples, n.chains))
@@ -1964,7 +1977,8 @@ bart2Negbin <- function(
   dart,
   combineChains,
   prior.scale = NA_real_,
-  keepSampler = FALSE
+  keepSampler = FALSE,
+  samplerOnly = FALSE
 ) {
   priors <- buildSamplerPriors(
     matchedCall,
@@ -1986,6 +2000,9 @@ bart2Negbin <- function(
   )
 
   sampler <- eval(samplerCall, envir = callingEnv)
+  if (isTRUE(samplerOnly)) {
+    return(sampler)
+  }
 
   n.chains <- control@n.chains
   n.obs <- length(sampler$data@y)
@@ -1993,10 +2010,11 @@ bart2Negbin <- function(
   n.samples <- control@n.samples
 
   bc <- bartcoreSampler(sampler, family = "nbinom")
-  # the host owns no model past this point; see bart2Ordinal. It matters twice
-  # here: $getDispersion() on the shell would answer with the placeholder's own
-  # r rather than the fit's
-  sampler$hostFor <- "bart2(family = \"nbinom\")"
+  # bc's engine is the one run below; adopt it into sampler so $fit becomes
+  # an R5 wrapper around the engine that actually ran, not the abandoned
+  # first-created host. It matters twice here: $getDispersion() would
+  # otherwise answer with the abandoned host's own r rather than the fit's.
+  sampler$adoptPointer(bc$ptr)
 
   latentTrain <- array(0, c(n.obs, n.samples, n.chains))
   meanTrain <- array(0, c(n.obs, n.samples, n.chains))

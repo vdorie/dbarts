@@ -139,16 +139,15 @@ expect_false(is.null(fitKeepSampler$fit))
 expect_true(is.null(fitKeepSampler$bc))
 rm(fitKeepSampler)
 
-# --- the retained $fit is a host shell, as a multinomial fit's is ---
-# bc holds the ordinal model; the host carries only the design and priors it
-# was built from, so every mutation through it used to be a silent no-op
-hostRefusal <- "host sampler of a bart2\\(family = \"ordinal\"\\) fit"
-expect_error(fit$fit$setResponse(as.double(codes)), hostRefusal)
-expect_error(fit$fit$setData(dbartsData(x, as.double(codes))), hostRefusal)
-expect_error(fit$fit$run(0L, 1L), hostRefusal)
-# the read surface predict() threads through is untouched
+# --- the retained $fit is the engine that ran, adopted from the abandoned
+# first-created host: reads and mutations succeed ---
+expect_true(length(fit$fit$hostFor) == 0L)
 expect_equal(ncol(fit$fit$data@x), ncol(x))
 expect_equal(predict(fit, x.test), fit$yhat.test)
+expect_silent(fit$fit$setResponse(as.double(codes)))
+expect_identical(fit$fit$data@y, as.double(codes))
+expect_silent(fit$fit$setData(dbartsData(x, as.double(codes))))
+expect_silent(invisible(fit$fit$run(0L, 1L)))
 
 # --- multi-chain shapes, uncombined ---
 

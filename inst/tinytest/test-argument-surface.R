@@ -181,6 +181,23 @@ expect_error(
   pattern = "prior.scale"
 )
 
+# samplerOnly: unblocked for ordinal/nbinom now that pointer adoption makes
+# the returned sampler load-bearing - it is the SAME correctly-configured,
+# unrun sampler dbarts(family = ...) builds directly, not a refusal
+samplerOrdinal <- fit2(y.ordinal, family = "ordinal", samplerOnly = TRUE)
+expect_inherits(samplerOrdinal, "dbartsSampler")
+expect_equal(samplerOrdinal$model@family, "ordinal")
+expect_true(length(samplerOrdinal$hostFor) == 0L)
+rOrdinal <- samplerOrdinal$run()
+expect_equal(dim(rOrdinal$train), c(n, quick$n.samples))
+
+samplerNbinom <- fit2(y.count, family = "nbinom", samplerOnly = TRUE)
+expect_inherits(samplerNbinom, "dbartsSampler")
+expect_equal(samplerNbinom$model@family, "nbinom")
+expect_true(length(samplerNbinom$hostFor) == 0L)
+rNbinom <- samplerNbinom$run()
+expect_equal(dim(rNbinom$train), c(n, quick$n.samples))
+
 # The shared-default-text contract. For every name shared by bart2 and
 # dbarts, the deparsed default expressions agree, except the table below.
 # tree.prior/node.prior/resid.prior are bart2 formals too, so the loop now

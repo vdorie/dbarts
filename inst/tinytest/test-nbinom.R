@@ -142,18 +142,17 @@ expect_false(is.null(fitKeepSampler$fit))
 expect_true(is.null(fitKeepSampler$bc))
 rm(fitKeepSampler)
 
-# --- the retained $fit is a host shell, as a multinomial fit's is ---
-# bc holds the count model; the host carries only the design and priors it was
-# built from, so a mutation through it used to be a silent no-op and
-# $getDispersion() answered with the placeholder's own r
-hostRefusal <- "host sampler of a bart2\\(family = \"nbinom\"\\) fit"
-expect_error(fit$fit$setResponse(as.double(y)), hostRefusal)
-expect_error(fit$fit$setData(dbartsData(x, as.double(y))), hostRefusal)
-expect_error(fit$fit$run(0L, 1L), hostRefusal)
-expect_error(fit$fit$getDispersion(), hostRefusal)
-# the read surface predict() threads through is untouched
+# --- the retained $fit is the engine that ran, adopted from the abandoned
+# first-created host: reads and mutations succeed, and getDispersion()
+# answers with the fit's own r rather than the abandoned host's ---
+expect_true(length(fit$fit$hostFor) == 0L)
 expect_equal(ncol(fit$fit$data@x), ncol(x))
 expect_equal(predict(fit, x.test), fit$yhat.test)
+expect_equal(fit$fit$getDispersion(), fit$dispersion[n.samples])
+expect_silent(fit$fit$setResponse(as.double(y)))
+expect_identical(fit$fit$data@y, as.double(y))
+expect_silent(fit$fit$setData(dbartsData(x, as.double(y))))
+expect_silent(invisible(fit$fit$run(0L, 1L)))
 
 # --- print names the family and reports the dispersion ---
 

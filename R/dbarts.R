@@ -911,6 +911,15 @@ dbartsSampler <- setRefClass(
 
       callSuper(...)
     },
+    adoptPointer = function(ptr) {
+      "Rebinds this sampler to ptr, an externalptr already built from this sampler's own (control, model, data) triple by a caller that ran it, in place of the engine this object created at construction. The abandoned engine becomes unreachable and its own finalizer releases it once (each externalptr carries its own holder, so there is no double free); ptr's protection slot already pins this sampler's own data, so getPointer's re-creation branch, the delayed state promise, and every method below see the adopted engine exactly as if it had been this object's own from the start. Only sound when ptr was built from this object's own (control, model, data), which the caller - not this method - is responsible for."
+      if (!is(ptr, "externalptr")) {
+        stop("'ptr' must be an externalptr")
+      }
+      selfEnv <- parent.env(environment())
+      selfEnv$pointer <- ptr
+      invisible(NULL)
+    },
     refuseHostMutation = function(what) {
       "Errors when this sampler is only the host shell of a fit whose model lives elsewhere; see the hostFor field."
       if (length(hostFor) == 0L) {

@@ -16,6 +16,7 @@ gen <- getRefClass("dbartsSampler")
 ownMethods <- gen$def@refMethods
 infrastructure <- c(
   "initialize",
+  "adoptPointer",
   "refuseHostMutation",
   "refuseHostRead",
   "reapplyForestWeights",
@@ -60,11 +61,11 @@ substantiveUnguardedMethods <- sort(setdiff(
   infrastructure
 ))
 
-expect_equal(length(own), 44L)
+expect_equal(length(own), 45L)
 expect_equal(length(hostMutationMethods), 22L)
 expect_equal(length(hostReadMethods), 2L)
 expect_equal(length(substantiveUnguardedMethods), 14L)
-expect_equal(length(infrastructure), 6L)
+expect_equal(length(infrastructure), 7L)
 
 expect_identical(
   hostMutationMethods,
@@ -244,12 +245,13 @@ expect_identical(dupe3$hostFor, fit3$fit$hostFor)
 expect_error(dupe3$setResponse(rnorm(n3)), hostRefusalSpot)
 expect_error(dupe3$run(0L, 1L), hostRefusalSpot)
 
+# --- ordinal's $fit is no longer a host shell (pointer adoption): hostFor
+# stays empty, on the original and its copy alike, and a mutation through
+# either succeeds ---
+expect_true(length(fitOrd$fit$hostFor) == 0L)
 dupeOrd <- fitOrd$fit$copy(shallow = TRUE)
 expect_identical(dupeOrd$hostFor, fitOrd$fit$hostFor)
-expect_error(
-  dupeOrd$setData(dbartsData(xOrd, as.double(codesOrd))),
-  "host sampler of a bart2\\(family = \"ordinal\"\\) fit"
-)
+expect_silent(dupeOrd$setData(dbartsData(xOrd, as.double(codesOrd))))
 
 # --- the K = 3 host is created and never run: predict answers a single,
 # constant value with no error - a plausible-looking number, not a warning ---
@@ -288,10 +290,10 @@ expect_equal(autoWarnings, 1L)
 expect_identical(class(fitAuto), "bart")
 expect_false(inherits(fitAuto, "bartMultinomial"))
 
-# --- save/reload: predict fails the same way for all three families, and
-# the documented bart escape ($fit$storeState(), man/bart.Rd) does not
-# help, because predict reaches through $bc, which storeState never
-# touches ---
+# --- save/reload: multinomial's $fit is still a host shell, so predict
+# still fails the same way and the documented bart escape
+# ($fit$storeState(), man/bart.Rd) still does not help - predict reaches
+# through $bc, which storeState never touches ---
 pinSaveReloadFailure <- function(fit, xtest) {
   fit$fit$storeState()
   tempFile <- tempfile()
@@ -305,5 +307,19 @@ pinSaveReloadFailure <- function(fit, xtest) {
   expect_error(predict(reloaded, xtest), "NULL external pointer")
 }
 pinSaveReloadFailure(fit3, x3[1:5, ])
-pinSaveReloadFailure(fitOrd, xOrd[1:5, ])
-pinSaveReloadFailure(fitNb, xNb[1:5, ])
+
+# --- ordinal/nbinom's $fit is the engine that ran (pointer adoption), so
+# predict now routes through it and getPointer's re-creation branch rebuilds
+# the engine from the stored state: save/reload/predict round-trips ---
+checkSaveReloadPredicts <- function(fit, xtest) {
+  before <- predict(fit, xtest)
+  fit$fit$storeState()
+  tempFile <- tempfile()
+  saveRDS(fit, tempFile)
+  reloaded <- readRDS(tempFile)
+  unlink(tempFile)
+  # nolint next: object_usage_linter. tinytest attaches expect_* at run time.
+  expect_equal(predict(reloaded, xtest), before)
+}
+checkSaveReloadPredicts(fitOrd, xOrd[1:5, ])
+checkSaveReloadPredicts(fitNb, xNb[1:5, ])

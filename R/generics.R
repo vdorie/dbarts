@@ -802,7 +802,9 @@ residuals.bartOrdinal <- function(object, ...) {
 # per-draw cutpoints (docs/design/ordinal.md). Requires a fit kept with
 # keepTrees. type = "bart" returns the replayed latent eta; type = "ppd" draws
 # one category per posterior draw. Only ppd touches the RNG, so type = "ev" is
-# draw-neutral.
+# draw-neutral. The replay reads through $fit's own pointer rather than $bc's:
+# $fit is the sampler whose engine actually ran, so getPointer() can re-create
+# it from stored state after a save/reload, which $bc's raw handle cannot.
 predict.bartOrdinal <- function(
   object,
   newdata,
@@ -827,7 +829,7 @@ predict.bartOrdinal <- function(
   n.chains <- object$n.chains
   # raw is n.new x n.samples (x n.chains): the replayed latent eta, the test
   # channel's shape
-  raw <- bartcorePredict(object$bc, newdata)
+  raw <- bartcorePredict(list(ptr = object$fit$getPointer()), newdata)
   if (type == "bart") {
     return(convertSamplesFromDbartsToBart(raw, n.chains, combineChains))
   }
@@ -931,7 +933,10 @@ residuals.bartNegbin <- function(object, ...) {
 # (docs/design/negative-binomial.md). A log-exposure offset.test enters psi
 # additively, the fit-time convention. Requires a fit kept with keepTrees.
 # type = "bart" returns the replayed latent; type = "ppd" draws one count per
-# posterior draw. Only ppd touches the RNG, so type = "ev" is draw-neutral.
+# posterior draw. Only ppd touches the RNG, so type = "ev" is draw-neutral. The
+# replay reads through $fit's own pointer rather than $bc's: $fit is the
+# sampler whose engine actually ran, so getPointer() can re-create it from
+# stored state after a save/reload, which $bc's raw handle cannot.
 predict.bartNegbin <- function(
   object,
   newdata,
@@ -956,7 +961,11 @@ predict.bartNegbin <- function(
   }
   n.chains <- object$n.chains
   # raw is n.new x n.samples (x n.chains): the replayed log-odds latent psi
-  raw <- bartcorePredict(object$bc, newdata, offset.test)
+  raw <- bartcorePredict(
+    list(ptr = object$fit$getPointer()),
+    newdata,
+    offset.test
+  )
   if (type == "bart") {
     return(convertSamplesFromDbartsToBart(raw, n.chains, combineChains))
   }

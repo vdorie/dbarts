@@ -1635,6 +1635,22 @@
             \emph{or} \code{keepSampler} is set, exactly as it always has
             been; only \code{$bc} needs \code{keepTrees}. Documentation
             correction, not a behavior change.
+      \item The \code{$fit} of a \code{bart2(family = "ordinal")} or
+            \code{bart2(family = "nbinom")} fit is no longer a host shell:
+            it is now the sampler whose engine actually ran, so
+            \code{$setResponse}, \code{$run} and the rest work as they do
+            on any sampler, and \code{$getDispersion()} on the count fit
+            answers with the fit's own \eqn{r}{r} rather than refusing.
+            \code{$fit$storeState()} followed by \code{\link{save}}/
+            \code{\link{load}} now restores a sampler \code{predict} can
+            replay through; previously \code{predict} on a reloaded fit
+            failed with a NULL external pointer error for all three
+            host-shell families, with no workaround.
+            \code{samplerOnly} is supported for these
+            two families too, returning the same sampler unrun. A
+            \code{bart2(family = "multinomial")} fit's \code{$fit} is
+            unchanged: it remains a host shell, and \code{samplerOnly}
+            remains refused for it.
     }
   }
 }
