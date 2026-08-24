@@ -52,7 +52,7 @@ labelled READ was traced in source at tip.
 
 MEASURED: two `bartcore_create` calls per fit for ordinal and nbinom -
 the R stream advances at both, and the count scales with `n.chains`
-(`createChainRngs`, `src/R_interface_bartcore.cpp:1884-1912`, draws one
+(`createChainRngs`, `src/R_interface_bartcore.cpp:1863-1891`, draws one
 uniform per chain when `haveSeed` is false).
 
 ### 1.2 The asymmetry the defect record flattens
@@ -316,7 +316,7 @@ the plan doc). Multinomial has no flat creation path
 
 **Cost of C2, corrected:** TWO literal re-bakes, not one -
 `DBARTS_C_API_HASH` (`dbarts.h:142`) AND `dbarts_apiSignatureToken`
-(`src/C_interface.cpp:458`, `static_assert(... == 0x85bd1ef04beb3848ULL)`),
+(`src/C_interface.cpp:460`, `static_assert(... == 0x85bd1ef04beb3848ULL)`),
 because appending to `DBARTS_C_API_DECLS` moves the signature half too.
 Plus `inst/tinytest/test-capi.R`: `:80` pins the literal
 (`expect_identical(hashes$text, "0x6c9776ae1197e8f5")`) and must change,
@@ -481,7 +481,7 @@ Three costs the first draft missed, all confirmed:
 - **Option (ii) is a hard error, not "five sites".** MEASURED:
   `dbarts(x[0, ], numeric(0))` stops with `data has zero rows` at the R
   layer, and the bridge would stop with `length of y must be greater than
-  0` (`src/R_interface_bartcore.cpp:942-943`) if it got there. Option (i)
+  0` (`src/R_interface_bartcore.cpp:943-944`) if it got there. Option (i)
   still wins, on corrected costs.
 
 **G1a: `data@y` carries the TRIALS vector `n_i`.** Length n, meaningful,
@@ -575,7 +575,7 @@ implementer splits them, S2 = 700/330 and S3 = 360/500, each with its own.
 | door | content | price | cost of deferring |
 |---|---|---|---|
 | **Door 1: twin-create deletion** | Drop the redundant `bartcore_create` for ordinal/nbinom (Fork D1). | ~60 / ~40, **moves 2 of 43** equivalence scenarios | 3ms per fit (MEASURED 0.003s against a 0.339s run) and "two engines per fit" survives into the RC |
-| **Door 2: flat ABI (Fork C2)** | `dbarts_sampler_createMultinomial` + counts/offset setters + a K-aware predict. | ~260 / ~200, **two literal re-bakes** (`dbarts.h:142`, `C_interface.cpp:458`), `test-capi.R:80` + one new `expect_false`, one in-house consumer rebuild | multinomial stays R-only; the named consumer (stan4bart) is on its own branch and its own release, so nothing is blocked |
+| **Door 2: flat ABI (Fork C2)** | `dbarts_sampler_createMultinomial` + counts/offset setters + a K-aware predict. | ~260 / ~200, **two literal re-bakes** (`dbarts.h:142`, `C_interface.cpp:460`), `test-capi.R:80` + one new `expect_false`, one in-house consumer rebuild | multinomial stays R-only; the named consumer (stan4bart) is on its own branch and its own release, so nothing is blocked |
 | **Door 3: nbinom loop collapse** | Replace the per-sweep loop (`R/bart.R:2017-2042`) with one `run`. | ~40 / ~30; **`bench-sampler` IS owed** - it removes `n.samples` R-level round trips from the sampling path, which is sweep-proportional | a per-sweep R round trip per kept draw |
 | **Door 4: `$getLatents` build (B1(i))** | Combiner-side `latents()` returning the n x K omegas. | ~40 engine / ~60 test, plus an ASAN/UBSAN leg | clause 4's read/write symmetry stays deliberately declined rather than met |
 | **Door 5: hurdle `samplerOnly`** | Decide whether a two-sampler `$fit` may be returned unrun. | decision, then ~20 / ~30 | the per-caller flag keeps today's refusal, which is correct-by-default |
@@ -771,7 +771,7 @@ revision 1 with corrections; 17-22 added this pass.
     `0x85bd1ef04beb3848` was a superseded `DBARTS_C_API_HASH`, proving a
     second header window had landed after adoption-slate S8. **Wrong.**
     That literal is the LIVE `dbarts_apiSignatureToken`, static_asserted
-    at `src/C_interface.cpp:458`, and `test-capi.R:78` asserts the full
+    at `src/C_interface.cpp:460`, and `test-capi.R:78` asserts the full
     hash is NOT it. The conclusion survives on other evidence -
     `test-capi.R:72-73` names `0x1a911c00bb26dcd7` and
     `0xcd88efcd67de55d7` as superseded header literals - but the
@@ -876,7 +876,7 @@ rather than contradicting it. Recording them so the record is exact:
    C2 edits that line AND adds an `expect_false`, on top of the two
    source re-bakes. Costlier than stated; same direction.
 2. **Finding 4**, option (ii) "is a hard bridge error ...
-   `R_interface_bartcore.cpp:936-952`." Refined: it dies one layer
+   `R_interface_bartcore.cpp:937-953`." Refined: it dies one layer
    earlier - MEASURED `dbarts(x[0, ], numeric(0))` stops at the R layer
    with `data has zero rows` before the bridge is reached. Both are hard
    errors; same conclusion.
@@ -885,8 +885,8 @@ rather than contradicting it. Recording them so the record is exact:
    `test-forest-weights-r5.R`, `test-ordinal.R`, `test-nbinom.R`,
    `test-multinomial-surface.R`.
 4. **Finding 11**, `dbarts_apiSignatureToken` "static_asserted at
-   `src/C_interface.cpp:461`." Refined: the `static_assert` statement
-   begins at **`:458`**; `:461` is inside its message string.
+   `src/C_interface.cpp:462`." Refined: the `static_assert` statement
+   begins at **`:460`**; `:462` is inside its message string.
 
 One **provenance caveat on my own evidence**, stated rather than buried:
 the probes ran against a build one day behind tip (see "Verification

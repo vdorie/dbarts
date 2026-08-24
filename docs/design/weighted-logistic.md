@@ -62,10 +62,12 @@ it.
   weight semantics and is out of scope.
 - Probit weights stay refused: a weighted probit has no tractable latent-
   variable form.
-- Logistic weights are fixed at sampler creation. The between-samples
-  weight-mutation surface (`setWeights`, `setData` with new weights) stays
-  refused for both binary families in v1, like other creation-fixed
-  structure (sparse, grouped, linear designation).
+- Logistic weights were fixed at sampler creation in v1. SUPERSEDED: the
+  between-samples surface (`setWeights`, `setData` with new weights) is
+  open for logistic, whose counts are the Polya-Gamma shape, so a swap
+  redraws the latents against them (docs/design/r-c-division.md, "The
+  latent-family weight channel"). Probit and the other latent families
+  stay refused.
 
 ## Why integer only, for now
 
@@ -105,7 +107,7 @@ in-model IPW.
 | family   | weights at creation           | weight mutation |
 | -------- | ----------------------------- | --------------- |
 | gaussian | any positive real (unchanged) | allowed         |
-| logistic | positive integers only        | refused (v1)    |
+| logistic | positive integers only        | allowed (counts) |
 | probit   | refused (intractable)         | refused         |
 
 ## Landing notes
@@ -121,9 +123,9 @@ in-model IPW.
   case weights into the constructor, as gaussian already did.
 - Bridge (R_interface_bartcore.cpp): `enforceBinaryWeightPolicy` at the two
   creation sites refuses probit weights and validates logistic weights as
-  positive integers; the two mutation sites (setData, setWeights) keep
-  refusing binary weight changes with a generalized message (logistic
-  weights are creation-fixed in v1).
+  positive integers; the two mutation sites (setData, setWeights) refuse
+  binary weight changes with a per-family message. SUPERSEDED for
+  logistic, which now takes both conduits under the same value policy.
 - R (dbarts.R): the same policy up front -- probit refused, logistic
   weights required positive integers, gaussian unrestricted. data.R
   coerces weights to double so integer count vectors are accepted.

@@ -922,9 +922,11 @@ public:
   void setResponse(const double* y, bool updateScale) {
     for (auto& chain : chains_) chain->setResponse(y, updateScale);
   }
-  /// Case weights, gaussian only (the host rejects binary families): a bare
-  /// pointer swap, entering the next iteration's node statistics and sigma
-  /// draw with nothing rescaled.
+  /// Case weights: a pointer swap entering the next iteration's node
+  /// statistics and sigma draw with nothing rescaled, plus, for logistic -
+  /// whose weights are the Polya-Gamma counts - an immediate latent refresh
+  /// off each chain's OWN generator, so the draws stay independent of the
+  /// thread count. The host rejects the families that carry no weights.
   void setWeights(const double* weights) {
     for (auto& chain : chains_) chain->setWeights(weights);
   }

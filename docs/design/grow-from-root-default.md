@@ -138,7 +138,7 @@ retained), distributed one-per-chain. stochtree does the same and
 documents it (`forest_ind <- num_gfr - chain_num`,
 `num_gfr >= num_chains` required). dbarts' k grow sweeps run
 INDEPENDENTLY per chain, each on its own Mersenne Twister
-(src/bartcore/sampler.hpp:947-956, `Chain::growForestFromRoot`) - a
+(src/bartcore/sampler.hpp:1001-1010, `Chain::growForestFromRoot`) - a
 structurally different design that, if anything, resembles Tan et al.'s
 per-chain-varied greedy fit more than it resembles either published
 positive design. Whether dbarts' design is more, equally, or less

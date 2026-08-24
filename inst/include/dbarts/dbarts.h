@@ -743,13 +743,15 @@ void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
 /// rule above.
 void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
                               int updateScale);
-/// weights has numObservations values. Post-creation weight changes are for
-/// gaussian responses only - the binary families read a weight as a copy count
-/// fixed at creation - but a logistic sampler accepts positive integer counts
-/// AT creation, at any forest count. There is no scale to pin, so a
-/// multi-forest sampler takes this as it stands, at any forest count, provided
-/// its coupling admits the conduit at all. Retained, not copied, on the
-/// raw-array setters' rule above.
+/// weights has numObservations values. Gaussian and logistic accept a
+/// post-creation change; probit, ordinal, aft and nbinom carry no weights to
+/// change and refuse. A logistic sampler's weights are its observation counts,
+/// so they must be positive integers here as at creation, and the swap redraws
+/// the Polya-Gamma latents against the new counts before returning, from the
+/// sampler's own generators. There is no scale to pin, so a multi-forest
+/// sampler takes this as it stands, at any forest count, provided its coupling
+/// admits the conduit at all. Retained, not copied, on the raw-array setters'
+/// rule above.
 void dbarts_sampler_setWeights(dbarts_sampler* sampler,
                                const double* weights);
 /// Holds the residual standard deviation at sigma (original response scale)

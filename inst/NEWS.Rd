@@ -74,6 +74,14 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item A \code{logistic}-family sampler's case weights - its observation
+            counts - can now be replaced between runs with
+            \code{$setWeights} or \code{$setData}, which redraw the
+            Polya-Gamma latents against the new counts before returning, so
+            an outer sampler can vary exposure from sweep to sweep; the
+            counts stay positive integers on every conduit, and
+            \code{probit}, \code{ordinal}, \code{aft} and \code{nbinom}
+            continue to refuse case weights entirely.
       \item A model's leaf-prior calibration can be named at creation, in
             response units, rather than inherited from the range of the
             vector the sampler happened to be constructed on:

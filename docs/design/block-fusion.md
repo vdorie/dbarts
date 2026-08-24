@@ -73,8 +73,8 @@ The per-forest sweep is Chain::run (chain.hpp:728-787). Per tree t, in order:
    refreshSubtree tree.hpp:695-704), and restore on rejection (restoreSubtree,
    tree.hpp:775-780). Scoring uses logLikelihoodForBranch -> the leaf's
    logIntegratedLikelihoodForNode over the cached node suffstat.
-4. sampleParametersAndSetFits (chain.hpp:2076-2179, constant-leaf branch
-   :2105-2136): per leaf draw mu ~ N(posteriorMean, posteriorSd^2) from
+4. sampleParametersAndSetFits (chain.hpp:4823-4926, constant-leaf branch
+   :4852-4883): per leaf draw mu ~ N(posteriorMean, posteriorSd^2) from
    (sumWeights, sumWeightedResponse) and SCATTER-write it into treeFits with
    `misc_setIndexedVectorToConstant` (x86's #3 hotspot, 15%).
 
@@ -250,7 +250,7 @@ routes:
   - per-atom: for each atom c, for each block tree j, write mu_{t_j}(leaf_j(c))
     to treeFits[t_j*n + i] for i in c's members -- one walk of atomMembers writes
     all b trees' fits (b sequential writes per member, cache-friendly).
-  - or reuse the existing per-tree setTreeFitsFromParameters (chain.hpp:2035) b
+  - or reuse the existing per-tree setTreeFitsFromParameters (chain.hpp:4744) b
     times.
 This is O(bn) writes = O(n) per tree amortized, but done ONCE at block exit, not
 interleaved with b residual rolls + b suffstat gathers. That is the DRAM

@@ -134,7 +134,7 @@ the serial move/draw phase between the suffstat and scatter regions, and is
 fragile under oversubscription (cross-chain workers times within-chain workers);
 std::barrier (libc++'s spin-then-block atomic wait) keeps the low-contention
 cost while parking cleanly when a phase runs long. Keep the misc_mt pool exactly
-where it is -- testFitPool_ (chain.hpp:2424) is a COLD, coarse, once-per-run
+where it is -- testFitPool_ (chain.hpp:874) is a COLD, coarse, once-per-run
 test-fit fan-out, for which condvar dispatch is fine; this note does not touch
 it. A spin-vs-block toggle on the new pool is a prototype tuning knob, not a
 design fork.
@@ -188,7 +188,7 @@ The flagship consumer is an embedded single-chain Gibbs sampler calling
 run(0, 1) once per outer sweep. Per-run thread startup (spawn + join ~tens of us
 each) would swamp a per-sweep win, so the pool MUST persist across run() calls.
 
-PRECEDENT. testFitPool_ (chain.hpp:2424, :508-511, :1946-1967) is exactly this
+PRECEDENT. testFitPool_ (chain.hpp:874, :5411-5414, :3992-4013) is exactly this
 lifecycle: a pool held as a Chain member, lazily created on first use, resized
 only when the budget changes, reused across calls, destroyed in the Chain
 destructor. The new pool follows it structurally -- a persistent Chain member,
@@ -209,7 +209,7 @@ numWorkers = min(numThreads, numChains) raw std::thread workers. Two cases:
   within-chain parallelism. This is the flagship case and the clean one.
 - MULTIPLE CHAINS: each chain already occupies a core. The within-chain budget
   per chain is numThreads / numChainWorkers -- the same arithmetic testFitPool_
-  uses (chain.hpp:1946, budget = numThreads / chains). Within-chain threading
+  uses (chain.hpp:3994, budget = numThreads / chains). Within-chain threading
   engages only when that per-chain budget is > 1 (i.e. numThreads > numChains);
   otherwise the chain runs its sweep serially. This keeps total live threads
   ~ numThreads and avoids oversubscription (cross-chain workers nesting

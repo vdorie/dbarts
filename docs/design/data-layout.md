@@ -82,7 +82,7 @@ The per-sweep, per-tree O(n) passes and their memory access shape:
    computes 2 child suffstats (more gathers); change/swap re-partition
    near the root (~n) and snapshot the affected index segment for
    rollback (tree.hpp:772).
-4. sampleParametersAndSetFits (chain.hpp:2076-2129): per leaf, draw a
+4. sampleParametersAndSetFits (chain.hpp:4823-4876): per leaf, draw a
    constant param, then `misc_setIndexedVectorToConstant(treeFits,
    indices+begin, len, param)` -> SCATTER of a per-leaf constant into
    obs-order treeFits (14.9%).

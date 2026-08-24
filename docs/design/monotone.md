@@ -49,7 +49,7 @@ with exactly two steps per tree that the constraint touches:
 2. a draw of the leaf parameters given the structure.
 
 Our chain runs these as `metropolisJumpForTree` (chain.hpp:702) then
-`sampleParametersAndSetFits` (chain.hpp:2270). The constraint modifies each: the
+`sampleParametersAndSetFits` (chain.hpp:4823). The constraint modifies each: the
 move's branch score becomes a constrained (truncated) local marginal (section 4),
 and the parameter draw becomes a sequential truncated-normal Gibbs sweep coupling
 neighboring leaves (section 4). No new sweep structure is introduced; the two
@@ -141,8 +141,8 @@ fixed order mixes poorly.
 provision (core-generalization.md) reads as though a tree-granularity leaf
 draw seam already exists; it does NOT. Today the draw is a hardcoded per-node
 loop that rebuilds mu from zero every sweep (`mu.assign(tree.nodes.size(), 0.0)`,
-chain.hpp:2304, then an independent `drawFromPosteriorForNode` per bottom node,
-chain.hpp:2305-2319), the leaf-model concept exposes ONLY that per-node scalar
+chain.hpp:4867, then an independent `drawFromPosteriorForNode` per bottom node,
+chain.hpp:4868-4882), the leaf-model concept exposes ONLY that per-node scalar
 draw (`ScalarLeafModel`, model.hpp:47-55), and the moves are leaf-templated free
 functions that read the node sufficient statistics and ZERO leaf parameters
 (`logLikelihoodForBranch`, moves.hpp:47-66). Three real changes follow, none a
@@ -151,13 +151,13 @@ mere re-pointing:
 1. A new concept method - a tree-granularity draw
    `drawParametersForTree(rng, tree, k, sigma2, muOut)` the constant monotone leaf
    provides and `sampleParametersAndSetFits` calls once per tree, in place of the
-   per-node loop at chain.hpp:2305, when the leaf model declares it. Independent
+   per-node loop at chain.hpp:4868, when the leaf model declares it. Independent
    per-leaf stays the default for every other model, byte-identical (section 8).
 2. Leaf values must stay VALID through the move phase. The move score needs
    mu_same, the frozen neighbor values, DURING `metropolisJumpForTree`
    (chain.hpp:702). Those values already survive there: `sampleParametersAndSetFits`
    runs AFTER the moves and only then zeroes and refills `muByTree[t]`
-   (`mu.assign(tree.nodes.size(), 0.0)`, chain.hpp:2303-2304 - `mu` is a reference
+   (`mu.assign(tree.nodes.size(), 0.0)`, chain.hpp:4866-4867 - `mu` is a reference
    INTO the persistent `forest.muByTree[t]`), so during the moves the vector still
    holds the previous sweep's draw. The new work is keeping it consistent ACROSS
    in-sweep structural changes: an accepted birth adds two nodes and a death removes
@@ -177,7 +177,7 @@ mere re-pointing:
 
 The alternative seat - reusing `FunctionLeafModel::beginTreeDraw` (model.hpp:82-85)
 and carrying mu as a degenerate function leaf - is rejected: it drags the
-function-leaf test-cache and fits-are-parameters machinery (chain.hpp:2277-2298)
+function-leaf test-cache and fits-are-parameters machinery (chain.hpp:2280-2301)
 onto a constant leaf for no benefit and muddies the chi-k accounting.
 
 **Budget.** The plan front-matter's "~500 lines" (docs/plans/monotone-bart.md) no
@@ -385,7 +385,7 @@ correction is second-order (Section 3.3). Both the constrained marginal (section
 
 **Sub-decision - the chi-k hyperprior.** dbarts optionally samples k from the
 accumulated sum of standardized squared leaf values (`forest.updateK`,
-chain.hpp:2287,2315). Under truncation and a per-leaf-variable prior scale, the
+chain.hpp:4878,4910). Under truncation and a per-leaf-variable prior scale, the
 "standardized" square is no longer param/(scale/k), so feeding truncated draws
 into the chi-k update biases k. v1 uses FIXED k under `monotone` (mBART itself
 uses fixed k=2), but must not turn that into a default-fit error: the binary
@@ -415,8 +415,8 @@ the chi-k posterior is a documented follow-up, not v1 scope.
   `ConstrainedConjugateMove`); all-zero selects the existing constant-leaf path
   verbatim (section 8).
 - **Leaf store (chain.hpp):** muByTree must PERSIST across the move phase - stop
-  the zero-rebuild at chain.hpp:2304 so the moves can read frozen neighbors - and
-  the tree-granularity draw replaces the per-node loop at chain.hpp:2305 (section
+  the zero-rebuild at chain.hpp:4867 so the moves can read frozen neighbors - and
+  the tree-granularity draw replaces the per-node loop at chain.hpp:4868 (section
   3, changes 1-2). This is the widest mechanical change and the reason for the
   re-budget.
 - **Leaf model (model.hpp):** a constant leaf with a tree-granularity Gibbs draw

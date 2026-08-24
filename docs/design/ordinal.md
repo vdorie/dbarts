@@ -266,7 +266,7 @@ ConstantGaussianLeaf single-forest model like probit, so it composes with the
 existing SamplerFacade instantiations (facade.hpp:429+) unchanged; K threads in
 through the same options struct the survival status and group indices use
 (chain.hpp:322-336). The bridge is NOT a string addition: resolveFamily
-(src/R_interface_bartcore.cpp:1067-1084) branches on the boolean
+(src/R_interface_bartcore.cpp:1581-1610) branches on the boolean
 control.responseIsBinary and refuses every family but gaussian/aft for a
 non-binary response, so ordinal needs a third response-shape channel - a K-level
 categorical flag plus K itself - plumbed through ParsedControl beside
@@ -374,13 +374,13 @@ virtual trio carriesCutpoints() / cutpoints() / restoreCutpoints() to ResponseMo
 (default false / nullptr / no-op), exactly as carriesResidualDf() /residualDf()/
 restoreResidualDf() was added for Student-t (model.hpp:1901-1903). serializeState
 writes a "cutpoints" slot only when carriesCutpoints()
-(the residualDf pattern at chain.hpp:1606-1608); the R<->C++ state list gains a
+(the residualDf pattern at chain.hpp:3023-3025); the R<->C++ state list gains a
 named "cutpoints" slot beside "resid.df" (slotNames, R_interface_bartcore.cpp:
 3759-3770), written only when present (the conditional write at 3872-3874) and
 read by name with absence tolerated (the getListElement decode at 4180-4187).
 stateIsValid refuses an ordinal sampler whose state lacks a length-(K-1) cutpoint
-block (the residualDf check, chain.hpp:1718-1720); setState restores it
-(chain.hpp:1832-1837). **Old states (gaussian/probit/etc.) omit the slot and load
+block (the residualDf check, chain.hpp:3200-3202); setState restores it
+(chain.hpp:3682-3687). **Old states (gaussian/probit/etc.) omit the slot and load
 unchanged** - the whole point of the by-name additive block. The per-observation
 latent z_i rides the EXISTING latents slot (probit's z already serializes there,
 model.hpp:2180-2185); restoreLatents rebuilds working from z. Choosing the
@@ -481,7 +481,7 @@ robust-errors precedent (docs/design/robust-errors.md section 6).
   before the group attribute is built; rbart_vi's family vector (R/rbart.R:48)
   omits "ordinal" for v1. The door is real: GroupedResponse is a base-response
   decorator whose conjugate group update needs a Gaussian working response with
-  the group intercept on the latent scale (model.hpp:2950+, drawGroupEffects over
+  the group intercept on the latent scale (model.hpp:4668+, drawGroupEffects over
   base_->workingResponse()), and ordinal HAS exactly that - z is Gaussian given
   the cutpoints - so grouped ordinal is a coherent future once the cutpoint block
   and the group block are shown to interleave cleanly. v1 refuses; the composition

@@ -1568,9 +1568,12 @@ public:
   /// the veto ranks such a branch below an admissible one, so the tree keeps
   /// moving under prior x transition and any move clearing the veto is
   /// accepted outright. No check here refuses it.
+  /// The location handed to the response is the COMBINED one, for the reason
+  /// setResponse states: a family whose latents are stated against the weights
+  /// redraws them here, and must draw against the whole fit.
   void setWeights(const double* weights) {
     weights_ = weights;
-    response_->setWeights(weights);
+    response_->setWeights(weights, rng_, combinedFits());
     if constexpr (L::hasVectorParams)
       forests_[0].leaf.invalidateStatistics();
   }

@@ -171,7 +171,7 @@ one re-record; OPT-IN only). The primary target.
   why memory-wall-frontier.md's initial recommendation to prototype Fork B
   first did not survive detailed design (see that doc's section 8c).
 
-  THE ROLL IS INCREMENTAL (rollTreeResidual chain.hpp:2581: t=0 recomputes
+  THE ROLL IS INCREMENTAL (rollTreeResidual chain.hpp:4425: t=0 recomputes
   resid = y - total + mu[leaf]; t>0 does resid += mu[leaf] - muPrev[leafPrev]),
   so fp32 rounding ACCUMULATES across trees (~200 updates/sweep/element) and,
   because it is never independently re-summed, across sweeps. This is the

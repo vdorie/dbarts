@@ -199,7 +199,7 @@ precisely: r restricted to positive INTEGERS, whether fixed (user-supplied) or
 estimated. Estimation cannot be CRT-Gamma (its Gamma full conditional yields
 real draws, leaving the envelope), so the exact estimated mode is a **discrete
 grid full conditional against the closed-form NB likelihood - the robust-errors
-ResidualDfPrior pattern EXACTLY** (model.hpp:2871: precomputed per-grid-point
+ResidualDfPrior pattern EXACTLY** (model.hpp:3994: precomputed per-grid-point
 kernel, per-sweep scalar statistics, one discrete draw). Under logit-p it is
 just as economical: for grid values r_k the log full conditional is
 
@@ -390,7 +390,7 @@ likelihood guarantees it) - the risk is not impropriety but a posterior that
 silently LEANS ON THE PRIOR where the data cannot distinguish r = 30 from
 r = 300. Under fork (A) the mechanism is a CAPPED integer grid with a proper
 renormalized prior over it - which makes the robust-errors nu analogy EXACT
-(ResidualDfPrior: capped grid, gamma-kernel prior weights, model.hpp:2871-2886)
+(ResidualDfPrior: capped grid, gamma-kernel prior weights, model.hpp:3994-4023)
 and turns the tail question into a grid-cap question. Proposed default,
 PROVISIONAL pending recovery-gate calibration: grid {1, 2, 3, 4, 5, 6, 8, 10,
 12, 15, 20, 30, 50} (dense where dispersion matters, sparse toward the
@@ -430,7 +430,7 @@ draw is only defined for integer y_i. Unlike the binary check, counts are
 unbounded, so validation is integrality + non-negativity, not a two-value test.
 
 **A third response-shape channel (the ordinal precedent).** resolveFamily
-(src/R_interface_bartcore.cpp:1087-1114) branches on control.responseIsBinary and
+(src/R_interface_bartcore.cpp:1581-1610) branches on control.responseIsBinary and
 control.numOrdinalCategories; a count response is neither, so - exactly as ordinal
 added a K-level channel (docs/design/ordinal.md section 4) - NB needs a `count`
 response-shape flag plumbed through ParsedControl beside responseIsBinary, with
@@ -440,7 +440,7 @@ and the chain family switch (chain.hpp:314-347) a case constructing
 NBResponse(y, offset, numObservations, rSpec), with the r spec (a fixed integer,
 or the grid-estimate flag; the residualDf convention of "positive fixes,
 non-positive estimates" carries over) threaded through the options struct as
-residualDf and numCategories are (R_interface_bartcore.cpp:1228, 1231).
+residualDf and numCategories are (R_interface_bartcore.cpp:1757, 1760).
 
 **Offset.** o_i = log(exposure_i), entering the mean multiplicatively (section 1);
 a fixed-unit-scale family keeps its zero offset meaningful (R/spec.R:193-205),
@@ -486,12 +486,12 @@ virtual trio carriesR() / r() / restoreR() to ResponseModel (default false / 0 /
 no-op), mirroring carriesResidualDf() / residualDf() / restoreResidualDf()
 (model.hpp:1901-1903). r is a scalar, so it needs no length (the residualDf
 analog, not the cutpoints vector analog); in grid mode the stored value is a
-grid member, the TResponse estimatesResidualDf convention (model.hpp:3034).
+grid member, the TResponse estimatesResidualDf convention (model.hpp:4168).
 ChainStateData gains an `r` field near its residualDf field (chain.hpp:~142);
 getState writes it when carriesR() (chain.hpp:~1629, the residualDf line);
 stateIsValid refuses an NB state with a non-finite/non-positive r
 (chain.hpp:~1750); setState restoreR()s it (chain.hpp:~1873). The bridge adds a
-SLOT_R enum + `"r"` name to slotNames (R_interface_bartcore.cpp:3824-3835), a
+SLOT_R enum + `"r"` name to slotNames (R_interface_bartcore.cpp:6319-6331), a
 conditional write when finite (:3937-3939, the resid.df line), and a by-name
 read tolerating absence (:4257-4264). Old states omit the slot and load
 unchanged - the whole point of the additive by-name block; no
@@ -538,7 +538,7 @@ clause), RECOMPUTE the grid kernel L_k (it derives from the count histogram,
 which the new y changes - the ordinal computeScales-on-setResponse precedent,
 model.hpp:2282), and re-draw omega under the new y, rebuild working. setData
 (n changes, everything stale): cold-init r to the grid median (the
-ResidualDfPrior medianIndex convention, model.hpp:2875; or the user's fixed
+ResidualDfPrior medianIndex convention, model.hpp:3998; or the user's fixed
 value), rebuild the kernel, and cold-start omega at its PG(y+r, 0) mean
 (y_i + r)/4 - the LogisticResponse coldStart generalization (model.hpp:
 2618-2625, which uses w/4) - so the working response starts deterministic and
@@ -637,7 +637,7 @@ primitive only if the (B) door opens).
   layer (R/rbart.R:334-339) before the group attribute builds; rbart_vi's family
   vector omits "nbinom" for v1. The door is real and FEASIBLE: GroupedResponse is
   a base-response decorator whose conjugate group update needs a Gaussian working
-  response on the latent scale (model.hpp:3240+), and NB HAS one - the PG working
+  response on the latent scale (model.hpp:4355+), and NB HAS one - the PG working
   response z_i = kappa_i/omega_i is Gaussian given omega, exactly as logistic's
   is - so grouped NB is a coherent future once the r block and the group block are
   shown to interleave (the group draw would condition on the current omega and r).

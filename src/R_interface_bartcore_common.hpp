@@ -161,16 +161,27 @@ void refuseGroupedScaleUpdate(const bartcore::SamplerBase& sampler,
                               const char* caller, ResponseConduit conduit,
                               int updateScale);
 
-/// Errors on a post-creation case-weight change under any family but gaussian,
-/// the mutation half of the policy enforceBinaryWeightPolicy states at
-/// creation: probit, ordinal, aft and nbinom support no weights at all, and
-/// logistic weights are the observation counts its Polya-Gamma latents were
-/// built from, so a swap would leave every latent stated against counts the
-/// sampler no longer holds (and a negative one divides by zero in the working
-/// response). The message names the actual family rather than "a binary
-/// response", which is the only thing an aft, ordinal or nbinom caller can act
-/// on. Both the R bridge and the flat C API guard with this, so the two
-/// surfaces cannot state different rules.
+/// Errors on a weight vector its family cannot carry: probit outright (a
+/// weighted probit has no tractable latent-variable form) and logistic on any
+/// element that is not a positive integer, since its weights are observation
+/// counts and PG(w, psi) is the sum of w PG(1, psi) draws. gaussian passes
+/// through, validated for non-negativity by its callers. numObservations sizes
+/// the logistic scan; a null weights pointer is a no-op. Called at creation and
+/// on every conduit that installs weights afterwards, so one text states the
+/// rule wherever it is enforced.
+void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
+                               const double* weights,
+                               std::size_t numObservations);
+
+/// Errors on a post-creation case-weight change under a family that carries no
+/// weights at all: probit, ordinal, aft and nbinom. gaussian and logistic are
+/// accepted - a logistic swap is a model change with a defined meaning, since
+/// the counts are the Polya-Gamma shape and the engine redraws the latents
+/// against them - and are held to the creation policy by
+/// enforceBinaryWeightPolicy above. The message names the actual family rather
+/// than "a binary response", which is the only thing an aft, ordinal or nbinom
+/// caller can act on. Both the R bridge and the flat C API guard with this, so
+/// the two surfaces cannot state different rules.
 void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler);
 
 /// Errors on a response value outside the family's support, the post-creation

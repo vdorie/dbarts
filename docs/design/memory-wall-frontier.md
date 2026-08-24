@@ -35,8 +35,8 @@ reading current bartcore HEAD, converged on the same finding: the leafOf /
 muByTree constant-leaf-fits refactor (which post-dates data-layout.md and
 within-chain-threading.md) had ALREADY eliminated the old ~15% fit SCATTER, and
 turned the residual roll and the totalFits rebuild into STREAMING passes
-(resid[i] uses mu[leafOf[i]], an L1-resident table lookup; chain.hpp:2595-2596,
-2797-2828). What survives as the latency-bound hotspot is now a SINGLE shape:
+(resid[i] uses mu[leafOf[i]], an L1-resident table lookup; chain.hpp:4450-4451,
+4686-4711). What survives as the latency-bound hotspot is now a SINGLE shape:
 the random suffstat GATHER treeY[indices[k]] over each tree's shuffled per-tree
 index buffer (misc_computeIndexedSufficientStatisticsFast, moments.c:331;
 tree.hpp:507; plus the two move-phase child-suffstat gathers). The docs' old

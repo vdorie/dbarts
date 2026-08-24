@@ -5345,7 +5345,7 @@ static void testActiveRowsGaussianDf(ext_rng*) {
   check(resp.setActiveRows(nullptr) && resp.workingWeights() == premask,
         "clearing the mask restores the pre-mask weight pointer by identity");
   check(resp.setActiveRows(active.data()), "the mask reinstalls");
-  resp.setWeights(ones.data());
+  resp.setWeights(ones.data(), nullptr, nullptr);
   check(resp.workingWeights()[0] == 0.0 && resp.workingWeights()[1] == 1.0 &&
           resp.sigmaDegreesOfFreedomForTesting() ==
             sigmaDf + static_cast<double>(n - 5),
@@ -5356,7 +5356,7 @@ static void testActiveRowsGaussianDf(ext_rng*) {
   // the model: NaN, where a zero weight used to give -Inf through an infinite
   // residual sd and a masked probit would have given a finite number
   std::vector<double> loglik(n);
-  resp.setWeights(weights.data());
+  resp.setWeights(weights.data(), nullptr, nullptr);
   resp.computeLogLikelihood(fits.data(), sigma, n, loglik.data());
   bool flagged = std::isnan(loglik[0]) && std::isfinite(loglik[1]);
   for (std::size_t i = 0; i < n; ++i)

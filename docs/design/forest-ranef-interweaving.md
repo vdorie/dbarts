@@ -78,24 +78,24 @@ narrow corner (section 6). That tension is the go/no-go.
 The Gibbs blocks per raw sweep, as run() drives them:
 
 1. `f | b` -- one tree sweep of the mean forest against the working response
-   `z_i - b_{g(i)}` (GroupedResponse::workingResponse, model.hpp:4362-4366),
+   `z_i - b_{g(i)}` (GroupedResponse::workingResponse, model.hpp:4902-4906),
    backfit tree-by-tree (chain.hpp:857-966). This is where f sees the group
    intercepts subtracted, so f fits the residual-of-b.
 2. `b | f` -- refreshLatents (chain.hpp:970) calls GroupedResponse::
-   refreshLatents (model.hpp:4227-4261), which draws b_j conjugately from the
+   refreshLatents (model.hpp:4746-4779), which draws b_j conjugately from the
    group means of `z_i - F_i` with F = f-only fits (drawGroupEffects,
-   model.hpp:4150-4173; called at :4231-4234 with the combined = f-only fits).
+   model.hpp:4668-4691; called at :4750-4753 with the combined = f-only fits).
 3. `tau | b` -- exact Makalic-Schmidt cauchy draw (drawTauCauchyExactIG,
-   model.hpp:4129-4139) or slice for the gamma prior.
+   model.hpp:4647-4657) or slice for the gamma prior.
 4. `sigma | f, b` -- drawSigma on the shifted fits (chain.hpp:980,
-   model.hpp:4264-4268).
+   model.hpp:4782-4786).
 
 Blocks 1 and 2 are the ridge: f conditions on the current b, b conditions on the
 current f, and neither integrates the other out. When x carries group-level
 structure (the common applied case: groups correlate with covariates), f can
 absorb part of each `fbar_j` and b absorbs the rest; the pair traverses the
 `fbar_j + b_j = const` ridge one block at a time, slowly. The GroupedResponse
-decorator (model.hpp:4187) presents only `(z, w)` to the forest, so it CANNOT
+decorator (model.hpp:4706) presents only `(z, w)` to the forest, so it CANNOT
 see the coupling -- the collapse cannot live in the decorator (section 3).
 
 ## 2. The measured bottleneck (HEAD, benchmarks/R/grouped-mixing.R)

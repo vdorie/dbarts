@@ -470,7 +470,7 @@ per-period indicators. With the remap done (family now reads "probit" or
 "logistic"), that design flows through the dbarts -> dbartsData -> bridge
 -> binary-family path with no change downstream of the remap point. The
 engine, the bridge (resolveFamily, applyGroupAttribute,
-applySurvivalAttribute - src/R_interface_bartcore.cpp:1110/1393/1449), and
+applySurvivalAttribute - src/R_interface_bartcore.cpp:1581/1906/1962), and
 the ResponseModels never learn the rows are person-periods; there is no
 bartcore.hazard attribute and no status vector to C++ (unlike aft,
 R/spec.R:364-371) - the censoring is already baked into y'.

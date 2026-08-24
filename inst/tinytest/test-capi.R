@@ -399,10 +399,13 @@ expect_error(
 )
 
 # dbarts_sampler_setWeights carries the same family rule too, and used to carry
-# none: every family but gaussian refuses a weight change, so this entry
-# installed a vector a probit/ordinal/aft/nbinom sampler never reads and took a
-# logistic one's negative weight into a division by zero. ptr2 above is the
-# permitted case - a gaussian sampler taking weights mid-chain
+# none: probit, ordinal, aft and nbinom read no weight at all, so this entry
+# installed a vector they never look at, and a logistic count outside the
+# positive integers left a row carrying a full PG(1, psi) precision nothing in
+# the data justifies - the count is the number of draws SUMMED and the first
+# one is unconditional, so a zero or negative count is a phantom observation,
+# not a division by zero. ptr2 above is the permitted gaussian case; the
+# logistic swap the rule now allows is driven with the flat family cells below
 expect_error(
   CALL("capi_set_weights", ptrBinary, rep(1, n)),
   "probit models do not support case weights"
@@ -1544,6 +1547,29 @@ rLogisticFlat <- CALL("capi_run", ptrLogisticFlat, 3L, 4L, TRUE, FALSE)
 expect_equal(dim(matrix(rLogisticFlat$train, n)), c(n, 4L))
 expect_true(all(is.finite(rLogisticFlat$train)))
 
+# the weight conduit under the one latent family that has weights to change:
+# the counts are the Polya-Gamma shape, so the swap redraws omega on the spot,
+# and the creation policy backstops the values HERE, where no R layer stands
+# ahead of the entry to reject a fractional or zero count first
+wLogisticFlat <- as.double(1L + (seq_len(n) %% 3L))
+latentsLogisticFlat <- CALL("capi_get_latents", ptrLogisticFlat)
+CALL("capi_set_weights", ptrLogisticFlat, wLogisticFlat)
+expect_false(identical(
+  CALL("capi_get_latents", ptrLogisticFlat),
+  latentsLogisticFlat
+))
+expect_error(
+  CALL("capi_set_weights", ptrLogisticFlat, wLogisticFlat + 0.5),
+  "must be positive integers"
+)
+expect_error(
+  CALL("capi_set_weights", ptrLogisticFlat, replace(wLogisticFlat, 1L, 0)),
+  "must be positive integers"
+)
+expect_true(all(is.finite(
+  CALL("capi_run", ptrLogisticFlat, 0L, 2L, TRUE, FALSE)$train
+)))
+
 yOrdinalFlat <- 1L + (seq_len(n) %% 3L)
 specOrdinalFlat <- dbarts(
   x,
@@ -1584,6 +1610,8 @@ rm(
   specLogisticFlat,
   ptrLogisticFlat,
   rLogisticFlat,
+  wLogisticFlat,
+  latentsLogisticFlat,
   yOrdinalFlat,
   specOrdinalFlat,
   ptrOrdinalFlat,

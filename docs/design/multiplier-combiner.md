@@ -71,7 +71,7 @@ only read the engine makes of a basis: a row is contiguous and the multiplier
 costs one stream per forest (combiner.hpp:396-410). The plan's "The channel,
 specified" section said COLUMN-major and was wrong about the shipped code;
 M4.3 item 5 resolved the transpose IN THE DOC DIRECTION, the header agrees
-(dbarts.h:715-720, src/C_interface.cpp:775-781), and M4.5 corrected the plan
+(dbarts.h:715-720, src/C_interface.cpp:779-785), and M4.5 corrected the plan
 line itself (docs/plans/multiforest-extension-surface.md:557-561).
 
 ## The amplitude layout
@@ -312,7 +312,7 @@ with the `equivalence.yaml` bump in the same commit.
 forest is basis-FREE. R writes the forest's amplitude prior SCALE as 0 whenever
 that forest declares a basis (`R/model.R:1157`,
 `if (withBasis) 0 else declared(spec$sd, 2)`); the bridge reads it into
-`ForestSpec::amplitudePriorScale` (src/R_interface_bartcore.cpp:2206) and
+`ForestSpec::amplitudePriorScale` (src/R_interface_bartcore.cpp:2177) and
 derives `forest.ridge = forest.amplitudePriorScale > 0.0` (:2208). So every
 basis-carrying forest gets `ridge = false`, and the combiner's own
 `halfCauchyScale` - the field `amplitudePriorScale` becomes - is zero there. The
@@ -409,7 +409,7 @@ contract:
    trajectory within ~40 sweeps: all 12 `bcf-equivalence` scenarios red on mu,
    tau, glue, sigma and train (combiner.hpp:866-875; M4.1 landing note, plan
    :4798-4808). `testCombinedFitsAssociation`
-   (tests/cpp/test_sampler.cpp:3210) is the ONLY in-process guard - the M4.0
+   (tests/cpp/test_sampler.cpp:3240) is the ONLY in-process guard - the M4.0
    seam pin structurally CANNOT see association, its reference expression
    inheriting the test compiler's own contraction.
 2. `formForestResponse`'s residual accumulates FORWARD, subtracting the other
@@ -461,7 +461,7 @@ is capped at one forest, for any K: `resolveForests` (R/model.R:1032-1102,
 refusal :1059-1065) requires every forest past the first to carry a basis, and
 `forestParams` writes the LITERAL `0` for `amplitudePriorScale` whenever a
 basis is present (R/model.R:1157), from which the bridge derives
-`forest.ridge = false` (R_interface_bartcore.cpp:2208) - forests 2..K are
+`forest.ridge = false` (R_interface_bartcore.cpp:2179) - forests 2..K are
 ALWAYS fixed-variance. There is also NO per-K renormalization anywhere in the
 MAP, and `binary-kforest-prior-default` S2 added none: the map still disperses
 as `sqrt(K)` by construction (exponent exactly 1/2), `1.04912 sqrt(K) s` at
@@ -553,8 +553,8 @@ is :504-526). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1447) and
 
 Capability probes are `totalAmplitudes() != 0`, NEVER a forest count: a
 K-forest multinomial defeats a `numForests` test, and the shipped code states
-that rule in two independent places (src/C_interface.cpp:764-770,
-src/R_interface_bartcore.cpp:3796-3801).
+that rule in two independent places (src/C_interface.cpp:768-774,
+src/R_interface_bartcore.cpp:3795-3800).
 
 Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the
 combiner overrides `numVariableCountForests` to its own forest count and
@@ -576,7 +576,7 @@ loop) gets slot 0, the reported forest, byte for byte as before.
   (combiner.hpp:967-972), so `setTestPredictors`, `setTestOffset` and
   `predict` refuse - through `refuseUndefinedTestFits`, gated on
   `testFitsAreDefined` rather than on the forest count
-  (src/R_interface_bartcore_common.hpp:195-199) - and no log-likelihood is
+  (src/R_interface_bartcore_common.hpp:206-210) - and no log-likelihood is
   reported. Unchanged by M4.4.
 - A per-draw amplitude channel in flat C. `dbarts_results` carries none
   (dbarts.h:139-152); DECLINED at plan :1521-1531, a `DBARTS_C_API_MINOR` bump

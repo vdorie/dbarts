@@ -24,6 +24,7 @@ using bartcore_bridge::AugmentationInputs;
 using bartcore_bridge::augmentationFamily;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::computeWorkingResponse;
+using bartcore_bridge::enforceBinaryWeightPolicy;
 using bartcore_bridge::drawAugmentation;
 using bartcore_bridge::refuseUndefinedTestFits;
 using bartcore_bridge::refuseBinaryWeightChange;
@@ -619,11 +620,14 @@ void dbarts_sampler_setWeights(dbarts_sampler* sampler,
   refuseMultiForestResponseMutation(samplerOf(sampler),
                                     "dbarts_sampler_setWeights",
                                     ResponseConduit::weights, 0);
-  // and the family rule bartcore_setWeights states: every family but gaussian
-  // refuses a weight change, which this entry used to drop on the floor -
-  // probit/ordinal/aft/nbinom install a vector nothing reads, and a logistic
-  // one restates the Polya-Gamma counts under the drawn latents
+  // and the family rule bartcore_setWeights states, which this entry used to
+  // drop on the floor: probit/ordinal/aft/nbinom install a vector nothing
+  // reads, and a logistic count that is not a positive integer leaves a row
+  // carrying a precision no observation of it justifies
   refuseBinaryWeightChange(samplerOf(sampler));
+  bartcore::SamplerShape weightShape = samplerOf(sampler).shape();
+  enforceBinaryWeightPolicy(weightShape.family, weights,
+                            weightShape.numObservations);
   samplerOf(sampler).setWeights(weights);
 }
 

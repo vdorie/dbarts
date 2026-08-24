@@ -245,7 +245,7 @@ it is the sentence worth landing: **each is a CAPABILITY predicate defaulting
 to the REFUSING answer, so a future combiner stays refused at the bridge until
 it is audited** (combiner.hpp:526-528, :634-638, :645-647). And never a
 forest-count test, because a K-forest multinomial defeats one - which is why
-the bridge probes `totalAmplitudes() != 0` instead (C_interface.cpp:764-770).
+the bridge probes `totalAmplitudes() != 0` instead (C_interface.cpp:768-774).
 
 What still does NOT generalize, after M4:
 

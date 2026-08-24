@@ -355,7 +355,7 @@ forest(basis = ~ factor(z), vars = ...)))`/`dbartsSpec()` build an ordinary
 the `weights` precedent) and the treatment forest's configuration rides
 `attr(control, "bartcore.forests")` (R/spec.R:624-656, the `bartcore.variance`
 precedent), cross-checked in both directions at creation
-(src/R_interface_bartcore.cpp:2648-2655). `$setForestBasis`, `$getForestFits`,
+(src/R_interface_bartcore.cpp:2246-2253). `$setForestBasis`, `$getForestFits`,
 `$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
 339aeb0; R/dbarts.R:1447, 1678-1713). `dbarts_sampler_create` reaches
 the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/

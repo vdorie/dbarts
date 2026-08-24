@@ -612,7 +612,8 @@ static void testEndToEndLogistic(ext_rng* rng) {
 
 // Integer frequency weights in the logistic family are exactly row
 // replication: a weight-w observation's Polya-Gamma latent is PG(w, psi),
-// drawn as the sum of w PG(1, psi) variates (docs/plans/weighted-binary.md),
+// drawn as the sum of w PG(1, psi) variates
+// (docs/design/weighted-logistic.md),
 // so its contribution to every leaf sufficient statistic equals that of w
 // identical rows. The distinguishing consequence this case pins is that the
 // fitted success probability in a region tracks the WEIGHTED empirical rate
@@ -717,6 +718,35 @@ static void testWeightedLogistic(ext_rng* rng) {
   for (size_t i = 0; i < n && omegaValid; ++i)
     omegaValid = omega[i] > 0.0 && std::isfinite(omega[i]);
   check(omegaValid, "weighted logistic omega positive and finite");
+
+  // (3) the counts ARE the PG shape, so replacing them redraws omega on the
+  // spot rather than at the next sweep, which would move its trees first. The
+  // swap runs the refresh setResponse already runs, from the same stream
+  // position, so a swapped sampler is BITWISE one created with the new counts.
+  std::vector<double> w2(n);
+  for (size_t i = 0; i < n; ++i) w2[i] = 1.0 + (double) (i % 3);
+  ext_rng* rngC = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngD = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  if (rngC == NULL || rngD == NULL || ext_rng_setSeed(rngC, 5150) != 0 ||
+      ext_rng_setSeed(rngD, 5150) != 0) {
+    check(false, "weighted logistic: swap rng creation");
+    return;
+  }
+  ConstantLeafSampler built(x.data(), y.data(), n, p, w2.data(), nullptr,
+                   ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rngC);
+  ConstantLeafSampler swapped(x.data(), y.data(), n, p, w.data(), nullptr,
+                   ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rngD);
+  built.setResponse(y.data(), false);
+  swapped.setWeights(w2.data());
+  bool swapMatches = true, swapMoved = false;
+  for (size_t i = 0; i < n; ++i) {
+    swapMatches &= swapped.latents(0)[i] == built.latents(0)[i];
+    if (swapped.latents(0)[i] != 0.25 * w2[i]) swapMoved = true;
+  }
+  check(swapMatches, "a logistic weight swap equals creation with the counts");
+  check(swapMoved, "a logistic weight swap redraws omega off its cold start");
+  ext_rng_destroy(rngD);
+  ext_rng_destroy(rngC);
 
   printf("ok: weighted logistic\n");
 }

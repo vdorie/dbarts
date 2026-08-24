@@ -112,7 +112,7 @@ Shipped mixture `birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5`
 `StepType` is `{birth, death, swap, change}` (`moves.hpp:771`): the
 "four-move set" is three kernels with four labels. The sweep is
 Gauss-Seidel over trees; the variance forest runs the identical kernel
-(`chain.hpp:3087-3103`).
+(`chain.hpp:4157-4173`).
 
 - **Birth** picks a leaf uniformly among those with a usable variable and
   draws the new splitting rule from the prior, so the rule's prior density
@@ -1899,7 +1899,7 @@ statistic**; the census is still worth running, but not as designed.
 - *(b) The `blocks()` arm cannot move the statistic the kill criterion
   reads.* Verified by reading the code: `forest.leaf.scale =
   options.nodeScale / sqrt(forest.numTrees)` (`chain.hpp:548-549`) uses the
-  **total** tree count, and `installBlockMasks` (`chain.hpp:3882-3905`,
+  **total** tree count, and `installBlockMasks` (`chain.hpp:5035-5058`,
   called at `:621`) installs per-tree column masks and nothing else - no
   per-group rescaling anywhere in the function. So the per-leaf prior sd
   `tau` is identical in both arms and the within-block apportionment
@@ -2008,7 +2008,7 @@ tau = nodeScale / (k sqrt(m)),   timescale ~ n_leaf nodeScale^2 / (m k^2 s^2)
 ```
 
 a factor `k^2 = 4` smaller at the default `k = 2`. With `nodeScale = 0.5`
-(`src/R_interface_bartcore.cpp:255`), `tau = 0.0289` at `m = 75`, not
+(`src/R_interface_bartcore.cpp:280`), `tau = 0.0289` at `m = 75`, not
 `0.0577`. `k` is the shipped knob that enters the prediction **squared**
 while `n`, `m` and `sigma` enter linearly, and it is itself sampled when
 `updateK` is on (`chain.hpp:1106-1109`), which the caricature assumes

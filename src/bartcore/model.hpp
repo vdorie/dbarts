@@ -2661,11 +2661,16 @@ public:
                        const double* weights, std::size_t numObservations,
                        double* sigmaInOut) = 0;
 
-  /// Replace the case weights (borrowed). A bare pointer swap: nothing
-  /// rescales, and the weighted residuals enter the next iteration's node
-  /// statistics and sigma draw. Only gaussian responses carry weights;
-  /// elsewhere a no-op (the host rejects earlier).
-  virtual void setWeights(const double*) {}
+  /// Replace the case weights (borrowed). For a family whose weights are a
+  /// precision this is a bare pointer swap: nothing rescales, and the weighted
+  /// residuals enter the next iteration's node statistics and sigma draw. A
+  /// family whose augmentation is STATED against the weights - logistic, whose
+  /// counts are the Polya-Gamma shape - redraws its latents here instead of
+  /// leaving them for the next sweep, which moves its trees first; that is why
+  /// the chain generator and the location to draw against arrive too, on the
+  /// shape every other mutation setter already has. Families that need neither
+  /// take both and drop them. Default: a no-op (the host rejects earlier).
+  virtual void setWeights(const double*, ext_rng*, const double*) {}
 
   /// Whether this family implements the active-row channel. setActiveRows's
   /// own refusal reads it, so the advertised capability and the refusal
@@ -2856,7 +2861,7 @@ public:
   /// The two setters are absolute and independent: this replaces the borrowed
   /// user weights and recomposes against whatever mask is installed, so the
   /// served precisions are w * a in either call order.
-  void setWeights(const double* weights) override {
+  void setWeights(const double* weights, ext_rng*, const double*) override {
     userWeights_ = weights;
     recomposeActiveRows();
   }
@@ -3506,7 +3511,8 @@ private:
 /// N(eta_i, 1 / omega_i). The backfitting engine therefore sees working
 /// response kappa_i / omega_i - offset_i under per-iteration precision
 /// weights omega_i, running the same weighted conjugate updates as a
-/// weighted gaussian with sigma fixed at 1. Case weights are unsupported.
+/// weighted gaussian with sigma fixed at 1. Case weights are observation
+/// COUNTS, the augmentation's own shape parameter rather than a precision.
 /// latents() exposes the omega draws.
 class LogisticResponse final : public ResponseModel {
 public:
@@ -3579,6 +3585,23 @@ public:
   void setResponse(const double* y, ext_rng* rng, const double* totalFits,
                    bool, double*) override {
     y_ = y;
+    refreshLatents(rng, totalFits, 1.0);
+  }
+
+  /// The counts ARE the Polya-Gamma shape, so a swap restates the model, and
+  /// every quantity stated against the old counts is replaced here rather than
+  /// at the next sweep, which draws its trees before refreshing. An ACTIVE row
+  /// takes the same PG(w, psi) draw refreshLatents makes. An INACTIVE row
+  /// draws NOTHING - consuming variates for it would desynchronize the stream
+  /// against a sampler built on the retained rows, the property the skip in
+  /// refreshLatents protects - and is returned to the deterministic cold start
+  /// against its NEW count, so a row that reactivates cannot carry an omega
+  /// shaped by counts the sampler no longer holds.
+  void setWeights(const double* weights, ext_rng* rng,
+                  const double* totalFits) override {
+    weights_ = weights;
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      if (!isActive(i)) coldStartRow(i);
     refreshLatents(rng, totalFits, 1.0);
   }
 
@@ -3657,12 +3680,15 @@ private:
   /// 4 (y - 1/2) - offset independent of the weight; real draws replace it
   /// after the first tree sweep.
   void coldStart() {
-    for (std::size_t i = 0; i < numObservations_; ++i) {
-      double weight = weights_ != nullptr ? weights_[i] : 1.0;
-      omega_[i] = 0.25 * weight;
-      working_[i] =
-        4.0 * (y_[i] - 0.5) - (offset_ != nullptr ? offset_[i] : 0.0);
-    }
+    for (std::size_t i = 0; i < numObservations_; ++i) coldStartRow(i);
+  }
+
+  /// One row of it, also the state a weight swap leaves on a row it does not
+  /// draw for.
+  void coldStartRow(std::size_t i) {
+    omega_[i] = 0.25 * (weights_ != nullptr ? weights_[i] : 1.0);
+    working_[i] =
+      4.0 * (y_[i] - 0.5) - (offset_ != nullptr ? offset_[i] : 0.0);
   }
 
   const double* y_;
@@ -4073,7 +4099,7 @@ public:
     if (estimateNu_)
       nu_ = ResidualDfPrior::grid[nuPrior_.drawIndex(rng, numInformative,
                                                      sumLogLambda, sumLambda)];
-    gaussian_->setWeights(composite_.data());
+    gaussian_->setWeights(composite_.data(), nullptr, nullptr);
   }
 
   double drawSigma(ext_rng* rng, const double* totalFits,
@@ -4105,7 +4131,7 @@ public:
     coldInit();
   }
 
-  void setWeights(const double* weights) override {
+  void setWeights(const double* weights, ext_rng*, const double*) override {
     userWeights_ = weights;
     recompose();
   }
@@ -4189,7 +4215,7 @@ private:
       composite_[i] =
         (userWeights_ != nullptr ? userWeights_[i] : 1.0) * lambda_[i] *
         (activeRows_.empty() ? 1.0 : activeRows_[i]);
-    gaussian_->setWeights(composite_.data());
+    gaussian_->setWeights(composite_.data(), nullptr, nullptr);
   }
 
   /// Cold state after a data swap: lambda = 1 (c_i = w_i) and, in grid mode,
@@ -4785,14 +4811,21 @@ public:
     rebuildWorking();
   }
 
-  void setWeights(const double* weights) override {
-    base_->setWeights(weights);
+  /// The weight swap alone, exactly as setResponse delegates the response one:
+  /// the base takes it against f + b and refreshes whatever its own
+  /// augmentation states against the counts, while b and tau - blocks that
+  /// belong to the sweep - do not draw here.
+  void setWeights(const double* weights, ext_rng* rng,
+                  const double* totalFits) override {
+    shiftFits(totalFits);
+    base_->setWeights(weights, rng, fitScratch_.data());
+    rebuildWorking();
   }
 
-  /// Pure delegation, as setWeights is: drawGroupEffects already weights its
-  /// per-group sums by workingWeights(), so an inactive row leaves its group's
-  /// mean and precision and an all-inactive group falls back to its prior
-  /// through the same formula.
+  /// Pure delegation: drawGroupEffects already weights its per-group sums by
+  /// workingWeights(), so an inactive row leaves its group's mean and
+  /// precision and an all-inactive group falls back to its prior through the
+  /// same formula.
   bool supportsActiveRows() const override {
     return base_->supportsActiveRows();
   }

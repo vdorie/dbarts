@@ -201,7 +201,7 @@ declares:
   chi^-2(nu' + n_k, [nu' lambda'^2 + sum_{i in k} w_i e_i^2 / s^2_{-j}(x_i)] /
   (nu' + n_k)) (paper eq. 6, lambda' SD-scale per the convention above) - the ordinary
   independent per-node draw the ScalarLeafModel path already dispatches
-  (chain.hpp:2380-2397), NOT a TreeDrawLeafModel coupled sweep. drawFromPrior draws
+  (chain.hpp:4857-4874), NOT a TreeDrawLeafModel coupled sweep. drawFromPrior draws
   chi^-2(nu', lambda'^2).
 
 So the leaf is close to `ScalarLeafModel` in SHAPE (independent per-node draw,
@@ -246,7 +246,7 @@ precision - with ZERO change to the constant leaf's math (it already forms
 posteriorPrecision = sumWeights / residualVariance, model.hpp:141,157). The weight
 channel is already per-sweep and already refreshed when it varies
 (workingWeights + workingWeightsVaryPerSweep, model.hpp:2353-2358; the logistic
-omega precedent, model.hpp:3097-3099). It does add TWO n-length per-sweep scratch
+omega precedent, model.hpp:3537-3539). It does add TWO n-length per-sweep scratch
 vectors (not "no new array", an earlier overstatement): the divided mean weights
 w_i^mean, and the variance forest's own per-tree divisor w_i / s^2_{-j}(x_i) - the
 BCF forestWeights/combined precedent (combiner.hpp:235,388-396), per-SWEEP scratch,
@@ -254,7 +254,7 @@ never per-observation dispatch inside a kernel.
 
 **Requires Gaussian; refuses latent families (construction-time).** The weight
 channel is not free real estate: the latent families ALREADY own
-response_->workingWeights() - logistic/PG returns omega (model.hpp:3097-3099),
+response_->workingWeights() - logistic/PG returns omega (model.hpp:3537-3539),
 NBResponse and (future) ordinal likewise - and the run loop pulls
 weights = response_->workingWeights() every sweep (chain.hpp:783). Routing s^2
 through the same channel would COLLIDE with the family's own latent precisions. So a

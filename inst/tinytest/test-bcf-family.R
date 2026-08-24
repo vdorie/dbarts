@@ -403,12 +403,25 @@ for (family in c("probit", "logistic")) {
 
 # --- the family-keyed predicates a K-forest sampler newly answers for itself.
 # Each was gaussian's answer while family_ was pinned. ---
-for (fit in list(probit, logistic)) {
+binaryFits <- list(probit = probit, logistic = logistic)
+for (name in names(binaryFits)) {
+  fit <- binaryFits[[name]]
   expect_error(fit$setSigma(2), "fixes the residual standard deviation")
-  expect_error(
-    fit$setWeights(rep(2, n)),
-    "cannot be set after creation|do not support case weights"
-  )
+  # the weight conduit is family-keyed, not coupling-keyed: probit carries no
+  # weights under any forest count, while a logistic sampler's are its
+  # observation counts and a swap redraws the Polya-Gamma latents against them
+  if (name == "probit") {
+    expect_error(
+      fit$setWeights(rep(2, n)),
+      "probit models do not support case weights"
+    )
+  } else {
+    latentsBefore <- fit$getLatents()
+    fit$setWeights(rep(2, n))
+    expect_false(identical(fit$getLatents(), latentsBefore))
+    expect_error(fit$setWeights(rep(2.5, n)), "must be positive integers")
+    rm(latentsBefore)
+  }
   # the response-side conduit OPENS: the latents are refreshed against the
   # combined location, which is what used to make this unsafe
   fit$setResponse(1 - yBalanced)
@@ -533,6 +546,7 @@ rm(
   balanced,
   basisSampler,
   bases,
+  binaryFits,
   counts,
   declaredAll,
   declaredShape,
@@ -557,6 +571,7 @@ rm(
   logistic,
   medianRowNorm,
   n,
+  name,
   ones,
   p,
   paramSlot,

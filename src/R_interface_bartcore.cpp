@@ -35,6 +35,7 @@ using bartcore_bridge::augmentationFamily;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::computeWorkingResponse;
 using bartcore_bridge::drawAugmentation;
+using bartcore_bridge::enforceBinaryWeightPolicy;
 using bartcore_bridge::refuseUndefinedTestFits;
 using bartcore_bridge::refuseBinaryWeightChange;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
@@ -1617,28 +1618,6 @@ bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
   return bartcore::ResponseFamily::gaussian;
 }
 
-// Binary weight policy at sampler creation: a probit has no tractable
-// weighted latent-variable form and is refused; logistic treats weights as
-// observation counts (its PG(w, psi) latent is the sum of w PG(1, psi)
-// draws), so they must be positive integers; gaussian accepts any positive
-// weight and is validated elsewhere. The R layer mirrors this, so these
-// errors backstop direct-API consumers.
-void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
-                               const double* weights,
-                               size_t numObservations) {
-  if (weights == NULL) return;
-  if (family == bartcore::ResponseFamily::probit)
-    Rf_error("probit models do not support weights: a weighted probit has no "
-             "tractable latent-variable form; use family = \"logistic\" for "
-             "weighted binary regression, or model the latents directly");
-  if (family == bartcore::ResponseFamily::logistic)
-    for (size_t i = 0; i < numObservations; ++i)
-      if (!(weights[i] > 0.0) || weights[i] != std::floor(weights[i]))
-        Rf_error("logistic weights are observation counts and must be "
-                 "positive integers; drop zero-count rows, and use a gaussian "
-                 "model for continuous weights");
-}
-
 // Column j's dense slice of a parsed view, when a dense source serves it: the
 // plain matrix's own column, or the block column the source map names. Null
 // for a CSC-backed column (coded by its container, nothing contiguous to scan)
@@ -2538,7 +2517,8 @@ bartcore::ResponseFamily parseSamplerSpecification(
   // documented semantics: fixed(value) holds the residual variance at
   // value, so sigma enters as sqrt(value) and is never drawn
   if (sigmaIsFixed) data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
-  enforceBinaryWeightPolicy(family, data.weights, data.numObservations);
+  bartcore_bridge::enforceBinaryWeightPolicy(family, data.weights,
+                                            data.numObservations);
   // the response-support rule, stated once for creation and every mutation
   // conduit: the R surface checks it first, so this is a no-op there and the
   // real gate for the flat C API, which has no R layer ahead of it
@@ -2754,23 +2734,42 @@ void refuseGroupedScaleUpdate(const bartcore::SamplerBase& sampler,
            conduit == ResponseConduit::response ? "a response" : "an offset");
 }
 
-// The post-creation half of the policy enforceBinaryWeightPolicy states at
-// creation: every family but gaussian refuses a weight change outright, each
-// for its creation-time reason - probit, ordinal, aft and nbinom support no
-// weights at all, and logistic weights are the observation counts its
-// Polya-Gamma latents were built from. Naming the actual family matters: the
-// one message this used to carry told an aft, ordinal or nbinom caller about
-// "a binary response" they had not asked for.
+// The weight policy, stated once for creation and every mutation conduit: a
+// probit has no tractable weighted latent-variable form and is refused;
+// logistic treats weights as observation counts (its PG(w, psi) latent is the
+// sum of w PG(1, psi) draws), so they must be positive integers; gaussian
+// accepts any positive weight and is validated elsewhere. The R layer mirrors
+// this, so these errors backstop direct-API consumers, and the mutation
+// entries reuse it rather than stating a second text.
+void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
+                               const double* weights,
+                               size_t numObservations) {
+  if (weights == NULL) return;
+  if (family == bartcore::ResponseFamily::probit)
+    Rf_error("probit models do not support weights: a weighted probit has no "
+             "tractable latent-variable form; use family = \"logistic\" for "
+             "weighted binary regression, or model the latents directly");
+  if (family == bartcore::ResponseFamily::logistic)
+    for (size_t i = 0; i < numObservations; ++i)
+      if (!(weights[i] > 0.0) || weights[i] != std::floor(weights[i]))
+        Rf_error("logistic weights are observation counts and must be "
+                 "positive integers; drop zero-count rows, and use a gaussian "
+                 "model for continuous weights");
+}
+
+// The post-creation half of that policy: gaussian and logistic accept a weight
+// change - the logistic one is a model change with a defined meaning, since
+// the counts are its Polya-Gamma shape and the engine redraws the latents
+// against them - while probit, ordinal, aft and nbinom carry no weights to
+// change under any surface. Naming the actual family matters: the one message
+// this used to carry told an aft, ordinal or nbinom caller about "a binary
+// response" they had not asked for.
 // External linkage: the flat C API reuses this on dbarts_sampler_setWeights,
-// which otherwise dropped a probit/ordinal/aft/nbinom weight change silently
-// and let a negative logistic weight reach a division by zero.
+// which otherwise dropped a probit/ordinal/aft/nbinom weight change silently.
 void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
   bartcore::ResponseFamily family = sampler.shape().family;
-  if (family == bartcore::ResponseFamily::gaussian) return;
-  if (family == bartcore::ResponseFamily::logistic)
-    Rf_error("logistic weights are the observation counts its latents were "
-             "built from and cannot be set after creation; make a new sampler "
-             "with the new counts instead");
+  if (family == bartcore::ResponseFamily::gaussian ||
+      family == bartcore::ResponseFamily::logistic) return;
   const char* name = "probit";
   if (family == bartcore::ResponseFamily::aft) name = "aft (survival)";
   else if (family == bartcore::ResponseFamily::ordinal) name = "ordinal";
@@ -4643,7 +4642,17 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
 
     if (data.numPredictors != shape.numPredictors)
       Rf_error("bartcore setData requires the same predictors");
-    if (data.weights != NULL) refuseBinaryWeightChange(sampler);
+    // the whole-data conduit carries the weight policy too, and had NO
+    // backstop of its own: it feeds LogisticResponse::setData's cold start
+    // directly, where a zero or negative count becomes a phantom row carrying
+    // a full PG(1, psi) precision. Replacement data given WITHOUT weights is
+    // unweighted, exactly as at creation and as it is for gaussian - for
+    // logistic that reads as single-trial rows, unit counts.
+    if (data.weights != NULL) {
+      refuseBinaryWeightChange(sampler);
+      enforceBinaryWeightPolicy(shape.family, data.weights,
+                                data.numObservations);
+    }
     // the whole-data conduit swaps y too, so it carries the same support rule
     validateResponseSupport(shape.family, shape.numCutpoints + 1, data.y,
                             data.numObservations, "bartcore setData");
@@ -4675,6 +4684,14 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
                     data.weights, data.offset,
                     data.testPredictors.denseValues, data.numTestObservations,
                     data.testOffset);
+    // a family whose augmentation is STATED against the counts takes them
+    // through the weight conduit as well, so the latents are drawn against the
+    // counts now in force rather than left at the deterministic cold start a
+    // data swap installs - a null weight vector being unit counts. Without
+    // this a sampler created with counts and handed weightless data would
+    // carry omega = 1/4 into the next sweep's tree moves.
+    if (shape.family == bartcore::ResponseFamily::logistic)
+      sampler.setWeights(data.weights);
 
     // the new spec is the creation contract and the call-time raw source; the
     // engine re-quantized it and retains no predictor pointer
@@ -4827,10 +4844,12 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
   return R_NilValue;
 }
 
-// Case weights: a pointer swap with nothing rescaled. Only a gaussian
-// response accepts them; refuseBinaryWeightChange refuses every other family,
-// whose weights either mean something else (the logistic counts its latents
-// were built from) or have no role in its likelihood.
+// Case weights: a pointer swap with nothing rescaled for gaussian, and for
+// logistic a model change - the counts are the Polya-Gamma shape, so the
+// engine redraws the latents against them off the chain generator, never R's
+// stream, which is why no GetRNGstate bracket appears here.
+// refuseBinaryWeightChange refuses the families whose likelihood has no weight
+// slot at all.
 SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
@@ -4841,9 +4860,14 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   if (!Rf_isReal(weightsExpr) ||
       static_cast<size_t>(Rf_xlength(weightsExpr)) != numObservations)
     Rf_error("length of weights must equal number of observations");
+  const double* weights = REAL(weightsExpr);
+  // the same values creation accepts, or the swap walks the sampler off its
+  // family's weight policy: a logistic count that is zero, negative or
+  // fractional is silently rounded by the PG draw's lround and leaves a row
+  // carrying a full PG(1, psi) precision it has no observation for
+  enforceBinaryWeightPolicy(shape.family, weights, numObservations);
   // defense in depth: dbartsSampler$setWeights already enforces this R-side;
   // this backstop is load-bearing only for a direct .Call bypassing it
-  const double* weights = REAL(weightsExpr);
   for (size_t i = 0; i < numObservations; ++i)
     if (!(weights[i] >= 0.0))
       Rf_error("weights must be non-negative");
