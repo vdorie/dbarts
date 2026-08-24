@@ -99,8 +99,8 @@ read-only probes run against a private library at this tip.
   `R/spec.R`:509 (`"test predictors" = !is.null(data@x.test)`) inside the
   `!is.null(data@bases)` branch at :413; `Chain::testFitsAreDefined` false for
   the amplitude coupling (`src/bartcore/combiner.hpp`:980; true for softmax at
-  :1542); `refuseBCFTestSurface` (`src/R_interface_bartcore.cpp`:2830; sites
-  :4704, :4752, :4782, :5728; `src/C_interface.cpp`:615, :649). So bartCause's
+  :1542); `refuseUndefinedTestFits` (`src/R_interface_bartcore.cpp`:2858; sites
+  :4701, :4749, :4779, :5731; `src/C_interface.cpp`:728, :775). So bartCause's
   counterfactual machinery (`R/responseFit.R`:180-193, :245) is UNAVAILABLE, and
   so is the missing-response bookkeeping riding it. Under BCF the counterfactual
   is free instead.
@@ -1059,7 +1059,7 @@ The alternative, (b) - dbarts grows `bart2`'s output channels first and bcf()
 becomes one more `redirectCall(matchedCall, dbarts::bart2)` arm - does NOT buy
 what it appeared to: missing-row handling, keepTrees prediction and xbart
 crossvalidation are unavailable for a BCF under BOTH branches (`R/spec.R`:509,
-:486-491; `refuseBCFTestSurface`; `R/xbart.R`:1-29). Revision 1's memory
+:486-491; `refuseUndefinedTestFits`; `R/xbart.R`:1-29). Revision 1's memory
 argument for (a) is withdrawn (the batched array is materialized in R either
 way); the recommendation stands on the R/C division putting the outer loop on
 R's side (`docs/design/r-c-division.md`:84-95, :104-107) and on (b)'s
@@ -1273,7 +1273,7 @@ DENSE-EQUIVALENT (one assertion per line).
   slice, unpriced here. LANDED 2026-08-20 at dbarts 63df524e - see the
   landing note at the end of this file.
 - **A test treatment vector / test basis**, which would retire
-  `refuseBCFTestSurface` (:666) and is the only thing that would restore
+  `refuseUndefinedTestFits` (:666) and is the only thing that would restore
   missing-response handling to bcf(). A modelling decision first.
 - **First-forest `blocks` against its own column mask.** `forestColumns` is
   computed at `R/spec.R`:555-558 inside the `data@bases` branch while
@@ -1638,8 +1638,9 @@ R-and-test only); the R-side gates were re-run on the amended tree.
 Known accepted narrowings, recorded not fixed: `predict(type =
 "forest")` silently ignores ci.level/weights/n.threads (the spec's
 sanctioned bypass), and the `$bc`-handle R wrapper for the bridge
-entry exists to plant mutation M3 and is unreachable from the public
-families until the multinomial mutation arc replaces the host shell.
+entry existed to plant mutation M3 and was unreachable from the public
+families until the multinomial mutation arc replaced the host shell:
+`$bc` and the host shell are deleted (multinomial-mutation-arc.md S4).
 The binding spec lived at gitignored scratch/
 predict-replay-slice-spec.md (critique-amended); this note is the
 durable record.

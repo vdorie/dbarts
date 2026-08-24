@@ -772,7 +772,7 @@ model authors already use.
    `refuseMultiForestResponseMutation` (bridge and flat C share the one
    helper), `Chain::supportsResponseMutation` (a combiner that admits it AND
    `family_ == gaussian`) together with `updateScale == FALSE`,
-   `refuseBCFTestSurface`, `refuseMultiForestMutation`,
+   `refuseUndefinedTestFits`, `refuseMultiForestMutation`,
    `refuseMultiForestTransactionalUpdate`;
    (iii) what the engine state does NOT carry - raw conditioning vectors (y,
    weights, offset, x, z, per-forest weights) as against derived quantities it

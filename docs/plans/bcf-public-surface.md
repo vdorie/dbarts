@@ -129,7 +129,7 @@ the live tree at b374d9e; probes were re-run and extended.
   `dbarts::updatePredictorPerObservationJointly`, `$setPredictor(forceUpdate =
   TRUE)` and `$predict`. Under BCF the joint per-observation update is refused
   (`refuseMultiForestTransactionalUpdate`) and `$predict` is refused
-  (`refuseBCFTestSurface`). So multiforest-predictor-mutation and the
+  (`refuseUndefinedTestFits`). So multiforest-predictor-mutation and the
   saved-tree-replay door HAVE a named consumer; they are not consumer-less.
 - **Only one attribute-carried feature is cross-checked in both directions.**
   `resolveSamplerSpec` attaches FOUR bridge-read control attributes, not two:
@@ -228,7 +228,7 @@ HONEST LIMITS, stated so a reader does not have to find them:
   `varianceFits`/`varianceTestFits` are the precedent - a SEPARATELY-typed
   forest channel, explicitly "not a numReportedLocations widening", null unless
   a variance forest is present.
-- `refuseBCFTestSurface` refuses `setTestPredictor`, `setTestOffset`,
+- `refuseUndefinedTestFits` refuses `setTestPredictor`, `setTestOffset`,
   `setTestPredictorAndOffset` and `predict`; `refuseMultiForestMutation` refuses
   `setData` and `setModel`; `refuseMultiForestTransactionalUpdate` refuses the
   transactional and per-observation predictor sessions. `Chain::revalidateTrees`
@@ -621,7 +621,7 @@ worktree dbarts-1.0@bb9a121, bairrtt main@6167423.
   column, so it needs a moderator EXCLUSION, not just a covariate injection. No
   weights cost - its weighted-probit strip does not apply, BCF is gaussian.
 - **bairrtt.** Existing code: ZERO. To ADOPT BCF for its outcome model: BLOCKED
-  by `refuseMultiForestTransactionalUpdate` and `refuseBCFTestSurface`, i.e. by
+  by `refuseMultiForestTransactionalUpdate` and `refuseUndefinedTestFits`, i.e. by
   multiforest-predictor-mutation and the saved-tree-replay door, not by anything
   in this arc. This arc is what makes those doors consumable at all.
 
@@ -663,7 +663,7 @@ all four.
 - **Per-observation and transactional predictor mutation on a multi-forest
   sampler** - multiforest-predictor-mutation, whose named consumer is bairrtt.
 - **A test treatment vector**, which would make BCF's blended test fits defined
-  and retire `refuseBCFTestSurface`. A modeling decision, not plumbing.
+  and retire `refuseUndefinedTestFits`. A modeling decision, not plumbing.
 - **Per-forest `setModel`** (base/power per forest mid-chain).
 - **Mutable `update.a`/`update.b`.** Two engine lines plus a bridge entry when a
   consumer pulls; it would immediately inherit the mirroring obligation.

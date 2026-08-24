@@ -88,7 +88,7 @@ recovered by adding the offset the caller installed. The accessor's whole
 justification is therefore the multi-forest leg: on a Bayesian causal forest
 there is no route from R to the combined offset-free fit by any existing
 method (`$getForestFits` gives one forest's internal-scale totals, `$predict`
-is refused by `refuseBCFTestSurface`, `run()$train` carries the offset). The
+is refused by `refuseUndefinedTestFits`, `run()$train` carries the offset). The
 single-forest identity is DOCUMENTED, not built. The surface division that
 makes this coherent, and which S1 must state: `extract` generalizes
 `fitted`/`predict` for R-convention users on FIT objects, so the R5 sampler
@@ -287,7 +287,7 @@ and `response.scale`/`response.shift` from `$getCalibration` - and comparing
 it to the accessor. Single-forest expected:
 `response.scale * getForestFits(1) + response.shift`. BCF expected:
 `response.scale * (a * mu + b_z * tau) + response.shift`, the recombination
-`refuseBCFTestSurface`'s own message directs BCF consumers to.
+`refuseUndefinedTestFits`'s own message directs BCF consumers to.
 
 Mutations, with the GATE and the GREEN set named per mutation.
 1. Make the accessor add the offset too (the mutation is an added add: after

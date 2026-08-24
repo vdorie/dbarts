@@ -8,8 +8,12 @@ relocated every anchor by symbol and re-adjudicated no cell value, the
 other anchor carries over from 2026-08-14 unmoved, since its host file is
 untouched by the arc), the 2026-08-15 `adoption-slate` pass did the same
 again, scoped to the files that arc's eight landing commits touched, the
-2026-08-18 pass did the same as a whole-file walk, and the 2026-08-19 pass
-did another whole-file walk for the pre-RC resync. Carries
+2026-08-18 pass did the same as a whole-file walk, the 2026-08-19 pass
+did another whole-file walk for the pre-RC resync, and the 2026-08-24
+`arc-close-sweep` pass re-derived by content the anchors multinomial-
+mutation-arc.md S2-S4 left stale - the `multinom` row cells, [f4], [f21],
+[f22], [f23] - scoped to those, not a whole-file walk; every other anchor
+carries over from 2026-08-19 unmoved. Carries
 no landing date and is not a design proposal - the orchestrator updates it in
 place at every landing that changes a cell, and VD uses it to schedule
 feature completion.
@@ -224,11 +228,11 @@ cell says so.
 | student | S bart.R:2591 | S bart.R:685 | S dbarts.R:365 | M rbart.R:62 | M xbart.R:2-33 | S RIB:2558 [f2] |
 | probit | S bart.Rd:76 | S bart.R:672 | S dbarts.R:379 | S data.R:558 | S xbart.R:26 | S CAPI:645 |
 | logistic | S bart.R:2594 [f1] | S bart.R:673 | S dbarts.R:380 | R rbart.R:49 | S xbart.R:26 | S RIB:1579 |
-| ordinal | R bart.R:2603, 2634 [f1] | S bart.R:676 | S dbarts.R:382 | R data.R:503 | R data.R:503 | S RIB:1587 [f3] |
-| nbinom | R bart.R:2603 [f1] | S bart.R:677 | S dbarts.R:383 | M rbart.R:49 | M xbart.R:26 | S RIB:1594 [f3] |
-| multinom | R bart.R:2603 [f1] | S bart.R:675 | R dbarts.R:376 | R data.R:503 | R data.R:503 | M [f4] |
+| ordinal | R bart.R:2603, 2634 [f1] | S bart.R:676 | S dbarts.R:383 | R data.R:503 | R data.R:503 | S RIB:1587 [f3] |
+| nbinom | R bart.R:2603 [f1] | S bart.R:677 | S dbarts.R:384 | M rbart.R:49 | M xbart.R:26 | S RIB:1594 [f3] |
+| multinom | R bart.R:2603 [f1] | S bart.R:675 | S dbarts.R:382 [f4] | R data.R:503 | R data.R:503 | M [f4] |
 | aft | S bart.R:2594 [f1] [f5] | S bart.R:674 | S dbarts.R:381 | S rbart.R:49 | M xbart.R:26 | S CAPI:648 |
-| hazard | - [f1] | S bart.R:678 | S dbarts.R:384 | M rbart.R:49 | M xbart.R:26 | M [f6] |
+| hazard | - [f1] | S bart.R:678 | S dbarts.R:385 | M rbart.R:49 | M xbart.R:26 | M [f6] |
 | hurdle | R bart.R:2603 [f1] | S bart.R:681 | R dbarts.R:445 | M | M | M [f6] |
 | bcf | - [f1] | S R/formulaTerms.R (ingestFormulaTerms) [f7] | S dbarts.R:371 | R rbart.R:62 | M | S CAPI:668-690 |
 | grouped | - [f1] | M [f8] | M [f8] | S rbart.R:388 | M | S RIB:1926 [f3] |
@@ -273,7 +277,7 @@ it rides on.
 | aft | S MOD:3843 | S MOD:3856 | S MOD:3856 | S RIB:4989 | R RIB:2763 | S RIB:2871 | S RIB:4666 |
 | hazard | S MOD:3105 [f6] | S MOD:3111 | - [f9] | S RIB:4989 | R RIB:2763 | R RIB:2873 | S RIB:4666 |
 | hurdle | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] | - [f12] |
-| bcf | S CH:1045 [f48] | S CH:1045 [f48] | R bartcore.R:305, 326 [f48] | S RIB:4989, 5150 | S RIB:4816 [f48] | S RIB:4591 [f48] | R RIB:2843 [f49] |
+| bcf | S CH:1045 [f48] | S CH:1045 [f48] | R bartcore.R:408, 429 [f48] | S RIB:4989, 5150 | S RIB:4816 [f48] | S RIB:4591 [f48] | R RIB:2843 [f49] |
 | grouped | S MOD:4762 [f13] | S MOD:4773 | R RIB:2727 [f13] | S RIB:4989 | S MOD:4788 [f14] | S RIB:2871 [f14] | S RIB:4666 |
 | hetero | S RIB:2701 | S RIB:2701 | R RIB:2701 | S RIB:4989, 5150 | S RIB:2696 | R RIB:2869 | S RIB:4666 |
 
@@ -292,7 +296,7 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | logistic | R RIB:1630 [f20] | S MOD:3531 | S MOD:3605 | S generics.R:102 | S dbarts.R:1594, 1599 [f16] |
 | ordinal | R RIB:2549 | S MOD:3227 | S MOD:3272 | M generics.R:129 | S dbarts.R:1594, 1599 [f16] |
 | nbinom | R RIB:2555 | S MOD:4359 | S MOD:4412 | M generics.R:129 | S dbarts.R:1594, 1599 [f16] |
-| multinom | R RIB:3204 | S COM:1678 [f21] | M MOD:3690 [f22] | M generics.R:129 | R [f23] |
+| multinom | R RIB:3230 | S COM:1679 [f21] | M MOD:3690 [f22] | M generics.R:129 | R [f23] |
 | aft | R RIB:2545 | S MOD:3825 | S MOD:3886 | S generics.R:107 | S dbarts.R:1594, 1599 [f16] |
 | hazard | R RIB:1626 [f6] | S MOD:3095 [f6] | S MOD:3131 | S generics.R:102 [f24] | S dbarts.R:1594, 1599 [f6] |
 | hurdle | R bart.R:1123 | - [f12] | - [f12] | M generics.R:129 [f25] | - [f12] |
@@ -381,9 +385,15 @@ it) names only probit, logistic, gaussian and aft, and the K-forest paragraph
 beside it (CAPI:668-690) now names gaussian, probit and logistic, M4.4 having
 replaced its "Gaussian responses only" at CAPI:686-690.
 
-[f4] Multinomial has no dbarts.h creation path at all; it is reached only by
-the R-internal `.Call` entries `C_dbarts_bartcore_createMultinomial` /
-`...Counts` (bartcore.R:846, 909).
+[f4] `dbarts(x, y, family = "multinomial")` (matrix interface only) accepts a
+counts matrix or a factor/character/integer-code response, one-hot expanded
+(dbarts.R:382); `resolveMultinomialCounts` builds the counts matrix
+(dbarts.R:588). Creation routes through the same public dispatch every family
+uses, `bartcore_create` (RIB:3473), whose multinomial arm is
+`createMultinomialDataHolder` (RIB:3439); the dedicated
+`C_dbarts_bartcore_createMultinomial`/`...Counts` entries the matrix-interface
+shims used before multinomial-mutation-arc.md S4 are retired. Still has no
+dbarts.h creation path.
 
 [f5] SUPERSEDED by S10 (`bart2-argument-consolidation`, 726dab10) and S14
 (9031b348): `family = "aft"` is now an explicit, appended token on `bart()`
@@ -507,17 +517,17 @@ independence arm of its own beside the kernel-level coverage. S3 landed at
 rather than the response, which holds no precisions of its own -
 `MultinomialResponse::setActiveRows` (MOD:3726) is a pass-through that only
 advertises the capability (MOD:3725), and `Chain::setActiveRows` forwards the
-mask to `MultinomialForestCombiner::setActiveRows` (COM:1678) after the
-response's own install (`ForestCombiner::setActiveRows` COM:721 is the inert
+mask to `MultinomialForestCombiner::setActiveRows` (COM:1679) after the
+response's own install (`ForestCombiner::setActiveRows` COM:722 is the inert
 default every additive coupling relies on instead). An inactive row's K
 interleaved Polya-Gamma draws are SKIPPED, not drawn and discarded, in
-`drawForestGlue` (COM:1749), and its composed precision is zeroed in every
-category in `formForestResponse` (COM:1808-1809); the row keeps its leaf
+`drawForestGlue` (COM:1750), and its composed precision is zeroed in every
+category in `formForestResponse` (COM:1809-1810); the row keeps its leaf
 occupancy and its reported softmax probabilities, and omega is never zeroed
 since the working response divides by it. PER-FOREST masking is refused
 permanently on model grounds at the only reachable per-forest,
-per-observation channel, `bartcore_setForestWeights` (RIB:3948-3952) - see
-[f21] for the full statement. The bridge's active-row refusal (RIB:3997) no
+per-observation channel, `bartcore_setForestWeights` (RIB:3966-3969) - see
+[f21] for the full statement. The bridge's active-row refusal (RIB:4016) no
 longer names multinomial: the old per-family `activeRowsFamilyName` helper is
 deleted, and the message is now family-generic, reached only by a future
 family that does not override the base refusal. Oracles: the kernel-level
@@ -671,47 +681,47 @@ rather than the response, which holds no precisions of its own to compose a
 mask into: `MultinomialResponse::setActiveRows` (MOD:3726) is a pass-through
 that only advertises the capability (`supportsActiveRows` MOD:3725), and
 `Chain::setActiveRows` forwards the mask to
-`MultinomialForestCombiner::setActiveRows` (COM:1678) after the response's own
+`MultinomialForestCombiner::setActiveRows` (COM:1679) after the response's own
 install. An inactive row's K interleaved Polya-Gamma draws are SKIPPED rather
-than drawn and discarded, in `drawForestGlue` (COM:1749), and its composed
+than drawn and discarded, in `drawForestGlue` (COM:1750), and its composed
 precision is zeroed in every category in `formForestResponse`
-(COM:1808-1809); the row keeps its leaf occupancy and its reported softmax
+(COM:1809-1810); the row keeps its leaf occupancy and its reported softmax
 probabilities, and omega is never zeroed since the working response divides
 by it. PER-FOREST masking stays REFUSED, permanently and on model grounds:
 the softmax margin is a log-sum-exp over the other K-1 forests, so a row
 absent from category k's forest is still in every other category's
 likelihood, and "row i is out of category k only" restricts no likelihood at
 all. The refusal lands at the only reachable per-forest, per-observation
-channel, `bartcore_setForestWeights` (RIB:3948-3952), naming the model reason
+channel, `bartcore_setForestWeights` (RIB:3966-3969), naming the model reason
 rather than "unbuilt". BCF's per-forest weight acceptance at that same
 channel stands unaffected - a different (additive) coupling where the
 per-forest mask is redundant with, not incoherent under, the combined
 likelihood (see [f26]).
 
 [f22] Multinomial's omegas live in the combiner, not the response model, and
-`MultinomialResponse` does not override `latents()` (MOD:3690-3767), so
+`MultinomialResponse` does not override `latents()` (MOD:3690-3752), so
 `getLatents` returns NULL. No accessor exposes them.
 
 [f23] A named `prior.scale` is refused for BCF and multinomial forests both AT
 CREATION and MID-CHAIN, by design - their per-forest leaf scales come from a
 calibration map that owns them (map at COM:275-300), so a named value has
 nowhere to land. Three creation-time refusal sites shipped at c2a7e89b: R-side
-`dbartsSpec()`'s BCF composition (spec.R:554, the `"a named 'prior.scale'"`
+`dbartsSpec()`'s BCF composition (spec.R:658, the `"a named 'prior.scale'"`
 entry of the `unsupported` vector; the non-default-`k` entry sits at
-spec.R:542), the engine's own
-BCF-composition gate (`refuseUnsupportedAmplitudeComposition`, RIB:3045), and
-the multinomial forest builder (`buildMultinomialSampler`, RIB:3255). S2
+spec.R:646), the engine's own
+BCF-composition gate (`refuseUnsupportedAmplitudeComposition`, RIB:2331), and
+the multinomial forest builder (`buildMultinomialSampler`, RIB:3265). S2
 (d809b944) adds the mid-chain refusals, at TWO independent sites rather than
 one shared gate: `$setCalibration`'s R5 method refuses BCF through
-`refuseAmplitudeMutation` (dbarts.R:1623, MEASURED "multi-forest calibration
+`refuseAmplitudeMutation` (dbarts.R:1734, MEASURED "multi-forest calibration
 map", test-calibration-midchain.R:399-402) before ever reaching the bridge; a
 multinomial fit's `$fit` refuses the same call the same way, for the same
 softmax-calibration-map reason - not a host-shell one, since S4 deleted that
 mechanism (multinomial-mutation-arc.md); underneath
 both, the engine-level gate any DIRECT low-level call still hits -
 `Chain::setForestPriorScale` returning false whenever `combiner_ != nullptr`
-(CH:1207), surfaced as `Rf_error(...calibrationMapName...)` at the bridge
-(RIB:4172) - is what the unexported `dbarts:::bartcoreSetForestPriorScale`
+(CH:1208), surfaced as `Rf_error(...calibrationMapName...)` at the bridge
+(RIB:4191) - is what the unexported `dbarts:::bartcoreSetForestPriorScale`
 hits on a multinomial forest's low-level handle (MEASURED "softmax calibration
 map", line 441-444); the R5 layer never routes a BCF sampler there since
 `refuseAmplitudeMutation` refuses first, so only the multinomial arm exercises

@@ -221,8 +221,9 @@ One main clause stating the refusal, optionally followed by ONE more clause
 - Conformance: `"%s: a multi-forest sampler fixes its data at creation; make
   a new sampler instead"` (`src/R_interface_bartcore.cpp:2611`) - main +
   one remedy clause.
-- Both prior violations are now fixed: `refuseHostMutation`'s message
-  (`R/dbarts.R:914-925`) is refusal plus one remedy clause, and `R/spec.R:53-58`
+- Both prior violations were fixed while they stood: `refuseHostMutation`'s
+  message was refusal plus one remedy clause (the function and every call site
+  are since deleted, multinomial-mutation-arc.md S4), and `R/spec.R:53-58`
   (probit weights) collapsed to the same shape, matching the C twin's
   already-shorter form (`src/R_interface_bartcore.cpp:1616-1618`).
 
@@ -526,15 +527,17 @@ wild if a future revision wants to reopen this.
 ## R14. Mutation-guard refusal — CONFIRMED, reinforced
 
 R-canonical shape (per R8): `"<operation> is not available on <context>[:
-<reason>]"` - already the shape `refuseHostMutation` gives 22 call sites
-(`R/dbarts.R:914-925`), the single most call-site-heavy exact wording in the
-corpus. C-side backstops keep their own idiom under R7/R8 (`"%s: a
-multi-forest sampler fixes its data at creation; make a new sampler
-instead"`, `src/R_interface_bartcore.cpp:2611`). Conformance:
-`refuseHostMutation`'s callers, e.g. `R/dbarts.R:1102` (`$setControl`); also
-`setModel`'s DART-tree-prior refusal (`R/dbarts.R:1173-1176`), now reworded
-to `"changing a DART tree prior is not available on an existing sampler:
-recreate it instead"`, matching this rule.
+<reason>]"` - was the shape `refuseHostMutation` gave 22 call sites, before
+the function and every call site were deleted (multinomial-mutation-arc.md
+S4). The shape survives in its replacements, `refuseCountsMutation`
+(`R/bartcore.R:62`) and `refuseAmplitudeMutation` (`R/bartcore.R:36`), and in
+`$setControl`'s own per-slot refusal (`R/dbarts.R:1176-1186`). C-side
+backstops keep their own idiom under R7/R8 (`"%s: a multi-forest sampler
+fixes its data at creation; make a new sampler instead"`,
+`src/R_interface_bartcore.cpp:2632`). Conformance: `setModel`'s DART-tree-
+prior refusal (`R/dbarts.R:1219-1223`) reads `"changing a DART tree prior is
+not available on an existing sampler: recreate it instead"`, matching this
+rule.
 
 **External evidence.** R14 happens to already use the phrase the R13 survey
 just found to be the *more* common external construction: `"not available"`

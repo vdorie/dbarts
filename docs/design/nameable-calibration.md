@@ -169,7 +169,9 @@ Per channel:
 3. BCF and multinomial forests are refused, at three creation sites and again
    mid-chain: their per-forest leaf scales come from their own calibration
    maps, which would drop a named value in silence rather than honor it.
-4. Host-shell samplers are refused through `refuseHostMutation`.
+4. Host-shell samplers were refused through `refuseHostMutation`; the
+   host-shell mechanism is deleted (multinomial-mutation-arc.md S4), so this
+   refusal no longer applies - every sampler's `$fit` is the engine that ran.
 5. A non-finite or non-positive value is an ERROR, not a refusal. `NaN` is
    among them even though `is.na(NaN)` is TRUE in R: it names no intent and
    cannot serve as a divisor.

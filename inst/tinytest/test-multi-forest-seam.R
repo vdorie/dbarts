@@ -75,8 +75,9 @@ bc.bcf <- dbarts:::bartcoreBCFSampler(
   n.trees.treatment = 20L
 )
 
-# refused for memory safety too, not only staleness: the combiner indexes
-# borrowed z over the live n, and setData has no z channel
+# refused for memory safety too, not only staleness: the combiner's per-forest
+# basis is a copy sized to the n it was installed at, and setData has no
+# channel to resize it in the same call
 expect_error(
   dbarts:::bartcoreSetData(bc.bcf, sampler.bcf.host$data),
   "multi-forest"

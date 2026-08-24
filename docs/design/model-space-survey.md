@@ -81,7 +81,7 @@ variance forest is a *separate* nullable member `varianceForest_`, so a
 heteroscedastic sampler reports `numForests == 1` and no multi-forest guard sees
 it - see section 6.
 
-- `setData` refuses for `numForests >= 2` (R_interface_bartcore.cpp:2024-2029).
+- `setData` refuses for `numForests >= 2` (R_interface_bartcore.cpp:2629-2634).
 - Response-side mutation rides `supportsResponseMutation`: **true for BCF**
   (combiner.hpp:636), **false for multinomial** (combiner.hpp:417 default, not
   overridden).
@@ -580,7 +580,7 @@ consumer").
 
 The survey found `setData` accepted on a heteroscedastic sampler:
 `refuseMultiForestMutation` keys on `numForests >= 2`
-(R_interface_bartcore.cpp:2024-2029), but the variance forest is the separate
+(R_interface_bartcore.cpp:2629-2634), but the variance forest is the separate
 `varianceForest_` member, so such a sampler reports `numForests == 1` and passes.
 
 The critique escalated it on two axes, and the escalation is confirmed here:

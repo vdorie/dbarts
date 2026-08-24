@@ -969,12 +969,12 @@ LANDED (see Landing notes).
   from S0 on. What it GAINS: the ability to make its outcome model a two-forest
   causal forest with the latent ability as a treatment moderator, the motivating
   class. What it still needs BEYOND this arc: the BCF test surface - its MH filter
-  calls `$predict` (`:568, 571, 636, 637, 709, 713`), which `refuseBCFTestSurface`
-  refuses (`R_interface_bartcore.cpp:4634`). This arc removes ONE of its two
-  blockers; stated plainly so no reader over-reads "the named consumer is
-  unblocked". Its measured price for the widening at its own shape: 0.043%
-  (continuous) / 0.226% (binary) of moves rejected at n = 300 with 150 trees,
-  against its own prose "under 1%".
+  calls `$predict` (`:568, 571, 636, 637, 709, 713`), which
+  `refuseUndefinedTestFits` refuses (`R_interface_bartcore.cpp:2858`). This
+  arc removes ONE of its two blockers; stated plainly so no reader over-reads
+  "the named consumer is unblocked". Its measured price for the widening at
+  its own shape: 0.043% (continuous) / 0.226% (binary) of moves rejected at
+  n = 300 with 150 trees, against its own prose "under 1%".
 - **stan4bart** (23 flat C entries, mutation every sweep). ZERO, plus SL's guard,
   which fires only on a sampler it chose to create with a variance forest. No
   `setPredictor`/`updatePredictor` call found in `src/bart_util.cpp`,

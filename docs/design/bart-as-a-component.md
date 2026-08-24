@@ -62,7 +62,7 @@ against. The test is `updateScale != FALSE`, so NA refuses too; the R5 methods
 default the argument to FALSE. The weight conduit has no scale to pin and skips
 the clause.
 
-`refuseUndefinedTestFits` (`:2849`) closes the test surface, gated on
+`refuseUndefinedTestFits` (`:2858`) closes the test surface, gated on
 `numForests >= 2 && !testFitsAreDefined` rather than on the forest count, so a
 coupling whose test blend IS defined passes through. It guards
 `setTestPredictor`, `setTestOffset`, `setTestPredictorAndOffset` and `predict`
