@@ -617,14 +617,16 @@ summary(object, ...)
   level order - usually alphabetical, so order the levels yourself) and
   a numeric response, whose ordered levels are `sort(unique(y.train))`.
   `weights` are not supported (a weighted truncated-normal latent
-  likelihood is not a coherent model); `samplerOnly`, `warm.start`, and
-  `n.grow.sweeps` are refused with an error naming the limitation.
-  `test` and `keepTrees` are supported as for multinomial, and `predict`
-  replays the saved trees at new predictors, differencing the cumulative
-  probit at the stored per-draw cutpoints. `rbart_vi` and `xbart` do not
-  fit ordinal responses (grouped ordinal models and ordinal-scale
-  cross-validation losses are recorded follow-ups). The fit's class is
-  `"bartOrdinal"`, not `"bart"`: see ‘Value’ below.
+  likelihood is not a coherent model); `warm.start` and `n.grow.sweeps`
+  are refused with an error naming the limitation. `samplerOnly` is
+  supported, unlike multinomial: it returns the fitted sampler unrun,
+  the same object `fit` is under `keepSampler`. `test` and `keepTrees`
+  are supported as for multinomial, and `predict` replays the saved
+  trees at new predictors, differencing the cumulative probit at the
+  stored per-draw cutpoints. `rbart_vi` and `xbart` do not fit ordinal
+  responses (grouped ordinal models and ordinal-scale cross-validation
+  losses are recorded follow-ups). The fit's class is `"bartOrdinal"`,
+  not `"bart"`: see ‘Value’ below.
 
   `family = "nbinom"` fits a non-negative integer (count) response by a
   negative-binomial model with the Polya-Gamma augmentation (a single
@@ -645,10 +647,12 @@ summary(object, ...)
   envelope, so a real fixed dispersion is refused - continuous
   dispersion is a recorded follow-up). Like probit, the latent scale is
   fixed at 1 and `weights` are not supported (exposure belongs in the
-  offset, not in observation replication); `samplerOnly`, `warm.start`,
-  and `n.grow.sweeps` are refused with an error naming the limitation.
-  `test` and `keepTrees` are supported as for ordinal, and `predict`
-  replays the saved trees at new predictors, reporting mean counts \\r
+  offset, not in observation replication); `warm.start` and
+  `n.grow.sweeps` are refused with an error naming the limitation.
+  `samplerOnly` is supported, unlike multinomial: it returns the fitted
+  sampler unrun, the same object `fit` is under `keepSampler`. `test`
+  and `keepTrees` are supported as for ordinal, and `predict` replays
+  the saved trees at new predictors, reporting mean counts \\r
   e^{\psi}\\ at the stored per-draw dispersion (a log-exposure
   `offset.test` enters \\\psi\\ additively). `rbart_vi` and `xbart` do
   not fit count responses (grouped negative-binomial models, real
@@ -1052,13 +1056,14 @@ the posterior draws of the K - 1 finite thresholds \\(\gamma_1 = 0,
 analog of gaussian's `sigma`, from which probabilities at any latent
 value can be reconstructed - and `varcount`. `bc` and `cutpoints.raw`
 (the per-draw thresholds in the internal layout `predict` consumes) are
-present only under `keepTrees`. `fit`, the host sampler, is present
-whenever `keepTrees` is `TRUE` *or* `keepSampler` is set, independent of
-`keepTrees`. As for a multinomial fit, `fit` is only the host shell of
-the ordinal model: it carries the design and priors that model was built
-from but none of the model itself, so it refuses mutation
-(`$setResponse`, `$run`, and the rest) rather than accepting a change
-nothing would read.
+present only under `keepTrees`. `fit` is present whenever `keepTrees` is
+`TRUE` *or* `keepSampler` is set, independent of `keepTrees`: unlike a
+multinomial fit's `fit`, it is the `dbartsSampler` whose engine actually
+ran, fully mutable and readable like any sampler
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) returns,
+and `fit$storeState()` followed by
+[`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
+restores a sampler `predict.bartOrdinal` can replay through.
 
 Generics for a `"bartOrdinal"` fit: `fitted(object)` returns the
 posterior-mean n \\\times\\ K probability matrix (columns named by
@@ -1084,11 +1089,13 @@ log-odds latent \\\psi = f(x) + o\\ - `dispersion` - the per-draw
 dispersion \\r\\, the count analog of gaussian's `sigma` - and
 `varcount`. `bc` and `dispersion.raw` (the per-draw \\r\\ in the
 internal layout `predict` consumes) are present only under `keepTrees`.
-`fit`, the host sampler, is present whenever `keepTrees` is `TRUE` *or*
-`keepSampler` is set, independent of `keepTrees`; it is only the host
-shell of the count model, refusing mutation exactly as the ordinal and
-multinomial hosts do; `$getDispersion()` on it is refused too, since the
-shell's own \\r\\ is not the fit's.
+`fit` is present whenever `keepTrees` is `TRUE` *or* `keepSampler` is
+set, independent of `keepTrees`: unlike a multinomial fit's `fit`, it is
+the `dbartsSampler` whose engine actually ran, fully mutable and
+readable - `$getDispersion()` on it answers with the fit's own \\r\\ -
+and `fit$storeState()` followed by
+[`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
+restores a sampler `predict.bartNegbin` can replay through.
 
 Generics for a `"bartNegbin"` fit: `fitted(object)` returns the
 posterior-mean count per observation; `fitted(object, type = "bart")`
@@ -1190,7 +1197,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001504
+#> total seconds in loop: 0.001501
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1237,7 +1244,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001615
+#> total seconds in loop: 0.001614
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 
