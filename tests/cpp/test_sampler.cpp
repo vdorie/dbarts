@@ -2755,11 +2755,13 @@ static void testBCFInterweaveKeepTrees(ext_rng* rng) {
 
 // growForestFromRoot on a BCF sampler exercises the grow-from-root sweep's own
 // two-forest branch (per-forest residual formation, the glue draw, the ridge
-// interweave), which no R path reaches - growForestFromRoot is engine-internal.
-// This is therefore its only gate: build the two-forest sampler, grow every
-// forest from the root, and pin the combined output - both forests finite and
-// off zero, glue finite, and a recorded characteristic value of the combined
-// internal fit a*mu + b_z*tau.
+// interweave); the bridge's growFromRoot entry point places no multi-forest
+// guard, so this path is R-reachable, not engine-internal only. The fuzz
+// mutation suite now walks it too, but only against consistency oracles -
+// this is the only gate that pins a hardcoded characteristic value: build the
+// two-forest sampler, grow every forest from the root, and pin the combined
+// output - both forests finite and off zero, glue finite, and a recorded
+// characteristic value of the combined internal fit a*mu + b_z*tau.
 static void testBCFGrowForestFromRoot() {
   // A local stream and locally owned generator, so this test neither reads nor
   // shifts the shared runif01() state: its fixture, and so its hardcoded

@@ -723,6 +723,15 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         s.growFromRoot(numSweeps);
         snprintf(line, sizeof line, "op%d grow sweeps=%zu", op, numSweeps);
         record(line);
+        // Before the round trip, not folded into the invariant call after
+        // the switch: setState below re-derives every fit from the
+        // deserialized trees, so it would silently heal a forest whose
+        // derived fits are left inconsistent with the trees growFromRoot
+        // just rebuilt - the defect class this line exists to catch. A
+        // stale leafOf index from the same kind of mid-grow slip never
+        // reaches this check: rollTreeResidual's own assertion aborts the
+        // process first, and only when assertions are live (no NDEBUG).
+        if (const char* v = fuzzInvariantViolation(s, treatmentZ)) fail(v);
         SamplerStateData grown;
         s.getState(grown);
         if (!s.setState(grown, curAll())) {
@@ -893,17 +902,18 @@ static void fuzzRunConstant(const ConfigSpec& spec, std::uint32_t seed,
 
 // The multi-forest op surface: the transactional predictor paths, the
 // per-observation session in both its committing and its abandoned flavor, the
-// forced refresh, setCutPoints, run and the state round trip. setData,
-// setResponse, setWeights and setOffset are refused for a multi-forest sampler
-// at the bridge (test-multi-forest-seam.R). OP_PER_OBS asserts, across the
-// whole surface, that finalize never returns false - the guarded set is always
-// a subset of the revalidated set, so an empty leaf it did not catch cannot
-// occur - and OP_SESSION_ABANDON asserts that a dropped session leaves the
-// sampler unchanged.
+// forced refresh, setCutPoints, run, the state round trip and the warm-start
+// grow-from-root initializer. setData, setResponse, setWeights and setOffset
+// are refused for a multi-forest sampler at the bridge
+// (test-multi-forest-seam.R). OP_PER_OBS asserts, across the whole surface,
+// that finalize never returns false - the guarded set is always a subset of
+// the revalidated set, so an empty leaf it did not catch cannot occur - and
+// OP_SESSION_ABANDON asserts that a dropped session leaves the sampler
+// unchanged.
 static const unsigned fuzzMultiForestMask =
   (1u << OP_SET_PREDICTOR) | (1u << OP_UPDATE_COLUMNS) | (1u << OP_PER_OBS) |
   (1u << OP_SESSION_ABANDON) | (1u << OP_SET_CUTS) | (1u << OP_RUN) |
-  (1u << OP_STATE);
+  (1u << OP_STATE) | (1u << OP_GROW);
 
 // A two-forest BCF sampler (docs/design/bcf.md) over the same op loop: the
 // shape whose forest 1 the widened revalidation must re-route, and which the
@@ -1058,7 +1068,8 @@ static void fuzzRunSparse(std::uint32_t seed, int numOps) {
   ConfigSpec spec{"sparse", ResponseFamily::gaussian,
                   {ColSpec{}, ColSpec{}, ColSpec{}, ColSpec{}}, 1,
                   (1u << OP_SET_SIGMA) | (1u << OP_SET_RESPONSE) |
-                    (1u << OP_SET_WEIGHTS) | (1u << OP_RUN) | (1u << OP_STATE)};
+                    (1u << OP_SET_WEIGHTS) | (1u << OP_RUN) | (1u << OP_STATE) |
+                    (1u << OP_GROW)};
   ext_rng* opRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(opRng, seed * 2u + 7u);
 
@@ -1918,25 +1929,30 @@ static void testMutationFuzzer(int numSeeds) {
     {"probit", ResponseFamily::probit, {ord, ord, ord}, 1,
      (1u << OP_SET_PREDICTOR) | (1u << OP_UPDATE_COLUMNS) | (1u << OP_PER_OBS) |
        (1u << OP_SESSION_ABANDON) | (1u << OP_SET_DATA) | (1u << OP_SET_CUTS) |
-       (1u << OP_SET_TEST) | (1u << OP_RUN) | (1u << OP_STATE)},
+       (1u << OP_SET_TEST) | (1u << OP_RUN) | (1u << OP_STATE) |
+       (1u << OP_GROW)},
     {"logistic", ResponseFamily::logistic, {ord, ord, ord}, 1,
      (1u << OP_SET_PREDICTOR) | (1u << OP_UPDATE_COLUMNS) | (1u << OP_PER_OBS) |
        (1u << OP_SESSION_ABANDON) | (1u << OP_SET_DATA) | (1u << OP_SET_CUTS) |
-       (1u << OP_SET_TEST) | (1u << OP_RUN) | (1u << OP_STATE)},
+       (1u << OP_SET_TEST) | (1u << OP_RUN) | (1u << OP_STATE) |
+       (1u << OP_GROW)},
     // setCuts joined the safe surface once setCutPoints re-routed the variance
     // forest through forceRefreshTrees, and setData once applyNewData resized
     // its seven n-sized allocations and re-routed it - the op the fuzzer runs
     // at a fresh count every time. The transactional predictor paths and the
     // per-observation session joined once the two-phase revalidation and the
-    // session's cell guard reached the variance forest, so this config now
-    // runs every op but setSigma, which stays out because it is an engine
-    // no-op under a variance forest (the forest IS the residual variance).
+    // session's cell guard reached the variance forest, and OP_GROW once
+    // grow-from-root's own formMeanWeights branch (chain.hpp) was confirmed
+    // to scan against the variance forest's precisions rather than unit
+    // ones, so this config now runs every op but setSigma, which stays out
+    // because it is an engine no-op under a variance forest (the forest IS
+    // the residual variance).
     {"heteroscedastic", ResponseFamily::gaussian, {ord, ord, ord}, 1,
      (1u << OP_SET_RESPONSE) | (1u << OP_SET_WEIGHTS) | (1u << OP_SET_OFFSET) |
        (1u << OP_SET_TEST) | (1u << OP_RUN) | (1u << OP_STATE) |
        (1u << OP_SET_CUTS) | (1u << OP_SET_DATA) |
        (1u << OP_SET_PREDICTOR) | (1u << OP_UPDATE_COLUMNS) |
-       (1u << OP_PER_OBS) | (1u << OP_SESSION_ABANDON),
+       (1u << OP_PER_OBS) | (1u << OP_SESSION_ABANDON) | (1u << OP_GROW),
      8},
   };
   // the multi-forest shapes, on their own runners: one continuous and one
