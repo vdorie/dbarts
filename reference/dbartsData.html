@@ -49,7 +49,8 @@
 <span>    <span class="va">offset</span>, offset.test <span class="op">=</span> <span class="va">offset</span>,</span>
 <span>    factors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"categorical"</span>, <span class="st">"indicators"</span><span class="op">)</span>,</span>
 <span>    missing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"incorporate"</span>, <span class="st">"error"</span><span class="op">)</span>,</span>
-<span>    bases <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+<span>    bases <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>    counts <span class="op">=</span> <span class="cn">NULL</span>, offset.category <span class="op">=</span> <span class="cn">NULL</span>, offset.category.test <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -60,6 +61,12 @@
 
    <dt id="arg-bases">bases<a class="anchor" aria-label="anchor" href="#arg-bases"></a></dt>
 <dd><p>Optional list of the per-forest amplitude bases a multi-forest model combines its forests through, one element per forest and <code>NULL</code> where a forest carries the implicit intercept its single amplitude scales. Each non-null element is a numeric matrix with one row per observation and one amplitude per column, restricted by <code>subset</code> exactly as <code>weights</code> is. This is the data half of a multi-forest specification, and is normally written by <code><a href="dbarts.html">dbarts</a></code>'s <code>forests = </code> argument rather than here; supplying it directly selects the multi-forest model with the engine's default per-forest configuration, and <code><a href="forest.html">forest</a></code> declarations may then configure the forests one at a time.</p></dd>
+
+   <dt id="arg-counts">counts<a class="anchor" aria-label="anchor" href="#arg-counts"></a></dt>
+<dd><p>Optional <code>n</code> x <code>K</code> matrix of non-negative integer counts selecting the multinomial (softmax) model, column <code>k</code> holding category <code>k</code>'s successes and every row carrying at least one trial. It is restricted by <code>subset</code> exactly as <code>weights</code> is, and it IS the response: <code>y</code> is derived as its row sums - the trials \(n_i\) - so no separate response need be supplied, and any that is supplied is replaced. At least two categories are required. Column names, when present, label the categories. <code><a href="dbarts.html">dbarts</a>(family = "multinomial")</code> writes this argument from a count-matrix or factor response rather than requiring it here.</p></dd>
+
+   <dt id="arg-offset-category-offset-category-test">offset.category, offset.category.test<a class="anchor" aria-label="anchor" href="#arg-offset-category-offset-category-test"></a></dt>
+<dd><p>Optional per-category shifts of a <code>counts</code> response, added to the raw per-category values BEFORE the softmax - which is the only place a shift means anything under one, since the blend is invariant to a common per-observation shift and the ordinary <code>offset</code> would be added after it. <code>offset.category</code> is an <code>n</code> x <code>K</code> numeric matrix over the training rows and is restricted by <code>subset</code>; <code>offset.category.test</code> is its <code>nTest</code> x <code>K</code> twin over the rows of <code>test</code>, which it requires. Both are refused without <code>counts</code>. Only the row-centred part is identified: adding a constant to a whole row leaves every reported probability unchanged.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -197,6 +204,15 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Slot "bases":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "counts":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "offset.category":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "offset.category.test":</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Slot "testUsesRegularOffset":</span>

@@ -21,7 +21,8 @@ dbarts(
     forests = NULL,
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal",
+    family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial",
+               "ordinal",
                "nbinom", "hazard", "hazard.probit", "hazard.logistic",
                "hurdle.lognormal", "twopart"),
     missing = c("incorporate", "error"), dispersion = NA_real_,
@@ -400,6 +401,38 @@ dbarts(
   (`x.train`/`y.train`) interface and do not support `subset` or case
   weights. See `weights` for how the families differ in their support
   for weights.
+
+  `"multinomial"` fits an unordered K-category response by a softmax of
+  \\K\\ forests, one per category, with the interleaved one-vs-rest
+  Polya-Gamma augmentation. The response is an \\n \times K\\ matrix of
+  non-negative integer counts - column \\k\\ holding category \\k\\'s
+  successes, every row carrying at least one trial \\n_i = \sum_k
+  y\_{ik}\\ - or, the single-trial special case, a factor, character or
+  non-negative integer-code vector, which is one-hot expanded to exactly
+  that matrix with every trial 1. Column names on the matrix, or the
+  levels of a factor, label the categories. It is never inferred: a
+  three-or-more-level factor under `family = "auto"` is an error
+  directing here, since an unordered categorical response is equally a
+  candidate for several models. The response rides
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)'s
+  `counts` argument, and `data@y` is the derived trials vector; the
+  per-category shift is `offset.category` (an \\n \times K\\ matrix
+  entering the values before the softmax), never the flat `offset`,
+  which the blend is invariant to and which is therefore refused. Fits
+  and predictions are the \\K\\ category probabilities, summing to one
+  across the second dimension. Like probit there is no residual scale to
+  draw, and weights are not supported: an integer case weight is already
+  row-wise replication in the count response, and a non-integer one has
+  no exact augmentation sampler. The sampler is an ordinary
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  whose response and per-category offsets are mutable through
+  `$setCounts`, `$setCategoryOffset` and `$setCategoryTestOffset`; see
+  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  for what the softmax refuses and why. `monotone`, a DART tree prior,
+  `split.probs`, a linear or Gaussian-process node prior, a `k`
+  hyperprior, a named `prior.scale`, grouped random effects, `variance`
+  and `storage = "single"` are refused at creation rather than dropped,
+  and the response uses the matrix (`x.train`/`y.train`) interface.
 
   `"ordinal"` fits an ordered categorical response by a cumulative
   probit: a latent \\z = f(x) + \epsilon\\, \\\epsilon \sim N(0, 1)\\,

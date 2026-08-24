@@ -38,6 +38,12 @@ setOffset(offset, updateScale = FALSE, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setWeights(weights, updateState = NA)
 # S4 method for class 'dbartsSampler'
+setCounts(counts, updateState = NA)
+# S4 method for class 'dbartsSampler'
+setCategoryOffset(offset, updateState = NA)
+# S4 method for class 'dbartsSampler'
+setCategoryTestOffset(offset.test, updateState = NA)
+# S4 method for class 'dbartsSampler'
 setActiveRows(active, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setForestWeights(forest, weights, updateState = NA)
@@ -204,6 +210,21 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   created, or `NULL`. If `offset.test` was set from `offset`, will
   attempt to update that as well.
 
+  For `setCategoryOffset`, a multinomial sampler's per-category shift
+  instead: an \\n \times K\\ numeric matrix, or `NULL` to clear one. The
+  latent becomes \\f\_{ik} + o\_{ik}\\, so the shift enters the
+  log-sum-exp margins, every category's working response and the
+  reported probabilities, and never a leaf value. This is the
+  response-side counterpart of `setCounts` rather than of `setOffset`,
+  whose flat shift is added AFTER the categories are blended - the wrong
+  side of the nonlinearity - and is the softmax's own null direction
+  besides, which is why `setOffset` itself is refused on such a sampler.
+  Only the row-centred part is identified: adding a constant to a whole
+  row leaves every reported probability unchanged, and the entrance
+  leaves the matrix as given rather than re-centring it. It shifts the
+  TRAINING latent only. Mirrored into `data@offset.category`, so a
+  re-created sampler carries it.
+
 - updateScale:
 
   Logical indicating whether BART's internal scale should re-anchor to
@@ -236,6 +257,23 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   forests, exactly as the response transform's shift does, and neither
   is any one forest's own total.
 
+  For `setCategoryTestOffset`, a multinomial sampler's
+  \\n\_{\mathrm{test}} \times K\\ per-category test shift, or `NULL` to
+  clear one: the recorded test channel becomes
+  \\\mathrm{softmax}(f\_{\mathrm{test}} + o\_{\mathrm{test}})\\, formed
+  where the training blend forms its own. The test fits enter no
+  likelihood, so this moves the reported test probabilities and nothing
+  else. Its rows are the CURRENT test rows, so replacing those rows
+  while it is installed is refused rather than silently reinterpreted -
+  clear it first - and out-of-sample `predict` does not read it at all,
+  taking its own matrix for the rows it is given. Mirrored into
+  `data@offset.category.test`. For `predict` on a multinomial sampler,
+  likewise a per-category matrix, one row per PREDICTED row: a flat
+  vector is refused there for the same reason, and a sampler holding
+  either resident category offset refuses an unnamed call rather than
+  reporting the offset-free surface, which an explicit all-zero matrix
+  asks for on purpose.
+
 - n.threads:
 
   Currently has no effect: `run` and `predict` both execute serially
@@ -256,6 +294,26 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   not fixed in this sense and is still accepted: suppressing the
   internal draw so an outer sampler owns `sigma` is what that prior is
   for.
+
+- counts:
+
+  For `setCounts`, the replacement response of a multinomial (softmax)
+  sampler: an \\n \times K\\ matrix of non-negative integer counts,
+  column \\k\\ holding category \\k\\'s successes, with trials \\n_i =
+  \sum_k\\ `counts[i, ]` at least 1. Both \\n\\ and \\K\\ are fixed at
+  creation - every combiner buffer is sized by \\n\\, and \\K\\ is the
+  forest count - so only the values may change; a matrix of the wrong
+  shape is refused naming the count in force. The trees carry over,
+  fitted to the previous counts exactly as `setResponse` leaves a
+  single-forest sampler's, and the next `run` forms every category's
+  working response against the new matrix. The matrix is written to both
+  the engine and `data@counts` (its row sums to `data@y`), so
+  `getPointer`'s transparent re-creation after save and load carries the
+  current response rather than the one the sampler was created with.
+  Cost, not a defect: the sweep draws \\n_i\\ Polya-Gamma variates per
+  observation per category, so replacing single-trial labels with
+  grouped counts multiplies sweep cost by `mean(n_i)`. Refused, naming
+  the reason, on any sampler that carries no count response.
 
 - weights:
 
@@ -680,6 +738,29 @@ state or from stored draws:
 | `$predictForests(x)` | internal, one channel per forest | excluded, and refused if passed | the saved samples under `keepTrees`, else the current trees |
 | `$getLatents()` | the family's own augmentation variable, which is a location for some families and a precision for others | not a fit; see ‘Value’ | current |
 
+A multinomial (softmax) sampler reads and writes a strict subset of this
+surface, by the model rather than by omission. Its response channels are
+`$setCounts`, `$setCategoryOffset` and `$setCategoryTestOffset`; the
+predictor family (`$setPredictor` in all four shapes, `$setCutPoints`,
+`$setTestPredictor`) and the global `$setActiveRows` are open, and
+`$predict` answers with the \\K\\ category probabilities and takes the
+matching per-category offset. Everything else on the mutation surface is
+refused, each by a message naming the capability and, where one exists,
+the channel that serves the caller instead: `$setResponse` and
+`$setOffset` (a flat vector cannot express the matrix, and a flat shift
+is the softmax's null direction), `$setWeights` (an integer case weight
+is already row-wise replication in the count response, and a non-integer
+one has no exact augmentation sampler), `$setSigma` (no residual scale),
+`$setData` and `$setModel` (the K category forests fix their data and
+their calibration at creation), `$setCalibration` (the softmax map owns
+every category forest's leaf scale), `$setForestWeights` and
+`$setForestBasis` (its forests are its categories, which carry no
+amplitudes), and `$getFitsWithoutOffset` (its reported channels are
+probabilities, not one additive location). Per-forest masking is refused
+permanently rather than pending: a category's margin is a log-sum-exp
+over the other \\K-1\\, so a mask on one forest alone has no conditional
+to be a mask of.
+
 The composition rule follows from the table: an outer block conditions
 on \\f(x_i)\\, so it reads `$getFitsWithoutOffset()` and adds back
 whatever offset it installed, rather than differencing `$getLatents()`
@@ -974,21 +1055,32 @@ deliberate, in place of the sum of squared category probabilities a bare
 substitution would have given.
 
 For `getLatents`, `NULL` when the model augments nothing - a plain
-gaussian response, and a multinomial one; otherwise the sampler's
-current draw of the augmentation variable, a plain vector of length
-equal to the number of observations when there is a single chain, or an
-observations-by-chains matrix otherwise, written into `result` when one
-was supplied. **What that variable IS depends on the family and is not
-uniform.** It is a LOCATION, on the sampler's own latent scale, for
-`"probit"` (the truncated normal \\z_i\\), `"ordinal"` (the same \\z_i\\
-under the cut points) and `"aft"` (the imputed log survival time), all
-of which a host regresses on directly. It is a PRECISION, one per
-observation, for `"logistic"` and `"nbinom"` (the Polya-Gamma
-\\\omega_i\\) and for a Student-t residual distribution (the
-scale-mixing \\\lambda_i\\); these WEIGHT a working response and are not
-on the response scale at all, so differencing them against a fit is
-meaningless. Note the last case: a sampler whose `family` is
-`"gaussian"` but whose `resid.dist` is `student()` (see
+gaussian response - and, deliberately, on a multinomial one, which
+augments but reports nothing: its \\K \times n\\ Polya-Gamma \\\omega\\
+matrix is drawn every sweep, but each \\\omega\_{ik}\\ is an interleaved
+ONE-VS-REST augmentation variable refreshed against a margin that the
+other \\K-1\\ forests move within the same sweep, so a host reading it
+between sweeps reads a quantity whose conditioning it cannot reproduce,
+and the composition recipes reach the same posterior through the fits
+and the category offset without touching it. That decline is scoped to
+the augmentation families whose latent is a PRECISION refreshed against
+a moving margin; the location-valued latents below - probit's and
+ordinal's \\z_i\\, and aft's imputed log survival time - are reported as
+documented. Otherwise the sampler's current draw of the augmentation
+variable, a plain vector of length equal to the number of observations
+when there is a single chain, or an observations-by-chains matrix
+otherwise, written into `result` when one was supplied. **What that
+variable IS depends on the family and is not uniform.** It is a
+LOCATION, on the sampler's own latent scale, for `"probit"` (the
+truncated normal \\z_i\\), `"ordinal"` (the same \\z_i\\ under the cut
+points) and `"aft"` (the imputed log survival time), all of which a host
+regresses on directly. It is a PRECISION, one per observation, for
+`"logistic"` and `"nbinom"` (the Polya-Gamma \\\omega_i\\) and for a
+Student-t residual distribution (the scale-mixing \\\lambda_i\\); these
+WEIGHT a working response and are not on the response scale at all, so
+differencing them against a fit is meaningless. Note the last case: a
+sampler whose `family` is `"gaussian"` but whose `resid.dist` is
+`student()` (see
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)) does
 report latents, and they are precisions.
 

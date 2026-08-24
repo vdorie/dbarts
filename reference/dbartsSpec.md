@@ -20,7 +20,7 @@ dbartsSpec(
     forests = NULL,
     sigma = NA_real_, seed = NA_integer_,
     family = c("auto", "gaussian", "probit", "logistic", "aft",
-               "ordinal", "nbinom"),
+               "multinomial", "ordinal", "nbinom"),
     dispersion = NA_real_, survival = NULL,
     parentEnv = parent.frame())
 ```
@@ -34,7 +34,10 @@ dbartsSpec(
   Unlike
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md), this
   function does no response ingestion of its own: the response must
-  already be materialized.
+  already be materialized. A data object carrying an \\n \times K\\
+  `counts` matrix resolves to `family = "multinomial"` even from
+  `"auto"` - the slot IS the declaration - and is refused under any
+  other family.
 
 - control, tree.prior, node.prior, resid.prior, resid.dist,
   proposal.probs, monotone, interactions, blocks, variance, forests,

@@ -11,7 +11,8 @@ dbartsData(
     offset, offset.test = offset,
     factors = c("categorical", "indicators"),
     missing = c("incorporate", "error"),
-    bases = NULL)
+    bases = NULL,
+    counts = NULL, offset.category = NULL, offset.category.test = NULL)
 ```
 
 ## Arguments
@@ -41,6 +42,33 @@ dbartsData(
   configuration, and
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)
   declarations may then configure the forests one at a time.
+
+- counts:
+
+  Optional `n` x `K` matrix of non-negative integer counts selecting the
+  multinomial (softmax) model, column `k` holding category `k`'s
+  successes and every row carrying at least one trial. It is restricted
+  by `subset` exactly as `weights` is, and it IS the response: `y` is
+  derived as its row sums - the trials \\n_i\\ - so no separate response
+  need be supplied, and any that is supplied is replaced. At least two
+  categories are required. Column names, when present, label the
+  categories.
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)`(family = "multinomial")`
+  writes this argument from a count-matrix or factor response rather
+  than requiring it here.
+
+- offset.category, offset.category.test:
+
+  Optional per-category shifts of a `counts` response, added to the raw
+  per-category values BEFORE the softmax - which is the only place a
+  shift means anything under one, since the blend is invariant to a
+  common per-observation shift and the ordinary `offset` would be added
+  after it. `offset.category` is an `n` x `K` numeric matrix over the
+  training rows and is restricted by `subset`; `offset.category.test` is
+  its `nTest` x `K` twin over the rows of `test`, which it requires.
+  Both are refused without `counts`. Only the row-centred part is
+  identified: adding a constant to a whole row leaves every reported
+  probability unchanged.
 
 ## Details
 
@@ -229,6 +257,15 @@ data
 #> NULL
 #> 
 #> Slot "bases":
+#> NULL
+#> 
+#> Slot "counts":
+#> NULL
+#> 
+#> Slot "offset.category":
+#> NULL
+#> 
+#> Slot "offset.category.test":
 #> NULL
 #> 
 #> Slot "testUsesRegularOffset":
