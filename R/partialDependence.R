@@ -24,6 +24,12 @@ pdbart.getAndInitializeSampler <- function(bartCall, evalEnv) {
   control@verbose <- verbose
   control@keepTrainingFits <- keepTrainingFits
   sampler$setControl(control)
+  # under keepTrees the callers predict from the saved trees instead of running,
+  # so the sampling phase happens here rather than in their own branch. Burn-in
+  # records nothing, so without this the store they read holds no draws at all.
+  if (sampler$control@keepTrees) {
+    invisible(sampler$run(0L, sampler$control@n.samples))
+  }
   namedList(sampler, fit)
 }
 
