@@ -602,10 +602,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - sampleNums:
 
-  An integer vector listing the saved samples to return from `getTrees`.
-  Applies only when `keepTrees` is `TRUE` and `current` is `FALSE`;
-  otherwise the live working trees have no sample dimension and it is
-  ignored.
+  An integer vector listing the saved samples to return from `getTrees`
+  or print from `printTrees`. Applies only when `keepTrees` is `TRUE`
+  and `current` is `FALSE`; otherwise the live working trees have no
+  sample dimension and it is ignored. Sample numbers address recorded
+  DRAWS on the oldest-first axis `predict` reports - `1` to the number
+  of draws recorded, at most `control@n.samples` - and not the store's
+  internal slots.
 
 - current:
 
@@ -719,9 +722,12 @@ Route changes through the `set*` methods instead.
 - `state`:
 
   The cached, serializable engine state, or `NULL` until one is
-  materialized. Reading it forces the sampler's *current* state;
-  `storeState` refreshes it on demand and `updateState` governs when the
-  methods do so themselves. It is the only field
+  materialized. The saved-tree store's write position and the number of
+  draws it has recorded both ride it, so `predict` after a `setState`
+  reports the same draws, in the same order, as before the store.
+  Reading it forces the sampler's *current* state; `storeState`
+  refreshes it on demand and `updateState` governs when the methods do
+  so themselves. It is the only field
   [`save`](https://rdrr.io/r/base/save.html) needs, and restoring one
   requires `setState` - see ‘Saving’.
 
@@ -1006,6 +1012,17 @@ observations, `TRUE` where that observation's new value was installed
 and `FALSE` where it was rolled back to its previous value to keep every
 tree of every forest valid.
 
+Under `keepTrees` the draws `predict`, `predictForests`, `getTrees` and
+`printTrees` report come out OLDEST FIRST: the store keeps the most
+recent `control@n.samples` recorded draws, so a sampler driven through
+several recorded `run` calls replays them in the order they were drawn
+and lines up draw for draw with the `train`/`sigma` channels those runs
+returned. A sampler that has recorded fewer draws than that reports only
+the draws it holds, and one that has recorded none - `keepTrees` set but
+nothing run since creation, a `setControl` that resized the store, or an
+`installTrees` warm start - is refused rather than answered from slots
+nothing has written.
+
 `predict` keeps the current test matrix in place and uses the current
 set of tree splits. This function has two use cases. The first is when
 `keepTrees` of
@@ -1019,23 +1036,23 @@ full-Bayes sampler. This would typically be followed by a call to
 
 For `getTrees`, a `data.frame` with one row per tree node in
 depth-first, left-hand-side pre-order, with columns `chain` (present
-only when `n.chains > 1`), `sample` (present only for saved samples),
-`tree`, `n` (the number of observations in the node), `var` (the
-splitting variable, or -1 at a leaf), and `value` (the split value, or
-the leaf prediction). An ordinal rule's value is its cut point and
-observations with values less than or equal to it go left; a categorical
-rule carries no data value (its `value` is `NA`) and its split is
-reported in the `directions` column instead. When the sampler has any
-categorical predictors the result gains a `directions` column decoding
-each categorical rule into one `"L"`/`"R"` character per level, in level
-order (level `k` goes right when its character is `"R"`); ordinal rules
-and leaves are `NA`. When any predictor contains missing values the
-result gains a `missing` column giving the branch (`"L"`/`"R"`) each
-rule sends missing values down; rules on complete columns and leaves are
-`NA`. Under a `linear` node prior each leaf's `value` is its intercept
-and the result gains one `beta.<column>` column per designated covariate
-holding that leaf's slope on the internal standardized scale; internal
-nodes are `NA`.
+only when `n.chains > 1`), `sample` (present only for saved samples, and
+reporting the draw number asked for), `tree`, `n` (the number of
+observations in the node), `var` (the splitting variable, or -1 at a
+leaf), and `value` (the split value, or the leaf prediction). An ordinal
+rule's value is its cut point and observations with values less than or
+equal to it go left; a categorical rule carries no data value (its
+`value` is `NA`) and its split is reported in the `directions` column
+instead. When the sampler has any categorical predictors the result
+gains a `directions` column decoding each categorical rule into one
+`"L"`/`"R"` character per level, in level order (level `k` goes right
+when its character is `"R"`); ordinal rules and leaves are `NA`. When
+any predictor contains missing values the result gains a `missing`
+column giving the branch (`"L"`/`"R"`) each rule sends missing values
+down; rules on complete columns and leaves are `NA`. Under a `linear`
+node prior each leaf's `value` is its intercept and the result gains one
+`beta.<column>` column per designated covariate holding that leaf's
+slope on the internal standardized scale; internal nodes are `NA`.
 
 For `getSigmas`, a numeric vector of length equal to the number of
 chains, giving each chain's current residual standard deviation on the
