@@ -64,7 +64,8 @@ toDrawsArray <- function(x, n.chains, isScalar) {
 }
 
 # fields with no per-variable axis; every other requested field (varcount,
-# varprobs, yhat.train, yhat.test, ranef, ...) contributes one draws
+# varprobs, yhat.train, yhat.test, ranef, ..., and nbinom's 'dispersion') has
+# the same (n.chains-combined-or-not) scalar shape as sigma - one draws
 # variable per column/observation, named "field[inner]"
 scalarFields <- c(
   "sigma",
@@ -74,7 +75,8 @@ scalarFields <- c(
   "first.k",
   "first.tau",
   "resid.df",
-  "mean.s"
+  "mean.s",
+  "dispersion"
 )
 
 # One draws field by name: a stored channel, or the synthetic "mean.s" of a
@@ -113,8 +115,34 @@ presentDrawsVars <- function(object, vars) {
   vars[!vapply(vars, function(v) is.null(drawsField(object, v)), logical(1L))]
 }
 
+# Reshapes bart2(family = "ordinal")'s per-draw cutpoints - the K - 1
+# thresholds gamma_1 < ... < gamma_{K-1} - into the (iteration, chain,
+# variable) convention bartDrawsArray's other fields share. Combined storage
+# (the default) is (n.samples [* n.chains]) x (K - 1), the same layout
+# toDrawsArray already gives any per-column field, so that path is reused
+# directly; storage kept per-chain (combineChains = FALSE) is (K - 1) x
+# n.samples x n.chains - a different axis order than toDrawsArray's own 3-D
+# case assumes (which is built for a per-OBSERVATION field, chain-first), so
+# it is permuted here instead of routed through it.
+ordinalCutpointsArray <- function(object) {
+  cutpoints <- object$cutpoints
+  arr <- if (length(dim(cutpoints)) == 3L) {
+    aperm(cutpoints, c(2L, 3L, 1L))
+  } else {
+    toDrawsArray(cutpoints, object$n.chains, isScalar = FALSE)
+  }
+  dimnames(arr) <- list(
+    NULL,
+    NULL,
+    paste0("cutpoint[", seq_len(dim(arr)[3L]), "]")
+  )
+  arr
+}
+
 # gathers one or more chain-dimensioned fields off a bart/bart2/rbart fit
-# into a single (iteration, chain, variable) base array
+# into a single (iteration, chain, variable) base array. 'cutpoints'
+# (bartOrdinal only) is the one field whose shape toDrawsArray cannot read
+# directly and so is special-cased to ordinalCutpointsArray, already named.
 bartDrawsArray <- function(object, vars) {
   n.chains <- fitNChains(object)
   present <- presentDrawsVars(object, vars)
@@ -127,6 +155,9 @@ bartDrawsArray <- function(object, vars) {
     )
   }
   pieces <- lapply(present, function(v) {
+    if (identical(v, "cutpoints")) {
+      return(ordinalCutpointsArray(object))
+    }
     piece <- toDrawsArray(drawsField(object, v), n.chains, v %in% scalarFields)
     dimnames(piece)[[3L]] <- if (v %in% scalarFields) {
       v
@@ -190,6 +221,45 @@ summary.bart <- function(object, vars = c("sigma", "k", "tau"), ...) {
 }
 summary.rbart <- summary.bart
 
+# bart2(family = "ordinal")'s scalar summary is the K - 1 cutpoints, the only
+# parameters this family's outer fit carries beyond whatever mean-function
+# scale it shares with 'vars' (present today: neither sigma nor k/tau is
+# tracked on the ordinal fit object, so the summary is cutpoints alone, but
+# any that ever are picked up automatically through 'vars', unchanged).
+summary.bartOrdinal <- function(
+  object,
+  vars = c("cutpoints", "sigma", "k", "tau"),
+  ...
+) {
+  summary.bart(object, vars = vars, ...)
+}
+
+# bart2(family = "nbinom")'s per-draw dispersion r rides its own 'dispersion'
+# field, the count analog of gaussian's sigma; scalarFields already gives it
+# sigma's shape, so this is summary.bart with a widened default 'vars'.
+summary.bartNegbin <- function(
+  object,
+  vars = c("dispersion", "sigma", "k", "tau"),
+  ...
+) {
+  summary.bart(object, vars = vars, ...)
+}
+
+# A hurdle fit (docs/design/hurdle.md) is two ordinary bart2 fits under the
+# hood - an occupancy probit on 1{y > 0} and a lognormal fit on the positive
+# part - so each summarizes through summary.bart unchanged; only the
+# packaging (both components, one call) and the print layout are new.
+summary.bartHurdle <- function(object, vars = c("sigma", "k", "tau"), ...) {
+  structure(
+    list(
+      call = object[["call"]],
+      occupancy = summary.bart(object$occupancy, vars = vars, ...),
+      positive = summary.bart(object$positive, vars = vars, ...)
+    ),
+    class = "summary.bartHurdle"
+  )
+}
+
 # Collapses bartMultinomial's yhat.train (a (n.chains x) n.samples x n.obs x
 # K probability array) over the observation margin into a per-category
 # scalar channel shaped (iteration, chain, category) - the same
@@ -241,16 +311,13 @@ summary.bartMultinomial <- function(object, ...) {
   )
 }
 
-print.summary.bart <- function(x, ...) {
-  cat(
-    "\nCall:\n",
-    paste(deparse(x$call), sep = "\n", collapse = "\n"),
-    "\n\n",
-    sep = ""
-  )
+# the row-table body of a summary.bart object, with no Call: header - shared
+# by print.summary.bart and print.summary.bartHurdle, which prints one header
+# for the fit and this body once per component
+printSummaryBartBody <- function(x, ...) {
   if (is.null(x$stats)) {
     cat("No scalar parameters (sigma, k, tau) to summarize.\n")
-    return(invisible(x))
+    return(invisible(NULL))
   }
   print(x$stats, ...)
   if (!x$posterior) {
@@ -260,5 +327,30 @@ print.summary.bart <- function(x, ...) {
       "\nNote: some R-hat values exceed 1.01; chains may not have converged.\n"
     )
   }
+  invisible(NULL)
+}
+
+print.summary.bart <- function(x, ...) {
+  cat(
+    "\nCall:\n",
+    paste(deparse(x$call), sep = "\n", collapse = "\n"),
+    "\n\n",
+    sep = ""
+  )
+  printSummaryBartBody(x, ...)
+  invisible(x)
+}
+
+print.summary.bartHurdle <- function(x, ...) {
+  cat(
+    "\nCall:\n",
+    paste(deparse(x$call), sep = "\n", collapse = "\n"),
+    "\n\n",
+    sep = ""
+  )
+  cat("Occupancy component (probit, 1(y > 0)):\n")
+  printSummaryBartBody(x$occupancy, ...)
+  cat("\nPositive-part component (lognormal, y | y > 0):\n")
+  printSummaryBartBody(x$positive, ...)
   invisible(x)
 }

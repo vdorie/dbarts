@@ -1785,6 +1785,16 @@
             never affected. Sampler states carry the store's draw count and so
             move to format version 3; states written by earlier development
             versions are refused.
+      \item \code{summary} now has methods for \code{bart2}'s
+            \code{"ordinal"}, \code{"nbinom"}, and \code{"hurdle.lognormal"}
+            fits. Previously these fell through to \code{summary.default}
+            and printed a raw \code{Length}/\code{Class}/\code{Mode} table.
+            An ordinal fit's summary reports its cutpoints, a
+            negative-binomial fit's its dispersion draws, and a hurdle
+            fit's both component fits' summaries under their own headers -
+            alongside whatever mean-function scale (\code{sigma}, \code{k},
+            \code{tau}) each carries, exactly as \code{summary.bart}
+            already reports for a plain \code{bart}/\code{bart2} fit.
     }
   }
 }
