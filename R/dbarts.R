@@ -612,11 +612,14 @@ dbarts <- function(
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
   # a forests = declaration's bases are conditioning DATA (docs/design/bcf.md),
   # so the columns they expand to ride the data object beside the weights they
-  # mirror. Evaluated here, against this fit's own (pre-subset) data, since
-  # dbartsData() has no index of its own to restrict a raw 'bases' entry by;
-  # on the formula path, with 'subset' present, each one is then aligned to
-  # the same rows the model frame will keep (resolveFormulaBasisSubset/
-  # alignForestBasisToSubset, R/model.R).
+  # mirror. Evaluated here, against this fit's own (pre-subset) data, since a
+  # raw 'bases' entry is otherwise the caller's own value with no index to
+  # restrict it by. The alignment to whatever rows the model frame will keep
+  # - a full-data basis restricted to them, an ambiguous shape refused by
+  # name - is dbartsData()'s own rule now (validateForestBases's
+  # 'subsetRows' branch, R/data.R, resolveFormulaBasisSubset/
+  # alignForestBasisToSubset, R/model.R), so it is left unapplied here and
+  # the evaluated basis rides 'bases' at its raw, pre-subset shape.
   basisDeclarations <- forestBasisDeclarations(forests)
   # a basis declared on 'forests' has nowhere to ride once 'formula' is
   # already a built dbartsData: dbartsData() drops an unmatched 'bases'
@@ -645,18 +648,8 @@ dbarts <- function(
     # missing() reads this frame, so it is resolved here rather than inside the
     # per-forest closure below
     basisData <- if (missing(data)) NULL else data
-    # NULL on the x/y interface or with no 'subset' - both leave every basis
-    # untouched, below, exactly as before this rule existed
-    subsetRows <- resolveFormulaBasisSubset(
-      formula,
-      basisData,
-      matchedCall$subset
-    )
-    expanded <- lapply(seq_along(basisDeclarations), function(i) {
-      basis <- expandForestBasis(
-        evaluateForestBasis(basisDeclarations[[i]], basisData)
-      )
-      alignForestBasisToSubset(basis, i, subsetRows)
+    expanded <- lapply(basisDeclarations, function(declaration) {
+      expandForestBasis(evaluateForestBasis(declaration, basisData))
     })
     # a list in which no forest declares a basis is not a multi-forest
     # declaration at all - it names K ensembles with nothing to tell them
@@ -666,15 +659,6 @@ dbarts <- function(
     } else {
       basisDeclarations <- NULL
     }
-  }
-  # a forest() term's bases were already evaluated against the model frame
-  # (R/formulaTerms.R), post-subset, unlike the pre-subset raw-data channel
-  # basisDeclarations above; 'forests' being NULL here is enforced by the
-  # collision refusal above, so this never collides with it
-  if (!is.null(termIngestion)) {
-    # data@bases is read positionally against the forests it distinguishes
-    # (forest 1 first); a term never speaks for forest 1, which has none
-    dataCall$bases <- c(list(NULL), termIngestion$bases)
   }
   if (!is.null(multinomialCounts)) {
     dataCall$counts <- multinomialCounts
@@ -701,6 +685,20 @@ dbarts <- function(
 
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigma
+
+  # a forest() term's bases were already evaluated against the model frame
+  # (R/formulaTerms.R), post-subset - unlike a forests = declaration's, which
+  # dbartsData()'s 'bases' argument now expects at the pre-subset shape and
+  # aligns itself. A term's basis needs no such alignment (it is already at
+  # the kept rows), so it rides onto the data object directly rather than
+  # through that argument; 'forests' being NULL here is enforced by the
+  # collision refusal above, so this never collides with a basisDeclarations
+  # assignment
+  if (!is.null(termIngestion)) {
+    # data@bases is read positionally against the forests it distinguishes
+    # (forest 1 first); a term never speaks for forest 1, which has none
+    data@bases <- c(list(NULL), termIngestion$bases)
+  }
 
   # a term's symbolic vars slot names design columns, which exist only now
   # (R/formulaTerms.R); forest 1 is the fit's own and reads every column, as

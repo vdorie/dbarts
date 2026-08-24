@@ -683,19 +683,27 @@ validateXYWeights <- function(weights, initialNumObservations, subset) {
 # Validate and subset a user-supplied list of per-forest amplitude bases, the
 # matrices a multi-forest fit combines its forests through
 # (docs/design/bcf.md). A NULL passes through; otherwise every non-null element
-# is coerced to a numeric matrix, row-checked against the pre-subset response
-# and restricted to 'subset', exactly as the weights they ride beside are. The
-# formula branch has no row index to restrict by, so it passes the assembled
-# response length and no subset. 'argument' names the surface the value came
-# from, so a caller who wrote a forest's basis is refused in those terms rather
-# than in the data object's, and 'rows' names what the row count is checked
-# against - the response at fit time, the predicted rows at predict time.
+# is coerced to a numeric matrix. 'subsetRows' (resolveFormulaBasisSubset's
+# result, R/model.R), when given, resolves each element the way a forests =
+# declaration's basis already does - alignForestBasisToSubset, the same
+# function - so the formula path and the x/y path converge on one rule: a
+# basis at the pre-'subset' data's row count is restricted to the rows a
+# formula's 'subset' kept, and a basis matching the kept-row count but not the
+# full data's is refused by name rather than guessed at. With no 'subsetRows'
+# (the x/y interface, or a formula with no 'subset'), the older row-index
+# contract applies directly: 'initialNumObservations' is the row count to
+# match and 'subset', if given, is applied as-is. 'argument' names the surface
+# the value came from, so a caller who wrote a forest's basis is refused in
+# those terms rather than in the data object's, and 'rows' names what the row
+# count is checked against - the response at fit time, the predicted rows at
+# predict time.
 validateForestBases <- function(
   bases,
   initialNumObservations,
   subset = NULL,
   argument = "bases",
-  rows = "'y'"
+  rows = "'y'",
+  subsetRows = NULL
 ) {
   if (is.null(bases)) {
     return(NULL)
@@ -703,7 +711,8 @@ validateForestBases <- function(
   if (!is.list(bases)) {
     stop("'", argument, "' must be a list of per-forest basis matrices")
   }
-  lapply(bases, function(basis) {
+  lapply(seq_along(bases), function(i) {
+    basis <- bases[[i]]
     if (is.null(basis)) {
       return(NULL)
     }
@@ -712,11 +721,15 @@ validateForestBases <- function(
     }
     basis <- as.matrix(basis)
     storage.mode(basis) <- "double"
-    if (nrow(basis) != initialNumObservations) {
-      stop("'", argument, "' must have the same length as ", rows)
-    }
-    if (!is.null(subset)) {
-      basis <- basis[subset, , drop = FALSE]
+    if (!is.null(subsetRows)) {
+      basis <- alignForestBasisToSubset(basis, i, subsetRows)
+    } else {
+      if (nrow(basis) != initialNumObservations) {
+        stop("'", argument, "' must have the same length as ", rows)
+      }
+      if (!is.null(subset)) {
+        basis <- basis[subset, , drop = FALSE]
+      }
     }
     if (anyNA(basis) || !all(is.finite(basis))) {
       stop("'", argument, "' values must all be finite")
@@ -1062,9 +1075,26 @@ dbartsData <- function(
     y <- coded$y
     responseInfo <- coded[c("type", "n.levels", "levels")]
     numObservations <- NROW(y)
-    # the model frame owns the row selection here, so the bases are checked
-    # against the rows that survived it
-    bases <- validateForestBases(bases, numObservations)
+    # a 'bases' entry is resolved the same way a forests = declaration's
+    # basis is (validateForestBases's 'subsetRows' branch): checked against
+    # the FULL pre-'subset' data and aligned to the rows the model frame
+    # kept. A basis already at the model frame's own row count - the common
+    # case of no 'subset' at all - passes through unchanged, since 'subset'
+    # is then just the identity
+    subsetRows <- if (is.null(bases)) {
+      NULL
+    } else {
+      resolveFormulaBasisSubset(
+        formula,
+        if (dataIsMissing) NULL else data,
+        matchedCall$subset
+      )
+    }
+    bases <- validateForestBases(
+      bases,
+      numObservations,
+      subsetRows = subsetRows
+    )
     # the count response is the model's response, and a formula already names
     # one on its left-hand side; taking both would silently discard whichever
     # lost. dbarts() refuses the same combination at its own entry, this being

@@ -58,8 +58,11 @@
             than checked only by row count. A basis at the \code{subset}'s
             row count instead of the full data's - previously accepted and
             aligned to the kept rows by position alone - is refused, naming
-            the forest and both counts. \code{dbartsData(bases = )} and the
-            \code{x.train}/\code{y.train} interface are unchanged.
+            the forest and both counts. \code{dbartsData(bases = )}'s own
+            formula path now applies the identical rule directly, rather
+            than its previous, disjoint count-only check; its
+            \code{x.train}/\code{y.train} interface already followed this
+            rule and is unchanged.
       \item \code{dbartsData} gains three slots - \code{counts},
             \code{offset.category} and \code{offset.category.test} - so a
             \code{dbartsData} serialized by an earlier build of 1.0-0 has

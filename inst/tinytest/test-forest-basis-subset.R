@@ -1,13 +1,21 @@
 # Formula-path forests = basis declarations, evaluated against the fit's own
 # (pre-subset) data and then aligned to 'subset' (R/model.R
-# resolveFormulaBasisSubset/alignForestBasisToSubset). With no 'subset', or
-# one that keeps every row, a basis's row count must match the data's, as
-# always. With 'subset' present the basis must instead cover every row of the
-# FULL data and is restricted to the same rows the model frame keeps; a basis
+# resolveFormulaBasisSubset/alignForestBasisToSubset, and R/data.R
+# validateForestBases's 'subsetRows' branch - the same rule dbartsData(bases =
+# ) now applies directly on its own formula path). With no 'subset', or one
+# that keeps every row, a basis's row count must match the data's, as always.
+# With 'subset' present the basis must instead cover every row of the FULL
+# data and is restricted to the same rows the model frame keeps; a basis
 # already at the subset's row count - matching only by coincidence, not
-# because it names the pre-subset data - is refused by name. The x/y matrix
-# interface, dbartsData(bases = ) called directly, and the forest() formula
-# term (':') route are all out of scope and checked here only as regressions.
+# because it names the pre-subset data - is refused by name, at both
+# dbarts(forests = ) and a direct dbartsData(bases = ) call. At an EQUAL row
+# count (subset selects/reorders exactly as many rows as the full data has),
+# the two are not ambiguous: a full-data match takes priority over a
+# subset-count match, so both read the basis as full-data and reorder it by
+# 'subset'. The x/y matrix interface (already implementing the full-data
+# rule) and the forest() formula term (':') route (evaluated post-subset by
+# construction, and unaffected by this rule) are checked here only as
+# regressions.
 
 n <- 40L
 set.seed(11)
@@ -150,12 +158,40 @@ expect_error(
   "'basis' must have the same length"
 )
 
-## --- regression: dbartsData(bases = ) called directly keeps its own,
-## unmodified (count-only) contract - a subset-length basis still passes ---
-directData <- dbartsData(
+## --- dbartsData(bases = ) called directly now applies the SAME rule as
+## dbarts(forests = ): a basis at the FULL data's row count is accepted and
+## aligned to 'subset' ---------------------------------------------------
+directFull <- dbartsData(y ~ a, d, subset = idx, bases = list(NULL, zBasis))
+expect_identical(directFull@bases[[2L]], zBasis[idx, ])
+
+## a basis at the SUBSET's row count instead is refused by name, naming the
+## forest and both counts - the same message dbarts(forests = ) gives, since
+## dbartsData() is now the single place that raises it. Mutation-target cell
+## for this entry: reverting validateForestBases's 'subsetRows' branch back
+## to a bare count check makes exactly this expect_error stop seeing a
+## condition. ---------------------------------------------------------------
+expect_error(
+  dbartsData(y ~ a, d, subset = idx, bases = list(NULL, zBasis[idx, ])),
+  ambiguousPattern
+)
+
+## --- equal row count (subset selects/reorders exactly as many rows as the
+## full data has): dbartsData(bases = ) and dbarts(forests = ) resolve it
+## IDENTICALLY rather than ambiguously - a full-data-length match takes
+## priority over a subset-count match, so both reorder the basis by 'subset'
+recycled <- rep(seq_len(20L), 2L)
+equalCountDirect <- dbartsData(
   y ~ a,
   d,
-  subset = idx,
-  bases = list(NULL, zBasis[idx, ])
+  subset = recycled,
+  bases = list(NULL, zBasis)
 )
-expect_identical(directData@bases[[2L]], zBasis[idx, ])
+equalCountForests <- dbarts(
+  y ~ a,
+  d,
+  subset = recycled,
+  forests = list(forest(), forest(basis = zBasis)),
+  control = seededControl()
+)
+expect_identical(equalCountDirect@bases[[2L]], zBasis[recycled, ])
+expect_identical(equalCountForests$data@bases[[2L]], zBasis[recycled, ])
