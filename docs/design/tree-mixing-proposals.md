@@ -146,7 +146,7 @@ Three consequences.
    redraws the variable, so a pure cut-point move happens only when the
    redraw lands back on the incumbent variable: probability `~1/p_avail`
    per change proposal (about 2% at p = 50 under the default
-   `split.probs = 1/num.vars`, `R/bart.R:517`). The machinery for such a
+   `split.probs = 1/num.vars`, `R/bart.R:2618`). The machinery for such a
    move already exists and is already gated (section 5.1).
 
 Adjacent machinery already landed, relevant to cost: `scan.hpp:75`
@@ -658,8 +658,8 @@ because every arm already exists.**
 | BART alone | `bart()` | shipped |
 | outer composition, HMC parametric block | `stan4bart` (WALNUTS + dbarts exchanging offsets) | exists and runs; 0.0.14 installed here |
 | outer composition, conjugate block | `rbart_vi` / in-engine `GroupedResponse` | shipped |
-| outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` (`R/dbarts.R:1230`), and `dbarts_sampler_setOffset` in the shipped C API (`dbarts.h:366`) | shipped, supported |
-| inner composition | `node.prior = linear(columns)` / `gp(columns)` (`R/model.R:886`, `:897`) | shipped |
+| outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` (`R/dbarts.R:1303`), and `dbarts_sampler_setOffset` in the shipped C API (`dbarts.h:366`) | shipped, supported |
+| inner composition | `node.prior = linear(columns)` / `gp(columns)` (`R/model.R:1436`, `:1454`) | shipped |
 
 The probes exist too: `benchmarks/R/grouped-mixing.R` (the autocorrelation
 harness), `benchmarks/R/forest-ranef-collapse-proto.R` (the isolated ridge
@@ -902,7 +902,7 @@ seeds** - while mean accuracy was mixed (PIMA fell 76.5 -> 73.4 and
 **Why the previously recorded architectural objection does not hold.** The
 survey declined this on the grounds that swapping breaks dbarts'
 per-chain RNG reproducibility, forces a synchronization barrier across the
-thread-parallel chain layout (`R/bart.R:522-523`), and destroys the
+thread-parallel chain layout (`R/bart.R:656-657`), and destroys the
 diagnostic value of multiple chains. All three assume swaps happen *among
 the user's chains*. Under the private-ladder construction - each cold chain
 owns its own rungs and cold chains never exchange with each other - each
@@ -1271,14 +1271,14 @@ Neither is engine work, and both should be in the documentation regardless.
 
 - **More trees.** Tan et al.: "Increasing the number of trees consistently
   dampens the trend in R-hat. Its effect on coverage and RMSE is
-  ambiguous." dbarts defaults to `n.trees = 75L` (`R/bart.R:519`), below
+  ambiguous." dbarts defaults to `n.trees = 75L` (`R/bart.R:653`), below
   BART's classic 200. **Carry the caveat with it**: more trees dampens
   R-hat partly *because* the ensemble self-averages structural labels
   harder, so an improved R-hat at larger m is not by itself evidence that
   tree-space mixing improved.
 - **More chains.** Ronen et al.'s own recommendation is to "increase the
   number of chains with the number of data points"; dbarts defaults to
-  `n.chains = 4L` (`R/bart.R:522`).
+  `n.chains = 4L` (`R/bart.R:656`).
 
 No engine candidate should be measured against a single-chain, 75-tree
 straw man.
@@ -1618,7 +1618,7 @@ be verified directly rather than toward citations.
 |---|---|
 | `docs/design/forest-ranef-interweaving.md` sec 0, 2, 5, 6, 9 | Read in full at `d3cb94b`. The 56.1 / 9.3 / 114.6 prototype table, the with-f/no-f attribution, the "no cheap ASIS/PX" structural argument, and section 9's authoritative corrections are all quoted from it directly. This is the load-bearing evidence for the hazard. |
 | `model.hpp:1023-1040` (linear leaf integrated likelihood) | Read. Confirms the inner variant marginalizes leaf coefficients out of the structural score. |
-| `R/dbarts.R:1230`, `dbarts.h:366`, `R/model.R:886,897`, `R/rbart.R:639` | Read. Confirms the composition surface is public on both the R and C sides, and that rbart_vi's loop is 1:1 alternation. |
+| `R/dbarts.R:1303`, `dbarts.h:366`, `R/model.R:1436,1454`, `R/rbart.R:639` | Read. Confirms the composition surface is public on both the R and C sides, and that rbart_vi's loop is 1:1 alternation. |
 | `inst/common/friedmanData.R` | Read. Confirms the probe DGP decomposes into one interaction plus three separable terms. |
 | stan4bart `src/init.cpp:642,654`, `docs/design/walnuts.md` | Read in the live tree (0.0.14 installed). Confirms the 1:1 two-block Gibbs alternation and that no mixing diagnostic is reported. |
 | Hahn, Carvalho, Puelz, He, Bayesian Analysis 13(1):163-182, 2018 | Full text (arXiv 1602.02176v3): the RIC definition, the competing-criteria mechanism, the closed-form bias (2.3), the reparameterization (2.5)-(2.6), and the appendix's extra alpha step added "to improve mixing". |
@@ -1940,7 +1940,7 @@ instrumentation, falsifiable in both directions.
   or relabels trees (verified by search). The *posterior* is
   label-exchangeable; the *chain* never exercises the symmetry.
 - **`getTrees` is necessary but not sufficient.** It returns "a data.frame
-  containing the internal state of the trees" (`R/dbarts.R:1792`) - flat
+  containing the internal state of the trees" (`R/dbarts.R:1917`) - flat
   node structure with leaf values, decoded categorical directions and
   missing routes - not per-tree fitted vectors. The census must walk trees
   in R itself (the package walks trees in R only in

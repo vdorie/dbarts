@@ -189,6 +189,7 @@ predict.bart <- function(
   n.threads = object$fit$control@n.threads,
   ci.level = NULL,
   forest = NULL,
+  bases = NULL,
   ...
 ) {
   if (missing(offset)) {
@@ -208,11 +209,61 @@ predict.bart <- function(
 
   type <- validateType(type, eval(formals(predict.bart)$type))
 
+  # both amplitude arms read the SAVED trees draw by draw, pairing each draw's
+  # forests with that draw's own amplitudes; without the tree store only the
+  # current trees replay, one set standing for every draw, and the pairing the
+  # arms are defined by does not exist. A plain single-forest predict keeps its
+  # long-standing keepTrees-free reading of the current trees.
+  if (
+    (type == "forest" || !is.null(object[["forestFits"]])) &&
+      !object$fit$control@keepTrees
+  ) {
+    stop(
+      "predict on an amplitude-coupled fit requires 'keeptrees'/'keepTrees' ",
+      "== TRUE: each saved draw's forests are paired with that draw's ",
+      "amplitudes, and without the tree store only the current trees replay, ",
+      "one set for every draw"
+    )
+  }
+
   # the per-forest arm answers off the sampler's own replay and shares none of
   # the combined arms' machinery below: there is no ci.level band, no latent
   # transform and no s(x) attribute on a raw per-forest total
   if (type == "forest") {
+    if (!is.null(bases)) {
+      stop(
+        "'bases' does not apply to type = \"forest\": that arm reports each ",
+        "forest's own total BEFORE any basis, which is what leaves the ",
+        "recombination to the caller"
+      )
+    }
     return(predictForest(object, newdata, offset, combineChains, forest))
+  }
+
+  # an amplitude-coupled fit has no combined test surface in the engine - the
+  # sampler holds no basis at the caller's rows - so the combination is done
+  # here, from the per-forest replay and the fit's own glue
+  if (!is.null(object[["forestFits"]])) {
+    return(predictBlend(
+      object,
+      newdata,
+      offset,
+      weights,
+      type,
+      combineChains,
+      ci.level,
+      bases
+    ))
+  }
+
+  if (!is.null(bases)) {
+    numForests <- if (is.null(object[["n.forests"]])) 1L else object$n.forests
+    stop(
+      "'bases' is only meaningful on an amplitude-coupled multi-forest fit; ",
+      "this fit has ",
+      numForests,
+      if (numForests == 1L) " forest" else " forests"
+    )
   }
 
   n.threads <- as.integer(n.threads)[1L]
@@ -453,8 +504,9 @@ extractForest <- function(object, sample, combineChains, forest, contribution) {
 
 # predict(type = "forest"): the out-of-sample twin of extract(type = "forest")'s
 # raw slice - each selected forest's own RESPONSE-scale total at newdata,
-# replayed from the saved trees (the current trees without keepTrees, as every
-# other predict arm does). The engine reports the forests on their internal
+# replayed from the saved trees, which predict.bart requires keepTrees for on
+# this arm (the sampler method under it still reads the current trees when
+# there is no store). The engine reports the forests on their internal
 # scale, so response.scale is applied here exactly as packageBartResults applies
 # it to the in-sample channel; the amplitude glue, the response shift and any
 # offset are deliberately NOT folded in, because the recombination needs the
@@ -483,6 +535,189 @@ predictForest <- function(object, newdata, offset, combineChains, forest) {
     combineChains,
     2L
   )
+}
+
+# The per-forest bases at the PREDICTED rows. A caller's own 'bases' wins
+# everywhere; failing that, a forest() term's stored formula is re-evaluated
+# against newdata, and a fit whose bases arrived as raw values has nothing to
+# re-evaluate and must be given them by name. A bare (non-list) value positions
+# itself when exactly one forest carries a basis - the Bayesian causal forest
+# call, bases = <arm at the new rows> - and is refused as ambiguous otherwise.
+# Widths are checked against the FIT's own bases rather than left to %*% to
+# recycle: amplitude j multiplies column j, so a width that drifts is a wrong
+# answer rather than an error.
+resolveForestBases <- function(object, bases, newdata, n.new) {
+  storedBases <- object$bases
+  numForests <- length(storedBases)
+  carriers <- which(!vapply(storedBases, is.null, logical(1L)))
+  if (is.null(bases)) {
+    terms <- object[["basis.terms"]]
+    bases <- if (is.null(terms)) {
+      vector("list", numForests)
+    } else {
+      lapply(seq_len(numForests), function(k) {
+        if (is.null(terms[[k]])) {
+          NULL
+        } else {
+          replayForestBasis(terms[[k]], newdata, k)
+        }
+      })
+    }
+  } else {
+    if (!is.list(bases) || is.data.frame(bases)) {
+      if (length(carriers) != 1L) {
+        stop(
+          "'bases' takes a bare value only when exactly one forest carries a ",
+          "basis; ",
+          length(carriers),
+          " of this fit's ",
+          numForests,
+          " forests do - give a length-",
+          numForests,
+          " list instead"
+        )
+      }
+      value <- bases
+      bases <- vector("list", numForests)
+      bases[[carriers]] <- value
+    }
+    if (length(bases) != numForests) {
+      stop(
+        "'bases' must be a length-",
+        numForests,
+        " list, one entry per forest (NULL for a forest that declares none); ",
+        "got ",
+        length(bases)
+      )
+    }
+  }
+  bases <- lapply(bases, expandForestBasis, atPrediction = TRUE)
+  bases <- validateForestBases(
+    bases,
+    n.new,
+    argument = "bases",
+    rows = "'newdata'"
+  )
+  for (k in seq_len(numForests)) {
+    width <- if (is.null(storedBases[[k]])) 0L else ncol(storedBases[[k]])
+    if (width == 0L) {
+      if (!is.null(bases[[k]])) {
+        stop(
+          "'bases' gives forest ",
+          k,
+          " a basis, which it declares none of: its single amplitude ",
+          "multiplies an implicit all-ones column"
+        )
+      }
+    } else if (is.null(bases[[k]])) {
+      stop(
+        "forest ",
+        k,
+        " carries a basis, so the blend needs its ",
+        width,
+        if (width == 1L) " column" else " columns",
+        " at the new rows: give them through 'bases =' (a length-",
+        numForests,
+        " list, or the bare value when only one forest carries a basis)"
+      )
+    } else if (ncol(bases[[k]]) != width) {
+      stop(
+        "'bases' gives forest ",
+        k,
+        " ",
+        ncol(bases[[k]]),
+        if (ncol(bases[[k]]) == 1L) " column" else " columns",
+        "; its amplitudes take ",
+        width
+      )
+    }
+  }
+  bases
+}
+
+# predict(type = "ev"/"ppd"/"bart") on an amplitude-coupled fit: the
+# recombination predict(type = "forest") deliberately leaves out, performed
+# here because at THIS level the bases at the predicted rows are available -
+# the caller's own, or a forest() term's formula re-evaluated against newdata -
+# where the sampler holds none. eta = response.shift +
+# sum_k (glue_k %*% t(basis_k)) * forest_k + offset, the identity the packaged
+# yhat.train satisfies in sample, with the family's link applied after (so
+# "bart" is eta itself, as it is for a single forest) and "ppd" feeding the
+# unchanged sampleFromPPD. The glue and the replay pair draw for draw only in
+# the combined, chain-major layout both are stated in, so the whole
+# accumulation runs there and the result is split at the end.
+predictBlend <- function(
+  object,
+  newdata,
+  offset,
+  weights,
+  type,
+  combineChains,
+  ci.level,
+  bases
+) {
+  n.chains <- object$fit$control@n.chains
+  perForest <- predictForest(object, newdata, NULL, TRUE, NULL)
+  n.new <- dim(perForest)[2L]
+  forestNames <- dimnames(perForest)[[3L]]
+  bases <- resolveForestBases(object, bases, newdata, n.new)
+
+  # the caller's own offset and weights at those rows, read as the sampler's
+  # own predict reads them: numeric, length-1 recycled or one per row
+  if (!is.null(offset)) {
+    offset <- as.double(offset)
+    if (length(offset) == 1L) {
+      offset <- rep_len(offset, n.new)
+    }
+    if (length(offset) != n.new) {
+      stop("'offset' must have the same number of rows as 'newdata'")
+    }
+  }
+  if (!is.null(weights)) {
+    weights <- as.double(weights)
+    if (length(weights) == 1L) {
+      weights <- rep_len(weights, n.new)
+    }
+    if (length(weights) != n.new) {
+      stop("'weights' must have the same number of rows as 'newdata'")
+    }
+  }
+
+  glue <- reshapeChainedChannel(object$glue, n.chains, TRUE, 1L)
+  # the ragged margin's forest key rides the STORED channel, which the reshape
+  # above does not carry forward
+  glueForest <- attr(object$glue, "forest")
+  result <- matrix(
+    object$fit$getCalibration(1L)[1L, "response.shift"],
+    nrow(glue),
+    n.new
+  )
+  for (k in seq_along(forestNames)) {
+    basis <- bases[[k]]
+    if (is.null(basis)) {
+      basis <- matrix(1, n.new, 1L)
+    }
+    g <- glue[, glueForest == forestNames[k], drop = FALSE]
+    result <- result + (g %*% t(basis)) * perForest[,, k]
+  }
+  if (!is.null(offset)) {
+    result <- result + rep(offset, each = nrow(result))
+  }
+  result <- combineOrUncombineChains(result, n.chains, combineChains)
+
+  if (type != "bart") {
+    if (is.null(object[["sigma"]])) {
+      result <- probabilityFromLatents(result, object)
+    }
+    if (type == "ppd") {
+      result <- sampleFromPPD(result, object, weights, n.chains)
+    }
+  }
+
+  if (!is.null(ci.level)) {
+    return(posteriorInterval(result, ci.level))
+  }
+  result
 }
 
 fitted.bart <- function(

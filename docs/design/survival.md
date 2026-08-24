@@ -375,19 +375,19 @@ users via surv.bart, plus the dbarts house default).
 SAME (time, status) AFT takes - a survival::Surv object or a two-column
 (time, status) matrix / data frame - parsed by the existing
 extractSurvivalResponse (R/dbarts.R:62), or a thin sibling of it that skips
-the log() transform (R/dbarts.R:67) and returns the raw times and status for
+the log() transform (R/dbarts.R:68) and returns the raw times and status for
 expansion. Everything extractSurvivalResponse already enforces carries over
 (right-censoring only, status 0/1 or logical, the factor-status "mright"
 hint, positive times). A Surv response cannot AUTO-dispatch to the hazard
 model - family = "auto" with a Surv already selects aft (the auto-dispatch
-at R/dbarts.R:553-567) - so the discrete-time model is always requested
+at R/dbarts.R:554-568) - so the discrete-time model is always requested
 explicitly by family, and the Surv conflict guard must admit the hazard
 tokens (the remap block below).
 
 **The remap (settled; required whatever naming wins).** A hazard token
 CANNOT flow through the family-keyed resolution unchanged - verified
 against the code: node.scale is a switch(family, ...) with NO default
-(R/model.R:400-410), so an unknown token yields NULL; control@binary
+(R/model.R:400-415), so an unknown token yields NULL; control@binary
 keys on family %in% c("probit", "logistic") (:359), so the binary
 machinery would stay off; fixedUnitScale excludes it (:368-370), so sigma
 would be ESTIMATED and the 0/1 response fit as gaussian; and the weight
@@ -400,7 +400,7 @@ of those switches, the model object (model@family records the binary
 token), the bridge, and the engine see an ordinary binary fit and are
 untouched. The hazard provenance survives R-side only: the ingestion
 parks the period grid where the wrapper packaging can reach it (the
-bartcore.survival -> $status precedent, R/bart.R:247-251), and the
+bartcore.survival -> $status precedent, R/bart.R:348-352), and the
 packaged fit carries it as the hazard marker (section 4). aft is the
 contrast: a real engine family with its own arm in each of those switches
 and a status vector threaded to C++; hazard takes an arm NOWHERE because
@@ -408,7 +408,7 @@ after the remap there is nothing left to switch on.
 
 The Surv conflict guard extends to admit the hazard tokens: today
 responseIsSurv errors for any explicit family outside "auto"/"aft"
-(R/dbarts.R:468-474), so Surv + a hazard family would be refused as a
+(R/dbarts.R:469-475), so Surv + a hazard family would be refused as a
 conflict. The guard's whitelist gains the hazard tokens - a Surv response
 declares survival, and the family then picks WHICH survival model
 (family = "auto" keeps selecting aft, the landed default; a hazard token
@@ -455,14 +455,14 @@ for. Strongest counter, upgraded by the survey: the one shipped
 discrete-time BART picks its link by argument (type = "pbart"/"lbart"),
 so a surv.bart migrant would find Alternative A the familiar shape. The
 tokens are added to the dbarts and bart2 family vectors
-(R/dbarts.R:384-386, R/bart.R:378-386) and remapped as above; xbart and
+(R/dbarts.R:385-387, R/bart.R:688-690) and remapped as above; xbart and
 rbart_vi omit them (their match.arg vectors, R/xbart.R:27, R/rbart.R:48,
 ARE the refusal, the ordinal/nbinom precedent) - grouped hazard is
 section 6.
 
 **Where expansion happens (settled: an R helper at ingest).** The
 person-period expander is a pure R transform invoked during ingestion,
-exactly where extractSurvivalResponse is (R/dbarts.R:553-567), BEFORE
+exactly where extractSurvivalResponse is (R/dbarts.R:554-568), BEFORE
 dbartsData builds the model matrix. It consumes (x, time, status, grid) and
 emits an ordinary (X', y') binary problem: X' is x replicated down each
 subject's at-risk periods with the ordinal period column appended, y' the
@@ -560,9 +560,9 @@ this cheap).
 packaged fit's $family element records the BINARY token ("probit" or
 "logistic") - the engine truth, and what the packaging already does for
 free, since the family element is read off fit$model@family
-(R/bart.R:218/:230), which the remap set. The hazard provenance rides a
+(R/bart.R:301/:314), which the remap set. The hazard provenance rides a
 separate marker: $periods, the ordered period grid, present only on
-hazard fits (the aft $status precedent, R/bart.R:247-251, and the
+hazard fits (the aft $status precedent, R/bart.R:348-352, and the
 bartOrdinal $levels precedent). This split is load-bearing, not
 bookkeeping: every generic that keys behavior on $family then does the
 right thing with ZERO modification. probabilityFromLatents selects its
@@ -592,23 +592,23 @@ S(t | x) = prod_{k<=t} (1 - h(k | x)), a cumulative product of
 (1 - hazard) over the periods up to t.
 
 **survivalProbabilities: same entry point and shape, DIFFERENT evaluation
-path than aft's.** The generic (R/generics.R:7) gains a hazard branch in
+path than aft's.** The generic (R/generics.R:8) gains a hazard branch in
 survivalProbabilities.bart, keyed on the $periods marker beside the aft
-$family gate (R/bart.R:1779), computing S by cumulative hazard products
+$family gate (R/bart.R:2480), computing S by cumulative hazard products
 instead of the log-normal tail. The SHAPE convention matches aft's
 exactly - draws x times x observations, a chain margin under
 combineChains = FALSE, the extract-draws / fitted-mean / ci.level tiers -
 so the two survival families share ergonomics. The EVALUATION cannot
 mirror aft's training path, though: aft's newdata = NULL path reads one
 stored linear predictor per subject (extract type = "bart",
-sample = "train", R/bart.R:1793-1794) because every subject has exactly
+sample = "train", R/bart.R:2509-2510) because every subject has exactly
 one row, but the hazard training design is RAGGED - subject i has only
 t_i rows, so its stored training fits stop at its own event/censoring
 period and cannot supply h(k | x_i) beyond it. A full-horizon S(t | x_i)
 needs hazards at EVERY requested period, and only tree replay provides
 them: the hazard method ALWAYS re-expands its subjects to the requested
 grid and predicts - training data included - and therefore requires
-keepTrees UNCONDITIONALLY (the predict.bart guard, R/generics.R:153),
+keepTrees UNCONDITIONALLY (the predict.bart guard, R/generics.R:202-206),
 where aft's training-data path never needs it. Requested `times` are grid
 periods; S cumulates (1 - h) through each. Both quantities are thus
 available: per-period hazards via the ordinary binary predict/extract,

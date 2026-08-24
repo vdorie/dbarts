@@ -68,7 +68,10 @@ coupling whose test blend IS defined passes through. It guards
 `setTestPredictor`, `setTestOffset`, `setTestPredictorAndOffset` and `predict`
 on the bridge, and `dbarts_sampler_setTestPredictors` and
 `dbarts_sampler_predict` flat. Because the test predictors can never be
-installed, the whole surface is closed rather than partly closed.
+installed, the whole surface is closed rather than partly closed. That is a
+SAMPLER-level closure: the combined location at new rows is still available at
+the fit level, where `predict.bart` blends the per-forest replay with the
+stored glue and the caller's own bases (R/generics.R, `predictBlend`).
 
 R5 raises its own wording ahead of the bridge for a sampler carrying
 amplitudes (`refuseAmplitudeMutation`, `R/bartcore.R:36`), on
@@ -113,7 +116,7 @@ them again, and who does that depends on the layer:
   mutation lands (`data@y`, `data@offset`, `data@weights`, `data@x`,
   `data@bases`), so re-creation re-supplies them by construction, and mirrors
   the per-forest weight on an R5 field that `getPointer` and `setState`
-  re-apply afterwards (`reapplyForestWeights`, `R/dbarts.R:1665`). There is no
+  re-apply afterwards (`reapplyForestWeights`, `R/dbarts.R:1792`). There is no
   treatment slot: a Bayesian causal forest's z rides `data@bases` as forest
   2's basis, and moves only through `$setForestBasis`.
 - Two holes remain, both known. A per-forest weight is not part of the state,

@@ -193,9 +193,24 @@
             amplitudes multiply are the caller's, so the recombination
             \code{shift + sum_k (basis_k \%*\% glue_k) * forest_k} is
             theirs too, with a basis of their choosing. An offset is
-            refused rather than silently dropped. The combined
-            \code{predict} on such a fit stays refused for the same
-            reason, as does test data.
+            refused rather than silently dropped. The sampler's own
+            test surface stays refused for the same reason, as does
+            test data.
+      \item A multi-forest fit predicts COMBINED at new rows too:
+            \code{predict(fit, newdata, type = "ev"/"ppd"/"bart")}
+            recombines that per-forest replay with each draw's own
+            amplitudes and the response shift,
+            \code{shift + sum_k (basis_k \%*\% glue_k) * forest_k},
+            taking the bases at those rows through a new \code{bases}
+            argument - a length-K list, or the bare value when exactly
+            one forest carries a basis - or re-deriving them from
+            \code{newdata} when the fit declared them as a
+            \code{bart2} \code{forest()} term. An \code{offset} at the
+            new rows is accepted there and enters before the family's
+            link. Both amplitude arms now require
+            \code{keeptrees}/\code{keepTrees}: without the tree store
+            the replay reports the current trees once for every draw,
+            which cannot be paired with the amplitudes draw by draw.
       \item The prior defaults a multi-forest model takes when a forest
             says nothing are stated in the terms a caller can defend. A
             forest with no \code{basis} takes a half-Cauchy median of 1

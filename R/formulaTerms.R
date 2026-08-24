@@ -459,14 +459,48 @@ ingestFormulaTerms <- function(
     }
   }
 
-  bases <- lapply(pending, function(p) {
-    if (is.null(p$basisValue)) {
+  evaluated <- lapply(pending, function(p) {
+    evaluateForestBasis(p$basisValue, basisFrame)
+  })
+  bases <- lapply(evaluated, expandForestBasis)
+
+  # what a blend at NEW rows needs to rebuild the same basis, which the
+  # expanded matrix alone cannot supply: the declaring formula, the fit-time
+  # levels of every factor it reads (so a replay refuses a new level and keeps
+  # the order amplitude j is stated against), and the levels of the evaluated
+  # value itself when that is categorical, since an expression such as
+  # ~ factor(z) derives its own from whatever data it sees and would otherwise
+  # set the width from newdata. A basis given as a value rather than a formula
+  # has no expression to replay and stores none.
+  basisTerms <- lapply(seq_along(pending), function(i) {
+    basis <- pending[[i]]$basisValue
+    if (!inherits(basis, "formula")) {
       return(NULL)
     }
-    expandForestBasis(evaluateForestBasis(p$basisValue, basisFrame))
+    factorVars <- Filter(
+      is.factor,
+      basisFrame[intersect(all.vars(basis[[2L]]), names(basisFrame))]
+    )
+    value <- evaluated[[i]]
+    list(
+      formula = basis,
+      xlev = if (length(factorVars) > 0L) lapply(factorVars, levels) else NULL,
+      levels = if (is.factor(value)) {
+        levels(value)
+      } else if (is.character(value)) {
+        levels(factor(value))
+      } else {
+        NULL
+      }
+    )
   })
 
-  list(formula = walked$formula, pending = pending, bases = bases)
+  list(
+    formula = walked$formula,
+    pending = pending,
+    bases = bases,
+    basisTerms = basisTerms
+  )
 }
 
 ## Phase 2: resolve each term's vars against the built design (needs

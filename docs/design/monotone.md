@@ -390,7 +390,7 @@ chain.hpp:2287,2315). Under truncation and a per-leaf-variable prior scale, the
 into the chi-k update biases k. v1 uses FIXED k under `monotone` (mBART itself
 uses fixed k=2), but must not turn that into a default-fit error: the binary
 default k IS chi(1.5, 2.0), not a user choice (resolveNodeHyperprior k=NULL ->
-chi(1.5, 2.0) for binary, R/model.R:367; .kDefault, R/bart.R:283; bart2 k=NULL
+chi(1.5, 2.0) for binary, R/model.R:530; .kDefault, R/bart.R:647; bart2 k=NULL
 resolves the same), so a plain bart2(..., monotone=..., family="probit") supplies
 a chi hyperprior by default. Resolution: under `monotone`, an UNSUPPLIED k
 resolves to fixed k = 2 (the continuous default and mBART's value) for BOTH

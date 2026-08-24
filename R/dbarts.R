@@ -730,6 +730,20 @@ dbarts <- function(
     evalEnv = evalEnv
   )
 
+  # a forest() term's basis is re-evaluable at NEW rows, which the expanded
+  # matrix riding the data object is not: park the declaring formula and the
+  # fit-time levels beside the rest of the forest description, which
+  # resolveSamplerSpec has just written wholesale. Positional against the
+  # forests those bases distinguish, as data@bases is - forest 1 is the fit's
+  # own and declares none. Inert to the run: nothing the engine reads.
+  if (!is.null(termIngestion)) {
+    forestInfo <- attr(spec$control, "bartcore.forests")
+    if (!is.null(forestInfo)) {
+      forestInfo$basisTerms <- c(list(NULL), termIngestion$basisTerms)
+      attr(spec$control, "bartcore.forests") <- forestInfo
+    }
+  }
+
   new("dbartsSampler", spec$control, spec$model, spec$data)
 }
 

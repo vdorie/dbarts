@@ -45,9 +45,9 @@ Wrap an argument, formal, or slot name in `'...'`. Never backtick, never bare,
 never `sQuote`/`dQuote`/`gettextf` (0 uses of any of these on either side -
 do not introduce them now).
 
-- Conformance: `"'weights' must have the same length as 'y'"` (`R/data.R:656`).
+- Conformance: `"'weights' must have the same length as 'y'"` (`R/data.R:678`).
 - Violation: `"chainNum must be a single chain index in [1, ...]"`
-  (`R/generics.R:1668`) - bare.
+  (`R/generics.R:2025`) - bare.
 
 A value drawn from a closed set of choices (family name, class name used as an
 echoed value) is quoted the same way; a descriptive category noun used as the
@@ -184,7 +184,7 @@ Keep `sprintf()` as the accepted alternate when one clause interpolates two or
 more values (`R/augmentation.R:18`); do not introduce `paste0()`/`gettextf()`
 (0 uses of either today). Conformance:
 `stop("invalid monotone direction '", value, "'; use -1, 0, or +1")`
-(`R/model.R:508`; reworded under R12, but the interpolation shape survives).
+(`R/model.R:567`; reworded under R12, but the interpolation shape survives).
 
 C: `Rf_error`'s only mechanism is its own printf placeholders (`%s`, `%d`,
 `%zu`) - no alternative exists. Quote `%s` in `'...'` when it echoes a name or
@@ -338,11 +338,11 @@ below - see there for the explicit sign-off).
 
 Two sub-shapes, tracking two different R predicates. **Value present but
 NULL** (`is.null(x)` / C `ptr == NULL`): `"'<name>' cannot be NULL"`.
-Conformance: `"x.test cannot be NULL"` (`R/dbarts.R:1073`). **Argument omitted
+Conformance: `"x.test cannot be NULL"` (`R/dbarts.R:1087`). **Argument omitted
 from the call** (R `missing(x)`, no C analogue): `"'<name>' must be
 specified"`. Conformance: `"'group.by' must be specified to use rbart_vi"`
 (`R/rbart.R:130`). Violation: `"'group.by' must be supplied when 'newdata' is
-given"` (`R/bart.R:2495`) - `supplied` -> `specified`.
+given"` (`R/bart.R:2557`) - `supplied` -> `specified`.
 
 **External evidence, omitted-argument sub-case.** Neither tidyverse nor rlang
 prescribe a specific verb here. Observable practice across the six packages
@@ -372,8 +372,8 @@ in this document uses. This sub-shape of R9 is final.
 `"'<name>' must be a/an <type description>[, not <actual>]"` - the bare shape
 without the bracketed clause is dominant already (~25 sampled type-mismatch
 messages, only 2 use a different verb) and stays the required minimum.
-Conformance: `"'weights' must be a numeric vector"` (`R/data.R:649`,
-`R/data.R:927`) - both guards in the same file now read exactly alike.
+Conformance: `"'weights' must be a numeric vector"` (`R/data.R:671`,
+`R/data.R:1089`) - both guards in the same file now read exactly alike.
 
 The bracketed `, not <actual>` clause is new: append it when the actual
 type/class is already in hand as a short noun (`class(x)[1]`, `typeof(x)`) at
@@ -460,8 +460,8 @@ is for checks that can't use it (non-character enums, C-side class dispatch).
 Appending `"; got '<value>'"` is now encouraged, not mandated (see below).
 
 Conformance (shape): `"'forest' must name one of '", paste0(..., collapse =
-"', '"), "'"` (`R/generics.R:332`). Violation: `"invalid monotone direction
-'", value, "'; use -1, 0, or +1"` (`R/model.R:508`) - reword to `"'direction'
+"', '"), "'"` (`R/generics.R:434`). Violation: `"invalid monotone direction
+'", value, "'; use -1, 0, or +1"` (`R/model.R:567`) - reword to `"'direction'
 must be one of -1, 0, 1"` (`got` value appended only if cheap at that call
 site). `"unrecognized response family for a binary response"`
 (`src/R_interface_bartcore.cpp:1572`) - names no choices at all.
@@ -501,7 +501,7 @@ treatment forest does not support %s"`
 not support weights; fit integer count weights with family = \"logistic\",
 or model continuous weights' latents directly"` (`R/spec.R:53-58`).
 Violation: `"sample = \"test\" is
-not available for type = \"forest\": an ..."` (`R/generics.R:362`) - reword to
+not available for type = \"forest\": an ..."` (`R/generics.R:458-466`) - reword to
 `"type = \"forest\" does not support sample = \"test\": ..."`.
 
 **External evidence.** Checked hard, because this looked like a plausible
@@ -531,11 +531,11 @@ R-canonical shape (per R8): `"<operation> is not available on <context>[:
 the function and every call site were deleted (multinomial-mutation-arc.md
 S4). The shape survives in its replacements, `refuseCountsMutation`
 (`R/bartcore.R:62`) and `refuseAmplitudeMutation` (`R/bartcore.R:36`), and in
-`$setControl`'s own per-slot refusal (`R/dbarts.R:1176-1186`). C-side
+`$setControl`'s own per-slot refusal (`R/dbarts.R:1186-1198`). C-side
 backstops keep their own idiom under R7/R8 (`"%s: a multi-forest sampler
 fixes its data at creation; make a new sampler instead"`,
 `src/R_interface_bartcore.cpp:2632`). Conformance: `setModel`'s DART-tree-
-prior refusal (`R/dbarts.R:1219-1223`) reads `"changing a DART tree prior is
+prior refusal (`R/dbarts.R:1231-1238`) reads `"changing a DART tree prior is
 not available on an existing sampler: recreate it instead"`, matching this
 rule.
 
@@ -692,5 +692,5 @@ CRAN builds installed in this environment's R library.
    out-of-range: state the expected value/type/choices as the required
    minimum; append the actual/received value when it's already in hand,
    never as a mandatory re-derivation. `"'forest' index must be between 1
-   and <N>"` (`R/generics.R:341`) remains the model example; it was right
+   and <N>"` (`R/generics.R:443`) remains the model example; it was right
    the first time.

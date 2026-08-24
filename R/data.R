@@ -688,12 +688,14 @@ validateXYWeights <- function(weights, initialNumObservations, subset) {
 # formula branch has no row index to restrict by, so it passes the assembled
 # response length and no subset. 'argument' names the surface the value came
 # from, so a caller who wrote a forest's basis is refused in those terms rather
-# than in the data object's.
+# than in the data object's, and 'rows' names what the row count is checked
+# against - the response at fit time, the predicted rows at predict time.
 validateForestBases <- function(
   bases,
   initialNumObservations,
   subset = NULL,
-  argument = "bases"
+  argument = "bases",
+  rows = "'y'"
 ) {
   if (is.null(bases)) {
     return(NULL)
@@ -711,7 +713,7 @@ validateForestBases <- function(
     basis <- as.matrix(basis)
     storage.mode(basis) <- "double"
     if (nrow(basis) != initialNumObservations) {
-      stop("'", argument, "' must have the same length as 'y'")
+      stop("'", argument, "' must have the same length as ", rows)
     }
     if (!is.null(subset)) {
       basis <- basis[subset, , drop = FALSE]

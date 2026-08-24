@@ -828,7 +828,12 @@ evaluateForestBasis <- function(basis, data = NULL) {
 ## and a numeric vector or matrix is already those columns. Level ORDER is
 ## therefore load-bearing: amplitude j scales level j. A two-level factor
 ## expands to the (1 - z, z) pair whose amplitudes are exactly bcf's (b0, b1).
-expandForestBasis <- function(basis) {
+## 'atPrediction' drops the two rules that are about CONDITIONING DATA rather
+## than about the expansion - a factor needing two levels, and a numeric column
+## needing a nonzero entry - because at prediction a constant arm is the whole
+## point: everyone under z = 1 gives an all-zero control column, and the width
+## it must match is the fit's, checked against it there.
+expandForestBasis <- function(basis, atPrediction = FALSE) {
   if (is.null(basis)) {
     return(NULL)
   }
@@ -842,7 +847,7 @@ expandForestBasis <- function(basis) {
     stop("a 'basis' cannot be NA")
   }
   if (is.factor(basis)) {
-    if (nlevels(basis) < 2L) {
+    if (!atPrediction && nlevels(basis) < 2L) {
       stop("a 'basis' factor must have at least two levels")
     }
     codes <- as.integer(basis)
@@ -863,10 +868,54 @@ expandForestBasis <- function(basis) {
   }
   # an all-zero column has no observation for its amplitude to multiply, so it
   # is not a degenerate prior but a missing predictor wearing one
-  if (any(colSums(basis != 0) == 0L)) {
+  if (!atPrediction && any(colSums(basis != 0) == 0L)) {
     stop("a 'basis' column of all zeros contributes nothing to a forest")
   }
   basis
+}
+
+## Re-evaluate one forest's stored basis TERM at new rows: the one-sided
+## formula the forest was declared with, replayed through the same model frame
+## the fit built it from, with the fit-time factor levels imposed so a level
+## set that differs in ORDER cannot silently misalign amplitude j with a
+## different level, and the fit-time levels of a CATEGORICAL basis re-imposed
+## on the value itself (an expression such as ~ factor(z) derives its levels
+## from the data it sees, so newdata alone would set the width). model.frame
+## resolves an absent variable in the formula's own scope, which for a
+## predicted row is a silent wrong answer rather than a missing predictor, so
+## the variables are named up front the way validateXTest names its own.
+replayForestBasis <- function(term, newdata, index) {
+  vars <- all.vars(term$formula[[2L]])
+  missingVars <- vars[vars %not_in% names(newdata)]
+  if (length(missingVars) > 0L) {
+    stop(
+      "'newdata' is missing ",
+      if (length(missingVars) > 1L) "variables" else "variable",
+      " '",
+      toString(missingVars),
+      "', required by forest ",
+      index,
+      "'s basis (",
+      deparse(term$formula),
+      "); supply ",
+      if (length(missingVars) > 1L) "them" else "it",
+      ", or give that basis at the new rows with 'bases ='"
+    )
+  }
+  basisFormula <- stats::reformulate(vars)
+  environment(basisFormula) <- environment(term$formula)
+  frame <- stats::model.frame(
+    formula = basisFormula,
+    data = newdata,
+    na.action = stats::na.pass,
+    drop.unused.levels = FALSE,
+    xlev = term$xlev
+  )
+  value <- evaluateForestBasis(term$formula, frame)
+  if (!is.null(term$levels)) {
+    value <- factor(as.character(value), levels = term$levels)
+  }
+  expandForestBasis(value, atPrediction = TRUE)
 }
 
 ## The full (pre-'subset') row count of a formula fit's data, and the exact

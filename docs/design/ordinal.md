@@ -285,8 +285,8 @@ drew no objection.
 
 **Family surface (recommend family = "ordinal" as the primitive, with
 auto-dispatch on ordered factors, announced).** family = "ordinal" is added to the
-bart2 and dbarts family vectors (R/bart.R:378, R/dbarts.R:382) and routed through
-resolveClassificationFamily (R/data.R:472). The response must be an ordered
+bart2 and dbarts family vectors (R/bart.R:686, R/dbarts.R:383) and routed through
+resolveClassificationFamily (R/data.R:494). The response must be an ordered
 factor (is.ordered); the level ORDER defines the category order. An unordered
 factor or character under family = "ordinal" is accepted with an informational
 message that order is taken from the level order (factor default: alphabetical -
@@ -296,14 +296,14 @@ sort(unique(y)) as the ordered levels.
 CURRENT BEHAVIOR (the baseline every option changes). An ordered K >= 3 factor
 today takes two different paths. bart2(family = "auto") routes it through
 detectAutoMultinomial, whose type match includes "ordered factor" at
-n.levels >= 3 (R/bart.R:850-855), and SILENTLY fits an unordered multinomial,
+n.levels >= 3 (R/bart.R:1387-1398), and SILENTLY fits an unordered multinomial,
 discarding the ordering. The single-forest entries (dbarts, xbart, rbart_vi)
-error in resolveClassificationFamily's K >= 3 refusal (R/data.R:503-557). So
+error in resolveClassificationFamily's K >= 3 refusal (R/data.R:522-577). So
 EVERY option below - explicit-only included - must split ordered factors out of
 detectAutoMultinomial, and bart2's behavior on ordered responses changes
 whichever option wins; there is no zero-behavior-change choice. The detection
 hook already exists: classifyResponse tags "ordered factor" as its own response
-type (R/data.R:416).
+type (R/data.R:438).
 
 The fork on auto-dispatch - a genuine decision point for VD, with the internal
 and external precedents on OPPOSITE sides:
@@ -343,15 +343,15 @@ overlaps unordered multinomial: the disjoint key is is.ordered().
 **Prediction semantics.** fitted()/predict(type = "ev"/"response") return the
 n x K category-probability array (x n.chains x n.samples where extract does),
 P(y = k | x) = Phi(gamma_k - eta) - Phi(gamma_{k-1} - eta), columns labeled by the
-ordered levels - the multinomial K-column shape (R/generics.R:456-463), computed
+ordered levels - the multinomial K-column shape (R/generics.R:770-784), computed
 through the cutpoints rather than a softmax. type = "bart"/"link" returns the
 single-column latent eta = f (probit returns its latent likewise,
-R/generics.R:181-195). A class-prediction convenience maps the argmax category
+R/generics.R:287-296). A class-prediction convenience maps the argmax category
 back to the ordered level (multinomial's max.col + levels idiom). The K-1 cutpoint
 draws are posterior output too: expose an n.samples x (K-1) "cutpoints" field, the
 ordinal analog of gaussian's sigma, so users can reconstruct probabilities at
 arbitrary eta and inspect the thresholds. predict requires keepTrees (the
-predict.bart guard, R/generics.R:151-157). This K-column path deliberately
+predict.bart guard, R/generics.R:202-206). This K-column path deliberately
 DIVERGES from the plan's suggestion that probabilityFromLatents generalizes
 (docs/plans/ordinal-outcomes.md step 1): probabilityFromLatents
 (R/generics.R:13-19) is a scalar link-inverse of a single latent column and
@@ -360,10 +360,10 @@ cutpoints, a two-argument transform that does not fit that seam, so ordinal gets
 its own transform beside it rather than a generalization of it.
 
 **Levels round-trip.** Single-forest probit currently DISCARDS the factor levels
-(codeResponse, R/data.R:436-451). Ordinal must persist the ordered levels on the
+(codeResponse, R/data.R:458-472). Ordinal must persist the ordered levels on the
 fit object to label the K probability columns and map argmax back - as
-bartMultinomial persists $levels (R/bart.R:1090-1091). Give ordinal its own S3
-class bartOrdinal (mirroring bartMultinomial, R/bart.R:1110) carrying $levels and
+bartMultinomial persists $levels (R/bart.R:1703). Give ordinal its own S3
+class bartOrdinal (mirroring bartMultinomial, R/bart.R:1725) carrying $levels and
 $cutpoints, so the bart generics do not misread the K-widened arrays as a
 single-forest fit.
 

@@ -310,7 +310,7 @@ with the `equivalence.yaml` bump in the same commit.
 **No silent enablement is possible** (resolved at M4.3 review, plan
 :4967-4975). On every creation route the scale mixture holds if and only if a
 forest is basis-FREE. R writes the forest's amplitude prior SCALE as 0 whenever
-that forest declares a basis (`R/model.R:915`,
+that forest declares a basis (`R/model.R:1157`,
 `if (withBasis) 0 else declared(spec$sd, 2)`); the bridge reads it into
 `ForestSpec::amplitudePriorScale` (src/R_interface_bartcore.cpp:2206) and
 derives `forest.ridge = forest.amplitudePriorScale > 0.0` (:2208). So every
@@ -387,7 +387,7 @@ a hand-written K = 2 READING only, non-authoritative, read exactly when
 than by a combiner (combiner.hpp:103-109, :1031-1042).
 
 The bases ride CREATION, on `data@bases` (a LIST, R/A_class.R:514-524,
-validated by `validateForestBases`, R/data.R:670-702), the way the design
+validated by `validateForestBases`, R/data.R:693-726), the way the design
 matrix does. That is how RESTORE-THEN-WIDEN is met with no fourth reapply hook:
 a widening applied after a restore preserves and remaps the RESTORED amplitudes
 rather than the constructed ones (combiner.hpp:1009-1012; plan :1958-1978, landed
@@ -457,10 +457,10 @@ expressions are written exactly as bcf's were, which is what keeps the K = 2
 instance bitwise.
 
 **Two further facts about the shipped prior, both load-bearing.** Adaptivity
-is capped at one forest, for any K: `resolveForests` (R/model.R:857-925,
-refusal :884-890) requires every forest past the first to carry a basis, and
+is capped at one forest, for any K: `resolveForests` (R/model.R:1032-1102,
+refusal :1059-1065) requires every forest past the first to carry a basis, and
 `forestParams` writes the LITERAL `0` for `amplitudePriorScale` whenever a
-basis is present (R/model.R:982), from which the bridge derives
+basis is present (R/model.R:1157), from which the bridge derives
 `forest.ridge = false` (R_interface_bartcore.cpp:2208) - forests 2..K are
 ALWAYS fixed-variance. There is also NO per-K renormalization anywhere in the
 MAP, and `binary-kforest-prior-default` S2 added none: the map still disperses
@@ -544,8 +544,8 @@ the map and restores them.
 R creation: `forests = list(forest(basis = ...))` plus the per-forest knob map
 (`resolveForests`, R/model.R), and `dbartsData(bases = )` for a numeric basis
 (R/spec.R:460-467, the `validateForestBases` install; the family gate it feeds
-is :504-526). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1332) and
-`$getForestAmplitudes(forest)` (R/dbarts.R:1571), both 1-based via
+is :504-526). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1447) and
+`$getForestAmplitudes(forest)` (R/dbarts.R:1694), both 1-based via
 `resolveForestIndex` (R/bartcore.R:1128). Flat C:
 `dbarts_sampler_setForestBasis`, `dbarts_sampler_numForestAmplitudes` and
 `dbarts_sampler_forestAmplitudes`, ragged and ROW-major

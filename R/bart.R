@@ -374,7 +374,13 @@ packageBartResults <- function(
     # makes the reconstruction identity evaluable from the fit alone, since
     # neither run() channel carries them
     result$bases <- fit$data@bases
-    forestLabels <- attr(fit$control, "bartcore.forests")$labels
+    forestInfo <- attr(fit$control, "bartcore.forests")
+    # the declaring formula and the fit-time levels of every basis written as a
+    # forest() term, which is what lets the same basis be rebuilt at NEW rows;
+    # the element stays absent on a fit whose bases arrived as values, whose
+    # blend then needs the caller's own at those rows
+    result$basis.terms <- forestInfo$basisTerms
+    forestLabels <- forestInfo$labels
     if (!is.null(forestLabels)) {
       attr(result, "forest.labels") <- forestLabels
     }

@@ -587,8 +587,8 @@ single value to divide by, or once the chains' `k` have diverged) and for
 BCF/multinomial forests at creation and again mid-chain (see [f23]);
 `prior.mean` is refused as not writable, naming the `setOffset` recipe. `NaN`
 is refused as a malformed value rather than read as the unnamed spelling, both
-at creation (R/model.R:1455) and mid-chain (`validateLiveScale`,
-R/model.R:1464). Shipped tests: inst/tinytest/test-calibration-creation.R (two
+at creation (R/model.R:1508) and mid-chain (`validateLiveScale`,
+R/model.R:1518). Shipped tests: inst/tinytest/test-calibration-creation.R (two
 composed probit arms at construction ranges 16x apart agree to 1e-12 under a
 shared name, against 8.6 and 2.5 unnamed), inst/tinytest/test-calibration-prior-draws.R
 (what the named quantity means per leaf model - exact for the constant leaf,
@@ -955,19 +955,31 @@ with the open conduit and both refusals above, at
 inst/tinytest/test-bcf-family.R:406-422. That file is the whole of the latent
 K-forest's evidence: no equivalence scenario and no SBC arm reaches one.
 
-[f49] The test-surface cell stays `R` after `predict-replay`, and truthfully:
-what landed is the PER-FOREST replay (`bartcore_predictPerForest` RIB:5814,
+[f49] The test-surface cell stays `R` after `predict-replay` and after
+`predict-blend`, and truthfully: what landed in the engine is the PER-FOREST
+replay (`bartcore_predictPerForest` RIB:5814,
 `Chain::predictPerForestFromSavedSample` CH:2897), not a test surface. The
-resident test store, `run()$yhat.test` and the combined `predict()` remain
+resident test store, `run()$yhat.test` and the SAMPLER's own `predict()` remain
 refused through `refuseUndefinedTestFits` (RIB:2849) because the blend
 `sum_f dot(a_f, B_f(i, .)) f_f(x_i)` needs an off-sample basis the sampler does
-not have; the new entry sidesteps that by reporting the `f_f(x_i)` alone and
-leaving the contraction to the caller, whose bases they are. Evidence:
+not have; the entry sidesteps that by reporting the `f_f(x_i)` alone and
+leaving the contraction to the caller, whose bases they are. What is no longer
+refused is the FIT-level combined `predict()`: `predict-blend` performs that
+contraction in R (`predictBlend`, R/generics.R), from the replay, the packaged
+`glue` and either a `bases =` at the caller's own rows or a `forest()` term's
+formula re-evaluated against `newdata` - which is precisely the off-sample
+basis the sampler lacks and the caller holds. Evidence:
 `inst/tinytest/test-predict-forest.R` (the replay-at-training-rows identity
 against the in-sample channel at 1e-12, the recombination identity against
-`yhat.train`, and the offset / no-reporting / multinomial refusals) plus
-`tests/cpp/test_sampler.cpp`'s `testAmplitudePerForestReplay` (both replay
-routes against `forestTotalFits`, and the raw-scale pin against `predict`).
+`yhat.train`, and the offset / no-reporting / multinomial refusals),
+`inst/tinytest/test-predict-blend.R` (the blend-at-training-rows identity
+against `yhat.train` at 1e-12 on gaussian, probit, logistic, two-chain
+uncombined, q = 3 and both-forests-with-a-basis fixtures; bitwise identity with
+the documented manual recombination on both counterfactual arms; the bart2
+term route's auto-derivation against an explicit `bases =`; and the shape,
+keepTrees, offset and weights refusals), plus `tests/cpp/test_sampler.cpp`'s
+`testAmplitudePerForestReplay` (both replay routes against `forestTotalFits`,
+and the raw-scale pin against `predict`).
 
 The IN-SAMPLE per-forest OUTPUT channel (as opposed to construction, above)
 LANDED at bart2-argument-consolidation S11 (00abf336): `packageBartResults`
@@ -991,6 +1003,18 @@ surface, `run()$yhat.test` and `extract(type = "forest", sample = "test")` stay
 refused for an amplitude coupling, since the RECOMBINATION off the training rows
 needs bases only the caller has (bart2-argument-consolidation:883-901). The
 section-2 `bcf` test-surface cell is unchanged for that reason.
+
+The recombination itself LANDED at `predict-blend`, in R rather than the engine
+and without touching that cell: `predict(type = "ev"/"ppd"/"bart")` on an
+amplitude-coupled fit blends the per-forest replay with the packaged `glue` and
+the response shift, taking the bases at the predicted rows from a `bases =`
+argument or, for a `bart2` `forest()` term, re-evaluating the declaring formula
+against `newdata` under the fit's own factor levels (`basis.terms` on the fit).
+The engine is untouched, so the sampler-level closure above still holds; what
+changed is that the caller no longer writes the three-line contraction by hand.
+Both amplitude arms now require `keeptrees`/`keepTrees`, which
+`predict(type = "forest")` silently did without - it reported the current trees
+once for every draw, a shape no amplitude pairing exists for.
 
 ## Gaps
 

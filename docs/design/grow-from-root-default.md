@@ -945,7 +945,7 @@ stump, `sampleTreesFromPrior`) is unchanged.
   future opt-in guidance: B2 was still falling at the largest grid value
   tested.
 - Family consistency (four bart2 families refuse `n.grow.sweeps` via
-  `checkFamilyUnsupportedArgs`, R/bart.R:484-492; `rbart_vi` has no
+  `checkFamilyUnsupportedArgs`, R/bart.R:617-625; `rbart_vi` has no
   `n.grow.sweeps` formal at all) is now an ordinary opt-in-surface
   question - extend the surface or document the gap - independent of this
   verdict, low priority, unscheduled.

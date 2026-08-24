@@ -414,7 +414,7 @@ ignored, as its own doc comment says ("the passed chain y is ignored"). The
 response *is* the combiner-owned `counts_` matrix, fixed at construction;
 `setResponse` on a multinomial would write a `y` nothing reads. D2's real content
 is **a new counts (and n x K offset) mutation channel on the combiner**, plus
-surface work at the creation end (R/bart.R:668-680 refuses `weights` and `offset`
+surface work at the creation end (R/bart.R:829-856 refuses `weights` and `offset`
 for `family = "multinomial"`). The price is higher than "audit the combiner".
 
 **Two further corrections to the memo's framing.** (a) "A multinomial BART cannot
@@ -424,7 +424,7 @@ whole-matrix `setPredictor` is open for multinomial today
 R_interface_bartcore.cpp:3676-3679), so the *predictor* channel - the
 latent-covariate shape of D1 - already works there. It is the *response* side
 that is closed. (b) The shipped entry is `bart2(family = "multinomial")`;
-`bartMultinomial` is the fit **class** name (R/generics.R:352), not an exported
+`bartMultinomial` is the fit **class** name (R/generics.R:772), not an exported
 constructor.
 
 **Models blocked:** competing-risks discrete-time hazard, which
@@ -445,7 +445,7 @@ creation itself when the data carries a treatment vector
 (src/R_interface_bartcore.cpp:2580-2655) - `createBCFHolder` is no longer
 the only path in, and `dbarts:::bartcoreBCFSampler` (R/bartcore.R:644,
 corrected from this section's stale :629) is no longer the only R entry.
-`bcf()` stays a comment (R/model.R:1102, 1120), expected to ship in
+`bcf()` stays a comment (R/model.R:1666, 1684), expected to ship in
 bartCause instead (docs/plans/multiforest-extension-surface.md fork 4). The
 R5 surface (S2, 339aeb0), the flat C surface (S3, 1622eb9) and per-draw
 reporting (S4, 1df9c0c) followed; `treatment =`/`moderators =`/
