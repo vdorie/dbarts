@@ -233,52 +233,66 @@ draws one outcome from {no-split} U {occupancy-nonempty (var, cut)}, weighted by
 the CGM prior's own factors ((1 - growth) L(node); growth P(var) P(cut)
 exp(L_left + L_right)) assembled in log space with a max-shift before
 exponentiating. Draw count per node is exact: one discrete draw at every
-positive-growth node, plus one symmetric missing-direction coin per split on
-an ordinal column with missing values, plus (since 2026-08-12; section 8)
-1 + A Bernoullis when the winning candidate is categorical. Occupancy on the
-non-missing counts subsumes the ancestor split interval and keeps every child
-non-empty, so the grown forest is a legal chain state.
+positive-growth node, plus one symmetric missing-direction coin per split on an
+ordinal column that declares missing values but whose node holds none, plus
+(since 2026-08-12; section 8) 1 + A Bernoullis when the winning candidate is
+categorical. Occupancy on the non-missing counts subsumes the ancestor split
+interval and keeps every child non-empty, so the grown forest is a legal chain
+state.
 Chain::growForestFromRoot duplicates run()'s sweep body with the per-tree MH
 move replaced by a fresh grow, so the default run path stays byte-identical
 (equivalence.R: 21/21 identical draws).
 
-Missing-value convention, measured then fixed (2026-08-12). On a column with
-missing values a cut candidate stands for the two rules {cut, missing left} and
-{cut, missing right} that the post-draw coin picks between, and carries their
-COMBINED prior mass: grow.hpp's `logCut` is `-log(numCuts)`, twice CGM's mass
-for one rule, so a group enters the discrete draw whole and the coin picks
-uniformly within it. That is the same "a candidate carries its rule group's
-mass" reading the categorical branch is written against.
+Missing-value convention, measured then fixed twice (2026-08-12, then
+2026-08-24). Under MIA a rule routes a missing row by its own missing direction,
+so a candidate's two children partition the WHOLE member set - the same set the
+no-split term covers. The scan therefore emits BOTH directions of every cut
+wherever a node holds missing members, scores each with those rows in the child
+it names, gives each CGM's mass for one rule, and spends no post-draw coin;
+where a node holds none, the direction moves no statistic, the pair shares one
+score and one candidate carrying their combined mass, and a symmetric coin picks
+within the pair after the draw. That is the same rule the categorical branch
+follows, where a present missing pseudo-category is a real histogram bin the
+partition routes and an absent one gets a coin. Occupancy stays on the
+NON-MISSING weights of both sides, which is what keeps an out-of-interval cut
+undrawable; a candidate that survives it carries positive weight in both
+children a fortiori.
 
-It did not always. Until this date `logCut` carried a further `- log 2` - one
+It did not always, in two independent ways, both measured on one signal-free
+64-row fixture with one 4-cut ordinal column and 8 missing rows, over the 9-cell
+outcome space {no-split} U {(cut, missing side)} at 2e5 grows (test_grow.cpp,
+which still gates all of this).
+
+First, the prior mass. Until 2026-08-12 `logCut` carried a `- log 2` - one
 rule's mass for a candidate standing for two - so a pair entered the draw at
-half its group's prior mass and the remainder accrued to no-split. Measured on a
-signal-free 64-row fixture with one 4-cut ordinal column, 8 missing rows carrying
-the node's mean response, 2e5 grows over the 9-cell outcome space
-{no-split} U {(cut, missing side)} (test_grow.cpp, which still gates all of
-this): the realized root rules then matched the halved weights (chi-square 7.38
-on 8 df, p = 0.50) and rejected both the law in which the candidate carries its
-group's mass (8937, p < 1e-300) and the exact law that enumerates all
-2 x numCuts rules with the missing rows placed on the side each rule names
-(6471, p < 1e-300); the exact law's own draws did not reject it (6.06,
-p = 0.64). No-split probability was 0.1026 under the halved weights against
-0.0541 under the group's mass and 0.0599 under the exact law, the group's
-split-to-no-split odds exactly twice the halved candidate's by construction.
+half its group's prior mass and the remainder accrued to no-split. Realized root
+rules then matched those halved weights (chi-square 7.38 on 8 df, p = 0.50) and
+rejected both the law in which the candidate carries the pair's mass (8937,
+p < 1e-300) and the exact law over all 2 x numCuts rules (6471, p < 1e-300); the
+exact law's own draws did not reject it (6.06, p = 0.64). No-split probability
+was 0.1026 under the halved weights against 0.0541 under the pair's mass and
+0.0599 under the exact law. Deleting the halving moved the realized law onto the
+pair's-mass law (19.07 on 8 df, p = 0.014, and 5.50 / 8.45 / 14.95 / 5.33 / 1.97
+at five fresh seeds) and closed 61 percent of the gap to the exact law
+(total variation 0.0436 to 0.0169), but still rejected it (444, p = 8e-91).
 
-With the halving deleted the same fixture reads the other way: the realized root
-rules match the group law (19.07 on 8 df, p = 0.014, and 5.50 / 8.45 / 14.95 /
-5.33 / 1.97 at five fresh seeds) and reject the halved law (5461, p < 1e-300);
-realized no-split 0.0525 against the group's 0.0541; the calibration control
-holds (5.08, p = 0.75).
-
-The realized law is still not the exact one and still rejects it (444,
-p = 8e-91), at a total variation of 0.0169 against the 0.0436 the halved weights
-carried - 61 percent of the gap closed. The residual is a second and separate
-effect: the scan omits the missing rows from the split likelihood while the
-no-split term counts them, so a split score is short their leaf marginal, by a
-margin that grows with their weighted sum of squared responses and is near its
-floor on this fixture by construction. That is its own ticket
-(ordinal-scan-missing-rows in TODO) and this fix does not touch it.
+Second, the rows a split score covers, which is that residual. The scan skipped
+naCode, so a split score omitted the missing rows' leaf marginal while the
+no-split term counted them: the omitted weighted sum of squares no longer
+cancelled between the two, and the missing weight never inflated either child's
+posterior precision. The effect is monotone in the missing rows' weighted sum of
+squared responses - the 0.0169 above is its floor, at zero, where only the
+precision term survives; at 32 the dropped law sits a total variation of 0.5901
+from the exact one and puts 0.343 on no-split against the exact law's 0.0070.
+Routing the rows closes it at both ends: the realized law now matches the exact
+law on the full rule set at the floor fixture (9.40 on 8 df, p = 0.31) and at
+the loaded one (6.05, p = 0.64), while rejecting the dropped law (293 and
+741787) and the halved one (4410 and 1064807); the calibration control holds
+(5.84, p = 0.67 and 19.55, p = 0.012). Both fixtures are pinned, the sweep
+between them being what tells a scoring fix from a coincidence at one fixture.
+tests/cpp also pins the two scans against each other directly: an ordinal column
+and a categorical column carrying the same grouping and the same missing rows
+score every shared partition alike.
 
 Surface: Sampler::growFromRoot fans across chains on the thread pool
 (thread-count-independent, single chain inline on R's stream); the R5 method
@@ -357,10 +371,12 @@ undrawable candidate rather than a silently wrong score, since the
 integrated-likelihood marginal returns 0.0 at zero weight and cannot itself
 distinguish a legal all-zero-weight side from an illegal empty one.
 
-The pinned missing-value convention above - a candidate carries its rule
-group's total prior mass, and the post-draw coin picks uniformly within it
-- is the one convention the categorical branch is written against too; the
-two branches now obey the same rule.
+The missing-value convention above is the one the categorical branch is
+written against too, and the two branches obey one rule: a candidate's
+likelihood covers every one of the node's members, routing the missing ones
+into the child it names, and it carries exactly the prior mass of the rules
+it stands for - one where the routing makes the two directions distinct,
+the pair where it does not and a post-draw coin picks between them.
 
 The DART consumer. Every grow sweep closes with the same per-forest DART
 update that run() uses: a variable-use count per tree followed by

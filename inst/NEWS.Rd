@@ -778,13 +778,19 @@
             counts they always drew before, so factor signals inform the
             sampled split-variable probabilities from the first regular
             sweep.
-      \item The \code{n.grow.sweeps} initializer no longer under-weights cut
-            candidates on ordinal predictors that carry missing values. Such
-            a candidate stands for the two rules - missing values routed
-            left, missing values routed right - that the initializer's
-            post-draw coin picks between, and now carries the prior mass of
-            both instead of one, so the pair no longer enters the node's
-            choice at half its weight relative to not splitting.
+      \item The \code{n.grow.sweeps} initializer weights and scores cut
+            candidates on ordinal predictors that carry missing values
+            consistently with the rest of a node's choice. Such a predictor's
+            rules come in pairs - missing values routed left, missing values
+            routed right - and a pair now carries the prior mass of both rules
+            rather than one, so it no longer enters the choice at half its
+            weight relative to not splitting. Where a node actually holds
+            missing rows the two directions are now scored separately, each
+            with those rows in the child it sends them to; they previously
+            shared one likelihood that omitted those rows while the
+            not-splitting term counted them, which biased the choice toward
+            not splitting by an amount that grew with the missing rows'
+            responses.
       \item A sampler accepts a per-observation 0/1 active-row mask
             (\code{$setActiveRows}), which removes a row from the likelihood
             and from the latent draws of a gaussian, Student-t, \code{probit}

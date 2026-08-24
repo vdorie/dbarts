@@ -203,3 +203,51 @@ rm(
   quiet,
   rmseQuiet
 )
+
+## Missing ordinal predictors: the grow scan enumerates BOTH missing directions
+## of every cut where a node holds missing rows and scores each with those rows
+## in the child it sends them to, so a rule the initializer places on such a
+## column carries a real routing decision and every row still lands in a leaf.
+set.seed(20260824L)
+nMissing <- 200L
+xMissing <- matrix(runif(nMissing * 3L), nMissing, 3L)
+missingRows <- seq.int(1L, nMissing, by = 5L)
+## missingness that carries the signal: the routing decision has to be worth
+## making for the scan to be exercised where it matters
+missingSignal <- ifelse(seq_len(nMissing) %in% missingRows, 4, 0)
+yMissing <- 3 * xMissing[, 1L] + missingSignal + rnorm(nMissing, 0, 0.2)
+xMissing[missingRows, 1L] <- NA_real_
+
+missingSampler <- dbarts::dbarts(
+  xMissing,
+  yMissing,
+  control = dbarts::dbartsControl(
+    n.trees = 25L,
+    n.chains = 1L,
+    updateState = FALSE,
+    keepTrees = FALSE
+  )
+)
+missingSampler$growFromRoot(2L)
+missingTrees <- missingSampler$getTrees()
+
+## the initializer split on the NA-bearing column, and every such rule names a
+## direction for its missing rows
+onColumn1 <- missingTrees$var == 1L
+expect_true(any(onColumn1))
+expect_true(all(missingTrees$missing[onColumn1] %in% c("L", "R")))
+## and the grown forest is a legal chain state on data the routing reaches:
+## no empty leaf, every row predicted
+expect_true(all(missingTrees$n[missingTrees$var == -1L] > 0L))
+expect_true(all(is.finite(missingSampler$predict(xMissing))))
+
+rm(
+  nMissing,
+  xMissing,
+  missingRows,
+  missingSignal,
+  yMissing,
+  missingSampler,
+  missingTrees,
+  onColumn1
+)

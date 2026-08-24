@@ -1,11 +1,11 @@
 // Component tests for grow-from-root (grow.hpp + Chain::growForestFromRoot):
 // seeded determinism and the documented per-node draw count, the well-formed /
 // legal-chain-state invariants of a grown tree, the categorical rules it now
-// places and their gauge, the prior mass an enumerated cut candidate carries on
-// a column with missing values, the law the categorical root draw realizes in
-// both enumeration branches and the closed-form mass invariant behind it, the
-// 1 + A coins a categorical rule assembly spends, and grow-then-MH
-// continuation through a live sampler.
+// places and their gauge, the rows an enumerated cut candidate's likelihood
+// covers on a column with missing values, the law the categorical root draw
+// realizes in both enumeration branches and the closed-form mass invariant
+// behind it, the 1 + A coins a categorical rule assembly spends, and
+// grow-then-MH continuation through a live sampler.
 #include "common.hpp"
 
 #include <ctime>
@@ -447,44 +447,45 @@ void testGrowHonorsInteraction() {
 }
 
 // ---------------------------------------------------------------------------
-// What an enumerated cut candidate stands for on a column with missing values.
+// What an enumerated cut candidate stands for on a column with missing values,
+// and which rows its likelihood covers.
 //
-// growTreeFromRoot enumerates one candidate per cut and gives it the prior mass
-// -log(numCuts), which is the mass CGM puts on the PAIR of rules (missing left,
-// missing right) of a column that routes missing values. After the draw it
-// spends a fair coin to decide which of the two the winning candidate became.
-// The candidate therefore stands for a two-rule group and carries that group's
-// whole mass, the coin picking uniformly within it. This measures that the
-// realized law is really so, by comparing three laws over the same outcome
-// space {no-split} U {(cut, missing side)}:
+// Under MIA a rule routes a missing row by its own missing direction, so a
+// candidate's two children partition the WHOLE member set - the same set the
+// no-split term covers. growTreeFromRoot therefore enumerates both directions
+// of every cut wherever a node holds missing members, scores each with those
+// rows in the child it names, gives each CGM's mass for ONE rule, and spends no
+// post-draw coin. This measures that the realized law is really so, by
+// comparing three laws over the outcome space {no-split} U {(cut, missing
+// side)}:
 //
-//   group    the weights grow.hpp assembles, halved by the fair coin: each cut
-//            candidate carrying its two-rule group's mass
-//   halved   the same with each candidate instead carrying the mass of ONE of
-//            its two rules, half the group's - the convention this kernel
-//            implemented until 2026-08-12, kept as the arm the realized draws
-//            must now REJECT
 //   exact    all 2 * numCuts rules enumerated separately, each carrying its own
 //            likelihood with the missing rows PLACED on the side its rule
-//            names - no scan approximation. This is the law the CGM prior and
-//            the leaf marginal define on the full rule set.
+//            names. This is the law the CGM prior and the leaf marginal define
+//            on the full rule set, reconstructed here from the raw fixture and
+//            not from the kernel, and it is what the kernel must realize.
+//   dropped  each cut's two rules sharing one likelihood that omits the missing
+//            rows while the no-split term counts them - the convention the scan
+//            implemented until this fix, and the arm the realized draws must
+//            REJECT.
+//   halved   dropped with a candidate carrying the mass of ONE of its two rules
+//            while standing for both, the convention that shipped before
+//            2026-08-12; kept as a second arm the realized draws must reject.
 //
-// Decision rule, fixed before the first run and re-pointed onto the group law
-// when the halving was deleted: chi-square goodness of fit at alpha = 1e-3,
-// df = cells - 1, over 2e5 grows. Realized root rules matching the group law
-// while REJECTING the halved law confirms that a cut candidate carries its
-// group's mass; matching the halved law instead would mean the halving is back
-// in the weight. The exact law's own draws are the calibration control and must
-// not reject. The realized draws must still reject the EXACT law: the scan
-// omits the missing rows from a split's likelihood while the no-split term
-// counts them, a separate inconsistency carried on its own ticket.
+// Decision rule, fixed before the run: chi-square goodness of fit at
+// alpha = 1e-3, df = cells - 1, over 2e5 grows per fixture. Realized root rules
+// matching the exact law while REJECTING both others confirms that a candidate
+// covers its missing rows; matching the dropped law instead would mean the scan
+// is skipping them again. The exact law's own draws are the calibration control
+// and must not reject.
 //
-// The fixture is deliberately signal-free and gives its missing rows the node's
-// mean response, so the two rules of a cut's group have near-equal exact
-// likelihood: that is the regime where the group's total mass is unambiguous
-// and the prior-mass question is not confounded with the scan's separate
-// omission of the missing rows from the split likelihood. The residual between
-// the group law and the exact law measures that second effect.
+// The fixture is swept in the quantity the defect is monotone in: the missing
+// rows' weighted sum of squared responses. At zero the dropped law is off only
+// by the child precision those rows never inflated - the floor - and the two
+// laws sit a total variation of ~0.017 apart; at 32 the omitted sum of squares
+// no longer cancels split-against-no-split and the distance is ~0.59. The
+// realized law must sit at the exact law at BOTH ends, the dose-response curve
+// being what tells a scoring fix from a coincidence at one fixture.
 
 // deterministic fixture noise from a local counter generator, so the fixture
 // disturbs neither the shared ext_rng stream nor the global rngState the
@@ -564,9 +565,14 @@ double totalVariation(const std::vector<double>& p,
   return 0.5 * distance;
 }
 
-void testOrdinalMissingRuleGroupWeight() {
-  const size_t n = 64, numMissing = 8, numDraws = 200000;
-  const double alpha = 1e-3, k = 2.0, sigma = 0.9;
+// One fixture of the sweep: build it, reconstruct the three laws, grow 2e5
+// roots against it, and check the realized frequencies. `missingResponse` is
+// the common response the missing rows carry, so their weighted sum of squares
+// is numMissing * missingResponse^2 - the dose.
+double measureOrdinalMissingLaw(double missingResponse, size_t numDraws,
+                                double alpha) {
+  const size_t n = 64, numMissing = 8;
+  const double k = 2.0, sigma = 0.9;
   double residualVariance = sigma * sigma;
 
   std::vector<double> x(n), y(n);
@@ -577,7 +583,7 @@ void testOrdinalMissingRuleGroupWeight() {
   }
   for (size_t m = 0; m < numMissing; ++m) {
     x[m * (n / numMissing)] = std::nan("");
-    y[m * (n / numMissing)] = 0.0;  // the node's mean response
+    y[m * (n / numMissing)] = missingResponse;
   }
 
   ColumnStore store;
@@ -591,10 +597,15 @@ void testOrdinalMissingRuleGroupWeight() {
   const xint_t* codes = store.column(0);
   std::vector<ConstantLeafScanBin> bins(numCuts + 1);
   ConstantLeafScanBin missing, nodeTotal, observedTotal;
+  double missingSumWeightedSquares = 0.0;
   for (size_t i = 0; i < n; ++i) {
     nodeTotal.addObservation(1.0, y[i]);
-    if (codes[i] == naCode) missing.addObservation(1.0, y[i]);
-    else bins[codes[i]].addObservation(1.0, y[i]);
+    if (codes[i] == naCode) {
+      missing.addObservation(1.0, y[i]);
+      missingSumWeightedSquares += y[i] * y[i];
+    } else {
+      bins[codes[i]].addObservation(1.0, y[i]);
+    }
   }
   for (const ConstantLeafScanBin& bin : bins) observedTotal.addBin(bin);
   check(missing.count == static_cast<double>(numMissing),
@@ -609,8 +620,9 @@ void testOrdinalMissingRuleGroupWeight() {
   tree.computeLeafStats(0, y.data(), nullptr);
   double growth = prior.growthProbability(tree, store, 0);
   double logGrowth = std::log(growth);
-  // CGM's uniform over the 2 * numCuts rules, i.e. ONE rule's mass; grow.hpp's
-  // logCut is twice this (the group's) and the coin halves it back
+  // CGM's uniform over the 2 * numCuts rules of a missing-bearing column: ONE
+  // rule's mass, which is what a candidate carries now that the two directions
+  // are separate candidates
   double logRule = -std::log(static_cast<double>(2 * numCuts));
 
   auto marginal = [&](const ConstantLeafScanBin& bin) {
@@ -619,10 +631,10 @@ void testOrdinalMissingRuleGroupWeight() {
   };
 
   size_t numCells = 1 + 2 * numCuts;
-  std::vector<double> logGroup(numCells), logHalved(numCells);
-  std::vector<double> logExact(numCells);
+  std::vector<double> logExact(numCells), logDropped(numCells);
+  std::vector<double> logHalved(numCells);
   double noSplit = std::log(1.0 - growth) + marginal(nodeTotal);
-  logGroup[0] = logHalved[0] = logExact[0] = noSplit;
+  logExact[0] = logDropped[0] = logHalved[0] = noSplit;
 
   ConstantLeafScanBin left;
   for (size_t cut = 0; cut < numCuts; ++cut) {
@@ -634,21 +646,21 @@ void testOrdinalMissingRuleGroupWeight() {
       observedTotal.sumWeightedResponse - left.sumWeightedResponse;
     check(left.count > 0.0 && right.count > 0.0,
           "every cut of the measured fixture is occupancy-nonempty");
-    double scanned = marginal(left) + marginal(right);
+    double dropped = marginal(left) + marginal(right);
     for (size_t side = 0; side < 2; ++side) {
       ConstantLeafScanBin exactLeft(left), exactRight(right);
       (side == 0 ? exactLeft : exactRight).addBin(missing);
       size_t cell = 1 + 2 * cut + side;
-      logGroup[cell] = logGrowth + logRule + scanned;
-      logHalved[cell] = logGrowth + logRule + scanned - std::log(2.0);
       logExact[cell] =
         logGrowth + logRule + marginal(exactLeft) + marginal(exactRight);
+      logDropped[cell] = logGrowth + logRule + dropped;
+      logHalved[cell] = logGrowth + logRule + dropped - std::log(2.0);
     }
   }
 
-  std::vector<double> group(normalizedFromLogWeights(logGroup));
-  std::vector<double> halved(normalizedFromLogWeights(logHalved));
   std::vector<double> exact(normalizedFromLogWeights(logExact));
+  std::vector<double> dropped(normalizedFromLogWeights(logDropped));
+  std::vector<double> halved(normalizedFromLogWeights(logHalved));
 
   // realized root rules: the shipped kernel, then the exact law's own draws
   std::vector<double> shippedCounts(numCells, 0.0), exactCounts(numCells, 0.0);
@@ -673,54 +685,71 @@ void testOrdinalMissingRuleGroupWeight() {
 
   double total = static_cast<double>(numDraws);
   double df = static_cast<double>(numCells - 1);
-  double x2ShippedVsGroup = chiSquareStatistic(shippedCounts, group, total);
-  double x2ShippedVsHalved = chiSquareStatistic(shippedCounts, halved, total);
   double x2ShippedVsExact = chiSquareStatistic(shippedCounts, exact, total);
+  double x2ShippedVsDropped = chiSquareStatistic(shippedCounts, dropped, total);
+  double x2ShippedVsHalved = chiSquareStatistic(shippedCounts, halved, total);
   double x2ExactVsExact = chiSquareStatistic(exactCounts, exact, total);
   auto pValue = [df](double statistic) {
     return chiSquareUpperTail(statistic, df);
   };
+  double minExpected = total;
+  for (double probability : exact)
+    minExpected = std::min(minExpected, total * probability);
+  double distance = totalVariation(dropped, exact);
 
-  printf("  missing-rule-group weight, %zu cells, df %.0f, %zu grows\n",
-         numCells, df, numDraws);
-  printf("    no-split probability: group %.5f halved %.5f exact %.5f, "
-         "realized %.5f\n", group[0], halved[0], exact[0],
+  printf("  missing rows carrying sum w y^2 = %.1f, %zu cells, df %.0f, "
+         "%zu grows\n", missingSumWeightedSquares, numCells, df, numDraws);
+  printf("    no-split probability: exact %.5f dropped %.5f halved %.5f, "
+         "realized %.5f\n", exact[0], dropped[0], halved[0],
          shippedCounts[0] / total);
-  printf("    chi2 shipped draws vs group law   %.2f (p %.3g)\n",
-         x2ShippedVsGroup, pValue(x2ShippedVsGroup));
-  printf("    chi2 shipped draws vs halved law  %.2f (p %.3g)\n",
-         x2ShippedVsHalved, pValue(x2ShippedVsHalved));
-  printf("    chi2 shipped draws vs exact law   %.2f (p %.3g)\n",
+  printf("    chi2 shipped draws vs exact law    %.2f (p %.3g)\n",
          x2ShippedVsExact, pValue(x2ShippedVsExact));
-  printf("    chi2 exact draws vs exact law     %.2f (p %.3g)\n",
+  printf("    chi2 shipped draws vs dropped law  %.2f (p %.3g)\n",
+         x2ShippedVsDropped, pValue(x2ShippedVsDropped));
+  printf("    chi2 shipped draws vs halved law   %.2f (p %.3g)\n",
+         x2ShippedVsHalved, pValue(x2ShippedVsHalved));
+  printf("    chi2 exact draws vs exact law      %.2f (p %.3g)\n",
          x2ExactVsExact, pValue(x2ExactVsExact));
-  printf("    total variation: group-exact %.5f halved-exact %.5f "
-         "group-halved %.5f\n", totalVariation(group, exact),
-         totalVariation(halved, exact), totalVariation(group, halved));
+  printf("    total variation dropped-exact %.5f; smallest expected cell "
+         "%.0f\n", distance, minExpected);
 
+  check(minExpected >= 100.0,
+        "every cell of the exact law is measurable at this draw count");
   // the calibration control: the chi-square is calibrated at this cell count
   // and draw count
   check(pValue(x2ExactVsExact) >= alpha,
         "the exact law's own draws match it (chi-square calibration)");
-
-  // the measurement, pinned as measured: a cut candidate on a missing-bearing
-  // column carries its two-rule group's whole prior mass and the post-draw coin
-  // picks uniformly within the group, so the realized law is the group law and
-  // neither the halved law nor the exact law
-  check(pValue(x2ShippedVsGroup) >= alpha,
-        "realized root rules match a cut candidate carrying its group's mass");
+  // the measurement: a candidate carries its missing rows into the child its
+  // own direction names, so the realized law is the exact law on the full rule
+  // set and neither of the laws that drop those rows from a split likelihood
+  check(pValue(x2ShippedVsExact) >= alpha,
+        "realized root rules match the exact law over the full rule set");
+  check(pValue(x2ShippedVsDropped) < alpha,
+        "the realized law is not the one that drops the missing rows from a "
+        "split likelihood");
   check(pValue(x2ShippedVsHalved) < alpha,
-        "the realized law is not the one that halves the group to one rule");
-  check(pValue(x2ShippedVsExact) < alpha,
-        "the realized law is not the exact law on the full rule set");
-  // exactly a factor of two, read off the split-to-no-split odds of the two
-  // reconstructed laws rather than inferred from the chi-square
-  double groupOdds = (1.0 - group[0]) / group[0];
-  double halvedOdds = (1.0 - halved[0]) / halved[0];
-  checkNear(groupOdds / halvedOdds, 2.0, 1e-9,
-            "the group's mass is exactly twice one of its two rules'");
+        "the realized law is not the one that also halves the candidate to one "
+        "of its two rules");
+  return distance;
+}
 
-  printf("ok: grow ordinal missing rule-group weight\n");
+void testOrdinalMissingRowsAreRouted() {
+  const size_t numDraws = 200000;
+  const double alpha = 1e-3;
+  printf("  ordinal missing-row routing, swept in the omitted sum of squares\n");
+  double floorDistance = measureOrdinalMissingLaw(0.0, numDraws, alpha);
+  double loadedDistance = measureOrdinalMissingLaw(2.0, numDraws, alpha);
+  // the dose-response the defect was monotone in, pinned at both ends: the
+  // dropped law's distance from the exact one is the missing rows' never-
+  // inflated child precision at the floor and grows with their weighted sum of
+  // squares, while the realized law sits on the exact one throughout
+  checkNear(floorDistance, 0.01691, 1e-3,
+            "the dropped law's floor is the child precision those rows never "
+            "inflated");
+  checkNear(loadedDistance, 0.59012, 1e-3,
+            "the dropped law's distance grows with the missing rows' weighted "
+            "sum of squares");
+  printf("ok: grow ordinal missing rows routed into a named child\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -1455,7 +1484,7 @@ void runGrowTests(ext_rng* rng) {
   testPooledCategoricalGrow();
   testGrowThenContinue(rng);
   testGrowHonorsInteraction();
-  testOrdinalMissingRuleGroupWeight();
+  testOrdinalMissingRowsAreRouted();
   testCategoricalExactDrawLaw();
   testCategoricalPrefixDrawLaw();
   testCategoricalGroupMassClosedForm();

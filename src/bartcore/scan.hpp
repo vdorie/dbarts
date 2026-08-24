@@ -60,33 +60,59 @@ struct ConstantLeafScanBin {
 };
 
 /// Scan every candidate cut of ordinal variable `variable` over the member ids
-/// in indices[0, numMembers). Writes numCuts[variable] entries into
-/// logLikelihood: entry k scores the split "codes <= k go left" of the node's
-/// NON-MISSING members as leaf.logIntegratedLikelihood(left) +
-/// logIntegratedLikelihood(right), or cutScanEmptySentinel when either side
-/// carries no positive weight. Missing values (naCode) are excluded from the
-/// split scan; grow-from-root routes them by the birth-time missing-direction
-/// coin, and occupancy on the non-missing weights alone keeps both children
-/// weighted, since a routed member only adds weight to the side it joins.
+/// in indices[0, numMembers), returning how many entries it wrote into
+/// logLikelihood. The caller sizes that buffer for the worst case: numCuts
+/// entries when no member of the node is missing, 2 * numCuts when one is.
+///
+/// Entry k of the plain layout scores the split "codes <= k go left"; where the
+/// node holds missing members the layout doubles and entry 2k + s scores that
+/// same cut with the missing rows routed LEFT (s = 0) or RIGHT (s = 1). A
+/// candidate scores as leaf.logIntegratedLikelihood(left) +
+/// logIntegratedLikelihood(right), or cutScanEmptySentinel when a side carries
+/// no positive weight.
+///
+/// Constraint the two layouts exist to hold: a candidate's children must
+/// partition the SAME member set the caller's no-split term covers. Under MIA a
+/// missing row is routed by the rule's own missing direction
+/// (docs/design/mia-missingness.md), so the direction belongs to the candidate
+/// wherever it moves a statistic, and the missing rows' (count, sum w, sum wz)
+/// join the child that direction names - the rule scanCategoricalPartitions
+/// already follows, a missing value there being the column's reserved
+/// pseudo-category and a real histogram bin the partition routes like any
+/// other. Scoring a cut over the non-missing members alone leaves every split
+/// score short the missing rows' leaf marginal, which then no longer cancels
+/// against the no-split term. Where the node holds NO missing member the
+/// direction moves nothing, the plain layout stands, and the caller draws the
+/// direction from the prior after the fact.
+///
+/// Occupancy is read off the NON-MISSING weights of both sides rather than the
+/// children's totals. That is what keeps a cut every non-missing member falls
+/// to one side of undrawable, which is how the scan subsumes the ancestor split
+/// interval (grow.hpp); a candidate that survives it carries positive weight in
+/// both children a fortiori, routing only ever adding weight to the side it
+/// joins.
 ///
 /// binScratch is caller-owned reused storage (numCuts[variable] + 1 bins).
 /// The marginal carries no sum wz^2: that per-node total is identical under
-/// every cut and under no-split, so it cancels against the no-split term the
-/// caller assembles and is never accumulated.
+/// every candidate and under no-split - both partition the whole member set -
+/// so it cancels against the no-split term the caller assembles and is never
+/// accumulated.
 ///
 /// RNG-free and residual-only: the scan reads y (the current tree residual)
 /// and weights exactly as computeLeafStats does, so a builder's cut scores are
-/// consistent with the leaf stats tree.birth later caches.
+/// consistent with the leaf stats tree.birth later caches, missing rows
+/// included.
 template <ScalarLeafModel L, typename ResidT = double>
-void scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
-                     const index_t* indices, std::size_t numMembers,
-                     const ResidT* y, const double* weights, const L& leaf,
-                     double k, double residualVariance,
-                     std::vector<ConstantLeafScanBin>& binScratch,
-                     double* logLikelihood) {
+std::size_t scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
+                            const index_t* indices, std::size_t numMembers,
+                            const ResidT* y, const double* weights,
+                            const L& leaf, double k, double residualVariance,
+                            std::vector<ConstantLeafScanBin>& binScratch,
+                            double* logLikelihood) {
   std::size_t numCuts = static_cast<std::size_t>(data.numCuts[variable]);
   std::size_t numBins = numCuts + 1;
   binScratch.assign(numBins, ConstantLeafScanBin{});
+  ConstantLeafScanBin missing;
 
   // histogram the members' statistics per code, branching on storage once so
   // the dense inner loop stays a plain gather (the common case)
@@ -97,9 +123,11 @@ void scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
   for (std::size_t i = 0; i < numMembers; ++i) {
     std::size_t obs = indices[i];
     xint_t code = dense ? denseColumn[obs] : sparseColumn->at(obs);
-    if (code == naCode) continue;  // routed by the birth-time coin, not scanned
     double weight = weights == nullptr ? 1.0 : weights[obs];
-    binScratch[code].addObservation(weight, y[obs]);
+    // naCode indexes no bin: the missing rows reduce once, into the bin every
+    // candidate adds to one of its two children
+    if (code == naCode) missing.addObservation(weight, y[obs]);
+    else binScratch[code].addObservation(weight, y[obs]);
   }
 
   // node total over the non-missing bins (the left-fold order the prefix scan
@@ -107,10 +135,17 @@ void scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
   ConstantLeafScanBin total;
   for (std::size_t b = 0; b < numBins; ++b) total.addBin(binScratch[b]);
 
+  bool routesMissing = missing.count > 0.0;
+  auto marginal = [&](const ConstantLeafScanBin& bin) {
+    return leaf.logIntegratedLikelihood(k, residualVariance, bin.sumWeights,
+                                        bin.sumWeightedResponse);
+  };
+
   ConstantLeafScanBin left;
   for (std::size_t cut = 0; cut + 1 < numBins; ++cut) {
     left.addBin(binScratch[cut]);  // codes 0..cut go left
     double rightWeights = total.sumWeights - left.sumWeights;
+    double* entry = logLikelihood + (routesMissing ? 2 * cut : cut);
     // Occupancy is the MOVES' emptiness law - positive weight on each side,
     // not positive member count (docs/design/empty-leaf-veto.md) - so a cut
     // isolating none but zero-weight members is undrawable rather than a leaf
@@ -121,17 +156,26 @@ void scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
     // unchanged there; the subtraction is exact where it decides, a suffix of
     // exactly-zero bins leaving the total untouched.
     if (left.sumWeights <= 0.0 || rightWeights <= 0.0) {
-      logLikelihood[cut] = cutScanEmptySentinel;  // never selected
+      entry[0] = cutScanEmptySentinel;  // never selected
+      if (routesMissing) entry[1] = cutScanEmptySentinel;
       continue;
     }
-    double rightWeightedResponse =
+    ConstantLeafScanBin right;
+    right.count = total.count - left.count;
+    right.sumWeights = rightWeights;
+    right.sumWeightedResponse =
       total.sumWeightedResponse - left.sumWeightedResponse;
-    logLikelihood[cut] =
-      leaf.logIntegratedLikelihood(k, residualVariance, left.sumWeights,
-                                   left.sumWeightedResponse) +
-      leaf.logIntegratedLikelihood(k, residualVariance, rightWeights,
-                                   rightWeightedResponse);
+    if (!routesMissing) {
+      entry[0] = marginal(left) + marginal(right);
+      continue;
+    }
+    ConstantLeafScanBin routedLeft(left), routedRight(right);
+    routedLeft.addBin(missing);
+    routedRight.addBin(missing);
+    entry[0] = marginal(routedLeft) + marginal(right);
+    entry[1] = marginal(left) + marginal(routedRight);
   }
+  return routesMissing ? 2 * numCuts : numCuts;
 }
 
 // ---------------------------------------------------------------------------

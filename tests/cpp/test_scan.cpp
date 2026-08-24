@@ -1,8 +1,10 @@
 // Component tests for the cut-scan primitive (scan.hpp): per-cut integrated
 // log-likelihoods against an independent brute-force recompute (tolerance),
 // against a from-scratch histogram collapse (bitwise), the promoted histogram-
-// totals check, the occupancy sentinel, and the categorical scan's enumeration
-// (exhaustive against a brute-forced partition set) and per-candidate scores.
+// totals check, the occupancy sentinel, the routing of a node's missing rows
+// into the child a candidate's direction names, the categorical scan's
+// enumeration (exhaustive against a brute-forced partition set) and
+// per-candidate scores, and the two scans' agreement on a shared partition.
 // Needs only the data/model layers plus scan.hpp, so a touch to
 // moves/chain/sampler does not recompile this TU.
 #include "assert.hpp"
@@ -325,17 +327,24 @@ void testOccupancySentinel() {
   printf("ok: scan occupancy sentinel\n");
 }
 
-// Missing values are excluded from the split scan and left for the birth-time
-// coin; the scan over a column with NAs matches a brute force that also skips
-// them, and the histogram counts only the non-missing members.
-void testMissingExcluded() {
+// Missing rows are ROUTED, not skipped: under MIA the rule's missing direction
+// sends them to one child, so where a node holds them the scan emits both
+// directions of every cut and each scores with those rows in the child it
+// names. Checked against a brute force that routes them the same way, against a
+// bitwise fresh collapse, and against the score the scan would have produced by
+// dropping them - the defect this layout exists to close. A member set holding
+// no missing row keeps the plain one-entry-per-cut layout.
+void testMissingRouted() {
   const size_t n = 150;
   std::vector<double> x(n), y(n);
   size_t numMissing = 0;
   for (size_t i = 0; i < n; ++i) {
-    if (i % 7 == 0) { x[i] = std::nan(""); ++numMissing; }
+    bool isMissing = i % 7 == 0;
+    if (isMissing) { x[i] = std::nan(""); ++numMissing; }
     else x[i] = runif01();
-    y[i] = runif01() - 0.5;
+    // the missing rows carry a level of their own, so which child receives
+    // them changes the score
+    y[i] = runif01() - 0.5 + (isMissing ? 1.5 : 0.0);
   }
   ColumnStore store;
   store.build(x.data(), n, 1, 15);
@@ -345,31 +354,190 @@ void testMissingExcluded() {
   for (size_t i = 0; i < n; ++i) members[i] = i;
 
   ConstantGaussianLeaf leaf{0.5};
+  double k = 2.0, residualVariance = 0.7;
   size_t numCuts = store.numCuts[0];
   std::vector<ConstantLeafScanBin> binScratch;
-  std::vector<double> scan(numCuts), bitwise;
-  scanOrdinalCuts(store, 0, members.data(), n, y.data(), nullptr, leaf, 2.0, 0.7,
-                  binScratch, scan.data());
-  bitwiseCollapse(store, 0, members.data(), n, y.data(), nullptr, leaf, 2.0, 0.7,
-                  bitwise);
+  std::vector<double> scan(2 * numCuts), dropped;
+  size_t numEmitted =
+    scanOrdinalCuts(store, 0, members.data(), n, y.data(), nullptr, leaf, k,
+                    residualVariance, binScratch, scan.data());
+  check(numEmitted == 2 * numCuts,
+        "a node holding missing rows emits both directions of every cut");
 
-  size_t numBins = numCuts + 1;
-  std::vector<ConstantLeafScanBin> bins(numBins);
+  // the missing rows' own reduction, and the per-cut non-missing sides
+  ConstantLeafScanBin missing;
+  std::vector<ConstantLeafScanBin> bins(numCuts + 1);
   for (size_t i = 0; i < n; ++i) {
     xint_t code = store.codeAt(0, i);
-    if (code == naCode) continue;
-    bins[code].addObservation(1.0, y[i]);
+    if (code == naCode) missing.addObservation(1.0, y[i]);
+    else bins[code].addObservation(1.0, y[i]);
   }
-  ConstantLeafScanBin total;
-  for (size_t b = 0; b < numBins; ++b) total.addBin(bins[b]);
+  check(missing.count == static_cast<double>(numMissing) &&
+          missing.sumWeights > 0.0,
+        "every missing member reduces into the routed bin");
 
-  bool okBit = true;
-  for (size_t cut = 0; cut < numCuts; ++cut) okBit &= scan[cut] == bitwise[cut];
-  check(okBit, "scan with missing == fresh collapse (bitwise)");
-  check(total.count == static_cast<double>(n - numMissing),
-        "histogram excludes missing members");
+  // an independent brute force over the raw members, routing naCode to the side
+  // the entry names; and the same, dropping them, which the scan must NOT match
+  bitwiseCollapse(store, 0, members.data(), n, y.data(), nullptr, leaf, k,
+                  residualVariance, dropped);
+  bool routedTol = true, differsFromDropped = true, sentinelPaired = true;
+  for (size_t cut = 0; cut < numCuts; ++cut) {
+    for (size_t side = 0; side < 2; ++side) {
+      double lw = 0.0, lwz = 0.0, rw = 0.0, rwz = 0.0;
+      size_t lc = 0, rc = 0;
+      for (size_t i = 0; i < n; ++i) {
+        xint_t code = store.codeAt(0, i);
+        bool left = code == naCode ? side == 0
+                                   : static_cast<size_t>(code) <= cut;
+        if (left) { ++lc; lw += 1.0; lwz += y[i]; }
+        else { ++rc; rw += 1.0; rwz += y[i]; }
+      }
+      double entry = scan[2 * cut + side];
+      if (dropped[cut] == cutScanEmptySentinel) {
+        sentinelPaired &= entry == cutScanEmptySentinel;
+        continue;
+      }
+      sentinelPaired &= entry != cutScanEmptySentinel;
+      check(lc > 0 && rc > 0, "a scored entry leaves both children occupied");
+      double expected =
+        leaf.logIntegratedLikelihood(k, residualVariance, lw, lwz) +
+        leaf.logIntegratedLikelihood(k, residualVariance, rw, rwz);
+      routedTol &= std::fabs(entry - expected) <=
+                   1e-11 * (1.0 + std::fabs(expected));
+      differsFromDropped &= std::fabs(entry - dropped[cut]) > 1e-6;
+    }
+  }
+  check(routedTol, "every entry scores its cut with the missing rows in the "
+                   "child its direction names");
+  check(sentinelPaired,
+        "the occupancy sentinel is on the non-missing sides, so it applies to "
+        "both directions of a cut or to neither");
+  check(differsFromDropped,
+        "routing the missing rows moves every score off the dropped-rows one");
 
-  printf("ok: scan missing excluded\n");
+  // a member set with no missing row keeps the plain layout, bitwise
+  std::vector<index_t> observed;
+  for (size_t i = 0; i < n; ++i)
+    if (store.codeAt(0, i) != naCode) observed.push_back(i);
+  std::vector<double> plain(2 * numCuts), plainBitwise;
+  size_t plainEmitted =
+    scanOrdinalCuts(store, 0, observed.data(), observed.size(), y.data(),
+                    nullptr, leaf, k, residualVariance, binScratch,
+                    plain.data());
+  bitwiseCollapse(store, 0, observed.data(), observed.size(), y.data(), nullptr,
+                  leaf, k, residualVariance, plainBitwise);
+  bool plainBit = plainEmitted == numCuts;
+  for (size_t cut = 0; cut < numCuts; ++cut)
+    plainBit &= plain[cut] == plainBitwise[cut];
+  check(plainBit,
+        "a node holding no missing row keeps one entry per cut (bitwise)");
+
+  printf("ok: scan missing routed\n");
+}
+
+// The two scans agree where they can be made to answer the same question: one
+// ordinal column and one categorical column carrying the SAME grouping and the
+// SAME missing rows induce the same partitions of a node's members, so a scored
+// ordinal entry and the categorical candidate over the same partition must
+// carry the same score. They route missing rows by one rule - into the child
+// the candidate names - and a divergence here is a defect in one of them.
+void testOrdinalCategoricalScanAgreement() {
+  uint64_t savedRngState = rngState;
+  const size_t n = 96, numLevels = 4;
+  std::vector<double> x(2 * n), y(n), w(n);
+  for (size_t i = 0; i < n; ++i) {
+    double level = static_cast<double>(i % numLevels);
+    x[i] = level;      // ordinal
+    x[n + i] = level;  // categorical, same grouping
+    y[i] = runif01() - 0.5 + 0.3 * level;
+    w[i] = 0.5 + runif01();
+  }
+  for (size_t m = 0; m < n; m += 13) {  // the same rows missing in both
+    x[m] = std::nan("");
+    x[n + m] = std::nan("");
+    y[m] += 1.2;  // and carrying a level of their own, so routing them matters
+  }
+  ColumnType types[] = {ColumnType::ordinal, ColumnType::categorical};
+  ColumnStore store;
+  store.build(x.data(), n, 2, numLevels, false, types);
+  check(store.hasMissing[0] == 1 && store.hasMissing[1] == 1,
+        "both columns of the agreement fixture carry missing values");
+  size_t numCuts = store.numCuts[0];
+  check(numCuts >= numLevels - 1,
+        "the ordinal column cuts between its four levels");
+
+  std::vector<index_t> members(n);
+  for (size_t i = 0; i < n; ++i) members[i] = i;
+
+  ConstantGaussianLeaf leaf{0.5};
+  double k = 2.0, residualVariance = 0.7;
+  std::vector<ConstantLeafScanBin> binScratch;
+  std::vector<double> ordinalScan(2 * numCuts);
+  size_t numEmitted =
+    scanOrdinalCuts(store, 0, members.data(), n, y.data(), w.data(), leaf, k,
+                    residualVariance, binScratch, ordinalScan.data());
+  check(numEmitted == 2 * numCuts, "the ordinal scan routes its missing rows");
+
+  CategoricalScanScratch scratch;
+  std::vector<double> categoricalScan;
+  size_t numCandidates =
+    scanCategoricalPartitions(store, 1, members.data(), n, y.data(), w.data(),
+                              leaf, k, residualVariance, scratch,
+                              categoricalScan);
+  size_t numPresent = scratch.present.size();
+  check(numPresent == numLevels + 1 && numPresent <= categoricalExhaustiveCap,
+        "four levels plus the missing pseudo-category, under the cap");
+
+  // the left member set of every categorical candidate, as a row mask
+  std::vector<std::vector<char>> categoricalLeft(numCandidates);
+  for (size_t c = 0; c < numCandidates; ++c) {
+    uint64_t leftCodes = 0;
+    for (size_t position = 0; position < numPresent; ++position)
+      if (exactPartitionHoldsPosition(static_cast<int32_t>(c), position))
+        leftCodes |= 1ull << scratch.present[position].code;
+    categoricalLeft[c].assign(n, 0);
+    for (size_t i = 0; i < n; ++i)
+      categoricalLeft[c][i] =
+        ((leftCodes >> store.codeAt(1, i)) & 1ull) != 0 ? 1 : 0;
+  }
+
+  bool everyEntryMatched = true, scoresAgree = true;
+  size_t matched = 0, scored = 0;
+  for (size_t entry = 0; entry < numEmitted; ++entry) {
+    if (ordinalScan[entry] == cutScanEmptySentinel) continue;
+    ++scored;
+    size_t cut = entry >> 1, side = entry & 1u;
+    std::vector<char> left(n, 0);
+    for (size_t i = 0; i < n; ++i) {
+      xint_t code = store.codeAt(0, i);
+      left[i] = (code == naCode ? side == 0
+                                : static_cast<size_t>(code) <= cut) ? 1 : 0;
+    }
+    // the partition is unordered, so a candidate matches by either orientation
+    bool found = false;
+    for (size_t c = 0; c < numCandidates && !found; ++c) {
+      bool same = true, complement = true;
+      for (size_t i = 0; i < n; ++i) {
+        same &= categoricalLeft[c][i] == left[i];
+        complement &= categoricalLeft[c][i] != left[i];
+      }
+      if (!same && !complement) continue;
+      found = true;
+      ++matched;
+      scoresAgree &=
+        std::fabs(ordinalScan[entry] - categoricalScan[c]) <=
+        1e-11 * (1.0 + std::fabs(categoricalScan[c]));
+    }
+    everyEntryMatched &= found;
+  }
+  check(scored > 0 && matched == scored && everyEntryMatched,
+        "every scored ordinal entry names a partition the categorical scan "
+        "also enumerates");
+  check(scoresAgree,
+        "the two scans score the same partition of the same members alike");
+
+  rngState = savedRngState;
+  printf("ok: scan ordinal/categorical agreement (%zu of %zu entries, %zu cuts, %zu candidates)\n", scored, numEmitted, numCuts, numCandidates);
 }
 
 // ---------------------------------------------------------------------------
@@ -569,7 +737,8 @@ void runScanTests() {
   testHistogramTotals();
   testCountWeightSplit();
   testOccupancySentinel();
-  testMissingExcluded();
+  testMissingRouted();
   testCategoricalEnumeration();
   testCategoricalScan();
+  testOrdinalCategoricalScanAgreement();
 }

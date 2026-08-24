@@ -41,6 +41,9 @@ struct GrowScratch {
   std::vector<double> candidateWeights;         // exp'd, normalized for the draw
   std::vector<std::int32_t> candidateVariable;  // parallel to the weights
   std::vector<std::int32_t> candidateCut;
+  // parallel too: the missing direction an ordinal candidate already names
+  // (0 left, 1 right), or -1 where nothing routed and a coin decides
+  std::vector<std::int8_t> candidateMissing;
   // pooled categorical masks; grow owns these rather than borrowing
   // Tree::reachableScratch_, which variableAvailable and buildFromFlatBelow
   // also use
@@ -130,19 +133,23 @@ void growCategoricalRule(const ColumnStore& data, const L& leaf, ext_rng* rng,
 ///    the occupancy-nonempty ordinal cuts and the categorical partition
 ///    candidates of every available variable. A no-split outcome (always
 ///    representable) ends the node.
-///  - An ORDINAL split on a column with missing values draws ONE additional
-///    symmetric missing-direction coin, matching
-///    CGMTreePrior::drawRuleForVariable. Convention on such a column, measured
-///    rather than assumed: an enumerated cut candidate STANDS FOR the two rules
-///    {cut, missing left} and {cut, missing right} the coin picks between and
-///    CARRIES their combined prior mass, so the group enters the discrete draw
-///    whole and the coin picks uniformly within it. test_grow.cpp chi-squares
-///    the realized root-rule frequencies against that law, against the law in
-///    which a candidate carries only one of its two rules' mass, and against
-///    the exact law over the full rule set; docs/design/grow-from-root.md
-///    section 7 records what it measured. The realized law is still not the
-///    exact one, by a residual that is the scan's separate omission of the
-///    missing rows from a split likelihood, not this weight.
+///  - An ORDINAL candidate on a column that routes missing values covers those
+///    rows too, since under MIA the rule's missing direction sends them to one
+///    child. Where the node HOLDS missing members the direction is therefore
+///    part of the candidate: the scan emits both directions of every cut, each
+///    scored with the missing rows in the child it names, each carrying CGM's
+///    mass for ONE rule (ruleForVariableLogProbability's, the interval halved
+///    by the two directions), and NO coin is spent. Where the node holds none,
+///    the direction moves no statistic: the two rules score identically, the
+///    candidate carries their combined mass whole, and ONE symmetric coin picks
+///    within the pair after the draw, matching
+///    CGMTreePrior::drawRuleForVariable. That is the same rule the categorical
+///    branch follows, where a present missing pseudo-category is a real
+///    histogram bin the partition routes and an absent one gets a coin.
+///    test_grow.cpp chi-squares the realized root-rule frequencies against the
+///    exact law over the full rule set and against the law the scan realized
+///    while it dropped the missing rows from a split likelihood;
+///    docs/design/grow-from-root.md section 7 records what it measured.
 ///  - A CATEGORICAL split draws exactly 1 + A more symmetric coins and NEVER
 ///    rejects: one orientation coin, then one per category REACHABLE at the
 ///    node but ABSENT from its members (A = R - P), taken over the reachable
@@ -188,11 +195,13 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
   scratch.candidateLogWeights.clear();
   scratch.candidateVariable.clear();
   scratch.candidateCut.clear();
+  scratch.candidateMissing.clear();
   // candidate 0 is always no-split: (1 - growth) * L(node), always finite
   scratch.candidateLogWeights.push_back(std::log(1.0 - growth) +
                                         nodeLogLikelihood);
   scratch.candidateVariable.push_back(invalidVariable);
   scratch.candidateCut.push_back(-1);
+  scratch.candidateMissing.push_back(-1);
 
   scratch.available.resize(data.numPredictors);
   std::size_t numAvailable =
@@ -249,33 +258,45 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
           splitBase + scratch.cutLogLikelihood[candidate]);
         scratch.candidateVariable.push_back(static_cast<std::int32_t>(j));
         scratch.candidateCut.push_back(static_cast<std::int32_t>(candidate));
+        scratch.candidateMissing.push_back(-1);  // the mask routes its own
       }
       continue;
     }
 
-    // P(cut group): uniform over the ancestor-constrained interval. On a column
-    // that routes missing values a candidate stands for the two rules the
-    // post-draw coin picks between and carries their COMBINED mass, so the
-    // halving CGMTreePrior::ruleForVariableLogProbability applies to one such
-    // rule cancels against the coin and does not appear here.
+    // P(rule): uniform over the ancestor-constrained interval, and over the two
+    // missing directions where the column carries them. The scan emits both
+    // directions of a cut exactly when the node's missing rows make them score
+    // differently, so a candidate is ONE rule when it does and the whole pair
+    // when it does not, and the mass follows: the halving
+    // CGMTreePrior::ruleForVariableLogProbability applies to one rule of a
+    // missing-bearing column is spent where the candidate is one rule, and
+    // cancels against the post-draw coin where it is the pair.
     std::int32_t left, right;
     tree.splitInterval(data, nodeIndex, static_cast<std::int32_t>(j), &left,
                        &right);
     double logCut = -std::log(static_cast<double>(right - left + 1));
 
     std::size_t numCuts = data.numCuts[j];
-    scratch.cutLogLikelihood.resize(numCuts);
-    scanOrdinalCuts(data, j, tree.indices + begin, numMembers, y, weights, leaf,
-                    k, residualVariance, scratch.binScratch,
-                    scratch.cutLogLikelihood.data());
+    scratch.cutLogLikelihood.resize(data.hasMissing[j] ? 2 * numCuts : numCuts);
+    std::size_t numEmitted =
+      scanOrdinalCuts(data, j, tree.indices + begin, numMembers, y, weights,
+                      leaf, k, residualVariance, scratch.binScratch,
+                      scratch.cutLogLikelihood.data());
+    bool routesMissing = numEmitted > numCuts;
 
     double splitBase = logGrowth + logSplitVariable + logCut;
-    for (std::size_t cut = 0; cut < numCuts; ++cut) {
-      if (scratch.cutLogLikelihood[cut] == cutScanEmptySentinel) continue;
+    if (routesMissing) splitBase -= std::log(2.0);
+    for (std::size_t entry = 0; entry < numEmitted; ++entry) {
+      if (scratch.cutLogLikelihood[entry] == cutScanEmptySentinel) continue;
       scratch.candidateLogWeights.push_back(splitBase +
-                                            scratch.cutLogLikelihood[cut]);
+                                            scratch.cutLogLikelihood[entry]);
       scratch.candidateVariable.push_back(static_cast<std::int32_t>(j));
-      scratch.candidateCut.push_back(static_cast<std::int32_t>(cut));
+      // the doubled layout is (cut, direction) interleaved
+      scratch.candidateCut.push_back(
+        static_cast<std::int32_t>(routesMissing ? entry >> 1 : entry));
+      scratch.candidateMissing.push_back(
+        routesMissing ? static_cast<std::int8_t>(entry & std::size_t{1})
+                      : std::int8_t{-1});
     }
   }
 
@@ -311,7 +332,10 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
                         scratch.candidateCut[choice], scratch, rule);
   else {
     rule.setSplitIndex(scratch.candidateCut[choice]);
-    if (data.hasMissing[winner])
+    std::int8_t routed = scratch.candidateMissing[choice];
+    if (routed >= 0)
+      rule.setMissingGoesRight(routed != 0);  // the candidate already named it
+    else if (data.hasMissing[winner])
       rule.setMissingGoesRight(ext_rng_simulateBernoulli(rng, 0.5) == 1);
   }
 
