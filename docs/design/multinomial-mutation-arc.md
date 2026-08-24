@@ -1032,3 +1032,45 @@ on 5e586587 itself.
 
 Next: S1a (pointer adoption), expected trio 43/43, 12/12, 11/11 bitwise
 with NO re-record.
+
+**S1a LANDED b2d1749f** (2026-08-23). Pointer adoption (Fork D0) at the
+ordinal and nbinom sites: a documented dbartsSampler$adoptPointer method
+(the selfEnv idiom; the caller-owns-soundness contract is in the
+docstring) replaces both hostFor assignments, so $fit is the engine that
+ran. predict.bartOrdinal/.bartNegbin replay through $fit$getPointer() -
+the $bc keepTrees gate stays, so refusal behavior is unchanged while
+save/reload-predict now round-trips (verified by inverting the S0 pin
+into checkSaveReloadPredicts). samplerOnly unblocks for these two
+families via checkFamilyUnsupportedArgs's per-caller allow.samplerOnly
+flag; hurdle and multinomial stay refused, both pinned. Method census
+is now 45, adoptPointer classed infrastructure in the pins file. The
+refusal blocks in test-ordinal.R and test-nbinom.R and the S0 pins
+inverted to capability assertions; the other five Fork F files pin
+multinomial only (checked, untouched). Multinomial behavior unchanged
+end to end.
+
+Price: ~59 non-test dense (budget 190) + ~69 test dense (budget 260);
+the adoption mechanism collapsed to nine lines of R/dbarts.R. One
+deviation, accepted: predict builds a list(ptr = ...) handle for
+bartcorePredict rather than delegating to $fit$predict, keeping
+validation byte-identical (bartcorePredict reads only $ptr, and $K,
+which is NULL either way for these families); full delegation is S4's
+territory. One orchestrator amend pre-landing: the NEWS phrase "for
+every family" tightened to "all three host-shell families" (gaussian
+and binary fits always had the documented storeState workaround).
+
+Gating: orchestrator diff review (LAND) plus an independent gate
+battery: tinytest 6538/0; trio 43/43 (--strict-coverage, 43 compared /
+0 skipped), 12/12, 11/11 identical-draws lines, zero max|z| lines -
+NEUTRAL exactly as designed, NO re-record; tests/cpp full + sampler
+green; TWO independent mutation probes (implementer's and the
+gate-runner's own hostFor revert) fail the inverted assertions and
+restore green (under mutation: test-ordinal.R 7 failures,
+test-nbinom.R hard-errors at refuseHostRead, test-host-shell-pins.R
+reproduces the NULL-external-pointer defect); --as-cran Status 1 NOTE
+(days-since-update only); air/lintr (8 files)/pkgdown/NEWS (293
+entries)/doc-freshness all clean. No ASAN owed (zero src/ files
+touched); no bench.
+
+Next: S2+S3 (multinomial surface); ASAN owed for the bridge dispatch
+arm.
