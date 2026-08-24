@@ -196,6 +196,80 @@ void testGrownTreeWellFormed() {
   printf("ok: grown tree well-formed\n");
 }
 
+// The same legality contract, DEEP and on a missing-bearing column. Below the
+// root a node's non-missing members are routinely one-sided at some cut, which
+// is the branch the shallow fixtures never reach: the scan must sentinel BOTH
+// directions there, since a candidate scoring a rule outside the ancestor
+// interval is drawable and would place a rule the gauge rejects and a child the
+// occupancy law forbids.
+void testDeepGrowWithMissing() {
+  // a saved snapshot of the shared runif01 stream keeps the seed-pinned suites
+  // downstream of this TU bitwise intact
+  uint64_t savedRngState = rngState;
+  const size_t n = 400;
+  std::vector<double> x(n), y(n);
+  size_t numMissing = 0;
+  for (size_t i = 0; i < n; ++i) {
+    bool isMissing = i % 7 == 0;
+    x[i] = isMissing ? std::nan("") : runif01();
+    // the missing rows carry their own level, so routing them is worth doing
+    // and the grown trees keep splitting on the column
+    y[i] = (isMissing ? 3.0 : 2.0 * x[i]) + 0.2 * (runif01() - 0.5);
+    numMissing += isMissing ? 1 : 0;
+  }
+  ColumnStore store;
+  store.build(x.data(), n, 1, 50);
+  check(store.hasMissing[0] == 1 && numMissing > 0,
+        "the deep-grow fixture's only column carries missing values");
+
+  CGMTreePrior prior;
+  prior.power = 0.5;  // shallow decay: the grows run deep
+  ConstantGaussianLeaf leaf{0.5};
+  std::vector<index_t> buf(n);
+  Tree tree;
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20260824u);
+
+  size_t numNodes = 0, numInternal = 0, maxDepth = 0;
+  bool legal = true, inGauge = true;
+  std::vector<int32_t> bottoms, internal;
+  for (int iteration = 0; iteration < 300; ++iteration) {
+    growOnce(store, prior, leaf, rng, tree, buf, y.data(), n);
+    numNodes += tree.nodes.size();
+    bottoms.clear();
+    tree.fillBottom(0, bottoms);
+    size_t covered = 0;
+    for (int32_t b : bottoms) {
+      covered += tree.at(b).numObservations();
+      legal &= tree.at(b).numObservations() > 0 && tree.at(b).sumWeights > 0.0;
+    }
+    legal &= covered == n && tree.bottomNodesAreOccupied();
+    internal.clear();
+    tree.fillNotBottom(0, internal);
+    numInternal += internal.size();
+    for (int32_t node : internal) {
+      int32_t var = tree.at(node).rule.variableIndex;
+      int32_t left, right;
+      tree.splitInterval(store, node, var, &left, &right);
+      int32_t split = tree.at(node).rule.splitIndex();
+      inGauge &= split >= left && split <= right;
+      size_t depth = static_cast<size_t>(tree.depthOf(node));
+      if (depth > maxDepth) maxDepth = depth;
+    }
+  }
+  ext_rng_destroy(rng);
+
+  check(numInternal > 300 && maxDepth >= 3,
+        "the deep-grow probe reaches nodes below the root");
+  check(legal, "every deeply grown tree is a legal chain state");
+  check(inGauge,
+        "every deeply grown ordinal rule sits inside its ancestor interval");
+
+  rngState = savedRngState;
+  printf("ok: deep grow on a missing-bearing column (%zu nodes, %zu rules, "
+         "depth %zu)\n", numNodes, numInternal, maxDepth);
+}
+
 // The v1 "categorical predictors are never split here" contract, inverted: a
 // categorical column is scanned and split like any other. The fixture keeps the
 // signal ORDINAL, so categorical rules appear only because they carry their
@@ -461,9 +535,14 @@ void testGrowHonorsInteraction() {
 //
 //   exact    all 2 * numCuts rules enumerated separately, each carrying its own
 //            likelihood with the missing rows PLACED on the side its rule
-//            names. This is the law the CGM prior and the leaf marginal define
-//            on the full rule set, reconstructed here from the raw fixture and
-//            not from the kernel, and it is what the kernel must realize.
+//            names. This is the law the CGM prior and the leaf marginal define,
+//            reconstructed here from the raw fixture and not from the kernel,
+//            and it is what the kernel must realize. Support: every cut of
+//            these fixtures is occupancy-nonempty (asserted below), so the
+//            enumeration is the whole rule set here; where a cut's non-missing
+//            members are one-sided the scan sentinels both its directions and
+//            the kernel's support is the smaller one (test_scan.cpp pins the
+//            pairing).
 //   dropped  each cut's two rules sharing one likelihood that omits the missing
 //            rows while the no-split term counts them - the convention the scan
 //            implemented until this fix, and the arm the realized draws must
@@ -723,7 +802,7 @@ double measureOrdinalMissingLaw(double missingResponse, size_t numDraws,
   // own direction names, so the realized law is the exact law on the full rule
   // set and neither of the laws that drop those rows from a split likelihood
   check(pValue(x2ShippedVsExact) >= alpha,
-        "realized root rules match the exact law over the full rule set");
+        "realized root rules match the exact law over the enumerated rules");
   check(pValue(x2ShippedVsDropped) < alpha,
         "the realized law is not the one that drops the missing rows from a "
         "split likelihood");
@@ -1480,6 +1559,7 @@ void runGrowTests(ext_rng* rng) {
   testDeterminismAndDrawCount();
   testVetoDrawsNothing();
   testGrownTreeWellFormed();
+  testDeepGrowWithMissing();
   testCategoricalSplits();
   testPooledCategoricalGrow();
   testGrowThenContinue(rng);

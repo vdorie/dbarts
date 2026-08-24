@@ -285,10 +285,18 @@ squared responses - the 0.0169 above is its floor, at zero, where only the
 precision term survives; at 32 the dropped law sits a total variation of 0.5901
 from the exact one and puts 0.343 on no-split against the exact law's 0.0070.
 Routing the rows closes it at both ends: the realized law now matches the exact
-law on the full rule set at the floor fixture (9.40 on 8 df, p = 0.31) and at
-the loaded one (6.05, p = 0.64), while rejecting the dropped law (293 and
-741787) and the halved one (4410 and 1064807); the calibration control holds
-(5.84, p = 0.67 and 19.55, p = 0.012). Both fixtures are pinned, the sweep
+law at the floor fixture (9.40 on 8 df, p = 0.31) and at the loaded one (6.05,
+p = 0.64), while rejecting the dropped law (293 and 741787) and the halved one
+(4410 and 1064807); the calibration control holds (5.84, p = 0.67 and 19.55,
+p = 0.012). Exact on TRUNCATED SUPPORT, precisely: over the rules whose
+NON-MISSING sides are both occupied, which is every rule on these fixtures.
+Where every non-missing member falls to one side of a cut the scan sentinels
+BOTH of its directions, although the rule routing the missing rows into the
+otherwise-empty child is legal and non-empty under MIA. That truncation is
+deliberate and load-bearing - it is what keeps an out-of-interval cut
+undrawable and the ancestor-interval gauge intact - and it is the one place the
+ordinal and categorical branches part company, the categorical enumeration
+counting a present missing pseudo-category toward occupancy like any other. Both fixtures are pinned, the sweep
 between them being what tells a scoring fix from a coincidence at one fixture.
 tests/cpp also pins the two scans against each other directly: an ordinal column
 and a categorical column carrying the same grouping and the same missing rows

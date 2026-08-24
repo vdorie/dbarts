@@ -147,8 +147,9 @@ void growCategoricalRule(const ColumnStore& data, const L& leaf, ext_rng* rng,
 ///    branch follows, where a present missing pseudo-category is a real
 ///    histogram bin the partition routes and an absent one gets a coin.
 ///    test_grow.cpp chi-squares the realized root-rule frequencies against the
-///    exact law over the full rule set and against the law the scan realized
-///    while it dropped the missing rows from a split likelihood;
+///    exact law over the SUPPORT the occupancy sentinel leaves - the rules
+///    whose non-missing sides are both occupied - and against the law the scan
+///    realized while it dropped the missing rows from a split likelihood;
 ///    docs/design/grow-from-root.md section 7 records what it measured.
 ///  - A CATEGORICAL split draws exactly 1 + A more symmetric coins and NEVER
 ///    rejects: one orientation coin, then one per category REACHABLE at the
@@ -277,7 +278,10 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
     double logCut = -std::log(static_cast<double>(right - left + 1));
 
     std::size_t numCuts = data.numCuts[j];
-    scratch.cutLogLikelihood.resize(data.hasMissing[j] ? 2 * numCuts : numCuts);
+    // sized for the doubled layout unconditionally: the scan chooses its layout
+    // from the node's OWN members and reports back how many entries it wrote,
+    // so allocation cannot drift from that choice
+    scratch.cutLogLikelihood.resize(2 * numCuts);
     std::size_t numEmitted =
       scanOrdinalCuts(data, j, tree.indices + begin, numMembers, y, weights,
                       leaf, k, residualVariance, scratch.binScratch,

@@ -432,6 +432,46 @@ void testMissingRouted() {
   check(plainBit,
         "a node holding no missing row keeps one entry per cut (bitwise)");
 
+  // A one-sided cut on a member set that DOES hold missing rows: occupancy is
+  // read off the non-missing sides, so BOTH direction entries take the
+  // sentinel. The pairing is what this asserts - an unwritten second entry
+  // would leave a drawable candidate scoring a rule outside the ancestor
+  // interval, which is how the scan subsumes that constraint. The buffer is
+  // poisoned first so the assertion is about what the scan WRITES, not about
+  // what a previous call happened to leave behind.
+  std::vector<index_t> banded;
+  for (size_t i = 0; i < n; ++i) {
+    xint_t code = store.codeAt(0, i);
+    if (code == naCode || (code >= 3 && code <= 6)) banded.push_back(i);
+  }
+  const double poison = -1.0;  // finite, and no marginal sum reaches it
+  std::vector<double> bandedScan(2 * numCuts, poison);
+  size_t bandedEmitted =
+    scanOrdinalCuts(store, 0, banded.data(), banded.size(), y.data(), nullptr,
+                    leaf, k, residualVariance, binScratch, bandedScan.data());
+  check(bandedEmitted == 2 * numCuts,
+        "the banded member set still holds missing rows");
+  bool pairedSentinel = true, sawOneSided = false, sawScored = false;
+  for (size_t cut = 0; cut < numCuts; ++cut) {
+    size_t leftCount = 0, rightCount = 0;
+    for (index_t m : banded) {
+      xint_t code = store.codeAt(0, m);
+      if (code == naCode) continue;  // routed, not scanned for occupancy
+      if (static_cast<size_t>(code) <= cut) ++leftCount; else ++rightCount;
+    }
+    bool oneSided = leftCount == 0 || rightCount == 0;
+    sawOneSided |= oneSided;
+    sawScored |= !oneSided;
+    for (size_t side = 0; side < 2; ++side)
+      pairedSentinel &= (bandedScan[2 * cut + side] == cutScanEmptySentinel) ==
+                        oneSided;
+  }
+  check(sawOneSided && sawScored,
+        "the banded members leave both one-sided and splittable cuts");
+  check(pairedSentinel,
+        "a one-sided cut sentinels BOTH missing directions, and a splittable "
+        "one neither");
+
   printf("ok: scan missing routed\n");
 }
 
