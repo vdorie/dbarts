@@ -630,7 +630,13 @@ by calling `storeState()` on the sampler: `bartFit$fit$storeState()`
 captured automatically because it duplicates the trees on the R side and
 can exceed the fit's own sample blocks; it is materialized only on
 request. A fit saved without it reloads, but `predict` stops with an
-error naming `storeState()`.
+error naming `storeState()`. The same convention covers
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s
+own-class families - `family = "multinomial"`, `"ordinal"`, and
+`"nbinom"` - whose `$fit` is the sampler (K-forest or single-forest)
+that actually ran; see
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s Value
+section for each.
 
 ### Reproducibility
 
@@ -983,7 +989,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.218693
+#> total seconds in loop: 0.169173
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

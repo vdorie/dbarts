@@ -1002,14 +1002,19 @@ training-observation margin replaced by the test one. `varcount` is the
 per-sample per-category split-usage channel: each category forest's
 per-draw variable counts, dimensioned like `yhat.train` but with the
 number of training predictors in place of the number of observations,
-and `colnames(x.train)` (when present) named on that margin. `bc`, the
-K-forest sampler handle `predict.bartMultinomial` replays through, is
-present only under `keepTrees`; absent it, `predict` errors. `fit`, the
-host sampler, is present whenever `keepTrees` is `TRUE` *or*
-`keepSampler` is set, independent of `keepTrees`; it is only that host
-shell: it carries the design and priors the K-forest model was built
-from but none of the model, so it refuses mutation (`$setResponse`,
-`$run`, and the rest) rather than accepting a change nothing would read.
+and `colnames(x.train)` (when present) named on that margin. `fit` is
+present whenever `keepTrees` is `TRUE` *or* `keepSampler` is set,
+independent of `keepTrees`: it is the `dbartsSampler` whose K-forest
+engine actually ran (one `bartcore_create`, not a discarded host), fully
+mutable and readable on the channels the softmax gives meaning to -
+`$setCounts`, `$setCategoryOffset`, `$setPredictor`, and the rest - and
+refused by name on the ones it does not (`$setResponse`, `$setOffset`,
+`$setSigma`, `$setCalibration`, `$setForestWeights`); `fit$storeState()`
+followed by
+[`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
+restores a sampler `predict.bartMultinomial` can replay through.
+`predict` still requires `keepTrees = TRUE` - a kept `fit` alone carries
+no saved trees to replay - and errors otherwise.
 
 Generics for a `"bartMultinomial"` fit: `fitted(object)` (`type = "ev"`,
 the default) returns the posterior-mean n \\\times\\ K probability
@@ -1054,12 +1059,12 @@ probit scale, shaped like a binary family's `yhat.train` - `cutpoints` -
 the posterior draws of the K - 1 finite thresholds \\(\gamma_1 = 0,
 \gamma_2, \ldots)\\, dimensioned draws \\\times\\ (K - 1), the ordinal
 analog of gaussian's `sigma`, from which probabilities at any latent
-value can be reconstructed - and `varcount`. `bc` and `cutpoints.raw`
-(the per-draw thresholds in the internal layout `predict` consumes) are
+value can be reconstructed - and `varcount`. `cutpoints.raw` (the
+per-draw thresholds in the internal layout `predict` consumes) is
 present only under `keepTrees`. `fit` is present whenever `keepTrees` is
-`TRUE` *or* `keepSampler` is set, independent of `keepTrees`: unlike a
-multinomial fit's `fit`, it is the `dbartsSampler` whose engine actually
-ran, fully mutable and readable like any sampler
+`TRUE` *or* `keepSampler` is set, independent of `keepTrees`: it is the
+`dbartsSampler` whose engine actually ran, fully mutable and readable
+like any sampler
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) returns,
 and `fit$storeState()` followed by
 [`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
@@ -1087,13 +1092,12 @@ e^{f(x) + o}\\, shaped like a binary family's `yhat.train` -
 `latent.train` (and `latent.test`) - the corresponding draws of the
 log-odds latent \\\psi = f(x) + o\\ - `dispersion` - the per-draw
 dispersion \\r\\, the count analog of gaussian's `sigma` - and
-`varcount`. `bc` and `dispersion.raw` (the per-draw \\r\\ in the
-internal layout `predict` consumes) are present only under `keepTrees`.
-`fit` is present whenever `keepTrees` is `TRUE` *or* `keepSampler` is
-set, independent of `keepTrees`: unlike a multinomial fit's `fit`, it is
-the `dbartsSampler` whose engine actually ran, fully mutable and
-readable - `$getDispersion()` on it answers with the fit's own \\r\\ -
-and `fit$storeState()` followed by
+`varcount`. `dispersion.raw` (the per-draw \\r\\ in the internal layout
+`predict` consumes) is present only under `keepTrees`. `fit` is present
+whenever `keepTrees` is `TRUE` *or* `keepSampler` is set, independent of
+`keepTrees`: it is the `dbartsSampler` whose engine actually ran, fully
+mutable and readable - `$getDispersion()` on it answers with the fit's
+own \\r\\ - and `fit$storeState()` followed by
 [`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
 restores a sampler `predict.bartNegbin` can replay through.
 
@@ -1197,7 +1201,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001513
+#> total seconds in loop: 0.001173
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1244,7 +1248,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001597
+#> total seconds in loop: 0.001285
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 

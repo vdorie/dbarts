@@ -1026,12 +1026,10 @@ original response scale.
 
 For `getDispersion`, the negative-binomial dispersion \\r\\ currently in
 force, a numeric vector of length equal to the number of chains, and
-`NULL` on every other family - the count analog of `getSigmas`, and
-refused rather than answered on the host shell of a fit whose model
-lives elsewhere, as `getFitsWithoutOffset` is. It is the same scalar
-`run()$dispersion` records once per kept draw, read mid-sweep and
-without serializing state, so a host driving the sampler one sweep at a
-time reads it here rather than through `storeState()` and
+`NULL` on every other family - the count analog of `getSigmas`. It is
+the same scalar `run()$dispersion` records once per kept draw, read
+mid-sweep and without serializing state, so a host driving the sampler
+one sweep at a time reads it here rather than through `storeState()` and
 `state[[chain]]$dispersion`. Because the refusal for a family carrying
 no dispersion is a `NULL` and not an error, a caller distinguishing “no
 dispersion” from a value must test `!is.null(...)`; comparing to an
@@ -1099,11 +1097,7 @@ forest's internal-scale totals and `predict` is refused. It is refused,
 naming the reason, on a multinomial sampler, whose reported channels are
 per-category softmax probabilities rather than one additive location;
 `predict(x)` serves that read, but reports the SAVED samples rather than
-the current state when the sampler was built with `keepTrees`. It is
-also refused on the host shell of a fit whose model lives elsewhere,
-where it would otherwise answer from the placeholder; the other readers
-on this class are deliberately not guarded that way (TODO
-`host-shell-read-guards`).
+the current state when the sampler was built with `keepTrees`.
 
 For `getForestFits`, a multi-forest sampler's requested forest's current
 internal-scale fitted values, an n.observations x n.chains matrix. For
@@ -1214,13 +1208,12 @@ bitwise, so a read followed by a write cannot perturb a draw. It is
 total over the four leaf models, each of which carries the one scale it
 writes. It is refused on a Bayesian causal forest and on a multinomial
 sampler, whose per-forest leaf scales come from their own calibration
-maps, and on the host shell of a fit whose model lives elsewhere; a
-value that is not a single positive finite number is an error. Nothing
-else moves - not `k`, not the response transform, not `sigma`, not the
-tree prior, not a DART split prior - which is the difference from
-`setModel`, and the reason a DART sampler is served here and refused
-there. A heteroscedastic sampler's variance forest is a separate leaf
-model and is not addressable.
+maps; a value that is not a single positive finite number is an error.
+Nothing else moves - not `k`, not the response transform, not `sigma`,
+not the tree prior, not a DART split prior - which is the difference
+from `setModel`, and the reason a DART sampler is served here and
+refused there. A heteroscedastic sampler's variance forest is a separate
+leaf model and is not addressable.
 
 For `storeState`, `NULL` invisibly; it is called for its side effect of
 capturing the sampler's current engine state into the serializable
