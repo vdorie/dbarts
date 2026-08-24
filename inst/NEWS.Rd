@@ -1007,6 +1007,20 @@
             identified content is the log-ratio of the reported probabilities
             - on \code{predict} and \code{fitted} as well as \code{extract},
             which alone gave a reason before.
+      \item A refused state install no longer leaves a sampler holding a
+            live but unfitted engine. \code{getPointer}'s transparent
+            re-creation after save and load, and \code{setState} on a
+            sampler whose pointer has died, now bind the re-created engine
+            only once the state has installed into it; previously a refusal
+            left the empty engine in place, so the next \code{run} sampled
+            stumps and \code{storeState} overwrote the stored state with
+            them. A refused install leaves the object exactly as it was.
+      \item Restoring a saved state into a \code{logistic}-family sampler
+            carrying different case weights than the state was stored under no
+            longer pairs the stored Polya-Gamma latents with the new counts;
+            the latents are re-derived against the weights in force, as
+            \code{setWeights} does. Gaussian, Student-t, and every
+            weight-refusing family are unaffected.
       \item A leaf containing only observations of weight zero now counts as
             empty for the tree-move vetoes, so no tree can keep a leaf that
             no observation in the likelihood reaches. Previously such a leaf

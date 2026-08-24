@@ -1577,6 +1577,71 @@ expect_true(all(is.finite(
   CALL("capi_run", ptrLogisticFlat, 0L, 2L, TRUE, FALSE)$train
 )))
 
+# and the state seam's half of that conduit, driven FLAT rather than through
+# the R5 mirror: the weights do not ride a state, so one stored under one
+# vector and installed under another must land where dbarts_sampler_setWeights
+# lands. The pair is equal in mean and in sum of squares and different in
+# bytes, so the reconciliation cannot be reading moments.
+wPairA <- as.double(rep(c(1, 4, 4), length.out = n))
+wPairB <- as.double(rep(c(2, 2, 5), length.out = n))
+specPairA <- dbarts(
+  x,
+  yLogisticFlat,
+  weights = wPairA,
+  family = "logistic",
+  control = control
+)
+specPairB <- dbarts(
+  x,
+  yLogisticFlat,
+  weights = wPairB,
+  family = "logistic",
+  control = control
+)
+ptrPairSource <- CALL(
+  "capi_create",
+  specPairA$control,
+  specPairA$model,
+  specPairA$data,
+  "logistic"
+)
+invisible(CALL("capi_run", ptrPairSource, 3L, 4L, TRUE, FALSE))
+statePair <- CALL("capi_store_state", ptrPairSource)
+expect_true(is.raw(attr(statePair, "weights.digest")))
+expect_identical(length(attr(statePair, "weights.digest")), 8L)
+
+# arm 1: restore at the weights the state was stored under - the stored
+# latents install unchanged - then swap through the live conduit
+ptrPairLive <- CALL(
+  "capi_create",
+  specPairA$control,
+  specPairA$model,
+  specPairA$data,
+  "logistic"
+)
+CALL("capi_set_state", ptrPairLive, statePair)
+expect_identical(
+  CALL("capi_get_latents", ptrPairLive),
+  statePair[[1L]][["latents"]]
+)
+CALL("capi_set_weights", ptrPairLive, wPairB)
+
+# arm 2: restore into the swapped weights and let the seam reconcile
+ptrPairState <- CALL(
+  "capi_create",
+  specPairB$control,
+  specPairB$model,
+  specPairB$data,
+  "logistic"
+)
+CALL("capi_set_state", ptrPairState, statePair)
+expect_identical(
+  CALL("capi_get_latents", ptrPairState),
+  CALL("capi_get_latents", ptrPairLive)
+)
+rm(ptrPairSource, ptrPairLive, ptrPairState, statePair, specPairA, specPairB)
+invisible(gc(FALSE))
+
 yOrdinalFlat <- 1L + (seq_len(n) %% 3L)
 specOrdinalFlat <- dbarts(
   x,

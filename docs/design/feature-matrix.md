@@ -449,6 +449,11 @@ conduit coherent and is why it was the one weight refusal recorded here as
 `setData` hands the replacement counts through the same conduit, so a data swap
 draws rather than cold-starts, and replacement data given without weights is
 single-trial. Probit, ordinal, aft and nbinom stay refused by identification.
+The saved state carries a `weights.digest` attribute (a byte hash of the
+weights in force, top level, additive - no version bump) and `setState`
+re-derives the latents through this same conduit when the destination's
+weights differ from it, so a restore lands where a swap lands; on a match it
+re-derives nothing and the round trip stays byte-identical.
 
 [f11] `bart2(family = "multinomial")` builds its `dbartsSampler` directly
 (multinomial-mutation-arc.md S4): `$fit` is the K-forest engine that ran, one

@@ -407,9 +407,11 @@ creation and on both mutation conduits, so the R bridge and the flat C
 entry cannot disagree, and `setData` hands the replacement counts through
 the SAME conduit, so its latents are drawn rather than cold-started;
 replacement data given without weights is single-trial, as at creation.
-STILL OPEN, predating this: weights never rode the saved state, so a
-state stored under one count vector restores a stale omega against
-another.
+CLOSED since: weights still do not ride the saved state, but a digest of
+them does, so `setState` sees a count vector other than the one the stored
+omega was shaped by and re-derives the latents through this same conduit.
+The state seam now agrees with the live seam on the operation both serve;
+a matched round trip re-derives nothing and stays the identity.
 
 ## Honest limits
 

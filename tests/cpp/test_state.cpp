@@ -1666,6 +1666,105 @@ static void testVarianceWarmStartSlot() {
   printf("ok: variance-forest slot-sourced warm start\n");
 }
 
+static void testWeightsDigest() {
+  // The two primitives the saved-state seam pairs to keep restored latents and
+  // the weights in force from disagreeing: a digest that separates weight
+  // vectors, and a repair that re-derives whatever is stated against them.
+  // Engine level, so no digest is written or read here - a round trip at this
+  // level carries none, which is why the byte-for-byte pins above are
+  // untouched by the seam that does. RNG-insulated per testLeafOfConsistency.
+  std::uint64_t savedRngState = rngState;
+  rngState = 818181u;
+
+  const size_t n = 90;
+  std::vector<double> x(n * 2), y(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i)
+    y[i] = (x[i] + 0.25 * (runif01() - 0.5) > 0.5) ? 1.0 : 0.0;
+
+  // 1,4,4 against 2,2,5: equal in sum and in sum of squares, different in
+  // bytes. A digest built from moments would call these the same weights.
+  std::vector<double> wA(n), wB(n), ones(n, 1.0);
+  double sumA = 0.0, sumB = 0.0, sumSqA = 0.0, sumSqB = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    wA[i] = i % 3 == 0 ? 1.0 : 4.0;
+    wB[i] = i % 3 == 2 ? 5.0 : 2.0;
+    sumA += wA[i];
+    sumB += wB[i];
+    sumSqA += wA[i] * wA[i];
+    sumSqB += wB[i] * wB[i];
+  }
+  check(sumA == sumB && sumSqA == sumSqB,
+        "the probe weight vectors share their moments");
+
+  SamplerOptions options;
+  options.numTrees = 10;
+  options.nodeScale = 3.0;
+
+  ext_rng* rngs[6];
+  for (size_t i = 0; i < 6; ++i) {
+    rngs[i] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngs[i], 8181);
+  }
+
+  ConstantLeafSampler weightedA(x.data(), y.data(), n, 2, wA.data(), nullptr,
+                                ResponseFamily::logistic, 1.0, 3.0, 1.0,
+                                options, &rngs[0]);
+  ConstantLeafSampler weightedB(x.data(), y.data(), n, 2, wB.data(), nullptr,
+                                ResponseFamily::logistic, 1.0, 3.0, 1.0,
+                                options, &rngs[1]);
+  check(weightedA.weightsDigest() != weightedB.weightsDigest(),
+        "weight vectors sharing every moment still digest apart");
+
+  ConstantLeafSampler unweighted(x.data(), y.data(), n, 2, nullptr, nullptr,
+                                 ResponseFamily::logistic, 1.0, 3.0, 1.0,
+                                 options, &rngs[2]);
+  ConstantLeafSampler unitWeighted(x.data(), y.data(), n, 2, ones.data(),
+                                   nullptr, ResponseFamily::logistic, 1.0,
+                                   3.0, 1.0, options, &rngs[3]);
+  check(unweighted.weightsDigest() == unitWeighted.weightsDigest(),
+        "no weights and all ones are one sampler and so one digest");
+
+  Results empty;
+  weightedA.run(20, 0, empty);
+  std::vector<double> beforeRepair(weightedA.latents(0),
+                                   weightedA.latents(0) + n);
+  weightedA.reapplyWeights();
+  std::vector<double> afterRepair(weightedA.latents(0),
+                                  weightedA.latents(0) + n);
+  check(beforeRepair != afterRepair,
+        "reapplyWeights redraws a logistic chain's Polya-Gamma latents");
+
+  // a gaussian chain states nothing against its weights, so the repair draws
+  // nothing and moves nothing: the chain that took it draws what the chain
+  // that did not draws
+  std::vector<double> yContinuous(n);
+  for (size_t i = 0; i < n; ++i)
+    yContinuous[i] = 2.0 * x[i] + 0.3 * (runif01() - 0.5);
+  ConstantLeafSampler repaired(x.data(), yContinuous.data(), n, 2, wA.data(),
+                               nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                               1.0, options, &rngs[4]);
+  ConstantLeafSampler untouched(x.data(), yContinuous.data(), n, 2, wA.data(),
+                                nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                                1.0, options, &rngs[5]);
+  repaired.run(10, 0, empty);
+  untouched.run(10, 0, empty);
+  repaired.reapplyWeights();
+  const size_t draws = 5;
+  std::vector<double> sigmaRepaired(draws), sigmaUntouched(draws);
+  Results resultsRepaired, resultsUntouched;
+  resultsRepaired.sigma = sigmaRepaired.data();
+  resultsUntouched.sigma = sigmaUntouched.data();
+  repaired.run(0, draws, resultsRepaired);
+  untouched.run(0, draws, resultsUntouched);
+  check(sigmaRepaired == sigmaUntouched,
+        "reapplyWeights is inert on a chain that reads weights as precisions");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: weights digest and repair\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -1685,4 +1784,5 @@ void runStateTests(ext_rng* rng) {
   testVarianceWarmStartSlot();
   testVarianceSavedTreeState();
   testStateLeafScale(rng);
+  testWeightsDigest();
 }

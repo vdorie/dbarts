@@ -989,6 +989,15 @@ public:
   void setWeights(const double* weights) {
     for (auto& chain : chains_) chain->setWeights(weights);
   }
+  /// A digest of the weights in force. Weights are chain-invariant - setWeights
+  /// fans the same pointer to every chain - so chain 0 answers for all.
+  std::uint64_t weightsDigest() const { return chains_[0]->weightsDigest(); }
+  /// Re-derive every chain's weight-dependent latents against the weights
+  /// already in force, each off its OWN generator, so the draws stay
+  /// independent of the thread count exactly as setWeights's do.
+  void reapplyWeights() {
+    for (auto& chain : chains_) chain->reapplyWeights();
+  }
   void setSigma(double sigmaOriginalScale) {
     for (auto& chain : chains_) chain->setSigma(sigmaOriginalScale);
   }

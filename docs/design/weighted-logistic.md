@@ -143,3 +143,18 @@ in-model IPW.
   but that traced to the codebase's known heap-layout / SIMD-reduction-split
   sensitivity between two separately-constructed samplers, not real engine
   behavior.
+
+## The saved state (follow-on)
+
+The counts do not ride the state; a digest of them does (`weights.digest`, 8
+raw bytes beside `cutPoints`), and `setState` re-derives the latents against
+the DESTINATION's counts when the two disagree. A byte hash, not a moment
+summary - `rep(c(1,4,4), n)` and `rep(c(2,2,5), n)` share mean and sum of
+squares - and a null vector digests as n unit weights, since to this family
+they are one sampler (`lround(1) == 1`). The repair re-runs
+`ResponseModel::setWeights` against the weights already in force, so it
+self-selects: logistic redraws omega, gaussian and Student-t recompose a
+composite that is already right, a weight-refusing family takes the base
+no-op. GATED rather than unconditional: a redraw on a MATCHED restore would
+break "the same moves in the same order" dbarts.h promises, and would move
+the `wtlogistic` equivalence scenario - which nothing here does.

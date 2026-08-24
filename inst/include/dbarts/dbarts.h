@@ -921,6 +921,18 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
 /// cross-version migration. Blocks it does not recognize by name are skipped
 /// rather than errored, so a state written by a newer library restores its
 /// shared blocks and leaves the unknown ones to the destination's own draw.
+///
+/// The case weights do NOT ride the state, but a digest of the ones in force
+/// when it was stored does. When the destination's weights differ from that
+/// digest, dbarts_sampler_setState re-derives the weight-dependent latents
+/// against the destination's own weights before returning, so the install
+/// lands where dbarts_sampler_setWeights would rather than pairing one weight
+/// vector's latents with another's; the redraw takes each chain's own restored
+/// generator. This moves only a family whose augmentation is stated against
+/// the weights (logistic, whose Polya-Gamma latents carry the counts as their
+/// shape); for every other family it is a no-op. When the two agree - the
+/// ordinary save/load round trip - nothing is re-derived and the restore is
+/// exactly the install described above.
 SEXP dbarts_sampler_storeState(dbarts_sampler* sampler);
 void dbarts_sampler_setState(dbarts_sampler* sampler, SEXP state);
 

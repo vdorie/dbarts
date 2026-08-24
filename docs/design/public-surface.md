@@ -176,6 +176,11 @@ sampler needs it but the state omits it. The stamp stays for provenance and as
 the floor's input; a state at or past the floor loads, only a genuinely older
 encoding is refused. Pre-1.0 states are not a compat target and cannot even
 structurally reach the by-name reader (they lack the forests block).
+The rule governs the TOP-LEVEL ATTRIBUTES on the same terms - they are read
+by name too, and an unknown one is ignored - so `weights.digest` (2026-08-24,
+weighted-logistic.md) is an additive addition that moves neither the
+version nor the floor: a state carrying none restores exactly as it did
+before the attribute existed.
 
 Landed (2026-07-04): reporting format for categorical rules in
 `getTrees`/`plotTree`. The flat format stores the direction mask as a

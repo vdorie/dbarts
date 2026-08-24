@@ -6301,6 +6301,14 @@ void computeWorkingResponse(bartcore::ResponseFamily family,
 // count, and every value one could infer is a misread - capacity promotes a
 // partly filled store to full and replays slots nothing wrote, 0 discards a
 // full one - so the floor moves with it too.
+//
+// The rule is stated over block names but governs the TOP-LEVEL ATTRIBUTES the
+// same way and for the same reason: they are read by name too, and a reader
+// ignores one it does not know. "weights.digest" is such an addition - a state
+// written before it carries none, and setState then behaves as it did before
+// the attribute existed. Making it REQUIRED behind a floor bump would buy no
+// compatibility (no release ever shipped format 3) and orphan in-flight states
+// for nothing.
 static const int stateFormatVersion = 3;
 
 // The oldest ENCODING this reader still understands: additive block additions
@@ -6311,6 +6319,30 @@ static const int stateFormatVersion = 3;
 // supersede - no released reader or writer ever saw any of the three. Pre-1.0 states are not a compat target; a state
 // with no version attribute reads as 0 and is refused at the floor.
 static const int minReadableStateFormatVersion = 3;
+
+// The weights a state was stored under, as the 64-bit digest the engine
+// computes over their bytes, little-endian into 8 raw bytes. It travels at
+// TOP level rather than per chain because weights are chain-invariant. Its one
+// consumer is setState, which compares it against the DESTINATION's own live
+// digest: equal means the stored latents were shaped by the weights now in
+// force and install unchanged, different means they were not.
+static const std::size_t weightsDigestBytes = 8;
+
+SEXP encodeWeightsDigest(std::uint64_t digest) {
+  SEXP result = Rf_allocVector(RAWSXP, static_cast<R_xlen_t>(
+                                         weightsDigestBytes));
+  Rbyte* bytes = RAW(result);
+  for (std::size_t i = 0; i < weightsDigestBytes; ++i)
+    bytes[i] = static_cast<Rbyte>((digest >> (8 * i)) & 0xffULL);
+  return result;
+}
+
+std::uint64_t decodeWeightsDigest(const Rbyte* bytes) {
+  std::uint64_t digest = 0;
+  for (std::size_t i = 0; i < weightsDigestBytes; ++i)
+    digest |= static_cast<std::uint64_t>(bytes[i]) << (8 * i);
+  return digest;
+}
 
 SEXP storeState(bartcore::SamplerBase& sampler) {
   bartcore::SamplerStateData state;
@@ -6548,6 +6580,11 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
                   Rf_ScalarInteger(static_cast<int>(state.recordedDraws)));
   setAttribByName(resultExpr, "formatVersion",
                   Rf_ScalarInteger(stateFormatVersion));
+  // the weights themselves do not ride the state; their digest does, so a
+  // restore can tell whether the latents it carries belong to the weights the
+  // destination holds
+  setAttribByName(resultExpr, "weights.digest",
+                  encodeWeightsDigest(sampler.weightsDigest()));
   setAttribByName(resultExpr, "packageVersion", Rf_mkString(PACKAGE_VERSION));
   SEXP classExpr = PROTECT(Rf_mkString("bartcoreState"));
   Rf_setAttrib(resultExpr, R_ClassSymbol, classExpr);
@@ -6654,11 +6691,30 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   bartcore::SamplerStateData state;
   state.chains.resize(shape.numChains);
 
+  // Whether the stored latents were shaped by other weights than the ones in
+  // force here. ABSENT (a state written before the attribute existed) is not a
+  // mismatch: it reconciles nothing and behaves exactly as this reader did
+  // before the attribute.
+  bool weightsDiffer = false;
+  SEXP weightsDigestExpr =
+    Rf_getAttrib(stateExpr, Rf_install("weights.digest"));
+  if (!Rf_isNull(weightsDigestExpr)) {
+    if (TYPEOF(weightsDigestExpr) != RAWSXP ||
+        static_cast<size_t>(Rf_xlength(weightsDigestExpr)) !=
+          weightsDigestBytes)
+      errorMessage = "malformed weights digest in bartcore state";
+    else
+      weightsDiffer = decodeWeightsDigest(RAW(weightsDigestExpr)) !=
+        sampler.weightsDigest();
+  }
+
   SEXP cutPointsExpr = Rf_getAttrib(stateExpr, Rf_install("cutPoints"));
-  if (Rf_isNull(cutPointsExpr) ||
-      static_cast<size_t>(Rf_xlength(cutPointsExpr)) != shape.numPredictors) {
+  if (errorMessage == NULL &&
+      (Rf_isNull(cutPointsExpr) ||
+       static_cast<size_t>(Rf_xlength(cutPointsExpr)) !=
+         shape.numPredictors)) {
     errorMessage = "malformed cut points in bartcore state";
-  } else {
+  } else if (errorMessage == NULL) {
     state.cutPoints.resize(shape.numPredictors);
     for (size_t j = 0; j < shape.numPredictors; ++j) {
       SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(j));
@@ -6994,6 +7050,15 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   if (columnMaskRefused) Rf_error("%s", columnMaskMismatchMessage);
   if (!restored)
     Rf_error("state is not consistent with this sampler");
+
+  // The latents just installed were drawn against the SOURCE's weights; these
+  // are not them. Re-derive against the weights in force, which is where the
+  // live conduit would have put them: a state install lands where setWeights
+  // lands rather than pairing one vector's latents with another's. Silent and
+  // deterministic - it consumes each chain's own restored generator - and
+  // self-selecting, since for a family that states nothing against its
+  // weights it is a measured no-op.
+  if (weightsDiffer) sampler.reapplyWeights();
 }
 
 // Parses a "bartcoreState" donor into a SamplerStateData for a warm start,

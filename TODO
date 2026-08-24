@@ -165,8 +165,10 @@ items
     and setData redraw omega, the working response and masked composite
     against new counts; probit, ordinal, aft, nbinom stay refused by
     identification (Rd). Weightless setData is single-trial, as at creation.
-    DOOR: weights never ride the saved state, so a restore can pair a stale
-    omega with a different count vector - pre-existing, unscheduled.
+    DOOR CLOSED: a state now carries a digest of the weights in force and
+    setState re-derives the latents against the destination's own when the
+    two disagree, so a restore lands where setWeights lands; a matched round
+    trip is unchanged (weighted-logistic.md, r-c-division.md).
   multiforest-extension-surface: M1 LANDED 05ac3b4b, M2 LANDED 64b13b98 -
     forests = list(forest(...)) on dbarts()/dbartsSpec() replaces the
     removed treatment =/moderators =/treatmentForest =, with

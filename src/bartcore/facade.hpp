@@ -2,6 +2,7 @@
 #define BARTCORE_FACADE_HPP
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <type_traits>
@@ -148,6 +149,20 @@ public:
   virtual void setOffset(const double* offset, bool updateScale) = 0;
   virtual void setResponse(const double* y, bool updateScale) = 0;
   virtual void setWeights(const double* weights) = 0;
+  /// A digest of the case weights in force, over their bytes rather than any
+  /// summary of them: two vectors agreeing in every moment still differ here.
+  /// Weights fan to every chain, so the value is chain-invariant. A sampler
+  /// carrying no weights digests as n unit weights, which is what it is - the
+  /// two are the same sampler bitwise, so no null token distinguishes them.
+  /// A host stores it beside a saved state to tell, on restore, whether the
+  /// destination's weights are the ones the stored latents were shaped by.
+  virtual std::uint64_t weightsDigest() const = 0;
+  /// Re-install the weights ALREADY in force, so a family whose augmentation
+  /// is stated against them re-derives it: the counterpart to setWeights for a
+  /// state whose latents were shaped by other weights than these. Nothing is
+  /// refused, because no weight changes - the guards a weight CHANGE carries
+  /// do not apply. Consumes each chain's own generator.
+  virtual void reapplyWeights() = 0;
   virtual void setSigma(double sigmaOriginalScale) = 0;
   /// Build the typed test store from a borrowed predictor view against the
   /// training cut grid, owning its raw. Returns false without touching the
@@ -442,6 +457,8 @@ public:
   void setWeights(const double* weights) override {
     impl_.setWeights(weights);
   }
+  std::uint64_t weightsDigest() const override { return impl_.weightsDigest(); }
+  void reapplyWeights() override { impl_.reapplyWeights(); }
   void setSigma(double sigmaOriginalScale) override {
     impl_.setSigma(sigmaOriginalScale);
   }

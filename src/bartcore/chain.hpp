@@ -1577,6 +1577,44 @@ public:
     if constexpr (L::hasVectorParams)
       forests_[0].leaf.invalidateStatistics();
   }
+  /// FNV-1a over numObservations followed by the weight doubles in index
+  /// order: a BYTE digest, so two vectors sharing every moment (1,4,4 and
+  /// 2,2,5) still differ, and so no floating-point reduction - whose order a
+  /// SIMD dispatch may change - enters it. A null weight pointer digests as n
+  /// unit weights rather than through a token of its own: to every family that
+  /// reads the weights, no weights and all ones ARE the same sampler (a
+  /// logistic count of lround(1) either way), so a token would report a
+  /// difference where there is none. The bytes are host-endian; a saved state
+  /// is not a cross-endian compatibility target.
+  std::uint64_t weightsDigest() const {
+    std::uint64_t hash = 0xcbf29ce484222325ULL;
+    auto append = [&hash](const void* bytes, std::size_t length) {
+      const unsigned char* p = static_cast<const unsigned char*>(bytes);
+      for (std::size_t i = 0; i < length; ++i) {
+        hash ^= p[i];
+        hash *= 0x100000001b3ULL;
+      }
+    };
+    std::size_t n = data_.numObservations;
+    std::uint64_t count = n;
+    append(&count, sizeof count);
+    double unit = 1.0;
+    for (std::size_t i = 0; i < n; ++i)
+      append(weights_ != nullptr ? weights_ + i : &unit, sizeof(double));
+    return hash;
+  }
+  /// Re-installs the weights already in force through the family's own weight
+  /// conduit, which is what "re-derive the weight-dependent latents" means for
+  /// each family in turn: logistic redraws its Polya-Gamma variates against
+  /// these counts, Student-t and gaussian recompose a composite that is
+  /// already what it should be, and a family that reads no weights takes the
+  /// base class's no-op. Nothing is refused, because nothing changes; the
+  /// caller has installed a state whose latents another weight vector shaped.
+  void reapplyWeights() {
+    response_->setWeights(weights_, rng_, combinedFits());
+    if constexpr (L::hasVectorParams)
+      forests_[0].leaf.invalidateStatistics();
+  }
   /// Whether this chain's response family implements the active-row channel.
   /// setActiveRows refuses on this same predicate, so the advertised
   /// capability and the refusal cannot disagree.
