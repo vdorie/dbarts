@@ -1154,7 +1154,12 @@
             corrupting the tree-prior density with no visible symptom. The
             refusal happens
             before any live state is touched, so the destination sampler is
-            unaffected and usable afterward.
+            unaffected and usable afterward. The two entries run one
+            predicate over every forest the state carries - each mean
+            forest, a \code{blocks} row, and the variance forest - and
+            report the same message, so neither admits a donor the other
+            refuses; \code{$setState} used to hold only the mean forests to
+            the rule, and installed forbidden variance splits silently.
       \item \code{extract(type = "loglik")} and the posterior predictive
             draws of \code{extract(type = "ppd")} and \code{predict(type =
             "ppd")} evaluate a heteroscedastic fit (\code{variance = ~ x})

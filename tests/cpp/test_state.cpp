@@ -912,8 +912,11 @@ static void testColumnMaskContainment() {
 
   // (2) a column-0-only target refuses the donor on both install paths
   auto target = makeSampler(777, true);
-  check(!target->setState(donorState, nullptr),
+  bool meanColumnMaskRefused = false;
+  check(!target->setState(donorState, nullptr, &meanColumnMaskRefused),
         "column mask: setState refuses an out-of-mask donor");
+  check(meanColumnMaskRefused,
+        "column mask: setState names that refusal the column-mask one");
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
   check(target->installForests(donorState, liveMap) ==
           WarmStartResult::columnMaskMismatch,
@@ -1298,6 +1301,27 @@ static void testVarianceWarmStart() {
   auto restricted2 = makeSampler(1344, 100, true);
   check(restricted2->installForests(compliant, liveMap) == WarmStartResult::ok,
         "variance warm start: an in-mask variance donor installs");
+
+  // (5) setState is held to the rule by the SAME predicate, so the state one
+  // entry refuses the other refuses too, and the refusal is named rather than
+  // folded into "not consistent". It is taken before any chain is touched, so
+  // the destination keeps the surface it had.
+  restricted->run(30, 0, empty);
+  SamplerStateData restrictedBefore;
+  restricted->getState(restrictedBefore);
+  bool columnMaskRefused = false;
+  check(!restricted->setState(outOfMask, nullptr, &columnMaskRefused),
+        "variance setState: an out-of-mask variance tree is refused");
+  check(columnMaskRefused,
+        "variance setState: the refusal is named as the column-mask one");
+  SamplerStateData restrictedAfter;
+  restricted->getState(restrictedAfter);
+  check(sameFlatTrees(restrictedBefore.chains[0].varianceTrees,
+                      restrictedAfter.chains[0].varianceTrees),
+        "variance setState: a refused restore leaves the surface untouched");
+  check(restricted->setState(compliant, nullptr, &columnMaskRefused) &&
+          !columnMaskRefused,
+        "variance setState: an in-mask variance state restores");
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);
   rngState = savedRngState;

@@ -6593,6 +6593,16 @@ bool readAmplitudeGlue(SEXP glueExpr, bartcore::ChainStateData& chainState) {
   return true;
 }
 
+/// The single refusal both tree-install entries report when an incoming tree
+/// splits on a column the recipient forest's mask forbids. setState and
+/// installForests run the one predicate, so they speak with the one voice: a
+/// state either entry refuses is refused by the other, in the same words.
+static const char* const columnMaskMismatchMessage =
+  "warm-start donor holds a tree that splits on a variable outside "
+  "this forest's allowed column set; the donor's fit is "
+  "incompatible with the column restriction (a forest's own "
+  "column subset or a restricted variance forest) in force here";
+
 void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
               const double* currentPredictors) {
   bartcore::SamplerShape shape = sampler.shape();
@@ -6972,13 +6982,16 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     }
   }
 
+  bool columnMaskRefused = false;
   bool restored =
-    errorMessage == NULL && sampler.setState(state, currentPredictors);
+    errorMessage == NULL &&
+    sampler.setState(state, currentPredictors, &columnMaskRefused);
   {
     bartcore::SamplerStateData empty;
     std::swap(state, empty);  // free before a potential longjmp
   }
   if (errorMessage != NULL) Rf_error("%s", errorMessage);
+  if (columnMaskRefused) Rf_error("%s", columnMaskMismatchMessage);
   if (!restored)
     Rf_error("state is not consistent with this sampler");
 }
@@ -7284,10 +7297,7 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                "interaction constraint; the donor's fit is incompatible with "
                "the interactions() prior in force here");
     case bartcore::WarmStartResult::columnMaskMismatch:
-      Rf_error("warm-start donor holds a tree that splits on a variable outside "
-               "this forest's allowed column set; the donor's fit is "
-               "incompatible with the column restriction (a forest's own "
-               "column subset or a restricted variance forest) in force here");
+      Rf_error("%s", columnMaskMismatchMessage);
     case bartcore::WarmStartResult::varianceMismatch:
       Rf_error("warm-start donor's variance trees cannot be installed on this "
                "sampler's data (a rebuilt variance tree leaves a leaf empty, a "

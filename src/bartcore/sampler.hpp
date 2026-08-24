@@ -700,8 +700,25 @@ public:
   /// CSC/mixed stores. A same-spec restore (the continuation contract) matches
   /// the live grid column for column, so its per-column skip guard re-quantizes
   /// nothing and needs no raw.
+  ///
+  /// The containment rule, one law for both tree-install entries: a state may
+  /// install a tree only if every split it carries lies inside the recipient
+  /// forest's own column mask - each forest of forests_ (a moderator subset, a
+  /// blocks() row) and the variance forest alike - because
+  /// splitVariableLogProbability prices a rule against collectAvailableVariables,
+  /// which drops the masked columns, so a forbidden split is mis-scored for as
+  /// long as it lives. setState and installForests therefore share the one
+  /// predicate, columnMaskStateFeasible, and report the one refusal; only LIVE
+  /// trees are held to it, a saved slot being a replay target routed over new
+  /// rows rather than over this partition. It runs against the state's own cut
+  /// grid, where the state's splits resolve, and before any chain is touched,
+  /// so a refusal leaves the sampler exactly as it was. columnMaskRefused, when
+  /// non-null, separates that refusal from every other invalid state so the
+  /// host can name it.
   bool setState(const SamplerStateData& state,
-                const double* currentPredictors) {
+                const double* currentPredictors,
+                bool* columnMaskRefused = nullptr) {
+    if (columnMaskRefused != nullptr) *columnMaskRefused = false;
     if (state.chains.size() != chains_.size()) return false;
     if (state.cutPoints.size() != data_.numPredictors) return false;
     for (size_t j = 0; j < data_.numPredictors; ++j) {
@@ -739,7 +756,13 @@ public:
                                   currentPredictors);
     }
 
-    bool allValid = true;
+    // containment first, validity second: both judge the state against the grid
+    // just installed, and the split-variable refusal is separated only so the
+    // host can name it as installForests does
+    bool columnMaskOk = true;
+    for (size_t c = 0; c < chains_.size() && columnMaskOk; ++c)
+      columnMaskOk = chains_[c]->columnMaskStateFeasible(state.chains[c]);
+    bool allValid = columnMaskOk;
     for (size_t c = 0; c < chains_.size() && allValid; ++c)
       allValid = chains_[c]->stateIsValid(state.chains[c]);
 
@@ -751,6 +774,7 @@ public:
       data_.test.codes = std::move(oldTestCodes);
       data_.train.sparseColumns = std::move(oldSparseColumns);
       data_.test.sparseColumns = std::move(oldTestSparseColumns);
+      if (columnMaskRefused != nullptr) *columnMaskRefused = !columnMaskOk;
       return false;
     }
 

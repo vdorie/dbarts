@@ -188,3 +188,70 @@ expect_error(
   "variance surface is incompatible"
 )
 expect_true(all(is.finite(strandDest$run(0L, 3L)$sigma)))
+
+## ---- setState is held to the column mask installTrees is ----
+# A `variance = <subset>` forest may split only on its own columns:
+# splitVariableLogProbability prices a rule against an availability menu that
+# drops the rest, so a tree carrying a forbidden split is mis-scored for as
+# long as it lives. setState used to admit one where installTrees refused it;
+# the two entries now run the one predicate over every forest a state carries
+# and report the one message.
+maskRefusal <- paste0(
+  "warm-start donor holds a tree that splits on a variable outside this ",
+  "forest's allowed column set; the donor's fit is incompatible with the ",
+  "column restriction (a forest's own column subset or a restricted ",
+  "variance forest) in force here"
+)
+refusalOf <- function(expr) {
+  tryCatch(
+    {
+      expr
+      NA_character_
+    },
+    error = function(e) conditionMessage(e)
+  )
+}
+restrictedSampler <- function() {
+  dbarts(
+    xHet,
+    yHet,
+    control = hetControl(FALSE),
+    variance = varianceForest(vars = 2L, n.trees = nVarianceTrees)
+  )
+}
+maskDonor <- hetSampler(FALSE)
+invisible(maskDonor$run(60L, 0L))
+maskDonor$storeState()
+maskRecipient <- restrictedSampler()
+invisible(maskRecipient$run(60L, 0L))
+maskRecipient$storeState()
+# non-vacuity: the donor really does split on the column the recipient forbids,
+# and the recipient's own variance trees never do
+expect_true(any(maskDonor$state[[1L]][["variance.vars"]] == 1L))
+expect_false(any(maskRecipient$state[[1L]][["variance.vars"]] == 1L))
+
+maskBefore <- maskRecipient$state
+expect_identical(
+  refusalOf(maskRecipient$setState(maskDonor$state)),
+  maskRefusal
+)
+# the same donor at the other entry, in the same words: the two cannot disagree
+expect_identical(refusalOf(maskRecipient$installTrees(maskDonor)), maskRefusal)
+# transactional: both refusals validate before they mutate, so the recipient is
+# the sampler it was, and still runs
+maskRecipient$storeState()
+expect_identical(maskRecipient$state, maskBefore)
+expect_true(all(is.finite(maskRecipient$run(0L, 3L)$variance)))
+
+# ---- and a compliant state still round trips ----
+# the recipient's own state is inside the mask, so the gate is a no-op and the
+# restore reproduces it exactly
+maskRecipient$storeState()
+maskSaved <- maskRecipient$state
+maskRestored <- restrictedSampler()
+maskRestored$setState(maskSaved)
+maskRestored$storeState()
+expect_identical(maskRestored$state, maskSaved)
+maskRestoredRun <- maskRestored$run(0L, 3L)
+expect_true(all(is.finite(maskRestoredRun$variance)))
+expect_true(all(maskRestoredRun$variance > 0))

@@ -3272,6 +3272,12 @@ public:
           return false;
         scratch.repartitionSubtree(data_, 0);
         if (!scratch.bottomNodesAreOccupied()) return false;
+        // the mean loop's containment law, applied to the scale surface: a
+        // variance tree splitting on a column `variance = ~ subset` forbids
+        // would be scored against an availability menu that excludes it, so
+        // its rule is mis-priced for as long as it lives. Trivially passes for
+        // an unrestricted variance forest (null mask short-circuit).
+        if (!scratch.columnMaskSubtreeIsValid(0)) return false;
       }
       // the saved trees: form and the scale-leaf positivity law, but NOT the
       // occupancy pass. A saved slot is a historical replay target routed over
@@ -3341,8 +3347,10 @@ public:
   /// different (or no) restriction may hold a tree that splits on a column this
   /// sampler's forest forbids, which splitVariableLogProbability would mis-score
   /// against an availability menu (collectAvailableVariables) that excludes it.
-  /// installForests calls this before touching live state so it can report a
-  /// clear refusal; setState reaches the same guarantee through stateIsValid.
+  /// BOTH tree-install entries call this before touching live state - setState
+  /// against the grid the state itself carries, installForests against the
+  /// donor's - so the two cannot differ on what they admit; stateIsValid keeps
+  /// the same test per forest as the invariant's backstop.
   /// Trivially true for an unrestricted forest, so the default warm start is
   /// byte-for-byte unchanged. Mirrors interactionStateFeasible's scratch build
   /// (paramStride 1: only the rule structure, not leaf params, is examined).
@@ -4300,6 +4308,12 @@ private:
                               leafValues, 1, nullptr, maskWords, numMaskWords))
         return false;
       tree.repartitionSubtree(data_, 0);
+      // containment backstop, the variance analogue of rebuildLiveForest's:
+      // the live tree carries this forest's column mask, so a forbidden split
+      // cannot reach the sweep by any live-install path. The two entries
+      // pre-check for the clear error; this holds the invariant. Trivially
+      // passes for an unrestricted variance forest.
+      if (!tree.columnMaskSubtreeIsValid(0)) return false;
       double* factor = vf.factorByTree.data() + j * n;
       tree.bottomScratch.clear();
       tree.fillBottom(0, tree.bottomScratch);
