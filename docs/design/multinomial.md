@@ -301,8 +301,11 @@ both supported (below).
   (logLikelihoodIsDefined() false): storeSample scores one forest's fits
   through response_->computeLogLikelihood, which cannot see the K-blend -
   BCF's exact NaN-flag choice, untouched by this arc.
-- Two mutation channels (dbarts:::bartcore* only - not bart2, a one-shot
-  fit; docs/plans/multinomial-counts-mutation.md) are the exceptions to an
+- Two mutation channels (public since the mutation arc's S2+S3 as
+  `$setCounts` / `$setCategoryOffset` / `$setCategoryTestOffset` on an
+  ordinary dbartsSampler built by `dbarts(family = "multinomial")`; still
+  reachable as the internal `bartcore*` entries a bart2 handle drives;
+  docs/plans/multinomial-counts-mutation.md) are the exceptions to an
   otherwise-refused whole-data swap. bartcoreSetCounts replaces the n x K
   count response at fixed n and K (n and K cannot change on a live
   sampler); the trees carry over, refitted against the new counts on the
@@ -354,6 +357,22 @@ both supported (below).
   sampler follows. This is why a non-BCF combiner need not always carry glue
   state, correcting the blanket implication in
   docs/design/forest-combiner.md.
+
+- **`$getLatents()` reports nothing, by a DECIDED decline** (VD 2026-08-20,
+  the multinomial mutation arc's fork B1). The K x n omega matrix IS drawn
+  every sweep, and r-c-division clause 4 defaults to read/write symmetry, so
+  the NULL is recorded here rather than left as an accident. The reason is
+  the model's, not the plumbing's: each omega_ik is an interleaved
+  ONE-VS-REST augmentation variable, refreshed against a margin the other
+  K-1 forests move within the same sweep, so a host reading it between
+  sweeps reads a quantity whose conditioning it cannot reproduce, and every
+  composition recipe reaches the same posterior through the fits and the
+  category offset without touching it. The decline is scoped to the
+  AUGMENTATION families - the PG-type omega/precision channels, meaningless
+  marginally - and says nothing about the location-valued latents: probit's
+  and ordinal's z, and AFT's documented imputed log-time, are reported as
+  they always were. Building a combiner-side latents() stays a priced,
+  post-RC door.
 
 ## No probit path
 

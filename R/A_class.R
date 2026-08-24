@@ -522,6 +522,20 @@ methods::setClass(
     # after a state restore preserves the restored amplitudes rather than the
     # constructed ones.
     bases = "listOrNULL",
+    # The multinomial (K-forest softmax) response, docs/design/multinomial.md:
+    # an n x K integer matrix whose column k holds category k's counts, null
+    # for every other family. It rides the data object rather than an R5 field
+    # for the reason the bases do - it is conditioning data, so a re-created
+    # sampler carries it without further discipline and a saved fit reloads
+    # with it - and @y carries the trials n_i = sum_k counts[i, k], which is
+    # what keeps every length(data@y) reader meaningful on such a sampler.
+    counts = "matrixOrNULL",
+    # The n x K category offset, added to the raw per-category fits BEFORE the
+    # softmax; null for none. Not @offset, which is added after the blend and
+    # is the softmax's own null direction besides.
+    offset.category = "matrixOrNULL",
+    # Its test twin, one row per test row rather than per training row.
+    offset.category.test = "matrixOrNULL",
 
     testUsesRegularOffset = "logical"
   ),
@@ -541,6 +555,9 @@ methods::setClass(
     response.n.levels = NA_integer_,
     response.levels = NULL,
     bases = NULL,
+    counts = NULL,
+    offset.category = NULL,
+    offset.category.test = NULL,
 
     testUsesRegularOffset = NA
   )
@@ -606,6 +623,86 @@ methods::setValidity("dbartsData", function(object) {
       if (anyNA(basis) || !all(is.finite(basis))) {
         return("'bases' values must all be finite")
       }
+    }
+  }
+  # the multinomial response and its two category offsets (docs/design/
+  # multinomial.md). Read bare, unlike every read outside this function: a
+  # dbartsData deserialized from a fit saved before the slots existed never
+  # reaches here, because validObject rejects it for the missing slots before
+  # any validity function runs. Such an object stays READABLE - that is what
+  # the guarded accessor buys it - but it is not revalidatable.
+  counts <- object@counts
+  categoryOffset <- object@offset.category
+  categoryTestOffset <- object@offset.category.test
+  if (!is.null(counts)) {
+    if (!is.integer(counts)) {
+      return("'counts' must be null or an integer matrix")
+    }
+    if (nrow(counts) != numObservations) {
+      return("'counts' must have the same number of rows as 'y' has elements")
+    }
+    # K = 1 names one category with nothing to be distinguished from, and the
+    # engine sizes its forest count off K
+    if (ncol(counts) < 2L) {
+      return("'counts' must have at least two categories")
+    }
+    if (anyNA(counts)) {
+      return("'counts' cannot be NA")
+    }
+    if (any(counts < 0L)) {
+      return("'counts' must all be non-negative")
+    }
+    trials <- rowSums(counts)
+    # a row with no trial carries no information, and its PG(0, .) point mass
+    # at zero would break that row's working response
+    if (any(trials < 1)) {
+      return("every 'counts' row must have at least one trial")
+    }
+    # G1a: 'y' is the trials vector, which is what keeps every length(y)
+    # reader meaningful on a multinomial data object
+    if (!isTRUE(all.equal(as.double(object@y), as.double(trials)))) {
+      return(
+        "'y' must hold the row sums of 'counts', the per-observation trials"
+      )
+    }
+  } else if (!is.null(categoryOffset) || !is.null(categoryTestOffset)) {
+    return(paste0(
+      "'offset.category'/'offset.category.test' must be null on a data ",
+      "object that carries no 'counts'"
+    ))
+  }
+  if (!is.null(categoryOffset)) {
+    if (
+      !is.numeric(categoryOffset) ||
+        nrow(categoryOffset) != numObservations ||
+        ncol(categoryOffset) != ncol(counts)
+    ) {
+      return(paste0(
+        "'offset.category' must be null or a numeric matrix with the ",
+        "dimensions of 'counts'"
+      ))
+    }
+    if (anyNA(categoryOffset) || !all(is.finite(categoryOffset))) {
+      return("'offset.category' values must all be finite")
+    }
+  }
+  if (!is.null(categoryTestOffset)) {
+    # its rows are the TEST rows, so it has nothing to describe without them
+    if (is.null(object@x.test)) {
+      return("'offset.category.test' must be null when 'x.test' is null")
+    }
+    if (
+      !is.numeric(categoryTestOffset) ||
+        nrow(categoryTestOffset) != nrow(object@x.test) ||
+        ncol(categoryTestOffset) != ncol(counts)
+    ) {
+      return(paste0(
+        "'offset.category.test' must be null or a numeric matrix with as ",
+        "many rows as 'x.test' and as many columns as 'counts'"
+      ))
+    }
+    if (anyNA(categoryTestOffset) || !all(is.finite(categoryTestOffset))) {
+      return("'offset.category.test' values must all be finite")
     }
   }
   if (!is.null(object@x.test)) {

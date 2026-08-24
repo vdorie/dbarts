@@ -372,7 +372,7 @@ expect_true(all(is.finite(dbarts:::bartcoreRun(bc.resident, 0L, 3L)$test)))
 # The message now names the matrix entry that does work. ---
 expect_error(
   dbarts:::bartcoreSetTestOffset(bc.plain, rep(0.5, nTest)),
-  "bartcore_setCategoryTestOffset"
+  "category test offset channel"
 )
 expect_error(
   .Call(
@@ -381,7 +381,7 @@ expect_error(
     x.test,
     rep(0.5, nTest)
   ),
-  "bartcore_setCategoryTestOffset"
+  "category test offset channel"
 )
 
 # --- Predict takes its offset from its ARGUMENT or refuses. A sampler holding

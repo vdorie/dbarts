@@ -83,6 +83,16 @@ enforceWeightPolicy <- function(data, family) {
         "the offset as a log-exposure term"
       )
     }
+  } else if (family == "multinomial") {
+    if (all(data@weights == 1)) {
+      data@weights <- NULL
+    } else {
+      stop(
+        "multinomial (softmax) models do not support weights: an integer ",
+        "weight is already row-wise replication in the count response, and a ",
+        "non-integer one has no exact augmentation sampler"
+      )
+    }
   }
   data
 }
@@ -124,13 +134,44 @@ resolveSamplerSpec <- function(
     splitMultinomialMessage = TRUE,
     allowOrdinal = TRUE
   )
-  # ordinal (cumulative probit, docs/design/ordinal.md): a single-forest fixed-
-  # unit-scale model like probit, but K-level. Recode the response to the
-  # 1-based category codes the engine reads, and attach K on the control
-  # attribute the bridge reads to select OrdinalResponse (the
-  # bartcore.survival precedent below). The resolved ordered levels ride the
-  # data object for the round-trip.
-  if (identical(family, "ordinal")) {
+  # multinomial (K-forest softmax, docs/design/multinomial.md): the response is
+  # the n x K count matrix on the data object, so the family is DECLARED by the
+  # slot and not inferred from any response shape - data@y is that matrix's
+  # trials vector. A counts-carrying object resolves to it from "auto" without
+  # an announcement (unlike the ordered-factor auto-dispatch, there is nothing
+  # ambiguous to report: the slot is itself the declaration), and every other
+  # explicit family is refused rather than silently fitting the trials.
+  counts <- dataCounts(data)
+  if (!is.null(counts) && identical(family, "auto")) {
+    family <- "multinomial"
+  }
+  if (identical(family, "multinomial") && is.null(counts)) {
+    stop(
+      "family \"multinomial\" needs an n x K count-matrix response; build ",
+      "the data with dbartsData(counts = ), or pass a factor or count ",
+      "matrix as the response to dbarts()"
+    )
+  }
+  if (!identical(family, "multinomial") && !is.null(counts)) {
+    stop(
+      "the data carry an n x K count matrix, which only family ",
+      "\"multinomial\" fits; drop 'counts' to fit family \"",
+      family,
+      "\" against their trials"
+    )
+  }
+  if (identical(family, "multinomial")) {
+    # the counts ARE the response and the bridge reads K off their column
+    # count, so nothing is recoded and no control attribute carries the
+    # category count; data@y is already the trials
+    NULL
+  } else if (identical(family, "ordinal")) {
+    # ordinal (cumulative probit, docs/design/ordinal.md): a single-forest
+    # fixed-unit-scale model like probit, but K-level. Recode the response to
+    # the 1-based category codes the engine reads, and attach K on the control
+    # attribute the bridge reads to select OrdinalResponse (the
+    # bartcore.survival precedent below). The resolved ordered levels ride the
+    # data object for the round-trip.
     ordinal <- resolveOrdinalResponse(data)
     data@y <- ordinal$y
     data@response.levels <- ordinal$levels
@@ -175,9 +216,15 @@ resolveSamplerSpec <- function(
   # entering kappa directly, docs/design/negative-binomial.md section 1),
   # selected by the bartcore.dispersion attribute. fixedUnitScale covers all
   # three families wherever the unit-scale handling matters.
+  # multinomial (softmax) is the fourth: its K category forests take their leaf
+  # scale from the softmax calibration map's own anchor, there is no residual
+  # scale to draw, and a single-trial count response has an identically
+  # constant trials vector that estimateStartingSigma would fit a degenerate
+  # sigma against
   fixedUnitScale <- control@binary ||
     identical(family, "ordinal") ||
-    identical(family, "nbinom")
+    identical(family, "nbinom") ||
+    identical(family, "multinomial")
 
   # binary/ordinal/nbinom weight policy, enforced here in the R layer (the
   # bridge keeps the same checks as a backstop for direct-API consumers) -
@@ -202,6 +249,25 @@ resolveSamplerSpec <- function(
       all(data@offset.test == 0.0)
   ) {
     data@offset.test <- NULL
+  }
+  # the softmax is invariant to a common per-observation shift, so a flat
+  # offset points exactly along its null direction: an all-zero passthrough
+  # names nothing and is dropped, and anything else is refused by the channel
+  # that does mean something. The C bridge keeps the same refusal as a backstop.
+  if (identical(family, "multinomial")) {
+    if (!is.null(data@offset) && all(data@offset == 0.0)) {
+      data@offset <- NULL
+    }
+    if (!is.null(data@offset.test) && all(data@offset.test == 0.0)) {
+      data@offset.test <- NULL
+    }
+    if (!is.null(data@offset) || !is.null(data@offset.test)) {
+      stop(
+        "multinomial (softmax) models do not support a flat offset: a common ",
+        "per-observation shift is the softmax's own null direction; the ",
+        "meaningful one is the n x K dbartsData(offset.category = )"
+      )
+    }
   }
 
   # the multi-forest declaration (docs/design/bcf.md): forests = list(forest(),
@@ -359,6 +425,40 @@ resolveSamplerSpec <- function(
   if (!is.null(blockSpec)) {
     attr(model, "block.of.column") <- blockSpec$block.of.column
     attr(model, "block.tree.counts") <- blockSpec$block.tree.counts
+  }
+
+  # The K category forests are built from the softmax calibration map and the
+  # CONSTANT-leaf instantiation only (docs/design/multinomial.md): a monotone
+  # constraint or a non-constant leaf selects an instantiation the multinomial
+  # factory does not build, a DART prior and a drawn k are unadjudicated
+  # against the map's fixed anchor, the map owns every leaf scale so a named
+  # prior.scale has nowhere to land, and the grouped decorator wraps ONE
+  # response model, which a K-forest blend is not. Every one of these would
+  # otherwise be dropped in silence, changing the fitted model without a word;
+  # name each one instead. The bridge keeps its own backstops for the callers
+  # that reach it without this layer.
+  if (identical(family, "multinomial")) {
+    unsupportedMultinomial <- c(
+      "a DART tree prior" = is(priors$tree.prior, "dbartsDartPrior"),
+      "'split.probs'" = length(priors$tree.prior@splitProbabilities) > 0L,
+      "'monotone'" = !is.null(monotoneDirections),
+      "a linear node prior" = is(priors$node.prior, "dbartsLinearPrior"),
+      "a Gaussian-process node prior" = is(priors$node.prior, "dbartsGPPrior"),
+      "a 'k' hyperprior" = is(priors$node.hyperprior, "dbartsChiHyperprior"),
+      "a named 'prior.scale'" = !is.na(model@prior.scale),
+      "grouped random effects" = !is.null(attr(control, "bartcore.groups")),
+      "storage = \"single\"" = identical(control@storage, "single")
+    )
+    if (any(unsupportedMultinomial)) {
+      stop(
+        "a multinomial (softmax) model does not support ",
+        paste0(
+          names(unsupportedMultinomial)[unsupportedMultinomial],
+          collapse = ", "
+        ),
+        "; drop it or fit a single-forest model"
+      )
+    }
   }
 
   # the AFT survival family reads its per-observation status off this control
@@ -519,6 +619,10 @@ resolveSamplerSpec <- function(
           nbinom = paste0(
             "its dispersion block is not shown to interleave with the ",
             "amplitude block"
+          ),
+          multinomial = paste0(
+            "its forests are its categories, and the softmax blend that ",
+            "combines them is not an amplitude coupling"
           ),
           "the calibration map states no scale for it"
         )
@@ -686,6 +790,7 @@ dbartsSpec <- function(
     "probit",
     "logistic",
     "aft",
+    "multinomial",
     "ordinal",
     "nbinom"
   ),

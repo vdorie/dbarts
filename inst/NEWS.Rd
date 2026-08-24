@@ -60,6 +60,16 @@
             aligned to the kept rows by position alone - is refused, naming
             the forest and both counts. \code{dbartsData(bases = )} and the
             \code{x.train}/\code{y.train} interface are unchanged.
+      \item \code{dbartsData} gains three slots - \code{counts},
+            \code{offset.category} and \code{offset.category.test} - so a
+            \code{dbartsData} serialized by an earlier build of 1.0-0 has
+            slots the class now declares. Reading such an object is
+            unaffected: every internal read of the three goes through
+            \code{methods::.hasSlot}, so a saved \code{bart}, \code{bart2}
+            or \code{dbartsSampler} still loads, predicts, mutates and runs.
+            What such an object cannot do is pass \code{validObject}, which
+            checks slot presence itself and reports the three as missing;
+            rebuild the data object if you call it.
     }
   }
   \subsection{NEW FEATURES}{
@@ -1651,6 +1661,39 @@
             \code{bart2(family = "multinomial")} fit's \code{$fit} is
             unchanged: it remains a host shell, and \code{samplerOnly}
             remains refused for it.
+      \item \code{dbarts} accepts \code{family = "multinomial"}, returning an
+            ordinary \code{\link{dbartsSampler}} over the K-category softmax
+            model that only \code{bart2} could reach before, and only as a
+            one-shot fit. The response is an n x K matrix of non-negative
+            integer counts, or - the single-trial case - a factor, character
+            or integer-code vector one-hot expanded to one. It rides the new
+            \code{dbartsData(counts = )} argument, with the per-category
+            shifts on \code{offset.category} and
+            \code{offset.category.test}, so a sampler re-created from its own
+            (control, model, data) triple after \code{storeState} and
+            \code{\link{save}}/\code{\link{load}} carries its response and
+            offsets without further discipline. \code{data@y} holds the
+            trials \eqn{n_i}{n_i} the counts imply. \code{dbartsSpec} reaches
+            the same family, and a data object carrying counts resolves to it
+            from \code{family = "auto"}.
+      \item The sampler gains \code{$setCounts},
+            \code{$setCategoryOffset} and \code{$setCategoryTestOffset}, the
+            three multinomial response channels, previously reachable only as
+            unexported \code{bartcore*} functions against a classless
+            environment. n and K are fixed at creation; each write mirrors
+            into the data object, so a re-created sampler carries it.
+            \code{$predict} takes the matching per-category offset, one row
+            per predicted row. Every channel the softmax gives no meaning to -
+            \code{$setResponse}, \code{$setOffset}, \code{$setWeights},
+            \code{$setSigma}, \code{$setData}, \code{$setModel},
+            \code{$setCalibration}, \code{$setForestWeights},
+            \code{$setForestBasis} and \code{$getFitsWithoutOffset} - is
+            refused by a message naming the capability, and the channel that
+            serves the caller instead where one exists. The predictor family
+            (\code{$setPredictor}, \code{$setCutPoints},
+            \code{$setTestPredictor}) and the global \code{$setActiveRows}
+            stay open; per-forest masking is permanently refused, since a
+            category's margin is a log-sum-exp over the other K - 1.
     }
   }
 }

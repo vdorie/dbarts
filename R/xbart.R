@@ -110,6 +110,12 @@ xbart <- function(
     factors,
     missing
   )
+  # a count-matrix data object declares the multinomial model, whose fitted
+  # quantity is K probabilities per observation; every loss this function
+  # evaluates is written against one location, so the fit would be scored as
+  # though the slab were n rows. Refused ahead of the family resolution below,
+  # which resolves counts to multinomial from "auto"
+  refuseCountsCarryingData(formula, "xbart()")
   data <- eval(dataCall, evalEnv)
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigest

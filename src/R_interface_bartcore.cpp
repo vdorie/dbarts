@@ -2425,8 +2425,8 @@ void refuseMultiForestTestOffset(const bartcore::SamplerBase& sampler,
     Rf_error("%s: a flat test offset is added to every reported channel after "
              "the categories are blended, which would move the reported "
              "probabilities off the simplex, and before the blend a common "
-             "per-observation shift is inert; use "
-             "bartcore_setCategoryTestOffset with an nTest x K matrix", caller);
+             "per-observation shift is inert; write an nTest x K matrix "
+             "through the category test offset channel", caller);
   Rf_error("%s: a multi-forest sampler adds a test offset after its forests "
            "are blended, which would move the reported values off the "
            "softmax scale; it carries no test offset", caller);
@@ -2668,10 +2668,19 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
     if (shape.supportsCountsMutation) {
       if (conduit == ResponseConduit::offset)
         Rf_error("%s: this sampler's offset is its n x K category matrix, "
-                 "which a flat offset cannot express; set it with "
-                 "bartcore_setCategoryOffset", caller);
-      Rf_error("%s: this sampler's response is its n x K count matrix; swap it "
-               "with bartcore_setCounts", caller);
+                 "which a flat offset cannot express; write it through the "
+                 "category offset channel", caller);
+      // Weights get their own arm rather than falling through to the response
+      // one: they are not refused because a flat vector cannot carry the
+      // matrix, but on MODEL grounds, and a caller told to swap the counts
+      // instead would not learn that an integer weight already IS that swap.
+      if (conduit == ResponseConduit::weights)
+        Rf_error("%s: this sampler's case weights are already expressed by its "
+                 "n x K count matrix - an integer weight is row-wise count "
+                 "replication - and a non-integer one has no exact "
+                 "augmentation sampler", caller);
+      Rf_error("%s: this sampler's response is its n x K count matrix; replace "
+               "it through the counts channel", caller);
     }
     const char* fixed = "fixes its response at creation";
     if (conduit == ResponseConduit::offset) fixed = "carries no offset";
@@ -3296,6 +3305,17 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
                                        data.numObservations,
                                        data.numPredictors, options, spec,
                                        rngs.data());
+  // the factory returns null on a composition it cannot build - a variance
+  // forest, whose precision channel the softmax's own augmentation owns.
+  // Storing that unchecked would hand back a live external pointer wrapping a
+  // null sampler, which every entry dereferences. The R surface refuses it
+  // first; this is the backstop for the callers that reach here without one.
+  if (sampler == NULL) {
+    for (ext_rng* rng : rngs)
+      if (rng != NULL) ext_rng_destroy(rng);
+    Rf_error("a multinomial (softmax) model does not support a "
+             "heteroscedastic variance forest");
+  }
 
   // test-at-creation: the K forests each accumulate their own totalTestFits in
   // the sweep, and storeSample blends them into the K softmax test
@@ -3382,9 +3402,16 @@ BartcoreHolder* createMultinomialHolder(SEXP controlExpr, SEXP modelExpr,
 // entry, count-native (docs/design/multinomial.md). categoryOffsetExpr is the
 // optional n x K category offset (null for none) and categoryTestOffsetExpr its
 // optional nTest x K test twin, which requires test rows to describe.
+//
+// numCategories is taken as a value rather than an expression because the two
+// callers derive it differently: the internal entry is handed one, and the
+// public spec route reads it off the count matrix's own column count -
+// categoriesAreDeclared says which, so the shape refusal states only what is
+// independently known (a route that DERIVED K cannot be told its K is wrong).
 BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
                                               SEXP dataExpr, SEXP countsExpr,
-                                              SEXP numCategoriesExpr,
+                                              size_t numCategories,
+                                              bool categoriesAreDeclared,
                                               SEXP categoryOffsetExpr,
                                               SEXP categoryTestOffsetExpr) {
   BartcoreHolder* holder = nullptr;
@@ -3394,14 +3421,35 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
                  offset = std::vector<double>{},
                  testOffset = std::vector<double>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
-    size_t numCategories = static_cast<size_t>(Rf_asInteger(numCategoriesExpr));
     parseMultinomialData(controlExpr, modelExpr, dataExpr, control, model, data,
                          sigmaIsFixed, numCategories);
 
     size_t n = data.numObservations;
-    if (!Rf_isInteger(countsExpr) ||
-        static_cast<size_t>(Rf_xlength(countsExpr)) != n * numCategories)
+    // The DIMENSIONS are checked, not just the length, exactly as
+    // bartcore_setCounts checks them: a transposed matrix has exactly n*K
+    // entries and would place every count in the wrong cell. Each refusal
+    // reports the matrix's ACTUAL shape, which is what tells a caller that
+    // theirs is transposed. dims is an attribute of the rooted countsExpr, so
+    // the PROTECT is redundant to that rooting and is what the PROTECT-balance
+    // analyzer reads; the refusals below longjmp past it
+    SEXP dimsExpr = PROTECT(Rf_getAttrib(countsExpr, R_DimSymbol));
+    if (!Rf_isInteger(countsExpr) || Rf_xlength(dimsExpr) != 2)
       Rf_error("multinomial counts must be an n x K integer matrix");
+    int numRowsGiven = INTEGER(dimsExpr)[0];
+    int numColumnsGiven = INTEGER(dimsExpr)[1];
+    UNPROTECT(1);
+    if (static_cast<size_t>(numRowsGiven) != n)
+      Rf_error("multinomial counts must have one row per observation: %lu are "
+               "needed and the matrix is %d x %d",
+               static_cast<unsigned long>(n), numRowsGiven, numColumnsGiven);
+    // only a route that was HANDED K can be told its column count is wrong;
+    // the public route defines K as that column count
+    if (categoriesAreDeclared &&
+        static_cast<size_t>(numColumnsGiven) != numCategories)
+      Rf_error("multinomial counts must have one column per category: %lu are "
+               "declared and the matrix is %d x %d",
+               static_cast<unsigned long>(numCategories), numRowsGiven,
+               numColumnsGiven);
     const int* src = INTEGER(countsExpr);
     counts.assign(src, src + n * numCategories);
     trials.assign(n, 0);
@@ -3409,6 +3457,10 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
       for (size_t i = 0; i < n; ++i) {
         int y = counts[k * n + i];
         if (y < 0) Rf_error("multinomial counts must be non-negative");
+        // the trials are int, as the combiner's PG loop counter is; a row sum
+        // that overflows would wrap into a negative or absurd draw count
+        if (trials[i] > INT_MAX - y)
+          Rf_error("multinomial count row sums must fit in an integer");
         trials[i] += y;
       }
     for (size_t i = 0; i < n; ++i)
@@ -3439,6 +3491,43 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
   return holder;
 }
 
+/// Reads a data-object slot whose class union admits NULL, returning
+/// R_NilValue for an unset one. An S4 slot holding NULL reads back as the null
+/// SYMBOL rather than as R_NilValue, which every "is this absent" test must
+/// therefore ask rc_isS4Null about first.
+SEXP readNullableSlot(SEXP objectExpr, const char* name) {
+  SEXP slotExpr = Rf_getAttrib(objectExpr, Rf_install(name));
+  return rc_isS4Null(slotExpr) ? R_NilValue : slotExpr;
+}
+
+/// The PUBLIC spec route's multinomial creation (docs/design/multinomial.md):
+/// the count response and both category offsets ride the data object's own
+/// slots rather than arriving beside it, so a sampler re-created from its own
+/// (control, model, data) triple - which is what getPointer does after a save
+/// and load, and what setState does on a dead pointer - finds them exactly
+/// where creation found them, with no R-side mirroring to keep in step. K is
+/// the count matrix's own column count; no control attribute carries it. An
+/// object serialized before the slots existed reads them as null, which is
+/// what routes it to the ordinary single-forest path instead of here.
+BartcoreHolder* createMultinomialDataHolder(SEXP controlExpr, SEXP modelExpr,
+                                            SEXP dataExpr) {
+  // an unset slot of a NULL class union reads back as the S4 null SYMBOL, not
+  // as R_NilValue, so every read here is normalized the way parseData
+  // normalizes 'offset' and 'weights'
+  SEXP countsExpr = readNullableSlot(dataExpr, "counts");
+  if (Rf_isNull(countsExpr))
+    Rf_error("family \"multinomial\" requires a data object carrying an "
+             "n x K count matrix");
+  SEXP dimsExpr = Rf_getAttrib(countsExpr, R_DimSymbol);
+  if (!Rf_isInteger(countsExpr) || Rf_xlength(dimsExpr) != 2)
+    Rf_error("multinomial counts must be an n x K integer matrix");
+  return createMultinomialCountsHolder(
+    controlExpr, modelExpr, dataExpr, countsExpr,
+    static_cast<size_t>(INTEGER(dimsExpr)[1]), false,
+    readNullableSlot(dataExpr, "offset.category"),
+    readNullableSlot(dataExpr, "offset.category.test"));
+}
+
 /// Warm start: seed the sampler's live forests from a donor "bartcoreState"
 /// over the same predictors. samplesExpr, when non-null, maps each chain to a
 /// 1-based donor-sample index; NULL spreads chains across the donor pool.
@@ -3458,6 +3547,17 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                      SEXP familyExpr) {
   const char* familyName =
     Rf_isNull(familyExpr) ? "" : CHAR(STRING_ELT(familyExpr, 0));
+  // The multinomial (softmax) family is the one whose response is not the data
+  // object's y - it is the n x K count matrix beside it - so it takes its own
+  // factory rather than a ResponseModel resolveFamily could name. Dispatched
+  // here, at the single creation entry every R-level route reaches, so a
+  // sampler re-created from its own triple after a save and load comes back as
+  // the same K-forest engine.
+  if (std::strcmp(familyName, "multinomial") == 0)
+    return createExternalHolder(dataExpr, [&]() {
+      return bartcore_bridge::createMultinomialDataHolder(controlExpr,
+                                                          modelExpr, dataExpr);
+    });
   return createExternalHolder(dataExpr, [&]() {
     return bartcore_bridge::createHolder(controlExpr, modelExpr, dataExpr,
                                          familyName);
@@ -3728,7 +3828,8 @@ SEXP bartcore_createMultinomialCounts(SEXP controlExpr, SEXP modelExpr,
                                       SEXP categoryTestOffsetExpr) {
   return createExternalHolder(dataExpr, [&]() {
     return bartcore_bridge::createMultinomialCountsHolder(
-      controlExpr, modelExpr, dataExpr, countsExpr, numCategoriesExpr,
+      controlExpr, modelExpr, dataExpr, countsExpr,
+      static_cast<size_t>(Rf_asInteger(numCategoriesExpr)), true,
       categoryOffsetExpr, categoryTestOffsetExpr);
   });
 }

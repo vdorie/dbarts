@@ -1,6 +1,25 @@
 ORDINAL_VARIABLE <- 0L
 CATEGORICAL_VARIABLE <- 1L
 
+# Reads a dbartsData slot that was added after objects of the class were first
+# serialized. A saved bart/bart2 fit or dbartsSampler holds a dbartsData built
+# under the class definition in force when it was written, and reading a slot
+# that definition did not have is an error, not a NULL; methods::.hasSlot
+# answers FALSE on such an instance without raising. Every internal read of
+# 'counts', 'offset.category' and 'offset.category.test' goes through here, so
+# an old object reads as the ordinary single-forest data object it is.
+dataSlotOrNULL <- function(data, name) {
+  if (methods::.hasSlot(data, name)) methods::slot(data, name) else NULL
+}
+
+# The multinomial capability probe: a data object carrying the n x K count
+# response is a multinomial one, on both the fitting and the mutation surfaces.
+# A capability test rather than a forest count, for the reason
+# samplerCarriesAmplitudes is one.
+dataCounts <- function(data) {
+  dataSlotOrNULL(data, "counts")
+}
+
 methods::setMethod(
   "initialize",
   "dbartsData",
@@ -20,6 +39,9 @@ methods::setMethod(
       .Object@offset <- modelMatrices$offset
       .Object@offset.test <- modelMatrices$offset.test
       .Object@bases <- modelMatrices$bases
+      .Object@counts <- modelMatrices$counts
+      .Object@offset.category <- modelMatrices$offset.category
+      .Object@offset.category.test <- modelMatrices$offset.category.test
 
       .Object@testUsesRegularOffset <- modelMatrices$testUsesRegularOffset
     }
@@ -732,6 +754,121 @@ validateXYOffset <- function(
   list(offset = offset, offsetGivenAsScalar = offsetGivenAsScalar)
 }
 
+# Coerce a raw multinomial response to the n x K count matrix the softmax
+# engine's response is (docs/design/multinomial.md). Two shapes arrive: an
+# n x K matrix (or data frame) of non-negative integer counts, whose trials are
+# its row sums, and a length-n vector of labels - a factor, character, logical
+# or integer code - which is the single-trial special case, one-hot expanded
+# with every trial 1. The category labels ride the result's COLUMN NAMES, the
+# carrier that survives both serialization and the engine's re-creation; the
+# engine reads neither.
+resolveMultinomialCounts <- function(y) {
+  if (is.data.frame(y)) {
+    y <- as.matrix(y)
+  }
+  if (is.matrix(y)) {
+    if (!is.numeric(y)) {
+      stop(
+        "a multinomial count-matrix response must be numeric, not ",
+        typeof(y)
+      )
+    }
+    return(y)
+  }
+  if (is.character(y) || is.logical(y)) {
+    y <- factor(y)
+  }
+  levels <- if (is.factor(y)) {
+    levels(y)
+  } else {
+    if (!is.numeric(y)) {
+      stop(
+        "a multinomial response must be a factor, a character vector, or an ",
+        "n x K count matrix"
+      )
+    }
+    if (anyNA(y) || any(y != round(y)) || any(y < 0)) {
+      stop("multinomial category codes must be non-negative whole numbers")
+    }
+    as.character(seq.int(0L, max(y)))
+  }
+  codes <- if (is.factor(y)) as.integer(y) else as.integer(y) + 1L
+  K <- length(levels)
+  counts <- matrix(0L, length(codes), K, dimnames = list(NULL, levels))
+  counts[cbind(seq_along(codes), codes)] <- 1L
+  counts
+}
+
+# Validate and subset a multinomial count response for dbartsData: an n x K
+# matrix of non-negative whole numbers with at least two categories and at
+# least one trial per row. The engine re-derives the trials and re-checks every
+# invariant; this is the R layer's own (safe over fast) refusal, and the one
+# that names the argument the caller wrote.
+validateMultinomialCounts <- function(counts, initialNumObservations, subset) {
+  if (is.null(counts)) {
+    return(NULL)
+  }
+  if (is.data.frame(counts)) {
+    counts <- as.matrix(counts)
+  }
+  if (!is.matrix(counts) || !is.numeric(counts)) {
+    stop("'counts' must be a numeric matrix")
+  }
+  if (nrow(counts) != initialNumObservations) {
+    stop("'counts' must have the same number of rows as 'y' has elements")
+  }
+  if (ncol(counts) < 2L) {
+    stop("'counts' must have at least two categories")
+  }
+  if (anyNA(counts)) {
+    stop("'counts' cannot be NA")
+  }
+  if (any(counts < 0)) {
+    stop("'counts' must all be non-negative")
+  }
+  if (any(counts != round(counts))) {
+    stop("'counts' must all be whole numbers")
+  }
+  counts <- asCountMatrix(counts)[subset, , drop = FALSE]
+  if (any(rowSums(counts) < 1L)) {
+    stop("every 'counts' row must have at least one trial")
+  }
+  counts
+}
+
+# Validate (and, for the training-row twin, subset) a category offset ARRIVING
+# ON A DATA OBJECT: the n x K matrix added to the raw per-category fits before
+# the softmax. 'rows' is NULL for the test twin, whose row count belongs to the
+# test store and is pinned by the validity method instead. Distinct from
+# validateCategoryOffset, which checks a matrix arriving at a bartcore HANDLE
+# against that handle's own already-fixed n and K.
+validateDataCategoryOffset <- function(offset, rows, subset, argument) {
+  if (is.null(offset)) {
+    return(NULL)
+  }
+  if (is.data.frame(offset)) {
+    offset <- as.matrix(offset)
+  }
+  if (!is.matrix(offset) || !is.numeric(offset)) {
+    stop("'", argument, "' must be a numeric matrix")
+  }
+  if (anyNA(offset) || !all(is.finite(offset))) {
+    stop("'", argument, "' values must all be finite")
+  }
+  storage.mode(offset) <- "double"
+  if (is.null(rows)) {
+    return(offset)
+  }
+  if (nrow(offset) != rows) {
+    stop(
+      "'",
+      argument,
+      "' must have the same number of rows as 'y' has elements"
+    )
+  }
+  offset[subset, , drop = FALSE]
+}
+
 dbartsData <- function(
   formula,
   data,
@@ -742,13 +879,19 @@ dbartsData <- function(
   offset.test = offset,
   factors = c("categorical", "indicators"),
   missing = c("incorporate", "error"),
-  bases = NULL
+  bases = NULL,
+  counts = NULL,
+  offset.category = NULL,
+  offset.category.test = NULL
 ) {
   dataIsMissing <- missing(data)
   testIsMissing <- missing(test)
   offsetIsMissing <- missing(offset)
   testOffsetIsMissing <- missing(offset.test)
   basesIsMissing <- missing(bases)
+  countsIsMissing <- missing(counts) &&
+    missing(offset.category) &&
+    missing(offset.category.test)
   matchedCall <- match.call()
 
   # "indicators" dummy-expands factor columns as always; "categorical" keeps
@@ -781,7 +924,8 @@ dbartsData <- function(
         !testIsMissing ||
         !offsetIsMissing ||
         !testOffsetIsMissing ||
-        !basesIsMissing
+        !basesIsMissing ||
+        !countsIsMissing
     ) {
       warning("if data supplied as dbartsData, remaining arguments are ignored")
     }
@@ -919,6 +1063,22 @@ dbartsData <- function(
     # the model frame owns the row selection here, so the bases are checked
     # against the rows that survived it
     bases <- validateForestBases(bases, numObservations)
+    # the count response is the model's response, and a formula already names
+    # one on its left-hand side; taking both would silently discard whichever
+    # lost. dbarts() refuses the same combination at its own entry, this being
+    # the layer that owns response ingestion. 'subset' is why the refusal
+    # matters twice over: the model frame has already applied it here, so a
+    # count matrix at the caller's full row count could not be aligned to the
+    # rows it kept the way 'weights' is.
+    if (!is.null(counts)) {
+      stop(
+        "'counts' is a response and cannot be given with a formula, which ",
+        "names one; use the matrix interface - dbartsData(x.train, ",
+        "counts = )"
+      )
+    }
+    countsRows <- numObservations
+    countsSubset <- seq_len(numObservations)
 
     ## weights
     weights <- as.vector(model.weights(modelFrame))
@@ -1001,6 +1161,8 @@ dbartsData <- function(
     y <- y[subset]
     x <- formula[subset, , drop = FALSE]
     bases <- validateForestBases(bases, initialNumObservations, subset)
+    countsRows <- initialNumObservations
+    countsSubset <- subset
 
     if (missing(weights)) {
       weights <- NULL
@@ -1067,6 +1229,8 @@ dbartsData <- function(
       formula[subset]
     }
     bases <- validateForestBases(bases, initialNumObservations, subset)
+    countsRows <- initialNumObservations
+    countsSubset <- subset
 
     if (missing(weights)) {
       weights <- NULL
@@ -1222,6 +1386,39 @@ dbartsData <- function(
   # with NA rather than erroring, so a NA response here can be that instead
   # of a genuinely incomplete row - naming 'subset' when it was given is a
   # cheap, cause-agnostic hint rather than a claim of certainty.
+  # The multinomial response (docs/design/multinomial.md): the n x K count
+  # matrix IS the response, and 'y' is its trials vector n_i = sum_k
+  # counts[i, k], which is what keeps every length(data@y) reader meaningful on
+  # such an object. DERIVED rather than taken, so the two cannot disagree and a
+  # caller supplying 'counts' supplies no separate response.
+  counts <- validateMultinomialCounts(counts, countsRows, countsSubset)
+  if (!is.null(counts)) {
+    y <- as.double(rowSums(counts))
+  }
+  offset.category <- validateDataCategoryOffset(
+    offset.category,
+    countsRows,
+    countsSubset,
+    "offset.category"
+  )
+  # the test twin's rows are the TEST rows, so it is not subset with the
+  # training ones and its row count is pinned by the validity method
+  offset.category.test <- validateDataCategoryOffset(
+    offset.category.test,
+    NULL,
+    NULL,
+    "offset.category.test"
+  )
+  if (
+    is.null(counts) &&
+      (!is.null(offset.category) || !is.null(offset.category.test))
+  ) {
+    stop(
+      "'offset.category' and 'offset.category.test' are the per-category ",
+      "shifts of a 'counts' response; supply one, or use 'offset'"
+    )
+  }
+
   if (anyNA(y)) {
     if (!is.null(matchedCall$subset)) {
       stop(
@@ -1256,9 +1453,14 @@ dbartsData <- function(
   # the ratio does NOT flag has values separated by many ulps -
   # legitimately discrete responses (binary, counts, ordinal scales) that
   # standardization maps cleanly and the engine fits without degradation.
+  # A multinomial 'y' is the trials vector, not a modelled response: the
+  # dominant single-trial case is identically 1, which the ratio below reads as
+  # a degenerate response and reports as one. The check keys on the DATA
+  # OBJECT, not on a family - dbartsData has no 'family' formal, and carrying
+  # counts is the honest predicate anyway.
   yRange <- diff(range(y))
   yScale <- max(abs(y))
-  if (yScale > 0 && yRange / yScale < 1e-10) {
+  if (is.null(counts) && yScale > 0 && yRange / yScale < 1e-10) {
     warning(
       "response values are indistinguishable, or nearly so, at double ",
       "precision (",
@@ -1344,6 +1546,9 @@ dbartsData <- function(
       offset,
       offset.test,
       bases,
+      counts,
+      offset.category,
+      offset.category.test,
       testUsesRegularOffset
     ),
     n.cuts = NA_integer_,

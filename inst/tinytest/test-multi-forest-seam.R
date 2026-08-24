@@ -293,7 +293,7 @@ expect_error(
 # conditioned on the counts capability, so BCF keeps it.
 expect_error(
   dbarts:::bartcoreSetTestOffset(bc.mn, rep(0.5, nTest)),
-  "bartcore_setCategoryTestOffset"
+  "category test offset channel"
 )
 
 # --- the multinomial predictor-mutation surface, one entry at a time: the

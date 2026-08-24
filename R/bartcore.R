@@ -43,6 +43,102 @@ refuseAmplitudeMutation <- function(sampler, what, ...) {
   }
 }
 
+# The multinomial capability probe on a SAMPLER, the counts analog of
+# samplerCarriesAmplitudes: a K-forest softmax sampler is exactly the one whose
+# data object carries the n x K count response (docs/design/multinomial.md).
+# A CAPABILITY test, deliberately not a forest count, for the reason the
+# amplitude probe is one - the two multi-forest models are indistinguishable by
+# numForests. The read goes through the migration guard, so a sampler restored
+# from a fit saved before the slot existed answers FALSE rather than raising.
+samplerCarriesCounts <- function(sampler) {
+  !is.null(dataCounts(sampler$data))
+}
+
+# Capability-specific wording for a channel the K-forest softmax gives no
+# meaning to. Raised R-side, before the .Call, so a multinomial sampler never
+# reaches the bridge's generic multi-forest phrasing, and so the R-canonical
+# message can name the R5 method that DOES serve the caller. The message names
+# the CAPABILITY, never a C entry point: those are not callable from R.
+refuseCountsMutation <- function(sampler, what, ...) {
+  if (samplerCarriesCounts(sampler)) {
+    stop(what, " is not available on a multinomial sampler: ", ...)
+  }
+}
+
+# The inverse probe: a channel only the K-forest softmax has, named on a
+# sampler that carries no count response for it to write.
+requireCountsCapability <- function(sampler, what) {
+  if (!samplerCarriesCounts(sampler)) {
+    stop(
+      what,
+      " is not available on a sampler that carries no count response: only a ",
+      "multinomial (softmax) sampler has one"
+    )
+  }
+}
+
+# The three multinomial response channels, R5-side. Each mirrors its argument
+# into the data object as setWeights mirrors weights: those slots are what
+# CREATION reads, so getPointer's re-creation branch, setState's, and a
+# save/load round trip all carry the current value with no reapply step of
+# their own. Validation is R-side (safe over fast) and total before the .Call,
+# which itself refuses before it installs anything, so the mirror runs only on
+# a write that took.
+bartcoreSamplerSetCounts <- function(sampler, counts) {
+  current <- dataCounts(sampler$data)
+  # K is the forest count, so a wrong category count is a different sampler,
+  # not a malformed matrix; ask that before any per-row invariant, which a
+  # truncated matrix would fail first and misattribute
+  if (NCOL(counts) != ncol(current)) {
+    stop("'counts' must have ", ncol(current), " categories")
+  }
+  counts <- validateMultinomialCounts(
+    counts,
+    nrow(current),
+    seq_len(nrow(current))
+  )
+  ptr <- sampler$getPointer()
+  .Call(C_dbarts_bartcore_setCounts, ptr, counts)
+  sampler$data@counts <- counts
+  # y is the trials the counts imply, never an independent quantity
+  sampler$data@y <- as.double(rowSums(counts))
+  invisible(ptr)
+}
+
+bartcoreSamplerSetCategoryOffset <- function(sampler, offset) {
+  current <- dataCounts(sampler$data)
+  offset <- validateDataCategoryOffset(
+    offset,
+    nrow(current),
+    seq_len(nrow(current)),
+    "offset"
+  )
+  if (!is.null(offset) && ncol(offset) != ncol(current)) {
+    stop("'offset' must have ", ncol(current), " categories")
+  }
+  ptr <- sampler$getPointer()
+  .Call(C_dbarts_bartcore_setCategoryOffset, ptr, offset)
+  sampler$data@offset.category <- offset
+  invisible(ptr)
+}
+
+bartcoreSamplerSetCategoryTestOffset <- function(sampler, offset.test) {
+  current <- dataCounts(sampler$data)
+  offset.test <- validateDataCategoryOffset(
+    offset.test,
+    NULL,
+    NULL,
+    "offset.test"
+  )
+  if (!is.null(offset.test) && ncol(offset.test) != ncol(current)) {
+    stop("'offset.test' must have ", ncol(current), " categories")
+  }
+  ptr <- sampler$getPointer()
+  .Call(C_dbarts_bartcore_setCategoryTestOffset, ptr, offset.test)
+  sampler$data@offset.category.test <- offset.test
+  invisible(ptr)
+}
+
 # Drives a dbartsSampler (the R-level sampler layer), reading its control
 # defaults and delegating through its external pointer; cf. bartcoreRun,
 # which drives a low-level bartcore handle directly.

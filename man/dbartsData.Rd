@@ -10,7 +10,8 @@ dbartsData(
     offset, offset.test = offset,
     factors = c("categorical", "indicators"),
     missing = c("incorporate", "error"),
-    bases = NULL)
+    bases = NULL,
+    counts = NULL, offset.category = NULL, offset.category.test = NULL)
 }
 \arguments{
    \item{formula, data, test, subset, weights, offset, offset.test, factors, missing}{
@@ -18,6 +19,12 @@ dbartsData(
    }
    \item{bases}{
      Optional list of the per-forest amplitude bases a multi-forest model combines its forests through, one element per forest and \code{NULL} where a forest carries the implicit intercept its single amplitude scales. Each non-null element is a numeric matrix with one row per observation and one amplitude per column, restricted by \code{subset} exactly as \code{weights} is. This is the data half of a multi-forest specification, and is normally written by \code{\link{dbarts}}'s \code{forests = } argument rather than here; supplying it directly selects the multi-forest model with the engine's default per-forest configuration, and \code{\link{forest}} declarations may then configure the forests one at a time.
+   }
+   \item{counts}{
+     Optional \code{n} x \code{K} matrix of non-negative integer counts selecting the multinomial (softmax) model, column \code{k} holding category \code{k}'s successes and every row carrying at least one trial. It is restricted by \code{subset} exactly as \code{weights} is, and it IS the response: \code{y} is derived as its row sums - the trials \eqn{n_i}{n_i} - so no separate response need be supplied, and any that is supplied is replaced. At least two categories are required. Column names, when present, label the categories. \code{\link{dbarts}(family = "multinomial")} writes this argument from a count-matrix or factor response rather than requiring it here.
+   }
+   \item{offset.category, offset.category.test}{
+     Optional per-category shifts of a \code{counts} response, added to the raw per-category values BEFORE the softmax - which is the only place a shift means anything under one, since the blend is invariant to a common per-observation shift and the ordinary \code{offset} would be added after it. \code{offset.category} is an \code{n} x \code{K} numeric matrix over the training rows and is restricted by \code{subset}; \code{offset.category.test} is its \code{nTest} x \code{K} twin over the rows of \code{test}, which it requires. Both are refused without \code{counts}. Only the row-centred part is identified: adding a constant to a whole row leaves every reported probability unchanged.
    }
 }
 \details{

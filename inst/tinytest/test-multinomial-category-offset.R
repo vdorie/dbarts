@@ -390,7 +390,7 @@ expect_error(
     x.test,
     rep(0, nTest)
   ),
-  "bartcore_setCategoryTestOffset"
+  "category test offset channel"
 )
 expect_silent(
   .Call(

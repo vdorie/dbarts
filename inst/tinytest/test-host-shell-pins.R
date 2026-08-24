@@ -61,8 +61,8 @@ substantiveUnguardedMethods <- sort(setdiff(
   infrastructure
 ))
 
-expect_equal(length(own), 45L)
-expect_equal(length(hostMutationMethods), 22L)
+expect_equal(length(own), 48L)
+expect_equal(length(hostMutationMethods), 25L)
 expect_equal(length(hostReadMethods), 2L)
 expect_equal(length(substantiveUnguardedMethods), 14L)
 expect_equal(length(infrastructure), 7L)
@@ -80,6 +80,9 @@ expect_identical(
     "setResponse",
     "setOffset",
     "setWeights",
+    "setCounts",
+    "setCategoryOffset",
+    "setCategoryTestOffset",
     "setActiveRows",
     "setForestWeights",
     "setForestBasis",

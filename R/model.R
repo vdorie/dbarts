@@ -405,7 +405,12 @@ defaultNodeScale <- function(family) {
     probit = 3.0,
     ordinal = 3.0,
     nbinom = pi * sqrt(3.0),
-    logistic = pi * sqrt(3.0)
+    logistic = pi * sqrt(3.0),
+    # the K = 2 pairwise-log-odds anchor: the softmax calibration map owns
+    # every category forest's leaf scale, so the engine never reads this value
+    # for a multinomial sampler and it is recorded here only so the model
+    # object states the anchor the map applies
+    multinomial = pi * sqrt(3.0) / sqrt(2.0)
   )
 }
 

@@ -707,6 +707,16 @@ bart2 <- function(
     family <- "hurdle.lognormal"
   }
 
+  # A data object carrying an n x K count matrix declares the multinomial
+  # (softmax) model, whose fitted quantity is K probabilities per observation
+  # rather than one location. Everything this function does after the fit -
+  # the chain/sample reshaping, the sigma channel, the loss and interval
+  # readers - is written against one location, so the slab would be reshaped
+  # as if it were n rows and reported without a word. Refuse the object here,
+  # ahead of every family branch, since family = "auto" resolves it downstream
+  # and no branch below would see the token.
+  refuseCountsCarryingData(formula, "bart2()")
+
   # family = "auto" with a 3+-level UNORDERED factor/character response is
   # multinomial (docs/design/multinomial.md); a 3+-level ORDERED factor is
   # ordinal (docs/design/ordinal.md, the disjoint is.ordered() key). Route
@@ -1326,6 +1336,23 @@ extractMultinomialFormulaData <- function(
 # detection only - the multinomial branch re-extracts and validates the
 # response, so this evaluates the formula LHS directly rather than building a
 # model frame.
+# A dbartsData carrying the n x K count response is a multinomial declaration
+# (docs/design/multinomial.md), and the single-forest packaging of the entry
+# points below cannot read a K-location fit. The refusal is at the ENTRY, not
+# at a family branch: family = "auto" resolves counts to multinomial during
+# spec resolution, so a branch keyed on the token never sees it.
+refuseCountsCarryingData <- function(formula, caller) {
+  if (inherits(formula, "dbartsData") && !is.null(dataCounts(formula))) {
+    stop(
+      caller,
+      " does not support a data object carrying an n x K count matrix; fit ",
+      "it with dbarts(family = \"multinomial\"), whose sampler reports the K ",
+      "category probabilities"
+    )
+  }
+  invisible(NULL)
+}
+
 detectAutoResponse <- function(formula, data, dataIsMissing, callingEnv) {
   response <- if (is.formula(formula)) {
     if (length(formula) != 3L || dataIsMissing || is.null(data)) {
@@ -2613,6 +2640,12 @@ bart <- function(
     refuseBartOwnClassFamily(family)
   }
   family <- match.arg(family)
+
+  # a count-matrix data object declares the multinomial model, which this
+  # frozen BayesTree shim reports none of: its packaging is one location per
+  # observation, so a K-location fit would be reshaped and returned without a
+  # word. The dbartsData passthrough is the only route one can arrive by
+  refuseCountsCarryingData(x.train, "bart()")
 
   # forwarded to dbarts() unevaluated (as the prior expressions are), so a bare
   # gaussian()/student() resolves in dbarts()'s residual-distribution vocabulary
