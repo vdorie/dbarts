@@ -191,3 +191,70 @@ rm(
   hostile,
   hostile.sf
 )
+
+# --- a refused install is transactional ------------------------------------
+# getPointer re-creates the engine behind a dead pointer and installs the
+# stored state into it. When that install is REFUSED - the version floor
+# above, a malformed block, anything - the object must be left exactly as it
+# was: no engine bound, the stored state untouched. Binding the freshly
+# created engine before the install succeeds leaves a live but UNFITTED
+# sampler, which the next run silently samples from (stumps, not the saved
+# forests) and then stores over the fitted state with.
+
+control.tx <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.samples = 3L,
+  updateState = TRUE,
+  verbose = FALSE
+)
+set.seed(7L)
+sampler.tx <- dbarts::dbarts(testData$x, testData$y, control = control.tx)
+invisible(sampler.tx$run(10L, 3L))
+sampler.tx$storeState()
+
+tempFile <- tempfile()
+saveRDS(sampler.tx, file = tempFile)
+rm(sampler.tx)
+
+# a version stamp below the floor stands in for any refusal the install can
+# raise; it is the one refusal reachable through pure attribute surgery
+revived <- readRDS(tempFile)
+stale <- revived$state
+attr(stale, "formatVersion") <- 2L
+revived$state <- stale
+
+expect_error(revived$run(0L, 1L), pattern = "encoding version 2")
+# the second run refuses IDENTICALLY rather than sampling a stump
+expect_error(revived$run(0L, 1L), pattern = "encoding version 2")
+# nothing was bound and nothing was overwritten: the stored state still holds
+# the fitted forests, so a storeState()-less save still carries them
+expect_false(.Call(dbarts:::C_dbarts_bartcore_isValidPointer, revived$pointer))
+expect_identical(revived$state, stale)
+
+# $setState's own dead-pointer branch is transactional the same way: after a
+# refused install the next revival resumes from the state that is still
+# stored, so the run after a refusal is bitwise the run without one
+refused.tx <- readRDS(tempFile)
+expect_error(refused.tx$setState(stale), pattern = "encoding version 2")
+expect_identical(refused.tx$state, readRDS(tempFile)$state)
+set.seed(11L)
+draws.refused <- refused.tx$run(0L, 2L)
+
+clean.tx <- readRDS(tempFile)
+set.seed(11L)
+draws.clean <- clean.tx$run(0L, 2L)
+expect_identical(draws.refused$train, draws.clean$train)
+
+unlink(tempFile)
+rm(
+  control.tx,
+  tempFile,
+  revived,
+  stale,
+  refused.tx,
+  draws.refused,
+  clean.tx,
+  draws.clean
+)

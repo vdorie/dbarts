@@ -1811,7 +1811,7 @@ dbartsSampler <- setRefClass(
             "?`dbartsSampler-class`)"
           )
         }
-        selfEnv$pointer <- .Call(
+        ptr <- .Call(
           C_dbarts_bartcore_create,
           control,
           model,
@@ -1822,11 +1822,17 @@ dbartsSampler <- setRefClass(
         # cross-grid column (the engine keeps no predictor matrix)
         .Call(
           C_dbarts_bartcore_setState,
-          pointer,
+          ptr,
           state,
           rawPredictorMatrix(data@x)
         )
-        reapplyForestWeights(pointer)
+        reapplyForestWeights(ptr)
+        # the replacement is bound only once it carries the state: a refused
+        # install must leave the object exactly as it was rather than holding
+        # a live but unfitted engine that the next run would silently sample
+        # from and then store over the fitted state. The abandoned pointer
+        # carries its own holder and finalizes itself.
+        selfEnv$pointer <- ptr
       }
       pointer
     },
@@ -1836,8 +1842,9 @@ dbartsSampler <- setRefClass(
         stop("'state' must inherit from bartcoreState")
       }
       selfEnv <- parent.env(environment())
+      ptr <- pointer
       if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
-        selfEnv$pointer <- .Call(
+        ptr <- .Call(
           C_dbarts_bartcore_create,
           control,
           model,
@@ -1847,11 +1854,15 @@ dbartsSampler <- setRefClass(
       }
       .Call(
         C_dbarts_bartcore_setState,
-        pointer,
+        ptr,
         newState,
         rawPredictorMatrix(data@x)
       )
-      reapplyForestWeights(pointer)
+      reapplyForestWeights(ptr)
+      # as in getPointer: a re-created engine is bound only after the install
+      # succeeds, so a refusal leaves a dead pointer dead instead of live and
+      # unfitted, and leaves 'state' the one that is still installed
+      selfEnv$pointer <- ptr
       selfEnv$state <- newState
       invisible(NULL)
     },
