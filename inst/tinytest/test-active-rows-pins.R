@@ -505,6 +505,27 @@ expect_error(
   "applies to every category"
 )
 
+# The mask is the category forests' VETO vector as well as the sweep's
+# precisions: with every row inactive no leaf may hold a row the likelihood
+# sees, so the prior draw returns one bare root per tree. Reading omega alone
+# leaves every row positive-precision and the same draw grows trees.
+priorNodes <- function(mask) {
+  handle <- multinomialHandle(counts.mn, mask)
+  .Call(dbarts:::C_dbarts_bartcore_sampleTreesFromPrior, handle$ptr)
+  dbarts:::bartcoreGetTrees(
+    handle,
+    chainNums = 1L,
+    treeNums = seq_len(control@n.trees),
+    current = TRUE,
+    forest = 0L
+  )
+}
+barePrior <- priorNodes(rep(0, n))
+expect_equal(nrow(barePrior), control@n.trees)
+expect_true(all(barePrior$var == -1L))
+# non-vacuity: unmasked, the same category forest grows past its roots
+expect_true(nrow(priorNodes(NULL)) > 2L * control@n.trees)
+
 rm(
   K.mn,
   labels.mn,
@@ -514,6 +535,8 @@ rm(
   train.mn.a,
   train.mn.b,
   train.mn.empty,
+  priorNodes,
+  barePrior,
   n,
   x,
   y,

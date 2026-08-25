@@ -2,6 +2,10 @@ source(
   system.file("common", "friedmanData.R", package = "dbarts"),
   local = TRUE
 )
+source(
+  system.file("common", "captureWarnings.R", package = "dbarts"),
+  local = TRUE
+)
 
 df <- with(testData, data.frame(x, y))
 
@@ -236,6 +240,20 @@ expect_false("sample" %in% names(current)) # live trees do not
 expect_equal(current, liveSampler$getTrees())
 # current = TRUE is ignored (harmlessly) when there are no saved trees
 expect_equal(liveSampler$getTrees(current = TRUE), liveSampler$getTrees())
+# and current = TRUE takes the sample handling of a keepTrees = FALSE sampler:
+# the live trees carry no sample dimension, so a sampleNums filter names
+# nothing to filter and is dropped with a warning rather than applied to the
+# saved store or range-checked against it
+warnings.currentSample <- captureWarnings(
+  currentFiltered <- keptSampler$getTrees(current = TRUE, sampleNums = 1L)
+)
+expect_equal(length(warnings.currentSample), 1L)
+expect_true(any(grepl(
+  "sampleNums ignored if current is TRUE",
+  vapply(warnings.currentSample, conditionMessage, ""),
+  fixed = TRUE
+)))
+expect_equal(currentFiltered, current)
 
 # a partial update keeps the live trees valid; getTrees(current = TRUE) sees it
 inst <- keptSampler$setPredictor(
@@ -248,6 +266,7 @@ expect_false(any(liveTrees$var == -1L & liveTrees$n == 0L))
 expect_true(length(inst) == n)
 
 rm(keptSampler, liveSampler, makeSampler, saved, current, liveTrees, inst)
+rm(warnings.currentSample, currentFiltered)
 rm(x, y, n)
 
 

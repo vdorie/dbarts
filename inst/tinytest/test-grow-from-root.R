@@ -47,6 +47,18 @@ s3$growFromRoot(2L)
 f3 <- as.vector(s3$predict(x))
 expect_false(isTRUE(all.equal(f1, f3)))
 
+## n.sweeps is the number of grow sweeps the engine runs, not a token the
+## method may discard: at one seed each count leaves its own forest
+grownFor <- function(n.sweeps) {
+  set.seed(101L)
+  sampler <- makeSampler()
+  sampler$growFromRoot(n.sweeps)
+  as.vector(sampler$predict(x))
+}
+expect_false(isTRUE(all.equal(grownFor(1L), grownFor(3L))))
+expect_false(isTRUE(all.equal(grownFor(2L), grownFor(3L))))
+rm(grownFor)
+
 ## cross-sampler workflow: donor$growFromRoot -> target$installTrees round trip
 ## reproduces the grown forest with no bespoke install code
 donor <- dbarts::dbarts(

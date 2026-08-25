@@ -87,6 +87,37 @@ expect_silent(dbarts:::bartcoreSetWeights(bc, rep(1, n)))
 result <- dbarts:::bartcoreRun(bc, 0L, 5L)
 expect_true(all(is.finite(result$train)))
 
+# --- the near-zero multiplier snap. A forest's veto precisions are w_i m_i^2
+# under a snap at |m| < 2^-26, so a multiplier inside that band counts as zero
+# for "which rows a leaf of this forest may hold": a treatment basis scaled
+# into the band leaves the whole forest weightless and the prior draw returns
+# one bare root per tree. Read off the snap alone - it is the multiplier that
+# is small, not the amplitudes, which sit at their creation values (1, 0, 1).
+n.trees.treatment <- 25L
+priorTreatmentNodes <- function(basis) {
+  handle <- dbarts:::bartcoreBCFSampler(
+    dbarts(x, y, control = control),
+    z,
+    n.trees.treatment = n.trees.treatment
+  )
+  dbarts:::bartcoreSetForestBasis(handle, 1L, basis)
+  .Call(dbarts:::C_dbarts_bartcore_sampleTreesFromPrior, handle$ptr)
+  dbarts:::bartcoreGetTrees(
+    handle,
+    chainNums = 1L,
+    treeNums = seq_len(n.trees.treatment),
+    current = TRUE,
+    forest = 1L
+  )
+}
+snapped <- priorTreatmentNodes(cbind(1 - z, z) * 1e-9)
+expect_equal(nrow(snapped), n.trees.treatment)
+expect_true(all(snapped$var == -1L))
+# non-vacuity: at the unscaled basis the same forest grows past its roots
+expect_true(nrow(priorTreatmentNodes(cbind(1 - z, z))) > n.trees.treatment)
+
+rm(n.trees.treatment, priorTreatmentNodes, snapped)
+
 # --- the driver-loop identity, a pinned fact rather than a refusal or a
 # success. Per-forest fits are internal-scale; fit.scale (the stored (min,
 # max) of y) carries the affine map back to the reported scale. a*mu + b_z*tau

@@ -100,8 +100,35 @@ expect_error(
 
 # the print methods summarize a fit to the console, and keep doing so with
 # keepCall = FALSE (previously just "NULL()")
-expect_true(is.character(capture.output(print(fit.bart))))
-expect_true(is.character(capture.output(print(fit.rbart))))
+# the synopsis is the last block of the printout, one labelled line per fact,
+# and each label names the value under it: a fit whose control survived
+# reports its own n.trees and n.burn, and a fit's family is its own
+expect_equal(
+  tail(capture.output(print(fit.bart)), 5L),
+  c(
+    "family: gaussian",
+    "n.chains: 1",
+    "n.trees: 10",
+    "n.burn: 20",
+    "kept draws (per chain): 20"
+  )
+)
+expect_equal(
+  tail(capture.output(print(fit.rbart)), 5L),
+  c(
+    "family: gaussian",
+    "n.chains: 1",
+    "n.trees: 10",
+    "n.burn: 5",
+    "kept draws (per chain): 8"
+  )
+)
+# a fit with no kept trees keeps no control, so the two control-borne lines
+# drop out - and the family line is still the fit's own, not gaussian
+expect_equal(
+  tail(capture.output(print(fit.bart2)), 3L),
+  c("family: probit", "n.chains: 1", "kept draws (per chain): 20")
+)
 fit.noCall <- bart2(
   x,
   y.cont,

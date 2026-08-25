@@ -242,6 +242,21 @@ expect_error(
   dbarts(x, y, family = "ordinal", weights = runif(n, 0.5, 2)),
   pattern = "weights"
 )
+# a single-category response has no cutpoint to place, and is refused by count
+# rather than left to fail on an empty cutpoint vector downstream
+expect_error(
+  bart2(
+    x,
+    ordered(rep_len("only", n)),
+    family = "ordinal",
+    n.samples = 10L,
+    n.burn = 5L,
+    n.trees = n.trees,
+    n.chains = 1L,
+    verbose = FALSE
+  ),
+  pattern = "at least 2 categories"
+)
 # weights identically 1 are treated as absent, the probit courtesy
 samplerW1 <- dbarts(x, y, family = "ordinal", weights = rep(1, n))
 expect_null(samplerW1$data@weights)
@@ -354,6 +369,9 @@ fitRec <- bart2(
 phatRec <- fitted(fitRec)
 expect_true(mean(abs(phatRec - trueProbs)) < 0.08)
 expect_true(abs(mean(fitRec$cutpoints[, 2L]) - 0.8) < 0.35)
+# and it MOVES: gamma_2 is redrawn every sweep, where a sampler that froze it
+# at its cold start (spacing 1) would sit inside the band above with sd 0
+expect_true(sd(fitRec$cutpoints[, 2L]) > 0.02)
 
 # --- type synonyms: "response" and "link" are the predict.glm spellings of
 # "ev" and "bart", accepted here exactly as on a "bart" fit ---

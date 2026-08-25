@@ -58,6 +58,31 @@ expect_match(
 )
 expect_inherits(rbartFit, "rbart")
 
+# the aft arm has no weighted latent form in this version, so it refuses
+# 'weights' by name rather than fitting and ignoring them
+testData$status <- rep_len(c(1L, 0L), length(testData$y))
+testData$time <- exp(abs(testData$y) + 1)
+aftData <- as.data.frame(testData)
+aftData$w <- rep_len(1, nrow(aftData))
+expect_error(
+  dbarts::rbart_vi(
+    cbind(time, status) ~ x.1 + x.2,
+    data = aftData,
+    group.by = g,
+    weights = w,
+    family = "aft",
+    n.samples = 5L,
+    n.burn = 2L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.trees = 5L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  pattern = "do not support 'weights'"
+)
+rm(aftData)
+
 rm(rbartFit, trainData, data, n.train)
 
 rm(testData)

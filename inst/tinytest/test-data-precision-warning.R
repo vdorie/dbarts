@@ -23,6 +23,19 @@ expect_equal(length(warnings.huge), 1L)
 expect_match(conditionMessage(warnings.huge[[1L]]), "indistinguishable")
 expect_true(length(unique(y.huge)) < n)
 
+# the threshold itself, from below. A response whose range is 1e-14 of its
+# scale keeps plenty of distinct doubles, so nothing about it is degenerate to
+# a cardinality check - it is the RATIO that is small, and the 1e-10 constant
+# is what has to catch it
+y.near <- 1e15 + runif(n) * 10
+expect_true(length(unique(y.near)) > 50L)
+warnings.near <- captureWarnings(dbarts::dbartsData(x, y.near))
+expect_equal(length(warnings.near), 1L)
+expect_true(any(grepl(
+  "indistinguishable",
+  vapply(warnings.near, conditionMessage, "")
+)))
+
 # a merely large, but not precision-degenerate, response does not warn:
 # range is still a healthy fraction of scale
 y.large.ok <- 1e6 + rnorm(n, 0, 100)
@@ -33,7 +46,7 @@ expect_silent(dbarts::dbartsData(x, y.large.ok))
 # pre-fit standardization maps cleanly - so this is discrete data, not a
 # precision artifact
 y.fewDistinct <- 1e6 + sample(c(0, 1, 2), n, replace = TRUE)
-expect_true(diff(range(y.fewDistinct)) / max(abs(y.fewDistinct)) >= 1e-10)
+expect_equal(diff(range(y.fewDistinct)), 2)
 expect_silent(dbarts::dbartsData(x, y.fewDistinct))
 
 # ordinary continuous data never warns
@@ -70,6 +83,7 @@ rm(
   n,
   x,
   y.huge,
+  y.near,
   y.large.ok,
   y.fewDistinct,
   y.ok,

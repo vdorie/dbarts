@@ -133,6 +133,33 @@ expect_equal(
 )
 expect_identical(xval(y.bin), xval(y.bin, loss = "log"))
 
+# and the weighted mcr branch, (b)'s mirror on the binary side. Weights reach
+# a binary loss only where the family admits them - logistic, whose weights
+# are trial counts - and the loss owes them the same sum(w * .) / sum(w) the
+# rmse arm takes; an mcr that averaged its misclassifications instead would
+# report the unweighted number transcribed below it.
+foldsCounted <- foldsUnder(y.bin, weights = w, family = "logistic")
+probsCounted <- lapply(foldsCounted, function(f) rowMeans(plogis(f$samples)))
+misclassified <- lapply(
+  seq_along(foldsCounted),
+  function(i) (probsCounted[[i]] > 0.5) != foldsCounted[[i]]$y
+)
+expect_equal(
+  xval(y.bin, weights = w, family = "logistic", loss = "mcr"),
+  foldAverage(vapply(
+    seq_along(foldsCounted),
+    function(i) {
+      sum(foldsCounted[[i]]$weights * misclassified[[i]]) /
+        sum(foldsCounted[[i]]$weights)
+    },
+    0
+  ))
+)
+expect_false(isTRUE(all.equal(
+  as.vector(xval(y.bin, weights = w, family = "logistic", loss = "mcr")),
+  foldAverage(vapply(misclassified, mean, 0))
+)))
+
 # (d) the fold averaging on its own, by hand rather than by capture: a loss
 # that reports its fold's size averages the fold sizes, and 12 rows split
 # 4, 4, 4 in 3 folds and 3, 3, 2, 2, 2 in 5

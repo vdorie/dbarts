@@ -310,6 +310,26 @@ expect_error(
   predict(fit, xNew, type = "bart", bases = list(NULL, rep(1, nNew))),
   pattern = "gives forest 2 1 column; its amplitudes take 2"
 )
+# non-finite, which the predict path refuses on its own rather than carrying
+# into the blend and reporting infinite or NA fits
+expect_error(
+  predict(
+    fit,
+    xNew,
+    type = "bart",
+    bases = list(NULL, cbind(rep(Inf, nNew), 0))
+  ),
+  pattern = "a 'basis' must be finite"
+)
+expect_error(
+  predict(
+    fit,
+    xNew,
+    type = "bart",
+    bases = list(NULL, cbind(rep(NA_real_, nNew), 0))
+  ),
+  pattern = "a 'basis' cannot be NA"
+)
 # a bare value is unambiguous only at one basis-carrying forest
 expect_error(
   predict(bothBasesFit, xNew, type = "bart", bases = rep(1, nNew)),
