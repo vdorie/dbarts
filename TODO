@@ -286,6 +286,7 @@ items
     docs/design/memory-wall-frontier.md sec 12.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
+  bump the DESCRIPTION Date at the RC (unchanged since 2026-07-25).
   note: the schedule/dispatch-only workflows (equivalence, rchk,
     revdep-smoke, sbc, valgrind) cannot register or run until they
     exist on the default branch - GitHub binds BOTH schedule and

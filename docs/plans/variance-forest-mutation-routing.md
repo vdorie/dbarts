@@ -418,12 +418,12 @@ a semantic question into a clamp.
   trees to the column mask on setState"; the check is live in
   `stateIsValid`'s variance branch (src/bartcore/chain.hpp:3341) and as
   `rebuildVarianceForest`'s backstop (src/bartcore/chain.hpp:4377).
-  `stateIsValid`'s variance branch checks count,
-  well-formedness, and strict positivity only, and `rebuildVarianceForest`
-  has no `columnMaskSubtreeIsValid` backstop - the mean path has both. The
-  INSTALL path is covered by S5's `installForests` pre-flight; a
-  column-restricted variance forest restored through `setState` is not.
-  Small, same scratch-pass shape as the S5 install check.
+  The variance branch now checks the column mask on both install
+  routes (setState and installForests), matching the mean path, and the
+  bridge refuses a violating state by name (feature-matrix.md's setState
+  row anchors both). Nothing remains open under this bullet: the
+  closure line above is the record, and the description of the hole
+  that preceded it is retired with the door.
 
 ## Verification (every slice)
 

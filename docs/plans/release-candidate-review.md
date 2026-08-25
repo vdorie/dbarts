@@ -4,7 +4,7 @@ Status: SPECCED 2026-08-17 (base 96ab54e0), amended per the blind
 critique of the same date (verdict: execute with amendments; all
 eleven applied). The TODO entry
 release-candidate-review is the charter; this file is the derived
-slate and the program's record. Landing notes append at EOF.
+slate and the program's record. Landing notes go newest-first under the Landing notes heading.
 
 ## 1. Charter (restated)
 
@@ -53,11 +53,11 @@ corrected by the critique):
   residual bookkeeping, totalFits accumulation, sigma conditional on
   the full ensemble - is gated by nothing at ensemble scale.
   gate-blindspot-audit.md reached this and it was never closed.
-- Ten of the eleven CI workflow files have never executed anywhere
-  (default-branch registration, above): rchk, valgrind, ALL SBC, the
-  59-scenario statistical equivalence gate, revdep-smoke, and the
-  full-mode/scheduled halves of exact-gates. equivalence.yaml's YAML
-  itself is unvalidated.
+- Five of the eleven CI workflow files have never executed anywhere
+  (default-branch registration, above): rchk, valgrind, sbc,
+  equivalence (the statistical equivalence gate) and revdep-smoke; the
+  other six run on every bartcore push. equivalence.yaml's YAML parses
+  but has never run.
 - Three recorded defects are live and ungated: multinomial silently
   drops DART (chain.hpp hard-sets useDart = false while bart2
   threads it); Student-t pointwise log-likelihood evaluates the
@@ -536,6 +536,78 @@ All six forks answered the day the plan landed:
   registered.
 
 ## Landing notes
+
+### Repo-state audit and clean before the human review (018225ca..HEAD, 2026-08-25)
+
+Scope: VD's directive that present-facing files carry no edit history
+(history lives in retired plan docs and git), that memory be cleaned and
+fact-checked, and that nothing be missing before the human-review and RC
+legs. Four read-only audits (forward-facing files, memory accuracy, repo
+hygiene, RC completeness) drove the work; their reports were session
+files and are summarized here.
+
+Design-doc anchors. An independent sample audit of 018225ca's
+re-derivation found 42 percent of anchors not landing (59 live sampled;
+multinomial-mutation-arc's capability table 0/37); the deltas were
+content-derived, so the failure was coverage. Every anchor in the 25
+live docs/design files plus feature-matrix.md was re-derived by content
+(60aea703 four docs, 89e1ecd3 four, 207d4ca0 six, 5a7afe57 eleven,
+27c63859 feature-matrix; 9f538bbf the sample fixes), the prose the code
+contradicted was reconciled (6e148281, 30 items; multinomial-mutation-arc
+now LANDED with sections 1-4 scoped as the pre-arc tree), and a
+fresh-seed certification sample (n = 105) landed 97.1 percent with no
+clustered file (69cb6491). feature-matrix.md lost its refresh chronology
+(b2e360c6, ba0e79ba; 1255 -> 1042 lines) and two landed fixes it still
+listed as open gaps. After the code fixes below moved lines, a
+diff-derived line map re-aligned 87 anchors (7bf3c600); anchors are
+verified against the code tree at e654012d.
+
+Forward-facing strip (39fa379a, 9a908bbd): TODO 583 -> 329 lines (nine
+closed-narrative entries deleted, ten trimmed, three stale claims
+corrected - the anchor resync had landed, the data@x dimnames drop was
+fixed, the bcf/multinomial pins live in equivalence.yaml); INDEX.md
+statuses re-read from each doc; docs/README.md and docs/plans/README.md
+rules rewritten to describe practice; workflow comments stripped of
+history. The TODO's claim that the five schedule-only workflows 404 on
+manual dispatch was verified TRUE and kept. Baselines pruned 65 -> 11
+files (01bd49a7; 18.6 MB), MANIFEST rows with them;
+two dead .gitignore lines dropped.
+
+Shipped fixes (654e4681, 3298da0e, ae5b91d8):
+man/dbartsSampler-class.Rd documented wrong argument names for
+setControl/setModel/setData and omitted storeState's ptr - R CMD check's
+codoc cannot see reference-class methods, so tools/check-rc-codoc.R now
+guards them in lint.yaml (mutation-proved); man/pdbart.Rd's example
+re-wrapped in \donttest; six plot sites restore par() (CRAN policy; five
+tinytest assertions rewritten to a sentinel); R/diagnostics.R named a
+file that does not exist; sanitizers.yaml now installs survival and
+posterior, so seven test files run under ASAN (7279 results, was 7246
+there); NEWS.Rd's three self-contradicting pairs resolved and three
+surfaces plus two warning classes introduced. The sanitizer step then
+failed on ae5b91d8 from an apostrophe inside its single-quoted R block
+(comment strip); cured at 674be0c4 - fire-and-cure, the red run stands.
+e654012d reunified the forest-weights refusal text across the boundary
+with the bridge file's line count held.
+
+Record: the review's evidence is tracked at docs/plans/review-2026-08-24/
+(658869ac) and the tour refreshed and tracked at
+docs/plans/bartcore-review-tour.md (0b89ab8b, anchored at ae5b91d8);
+scratch/ and .claude/ citations retargeted or stripped (4c018187).
+tools/check-doc-freshness.R now checks every docs/design anchor at the
+line (strict tier for identifiers beside the anchor, advisory otherwise),
+commit-hash resolvability (skipped on shallow clones, cross-repo cites
+exempt) and INDEX status labels (3ef2190f; ff7fee0a fixed what it found;
+70 advisories remain, listed by shape in the commit). air excludes docs/
+(3a148caf).
+
+Memory: 156 claims checked, eleven false (the x86 bench box is reachable;
+the baseline trio and counts; dbarts.h's last change; a phantom CI
+workflow); all files rewritten forward-facing.
+
+Doors left (unchanged unless noted): fit-time test-basis; logistic
+weights never ride saved state; DESCRIPTION Date bumps at the RC; the 70
+freshness advisories; plot.bart/plot.rbart still leak par() through
+plotSigmaTrace (the six own-class sites restore).
 
 ### The docs/ citation strip and xbart's k-grid sort (ad4d801d, e1223266, 2026-08-25)
 
@@ -1019,8 +1091,8 @@ expected NOTE.
 Doors left: the fit-time test-basis channel (VD-held modelling
 decision); weights never ride saved state (logistic); per-forest
 off-sample replay on multinomial and OP_GROW outside the multi-forest
-fuzz mask (fuzz-arm doors); docs/plans/bartcore-review-tour.md, stale
-(2026-08-04, pre-rebase), due a refresh before the review runs.
+fuzz mask (fuzz-arm doors); docs/plans/bartcore-review-tour.md is
+refreshed (anchored at ae5b91d8) and tracked - read it first.
 Consumer facts: stan4bart is compatible with numSavedSamples' new
 meaning (resets storage per iteration, reads the count after its
 loop); bartCause's `bcf(keepTrees=TRUE)` was rotated before the fix
