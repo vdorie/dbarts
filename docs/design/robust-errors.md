@@ -26,13 +26,13 @@ model.hpp:4074). Its mean (nu+1)/(nu + w_i r_i^2/sigma^2) is ~1 in-range, small
 for a gross outlier -- that downweighting IS the robustness.
 
 lambda enters the tree stage exactly as logistic's omega does: the engine weights
-node sufficient statistics by ResponseModel::workingWeights() (chain.hpp:560;
-into setNodeAverages chain.hpp:644 and MoveContext.weights chain.hpp:618), where
+node sufficient statistics by ResponseModel::workingWeights() (chain.hpp:1374;
+into setNodeAverages chain.hpp:1469 and MoveContext.weights moves.hpp:40), where
 the t family returns the composite precision c_i = w_i lambda_i.
 **No engine change, no GaussianResponse edit (item 2).** The constant leaf
 recomputes (sumWeights, sumWeightedResponse, sumWeightedResponseSq) each sweep
-from the current weights (chain.hpp:643); the vector-leaf crossproduct cache
-drops when workingWeightsVaryPerSweep() is true (chain.hpp:697-700). Both were
+from the current weights (chain.hpp:1469); the vector-leaf crossproduct cache
+drops when workingWeightsVaryPerSweep() is true (chain.hpp:1540). Both were
 built for logistic's per-sweep omega, so this is a pure ResponseModel addition.
 
 ## 2. Composition, families, scope

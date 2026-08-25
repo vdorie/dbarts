@@ -419,7 +419,7 @@ contract:
    by construction rather than by coincidence (combiner.hpp:889-892, :1264-1266).
 3. `forestMultiplier` contracts FORWARD over the columns; at q > 2 a
    reassociation moves the multiplier by an ulp and every reader of it with it
-   (combiner.hpp:1391-1394).
+   (combiner.hpp:1399-1408).
 
 The standing lesson these pins carry, twice learned: a pin fixture must give
 every factor in the pinned expression a DISCRIMINATING value - unit values

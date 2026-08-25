@@ -74,7 +74,7 @@ tree l on the region x falls into is s^2_lk > 0.
 
 **Backfitting decouples both forests into conditional-conjugate pieces.** With user
 case weights w_i, Var(y_i) = s^2(x_i) / w_i (the dbarts precision-weight convention;
-GaussianResponse borrows w_i, model.hpp:2800,2811). The mean forest is untouched:
+GaussianResponse borrows w_i, model.hpp:2788,2800). The mean forest is untouched:
 conditional on s(.), each observation has a known precision w_i / s^2(x_i), so the
 mean update is the ordinary WEIGHTED Gaussian backfit the engine already runs
 (weighted node suffstats, tree.hpp:217-225). The variance forest backfits
@@ -263,7 +263,7 @@ probit, logistic, nbinom, and ordinal, checked at the factory against the family
 argument (facade.hpp:796-798) before any Chain is built - the same
 construction-time refusal shape monotone uses for categorical columns
 (facade.hpp:774). Only the Gaussian family, whose workingWeights() returns the
-borrowed user weights (model.hpp:2811), leaves the channel available to carry
+borrowed user weights (model.hpp:2800), leaves the channel available to carry
 w_i / s^2(x_i). (Heteroscedastic probit/logistic - modeling a variance surface under
 a latent link - is a real model but needs a distinct latent-plus-scale plumbing out
 of v1 scope, section 11.)

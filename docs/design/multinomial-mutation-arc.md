@@ -45,9 +45,9 @@ labelled READ was traced in source at tip.
 | `:1754` | ordinal | `buildHostSamplerCall(family = "ordinal")` | `bartcoreSampler(sampler, family = "ordinal")` (`:550`) |
 | `:1999` | nbinom | `buildHostSamplerCall(family = "nbinom")` | `bartcoreSampler(sampler, family = "nbinom")` |
 
-`buildHostSamplerCall` is `R/bart.R:538-558`. `result$bc <- bc` at
-`:1462`, `:1539`, `:1835`, `:2072`, gated on `control@keepTrees`.
-`result$fit <- sampler` at `:1465`, `:1542`, `:1839`, `:2076`, gated on
+`buildHostSamplerCall` is `R/bart.R:538-558`. `result$bc <- bc` is
+retired - the separate `$bc` handle is gone (section 1.5).
+`result$fit <- sampler` at `:1511`, `:1592`, `:1893`, `:2135`, gated on
 `control@keepTrees || keepSampler`.
 
 MEASURED: two `bartcore_create` calls per fit for ordinal and nbinom -
@@ -114,20 +114,20 @@ Every entry below ALREADY works on a multinomial handle (READ, against
 | **train offset** | `bartcore_setCategoryOffset` `:3838` | `:987` | S, unexported |
 | **test offset** | `bartcore_setCategoryTestOffset` `:3877` | `:1011` | S, unexported |
 | predictors: whole / column / per-obs / joint | `:5014`, `:5062`, `:5175`, `:5229` | | S - no multi-forest guard, by decision (`bart-as-a-component.md:79-87`) |
-| cut points | `bartcore_setCutPoints` `:5119` | `:1315` | S |
+| cut points | `bartcore_setCutPoints` `:5158` | `:1315` | S |
 | test predictors | `bartcore_setTestPredictor` `:4690` | `:1225` | S (`refuseUndefinedTestFits` `:2849` gates on `testFitsAreDefined`, TRUE here) |
 | active-row mask | `bartcore_setActiveRows` `:4008` | `:1199` | S, global only (`[f21]`) |
-| predict (K-aware, own n x K offset) | `bartcore_predict` `:5724` | `:1339` | S |
+| predict (K-aware, own n x K offset) | `bartcore_predict` `:5724` | `:1080` | S |
 | per-category fits / varcounts | `:4067`, `:4200` | `:1093`, `:1144` | S |
 | calibration read | `bartcore_getCalibration` `:4125` | `:1115` | S (map columns, NaN off-map) |
-| state store / restore | `:5579`, `:5584` | `:1384`, `:1388` | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:347-356`) |
+| state store / restore | `:5618`, `:5623` | unresolved | S, STRUCTURAL not bitwise (omega redrawn; `multinomial.md:347-356`) |
 | saved trees | `bartcore_getTrees` `:5770` | `:1357` | S, forest-indexed |
 
 Refused, with the refusal already written: `setResponse` / `setOffset`
 (redirect to counts / category offset, `:2668-2675`), `setWeights`
 (`:2674`, same branch), `setSigma`, `setData` / `setModel`
 (`refuseMultiForestMutation` `:2629`), `setCalibration` (`:4172`),
-`setForestWeights` (`:3948-3952`, permanent, model grounds), `getLatents`
+`setForestWeights` (`:3982-3985`, permanent, model grounds), `getLatents`
 (NULL - `[f22]`), `getFitsWithoutOffset`.
 
 For ordinal and nbinom the handle is an ordinary single-forest sampler:
@@ -135,7 +135,7 @@ it can do everything an R5 `dbartsSampler` can do, because it IS the same
 engine object an R5 sampler wraps.
 
 **So the engine gap is closed and the surface gap is not.** TODO's
-`multinomial-counts-mutation` entry (`:309-322`) says "The multinomial
+`multinomial-counts-mutation` entry (`TODO:281-292`) says "The multinomial
 family is now a full conditional inside a larger Gibbs/MH sampler." True
 of the ENGINE, false of the PUBLIC surface: reaching it needs
 `getFromNamespace` against three unexported functions and a classless
@@ -226,8 +226,8 @@ file's header, `:7`).
 ### Fork A. Surface shape
 
 **A1** front any handle from `dbartsSampler` (needs the response on
-`data`, fork G; `length(data@y)` appears at `:1244`, `:1280`, `:1302`,
-`:1345`, and `R/bartcore.R:360`; `$predict`'s offset coercion
+`data`, fork G; `length(data@y)` appears at `:1340`, `:1402`, `:1429`,
+`:1477`, and `R/bartcore.R:360`; `$predict`'s offset coercion
 `:1078-1097` needs a K-matrix arm).
 **A2** a new public class (doubles the documented surface; breaks the
 "an ordinary `dbartsSampler`" promise `man/dbarts.Rd` makes for
@@ -243,8 +243,8 @@ problems:
 
 Sub-decision, **corrected**: `samplerOnly` is NOT "two lines".
 `checkFamilyUnsupportedArgs` (`R/bart.R:616-644`) has **four** callers -
-multinomial `:891`, ordinal `:1041`, nbinom `:1072`, and
-**`hurdle.lognormal` `:1114`** - and its `samplerOnly` block is three
+multinomial `:914`, ordinal `:1067`, nbinom `:1100`, and
+**`hurdle.lognormal` `:1144`** - and its `samplerOnly` block is three
 lines (`:604-606`) inside a helper that refuses two other things.
 Deleting the block un-refuses `samplerOnly` for hurdle, whose `$fit` is a
 PAIR of samplers (`test-hurdle.R:172-173`) and which this arc does not
@@ -370,7 +370,7 @@ carries its own holder; the adopted ptr's protection slot already pins
 `sampler$data`, the same S4 object the R5 mirrors into, so every setter's
 retained vector lands on the right holder; the `state` promise is
 `delayedAssign`ed against the object's own `pointer`
-(`R/dbarts.R:896-910`), so it resolves against the adopted engine; and
+(`R/dbarts.R:932-946`), so it resolves against the adopted engine; and
 `getPointer()`'s re-creation branch rebuilds from
 `(control, model, data)` with `model@family == "ordinal"` and the
 `bartcore.*` control attributes intact, which is exactly correct for

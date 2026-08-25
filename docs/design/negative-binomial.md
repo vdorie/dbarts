@@ -676,7 +676,7 @@ primitive only if the (B) door opens).
   project admit approximate PG draws (no exact real-shape sampler exists,
   2B(iii)), or does it hold the integer-exact line? Weighted-binary's
   real-weights half inherits fork (A)'s answer verbatim: integer weights exact
-  and shipped (LogisticResponse already does them, model.hpp:3530-3543),
+  and shipped (LogisticResponse already does them, model.hpp:3555-3557),
   fractional weights deferred behind the SAME door as real r, and the two
   doors should open together (one primitive, one bias budget, one component-
   test contract serves both - fork (B)'s specification is written to be that

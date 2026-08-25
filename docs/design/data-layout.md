@@ -48,7 +48,7 @@ layout is the substrate.
 
 ## 1. The engine's current access pattern (verified in code)
 
-Per forest (chain.hpp:400-460):
+Per forest (combiner.hpp:138-197):
 
 - `indexBuffer` : `n * numTrees` size_t. Tree t owns the contiguous slice
   `indexBuffer + t*n`; `Tree::indices` points at it (tree.hpp:260,268).

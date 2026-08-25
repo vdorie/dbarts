@@ -927,7 +927,7 @@ strictly better founded than annealed burn on both validity and evidence.
 ### 4.5 Informed birth/death over the shared cut scan
 
 **What it is.** One scan per variable over a leaf's members
-(`scan.hpp:75`) yields the collapsed marginal likelihood for *every*
+(`scan.hpp:105`) yields the collapsed marginal likelihood for *every*
 candidate cut at once. Instead of drawing the cut from the prior, propose
 over the whole birth/death neighbourhood with weights proportional to
 `sqrt(posterior ratio)` (Zanella's locally-balanced construction), and the

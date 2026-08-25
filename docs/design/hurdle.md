@@ -271,7 +271,7 @@ across the two fits, and predict on new data.
   S. Validate y >= 0 (refuse negatives by name, the nbinom validation precedent,
   negative-binomial.md). No latent split is drawn - the zeros are observed.
 - **The fit object + generics.** A dedicated class `bartHurdle` (the bartMultinomial /
-  bartNegbin idiom, R/bart.R:2328,2332) holding the two component fits (or their packaged
+  bartNegbin idiom, R/bart.R:1727,2203) holding the two component fits (or their packaged
   draws) plus a marker recording the variant. Generics combine the two components' draws
   by sample index (any pairing is a valid joint draw, section 0):
   - predict / fitted / extract, type = "ev"/"response": combined E[y | x] =

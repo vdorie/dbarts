@@ -527,7 +527,7 @@ correctness, and the reduction gate (section 5) holds for either.
   link-traditions finding), and the grouped-PH tradition expects cloglog
   (unavailable in v1, section below) - so a survival analyst from OUTSIDE
   the BART world expects logit (or cloglog), not probit; logistic's
-  node.scale is already provisioned (pi*sqrt(3), :509).
+  node.scale is already provisioned (pi*sqrt(3), :407).
 
 Recommend probit: the two constituencies split (BART users -> probit,
 applied survival -> logit), the tie-breaks are the house default and the
@@ -608,7 +608,7 @@ period and cannot supply h(k | x_i) beyond it. A full-horizon S(t | x_i)
 needs hazards at EVERY requested period, and only tree replay provides
 them: the hazard method ALWAYS re-expands its subjects to the requested
 grid and predicts - training data included - and therefore requires
-keepTrees UNCONDITIONALLY (the predict.bart guard, R/generics.R:249-260),
+keepTrees UNCONDITIONALLY (the predict.bart guard, R/generics.R:269-275),
 where aft's training-data path never needs it. Requested `times` are grid
 periods; S cumulates (1 - h) through each. Both quantities are thus
 available: per-period hazards via the ordinary binary predict/extract,

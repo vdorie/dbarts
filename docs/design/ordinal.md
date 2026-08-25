@@ -477,7 +477,7 @@ robust-errors precedent (docs/design/robust-errors.md section 6).
   single-forest cumulative probit and not a second multi-forest model.
 
 - **Grouped / mixed-model ordinal (rbart_vi + ordinal).** Refused cleanly at the
-  R layer, at the resolveClassificationFamily call in rbart_vi (R/rbart.R:334),
+  R layer, at the resolveClassificationFamily call in rbart_vi (R/rbart.R:338),
   before the group attribute is built; rbart_vi's family vector (R/rbart.R:48)
   omits "ordinal" for v1. The door is real: GroupedResponse is a base-response
   decorator whose conjugate group update needs a Gaussian working response with

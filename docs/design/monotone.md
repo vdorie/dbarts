@@ -141,8 +141,8 @@ fixed order mixes poorly.
 provision (core-generalization.md) reads as though a tree-granularity leaf
 draw seam already exists; it does NOT. Today the draw is a hardcoded per-node
 loop that rebuilds mu from zero every sweep (`mu.assign(tree.nodes.size(), 0.0)`,
-chain.hpp:4913, then an independent `drawFromPosteriorForNode` per bottom node,
-chain.hpp:4914-4928), the leaf-model concept exposes ONLY that per-node scalar
+chain.hpp:4940, then an independent `drawFromPosteriorForNode` per bottom node,
+chain.hpp:4941-4955), the leaf-model concept exposes ONLY that per-node scalar
 draw (`ScalarLeafModel`, model.hpp:50-58), and the moves are leaf-templated free
 functions that read the node sufficient statistics and ZERO leaf parameters
 (`logLikelihoodForBranch`, moves.hpp:67-95). Three real changes follow, none a
@@ -151,13 +151,13 @@ mere re-pointing:
 1. A new concept method - a tree-granularity draw
    `drawParametersForTree(rng, tree, k, sigma2, muOut)` the constant monotone leaf
    provides and `sampleParametersAndSetFits` calls once per tree, in place of the
-   per-node loop at chain.hpp:4914, when the leaf model declares it. Independent
+   per-node loop at chain.hpp:4941, when the leaf model declares it. Independent
    per-leaf stays the default for every other model, byte-identical (section 8).
 2. Leaf values must stay VALID through the move phase. The move score needs
    mu_same, the frozen neighbor values, DURING `metropolisJumpForTree`
    (chain.hpp:1481). Those values already survive there: `sampleParametersAndSetFits`
    runs AFTER the moves and only then zeroes and refills `muByTree[t]`
-   (`mu.assign(tree.nodes.size(), 0.0)`, chain.hpp:4912-4913 - `mu` is a reference
+   (`mu.assign(tree.nodes.size(), 0.0)`, chain.hpp:4929-4940 - `mu` is a reference
    INTO the persistent `forest.muByTree[t]`), so during the moves the vector still
    holds the previous sweep's draw. The new work is keeping it consistent ACROSS
    in-sweep structural changes: an accepted birth adds two nodes and a death removes

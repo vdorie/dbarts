@@ -230,8 +230,8 @@ multiplier family the fourth - leaving hurdle's the only one standing:
 
 The combiner API's own input side is now general in K AND in per-forest basis
 width: `setForestBasis` (combiner.hpp:797-799), the amplitude trio
-`totalAmplitudes`/`numForestAmplitudes`/`amplitudes` (:550-560), and a ragged
-glue wire block (:666-675). The math is docs/design/multiplier-combiner.md's
+`totalAmplitudes`/`numForestAmplitudes`/`amplitudes` (:607-609), and a ragged
+glue wire block (:721-730). The math is docs/design/multiplier-combiner.md's
 and is not restated here.
 
 **What the virtual surface grew, and the general rule it grew under.** Since
@@ -251,7 +251,7 @@ What still does NOT generalize, after M4:
 
 - (i) The single-leaf-type forest vector, unchanged (third bullet above).
 - (ii) Non-Gaussian. The K-forest constructor hardcodes `GaussianResponse` and
-  `family_ = ResponseFamily::gaussian` (chain.hpp:5445), and
+  `family_ = ResponseFamily::gaussian` (chain.hpp:754-791), and
   `createAmplitudeSampler` carries a single
   `SamplerFacade<ConstantGaussianLeaf>` instantiation (facade.hpp:736-739).
   That is M4.4.
