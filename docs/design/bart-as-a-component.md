@@ -44,7 +44,7 @@ bare `numForests >= 2` and covers the whole-object conduits, which would
 rebuild or reprice forest 0 alone: `bartcore_setData`, `bartcore_setModel`,
 and the flat `dbarts_sampler_setTestOffset`.
 
-`refuseMultiForestResponseMutation` (`:2652`) is the one multi-forest family
+`refuseMultiForestResponseMutation` (`:2636`) is the one multi-forest family
 that is opt-in rather than refused. It passes a single-forest sampler
 unconditionally, then asks the coupling whether it can express a response
 swap at all - `Chain::supportsResponseMutation` (`chain.hpp:1068`), which is
@@ -62,16 +62,17 @@ against. The test is `updateScale != FALSE`, so NA refuses too; the R5 methods
 default the argument to FALSE. The weight conduit has no scale to pin and skips
 the clause.
 
-`refuseUndefinedTestFits` (`:2858`) closes the test surface, gated on
-`numForests >= 2 && !testFitsAreDefined` rather than on the forest count, so a
-coupling whose test blend IS defined passes through. It guards
-`setTestPredictor`, `setTestOffset`, `setTestPredictorAndOffset` and `predict`
-on the bridge, and `dbarts_sampler_setTestPredictors` and
-`dbarts_sampler_predict` flat. Because the test predictors can never be
-installed, the whole surface is closed rather than partly closed. That is a
-SAMPLER-level closure: the combined location at new rows is still available at
-the fit level, where `predict.bart` blends the per-forest replay with the
-stored glue and the caller's own bases (R/generics.R, `predictBlend`).
+`refuseUndefinedTestFits` (`src/R_interface_bartcore.cpp:2867`) closes the
+test surface, gated on `numForests >= 2 && !testFitsAreDefined` rather than
+on the forest count, so a coupling whose test blend IS defined passes
+through. It guards `setTestPredictor`, `setTestOffset`,
+`setTestPredictorAndOffset` and `predict` on the bridge, and
+`dbarts_sampler_setTestPredictors` and `dbarts_sampler_predict` flat.
+Because the test predictors can never be installed, the whole surface is
+closed rather than partly closed. That is a SAMPLER-level closure: the
+combined location at new rows is still available at the fit level, where
+`predict.bart` blends the per-forest replay with the stored glue and the
+caller's own bases (R/generics.R, `predictBlend`).
 
 R5 raises its own wording ahead of the bridge for a sampler carrying
 amplitudes (`refuseAmplitudeMutation`, `R/bartcore.R:36`), on
@@ -123,7 +124,7 @@ them again, and who does that depends on the layer:
   so a pipeline that discards the R5 holder and installs a DONOR's state into
   a fresh engine starts with no per-forest weight whatever the donor had, and
   the two stored states compare equal while the fits diverge. This is a
-  contract item, decided in `bcf.md:159-173` and pinned for the same-holder
+  contract item, decided in `bcf.md:164-174` and pinned for the same-holder
   round trip in `inst/tinytest/test-forest-weights.R`. An active-row mask is
   mirrored nowhere at all and is lost on re-creation.
 - A flat C consumer owns every one of them, having no R5 layer to mirror
@@ -181,8 +182,8 @@ the location and the sigma channel. The same at
 per-forest fit and amplitude channels. Negative half: a loop at `n.thin = 3`
 reproduces a batched run at `n.thin = 3` and differs from one at `n.thin = 1`,
 so the pin discriminates. The suite carries the multi-forest half at
-`inst/tinytest/test-bcf-mutation-pins.R:103` and
-`inst/tinytest/test-bcf-reporting.R:79`.
+`inst/tinytest/test-bcf-mutation-pins.R:145-185` and
+`inst/tinytest/test-bcf-reporting.R:84-105`.
 
 Cost of the loop, section 1. Twenty alternating rounds of 500 sweeps, 200
 trees, n = 500, p = 5, per-round minimum: batched 0.150-0.152 s, looped

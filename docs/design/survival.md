@@ -388,10 +388,10 @@ tokens (the remap block below).
 CANNOT flow through the family-keyed resolution unchanged - verified
 against the code: node.scale is a switch(family, ...) with NO default
 (R/model.R:399-416), so an unknown token yields NULL; control@binary
-keys on family %in% c("probit", "logistic") (:359), so the binary
-machinery would stay off; fixedUnitScale excludes it (:368-370), so sigma
+keys on family %in% c("probit", "logistic") (R/spec.R:18-19), so the binary
+machinery would stay off; fixedUnitScale excludes it (R/spec.R:225-228), so sigma
 would be ESTIMATED and the 0/1 response fit as gaussian; and the weight
-policy keys on the literal tokens (:382-403). The design is therefore an
+policy keys on the literal tokens (R/spec.R:45-88). The design is therefore an
 early REMAP: immediately after the ingestion resolves the hazard request
 and the expander runs, the R surface rewrites family to the underlying
 binary token ("probit" or "logistic"), BEFORE the node.scale /
@@ -417,7 +417,7 @@ edit, so it differentiates none of them.
 
 **DECISION (open for VD; entangled with section 3) - naming.** probit and
 logistic are already two family tokens for one Bernoulli model under two
-links (R/dbarts.R:383-384); the hazard model, being sugar over exactly
+links (R/dbarts.R:378-379); the hazard model, being sugar over exactly
 those, can be named the same way:
 
 - Recommend: two tokens, family = "hazard" (probit link, the house binary
@@ -440,7 +440,7 @@ those, can be named the same way:
   entangled with the response shape (discrete.time = TRUE on a
   non-survival response must be refused). An earlier draft rejected B for
   a claimed Surv-ambiguity against aft; that argument does not withstand
-  scrutiny - ALL three forms need the identical guard edit at :229, so
+  scrutiny - ALL three forms need the identical guard edit at R/dbarts.R:473, so
   the collision differentiates nothing, and B stands or falls on the
   argument-count trade alone.
 
@@ -455,7 +455,7 @@ for. Strongest counter, upgraded by the survey: the one shipped
 discrete-time BART picks its link by argument (type = "pbart"/"lbart"),
 so a surv.bart migrant would find Alternative A the familiar shape. The
 tokens are added to the dbarts and bart2 family vectors
-(R/dbarts.R:467, R/bart.R:699) and remapped as above; xbart and
+(R/dbarts.R:384-386, R/bart.R:699) and remapped as above; xbart and
 rbart_vi omit them (their match.arg vectors, R/xbart.R:26, R/rbart.R:48,
 ARE the refusal, the ordinal/nbinom precedent) - grouped hazard is
 section 6.
@@ -570,7 +570,7 @@ inverse link solely by identical(family, "logistic") and defaults to
 pnorm (R/generics.R:12-19) - had $family recorded a hazard token instead,
 a logit-link hazard fit would take the probit transform SILENTLY, a wrong
 number with no error - and pointwiseLogLikelihood dispatches on $family
-and errors on families it does not know (R/generics.R:53; its
+and errors on families it does not know (R/generics.R:56; its
 probit/logistic Bernoulli branch is exactly the per-row discrete-hazard
 log-likelihood, by the section-1 identity). The rejected alternative -
 recording a hazard token in $family and teaching each consumer the new
@@ -594,14 +594,14 @@ S(t | x) = prod_{k<=t} (1 - h(k | x)), a cumulative product of
 **survivalProbabilities: same entry point and shape, DIFFERENT evaluation
 path than aft's.** The generic (R/generics.R:8) gains a hazard branch in
 survivalProbabilities.bart, keyed on the $periods marker beside the aft
-$family gate (R/bart.R:2480), computing S by cumulative hazard products
+$family gate (R/bart.R:2492,2500), computing S by cumulative hazard products
 instead of the log-normal tail. The SHAPE convention matches aft's
 exactly - draws x times x observations, a chain margin under
 combineChains = FALSE, the extract-draws / fitted-mean / ci.level tiers -
 so the two survival families share ergonomics. The EVALUATION cannot
 mirror aft's training path, though: aft's newdata = NULL path reads one
 stored linear predictor per subject (extract type = "bart",
-sample = "train", R/bart.R:2509-2510) because every subject has exactly
+sample = "train", R/bart.R:2515) because every subject has exactly
 one row, but the hazard training design is RAGGED - subject i has only
 t_i rows, so its stored training fits stop at its own event/censoring
 period and cannot supply h(k | x_i) beyond it. A full-horizon S(t | x_i)

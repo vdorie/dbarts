@@ -42,22 +42,22 @@ codes.
 
 ## 1. Which passes parallelize, which stay serial
 
-The steady-state sweep (chain.hpp run(), the tree loop at :728-787 plus the
-sigma/latent tail :790-802). Backfitting is sequential across trees; parallelism
+The steady-state sweep (chain.hpp run(), the tree loop at :1457-1526 plus the
+sigma/latent tail :1533-1545). Backfitting is sequential across trees; parallelism
 lives INSIDE each pass, not across trees. Per tree t, in order:
 
-- RESIDUAL ROLL (:731-744). A fused O(n) streaming pass: read totalFits and the
+- RESIDUAL ROLL (:1464-1470). A fused O(n) streaming pass: read totalFits and the
   tree's old/prev fit slabs, write the running residual treeY. PARALLELIZE
   (flat obs-order, split [0,n) into blocks). Streaming.
-- SUFFSTAT GATHER (setNodeAverages -> computeLeafStats, :748). Per leaf an
+- SUFFSTAT GATHER (setNodeAverages -> computeLeafStats, :1469). Per leaf an
   O(n_leaf) GATHER-reduce of treeY over the leaf's shuffled member slice; O(n)
   over the tree. PARALLELIZE (a reduction, needs the fixed-block scheme,
   section 3). x86's #1 hotspot (~32%); latency-bound on the shuffled index
   buffer (block-fusion.md section 1, section 10).
-- MOVE (metropolisJumpForTree, :752). O(n_leaf) partition of one leaf's members
+- MOVE (metropolisJumpForTree, :1481). O(n_leaf) partition of one leaf's members
   plus 2 child suffstats, wrapped in an RNG proposal and accept/reject. SERIAL:
   small (one leaf), RNG-coupled, and the tree mutation is inherently sequential.
-- LEAF-MEAN DRAW + SCATTER (sampleParametersAndSetFits, :761). Draw one mu per
+- LEAF-MEAN DRAW + SCATTER (sampleParametersAndSetFits, :1513). Draw one mu per
   leaf from a single RNG stream (SERIAL, O(#leaves)), then SCATTER-write each mu
   into the tree's fit slab (O(n), x86's #3 hotspot ~15%). The draw is serial;
   the SCATTER PARALLELIZES (writes only, no reduction ordering to preserve --
@@ -65,10 +65,10 @@ lives INSIDE each pass, not across trees. Per tree t, in order:
 
 Once per sweep, after the tree loop:
 
-- TOTALFITS REBUILD (:779-787). O(n) streaming. PARALLELIZE.
-- SIGMA DRAW (drawSigma, :802). An O(n) SSR reduction (fixed-block scheme) plus
+- TOTALFITS REBUILD (:1528-1530). O(n) streaming. PARALLELIZE.
+- SIGMA DRAW (drawSigma, :1544-1545). An O(n) SSR reduction (fixed-block scheme) plus
   one gamma draw. PARALLELIZE the reduction; the draw is serial. Once/sweep.
-- LATENT REFRESH (refreshLatents, :792). O(n), embarrassingly parallel but
+- LATENT REFRESH (refreshLatents, :1535). O(n), embarrassingly parallel but
   RNG-CONSUMING per observation. DEFER (section 5). Once/sweep.
 
 Per-pass work and traffic (u16 hot layer, m trees, doubles = 8 B):

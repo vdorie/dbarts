@@ -93,7 +93,7 @@ today (only the weights differ); the variance tree's move/draw use a new leaf mo
 
 **HBART's own sweep (paper Algorithm 1).** Per iteration: update all m mean trees
 (conditioning on the current s), then all m' variance trees (conditioning on the
-current f). Our run() sweep already loops forests in order (chain.hpp:1343); the
+current f). Our run() sweep already loops forests in order (chain.hpp:1418); the
 variance forest is a second phase in that loop, guarded like BCF's combiner
 (section 6).
 
@@ -154,7 +154,7 @@ runtime/tolerance matter, budget for it.
 ## 3. Decision (fork 2) - the fourth leaf kind
 
 RESOLVE as an INTEGRABLE scale leaf, `ConstantVarianceLeaf`, a new leaf model in
-model.hpp beside ConstantGaussianLeaf (model.hpp:241). It is NOT a
+model.hpp beside ConstantGaussianLeaf (model.hpp:155). It is NOT a
 ParamScoringLeafModel and NOT a TreeDrawLeafModel (model.hpp:137-152) - the monotone
 seams solve dependent-leaf coupling the variance forest does not have. What it
 declares:
@@ -169,7 +169,7 @@ declares:
   SCALE CONVENTION (pin, reconcile with dbarts): paper eq. 6 writes the posterior
   scale as nu' lambda'^2 + (data), so the paper's lambda' is SD-scale (lambda'^2 is
   variance-scale). dbarts's existing sigma prior ChiSquaredScalePrior
-  (model.hpp:241-273) parameterizes on the VARIANCE scale: its `scale` field is a
+  (model.hpp:2533-2554) parameterizes on the VARIANCE scale: its `scale` field is a
   variance and its posterior scale is degreesOfFreedom*scale + SSR. The variance leaf
   reuses that variance-scale convention (its calibrated per-tree variance-scale is
   lambda'^2 = the Section-3.4 mean-matched analog of dbarts's `scale`), so at m'=1 it
@@ -182,9 +182,9 @@ declares:
   the wrong variance scale - section 5). The mean leaf's cached node stat (sumWeights,
   sumWeightedResponse; Node, tree.hpp:217-225) does NOT carry a sum of squares - it
   was deliberately dropped because it cancels in the mean leaf's MH ratio
-  (model.hpp:276-282). The variance leaf needs it, so it accumulates its own suffstat
+  (model.hpp:161-164). The variance leaf needs it, so it accumulates its own suffstat
   over the node's index span, the LinearGaussianLeaf precedent (per-call O(n_leaf)
-  accumulation of its own blocks, model.hpp:306-320) - NOT a change to the shared Node
+  accumulation of its own blocks, model.hpp:1164) - NOT a change to the shared Node
   struct. This keeps the mean path's node stat byte-identical (section 8). The
   per-observation divisor w_i / s^2_{-j}(x_i) is supplied through the sweep's weight
   scratch (section 6), so the leaf reads it as an ordinary per-obs weight.
@@ -201,7 +201,7 @@ declares:
   chi^-2(nu' + n_k, [nu' lambda'^2 + sum_{i in k} w_i e_i^2 / s^2_{-j}(x_i)] /
   (nu' + n_k)) (paper eq. 6, lambda' SD-scale per the convention above) - the ordinary
   independent per-node draw the ScalarLeafModel path already dispatches
-  (chain.hpp:4226-4257), NOT a TreeDrawLeafModel coupled sweep. drawFromPrior draws
+  (chain.hpp:4939-4955), NOT a TreeDrawLeafModel coupled sweep. drawFromPrior draws
   chi^-2(nu', lambda'^2).
 
 So the leaf is close to `ScalarLeafModel` in SHAPE (independent per-node draw,
@@ -279,7 +279,7 @@ through every leaf marginal/draw):
 - Sigma update: there is NO global sigma draw under heteroscedastic - the variance
   forest IS the variance (parameterization A, section 2), so residualVariance is
   fixed at 1 and drawSigma is skipped (sigmaIsFixed_ true for the mean side,
-  chain.hpp:1349). Under parameterization B a global sigma_0 IS drawn, from the
+  chain.hpp:4203). Under parameterization B a global sigma_0 IS drawn, from the
   scaled residuals, reusing drawSigma; this is the section-2 sub-fork. Recommend A
   (no global sigma draw): it avoids the sigma_0-vs-variance-forest-level
   identification that B must pin, and the calibration (Section 3.4) already anchors
@@ -331,7 +331,7 @@ but that hierarchy is templated on the SINGLE mean L and its vector holds Forest
 only - it cannot hold the variance forest. So heteroscedastic's coupling is
 Chain-level, guarded like `if (combiner_)`:
 
-- A new `if (varianceForest_)` phase in run() (chain.hpp:1349 loop): after the mean
+- A new `if (varianceForest_)` phase in run() (chain.hpp:1555 loop): after the mean
   forest sweep, run the variance forest's own tree loop, then refresh the combined
   variance s^2(x_i) and hand the mean forest w_i^mean = user_w_i / s^2(x_i) for the
   next sweep (a ResponseModel decorator or a direct weight-vector formation, the
@@ -389,7 +389,7 @@ power, base, R/dbarts.R).
 - **Reporting.** The fit carries the mean fit as today plus a per-observation s(x)
   (or s^2(x)) channel - train and test - and per-variance-tree variable counts. This
   is a NEW reporting channel, NOT the multinomial numReportedLocations widening
-  (combiner.hpp:1789): that seam widens the SAME-typed response location K-fold through
+  (combiner.hpp:1598): that seam widens the SAME-typed response location K-fold through
   combinedFits/refreshLatents (multinomial.md), whereas the variance surface is a
   SEPARATELY-typed forest routed through the weight channel, never through response_,
   so it is reported from the variance forest's own combined fit directly. predict
@@ -399,7 +399,7 @@ power, base, R/dbarts.R).
 
 Binding requirement (rng class: neutral when no variance forest is declared). A
 homoscedastic fit MUST be byte-identical to today. Construction-time mechanism,
-mirroring monotone (monotone.md) and BCF (combiner.hpp:67):
+mirroring monotone (monotone.md) and BCF (combiner.hpp:515-516):
 
 - No `variance` / `n.trees.variance` -> the factory (facade.hpp:787 createSampler)
   builds the UNCHANGED single-forest ConstantGaussianLeaf Chain with

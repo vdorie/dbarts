@@ -90,7 +90,7 @@ good points and inflates sigma; too large loses robustness), zero mixing cost,
 no extra state.
 
 Sampled nu on a grid. The DartPrior alpha-grid pattern (model.hpp:2433-2444
-precompute, 1695-1707 discrete draw): a fixed nu grid, per-point lgamma constants
+precompute, 2487-2489 discrete draw): a fixed nu grid, per-point lgamma constants
 of Gamma(nu/2, nu/2) precomputed once, then per-iteration the log full conditional
   sum_i [(nu/2) log(nu/2) - lgamma(nu/2) + (nu/2) log lambda_i - (nu/2) lambda_i]
       + log p(nu)
@@ -125,7 +125,7 @@ overload. Recommend as the convenience alias over (b), not the primitive.
 Range scaling's outlier sensitivity (the motivation). rescale() keys the
 [-0.5, 0.5] map off the raw min/max of the offset-adjusted response
 (model.hpp:3009-3038) and initialSigma = sigmaEstimate / range_
-(model.hpp:3009). One extreme point inflates range_, compressing the bulk into a
+(model.hpp:2794). One extreme point inflates range_, compressing the bulk into a
 sliver and mis-anchoring both the leaf prior (scale/k on the compressed scale)
 and the sigma prior. Robust errors let the model attribute that point to the tail
 (lambda_i small) so it stops dragging f and inflating sigma. HONEST CAVEAT / plan
@@ -155,7 +155,7 @@ Equivalence fixture. A NEW scenario in benchmarks/R/equivalence.R (t- or
 contaminated-normal data, resid.dist = student). Existing anchors untouched: the
 frozen classic baselines cannot be re-recorded, and the t path adds no draws to
 the gaussian stream (GaussianResponse::refreshLatents stays a no-op,
-model.hpp:3009), so the nine z-stats and every RNG-locked snapshot stay stable.
+model.hpp:2802), so the nine z-stats and every RNG-locked snapshot stay stable.
 
 ## 7. Costs and risks
 

@@ -88,9 +88,9 @@ update and no new augmentation.
 and logistic: it does NOT center or [-0.5, 0.5]-rescale the response (y are
 counts, entering kappa directly), so fitScale = 1, fitShift = 0, sigmaScale = 1,
 initialSigma = 1, and sigma stays fixed at 1 (drawSigma returns sigma), exactly
-LogisticResponse (model.hpp:3595-3598). Leaf-prior calibration therefore rides
+LogisticResponse (model.hpp:3581,3640-3643). Leaf-prior calibration therefore rides
 node.scale, not a response range. psi is a log-odds, so v1 reuses **logistic's
-node.scale = pi*sqrt(3)** (R/model.R:408; the logistic-latent sd pi/sqrt(3)
+node.scale = pi*sqrt(3)** (R/model.R:406; the logistic-latent sd pi/sqrt(3)
 times probit's 3.0), giving a total-fit prior sd node.scale/k = pi*sqrt(3)/2 ~
 2.72 that admits a plausible several-unit swing in the log-odds. Honest caveat
 (the ordinal scheme-C / robust-errors k analog): the induced prior on the MEAN
@@ -141,7 +141,7 @@ is what VD must pick (the three-way fork below).
 The shipped sampler is Devroye PG(1, psi) only (ext_rng_simulatePolyaGamma,
 src/external/random.c:607; declared random.h:135), EXACT. LogisticResponse
 handles an integer trial count w by SUMMING w independent PG(1, psi) draws
-(model.hpp:4373-4380) - exact because PG(n, z) = sum of n PG(1, z) for integer
+(model.hpp:3555-3557) - exact because PG(n, z) = sum of n PG(1, z) for integer
 n. Non-integer shape has no such reduction, and the facts are:
 
 (i) With real r (fixed OR estimated), EVERY omega draw has non-integer shape
@@ -471,8 +471,8 @@ be exposed for diagnostics but the reported deliverable is the mean count.
 
 **xbart / rbart_vi refusals.** xbart's mechanism is match.arg over its family
 vector `c("auto", "gaussian", "probit", "logistic")` (R/xbart.R:26, matched at
-:74): omitting "nbinom" from the vector makes match.arg itself the refusal,
-BEFORE resolveClassificationFamily (:78) ever sees the value - and its losses
+:104): omitting "nbinom" from the vector makes match.arg itself the refusal,
+BEFORE resolveClassificationFamily (:130) ever sees the value - and its losses
 are misclassification/continuous, so a count loss (NB deviance / log-loss) is a
 separate xbart pass. rbart_vi likewise omits "nbinom" from its family vector
 (R/rbart.R:48) so its match.arg refuses, ahead of the group attribute build -
@@ -484,19 +484,19 @@ mechanism, the ordinal precedent.
 **r in a new by-name scalar state block - the resid.df pattern EXACTLY.** Add the
 virtual trio carriesR() / r() / restoreR() to ResponseModel (default false / 0 /
 no-op), mirroring carriesResidualDf() / residualDf() / restoreResidualDf()
-(model.hpp:4169). r is a scalar, so it needs no length (the residualDf
+(model.hpp:4166-4169). r is a scalar, so it needs no length (the residualDf
 analog, not the cutpoints vector analog); in grid mode the stored value is a
 grid member, the TResponse estimatesResidualDf convention (model.hpp:4168).
-ChainStateData gains an `r` field near its residualDf field (chain.hpp:~142);
-getState writes it when carriesR() (chain.hpp:~1629, the residualDf line);
+ChainStateData gains an `r` field near its residualDf field (combiner.hpp:81-85);
+getState writes it when carriesR() (chain.hpp:3096-3100, the residualDf line);
 stateIsValid refuses an NB state with a non-finite/non-positive r
-(chain.hpp:~1750); setState restoreR()s it (chain.hpp:~1873). The bridge adds a
+(chain.hpp:3272-3275); setState restoreR()s it (chain.hpp:3746-3747). The bridge adds a
 SLOT_DISPERSION enum (retired: renamed from SLOT_R) + name to slotNames
 (R_interface_bartcore.cpp:6447-6449), a
-conditional write when finite (:6505-6507, the resid.df line), and a by-name
-read tolerating absence (:6942-6949). Old states omit the slot and load
+conditional write when finite (:6624-6626, the resid.df line), and a by-name
+read tolerating absence (:7099-7105). Old states omit the slot and load
 unchanged - the whole point of the additive by-name block; no
-state-format-version bump (additive, per the :3779-3788 rule).
+state-format-version bump (additive, per the :6382-6384 rule).
 
 **omega rides the existing latents slot.** The per-observation PG draws omega_i
 are the latents, serialized through the existing `latents` slot exactly as
@@ -509,7 +509,7 @@ of the latents block (or restoreLatents must be the sole working-rebuild site
 and restoreR must re-trigger it); this ordering is a stated contract of the
 implementation, tested by a state round-trip. workingWeightsVaryPerSweep() is
 true (per-sweep omega), dropping the sufficient-statistic caches each sweep
-(chain.hpp:785-791), the logistic behavior.
+(chain.hpp:1538-1542), the logistic behavior.
 
 **refreshLatents order - r FIRST, then omega (the invariance requirement).**
 Per sweep: (1) update r from its full conditional given the fit - the grid
@@ -542,11 +542,11 @@ model.hpp:3397), and re-draw omega under the new y, rebuild working. setData
 ResidualDfPrior medianIndex convention, model.hpp:3998; or the user's fixed
 value), rebuild the kernel, and cold-start omega at its PG(y+r, 0) mean
 (y_i + r)/4 - the LogisticResponse coldStart generalization (model.hpp:
-2618-2625, which uses w/4) - so the working response starts deterministic and
+3682-3692, which uses w/4) - so the working response starts deterministic and
 the first sweep's draw replaces it. setWeights is a no-op (weights refused);
 setSigmaPrior a no-op (sigma fixed); setOffset shifts the working response by
 the offset delta, keeping omega and kappa (the logistic setOffset,
-model.hpp:4423-4435).
+model.hpp:3608-3613).
 
 ## 6. Gates
 
@@ -635,10 +635,10 @@ primitive only if the (B) door opens).
   parameter), revisited after NB. Recorded.
 
 - **Grouped / mixed-model NB (rbart_vi + nbinom).** Refused cleanly at the R
-  layer (R/rbart.R:330-337) before the group attribute builds; rbart_vi's family
+  layer (R/rbart.R:49,56) before the group attribute builds; rbart_vi's family
   vector omits "nbinom" for v1. The door is real and FEASIBLE: GroupedResponse is
   a base-response decorator whose conjugate group update needs a Gaussian working
-  response on the latent scale (model.hpp:4355+), and NB HAS one - the PG working
+  response on the latent scale (model.hpp:4706+), and NB HAS one - the PG working
   response z_i = kappa_i/omega_i is Gaussian given omega, exactly as logistic's
   is - so grouped NB is a coherent future once the r block and the group block are
   shown to interleave (the group draw would condition on the current omega and r).

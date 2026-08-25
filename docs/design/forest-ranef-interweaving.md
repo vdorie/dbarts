@@ -79,7 +79,7 @@ The Gibbs blocks per raw sweep, as run() drives them:
 
 1. `f | b` -- one tree sweep of the mean forest against the working response
    `z_i - b_{g(i)}` (GroupedResponse::workingResponse, model.hpp:4902-4906),
-   backfit tree-by-tree (chain.hpp:1343-1530). This is where f sees the group
+   backfit tree-by-tree (chain.hpp:1418-1530). This is where f sees the group
    intercepts subtracted, so f fits the residual-of-b.
 2. `b | f` -- refreshLatents (chain.hpp:1535) calls GroupedResponse::
    refreshLatents (model.hpp:4746-4779), which draws b_j conjugately from the
@@ -332,7 +332,7 @@ Per review section 5 (the migration battery), unchanged in shape:
   equivalence scenarios use the GAMMA prior (tau-cauchy-exact-ig.md);
   a cauchy-branch collapse would need a cauchy-grouped z-summary added, or the
   scenarios re-recorded under cauchy.
-- The custom-prior R loop (rbart.R:531-696) stays untouched and must keep
+- The custom-prior R loop (rbart.R:868-1042) stays untouched and must keep
   working -- a custom prior forcing the cauchy density is the cross-check the
   grouped landing used.
 - grouped-mixing.R (this arc's gate) re-run: the collapse must drop the Part B

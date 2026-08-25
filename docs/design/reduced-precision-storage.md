@@ -118,13 +118,13 @@ lower-risk TRACK 1 that lands first and independently of the fp32 work.
   misc_sumIndexedVectorElements, misc_setIndexedVectorToConstant; plus
   Tree::indices (tree.hpp:260), the 8 scalar C++ partition kernels, and
   SubtreeSnapshot.indexSegment (std::vector<size_t> + a sizeof(size_t) memcpy,
-  tree.hpp:836). THE TRAP: preservation holds ONLY if each SIMD kernel is
+  tree.hpp:1002,1019). THE TRAP: preservation holds ONLY if each SIMD kernel is
   RETYPED, not REWRITTEN - a fresh uint32 SIMD partition with a different swap
   sequence changes the permutation and silently turns a "preserving" lever
   into a draw-changing one. GUARD: static_assert(sizeof(index_t) ==
   sizeof(misc_index_t)) pinning the C++ buffer type to the C kernel param
   (mirroring the existing static_assert on misc_xint_t == uint16 at
-  tree.hpp:618). ACCEPTANCE: the cross-ISA tests/cpp gate AND the bitwise
+  tree.hpp:828). ACCEPTANCE: the cross-ISA tests/cpp gate AND the bitwise
   equivalence trio must both stay identical - any drift means a kernel was
   rewritten, not retyped.
 
@@ -163,7 +163,7 @@ one re-record; OPT-IN only). The primary target.
 
   WHY FORK B IS DEAD (chain.hpp:1457-1530): treeY is a running residual updated
   PER-TREE inside the backfit loop - `rollTreeResidual(forest, t, ...)` at
-  :902 rewrites it, then the gather at :906 reads tree t's freshly-rolled
+  :1465 rewrites it, then the gather at :1469 reads tree t's freshly-rolled
   residual. A fp64-master + fp32-shadow scheme would have to refresh the
   shadow after every roll = a per-tree O(n) downcast, the same order as the
   gather it feeds -> no amortization, strictly worse than rolling fp32
@@ -180,7 +180,7 @@ one re-record; OPT-IN only). The primary target.
 
   DRIFT CONTROL: an earlier claim that finalizeTotalFits gives a free
   per-sweep re-anchor turned out to be WRONG. finalizeTotalFits (chain.hpp:
-  2613) computes total = y - resid + mu[leaf] - i.e. FROM the drifted resid -
+  4730) computes total = y - resid + mu[leaf] - i.e. FROM the drifted resid -
   so it PROPAGATES the fp32 drift into totalFits, not resets it; next sweep's
   t=0 roll re-derives resid from that drifted total. Nothing in the existing
   per-sweep machinery re-anchors. A genuine re-anchor needs an INDEPENDENT
@@ -245,7 +245,7 @@ one re-record; OPT-IN only). The primary target.
   non-constant-leaf treeFits slab (n*trees, dense-leaf models only), the
   variance-forest arrays for HBART (factorByTree n*treesVar,
   combinedVariance/meanResidual/divisor/treeResidual n each, chain.hpp:
-  314-319), and the gaussian working response yRescaled_ (model.hpp, n).
+  414-419), and the gaussian working response yRescaled_ (model.hpp, n).
   LATENT-family working buffers (probit/logistic/ordinal/multinomial) stay
   fp64 by design (little value, more instantiations). This would extend the
   fp32 win to the streaming passes and the HBART weight channel; each piece
@@ -263,7 +263,7 @@ memory tier.
   tree structure, pathological on high-cardinality columns. Only ever an
   explicit low-resolution MODELING option with its own arc, never a
   transparent tier.
-- fp32 cutpoints (data.hpp:221, tiny footprint) and fp32 ownedTestValues
+- fp32 cutpoints (data.hpp:527, tiny footprint) and fp32 ownedTestValues
   (data.hpp:559, cold re-quantize source): fp32 flips near-tie quantization ->
   correctness-sensitive; not worth the risk, and cutpoints are not n-scaled.
 

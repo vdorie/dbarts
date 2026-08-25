@@ -69,12 +69,12 @@ The per-forest sweep is Chain::run (chain.hpp:1365-1420). Per tree t, in order:
    (partitionChildren -> misc_partitionIndices, tree.hpp:837-870) and computes 2
    child suffstats; death merges incrementally (orphanChildren, tree.hpp:973-985);
    change/swap snapshot the affected index segment (snapshotSubtree,
-   tree.hpp:765-773), refresh the subtree (repartition + recompute stats,
+   tree.hpp:1006-1014), refresh the subtree (repartition + recompute stats,
    refreshSubtree tree.hpp:937-950), and restore on rejection (restoreSubtree,
    tree.hpp:1016-1021). Scoring uses logLikelihoodForBranch -> the leaf's
    logIntegratedLikelihoodForNode over the cached node suffstat.
 4. sampleParametersAndSetFits (chain.hpp:4896-4990, constant-leaf branch
-   :4852-4883): per leaf draw mu ~ N(posteriorMean, posteriorSd^2) from
+   :4925-4956): per leaf draw mu ~ N(posteriorMean, posteriorSd^2) from
    (sumWeights, sumWeightedResponse) and SCATTER-write it into treeFits with
    `misc_setIndexedVectorToConstant` (x86's #3 hotspot, 15%).
 
@@ -87,7 +87,7 @@ only escape is structural (make the field per-atom, not per-observation).
 The constant-leaf math that makes atoms work (model.hpp:155-183):
 
 - drawFromPosterior needs ONLY (sumWeights, sumWeightedResponse) and sigma^2/k
-  (model.hpp:165-183). sumWeightedResponseSq is NOT used in the draw.
+  (model.hpp:187-196). sumWeightedResponseSq is NOT used in the draw.
 - logIntegratedLikelihood uses sumWeightedResponseSq only inside
   explainedSumOfSquares = sumWeightedResponse*mean (model.hpp:177). This term is
   additive across any partition of a fixed observation set, so it CANCELS in
@@ -209,7 +209,7 @@ dropped (b>1) or supplied per-atom (b=1 anchor, section 5).
 ### 3.2 Leaf-mean draw (replaces the constant-leaf branch of sampleParametersAndSetFits)
 
 drawFromPosterior(rng, k, W(L), sumWeightedResponse(L), sigma^2) unchanged
-(model.hpp:165-183). Draw one mu per leaf of tree t_j. RNG consumption identical
+(model.hpp:187-196). Draw one mu per leaf of tree t_j. RNG consumption identical
 to today (one standard normal per non-empty leaf, in the SAME leaf order -- see
 section 4.2 on fixing the leaf-iteration order).
 
@@ -243,7 +243,7 @@ atoms) operation, mirroring restoreSubtree's O(index-segment) cost. No O(n) pass
 
 At block exit, the b trees' drawn leaf means must be materialized into the
 per-observation treeFits[t_j * n + i] (obs order) so that: (a) totalFits and the
-residual are correct for the sigma/latent draws (chain.hpp:1530-1541), and (b) the
+residual are correct for the sigma/latent draws (chain.hpp:1530-1545), and (b) the
 next block reads a correct O for its own g field. For each block tree t_j and
 each leaf L, scatter mu_{t_j}(L) to the leaf's member observations. Two equivalent
 routes:
@@ -272,7 +272,7 @@ to ~1-2 per block.
 
 ### 3.7 Sigma draw and latents stay O(n), once per sweep
 
-The sigma draw's SSR (chain.hpp:1811, misc_computeSumOfSquaredResiduals over the
+The sigma draw's SSR (model.hpp:2544-2547, misc_computeSumOfSquaredResiduals over the
 full residual) and the latent refresh (refreshLatents) are OUTSIDE the block
 machinery: they run once per sweep after all blocks, over the correct
 per-observation residual materialized at block exits. They are unchanged and
@@ -381,7 +381,7 @@ change, or as an optional periodic re-canonicalization to bound fragmentation
 (atoms can accumulate near-empty slivers after many splits/merges; a rebuild
 every K sweeps re-tightens occupancy -- tunable, measure if needed).
 
-This generalizes the landed U'WU cache (model.hpp:458-539): there, each leaf's
+This generalizes the landed U'WU cache (model.hpp:1212-1293): there, each leaf's
 residual-INDEPENDENT crossproduct is cached and re-validated by comparing the
 ordered member list against tree.indices[begin..end); a structural move that
 alters membership fails the compare and rebuilds. Here the residual-INDEPENDENT
