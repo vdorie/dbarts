@@ -150,7 +150,7 @@ extract(object, \dots)
      Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.
    }
    \item{combinechains, combineChains}{
-     Logical; if \code{TRUE}, samples will be returned in arrays of dimensions equal to \code{nchain} \eqn{\times} \code{ndpost} \eqn{\times} number of observations. Default \code{TRUE} across \code{bart}, \code{\link{bart2}}, and \code{\link{rbart_vi}}; the number of chains is tracked regardless on the returned object's \code{n.chains} component (see \sQuote{Value}).
+     Logical; if \code{TRUE}, samples from every chain are collapsed into a single matrix/vector of \code{nchain} \eqn{\times} \code{ndpost} rows (see \sQuote{Value} for the row order); if \code{FALSE}, they are kept in arrays of dimensions equal to \code{nchain} \eqn{\times} \code{ndpost} \eqn{\times} number of observations. Default \code{TRUE} across \code{bart}, \code{\link{bart2}}, and \code{\link{rbart_vi}}; the number of chains is tracked regardless on the returned object's \code{n.chains} component (see \sQuote{Value}).
    }
    \item{keeptrees}{
      Logical; must be \code{TRUE} in order to use \code{predict} with the result of a \code{bart} fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.
@@ -162,7 +162,7 @@ extract(object, \dots)
      Optional integer specifying the desired pRNG \link[=set.seed]{seed}. A \code{\link{set.seed}} beforehand suffices for reproducibility; supplying \code{seed} instead gives reproducible results without touching R's stream. See Reproducibility section below.
    }
    \item{proposalprobs}{
-     Named numeric vector or \code{NULL}, optionally specifying the proposal rules and their probabilities. Elements should be \code{"birth_death"}, \code{"change"}, and \code{"swap"} to control tree change proposals, and \code{"birth"} to give the relative frequency of birth/death in the \code{"birth_death"} step. Defaults are 0.5, 0.1, 0.4, and 0.5 respectively.
+     Named numeric vector or \code{NULL}, optionally specifying the proposal rules and their probabilities. Elements should be \code{"birth_death"}, \code{"change"}, and \code{"swap"} to control tree change proposals, and \code{"birth"} to give the relative frequency of birth/death in the \code{"birth_death"} step. The default is \code{c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)}.
    }
    \item{keepsampler}{
      Logical that can be used to save the underlying \code{\link{dbartsSampler-class}} object even if \code{keeptrees} is false.
@@ -245,7 +245,7 @@ extract(object, \dots)
   }
 
   \subsection{Saving}{
-    \code{\link{save}}ing and \code{\link{load}}ing a fitted BART object for use with \code{predict} requires that it be fit with \code{keeptrees}/\code{keepTrees} as \code{TRUE}, and that the sampler's tree state be captured before saving by calling \code{storeState()} on the sampler: \code{bartFit$fit$storeState()} (for \code{rbart_vi}, on each element of \code{fit}: \code{lapply(rbartFit$fit, function(f) f$storeState())}). The state is not captured automatically because it duplicates the trees on the R side and can exceed the fit's own sample blocks; it is materialized only on request. A fit saved without it reloads, but \code{predict} stops with an error naming \code{storeState()}. The same convention covers \code{\link{bart2}}'s own-class families - \code{family = "multinomial"}, \code{"ordinal"}, and \code{"nbinom"} - whose \code{$fit} is the sampler (K-forest or single-forest) that actually ran; see \code{\link{bart2}}'s Value section for each.
+    \code{\link{save}}ing and \code{\link{load}}ing a fitted BART object for use with \code{predict} requires that it be fit with \code{keeptrees}/\code{keepTrees} as \code{TRUE}, and that the sampler's tree state be captured before saving by calling \code{storeState()} on the sampler: \code{bartFit$fit$storeState()} (for \code{rbart_vi}, on each element of \code{fit}: \code{lapply(rbartFit$fit, function(f) f$storeState())}). The state is not captured automatically because it duplicates the trees on the R side and can exceed the fit's own sample blocks; it is materialized only on request. A fit saved without it reloads, but \code{predict} stops with an error naming \code{storeState()}. The same convention covers \code{\link{bart2}}'s own-class families - \code{family = "multinomial"}, \code{"ordinal"}, and \code{"nbinom"} - whose \code{$fit} is the sampler (K-forest or single-forest) that actually ran; see \code{\link{bart2}}'s Value section for each. A \code{family = "hurdle.lognormal"} fit has no \code{$fit} of its own: it is the pair \code{$occupancy} and \code{$positive}, each a \code{bart2} fit in its own right, so both of their samplers need the call before saving: \code{fH$occupancy$fit$storeState(); fH$positive$fit$storeState()}.
   }
 
   \subsection{Reproducibility}{
@@ -259,7 +259,7 @@ extract(object, \dots)
 
     The result of \code{extract} will be a data frame with columns:
     \itemize{
-      \item \code{chain}, \code{sample}, \code{tree} - index variables
+      \item \code{chain}, \code{sample}, \code{tree} - index variables; \code{chain} is omitted on a single-chain fit
       \item \code{n} - number of observations in node, drawn from the training data or from \code{newdata} when supplied
       \item \code{var} - either the index of the variable used for splitting or -1 if the node is a leaf
       \item \code{value} - either the value such that observations less than or equal to it are sent down the left path of the tree or the predicted value for a leaf node

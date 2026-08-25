@@ -85,8 +85,8 @@ struct SamplerOptions {
   // {-1, 0, +1} (length numPredictors), consumed at construction. A nonzero
   // entry selects the constrained constant-leaf instantiation at the factory;
   // null - or all zero - keeps the unchanged constant-leaf path
-  // (docs/design/monotone.md). Not yet exposed through the R surface (C++/tests
-  // only).
+  // (docs/design/monotone.md). Requires the constant leaf; refused under a
+  // linear or gp node prior.
   const std::int8_t* monotoneDirections = nullptr;
 
   // GP (function-valued) leaves share the leafCovariateColumns designation;
@@ -137,8 +137,9 @@ struct SamplerOptions {
   // any root-to-leaf path (0 = uncapped); interactionForbiddenPairs lists
   // forbidden co-occurrence pairs as 2 * interactionNumForbiddenPairs column
   // indices (borrowed, consumed at construction). Both defaults leave every
-  // path unconstrained - the availability path is byte-for-byte unchanged. Not
-  // yet exposed through the R surface (C++/tests only; single-forest path).
+  // path unconstrained - the availability path is byte-for-byte unchanged.
+  // Applies per forest: a multi-forest sampler's forests each install and
+  // enforce their own cap independently.
   std::size_t interactionMaxOrder = 0;
   const std::size_t* interactionForbiddenPairs = nullptr;
   std::size_t interactionNumForbiddenPairs = 0;
@@ -163,7 +164,6 @@ struct SamplerOptions {
   // homoscedastic - byte-for-byte unchanged, no variance forest built. Gaussian
   // family + plain constant leaf only; the factory refuses the combination
   // otherwise. varianceBase/variancePower are the variance trees' CGM prior.
-  // Not yet exposed through the R surface (C++/tests only).
   std::size_t numVarianceTrees = 0;
   double varianceBase = 0.95, variancePower = 2.0;
   // optional split-variable restriction for the variance forest (borrowed

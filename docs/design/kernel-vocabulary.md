@@ -22,10 +22,11 @@ where the engine calls into this vocabulary, see docs/architecture.md.
 
 ## Types
 
-- `misc_xint_t` (misc/types.h): predictor code type, configure-selected via
-  `--with-xint-size`, default `uint16_t`. The generalized data model moves
-  this to a per-column property (u8/u16); kernels gain width-suffixed
-  variants selected through the same tables.
+- `misc_xint_t` (misc/types.h): predictor code type, fixed to `uint16_t` by
+  `configure.ac`'s `AC_DEFINE_UNQUOTED(XINT_TYPE, uint16_t, ...)` - there is
+  no configure switch to change it. The generalized data model moves this to
+  a per-column property (u8/u16); kernels gain width-suffixed variants
+  selected through the same tables.
 - `misc_size_t` (misc/stddef.h): `size_t`; observation indices.
 
 ## Current vocabulary

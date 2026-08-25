@@ -37,7 +37,7 @@ dbartsSpec(
 \details{
   \code{\link{dbarts}} does two separable things: it ingests a formula or a pair of matrices into a \code{dbartsData}, and it then resolves that data into a full sampler specification - choosing the response family, coding the response, applying the family's weight policy, estimating a starting \code{sigma}, parsing the priors, and attaching the attributes that carry monotonicity, interaction and block constraints, a variance forest, residual degrees of freedom, and survival status. \code{\link{dbartsData}} exposes the first half. This function exposes the second, and returns the pieces rather than a sampler.
 
-  Both entry points call the same resolution, so a family can never resolve two ways: a sampler built from this function's output draws the same samples as the equivalent \code{\link{dbarts}} call.
+  Both entry points call the same resolution on the \code{dbartsData} they end up with, so a sampler built from this function's output draws the same samples as the equivalent \code{\link{dbarts}} call given the SAME data object. The two can still resolve a given family differently, because \code{\link{dbarts}} performs its own response ingestion first - coding a factor response into a count matrix, for instance - while this function does none: a call this function refuses for the raw response \code{\link{dbarts}} can still accept, by ingesting it into the shape this function requires.
 
   \subsection{Use with the C API}{
     The \code{family} element of the returned list is the token to pass as the fourth argument of \code{dbarts_sampler_create}. Passing the empty string there instead asks the library to dispatch on the shape of the response, which is correct for \code{"gaussian"}, \code{"probit"}, \code{"ordinal"}, and \code{"nbinom"} - each is inferable from the response coding or from an attribute the library reads - but is \emph{wrong} for \code{"aft"} and \code{"logistic"}, which are indistinguishable by shape from \code{"gaussian"} and \code{"probit"} respectively. Pass the returned token and the question does not arise.
@@ -45,7 +45,7 @@ dbartsSpec(
   \subsection{Differences from dbarts()}{
     \code{sigma} defaults to leaving the data object's own value alone, rather than overwriting it: a caller that computed a starting estimate keeps it, and an unset (\code{NA}) value is still estimated during resolution. Cut points are taken from \code{control} only when the data does not already carry resolved per-column counts.
 
-    Families that require ingestion this function does not perform are unavailable: \code{"hazard"} needs person-period expansion, and \code{"multinomial"} and \code{"hurdle.lognormal"} describe more than one sampler.
+    Families that require ingestion this function does not perform are unavailable: \code{"hazard"} needs person-period expansion, and \code{"hurdle.lognormal"} describes more than one sampler. \code{"multinomial"} is in this function's own vocabulary, but only for a \code{data} object whose response is already an \eqn{n \times K}{n x K} \code{counts} matrix (see \code{data} above, and \code{\link{dbartsData}}'s \code{counts} argument); given a factor-coded or plain numeric response instead, it is refused with a message naming the counts route, even though \code{\link{dbarts}} accepts the same factor by coding it into that shape first.
   }
 }
 \value{
