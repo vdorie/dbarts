@@ -309,7 +309,7 @@
             composes two samplers, which only \code{bart2} builds - and
             \code{rbart_vi} and \code{xbart} do not fit it either (a shared
             variable-selection prior across the two parts, Duan smearing,
-            and a heteroscedastic positive part are recorded follow-ups).
+            and a heteroscedastic positive part are not supported).
             See \code{?bart2}.
       \item Heteroscedastic BART: \code{variance = ~ x1 + x2} (or
             \code{variance = TRUE}) in \code{dbarts} and \code{bart2}
@@ -353,8 +353,8 @@
             \code{extract}, \code{predict}, and \code{residuals}
             methods. Weights are not supported; \code{rbart_vi} and
             \code{xbart} refuse ordinal responses (grouped ordinal
-            models and ordinal cross-validation losses are recorded
-            follow-ups). See \code{?bart2}.
+            models and ordinal cross-validation losses are not
+            supported). See \code{?bart2}.
       \item Negative-binomial count responses:
             \code{family = "nbinom"} in \code{dbarts} and \code{bart2}
             fits non-negative integer counts by the Polya-Gamma
@@ -379,7 +379,7 @@
             supported (exposure belongs in the offset); \code{rbart_vi}
             and \code{xbart} refuse count responses (grouped
             negative-binomial models, real dispersion, and a Poisson
-            family are recorded follow-ups). See \code{?bart2}.
+            family are not supported). See \code{?bart2}.
       \item Discrete-time survival hazard responses:
             \code{family = "hazard"} (probit link) and
             \code{family = "hazard.logistic"} in \code{dbarts} and
@@ -402,7 +402,7 @@
             required, and weights follow the chosen binary family's
             policy. \code{rbart_vi} and \code{xbart} refuse hazard
             responses (grouped/frailty hazard and a cloglog link are
-            recorded follow-ups). See \code{?bart2}.
+            not supported). See \code{?bart2}.
       \item Robust (Student-t) residuals: \code{resid.dist = student(df)}
             in \code{dbarts}, \code{bart}, and \code{bart2} fits a
             continuous gaussian response with outlier-robust Student-t
@@ -470,7 +470,11 @@
             dense matrix, and a predictor container built from other data
             is re-coded against the training factor levels before it is
             used, so its codes mean what the training design's mean.
-            \code{rbart_vi} still requires dense inputs.
+            \code{rbart_vi} still requires dense inputs. The sparse column
+            constructor is exported as \code{\link{sparseFactor}}, and the
+            container a mixed frame assembles into is exported as
+            \code{\link{dbartsMixedMatrix}}, with its own \code{dim},
+            \code{dimnames}, \code{[}, and \code{as.matrix} methods.
       \item Categorical predictors support up to 65535 levels, up from
             53: rules on wider factors pool their direction masks per
             tree. In \code{getTrees} such a rule's \code{value} is \code{NA} (its mask
@@ -585,9 +589,9 @@
             each unordered factor stays a single predictor with subset
             splits instead of expanding into indicator columns. Pass
             \code{factors = "indicators"} for the previous behavior.
-      \item The binary default for \code{k} - used by \code{dbarts},
-            \code{bart2}, and \code{xbart} when \code{k} is left
-            unspecified - is now \code{chi(1.5, 2)} rather than the
+      \item The binary default for \code{k} - used by \code{dbarts} and
+            \code{bart2} when \code{k} is left unspecified - is now
+            \code{chi(1.5, 2)} rather than the
             improper \code{chi(1.5, Inf)}, centering the sampled \code{k}
             near the field-standard fixed value of 2 (prior median 1.9)
             while still adapting to the data. \code{chi()}'s own
@@ -706,6 +710,10 @@
             with binary responses, and \code{setControl} changes to settings
             fixed at creation (chain/tree counts, generators, the cut
             grid).
+      \item \code{\link{extract.dbartsSampler}} returns the predictor
+            matrix as a sampler currently sees it - the same numeric
+            coding \code{getTrees} replays saved trees against - reflecting
+            any \code{setPredictor} mutation since creation.
       \item A warm start (\code{bart2}'s \code{warm.start}, or a sampler's
             \code{installTrees}) accepts a donor fit on a different cut grid
             (differing in \code{n.cuts}, \code{useQuantiles}, or its predictor
@@ -1445,8 +1453,7 @@
             \code{chi(1.5, 2)} node hyperprior, not a fixed \code{k = 2}.
             The old \code{k = 2.0} default was inert (only an explicit
             \code{k} was ever read), so this is a documentation
-            correction, not a behavior change; \code{man/rbart.Rd} is
-            fixed to match.
+            correction, not a behavior change. See \code{?rbart_vi}.
       \item \code{bart2} and \code{rbart_vi} now warn, by name, when a
             supplied argument has no effect under the fit's resolved
             family: the residual-scale trio \code{sigest}/\code{sigdf}/
@@ -1481,12 +1488,9 @@
             signature, spelled and defaulted exactly as
             \code{\link{dbartsControl}}'s own; both already reached the
             control silently through \code{\dots} and now do so as ordinary,
-            documented arguments. \code{\dots} is otherwise rejection-only on
-            both: any other name it receives is now an error naming the
-            argument and, when one is close, suggesting the nearest formal
-            (\code{bart2(n.tres = 5)} suggests \code{n.trees}). Previously an
-            unknown name that happened to match a \code{dbartsControl}
-            formal was silently accepted and forwarded; now only
+            documented arguments. Previously an unknown name that happened
+            to match a \code{dbartsControl} formal was silently accepted
+            and forwarded; now only
             \code{storage} and \code{updateState} are. Because
             \code{updateState} is now a formal, the partial match
             \code{u = } no longer resolves to \code{useQuantiles} on either
@@ -1497,13 +1501,9 @@
             way; \code{dbarts}'s own convenience \code{seed} argument
             (which overrides the control's) is unchanged. A direct
             \code{dbartsControl(rngSeed = )} call now gets an
-            unused-argument error. \code{bart2}/\code{rbart_vi}'s
-            \code{\dots} still recognizes \code{rngSeed} by name, but only
-            to refuse it - the first row of the retired-name table:
-            \code{"unknown argument 'rngSeed': 'rngSeed' was renamed to
-            'seed'"}. A consumer that forwards its own arguments through a
-            \code{formals()}-derived accept filter - stan4bart's
-            \code{bart_args}, and CRAN packages such as WeightIt and
+            unused-argument error. A consumer that forwards its own
+            arguments through a \code{formals()}-derived accept filter -
+            stan4bart's \code{bart_args}, and CRAN packages such as WeightIt and
             MatchIt that expose the dbarts surface the same way - drops a
             user's \code{rngSeed} silently instead: the filter no longer
             recognizes the name, so the seed is never forwarded and the fit
@@ -1538,8 +1538,7 @@
             saying nothing. \code{tree.prior}/\code{node.prior} are honored
             on every family, including both component fits of
             \code{family = "hurdle.lognormal"}. \code{rbart_vi} does not
-            gain these three formals (its model-surface gap is a separate,
-            recorded ticket). Two more \code{bart2} abbreviations stop
+            gain these three formals. Two more \code{bart2} abbreviations stop
             working: \code{t=} (ambiguous between \code{test} and
             \code{tree.prior}) and \code{resid.=} (ambiguous between
             \code{resid.dist} and \code{resid.prior}).
@@ -1757,8 +1756,8 @@
             integer counts, or - the single-trial case - a factor, character
             or integer-code vector one-hot expanded to one. It rides the new
             \code{dbartsData(counts = )} argument, with the per-category
-            shifts on \code{offset.category} and
-            \code{offset.category.test}, so a sampler re-created from its own
+            shifts riding a matrix \code{offset}/\code{offset.test} paired
+            with it, so a sampler re-created from its own
             (control, model, data) triple after \code{storeState} and
             \code{\link{save}}/\code{\link{load}} carries its response and
             offsets without further discipline. \code{data@y} holds the
@@ -1975,13 +1974,22 @@
             a relative epsilon instead. A design with no residual degrees
             of freedom previously returned an undefined estimate for the
             same reason; it now falls back to the marginal response sd,
-            with a warning, exactly as the existing sparse-predictor
-            fallback already did, and the fallback estimate is floored the
-            same way.
+            with a warning classed \code{dbartsSigmaFallbackWarning} (a
+            \code{dbartsWarning}), exactly as the existing sparse-predictor
+            fallback already did - classed
+            \code{dbartsSparseSigmaFallbackWarning}, itself a
+            \code{dbartsSigmaFallbackWarning} - and the fallback estimate
+            is floored the same way.
       \item \code{\link{xbart}} again sweeps a numeric \code{k} grid largest
             to smallest and reports it back in the order it was given, so
             the result no longer depends on the order \code{k} is listed
             in; the rewrite had dropped this sort.
+      \item \code{plot.bartMultinomial}, \code{plot.bartOrdinal},
+            \code{plot.bartNegbin}, \code{plot.bartHurdle},
+            \code{plot.pd2bart}, and \code{\link{plotTree}} changed
+            \code{par()} settings (layout, margins) without restoring
+            them; each now saves and restores the caller's graphical
+            parameters before returning.
     }
   }
 }
