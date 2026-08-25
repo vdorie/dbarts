@@ -82,7 +82,7 @@ jobs:
             # Total-count floor: guards against a refactor that silently
             # empties whole test files (a passing suite of zero assertions
             # looks green). The floor is 5200 - ~10% headroom under the
-            # suite's size - so routine growth does not trip it and a
+            # suite size - so routine growth does not trip it and a
             # file-emptying refactor does.
             if (length(ok) < 5200L) {
               cat(sprintf(
