@@ -429,18 +429,15 @@ items
     open after fix wave 3 (42b12ac7..7ad0bbea). Every judgement group
     is decided and landed, the threaded-predict arc included
     (docs/design/threaded-predict.md section 11).
-    Remaining, in order: the constant-response sigma flake (clang-asan
-    fire-and-cure, deterministic degenerate-response handling); the
-    docs/-citation strip (every docs/ path out of R/ src/ inst/ man/,
-    a reading pass keeping the constraint text, plus the state-format
-    narrative cut at the bridge's registry comment and the `# ---- fix
-    NN` test labels); the xbart k-grid sort restore with its Rd
-    sentence and the equivalence re-record (four-place obligation),
-    landing LAST. After these: the review-tour refresh, then VD's own
-    human review. Doors the wave recorded (negbin rootogram, ordinal
-    tail-precision loglik, negbin burn-in dispersion channel, the
-    own-class predict(bases =)/fitted(combineChains =) no-ops) live in
-    the wave-3 landing note.
+    Remaining: the constant-response sigma flake (clang-asan
+    fire-and-cure, deterministic degenerate-response handling). The
+    docs/-citation strip (dfb6dc0a..ad4d801d) and the xbart k-grid
+    sort restore with its Rd sentence and equivalence re-record
+    (four-place obligation, 736bfb05) have landed. After these: the
+    review-tour refresh, then VD's own human review. Doors the wave
+    recorded (negbin rootogram, ordinal tail-precision loglik, negbin
+    burn-in dispersion channel, the own-class predict(bases =)/
+    fitted(combineChains =) no-ops) live in the wave-3 landing note.
   setpredictor-leafof-rebuild: CLOSED; the gather door taken
     roll-only. Record, memo corrections, and the DECLINED
     do-not-re-propose list in
