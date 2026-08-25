@@ -221,8 +221,8 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_getLatents", bartcore_getLatents, 2),
   DEF_FUNC("dbarts_bartcore_drawLatents", bartcore_drawLatents, 9),
   DEF_FUNC("dbarts_bartcore_workingResponse", bartcore_workingResponse, 6),
-  DEF_FUNC("dbarts_bartcore_predict", bartcore_predict, 3),
-  DEF_FUNC("dbarts_bartcore_predictPerForest", bartcore_predictPerForest, 3),
+  DEF_FUNC("dbarts_bartcore_predict", bartcore_predict, 4),
+  DEF_FUNC("dbarts_bartcore_predictPerForest", bartcore_predictPerForest, 4),
   DEF_FUNC("dbarts_bartcore_getTrees", bartcore_getTrees, 8),
   DEF_FUNC("dbarts_bartcore_storeState", bartcore_storeState, 1),
   DEF_FUNC("dbarts_bartcore_setState", bartcore_setState, 3),
@@ -248,6 +248,10 @@ static R_CallMethodDef R_callMethods[] = {
   // experimental
   DEF_FUNC("dbarts_assignInPlace", assignInPlace, 3),
   // below: testing
+  DEF_FUNC("dbarts_bartcore_lastPredictPartition",
+           bartcore_lastPredictPartition, 0),
+  DEF_FUNC("dbarts_bartcore_setPredictParallelCutoff",
+           bartcore_setPredictParallelCutoff, 1),
   DEF_FUNC("dbarts_setSIMDInstructionSet", setSIMDInstructionSet, 1),
   DEF_FUNC("dbarts_getMaxSIMDInstructionSet", getMaxSIMDInstructionSet, 0),
 

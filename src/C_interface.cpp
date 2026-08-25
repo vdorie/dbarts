@@ -458,7 +458,7 @@ constexpr std::uint64_t dbarts_apiToken() {
   return dbarts_foldLayout(hash);
 }
 } // namespace
-static_assert(dbarts_apiSignatureToken == 0x85bd1ef04beb3848ULL,
+static_assert(dbarts_apiSignatureToken == 0xcb83367ee0c4175bULL,
               "dbarts.h C API signatures moved (the entry-point list, not the "
               "layout fold); re-bake this literal here and DBARTS_C_API_HASH "
               "with it");
@@ -772,7 +772,8 @@ void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
 
 void dbarts_sampler_predict(dbarts_sampler* sampler,
                             const dbarts_predictor_source* xTest,
-                            const double* offsetTest, double* out) {
+                            const double* offsetTest, size_t numThreads,
+                            double* out) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
   // predictColumns opens forests_[0] alone, so a caller would receive the
   // first forest's fit labelled as the whole; see
@@ -789,7 +790,7 @@ void dbarts_sampler_predict(dbarts_sampler* sampler,
   validateTestSource(engine, source);
   size_t numTestObservations = source.view.numRows;
 
-  engine.predict(source.view, numTestObservations, NULL, out);
+  engine.predict(source.view, numTestObservations, NULL, numThreads, out);
   vmaxset(scratch);
 
   if (offsetTest != NULL) {

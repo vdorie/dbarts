@@ -5650,11 +5650,14 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
 // The shared tail of both predict entrances: allocate the surface's result
 // shape, replay the borrowed view into it, and add the offset. The view's rows
 // are the result's rows either flavor, so the dense and resident-sparse paths
-// differ only in how the view was built.
+// differ only in how the view was built. numThreads is the replay's
+// per-call worker count; the offset add and the variance clone below are
+// serial passes over the same output, so the bridge's own serial share is one
+// pass against the replay's numTrees.
 SEXP predictFromSource(bartcore::SamplerBase& sampler,
                        const bartcore::SamplerShape& shape,
                        const bartcore::PredictorSource& source,
-                       SEXP offsetExpr) {
+                       SEXP offsetExpr, size_t numThreads) {
   size_t numTestObservations = source.numRows;
   if (numTestObservations == 0) Rf_error("bartcore_predict: requires rows");
 
@@ -5728,7 +5731,7 @@ SEXP predictFromSource(bartcore::SamplerBase& sampler,
                                static_cast<int>(numChains)));
   }
 
-  sampler.predict(source, numTestObservations, categoryOffset,
+  sampler.predict(source, numTestObservations, categoryOffset, numThreads,
                   REAL(resultExpr));
 
   if (offset != NULL) {
@@ -5743,7 +5746,8 @@ SEXP predictFromSource(bartcore::SamplerBase& sampler,
   // needs saved trees, so a null-capacity variance forest has nothing to replay.
   if (shape.hasVarianceForest && capacity > 0) {
     SEXP varianceExpr = PROTECT(Rf_duplicate(resultExpr));  // clone the shape
-    sampler.predictVariance(source, numTestObservations, REAL(varianceExpr));
+    sampler.predictVariance(source, numTestObservations, numThreads,
+                            REAL(varianceExpr));
     SEXP listExpr = PROTECT(Rf_allocVector(VECSXP, 2));
     SET_VECTOR_ELT(listExpr, 0, resultExpr);
     SET_VECTOR_ELT(listExpr, 1, varianceExpr);
@@ -5770,10 +5774,17 @@ SEXP predictFromSource(bartcore::SamplerBase& sampler,
 // probabilities admit no additive shift. A dense matrix, a dgCMatrix, and a
 // dbartsMixedMatrix all predict; only the dense one is materialized, and it was
 // already.
-SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
+SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
+                      SEXP nThreadsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   bartcore::SamplerShape shape = sampler.shape();
+
+  // a per-call worker count, not a stored one; the engine partitions the
+  // replay by (chain, draw) and reports the same numbers at every value
+  size_t numThreads = static_cast<size_t>(
+    rc_getInt(nThreadsExpr, "number of threads", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_NA | RC_NO, RC_END));
 
   // predict() sums only the first forest, so an amplitude coupling's
   // prediction would drop every other forest and the glue; refuse it for the
@@ -5802,7 +5813,8 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
                       sampler.data().types.data());
       validateTestContainerAgainstStore(sampler.data(), parsed.view);
       refuseSparseLeafCovariate(shape, parsed.view);
-      return predictFromSource(sampler, shape, parsed.view, offsetExpr);
+      return predictFromSource(sampler, shape, parsed.view, offsetExpr,
+                               numThreads);
     });
 
   size_t numTestObservations =
@@ -5811,7 +5823,7 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
     sampler, shape,
     bartcore::densePredictorSource(REAL(xTestExpr), numTestObservations,
                                    shape.numPredictors),
-    offsetExpr);
+    offsetExpr, numThreads);
 }
 
 // The allocation/replay tail of bartcore_predictPerForest. It cannot reuse
@@ -5825,7 +5837,8 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
 // saved capacity, or 1 off keepTrees, where the live trees replay instead.
 SEXP predictPerForestFromSource(bartcore::SamplerBase& sampler,
                                 const bartcore::SamplerShape& shape,
-                                const bartcore::PredictorSource& source) {
+                                const bartcore::PredictorSource& source,
+                                size_t numThreads) {
   size_t numTestObservations = source.numRows;
   if (numTestObservations == 0)
     Rf_error("bartcore_predictPerForest: requires rows");
@@ -5848,7 +5861,8 @@ SEXP predictPerForestFromSource(bartcore::SamplerBase& sampler,
   for (int d = 0; d < numDims; ++d) INTEGER(dimExpr)[d] = dims[d];
   Rf_setAttrib(resultExpr, R_DimSymbol, dimExpr);
 
-  sampler.predictPerForest(source, numTestObservations, REAL(resultExpr));
+  sampler.predictPerForest(source, numTestObservations, numThreads,
+                           REAL(resultExpr));
   UNPROTECT(1);
   return resultExpr;
 }
@@ -5861,10 +5875,15 @@ SEXP predictPerForestFromSource(bartcore::SamplerBase& sampler,
 // reported quantity is a softmax probability and its off-sample surface is
 // bartcore_predict, which reports that. Sparse test sources replay resident,
 // exactly as they do there.
-SEXP bartcore_predictPerForest(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
+SEXP bartcore_predictPerForest(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
+                               SEXP nThreadsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   bartcore::SamplerShape shape = sampler.shape();
+
+  size_t numThreads = static_cast<size_t>(
+    rc_getInt(nThreadsExpr, "number of threads", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_NA | RC_NO, RC_END));
 
   if (!shape.forestReportingIsDefined)
     Rf_error("bartcore_predictPerForest: this sampler reports no per-forest "
@@ -5885,7 +5904,8 @@ SEXP bartcore_predictPerForest(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
                       sampler.data().types.data());
       validateTestContainerAgainstStore(sampler.data(), parsed.view);
       refuseSparseLeafCovariate(shape, parsed.view);
-      return predictPerForestFromSource(sampler, shape, parsed.view);
+      return predictPerForestFromSource(sampler, shape, parsed.view,
+                                        numThreads);
     });
 
   size_t numTestObservations =
@@ -5893,7 +5913,48 @@ SEXP bartcore_predictPerForest(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   return predictPerForestFromSource(
     sampler, shape,
     bartcore::densePredictorSource(REAL(xTestExpr), numTestObservations,
-                                   shape.numPredictors));
+                                   shape.numPredictors),
+    numThreads);
+}
+
+// The shape of the last out-of-sample replay's fan-out: list(n.workers, worker),
+// the second a per-slab worker index in the same (chain, draw) order the
+// replay's output is laid out in. It exists so a test can prove that a thread
+// argument reached the engine and that the partition covers every slab exactly
+// once, without measuring time; no R surface reads it, and the numbers it
+// reports never change an answer.
+SEXP bartcore_lastPredictPartition(void) {
+  const bartcore::PredictPartitionChannel& channel = bartcore::predictPartition;
+  size_t numSlabs = channel.workerForSlab.size();
+  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 3));
+  SET_VECTOR_ELT(resultExpr, 0,
+                 Rf_ScalarInteger(static_cast<int>(channel.resolvedThreads)));
+  SET_VECTOR_ELT(resultExpr, 1,
+                 Rf_ScalarInteger(static_cast<int>(channel.numWorkers)));
+  SEXP workerExpr =
+    PROTECT(Rf_allocVector(INTSXP, static_cast<R_xlen_t>(numSlabs)));
+  for (size_t i = 0; i < numSlabs; ++i)
+    INTEGER(workerExpr)[i] = static_cast<int>(channel.workerForSlab[i]);
+  SET_VECTOR_ELT(resultExpr, 2, workerExpr);
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 3));
+  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("resolved"));
+  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("n.workers"));
+  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("worker"));
+  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
+  UNPROTECT(3);
+  return resultExpr;
+}
+
+// Test-only companion: replaces the derived traversal cutoff, so a fixture
+// small enough to run in a test still fans out and an identity-across-thread-
+// counts assertion is not vacuous. 0 restores the derived constant. Returns
+// the value it replaced.
+SEXP bartcore_setPredictParallelCutoff(SEXP cutoffExpr) {
+  size_t previous = bartcore::predictPartition.cutoffOverride;
+  bartcore::predictPartition.cutoffOverride = static_cast<size_t>(
+    rc_getInt(cutoffExpr, "predict parallel cutoff", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_NO, RC_END));
+  return Rf_ScalarInteger(static_cast<int>(previous));
 }
 
 // index conversion around bartcore_bridge::getTrees, which describes the

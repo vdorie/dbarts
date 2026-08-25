@@ -58,6 +58,7 @@ rbart_vi(
     type = c("ev", "ppd", "bart", "ranef"),
     combineChains = TRUE,
     ci.level = NULL,
+    n.threads,
     \dots)
 
 \S3method{residuals}{rbart}(object, type = "ev", \dots)

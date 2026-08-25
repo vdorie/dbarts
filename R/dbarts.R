@@ -1083,7 +1083,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     predict = function(x.test, offset.test, n.threads = control@n.threads) {
-      "Using existing sampler to predict for new data without re-running."
+      "Using existing sampler to predict for new data without re-running. n.threads is a per-call worker count that does not persist, defaulting to the sampler's own: the replay is partitioned by (chain, saved draw), each partition writing its own rows, so the answer is identical bit for bit at every value."
       ptr <- getPointer()
 
       x.test <- validateXTest(x.test, data@x)
@@ -1143,10 +1143,14 @@ dbartsSampler <- setRefClass(
         }
       }
 
-      .Call(C_dbarts_bartcore_predict, ptr, x.test, offset.test)
+      .Call(C_dbarts_bartcore_predict, ptr, x.test, offset.test, n.threads)
     },
-    predictForests = function(x.test, offset.test) {
-      "Replays each forest separately at new data, without re-running: an n.new x n.forests x n.samples (x n.chains) array of each forest's own INTERNAL-scale total, the off-sample twin of getForestFits. Only a sampler that composes its forests through scalar amplitude glue reports per-forest fits; every other one, a multinomial sampler included, is refused by name. No glue, no response transform and no offset are folded in: the location an amplitude coupling reports is response.shift + sum_f (basis_f %*% glue_f) * (response.scale * f_f), and off the training rows the bases are the caller's, so the whole recombination is too. offset.test is refused for the same reason - a shift belongs to that recombination. Reports the saved samples under keepTrees, and otherwise the current trees, exactly as predict does."
+    predictForests = function(
+      x.test,
+      offset.test,
+      n.threads = control@n.threads
+    ) {
+      "Replays each forest separately at new data, without re-running: an n.new x n.forests x n.samples (x n.chains) array of each forest's own INTERNAL-scale total, the off-sample twin of getForestFits. Only a sampler that composes its forests through scalar amplitude glue reports per-forest fits; every other one, a multinomial sampler included, is refused by name. No glue, no response transform and no offset are folded in: the location an amplitude coupling reports is response.shift + sum_f (basis_f %*% glue_f) * (response.scale * f_f), and off the training rows the bases are the caller's, so the whole recombination is too. offset.test is refused for the same reason - a shift belongs to that recombination. Reports the saved samples under keepTrees, and otherwise the current trees, exactly as predict does. n.threads is predict's per-call worker count, with the same (chain, saved draw) partition and the same bitwise-identical result at every value."
       ptr <- getPointer()
 
       x.test <- validateXTest(x.test, data@x)
@@ -1156,7 +1160,13 @@ dbartsSampler <- setRefClass(
       if (missing(offset.test)) {
         offset.test <- NULL
       }
-      .Call(C_dbarts_bartcore_predictPerForest, ptr, x.test, offset.test)
+      .Call(
+        C_dbarts_bartcore_predictPerForest,
+        ptr,
+        x.test,
+        offset.test,
+        n.threads
+      )
     },
     setControl = function(newControl) {
       "Sets the control object for the sampler to a new one. Preserves the call() slot and any bartcore.* control attributes."

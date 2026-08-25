@@ -411,7 +411,8 @@ expect_error(
     dbarts:::C_dbarts_bartcore_predict,
     bc.pred$ptr,
     x.test,
-    zeroTestOffset[seq_len(5L), ]
+    zeroTestOffset[seq_len(5L), ],
+    1L
   ),
   "14 observations x 3 categories"
 )
@@ -420,7 +421,8 @@ expect_error(
     dbarts:::C_dbarts_bartcore_predict,
     bc.pred$ptr,
     x.test,
-    matrix(NA_real_, nTest, K)
+    matrix(NA_real_, nTest, K),
+    1L
   ),
   "finite"
 )

@@ -137,14 +137,33 @@ public:
             std::vector<std::uint32_t>& ct, std::vector<double>* sl,
             std::vector<std::uint64_t>* m, std::size_t f),
            (c, t, n, ct, sl, m, f))
-  SPY_VOID(predict,
-           (const PredictorSource& s, std::size_t nt, const double* co,
-            double* o),
-           (s, nt, co, o))
-  SPY_VOID(predictPerForest,
-           (const PredictorSource& s, std::size_t nt, double* o), (s, nt, o))
-  SPY_VOID(predictVariance,
-           (const PredictorSource& s, std::size_t nt, double* o), (s, nt, o))
+  // The three replay virtuals are spelled out rather than macro-generated so
+  // the spy can RECORD the numThreads it was handed. Recording it here proves
+  // the argument survives the type-erased hop; the engine-side worker count
+  // (bartcore::predictPartition) proves the facade then forwarded it rather
+  // than passing a constant of its own.
+  void predict(const PredictorSource& s, std::size_t nt, const double* co,
+               std::size_t numThreads, double* o) override {
+    record(FacadeVirtual::predict);
+    predictThreads = numThreads;
+    inner_.predict(s, nt, co, numThreads, o);
+  }
+  void predictPerForest(const PredictorSource& s, std::size_t nt,
+                        std::size_t numThreads, double* o) override {
+    record(FacadeVirtual::predictPerForest);
+    predictPerForestThreads = numThreads;
+    inner_.predictPerForest(s, nt, numThreads, o);
+  }
+  void predictVariance(const PredictorSource& s, std::size_t nt,
+                       std::size_t numThreads, double* o) override {
+    record(FacadeVirtual::predictVariance);
+    predictVarianceThreads = numThreads;
+    inner_.predictVariance(s, nt, numThreads, o);
+  }
+
+  std::size_t predictThreads = 0;
+  std::size_t predictPerForestThreads = 0;
+  std::size_t predictVarianceThreads = 0;
   SPY_VOID(getState, (SamplerStateData& s), (s))
   SPY_RET(bool, setState,
           (const SamplerStateData& s, const double* cp, bool* r), (s, cp, r))
@@ -749,16 +768,25 @@ const Row rows[] = {
     check(countsBase != countsZero || viaBase.size() != forestZero.size(),
           "facade flattenTree: the named forest is flattened, not forest 0");
   }},
+  // The replay rows check two things at once: the fits agree with a direct
+  // call on the impl, AND the thread count they were handed - a value chosen
+  // to differ from every default and from the fixtures' own count - arrives at
+  // the engine. A forwarder that drops the argument leaves the engine
+  // resolving the sampler's own count instead, which the resolved-count check
+  // catches; a boundary that never passed it on leaves the spy's record wrong.
   {FacadeVirtual::predict, "predict", [](Fixtures& f) {
     std::size_t slab = Fixtures::nTest * f.g.impl().filledSavedDraws() *
                        f.g.impl().numChains();
     std::vector<double> viaBase(slab, 0.0), viaImpl(slab, 1.0);
     PredictorSource source =
       densePredictorSource(f.xTest.data(), Fixtures::nTest, Fixtures::p);
-    f.g.base().predict(source, Fixtures::nTest, nullptr, viaBase.data());
-    f.g.impl().predict(source, Fixtures::nTest, nullptr, viaImpl.data());
+    f.g.base().predict(source, Fixtures::nTest, nullptr, 5, viaBase.data());
+    std::size_t resolved = predictPartition.resolvedThreads;
+    f.g.impl().predict(source, Fixtures::nTest, nullptr, 5, viaImpl.data());
     check(viaBase == viaImpl,
           "facade predict: the boundary's fits are the impl's");
+    check(f.g.spy->predictThreads == 5 && resolved == 5,
+          "facade predict: the thread count crosses the boundary intact");
   }},
   {FacadeVirtual::predictPerForest, "predictPerForest", [](Fixtures& f) {
     std::size_t slab = Fixtures::nTest * f.b.impl().numForests() *
@@ -766,23 +794,31 @@ const Row rows[] = {
     std::vector<double> viaBase(slab, 0.0), viaImpl(slab, 1.0);
     PredictorSource source =
       densePredictorSource(f.xTest.data(), Fixtures::nTest, Fixtures::p);
-    f.b.base().predictPerForest(source, Fixtures::nTest, viaBase.data());
-    f.b.impl().predictPerForest(source, Fixtures::nTest, viaImpl.data());
+    f.b.base().predictPerForest(source, Fixtures::nTest, 5, viaBase.data());
+    std::size_t resolved = predictPartition.resolvedThreads;
+    f.b.impl().predictPerForest(source, Fixtures::nTest, 5, viaImpl.data());
     check(viaBase == viaImpl,
           "facade predictPerForest: the boundary's per-forest fits are the "
           "impl's");
+    check(f.b.spy->predictPerForestThreads == 5 && resolved == 5,
+          "facade predictPerForest: the thread count crosses the boundary "
+          "intact");
   }},
   {FacadeVirtual::predictVariance, "predictVariance", [](Fixtures& f) {
     std::size_t slab = Fixtures::nTest * f.v.impl().filledSavedDraws();
     std::vector<double> viaBase(slab, 0.0), viaImpl(slab, 1.0);
     PredictorSource source =
       densePredictorSource(f.xTest.data(), Fixtures::nTest, Fixtures::p);
-    f.v.base().predictVariance(source, Fixtures::nTest, viaBase.data());
-    f.v.impl().predictVariance(source, Fixtures::nTest, viaImpl.data());
+    f.v.base().predictVariance(source, Fixtures::nTest, 5, viaBase.data());
+    std::size_t resolved = predictPartition.resolvedThreads;
+    f.v.impl().predictVariance(source, Fixtures::nTest, 5, viaImpl.data());
     bool positive = true;
     for (double value : viaBase) positive &= value > 0.0;
     check(viaBase == viaImpl && positive,
           "facade predictVariance: the boundary's surface is the impl's");
+    check(f.v.spy->predictVarianceThreads == 5 && resolved == 5,
+          "facade predictVariance: the thread count crosses the boundary "
+          "intact");
   }},
   {FacadeVirtual::getState, "getState", [](Fixtures& f) {
     SamplerStateData viaBase, viaImpl;

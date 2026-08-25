@@ -743,7 +743,7 @@ SEXP capi_predict_source(SEXP ptrExpr, SEXP specExpr) {
     source.numRows * numSamples * dbarts_sampler_numChains(sampler);
 
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
-  dbarts_sampler_predict(sampler, &source, NULL, REAL(result));
+  dbarts_sampler_predict(sampler, &source, NULL, 0, REAL(result));
   UNPROTECT(1);
   return result;
 }
@@ -772,7 +772,7 @@ SEXP capi_predict_truncated(SEXP ptrExpr, SEXP xTestExpr) {
   size_t length =
     source.numRows * numSamples * dbarts_sampler_numChains(sampler);
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
-  dbarts_sampler_predict(sampler, &source, NULL, REAL(result));
+  dbarts_sampler_predict(sampler, &source, NULL, 0, REAL(result));
   UNPROTECT(1);
   return result;
 }
@@ -794,9 +794,29 @@ SEXP capi_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
     source.numRows * numSamples * dbarts_sampler_numChains(sampler);
 
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
+  /* 0 is the header's "the sampler's own count", so every assertion that
+   * runs through here covers that resolution as well */
   dbarts_sampler_predict(sampler, &source,
-                         Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr),
+                         Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr), 0,
                          REAL(result));
+  UNPROTECT(1);
+  return result;
+}
+
+/* the same replay at an explicit per-call count. The count does not persist
+ * and cannot move a value, so the answer must equal capi_predict's at every
+ * one of them. */
+SEXP capi_predict_threads(SEXP ptrExpr, SEXP xTestExpr, SEXP nThreadsExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  dbarts_predictor_source source = denseSource(xTestExpr);
+  size_t saved = dbarts_sampler_numSavedSamples(sampler);
+  size_t numSamples = saved > 0 ? saved : 1;
+  size_t length =
+    source.numRows * numSamples * dbarts_sampler_numChains(sampler);
+
+  SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
+  dbarts_sampler_predict(sampler, &source, NULL,
+                         (size_t) Rf_asInteger(nThreadsExpr), REAL(result));
   UNPROTECT(1);
   return result;
 }
@@ -1175,7 +1195,7 @@ static SEXP bcfLegBody(void* data) {
       dbarts_predictor_source source = dbarts_dense_predictor_source(
         legs->xTest, legs->numTestObservations,
         dbarts_sampler_numPredictors(legs->sampler));
-      dbarts_sampler_predict(legs->sampler, &source, NULL, legs->out);
+      dbarts_sampler_predict(legs->sampler, &source, NULL, 0, legs->out);
       break;
     }
     case LEG_BASIS: {

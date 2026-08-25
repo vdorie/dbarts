@@ -164,7 +164,8 @@ expect_identical(
     dbarts:::C_dbarts_bartcore_predict,
     sampler.num$getPointer(),
     sparse.test,
-    NULL
+    NULL,
+    1L
   ),
   sampler.num$predict(dense.entries)
 )

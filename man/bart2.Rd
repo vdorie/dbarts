@@ -83,7 +83,7 @@ bart2(
     object, newdata,
     type = c("ev", "ppd", "bart", "forest"),
     offset = NULL,
-    combineChains = TRUE, ci.level = NULL, \dots)
+    combineChains = TRUE, ci.level = NULL, n.threads, \dots)
 
 \method{print}{bartMultinomial}(x, \dots)
 
@@ -172,6 +172,8 @@ bart2(
    }
    \item{n.threads}{
      Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.
+
+     On \code{predict}, \code{n.threads} is a per-call worker count for the saved-tree replay, defaulting to the fit's own: the replay is partitioned by (chain, posterior draw), each partition writing its own rows and nothing being reduced across workers, so the answer is identical bit for bit at every value and only the time taken changes.
    }
    \item{combineChains}{
      Logical; if \code{TRUE}, samples are returned collapsed across chains rather than in a chains-by-samples array. Default \code{TRUE}, as for \code{\link{bart}} and \code{\link{rbart_vi}}; the number of chains is tracked regardless on the returned object's \code{n.chains} component (see \sQuote{Value}).

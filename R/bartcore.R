@@ -1079,7 +1079,12 @@ bartcoreRun <- function(bcSampler, numBurnIn = 0L, numSamples = 1L) {
 # from the sampler - these rows are the caller's - so a handle carrying a
 # category offset must be given one here, an all-zero matrix being how the
 # offset-free surface is asked for.
-bartcorePredict <- function(bcSampler, x.test, offset.test = NULL) {
+bartcorePredict <- function(
+  bcSampler,
+  x.test,
+  offset.test = NULL,
+  n.threads = 1L
+) {
   x.test <- as.matrix(x.test)
   storage.mode(x.test) <- "double"
   if (!is.null(offset.test)) {
@@ -1094,5 +1099,11 @@ bartcorePredict <- function(bcSampler, x.test, offset.test = NULL) {
       offset.test <- as.double(offset.test)
     }
   }
-  .Call(C_dbarts_bartcore_predict, bcSampler$ptr, x.test, offset.test)
+  .Call(
+    C_dbarts_bartcore_predict,
+    bcSampler$ptr,
+    x.test,
+    offset.test,
+    n.threads
+  )
 }

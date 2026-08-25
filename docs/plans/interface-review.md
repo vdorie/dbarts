@@ -203,6 +203,13 @@ F10. dbartsSampler$run's thread formal is numThreads while the Rd
      inert, not merely "serial" - passing any value has zero effect;
      the sampler's real thread count is fixed at creation from
      control@n.threads. Documented the stronger claim (see D1).
+     Superseded for predict: predict()'s n.threads is now wired on
+     all six generics and on the sampler's predict/predictForests,
+     partitioning the saved-tree replay per (chain, draw); the flat
+     C API's dbarts_sampler_predict takes the count too. run()'s
+     formal is still inert (its count also sizes routeTestRows and a
+     run mutates state, so the override moves more than worker
+     count) and the Rd now says so of run alone.
 
 F11. print.bart/print.rbart print only the deparsed call - with
      keepCall = FALSE, literally "NULL()". Landed: prints a
@@ -540,7 +547,7 @@ normalization (sigdf/sigquant/sigest vs resid.prior, rngSeed vs
 seed); fold rbart.priors (cauchy/gamma) into the dbartsPriors
 vocabulary; echo offending values in validation messages package-
 wide; standardize message register; centralize deprecation shims;
-threaded prediction; announce character-to-factor promotion.
+announce character-to-factor promotion.
 
 ### Gates (interface-taste-1.0)
 

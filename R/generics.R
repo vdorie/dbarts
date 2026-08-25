@@ -224,6 +224,28 @@ combineOrUncombineChains <- function(x, n.chains, combine) {
   x
 }
 
+# The per-call worker count for a saved-tree replay. The engine partitions by
+# (chain, draw) and reduces nothing across workers, so this moves no value; it
+# is refused rather than floored because a zero, a negative, an NA or a
+# non-numeric is a caller mistake, and the offending value is echoed so which
+# call carried it is visible. Every predict method takes it as its LAST
+# positional formal: consumers call these methods positionally, so an earlier
+# insertion would rebind their arguments.
+validatePredictThreads <- function(n.threads) {
+  if (
+    !is.numeric(n.threads) ||
+      length(n.threads) != 1L ||
+      is.na(n.threads) ||
+      n.threads < 1L
+  ) {
+    stop(
+      "'n.threads' must be a single positive integer, not ",
+      deparse(n.threads)[1L]
+    )
+  }
+  as.integer(n.threads)
+}
+
 predict.bart <- function(
   object,
   newdata,
@@ -231,10 +253,10 @@ predict.bart <- function(
   weights,
   type = c("ev", "ppd", "bart", "forest"),
   combineChains = TRUE,
-  n.threads = object$fit$control@n.threads,
   ci.level = NULL,
   forest = NULL,
   bases = NULL,
+  n.threads = object$fit$control@n.threads,
   ...
 ) {
   if (missing(offset)) {
@@ -253,6 +275,9 @@ predict.bart <- function(
   }
 
   type <- validateType(type, eval(formals(predict.bart)$type))
+  # above the type = "forest" and amplitude-blend returns below, so every arm's
+  # value is checked rather than only the one that reaches the sampler here
+  n.threads <- validatePredictThreads(n.threads)
 
   # both amplitude arms read the SAVED trees draw by draw, pairing each draw's
   # forests with that draw's own amplitudes; without the tree store only the
@@ -282,7 +307,14 @@ predict.bart <- function(
         "recombination to the caller"
       )
     }
-    return(predictForest(object, newdata, offset, combineChains, forest))
+    return(predictForest(
+      object,
+      newdata,
+      offset,
+      combineChains,
+      forest,
+      n.threads
+    ))
   }
 
   # an amplitude-coupled fit has no combined test surface in the engine - the
@@ -297,7 +329,8 @@ predict.bart <- function(
       type,
       combineChains,
       ci.level,
-      bases
+      bases,
+      n.threads
     ))
   }
 
@@ -310,8 +343,6 @@ predict.bart <- function(
       if (numForests == 1L) " forest" else " forests"
     )
   }
-
-  n.threads <- as.integer(n.threads)[1L]
 
   n.chains <- object$fit$control@n.chains
   result <- object$fit$predict(newdata, offset, n.threads)
@@ -601,7 +632,14 @@ extractForest <- function(object, sample, combineChains, forest, contribution) {
 # caller's own bases at the new rows (man/bart.Rd states the idiom). Refuses by
 # name on a fit without per-forest reporting, off the same stored channel
 # extract reads, and there is no contribution = arm for the same reason.
-predictForest <- function(object, newdata, offset, combineChains, forest) {
+predictForest <- function(
+  object,
+  newdata,
+  offset,
+  combineChains,
+  forest,
+  n.threads
+) {
   if (is.null(object[["forestFits"]])) {
     stop(
       "type = \"forest\" is only available on a fit with per-forest ",
@@ -610,7 +648,7 @@ predictForest <- function(object, newdata, offset, combineChains, forest) {
   }
   n.chains <- object$fit$control@n.chains
   responseScale <- object$fit$getCalibration(1L)[1L, "response.scale"]
-  raw <- object$fit$predictForests(newdata, offset) * responseScale
+  raw <- object$fit$predictForests(newdata, offset, n.threads) * responseScale
   # forestFits carries the fit's own combineChains shape (3-d combined, 4-d
   # split across chains), so the forest margin is always the LAST axis rather
   # than a fixed index
@@ -742,10 +780,11 @@ predictBlend <- function(
   type,
   combineChains,
   ci.level,
-  bases
+  bases,
+  n.threads
 ) {
   n.chains <- object$fit$control@n.chains
-  perForest <- predictForest(object, newdata, NULL, TRUE, NULL)
+  perForest <- predictForest(object, newdata, NULL, TRUE, NULL, n.threads)
   n.new <- dim(perForest)[2L]
   forestNames <- dimnames(perForest)[[3L]]
   bases <- resolveForestBases(object, bases, newdata, n.new)
@@ -1137,6 +1176,7 @@ predict.bartMultinomial <- function(
   offset = NULL,
   combineChains = TRUE,
   ci.level = NULL,
+  n.threads = object$fit$control@n.threads,
   ...
 ) {
   type <- validateType(type, eval(formals(predict.bartMultinomial)$type))
@@ -1153,6 +1193,9 @@ predict.bartMultinomial <- function(
       "'keepTrees' == TRUE"
     )
   }
+  # after the fit check, whose absence the default here would otherwise report
+  # as a missing slot
+  n.threads <- validatePredictThreads(n.threads)
   newdata <- validateXTest(newdata, object$fit$data@x)
   if (is.null(newdata)) {
     stop("newdata cannot be NULL")
@@ -1180,7 +1223,7 @@ predict.bartMultinomial <- function(
   # raw is n.new x K x n.samples (x n.chains), the run's test-channel shape;
   # $fit$predict re-validates the coded newdata (idempotently) and shapes the
   # offset against the same rows
-  raw <- object$fit$predict(newdata, offset)
+  raw <- object$fit$predict(newdata, offset, n.threads)
   probs <- shapeMultinomialChannel(
     raw,
     object$levels,
@@ -1424,6 +1467,7 @@ predict.bartOrdinal <- function(
   type = c("ev", "ppd", "bart"),
   combineChains = TRUE,
   ci.level = NULL,
+  n.threads = object$fit$control@n.threads,
   ...
 ) {
   type <- validateType(type, eval(formals(predict.bartOrdinal)$type))
@@ -1439,6 +1483,9 @@ predict.bartOrdinal <- function(
       "'keepTrees' == TRUE"
     )
   }
+  # after the store check, whose absence the default here would otherwise
+  # report as a missing slot
+  n.threads <- validatePredictThreads(n.threads)
   newdata <- validateXTest(newdata, object$fit$data@x)
   if (is.null(newdata)) {
     stop("newdata cannot be NULL")
@@ -1449,7 +1496,11 @@ predict.bartOrdinal <- function(
   n.chains <- object$n.chains
   # raw is n.new x n.samples (x n.chains): the replayed latent eta, the test
   # channel's shape
-  raw <- bartcorePredict(list(ptr = object$fit$getPointer()), newdata)
+  raw <- bartcorePredict(
+    list(ptr = object$fit$getPointer()),
+    newdata,
+    n.threads = n.threads
+  )
   if (type == "bart") {
     result <- convertSamplesFromDbartsToBart(raw, n.chains, combineChains)
     if (!is.null(ci.level)) {
@@ -1655,6 +1706,7 @@ predict.bartNegbin <- function(
   offset.test = NULL,
   combineChains = TRUE,
   ci.level = NULL,
+  n.threads = object$fit$control@n.threads,
   ...
 ) {
   type <- validateType(type, eval(formals(predict.bartNegbin)$type))
@@ -1670,6 +1722,9 @@ predict.bartNegbin <- function(
       "'keepTrees' == TRUE"
     )
   }
+  # after the store check, whose absence the default here would otherwise
+  # report as a missing slot
+  n.threads <- validatePredictThreads(n.threads)
   newdata <- validateXTest(newdata, object$fit$data@x)
   if (is.null(newdata)) {
     stop("newdata cannot be NULL")
@@ -1682,7 +1737,8 @@ predict.bartNegbin <- function(
   raw <- bartcorePredict(
     list(ptr = object$fit$getPointer()),
     newdata,
-    offset.test
+    offset.test,
+    n.threads
   )
   if (type == "bart") {
     result <- convertSamplesFromDbartsToBart(raw, n.chains, combineChains)
@@ -1882,7 +1938,7 @@ combineHurdleChannel <- function(type, piVec, fVec, sigmaVec, shape) {
 # fit's log-scale (bart) fits at the FULL-n rows through its x.test channel (the
 # zero rows it never trained on included); out-of-sample replays both saved
 # forests at newdata.
-hurdleParts <- function(object, newdata) {
+hurdleParts <- function(object, newdata, n.threads = 1L) {
   if (missing(newdata)) {
     pi <- extract(
       object$occupancy,
@@ -1897,12 +1953,19 @@ hurdleParts <- function(object, newdata) {
       combineChains = FALSE
     )
   } else {
-    pi <- predict(object$occupancy, newdata, type = "ev", combineChains = FALSE)
+    pi <- predict(
+      object$occupancy,
+      newdata,
+      type = "ev",
+      combineChains = FALSE,
+      n.threads = n.threads
+    )
     f <- predict(
       object$positive,
       newdata,
       type = "bart",
-      combineChains = FALSE
+      combineChains = FALSE,
+      n.threads = n.threads
     )
   }
   sigmaVec <- scalarDrawVec(
@@ -2038,6 +2101,7 @@ predict.bartHurdle <- function(
   type = c("ev", "ppd", "prob", "bart"),
   combineChains = TRUE,
   ci.level = NULL,
+  n.threads = object$occupancy$fit$control@n.threads,
   ...
 ) {
   type <- resolveHurdleType(type, eval(formals(predict.bartHurdle)$type))
@@ -2053,9 +2117,12 @@ predict.bartHurdle <- function(
       "with 'keepTrees' == TRUE"
     )
   }
+  # after the occupancy fit check, whose absence the default here would
+  # otherwise report as a missing slot
+  n.threads <- validatePredictThreads(n.threads)
   n.chains <- hurdleNChains(object)
   finishHurdle(
-    hurdleParts(object, newdata),
+    hurdleParts(object, newdata, n.threads),
     type,
     n.chains,
     combineChains,
@@ -2080,11 +2147,13 @@ predict.rbart <- function(
   type = c("ev", "ppd", "bart", "ranef"),
   combineChains = TRUE,
   ci.level = NULL,
+  n.threads = object$fit[[1L]]$control@n.threads,
   ...
 ) {
   if (is.null(object$fit)) {
     stop("predict requires rbart to be called with 'keepTrees' == TRUE")
   }
+  n.threads <- validatePredictThreads(n.threads)
 
   dotsList <- list(...)
   if (!is.null(dotsList[["value"]])) {
@@ -2130,13 +2199,17 @@ predict.rbart <- function(
       if (length(object$fit) == 1L) {
         # the in-core Gibbs path keeps one multi-chain sampler, whose
         # predictions already carry the chain dimension
-        nonParametricPart <- object$fit[[1L]]$predict(newdata, offset)
+        nonParametricPart <- object$fit[[1L]]$predict(
+          newdata,
+          offset,
+          n.threads
+        )
         n.obs <- dim(nonParametricPart)[1L]
       } else {
         n.obs <- NULL
         nonParametricPart <- array(
           sapply(seq_len(n.chains), function(i) {
-            res <- object$fit[[i]]$predict(newdata, offset)
+            res <- object$fit[[i]]$predict(newdata, offset, n.threads)
             if (is.null(n.obs)) {
               n.obs <<- dim(res)[1L]
             }
@@ -2146,7 +2219,7 @@ predict.rbart <- function(
         )
       }
     } else {
-      nonParametricPart <- object$fit[[1L]]$predict(newdata, offset)
+      nonParametricPart <- object$fit[[1L]]$predict(newdata, offset, n.threads)
       n.obs <- nrow(nonParametricPart)
     }
     if (n.obs != length(group.by)) {

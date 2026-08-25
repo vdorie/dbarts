@@ -920,6 +920,20 @@
             array/data frame conventions; both are registered only when
             \pkg{posterior} is installed, a \code{Suggests} rather than a
             hard dependency.
+      \item \code{predict}'s \code{n.threads} is wired again, on every
+            predict method (\code{bart}, \code{bartMultinomial},
+            \code{bartOrdinal}, \code{bartNegbin}, \code{bartHurdle},
+            \code{rbart}) and on the sampler's own \code{predict} and
+            \code{predictForests}. It partitions the saved-tree replay per
+            (chain, posterior draw) rather than across chains as 0.9-x did, so
+            a single-chain fit parallelizes too. Each partition writes its own
+            rows and nothing is reduced across workers, so the answer is
+            identical bit for bit at every value; a replay too small to pay for
+            the partition runs inline. The argument defaults to the fit's own
+            thread count, does not persist, and is the LAST positional formal
+            on every method, so callers passing arguments by position are
+            unaffected. A value that is not a single positive number is an
+            error. \code{run}'s \code{n.threads} argument remains inert.
       \item \code{predict} on a \code{bart2(family = "multinomial")} fit
             gains \code{offset.category.test}, the per-category shift at the
             predicted rows: an \code{nrow(newdata)} x K matrix entering the
@@ -986,10 +1000,17 @@
             \code{\link{dbartsDrawLatents}} and \code{dbartsWorkingResponse}
             over caller-supplied arrays: the same laws, the same family rules
             and response-support validation, drawn from R's own stream.
-      \item \code{DBARTS_C_API_HASH} is re-baked for the three entry points
-            above. They are append-only, so no existing call site changes, but
-            a consumer checking \code{dbarts_apiHash()} against the header
-            constant must be rebuilt - the lockstep handshake as designed.
+      \item \code{dbarts_sampler_predict} takes a \code{numThreads} argument
+            before its output pointer: a per-call worker count that does not
+            persist, where 0 means the sampler's own count and a resolved count
+            below 1 - including a sampler whose own count was set to 0 - is
+            treated as 1, so the output buffer is always written. The replay is
+            identical bit for bit at every value.
+      \item \code{DBARTS_C_API_HASH} is re-baked for the entry points above.
+            All but \code{dbarts_sampler_predict} are append-only, so only that
+            one's call sites change; every consumer checking
+            \code{dbarts_apiHash()} against the header constant must be
+            rebuilt - the lockstep handshake as designed.
     }
   }
   \subsection{BUG FIXES}{
@@ -2021,7 +2042,9 @@
   \subsection{NEW FEATURES}{
     \itemize{
       \item \code{predict} now accepts a \code{n.threads} argument and will use native
-            threads to parallelize across chains.
+            threads to parallelize the saved-tree replay, one task per chain.
+            (The chain axis is the 0.9-x one; 1.0-0 partitions per chain and
+            posterior draw instead, and the argument's spelling is unchanged.)
     }
   }
   \subsection{USER-VISIBLE CHANGES}{

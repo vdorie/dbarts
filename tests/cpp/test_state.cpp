@@ -219,7 +219,7 @@ static void testKeepTrees(ext_rng* rng) {
   // replaying the saved trees against the raw test rows must reproduce the
   // run's recorded test fits exactly: same parameters, same addition order
   std::vector<double> predicted(nTest * numSamples);
-  sampler.predict(xTest.data(), nTest, predicted.data());
+  sampler.predict(xTest.data(), nTest, 1, predicted.data());
   check(predicted == testFits, "saved-tree predictions equal the run's test fits");
 
   // a second recorded run overwrites the OLDEST slots, and the read walks the
@@ -235,7 +235,7 @@ static void testKeepTrees(ext_rng* rng) {
         "a full store stays full across a partial run");
 
   std::vector<double> predicted2(nTest * numSamples);
-  sampler.predict(xTest.data(), nTest, predicted2.data());
+  sampler.predict(xTest.data(), nTest, 1, predicted2.data());
   bool preserved = std::equal(predicted.begin() + nTest * 2, predicted.end(),
                               predicted2.begin());
   bool overwritten = std::equal(testFits2.begin(), testFits2.end(),
@@ -284,7 +284,7 @@ static void testSavedDrawOrder(ext_rng* rng) {
   check(headMap, "a partly filled store reads from slot 0");
 
   std::vector<double> predicted1(nTest * 3);
-  sampler.predict(xTest.data(), nTest, predicted1.data());
+  sampler.predict(xTest.data(), nTest, 1, predicted1.data());
   check(predicted1 == testFits1,
         "a partly filled store replays its own draws, and only those");
 
@@ -303,7 +303,7 @@ static void testSavedDrawOrder(ext_rng* rng) {
   check(wrappedMap, "a wrapped store reads from the cursor, oldest first");
 
   std::vector<double> predicted2(nTest * 4);
-  sampler.predict(xTest.data(), nTest, predicted2.data());
+  sampler.predict(xTest.data(), nTest, 1, predicted2.data());
   check(std::equal(testFits2.begin(), testFits2.end(),
                    predicted2.begin() + nTest),
         "the second run's draws are the three most recent, in order");
@@ -338,7 +338,7 @@ static void testPredictCurrentTrees(ext_rng* rng) {
   sampler.run(0, 1, results);
 
   std::vector<double> predicted(n);
-  sampler.predict(x.data(), n, predicted.data());
+  sampler.predict(x.data(), n, 1, predicted.data());
   bool match = true;
   for (size_t i = 0; i < n; ++i)
     match &= std::fabs(predicted[i] - trainingFits[i]) <= 1.0e-8;
@@ -399,8 +399,8 @@ static void testStateRoundTripScaledOffset() {
   std::vector<double> xTest(20 * 2);
   for (double& v : xTest) v = runif01();
   std::vector<double> predictionsA(20), predictionsB(20);
-  original.predict(xTest.data(), 20, predictionsA.data());
-  restored.predict(xTest.data(), 20, predictionsB.data());
+  original.predict(xTest.data(), 20, 1, predictionsA.data());
+  restored.predict(xTest.data(), 20, 1, predictionsB.data());
   check(predictionsA == predictionsB,
         "scaled restore predicts on the original scale");
 
@@ -461,8 +461,8 @@ static void testStateRoundTrip() {
   size_t capacity = original.savedTreeCapacity();
   std::vector<double> predictA(20 * capacity * numChains);
   std::vector<double> predictB(20 * capacity * numChains);
-  original.predict(xTest.data(), 20, predictA.data());
-  restored.predict(xTest.data(), 20, predictB.data());
+  original.predict(xTest.data(), 20, 1, predictA.data());
+  restored.predict(xTest.data(), 20, 1, predictB.data());
   check(predictA == predictB, "saved trees ride along with the state");
 
   // gate (b): draws diverge in the last ulp and then chaotically, but a
@@ -1469,7 +1469,7 @@ static void testVarianceSavedTreeState() {
   auto donor = makeSampler(3131, numVarianceTrees);
   donor->run(60, numSamples, results);
   std::vector<double> before(nTest * numSamples);
-  donor->predictVariance(xTest.data(), nTest, before.data());
+  donor->predictVariance(xTest.data(), nTest, 1, before.data());
   bool positive = true;
   for (double v : before) positive = positive && v > 0.0;
   check(positive, "variance saved state: the donor's replay is positive");
@@ -1483,13 +1483,13 @@ static void testVarianceSavedTreeState() {
   auto dest = makeSampler(6262, numVarianceTrees);
   dest->run(60, numSamples, results);
   std::vector<double> own(nTest * numSamples);
-  dest->predictVariance(xTest.data(), nTest, own.data());
+  dest->predictVariance(xTest.data(), nTest, 1, own.data());
   check(own != before,
         "variance saved state: the destination's own surface differs first");
   check(dest->setState(state, nullptr),
         "variance saved state: a heteroscedastic state installs");
   std::vector<double> after(nTest * numSamples);
-  dest->predictVariance(xTest.data(), nTest, after.data());
+  dest->predictVariance(xTest.data(), nTest, 1, after.data());
   check(after == before,
         "variance saved state: the restored slots replay bitwise");
   checkStructuralRoundTrip(state, *dest,
@@ -1518,7 +1518,7 @@ static void testVarianceSavedTreeState() {
         "variance saved state: an empty block under a live capacity is "
         "refused");
   std::vector<double> unchanged(nTest * numSamples);
-  dest->predictVariance(xTest.data(), nTest, unchanged.data());
+  dest->predictVariance(xTest.data(), nTest, 1, unchanged.data());
   check(unchanged == after,
         "variance saved state: a refused install changes nothing");
 
@@ -1816,7 +1816,7 @@ static void testMultiChainPartialFillPredict() {
   const double poison = -1.0e300;
   size_t slab = nTest, live = slab * numDraws * numChains;
   std::vector<double> out(live + 2 * slab, poison);
-  sampler.predict(xTest.data(), nTest, out.data());
+  sampler.predict(xTest.data(), nTest, 1, out.data());
   check(std::equal(testFits.begin(), testFits.end(), out.begin()),
         "every chain's slab replays that chain's own recorded test fits");
   bool guardHeld = true;

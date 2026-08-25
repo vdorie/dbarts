@@ -255,9 +255,15 @@ public:
   /// multi-location (multinomial softmax) surface, entering the raw fits before
   /// the blend; the sampler's own resident offsets are never substituted for
   /// it, since these rows are the caller's.
+  ///
+  /// numThreads is the per-call worker count: 0 means the sampler's own, and a
+  /// resolved count below 1 is treated as 1. It is undefaulted here because a
+  /// default argument on a virtual binds from the STATIC type, and every real
+  /// call arrives through a SamplerBase reference.
   virtual void predict(const PredictorSource& source,
                        std::size_t numTestObservations,
-                       const double* categoryOffset, double* out) = 0;
+                       const double* categoryOffset, std::size_t numThreads,
+                       double* out) = 0;
   /// Per-forest RAW fits for new rows of a borrowed predictor view: forest f's
   /// own internal-scale total into out + f * numTestObservations, with no
   /// amplitude glue, no response transform and no offset folded in - all three
@@ -266,25 +272,27 @@ public:
   /// SamplerShape::forestReportingIsDefined gates it.
   virtual void predictPerForest(const PredictorSource& source,
                                 std::size_t numTestObservations,
-                                double* out) = 0;
+                                std::size_t numThreads, double* out) = 0;
   /// Heteroscedastic variance surface s^2(x) on new rows (original scale);
   /// SamplerShape::hasVarianceForest gates it.
   virtual void predictVariance(const PredictorSource& source,
                                std::size_t numTestObservations,
-                               double* out) = 0;
+                               std::size_t numThreads, double* out) = 0;
   /// Dense convenience spellings (the dbarts.h shape): a plain column-major
   /// block of new rows, as setTestPredictors takes.
+  /// They take numThreads too: without it every dbarts.h-shaped call would
+  /// silently stay serial.
   void predict(const double* x_test, std::size_t numTestObservations,
-               double* out) {
+               std::size_t numThreads, double* out) {
     predict(densePredictorSource(x_test, numTestObservations,
                                  data().numPredictors),
-            numTestObservations, nullptr, out);
+            numTestObservations, nullptr, numThreads, out);
   }
   void predictVariance(const double* x_test, std::size_t numTestObservations,
-                       double* out) {
+                       std::size_t numThreads, double* out) {
     predictVariance(densePredictorSource(x_test, numTestObservations,
                                          data().numPredictors),
-                    numTestObservations, out);
+                    numTestObservations, numThreads, out);
   }
   virtual void getState(SamplerStateData& state) = 0;
   /// currentPredictors supplies raw for a cross-grid restore's re-quantization
@@ -543,17 +551,20 @@ public:
   using SamplerBase::predict;
   using SamplerBase::predictVariance;
   void predict(const PredictorSource& source, std::size_t numTestObservations,
-               const double* categoryOffset, double* out) override {
-    impl_.predict(source, numTestObservations, categoryOffset, out);
+               const double* categoryOffset, std::size_t numThreads,
+               double* out) override {
+    impl_.predict(source, numTestObservations, categoryOffset, numThreads,
+                  out);
   }
   void predictPerForest(const PredictorSource& source,
                         std::size_t numTestObservations,
-                        double* out) override {
-    impl_.predictPerForest(source, numTestObservations, out);
+                        std::size_t numThreads, double* out) override {
+    impl_.predictPerForest(source, numTestObservations, numThreads, out);
   }
   void predictVariance(const PredictorSource& source,
-                       std::size_t numTestObservations, double* out) override {
-    impl_.predictVariance(source, numTestObservations, out);
+                       std::size_t numTestObservations,
+                       std::size_t numThreads, double* out) override {
+    impl_.predictVariance(source, numTestObservations, numThreads, out);
   }
   void getState(SamplerStateData& state) override { impl_.getState(state); }
   bool setState(const SamplerStateData& state,

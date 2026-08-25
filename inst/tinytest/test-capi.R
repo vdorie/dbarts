@@ -76,9 +76,12 @@ expect_false(identical(hashes$text, "0xcd88efcd67de55d7"))
 # alone: a token that still could not see a struct's layout, an ABI enumerator
 # or the callback's parameters would read this one
 expect_false(identical(hashes$text, "0x85bd1ef04beb3848"))
+# the token the header baked before dbarts_sampler_predict took a thread
+# count: a signature that gained a parameter must move it
+expect_false(identical(hashes$text, "0x6c9776ae1197e8f5"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0x6c9776ae1197e8f5")
+expect_identical(hashes$text, "0x66d33f1613892406")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -573,6 +576,14 @@ expect_equal(pred1, as.double(r4$test))
 
 predOffset <- CALL("capi_predict", ptr1, x.test, rep(2, 20L))
 expect_equal(predOffset, pred1 + 2)
+
+# the per-call thread count: it does not persist and cannot move a value, so
+# every count answers with pred1 bit for bit. 0 resolves to the sampler's own
+# count, which capi_predict itself already passes.
+for (nThreads in c(0L, 1L, 2L)) {
+  expect_identical(CALL("capi_predict_threads", ptr1, x.test, nThreads), pred1)
+}
+rm(nThreads)
 
 state <- CALL("capi_store_state", ptr1)
 expect_inherits(state, "bartcoreState")

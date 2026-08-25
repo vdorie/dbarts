@@ -501,6 +501,25 @@ inline double combineFusedSuffstatBanks(const double* acc, std::size_t slot,
 }
 
 /// What Chain::checkFusedSuffstatAgainstStockForTesting reports.
+/// Per-worker buffers for the out-of-sample replay entry points. Every vector
+/// a replay would otherwise construct is held here instead, so a call
+/// allocates once per worker rather than once per (chain, draw) slab. One
+/// instance is touched by exactly one thread for the whole of a call, which is
+/// what makes it safe to share across the slabs a worker owns.
+struct PredictScratch {
+  std::vector<std::size_t> indices;
+  std::vector<std::size_t> blockOffsets;
+  /// The multi-location (softmax) replay's location-major raw staging.
+  std::vector<double> raw;
+  /// The variance replay's per-tree factor, multiplied into the product.
+  std::vector<double> treeFit;
+  /// The live-tree flatten channels; unused by a saved-tree replay.
+  std::vector<double> slopes;
+  std::vector<std::uint32_t> counts;
+  std::vector<FlatNode> flat;
+  std::vector<std::uint64_t> maskBuffer;
+};
+
 struct FusedSuffstatCheck {
   /// Trees whose eligibility predicate accepted; the rest declined to stock.
   std::size_t numTreesFused = 0;
@@ -907,19 +926,21 @@ public:
   /// into the product.
   template <typename Columns>
   void predictVarianceFromSavedSample(std::size_t slot, const Columns& columns,
-                                      std::size_t numTest, double* out) {
-    VarianceForest& vf = *varianceForest_;
+                                      std::size_t numTest,
+                                      PredictScratch& scratch,
+                                      double* out) const {
+    const VarianceForest& vf = *varianceForest_;
     for (std::size_t i = 0; i < numTest; ++i) out[i] = 1.0;
-    std::vector<std::size_t> indices(numTest);
-    std::vector<std::size_t> blockOffsets;
-    std::vector<double> treeFit(numTest);
+    scratch.indices.resize(numTest);
+    scratch.treeFit.resize(numTest);
+    double* treeFit = scratch.treeFit.data();
     for (std::size_t j = 0; j < vf.numTrees; ++j) {
       const std::uint64_t* masks = data_.hasPooledCategorical
         ? vf.savedTreeMasks[slot * vf.numTrees + j].data() : nullptr;
-      misc_setVectorToConstant(treeFit.data(), numTest, 0.0);
+      misc_setVectorToConstant(treeFit, numTest, 0.0);
       addFlatPredictions(vf.savedTrees[slot * vf.numTrees + j], nullptr,
-                         masks, columns, numTest, indices, blockOffsets,
-                         treeFit.data());
+                         masks, columns, numTest, scratch.indices,
+                         scratch.blockOffsets, treeFit);
       for (std::size_t i = 0; i < numTest; ++i) out[i] *= treeFit[i];
     }
     double s = response_->sigmaScale();
@@ -2813,11 +2834,11 @@ public:
   /// problem.
   template <typename Columns>
   void predictFromSavedSample(size_t slot, const Columns& columns,
-                              size_t numTestObservations, double* out) const {
+                              size_t numTestObservations,
+                              PredictScratch& scratch, double* out) const {
     const Forest<L, ResidT>& forest = forests_[0];
     misc_setVectorToConstant(out, numTestObservations, 0.0);
-    std::vector<size_t> indices(numTestObservations);
-    std::vector<size_t> blockOffsets;
+    scratch.indices.resize(numTestObservations);
     for (size_t t = 0; t < forest.numTrees; ++t) {
       const std::uint64_t* masks = data_.hasPooledCategorical
         ? forest.savedTreeMasks[slot * forest.numTrees + t].data() : nullptr;
@@ -2825,7 +2846,7 @@ public:
         ? nullptr : &forest.savedTreeParams[slot * forest.numTrees + t];
       addFlatPredictions(forest.savedTrees[slot * forest.numTrees + t],
                          sideChannel, masks, columns, numTestObservations,
-                         indices, blockOffsets, out);
+                         scratch.indices, scratch.blockOffsets, out);
     }
     double scale = response_->fitScale();
     double shift = response_->fitShift();
@@ -2838,20 +2859,18 @@ public:
   /// current covariates (no draw cache is fresh between runs).
   template <typename Columns>
   void predictFromCurrentTrees(const Columns& columns,
-                               size_t numTestObservations, double* out) {
+                               size_t numTestObservations,
+                               PredictScratch& scratch, double* out) {
     misc_setVectorToConstant(out, numTestObservations, 0.0);
-    std::vector<size_t> indices(numTestObservations);
-    std::vector<size_t> blockOffsets;
-    std::vector<double> slopes;
-    std::vector<std::uint32_t> counts;
-    std::vector<FlatNode> flat;
-    std::vector<std::uint64_t> maskBuffer;
+    scratch.indices.resize(numTestObservations);
     std::vector<std::uint64_t>* masks =
-      data_.hasPooledCategorical ? &maskBuffer : nullptr;
+      data_.hasPooledCategorical ? &scratch.maskBuffer : nullptr;
     for (size_t t = 0; t < forests_[0].numTrees; ++t) {
-      flattenTree(t, flat, counts, &slopes, masks);
-      addFlatPredictions(flat, &slopes, maskBuffer.data(), columns,
-                         numTestObservations, indices, blockOffsets, out);
+      flattenTree(t, scratch.flat, scratch.counts, &scratch.slopes, masks);
+      addFlatPredictions(scratch.flat, &scratch.slopes,
+                         scratch.maskBuffer.data(), columns,
+                         numTestObservations, scratch.indices,
+                         scratch.blockOffsets, out);
     }
     double scale = response_->fitScale();
     double shift = response_->fitShift();
@@ -2880,14 +2899,15 @@ public:
   void predictFromSavedSampleMulti(size_t slot, const Columns& columns,
                                    size_t numTestObservations,
                                    const double* categoryOffset,
+                                   PredictScratch& scratch,
                                    double* out) const {
     size_t K = forests_.size();
-    std::vector<double> raw(numTestObservations * K);
-    std::vector<size_t> indices(numTestObservations);
-    std::vector<size_t> blockOffsets;
+    scratch.raw.resize(numTestObservations * K);
+    scratch.indices.resize(numTestObservations);
+    double* raw = scratch.raw.data();
     for (size_t f = 0; f < K; ++f) {
       const Forest<L, ResidT>& forest = forests_[f];
-      double* forestRaw = raw.data() + f * numTestObservations;
+      double* forestRaw = raw + f * numTestObservations;
       misc_setVectorToConstant(forestRaw, numTestObservations, 0.0);
       for (size_t t = 0; t < forest.numTrees; ++t) {
         const std::uint64_t* masks = data_.hasPooledCategorical
@@ -2896,13 +2916,12 @@ public:
           ? nullptr : &forest.savedTreeParams[slot * forest.numTrees + t];
         addFlatPredictions(forest.savedTrees[slot * forest.numTrees + t],
                            sideChannel, masks, columns, numTestObservations,
-                           indices, blockOffsets, forestRaw);
+                           scratch.indices, scratch.blockOffsets, forestRaw);
       }
     }
     if (categoryOffset != nullptr)
-      misc_addVectorsInPlace(categoryOffset, numTestObservations * K,
-                             raw.data());
-    softmaxLocationMajor(raw.data(), numTestObservations, K, out);
+      misc_addVectorsInPlace(categoryOffset, numTestObservations * K, raw);
+    softmaxLocationMajor(raw, numTestObservations, K, out);
   }
 
   /// The same K-forest softmax replay from the live trees, flattened on the
@@ -2912,31 +2931,28 @@ public:
   template <typename Columns>
   void predictFromCurrentTreesMulti(const Columns& columns,
                                     size_t numTestObservations,
-                                    const double* categoryOffset, double* out) {
+                                    const double* categoryOffset,
+                                    PredictScratch& scratch, double* out) {
     size_t K = forests_.size();
-    std::vector<double> raw(numTestObservations * K);
-    std::vector<size_t> indices(numTestObservations);
-    std::vector<size_t> blockOffsets;
-    std::vector<double> slopes;
-    std::vector<std::uint32_t> counts;
-    std::vector<FlatNode> flat;
-    std::vector<std::uint64_t> maskBuffer;
+    scratch.raw.resize(numTestObservations * K);
+    scratch.indices.resize(numTestObservations);
+    double* raw = scratch.raw.data();
     std::vector<std::uint64_t>* masks =
-      data_.hasPooledCategorical ? &maskBuffer : nullptr;
+      data_.hasPooledCategorical ? &scratch.maskBuffer : nullptr;
     for (size_t f = 0; f < K; ++f) {
-      double* forestRaw = raw.data() + f * numTestObservations;
+      double* forestRaw = raw + f * numTestObservations;
       misc_setVectorToConstant(forestRaw, numTestObservations, 0.0);
       for (size_t t = 0; t < forests_[f].numTrees; ++t) {
-        flattenTree(t, flat, counts, &slopes, masks, f);
-        addFlatPredictions(flat, &slopes, maskBuffer.data(), columns,
-                           numTestObservations, indices, blockOffsets,
-                           forestRaw);
+        flattenTree(t, scratch.flat, scratch.counts, &scratch.slopes, masks, f);
+        addFlatPredictions(scratch.flat, &scratch.slopes,
+                           scratch.maskBuffer.data(), columns,
+                           numTestObservations, scratch.indices,
+                           scratch.blockOffsets, forestRaw);
       }
     }
     if (categoryOffset != nullptr)
-      misc_addVectorsInPlace(categoryOffset, numTestObservations * K,
-                             raw.data());
-    softmaxLocationMajor(raw.data(), numTestObservations, K, out);
+      misc_addVectorsInPlace(categoryOffset, numTestObservations * K, raw);
+    softmaxLocationMajor(raw, numTestObservations, K, out);
   }
 
   /// Per-forest RAW replay of one saved sample: forest f's own total at the new
@@ -2952,9 +2968,9 @@ public:
   template <typename Columns>
   void predictPerForestFromSavedSample(size_t slot, const Columns& columns,
                                        size_t numTestObservations,
+                                       PredictScratch& scratch,
                                        double* out) const {
-    std::vector<size_t> indices(numTestObservations);
-    std::vector<size_t> blockOffsets;
+    scratch.indices.resize(numTestObservations);
     for (size_t f = 0; f < forests_.size(); ++f) {
       const Forest<L, ResidT>& forest = forests_[f];
       double* forestRaw = out + f * numTestObservations;
@@ -2966,7 +2982,7 @@ public:
           ? nullptr : &forest.savedTreeParams[slot * forest.numTrees + t];
         addFlatPredictions(forest.savedTrees[slot * forest.numTrees + t],
                            sideChannel, masks, columns, numTestObservations,
-                           indices, blockOffsets, forestRaw);
+                           scratch.indices, scratch.blockOffsets, forestRaw);
       }
     }
   }
@@ -2976,23 +2992,19 @@ public:
   template <typename Columns>
   void predictPerForestFromCurrentTrees(const Columns& columns,
                                         size_t numTestObservations,
-                                        double* out) {
-    std::vector<size_t> indices(numTestObservations);
-    std::vector<size_t> blockOffsets;
-    std::vector<double> slopes;
-    std::vector<std::uint32_t> counts;
-    std::vector<FlatNode> flat;
-    std::vector<std::uint64_t> maskBuffer;
+                                        PredictScratch& scratch, double* out) {
+    scratch.indices.resize(numTestObservations);
     std::vector<std::uint64_t>* masks =
-      data_.hasPooledCategorical ? &maskBuffer : nullptr;
+      data_.hasPooledCategorical ? &scratch.maskBuffer : nullptr;
     for (size_t f = 0; f < forests_.size(); ++f) {
       double* forestRaw = out + f * numTestObservations;
       misc_setVectorToConstant(forestRaw, numTestObservations, 0.0);
       for (size_t t = 0; t < forests_[f].numTrees; ++t) {
-        flattenTree(t, flat, counts, &slopes, masks, f);
-        addFlatPredictions(flat, &slopes, maskBuffer.data(), columns,
-                           numTestObservations, indices, blockOffsets,
-                           forestRaw);
+        flattenTree(t, scratch.flat, scratch.counts, &scratch.slopes, masks, f);
+        addFlatPredictions(scratch.flat, &scratch.slopes,
+                           scratch.maskBuffer.data(), columns,
+                           numTestObservations, scratch.indices,
+                           scratch.blockOffsets, forestRaw);
       }
     }
   }

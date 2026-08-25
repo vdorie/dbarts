@@ -61,7 +61,9 @@
 \S4method{copy}{dbartsSampler}(shallow = FALSE)
 \S4method{show}{dbartsSampler}()
 \S4method{predict}{dbartsSampler}(x.test, offset.test, n.threads = control@n.threads)
-\S4method{predictForests}{dbartsSampler}(x.test, offset.test)
+\S4method{predictForests}{dbartsSampler}(
+  x.test, offset.test, n.threads = control@n.threads
+)
 \S4method{setControl}{dbartsSampler}(control)
 \S4method{setModel}{dbartsSampler}(model)
 \S4method{setData}{dbartsSampler}(data)
@@ -150,11 +152,21 @@
     For \code{setCategoryTestOffset}, a multinomial sampler's \eqn{n_{\mathrm{test}} \times K}{nTest x K} per-category test shift, or \code{NULL} to clear one: the recorded test channel becomes \eqn{\mathrm{softmax}(f_{\mathrm{test}} + o_{\mathrm{test}})}{softmax(f_test + o_test)}, formed where the training blend forms its own. The test fits enter no likelihood, so this moves the reported test probabilities and nothing else. Its rows are the CURRENT test rows, so replacing those rows while it is installed is refused rather than silently reinterpreted - clear it first - and out-of-sample \code{predict} does not read it at all, taking its own matrix for the rows it is given. Mirrored into \code{data@offset.category.test}. For \code{predict} on a multinomial sampler, likewise a per-category matrix, one row per PREDICTED row: a flat vector is refused there for the same reason, and a sampler holding either resident category offset refuses an unnamed call rather than reporting the offset-free surface, which an explicit all-zero matrix asks for on purpose.
   }
   \item{n.threads}{
-    Currently has no effect: \code{run} and \code{predict} both execute
-    serially regardless of the value passed here. The sampler's own thread
-    count is fixed when it is created, from the \code{n.threads} of its
-    \code{\link[=dbartsControl]{control}} object; this argument is reserved
-    for a future per-call override.
+    For \code{predict} and \code{predictForests}, a per-call worker count that
+    does not persist, defaulting to the sampler's own (the \code{n.threads} of
+    its \code{\link[=dbartsControl]{control}} object, fixed at creation). The
+    replay is partitioned by (chain, saved draw), each partition writing its
+    own rows and nothing being reduced across workers, so the result is
+    identical bit for bit at every value and only the time taken changes. A
+    replay small enough that the partition could not pay for itself runs
+    inline whatever is passed.
+
+    These are native threads, so \code{_R_CHECK_LIMIT_CORES_} does not govern
+    them: that variable is read only by \code{parallel:::.check_ncores}, which
+    counts simultaneously spawned processes and never sees a thread.
+
+    For \code{run} the argument still has no effect: the sampler's own count
+    governs, and this one is reserved for a future per-call override.
   }
   \item{sigma}{
     A single positive residual standard deviation, on the original response scale; it is assigned to every chain. \code{setSigma} only applies to a sampler whose residual standard deviation is a free parameter: it is refused on a probit-, logistic-, multinomial-, ordinal-, or count-family sampler, which fix it at 1 by the model definition, and on a heteroscedastic (\code{variance}) sampler, whose variance forest owns the residual scale. A gaussian sampler with \code{resid.prior = fixed()} is not fixed in this sense and is still accepted: suppressing the internal draw so an outer sampler owns \code{sigma} is what that prior is for.

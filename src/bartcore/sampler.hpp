@@ -2,6 +2,7 @@
 #define BARTCORE_SAMPLER_HPP
 
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -24,6 +25,30 @@
 #include "model.hpp"
 
 namespace bartcore {
+
+/// The test-only channel for an out-of-sample replay's fan-out. Everything it
+/// reports is written on the calling thread before any worker starts, so a
+/// test can prove that a thread argument reached the engine and that the
+/// partition covers every slab exactly once - deterministically, without
+/// measuring time. cutoffOverride is the one field a test WRITES: it lets a
+/// fixture small enough to run in a unit test still fan out, which is what
+/// makes an identity-across-thread-counts assertion non-vacuous there.
+///
+/// One object serves every sampler because the replay entry points are
+/// contractually main-thread-only (they are R_alloc-backed at the boundary),
+/// so nothing writes it concurrently. None of it can change an answer.
+struct PredictPartitionChannel {
+  /// The count resolved from the argument and the sampler, floored at 1 and
+  /// BEFORE the slab and cutoff clamps below.
+  std::size_t resolvedThreads = 0;
+  /// The workers actually run, min(resolvedThreads, slabs), or 1 below cutoff.
+  std::size_t numWorkers = 0;
+  /// workerForSlab[s] is the worker index that replayed slab s.
+  std::vector<std::size_t> workerForSlab;
+  /// When non-zero, the traversal cutoff in force instead of the derived one.
+  std::size_t cutoffOverride = 0;
+};
+inline PredictPartitionChannel predictPartition;
 
 /// Prints progress lines as they arrive; only safe on the main thread.
 struct DirectProgressSink final : ProgressSink {
@@ -528,6 +553,118 @@ public:
                                    forestIndex);
   }
 
+  /// The traversal count below which an out-of-sample replay runs inline on
+  /// the caller's thread. A traversal is one (row, tree, slab) descent, and
+  /// the measured cost of one is ~2.6 ns, so 1e7 of them is ~26 ms of work -
+  /// comfortably above the few tens of microseconds a spawn and a join cost,
+  /// and small enough that no interactive call waits on the threshold. Each
+  /// entry point counts ITS OWN traversals, not forest 0's.
+  static constexpr size_t predictParallelCutoff = 10000000;
+
+  /// Every forest's tree count summed, the traversal weight of a replay that
+  /// walks all of them (multi-location and per-forest).
+  size_t totalTreesAcrossForests() const {
+    size_t total = 0;
+    for (size_t f = 0; f < numForests(); ++f) total += numTreesInForest(f);
+    return total;
+  }
+
+  /// Runs body(slab, scratch) for every slab in [0, numSlabs), block-
+  /// partitioned contiguously over min(resolved threads, numSlabs) workers.
+  ///
+  /// numThreads == 0 means the sampler's own count; a resolved count below 1 -
+  /// which a sampler whose count was set to 0 produces, that setter storing
+  /// what it is given - is floored at 1, because zero workers would leave the
+  /// caller's output buffer entirely unwritten. traversals is this entry's own
+  /// (row x tree x slab) descent count, and below predictParallelCutoff the
+  /// replay stays inline rather than paying for a fan-out it cannot amortize.
+  ///
+  /// Bitwise identity at every thread count is a property of the partition,
+  /// not a tolerance: each slab owns its output range whole, the per-row tree
+  /// sum runs in tree order inside one slab, and nothing is reduced across
+  /// workers, so no addend order depends on how the slabs were dealt out.
+  ///
+  /// Scratch is allocated per worker HERE, before the spawn, so the replay
+  /// itself allocates nothing. Worker bodies must not call into R: an
+  /// exception escaping a std::thread body is std::terminate, and a large
+  /// replay is exactly where bad_alloc is plausible, so each body catches and
+  /// the first message is raised after the join, on the caller's thread.
+  ///
+  /// There is no interrupt poll inside the fan-out. R's unix SIGINT handler
+  /// only sets a pending flag; the longjmp happens in R_CheckUserInterrupt,
+  /// which no replay path calls, so a Ctrl-C during a join cannot unwind out
+  /// of a worker. Blocking SIGINT across the spawn keeps the signal on this
+  /// thread regardless, as run() does.
+  template <typename Body>
+  void fanOutPredictSlabs(size_t numSlabs, size_t numThreads,
+                          size_t traversals, Body&& body) {
+    size_t resolved = numThreads != 0 ? numThreads : options_.numThreads;
+    if (resolved < 1) resolved = 1;
+    predictPartition.resolvedThreads = resolved;
+    if (numSlabs == 0) {
+      predictPartition.numWorkers = 0;
+      predictPartition.workerForSlab.clear();
+      return;
+    }
+    size_t cutoff = predictPartition.cutoffOverride != 0
+      ? predictPartition.cutoffOverride : predictParallelCutoff;
+    size_t numWorkers = resolved < numSlabs ? resolved : numSlabs;
+    if (traversals < cutoff) numWorkers = 1;
+
+    size_t base = numSlabs / numWorkers, remainder = numSlabs % numWorkers;
+    predictPartition.numWorkers = numWorkers;
+    predictPartition.workerForSlab.assign(numSlabs, 0);
+    for (size_t w = 0, begin = 0; w < numWorkers; ++w) {
+      size_t end = begin + base + (w < remainder ? 1 : 0);
+      for (size_t slab = begin; slab < end; ++slab)
+        predictPartition.workerForSlab[slab] = w;
+      begin = end;
+    }
+
+    if (numWorkers == 1) {
+      PredictScratch scratch;
+      for (size_t slab = 0; slab < numSlabs; ++slab) body(slab, scratch);
+      return;
+    }
+
+    std::vector<PredictScratch> scratch(numWorkers);
+    std::vector<char> failed(numWorkers, 0);
+    std::vector<std::string> firstError(numWorkers);
+    std::vector<std::thread> workers;
+    workers.reserve(numWorkers);
+#ifndef _WIN32
+    sigset_t interruptSet, previousSet;
+    sigemptyset(&interruptSet);
+    sigaddset(&interruptSet, SIGINT);
+    pthread_sigmask(SIG_BLOCK, &interruptSet, &previousSet);
+#endif
+    for (size_t w = 0, begin = 0; w < numWorkers; ++w) {
+      size_t end = begin + base + (w < remainder ? 1 : 0);
+      workers.emplace_back([&body, &scratch, &failed, &firstError, w, begin,
+                            end]() {
+        try {
+          for (size_t slab = begin; slab < end; ++slab)
+            body(slab, scratch[w]);
+        } catch (const std::exception& error) {
+          failed[w] = 1;
+          firstError[w] = error.what();
+        } catch (...) {
+          failed[w] = 1;
+          firstError[w] = "unknown exception";
+        }
+      });
+      begin = end;
+    }
+#ifndef _WIN32
+    pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
+#endif
+    for (std::thread& worker : workers) worker.join();
+    for (size_t w = 0; w < numWorkers; ++w)
+      if (failed[w] != 0)
+        ext_throwError("predict worker %lu failed: %s",
+                       static_cast<unsigned long>(w), firstError[w].c_str());
+  }
+
   /// Fits for raw column-major test rows, on the original response scale
   /// (offsets are the caller's problem). With saved trees, out is
   /// numTestObservations (x numReportedLocations) x filledSavedDraws() x
@@ -535,9 +672,10 @@ public:
   /// without, one slab per chain from the live trees. A multi-location combiner (multinomial: K softmax channels)
   /// inserts the K location dimension between the observations and the slots;
   /// L = 1 keeps the exact numTestObservations-per-slot byte layout.
-  void predict(const double* x_test, size_t numTestObservations, double* out) {
+  void predict(const double* x_test, size_t numTestObservations,
+               size_t numThreads, double* out) {
     predictColumns(DenseColumns{x_test, numTestObservations},
-                   numTestObservations, nullptr, out);
+                   numTestObservations, nullptr, numThreads, out);
   }
 
   /// The same over a borrowed view: a dense block reads through the reader the
@@ -551,43 +689,64 @@ public:
   /// It is never read from the sampler: predict's rows are the caller's, so
   /// its offset must be too.
   void predict(const PredictorSource& source, size_t numTestObservations,
-               const double* categoryOffset, double* out) {
+               const double* categoryOffset, size_t numThreads, double* out) {
     if (source.isDenseBlock())
       predictColumns(DenseColumns{source.denseValues, numTestObservations},
-                     numTestObservations, categoryOffset, out);
+                     numTestObservations, categoryOffset, numThreads, out);
     else
       predictColumns(PredictorSourceColumns(source, data_.types.data()),
-                     numTestObservations, categoryOffset, out);
+                     numTestObservations, categoryOffset, numThreads, out);
   }
 
   template <typename Columns>
   void predictColumns(const Columns& columns, size_t numTestObservations,
-                      const double* categoryOffset, double* out) {
+                      const double* categoryOffset, size_t numThreads,
+                      double* out) {
     size_t capacity = savedTreeCapacity();
     size_t numDraws = recordedDraws_;
     size_t numLocations = numReportedLocations();
     size_t slab = numTestObservations * numLocations;
-    for (size_t c = 0; c < chains_.size(); ++c) {
-      if (capacity > 0) {
-        for (size_t i = 0; i < numDraws; ++i) {
-          size_t slot = savedSlotForDraw(i);
-          double* dst = out + (c * numDraws + i) * slab;
+    size_t numChains = chains_.size();
+    // a multi-location replay walks every forest's trees, a single-location
+    // one only forest 0's
+    size_t treesPerSlab =
+      numLocations > 1 ? totalTreesAcrossForests() : numTreesInForest(0);
+    if (capacity > 0) {
+      // slab s is chain s / numDraws at draw s % numDraws, which is exactly
+      // the (c * numDraws + i) offset the output is laid out by
+      fanOutPredictSlabs(
+        numChains * numDraws, numThreads,
+        numChains * numDraws * treesPerSlab * numTestObservations,
+        [&](size_t s, PredictScratch& scratch) {
+          size_t c = s / numDraws;
+          size_t slot = savedSlotForDraw(s - c * numDraws);
+          double* dst = out + s * slab;
           if (numLocations > 1)
-            chains_[c]->predictFromSavedSampleMulti(slot, columns,
-                                                    numTestObservations,
-                                                    categoryOffset, dst);
+            chains_[c]->predictFromSavedSampleMulti(
+              slot, columns, numTestObservations, categoryOffset, scratch, dst);
           else
             chains_[c]->predictFromSavedSample(slot, columns,
-                                               numTestObservations, dst);
-        }
-      } else if (numLocations > 1) {
-        chains_[c]->predictFromCurrentTreesMulti(columns, numTestObservations,
-                                                 categoryOffset,
-                                                 out + c * slab);
-      } else {
-        chains_[c]->predictFromCurrentTrees(columns, numTestObservations,
-                                            out + c * slab);
-      }
+                                               numTestObservations, scratch,
+                                               dst);
+        });
+    } else {
+      // without a store there is exactly ONE slab per chain, so no two workers
+      // reach the same Chain: the live-tree replay flattens through the
+      // chain's own buffers, and a finer (row-axis) partition would have to
+      // privatize them first
+      assert(numChains > 0);
+      fanOutPredictSlabs(
+        numChains, numThreads,
+        numChains * treesPerSlab * numTestObservations,
+        [&](size_t c, PredictScratch& scratch) {
+          if (numLocations > 1)
+            chains_[c]->predictFromCurrentTreesMulti(
+              columns, numTestObservations, categoryOffset, scratch,
+              out + c * slab);
+          else
+            chains_[c]->predictFromCurrentTrees(columns, numTestObservations,
+                                                scratch, out + c * slab);
+        });
     }
   }
 
@@ -599,39 +758,53 @@ public:
   /// without saved trees, one slab per chain from the live trees. Nothing resident is read or retained: the rows and the
   /// recombination both belong to the caller.
   void predictPerForest(const PredictorSource& source,
-                        size_t numTestObservations, double* out) {
+                        size_t numTestObservations, size_t numThreads,
+                        double* out) {
     if (source.isDenseBlock())
       predictPerForestColumns(
         DenseColumns{source.denseValues, numTestObservations},
-        numTestObservations, out);
+        numTestObservations, numThreads, out);
     else
       predictPerForestColumns(PredictorSourceColumns(source, data_.types.data()),
-                              numTestObservations, out);
+                              numTestObservations, numThreads, out);
   }
 
   /// Dense convenience spelling: a plain column-major block of new rows.
   void predictPerForest(const double* x_test, size_t numTestObservations,
-                        double* out) {
+                        size_t numThreads, double* out) {
     predictPerForestColumns(DenseColumns{x_test, numTestObservations},
-                            numTestObservations, out);
+                            numTestObservations, numThreads, out);
   }
 
   template <typename Columns>
   void predictPerForestColumns(const Columns& columns,
-                               size_t numTestObservations, double* out) {
+                               size_t numTestObservations, size_t numThreads,
+                               double* out) {
     size_t capacity = savedTreeCapacity();
     size_t numDraws = recordedDraws_;
+    size_t numChains = chains_.size();
     size_t slab = numTestObservations * numForests();
-    for (size_t c = 0; c < chains_.size(); ++c) {
-      if (capacity > 0) {
-        for (size_t i = 0; i < numDraws; ++i)
+    size_t treesPerSlab = totalTreesAcrossForests();
+    if (capacity > 0) {
+      fanOutPredictSlabs(
+        numChains * numDraws, numThreads,
+        numChains * numDraws * treesPerSlab * numTestObservations,
+        [&](size_t s, PredictScratch& scratch) {
+          size_t c = s / numDraws;
           chains_[c]->predictPerForestFromSavedSample(
-            savedSlotForDraw(i), columns, numTestObservations,
-            out + (c * numDraws + i) * slab);
-      } else {
-        chains_[c]->predictPerForestFromCurrentTrees(
-          columns, numTestObservations, out + c * slab);
-      }
+            savedSlotForDraw(s - c * numDraws), columns, numTestObservations,
+            scratch, out + s * slab);
+        });
+    } else {
+      // one slab per chain, as in predictColumns and for the same reason
+      assert(numChains > 0);
+      fanOutPredictSlabs(
+        numChains, numThreads,
+        numChains * treesPerSlab * numTestObservations,
+        [&](size_t c, PredictScratch& scratch) {
+          chains_[c]->predictPerForestFromCurrentTrees(
+            columns, numTestObservations, scratch, out + c * slab);
+        });
     }
   }
 
@@ -652,32 +825,39 @@ public:
   /// numChains, chain-major, same draw order. Requires saved trees
   /// (keepTrees).
   void predictVariance(const double* x_test, size_t numTestObservations,
-                       double* out) {
+                       size_t numThreads, double* out) {
     predictVarianceColumns(DenseColumns{x_test, numTestObservations},
-                           numTestObservations, out);
+                           numTestObservations, numThreads, out);
   }
 
   /// The variance twin of the view-taking predict.
   void predictVariance(const PredictorSource& source,
-                       size_t numTestObservations, double* out) {
+                       size_t numTestObservations, size_t numThreads,
+                       double* out) {
     if (source.isDenseBlock())
       predictVarianceColumns(
         DenseColumns{source.denseValues, numTestObservations},
-        numTestObservations, out);
+        numTestObservations, numThreads, out);
     else
       predictVarianceColumns(PredictorSourceColumns(source, data_.types.data()),
-                             numTestObservations, out);
+                             numTestObservations, numThreads, out);
   }
 
   template <typename Columns>
   void predictVarianceColumns(const Columns& columns,
-                              size_t numTestObservations, double* out) {
+                              size_t numTestObservations, size_t numThreads,
+                              double* out) {
     size_t numDraws = recordedDraws_;
-    for (size_t c = 0; c < chains_.size(); ++c)
-      for (size_t i = 0; i < numDraws; ++i)
+    size_t numChains = chains_.size();
+    fanOutPredictSlabs(
+      numChains * numDraws, numThreads,
+      numChains * numDraws * numVarianceTrees() * numTestObservations,
+      [&](size_t s, PredictScratch& scratch) {
+        size_t c = s / numDraws;
         chains_[c]->predictVarianceFromSavedSample(
-          savedSlotForDraw(i), columns, numTestObservations,
-          out + (c * numDraws + i) * numTestObservations);
+          savedSlotForDraw(s - c * numDraws), columns, numTestObservations,
+          scratch, out + s * numTestObservations);
+      });
   }
 
   // State serialization: getState captures everything needed to reconstruct

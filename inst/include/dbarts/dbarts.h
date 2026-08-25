@@ -139,7 +139,7 @@
 /// A consumer may pre-define it to force a mismatch; nothing but a test of the
 /// handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0x6c9776ae1197e8f5ULL
+#  define DBARTS_C_API_HASH 0x66d33f1613892406ULL
 #endif
 
 #ifdef __cplusplus
@@ -448,8 +448,8 @@ typedef int (*dbarts_sampler_callback) DBARTS_SAMPLER_CALLBACK_PARAMS;
     (sampler, offsetTest)) \
   X(void, dbarts_sampler_predict, \
     (dbarts_sampler* sampler, const dbarts_predictor_source* xTest, \
-     const double* offsetTest, double* out), \
-    (sampler, xTest, offsetTest, out)) \
+     const double* offsetTest, size_t numThreads, double* out), \
+    (sampler, xTest, offsetTest, numThreads, out)) \
   X(void, dbarts_sampler_setTreeStorage, \
     (dbarts_sampler* sampler, int keepTrees, size_t numSamplesToStore), \
     (sampler, keepTrees, numSamplesToStore)) \
@@ -850,9 +850,16 @@ void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
 /// the predicate is the blend, not the forest count (see
 /// dbarts_sampler_create): read the forests separately with
 /// dbarts_sampler_forestFits and combine them with the amplitudes.
+/// numThreads is a PER-CALL override that does not persist: 0 means the
+/// sampler's own count (dbarts_sampler_setNumThreads), and a resolved count
+/// below 1 - including a sampler whose own count was set to 0 - is treated as
+/// 1. The replay is bitwise identical at every value: the work is partitioned
+/// by (chain, draw), each partition owning its output range whole, and nothing
+/// is reduced across threads.
 void dbarts_sampler_predict(dbarts_sampler* sampler,
                             const dbarts_predictor_source* xTest,
-                            const double* offsetTest, double* out);
+                            const double* offsetTest, size_t numThreads,
+                            double* out);
 
 /// Turns saved-tree storage on or off; numSamplesToStore sizes the buffer
 /// when on. Turn on for recorded iterations to predict from them later.

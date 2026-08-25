@@ -422,14 +422,20 @@ bartcoreGetLatents <- function(bcSampler) {
 # coupling reports no per-forest fits, which is every single-forest sampler and
 # a multinomial one (its raw f_k are defined, but bartcorePredict reports the
 # softmax probabilities that handle's surface is stated in).
-bartcorePredictPerForest <- function(bcSampler, x.test, offset.test = NULL) {
+bartcorePredictPerForest <- function(
+  bcSampler,
+  x.test,
+  offset.test = NULL,
+  n.threads = 1L
+) {
   x.test <- as.matrix(x.test)
   storage.mode(x.test) <- "double"
   .Call(
     dbarts:::C_dbarts_bartcore_predictPerForest,
     bcSampler$ptr,
     x.test,
-    offset.test
+    offset.test,
+    n.threads
   )
 }
 

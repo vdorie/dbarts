@@ -827,10 +827,11 @@ static void testVarianceSavedPredict() {
   // saved-slot predict on the training rows reproduces the recorded s^2
   double s2scale = chain.sigmaScale() * chain.sigmaScale();
   std::vector<double> pred(n);
+  PredictScratch scratch;
   bool savedMatch = true;
   for (size_t s = 0; s < numSamples; ++s) {
     chain.predictVarianceFromSavedSample(s, DenseColumns{x.data(), n}, n,
-                                         pred.data());
+                                         scratch, pred.data());
     const double* recorded = varFits.data() + s * n;
     for (size_t i = 0; i < n; ++i)
       if (std::fabs(pred[i] - recorded[i]) > 1e-9 * s2scale) savedMatch = false;
@@ -1578,7 +1579,7 @@ static void testLinearLeafFormats(ext_rng* rng) {
   check(sampler->shape().savedTreeCapacity == numSamples,
         "saved-tree capacity");
   std::vector<double> predictions(numTest * numSamples);
-  sampler->predict(xTest.data(), numTest, predictions.data());
+  sampler->predict(xTest.data(), numTest, 1, predictions.data());
   bool replayMatches = true;
   for (size_t s = 0; s < numSamples && replayMatches; ++s)
     for (size_t i = 0; i < numTest && replayMatches; ++i)
@@ -4205,7 +4206,7 @@ static void testGPLeafEndToEnd(ext_rng* rng) {
     x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
     ySd, 3.0, 0.37804942330213542, options, &rng);
   std::vector<double> predictions(numTest, 1.0);
-  facade.predict(xTest.data(), numTest, predictions.data());
+  facade.predict(xTest.data(), numTest, 1, predictions.data());
   bool predictionsCentered = true;
   for (double prediction : predictions)
     predictionsCentered = predictionsCentered &&
@@ -4268,7 +4269,7 @@ static void testGPLeafFormats(ext_rng* rng) {
   // alpha weights and covariate rows are the exact values the live
   // evaluation used, and the replay repeats its arithmetic order
   std::vector<double> replayed(numTest * numSamples, 0.0);
-  sampler.predict(xTest.data(), numTest, replayed.data());
+  sampler.predict(xTest.data(), numTest, 1, replayed.data());
   bool replayMatches = true;
   for (size_t s = 0; s < numSamples && replayMatches; ++s)
     for (size_t i = 0; i < numTest && replayMatches; ++i)

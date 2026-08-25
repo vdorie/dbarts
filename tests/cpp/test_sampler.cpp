@@ -877,6 +877,122 @@ static void testTestFitThreadInvariance() {
   printf("ok: test-fit thread-count invariance\n");
 }
 
+// The saved-tree replay's fan-out: the thread argument's effect on the
+// partition, and the partition's effect on the answer (none). The traversal
+// cutoff is overridden for the duration so a fixture this small still fans
+// out; without that every count would collapse to one worker and an
+// identity-across-counts check would prove nothing.
+static void testPredictThreadPartition() {
+  const size_t n = 200, nTest = 40, numChains = 2, numSamples = 11;
+  const size_t numSlabs = numChains * numSamples;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::vector<double> xTest(nTest * 2);
+  std::uint_least32_t st = 20260824u;
+  for (double& v : xTest) {
+    st = st * 1664525u + 1013904223u;
+    v = static_cast<double>(st >> 8) * (1.0 / 16777216.0);
+  }
+
+  std::vector<ext_rng*> rngs(numChains);
+  for (size_t c = 0; c < numChains; ++c) {
+    rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngs[c], 4400 + static_cast<uint_least32_t>(c));
+  }
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numChains = numChains;
+  options.numThreads = 1;
+  options.keepTrees = true;
+  options.numSamplesToStore = numSamples;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, rngs.data());
+  Results results;
+  sampler.run(30, numSamples, results);
+
+  size_t savedCutoff = predictPartition.cutoffOverride;
+  predictPartition.cutoffOverride = 1;
+
+  const double sentinel = -9876.5;
+  std::vector<double> serial(nTest * numSlabs, sentinel);
+  sampler.predict(xTest.data(), nTest, 1, serial.data());
+  bool serialWritten = true;
+  for (double value : serial) serialWritten &= value != sentinel;
+  check(serialWritten && predictPartition.numWorkers == 1,
+        "a one-worker replay writes every slab");
+
+  // 3 and 7 divide neither the slab count nor each other, so an
+  // even-division assumption in the partition shows up as a gap
+  const size_t counts[] = {1, 2, 3, 7, 64};
+  bool identical = true, resolvedRight = true, mapRight = true,
+       written = true;
+  for (size_t requested : counts) {
+    std::vector<double> threaded(nTest * numSlabs, sentinel);
+    sampler.predict(xTest.data(), nTest, requested, threaded.data());
+    identical &= threaded == serial;
+    for (double value : threaded) written &= value != sentinel;
+
+    size_t expectedWorkers = requested < numSlabs ? requested : numSlabs;
+    resolvedRight &= predictPartition.resolvedThreads == requested;
+    resolvedRight &= predictPartition.numWorkers == expectedWorkers;
+
+    // the map must be a contiguous block partition covering every slab: non-
+    // decreasing, starting at worker 0, ending at the last worker, with block
+    // sizes differing by at most one
+    const std::vector<size_t>& map = predictPartition.workerForSlab;
+    mapRight &= map.size() == numSlabs;
+    if (map.size() != numSlabs) continue;
+    std::vector<size_t> owned(expectedWorkers, 0);
+    for (size_t slab = 0; slab < numSlabs; ++slab) {
+      mapRight &= map[slab] < expectedWorkers;
+      if (slab > 0) mapRight &= map[slab] >= map[slab - 1];
+      if (map[slab] < expectedWorkers) ++owned[map[slab]];
+    }
+    size_t smallest = numSlabs, largest = 0;
+    for (size_t count : owned) {
+      if (count < smallest) smallest = count;
+      if (count > largest) largest = count;
+    }
+    mapRight &= smallest > 0 && largest - smallest <= 1;
+    mapRight &= map[0] == 0 && map[numSlabs - 1] == expectedWorkers - 1;
+  }
+  check(identical && written,
+        "the replay is bitwise identical at every worker count");
+  check(resolvedRight, "the requested count resolves to that many workers");
+  check(mapRight, "every slab is owned by exactly one worker, in blocks");
+
+  // 0 means the sampler's own count
+  sampler.setNumThreads(5);
+  std::vector<double> viaSampler(nTest * numSlabs, sentinel);
+  sampler.predict(xTest.data(), nTest, 0, viaSampler.data());
+  check(predictPartition.resolvedThreads == 5 && viaSampler == serial,
+        "a zero argument takes the sampler's own count");
+
+  // a sampler whose own count was stored as 0 must still write its output:
+  // the floor is what keeps the worker count off zero
+  sampler.setNumThreads(0);
+  std::vector<double> viaZero(nTest * numSlabs, sentinel);
+  sampler.predict(xTest.data(), nTest, 0, viaZero.data());
+  check(predictPartition.resolvedThreads == 1 &&
+          predictPartition.numWorkers == 1 && viaZero == serial,
+        "a sampler count of zero floors to one worker, not to none");
+
+  // with the derived cutoff back in force this fixture is far below it, so
+  // the replay stays inline however many threads are asked for
+  predictPartition.cutoffOverride = savedCutoff;
+  sampler.setNumThreads(1);
+  std::vector<double> belowCutoff(nTest * numSlabs, sentinel);
+  sampler.predict(xTest.data(), nTest, 8, belowCutoff.data());
+  check(predictPartition.resolvedThreads == 8 &&
+          predictPartition.numWorkers == 1 && belowCutoff == serial,
+        "a replay below the traversal cutoff runs inline");
+
+  for (size_t c = numChains; c > 0; --c) ext_rng_destroy(rngs[c - 1]);
+  printf("ok: predict thread partition (%lu slabs)\n",
+         static_cast<unsigned long>(numSlabs));
+}
+
 static void testSetData(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
@@ -1444,7 +1560,7 @@ static void testPooledMaskSampler(ext_rng* rng) {
   results.testFits = testFits.data();
   sampler.run(0, numSamples, results);
   std::vector<double> predicted(nTest * numSamples);
-  sampler.predict(xTest.data(), nTest, predicted.data());
+  sampler.predict(xTest.data(), nTest, 1, predicted.data());
   check(predicted == testFits,
         "pooled saved-tree predictions equal the run's test fits");
 
@@ -1476,7 +1592,7 @@ static void testPooledMaskSampler(ext_rng* rng) {
     liveResults.trainingFits = liveTrain.data();
     live.setTreeStorage(false, 0);
     live.run(50, 1, liveResults);
-    live.predict(x.data(), n, livePredict.data());
+    live.predict(x.data(), n, 1, livePredict.data());
     bool livePredictionMatches = true;
     for (size_t i = 0; i < n; ++i)
       livePredictionMatches &=
@@ -2092,7 +2208,7 @@ static void testSetControlAndModel() {
   keepResults.testFits = testFits.data();
   samplerB.run(0, 4, keepResults);
   std::vector<double> predicted(nTest * 4);
-  samplerB.predict(xTest.data(), nTest, predicted.data());
+  samplerB.predict(xTest.data(), nTest, 1, predicted.data());
   check(predicted == testFits,
         "post-toggle saved predictions equal the recorded test fits");
 
@@ -2102,7 +2218,7 @@ static void testSetControlAndModel() {
   samplerB.setTreeStorage(false, 0);
   check(samplerB.savedTreeCapacity() == 0, "disabling storage frees it");
   std::vector<double> livePredictions(nTest);
-  samplerB.predict(xTest.data(), nTest, livePredictions.data());
+  samplerB.predict(xTest.data(), nTest, 1, livePredictions.data());
   bool liveFinite = true;
   for (double v : livePredictions) liveFinite &= std::isfinite(v);
   check(liveFinite, "live predictions work after disabling storage");
@@ -2213,7 +2329,7 @@ static void testMissingEndToEnd() {
   double xTest[] = {na, 0.5, 0.5, 0.5};  // column-major, two rows
   size_t capacity = sampler.savedTreeCapacity();
   std::vector<double> predictions(2 * capacity);
-  sampler.predict(xTest, 2, predictions.data());
+  sampler.predict(xTest, 2, 1, predictions.data());
   double missingFit = 0.0, observedFit = 0.0;
   for (size_t k = 0; k < capacity; ++k) {
     missingFit += predictions[2 * k];
@@ -2679,7 +2795,7 @@ static void testBCFInterweaveKeepTrees(ext_rng* rng) {
   double scale = sampler.fitScale();
   std::vector<double> muLive(n), pred(n);
   sampler.forestTotalFits(0, 0, muLive.data());
-  sampler.predict(x.data(), n, pred.data());  // scale * mu_saved + shift
+  sampler.predict(x.data(), n, 1, pred.data());  // scale * mu_saved + shift
 
   double d0 = pred[0] - scale * muLive[0];
   double maxSpread = 0.0;
@@ -2728,7 +2844,7 @@ static void testBCFInterweaveKeepTrees(ext_rng* rng) {
     double scaleThin = samplerThin.fitScale();
     std::vector<double> muLiveThin(nThin), predThin(nThin * numSlots);
     samplerThin.forestTotalFits(0, 0, muLiveThin.data());
-    samplerThin.predict(xThin.data(), nThin, predThin.data());
+    samplerThin.predict(xThin.data(), nThin, 1, predThin.data());
 
     const double* lastSlot = predThin.data() + (numSlots - 1) * nThin;
     double dLast = lastSlot[0] - scaleThin * muLiveThin[0];
@@ -2892,7 +3008,7 @@ static void testAmplitudePerForestReplay() {
 
     Results results;
     sampler.run(120, numSamples, results);
-    sampler.predictPerForest(x.data(), n, replayed.data());
+    sampler.predictPerForest(x.data(), n, 1, replayed.data());
 
     const double* lastSlot = replayed.data() + (numSamples - 1) * n * 2;
     check(maxPerForestGap(sampler, lastSlot) < 1.0e-12,
@@ -2904,7 +3020,7 @@ static void testAmplitudePerForestReplay() {
     // every row. A scale applied inside the per-forest entry would make that
     // difference row-dependent.
     std::vector<double> combined(n * numSamples);
-    sampler.predict(x.data(), n, combined.data());
+    sampler.predict(x.data(), n, 1, combined.data());
     double scale = sampler.fitScale();
     const double* lastCombined = combined.data() + (numSamples - 1) * n;
     double shift = lastCombined[0] - scale * lastSlot[0];
@@ -2933,7 +3049,7 @@ static void testAmplitudePerForestReplay() {
 
     Results results;
     sampler.run(120, 1, results);
-    sampler.predictPerForest(x.data(), n, replayed.data());
+    sampler.predictPerForest(x.data(), n, 1, replayed.data());
     check(maxPerForestGap(sampler, replayed.data()) < 1.0e-12,
           "live-tree per-forest replay reproduces each forest's own total");
 
@@ -4976,7 +5092,7 @@ static void testMultinomial(ext_rng* rng) {
     sampler.run(80, numSamples, results);
 
     std::vector<double> predicted(nTest * K * numSamples);
-    sampler.predict(xTest.data(), nTest, predicted.data());
+    sampler.predict(xTest.data(), nTest, 1, predicted.data());
     check(predicted == testFits,
           "multinomial K-forest saved-tree replay equals the recorded test "
           "channel");
@@ -6701,6 +6817,7 @@ void runSamplerTests(ext_rng* rng) {
   testEndToEndProbit(rng);
   testMultiChain();
   testTestFitThreadInvariance();
+  testPredictThreadPartition();
   testSetData(rng);
   testSetResponseScaleLock(rng);
   testSetDataResize(rng);

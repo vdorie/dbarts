@@ -1437,7 +1437,7 @@ static void testLinearLeafMutation(ext_rng* rng) {
 
   // prediction from the live trees agrees with the recorded fits
   std::vector<double> livePredictions(n2);
-  sampler->predict(x2.data(), n2, livePredictions.data());
+  sampler->predict(x2.data(), n2, 1, livePredictions.data());
   const double* lastFits = fits2.data() + (numSamples - 1) * n2;
   bool liveMatches = true;
   for (size_t i = 0; i < n2 && liveMatches; ++i)

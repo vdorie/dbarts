@@ -59,8 +59,15 @@ SEXP bartcore_drawLatents(SEXP family, SEXP fit, SEXP y, SEXP weights,
                           SEXP cutpoints, SEXP df);
 SEXP bartcore_workingResponse(SEXP family, SEXP latent, SEXP y, SEXP weights,
                               SEXP offset, SEXP dispersion);
-SEXP bartcore_predict(SEXP ptr, SEXP x_test, SEXP offset_test);
-SEXP bartcore_predictPerForest(SEXP ptr, SEXP x_test, SEXP offset_test);
+SEXP bartcore_predict(SEXP ptr, SEXP x_test, SEXP offset_test,
+                      SEXP n_threads);
+SEXP bartcore_predictPerForest(SEXP ptr, SEXP x_test, SEXP offset_test,
+                               SEXP n_threads);
+/// Test-only: the last replay's fan-out, list(resolved, n.workers, worker).
+SEXP bartcore_lastPredictPartition(void);
+/// Test-only: overrides the replay's traversal cutoff; 0 restores the derived
+/// one. Returns the value it replaced.
+SEXP bartcore_setPredictParallelCutoff(SEXP cutoff);
 SEXP bartcore_getTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,
                        SEXP treeNums, SEXP current, SEXP newdata,
                        SEXP trainingData, SEXP forest);

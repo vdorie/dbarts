@@ -436,7 +436,8 @@ expect_error(
     dbarts:::C_dbarts_bartcore_predict,
     bc.mn$ptr,
     x.test,
-    rep(0.5, nTest)
+    rep(0.5, nTest),
+    1L
   ),
   "per-category matrix"
 )

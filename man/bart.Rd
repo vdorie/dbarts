@@ -46,10 +46,10 @@ bart(
     object, newdata, offset, weights,
     type = c("ev", "ppd", "bart", "forest"),
     combineChains = TRUE,
-    n.threads,
     ci.level = NULL,
     forest = NULL,
     bases = NULL,
+    n.threads,
     \dots)
 
 extract(object, \dots)
@@ -148,6 +148,8 @@ extract(object, \dots)
    }
    \item{nthread, n.threads}{
      Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.
+
+     On \code{predict}, \code{n.threads} is a per-call worker count for the saved-tree replay, defaulting to the fit's own: the replay is partitioned by (chain, posterior draw), each partition writing its own rows and nothing being reduced across workers, so the answer is identical bit for bit at every value and only the time taken changes. It is the last positional argument of every \code{predict} method, so a caller that passes arguments by position is unaffected by its presence. A value that is not a single positive number is an error rather than a silent fallback.
    }
    \item{combinechains, combineChains}{
      Logical; if \code{TRUE}, samples from every chain are collapsed into a single matrix/vector of \code{nchain} \eqn{\times} \code{ndpost} rows (see \sQuote{Value} for the row order); if \code{FALSE}, they are kept in arrays of dimensions equal to \code{nchain} \eqn{\times} \code{ndpost} \eqn{\times} number of observations. Default \code{TRUE} across \code{bart}, \code{\link{bart2}}, and \code{\link{rbart_vi}}; the number of chains is tracked regardless on the returned object's \code{n.chains} component (see \sQuote{Value}).
