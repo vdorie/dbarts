@@ -540,6 +540,51 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Threaded predict landed, and the constant-response sigma cure (e0e59097, b2df6522, 2026-08-25)
+
+Sigma cure (e0e59097, three commits): estimateSigmaFromLinearModel now routes a non-finite
+linear-model sigma (no residual degrees of freedom - n = 2 with a predictor, and n = 1,
+which dbartsData does not refuse) through the marginal residual sd with a classed
+dbartsSigmaFallbackWarning (the sparse branch's shape, which gained the shared class), and
+then floors whatever value results at sqrt(.Machine$double.eps) times max(1, max |residual|)
+- so a perfectly-fit constant response no longer installs whatever rounding noise the
+host's BLAS kernel leaves (exactly 0 on SSE2-class kernels, the clang-asan red recorded
+below). Pins in test-boundary-inputs.R and test-multinomial-r5-surface.R with
+tolerance = 0 (all.equal's default tolerance had made the exact-floor pin vacuous against
+the old 1e-15 value - caught by the implementer's own red-then-green); the n = 2 case, which
+used to be an accidental "sigma estimate is NaN" refusal, now runs with sd(y). Bitwise
+43/12/11, tinytest 7194/0, multinomial-mutation-arc.md's measured 1.52e-16 reworded.
+
+Threaded predict (b2df6522, three commits: engine + surface, the design doc's landing
+note, a reviewer comment fix): docs/design/threaded-predict.md is LANDED. predict's
+n.threads is real: Sampler::predictColumns partitions the (chain, draw) slab list across a
+std::thread fan-out mirroring run() (SIGINT blocked around the spawn on POSIX, per-worker
+scratch, every body catches and the caller rethrows after the join, no cross-thread
+reduction - so the replay is bitwise identical at every worker count, and the inline
+below-cutoff path is the same body); numThreads = 0 means the sampler's own count floored
+at 1; dbarts_sampler_predict gained size_t numThreads and both API-hash literals were
+re-baked (DBARTS_C_API_MINOR NOT bumped: the header's own rule keeps the constants still
+before the first release, and a parameter gained is breaking, not additive); the R5
+predict/predictForests default to the fit's thread count, refuse a non-positive / NA /
+non-numeric value by name, and the formal is appended LAST on all six generics (bartCause's
+positional predict(fit, x, group.by, combineChains = FALSE) still binds);
+test-generics-multithreaded.R is a real pin (44 assertions: bitwise identity across thread
+counts on gaussian, binary, sparse, variance, multinomial, BCF glue and per-forest replay,
+plus a deterministic partition report - resolved count, worker count, block contiguity -
+through a test-only channel with a writable traversal cutoff so unit-sized fixtures
+exercise the fan-out); tests/cpp covers counts 1/2/3/7/64, the setNumThreads(0) floor and
+the inline path, and test_facade.cpp the arity crossing; test-capi.R's consumer.c passes 0
+and had been SILENTLY SKIPPING (264 assertions) since the prototype changed - fixed. Three
+mutation classes caught (a worker skipping its last slab; a partition-dependent tree-sum
+order; the resolved count forced to 1). ASAN+UBSAN and TSAN on tests/cpp: 0 diagnostics.
+Same-process scaling probe (n = 1000, 200 trees, 500 draws, 2000 rows, 5 alternating
+rounds): 1.92x at 2 threads, 3.72x at 4 - consistent with the memo's serial-fraction
+bound, still information rather than a gate. Consumer lockstep: stan4bart's one call site
+passes 0 (its own bartcore branch, committed there, not pushed); bartCause needs no edit.
+Reported, not fixed (mirrors run()): a throw from std::thread construction itself would
+leave earlier workers unjoined; Rf_error after the join skips the frame's destructors; a
+fractional n.threads truncates silently. 0.9-31's NEWS entry is corrected in place.
+
 ### Second whole-branch review: fix wave 3 - the judgement-gated slices (42b12ac7..7ad0bbea, 2026-08-25)
 
 Scope: every slice the review left gated on a maintainer judgement (the nine groups
@@ -650,7 +695,8 @@ commit regression (the five sigma-path files are identical across the two commit
 main carries the same unfloored estimate and the same > 0 gate). The fix - a relative
 epsilon floor in estimateSigmaFromLinearModel, host-independent, with the existing
 "indistinguishable response" warning kept as the user-facing signal - lands as its
-own slice after this note. The red run stays red in history by design. A second
+own slice after this note (cured at e0e59097, the note above). The red run stays red in
+history by design. A second
 cure, same day: lint went RED on 7ad0bbea - 46 object_usage_linter hits in 10 test
 files, because the handle names now come from a sourced helper that the linter cannot
 see inside closures (per-file lintr on the two edited package files was clean; only
