@@ -1,6 +1,6 @@
 Package: dbarts
 Version: 1.0-0
-Date: 2026-07-25
+Date: 2026-08-25
 Title: Discrete Bayesian Additive Regression Trees Sampler
 Authors@R: c(
   person("Vincent", "Dorie", role = c("aut", "cre"), email = "vdorie@gmail.com", comment = c(ORCID = "0000-0002-9576-3064")),
@@ -21,7 +21,7 @@ Authors@R: c(
   person("Scott", "Pakin", role = "ctb", comment = c("ax_func_posix_memalign.m4", ORCID = "0000-0002-5220-1985")),
   person("Daniel", "Richard G.", role = "ctb", comment = "ax_pthread.m4"))
 Depends:
-  R (>= 4.0.0)
+  R (>= 4.2.0)
 Imports: 
   stats,
   methods,

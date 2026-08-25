@@ -44,5 +44,6 @@ run: test_bartcore
 
 clean:
 	rm -f test_bartcore $(OBJECTS) $(DEPS)
+	rm -rf test_bartcore.dSYM
 
 .PHONY: all run clean

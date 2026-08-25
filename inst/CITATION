@@ -1,6 +1,8 @@
-citation(auto = meta)
-
-authors <- person("Vincent", "Dorie")
+authors <- c(
+  person("Vincent", "Dorie"),
+  person("Hugh", "Chipman"),
+  person("Robert", "McCulloch")
+)
 year <- sub(".*(2[[:digit:]]{3})-.*", "\\1", meta$Date)
 title <- "dbarts: Discrete Bayesian Additive Regression Trees Sampler"
 url <- "https://CRAN.R-project.org/package=dbarts"
@@ -14,6 +16,28 @@ bibentry(
   url    = url,
   textVersion = paste0(paste(authors, collapse = ", "), " (", year, "). ",
                        title, ". R package version ", meta$Version, ". ", url),
-  header = "To cite the 'dbarts' in publications use:",
+  header = "To cite the 'dbarts' package in publications use:",
 )
 
+bibentry(
+  bibtype = "Article",
+  author  = c(
+    person("Hugh", "Chipman"),
+    person("Edward", "George"),
+    person("Robert", "McCulloch")
+  ),
+  title   = "BART: Bayesian additive regression trees",
+  journal = "The Annals of Applied Statistics",
+  year    = "2010",
+  volume  = "4",
+  number  = "1",
+  pages   = "266--298",
+  doi     = "10.1214/09-AOAS285",
+  textVersion = paste(
+    "Chipman, H. A., George, E. I., and McCulloch, R. E. (2010).",
+    "BART: Bayesian additive regression trees.",
+    "The Annals of Applied Statistics, 4(1), 266-298.",
+    "doi:10.1214/09-AOAS285"
+  ),
+  header = "To cite the BART method 'dbarts' implements, use:",
+)

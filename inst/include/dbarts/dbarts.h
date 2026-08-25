@@ -5,6 +5,17 @@
 /// Flat C interface to the dbarts sampler, for packages that drive BART as
 /// a conditional model inside a larger sampler (LinkingTo: dbarts).
 ///
+/// LinkingTo compiles a consumer against this header, but does not load
+/// dbarts at runtime: R loads a package's declared dependencies from its
+/// NAMESPACE file's import directives, not from DESCRIPTION's Imports field,
+/// and R_GetCCallable (what the stubs below call on first use) can only find
+/// an entry point in a package whose shared object is already loaded. A
+/// consumer must therefore also carry an importFrom(dbarts, ...) or
+/// import(dbarts) directive in its own NAMESPACE - Imports: dbarts alone
+/// compiles clean and then fails at load time with "function
+/// 'dbarts_apiHash' not provided by package 'dbarts'" (or any other stub, on
+/// first call), naming neither the missing directive nor the cure.
+///
 /// Every function is registered with R_RegisterCCallable under its own name.
 /// A consumer has two ways to reach an entry point. It can look each one up by
 /// hand with R_GetCCallable("dbarts", "<name>") and cast the DL_FUNC to the
