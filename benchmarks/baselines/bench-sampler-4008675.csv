@@ -1,8 +1,0 @@
-"scenario","metric","value","rev","date","quick"
-"run-n1000-p10-t75","ms_per_iteration",0.168,"4008675","2026-07-13",FALSE
-"run-n1000-p10-t200","ms_per_iteration",0.444,"4008675","2026-07-13",FALSE
-"run-n10000-p10-t75","ms_per_iteration",1.668,"4008675","2026-07-13",FALSE
-"run-binary-n1000-p10-t75","ms_per_iteration",0.212,"4008675","2026-07-13",FALSE
-"embedded-offset-run1-n1000-t75","ms_per_gibbs_step",0.244,"4008675","2026-07-13",FALSE
-"setPredictor-accept-n1000-t75","ms_per_update",0.252,"4008675","2026-07-13",FALSE
-"setPredictor-reject-n1000-t75","ms_per_update",0.151,"4008675","2026-07-13",FALSE
