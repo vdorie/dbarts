@@ -1,6 +1,6 @@
 # Public surface for the major version
 
-Status: reviewed 2026-07-03; updated through 2026-08-13 (dbarts-h-reshape S1,
+Status: MIXED; reviewed 2026-07-03, updated through 2026-08-13 (dbarts-h-reshape S1,
 ab3aa2fa - sec 6). Decisions from that review are recorded inline as DECIDED.
 Companion to core-generalization.md:
 the engine reached cutover readiness (full R5 parity, statistical

@@ -1,6 +1,6 @@
 # Generalized BART core: design
 
-Status: accepted plan, 2026-07-02; cutover (phase 7) complete 2026-07-03 and
+Status: LANDED (accepted plan, 2026-07-02); cutover (phase 7) complete 2026-07-03 and
 phases 0-5 are DONE, so most of this plan has shipped - see "Current
 architecture" below for what exists now. Phase 6 (GP leaves, non-conjugate
 moves) is still open (docs/design/gp-leaves.md). This document remains the

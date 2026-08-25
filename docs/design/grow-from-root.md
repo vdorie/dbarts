@@ -1,6 +1,6 @@
 # Grow-from-root: cost and validity of root-down tree sampling
 
-Status: LANDED 2026-07-10 (role a, constant leaf; section 7). Categorical
+Status: MIXED - LANDED 2026-07-10 (role a, constant leaf; section 7), standalone sampler NO-GO. Categorical
 splits LANDED 2026-08-12 (995002ef..7f82f560; records ce9c1412). Decides
 whether dbarts adds XBART-style root-down stochastic tree construction, and
 in what role. Grounded in a measured cut-scan kernel

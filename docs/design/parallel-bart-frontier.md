@@ -1,6 +1,6 @@
 # Parallel BART: the frontier
 
-Status: research survey, 2026-07-07; instrumentation measured 2026-07-08
+Status: MIXED (research survey), 2026-07-07; instrumentation measured 2026-07-08
 (section 5, items 1-3). Three of the candidates this survey identifies were
 since carried past this note into a real build and closed: block fusion
 (3.4, the note's original flagship CPU candidate) is CLOSED WONT-DO

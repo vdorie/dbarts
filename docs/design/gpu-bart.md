@@ -1,6 +1,6 @@
 # GPUs for BART: a design survey
 
-Status: survey memo, 2026-07-07. No commitment to any mechanism. This document
+Status: NO-GO (survey memo), 2026-07-07. No commitment to any mechanism. This document
 weighs the design space and ends in a recommendation; any mechanism it endorses
 gets its own plan and its own gate class. See docs/plans/gpu-bart.md for the
 originating item, and docs/design/parallel-bart-frontier.md for the companion

@@ -70,7 +70,7 @@ raising any exception; `Rf_error` fires only
 after the join, on the main thread, since an escaping `std::bad_alloc`
 inside a bare `std::thread` body is `std::terminate` and would abort
 the whole R session. `numWorkers <= 1` runs inline with no spawn,
-mirroring `run`'s own `:377`/`:1266` arms, and is capped at the slab
+mirroring `run`'s own `sampler.hpp:377`/`:1266` arms, and is capped at the slab
 count (the one-slab-per-chain invariant, asserted where there are no
 saved trees, is what makes the non-const `flattenTree` safe without
 synchronization).

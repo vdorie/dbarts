@@ -157,7 +157,7 @@ it can do everything an R5 `dbartsSampler` can do, because it IS the same
 engine object an R5 sampler wraps.
 
 **So the engine gap is closed and the surface gap is not.** TODO's
-`multinomial-counts-mutation` entry (`TODO:281-292`) says "The multinomial
+`multinomial-counts-mutation` entry (`TODO:155-161`) then said "The multinomial
 family is now a full conditional inside a larger Gibbs/MH sampler." True
 of the ENGINE, false of the PUBLIC surface: reaching it needs
 `getFromNamespace` against three unexported functions and a classless
@@ -564,7 +564,7 @@ surface label (against the shared-guard note in letter). **H3
 (RECOMMENDED)** name the CAPABILITY, not the entry - "replace it through
 the counts channel" - one string, right on both surfaces, and what
 `docs/design/error-style.md` (ADOPTED 2026-08-17) asks for. H3 LANDED at
-S2+S3: that is the message the response arm now carries (`:2666-2667`).
+S2+S3: that is the message the response arm now carries (`src/R_interface_bartcore.cpp:2666-2667`).
 
 Same edit, cheap: with `supportsCountsMutation` true the WEIGHTS conduit
 then fell through to the RESPONSE message (`:2652-2667` tested only
@@ -718,12 +718,12 @@ depend on the file's full execution history, not just the preceding
 - `docs/design/feature-matrix.md`: the `multinom` row of section 2, the
   `getLatents` and calibration cells of section 3, footnotes `[f4]`,
   `[f11]`, `[f21]`, `[f22]`, `[f23]`, and the gap paragraph at
-  `:1176-1187`.
+  `:961-972`.
 - `docs/design/r-c-division.md` defect 6 (`:334-341`) closes;
   `docs/design/multinomial.md:190-380`;
   `docs/design/bart-as-a-component.md` section 2.
-- `TODO`: `host-shell-read-guards` (`:150-152`) closes as OBVIATED;
-  `multinomial-counts-mutation` (`:281-302`) gains the surface note.
+- `TODO`: `host-shell-read-guards` (retired: the entry is gone) closes as OBVIATED;
+  `multinomial-counts-mutation` (`:155-161`) gains the surface note.
 - `inst/NEWS.Rd`: the `$fit` change, the `$bc` deletion (there is a
   shipped sentence at `:1795`), `dbarts(family = "multinomial")`, the
   three methods, and the serialized-`dbartsData` migration.
