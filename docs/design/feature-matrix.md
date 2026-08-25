@@ -281,7 +281,7 @@ expander: no formula interface (:495), no `subset` (:509), no `test` (:513).
 
 [f7] `treatment` is still not a `bart2()` formal, but the construct that used
 to refuse it - `rejectUnknownDotsArgs` - is RETIRED: `bart2()`'s full formal
-list (bart.R:647-706) carries no `...` at all any more, so there is nothing to
+list (bart.R:647-715) carries no `...` at all any more, so there is nothing to
 reject by name. An unrecognized argument like `treatment =` now hits ordinary
 R argument-matching ("unused argument"), not a dbarts-authored construct. But
 since S12 (`bart2-argument-consolidation`, 4b179585) the general

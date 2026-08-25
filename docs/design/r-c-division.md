@@ -376,7 +376,7 @@ commit does not close.
   DONE, this commit (31 corrections applied; three stale line numbers
   its own header claimed were verified - :146, :360, :970 - plus the
   chain.hpp/combiner.hpp anchors drifted by the S4 landing, incl.
-  fact 12's latent draw at chain.hpp:1125-1126, not :1109-1112).
+  fact 12's latent draw, live at chain.hpp:1534-1535).
 - The census memo's tier (iii).1, its fork-1/fork-2 "strengthened"
   justifications, its two-sampler latent probe, and its "nbinom
   dispersion unreachable" gap are superseded per the critique

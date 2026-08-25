@@ -78,7 +78,7 @@ The per-sweep, per-tree O(n) passes and their memory access shape:
 1. Residual roll (chain.hpp:1457-1470): `treeY[i] += oldFits[i] -
    prevFits[i]` etc. Fully CONTIGUOUS (obs order); 3 streams; already
    near-optimal, bandwidth-bound (~15% inside Chain::run's 28.7% self).
-2. setNodeAverages -> computeLeafStats (tree.hpp:725-760): per leaf,
+2. setNodeAverages -> computeLeafStats (tree.hpp:678-729): per leaf,
    `misc_computeIndexedSufficientStatisticsFast(treeY, indices+begin,
    len, ...)`, i.e. read `treeY[indices[begin+k]]` for k in 0..len and
    accumulate (sumW, sumWZ, sumWZ2). This is a GATHER over the residual
