@@ -1432,7 +1432,7 @@ dbartsSampler <- setRefClass(
       # matches the bridge's !R_FINITE(w) || w < 0.0: a forest weight, unlike
       # a case weight, must also be finite, not merely non-negative
       if (!all(is.finite(weights)) || any(weights < 0.0)) {
-        stop("'weights' must be finite and non-negative")
+        stop("forest weights must be finite and non-negative")
       }
 
       index <- resolveForestIndex(forest)

@@ -3991,9 +3991,9 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
   if (!Rf_isReal(weightsExpr) ||
       static_cast<size_t>(Rf_xlength(weightsExpr)) != n)
     Rf_error("forest weight length must match the number of observations");
-  // defense in depth: both R-side callers (dbartsSampler$setForestWeights,
-  // bartcoreSetForestWeights) already enforce this; load-bearing only for a
-  // direct .Call bypassing them
+  // defense in depth: dbartsSampler$setForestWeights already
+  // enforces this; load-bearing only for a direct .Call
+  // bypassing it
   const double* weights = REAL(weightsExpr);
   for (size_t i = 0; i < n; ++i)
     if (!R_FINITE(weights[i]) || weights[i] < 0.0)

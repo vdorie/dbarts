@@ -83,22 +83,22 @@ wt.bad <- wt
 wt.bad[1L] <- NA_real_
 expect_error(
   build()$setForestWeights(1L, wt.bad),
-  "'weights' must be finite and non-negative"
+  "forest weights must be finite and non-negative"
 )
 wt.bad[1L] <- NaN
 expect_error(
   build()$setForestWeights(1L, wt.bad),
-  "'weights' must be finite and non-negative"
+  "forest weights must be finite and non-negative"
 )
 wt.bad[1L] <- Inf
 expect_error(
   build()$setForestWeights(1L, wt.bad),
-  "'weights' must be finite and non-negative"
+  "forest weights must be finite and non-negative"
 )
 wt.bad[1L] <- -1
 expect_error(
   build()$setForestWeights(1L, wt.bad),
-  "'weights' must be finite and non-negative"
+  "forest weights must be finite and non-negative"
 )
 
 # --- the mirror, both halves, at all THREE re-creation sites. The
