@@ -596,8 +596,8 @@ ordinal, on their integer levels, regardless of
 direction for <code>NA</code>: an observation whose split variable is
 missing follows that rule’s direction (“Missing Incorporated in
 Attributes”, Twala et al. 2008), estimated jointly with the rest of the
-tree. <code>missing = "error"</code> instead rejects predictors
-containing <code>NA</code>, matching older versions.</p>
+tree. <code>missing = "error"</code> instead rejects any predictor
+containing <code>NA</code>.</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">13</span><span class="op">)</span></span>
 <span><span class="va">n.miss</span> <span class="op">&lt;-</span> <span class="fl">60</span></span>

@@ -243,6 +243,7 @@ colnames(x) <- c('rob', 'hugh', 'ed')
 Ey <- f(x)
 y  <- rnorm(n, Ey, sigma)
 
+# \donttest{
 ## pdbart: one dimensional partial dependence plot
 set.seed(99)
 pdb1 <- pdbart(
@@ -278,6 +279,7 @@ print(cor(fitmat))
 #> Ey   0.9603886 1.0000000 0.4457354 0.9813192
 #> lm   0.4052732 0.4457354 1.0000000 0.4375004
 #> bart 0.9900234 0.9813192 0.4375004 1.0000000
+# }
 
 # \donttest{
 ## example showing the use of a pre-fitted model

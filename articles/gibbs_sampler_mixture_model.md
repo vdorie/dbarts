@@ -448,7 +448,7 @@ Missing predictor values need not be removed beforehand. The default
 `NA`: an observation whose split variable is missing follows that rule’s
 direction (“Missing Incorporated in Attributes”, Twala et al. 2008),
 estimated jointly with the rest of the tree. `missing = "error"` instead
-rejects predictors containing `NA`, matching older versions.
+rejects any predictor containing `NA`.
 
 ``` r
 

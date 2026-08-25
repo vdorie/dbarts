@@ -28,11 +28,11 @@ predictForests(
   x.test, offset.test, n.threads = control@n.threads
 )
 # S4 method for class 'dbartsSampler'
-setControl(control)
+setControl(newControl)
 # S4 method for class 'dbartsSampler'
-setModel(model)
+setModel(newModel)
 # S4 method for class 'dbartsSampler'
-setData(data)
+setData(newData, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setResponse(y, updateScale = FALSE, updateState = NA)
 # S4 method for class 'dbartsSampler'
@@ -94,7 +94,7 @@ setCalibration(
 # S4 method for class 'dbartsSampler'
 installTrees(donor, samples = NULL)
 # S4 method for class 'dbartsSampler'
-storeState()
+storeState(ptr = getPointer())
 # S4 method for class 'dbartsSampler'
 setState(newState)
 # S4 method for class 'dbartsSampler'
@@ -157,7 +157,7 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   A logical determining if the copy should retain the underlying data of
   the sampler (`TRUE`) or have its own copies (`FALSE`).
 
-- control:
+- newControl:
 
   An object inheriting from
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
@@ -166,13 +166,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   with, and cannot set `keepTrees = TRUE` without also giving
   `n.samples`; either is an error.
 
-- model:
+- newModel:
 
   An object inheriting from `dbartsModel`. When passed to `setModel`, it
   cannot switch a DART tree prior on or off relative to the sampler's
   creation-time model; recreate the sampler instead.
 
-- data:
+- newData:
 
   An object inheriting from
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md).
@@ -704,6 +704,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   grow-from-root sweeps run in place (default `2L`). Each sweep rebuilds
   every tree in the forest against the current residual, so a small
   handful reaches a good fit.
+
+- ptr:
+
+  For `storeState`, the sampler's engine pointer to capture from;
+  defaults to `getPointer()` and is rarely passed explicitly.
 
 - newState:
 

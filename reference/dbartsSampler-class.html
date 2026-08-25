@@ -65,11 +65,11 @@
 <span>  <span class="va">x.test</span>, <span class="va">offset.test</span>, n.threads <span class="op">=</span> <span class="va">control</span><span class="op">@</span><span class="va">n.threads</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
-<span><span class="fu">setControl</span><span class="op">(</span><span class="va">control</span><span class="op">)</span></span>
+<span><span class="fu">setControl</span><span class="op">(</span><span class="va">newControl</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
-<span><span class="fu">setModel</span><span class="op">(</span><span class="va">model</span><span class="op">)</span></span>
+<span><span class="fu">setModel</span><span class="op">(</span><span class="va">newModel</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
-<span><span class="fu">setData</span><span class="op">(</span><span class="va">data</span><span class="op">)</span></span>
+<span><span class="fu">setData</span><span class="op">(</span><span class="va">newData</span>, updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">setResponse</span><span class="op">(</span><span class="va">y</span>, updateScale <span class="op">=</span> <span class="cn">FALSE</span>, updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
@@ -131,7 +131,7 @@
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">installTrees</span><span class="op">(</span><span class="va">donor</span>, samples <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
-<span><span class="fu">storeState</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="fu">storeState</span><span class="op">(</span>ptr <span class="op">=</span> <span class="fu">getPointer</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">setState</span><span class="op">(</span><span class="va">newState</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
@@ -161,13 +161,13 @@
   <dt id="arg-shallow">shallow<a class="anchor" aria-label="anchor" href="#arg-shallow"></a></dt>
 <dd><p>A logical determining if the copy should retain the underlying data of the sampler (<code>TRUE</code>) or have its own copies (<code>FALSE</code>).</p></dd>
 
-  <dt id="arg-control">control<a class="anchor" aria-label="anchor" href="#arg-control"></a></dt>
+  <dt id="arg-newcontrol">newControl<a class="anchor" aria-label="anchor" href="#arg-newcontrol"></a></dt>
 <dd><p>An object inheriting from <code><a href="dbartsControl.html">dbartsControl</a></code>. When passed to <code>setControl</code>, it cannot change <code>n.trees</code>, <code>n.chains</code>, <code>useQuantiles</code>, or <code>seed</code> from the values the sampler was created with, and cannot set <code>keepTrees = TRUE</code> without also giving <code>n.samples</code>; either is an error.</p></dd>
 
-  <dt id="arg-model">model<a class="anchor" aria-label="anchor" href="#arg-model"></a></dt>
+  <dt id="arg-newmodel">newModel<a class="anchor" aria-label="anchor" href="#arg-newmodel"></a></dt>
 <dd><p>An object inheriting from <code>dbartsModel</code>. When passed to <code>setModel</code>, it cannot switch a DART tree prior on or off relative to the sampler's creation-time model; recreate the sampler instead.</p></dd>
 
-  <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
+  <dt id="arg-newdata">newData<a class="anchor" aria-label="anchor" href="#arg-newdata"></a></dt>
 <dd><p>An object inheriting from <code><a href="dbartsData.html">dbartsData</a></code>.</p></dd>
 
   <dt id="arg-y">y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
@@ -345,6 +345,9 @@
 
   <dt id="arg-n-sweeps">n.sweeps<a class="anchor" aria-label="anchor" href="#arg-n-sweeps"></a></dt>
 <dd><p>For <code>growFromRoot</code>, a single positive integer giving the number of grow-from-root sweeps run in place (default <code>2L</code>). Each sweep rebuilds every tree in the forest against the current residual, so a small handful reaches a good fit.</p></dd>
+
+  <dt id="arg-ptr">ptr<a class="anchor" aria-label="anchor" href="#arg-ptr"></a></dt>
+<dd><p>For <code>storeState</code>, the sampler's engine pointer to capture from; defaults to <code>getPointer()</code> and is rarely passed explicitly.</p></dd>
 
   <dt id="arg-newstate">newState<a class="anchor" aria-label="anchor" href="#arg-newstate"></a></dt>
 <dd><p>For <code>setState</code>, a state object previously produced by this sampler over the same model: its <code>state</code> field, calling <code>storeState()</code> first to refresh it if a later mutation may have gone unstored (<code>storeState</code> itself returns <code>NULL</code> invisibly, so its return value cannot be passed here). Must inherit from <code>bartcoreState</code>.</p></dd>

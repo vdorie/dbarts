@@ -176,6 +176,7 @@ Robert McCulloch: <a href="mailto:robert.mcculloch1@gmail.com">robert.mcculloch1
 <span class="r-in"><span><span class="va">Ey</span> <span class="op">&lt;-</span> <span class="fu">f</span><span class="op">(</span><span class="va">x</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">y</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="va">Ey</span>, <span class="va">sigma</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># \donttest{</span></span></span>
 <span class="r-in"><span><span class="co">## pdbart: one dimensional partial dependence plot</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">99</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">pdb1</span> <span class="op">&lt;-</span> <span class="fu">pdbart</span><span class="op">(</span></span></span>
@@ -211,6 +212,7 @@ Robert McCulloch: <a href="mailto:robert.mcculloch1@gmail.com">robert.mcculloch1
 <span class="r-out co"><span class="r-pr">#&gt;</span> Ey   0.9603886 1.0000000 0.4457354 0.9813192</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> lm   0.4052732 0.4457354 1.0000000 0.4375004</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> bart 0.9900234 0.9813192 0.4375004 1.0000000</span>
+<span class="r-in"><span><span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># \donttest{</span></span></span>
 <span class="r-in"><span><span class="co">## example showing the use of a pre-fitted model</span></span></span>
