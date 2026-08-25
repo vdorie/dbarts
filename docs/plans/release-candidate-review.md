@@ -540,6 +540,115 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Second whole-branch review: lenses, findings, fix waves 1-2 (b102e17c..07ad73e4, 2026-08-24)
+
+Design (review-lenses-memo.md: eight agent-code failure modes, in-repo evidence; VD's
+six decisions): cross-surface consistency first, since findings here have usually been
+an ABSENCE across surfaces, not a bug inside one; run the matrix and gate ledger over
+the WHOLE surface, not a diff; measure test strength by mutation testing, scoped first
+to touched files then widened to a full-suite replant after a spot check found
+survivors the narrower scope had hidden; four legs in parallel; reserve fill-vs-refuse
+calls and all deletions for VD; verify-triage-one-fix-wave, draw-moving fixes last, a
+calibration lane alongside.
+
+Consistency legs: matrix.R reproduced the builder's 877-cell grid byte-identical;
+matrix-review-entries.md added 655 cells (1532 total), swept 314 Rd claims (71 agree,
+8 contradict); matrix-review-generics.md ran 4110 generic-execution cells over 40 fit
+variants x 11 generics. reading-R/engine-list.md read R/ and the
+engine/bridge/support libs for duplication and stale comments, candidates only.
+gate-ledger.md inventoried every workflow and baseline (64-row MANIFEST, 11 workflows
+on bartcore vs 1 on main, 5 declared statistical gates, zero CI runs);
+gate-ledger-read.md re-ran it independently, confirmed most, corrected overstatements,
+named misses it missed (the C API's own ABI-hash gate, the untracked .claude/ evidence
+substrate).
+
+Mutation legs: A (85/84 scored, the 65 touched tinytest files); B (80/63 caught, 15
+gaps, touched tests/cpp); C (132/129) and D (101/66, budget stop) split the 102
+untouched files, each narrower than full-suite. A spot check found leg C/D
+"survivors" a full-suite replant actually killed, so all 31 outstanding zero-killers
+were replanted whole-suite: 16 survived (confirmed reach gaps), 15 killed (narrowed or
+refuted).
+
+Calibration lane: anchor-main.md built released 0.9-34 and ran the equivalence
+harness's statistical mode against 1.0-0 over 20 scenarios (10 high-precision) - zero
+unexplained disagreements; every |z| > 4 traces to a documented change (change-move
+balance, zero-weight sigma df, rbart_vi re-anchoring, xbart fold leakage, binary-k
+default). calibration-sbc.md re-ran sbc.R at n.trees = 200: 75/83 functionals pass,
+all 3 Bonferroni flags pre-adjudicated (an nbinom mixing ridge, a grouped-gaussian
+harness artifact); aft and heteroscedastic stay uncovered at ensemble scale -
+leaf-scale-pin-memo.md found that fix is already-shipped surface.
+
+consolidated-report.md re-ran every claim against its own build, replanted 63 more
+mutations: CONFIRMED 8 BLOCKERS/44 MAJORS/35 MINORS; REFUTED 5; QUALIFIED 6; NARROWED
+6; 1 fixed pre-review. Bins: 44 agent-fix entries plus 15 minor one-liners, 9
+VD-judgement groups (the other 8 MAJORS, ~260 grid cells, 8 deletion/seam items), 11
+defers.
+
+Five most consequential defects, plainly: (1) extract(fit, type="trees", sample=1)
+silently returns a DIFFERENT sample's trees, no warning; sample="train" crashes on an
+internal NA. (2) survivalProbabilities() fails on every hazard fit whose predictors
+carry column names - the normal spelling. (3) fitted()/residuals() on an rbart fit
+SEGFAULT when the random-effect array has no dimnames, reachable by one assignment.
+(4) dbartsData() falsely claims mismatched row counts for every two-column response;
+four surfaces inherit it. (5) the facade, the one hop between the C API and the
+engine, had no conformance test: 5 of 7 planted forwarding defects passed the whole
+C++ suite.
+
+Fix wave 1 (b102e17c..fe505ae3, five slices, merged battery PASS, CI six-green):
+8042cc2c fixes B1 (extract's trees call refuses
+sample/combineChains/forest/contribution by name) and B2 (survivalProbabilities names
+the period column both branches); b657e8ae corrects eight Rd/comment claims the matrix
+review falsified (bart.Rd shapes/defaults, dbartsSampler-class.Rd, three stale engine
+comments, a phantom configure switch); 7318b266 hardens rchk.yaml, adds [main, master]
+to sanitizers.yaml, scopes lint/pkgdown's PR trigger, deletes three unrunnable
+harnesses, wires two drift checks into CI; 52d3b5ff pins ten R-side reach gaps, one
+assertion each; fe505ae3 adds the facade conformance suite (test_facade.cpp, 59 rows,
+one per SamplerBase virtual, through the base reference not Sampler<L>) plus direct
+pins for B3-B7, tests/cpp 257 -> 266 cases. Gates: tinytest 6984/0; tests/cpp 266/0,
+0 ASAN+UBSAN diagnostics; trio 43/12/11 bitwise, no re-record; --as-cran 1 NOTE.
+
+Fix wave 2 (fe505ae3..07ad73e4, three slices, merged battery PASS): e35c8797 refuses
+an unmatched or all-NA group index before .Call in fitted()/residuals() on rbart and
+bounds-checks it C-side too, closing a SEGFAULT reachable by one assignment (new
+BLOCKER B8); 66ac05b3 makes logistic-reference's 200-tree arm - the only true
+ensemble-scale comparison against an independent implementation on the push path -
+actually gate, and installs BART in CI so it is not skipped; 07ad73e4 pins 21 more
+files of reach gaps and retires test-sampler-state-emptyLeafVeto.R's false regression
+claim - the invariant lives in tests/cpp/test_moves.cpp instead, proven there by
+planting the same mutation. Gates: tinytest 7040/0; tests/cpp 266/0, 0 ASAN+UBSAN
+diagnostics; trio 43/12/11 bitwise, no re-record; --as-cran 1 NOTE.
+
+What the gates and anchor establish (gate-ledger-read.md sec 4, faithfully restated):
+the green checks are strong evidence of memory safety, portability, API stability, and
+per-step engine math against independent brute-force oracles on every push, and of a
+flat C API that cannot change a signature, ABI enum, or struct layout without failing
+the build - and NO evidence about calibration at ensemble scale or behavior on any
+other machine, since equivalence/SBC/rchk/valgrind/revdep-smoke have zero CI runs and
+every baseline descends from bartcore's own output.
+
+Pending. Nine VD-judgement groups, one per message: VD-A family-spelling parity; VD-B
+the unknown-argument diagnostic; VD-C dbartsData's offset.category/survival spellings;
+VD-D own-class generics' argument vocabulary; VD-E which generics an own-class fit
+carries; VD-F undocumented option vocabularies; VD-G the four ResponseFamily default:
+arms; VD-H deletions and seams; VD-I predict's n.threads formal. Gated: S3
+(VD-A/VD-C), S7 (docs/ citation policy), S8 (M11's three draw-moving divergences, last
+by design), deletions (VD-H). S10 (leaf-scale-pin-memo.md's shipped-surface pin for
+the aft SBC arm and grouped-sigma artifact) is in progress. The xbart oracle slice
+(fold/axis/thread probes, R-only, ~1 Sonnet session) is recommended pre-RC, not built.
+The review-tour refresh and VD's human review follow.
+
+Lessons. The spot-check rule paid off: replanting a handful of leg C/D zero-killers
+whole-suite, instead of trusting the touched/half-suite score, found survivors the
+narrower scope had missed - why the consolidator widened to all 31 and replanted 32
+more. Assertions that cannot fail keep recurring: test-plot-generics.R:103-104's
+expect_true(is.character(capture.output(...))) literally cannot fail, and print.bart's
+family label was wrong under it. The facade is a sentinel-pattern gap like the
+ordinal deep-grow segfault the last cycle found: every other test drove the engine
+directly, so nothing proved the one hop safe until a conformance suite was built on
+purpose to reach it. A refute-posture consolidator earns its keep: re-running three
+of the lenses memo's own claims (rbart_vi thinning, n.threads length-2, SamplerBase's
+virtual count) refuted all three - the discipline that kept this pass off phantoms.
+
 ### Residue burn-down and value-scan defect fixes (a0eaf348..044a9098, 2026-08-24)
 
 Two independent censuses - scratch/backlog-value-scan-2026-08-24.md and its blind
