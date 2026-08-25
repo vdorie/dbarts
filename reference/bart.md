@@ -321,7 +321,9 @@ residuals(object, type = "ev", ...)
 
 - combinechains, combineChains:
 
-  Logical; if `TRUE`, samples will be returned in arrays of dimensions
+  Logical; if `TRUE`, samples from every chain are collapsed into a
+  single matrix/vector of `nchain` \\\times\\ `ndpost` rows (see ‘Value’
+  for the row order); if `FALSE`, they are kept in arrays of dimensions
   equal to `nchain` \\\times\\ `ndpost` \\\times\\ number of
   observations. Default `TRUE` across `bart`,
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md), and
@@ -356,8 +358,8 @@ residuals(object, type = "ev", ...)
   rules and their probabilities. Elements should be `"birth_death"`,
   `"change"`, and `"swap"` to control tree change proposals, and
   `"birth"` to give the relative frequency of birth/death in the
-  `"birth_death"` step. Defaults are 0.5, 0.1, 0.4, and 0.5
-  respectively.
+  `"birth_death"` step. The default is
+  `c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)`.
 
 - keepsampler:
 
@@ -679,7 +681,10 @@ own-class families - `family = "multinomial"`, `"ordinal"`, and
 `"nbinom"` - whose `$fit` is the sampler (K-forest or single-forest)
 that actually ran; see
 [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s Value
-section for each.
+section for each. A `family = "hurdle.lognormal"` fit has no `$fit` of
+its own: it is the pair `$occupancy` and `$positive`, each a `bart2` fit
+in its own right, so both of their samplers need the call before saving:
+`fH$occupancy$fit$storeState(); fH$positive$fit$storeState()`.
 
 ### Reproducibility
 
@@ -711,7 +716,8 @@ the training data.
 
 The result of `extract` will be a data frame with columns:
 
-- `chain`, `sample`, `tree` - index variables
+- `chain`, `sample`, `tree` - index variables; `chain` is omitted on a
+  single-chain fit
 
 - `n` - number of observations in node, drawn from the training data or
   from `newdata` when supplied
@@ -1044,7 +1050,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.168572
+#> total seconds in loop: 0.216427
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

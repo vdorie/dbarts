@@ -86,10 +86,18 @@ residual degrees of freedom, and survival status.
 exposes the first half. This function exposes the second, and returns
 the pieces rather than a sampler.
 
-Both entry points call the same resolution, so a family can never
-resolve two ways: a sampler built from this function's output draws the
-same samples as the equivalent
-[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) call.
+Both entry points call the same resolution on the `dbartsData` they end
+up with, so a sampler built from this function's output draws the same
+samples as the equivalent
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) call
+given the SAME data object. The two can still resolve a given family
+differently, because
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) performs
+its own response ingestion first - coding a factor response into a count
+matrix, for instance - while this function does none: a call this
+function refuses for the raw response
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) can
+still accept, by ingesting it into the shape this function requires.
 
 ### Use with the C API
 
@@ -113,7 +121,15 @@ carry resolved per-column counts.
 
 Families that require ingestion this function does not perform are
 unavailable: `"hazard"` needs person-period expansion, and
-`"multinomial"` and `"hurdle.lognormal"` describe more than one sampler.
+`"hurdle.lognormal"` describes more than one sampler. `"multinomial"` is
+in this function's own vocabulary, but only for a `data` object whose
+response is already an \\n \times K\\ `counts` matrix (see `data` above,
+and
+[`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)'s
+`counts` argument); given a factor-coded or plain numeric response
+instead, it is refused with a message naming the counts route, even
+though [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+accepts the same factor by coding it into that shape first.
 
 ## Value
 

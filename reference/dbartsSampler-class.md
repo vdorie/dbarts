@@ -519,12 +519,15 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `getForestVariableCounts`, `setForestWeights`, and `setForestBasis`
   have no default. A Bayesian causal forest's prognostic forest is `1`
   and its basis forest `2`; `setForestWeights` and `setForestBasis` are
-  refused on a sampler whose forests carry no amplitudes, and
-  `setForestBasis` accepts any forest of one that does. `getForestFits`
-  and `getForestVariableCounts` accept `forest = 1` on any sampler - it
-  selects the only forest - and refuse only an out-of-range index.
-  `getCalibration` is likewise served on every forest of a multi-forest
-  sampler, and its calibration-map columns are that forest's own.
+  both refused on a sampler whose forests carry no amplitudes, but not
+  with the same message - `setForestWeights` names the missing
+  capability, while `setForestBasis` raises
+  `"forest index out of range"` - and `setForestBasis` accepts any
+  forest of one that does. `getForestFits` and `getForestVariableCounts`
+  accept `forest = 1` on any sampler - it selects the only forest - and
+  refuse only an out-of-range index. `getCalibration` is likewise served
+  on every forest of a multi-forest sampler, and its calibration-map
+  columns are that forest's own.
 
 - prior.scale:
 
@@ -693,8 +696,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - newState:
 
   For `setState`, a state object previously produced by this sampler
-  (its `state` field, or the return of `storeState`) over the same
-  model. Must inherit from `bartcoreState`.
+  over the same model: its `state` field, calling `storeState()` first
+  to refresh it if a later mutation may have gone unstored (`storeState`
+  itself returns `NULL` invisibly, so its return value cannot be passed
+  here). Must inherit from `bartcoreState`.
 
 - ...:
 
@@ -739,9 +744,11 @@ Route changes through the `set*` methods instead.
   materialized. The saved-tree store's write position and the number of
   draws it has recorded both ride it, so `predict` after a `setState`
   reports the same draws, in the same order, as before the store.
-  Reading it forces the sampler's *current* state; `storeState`
-  refreshes it on demand and `updateState` governs when the methods do
-  so themselves. It is the only field
+  Reading it forces the sampler's *current* state only the first time,
+  before any value has been materialized; once set, it is a cached
+  snapshot that a later mutation does not refresh automatically - call
+  `storeState` again, or pass `updateState = TRUE` to the mutating call
+  (see `updateState` above), to bring it forward. It is the only field
   [`save`](https://rdrr.io/r/base/save.html) needs, and restoring one
   requires `setState` - see ‘Saving’.
 
