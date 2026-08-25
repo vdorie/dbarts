@@ -1,6 +1,6 @@
 # Response-model feature matrix
 
-Status: living reference, anchors current at e1223266 (2026-08-25). The
+Status: living reference, anchors current at 54dec2ab (2026-08-25). The
 "current at" commit stamps the ANCHORS and nothing else: the 2026-08-14 pass
 relocated every anchor by symbol and re-adjudicated no cell value, the
 2026-08-15 pass did the same, scoped to the files the
@@ -35,7 +35,7 @@ guessed.
 | `-` | N/A. The concept does not apply to this row; the row footnote says why. |
 | `?` | UNVERIFIED. Constructs today with no refusal site, but no test, doc or adjudication backs it. Do not schedule against the cell until it is settled; every `?` is listed under "Gaps". |
 
-Path aliases used in anchors (line numbers are at e1223266):
+Path aliases used in anchors (line numbers are at 54dec2ab):
 
     RIB   src/R_interface_bartcore.cpp      CAPI  inst/include/dbarts/dbarts.h
     MOD   src/bartcore/model.hpp            CH    src/bartcore/chain.hpp
@@ -294,20 +294,20 @@ cell says so.
 | student | S bart.R:2689 | S bart.R:706 | S dbarts.R:364 | M rbart.R:56 | M xbart.R:2-33 | S RIB:2548-2556 [f2] |
 | probit | S bart.Rd:78 | S bart.R:693 | S dbarts.R:378 | S data.R:602 | S xbart.R:26 | S CAPI:645 |
 | logistic | S bart.R:2692 [f1] | S bart.R:694 | S dbarts.R:379 | R rbart.R:49 | S xbart.R:26 | S RIB:1584 |
-| ordinal | R bart.R:2602, 2747 [f1] | S bart.R:697 | S dbarts.R:382 | R data.R:558 | R data.R:558 | S RIB:1593 [f3] |
-| nbinom | R bart.R:2602 [f1] | S bart.R:698 | S dbarts.R:383 | M rbart.R:49 | M xbart.R:26 | S RIB:1600 [f3] |
-| multinom | R bart.R:2602 [f1] | S bart.R:696 | S dbarts.R:381 [f4] | R data.R:558 | R data.R:558 | M [f4] |
+| ordinal | R bart.R:2599, 2747 [f1] | S bart.R:697 | S dbarts.R:382 | R data.R:558 | R data.R:558 | S RIB:1593 [f3] |
+| nbinom | R bart.R:2599 [f1] | S bart.R:698 | S dbarts.R:383 | M rbart.R:49 | M xbart.R:26 | S RIB:1600 [f3] |
+| multinom | R bart.R:2599 [f1] | S bart.R:696 | S dbarts.R:381 [f4] | R data.R:558 | R data.R:558 | M [f4] |
 | aft | S bart.R:2692 [f1] [f5] | S bart.R:695 | S dbarts.R:380 | S rbart.R:49 | M xbart.R:26 | S CAPI:648 |
 | hazard | R bart.R:2701 [f1] | S bart.R:699 | S dbarts.R:384 | M rbart.R:49 | M xbart.R:26 | M [f6] |
-| hurdle | R bart.R:2602 [f1] | S bart.R:702 | R dbarts.R:447 | M | M | M [f6] |
+| hurdle | R bart.R:2599 [f1] | S bart.R:702 | R dbarts.R:447 | M | M | M [f6] |
 | bcf | - [f1] | S R/formulaTerms.R (ingestFormulaTerms) [f7] | S dbarts.R:370 | R rbart.R:56 | M | S CAPI:668-690 |
 | grouped | - [f1] | M [f8] | M [f8] | S rbart.R:384 | M | S RIB:1908 [f3] |
-| hetero | - [f1] | S bart.R:686 | S dbarts.R:369 | R rbart.R:56 | M | S RIB:1998 [f3] |
+| hetero | - [f1] | S bart.R:685 | S dbarts.R:369 | R rbart.R:56 | M | S RIB:1998 [f3] |
 
 Since this program, `family = "hazard"` (and the other five tokens not in
 `bart()`'s vocabulary - `"gaussian"`, `"probit"`, `"hazard.probit"`,
 `"hazard.logistic"`, `"twopart"`) now hit a NAMED refusal,
-`refuseBartRedirectedFamily` (bart.R:2680, called from `bart()` at bart.R:2701
+`refuseBartRedirectedFamily` (bart.R:2632, called from `bart()` at bart.R:2701
 ahead of `match.arg`), the same treatment the four own-class tokens already
 got; hazard's `bart()` cell accordingly moved from `-` (no mechanism reaches
 it) to `R` (deliberately refused by name). See [f1].
@@ -393,11 +393,11 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | logistic | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1236 | S dbarts.R:1013 |
 | ordinal | R spec.R:509 | M RIB:3020 [f31] | S CH:585 | R bart.R:629 | R bart.R:629 |
 | nbinom | R spec.R:509 | M RIB:3025 [f31] | S CH:585 | R bart.R:629 | R bart.R:629 |
-| multinom | R bart.R:898 | M RIB:1905 [f32] | R bart.R:898 [f33] | R bart.R:629 | R bart.R:629 |
+| multinom | R bart.R:904 | M RIB:1905 [f32] | R bart.R:900 [f33] | R bart.R:629 | R bart.R:629 |
 | aft | R spec.R:509 | S CH:641 | S CH:585 | S bart.R:1236 | S dbarts.R:1013 |
 | hazard | R spec.R:509 | M rbart.R:49 [f6] | S CH:585 | S bart.R:1236 | S dbarts.R:1013 |
 | hurdle | R spec.R:509 [f34] | M | S bart.R:2297, 2306 [f35] | R bart.R:629 | R bart.R:629 |
-| bcf | R FAC:874 [f48] | R RIB:2341 | R spec.R:604, 639-645 | S SAM:1029 [f36] | S CH:1990 [f36] |
+| bcf | R FAC:874 [f48] | R RIB:2341 | R spec.R:639-640 | S SAM:1029 [f36] | S CH:1990 [f36] |
 | grouped | ? [f30] | - | S rbart.R:587 | M rbart.R:9-53 [f37] | M rbart.R:9-53 [f37] |
 | hetero | - | ? [f30] | S CH:585 [f38] | S SAM:1029 | S CH:1990 |
 
@@ -415,7 +415,7 @@ reads "constant leaf" in that column.
 | logistic | `logistic`, `wtlogistic` | PASS 6/6 | test-weighted-logistic.R, test-family.R |
 | ordinal | `ordinal` | 9/10 [f41] | test-ordinal.R only |
 | nbinom | `nbinom` | 1/3 [f42] | test-nbinom.R only |
-| multinom | 10 scenarios, own harness | aggregate PASS, raw `f_ik` OPEN [f43] | 6 (test-multinomial-*.R) |
+| multinom | 10 scenarios, own harness | aggregate PASS, raw `f_ik` PASS [f43] | 6 (test-multinomial-*.R) |
 | aft | `grouped_aft` only [f44] | OUT [f45] | test-aft.R, test-rbart-aft.R |
 | hazard | `hazard` | OUT [f45] | test-hazard.R only |
 | hurdle | `hurdle` | OUT [f45] | test-hurdle.R, test-hurdle-surface.R |
@@ -869,7 +869,7 @@ PUBLIC R5 method, `dbartsSampler$setForestWeights` (dbarts.R:1420, landed
 multiforest-extension-surface M1, 05ac3b4b), 1-based via `resolveForestIndex`
 (a BCF basis forest is `2L`) and mirrored across re-creation through a
 dedicated `reapplyForestWeights(ptr)` method, called from `getPointer` and
-`setState` (dbarts.R:1804); the unexported `bartcoreSetForestWeights`, now
+`setState` (dbarts.R:1805); the unexported `bartcoreSetForestWeights`, now
 inst/common/bartcoreHandle.R:148 (moved out of R/bartcore.R along with every
 other low-level test-handle wrapper), stays the 0-based internal wrapper the
 R5 method does not call.
@@ -961,7 +961,7 @@ never read for a multinomial sampler.
 (RIB:3281-3348) copies only power/base/proposal-probability fields, so a DART
 tree prior built from either the `dart` argument or a `tree.prior` object
 never reached the K-forest engine. `bart2` now refuses both routes by name
-(bart.R:898), matching BCF's own named refusal (spec.R:604,
+(bart.R:900), matching BCF's own named refusal (spec.R:640,
 `buildSpecifiedForest` CH:5145) before either reaches the host sampler.
 
 [f34] `bart2Hurdle` builds both component calls with `redirectCall`
@@ -970,9 +970,10 @@ the occupancy component, which then sets `family = "probit"` and hits the
 non-gaussian variance refusal at spec.R:509 before either component fits.
 That refusal is deliberate, not a bug: the positive fit is always
 homoscedastic because the gate makes a heteroscedastic component
-unreachable - `hurdleSigmaVec`, which used to carry this comment
-(generics.R:1032-1042, definition :1043), is RETIRED: no such helper remains
-anywhere in R/, and the claim is now evidenced only by the Rd text and the
+unreachable - `hurdleSigmaVec` (retired: no such helper remains anywhere in
+R/ and no construct replaced it, so the generics.R site that used to carry
+this comment is unresolved), and the claim is now evidenced only by the Rd
+text and the
 still-live `redirectCall`/spec.R:509 mechanism. The Rd side was the wrong one
 and is now corrected (bart2.Rd:227, dbarts.Rd:111) to match.
 
@@ -1019,9 +1020,16 @@ thin = 30 and cross into the band at 5x the spacing. Read as the r-vs-psi ridge
 mixing slowly (H-MIX), on two ladder points rather than three; the recorded
 full-R third point is still owed.
 
-[f43] Aggregate `p_k(x*)` passes at both chain lengths; the three raw per-forest
-`f_ik` cells carry a persistent U the ladder does not shrink. Pre-registered
-suspect: `MultinomialForestCombiner::afterCombine`'s level-centering draw. OPEN.
+[f43] Aggregate `p_k(x*)` passes at both chain lengths, and so now do the
+three raw per-forest `f_ik` cells. The persistent U they used to carry was the
+pre-registered suspect itself, `MultinomialForestCombiner::afterCombine`'s
+level-centering draw (COM:1922), whose approximate precision was replaced by
+the exact leaf-space conditional; the acceptance run at R = 200,
+`Rscript benchmarks/R/sbc.R multinom 200 150 30`, then scored every functional
+PASS at band 0.1282, the three cells at 0.0688/0.0824/0.0675 against the
+recorded failures 0.111/0.114/0.117
+(docs/plans/multinomial-level-centering.md:177-192). The arm that ranks those
+cells is benchmarks/R/sbc.R:1755-1759.
 
 [f44] AFT is exercised only in combination, through the `grouped_aft` scenario
 (equivalence.R:476). There is no standalone AFT equivalence scenario; the
@@ -1184,7 +1192,7 @@ are all refused by name rather than silently dropped ([f33]). Pointwise
 loglik (`multinomialLogLik`, generics.R:1029) is no longer a gap - it scores
 the multinomial log-pmf on the REPORTED probabilities, distinct from the
 engine's own per-observation channel, which stays undefined for this family.
-SBC raw `f_ik` OPEN.
+SBC raw `f_ik` is no longer open ([f43]).
 
 **aft.** No `xbart()` token. Pointwise loglik ships, but `setWeights` is refused
 and the censoring status is fixed at creation, which is also what keeps AFT out
@@ -1213,7 +1221,7 @@ and no measured active-rows mask ([f48], [f26]); aft, ordinal and nbinom are
 recorded doors, not gaps. Pointwise loglik has no dedicated construct of its
 own and is left `M` here, but a BCF-shaped fit's `family` is gaussian, probit
 or logistic, so `extract(type = "loglik")` reaches the shared
-`pointwiseLogLikelihood` dispatcher (generics.R:72) unrefused rather than
+`pointwiseLogLikelihood` dispatcher (generics.R:56) unrefused rather than
 erroring - whether the combined per-forest location it scores is a coherent
 K-forest log-likelihood is unadjudicated, closer to `?` than `M`; flagged, not
 reclassified here.
@@ -1227,9 +1235,14 @@ Composition with a variance forest constructs unrefused and untested ([f30]).
 **heteroscedastic.** No `xbart()` reach. Pointwise loglik now reads the
 per-observation `s.train` surface it stores, but no dedicated test pins the
 channel, so it stays `?` ([f28]). Selecting attribute undocumented in the
-header ([f3]). Out of the SBC matrix, deferred not blocked ([f47]). One
-recorded unbuilt door from its own arc: the `setState` variance column-mask
-gap (variance-forest-mutation-routing.md:416-420).
+header ([f3]). Out of the SBC matrix, deferred not blocked ([f47]). The one
+door its own arc recorded as unbuilt - the `setState` variance column-mask
+gap - is BUILT: `Chain::columnMaskStateFeasible` carries a variance pass of
+its own over the state's variance trees (CH:3456-3471), `rebuildVarianceForest`
+holds every restored variance tree to the forest's mask (CH:4377), and both
+install entries gate on the predicate - `setState` at SAM:946 and
+`installForests` at SAM:1134 - each surfacing the one refusal by name
+(RIB:7118, RIB:7433).
 
 **Cross-cutting.** `nameable-calibration` is ARC COMPLETE, all four slices
 LANDED (S0 4c866286, S1 c2a7e89b, S2 d809b944 + 7da36dc3, S3 at
