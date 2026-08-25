@@ -424,32 +424,23 @@ items
     and runsbcbcf-repair.md). Open doors: the monotone follow-on arm,
     the heteroscedastic setState lift, full-R ladder re-runs.
   second-review-followups: what the second whole-branch review
-    (landing note in release-candidate-review.md, "Second
-    whole-branch review: lenses, findings, fix waves 1-2") left open
-    after fix waves 1-2 (b102e17c..07ad73e4). Nine VD-judgement
-    groups, one per message: VD-A family-spelling parity across
-    entries; VD-B the no-... unknown-argument diagnostic; VD-C
-    dbartsData's offset.category/survival-response spellings; VD-D
-    own-class generics' argument vocabulary; VD-E which generics an
-    own-class fit carries; VD-F undocumented option vocabularies
-    (monotone tokens, makeind(all=), n.samples = 0); VD-G the four
-    ResponseFamily default: switch arms; VD-H deletions and seams
-    (the 31-function bartcore.R handle API, dataSlotOrNULL,
-    Tree::rightChildOf/Sampler::setCurrentSampleNum, S1's
-    per-observation-dispatch doc); VD-I predict's n.threads formal.
-    Gated slices: S3 (M1's refusal shape, M2's other five family
-    tokens) on VD-A/VD-C; S7 (the docs/ citation policy) on a
-    citation question; S8 (M11's three draw-moving engine
-    divergences, landing last by design) on a modelling ruling; the
-    deletion slice on VD-H. S10 (a creation-time leaf-scale pin via
-    already-shipped surface, for the aft SBC arm and the
-    grouped-sigma harness artifact -
-    scratch/review-2026-08-24/leaf-scale-pin-memo.md) is IN PROGRESS.
-    The xbart oracle slice (fold-assembly, axis-placement, and
-    thread-chunk-prefix probes, R-only -
-    scratch/review-2026-08-24/xbart-oracle-memo.md) is recommended
-    pre-RC, not yet built. After these: the review-tour refresh, then
-    VD's own human review.
+    (landing notes in release-candidate-review.md: "lenses, findings,
+    fix waves 1-2" and "fix wave 3 - the judgement-gated slices") left
+    open after fix wave 3 (42b12ac7..7ad0bbea). Every judgement group
+    is decided and landed except the threaded-predict arc, which is
+    IN PROGRESS off 7ad0bbea (docs/design/threaded-predict.md).
+    Remaining, in order: the constant-response sigma flake (clang-asan
+    fire-and-cure, deterministic degenerate-response handling); the
+    docs/-citation strip (every docs/ path out of R/ src/ inst/ man/,
+    a reading pass keeping the constraint text, plus the state-format
+    narrative cut at the bridge's registry comment and the `# ---- fix
+    NN` test labels); the xbart k-grid sort restore with its Rd
+    sentence and the equivalence re-record (four-place obligation),
+    landing LAST. After these: the review-tour refresh, then VD's own
+    human review. Doors the wave recorded (negbin rootogram, ordinal
+    tail-precision loglik, negbin burn-in dispersion channel, the
+    own-class predict(bases =)/fitted(combineChains =) no-ops) live in
+    the wave-3 landing note.
   setpredictor-leafof-rebuild: CLOSED; the gather door taken
     roll-only. Record, memo corrections, and the DECLINED
     do-not-re-propose list in

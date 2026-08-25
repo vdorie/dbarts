@@ -540,6 +540,154 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### Second whole-branch review: fix wave 3 - the judgement-gated slices (42b12ac7..7ad0bbea, 2026-08-25)
+
+Scope: every slice the review left gated on a maintainer judgement (the nine groups
+decided 2026-08-24/25) plus the three questions the report still owed the maintainer,
+answered this session: the three engine divergences are FIXED (all three, no
+re-record); shipped code cites NO docs/ path of any kind (docs/design included: the
+tarball strips docs/, so a path is a pointer to something not shipped - the strip is a
+separate reading pass, below); xbart's k-grid sort is RESTORED (0.9-34 parity,
+order-invariance; its equivalence re-record lands last, after the threaded-predict
+arc). Decision substance with probes: scratch/review-2026-08-24/decision-brief.md.
+
+Landed, in order, each implemented in its own worktree off the then-tip, each
+independently gate-run (--preclean private lib, tests/cpp full + filtered where src/
+moved, full tinytest, trio 43/12/11 bitwise, air, lintr, R CMD check --as-cran from a
+clean staged copy) before its push, CI six-green on every push (one cure below):
+- 42b12ac7 + 33837351: every `default:` arm on a ResponseFamily switch deleted, the
+  bridge's open-coded family chain made an exhaustive switch; families that cannot
+  reach a site are listed as fall-through labels with the reason. The package build
+  only warns (CRAN forbids -Werror in Makevars), so the hard gate is tests/cpp's
+  Makefile (-Werror=switch -Werror=return-type) and a cpp-tests CI step writing
+  `CXX20FLAGS += ...` to ~/.R/Makevars - CXXFLAGS is inert there because R passes
+  CXXFLAGS='$(CXX20FLAGS)' on the make command line under CXX_STD = CXX20; verified by
+  a temporary seventh enumerator failing the install. Bitwise.
+- cd615a1e: the three divergences. Variance-leaf positivity is now one predicate at
+  BOTH warm-start install arms (installTrees on a hand-edited state used to take a
+  non-positive scale leaf that setState refused; fits blew four orders of magnitude);
+  the amplitude combiner's shippedShape() reads the prior as well as the basis shape
+  (a positive half-Cauchy scale past forest 0 forces the general sweep; every shipped
+  route stays on the two-scalar path, bitwise on all three baselines; a tests/cpp case
+  prints forest 1's variance moving against the frozen 0.5); recoverTreeParameters and
+  applyNewData assert the single-forest precondition and say what a multi-forest lift
+  needs (bases in the same call). The combiner.hpp static_assert residue is swept.
+  Local ASAN+UBSAN tests/cpp leg: 0 diagnostics.
+- 4e5bcebf (four commits): xbart oracles above the loss call -
+  test-xbart-fold-oracle.R pins replication 1's fold rows reconstructed OUTSIDE xbart
+  from the seed, disjointness and coverage, per-fold alignment of y.test against the
+  test channel versus a permutation null, no leakage (held-out rmse at or above sd(y)
+  with the in-sample fit far below), and axis placement (the k = 20 slice at sd(y),
+  equal-length axes so a transposition fails); test-xbart-reproducibility.R pins
+  chunk-1 prefix identity across n.threads = 1 vs 2 (the 1-vs-4 arm needs more workers
+  than CRAN's core limit allows). Five planted mutations caught; the leakage band was
+  re-calibrated by a 20-seed sweep after the Opus read found 10 percent false alarms
+  at n.test = 12 (now n.test = 30, threshold 1.0 sd(y): clean 20/20, mutant 20/20).
+- 2ef009a7 (three commits): the R surface. bart2()/rbart_vi() lose their
+  rejection-only `...` (rejectUnknownDotsArgs, retiredDotsNames and the rngSeed sunset
+  row deleted with it - a recorded loss; R's own "unused argument" is the wall);
+  bart() refuses all ten bart2 tokens BY NAME echoing the token typed (twopart named
+  twopart, never its alias), and dbarts() captures the typed family ahead of the fold
+  and the hazard remap so every downstream refusal echoes it; ONE offset name
+  everywhere with shape by family (multinomial requires n x K, a vector is refused as
+  the softmax's null direction; every other family refuses a matrix), dbartsData's
+  offset.category / offset.category.test formals are gone (slots and R5 method names
+  keep theirs), and the false "same number of observations as 'y'" message for a
+  Surv / n x 2 / n x K response is a by-kind refusal on the matrix, sparse AND formula
+  branches; monotone loses "inc"/"dec" (the "0" token STAYS - a positional character
+  vector needs it; the case fold is documented); one shared zero-sample refusal for
+  bart2/xbart/rbart_vi with a dbartsControl.Rd sentence; $n.chains on every
+  keepSampler fit, names(fit) no longer lists NULL components (forest.labels carried
+  across the filter by hand), dbartsDrawLatents accepts its own default,
+  xbart validates family before ingesting the response and n.threads' length,
+  defaultNodeScale refuses an unknown family; dataSlotOrNULL deleted (bare slot reads).
+  Reviewer fixes folded: dbarts(family = "twopart") echoed the resolved token; two
+  offset messages named the removed arguments; a NEWS claim about "0" was false.
+- fdcbabe5 (two commits): the own-class generics. bartMultinomial/bartOrdinal/
+  bartNegbin/bartHurdle honour combineChains and ci.level and refuse forest /
+  contribution / sample-on-fitted / type-on-residuals / vars-on-summary BY NAME (the
+  reviewer closed 13 further swallows on fitted/residuals/predict); plotTree and
+  survivalProbabilities refuse by name instead of "no applicable method";
+  extract(type = "trees") on a keepSampler-only fit follows plotTree's disclosed
+  fallback, silently; predict.bartMultinomial's formal is `offset`; each family gets
+  plot (siblings of plot.bart: scalar-parameter trace left, observed-vs-fitted interval
+  right; ordinal degrades at K = 2; multinomial branches to observed proportions on
+  multi-trial rows; hurdle is 2x2 with the composed E[y|x]), extract(type = "loglik")
+  (dnbinom at the per-draw dispersion; log of the stored Phi difference; dmultinom
+  WITH its coefficient, unit = the observation row; hurdle log1p(-pi) at zeros and
+  log(pi) + dlnorm at positives on the NATURAL scale with the Jacobian, no truncation
+  because the positive part is lognormal - the Rd carries the four statements a porter
+  needs), and as_draws_array/as_draws_df (scalar parameters only: dispersion;
+  cutpoint[k] with the pinned first; meanProb[level]; occupancy./positive. prefixes).
+  The survey behind the semantics (BART, brms, rstanarm, pscl, ordinal, nnet, VGAM;
+  formulas verified numerically) is scratch/review-2026-08-24/generics-survey.md, the
+  ruling generics-phase2-spec.md. The reviewer's own oracles agree to <= 3e-15 on all
+  four families, combined and uncombined. Four planted formula mutations caught.
+- 7ad0bbea: the 31 low-level bartcore* handle wrappers moved out of the namespace into
+  inst/common/bartcoreHandle.R (same names, bodies the .Call on dbarts:::C_ symbols;
+  three keep in-package copies and alias them), 559 call sites in 41 test/benchmark
+  files prefix-stripped by an idempotent script and each file sources the helper;
+  Tree::rightChildOf and Sampler::setCurrentSampleNum deleted; adoptPointer and
+  reapplyForestWeights (3 live call sites, NOT dead) documented on the R5 class;
+  core-generalization.md's "nothing dispatches per observation" amended to what
+  facade.hpp does. Consumers below the R5 class use the shipped header; there is no
+  R escape hatch. tinytest total unchanged by the move (7181 before and after).
+
+Plan and ledger: scratch/review-2026-08-24/wave3-plan.md (Opus; every count
+tool-verified; its 714-site figure counted the creators, the true scope is 559).
+tinytest 7040 -> 7181. Baselines UNCHANGED; no re-record; dbarts.h untouched.
+
+CI fire-and-cure: the clang-asan sanitizer job went RED on fdcbabe5 - a PRE-EXISTING
+pin (dbarts() on a constant response, test-multinomial-r5-surface.R:91) hit the
+bridge's "sigma estimate must be greater than 0" - and GREEN on a rerun of the same
+commit and image. Diagnosed in the r-hub clang-asan container (OPENBLAS_CORETYPE
+sweep, fresh processes, allocator offsets): the starting estimate
+summary(lm(y ~ x))$sigma for a perfectly-fit constant y is rounding noise whose
+value is a BLAS-KERNEL property - ~3.8e-16 on AVX2-class kernels, ~2.2e-16 Nehalem,
+EXACTLY 0 on SSE2/SSE3-class kernels - and the two runs landed on different runner
+hardware (the failing run's per-file times were uniformly 13 percent faster). Not a
+commit regression (the five sigma-path files are identical across the two commits;
+main carries the same unfloored estimate and the same > 0 gate). The fix - a relative
+epsilon floor in estimateSigmaFromLinearModel, host-independent, with the existing
+"indistinguishable response" warning kept as the user-facing signal - lands as its
+own slice after this note. The red run stays red in history by design. A second
+cure, same day: lint went RED on 7ad0bbea - 46 object_usage_linter hits in 10 test
+files, because the handle names now come from a sourced helper that the linter cannot
+see inside closures (per-file lintr on the two edited package files was clean; only
+CI's tree-wide lint_package() showed it). Cured at ee7bb783 by a .lintr exclusion of
+that one linter for the two helper-sourcing directories, listed per file at lint time
+because the installed lintr drops per-linter scoping on a directory entry; an
+.onLoad-side globalVariables hook was tried and rejected as lint-only machinery in
+shipped code. Lesson: any slice that moves names or touches many R files runs
+lint_package() as CI does, not per-file lintr.
+
+Design settled alongside (not yet implemented): docs/design/threaded-predict.md -
+predict's n.threads WIRED (maintainer ruling): per-(chain, draw) slab partition,
+structural bitwise identity at every thread count, dbarts_sampler_predict gains
+numThreads (stan4bart one line, bartCause none under the append-last rule), honest
+Amdahl ceiling rather than a claimed speedup. Memo, revision 2 and the 35-finding
+critique: scratch/threaded-predict-*.md.
+
+Doors and residue recorded here, not in code: negbin rootogram panel; ordinal
+log_diff_exp tail precision; a negbin burn-in dispersion channel (bart2 negbin runs
+one run(n.burn, n.samples), so plot draws no burn-in segment); par(mfrow) is not
+restored by any plot method (plot.bart does not either - a shared change);
+as_draws_array.bartMultinomial(vars =) ignores a non-meanProb value (documented);
+predict(bases =), predict(sample =), fitted(combineChains =) on the own-class fits
+are still silent no-ops (outside the judgement table; n.threads becomes real with the
+threaded-predict arc); dbartsData(counts =) with a formula reaches its own later
+refusal; the `# ---- fix NN` section labels in tests (14 sites) and the 162
+pre-existing docs/design paths in shipped files are the strip pass's scope;
+setForestBasis(k, ~var) evaluating the formula in environment(basis) and plotTree's
+dead padding branch stay out (no judgement names them).
+
+Lessons: tinytest 1.4.3 has no `!` method on its result object - count failures with
+sum(sapply(out, function(x) !isTRUE(x))); a leakage-style statistical pin needs a
+multi-seed sweep at design time (the 5-seed check passed while 20 seeds showed 10
+percent false alarms); a nondeterministic CI red is diagnosed by a same-commit rerun
+BEFORE any bisection, and a green rerun does not close it - the flip is the defect;
+strip scripts using process substitution need bash, not /bin/sh.
+
 ### Second whole-branch review: lenses, findings, fix waves 1-2 (b102e17c..07ad73e4, 2026-08-24)
 
 Design (review-lenses-memo.md: eight agent-code failure modes, in-repo evidence; VD's
