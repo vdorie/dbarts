@@ -1,22 +1,8 @@
 # Response-model feature matrix
 
-Status: living reference, anchors current at 54dec2ab (2026-08-25). The
-"current at" commit stamps the ANCHORS and nothing else: the 2026-08-14 pass
-relocated every anchor by symbol and re-adjudicated no cell value, the
-2026-08-15 pass did the same, scoped to the files the
-`binary-kforest-prior-default` arc's three landing commits touched (every
-other anchor carries over from 2026-08-14 unmoved, since its host file is
-untouched by the arc), the 2026-08-15 `adoption-slate` pass did the same
-again, scoped to the files that arc's eight landing commits touched, the
-2026-08-18 pass did the same as a whole-file walk, the 2026-08-19 pass
-did another whole-file walk for the pre-RC resync, and the 2026-08-24
-`arc-close-sweep` pass re-derived by content the anchors multinomial-
-mutation-arc.md S2-S4 left stale - the `multinom` row cells, [f4], [f21],
-[f22], [f23] - scoped to those, not a whole-file walk; every other anchor
-carries over from 2026-08-19 unmoved. Carries
-no landing date and is not a design proposal - the orchestrator updates it in
-place at every landing that changes a cell, and VD uses it to schedule
-feature completion.
+Status: living reference. Carries no landing date and is not a design
+proposal - the orchestrator updates it in place at every landing that changes
+a cell, and VD uses it to schedule feature completion.
 
 What each shipped response model can and cannot do, one row per model and one
 column per capability that bears on scheduling. Every SHIPPED and REFUSED cell
@@ -35,7 +21,7 @@ guessed.
 | `-` | N/A. The concept does not apply to this row; the row footnote says why. |
 | `?` | UNVERIFIED. Constructs today with no refusal site, but no test, doc or adjudication backs it. Do not schedule against the cell until it is settled; every `?` is listed under "Gaps". |
 
-Path aliases used in anchors (line numbers are at 54dec2ab):
+Path aliases used in anchors:
 
     RIB   src/R_interface_bartcore.cpp      CAPI  inst/include/dbarts/dbarts.h
     MOD   src/bartcore/model.hpp            CH    src/bartcore/chain.hpp
@@ -44,213 +30,13 @@ Path aliases used in anchors (line numbers are at 54dec2ab):
     bart.R, dbarts.R, spec.R, rbart.R, xbart.R, data.R, generics.R,
     A_class.R, bartcore.R      -> R/<name>
     bartcoreHandle.R -> inst/common/bartcoreHandle.R (the unexported low-level
-    bartcoreXxx test handles, moved out of R/bartcore.R this cycle)
+    bartcoreXxx test handles)
     sampler.Rd -> man/dbartsSampler-class.Rd     bart.Rd -> man/bart.Rd
     bart2.Rd -> man/bart2.Rd
 
-Anchor pass on record, 2026-08-14 (root TODO `feature-matrix-anchor-refresh`,
-closed by it). EVERY anchor in this file was re-located BY SYMBOL against
-55cc1756: target file opened, cited symbol found, number moved only where the
-symbol had moved. No anchor was derived by applying an offset to another. The
-two whole-column faults M4.4 recorded both reproduced - the section-1 flat-C
-cells indexed the `DBARTS_C_API_LIST` X-macro body rather than the family prose
-on `dbarts_sampler_create`, and the MOD column had not followed `model.hpp`
-through M4.1-M4.3 - and both are fixed here, as are the anchors M4.5 and M4.4
-left standing outside the `bcf` row. Those two partial-pass exceptions are
-therefore superseded and are no longer carried. Two numbers are HISTORICAL
-rather than live and were left as written: [f36]'s "the earlier CH:1589" and
-[f23]'s "the earlier `spec.R:440`", each naming a superseded anchor rather than
-a site. Cell values were NOT re-adjudicated - this pass moved anchors only, so
-a cell whose VALUE was wrong before it is wrong still.
-
-Anchor pass on record, 2026-08-15, SCOPED to the `binary-kforest-prior-default`
-arc's three landing commits (4dbf2dbc, 0faeb416, e623fbf3; branch tip
-63524e5e), not a whole-file walk. Only anchors targeting the files those three
-commits touched were re-located by symbol against 63524e5e: CH, CAPI, RIB,
-`C_interface.cpp`, `dbarts.R`, `bartcore.R`, `model.R`, `spec.R`, `A_class.R`,
-COM, and the test files the arc edited. MOD (`model.hpp`) was NOT touched by
-the arc and was not re-walked. Every anchor outside that set carries over from
-the 2026-08-14 whole-file pass unchanged - its host file is byte-identical
-between 55cc1756 and 63524e5e, so 55cc1756's numbers still hold. Cell values
-were again NOT re-adjudicated.
-
-Anchor pass on record, 2026-08-15, SCOPED to the `adoption-slate` arc's eight
-landing commits (5bedf923, da3c76f9, eeedc07c, 890efd3d, 37d9ec81, 55811082,
-cedf4c34, 13393350; branch tip c05322a8), not a whole-file walk. Only anchors
-targeting the files those eight commits touched were re-located by symbol
-against c05322a8: RIB, CAPI, MOD, CH, FAC, SAM, `bart.R`, `dbarts.R`,
-`bartcore.R`, `bart.Rd`, `sampler.Rd`, `C_interface.cpp`, TODO,
-`tests/cpp/test_model.cpp`, `tests/cpp/test_sampler.cpp` and
-`inst/tinytest/test-capi.R`. COM (`combiner.hpp`), MOV (`moves.hpp`),
-`spec.R`, `rbart.R`, `xbart.R`, `data.R`, `generics.R` and `A_class.R` were
-NOT touched by the arc and were not re-walked. Every anchor outside that set
-carries over from the 2026-08-15 `binary-kforest-prior-default` pass
-unchanged - its host file is byte-identical between 63524e5e and c05322a8, so
-63524e5e's numbers still hold. Cell values were again NOT re-adjudicated.
-
-Value audit on record, 2026-08-17, SCOPED to the `bart2-argument-consolidation`
-arc's fourteen landing commits (ebc57af7..9031b348, S1-S14) plus the dcc8262e
-comment sweep - unlike the two anchor-only passes above, this pass
-RE-ADJUDICATED (not just re-located) the cells the arc could plausibly have
-changed: `bart()`/`bart2()`/`xbart()`/`rbart_vi()` argument surface, prior
-objects, variance forest spelling, the per-forest output channel, formula
-terms, multi-forest declaration routes. Findings and fixes: `bart()` gained a
-narrow `family` formal (S10), which changed section 1's `bart()` column at
-logistic and aft (R/`?` to `S`) and at multinomial/nbinom/hurdle (`-` to `R`,
-the concept now applies and is refused rather than absent), plus footnotes
-f1/f5 and the logistic/aft Gaps entries; `bart2()`'s formula interface (S12)
-now reaches the bcf row's general K-forest amplitude capability through a
-`forest()` term, changing that row's `bart2()` cell, footnote f7, the bcf Gaps
-paragraph, and adding a note after the section-1 table and to footnote f48
-(the in-sample per-forest output channel, S11). Prior objects (S7), variance
-forest spelling (S6, the `variance =` argument name itself is unchanged - only
-its former sub-formals collapsed into `varianceForest()`) and S13's
-formula-path bases-subsetting behavior change introduced no stale claims found
-in this file. This pass did NOT re-walk every anchor into the arc's touched
-files (`bart.R`, `dbarts.R`, `rbart.R`, `xbart.R`, `spec.R`, `model.R` shifted
-substantially across fourteen commits touching them repeatedly) - unlike the
-two passes above, it is not a line-accurate anchor refresh, and the `Status`
-line above is deliberately NOT advanced to this arc's tip; a scoped anchor-only
-pass over these files, on the `binary-kforest-prior-default`/`adoption-slate`
-pattern, remains owed.
-
-Anchor pass on record, 2026-08-18, a WHOLE-FILE walk against 8e1e674c over
-the full alias namespace - the line-accurate refresh the value audit above
-recorded as owed, extended to every anchor in the file. Every anchor was
-re-located by symbol: target file opened, cited symbol found, number moved
-only where the symbol had moved, with range endpoints and comma-list
-elements resolved independently. No anchor was derived by applying an offset
-to another or reading a delta off a diff. MOV (`moves.hpp`) carries over
-unchanged, byte-identical between c05322a8 and 8e1e674c - the established
-carry-over rule - as do the anchors into the byte-identical
-bcf-public-surface.md, sbc-family-tiers.md, sbc-calibration.md,
-variance-forest-mutation-routing.md and tests/cpp/test_model.cpp (where
-[f15]'s `:5449` and `:5541`, stale at c05322a8 itself, are corrected to the
-symbols' true lines). The `bart2.Rd -> man/bart2.Rd` alias was added to the
-table above (man/bart2.Rd, split out of man/bart.Rd at
-`bart2-argument-consolidation` S14, postdated the table); NO anchor changed
-file, to it or otherwise - every claim's cited content still lives in its
-cited file, bart.Rd:151's probit auto-detection included (now bart.Rd:76).
-The two historical numbers - [f36]'s "the earlier CH:1589" and [f23]'s "the
-earlier `spec.R:440`" - were left as written. Cell values were NOT
-re-adjudicated - this pass moved anchors only, so a cell whose VALUE was
-wrong before it is wrong still.
-
-Anchor pass on record, 2026-08-19, a WHOLE-FILE walk against ad4a131b (the
-pre-RC resync). Every anchor was re-located BY CONTENT rather than by
-symbol-grep alone: the construct cited at 8e1e674c was read from that
-commit's blob, then found in the live tree by its own content (a function
-signature, an assert message, a branch condition, a doc comment, a field),
-with range endpoints and comma-list elements resolved independently -
-several turned out to move by a DIFFERENT amount than their neighbor on the
-same line, and one (`generics.R`'s `hurdleSigmaVec` doc comment) grew from
-eight lines to eleven, which a same-length assumption would have missed. No
-anchor was derived by applying an offset to another or to a whole block.
-`src/R_interface_bartcore.cpp`, `src/bartcore/model.hpp` and
-`src/bartcore/chain.hpp` (stale since the hetero-state-carry landing),
-`inst/include/dbarts/dbarts.h` (a struct-layout/ABI-enum/callback reshape),
-`src/C_interface.cpp`, `src/bartcore/combiner.hpp`,
-`src/bartcore/sampler.hpp`, `bart.R`, `generics.R`, `data.R`, `TODO` and
-`inst/tinytest/test-capi.R` all moved at least one cited anchor, by deltas
-from 0 up to +175 depending on where in each file the construct sits -
-never a uniform per-file offset. `tests/cpp/test_sampler.cpp` moved two of
-its four cited sites and left two unchanged. `tests/cpp/test_model.cpp`'s
-three cited test functions and `man/bart.Rd`'s, `man/bart2.Rd`'s,
-`man/dbarts.Rd`'s and `man/dbartsSampler-class.Rd`'s single cited lines
-each reproduced UNCHANGED despite their host files changing elsewhere -
-the last two took in-place text expansions AT other lines, and
-`man/dbartsSampler-class.Rd:151` itself grew in place without moving.
-Two continuation forms the earlier passes' extractor regex cannot see were
-resolved by hand this time: a second cell number following a first that
-already carries the alias token (e.g. `setPredictor`'s per-observation
-variant, the second number of the old RIB 4938/5094 cite), and
-a bare parenthetical with no adjacent token at all (the section-5
-`test-capi.R` attribute cites `(:603)`, `(:220)`, `(:1266)`, and
-`hurdleSigmaVec`'s "definition :N" form). `spec.R` and `rbart.R` are
-CHANGED files (a reworded comment and a `$` to `[[` rewrite, respectively,
-neither touching a cited line) whose every cited anchor nonetheless
-reproduced byte-identical at its old line - reverified by content, not
-assumed from the small diff stat. Unchanged and carried over byte-identical
-since 8e1e674c: MOV (`moves.hpp`, which changed substantially this cycle
-but carries zero live line anchors in this file to relocate), FAC,
-`dbarts.R`, `xbart.R`, `A_class.R`, `bartcore.R`, `model.R`,
-`formulaTerms.R`, `tests/cpp/test_shape.cpp`, `benchmarks/R/equivalence.R`,
-`inst/tinytest/test-active-rows-pins.R`, `test-calibration-prior-draws.R`,
-`test-calibration-midchain.R`, `test-bcf-family.R`, `test-formula-terms.R`
-and the cited design/plan docs other than
-`variance-forest-mutation-routing.md` and `empty-leaf-veto.md` (the latter
-changed 143 lines but is cited only by section title, no line to relocate);
-within CHANGED files,
-`benchmarks/baselines/MANIFEST`'s three cited lines ([f39]) also
-reproduced unmoved. No CONTENT mismatch was found - every cell's cited
-construct still matches the claim it anchors. The two historical numbers -
-[f36]'s "the earlier CH:1589" and [f23]'s "the earlier `spec.R:440`" - were
-again left as written. Cell values were NOT re-adjudicated - this pass
-moved anchors only, so a cell whose VALUE was wrong before is wrong still.
-
-Anchor pass on record, 2026-08-25, SCOPED to the files the docs/design-
-citation-removal commit (dfb6dc0a) touched - not a whole-file walk. That
-commit deleted or shortened doc-citation clauses inside comments across 19
-of this file's alias/basename targets, RIB, CAPI, MOD, CH, FAC, COM, SAM,
-`bart.R`, `dbarts.R`, `spec.R`, `rbart.R`, `data.R`, `generics.R`,
-`A_class.R` and `bartcore.R` among them. Every anchor targeting one of
-those files was re-derived: a cited line outside every edited hunk carried
-its content over unchanged and was reverified byte-identical against the
-pre-strip blob rather than assumed from the small diff stat; a cited line
-inside an edited hunk was relocated by content - the construct the anchor
-names, never the citing prose the commit stripped from around it. 251
-anchors moved, by deltas from 0 to -7, never a uniform per-file offset; 208
-carried over unchanged despite their host file being in scope. The two
-historical numbers - [f36]'s "the earlier CH:1589" and [f23]'s "the
-earlier `spec.R:440`" - are prose, not sited anchors, and were confirmed
-untouched. Every anchor outside the commit's touched files carries over
-from the 2026-08-19 whole-file pass unchanged. Cell values were NOT
-re-adjudicated - this pass moved anchors only, so a cell whose VALUE was
-wrong before is wrong still.
-
-Anchor pass on record, 2026-08-25, a WHOLE-FILE walk against e1223266,
-re-deriving every anchor BY CONTENT - the construct each cell or footnote
-names identified from its own prose, then located in the live tree, never by
-symbol-grep alone or by offset. An independent audit at e1223266 had flagged
-roughly nine verified sites naming constructs they missed rather than the
-ones the cell intended; all are corrected here, e.g. `RIB:2704` sat on
-`refuseVarianceForestScaleUpdate`'s brace while the cell meant
-`refuseGroupedScaleUpdate` (now RIB:2726), `RIB:3931` sat inside
-`setForestBasis` while the cell meant `setForestWeights` (now RIB:3970 or
-RIB:3982-3985 depending on which sentence), `RIB:4599` sat inside `setOffset`
-while the cell meant `setData` (now RIB:4634), `spec.R:409` sat on an
-unrelated monotone-attribute assignment across all eight cells that cited it
-while the variance-forest refusal itself is at spec.R:509, `CH:1166` sat
-short of the `forestCalibration` bounds check (now CH:1193), `CH:1903` sat
-short of the leaf no-op in `growForestFromRoot` (now CH:1968), and
-`bart.R:2241`/`2256` sat short of the `redirectCall` sites inside
-`bart2Hurdle` (now bart.R:2297/2306). This pass also surfaced STATUS drift no
-by-symbol or by-offset pass could have caught: pointwise loglik is now `S`,
-not `M`, for ordinal (`ordinalLogLik` generics.R:1365), nbinom
-(`negbinLogLik` generics.R:1631) and multinomial (`multinomialLogLik`
-generics.R:1029), and the composed hurdle fit now supports it directly
-(`hurdleLogLik` generics.R:2045, [f25]); Student-t's own channel now scores
-the true t marginal via `dt()` (generics.R:118) rather than folding into the
-gaussian `dnorm` call, and heteroscedastic's channel now reads its stored
-`s.train` surface (generics.R:95) rather than ignoring it - both stay `?`
-for want of a dedicated test ([f19], [f28]); `bart2()`'s and `rbart_vi()`'s
-`treatment =`/unknown-argument refusal construct (`rejectUnknownDotsArgs`) is
-RETIRED along with both functions' `...` formal, so an unrecognized argument
-now hits ordinary R argument-matching instead ([f7], [f37]);
-`hurdleSigmaVec` is RETIRED with no replacement construct, evidenced now only
-by the Rd text and the live `redirectCall`/spec.R:509 mechanism ([f34]);
-`hazard`'s `bart()` cell moved from `-` to `R` now that
-`refuseBartRedirectedFamily` names the refusal by construct instead of
-falling through to `match.arg` ([f1]); and `dbartsSpec()`'s `family` formal
-now reaches `multinomial` directly, closing the "does not reach multinomial"
-claim the construction-surface prose used to carry. Section 5's dedicated
-tinytest-file counts were recounted against the live `inst/tinytest/` glob
-rather than carried over: multinomial gained a sixth file, BCF an eighth, and
-heteroscedastic two more (`test-heteroscedastic-channels.R`,
-`test-heteroscedastic-warm-start.R`) since this column was last verified.
-Every other cell's value stands as previously adjudicated; this pass moved
-and re-pointed anchors and corrected the drifted statuses named above, it did
-not re-open every value.
+Anchors are verified BY CONTENT against the tree at 54dec2ab - the cited line
+holds the construct the cell names, never an offset from another anchor - and a
+cell's VALUE is adjudicated separately from its anchor.
 
 ## Rows
 
@@ -415,7 +201,7 @@ reads "constant leaf" in that column.
 | logistic | `logistic`, `wtlogistic` | PASS 6/6 | test-weighted-logistic.R, test-family.R |
 | ordinal | `ordinal` | 9/10 [f41] | test-ordinal.R only |
 | nbinom | `nbinom` | 1/3 [f42] | test-nbinom.R only |
-| multinom | 10 scenarios, own harness | aggregate PASS, raw `f_ik` PASS [f43] | 6 (test-multinomial-*.R) |
+| multinom | 11 scenarios, own harness | aggregate PASS, raw `f_ik` PASS [f43] | 6 (test-multinomial-*.R) |
 | aft | `grouped_aft` only [f44] | OUT [f45] | test-aft.R, test-rbart-aft.R |
 | hazard | `hazard` | OUT [f45] | test-hazard.R only |
 | hurdle | `hurdle` | OUT [f45] | test-hurdle.R, test-hurdle-surface.R |
