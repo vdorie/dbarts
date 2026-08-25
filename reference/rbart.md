@@ -29,8 +29,7 @@ rbart_vi(
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "aft"),
     missing = c("incorporate", "error"),
-    storage = c("double", "single"), updateState = TRUE,
-    ...)
+    storage = c("double", "single"), updateState = TRUE)
 
 # S3 method for class 'rbart'
 plot(
@@ -110,8 +109,7 @@ residuals(object, type = "ev", ...)
   sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples,
   n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles,
   keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees,
-  keepCall, seed, keepSampler, factors, missing, storage, updateState,
-  ...:
+  keepCall, seed, keepSampler, factors, missing, storage, updateState:
 
   Same as in
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md), with
@@ -164,7 +162,12 @@ residuals(object, type = "ev", ...)
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
   gives survival-probability draws that include the drawn intercepts.
   Survival fits do not support `weights` or `subset` in this version,
-  and enter only through the formula interface.
+  and enter only through the formula interface. This vocabulary is
+  narrower than
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s by
+  design - a grouped random-effects model has no
+  multinomial/ordinal/nbinom/hurdle counterpart in this version; the
+  wider family set lives on `bart2`.
 
 - object:
 
@@ -216,6 +219,11 @@ residuals(object, type = "ev", ...)
 
   Same as in
   [`plot.bart`](https://vdorie.github.io/dbarts/reference/bart.md).
+
+- ...:
+
+  Unused; present on `plot`/`fitted`/`extract`/`predict`/`residuals`
+  only for S3 generic compatibility.
 
 ## Details
 
@@ -368,7 +376,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000331
+#> total seconds in loop: 0.000295
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 2 2 2 1 3 2 2 3 2 2 2 4 3 
@@ -381,7 +389,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001712
+#> total seconds in loop: 0.001524
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 3 2 2 2 3 2 2 2 4 2 2 3 2 3 
@@ -426,7 +434,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000470
+#> total seconds in loop: 0.000403
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 
@@ -439,7 +447,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002339
+#> total seconds in loop: 0.002012
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 

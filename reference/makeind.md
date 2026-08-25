@@ -42,7 +42,8 @@ makeTestModelMatrix(data, newdata)
 
 - all:
 
-  Not currently implemented.
+  Not currently implemented; retained for signature compatibility with
+  `BayesTree::makeind`.
 
 - data:
 

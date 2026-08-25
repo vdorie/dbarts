@@ -214,8 +214,9 @@ dbarts(
   decreasing in each named predictor. Supply a named vector selecting
   predictors by model-matrix column name, each element one of
   `"+"`/`"increasing"`/`1` (increasing) or `"-"`/`"decreasing"`/`-1`
-  (decreasing); an unnamed integer or character vector of length equal
-  to the number of columns assigns directions positionally, with `0` for
+  (decreasing) - matching is case-insensitive, so `"Increasing"` is
+  accepted; an unnamed integer or character vector of length equal to
+  the number of columns assigns directions positionally, with `0` for
   unconstrained. Only numeric and ordered columns are eligible - a
   direction on a categorical (unordered factor) predictor is an error. A
   constraint forces birth/death-only tree proposals (an explicit
@@ -421,14 +422,14 @@ dbarts(
   candidate for several models. The response rides
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)'s
   `counts` argument, and `data@y` is the derived trials vector; the
-  per-category shift is `offset.category` (an \\n \times K\\ matrix
-  entering the values before the softmax), never the flat `offset`,
-  which the blend is invariant to and which is therefore refused. Fits
-  and predictions are the \\K\\ category probabilities, summing to one
-  across the second dimension. Like probit there is no residual scale to
-  draw, and weights are not supported: an integer case weight is already
-  row-wise replication in the count response, and a non-integer one has
-  no exact augmentation sampler. The sampler is an ordinary
+  per-category shift is an \\n \times K\\ matrix `offset` (entering the
+  values before the softmax), never a flat one, which the blend is
+  invariant to and which is therefore refused. Fits and predictions are
+  the \\K\\ category probabilities, summing to one across the second
+  dimension. Like probit there is no residual scale to draw, and weights
+  are not supported: an integer case weight is already row-wise
+  replication in the count response, and a non-integer one has no exact
+  augmentation sampler. The sampler is an ordinary
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   whose response and per-category offsets are mutable through
   `$setCounts`, `$setCategoryOffset` and `$setCategoryTestOffset`; see

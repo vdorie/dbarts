@@ -394,8 +394,9 @@ residuals(object, type = "ev", ...)
   are refused BY NAME rather than falling through to
   [`match.arg`](https://rdrr.io/r/base/match.arg.html)'s generic “should
   be one of” message, which names neither the token nor `bart2`:
-  `"multinomial"`, `"ordinal"`, `"nbinom"`, and `"hurdle.lognormal"`
-  package as their own S3 class or compose two samplers, so
+  `"multinomial"`, `"ordinal"`, `"nbinom"`, `"hurdle.lognormal"`, and
+  `"twopart"` (the `"hurdle.lognormal"` alias) package as their own S3
+  class or compose two samplers, so
   `bart2(x.train, y.train, family = ...)` is where they are fit;
   `"gaussian"`, `"probit"`, and `"hazard.probit"` are already reachable
   through `family = "auto"` plus the response, so they add no capability
@@ -674,8 +675,9 @@ by calling `storeState()` on the sampler: `bartFit$fit$storeState()`
 `lapply(rbartFit$fit, function(f) f$storeState())`). The state is not
 captured automatically because it duplicates the trees on the R side and
 can exceed the fit's own sample blocks; it is materialized only on
-request. A fit saved without it reloads, but `predict` stops with an
-error naming `storeState()`. The same convention covers
+request. A fit saved without it reloads, but `predict`,
+`extract(type = "trees")`, and `plotTree` all stop identically, each
+with an error naming `storeState()`. The same convention covers
 [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s
 own-class families - `family = "multinomial"`, `"ordinal"`, and
 `"nbinom"` - whose `$fit` is the sampler (K-forest or single-forest)
@@ -1050,7 +1052,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.168437
+#> total seconds in loop: 0.219765
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

@@ -14,7 +14,7 @@ need not reimplement the family's augmentation.
 ## Usage
 
 ``` r
-dbartsDrawLatents(family, fit, y, weights = NULL, offset = NULL, sigma = 1,
+dbartsDrawLatents(family, fit, y, weights = NULL, offset = NULL, sigma = NULL,
                   dispersion = NULL, cutpoints = NULL, df = NULL)
 
 dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,

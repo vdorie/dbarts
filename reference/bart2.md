@@ -55,8 +55,7 @@ bart2(
     dispersion = NA_real_,
     breaks = NULL, max.rows = 1e7,
     tree.prior = NULL, node.prior = NULL, resid.prior = NULL,
-    storage = c("double", "single"), updateState = TRUE,
-    ...)
+    storage = c("double", "single"), updateState = TRUE)
 
 # S3 method for class 'bartMultinomial'
 extract(
@@ -415,8 +414,9 @@ print(x, ...)
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md); see
   its `monotone` argument. A named vector selects predictors by
   model-matrix column name, each direction one of
-  `"+"`/`"increasing"`/`1` or `"-"`/`"decreasing"`/`-1`; only numeric
-  and ordered columns are eligible. A constraint forces birth/death-only
+  `"+"`/`"increasing"`/`1` or `"-"`/`"decreasing"`/`-1` - matching is
+  case-insensitive, so `"Increasing"` is accepted; only numeric and
+  ordered columns are eligible. A constraint forces birth/death-only
   proposals and a fixed `k = 2`. `NULL` (the default) fits the
   unconstrained model.
 
@@ -595,16 +595,19 @@ print(x, ...)
   computed WITHOUT any category offset, even when `offset` was supplied
   for training - a caller comparing an offset-fitted `yhat.train`
   against `yhat.test` should keep this asymmetry in mind. A category
-  test offset on the fit-time `test` rows is an internal-channel
-  capability only (`dbarts:::bartcoreSetCategoryTestOffset`, or the
-  internal creators' own `offset.test` argument), not reachable from
-  `bart2`; `predict`'s own `offset.category.test` is the supported route
-  to an offset test surface, taking a matrix for the rows it is given.
-  `test` is supported: an `x.test` of the same column structure as
-  `x.train` reports the K-category softmax probabilities on the held-out
-  rows as `yhat.test`, shaped and levels-named exactly like `yhat.train`
-  (see ‘Value’). `keepTrees` is supported too: it retains every one of
-  the K forests' trees so `predict` can replay them at new predictors
+  test offset on the fit-time `test` rows is a sampler-level capability
+  only (a
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
+  own `$setCategoryTestOffset` method, reached through
+  `keepSampler = TRUE`, or the internal creators' own `offset.test`
+  argument), not reachable from `bart2`; `predict`'s own
+  `offset.category.test` is the supported route to an offset test
+  surface, taking a matrix for the rows it is given. `test` is
+  supported: an `x.test` of the same column structure as `x.train`
+  reports the K-category softmax probabilities on the held-out rows as
+  `yhat.test`, shaped and levels-named exactly like `yhat.train` (see
+  ‘Value’). `keepTrees` is supported too: it retains every one of the K
+  forests' trees so `predict` can replay them at new predictors
   afterward, reproducing `yhat.test` bitwise when `newdata` matches the
   fit-time `test`; without `keepTrees`, `predict` errors. A fit trained
   with an `offset` replays as well, given `predict`'s
@@ -864,16 +867,9 @@ print(x, ...)
 
 - ...:
 
-  Rejection-only: not a value channel. Every name supplied here must
-  exactly match a formal of `bart2` - nothing is read out of `...` by
-  `bart2` itself - and any other name is an error: a retired spelling
-  (e.g. `rngSeed`, renamed to `seed`) names its replacement directly,
-  anything else gets the nearest matching formal name as a suggestion
-  or, absent one, a plain “unknown argument” error.
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)
-  enforces the same rule against its own formals. Unused by the
+  Unused; present on the
   `bartMultinomial`/`bartOrdinal`/`bartNegbin`/`bartHurdle` methods
-  below.
+  below only for S3 generic compatibility.
 
 - object:
 
@@ -1280,7 +1276,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001148
+#> total seconds in loop: 0.001452
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 4 3 2 2 3 1 2 2 2 2 3 2 2 2 
@@ -1327,7 +1323,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001282
+#> total seconds in loop: 0.001609
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 

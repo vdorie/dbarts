@@ -229,7 +229,12 @@ xbart(
   factor, logical, or two-level character response is detected and fit
   as probit; a factor with three or more levels is an error, as `xbart`
   does not cross-validate the multinomial model. The built-in binary
-  losses transform test predictions through the family's link.
+  losses transform test predictions through the family's link. This
+  vocabulary is narrower than
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s by
+  design - `xbart` cross-validates a single scalar loss per fold, which
+  the own-class families' K-forest or two-part fits have no single
+  counterpart of; the wider family set lives on `bart2`.
 
 - missing:
 

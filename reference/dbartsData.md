@@ -12,7 +12,7 @@ dbartsData(
     factors = c("categorical", "indicators"),
     missing = c("incorporate", "error"),
     bases = NULL,
-    counts = NULL, offset.category = NULL, offset.category.test = NULL)
+    counts = NULL)
 ```
 
 ## Arguments
@@ -26,6 +26,11 @@ dbartsData(
   `formula`/`data` can be a
   [`formula`](https://rdrr.io/r/stats/formula.html)/[`data.frame`](https://rdrr.io/r/base/data.frame.html)
   pair, or a pair of `x.train`/`y.train` matrices/vector.
+  `offset`/`offset.test` take the matrix interface's shape from whether
+  `counts` is also supplied: with `counts`, an `n` x `K` (`nTest` x `K`)
+  numeric matrix installs the per-category shift described under
+  `counts` below, and a flat vector is refused; without `counts`, only a
+  flat vector (or single number) is accepted, and a matrix is refused.
 
 - bases:
 
@@ -55,20 +60,13 @@ dbartsData(
   categories.
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)`(family = "multinomial")`
   writes this argument from a count-matrix or factor response rather
-  than requiring it here.
-
-- offset.category, offset.category.test:
-
-  Optional per-category shifts of a `counts` response, added to the raw
+  than requiring it here. Paired with `counts`, a matrix
+  `offset`/`offset.test` is the per-category shift added to the raw
   per-category values BEFORE the softmax - which is the only place a
   shift means anything under one, since the blend is invariant to a
-  common per-observation shift and the ordinary `offset` would be added
-  after it. `offset.category` is an `n` x `K` numeric matrix over the
-  training rows and is restricted by `subset`; `offset.category.test` is
-  its `nTest` x `K` twin over the rows of `test`, which it requires.
-  Both are refused without `counts`. Only the row-centred part is
-  identified: adding a constant to a whole row leaves every reported
-  probability unchanged.
+  common per-observation shift and a flat shift would be added after it.
+  Only the row-centred part is identified: adding a constant to a whole
+  row leaves every reported probability unchanged.
 
 ## Details
 
