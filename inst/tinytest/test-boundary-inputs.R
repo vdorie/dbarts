@@ -30,13 +30,18 @@ expect_true(all(is.finite(samples.p1$train)))
 expect_true(all(is.finite(samples.p1$sigma)))
 
 # n = 2: the linear-fit sigma estimate is degenerate (residual df 0, so lm's
-# sigma is exactly 0/0 = NaN); estimateSigmaFromLinearModel's floor covers any
-# non-finite estimate, not only a perfect fit's rounding noise, so the
-# sampler now runs on the floor instead of refusing
+# sigma is exactly 0/0 = NaN, which is not an estimate at all).
+# estimateSigmaFromLinearModel falls back to the marginal residual sd with a
+# classed warning, exactly as the sparse-predictor branch above does, then
+# applies the same relative-epsilon floor; sd(y.n2) is well above that floor.
 x.n2 <- matrix(c(0.2, 0.8, 0.3, 0.7), 2L, 2L)
 y.n2 <- c(1.0, -1.0)
-sampler.n2 <- dbarts(y.n2 ~ x.n2, control = control)
-expect_equal(sampler.n2$data@sigma, sqrt(.Machine$double.eps), tolerance = 0)
+warnings.n2 <- captureWarnings(
+  sampler.n2 <- dbarts(y.n2 ~ x.n2, control = control)
+)
+expect_equal(length(warnings.n2), 1L)
+expect_true(inherits(warnings.n2[[1L]], "dbartsSigmaFallbackWarning"))
+expect_equal(sampler.n2$data@sigma, sd(y.n2), tolerance = 0)
 samples.n2 <- sampler.n2$run(10L, 10L)
 expect_true(all(is.finite(samples.n2$train)))
 expect_true(all(is.finite(samples.n2$sigma)))

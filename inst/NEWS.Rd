@@ -1947,13 +1947,16 @@
             and \code{rbart_vi} fits say \sQuote{sample must be in
             'train', 'test'}; all eight sites now share the one wording.
       \item The starting sigma estimate a linear fit gives \code{\link{dbarts}}
-            is now floored at a relative epsilon rather than passed through
-            raw. A response the fit reproduces exactly, or a design with no
-            residual degrees of freedom, previously returned whatever
-            rounding noise the host's BLAS kernel left behind - occasionally
-            exactly 0 - which the sampler then refused outright; the
-            estimate, and whether the fit succeeds, no longer depends on
-            the host.
+            no longer depends on the host. A response the fit reproduces
+            exactly previously returned whatever rounding noise the host's
+            BLAS kernel left behind - occasionally exactly 0 - which the
+            sampler then refused outright; that estimate is now floored at
+            a relative epsilon instead. A design with no residual degrees
+            of freedom previously returned an undefined estimate for the
+            same reason; it now falls back to the marginal response sd,
+            with a warning, exactly as the existing sparse-predictor
+            fallback already did, and the fallback estimate is floored the
+            same way.
     }
   }
 }

@@ -552,7 +552,11 @@ estimateSigmaFromLinearModel <- function(data) {
         "'x' has sparse-backed predictor columns, so a linear-model ",
         "estimate is not attempted"
       ),
-      class = c("dbartsSparseSigmaFallbackWarning", "dbartsWarning")
+      class = c(
+        "dbartsSparseSigmaFallbackWarning",
+        "dbartsSigmaFallbackWarning",
+        "dbartsWarning"
+      )
     ))
     residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
     return(sd(residual))
@@ -582,19 +586,34 @@ estimateSigmaFromLinearModel <- function(data) {
       }
     }
   )
-  # A response the fit reproduces exactly (or a design that leaves no
-  # residual degrees of freedom) returns rounding noise rather than a
-  # meaningful sigma - down to landing at precisely 0 or NaN - and which
-  # exact value it lands on is a property of the host's BLAS kernel; the
-  # sampler refuses a non-positive sigma outright, so a host-dependent noise
-  # floor would make dbarts() itself succeed or fail by hardware. Replace it
-  # with a relative-epsilon floor so the estimate is host-independent. The
-  # floor uses the unweighted residual, matching the sparse fallback above:
-  # weights rescale the fit's effective sample, not the response's own
-  # scale, so they play no part in the floor.
   residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
+  # A design with no residual degrees of freedom (or another reason the
+  # fit's residual variance comes out undefined) leaves sigma non-finite; a
+  # non-finite value is not an estimate at all, so fall back to the marginal
+  # residual sd, exactly as the sparse branch above does, with the same
+  # warning shape.
+  if (!is.finite(sigma)) {
+    warning(warningCondition(
+      paste0(
+        "starting sigma estimate falls back to the marginal response sd: ",
+        "the linear model's residual standard error is not finite ",
+        "(typically zero residual degrees of freedom)"
+      ),
+      class = c("dbartsSigmaFallbackWarning", "dbartsWarning")
+    ))
+    sigma <- sd(residual)
+  }
+  # A response the fit reproduces exactly returns rounding noise instead of
+  # a meaningful sigma - down to landing at precisely 0 - and which exact
+  # value it lands on is a property of the host's BLAS kernel; the sampler
+  # refuses a non-positive sigma outright, so a host-dependent noise floor
+  # would make dbarts() itself succeed or fail by hardware. Floor the final
+  # estimate (raw fit or the marginal fallback above) at a relative epsilon
+  # so it is host-independent. Uses the unweighted residual: weights
+  # rescale the fit's effective sample, not the response's own scale, so
+  # they play no part in the floor.
   sigmaFloor <- sqrt(.Machine$double.eps) * max(1, max(abs(residual)))
-  if (!is.finite(sigma) || sigma < sigmaFloor) sigmaFloor else sigma
+  if (sigma < sigmaFloor) sigmaFloor else sigma
 }
 
 ## Recode a sparseFactor test column over the training level table, keeping
