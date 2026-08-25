@@ -36,7 +36,7 @@ muByTree constant-leaf-fits refactor (which post-dates data-layout.md and
 within-chain-threading.md) had ALREADY eliminated the old ~15% fit SCATTER, and
 turned the residual roll and the totalFits rebuild into STREAMING passes
 (resid[i] uses mu[leafOf[i]], an L1-resident table lookup; chain.hpp:4525-4527,
-4551-4577). What survives as the latency-bound hotspot is now a SINGLE shape:
+4730-4750). What survives as the latency-bound hotspot is now a SINGLE shape:
 the random suffstat GATHER treeY[indices[k]] over each tree's shuffled per-tree
 index buffer (misc_computeIndexedSufficientStatisticsFast, moments.c:271;
 tree.hpp:678; plus the two move-phase child-suffstat gathers). The docs' old

@@ -799,7 +799,7 @@ collapses like everything else.
   functions on the same unmodified tree*, and both ignore the node's own
   rule, so `log(rI) - log(fI) + log(fV) - log(rV) = 0` identically - not
   approximately. Both-categorical falls through all three branches at lines
-  512-526 and leaves the correction at its `0.0` initializer, which is also
+  567-581 and leaves the correction at its `0.0` initializer, which is also
   correct. `change-move-balance.md` records the same: "a same-variable or
   equal-cut ordinal change gives correction 1".
 - For the local-window form the correction is `|W(c)| / |W(c')|`, the ratio
@@ -1814,7 +1814,7 @@ regime for an independence regrow.
 enumeration.**
 
 *The cap does not exist.* `CGMTreePrior::growthProbability`
-(`model.hpp:2129-2131`) returns 0 **only** when
+(`model.hpp:2129-2132`) returns 0 **only** when
 `!tree.hasAnyAvailableVariable(...)`; otherwise `base/(1+depth)^power`,
 strictly positive at every finite depth. The memo states this itself
 elsewhere and then assumes its negation.
@@ -1900,7 +1900,7 @@ statistic**; the census is still worth running, but not as designed.
   reads.* Verified by reading the code: `forest.leaf.scale =
   resolvedNodeScale(options.nodeScale, options.priorScale) / sqrt(forest.numTrees)` (`chain.hpp:648-650`) uses the
   **total** tree count, and `installBlockMasks` (`chain.hpp:5116-5138`,
-  called at `:621`) installs per-tree column masks and nothing else - no
+  called at `:722`) installs per-tree column masks and nothing else - no
   per-group rescaling anywhere in the function. So the per-leaf prior sd
   `tau` is identical in both arms and the within-block apportionment
   timescale is the same number. What `blocks()` removes is not the
@@ -2024,9 +2024,9 @@ fixed.
   splits on a variable in `used(T)`, which the reverse ban leaves alone and
   which is available at that node by construction, so `growthProbability`
   is positive at every internal node of `T` under the reverse ban
-  (`model.hpp:2129-2131`); and banning changes `numAvailable` and hence
+  (`model.hpp:2129-2132`); and banning changes `numAvailable` and hence
   `P(var)`, but both directions compute their own normalizer, which is all
-  MH needs (`grow.hpp:209-217` mirrors `model.hpp:2135-2145`). **Condition
+  MH needs (`grow.hpp:207-222` mirrors `model.hpp:2135-2145`). **Condition
   one**: the ban does not relieve B4's gaps, it stacks on them, so the
   refusal predicate must be evaluated **under the reverse ban**, not on the
   incumbent in isolation. **Condition two**: `q` depends on `used(T)`, so
@@ -2178,7 +2178,7 @@ stated mechanism, and one cost fact.
   `interactions()` already express) or on interaction *order* (which
   `interaction-constraints.md` already ships), not on depth.
 - *Per-block depth priors are not a knob.* `CGMTreePrior` is a per-**forest**
-  member (`chain.hpp:409`), so per-block `base`/`power` needs a per-tree
+  member (`combiner.hpp:153`), so per-block `base`/`power` needs a per-tree
   prior indirection through every scoring path.
 - *(b) is DP-Forests with fixed labels.* Per-block variable-inclusion
   priors are exactly Du and Linero's construction with user-supplied rather

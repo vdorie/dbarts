@@ -53,7 +53,7 @@ Per forest (combiner.hpp:138-197):
 - `indexBuffer` : `n * numTrees` size_t. Tree t owns the contiguous slice
   `indexBuffer + t*n`; `Tree::indices` points at it (tree.hpp:260,268).
   It is a PERSISTENT per-tree permutation P_t: initialized to identity
-  (tree.hpp:224), partitioned in place by moves (tree.hpp:837
+  (tree.hpp:279), partitioned in place by moves (tree.hpp:837
   partitionChildren), and carried across sweeps. Each node owns a
   contiguous RANGE `[node.begin, node.end)` of P_t (tree.hpp:221); the
   node's members are `indices[begin .. end)`, which are SCATTERED
@@ -62,7 +62,7 @@ Per forest (combiner.hpp:138-197):
   OBSERVATION order (treeFits[obs]). Persistent.
 - `treeY` : ONE `n` double buffer, the running residual, OBSERVATION
   order, reused across all trees, rolled incrementally (chain.hpp:
-  728-744).
+  4500-4585).
 - y, weights: obs order, owned by the response family (external to the
   forest).
 
@@ -81,7 +81,7 @@ The per-sweep, per-tree O(n) passes and their memory access shape:
    one node (partitionIndices GATHER, part of the 22.5% partition) and
    computes 2 child suffstats (more gathers); change/swap re-partition
    near the root (~n) and snapshot the affected index segment for
-   rollback (tree.hpp:1016).
+   rollback (tree.hpp:1006-1013).
 4. sampleParametersAndSetFits (chain.hpp:4896-4990): per leaf, draw a
    constant param, then `misc_setIndexedVectorToConstant(treeFits,
    indices+begin, len, param)` -> SCATTER of a per-leaf constant into
@@ -125,8 +125,8 @@ permanently in leaf order at O(changed)-per-move maintenance. Costs:
 +O(n*m) memory per array held this way (a leaf-order residual copy is
 another n*m doubles == as large as treeFits itself: 160 MB at n=1e5,
 m=200); partition swaps move 8-24 extra bytes each; change/swap rollback
-must snapshot the double segments too (tree.hpp:1016 currently snapshots
-only the size_t indexSegment). It does NOT solve the residual: the
+must snapshot the double segments too (tree.hpp:999-1013 currently
+snapshots only the size_t indexSegment). It does NOT solve the residual: the
 residual VALUES change every sweep even when P_t is unchanged, so the
 leaf-order residual must be re-gathered every sweep regardless -> 1a
 helps only the static y/weights, which are not the hot path.
@@ -399,7 +399,7 @@ number.
 
 - Correctness of a physical-permutation partition (1a): partitionChildren
   and the snapshot/restore for rejected change/swap moves (tree.hpp:
-  765-782) currently move only size_t indices; carrying doubles alongside
+  1006-1020) currently move only size_t indices; carrying doubles alongside
   doubles the state to snapshot and is a fertile bug source. Strategy 1b
   sidesteps this (rejected moves re-derive the affected rscratch range
   from treeY, or snapshot the small affected segment).
