@@ -743,7 +743,7 @@ struct ForestCombiner {
 template <IntegrableLeafModel L, typename ResidT = double>
 struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   static_assert(!L::hasVectorParams && !L::hasFunctionParams,
-                "BCF is a constant-leaf model");
+                "an amplitude coupling is a constant-leaf model");
 
   /// numForests is the chain's own forest count, which sizes every per-forest
   /// array here; a forest the spec does not reach enters with a plain amplitude
@@ -980,7 +980,9 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// column 1 for nonzero as a group key and never multiplies by the stored
   /// values, forming two disjoint group-precision accumulators instead. So on a
   /// 0.25/0.75 pair it would silently draw a different model. A non-canonical
-  /// basis at ANY forest therefore forces the general path for the whole draw.
+  /// basis at ANY forest therefore forces the general path for the whole draw,
+  /// as does a scale-mixture prior on any forest past 0 (shippedShape says
+  /// why).
   void drawGlue(ext_rng* rng, double sigma, const double* y, const double* w,
                 const std::vector<Forest<L, ResidT>>& forests) override {
     if (forests.size() == 2 && !generalAmplitudeDraw_ && shippedShape())
@@ -1471,9 +1473,20 @@ private:
   /// forest 1 the complementary indicator pair - which is what the two-scalar
   /// draw is written against. The widths are checked alongside the value
   /// predicate because canonical says "one of the two shapes", not which.
+  ///
+  /// The PRIOR is part of the shape, not just the basis: the two-scalar draw
+  /// refreshes forest 0's scale-mixture variance and no other, so a forest past
+  /// 0 declaring a positive half-Cauchy scale would get a FIXED variance here
+  /// where the general sweep samples it - a different model, not a different
+  /// rounding. bcf's own spelling puts a scale on forest 0 alone, so this
+  /// leaves every shipped route on the two-scalar path.
   bool shippedShape() const {
-    return glue_.basis.size() == 2 && glue_.canonical[0] && glue_.canonical[1] &&
-           glue_.basis[0].numColumns == 1 && glue_.basis[1].numColumns == 2;
+    if (glue_.basis.size() != 2 || !glue_.canonical[0] || !glue_.canonical[1] ||
+        glue_.basis[0].numColumns != 1 || glue_.basis[1].numColumns != 2)
+      return false;
+    for (std::size_t f = 1; f < glue_.prior.size(); ++f)
+      if (glue_.prior[f].halfCauchyScale > 0.0) return false;
+    return true;
   }
 
   /// Re-derives the amplitude layout from the basis widths and carries the

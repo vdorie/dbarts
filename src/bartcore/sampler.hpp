@@ -824,6 +824,20 @@ public:
       }
     }
 
+    // the scale-leaf positivity law state validation holds a variance block to,
+    // applied at BOTH install arms below for the reason it applies there: a
+    // donor state is hand-buildable whichever arm reaches it, and a rebuild
+    // scatters the leaf straight into a divisor, so a non-positive factor is a
+    // broken model rather than a bad number
+    auto scaleLeavesArePositive =
+      [](const std::vector<std::vector<FlatNode>>& trees) {
+        for (const std::vector<FlatNode>& tree : trees)
+          for (const FlatNode& node : tree)
+            if (flatKindOf(node) == FlatKind::leaf && !(node.value > 0.0))
+              return false;
+        return true;
+      };
+
     std::vector<ChainStateData> install(chains_.size());
     for (size_t c = 0; c < chains_.size(); ++c) {
       size_t dc = sampleMap[c].first;
@@ -890,6 +904,8 @@ public:
       if (slot < 0) {
         dst.varianceTrees = src.varianceTrees;
         dst.varianceTreeMasks = src.varianceTreeMasks;
+        if (!scaleLeavesArePositive(dst.varianceTrees))
+          return WarmStartResult::varianceMismatch;
       } else if (!src.varianceTrees.empty()) {
         // The saved buffer's STRIDE is the donor's own variance tree count, so
         // a size-only bound would let a state whose live block is shorter than
@@ -913,14 +929,8 @@ public:
             src.savedVarianceTreeMasks.begin() + base,
             src.savedVarianceTreeMasks.begin() + base + nvt);
         }
-        // the scale-leaf positivity law state validation holds a saved slot to,
-        // applied here for the reason it applies there: the buffer is
-        // hand-buildable and a rebuild scatters the leaf straight into a
-        // divisor
-        for (const std::vector<FlatNode>& tree : dst.varianceTrees)
-          for (const FlatNode& node : tree)
-            if (flatKindOf(node) == FlatKind::leaf && !(node.value > 0.0))
-              return WarmStartResult::varianceMismatch;
+        if (!scaleLeavesArePositive(dst.varianceTrees))
+          return WarmStartResult::varianceMismatch;
       }
     }
 

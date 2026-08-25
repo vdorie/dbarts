@@ -91,6 +91,29 @@ liveDest <- hetSampler(FALSE)
 liveDest$installTrees(liveDonor)
 expect_identical(liveVariance(liveDest$state), liveVariance(liveDonor$state))
 
+## ---- and a hand-edited one reaching that same arm is refused ----
+# The variance forest models s^2(x) as a PRODUCT of per-tree leaf factors, and
+# a rebuild scatters each factor straight into a divisor, so a non-positive
+# leaf is a broken model rather than a bad number. Both state entries hold a
+# donor to that: the install above shows the fixture is otherwise legitimate,
+# so the refusals below are about the poisoned leaf alone.
+poisonedState <- liveDonor$state
+leafNode <- which(poisonedState[[1L]][["variance.vars"]] < 0L)[1L]
+expect_false(is.na(leafNode))
+poisonedState[[1L]][["variance.values"]][
+  ((leafNode - 1L) * 8L + 1L):(leafNode * 8L)
+] <- writeBin(-2.5, raw())
+poisonDest <- hetSampler(FALSE)
+expect_error(
+  poisonDest$setState(poisonedState),
+  "state is not consistent with this sampler"
+)
+expect_error(
+  poisonDest$installTrees(poisonedState),
+  "scale leaf is not positive"
+)
+expect_true(all(is.finite(poisonDest$run(0L, 3L)$sigma)))
+
 ## ---- the pooled-categorical mask channel rides the same slice ----
 # a variance tree splitting on a >63-level column keeps its rule's words in a
 # side channel, so the mask block must be sliced with the trees. Pinned at slot

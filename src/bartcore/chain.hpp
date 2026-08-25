@@ -2422,7 +2422,15 @@ public:
   /// First phase of a whole-data replacement: recover every tree's leaf
   /// parameters against the current fits and partitions, before the store or
   /// any per-observation storage moves.
+  ///
+  /// SINGLE FOREST ONLY, as applyNewData is. A multi-forest lift is not a loop
+  /// over forests_: each forest's amplitude basis is held at the observation
+  /// count it was installed at, so a replacement that moves n would over-read
+  /// every basis and a fixed-n one would re-pair old bases with new rows. The
+  /// bases have to arrive in the same call, so the caller refuses the shape
+  /// instead.
   void recoverTreeParameters(TreeParameters& params) {
+    assert(forests_.size() == 1);
     Forest<L, ResidT>& forest = forests_[0];
     params.resize(forest.numTrees);
     for (size_t t = 0; t < forest.numTrees; ++t)
@@ -2449,12 +2457,14 @@ public:
   /// indices onto the new cut grid, re-route, and collapse anything left
   /// invalid or empty. Node averages are left stale; run() recomputes them.
   /// varianceParams carries recoverVarianceParameters' factors and is read
-  /// only under a variance forest.
+  /// only under a variance forest. SINGLE FOREST ONLY; recoverTreeParameters
+  /// states what a multi-forest lift would take.
   void applyNewData(const double* y, const double* weights,
                     const double* offset,
                     const std::vector<std::vector<double>>& oldCutPoints,
                     TreeParameters& params,
                     const TreeParameters& varianceParams) {
+    assert(forests_.size() == 1);
     Forest<L, ResidT>& forest = forests_[0];
     size_t n = data_.numObservations;
     bool numObservationsChanged =

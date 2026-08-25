@@ -3816,10 +3816,11 @@ static void testForestBasisOrdering() {
 
 // (3) The GENERAL q-variate amplitude conditional. Every pin above drives the
 // shipped K = 2 shape, which keeps its two-scalar path (drawGlue says why), so
-// none of them enters this code at all. Three arms: the conditional recovers a
+// none of them enters this code at all. Four arms: the conditional recovers a
 // known closed-form Gaussian posterior over a CONTINUOUS, non-orthogonal basis
 // (the case the factorization exists for); it agrees with the two-scalar path
-// on the shipped shape, which is the whole evidence for keeping both; and at
+// on the shipped shape, which is the whole evidence for keeping both; the path
+// predicate reads the PRIOR a spec carries and not only its basis shape; and at
 // K = 3 every per-forest array is sized by the forest count, which is the read
 // that went out of bounds before.
 static void testGeneralAmplitudeConditional() {
@@ -3965,6 +3966,59 @@ static void testGeneralAmplitudeConditional() {
     check(drawn[0][0] == drawn[1][0],
           "the general conditional's scalar block is BITWISE the shipped a "
           "draw, which is what the square-root-free solve buys");
+  }
+
+  // ---- the path predicate reads the prior, not only the basis shape ----
+  // A canonical K = 2 pair whose forest 1 declares a positive half-Cauchy scale
+  // is a scale MIXTURE on that block: its prior variance is a live auxiliary.
+  // The two-scalar path refreshes forest 0's and no other, so a predicate that
+  // read the basis alone would hold forest 1's variance at its declared value
+  // for every sweep - a different model, not a different rounding.
+  {
+    std::vector<double> indicator(2 * n);
+    for (size_t i = 0; i < n; ++i) {
+      indicator[2 * i] = 1.0 - z[i];
+      indicator[2 * i + 1] = z[i];
+    }
+    const double declared = 0.5;
+    AmplitudeSpec routed;
+    routed.forests.resize(2);
+    routed.forests[0].amplitudePriorScale = 2.0;
+    routed.forests[1].basis = indicator.data();
+    routed.forests[1].numBasisColumns = 2;
+    routed.forests[1].amplitudePriorVariance = declared;
+    routed.forests[1].amplitudePriorScale = 1.5;
+    // the same spec off the predicate entirely: whatever the routing decides,
+    // this arm is the general sweep, so an equality against it is the routing
+    // read out rather than a second copy of the arithmetic
+    AmplitudeSpec forced = routed;
+    forced.generalAmplitudeDraw = true;
+
+    ChainStateData out[2];
+    for (size_t arm = 0; arm < 2; ++arm) {
+      AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
+        data, arm == 0 ? routed : forced);
+      std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+      forests[0].totalFits = mu;
+      forests[1].totalFits = tau;
+      ext_rng* rng = makeSeamRng();
+      for (size_t sweep = 0; sweep < 40; ++sweep)
+        combiner.drawGlue(rng, sigma, y.data(), w.data(), forests);
+      combiner.serializeGlue(out[arm]);
+      ext_rng_destroy(rng);
+    }
+    check(out[0].amplitudeVariances[1] != declared &&
+            std::isfinite(out[0].amplitudeVariances[1]) &&
+            out[0].amplitudeVariances[1] > 0.0,
+          "a scale mixture declared past forest 0 is drawn, not frozen at the "
+          "variance it was declared with");
+    check(out[0].amplitudes == out[1].amplitudes &&
+            out[0].amplitudeVariances == out[1].amplitudeVariances,
+          "the spec routes to the general sweep bitwise, which is the path "
+          "that refreshes a second scale mixture");
+    printf("ok: amplitude path selection reads the prior (forest 1 variance "
+           "%.4f against a declared %.4f)\n", out[0].amplitudeVariances[1],
+           declared);
   }
 
   // ---- K = 3: every per-forest array is sized by the forest count ----
