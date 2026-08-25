@@ -46,6 +46,51 @@ row.names(individualSamples) <- as.character(seq_len(nrow(individualSamples)))
 
 expect_equal(allTrees, individualSamples)
 
+# extract's own formals (sample, combineChains, forest, contribution) do not
+# reach getTrees (bart.Rd's 'Extracting Trees' section documents only
+# chainNums/sampleNums/treeNums/newdata there); each is refused by name
+# instead of silently corrupting the call or partial-matching one of
+# getTrees's differently-named formals (sample -> sampleNums).
+treesArgReason <- function(arg) {
+  paste0(
+    "'",
+    arg,
+    "' is not used when type = \"trees\"; the sampler's getTrees ",
+    "accepts 'chainNums', 'sampleNums', 'treeNums', 'current', and ",
+    "'newdata' instead (see 'Extracting Trees' in ?bart)"
+  )
+}
+expect_error(
+  extract(fit, type = "trees", sample = 1L),
+  treesArgReason("sample"),
+  fixed = TRUE
+)
+expect_error(
+  extract(fit, type = "trees", sample = "train"),
+  treesArgReason("sample"),
+  fixed = TRUE
+)
+expect_error(
+  extract(fit, "trees", "train"),
+  treesArgReason("sample"),
+  fixed = TRUE
+)
+expect_error(
+  extract(fit, type = "trees", combineChains = FALSE),
+  treesArgReason("combineChains"),
+  fixed = TRUE
+)
+expect_error(
+  extract(fit, type = "trees", forest = 1L),
+  treesArgReason("forest"),
+  fixed = TRUE
+)
+expect_error(
+  extract(fit, type = "trees", contribution = TRUE),
+  treesArgReason("contribution"),
+  fixed = TRUE
+)
+
 rm(individualSamples, combinations, allTrees, fit, n.samples, n.trees)
 
 
@@ -100,6 +145,19 @@ individualSamples <- Reduce(rbind, individualSamples)
 row.names(individualSamples) <- as.character(seq_len(nrow(individualSamples)))
 
 expect_equal(allTrees, individualSamples)
+
+# extract.rbart's own formals (sample, combineChains) collapse the same way
+# extract.bart's do; rbart has no forest/contribution formal to collide with.
+expect_error(
+  extract(fit, type = "trees", sample = "train"),
+  treesArgReason("sample"),
+  fixed = TRUE
+)
+expect_error(
+  extract(fit, type = "trees", combineChains = FALSE),
+  treesArgReason("combineChains"),
+  fixed = TRUE
+)
 
 rm(individualSamples, combinations, allTrees, fit)
 rm(n.chains, n.samples, n.trees)
@@ -304,4 +362,4 @@ rm(liveTrees, roots, splitTree, s, tieX, tied, tieBlock)
 rm(x, y, n)
 
 
-rm(df, testData)
+rm(df, testData, treesArgReason)

@@ -154,6 +154,26 @@ expect_error(residuals(fit.rbart.noTrainFits), pattern = "keepTrainingFits")
 
 rm(fit.noTrainFits, fit.rbart.noTrainFits)
 
+# residuals is always against the training response; a caller-supplied
+# 'sample' collided with the fixed sample = "train" residuals.bart/.rbart
+# forward to fitted, raising a raw 'formal argument "sample" matched by
+# multiple actual arguments' - refused by name instead
+residualsSampleReason <- paste0(
+  "'sample' is not used by residuals; residuals are always against the ",
+  "training response"
+)
+expect_error(
+  residuals(fit.bart, sample = "train"),
+  residualsSampleReason,
+  fixed = TRUE
+)
+expect_error(
+  residuals(fit.rbart, sample = "train"),
+  residualsSampleReason,
+  fixed = TRUE
+)
+rm(residualsSampleReason)
+
 rm(fit.bart, fit.bart2, fit.rbart, pt.bart2, pt.rbart)
 
 

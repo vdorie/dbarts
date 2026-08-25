@@ -47,6 +47,104 @@ fitArgs <- list(
   seed = 13L
 )
 
+# ---- B2: named training predictors (the ordinary matrix-interface spelling,
+# bart.Rd:75) are the unnamed fixture's counterpart. The re-expanded design's
+# appended period column used to go unnamed on the matrix-training and
+# matrix-newdata branches, so a named fit died in predict's column-name match;
+# a data.frame training input hit the same branch once bart2 converted it to
+# a named matrix. Small and cheap: only the naming path is under test.
+set.seed(929L)
+n.named <- 60L
+x.named <- matrix(runif(n.named * p), n.named, p)
+colnames(x.named) <- c("x1", "x2", "x3")
+f.named <- 0.9 *
+  sin(pi * x.named[, 1L]) +
+  0.6 * x.named[, 2L] -
+  0.4 * x.named[, 3L]
+event.named <- rep(K + 1L, n.named)
+for (i in seq_len(n.named)) {
+  for (k in seq_len(K)) {
+    if (runif(1L) < pnorm(baseline[k] + f.named[i])) {
+      event.named[i] <- k
+      break
+    }
+  }
+}
+cens.named <- sample.int(K, n.named, replace = TRUE)
+d.named <- list(
+  time = as.double(pmin(event.named, cens.named, K)),
+  status = as.double(event.named <= cens.named & event.named <= K)
+)
+namedFitArgs <- modifyList(
+  fitArgs,
+  list(n.trees = 10L, n.burn = 10L, n.samples = 10L)
+)
+
+fit.namedMat <- do.call(
+  bart2,
+  c(
+    list(x.named, cbind(d.named$time, d.named$status), family = "hazard"),
+    namedFitArgs
+  )
+)
+expect_equal(
+  colnames(fit.namedMat$fit$data@x),
+  c("x1", "x2", "x3", "period")
+)
+sp.named <- survivalProbabilities(fit.namedMat)
+expect_equal(
+  dim(sp.named),
+  c(nrow(fit.namedMat$yhat.train), length(fit.namedMat$periods), n.named)
+)
+
+xn.named <- matrix(runif(4L * p), 4L, p)
+colnames(xn.named) <- c("x1", "x2", "x3")
+sp.named.mat <- survivalProbabilities(fit.namedMat, newdata = xn.named)
+expect_equal(
+  dim(sp.named.mat),
+  c(nrow(fit.namedMat$yhat.train), length(fit.namedMat$periods), 4L)
+)
+sp.named.df <- survivalProbabilities(
+  fit.namedMat,
+  newdata = as.data.frame(xn.named)
+)
+expect_equal(sp.named.df, sp.named.mat)
+
+# a data.frame training input is coerced to a named matrix by bart2, so it
+# takes the same branch and must work identically
+fit.namedDf <- do.call(
+  bart2,
+  c(
+    list(
+      as.data.frame(x.named),
+      cbind(d.named$time, d.named$status),
+      family = "hazard"
+    ),
+    namedFitArgs
+  )
+)
+sp.namedDf <- survivalProbabilities(fit.namedDf)
+expect_equal(dim(sp.namedDf), dim(sp.named))
+
+rm(
+  n.named,
+  x.named,
+  f.named,
+  event.named,
+  cens.named,
+  d.named,
+  namedFitArgs,
+  fit.namedMat,
+  sp.named,
+  xn.named,
+  sp.named.mat,
+  sp.named.df,
+  fit.namedDf,
+  sp.namedDf,
+  i,
+  k
+)
+
 # ---- both tokens, marker, and the remap ($family reads the binary token) ----
 
 fit.probit <- do.call(

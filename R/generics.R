@@ -349,6 +349,28 @@ predict.bart <- function(
   result
 }
 
+# extract(type = "trees") rewrites the matched call onto the sampler's
+# getTrees(treeNums, chainNums, sampleNums, current, newdata); none of the
+# extract method's own vocabulary reaches getTrees (bart.Rd's 'Extracting
+# Trees' section documents only chainNums/sampleNums/treeNums/newdata as
+# accepted there), so a caller-supplied argument that collides by name -
+# sample, combineChains, forest, contribution - is refused by name instead of
+# being left to partial-match one of getTrees's differently-named formals
+# (sample -> sampleNums) or fall through to a raw 'unused argument'.
+refuseTreesArguments <- function(treesCall, ownNames) {
+  supplied <- intersect(ownNames, names(treesCall))
+  if (length(supplied) > 0L) {
+    stop(
+      "'",
+      supplied[1L],
+      "' is not used when type = \"trees\"; the sampler's getTrees accepts ",
+      "'chainNums', 'sampleNums', 'treeNums', 'current', and 'newdata' ",
+      "instead (see 'Extracting Trees' in ?bart)"
+    )
+  }
+  invisible(NULL)
+}
+
 extract.bart <- function(
   object,
   type = c("ev", "ppd", "bart", "loglik", "trees", "forest"),
@@ -373,6 +395,10 @@ extract.bart <- function(
       }
     }
     treesCall <- match.call()
+    refuseTreesArguments(
+      treesCall,
+      c("sample", "combineChains", "forest", "contribution")
+    )
     target <- quote(object$fit$getTrees)
     target[[2L]][[2L]] <- treesCall$object
     treesCall[[1L]] <- target
@@ -808,9 +834,25 @@ fitted.bart <- function(
   }
 }
 
+# residuals are always against the training response, so a caller-supplied
+# 'sample' collides with the fixed sample = "train" residuals.* passes to
+# fitted - refuse it by name rather than let it reach fitted's own 'sample'
+# formal twice and raise a raw 'formal argument "sample" matched by multiple
+# actual arguments'.
+refuseResidualsSample <- function(dots) {
+  if ("sample" %in% names(dots)) {
+    stop(
+      "'sample' is not used by residuals; residuals are always against the ",
+      "training response"
+    )
+  }
+  invisible(NULL)
+}
+
 residuals.bart <- function(object, type = "ev", ...) {
   # type flows to fitted so link-scale (type = "bart") residuals are reachable;
   # residuals are always against the training response, so sample is pinned
+  refuseResidualsSample(list(...))
   object$y - fitted.bart(object, type = type, sample = "train", ...)
 }
 
@@ -1561,6 +1603,7 @@ residuals.bartHurdle <- function(object, type = "ev", ...) {
   # natural-scale residual against the stored original response over all n;
   # call the method by name (the residuals.bart idiom) so the package namespace
   # need not import the stats fitted generic
+  refuseResidualsSample(list(...))
   object$y - fitted.bartHurdle(object, type = type, sample = "train", ...)
 }
 
@@ -1855,6 +1898,7 @@ extract.rbart <- function(
       )
     }
     treesCall <- match.call()
+    refuseTreesArguments(treesCall, c("sample", "combineChains"))
     # the in-core Gibbs path keeps one multi-chain sampler: route chain
     # selection through its chainNums argument instead of the fit list
     singleFit <- length(object$fit) == 1L && n.chains > 1L
@@ -2075,6 +2119,7 @@ fitted.rbart <- function(
 residuals.rbart <- function(object, type = "ev", ...) {
   # as residuals.bart: type reaches fitted for link-scale residuals, sample
   # is pinned to the training response
+  refuseResidualsSample(list(...))
   object$y - fitted.rbart(object, type = type, sample = "train", ...)
 }
 

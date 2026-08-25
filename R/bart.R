@@ -2418,7 +2418,9 @@ hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
     fitX <- extract(object$fit, "predictors")
     subjectCov <- fitX[fitX[, periodCol] == 1L, -periodCol, drop = FALSE]
     n <- nrow(subjectCov)
-    bigX <- cbind(
+    # name the appended column "period" under the same rule the training
+    # design used, so a named fit's re-expanded design matches by name
+    bigX <- appendHazardPeriodColumn(
       subjectCov[rep(seq_len(n), times = K), , drop = FALSE],
       rep(seq_len(K), each = n)
     )
@@ -2429,7 +2431,7 @@ hazardSurvivalProbabilities <- function(object, times, newdata, combineChains) {
   } else {
     newdata <- as.matrix(newdata)
     n <- nrow(newdata)
-    bigX <- cbind(
+    bigX <- appendHazardPeriodColumn(
       newdata[rep(seq_len(n), times = K), , drop = FALSE],
       rep(seq_len(K), each = n)
     )

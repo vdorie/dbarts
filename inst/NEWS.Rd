@@ -1809,6 +1809,40 @@
             alongside whatever mean-function scale (\code{sigma}, \code{k},
             \code{tau}) each carries, exactly as \code{summary.bart}
             already reports for a plain \code{bart}/\code{bart2} fit.
+      \item \code{extract(fit, type = "trees", ...)} no longer corrupts its
+            own call. Passing \code{sample}, \code{combineChains},
+            \code{forest}, or \code{contribution} - none of which the
+            sampler's \code{getTrees} accepts - used to forward into
+            \code{getTrees} through R's partial argument matching: a
+            numeric \code{sample} silently filtered the returned trees to
+            the wrong posterior sample, \code{sample = "train"}/\code{"test"}
+            (and the equivalent positional call) died on an internal
+            \code{NA}, and the other two raised a raw
+            \code{unused argument}. Each is now refused by name, naming the
+            \code{chainNums}/\code{sampleNums}/\code{treeNums}/
+            \code{current}/\code{newdata} vocabulary \code{getTrees} does
+            accept. \code{extract.rbart} had the same defect for
+            \code{sample} and \code{combineChains} and is fixed the same
+            way.
+      \item \code{residuals(fit, sample = "train")} on a \code{bart},
+            \code{rbart_vi}, or \code{bart2(family = "hurdle.lognormal")}
+            fit no longer raises the raw R error
+            \code{formal argument "sample" matched by multiple actual
+            arguments}. \code{residuals} is always computed against the
+            training response, so a caller-supplied \code{sample} is now
+            refused by name instead of colliding with the fixed value
+            \code{residuals} itself passes to \code{fitted}.
+      \item \code{survivalProbabilities()} on a discrete-time hazard fit
+            (\code{bart2(family = "hazard")} and its link aliases) no
+            longer fails whenever the training predictors carry column
+            names - the ordinary matrix-interface spelling. The
+            re-expanded design's appended period column is now named
+            \code{"period"} under the same rule the training design used,
+            on both the default (training) and matrix \code{newdata}
+            branches; previously the column went unnamed and
+            \code{predict}'s column-name match refused it, which also
+            broke a data.frame training input once it was converted to a
+            named matrix.
     }
   }
 }

@@ -73,6 +73,16 @@ expect_equal(band[, "est"], apply(expectedEv, 2L, mean))
 h$y <- runif(m, 0, 3)
 expect_equal(residuals(h), h$y - apply(expectedEv, 2L, mean))
 
+# residuals is always against the training response; a caller-supplied
+# 'sample' collided with the fixed sample = "train" this forwards to
+# fitted.bartHurdle and raised a raw 'formal argument "sample" matched by
+# multiple actual arguments' - refused by name instead
+expect_error(
+  residuals(h, sample = "train"),
+  "'sample' is not used by residuals; residuals are always against the training response",
+  fixed = TRUE
+)
+
 # ppd: per draw a Bernoulli(pi) spike at zero, else a lognormal - checked by
 # replaying the exact RNG consumption order (rbinom over all draws, then rnorm)
 seedVal <- 20250720L
