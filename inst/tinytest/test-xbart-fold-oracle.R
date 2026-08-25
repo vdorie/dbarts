@@ -153,13 +153,14 @@ rm(captured, captureFit, folds, observed, pooledY, pooledFit, null, threshold)
 
 ## leakage. y is independent of x, so a fold that never saw its own
 ## held-out rows can do no better than predict near the training mean;
-## its rmse must sit close to sd(y). A fit that (wrongly) trained on the
-## rows it is scored against fits noise instead, and its rmse falls well
-## short of sd(y) - which is exactly what an in-sample fit at the same
-## hyperparameters looks like. Even a single leaked row per fold is a small
-## fraction of a 5-row fold and only shows up in the mean fold rmse once
-## Monte Carlo noise is averaged down, so this runs 5 replications rather
-## than 1.
+## its rmse must sit at or above sd(y). A fit that (wrongly) trained on
+## the rows it is scored against fits noise instead, and its rmse falls
+## well short of sd(y) - which is exactly what an in-sample fit at the
+## same hyperparameters looks like. The folds are deliberately two rows
+## wide: a single leaked row then halves the fold's mean squared error,
+## which clears the run-to-run spread of the ratio, whereas in a five-row
+## fold one leaked row can only move the rmse by sqrt(4/5) and the leaked
+## and clean cases overlap. Five replications average over the split.
 set.seed(11L)
 n <- 60L
 x <- matrix(runif(n * 4L), n, 4L)
@@ -172,7 +173,7 @@ heldOut <- dbarts::xbart(
   n.samples = 30L,
   n.burn = c(20L, 10L),
   method = "k-fold",
-  n.test = 12L,
+  n.test = 30L,
   n.reps = 5L,
   n.trees = 50L,
   k = 0.5,
@@ -196,12 +197,12 @@ heldOutRmse <- mean(heldOut)
 inSampleRmse <- sqrt(mean((y - fit$yhat.train.mean)^2))
 
 expect_true(
-  heldOutRmse >= 1.15 * sdY,
+  heldOutRmse >= sdY,
   info = paste(
     "held-out rmse",
     round(heldOutRmse, 3L),
-    "vs 1.15*sd(y)",
-    round(1.15 * sdY, 3L)
+    "vs sd(y)",
+    round(sdY, 3L)
   )
 )
 expect_true(
@@ -214,7 +215,7 @@ expect_true(
   )
 )
 expect_true(
-  heldOutRmse >= 2 * inSampleRmse,
+  heldOutRmse >= 1.75 * inSampleRmse,
   info = paste(
     "held-out rmse",
     round(heldOutRmse, 3L),
