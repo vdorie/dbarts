@@ -2295,9 +2295,15 @@ double defaultNodeScale(bartcore::ResponseFamily family) {
   case bartcore::ResponseFamily::logistic:
   case bartcore::ResponseFamily::nbinom:
     return std::numbers::pi * std::sqrt(3.0);
-  default:
-    return 0.5;
+  // gaussian and aft state the scale in response units, below. Every
+  // enumerator is listed and there is no default arm: a family added without
+  // one must fail the build rather than silently take gaussian's 0.5, and its
+  // arm must be added to R's defaultNodeScale in the same change.
+  case bartcore::ResponseFamily::gaussian:
+  case bartcore::ResponseFamily::aft:
+    break;
   }
+  return 0.5;
 }
 
 // Every option the amplitude chain constructor does not read, refused rather
@@ -2802,7 +2808,9 @@ constexpr double maximumCount = 1.0e6;
 // a log survival time, any real), so they pass through; multinomial counts are
 // not reachable by this conduit. Magnitude is bounded for the same allocation
 // reason the sign is (see maximumCount), at creation and at every mutation
-// alike.
+// alike. A multinomial sampler reports the logistic family, but the
+// multi-forest response guard refuses every conduit that reaches this ahead of
+// it, so its counts are never read against the binary rule.
 // External linkage: the creation prologue and the flat C API both call this, so
 // creation and every mutation conduit state one rule.
 void validateResponseSupport(bartcore::ResponseFamily family,
@@ -2839,8 +2847,13 @@ void validateResponseSupport(bartcore::ResponseFamily family,
                  caller, maximumCount);
     }
     break;
-  default:
-    break; // gaussian and aft constrain nothing
+  // gaussian and aft constrain nothing (any real y). Every enumerator is
+  // listed and there is no default arm: a family added without one would get
+  // NO validation, which is exactly the silent-garbage and huge-allocation
+  // pair above, so it must fail the build instead.
+  case bartcore::ResponseFamily::gaussian:
+  case bartcore::ResponseFamily::aft:
+    break;
   }
 }
 
@@ -6257,14 +6270,26 @@ void computeWorkingResponse(bartcore::ResponseFamily family,
                             double* result) {
   using RF = bartcore::ResponseFamily;
   for (size_t i = 0; i < in.numObservations; ++i) {
-    double value;
-    if (family == RF::logistic)
+    // the latent families' working response IS the drawn latent; the switch
+    // names every enumerator and carries no default arm, so a family added
+    // without one must fail the build rather than take that reading silently
+    double value = latent[i];
+    switch (family) {
+    case RF::logistic:
       value = (in.weights != NULL ? in.weights[i] : 1.0) * (in.y[i] - 0.5) /
         latent[i];
-    else if (family == RF::nbinom)
+      break;
+    case RF::nbinom:
       value = 0.5 * (in.y[i] - in.dispersion) / latent[i];
-    else
-      value = family == RF::gaussian ? in.y[i] : latent[i];
+      break;
+    case RF::gaussian: // the Student-t mixer's working response is y itself
+      value = in.y[i];
+      break;
+    case RF::probit:
+    case RF::ordinal:
+    case RF::aft:
+      break;
+    }
     result[i] = value - (in.offset != NULL ? in.offset[i] : 0.0);
   }
 }

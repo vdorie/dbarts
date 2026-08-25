@@ -747,12 +747,15 @@ public:
     options_.predictors = {};
     // the per-forest restriction arrives via ForestStructureSpec instead
     options_.forestColumns = nullptr;
-    // the families the coupling is built for; the factory refuses the rest
-    // ahead of this, so nothing but gaussian reaches the default arm. Not
-    // lifted out of the single-forest constructor's six-arm switch: three of
-    // those arms are unreachable here and four of the option channels they
-    // read (residualDf, survivalStatus, numCategories, dispersion) are ones
-    // this path does not carry.
+    // The families the coupling is built for, EVERY enumerator listed and no
+    // default arm: a family added without an arm here must fail the build
+    // rather than silently acquire the gaussian law. aft, ordinal and nbinom
+    // cannot arrive - every creation route refuses them ahead of this - and
+    // share gaussian's arm only because there is no response of theirs to
+    // build. Not lifted out of the single-forest constructor's six-arm switch:
+    // three of those arms are unreachable here and four of the option channels
+    // they read (residualDf, survivalStatus, numCategories, dispersion) are
+    // ones this path does not carry.
     switch (spec.family) {
     case ResponseFamily::probit:
       response_ =
@@ -763,7 +766,9 @@ public:
                                                      data.numObservations);
       break;
     case ResponseFamily::gaussian:
-    default:
+    case ResponseFamily::aft:
+    case ResponseFamily::ordinal:
+    case ResponseFamily::nbinom:
       response_ = std::make_unique<GaussianResponse>(
         y, offset, weights, data.numObservations, sigmaEstimate, sigmaDf,
         sigmaRawScale);
@@ -5026,12 +5031,21 @@ private:
     switch (family) {
     case ResponseFamily::probit: return 1.0;
     case ResponseFamily::logistic: return std::numbers::pi / std::sqrt(3.0);
-    // gaussian's arm is written as its own call rather than as a factor
-    // multiplying a shared value: the map's expressions are bitwise-sensitive
-    // to reassociation, and the O(n) scan must not run on a family that does
-    // not use it, where a later reader would mistake it for the anchor
-    default: return scaledResponseSd();
+    // gaussian takes the empirical anchor below; the three families the
+    // coupling refuses ahead of the map never arrive. Every enumerator is
+    // listed and there is no default arm, so a family added without one must
+    // fail the build rather than inherit gaussian's anchor.
+    case ResponseFamily::gaussian:
+    case ResponseFamily::aft:
+    case ResponseFamily::ordinal:
+    case ResponseFamily::nbinom:
+      break;
     }
+    // written as its own call rather than as a factor multiplying a shared
+    // value: the map's expressions are bitwise-sensitive to reassociation, and
+    // the O(n) scan must not run on a family that does not use it, where a
+    // later reader would mistake it for the anchor
+    return scaledResponseSd();
   }
 
   /// The unit a forest's node scale is stated PER: the median of the NONZERO

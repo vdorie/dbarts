@@ -5,7 +5,13 @@ OPT ?= -O2 -g
 # external/io.h (ext_printf) pulls in R's print headers
 R_CPPFLAGS := $(shell R CMD config --cppflags)
 CPPFLAGS += -I../../src/include -I../../src $(R_CPPFLAGS)
-CXXFLAGS += -std=gnu++20 -Wall -Wextra -MMD -MP
+# -Werror=switch is a gate, not a style: the engine's switches over
+# ResponseFamily carry no default arm, so a new family that is not
+# classified at every one of them must break this build rather than
+# inherit gaussian's behaviour. The package build only warns (CRAN
+# forbids -Werror there), which is why the hard failure lives here.
+CXXFLAGS += -std=gnu++20 -Wall -Wextra -Werror=switch \
+            -Werror=return-type -MMD -MP
 
 LIBS := ../../src/misc.a ../../src/external.a ../../src/rc.a
 # external.a's rng object references the R API even for non-native
