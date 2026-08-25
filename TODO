@@ -427,8 +427,8 @@ items
     (landing notes in release-candidate-review.md: "lenses, findings,
     fix waves 1-2" and "fix wave 3 - the judgement-gated slices") left
     open after fix wave 3 (42b12ac7..7ad0bbea). Every judgement group
-    is decided and landed except the threaded-predict arc, which is
-    IN PROGRESS off 7ad0bbea (docs/design/threaded-predict.md).
+    is decided and landed, the threaded-predict arc included
+    (docs/design/threaded-predict.md section 11).
     Remaining, in order: the constant-response sigma flake (clang-asan
     fire-and-cure, deterministic degenerate-response handling); the
     docs/-citation strip (every docs/ path out of R/ src/ inst/ man/,

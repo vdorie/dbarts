@@ -2,8 +2,9 @@
 
 Status: design settled 2026-08-25, after an independent blind critique
 of 35 findings (33 accepted, 1 settled on different grounds, 1
-disputed as stated with its remedy accepted; section 9). Not yet
-implemented. Anchor: bartcore 2ef009a7 - every citation below was
+disputed as stated with its remedy accepted; section 9). LANDED
+2026-08-25; section 11 records what shipped and what differs from the
+proposal. Anchor: bartcore 2ef009a7 - every citation below was
 re-verified live against that tree.
 
 ## 1. The ruling
@@ -248,3 +249,57 @@ accepted regardless and is the anchor used throughout this document.
   `R_CheckUserInterrupt`, which predict never calls (the bridge's
   poll is `R_ToplevelExec`-wrapped and reached only by `run`) - so
   the mirrored SIGINT mask is defense in depth, not necessity.
+
+## 11. Landing note
+
+Landed on bartcore. What shipped follows sections 3-7, with three
+recorded departures.
+
+**Version constants did not move.** Section 5 called for bumping
+`DBARTS_C_API_MINOR` from 0 to 1 alongside the hash re-bake. The
+header's own rule forbids it: the minor-version block states that the
+constants "become a compatibility contract at the first release ...
+and they do not move before it", and the struct field boundaries say a
+pre-1.0-0 change "moves no version constant". A signature that GAINS a
+parameter is not additive anyway - it is source- and ABI-breaking, so
+a minor bump would misdescribe it. Both baked literals were re-signed:
+`dbarts_apiSignatureToken` to `0xcb83367ee0c4175b` and
+`DBARTS_C_API_HASH` to `0x66d33f1613892406`. inst/tinytest/test-capi.R
+pins the new token and keeps the old one as a negative assertion, and
+its `capi_versions` row already asserts `c(1L, 0L)`.
+
+**partialDependence.R was not touched.** Section 6 listed its five
+`sampler$predict(x.test)` sites as forwarding sites. They need no
+edit: the R5 method's own default IS `control@n.threads`, the
+sampler's own count, so an explicit forward would pass the identical
+value. They thread at the fit's count today, through the default.
+
+**The observable carries a cutoff override.** Section 7's deterministic
+channel reports the resolved count, the worker count and the
+slab-to-worker map. It also carries a writable cutoff override, because
+without one every fixture small enough for a unit test falls below the
+traversal cutoff, collapses to one worker, and makes an
+identity-across-thread-counts assertion vacuous. Both halves are
+test-only: `bartcore::predictPartition` in src/bartcore/sampler.hpp,
+reached from R through `dbarts_bartcore_lastPredictPartition` and
+`dbarts_bartcore_setPredictParallelCutoff`, registered under
+src/R_interface.cpp's "below: testing" section beside the SIMD
+dispatch knob. Nothing in the R surface reads either.
+
+Mutation proofs run against the pins: a worker that skips its last slab
+fails 11 tinytest assertions and both engine identity checks; a
+partition-dependent tree-sum order fails 6 and the same two; forcing
+the resolved count to 1 inside the engine fails 10 tinytest assertions,
+4 engine partition checks and all three facade pass-through checks.
+
+Consumer migration: stan4bart src/init.cpp:342 inserts a `0` before
+`REAL(result)` and rebuilds (it pins the hash by equality at
+src/init.cpp:972). bartCause needs no edit - its
+`predict(object$fit.trt, x.new, group.by, combineChains = FALSE, ...)`
+at R/generics.R:162 stays correct precisely because the formal is
+appended last.
+
+Open, unchanged: section 8's scaling curve on a quiet box, the tuned
+cutoff constant (`Sampler::predictParallelCutoff`, 1e7 traversals), and
+whether the R-level default stays the fit's own count. The
+implementation is correct at any cutoff value.
