@@ -59,4 +59,58 @@ expect_error(
   "'y' is an n x 2 matrix"
 )
 
-rm(x, n, nx2, nxK, groupBy)
+# --- the formula interface reaches the same guards ---------------------------
+# A cbind(...) left-hand side is a multi-column response like any other. The
+# aft routes rewrite a (time, status) left-hand side to a plain numeric BEFORE
+# the data object is built, and bart2's multinomial cbind() route maps it to
+# 'counts', so only a caller reaching dbartsData directly lands here.
+frm <- data.frame(
+  a = testData$y,
+  b = testData$y + 1,
+  c = testData$y + 2,
+  p = x[, 1L],
+  q = x[, 2L]
+)
+expect_error(dbarts::dbartsData(cbind(a, b) ~ p, frm), "'y' is an n x 2 matrix")
+expect_error(
+  dbarts::dbartsData(cbind(a, b, c) ~ p, frm),
+  "'y' is an n x 3 matrix"
+)
+
+# a matrix offset is a per-category shift wherever it arrives, so the formula
+# interface refuses it by shape too, not by a length mismatch
+expect_error(
+  dbarts::dbartsData(a ~ p, frm, offset = matrix(0.0, n, 3L)),
+  "which only family = \"multinomial\" accepts"
+)
+# its test twin already shared the matrix branches' set-aside
+expect_error(
+  dbarts::dbartsData(a ~ p, frm, test = frm, offset.test = matrix(0.0, n, 3L)),
+  "'offset.test' must be a numeric vector"
+)
+
+# the aft route's own bare (time, status) left-hand side is rewritten ahead of
+# the guard, so it still fits (bart2's multinomial cbind() count response is
+# pinned in test-multinomial-surface.R)
+aftFrame <- data.frame(
+  time = exp(abs(testData$y) + 1),
+  status = rep_len(c(1L, 0L), n),
+  p = x[, 1L],
+  q = x[, 2L]
+)
+aftFit <- dbarts::rbart_vi(
+  cbind(time, status) ~ p + q,
+  data = aftFrame,
+  group.by = groupBy,
+  family = "aft",
+  n.samples = 5L,
+  n.burn = 2L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 5L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(aftFit$family, "aft")
+
+rm(x, n, nx2, nxK, groupBy, frm, aftFrame, aftFit)

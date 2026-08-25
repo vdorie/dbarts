@@ -1051,6 +1051,23 @@ dbartsData <- function(
       offsetCall[[1L]] <- quoteInNamespace(findTermInFormulaData)
       offset <- eval(offsetCall, parent.frame())
 
+      # a matrix-shaped offset declares a multinomial category shift, one
+      # column per category, never a flat per-row one; set it aside before the
+      # model frame is built (which would read it as a per-row term) and
+      # refuse it where there is no 'counts' for it to belong to
+      if (!is.null(offset) && (is.matrix(offset) || is.data.frame(offset))) {
+        if (is.null(counts)) {
+          refuseMatrixOffset(offset, "offset")
+        }
+        categoryOffset <- if (is.data.frame(offset)) {
+          as.matrix(offset)
+        } else {
+          offset
+        }
+        offset <- NULL
+        modelFrameArgs <- c("formula", "data", "subset", "weights")
+      }
+
       if (!is.null(offset)) {
         offsetGivenAsScalar <- length(offset) == 1
         if (offsetGivenAsScalar) {
@@ -1147,6 +1164,11 @@ dbartsData <- function(
     if (is.null(y)) {
       y <- rep(0, NROW(modelFrame))
     }
+    # the same by-kind guard the matrix branches carry: codeResponse flattens
+    # a multi-column response column-major, and the row count then reads as a
+    # mismatch against 'x' rather than naming the shape. A Surv left-hand side
+    # is already refused just above, with the formula interface's own pointer.
+    refuseMultiColumnResponse(y)
     coded <- codeResponse(y)
     y <- coded$y
     responseInfo <- coded[c("type", "n.levels", "levels")]
