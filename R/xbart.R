@@ -234,6 +234,13 @@ xbart <- function(
   if (kIsGrid && (anyNA(k) || any(k <= 0))) {
     stop("'k' must contain only positive values")
   }
+  # swept largest (most-shrunk) k first, so every warm start comes from a
+  # simpler forest than the cell before it; kOrder un-permutes the reported
+  # k axis back to the caller's order once the result array is final
+  kOrder <- if (kIsGrid) order(k, decreasing = TRUE) else NULL
+  if (kIsGrid) {
+    k <- k[kOrder]
+  }
 
   power <- coerceOrError(power, "numeric")
   base <- coerceOrError(base, "numeric")
@@ -523,6 +530,15 @@ xbart <- function(
   cellCount <- prod(dims)
   for (i in seq_len(numResults)) {
     result[linearIndex + (i - 1L) * cellCount] <- lossValues[, i]
+  }
+
+  # axis 3 is k, still in the decreasing sweep order; restore the caller's
+  # order on both the array and the k vector before anything is reported
+  if (kIsGrid && length(k) > 1L) {
+    kOrderInv <- kOrder
+    kOrderInv[kOrder] <- seq_along(kOrder)
+    result <- result[,, kOrderInv, , , , drop = FALSE]
+    k <- k[kOrderInv]
   }
 
   varNames <- c("n.trees", "k", "power", "base")

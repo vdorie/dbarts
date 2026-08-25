@@ -179,4 +179,61 @@ expect_error(
   pattern = "unused argument"
 )
 
-rm(xval, k, y, x)
+rm(xval)
+
+# k grid: the sweep order does not depend on the order k is listed in. A
+# fixed seed and n.threads = 1 make the whole sweep bitwise deterministic,
+# so aligning the k axis by name must give identical values either way,
+# and each result's k axis must stay in the order it was given
+seed <- 37L
+xvalAscending <- dbarts::xbart(
+  x,
+  y,
+  n.samples = 6L,
+  n.burn = c(5L, 3L),
+  method = "k-fold",
+  n.test = 5,
+  n.reps = 2L,
+  k = c(2, 8),
+  n.trees = 5L,
+  n.threads = 1L,
+  seed = seed
+)
+xvalDescending <- dbarts::xbart(
+  x,
+  y,
+  n.samples = 6L,
+  n.burn = c(5L, 3L),
+  method = "k-fold",
+  n.test = 5,
+  n.reps = 2L,
+  k = c(8, 2),
+  n.trees = 5L,
+  n.threads = 1L,
+  seed = seed
+)
+expect_identical(dimnames(xvalAscending)$k, c("2", "8"))
+expect_identical(dimnames(xvalDescending)$k, c("8", "2"))
+expect_identical(xvalAscending, xvalDescending[, dimnames(xvalAscending)$k])
+rm(xvalAscending, xvalDescending, seed)
+
+# k as a hyperprior is held and drawn every sweep, never sorted, and
+# contributes no k axis to the result
+xvalHyperprior <- dbarts::xbart(
+  x,
+  y,
+  n.samples = 6L,
+  n.burn = c(5L, 3L),
+  method = "k-fold",
+  n.test = 5,
+  n.reps = 2L,
+  k = dbarts:::chi(1.5, 2),
+  n.trees = c(5L, 7L),
+  n.threads = 1L
+)
+expect_true(!("k" %in% names(dimnames(xvalHyperprior))))
+expect_equal(dim(xvalHyperprior), c(2L, 2L))
+expect_true(all(is.finite(xvalHyperprior)))
+rm(xvalHyperprior)
+
+rm(k, y, x)

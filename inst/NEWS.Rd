@@ -1978,6 +1978,10 @@
             with a warning, exactly as the existing sparse-predictor
             fallback already did, and the fallback estimate is floored the
             same way.
+      \item \code{\link{xbart}} again sweeps a numeric \code{k} grid largest
+            to smallest and reports it back in the order it was given, so
+            the result no longer depends on the order \code{k} is listed
+            in; the rewrite had dropped this sort.
     }
   }
 }
