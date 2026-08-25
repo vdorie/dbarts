@@ -102,11 +102,10 @@ it) to `R` (deliberately refused by name). See [f1].
 gaussian, probit, logistic, aft, ordinal, nbinom - plus BCF through its
 `forests =` argument (spec.R:784, `forest(basis = ...)` replacing the removed
 `treatment =`, multiforest-extension-surface M2) and a variance forest through
-`variance =` (spec.R:783); since this program its `family` formal also accepts
-`"multinomial"` directly (spec.R:787-794, with dedicated body logic at
-spec.R:86, 147-164, 228, 258, 440+), so the "does not reach multinomial" claim
-this prose used to carry no longer holds - only hazard, hurdle and grouped stay
-out of `dbartsSpec()`'s reach. A `forests =` fit resolves **gaussian, probit or
+`variance =` (spec.R:783). Its `family` formal also accepts `"multinomial"`
+directly (spec.R:787-794, with dedicated body logic at
+spec.R:86, 147-164, 228, 258, 440+); only hazard, hurdle and grouped stay out
+of `dbartsSpec()`'s reach. A `forests =` fit resolves **gaussian, probit or
 logistic** since M4.4; aft, ordinal and nbinom are refused there by name, each
 stating what it is missing (spec.R:604-630, which now also carries an explicit
 `multinomial =` arm refusing a `forests =` declaration for that family by name
@@ -269,8 +268,8 @@ dbarts.h creation path.
 (9031b348): `family = "aft"` is now an explicit, appended token on `bart()`
 (`c("auto", "logistic", "aft")`), documented in man/bart.Rd's `family` item,
 rather than an undocumented `Surv()` auto-dispatch quirk - see [f1]. The
-underlying `Surv()`/two-column-`y.train` detection this footnote used to flag
-is unchanged.
+underlying `Surv()`/two-column-`y.train` detection is a separate mechanism and
+resolves the response shape on its own.
 
 [f6] `family = "hazard"` / `"hazard.probit"` / `"hazard.logistic"` is
 person-period ingestion sugar: dbarts.R:481-541 expands the design and remaps
@@ -630,10 +629,9 @@ gaussian) still supports `extract(type = "loglik")` independently too.
 [f26] SHIPPED, pinned bitwise at mask S4 (93afd635). Nothing on the path gates
 on the coupling: the shape probe (FAC:108) reports `supportsActiveRows`, the
 mask composes into whatever precision the installed response owns, and then
-into the per-forest weights at `composeForestWeights` (CH:4040). M4.4
-falsified the reason this footnote used to give - "a BCF sampler's response IS
-a `GaussianResponse`" - without touching the conclusion: the K-forest chain now
-builds a `ProbitResponse` or a `LogisticResponse` too (CH:774), and each
+into the per-forest weights at `composeForestWeights` (CH:4040). A K-forest
+chain's response is not necessarily a `GaussianResponse`: it builds a
+`ProbitResponse` or a `LogisticResponse` just as readily (CH:774), and each
 overrides `setActiveRows` on its own terms (MOD:3100, MOD:3570) exactly as it
 does off a coupling, so [f15]'s S1 and S2 arms carry the latent K-forest with
 no edit of their own. Gaussian's composition into the case weights, which is
@@ -690,12 +688,11 @@ non-coupled family does, with no dedicated grouped arm of its own in
 test-calibration-midchain.R.
 
 [f28] A heteroscedastic fit also records `family = "gaussian"`, but the same
-gaussian branch of `pointwiseLogLikelihood` now reads its `s.train` surface
+gaussian branch of `pointwiseLogLikelihood` reads its `s.train` surface
 first: `heteroscedasticScale(object[["s.train"]], n.chains)` (generics.R:95)
 supplies the per-observation scale whenever the fit carries one, taking
 precedence over the scalar `object$sigma` (generics.R:96-102) - the surface is
-stored on the fit at bart.R:243-260. The earlier claim that this channel
-ignored `s.train` no longer holds. As with [f19], no dedicated test pins the
+stored on the fit at bart.R:243-260. As with [f19], no dedicated test pins the
 loglik channel itself, so the cell stays `?`.
 
 [f29] The variance forest is a separate leaf model entirely, outside
@@ -756,12 +753,9 @@ the occupancy component, which then sets `family = "probit"` and hits the
 non-gaussian variance refusal at spec.R:509 before either component fits.
 That refusal is deliberate, not a bug: the positive fit is always
 homoscedastic because the gate makes a heteroscedastic component
-unreachable - `hurdleSigmaVec` (retired: no such helper remains anywhere in
-R/ and no construct replaced it, so the generics.R site that used to carry
-this comment is unresolved), and the claim is now evidenced only by the Rd
-text and the
-still-live `redirectCall`/spec.R:509 mechanism. The Rd side was the wrong one
-and is now corrected (bart2.Rd:227, dbarts.Rd:111) to match.
+unreachable. No comment in R/ states that (`hurdleSigmaVec`, retired, with no
+replacement construct); the evidence is the live `redirectCall`/spec.R:509
+mechanism above and the Rd text, at bart2.Rd:227 and dbarts.Rd:111.
 
 [f35] `dart` is forwarded to both components (bart.R:2297, 2306), each of
 which is an ordinary single-forest chain that takes it.
@@ -806,14 +800,11 @@ thin = 30 and cross into the band at 5x the spacing. Read as the r-vs-psi ridge
 mixing slowly (H-MIX), on two ladder points rather than three; the recorded
 full-R third point is still owed.
 
-[f43] Aggregate `p_k(x*)` passes at both chain lengths, and so now do the
-three raw per-forest `f_ik` cells. The persistent U they used to carry was the
-pre-registered suspect itself, `MultinomialForestCombiner::afterCombine`'s
-level-centering draw (COM:1922), whose approximate precision was replaced by
-the exact leaf-space conditional; the acceptance run at R = 200,
-`Rscript benchmarks/R/sbc.R multinom 200 150 30`, then scored every functional
-PASS at band 0.1282, the three cells at 0.0688/0.0824/0.0675 against the
-recorded failures 0.111/0.114/0.117
+[f43] Aggregate `p_k(x*)` and the three raw per-forest `f_ik` cells all pass.
+`MultinomialForestCombiner::afterCombine` draws the level from its exact
+leaf-space conditional (COM:1922); the acceptance run at R = 200,
+`Rscript benchmarks/R/sbc.R multinom 200 150 30`, scores every functional PASS
+at band 0.1282, the three cells at 0.0688/0.0824/0.0675
 (docs/plans/multinomial-level-centering.md:177-192). The arm that ranks those
 cells is benchmarks/R/sbc.R:1755-1759.
 
