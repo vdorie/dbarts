@@ -398,6 +398,10 @@ dbarts <- function(
   evalEnv <- parent.frame(1L)
 
   family <- match.arg(family)
+  # the caller's own token, ahead of the twopart fold and the hazard remap
+  # below - every downstream refusal that names 'family' echoes this, not
+  # the resolved spelling, which is an implementation detail
+  requestedFamily <- family
   # hurdle.lognormal / twopart (docs/design/hurdle.md): the alias resolves to
   # the canonical token immediately, so every downstream message and any
   # packaged $family reads "hurdle.lognormal" regardless of which spelling
@@ -713,6 +717,7 @@ dbarts <- function(
     control,
     data,
     family,
+    requestedFamily = requestedFamily,
     dispersion = dispersion,
     proposal.probs = proposal.probs,
     monotone = monotone,

@@ -62,7 +62,7 @@ dbartsDrawLatents <- function(
   y,
   weights = NULL,
   offset = NULL,
-  sigma = 1,
+  sigma = NULL,
   dispersion = NULL,
   cutpoints = NULL,
   df = NULL
@@ -76,7 +76,7 @@ dbartsDrawLatents <- function(
   if (!is.null(weights)) {
     augRestrict(TRUE, "weights", family, "logistic")
   }
-  if (!missing(sigma)) {
+  if (!is.null(sigma)) {
     augRestrict(TRUE, "sigma", family, c("aft", "student"))
   }
   augRestrict(!is.null(dispersion), "dispersion", family, "nbinom")
@@ -95,6 +95,9 @@ dbartsDrawLatents <- function(
   if (!is.null(df)) {
     df <- augScalar(df, "df")
   }
+  if (!is.null(sigma)) {
+    sigma <- augScalar(sigma, "sigma")
+  }
   if (!is.null(cutpoints)) {
     cutpoints <- augVector(cutpoints, "cutpoints")
     if (is.unsorted(cutpoints, strictly = TRUE)) {
@@ -109,7 +112,7 @@ dbartsDrawLatents <- function(
     y,
     weights,
     offset,
-    augScalar(sigma, "sigma"),
+    naIfNull(sigma),
     naIfNull(dispersion),
     cutpoints,
     naIfNull(df)

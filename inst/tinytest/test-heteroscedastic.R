@@ -255,10 +255,11 @@ opts2 <- list(
   n.threads = 1L,
   verbose = FALSE
 )
-# rbart_vi declares no 'variance' formal: already refused by name rejection
+# rbart_vi declares no 'variance' formal, and no dots channel to name it
+# through: R's own wall
 expect_error(
   do.call(rbart_vi, c(list(yHom ~ xHom, group.by = g, variance = TRUE), opts2)),
-  "unknown argument"
+  "unused argument"
 )
 expect_inherits(
   do.call(rbart_vi, c(list(yHom ~ xHom, group.by = g, n.trees = 10L), opts2)),

@@ -105,6 +105,7 @@ resolveSamplerSpec <- function(
   control,
   data,
   family,
+  requestedFamily,
   dispersion,
   proposal.probs,
   monotone,
@@ -261,12 +262,11 @@ resolveSamplerSpec <- function(
     if (!is.null(data@offset.test) && all(data@offset.test == 0.0)) {
       data@offset.test <- NULL
     }
-    if (!is.null(data@offset) || !is.null(data@offset.test)) {
-      stop(
-        "multinomial (softmax) models do not support a flat offset: a common ",
-        "per-observation shift is the softmax's own null direction; the ",
-        "meaningful one is the n x K dbartsData(offset.category = )"
-      )
+    if (!is.null(data@offset)) {
+      refuseFlatOffsetOnMultinomial(data@offset)
+    }
+    if (!is.null(data@offset.test)) {
+      refuseFlatOffsetOnMultinomial(data@offset.test)
     }
   }
 
@@ -390,7 +390,7 @@ resolveSamplerSpec <- function(
   if (is(priors$resid.dist, "dbartsStudentDist") && family != "gaussian") {
     stop(
       "student residuals require a continuous gaussian response; family \"",
-      family,
+      requestedFamily,
       "\" has its own fixed error scale"
     )
   }
@@ -508,8 +508,9 @@ resolveSamplerSpec <- function(
   if (!is.null(varianceColumns)) {
     if (family != "gaussian") {
       stop(
-        "a variance forest requires family = \"gaussian\"; the latent families ",
-        "own the precision channel it routes through"
+        "a variance forest requires family = \"gaussian\"; family \"",
+        requestedFamily,
+        "\" routes precision through its own latent channel instead"
       )
     }
     # the scale-mixture reweighting (docs/design/robust-errors.md) and the
@@ -869,6 +870,7 @@ dbartsSpec <- function(
     control,
     data,
     family,
+    requestedFamily = family,
     dispersion = dispersion,
     proposal.probs = proposal.probs,
     monotone = monotone,

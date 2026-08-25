@@ -410,7 +410,8 @@ defaultNodeScale <- function(family) {
     # every category forest's leaf scale, so the engine never reads this value
     # for a multinomial sampler and it is recorded here only so the model
     # object states the anchor the map applies
-    multinomial = pi * sqrt(3.0) / sqrt(2.0)
+    multinomial = pi * sqrt(3.0) / sqrt(2.0),
+    stop("no node scale is defined for family \"", family, "\"")
   )
 }
 
@@ -551,10 +552,8 @@ parseMonotoneSign <- function(value) {
       tolower(value),
       "+" = 1L,
       "increasing" = 1L,
-      "inc" = 1L,
       "-" = -1L,
       "decreasing" = -1L,
-      "dec" = -1L,
       "0" = 0L,
       stop(
         "'direction' must be one of '+'/'-', 'increasing'/'decreasing', ",

@@ -1,23 +1,12 @@
 ORDINAL_VARIABLE <- 0L
 CATEGORICAL_VARIABLE <- 1L
 
-# Reads a dbartsData slot that was added after objects of the class were first
-# serialized. A saved bart/bart2 fit or dbartsSampler holds a dbartsData built
-# under the class definition in force when it was written, and reading a slot
-# that definition did not have is an error, not a NULL; methods::.hasSlot
-# answers FALSE on such an instance without raising. Every internal read of
-# 'counts', 'offset.category' and 'offset.category.test' goes through here, so
-# an old object reads as the ordinary single-forest data object it is.
-dataSlotOrNULL <- function(data, name) {
-  if (methods::.hasSlot(data, name)) methods::slot(data, name) else NULL
-}
-
 # The multinomial capability probe: a data object carrying the n x K count
 # response is a multinomial one, on both the fitting and the mutation surfaces.
 # A capability test rather than a forest count, for the reason
 # samplerCarriesAmplitudes is one.
 dataCounts <- function(data) {
-  dataSlotOrNULL(data, "counts")
+  data@counts
 }
 
 methods::setMethod(
@@ -455,6 +444,38 @@ classifyResponse <- function(y) {
 # (docs/design/ordinal.md section 5); they are NULL for a numeric response
 # (a numeric ordinal derives sort(unique(y)) itself) and were previously
 # discarded.
+# codeResponse flattens any matrix response with as.double(), column-major,
+# to length ncol(y) * nrow(y); called on a Surv object or an n x K matrix
+# without this guard first, it silently produces a length mismatch against
+# 'x' rather than naming the response shape dbartsData() cannot ingest.
+refuseMultiColumnResponse <- function(y) {
+  if (inherits(y, "Surv")) {
+    stop(
+      "'y' is a survival response (Surv); dbartsData() takes a single-",
+      "column response - fit through dbarts()/bart2() with family = ",
+      "\"aft\" or \"hazard\", which extract time and status first"
+    )
+  }
+  if (is.matrix(y) && ncol(y) > 1L) {
+    if (ncol(y) == 2L) {
+      stop(
+        "'y' is an n x 2 matrix; dbartsData() takes a single-column ",
+        "response - a (time, status) pair goes to dbarts()/bart2() with ",
+        "family = \"aft\"/\"hazard\", per-category counts to ",
+        "dbartsData(counts = )"
+      )
+    }
+    stop(
+      "'y' is an n x ",
+      ncol(y),
+      " matrix; dbartsData() takes a single-column response - pass per-",
+      "category counts as dbartsData(counts = ) and fit with family = ",
+      "\"multinomial\""
+    )
+  }
+  invisible(NULL)
+}
+
 codeResponse <- function(y) {
   info <- classifyResponse(y)
   coded <- if (info$type == "numeric" || info$type == "logical") {
@@ -851,6 +872,33 @@ validateMultinomialCounts <- function(counts, initialNumObservations, subset) {
   counts
 }
 
+# A matrix 'offset'/'offset.test' is only ever meaningful on a counts-
+# carrying (multinomial) data object, where it is the n x K category shift;
+# reached whenever one arrives without 'counts' to pair it with.
+refuseMatrixOffset <- function(offset) {
+  stop(
+    "'offset' must be a numeric vector of length n or a single number; a ",
+    nrow(offset),
+    " x ",
+    ncol(offset),
+    " matrix was supplied, which only family = \"multinomial\" accepts"
+  )
+}
+
+# A flat (per-observation) offset is the softmax's own null direction - a
+# constant added to every category of a row leaves every reported
+# probability unchanged - so it carries no information a multinomial fit can
+# use; the meaningful shift is the n x K category offset instead.
+refuseFlatOffsetOnMultinomial <- function(offset) {
+  stop(
+    "family = \"multinomial\" requires an n x K matrix \"offset\", one ",
+    "column per category; a length-",
+    length(offset),
+    " vector was supplied, and a common per-observation shift is the ",
+    "softmax's own null direction - it cancels"
+  )
+}
+
 # Validate (and, for the training-row twin, subset) a category offset ARRIVING
 # ON A DATA OBJECT: the n x K matrix added to the raw per-category fits before
 # the softmax. 'rows' is NULL for the test twin, whose row count belongs to the
@@ -895,19 +943,22 @@ dbartsData <- function(
   factors = c("categorical", "indicators"),
   missing = c("incorporate", "error"),
   bases = NULL,
-  counts = NULL,
-  offset.category = NULL,
-  offset.category.test = NULL
+  counts = NULL
 ) {
   dataIsMissing <- missing(data)
   testIsMissing <- missing(test)
   offsetIsMissing <- missing(offset)
   testOffsetIsMissing <- missing(offset.test)
   basesIsMissing <- missing(bases)
-  countsIsMissing <- missing(counts) &&
-    missing(offset.category) &&
-    missing(offset.category.test)
+  countsIsMissing <- missing(counts)
   matchedCall <- match.call()
+  # a matrix-shaped 'offset'/'offset.test' declares a multinomial category
+  # shift (one column per category), never a flat per-row one; the matrix
+  # interface branches below set these aside as they resolve the ordinary
+  # flat offset, and validateDataCategoryOffset installs them once 'counts'
+  # is known
+  categoryOffset <- NULL
+  categoryTestOffset <- NULL
 
   # "indicators" dummy-expands factor columns as always; "categorical" keeps
   # them as single columns split by category subset, which only the bartcore
@@ -1173,6 +1224,7 @@ dbartsData <- function(
       )
     }
 
+    refuseMultiColumnResponse(data)
     coded <- codeResponse(data)
     y <- coded$y
     responseInfo <- coded[c("type", "n.levels", "levels")]
@@ -1203,6 +1255,12 @@ dbartsData <- function(
 
     if (offsetIsMissing) {
       offset <- NULL
+    } else if (is.matrix(offset) || is.data.frame(offset)) {
+      if (is.null(counts)) {
+        refuseMatrixOffset(offset)
+      }
+      categoryOffset <- if (is.data.frame(offset)) as.matrix(offset) else offset
+      offset <- NULL
     }
     offsetResult <- validateXYOffset(
       offset,
@@ -1232,6 +1290,7 @@ dbartsData <- function(
       )
     }
 
+    refuseMultiColumnResponse(data)
     coded <- codeResponse(data)
     y <- coded$y
     responseInfo <- coded[c("type", "n.levels", "levels")]
@@ -1270,6 +1329,12 @@ dbartsData <- function(
     weights <- validateXYWeights(weights, initialNumObservations, subset)
 
     if (offsetIsMissing) {
+      offset <- NULL
+    } else if (is.matrix(offset) || is.data.frame(offset)) {
+      if (is.null(counts)) {
+        refuseMatrixOffset(offset)
+      }
+      categoryOffset <- if (is.data.frame(offset)) as.matrix(offset) else offset
       offset <- NULL
     }
     offsetResult <- validateXYOffset(
@@ -1375,12 +1440,30 @@ dbartsData <- function(
       offset.test <- testOffsetInfo$offset.test
       testUsesRegularOffset <- testOffsetInfo$testUsesRegularOffset
 
-      if (!is.null(offset.test)) {
+      if (
+        !is.null(offset.test) &&
+          !is.matrix(offset.test) &&
+          !is.data.frame(offset.test)
+      ) {
         offset.test <- rep_len(offset.test, nrow(x.test))
       }
     }
   } else {
     if (testOffsetIsMissing) offset.test <- NULL
+  }
+  if (
+    !is.null(offset.test) &&
+      (is.matrix(offset.test) || is.data.frame(offset.test))
+  ) {
+    if (is.null(counts)) {
+      refuseMatrixOffset(offset.test)
+    }
+    categoryTestOffset <- if (is.data.frame(offset.test)) {
+      as.matrix(offset.test)
+    } else {
+      offset.test
+    }
+    offset.test <- NULL
   }
 
   weights.test <- NULL
@@ -1426,30 +1509,30 @@ dbartsData <- function(
   counts <- validateMultinomialCounts(counts, countsRows, countsSubset)
   if (!is.null(counts)) {
     y <- as.double(rowSums(counts))
+    # a flat offset was already refused at the point it was set aside if
+    # 'counts' was absent there; this is the twin case, a flat offset
+    # alongside counts that WAS supplied
+    if (!is.null(offset)) {
+      refuseFlatOffsetOnMultinomial(offset)
+    }
+    if (!is.null(offset.test)) {
+      refuseFlatOffsetOnMultinomial(offset.test)
+    }
   }
   offset.category <- validateDataCategoryOffset(
-    offset.category,
+    categoryOffset,
     countsRows,
     countsSubset,
-    "offset.category"
+    "offset"
   )
   # the test twin's rows are the TEST rows, so it is not subset with the
   # training ones and its row count is pinned by the validity method
   offset.category.test <- validateDataCategoryOffset(
-    offset.category.test,
+    categoryTestOffset,
     NULL,
     NULL,
-    "offset.category.test"
+    "offset.test"
   )
-  if (
-    is.null(counts) &&
-      (!is.null(offset.category) || !is.null(offset.category.test))
-  ) {
-    stop(
-      "'offset.category' and 'offset.category.test' are the per-category ",
-      "shifts of a 'counts' response; supply one, or use 'offset'"
-    )
-  }
 
   if (anyNA(y)) {
     if (!is.null(matchedCall$subset)) {

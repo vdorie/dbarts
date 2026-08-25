@@ -34,8 +34,7 @@ rbart_vi(
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "aft"),
     missing = c("incorporate", "error"),
-    storage = c("double", "single"), updateState = TRUE,
-    \dots)
+    storage = c("double", "single"), updateState = TRUE)
 
 \S3method{plot}{rbart}(
     x, plquants = c(0.05, 0.95), cols = c('blue', 'black'), \dots)
@@ -82,7 +81,7 @@ rbart_vi(
   \item{callback}{
     Optional function of \code{trainFits}, \code{testFits}, \code{ranef}, \code{sigma}, and \code{tau}. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.
   }
-  \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, storage, updateState, \dots}{
+  \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, storage, updateState}{
     Same as in \code{\link{bart2}}, with one default difference: \code{keepTrees} defaults to \code{TRUE} here (\code{bart2}'s default is \code{FALSE}). With \code{dart}, split probability samples appear as \code{varprobs} on the fit. Unlike \code{bart2}, \code{rbart_vi} offers a reduced \code{family} set (see below) with no logistic option, and does not accept sparse (\code{Matrix::dgCMatrix}) predictors.
   }
   \item{k}{
@@ -92,7 +91,7 @@ rbart_vi(
     As in \code{\link{bart2}}: names the forest's leaf calibration in response units (the prior standard deviation of \eqn{f} at \code{k = 1}) instead of inheriting it from the response range. The group intercepts' own prior is a separate object and is unaffected. \code{NA} (the default) changes nothing.
   }
   \item{family}{
-    One of \code{"auto"}, \code{"gaussian"}, or \code{"aft"}. With \code{"auto"} (the default) the response family is resolved as gaussian or probit from the response, exactly as before this argument existed; a two-level factor, logical, or two-level character response is also detected and fit as probit (reporting the choice in a one-line message), while a factor response with three or more levels is an error, since \code{rbart_vi}'s random-effects model does not fit the multinomial family. \code{"gaussian"} forces the continuous model. \code{"aft"} fits a grouped accelerated failure time (AFT) log-normal survival model, \eqn{\log T_i = f(x_i) + \alpha_{g[i]} + \sigma \epsilon_i} with \eqn{\epsilon_i \sim N(0, 1)}, adding random intercepts to the model of \code{\link{bart2}}'s \code{family = "aft"}. The survival response enters through the formula's left-hand side as a \code{survival::Surv} object (right-censoring only) or a two-column \code{cbind(time, status)} of the event/censoring time and the 0/1 event indicator; a \code{Surv} response selects \code{"aft"} on its own from \code{"auto"}, while a bare two-column response needs \code{family = "aft"} explicitly. As in \code{\link{bart2}}, \code{predict}, \code{extract}, and \code{fitted} then return the linear predictor \eqn{E[\log T \mid x, g]} on the LOG-TIME scale (never the time scale), and \code{\link{survivalProbabilities}} gives survival-probability draws that include the drawn intercepts. Survival fits do not support \code{weights} or \code{subset} in this version, and enter only through the formula interface.
+    One of \code{"auto"}, \code{"gaussian"}, or \code{"aft"}. With \code{"auto"} (the default) the response family is resolved as gaussian or probit from the response, exactly as before this argument existed; a two-level factor, logical, or two-level character response is also detected and fit as probit (reporting the choice in a one-line message), while a factor response with three or more levels is an error, since \code{rbart_vi}'s random-effects model does not fit the multinomial family. \code{"gaussian"} forces the continuous model. \code{"aft"} fits a grouped accelerated failure time (AFT) log-normal survival model, \eqn{\log T_i = f(x_i) + \alpha_{g[i]} + \sigma \epsilon_i} with \eqn{\epsilon_i \sim N(0, 1)}, adding random intercepts to the model of \code{\link{bart2}}'s \code{family = "aft"}. The survival response enters through the formula's left-hand side as a \code{survival::Surv} object (right-censoring only) or a two-column \code{cbind(time, status)} of the event/censoring time and the 0/1 event indicator; a \code{Surv} response selects \code{"aft"} on its own from \code{"auto"}, while a bare two-column response needs \code{family = "aft"} explicitly. As in \code{\link{bart2}}, \code{predict}, \code{extract}, and \code{fitted} then return the linear predictor \eqn{E[\log T \mid x, g]} on the LOG-TIME scale (never the time scale), and \code{\link{survivalProbabilities}} gives survival-probability draws that include the drawn intercepts. Survival fits do not support \code{weights} or \code{subset} in this version, and enter only through the formula interface. This vocabulary is narrower than \code{\link{bart2}}'s by design - a grouped random-effects model has no multinomial/ordinal/nbinom/hurdle counterpart in this version; the wider family set lives on \code{bart2}.
   }
   \item{object}{
     A fitted \code{rbart} model.
@@ -111,6 +110,9 @@ rbart_vi(
   }
   \item{x, plquants, cols}{
     Same as in \code{\link{plot.bart}}.
+  }
+  \item{\dots}{
+    Unused; present on \code{plot}/\code{fitted}/\code{extract}/\code{predict}/\code{residuals} only for S3 generic compatibility.
   }
 }
 \details{

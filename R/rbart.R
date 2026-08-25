@@ -49,17 +49,13 @@ rbart_vi <- function(
   family = c("auto", "gaussian", "aft"),
   missing = c("incorporate", "error"),
   storage = c("double", "single"),
-  updateState = TRUE,
-  ...
+  updateState = TRUE
 ) {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
   family <- match.arg(family)
 
-  # '...' is rejection-only - every dots name is diagnosed by name, never
-  # forwarded.
   argNames <- names(matchedCall)[-1L]
-  rejectUnknownDotsArgs(argNames, dbarts::rbart_vi)
 
   # factors/missing are forwarded formal defaults - redirectCall only
   # carries a name into the host dbartsData() call when the caller supplied
@@ -102,7 +98,7 @@ rbart_vi <- function(
   control@n.samples <- control@n.samples %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
   if (control@n.samples == 0L) {
-    stop("no posterior draws will be taken after thinning")
+    refuseZeroSamples("rbart_vi")
   }
 
   keepSampler <- keepSampler || control@keepTrees

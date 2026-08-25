@@ -23,7 +23,7 @@ makeTestModelMatrix(data, newdata)
     }
   }
   \item{all}{
-    Not currently implemented.
+    Not currently implemented; retained for signature compatibility with \code{BayesTree::makeind}.
   }
   \item{data}{
     An existing \code{\link{dbartsData}} object.

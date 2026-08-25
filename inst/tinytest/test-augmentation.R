@@ -355,6 +355,13 @@ expect_error(
   dbartsDrawLatents("probit", fitRng, yRng, sigma = 2),
   "'sigma' applies only to family \"aft\" and \"student\""
 )
+# sigma's own formal default (NULL) does not refuse when passed explicitly -
+# it reproduces the omitted call's draws bitwise, unlike a real value
+set.seed(9L)
+withDefault <- dbartsDrawLatents("probit", fitRng, yRng, sigma = NULL)
+set.seed(9L)
+omitted <- dbartsDrawLatents("probit", fitRng, yRng)
+expect_identical(withDefault, omitted)
 expect_error(
   dbartsWorkingResponse("probit", fitRng, yRng, weights = rep(2, 6L)),
   "'weights' applies only to family \"logistic\""

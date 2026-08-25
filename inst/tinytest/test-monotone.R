@@ -34,6 +34,20 @@ expect_equal(
   monotoneOf(x, y, monotone = c(a = "increasing", c = "decreasing"))$directions,
   c(1L, 0L, -1L)
 )
+# matching the documented tokens is case-insensitive
+expect_equal(
+  monotoneOf(x, y, monotone = c(a = "Increasing", c = "DECREASING"))$directions,
+  c(1L, 0L, -1L)
+)
+# the undocumented abbreviations are refused, not silently accepted
+expect_error(
+  monotoneOf(x, y, monotone = c(a = "inc")),
+  "'direction' must be one of"
+)
+expect_error(
+  monotoneOf(x, y, monotone = c(a = "dec")),
+  "'direction' must be one of"
+)
 expect_equal(
   monotoneOf(x, y, monotone = c(a = 1L, c = -1L))$directions,
   c(1L, 0L, -1L)

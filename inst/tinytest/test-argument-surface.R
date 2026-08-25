@@ -338,12 +338,12 @@ explicitRbart <- dbarts::rbart_vi(
 )
 expect_true(sameDraws(defaultedRbart, explicitRbart))
 
-# storage/updateState are now real formals, appended at the end of both
-# entry points; '...' is rejection-only, diagnosed by a shared helper.
+# storage/updateState are the last two formals of both entry points; there
+# is no trailing '...' to skip past any more.
 
 lastTwoNamed <- function(fn) {
   fnFormals <- names(formals(fn))
-  fnFormals[length(fnFormals) - c(2L, 1L)]
+  fnFormals[length(fnFormals) - c(1L, 0L)]
 }
 expect_equal(lastTwoNamed(dbarts::bart2), c("storage", "updateState"))
 expect_equal(lastTwoNamed(dbarts::rbart_vi), c("storage", "updateState"))
@@ -382,26 +382,25 @@ expect_equal(rbartControl@storage, "single")
 expect_equal(rbartControl@updateState, FALSE)
 expect_equal(rbartControl@seed, 314L)
 
-# dots rejection: an unknown name errors naming itself and suggesting the
-# nearest formal; a name with no close match still errors, unsuggested
-expect_error(fit2(y.gaussian, n.tres = 5), pattern = "did you mean 'n.trees'")
+# no dots channel: bart2/rbart_vi have no '...' formal at all, so an unknown
+# name is R's own "unused argument" wall, unsuggested - the same wall
+# dbarts()/dbartsSpec()/xbart() already stood behind
+expect_error(fit2(y.gaussian, n.tres = 5), pattern = "unused argument")
 expect_error(
   dbarts::rbart_vi(x, y.gaussian, group.by = group, n.tres = 5),
-  pattern = "did you mean 'n.trees'"
+  pattern = "unused argument"
 )
-expect_error(fit2(y.gaussian, zzzznotarg = 5), pattern = "zzzznotarg")
+expect_error(fit2(y.gaussian, zzzznotarg = 5), pattern = "unused argument")
 
-# rngSeed: dbartsControl's own spelling through S4; the passthrough that let
-# it keep flowing through '...' is gone now that the rename lands, and it
-# is the first retiredDotsNames row instead - a named refusal pointing at
-# the rename, not a nearest-formal guess
+# rngSeed: no retired-spelling channel survives the dots removal either -
+# it is simply an unused argument like any other now
 expect_error(
   fit2(y.gaussian, rngSeed = 99L, samplerOnly = TRUE),
-  pattern = "unknown argument 'rngSeed': 'rngSeed' was renamed to 'seed'"
+  pattern = "unused argument"
 )
 expect_error(
   dbarts::rbart_vi(x, y.gaussian, group.by = group, rngSeed = 99L),
-  pattern = "unknown argument 'rngSeed': 'rngSeed' was renamed to 'seed'"
+  pattern = "unused argument"
 )
 
 # partial matching still works for a real formal
@@ -543,19 +542,18 @@ expect_null(varianceAttr(NULL))
 expect_null(varianceAttr(FALSE))
 
 # collision rule: the three removed formal spellings are now simply
-# unknown arguments - bart2's dots rejection names each, unsuggested (none of
-# the surviving formal names is close enough for agrep's default distance)
+# unused arguments - R's own wall, with no dots channel to name them through
 expect_error(
   fit2(y.gaussian, n.trees.variance = 10L),
-  pattern = "^unknown argument 'n.trees.variance'$"
+  pattern = "unused argument"
 )
 expect_error(
   fit2(y.gaussian, power.variance = 1),
-  pattern = "^unknown argument 'power.variance'$"
+  pattern = "unused argument"
 )
 expect_error(
   fit2(y.gaussian, base.variance = 1),
-  pattern = "^unknown argument 'base.variance'$"
+  pattern = "unused argument"
 )
 # dbarts()/dbartsSpec() have no dots at all, so R's own unused-argument
 # refusal fires instead

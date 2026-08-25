@@ -21,7 +21,7 @@ expect_error(
 
 expect_error(
   dbarts::xbart(y ~ x, n.samples = 0L, n.threads = 1L),
-  "'n.samples' must be a positive integer"
+  "'n.samples' must leave at least one draw after thinning"
 )
 expect_error(
   dbarts::xbart(y ~ x, n.samples = "not-a-integer"),

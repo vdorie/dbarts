@@ -105,41 +105,19 @@ warnFamilyGatedArgs <- function(suppliedNames, family) {
   invisible(NULL)
 }
 
-# '...' is a rejection-only diagnostic channel on bart2/rbart_vi, not a
-# value channel - no name legitimately travels through it once
-# storage/updateState are formals. Every dots name is diagnosed: a retired
-# spelling gets its own pointed message from the table below (data, so a
-# later retirement adds a row rather than a new branch - the sunset
-# property this preserves); anything else gets a nearest-formal suggestion
-# (agrep against the function's own formals, first hit in formals() order -
-# simple and deterministic, no distance-ranking machinery).
-#
-# The first row: 'rngSeed' was dbartsControl's own slot/formal spelling
-# through S4, so the passthrough that let it keep flowing through '...' is
-# gone now that the rename has landed - this is the row it becomes.
-retiredDotsNames <- c(rngSeed = "'rngSeed' was renamed to 'seed'")
-
-rejectUnknownDotsArgs <- function(argNames, fn) {
-  fnFormals <- names(formals(fn))
-  isKnown <- argNames %in% fnFormals
-  if (all(isKnown)) {
-    return(invisible(NULL))
-  }
-  name <- argNames[!isKnown][1L]
-  if (name %in% names(retiredDotsNames)) {
-    stop("unknown argument '", name, "': ", retiredDotsNames[[name]])
-  }
-  suggestion <- agrep(name, setdiff(fnFormals, "..."), value = TRUE)
-  if (length(suggestion) > 0L) {
-    stop(
-      "unknown argument '",
-      name,
-      "'; did you mean '",
-      suggestion[1L],
-      "'?"
-    )
-  }
-  stop("unknown argument '", name, "'")
+# dbarts()/dbartsControl() accept n.samples %/% n.thin == 0 - a sampler
+# meant to be driven by a host loop's own run() calls, never this entry
+# point's. bart2/xbart/rbart_vi all return posterior draws, so the same
+# zero would fault deeper (an empty-array reshape); refused here instead,
+# by one message naming the entry point that was called.
+refuseZeroSamples <- function(caller) {
+  stop(
+    "'n.samples' must leave at least one draw after thinning (n.samples ",
+    "%/% n.thin = 0); dbarts() and dbartsControl() accept a zero-draw run ",
+    "- a sampler driven by a host loop - but ",
+    caller,
+    "() returns posterior draws"
+  )
 }
 
 # Missingness predicate for a setPredictor/setTestPredictor/

@@ -122,6 +122,60 @@ expect_error(
   pattern = "\"nbinom\""
 )
 
+# the other six of bart2's ten tokens are refused by name too, each echoing
+# the typed spelling (never a resolved alias or the binary link a hazard
+# token remaps to)
+expect_error(
+  dbarts::bart(xS10, yS10, family = "gaussian"),
+  pattern = "\"gaussian\""
+)
+expect_error(
+  dbarts::bart(xS10, yS10, family = "probit"),
+  pattern = "\"probit\""
+)
+expect_error(
+  dbarts::bart(xS10, yS10, family = "hazard.probit"),
+  pattern = "\"hazard.probit\""
+)
+expect_error(
+  dbarts::bart(xS10, yS10, family = "hazard"),
+  pattern = "\"hazard\""
+)
+expect_error(
+  dbarts::bart(xS10, yS10, family = "hazard.logistic"),
+  pattern = "\"hazard.logistic\""
+)
+expect_error(
+  dbarts::bart(xS10, yS10, family = "twopart"),
+  pattern = "\"twopart\""
+)
+# "twopart" is never resolved to its alias in the message
+twopartMsg <- tryCatch(
+  dbarts::bart(xS10, yS10, family = "twopart"),
+  error = function(e) conditionMessage(e)
+)
+expect_false(grepl("hurdle.lognormal", twopartMsg, fixed = TRUE))
+
+# a keepSampler fit carries $n.chains too, not only when the sampler itself
+# is dropped
+keptBartFit <- do.call(
+  dbarts::bart,
+  c(list(xS10, yS10, keepsampler = TRUE), quickS10)
+)
+expect_equal(keptBartFit$n.chains, 1L)
+keptBart2Fit <- dbarts::bart2(
+  xS10,
+  yS10,
+  n.samples = 5L,
+  n.burn = 2L,
+  n.trees = 3L,
+  n.chains = 2L,
+  n.threads = 1L,
+  keepSampler = TRUE,
+  verbose = FALSE
+)
+expect_equal(keptBart2Fit$n.chains, 2L)
+
 # the appended formals break no existing bart() abbreviation
 abbrevFit1 <- dbarts::bart(
   xS10,

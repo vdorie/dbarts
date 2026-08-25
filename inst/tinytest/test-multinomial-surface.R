@@ -836,7 +836,7 @@ expect_error(
     n.burn = 2L,
     n.samples = 2L
   ),
-  "does not support a flat 'offset'"
+  "softmax's own null direction"
 )
 # the internal constructor refuses a host offset for the same reason bart2
 # does, rather than silently dropping it: the softmax is invariant to a common

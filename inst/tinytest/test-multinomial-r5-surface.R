@@ -129,19 +129,19 @@ expect_error(
   "same number of rows"
 )
 expect_error(
-  dbartsData(x, counts = oneHot, offset.category = matrix(0.0, n, K + 1L)),
+  dbartsData(x, counts = oneHot, offset = matrix(0.0, n, K + 1L)),
   "dimensions of 'counts'"
 )
 expect_error(
-  dbartsData(x, counts = oneHot, offset.category = matrix(Inf, n, K)),
+  dbartsData(x, counts = oneHot, offset = matrix(Inf, n, K)),
   "finite"
 )
 expect_error(
-  dbartsData(x, offset.category = matrix(0.0, n, K)),
-  "supply one, or use 'offset'"
+  dbartsData(x, offset = matrix(0.0, n, K)),
+  "only family = \"multinomial\" accepts"
 )
 expect_error(
-  dbartsData(x, counts = oneHot, offset.category.test = matrix(0.0, nTest, K)),
+  dbartsData(x, counts = oneHot, offset.test = matrix(0.0, nTest, K)),
   "'x.test' is null"
 )
 # a counts-carrying object fits only the family whose response it is
@@ -431,7 +431,7 @@ expect_error(
     y ~ x1 + x2,
     countsFrame,
     counts = oneHot,
-    offset.category = matrix(0.0, n, K)
+    offset = 0.0
   ),
   "cannot be given with a formula"
 )
@@ -446,7 +446,7 @@ subsetOffsetData <- dbartsData(
   x,
   counts = oneHot,
   subset = subsetRows,
-  offset.category = subsetOffset
+  offset = subsetOffset
 )
 expect_identical(
   subsetOffsetData@offset.category,
@@ -463,26 +463,6 @@ expect_identical(plain$predict(oneRow, NA_real_), plain$predict(oneRow))
 # rows is recycled to a full NA vector before the test can see it, and stays
 # one - restoring the collapse must not quietly widen it either
 expect_true(anyNA(plain$predict(x.test, NA_real_)))
-
-# --- the migration guard: an object serialized before the slots existed ------
-# a dbartsData written under the pre-S2 class definition carries no 'counts',
-# 'offset.category' or 'offset.category.test' attribute at all, which is what
-# removing them here reproduces; every internal read must answer NULL rather
-# than raising "no slot of name"
-oldData <- plain$data
-attributes(oldData)$counts <- NULL
-attributes(oldData)$offset.category <- NULL
-attributes(oldData)$offset.category.test <- NULL
-expect_false(methods::.hasSlot(oldData, "counts"))
-expect_null(dbarts:::dataCounts(oldData))
-expect_null(dbarts:::dataSlotOrNULL(oldData, "offset.category"))
-expect_null(dbarts:::dataSlotOrNULL(oldData, "offset.category.test"))
-oldSampler <- dbarts:::dbartsSampler$new(control, plain$model, oldData)
-expect_false(dbarts:::samplerCarriesCounts(oldSampler))
-expect_identical(dim(oldSampler$run(4L, 8L)$train), c(n, 8L))
-oldSampler$setResponse(rnorm(n))
-expect_identical(length(oldSampler$data@y), n)
-expect_error(oldSampler$setCounts(oneHot), "carries no count response")
 
 # --- state round trip: STRUCTURAL, not bitwise -------------------------------
 # omega is a per-sweep latent redrawn against whatever margins the restored
@@ -534,4 +514,4 @@ expect_identical(duplicate$data@offset.category, categoryOffset)
 expect_error(duplicate$setResponse(rep(1.0, n)), "n x K count matrix")
 expect_identical(dim(duplicate$run(0L, 4L)$train), c(n, K, 4L))
 
-rm(sampler, groupedSampler, roundTrip, restored, duplicate, plain, oldSampler)
+rm(sampler, groupedSampler, roundTrip, restored, duplicate, plain)

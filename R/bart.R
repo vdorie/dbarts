@@ -388,9 +388,8 @@ packageBartResults <- function(
 
   if (keepSampler) {
     result$fit <- fit
-  } else {
-    result$n.chains <- n.chains
   }
+  result$n.chains <- n.chains
   if (!is.null(samples[["k"]])) {
     result[["k"]] <- convertSamplesFromDbartsToBart(
       samples[["k"]],
@@ -403,6 +402,18 @@ packageBartResults <- function(
       combineChains
     )
   }
+
+  # a component absent from this fit (no test set, no heteroscedastic
+  # variance, ...) was still written into the list above as an explicit
+  # NULL, which names(fit) then lists as present; drop those, order-
+  # preserving, rather than reporting a component the fit does not have.
+  # '[' on a plain list keeps only 'names' of the attributes present, so
+  # "forest.labels" (attached above, when present) is carried across by hand
+  extraAttrs <- attributes(result)[
+    setdiff(names(attributes(result)), "names")
+  ]
+  result <- result[!vapply(result, is.null, NA)]
+  attributes(result)[names(extraAttrs)] <- extraAttrs
 
   class(result) <- "bart"
   invisible(result)
@@ -700,8 +711,7 @@ bart2 <- function(
   node.prior = NULL,
   resid.prior = NULL,
   storage = c("double", "single"),
-  updateState = TRUE,
-  ...
+  updateState = TRUE
 ) {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
@@ -759,10 +769,7 @@ bart2 <- function(
     }
   }
 
-  # '...' is rejection-only - every dots name is diagnosed by name, never
-  # forwarded.
   argNames <- names(matchedCall)[-1L]
-  rejectUnknownDotsArgs(argNames, dbarts::bart2)
 
   # factors/missing/proposal.probs are forwarded formal defaults -
   # redirectCall only carries a name into the host dbarts() call when the
@@ -800,11 +807,9 @@ bart2 <- function(
   control@n.samples <- control@n.samples %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
 
-  # a zero (or thinned-to-zero) sample count would otherwise fault deeper, in
-  # the empty-array reshape (dim(X) has no positive length); the multinomial
-  # branch below keeps its own family-named check
+  # the multinomial branch below keeps its own family-named check
   if (family != "multinomial" && isTRUE(control@n.samples <= 0L)) {
-    stop("'n.samples' must be a positive integer")
+    refuseZeroSamples("bart2")
   }
 
   # multinomial (docs/design/multinomial.md): a K-forest softmax model over
@@ -845,10 +850,7 @@ bart2 <- function(
     multinomialOffset <- NULL
     if (!missing(offset)) {
       if (!is.matrix(offset)) {
-        stop(
-          "family = \"multinomial\" does not support a flat 'offset'; pass ",
-          "an n x K numeric matrix instead"
-        )
+        refuseFlatOffsetOnMultinomial(offset)
       }
       if (!is.numeric(offset)) {
         stop("family = \"multinomial\" 'offset' must be a numeric n x K matrix")
@@ -860,16 +862,16 @@ bart2 <- function(
     # before it would otherwise fall through buildHostSamplerCall's
     # redirectCall into the host dbarts() call and be refused several layers
     # down by parseMultinomialData, several steps from where the caller wrote
-    # it. yhat.test is always computed WITHOUT any category offset (see
-    # docs/design/multinomial.md "The surface"), so a caller wanting one
-    # needs the dbarts:::-only channel this message names.
+    # it. yhat.test is always computed WITHOUT any category offset, so a
+    # caller wanting one needs the sampler-level channel this message names.
     if (!missing(offset.test)) {
       stop(
         "family = \"multinomial\" does not support 'offset.test'; yhat.test ",
         "is always computed without any category offset. A category test ",
-        "offset is an internal-channel capability only ",
-        "(dbarts:::bartcoreSetCategoryTestOffset, or the internal creators' ",
-        "own offset.test argument), not reachable from bart2"
+        "offset is a sampler-level capability only - a dbartsSampler's own ",
+        "$setCategoryTestOffset method, reached through keepSampler = TRUE, ",
+        "or the internal creators' own offset.test argument - not reachable ",
+        "from bart2"
       )
     }
     if (!missing(subset)) {
@@ -2315,6 +2317,8 @@ bart2Hurdle <- function(matchedCall, callingEnv, control, formula, data, seed) {
   result <- list(
     call = control@call,
     family = "hurdle.lognormal",
+    # both components come from the same matchedCall, so they share n.chains
+    n.chains = occupancy$n.chains,
     # the original non-negative response over all n, so residuals() can take
     # y - E[y | x] on the natural scale (neither component stores it: the
     # occupancy fit keeps the 1{y > 0} indicator, the positive fit log(y[S]))
@@ -2606,6 +2610,50 @@ refuseBartOwnClassFamily <- function(family, callForm = "x.train, y.train") {
   )
 }
 
+# The other six of bart2's ten families bart() itself cannot reach, each for
+# one of two further reasons beyond bartOwnClassFamilies: a token that
+# family = "auto" already resolves for this response (so it adds no
+# capability as a separate bart() token), or one whose discrete-time
+# expansion needs breaks/max.rows, which bart() has no formal for. Refused
+# BY NAME, ahead of match.arg, echoing the token the caller typed - so
+# "twopart" is named "twopart", never the alias it folds to.
+bartRedirectedFamilies <- c(
+  multinomial = "ownClass",
+  ordinal = "ownClass",
+  nbinom = "ownClass",
+  hurdle.lognormal = "ownClass",
+  twopart = "ownClass",
+  gaussian = "auto",
+  probit = "auto",
+  hazard.probit = "auto",
+  hazard = "hazard",
+  hazard.logistic = "hazard"
+)
+
+refuseBartRedirectedFamily <- function(family, callForm = "x.train, y.train") {
+  reason <- bartRedirectedFamilies[[family]]
+  if (identical(reason, "ownClass")) {
+    refuseBartOwnClassFamily(family, callForm)
+  }
+  redirect <- paste0("bart2(", callForm, ", family = \"", family, "\")")
+  if (identical(reason, "auto")) {
+    stop(
+      "bart() does not fit family = \"",
+      family,
+      "\" as a token; it is what family = \"auto\" already fits for this ",
+      "response - drop the argument, or use ",
+      redirect
+    )
+  }
+  stop(
+    "bart() does not fit family = \"",
+    family,
+    "\": the discrete-time expansion needs \"breaks\" and \"max.rows\", ",
+    "which bart() does not have - use ",
+    redirect
+  )
+}
+
 bart <- function(
   x.train,
   y.train,
@@ -2644,14 +2692,14 @@ bart <- function(
   storage = c("double", "single"),
   family = c("auto", "logistic", "aft")
 ) {
-  # by-name refusal for the four own-class families, ahead of
-  # match.arg's generic message, which names neither the token nor bart2
+  # by-name refusal for the ten redirected families, ahead of match.arg's
+  # generic message, which names neither the token nor bart2
   if (
     is.character(family) &&
       length(family) == 1L &&
-      family %in% bartOwnClassFamilies
+      family %in% names(bartRedirectedFamilies)
   ) {
-    refuseBartOwnClassFamily(family)
+    refuseBartRedirectedFamily(family)
   }
   family <- match.arg(family)
 
@@ -2676,6 +2724,15 @@ bart <- function(
   printcutoffs <- coerceOrError(printcutoffs, "integer")
   numcut <- coerceOrError(numcut, "integer")
   ndpost <- coerceOrError(ndpost, "integer")
+
+  # named ahead of dbartsControl(), whose own validity would otherwise
+  # blame n.thin/n.burn - its slot names, not the formals these came in as
+  if (isTRUE(keepevery <= 0L)) {
+    stop("'keepevery' must be a positive integer")
+  }
+  if (isTRUE(nskip < 0L)) {
+    stop("'nskip' must be a non-negative integer")
+  }
 
   # bart() is the frozen BayesTree shim and does not package an ordinal fit; an
   # ordered-factor response (which dbarts() would auto-dispatch to ordinal) is

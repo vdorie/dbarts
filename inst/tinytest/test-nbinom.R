@@ -409,3 +409,10 @@ expect_identical(
 )
 # a value this family does not offer refuses against the set it does
 expect_error(predict(fit, x.test, type = "forest"), "type must be in 'ev'")
+
+# defaultNodeScale's switch() has an explicit default arm: a family with no
+# node scale defined errors by name rather than returning NULL silently
+expect_error(
+  dbarts:::defaultNodeScale("hazard"),
+  "no node scale is defined for family \"hazard\""
+)

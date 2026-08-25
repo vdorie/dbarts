@@ -92,12 +92,16 @@ xbart <- function(
   # without keeping draws - but a cell scored on an empty sample matrix
   # would fault deeper, inside the loss
   if (control@n.samples <= 0L) {
-    stop("'n.samples' must be a positive integer")
+    refuseZeroSamples("xbart")
   }
 
   if (control@call != call("NA")[[1L]]) {
     control@call <- matchedCall
   }
+
+  # named ahead of the data build, matching bart2()/dbarts()/rbart_vi(), so
+  # a bad family is refused before the response is ingested rather than after
+  family <- match.arg(family)
 
   dataCall <- redirectCall(
     matchedCall,
@@ -120,7 +124,6 @@ xbart <- function(
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigest
 
-  family <- match.arg(family)
   # a factor/logical/character response is a classification; xbart cross-
   # validates the 2-level (probit) case only, never multinomial. A numeric
   # response takes the historic 0/1-vs-continuous path unchanged.
@@ -396,6 +399,9 @@ xbart <- function(
     stop("'n.burn' must contain non-negative integers")
   }
   n.threads <- coerceOrError(n.threads, "integer")
+  if (length(n.threads) != 1L) {
+    stop("'n.threads' must be of length 1")
+  }
   if (is.na(n.threads) || n.threads <= 0L) {
     stop("'n.threads' must be a positive integer")
   }

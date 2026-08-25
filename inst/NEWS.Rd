@@ -1851,6 +1851,53 @@
             passed to compiled code, which read outside the array. That entry
             point bounds-checks the indices as well, for a direct
             \code{.Call} that skips the R-level check.
+      \item \code{bart2} and \code{rbart_vi} no longer accept a rejection-
+            only \code{\dots}: an unrecognized argument now raises R's own
+            \dQuote{unused argument} error, the same wall \code{dbarts},
+            \code{dbartsSpec} and \code{xbart} already stood behind. The
+            retired \code{rngSeed} spelling's pointed message is gone with
+            it; \code{seed} is the only spelling now.
+      \item \code{bart}'s \code{family} argument refuses every one of
+            \code{bart2}'s ten other-family tokens by name, including
+            \code{"twopart"} (previously silent, falling through to
+            \code{\link{match.arg}}'s generic message); every refusal
+            echoes the token as typed, never a resolved alias such as
+            \code{"hurdle.lognormal"} or the binary link a hazard token
+            remaps to.
+      \item \code{dbartsData}'s \code{offset.category}/
+            \code{offset.category.test} arguments are gone: a matrix
+            \code{offset}/\code{offset.test} now installs the multinomial
+            per-category shift when paired with \code{counts}, and is
+            refused (naming the shape supplied) on any other data object;
+            a flat \code{offset} on a \code{counts}-carrying object is
+            refused instead of silently cancelling. The internal slots and
+            the \code{$setCategoryOffset}/\code{$setCategoryTestOffset}
+            sampler methods are unchanged.
+      \item \code{dbartsData} (and every entry point built on it) now
+            refuses a survival (\code{Surv}) or multi-column response by
+            name instead of raising a false \dQuote{'x' must have the same
+            number of observations as 'y'} - the response was being
+            silently flattened column-major before the row count was
+            compared.
+      \item \code{monotone}'s per-element spelling no longer accepts the
+            undocumented abbreviations \code{"inc"}/\code{"dec"}/\code{"0"}
+            (as opposed to the numeric \code{0}, still unconstrained);
+            matching the documented tokens is case-insensitive, now stated
+            in \code{?dbarts} and \code{?bart2}.
+      \item \code{bart2}, \code{xbart} and \code{rbart_vi} share one
+            message refusing an \code{n.samples} that thins to zero draws;
+            \code{dbarts}/\code{dbartsControl} still accept it, for a
+            sampler driven by a host loop.
+      \item A \code{keepSampler} fit from \code{bart}, \code{bart2},
+            \code{rbart_vi} or a \code{family = "hurdle.lognormal"} fit now
+            always carries \code{$n.chains}, not only when the sampler
+            itself was dropped.
+      \item \code{xbart} names a bad \code{family} before ingesting the
+            response rather than after, and refuses a non-scalar
+            \code{n.threads} by name instead of raising R's coercion error.
+      \item \code{names(fit)} on a \code{bart}/\code{bart2} fit no longer
+            lists \code{yhat.test}/\code{s.train}/\code{s.test} when the fit
+            carries none of them.
     }
   }
 }
