@@ -359,8 +359,8 @@ precedent), cross-checked in both directions at creation
 `$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
 339aeb0; R/dbarts.R:1460, 1691-1716). `dbarts_sampler_create` reaches
 the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/
-`forestFits`/`numForestAmplitudes`/`forestAmplitudes` are public `dbarts.h`
-entries (inst/include/dbarts/dbarts.h:495-508), and `setResponse` takes an
+`getForestFits`/`numForestAmplitudes`/`getForestAmplitudes` are public `dbarts.h`
+entries (inst/include/dbarts/dbarts.h:1056-1103), and `setResponse` takes an
 explicit `updateScale` argument. (Corrected 2026-08-13: this paragraph named
 `setTreatment` and `bcfGlue` at :264-271, both retired at the dbarts.h reshape
 S1 re-bake, ab3aa2fa - `setTreatment` re-signed as `setForestBasis(sampler,

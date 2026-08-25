@@ -127,15 +127,72 @@ static dbarts_predictor_source sourceFromList(SEXP spec) {
   return source;
 }
 
+/* the string -> dbarts_family table every wrapper below that used to hand the
+ * flat entries a bare family string now goes through, since dbarts_sampler_
+ * create/drawLatents/workingResponse take the enum by value */
+static int familyFromString(const char* name) {
+  if (name[0] == '\0') return DBARTS_FAMILY_AUTO;
+  if (strcmp(name, "gaussian") == 0) return DBARTS_FAMILY_GAUSSIAN;
+  if (strcmp(name, "probit") == 0) return DBARTS_FAMILY_PROBIT;
+  if (strcmp(name, "logistic") == 0) return DBARTS_FAMILY_LOGISTIC;
+  if (strcmp(name, "aft") == 0) return DBARTS_FAMILY_AFT;
+  if (strcmp(name, "ordinal") == 0) return DBARTS_FAMILY_ORDINAL;
+  if (strcmp(name, "nbinom") == 0) return DBARTS_FAMILY_NBINOM;
+  if (strcmp(name, "student") == 0) return DBARTS_FAMILY_STUDENT;
+  if (strcmp(name, "multinomial") == 0) return DBARTS_FAMILY_MULTINOMIAL;
+  Rf_error("familyFromString: unrecognized family \"%s\"", name);
+  return DBARTS_FAMILY_AUTO; /* unreached */
+}
+
 SEXP capi_create(SEXP control, SEXP model, SEXP data, SEXP family) {
   const char* familyName =
     Rf_isNull(family) ? "" : CHAR(STRING_ELT(family, 0));
-  dbarts_sampler* sampler =
-    dbarts_sampler_create(control, model, data, familyName);
+  dbarts_sampler* sampler = dbarts_sampler_create(
+    control, model, data, familyFromString(familyName));
   SEXP result = PROTECT(R_MakeExternalPtr(sampler, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(result, samplerFinalizer, FALSE);
   UNPROTECT(1);
   return result;
+}
+
+/* the admission probes: an unmapped int driven straight through, exactly as a
+ * miscompiled or hand-rolled caller (never going through familyFromString)
+ * would send it */
+SEXP capi_create_raw_family(SEXP control, SEXP model, SEXP data,
+                            SEXP familyInt) {
+  dbarts_sampler* sampler = dbarts_sampler_create(
+    control, model, data, Rf_asInteger(familyInt));
+  SEXP result = PROTECT(R_MakeExternalPtr(sampler, R_NilValue, R_NilValue));
+  R_RegisterCFinalizerEx(result, samplerFinalizer, FALSE);
+  UNPROTECT(1);
+  return result;
+}
+
+/* every dbarts_family value, in header order, so the R side can check that
+ * this consumer's compiled-in numbering agrees with the installed header's */
+SEXP capi_family_constants(void) {
+  static const char* const names[9] = {
+    "auto", "gaussian", "probit", "logistic", "aft",
+    "ordinal", "nbinom", "student", "multinomial"
+  };
+  int values[9] = {
+    DBARTS_FAMILY_AUTO, DBARTS_FAMILY_GAUSSIAN, DBARTS_FAMILY_PROBIT,
+    DBARTS_FAMILY_LOGISTIC, DBARTS_FAMILY_AFT, DBARTS_FAMILY_ORDINAL,
+    DBARTS_FAMILY_NBINOM, DBARTS_FAMILY_STUDENT, DBARTS_FAMILY_MULTINOMIAL
+  };
+  SEXP result = PROTECT(Rf_allocVector(INTSXP, 9));
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 9));
+  for (int i = 0; i < 9; ++i) {
+    INTEGER(result)[i] = values[i];
+    SET_STRING_ELT(namesExpr, i, Rf_mkChar(names[i]));
+  }
+  Rf_setAttrib(result, R_NamesSymbol, namesExpr);
+  UNPROTECT(2);
+  return result;
+}
+
+SEXP capi_sampler_family(SEXP ptrExpr) {
+  return Rf_ScalarInteger(dbarts_sampler_family(samplerFromExpr(ptrExpr)));
 }
 
 SEXP capi_dims(SEXP ptrExpr) {
@@ -467,13 +524,16 @@ SEXP capi_set_test_offset(SEXP ptrExpr, SEXP offsetExpr) {
 }
 
 /* prints the first tree of the first chain of the named forest, exercising the
- * entry point; the R side captures the console output */
-SEXP capi_print_trees(SEXP ptrExpr, SEXP forestExpr) {
+ * entry point; the R side captures the console output. useLiveTrees forwards
+ * unchanged: the saved-sample count only matters when it is FALSE. */
+SEXP capi_print_trees(SEXP ptrExpr, SEXP useLiveTreesExpr, SEXP forestExpr) {
   size_t chainIndex = 0, treeIndex = 0, sampleIndex = 0;
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
-  size_t numSamples = dbarts_sampler_numSavedSamples(sampler) > 0 ? 1 : 0;
+  int useLiveTrees = Rf_asLogical(useLiveTreesExpr) == TRUE;
+  size_t numSamples =
+    !useLiveTrees && dbarts_sampler_numSavedSamples(sampler) > 0 ? 1 : 0;
   dbarts_sampler_printTrees(sampler, &chainIndex, 1, &sampleIndex, numSamples,
-                            &treeIndex, 1,
+                            &treeIndex, 1, useLiveTrees,
                             (size_t) Rf_asInteger(forestExpr));
   return R_NilValue;
 }
@@ -609,7 +669,7 @@ SEXP capi_dispersion(SEXP ptrExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   SEXP result = PROTECT(
     Rf_allocVector(REALSXP, (R_xlen_t) dbarts_sampler_numChains(sampler)));
-  int carries = dbarts_sampler_dispersion(sampler, REAL(result));
+  int carries = dbarts_sampler_getDispersion(sampler, REAL(result));
   UNPROTECT(1);
   return carries ? result : R_NilValue;
 }
@@ -625,8 +685,8 @@ SEXP capi_draw_latents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
                        SEXP dispersionExpr, SEXP cutpointsExpr, SEXP dfExpr) {
   size_t n = (size_t) Rf_xlength(fitExpr);
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) n));
-  dbarts_drawLatents(CHAR(STRING_ELT(familyExpr, 0)), n, REAL(fitExpr),
-                     REAL(yExpr), optionalReal(weightsExpr),
+  dbarts_drawLatents(familyFromString(CHAR(STRING_ELT(familyExpr, 0))), n,
+                     REAL(fitExpr), REAL(yExpr), optionalReal(weightsExpr),
                      optionalReal(offsetExpr), Rf_asReal(sigmaExpr),
                      Rf_asReal(dispersionExpr), optionalReal(cutpointsExpr),
                      (size_t) Rf_xlength(cutpointsExpr), Rf_asReal(dfExpr),
@@ -640,8 +700,9 @@ SEXP capi_working_response(SEXP familyExpr, SEXP latentExpr, SEXP yExpr,
                            SEXP dispersionExpr) {
   size_t n = (size_t) Rf_xlength(latentExpr);
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) n));
-  dbarts_workingResponse(CHAR(STRING_ELT(familyExpr, 0)), n, REAL(latentExpr),
-                         REAL(yExpr), optionalReal(weightsExpr),
+  dbarts_workingResponse(familyFromString(CHAR(STRING_ELT(familyExpr, 0))), n,
+                         REAL(latentExpr), REAL(yExpr),
+                         optionalReal(weightsExpr),
                          optionalReal(offsetExpr), Rf_asReal(dispersionExpr),
                          REAL(result));
   UNPROTECT(1);
@@ -906,7 +967,7 @@ SEXP capi_forest_amplitudes(SEXP ptrExpr, SEXP forestExpr) {
   SEXP valuesExpr = PROTECT(
     Rf_allocVector(REALSXP, (R_xlen_t) (numAmplitudes * numChains)));
   int accepted =
-    dbarts_sampler_forestAmplitudes(sampler, forest, REAL(valuesExpr));
+    dbarts_sampler_getForestAmplitudes(sampler, forest, REAL(valuesExpr));
 
   SEXP result = PROTECT(Rf_allocVector(VECSXP, 3));
   SET_VECTOR_ELT(result, 0, Rf_ScalarInteger((int) numAmplitudes));
@@ -969,7 +1030,7 @@ SEXP capi_forest_calibration(SEXP ptrExpr, SEXP forestExpr, SEXP modeExpr,
   calibration.responseScale = REAL(scaleExpr);
   calibration.responseShift = REAL(shiftExpr);
   calibration.kHasHyperprior = INTEGER(hyperExpr);
-  calibration.leafModel = mode == 1 ? (int*) (uintptr_t) 0x1
+  calibration.leafModel = mode == 1 ? (int32_t*) (uintptr_t) 0x1
                                     : INTEGER(leafExpr);
   if (mode == 0) {
     calibration.amplitudePriorVariance = REAL(aVarExpr);
@@ -990,8 +1051,8 @@ SEXP capi_forest_calibration(SEXP ptrExpr, SEXP forestExpr, SEXP modeExpr,
   }
 
   int accepted =
-    dbarts_sampler_forestCalibration(sampler, (size_t) Rf_asInteger(forestExpr),
-                                     &calibration);
+    dbarts_sampler_getForestCalibration(sampler, (size_t) Rf_asInteger(forestExpr),
+                                        &calibration);
 
   SEXP result = PROTECT(Rf_allocVector(VECSXP, 14));
   SET_VECTOR_ELT(result, 0, priorScaleExpr);
@@ -1033,7 +1094,7 @@ SEXP capi_forest_calibration(SEXP ptrExpr, SEXP forestExpr, SEXP modeExpr,
 SEXP capi_forest_calibration_zero_structsize(SEXP ptrExpr) {
   dbarts_forest_calibration calibration;
   memset(&calibration, 0, sizeof(calibration)); /* structSize left 0 */
-  return Rf_ScalarInteger(dbarts_sampler_forestCalibration(
+  return Rf_ScalarInteger(dbarts_sampler_getForestCalibration(
     samplerFromExpr(ptrExpr), 0, &calibration));
 }
 
@@ -1261,7 +1322,7 @@ static SEXP bcfLegBody(void* data) {
       legs->accepted =
         dbarts_sampler_setForestBasis(legs->sampler, 1, basis, 3) == 1 &&
         dbarts_sampler_numForestAmplitudes(legs->sampler, 1) == 3 &&
-        dbarts_sampler_forestAmplitudes(legs->sampler, 1, legs->out) == 1;
+        dbarts_sampler_getForestAmplitudes(legs->sampler, 1, legs->out) == 1;
       for (size_t i = 0; i < 3 * chains; ++i)
         if (!R_FINITE(legs->out[i])) legs->accepted = 0;
       restoreIndicatorBasis(legs, n);
@@ -1271,9 +1332,9 @@ static SEXP bcfLegBody(void* data) {
       /* both forests read, an index past the last one refuses, and every
        * value written is finite */
       legs->accepted =
-        dbarts_sampler_forestFits(legs->sampler, 0, legs->out) &&
-        dbarts_sampler_forestFits(legs->sampler, 1, legs->out + n * chains) &&
-        !dbarts_sampler_forestFits(legs->sampler, 2, legs->out);
+        dbarts_sampler_getForestFits(legs->sampler, 0, legs->out) &&
+        dbarts_sampler_getForestFits(legs->sampler, 1, legs->out + n * chains) &&
+        !dbarts_sampler_getForestFits(legs->sampler, 2, legs->out);
       for (size_t i = 0; i < 2 * n * chains; ++i)
         if (!R_FINITE(legs->out[i])) legs->accepted = 0;
       break;
@@ -1284,10 +1345,10 @@ static SEXP bcfLegBody(void* data) {
       legs->accepted =
         dbarts_sampler_numForestAmplitudes(legs->sampler, 0) == 1 &&
         dbarts_sampler_numForestAmplitudes(legs->sampler, 1) == 2 &&
-        dbarts_sampler_forestAmplitudes(legs->sampler, 0, legs->out) &&
-        dbarts_sampler_forestAmplitudes(legs->sampler, 1,
+        dbarts_sampler_getForestAmplitudes(legs->sampler, 0, legs->out) &&
+        dbarts_sampler_getForestAmplitudes(legs->sampler, 1,
                                         legs->out + chains) &&
-        !dbarts_sampler_forestAmplitudes(legs->sampler, 2, legs->out);
+        !dbarts_sampler_getForestAmplitudes(legs->sampler, 2, legs->out);
       for (size_t i = 0; i < 3 * chains; ++i)
         if (!R_FINITE(legs->out[i])) legs->accepted = 0;
       break;
@@ -1318,7 +1379,7 @@ static SEXP bcfLegBody(void* data) {
       calibration.nodeScaleDivisor = legs->out + 3 * chains;
       calibration.basisRowNorm = legs->out + 4 * chains;
       legs->accepted =
-        dbarts_sampler_forestCalibration(legs->sampler, 0, &calibration);
+        dbarts_sampler_getForestCalibration(legs->sampler, 0, &calibration);
       double muAnchor = legs->out[0] * legs->out[3 * chains] *
                         legs->out[4 * chains] / legs->out[2 * chains];
       for (size_t c = 0; c < chains; ++c)
@@ -1326,7 +1387,7 @@ static SEXP bcfLegBody(void* data) {
             legs->out[3 * chains + c] != 1.0 ||
             legs->out[4 * chains + c] != 1.0)
           legs->accepted = 0;
-      if (!dbarts_sampler_forestCalibration(legs->sampler, 1, &calibration))
+      if (!dbarts_sampler_getForestCalibration(legs->sampler, 1, &calibration))
         legs->accepted = 0;
       for (size_t c = 0; c < chains; ++c)
         if (legs->out[3 * chains + c] != 0.674 ||
@@ -1338,7 +1399,7 @@ static SEXP bcfLegBody(void* data) {
                          legs->out[4 * chains] / legs->out[2 * chains];
       if (!(fabs(tauAnchor - muAnchor) <= 1.0e-12 * fabs(muAnchor)))
         legs->accepted = 0;
-      if (dbarts_sampler_forestCalibration(legs->sampler, 2, &calibration) ||
+      if (dbarts_sampler_getForestCalibration(legs->sampler, 2, &calibration) ||
           dbarts_sampler_setForestPriorScale(legs->sampler, 0, 2.5) ||
           dbarts_sampler_setForestPriorScale(legs->sampler, 1, 2.5))
         legs->accepted = 0;

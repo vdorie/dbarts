@@ -209,7 +209,7 @@ struct SamplerOptions {
   // progress reporting during runs: one "iteration: k (of N)" line every
   // printEvery kept iterations
   bool verbose = false;
-  std::uint32_t printEvery = 100;
+  size_t printEvery = 100;
 
   // opt-in fp32 running residual: stores Forest::treeY in fp32 with
   // fp64-accumulated reductions,
@@ -1714,7 +1714,7 @@ public:
   const double* latents() const { return response_->latents(); }
 
   void setNumThin(size_t numThin) { options_.numThin = numThin; }
-  void setVerbose(bool verbose, std::uint32_t printEvery) {
+  void setVerbose(bool verbose, size_t printEvery) {
     options_.verbose = verbose;
     options_.printEvery = printEvery;
   }

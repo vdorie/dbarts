@@ -131,8 +131,8 @@ TranslatedSource translateSource(const bartcore::ColumnStore& store,
 
   const double* denseValues = SOURCE_PTR(source, denseValues);
   size_t numCscColumns = SOURCE_NUM(source, numCscColumns);
-  const int* cscColumnPointers = SOURCE_PTR(source, cscColumnPointers);
-  const int* cscRowIndices = SOURCE_PTR(source, cscRowIndices);
+  const std::int32_t* cscColumnPointers = SOURCE_PTR(source, cscColumnPointers);
+  const std::int32_t* cscRowIndices = SOURCE_PTR(source, cscRowIndices);
   const double* cscValues = SOURCE_PTR(source, cscValues);
   const std::int32_t* columnSources = SOURCE_PTR(source, columnSources);
   const std::int32_t* columnTypes = SOURCE_PTR(source, columnTypes);
@@ -266,6 +266,46 @@ int leafModelTag(bartcore::LeafModelKind kind) {
   case bartcore::LeafModelKind::constant: break;
   }
   return DBARTS_LEAF_CONSTANT;
+}
+
+// The enumerator text for an admission refusal, over DBARTS_FAMILY_LIST so
+// every dbarts_family value names itself; a value outside the enum falls
+// through to NULL, and the caller reports the bare number instead.
+const char* familyEnumeratorName(int family) {
+  switch (family) {
+#define DBARTS_FAMILY_NAME_CASE(name, value) case name: return #name;
+  DBARTS_FAMILY_LIST(DBARTS_FAMILY_NAME_CASE)
+#undef DBARTS_FAMILY_NAME_CASE
+  }
+  return NULL;
+}
+
+// dbarts_sampler_create's family admission: AUTO plus the six flat-creatable
+// families, mapped onto resolveFamily's string vocabulary so nothing below
+// this function changes. Refuses the two dbarts_family carries for a sampler
+// this entry cannot build (STUDENT, MULTINOMIAL) and anything outside the
+// enum, naming both the entry and the family.
+const char* creationFamilyName(int family) {
+  switch (family) {
+  case DBARTS_FAMILY_AUTO: return "";
+  case DBARTS_FAMILY_GAUSSIAN: return "gaussian";
+  case DBARTS_FAMILY_PROBIT: return "probit";
+  case DBARTS_FAMILY_LOGISTIC: return "logistic";
+  case DBARTS_FAMILY_AFT: return "aft";
+  case DBARTS_FAMILY_ORDINAL: return "ordinal";
+  case DBARTS_FAMILY_NBINOM: return "nbinom";
+  }
+  {
+    const char* name = familyEnumeratorName(family);
+    if (name != NULL)
+      Rf_error("dbarts_sampler_create: family %s is refused (accepts "
+               "DBARTS_FAMILY_AUTO, GAUSSIAN, PROBIT, LOGISTIC, AFT, ORDINAL "
+               "and NBINOM)", name);
+  }
+  Rf_error("dbarts_sampler_create: family %d is refused (accepts "
+           "DBARTS_FAMILY_AUTO, GAUSSIAN, PROBIT, LOGISTIC, AFT, ORDINAL and "
+           "NBINOM)", family);
+  return NULL; // unreached: Rf_error longjmps
 }
 
 } // namespace
@@ -454,11 +494,12 @@ constexpr std::uint64_t dbarts_apiToken() {
   std::uint64_t hash = dbarts_apiSignatureToken;
   hash = dbarts_fnv1a(hash, DBARTS_COLUMN_TYPE_LIST(DBARTS_ENUMERATOR_TEXT));
   hash = dbarts_fnv1a(hash, DBARTS_LEAF_MODEL_LIST(DBARTS_ENUMERATOR_TEXT));
+  hash = dbarts_fnv1a(hash, DBARTS_FAMILY_LIST(DBARTS_ENUMERATOR_TEXT));
   hash = dbarts_fnv1a(hash, DBARTS_STRINGIZE(DBARTS_SAMPLER_CALLBACK_PARAMS));
   return dbarts_foldLayout(hash);
 }
 } // namespace
-static_assert(dbarts_apiSignatureToken == 0xcb83367ee0c4175bULL,
+static_assert(dbarts_apiSignatureToken == 0x32e5b15aa6c88c69ULL,
               "dbarts.h C API signatures moved (the entry-point list, not the "
               "layout fold); re-bake this literal here and DBARTS_C_API_HASH "
               "with it");
@@ -476,9 +517,9 @@ int dbarts_apiMinorVersion(void) { return DBARTS_C_API_MINOR; }
 uint64_t dbarts_apiHash(void) { return DBARTS_C_API_HASH; }
 
 dbarts_sampler* dbarts_sampler_create(SEXP control, SEXP model, SEXP data,
-                                      const char* family) {
+                                      int family) {
   BartcoreHolder* holder = bartcore_bridge::createHolder(
-    control, model, data, family == NULL ? "" : family);
+    control, model, data, creationFamilyName(family));
   R_PreserveObject(data);
   return new dbarts_sampler_t{holder, data};
 }
@@ -652,7 +693,7 @@ int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out) {
   return 1;
 }
 
-int dbarts_sampler_dispersion(const dbarts_sampler* sampler, double* out) {
+int dbarts_sampler_getDispersion(const dbarts_sampler* sampler, double* out) {
   const bartcore::SamplerBase& engine(samplerOf(sampler));
   bartcore::SamplerShape shape = engine.shape();
   // the capability answer is the return value, as it is for the R bridge's
@@ -833,7 +874,8 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
                                const size_t* sampleIndices,
                                size_t numSampleIndices,
                                const size_t* treeIndices,
-                               size_t numTreeIndices, size_t forest) {
+                               size_t numTreeIndices, int useLiveTrees,
+                               size_t forest) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
   bartcore::SamplerShape shape = engine.shape();
   // the engine's printers index forests_[forest] unchecked, by design (fast
@@ -841,15 +883,21 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
   // past the last forest
   if (forest >= shape.numForests)
     Rf_error("dbarts_sampler_printTrees: forest index out of range");
-  refuseEmptyTreeStore(engine, "dbarts_sampler_printTrees");
+  // mirrors bartcore_bridge::getTrees: printing live trees needs no saved
+  // store, so the empty-store refusal and the saved-draw range check below
+  // apply only when the saved store actually serves this call
+  bool useSaved = shape.savedTreeCapacity > 0 && useLiveTrees == 0;
+  if (useSaved) refuseEmptyTreeStore(engine, "dbarts_sampler_printTrees");
   for (size_t i = 0; i < numChainIndices; ++i) {
     if (chainIndices[i] >= shape.numChains)
       Rf_error("dbarts_sampler_printTrees: chain number out of range");
   }
   // sample numbers address RECORDED DRAWS, oldest first, as getTrees does
-  for (size_t i = 0; i < numSampleIndices; ++i) {
-    if (sampleIndices[i] >= shape.numSavedDraws)
-      Rf_error("dbarts_sampler_printTrees: sample number out of range");
+  if (useSaved) {
+    for (size_t i = 0; i < numSampleIndices; ++i) {
+      if (sampleIndices[i] >= shape.numSavedDraws)
+        Rf_error("dbarts_sampler_printTrees: sample number out of range");
+    }
   }
   // against the NAMED forest's own count, which a multi-forest sampler states
   // per forest (shape.numTrees is forest 0's)
@@ -858,7 +906,8 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
       Rf_error("dbarts_sampler_printTrees: tree number out of range");
   }
   engine.printTrees(chainIndices, numChainIndices, sampleIndices,
-                    numSampleIndices, treeIndices, numTreeIndices, forest);
+                    numSampleIndices, treeIndices, numTreeIndices, forest,
+                    useLiveTrees != 0);
 }
 
 SEXP dbarts_sampler_storeState(dbarts_sampler* sampler) {
@@ -883,7 +932,7 @@ void dbarts_sampler_setNumThin(dbarts_sampler* sampler, size_t numThin) {
 }
 
 void dbarts_sampler_setVerbose(dbarts_sampler* sampler, int verbose,
-                               uint32_t printEvery) {
+                               size_t printEvery) {
   samplerOf(sampler).setVerbose(verbose != 0, printEvery);
 }
 
@@ -924,6 +973,27 @@ int dbarts_sampler_usesDart(const dbarts_sampler* sampler) {
   return samplerOf(sampler).shape().usesDart ? 1 : 0;
 }
 
+int dbarts_sampler_family(const dbarts_sampler* sampler) {
+  bartcore::SamplerShape shape = samplerOf(sampler).shape();
+  // the counts-mutation capability is the multinomial coupling's own
+  // fingerprint; DBARTS_FAMILY_MULTINOMIAL is reserved for multinomial
+  // creation opening, though no entry here builds one yet. Every other
+  // family maps one to one off shape().family, and AUTO/STUDENT are never
+  // reported (creation resolves AUTO, and a Student-t sampler's family IS
+  // gaussian)
+  if (shape.supportsCountsMutation) return DBARTS_FAMILY_MULTINOMIAL;
+  using RF = bartcore::ResponseFamily;
+  switch (shape.family) {
+  case RF::gaussian: return DBARTS_FAMILY_GAUSSIAN;
+  case RF::probit: return DBARTS_FAMILY_PROBIT;
+  case RF::logistic: return DBARTS_FAMILY_LOGISTIC;
+  case RF::aft: return DBARTS_FAMILY_AFT;
+  case RF::ordinal: return DBARTS_FAMILY_ORDINAL;
+  case RF::nbinom: return DBARTS_FAMILY_NBINOM;
+  }
+  return DBARTS_FAMILY_GAUSSIAN; // unreached: ResponseFamily is exhausted above
+}
+
 size_t dbarts_sampler_numForests(const dbarts_sampler* sampler) {
   return samplerOf(sampler).shape().numForests;
 }
@@ -951,8 +1021,8 @@ int dbarts_sampler_setForestBasis(dbarts_sampler* sampler, size_t forest,
   return engine.setForestBasis(forest, basis, numColumns) ? 1 : 0;
 }
 
-int dbarts_sampler_forestFits(const dbarts_sampler* sampler, size_t forest,
-                              double* out) {
+int dbarts_sampler_getForestFits(const dbarts_sampler* sampler, size_t forest,
+                                 double* out) {
   const bartcore::SamplerBase& engine(samplerOf(sampler));
   bartcore::SamplerShape shape = engine.shape();
   if (forest >= shape.numForests) return 0;
@@ -972,8 +1042,8 @@ size_t dbarts_sampler_numForestAmplitudes(const dbarts_sampler* sampler,
   return engine.numForestAmplitudes(forest);
 }
 
-int dbarts_sampler_forestAmplitudes(const dbarts_sampler* sampler,
-                                    size_t forest, double* out) {
+int dbarts_sampler_getForestAmplitudes(const dbarts_sampler* sampler,
+                                       size_t forest, double* out) {
   const bartcore::SamplerBase& engine(samplerOf(sampler));
   bartcore::SamplerShape shape = engine.shape();
   if (forest >= shape.numForests) return 0;
@@ -1012,11 +1082,11 @@ int dbarts_sampler_setForestWeights(dbarts_sampler* sampler, size_t forest,
   return engine.setForestWeights(forest, weights) ? 1 : 0;
 }
 
-int dbarts_sampler_forestCalibration(const dbarts_sampler* sampler,
-                                     size_t forest,
-                                     dbarts_forest_calibration* out) {
+int dbarts_sampler_getForestCalibration(const dbarts_sampler* sampler,
+                                        size_t forest,
+                                        dbarts_forest_calibration* out) {
   if (out == NULL || out->structSize == 0)
-    Rf_error("dbarts_sampler_forestCalibration: out.structSize is 0 - set it "
+    Rf_error("dbarts_sampler_getForestCalibration: out.structSize is 0 - set it "
              "to sizeof(dbarts_forest_calibration) (e.g. "
              "dbarts_forest_calibration c = DBARTS_FOREST_CALIBRATION_INIT)");
   const bartcore::SamplerBase& engine(samplerOf(sampler));
@@ -1075,6 +1145,31 @@ int dbarts_sampler_setActiveRows(dbarts_sampler* sampler,
   return engine.setActiveRows(active) ? 1 : 0;
 }
 
+// dbarts_drawLatents/dbarts_workingResponse's family admission: the six
+// augmentationFamily accepts, mapped from the enum so the string-keyed law
+// below them is untouched. Refuses AUTO, GAUSSIAN and MULTINOMIAL (which
+// augmentationFamily has no string form for in the first place) and anything
+// outside the enum, naming both the entry and the family.
+static const char* augmentationFamilyName(int family, const char* caller) {
+  switch (family) {
+  case DBARTS_FAMILY_PROBIT: return "probit";
+  case DBARTS_FAMILY_LOGISTIC: return "logistic";
+  case DBARTS_FAMILY_ORDINAL: return "ordinal";
+  case DBARTS_FAMILY_AFT: return "aft";
+  case DBARTS_FAMILY_NBINOM: return "nbinom";
+  case DBARTS_FAMILY_STUDENT: return "student";
+  }
+  {
+    const char* name = familyEnumeratorName(family);
+    if (name != NULL)
+      Rf_error("%s: family %s is refused (accepts DBARTS_FAMILY_PROBIT, "
+               "LOGISTIC, ORDINAL, AFT, NBINOM and STUDENT)", caller, name);
+  }
+  Rf_error("%s: family %d is refused (accepts DBARTS_FAMILY_PROBIT, "
+           "LOGISTIC, ORDINAL, AFT, NBINOM and STUDENT)", caller, family);
+  return NULL; // unreached: Rf_error longjmps
+}
+
 // Resolves the family and applies the rules R/augmentation.R applies ahead of
 // the R helpers, which the wrapped forms below have no R layer to inherit. Only
 // the half a wrong argument cannot survive: the parameter each law REQUIRES,
@@ -1124,18 +1219,20 @@ static bartcore::ResponseFamily augmentationArguments(
   return resolved;
 }
 
-void dbarts_drawLatents(const char* family, size_t numObservations,
+void dbarts_drawLatents(int family, size_t numObservations,
                         const double* fit, const double* y,
                         const double* weights, const double* offset,
                         double sigma, double dispersion,
                         const double* cutpoints, size_t numCutpoints, double df,
                         double* out) {
+  const char* familyName =
+    augmentationFamilyName(family, "dbarts_drawLatents");
   AugmentationInputs in{.numObservations = numObservations, .fit = fit, .y = y,
                         .weights = weights, .offset = offset,
                         .cutpoints = cutpoints, .numCutpoints = numCutpoints,
                         .sigma = sigma, .dispersion = dispersion, .df = df};
   bartcore::ResponseFamily resolved =
-    augmentationArguments(family, in, true, "dbarts_drawLatents");
+    augmentationArguments(familyName, in, true, "dbarts_drawLatents");
   if (out == NULL) Rf_error("dbarts_drawLatents: 'out' cannot be NULL");
   // the same support rule every conduit that swaps a y states
   validateResponseSupport(resolved, in.numCutpoints + 1, in.y,
@@ -1143,15 +1240,17 @@ void dbarts_drawLatents(const char* family, size_t numObservations,
   drawAugmentation(resolved, in, out, "dbarts_drawLatents");
 }
 
-void dbarts_workingResponse(const char* family, size_t numObservations,
+void dbarts_workingResponse(int family, size_t numObservations,
                             const double* latent, const double* y,
                             const double* weights, const double* offset,
                             double dispersion, double* out) {
+  const char* familyName =
+    augmentationFamilyName(family, "dbarts_workingResponse");
   AugmentationInputs in{.numObservations = numObservations, .fit = latent,
                         .y = y, .weights = weights, .offset = offset,
                         .dispersion = dispersion};
   bartcore::ResponseFamily resolved =
-    augmentationArguments(family, in, false, "dbarts_workingResponse");
+    augmentationArguments(familyName, in, false, "dbarts_workingResponse");
   if (out == NULL) Rf_error("dbarts_workingResponse: 'out' cannot be NULL");
   // the ordinal working response is the latent less the offset, so y never
   // enters it and there is no category count here to state its support against

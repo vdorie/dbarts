@@ -144,7 +144,7 @@ reproducibility - within-host across any SIMD dispatch only.
 
 Two ship, and neither is a mid-sweep hook.
 
-`dbarts_sampler_setCallback` (`inst/include/dbarts/dbarts.h:728`) takes
+`dbarts_sampler_setCallback` (`inst/include/dbarts/dbarts.h:792`) takes
 `(userData, sampler, chainIndex, sweepIndex, isBurnIn)` and returns 0 to stop
 the run early. It fires at the top of each iteration, unthrottled by thinning,
 before sigma enters the sweep. It is refused when `numThreads > 1 &&
@@ -170,7 +170,7 @@ flat surface's whole predictor channel is `dbarts_sampler_setPredictor` and
 `dbarts_sampler_updatePredictor`); no `setCutPoints` and no `setData`; no
 `predictVariance`; and no forest-indexed `predict` - `dbarts_sampler_predict`
 takes no forest index, and per-forest fits are IN-SAMPLE only, through
-`dbarts_sampler_forestFits`. All four are recorded doors elsewhere; naming
+`dbarts_sampler_getForestFits`. All four are recorded doors elsewhere; naming
 them together here is what makes them on-ramp debt rather than trivia.
 
 ## Measured (2026-08-19, arm64 macOS, one host)

@@ -77,7 +77,7 @@ synchronization).
 
 `numThreads == 0` means "the sampler's own count," stored unvalidated
 on the C path - `Sampler::setNumThreads` (sampler.hpp:1203-1206) and
-`dbarts_sampler_setNumThreads` (C_interface.cpp:876-878) both store
+`dbarts_sampler_setNumThreads` (C_interface.cpp:925-927) both store
 the value as given, and `R/A_class.R:349-350` guards only the R path -
 so the resolved count floors at 1, never 0 workers: without the floor,
 `setNumThreads(0)` then `predict(..., 0, out)` would resolve to zero
@@ -103,13 +103,13 @@ void dbarts_sampler_predict(dbarts_sampler* sampler,
 ```
 
 The change moved two hash literals, both failing loudly and
-self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:461, then
+self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:502, then
 `0x85bd1ef04beb3848ULL`) fires first and prints the new signature token
 to paste over itself; a rebuild then fails `dbarts_apiToken() ==
 DBARTS_C_API_HASH` (:465) and prints the new layout hash to paste over
-`DBARTS_C_API_HASH` (dbarts.h:153). Both were re-signed - live,
-C_interface.cpp:461 asserts `0xcb83367ee0c4175bULL` and dbarts.h:153
-bakes `0x66d33f1613892406ULL`. This section also called for
+`DBARTS_C_API_HASH` (dbarts.h:166). Both were re-signed - live,
+C_interface.cpp:502 asserts `0x32e5b15aa6c88c69ULL` and dbarts.h:166
+bakes `0x0939c0224353505bULL`. This section also called for
 `DBARTS_C_API_MINOR` (dbarts.h:115) to bump from 0 to 1; it did not, on
 the header's own pre-release rule - see section 11.
 `facade.hpp` took the parameter on all three predict virtuals -

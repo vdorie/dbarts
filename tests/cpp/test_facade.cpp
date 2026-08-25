@@ -176,7 +176,7 @@ public:
   SPY_VOID(growFromRoot, (std::size_t s), (s))
   SPY_VOID(setNumThreads, (std::size_t t), (t))
   SPY_VOID(setNumThin, (std::size_t t), (t))
-  SPY_VOID(setVerbose, (bool v, std::uint32_t e), (v, e))
+  SPY_VOID(setVerbose, (bool v, std::size_t e), (v, e))
   SPY_RET(double, fitScale, () const, ())
   SPY_VOID(setTreeStorage, (bool k, std::size_t n), (k, n))
   SPY_VOID(setModel, (const ModelParameters& m), (m))
@@ -184,8 +184,8 @@ public:
   SPY_VOID(printTrees,
            (const std::size_t* ci, std::size_t nci, const std::size_t* si,
             std::size_t nsi, const std::size_t* ti, std::size_t nti,
-            std::size_t f),
-           (ci, nci, si, nsi, ti, nti, f))
+            std::size_t f, bool live),
+           (ci, nci, si, nsi, ti, nti, f, live))
   SPY_RET(ext_rng*, rng, () const, ())
   SPY_RET(const ColumnStore&, data, () const, ())
   SPY_RET(const double*, latents, (std::size_t c) const, (c))
@@ -493,7 +493,7 @@ std::string dumpTrees(SamplerBase& sampler, std::size_t forestIndex) {
   const std::size_t chain = 0, slot = 0, tree = 0;
   std::string text;
   beginPrintCapture(text);
-  sampler.printTrees(&chain, 1, &slot, 1, &tree, 1, forestIndex);
+  sampler.printTrees(&chain, 1, &slot, 1, &tree, 1, forestIndex, false);
   endPrintCapture();
   return text;
 }

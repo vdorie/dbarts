@@ -6094,7 +6094,7 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
     // forest 0's count on a multi-forest sampler
     sampler.printTrees(chainIndices.data(), chainIndices.size(),
                        sampleIndices.data(), sampleIndices.size(),
-                       treeIndices.data(), treeIndices.size(), 0);
+                       treeIndices.data(), treeIndices.size(), 0, false);
 
     return R_NilValue;
   });

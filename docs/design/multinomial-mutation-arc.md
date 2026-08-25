@@ -114,7 +114,7 @@ through the single public dispatch every family uses, `bartcore_create`
 `C_dbarts_bartcore_createMultinomial` / `...Counts` entries are retired
 (Fork J1). What still holds is the absence of a `dbarts.h` creation path
 (`feature-matrix.md` `[f4]`): `dbarts_sampler_create`
-(`src/C_interface.cpp:478`) routes to `createHolder`, never to the
+(`src/C_interface.cpp:519`) routes to `createHolder`, never to the
 multinomial arm.
 
 ### 1.3 What the `$bc` handles can already do, bridge-side
@@ -331,7 +331,7 @@ and name `$setCounts`, with the reason in the message.
 ### Fork C. Does the flat C ABI grow?
 
 Facts, corrected and re-anchored: `DBARTS_C_API_HASH` is
-`0x66d33f1613892406ULL` (`inst/include/dbarts/dbarts.h:153`);
+`0x66d33f1613892406ULL` (`inst/include/dbarts/dbarts.h:166`);
 `DBARTS_C_API_MAJOR`/`MINOR` are 1/0 and the header itself states the
 pre-release carve-out - "no version of this API has shipped yet, so
 whatever they read then simply IS the initial contract, and they do not
@@ -340,7 +340,7 @@ the plan doc). Multinomial has no flat creation path
 (`feature-matrix.md` `[f4]`). One reverse `LinkingTo`, in-house.
 
 **Cost of C2, corrected:** TWO literal re-bakes, not one -
-`DBARTS_C_API_HASH` (`dbarts.h:153`) AND `dbarts_apiSignatureToken`
+`DBARTS_C_API_HASH` (`dbarts.h:166`) AND `dbarts_apiSignatureToken`
 (`src/C_interface.cpp:461`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
 because appending to `DBARTS_C_API_DECLS` moves the signature half too.
 Plus `inst/tinytest/test-capi.R`: `:84` pins the literal and must

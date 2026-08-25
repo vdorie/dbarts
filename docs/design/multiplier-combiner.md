@@ -548,12 +548,12 @@ is :599-611). R5: `$setForestBasis(forest, basis)` (R/dbarts.R:1460) and
 `$getForestAmplitudes(forest)` (R/dbarts.R:1707), both 1-based via
 `resolveForestIndex` (R/bartcore.R:1051). Flat C:
 `dbarts_sampler_setForestBasis`, `dbarts_sampler_numForestAmplitudes` and
-`dbarts_sampler_forestAmplitudes`, ragged and ROW-major
-(inst/include/dbarts/dbarts.h:993-1019).
+`dbarts_sampler_getForestAmplitudes`, ragged and ROW-major
+(inst/include/dbarts/dbarts.h:1075-1102).
 
 Capability probes are `totalAmplitudes() != 0`, NEVER a forest count: a
 K-forest multinomial defeats a `numForests` test, and the shipped code states
-that rule in two independent places (src/C_interface.cpp:931-940,
+that rule in two independent places (src/C_interface.cpp:1000-1009,
 src/R_interface_bartcore.cpp:3929-3934).
 
 Per-forest SPLIT COUNTS are reported too (bcf-bartcause-relocation D3): the
@@ -579,7 +579,7 @@ loop) gets slot 0, the reported forest, byte for byte as before.
   (src/R_interface_bartcore_common.hpp:210-215) - and no log-likelihood is
   reported. Unchanged by M4.4.
 - A per-draw amplitude channel in flat C. `dbarts_results` carries none
-  (dbarts.h:192-207); DECLINED at plan :1521-1531, a `DBARTS_C_API_MINOR` bump
+  (dbarts.h:205-220); DECLINED at plan :1521-1531, a `DBARTS_C_API_MINOR` bump
   binding decision 8 forbids.
 - A variance forest. `createAmplitudeSampler` refuses `numVarianceTrees > 0`
   (facade.hpp:877).

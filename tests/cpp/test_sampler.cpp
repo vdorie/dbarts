@@ -6343,7 +6343,7 @@ static void testPrintTreesForest() {
     std::string text;
     beginPrintCapture(text);
     sampler.printTrees(&chain, 1, &slot, numSampleIndices, trees, 3,
-                       forestIndex);
+                       forestIndex, false);
     endPrintCapture();
     return text;
   };

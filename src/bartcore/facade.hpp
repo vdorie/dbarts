@@ -110,7 +110,8 @@ struct SamplerShape {
   /// can replace (the multinomial softmax alone today). The category count K
   /// rides numReportedLocations, which already is K for that coupling and 1 for
   /// every additive model, so the bridge reads the pair rather than a second
-  /// name for the same number. Internal, invisible to dbarts.h.
+  /// name for the same number. dbarts_sampler_family reads it to report
+  /// DBARTS_FAMILY_MULTINOMIAL.
   bool supportsCountsMutation;
   /// Whether the recorded test-fit channel carries a defined value: false only
   /// for BCF (no test treatment vector to blend off-sample). The bridge's
@@ -310,7 +311,7 @@ public:
   virtual void growFromRoot(std::size_t numSweeps) = 0;
   virtual void setNumThreads(std::size_t numThreads) = 0;
   virtual void setNumThin(std::size_t numThin) = 0;
-  virtual void setVerbose(bool verbose, std::uint32_t printEvery) = 0;
+  virtual void setVerbose(bool verbose, std::size_t printEvery) = 0;
   virtual double fitScale() const = 0;
   virtual void setTreeStorage(bool keepTrees, std::size_t numSamplesToStore) = 0;
   virtual void setModel(const ModelParameters& model) = 0;
@@ -324,7 +325,8 @@ public:
                           std::size_t numSampleIndices,
                           const std::size_t* treeIndices,
                           std::size_t numTreeIndices,
-                          std::size_t forestIndex) = 0;
+                          std::size_t forestIndex,
+                          bool useLiveTrees) = 0;
 
   virtual ext_rng* rng() const = 0;
   virtual const ColumnStore& data() const = 0;
@@ -588,7 +590,7 @@ public:
     impl_.setNumThreads(numThreads);
   }
   void setNumThin(std::size_t numThin) override { impl_.setNumThin(numThin); }
-  void setVerbose(bool verbose, std::uint32_t printEvery) override {
+  void setVerbose(bool verbose, std::size_t printEvery) override {
     impl_.setVerbose(verbose, printEvery);
   }
   double fitScale() const override { return impl_.fitScale(); }
@@ -606,10 +608,10 @@ public:
                   const std::size_t* sampleIndices,
                   std::size_t numSampleIndices, const std::size_t* treeIndices,
                   std::size_t numTreeIndices,
-                  std::size_t forestIndex) override {
+                  std::size_t forestIndex, bool useLiveTrees) override {
     impl_.printTrees(chainIndices, numChainIndices, sampleIndices,
                      numSampleIndices, treeIndices, numTreeIndices,
-                     forestIndex);
+                     forestIndex, useLiveTrees);
   }
 
   ext_rng* rng() const override { return impl_.rng(); }

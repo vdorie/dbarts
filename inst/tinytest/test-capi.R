@@ -79,15 +79,23 @@ expect_false(identical(hashes$text, "0x85bd1ef04beb3848"))
 # the token the header baked before dbarts_sampler_predict took a thread
 # count: a signature that gained a parameter must move it
 expect_false(identical(hashes$text, "0x6c9776ae1197e8f5"))
+# the token before the freeze slice: the family enum, the four get renames,
+# the widened printEvery and printTrees' useLiveTrees all moved it
+expect_false(identical(hashes$text, "0x66d33f1613892406"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0x66d33f1613892406")
+expect_identical(hashes$text, "0x0939c0224353505b")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
 # the hash above is what acknowledges a pre-release change
 versions <- CALL("capi_versions")
 expect_equal(versions, c(1L, 0L))
+
+# the enum round trip: this consumer's compiled-in dbarts_family numbering
+# agrees with the installed header's, in header (not alphabetical) order
+familyConstants <- CALL("capi_family_constants")
+expect_equal(unname(familyConstants), 0:8)
 
 set.seed(0)
 n <- 150L
@@ -110,6 +118,39 @@ spec <- dbarts(x, y, test = x.test, control = control)
 ptr1 <- CALL("capi_create", spec$control, spec$model, spec$data, "")
 dims <- CALL("capi_dims", ptr1)
 expect_equal(dims, c(n, p, 20L, 1L, 25L, 0L, 0L, 0L))
+expect_equal(CALL("capi_sampler_family", ptr1), familyConstants[["gaussian"]])
+
+# the create-path admission probes: an unmapped int reaches the entry exactly
+# as a miscompiled or hand-rolled caller would send it, refusing out-of-range
+# values and the two enumerators no flat sampler is built with
+expect_error(
+  CALL("capi_create_raw_family", spec$control, spec$model, spec$data, 999L),
+  "family 999"
+)
+expect_error(
+  CALL("capi_create_raw_family", spec$control, spec$model, spec$data, -1L),
+  "family -1"
+)
+expect_error(
+  CALL(
+    "capi_create_raw_family",
+    spec$control,
+    spec$model,
+    spec$data,
+    familyConstants[["student"]]
+  ),
+  "family DBARTS_FAMILY_STUDENT"
+)
+expect_error(
+  CALL(
+    "capi_create_raw_family",
+    spec$control,
+    spec$model,
+    spec$data,
+    familyConstants[["multinomial"]]
+  ),
+  "family DBARTS_FAMILY_MULTINOMIAL"
+)
 
 CALL("capi_sample_trees_from_prior", ptr1)
 r1 <- CALL("capi_run", ptr1, 5L, nSamples, TRUE, TRUE)
@@ -258,6 +299,13 @@ expect_true(CALL(
   1L
 ))
 
+# a heteroscedastic sampler is flat-creatable and answers GAUSSIAN: its
+# variance forest rides a control attribute rather than a family of its own
+expect_equal(
+  CALL("capi_sampler_family", ptrVar),
+  familyConstants[["gaussian"]]
+)
+
 rm(nVar, xVar, yVar, controlVar, specVar, ptrVar, xVarNew)
 invisible(gc(FALSE))
 
@@ -292,8 +340,23 @@ expect_equal(length(rThinned$sigma), 2L)
 CALL("capi_set_run_controls", ptr2, 1L, 1L, FALSE)
 
 # a live-tree dump goes through the R console without touching state
-printed <- capture.output(CALL("capi_print_trees", ptr2, 0L))
+printed <- capture.output(CALL("capi_print_trees", ptr2, FALSE, 0L))
 expect_true(is.character(printed))
+
+# useLiveTrees forces the live branch on a sampler that has tree storage on
+# but nothing recorded yet: FALSE still hits the empty-store refusal there,
+# TRUE bypasses it and prints
+ptrLiveTrees <- CALL("capi_create", spec$control, spec$model, spec$data, "")
+CALL("capi_set_tree_storage", ptrLiveTrees, TRUE, 2L)
+expect_true(
+  length(capture.output(CALL("capi_print_trees", ptrLiveTrees, TRUE, 0L))) > 0L
+)
+expect_error(
+  CALL("capi_print_trees", ptrLiveTrees, FALSE, 0L),
+  "holds no recorded draws"
+)
+rm(ptrLiveTrees)
+invisible(gc(FALSE))
 
 # a test offset adds to the recorded test fits without entering the trees:
 # saved-tree replays bit-match the recorded fits (asserted above), so with
@@ -372,6 +435,10 @@ invisible(CALL("capi_run", ptrBinary, 3L, 2L, FALSE, FALSE))
 latents <- CALL("capi_get_latents", ptrBinary)
 expect_equal(length(latents), n)
 expect_true(all(latents[yBinary == 1] > 0))
+expect_equal(
+  CALL("capi_sampler_family", ptrBinary),
+  familyConstants[["probit"]]
+)
 expect_true(all(latents[yBinary == 0] <= 0))
 
 # probit log-likelihood: the recorded train fits are the latent location eta,
@@ -469,6 +536,8 @@ expect_equal(live, disp$recorded[3L])
 # and it is ABSENT off the family: the entry answers 0, reported here as NULL
 expect_null(CALL("capi_dispersion", ptr1))
 
+expect_equal(CALL("capi_sampler_family", ptrCount), familyConstants[["nbinom"]])
+
 rm(ptrCount, specCount, dataOverBound)
 invisible(gc(FALSE))
 
@@ -560,6 +629,16 @@ expect_equal(
 expect_error(drawFlat("ordinal", augFit, yOrdinal), "requires cut points")
 expect_error(workFlat("logistic", rep(0, n), yDouble), "must be positive")
 expect_error(drawFlat("probit", augFit, rep(2, n)), "must be coded 0 or 1")
+
+# the augmentation admission probes, by family name (familyFromString maps
+# the string this consumer was handed onto the enum dbarts_drawLatents now
+# takes): AUTO and GAUSSIAN carry no augmentation law and are refused
+expect_error(drawFlat("", augFit, yDouble), "family DBARTS_FAMILY_AUTO")
+expect_error(
+  drawFlat("gaussian", augFit, yDouble),
+  "family DBARTS_FAMILY_GAUSSIAN"
+)
+
 assign(".Random.seed", augSeed, envir = globalenv())
 rm(augFit, augOffset, yDouble, yOrdinal, cuts, omega, augSeed)
 rm(drawFlat, workFlat)
@@ -1083,13 +1162,25 @@ expect_error(
   "forest index out of range"
 )
 expect_error(
-  CALL("capi_print_trees", ptrSrc, 1L),
+  CALL("capi_print_trees", ptrSrc, FALSE, 1L),
   "forest index out of range"
 )
 # both print branches take the index: ptr2 has no tree storage (the live
 # trees print), ptrSrc has it (the saved ones)
-expect_true(length(capture.output(CALL("capi_print_trees", ptr2, 0L))) > 0L)
-expect_true(length(capture.output(CALL("capi_print_trees", ptrSrc, 0L))) > 0L)
+expect_true(
+  length(capture.output(CALL("capi_print_trees", ptr2, FALSE, 0L))) > 0L
+)
+expect_true(
+  length(capture.output(CALL("capi_print_trees", ptrSrc, FALSE, 0L))) > 0L
+)
+
+# useLiveTrees overrides the store on a sampler that HAS one: forcing the
+# live branch prints a different (unsaved, most-recent) tree than the saved
+# read the same call without it takes
+printSrcLive <- capture.output(CALL("capi_print_trees", ptrSrc, TRUE, 0L))
+printSrcSaved <- capture.output(CALL("capi_print_trees", ptrSrc, FALSE, 0L))
+expect_true(length(printSrcLive) > 0L)
+expect_false(identical(printSrcLive, printSrcSaved))
 
 # the honesty falsifier: a CSC MUTATION source is materialized exactly as the
 # R bridge materializes its own, so it draws the same accept/reject verdict as
@@ -1438,12 +1529,12 @@ expect_error(
 # lengths would not falsify a forest-0 pin (both forests have live trees to
 # print), so this is a content pin - forest 0 (mu, all 3 predictors) and
 # forest 1 (tau, the z-factor basis) print different splits
-printBCFLive0 <- capture.output(CALL("capi_print_trees", ptrBCF, 0L))
-printBCFLive1 <- capture.output(CALL("capi_print_trees", ptrBCF, 1L))
+printBCFLive0 <- capture.output(CALL("capi_print_trees", ptrBCF, FALSE, 0L))
+printBCFLive1 <- capture.output(CALL("capi_print_trees", ptrBCF, FALSE, 1L))
 expect_true(length(printBCFLive1) > 0L)
 expect_false(identical(printBCFLive0, printBCFLive1))
 expect_error(
-  CALL("capi_print_trees", ptrBCF, 2L),
+  CALL("capi_print_trees", ptrBCF, FALSE, 2L),
   "forest index out of range"
 )
 
@@ -1461,8 +1552,18 @@ ptrBCFSaved <- CALL(
 CALL("capi_set_tree_storage", ptrBCFSaved, TRUE, 2L)
 invisible(CALL("capi_run", ptrBCFSaved, 5L, 2L, FALSE, FALSE))
 expect_true(CALL("capi_dims", ptrBCFSaved)[6L] > 0L)
-printBCFSaved0 <- capture.output(CALL("capi_print_trees", ptrBCFSaved, 0L))
-printBCFSaved1 <- capture.output(CALL("capi_print_trees", ptrBCFSaved, 1L))
+printBCFSaved0 <- capture.output(CALL(
+  "capi_print_trees",
+  ptrBCFSaved,
+  FALSE,
+  0L
+))
+printBCFSaved1 <- capture.output(CALL(
+  "capi_print_trees",
+  ptrBCFSaved,
+  FALSE,
+  1L
+))
 expect_true(length(printBCFSaved0) > 0L)
 expect_true(length(printBCFSaved1) > 0L)
 expect_false(identical(printBCFSaved0, printBCFSaved1))
@@ -1531,6 +1632,9 @@ expect_true(dfT$guarded)
 # leaves the poisoned slot exactly as it found it
 dfG <- CALL("capi_run_residual_df", ptr1, 2L, 3L)
 expect_true(all(is.na(dfG$recorded)))
+# a Student-t residual sampler's family IS gaussian: resid.dist selects the
+# error law, not a family of its own
+expect_equal(CALL("capi_sampler_family", ptrT), familyConstants[["gaussian"]])
 rm(specT, ptrT, dfT, dfG)
 invisible(gc(FALSE))
 
@@ -1564,6 +1668,10 @@ ptrLogisticFlat <- CALL(
 rLogisticFlat <- CALL("capi_run", ptrLogisticFlat, 3L, 4L, TRUE, FALSE)
 expect_equal(dim(matrix(rLogisticFlat$train, n)), c(n, 4L))
 expect_true(all(is.finite(rLogisticFlat$train)))
+expect_equal(
+  CALL("capi_sampler_family", ptrLogisticFlat),
+  familyConstants[["logistic"]]
+)
 
 # the weight conduit under the one latent family that has weights to change:
 # the counts are the Polya-Gamma shape, so the swap redraws omega on the spot,
@@ -1670,6 +1778,10 @@ ptrOrdinalFlat <- CALL(
 rOrdinalFlat <- CALL("capi_run", ptrOrdinalFlat, 3L, 4L, TRUE, FALSE)
 expect_equal(dim(matrix(rOrdinalFlat$train, n)), c(n, 4L))
 expect_true(all(is.finite(rOrdinalFlat$train)))
+expect_equal(
+  CALL("capi_sampler_family", ptrOrdinalFlat),
+  familyConstants[["ordinal"]]
+)
 
 # positive times, logged for the y the aft response reads
 logTimesFlat <- log(rexp(n, rate = 1))
@@ -1687,6 +1799,7 @@ rAftFlat <- CALL("capi_run", ptrAftFlat, 3L, 4L, TRUE, FALSE)
 expect_equal(dim(matrix(rAftFlat$train, n)), c(n, 4L))
 expect_true(all(is.finite(rAftFlat$train)))
 expect_true(all(rAftFlat$sigma > 0))
+expect_equal(CALL("capi_sampler_family", ptrAftFlat), familyConstants[["aft"]])
 
 rm(
   yLogisticFlat,
@@ -1707,47 +1820,76 @@ rm(
 )
 invisible(gc(FALSE))
 
-# The handshake is ENFORCED, not merely offered. The same consumer, compiled
-# with its expected token forced wrong - the header's #ifndef guard is the only
-# way to override it, so no consumer reaches this by accident - must fail on
-# its first stub resolution rather than drive a library whose structs, enum
-# values and signatures are not the ones inlined into it. Same compile pattern
-# as the consumer above, so it skips wherever that one skips.
-staleDir <- tempfile("capi-stale")
-dir.create(staleDir)
-file.copy(consumerSource, file.path(staleDir, "stale.c"))
-writeLines(
-  sprintf(
-    'PKG_CPPFLAGS = -I"%s" -DDBARTS_C_API_HASH=0x0123456789abcdefULL',
-    includeDir
-  ),
-  file.path(staleDir, "Makevars")
-)
-owd <- setwd(staleDir)
-staleOutput <- tryCatch(
-  suppressWarnings(system2(
-    file.path(R.home("bin"), "R"),
-    c("CMD", "SHLIB", "stale.c"),
-    stdout = TRUE,
-    stderr = TRUE
-  )),
-  error = function(e) e
-)
-setwd(owd)
-
-staleLib <- file.path(staleDir, paste0("stale", .Platform$dynlib.ext))
-if (!file.exists(staleLib)) {
-  if (nzchar(Sys.getenv("CI", ""))) {
-    stop(
-      "could not compile the stale-token C API consumer under CI:\n",
-      paste(staleOutput, collapse = "\n")
-    )
+# The handshake, D3: every stub enforces major-equality plus a minor floor by
+# default on its first resolution, and checks the exact-ABI hash too only when
+# the consumer opts in with DBARTS_REQUIRE_EXACT_ABI before including the
+# header. Five arms, each its own temp dir and object name (the loader caches
+# by path) and the same compile pattern as the consumer above, so each skips
+# wherever that one skips: (a) a wrong hash ALONE now passes silently - the
+# half proving the default gate does not look at it; (b) the same wrong hash
+# plus the opt-in macro raises the ABI mismatch; (c) and (d) a wrong major or
+# minor raise the version mismatch regardless of the opt-in; (e) the opt-in
+# macro alone, hash untouched, loads and calls clean - the configuration both
+# consumers ship. Arm (a) probes through capi_versions rather than
+# capi_create: the version accessors are allocation-free stubs, so the
+# handshake still runs on their first resolution without creating a sampler
+# whose finalizer would otherwise outlive this arm's dyn.unload.
+compileHandshakeConsumer <- function(label, extraFlags) {
+  dir <- tempfile(paste0("capi-", label))
+  dir.create(dir)
+  file.copy(consumerSource, file.path(dir, paste0(label, ".c")))
+  writeLines(
+    sprintf('PKG_CPPFLAGS = -I"%s" %s', includeDir, extraFlags),
+    file.path(dir, "Makevars")
+  )
+  owd <- setwd(dir)
+  output <- tryCatch(
+    suppressWarnings(system2(
+      file.path(R.home("bin"), "R"),
+      c("CMD", "SHLIB", paste0(label, ".c")),
+      stdout = TRUE,
+      stderr = TRUE
+    )),
+    error = function(e) e
+  )
+  setwd(owd)
+  lib <- file.path(dir, paste0(label, .Platform$dynlib.ext))
+  if (!file.exists(lib)) {
+    if (nzchar(Sys.getenv("CI", ""))) {
+      stop(
+        "could not compile the ",
+        label,
+        " C API consumer under CI:\n",
+        paste(output, collapse = "\n")
+      )
+    }
+    return(NULL)
   }
-} else {
-  staleDll <- dyn.load(staleLib)
+  lib
+}
+
+libWrongHashAlone <- compileHandshakeConsumer(
+  "stale-hash-alone",
+  "-DDBARTS_C_API_HASH=0x0123456789abcdefULL"
+)
+if (!is.null(libWrongHashAlone)) {
+  dllWrongHashAlone <- dyn.load(libWrongHashAlone)
+  versionsWrongHashAlone <- .Call(
+    getNativeSymbolInfo("capi_versions", dllWrongHashAlone)
+  )
+  expect_equal(versionsWrongHashAlone, c(1L, 0L))
+  dyn.unload(libWrongHashAlone)
+}
+
+libWrongHashExact <- compileHandshakeConsumer(
+  "stale-hash-exact",
+  "-DDBARTS_C_API_HASH=0x0123456789abcdefULL -DDBARTS_REQUIRE_EXACT_ABI"
+)
+if (!is.null(libWrongHashExact)) {
+  dllWrongHashExact <- dyn.load(libWrongHashExact)
   expect_error(
     .Call(
-      getNativeSymbolInfo("capi_create", staleDll),
+      getNativeSymbolInfo("capi_create", dllWrongHashExact),
       spec$control,
       spec$model,
       spec$data,
@@ -1755,5 +1897,62 @@ if (!file.exists(staleLib)) {
     ),
     "dbarts C ABI mismatch"
   )
-  dyn.unload(staleLib)
+  dyn.unload(libWrongHashExact)
+}
+
+libWrongMajor <- compileHandshakeConsumer(
+  "stale-major",
+  "-DDBARTS_C_API_MAJOR=99"
+)
+if (!is.null(libWrongMajor)) {
+  dllWrongMajor <- dyn.load(libWrongMajor)
+  expect_error(
+    .Call(
+      getNativeSymbolInfo("capi_create", dllWrongMajor),
+      spec$control,
+      spec$model,
+      spec$data,
+      ""
+    ),
+    "dbarts C API version mismatch"
+  )
+  dyn.unload(libWrongMajor)
+}
+
+libWrongMinor <- compileHandshakeConsumer(
+  "stale-minor",
+  "-DDBARTS_C_API_MINOR=99"
+)
+if (!is.null(libWrongMinor)) {
+  dllWrongMinor <- dyn.load(libWrongMinor)
+  expect_error(
+    .Call(
+      getNativeSymbolInfo("capi_create", dllWrongMinor),
+      spec$control,
+      spec$model,
+      spec$data,
+      ""
+    ),
+    "dbarts C API version mismatch"
+  )
+  dyn.unload(libWrongMinor)
+}
+
+libCorrectExact <- compileHandshakeConsumer(
+  "correct-exact",
+  "-DDBARTS_REQUIRE_EXACT_ABI"
+)
+if (!is.null(libCorrectExact)) {
+  dllCorrectExact <- dyn.load(libCorrectExact)
+  ptrCorrectExact <- .Call(
+    getNativeSymbolInfo("capi_create", dllCorrectExact),
+    spec$control,
+    spec$model,
+    spec$data,
+    ""
+  )
+  expect_false(is.null(ptrCorrectExact))
+  rm(ptrCorrectExact)
+  invisible(gc(FALSE))
+  dyn.unload(libCorrectExact)
 }

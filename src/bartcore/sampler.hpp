@@ -1208,7 +1208,7 @@ public:
     options_.numThin = numThin;
     for (auto& chain : chains_) chain->setNumThin(numThin);
   }
-  void setVerbose(bool verbose, std::uint32_t printEvery) {
+  void setVerbose(bool verbose, size_t printEvery) {
     options_.verbose = verbose;
     options_.printEvery = printEvery;
     for (auto& chain : chains_) chain->setVerbose(verbose, printEvery);
@@ -1292,16 +1292,16 @@ public:
   }
 
   /// Info dump of forest forestIndex; the per-node output format is R-visible
-  /// and pinned by tests. Without keepTrees the live trees print and sample
-  /// indices are ignored; with it, sampleIndices are DRAW numbers on the same
-  /// oldest-first axis predict and getTrees report, and the draws they name
-  /// print in the saved-tree format. treeIndices are read against the NAMED forest's tree
-  /// count, which a multi-forest sampler states per forest; range-checking is
-  /// the bridge's, as everywhere here.
+  /// and pinned by tests. Without keepTrees, or with useLiveTrees, the live
+  /// trees print and sample indices are ignored; otherwise sampleIndices are
+  /// DRAW numbers on the same oldest-first axis predict and getTrees report,
+  /// and the draws they name print in the saved-tree format. treeIndices are
+  /// read against the NAMED forest's tree count, which a multi-forest sampler
+  /// states per forest; range-checking is the bridge's, as everywhere here.
   void printTrees(const size_t* chainIndices, size_t numChainIndices,
                   const size_t* sampleIndices, size_t numSampleIndices,
                   const size_t* treeIndices, size_t numTreeIndices,
-                  size_t forestIndex) {
+                  size_t forestIndex, bool useLiveTrees) {
     int indent = 0;
     for (size_t i = 0; i < numChainIndices; ++i) {
       size_t chainNum = chainIndices[i];
@@ -1309,7 +1309,7 @@ public:
         ext_printf("chain %lu\n", static_cast<unsigned long>(chainNum + 1));
         indent += 2;
       }
-      if (!options_.keepTrees) {
+      if (useLiveTrees || !options_.keepTrees) {
         for (size_t k = 0; k < numTreeIndices; ++k)
           chains_[chainNum]->printTree(treeIndices[k], indent, forestIndex);
       } else {

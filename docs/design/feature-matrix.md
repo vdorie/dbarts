@@ -248,11 +248,11 @@ every non-gaussian family R-side at spec.R:390-396. The engine family stays
 shipped header: ordinal needs the `bartcore.n.categories` control attribute
 (RIB:461), nbinom `bartcore.dispersion` (RIB:475), grouped `bartcore.groups`
 (RIB:1908), heteroscedastic `bartcore.variance` (RIB:1998). The header's
-`family` documentation (CAPI:654-663, on `dbarts_sampler_create`; NOT
-CAPI:443-462, which is the `DBARTS_C_API_LIST` X-macro body and never carried
-it) names only probit, logistic, gaussian and aft, and the K-forest paragraph
-beside it (CAPI:668-690) now names gaussian, probit and logistic, M4.4 having
-replaced its "Gaussian responses only" at CAPI:686-690.
+`family` documentation (CAPI:713-723, on `dbarts_sampler_create`; NOT
+CAPI:479-498, which is the `DBARTS_C_API_LIST` X-macro body and never carried
+it) names only probit, logistic, gaussian and aft. The K-forest paragraph
+beside it (CAPI:739-761) now names gaussian, probit and logistic, M4.4 having
+replaced its "Gaussian responses only" at CAPI:757-761.
 
 [f4] `dbarts(x, y, family = "multinomial")` (matrix interface only) accepts a
 counts matrix or a factor/character/integer-code response, one-hot expanded
@@ -429,7 +429,7 @@ still reporting a simplex) and the `setForestWeights` model-grounds refusal
 two new equivalence.R scenarios (maskprobit, maskordinal) and one
 bcf-equivalence.R scenario (masked, pinning BCF - see [f26]). The
 flat-C entry, `dbarts_sampler_setActiveRows`, LANDED at dbarts-h-reshape
-S1 (ab3aa2fa, 2026-08-13; body `C_interface.cpp:1067-1076`): the
+S1 (ab3aa2fa, 2026-08-13; body `C_interface.cpp:1137-1146`): the
 capability probe on `shape.supportsActiveRows` runs first and never
 switches on family, so a probit sampler is reachable from C too - an
 amend over this section's own proposed probit refusal, since every
@@ -486,7 +486,7 @@ than merely permitted; plus the refusal matrix, every mutation channel the
 reported value must not surprise on, and the save/load round trip), and a
 component test at the engine boundary (`testForestCalibration`,
 tests/cpp/test_sampler.cpp:6389). **S3**, the flat C entries
-(`dbarts_sampler_forestCalibration`/`setForestPriorScale`,
+(`dbarts_sampler_getForestCalibration`/`setForestPriorScale`,
 `inst/include/dbarts/dbarts.h`), LANDED at dbarts-h-reshape S1 (ab3aa2fa,
 2026-08-13) - the R-user-facing capability above was already `S` before S3,
 since the flat-C gap never gated a `dbartsSampler` caller; S3 closes the

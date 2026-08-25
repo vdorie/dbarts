@@ -564,7 +564,7 @@
             and state save and restore. Entry points are reached through
             \code{R_GetCCallable} and versioned by \code{DBARTS_C_API_MAJOR}
             and \code{DBARTS_C_API_MINOR}, with \code{dbarts_apiHash()} as an
-            exact signature check.
+            opt-in exact-ABI check, which moves on additive releases as well.
             It replaces the removed C++ interface in
             \code{dbarts/R_C_interface.hpp}.
       \item Every chain runs its own generator. \code{seed} makes results
@@ -968,9 +968,9 @@
       \item The C API reaches Bayesian causal forests:
             \code{dbarts_sampler_numForests} reports the model's forest count,
             \code{dbarts_sampler_setForestBasis} swaps a forest's basis, and
-            \code{dbarts_sampler_forestFits} and the amplitude pair
+            \code{dbarts_sampler_getForestFits} and the amplitude pair
             (\code{dbarts_sampler_numForestAmplitudes},
-            \code{dbarts_sampler_forestAmplitudes}) read the per-forest fits
+            \code{dbarts_sampler_getForestAmplitudes}) read the per-forest fits
             and the amplitudes the two combine through.
             \code{dbarts_sampler_setResponse} takes an explicit
             \code{updateScale} argument matching
@@ -992,15 +992,15 @@
       \item \code{dbarts_sampler_numTrees}, \code{dbarts_sampler_getTrees} and
             \code{dbarts_sampler_printTrees} take a forest index, so they are
             unambiguous on a two-forest sampler; \code{dbarts_apiHash()} gives
-            a consumer an exact signature-lockstep check alongside the
+            a consumer an opt-in exact-ABI lockstep check alongside the
             major/minor handshake; and \code{dbarts_sampler_setForestWeights},
             \code{dbarts_sampler_setActiveRows},
-            \code{dbarts_sampler_forestCalibration} and
+            \code{dbarts_sampler_getForestCalibration} and
             \code{dbarts_sampler_setForestPriorScale} reach the per-forest
             weight, active-row mask and leaf-prior calibration channels from C.
       \item A C host reads the negative-binomial dispersion \eqn{r}{r} without
             an R round trip: \code{dbarts_results} gains a \code{dispersion}
-            field shaped as \code{sigma}, and \code{dbarts_sampler_dispersion}
+            field shaped as \code{sigma}, and \code{dbarts_sampler_getDispersion}
             reads the value in force mid-sweep, returning 0 and touching
             nothing off a family carrying none. The field is appended, so a
             consumer compiled against the smaller struct is unaffected.
@@ -1019,6 +1019,30 @@
             one's call sites change; every consumer checking
             \code{dbarts_apiHash()} against the header constant must be
             rebuilt - the lockstep handshake as designed.
+      \item A \code{dbarts_family} enum replaces the stringly-typed
+            \code{family} argument of \code{dbarts_sampler_create},
+            \code{dbarts_drawLatents} and \code{dbarts_workingResponse}, and a
+            new \code{dbarts_sampler_family} accessor reports the family a
+            sampler was built with (or what \code{DBARTS_FAMILY_AUTO} resolved to).
+            \code{dbarts_sampler_getForestFits},
+            \code{dbarts_sampler_getForestAmplitudes},
+            \code{dbarts_sampler_getDispersion} and
+            \code{dbarts_sampler_getForestCalibration} are renamed from
+            \code{dbarts_sampler_forestFits},
+            \code{dbarts_sampler_forestAmplitudes},
+            \code{dbarts_sampler_dispersion} and
+            \code{dbarts_sampler_forestCalibration}, matching the \code{get}
+            verb every other reader already carries.
+            \code{dbarts_sampler_setVerbose}'s \code{printEvery} widens from
+            \code{uint32_t} to \code{size_t}, and
+            \code{dbarts_sampler_printTrees} gains a \code{useLiveTrees}
+            argument matching \code{dbarts_sampler_getTrees}'s. The
+            \code{DBARTS_USE_STUBS} handshake now enforces
+            \code{dbarts_apiMajorVersion}/\code{dbarts_apiMinorVersion} by
+            default on every stub's first resolution; the exact-ABI hash check
+            is opt-in, behind \code{DBARTS_REQUIRE_EXACT_ABI} defined before
+            including the header. \code{DBARTS_C_API_HASH} is re-baked again
+            for this surface.
     }
   }
   \subsection{BUG FIXES}{
