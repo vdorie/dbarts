@@ -4,7 +4,7 @@ Status: design settled 2026-08-25, after an independent blind critique
 of 35 findings (33 accepted, 1 settled on different grounds, 1
 disputed as stated with its remedy accepted; section 9). LANDED
 2026-08-25; section 11 records what shipped and what differs from the
-proposal. Anchor: bartcore e654012d - every citation below was
+proposal. Anchor: bartcore 6446ddce - every citation below was
 re-verified live against that tree.
 
 ## 1. The ruling

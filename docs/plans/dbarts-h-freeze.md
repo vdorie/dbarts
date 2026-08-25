@@ -1,6 +1,6 @@
 # dbarts.h freeze fixes (D4) and the stub version check (D3)
 
-Status: DESIGNED 2026-08-25, not started.
+Status: LANDED 2026-08-25 at 6446ddce (design record f162d075).
 
 Spec: docs/plans/prerc-surface-freeze.md D3, D4, Sequencing. TODO `dbarts-h-freeze-fixes` and `stub-version-check` are ONE slice - one hash re-bake, one lockstep consumer
 rebuild. Evidence: review-2026-08-24/memos/prerc-lens1-surface.md A1, A2, A6, A8, A9, A10, re-anchored live. Revised 2026-08-25 after an independent critique and two orchestrator rulings under the standing grant
@@ -178,3 +178,25 @@ bench-sampler-ab1dc52.csv` on a quiet machine; `tools/check-doc-freshness.R`; `a
 ## 8. Open sub-choices
 
 None. Both are settled by VD, 2026-08-25: the naming rule and the fourth rename in section 2, the consumer lockstep macro and its release-time removal in section 6.
+
+## Landing note
+
+LANDED 6446ddce (design record f162d075): TODO `dbarts-h-freeze-fixes` and `stub-version-check` (prerc-surface-freeze.md D3, D4) in one slice. `dbarts_family`
+enum (AUTO..MULTINOMIAL = 0..8) on create/drawLatents/workingResponse plus a `dbarts_sampler_family` accessor; four get renames (getForestFits,
+getForestAmplitudes, getDispersion, getForestCalibration); `int32_t` on cscColumnPointers/cscRowIndices/leafModel; `printEvery` widened to `size_t` end to
+end; `printTrees` gains `useLiveTrees`; stubs check major == and minor >=, hash equality now opt-in behind `DBARTS_REQUIRE_EXACT_ABI`. `DBARTS_C_API_HASH`
+0x66d33f1613892406 -> 0x0939c0224353505b; entries 47 -> 48.
+
+Rulings (orchestrator discretion, standing grant): forestCalibration folds into the get form (an entry mirrors its R5 twin; out-pointer readers carry get,
+storeState stays); consumers keep lockstep via `DBARTS_REQUIRE_EXACT_ABI`, dropped at the coordinated 1.0 merge.
+
+Gates: tests/cpp 268 ok; tinytest 7290/0; equivalence 43/12/11 bitwise identical; air+lintr clean; freshness 0 FAIL/71 WARN (70 at base, the 2 excess
+pre-existing inside multinomial-mutation-arc.md's frozen sections); check-rc-codoc OK; NEWS 336; R CMD check --as-cran 0E/0W/1N; header compile matrix
+clean; the D3 mutation probe fails exactly the wrong-major and wrong-minor tests. Consumers, both opting into `DBARTS_REQUIRE_EXACT_ABI`: stan4bart bartcore
+33b4aa8 (531/531 at_home), treatSens dbarts-1.0 1db3d89 (186/0; check 0E plus pre-existing env W/N); bartCause is header-free.
+
+Residue, recorded not fixed: a heteroscedastic sampler answers `DBARTS_FAMILY_GAUSSIAN` while setSigma still refuses it; `sampler$model@family` can read
+"auto" on a hand-built model; the flat printEvery entry does not guard 0 (the C++ bridge does; R's printEvery %/% n.thin can reach 0).
+
+Doors: drop `DBARTS_REQUIRE_EXACT_ABI` from both consumers at the coordinated 1.0 merge; the additive post-1.0 flat readers stay where
+prerc-surface-freeze.md lists them.

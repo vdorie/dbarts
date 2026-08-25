@@ -71,11 +71,6 @@ items
     with EXACT pure-AR-1 errors a deferred ENGINE door (banded
     residual precision + cross-leaf GLS leaf updates break per-leaf
     independence). causal-motivated, decision-gated.
-  dbarts-h-freeze-fixes: int32_t spelling, size_t printEvery, one
-    reader-name form, printTrees useLiveTrees, a family accessor
-    returning an enum; one hash re-bake, lockstep consumer rebuilds
-    (docs/plans/prerc-surface-freeze.md D4). Pre-RC by rule; first
-    with stub-version-check.
   deprecation-shim-removal: delete predict.rbart's value= and
     "post-mean" shims - nothing released to deprecate from
     (docs/plans/prerc-surface-freeze.md D5). Pre-RC by rule.
@@ -272,10 +267,6 @@ items
     widths: gate STANDS - perf/memory only with no measured win;
     reopen with numbers. setData on a CSC/mixed store and
     per-observation CSC mutation are recorded typed-ingestion doors.
-  stub-version-check: the dbarts.h stub path checks major == and
-    minor >= as the header promises; hash equality becomes the opt-in
-    lockstep check (docs/plans/prerc-surface-freeze.md D3). Pre-RC by
-    rule; first, with dbarts-h-freeze-fixes.
   surface-smalls: one forest-argument convention across the four
     accessors, fitted() type vocabulary equal to predict()/extract(),
     usage entries for the 15 alias-only S3 methods
@@ -348,6 +339,10 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     "Known open"). The fix is bartCause's, pending on its dbarts-1.0
     branch; submit dbarts regardless and re-verify bartCause once its
     fix lands.
+  drop DBARTS_REQUIRE_EXACT_ABI from stan4bart (src/Makevars.in,
+    src/Makevars.win) and treatSens (src/R_interface.cpp,
+    src/bartTreatmentModel.cpp, src/sensitivityAnalysis.cpp) at the
+    coordinated 1.0 merge.
   close GitHub issue #80 at release: fully resolved by the
     setResponse updateScale switch - default FALSE locks the
     creation-time prior scale, the safe embedded-Gibbs behavior the

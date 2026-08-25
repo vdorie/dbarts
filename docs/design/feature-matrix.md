@@ -34,7 +34,7 @@ Path aliases used in anchors:
     sampler.Rd -> man/dbartsSampler-class.Rd     bart.Rd -> man/bart.Rd
     bart2.Rd -> man/bart2.Rd
 
-Anchors are verified BY CONTENT against the tree at e654012d - the cited line
+Anchors are verified BY CONTENT against the tree at 6446ddce - the cited line
 holds the construct the cell names, never an offset from another anchor - and a
 cell's VALUE is adjudicated separately from its anchor.
 

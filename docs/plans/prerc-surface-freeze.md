@@ -1,8 +1,10 @@
 # Pre-RC surface freeze: decisions
 
 Status: DECIDED 2026-08-25 (VD, adopting the orchestrator's
-recommendations as written; no work started). Work items carry TODO
-entries named below. Evidence: the three pre-RC lens reports tracked at
+recommendations as written); D3 and D4 LANDED 6446ddce
+(docs/plans/dbarts-h-freeze.md), the other seven decided, not
+started. Work items carry TODO entries named below. Evidence: the
+three pre-RC lens reports tracked at
 docs/plans/review-2026-08-24/memos/prerc-lens1-surface.md,
 prerc-lens2-backlog.md, prerc-lens3-external.md (findings cited by
 their labels there).
