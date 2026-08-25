@@ -294,7 +294,7 @@ variableCounts (mu-forest diagnostics) are unaffected by the move.
 
 ### 5a. Pure-R prototype (RUN -- adversarial check on the algebra)
 
-`/Users/vdorie/.claude/jobs/7fe13675/tmp/proto.R`. Reduction used: since the
+An untracked prototype script, run. Reduction used: since the
 likelihood is constant along the orbit, the move preserves the posterior IFF
 it preserves the PRIOR's along-orbit conditional. So draw `(a, mu)` from the
 prior (`a ~ half-normal(sd sqrt(aVariance))` on the a>0 branch, `mu_l ~

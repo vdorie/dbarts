@@ -2,7 +2,7 @@
 
 Status: ACCEPTED (VD 2026-08-11), text amended (the text in "The
 principle" below). Arc record, 2026-08-11. Artifacts (gitignored):
-`.claude/r-c-division-design/{memo.md,critique.md,guide-memo.md}` - a
+untracked {memo.md,critique.md,guide-memo.md} files - a
 channel-by-family census memo, its adversarial critique (fifteen probe
 scripts, run against a private build of b70b373), and a guide-first
 memo written after VD twice corrected the framing ("a principle ...

@@ -186,7 +186,7 @@ items
     per-slice gate structure cannot see
     (docs/plans/release-candidate-review.md). The second whole-branch
     review's calibration lane found 8 BLOCKERS/44 MAJORS/35 MINORS
-    confirmed (scratch/review-2026-08-24/consolidated-report.md).
+    confirmed (docs/plans/review-2026-08-24/consolidated-report.md).
     Family 1, correctness
     beyond the gates' reach - the slice batteries prove diffs neutral
     against agent-recorded baselines, never that the baselines were

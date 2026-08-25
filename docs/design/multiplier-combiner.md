@@ -270,7 +270,7 @@ reuses it verbatim -- no new RNG. `B=0 -> Gamma(p, rate A/2)`,
 `A=0 -> inverse-gamma`. A single GIG draw covers every regime below.
 
 **Pure-R prototype (adversarial check on the algebra) -- PASSED.**
-`/Users/vdorie/.claude/jobs/7fe13675/tmp/proto-b.R`. Same logic as the a-memo:
+An untracked prototype script, run and passed. Same logic as the a-memo:
 the likelihood is constant along the orbit, so the move preserves the posterior
 IFF it preserves the PRIOR's along-orbit conditional. Draw `(b0,b1,tau)` from
 the prior (`b0,b1 ~ N(0,sB2)`, `tau_l ~ N(0,leafVar_tau)` iid), apply ONE move
@@ -657,7 +657,7 @@ sampler, AGREES with leg P's INDEPENDENT reference - approximate by
 construction, carrying its own convergence gate at max R-hat 1.0003 against
 1.01, and never called exact - at max |z| = 1.46, and with decisive arm B at
 max |z| = 1.73 (threshold 3.0 on both, 12 functionals,
-`.claude/m4-basis-design/harness/fa5-latent-coupling.R`). The pinned sigma
+the FA5 harness). The pinned sigma
 costs no measurable mixing: arm E's IACT is at or below arm B's on 8 of 12
 functionals. The anchor's own gate (checklist item 25, a prior-predictive
 exactness check) was SUBSTANTIATED by mutation builds rather than asserted -

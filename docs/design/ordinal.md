@@ -136,8 +136,8 @@ is probit's one-sided draw, so the convention degenerates to probit exactly.
 
 The candidates, and a mixing study (no trees - see the honest caveat) comparing
 cutpoint effective sample size (ESS) across samplers, at
-benchmarks/... (script currently /Users/vdorie/.claude/jobs/b073bb28/tmp/
-ordinal-cutpoint-mixing.R; promote to benchmarks/R/ordinal-cutpoint-mixing.R if
+benchmarks/... (script currently untracked, not yet
+promoted to benchmarks/R/ordinal-cutpoint-mixing.R; promote it if
 kept). Ordinal probit, sigma = 1, gamma_1 = 0, an intercept+slope linear mean
 drawn by a conjugate Gibbs step so the location floats; 6000 iterations, 1500
 burn-in, seed 20260718. ESS is the mean over free cutpoints (initial-positive-

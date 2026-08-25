@@ -59,8 +59,8 @@ engine's BCF model does not change.
 
 ## Adjudication: corrected facts this plan is built on
 
-The design memo and its blind refuting critique sit in
-`.claude/bcf-public-surface-design/`, which is GIT-IGNORED. This file is the
+The design memo and its blind refuting critique are untracked.
+This file is the
 only tracked record and carries the load-bearing facts rather than pointing at
 them. Verdict STANDS WITH AMENDMENTS. Every anchor below was re-read against
 the live tree at b374d9e; probes were re-run and extended.
@@ -700,7 +700,7 @@ all four.
 ## TODO edits at landing
 
 - `bcf-public-surface`: replace the entry with the landing record - plan doc
-  path, artifacts under `.claude/bcf-public-surface-design/`, the slices landed,
+  path, the slices landed,
   and the naming VD chose. Correct its own stale anchor `R/bartcore.R:536` to
   `bartcoreBCFSampler (R/bartcore.R)`, and drop the "Shape fork at design time"
   sentence, which is answered.

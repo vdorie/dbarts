@@ -70,8 +70,7 @@ lives only where the runaway is generated.
 
 - man/dbartsPriors.Rd chi() entry: one sentence noting the sampled k is capped
   at 1e6, the regime an improper scale can otherwise drift toward. ASCII-clean.
-- Gates (worktree, private library
-  /Users/vdorie/.claude/jobs/7fe13675/tmp/Rlib-chik):
+- Gates (worktree, private library, session-local, not retained):
   1. R CMD INSTALL --preclean -l <lib> - DONE (dbarts).
   2. tests/cpp clean rebuild, ./test_bartcore - exit 0, 93 ok lines, "all
      tests passed", including "ok: chi-k hyperprior".

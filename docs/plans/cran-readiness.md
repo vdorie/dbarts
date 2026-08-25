@@ -372,7 +372,7 @@ pass. Three results need a decision:
    through (R/data.R:766, deliberate, comment records the change) and
    then errors "response contains missing values".
 3. `bartCause` - 1 NOTE, not a dbarts issue: the tarball built from the
-   local working copy carried `.claude/`, which its `.Rbuildignore` did
+   local working copy carried a `.claude` directory, which its `.Rbuildignore` did
    not exclude (dbarts excludes it via `^\.claude$`). RESOLVED the same
    day by VD (bartCause 695c603); re-checked against that commit,
    Status OK. With bartCause resolved the sweep stands at 22 of 24 OK;

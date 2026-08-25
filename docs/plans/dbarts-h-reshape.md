@@ -67,8 +67,8 @@ tip: anchors first read at 2e50cf1, RE-VERIFIED BY SYMBOL against the live tree
   `updateScale` (X-list `dbarts.h:188-189`, prototype `:393-394`), and the flat
   BCF creation path is live. This arc's own S0 landed a262cd26;
   multiforest-extension-surface M1 (05ac3b4b) and M2 (64b13b98) landed after
-  it. Design artifacts (memo, blind refuting critique, two probes) sit at
-  `.claude/dbarts-h-reshape-design/`, which is GIT-IGNORED - this plan is the
+  it. Design artifacts (memo, blind refuting critique, two probes) are
+  untracked - this plan is the
   only tracked record and carries the load-bearing facts rather than pointing
   at them.
 
@@ -567,7 +567,7 @@ landing note below. Kept unrewritten as the record of what was asked.
    printing today's output byte-for-byte on both.
 
 rng: NEUTRAL. Gates: `R CMD INSTALL --preclean` into
-`.claude/dbarts-h-reshape-design/privlib` with `R_LIBS` set (a facade virtual
+a private library with `R_LIBS` set (a facade virtual
 moves - a stale object bus-errors; never the user library); delete the
 `benchmarks/kernels` binaries (no header dependency tracking); `tests/cpp` from
 clean, plain AND ASAN (`ASAN_OPTIONS=detect_container_overflow=0`); full
@@ -1499,8 +1499,7 @@ prior version exists to have changed from (binding decision 8).
    that the flat response-side `refuseMultiForestMutation` guards be preserved,
    and bcf-public-surface S3 item 2 relaxes exactly those guards by decision.
 6. **`TODO`.** Replace the typed-ingestion door-status reshape sentence with the
-   landing record: plan path, artifacts under
-   `.claude/dbarts-h-reshape-design/`, the slices landed, and the fact that no
+   landing record: plan path, the slices landed, and the fact that no
    version constant moved. Correct the "consumer cost: a stan4bart predict sweep
    only" estimate to "five stan4bart call sites (predict, getTrees, printTrees,
    numTrees x2); treatSens, bartCause and bairrtt rebuild only". Add to the
@@ -1794,8 +1793,8 @@ than left to look like an oversight.
 
 S2 LANDED, 2026-08-13. In-repo docs+TODO half at 1bf2e69c, amended once
 after an independent review (verdict LAND-AFTER-CHANGES -> applied): the
-durable artifact directory is `.claude/dbarts-h-reshape-design/` in the
-main checkout - the implementer's `.claude/reshape-design/` ruling was
+durable artifact directory's name had drifted - the implementer wrote
+into a differently-named untracked directory than the designated one,
 itself the drift - and the 2026-08-13 scoping/handoff notes were copied
 into the durable directory; the INDEX row was corrected to MIXED pending
 this commit; the exact-offset-lock citation was redone by symbol; two hash

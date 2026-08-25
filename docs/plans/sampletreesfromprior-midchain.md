@@ -46,7 +46,7 @@ restart on a latent family follows with setResponse. Shape B
 (init-only guard) is dead: every candidate predicate refuses the SBC
 harness, whose rep-r+1 reset immediately follows rep r's run.
 Design artifacts (memo, refuting critique, synthesis, consumer
-census) are durable at <repo>/.claude/stfp-midchain-design/;
+census) are durable but untracked;
 the critique verdict was STANDS WITH AMENDMENTS, its A1-A9 adopted -
 notably A3 (the growFromRoot exposure the memo had declared safe) and
 A1 (the displacement is totalOld minus a per-observation mixture of

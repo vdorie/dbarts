@@ -16,7 +16,7 @@ Carries the `backlog-value-scan` TODO entry as section 7. Method was design memo
 -> blind refuting critique -> this synthesis; the critique's verdict was STANDS
 WITH AMENDMENTS, and where memo and critique conflict this record follows the
 critique except at two line-number claims re-checked here (section 8). Working
-papers: `.claude/model-space-survey/memo.md`, `critique.md`, `synthesis.md`.
+papers are untracked: `memo.md`, `critique.md`, `synthesis.md`.
 
 Summary: door 1 (multi-forest whole-data `setData`, n free) and door 3
 (`setData` on CSC/mixed stores) both stay UNDESIGNED - no verified model class
@@ -620,7 +620,7 @@ Every TODO entry carrying `decision-gated`, `consumer-gated`, `no demand`,
 enabling-value rule. The memo scanned 21 rows over 15 entries and claimed 12
 lifts; the critique cut that to **~8 effective**, and this record follows the
 critique. The proposed entry edits are in
-`.claude/model-space-survey/todo-draft.md`.
+an untracked todo-draft memo.
 
 **Lifted (8 rows, 6 entries), each naming the model that lifts it:**
 `gp-followups` (GP-leaf BART as a sequential-design surrogate, where a fixed

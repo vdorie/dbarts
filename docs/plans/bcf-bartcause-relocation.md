@@ -9,8 +9,8 @@ marked MEASURED was produced by a read-only probe against a private library
 carrying dbarts at that tip.
 
 The design-session artifacts - the two-repo census, three blind critiques with
-their adjudications, and the B0 suite measurement (2026-08-15/16) - sit in
-`.claude/bcf-s5-relocation/`, which is GIT-IGNORED. This file is the only
+their adjudications, and the B0 suite measurement (2026-08-15/16) - are
+untracked. This file is the only
 tracked record and carries the load-bearing facts rather than pointing at them.
 
 agent: D2 sonnet (three R-surface guards). D3 opus (the arc's one ENGINE slice).
@@ -1646,9 +1646,9 @@ sanctioned bypass), and the `$bc`-handle R wrapper for the bridge
 entry existed to plant mutation M3 and was unreachable from the public
 families until the multinomial mutation arc replaced the host shell:
 `$bc` and the host shell are deleted (multinomial-mutation-arc.md S4).
-The binding spec lived at gitignored scratch/
-predict-replay-slice-spec.md (critique-amended); this note is the
-durable record.
+The binding spec lived at
+docs/plans/review-2026-08-24/memos/predict-replay-slice-spec.md
+(critique-amended); this note is the durable record.
 
 2026-08-24: the combined-predict door DISCHARGED at dbarts 139a1976 ("Blend the
 per-forest replay into combined predictions at new rows"). R-only, 792 raw added /

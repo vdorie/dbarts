@@ -266,8 +266,8 @@ set_treatment  MISMATCH in: mu, tau, glue, sigma, train      varcount IDENTICAL
   forest-combiner.md`, `docs/design/model-space-survey.md` door 2. Related
   plans: `docs/plans/forest-combiner.md` (the mandated BCF gate set),
   `docs/plans/sigma-df-zero-weights.md`.
-- Design artifacts (memo, blind refuting critique) sit at
-  `.claude/zero-weight-exactness-design/`, which is GIT-IGNORED - this plan is
+- Design artifacts (memo, blind refuting critique) are
+  untracked - this plan is
   the only tracked record, so it carries the load-bearing facts rather than
   pointing at them. Verdict STANDS WITH AMENDMENTS; all four blocking and all
   thirteen advisory amendments are adopted, with the departures recorded at the

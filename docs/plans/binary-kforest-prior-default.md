@@ -4,9 +4,9 @@ Status: ARC COMPLETE 2026-08-15 (S0 4dbf2dbc, S1 0faeb416, S2 e623fbf3;
   landing notes at EOF). Specced 2026-08-15, two blind critique rounds discharged
   (0 BLOCKER, 6 MAJOR, 13 MINOR, all adopted; see "Critique adjudication").
   Owner forks 1 and 2 SETTLED by VD 2026-08-15 (see "Decisions"). Design
-  evidence is GIT-IGNORED session material under
-  `.claude/binary-kforest-prior/` (the verified census, and both critique
-  rounds), cited the way M4's plan cites `.claude/m4-basis-design/`; every
+  evidence is GIT-IGNORED session material
+  (the verified census, and both critique
+  rounds), the same house convention M4's plan follows; every
   load-bearing number is carried HERE rather than pointed at, since this file
   is the only tracked record.
 agent: S0 opus (a mandated oracle; the fixture is the whole deliverable and a
@@ -70,7 +70,7 @@ re-opens it - every number below is stated AT that anchor.
 ## The framing constraint, stated first
 
 The mixing hypothesis this slice was ticketed on is DEAD. M4.4's arm E
-(`.claude/m4-basis-design/arm-e-2026-08-14.md`, GIT-IGNORED session evidence,
+(GIT-IGNORED session evidence,
 so its numbers are carried in the M4.4 landing note at the EOF of
 `docs/plans/multiforest-extension-surface.md` and repeated here) measured the
 native K-forest probit sampler against an R-composed arm B and an independent
@@ -1263,7 +1263,7 @@ legitimately becomes NA on a K-forest sampler.
 ## Discrepancies (against the census)
 
 Recorded where this design disagrees with the verified census
-(`.claude/binary-kforest-prior/census.md`, GIT-IGNORED session evidence; every
+(GIT-IGNORED session evidence; every
 fact it carries that this plan relies on is restated here) or adds to it. The
 census's symbol citations all held; these are corrections of detail and of
 consequence.
@@ -1356,7 +1356,7 @@ comparator) are folded in above.
 
 ## Critique adjudication
 
-Blind critique at `.claude/binary-kforest-prior/critique.md` (GIT-IGNORED
+Blind critique (GIT-IGNORED
 session evidence; both rounds' findings and their adjudications are recorded in
 full below, so nothing load-bearing lives only there), read against tree
 `55cc1756`; this document is now at `ffb9959c` (three docs-only commits; no

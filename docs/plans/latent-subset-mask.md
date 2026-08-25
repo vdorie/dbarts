@@ -28,7 +28,7 @@ budget: ~465 engine + ~95 bridge + ~50 R + ~160 docs code lines, ~135
   `numChains * n` extra doubles for the per-chain mask buffer and composite.
   Budgets are sized to the MANDATED ORACLES, not the engine delta.
 
-(artifacts `.claude/latent-subset-mask-design/` - memo, critique, synthesis,
+(artifacts untracked - memo, critique, synthesis,
 synthesis-verification. Gitignored; this plan is the tracked record and carries
 the load-bearing facts rather than pointing at them.)
 

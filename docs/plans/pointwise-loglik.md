@@ -101,8 +101,8 @@ against hand-computed densities on the stored draws:
 
 ## Verification
 
-Gates, worktree at .claude/worktrees/pointwise-loglik, private library
-/Users/vdorie/.claude/jobs/7fe13675/tmp/Rlib-land:
+Gates, worktree pointwise-loglik, private library
+(session-local, not retained):
 
 1. R CMD INSTALL -l <lib> (no --preclean).
 2. tinytest::test_package("dbarts") - baseline 2557 passed / 0 failed plus

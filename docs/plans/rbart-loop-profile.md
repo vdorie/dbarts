@@ -51,7 +51,7 @@ verbose=FALSE, synthetic gaussian data (5 predictors, a Friedman-like
 f, iid N(0,1) group effects, N(0,1) noise), fresh RNG per run (no
 seed - rng is neutral for this item). 5 interleaved A/B pairs per cell
 (order A,B,A,B,...), medians reported. Scratch harness (not checked
-in): `/Users/vdorie/.claude/jobs/7fe13675/tmp/measure.R`.
+in, not retained).
 
 ### Cell table (median seconds over 5 reps; 200 iterations/run)
 

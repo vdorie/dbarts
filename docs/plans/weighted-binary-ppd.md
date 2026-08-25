@@ -83,8 +83,8 @@ fits:
 
 ## Verification
 
-Gates, worktree at .claude/worktrees/weighted-binary-ppd, private library
-/Users/vdorie/.claude/jobs/7fe13675/tmp/Rlib-land:
+Gates, worktree weighted-binary-ppd, private library
+(session-local, not retained):
 
 1. R CMD INSTALL -l <lib> (R-only, no --preclean) - DONE (dbarts).
 2. tinytest::test_package("dbarts") - 2557 passed / 0 failed (2547 baseline

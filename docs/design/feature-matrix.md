@@ -360,7 +360,7 @@ aft takes `setSigma` and refuses `setWeights`.
 
 [f15] Arc `latent-subset-mask` (docs/plans/latent-subset-mask.md), design
 FINAL, ARC COMPLETE (S0
-through S4 LANDED); artifacts .claude/latent-subset-mask-design/. A first-class
+through S4 LANDED); artifacts are untracked. A first-class
 0/1 `setActiveRows` channel each family composes into its own precision vector,
 with the latent draw skipped for inactive rows. Slices: **S0** pins (no engine
 change); **S1** the channel plus gaussian, Student-t, probit, ordinal; **S2**
@@ -439,7 +439,7 @@ no-op, a fractional refusal, a NULL clear, and a probit mask moving
 draws). ARC FULLY COMPLETE, R and flat C alike.
 
 [f16] Arc `nameable-calibration` (docs/plans/nameable-calibration.md), design
-AMENDED FINAL, ARC COMPLETE; artifacts .claude/nameable-calibration-design/. Names the
+AMENDED FINAL, ARC COMPLETE; artifacts are untracked. Names the
 per-forest prior ANCHOR (`prior.scale`, the forest-total prior scale at k = 1,
 in response units) rather than an sd, with a `$getCalibration` /
 `$setCalibration` pair. Slices: **S0** signature freeze, LANDED 4c866286;

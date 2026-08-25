@@ -127,8 +127,8 @@ file hardcodes multi-chain combined gaussian ppd values.
 
 ## Verification
 
-Gates, worktree at .claude/worktrees/ppd-sigma-pairing, private library
-/Users/vdorie/.claude/jobs/7fe13675/tmp/Rlib-land:
+Gates, worktree ppd-sigma-pairing, private library
+(session-local, not retained):
 
 1. R CMD INSTALL -l <lib> (R-only, no --preclean) - DONE (dbarts).
 2. tinytest::test_package("dbarts") - 2590 passed / 0 failed (2581 baseline

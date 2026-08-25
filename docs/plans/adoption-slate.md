@@ -6,7 +6,7 @@ Status: IN PROGRESS 2026-08-15 (S1 LANDED 5bedf923, S2 LANDED da3c76f9,
   fix-verification round discharged (5 BLOCKER, 15 MAJOR, 23 MINOR, all
   adopted). Owner fork F1 SETTLED by VD 2026-08-15; F2-F6 and the slice
   adoptions resolved under the delegated grant; see "Decisions". Design evidence is GIT-IGNORED session material
-  under `.claude/adoption-slate-design/` (the tool-verified census, both
+  (the tool-verified census, both
   critiques, the verification pass and the working draft); every load-bearing
   number is carried HERE, since this file is the only tracked record. The
   slate this arc adopts is `docs/design/r-c-division.md`, "Adoption slate".
@@ -1028,7 +1028,7 @@ discriminate; the grouped refusal is family-keyed, not blanket; S4's `fit`
 argument is OFFSET-FREE; and two comparable figures were corrected under
 `git show --numstat` (0faeb416 tests 443, 33f6fdc non-test 245), which is what
 the raw-currency choice exists to make possible. Full per-finding records are
-in the gitignored `.claude/adoption-slate-design/revision-notes.md`.
+in an untracked, gitignored revision-notes memo.
 
 ## Landing note, S1 (appended 2026-08-15)
 

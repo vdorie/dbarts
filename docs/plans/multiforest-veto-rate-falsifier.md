@@ -4,13 +4,12 @@ status: RUN AND REPORTED (2026-08-09). Verdict: **YELLOW for both column
   types** - P1, P3 and L1' GREEN, M1 exactly 0, every validity gate passing,
   T1 YELLOW on its ratio clause alone. No KILL clause fired anywhere, so no
   fresh-seed confirmation was triggered. See "Results". Ratified design;
-  supersedes
-  `.claude/d1-veto-rate-falsifier/memo.md` and its critique wherever they
-  differ. Adjudication record: `.claude/d1-veto-rate-falsifier/synthesis.md`.
+  supersedes the prior (untracked) memo and its critique wherever they
+  differ.
 agent: opus (harness + analysis; no engine change)
 rng: neutral - measurement only. A GREEN verdict AUTHORIZES the
   `multiforest-predictor-mutation` design arc; it does not perform it.
-budget: harness only, under `.claude/d1-veto-rate-falsifier/harness/`;
+budget: harness only;
   nothing under `R/`, `src/`, `inst/`. ~700-850 lines across five files.
 window: none - no timing metric exists, so the measurement is
   load-insensitive. Runs on the laptop.
@@ -532,8 +531,8 @@ costs a design pass and a false GREEN costs an engine arc.
 ## Stage 0 FREEZE
 
 Written 2026-08-09, after V0-V3c and the calibration cells, before any gated
-number was read. Harness: `.claude/d1-veto-rate-falsifier/harness/`; cells
-under `.claude/d1-veto-rate-falsifier/results/`. Build: repo tip b4b8614,
+number was read. Harness and cells are session-local, not retained.
+Build: repo tip b4b8614,
 `R CMD INSTALL --preclean` into a private library.
 
 **Validity gates - all eight PASS.**
@@ -630,7 +629,7 @@ registered design.
 ## Harness, cost, machine
 
 ```
-.claude/d1-veto-rate-falsifier/harness/
+harness/
   oracle.R   routeTree(flat, x)        -> per-row leaf id + per-node counts   (V2)
              decodeVarianceForest(st)  -> the same flat frame from raw slots  (V2v)
              vetoWholeTransaction(trees, x, xnew, rows) -> logical, per ensemble
@@ -699,9 +698,8 @@ exported doubles, not SIMD paths). `R CMD INSTALL .` first; no
 
 Run 2026-08-09 at tip b4b8614 (deviation D1), single build,
 `R CMD INSTALL --preclean` into a private library, 8 workers on the laptop.
-1971 cells under `.claude/d1-veto-rate-falsifier/results/`; harness under
-`.claude/d1-veto-rate-falsifier/harness/`; the full emitted tables are
-`.claude/d1-veto-rate-falsifier/results.md`. No wall-clock quantity enters any
+1971 cells run; results, harness and the full emitted tables are
+session-local, not retained. No wall-clock quantity enters any
 metric. Reproducibility spot-checked as the Verification section requires: four
 cells re-run from scratch reproduced their install masks, per-row reject
 counts, veto sequences and `T_j` traces bitwise.

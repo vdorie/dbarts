@@ -456,8 +456,8 @@ Semantics this arc pins:
   deciding evidence (the "shape a consumer actually runs" framing above
   is retired). F7 and the S3 codegen A/B remain the pre-registered
   fallbacks to Branch B. S3 is the next slice.
-- Design artifacts (memo, blind critique, synthesis) are durable at
-  `.claude/cheap-uniformity-design/`. The critique's verdict was STANDS
+- Design artifacts (memo, blind critique, synthesis) are durable
+  but untracked. The critique's verdict was STANDS
   WITH AMENDMENTS; A1-A10 are adopted here, with two corrections recorded
   in the synthesis (A5's mechanism and A6's reachability route).
 

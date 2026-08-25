@@ -3,7 +3,7 @@
 Status: KILLED (measured), 2026-08-08. TODO `grow-from-root-default: RESOLVED
 NO`. This is the durable record of the pre-registered study and its result;
 working papers, the harness, and 98 checkpoints live in
-`.claude/grow-from-root-default-research/` (gitignored, not preserved).
+an untracked session directory (gitignored, not preserved).
 Pre-registration: `docs/plans/grow-from-root-default-study.md` (its Results
 section is the short form; this doc carries the full data and does not
 contradict it - see the Provenance section for one numeric discrepancy
@@ -51,7 +51,7 @@ flip the default.
 
 ## 2. Literature, as corrected
 
-Full detail: `.claude/grow-from-root-default-research/lit-conclusions.md`
+Full detail: an untracked companion document
 (gitignored working paper; this section compresses it and keeps every
 `[verified: url]` tag). The corrected reading is materially different from
 a first-pass reading of the same sources, and the corrections all widen the
@@ -244,7 +244,7 @@ gate (M0, below) had to run before anything else in it.
 
 ## 3. The design that survived measurement
 
-Full detail: `.claude/grow-from-root-default-research/synthesis.md`
+Full detail: an untracked companion document
 (gitignored). Three scratch probes against the installed package replaced
 several of the plan's asserted variances with measured ones and killed
 three proposed remedies outright - the design below is what was left after
@@ -1045,7 +1045,7 @@ full working-paper record exactly.
 `smoke.R`/`diag-root.R`/`probe-shapes.R`/`verify-threads.R`/`rerun.R`/
 `run-all.sh`), its 98 `.rds` checkpoints (~86 MB), and the working papers
 `results.md`, `lit-conclusions.md` and `synthesis.md` all live under
-`.claude/grow-from-root-default-research/` in this repository, which is
+an untracked session directory in this repository, which is
 entirely gitignored (`.gitignore:27`). None of it is preserved in git
 history at any commit. This design document is the only durable copy of
 the study's data; see section 8 for reconstructing the harness if a future

@@ -4,8 +4,8 @@
 # review.md wave 3). Seeded from the July poison sweep (docs/plans/
 # gate-blindspot-audit.md "## Status", POISON SWEEP table) and its follow-up
 # gates (docs/plans/gate-hardening-1.0.md), extended to R/ and to three
-# SURVIVE_DOCUMENTED entries from the P7 branch-reach feed
-# (.claude/rc-review-artifacts-2026-08-18/p7-branch-reach.md). Every site
+# SURVIVE_DOCUMENTED entries from the P7 branch-reach feed (an untracked
+# session file). Every site
 # below was RE-DERIVED against the current tree by symbol, not copied from
 # the July file:line anchors, which are months stale.
 #

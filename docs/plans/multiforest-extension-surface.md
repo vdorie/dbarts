@@ -61,9 +61,8 @@ tip: every anchor below re-read at db81bfe in this worktree, with src/ read
   through `git show HEAD:` because a code implementer is editing
   src/{R_interface_bartcore.cpp,bartcore/{chain,combiner,facade,sampler}.hpp}
   concurrently (bcf-public-surface S4, in flight). Design artifacts (memo,
-  blind refuting critique) sit at `.claude/multiforest-extension-surface-design/`,
-  which is GIT-IGNORED; this file is the only tracked record and carries the
-  load-bearing facts rather than pointing at them.
+  blind refuting critique) are untracked; this file is the only tracked
+  record and carries the load-bearing facts rather than pointing at them.
 landed: 2026-08-11 at e2cc1de by the orchestrator, verbatim from the synthesis
   except this note. bcf-public-surface S4, in flight when the tip note was
   written, landed 1df9c0c with CI all six green. The TODO door sentence cited
@@ -129,10 +128,9 @@ amended: 2026-08-13, PRE-M4, by the orchestrator, against 25a21d3b (M1
   folded inside it ab3aa2fa, S2 1bf2e69c, arc close 25a21d3b - all landed
   since the M4 section was authored 2026-08-11 against a tree where
   `treatment =` was the creation route, `setTreatment`/`bcfGlue` were the flat
-  C names, and the API hash was `0x1a911c00bb26dcd7`). Artifacts:
-  `.claude/m4-basis-design/pre-m4-scoping-2026-08-13.md` (scoping),
-  `critique-2026-08-13.md` (adversarial critique), `synthesis-2026-08-13.md`
-  (the adjudications, one line each) - all GIT-IGNORED, so the load-bearing
+  C names, and the API hash was `0x1a911c00bb26dcd7`). Artifacts: a
+  pre-M4 scoping memo, an adversarial critique, and a synthesis
+  (the adjudications, one line each) - all untracked, so the load-bearing
   facts are carried here rather than pointed at. 31 anchors/claims re-verified
   BY SYMBOL: 22 verified, 8 line-number drifts, 1 name GONE. No M4 claim is
   falsified by the tree and no slice loses its target. Where the scoping pass
@@ -160,17 +158,17 @@ amended: 2026-08-13, PRE-M4, by the orchestrator, against 25a21d3b (M1
   signatures only. The M3 section and the cross-plan amendment block are
   LANDED RECORDS and keep their pre-re-bake numbers, marked as such in place.
 re-scoped: 2026-08-13, POST-PROBES, by the orchestrator, on the verdicts in
-  `.claude/m4-basis-design/probes-2026-08-13.md`. That file is GIT-IGNORED, so
-  its numbers are carried into this one verbatim, each with the protocol that
+  an untracked probes memo, so its numbers are carried into this one
+  verbatim, each with the protocol that
   produced it. **Provenance of the run:** tree sha 47c1fbe1, equal to
   `origin/bartcore`, worktree clean, no tracked file edited; the package is
-  the pre-existing verified install `.claude/privlib-s2-docs`, confirmed by
+  the pre-existing verified install, confirmed by
   `DBARTS_C_API_HASH == 0xcd88efcd67de55d7`; base seed 20260813 for FA1a and
   FA1b (per replicate s in 1..8 the DGP seed and `rngSeed` are both 20260813 +
   s, so the arms are paired), dataset seed 20260813 for FA5 with chain seeds
   5101-5108 (arms), 5901-5908 (leg-P reference) and 5801-5808 (leg-G reference
-  validation); harnesses, logs and `.rds` results gitignored under
-  `.claude/m4-basis-design/harness/`. **Three things moved and nothing else.**
+  validation); harnesses, logs and `.rds` results gitignored (session-local,
+  not retained). **Three things moved and nothing else.**
   (1) FA1's pre-registered re-scope is NOT licensed - both conjuncts fail - so
   M4.2 keeps the q-variate amplitude conditional and the per-forest ASIS
   rescale in FULL scope, and FA1 is not promoted to `benchmarks/R/`.
@@ -1431,9 +1429,7 @@ time: its committed form below tests a strawman (K independent probit
 samplers); the decisive arm is K GAUSSIAN samplers with host-drawn latents
 against the combined fit, which measurement predicts will AGREE.
 
-**Everything below this line is AMENDED 2026-08-13, pre-M4** (artifacts
-`.claude/m4-basis-design/pre-m4-scoping-2026-08-13.md` and
-`critique-2026-08-13.md`; adjudications in `synthesis-2026-08-13.md`). The
+**Everything below this line is AMENDED 2026-08-13, pre-M4**. The
 section was the last place in this plan still speaking the retired pre-fork-3
 vocabulary; it now uses the shipped names - `basis` (`forest(basis =)`,
 `$setForestBasis`, `dbarts_sampler_setForestBasis`) and `amplitude`
@@ -1470,8 +1466,8 @@ pre-release (fork 2 holds both slices inside the window; the escape hatch
 REORDERS, it does not cancel). FA5 licensed that hatch and it is TAKEN; see
 M4.4 and FA5's teeth. The probes are STATISTICAL (IACT and posterior agreement,
 both load-independent), so unlike `bench-sampler.R` they needed no quiet
-machine and could share the box. Their harnesses live GITIGNORED under
-`.claude/m4-basis-design/harness/` per the house convention
+machine and could share the box. Their harnesses live GITIGNORED per the
+house convention
 (`composition-mixing-probe.md:13-16`, `grow-from-root-default.md:6,55`);
 the binding corollary is that their NUMBERS are carried into this section
 verbatim, never by reference to a directory that does not arrive with a clone
@@ -1862,10 +1858,9 @@ in FA1 and FA5 below ARE the record.
   must specify which route wins, with a test. **DISCHARGED 2026-08-14 by item
   1 of the amendment below, with the test shape at item 2.**
 
-  **AMENDED 2026-08-14**, on `.claude/m4-basis-design/pre-m43-2026-08-14.md`
-  (the pre-slice scoping pass, read at e7708b7c) and
-  `.claude/m4-basis-design/critique-m43-2026-08-14.md` (its adversarial
-  critique, read at the same commit). Where the two conflict the CRITIQUE's
+  **AMENDED 2026-08-14**, on a pre-slice scoping pass
+  (read at e7708b7c) and its adversarial
+  critique (read at the same commit). Where the two conflict the CRITIQUE's
   evidence wins: it does at items 1, 3, 4, 6 and 7 below and in the tests
   paragraph above; items 2, 5, 8, 9 and 10 are the scoping pass as written,
   certified. Both of M4.3's entry preconditions are hereby discharged: the
@@ -2296,19 +2291,19 @@ in FA1 and FA5 below ARE the record.
   That is a WEAKER justification than this plan asserted, and it is written
   down as such rather than argued back up. **Entry criteria, added
   2026-08-13:** (i) RE-MEASURE the composition tax at K = 2 under the SAME
-  protocol against the then-current engine at respec time - the harness exists
-  (`.claude/m4-basis-design/harness/fa1b-composition-scaling.R`), so this is
+  protocol against the then-current engine at respec time - the harness exists,
+  so this is
   minutes, and a tax quoted without its denominator is exactly the defect the
   erratum records; (ii) respec the calibration map against each family's latent
   scale, as already written above.
 
   ---
 
-  **AMENDED 2026-08-14 on the pre-slice pricing pass.** Five findings under
-  `.claude/m4-basis-design/` (`pre-m44-fa1b-remeasure.md`,
+  **AMENDED 2026-08-14 on the pre-slice pricing pass.** Five findings
+  (`pre-m44-fa1b-remeasure.md`,
   `-engine-pricing.md`, `-calibration-respec.md`, `-anchor-simulation.md`,
-  `-open-questions.md`, indexed by `pre-m44-2026-08-14.md`). That directory is
-  GIT-IGNORED, so this bullet carries every conclusion it depends on rather
+  `-open-questions.md`, indexed by `pre-m44-2026-08-14.md`) are untracked,
+  so this bullet carries every conclusion it depends on rather
   than pointing at it. **Both entry criteria are DISCHARGED, the engine work is
   PRICED and FITS, and the slice is CLEARED TO PROCEED.**
 
@@ -3405,7 +3400,7 @@ in FA1 and FA5 below ARE the record.
     gaussian samplers with host-drawn latents against the combined fit), which
     AGREED with the reference on all 12 functionals at max |z| = 2.54 against
     a threshold of 3.0. The harness exists,
-    `.claude/m4-basis-design/harness/fa5-latent-coupling.R`, and arm E is a
+    and arm E is a
     new arm in it. It must be a STATISTICAL comparison and not a unit test,
     because the open question it answers - whether the pinned sigma costs
     mixing on the FIXED-VARIANCE basis forest, which under gaussian would be
@@ -3514,7 +3509,7 @@ in FA1 and FA5 below ARE the record.
   and its "items 21-22 `nbar` behavior 10-18" line; both are now named
   checklist items with their own red and green cases, and their old carriers
   were reduced rather than left standing. Arm E's new arm in
-  `.claude/m4-basis-design/harness/fa5-latent-coupling.R` (490 lines today) is
+  the harness (490 lines today) is
   plausibly 60-120 more and is excluded from the number but NOT from the work.
   **If the band is the binding constraint, the split to take is the residuals
   fix**, which has its own independent acceptance criterion at 15-25 dense and
@@ -4154,7 +4149,7 @@ item's own literal replacement text - it named the completed R/C-division
 review); the records commit rewrites that block again, then at TODO:154-178
 and at 934a02d5 at TODO:190-214,
 recording: plan path `docs/plans/multiforest-extension-surface.md`,
-artifacts under `.claude/multiforest-extension-surface-design/`, the answer
+the answer
 (the driver surface is the shape and is nearly shipped; the declarative
 per-forest basis is the model-carrying surface and its justification is the
 non-Gaussian case), the slices M0 to M3 pre-freeze plus M4 (the general basis
@@ -4532,7 +4527,7 @@ not a separate decision.
 
 ## Provenance and honest limits
 
-    repo      /Users/vdorie/Repositories/dbarts, worktree .claude/worktrees/
+    repo      /Users/vdorie/Repositories/dbarts, worktree
               zero-weight, branch wt/zero-weight, tip db81bfe. src/ read
               through `git show HEAD:` because a code implementer is editing
               it concurrently (bcf-public-surface S4). Nothing was built here.
@@ -4842,7 +4837,7 @@ ratio is FLAT across 100x in n: per-element compute/indirection in the
 combiner, NOT bandwidth. VERDICT: the ~1% BCF-only cost is ACCEPTED as the
 price of the general multiplier; M4.2, which owns this code next, MAY claw
 it back but bitwise identity governs - no re-record for an optimization.
-Protocol/provenance: .claude/m4-basis-design/bench-m41-2026-08-14.md (12
+Protocol/provenance: 12
 alternating rounds, loadavg 2.11-3.68, per-arm git-archive trees and
 privlibs; note there is NO checked-in armab script - armab is a protocol
 name, and bench-sampler.R carries no BCF scenarios, so the harness was
@@ -5138,7 +5133,7 @@ instantiation and the family is runtime, so the slice adds no instantiation
 at all.
 
 ARM E, the slice's OWN statistical acceptance gate, PASSED and is written
-up in `.claude/m4-basis-design/arm-e-2026-08-14.md` (gitignored; the numbers
+up (gitignored; the numbers
 below are the record). The native K-forest probit sampler AGREES with FA5's
 independent reference on all 12 functionals at max |z| = 1.46, and with arm
 B - the R-composed arm that FALSIFIED this slice's original headline

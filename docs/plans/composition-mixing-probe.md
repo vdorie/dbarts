@@ -5,12 +5,10 @@ status: RUN TO VERDICTS 2026-08-10 - YELLOW, tables to VD; the harm clause FIRED
   established by measurement on v1's own prototypes. All eleven adopted.
   This file replaces v1 rather than amending it; the gate architecture, the
   ridge kill, the power arithmetic and five comparability details are new.
-  Adjudication record: `.claude/composition-probe/synthesis.md`.
-  Critique: `.claude/composition-probe/critique.md`.
 agent: opus (harness + analysis; no engine change)
 rng: neutral - measurement only. No verdict here authorizes an engine
   change of any kind (see "What a GREEN licenses").
-budget: harness only, under `.claude/composition-probe/harness/`; nothing
+budget: harness only; nothing
   under `R/`, `src/`, `inst/`, `benchmarks/`. ~1100-1300 lines across seven
   files. That is **M** on the record's own size scale
   (`tree-mixing-proposals.md:379-381`), not the "XS-to-S" that record's
@@ -74,9 +72,8 @@ the question answerable at all.
   file is bound by, and the source of the one reusable statistic (C2).
 - Form: `docs/plans/grow-from-root-default-study.md`,
   `docs/plans/multiforest-veto-rate-falsifier.md`.
-- Feasibility log with every executed command:
-  `.claude/composition-probe/feasibility.md` (gitignored). Prototypes under
-  `.claude/composition-probe/proto/`.
+- Feasibility log with every executed command, and prototypes: both
+  gitignored (session-local, not retained).
 
 Three house laws this design is bound by:
 
@@ -887,7 +884,7 @@ is the opposite.
 ## Harness, cost, machine
 
 ```
-.claude/composition-probe/harness/
+harness/
   common.R    dial constructors, cells, seeds, depthsPreorder, treeSummary,
               E2/E3/E4, ridge projections, iact, checkpoints
   arms.R      runA0 runA1 runA2 runA2r runA2c runA2f runA3 - one signature,
@@ -980,7 +977,7 @@ placeholders and `check_sampler_diagnostics` is a documented no-op
 
 ### Reused from the grow-from-root harness
 
-Present at `.claude/grow-from-root-default-research/harness/` - **gitignored,
+The prior harness is **gitignored,
 so recoverable on this machine but not from git**;
 `grow-from-root-default.md` sec 8 is correct that the supported path is
 reconstruction from the pre-registration. Read and confirmed portable:
@@ -1164,8 +1161,7 @@ composition recommendation; KILL-1 does not fire; no GREEN.**
 Run 2026-08-10 against `ef7335d` (branch `bartcore`), dbarts 1.0.0 installed
 `--preclean` into a private library; stan4bart 0.0-14 at `6ce0440`.
 `BASE_SEED = 20260810`, C = 8 chains, B = K = 2000, 8 workers on a 10-core
-laptop. Full tables: `.claude/composition-probe/out/results.md`;
-checkpoints `.claude/composition-probe/ckpt/`.
+laptop. Full tables and checkpoints are session-local, not retained.
 
 ### Stage 0 validity gates
 
@@ -1439,8 +1435,8 @@ Appended with date and reason. Items 1-11 were recorded as they arose;
 8. **2026-08-10 - V10 / D100 ran after the Stage-0 job block**, not before
    it (steps 4 and 5 are transposed). Both ran against the same build and
    before FREEZE, and no gated contrast was read in between.
-9. **2026-08-10 - dbarts was installed `--preclean` into a private library**
-   (`.claude/composition-probe/privlib`), not the user library, and every R
+9. **2026-08-10 - dbarts was installed `--preclean` into a private library**,
+   not the user library, and every R
    invocation carried `R_LIBS` pointing at it. Operational isolation only.
 10. **2026-08-10 - T1's depth convention is root = 0**, so a stump has depth
     0. V0 compares `depth + 1` against `getTreeDepthAndSize`, which counts

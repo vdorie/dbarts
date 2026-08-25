@@ -36,7 +36,7 @@ mutation helper (`revalidateTrees`, `rebuildFitsFromParameters`,
 `dropStaleMissingDirections`, `forceRefreshTrees` over `forests_`) misses
 `varianceForest_`. The only path that re-anchors a variance tree to the store
 is `rebuildVarianceForest`, reached from `setState` alone. Full census, probes
-and provenance: `.claude/varianceforest-mutation-design/` (memo, blind
+and provenance are untracked (memo, blind
 critique, synthesis). Read the synthesis before starting - it carries the
 conflict resolutions and two overturns this plan encodes.
 
@@ -496,8 +496,8 @@ Stop conditions per docs/plans/README.md: a step fails twice, the diff exceeds
   "Doors held open"). Recommended: refuse now, ride
   `multiforest-predictor-mutation`. Deciding evidence: a consumer that needs
   per-observation mutation under a variance forest before that arc runs.
-- Design artifacts (memo, blind critique, synthesis) are durable at
-  `.claude/varianceforest-mutation-design/`. The critique's verdict was STANDS
+- Design artifacts (memo, blind critique, synthesis) are durable
+  but untracked. The critique's verdict was STANDS
   WITH AMENDMENTS; A1-A10 are adopted here with two overturns recorded in the
   synthesis (A5's zero-variance mechanism, and A6's reachability), plus three
   findings neither document has (the default-path `getState` flatten, the

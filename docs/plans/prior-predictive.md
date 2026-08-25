@@ -160,8 +160,7 @@ pdf(NULL).
 
 ## Verification
 
-Gates (worktree, private library
-/Users/vdorie/.claude/jobs/7fe13675/tmp/Rlib-land):
+Gates (worktree, private library, session-local, not retained):
 1. R CMD INSTALL -l <lib> . (R-only change, no --preclean) - DONE, clean.
 2. tinytest::test_package("dbarts") - 2547 passed / 0 failed (2530 baseline
    + 17 new checks).

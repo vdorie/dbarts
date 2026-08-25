@@ -4,8 +4,8 @@ Status: COMMITTED SPEC (2026-08-16). **ALL EIGHT FORKS DECIDED** (VD
 walkthrough 2026-08-16) plus the term token; section 8 records every
 resolution. Implementation is slices S1-S14 (section 7). Session evidence
 (three censuses, three blind critique rounds, the conventions survey, four
-verification rounds, the walkthrough decision log) lives in the orchestration
-session's gitignored `.claude/bart2-consolidation/`; everything load-bearing
+verification rounds, the walkthrough decision log) is untracked session
+evidence; everything load-bearing
 from it is restated here. Section 8 is
 Resolutions. Section 5 is fork 6's committed spec, rewritten under scoped
 critique round 3 (3 BLOCKER / 12 MAJOR / 10 MINOR / 2 COMPLIANCE), whose
@@ -18,8 +18,8 @@ fold-in; rev 5 under scoped critique r3 on the fork-6 spec, S10, and 3.c.5.
 Measured against branch `bartcore`, tip **4729313c**, built into a private lib:
 
 ```
-R CMD INSTALL --preclean -l /Users/vdorie/Repositories/dbarts/.claude/libs/bart2-design .
-R_LIBS=/Users/vdorie/Repositories/dbarts/.claude/libs/bart2-design Rscript <probe>
+R CMD INSTALL --preclean -l <private-lib> .
+R_LIBS=<private-lib> Rscript <probe>
 ```
 
 **MEASURED(tip)** = executed against that build. **MEASURED(r3)** = the round-3
@@ -566,7 +566,7 @@ engine, bridge or `dbarts.h` change.**
 ### 5.2 The term spelling - DECIDED (VD 2026-08-16)
 
 **Head = `forest()`. Colon sugar is the canonical spelling.** Decided after the
-conventions survey (`.claude/bart2-consolidation/term-token-survey.md`, 20
+conventions survey (20
 packages opened, every claim measured) and two probe rounds.
 
 ```r

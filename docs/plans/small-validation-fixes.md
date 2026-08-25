@@ -124,8 +124,7 @@ argument recorded under Item 1 above; the ratio check and the 0/0
 guard are unchanged, and the message keeps the distinct-value count
 as context. Item 2 approved as-is (man/dbarts.Rd already documents
 "incorporate" with no matrix caveat, so the fix makes code match
-docs). Gates below re-run after the revision from the worktree
-(.claude/worktrees/small-validation-fixes):
+docs). Gates below re-run after the revision from the worktree:
 
 - R CMD INSTALL . : clean.
 - tinytest::test_package("dbarts") -> 2526 pass / 0 fail (2498 baseline

@@ -18,8 +18,8 @@ the study's own premise; Stage 1 is confirmatory and changes nothing.
 - Item: TODO `grow-from-root-default`. Surface: `grow-from-root-warm-start.md`.
   Validity: `docs/design/grow-from-root.md` section 3(a) - posterior
   invariant, "a warm start may be any distribution".
-- Corrected literature and why it settles nothing:
-  `.claude/grow-from-root-default-research/lit-conclusions.md`; design
+- Corrected literature and why it settles nothing: an untracked
+  companion doc; design
   decisions, overturns and evidence: `synthesis.md` beside it. This file
   restates neither and supersedes `memo.md` section 2.
 - `Chain::growForestFromRoot` (chain.hpp) grows per chain, each on its own
@@ -282,7 +282,7 @@ it names only those cells.
   (disagreement stable in chain length), never on a study finding.
 
 ## Results (run 2026-08-08; harness, results.md, and all 98 checkpoints
-## in .claude/grow-from-root-default-research/harness/)
+## are untracked, not retained)
 
 VERDICT: KILL in BOTH strata, each on a mandated fresh-seed re-run.
 The grow-from-root warm start does NOT default; n.grow.sweeps stays

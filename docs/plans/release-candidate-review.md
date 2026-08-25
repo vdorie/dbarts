@@ -2,8 +2,7 @@
 
 Status: SPECCED 2026-08-17 (base 96ab54e0), amended per the blind
 critique of the same date (verdict: execute with amendments; all
-eleven applied - untracked record at
-.claude/rc-review-critique-2026-08-17.md). The TODO entry
+eleven applied). The TODO entry
 release-candidate-review is the charter; this file is the derived
 slate and the program's record. Landing notes append at EOF.
 
@@ -17,9 +16,7 @@ baselines, never that the baselines were right. Family 2,
 accumulation: agent-written slices breed sediment, missed
 factorization, surface inconsistency, dialect drift, and
 over-complication. The charter's seed lists are a floor; this slate
-was re-derived from two fresh censuses (2026-08-17, untracked working
-notes at .claude/rc-review-census-gates-2026-08-17.md and
-.claude/rc-review-census-accumulation-2026-08-17.md, both
+was re-derived from two fresh censuses (2026-08-17, both
 citation-dense against 96ab54e0; the blind critique re-verified six
 of six sampled load-bearing claims). Load-bearing ordering:
 accumulation cleanups land before the coverage/mutation/coherence
@@ -151,7 +148,7 @@ paths under memcheck) once its registration lands.
 
 Slice letters (A-L, K2-K6) are the accumulation census's; P-numbers
 are the gate census's; I-numbers are the re-verified interleavable
-tickets (.claude/interleavables-verification-2026-08-17.md); FX are
+tickets; FX are
 fix slices this derivation adds. Sizes are dense non-comment lines.
 
 ### Wave 0 - rule, repairs, premise checks, live-defect fixes
@@ -644,7 +641,7 @@ re-record); shipped code cites NO docs/ path of any kind (docs/design included: 
 tarball strips docs/, so a path is a pointer to something not shipped - the strip is a
 separate reading pass, below); xbart's k-grid sort is RESTORED (0.9-34 parity,
 order-invariance; its equivalence re-record lands last, after the threaded-predict
-arc). Decision substance with probes: scratch/review-2026-08-24/decision-brief.md.
+arc). Decision substance with probes: docs/plans/review-2026-08-24/decision-brief.md.
 
 Landed, in order, each implemented in its own worktree off the then-tip, each
 independently gate-run (--preclean private lib, tests/cpp full + filtered where src/
@@ -715,7 +712,7 @@ clean staged copy) before its push, CI six-green on every push (one cure below):
   needs), and as_draws_array/as_draws_df (scalar parameters only: dispersion;
   cutpoint[k] with the pinned first; meanProb[level]; occupancy./positive. prefixes).
   The survey behind the semantics (BART, brms, rstanarm, pscl, ordinal, nnet, VGAM;
-  formulas verified numerically) is scratch/review-2026-08-24/generics-survey.md, the
+  formulas verified numerically) is docs/plans/review-2026-08-24/generics-survey.md, the
   ruling generics-phase2-spec.md. The reviewer's own oracles agree to <= 3e-15 on all
   four families, combined and uncombined. Four planted formula mutations caught.
 - 7ad0bbea: the 31 low-level bartcore* handle wrappers moved out of the namespace into
@@ -728,7 +725,7 @@ clean staged copy) before its push, CI six-green on every push (one cure below):
   facade.hpp does. Consumers below the R5 class use the shipped header; there is no
   R escape hatch. tinytest total unchanged by the move (7181 before and after).
 
-Plan and ledger: scratch/review-2026-08-24/wave3-plan.md (Opus; every count
+Plan and ledger: docs/plans/review-2026-08-24/wave3-plan.md (Opus; every count
 tool-verified; its 714-site figure counted the creators, the true scope is 559).
 tinytest 7040 -> 7181. Baselines UNCHANGED; no re-record; dbarts.h untouched.
 
@@ -762,7 +759,8 @@ predict's n.threads WIRED (maintainer ruling): per-(chain, draw) slab partition,
 structural bitwise identity at every thread count, dbarts_sampler_predict gains
 numThreads (stan4bart one line, bartCause none under the append-last rule), honest
 Amdahl ceiling rather than a claimed speedup. Memo, revision 2 and the 35-finding
-critique: scratch/threaded-predict-*.md.
+critique: docs/plans/review-2026-08-24/memos/threaded-predict-memo.md,
+threaded-predict-memo-r2.md, and threaded-predict-critique.md.
 
 Doors and residue recorded here, not in code: negbin rootogram panel; ordinal
 log_diff_exp tail precision; a negbin burn-in dispersion channel (bart2 negbin runs
@@ -803,7 +801,7 @@ engine/bridge/support libs for duplication and stale comments, candidates only.
 gate-ledger.md inventoried every workflow and baseline (64-row MANIFEST, 11 workflows
 on bartcore vs 1 on main, 5 declared statistical gates, zero CI runs);
 gate-ledger-read.md re-ran it independently, confirmed most, corrected overstatements,
-named misses it missed (the C API's own ABI-hash gate, the untracked .claude/ evidence
+named misses it missed (the C API's own ABI-hash gate, the untracked evidence
 substrate).
 
 Mutation legs: A (85/84 scored, the 65 touched tinytest files); B (80/63 caught, 15
@@ -895,7 +893,8 @@ virtual count) refuted all three - the discipline that kept this pass off phanto
 
 ### Residue burn-down and value-scan defect fixes (a0eaf348..044a9098, 2026-08-24)
 
-Two independent censuses - scratch/backlog-value-scan-2026-08-24.md and its blind
+Two independent censuses -
+docs/plans/review-2026-08-24/memos/backlog-value-scan-2026-08-24.md and its blind
 critique - re-verified every open TODO entry against live code and found four
 undocketed defects (heteroscedastic loglik/PPD, the variance setState column mask,
 dbartsData(bases=)/dbarts() alignment, no summary method for ordinal/nbinom/hurdle).
@@ -999,7 +998,8 @@ The store's write cursor carries across `run()` calls; all six readers
 - predict, predictPerForest, predictVariance, getTrees, printTrees,
 the warm-start donor pool - walked slots 0..capacity-1, so a second
 RECORDED run replayed draws rotated against the recorded-draw channels
-(burn-in itself is never recorded; scratch/tree-store-burnin-memo.md
+(burn-in itself is never recorded;
+docs/plans/review-2026-08-24/memos/tree-store-burnin-memo.md
 has the corrected mechanism). Fix: draw i = slot (cursor + capacity -
 filled + i) mod capacity, filled = min(recorded, capacity), oldest
 first; a store with no recorded draws refuses. recordedDraws is now a
@@ -1019,7 +1019,7 @@ expected NOTE.
 Doors left: the fit-time test-basis channel (VD-held modelling
 decision); weights never ride saved state (logistic); per-forest
 off-sample replay on multinomial and OP_GROW outside the multi-forest
-fuzz mask (fuzz-arm doors); scratch/bartcore-review-tour.md, stale
+fuzz mask (fuzz-arm doors); docs/plans/bartcore-review-tour.md, stale
 (2026-08-04, pre-rebase), due a refresh before the review runs.
 Consumer facts: stan4bart is compatible with numSavedSamples' new
 meaning (resets storage per iteration, reads the count after its
@@ -1110,7 +1110,7 @@ pre-rebase tag still anchors the original line.
 
 The bcf-naming-generalization item executes under the full arc
 discipline: Opus design memo (census, vocabulary, state-key
-migration, baseline-impact analysis; .claude/bcf-naming-design/) ->
+migration, baseline-impact analysis) ->
 independent blind critique (verdict EXECUTE WITH AMENDMENTS; it
 refuted the memo's error-text census as 4x undercounted and its
 one-assertion version-bump claim as three, amended the refusal
@@ -1447,8 +1447,7 @@ new in 1.0-0, never shipped).
 Defect 2, not caught by memcheck (reports nothing - R carves nodes
 from its own arena) but by valgrind CHANGING THE HEAP: under
 zero-filled pages the extra-factor-level expect_error in
-test-bart-bart2.R stopped firing, halting the suite. Investigation
-(.claude/rc-egate-2026-08-19/r43-divergence/FINDINGS.txt) found a live
+test-bart-bart2.R stopped firing, halting the suite. Investigation found a live
 out-of-bounds heap read on every R version since 802daf36 (2015),
 pre-bartcore: on the indicators route (bart() x/y, bart2
 factors=indicators, predict) the replay indexes TRAINING-sized
@@ -1482,8 +1481,7 @@ signal here by construction.
 Final full-suite memcheck against 7be7a126: COMPLETE - "All ok, 6419
 results (1h 47m)" (platform-skips account for the count vs 6438 on the
 dev host), ERROR SUMMARY 0 errors, all lost bytes 0, zero invalid or
-uninitialised accesses, applyBCFSpec absent. Log:
-.claude/rc-egate-2026-08-19/valgrind/valgrind-final-7be7a126.log.
+uninitialised accesses, applyBCFSpec absent.
 rc-gate (e) is discharged in full (rchk clean at the merged tip per
 the prior note; valgrind clean full-suite at the tip), and with it the
 whole rc-gate slate (a)-(e). RC declaration remains VD-held.
@@ -1521,9 +1519,7 @@ equivalence trio bitwise 42/12/11 identical-draws lines. Merged-tree
 gate stacked on 8dbc0ce9: tinytest 6427/0, tests/cpp 252 ok, main
 equivalence 42/42, and a fresh rchk over the merged tree CLEAN -
 "Analyzed 13502 functions, traversed 3049440 states", 0 [UP], 0 [PB],
-empty maacheck, only the 5 expected bailouts. Logs under
-.claude/rc-egate-2026-08-19/rchk/ (initial, postfix experiments,
-merged-tip).
+empty maacheck, only the 5 expected bailouts.
 
 GATE LESSON, durable: an empty [UP] grep PASSES on an OOM-killed
 analyzer (observed: "Killed" mid-analysis left an empty .bcheck) - the
@@ -1667,7 +1663,7 @@ Also this session, for continuity: rc-gate (e)'s rchk leg RAN locally
 [UP] unprotected-variable findings all in the .Call bridge (a
 bartcore_run result-assembly cluster, parseControl,
 predictorsFromDataExpr, bartcore_setCounts) plus two analysis bailouts
-on setState; logs in .claude/rc-egate-2026-08-19/rchk/; a
+on setState; a
 triage-and-fix slice is in flight. The valgrind leg and the
 VD-approved installTrees hetero pairing fix (decision 2026-08-19: fix
 now) are in flight, own notes to come.
@@ -2703,8 +2699,7 @@ does not trigger; the cleanup lane is clear; the audit's residue R1
 scale since c8f661a) is RETIRED at this tip, and R2's cutover-window
 re-anchor is refreshed - the un-retired remainder is unchanged
 (gp/wtgp/quants/missing/sparse/setdata have no varying arm; the
-xbart pin still has no oracle, P16's job). Log preserved untracked
-at .claude/rc-review-sbc-gaussian-ensemble-2026-08-17.log.
+xbart pin still has no oracle, P16's job).
 
 ### P7 - branch-reach one-shot; measurement only (2026-08-18)
 
@@ -2758,10 +2753,9 @@ HARD (interrupt/alloc/raw-entry/rethrow), 79 GENUINE GAPS, the
 real finding, concentrated in the bridge's entry validation and
 R/generics.R's per-generic argument checks; unreached verdicts
 verified by two independent read-only passes with 2 hand
-corrections. Census preserved at
-.claude/rc-review-artifacts-2026-08-18/p8-census.md, including a
-5b wrong-message finding (xbart's n.samples = 0 path errors about
-'x' dimensions). The 73 live bare expect_error assertions (77 had
+corrections, including a 5b wrong-message finding (xbart's
+n.samples = 0 path errors about 'x' dimensions). The 73 live bare
+expect_error assertions (77 had
 drifted) all gain literal patterns from their sites' captured
 messages, plus 6 bare expect_warning the new gate flagged and 10
 opportunistic pins at trivially-reachable gap sites. .lintr gains
@@ -2828,8 +2822,7 @@ consistent C-side caller-colon (41 hardcoded-literal sites - the
 multinomial mutation channel predated the rule - plus 9 dynamic
 prefixes), settled templates for the six recurring shapes, and
 already-in-hand value enrichments where the rule's templates name
-the expected quantity. Per-message classification preserved at
-.claude/rc-review-artifacts-2026-08-18/limpl-classification.md.
+the expected quantity.
 14 message-pinned assertions updated across 10 test files; one
 NEWS item (269 parse). Battery twice (implementer, then
 independent gate-runner whose LOAD-BEARING gate was text-only
@@ -2846,8 +2839,8 @@ containment).
 
 ### Prior-initializer fix PREPARED, NOT LANDED (ccf4b687 on wt/prior-init-fix, 2026-08-18)
 
-The adjudicated fix implemented and fully gated in the preserved
-worktree .claude/worktrees/prior-init-fix; LANDING IS VD-HELD
+The adjudicated fix implemented and fully gated in a preserved
+worktree (session-local, not retained); LANDING IS VD-HELD
 because every prior-initializing fit's stream moves (re-record
 class). Engine delta ~21 dense lines: Chain::sampleTreesFromPrior
 regrows each tree whole until Tree::bottomNodesHaveWeight (new,
@@ -2867,7 +2860,7 @@ grouped_aft, hazard, hurdle; max |z| 3.01 on 1 of 85 summaries -
 posteriors statistically unmoved); BCF 12/12 and multinomial
 10/10 bitwise. Candidate baselines recorded and self-compared
 bitwise 37/37 12/12 10/10, preserved with the run logs and sweep
-classifications at .claude/rc-review-artifacts-2026-08-18/.
+classifications.
 Snapshots regenerated (test-reproducibility-rbart.R via the tool;
 test-rbart-loop-callback.R's 15 literals by hand - MANIFEST wants
 this sha at landing); the calibration non-vacuity bar sat ON its
@@ -3055,8 +3048,7 @@ rngSeed rename disclosure stays IN FULL as the correctly-worded
 final-state record of a real 0.9-31 breaking change (the
 consumer-gotcha item); the census's actual complaint - rngSeed
 advertised as the current spelling - is dead. Item-by-item
-classification preserved untracked at
-.claude/../scratchpad/himpl-classification.md (session scratch);
+classification preserved untracked (session scratch);
 prior-release sections verified byte-untouched by the orchestrator;
 every kept "gains" item verified to name a live surface. Gates
 twice (implementer, then independent gate-runner on the
@@ -3765,8 +3757,7 @@ bitwise-identical on every scenario (37/12/10) despite 21/4/32
 intervening src-touching commits - the MANIFEST's current
 classifications corroborated. The YAML parses cleanly; the
 main-has-no-benchmarks red-schedule hazard is CONFIRMED for the
-merge-time shim design. Full report untracked at
-.claude/rc-review-orphan-legs-2026-08-17.md.
+merge-time shim design. Full report untracked.
 
 ### I2 - hurdle variance doc fix (4c2cdb9a, 2026-08-17)
 

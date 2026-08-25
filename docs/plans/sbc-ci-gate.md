@@ -70,7 +70,7 @@ code change (a changed engine draw reshuffles the same fixed-seed replay).
 
 ## Verification
 
-Private library /Users/vdorie/.claude/jobs/7fe13675/tmp/Rlib-land
+Private library (session-local, not retained)
 (R_LIBS, bartcore build at the worktree's base commit 97b90a8); no
 R CMD INSTALL run in this worktree (shared library owned by another job).
 

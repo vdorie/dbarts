@@ -460,7 +460,7 @@ latents and its cut grid instead of rebuilding all three. Its ordinal path
 already needs nothing - it drives GAUSSIAN samplers on host-drawn latents,
 subset by an OBSERVED instrument that never moves. *Verified:* cloned the
 repository and read the cited files; agrees with the first-hand read in
-`.claude/latent-subset-mask-design/memo.md` Part 2.
+an untracked design memo, Part 2.
 
 **clbart 0.1.0** (Englert; GitHub `jacobenglert/clbart`). Heterogeneous
 exposure effects in the case-crossover design: a conditional logistic

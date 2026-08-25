@@ -15,7 +15,7 @@ adversarial critique that refuted the survey's top recommendation, and an
 adjudication pass that re-opened every in-repo claim at `d3cb94b` and
 spot-checked every external proof against the primary source - including,
 for the tempering literature, the authors' released experiment code. The
-working papers are `.claude/tree-mixing-research/` (gitignored):
+working papers are untracked (gitignored):
 `memo.md` (the survey), `critique.md` (the review), `synthesis.md` (the
 per-finding adjudication, ADOPT/OVERTURN with evidence). Section 4.1 was
 added at VD's direction during the adjudication pass and is not in either
@@ -1658,7 +1658,7 @@ code anchors  d3cb94b (all re-read at this tip by the adjudication pass;
               TODO and docs/plans/, no source, so every anchor is live.
 scope         research only - no source change, no commit, nothing scheduled
 seeded by     TODO: tree-mixing-proposals (VD 2026-08-09)
-working papers .claude/tree-mixing-research/{memo,critique,synthesis}.md
+working papers untracked {memo,critique,synthesis}.md
               (gitignored; synthesis.md carries the per-finding
               ADOPT/OVERTURN record and the evidence for each)
 in-repo data  docs/design/grow-from-root-default.md sec 3, 4.4, 4.8, 4.9, 8
@@ -1702,7 +1702,7 @@ from the current trees. Same pipeline as this document's own: a research
 memo, a blind refuting critique, then this adjudication, which re-opened
 every derivation against the live tree at `ef7335d`, re-ran the numerics
 independently, and re-fetched every citation it carries. The working
-papers are `.claude/forest-specialization-research/{memo,critique}.md`
+papers are untracked {memo,critique}.md files
 (gitignored), so every load-bearing fact is carried here rather than
 referenced.
 
@@ -2417,7 +2417,7 @@ tip           ef7335d; working tree clean at the start of this pass
 scope         research only - no source change, no commit, nothing scheduled
 seeded by     TODO: tree-mixing-proposals, two further VD directions
               commissioned 2026-08-09
-working papers .claude/forest-specialization-research/{memo,critique,
+working papers untracked {memo,critique,
               orchestrator-refinements}.md (gitignored; the memo is the
               survey, the critique is the blind review, this section is the
               adjudication)

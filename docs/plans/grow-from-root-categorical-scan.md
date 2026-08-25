@@ -72,7 +72,7 @@ variable's total realized split mass is continuous in its level count. The v1
    not correct.
 6. **No new `CGMTreePrior` or `ColumnStore` members.** All new state in
    `GrowScratch`.
-7. Design artifacts are durable at `.claude/grow-from-root-categorical-scan/`
+7. Design artifacts are durable
    (gitignored) as `memo.md` (the design), `critique.md` (the independent
    adversarial critique: STANDS WITH AMENDMENTS, 5 blocking and 12 advisory)
    and `synthesis.md` (the adjudication: all 17 adopted, no overturns).
@@ -480,7 +480,7 @@ Gate: as S1, plus `air format --check .`.
 
 ## S4. The measured arm (three arms, all constants pinned)
 
-Harness under `.claude/grow-from-root-categorical-scan/` (gitignored). The
+Harness (gitignored). The
 recorded S7 numbers (`B1@t1 = -0.7287` etc.) are the motivation for this arm
 and appear in NO threshold: they were measured at `k* = 16` (this arc's arms
 are k = 2/8) from a harness that exists at no commit, against a
@@ -1044,8 +1044,7 @@ skip position at 995002ef^, the only intervening code the
 side-effect-free logSplitVariable). Caveat on record: skip is
 HEAD-minus-emission, not literally the pre-S1 commit - S0b's
 ordinal log 2 fix rides along, inert here because the DGP has no
-missing values. Patch preserved at .claude/grow-from-root-
-categorical-scan/s4-skip-patch.diff beside the harness
+missing values. Patch preserved beside the harness
 (s4-common/run/analyze/sanity.R), the two per-block reports, and
 the 120 checkpoints - all gitignored; the harness reproduces from
 the plan's pinned constants plus the frozen E literal. Pins
@@ -1128,5 +1127,4 @@ registers the workflows on the default branch
 local runner (Rscript benchmarks/R/categorical-exact.R /
 benchmarks/R/multinomial-exact.R) is the only path that keeps the
 exact grid honest. Full finding in the 2026-08-17 baseline-provenance
-audit (untracked working notes,
-.claude/rc-review-p10-baseline-provenance-2026-08-17.md).
+audit (untracked working notes).

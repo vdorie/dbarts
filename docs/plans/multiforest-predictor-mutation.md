@@ -68,7 +68,7 @@ entries. No `dbarts.h` symbol is added or changed and no API hash moves.
 ## Adjudication (design memo vs. blind critique)
 
 The design cycle ran memo -> blind critique -> this synthesis; both artifacts
-live under `.claude/`, which is gitignored, so every load-bearing fact is
+are untracked, so every load-bearing fact is
 carried here. The critique's verdict was STANDS WITH AMENDMENTS: the
 architecture holds, the gate battery did not. Six blocking findings, adjudicated:
 
@@ -139,7 +139,7 @@ whole-matrix slice's engine change - say that); the pruned session cache needs a
 explicit survivor table, not offset arithmetic; the pruned multinomial tree count
 is ~105, not ~115; `test_model.cpp:718-733` already asserts the E = 3 factory
 refusals, so that is a standing assertion and not new work; the falsifier harness
-is under `.claude/` and is not a repository artifact.
+is untracked and is not a repository artifact.
 
 Advisory OVERTURNED: the claimed `dropStaleMissingDirections` ordering hazard is
 not a hazard. `Tree::dropStaleMissingDirectionsBelow` (`tree.hpp:1213-1223`)
@@ -680,7 +680,7 @@ Lifts the whole-matrix and subset transaction for BCF and multinomial.
    tip.
 
 rng: NEUTRAL on every existing path. Gates: `R CMD INSTALL --preclean` into a
-PRIVATE library at `.claude/multiforest-predictor-mutation-design/privlib`
+PRIVATE library
 (chain.hpp is a header); delete the `benchmarks/kernels` binaries; `tests/cpp` from
 clean, plain AND ASAN/UBSAN; full tinytest with NO snapshot regenerated; the trio
 bitwise on the S0 baselines; the mandated BCF oracle set (`bcf-exact.R` quick,
@@ -945,7 +945,7 @@ shape in scope, and the shape where `T_j` is largest (~40).
   and F8 all run on a multinomial configuration. What is ungated is only the
   modelling cost of the rate.
 - **(b) Named and gated.** Re-run the falsifier's arm at K = 4 with pre-registered
-  thresholds before S1. The harness lives under `.claude/` and is not a repository
+  thresholds before S1. The harness lives untracked and is not a repository
   artifact, so this costs a rebuild plus a measurement cycle, to gate a shape with
   no consumer today.
 - **(c) Excluded.** Requires a NEW predicate distinguishing multinomial from BCF,

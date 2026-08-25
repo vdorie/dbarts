@@ -35,7 +35,7 @@ creation (a `dbartsModel` slot plus a `bart2`/`rbart_vi`/`bart` formal),
 C entries; and the getter is the only authoritative reader of what is in
 force, so a re-anchoring channel stops being silent.
 
-(artifacts `.claude/nameable-calibration-design/` - memo, critique, synthesis,
+(artifacts untracked - memo, critique, synthesis,
 recritique)
 
 ## The wall this closes

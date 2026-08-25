@@ -42,13 +42,13 @@ Part 0.1; no silently-wrong reachable path, so NO stop-loss slice is needed).
 All combiner mutable state (`omega_`, `margins_`, `suffix_`, `prefix_`,
 `lastF_`, `combined_`) is per-sweep scratch: the `f == 0` disjunct in
 `drawForestGlue` rebuilds it at every sweep entry. Design artifacts are durable
-at `.claude/multinomial-counts-mutation-design/` (`memo.md`, `critique.md`,
+(`memo.md`, `critique.md`,
 `synthesis.md`). **Read `synthesis.md` before starting** - it carries the B1
 redesign this plan encodes and three extensions neither of the other two
-documents has. `.claude/` is gitignored, so the directory does NOT arrive with
-a `git worktree add`; the orchestrator copies it into the implementer's
-worktree at spawn, and an implementer who cannot find it must ask rather than
-proceed without it.
+documents has. These are untracked session files, so they do NOT arrive with
+a `git worktree add`; the orchestrator copies them into the implementer's
+worktree at spawn, and an implementer who cannot find them must ask rather than
+proceed without them.
 
 ## Binding decisions inherited (do not reopen)
 
@@ -649,8 +649,8 @@ standing lesson; S2 and S3 are the test-heavy slices.
   a test category offset; with S3 out, it carries the train offset only and
   the test channel records S2's refusal. S4 is written above for S3-in.
   RESOLVED 2026-08-12 (VD): S3 stays IN SCOPE; S4 as written stands.
-- Design artifacts are durable at
-  `.claude/multinomial-counts-mutation-design/` (`memo.md`, `critique.md`,
+- Design artifacts are durable
+  (`memo.md`, `critique.md`,
   `synthesis.md`; the critique was an independent adversarial pass, read-only
   on source, re-anchored against engine tip 06c0254). The critique's verdict
   was STANDS WITH AMENDMENTS; all five blocking and all eight advisory
