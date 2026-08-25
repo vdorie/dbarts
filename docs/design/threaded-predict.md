@@ -55,7 +55,7 @@ runs inside the threaded region - `translateSource`'s `R_alloc`
 (C_interface.cpp:185,194,219) runs strictly before, so dbarts.h's
 main-R-thread-only contract (:45-47) stays unrelaxed. The same shape
 covers `predictPerForestColumns`, `predictVarianceColumns`, and
-`predictBlend` (R/generics.R:775) - the route by which a BCF fit's
+`predictBlend` (R/generics.R:784) - the route by which a BCF fit's
 *plain* `predict` reaches the replay, via `predictForest` (:635).
 
 ## 4. Worker bodies and thread-count resolution
@@ -107,10 +107,10 @@ self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:461, then
 `0x85bd1ef04beb3848ULL`) fires first and prints the new signature token
 to paste over itself; a rebuild then fails `dbarts_apiToken() ==
 DBARTS_C_API_HASH` (:465) and prints the new layout hash to paste over
-`DBARTS_C_API_HASH` (dbarts.h:142). Both were re-signed - live,
-C_interface.cpp:461 asserts `0xcb83367ee0c4175bULL` and dbarts.h:142
+`DBARTS_C_API_HASH` (dbarts.h:153). Both were re-signed - live,
+C_interface.cpp:461 asserts `0xcb83367ee0c4175bULL` and dbarts.h:153
 bakes `0x66d33f1613892406ULL`. This section also called for
-`DBARTS_C_API_MINOR` (dbarts.h:104) to bump from 0 to 1; it did not, on
+`DBARTS_C_API_MINOR` (dbarts.h:115) to bump from 0 to 1; it did not, on
 the header's own pre-release rule - see section 11.
 `facade.hpp` took the parameter on all three predict virtuals -
 `predict` (:263), `predictPerForest` (:273), `predictVariance` (:278) -
@@ -151,18 +151,18 @@ before `group.by` would pass a factor as a thread count.
 
 | generic | R/generics.R | default expression |
 |---|---|---|
-| predict.bart | :249 | `object$fit$control@n.threads` (already present at :259, moved last) |
-| predict.bartMultinomial | :1172 | `object$fit$control@n.threads` |
-| predict.bartOrdinal | :1464 | `object$fit$control@n.threads` |
-| predict.bartNegbin | :1702 | `object$fit$control@n.threads` |
-| predict.bartHurdle | :2098 | `object$occupancy$fit$control@n.threads` (no `object$fit`) |
-| predict.rbart | :2141 | `object$fit[[1L]]$control@n.threads` (a list of samplers) |
+| predict.bart | :257 | `object$fit$control@n.threads` (already present at :267, moved last) |
+| predict.bartMultinomial | :1181 | `object$fit$control@n.threads` |
+| predict.bartOrdinal | :1473 | `object$fit$control@n.threads` |
+| predict.bartNegbin | :1711 | `object$fit$control@n.threads` |
+| predict.bartHurdle | :2107 | `object$occupancy$fit$control@n.threads` (no `object$fit`) |
+| predict.rbart | :2150 | `object$fit[[1L]]$control@n.threads` (a list of samplers) |
 
 `predict.bart`'s validation moved above the two early returns that
 preceded it - `return(predictForest(...))` and `return(predictBlend(...))`
 - so the amplitude family's value is validated too; live,
-`validatePredictThreads(n.threads)` sits at R/generics.R:280, above both,
-and `predictBlend` (:775-787) is a forwarding site.
+`validatePredictThreads(n.threads)` sits at R/generics.R:289, above both,
+and `predictBlend` (:784-796) is a forwarding site.
 man/dbartsSampler-class.Rd:154-170's joint "run and predict both execute
 serially" item is split: predict's half states the per-call override and
 the default, and affirms that `_R_CHECK_LIMIT_CORES_` (read only by

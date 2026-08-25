@@ -387,7 +387,7 @@ a hand-written K = 2 READING only, non-authoritative, read exactly when
 than by a combiner (combiner.hpp:104-110, :1099-1106).
 
 The bases ride CREATION, on `data@bases` (a LIST, R/A_class.R:514-524,
-validated by `validateForestBases`, R/data.R:721), the way the design
+validated by `validateForestBases`, R/data.R:730), the way the design
 matrix does. That is how RESTORE-THEN-WIDEN is met with no fourth reapply hook:
 a widening applied after a restore preserves and remaps the RESTORED amplitudes
 rather than the constructed ones (combiner.hpp:1074-1077; plan :1958-1978, landed

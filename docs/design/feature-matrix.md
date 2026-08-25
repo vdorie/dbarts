@@ -248,7 +248,7 @@ every non-gaussian family R-side at spec.R:390-396. The engine family stays
 shipped header: ordinal needs the `bartcore.n.categories` control attribute
 (RIB:461), nbinom `bartcore.dispersion` (RIB:475), grouped `bartcore.groups`
 (RIB:1908), heteroscedastic `bartcore.variance` (RIB:1998). The header's
-`family` documentation (CAPI:643-652, on `dbarts_sampler_create`; NOT
+`family` documentation (CAPI:654-663, on `dbarts_sampler_create`; NOT
 CAPI:443-462, which is the `DBARTS_C_API_LIST` X-macro body and never carried
 it) names only probit, logistic, gaussian and aft, and the K-forest paragraph
 beside it (CAPI:668-690) now names gaussian, probit and logistic, M4.4 having
@@ -257,7 +257,7 @@ replaced its "Gaussian responses only" at CAPI:686-690.
 [f4] `dbarts(x, y, family = "multinomial")` (matrix interface only) accepts a
 counts matrix or a factor/character/integer-code response, one-hot expanded
 (dbarts.R:381); `resolveMultinomialCounts` builds the counts matrix - now
-defined in R/data.R:801, called from dbarts.R:592. Creation routes through the
+defined in R/data.R:810, called from dbarts.R:592. Creation routes through the
 same public dispatch every family uses, `bartcore_create` (RIB:3489), whose
 multinomial arm is `createMultinomialDataHolder` (RIB:3455); the dedicated
 `C_dbarts_bartcore_createMultinomial`/`...Counts` entries the matrix-interface
@@ -617,7 +617,7 @@ the bridge gate directly. These cells stay `R`.
 response is the expanded binary indicator.
 
 [f25] The composed hurdle fit has `family = "hurdle.lognormal"` and now
-supports `extract(type = "loglik")` directly: `hurdleLogLik` (generics.R:2045)
+supports `extract(type = "loglik")` directly: `hurdleLogLik` (generics.R:2054)
 combines the occupancy's `log(1 - pi)` / `log(pi)` with the positive part's
 lognormal density (a `-log(y)` Jacobian against the stored log-scale channel)
 at every row, reached from `extract.bartHurdle`'s `type == "loglik"` branch
@@ -948,7 +948,7 @@ unsupported response shapes). Grouped ordinal is a recorded unbuilt door
 (RIB:3020). `warm.start` and `n.grow.sweeps` unbuilt for the arc (bart.R:631).
 Its selecting control attribute is undocumented in the shipped header ([f3]).
 One dedicated tinytest file. SBC gamma3 resolved but not re-run at full R.
-Pointwise loglik (`ordinalLogLik`, generics.R:1365) is no longer a gap - built,
+Pointwise loglik (`ordinalLogLik`, generics.R:1374) is no longer a gap - built,
 though untested beyond the shape checks in test-ordinal.R.
 
 **nbinom.** As ordinal, plus: no `bart()` token, no `xbart()` token, no
@@ -956,7 +956,7 @@ though untested beyond the shape checks in test-ordinal.R.
 attribute undocumented. One dedicated tinytest file. SBC `r`/`agg.psi` flag
 standing (H-MIX read, third ladder point owed). Real-valued dispersion remains
 a recorded door (TODO `negbin-real-dispersion`). Pointwise loglik
-(`negbinLogLik`, generics.R:1631) is no longer a gap.
+(`negbinLogLik`, generics.R:1640) is no longer a gap.
 
 **multinomial.** No flat-C creation path at all ([f4]); `dbarts()`,
 `dbartsSpec()` and `bart2()` all build the R5 `dbartsSampler` directly
@@ -966,7 +966,7 @@ channels (`setCounts`, `setCategoryOffset`, `setCategoryTestOffset`) are
 public R5 methods. No `getLatents` ([f22]). No grouped surface ([f32]). No
 warm start / grow-from-root. DART, `split.probs`, `monotone`, and `variance`
 are all refused by name rather than silently dropped ([f33]). Pointwise
-loglik (`multinomialLogLik`, generics.R:1029) is no longer a gap - it scores
+loglik (`multinomialLogLik`, generics.R:1038) is no longer a gap - it scores
 the multinomial log-pmf on the REPORTED probabilities, distinct from the
 engine's own per-observation channel, which stays undefined for this family.
 SBC raw `f_ik` is no longer open ([f43]).
@@ -984,7 +984,7 @@ dedicated tinytest file.
 `xbart()` or flat-C reach. No warm start / grow-from-root. A heteroscedastic
 positive part is REFUSED via the occupancy component's own gate, deliberately,
 not a partial feature ([f34]). Top-level pointwise loglik (`hurdleLogLik`,
-generics.R:2045) is no longer a gap.
+generics.R:2054) is no longer a gap.
 
 **bcf.** No `bart2()` surface for the NAMED `bcf()` causal verb, by the
 resolved fork that puts it in bartCause; the general K-forest amplitude

@@ -95,7 +95,7 @@ codes `0..K-1`; `R/spec.R:198-207` resolves auto on a numeric response by
 - K >= 3: MEASURED `control@binary` FALSE, `model@family` `"gaussian"`,
   response transform anchored to the range of the integer category codes.
 - **`family = "auto"` never reaches this path.** `detectAutoMultinomial`
-  (`R/bart.R:1390-1398`) requires `n.levels >= 3L`, and a 2-level factor
+  (`R/bart.R:1404-1412`) requires `n.levels >= 3L`, and a 2-level factor
   under auto announces probit and returns class `"bart"`. MEASURED:
   `family = "auto": 2-level factor response detected, fitting family =
   "probit"; set 'family' to override`.
@@ -267,8 +267,8 @@ problems:
 
 Sub-decision, **corrected**: `samplerOnly` is NOT "two lines".
 `checkFamilyUnsupportedArgs` (`R/bart.R:618-646`) has **four** callers -
-multinomial `:914`, ordinal `:1067`, nbinom `:1100`, and
-**`hurdle.lognormal` `:1144`** - and its `samplerOnly` block is three
+multinomial `:915`, ordinal `:1068`, nbinom `:1101`, and
+**`hurdle.lognormal` `:1145`** - and its `samplerOnly` block is three
 lines (`:625-627`) inside a helper that refuses two other things.
 Deleting the block un-refuses `samplerOnly` for hurdle, whose `$fit` is a
 PAIR of samplers (`test-hurdle.R:213-214`) and which this arc does not
@@ -331,16 +331,16 @@ and name `$setCounts`, with the reason in the message.
 ### Fork C. Does the flat C ABI grow?
 
 Facts, corrected and re-anchored: `DBARTS_C_API_HASH` is
-`0x66d33f1613892406ULL` (`inst/include/dbarts/dbarts.h:142`);
+`0x66d33f1613892406ULL` (`inst/include/dbarts/dbarts.h:153`);
 `DBARTS_C_API_MAJOR`/`MINOR` are 1/0 and the header itself states the
 pre-release carve-out - "no version of this API has shipped yet, so
 whatever they read then simply IS the initial contract, and they do not
-move before it" (`dbarts.h:101-105`, which is the citation to use, not
+move before it" (`dbarts.h:112-116`, which is the citation to use, not
 the plan doc). Multinomial has no flat creation path
 (`feature-matrix.md` `[f4]`). One reverse `LinkingTo`, in-house.
 
 **Cost of C2, corrected:** TWO literal re-bakes, not one -
-`DBARTS_C_API_HASH` (`dbarts.h:142`) AND `dbarts_apiSignatureToken`
+`DBARTS_C_API_HASH` (`dbarts.h:153`) AND `dbarts_apiSignatureToken`
 (`src/C_interface.cpp:461`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
 because appending to `DBARTS_C_API_DECLS` moves the signature half too.
 Plus `inst/tinytest/test-capi.R`: `:84` pins the literal and must
@@ -456,7 +456,7 @@ there is no workaround at any price (1.6). Hard prerequisite for the
 multinomial third: fork G1.
 
 `$bc` deletion detail the S4 spec must carry: `$bc` **co-gates**
-`cutpoints.raw` (`R/bart.R:1892`) and `dispersion.raw` (`:2134`) inside
+`cutpoints.raw` (`R/bart.R:1905`) and `dispersion.raw` (`:2147`) inside
 the same `keepTrees` block, and `predict.bartOrdinal` /
 `predict.bartNegbin` read them. Those two channels KEEP their gate.
 
@@ -752,7 +752,7 @@ transfer in `copy` closes the laundering - that is a hole in the guard
 that already ships, NOT the rejected guard-all-reads stopgap.
 
 **4.8 Consumers (retired: `$bc` was removed with no replacement field;
-`R/generics.R:1463` and `:1701` now say so directly).** `$bc` was a bare
+`R/generics.R:1472` and `:1710` now say so directly).** `$bc` was a bare
 environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
 time this section was written: six code readers (`R/generics.R:608/625`,
 `770/786`, `900/915`), three test assertions (`test-ordinal.R:139`,
