@@ -256,6 +256,36 @@ expect_error(
   ),
   pattern = "at least 2 categories"
 )
+# a continuous response has no plausible ordered-category reading; the
+# distinct sorted values would otherwise silently become one category apiece
+expect_error(
+  bart2(
+    x,
+    rnorm(n),
+    family = "ordinal",
+    n.samples = 10L,
+    n.burn = 5L,
+    n.trees = n.trees,
+    n.chains = 1L,
+    verbose = FALSE
+  ),
+  "family \"ordinal\" requires a factor or an integer-valued response",
+  fixed = TRUE
+)
+# an integer-valued numeric response is accepted, exactly as a factor is
+expect_inherits(
+  bart2(
+    x,
+    codes,
+    family = "ordinal",
+    n.samples = 10L,
+    n.burn = 5L,
+    n.trees = n.trees,
+    n.chains = 1L,
+    verbose = FALSE
+  ),
+  "bartOrdinal"
+)
 # weights identically 1 are treated as absent, the probit courtesy
 samplerW1 <- dbarts(x, y, family = "ordinal", weights = rep(1, n))
 expect_null(samplerW1$data@weights)

@@ -236,7 +236,8 @@ validatePredictThreads <- function(n.threads) {
     !is.numeric(n.threads) ||
       length(n.threads) != 1L ||
       is.na(n.threads) ||
-      n.threads < 1L
+      n.threads < 1L ||
+      n.threads != round(n.threads)
   ) {
     stop(
       "'n.threads' must be a single positive integer, not ",
@@ -245,6 +246,13 @@ validatePredictThreads <- function(n.threads) {
   }
   as.integer(n.threads)
 }
+
+# predict.bartNegbin's out-of-sample offset formal is named 'offset.test',
+# not 'offset'; a caller carrying that sibling's name here would otherwise
+# vanish into '...' with the offset silently dropped instead of applied.
+predictOffsetUnusedArgs <- list(
+  offset.test = "this fit's out-of-sample offset argument is named 'offset'"
+)
 
 predict.bart <- function(
   object,
@@ -274,6 +282,7 @@ predict.bart <- function(
     }
   }
 
+  refuseUnusedGenericArgs(list(...), "predict", "bart", predictOffsetUnusedArgs)
   type <- validateType(type, eval(formals(predict.bart)$type))
   # above the type = "forest" and amplitude-blend returns below, so every arm's
   # value is checked rather than only the one that reaches the sampler here
@@ -2168,6 +2177,7 @@ predict.rbart <- function(
     type[1L] <- "ev"
   }
   type <- validateType(type, eval(formals(predict.rbart)$type))
+  refuseUnusedGenericArgs(dotsList, "predict", "rbart", predictOffsetUnusedArgs)
 
   if (missing(offset)) {
     offset <- NULL

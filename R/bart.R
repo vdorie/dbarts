@@ -734,6 +734,7 @@ bart2 <- function(
   # ahead of every family branch, since family = "auto" resolves it downstream
   # and no branch below would see the token.
   refuseCountsCarryingData(formula, "bart2()")
+  refuseResponseFreeFormula(formula, "bart2()")
 
   # family = "auto" with a 3+-level UNORDERED factor/character response is
   # multinomial; a 3+-level ORDERED factor is ordinal (the disjoint
@@ -1363,6 +1364,18 @@ refuseCountsCarryingData <- function(formula, caller) {
       "it with dbarts(family = \"multinomial\"), whose sampler reports the K ",
       "category probabilities"
     )
+  }
+  invisible(NULL)
+}
+
+# A one-sided formula (~ x1 + x2) names no response. dbartsData() defaults a
+# missing response to zeros, which is correct for a composed sampler whose
+# response is set later, but a fitting entry point runs the chain and returns
+# that all-zero fit as though it were a real answer, with no error or
+# warning. Refuse it here, by name, before the formula reaches dbartsData().
+refuseResponseFreeFormula <- function(formula, caller) {
+  if (is.formula(formula) && length(formula) != 3L) {
+    stop(caller, " requires a two-sided formula; 'formula' has no response")
   }
   invisible(NULL)
 }
@@ -2709,6 +2722,7 @@ bart <- function(
   # observation, so a K-location fit would be reshaped and returned without a
   # word. The dbartsData passthrough is the only route one can arrive by
   refuseCountsCarryingData(x.train, "bart()")
+  refuseResponseFreeFormula(x.train, "bart()")
 
   # forwarded to dbarts() unevaluated (as the prior expressions are), so a bare
   # gaussian()/student() resolves in dbarts()'s residual-distribution vocabulary

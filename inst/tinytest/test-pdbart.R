@@ -242,4 +242,48 @@ expect_error(
 
 rm(pdb5, sampler, pdb4, control, pdb3, bartFit, pdb2, pdb1, y, x)
 
+# rbart_vi and the four own-class fits (bartMultinomial/Ordinal/Negbin/
+# Hurdle) reach neither the "bart" nor the dbartsSampler branch, and used to
+# fall through to the generic "'x.train' must be a matrix, ..." message,
+# naming neither the fit nor why it fails; refused by name instead
+negbinFit <- dbarts::bart2(
+  testData$x,
+  rpois(nrow(testData$x), 3L),
+  family = "nbinom",
+  n.trees = 5L,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_error(
+  dbarts::pdbart(negbinFit, xind = c(1, 2), pl = FALSE),
+  "pdbart does not support a bartNegbin fit",
+  fixed = TRUE
+)
+rm(negbinFit)
+
+rbartFit <- dbarts::rbart_vi(
+  testData$y ~ testData$x,
+  group.by = rep(1:2, length.out = nrow(testData$x)),
+  n.trees = 5L,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_error(
+  dbarts::pdbart(rbartFit, xind = c(1, 2), pl = FALSE),
+  "pdbart does not support a rbart fit",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::pd2bart(rbartFit, xind = c(1, 2), pl = FALSE),
+  "pd2bart does not support a rbart fit",
+  fixed = TRUE
+)
+rm(rbartFit)
+
 rm(testData)

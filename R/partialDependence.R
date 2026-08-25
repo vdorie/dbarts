@@ -77,6 +77,13 @@ pdbart.prologue <- function(x.train, matchedCall, callingEnv, name) {
         callingEnv
       )
     }
+  } else if (
+    inherits(
+      x.train,
+      c("rbart", "bartMultinomial", "bartOrdinal", "bartNegbin", "bartHurdle")
+    )
+  ) {
+    stop(name, " does not support a ", class(x.train)[1L], " fit")
   } else {
     stop(
       "'x.train' must be a matrix, data.frame, formula, fitted bart model, ",

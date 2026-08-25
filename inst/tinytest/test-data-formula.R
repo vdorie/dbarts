@@ -100,4 +100,12 @@ expect_equal(data@weights, trainData$weights)
 expect_equal(data@weights.test, testData_df$weights)
 rm(data, testData_df, modelFormula, trainData)
 
+# a one-sided formula (no response) is a legitimate dbartsData() call - the
+# composed-sampler response is set later - unlike the fitting entry points
+# (bart/bart2/xbart/rbart_vi), which refuse it by name instead
+oneSidedData <- dbarts::dbartsData(~x, testData)
+expect_inherits(oneSidedData, "dbartsData")
+expect_true(all(oneSidedData@y == 0))
+rm(oneSidedData)
+
 rm(testData)

@@ -120,6 +120,7 @@ xbart <- function(
   # though the slab were n rows. Refused ahead of the family resolution below,
   # which resolves counts to multinomial from "auto"
   refuseCountsCarryingData(formula, "xbart()")
+  refuseResponseFreeFormula(formula, "xbart()")
   data <- eval(dataCall, evalEnv)
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigest

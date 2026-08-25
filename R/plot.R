@@ -64,8 +64,12 @@ plot.bart <- function(
     }
   }
 
+  oldpar <- par(no.readonly = TRUE)
+  on.exit(par(oldpar), add = TRUE)
+
   if ("sigma" %in% names(x)) {
-    plotSigmaTrace(x$first.sigma, x$sigma, ...)
+    par(mfrow = c(1L, 2L))
+    plotSigmaTrace(x$first.sigma, x$sigma, ..., setLayout = FALSE)
   }
 
   if ("sigma" %in% names(x)) {
@@ -126,8 +130,12 @@ plot.rbart <- function(
     stop("plot requires rbart_vi to be called with 'keepTrainingFits' == TRUE")
   }
 
+  oldpar <- par(no.readonly = TRUE)
+  on.exit(par(oldpar), add = TRUE)
+
   if ("sigma" %in% names(x)) {
-    plotSigmaTrace(x$first.sigma, x$sigma, ...)
+    par(mfrow = c(1L, 2L))
+    plotSigmaTrace(x$first.sigma, x$sigma, ..., setLayout = FALSE)
   }
 
   if (length(dim(x$ranef)) > 2L) {

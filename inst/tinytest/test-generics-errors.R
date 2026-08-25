@@ -43,4 +43,50 @@ expect_error(extract(bart2Fit, sample = "train"), pattern = "keepTrainingFits")
 
 rm(bartFit, bart2Fit)
 
+# predict.bart/predict.rbart did not call refuseUnusedGenericArgs: a caller
+# typing the sibling family's offset formal name ('offset.test', used by
+# predict.bartNegbin) instead of this fit's own 'offset' had it silently
+# vanish into '...' instead of applied
+bart2FitKT <- dbarts::bart2(
+  testData$x,
+  testData$y,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrees = TRUE
+)
+expect_error(
+  predict(bart2FitKT, testData$x, offset.test = rep(0.1, nrow(testData$x))),
+  "'offset.test' is not used by predict on a bart fit",
+  fixed = TRUE
+)
+rm(bart2FitKT)
+
+groupBy <- rep(1:2, length.out = nrow(testData$x))
+rbartFitKT <- dbarts::rbart_vi(
+  testData$y ~ testData$x,
+  group.by = groupBy,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrees = TRUE
+)
+expect_error(
+  predict(
+    rbartFitKT,
+    testData$x,
+    group.by = groupBy,
+    offset.test = rep(0.1, nrow(testData$x))
+  ),
+  "'offset.test' is not used by predict on a rbart fit",
+  fixed = TRUE
+)
+rm(rbartFitKT, groupBy)
+
 rm(testData)

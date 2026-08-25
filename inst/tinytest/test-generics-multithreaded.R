@@ -289,7 +289,9 @@ for (method in c(
 }
 
 # ---- refusals, by name and echoing the value ----
-for (bad in list(0L, -1L, NA_integer_, "two", c(1L, 2L), TRUE, NULL)) {
+# a fractional value used to truncate silently via as.integer() despite the
+# message's own "single positive integer" wording
+for (bad in list(0L, -1L, NA_integer_, "two", c(1L, 2L), TRUE, NULL, 2.7)) {
   expect_error(
     predict(gaussianFit, friedman$x, n.threads = bad),
     "'n.threads' must be a single positive integer"
@@ -297,6 +299,7 @@ for (bad in list(0L, -1L, NA_integer_, "two", c(1L, 2L), TRUE, NULL)) {
 }
 expect_error(predict(gaussianFit, friedman$x, n.threads = 0L), "not 0L")
 expect_error(predict(multinomialFit, xMulti, n.threads = -3L), "not -3L")
+expect_error(predict(gaussianFit, friedman$x, n.threads = 2.7), "not 2.7")
 # the refusal precedes the type = "forest" and blend returns, so an
 # amplitude-coupled fit's value is checked too rather than being carried into
 # an arm that validates nothing

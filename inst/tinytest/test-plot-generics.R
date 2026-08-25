@@ -56,6 +56,25 @@ pdf(NULL)
 expect_silent(plot(fit.rbart))
 dev.off()
 
+# plot.bart/plot.rbart set par(mfrow) to draw the sigma-trace and interval
+# panels side by side; the caller's par is restored afterward - assert
+# restoration against a sentinel value distinct from both the plot's own
+# layout and the device default
+pdf(NULL)
+par(mfrow = c(3L, 3L))
+plot(fit.bart)
+restoredMfrow.bart <- par("mfrow")
+dev.off()
+expect_equal(restoredMfrow.bart, c(3L, 3L))
+
+pdf(NULL)
+par(mfrow = c(3L, 3L))
+plot(fit.rbart)
+restoredMfrow.rbart <- par("mfrow")
+dev.off()
+expect_equal(restoredMfrow.rbart, c(3L, 3L))
+rm(restoredMfrow.bart, restoredMfrow.rbart)
+
 # plotTree now dispatches at the fit level (previously reachable only through
 # $fit$plotTree). Kept bart, bart2, and rbart fits plot a single tree, the
 # sampler dispatches directly, and a fit without kept trees errors.

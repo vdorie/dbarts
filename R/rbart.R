@@ -54,6 +54,7 @@ rbart_vi <- function(
   matchedCall <- match.call()
   callingEnv <- parent.frame()
   family <- match.arg(family)
+  refuseResponseFreeFormula(formula, "rbart_vi()")
 
   argNames <- names(matchedCall)[-1L]
 

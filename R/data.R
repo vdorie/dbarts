@@ -626,7 +626,16 @@ resolveClassificationFamily <- function(
 resolveOrdinalResponse <- function(data) {
   labels <- data@response.levels
   if (is.null(labels)) {
-    # numeric/integer/logical: the distinct sorted values are the ordered levels
+    # numeric/integer/logical: the distinct sorted values are the ordered
+    # levels, so a continuous response would silently become one category per
+    # distinct value; only a whole-number response names a plausible set of
+    # ordered categories
+    if (any(data@y != round(data@y))) {
+      stop(
+        "family \"ordinal\" requires a factor or an integer-valued ",
+        "response, not continuous values"
+      )
+    }
     levels <- sort(unique(data@y))
     codes <- match(data@y, levels)
     labels <- as.character(levels)
@@ -1236,6 +1245,23 @@ dbartsData <- function(
     badLabels <- grepl("`.* .*`", termLabels)
     if (sum(badLabels) > 0) {
       termLabels[badLabels] <- gsub("^`(.*)`$", "\\1", termLabels[badLabels])
+    }
+
+    # a ':'/'*' term expands to a label like "x1:x2" in term.labels, a
+    # column the model frame never carries (only the individual predictors
+    # it names); passed through unchecked, makeModelMatrix dies on
+    # "undefined columns selected", naming neither the term nor the
+    # unsupported syntax. A label entirely wrapped in one pair of backticks
+    # is a single non-syntactic name, not an interaction, and is exempt.
+    interactionLabels <- termLabels[
+      !grepl("^`.*`$", termLabels) & grepl(":", termLabels, fixed = TRUE)
+    ]
+    if (length(interactionLabels) > 0L) {
+      stop(
+        "':' and '*' terms are not supported in 'formula'; write each ",
+        "predictor as its own term - poly(), ns(), log(), and offset() are ",
+        "supported"
+      )
     }
 
     x <- makeModelMatrix(modelFrame[termLabels])
