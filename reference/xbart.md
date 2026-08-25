@@ -155,7 +155,11 @@ xbart(
   crossvalidation not possible at this time. A hyperprior `k` is held,
   not swept, and is DRAWN every sweep in every cell, so the reported
   loss is computed under a shrinkage that moves within each fit rather
-  than under the named value.
+  than under the named value. A numeric grid is always swept largest to
+  smallest and the reported `k` axis un-permuted back to the order
+  given, so results do not depend on the order `k` is listed in; cells
+  still warm-start off the previous one, so this is order-invariance,
+  not an unbiased estimate for each cell taken alone.
 
 - power:
 
