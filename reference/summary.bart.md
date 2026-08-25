@@ -18,6 +18,16 @@ posterior's generics and so require it to be loaded
 call); dbarts registers them only when posterior is available, as it is
 a `Suggests`, not a hard dependency.
 
+`bart2`'s four own-class fits (`"bartMultinomial"`, `"bartOrdinal"`,
+`"bartNegbin"`, `"bartHurdle"`; see
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)) are draws
+objects too, through their own `summary`/`as_draws_array`/`as_draws_df`
+methods (documented under
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s
+‘Value’), each exposing the scalar posterior parameters that family
+carries rather than its per-observation channels - never `yhat.train`
+itself.
+
 ## Usage
 
 ``` r
@@ -36,6 +46,27 @@ as_draws_array(x, vars = c("sigma", "k", "tau"), ...)
 as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
 # S3 method for class 'rbart'
 as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
+
+# S3 method for class 'bartMultinomial'
+as_draws_array(x, vars = "meanProb", ...)
+# S3 method for class 'bartMultinomial'
+as_draws_df(x, vars = "meanProb", ...)
+# S3 method for class 'bartOrdinal'
+as_draws_array(
+  x, vars = c("cutpoints", "sigma", "k", "tau"), ...)
+# S3 method for class 'bartOrdinal'
+as_draws_df(
+  x, vars = c("cutpoints", "sigma", "k", "tau"), ...)
+# S3 method for class 'bartNegbin'
+as_draws_array(
+  x, vars = c("dispersion", "sigma", "k", "tau"), ...)
+# S3 method for class 'bartNegbin'
+as_draws_df(
+  x, vars = c("dispersion", "sigma", "k", "tau"), ...)
+# S3 method for class 'bartHurdle'
+as_draws_array(x, vars = c("sigma", "k", "tau"), ...)
+# S3 method for class 'bartHurdle'
+as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
 ```
 
 ## Arguments
@@ -45,7 +76,8 @@ as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
   An object of class `bart` or `rbart`, as returned by
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md), or
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md).
+  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md); for
+  the four own-class methods, a `bart2` fit of the matching class.
 
 - vars:
 
@@ -65,6 +97,20 @@ as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
   of the response, a constant with no posterior content, so it is not
   reported as a parameter. `s.train` itself is reachable by name,
   contributing one variable per observation.
+
+  For the four own-class methods, `vars` is scoped to that family's own
+  vocabulary (see
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)): a
+  `"bartOrdinal"` fit's `"cutpoints"` contributes `cutpoint[1]` (pinned
+  at 0) through `cutpoint[K - 1]`; a `"bartNegbin"` fit's `"dispersion"`
+  contributes the per-draw dispersion \\r\\; a `"bartMultinomial"` fit
+  has a single channel, so its `vars` only ever means `"meanProb"` and
+  it always reports `meanProb[<level>]`, its only scalar posterior
+  parameter (`summary` on such a fit carries no `vars` at all and
+  refuses one by name); a `"bartHurdle"` fit applies `vars` to both
+  components and labels the result
+  `occupancy.<field>`/`positive.<field>` (a dot, not a bracket, since
+  posterior parses a bracket as an index).
 
 - ...:
 
@@ -86,7 +132,8 @@ R-hat exceeds 1.01; neither withholds the rest of the summary or errors.
 `as_draws_array` and `as_draws_df` return a posterior
 `draws_array`/`draws_df`: the fit's native (chain, sample\[, variable\])
 storage, transposed to posterior's (iteration, chain, variable)
-convention.
+convention. The four own-class methods return the same convention over
+their own family-scoped `vars`.
 
 ## See also
 

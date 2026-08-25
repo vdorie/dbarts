@@ -10,6 +10,13 @@ A fit-level convenience wrapper around the sampler's `plotTree` method,
 so the trees can be plotted without reaching into the sampler stored on
 the fit.
 
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s four
+own-class fits (`"bartMultinomial"`, `"bartOrdinal"`, `"bartNegbin"`,
+`"bartHurdle"`) refuse by name instead: their trees live on the
+sampler(s) those fits carry (`object$fit` for the first three,
+`object$occupancy$fit`/ `object$positive$fit` for the hurdle), which
+`plotTree` can be called on directly.
+
 ## Usage
 
 ``` r
@@ -22,6 +29,18 @@ plotTree(object, treeNum = 1L, chainNum, sampleNum, ...)
 plotTree(object, treeNum = 1L, chainNum = 1L, sampleNum, ...)
 
 # S3 method for class 'dbartsSampler'
+plotTree(object, ...)
+
+# S3 method for class 'bartMultinomial'
+plotTree(object, ...)
+
+# S3 method for class 'bartOrdinal'
+plotTree(object, ...)
+
+# S3 method for class 'bartNegbin'
+plotTree(object, ...)
+
+# S3 method for class 'bartHurdle'
 plotTree(object, ...)
 ```
 

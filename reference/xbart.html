@@ -170,6 +170,7 @@
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>An array of dimensions <code>n.reps</code> \(\times\) <code>length(n.trees)</code> \(\times\) <code>length(k)</code> \(\times\) <code>length(power)</code> \(\times\) <code>length(base)</code>. If <code>drop</code> is <code>TRUE</code>, dimensions of length 1 are omitted. If all hyperparameters are of length 1, then the result will be a vector of length <code>n.reps</code>. When the result is an array, the <code>dimnames</code> of the result shall be set to the corresponding hyperparameters.</p>
 <p>For method <code>"k-fold"</code>, each element is an average across the \(K\) fits. For <code>"random subsample"</code>, each element represents a single fit.</p>
+<p>The result is a bare array with no class, so the fit generics - <code>predict</code>, <code>extract</code>, <code>fitted</code>, <code>residuals</code> - do not apply to it; it is a table of losses, not a fit.</p>
     </div>
     <div class="section level2">
     <h2 id="author">Author<a class="anchor" aria-label="anchor" href="#author"></a></h2>

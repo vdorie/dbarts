@@ -4,12 +4,24 @@
   rbart_vi model, or in a dbartsSampler.
   A fit-level convenience wrapper around the sampler's plotTree
   method, so the trees can be plotted without reaching into the sampler
-  stored on the fit."><meta property="og:description" content="Minimalist visualization of the branching and leaf contents of one tree
+  stored on the fit.
+bart2's four own-class fits (&quot;bartMultinomial&quot;,
+  &quot;bartOrdinal&quot;, &quot;bartNegbin&quot;, &quot;bartHurdle&quot;) refuse
+  by name instead: their trees live on the sampler(s) those fits carry
+  (object$fit for the first three, object$occupancy$fit/
+  object$positive$fit for the hurdle), which plotTree can
+  be called on directly."><meta property="og:description" content="Minimalist visualization of the branching and leaf contents of one tree
   in a fitted bart/bart2 or
   rbart_vi model, or in a dbartsSampler.
   A fit-level convenience wrapper around the sampler's plotTree
   method, so the trees can be plotted without reaching into the sampler
-  stored on the fit."></head><body>
+  stored on the fit.
+bart2's four own-class fits (&quot;bartMultinomial&quot;,
+  &quot;bartOrdinal&quot;, &quot;bartNegbin&quot;, &quot;bartHurdle&quot;) refuse
+  by name instead: their trees live on the sampler(s) those fits carry
+  (object$fit for the first three, object$occupancy$fit/
+  object$positive$fit for the hurdle), which plotTree can
+  be called on directly."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -55,6 +67,12 @@
   A fit-level convenience wrapper around the sampler's <code>plotTree</code>
   method, so the trees can be plotted without reaching into the sampler
   stored on the fit.</p>
+<p><code><a href="bart2.html">bart2</a></code>'s four own-class fits (<code>"bartMultinomial"</code>,
+  <code>"bartOrdinal"</code>, <code>"bartNegbin"</code>, <code>"bartHurdle"</code>) refuse
+  by name instead: their trees live on the sampler(s) those fits carry
+  (<code>object$fit</code> for the first three, <code>object$occupancy$fit</code>/
+  <code>object$positive$fit</code> for the hurdle), which <code>plotTree</code> can
+  be called on directly.</p>
     </div>
 
     <div class="section level2">
@@ -68,6 +86,18 @@
 <span><span class="fu">plotTree</span><span class="op">(</span><span class="va">object</span>, treeNum <span class="op">=</span> <span class="fl">1L</span>, chainNum <span class="op">=</span> <span class="fl">1L</span>, <span class="va">sampleNum</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'dbartsSampler'</span></span>
+<span><span class="fu">plotTree</span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># S3 method for class 'bartMultinomial'</span></span>
+<span><span class="fu">plotTree</span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># S3 method for class 'bartOrdinal'</span></span>
+<span><span class="fu">plotTree</span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># S3 method for class 'bartNegbin'</span></span>
+<span><span class="fu">plotTree</span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># S3 method for class 'bartHurdle'</span></span>
 <span><span class="fu">plotTree</span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
 

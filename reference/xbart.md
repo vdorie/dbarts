@@ -340,6 +340,10 @@ result shall be set to the corresponding hyperparameters.
 For method `"k-fold"`, each element is an average across the \\K\\ fits.
 For `"random subsample"`, each element represents a single fit.
 
+The result is a bare array with no class, so the fit generics -
+`predict`, `extract`, `fitted`, `residuals` - do not apply to it; it is
+a table of losses, not a fit.
+
 ## Author
 
 Vincent Dorie: <vdorie@gmail.com>

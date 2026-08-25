@@ -737,6 +737,15 @@ can be recovered by examining the column names of the `fit$data@x`
 element of a fitted `bart` or `bart2` model. See the package vignette
 “Working with dbarts Saved Trees”.
 
+A fit made with `keeptrees`/`keepTrees` `FALSE` but a sampler kept
+anyway (`keepSampler = TRUE`, or a `bart2` fit with `fit` present per
+‘Value’ below) still answers `extract(fit, "trees")`, the same fallback
+[`plotTree`](https://vdorie.github.io/dbarts/reference/plotTree.md)
+uses: the frame holds the sampler's CURRENT trees rather than a saved
+history, so it carries no `chain`/`sample` column and reflects whatever
+predictors and structure the sampler holds at the time of the call, not
+a fixed draw.
+
 ## Value
 
 `bart` and [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)
@@ -1052,7 +1061,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.219765
+#> total seconds in loop: 0.165876
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

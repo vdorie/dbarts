@@ -10,6 +10,11 @@ by [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) (or
 [`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md) with
 `family = "hazard"` (or `"hazard.logistic"`).
 
+[`bart2`](https://vdorie.github.io/dbarts/reference/bart2.md)'s four
+own-class fits (`"bartMultinomial"`, `"bartOrdinal"`, `"bartNegbin"`,
+`"bartHurdle"`) refuse by name instead: none of the four is a survival
+model, so none carries a hazard channel.
+
 ## Usage
 
 ``` r
@@ -33,6 +38,18 @@ survivalProbabilities(
   combineChains = TRUE,
   ...
 )
+
+# S3 method for class 'bartMultinomial'
+survivalProbabilities(object, ...)
+
+# S3 method for class 'bartOrdinal'
+survivalProbabilities(object, ...)
+
+# S3 method for class 'bartNegbin'
+survivalProbabilities(object, ...)
+
+# S3 method for class 'bartHurdle'
+survivalProbabilities(object, ...)
 ```
 
 ## Arguments

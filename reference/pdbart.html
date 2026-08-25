@@ -122,7 +122,7 @@
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>The plot methods produce the plots and don't return anything.</p>
-<p><code>pdbart</code> and <code>pd2bart</code> return lists with components given below. The list returned by <code>pdbart</code> is assigned class <code>pdbart</code> and the list returned by <code>pd2bart</code> is assigned class <code>pd2bart</code>.</p>
+<p><code>pdbart</code> and <code>pd2bart</code> return lists with components given below. The list returned by <code>pdbart</code> is assigned class <code>pdbart</code> and the list returned by <code>pd2bart</code> is assigned class <code>pd2bart</code>. The class carries a <code>plot</code> method only; it is not a fit, so <code>predict</code>, <code>extract</code>, <code>fitted</code>, and <code>residuals</code> are not defined for it (<code>fitted</code> and <code>residuals</code> fall through to <span class="pkg">stats</span>' defaults and return <code>NULL</code>).</p>
 <p></p>
 <dl><dt>fd</dt>
 <dd><p>A matrix whose \((i, j)\) value is the \(i\)th draw of \(f_s(x_s)\) for the \(j\)th value of \(x_s\). “fd” is for “function draws”.</p>

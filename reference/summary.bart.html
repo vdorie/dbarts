@@ -12,7 +12,14 @@ as_draws_array and as_draws_df convert a fit's
   require it to be loaded (library(posterior) or a qualified
   posterior::as_draws_array call); dbarts registers them only
   when posterior is available, as it is a Suggests, not a
-  hard dependency."><meta property="og:description" content="summary reports a per-variable posterior summary of the scalar
+  hard dependency.
+bart2's four own-class fits (&quot;bartMultinomial&quot;,
+  &quot;bartOrdinal&quot;, &quot;bartNegbin&quot;, &quot;bartHurdle&quot;; see
+  bart2) are draws objects too, through their own
+  summary/as_draws_array/as_draws_df methods
+  (documented under bart2's &amp;#8216;Value&amp;#8217;), each exposing
+  the scalar posterior parameters that family carries rather than its
+  per-observation channels - never yhat.train itself."><meta property="og:description" content="summary reports a per-variable posterior summary of the scalar
   parameters (sigma, k, and, for rbart_vi
   fits, tau) of a bart/bart2/rbart_vi fit,
   along with split-\(\hat{R}\) and effective sample size when
@@ -25,7 +32,14 @@ as_draws_array and as_draws_df convert a fit's
   require it to be loaded (library(posterior) or a qualified
   posterior::as_draws_array call); dbarts registers them only
   when posterior is available, as it is a Suggests, not a
-  hard dependency."></head><body>
+  hard dependency.
+bart2's four own-class fits (&quot;bartMultinomial&quot;,
+  &quot;bartOrdinal&quot;, &quot;bartNegbin&quot;, &quot;bartHurdle&quot;; see
+  bart2) are draws objects too, through their own
+  summary/as_draws_array/as_draws_df methods
+  (documented under bart2's &amp;#8216;Value&amp;#8217;), each exposing
+  the scalar posterior parameters that family carries rather than its
+  per-observation channels - never yhat.train itself."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -79,6 +93,13 @@ as_draws_array and as_draws_df convert a fit's
   <code><a href="https://mc-stan.org/posterior/reference/draws_array.html" class="external-link">posterior::as_draws_array</a></code> call); dbarts registers them only
   when <span class="pkg">posterior</span> is available, as it is a <code>Suggests</code>, not a
   hard dependency.</p>
+<p><code>bart2</code>'s four own-class fits (<code>"bartMultinomial"</code>,
+  <code>"bartOrdinal"</code>, <code>"bartNegbin"</code>, <code>"bartHurdle"</code>; see
+  <code><a href="bart2.html">bart2</a></code>) are draws objects too, through their own
+  <code>summary</code>/<code>as_draws_array</code>/<code>as_draws_df</code> methods
+  (documented under <code><a href="bart2.html">bart2</a></code>'s ‘Value’), each exposing
+  the scalar posterior parameters that family carries rather than its
+  per-observation channels - never <code>yhat.train</code> itself.</p>
     </div>
 
     <div class="section level2">
@@ -97,6 +118,27 @@ as_draws_array and as_draws_df convert a fit's
 <span><span class="co"># S3 method for class 'bart'</span></span>
 <span><span class="fu">as_draws_df</span><span class="op">(</span><span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
 <span><span class="co"># S3 method for class 'rbart'</span></span>
+<span><span class="fu">as_draws_df</span><span class="op">(</span><span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># S3 method for class 'bartMultinomial'</span></span>
+<span><span class="fu">as_draws_array</span><span class="op">(</span><span class="va">x</span>, vars <span class="op">=</span> <span class="st">"meanProb"</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="co"># S3 method for class 'bartMultinomial'</span></span>
+<span><span class="fu">as_draws_df</span><span class="op">(</span><span class="va">x</span>, vars <span class="op">=</span> <span class="st">"meanProb"</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="co"># S3 method for class 'bartOrdinal'</span></span>
+<span><span class="fu">as_draws_array</span><span class="op">(</span></span>
+<span>  <span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cutpoints"</span>, <span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="co"># S3 method for class 'bartOrdinal'</span></span>
+<span><span class="fu">as_draws_df</span><span class="op">(</span></span>
+<span>  <span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cutpoints"</span>, <span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="co"># S3 method for class 'bartNegbin'</span></span>
+<span><span class="fu">as_draws_array</span><span class="op">(</span></span>
+<span>  <span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"dispersion"</span>, <span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="co"># S3 method for class 'bartNegbin'</span></span>
+<span><span class="fu">as_draws_df</span><span class="op">(</span></span>
+<span>  <span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"dispersion"</span>, <span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="co"># S3 method for class 'bartHurdle'</span></span>
+<span><span class="fu">as_draws_array</span><span class="op">(</span><span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span>
+<span><span class="co"># S3 method for class 'bartHurdle'</span></span>
 <span><span class="fu">as_draws_df</span><span class="op">(</span><span class="va">x</span>, vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sigma"</span>, <span class="st">"k"</span>, <span class="st">"tau"</span><span class="op">)</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -105,7 +147,9 @@ as_draws_array and as_draws_df convert a fit's
     <p></p>
 <dl><dt id="arg-object-x">object, x<a class="anchor" aria-label="anchor" href="#arg-object-x"></a></dt>
 <dd><p>An object of class <code>bart</code> or <code>rbart</code>, as returned by
-    <code><a href="bart.html">bart</a></code>, <code><a href="bart2.html">bart2</a></code>, or <code><a href="rbart.html">rbart_vi</a></code>.</p></dd>
+    <code><a href="bart.html">bart</a></code>, <code><a href="bart2.html">bart2</a></code>, or <code><a href="rbart.html">rbart_vi</a></code>;
+    for the four own-class methods, a <code>bart2</code> fit of the matching
+    class.</p></dd>
 
   <dt id="arg-vars">vars<a class="anchor" aria-label="anchor" href="#arg-vars"></a></dt>
 <dd><p>Character vector of fields to gather. Requested fields absent from
@@ -124,7 +168,20 @@ as_draws_array and as_draws_df convert a fit's
     parameterization's fixed unit residual times the range of the
     response, a constant with no posterior content, so it is not
     reported as a parameter. <code>s.train</code> itself is reachable by
-    name, contributing one variable per observation.</p></dd>
+    name, contributing one variable per observation.</p>
+<p>For the four own-class methods, <code>vars</code> is scoped to that
+    family's own vocabulary (see <code><a href="bart2.html">bart2</a></code>): a
+    <code>"bartOrdinal"</code> fit's <code>"cutpoints"</code> contributes
+    <code>cutpoint[1]</code> (pinned at 0) through <code>cutpoint[K - 1]</code>; a
+    <code>"bartNegbin"</code> fit's <code>"dispersion"</code> contributes the
+    per-draw dispersion \(r\); a <code>"bartMultinomial"</code> fit has a
+    single channel, so its <code>vars</code> only ever means <code>"meanProb"</code>
+    and it always reports <code>meanProb[&lt;level&gt;]</code>, its only scalar
+    posterior parameter (<code>summary</code> on such a fit carries no
+    <code>vars</code> at all and refuses one by name); a <code>"bartHurdle"</code> fit
+    applies <code>vars</code> to both components and labels the result
+    <code>occupancy.&lt;field&gt;</code>/<code>positive.&lt;field&gt;</code> (a dot, not a
+    bracket, since <span class="pkg">posterior</span> parses a bracket as an index).</p></dd>
 
   <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Unused.</p></dd>
@@ -148,7 +205,8 @@ as_draws_array and as_draws_df convert a fit's
 <p><code>as_draws_array</code> and <code>as_draws_df</code> return a <span class="pkg">posterior</span>
   <code>draws_array</code>/<code>draws_df</code>: the fit's native (chain, sample[,
   variable]) storage, transposed to <span class="pkg">posterior</span>'s (iteration,
-  chain, variable) convention.</p>
+  chain, variable) convention. The four own-class methods return the
+  same convention over their own family-scoped <code>vars</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

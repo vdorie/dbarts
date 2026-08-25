@@ -155,7 +155,10 @@ The plot methods produce the plots and don't return anything.
 
 `pdbart` and `pd2bart` return lists with components given below. The
 list returned by `pdbart` is assigned class `pdbart` and the list
-returned by `pd2bart` is assigned class `pd2bart`.
+returned by `pd2bart` is assigned class `pd2bart`. The class carries a
+`plot` method only; it is not a fit, so `predict`, `extract`, `fitted`,
+and `residuals` are not defined for it (`fitted` and `residuals` fall
+through to stats' defaults and return `NULL`).
 
 - fd:
 
