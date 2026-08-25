@@ -61,7 +61,9 @@
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">x.test</span>, <span class="va">offset.test</span>, n.threads <span class="op">=</span> <span class="va">control</span><span class="op">@</span><span class="va">n.threads</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
-<span><span class="fu">predictForests</span><span class="op">(</span><span class="va">x.test</span>, <span class="va">offset.test</span><span class="op">)</span></span>
+<span><span class="fu">predictForests</span><span class="op">(</span></span>
+<span>  <span class="va">x.test</span>, <span class="va">offset.test</span>, n.threads <span class="op">=</span> <span class="va">control</span><span class="op">@</span><span class="va">n.threads</span></span>
+<span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">setControl</span><span class="op">(</span><span class="va">control</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
@@ -189,11 +191,19 @@
 <p>For <code>setCategoryTestOffset</code>, a multinomial sampler's \(n_{\mathrm{test}} \times K\) per-category test shift, or <code>NULL</code> to clear one: the recorded test channel becomes \(\mathrm{softmax}(f_{\mathrm{test}} + o_{\mathrm{test}})\), formed where the training blend forms its own. The test fits enter no likelihood, so this moves the reported test probabilities and nothing else. Its rows are the CURRENT test rows, so replacing those rows while it is installed is refused rather than silently reinterpreted - clear it first - and out-of-sample <code>predict</code> does not read it at all, taking its own matrix for the rows it is given. Mirrored into <code>data@offset.category.test</code>. For <code>predict</code> on a multinomial sampler, likewise a per-category matrix, one row per PREDICTED row: a flat vector is refused there for the same reason, and a sampler holding either resident category offset refuses an unnamed call rather than reporting the offset-free surface, which an explicit all-zero matrix asks for on purpose.</p></dd>
 
   <dt id="arg-n-threads">n.threads<a class="anchor" aria-label="anchor" href="#arg-n-threads"></a></dt>
-<dd><p>Currently has no effect: <code>run</code> and <code>predict</code> both execute
-    serially regardless of the value passed here. The sampler's own thread
-    count is fixed when it is created, from the <code>n.threads</code> of its
-    <code><a href="dbartsControl.html">control</a></code> object; this argument is reserved
-    for a future per-call override.</p></dd>
+<dd><p>For <code>predict</code> and <code>predictForests</code>, a per-call worker count that
+    does not persist, defaulting to the sampler's own (the <code>n.threads</code> of
+    its <code><a href="dbartsControl.html">control</a></code> object, fixed at creation). The
+    replay is partitioned by (chain, saved draw), each partition writing its
+    own rows and nothing being reduced across workers, so the result is
+    identical bit for bit at every value and only the time taken changes. A
+    replay small enough that the partition could not pay for itself runs
+    inline whatever is passed.</p>
+<p>These are native threads, so <code>_R_CHECK_LIMIT_CORES_</code> does not govern
+    them: that variable is read only by <code>parallel:::.check_ncores</code>, which
+    counts simultaneously spawned processes and never sees a thread.</p>
+<p>For <code>run</code> the argument still has no effect: the sampler's own count
+    governs, and this one is reserved for a future per-call override.</p></dd>
 
   <dt id="arg-sigma">sigma<a class="anchor" aria-label="anchor" href="#arg-sigma"></a></dt>
 <dd><p>A single positive residual standard deviation, on the original response scale; it is assigned to every chain. <code>setSigma</code> only applies to a sampler whose residual standard deviation is a free parameter: it is refused on a probit-, logistic-, multinomial-, ordinal-, or count-family sampler, which fix it at 1 by the model definition, and on a heteroscedastic (<code>variance</code>) sampler, whose variance forest owns the residual scale. A gaussian sampler with <code>resid.prior = fixed()</code> is not fixed in this sense and is still accepted: suppressing the internal draw so an outer sampler owns <code>sigma</code> is what that prior is for.</p></dd>

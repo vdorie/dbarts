@@ -90,10 +90,10 @@ bart is the BayesTree-compatible surface: besides the default gaussian/probit re
 <span>    <span class="va">object</span>, <span class="va">newdata</span>, <span class="va">offset</span>, <span class="va">weights</span>,</span>
 <span>    type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ev"</span>, <span class="st">"ppd"</span>, <span class="st">"bart"</span>, <span class="st">"forest"</span><span class="op">)</span>,</span>
 <span>    combineChains <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>    <span class="va">n.threads</span>,</span>
 <span>    ci.level <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    forest <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    bases <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>    <span class="va">n.threads</span>,</span>
 <span>    <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">extract</span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span>
@@ -197,7 +197,8 @@ bart is the BayesTree-compatible surface: besides the default gaussian/probit re
 <dd><p>Integer specifying how many independent tree sets and fits should be calculated. Default 1 for <code>bart</code>, BayesTree's historical single-chain convention; <code><a href="bart2.html">bart2</a></code>'s (and <code><a href="rbart.html">rbart_vi</a></code>'s) default is 4.</p></dd>
 
    <dt id="arg-nthread-n-threads">nthread, n.threads<a class="anchor" aria-label="anchor" href="#arg-nthread-n-threads"></a></dt>
-<dd><p>Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.</p></dd>
+<dd><p>Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.</p>
+<p>On <code>predict</code>, <code>n.threads</code> is a per-call worker count for the saved-tree replay, defaulting to the fit's own: the replay is partitioned by (chain, posterior draw), each partition writing its own rows and nothing being reduced across workers, so the answer is identical bit for bit at every value and only the time taken changes. It is the last positional argument of every <code>predict</code> method, so a caller that passes arguments by position is unaffected by its presence. A value that is not a single positive number is an error rather than a silent fallback.</p></dd>
 
    <dt id="arg-combinechains-combinechains">combinechains, combineChains<a class="anchor" aria-label="anchor" href="#arg-combinechains-combinechains"></a></dt>
 <dd><p>Logical; if <code>TRUE</code>, samples from every chain are collapsed into a single matrix/vector of <code>nchain</code> \(\times\) <code>ndpost</code> rows (see ‘Value’ for the row order); if <code>FALSE</code>, they are kept in arrays of dimensions equal to <code>nchain</code> \(\times\) <code>ndpost</code> \(\times\) number of observations. Default <code>TRUE</code> across <code>bart</code>, <code><a href="bart2.html">bart2</a></code>, and <code><a href="rbart.html">rbart_vi</a></code>; the number of chains is tracked regardless on the returned object's <code>n.chains</code> component (see ‘Value’).</p></dd>
@@ -469,7 +470,7 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.216828</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.220529</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>

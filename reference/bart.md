@@ -55,10 +55,10 @@ predict(
     object, newdata, offset, weights,
     type = c("ev", "ppd", "bart", "forest"),
     combineChains = TRUE,
-    n.threads,
     ci.level = NULL,
     forest = NULL,
     bases = NULL,
+    n.threads,
     ...)
 
 extract(object, ...)
@@ -318,6 +318,16 @@ residuals(object, type = "ev", ...)
   architecture, using more than the number of chains can degrade
   performance for small/medium data sets. As such some calculations may
   be executed single threaded regardless.
+
+  On `predict`, `n.threads` is a per-call worker count for the
+  saved-tree replay, defaulting to the fit's own: the replay is
+  partitioned by (chain, posterior draw), each partition writing its own
+  rows and nothing being reduced across workers, so the answer is
+  identical bit for bit at every value and only the time taken changes.
+  It is the last positional argument of every `predict` method, so a
+  caller that passes arguments by position is unaffected by its
+  presence. A value that is not a single positive number is an error
+  rather than a silent fallback.
 
 - combinechains, combineChains:
 
@@ -1061,7 +1071,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.216828
+#> total seconds in loop: 0.220529
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

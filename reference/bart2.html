@@ -96,7 +96,7 @@
 <span>    <span class="va">object</span>, <span class="va">newdata</span>,</span>
 <span>    type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ev"</span>, <span class="st">"ppd"</span>, <span class="st">"bart"</span>, <span class="st">"forest"</span><span class="op">)</span>,</span>
 <span>    offset <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    combineChains <span class="op">=</span> <span class="cn">TRUE</span>, ci.level <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span>
+<span>    combineChains <span class="op">=</span> <span class="cn">TRUE</span>, ci.level <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">n.threads</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'bartMultinomial'</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">...</span><span class="op">)</span></span>
@@ -197,7 +197,8 @@
 <dd><p>Integer specifying how many independent tree sets and fits should be calculated. Default 4; <code><a href="bart.html">bart</a></code>'s default is 1, BayesTree's historical single-chain convention.</p></dd>
 
    <dt id="arg-n-threads">n.threads<a class="anchor" aria-label="anchor" href="#arg-n-threads"></a></dt>
-<dd><p>Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.</p></dd>
+<dd><p>Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.</p>
+<p>On <code>predict</code>, <code>n.threads</code> is a per-call worker count for the saved-tree replay, defaulting to the fit's own: the replay is partitioned by (chain, posterior draw), each partition writing its own rows and nothing being reduced across workers, so the answer is identical bit for bit at every value and only the time taken changes.</p></dd>
 
    <dt id="arg-combinechains">combineChains<a class="anchor" aria-label="anchor" href="#arg-combinechains"></a></dt>
 <dd><p>Logical; if <code>TRUE</code>, samples are returned collapsed across chains rather than in a chains-by-samples array. Default <code>TRUE</code>, as for <code><a href="bart.html">bart</a></code> and <code><a href="rbart.html">rbart_vi</a></code>; the number of chains is tracked regardless on the returned object's <code>n.chains</code> component (see ‘Value’).</p></dd>
@@ -455,7 +456,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001587</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001599</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 2 2 1 2 3 </span>

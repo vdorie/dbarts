@@ -24,7 +24,9 @@ show()
 # S4 method for class 'dbartsSampler'
 predict(x.test, offset.test, n.threads = control@n.threads)
 # S4 method for class 'dbartsSampler'
-predictForests(x.test, offset.test)
+predictForests(
+  x.test, offset.test, n.threads = control@n.threads
+)
 # S4 method for class 'dbartsSampler'
 setControl(control)
 # S4 method for class 'dbartsSampler'
@@ -276,11 +278,21 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - n.threads:
 
-  Currently has no effect: `run` and `predict` both execute serially
-  regardless of the value passed here. The sampler's own thread count is
-  fixed when it is created, from the `n.threads` of its
+  For `predict` and `predictForests`, a per-call worker count that does
+  not persist, defaulting to the sampler's own (the `n.threads` of its
   [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
-  object; this argument is reserved for a future per-call override.
+  object, fixed at creation). The replay is partitioned by (chain, saved
+  draw), each partition writing its own rows and nothing being reduced
+  across workers, so the result is identical bit for bit at every value
+  and only the time taken changes. A replay small enough that the
+  partition could not pay for itself runs inline whatever is passed.
+
+  These are native threads, so `_R_CHECK_LIMIT_CORES_` does not govern
+  them: that variable is read only by `parallel:::.check_ncores`, which
+  counts simultaneously spawned processes and never sees a thread.
+
+  For `run` the argument still has no effect: the sampler's own count
+  governs, and this one is reserved for a future per-call override.
 
 - sigma:
 

@@ -74,7 +74,7 @@ predict(
     object, newdata,
     type = c("ev", "ppd", "bart", "forest"),
     offset = NULL,
-    combineChains = TRUE, ci.level = NULL, ...)
+    combineChains = TRUE, ci.level = NULL, n.threads, ...)
 
 # S3 method for class 'bartMultinomial'
 print(x, ...)
@@ -343,6 +343,12 @@ print(x, ...)
   architecture, using more than the number of chains can degrade
   performance for small/medium data sets. As such some calculations may
   be executed single threaded regardless.
+
+  On `predict`, `n.threads` is a per-call worker count for the
+  saved-tree replay, defaulting to the fit's own: the replay is
+  partitioned by (chain, posterior draw), each partition writing its own
+  rows and nothing being reduced across workers, so the answer is
+  identical bit for bit at every value and only the time taken changes.
 
 - combineChains:
 
@@ -1450,7 +1456,7 @@ fit.bcf <- bart2(y ~ x1 + x2 + z:forest(x1 + x2),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001587
+#> total seconds in loop: 0.001599
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 2 2 1 2 3 
