@@ -1984,12 +1984,47 @@
             to smallest and reports it back in the order it was given, so
             the result no longer depends on the order \code{k} is listed
             in; the rewrite had dropped this sort.
-      \item \code{plot.bartMultinomial}, \code{plot.bartOrdinal},
-            \code{plot.bartNegbin}, \code{plot.bartHurdle},
-            \code{plot.pd2bart}, and \code{\link{plotTree}} changed
-            \code{par()} settings (layout, margins) without restoring
-            them; each now saves and restores the caller's graphical
-            parameters before returning.
+      \item \code{plot.bart}, \code{plot.rbart}, \code{plot.bartMultinomial},
+            \code{plot.bartOrdinal}, \code{plot.bartNegbin},
+            \code{plot.bartHurdle}, \code{plot.pd2bart}, and
+            \code{\link{plotTree}} changed \code{par()} settings (layout,
+            margins) without restoring them; each now saves and restores
+            the caller's graphical parameters before returning.
+      \item \code{\link{bart}}, \code{bart2}, \code{\link{xbart}}, and
+            \code{rbart_vi} refuse a formula with no left-hand side
+            (\code{~ x1 + x2}) instead of silently fitting an all-zero
+            response; \code{\link{dbartsData}} keeps defaulting the
+            response to zero, since a composed sampler's response can be
+            set after creation.
+      \item \code{family = "ordinal"} refuses a response that is neither a
+            factor nor integer-valued, instead of treating each distinct
+            continuous value as its own category.
+      \item The \code{n.threads} argument on every \code{predict} method
+            refuses a fractional value instead of silently truncating it,
+            matching its documented single-positive-integer contract.
+      \item \code{\link{pdbart}} and \code{pd2bart} refuse an
+            \code{rbart_vi} fit or one of the four own-class family fits
+            (\code{bartMultinomial}, \code{bartOrdinal}, \code{bartNegbin},
+            \code{bartHurdle}) by name, instead of the generic
+            \sQuote{'x.train' must be a matrix, data.frame, formula, fitted
+            bart model, or dbartsSampler} message.
+      \item A formula \code{:} or \code{*} term (e.g. \code{y ~ x1 * x2})
+            is refused by name at the point the formula is parsed, instead
+            of dying inside \code{makeModelMatrix} with R's own
+            \sQuote{undefined columns selected}; \code{poly()}, \code{ns()},
+            \code{log()}, \code{.}, and \code{offset()} terms are
+            unaffected.
+      \item \code{predict.bart} and \code{predict.rbart} refuse an
+            unrecognized \code{offset.test} argument by name - the
+            out-of-sample offset formal on these two methods is
+            \code{offset} - instead of silently dropping it into
+            \code{\dots}.
+      \item \code{Depends} now correctly states \code{R (>= 4.2.0)}: the
+            C++20 \code{concept} declarations in the sampler's core need a
+            compiler newer than R's pre-4.2 reference Windows toolchain
+            (Rtools40, gcc 8.3) provides; the previous
+            \code{R (>= 4.0.0)} could not be honored by an R 4.0/4.1
+            Windows build.
     }
   }
 }
