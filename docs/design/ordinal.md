@@ -30,8 +30,8 @@ the fixed {(-inf, 0], (0, inf)} split (model.hpp:3085-3097), and the cutpoint
 vector gains sampled values - gamma_1 stays pinned at 0 (section 2), so of the
 K-1 finite cutpoints exactly K-2 are free. Everything else in the probit
 seam is unchanged: sigma is fixed at 1 (drawSigma returns sigma,
-model.hpp:3166), the tree stage sees working response z_i - o_i under unit
-weights (workingWeights() null, rebuildWorking model.hpp:3074), and the
+model.hpp:3106), the tree stage sees working response z_i - o_i under unit
+weights (workingWeights() null, rebuildWorking model.hpp:3074,3166), and the
 log-likelihood channel is the Phi-difference above.
 
 At K = 2 there is one cutpoint, gamma_1, fixed at 0 (below): the free-cutpoint
@@ -237,7 +237,7 @@ probit's rebuildWorking (working = latents - offset), workingWeights() = nullptr
 drawSigma() = sigma, initialSigma/fitScale/fitShift/sigmaScale = 1/1/0/1. The
 overrides are refreshLatents (the two-step cutpoints-then-latents draw of section
 3), computeLogLikelihood (the Phi-difference, generalizing probit's two-tail
-form at model.hpp:3138), and the new cutpoint state hooks (section 6). Ordinal
+form at model.hpp:3148-3163), and the new cutpoint state hooks (section 6). Ordinal
 carries K on construction (levels count).
 
 **A doubly-truncated-normal primitive is required.** random.h ships only
@@ -250,7 +250,7 @@ in the bulk, Robert (1995) rejection when the interval sits in a tail where the
 CDF gap underflows. Boundary categories (y = 1 and y = K) MUST keep the existing
 one-sided rejection primitives, never the new inverse-CDF one: the upper draw
 ext_rng_simulateUpperTruncatedNormalScale1(mean, bound) is
-mean - LowerTruncatedStandardNormal(mean - bound) (random.c:493-500), the same
+mean - LowerTruncatedStandardNormal(mean - bound) (random.c:486-493), the same
 underlying primitive and argument folding as probit's sign-flipped draw
 (model.hpp:3092), and the NaN fallback must match probit's sign * DBL_EPSILON
 (model.hpp:3093). These two invariants are what make the K = 2 identity of
@@ -259,14 +259,14 @@ consumes a different rng stream - and the K = 2 component test (section 7) locks
 both. The doubly-truncated primitive itself is a self-contained external/
 addition with its own component test (section 7).
 
-**Family selection (chain.hpp:597-631, facade.hpp).** Add ResponseFamily::ordinal
+**Family selection (chain.hpp:597-637, facade.hpp).** Add ResponseFamily::ordinal
 to the enum (model.hpp:2580) and a case to the chain's family switch constructing
 OrdinalResponse(y, offset, K, ...). No leaf-model change - ordinal is a
 ConstantGaussianLeaf single-forest model like probit, so it composes with the
 existing SamplerFacade instantiations (facade.hpp:413+) unchanged; K threads in
 through the same options struct the survival status and group indices use
 (chain.hpp:774-791). The bridge is NOT a string addition: resolveFamily
-(src/R_interface_bartcore.cpp:1580-1613) branches on the boolean
+(src/R_interface_bartcore.cpp:1580-1618) branches on the boolean
 control.responseIsBinary and refuses every family but gaussian/aft for a
 non-binary response, so ordinal needs a third response-shape channel - a K-level
 categorical flag plus K itself - plumbed through ParsedControl beside
@@ -298,7 +298,7 @@ today takes two different paths. bart2(family = "auto") routes it through
 detectAutoMultinomial, whose type match includes "ordered factor" at
 n.levels >= 3 (R/bart.R:1388-1412), and SILENTLY fits an unordered multinomial,
 discarding the ordering. The single-forest entries (dbarts, xbart, rbart_vi)
-error in resolveClassificationFamily's K >= 3 refusal (R/data.R:515-577). So
+error in resolveClassificationFamily's K >= 3 refusal (R/data.R:546-600). So
 EVERY option below - explicit-only included - must split ordered factors out of
 detectAutoMultinomial, and bart2's behavior on ordered responses changes
 whichever option wins; there is no zero-behavior-change choice. The detection
@@ -346,12 +346,12 @@ P(y = k | x) = Phi(gamma_k - eta) - Phi(gamma_{k-1} - eta), columns labeled by t
 ordered levels - the multinomial K-column shape (R/generics.R:1464-1478), computed
 through the cutpoints rather than a softmax. type = "bart"/"link" returns the
 single-column latent eta = f (probit returns its latent likewise,
-R/generics.R:1078-1087). A class-prediction convenience maps the argmax category
+R/generics.R:363-367). A class-prediction convenience maps the argmax category
 back to the ordered level (multinomial's max.col + levels idiom). The K-1 cutpoint
 draws are posterior output too: expose an n.samples x (K-1) "cutpoints" field, the
 ordinal analog of gaussian's sigma, so users can reconstruct probabilities at
 arbitrary eta and inspect the thresholds. predict requires keepTrees (the
-predict.bart guard, R/generics.R:249-260). This K-column path deliberately
+predict.bart guard, R/generics.R:269-275). This K-column path deliberately
 DIVERGES from the plan's suggestion that probabilityFromLatents generalizes
 (docs/plans/ordinal-outcomes.md step 1): probabilityFromLatents
 (R/generics.R:12-19) is a scalar link-inverse of a single latent column and
@@ -362,8 +362,8 @@ its own transform beside it rather than a generalization of it.
 **Levels round-trip.** Single-forest probit currently DISCARDS the factor levels
 (codeResponse, R/data.R:479-493). Ordinal must persist the ordered levels on the
 fit object to label the K probability columns and map argmax back - as
-bartMultinomial persists $levels (R/bart.R:1727). Give ordinal its own S3
-class bartOrdinal (mirroring bartMultinomial, R/bart.R:1973) carrying $levels and
+bartMultinomial persists $levels (R/bart.R:1708). Give ordinal its own S3
+class bartOrdinal (mirroring bartMultinomial, R/bart.R:1727) carrying $levels and
 $cutpoints, so the bart generics do not misread the K-widened arrays as a
 single-forest fit.
 
@@ -376,14 +376,14 @@ restoreResidualDf() was added for Student-t (model.hpp:4169). serializeState
 writes a "cutpoints" slot only when carriesCutpoints()
 (the residualDf pattern at chain.hpp:3084-3086); the R<->C++ state list gains a
 named "cutpoints" slot beside "resid.df" (slotNames, R_interface_bartcore.cpp:
-3759-3770), written only when present (the conditional write at 3872-3874) and
-read by name with absence tolerated (the getListElement decode at 4180-4187).
+6457-6466), written only when present (the conditional write at 6612-6619) and
+read by name with absence tolerated (the getListElement decode at 7087-7095).
 stateIsValid refuses an ordinal sampler whose state lacks a length-(K-1) cutpoint
 block (the residualDf check, chain.hpp:3262); setState restores it
 (chain.hpp:3753). **Old states (gaussian/probit/etc.) omit the slot and load
 unchanged** - the whole point of the by-name additive block. The per-observation
 latent z_i rides the EXISTING latents slot (probit's z already serializes there,
-model.hpp:3279-3282); restoreLatents rebuilds working from z. Choosing the
+model.hpp:3136-3141); restoreLatents rebuilds working from z. Choosing the
 count-derived FIXED proposal scale (section 3) means nothing else serializes; an
 adaptive scale would add a second scalar-vector block.
 
@@ -391,15 +391,15 @@ adaptive scale would add a second scalar-vector block.
 Gibbs swap): KEEP the current cutpoints (a slow-moving global parameter the outer
 sampler wants persisted across a small y perturbation) and re-draw z from the
 current fits under the new y's intervals - probit's minimal-disruption re-draw
-(model.hpp:3297-3303), plus leaving gamma alone. setData (n changes, everything
+(model.hpp:3110-3114), plus leaving gamma alone. setData (n changes, everything
 stale): cold-init the cutpoints to the default prior spacing AND re-draw z from
-scratch, matching probit/TResponse cold-init on a data swap (model.hpp:3263-3276,
-2712-2721). State this rule in the class doc as the probit convention plus a
+scratch, matching probit/TResponse cold-init on a data swap (model.hpp:3121-3134,
+4122-4132). State this rule in the class doc as the probit convention plus a
 kept-cutpoint clause.
 
 **setSigma / weights.** sigma is fixed at 1 (scheme A), so sigmaIsFixed_ is true
 and the sigma prior/setSigmaPrior is a no-op, as for probit. Weights are
-unsupported for the same reason probit refuses them (model.hpp:3239-3245): there
+unsupported for the same reason probit refuses them (model.hpp:3053-3056): there
 is no coherent weighted truncated-normal latent likelihood, so a weighted ordinal
 probit is not a real model. Refuse weights at ingestion, by name, like probit.
 

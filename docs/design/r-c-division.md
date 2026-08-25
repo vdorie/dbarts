@@ -181,7 +181,7 @@ including an independent re-check of Sun and Song)
   attribution are corrected and withdrawn: re-verified first-hand at
   princeBART 0.2.0, no such distinct artifact was found.) CRITIQUE:
   REFUTED as an unmet affordance - Gaussian row subsetting already
-  ships from R via zero weights (`dbartsSampler-class.Rd:183`); the
+  ships from R via zero weights (`dbartsSampler-class.Rd:178`); the
   real gaps are the empty-leaf veto counting zero-weight rows as
   occupied, the latent-family refusal on sigma/weight mutation
   (clause 1's identification parenthetical), and a missing

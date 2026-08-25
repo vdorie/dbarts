@@ -267,7 +267,7 @@ split-probability channel narrower than `setModel` (dbarts issue #67,
 "Feature request: more convenient updates of splitting probabilities", open
 since 2024-03-14) and the validator. *Verified:* `R/separate_bart.R:4-21`,
 `src/single_bart.cpp`, `src/separate_bart.cpp`; this worktree's
-`R/dbarts.R:1229-1238` and `man/dbartsSampler-class.Rd:103`.
+`R/dbarts.R:1225-1252` and `man/dbartsSampler-class.Rd:127`.
 
 **VCBART 1.2.5** (Deshpande, Bai, Balocchi, Starling, Weiss; CRAN,
 2026-04-21; 135/mo). Varying-coefficient models `y = sum_j beta_j(x) z_j`,
@@ -288,7 +288,7 @@ the recipe needs. (i) `z_j == 0` rows: `resid / z_j` is NaN or Inf there, and
 NaN is refused by `setResponse` while Inf silently poisons the leaf's weighted
 mean - so write any FINITE placeholder at those rows, where the zero weight
 makes the value irrelevant, and the shipped "excluded from the likelihood,
-fitted value retained" semantics apply (`man/dbartsSampler-class.Rd:137`).
+fitted value retained" semantics apply (`man/dbartsSampler-class.Rd:178`).
 (ii) The compound-symmetry arm (`vcbart_cs_fit.cpp`, `update_rho`,
 `compute_p_theta_cs`) is OUT of scope: its within-subject covariance is
 non-diagonal and case weights are diagonal. The standing caveat is the
@@ -526,7 +526,7 @@ weight channel (`dbarts:::bartcoreSetForestWeights`) is internal, absent from
 `dbarts.h` and from the R5 class. Unlocking items: the active-rows mask (AFT
 is its S2 scope) or a public per-forest weight. *Verified:* cloned the
 repository - README.md, DESCRIPTION, `src/` listing; the model shape agrees
-with `docs/design/model-space-survey.md:164-183`, which verified the paper and
+with `docs/design/model-space-survey.md:178-186`, which verified the paper and
 the per-sweep `glabel` draw first-hand.
 
 **BPCF** (Kim et al.; GitHub `lit777/BPCF`, C++). Principal stratification
@@ -536,7 +536,7 @@ standalone C++. *Counterfactual:* **(A)** - a per-sweep predictor column is
 `setPredictor(x, column = j)`, which ships, with transactional roll-back and a
 per-observation install mask. *Verified:* the repository exists and is C++
 (GitHub API); the "every component sees all n rows every sweep" reading is
-carried from `model-space-survey.md:190-196`, which verified paper and code -
+carried from `model-space-survey.md:198-206`, which verified paper and code -
 **UNVERIFIED here first-hand**.
 
 **embarcadero** (Carlson) - a dbarts-based species-distribution package the

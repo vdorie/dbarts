@@ -58,7 +58,7 @@ seams that exist are re-pointed for the constrained forest.
 **Box geometry is already computed.** Each leaf's [L_ik, U_ik] along an ordinal
 column is `Tree::splitInterval` (tree.hpp:416), the ancestor-constrained cut
 interval used for availability (`hasAnyAvailableVariable`, tree.hpp:572,
-moves.hpp:79). Neighbor determination for a constrained axis walks the tree's
+moves.hpp:144). Neighbor determination for a constrained axis walks the tree's
 bottom nodes and, for each ordered pair, tests boundary adjacency in the
 constrained coordinate and interval overlap in every OTHER coordinate the two
 leaves split on - so the overlap test spans the distinct split variables on the
@@ -72,7 +72,7 @@ new piece of tree geometry and the component-test target of section 9.
 **Per-column sign flag on the model spec.** Resolve `monotone` into a borrowed
 per-predictor direction vector, values in {-1, 0, +1}, carried to the engine as a
 new `SamplerOptions` field beside the other per-column designations
-(`columnTypes` chain.hpp:69, `leafCovariateColumns` chain.hpp:81) and consumed
+(`columnTypes` data.hpp:197, `leafCovariateColumns` chain.hpp:81) and consumed
 once at construction. A nonzero entry on any column selects the constrained
 instantiation at the factory (`createSampler`, facade.hpp:800-803); an all-zero
 vector is treated as null and selects the existing constant-leaf path unchanged
@@ -177,7 +177,7 @@ mere re-pointing:
 
 The alternative seat - reusing `FunctionLeafModel::beginTreeDraw` (model.hpp:83-88)
 and carrying mu as a degenerate function leaf - is rejected: it drags the
-function-leaf test-cache and fits-are-parameters machinery (chain.hpp:2280-2301)
+function-leaf test-cache and fits-are-parameters machinery (chain.hpp:4903-4924)
 onto a constant leaf for no benefit and muddies the chi-k accounting.
 
 **Budget.** The plan front-matter's "~500 lines" (docs/plans/monotone-bart.md) no
@@ -227,7 +227,7 @@ options, and what mBART actually does:
                      [p(T*)/p(T0)], 1 },
 
     the SAME shape as the unconstrained ratio the engine computes today
-    (moves.hpp:210-225 birth, moves.hpp:250-265 death). This is a valid
+    (moves.hpp:261-269 birth, moves.hpp:323-331 death). This is a valid
     MH-within-Gibbs block update of (T, touched-mu) with the other leaves held
     fixed, then a redraw of the touched mu from the truncated posterior over C
     (eq. 4.17). It targets the EXACT constrained posterior - the conditioning is
@@ -284,7 +284,7 @@ options, and what mBART actually does:
 Recommendation: **B'**. It is mBART's exact target with our numerics substituted
 for its grid, maps onto the existing move seam (replace the two
 `logIntegratedLikelihoodForNode` evaluations for the touched leaves at
-moves.hpp:172-191 with the constrained joint marginal that reads the frozen
+moves.hpp:86-87 with the constrained joint marginal that reads the frozen
 neighbor mu), and keeps the tree prior clean for the gate.
 
 RESOLVED (VD, 2026-07-18): **B'**, and proceed with the monotone arc now -
@@ -331,7 +331,7 @@ the structure makes the answer clean, and it differs by move:
   max-below above its min-above). Handled with NO special-casing: the constrained
   marginal integrates the truncated-normal product over an empty region to 0, so
   p(r_new | T*, mu_same) = 0 and alpha = 0 - the move is rejected by the ordinary
-  acceptance test, the same way the empty-leaf veto (-HUGE_VAL, moves.hpp:79)
+  acceptance test, the same way the empty-leaf veto (-HUGE_VAL, moves.hpp:121-123)
   already rejects unoccupied leaves. No infeasible state can be accepted.
 
 **v1 move set (scope decision).** Restrict the constrained forest to birth/death
@@ -358,7 +358,7 @@ change move is the recorded v2 extension (still 1-2 D, so B' covers it).
 mBART keeps the CGM10 leaf prior mu ~ N(0, sigma_mu^2) with
 sigma_mu = 0.5/(k sqrt(m)) (Y scaled to [-0.5, 0.5], k=2 default, m trees) - which
 is EXACTLY dbarts's constant-leaf prior sd = scale/k with scale =
-nodeScale/sqrt(numTrees), nodeScale = 0.5 (model.hpp:159, chain.hpp:57,650). The
+nodeScale/sqrt(numTrees), nodeScale = 0.5 (model.hpp:159, chain.hpp:50,650). The
 one change (paper Section 3.3, eq. 3.6): a leaf that IS constrained uses an
 inflated variance c^2 sigma_mu^2 with
 
@@ -385,19 +385,20 @@ correction is second-order (Section 3.3). Both the constrained marginal (section
 
 **Sub-decision - the chi-k hyperprior.** dbarts optionally samples k from the
 accumulated sum of standardized squared leaf values (`forest.updateK`,
-chain.hpp:4924,4956). Under truncation and a per-leaf-variable prior scale, the
+chain.hpp:4913,4951). Under truncation and a per-leaf-variable prior scale, the
 "standardized" square is no longer param/(scale/k), so feeding truncated draws
 into the chi-k update biases k. v1 uses FIXED k under `monotone` (mBART itself
 uses fixed k=2), but must not turn that into a default-fit error: the binary
 default k IS chi(1.5, 2.0), not a user choice (resolveNodeHyperprior k=NULL ->
-chi(1.5, 2.0) for binary, R/model.R:530; .kDefault, R/bart.R:658; bart2 k=NULL
-resolves the same), so a plain bart2(..., monotone=..., family="probit") supplies
-a chi hyperprior by default. Resolution: under `monotone`, an UNSUPPLIED k
-resolves to fixed k = 2 (the continuous default and mBART's value) for BOTH
-continuous and binary responses - silently, since the user requested no
-hyperprior; only an EXPLICIT chi request (k = chi(...)) refuses, with an
-informative message pointing at fixed k. Reconciling the truncated leaf law with
-the chi-k posterior is a documented follow-up, not v1 scope.
+chi(1.5, 2.0) for binary, R/model.R:530; .kDefault unresolved - no such object
+ships; bart2's own k=NULL, R/bart.R:658, resolves the same), so a plain
+bart2(..., monotone=..., family="probit") supplies a chi hyperprior by default.
+Resolution: under `monotone`, an UNSUPPLIED k resolves to fixed k = 2 (the
+continuous default and mBART's value) for BOTH continuous and binary responses -
+silently, since the user requested no hyperprior; only an EXPLICIT chi request
+(k = chi(...)) refuses, with an informative message pointing at fixed k.
+Reconciling the truncated leaf law with the chi-k posterior is a documented
+follow-up, not v1 scope.
 
 ## 7. Seams summary
 
@@ -415,10 +416,10 @@ the chi-k posterior is a documented follow-up, not v1 scope.
   `ConstrainedConjugateMove`); all-zero selects the existing constant-leaf path
   verbatim (section 8).
 - **Leaf store (chain.hpp):** muByTree must PERSIST across the move phase - stop
-  the zero-rebuild at chain.hpp:4913 so the moves can read frozen neighbors - and
-  the tree-granularity draw replaces the per-node loop at chain.hpp:4914 (section
-  3, changes 1-2). This is the widest mechanical change and the reason for the
-  re-budget.
+  the zero-rebuild at chain.hpp:4940 so the moves can read frozen neighbors - and
+  the tree-granularity draw replaces the per-node loop at chain.hpp:4941-4955
+  (section 3, changes 1-2). This is the widest mechanical change and the reason
+  for the re-budget.
 - **Leaf model (model.hpp):** a constant leaf with a tree-granularity Gibbs draw
   (section 3) and per-leaf c-inflation (section 6); holds a pointer to the
   direction vector and computes neighbor bounds via `Tree::splitInterval`

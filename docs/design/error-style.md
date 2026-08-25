@@ -47,7 +47,7 @@ do not introduce them now).
 
 - Conformance: `"'weights' must have the same length as 'y'"` (`R/data.R:699`).
 - Violation: `"chainNum must be a single chain index in [1, ...]"`
-  (`R/generics.R:2025`) - bare.
+  (`R/generics.R:2679`) - bare.
 
 A value drawn from a closed set of choices (family name, class name used as an
 echoed value) is quoted the same way; a descriptive category noun used as the
@@ -103,7 +103,7 @@ natural casing rather than force `"bcf does not support"`.
 - Conformance: 546/546 `stop()` bodies are lowercase-initial
   (`grep 'stop("[A-Z]' R/*.R` -> 0).
 - Violation: `src/R_interface_bartcore.cpp:2340` ("Student-t residuals ...")
-  is a genuine outlier, not an acronym - reword under the sweep. `:7113`
+  is a genuine outlier, not an acronym - reword under the sweep. `:7426`
   (DART) is the acronym exception and stays as-is; the two BCF-initial
   messages that sat beside it were reworded when the amplitude family took
   amplitude-rooted names, leaving DART the only one.
@@ -181,7 +181,7 @@ R: interpolate via `stop()`'s own `...` concatenation, with the placeholder's
 quote marks (R1) typed directly into the adjacent string literal - the
 majority form (43 of ~120 sampled interpolating calls) over `sprintf()` (15).
 Keep `sprintf()` as the accepted alternate when one clause interpolates two or
-more values (`R/augmentation.R:17`); do not introduce `paste0()`/`gettextf()`
+more values (`R/augmentation.R:18`); do not introduce `paste0()`/`gettextf()`
 (0 uses of either today). Conformance:
 `stop("invalid monotone direction '", value, "'; use -1, 0, or +1")`
 (`R/model.R:558`; reworded under R12, but the interpolation shape survives).
@@ -258,7 +258,7 @@ the same sites:
 - **Default - no prefix.** Raised directly in a `.Call` bridge entry point's
   own body (or a helper it alone reaches); R's `Error in .Call(...)` frame
   already attributes it. E.g. `"forest weight length must match the number of
-  observations"` (`src/R_interface_bartcore.cpp:3986`).
+  observations"` (`src/R_interface_bartcore.cpp:3993`).
 - **Flat C API entry points** (`src/C_interface.cpp`, `src/R_interface.cpp`,
   the `dbarts.h` ABI) **- hardcoded literal self-name.** Reachable by a
   `LinkingTo: dbarts` consumer with no R call frame to consult, so the message
@@ -268,7 +268,7 @@ the same sites:
 - **Shared bridge helpers reached from multiple `.Call` entry points -
   dynamic `"%s: ..."`.** `caller` can't be hardcoded since it varies per call
   site (`refuseMultiForestMutation`, called from `bartcore_setData` and
-  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4928`/`:4935`).
+  `bartcore_setModel`, `src/R_interface_bartcore.cpp:4639`/`:4932`).
   Standardize on `%s: ` (colon) - the majority sub-style (38 of 69 vs 31
   without), e.g. `:2613`. Reword the 31 no-colon instances (`:133`: `"%s
   requires a numeric matrix..."`) to add the colon.
@@ -294,7 +294,7 @@ R message is canonical - the one users see, the one docs/tests quote; the
 C-side message is independently worded against this rule, not copied.
 Verbatim-identical strings across the boundary already failed once: `"forest
 weights must be finite and non-negative"` is byte-identical at
-`R/bartcore.R:1059` / `src/R_interface_bartcore.cpp:3993`, but the very next
+`R/dbarts.R:1435` / `src/R_interface_bartcore.cpp:4000`, but the very next
 guard in the same pair, the length check, drifted apart with no R counterpart
 to stay in sync with (`"forest weight length must match the number of
 observations"`, C-only). A string shared across two languages by hand is
@@ -411,7 +411,7 @@ Against a fixed/derived count: `"'<name>' must have length <N>"`. Against
 another argument's length: `"'<name>' must have the same length as
 '<reference>' (<N>)"`. Closest precedent (names the reference but not the
 numbers): `sprintf("'%s' must have length %d, that of '%s'", name, n,
-reference)` (`R/augmentation.R:17`) - keep its shape, the sweep's one named
+reference)` (`R/augmentation.R:18`) - keep its shape, the sweep's one named
 exception. The prior furthest outlier, `R/bartcore.R`'s `"length of new x
 does not match old"` (naming neither argument nor either length), is fixed:
 `R/bartcore.R:284` now reads `"'x' must have length <N>"`, matching this
@@ -460,7 +460,7 @@ is for checks that can't use it (non-character enums, C-side class dispatch).
 Appending `"; got '<value>'"` is now encouraged, not mandated (see below).
 
 Conformance (shape): `"'forest' must name one of '", paste0(..., collapse =
-"', '"), "'"` (`R/generics.R:1836`). Violation: `"invalid monotone direction
+"', '"), "'"` (`R/generics.R:552-556`). Violation: `"invalid monotone direction
 '", value, "'; use -1, 0, or +1"` (`R/model.R:558`) - reword to `"'direction'
 must be one of -1, 0, 1"` (`got` value appended only if cheap at that call
 site). `"unrecognized response family for a binary response"`
@@ -501,7 +501,7 @@ treatment forest does not support %s"`
 not support weights; fit integer count weights with family = \"logistic\",
 or model continuous weights' latents directly"` (`R/spec.R:54-59`).
 Violation: `"sample = \"test\" is
-not available for type = \"forest\": an ..."` (`R/generics.R:931-936`) - reword to
+not available for type = \"forest\": an ..."` (`R/generics.R:582-587`) - reword to
 `"type = \"forest\" does not support sample = \"test\": ..."`.
 
 **External evidence.** Checked hard, because this looked like a plausible
@@ -531,7 +531,7 @@ R-canonical shape (per R8): `"<operation> is not available on <context>[:
 the function and every call site were deleted (multinomial-mutation-arc.md
 S4). The shape survives in its replacements, `refuseCountsMutation`
 (`R/bartcore.R:62`) and `refuseAmplitudeMutation` (`R/bartcore.R:36`), and in
-`$setControl`'s own per-slot refusal (`R/dbarts.R:1186-1198`). C-side
+`$setControl`'s own per-slot refusal (`R/dbarts.R:1207-1213`). C-side
 backstops keep their own idiom under R7/R8 (`"%s: a multi-forest sampler
 fixes its data at creation; make a new sampler instead"`,
 `src/R_interface_bartcore.cpp:2617`). Conformance: `setModel`'s DART-tree-
