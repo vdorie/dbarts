@@ -540,6 +540,56 @@ All six forks answered the day the plan landed:
 
 ## Landing notes
 
+### The docs/ citation strip and xbart's k-grid sort (ad4d801d, e1223266, 2026-08-25)
+
+Citation strip (ad4d801d, three commits): the maintainer's ruling that shipped files cite
+no docs/ path of any kind - the tarball strips docs/, so a path is a pointer to something
+not shipped - executed as a READING pass over 316 sites in 81 files (R/ 13, src/ 18, inst/
+49 incl. the tests and dbarts.h): every citation clause dropped, every constraint kept in
+place. The independent fidelity read sampled ~180 sites (every src/bartcore and bridge
+hunk in full) and found zero load-bearing statements lost; not one comment needed a rule
+inlined from a design doc - each citation sat beside a self-contained statement. Also
+cut: the bridge's state-format history narrative (the registry rule and the attributes
+clause stay and agree with stateFormatVersion = 3); the 14 review-labelled test sections
+renamed to what they pin; 13 bare design-doc filename mentions swept under the same
+ruling; a WG14 standards URL that merely contains "docs/" restored. feature-matrix.md's
+251 affected anchors re-derived by content (deltas 0..-7, non-uniform; a 15-anchor audit
+plus a mechanical check of all 463 resolvable anchors: 446 byte-identical targets, 17 on
+lines the strip itself edited). Census rule going forward: `grep -rn "docs/" R src
+inst/include inst/tinytest inst/common man | grep -v http` is empty, and so is the bare
+`*.md` grep. Bitwise 43/12/11; tinytest 7240/0. FOUND, NOT FIXED HERE: feature-matrix.md's
+anchors had rotted BEFORE this pass (its legend is stamped ad4a131b; ~9 verified cells
+name a construct their line no longer holds - the freshness check verifies presence, not
+construct identity), and ~705 file:line anchors in the other design docs and plans are
+verified by nothing; a whole-file content resync of the matrix, stamped at the tip, runs
+next, ahead of the review-tour refresh.
+
+xbart k-grid sort (e1223266, three commits): 0.9-34 sorted a numeric k grid decreasing
+before the sweep and un-permuted the reported axis, so the loss array was invariant to the
+order k is listed; the rewrite had dropped it, and a cell's loss shifts toward its sweep
+predecessor through the warm start (measured t = -6.6 at short burn-in, 0.27 percent at
+the shipped n.burn). Restored: the sort where k becomes a numeric grid (a sampled k is
+untouched), the un-permute on the full array before the drop so the array and its dimnames
+agree, one Rd sentence saying exactly what the sort buys - order-invariance, not per-cell
+unbiasedness - and pins: identical() arrays for k = c(2, 8) and c(8, 2) after alignment
+(red against the previous tip, 6 percent disagreement), caller-order dimnames, no k axis
+for a hyperprior k. test-reproducibility-xbart.R's snapshot regenerated (its grid now
+sweeps 8 before 4). THE PROGRAM'S THIRD BASELINE RE-RECORD: equivalence-736bfb05.rds
+(recorded at the sort commit 736bfb05, the engine tip; reproduces itself 43/43 under
+--strict-coverage; four places updated in the recording commit: equivalence.yaml, MANIFEST
+with the P17 row, feature-matrix [f39], TODO). Partition against 5a3bc276: 42 of 43
+scenarios bitwise, xbart alone moves (8 summaries, max |z| = 1.94; its grid is k = c(1, 3),
+now swept 3 then 1). Adjudicated independently: the new order's c(1, 3) is BITWISE the old
+build's c(3, 1) on all 40 seeds - a pure relabelling of the previous sweep - and a 40-seed
+paired per-cell comparison puts the pooled difference at -0.019 (SE 0.014, 0.8 percent of
+the loss), with the k = 1 cell's warm start shifted toward its k = 3 predecessor
+(-0.044, t = -2.6) and the k = 3 cell's not (-0.006): the target is unmoved to
+Monte-Carlo precision, and the warm-start bias is real at n.burn[2] = 5, which is why the
+Rd disclaims unbiasedness. The MANIFEST row says "adjudication of the expected class"
+verbatim, as the P17 rule requires. bcf 12/12 and multinomial 11/11 bitwise at the same
+tip; tinytest 7246/0. The adjudicator also corrected the TODO, which had listed the
+already-landed sigma cure as open.
+
 ### Threaded predict landed, and the constant-response sigma cure (e0e59097, b2df6522, 2026-08-25)
 
 Sigma cure (e0e59097, three commits): estimateSigmaFromLinearModel now routes a non-finite
