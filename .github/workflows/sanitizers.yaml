@@ -8,8 +8,8 @@
 # valgrind memcheck (20-50x slower - ~an hour, and it grows with the suite)
 # is split into valgrind.yaml, run nightly + on demand instead of per-push,
 # so this fast gate stays under ~10 min. The ASAN legs are the per-push
-# memory-safety gate (they caught the BCF interaction UAF, 04ca425); valgrind
-# adds uninitialized-read coverage that does not need to block every push.
+# memory-safety gate; valgrind adds uninitialized-read coverage that does
+# not need to block every push.
 name: sanitizers
 
 on:
@@ -81,10 +81,9 @@ jobs:
 
             # Total-count floor: guards against a refactor that silently
             # empties whole test files (a passing suite of zero assertions
-            # looks green). Baseline measured 2026-08-17 at f6c8979d: 5799
-            # results, 0 failures. Floor set at 5200 (~10% headroom under the
-            # baseline) - routine suite growth does not trip it, a refactor
-            # that empties whole files does.
+            # looks green). The floor is 5200 - ~10% headroom under the
+            # suite's size - so routine growth does not trip it and a
+            # file-emptying refactor does.
             if (length(ok) < 5200L) {
               cat(sprintf(
                 "::error::tinytest produced only %d results, expected >= 5200\n",
@@ -93,12 +92,9 @@ jobs:
               quit(status = 1L, save = "no")
             }
 
-            # Per-file floors for the highest-value files (measured
-            # 2026-08-17 at f6c8979d: test-capi.R 232,
-            # test-bcf-r5-surface.R 45, test-multinomial-surface.R 126,
-            # test-argument-surface.R 96, test-bartcore.R 250; floors are
-            # ~60-65% of the measured count, so routine growth does not trip
-            # them but a file-emptying regression does). test-simd.R
+            # Per-file floors for the highest-value files, each set at
+            # ~60-65% of its measured count so routine growth does not trip
+            # it but a file-emptying regression does. test-simd.R
             # legitimately exit_file()s with zero assertions on a
             # scalar-only host; run_test_dir() in tinytest unlist()s
             # per-file results, so an exit_file()d file contributes nothing

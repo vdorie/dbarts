@@ -82,7 +82,7 @@ jobs:
           build_args: 'c("--no-manual","--no-build-vignettes")'
           args: 'c("--no-manual","--ignore-vignettes")'
 
-  # Native arm64 validation of the NEON config (dcee743): compile the
+  # Native arm64 validation of the NEON config: compile the
   # _neon kernels under Rtools-aarch64 and prove scalar-vs-NEON bitwise
   # agreement. Scoped to install + the SIMD test rather than a full check:
   # the win-aarch64 toolchain is experimental and Suggests must build from
@@ -119,12 +119,11 @@ jobs:
         run: Rscript -e 'stopifnot(R.version$arch %in% c("aarch64", "arm64", "arm"), .Call(dbarts:::C_dbarts_getMaxSIMDInstructionSet) >= 1L)'
 
       - name: Run the SIMD reproducibility test
-        # Floor raised from the bare length(res) > 0L existence check to the
-        # exact count test-simd.R produces once NEON presence is proven (the
-        # prior step): one expect_equal from the short-data block plus one
-        # from the long-data block, measured 2026-08-17 locally on arm64.
+        # NEON presence is proven by the prior step, so the floor is
+        # test-simd.R's exact count: one expect_equal from the short-data
+        # block plus one from the long-data block.
         # This is the only leg in this workflow with an R-level tinytest
-        # results object to assert on - the R-CMD-check matrix below runs
+        # results object to assert on - the R-CMD-check matrix above runs
         # tests opaquely inside r-lib/actions/check-r-package (R CMD check
         # invokes tests/tinytest.R itself; no results object reaches this
         # YAML without re-running the suite), so it does not gain a

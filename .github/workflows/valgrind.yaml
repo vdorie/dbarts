@@ -1,17 +1,16 @@
 # valgrind memcheck over the compiled engine, the .Call bridge, and the
 # support libraries under an instrumented R-devel build (r-hub valgrind
-# container). Split out of sanitizers.yaml because memcheck runs 20-50x
-# slower than native (~an hour, and rising with the tinytest suite), so it no
-# longer gates every push - the fast clang/gcc ASAN legs in sanitizers.yaml
-# are the per-push memory-safety gate; valgrind adds uninitialized-read
-# (--track-origins) coverage on a nightly cadence plus on demand.
+# container). memcheck runs 20-50x slower than native (~an hour, and rising
+# with the tinytest suite), so it does not gate every push - the fast
+# clang/gcc ASAN legs in sanitizers.yaml are the per-push memory-safety
+# gate; valgrind adds uninitialized-read (--track-origins) coverage on a
+# nightly cadence plus on demand.
 #
 # NOTE: GitHub binds `schedule` to the repository DEFAULT branch, so the
 # nightly run does not fire until this workflow lands on main. On bartcore it
 # is workflow_dispatch (manual) only - run it before landing a large engine
-# change (as 04ca425's BCF interaction UAF showed, the R-reachable path needs
-# a memcheck/ASAN pass). Validate the schedule when bartcore merges to main,
-# alongside the other schedule/dispatch-only workflows.
+# change. Validate the schedule when bartcore merges to main, alongside the
+# other schedule/dispatch-only workflows.
 name: valgrind
 
 on:
