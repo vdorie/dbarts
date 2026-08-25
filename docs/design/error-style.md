@@ -46,8 +46,9 @@ never `sQuote`/`dQuote`/`gettextf` (0 uses of any of these on either side -
 do not introduce them now).
 
 - Conformance: `"'weights' must have the same length as 'y'"` (`R/data.R:699`).
-- Violation: `"chainNum must be a single chain index in [1, ...]"`
-  (`R/generics.R:2679`) - bare.
+- Violation, since reworded: `"chainNum must be a single chain index in
+  [1, ...]"` was bare; `R/generics.R:2679` now reads `stop("'chainNum'
+  must be a single chain index in [1, ", n.chains, "]")`.
 
 A value drawn from a closed set of choices (family name, class name used as an
 echoed value) is quoted the same way; a descriptive category noun used as the
@@ -182,9 +183,11 @@ quote marks (R1) typed directly into the adjacent string literal - the
 majority form (43 of ~120 sampled interpolating calls) over `sprintf()` (15).
 Keep `sprintf()` as the accepted alternate when one clause interpolates two or
 more values (`R/augmentation.R:18`); do not introduce `paste0()`/`gettextf()`
-(0 uses of either today). Conformance:
-`stop("invalid monotone direction '", value, "'; use -1, 0, or +1")`
-(`R/model.R:558`; reworded under R12, but the interpolation shape survives).
+(0 uses of either today). Conformance: `stop("'chainNum' must be a single
+chain index in [1, ", n.chains, "]")` (`R/generics.R:2679`). The example
+this rule first cited, `"invalid monotone direction '", value, "'; use
+-1, 0, or +1"`, did not survive: R12's rewording left `R/model.R:557-560`
+a fixed two-literal message that interpolates nothing.
 
 C: `Rf_error`'s only mechanism is its own printf placeholders (`%s`, `%d`,
 `%zu`) - no alternative exists. Quote `%s` in `'...'` when it echoes a name or
@@ -269,9 +272,12 @@ the same sites:
   dynamic `"%s: ..."`.** `caller` can't be hardcoded since it varies per call
   site (`refuseMultiForestMutation`, called from `bartcore_setData` and
   `bartcore_setModel`, `src/R_interface_bartcore.cpp:4639`/`:4932`).
-  Standardize on `%s: ` (colon) - the majority sub-style (38 of 69 vs 31
-  without), e.g. `:2613`. Reword the 31 no-colon instances (`:133`: `"%s
-  requires a numeric matrix..."`) to add the colon.
+  Standardize on `%s: ` (colon) - the majority sub-style at the survey
+  date (38 of 69 vs 31 without), e.g. `:2613`. Reword the no-colon
+  instances to add the colon. The one cited here has been: `:133` now
+  reads `"%s: requires a numeric matrix with matching columns"`, and the
+  `Rf_error("%s", ...)` calls that remain in that file substitute a whole
+  pre-built message rather than a caller prefix.
 
 **External evidence.** WRE's C-API chapter has a section titled "Error
 signaling" in its table of contents, but the fetched manual text did not
@@ -500,9 +506,10 @@ treatment forest does not support %s"`
 (`src/R_interface_bartcore.cpp:2319`); `"probit models do
 not support weights; fit integer count weights with family = \"logistic\",
 or model continuous weights' latents directly"` (`R/spec.R:54-59`).
-Violation: `"sample = \"test\" is
-not available for type = \"forest\": an ..."` (`R/generics.R:582-587`) - reword to
-`"type = \"forest\" does not support sample = \"test\": ..."`.
+Violation, since reworded to exactly this rule's proposal: `"sample =
+\"test\" is not available for type = \"forest\": an ..."` is now
+`"type = \"forest\" does not support sample = \"test\": no test-sample
+per-forest channel is stored, ..."` (`R/generics.R:582-587`).
 
 **External evidence.** Checked hard, because this looked like a plausible
 override going in. Neither tidyverse nor rlang address "unsupported feature"

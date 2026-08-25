@@ -139,8 +139,9 @@ the binary family - a factored construction over shipped families, right-sized R
 the engine byte-neutral unconditionally (section 7), and gives the correctness gate for
 free (section 5). The strongest argument against - that a user expects "a hurdle
 sampler," one object, one .Call, the shape BCF/multinomial took - is answered by the
-packaged fit class (section 6): the user sees one `bart2(family = "hurdle")` call and
-one fit object; only the internals are two samplers. The case where the engine route
+packaged fit class (section 6): the user sees one
+`bart2(family = "hurdle.lognormal")` call and one fit object; only the internals
+are two samplers. The case where the engine route
 becomes justified is real but is a DIFFERENT model: a sample-selection / correlated
 two-part (Heckman) model, where the occupancy and amount errors are correlated and the
 parts do NOT factor - that coupling is what would finally pay for the Chain
@@ -254,9 +255,12 @@ across the two fits, and predict on new data.
 
 ## 6. The R surface
 
-- **How the user asks.** family = "hurdle" (v1: probit occupancy + lognormal positive
-  part), added to the dbarts and bart2 family vectors (R/dbarts.R:387, R/bart.R
-  around :702). Following the dbarts token convention (families are tokens, not
+- **How the user asks.** family = "hurdle.lognormal" (v1: probit occupancy +
+  lognormal positive part), added to the dbarts and bart2 family vectors
+  (R/dbarts.R:387, R/bart.R:702), with `twopart` an accepted alias that resolves to
+  it (R/dbarts.R:409, R/bart.R:723). This section first proposed the bare "hurdle";
+  the NAMING decision in section 13 supersedes it, and the qualified token is what
+  ships. Following the dbarts token convention (families are tokens, not
   arguments - aft, ordinal, nbinom, hazard all extended the vector, survival.md),
   future variants are further tokens: "hurdle.logistic" (logistic occupancy),
   "hurdle.nbinom" (count positive part once a truncated-count family ships). The
@@ -306,8 +310,8 @@ member perturb the single-forest hot path" risk that heteroscedastic's equivalen
 
 - Semicontinuous two-part: probit occupancy on 1{y > 0} over all n + gaussian-on-log-y
   positive part over the y > 0 subset, combined at predict.
-- family = "hurdle" on dbarts()/bart2(); the bartHurdle class + fitted/predict/extract/
-  print; y >= 0 validation.
+- family = "hurdle.lognormal" on dbarts()/bart2(); the bartHurdle class +
+  fitted/predict/extract/print; y >= 0 validation.
 - The reduction gate (section 5), the recovery smoke, the equivalence scenario, tinytest.
 - No engine code, no bridge, no state-format change, no dbarts.h change.
 

@@ -9,10 +9,11 @@ re-verified live against that tree.
 
 ## 1. The ruling
 
-`predict`'s `n.threads` formal exists on every generic and on
-`dbartsSampler$predict`/`$predictForests` today, but is inert:
-man/dbartsSampler-class.Rd:154-170 says plainly that "`run` and
-`predict` both execute serially regardless of the value passed here."
+`predict`'s `n.threads` formal existed on every generic and on
+`dbartsSampler$predict`/`$predictForests` but was inert:
+man/dbartsSampler-class.Rd then said plainly that "`run` and `predict`
+both execute serially regardless of the value passed here" (that item is
+now split - section 6, and Rd:154-170 live).
 Vincent ruled that this formal gets wired to real threading. Because
 dbarts is pre-1.0-0, the shipped `dbarts.h` C API is free to change to
 carry it - no consumer's ABI is frozen yet, and consumer compatibility
@@ -88,7 +89,7 @@ spawning threads.
 
 ## 5. Header and ABI
 
-The new prototype (inst/include/dbarts/dbarts.h:853, X-macro in
+The prototype, as shipped (inst/include/dbarts/dbarts.h:853, X-macro in
 lockstep at :449-452):
 
 ```c
@@ -101,35 +102,39 @@ void dbarts_sampler_predict(dbarts_sampler* sampler,
                             double* out);
 ```
 
-The change moves two hash literals, both failing loudly and
-self-correcting: `dbarts_apiSignatureToken == 0x85bd1ef04beb3848ULL`
-(C_interface.cpp:461) fires first and prints the new signature token
+The change moved two hash literals, both failing loudly and
+self-correcting: `dbarts_apiSignatureToken` (C_interface.cpp:461, then
+`0x85bd1ef04beb3848ULL`) fires first and prints the new signature token
 to paste over itself; a rebuild then fails `dbarts_apiToken() ==
 DBARTS_C_API_HASH` (:465) and prints the new layout hash to paste over
-`DBARTS_C_API_HASH` (dbarts.h:142); `DBARTS_C_API_MINOR` (dbarts.h:104,
-currently 0) bumps to 1. `facade.hpp` gets the parameter on all three
-predict virtuals - `predict` (:263), `predictPerForest` (:273),
-`predictVariance` (:278) - with no default argument (a default on a
-virtual binds from the static type, and every real call goes through
-`SamplerBase&`); the overrides (:553, :559, :564) and the dense
-convenience spellings (:285, :291) take and forward it too, or those
-calls would silently stay serial. `tests/cpp/test_facade.cpp`'s
-virtual enumerator, spy, and conformance checks (:40-41, :140-146,
-:771-822) now record the `numThreads` a forwarder was handed and
-assert it passed through, disproving "the wiring is a no-op".
+`DBARTS_C_API_HASH` (dbarts.h:142). Both were re-signed - live,
+C_interface.cpp:461 asserts `0xcb83367ee0c4175bULL` and dbarts.h:142
+bakes `0x66d33f1613892406ULL`. This section also called for
+`DBARTS_C_API_MINOR` (dbarts.h:104) to bump from 0 to 1; it did not, on
+the header's own pre-release rule - see section 11.
+`facade.hpp` took the parameter on all three predict virtuals -
+`predict` (:263), `predictPerForest` (:273), `predictVariance` (:278) -
+with no default argument (a default on a virtual binds from the static
+type, and every real call goes through `SamplerBase&`); the overrides
+(:553, :559, :564) and the dense convenience spellings (:285, :291) take
+and forward it too, or those calls would silently have stayed serial.
+`tests/cpp/test_facade.cpp`'s virtual enumerator, spy, and conformance
+checks (:40-41, :140-146, :771-822) record the `numThreads` a forwarder
+was handed and assert it passed through, disproving "the wiring is a
+no-op".
 
 ## 6. Bridge and R surface
 
-The bridge gains the argument on both `.Call` entries -
+The bridge took the argument on both `.Call` entries -
 `dbarts_bartcore_predict`, `dbarts_bartcore_predictPerForest`
-(`DEF_FUNC` arity 3 -> 4, R_interface.cpp:224-225) - and on
+(`DEF_FUNC` arity 3 -> 4, live at 4, R_interface.cpp:224-225) - and on
 `predictFromSource` (R_interface_bartcore.cpp:5651), `bartcore_predict`
 (:5773), `predictPerForestFromSource` (:5832), and
 `bartcore_predictPerForest` (:5872), validated with
 `rc_getInt(..., RC_VALUE|RC_GEQ 1, ...)`. Four inst/tinytest sites
 (test-predict-sparse.R:164, test-multinomial-test-offset.R:411 and
-:421, test-multinomial-category-offset.R:436) call these `.Call`s at
-the old arity directly and need the fourth argument.
+:421, test-multinomial-category-offset.R:436) call these `.Call`s
+directly and needed the fourth argument; all four pass it.
 `dbartsSampler$predict`/`$predictForests` (R/dbarts.R:1084-1169) pass
 their formal through; `bartcorePredict` (R/bartcore.R:1080) and
 `bartcorePredictPerForest` (unresolved: no such wrapper ships in `R/`;
@@ -153,16 +158,16 @@ before `group.by` would pass a factor as a thread count.
 | predict.bartHurdle | :2098 | `object$occupancy$fit$control@n.threads` (no `object$fit`) |
 | predict.rbart | :2141 | `object$fit[[1L]]$control@n.threads` (a list of samplers) |
 
-`predict.bart`'s validation (currently at :280) moves above the two
-early returns that precede it - `return(predictForest(...))` at :310
-and `return(predictBlend(...))` at :324 - so the amplitude family's
-value is validated too; `predictBlend` (:775-787) joins the forwarding
-sites. man/dbartsSampler-class.Rd:154-170's joint "run and predict
-both execute serially" item splits: predict's half states the
-per-call override and the default, and affirms that
-`_R_CHECK_LIMIT_CORES_` (read only by `parallel:::.check_ncores`)
-does not govern native threads; run's half keeps the inert wording
-(door D1).
+`predict.bart`'s validation moved above the two early returns that
+preceded it - `return(predictForest(...))` and `return(predictBlend(...))`
+- so the amplitude family's value is validated too; live,
+`validatePredictThreads(n.threads)` sits at R/generics.R:280, above both,
+and `predictBlend` (:775-787) is a forwarding site.
+man/dbartsSampler-class.Rd:154-170's joint "run and predict both execute
+serially" item is split: predict's half states the per-call override and
+the default, and affirms that `_R_CHECK_LIMIT_CORES_` (read only by
+`parallel:::.check_ncores`) does not govern native threads; run's half
+keeps the inert wording (door D1).
 
 The chosen R default is the fit's own thread count, and that exposure
 is stated plainly: 117 of 307 `bart2`/`rbart_vi` calls across

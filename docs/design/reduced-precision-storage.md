@@ -124,7 +124,9 @@ lower-risk TRACK 1 that lands first and independently of the fp32 work.
   into a draw-changing one. GUARD: static_assert(sizeof(index_t) ==
   sizeof(misc_index_t)) pinning the C++ buffer type to the C kernel param
   (mirroring the existing static_assert on misc_xint_t == uint16 at
-  tree.hpp:828). ACCEPTANCE: the cross-ISA tests/cpp gate AND the bitwise
+  tree.hpp:828); that guard shipped with the lever and is live at
+  tree.hpp:834, one line below the misc_xint_t assert it mirrors.
+  ACCEPTANCE: the cross-ISA tests/cpp gate AND the bitwise
   equivalence trio must both stay identical - any drift means a kernel was
   rewritten, not retyped.
 

@@ -1,6 +1,16 @@
 # The multinomial mutation arc: scoping and design
 
-Status: REVISION 2, 2026-08-20, after independent blind critique
+Status: LANDED, 2026-08-24, in four slices (S0 5e586587, S1a b2d1749f,
+S2+S3 5a3bc276, S4/F1 2619ac9e).
+
+Sections 1 through 4 describe the tree BEFORE the arc landed - the
+proposal's inventory, its forks and its prices - and are not statements
+about the live code. The live multinomial surface is documented in
+`docs/design/multinomial.md` and `docs/design/feature-matrix.md`; the
+`retired:` markers below flag individual pre-arc constructs, and the
+landing notes at the end record what each slice shipped.
+
+Design text: REVISION 2, 2026-08-20, after independent blind critique
 (verdict EXECUTE-WITH-AMENDMENTS). Every one of the critique's 21
 findings is folded in with its measured evidence.
 Section 7 records the disposition finding by finding; section 8 records
@@ -42,8 +52,8 @@ anchors below are re-derived to the successor constructions):
 
 | site | family | host built by | real engine |
 |---|---|---|---|
-| `:1473-1481` | multinomial (labels) | `buildHostSamplerCall(family = NULL)` + `samplerCall$data <- as.double(labels)` | `bartcoreMultinomialSampler` (`R/bartcore.R:932`) |
-| `:1559-1568` | multinomial (counts) | same, `samplerCall$data <- as.double(y[, 1L])` | `bartcoreMultinomialCountSampler` (`:968`) |
+| `:1473-1481` | multinomial (labels) | `buildHostSamplerCall(family = "multinomial")` (`:1477`) + `samplerCall$data <- y` (retired: the pre-arc call passed `family = NULL` and `as.double(labels)`) | the sampler built here IS the engine that runs (S4/F1); `bartcoreMultinomialSampler` (`R/bartcore.R:932`) is now a thin wrapper over the same public path |
+| `:1559-1568` | multinomial (counts) | same, `family = "multinomial"` (`:1563`), `samplerCall$data <- y` (retired: was `as.double(y[, 1L])`) | as above; `bartcoreMultinomialCountSampler` (`:968`) |
 | `:1809` | ordinal | `buildHostSamplerCall(family = "ordinal")` | `bartcoreSampler(sampler, family = "ordinal")` (`:645`) |
 | `:2058` | nbinom | `buildHostSamplerCall(family = "nbinom")` | `bartcoreSampler(sampler, family = "nbinom")` |
 
@@ -93,12 +103,19 @@ codes `0..K-1`; `R/spec.R:198-207` resolves auto on a numeric response by
 `R/bart.R` called the resolved family "irrelevant and never surfaced"
 (retired: the comment went with the host shell). It is surfaced - through thirteen unguarded R5 readers.
 
-**Multinomial has no public construction route at all.** `dbarts()`'s
-`family` formal (`R/dbarts.R:375-389`) lists twelve tokens; not this one.
-`dbartsSpec()` does not reach it (`feature-matrix.md:472-480`). No `dbarts.h`
-creation path (`feature-matrix.md` `[f4]`). Only
-`C_dbarts_bartcore_createMultinomial` / `...Counts` via two unexported
-wrappers.
+**Multinomial had no public construction route at all** (retired at
+S2+S3, which built one). `dbarts()`'s `family` formal
+(`R/dbarts.R:375-389`) now lists thirteen tokens with `"multinomial"`
+among them (`:381`); `dbartsSpec()` reaches it the same way
+(`R/spec.R:787-796`, `"multinomial"` at `:793`); and creation runs
+through the single public dispatch every family uses, `bartcore_create`
+(`src/R_interface_bartcore.cpp:3489`), whose multinomial arm is
+`createMultinomialDataHolder` (`:3455`) - the dedicated
+`C_dbarts_bartcore_createMultinomial` / `...Counts` entries are retired
+(Fork J1). What still holds is the absence of a `dbarts.h` creation path
+(`feature-matrix.md` `[f4]`): `dbarts_sampler_create`
+(`src/C_interface.cpp:478`) routes to `createHolder`, never to the
+multinomial arm.
 
 ### 1.3 What the `$bc` handles can already do, bridge-side
 
@@ -234,7 +251,8 @@ file's header, `:7`).
 **A1** front any handle from `dbartsSampler` (needs the response on
 `data`, fork G; `length(data@y)` appears at `:1340`, `:1402`, `:1429`,
 `:1477`, and `R/bartcore.R:455`; `$predict`'s offset coercion
-`R/dbarts.R:1104-1143` needs a K-matrix arm).
+`R/dbarts.R:1104-1143` needs a K-matrix arm - S2+S3 built it, the
+`!is.null(counts)` branch at `R/dbarts.R:1107-1125`).
 **A2** a new public class (doubles the documented surface; breaks the
 "an ordinary `dbartsSampler`" promise `man/dbarts.Rd` makes for
 multi-forest fits).
@@ -325,10 +343,13 @@ the plan doc). Multinomial has no flat creation path
 `DBARTS_C_API_HASH` (`dbarts.h:142`) AND `dbarts_apiSignatureToken`
 (`src/C_interface.cpp:461`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
 because appending to `DBARTS_C_API_DECLS` moves the signature half too.
-Plus `inst/tinytest/test-capi.R`: `:84` pins the literal
-(`expect_identical(hashes$text, "0x6c9776ae1197e8f5")`) and must change,
-and one `expect_false` for the superseded literal should be added
-alongside `:73-74`, `:78`.
+Plus `inst/tinytest/test-capi.R`: `:84` pins the literal and must
+change, and one `expect_false` for the superseded literal should be added
+alongside the ones already there. The quoted pin has since moved: the
+header re-baked when `dbarts_sampler_predict` took a thread count, so
+`:84` now reads `expect_identical(hashes$text, "0x66d33f1613892406")` and
+`0x6c9776ae1197e8f5` is itself one of the superseded literals, at `:81`
+beside `:73-74` and `:78`.
 
 **C1** no growth / **C2** grow / **C3** reserve only (~30 lines in
 `docs/plans/c-api-growth.md`).
@@ -460,6 +481,16 @@ ordinal and nbinom blocks pin the FAMILY-SPECIFIC message text
 those cells INVERT - the sampler becomes mutable - so they must be
 rewritten as capability assertions, not deleted.
 
+That footprint is spent. `hostFor` has zero survivors in `R/`, `src/`,
+`inst/` and `man/` - the sole remaining occurrence of the name is the
+descriptive comment at `inst/tinytest/test-host-shell-pins.R:4`. The
+ordinal and nbinom cells did invert to capability assertions
+(`test-ordinal.R:140-147`, `test-nbinom.R:143-152`, both now asserting
+that the retained `$fit` reads, mutates and runs); the
+`test-dispersion-channel.R` cell was deleted rather than rewritten; and
+the four multinomial cells survive as refusals stated on MODEL grounds
+rather than host-shell ones.
+
 ### Fork G. Where the multinomial response lives
 
 **G1 (RECOMMENDED). `dbartsData` gains slots**: `counts` (n x K
@@ -526,19 +557,23 @@ packages a clean upgrade, and the NEWS entry is owed either way.
 
 `refuseMultiForestResponseMutation` (`:2636-2681`) is shared with the
 flat C API and its own comment forbids stating two rules (`:2650-2651`).
-Its multinomial arm today tells R users to call `bartcore_setCounts` -
+Its multinomial arm then told R users to call `bartcore_setCounts` -
 an internal C name not callable from R.
 **H1** keep C names (status quo, wrong for R users). **H2** thread a
 surface label (against the shared-guard note in letter). **H3
 (RECOMMENDED)** name the CAPABILITY, not the entry - "replace it through
 the counts channel" - one string, right on both surfaces, and what
-`docs/design/error-style.md` (ADOPTED 2026-08-17) asks for.
+`docs/design/error-style.md` (ADOPTED 2026-08-17) asks for. H3 LANDED at
+S2+S3: that is the message the response arm now carries (`:2666-2667`).
 
 Same edit, cheap: with `supportsCountsMutation` true the WEIGHTS conduit
-falls through to the RESPONSE message (`:2652-2667` tests only
+then fell through to the RESPONSE message (`:2652-2667` tested only
 `conduit == offset`), so `bartcore_setWeights` on a multinomial sampler
-answers "this sampler's response is its n x K count matrix". Give weights
-its own arm naming the model reason.
+answered "this sampler's response is its n x K count matrix". Give
+weights its own arm naming the model reason. LANDED with H3: the weights
+arm is `:2661-2665`, and it states the model reason - an integer weight
+already IS row-wise count replication, and a non-integer one has no exact
+augmentation sampler.
 
 ---
 

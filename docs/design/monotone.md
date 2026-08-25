@@ -72,8 +72,11 @@ new piece of tree geometry and the component-test target of section 9.
 **Per-column sign flag on the model spec.** Resolve `monotone` into a borrowed
 per-predictor direction vector, values in {-1, 0, +1}, carried to the engine as a
 new `SamplerOptions` field beside the other per-column designations
-(`columnTypes` data.hpp:197, `leafCovariateColumns` chain.hpp:81) and consumed
-once at construction. A nonzero entry on any column selects the constrained
+(`leafCovariateColumns` chain.hpp:81; `columnTypes` is per-column too but
+rides `PredictorSource` at data.hpp:197, reaching the options through
+`SamplerOptions::predictors` chain.hpp:76) and consumed once at construction.
+As shipped the field is `monotoneDirections` (chain.hpp:84-89). A nonzero
+entry on any column selects the constrained
 instantiation at the factory (`createSampler`, facade.hpp:800-803); an all-zero
 vector is treated as null and selects the existing constant-leaf path unchanged
 (section 8). This mirrors how the linear-leaf designation rides and dispatches,

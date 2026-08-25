@@ -308,7 +308,11 @@ at alpha = 0.05, so nothing previously recorded is invalidated.
 
 ## Follow-ups
 
-- multinomial raw f_ik. The one result this pass could not discharge. Evidence:
+- multinomial raw f_ik. CLOSED: the pre-registered suspect was the cause, and
+  the fix landed as ec2a3d0; the closure is recorded in
+  docs/plans/multinomial-level-centering.md (Landing, :177-192, with the
+  re-run `sbc.R multinom 200 150 30` showing every functional PASS).
+  The one result this pass could not discharge. Evidence:
   three cells, same U shape, chisqP 0.000, statistic 0.86-0.91 of the matrix
   band at thin = 30 and not shrinking at thin = 90, against per-cell ACF under
   lag 10 - so a mixing explanation has to explain why 3x the spacing does not

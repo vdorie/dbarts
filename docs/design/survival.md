@@ -406,16 +406,20 @@ contrast: a real engine family with its own arm in each of those switches
 and a status vector threaded to C++; hazard takes an arm NOWHERE because
 after the remap there is nothing left to switch on.
 
-The Surv conflict guard extends to admit the hazard tokens: today
-responseIsSurv errors for any explicit family outside "auto"/"aft"
-(R/dbarts.R:467-475), so Surv + a hazard family would be refused as a
-conflict. The guard's whitelist gains the hazard tokens - a Surv response
-declares survival, and the family then picks WHICH survival model
-(family = "auto" keeps selecting aft, the landed default; a hazard token
-selects discrete-time). Every naming form below needs this same guard
-edit, so it differentiates none of them.
+The Surv conflict guard extends to admit the hazard tokens:
+responseIsSurv then errored for any explicit family outside "auto"/"aft",
+so Surv + a hazard family would have been refused as a conflict. The
+guard's whitelist gains the hazard tokens - a Surv response declares
+survival, and the family then picks WHICH survival model (family = "auto"
+keeps selecting aft, the landed default; a hazard token selects
+discrete-time). Every naming form below needs this same guard edit, so it
+differentiates none of them. SHIPPED: the whitelist reads
+`c("auto", "aft", hazardTokens)`, with `hazardTokens` the three hazard
+spellings (R/dbarts.R:467-473).
 
-**DECISION (open for VD; entangled with section 3) - naming.** probit and
+**DECISION - naming. SETTLED as recommended below and SHIPPED: the two
+tokens plus the alias are in the family vector at R/dbarts.R:384-386
+(entangled with section 3).** probit and
 logistic are already two family tokens for one Bernoulli model under two
 links (R/dbarts.R:378-379); the hazard model, being sugar over exactly
 those, can be named the same way:

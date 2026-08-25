@@ -201,13 +201,18 @@ UTILITY - price sizes a budget, it never ranks or gates; every item
 below lands before the 1.0-0 freeze; committed plans carry their own
 budgets)
 
-- Nameable calibration (TODO entry `nameable-calibration`): design
+- Nameable calibration (DISCHARGED; the named TODO entry is gone, the
+  outcome is `docs/design/nameable-calibration.md`, PARTIAL - creation
+  half LANDED c2a7e89b, mid-chain half LANDED, flat-C half an item
+  inside the dbarts.h reshape's S1 - with the plan at
+  `docs/plans/nameable-calibration.md`): design
   before the dbarts.h reshape's S1 (it may leave a header
   footprint); the single highest-value item; sized at ~1593 lines
   across four slices (budget expected above ~300 at design time);
   the excess is the flat-C half, the leaf-model contract, the
   three creation refusals and the oracle.
-- A latent-family subset mask (TODO `latent-subset-mask`): SHIPPED, S0-S4
+- A latent-family subset mask (DISCHARGED; the named TODO entry is gone,
+  the outcome is `docs/plans/latent-subset-mask.md`): SHIPPED, S0-S4
   (dc11a805, 6db22aee, 87d370ea, 8b047f8b, 93afd635). This was the
   row-subset door the corrected demand survey opened (see "Demand
   headlines") - Gaussian row subsetting already shipped via zero weights;
@@ -224,18 +229,25 @@ budgets)
   construction - an all-zeros mask is accepted and runs rather than
   needing to be guarded around - and both were stronger demand evidence
   than the count that was wrong.
-- The empty-leaf veto fix (TODO `empty-leaf-veto-fix`): its own
-  measured slice, a draw-law change - the veto counts LEAF MEMBERS
+- The empty-leaf veto fix (DISCHARGED; the named TODO entry is gone, the
+  outcome is `docs/design/empty-leaf-veto.md` - the veto is now a
+  lexicographic rank over leaves that separates "no member" from "no
+  positive-weight member" - with the plan at
+  `docs/plans/empty-leaf-veto.md`): its own
+  measured slice, a draw-law change - the veto counted LEAF MEMBERS
   where it should count POSITIVE-WEIGHT members
   (`src/bartcore/moves.hpp`, the `numObservations() == 0` veto site);
   expect to re-record the zero-weight baseline.
-- A composition validator (TODO `composition-validator`; SBC over a
-  user-supplied one-sweep closure): the item that catches the measured
+- A composition validator (DISCHARGED; the named TODO entry is gone, the
+  outcome is `docs/plans/adoption-slate.md` S5 and its landing note; SBC
+  over a user-supplied one-sweep closure): the item that catches the measured
   posterior-mean-as-draws defect class (see "Demand headlines"), not a
   calibration fix.
-- Exported augmentation helpers (TODO `augmentation-helpers`) and
-  named recipes cross-referenced from `?bart` (TODO `named-recipes`,
-  surface shakedown).
+- Exported augmentation helpers (TODO `augmentation-helpers`, LANDED
+  890efd3d as adoption-slate S4) and named recipes cross-referenced from
+  `?bart` (surface shakedown; DISCHARGED, the named TODO entry is gone
+  and the outcome is `docs/plans/adoption-slate.md` S6 and its landing
+  note).
 - An offset-free fit accessor and a seeding contract for composed
   samplers: already committed inside the getLatents docs slice
   (defect 5, below); confirmed here, not double-booked. The claim that
@@ -302,8 +314,13 @@ confirmed)
    surfaces at creation, setResponse and setData, refuses the negative
    element. DELIBERATE DEVIATION: no nbinom magnitude cap - creation
    imposes none either, so y = 1e9 still hangs, on both creation and
-   mutation; a magnitude-cap or sparse-tally decision is a new open
-   item, VD-facing, unscheduled (TODO `response-support-validation`).
+   mutation; a magnitude-cap or sparse-tally decision was left a new open
+   item, VD-facing, unscheduled. DISCHARGED: the named TODO entry is gone
+   and the outcome is `docs/plans/adoption-slate.md` S7 and its landing
+   note - a derived nbinom magnitude cap of 1e6 inside
+   `validateResponseSupport`'s nbinom arm, so one edit covers creation and
+   every y-swapping conduit on both surfaces
+   (src/R_interface_bartcore_common.hpp:190).
 2. SILENTLY WRONG: probit/ordinal setResponse accept out-of-support
    responses (non-0/1 y gives latents in the hundreds; constant 0.5
    collapses every latent to zero). setTreatment already shows the

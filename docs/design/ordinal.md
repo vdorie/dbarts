@@ -240,9 +240,11 @@ overrides are refreshLatents (the two-step cutpoints-then-latents draw of sectio
 form at model.hpp:3148-3163), and the new cutpoint state hooks (section 6). Ordinal
 carries K on construction (levels count).
 
-**A doubly-truncated-normal primitive is required.** random.h ships only
+**A doubly-truncated-normal primitive is required.** random.h shipped only
 one-sided truncations (ext_rng_simulateLowerTruncatedNormalScale1 /
 Upper..., random.h:86-107); probit uses the lower form at 0 (model.hpp:3092).
+That primitive has since been added, as specified here:
+ext_rng_simulateTruncatedNormalScale1 is declared at random.h:108-115.
 Interior categories need z ~ N(eta, 1) on a finite interval (gamma_{k-1},
 gamma_k], so add ext_rng_simulateTruncatedNormalScale1(rng, mean, lower, upper):
 inverse-CDF (mean + qnorm(Phi(lower-mean) + u (Phi(upper-mean) - Phi(lower-mean))))
@@ -293,17 +295,25 @@ message that order is taken from the level order (factor default: alphabetical -
 usually not what is meant, hence the warning); an integer/numeric response uses
 sort(unique(y)) as the ordered levels.
 
-CURRENT BEHAVIOR (the baseline every option changes). An ordered K >= 3 factor
-today takes two different paths. bart2(family = "auto") routes it through
-detectAutoMultinomial, whose type match includes "ordered factor" at
-n.levels >= 3 (R/bart.R:1388-1412), and SILENTLY fits an unordered multinomial,
-discarding the ordering. The single-forest entries (dbarts, xbart, rbart_vi)
-error in resolveClassificationFamily's K >= 3 refusal (R/data.R:546-600). So
-EVERY option below - explicit-only included - must split ordered factors out of
-detectAutoMultinomial, and bart2's behavior on ordered responses changes
-whichever option wins; there is no zero-behavior-change choice. The detection
-hook already exists: classifyResponse tags "ordered factor" as its own response
-type (R/data.R:425-437).
+BEHAVIOR AT PROPOSAL TIME (the baseline every option changes; the option that
+won has landed, so this paragraph is the pre-landing baseline, not the live
+tree). An ordered K >= 3 factor then took two different paths.
+bart2(family = "auto") routed it through detectAutoMultinomial, whose type
+match included "ordered factor" at n.levels >= 3, and SILENTLY fit an unordered
+multinomial, discarding the ordering. The single-forest entries (dbarts, xbart,
+rbart_vi) errored in resolveClassificationFamily's K >= 3 refusal
+(R/data.R:546-600). So EVERY option below - explicit-only included - had to
+split ordered factors out of detectAutoMultinomial, and bart2's behavior on
+ordered responses changed whichever option won; there was no
+zero-behavior-change choice. The detection hook already existed:
+classifyResponse tags "ordered factor" as its own response type
+(R/data.R:425-437).
+
+LIVE: the split is made on the disjoint is.ordered() key (stated at
+R/bart.R:1342-1344). detectAutoMultinomial (R/bart.R:1389) matches unordered
+factors and characters only; detectAutoOrdinal (R/bart.R:1403-1419) catches the
+3+-level ordered factor and selects family = "ordinal". The single-forest
+entries still refuse, and R/data.R:546-548 names ordinal as the reason.
 
 The fork on auto-dispatch - a genuine decision point for VD, with the internal
 and external precedents on OPPOSITE sides:

@@ -856,7 +856,11 @@ though it lifted unique trees visited 1.83 -> 3.07.
   ordered rule. dbarts' categorical rules are canonical-gauge direction
   masks whose validity invariant is exactly what a rotation would break.
   Ordinal-only in a first version, the same scoping `growTreeFromRoot`
-  already uses (`grow.hpp:179`).
+  (`grow.hpp:179`) used when this was written. That precedent has since
+  been spent: the builder scans categoricals too
+  (`scanCategoricalPartitions`, `grow.hpp:224-263`, `scan.hpp:337`, the
+  winning rule built at `grow.hpp:332-335`), so an ordinal-only rotation
+  would now be scoping narrower than the builder rather than matching it.
 - *Interaction constraints.* A rotation lifts one variable above another -
   the same class of break that `swapMove` already guards with
   `tree.interactionSubtreeIsValid` (`moves.hpp:804`). That guard is
@@ -966,8 +970,9 @@ break-even bar is therefore far above "p times the classic kernel", which
 is where the survey set its kill line.
 
 **Cost.** M-L, ~300 lines plus a gate arm; the scan itself is already paid
-for and a categorical analogue is scheduled
-(`TODO: grow-from-root-categorical-scan`). **The half worth as much as the
+for, and the categorical analogue - scheduled when this was written - has
+LANDED (`docs/plans/grow-from-root-categorical-scan.md`; the TODO door is
+recorded closed at `TODO:302`). **The half worth as much as the
 mixing gain** is the free by-product: because the scan scores the whole
 neighbourhood, posterior functionals (variable inclusion, DART split
 counts) can be averaged over the neighbourhood instead of the single
@@ -1183,9 +1188,10 @@ per-node candidate weights (`grow.hpp:195-247`), so the forward density is
 nearly free; the reverse density requires replaying the builder's candidate
 assembly along the *current* tree's construction path, the same cost again.
 The reset/regrow/rebuild/redraw loop already exists (`chain.hpp:2009-2022`)
-and lacks only the acceptance filter. Reachability limits it to
-ordinal-only forests until the scheduled categorical scan lands
-(`grow.hpp:179`).
+and lacks only the acceptance filter. Reachability limited it to
+ordinal-only forests until the scheduled categorical scan landed; that scan
+has landed, and `growTreeFromRoot` (`grow.hpp:179`) now emits categorical
+candidates of its own (`grow.hpp:224-263`), so the limit is gone.
 
 **Low priority, with a nearly free pre-check.** Instrument the realized
 acceptance rate on a stock 75-tree fit. The residual-conditional posterior
@@ -2054,6 +2060,13 @@ fixed.
      are, and that is what an accumulator records - but it does break the
      memo's stated reason, and it is a structural `q`/`pi` mismatch rather
      than a data-driven one.
+     SUPERSEDED PREMISE: the scan no longer skips them - `scan.hpp:128`
+     accumulates the `naCode` rows into a missing bin that every candidate
+     adds to one of its two children, and `scan.hpp:100-103` states that
+     the scan's scores therefore agree with the leaf statistics
+     `tree.birth` caches, missing rows included (`TODO:312`,
+     `ordinal-scan-missing-rows`, DISCHARGED), so the structural mismatch
+     concluded from the old premise no longer holds.
   2. **Missing-capable columns are halved twice.** `logCut` already
      subtracts `log 2` for `data.hasMissing[j]` (`grow.hpp:290-291`), matching
      `ruleForVariableLogProbability`'s `+log 2` for *one* rule
@@ -2067,6 +2080,12 @@ fixed.
      VD FORK on whether to change the shipped weight. What a regrow adds is
      stakes: for a warm start it is a start-quality bias, for a regrow it
      becomes a systematic term in the importance weight.
+     SUPERSEDED PREMISE: that `log 2` is gated on `routesMissing`
+     (`grow.hpp:291`) - whether the scan emitted both directions for THIS
+     node's members (`grow.hpp:288`), each direction then its own candidate -
+     and not on `data.hasMissing[j]`; the direction coin (`grow.hpp:341-342`)
+     fires only where a candidate did NOT already name its direction. The
+     double-halving concluded from the old premise no longer holds.
   3. The reverse replay must scan **every node of the incumbent, leaves
      included** - a leaf contributes `(1-g) L(u) / Z_u` and `Z_u` needs the
      full candidate assembly there. Cost is `2 x (nodes)` candidate
@@ -2079,6 +2098,11 @@ fixed.
   mass is absorbed by `Z_node`. Worth recording because it is the one place
   the builder's `P(var)` and the prior's agree exactly and it is not
   obvious from either file alone.
+  SUPERSEDED PREMISE: `grow.hpp:224` now ENTERS the categorical branch and
+  emits one candidate per admissible partition
+  (`scanCategoricalPartitions`, `grow.hpp:224-263`, `scan.hpp:337`), so
+  categoricals do generate candidates and the support gap concluded from
+  the old premise is closed.
 - **Construction 2(a)'s exactness needs a DART scope condition.** A
   cross-tree repulsion prior has a normalizing constant over the joint tree
   configuration space; it cancels in the MH ratio only while everything it

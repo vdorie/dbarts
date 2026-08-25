@@ -48,7 +48,7 @@ layout is the substrate.
 
 ## 1. The engine's current access pattern (verified in code)
 
-Per forest (combiner.hpp:138-197):
+Per forest (combiner.hpp:138-208):
 
 - `indexBuffer` : `n * numTrees` size_t. Tree t owns the contiguous slice
   `indexBuffer + t*n`; `Tree::indices` points at it (tree.hpp:260,268).
@@ -59,10 +59,17 @@ Per forest (combiner.hpp:138-197):
   node's members are `indices[begin .. end)`, which are SCATTERED
   positions in 0..n-1.
 - `treeFits` : `n * numTrees` doubles. Tree t's fitted contribution, in
-  OBSERVATION order (treeFits[obs]). Persistent.
-- `treeY` : ONE `n` double buffer, the running residual, OBSERVATION
-  order, reused across all trees, rolled incrementally (chain.hpp:
-  4500-4585).
+  OBSERVATION order (treeFits[obs]). Persistent - but EMPTY for the
+  constant leaf, which carries `muByTree` (a node-indexed leaf value per
+  live tree) plus `leafOf` (the tree-major per-observation bottom-node
+  map) instead, so tree t's fit for observation i is
+  `muByTree[t][leafOf[t * n + i]]` (combiner.hpp:191-193, :200-208). The
+  dense slab survives for the vector and function leaves only.
+- `treeY` : ONE `n` buffer, the running residual, OBSERVATION order,
+  reused across all trees, rolled incrementally (chain.hpp:4500-4585).
+  Its element type is the forest's `ResidT` (combiner.hpp:195-197):
+  fp64 by default, fp32 under the opt-in reduced-precision residual
+  store.
 - y, weights: obs order, owned by the response family (external to the
   forest).
 

@@ -414,7 +414,11 @@ a semantic question into a clamp.
   heteroscedastic `samplePriorPredictive(type = "ppd")` needs. S1 refuses
   instead.
 - **setState column-mask check for variance trees** (found at S5,
-  pre-existing, unlisted): `stateIsValid`'s variance branch checks count,
+  pre-existing, unlisted). CLOSED: built at c95a5e83, "Hold variance-forest
+  trees to the column mask on setState"; the check is live in
+  `stateIsValid`'s variance branch (src/bartcore/chain.hpp:3341) and as
+  `rebuildVarianceForest`'s backstop (src/bartcore/chain.hpp:4377).
+  `stateIsValid`'s variance branch checks count,
   well-formedness, and strict positivity only, and `rebuildVarianceForest`
   has no `columnMaskSubtreeIsValid` backstop - the mean path has both. The
   INSTALL path is covered by S5's `installForests` pre-flight; a
