@@ -8,6 +8,11 @@
 # cannot honour, must refuse at creation rather than be dropped in silence.
 
 source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
+source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
   local = TRUE
 )
@@ -67,22 +72,22 @@ internalSampler <- dbarts:::bartcoreBCFSampler(
   n.trees.treatment = 25L,
   sd.moderate = 1.5
 )
-internalResult <- dbarts:::bartcoreRun(internalSampler, 0L, 10L)
+internalResult <- bartcoreRun(internalSampler, 0L, 10L)
 
 expect_identical(publicResult$train, internalResult$train)
 expect_identical(publicResult$sigma, internalResult$sigma)
 expect_identical(publicResult$varcount, internalResult$varcount)
 expect_identical(
-  dbarts:::bartcoreForestFits(handleOf(publicSampler), 0L),
-  dbarts:::bartcoreForestFits(internalSampler, 0L)
+  bartcoreForestFits(handleOf(publicSampler), 0L),
+  bartcoreForestFits(internalSampler, 0L)
 )
 expect_identical(
-  dbarts:::bartcoreForestFits(handleOf(publicSampler), 1L),
-  dbarts:::bartcoreForestFits(internalSampler, 1L)
+  bartcoreForestFits(handleOf(publicSampler), 1L),
+  bartcoreForestFits(internalSampler, 1L)
 )
 expect_identical(
-  dbarts:::bartcoreForestAmplitudes(handleOf(publicSampler)),
-  dbarts:::bartcoreForestAmplitudes(internalSampler)
+  bartcoreForestAmplitudes(handleOf(publicSampler)),
+  bartcoreForestAmplitudes(internalSampler)
 )
 
 # the sampler this produced is an ordinary dbartsSampler carrying two forests,
@@ -138,7 +143,7 @@ unseededPublic <- dbarts(x, y, forests = twoForests, control = unseeded)$run(
   5L
 )
 set.seed(99L)
-unseededInternal <- dbarts:::bartcoreRun(
+unseededInternal <- bartcoreRun(
   dbarts:::bartcoreBCFSampler(dbarts(x, y, control = unseeded), z),
   0L,
   5L
@@ -149,10 +154,10 @@ expect_false(identical(unseededPublic$train, unseededInternal$train))
 # the per-forest fits reconstruct the recorded train draw through the stored
 # response transform (the identity a low-level pin already established, now
 # on a public sampler) ---
-glue <- dbarts:::bartcoreForestAmplitudes(handleOf(publicSampler))
-muFits <- dbarts:::bartcoreForestFits(handleOf(publicSampler), 0L)[, 1L]
-tauFits <- dbarts:::bartcoreForestFits(handleOf(publicSampler), 1L)[, 1L]
-fitScale <- dbarts:::bartcoreStoreState(handleOf(publicSampler))[[1L]]$fit.scale
+glue <- bartcoreForestAmplitudes(handleOf(publicSampler))
+muFits <- bartcoreForestFits(handleOf(publicSampler), 0L)[, 1L]
+tauFits <- bartcoreForestFits(handleOf(publicSampler), 1L)[, 1L]
+fitScale <- bartcoreStoreState(handleOf(publicSampler))[[1L]]$fit.scale
 scale <- fitScale[2L] - fitScale[1L]
 shift <- scale * 0.5 + fitScale[1L]
 bz <- ifelse(z != 0, glue[3L, 1L], glue[2L, 1L])
@@ -171,7 +176,7 @@ restricted <- dbarts(
   control = seededControl()
 )
 restricted$run(0L, 10L)
-tauCounts <- dbarts:::bartcoreForestVariableCounts(handleOf(restricted), 1L)
+tauCounts <- bartcoreForestVariableCounts(handleOf(restricted), 1L)
 expect_true(all(tauCounts[1:2, ] == 0L))
 expect_true(sum(tauCounts[3:4, ]) > 0L)
 
@@ -277,7 +282,7 @@ pinnedInternal <- dbarts:::bartcoreBCFSampler(
 )
 expect_identical(
   pinnedPublic$run(0L, 10L)$train,
-  dbarts:::bartcoreRun(pinnedInternal, 0L, 10L)$train
+  bartcoreRun(pinnedInternal, 0L, 10L)$train
 )
 
 # --- forests = NULL is byte-neutral, and a single-forest declaration is

@@ -36,6 +36,11 @@
 #
 # Usage: Rscript negbin-exact.R [quick]
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -170,8 +175,8 @@ fitSeed <- function(seed, dispersion) {
   meanB <- 0
   gridCounts <- numeric(nGrid)
   for (s in seq_len(ndpost)) {
-    r <- dbarts:::bartcoreRun(bc, if (s == 1L) nburn else 0L, 1L)
-    st <- dbarts:::bartcoreStoreState(bc)
+    r <- bartcoreRun(bc, if (s == 1L) nburn else 0L, 1L)
+    st <- bartcoreStoreState(bc)
     rDraw <- st[[1L]]$dispersion
     gridCounts[match(rDraw, grid)] <- gridCounts[match(rDraw, grid)] + 1
     meanA <- meanA + dbarts:::negbinMeanCounts(r$train[iA, 1L], rDraw)

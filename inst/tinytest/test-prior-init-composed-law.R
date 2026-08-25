@@ -13,6 +13,11 @@
 # counts, so a leaf no such row reaches reports n == 0 - taken through the
 # internal per-forest reader, the public $getTrees having no forest axis.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(20260818L)
 n <- 80L
 x <- matrix(runif(n * 2L), n, 2L)
@@ -57,7 +62,7 @@ makeBCF <- function(...) {
 # prognostic, 1 treatment). rows, when given, are routed through the drawn
 # trees so 'n' counts THEM per node rather than the training rows.
 forestNodes <- function(sampler, forest, rows = NULL) {
-  dbarts:::bartcoreGetTrees(
+  bartcoreGetTrees(
     list(ptr = sampler$getPointer(), x = x),
     chainNums = 1L,
     treeNums = seq_len(numTrees),

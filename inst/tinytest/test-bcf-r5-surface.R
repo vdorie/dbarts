@@ -7,6 +7,11 @@
 # than the generic multi-forest one, and $setControl carries bartcore.*
 # control attributes forward so a save/load round trip re-creates cleanly.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(5)
 n <- 200L
 p <- 4L
@@ -56,16 +61,16 @@ expect_true(all(is.finite(muFits)) && all(is.finite(tauFits)))
 # R-level methods add no computation of their own, and their forest index is 1-based
 # (1 = prognostic, 2 = treatment) against the low-level route's 0-based one
 lowLevel <- list(ptr = sampler$getPointer())
-expect_identical(muFits, dbarts:::bartcoreForestFits(lowLevel, 0L))
-expect_identical(tauFits, dbarts:::bartcoreForestFits(lowLevel, 1L))
-expect_identical(glue, dbarts:::bartcoreForestAmplitudes(lowLevel))
+expect_identical(muFits, bartcoreForestFits(lowLevel, 0L))
+expect_identical(tauFits, bartcoreForestFits(lowLevel, 1L))
+expect_identical(glue, bartcoreForestAmplitudes(lowLevel))
 expect_identical(
   muCounts,
-  dbarts:::bartcoreForestVariableCounts(lowLevel, 0L)
+  bartcoreForestVariableCounts(lowLevel, 0L)
 )
 expect_identical(
   tauCounts,
-  dbarts:::bartcoreForestVariableCounts(lowLevel, 1L)
+  bartcoreForestVariableCounts(lowLevel, 1L)
 )
 
 # 0 is refused rather than silently naming the prognostic forest

@@ -28,6 +28,11 @@
 #
 # Usage: Rscript logistic-reference.R [quick]
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -146,7 +151,7 @@ fitSingleTree <- function(seed, family, nodeScale, offset, linkinv) {
   sampler$model@node.scale <- nodeScale
   sampler$data@offset.test <- NULL # engine fits exclude the offset
   bc <- dbarts:::bartcoreSampler(sampler, family = family)
-  r <- dbarts:::bartcoreRun(bc, 5000L, exactNdpost)
+  r <- bartcoreRun(bc, 5000L, exactNdpost)
   colMeans(linkinv(t(r$test) + offset))
 }
 
@@ -247,7 +252,7 @@ if (requireNamespace("BART", quietly = TRUE)) {
     sampler$model@node.scale <- nodeScale
     sampler$data@offset.test <- NULL
     bc <- dbarts:::bartcoreSampler(sampler, family = family)
-    r <- dbarts:::bartcoreRun(bc, nskip, ndpost)
+    r <- bartcoreRun(bc, nskip, ndpost)
     colMeans(linkinv(t(r$test) + offset))
   }
 

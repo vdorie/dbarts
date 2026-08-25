@@ -13,6 +13,11 @@
 # multiplier is one, their arithmetic is the ordinary backfit cancellation, and
 # they keep a spread at the usual 1e-16 scale.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(29)
 n <- 400L
 moderator <- rbinom(n, 1L, 0.5)
@@ -39,14 +44,14 @@ bcSampler <- dbarts:::bartcoreBCFSampler(
   update.b = FALSE,
   moderators = "m"
 )
-invisible(dbarts:::bartcoreRun(bcSampler, 100L, 25L))
+invisible(bartcoreRun(bcSampler, 100L, 25L))
 
 expect_equal(
-  as.vector(dbarts:::bartcoreForestAmplitudes(bcSampler)),
+  as.vector(bartcoreForestAmplitudes(bcSampler)),
   c(1, 0, 1)
 )
 
-tauFits <- as.vector(dbarts:::bartcoreForestFits(bcSampler, 1L))
+tauFits <- as.vector(bartcoreForestFits(bcSampler, 1L))
 expect_true(all(is.finite(tauFits)))
 
 controlCells <- split(tauFits[z == 0L], moderator[z == 0L])

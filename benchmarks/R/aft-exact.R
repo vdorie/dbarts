@@ -18,6 +18,11 @@
 #
 # Usage: Rscript aft-exact.R [quick]
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -172,7 +177,7 @@ fitSingleTree <- function(seed) {
   attr(ctrl, "bartcore.survival") <- status
   sampler$control <- ctrl
   bc <- dbarts:::bartcoreSampler(sampler, family = "aft")
-  r <- dbarts:::bartcoreRun(bc, 5000L, exactNdpost)
+  r <- bartcoreRun(bc, 5000L, exactNdpost)
   # every observation in a cell shares its leaf's fit; take one per cell
   reps <- vapply(1:4, function(cc) which(cell == cc)[1L], integer(1L))
   rowMeans(r$train[reps, , drop = FALSE])

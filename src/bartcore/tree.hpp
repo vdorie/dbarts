@@ -363,7 +363,6 @@ public:
     if (at(i).numObservations() == 0) return 2;
     return leafHasNoWeight(i, weights) ? 1 : 0;
   }
-  int32_t rightChildOf(int32_t i) const { return at(i).leftChild + 1; }
   bool hasSingleNode() const { return at(0).isBottom(); }
 
   bool childrenAreBottom(int32_t i) const {

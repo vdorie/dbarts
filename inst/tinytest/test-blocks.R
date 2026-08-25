@@ -4,6 +4,11 @@
 # confinement + warm-start refusal gates live in tests/cpp/test_state.cpp
 # (testBlockAdditiveConfinement).
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(22L)
 
 # group a getTrees data.frame into one tree per (chain, sample, tree)
@@ -272,8 +277,8 @@ bc <- dbarts:::bartcoreBCFSampler(
   moderators = c(1L, 2L),
   tau.blocks = blocks(groups = list("x1", "x2"))
 )
-invisible(dbarts:::bartcoreRun(bc, 150L, 0L))
-tauTrees <- dbarts:::bartcoreGetTrees(
+invisible(bartcoreRun(bc, 150L, 0L))
+tauTrees <- bartcoreGetTrees(
   bc,
   chainNums = 1L,
   treeNums = 1:20,

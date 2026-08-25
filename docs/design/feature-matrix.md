@@ -576,7 +576,7 @@ d809b944 (+ a records correction, 7da36dc3); **S3** the flat-C half, LANDED
 inside dbarts-h-reshape S1 (ab3aa2fa). The R surface was already COMPLETE:
 `$getCalibration`/`$setCalibration` read and write every chain of any
 single-forest sampler, with a 1-based `forest` arg (`resolveForestIndex`,
-bartcore.R:1128) mapped onto the engine's 0-based one. S1 names the model's
+bartcore.R:1053) mapped onto the engine's 0-based one. S1 names the model's
 `prior.scale` slot (A_class.R:398), resolved from `node.prior`'s `scale =` /
 `sd =` spelling at `dbartsSpec()` (spec.R:315, `resolvePriorScale` in
 R/model.R), and converted against the response transform by a private

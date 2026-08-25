@@ -12,6 +12,11 @@
 # predicate and the z divergence), the creation surface (test-bcf-creation.R),
 # and the flat C route (inst/tinytest/capi/consumer.c).
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(41)
 n <- 180L
 p <- 4L
@@ -316,11 +321,11 @@ mnLabels <- sample(0:2, n, replace = TRUE)
 mnSampler <- dbarts(x, y, control = seededControl())
 mn <- dbarts:::bartcoreMultinomialSampler(mnSampler, mnLabels, 3L)
 expect_error(
-  dbarts:::bartcoreForestAmplitudes(mn, 0L),
+  bartcoreForestAmplitudes(mn, 0L),
   "forests carry them"
 )
 expect_error(
-  dbarts:::bartcoreSetForestBasis(mn, 1L, cbind(0.5, 0.5)),
+  bartcoreSetForestBasis(mn, 1L, cbind(0.5, 0.5)),
   "forests carry amplitudes"
 )
 

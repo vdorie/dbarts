@@ -54,6 +54,11 @@
 # Append 'quick' for a fast smoke pass (fewer draws; the settings guard refuses a
 # mixed comparison against a full baseline).
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -113,11 +118,11 @@ recordChannels <- function(bc, result, K) {
     test = result$test,
     forestFits = lapply(
       seq_len(K) - 1L,
-      function(k) dbarts:::bartcoreForestFits(bc, k)
+      function(k) bartcoreForestFits(bc, k)
     ),
     varcount = lapply(
       seq_len(K) - 1L,
-      function(k) dbarts:::bartcoreForestVariableCounts(bc, k)
+      function(k) bartcoreForestVariableCounts(bc, k)
     ),
     runVarcount = result$varcount
   )
@@ -158,7 +163,7 @@ runScenarios <- function() {
     )
     set.seed(seeds[["k3.engine"]])
     bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     result$k3 <- recordChannels(bc, res, K)
   }
 
@@ -177,7 +182,7 @@ runScenarios <- function() {
     )
     set.seed(seeds[["k2.engine"]])
     bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     result$k2 <- recordChannels(bc, res, K)
   }
 
@@ -214,7 +219,7 @@ runScenarios <- function() {
     )
     set.seed(7003L)
     bc <- dbarts:::bartcoreMultinomialCountSampler(sampler, counts, K = K)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     result$k3counts <- recordChannels(bc, res, K)
   }
 
@@ -255,9 +260,9 @@ runScenarios <- function() {
     )
     set.seed(7004L)
     bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    dbarts:::bartcoreSetPredictor(bc, x2, forceUpdate = TRUE)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    bartcoreRun(bc, n.burn, n.samples)
+    bartcoreSetPredictor(bc, x2, forceUpdate = TRUE)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     recordChannels(bc, res, K)
   })
 
@@ -308,9 +313,9 @@ runScenarios <- function() {
     )
     set.seed(7005L)
     bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    accepted <- dbarts:::bartcoreSetPredictor(bc, x2)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    bartcoreRun(bc, n.burn, n.samples)
+    accepted <- bartcoreSetPredictor(bc, x2)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     c(recordChannels(bc, res, d$K), list(accepted = accepted))
   })
 
@@ -328,9 +333,9 @@ runScenarios <- function() {
     )
     set.seed(7006L)
     bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    accepted <- dbarts:::bartcoreUpdatePredictor(bc, v, 2L)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    bartcoreRun(bc, n.burn, n.samples)
+    accepted <- bartcoreUpdatePredictor(bc, v, 2L)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     c(recordChannels(bc, res, d$K), list(accepted = accepted))
   })
 
@@ -347,13 +352,13 @@ runScenarios <- function() {
     )
     set.seed(7007L)
     bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    accepted <- dbarts:::bartcoreUpdatePredictor(
+    bartcoreRun(bc, n.burn, n.samples)
+    accepted <- bartcoreUpdatePredictor(
       bc,
       ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
       1L
     )
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     c(recordChannels(bc, res, d$K), list(accepted = accepted))
   })
 
@@ -379,9 +384,9 @@ runScenarios <- function() {
     )
     set.seed(7008L)
     bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    installed <- dbarts:::bartcoreUpdatePredictorPerObservation(bc, v, 2L)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    bartcoreRun(bc, n.burn, n.samples)
+    installed <- bartcoreUpdatePredictorPerObservation(bc, v, 2L)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     c(recordChannels(bc, res, d$K), list(installed = installed))
   })
 
@@ -398,13 +403,13 @@ runScenarios <- function() {
     )
     set.seed(7009L)
     bc <- dbarts:::bartcoreMultinomialSampler(sampler, d$labels, K = d$K)
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    installed <- dbarts:::bartcoreUpdatePredictorPerObservation(
+    bartcoreRun(bc, n.burn, n.samples)
+    installed <- bartcoreUpdatePredictorPerObservation(
       bc,
       ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
       1L
     )
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     c(recordChannels(bc, res, d$K), list(installed = installed))
   })
 
@@ -446,10 +451,10 @@ runScenarios <- function() {
       offset = offset,
       offset.test = offset.test
     )
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    dbarts:::bartcoreSetCategoryOffset(bc, offset2)
-    dbarts:::bartcoreSetCategoryTestOffset(bc, offset.test2)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    bartcoreRun(bc, n.burn, n.samples)
+    bartcoreSetCategoryOffset(bc, offset2)
+    bartcoreSetCategoryTestOffset(bc, offset.test2)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     recordChannels(bc, res, d$K)
   })
 
@@ -494,9 +499,9 @@ runScenarios <- function() {
     )
     set.seed(7011L)
     bc <- dbarts:::bartcoreMultinomialCountSampler(sampler, counts, K = K)
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    dbarts:::bartcoreSetCounts(bc, counts2)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    bartcoreRun(bc, n.burn, n.samples)
+    bartcoreSetCounts(bc, counts2)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     recordChannels(bc, res, K)
   })
 

@@ -6,6 +6,11 @@
 # compose through no such scalars - a single-forest sampler, a K-forest
 # multinomial - carries neither channel.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(17)
 n <- 150L
 p <- 4L
@@ -143,7 +148,7 @@ set.seed(4703)
 labels <- rbinom(n, 2L, 0.5)
 mnHost <- dbarts(x, y, control = reportingControl(n.chains = 1L))
 mn <- dbarts:::bartcoreMultinomialSampler(mnHost, labels, K = 3L)
-mnResult <- dbarts:::bartcoreRun(mn, 0L, 2L)
+mnResult <- bartcoreRun(mn, 0L, 2L)
 expect_null(mnResult$forestFits)
 expect_null(mnResult$glue)
 

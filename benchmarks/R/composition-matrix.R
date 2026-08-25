@@ -22,6 +22,11 @@
 # Usage: Rscript benchmarks/R/composition-matrix.R
 # Exit status is nonzero iff at least one disagreement was recorded.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressPackageStartupMessages(library(dbarts))
 
 scriptDir <- dirname(sub(
@@ -552,7 +557,7 @@ multinomActiveRows <- function(seed) {
   d <- mkXY(seed)
   host <- dbarts(d$x, as.double(d$label), control = ctl(seed))
   bc <- dbarts:::bartcoreMultinomialSampler(host, d$label - 1L, K = 3L)
-  dbarts:::bartcoreSetActiveRows(bc, c(rep(1, n - 1L), 0))
+  bartcoreSetActiveRows(bc, c(rep(1, n - 1L), 0))
 }
 hurdleDart <- function(seed) {
   d <- mkXY(seed)

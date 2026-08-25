@@ -22,6 +22,11 @@
 # bart2's direct construction reaches. No throwaway host, so a single
 # set.seed() before each of the two constructions is expected to agree bit
 # for bit.
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 internalMultinomialFit <- function(
   x,
   labels,
@@ -51,7 +56,7 @@ internalMultinomialFit <- function(
     K = K,
     offset = offset
   )
-  dbarts:::bartcoreRun(bc, n.burn, n.samples)
+  bartcoreRun(bc, n.burn, n.samples)
 }
 
 n.trees <- 20L
@@ -423,7 +428,7 @@ internalMultinomialCountFit <- function(
     K = K,
     offset = offset
   )
-  dbarts:::bartcoreRun(bc, n.burn, n.samples)
+  bartcoreRun(bc, n.burn, n.samples)
 }
 
 # K = 3, grouped counts (n_i > 1): the reproduction gate extended to the

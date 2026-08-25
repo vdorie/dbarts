@@ -29,6 +29,11 @@
 #
 # Usage: Rscript bcf-exact-restricted.R [quick]
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -370,17 +375,17 @@ samplerFit <- function(seed) {
     update.b = FALSE,
     moderators = 1L
   )
-  dbarts:::bartcoreRun(bc, nburn, 1L)
+  bartcoreRun(bc, nburn, 1L)
   # containment: a restricted tau forest splits on x1 only, so its fit is
   # constant across x2 within each x1 cell
-  tauFull <- dbarts:::bartcoreForestFits(bc, 1L)[, 1L]
+  tauFull <- bartcoreForestFits(bc, 1L)[, 1L]
   stopifnot(all(tapply(tauFull, x1cell, function(v) diff(range(v))) < 1e-9))
   muM <- matrix(0, ndpost, nCross)
   tauM <- matrix(0, ndpost, K1)
   for (d in seq_len(ndpost)) {
-    dbarts:::bartcoreRun(bc, 0L, thin)
-    muM[d, ] <- dbarts:::bartcoreForestFits(bc, 0L)[repMu, 1L]
-    tauM[d, ] <- dbarts:::bartcoreForestFits(bc, 1L)[repTau, 1L]
+    bartcoreRun(bc, 0L, thin)
+    muM[d, ] <- bartcoreForestFits(bc, 0L)[repMu, 1L]
+    tauM[d, ] <- bartcoreForestFits(bc, 1L)[repTau, 1L]
   }
   list(mu = colMeans(muM), tau = colMeans(tauM))
 }

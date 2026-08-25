@@ -42,6 +42,11 @@
 #
 # Usage: Rscript multinomial-exact.R [quick]
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -116,7 +121,7 @@ arm1 <- function() {
     )
     host <- dbarts(x, as.double(labels), control = control)
     bc <- dbarts:::bartcoreMultinomialSampler(host, labels, K = K)
-    r <- dbarts:::bartcoreRun(bc, nburn, ndpost)
+    r <- bartcoreRun(bc, nburn, ndpost)
     # every observation shares the intercept-only probabilities; average them
     apply(r$train, 2L, mean)
   }
@@ -174,14 +179,14 @@ arm2 <- function() {
       verbose = FALSE
     )
     bc <- dbarts:::bartcoreSampler(host, family = "logistic")
-    r <- dbarts:::bartcoreRun(bc, nburn, ndpost)
+    r <- bartcoreRun(bc, nburn, ndpost)
     rowMeans(plogis(r$train)) # r$train is the latent log-odds
   }
   fitMultinomial <- function(seed) {
     set.seed(seed)
     host <- dbarts(x, as.double(y), control = control())
     bc <- dbarts:::bartcoreMultinomialSampler(host, as.integer(y), K = 2L)
-    r <- dbarts:::bartcoreRun(bc, nburn, ndpost)
+    r <- bartcoreRun(bc, nburn, ndpost)
     apply(r$train[, 2L, , drop = FALSE], 1L, mean) # P(y = 1)
   }
 
@@ -345,7 +350,7 @@ arm3 <- function() {
     )
     host$data@varTypes[1L] <- 1L # mark the predictor categorical
     bc <- dbarts:::bartcoreMultinomialSampler(host, labels, K = K)
-    r <- dbarts:::bartcoreRun(bc, nburn, ndpost)
+    r <- bartcoreRun(bc, nburn, ndpost)
     pA <- apply(r$train[cell == 0L, , , drop = FALSE], 2L, mean)
     pB <- apply(r$train[cell == 1L, , , drop = FALSE], 2L, mean)
     tA <- apply(r$test[1L, , , drop = FALSE], 2L, mean)
@@ -452,7 +457,7 @@ armCount <- function() {
     # dummy so the gaussian host builds without a degenerate scale
     host <- dbarts(x, as.double(counts[, 1L]), control = control)
     bc <- dbarts:::bartcoreMultinomialCountSampler(host, counts, K = K)
-    r <- dbarts:::bartcoreRun(bc, nburn, ndpost)
+    r <- bartcoreRun(bc, nburn, ndpost)
     # every observation shares the intercept-only probabilities; average them
     apply(r$train, 2L, mean)
   }
@@ -564,7 +569,7 @@ armOffset <- function() {
       K = K,
       offset = offset
     )
-    r <- dbarts:::bartcoreRun(bc, nburn, ndpost)
+    r <- bartcoreRun(bc, nburn, ndpost)
     # every row of a group shares that group's probabilities; average them
     c(
       apply(r$train[group == 1L, , , drop = FALSE], 2L, mean),
@@ -627,14 +632,14 @@ armLevel <- function() {
   )
   host <- dbarts(x, as.double(labels), control = control)
   bc <- dbarts:::bartcoreMultinomialSampler(host, labels, K = K)
-  dbarts:::bartcoreRun(bc, nburn, 1L)
+  bartcoreRun(bc, nburn, 1L)
   level <- vapply(
     seq_len(ndpost),
     function(i) {
-      dbarts:::bartcoreRun(bc, 0L, 1L)
+      bartcoreRun(bc, 0L, 1L)
       mean(vapply(
         seq_len(K) - 1L,
-        function(k) mean(dbarts:::bartcoreForestFits(bc, k)),
+        function(k) mean(bartcoreForestFits(bc, k)),
         numeric(1L)
       ))
     },

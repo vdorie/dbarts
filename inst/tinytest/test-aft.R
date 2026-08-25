@@ -4,6 +4,11 @@
 # attribute (as the public survival surface sets it). The exact-posterior
 # gate lives in benchmarks/R/aft-exact.R.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(21L)
 n <- 200L
 p <- 3L
@@ -43,10 +48,10 @@ aftSampler <- function(y, status, weights = NULL, groups = NULL) {
 
 samp.g <- dbarts(x, log.t, control = control)
 bc.g <- dbarts:::bartcoreSampler(samp.g)
-res.g <- dbarts:::bartcoreRun(bc.g, 100L, 200L)
+res.g <- bartcoreRun(bc.g, 100L, 200L)
 
 bc.a <- aftSampler(log.t, rep(1, n)) # every observation an event
-res.a <- dbarts:::bartcoreRun(bc.a, 100L, 200L)
+res.a <- bartcoreRun(bc.a, 100L, 200L)
 
 expect_identical(res.g$train, res.a$train)
 expect_identical(res.g$sigma, res.a$sigma)
@@ -63,12 +68,12 @@ recover <- function(censor.rate) {
   obs.log.t <- ifelse(status == 1, log.t, cens.time)
 
   bc <- aftSampler(obs.log.t, status)
-  res <- dbarts:::bartcoreRun(bc, 200L, 400L)
+  res <- bartcoreRun(bc, 200L, 400L)
   fit.aft <- rowMeans(res$train)
 
   # ignoring the censoring underestimates the mean log-time
   samp.naive <- dbarts(x, obs.log.t, control = control)
-  res.naive <- dbarts:::bartcoreRun(
+  res.naive <- bartcoreRun(
     dbarts:::bartcoreSampler(samp.naive),
     200L,
     400L
@@ -79,7 +84,7 @@ recover <- function(censor.rate) {
     sigma = mean(res$sigma),
     mean.aft = mean(fit.aft),
     mean.naive = mean(rowMeans(res.naive$train)),
-    lat = dbarts:::bartcoreGetLatents(bc),
+    lat = bartcoreGetLatents(bc),
     status = status,
     obs = obs.log.t
   )
@@ -108,12 +113,12 @@ cens.time <- f + 0.3 + sigma.true * rnorm(n)
 status <- as.numeric(log.t <= cens.time)
 obs.log.t <- ifelse(status == 1, log.t, cens.time)
 bc.mut <- aftSampler(obs.log.t, status)
-invisible(dbarts:::bartcoreRun(bc.mut, 100L, 1L))
+invisible(bartcoreRun(bc.mut, 100L, 1L))
 # shift every log-time up by 1; the fit should move up with it
-dbarts:::bartcoreSetResponse(bc.mut, obs.log.t + 1)
-res.mut <- dbarts:::bartcoreRun(bc.mut, 20L, 20L)
+bartcoreSetResponse(bc.mut, obs.log.t + 1)
+res.mut <- bartcoreRun(bc.mut, 20L, 20L)
 expect_equal(dim(res.mut$train), c(n, 20L))
-lat.mut <- dbarts:::bartcoreGetLatents(bc.mut)
+lat.mut <- bartcoreGetLatents(bc.mut)
 expect_true(all(lat.mut[status == 0] >= obs.log.t[status == 0] + 1 - 1e-8))
 expect_equal(lat.mut[status == 1], obs.log.t[status == 1] + 1)
 
@@ -126,7 +131,7 @@ cens.g <- f + 0.4 + sigma.true * rnorm(n)
 status.g <- as.numeric(log.t.g <= cens.g)
 obs.g <- ifelse(status.g == 1, log.t.g, cens.g)
 bc.grouped <- aftSampler(obs.g, status.g, groups = groups)
-res.grouped <- dbarts:::bartcoreRun(bc.grouped, 100L, 100L)
+res.grouped <- bartcoreRun(bc.grouped, 100L, 100L)
 expect_equal(dim(res.grouped$train), c(n, 100L))
 expect_true(all(is.finite(res.grouped$train)))
 expect_true(!is.null(res.grouped$ranef))
@@ -139,7 +144,7 @@ expect_error(
   "weight"
 )
 expect_error(
-  dbarts:::bartcoreSetData(bc.a, samp.g$data),
+  bartcoreSetData(bc.a, samp.g$data),
   "aft"
 )
 

@@ -15,6 +15,11 @@
 # value through the independent read path ($getForestFits, a memcpy that never
 # touches the accessor, plus $getForestAmplitudes and $getCalibration).
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(3141L)
 n <- 80L
 p <- 3L
@@ -224,7 +229,7 @@ expect_equal(cell$fits + offGauss, cell$train)
 # $getFitsWithoutOffset() reaches, so this cell pins that backstop without
 # needing a full bart2(family = "multinomial") fit.
 makeMultinomial <- getFromNamespace("bartcoreMultinomialSampler", "dbarts")
-fitsWithoutOffset <- getFromNamespace("bartcoreFitsWithoutOffset", "dbarts")
+fitsWithoutOffset <- bartcoreFitsWithoutOffset
 multinomialHost <- dbarts(x, yGauss, control = samplerControl())
 multinomial <- makeMultinomial(multinomialHost, rbinom(n, 2L, 0.5), 3L)
 expect_error(

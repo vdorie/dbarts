@@ -10,6 +10,11 @@
 #
 # Usage: Rscript categorical-exact.R [quick]
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -131,7 +136,7 @@ fitBartcore <- function(seed) {
   host$data@varTypes[1L] <- 1L
   host$data@offset.test <- NULL
   bc <- dbarts:::bartcoreSampler(host)
-  r <- dbarts:::bartcoreRun(bc, 5000L, ndpost)
+  r <- bartcoreRun(bc, 5000L, ndpost)
   colMeans(pnorm(t(r$test) + offset))
 }
 

@@ -31,6 +31,11 @@
 # (setResponse with updateScale = FALSE keeps it) so prior and posterior share
 # it. A wrong prior draw makes SBC lie, so the harness self-checks before use.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressMessages(library(dbarts))
 
 # --- sigma prior -----------------------------------------------------------
@@ -1053,11 +1058,11 @@ runSbcGrouped <- function(
 # scale-parameter functional, ranked the same way avg.f/f.star are.
 
 .aftMake <- getFromNamespace("bartcoreSampler", "dbarts")
-.aftRun <- getFromNamespace("bartcoreRun", "dbarts")
-.aftPredict <- getFromNamespace("bartcorePredict", "dbarts")
-.aftCal <- getFromNamespace("bartcoreForestCalibration", "dbarts")
-.aftSetOffset <- getFromNamespace("bartcoreSetOffset", "dbarts")
-.aftSetTestOffset <- getFromNamespace("bartcoreSetTestOffset", "dbarts")
+.aftRun <- bartcoreRun
+.aftPredict <- bartcorePredict
+.aftCal <- bartcoreForestCalibration
+.aftSetOffset <- bartcoreSetOffset
+.aftSetTestOffset <- bartcoreSetTestOffset
 
 # Fixed per-row right-censoring log-times: a design choice independent of any
 # prior draw, pinned once (like sbcAddGrouping's grouping) so only the drawn
@@ -1259,10 +1264,10 @@ runSbcAft <- function(
 # sigma; the raw a and (b1-b0) are reported too but carry that sign caveat.
 
 .bcfNew <- getFromNamespace("bartcoreBCFSampler", "dbarts")
-.bcfRun <- getFromNamespace("bartcoreRun", "dbarts")
-.bcfGlue <- getFromNamespace("bartcoreForestAmplitudes", "dbarts")
-.bcfForest <- getFromNamespace("bartcoreForestFits", "dbarts")
-.bcfSetResponse <- getFromNamespace("bartcoreSetResponse", "dbarts")
+.bcfRun <- bartcoreRun
+.bcfGlue <- bartcoreForestAmplitudes
+.bcfForest <- bartcoreForestFits
+.bcfSetResponse <- bartcoreSetResponse
 .bcfPriorTrees <- getFromNamespace(
   "C_dbarts_bartcore_sampleTreesFromPrior",
   "dbarts"
@@ -1271,8 +1276,8 @@ runSbcAft <- function(
   "C_dbarts_bartcore_sampleNodeParametersFromPrior",
   "dbarts"
 )
-.bcfStoreState <- getFromNamespace("bartcoreStoreState", "dbarts")
-.bcfSetState <- getFromNamespace("bartcoreSetState", "dbarts")
+.bcfStoreState <- bartcoreStoreState
+.bcfSetState <- bartcoreSetState
 
 # Install a drawn (a, b0, b1) as the sampler's LIVE glue. The tree prior is
 # glue-dependent: each forest's prior trees are drawn conditioned on the
@@ -1611,8 +1616,8 @@ sbcFamilySpec <- function(config, thin = 30L, seed = 20260709L) {
     "C_dbarts_bartcore_sampleNodeParametersFromPrior",
     "dbarts"
   )
-  bcRun <- getFromNamespace("bartcoreRun", "dbarts")
-  bcFits <- getFromNamespace("bartcoreForestFits", "dbarts")
+  bcRun <- bartcoreRun
+  bcFits <- bartcoreForestFits
   K <- config$K
 
   if (config$family == "ordinal") {
@@ -1842,8 +1847,8 @@ sbcCheckLatentConsistency <- function(config, seed = 99L) {
 # those two maps must agree at one state (the GP/BCF fit-map precedent).
 sbcCheckMultinomialProbs <- function(config, seed = 99L) {
   set.seed(seed)
-  bcRun <- getFromNamespace("bartcoreRun", "dbarts")
-  bcFits <- getFromNamespace("bartcoreForestFits", "dbarts")
+  bcRun <- bartcoreRun
+  bcFits <- bartcoreForestFits
   spec <- sbcFamilySpec(config, 1L, seed)
   drawn <- spec$draw()
   fit <- spec$fit(drawn$y)

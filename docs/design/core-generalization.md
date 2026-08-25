@@ -67,15 +67,27 @@ Layers, bottom to top:
 
 ### Dispatch tiers
 
-Dispatch is free when amortized over the work it gates; nothing dispatches
-per observation.
+Dispatch is free when amortized over the work it gates. One path dispatches
+per observation on purpose: the rest stay monomorphic.
 
 | Granularity   | Mechanism                        | Gates          | Examples                          |
 |---------------|----------------------------------|----------------|-----------------------------------|
 | Per R call    | one vtable hop via `SamplerBase` | ms-scale work  | run, setPredictor, setOffset      |
 | Per iteration | virtual hooks                    | O(n * trees)   | latent refresh, sigma/k/DART draws|
 | Per node op   | virtual or switch on closed set  | O(n_leaf)      | move type, kernel table lookup    |
-| Per obs       | none: monomorphic loops/kernels  | O(1)           | partition compare, suffstat accum |
+| Per obs       | none, except the joint predictor sweep below | O(1) | partition compare, suffstat accum |
+
+The joint per-observation predictor sweep is the exception:
+`updatePredictorPerObservationJointly` in `facade.hpp` lets N samplers of
+DIFFERENT instantiations vote on whether one row installs, so that row
+either enters every sampler's forests or none of them. The callee cannot be
+templated on any one sampler's `Config` without losing the others, so each
+sampler exposes the operation through a `PredictorUpdateSession` virtual
+interface (`observationWouldRemainValid`, `commitObservation`) and the sweep
+calls both once per observation per sampler. Type erasure is the sweep's
+whole purpose here - it is what lets heterogeneous samplers share one
+scan order and one accept/reject decision per row - so the per-row vtable
+hop is the price of that, not an oversight.
 
 The rule for what is a template parameter: **compile-time only if it touches
 per-observation work or the `SufficientStat` type.**

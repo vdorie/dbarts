@@ -12,6 +12,11 @@
 #     the canonical rebuild resums the accumulated fits, so a continued chain
 #     reproduces the MOVES exactly and the numbers to within the resum.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(3103L)
 n <- 120L
 X <- data.frame(v1 = runif(n), v2 = runif(n), v3 = runif(n))
@@ -465,9 +470,9 @@ continuationArms <- list(
           K = 3L
         )
       },
-      runIt = function(s, k) dbarts:::bartcoreRun(s, 0L, k),
-      storeIt = dbarts:::bartcoreStoreState,
-      restoreIt = dbarts:::bartcoreSetState
+      runIt = function(s, k) bartcoreRun(s, 0L, k),
+      storeIt = bartcoreStoreState,
+      restoreIt = bartcoreSetState
     )
   }
 )

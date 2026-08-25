@@ -11,6 +11,11 @@
 # second arm drives a per-observation predictor session, which rewrites the
 # category forests' fits between sweeps without ever entering the combiner.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(9021)
 n <- 90L
 p <- 3L
@@ -53,10 +58,10 @@ recordChannels <- function(bc, result) {
   list(
     train = result$train,
     forestFits = lapply(seq_len(K) - 1L, function(k) {
-      dbarts:::bartcoreForestFits(bc, k)
+      bartcoreForestFits(bc, k)
     }),
     varcount = lapply(seq_len(K) - 1L, function(k) {
-      dbarts:::bartcoreForestVariableCounts(bc, k)
+      bartcoreForestVariableCounts(bc, k)
     }),
     runVarcount = result$varcount
   )
@@ -77,9 +82,9 @@ parityArm <- function(build, swap, n.chains = 1L) {
   set.seed(4242)
   bc <- buildSampler(build, n.chains)
   if (!is.null(swap)) {
-    dbarts:::bartcoreSetCategoryOffset(bc, swap)
+    bartcoreSetCategoryOffset(bc, swap)
   }
-  recordChannels(bc, dbarts:::bartcoreRun(bc, 20L, 8L))
+  recordChannels(bc, bartcoreRun(bc, 20L, 8L))
 }
 
 arm.build <- parityArm(offset, NULL)
@@ -114,8 +119,8 @@ bc.onehot <- dbarts:::bartcoreMultinomialCountSampler(
   offset = offset
 )
 expect_identical(
-  dbarts:::bartcoreRun(bc.labels, 20L, 8L)$train,
-  dbarts:::bartcoreRun(bc.onehot, 20L, 8L)$train
+  bartcoreRun(bc.labels, 20L, 8L)$train,
+  bartcoreRun(bc.onehot, 20L, 8L)$train
 )
 
 # every chain sees the install: a two-chain sampler offset mid-life is bitwise
@@ -138,10 +143,10 @@ expect_identical(arm.zero$runVarcount, arm.none$runVarcount)
 
 set.seed(4242)
 bc.cleared <- buildSampler(offset)
-dbarts:::bartcoreSetCategoryOffset(bc.cleared, NULL)
+bartcoreSetCategoryOffset(bc.cleared, NULL)
 arm.cleared <- recordChannels(
   bc.cleared,
-  dbarts:::bartcoreRun(bc.cleared, 20L, 8L)
+  bartcoreRun(bc.cleared, 20L, 8L)
 )
 expect_identical(arm.cleared$train, arm.none$train)
 expect_identical(arm.cleared$forestFits, arm.none$forestFits)
@@ -149,9 +154,9 @@ expect_identical(arm.cleared$forestFits, arm.none$forestFits)
 # and installing the zero matrix on a live sampler is likewise the null path
 set.seed(4242)
 bc.zeroswap <- buildSampler(NULL)
-dbarts:::bartcoreSetCategoryOffset(bc.zeroswap, zeroOffset)
+bartcoreSetCategoryOffset(bc.zeroswap, zeroOffset)
 expect_identical(
-  dbarts:::bartcoreRun(bc.zeroswap, 20L, 8L)$train,
+  bartcoreRun(bc.zeroswap, 20L, 8L)$train,
   arm.none$train
 )
 
@@ -165,11 +170,11 @@ rowShift <- offset + matrix(rep(0.7 * x[, 1L], K), n, K)
 columnShift <- offset
 columnShift[, 2L] <- columnShift[, 2L] + 0.7
 set.seed(1717)
-train.plain <- dbarts:::bartcoreRun(buildSampler(offset), 0L, 3L)$train
+train.plain <- bartcoreRun(buildSampler(offset), 0L, 3L)$train
 set.seed(1717)
-train.rowshift <- dbarts:::bartcoreRun(buildSampler(rowShift), 0L, 3L)$train
+train.rowshift <- bartcoreRun(buildSampler(rowShift), 0L, 3L)$train
 set.seed(1717)
-train.colshift <- dbarts:::bartcoreRun(buildSampler(columnShift), 0L, 3L)$train
+train.colshift <- bartcoreRun(buildSampler(columnShift), 0L, 3L)$train
 expect_equal(train.rowshift, train.plain, tolerance = 1e-8)
 # non-vacuity: a shift of ONE column is not a null direction and does move it
 expect_false(isTRUE(all.equal(train.colshift, train.plain)))
@@ -191,7 +196,7 @@ softmaxRows <- function(raw) {
 sameVintage <- function(bc, result, sampleNum, offsetMatrix) {
   fits <- vapply(
     seq_len(K) - 1L,
-    function(k) dbarts:::bartcoreForestFits(bc, k)[, 1L],
+    function(k) bartcoreForestFits(bc, k)[, 1L],
     numeric(n)
   )
   max(abs(
@@ -202,7 +207,7 @@ sameVintage <- function(bc, result, sampleNum, offsetMatrix) {
 
 set.seed(313)
 bc.vintage <- buildSampler(offset)
-res.vintage <- dbarts:::bartcoreRun(bc.vintage, 20L, 5L)
+res.vintage <- bartcoreRun(bc.vintage, 20L, 5L)
 expect_true(sameVintage(bc.vintage, res.vintage, 5L, offset) < 1e-12)
 
 # second arm, against a fits rewrite the combiner never sees: a per-observation
@@ -211,15 +216,15 @@ expect_true(sameVintage(bc.vintage, res.vintage, 5L, offset) < 1e-12)
 # from inside the sweep would report the pre-session fits for one more sample.
 set.seed(515)
 bc.session <- buildSampler(NULL)
-dbarts:::bartcoreRun(bc.session, 20L, 4L)
-dbarts:::bartcoreSetCategoryOffset(bc.session, offset)
-installed <- dbarts:::bartcoreUpdatePredictorPerObservation(
+bartcoreRun(bc.session, 20L, 4L)
+bartcoreSetCategoryOffset(bc.session, offset)
+installed <- bartcoreUpdatePredictorPerObservation(
   bc.session,
   pmin(pmax(x[, 2L] + rnorm(n, 0, 0.02), 0), 1),
   2L
 )
 expect_true(sum(installed) > 0L)
-res.session <- dbarts:::bartcoreRun(bc.session, 0L, 2L)
+res.session <- bartcoreRun(bc.session, 0L, 2L)
 expect_true(sameVintage(bc.session, res.session, 2L, offset) < 1e-12)
 
 # --- The simplex invariant holds with an offset installed: the offset enters
@@ -244,7 +249,7 @@ bc.gaussian <- dbarts:::bartcoreSampler(
   dbarts(x, rnorm(n), control = control())
 )
 expect_error(
-  dbarts:::bartcoreSetCategoryOffset(bc.gaussian, offset),
+  bartcoreSetCategoryOffset(bc.gaussian, offset),
   "requires a multinomial"
 )
 set.seed(17)
@@ -254,7 +259,7 @@ bc.bcf <- dbarts:::bartcoreBCFSampler(
   n.trees.treatment = 10L
 )
 expect_error(
-  dbarts:::bartcoreSetCategoryOffset(bc.bcf, offset),
+  bartcoreSetCategoryOffset(bc.bcf, offset),
   "requires a multinomial"
 )
 
@@ -262,7 +267,7 @@ expect_error(
 # the case a length test alone would install cell by cell into the wrong rows:
 # it carries exactly n * K entries.
 expect_error(
-  dbarts:::bartcoreSetCategoryOffset(bc.mn, offset[seq_len(n - 1L), ]),
+  bartcoreSetCategoryOffset(bc.mn, offset[seq_len(n - 1L), ]),
   "90 x 3"
 )
 expect_error(
@@ -271,7 +276,7 @@ expect_error(
 )
 # a flat vector is refused rather than recycled across the categories
 expect_error(
-  dbarts:::bartcoreSetCategoryOffset(bc.mn, rep(0.5, n)),
+  bartcoreSetCategoryOffset(bc.mn, rep(0.5, n)),
   "90 x 3"
 )
 expect_error(
@@ -300,7 +305,7 @@ expect_error(
 for (bad in c(NA_real_, NaN, Inf, -Inf)) {
   spoiled <- offset
   spoiled[3L, 2L] <- bad
-  expect_error(dbarts:::bartcoreSetCategoryOffset(bc.mn, spoiled), "finite")
+  expect_error(bartcoreSetCategoryOffset(bc.mn, spoiled), "finite")
   expect_error(
     .Call(dbarts:::C_dbarts_bartcore_setCategoryOffset, bc.mn$ptr, spoiled),
     "finite"
@@ -318,7 +323,7 @@ refusalArm <- function(attempt) {
   } else {
     tryCatch(
       {
-        dbarts:::bartcoreSetCategoryOffset(bc, attempt)
+        bartcoreSetCategoryOffset(bc, attempt)
         NA_character_
       },
       error = conditionMessage
@@ -326,7 +331,7 @@ refusalArm <- function(attempt) {
   }
   c(
     list(refused = refused),
-    recordChannels(bc, dbarts:::bartcoreRun(bc, 15L, 5L))
+    recordChannels(bc, bartcoreRun(bc, 15L, 5L))
   )
 }
 spoiled <- offset
@@ -358,7 +363,7 @@ bc.createTest <- dbarts:::bartcoreMultinomialCountSampler(
   K = K,
   offset = offset
 )
-res.createTest <- dbarts:::bartcoreRun(bc.createTest, 20L, 8L)
+res.createTest <- bartcoreRun(bc.createTest, 20L, 8L)
 # the train channels are the no-test-data sampler's, bitwise: test rows consume
 # no rng and enter no likelihood
 expect_identical(res.createTest$train, arm.build$train)
@@ -374,12 +379,12 @@ expect_silent(
 )
 # installing the train offset on a sampler that already holds test data
 bc.test <- dbarts:::bartcoreMultinomialCountSampler(hostTest, counts, K = K)
-expect_silent(dbarts:::bartcoreSetCategoryOffset(bc.test, offset))
+expect_silent(bartcoreSetCategoryOffset(bc.test, offset))
 # and the reverse direction: test data installs on a sampler already holding a
 # train offset, whose test rows the train offset says nothing about
 bc.offset <- buildSampler(offset)
-expect_silent(dbarts:::bartcoreSetTestPredictor(bc.offset, x.test))
-expect_true(all(is.finite(dbarts:::bartcoreRun(bc.offset, 0L, 3L)$test)))
+expect_silent(bartcoreSetTestPredictor(bc.offset, x.test))
+expect_true(all(is.finite(bartcoreRun(bc.offset, 0L, 3L)$test)))
 # the combined entry takes the test rows too; its FLAT offset argument stays
 # refused, and truthfully - after the blend it leaves the simplex, before it a
 # common per-observation shift is inert - and now names the matrix entry
@@ -404,7 +409,7 @@ expect_silent(
 # different reason: its rows are the caller's, so no resident offset describes
 # them and none is substituted. An explicit matrix is the way through.
 expect_error(
-  dbarts:::bartcorePredict(bc.offset, x.test),
+  bartcorePredict(bc.offset, x.test),
   "cannot be inferred"
 )
 
@@ -412,18 +417,18 @@ expect_error(
 # flat vector stays refused, and truthfully: a common per-observation shift is
 # exactly the softmax's null direction, so it could only ever be inert.
 expect_error(
-  dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n)),
+  bartcoreSetOffset(bc.mn, rep(0.5, n)),
   "n x K category matrix"
 )
 expect_error(
-  dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = TRUE),
+  bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = TRUE),
   "n x K category matrix"
 )
 # predict's own flat-offset refusal is narrow rather than false, and says which
 # form is not: the R wrapper shapes the argument against the handle's K, and
 # the C entry refuses a dimensionless vector on its own
 expect_error(
-  dbarts:::bartcorePredict(bc.mn, x.test, rep(0.5, nTest)),
+  bartcorePredict(bc.mn, x.test, rep(0.5, nTest)),
   "12 x 3 matrix"
 )
 expect_error(
@@ -442,7 +447,7 @@ expect_error(
 counts.huge <- matrix(as.double(counts), n, K)
 counts.huge[1L, 1L] <- 2^31
 expect_error(
-  dbarts:::bartcoreSetCounts(bc.mn, counts.huge),
+  bartcoreSetCounts(bc.mn, counts.huge),
   "representable as integers"
 )
 expect_error(

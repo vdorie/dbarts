@@ -4,6 +4,11 @@
 # The exactness and containment gates live in tests/cpp/test_interaction.cpp and
 # test_state.cpp.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(11L)
 
 # ---- the whole-tree walk over the flat getTrees representation ----------------
@@ -170,15 +175,15 @@ bc <- dbarts:::bartcoreBCFSampler(
   mu.interactions = interactions(max.order = 3),
   tau.interactions = interactions(max.order = 1)
 )
-invisible(dbarts:::bartcoreRun(bc, 150L, 0L))
-tauTrees <- dbarts:::bartcoreGetTrees(
+invisible(bartcoreRun(bc, 150L, 0L))
+tauTrees <- bartcoreGetTrees(
   bc,
   chainNums = 1L,
   treeNums = 1:30,
   current = TRUE,
   forest = 1L
 )
-muTrees <- dbarts:::bartcoreGetTrees(
+muTrees <- bartcoreGetTrees(
   bc,
   chainNums = 1L,
   treeNums = 1:30,
@@ -195,8 +200,8 @@ expect_true(worstOrder(muTrees) >= 2L) # mu forest is unrestricted and uses more
 # moderator forest would otherwise silently score an out-of-mask split).
 donorSampler <- dbarts(xb, yb, control = control)
 donorBC <- dbarts:::bartcoreBCFSampler(donorSampler, z, n.trees.treatment = 30L)
-invisible(dbarts:::bartcoreRun(donorBC, 150L, 0L))
-donorState <- dbarts:::bartcoreStoreState(donorBC)
+invisible(bartcoreRun(donorBC, 150L, 0L))
+donorState <- bartcoreStoreState(donorBC)
 
 targetSampler <- dbarts(xb, yb, control = control)
 targetBC <- dbarts:::bartcoreBCFSampler(

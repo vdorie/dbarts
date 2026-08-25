@@ -482,7 +482,6 @@ public:
     return chains_[0]->savedTreeCapacity();
   }
   size_t currentSampleNum() const { return currentSampleNum_; }
-  void setCurrentSampleNum(size_t sampleNum) { currentSampleNum_ = sampleNum; }
   /// Recorded draws the store retains: min(draws recorded since the last
   /// reset, capacity). Every saved-tree read reports exactly this many draws,
   /// so a store still filling reports what it holds instead of padding with

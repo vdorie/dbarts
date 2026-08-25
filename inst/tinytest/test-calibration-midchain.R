@@ -6,6 +6,11 @@
 # must return what was written - plus the refusal matrix and every mutation
 # channel the reported value must not surprise on.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(41)
 n <- 120L
 p <- 3L
@@ -405,7 +410,7 @@ expect_error(
 # generic one above it, where no two-forest map owns the scale
 handleOf <- function(sampler) list(ptr = sampler$getPointer())
 expect_error(
-  dbarts:::bartcoreSetForestPriorScale(handleOf(bcf), 0L, 1.5),
+  bartcoreSetForestPriorScale(handleOf(bcf), 0L, 1.5),
   "two-forest calibration map"
 )
 threeForests <- dbarts(
@@ -419,7 +424,7 @@ threeForests <- dbarts(
   control = midControl()
 )
 threeRefusal <- tryCatch(
-  dbarts:::bartcoreSetForestPriorScale(handleOf(threeForests), 0L, 1.5),
+  bartcoreSetForestPriorScale(handleOf(threeForests), 0L, 1.5),
   error = function(e) conditionMessage(e)
 )
 expect_true(grepl("multi-forest calibration map", threeRefusal, fixed = TRUE))
@@ -429,7 +434,7 @@ expect_false(grepl("two-forest", threeRefusal, fixed = TRUE))
 labels <- sample(0:2, n, replace = TRUE)
 host <- dbarts(x, y, control = midControl(n.chains = 1L))
 multinomial <- dbarts:::bartcoreMultinomialSampler(host, labels, K = 3L)
-multinomialCalibration <- dbarts:::bartcoreForestCalibration(multinomial, 0L)
+multinomialCalibration <- bartcoreForestCalibration(multinomial, 0L)
 expect_equal(dim(multinomialCalibration), c(1L, 12L))
 expect_true(multinomialCalibration[1L, "prior.scale"] > 0)
 # a K-forest sampler with no calibration map: the five map columns are NaN,
@@ -439,7 +444,7 @@ expect_true(all(is.nan(multinomialCalibration[, mapColumns])))
 expect_equal(unname(multinomialCalibration[1L, "response.scale"]), 1)
 expect_true(multinomialCalibration[1L, "k.has.hyperprior"] == 0)
 expect_error(
-  dbarts:::bartcoreSetForestPriorScale(multinomial, 0L, 1.5),
+  bartcoreSetForestPriorScale(multinomial, 0L, 1.5),
   "softmax calibration map"
 )
 

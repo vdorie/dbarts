@@ -1,3 +1,8 @@
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 library(dbarts, quietly = TRUE)
 
 set.seed(99)
@@ -238,8 +243,8 @@ view <- dbarts:::bartcoreSamplerFromHandle(
 )
 set.seed(7)
 full <- dbarts:::bartcoreSampler(sampler.view)
-samples.view <- dbarts:::bartcoreRun(view, 40L, 20L)
-samples.full <- dbarts:::bartcoreRun(full, 40L, 20L)
+samples.view <- bartcoreRun(view, 40L, 20L)
+samples.full <- bartcoreRun(full, 40L, 20L)
 expect_identical(samples.view$sigma, samples.full$sigma)
 expect_identical(samples.view$train, samples.full$train)
 
@@ -254,7 +259,7 @@ fold <- dbarts:::bartcoreSamplerFromHandle(
   setdiff(seq_len(n), testRows),
   testRows
 )
-samples.fold <- dbarts:::bartcoreRun(fold, 150L, 100L)
+samples.fold <- bartcoreRun(fold, 150L, 100L)
 expect_true(all(is.finite(samples.fold$test)))
 expect_true(cor(rowMeans(samples.fold$test), mu[testRows]) > 0.7)
 

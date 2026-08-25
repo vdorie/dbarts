@@ -21,6 +21,11 @@
 #
 # Usage: Rscript t-exact.R [quick]
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -160,7 +165,7 @@ fitSingleTree <- function(seed) {
   )
   sampler$model@node.scale <- nodeScale
   bc <- dbarts:::bartcoreSampler(sampler)
-  r <- dbarts:::bartcoreRun(bc, exactBurn, exactNdpost)
+  r <- bartcoreRun(bc, exactBurn, exactNdpost)
   # every observation in a cell shares its leaf's fit; take one per cell
   reps <- vapply(1:4, function(cc) which(cell == cc)[1L], integer(1L))
   rowMeans(r$train[reps, , drop = FALSE])

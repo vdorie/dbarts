@@ -11,6 +11,11 @@
 # latent family the response transform is the identity and the map's sqrt(m)
 # cancels, so $getCalibration()'s prior.scale IS the map's node scale.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(29)
 n <- 240L
 p <- 3L
@@ -486,7 +491,7 @@ expect_error(
 host <- dbarts(x, yBalanced, control = seededControl())
 internalProbit <- dbarts:::bartcoreBCFSampler(host, z)
 expect_equal(
-  unname(dbarts:::bartcoreForestCalibration(internalProbit, 0L)[
+  unname(bartcoreForestCalibration(internalProbit, 0L)[
     1L,
     "prior.scale"
   ]),
@@ -495,7 +500,7 @@ expect_equal(
 )
 internalLogistic <- dbarts:::bartcoreBCFSampler(host, z, family = "logistic")
 expect_equal(
-  unname(dbarts:::bartcoreForestCalibration(internalLogistic, 0L)[
+  unname(bartcoreForestCalibration(internalLogistic, 0L)[
     1L,
     "prior.scale"
   ]),
@@ -516,7 +521,7 @@ expect_error(
 # resolved sd.control to a literal would build a model the public surface
 # cannot express. Both halves - the map's own product and the half-Cauchy
 # median beside it - read off each route's own reader.
-internalRow <- dbarts:::bartcoreForestCalibration(internalProbit, 0L)[1L, ]
+internalRow <- bartcoreForestCalibration(internalProbit, 0L)[1L, ]
 expect_equal(unname(internalRow["amplitude.prior.scale"]), 1)
 expect_equal(
   unname(internalRow[c("prior.scale", "amplitude.prior.scale")]),
@@ -533,7 +538,7 @@ internalGaussian <- dbarts:::bartcoreBCFSampler(
 )
 expect_equal(
   unname(
-    dbarts:::bartcoreForestCalibration(internalGaussian, 0L)[
+    bartcoreForestCalibration(internalGaussian, 0L)[
       1L,
       "amplitude.prior.scale"
     ]

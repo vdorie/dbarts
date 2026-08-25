@@ -13,6 +13,11 @@
 # than one long run (whether a split run equals a single one is a separate
 # question this file deliberately does not rest on).
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(4211)
 n <- 120L
 p <- 3L
@@ -53,10 +58,10 @@ recordChannels <- function(bc, result) {
     train = result$train,
     test = result$test,
     forestFits = lapply(seq_len(K) - 1L, function(k) {
-      dbarts:::bartcoreForestFits(bc, k)
+      bartcoreForestFits(bc, k)
     }),
     varcount = lapply(seq_len(K) - 1L, function(k) {
-      dbarts:::bartcoreForestVariableCounts(bc, k)
+      bartcoreForestVariableCounts(bc, k)
     }),
     runVarcount = result$varcount
   )
@@ -83,9 +88,9 @@ parityArm <- function(build, swap, n.chains = 1L) {
   set.seed(707)
   bc <- buildSampler(build, n.chains)
   if (!is.null(swap)) {
-    dbarts:::bartcoreSetCounts(bc, swap)
+    bartcoreSetCounts(bc, swap)
   }
-  recordChannels(bc, dbarts:::bartcoreRun(bc, 20L, 8L))
+  recordChannels(bc, bartcoreRun(bc, 20L, 8L))
 }
 
 arm.build <- parityArm(countsB, NULL)
@@ -112,10 +117,10 @@ bc.labels <- dbarts:::bartcoreMultinomialSampler(
   labels,
   K = K
 )
-dbarts:::bartcoreSetCounts(bc.labels, countsB)
+bartcoreSetCounts(bc.labels, countsB)
 arm.labels <- recordChannels(
   bc.labels,
-  dbarts:::bartcoreRun(bc.labels, 20L, 8L)
+  bartcoreRun(bc.labels, 20L, 8L)
 )
 expect_identical(arm.labels$train, arm.build$train)
 expect_identical(arm.labels$forestFits, arm.build$forestFits)
@@ -136,11 +141,11 @@ expect_identical(arm.swap.chains$forestFits, arm.build.chains$forestFits)
 splitArm <- function(swap) {
   set.seed(911)
   bc <- buildSampler(countsB)
-  dbarts:::bartcoreRun(bc, 25L, 6L)
+  bartcoreRun(bc, 25L, 6L)
   if (!is.null(swap)) {
-    dbarts:::bartcoreSetCounts(bc, swap)
+    bartcoreSetCounts(bc, swap)
   }
-  recordChannels(bc, dbarts:::bartcoreRun(bc, 0L, 6L))
+  recordChannels(bc, bartcoreRun(bc, 0L, 6L))
 }
 
 arm.self <- splitArm(countsB)
@@ -166,10 +171,10 @@ expect_true(all(is.finite(arm.burned$train)))
 # null offset as the pre-existing invariant it is. ---
 set.seed(313)
 bc.vintage <- buildSampler(countsB)
-res.vintage <- dbarts:::bartcoreRun(bc.vintage, 20L, 5L)
+res.vintage <- bartcoreRun(bc.vintage, 20L, 5L)
 fits.vintage <- vapply(
   seq_len(K) - 1L,
-  function(k) dbarts:::bartcoreForestFits(bc.vintage, k)[, 1L],
+  function(k) bartcoreForestFits(bc.vintage, k)[, 1L],
   numeric(n)
 )
 softmax.vintage <- exp(fits.vintage - apply(fits.vintage, 1L, max))
@@ -186,21 +191,21 @@ expect_equal(
 # state carries none. ---
 set.seed(515)
 bc.state <- buildSampler(countsA)
-dbarts:::bartcoreRun(bc.state, 20L, 4L)
-state.A <- dbarts:::bartcoreStoreState(bc.state)
-dbarts:::bartcoreSetCounts(bc.state, countsB)
-expect_silent(dbarts:::bartcoreSetState(bc.state, state.A))
-res.restored <- dbarts:::bartcoreRun(bc.state, 0L, 4L)
+bartcoreRun(bc.state, 20L, 4L)
+state.A <- bartcoreStoreState(bc.state)
+bartcoreSetCounts(bc.state, countsB)
+expect_silent(bartcoreSetState(bc.state, state.A))
+res.restored <- bartcoreRun(bc.state, 0L, 4L)
 expect_true(all(is.finite(res.restored$train)))
 # the restored trees run against B, not against the A they were fitted to: the
 # same restore under A draws a different chain
 set.seed(515)
 bc.stateA <- buildSampler(countsA)
-dbarts:::bartcoreRun(bc.stateA, 20L, 4L)
-dbarts:::bartcoreSetState(bc.stateA, dbarts:::bartcoreStoreState(bc.stateA))
+bartcoreRun(bc.stateA, 20L, 4L)
+bartcoreSetState(bc.stateA, bartcoreStoreState(bc.stateA))
 expect_false(isTRUE(all.equal(
   res.restored$train,
-  dbarts:::bartcoreRun(bc.stateA, 0L, 4L)$train
+  bartcoreRun(bc.stateA, 0L, 4L)$train
 )))
 
 # --- Refusals, the counts half: what the channel refuses, and what the response-side
@@ -214,7 +219,7 @@ bc.gaussian <- dbarts:::bartcoreSampler(
   dbarts(x, rnorm(n), control = control)
 )
 expect_error(
-  dbarts:::bartcoreSetCounts(bc.gaussian, countsA),
+  bartcoreSetCounts(bc.gaussian, countsA),
   "requires a multinomial"
 )
 set.seed(17)
@@ -225,7 +230,7 @@ bc.bcf <- dbarts:::bartcoreBCFSampler(
   n.trees.treatment = 10L
 )
 expect_error(
-  dbarts:::bartcoreSetCounts(bc.bcf, countsA),
+  bartcoreSetCounts(bc.bcf, countsA),
   "requires a multinomial"
 )
 
@@ -233,7 +238,7 @@ expect_error(
 # the case a length test alone would install into the wrong cells: it carries
 # exactly n * K entries.
 expect_error(
-  dbarts:::bartcoreSetCounts(bc.mn, countsA[seq_len(n - 1L), ]),
+  bartcoreSetCounts(bc.mn, countsA[seq_len(n - 1L), ]),
   "120 observations x 3 categories"
 )
 expect_error(
@@ -257,7 +262,7 @@ expect_error(
 counts.negative <- countsA
 counts.negative[1L, 1L] <- -1L
 expect_error(
-  dbarts:::bartcoreSetCounts(bc.mn, counts.negative),
+  bartcoreSetCounts(bc.mn, counts.negative),
   "non-negative"
 )
 expect_error(
@@ -268,7 +273,7 @@ expect_error(
 # nonnegativity check catches it. Pinned anyway.
 counts.na <- countsA
 counts.na[2L, 1L] <- NA_integer_
-expect_error(dbarts:::bartcoreSetCounts(bc.mn, counts.na), "missing values")
+expect_error(bartcoreSetCounts(bc.mn, counts.na), "missing values")
 expect_error(
   .Call(dbarts:::C_dbarts_bartcore_setCounts, bc.mn$ptr, counts.na),
   "non-negative"
@@ -277,7 +282,7 @@ expect_error(
 # divides by omega, so a zero row sum is refused rather than fit
 counts.empty <- countsA
 counts.empty[3L, ] <- 0L
-expect_error(dbarts:::bartcoreSetCounts(bc.mn, counts.empty), "at least one")
+expect_error(bartcoreSetCounts(bc.mn, counts.empty), "at least one")
 expect_error(
   .Call(dbarts:::C_dbarts_bartcore_setCounts, bc.mn$ptr, counts.empty),
   "at least one"
@@ -288,7 +293,7 @@ counts.overflow <- countsA
 counts.overflow[4L, 1L] <- 2000000000L
 counts.overflow[4L, 2L] <- 2000000000L
 expect_error(
-  dbarts:::bartcoreSetCounts(bc.mn, counts.overflow),
+  bartcoreSetCounts(bc.mn, counts.overflow),
   "fit in an integer"
 )
 
@@ -305,7 +310,7 @@ refusalArm <- function(attempt) {
   } else {
     tryCatch(
       {
-        dbarts:::bartcoreSetCounts(bc, attempt)
+        bartcoreSetCounts(bc, attempt)
         NA_character_
       },
       error = conditionMessage
@@ -313,7 +318,7 @@ refusalArm <- function(attempt) {
   }
   c(
     list(refused = refused),
-    recordChannels(bc, dbarts:::bartcoreRun(bc, 15L, 5L))
+    recordChannels(bc, bartcoreRun(bc, 15L, 5L))
   )
 }
 arm.refused <- refusalArm(counts.overflow)
@@ -330,19 +335,19 @@ expect_identical(arm.refused$runVarcount, arm.untouched$runVarcount)
 # works instead of reporting a response fixed at creation, which it no longer
 # is. The guard is shared with the flat C API, so both surfaces say this.
 expect_error(
-  dbarts:::bartcoreSetResponse(bc.mn, as.double(labels)),
+  bartcoreSetResponse(bc.mn, as.double(labels)),
   "n x K count matrix"
 )
 expect_error(
-  dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n)),
+  bartcoreSetOffset(bc.mn, rep(0.5, n)),
   "n x K category matrix"
 )
-expect_error(dbarts:::bartcoreSetWeights(bc.mn, runif(n, 0.5, 1.5)), "n x K")
+expect_error(bartcoreSetWeights(bc.mn, runif(n, 0.5, 1.5)), "n x K")
 # and a BCF sampler, which DOES opt into the response conduit, keeps the
 # generic wording: the counts hint is conditioned on the capability, not on the
 # forest count
 expect_error(
-  dbarts:::bartcoreSetResponse(bc.bcf, rnorm(n), updateScale = TRUE),
+  bartcoreSetResponse(bc.bcf, rnorm(n), updateScale = TRUE),
   "multi-forest"
 )
 
@@ -350,9 +355,9 @@ expect_error(
 # pinned, and the pinned-sigma refusal: none of them is opened by the counts
 # channel, which replaces the response and nothing else
 host.mn <- dbarts(x, as.double(labels), test = x.test, control = control)
-expect_error(dbarts:::bartcoreSetData(bc.mn, host.mn$data), "multi-forest")
+expect_error(bartcoreSetData(bc.mn, host.mn$data), "multi-forest")
 expect_error(
-  dbarts:::bartcoreSetModel(bc.mn, host.mn$model, host.mn$data),
+  bartcoreSetModel(bc.mn, host.mn$model, host.mn$data),
   "multi-forest"
 )
 expect_error(

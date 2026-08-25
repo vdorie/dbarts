@@ -1,6 +1,11 @@
 # Fixed points the active-row mask channel must not move without disturbing,
 # plus the channel's own semantics pinned one assertion at a time below.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(20260812L)
 n <- 200L
 x <- matrix(runif(n * 2L), n, 2L, dimnames = list(NULL, c("x1", "x2")))
@@ -131,10 +136,10 @@ expect_identical(r5.ones$run(20L, 10L)$train, draws.plain$train)
 # fresh sampler), so its arm runs through that handle end to end
 bc.plain <- dbarts:::bartcoreSampler(makeSampler())
 bc.ones <- dbarts:::bartcoreSampler(makeSampler())
-dbarts:::bartcoreSetActiveRows(bc.ones, rep(1, n))
+bartcoreSetActiveRows(bc.ones, rep(1, n))
 expect_identical(
-  dbarts:::bartcoreRun(bc.ones, 20L, 10L)$train,
-  dbarts:::bartcoreRun(bc.plain, 20L, 10L)$train
+  bartcoreRun(bc.ones, 20L, 10L)$train,
+  bartcoreRun(bc.plain, 20L, 10L)$train
 )
 
 # a mask returning to all ones CLEARS, restoring the pre-mask pointer BY
@@ -167,11 +172,11 @@ rm(refused, bad)
 # which is the point of putting the scan in the engine
 bc.bad <- dbarts:::bartcoreSampler(makeSampler())
 expect_error(
-  dbarts:::bartcoreSetActiveRows(bc.bad, replace(a, 2L, 0.5)),
+  bartcoreSetActiveRows(bc.bad, replace(a, 2L, 0.5)),
   "exactly 0 or 1"
 )
 expect_identical(
-  dbarts:::bartcoreRun(bc.bad, 20L, 10L)$train,
+  bartcoreRun(bc.bad, 20L, 10L)$train,
   draws.plain$train
 )
 rm(bc.bad)
@@ -399,7 +404,7 @@ aftHandle <- function(logTime, mask = a) {
   sampler$control <- ctrl
   handle <- dbarts:::bartcoreSampler(sampler, family = "aft")
   if (!is.null(mask)) {
-    dbarts:::bartcoreSetActiveRows(handle, mask)
+    bartcoreSetActiveRows(handle, mask)
   }
   handle
 }
@@ -407,8 +412,8 @@ y.other <- y
 substitutable <- a == 0
 substitutable[c(which.min(y), which.max(y))] <- FALSE
 y.other[substitutable] <- mean(y)
-aft.train.a <- dbarts:::bartcoreRun(aftHandle(y), 20L, 10L)$train
-aft.train.b <- dbarts:::bartcoreRun(aftHandle(y.other), 20L, 10L)$train
+aft.train.a <- bartcoreRun(aftHandle(y), 20L, 10L)$train
+aft.train.b <- bartcoreRun(aftHandle(y.other), 20L, 10L)$train
 expect_identical(aft.train.a[a == 1, ], aft.train.b[a == 1, ])
 expect_true(max(abs(aft.train.a[a == 0, ] - aft.train.b[a == 0, ])) < 1e-12)
 
@@ -425,8 +430,8 @@ expect_identical(
   nbinomSampler(counts, NULL)$run(20L, 10L)$train
 )
 expect_identical(
-  dbarts:::bartcoreRun(aftHandle(y, rep(1, n)), 20L, 10L)$train,
-  dbarts:::bartcoreRun(aftHandle(y, NULL), 20L, 10L)$train
+  bartcoreRun(aftHandle(y, rep(1, n)), 20L, 10L)$train,
+  bartcoreRun(aftHandle(y, NULL), 20L, 10L)$train
 )
 
 # --- multinomial, GLOBAL only -----------------------------------------
@@ -453,7 +458,7 @@ multinomialHandle <- function(counts, mask = a) {
     K = K.mn
   )
   if (!is.null(mask)) {
-    dbarts:::bartcoreSetActiveRows(handle, mask)
+    bartcoreSetActiveRows(handle, mask)
   }
   handle
 }
@@ -461,8 +466,8 @@ multinomialHandle <- function(counts, mask = a) {
 # Substituting the inactive rows' counts leaves every ACTIVE row's recorded
 # softmax bitwise. Polya-Gamma is a rejection sampler, so this fails outright
 # if an inactive row's K draws are taken and discarded, not skipped.
-train.mn.a <- dbarts:::bartcoreRun(multinomialHandle(counts.mn), 20L, 10L)$train
-train.mn.b <- dbarts:::bartcoreRun(
+train.mn.a <- bartcoreRun(multinomialHandle(counts.mn), 20L, 10L)$train
+train.mn.b <- bartcoreRun(
   multinomialHandle(counts.mn.other),
   20L,
   10L
@@ -473,13 +478,13 @@ expect_true(max(abs(train.mn.a[a == 0, , ] - train.mn.b[a == 0, , ])) < 1e-12)
 # The all-ones normalizer clears here too, and the coupling serves its
 # unmasked precisions when it does
 expect_identical(
-  dbarts:::bartcoreRun(multinomialHandle(counts.mn, rep(1, n)), 20L, 10L)$train,
-  dbarts:::bartcoreRun(multinomialHandle(counts.mn, NULL), 20L, 10L)$train
+  bartcoreRun(multinomialHandle(counts.mn, rep(1, n)), 20L, 10L)$train,
+  bartcoreRun(multinomialHandle(counts.mn, NULL), 20L, 10L)$train
 )
 
 # an all-zeros mask runs: every category forest sits at its prior and every row
 # still gets its K reported probabilities, which stay a simplex
-train.mn.empty <- dbarts:::bartcoreRun(
+train.mn.empty <- bartcoreRun(
   multinomialHandle(counts.mn, rep(0, n)),
   20L,
   10L
@@ -489,7 +494,7 @@ expect_true(max(abs(apply(train.mn.empty, c(1L, 3L), sum) - 1)) < 1e-12)
 
 # the engine's value scan is under this surface too
 expect_error(
-  dbarts:::bartcoreSetActiveRows(
+  bartcoreSetActiveRows(
     multinomialHandle(counts.mn, NULL),
     replace(a, 2L, 0.5)
   ),
@@ -501,7 +506,7 @@ expect_error(
 # per-observation channel a caller can reach, and a softmax sampler refuses it
 # with that reason.
 expect_error(
-  dbarts:::bartcoreSetForestWeights(multinomialHandle(counts.mn, NULL), 1L, a),
+  bartcoreSetForestWeights(multinomialHandle(counts.mn, NULL), 1L, a),
   "applies to every category"
 )
 
@@ -512,7 +517,7 @@ expect_error(
 priorNodes <- function(mask) {
   handle <- multinomialHandle(counts.mn, mask)
   .Call(dbarts:::C_dbarts_bartcore_sampleTreesFromPrior, handle$ptr)
-  dbarts:::bartcoreGetTrees(
+  bartcoreGetTrees(
     handle,
     chainNums = 1L,
     treeNums = seq_len(control@n.trees),

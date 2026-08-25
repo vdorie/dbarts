@@ -44,6 +44,11 @@
 # Append 'quick' for a fast smoke pass (fewer draws; not comparable to a full
 # baseline - the settings guard refuses the mixed comparison).
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -122,13 +127,13 @@ drawSummary <- function(a) {
 # entries only).
 recordChannels <- function(bcSampler, result) {
   ch <- list(
-    mu = dbarts:::bartcoreForestFits(bcSampler, 0L),
-    tau = dbarts:::bartcoreForestFits(bcSampler, 1L),
-    glue = dbarts:::bartcoreForestAmplitudes(bcSampler),
+    mu = bartcoreForestFits(bcSampler, 0L),
+    tau = bartcoreForestFits(bcSampler, 1L),
+    glue = bartcoreForestAmplitudes(bcSampler),
     sigma = result$sigma,
     train = result$train,
     varcount = result$varcount,
-    varcount.tau = dbarts:::bartcoreForestVariableCounts(bcSampler, 1L)
+    varcount.tau = bartcoreForestVariableCounts(bcSampler, 1L)
   )
   ch$summaries <- lapply(ch[statChannels], drawSummary)
   ch
@@ -149,7 +154,7 @@ runScenarios <- function() {
       d$z,
       n.trees.treatment = n.trees.tau
     )
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     result$default <- recordChannels(bc, res)
   }
 
@@ -165,7 +170,7 @@ runScenarios <- function() {
       n.trees.treatment = n.trees.tau,
       moderators = c("x1", "x3")
     )
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     result$restricted <- recordChannels(bc, res)
   }
 
@@ -183,7 +188,7 @@ runScenarios <- function() {
       update.a = TRUE,
       update.b = FALSE
     )
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     result$glue_toggle <- recordChannels(bc, res)
   }
 
@@ -201,7 +206,7 @@ runScenarios <- function() {
       d$z,
       n.trees.treatment = n.trees.tau
     )
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     result$weighted <- recordChannels(bc, res)
   }
 
@@ -219,9 +224,9 @@ runScenarios <- function() {
       d$z,
       n.trees.treatment = n.trees.tau
     )
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    dbarts:::bartcoreSetForestBasis(bc, 1L, cbind(1 - z2, z2))
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    bartcoreRun(bc, n.burn, n.samples)
+    bartcoreSetForestBasis(bc, 1L, cbind(1 - z2, z2))
+    res <- bartcoreRun(bc, n.burn, n.samples)
     result$set_treatment <- recordChannels(bc, res)
   }
 
@@ -248,9 +253,9 @@ runScenarios <- function() {
       d$z,
       n.trees.treatment = n.trees.tau
     )
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    dbarts:::bartcoreSetPredictor(bc, x2, forceUpdate = TRUE)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    bartcoreRun(bc, n.burn, n.samples)
+    bartcoreSetPredictor(bc, x2, forceUpdate = TRUE)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     recordChannels(bc, res)
   })
 
@@ -280,9 +285,9 @@ runScenarios <- function() {
       d$z,
       n.trees.treatment = n.trees.tau
     )
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    accepted <- dbarts:::bartcoreSetPredictor(bc, x2)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    bartcoreRun(bc, n.burn, n.samples)
+    accepted <- bartcoreSetPredictor(bc, x2)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     c(recordChannels(bc, res), list(accepted = accepted))
   })
 
@@ -301,9 +306,9 @@ runScenarios <- function() {
       d$z,
       n.trees.treatment = n.trees.tau
     )
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    accepted <- dbarts:::bartcoreUpdatePredictor(bc, v, 3L)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    bartcoreRun(bc, n.burn, n.samples)
+    accepted <- bartcoreUpdatePredictor(bc, v, 3L)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     c(recordChannels(bc, res), list(accepted = accepted))
   })
 
@@ -323,13 +328,13 @@ runScenarios <- function() {
       d$z,
       n.trees.treatment = n.trees.tau
     )
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    accepted <- dbarts:::bartcoreUpdatePredictor(
+    bartcoreRun(bc, n.burn, n.samples)
+    accepted <- bartcoreUpdatePredictor(
       bc,
       ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
       1L
     )
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     c(recordChannels(bc, res), list(accepted = accepted))
   })
 
@@ -358,9 +363,9 @@ runScenarios <- function() {
       d$z,
       n.trees.treatment = n.trees.tau
     )
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    installed <- dbarts:::bartcoreUpdatePredictorPerObservation(bc, v, 3L)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    bartcoreRun(bc, n.burn, n.samples)
+    installed <- bartcoreUpdatePredictorPerObservation(bc, v, 3L)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     c(recordChannels(bc, res), list(installed = installed))
   })
 
@@ -377,13 +382,13 @@ runScenarios <- function() {
       d$z,
       n.trees.treatment = n.trees.tau
     )
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    installed <- dbarts:::bartcoreUpdatePredictorPerObservation(
+    bartcoreRun(bc, n.burn, n.samples)
+    installed <- bartcoreUpdatePredictorPerObservation(
       bc,
       ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
       1L
     )
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     c(recordChannels(bc, res), list(installed = installed))
   })
 
@@ -407,9 +412,9 @@ runScenarios <- function() {
       d$z,
       n.trees.treatment = n.trees.tau
     )
-    dbarts:::bartcoreRun(bc, n.burn, n.samples)
-    dbarts:::bartcoreSetActiveRows(bc, mask)
-    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    bartcoreRun(bc, n.burn, n.samples)
+    bartcoreSetActiveRows(bc, mask)
+    res <- bartcoreRun(bc, n.burn, n.samples)
     recordChannels(bc, res)
   })
 

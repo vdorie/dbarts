@@ -24,6 +24,11 @@
 #
 # Usage: Rscript bcf-exact-weak.R [quick]
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -292,15 +297,15 @@ samplerFit <- function(seed) {
     update.a = TRUE,
     update.b = FALSE
   )
-  dbarts:::bartcoreRun(bc, nburn, 1L)
+  bartcoreRun(bc, nburn, 1L)
   muM <- matrix(0, ndpost, K)
   tauM <- matrix(0, ndpost, K)
   aVec <- numeric(ndpost)
   for (d in seq_len(ndpost)) {
-    dbarts:::bartcoreRun(bc, 0L, thin)
-    muM[d, ] <- dbarts:::bartcoreForestFits(bc, 0L)[repObs, 1L]
-    tauM[d, ] <- dbarts:::bartcoreForestFits(bc, 1L)[repObs, 1L]
-    aVec[d] <- dbarts:::bartcoreForestAmplitudes(bc)[1L, 1L]
+    bartcoreRun(bc, 0L, thin)
+    muM[d, ] <- bartcoreForestFits(bc, 0L)[repObs, 1L]
+    tauM[d, ] <- bartcoreForestFits(bc, 1L)[repObs, 1L]
+    aVec[d] <- bartcoreForestAmplitudes(bc)[1L, 1L]
   }
   list(
     tau = colMeans(tauM),

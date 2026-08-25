@@ -5,6 +5,11 @@
 # only summaries and never the train shape). It also pins the mutation guard
 # that closes a latent BCF hazard: a whole-data mutation rebuilds forest 0 only.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(2718)
 n <- 120L
 p <- 4L
@@ -25,7 +30,7 @@ control.one <- dbartsControl(
 sampler.one <- dbarts(x, y, test = x.test, control = control.one)
 bc.one <- dbarts:::bartcoreSampler(sampler.one)
 numSamples <- 30L
-result.one <- dbarts:::bartcoreRun(bc.one, 50L, numSamples)
+result.one <- bartcoreRun(bc.one, 50L, numSamples)
 
 expect_equal(dim(result.one$train), c(n, numSamples))
 expect_equal(dim(result.one$test), c(nTest, numSamples))
@@ -43,7 +48,7 @@ control.many <- dbartsControl(
 )
 sampler.many <- dbarts(x, y, test = x.test, control = control.many)
 bc.many <- dbarts:::bartcoreSampler(sampler.many)
-result.many <- dbarts:::bartcoreRun(bc.many, 50L, numSamples)
+result.many <- bartcoreRun(bc.many, 50L, numSamples)
 
 expect_equal(dim(result.many$train), c(n, numSamples, numChains))
 expect_equal(dim(result.many$test), c(nTest, numSamples, numChains))
@@ -79,37 +84,37 @@ bc.bcf <- dbarts:::bartcoreBCFSampler(
 # basis is a copy sized to the n it was installed at, and setData has no
 # channel to resize it in the same call
 expect_error(
-  dbarts:::bartcoreSetData(bc.bcf, sampler.bcf.host$data),
+  bartcoreSetData(bc.bcf, sampler.bcf.host$data),
   "multi-forest"
 )
-expect_silent(dbarts:::bartcoreSetResponse(bc.bcf, y.bcf + 1))
+expect_silent(bartcoreSetResponse(bc.bcf, y.bcf + 1))
 expect_error(
-  dbarts:::bartcoreSetResponse(bc.bcf, y.bcf + 1, updateScale = TRUE),
+  bartcoreSetResponse(bc.bcf, y.bcf + 1, updateScale = TRUE),
   "multi-forest"
 )
 expect_error(
-  dbarts:::bartcoreSetResponse(bc.bcf, y.bcf + 1, updateScale = NA),
+  bartcoreSetResponse(bc.bcf, y.bcf + 1, updateScale = NA),
   "multi-forest"
 )
 # the case weights ride the same opt-in: Chain::setWeights is a pointer swap
 # plus a positive-weight recount, BCF re-derives every per-forest response and
 # precision from y and w each sweep, and the leaf calibration both forests are
 # stated against is unweighted - so there is nothing stale and no scale to pin
-expect_silent(dbarts:::bartcoreSetWeights(bc.bcf, runif(n, 0.5, 1.5)))
-result.weights <- dbarts:::bartcoreRun(bc.bcf, 0L, 5L)
+expect_silent(bartcoreSetWeights(bc.bcf, runif(n, 0.5, 1.5)))
+result.weights <- bartcoreRun(bc.bcf, 0L, 5L)
 expect_true(all(is.finite(result.weights$train)))
 # zero weights drop rows from the likelihood, so the swap must re-count the
 # positive ones rather than carry the build count over
 w.zero <- runif(n, 0.5, 1.5)
 w.zero[seq_len(10L)] <- 0
-expect_silent(dbarts:::bartcoreSetWeights(bc.bcf, w.zero))
-expect_true(all(is.finite(dbarts:::bartcoreRun(bc.bcf, 0L, 5L)$train)))
-dbarts:::bartcoreSetWeights(bc.bcf, rep(1, n))
+expect_silent(bartcoreSetWeights(bc.bcf, w.zero))
+expect_true(all(is.finite(bartcoreRun(bc.bcf, 0L, 5L)$train)))
+bartcoreSetWeights(bc.bcf, rep(1, n))
 # setModel writes forest 0's leaf scale from the prior alone (Chain::
 # setModel), which would silently discard BCF's calibrated mu leaf scale;
 # refused regardless of the argument's class
 expect_error(
-  dbarts:::bartcoreSetModel(
+  bartcoreSetModel(
     bc.bcf,
     sampler.bcf.host$model,
     sampler.bcf.host$data
@@ -124,14 +129,14 @@ expect_error(
 # empty a leaf, so both accept; a run afterwards must stay finite, which is
 # the assertion that every forest really was re-routed rather than left
 # against stale codes
-expect_true(dbarts:::bartcoreSetPredictor(bc.bcf, x))
-expect_true(dbarts:::bartcoreUpdatePredictor(bc.bcf, x[, 1L], 1L))
-expect_true(all(is.finite(dbarts:::bartcoreRun(bc.bcf, 0L, 5L)$train)))
+expect_true(bartcoreSetPredictor(bc.bcf, x))
+expect_true(bartcoreUpdatePredictor(bc.bcf, x[, 1L], 1L))
+expect_true(all(is.finite(bartcoreRun(bc.bcf, 0L, 5L)$train)))
 # a proposal that WOULD empty a leaf rolls back and reports FALSE rather than
 # erroring - the veto, not a refusal. Collapsing a column onto two values of
 # the existing grid empties leaves in every tree that splits on it
 expect_false(
-  dbarts:::bartcoreUpdatePredictor(
+  bartcoreUpdatePredictor(
     bc.bcf,
     ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
     1L
@@ -143,39 +148,39 @@ expect_false(
 # nothing, so every row installs; the two-level collapse declines the rows that
 # would empty a leaf - the per-row rollback - and the run stays finite
 expect_true(all(
-  dbarts:::bartcoreUpdatePredictorPerObservation(bc.bcf, x[, 1L], 1L)
+  bartcoreUpdatePredictorPerObservation(bc.bcf, x[, 1L], 1L)
 ))
 expect_true(any(
-  !dbarts:::bartcoreUpdatePredictorPerObservation(
+  !bartcoreUpdatePredictorPerObservation(
     bc.bcf,
     ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
     1L
   )
 ))
-expect_true(all(is.finite(dbarts:::bartcoreRun(bc.bcf, 0L, 5L)$train)))
+expect_true(all(is.finite(bartcoreRun(bc.bcf, 0L, 5L)$train)))
 # ... and the force path refreshes every forest and stays supported
-expect_true(dbarts:::bartcoreSetPredictor(bc.bcf, x + 0, forceUpdate = TRUE))
+expect_true(bartcoreSetPredictor(bc.bcf, x + 0, forceUpdate = TRUE))
 
 # setOffset rides the same conduit as setResponse under a different pointer
 # (setOffset(yBuild - yNew, FALSE) re-maps through the pinned transform exactly
 # as setResponse(yNew, FALSE) does), so it carries the same two conditions:
 # permitted at FALSE, refused at TRUE and at NA. NULL clears the offset, which
 # never moves the transform
-expect_silent(dbarts:::bartcoreSetOffset(bc.bcf, rep(0.1, n)))
+expect_silent(bartcoreSetOffset(bc.bcf, rep(0.1, n)))
 expect_error(
-  dbarts:::bartcoreSetOffset(bc.bcf, rep(0.1, n), updateScale = TRUE),
+  bartcoreSetOffset(bc.bcf, rep(0.1, n), updateScale = TRUE),
   "multi-forest"
 )
 expect_error(
-  dbarts:::bartcoreSetOffset(bc.bcf, rep(0.1, n), updateScale = NA),
+  bartcoreSetOffset(bc.bcf, rep(0.1, n), updateScale = NA),
   "multi-forest"
 )
-expect_silent(dbarts:::bartcoreSetOffset(bc.bcf, NULL))
+expect_silent(bartcoreSetOffset(bc.bcf, NULL))
 
 # setForestBasis is still allowed and a subsequent run stays sane
 z.new <- rbinom(n, 1L, 0.5)
-dbarts:::bartcoreSetForestBasis(bc.bcf, 1L, cbind(1 - z.new, z.new))
-result.bcf <- dbarts:::bartcoreRun(bc.bcf, 0L, 5L)
+bartcoreSetForestBasis(bc.bcf, 1L, cbind(1 - z.new, z.new))
+result.bcf <- bartcoreRun(bc.bcf, 0L, 5L)
 expect_equal(dim(result.bcf$train), c(n, 5L))
 expect_true(all(is.finite(result.bcf$train)))
 
@@ -198,16 +203,16 @@ bcfWeightArm <- function(build, swap) {
   )
   bc <- dbarts:::bartcoreBCFSampler(host, z, n.trees.treatment = 20L)
   if (!is.null(swap)) {
-    dbarts:::bartcoreSetWeights(bc, swap)
+    bartcoreSetWeights(bc, swap)
   }
-  res <- dbarts:::bartcoreRun(bc, 20L, 10L)
+  res <- bartcoreRun(bc, 20L, 10L)
   list(
     train = res$train,
     varcount = res$varcount,
-    glue = dbarts:::bartcoreForestAmplitudes(bc),
-    mu = dbarts:::bartcoreForestFits(bc, 0L),
-    tau = dbarts:::bartcoreForestFits(bc, 1L),
-    fit.scale = dbarts:::bartcoreStoreState(bc)[[1L]]$fit.scale
+    glue = bartcoreForestAmplitudes(bc),
+    mu = bartcoreForestFits(bc, 0L),
+    tau = bartcoreForestFits(bc, 1L),
+    fit.scale = bartcoreStoreState(bc)[[1L]]$fit.scale
   )
 }
 
@@ -247,11 +252,11 @@ sampler.mn.host <- dbarts(
 )
 bc.mn <- dbarts:::bartcoreMultinomialSampler(sampler.mn.host, labels, K = 3L)
 expect_error(
-  dbarts:::bartcoreSetResponse(bc.mn, as.double(labels)),
+  bartcoreSetResponse(bc.mn, as.double(labels)),
   "n x K count matrix"
 )
 expect_error(
-  dbarts:::bartcoreSetResponse(bc.mn, as.double(labels), updateScale = TRUE),
+  bartcoreSetResponse(bc.mn, as.double(labels), updateScale = TRUE),
   "n x K count matrix"
 )
 # a flat offset points exactly along the softmax's null direction (a common
@@ -259,15 +264,15 @@ expect_error(
 # the refusal names the per-category matrix that does
 # (test-multinomial-category-offset.R)
 expect_error(
-  dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n)),
+  bartcoreSetOffset(bc.mn, rep(0.5, n)),
   "n x K category matrix"
 )
 expect_error(
-  dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = TRUE),
+  bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = TRUE),
   "n x K category matrix"
 )
 expect_error(
-  dbarts:::bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = NA),
+  bartcoreSetOffset(bc.mn, rep(0.5, n), updateScale = NA),
   "n x K category matrix"
 )
 # case weights are refused at multinomial creation and stay refused after it:
@@ -275,14 +280,14 @@ expect_error(
 # take it - and an integer case weight is row-wise count replication the
 # response matrix already expresses, which is why the hint names it
 expect_error(
-  dbarts:::bartcoreSetWeights(bc.mn, runif(n, 0.5, 1.5)),
+  bartcoreSetWeights(bc.mn, runif(n, 0.5, 1.5)),
   "n x K count matrix"
 )
 # the basis column is defined only as the contrast the amplitudes form
 # b_{z_i} against; the capability probe catches a K-forest multinomial that a
 # forest count would not
 expect_error(
-  dbarts:::bartcoreSetForestBasis(bc.mn, 1L, cbind(0.5, 0.5)),
+  bartcoreSetForestBasis(bc.mn, 1L, cbind(0.5, 0.5)),
   "forests carry amplitudes"
 )
 # a FLAT test offset is added AFTER the K forests are blended, so it would move
@@ -293,7 +298,7 @@ expect_error(
 # (test-multinomial-test-offset.R). The generic multi-forest wording is
 # conditioned on the counts capability, so BCF keeps it.
 expect_error(
-  dbarts:::bartcoreSetTestOffset(bc.mn, rep(0.5, nTest)),
+  bartcoreSetTestOffset(bc.mn, rep(0.5, nTest)),
   "category test offset channel"
 )
 
@@ -303,53 +308,53 @@ expect_error(
 # cell guard that caches every forest pruned to the trees the column can move.
 # The forced entries and setCutPoints refresh every category forest
 # throughout. ---
-expect_true(dbarts:::bartcoreSetPredictor(bc.mn, x, forceUpdate = FALSE))
+expect_true(bartcoreSetPredictor(bc.mn, x, forceUpdate = FALSE))
 expect_true(
-  dbarts:::bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = FALSE)
+  bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = FALSE)
 )
-expect_true(all(is.finite(dbarts:::bartcoreRun(bc.mn, 0L, 5L)$train)))
+expect_true(all(is.finite(bartcoreRun(bc.mn, 0L, 5L)$train)))
 expect_true(all(
-  dbarts:::bartcoreUpdatePredictorPerObservation(bc.mn, x[, 1L], 1L)
+  bartcoreUpdatePredictorPerObservation(bc.mn, x[, 1L], 1L)
 ))
 expect_true(any(
-  !dbarts:::bartcoreUpdatePredictorPerObservation(
+  !bartcoreUpdatePredictorPerObservation(
     bc.mn,
     ifelse(seq_len(n) %% 2L == 0L, 0.25, 0.75),
     1L
   )
 ))
-expect_true(all(is.finite(dbarts:::bartcoreRun(bc.mn, 0L, 5L)$train)))
+expect_true(all(is.finite(bartcoreRun(bc.mn, 0L, 5L)$train)))
 # the joint session installs in every sampler or none; a single-element list is
 # the smallest case that reaches the same guard, and it now installs rather
 # than refusing
 expect_true(all(
-  dbarts:::bartcoreUpdatePredictorPerObservationJointly(
+  bartcoreUpdatePredictorPerObservationJointly(
     list(bc.mn),
     x[, 1L],
     1L
   )
 ))
-expect_true(dbarts:::bartcoreSetPredictor(bc.mn, x, forceUpdate = TRUE))
+expect_true(bartcoreSetPredictor(bc.mn, x, forceUpdate = TRUE))
 expect_true(
-  dbarts:::bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = TRUE)
+  bartcoreUpdatePredictor(bc.mn, x[, 1L], 1L, forceUpdate = TRUE)
 )
 # setCutPoints carries no transactional guard at all: it refreshes every forest
 # unconditionally, pruning whatever the coarsened grid orphans
-expect_silent(dbarts:::bartcoreSetCutPoints(bc.mn, list(c(1 / 3, 2 / 3)), 1L))
-expect_true(all(is.finite(dbarts:::bartcoreRun(bc.mn, 0L, 5L)$train)))
+expect_silent(bartcoreSetCutPoints(bc.mn, list(c(1 / 3, 2 / 3)), 1L))
+expect_true(all(is.finite(bartcoreRun(bc.mn, 0L, 5L)$train)))
 
 # the same guard is inert on a single-forest sampler: these mutations still
 # work, including setOffset at updateScale = TRUE (rbart_vi's warmup rescale)
-expect_silent(dbarts:::bartcoreSetResponse(bc.one, y + 1))
-expect_silent(dbarts:::bartcoreSetWeights(bc.one, runif(n, 0.5, 1.5)))
-expect_silent(dbarts:::bartcoreSetOffset(bc.one, rep(0.2, n)))
+expect_silent(bartcoreSetResponse(bc.one, y + 1))
+expect_silent(bartcoreSetWeights(bc.one, runif(n, 0.5, 1.5)))
+expect_silent(bartcoreSetOffset(bc.one, rep(0.2, n)))
 expect_silent(
-  dbarts:::bartcoreSetOffset(bc.one, rep(0.2, n), updateScale = TRUE)
+  bartcoreSetOffset(bc.one, rep(0.2, n), updateScale = TRUE)
 )
 expect_silent(
-  dbarts:::bartcoreSetModel(bc.one, sampler.one$model, sampler.one$data)
+  bartcoreSetModel(bc.one, sampler.one$model, sampler.one$data)
 )
-expect_true(dbarts:::bartcoreSetPredictor(bc.one, x + 0))
+expect_true(bartcoreSetPredictor(bc.one, x + 0))
 
 # --- the per-forest variable-count query. On a single-forest sampler the
 # reported forest is forest 0, so the current-state query equals the recorded
@@ -357,13 +362,13 @@ expect_true(dbarts:::bartcoreSetPredictor(bc.one, x + 0))
 # at the recorded sample's state (no sweep past the last storeSample). The
 # recorded channel is per-sample and the query is live, so they coincide only
 # right after such a run. ---
-one.sample <- dbarts:::bartcoreRun(bc.one, 0L, 1L)
-vc.one <- dbarts:::bartcoreForestVariableCounts(bc.one, 0L)
+one.sample <- bartcoreRun(bc.one, 0L, 1L)
+vc.one <- bartcoreForestVariableCounts(bc.one, 0L)
 expect_equal(dim(vc.one), c(p, 1L))
 expect_true(is.integer(vc.one))
 expect_equal(vc.one[, 1L], one.sample$varcount[, 1L])
 # an out-of-range forest index errors, as for the forest-fits query
 expect_error(
-  dbarts:::bartcoreForestVariableCounts(bc.one, 1L),
+  bartcoreForestVariableCounts(bc.one, 1L),
   "out of range"
 )

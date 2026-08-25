@@ -40,6 +40,11 @@
 #
 # Usage: Rscript ordinal-exact.R [quick]
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -178,8 +183,8 @@ fitSeed <- function(seed) {
   probsB <- numeric(K)
   gammaSum <- 0
   for (s in seq_len(ndpost)) {
-    r <- dbarts:::bartcoreRun(bc, if (s == 1L) nburn else 0L, 1L)
-    st <- dbarts:::bartcoreStoreState(bc)
+    r <- bartcoreRun(bc, if (s == 1L) nburn else 0L, 1L)
+    st <- bartcoreStoreState(bc)
     # the K-1 finite cutpoints c(gamma_1 = 0, gamma_2); the probability transform
     # needs the whole vector, the gamma_2 tracking only its free entry
     gammaVec <- st[[1L]]$cutpoints

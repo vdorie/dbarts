@@ -20,6 +20,11 @@
 # construction, which is the right law for a draw from the prior. Neither is
 # reachable from a BCF handle today in any case.
 
+source(
+  system.file("common", "bartcoreHandle.R", package = "dbarts"),
+  local = TRUE
+)
+
 set.seed(1207)
 n <- 300L
 p <- 4L
@@ -57,16 +62,16 @@ runBCF <- function(
     update.b = !fixed.glue
   )
   if (!is.null(forest)) {
-    dbarts:::bartcoreSetForestWeights(bc, forest, weights)
+    bartcoreSetForestWeights(bc, forest, weights)
   }
-  result <- dbarts:::bartcoreRun(bc, 0L, n.samples)
+  result <- bartcoreRun(bc, 0L, n.samples)
   list(
     train = result$train,
     sigma = result$sigma,
     varcount = result$varcount,
-    mu = dbarts:::bartcoreForestFits(bc, 0L),
-    tau = dbarts:::bartcoreForestFits(bc, 1L),
-    glue = dbarts:::bartcoreForestAmplitudes(bc)
+    mu = bartcoreForestFits(bc, 0L),
+    tau = bartcoreForestFits(bc, 1L),
+    glue = bartcoreForestAmplitudes(bc)
   )
 }
 
@@ -122,12 +127,12 @@ expect_true(sd(as.vector(all.zero$tau)) > 0)
 # change can strand an empty leaf.
 set.seed(4005)
 bc.toggle <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
-invisible(dbarts:::bartcoreRun(bc.toggle, 20L, 5L))
+invisible(bartcoreRun(bc.toggle, 20L, 5L))
 toggled <- lapply(
   list(as.double(z), rep(1, n), rep(0, n), as.double(1 - z)),
   function(s) {
-    dbarts:::bartcoreSetForestWeights(bc.toggle, 1L, s)
-    dbarts:::bartcoreRun(bc.toggle, 0L, 5L)
+    bartcoreSetForestWeights(bc.toggle, 1L, s)
+    bartcoreRun(bc.toggle, 0L, 5L)
   }
 )
 expect_true(all(vapply(
@@ -140,23 +145,23 @@ expect_true(all(vapply(
 set.seed(4006)
 bc <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
 expect_error(
-  dbarts:::bartcoreSetForestWeights(bc, 1L, rep(-1, n)),
+  bartcoreSetForestWeights(bc, 1L, rep(-1, n)),
   "non-negative"
 )
 expect_error(
-  dbarts:::bartcoreSetForestWeights(bc, 1L, c(NaN, rep(1, n - 1L))),
+  bartcoreSetForestWeights(bc, 1L, c(NaN, rep(1, n - 1L))),
   "finite"
 )
 expect_error(
-  dbarts:::bartcoreSetForestWeights(bc, 1L, c(Inf, rep(1, n - 1L))),
+  bartcoreSetForestWeights(bc, 1L, c(Inf, rep(1, n - 1L))),
   "finite"
 )
 expect_error(
-  dbarts:::bartcoreSetForestWeights(bc, 2L, rep(1, n)),
+  bartcoreSetForestWeights(bc, 2L, rep(1, n)),
   "out of range"
 )
 expect_error(
-  dbarts:::bartcoreSetForestWeights(bc, 1L, rep(1, n - 1L)),
+  bartcoreSetForestWeights(bc, 1L, rep(1, n - 1L)),
   "number of observations"
 )
 
@@ -186,7 +191,7 @@ expect_error(
 # would sail through a count test
 bc.single <- dbarts:::bartcoreSampler(sampler)
 expect_error(
-  dbarts:::bartcoreSetForestWeights(bc.single, 0L, rep(1, n)),
+  bartcoreSetForestWeights(bc.single, 0L, rep(1, n)),
   "requires a sampler that carries forest amplitudes"
 )
 set.seed(4007)
@@ -197,16 +202,16 @@ bc.multinomial <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = 3L)
 # channel a caller can reach, so an attempt to hold one category's rows out
 # arrives here, and the margin reads all K forests
 expect_error(
-  dbarts:::bartcoreSetForestWeights(bc.multinomial, 1L, rep(1, n)),
+  bartcoreSetForestWeights(bc.multinomial, 1L, rep(1, n)),
   "applies to every category"
 )
 
 # an installed weight can never go stale against a changed n, because a
 # multi-forest sampler refuses whole-data replacement outright; there is no
 # length to re-check and no dangling borrow to invalidate
-dbarts:::bartcoreSetForestWeights(bc, 1L, rep(1, n))
+bartcoreSetForestWeights(bc, 1L, rep(1, n))
 expect_error(
-  dbarts:::bartcoreSetData(bc, sampler$data),
+  bartcoreSetData(bc, sampler$data),
   "fixes its data at creation"
 )
 
@@ -230,10 +235,10 @@ bc.keep <- dbarts:::bartcoreBCFSampler(
   z,
   n.trees.treatment = 25L
 )
-dbarts:::bartcoreSetForestWeights(bc.keep, 1L, rep(0, n))
-result.keep <- dbarts:::bartcoreRun(bc.keep, 10L, 10L)
+bartcoreSetForestWeights(bc.keep, 1L, rep(0, n))
+result.keep <- bartcoreRun(bc.keep, 10L, 10L)
 expect_true(all(is.finite(result.keep$train)))
-trees.tau <- dbarts:::bartcoreGetTrees(
+trees.tau <- bartcoreGetTrees(
   bc.keep,
   chainNums = 1L,
   sampleNums = seq_len(10L),
@@ -266,26 +271,26 @@ expect_true(all(trees.tau$n >= 0L))
 roundTripState <- function(weight) {
   set.seed(5001)
   bc <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
-  dbarts:::bartcoreSetForestWeights(bc, 1L, weight)
-  invisible(dbarts:::bartcoreRun(bc, 5L, 0L))
-  state <- dbarts:::bartcoreStoreState(bc)
-  dbarts:::bartcoreSetState(bc, state) # a same-holder round trip to itself
-  invisible(dbarts:::bartcoreRun(bc, 0L, 5L))
-  dbarts:::bartcoreForestFits(bc, 1L)
+  bartcoreSetForestWeights(bc, 1L, weight)
+  invisible(bartcoreRun(bc, 5L, 0L))
+  state <- bartcoreStoreState(bc)
+  bartcoreSetState(bc, state) # a same-holder round trip to itself
+  invisible(bartcoreRun(bc, 0L, 5L))
+  bartcoreForestFits(bc, 1L)
 }
 expect_false(identical(roundTripState(rep(0, n)), roundTripState(rep(1, n))))
 
 roundTripInstall <- function(weight) {
   set.seed(5002)
   donor <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
-  invisible(dbarts:::bartcoreRun(donor, 5L, 0L))
-  donorState <- dbarts:::bartcoreStoreState(donor)
+  invisible(bartcoreRun(donor, 5L, 0L))
+  donorState <- bartcoreStoreState(donor)
 
   target <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
-  dbarts:::bartcoreSetForestWeights(target, 1L, weight)
+  bartcoreSetForestWeights(target, 1L, weight)
   .Call(dbarts:::C_dbarts_bartcore_installForests, target$ptr, donorState, NULL)
-  invisible(dbarts:::bartcoreRun(target, 0L, 5L))
-  dbarts:::bartcoreForestFits(target, 1L)
+  invisible(bartcoreRun(target, 0L, 5L))
+  bartcoreForestFits(target, 1L)
 }
 expect_false(identical(
   roundTripInstall(rep(0, n)),
