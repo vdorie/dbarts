@@ -46,6 +46,13 @@ jobs:
         with:
           needs: check
 
+      # No default arms on the family switches, and src/Makevars cannot carry
+      # -Werror (CRAN); CXX_STD = CXX20 is why the flag rides CXX20FLAGS.
+      - name: Make an unclassified response family a hard error
+        run: |
+          mkdir -p ~/.R
+          printf 'CXX20FLAGS += -Werror=switch -Werror=return-type\n' >> ~/.R/Makevars
+
       # leaves src/misc.a, src/external.a, src/rc.a for the test link
       - name: Build the package in place
         run: R CMD INSTALL --preclean .
