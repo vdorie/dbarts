@@ -51,7 +51,7 @@ the BCF constructor. The landed virtual surface:
   afterCombine's return is a REPORTING channel, not a record of whether it
   moved: each override states its own convention, 1.0 does NOT mean the state
   is unchanged, and no caller may read it that way (CORRECTED here; the base
-  Doxygen is authoritative, combiner.hpp:562-572). The per-forest amplitude
+  Doxygen is authoritative, combiner.hpp:614-618). The per-forest amplitude
   rescale returns the scale applied to the forest it reports, 1.0 if that one
   held while another travelled; the multinomial level shift returns 1.0
   unconditionally, HAVING moved, an additive move having no scale to report.
@@ -129,7 +129,7 @@ two-forest object: it is the general K-forest basis/amplitude family, each
 forest contributing `m_{f,i} f_f(x_i)` with `m_{f,i} = dot(a_f, B_f(i, .))` a
 contraction of that forest's own n x q_f row-major basis with its own amplitude
 vector, of which bcf's `a mu + b_z tau` is the K = 2 instance
-(combiner.hpp:685, chain.hpp:687-689, facade.hpp:833-836). The SPELLING
+(combiner.hpp:820, chain.hpp:1250-1256, facade.hpp:882-885). The SPELLING
 followed: see that design note's discharged naming debt.
 
 What is combiner-hierarchy content, and stays here:
@@ -200,7 +200,7 @@ multiplier family the fourth - leaving hurdle's the only one standing:
   per-observation sigma - a decision this plan explicitly deferred. RESOLVED,
   2026-07-20 (docs/design/heteroscedastic.md): the WEIGHT-channel route was the
   right one, and it landed as a Chain-side nullable `varianceForest_`
-  (chain.hpp:680-682) rather than through a combiner at all. The Chain
+  (chain.hpp:5445) rather than through a combiner at all. The Chain
   constraint itself stands unchanged; what is settled is the decision, not the
   constraint. The combiner's own weight-channel seam is therefore STILL the
   unused route a future combiner-HOSTED variance forest would take.
@@ -213,7 +213,7 @@ multiplier family the fourth - leaving hurdle's the only one standing:
   by the multiplier family (M4.3): they are now `hasAmplitudes`,
   `amplitudeWidths`, `amplitudes` and `amplitudeVariances` - RAGGED, with the
   widths travelling because a TOTAL IS NOT A LAYOUT, `q = (1, 3)` and `q = (2,
-  2)` both carrying four amplitudes (combiner.hpp:92-102) - and the four named
+  2)` both carrying four amplitudes (combiner.hpp:443-465) - and the four named
   scalars survive only as a hand-written K = 2 reading, non-authoritative
   (:103-109). The bullet's CONCLUSION is what the arc vindicated and it stands:
   a non-BCF combiner overrides `serializeGlue`/`restoreGlue` rather than
@@ -222,14 +222,14 @@ multiplier family the fourth - leaving hurdle's the only one standing:
   (docs/design/ multinomial.md), redrawing its per-sweep Polya-Gamma latents
   against the restored forests structurally, so restore is structural, not
   bitwise. The interface point did grow a THIRD virtual, `glueIsValid`
-  (combiner.hpp:675, :1018-1028), the layout check `stateIsValid` routes
+  (combiner.hpp:1114, :1096-1113), the layout check `stateIsValid` routes
   through so a same-total different-layout state cannot be written through the
   live offsets.
 
 ### What the multiplier family closed, and what it opened
 
 The combiner API's own input side is now general in K AND in per-forest basis
-width: `setForestBasis` (combiner.hpp:511-517), the amplitude trio
+width: `setForestBasis` (combiner.hpp:797-799), the amplitude trio
 `totalAmplitudes`/`numForestAmplitudes`/`amplitudes` (:550-560), and a ragged
 glue wire block (:666-675). The math is docs/design/multiplier-combiner.md's
 and is not restated here.
@@ -240,7 +240,7 @@ and is not restated here.
 `setCategoryTestOffset`, the amplitude trio, `forestReportingIsDefined`,
 `numReportedLocations`, `numVariableCountForests`/`variableCountForest`,
 `supportsResponseMutation`, `supportsForestWeights`, `setActiveRows` and
-`glueIsValid` (combiner.hpp:487-676). Every one of them follows one rule, and
+`glueIsValid` (combiner.hpp:525-730). Every one of them follows one rule, and
 it is the sentence worth landing: **each is a CAPABILITY predicate defaulting
 to the REFUSING answer, so a future combiner stays refused at the bridge until
 it is audited** (combiner.hpp:526-528, :634-638, :645-647). And never a
@@ -251,9 +251,9 @@ What still does NOT generalize, after M4:
 
 - (i) The single-leaf-type forest vector, unchanged (third bullet above).
 - (ii) Non-Gaussian. The K-forest constructor hardcodes `GaussianResponse` and
-  `family_ = ResponseFamily::gaussian` (chain.hpp:702-705), and
+  `family_ = ResponseFamily::gaussian` (chain.hpp:5445), and
   `createAmplitudeSampler` carries a single
-  `SamplerFacade<ConstantGaussianLeaf>` instantiation (facade.hpp:855-857).
+  `SamplerFacade<ConstantGaussianLeaf>` instantiation (facade.hpp:736-739).
   That is M4.4.
 - (iii) The NAMING. Was the debt: every layer read "BCF" where it meant
   "carries amplitudes". DISCHARGED - the family is spelled `AmplitudeSpec` /

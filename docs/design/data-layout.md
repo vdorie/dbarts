@@ -48,14 +48,14 @@ layout is the substrate.
 
 ## 1. The engine's current access pattern (verified in code)
 
-Per forest (chain.hpp:282-460):
+Per forest (chain.hpp:400-460):
 
 - `indexBuffer` : `n * numTrees` size_t. Tree t owns the contiguous slice
-  `indexBuffer + t*n`; `Tree::indices` points at it (tree.hpp:188,196).
+  `indexBuffer + t*n`; `Tree::indices` points at it (tree.hpp:260,268).
   It is a PERSISTENT per-tree permutation P_t: initialized to identity
-  (tree.hpp:206), partitioned in place by moves (tree.hpp:621
+  (tree.hpp:224), partitioned in place by moves (tree.hpp:837
   partitionChildren), and carried across sweeps. Each node owns a
-  contiguous RANGE `[node.begin, node.end)` of P_t (tree.hpp:180); the
+  contiguous RANGE `[node.begin, node.end)` of P_t (tree.hpp:221); the
   node's members are `indices[begin .. end)`, which are SCATTERED
   positions in 0..n-1.
 - `treeFits` : `n * numTrees` doubles. Tree t's fitted contribution, in
@@ -68,10 +68,10 @@ Per forest (chain.hpp:282-460):
 
 The per-sweep, per-tree O(n) passes and their memory access shape:
 
-1. Residual roll (chain.hpp:728-744): `treeY[i] += oldFits[i] -
+1. Residual roll (chain.hpp:1457-1470): `treeY[i] += oldFits[i] -
    prevFits[i]` etc. Fully CONTIGUOUS (obs order); 3 streams; already
    near-optimal, bandwidth-bound (~15% inside Chain::run's 28.7% self).
-2. setNodeAverages -> computeLeafStats (tree.hpp:492-521): per leaf,
+2. setNodeAverages -> computeLeafStats (tree.hpp:725-760): per leaf,
    `misc_computeIndexedSufficientStatisticsFast(treeY, indices+begin,
    len, ...)`, i.e. read `treeY[indices[begin+k]]` for k in 0..len and
    accumulate (sumW, sumWZ, sumWZ2). This is a GATHER over the residual
@@ -81,8 +81,8 @@ The per-sweep, per-tree O(n) passes and their memory access shape:
    one node (partitionIndices GATHER, part of the 22.5% partition) and
    computes 2 child suffstats (more gathers); change/swap re-partition
    near the root (~n) and snapshot the affected index segment for
-   rollback (tree.hpp:772).
-4. sampleParametersAndSetFits (chain.hpp:4823-4876): per leaf, draw a
+   rollback (tree.hpp:1016).
+4. sampleParametersAndSetFits (chain.hpp:4896-4990): per leaf, draw a
    constant param, then `misc_setIndexedVectorToConstant(treeFits,
    indices+begin, len, param)` -> SCATTER of a per-leaf constant into
    obs-order treeFits (14.9%).
@@ -125,7 +125,7 @@ permanently in leaf order at O(changed)-per-move maintenance. Costs:
 +O(n*m) memory per array held this way (a leaf-order residual copy is
 another n*m doubles == as large as treeFits itself: 160 MB at n=1e5,
 m=200); partition swaps move 8-24 extra bytes each; change/swap rollback
-must snapshot the double segments too (tree.hpp:772 currently snapshots
+must snapshot the double segments too (tree.hpp:1016 currently snapshots
 only the size_t indexSegment). It does NOT solve the residual: the
 residual VALUES change every sweep even when P_t is unchanged, so the
 leaf-order residual must be re-gathered every sweep regardless -> 1a
@@ -311,7 +311,7 @@ layout, and this redesign has nothing to say about the frame.
 
 ### 6.2 The one shared touchpoint: partitionChildren
 
-The single place the two axes meet is partitionChildren (tree.hpp:621),
+The single place the two axes meet is partitionChildren (tree.hpp:837),
 which permutes the index buffer using the codes. Under strategy 1a it
 would ALSO move the response-axis doubles alongside; and the data-
 ownership program is ALREADY reworking this function (plan-1 step 3-4:

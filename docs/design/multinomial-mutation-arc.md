@@ -40,19 +40,19 @@ labelled READ was traced in source at tip.
 
 | site | family | host built by | real engine |
 |---|---|---|---|
-| `:1443` | multinomial (labels) | `buildHostSamplerCall(family = NULL)` + `samplerCall$data <- as.double(labels)` | `bartcoreMultinomialSampler` (`R/bartcore.R:831`) |
+| `:1443` | multinomial (labels) | `buildHostSamplerCall(family = NULL)` + `samplerCall$data <- as.double(labels)` | `bartcoreMultinomialSampler` (`R/bartcore.R:932`) |
 | `:1526` | multinomial (counts) | same, `samplerCall$data <- as.double(y[, 1L])` | `bartcoreMultinomialCountSampler` (`:877`) |
 | `:1754` | ordinal | `buildHostSamplerCall(family = "ordinal")` | `bartcoreSampler(sampler, family = "ordinal")` (`:550`) |
 | `:1999` | nbinom | `buildHostSamplerCall(family = "nbinom")` | `bartcoreSampler(sampler, family = "nbinom")` |
 
-`buildHostSamplerCall` is `R/bart.R:521-541`. `result$bc <- bc` at
+`buildHostSamplerCall` is `R/bart.R:538-558`. `result$bc <- bc` at
 `:1462`, `:1539`, `:1835`, `:2072`, gated on `control@keepTrees`.
 `result$fit <- sampler` at `:1465`, `:1542`, `:1839`, `:2076`, gated on
 `control@keepTrees || keepSampler`.
 
 MEASURED: two `bartcore_create` calls per fit for ordinal and nbinom -
 the R stream advances at both, and the count scales with `n.chains`
-(`createChainRngs`, `src/R_interface_bartcore.cpp:1863-1891`, draws one
+(`createChainRngs`, `src/R_interface_bartcore.cpp:1862-1885`, draws one
 uniform per chain when `haveSeed` is false).
 
 ### 1.2 The asymmetry the defect record flattens
@@ -74,7 +74,7 @@ genuinely describes the engine. That fact is what makes fork D0 work.
 **Multinomial: a genuine placeholder whose resolved family depends on K,
 reachable only under an explicit token.** `family = NULL` removes the
 token, so `dbarts()` runs `family = "auto"` against `as.double(labels)`,
-codes `0..K-1`; `R/spec.R:155-160` resolves auto on a numeric response by
+codes `0..K-1`; `R/spec.R:201-210` resolves auto on a numeric response by
 `length(unique(y)) == 2 && sort(unique(y)) == c(0, 1)`.
 
 - K = 2, **under an explicit `family = "multinomial"`**: labels are 0/1,
@@ -83,7 +83,7 @@ codes `0..K-1`; `R/spec.R:155-160` resolves auto on a numeric response by
 - K >= 3: MEASURED `control@binary` FALSE, `model@family` `"gaussian"`,
   response transform anchored to the range of the integer category codes.
 - **`family = "auto"` never reaches this path.** `detectAutoMultinomial`
-  (`R/bart.R:1342-1354`) requires `n.levels >= 3L`, and a 2-level factor
+  (`R/bart.R:1388-1396`) requires `n.levels >= 3L`, and a 2-level factor
   under auto announces probit and returns class `"bart"`. MEASURED:
   `family = "auto": 2-level factor response detected, fitting family =
   "probit"; set 'family' to override`.
@@ -92,7 +92,7 @@ codes `0..K-1`; `R/spec.R:155-160` resolves auto on a numeric response by
 surfaced". It is surfaced - through thirteen unguarded R5 readers.
 
 **Multinomial has no public construction route at all.** `dbarts()`'s
-`family` formal (`R/dbarts.R:376-389`) lists twelve tokens; not this one.
+`family` formal (`R/dbarts.R:375-388`) lists twelve tokens; not this one.
 `dbartsSpec()` does not reach it (`feature-matrix.md:241`). No `dbarts.h`
 creation path (`feature-matrix.md` `[f4]`). Only
 `C_dbarts_bartcore_createMultinomial` / `...Counts` via two unexported
@@ -143,7 +143,7 @@ environment.
 
 ### 1.4 What the R5 class promises that the shells cannot deliver
 
-`dbartsSampler` (`R/dbarts.R:846-1947`): 43 methods, 7 fields (`pointer`,
+`dbartsSampler` (`R/dbarts.R:889-1947`): 43 methods, 7 fields (`pointer`,
 `control`, `model`, `data`, `state`, `hostFor` `:859`, `forestWeights`
 `:865`).
 
@@ -183,9 +183,10 @@ an engine nothing reads. Same harm, one method call away.
 ### 1.5 `$fit` is load-bearing, so it cannot simply be deleted
 
 All three `predict` methods code `newdata` against the HOST's design:
-`R/generics.R:616`, `:774`, `:904` all call
+`R/generics.R:1199`, `:1489`, `:1728` all call
 `validateXTest(newdata, object$fit$data@x)` before handing the matrix to
-`bartcorePredict(object$bc, ...)`. The host carries the factor level
+`bartcorePredict` (retired: routed through `object$fit` directly, not a
+separate `$bc` handle). The host carries the factor level
 table and column names a data-frame `newdata` is expanded against. Any
 fork that removes `$fit` must relocate that table.
 
@@ -206,7 +207,7 @@ nbinom      reloaded predict: ERR: bartcore function called on NULL external poi
 ```
 
 The second line of each pair is the one that matters:
-`$fit$storeState()` - the documented `bart` escape at `man/bart.Rd:243` -
+`$fit$storeState()` - the documented `bart` escape at `man/bart.Rd:250` -
 does NOT help, because `predict` reaches through `$bc`, which has no
 state. **There is no user-side mitigation today for any of the three
 families.** No shipped test covers this; no `saveRDS` appears in
@@ -241,7 +242,7 @@ problems:
 - multinomial: A1, via fork G.
 
 Sub-decision, **corrected**: `samplerOnly` is NOT "two lines".
-`checkFamilyUnsupportedArgs` (`R/bart.R:596-624`) has **four** callers -
+`checkFamilyUnsupportedArgs` (`R/bart.R:616-644`) has **four** callers -
 multinomial `:891`, ordinal `:1041`, nbinom `:1072`, and
 **`hurdle.lognormal` `:1114`** - and its `samplerOnly` block is three
 lines (`:604-606`) inside a helper that refuses two other things.
@@ -279,7 +280,7 @@ read `refuseHostRead` blocks today.
 **B1 (OPEN VD FORK): `$getLatents` on a multinomial sampler.** NULL
 today (`[f22]`). r-c-division clause 4 defaults to read/write symmetry -
 "whatever the engine draws, the R program may read" - and the K x n omega
-matrix IS drawn every sweep (`combiner.hpp:1749`). (i) build a
+matrix IS drawn every sweep (`combiner.hpp:1585`). (i) build a
 combiner-side `latents()` (engine touch: `tests/cpp` cell plus an
 ASAN/UBSAN leg; ~40 engine + ~60 test by the
 `latent-family-weight-channel` sibling estimate); (ii) record a
@@ -306,17 +307,17 @@ and name `$setCounts`, with the reason in the message.
 ### Fork C. Does the flat C ABI grow?
 
 Facts, corrected and re-anchored: `DBARTS_C_API_HASH` is
-`0x6c9776ae1197e8f5ULL` (`inst/include/dbarts/dbarts.h:142`);
+`0x66d33f1613892406ULL` (`inst/include/dbarts/dbarts.h:142`);
 `DBARTS_C_API_MAJOR`/`MINOR` are 1/0 and the header itself states the
 pre-release carve-out - "no version of this API has shipped yet, so
 whatever they read then simply IS the initial contract, and they do not
-move before it" (`dbarts.h:100-104`, which is the citation to use, not
+move before it" (`dbarts.h:101-105`, which is the citation to use, not
 the plan doc). Multinomial has no flat creation path
 (`feature-matrix.md` `[f4]`). One reverse `LinkingTo`, in-house.
 
 **Cost of C2, corrected:** TWO literal re-bakes, not one -
 `DBARTS_C_API_HASH` (`dbarts.h:142`) AND `dbarts_apiSignatureToken`
-(`src/C_interface.cpp:460`, `static_assert(... == 0x85bd1ef04beb3848ULL)`),
+(`src/C_interface.cpp:461`, `static_assert(... == 0xcb83367ee0c4175bULL)`),
 because appending to `DBARTS_C_API_DECLS` moves the signature half too.
 Plus `inst/tinytest/test-capi.R`: `:80` pins the literal
 (`expect_identical(hashes$text, "0x6c9776ae1197e8f5")`) and must change,
@@ -332,7 +333,7 @@ right and my earlier C2-now recommendation rested on a misidentification
 landed after adoption-slate S8, so windows are cheap" from
 `0x85bd1ef04beb3848`, which is in fact the LIVE signature-half token, not
 a superseded hash. The conclusion survives on different evidence -
-`test-capi.R:72-73` names `0x1a911c00bb26dcd7` and `0xcd88efcd67de55d7`
+`test-capi.R:73-74` names `0x1a911c00bb26dcd7` and `0xcd88efcd67de55d7`
 as superseded header literals, so the hash HAS re-baked more than once -
 but the inference I built the recommendation on was wrong, and the
 remaining reasons point the other way: the enabling consumer is
@@ -428,7 +429,7 @@ there is no workaround at any price (1.6). Hard prerequisite for the
 multinomial third: fork G1.
 
 `$bc` deletion detail the S4 spec must carry: `$bc` **co-gates**
-`cutpoints.raw` (`R/bart.R:1836`) and `dispersion.raw` (`:2073`) inside
+`cutpoints.raw` (`R/bart.R:1890`) and `dispersion.raw` (`:2132`) inside
 the same `keepTrees` block, and `predict.bartOrdinal` /
 `predict.bartNegbin` read them. Those two channels KEEP their gate.
 
@@ -462,22 +463,22 @@ rule). Re-creation becomes free; save/load works; `$setCounts` mirrors as
 
 Three costs the first draft missed, all confirmed:
 
-- **The `dbartsData` validity method is in scope.** `R/A_class.R:548-610`
+- **The `dbartsData` validity method is in scope.** `R/A_class.R:565-626`
   derives `numObservations <- length(object@y)` and carries the refusals
   for `x`, `varTypes`, `weights`, `offset`, `bases`, `x.test`. Three new
   slots must be constrained there. Priced into S2 now; it was not before.
 - **Two family gates are required, and one cannot key on family.**
   MEASURED on `dbartsData(x, rep(1, n))`: the degeneracy check
-  (`R/data.R:1259-1270`) fires `response values are indistinguishable, or
+  (`R/data.R:1626-1637`) fires `response values are indistinguishable, or
   nearly so, at double precision (1 distinct value(s) among 60
   observations)`, and `dbarts(x, rep(1, n))` installs a starting sigma at
   `estimateSigmaFromLinearModel`'s host-independent floor (was measured at
   `1.52e-16` before the floor landed). A single-trial multinomial has
   `n_i == 1` for every row -
   the dominant case - so both fire on EVERY such fit. The sigma gate is
-  one condition (`fixedUnitScale`, `R/spec.R:178-180`, already a
+  one condition (`fixedUnitScale`, `R/spec.R:218-225`, already a
   family-keyed flag). The warning gate is NOT: `dbartsData()` has no
-  `family` formal (`R/data.R:735-746`), so it must key on the data object
+  `family` formal (`R/data.R:1626-1637`), so it must key on the data object
   - skip the range check when `@counts` is non-NULL, which is available
   at construction and is the honest predicate anyway.
 - **Option (ii) is a hard error, not "five sites".** MEASURED:
@@ -656,14 +657,13 @@ depend on the file's full execution history, not just the preceding
 
 **4.4 Docs and Rd surface, plus one live shipped defect.**
 
-- **DEFECT, to S0 not S5.** `man/bart2.Rd:291`, `:295`, `:299` each say
-  `bc` and `fit` are "present only under `keepTrees`". False for `$fit`:
-  all four gates are `control@keepTrees || keepSampler`
-  (`R/bart.R:1464`, `:1541`, `:1838`, `:2075`), and
-  `test-multinomial-surface.R:340-354` pins
-  `keepSampler = TRUE, keepTrees = FALSE` -> `$fit` present, `$bc` NULL.
-  A shipped doc contradicted by a shipped test does not wait.
-- `man/bart2.Rd:216` (the multinomial refusal set), `:291/:295/:299`.
+- **DEFECT, to S0 not S5 (retired: fixed by removing `$bc` rather than by
+  correcting the sentence).** `man/bart2.Rd` at the time said `bc` and
+  `fit` are "present only under `keepTrees`", false for `$fit` since all
+  four gates were `control@keepTrees || keepSampler`. Current
+  `man/bart2.Rd` (e.g. line 332 for ordinal, 336 for nbinom) states only
+  `fit`'s gate; there is no `bc` left to misdescribe.
+- `man/bart2.Rd:216` (the multinomial refusal set).
 - `man/dbartsSampler-class.Rd`: `:376`, `:382`, `:396` (host-shell
   sentences that lose their subject under F1), the `getLatents`
   paragraph (Fork B1), `\item{forest}`, and the fit-surface table
@@ -689,9 +689,10 @@ depend on the file's full execution history, not just the preceding
 - `docs/design/INDEX.md` if a new design doc lands (47 docs besides the
   index today - verified).
 
-**4.5 The two `static_assert` residue strings.** `combiner.hpp:745-746`
-and `chain.hpp:744-745` still read `"BCF is a constant-leaf model"` after
-the amplitude rename; `TODO:54-57` says sweep opportunistically with the
+**4.5 The two `static_assert` residue strings (retired: swept by the
+amplitude rename; both now read "an amplitude coupling is a constant-leaf
+model").** `combiner.hpp:743` and `chain.hpp:760` no longer say BCF;
+`TODO:54-57` said sweep opportunistically with the
 next edit to those files. Honest read: **no slice above is expected to
 edit either file** - the multinomial engine is done. If Door 4 is taken,
 or if S2's dispatch arm turns out to need a combiner touch, sweep both in
@@ -708,14 +709,16 @@ guard. S0's pins record that behavior and S0's one-line `hostFor`
 transfer in `copy` closes the laundering - that is a hole in the guard
 that already ships, NOT the rejected guard-all-reads stopgap.
 
-**4.8 Consumers.** `$bc` is a bare environment named in `man/bart2.Rd`'s
-Value. Full in-repo footprint (corrected): six code readers
-(`R/generics.R:608/625`, `770/786`, `900/915`), three test assertions
-(`test-ordinal.R:139`, `test-nbinom.R:142`,
-`test-multinomial-surface.R:354`), three Rd paragraphs, one shipped NEWS
-sentence (`inst/NEWS.Rd:1306`), and the `cutpoints.raw`/`dispersion.raw`
-co-gate. Under the standing no-backwards-compat constraint this is a
-NEWS migration, not a design input.
+**4.8 Consumers (retired: `$bc` was removed with no replacement field;
+`R/generics.R:1463` and `:1701` now say so directly).** `$bc` was a bare
+environment named in `man/bart2.Rd`'s Value. Full in-repo footprint at the
+time this section was written: six code readers (`R/generics.R:608/625`,
+`770/786`, `900/915`), three test assertions (`test-ordinal.R:139`,
+`test-nbinom.R:142`, `test-multinomial-surface.R:354`), three Rd
+paragraphs, one shipped NEWS sentence (`inst/NEWS.Rd:1306`), and the
+`cutpoints.raw`/`dispersion.raw` co-gate. Under the standing
+no-backwards-compat constraint this was a NEWS migration, not a design
+input, and it has since landed.
 
 ---
 
@@ -723,6 +726,11 @@ NEWS migration, not a design input.
 
 Doc-sourced claims, verified live at tip. Items 1-16 carried from
 revision 1 with corrections; 17-22 added this pass.
+
+Sections 5-8 record dispositions verified against the tree as of the
+2026-08-20 blind critique; their VERIFIED/STALE verdicts and quoted
+anchors are period-correct within these four sections and are not
+re-resynced here (they are not live pointers into the current tree).
 
 1. `r-c-division.md:339-341` - "whether to extend the `hostFor` guard to
    [ordinal and nbinom] is a VD question BY NAME, unscheduled."
@@ -754,8 +762,8 @@ revision 1 with corrections; 17-22 added this pass.
 9. `bart-as-a-component.md` anchors. **FIVE VERIFIED EXACT** -
    `refuseMultiForestMutation` `:2629`, `refuseMultiForestResponse
    Mutation` `:2652`, `refuseUndefinedTestFits` `:2849`,
-   `Chain::supportsResponseMutation` `chain.hpp:1046`,
-   `AmplitudeForestCombiner` `combiner.hpp:1060`. The sixth
+   `Chain::supportsResponseMutation` `chain.hpp:1068`,
+   `AmplitudeForestCombiner` `combiner.hpp:741`. The sixth
    (`refuseAmplitudeMutation`, `R/bartcore.R:36`) is exact as an anchor
    but is cited at **doc line 74**, outside the `:42-71` window I quoted;
    "ALL SIX VERIFIED EXACT" overstated the window, not the anchors.
@@ -811,8 +819,8 @@ revision 1 with corrections; 17-22 added this pass.
     `sigma = 1.52e-16` before the floor landed).
     `dbartsData()` has no `family` formal (`R/data.R:735-746`), so the
     warning gate must key on `@counts`, not on family.
-22. `combiner.hpp:745-746` / `chain.hpp:744-745` carry the two residue
-    strings. Revision 1 cited `combiner.hpp:744-745`; **off by one**.
+22. `combiner.hpp:743` / `chain.hpp:760` carry the two residue
+    strings (retired: both now read "an amplitude coupling", not BCF).
 
 ---
 

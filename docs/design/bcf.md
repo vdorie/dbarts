@@ -353,14 +353,14 @@ BCF stopped being reachable only through `dbarts:::bartcoreBCFSampler`
 forest(basis = ~ factor(z), vars = ...)))`/`dbartsSpec()` build an ordinary
 `dbartsSampler` (S1, a1dbde7): z rides `data@treatment` (R/A_class.R,
 the `weights` precedent) and the treatment forest's configuration rides
-`attr(control, "bartcore.forests")` (R/spec.R:624-656, the `bartcore.variance`
+`attr(control, "bartcore.forests")` (R/spec.R:728-760, the `bartcore.variance`
 precedent), cross-checked in both directions at creation
-(src/R_interface_bartcore.cpp:2246-2253). `$setForestBasis`, `$getForestFits`,
+(src/R_interface_bartcore.cpp:2243-2250). `$setForestBasis`, `$getForestFits`,
 `$getForestAmplitudes`, `$getForestVariableCounts` are public R5 methods (S2,
-339aeb0; R/dbarts.R:1447, 1678-1713). `dbarts_sampler_create` reaches
+339aeb0; R/dbarts.R:1460, 1691-1716). `dbarts_sampler_create` reaches
 the same path from C (S3, 1622eb9): `numForests`/`setForestBasis`/
 `forestFits`/`numForestAmplitudes`/`forestAmplitudes` are public `dbarts.h`
-entries (inst/include/dbarts/dbarts.h:389-402), and `setResponse` takes an
+entries (inst/include/dbarts/dbarts.h:497-506), and `setResponse` takes an
 explicit `updateScale` argument. (Corrected 2026-08-13: this paragraph named
 `setTreatment` and `bcfGlue` at :264-271, both retired at the dbarts.h reshape
 S1 re-bake, ab3aa2fa - `setTreatment` re-signed as `setForestBasis(sampler,

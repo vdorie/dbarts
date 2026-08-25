@@ -39,7 +39,7 @@ multi-forest, and all live in the bridge's shared header so the R bridge and
 the flat C API cannot state different rules
 (`src/R_interface_bartcore_common.hpp`).
 
-`refuseMultiForestMutation` (`src/R_interface_bartcore.cpp:2610`) fires on a
+`refuseMultiForestMutation` (`src/R_interface_bartcore.cpp:2613`) fires on a
 bare `numForests >= 2` and covers the whole-object conduits, which would
 rebuild or reprice forest 0 alone: `bartcore_setData`, `bartcore_setModel`,
 and the flat `dbarts_sampler_setTestOffset`.
@@ -47,9 +47,9 @@ and the flat `dbarts_sampler_setTestOffset`.
 `refuseMultiForestResponseMutation` (`:2652`) is the one multi-forest family
 that is opt-in rather than refused. It passes a single-forest sampler
 unconditionally, then asks the coupling whether it can express a response
-swap at all - `Chain::supportsResponseMutation` (`chain.hpp:1046`), which is
+swap at all - `Chain::supportsResponseMutation` (`chain.hpp:1068`), which is
 the combiner's own answer and nothing else. `AmplitudeForestCombiner` returns
-true (`combiner.hpp:1060`); the base `ForestCombiner` and the multinomial
+true (`combiner.hpp:1059`); the base `ForestCombiner` and the multinomial
 coupling return false, the latter because its response is an n x K count matrix
 that no flat conduit can carry, so its refusal names `bartcore_setCounts`
 instead. There is no `family_ == gaussian` conjunct: it was removed when
@@ -116,7 +116,7 @@ them again, and who does that depends on the layer:
   mutation lands (`data@y`, `data@offset`, `data@weights`, `data@x`,
   `data@bases`), so re-creation re-supplies them by construction, and mirrors
   the per-forest weight on an R5 field that `getPointer` and `setState`
-  re-apply afterwards (`reapplyForestWeights`, `R/dbarts.R:1792`). There is no
+  re-apply afterwards (`reapplyForestWeights`, `R/dbarts.R:1805`). There is no
   treatment slot: a Bayesian causal forest's z rides `data@bases` as forest
   2's basis, and moves only through `$setForestBasis`.
 - Two holes remain, both known. A per-forest weight is not part of the state,
@@ -134,7 +134,7 @@ them again, and who does that depends on the layer:
 Per-forest decomposition of TEST fits: `testFitsAreDefined()` is false under
 the BCF coupling, so there is nothing to decompose. Mid-sweep hooks: inside
 the tree loop `totalFits` is stale until rebuilt after it
-(`src/bartcore/chain.hpp:1433`), so a host reading a fit there would read a
+(`src/bartcore/chain.hpp:1456`), so a host reading a fit there would read a
 partially updated one; the refusal is on invariant grounds before it is on
 threading grounds. Per-forest saved-tree replay. Cross-host bitwise
 reproducibility - within-host across any SIMD dispatch only.
@@ -151,7 +151,7 @@ numChains > 1`, at registration and again at run: a callback requires chains
 to run inline, and inline multi-chain runs them sequentially, so the hook sees
 chain c finish before chain c+1 starts.
 
-`bartcore_runWithCallback` (`src/R_interface_bartcore.cpp:4478`) is the
+`bartcore_runWithCallback` (`src/R_interface_bartcore.cpp:4485`) is the
 internal single-chain R hook behind `rbart_vi`'s Gibbs loop. It refuses more
 than one chain outright, hands the closure one argument - the 0-based sweep
 index - and carries no `GetRNGstate`/`PutRNGstate` bracket by design: the

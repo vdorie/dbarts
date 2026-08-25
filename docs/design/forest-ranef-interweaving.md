@@ -79,15 +79,15 @@ The Gibbs blocks per raw sweep, as run() drives them:
 
 1. `f | b` -- one tree sweep of the mean forest against the working response
    `z_i - b_{g(i)}` (GroupedResponse::workingResponse, model.hpp:4902-4906),
-   backfit tree-by-tree (chain.hpp:857-966). This is where f sees the group
+   backfit tree-by-tree (chain.hpp:1343-1530). This is where f sees the group
    intercepts subtracted, so f fits the residual-of-b.
-2. `b | f` -- refreshLatents (chain.hpp:970) calls GroupedResponse::
+2. `b | f` -- refreshLatents (chain.hpp:1535) calls GroupedResponse::
    refreshLatents (model.hpp:4746-4779), which draws b_j conjugately from the
    group means of `z_i - F_i` with F = f-only fits (drawGroupEffects,
    model.hpp:4668-4691; called at :4750-4753 with the combined = f-only fits).
 3. `tau | b` -- exact Makalic-Schmidt cauchy draw (drawTauCauchyExactIG,
    model.hpp:4647-4657) or slice for the gamma prior.
-4. `sigma | f, b` -- drawSigma on the shifted fits (chain.hpp:980,
+4. `sigma | f, b` -- drawSigma on the shifted fits (chain.hpp:1545,
    model.hpp:4782-4786).
 
 Blocks 1 and 2 are the ridge: f conditions on the current b, b conditions on the
@@ -165,11 +165,11 @@ untouched (block 3), independent of f given b.
 
 The constant leaf's marginal and draw depend on a node ONLY through
 `(sumWeights, sumWeightedResponse)` against a SCALAR `residualVariance`
-(logIntegratedLikelihood model.hpp:163-176; drawFromPosterior model.hpp:180-185;
-posteriorPrecision = sumWeights/residualVariance, model.hpp:168,184), and the
+(logIntegratedLikelihood model.hpp:165-183; drawFromPosterior model.hpp:186-198;
+posteriorPrecision = sumWeights/residualVariance, model.hpp:174,190), and the
 birth/death score sums that per-leaf marginal independently across leaves
-(logLikelihoodForBranch moves.hpp:51; metropolisJumpForTree moves.hpp:777; the
-cached node stat moves.hpp:227-228). The compound-symmetry covariance BREAKS
+(logLikelihoodForBranch moves.hpp:67; metropolisJumpForTree moves.hpp:844; the
+cached node stat moves.hpp:280-281). The compound-symmetry covariance BREAKS
 this: the Woodbury correction couples every leaf that a group touches, so a
 node's `(sumWeights, sumWeightedResponse)` is no longer a sufficient statistic
 -- the leaf marginal needs, per group overlapping the leaf, the group's total
@@ -380,8 +380,8 @@ they touch:
 - COST/NOVELTY (softens section 3.2). "Widest surgery / off the clean
   ResponseModel-decorator seam / from-scratch" OVERSTATES novelty: a coupled-
   scoring seam ALREADY exists - ParamScoringLeafModel + logLikelihoodForBranch-
-  WithParams (model.hpp:142-147,696), used live by MonotoneConstantGaussianLeaf
-  in the sweep (chain.hpp:914-915). A GroupCollapsedGaussianLeaf would RIDE that
+  WithParams (model.hpp:145-152,729), used live by MonotoneConstantGaussianLeaf
+  in the sweep (chain.hpp:1479-1480). A GroupCollapsedGaussianLeaf would RIDE that
   path, not invent it. The CORE claim stands - the constant-leaf suffstat
   (sumWeights, sumWeightedResponse) is insufficient for the per-group Woodbury
   correction, which couples leaves across the group partition AND across trees

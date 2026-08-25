@@ -134,7 +134,7 @@ the serial move/draw phase between the suffstat and scatter regions, and is
 fragile under oversubscription (cross-chain workers times within-chain workers);
 std::barrier (libc++'s spin-then-block atomic wait) keeps the low-contention
 cost while parking cleanly when a phase runs long. Keep the misc_mt pool exactly
-where it is -- testFitPool_ (chain.hpp:874) is a COLD, coarse, once-per-run
+where it is -- testFitPool_ (chain.hpp:4063) is a COLD, coarse, once-per-run
 test-fit fan-out, for which condvar dispatch is fine; this note does not touch
 it. A spin-vs-block toggle on the new pool is a prototype tuning knob, not a
 design fork.
@@ -188,7 +188,7 @@ The flagship consumer is an embedded single-chain Gibbs sampler calling
 run(0, 1) once per outer sweep. Per-run thread startup (spawn + join ~tens of us
 each) would swamp a per-sweep win, so the pool MUST persist across run() calls.
 
-PRECEDENT. testFitPool_ (chain.hpp:874, :5411-5414, :3992-4013) is exactly this
+PRECEDENT. testFitPool_ (chain.hpp:4063, :895, :4058-4075) is exactly this
 lifecycle: a pool held as a Chain member, lazily created on first use, resized
 only when the budget changes, reused across calls, destroyed in the Chain
 destructor. The new pool follows it structurally -- a persistent Chain member,
@@ -201,7 +201,7 @@ fit, and index buffers; they never call into R. This is the existing worker rule
 (the ProgressSink pattern, sampler.hpp), satisfied trivially here.
 
 INTERACTION WITH THE CROSS-CHAIN LAYER AND THE BUDGET SPLIT. Cross-chain
-parallelism (sampler.hpp:349-350, :1039-1040) fans numChains across
+parallelism (sampler.hpp:374-375, :1264-1265) fans numChains across
 numWorkers = min(numThreads, numChains) raw std::thread workers. Two cases:
 
 - SINGLE CHAIN (numChains = 1): numWorkers = 1, the cross-chain layer is inert
@@ -209,7 +209,7 @@ numWorkers = min(numThreads, numChains) raw std::thread workers. Two cases:
   within-chain parallelism. This is the flagship case and the clean one.
 - MULTIPLE CHAINS: each chain already occupies a core. The within-chain budget
   per chain is numThreads / numChainWorkers -- the same arithmetic testFitPool_
-  uses (chain.hpp:3994, budget = numThreads / chains). Within-chain threading
+  uses (chain.hpp:4063, budget = numThreads / chains). Within-chain threading
   engages only when that per-chain budget is > 1 (i.e. numThreads > numChains);
   otherwise the chain runs its sweep serially. This keeps total live threads
   ~ numThreads and avoids oversubscription (cross-chain workers nesting
@@ -218,7 +218,7 @@ numWorkers = min(numThreads, numChains) raw std::thread workers. Two cases:
 
 ## 5. Latent refresh: deferred
 
-refreshLatents (chain.hpp:792) rewrites the working response (and, for logistic,
+refreshLatents (chain.hpp:1535) rewrites the working response (and, for logistic,
 the Polya-Gamma weights) once per sweep. It is embarrassingly parallel over
 observations but RNG-CONSUMING: each observation draws from the chain's single
 RNG stream in obs order. Parallelizing it without breaking thread-count

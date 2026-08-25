@@ -51,45 +51,45 @@ preserved by a fixed atom-iteration order.
 
 ## 1. What the engine does today (verified in code, the baseline to preserve)
 
-The per-forest sweep is Chain::run (chain.hpp:728-787). Per tree t, in order:
+The per-forest sweep is Chain::run (chain.hpp:1365-1420). Per tree t, in order:
 
-1. Residual roll (chain.hpp:731-744): treeY carries a running residual across the
+1. Residual roll (chain.hpp:1457-1470): treeY carries a running residual across the
    sweep. Entering tree t, resid_i = y_i - sum_{k!=t} f_k(i) (new fits for trees
    already drawn this sweep, old for the rest). One fused O(n) pass retires the
    previous tree's new fits and admits this tree's old ones. treeFits[t*n..] is
    tree t's per-observation contribution (obs order, persistent); totalFits is
-   the running sum, rebuilt after the loop (chain.hpp:779-787).
-2. setNodeAverages -> computeLeafStats (tree.hpp:492-521): for each leaf, an
+   the running sum, rebuilt after the loop (chain.hpp:1523-1530).
+2. setNodeAverages -> computeLeafStats (tree.hpp:725-760): for each leaf, an
    O(n_leaf) GATHER-reduce of the residual over the leaf's members,
    `misc_computeIndexedSufficientStatisticsFast(treeY, indices+begin, len, ...)`,
    producing (sumWeights, sumWeightedResponse, sumWeightedResponseSq) cached on
-   the Node (tree.hpp:172-177). This is E2's dominant "whole-tree suffstat
+   the Node (tree.hpp:217-225). This is E2's dominant "whole-tree suffstat
    recompute" and x86's #1 hotspot (32%).
 3. metropolisJumpForTree (moves.hpp): a birth partitions one leaf's members
-   (partitionChildren -> misc_partitionIndices, tree.hpp:621-676) and computes 2
-   child suffstats; death merges incrementally (orphanChildren, tree.hpp:730-740);
+   (partitionChildren -> misc_partitionIndices, tree.hpp:837-870) and computes 2
+   child suffstats; death merges incrementally (orphanChildren, tree.hpp:973-985);
    change/swap snapshot the affected index segment (snapshotSubtree,
    tree.hpp:765-773), refresh the subtree (repartition + recompute stats,
-   refreshSubtree tree.hpp:695-704), and restore on rejection (restoreSubtree,
-   tree.hpp:775-780). Scoring uses logLikelihoodForBranch -> the leaf's
+   refreshSubtree tree.hpp:937-950), and restore on rejection (restoreSubtree,
+   tree.hpp:1016-1021). Scoring uses logLikelihoodForBranch -> the leaf's
    logIntegratedLikelihoodForNode over the cached node suffstat.
-4. sampleParametersAndSetFits (chain.hpp:4823-4926, constant-leaf branch
+4. sampleParametersAndSetFits (chain.hpp:4896-4990, constant-leaf branch
    :4852-4883): per leaf draw mu ~ N(posteriorMean, posteriorSd^2) from
    (sumWeights, sumWeightedResponse) and SCATTER-write it into treeFits with
    `misc_setIndexedVectorToConstant` (x86's #3 hotspot, 15%).
 
 The index buffer is `indexBuffer[t*n .. ]`, a persistent per-tree permutation
 P_t; node [begin,end) is a contiguous range of P_t whose entries are scattered
-observation ids (tree.hpp:167-206). Every hot pass above is memory-bound on this
+observation ids (tree.hpp:255-280). Every hot pass above is memory-bound on this
 shuffled buffer; both SIMD investigations concluded width buys ~0-1.15x and the
 only escape is structural (make the field per-atom, not per-observation).
 
-The constant-leaf math that makes atoms work (model.hpp:97-163):
+The constant-leaf math that makes atoms work (model.hpp:155-183):
 
 - drawFromPosterior needs ONLY (sumWeights, sumWeightedResponse) and sigma^2/k
-  (model.hpp:128-137). sumWeightedResponseSq is NOT used in the draw.
+  (model.hpp:165-183). sumWeightedResponseSq is NOT used in the draw.
 - logIntegratedLikelihood uses sumWeightedResponseSq only inside
-  centeredSumOfSquares = sumWZSq - sumWZ*mean (model.hpp:117-118). This term is
+  explainedSumOfSquares = sumWeightedResponse*mean (model.hpp:177). This term is
   additive across any partition of a fixed observation set, so it CANCELS in
   every move ratio exp(newLogL - oldLogL) (fact 1.2; birth splits a leaf, the
   raw sumWZSq of parent = sum over children). It is dead weight for the decision
@@ -209,7 +209,7 @@ dropped (b>1) or supplied per-atom (b=1 anchor, section 5).
 ### 3.2 Leaf-mean draw (replaces the constant-leaf branch of sampleParametersAndSetFits)
 
 drawFromPosterior(rng, k, W(L), sumWeightedResponse(L), sigma^2) unchanged
-(model.hpp:128-137). Draw one mu per leaf of tree t_j. RNG consumption identical
+(model.hpp:165-183). Draw one mu per leaf of tree t_j. RNG consumption identical
 to today (one standard normal per non-empty leaf, in the SAME leaf order -- see
 section 4.2 on fixing the leaf-iteration order).
 
@@ -243,14 +243,14 @@ atoms) operation, mirroring restoreSubtree's O(index-segment) cost. No O(n) pass
 
 At block exit, the b trees' drawn leaf means must be materialized into the
 per-observation treeFits[t_j * n + i] (obs order) so that: (a) totalFits and the
-residual are correct for the sigma/latent draws (chain.hpp:790-802), and (b) the
+residual are correct for the sigma/latent draws (chain.hpp:1530-1541), and (b) the
 next block reads a correct O for its own g field. For each block tree t_j and
 each leaf L, scatter mu_{t_j}(L) to the leaf's member observations. Two equivalent
 routes:
   - per-atom: for each atom c, for each block tree j, write mu_{t_j}(leaf_j(c))
     to treeFits[t_j*n + i] for i in c's members -- one walk of atomMembers writes
     all b trees' fits (b sequential writes per member, cache-friendly).
-  - or reuse the existing per-tree setTreeFitsFromParameters (chain.hpp:4744) b
+  - or reuse the existing per-tree setTreeFitsFromParameters (chain.hpp:4818) b
     times.
 This is O(bn) writes = O(n) per tree amortized, but done ONCE at block exit, not
 interleaved with b residual rolls + b suffstat gathers. That is the DRAM
@@ -272,7 +272,7 @@ to ~1-2 per block.
 
 ### 3.7 Sigma draw and latents stay O(n), once per sweep
 
-The sigma draw's SSR (chain.hpp:908, misc_computeSumOfSquaredResiduals over the
+The sigma draw's SSR (chain.hpp:1811, misc_computeSumOfSquaredResiduals over the
 full residual) and the latent refresh (refreshLatents) are OUTSIDE the block
 machinery: they run once per sweep after all blocks, over the correct
 per-observation residual materialized at block exits. They are unchanged and
@@ -333,7 +333,7 @@ order reproduces the same regrouped sum on every ISA).
 
 ### 4.3 Rollback (rejected moves)
 
-Mirror the tree's existing snapshot/restore (tree.hpp:758-780):
+Mirror the tree's existing snapshot/restore (tree.hpp:999-1021):
 - BIRTH rejected: discard the two child atoms, restore the parent atom's slice
   order (the two-pointer partition is unstable, so snapshot the affected
   atomMembers segment before partitioning, exactly as snapshotSubtree snapshots
@@ -418,7 +418,7 @@ refactor, and b>1 delivers the win the standalone reorder could not.
 
 ### 5.2 Interaction with the data-ownership partition rework
 
-data-layout.md flags one shared touchpoint: partitionChildren (tree.hpp:621),
+data-layout.md flags one shared touchpoint: partitionChildren (tree.hpp:837),
 which the data-ownership program is already reworking (u8/u16 width templating).
 3.4's atom split (section 4.2) partitions atomMembers by a column's codes -- it
 REUSES the same two-pointer/misc_partitionIndices primitive, so it inherits the
@@ -440,20 +440,20 @@ forest. Generalization order, template = the U'WU cache:
   gives them most of the residual-independent reuse per leaf. Design later.
 - WEIGHTS: fully supported in v1 -- g_i = w_i(y_i - O_i) and A(c)=sum w_i carry
   weights exactly; the atom math is the weighted suffstat. Latent families whose
-  weights vary per sweep (workingWeightsVaryPerSweep, chain.hpp:797) force a
+  weights vary per sweep (workingWeightsVaryPerSweep, chain.hpp:1540) force a
   g/A rebuild each sweep, which the block already does at entry.
 - PROBIT / LOGISTIC latents: the latent refresh (refreshLatents) rewrites y (and
   weights) once per sweep, OUTSIDE the blocks. The block just rebuilds g at entry
   from the current working response -- no special handling; v1 covers binary BART.
 - GROUPED RANDOM EFFECTS / BCF: each forest sub-sweeps its own residual
-  (formForestResponse, chain.hpp:700-704); blocks are per-forest, g uses the
+  (formForestResponse, chain.hpp:1427-1432); blocks are per-forest, g uses the
   forest's response net of the other forest's scaled contribution. The glue/ridge
-  interweave (chain.hpp:804-807) runs once per sweep outside blocks. Compatible;
+  interweave (chain.hpp:1331-1338) runs once per sweep outside blocks. Compatible;
   block per forest.
 - MISSINGNESS (MIA): the partition already routes missing via the rule's
   missing-direction bit (partitionIndicesMIA in the worktree); atom split reuses
   it. No new handling.
-- GROW-FROM-ROOT warm start (chain.hpp:938-1048): a separate init path; leave it
+- GROW-FROM-ROOT warm start (chain.hpp:1967-2050): a separate init path; leave it
   on the per-tree code path (it runs a fixed few sweeps at init, not hot). Blocks
   engage only in the steady-state run() loop.
 

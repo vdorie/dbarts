@@ -139,7 +139,7 @@ permutation variable selection is an R layer over any engine's `varcount`.
 What the authors wanted was a JVM-native artifact with its own memory and
 threading story, which no R/C++ engine supplies. *Verified:*
 `R/bart_package_builders.R` formals, DESCRIPTION, `inst/java` listing; dbarts
-`man/dbarts.Rd:123-124`.
+`man/dbarts.Rd:117`.
 
 **SoftBart 1.0.3** (Linero; CRAN, 2025-11-23; 284/mo). Soft BART: leaves are
 reached probabilistically through logistic gates rather than by hard
@@ -219,7 +219,7 @@ per model shape (`single_ensm_probit.cpp`, `multi_ensm_poisson.cpp`, ...).
 *Counterfactual:* **(C)** - a split-rule representation change is clause 2 by
 name. The plain categorical half is no longer a gap: this tip splits unordered
 factors by level subset natively (`factors = "categorical"` is the DEFAULT,
-`man/dbarts.Rd:105`); the graph-structured half remains a contribution nobody
+`man/dbarts.Rd:95`); the graph-structured half remains a contribution nobody
 else has. *Verified:* `R/flexBART.R:1-30`, `src/graph_funs.h`, `src/structs.h`,
 DESCRIPTION.
 
@@ -260,7 +260,7 @@ mid-run, so a two-sampler R loop that reads `varcount`, draws the Dirichlet
 and re-installs the probabilities is expressible today - but `setModel` also
 re-pins sigma (engine-side, not in the R layer: `Chain::setModel` sets
 `sigmaIsFixed_` and calls `setSigma` or `setSigmaPrior` for gaussian and aft
-samplers with no variance forest, `src/bartcore/chain.hpp:1304-1314`) and is
+samplers with no variance forest, `src/bartcore/chain.hpp:1726-1758`) and is
 refused outright on a DART prior, so the composition carries side effects its
 author never named. Unlocking items: a
 split-probability channel narrower than `setModel` (dbarts issue #67,

@@ -120,7 +120,7 @@ Honest weighing of what the engine route BUYS, candidate by candidate:
   the two fits.
 - Combined prediction / reporting / state serialization. Pure packaging convenience,
   which R gives for free in the bartMultinomial / bartNegbin idiom (a few dozen lines,
-  R/bart.R:1725,2201). The engine route would instead DOUBLE the state wire format
+  R/bart.R:2328,2332). The engine route would instead DOUBLE the state wire format
   (two response latent/sigma blocks, two forest lists) - a format bump, not a saving.
 - LinkingTo / dbarts.h reach. None in v1: nbinom, ordinal, hazard, and heteroscedastic
   all ship with zero dbarts.h exposure (negative-binomial.md). No gain.
@@ -187,7 +187,7 @@ Chain, and it must be distinguished sharply from the ForestCombiner:
   orthogonal Chain-level axis, not a combiner instance.
 - **Reuses the heteroscedastic nullable-second-object precedent as far as it goes.** A
   distinctly-typed, nullable member beside forests_ (the varianceForest_ shape,
-  chain.hpp:304,549-556), null off hurdle so the single-forest path is byte-neutral by
+  chain.hpp:5487,738-742), null off hurdle so the single-forest path is byte-neutral by
   construction (heteroscedastic.md section 8).
 - **Where hurdle needs MORE than heteroscedastic.** Heteroscedastic's second forest (i)
   saw ALL n observations, (ii) SHARED the one response_ (it routed into that response's
@@ -255,7 +255,7 @@ across the two fits, and predict on new data.
 ## 6. The R surface
 
 - **How the user asks.** family = "hurdle" (v1: probit occupancy + lognormal positive
-  part), added to the dbarts and bart2 family vectors (R/dbarts.R:388-389, R/bart.R
+  part), added to the dbarts and bart2 family vectors (R/dbarts.R:387, R/bart.R
   around :691-692). Following the dbarts token convention (families are tokens, not
   arguments - aft, ordinal, nbinom, hazard all extended the vector, survival.md),
   future variants are further tokens: "hurdle.logistic" (logistic occupancy),
@@ -271,7 +271,7 @@ across the two fits, and predict on new data.
   S. Validate y >= 0 (refuse negatives by name, the nbinom validation precedent,
   negative-binomial.md). No latent split is drawn - the zeros are observed.
 - **The fit object + generics.** A dedicated class `bartHurdle` (the bartMultinomial /
-  bartNegbin idiom, R/bart.R:1725,2201) holding the two component fits (or their packaged
+  bartNegbin idiom, R/bart.R:2328,2332) holding the two component fits (or their packaged
   draws) plus a marker recording the variant. Generics combine the two components' draws
   by sample index (any pairing is a valid joint draw, section 0):
   - predict / fitted / extract, type = "ev"/"response": combined E[y | x] =
@@ -287,7 +287,7 @@ across the two fits, and predict on new data.
   - print reports "family: hurdle (probit occupancy + lognormal)".
   Because each component fit carries the ordinary $family element ("probit"/"gaussian"),
   every existing $family-dispatched generic (probabilityFromLatents, pointwiseLogLikelihood,
-  R/generics.R:42-58) stays correct on the components unchanged; the hurdle-level combine
+  R/generics.R:2098-2114) stays correct on the components unchanged; the hurdle-level combine
   is new code keyed on the bartHurdle class / marker, the hazard $periods split
   (survival.md section 4). predict requires keepTrees (the predict.bart guard).
 

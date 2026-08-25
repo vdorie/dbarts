@@ -48,17 +48,17 @@ with exactly two steps per tree that the constraint touches:
 1. a birth/death Metropolis move on the tree structure, and
 2. a draw of the leaf parameters given the structure.
 
-Our chain runs these as `metropolisJumpForTree` (chain.hpp:702) then
-`sampleParametersAndSetFits` (chain.hpp:4823). The constraint modifies each: the
+Our chain runs these as `metropolisJumpForTree` (chain.hpp:1481) then
+`sampleParametersAndSetFits` (chain.hpp:4896). The constraint modifies each: the
 move's branch score becomes a constrained (truncated) local marginal (section 4),
 and the parameter draw becomes a sequential truncated-normal Gibbs sweep coupling
 neighboring leaves (section 4). No new sweep structure is introduced; the two
 seams that exist are re-pointed for the constrained forest.
 
 **Box geometry is already computed.** Each leaf's [L_ik, U_ik] along an ordinal
-column is `Tree::splitInterval` (tree.hpp:313), the ancestor-constrained cut
-interval used for availability (`hasAnyAvailableVariable`, tree.hpp:437,
-moves.hpp:81). Neighbor determination for a constrained axis walks the tree's
+column is `Tree::splitInterval` (tree.hpp:416), the ancestor-constrained cut
+interval used for availability (`hasAnyAvailableVariable`, tree.hpp:572,
+moves.hpp:79). Neighbor determination for a constrained axis walks the tree's
 bottom nodes and, for each ordered pair, tests boundary adjacency in the
 constrained coordinate and interval overlap in every OTHER coordinate the two
 leaves split on - so the overlap test spans the distinct split variables on the
@@ -72,9 +72,9 @@ new piece of tree geometry and the component-test target of section 9.
 **Per-column sign flag on the model spec.** Resolve `monotone` into a borrowed
 per-predictor direction vector, values in {-1, 0, +1}, carried to the engine as a
 new `SamplerOptions` field beside the other per-column designations
-(`columnTypes` chain.hpp:51, `leafCovariateColumns` chain.hpp:82) and consumed
+(`columnTypes` chain.hpp:69, `leafCovariateColumns` chain.hpp:81) and consumed
 once at construction. A nonzero entry on any column selects the constrained
-instantiation at the factory (`createSampler`, facade.hpp:769-771); an all-zero
+instantiation at the factory (`createSampler`, facade.hpp:800-803); an all-zero
 vector is treated as null and selects the existing constant-leaf path unchanged
 (section 8). This mirrors how the linear-leaf designation rides and dispatches,
 and keeps the constraint out of the data container - the same data can be fit
@@ -111,7 +111,7 @@ not matching dbarts's `lower.case.dotted` R style.
 factor (category codes 0..K-1 carry no order; core-generalization.md). A
 nonzero direction on a categorical column is refused at spec time in R and,
 defensively, at the factory (the categorical-refusal already guarding leaf
-covariates, facade.hpp:743). ORDERED factors and numeric columns are stored as
+covariates, facade.hpp:774). ORDERED factors and numeric columns are stored as
 ordinal `ColumnType` (core-generalization.md) and DO accept the constraint -
 their codes are ordered, so `splitInterval` and the neighbor test are meaningful.
 So "categorical refuses" is precisely "unordered factors refuse; ordinal columns
@@ -125,7 +125,7 @@ neighbors - mBART's own scheme (paper Section 4.3, "draws of a single mu
 component given T and all the remaining elements of M").
 
 For leaf k with unconstrained full-conditional N(m_k, s_k^2) (the standard
-constant-leaf posterior, model.hpp:127, from the node's (sum w, sum wz)
+constant-leaf posterior, model.hpp:187, from the node's (sum w, sum wz)
 sufficient statistic), the constrained draw is that normal truncated to
 
     [ max over below-neighbors of current mu,  min over above-neighbors of current mu ]
@@ -141,23 +141,23 @@ fixed order mixes poorly.
 provision (core-generalization.md) reads as though a tree-granularity leaf
 draw seam already exists; it does NOT. Today the draw is a hardcoded per-node
 loop that rebuilds mu from zero every sweep (`mu.assign(tree.nodes.size(), 0.0)`,
-chain.hpp:4867, then an independent `drawFromPosteriorForNode` per bottom node,
-chain.hpp:4868-4882), the leaf-model concept exposes ONLY that per-node scalar
-draw (`ScalarLeafModel`, model.hpp:47-55), and the moves are leaf-templated free
+chain.hpp:4913, then an independent `drawFromPosteriorForNode` per bottom node,
+chain.hpp:4914-4928), the leaf-model concept exposes ONLY that per-node scalar
+draw (`ScalarLeafModel`, model.hpp:50-58), and the moves are leaf-templated free
 functions that read the node sufficient statistics and ZERO leaf parameters
-(`logLikelihoodForBranch`, moves.hpp:47-66). Three real changes follow, none a
+(`logLikelihoodForBranch`, moves.hpp:67-95). Three real changes follow, none a
 mere re-pointing:
 
 1. A new concept method - a tree-granularity draw
    `drawParametersForTree(rng, tree, k, sigma2, muOut)` the constant monotone leaf
    provides and `sampleParametersAndSetFits` calls once per tree, in place of the
-   per-node loop at chain.hpp:4868, when the leaf model declares it. Independent
+   per-node loop at chain.hpp:4914, when the leaf model declares it. Independent
    per-leaf stays the default for every other model, byte-identical (section 8).
 2. Leaf values must stay VALID through the move phase. The move score needs
    mu_same, the frozen neighbor values, DURING `metropolisJumpForTree`
-   (chain.hpp:702). Those values already survive there: `sampleParametersAndSetFits`
+   (chain.hpp:1481). Those values already survive there: `sampleParametersAndSetFits`
    runs AFTER the moves and only then zeroes and refills `muByTree[t]`
-   (`mu.assign(tree.nodes.size(), 0.0)`, chain.hpp:4866-4867 - `mu` is a reference
+   (`mu.assign(tree.nodes.size(), 0.0)`, chain.hpp:4912-4913 - `mu` is a reference
    INTO the persistent `forest.muByTree[t]`), so during the moves the vector still
    holds the previous sweep's draw. The new work is keeping it consistent ACROSS
    in-sweep structural changes: an accepted birth adds two nodes and a death removes
@@ -175,7 +175,7 @@ mere re-pointing:
    consistent neighbors - new plumbing between the move machinery and the
    leaf-parameter store, not a tweak to the existing conjugate score.
 
-The alternative seat - reusing `FunctionLeafModel::beginTreeDraw` (model.hpp:82-85)
+The alternative seat - reusing `FunctionLeafModel::beginTreeDraw` (model.hpp:83-88)
 and carrying mu as a degenerate function leaf - is rejected: it drags the
 function-leaf test-cache and fits-are-parameters machinery (chain.hpp:2280-2301)
 onto a constant leaf for no benefit and muddies the chi-k accounting.
@@ -202,7 +202,7 @@ rng primitive is needed.
 
 This is the load-bearing fork. Under the constraint the leaf values are DEPENDENT
 given T, so the birth/death score is no longer a sum of independent per-leaf
-Gaussian marginals (the current `logLikelihoodForBranch`, moves.hpp:47-66). The
+Gaussian marginals (the current `logLikelihoodForBranch`, moves.hpp:67-95). The
 options, and what mBART actually does:
 
 - **A. Fully-collapsed exact marginal.** Integrate ALL leaf values over the full
@@ -227,7 +227,7 @@ options, and what mBART actually does:
                      [p(T*)/p(T0)], 1 },
 
     the SAME shape as the unconstrained ratio the engine computes today
-    (moves.hpp:198-204 birth, moves.hpp:258-264 death). This is a valid
+    (moves.hpp:210-225 birth, moves.hpp:250-265 death). This is a valid
     MH-within-Gibbs block update of (T, touched-mu) with the other leaves held
     fixed, then a redraw of the touched mu from the truncated posterior over C
     (eq. 4.17). It targets the EXACT constrained posterior - the conditioning is
@@ -268,7 +268,7 @@ options, and what mBART actually does:
       birth draws (mu_R, then mu_L | mu_R) as two sequential 1-D truncated normals
       honoring mu_L <= mu_R; every other case is independent 1-D truncated
       normals. No mesh, no grid artifacts.
-  Honest d keeps the DEFAULT tree prior (base=0.95, power=2, chain.hpp:39)
+  Honest d keeps the DEFAULT tree prior (base=0.95, power=2, chain.hpp:58)
   unchanged, so the constraint does not smuggle a different structural prior, and
   the sampler targets the exact posterior up to 1-D quadrature error.
 
@@ -331,17 +331,17 @@ the structure makes the answer clean, and it differs by move:
   max-below above its min-above). Handled with NO special-casing: the constrained
   marginal integrates the truncated-normal product over an empty region to 0, so
   p(r_new | T*, mu_same) = 0 and alpha = 0 - the move is rejected by the ordinary
-  acceptance test, the same way the empty-leaf veto (-HUGE_VAL, moves.hpp:62)
+  acceptance test, the same way the empty-leaf veto (-HUGE_VAL, moves.hpp:79)
   already rejects unoccupied leaves. No infeasible state can be accepted.
 
 **v1 move set (scope decision).** Restrict the constrained forest to birth/death
 plus the single-site leaf Gibbs - exactly mBART's examples ("in all our examples
 we use birth/death moves and draws of a single mu component," paper Section 4.3).
 Set the constrained forest's move mix to birth/death only
-(birthOrDeathProbability = 1, chain.hpp:40), a legitimate difference from the
+(birthOrDeathProbability = 1, chain.hpp:59), a legitimate difference from the
 unconstrained default mix (0.5/0.4/0.1 birth-death/change/swap). This overrides
 the user-facing `proposal.probs` (default c(birth_death = 0.5, swap = 0.1,
-change = 0.4, birth = 0.5), R/dbarts.R:366): resolve the clash by ERRORING at spec
+change = 0.4, birth = 0.5), R/dbarts.R:365): resolve the clash by ERRORING at spec
 time when `monotone` meets an EXPLICIT non-default `proposal.probs` (the user
 asked for swap/change the constrained sampler cannot honor), and forcing
 birth/death only, silently, when `proposal.probs` is left at its default.
@@ -358,7 +358,7 @@ change move is the recorded v2 extension (still 1-2 D, so B' covers it).
 mBART keeps the CGM10 leaf prior mu ~ N(0, sigma_mu^2) with
 sigma_mu = 0.5/(k sqrt(m)) (Y scaled to [-0.5, 0.5], k=2 default, m trees) - which
 is EXACTLY dbarts's constant-leaf prior sd = scale/k with scale =
-nodeScale/sqrt(numTrees), nodeScale = 0.5 (model.hpp:103, chain.hpp:38,372). The
+nodeScale/sqrt(numTrees), nodeScale = 0.5 (model.hpp:159, chain.hpp:57,650). The
 one change (paper Section 3.3, eq. 3.6): a leaf that IS constrained uses an
 inflated variance c^2 sigma_mu^2 with
 
@@ -385,12 +385,12 @@ correction is second-order (Section 3.3). Both the constrained marginal (section
 
 **Sub-decision - the chi-k hyperprior.** dbarts optionally samples k from the
 accumulated sum of standardized squared leaf values (`forest.updateK`,
-chain.hpp:4878,4910). Under truncation and a per-leaf-variable prior scale, the
+chain.hpp:4924,4956). Under truncation and a per-leaf-variable prior scale, the
 "standardized" square is no longer param/(scale/k), so feeding truncated draws
 into the chi-k update biases k. v1 uses FIXED k under `monotone` (mBART itself
 uses fixed k=2), but must not turn that into a default-fit error: the binary
 default k IS chi(1.5, 2.0), not a user choice (resolveNodeHyperprior k=NULL ->
-chi(1.5, 2.0) for binary, R/model.R:530; .kDefault, R/bart.R:647; bart2 k=NULL
+chi(1.5, 2.0) for binary, R/model.R:530; .kDefault, R/bart.R:658; bart2 k=NULL
 resolves the same), so a plain bart2(..., monotone=..., family="probit") supplies
 a chi hyperprior by default. Resolution: under `monotone`, an UNSUPPLIED k
 resolves to fixed k = 2 (the continuous default and mBART's value) for BOTH
@@ -410,21 +410,21 @@ the chi-k posterior is a documented follow-up, not v1 scope.
   at construction like `columnTypes`. No dbarts.h / ABI change in v1 (the
   robust-errors/ordinal precedent) - monotone is reachable only through the R
   surface and internal bridge, so no LinkingTo consumer sees it.
-- **Factory (facade.hpp:769-771):** any nonzero direction selects the monotone
+- **Factory (facade.hpp:800-803):** any nonzero direction selects the monotone
   constant-leaf instantiation (`MonotoneConstantGaussianLeaf` +
   `ConstrainedConjugateMove`); all-zero selects the existing constant-leaf path
   verbatim (section 8).
 - **Leaf store (chain.hpp):** muByTree must PERSIST across the move phase - stop
-  the zero-rebuild at chain.hpp:4867 so the moves can read frozen neighbors - and
-  the tree-granularity draw replaces the per-node loop at chain.hpp:4868 (section
+  the zero-rebuild at chain.hpp:4913 so the moves can read frozen neighbors - and
+  the tree-granularity draw replaces the per-node loop at chain.hpp:4914 (section
   3, changes 1-2). This is the widest mechanical change and the reason for the
   re-budget.
 - **Leaf model (model.hpp):** a constant leaf with a tree-granularity Gibbs draw
   (section 3) and per-leaf c-inflation (section 6); holds a pointer to the
   direction vector and computes neighbor bounds via `Tree::splitInterval`
-  (tree.hpp:313).
+  (tree.hpp:416).
 - **Move (moves.hpp):** `ConstrainedConjugateMove` replaces the per-leaf marginal
-  sum (moves.hpp:54-65) with the conditional truncated joint marginal of the
+  sum (moves.hpp:74-95) with the conditional truncated joint marginal of the
   touched leaves (section 4), READING frozen neighbor mu from muByTree and WRITING
   the accepted eq.-4.17 redraw back (section 3, change 3).
 

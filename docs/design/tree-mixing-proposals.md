@@ -98,21 +98,21 @@ this package, all established by the grow-from-root default study
 
 ## 2. What the sampler can and cannot do today
 
-`metropolisJumpForTree` (`moves.hpp:777-798`) draws one uniform per tree
+`metropolisJumpForTree` (`moves.hpp:844-865`) draws one uniform per tree
 per sweep and dispatches to exactly one of three kernels:
 
 ```
-u < birthOrDeathProbability          -> birthOrDeathMove   (moves.hpp:154)
-u < birthOrDeath + swapProbability   -> swapMove           (moves.hpp:672)
-else                                 -> changeMove         (moves.hpp:420)
+u < birthOrDeathProbability          -> birthOrDeathMove   (moves.hpp:206)
+u < birthOrDeath + swapProbability   -> swapMove           (moves.hpp:734)
+else                                 -> changeMove         (moves.hpp:475)
 ```
 
 Shipped mixture `birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5`
-(`R/model.R:5-10`, `R/dbarts.R:366`, engine defaults `chain.hpp:52-55`).
-`StepType` is `{birth, death, swap, change}` (`moves.hpp:771`): the
+(`R/model.R:5-9`, `R/dbarts.R:365`, engine defaults `chain.hpp:59-62`).
+`StepType` is `{birth, death, swap, change}` (`moves.hpp:838`): the
 "four-move set" is three kernels with four labels. The sweep is
 Gauss-Seidel over trees; the variance forest runs the identical kernel
-(`chain.hpp:4157-4173`).
+(`chain.hpp:4232-4248`).
 
 - **Birth** picks a leaf uniformly among those with a usable variable and
   draws the new splitting rule from the prior, so the rule's prior density
@@ -121,13 +121,13 @@ Gauss-Seidel over trees; the variance forest runs the identical kernel
   grandchildren.
 - **Swap** exchanges the rules of a parent and one child. It preserves the
   tree's shape, is symmetric, and carries no proposal correction
-  (`moves.hpp:758`). It cannot lift a rule more than one level.
+  (`moves.hpp:825`). It cannot lift a rule more than one level.
 - **Change** picks uniformly among all non-leaf nodes *including the root*,
   redraws the split variable from the prior, then the cut point uniformly
   over the descendant-valid set. **The entire skeleton below the node is
-  held fixed** (`moves.hpp:537-540`) and every observation is rerouted
+  held fixed** (`moves.hpp:595-596`) and every observation is rerouted
   through it, with a hard veto if any descendant leaf empties
-  (`moves.hpp:73`).
+  (`moves.hpp:79`).
 
 Three consequences.
 
@@ -146,16 +146,16 @@ Three consequences.
    redraws the variable, so a pure cut-point move happens only when the
    redraw lands back on the incumbent variable: probability `~1/p_avail`
    per change proposal (about 2% at p = 50 under the default
-   `split.probs = 1/num.vars`, `R/bart.R:2618`). The machinery for such a
+   `split.probs = 1/num.vars`, `R/model.R:293-297`). The machinery for such a
    move already exists and is already gated (section 5.1).
 
-Adjacent machinery already landed, relevant to cost: `scan.hpp:75`
-`scanOrdinalCuts` (leaf-templated full-cut scan); `grow.hpp:63`
-`growTreeFromRoot`; `chain.hpp:1330` `growForestFromRoot` (opt-in
+Adjacent machinery already landed, relevant to cost: `scan.hpp:105`
+`scanOrdinalCuts` (leaf-templated full-cut scan); `grow.hpp:179`
+`growTreeFromRoot`; `chain.hpp:1967` `growForestFromRoot` (opt-in
 `n.grow.sweeps`, init only, with a reset/regrow/rebuild/redraw loop at
-`chain.hpp:1370-1387`); `tree.hpp:951-973` `SubtreeSnapshot` (restores node
+`chain.hpp:2009-2022`); `tree.hpp:999-1021` `SubtreeSnapshot` (restores node
 *contents* for a fixed set of node ids - it cannot undo a shape change);
-`tree.hpp:1017`/`:1203` `collapseEmptyNodes` / `collapseSubtreeToLeaf`.
+`tree.hpp:1065`/`:1257` `collapseEmptyNodes` / `collapseSubtreeToLeaf`.
 
 ---
 
@@ -185,7 +185,7 @@ its marginal autocorrelation time is the wrong thing to measure.
 
 **Corrupts.** Everything built on tree structure - variable inclusion
 proportions (`varcount`), interaction reporting, `plotTree`, DART's
-split-count feedback loop (`chain.hpp:1109-1113` recomputes split counts
+split-count feedback loop (`chain.hpp:1569-1574` recomputes split counts
 from the current forest each sweep, so a locked structure feeds a locked
 prior), and structural readouts in bartCause and treeSens. It does not
 obviously corrupt the fitted function itself.
@@ -212,8 +212,8 @@ efficiently between such representations."
 
 **Mechanism.** Every structural acceptance carries `exp(dLogL)` where the
 integrated log-likelihood difference scales like
-`centeredSumOfSquares / residualVariance` - a fact documented in the engine
-itself (`moves.hpp:69-71`). As the residual standard deviation sigma falls,
+`explainedSumOfSquares / residualVariance` - a fact documented in the engine
+itself (`model.hpp:178-181`). As the residual standard deviation sigma falls,
 or as a multiplicative forest weight rises, that exponent's magnitude grows
 and every proposal that is not an improvement is rejected outright. Leaf
 values converge in a handful of sweeps; what remains is a partition-shape
@@ -226,7 +226,7 @@ function, and every structural readout. Point estimates survive.
 **Measured, in this house** (`docs/plans/bcf-sigma-residual.md`, measured
 at `bartcore 6944811`). In the causal-forest sampler's prior tail, where a
 scale parameter `a` multiplies one forest's contribution and the engine
-hands that forest weight `w_i * a^2` (`combiner.hpp:463-472`):
+hands that forest weight `w_i * a^2` (`combiner.hpp:877-894`):
 
 - At `a0 = 40` and `100`: "sigma plateaus ~5x high with NO decay through
   40k sweeps - frozen structure."
@@ -488,7 +488,7 @@ rather than being navigated.
   landed linear leaves (`linear-leaves.md`) and GP leaves (`gp-leaves.md`);
   MOTR-BART is the external name for the linear case. **The inner variant
   has no cross-block ridge in the structural move at all**, verified: the
-  linear leaf's `logIntegratedLikelihoodForNode` (`model.hpp:1023-1040`)
+  linear leaf's `logIntegratedLikelihoodForNode` (`model.hpp:1090-1116`)
   integrates the leaf coefficients out in closed form (a ridge-regression
   marginal reducing exactly to the constant leaf at q = 0), so the
   acceptance decision never conditions on a realized coefficient. That is a
@@ -658,8 +658,8 @@ because every arm already exists.**
 | BART alone | `bart()` | shipped |
 | outer composition, HMC parametric block | `stan4bart` (WALNUTS + dbarts exchanging offsets) | exists and runs; 0.0.14 installed here |
 | outer composition, conjugate block | `rbart_vi` / in-engine `GroupedResponse` | shipped |
-| outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` (`R/dbarts.R:1303`), and `dbarts_sampler_setOffset` in the shipped C API (`dbarts.h:744`) | shipped, supported |
-| inner composition | `node.prior = linear(columns)` / `gp(columns)` (`R/model.R:1436`, `:1454`) | shipped |
+| outer composition, arbitrary block, user-driven | `dbartsSampler$setOffset` (`R/dbarts.R:1316`), and `dbarts_sampler_setOffset` in the shipped C API (`dbarts.h:744`) | shipped, supported |
+| inner composition | `node.prior = linear(columns)` / `gp(columns)` (`R/model.R:37-40`, `:51`) | shipped |
 
 The probes exist too: `benchmarks/R/grouped-mixing.R` (the autocorrelation
 harness), `benchmarks/R/forest-ranef-collapse-proto.R` (the isolated ridge
@@ -793,7 +793,7 @@ collapses like everything else.
 **Why it is first anyway: the fit to dbarts is exceptional.**
 
 - **The Metropolis-Hastings correction is provably 1** for the uniform
-  form, verified by construction at `moves.hpp:461-526`: with the new
+  form, verified by construction at `moves.hpp:566-580`: with the new
   variable equal to the old one on an ordinal column, the forward and
   reverse interval and valid-set counts are produced by the *same two
   functions on the same unmodified tree*, and both ignore the node's own
@@ -808,7 +808,7 @@ collapses like everything else.
 - The subtree-prior term below the node must still be computed in general
   (a same-variable cut can flip a descendant's variable availability, which
   changes `growthProbability` and `splitVariableLogProbability` at
-  `model.hpp:2062-2080`), and `changeMove` already computes it.
+  `model.hpp:2129-2145`), and `changeMove` already computes it.
 - Default weight 0 makes the landing bitwise-identical, so the equivalence
   gate stays green by construction and the falsifier can run before
   anything changes for users.
@@ -856,10 +856,10 @@ though it lifted unique trees visited 1.83 -> 3.07.
   ordered rule. dbarts' categorical rules are canonical-gauge direction
   masks whose validity invariant is exactly what a rotation would break.
   Ordinal-only in a first version, the same scoping `growTreeFromRoot`
-  already uses (`grow.hpp:100`).
+  already uses (`grow.hpp:179`).
 - *Interaction constraints.* A rotation lifts one variable above another -
   the same class of break that `swapMove` already guards with
-  `tree.interactionSubtreeIsValid` (`moves.hpp:742`). That guard is
+  `tree.interactionSubtreeIsValid` (`moves.hpp:804`). That guard is
   written; note that swap's symmetry additionally relies on a parent's rule
   never equalling a non-selected child's, which holds because
   `splitInterval` gives a child a strictly interior interval. Rotation
@@ -902,7 +902,7 @@ seeds** - while mean accuracy was mixed (PIMA fell 76.5 -> 73.4 and
 **Why the previously recorded architectural objection does not hold.** The
 survey declined this on the grounds that swapping breaks dbarts'
 per-chain RNG reproducibility, forces a synchronization barrier across the
-thread-parallel chain layout (`R/bart.R:656-657`), and destroys the
+thread-parallel chain layout (`R/bart.R:667-668`), and destroys the
 diagnostic value of multiple chains. All three assume swaps happen *among
 the user's chains*. Under the private-ladder construction - each cold chain
 owns its own rungs and cold chains never exchange with each other - each
@@ -1071,7 +1071,7 @@ survey's top recommendation, at XS cost and bitwise-neutral by default.
    tempering, which keeps the tempered draws with weights, and is off by
    default.
 3. **The temperature cannot be chosen from the literature.** The BCF
-   combiner hands a forest weight `w_i * a^2` (`combiner.hpp:463-472`), so
+   combiner hands a forest weight `w_i * a^2` (`combiner.hpp:877-894`), so
    its acceptance exponent carries `a^2 / sigma^2`. At `a0 = 100`, `a^2` is
    1e4 and the recorded 5x-high sigma claws back only 25x, leaving the
    exponent roughly 400x too large - about 2.6 orders of magnitude. Divide
@@ -1179,13 +1179,13 @@ per second. If ever probed, the pre-registered read is effective samples
 
 Reset one tree per sweep and rebuild it with `growTreeFromRoot`, accepting
 with a proper Metropolis-Hastings ratio. The builder already computes its
-per-node candidate weights (`grow.hpp:130-150`), so the forward density is
+per-node candidate weights (`grow.hpp:195-247`), so the forward density is
 nearly free; the reverse density requires replaying the builder's candidate
 assembly along the *current* tree's construction path, the same cost again.
-The reset/regrow/rebuild/redraw loop already exists (`chain.hpp:1370-1387`)
+The reset/regrow/rebuild/redraw loop already exists (`chain.hpp:2009-2022`)
 and lacks only the acceptance filter. Reachability limits it to
 ordinal-only forests until the scheduled categorical scan lands
-(`grow.hpp:100`).
+(`grow.hpp:179`).
 
 **Low priority, with a nearly free pre-check.** Instrument the realized
 acceptance rate on a stock 75-tree fit. The residual-conditional posterior
@@ -1198,7 +1198,7 @@ clause above is unsound and is withdrawn. "The target is diffuse" does
 not imply "an independence proposal lands rarely": that inference is
 correct for a proposal drawn from the *prior*, and `growTreeFromRoot` is
 not one - its candidate weights are the prior factors *times* the
-integrated likelihood (`grow.hpp:83-86`, `:99-130`). The governing object
+integrated likelihood (`grow.hpp:187-190`, `:195-247`). The governing object
 is the ratio, and it factorizes:
 `pi(T)/q(T) = Z_root * prod_{w != root} [(1 - g_w) + g_w B_w]`, where
 `g_w` is the CGM growth probability at `w` and `B_w` is the prior-averaged
@@ -1271,14 +1271,14 @@ Neither is engine work, and both should be in the documentation regardless.
 
 - **More trees.** Tan et al.: "Increasing the number of trees consistently
   dampens the trend in R-hat. Its effect on coverage and RMSE is
-  ambiguous." dbarts defaults to `n.trees = 75L` (`R/bart.R:653`), below
+  ambiguous." dbarts defaults to `n.trees = 75L` (`R/bart.R:664`), below
   BART's classic 200. **Carry the caveat with it**: more trees dampens
   R-hat partly *because* the ensemble self-averages structural labels
   harder, so an improved R-hat at larger m is not by itself evidence that
   tree-space mixing improved.
 - **More chains.** Ronen et al.'s own recommendation is to "increase the
   number of chains with the number of data points"; dbarts defaults to
-  `n.chains = 4L` (`R/bart.R:656`).
+  `n.chains = 4L` (`R/bart.R:667`).
 
 No engine candidate should be measured against a single-chain, 75-tree
 straw man.
@@ -1508,7 +1508,7 @@ it less to do.
 ## 8. Things this program should not re-derive
 
 - **The change move's root sensitivity is not a bug.** It is the
-  fixed-skeleton design working as specified (`moves.hpp:537-540`), and the
+  fixed-skeleton design working as specified (`moves.hpp:595-596`), and the
   same mechanism would pin a cold-started tree's root too; a cold start
   only escapes it by passing through shallow states.
 - **Duplicate columns cannot separate a locked chain from a mixing one**
@@ -1525,7 +1525,7 @@ it less to do.
   change and swap add nothing measurable over grow/prune on their battery -
   so the case for a *new* move cannot rest on "dbarts has four moves".
 - **A same-variable ordinal cut redraw carries acceptance correction
-  exactly 1** under shipped machinery (`moves.hpp:461-526`). This is the
+  exactly 1** under shipped machinery (`moves.hpp:566-580`). This is the
   single most load-bearing code fact in the document and it has now been
   verified twice, independently.
 
@@ -1617,8 +1617,8 @@ be verified directly rather than toward citations.
 | source | status |
 |---|---|
 | `docs/design/forest-ranef-interweaving.md` sec 0, 2, 5, 6, 9 | Read in full at `d3cb94b`. The 56.1 / 9.3 / 114.6 prototype table, the with-f/no-f attribution, the "no cheap ASIS/PX" structural argument, and section 9's authoritative corrections are all quoted from it directly. This is the load-bearing evidence for the hazard. |
-| `model.hpp:1023-1040` (linear leaf integrated likelihood) | Read. Confirms the inner variant marginalizes leaf coefficients out of the structural score. |
-| `R/dbarts.R:1303`, `dbarts.h:366`, `R/model.R:1436,1454`, `R/rbart.R:639` | Read. Confirms the composition surface is public on both the R and C sides, and that rbart_vi's loop is 1:1 alternation. |
+| `model.hpp:1090-1116` (linear leaf integrated likelihood) | Read. Confirms the inner variant marginalizes leaf coefficients out of the structural score. |
+| `R/dbarts.R:1316`, `dbarts.h:421`, `R/model.R:37-40,51`, `R/rbart.R:947` | Read. Confirms the composition surface is public on both the R and C sides, and that rbart_vi's loop is 1:1 alternation. |
 | `inst/common/friedmanData.R` | Read. Confirms the probe DGP decomposes into one interaction plus three separable terms. |
 | stan4bart `src/init.cpp:642,654`, `docs/design/walnuts.md` | Read in the live tree (0.0.14 installed). Confirms the 1:1 two-block Gibbs alternation and that no mixing diagnostic is reported. |
 | Hahn, Carvalho, Puelz, He, Bayesian Analysis 13(1):163-182, 2018 | Full text (arXiv 1602.02176v3): the RIC definition, the competing-criteria mechanism, the closed-form bias (2.3), the reparameterization (2.5)-(2.6), and the appendix's extra alpha step added "to improve mixing". |
@@ -1764,7 +1764,7 @@ was the memo's stated reason for ranking construction 3 near-last.
    have the same structures: a tree carrying the sum of two functions on
    disjoint variable sets must partition the **product** grid. The factor
    that prices structures is the CGM tree prior. Recomputed here from
-   `model.hpp:2050-2066` (`base = 0.95`, `power = 2`, root at depth 0),
+   `model.hpp:2117-2131` (`base = 0.95`, `power = 2`, root at depth 0),
    branching factors only, balanced trees:
 
    ```
@@ -1814,12 +1814,12 @@ regime for an independence regrow.
 enumeration.**
 
 *The cap does not exist.* `CGMTreePrior::growthProbability`
-(`model.hpp:2062-2066`) returns 0 **only** when
+(`model.hpp:2129-2131`) returns 0 **only** when
 `!tree.hasAnyAvailableVariable(...)`; otherwise `base/(1+depth)^power`,
 strictly positive at every finite depth. The memo states this itself
 elsewhere and then assumes its negation.
 
-*The correct general formula*, re-derived here from `grow.hpp:63-167`
+*The correct general formula*, re-derived here from `grow.hpp:179-247`
 directly. At a node `v` the builder's candidate set is `{no-split}` with
 weight `(1-g_v) L(v)` and one entry per legal cut with weight
 `g_v P(j) P(c) L(l) L(r)`, so `Z_v = L(v) [(1-g_v) + g_v B_v]` with
@@ -1841,8 +1841,8 @@ count**, not with depth.
 
 *Receipt, independent of the critique's.* Exact enumeration of the
 single-predictor tree space under the shipped arithmetic - constant
-Gaussian leaf exactly as `model.hpp:163-180`, CGM prior exactly as
-`model.hpp:2050-2120`, builder weights exactly as `grow.hpp:74-130`,
+Gaussian leaf exactly as `model.hpp:165-183`, CGM prior exactly as
+`model.hpp:2117-2145`, builder weights exactly as `grow.hpp:179-247`,
 `nodeScale = 0.5`, `k = 2`, `m = 1`, `n ~ 420` (an even split over the
 codes), `q` asserted to normalize to 1 and the closed form above asserted
 to reproduce `log pi - log q` for every enumerated tree to 1e-9:
@@ -1898,8 +1898,8 @@ statistic**; the census is still worth running, but not as designed.
   real, low noise is doubly bad").
 - *(b) The `blocks()` arm cannot move the statistic the kill criterion
   reads.* Verified by reading the code: `forest.leaf.scale =
-  options.nodeScale / sqrt(forest.numTrees)` (`chain.hpp:548-549`) uses the
-  **total** tree count, and `installBlockMasks` (`chain.hpp:5035-5058`,
+  resolvedNodeScale(options.nodeScale, options.priorScale) / sqrt(forest.numTrees)` (`chain.hpp:648-650`) uses the
+  **total** tree count, and `installBlockMasks` (`chain.hpp:5116-5138`,
   called at `:621`) installs per-tree column masks and nothing else - no
   per-group rescaling anywhere in the function. So the per-leaf prior sd
   `tau` is identical in both arms and the within-block apportionment
@@ -1926,7 +1926,7 @@ statistic**; the census is still worth running, but not as designed.
 **Replacement statistic: measure the coupling, not the marginal.** Tree
 `j`'s structural question is scored against
 `treeY = y - sum_{k != j} f_k`, a running residual rolled tree by tree
-inside the sweep (`chain.hpp:993-1010`), so it depends on the other trees
+inside the sweep (`chain.hpp:4500-4518`), so it depends on the other trees
 **only through their total**. Apportionment can therefore reach structure
 only through `f_j`'s own drift. The pre-registerable claim is: *tree `j`'s
 structural acceptance pattern is autocorrelated at the `f_j` timescale, and
@@ -1936,11 +1936,11 @@ instrumentation, falsifiable in both directions.
 **Three further corrections to the census design**, all adopted.
 
 - **No matching or alignment step is needed.** The sweep updates tree `t`
-  in place (`chain.hpp:998`) and nothing in `chain.hpp` shuffles, permutes
+  in place (`chain.hpp:1457`) and nothing in `chain.hpp` shuffles, permutes
   or relabels trees (verified by search). The *posterior* is
   label-exchangeable; the *chain* never exercises the symmetry.
 - **`getTrees` is necessary but not sufficient.** It returns "a data.frame
-  containing the internal state of the trees" (`R/dbarts.R:1915`) - flat
+  containing the internal state of the trees" (`R/dbarts.R:1939`) - flat
   node structure with leaf values, decoded categorical directions and
   missing routes - not per-tree fitted vectors. The census must walk trees
   in R itself (the package walks trees in R only in
@@ -1961,14 +1961,14 @@ but the memo's four-item support list is incomplete.
 
 **A fifth gap: monotone / `ParamScoring` leaves.** Verified here:
 `growForestFromRoot` refuses only `hasVectorParams || hasFunctionParams`
-(`chain.hpp:1332-1336`), so the **monotone constant leaf is in the
+(`chain.hpp:1968-1970`), so the **monotone constant leaf is in the
 builder's scope**. `MonotoneConstantGaussianLeaf::logIntegratedLikelihood`
 delegates to the *unconstrained* `ConstantGaussianLeaf` and is documented
-"never on the constrained hot path" (`model.hpp:528-534`). Meanwhile the
+"never on the constrained hot path" (`model.hpp:536-542`). Meanwhile the
 structural target under that leaf is not a leaf-marginalized posterior at
 all: `logLikelihoodForBranch` dispatches `ParamScoringLeafModel` to
 `leaf.logLikelihoodForBranchWithParams(...)`, reading frozen neighbour
-parameters (`moves.hpp:50-58`). So for a monotone forest `q` is computable
+parameters (`moves.hpp:91-94`). So for a monotone forest `q` is computable
 but `pi` is **not** `p(T) prod_leaves L(leaf)`, and "every term in the
 acceptance ratio has a shipped implementation" is false there. Monotone
 forests must be scoped out of any regrow v1 explicitly.
@@ -1979,8 +1979,8 @@ equivalent, always-correct predicate is a property of the replay the move
 needs anyway: **refuse iff the reverse replay returns `-inf`**. It is
 decidable from the incumbent alone because the builder's support is
 residual-independent - occupancy depends on member counts and availability
-on the cut grid and masks, never on `y` (`scan.hpp:94-110`,
-`tree.hpp:545-600`) - it is exactly the support indicator, and it costs
+on the cut grid and masks, never on `y` (`scan.hpp:105-140`,
+`tree.hpp:572-610`) - it is exactly the support indicator, and it costs
 nothing extra because the replay runs regardless.
 
 #### B5. Mode F is not a sixth mode, and its timescale is off by `k^2`
@@ -2000,18 +2000,18 @@ in a handful of sweeps; what remains is a partition-shape misfit" - stands
 and must be engaged by anything that measures it.
 
 *Timescale.* The shipped leaf prior sd is `scale/k`, not `scale`:
-`priorPrecision = (k/scale)^2` (`model.hpp:168`) and
-`drawFromPrior = (scale/k) * z` (`model.hpp:193`). So
+`priorPrecision = (k/scale)^2` (`model.hpp:174`) and
+`drawFromPrior = (scale/k) * z` (`model.hpp:198`). So
 
 ```
 tau = nodeScale / (k sqrt(m)),   timescale ~ n_leaf nodeScale^2 / (m k^2 s^2)
 ```
 
 a factor `k^2 = 4` smaller at the default `k = 2`. With `nodeScale = 0.5`
-(`src/R_interface_bartcore.cpp:281`), `tau = 0.0289` at `m = 75`, not
+(`src/R_interface_bartcore.cpp:280`), `tau = 0.0289` at `m = 75`, not
 `0.0577`. `k` is the shipped knob that enters the prediction **squared**
 while `n`, `m` and `sigma` enter linearly, and it is itself sampled when
-`updateK` is on (`chain.hpp:1106-1109`), which the caricature assumes
+`updateK` is on (`chain.hpp:1565-1567`), which the caricature assumes
 fixed.
 
 ### 12.3 Substantive advisories, adjudicated
@@ -2024,9 +2024,9 @@ fixed.
   splits on a variable in `used(T)`, which the reverse ban leaves alone and
   which is available at that node by construction, so `growthProbability`
   is positive at every internal node of `T` under the reverse ban
-  (`model.hpp:2062-2066`); and banning changes `numAvailable` and hence
+  (`model.hpp:2129-2131`); and banning changes `numAvailable` and hence
   `P(var)`, but both directions compute their own normalizer, which is all
-  MH needs (`grow.hpp:89-105` mirrors `model.hpp:2068-2081`). **Condition
+  MH needs (`grow.hpp:209-217` mirrors `model.hpp:2135-2145`). **Condition
   one**: the ban does not relieve B4's gaps, it stacks on them, so the
   refusal predicate must be evaluated **under the reverse ban**, not on the
   incumbent in isolation. **Condition two**: `q` depends on `used(T)`, so
@@ -2048,17 +2048,17 @@ fixed.
   1. The dropped `sum w z^2` term cancels only when the candidate classes
      share a member set. On a **missing-capable column they do not**: the
      no-split candidate is scored from the node's cached statistic over
-     *all* members (`grow.hpp:74-77`) while `scanOrdinalCuts` skips
-     `naCode` members outright (`scan.hpp:94`). This does not break
+     *all* members (`grow.hpp:187-190`) while `scanOrdinalCuts` skips
+     `naCode` members outright (`scan.hpp:128`). This does not break
      exactness - `q` is whatever the builder's realized normalized weights
      are, and that is what an accumulator records - but it does break the
      memo's stated reason, and it is a structural `q`/`pi` mismatch rather
      than a data-driven one.
   2. **Missing-capable columns are halved twice.** `logCut` already
-     subtracts `log 2` for `data.hasMissing[j]` (`grow.hpp:114`), matching
+     subtracts `log 2` for `data.hasMissing[j]` (`grow.hpp:290-291`), matching
      `ruleForVariableLogProbability`'s `+log 2` for *one* rule
-     (`model.hpp:2114-2120`); the builder then draws the direction coin
-     separately (`grow.hpp:158-159`). Since the candidate stands for the
+     (`model.hpp:2179-2186`); the builder then draws the direction coin
+     separately (`grow.hpp:340-342`). Since the candidate stands for the
      *pair* of direction-rules, its weight carries one rule's prior mass,
      so `q` under-weights splits on missing-capable columns by 2x per
      split. **This is already known and scheduled**: it is exactly the
@@ -2072,9 +2072,9 @@ fixed.
      full candidate assembly there. Cost is `2 x (nodes)` candidate
      assemblies, not `2 x (levels)`.
 - **The categorical support gap is confirmed, and the `P(var)` accounting
-  is right.** `grow.hpp:100-101` skips `ColumnType::categorical` outright
+  is right.** `grow.hpp:224` skips `ColumnType::categorical` outright
   while `numAvailable` counts categoricals even though they generate no
-  candidates - which is *correct* for matching `model.hpp:2068-2081`'s
+  candidates - which is *correct* for matching `model.hpp:2135-2145`'s
   `-log(numAvailable)`, since both sides count the same set and the missing
   mass is absorbed by `Z_node`. Worth recording because it is the one place
   the builder's `P(var)` and the prior's agree exactly and it is not
@@ -2084,13 +2084,13 @@ fixed.
   configuration space; it cancels in the MH ratio only while everything it
   depends on is fixed. dbarts ships DART, which resamples the split
   probabilities every sweep from realized split counts
-  (`chain.hpp:1110-1116`), and that constant depends on those
+  (`chain.hpp:1569-1574`), and that constant depends on those
   probabilities. So fixed-mask `blocks()`-style constraints stay exact, but
   **DART plus any cross-tree split-usage repulsion is doubly intractable in
   the `s` draw** - which lands on the memo's own "cheap and exact" verdict
   for the cheapest repulsion variant, since that variant's cheapness came
   from reusing DART's counts. The `k` hyperprior
-  (`chain.hpp:1106-1109`) is unaffected; only variable-selection parameters
+  (`chain.hpp:1565-1567`) is unaffected; only variable-selection parameters
   enter the constant.
 - **Census cost is understated.** To estimate an autocorrelation time of
   order `10^2-10^3` needs chains far longer than `10^3` draws, with
@@ -2178,7 +2178,7 @@ stated mechanism, and one cost fact.
   `interactions()` already express) or on interaction *order* (which
   `interaction-constraints.md` already ships), not on depth.
 - *Per-block depth priors are not a knob.* `CGMTreePrior` is a per-**forest**
-  member (`chain.hpp:330`), so per-block `base`/`power` needs a per-tree
+  member (`chain.hpp:409`), so per-block `base`/`power` needs a per-tree
   prior indirection through every scoring path.
 - *(b) is DP-Forests with fixed labels.* Per-block variable-inclusion
   priors are exactly Du and Linero's construction with user-supplied rather
@@ -2225,13 +2225,13 @@ sufficient.
    names requires the leaf prior to scale with sigma - the classical
    conjugate normal-inverse-gamma CART setup. dbarts' does not:
    `priorPrecision = (k/scale)^2` with `scale = nodeScale/sqrt(m)`
-   (`model.hpp:168`, `chain.hpp:548-549`), fixed and sigma-free. That is
+   (`model.hpp:174`, `chain.hpp:648-650`), fixed and sigma-free. That is
    BART's design, not an oversight. Integrating sigma against a
    fixed-variance leaf prior gives no closed form in the same sufficient
    statistics.
 2. *Even granting the algebra, the marginal cannot move the number it
    targets.* Under a scaled-inverse-chi-squared sigma prior with
-   `nu = sigmaDf` (3 by default, `chain.hpp:247`), marginalizing replaces
+   `nu = sigmaDf` (3 by default, `chain.hpp:256`), marginalizing replaces
    the exponent `dSS / (2 s^2)` with
    `((nu + n)/2) log(1 + dSS / (nu lambda + SS))`, and the two agree to
    first order whenever `dSS` is a small fraction of the total residual sum
@@ -2261,7 +2261,7 @@ empirical support on tree posteriors while tempered transitions has none
 this pass could find. And the *likelihood* half has an unexpectedly cheap
 route in this engine: raising a Gaussian likelihood to a power `beta` is
 exactly scaling every observation weight by `beta`, and the leaf marginal
-reads weights only through `(sum w, sum w z)` (`model.hpp:163-180`), so the
+reads weights only through `(sum w, sum w z)` (`model.hpp:165-183`), so the
 intermediate distributions' leaf draws and structural scores need no new
 leaf math. The *prior* half does - and section 5.1 point 1 establishes that
 tempering the likelihood alone points the wrong way - so a valid
@@ -2276,7 +2276,7 @@ under the sum `f_i + f_j`, and the leaf-marginalized likelihood of a sum of
 two trees is not the product of their per-tree marginals: both trees' leaf
 values are integrated jointly against overlapping design columns - the
 common refinement of the two partitions - so the per-branch factorized
-score at `moves.hpp:50-80` cannot serve and the cost is a joint solve
+score at `moves.hpp:66-95` cannot serve and the cost is a joint solve
 rather than a sum of per-leaf scalars. A leaf-*conditional* variant is
 computable directly from fits, but it gives up the marginalization that is
 why BART's structural moves accept at all. Independently: its target is

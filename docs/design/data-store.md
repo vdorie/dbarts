@@ -1,5 +1,7 @@
 # Data store
 
+Code citations are at 8693c5af; they are not live.
+
 The standing reference for the C++ predictor data layer: `ColumnStore` in
 `src/bartcore/data.hpp` and the sampler transaction that mutates it
 (`src/bartcore/sampler.hpp`). Required reading before any data-adjacent

@@ -4,7 +4,7 @@ Status: LANDED 2026-07-18 (9c28b31). Plan: docs/plans/negative-binomial.md (this
 its step 1). Non-negative integer counts fit natively by the Polya-Gamma
 negative-binomial augmentation (Polson-Scott-Windle 2013; Zhou-Li-Dunson-Carin
 2012), riding the per-observation working weights the LogisticResponse port
-already carries (src/bartcore/model.hpp:2517). The forest fits a log-odds latent
+already carries (src/bartcore/model.hpp:3517). The forest fits a log-odds latent
 psi; a dispersion parameter r governs over-dispersion. Surfaced as
 `family = "nbinom"`. The load-bearing resolution (section 2): exact PG draws
 exist only for INTEGER shape, so v1 ships the exact envelope - r a positive
@@ -88,7 +88,7 @@ update and no new augmentation.
 and logistic: it does NOT center or [-0.5, 0.5]-rescale the response (y are
 counts, entering kappa directly), so fitScale = 1, fitShift = 0, sigmaScale = 1,
 initialSigma = 1, and sigma stays fixed at 1 (drawSigma returns sigma), exactly
-LogisticResponse (model.hpp:2595-2598). Leaf-prior calibration therefore rides
+LogisticResponse (model.hpp:3595-3598). Leaf-prior calibration therefore rides
 node.scale, not a response range. psi is a log-odds, so v1 reuses **logistic's
 node.scale = pi*sqrt(3)** (R/model.R:408; the logistic-latent sd pi/sqrt(3)
 times probit's 3.0), giving a total-fit prior sd node.scale/k = pi*sqrt(3)/2 ~
@@ -139,9 +139,9 @@ is what VD must pick (the three-way fork below).
 ### 2B: the real-shape Polya-Gamma gap, stated plainly
 
 The shipped sampler is Devroye PG(1, psi) only (ext_rng_simulatePolyaGamma,
-src/external/random.c:614; declared random.h:135), EXACT. LogisticResponse
+src/external/random.c:607; declared random.h:135), EXACT. LogisticResponse
 handles an integer trial count w by SUMMING w independent PG(1, psi) draws
-(model.hpp:2544-2546) - exact because PG(n, z) = sum of n PG(1, z) for integer
+(model.hpp:4373-4380) - exact because PG(n, z) = sum of n PG(1, z) for integer
 n. Non-integer shape has no such reduction, and the facts are:
 
 (i) With real r (fixed OR estimated), EVERY omega draw has non-integer shape
@@ -416,11 +416,11 @@ token dbarts otherwise leans on. The ecosystem alternatives are `"negbinomial"`
 (brms, VGAM) and `"negative.binomial"` (MASS); `"negbin"` (the task's working
 name) is an abbreviation no major package uses. Recommend `"nbinom"` for the
 R-core `dnbinom` alignment; `"negbinomial"` is the runner-up if brms-alignment is
-valued over R-core. Added to the dbarts and bart2 family vectors (R/dbarts.R:384,
-R/bart.R:687) and to the A_class whitelist (R/A_class.R:450-471).
+valued over R-core. Added to the dbarts and bart2 family vectors (R/dbarts.R:383,
+R/bart.R:698) and to the A_class whitelist (R/A_class.R:455-465).
 
 **Response validation.** y must be non-negative integers. The check belongs in
-the numeric-response branch of the family resolution (R/spec.R:155-166, where
+the numeric-response branch of the family resolution (R/spec.R:199-210, where
 the binary families run their 0/1 test): a "nbinom" arm beside the binary check,
 refusing a non-integer or negative response by name with a message like
 `family "nbinom" requires a non-negative integer (count) response`. This is a
@@ -430,20 +430,20 @@ draw is only defined for integer y_i. Unlike the binary check, counts are
 unbounded, so validation is integrality + non-negativity, not a two-value test.
 
 **A third response-shape channel (the ordinal precedent).** resolveFamily
-(src/R_interface_bartcore.cpp:1582-1611) branches on control.responseIsBinary and
+(src/R_interface_bartcore.cpp:1580-1613) branches on control.responseIsBinary and
 control.numOrdinalCategories; a count response is neither, so - exactly as ordinal
 added a K-level channel (docs/design/ordinal.md section 4) - NB needs a `count`
 response-shape flag plumbed through ParsedControl beside responseIsBinary, with
 resolveFamily accepting `"nbinom"` only on that shape and refusing it by name
-everywhere else. The engine enum gains ResponseFamily::negbin (model.hpp:1778),
-and the chain family switch (chain.hpp:314-347) a case constructing
+everywhere else. The engine enum gains ResponseFamily::negbin (model.hpp:2580),
+and the chain family switch (chain.hpp:597-631) a case constructing
 NBResponse(y, offset, numObservations, rSpec), with the r spec (a fixed integer,
 or the grid-estimate flag; the residualDf convention of "positive fixes,
 non-positive estimates" carries over) threaded through the options struct as
 residualDf and numCategories are (R_interface_bartcore.cpp:1758, 1761).
 
 **Offset.** o_i = log(exposure_i), entering the mean multiplicatively (section 1);
-a fixed-unit-scale family keeps its zero offset meaningful (R/spec.R:193-205),
+a fixed-unit-scale family keeps its zero offset meaningful (R/spec.R:218-237),
 as probit/logistic/ordinal do. No response de-scaling of the offset (fitShift = 0).
 
 **Weights: refused in v1.** A frequency/case weight replicating an observation
@@ -470,7 +470,7 @@ keepTrees (the predict.bart guard). A "prob-like" latent p = plogis(eta) may als
 be exposed for diagnostics but the reported deliverable is the mean count.
 
 **xbart / rbart_vi refusals.** xbart's mechanism is match.arg over its family
-vector `c("auto", "gaussian", "probit", "logistic")` (R/xbart.R:27, matched at
+vector `c("auto", "gaussian", "probit", "logistic")` (R/xbart.R:26, matched at
 :74): omitting "nbinom" from the vector makes match.arg itself the refusal,
 BEFORE resolveClassificationFamily (:78) ever sees the value - and its losses
 are misclassification/continuous, so a count loss (NB deviance / log-loss) is a
@@ -484,14 +484,15 @@ mechanism, the ordinal precedent.
 **r in a new by-name scalar state block - the resid.df pattern EXACTLY.** Add the
 virtual trio carriesR() / r() / restoreR() to ResponseModel (default false / 0 /
 no-op), mirroring carriesResidualDf() / residualDf() / restoreResidualDf()
-(model.hpp:1901-1903). r is a scalar, so it needs no length (the residualDf
+(model.hpp:4169). r is a scalar, so it needs no length (the residualDf
 analog, not the cutpoints vector analog); in grid mode the stored value is a
 grid member, the TResponse estimatesResidualDf convention (model.hpp:4168).
 ChainStateData gains an `r` field near its residualDf field (chain.hpp:~142);
 getState writes it when carriesR() (chain.hpp:~1629, the residualDf line);
 stateIsValid refuses an NB state with a non-finite/non-positive r
 (chain.hpp:~1750); setState restoreR()s it (chain.hpp:~1873). The bridge adds a
-SLOT_R enum + `"r"` name to slotNames (R_interface_bartcore.cpp:6349-6361), a
+SLOT_DISPERSION enum (retired: renamed from SLOT_R) + name to slotNames
+(R_interface_bartcore.cpp:6447-6449), a
 conditional write when finite (:6505-6507, the resid.df line), and a by-name
 read tolerating absence (:6942-6949). Old states omit the slot and load
 unchanged - the whole point of the additive by-name block; no
@@ -499,7 +500,7 @@ state-format-version bump (additive, per the :3779-3788 rule).
 
 **omega rides the existing latents slot.** The per-observation PG draws omega_i
 are the latents, serialized through the existing `latents` slot exactly as
-LogisticResponse's omega does (model.hpp:2584); latents() returns omega_.data().
+LogisticResponse's omega does (model.hpp:4438); latents() returns omega_.data().
 **Restore-ordering REQUIREMENT: restoreR runs before restoreLatents.** The
 working response is ((y_i - r)/2)/omega_i - o_i, so restoreLatents rebuilds
 working from omega AND the current r; a restore that installs latents before r
@@ -508,7 +509,7 @@ of the latents block (or restoreLatents must be the sole working-rebuild site
 and restoreR must re-trigger it); this ordering is a stated contract of the
 implementation, tested by a state round-trip. workingWeightsVaryPerSweep() is
 true (per-sweep omega), dropping the sufficient-statistic caches each sweep
-(chain.hpp:732-739), the logistic behavior.
+(chain.hpp:785-791), the logistic behavior.
 
 **refreshLatents order - r FIRST, then omega (the invariance requirement).**
 Per sweep: (1) update r from its full conditional given the fit - the grid
@@ -536,7 +537,7 @@ Gibbs count swap): KEEP the current r (a slow-moving global the outer sampler
 wants persisted across a small y perturbation - the ordinal kept-cutpoints
 clause), RECOMPUTE the grid kernel L_k (it derives from the count histogram,
 which the new y changes - the ordinal computeScales-on-setResponse precedent,
-model.hpp:2282), and re-draw omega under the new y, rebuild working. setData
+model.hpp:3397), and re-draw omega under the new y, rebuild working. setData
 (n changes, everything stale): cold-init r to the grid median (the
 ResidualDfPrior medianIndex convention, model.hpp:3998; or the user's fixed
 value), rebuild the kernel, and cold-start omega at its PG(y+r, 0) mean
@@ -545,7 +546,7 @@ value), rebuild the kernel, and cold-start omega at its PG(y+r, 0) mean
 the first sweep's draw replaces it. setWeights is a no-op (weights refused);
 setSigmaPrior a no-op (sigma fixed); setOffset shifts the working response by
 the offset delta, keeping omega and kappa (the logistic setOffset,
-model.hpp:2563-2571).
+model.hpp:4423-4435).
 
 ## 6. Gates
 
@@ -634,7 +635,7 @@ primitive only if the (B) door opens).
   parameter), revisited after NB. Recorded.
 
 - **Grouped / mixed-model NB (rbart_vi + nbinom).** Refused cleanly at the R
-  layer (R/rbart.R:334-339) before the group attribute builds; rbart_vi's family
+  layer (R/rbart.R:330-337) before the group attribute builds; rbart_vi's family
   vector omits "nbinom" for v1. The door is real and FEASIBLE: GroupedResponse is
   a base-response decorator whose conjugate group update needs a Gaussian working
   response on the latent scale (model.hpp:4355+), and NB HAS one - the PG working
@@ -675,7 +676,7 @@ primitive only if the (B) door opens).
   project admit approximate PG draws (no exact real-shape sampler exists,
   2B(iii)), or does it hold the integer-exact line? Weighted-binary's
   real-weights half inherits fork (A)'s answer verbatim: integer weights exact
-  and shipped (LogisticResponse already does them, model.hpp:2544-2546),
+  and shipped (LogisticResponse already does them, model.hpp:3530-3543),
   fractional weights deferred behind the SAME door as real r, and the two
   doors should open together (one primitive, one bias budget, one component-
   test contract serves both - fork (B)'s specification is written to be that

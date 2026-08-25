@@ -40,11 +40,11 @@ INVARIANT (non-negotiable, verified by the blind critique below): the default
 instantiation stays BITWISE-IDENTICAL and pays ZERO new runtime cost.
 
 The facade already resolves runtime choices into monomorphic instantiations:
-`createSampler` (facade.hpp:756) reads the family / IsCategorical /
+`createSampler` (facade.hpp:787) reads the family / IsCategorical /
 ServesRawValues / leaf-covariate axes and dispatches ONCE to build a concrete
-`SamplerFacade<L>` (facade.hpp:387), handing the R bridge a type-erased
+`SamplerFacade<L>` (facade.hpp:413), handing the R bridge a type-erased
 `SamplerBase*`; every later call is "one virtual hop into fully typed code"
-(facade.hpp:14). The sweep is fully monomorphic - no per-element dispatch.
+(facade.hpp:413). The sweep is fully monomorphic - no per-element dispatch.
 
 Storage precision/width is ONE MORE axis on that factory. Thread a `Storage`
 policy through `SamplerFacade<L, Storage>` and the Chain; the factory gains
@@ -77,7 +77,7 @@ heavily rewritten. Budget for source churn, not just extra binary size.
 
 Grounded in the storage inventory (2026-07-20 sweep of combiner.hpp/chain.hpp/
 tree.hpp/data.hpp/model.hpp). KEY INVENTORY FACTS: (a) the predictor store is
-ALREADY uint16 cutpoint codes (xint_t, data.hpp:19/158) - splits run on
+ALREADY uint16 cutpoint codes (xint_t, data.hpp:20/452) - splits run on
 integer codes, raw doubles are quantized ONCE at setup, so the "fp32
 predictor flips a split" hazard does NOT exist on the hot path and the
 biggest n*p prize is already spent; (b) the LARGEST hot array is the gather
@@ -89,9 +89,9 @@ uint8 - no float anywhere today.
 by the equivalence trio staying identical). DEFAULT-ON - a separate,
 lower-risk TRACK 1 that lands first and independently of the fp32 work.
 
-- **Index narrowing size_t -> uint32** (Forest::indexBuffer combiner.hpp:128,
-  its Tree::indices alias tree.hpp:186, and VarianceForest::indexBuffer
-  chain.hpp:311). THE TOP LEVER: footprint n*trees*8B (the single biggest hot
+- **Index narrowing size_t -> uint32** (Forest::indexBuffer combiner.hpp:190,
+  its Tree::indices alias tree.hpp:260, and VarianceForest::indexBuffer
+  chain.hpp:411). THE TOP LEVER: footprint n*trees*8B (the single biggest hot
   array; ~1.6 GB at n=1e6/200 trees) -> halves to 4B, and it halves the
   streamed-index bytes inside the DOMINANT gather (microbench: index
   narrowing alone gives ~1.21x on the gather at n=1e6, g64->g32, and lifts the
@@ -116,7 +116,7 @@ lower-risk TRACK 1 that lands first and independently of the fp32 work.
   scalar body), misc_partitionIndicesSparse, the 16 misc_computeIndexed*
   suffstat/mean/variance kernels AND their misc_mt_ variants,
   misc_sumIndexedVectorElements, misc_setIndexedVectorToConstant; plus
-  Tree::indices (tree.hpp:186), the 8 scalar C++ partition kernels, and
+  Tree::indices (tree.hpp:260), the 8 scalar C++ partition kernels, and
   SubtreeSnapshot.indexSegment (std::vector<size_t> + a sizeof(size_t) memcpy,
   tree.hpp:836). THE TRAP: preservation holds ONLY if each SIMD kernel is
   RETYPED, not REWRITTEN - a fresh uint32 SIMD partition with a different swap
@@ -132,7 +132,7 @@ lower-risk TRACK 1 that lands first and independently of the fp32 work.
   index family described above; both gates re-run independently and the
   equivalence trio stayed BITWISE; ~400MB saved at n=5e5.
 
-- **leafOf uint32 -> uint16** (combiner.hpp:143, n*trees). PRESERVING (node
+- **leafOf uint32 -> uint16** (combiner.hpp:208, n*trees). PRESERVING (node
   ids are exact) and a GENUINE gather input (mu[leafOf[i]] streamed every
   roll, so the reward is real), but CAPACITY-BOUNDED: a tree exceeding 65535
   nodes overflows. Shallow BART trees (base=.95/power=2) astronomically never
@@ -161,7 +161,7 @@ one re-record; OPT-IN only). The primary target.
   misc_compute*SufficientStatisticsFast kernels get float-input variants
   (load float, accumulate double).
 
-  WHY FORK B IS DEAD (chain.hpp:891-948): treeY is a running residual updated
+  WHY FORK B IS DEAD (chain.hpp:1457-1530): treeY is a running residual updated
   PER-TREE inside the backfit loop - `rollTreeResidual(forest, t, ...)` at
   :902 rewrites it, then the gather at :906 reads tree t's freshly-rolled
   residual. A fp64-master + fp32-shadow scheme would have to refresh the
@@ -171,7 +171,7 @@ one re-record; OPT-IN only). The primary target.
   why memory-wall-frontier.md's initial recommendation to prototype Fork B
   first did not survive detailed design (see that doc's section 8c).
 
-  THE ROLL IS INCREMENTAL (rollTreeResidual chain.hpp:4425: t=0 recomputes
+  THE ROLL IS INCREMENTAL (rollTreeResidual chain.hpp:4500: t=0 recomputes
   resid = y - total + mu[leaf]; t>0 does resid += mu[leaf] - muPrev[leafPrev]),
   so fp32 rounding ACCUMULATES across trees (~200 updates/sweep/element) and,
   because it is never independently re-summed, across sweeps. This is the
@@ -240,7 +240,7 @@ one re-record; OPT-IN only). The primary target.
   section 6.
 
 - fp32 SCRATCH/FITS BUNDLE (same opt-in flag, same SBC gate as treeY,
-  gaussian/continuous path only): Forest::totalFits (combiner.hpp:132, n),
+  gaussian/continuous path only): Forest::totalFits (combiner.hpp:194, n),
   test-fit accumulators totalTestFits/currTestFits (nTest), the
   non-constant-leaf treeFits slab (n*trees, dense-leaf models only), the
   variance-forest arrays for HBART (factorByTree n*treesVar,
@@ -257,14 +257,14 @@ one re-record; OPT-IN only). The primary target.
 EXCLUDED from every track - flagged so no one bundles them as a transparent
 memory tier.
 
-- Predictor codes uint16 -> uint8 (data.hpp:158): the largest n*p array but
+- Predictor codes uint16 -> uint8 (data.hpp:452): the largest n*p array but
   ALREADY uint16; narrowing further lowers maxNumCutsRepresentable (~254),
   capping cutpoints and silently changing which splits exist -> different
   tree structure, pathological on high-cardinality columns. Only ever an
   explicit low-resolution MODELING option with its own arc, never a
   transparent tier.
 - fp32 cutpoints (data.hpp:221, tiny footprint) and fp32 ownedTestValues
-  (data.hpp:251, cold re-quantize source): fp32 flips near-tie quantization ->
+  (data.hpp:559, cold re-quantize source): fp32 flips near-tie quantization ->
   correctness-sensitive; not worth the risk, and cutpoints are not n-scaled.
 
 Also out of scope, decided at design time rather than by later measurement:

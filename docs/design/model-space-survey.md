@@ -1,5 +1,7 @@
 # Model-space survey: which model classes justify which update shapes
 
+Code citations are at 39451b1; they are not live.
+
 Status: COMPLETE as a survey, 2026-08-08; D1 (section 4) subsequently LANDED
 2026-08-10 through 2026-08-12 (docs/plans/multiforest-predictor-mutation.md,
 SL 7299b8b through S4) - see the landing note appended to section 4; D4

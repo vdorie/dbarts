@@ -41,11 +41,11 @@ unanimous default: the engine owns quantized data only, with no implicit
 raw retention. That default only works because every residual consumer of
 stored raw values was tracked down and given an explicit, narrow home:
 
-- Re-cutting an UNCHANGED column: setCutPoints re-quantization (data.hpp:450)
-  and quantile refresh (data.hpp:411). Not recoverable from codes (bin
+- Re-cutting an UNCHANGED column: setCutPoints re-quantization (data.hpp:928)
+  and quantile refresh (data.hpp:748). Not recoverable from codes (bin
   counts do not locate new quantile values).
 - Linear/gp leaves: gather owned standardized copies at (re)initialize only
-  (model.hpp:210,231,498,523); no per-draw raw reads. Leaves can own a raw
+  (model.hpp:994,1010,1358,1380); no per-draw raw reads. Leaves can own a raw
   gather too (q <= 8 columns), removing store dependence.
 - getTrees saved-tree replay reads store.x (R_interface_bartcore.cpp:5956);
   routable from codes while the cut grid is unchanged since save.
@@ -74,7 +74,7 @@ land here, not as a separate retrofit), a cut table or level table, and an
 NA policy.
 
 Coverage of the four kind x storage cells is now complete. Three shipped
-before this design (data.hpp:83 ColumnType; buildMixed per-column dispatch,
+before this design (data.hpp:92 ColumnType; buildMixed per-column dispatch,
 sparse-columns.md mixed landing notes): dense ordinal (numerics and ordered
 factors), dense categorical (unordered factors, membership splits, <= 65535
 levels), and sparse ordinal (CSC, rank bitmap or densified codes). Sparse
