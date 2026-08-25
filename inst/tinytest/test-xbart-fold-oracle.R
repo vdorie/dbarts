@@ -16,7 +16,7 @@ source(
 oldSampleKind <- RNGkind()[3L]
 suppressWarnings(RNGkind(sample.kind = "Rejection"))
 
-## a1: fold assembly. At n.threads = 1, the only draws before replication
+## fold assembly. At n.threads = 1, the only draws before replication
 ## 1's row permutation are the chunk seed itself, so the permutation is
 ## reconstructible outside xbart from (seed, n) alone. y is set to the row
 ## index, so a capturing loss's y.test IS that fold's row numbers directly.
@@ -76,7 +76,7 @@ expect_equal(sort(unlist(actualFolds)), seq_len(n))
 # a fold actually fit on is not observable through it directly; disjointness
 # and coverage above pin it exactly, since seq_len(n)[-testRows] over folds
 # that partition 1:n is necessarily the union of every other fold. Whether
-# a fold's fit ever leaked from its own held-out rows is checked in a3.
+# a fold's fit ever leaked from its own held-out rows is checked below.
 
 rm(
   n,
@@ -97,7 +97,7 @@ rm(
   overlaps
 )
 
-## a2: row alignment. A fold's posterior mean on its held-out rows should
+## row alignment. A fold's posterior mean on its held-out rows should
 ## track the y it was scored against; a misordered gather of the test
 ## channel decorrelates the two while leaving shapes untouched. The
 ## permutation null below reshuffles the observed pairing to get that
@@ -151,7 +151,7 @@ for (i in seq_along(folds)) {
 
 rm(captured, captureFit, folds, observed, pooledY, pooledFit, null, threshold)
 
-## a3: leakage. y is independent of x, so a fold that never saw its own
+## leakage. y is independent of x, so a fold that never saw its own
 ## held-out rows can do no better than predict near the training mean;
 ## its rmse must sit close to sd(y). A fit that (wrongly) trained on the
 ## rows it is scored against fits noise instead, and its rmse falls well
@@ -225,7 +225,7 @@ expect_true(
 
 rm(n, x, y, sdY, heldOut, fit, heldOutRmse, inSampleRmse)
 
-## b1: axis placement. k = 20 shrinks every tree toward the training mean
+## axis placement. k = 20 shrinks every tree toward the training mean
 ## regardless of n.trees, so that column's rmse must sit near sd(y.test) at
 ## both tree counts; a small k with 50 trees can use x and lands well
 ## below it. n.trees and k are both length-2 grids here, so a transposed
