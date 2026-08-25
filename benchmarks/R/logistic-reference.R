@@ -10,15 +10,21 @@
 # distribution is wrong. Data are a fixed grid with 25 observations per
 # inter-cut cell so every realizable leaf is well occupied.
 #
-# Part 2 (context, requires the BART package): posterior mean test
-# probabilities against BART::lbart / BART::pbart under exactly matched
-# priors (leaf sd qlogis(0.975) / (k sqrt(ntree)) for logistic - lbart's
-# tau.interval = 0.95 convention - and 3 / (k sqrt(ntree)) for probit,
-# k fixed at 2, tree prior 0.95 / (1 + depth)^2, 100 uniform cuts, fixed
-# centering offsets). This part does not gate: on the part-1 problem lbart
-# itself deviates from the exact posterior by ~0.03 in the anti-shrinkage
-# direction (bartcore matches to MC error), and that bias reappears here
-# as a ~0.02 mean probability difference; pbart agrees to ~0.005.
+# Part 2 (requires the BART package): posterior mean test probabilities
+# against BART::lbart / BART::pbart at ensemble scale (n.trees = 50/200),
+# under exactly matched priors (leaf sd qlogis(0.975) / (k sqrt(ntree)) for
+# logistic - lbart's tau.interval = 0.95 convention - and 3 / (k sqrt(ntree))
+# for probit, k fixed at 2, tree prior 0.95 / (1 + depth)^2, 100 uniform
+# cuts, fixed centering offsets). This is the only comparison on this path
+# against an independent implementation at ensemble scale, so it gates too:
+# on the part-1 problem lbart itself deviates from the exact posterior by
+# ~0.03 in the anti-shrinkage direction (bartcore matches to MC error), and
+# that bias reappears here as a ~0.02 mean probability difference against
+# bartcore; pbart agrees to ~0.005. referenceTolerance below is set with
+# margin above those known biases, so a breach means bartcore's
+# ensemble-scale posterior moved, not that BART disagrees by its usual
+# amount. Skipped loudly (::warning:: plus a job-summary line, not
+# silently) when the BART package is not installed.
 #
 # Usage: Rscript logistic-reference.R [quick]
 
@@ -203,6 +209,9 @@ if (requireNamespace("BART", quietly = TRUE)) {
   nskip <- if (quick) 100L else 500L
   ntree <- if (quick) 50L else 200L
   n.test <- 25L
+  # margin above the known lbart/pbart biases documented above; quick's
+  # smaller ntree and fewer seeds carry more MC noise than full's.
+  referenceTolerance <- if (quick) 0.05 else 0.035
 
   set.seed(5109L)
   n <- 500L
@@ -261,16 +270,19 @@ if (requireNamespace("BART", quietly = TRUE)) {
   }
 
   report <- function(name, a, b) {
+    meanDiff <- mean(abs(colMeans(a) - colMeans(b)))
     cat(sprintf(
-      "%-24s mean |prob difference| = %.4f, max = %.4f (base rate %.2f)\n",
+      "%-24s mean |prob difference| = %.4f, max = %.4f (base rate %.2f)%s\n",
       name,
-      mean(abs(colMeans(a) - colMeans(b))),
+      meanDiff,
       max(abs(colMeans(a) - colMeans(b))),
-      mean(y)
+      mean(y),
+      if (meanDiff > referenceTolerance) " <- FAIL" else ""
     ))
+    meanDiff > referenceTolerance
   }
 
-  cat("\npart 2: BART package comparison (informational; see header)\n")
+  cat("\npart 2: BART package comparison, ensemble scale (see header)\n")
   offset <- qlogis(mean(y))
   a <- do.call(
     rbind,
@@ -287,7 +299,7 @@ if (requireNamespace("BART", quietly = TRUE)) {
     rbind,
     lapply(seq_len(n.seeds), fitBART, fitter = BART::lbart, offset = offset)
   )
-  report("logistic vs BART::lbart", a, b)
+  anyFailure <- report("logistic vs BART::lbart", a, b) || anyFailure
 
   offset <- qnorm(mean(y))
   a <- do.call(
@@ -305,9 +317,15 @@ if (requireNamespace("BART", quietly = TRUE)) {
     rbind,
     lapply(seq_len(n.seeds), fitBART, fitter = BART::pbart, offset = offset)
   )
-  report("probit vs BART::pbart", a, b)
+  anyFailure <- report("probit vs BART::pbart", a, b) || anyFailure
 } else {
-  cat("\npart 2 skipped: BART package not installed\n")
+  msg <- "part 2 (ensemble-scale comparison against BART::lbart/pbart) skipped: BART package not installed"
+  cat("\n", msg, "\n", sep = "")
+  cat("::warning::", msg, "\n", sep = "")
+  summary <- Sys.getenv("GITHUB_STEP_SUMMARY")
+  if (nzchar(summary)) {
+    cat("- ", msg, "\n", file = summary, append = TRUE, sep = "")
+  }
 }
 
 if (anyFailure) {

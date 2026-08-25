@@ -81,6 +81,14 @@ jobs:
         timeout-minutes: 15
         with:
           needs: check
+          # BART is not a dbarts dependency; it is the independent
+          # implementation logistic-reference.R's part 2 gates against, so
+          # installed here (not added to DESCRIPTION) the same way lint.yaml
+          # and pkgdown.yaml pull in their own extra tools. RSPM serves it as
+          # a prebuilt binary (as it does its NeedsCompilation: yes deps
+          # Rcpp/nlme; survival is already a dbarts Suggests), so this adds
+          # under a minute, not a source compile.
+          extra-packages: any::BART
 
       - name: Install the package
         run: R CMD INSTALL .
