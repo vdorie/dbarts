@@ -592,7 +592,7 @@ with the bridge file's line count held.
 Record: the review's evidence is tracked at docs/plans/review-2026-08-24/
 (658869ac) and the tour refreshed and tracked at
 docs/plans/bartcore-review-tour.md (0b89ab8b, anchored at ae5b91d8);
-scratch/ and .claude/ citations retargeted or stripped (4c018187).
+session-path citations retargeted or stripped (4c018187).
 tools/check-doc-freshness.R now checks every docs/design anchor at the
 line (strict tier for identifiers beside the anchor, advisory otherwise),
 commit-hash resolvability (skipped on shallow clones, cross-repo cites

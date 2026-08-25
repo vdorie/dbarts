@@ -579,7 +579,7 @@ consumer").
 ---
 
 ## 6. Defect found while establishing the baseline - pointer only
-
+Fixed at HEAD (not a live defect): `applyNewData` resizes and re-anchors the variance-forest storage via `resizeVarianceStorage`, and both `forceRefreshTrees` and the donor-state restore path route the new data through `refreshVarianceForest` as well.
 The survey found `setData` accepted on a heteroscedastic sampler:
 `refuseMultiForestMutation` keys on `numForests >= 2`
 (R_interface_bartcore.cpp:2629-2634), but the variance forest is the separate

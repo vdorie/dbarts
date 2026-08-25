@@ -150,8 +150,11 @@ items
     predictor mutation on multi-forest samplers, including the
     variance forest, landed in full
     (docs/plans/multiforest-predictor-mutation.md Landing notes).
-    Open: the statesAgree above-chain-level gap remains worked around
-    in the fuzz snapshot (tests/cpp/test_fuzz.cpp:166), not fixed.
+    The statesAgree above-chain-level gap is deliberate, not a
+    workaround: cutPoints/currentSampleNum are compared separately in
+    the fuzz snapshot because statesAgree itself must skip them for
+    other callers that compare states across cut grids
+    (tests/cpp/test_fuzz.cpp:164-171).
   multinomial-counts-mutation: predictPerForest's
     forestReportingIsDefined gate is a standing refusal, not merely
     unimplemented - every candidate use of per-forest off-sample
@@ -230,8 +233,9 @@ items
     decided and landed, including the threaded-predict arc
     (docs/design/threaded-predict.md section 11), the
     constant-response sigma flake fix, the docs/-citation strip, and
-    the feature-matrix anchor resync. Remaining: the review-tour
-    refresh, then VD's own human review. Doors the wave recorded
+    the feature-matrix anchor resync, and the review-tour refresh
+    (tracked at docs/plans/bartcore-review-tour.md, landed 0b89ab8b).
+    Remaining: VD's own human review. Doors the wave recorded
     (negbin rootogram, ordinal tail-precision loglik, negbin burn-in
     dispersion channel, the own-class predict(bases =)/
     fitted(combineChains =) no-ops) live in
@@ -304,9 +308,14 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     treatSens, bartCause, bairrtt) against the final re-baked header
     once, at the freeze.
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-14; submit both
-    to CRAN together. bartCause is ready and PUSHED on branch
-    dbarts-1.0 in ~/Repositories/bartCause (ahead of its main; checks
-    Status OK): submit it after dbarts is accepted.
+    to CRAN together. bartCause is PUSHED on branch dbarts-1.0 in
+    ~/Repositories/bartCause (ahead of its main) but NOT ready: three
+    `dbarts:::alignForestBasisToSubset` assertions fail there, caused by
+    dbarts' deliberate basis/subset contract inversion after bartCause's
+    tip (4aa52288, 47cdb96a; see docs/plans/bartcore-review-tour.md's
+    "Known open"). The fix is bartCause's, pending on its dbarts-1.0
+    branch; submit dbarts regardless and re-verify bartCause once its
+    fix lands.
   close GitHub issue #80 at release: fully resolved by the
     setResponse updateScale switch - default FALSE locks the
     creation-time prior scale, the safe embedded-Gibbs behavior the

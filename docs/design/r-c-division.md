@@ -289,10 +289,10 @@ recommendation, and one other justification changes:
    as committed tests a strawman (K independent probit samplers); the
    decisive arm is K GAUSSIAN samplers with host-drawn latents against
    the combined fit, which measurement predicts will AGREE.
-3. Flat rename: ADOPTED, re-sign at the dbarts.h reshape re-bake to
-   setForestBasis/numForestAmplitudes/forestAmplitudes, + KEEP
-   setForestWeights; stakes lowered (the flat C surface has exactly
-   one consumer and it is in-house - 1 reverse LinkingTo vs 23
+3. Flat rename: ADOPTED and DONE - the dbarts.h reshape re-bake landed
+   setForestBasis/numForestAmplitudes/forestAmplitudes (dbarts.h:497-510),
+   + KEPT setForestWeights; stakes were low (the flat C surface has
+   exactly one consumer and it is in-house - 1 reverse LinkingTo vs 23
    R-level consumers).
 4. bcf() home: bartCause (its dbarts-1.0 branch), ADOPTED;
    discoverability is answered by documentation, not vocabulary at the
@@ -348,9 +348,9 @@ confirmed)
    PRECISION; dbarts.h's "(gaussian)" parenthetical is wrong), and
    run()$train CARRIES THE OFFSET - the natural reading of
    "getLatents() - train" as a conditional draw biases slopes by 7-10
-   oracle SEs; correct usage is incremental. Doc + Rd + dbarts.h fix,
-   plus the offset-free fit accessor. STILL OPEN: the one committed
-   docs slice this arc's stop-loss landing did not close.
+   oracle SEs; correct usage is incremental. DONE: dbarts.h documents
+   the per-family semantics (dbarts_sampler_getLatents), and the
+   offset-free fit accessor shipped as $getFitsWithoutOffset.
 6. The multinomial bart2 host's $fit is a placeholder sampler that
    accepts every mutation as a silent no-op (the real K-forest sampler
    rides $bc); needs a guard or prominent documentation until the

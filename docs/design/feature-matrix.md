@@ -155,7 +155,7 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | model | zero-weight row subset | active-rows mask [f15] | `getLatents` | pointwise loglik | nameable calibration [f16] |
 |---|---|---|---|---|---|
 | gaussian | S sampler.Rd:177, MOD:2790 [f17] | S MOD:2875 | - RIB:6107 [f18] | S generics.R:72 | S dbarts.R:1730, 1735 [f16] |
-| student | S MOD:4090-4097 [f17] | S MOD:4145 | S MOD:4157 | ? generics.R:118 [f19] | S dbarts.R:1730, 1735 [f16] |
+| student | S MOD:4090-4097 [f17] | S MOD:4145 | S MOD:4157 | S generics.R:118 [f19] | S dbarts.R:1730, 1735 [f16] |
 | probit | R RIB:2752 | S MOD:3100 | S MOD:3136 | S generics.R:127 | S dbarts.R:1730, 1735 [f16] |
 | logistic | R RIB:2756 [f20] | S MOD:3570 | S MOD:3628 | S generics.R:127 | S dbarts.R:1730, 1735 [f16] |
 | ordinal | R RIB:2539 | S MOD:3232 | S MOD:3277 | S generics.R:1314 | S dbarts.R:1730, 1735 [f16] |
@@ -166,7 +166,7 @@ survey's verdict (model-space-survey.md doors 1 and 3).
 | hurdle | R bart.R:1155 | - [f12] | - [f12] | S generics.R:2018 [f25] | - [f12] |
 | bcf | S COM:841, 887-891 [f17] [f48] | S MOD:2875, CH:4040 [f26] | S CH:1714 [f18] | M generics.R:72 | R [f23] |
 | grouped | S MOD:4668-4690 | S MOD:4832 [f27] | S MOD:4841 | S generics.R:2480 | S MOD:4863 [f27] |
-| hetero | S CH:4218, MOD:306 | S CH:4212 [f27] | - [f18] | ? generics.R:95 [f28] | S test-calibration-prior-draws.R:268 [f29] |
+| hetero | S CH:4218, MOD:306 | S CH:4212 [f27] | - [f18] | S generics.R:95 [f28] | S test-calibration-prior-draws.R:268 [f29] |
 
 ## 4. Model composition
 
@@ -502,7 +502,7 @@ the multi-forest calibration map's own decomposition of `prior.scale`, NaN on
 every forest whose scale that map does not own, with the matching fields
 appended to `dbarts_forest_calibration` below its 1.0-0 boundary (`sizeof`
 moves, and so, since the token folds every ABI struct's layout, does the
-apiHash - it did not when this landed). They are TRUE after a state install
+apiHash - C_interface.cpp's own static_assert makes that a build failure, not a live gap). They are TRUE after a state install
 rather than
 a spec echo: a donor leaf scale differing bitwise from the one in force sends
 both `node.scale` columns to NaN until `$setForestBasis` re-imposes the map,
@@ -551,9 +551,9 @@ family-dependent rather than plainly `S`.
 `resid.dist` (generics.R:82) scores the MARGINAL t density, `dt((y - ev) /
 sd, df, log = TRUE) - log(sd)` (generics.R:118), rather than folding a
 Student-t fit into the gaussian `dnorm` call (generics.R:120) the way it once
-did. No dedicated test pins this channel
-(inst/tinytest/test-robust-errors.R covers `resid.df` plumbing only, no
-loglik assertion), so the cell stays `?` rather than moving to `S`.
+did. Pinned by value:
+test-pointwise-loglik.R:386-398 checks `ll.t` against `dt(...)` directly at
+three indices, so the cell is `S`.
 
 [f20] Weights on logistic are PG copy counts and a zero count is refused by
 name at creation ("drop zero-count rows", RIB:2756-2761; R mirror
@@ -692,8 +692,8 @@ gaussian branch of `pointwiseLogLikelihood` reads its `s.train` surface
 first: `heteroscedasticScale(object[["s.train"]], n.chains)` (generics.R:95)
 supplies the per-observation scale whenever the fit carries one, taking
 precedence over the scalar `object$sigma` (generics.R:96-102) - the surface is
-stored on the fit at bart.R:243-260. As with [f19], no dedicated test pins the
-loglik channel itself, so the cell stays `?`.
+stored on the fit at bart.R:243-260. As with [f19], pinned by value:
+test-heteroscedastic-channels.R:37-53 checks it against `dnorm(...)` at tolerance 1e-12, so the cell is `S`.
 
 [f29] The variance forest is a separate leaf model entirely, outside
 `forests_`, and is not addressable by the mid-chain `setCalibration`: a
@@ -933,10 +933,10 @@ inexactness (zero-weight rows survived the empty-leaf veto) closed at
 `empty-leaf-veto-fix` ([f17]).
 
 **student (Gaussian + Student-t residuals).** No `rbart_vi()` surface
-(rbart.R:56); no `xbart()` surface (xbart.R:2-33). Pointwise loglik now scores
-the t marginal via `dt(...)`, but no dedicated test pins the channel, so it
-stays `?` ([f19]). Composition with a variance forest is refused by name
-([f30]). Only one dedicated tinytest file.
+(rbart.R:56); no `xbart()` surface (xbart.R:2-33). Pointwise loglik is
+pinned by value ([f19], now `S`), so it is not a gap. Composition with a
+variance forest is refused by name ([f30]). Only one dedicated tinytest
+file.
 
 **probit.** None.
 
@@ -1009,9 +1009,9 @@ formals ([f37]) though the engine paths carry no group gate. The `setResponse`
 gap CLOSED at adoption-slate S3 ([f13]; the section-2 cell is the record).
 Composition with a variance forest constructs unrefused and untested ([f30]).
 
-**heteroscedastic.** No `xbart()` reach. Pointwise loglik now reads the
-per-observation `s.train` surface it stores, but no dedicated test pins the
-channel, so it stays `?` ([f28]). Selecting attribute undocumented in the
+**heteroscedastic.** No `xbart()` reach. Pointwise loglik reads the
+per-observation `s.train` surface it stores and is pinned by value
+([f28], now `S`). Selecting attribute undocumented in the
 header ([f3]). Out of the SBC matrix, deferred not blocked ([f47]). The one
 door its own arc recorded as unbuilt - the `setState` variance column-mask
 gap - is BUILT: `Chain::columnMaskStateFeasible` carries a variance pass of

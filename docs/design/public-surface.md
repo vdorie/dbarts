@@ -76,8 +76,8 @@ prototype), along with `rngKind`/`rngNormalKind` (explicit generator
 kinds were a classic feature; `seed` stays, renamed from `rngSeed`
 by bart2-argument-consolidation.md's S5) and the classic
 `dbartsState` class. Every R5 method runs its bartcore body
-unconditionally; `startThreads`/`stopThreads` remain as no-ops for their
-callers. Binary responses with weights are now refused at creation
+unconditionally; `startThreads`/`stopThreads` remained as no-ops for their
+callers, then were removed outright (bdb38ef1). Binary responses with weights are now refused at creation
 everywhere (previously only the bartcore path refused).
 test-sampler-customMCMC.R (classic-stream snapshots; behaviors covered on
 bartcore in test-bartcore.R) is deleted, test-rng.R keeps its
@@ -217,21 +217,21 @@ Proposed:
   weighted-probit likelihood the old engine implemented was incorrect and
   what to use instead (replicate rows, or a gaussian model on latents).
 
-Open: whether `family` also belongs on `xbart` (its losses already branch on
-binary responses; logistic would want log-loss by default).
+DECIDED and DONE: `family` also belongs on `xbart` - R/xbart.R carries the
+full four-token family, probit the binary default, same as elsewhere.
 
 DECIDED: `family` as proposed; probit stays the binary default.
 Landed 2026-07-03: `family = c("auto", "gaussian", "probit", "logistic")`
 on `dbarts()` and bart2, resolved against the response into a new
-`dbartsControl@family` slot (which also drives pointer re-creation after
+`dbartsModel@family` slot (superseded from `dbartsControl`; also drives pointer re-creation after
 save/load). `"gaussian"` on a 0/1 response fits a continuous model;
 logistic requires the bartcore engine, with node.scale = pi * sqrt(3) -
 probit's 3.0 widened by the logistic latent sd. The R5 surface reports
 binary fits on the latent scale. The wrappers' probability transforms
 (predict/extract/fitted/plot) went link-aware 2026-07-03: packaged fits
 carry a `family` element and transform through it (fits saved without
-one are probit). rbart stays probit-only - its ranef Gibbs step assumes
-normal latents and `rbart_vi` rejects a `family` argument.
+one are probit). rbart's ranef Gibbs step assumes normal latents, so
+binary still resolves to probit, but `rbart_vi` now carries its own `family` argument (auto/gaussian/aft, rbart.R:49) rather than rejecting one.
 
 ## 3a. Prior specification
 
@@ -407,11 +407,11 @@ DECIDED, v1 surface of `inst/include/dbarts/dbarts.h`:
   borrow for the sampler's lifetime.
 - Additive evolution is free (name lookup), so deferred without cost:
   per-observation predictor updates and the joint session, setCutPoints,
-  setData, and the per-iteration observer callback - classic
-  `Control::callback` had no reachable consumer, so its replacement waits
-  for one.
-- The C++ headers ship for `LinkingTo` use without ABI promises (header-only,
-  recompiled per consumer), documented as unstable.
+  and setData - the per-iteration observer callback landed anyway, as
+  `dbarts_sampler_setCallback` (dbarts.h:717), ahead of classic
+  `Control::callback`'s reachable consumer.
+- STRUCK: C++ headers shipping for `LinkingTo` use without ABI promises. Not
+  implemented and not wanted - the flat C header is the shipped surface, by design.
 
 RESOLVED by the port (2026-07-04, stan4bart 8c96206 against dbarts
 1.0-0): stan4bart needed two dbarts-side additions the audit missed, both
@@ -528,7 +528,7 @@ declaration colliding with a top-level argument of the same name refuses
 instead of silently winning. The FIRST forest's structural knobs restate the
 fit's own `control@n.trees`, `tree.prior`, `interactions` and `blocks` rather
 than adding a second set. `forests = NULL` is byte-identical to the
-single-forest path. Two causal spellings survive M2 deliberately:
-`dbartsData(treatment = )` still names the column directly, and the flat
-`dbarts_sampler_setTreatment`/`bcfGlue` entries are the reshape's to re-sign.
+single-forest path. The `treatment=` and `setTreatment`/`bcfGlue` spellings
+floated here never landed: the shipped mechanism is `dbartsData(bases = )`
+(47cdb96a), the K-length list this section opens with.
 `bcf()` itself is expected to land in bartCause (same plan, fork 4).

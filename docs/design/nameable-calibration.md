@@ -1,8 +1,8 @@
 # Naming the leaf-prior calibration
 
-Status: PARTIAL, 2026-08-13. Creation half LANDED c2a7e89b, mid-chain half
-LANDED (this commit); the flat-C half is an item inside the dbarts.h reshape's
-S1. Plan: docs/plans/nameable-calibration.md. Companion:
+Status: ARC COMPLETE. Creation half LANDED c2a7e89b, mid-chain half
+LANDED (S2 d809b944 + 7da36dc3); the flat-C half LANDED at the dbarts.h
+reshape's S1 (ab3aa2fa). Plan: docs/plans/nameable-calibration.md. Companion:
 docs/design/prior-defaults.md, which owns the defaults this names an
 alternative to, and docs/design/r-c-division.md, whose "the wall that remains
 is calibration" is what this closes.

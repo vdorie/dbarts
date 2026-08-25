@@ -122,7 +122,7 @@ Columns: `file | STATUS | one-liner`.
 | sbc-calibration.md | MIXED (Tier A complete; B/C outstanding) | Simulation-based-calibration harness; found the BCF glue-on sigma mixing issue and the cauchy-tau SBC-intractable tooling gap. 646-line running log, heaviest rewrite-signal doc in the corpus. |
 | sbc-ci-gate.md | LANDED | Weekly/manual non-blocking CI run of the gaussian SBC baseline. |
 | sbc-family-tiers.md | BUILT d094675 (2026-08-04) | Extends SBC to ordinal, nbinom (tightened k=8), robust-t, and multinomial: t + softmax ALL PASS, ordinal 9/10 (ridge mixing), nbinom identified-mu PASS with r/psi H-MIX; the raw-f_ik finding spun out to multinomial-level-centering.md. aft/hazard/hurdle excluded as ill-posed; heteroscedastic/monotone liftable. |
-| multinomial-level-centering.md | OPEN (memo first) | The SBC raw-f_ik arm implicates afterCombine's level-centering precision (counts observations where the exact per-forest-level conditional counts leaves); derive, quantify, then fix or prove inert. |
+| multinomial-level-centering.md | LANDED ec2a3d0 (2026-08-05) | The SBC raw-f_ik arm implicated afterCombine's level-centering precision; fixed with uniform absorption plus an exact leaf-space conditional draw, per the Memo's five blocking corrections. |
 | runsbcbcf-repair.md | LANDED 62caed0, 2026-08-05 | Diagnoses and repairs `runSbcBCF` (benchmarks/R/sbc.R) via FIX-B (a setModel guard precondition); acceptance PASS across thin=30/90/120. |
 
 ## Data-ownership program (pairs with docs/design/data-ownership.md)
@@ -163,7 +163,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | group-by-exposure.md | RESEARCH-OPEN | Decision memo (not yet written) on exposing grouped random effects beyond rbart_vi via a group.by argument; blocked on demand. |
-| grouped-equivalence.md | RESEARCH-OPEN | Records why grouped rbart_vi fits are excluded from the equivalence gate; conditional on a future grouped-Gibbs refactor. |
+| grouped-equivalence.md | CLOSED, LANDED | The grouped scenario shipped in 0e9ccca and grouped_aft in ac6ec2c; both sit in the current equivalence baseline (MANIFEST). This doc predates the landing and is kept as history. |
 
 ## Performance & kernel singletons
 
@@ -273,7 +273,7 @@ Columns: `file | STATUS | one-liner`.
 | interaction-constraints-p4.md | LANDED aadbbc8/103dbe2 (2026-07-21) | P4 follow-on: blocks() fixed-capacity per-tree block-additive prior plus the columnMask warm-start/setState feasibility gate (F1; follow-up 073d3db); soft path penalties and formal heredity stay deferred. |
 | monotone-prior-draw.md | LANDED 173a710 (2026-08-04) | samplePriorPredictive on a monotone fit drew unconstrained leaf values and left the chain monotone-infeasible; fixed by exact per-tree rejection from the constrained prior. Found by the SBC-extension blind critique. |
 | sampletreesfromprior-midchain.md | LANDED 1947b10, 2026-08-08 | Fixes mid-chain sampleTreesFromPrior leaving totalFits/leafOf out of sync with the reset muByTree (a permanent residual displacement and an ASAN-invisible out-of-capacity read); the reset is forest-only and lands the forest in the zero-fit state a freshly built chain carries. |
-| setpredictor-leafof-rebuild.md | OPEN (memo first) | Restores setPredictor-accept (+22-28% x86 regression from constant-leaf-fits' full leafOf rebuild on accepted mutations) via lazy/partial maintenance; embedded-Gibbs hot path. |
+| setpredictor-leafof-rebuild.md | CLOSED 2026-08-05 | All three leafOf-scoped mechanisms declined by measurement (ceiling +9.7%); the mu[leafOf]-gather SIMD door was taken instead, in a roll-only form, LANDED 9141274. |
 | moves-degenerate-root-guard.md | LANDED | Fixes a segfault when a root-only tree has no available split variable. |
 | pointwise-loglik.md | LANDED | R-side per-observation/per-draw log-likelihood extract for loo/waic. |
 | ppd-sigma-pairing.md | LANDED | Fixes multi-chain sampleFromPPD sigma pairing (chain-interleaved vs chain-blocked). |

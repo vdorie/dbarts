@@ -707,12 +707,12 @@ by construction).
 **Decision: reserve now, build post-RC.** Cost of opening, corrected against
 an earlier "one hash cell edit" estimate: appending to `DBARTS_C_API_DECLS`
 moves the signature half too, so opening this door is TWO literal re-bakes -
-`DBARTS_C_API_HASH` (`dbarts.h:142`, today `0x6c9776ae1197e8f5ULL`) AND
-`dbarts_apiSignatureToken` (`C_interface.cpp:459`, today
-`0x85bd1ef04beb3848ULL`) - plus `inst/tinytest/test-capi.R:81`'s
-`expect_identical(hashes$text, "0x6c9776ae1197e8f5")`, which must change,
+`DBARTS_C_API_HASH` (`dbarts.h:142`, today `0x66d33f1613892406ULL`) AND
+`dbarts_apiSignatureToken` (`C_interface.cpp:461`, today
+`0xcb83367ee0c4175bULL`) - plus `inst/tinytest/test-capi.R:84`'s
+`expect_identical(hashes$text, "0x66d33f1613892406")`, which must change,
 and a new `expect_false` for the superseded literal alongside the existing
-ones at `:73-74`, `:78`. Priced at ~260 non-test / ~200 test
+ones at `:73-74`, `:78`, `:81`. Priced at ~260 non-test / ~200 test
 (multinomial-mutation-arc.md Door 2). Not spent now: the named consumer is
 stan4bart, on its own branch with its own release, so nothing is blocked by
 deferring; multinomial stays R-only in the meantime, exactly as it is
