@@ -167,6 +167,37 @@ fit.dart <- dbarts::rbart_vi(
 expect_equal(dim(fit.dart$varprobs), c(ncol(testData$x), 4L))
 expect_equivalent(colSums(fit.dart$varprobs), rep(1, 4L))
 
+# the multi-chain packaging reports them as well, in the chain-major shape
+# (the single-chain branch above is a different assembly)
+fit.dart2 <- dbarts::rbart_vi(
+  y ~ x,
+  testData,
+  group.by = g,
+  n.samples = 4L,
+  n.burn = 2L,
+  n.thin = 1L,
+  n.chains = 2L,
+  n.trees = 3L,
+  n.threads = 1L,
+  verbose = FALSE,
+  dart = TRUE,
+  combineChains = FALSE
+)
+varprobs2 <- fit.dart2$varprobs
+expect_equal(dim(varprobs2), c(2L, 4L, ncol(testData$x)))
+# guarded so a dropped channel fails this assertion too rather than aborting
+# the file where a NULL meets apply()
+chainSumsAreOne <- tryCatch(
+  isTRUE(all.equal(
+    apply(varprobs2, c(1L, 2L), sum),
+    matrix(1, 2L, 4L),
+    check.attributes = FALSE
+  )),
+  error = function(e) FALSE
+)
+expect_true(chainSumsAreOne)
+rm(fit.dart2, varprobs2, chainSumsAreOne)
+
 expect_error(
   dbarts::rbart_vi(
     y ~ x,

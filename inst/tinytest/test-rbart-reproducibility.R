@@ -94,7 +94,34 @@ expect_equal(fit3$yhat.train, fit4$yhat.train)
 expect_equal(fit3$ranef, fit4$ranef)
 expect_equal(fit3$tau, fit4$tau)
 
-rm(fit4, fit3, fit2, fit1)
+# a supplied seed fixes the draws on the single-chain (in-core) path too,
+# independently of where R's own generator happens to stand
+seededFit <- function(seed) {
+  dbarts::rbart_vi(
+    y ~ x,
+    group.by = g,
+    n.samples = 5L,
+    n.burn = 0L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.trees = 3L,
+    n.threads = 1L,
+    verbose = FALSE,
+    seed = seed
+  )
+}
+set.seed(1L)
+fit5 <- seededFit(7L)
+set.seed(2L)
+fit6 <- seededFit(7L)
+expect_equal(fit5$yhat.train, fit6$yhat.train)
+expect_equal(fit5$ranef, fit6$ranef)
+expect_equal(fit5$tau, fit6$tau)
+# and the seed is what does it: a different seed moves the draws
+fit7 <- seededFit(8L)
+expect_false(isTRUE(all.equal(fit5$yhat.train, fit7$yhat.train)))
+
+rm(fit7, fit6, fit5, fit4, fit3, fit2, fit1, seededFit)
 
 rm(g, y, x)
 

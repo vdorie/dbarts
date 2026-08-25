@@ -131,6 +131,25 @@ xval <- dbarts::xbart(
 
 expect_inherits(xval, "array")
 
+# the fold sizes themselves: 24 rows over 5 folds is 5, 5, 5, 4, ... - a loss
+# that reports its own held-out row count averages to 24 / 5 in every cell,
+# which no fold plan that drops the remainder rows can reach
+foldSize <- function(y.test, y.test.hat, weights) length(y.test)
+xvalFolds <- dbarts::xbart(
+  x,
+  y,
+  n.samples = 6L,
+  n.burn = c(5L, 3L, 1L),
+  method = "k-fold",
+  n.test = 5,
+  n.reps = 2L,
+  k = k,
+  loss = foldSize,
+  n.threads = 1L
+)
+expect_equal(as.vector(xvalFolds), rep_len(length(y) / 5, length(xvalFolds)))
+rm(xvalFolds, foldSize)
+
 rm(testData)
 
 

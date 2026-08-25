@@ -55,6 +55,56 @@ bartFit <- bart(
 expect_equal(nrow(bartFit$yhat.train), n.sims %/% keepevery)
 rm(bartFit, keepevery, n.sims, n.burn)
 
+# keepevery thins the BURN-IN as well: nskip counts raw iterations, so the
+# same nskip under two thinning rates burns the same stream and the kept
+# draws interleave exactly (kept draw j of the thinned fit is draw
+# keepevery * j of the unthinned one). A burn-in left in thinned units would
+# run keepevery times as long and land nowhere near it.
+keepevery <- 5L
+burnFit <- function(x, y, draws, thin) {
+  bart(
+    x,
+    y,
+    ndpost = draws,
+    nskip = 50L,
+    keepevery = thin,
+    ntree = 5L,
+    nchain = 1L,
+    nthread = 1L,
+    verbose = FALSE,
+    seed = 7L
+  )
+}
+thinned <- burnFit(testData$x, testData$y, 10L, keepevery)
+unthinned <- burnFit(testData$x, testData$y, 50L, 1L)
+expect_equal(nrow(thinned$yhat.train), 2L)
+expect_identical(thinned$yhat.train[1L, ], unthinned$yhat.train[keepevery, ])
+expect_identical(
+  thinned$yhat.train[2L, ],
+  unthinned$yhat.train[2L * keepevery, ]
+)
+
+# bart2 carries the same convention through its own control construction
+burnFit2 <- function(x, y, draws, thin) {
+  dbarts::bart2(
+    x,
+    y,
+    n.samples = draws,
+    n.burn = 50L,
+    n.thin = thin,
+    n.trees = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    seed = 7L
+  )
+}
+thinned <- burnFit2(testData$x, testData$y, 10L, keepevery)
+unthinned <- burnFit2(testData$x, testData$y, 50L, 1L)
+expect_equal(nrow(thinned$yhat.train), 2L)
+expect_identical(thinned$yhat.train[1L, ], unthinned$yhat.train[keepevery, ])
+rm(thinned, unthinned, keepevery, burnFit, burnFit2)
+
 # test_that call slot of control is propagated
 n.samples <- 5L
 n.burn <- 1L

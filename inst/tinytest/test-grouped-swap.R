@@ -62,7 +62,10 @@ expect_true(all(is.finite(after$ranef)))
 expect_true(all(after$tau > 0))
 
 # --- gaussian: updateScale = TRUE is refused on both response-side conduits,
-# and the refusal names the two quantities it is protecting
+# and the refusal names the two quantities it is protecting. The refusal a
+# GROUPED sampler meets is the engine's, which is why these patterns are its
+# vocabulary; the R-layer twin guards the amplitude-carrying samplers and is
+# held in test-bcf-r5-surface.R and test-forest-basis-r5.R.
 
 expect_error(sampler$setResponse(y2, updateScale = TRUE), pattern = "tau")
 expect_error(

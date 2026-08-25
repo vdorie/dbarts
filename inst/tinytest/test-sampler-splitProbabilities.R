@@ -72,6 +72,13 @@ expect_error(
   "missing values for columns 1"
 )
 
+# an explicit vector that normalizes to uniform canonicalizes to the empty
+# spec too, exactly as the scalar spellings above do
+probs <- rep.int(3, ncol(testData$x))
+fitCall$splitprobs <- quote(probs)
+bartFit <- eval(fitCall)
+expect_equal(length(bartFit$fit$model@tree.prior@splitProbabilities), 0L)
+
 rm(bartFit, probs)
 
 rm(fitCall)

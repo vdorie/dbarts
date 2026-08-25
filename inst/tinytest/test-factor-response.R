@@ -100,6 +100,8 @@ expect_error(
   ),
   "multinomial"
 )
+# xbart and rbart_vi resolve an EXPLICIT family, so they refuse under their
+# own caller-naming text rather than the family = "auto" arm's
 expect_error(
   xbart(
     x,
@@ -110,7 +112,21 @@ expect_error(
     k = 2,
     n.threads = 1L
   ),
-  "multinomial"
+  "xbart does not fit a 3-level factor response"
+)
+expect_error(
+  rbart_vi(
+    y3 ~ x1 + x2 + x3,
+    df,
+    group.by = rep_len(seq_len(4L), n),
+    n.samples = 5L,
+    n.burn = 0L,
+    n.trees = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  "rbart_vi does not fit a 3-level factor response"
 )
 
 # --- bart2: formula + 2-level factor probit matches x/y bit for bit ---

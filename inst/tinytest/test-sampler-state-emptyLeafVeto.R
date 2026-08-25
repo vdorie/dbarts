@@ -7,7 +7,15 @@
 # residualVariance term), so a fixed finite penalty is beaten once the branch
 # score drops past it - reached here with a small fixed residual variance that
 # drives sigma tiny and the score large-negative while the trees grow deep.
-# Regression for the -1e7 -> -HUGE_VAL fix.
+#
+# The PRICE of that veto is owned by tests/cpp/test_moves.cpp ("a vetoed
+# current against an admissible proposal loses outright"), not by this file:
+# re-pricing it at a finite -1e7 leaves every assertion below green, and no
+# rescaling of this fixture separates the two prices (tried at n up to 8000,
+# fixed residual variance down to 1e-10, and 200 trees). What this file holds
+# is the state ROUND TRIP - trees deep enough to carry low-count leaves store,
+# restore into a fresh sampler, and re-store without tripping the occupancy
+# check - so keep it green rather than reading it as the pricing regression.
 
 set.seed(1L)
 n <- 2000L

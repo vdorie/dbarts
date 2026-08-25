@@ -71,6 +71,21 @@ set.seed(3)
 inheritedDraws <- priorDraws(inheritedSampler, x[1:4, , drop = FALSE], 400L)
 expect_true(mean(apply(inheritedDraws, 2L, sd)) / priorSd > 2.5)
 
+# the 'sd' spelling names the prior sd at the CURRENT k, so at a fixed k it
+# must reach the same draws the equivalent 'scale' spelling does (scale is
+# the prior sd at k = 1). 300 draws carry a 4% se, so the band below sits
+# well inside the factor of k that dropping the conversion would cost.
+sdSampler <- dbarts(
+  x,
+  y,
+  control = priorControl(),
+  node.prior = normal(k = fixedK, sd = priorSd)
+)
+set.seed(3)
+sdDraws <- priorDraws(sdSampler, x[1:4, , drop = FALSE], 300L)
+expect_true(max(abs(apply(sdDraws, 2L, sd) / priorSd - 1)) < 0.15)
+rm(sdSampler, sdDraws)
+
 # --- linear leaf: prior.sd is a LOWER bound, attained at the standardized
 # covariate origin, with sd(f(x)) = prior.sd * sqrt(1 + ||z(x)||^2). The rows
 # exercise a constant column (which keeps sd 1 and contributes 0), training

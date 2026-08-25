@@ -33,7 +33,17 @@ sampler <- dbarts::dbarts(
     updateState = FALSE
   )
 )
+# the prior draw must reach the engine: the live trees are stumps before the
+# call and carry splits after it (the yhat comparison below cannot see this -
+# both sides draw their trees the same way)
+treesBefore <- sampler$getTrees(current = TRUE)
+expect_equal(nrow(treesBefore), 4L)
+expect_equal(unique(treesBefore$var), -1L)
 sampler$sampleTreesFromPrior()
+treesAfter <- sampler$getTrees(current = TRUE)
+expect_true(nrow(treesAfter) > nrow(treesBefore))
+expect_true(any(treesAfter$var > 0L))
+
 for (i in seq_len(5L)) {
   invisible(sampler$run(0L, 1L))
 }
@@ -41,7 +51,7 @@ pred.dbarts <- sampler$predict(testData$x)
 
 expect_equal(pred.bart, t(pred.dbarts))
 
-rm(pred.dbarts, i, sampler, pred.bart)
+rm(pred.dbarts, i, sampler, pred.bart, treesBefore, treesAfter)
 
 # test that sequentially running samples don't overflow with fixed trees
 sampler <- dbarts::dbarts(

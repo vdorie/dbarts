@@ -279,6 +279,32 @@ expect_equal(as.numeric(A$data@x[inst, "theta"]), xnew[inst])
 expect_true(noEmptyLeaf(A))
 expect_true(noEmptyLeaf(B))
 
+# a NUMERIC column is resolved to a name off the FIRST sampler's design
+# matrix, and it is THAT column that moves in every sampler: here the shared
+# names sit in opposite orders, so a column index that resolved to the first
+# name instead would move the wrong variable in both
+C <- dbarts::dbarts(
+  y ~ alpha + theta,
+  data.frame(alpha = v, theta = x, y = x + rnorm(n)),
+  control = ctrl
+)
+D <- dbarts::dbarts(
+  y ~ theta + alpha,
+  data.frame(theta = x, alpha = v, y = -x + rnorm(n)),
+  control = ctrl
+)
+invisible(C$run(20L, 1L))
+invisible(D$run(20L, 1L))
+alphaBefore <- as.numeric(C$data@x[, "alpha"])
+xnew2 <- rnorm(n)
+instNum <- updatePredictorPerObservationJointly(list(C, D), xnew2, 2L)
+expect_true(any(instNum))
+expect_equal(as.numeric(C$data@x[instNum, "theta"]), xnew2[instNum])
+expect_equal(as.numeric(D$data@x[instNum, "theta"]), xnew2[instNum])
+expect_equal(as.numeric(C$data@x[, "alpha"]), alphaBefore)
+
+rm(C, D, alphaBefore, xnew2, instNum)
+
 # a single sampler may be passed directly (not wrapped in a list)
 inst2 <- updatePredictorPerObservationJointly(
   A,

@@ -74,6 +74,21 @@ fitB <- dbarts::bart2(
 expect_equal(fitA$yhat.train, fitB$yhat.train)
 expect_true(all(is.finite(fitA$yhat.train)))
 
+## the COUNT is forwarded, not just the request: one sweep and two from the
+## same seed initialize differently, so their draws cannot coincide
+fitOne <- dbarts::bart2(
+  x,
+  y,
+  n.trees = 50L,
+  n.samples = 10L,
+  n.burn = 0L,
+  n.chains = 1L,
+  verbose = FALSE,
+  seed = 3L,
+  n.grow.sweeps = 1L
+)
+expect_false(isTRUE(all.equal(fitA$yhat.train, fitOne$yhat.train)))
+
 ## the measurable claim: with no burn-in, a grow-from-root start reaches a much
 ## lower early-iteration training RMSE than the prior-init cold start
 earlyRMSE <- function(fit) {

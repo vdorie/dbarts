@@ -15,33 +15,32 @@ expect_inherits(
   dbarts::dbartsData(modelFormula, trainData_df),
   "dbartsData"
 )
-expect_inherits(
-  dbarts::dbartsData(modelFormula, trainData_df, weights = weights),
-  "dbartsData"
+# each channel named in 'data' must ARRIVE on the object, not merely be
+# accepted by the call
+dat <- dbarts::dbartsData(modelFormula, trainData_df, weights = weights)
+expect_equal(dat@weights, trainData_df$weights)
+dat <- dbarts::dbartsData(modelFormula, trainData_df, offset = offset)
+expect_equal(dat@offset, trainData_df$offset)
+dat <- dbarts::dbartsData(
+  modelFormula,
+  trainData_df,
+  weights = weights,
+  offset = offset
 )
-expect_inherits(
-  dbarts::dbartsData(modelFormula, trainData_df, offset = offset),
-  "dbartsData"
+expect_equal(dat@weights, trainData_df$weights)
+expect_equal(dat@offset, trainData_df$offset)
+# and the subset applies to all three, in row order
+dat <- dbarts::dbartsData(
+  modelFormula,
+  trainData_df,
+  subset = 1:10,
+  weights = weights,
+  offset = offset
 )
-expect_inherits(
-  dbarts::dbartsData(
-    modelFormula,
-    trainData_df,
-    weights = weights,
-    offset = offset
-  ),
-  "dbartsData"
-)
-expect_inherits(
-  dbarts::dbartsData(
-    modelFormula,
-    trainData_df,
-    subset = 1:10,
-    weights = weights,
-    offset = offset
-  ),
-  "dbartsData"
-)
+expect_equal(dat@y, trainData_df$y[1:10])
+expect_equal(dat@weights, trainData_df$weights[1:10])
+expect_equal(dat@offset, trainData_df$offset[1:10])
+rm(dat)
 
 testData_df <- trainData_df[1:20, ]
 expect_inherits(

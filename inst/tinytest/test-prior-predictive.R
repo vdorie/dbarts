@@ -110,6 +110,16 @@ ppd.pinned <-
   samplePriorPredictive(sampler.pinned, n.samples = 20L, type = "ppd")
 expect_true(var(as.vector(ppd.pinned)) >= var(as.vector(pinned1)))
 
+# that noise is DRAWN from the sigma prior rather than held at sigest: with
+# the forests pinned, the residual scale of draw s is the row sd of the
+# difference, and those vary far more than the row estimates' own sampling
+# error (which over 30 observations spans well under a factor of 2)
+ev.spread <- samplePriorPredictive(sampler.pinned, n.samples = 60L, type = "ev")
+ppd.spread <-
+  samplePriorPredictive(sampler.pinned, n.samples = 60L, type = "ppd")
+sigmaByDraw <- apply(ppd.spread - ev.spread, 1L, sd)
+expect_true(max(sigmaByDraw) / min(sigmaByDraw) > 3)
+
 # (e) validation errors
 expect_error(samplePriorPredictive(1:5), pattern = "dbartsSampler")
 expect_error(

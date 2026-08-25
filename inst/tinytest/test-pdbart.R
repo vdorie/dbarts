@@ -85,10 +85,33 @@ expect_equal(pdb1$fd, pdb3$fd)
 expect_equal(pdb1$fd, pdb4$fd)
 expect_equal(pdb1$fd, pdb5$fd)
 
-# the plot method renders each requested predictor into a null device
-pdf(NULL)
+# the plot method renders each requested predictor: one device page per
+# entry of xind, each carrying that predictor's own axis label
+psFile <- tempfile(fileext = ".ps")
+postscript(psFile, onefile = TRUE)
 expect_silent(plot(pdb1))
 dev.off()
+psLines <- readLines(psFile, warn = FALSE)
+expect_equal(length(grep("^%%Page:", psLines)), 2L)
+labelHits <- vapply(
+  pdb1$xlbs,
+  function(lab) length(grep(paste0("(", lab, ")"), psLines, fixed = TRUE)),
+  integer(1L)
+)
+expect_equivalent(labelHits, c(1L, 1L))
+
+# and xind selects WHICH predictor, not just how many: the second alone
+postscript(psFile, onefile = TRUE)
+expect_silent(plot(pdb1, xind = 2L))
+dev.off()
+psLines <- readLines(psFile, warn = FALSE)
+expect_equal(length(grep("^%%Page:", psLines)), 1L)
+expect_equal(
+  length(grep(paste0("(", pdb1$xlbs[2L], ")"), psLines, fixed = TRUE)),
+  1L
+)
+unlink(psFile)
+rm(psFile, psLines, labelHits)
 
 # sampleronly is set internally (pdbart always needs the sampler, not just
 # its result); an explicit user value must error rather than be silently

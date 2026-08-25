@@ -73,6 +73,35 @@ expect_identical(
 
 rm(ll.w, ev.w, fit.w, j4, j1, w)
 
+# a zero-weight row carries no information and is flagged unavailable: NaN,
+# not the -Inf its infinite residual sd would otherwise produce (the two are
+# both non-finite, and only one of them survives a sum over rows)
+w0 <- rep_len(c(1, 1, 0), n)
+fit.0 <- withCallingHandlers(
+  bart2(
+    y ~ x,
+    weights = w0,
+    n.samples = 60L,
+    n.burn = 40L,
+    n.trees = 20L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  warning = function(w) invokeRestart("muffleWarning")
+)
+ll.0 <- extract(fit.0, type = "loglik")
+ev.0 <- extract(fit.0, type = "ev")
+j0 <- which(w0 == 0)[1L]
+expect_identical(ll.0[, j0], rep(NaN, nrow(ll.0)))
+jw <- which(w0 == 1)[1L]
+expect_identical(
+  ll.0[, jw],
+  dnorm(y[jw], ev.0[, jw], fit.0$sigma, log = TRUE)
+)
+
+rm(ll.0, ev.0, fit.0, j0, jw, w0)
+
 # 3. probit: matches the bernoulli log-likelihood of the fitted probability
 set.seed(3, sample.kind = "Rejection")
 y.b <- rbinom(n, 1L, pnorm(0.8 * x[, 1L] - 0.4))

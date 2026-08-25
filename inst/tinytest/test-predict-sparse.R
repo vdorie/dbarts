@@ -55,6 +55,25 @@ pred.dense.off <- sampler$predict(test.dense, offset.te)
 pred.sparse.off <- sampler$predict(test.sparse, offset.te)
 expect_identical(pred.dense.off, pred.sparse.off)
 
+# a sparse test column whose level TABLE differs from training's takes the
+# recode arm instead of the identical-levels shortcut, and still predicts
+# bitwise identically to the dense twin - stored codes and the implicit
+# reference level both re-coded into training order
+levels.rev <- rev(levels.g)
+test.dense.rev <- data.frame(
+  x1 = x1.te,
+  g = factor(as.character(g.te), levels = levels.rev)
+)
+test.sparse.rev <- data.frame(x1 = x1.te)
+test.sparse.rev$g <- sparseFactor(
+  as.character(g.te),
+  levels = levels.rev,
+  reference = "L2"
+)
+expect_identical(sampler$predict(test.dense.rev), pred.dense)
+expect_identical(sampler$predict(test.sparse.rev), pred.dense)
+rm(levels.rev, test.dense.rev, test.sparse.rev)
+
 # a plain dense matrix test set takes the frozen dense entry, untouched
 x.mat <- extract(sampler, "predictors")
 pred.mat <- sampler$predict(x.mat[1:10L, , drop = FALSE])

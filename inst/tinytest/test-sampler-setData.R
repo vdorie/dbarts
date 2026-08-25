@@ -39,6 +39,12 @@ expect_equal(
   tol = 1.0e-2
 )
 
+# the replacement data keeps the sampler's cut-point resolution, and the fit
+# after the swap is good in ABSOLUTE terms - the paired comparison above
+# passes just as well when both sides degrade together
+expect_equal(sampler$data@n.cuts, rep_len(n.cuts, ncol(sampler$data@x)))
+expect_true(sd(apply(samples2$train, 1, mean) - y) < 0.5 * sd(y))
+
 rm(
   samples2,
   x.new,

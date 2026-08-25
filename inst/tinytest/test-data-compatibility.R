@@ -9,23 +9,27 @@ testData$offset <- rnorm(length(testData$y))
 
 attach(testData)
 expect_inherits(dbarts::dbartsData(x, y), "dbartsData")
-expect_inherits(
-  dbarts::dbartsData(x, y, weights = weights),
-  "dbartsData"
+# each channel must ARRIVE on the object, not merely be accepted by the call
+dat <- dbarts::dbartsData(x, y, weights = weights)
+expect_equal(dat@weights, weights)
+dat <- dbarts::dbartsData(x, y, offset = offset)
+expect_equal(dat@offset, offset)
+dat <- dbarts::dbartsData(x, y, weights = weights, offset = offset)
+expect_equal(dat@weights, weights)
+expect_equal(dat@offset, offset)
+# and the subset applies to all three, in row order
+dat <- dbarts::dbartsData(
+  x,
+  y,
+  subset = 1:10,
+  weights = weights,
+  offset = offset
 )
-expect_inherits(
-  dbarts::dbartsData(x, y, offset = offset),
-  "dbartsData"
-)
-expect_inherits(
-  dbarts::dbartsData(x, y, weights = weights, offset = offset),
-  "dbartsData"
-)
-expect_inherits(
-  dbarts::dbartsData(x, y, subset = 1:10, weights = weights, offset = offset),
-  "dbartsData"
-)
+expect_equal(dat@y, y[1:10])
+expect_equal(dat@weights, weights[1:10])
+expect_equal(dat@offset, offset[1:10])
 detach(testData)
+rm(dat)
 
 testData$weights <- NULL
 testData$offset <- NULL
