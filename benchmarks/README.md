@@ -1,7 +1,7 @@
 # Benchmarks and equivalence harness
 
-Phase-0 tooling for the core-generalization work
-(docs/design/core-generalization.md). Nothing here ships with the package
+Benchmark and equivalence tooling for the bartcore engine (background:
+docs/design/core-generalization.md). Nothing here ships with the package
 (excluded via .Rbuildignore). All of it runs against the *installed* dbarts,
 except the kernel benchmark, which links the in-tree static library; build
 first with `R CMD INSTALL .` from the package root.
@@ -32,13 +32,10 @@ depends on the chain state).
 
 `compare` exits nonzero if any metric is more than 5% slower. Record and
 compare on the same quiet machine; append `quick` only for smoke tests.
-An `engine=` flag is accepted for compatibility with old invocations and
-ignored: the installed package always runs the bartcore engine, and the
-classic baselines in baselines/ are marked historical-classic in the
-MANIFEST - the engine that recorded them is deleted, so they can never be
-re-recorded. Sub-millisecond metrics drift a few percent between
-invocations on a laptop; confirm a marginal flag by re-running before
-chasing it.
+An `engine=` flag is accepted and ignored: the installed package always
+runs the bartcore engine. Sub-millisecond metrics drift a few percent
+between invocations on a laptop; confirm a marginal flag by re-running
+before chasing it.
 
 ## R/equivalence.R - statistical equivalence
 
@@ -73,11 +70,8 @@ gate on.
 
 Passing `engine=new` routes the comparison side through a standalone shim
 build of the in-tree engine (tests/cpp/rshim.cpp, built on demand by
-benchmarks/R/bartcore-shim.R) instead of the installed package. This was
-the phase-1 classic-vs-bartcore correctness gate; it remains usable to
-compare a working-tree engine against an installed build. The recorded
-classic baselines in baselines/ are historical-classic: the engine that
-produced them is deleted.
+benchmarks/R/bartcore-shim.R) instead of the installed package. It
+compares a working-tree engine against an installed build.
 
 ## R/*-exact.R, *-balance.R - deterministic exact-posterior gates
 

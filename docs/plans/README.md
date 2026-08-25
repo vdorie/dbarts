@@ -1,8 +1,9 @@
 # Plan process
 
-The TODO at the repo root is an unordered backlog; every item names a
-plan file here. This document is the contract between the planning
-agent, the implementing agents, and the reviewer.
+The TODO at the repo root is an unordered backlog; most items name a
+plan file here, a few record instead in a design doc or a
+differently-named plan. This document is the contract between the
+planning agent, the implementing agents, and the reviewer.
 
 ## Roles
 
@@ -19,7 +20,11 @@ change the posterior? Opus. Otherwise Sonnet.
 
 ## Plan format
 
-One file per TODO item, `<item>.md`, hard cap 80 lines. Front block:
+One file per TODO item, `<item>.md`. A small decision-gated stub
+targets roughly 80 lines; a landed or multi-slice item's file commonly
+runs to several hundred lines (occasionally thousands) once Landing
+notes, amendments, and session logs accumulate - there is no enforced
+cap on the final file. Front block:
 `agent:`, `rng:`, `window:` (if any), `budget:` (expected diff size).
 Sections:
 
@@ -35,14 +40,16 @@ Sections:
 
 ## Cross-references
 
-Cite a durable landmark, never a bare line number: line numbers shift on
-every insertion above them, while the thing cited did not move. For code,
-name the symbol - `rollTreeResidual (chain.hpp)`, not `chain.hpp:2581`.
-For a doc, name the section title or item label - `data-ownership.md
-"Implementation record" item 5`, not `data-ownership.md:180`. A line may
-trail a symbol as a convenience, never stand as the anchor. State each
-fact in one home doc; elsewhere link to it by title, do not restate it
-(a copied fact is a second thing to keep in sync, and the one that rots).
+Cite a durable landmark: name the symbol, section title, or item label
+the change would move with - `rollTreeResidual (chain.hpp)`, not
+`chain.hpp:2581`; `data-ownership.md "Implementation record" item 5`,
+not `data-ownership.md:180`. A `file:NNN` line number commonly rides
+alongside as a locating convenience - in practice most citations across
+docs/plans/ carry one - and `tools/check-doc-freshness.R` verifies the
+cited symbol still occurs in the file, catching a moved anchor even
+where the citation is bare. State each fact in one home doc; elsewhere
+link to it by title, do not restate it (a copied fact is a second thing
+to keep in sync, and the one that rots).
 
 ## RNG classes and their gates
 
@@ -54,7 +61,7 @@ fact in one home doc; elsewhere link to it by title, do not restate it
   statistical (z) mode against the previous baseline.
 - posterior-changing: the stationary distribution or a default changes.
   Gates: all of the above, plus the exact-posterior gates
-  (benchmarks/R/logistic-reference.R, categorical-exact.R) and a design
+  (.github/workflows/exact-gates.yaml's per-family list) and a design
   note in docs/design/.
 
 Hot-path changes of any class additionally need bench-sampler.R compare
@@ -95,8 +102,7 @@ on a quiet machine (maintainer-run; never concurrent with other load).
 3. ABI: any diff under inst/include/dbarts/ is an ABI event. A new
    capability must be a NEW name (append-only); a changed signature is
    a SILENT break for LinkingTo consumers - they call through their own
-   declarations and get stack garbage, not a link error (the getTrees
-   break of 2e2b1c9 corrupted stan4bart's tree extraction for a week).
+   declarations and get stack garbage, not a link error.
    Either keep the shipped signature or bump the api version, and
    build+test stan4bart against the change before landing.
 4. Brevity: comment/code delta, report length, no narration.
@@ -107,5 +113,5 @@ on a quiet machine (maintainer-run; never concurrent with other load).
    directly or withdraw and replan.
 7. Records at landing: append the plan's `## Landing` note AND bump the
    matching `docs/design/<x>.md` `Status:` line to `LANDED <date> (<commit>)`.
-   The design Status is the record that repeatedly falls through - six design
-   docs once shipped still marked "proposal" while the feature had landed.
+   The design Status line is the record most often missed; check it
+   explicitly at every landing.

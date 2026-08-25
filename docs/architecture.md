@@ -51,8 +51,11 @@ produce the same triple through supported surface
 (docs/design/consumer-spec-surface.md).
 
 Non-obvious conventions: `useDynLib(dbarts, .fixes = "C_")` (NAMESPACE)
-means every `.Call` bridge entry point is reached from R as
-`C_dbarts_bartcore_*`; `dbartsSampler` is created and held C-side via an
+means every `.Call` bridge entry point is reached from R as `C_dbarts_*`
+(the engine-facing entries carry a `bartcore_` infix; a handful of
+utility entries - `assignInPlace`, `deepCopy`, `finalize`,
+`guessNumCores`, `makeModelMatrixFromDataFrame` - do not); `dbartsSampler`
+is created and held C-side via an
 external pointer stored on the R5 object, targeting a
 `bartcore::SamplerBase`; `src/bartcore/` is header-only and compiles into
 whichever translation unit includes it (the two `R_interface_*` bridges and
@@ -194,8 +197,7 @@ every chain in a sampler shares (chains never mutate it directly). Layout:
   against per-column cut points (ordinal) or the raw category value
   (categorical). `xint_t` is `std::uint16_t` uniformly - there is no
   per-column code-width selection (u8 for low-cardinality columns) in the
-  shipped store, despite that being a documented aspiration in
-  docs/design/core-generalization.md; every column pays the 16-bit width.
+  shipped store; every column pays the 16-bit width.
 - **Cut points**: `std::vector<std::vector<double>> cutPoints` plus
   `numCuts`/`maxNumCuts` per column. ColumnStore is the sole owner of cut
   construction and re-quantization - uniform-over-range or quantile mode,
@@ -222,8 +224,7 @@ every chain in a sampler shares (chains never mutate it directly). Layout:
   the mask-pool machinery in `Tree`.
 
 None of this is arena-allocated; every array is an ordinary `std::vector`
-sized at build or mutation time. Treat "arena-allocated" as another
-documented aspiration the shipped store does not implement.
+sized at build or mutation time.
 
 ## The mutation surface and its transaction semantics
 
@@ -343,6 +344,15 @@ to set `onSweep` alongside worker-thread chains, and
 callback still only sees one chain progress at a time - chain c completes
 every sweep before chain c + 1 starts.
 
+**Prediction** (`Sampler::predictColumns`, sampler.hpp) mirrors `run`'s
+worker-thread design: a per-call `n.threads` partitions the (chain, draw)
+slab list across a `std::thread` fan-out with no cross-thread reduction, so
+replay is bitwise identical at every thread count, including the inline
+below-cutoff path. `numThreads = 0` floors to the sampler's own thread
+count; the R5 `predict`/`predictForests` default to the fit's thread count,
+and the formal is appended last on every generic (docs/design/
+threaded-predict.md).
+
 ## Gates
 
 Changes are classified by RNG effect and gated accordingly:
@@ -351,7 +361,7 @@ Changes are classified by RNG effect and gated accordingly:
 |---|---|---|
 | neutral | draws unchanged | `tests/cpp` component tests; full tinytest suite |
 | shifting | draws change, posterior does not | neutral's gates, plus regenerated RNG-locked tinytest snapshots, a re-recorded equivalence baseline, and the statistical (z) equivalence mode against the previous baseline |
-| posterior-changing | stationary distribution or a default changes | shifting's gates, plus the exact-posterior gates (`benchmarks/R/logistic-reference.R`, `benchmarks/R/categorical-exact.R`) and a design note in docs/design/ |
+| posterior-changing | stationary distribution or a default changes | shifting's gates, plus the exact-posterior gates (`.github/workflows/exact-gates.yaml`'s per-family list) and a design note in docs/design/ |
 
 Any hot-path change, regardless of class, additionally needs
 `benchmarks/R/bench-sampler.R compare` against a saved baseline, run on an

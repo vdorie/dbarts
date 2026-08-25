@@ -374,7 +374,7 @@ The Dirichlet concentration `alpha` is itself sampled by default (`update.alpha 
 
 `dbarts` and `bart2` take a `data.frame` directly, and (`factors = "categorical"`, the default for both) an unordered factor predictor becomes a single categorical column: its splits send a subset of levels down each branch, rather than the one-indicator-per-level expansion `bart` still uses. `factors = "indicators"` recovers that expansion on either function, useful for comparing the two. Ordered factors always code as ordinal, on their integer levels, regardless of `factors`.
 
-Missing predictor values need not be removed beforehand. The default `missing = "incorporate"` gives every split rule a learned direction for `NA`: an observation whose split variable is missing follows that rule's direction ("Missing Incorporated in Attributes", Twala et al. 2008), estimated jointly with the rest of the tree. `missing = "error"` instead rejects predictors containing `NA`, matching older versions.
+Missing predictor values need not be removed beforehand. The default `missing = "incorporate"` gives every split rule a learned direction for `NA`: an observation whose split variable is missing follows that rule's direction ("Missing Incorporated in Attributes", Twala et al. 2008), estimated jointly with the rest of the tree. `missing = "error"` instead rejects any predictor containing `NA`.
 
 ```{r missing_example}
 set.seed(13)
